@@ -165,11 +165,11 @@ async function deliver(type, data) {
   await page.waitForLoadState("load");
 }
 
-await step("Hiring tells of a hire: HR sees the arrival and prepares it before she has access", async () => {
+await step("Hiring tells of a hire: HR sees the arrival and prepares it before he has access", async () => {
   await as(context, origin, "camille");
-  await deliver("hiring.hired", { candidate: "cand_7", name: "Lucie Garnier", email: "lucie@example.com", job: "Sales associate", team: "Sales", place: "Lyon", startDate: "2026-11-02", hiredBy: id("ines") });
+  await deliver("hiring.hired", { candidate: "cand_7", name: "Marc Lefort", email: "lucie@example.com", job: "Sales associate", team: "Sales", place: "Lyon", startDate: "2026-11-02", hiredBy: id("ines") });
   await page.goto(origin + "/chest/checklists");
-  const arrival = page.locator(".arrival", { hasText: "Lucie Garnier" });
+  const arrival = page.locator(".arrival", { hasText: "Marc Lefort" });
   expect((await arrival.innerText()).includes("Sales associate") && (await arrival.innerText()).includes("2 November"), "arrival shown");
   await arrival.getByRole("link", { name: "Start the arrival checklist" }).click();
   await page.waitForURL(/\/chest\/checklists\/new\?arrival=/u);
@@ -178,18 +178,18 @@ await step("Hiring tells of a hire: HR sees the arrival and prepares it before s
   await page.getByRole("button", { name: "Start", exact: true }).click();
   await page.waitForURL(/\/chest\/checklists\/\d+$/u);
   const text = await page.locator("main").innerText();
-  expect(text.includes("Welcome Lucie Garnier") && text.includes("the newcomer, once they have access") && text.includes("Inès Moreau"), "journey: " + text.slice(0, 300));
+  expect(text.includes("Welcome Marc Lefort") && text.includes("the newcomer, once they have access") && text.includes("Inès Moreau"), "journey: " + text.slice(0, 300));
 });
 
 await step("a hire cancelled after the checklist started: marked cancelled, HR removes it", async () => {
   await deliver("hiring.hire_cancelled", { candidate: "cand_7" });
   await page.goto(origin + "/chest/checklists");
-  const arrival = page.locator(".arrival", { hasText: "Lucie Garnier" });
+  const arrival = page.locator(".arrival", { hasText: "Marc Lefort" });
   expect((await arrival.innerText()).includes("Hire cancelled"), "cancelled");
   await arrival.getByRole("button", { name: "Remove" }).click();
   await page.waitForSelector(".toast");
   await page.reload();
-  expect(await page.locator(".arrival", { hasText: "Lucie Garnier" }).count() === 0, "removed");
+  expect(await page.locator(".arrival", { hasText: "Marc Lefort" }).count() === 0, "removed");
 });
 
 await step("a hire who already has access is offered to link on the directory, in one click", async () => {

@@ -223,7 +223,11 @@ Clients only fills what is empty in Quotes.** A field a person wrote here
 is never overwritten — this card prints on legal documents, and someone may
 have corrected it on purpose. Every field is checked (SIREN and VAT keys,
 email, country); an invalid value is dropped, an event of another shape is
-accepted and ignored. Code: `lib/crm.ts`, `app/chest-events/route.ts`;
+accepted and ignored. Nothing is invented: what Clients does not send stays
+empty (today it sends the company's name and its address as free text, and
+the contact) — the client card then asks for the city before an invoice.
+The country is the card's own default (France), as for a client added by
+hand. Code: `lib/crm.ts`, `app/chest-events/route.ts`;
 tests: `test/crm.test.ts` (`chest.deliver`).
 
 ## Develop

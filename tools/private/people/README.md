@@ -46,6 +46,39 @@ the Notion "team" page or shared "who's who" spreadsheet.
   says what will change and what is left out; empty cells change nothing.
   **Export** the directory as CSV (the same columns: it round-trips).
 
+## With the other tools
+
+**Hiring → People** (Proposal (studio): events between tools, once an
+admin linked the two; `chest.proposals.json` `receives`):
+
+- `hiring.hired` `{candidate, name, email, job, team, place, startDate,
+  hiredBy}` makes an **arrival**: someone coming who is not a member yet.
+  HR is told in the bell, in their language ("Hiring: Lucie Garnier joins
+  on 2 November as Sales associate") and sees them under *Arriving* on the
+  Checklists page (and in *Arriving soon* on the directory). Told again for
+  the same candidate (a new date, a new job, or brought back after a
+  cancellation), the same arrival is brought up to date — never a
+  duplicate. Every field is checked; an event of another shape changes
+  nothing.
+- HR can **start the arrival checklist before they have access**: steps for
+  their manager-to-be (chosen then), HR or named people run at once; steps
+  for the newcomer wait ("once they have access").
+- When the newcomer gets the tool, HR **links** the arrival to them — on the
+  Checklists page, or in one click when People notices a member of the same
+  name (on the directory and on their profile). Their profile's empty
+  fields take the job, team, office, start date and manager; the checklist
+  becomes theirs and their steps reach their bell.
+- `hiring.hire_cancelled` `{candidate}`: the arrival goes if nothing was
+  started for it; otherwise it is marked *Hire cancelled*, its checklist
+  stopped (its steps leave everyone's bell) and HR is told; HR removes it.
+  Brought back into Hired, it is expected again (a stopped checklist is
+  restarted by HR from its page).
+- **Personal data of arrivals**: the email Hiring sends is never stored.
+  Once linked, the arrival keeps no personal data (only which hire became
+  which member, so a repeated event changes nothing). Never linked, the
+  arrival and its checklists are deleted 90 days after the start date (or
+  after it was told, without a date).
+
 ## Roles
 
 | Role (`chest.json`) | Label | May |
@@ -119,10 +152,15 @@ The owner, the admins and the tool's builders arrive as `hr`.
   departed profiles. **Without it** the tool is fully usable: the tile's
   number is set whenever a step changes and when its owner opens *My
   to-dos*, and the purge runs whenever the directory is read.
-- **Wished for, not built**: **email** would let HR send a welcome message before day 1 (the newcomer
-  often has no Chest access yet); **events between tools** would let
-  *Hiring* create the profile and start the arrival checklist, and
-  *Equipment* add "return the laptop" steps automatically.
+- **Events between tools** — **Proposal (studio)**: `hiring.hired`,
+  `hiring.hire_cancelled` (see "With the other tools"). Without it, HR
+  starts checklists for members only.
+- **The Chest's time zone** — **Proposal (studio)** (`chest.timeZone()`,
+  `chest.today()`): "today", due days and anniversaries.
+- **Wished for, not built**: **email** would let HR send a welcome message
+  before day 1 (the newcomer often has no Chest access yet); more events
+  between tools would let *Equipment* add "return the laptop" steps to a
+  departure automatically.
 
 ## Develop
 

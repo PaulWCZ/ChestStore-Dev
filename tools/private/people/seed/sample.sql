@@ -61,3 +61,7 @@ insert into journey_items (journey_id, position, text, role, assignee, due_on, d
   (1, 9, 'Set the first goals together', 'manager', 'mbr_inesaaaaaaaaaaaaaaaaaaaaaa', current_date + 1, null, null),
   (1, 10, 'One-month check-in', 'manager', 'mbr_inesaaaaaaaaaaaaaaaaaaaaaa', current_date + 24, null, null),
   (1, 11, 'Plan a coffee with Tom (remote)', 'member', 'mbr_tomaaaaaaaaaaaaaaaaaaaaaaa', current_date + 2, null, null);
+
+-- Told by Hiring (events between tools): Lucie arrives in twelve days.
+insert into arrivals (source, ref, name, job, team, place, start_date, hired_by) values
+  ('hiring', 'cand_42', 'Lucie Garnier', 'Sales associate', 'Sales', 'Lyon', current_date + 12, 'mbr_inesaaaaaaaaaaaaaaaaaaaaaa');

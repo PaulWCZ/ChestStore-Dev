@@ -15,6 +15,8 @@ must not break.
 | `lib/directory.ts` | The directory: the Chest's members + profiles |
 | `lib/tree.ts`, `lib/calendar.ts` | The org chart from managers; newcomers, arrivals, birthdays, anniversaries — pure, used in pages |
 | `lib/journeys.ts` | Templates and checklists (called *journeys* in code): start, tick, edit steps, stop, lists, counts |
+| `lib/arrivals.ts` | Arrivals told by Hiring (events between tools): read and check each event, cancel, link to a member, remove, purge after 90 days, name suggestions |
+| `lib/zone.ts` | The Chest's time zone and today (the `chest` module) — server only |
 | `lib/examples.ts` | The two example templates, in the reader's words |
 | `lib/importer.ts`, `lib/export.ts`, `lib/csv.ts` | CSV import (header aliases, name matching, dates), export, CSV reading/writing (formula-safe) |
 | `lib/people.ts` | Names and photos from ids (`people`, `nameOf`), everyone (`everyone`), who is here (`present`) |
@@ -46,6 +48,9 @@ npm ci && npm test && npm run build   # all three must pass
 - **Managers never loop**: every write of `manager_id` goes through
   `wouldLoop` inside a transaction holding the `people.managers` advisory
   lock (profiles, import, lifecycle).
+- **Arrivals hold personal data of people who are not members**: never
+  store their email; clear everything when linked; keep the 90-day purge.
+  A tool event is validated field by field and ignored when it does not fit.
 - **Birthdays are opt-in**: stored only while the person shows it; never
   written by HR nor by the import.
 - **Add an ability → a line in `test/access.test.ts`.** Add a service →

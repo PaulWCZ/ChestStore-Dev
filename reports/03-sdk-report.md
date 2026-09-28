@@ -400,6 +400,17 @@ typed, tested, faked in `testing`, documented in `sdk/README.md` under
 - **Risks**: the Chest used to probe third parties (bounded: the owner sees
   every address, 10 per tool, GET only, no private addresses, no cookies);
   noise (results are signed and deduplicated by id).
+- **Used by Status**: an editor sets an https address per service (private
+  networks and credentials refused); after three failures in a row every
+  editor's bell rings and *Now* offers a prefilled incident — the tool never
+  posts publicly by itself; the public page shows the measured share of
+  checks answered in time beside the declared uptime. When the Chest
+  refuses the capability, the page says so and the rest works.
+- **Still missing**: a heartbeat address a customer's own job calls
+  (silence means down), a keyword expected in the page, and results kept
+  by the Chest so a newly installed tool starts with history. The fake
+  refuses a result for a check the tool no longer lists, so that case is
+  tested without it.
 - **Elsewhere**: Better Stack and UptimeRobot probe from their clouds, then
   push to a status page — the same split, inside one company's server.
 
@@ -445,13 +456,36 @@ process between requests).
 
 The pitch is "one flat price for all your tools", but what a SaaS bundle
 cannot match is tools that **know each other** without an integration
-project. The first link is built: **Leave → Rooms**. When a leave is
+project. Three links are built, each tested on both sides with
+`chest.published` and `chest.deliver`, and shown in the receiver's browser
+flow through the harness's `/_dev/deliver`.
+
+**Leave → Rooms.** When a leave is
 approved, Leave publishes `leave.approved` (who, which days, which halves —
 never the kind nor the note); Rooms, linked by the admin, marks those whole
 days "Off" and frees the person's desk; `leave.cancelled` takes back exactly
 the days it marked (`tools/private/leave/lib/share.ts`,
-`tools/private/rooms/lib/away.ts`, tested on both sides with
-`chest.published` and `chest.deliver`).
+`tools/private/rooms/lib/away.ts`).
+
+**Hiring → People.** When a candidate is hired, Hiring publishes
+`hiring.hired` (name, job, team, place, start date, who hired — the email
+travels but People never stores it); undoing it publishes
+`hiring.hire_cancelled`. People turns the hire into an *arrival*: HR is
+told, can start the arrival checklist *before the person has access* (the
+newcomer's own steps wait), and links the arrival to the member once they
+join — suggested when exactly one member's name matches. Once linked, the
+arrival keeps no personal data; one never linked is deleted 90 days after
+its start date (`tools/public-and-private/hiring/lib/share.ts`,
+`tools/private/people/lib/arrivals.ts`).
+
+**Clients → Quotes.** When a deal is won, Clients publishes
+`crm.deal.won` (deal, title, amount and currency, owner, company and
+contact); Quotes makes one draft quote for it, owned by the deal's owner if
+they may write quotes (otherwise the sales people are told), and matches
+the client by reference, then by SIREN, else creates it.
+`crm.deal.reopened` deletes the draft only if nobody touched it; a changed
+or sent quote stays, and its history says why
+(`tools/private/crm/lib/share.ts`, `tools/private/quotes/lib/crm.ts`).
 
 What building it taught:
 
@@ -465,12 +499,23 @@ What building it taught:
   belongs in the SDK's documentation.
 - **Idempotency keys must carry the version of the fact** (approved, taken
   back, approved again = two events): `leave:<id>:approved:<decided at>`.
+- **A receiver fills, it never overwrites.** Quotes fills only the empty
+  fields of an existing client (a legal document's client card may have
+  been corrected on purpose); People fills only the empty fields of a
+  profile. Both chose this independently: it should be the documented rule.
+- **Before the person exists.** A hire arrives before the member does, so
+  People needs a record that is *not yet a member* and a way to match it
+  later. `members.match({name})` in the Chest (who is this, among members
+  and invitations?) would replace each tool's own guess by name.
+- **Take back only what nobody touched.** Clients' reopen and Hiring's
+  cancel both ask the receiver to undo; both receivers undo only an
+  untouched record and otherwise leave a note. Events need no "undo"
+  primitive, but the SDK guide should show this pattern.
 - **No harness for two tools yet.** `lab/chest-dev` runs one tool; a local
   Chest running several, with the admin's links, would let a flow show the
   suite working end to end. Tests on both sides stand in for it.
 
-Next links, by value: Hiring → People (a hire becomes a newcomer with the
-arrival checklist), Clients → Quotes (a deal won starts a quote), People →
+Next links, by value: People →
 Equipment (a departure lists what to take back), Leave → News (who is away
 today), Support → Clients (a customer's history).
 

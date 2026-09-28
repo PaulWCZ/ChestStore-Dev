@@ -118,6 +118,17 @@ test("a deal reopened: an untouched draft goes (and can come back); a changed or
   assert.equal((await getDocument(sql, asMember(lea), sent, today)).status, "sent");
 });
 
+test("as Clients sends it: the address as free text, the rest null — nothing invented", async () => {
+  await told("crm.deal.won", { deal: "D12", title: "Site vitrine", amount: 120000, currency: "EUR", owner: hugo.id,
+    company: { ref: "co-12", name: "Atelier Céramique Noé", address: "14 montée de la Grande-Côte\n69001 Lyon", postcode: null, city: null, country: null, siren: null, vat: null, email: null },
+    contact: { name: "Noé Garnier", email: null } });
+  const q = await getDocument(database.sql, asMember(lea), String(await quoteOf("D12")), today);
+  assert.equal(q.client?.name, "Atelier Céramique Noé");
+  assert.equal(q.client?.address, "14 montée de la Grande-Côte\n69001 Lyon");
+  assert.deepEqual([q.client?.postcode, q.client?.city, q.client?.siren, q.client?.vatNumber, q.client?.email], ["", "", "", "", ""]);
+  assert.equal(q.client?.contact, "Noé Garnier");
+});
+
 test("events of another shape are accepted and change nothing", async () => {
   const { sql } = database;
   const [before] = await sql<{ n: number }[]>`select count(*)::int as n from documents`;

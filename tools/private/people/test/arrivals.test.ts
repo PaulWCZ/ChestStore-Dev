@@ -128,6 +128,11 @@ test("a hire cancelled: gone if nothing started; otherwise marked cancelled, its
   const told = chest.notifications.filter(n => n.key === `arrival:${a.id}` && n.member === sofia.id);
   assert.deepEqual(told.map(n => [n.title, n.body]), [["Hiring: Julie Roux’s hire was cancelled", "The checklist started for them is stopped."]]);
   await assert.rejects(j.startJourney(sql, hr, { arrivalId: a.id, templateId: t.id, anchor: "2026-11-16" }), refused("not_found"));
+  // Brought back into Hired (a new event, a new date): the same arrival, expected again.
+  assert.equal(await hire({ ...lucie, candidate: "cand_51", name: "Julie Roux", startDate: null }), 204);
+  const back = (await arrivals.listArrivals(sql, hr)).filter(x => x.name === "Julie Roux");
+  assert.deepEqual(back.map(x => [x.id, x.status, x.startDate, x.checklists]), [[a.id, "expected", null, 1]]);
+  assert.equal(await cancel("cand_51"), 204);
   await assert.rejects(arrivals.removeArrival(sql, asMember(hugo), a.id), refused("forbidden"));
   const removed = await arrivals.removeArrival(sql, hr, a.id);
   assert.deepEqual(removed.journeys.map(x => x.id), [started.id]);

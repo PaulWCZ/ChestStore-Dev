@@ -109,7 +109,7 @@ await step("a mistake is corrected and logged; a removed update comes back with 
   await page.locator(".team-timeline textarea").fill("Some orders failed at the last step.");
   await page.getByRole("button", { name: "Save" }).click();
   await page.waitForSelector(".toast >> text=Update corrected.");
-  expect((await page.locator(".team-timeline").innerText()).includes("Corrected by You"), "logged");
+  await page.waitForSelector(".team-timeline >> text=Corrected by You");
   await page.locator(".team-timeline .step").nth(1).getByRole("button", { name: "Remove" }).click();
   await page.getByRole("button", { name: "Undo" }).click();
   await page.waitForSelector(".toast >> text=The update is back on the page.");

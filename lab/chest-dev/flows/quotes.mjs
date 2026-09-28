@@ -192,7 +192,7 @@ await step("a deal won in Clients becomes a draft quote for Hugo; reopened untou
   expect((await page.locator(".totals").innerText()).replace(/\s/gu, " ").includes("3 000,00 €"), "the deal's amount, VAT added");
   await page.request.post(origin + "/_dev/deliver", { form: { type: "crm.deal.won", data: JSON.stringify(deal) } });
   await page.goto(origin + "/chest/quotes?state=draft");
-  expect((await page.locator(".ledger").innerText()).split("Nouvelle vitrine").length === 2, "once only");
+  expect(await page.locator(".ledger-row", { hasText: "Nouvelle vitrine" }).count() === 1, "once only");
   await page.request.post(origin + "/_dev/deliver", { form: { type: "crm.deal.reopened", data: JSON.stringify({ deal: "flow-42" }) } });
   const gone = await page.request.get(url);
   expect(gone.status() === 404, "untouched draft deleted: " + gone.status());
