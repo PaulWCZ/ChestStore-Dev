@@ -1,0 +1,4 @@
+{
+  "mail": { "send": true, "mailboxes": ["support"] },
+  "schedules": [{ "name": "cleanup", "cron": "15 3 * * *" }]
+}

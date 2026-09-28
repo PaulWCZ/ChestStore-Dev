@@ -5,7 +5,7 @@ import { can } from "../../lib/access.ts";
 import { listBoards } from "../../lib/boards.ts";
 import { myTasks } from "../../lib/cards.ts";
 import { db } from "../../lib/db.ts";
-import { plural } from "../../lib/i18n/index.ts";
+import { intl, plural } from "../../lib/i18n/index.ts";
 import { dueState, today, type DueState } from "../../lib/model.ts";
 import { viewer } from "../../lib/session.ts";
 import { refreshBadges } from "../../lib/tell.ts";
@@ -35,7 +35,7 @@ export default async function Home() {
     boardColor: task.boardColor,
     columnId: task.columnId,
     due: task.due,
-    dueLabel: task.due ? new Intl.DateTimeFormat(locale, { day: "numeric", month: "short", timeZone: "UTC" }).format(new Date(task.due + "T00:00:00Z")) : null,
+    dueLabel: task.due ? new Intl.DateTimeFormat(intl(locale), { day: "numeric", month: "short", timeZone: "UTC" }).format(new Date(task.due + "T00:00:00Z")) : null,
     state: dueState(task.due, now),
     checklist: task.checklist,
     done: doneColumns.get(task.boardId) ?? null,

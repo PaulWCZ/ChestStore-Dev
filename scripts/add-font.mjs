@@ -50,7 +50,9 @@ try {
     const file = /url\(\.\/files\/([^)]+\.woff2)\)/u.exec(block)?.[1];
     if (!file) continue;
     copyFileSync(join(dir, "files", file), join(out, file));
-    rules.push(block.replace(/url\(\.\/files\/([^)]+\.woff2)\)/u, "url(/fonts/$1)").replace(/src: url\(([^)]+)\) format\('woff2-variations'\)/u, "src: url($1) format('woff2')").trim());
+    // Only the WOFF2 file: every browser the tools support reads it (the
+    // .woff fallback of static packages is dropped).
+    rules.push(block.replace(/,\s*url\(\.\/files\/[^)]+\.woff\) format\('woff'\)/u, "").replace(/url\(\.\/files\/([^)]+\.woff2)\)/u, "url(/fonts/$1)").replace(/src: url\(([^)]+)\) format\('woff2-variations'\)/u, "src: url($1) format('woff2')").trim());
   }
   const family = /font-family: '([^']+)'/u.exec(unique[0] ?? "")?.[1] ?? slug;
   const licence = readdirSync(dir).find(f => /^LICEN[CS]E/u.test(f));

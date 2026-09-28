@@ -1,0 +1,12 @@
+// The Support mark: two speech bubbles, the customer's (coral) answered by
+// the team's (teal). The Chest's tile uses chest/icon.svg, the same drawing.
+export function Mark() {
+  return (
+    <svg viewBox="0 0 48 48" aria-hidden="true" focusable="false">
+      <rect width="48" height="48" rx="14" fill="#0b6e69" />
+      <path d="M9 12.5a4 4 0 014-4h13a4 4 0 014 4v7a4 4 0 01-4 4h-8.5l-5.5 4.5v-4.5a4 4 0 01-3-3.9z" fill="#ffd9cf" />
+      <path d="M39 24.5a4 4 0 00-4-4H22a4 4 0 00-4 4v7a4 4 0 004 4h8.5l5.5 4.5v-4.5a4 4 0 003-3.9z" fill="#fff" />
+      <path d="M24 28.5h10" stroke="#0b6e69" strokeWidth="2.6" strokeLinecap="round" />
+    </svg>
+  );
+}

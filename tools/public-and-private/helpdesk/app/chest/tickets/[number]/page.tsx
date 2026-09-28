@@ -1,0 +1,68 @@
+import { notFound } from "next/navigation";
+import { answerers } from "../../../../lib/tell.ts";
+import { can } from "../../../../lib/access.ts";
+import { db } from "../../../../lib/db.ts";
+import { AppError } from "../../../../lib/errors.ts";
+import { format, formatDate, relative } from "../../../../lib/i18n/index.ts";
+import { fillReply } from "../../../../lib/model.ts";
+import { nameOf, people } from "../../../../lib/people.ts";
+import { viewer } from "../../../../lib/session.ts";
+import { savedReplies, ticket as readTicket } from "../../../../lib/tickets.ts";
+import { TicketView } from "./ticket-view.tsx";
+
+// One ticket: the conversation, the answer box (reply or internal note),
+// and beside it who it is from, who has it, its state.
+export default async function TicketPage({ params }: { params: Promise<{ number: string }> }) {
+  const v = await viewer();
+  if (!v) return null;
+  const { member, locale, t } = v;
+  const sql = db();
+  let ticket;
+  try {
+    ticket = await readTicket(sql, member, (await params).number);
+  } catch (error) {
+    if (error instanceof AppError && error.code === "not_found") notFound();
+    throw error;
+  }
+  const team = await answerers();
+  const authors = ticket.messages.map(m => m.author).filter((a): a is string => !!a && a.startsWith("mbr_"));
+  const who = await people([...team, ...authors, ...ticket.viewing, ...(ticket.assignee ? [ticket.assignee] : [])]);
+  const name = (id: string | null) => (id === member.id ? t.people.you : id === "erased" ? t.people.erased : nameOf(id ? who.get(id) : undefined, locale));
+  const replies = await savedReplies(sql, member);
+  const now = new Date();
+  const customer = ticket.customerName || ticket.customerEmail;
+  return (
+    <TicketView
+      ticket={{
+        number: ticket.number,
+        subject: ticket.subject,
+        status: ticket.status,
+        channel: ticket.channel,
+        customerName: ticket.customerName,
+        customerEmail: ticket.customerEmail,
+        assignee: ticket.assignee,
+        created: formatDate(ticket.createdAt, locale, { dateStyle: "long", timeStyle: "short" }),
+      }}
+      messages={ticket.messages.map(m => ({
+        id: m.id,
+        kind: m.kind,
+        who: m.kind === "customer" ? customer : name(m.author),
+        typedBy: m.kind === "customer" && m.author ? format(t.ticket.typedBy, { name: name(m.author) }) : null,
+        photo: m.author ? who.get(m.author)?.photo ?? null : null,
+        body: m.body,
+        when: relative(m.at, locale, now),
+        date: formatDate(m.at, locale, { dateStyle: "full", timeStyle: "short" }),
+        delivery: m.delivery,
+        attachments: m.attachments,
+      }))}
+      others={ticket.others.map(o => ({ ...o, when: relative(o.updatedAt, locale, now) }))}
+      viewing={ticket.viewing.map(id => name(id))}
+      team={team.map(id => ({ id, name: name(id), photo: who.get(id)?.photo ?? null }))}
+      replies={replies.map(r => ({ ...r, filled: fillReply(r.body, { customer: ticket.customerName.split(" ")[0] || "", agent: member.firstName || member.name }) }))}
+      me={member.id}
+      canAnswer={can(member, "tickets.answer")}
+      canManage={can(member, "tickets.manage")}
+      t={{ ticket: t.ticket, errors: t.errors, people: t.people }}
+    />
+  );
+}

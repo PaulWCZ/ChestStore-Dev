@@ -30,7 +30,7 @@ import { useToast } from "../../../../components/toast.tsx";
 import type { BoardAccess } from "../../../../lib/access.ts";
 import type { Column, Label } from "../../../../lib/boards.ts";
 import type { CardSummary } from "../../../../lib/cards.ts";
-import { format, plural } from "../../../../lib/i18n/format.ts";
+import { format, intl, plural } from "../../../../lib/i18n/format.ts";
 import type { Catalogue, Locale } from "../../../../lib/i18n/index.ts";
 import { addCard, addColumn, archiveBoard, archiveColumn, moveCard, moveColumn, updateColumn } from "../../actions.ts";
 
@@ -353,7 +353,7 @@ function CardTile({ card, labels, people, today, locale, overlay = false, t }: {
       <span className="card-title">{card.title}</span>
       {(due || card.checklist.total > 0 || card.comments > 0 || card.attachments > 0 || card.hasDescription || card.assignees.length > 0) && (
         <span className="meta">
-          {due && <span className={`chip ${card.done ? "done" : state}`}><Calendar />{state === "due-today" ? t.card.today : new Intl.DateTimeFormat(locale, { day: "numeric", month: "short", timeZone: "UTC" }).format(new Date(due + "T00:00:00Z"))}</span>}
+          {due && <span className={`chip ${card.done ? "done" : state}`}><Calendar />{state === "due-today" ? t.card.today : new Intl.DateTimeFormat(intl(locale), { day: "numeric", month: "short", timeZone: "UTC" }).format(new Date(due + "T00:00:00Z"))}</span>}
           {card.hasDescription && <span className="stat" title={t.card.description}><Text /></span>}
           {card.checklist.total > 0 && <span className={`stat${card.checklist.done === card.checklist.total ? " chip done" : ""}`} title={t.card.checklist}><CheckList />{card.checklist.done}/{card.checklist.total}</span>}
           {card.comments > 0 && <span className="stat" title={t.card.comments}><Chat />{card.comments}</span>}
@@ -446,7 +446,7 @@ function ListView({ columns, lanes, byId, labels, people, matches, today, locale
                 <td><Link href={`${path}?view=list&card=${card.id}`} scroll={false}>{card.title}</Link></td>
                 <td>{column.name}</td>
                 <td><span className="avatars">{card.assignees.map(a => <Avatar key={a} name={people[a]?.name ?? "?"} photo={people[a]?.photo ?? null} size={24} title={people[a]?.name} />)}</span></td>
-                <td>{card.due && <span className={`chip ${state}`}>{new Intl.DateTimeFormat(locale, { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" }).format(new Date(card.due + "T00:00:00Z"))}</span>}</td>
+                <td>{card.due && <span className={`chip ${state}`}>{new Intl.DateTimeFormat(intl(locale), { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" }).format(new Date(card.due + "T00:00:00Z"))}</span>}</td>
                 <td><span className="row">{card.labels.map(id => labels.find(l => l.id === id)).filter((l): l is Label => !!l).map(l => <span key={l.id} className={`chip label-chip c-${l.color}`}>{l.name || t.colors[l.color]}</span>)}</span></td>
               </tr>
             );

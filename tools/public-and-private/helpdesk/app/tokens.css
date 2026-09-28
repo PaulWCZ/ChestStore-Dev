@@ -1,0 +1,76 @@
+/* Support — "calm conversation": mint-white paper, deep teal, a coral
+   warmth for customers, butter-yellow team notes. Atkinson Hyperlegible
+   everywhere: made to be read by everyone. Ratios: scripts/contrast.mjs. */
+:root {
+  color-scheme: light dark;
+  --font: "Atkinson Hyperlegible", system-ui, -apple-system, "Segoe UI", sans-serif;
+
+  --bg: #f3f7f6;
+  --surface: #ffffff;
+  --surface-2: #e8f1ef;
+  --ink: #12302f;
+  --ink-2: #4a6361;
+  --line: #d3e2df;
+  --accent: #0b6e69;
+  --accent-ink: #ffffff;
+  --accent-soft: #ddefec;
+  --customer: #ffd9cf;
+  --customer-line: #f2b3a3;
+  --note: #fff1b8;
+  --note-line: #e5cf6f;
+  --danger: #b3261e;
+  --focus: #0b6e69;
+  --shadow: 0 1px 2px rgb(18 48 47 / 0.06), 0 4px 16px rgb(18 48 47 / 0.06);
+  --shadow-lift: 0 10px 30px rgb(18 48 47 / 0.14);
+  --overlay: rgb(18 48 47 / 0.4);
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+
+  --radius-s: 8px;
+  --radius-m: 14px;
+  --radius-l: 22px;
+
+  --text-xs: 0.78rem;
+  --text-s: 0.9rem;
+  --text-m: 1.0625rem;
+  --text-l: 1.3rem;
+  --text-xl: 1.75rem;
+  --text-xxl: 2.25rem;
+
+  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --fast: 120ms;
+  --slow: 220ms;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0f1c1c;
+    --surface: #172726;
+    --surface-2: #1e3a37;
+    --ink: #e6f2f0;
+    --ink-2: #a7c1be;
+    --line: #2b4744;
+    --accent: #5fd3c8;
+    --accent-ink: #0f1c1c;
+    --accent-soft: #1e3a37;
+    --customer: #3b2a26;
+    --customer-line: #7a4a3f;
+    --note: #2f2a14;
+    --note-line: #6b5c20;
+    --danger: #ff9a85;
+    --focus: #5fd3c8;
+    --shadow: none;
+    --shadow-lift: 0 10px 30px rgb(0 0 0 / 0.5);
+    --overlay: rgb(0 0 0 / 0.6);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root { --fast: 0ms; --slow: 0ms; }
+}

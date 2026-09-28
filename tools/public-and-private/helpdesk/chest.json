@@ -1,0 +1,22 @@
+{
+  "version": 2,
+  "name": "helpdesk",
+  "title": "Support",
+  "description": "Answer your customers together: a contact form, one shared inbox, replies and notes.",
+  "icon": "chest/icon.svg",
+  "preview": "chest/preview.png",
+  "roles": ["admin", "agent", "viewer"],
+  "role_labels": { "admin": "Administrator", "agent": "Agent", "viewer": "Viewer" },
+  "public": true,
+  "csp": "tool",
+  "capabilities": ["database", "files", "members", "notifications"],
+  "receives": ["member.*"],
+  "build": {
+    "runtime": "node",
+    "install": "npm ci",
+    "command": "npm run build",
+    "start": "npm start",
+    "port": 3000,
+    "static": ["/_next/static/"]
+  }
+}
