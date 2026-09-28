@@ -1,0 +1,42 @@
+// Safe in the browser: no SDK here.
+// The browser's side of a CV upload: ask the tool for a one-time address
+// (grant), send the file there — to the Chest, never through the tool —
+// and keep the ticket the tool gave, to send with the form.
+import type { ErrorCode } from "./app-error.ts";
+
+export type UploadResult = { ok: true; ticket: string } | { ok: false; error: ErrorCode | "cv_off" };
+
+const byExtension: Record<string, string> = {
+  pdf: "application/pdf",
+  doc: "application/msword",
+  docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+};
+
+// typeOf: the file's type as the browser says it, or from its extension
+// (some systems say nothing for Word files).
+export function typeOf(file: { name: string; type: string }): string {
+  if (file.type && file.type !== "application/octet-stream") return file.type;
+  return byExtension[file.name.split(".").pop()?.toLowerCase() ?? ""] ?? "application/octet-stream";
+}
+
+export const cvAccept = ".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+export const cvMaxSize = 10 << 20;
+
+export async function uploadCv(file: File, grantUrl: string, extra: Record<string, string> = {}): Promise<UploadResult> {
+  const type = typeOf(file);
+  if (!Object.values(byExtension).includes(type)) return { ok: false, error: "cv_invalid" };
+  if (file.size > cvMaxSize) return { ok: false, error: "cv_too_large" };
+  try {
+    const answer = await fetch(grantUrl, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ type, size: file.size, ...extra }) });
+    const grant = (await answer.json().catch(() => ({}))) as { url?: string; ticket?: string; error?: ErrorCode | "cv_off" };
+    if (!answer.ok || !grant.url || !grant.ticket) return { ok: false, error: grant.error ?? "unavailable" };
+    const put = await fetch(grant.url, { method: "PUT", body: file, headers: { "Content-Type": type } });
+    if (put.status === 413) return { ok: false, error: "cv_too_large" };
+    if (put.status === 415 || put.status === 400) return { ok: false, error: "cv_invalid" };
+    if (put.status === 429) return { ok: false, error: "too_many" };
+    if (!put.ok) return { ok: false, error: "unavailable" };
+    return { ok: true, ticket: grant.ticket };
+  } catch {
+    return { ok: false, error: "unavailable" };
+  }
+}

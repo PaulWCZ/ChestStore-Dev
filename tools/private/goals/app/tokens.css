@@ -1,0 +1,98 @@
+/* Goals' design tokens, defined once (DESIGN.md explains them): a trail
+   map — sand paper, deep forest ink, one sunrise colour for progress.
+   Light first; dark follows the system. Contrast ratios in DESIGN.md. */
+:root {
+  color-scheme: light dark;
+  --font-body: "Work Sans Variable", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-display: "Barlow Semi Condensed", "Work Sans Variable", system-ui, sans-serif;
+
+  --bg: #f3eee2;          /* sand paper */
+  --surface: #fbf9f3;
+  --surface-2: #e8e0cf;   /* bar tracks, quiet fills */
+  --ink: #17302a;         /* deep forest */
+  --ink-2: #4c5f58;
+  --line: #d6ccb8;
+  --contour: #d8ceb9;     /* the map's lines, decoration only */
+  --accent: #1f4a3f;      /* the main button */
+  --accent-ink: #f7f3e8;
+  --sunrise: #bf4f1d;     /* progress, the check-in */
+  --sunrise-ink: #ffffff;
+  --sunrise-soft: #f6dfcd;
+  --on: #2e6b45;          /* on track */
+  --on-soft: #e0eee3;
+  --risk: #8a5a00;        /* at risk */
+  --risk-soft: #f6e8c8;
+  --off: #a8321f;         /* off track */
+  --off-soft: #f7ddd6;
+  --danger: #a8321f;
+  --focus: #bf4f1d;
+
+  --top-bg: #17302a;      /* the header: the map's dark margin */
+  --top-ink: #f3eee2;
+  --top-ink-2: #c5d0c8;
+  --top-contour: #2a463e;
+  --top-accent: #f08a4b;  /* the current tab, on the dark header */
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+
+  --radius-s: 6px;
+  --radius-m: 10px;
+  --radius-l: 14px;
+  --shadow-1: 0 1px 2px rgb(23 48 42 / 0.07), 0 2px 6px rgb(23 48 42 / 0.05);
+  --shadow-2: 0 10px 30px rgb(23 48 42 / 0.18);
+
+  --text-xs: 0.8125rem;
+  --text-s: 0.875rem;
+  --text-m: 1rem;
+  --text-l: 1.25rem;
+  --text-xl: 1.75rem;
+  --text-xxl: 2.25rem;
+
+  --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+  --fast: 120ms;
+  --slow: 260ms;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0f1715;
+    --surface: #16211e;
+    --surface-2: #26332f;
+    --ink: #efe8d8;
+    --ink-2: #a7b3ac;
+    --line: #2d3b37;
+    --contour: #1d2926;
+    --accent: #e6dcc4;
+    --accent-ink: #16211e;
+    --sunrise: #f08a4b;
+    --sunrise-ink: #1a0f08;
+    --sunrise-soft: #3a2519;
+    --on: #6fc48e;
+    --on-soft: #183124;
+    --risk: #e2b04a;
+    --risk-soft: #33290f;
+    --off: #f0806a;
+    --off-soft: #3a1c16;
+    --danger: #f0806a;
+    --focus: #f08a4b;
+    --top-bg: #0b1210;
+    --top-ink: #efe8d8;
+    --top-ink-2: #a7b3ac;
+    --top-contour: #1a2724;
+    --shadow-1: none;
+    --shadow-2: 0 10px 30px rgb(0 0 0 / 0.55);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --fast: 0ms;
+    --slow: 0ms;
+  }
+}

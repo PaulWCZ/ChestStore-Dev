@@ -46,7 +46,7 @@ await step("drag a card to Doing with the mouse", async () => {
 });
 
 await step("move a card with the keyboard", async () => {
-  await page.locator(".lane").nth(1).locator("li", { hasText: "Pack the demo laptop" }).focus();
+  await page.locator(".lane").nth(1).locator(".card-handle", { hasText: "Pack the demo laptop" }).focus();
   await page.keyboard.press("Space");
   await page.waitForTimeout(200);
   await page.keyboard.press("ArrowUp");

@@ -1,0 +1,81 @@
+/* Quotes & invoices — letterpress stationery. Crisp paper on a quiet desk,
+   blue-black ink, one oxblood accent, a Caslon for what is printed and a
+   clean grotesque for the controls. Ratios (WCAG 2) in DESIGN.md, checked
+   with scripts/contrast.mjs. */
+:root {
+  color-scheme: light;
+  --desk: #f3f1ec;
+  --paper: #ffffff;
+  --paper-2: #f7f5f1;
+  --ink: #161b2e;
+  --ink-2: #4f5468;
+  --ink-3: #686d80;
+  --rule: #dcd8cf;
+  --line: #8e8a80;
+  --accent: #8a1f30;
+  --accent-ink: #ffffff;
+  --accent-soft: #f7e8ea;
+  --green: #1c6a47;
+  --green-soft: #e6f1ea;
+  --focus: #2346a8;
+  --shadow-paper: 0 1px 1px rgb(22 27 46 / 6%), 0 8px 24px rgb(22 27 46 / 7%), 0 24px 48px -24px rgb(22 27 46 / 12%);
+  --shadow-1: 0 1px 2px rgb(22 27 46 / 10%);
+  --shadow-2: 0 10px 30px rgb(22 27 46 / 18%);
+
+  --font-serif: "Libre Caslon Text", "Iowan Old Style", Georgia, serif;
+  --font-sans: "Hanken Grotesk Variable", "Hanken Grotesk", system-ui, sans-serif;
+
+  --text-xs: 0.75rem;
+  --text-s: 0.875rem;
+  --text-m: 1rem;
+  --text-l: 1.25rem;
+  --text-xl: 1.875rem;
+  --text-xxl: 2.5rem;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+  --space-8: 72px;
+
+  --radius-s: 3px;
+  --radius-m: 6px;
+  --radius-l: 10px;
+
+  --fast: 120ms;
+  --slow: 240ms;
+  --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --desk: #12151f;
+    --paper: #1a1e2b;
+    --paper-2: #222736;
+    --ink: #e8e4db;
+    --ink-2: #a9adbd;
+    --ink-3: #9a9eaf;
+    --rule: #333a4d;
+    --line: #6b7186;
+    --accent: #f08f9c;
+    --accent-ink: #1a0d10;
+    --accent-soft: #2a1c22;
+    --green: #7fd1a6;
+    --green-soft: #16271f;
+    --focus: #8fb3ff;
+    --shadow-paper: 0 1px 1px rgb(0 0 0 / 30%), 0 12px 32px rgb(0 0 0 / 35%);
+    --shadow-1: 0 1px 2px rgb(0 0 0 / 40%);
+    --shadow-2: 0 10px 30px rgb(0 0 0 / 50%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --fast: 0ms;
+    --slow: 0ms;
+  }
+}

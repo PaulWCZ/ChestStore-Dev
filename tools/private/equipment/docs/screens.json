@@ -1,0 +1,12 @@
+[
+  { "name": "overview", "path": "/chest", "member": "sofia", "locale": "en", "preview": true },
+  { "name": "list", "path": "/chest/items", "member": "sofia", "locale": "en" },
+  { "name": "item", "path": "/chest/items/2", "member": "sofia", "locale": "en" },
+  { "name": "licence", "path": "/chest/items/39", "member": "sofia", "locale": "en", "only": ["desktop"] },
+  { "name": "mine-fr", "path": "/chest", "member": "ines", "locale": "fr" },
+  { "name": "person-fr", "path": "/chest/people/mbr_tomaaaaaaaaaaaaaaaaaaaaaaa", "member": "camille", "locale": "fr" },
+  { "name": "overview-fr", "path": "/chest", "member": "camille", "locale": "fr", "only": ["phone"] },
+  { "name": "labels", "path": "/chest/labels?category=1", "member": "sofia", "locale": "en", "only": ["desktop"] },
+  { "name": "import", "path": "/chest/import", "member": "sofia", "locale": "en", "only": ["desktop"] },
+  { "name": "list-dark", "path": "/chest/items", "member": "tom", "locale": "en", "dark": true }
+]

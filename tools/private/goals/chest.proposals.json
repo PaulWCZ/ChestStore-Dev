@@ -1,0 +1,6 @@
+{
+  "schedules": [
+    { "name": "reminder", "cron": "45 8 * * 5" },
+    { "name": "week", "cron": "50 6 * * 1" }
+  ]
+}

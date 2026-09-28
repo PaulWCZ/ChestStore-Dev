@@ -130,7 +130,7 @@ export function DeskView({ floors, day, part, view, wanted, closed, past, links,
         <div className="chips" role="group" aria-label={t.desks.filters}>
           {featureKeys.map(f => {
             const Icon = featureIcons[f];
-            return <Link key={f} href={links.features[f]} className="chip" aria-pressed={wanted.includes(f)} scroll={false}><Icon />{t.features[f]}</Link>;
+            return <Link key={f} href={links.features[f]} className="chip" aria-current={wanted.includes(f) ? "true" : undefined} scroll={false}><Icon />{t.features[f]}</Link>;
           })}
         </div>
         <div className="segmented small" role="group" aria-label={t.desks.view}>

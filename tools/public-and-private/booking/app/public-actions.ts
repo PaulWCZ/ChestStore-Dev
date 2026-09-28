@@ -5,9 +5,9 @@ import { redirect } from "next/navigation";
 import { AppError, type ErrorCode } from "../lib/app-error.ts";
 import * as b from "../lib/booking.ts";
 import { db } from "../lib/db.ts";
-import { check } from "../lib/form-token.ts";
+import { admit, checkForm } from "../lib/guard.ts";
 import { email } from "../lib/guests.ts";
-import { publicOrigin, visitorKey } from "../lib/public-origin.ts";
+import { publicOrigin } from "../lib/public-origin.ts";
 import { publicWords } from "../lib/session.ts";
 import * as tell from "../lib/tell.ts";
 
@@ -24,10 +24,10 @@ export async function bookTime(hostSlug: string, typeSlug: string, _: BookState,
   try {
     // A field people never see: only robots fill it.
     if (String(data.get("website") ?? "") !== "") throw new AppError("invalid");
-    check(data.get("started"));
+    checkForm(data.get("started"));
     const sql = db();
     const h = await headers();
-    await b.guard(sql, visitorKey(h));
+    await admit(sql, h, "book");
     const place = await b.publicType(sql, String(hostSlug), String(typeSlug));
     if (!place) throw new AppError("not_found");
     const { locale } = await publicWords();
@@ -51,7 +51,7 @@ export async function cancelMine(secret: string, _: GuestState, data: FormData):
   try {
     const sql = db();
     const h = await headers();
-    await b.guard(sql, visitorKey(h));
+    await admit(sql, h, "change");
     const done = await b.cancelByGuest(sql, String(secret), String(data.get("reason") ?? ""));
     const host = await b.hostOf(sql, done.memberId);
     await email(sql, "cancelled", done, publicOrigin(h));
@@ -67,7 +67,7 @@ export async function moveMine(secret: string, start: string): Promise<{ error: 
   try {
     const sql = db();
     const h = await headers();
-    await b.guard(sql, visitorKey(h));
+    await admit(sql, h, "change");
     const { booking } = await b.moveByGuest(sql, String(secret), String(start));
     const host = await b.hostOf(sql, booking.memberId);
     await email(sql, "moved", booking, publicOrigin(h));

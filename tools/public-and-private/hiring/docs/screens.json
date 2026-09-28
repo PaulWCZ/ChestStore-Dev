@@ -1,0 +1,12 @@
+[
+  { "name": "careers", "path": "/", "locale": "en" },
+  { "name": "job", "path": "/senior-furniture-designer", "locale": "en" },
+  { "name": "apply", "path": "/senior-furniture-designer/apply", "locale": "fr" },
+  { "name": "jobs", "path": "/chest", "member": "camille", "locale": "en" },
+  { "name": "board", "path": "/chest/jobs/1", "member": "camille", "locale": "en", "preview": true },
+  { "name": "candidate", "path": "/chest/candidates/1", "member": "camille", "locale": "en" },
+  { "name": "feedback-fr", "path": "/chest/candidates/7", "member": "ines", "locale": "fr" },
+  { "name": "board-fr", "path": "/chest/jobs/3", "member": "camille", "locale": "fr" },
+  { "name": "board-dark", "path": "/chest/jobs/2", "member": "sofia", "locale": "en", "dark": true },
+  { "name": "careers-dark", "path": "/", "locale": "fr", "dark": true, "only": ["phone"] }
+]

@@ -1,0 +1,32 @@
+{
+  "name": "chest-quotes",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "engines": {
+    "node": ">=22.18"
+  },
+  "scripts": {
+    "dev": "NEXT_TELEMETRY_DISABLED=1 next dev --webpack -H 127.0.0.1",
+    "build": "NEXT_TELEMETRY_DISABLED=1 next typegen && tsc -p tsconfig.json --noEmit && NEXT_TELEMETRY_DISABLED=1 next build --webpack",
+    "start": "NEXT_TELEMETRY_DISABLED=1 next start -H 127.0.0.1",
+    "typecheck": "NEXT_TELEMETRY_DISABLED=1 next typegen && tsc -p tsconfig.json --noEmit",
+    "test": "node --test --test-concurrency=1 --disable-warning=ExperimentalWarning test/*.test.ts"
+  },
+  "dependencies": {
+    "next": "16.3.6",
+    "postgres": "3.4.9",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "@argentic/chest-sdk": "file:vendor/argentic-chest-sdk-0.3.0-studio.8.tgz"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "0.5.8",
+    "@electric-sql/pglite-socket": "0.2.11",
+    "@types/node": "24.13.5",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "typescript": "7.0.2"
+  }
+}

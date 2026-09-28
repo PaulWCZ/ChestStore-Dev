@@ -1,0 +1,10 @@
+[
+  { "name": "week", "path": "/chest", "member": "camille", "locale": "en", "preview": true, "actions": [{ "click": "a[aria-label='Previous week']" }, { "wait": 1200 }] },
+  { "name": "week-fr", "path": "/chest", "member": "ines", "locale": "fr", "actions": [{ "click": "a[aria-label='Semaine précédente']" }, { "wait": 1200 }] },
+  { "name": "reports", "path": "/chest/reports?preset=lastWeek", "member": "camille", "locale": "en" },
+  { "name": "reports-fr", "path": "/chest/reports?preset=month&group=person", "member": "camille", "locale": "fr" },
+  { "name": "projects", "path": "/chest/projects", "member": "camille", "locale": "en" },
+  { "name": "import-fr", "path": "/chest/import", "member": "sofia", "locale": "fr" },
+  { "name": "settings", "path": "/chest/settings", "member": "camille", "locale": "en" },
+  { "name": "week-dark", "path": "/chest", "member": "hugo", "locale": "en", "dark": true }
+]

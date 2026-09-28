@@ -1,0 +1,15 @@
+{
+  "schedules": [
+    { "name": "weekly", "cron": "50 7 * * 1" }
+  ],
+  "translations": {
+    "fr": {
+      "title": "Matériel",
+      "description": "Sachez qui a quel ordinateur, téléphone, écran, licence, badge ou clé — remettre, reprendre, imprimer les étiquettes, voir ce qui arrive à échéance.",
+      "role_labels": {
+        "manager": "Gestionnaire du matériel",
+        "member": "Membre"
+      }
+    }
+  }
+}

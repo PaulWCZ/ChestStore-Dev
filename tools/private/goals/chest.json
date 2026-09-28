@@ -1,0 +1,34 @@
+{
+  "version": 2,
+  "name": "goals",
+  "title": "Goals",
+  "description": "Agree on what matters this quarter: company and team objectives, key results, weekly check-ins, progress for all to see.",
+  "icon": "chest/icon.svg",
+  "preview": "chest/preview.png",
+  "roles": [
+    "admin",
+    "member"
+  ],
+  "role_labels": {
+    "admin": "Administrator",
+    "member": "Member"
+  },
+  "capabilities": [
+    "database",
+    "members",
+    "notifications"
+  ],
+  "receives": [
+    "member.*"
+  ],
+  "build": {
+    "runtime": "node",
+    "install": "npm ci",
+    "command": "npm run build",
+    "start": "npm start",
+    "port": 3000,
+    "static": [
+      "/_next/static/"
+    ]
+  }
+}

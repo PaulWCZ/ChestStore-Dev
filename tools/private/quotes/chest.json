@@ -1,0 +1,39 @@
+{
+  "version": 2,
+  "name": "quotes",
+  "title": "Quotes & invoices",
+  "description": "Send a proper quote, turn it into an invoice with the next legal number, see what is unpaid, export for the accountant.",
+  "icon": "chest/icon.svg",
+  "preview": "chest/preview.png",
+  "roles": [
+    "admin",
+    "billing",
+    "sales",
+    "viewer"
+  ],
+  "role_labels": {
+    "admin": "Administrator",
+    "billing": "Billing",
+    "sales": "Sales",
+    "viewer": "Viewer"
+  },
+  "capabilities": [
+    "database",
+    "files",
+    "members",
+    "notifications"
+  ],
+  "receives": [
+    "member.*"
+  ],
+  "build": {
+    "runtime": "node",
+    "install": "npm ci",
+    "command": "npm run build",
+    "start": "npm start",
+    "port": 3000,
+    "static": [
+      "/_next/static/"
+    ]
+  }
+}

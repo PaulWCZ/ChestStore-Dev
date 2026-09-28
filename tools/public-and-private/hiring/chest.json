@@ -1,0 +1,22 @@
+{
+  "version": 2,
+  "name": "hiring",
+  "title": "Hiring",
+  "description": "Publish your jobs on your own careers page and choose your candidates together: one board per job, CVs, notes and feedback.",
+  "icon": "chest/icon.svg",
+  "preview": "chest/preview.png",
+  "roles": ["recruiter", "interviewer"],
+  "role_labels": { "recruiter": "Recruiter", "interviewer": "Interviewer" },
+  "public": true,
+  "csp": "tool",
+  "capabilities": ["database", "files", "members", "notifications"],
+  "receives": ["member.*"],
+  "build": {
+    "runtime": "node",
+    "install": "npm ci",
+    "command": "npm run build",
+    "start": "npm start",
+    "port": 3000,
+    "static": ["/_next/static/"]
+  }
+}

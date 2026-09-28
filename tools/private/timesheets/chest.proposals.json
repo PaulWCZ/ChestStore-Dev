@@ -1,0 +1,18 @@
+{
+  "schedules": [
+    {
+      "name": "friday",
+      "cron": "30 15 * * 5"
+    }
+  ],
+  "translations": {
+    "fr": {
+      "title": "Temps",
+      "description": "Notez le temps passé sur les projets clients, au chrono ou à la semaine, voyez où il est allé, exportez-le pour facturer.",
+      "role_labels": {
+        "manager": "Responsable",
+        "member": "Membre"
+      }
+    }
+  }
+}

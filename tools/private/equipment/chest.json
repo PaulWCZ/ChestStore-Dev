@@ -1,0 +1,35 @@
+{
+  "version": 2,
+  "name": "equipment",
+  "title": "Equipment",
+  "description": "Know who has which laptop, phone, screen, licence, badge or key — give, take back, print labels, see what ends soon.",
+  "icon": "chest/icon.svg",
+  "preview": "chest/preview.png",
+  "roles": [
+    "manager",
+    "member"
+  ],
+  "role_labels": {
+    "manager": "Equipment manager",
+    "member": "Member"
+  },
+  "capabilities": [
+    "database",
+    "files",
+    "members",
+    "notifications"
+  ],
+  "receives": [
+    "member.*"
+  ],
+  "build": {
+    "runtime": "node",
+    "install": "npm ci",
+    "command": "npm run build",
+    "start": "npm start",
+    "port": 3000,
+    "static": [
+      "/_next/static/"
+    ]
+  }
+}

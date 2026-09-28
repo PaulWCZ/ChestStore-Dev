@@ -1,0 +1,49 @@
+import * as events from "@argentic/chest-sdk/events";
+import type { Sql } from "./db.ts";
+
+// What the tool does when a member loses access, leaves, or is erased (the
+// Chest posts these to /chest-events, at least once; every step is
+// idempotent).
+//
+// - Losing access or leaving: nothing changes. Quotes, invoices, clients and
+//   payments are the company's records, not the person's: they stay, and
+//   pages name their author "Name (former member)".
+// - Erasure: the documents stay too — a finalised invoice is a legal record
+//   the company must keep ten years (Code de commerce L123-22; GDPR art.
+//   17(3)(b)) — but the person's id is replaced by 'erased' wherever the
+//   tool kept it (who created, sent, decided, finalised, recorded a
+//   payment, changed the settings). The database's guard of finalised
+//   documents lets exactly this change through. Then the erasure is
+//   acknowledged.
+export async function erase(sql: Sql, memberId: string): Promise<void> {
+  await sql.begin(async tx => {
+    await tx`update documents set created_by = 'erased' where created_by = ${memberId}`;
+    await tx`update documents set finalised_by = 'erased' where finalised_by = ${memberId}`;
+    await tx`update documents set sent_by = 'erased' where sent_by = ${memberId}`;
+    await tx`update documents set decided_by = 'erased' where decided_by = ${memberId}`;
+    await tx`update payments set created_by = 'erased' where created_by = ${memberId}`;
+    await tx`update clients set created_by = 'erased' where created_by = ${memberId}`;
+    await tx`update items set created_by = 'erased' where created_by = ${memberId}`;
+    await tx`update company set updated_by = 'erased' where updated_by = ${memberId}`;
+  });
+}
+
+export function handlers(sql: Sql): events.Handlers {
+  return {
+    "member.erased": async event => {
+      await erase(sql, event.data.id);
+      await events.acknowledgeErasure(event.data.erasure);
+    },
+  };
+}
+
+// The ids of the events already handled, kept in the database: a delivery
+// made again after a restart is recognised.
+export function seen(sql: Sql): events.Seen {
+  return {
+    has: async id => (await sql`select 1 from chest_events where id = ${id}`).length > 0,
+    add: async id => {
+      await sql`insert into chest_events (id) values (${id}) on conflict do nothing`;
+    },
+  };
+}

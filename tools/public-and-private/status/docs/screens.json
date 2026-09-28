@@ -1,0 +1,16 @@
+[
+  { "name": "status-page", "path": "/", "member": "camille", "locale": "en", "preview": true },
+  { "name": "status-page-fr", "path": "/", "member": "camille", "locale": "fr" },
+  { "name": "status-page-dark", "path": "/", "member": "camille", "locale": "en", "dark": true },
+  { "name": "day-tooltip", "path": "/", "member": "camille", "locale": "en", "actions": [{ "hover": ".entry-component .tick:nth-last-child(4)" }, { "wait": 200 }], "only": ["desktop"] },
+  { "name": "incident", "path": "/incidents/7", "member": "camille", "locale": "en" },
+  { "name": "history", "path": "/history", "member": "camille", "locale": "en" },
+  { "name": "subscribe", "path": "/subscribe", "member": "camille", "locale": "en" },
+  { "name": "now", "path": "/chest", "member": "tom", "locale": "en" },
+  { "name": "now-fr", "path": "/chest", "member": "camille", "locale": "fr" },
+  { "name": "new-incident", "path": "/chest/incidents/new", "member": "tom", "locale": "en" },
+  { "name": "incident-team", "path": "/chest/incidents/7", "member": "lea", "locale": "fr" },
+  { "name": "maintenance-team", "path": "/chest/incidents/9", "member": "tom", "locale": "en", "only": ["desktop"] },
+  { "name": "components", "path": "/chest/components", "member": "tom", "locale": "en" },
+  { "name": "subscribers-dark", "path": "/chest/subscribers", "member": "camille", "locale": "fr", "dark": true, "only": ["phone"] }
+]

@@ -1,0 +1,95 @@
+import assert from "node:assert/strict";
+import { after, afterEach, before, test } from "node:test";
+import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
+import { POST } from "../app/chest-events/route.ts";
+import { clock, today } from "../lib/clock.ts";
+import { addDays, mondayOf } from "../lib/days.ts";
+import { addEntry, addRow, dayEntries, week } from "../lib/entries.ts";
+import * as projects from "../lib/projects.ts";
+import { report } from "../lib/reports.ts";
+import { lock, settings } from "../lib/settings.ts";
+import { startTimer, timer } from "../lib/timer.ts";
+import { testDatabase, type TestDatabase } from "./support/db.ts";
+import { asMember } from "./support/member.ts";
+import { camille, everyone, hugo, ines, tom } from "./support/members.ts";
+
+let database: TestDatabase;
+let chest: FakeChest;
+let secret: projects.Project;
+before(async () => {
+  database = await testDatabase();
+  chest = await fakeChest({ members: everyone });
+  secret = await projects.createProject(database.sql, asMember(camille), { name: "Secret", everyone: false, people: [hugo.id, ines.id, tom.id] });
+});
+after(async () => {
+  await chest.close();
+  await database.close();
+});
+afterEach(() => {
+  clock.now = () => new Date();
+});
+
+const event = (type: "access.revoked" | "member.removed" | "member.erased", id: string, n: string) =>
+  type === "member.erased"
+    ? { type, id: "evt_" + n.repeat(26), data: { id, erasure: "era_" + n.repeat(26), deadline: new Date(Date.now() + 864e5).toISOString() } }
+    : { type, id: "evt_" + n.repeat(26), data: { id } };
+
+test("someone who leaves: their timer stops into an entry, they leave the projects, their time stays", async () => {
+  const { sql } = database;
+  const day = today();
+  await addEntry(sql, asMember(hugo), { projectId: secret.id, day, minutes: 60, note: "Kept" });
+  await addRow(sql, asMember(hugo), { week: day, projectId: secret.id, taskId: null });
+  clock.now = () => new Date(Date.now() - 30 * 60_000);
+  await startTimer(sql, asMember(hugo), { projectId: secret.id, note: "Running" });
+  clock.now = () => new Date();
+  assert.equal(await chest.emit(event("member.removed", hugo.id, "b"), POST), 204);
+  assert.equal(await chest.emit(event("member.removed", hugo.id, "b"), POST), 204);
+  assert.equal(await timer(sql, asMember(hugo)), null);
+  const mine = await dayEntries(sql, asMember(hugo), day);
+  assert.ok(mine.some(e => e.note === "Kept"));
+  assert.ok(mine.some(e => e.note === "Running" && e.source === "timer"));
+  assert.equal((await projects.project(sql, asMember(camille), secret.id)).people.includes(hugo.id), false);
+  // Their grid rows went; their time is in the reports.
+  assert.ok((await week(sql, asMember(hugo), mondayOf(day))).rows.every(r => r.cells.some(c => c.minutes > 0)));
+  const r = await report(sql, asMember(camille), { from: day, to: day, group: "person" });
+  assert.ok(r.lines.some(l => l.memberId === hugo.id));
+});
+
+test("a forgotten timer of someone who lost access is dropped, not recorded", async () => {
+  const { sql } = database;
+  clock.now = () => new Date(Date.now() - 12 * 3600_000);
+  await startTimer(sql, asMember(tom), { projectId: secret.id });
+  clock.now = () => new Date();
+  assert.equal(await chest.emit(event("access.revoked", tom.id, "c"), POST), 204);
+  assert.equal(await timer(sql, asMember(tom)), null);
+  const [row] = await sql<{ n: number }[]>`select count(*)::int as n from entries where member_id = ${tom.id}`;
+  assert.equal(row?.n, 0);
+});
+
+test("an erasure keeps the time for the company, anonymous and without notes, and is acknowledged once", async () => {
+  const { sql } = database;
+  const day = addDays(today(), -1);
+  await addEntry(sql, asMember(ines), { projectId: secret.id, day, minutes: 90, note: "Called Mrs Dupain about her divorce" });
+  await lock(sql, asMember(camille), addDays(today(), -30));
+  const e = event("member.erased", ines.id, "d");
+  assert.equal(await chest.emit(e, POST), 204);
+  assert.equal(await chest.emit(e, POST), 204);
+  assert.deepEqual(chest.acknowledged, ["era_" + "d".repeat(26)]);
+  const rows = await sql<{ member_id: string; note: string; minutes: number }[]>`select member_id, note, minutes from entries where day = ${day}`;
+  assert.deepEqual([...rows], [{ member_id: "erased", note: "", minutes: 90 }]);
+  const [left] = await sql<{ n: number }[]>`select count(*)::int as n from entries where member_id = ${ines.id}`;
+  assert.equal(left?.n, 0);
+  const r = await report(sql, asMember(camille), { from: day, to: day, group: "person" });
+  assert.deepEqual(r.lines.map(l => [l.memberId, l.minutes]), [["erased", 90]]);
+  assert.equal((await projects.project(sql, asMember(camille), secret.id)).people.includes(ines.id), false);
+  // The one who locked the period, erased: the lock stays, anonymous.
+  assert.equal(await chest.emit(event("member.erased", camille.id, "e"), POST), 204);
+  const s = await settings(sql);
+  assert.equal(s.lockedBy, "erased");
+  assert.notEqual(s.lockedUntil, null);
+});
+
+test("an event not signed by the Chest is refused", async () => {
+  const response = await POST(new Request("http://tool.test/chest-events", { method: "POST", body: "{}", headers: { "Content-Type": "application/json" } }));
+  assert.equal(response.status, 401);
+});

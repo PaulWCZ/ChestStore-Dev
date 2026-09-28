@@ -77,7 +77,9 @@ main { padding: var(--space-5) var(--space-4) var(--space-7); }
 .place-line { margin-top: var(--space-1); }
 @media (max-width: 760px) {
   .top { gap: var(--space-1); padding: 0 var(--space-2); }
-  .brand span { display: none; }
+  /* Hidden to the eye, still the link's name. */
+  .brand { position: relative; }
+  .brand span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
   .tabs { flex: 1; justify-content: space-around; }
   .tabs a { flex-direction: column; justify-content: center; gap: 2px; padding: var(--space-1) var(--space-1); font-size: 0.6875rem; min-width: 52px; text-align: center; }
   .tabs a span.label { max-width: 76px; white-space: normal; line-height: 1.15; overflow-wrap: anywhere; }
@@ -155,7 +157,7 @@ main { padding: var(--space-5) var(--space-4) var(--space-7); }
 .chips { display: flex; flex-wrap: wrap; gap: var(--space-2); }
 .chip { display: inline-flex; align-items: center; gap: var(--space-1); min-height: 36px; padding: 0 var(--space-3); border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); font-size: var(--text-s); text-decoration: none; }
 .chip:hover { border-color: var(--ink-2); }
-.chip[aria-pressed="true"] { background: var(--action); color: var(--action-ink); border-color: var(--action); }
+.chip[aria-pressed="true"], .chip[aria-current="true"] { background: var(--action); color: var(--action-ink); border-color: var(--action); }
 .toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); }
 .toolbar .hint { flex: 1; min-width: 200px; }
 
@@ -330,6 +332,7 @@ a.booking-text:hover { text-decoration: underline; }
 .block:hover { background: color-mix(in srgb, var(--surface-2) 70%, var(--line)); }
 .block.is-mine { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
 .block-time { font-size: 0.6875rem; opacity: 0.9; }
+.block.is-mine .block-time { opacity: 1; }
 .block-title { font-weight: 650; font-size: var(--text-s); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .block-by { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .block.is-short { grid-auto-flow: column; justify-content: start; gap: var(--space-2); align-items: center; }

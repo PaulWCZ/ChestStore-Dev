@@ -1,0 +1,23 @@
+{
+  "mail": {
+    "send": true
+  },
+  "schedules": [
+    {
+      "name": "badges",
+      "cron": "50 6 * * *"
+    }
+  ],
+  "translations": {
+    "fr": {
+      "title": "Devis et factures",
+      "description": "Envoyez un vrai devis, transformez-le en facture avec le numéro légal suivant, voyez ce qui reste à encaisser, exportez pour le comptable.",
+      "role_labels": {
+        "admin": "Administrateur",
+        "billing": "Facturation",
+        "sales": "Commercial",
+        "viewer": "Lecteur"
+      }
+    }
+  }
+}

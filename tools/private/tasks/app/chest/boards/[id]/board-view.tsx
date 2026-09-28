@@ -330,15 +330,19 @@ function SortableCard(props: { card: CardSummary; labels: Label[]; people: Peopl
   const style = { transform: CSS.Transform.toString(transform), transition };
   const open = () => props.onOpen(props.card.id);
   return (
-    <li ref={setNodeRef} style={style} {...attributes} {...listeners}
-      onClick={open}
-      onKeyDown={(e: KeyboardEvent<HTMLLIElement>) => {
-        listeners?.["onKeyDown"]?.(e);
-        if (e.key === "Enter" && !e.defaultPrevented) open();
-      }}
-      aria-roledescription={undefined}
-      className={isDragging ? "dragging" : undefined}>
-      <CardTile {...props} />
+    // The list item stays a list item; the card inside is what one drags,
+    // focuses and opens.
+    <li ref={setNodeRef} style={style} className={isDragging ? "dragging" : undefined}>
+      <div {...attributes} {...listeners}
+        className="card-handle"
+        onClick={open}
+        onKeyDown={(e: KeyboardEvent<HTMLDivElement>) => {
+          listeners?.["onKeyDown"]?.(e);
+          if (e.key === "Enter" && !e.defaultPrevented) open();
+        }}
+        aria-roledescription={undefined}>
+        <CardTile {...props} />
+      </div>
     </li>
   );
 }

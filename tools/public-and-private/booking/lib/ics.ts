@@ -19,7 +19,7 @@ const utc = (d: Date) => d.toISOString().replace(/[-:]/gu, "").replace(/\.\d{3}/
 
 // escape follows RFC 5545 §3.3.11: backslash, semicolon, comma, newline.
 export function escape(text: string): string {
-  return text.replace(/\\/gu, "\\\\").replace(/;/gu, "\;").replace(/,/gu, "\\,").replace(/\r?\n/gu, "\\n").replace(/\p{Cc}/gu, "");
+  return text.replace(/\\/gu, "\\\\").replace(/;/gu, "\\;").replace(/,/gu, "\\,").replace(/\r?\n/gu, "\\n").replace(/\p{Cc}/gu, "");
 }
 
 // fold cuts a content line into 75-octet pieces, never inside a character.

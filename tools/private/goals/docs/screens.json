@@ -1,0 +1,12 @@
+[
+  { "name": "company", "path": "/chest/company", "member": "camille", "locale": "en", "preview": true },
+  { "name": "my-goals", "path": "/chest", "member": "hugo", "locale": "en" },
+  { "name": "objective", "path": "/chest/objectives/4", "member": "camille", "locale": "en" },
+  { "name": "my-goals-fr", "path": "/chest", "member": "ines", "locale": "fr" },
+  { "name": "company-fr", "path": "/chest/company", "member": "ines", "locale": "fr", "only": ["phone"] },
+  { "name": "team", "path": "/chest/teams/1", "member": "sofia", "locale": "en", "only": ["desktop"] },
+  { "name": "review", "path": "/chest/cycles/1", "member": "camille", "locale": "en", "only": ["desktop"] },
+  { "name": "settings", "path": "/chest/settings", "member": "camille", "locale": "en", "only": ["desktop"] },
+  { "name": "new-objective", "path": "/chest/objectives/new", "member": "hugo", "locale": "en" },
+  { "name": "objective-dark", "path": "/chest/objectives/5", "member": "tom", "locale": "en", "dark": true }
+]

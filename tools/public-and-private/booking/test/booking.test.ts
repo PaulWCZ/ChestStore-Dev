@@ -198,3 +198,15 @@ test("the form's guard stops a visitor after a few bookings an hour", async () =
   await refuses(b.guard(sql, "203.0.113.9"), "too_many");
   await b.guard(sql, "198.51.100.4");
 });
+
+test("the public forms' guard: the Chest counts when it can, the tool's own counters otherwise", async () => {
+  const { admit, checkForm, formToken } = await import("../lib/guard.ts");
+  const { sql } = await ready();
+  assert.throws(() => checkForm(formToken()), (e: unknown) => e instanceof AppError && e.code === "too_fast");
+  assert.throws(() => checkForm("nonsense"), (e: unknown) => e instanceof AppError && e.code === "invalid");
+  const h = new Headers({ "x-forwarded-for": "203.0.113.50" });
+  for (let i = 0; i < b.formLimits.perVisitorHour; i++) await admit(sql, h, "book");
+  await refuses(admit(sql, h, "book"), "too_many");
+  // Another visitor is not held by the first.
+  await admit(sql, new Headers({ "x-forwarded-for": "198.51.100.50" }), "book");
+});

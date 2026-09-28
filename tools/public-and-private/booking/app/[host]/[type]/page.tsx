@@ -5,7 +5,7 @@ import { Picker } from "../../../components/picker.tsx";
 import { PublicShell } from "../../../components/public-shell.tsx";
 import { firstFree, publicType, settings } from "../../../lib/booking.ts";
 import { db } from "../../../lib/db.ts";
-import { issue } from "../../../lib/form-token.ts";
+import { formToken } from "../../../lib/guard.ts";
 import { plural } from "../../../lib/i18n/index.ts";
 import { people } from "../../../lib/people.ts";
 import { publicWords } from "../../../lib/session.ts";
@@ -36,7 +36,7 @@ export default async function TypePage({ params }: { params: Promise<{ host: str
         </aside>
         <section className="sheet-when" aria-labelledby="when">
           <h2 id="when">{t.public.pickTime}</h2>
-          <Picker hostSlug={host.slug} typeSlug={type.slug} hostName={person.firstName || person.name} hostZone={host.zone} first={first} locale={locale} phone={type.locationKind === "phone"} company={s.companyName} started={issue()} t={{ public: t.public, days: t.days, errors: t.errors }} />
+          <Picker hostSlug={host.slug} typeSlug={type.slug} hostName={person.firstName || person.name} hostZone={host.zone} first={first} locale={locale} phone={type.locationKind === "phone"} company={s.companyName} started={formToken()} t={{ public: t.public, days: t.days, errors: t.errors }} />
         </section>
       </div>
     </PublicShell>

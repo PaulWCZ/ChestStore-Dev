@@ -1,0 +1,75 @@
+[
+ {
+  "name": "home",
+  "path": "/chest",
+  "member": "hugo",
+  "locale": "en",
+  "preview": true
+ },
+ {
+  "name": "home-fr",
+  "path": "/chest",
+  "member": "ines",
+  "locale": "fr"
+ },
+ {
+  "name": "answer",
+  "path": "/chest/polls/1",
+  "member": "hugo",
+  "locale": "en"
+ },
+ {
+  "name": "date-grid",
+  "path": "/chest/polls/2",
+  "member": "camille",
+  "locale": "en"
+ },
+ {
+  "name": "pulse-fr",
+  "path": "/chest/polls/3",
+  "member": "lea",
+  "locale": "fr"
+ },
+ {
+  "name": "plants",
+  "path": "/chest/polls/4",
+  "member": "sofia",
+  "locale": "en"
+ },
+ {
+  "name": "new-date",
+  "path": "/chest/new?kind=date",
+  "member": "sofia",
+  "locale": "en",
+  "actions": [
+   {
+    "fill": [
+     "#title",
+     "Team dinner"
+    ]
+   },
+   {
+    "click": ".cal-head button >> nth=1"
+   },
+   {
+    "click": ".cal-day >> text=15"
+   },
+   {
+    "click": ".cal-day >> text=16"
+   },
+   {
+    "click": ".chosen-day >> nth=1 >> text=Add a time"
+   },
+   {
+    "wait": 200
+   }
+  ]
+ },
+ {
+  "name": "home-dark",
+  "path": "/chest",
+  "member": "tom",
+  "locale": "en",
+  "dark": true
+ }
+]

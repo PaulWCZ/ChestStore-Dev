@@ -1,0 +1,179 @@
+// Status, as customers and editors use it, in a real browser:
+//   node lab/chest-dev/flows/status.mjs [port]   (harness with --reset: the sample shop is there)
+import { as, done, expect, open, step } from "./lib.mjs";
+
+const port = Number(process.argv[2] ?? 5800);
+const { browser, context, page, origin, problems } = await open(port, "tom", { allow404: /\/incidents\/9999$/u });
+// Tom reads English; Camille and Léa French. The team's steps below read English.
+const english = () => context.addCookies([{ name: "dev_locale", value: "en", url: origin }, { name: "lang", value: "en", url: origin }]);
+const devText = async () => (await page.request.get(origin + "/_dev")).text();
+let subscriberLink = "";
+let incidentUrl = "";
+
+await step("a visitor sees the state in one line, what is happening, and each service with 90 days", async () => {
+  await context.clearCookies();
+  await english();
+  await page.goto(origin + "/");
+  expect((await page.locator("h1").innerText()).includes("Degraded performance"), "banner");
+  expect((await page.locator(".company-name").innerText()) === "Atelier Martin", "company");
+  const main = await page.locator("main").innerText();
+  expect(main.includes("Delivery dates shown late") && main.includes("Monitoring"), "active incident");
+  expect(main.includes("Payment provider upgrade"), "planned maintenance");
+  expect((await page.locator(".entry-component").first().locator(".tick").count()) === 90, "90 ticks");
+  expect(main.includes("uptime"), "uptime");
+  const payments = page.locator(".history-table").nth(3);
+  await payments.locator("summary").click();
+  expect((await payments.locator("table").innerText()).includes("Card payments failing"), "table alternative");
+});
+
+await step("a visitor opens an incident's own page, the history, and the feeds", async () => {
+  await page.locator(".tick a").first().click();
+  await page.waitForURL(/\/incidents\/\d+$/u);
+  expect((await page.locator("h1").innerText()).length > 3, "incident page");
+  await page.goto(origin + "/history");
+  expect((await page.locator("main").innerText()).includes("Card payments failing"), "history");
+  const atom = await page.request.get(origin + "/feed.atom");
+  expect(atom.status() === 200 && (await atom.text()).includes("<feed xmlns=\"http://www.w3.org/2005/Atom\">"), "atom");
+  const rss = await page.request.get(origin + "/feed.rss");
+  expect(rss.status() === 200 && (await rss.text()).includes("<rss version=\"2.0\""), "rss");
+  const ics = await page.request.get(origin + "/maintenance.ics");
+  expect(ics.status() === 200 && (await ics.text()).includes("SUMMARY:Maintenance — Payment provider upgrade"), "ics");
+  const missing = await page.goto(origin + "/incidents/9999");
+  expect(missing.status() === 404, "unknown incident");
+});
+
+await step("a visitor subscribes by email: a confirmation link, then their own page", async () => {
+  await page.goto(origin + "/");
+  await page.getByRole("link", { name: "Get updates" }).first().click();
+  await page.waitForURL(origin + "/subscribe");
+  await page.getByLabel("Your email address").fill("lucie@example.com");
+  await page.getByLabel("Only these:").check();
+  await page.getByLabel("Online shop — Checkout").check();
+  await page.waitForTimeout(2200);
+  await page.getByRole("button", { name: "Subscribe" }).click();
+  await page.waitForURL(/\/subscribe\?sent=1/u);
+  expect((await page.locator("h1").innerText()).includes("Check your inbox"), "sent");
+  const dev = await devText();
+  expect(dev.includes("Confirm your subscription to Atelier Martin status updates"), "confirmation email");
+  subscriberLink = /http:\/\/localhost:\d+\/s\/[A-Za-z0-9_-]{32}/u.exec(dev)?.[0] ?? "";
+  expect(subscriberLink, "link in the email");
+  await page.goto(subscriberLink);
+  await page.getByRole("button", { name: "Confirm" }).click();
+  await page.waitForURL(/done=confirmed/u);
+  expect((await page.locator("main").innerText()).includes("You are subscribed"), "confirmed");
+});
+
+await step("an editor posts an incident in one screen; customers, the team and the subscriber are told", async () => {
+  await as(context, origin, "tom");
+  await english();
+  await page.goto(origin + "/chest");
+  await page.getByRole("link", { name: "Post an incident" }).click();
+  await page.waitForURL(origin + "/chest/incidents/new");
+  await page.getByLabel("What is wrong?").fill("Checkout errors");
+  await page.getByLabel("Checkout").check();
+  await page.getByLabel("Impact on Checkout").selectOption("major");
+  await page.getByLabel("What do you tell your customers?").fill("Some orders fail at the last step. We are on it.");
+  await page.getByRole("button", { name: "Post the incident" }).click();
+  await page.waitForURL(/\/chest\/incidents\/\d+$/u);
+  incidentUrl = page.url();
+  expect((await page.locator("h1").innerText()).includes("Checkout errors"), "incident page");
+  const dev = await devText();
+  expect(dev.includes("Incident : Checkout errors"), "Camille's bell, in French");
+  expect(dev.includes("Incident: Checkout errors"), "Tom's bell, in English");
+  expect(dev.includes("[Atelier Martin] Investigating: Checkout errors"), "the subscriber's email");
+  await context.clearCookies();
+  await english();
+  // Browsers keep the public page 30 seconds: a fresh address.
+  await page.goto(origin + "/?fresh=1");
+  expect((await page.locator("h1").innerText()).includes("Major outage"), "public banner");
+});
+
+await step("the editor posts an update, then resolves (confirmed in a dialog)", async () => {
+  await as(context, origin, "tom");
+  await english();
+  await page.goto(incidentUrl);
+  await page.getByLabel("Identified").check();
+  await page.getByLabel("What is new?").fill("A bad release. Rolling back.");
+  await page.getByRole("button", { name: "Post the update" }).click();
+  await page.waitForSelector(".toast >> text=Update posted.");
+  expect((await page.locator(".team-timeline").innerText()).includes("A bad release. Rolling back."), "timeline");
+  await page.getByRole("button", { name: "Resolve", exact: true }).click();
+  expect((await page.locator("dialog").innerText()).includes("Checkout will show “Operational” again"), "dialog says what changes");
+  await page.getByRole("button", { name: "Resolve the incident" }).click();
+  await page.waitForSelector(".toast >> text=Resolved.");
+  await page.waitForSelector(".chip.step-resolved");
+});
+
+await step("a mistake is corrected and logged; a removed update comes back with Undo", async () => {
+  await page.locator(".team-timeline .step").last().getByRole("button", { name: "Edit" }).click();
+  await page.locator(".team-timeline textarea").fill("Some orders failed at the last step.");
+  await page.getByRole("button", { name: "Save" }).click();
+  await page.waitForSelector(".toast >> text=Update corrected.");
+  expect((await page.locator(".team-timeline").innerText()).includes("Corrected by You"), "logged");
+  await page.locator(".team-timeline .step").nth(1).getByRole("button", { name: "Remove" }).click();
+  await page.getByRole("button", { name: "Undo" }).click();
+  await page.waitForSelector(".toast >> text=The update is back on the page.");
+});
+
+await step("an editor plans a maintenance; the page shows it as planned", async () => {
+  await page.goto(origin + "/chest/maintenance/new");
+  await page.getByLabel("What will you do?").fill("Search engine upgrade");
+  await page.getByLabel("Catalogue").check();
+  await page.getByLabel("What do you tell your customers?").fill("Searching may be slow for an hour.");
+  await page.getByRole("button", { name: "Plan it" }).click();
+  await page.waitForURL(/\/chest\/incidents\/\d+$/u);
+  expect((await page.locator(".chip").first().innerText()).toLowerCase().includes("planned"), "planned");
+  await context.clearCookies();
+  await english();
+  await page.goto(origin + "/?fresh=2");
+  expect((await page.locator("main").innerText()).includes("Search engine upgrade"), "public");
+});
+
+await step("an editor adds a service, hides it, and the public page follows", async () => {
+  await as(context, origin, "tom");
+  await english();
+  await page.goto(origin + "/chest/components");
+  await page.locator("#add-component-name").fill("Gift cards");
+  await page.getByRole("button", { name: "Add a service" }).click();
+  await page.waitForSelector(".component-line >> text=Gift cards");
+  await page.getByRole("button", { name: "Hide from the page — Gift cards" }).click();
+  await page.waitForSelector(".component-line.is-hidden >> text=Gift cards");
+  await context.clearCookies();
+  await english();
+  await page.goto(origin + "/?fresh=3");
+  expect(!(await page.locator("main").innerText()).includes("Gift cards"), "hidden from customers");
+});
+
+await step("someone with the tool but no role sees nothing but why", async () => {
+  await as(context, origin, "nora");
+  await context.addCookies([{ name: "dev_locale", value: "fr", url: origin }]);
+  await page.goto(origin + "/chest");
+  expect((await page.locator("h1").innerText()).includes("Vous ne pouvez pas encore utiliser cet outil"), "no access, in French");
+  const r = await page.goto(origin + "/chest/subscribers");
+  expect((await r.text()).includes("Vous ne pouvez pas") && !(await page.locator("main").innerText()).includes("lucie@example.com"), "no subscribers shown");
+});
+
+await step("French, phone width: the page reads without sideways scroll; the subscriber unsubscribes", async () => {
+  await context.clearCookies();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(origin + "/lang/fr?back=/");
+  expect((await page.locator("h1").innerText()).length > 5, "banner");
+  expect((await page.locator(".history-legend .narrow").first().innerText()).includes("Il y a 30 jours"), "30 days on a phone, in French");
+  const wide = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1);
+  expect(!wide, "no sideways scroll");
+  await page.goto(subscriberLink);
+  await page.getByRole("button", { name: "Me désabonner" }).click();
+  await page.waitForURL(origin + "/unsubscribed");
+  expect((await page.locator("h1").innerText()).includes("Vous êtes désabonné"), "gone");
+  await page.goto(subscriberLink);
+  expect((await page.locator("h1").innerText()).includes("Ce lien ne fonctionne pas"), "the link is dead");
+  await as(context, origin, "camille");
+  await context.addCookies([{ name: "dev_locale", value: "fr", url: origin }]);
+  await page.goto(origin + "/chest");
+  const wideTeam = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1);
+  expect(!wideTeam, "team part: no sideways scroll");
+  expect((await page.locator("h1").innerText()).includes("En ce moment"), "team part in French");
+});
+
+await browser.close();
+done(problems);

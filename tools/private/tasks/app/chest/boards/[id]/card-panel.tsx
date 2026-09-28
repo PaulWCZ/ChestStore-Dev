@@ -470,7 +470,7 @@ function Composer({ people, t, onSubmit }: { people: Person[]; t: Words; onSubmi
     <form className="composer" onSubmit={e => { e.preventDefault(); submit(); }}>
       <label htmlFor="comment" className="visually-hidden">{t.card.commentPlaceholder}</label>
       <textarea ref={field} id="comment" className="field" rows={2} maxLength={5000} value={text} placeholder={t.card.commentPlaceholder}
-        aria-autocomplete="list" aria-controls="mention-list" aria-expanded={suggestions.length > 0}
+        aria-autocomplete="list" aria-controls={suggestions.length > 0 ? "mention-list" : undefined} aria-activedescendant={suggestions.length > 0 ? `mention-${active}` : undefined}
         onChange={e => onChange(e.target.value, e.target.selectionStart)}
         onKeyDown={e => {
           if (suggestions.length > 0) {
@@ -484,7 +484,7 @@ function Composer({ people, t, onSubmit }: { people: Person[]; t: Words; onSubmi
       {suggestions.length > 0 && (
         <div className="suggestions" id="mention-list" role="listbox" aria-label={t.card.mention}>
           {suggestions.map((p, i) => (
-            <button type="button" key={p.id} role="option" aria-selected={i === active} onMouseDown={e => { e.preventDefault(); pick(p); }}>
+            <button type="button" key={p.id} id={`mention-${i}`} role="option" aria-selected={i === active} onMouseDown={e => { e.preventDefault(); pick(p); }}>
               <Avatar name={p.name} photo={p.photo} size={24} />{p.name}
             </button>
           ))}

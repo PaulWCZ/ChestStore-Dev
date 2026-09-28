@@ -3,7 +3,7 @@ import { test } from "node:test";
 import { calendar, escape, fold } from "../lib/ics.ts";
 
 test("text is escaped as RFC 5545 asks", () => {
-  assert.equal(escape("a;b,c\\d\ne"), "a\;b\\,c\\\\d\\ne");
+  assert.equal(escape("a;b,c\\d\ne"), "a\\;b\\,c\\\\d\\ne");
 });
 
 test("long lines fold at 75 octets without cutting a character", () => {
