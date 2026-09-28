@@ -7,7 +7,7 @@ const executablePath = ["/opt/pw-browsers/chromium-1194/chrome-linux/chrome"].fi
 export const id = key => "mbr_" + key + "a".repeat(26 - key.length);
 
 export async function open(port, member = "camille", options = {}) {
-  const browser = await chromium.launch({ ...(executablePath ? { executablePath } : {}) });
+  const browser = await chromium.launch({ ...(executablePath ? { executablePath } : {}), args: ["--lang=en-GB"] });
   const origin = `http://localhost:${port}`;
   const context = await browser.newContext({ viewport: options.viewport ?? { width: 1280, height: 860 }, locale: "en-GB" });
   await context.addCookies([{ name: "dev_member", value: id(member), url: origin }, ...(options.locale ? [{ name: "dev_locale", value: options.locale, url: origin }] : [])]);

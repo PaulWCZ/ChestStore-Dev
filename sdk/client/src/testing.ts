@@ -92,6 +92,9 @@ export type FakeChest = {
   token: string;
   tool: string;
   members: FakeMember[];
+  // Those who left (or were erased): what members.lookup answers "former"
+  // for. A test or a harness that removes a member moves them here.
+  former: { id: string; name?: string; erased?: boolean }[];
   groups: FakeGroup[];
   files: Map<string, FakeFile>;
   notifications: FakeNotification[];
@@ -215,8 +218,8 @@ export async function fakeChest(options: FakeChestOptions = {}): Promise<FakeChe
   const publicMaxObject = 10 << 20;
   // The erasures the tool was told of, by emit: those it may acknowledge.
   const erasures = new Set<string>();
-  const chest: FakeChest = { api: "", token, tool, members: [...(options.members ?? [])], groups: [...(options.groups ?? [])], files, notifications: [], badges: new Map(), acknowledged: [], emit: async () => 0, upload: async () => new Response(), published: [], deliver: async () => 0, outbox: [], receive: async () => 0, schedules: [...(options.schedules ?? [])], runs: [], run: async () => 0, close: async () => {} };
-  const former = [...(options.former ?? [])];
+  const chest: FakeChest = { api: "", token, tool, members: [...(options.members ?? [])], former: [...(options.former ?? [])], groups: [...(options.groups ?? [])], files, notifications: [], badges: new Map(), acknowledged: [], emit: async () => 0, upload: async () => new Response(), published: [], deliver: async () => 0, outbox: [], receive: async () => 0, schedules: [...(options.schedules ?? [])], runs: [], run: async () => 0, close: async () => {} };
+  const former = chest.former;
   let window = 0, calls = 0;
   const shown = (m: FakeMember) => ({ id: m.id, first_name: m.firstName, last_name: m.lastName, name: m.name, photo: m.photo, role: m.role, admin: m.isAdmin, builder: m.isBuilder, groups: m.groups, ...(m.locale === undefined ? {} : { locale: m.locale }), ...(email && m.email !== undefined ? { email: m.email } : {}) });
   const key = (m: FakeMember) => fold(m.name) + "\u0000" + m.id;

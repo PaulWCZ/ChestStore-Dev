@@ -186,7 +186,15 @@ const front = createServer(async (request, response) => {
         const data = type === "member.erased" ? { id, erasure: "era_" + Array.from({ length: 26 }, () => "abcdefghijklmnopqrstuvwxyz234567"[Math.floor(Math.random() * 32)]).join(""), deadline: new Date(Date.now() + 30 * 864e5).toISOString() } : type === "member.updated" ? { id, changed: ["name"] } : { id };
         if (type === "member.removed" || type === "member.erased") {
           const gone = chest.members.findIndex(m => m.id === id);
-          if (gone >= 0) chest.members.splice(gone, 1);
+          // As a real Chest: whoever left is "former", with their name,
+          // or with none once erased.
+          if (gone >= 0) {
+            const [who] = chest.members.splice(gone, 1);
+            chest.former.push(type === "member.erased" ? { id, erased: true } : { id, name: who.name });
+          } else if (type === "member.erased") {
+            const known = chest.former.find(f => f.id === id);
+            if (known) { delete known.name; known.erased = true; }
+          }
         }
         const status = await chest.emit({ type, data }, `http://127.0.0.1:${inner}`);
         console.log(`event ${type} for ${id} → ${status}`);

@@ -13,6 +13,7 @@ cd tools/private/tasks && npm test && npm run build
 node lab/chest-dev/dev.mjs tools/private/tasks --reset        # http://localhost:4000/_dev
 node lab/chest-dev/dev.mjs tools/private/tasks --prod --reset # after npm run build
 node lab/chest-dev/screens.mjs tools/private/tasks            # with docs/screens.json
+node lab/chest-dev/audit.mjs tools/private/tasks              # accessibility (axe-core, WCAG 2.1 AA)
 node scripts/add-font.mjs tools/private/tasks @fontsource-variable/<font>
 node scripts/check-manifest.mjs tools/private/tasks
 node scripts/contrast.mjs "#1c1b18 on #ffffff"

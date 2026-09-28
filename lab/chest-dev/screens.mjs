@@ -26,7 +26,7 @@ const tool = resolve(folder);
 const shots = JSON.parse(readFileSync(join(tool, "docs", "screens.json"), "utf8"));
 const origin = `http://localhost:${port}`;
 const executablePath = ["/opt/pw-browsers/chromium-1194/chrome-linux/chrome"].find(p => existsSync(p));
-const browser = await chromium.launch({ ...(executablePath ? { executablePath } : {}) });
+const browser = await chromium.launch({ ...(executablePath ? { executablePath } : {}), args: ["--lang=en-GB"] });
 mkdirSync(join(tool, "docs", "screens"), { recursive: true });
 const id = key => "mbr_" + key + "a".repeat(26 - key.length);
 

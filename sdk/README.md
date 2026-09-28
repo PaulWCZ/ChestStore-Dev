@@ -739,6 +739,7 @@ await chest.close();
 | `fakeChest({origin})` | **Proposal (studio).** The team host its links and uploads point to (`https://<tool>-chest.chest.test` by default). A local harness gives its own (`http://localhost:<port>`) and relays `/_chest/*` of its host to `chest.api`, where the fake Chest's front serves the uploads, the signed links and the members' photos (initials). `files.url` and `uploadUrl` accept `http://localhost` and `http://127.0.0.1` links for that reason |
 | `fakeChest({schedules, timeZone})`, `chest.run(name, to, {id?, scheduledAt?, attempt?})`, `chest.runs` | **Proposal (studio).** A run of a declared schedule delivered to `POST <to>/chest-jobs/<name>` (or a handler of Web Requests), signed as the Chest would; `CHEST_TIMEZONE` set (Europe/Paris by default) |
 | `fakeChest({settings: {company, currency, locale, publicUrl}})` | **Proposal (studio).** The Chest's settings (`chest`) in the environment while the fake runs; `CHEST_TEAM_URL` is the fake's origin |
+| `chest.former` | **Proposal (studio).** Those who left (`{id, name}`) or were erased (`{id, erased: true}`): what `members.lookup` answers "former" for. A test or a harness that removes a member from `chest.members` moves them here, as a real Chest would |
 | `chest.close()` | Stops it and restores the environment |
 
 ## Version

@@ -74,9 +74,11 @@ await step("open a card; set a date, a checklist, give it to Inès, mention her"
   await page.locator("#comment").fill("Can you check the price @In");
   await page.waitForSelector(".suggestions");
   await page.keyboard.press("Enter");
+  // The mention is in the text before typing on.
+  await page.waitForFunction(() => (document.querySelector("#comment")?.value ?? "").includes("@Inès Moreau"));
   await page.locator("#comment").type("please");
   await page.getByRole("button", { name: "Comment", exact: true }).click();
-  await page.waitForTimeout(1500);
+  await page.locator(".panel").getByText("@Inès Moreau please").first().waitFor();
   const text = await page.locator(".panel").innerText();
   expect(text.includes("Choose the size"), "checklist");
   expect(text.includes("@Inès Moreau please"), "comment");

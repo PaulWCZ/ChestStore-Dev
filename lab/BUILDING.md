@@ -63,6 +63,7 @@ node scripts/check-manifest.mjs tools/<kind>/<name>
 node lab/chest-dev/dev.mjs tools/<kind>/<name> --prod --reset --port <yours>   # background (nohup … &)
 node lab/chest-dev/flows/<name>.mjs <yours>          # your browser flows (lab/chest-dev/flows/lib.mjs; model: flows/tasks.mjs)
 node lab/chest-dev/screens.mjs tools/<kind>/<name> --port <yours>   # docs/screens.json → docs/screens/, chest/preview.png
+node lab/chest-dev/audit.mjs tools/<kind>/<name> --port <yours>     # axe-core, WCAG 2.1 A/AA, every screen, light and dark: must pass
 sh lab/chest-dev/stop.sh <yours>
 ```
 
