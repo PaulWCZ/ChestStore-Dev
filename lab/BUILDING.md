@@ -76,6 +76,23 @@ tom, sofia, nora).
 Never `pkill -f` a pattern that appears in your own command line (it kills
 your shell): use `sh lab/chest-dev/stop.sh <port>`.
 
+Lessons from the tools already built:
+
+- **Dates in client components**: Node's and the browser's Intl can write
+  the same date differently ("Monday 19 October" / "Monday, 19 October"),
+  which breaks hydration (React error 418). Format dates and lists of time
+  zones on the server, or only after mount.
+- **Native time and date fields follow the browser's locale** (AM/PM on
+  many computers): for times of day, a select in 24-hour steps.
+- **Flows**: the cast speaks French for Camille, Inès, Léa and Nora; a flow
+  that reads the team's pages in English sets the `dev_locale` cookie
+  again after each `as()`. Run flows against a `--reset` harness (they
+  add data).
+- **PGlite hides some differences** (timestamps in µs vs ms in JS): run the
+  tests on PostgreSQL too before saying done.
+- **Tiptap and similar libraries inject `<style>`**: the nonce policy
+  blocks it; turn it off and ship the CSS.
+
 ## 5. Document
 
 `README.md` (what it does, roles table, **First minute**, routes, on a Chest,

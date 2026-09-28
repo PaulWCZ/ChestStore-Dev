@@ -56,6 +56,20 @@ the only signal: free days are also buttons, taken ones are disabled).
 
 ## Showcase
 
-- **Voice**: "Pick a time", "You are booked", "Change the time".
-- **Palette**: paper `#fbf7f1`, plum `#5b2a86`, mint `#0b6e55`, apricot `#974503`.
-- **Type**: Young Serif + Figtree.
+```json showcase
+{
+  "adjectives": ["polite", "quick", "warm"],
+  "colors": [
+    { "name": "Paper", "value": "#fbf7f1" },
+    { "name": "Plum ink", "value": "#24172e" },
+    { "name": "Plum", "value": "#5b2a86" },
+    { "name": "Mint", "value": "#0b6e55" },
+    { "name": "Apricot", "value": "#974503" }
+  ],
+  "fonts": {
+    "display": { "family": "Young Serif", "file": "public/fonts/young-serif-latin-400-normal.woff2", "weight": 400 },
+    "body": { "family": "Figtree", "file": "public/fonts/figtree-latin-wght-normal.woff2", "weight": 450 }
+  },
+  "specimen": "Tuesday 29 September at 10:00 — you are booked."
+}
+```
