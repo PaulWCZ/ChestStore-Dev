@@ -1,6 +1,22 @@
 {
   "schedules": [
-    { "name": "reminder", "cron": "45 8 * * 5" },
-    { "name": "week", "cron": "50 6 * * 1" }
-  ]
+    {
+      "name": "reminder",
+      "cron": "45 8 * * 5"
+    },
+    {
+      "name": "week",
+      "cron": "50 6 * * 1"
+    }
+  ],
+  "translations": {
+    "fr": {
+      "title": "Objectifs",
+      "description": "Mettez-vous d’accord sur ce qui compte ce trimestre : objectifs d’entreprise et d’équipe, résultats clés, points hebdomadaires, progrès visibles de tous.",
+      "role_labels": {
+        "admin": "Administrateur",
+        "member": "Membre"
+      }
+    }
+  }
 }
