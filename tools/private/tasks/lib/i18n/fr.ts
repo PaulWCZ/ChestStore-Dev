@@ -82,6 +82,7 @@ export const fr: Catalogue = {
     allBoards: "Tous les tableaux",
     markDone: "Marquer « {title} » comme fait",
     doneToast: "Déplacée dans {column}.",
+    doneRepeatToast: "Déplacée dans {column}. La suivante est sur son tableau.",
     reminder: "Me rappeler chaque matin de semaine ce qui est à faire ou en retard",
   },
   boards: {

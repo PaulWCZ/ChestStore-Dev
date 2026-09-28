@@ -78,15 +78,7 @@ export type UploadGrant = { ok: true; url: string } | { ok: false; error: ErrorC
 // back is a claim only they hold.
 export async function fileUpload(where: { started?: string; secret?: string }, type: string, size: number): Promise<UploadGrant> {
   try {
-    const sql = db();
-    if (typeof where.secret === "string") {
-      if (!(await tickets.byLink(sql, where.secret))) throw new AppError("not_found");
-    } else {
-      check(where.started, Date.now(), { fast: true });
-      if (!(await tickets.settings(sql)).formOpen) throw new AppError("closed_form");
-    }
-    await tickets.guard(sql, visitorKey(await headers()), "file");
-    const up = await attachments.grant("public", type, size);
+    const up = await attachments.visitorGrant(db(), where, visitorKey(await headers()), type, size);
     return { ok: true, url: up.url };
   } catch (error) {
     if (error instanceof AppError) return { ok: false, error: error.code, ...(typeof error.values["max"] === "number" ? { max: error.values["max"] } : {}) };

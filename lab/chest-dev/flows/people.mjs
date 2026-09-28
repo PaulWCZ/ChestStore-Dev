@@ -140,6 +140,23 @@ await step("HR gives a step to someone else, removes one and undoes it", async (
   expect(await page.locator(".step", { hasText: "Close the accounts" }).count() === 1, "back");
 });
 
+await step("a departure is told to the other tools; stopped, it is taken back; Undo tells it again", async () => {
+  const journey = page.url();
+  const published = async () => {
+    await page.goto(origin + "/_dev");
+    return page.locator("li", { has: page.locator("code", { hasText: /^people\./u }) }).allInnerTexts();
+  };
+  const first = await published();
+  expect(first.length === 1 && first[0].includes("people.leaving") && first[0].includes(id("tom")) && first[0].includes("2026-12-18"), "leaving told: " + first.join(" | "));
+  await page.goto(journey);
+  await page.getByRole("button", { name: "Stop this checklist" }).click();
+  await page.waitForSelector(".toast");
+  await page.locator(".toast").getByRole("button", { name: "Undo" }).click();
+  await page.waitForTimeout(1200);
+  const after = await published();
+  expect(after.length === 3 && after[1].includes("people.leaving_cancelled") && after[0].includes("people.leaving ") && after[0].includes("2026-12-18"), "stopped then restarted: " + after.join(" | "));
+});
+
 await step("HR imports a spreadsheet: sees the plan, imports", async () => {
   const file = tmp + "/people.csv";
   writeFileSync(file, "Employee Name,Job Title,Department,Location\nHugo Bernard,Senior account manager,Sales,Lyon\nJean Inconnu,Ghost,,\n");
@@ -200,6 +217,31 @@ await step("a hire who already has access is offered to link on the directory, i
   await page.waitForSelector(".toast");
   await page.reload();
   expect(await page.locator(".banner.suggest").count() === 0, "linked");
+});
+
+await step("Leave tells of an approved leave: the card and the profile say “Away · back on …”, never why; cancelled, it goes", async () => {
+  // Days in the Chest's time zone (the harness's: Europe/Paris).
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Paris", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+  const day = n => new Date(Date.parse(today + "T00:00:00Z") + n * 864e5).toISOString().slice(0, 10);
+  await deliver("leave.approved", { member: id("lea"), from: day(-1), to: day(2), fromHalf: "am", toHalf: "pm", request: "901" });
+  await page.context().addCookies([{ name: "dev_locale", value: "en", url: origin }]);
+  await page.goto(origin + "/chest");
+  const card = page.locator(".wall li", { hasText: "Léa Dubois" });
+  const badge = (await card.locator(".away").innerText()).trim();
+  expect(/^Away · back on \S+ \d+ \S+$/u.test(badge), "card: " + badge);
+  expect(await page.locator(".wall .away").count() === 1, "only Léa is away");
+  await card.getByRole("link").click();
+  await page.waitForURL(/\/chest\/people\/mbr_/u);
+  const note = (await page.locator(".profile-id .away").innerText()).trim();
+  expect(note.startsWith("Away · back on") && !/holiday|sick|note/iu.test(await page.locator("main").innerText()), "profile: " + note);
+  await deliver("leave.cancelled", { member: id("lea"), from: day(-1), to: day(2), fromHalf: "am", toHalf: "pm", request: "901" });
+  await page.goto(origin + "/chest");
+  expect(await page.locator(".wall .away").count() === 0, "gone once cancelled");
+  // Away again for the screenshots and the audit.
+  await deliver("leave.approved", { member: id("lea"), from: day(0), to: day(4), fromHalf: "am", toHalf: "pm", request: "902" });
+  await deliver("leave.approved", { member: id("tom"), from: day(0), to: day(0), fromHalf: "pm", toHalf: "pm", request: "903" });
+  await page.goto(origin + "/chest");
+  expect((await page.locator(".wall li", { hasText: "Tom Walker" }).locator(".away").innerText()).trim().startsWith("Away this afternoon"), "half day");
 });
 
 await step("in French: the directory and a checklist speak French", async () => {

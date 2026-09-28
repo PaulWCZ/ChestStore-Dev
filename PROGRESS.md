@@ -22,6 +22,15 @@ Step 3 done (17 tools verified). Step 4: the SDK report is kept current. Step 5 
    to the agent that builds custom tools.
 4. Always compare new work with earlier work, and bring the best of each
    into the kit.
+5. **A theme per tool** too: the company chooses a look for all its tools,
+   and can override it for any single tool.
+6. **A "Chest" theme** following the Chest portal's design sheet
+   (black and white, Swiss, light only, fallback fonts Arial and Georgia).
+   It replaces "Plain". The owner wants it as an option, which is an
+   exception to brief/05's "a tool must not look like the portal".
+7. **Forms**: build the best form builder (Typeform, Tally, Google
+   Forms). The owner's beta is not a quality reference. Folder:
+   `tools/public-and-private/forms`, tool 18.
 
 **Round in progress (builders, lead verifies and commits each):**
 - Tasks: reminders and recurring cards.
@@ -34,6 +43,7 @@ Step 3 done (17 tools verified). Step 4: the SDK report is kept current. Step 5 
   `deriveTheme` and `importBrand`, SDK `theme` proposal (studio.11), harness
   theme switcher, gallery, pilot on `lab/template`,
   `reports/04-themes-and-kit.md`.
+- Forms (tool 18): research, then build.
 
 **Next:**
 1. The severe critique of all 17 tools (hands-on, against the competitors'

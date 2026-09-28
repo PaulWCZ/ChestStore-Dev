@@ -36,7 +36,8 @@ export async function savePost(postId: string | null, input: posts.PostInput): P
     await removeObjects(saved.removed);
     // No longer Important, or for another audience: its items go from
     // every bell (the next lines tell the new audience again).
-    if ("importantChanged" in saved && (saved.importantChanged || (saved.important && saved.audienceChanged))) {
+    const changed = "importantChanged" in saved ? (saved as posts.Updated) : null;
+    if (changed && (changed.importantChanged || (changed.important && changed.audienceChanged))) {
       await tell.settled(saved.id);
       await tell.refreshEveryone(sql);
     }

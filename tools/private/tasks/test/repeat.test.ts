@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { AppError } from "../lib/app-error.ts";
 import { today } from "../lib/model.ts";
-import { addDays, firstDue, nextDue, occurs, parseRepeat, ruleKey, suggest, weekday } from "../lib/repeat.ts";
+import { addDays, firstDue, nextDue, occurs, parseRepeat, suggest, weekday } from "../lib/repeat.ts";
 
 // The rules of a repeating card, alone: what a page may send, the day the
 // next one is due, month ends and summer time.
@@ -77,10 +77,4 @@ test("today is the day in the Chest's zone, not the server's", () => {
   assert.equal(today(new Date("2026-09-27T18:30:00Z"), "Pacific/Auckland"), "2026-09-28");
   // Los Angeles, the night summer time ends: still 1 November there.
   assert.equal(today(new Date("2026-11-02T06:30:00Z"), "America/Los_Angeles"), "2026-11-01");
-});
-
-test("a rule's key ignores the order of its fields", () => {
-  assert.equal(ruleKey({ day: 3, every: "month" } as never), ruleKey({ every: "month", day: 3 }));
-  assert.equal(ruleKey(null), "none");
-  assert.notEqual(ruleKey({ every: "week", days: [1] }), ruleKey({ every: "week", days: [1, 2] }));
 });

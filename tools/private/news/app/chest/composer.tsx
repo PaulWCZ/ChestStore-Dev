@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
-import { Bold, Clip, Cross, Italic, LinkIcon, List, Picture, kindIcons } from "../../components/icons.tsx";
+import { Bold, Clip, Cross, Group, Italic, LinkIcon, List, Picture, kindIcons } from "../../components/icons.tsx";
 import { RichText } from "../../components/rich-text.tsx";
 import { useToast } from "../../components/toast.tsx";
 import type { ErrorCode } from "../../lib/app-error.ts";
@@ -21,18 +21,22 @@ export type ComposerDraft = {
   publishAt: { day: string; time: string } | null;
   event: { day: string; start: string; end: string; place: string } | null;
   welcome: string | null; cover: FileInfo | null; attachments: FileInfo[];
+  // The groups it is kept to; none: everyone.
+  groups: string[];
 };
 type Words = { composer: Catalogue["composer"]; kinds: Catalogue["kinds"]; errors: Catalogue["errors"] };
 
 const draftKey = "news.draft";
 
-export function Composer({ postId, initial, people, defaults, t }: { postId: string | null; initial: ComposerDraft; people: { id: string; name: string }[]; defaults: { day: string; time: string }; t: Words }) {
+// groups: the Chest's groups that give News (a post may be kept to some).
+export function Composer({ postId, initial, people, groups, defaults, t }: { postId: string | null; initial: ComposerDraft; people: { id: string; name: string }[]; groups: { id: string; name: string }[]; defaults: { day: string; time: string }; t: Words }) {
   const router = useRouter();
   const toast = useToast();
   const w = t.composer;
   const [d, setD] = useState<ComposerDraft>(initial);
   const [tab, setTab] = useState<"write" | "preview">("write");
   const [later, setLater] = useState(initial.publishAt !== null);
+  const [kept, setKept] = useState(initial.groups.length > 0);
   const [error, setError] = useState<{ text: string; field: string | null } | null>(null);
   const [saving, setSaving] = useState(false);
   const [sending, setSending] = useState<string | null>(null);
@@ -53,15 +57,17 @@ export function Composer({ postId, initial, people, defaults, t }: { postId: str
       if (saved) {
         const back = JSON.parse(saved) as { d: ComposerDraft; later: boolean };
         if (back?.d && (back.d.title || back.d.body)) {
-          setD({ ...initial, ...back.d, cover: null, attachments: [] });
+          const known = (back.d.groups ?? []).filter(g => groups.some(x => x.id === g));
+          setD({ ...initial, ...back.d, groups: known, cover: null, attachments: [] });
           setLater(back.later === true);
+          setKept(known.length > 0);
           setRestored(true);
         }
       }
     } catch {
       // A draft that cannot be read is left behind.
     }
-  }, [postId, initial]);
+  }, [postId, initial, groups]);
   useEffect(() => {
     if (postId !== null) return;
     try {
@@ -140,6 +146,10 @@ export function Composer({ postId, initial, people, defaults, t }: { postId: str
       title.current?.focus();
       return;
     }
+    if (kept && d.groups.length === 0) {
+      setError({ text: say("no_group"), field: "groups" });
+      return;
+    }
     setError(null);
     setSaving(true);
     const result = await savePost(postId, {
@@ -151,6 +161,7 @@ export function Composer({ postId, initial, people, defaults, t }: { postId: str
       publishAt: editable && later && d.publishAt ? d.publishAt : null,
       event: d.kind === "event" ? d.event : null,
       welcome: d.kind === "welcome" ? d.welcome : null,
+      groups: kept ? d.groups : [],
       cover: d.cover?.id ?? null,
       attachments: d.attachments.map(a => a.id),
     });
@@ -171,7 +182,7 @@ export function Composer({ postId, initial, people, defaults, t }: { postId: str
       <div className="composer-head">
         <h1>{postId === null ? w.newTitle : w.editTitle}</h1>
         {restored && (
-          <p className="notice">{w.draftRestored} <button type="button" className="link-button" onClick={() => { forget(); setD(initial); setLater(false); setRestored(false); }}>{w.discard}</button></p>
+          <p className="notice">{w.draftRestored} <button type="button" className="link-button" onClick={() => { forget(); setD(initial); setLater(false); setKept(initial.groups.length > 0); setRestored(false); }}>{w.discard}</button></p>
         )}
       </div>
 
@@ -303,6 +314,32 @@ export function Composer({ postId, initial, people, defaults, t }: { postId: str
             )}
             {sending && <p className="hint" role="status">{format(w.uploading, { name: sending })}</p>}
           </section>
+
+          <fieldset className="side-card audience" aria-describedby={error?.field === "groups" ? "form-error" : undefined}>
+            <legend>{w.audience}</legend>
+            <label className="check">
+              <input type="radio" name="audience" checked={!kept} onChange={() => setKept(false)} />
+              <span><strong>{w.everyone}</strong><small>{w.everyoneHint}</small></span>
+            </label>
+            {groups.length > 0 ? (
+              <>
+                <label className="check">
+                  <input type="radio" name="audience" checked={kept} onChange={() => setKept(true)} />
+                  <span><strong>{w.groups}</strong><small>{w.groupsHint}</small></span>
+                </label>
+                {kept && (
+                  <div className="audience-groups">
+                    {groups.map(g => (
+                      <label key={g.id} className="check">
+                        <input type="checkbox" checked={d.groups.includes(g.id)} onChange={e => update({ groups: e.target.checked ? [...d.groups, g.id] : d.groups.filter(x => x !== g.id) })} />
+                        <span><strong><Group /> {g.name}</strong></span>
+                      </label>
+                    ))}
+                  </div>
+                )}
+              </>
+            ) : <p className="hint">{w.noGroups}</p>}
+          </fieldset>
 
           <section className="side-card">
             <h2>{w.options}</h2>

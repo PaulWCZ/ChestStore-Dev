@@ -69,13 +69,46 @@ list of upcoming bookings with cancel / reschedule, and no double booking.
 | Subscribe URL (ICS feed) of my bookings for my calendar app | later | Cal.diy, Google | Read-only feed with secret token; no outbound needed |
 | Round-robin / collective team booking | later | Calendly, Cal.com (now closed) | |
 | Group date poll ("find a date") | later | Rallly, Doodle | Separate mode |
-| Custom booking questions | later | Calendly, Cal.diy | |
-| Daily limit of bookings per type | later | Calendly | |
+| Custom booking questions | built (Sept 2026) | Calendly, Cal.com | Up to 5 per type: short text, long text, one choice, yes/no; required or optional; see "Questions and limits" below |
+| Daily limit of bookings per type | built (Sept 2026) | Calendly, Cal.com "Limit booking frequency" | Per day only; per week/month later |
 | Embed widget on the company website | later | Calendly embed | iframe of the public page |
 | **Import from Calendly**: Scheduled Events CSV export | later | Calendly | CSV with all columns, not customisable — https://assets-help-site.calendly.com/help/article/how-to-export-scheduled-event-details/ (per search result). Event-type settings have no export. |
 | Payments (Stripe) for paid consultations | never (for now) | Calendly, Cal.diy | Outbound + PCI scope |
 | Video conferencing integrations (Zoom, Meet) | never | Cal.diy apps | Owner pastes a link instead |
 | Routing forms / workflows / SMS | never | Calendly, Cal.com | |
+
+## Questions and limits: how others phrase them (read 2026-09-28)
+
+Ideas and wording only — no code copied. Read from the projects' own English
+catalogues (the product sites were blocked from this environment):
+
+- **Cal.com** (`packages/i18n/locales/en/common.json`,
+  https://raw.githubusercontent.com/calcom/cal.com/main/packages/i18n/locales/en/common.json):
+  a *Limits* tab ("How often you can be booked") with *Before event* /
+  *After event* buffers, *Minimum notice*, *Limit booking frequency* ("Limit
+  how many times this event can be booked", per day, week, month, year, in
+  ascending order), *Limit total booking duration*, *Limit future bookings*
+  ("Limit how far in the future this event can be booked"), *Limit number
+  of upcoming bookings per booker*; the booker sees "Booking Limit for this
+  event type has been reached". *Booking questions* ("Customize the
+  questions asked on the booking page"), *Add a question*, *Input type*,
+  *Required* / *Optional*, an identifier per question.
+- **Easy!Appointments** (`application/language/english/translations_lang.php`,
+  https://raw.githubusercontent.com/alextselegidis/easyappointments/master/application/language/english/translations_lang.php):
+  one global *Book Advance Timeout* ("the timeout (in minutes) before the
+  customers can book or re-arrange appointments"), *Require phone number*,
+  *Attendants Number*; no per-service daily limit and no custom questions
+  in that catalogue.
+
+What Booking took: the limits stay behind *More options* next to the
+existing notice, window and buffers, written as a sentence the host reads
+("Bookings a day, at most": No limit, 1, 2 …); per day only (the frequent
+case: a showroom that takes three visits a day), not Cal.com's four
+periods. Questions: four kinds a non-technical host understands ("Short
+text", "Long text", "One choice", "Yes or no"), no identifiers, reordered
+with up/down buttons rather than drag and drop (keyboard and phone
+friendly). A full day is simply not offered; a visitor who loses the race
+reads the usual "Someone just took this time".
 
 ## Reusable pieces
 - **Cal.diy slot logic** (MIT, current tree only, with attribution): `packages/features/schedules/lib/slots.ts`, `date-ranges.ts` — https://github.com/calcom/cal.diy. Depends on `@calcom/dayjs`; port the algorithm, not the file.

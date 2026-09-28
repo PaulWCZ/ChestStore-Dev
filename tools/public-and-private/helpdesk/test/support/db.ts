@@ -15,9 +15,11 @@ export type TestDatabase = { sql: postgres.Sql; url: string; close(): Promise<vo
 
 const migrationsDir = join(import.meta.dirname, "..", "..", "migrations");
 
-export async function migrate(sql: postgres.Sql): Promise<void> {
+// upTo stops after that migration (a test of the next one's data changes).
+export async function migrate(sql: postgres.Sql, upTo?: string): Promise<void> {
   await sql`create table if not exists chest_migrations (name text primary key, sha256 text not null, applied_at timestamptz not null default now())`;
   for (const file of readdirSync(migrationsDir).filter(f => f.endsWith(".sql")).sort()) {
+    if (upTo !== undefined && file > upTo) break;
     const done = await sql`select 1 from chest_migrations where name = ${file}`;
     if (done.length > 0) continue;
     const text = readFileSync(join(migrationsDir, file), "utf8");
@@ -28,7 +30,7 @@ export async function migrate(sql: postgres.Sql): Promise<void> {
   }
 }
 
-export async function testDatabase(): Promise<TestDatabase> {
+export async function testDatabase(options: { upTo?: string } = {}): Promise<TestDatabase> {
   const server = process.env["TEST_DATABASE_URL"];
   if (server) {
     const name = "t_test_" + Math.random().toString(36).slice(2, 10);
@@ -37,7 +39,7 @@ export async function testDatabase(): Promise<TestDatabase> {
     const base = new URL(server);
     const url = `postgres://${base.username}:${base.password}@127.0.0.1:${base.port || 5432}/${name}`;
     const sql = postgres(url, { max: 4, onnotice: () => {} });
-    await migrate(sql);
+    await migrate(sql, options.upTo);
     process.env["DATABASE_URL"] = url;
     provide(sql);
     return {
@@ -63,7 +65,7 @@ export async function testDatabase(): Promise<TestDatabase> {
   // The shape of the Chest's address (lib/db.ts checks it through the SDK).
   const url = `postgres://t_test:test@127.0.0.1:${port}/t_test?sslmode=disable`;
   const sql = postgres(url, { max: 1, onnotice: () => {} });
-  await migrate(sql);
+  await migrate(sql, options.upTo);
   process.env["DATABASE_URL"] = url;
     provide(sql);
   return {

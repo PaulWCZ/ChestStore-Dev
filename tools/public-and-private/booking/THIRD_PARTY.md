@@ -6,7 +6,8 @@
 | Young Serif (font) | [The Young Serif Project Authors](https://github.com/noirblancrouge/YoungSerif), via `@fontsource/young-serif` 5.3.0 | OFL-1.1 | `public/fonts/`, licence in `public/fonts/LICENSE-young-serif.txt` |
 
 Ideas, no code: a public page per person and per kind of meeting, the
-month-and-times picker, buffers, minimum notice and booking window
+month-and-times picker, buffers, minimum notice and booking window, the
+host's own questions on the form and a daily limit per type
 (Calendly; Cal.com, AGPL — ideas only; Easy!Appointments, GPL — ideas
 only). The calendar file writer (`lib/ics.ts`) follows RFC 5545 and is
 our own. Dependencies from npm under their own licences: `next`, `react`,

@@ -6,6 +6,9 @@
   { "name": "pick-a-time", "path": "/ines-moreau/project-call", "member": "ines", "locale": "en" },
   { "name": "guest-booking", "path": "/b/demoGuestLinkForTheScreens000000", "member": "ines", "locale": "en" },
   { "name": "types", "path": "/chest/types", "member": "ines", "locale": "en", "only": ["desktop"] },
+  { "name": "type-questions", "path": "/chest/types/2", "member": "ines", "locale": "en", "actions": [{ "hover": ".questions" }, { "wait": 200 }] },
+  { "name": "questions-form", "path": "/ines-moreau/project-call", "member": "ines", "locale": "en", "actions": [{ "click": ".time-button >> nth=0" }, { "wait": 400 }, { "hover": "text=What is it for?" }, { "wait": 200 }] },
+  { "name": "type-questions-fr-dark", "path": "/chest/types/2", "member": "ines", "locale": "fr", "dark": true, "only": ["phone"], "actions": [{ "hover": ".questions" }, { "wait": 200 }] },
   { "name": "hours-fr", "path": "/chest/hours", "member": "ines", "locale": "fr" },
   { "name": "pick-a-time-fr", "path": "/hugo-bernard/measurement", "member": "camille", "locale": "fr", "only": ["phone"] },
   { "name": "bookings-dark", "path": "/chest?who=all", "member": "camille", "locale": "fr", "dark": true }

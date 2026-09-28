@@ -6,6 +6,7 @@
   {"name": "checklist", "path": "/chest/checklists/1", "member": "camille", "locale": "en"},
   {"name": "arrivals", "path": "/chest/checklists", "member": "sofia", "locale": "en"},
   {"name": "checklists-fr", "path": "/chest/checklists", "member": "camille", "locale": "fr"},
+  {"name": "away-fr", "path": "/chest?team=Sales", "member": "lea", "locale": "fr"},
   {"name": "directory-fr", "path": "/chest", "member": "lea", "locale": "fr"},
   {"name": "edit-fr", "path": "/chest/people/mbr_leaaaaaaaaaaaaaaaaaaaaaaaa/edit", "member": "lea", "locale": "fr", "only": ["desktop"]},
   {"name": "template", "path": "/chest/checklists/templates/1", "member": "camille", "locale": "en", "only": ["desktop"]},

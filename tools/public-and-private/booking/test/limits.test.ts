@@ -124,7 +124,7 @@ test("moves racing with bookings for the last place of a day: never more than th
     b.book(sql, host, type, { ...guest(3), start: tuesday(14) }, monday),
   ]);
   assert.equal(results.filter(r => r.status === "fulfilled").length, 1);
-  const rows = await sql<{ n: number }[]>`select count(*)::int as n from bookings where type_id = ${type.id} and status = 'confirmed' and starts_at::date = '2026-10-06'`;
+  const rows = await sql<{ n: number }[]>`select count(*)::int as n from bookings where type_id = ${type.id} and status = 'confirmed' and starts_at >= '2026-10-05T22:00:00Z' and starts_at < '2026-10-06T22:00:00Z'`;
   assert.equal(rows[0]!.n, 1);
 });
 

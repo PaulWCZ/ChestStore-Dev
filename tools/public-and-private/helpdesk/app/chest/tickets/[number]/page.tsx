@@ -3,11 +3,11 @@ import { answerers } from "../../../../lib/tell.ts";
 import { can } from "../../../../lib/access.ts";
 import { db } from "../../../../lib/db.ts";
 import { AppError } from "../../../../lib/errors.ts";
-import { format, formatDate, relative } from "../../../../lib/i18n/index.ts";
-import { fillReply } from "../../../../lib/model.ts";
+import { fileSize, format, formatDate, plural, relative } from "../../../../lib/i18n/index.ts";
+import { fillReply, isLate, waited } from "../../../../lib/model.ts";
 import { nameOf, people } from "../../../../lib/people.ts";
 import { viewer } from "../../../../lib/session.ts";
-import { savedReplies, ticket as readTicket } from "../../../../lib/tickets.ts";
+import { savedReplies, settings, tags, ticket as readTicket } from "../../../../lib/tickets.ts";
 import { TicketView } from "./ticket-view.tsx";
 
 // One ticket: the conversation, the answer box (reply or internal note),
@@ -28,8 +28,9 @@ export default async function TicketPage({ params }: { params: Promise<{ number:
   const authors = ticket.messages.map(m => m.author).filter((a): a is string => !!a && a.startsWith("mbr_"));
   const who = await people([...team, ...authors, ...ticket.viewing, ...(ticket.assignee ? [ticket.assignee] : [])]);
   const name = (id: string | null) => (id === member.id ? t.people.you : id === "erased" ? t.people.erased : nameOf(id ? who.get(id) : undefined, locale));
-  const replies = await savedReplies(sql, member);
+  const [replies, tagList, s] = await Promise.all([savedReplies(sql, member), tags(sql, member), settings(sql)]);
   const now = new Date();
+  const wait = ticket.waitingSince ? waited(ticket.waitingSince, now) : null;
   const customer = ticket.customerName || ticket.customerEmail;
   return (
     <TicketView
@@ -42,7 +43,11 @@ export default async function TicketPage({ params }: { params: Promise<{ number:
         customerEmail: ticket.customerEmail,
         assignee: ticket.assignee,
         created: formatDate(ticket.createdAt, locale, { dateStyle: "long", timeStyle: "short" }),
+        priority: ticket.priority,
+        tags: ticket.tags,
+        waiting: wait ? { text: plural(t.waiting[wait.unit], wait.count, locale), late: isLate(ticket.waitingSince, s.lateHours, now), lateText: format(t.waiting.late, { hours: s.lateHours }) } : null,
       }}
+      tagNames={tagList.map(g => g.name)}
       messages={ticket.messages.map(m => ({
         id: m.id,
         kind: m.kind,
@@ -53,7 +58,7 @@ export default async function TicketPage({ params }: { params: Promise<{ number:
         when: relative(m.at, locale, now),
         date: formatDate(m.at, locale, { dateStyle: "full", timeStyle: "short" }),
         delivery: m.delivery,
-        attachments: m.attachments,
+        attachments: m.attachments.map(a => ({ id: a.id, fileName: a.fileName, size: fileSize(a.size, locale) })),
       }))}
       others={ticket.others.map(o => ({ ...o, when: relative(o.updatedAt, locale, now) }))}
       viewing={ticket.viewing.map(id => name(id))}
@@ -62,7 +67,8 @@ export default async function TicketPage({ params }: { params: Promise<{ number:
       me={member.id}
       canAnswer={can(member, "tickets.answer")}
       canManage={can(member, "tickets.manage")}
-      t={{ ticket: t.ticket, errors: t.errors, people: t.people }}
+      locale={locale}
+      t={{ ticket: t.ticket, errors: t.errors, people: t.people, priority: t.priority, files: t.files }}
     />
   );
 }

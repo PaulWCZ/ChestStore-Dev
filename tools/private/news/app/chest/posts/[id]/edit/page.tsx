@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { can } from "../../../../../lib/access.ts";
 import { everyone } from "../../../../../lib/audience.ts";
 import { db } from "../../../../../lib/db.ts";
+import { groupsOfTool } from "../../../../../lib/groups.ts";
 import { AppError } from "../../../../../lib/errors.ts";
 import { nameOf, people as lookup } from "../../../../../lib/people.ts";
 import { draftOf, type Draft } from "../../../../../lib/posts.ts";
@@ -29,9 +30,13 @@ export default async function EditPost({ params }: { params: Promise<{ id: strin
   if (draft.welcome && draft.welcome !== "erased" && !people.some(p => p.id === draft.welcome)) {
     people.unshift({ id: draft.welcome, name: nameOf((await lookup([draft.welcome])).get(draft.welcome), v.locale) });
   }
+  // A group the post is kept to that no longer gives News stays, named as such.
+  const listed = await groupsOfTool();
+  const groups = listed === "unavailable" ? [] : listed;
+  for (const g of draft.groups) if (!groups.some(x => x.id === g)) groups.push({ id: g, name: v.t.front.formerGroup });
   return (
     <main className="desk">
-      <Composer postId={id} initial={draft} people={people} defaults={{ day: tomorrow.day, time: "09:00" }} t={{ composer: t.composer, kinds: t.kinds, errors: t.errors }} />
+      <Composer postId={id} initial={draft} people={people} groups={groups} defaults={{ day: tomorrow.day, time: "09:00" }} t={{ composer: t.composer, kinds: t.kinds, errors: t.errors }} />
     </main>
   );
 }

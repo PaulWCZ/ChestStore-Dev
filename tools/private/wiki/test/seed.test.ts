@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
+import { comments } from "../lib/comments.ts";
 import { lines } from "../lib/doc.ts";
 import * as pages from "../lib/pages.ts";
 import { search } from "../lib/search.ts";
@@ -31,7 +32,11 @@ test("the sample handbook loads on the migrated schema and reads back", async ()
   await assert.rejects(pages.page(sql, asMember(hugo), "16"), /not_found/u);
   assert.equal((await pages.page(sql, asMember(camille), "16")).title, "Salary review");
   assert.equal((await search(sql, asMember(hugo), "teletravail"))[0]?.id, "9");
+  // Its conversation: comments, a template of Sales, a review due.
+  assert.equal((await comments(sql, asMember(hugo), "2")).length, 3);
+  assert.equal((await pages.page(sql, asMember(hugo), "18")).template, true);
+  assert.equal((await pages.page(sql, asMember(hugo), "7")).review?.due, true);
   // New pages get ids after the sample's.
   const made = await pages.createPage(sql, asMember(camille), { spaceId: "1", title: "New" });
-  assert.ok(Number(made.id) > 17);
+  assert.ok(Number(made.id) > 18);
 });

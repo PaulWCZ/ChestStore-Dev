@@ -229,7 +229,7 @@ function Ask({ q, value, t }: { q: Question; value: string; t: Words }) {
   const options = q.kind === "choice" ? q.options.map(o => ({ value: o, text: o })) : [{ value: "yes", text: t.answers.yes }, { value: "no", text: t.answers.no }];
   return (
     <fieldset className="stack-s" style={{ border: 0, padding: 0, margin: 0 }}>
-      <legend className="label">{label}</legend>
+      <legend className="label" style={{ padding: 0 }}>{label}</legend>
       <div className={q.kind === "choice" ? "choices" : "pills"}>
         {options.map(o => <label key={o.value} className="choice"><input type="radio" name={name} value={o.value} required={q.required} defaultChecked={value === o.value} /><span>{o.text}</span></label>)}
       </div>

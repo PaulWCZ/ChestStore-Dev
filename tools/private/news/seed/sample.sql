@@ -27,7 +27,14 @@ insert into posts (kind, title, body, author, important, pinned_at, publish_at, 
    E'The office closes from **24 December to 1 January**. Enjoy the break!',
    'mbr_camilleaaaaaaaaaaaaaaaaaaa', false, null, now() + interval '2 days', now() - interval '1 hour', null, null, null, null, null, null);
 
--- Posts in order: 1 Q3, 2 Wi-Fi, 3 dinner, 4 move, 5 welcome, 6 expenses, 7 holidays (scheduled).
+-- A post for the Sales team only (lab/chest-dev/cast.mjs: Inès and Hugo).
+insert into posts (kind, title, body, author, important, publish_at, created_at, announced_at) values
+  ('info', 'Sales: our Q4 targets',
+   E'The targets for the last quarter are in the sales folder: **+8 % on renewals**, two new regions.\n\nKick-off lunch on Thursday at noon, in the new meeting room.',
+   'mbr_camilleaaaaaaaaaaaaaaaaaaa', false, now() - interval '1 day', now() - interval '1 day', now() - interval '1 day');
+insert into post_groups (post_id, group_id) values (8, 'grp_salesaaaaaaaaaaaaaaaaaaaaa');
+
+-- Posts in order: 1 Q3, 2 Wi-Fi, 3 dinner, 4 move, 5 welcome, 6 expenses, 7 holidays (scheduled), 8 Sales only.
 insert into confirmations (post_id, member, at) values
   (4, 'mbr_hugoaaaaaaaaaaaaaaaaaaaaaa', now() - interval '6 days' + interval '40 minutes'),
   (4, 'mbr_leaaaaaaaaaaaaaaaaaaaaaaaa', now() - interval '5 days'),
@@ -58,6 +65,8 @@ insert into reactions (post_id, member, emoji, at) values
 insert into comments (post_id, author, body, created_at) values
   (4, 'mbr_inesaaaaaaaaaaaaaaaaaaaaaa', 'Is there parking for bikes at the new place?', now() - interval '5 days'),
   (4, 'mbr_camilleaaaaaaaaaaaaaaaaaaa', 'Yes: a locked room in the courtyard, 20 spaces.', now() - interval '5 days' + interval '2 hours'),
+  (4, 'mbr_leaaaaaaaaaaaaaaaaaaaaaaaa', 'Génial ! Qui s’occupe du déménagement des plantes ?', now() - interval '4 days'),
+  (8, 'mbr_inesaaaaaaaaaaaaaaaaaaaaaa', 'Merci ! On prépare les chiffres pour jeudi.', now() - interval '20 hours'),
   (5, 'mbr_leaaaaaaaaaaaaaaaaaaaaaaaa', 'Welcome Nora! Lunch on Thursday?', now() - interval '3 days' + interval '1 hour'),
   (5, 'mbr_hugoaaaaaaaaaaaaaaaaaaaaaa', 'Welcome aboard!', now() - interval '3 days' + interval '2 hours'),
   (5, 'mbr_noraaaaaaaaaaaaaaaaaaaaaaa', 'Thank you all, what a warm welcome!', now() - interval '2 days'),

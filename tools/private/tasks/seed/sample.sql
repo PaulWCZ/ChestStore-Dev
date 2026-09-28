@@ -10,7 +10,7 @@ declare
   tom text := 'mbr_tomaaaaaaaaaaaaaaaaaaaaaaa';
   sofia text := 'mbr_sofiaaaaaaaaaaaaaaaaaaaaaa';
   b1 bigint; b2 bigint; b3 bigint;
-  c_todo bigint; c_doing bigint; c_done bigint; c_ideas bigint; c_review bigint;
+  c_todo bigint; c_doing bigint; c_done bigint; c_ideas bigint; c_review bigint; c_move bigint;
   k bigint;
   l_urgent bigint; l_client bigint; l_design bigint; l_dev bigint;
 begin
@@ -18,6 +18,7 @@ begin
   insert into boards (name, color, visibility, created_by) values ('Office move', 'sun', 'team', camille) returning id into b1;
   insert into board_people (board_id, member_id, owner) values (b1, camille, true);
   insert into columns (board_id, name, position) values (b1, 'To do', 'i') returning id into c_todo;
+  c_move := c_todo;
   insert into columns (board_id, name, position) values (b1, 'Doing', 'r') returning id into c_doing;
   insert into columns (board_id, name, position, done) values (b1, 'Done', 'v', true) returning id into c_done;
   insert into labels (board_id, name, color) values (b1, 'Urgent', 'tomato') returning id into l_urgent;
@@ -85,4 +86,10 @@ begin
   insert into card_assignees values (k, tom);
   insert into cards (board_id, column_id, title, position, created_by) values (b3, c_doing, 'Welcome breakfast', 'i', camille);
   insert into cards (board_id, column_id, title, position, created_by) values (b3, c_review, 'Lunch with the sales team', 'i', camille);
+
+  -- A repeating card (card 17): every Monday and Thursday, on the office move board.
+  insert into cards (board_id, column_id, title, description, position, due_on, created_by, repeat) values (b1, c_move, 'Water the plants', 'The big ones by the window need a full can.', 'y', current_date, ines, '{"every": "week", "days": [1, 4]}') returning id into k;
+  insert into card_assignees values (k, ines);
+  insert into checklist_items (card_id, text, done, position) values (k, 'Big plants by the window', false, 'i'), (k, 'Reception desk', false, 'r');
+  insert into activity (card_id, actor, kind) values (k, ines, 'created'), (k, ines, 'repeat_set');
 end $$;

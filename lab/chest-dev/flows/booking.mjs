@@ -27,11 +27,14 @@ await step("a visitor finds Inès on the company's page and opens a kind of meet
   await page.waitForURL(origin + "/ines-moreau/project-call");
 });
 
-await step("they pick a day and a time, fill three fields, and are booked (with an email)", async () => {
+await step("they pick a day and a time, fill three fields and the host's questions, and are booked (with an email)", async () => {
   await page.waitForSelector(".calendar button.open");
   const time = await pickFirstTime();
   await page.getByLabel("Your name").fill("Lucie Garnier");
   await page.getByLabel("Your email address").fill("lucie@example.com");
+  // Inès's own questions: one choice (required), a short text (optional), yes or no (optional).
+  await page.locator("fieldset", { hasText: "What is it for?" }).locator(".choice", { hasText: "A shop or an office" }).click();
+  await page.getByLabel("Your budget, roughly (optional)").fill("About 12 000 €");
   await page.getByLabel("Anything to prepare? (optional)").fill("A kitchen island in oak.");
   await page.waitForTimeout(3200);
   await page.getByRole("button", { name: "Confirm the booking" }).click();
@@ -43,6 +46,7 @@ await step("they pick a day and a time, fill three fields, and are booked (with 
   expect(text.includes(time), "the time chosen");
   const dev = await (await page.request.get(origin + "/_dev")).text();
   expect(dev.includes("Booked: Project call with Inès Moreau"), "confirmation email in the outbox");
+  expect(dev.includes("What is it for?: A shop or an office"), "the answers in the email and the bell");
 });
 
 await step("the calendar file downloads", async () => {
@@ -75,6 +79,7 @@ await step("the host sees it, with the guest's note, and a bell item", async () 
   await page.waitForURL(/\/chest\/bookings\/\d+/u);
   const text = await page.locator("main").innerText();
   expect(text.includes("A kitchen island in oak.") && text.includes("lucie@example.com"), "details");
+  expect(text.includes("Their answers") && text.includes("A shop or an office") && text.includes("About 12 000 €"), "answers");
   expect(text.includes("Moved once"), "moves");
   const dev = await (await page.request.get(origin + "/_dev")).text();
   // Inès reads French: her bell says so in French.
@@ -108,6 +113,46 @@ await step("a host creates a phone-call type; its page asks for the visitor's nu
   await page.goto(origin + "/ines-moreau/delivery-question");
   await pickFirstTime();
   expect(await page.getByLabel("Your phone number").isVisible(), "phone asked");
+});
+
+await step("a host asks their own questions, reorders them, and limits a type to one booking a day", async () => {
+  await as(context, origin, "ines");
+  await english();
+  await page.goto(origin + "/chest/types/new");
+  await page.getByLabel("Name").fill("Kitchen visit");
+  await page.getByRole("button", { name: "Add a question" }).click();
+  await page.getByLabel("Question 1", { exact: true }).fill("Is the kitchen empty?");
+  await page.locator(".question").nth(0).getByLabel("Answer").selectOption("yesno");
+  await page.locator(".question").nth(0).getByLabel("Required").check();
+  await page.getByRole("button", { name: "Add a question" }).click();
+  await page.getByLabel("Question 2", { exact: true }).fill("Which floor?");
+  await page.getByRole("button", { name: "Move question 2 up" }).click();
+  expect((await page.getByLabel("Question 1", { exact: true }).inputValue()) === "Which floor?", "moved up");
+  await page.locator("summary", { hasText: "More options" }).click();
+  await page.getByLabel("Bookings a day, at most").selectOption("1");
+  await page.getByRole("button", { name: "Create" }).click();
+  await page.waitForURL(origin + "/chest/types");
+  const card = await page.locator(".type", { hasText: "Kitchen visit" }).innerText();
+  expect(card.includes("2 questions") && card.includes("At most 1 a day"), "limits shown on the type");
+  // A visitor books it: the questions in the host's order, then the day is full.
+  await context.clearCookies();
+  await page.goto(origin + "/ines-moreau/kitchen-visit");
+  await page.waitForSelector(".calendar button.open");
+  const day = await page.locator('.calendar button[aria-pressed="true"]').getAttribute("aria-label");
+  await pickFirstTime();
+  const labels = await page.locator(".guest-form .label").allInnerTexts();
+  expect(labels.indexOf("Which floor? (optional)") >= 0 && labels.indexOf("Which floor? (optional)") < labels.indexOf("Is the kitchen empty?"), "order: " + labels.join(" | "));
+  await page.getByLabel("Your name").fill("Marc Petit");
+  await page.getByLabel("Your email address").fill("marc@example.com");
+  await page.locator("fieldset", { hasText: "Is the kitchen empty?" }).locator(".choice", { hasText: "Yes" }).click();
+  await page.waitForTimeout(3200);
+  await page.getByRole("button", { name: "Confirm the booking" }).click();
+  await page.waitForURL(/\/b\/[A-Za-z0-9_-]{32}\?new=1/u);
+  await page.goto(origin + "/ines-moreau/kitchen-visit");
+  await page.waitForSelector(".calendar button.open");
+  const same = page.locator(`.calendar button[aria-label="${day}"]`);
+  expect((await same.count()) === 0 || (await same.isDisabled()), "the full day is no longer offered");  await as(context, origin, "ines");
+  await english();
 });
 
 await step("a host sets a day off and changes Friday's hours", async () => {

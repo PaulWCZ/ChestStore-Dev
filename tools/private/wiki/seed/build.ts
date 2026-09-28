@@ -4,9 +4,12 @@
 //
 // A page file starts with a few "key: value" lines between "---": id, space,
 // parent (a page id), title, author (a cast name), created and updated (days
-// ago), lock and lockMinutes (someone editing it). "<key>.v1.md" is an older
-// version (author, days). In the text, [[key]] links to another page by its
-// file name, shown with its current title.
+// ago), lock and lockMinutes (someone editing it), template (true: offered
+// for new pages of its space). "<key>.v1.md" is an older version (author,
+// days). In the text, [[key]] links to another page by its file name, shown
+// with its current title. seed/conversation.json adds comments, watchers
+// and review reminders (days: how long ago; a review checked long ago is
+// due).
 import { readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { normalize, plainText, type Doc, type DocNode } from "../lib/doc.ts";
@@ -81,11 +84,21 @@ for (const p of order) {
   const links = new Set<string>();
   JSON.stringify(current.doc).replace(/"type":"pageRef","attrs":\{"id":"(\d+)"\}/gu, (_all, id: string) => { links.add(id); return ""; });
   for (const to of links) linkRows.push(`insert into page_links (from_page, to_page) values (${m["id"]}, ${to});`);
+  if (m["template"] === "true") out.push(`update pages set template = true where id = ${m["id"]};`);
   if (m["lock"]) out.push(`insert into page_locks (page_id, member_id, since, active_at) values (${m["id"]}, ${q(member(m["lock"]))}, now() - interval '${Number(m["lockMinutes"] ?? 5) + 20} minutes', now() - interval '${m["lockMinutes"] ?? 5} minutes');`);
   out.push("");
 }
 out.push(...linkRows, "");
+
+type Conversation = { comments: { page: number; by: string; days: number; text: string; edited?: boolean }[]; watchers: { page: number; by: string }[]; reviews: { page: number; months: number; owner: string; days: number }[] };
+const talk = JSON.parse(readFileSync(join(here, "conversation.json"), "utf8")) as Conversation;
+for (const c of talk.comments) {
+  out.push(`insert into page_comments (page_id, author, body, created_at, edited_at) values (${c.page}, ${q(member(c.by))}, ${q(c.text)}, now() - interval '${c.days} days' + interval '${(c.text.length * 13) % 400} minutes', ${c.edited ? `now() - interval '${c.days} days' + interval '${(c.text.length * 13) % 400 + 30} minutes'` : "null"});`);
+}
+for (const w of talk.watchers) out.push(`insert into page_watchers (page_id, member_id) values (${w.page}, ${q(member(w.by))});`);
+for (const r of talk.reviews) out.push(`update pages set review_months = ${r.months}, review_owner = ${q(member(r.owner))}, reviewed_at = now() - interval '${r.days} days' where id = ${r.page};`);
+out.push("");
 out.push("select setval(pg_get_serial_sequence('spaces', 'id'), (select max(id) from spaces));");
 out.push("select setval(pg_get_serial_sequence('pages', 'id'), (select max(id) from pages));");
 writeFileSync(join(here, "sample.sql"), out.join("\n") + "\n");
-console.log(`seed/sample.sql: ${spaces.length} spaces, ${pages.length} pages`);
+console.log(`seed/sample.sql: ${spaces.length} spaces, ${pages.length} pages, ${talk.comments.length} comments`);

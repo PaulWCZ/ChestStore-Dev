@@ -1,16 +1,20 @@
 "use client";
 
 import { useState, useTransition, type ReactNode } from "react";
-import { Bin, Download, Globe, Mail, Quote } from "../../../components/icons.tsx";
+import { Bin, Clock, Download, Globe, Mail, Quote, Tag } from "../../../components/icons.tsx";
 import { useToast } from "../../../components/toast.tsx";
 import { format, plural } from "../../../lib/i18n/format.ts";
 import type { Catalogue } from "../../../lib/i18n/index.ts";
-import { eraseCustomer, removeReply, saveReply, saveSettings } from "../actions.ts";
+import { lateChoices, limits } from "../../../lib/model.ts";
+import { deleteTag, eraseCustomer, removeReply, renameTag, restoreTag, saveReply, saveSettings } from "../actions.ts";
 
 type Words = { settings: Catalogue["settings"]; errors: Catalogue["errors"] };
 
-export function SettingsView({ settings, publicAddress, emailAddress, replies, canSettings, canReplies, canErase, canExport, t }: {
-  settings: { companyName: string; formOpen: boolean; intro: string; retentionMonths: number };
+export function SettingsView({ settings, tags, locale, publicAddress, emailAddress, replies, canSettings, canTags, canReplies, canErase, canExport, t }: {
+  settings: { companyName: string; formOpen: boolean; intro: string; retentionMonths: number; lateHours: number };
+  tags: { id: string; name: string; tickets: number }[];
+  locale: string;
+  canTags: boolean;
   publicAddress: string;
   emailAddress: string | null;
   replies: { id: string; title: string; body: string }[];
@@ -28,7 +32,6 @@ export function SettingsView({ settings, publicAddress, emailAddress, replies, c
       if (done) toast(done((r as { value?: unknown }).value));
       after?.();
     });
-  const locale = typeof document === "undefined" ? "en" : document.documentElement.lang;
   return (
     <>
       <Box title={s.form} icon={<Globe />}>
@@ -48,6 +51,43 @@ export function SettingsView({ settings, publicAddress, emailAddress, replies, c
             {canSettings && <div><button type="submit" className="button">{s.save}</button></div>}
           </fieldset>
         </form>
+      </Box>
+
+      <Box title={s.late} icon={<Clock />}>
+        <div>
+          <label className="label" htmlFor="late">{s.lateLabel}</label>
+          <select id="late" className="select" style={{ maxWidth: 220 }} defaultValue={settings.lateHours} disabled={!canSettings}
+            onChange={e => { const hours = Number(e.target.value); run(() => saveSettings({ lateHours: hours }), () => s.saved); }}>
+            {lateChoices.map(h => <option key={h} value={h}>{h === 0 ? s.lateNever : plural(s.lateHours, h, locale)}</option>)}
+          </select>
+          <p className="hint" style={{ marginTop: "var(--space-1)" }}>{s.lateHint}</p>
+        </div>
+      </Box>
+
+      <Box title={s.tags} icon={<Tag />}>
+        <p className="hint">{tags.length === 0 ? s.noTags : s.tagsHint}</p>
+        {tags.length > 0 && (
+          <ul className="list-rows">
+            {tags.map(g => (
+              <li key={g.id + g.name}>
+                <form className="row" style={{ flex: 1 }} onSubmit={e => { e.preventDefault(); const d = new FormData(e.currentTarget); run(() => renameTag(g.id, String(d.get("name") ?? "")), () => s.saved); }}>
+                  <label className="visually-hidden" htmlFor={`tag-${g.id}`}>{s.tagName}</label>
+                  <input id={`tag-${g.id}`} name="name" className="field" style={{ flex: 1, minWidth: 160 }} defaultValue={g.name} maxLength={limits.tag} required disabled={!canTags} />
+                  <span className="small muted">{plural(s.tagCount, g.tickets, locale)}</span>
+                  {canTags && <>
+                    <button type="submit" className="button small quiet">{s.save}</button>
+                    <button type="button" className="link-button danger" onClick={() => start(async () => {
+                      const r = await deleteTag(g.id);
+                      if (!r.ok) return toast(format(t.errors[r.error], r.values ?? {}));
+                      const gone = r.value;
+                      toast(format(s.tagDeleted, { tag: gone.name }), { label: s.undo, run: () => start(async () => { await restoreTag(gone); }) });
+                    })}>{s.deleteTag}</button>
+                  </>}
+                </form>
+              </li>
+            ))}
+          </ul>
+        )}
       </Box>
 
       <Box title={s.replies} icon={<Quote />}>

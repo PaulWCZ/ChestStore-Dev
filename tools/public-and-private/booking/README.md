@@ -15,13 +15,25 @@ confirmation; nobody is ever booked twice.
   a phone call — the visitor gives their number —, a video link shown
   only once booked, or to agree), a colour. Behind *More options*: start
   times every N minutes, free time before and after, how far ahead at
-  least and at most, on or off. Each type has its own link.
+  least and at most, **how many bookings of this type a day at most**,
+  on or off. Each type has its own link.
+- **The host's own questions**: up to five per type, each a short text,
+  a long text, one choice among options (2 to 10) or yes/no, required or
+  optional, moved up and down with two buttons. The guest answers them on
+  the form; the answers are checked again on the server (required ones
+  given, lengths, a choice among the options) and kept with the questions
+  as the guest saw them.
+- **Limits hold when booking**: the daily limit is counted on the host's
+  calendar (their time zone, daylight-saving days included); a full day
+  shows no free time, and booking or moving a booking re-checks every
+  rule inside one transaction that locks the type — two visitors racing
+  for the last place of a day cannot both get it (tested on PostgreSQL).
 - **Hours**: every week (several ranges a day), the host's time zone,
   days off (one day or a holiday), other hours for one day.
 - **Picking a time**: a month with the days that have free times, the
   day's times **in the visitor's time zone** (detected, changeable), then
   three fields (name, email, an optional note; the phone number for a
-  phone call). A time is checked again when booking, and the database
+  phone call) and the host's own questions, if any. A time is checked again when booking, and the database
   refuses two confirmed bookings of a host that overlap (buffers
   included), whatever their type: two visitors on the same time, one is
   told to pick another.
@@ -29,18 +41,19 @@ confirmation; nobody is ever booked twice.
   (an `.ics` file), *Change the time* (the same booking moved; five times
   at most), *Cancel* with an optional word.
 - **Emails to the guest** (Proposal *mail*): confirmation with the
-  calendar file, new time, cancellation, and a reminder the day before
-  (Proposal *schedules*). The host hears of bookings, moves and
-  cancellations in the Chest's bell, in their language and time zone.
+  calendar file and their answers, new time, cancellation, and a reminder
+  the day before (Proposal *schedules*). The host hears of bookings, moves
+  and cancellations in the Chest's bell, in their language and time zone
+  (a new booking's bell shows the note and the answers, as far as it fits).
 - **For the team**: the agenda (upcoming, past, cancelled; *Everyone* for
-  administrators), a booking's page (the guest's note, email and phone,
-  their time if their zone differs), cancelling with a word sent to the
-  guest, a CSV download, and a **private calendar address** a host adds to
+  administrators), a booking's page (the guest's note, answers, email and
+  phone, their time if their zone differs), cancelling with a word sent to
+  the guest, a CSV download (answers included), and a **private calendar address** a host adds to
   Google, Outlook or Apple Calendar (created on demand, shown once, can be
   replaced or stopped).
 - **Keeping data**: bookings older than the company keeps them (24 months
-  by default) are deleted every night; a guest's data can be erased by
-  their email address.
+  by default) are deleted every night; a guest's data (answers included)
+  can be erased by their email address.
 - English and French, everywhere: the team's pages in each member's
   language, the public pages by the visitor's switch or browser, the
   emails in the language the guest booked in.
@@ -133,6 +146,8 @@ In the studio: `node lab/chest-dev/dev.mjs tools/public-and-private/booking --re
 ## What it does not do (yet)
 
 Reading the host's other calendars; meetings with several hosts (round
-robin, collective); questions of the host's own on the form; payments;
-group events with seats; a booking limit per day; SMS reminders; a
-"reschedule" asked by the host (they cancel with a word).
+robin, collective); questions with several choices, a date or a file, or
+shown only after another answer; payments; group events with seats; limits
+per week or month, or across all of a host's types; SMS reminders; a
+"reschedule" asked by the host (they cancel with a word). Answers are not
+shown back on the guest's own page (they are in their confirmation email).

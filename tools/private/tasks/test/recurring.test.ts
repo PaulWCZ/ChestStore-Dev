@@ -115,6 +115,10 @@ test("stopping a repeat: done, the card makes nothing", async () => {
   const { b, todo, done } = await setup();
   const c = await cards.addCard(sql, asMember(hugo), b.id, todo.id, "Order coffee");
   await cards.setRepeat(sql, asMember(hugo), c.id, { every: "day" });
+  await cards.setRepeat(sql, asMember(hugo), c.id, { every: "week", days: [2] });
+  await cards.setRepeat(sql, asMember(hugo), c.id, { every: "week", days: [2, 3] });
+  // The history says it started once, not each day ticked.
+  assert.equal((await cards.cardDetail(sql, asMember(hugo), c.id)).history.filter(h => h.kind === "repeat_set").length, 1);
   await cards.setRepeat(sql, asMember(hugo), c.id, null);
   assert.equal((await cards.cardDetail(sql, asMember(hugo), c.id)).repeat, null);
   assert.equal((await cards.moveCard(sql, asMember(hugo), c.id, done.id, null, null)).next, null);

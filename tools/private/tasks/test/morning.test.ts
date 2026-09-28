@@ -119,7 +119,7 @@ test("the reminder is taken back the morning nothing is due, or as soon as the l
   await cards.updateCard(sql, asMember(hugo), two.id, { due: "2099-01-01" });
   await morning(sql, run(new Date(Date.now() + 864e5).toISOString(), "Europe/Paris"));
   assert.deepEqual(bell(), []);
-  assert.deepEqual(await sql`select member_id from reminders where sent_on is not null`, []);
+  assert.equal((await sql`select member_id from reminders where sent_on is not null`).length, 0);
 });
 
 test("one switch turns the reminder off (its item goes) and on again", async () => {
@@ -144,7 +144,7 @@ test("one switch turns the reminder off (its item goes) and on again", async () 
   await assert.rejects(reminders.reminderOn(sql, null));
   // Erased: the setting goes with the person.
   await erase(sql, ines.id);
-  assert.deepEqual(await sql`select * from reminders where member_id = ${ines.id}`, []);
+  assert.equal((await sql`select * from reminders where member_id = ${ines.id}`).length, 0);
 });
 
 test("'today' is the day in the Chest's zone at the time of the run", async () => {

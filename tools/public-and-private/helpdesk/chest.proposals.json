@@ -5,6 +5,9 @@
       "support"
     ]
   },
+  "files": {
+    "publicUploads": true
+  },
   "schedules": [
     {
       "name": "cleanup",

@@ -8,7 +8,7 @@ import { AppError } from "./errors.ts";
 import { chestToday } from "./clock.ts";
 import { clean, day, id, limits, memberIds } from "./model.ts";
 import { between } from "./position.ts";
-import { firstDue, parseRepeat, ruleKey, type Repeat } from "./repeat.ts";
+import { firstDue, parseRepeat, type Repeat } from "./repeat.ts";
 import { makeNext, takeBack } from "./repeats.ts";
 
 // Cards and what hangs on them: assignees, labels, checklist, comments,
@@ -198,7 +198,9 @@ export async function setRepeat(sql: Sql, actor: Member | null, cardId: unknown,
   const due = rule && !current!.due_on ? firstDue(rule, today) : current!.due_on;
   const next = await sql.begin(async tx => {
     await tx`update cards set repeat = ${rule ? tx.json(rule as never) : null}, due_on = ${due}, updated_at = now() where id = ${row.id}`;
-    if (ruleKey(rule) !== ruleKey(readRule(current!.repeat))) await record(tx, row.id, actor!.id, rule ? "repeat_set" : "repeat_stopped");
+    // The history says when it starts or stops repeating (not each day ticked).
+    const before = readRule(current!.repeat);
+    if (Boolean(rule) !== Boolean(before)) await record(tx, row.id, actor!.id, rule ? "repeat_set" : "repeat_stopped");
     if (due !== current!.due_on) await record(tx, row.id, actor!.id, "due_set", { due });
     return rule ? makeNext(tx, row.id, today, actor!.id) : null;
   });

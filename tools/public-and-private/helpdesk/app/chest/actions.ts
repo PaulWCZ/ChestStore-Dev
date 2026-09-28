@@ -5,7 +5,7 @@ import * as files from "@argentic/chest-sdk/files";
 import * as members from "@argentic/chest-sdk/members";
 import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
-import { answering, can } from "../../lib/access.ts";
+import { answering } from "../../lib/access.ts";
 import * as attachments from "../../lib/attachments.ts";
 import { db } from "../../lib/db.ts";
 import { AppError, attempt, type ErrorCode, type Result } from "../../lib/errors.ts";
@@ -53,9 +53,7 @@ export async function note(number: number, body: string, files: { ref: string; n
 // to their reply or note.
 export async function fileUpload(type: string, size: number): Promise<{ ok: true; url: string } | { ok: false; error: ErrorCode; max?: number }> {
   const result = await attempt(async () => {
-    const actor = await currentMember();
-    if (!can(actor, "tickets.answer")) throw new AppError("forbidden");
-    return attachments.grant("team", type, size);
+    return attachments.memberGrant(await currentMember(), type, size);
   });
   return result.ok ? { ok: true, url: result.value.url } : { ok: false, error: result.error, ...(typeof result.values?.["max"] === "number" ? { max: result.values["max"] } : {}) };
 }

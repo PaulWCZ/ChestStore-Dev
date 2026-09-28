@@ -257,7 +257,7 @@ table.cards tr.is-done a { text-decoration: line-through; color: var(--ink-2); }
 .repeat .fact { max-width: 360px; }
 .weekdays { display: flex; flex-wrap: wrap; gap: var(--space-1); border: 0; margin: 0; padding: 0; }
 .weekdays legend { width: 100%; margin-bottom: var(--space-1); }
-.weekday { position: relative; display: inline-grid; place-items: center; min-width: 44px; min-height: 44px; padding: 0 var(--space-2); border: var(--border) solid var(--line); border-radius: 999px; background: var(--surface); font-weight: 700; font-size: var(--text-s); cursor: pointer; }
+.weekday { position: relative; display: inline-grid; place-items: center; min-width: 44px; min-height: 44px; padding: 0 3px; border: var(--border) solid var(--line); border-radius: 999px; background: var(--surface); font-weight: 700; font-size: var(--text-s); cursor: pointer; }
 .weekday input { position: absolute; inset: 0; opacity: 0; margin: 0; cursor: pointer; }
 .weekday.on { background: var(--c, var(--accent)); color: #151515; }
 .weekday:has(input:focus-visible) { box-shadow: 0 0 0 3px var(--focus); }

@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import { PublicShell } from "../../../components/public-shell.tsx";
 import { db } from "../../../lib/db.ts";
-import { format, formatDate } from "../../../lib/i18n/index.ts";
+import { Clip } from "../../../components/icons.tsx";
+import { fileSize, format, formatDate } from "../../../lib/i18n/index.ts";
 import { people } from "../../../lib/people.ts";
 import { publicWords } from "../../../lib/session.ts";
 import { byLink, settings } from "../../../lib/tickets.ts";
@@ -61,6 +62,11 @@ export default async function FollowUp({ params, searchParams }: { params: Promi
             <div className="bubble">
               <div className="who">{m.kind === "customer" ? t.public.you : teamName(m.author)} <time dateTime={m.at}>{formatDate(m.at, locale, { dateStyle: "medium", timeStyle: "short" })}</time></div>
               <div className="body">{m.body}</div>
+              {m.attachments.length > 0 && (
+                <div className="files" aria-label={t.files.list}>
+                  {m.attachments.map(a => <a key={a.id} href={`/t/${secret}/files/${a.id}`} rel="noreferrer"><Clip />{a.fileName}<span className="size">{fileSize(a.size, locale)}</span></a>)}
+                </div>
+              )}
             </div>
           </li>
         ))}
@@ -68,7 +74,7 @@ export default async function FollowUp({ params, searchParams }: { params: Promi
       <section className="public-card" aria-labelledby="again">
         <h2 id="again">{t.public.reply}</h2>
         {ticket.status === "closed" && <p className="hint">{t.public.reopenHint}</p>}
-        <WriteAgain secret={secret} t={{ public: t.public, errors: t.errors }} />
+        <WriteAgain secret={secret} locale={locale} t={{ public: t.public, errors: t.errors, files: t.files }} />
       </section>
     </PublicShell>
   );

@@ -290,7 +290,7 @@ textarea.field { resize: vertical; min-height: 88px; line-height: 1.55; }
 .topbar .search + .write { margin-left: 0; }
 .topbar .search + .me { margin-left: var(--space-2); }
 body:has(.search-page) .topbar .search { visibility: hidden; }
-mark { background: var(--highlight); color: var(--ink); padding: 0 1px; border-radius: 1px; }
+mark { background: var(--highlight); color: var(--ink); font-weight: 650; padding: 0 1px; border-radius: 1px; }
 .search-page h1 { font-size: var(--text-2xl); font-weight: 800; }
 .search-box { display: flex; gap: var(--space-2); margin: var(--space-4) 0 var(--space-3); }
 .search-box .field { flex: 1; min-width: 0; font-size: var(--text-m); }
@@ -298,7 +298,7 @@ mark { background: var(--highlight); color: var(--ink); padding: 0 1px; border-r
 .result { display: grid; gap: var(--space-2); padding: var(--space-4) 0; border-bottom: 1px solid var(--hairline); }
 .result .kicker time { font-weight: 400; letter-spacing: 0.02em; text-transform: none; }
 .result .dek { -webkit-line-clamp: 4; }
-.result-comments h3 { display: flex; align-items: center; gap: 6px; font-size: var(--text-xs); text-transform: uppercase; letter-spacing: 0.1em; font-weight: 800; color: var(--ink-2); }
+.result-comments h3 { font-family: var(--font-body); display: flex; align-items: center; gap: 6px; font-size: var(--text-xs); text-transform: uppercase; letter-spacing: 0.1em; font-weight: 800; color: var(--ink-2); }
 .result-comments ul { list-style: none; padding: 0; margin: var(--space-1) 0 0; display: grid; gap: var(--space-1); }
 .result-comments a { display: block; padding: var(--space-2) var(--space-3); border-left: 3px solid var(--hairline); text-decoration: none; font-size: var(--text-s); overflow-wrap: anywhere; }
 .result-comments a:hover { border-left-color: var(--accent); }
@@ -328,6 +328,7 @@ mark { background: var(--highlight); color: var(--ink); padding: 0 1px; border-r
   .topbar .search .field { display: none; }
   .topbar .search .icon-button { position: static; transform: none; }
   .search-box { flex-wrap: wrap; }
+  .search-box .field { flex: 1 1 100%; }
   .search-box .button { flex: 1; }
   .asks-you { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: start; }
   .asks-you .button { grid-column: 2; margin-left: 0; justify-self: start; }

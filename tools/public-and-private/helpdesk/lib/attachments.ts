@@ -1,7 +1,12 @@
 import { randomBytes } from "node:crypto";
 import { CapabilityNotGranted, ChestError, TooLarge } from "@argentic/chest-sdk/errors";
 import * as files from "@argentic/chest-sdk/files";
+import type { Member } from "@argentic/chest-sdk/member";
+import { can } from "./access.ts";
 import { AppError } from "./app-error.ts";
+import type { Sql } from "./db.ts";
+import { check } from "./form-token.ts";
+import { byLink, guard, settings } from "./tickets.ts";
 import { checkFile, fileName, fileTypes, isFileType, limits, type FileType } from "./model.ts";
 
 // Files added to a message, around the browser's own upload to the Chest
@@ -41,6 +46,26 @@ export async function grant(kind: Kind, type: unknown, size: unknown): Promise<{
     if (error instanceof ChestError) throw new AppError("files_unavailable");
     throw error;
   }
+}
+
+// visitorGrant: a visitor may send a file for the form they were shown
+// (its signed token, the form open) or for their own request (its link),
+// a few an hour — nothing else.
+export async function visitorGrant(sql: Sql, where: { started?: unknown; secret?: unknown }, visitor: string, type: unknown, size: unknown): Promise<{ url: string; expiresIn: number }> {
+  if (where.secret !== undefined) {
+    if (!(await byLink(sql, where.secret))) throw new AppError("not_found");
+  } else {
+    check(where.started, Date.now(), { fast: true });
+    if (!(await settings(sql)).formOpen) throw new AppError("closed_form");
+  }
+  await guard(sql, visitor, "file");
+  return grant("public", type, size);
+}
+
+// memberGrant: someone who answers may send a file for a reply or a note.
+export async function memberGrant(actor: Member | null, type: unknown, size: unknown): Promise<{ url: string; expiresIn: number }> {
+  if (!can(actor, "tickets.answer")) throw new AppError("forbidden");
+  return grant("team", type, size);
 }
 
 // What a form sends about its files: [{ref, name}] — ref is a claim (a

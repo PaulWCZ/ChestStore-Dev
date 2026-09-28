@@ -39,6 +39,10 @@ computed with `scripts/contrast.mjs` (WCAG 2; AA is 4.5:1 for text).
   chosen, an apricot dot for today) and mint time buttons.
 - **The stamp**: the guest's page opens on a round mint stamp (a red one
   when cancelled) and a large serif title.
+- **Question cards**: on a type's form, each of the host's questions is a
+  sand card (number, up, down, remove), its answer kind a plain select;
+  guests answer choices and yes/no with the same outlined pills as the
+  form's other choices.
 - Buttons are pills; a destructive action is a red link that asks for a
   word first; toasts at the bottom confirm.
 

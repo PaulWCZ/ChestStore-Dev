@@ -18,3 +18,9 @@ export const lea = person("lea", "Léa", "Dubois", "reader", { locale: "fr" });
 export const nora = person("nora", "Nora", "Petit", "reader", { locale: "fr" });
 export const stranger = person("tom", "Tom", "Walker", null);
 export const everyone = [camille, sofia, ines, hugo, lea, nora, stranger];
+
+// The groups the fake Chest lists (those that give News), with their members.
+export const fakeGroups = [
+  { id: groups.office, name: "Office", members: [camille.id, sofia.id] },
+  { id: groups.sales, name: "Sales", members: [ines.id, hugo.id] },
+];

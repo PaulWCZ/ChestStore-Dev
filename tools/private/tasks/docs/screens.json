@@ -2,6 +2,8 @@
   { "name": "my-tasks", "path": "/chest", "member": "ines", "locale": "en" },
   { "name": "board", "path": "/chest/boards/1", "member": "camille", "locale": "en", "preview": true },
   { "name": "card", "path": "/chest/boards/1?card=1", "member": "hugo", "locale": "en" },
+  { "name": "card-repeat", "path": "/chest/boards/1?card=17", "member": "ines", "locale": "en" },
+  { "name": "card-repeat-fr", "path": "/chest/boards/1?card=17", "member": "ines", "locale": "fr", "only": ["phone"] },
   { "name": "list", "path": "/chest/boards/2?view=list", "member": "lea", "locale": "en", "only": ["desktop"] },
   { "name": "boards-fr", "path": "/chest/boards", "member": "camille", "locale": "fr" },
   { "name": "board-fr", "path": "/chest/boards/2", "member": "lea", "locale": "fr" },

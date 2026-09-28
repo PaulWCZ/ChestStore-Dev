@@ -66,6 +66,7 @@ export function snippet(text: string, words: string[], max = 220): Segment[] {
     const space = flat.lastIndexOf(" ", end);
     if (space > first) end = space;
   }
-  const piece = (start > 0 ? "…" : "") + flat.slice(start, end).replace(/[\s.,;:!?-]+$/u, "") + (end < flat.length ? "…" : "");
+  const cut = end < flat.length;
+  const piece = (start > 0 ? "…" : "") + (cut ? flat.slice(start, end).replace(/[\s.,;:!?-]+$/u, "") + "…" : flat.slice(start, end));
   return highlight(piece, words);
 }

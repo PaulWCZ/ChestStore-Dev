@@ -11,7 +11,8 @@ what must not break.
 | `lib/access.ts` | Who may do what |
 | `lib/model.ts` | Bounds, slugs, email and phone checks, colours, kinds — pure |
 | `lib/zone.ts` | Wall-clock time in a time zone and back (DST gaps and overlaps) — pure, tested |
-| `lib/slots.ts` | Free times from hours, overrides, bookings and rules — pure, tested |
+| `lib/slots.ts` | Free times from hours, overrides, bookings and rules (buffers, notice, window, daily limit) — pure, tested |
+| `lib/questions.ts` | The host's own questions and the guest's answers: bounds, checks, reading — pure, browser-safe, tested |
 | `lib/booking.ts` | The service: hosts, hours, types, free times, booking, moving, cancelling, feed, guard, cleanup, erasure |
 | `lib/ics.ts` | Calendar files (RFC 5545) |
 | `lib/mailer.ts`, `lib/guests.ts` | Emails to guests through the Chest's mail, falling back to the page |
@@ -34,6 +35,12 @@ npm ci && npm test && npm run build   # all three must pass
   the guarantee; the slot check before it is for a kind answer. Any new
   way to make or move a booking must write `blocked` (buffers included)
   and turn the database's refusal (`23P01`) into `taken`.
+- **The daily limit** has no constraint of its own: it holds because
+  `book` and `moveByGuest` lock the type's row (`lockType`, `for update`)
+  and check the time again inside that transaction. Any new way to make or
+  move a booking must do the same (test/limits.test.ts races them).
+- **Answers are checked on the server** against the type's questions as
+  they are at booking time (`cleanAnswers`); never trust the form's fields.
 - **Times are instants** (`timestamptz`, ISO strings); hours are minutes
   of the host's wall clock in `hosts.zone`. Convert only with
   `lib/zone.ts`; never with the server's local time.

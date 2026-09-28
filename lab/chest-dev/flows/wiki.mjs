@@ -233,6 +233,147 @@ await step("an editor drags a page in the sidebar to put it inside another", asy
   await page.locator(".toast").first().waitFor({ state: "detached" }).catch(() => {});
 });
 
+// The bell of the harness (the fake Chest's notifications), as text.
+const bell = async () => (await (await page.request.get(origin + "/_dev")).text()).replace(/&[a-z#0-9]+;/gu, m => ({ "&amp;": "&", "&quot;": "\"", "&#39;": "'", "&lt;": "<", "&gt;": ">" })[m] ?? m);
+const count = (text, part) => text.split(part).length - 1;
+
+await step("a reader comments under a page (a link works); its author is told in the bell; edit, remove and undo", async () => {
+  await as(context, origin, "hugo");
+  await context.addCookies([{ name: "dev_locale", value: "en", url: origin }]);
+  await page.goto(origin + "/chest/pages/3");
+  await page.locator("#comments").scrollIntoViewIfNeeded();
+  expect((await page.locator("#comments .comment").count()) === 1, "the sample comment");
+  await page.getByLabel("Your comment").fill("Is the 40 € per person or per meal? See https://example.com/rules");
+  await page.getByRole("button", { name: "Comment", exact: true }).click();
+  await page.waitForSelector("#comments .comment:nth-child(2)");
+  const mine = page.locator("#comments .comment").nth(1);
+  expect((await mine.locator("a").getAttribute("href")) === "https://example.com/rules", "link");
+  expect((await mine.locator(".comment-who").innerText()).startsWith("You"), "signed You");
+  const told = await bell();
+  expect(told.includes("Hugo Bernard a commenté « Expense policy »"), "Camille (the author, French) is told");
+  await mine.getByRole("button", { name: "Edit" }).click();
+  await mine.locator("textarea").fill("Is the 40 € per person? See https://example.com/rules");
+  await mine.getByRole("button", { name: "Save" }).click();
+  await page.waitForSelector("#comments .comment:nth-child(2) :text('edited')");
+  // Hugo cannot remove Tom's comment, only his own.
+  expect((await page.locator("#comments .comment").first().getByRole("button", { name: "Remove" }).count()) === 0, "no remove on others' comments");
+  await mine.getByRole("button", { name: "Remove" }).click();
+  await page.waitForSelector(".toast:has-text('Comment removed')");
+  expect((await page.locator("#comments .comment").count()) === 1, "removed");
+  await page.locator(".toast").getByRole("button", { name: "Undo" }).click();
+  await page.waitForSelector("#comments .comment:nth-child(2)");
+  await page.reload();
+  expect((await page.locator("#comments .comment").count()) === 2, "back after a reload");
+});
+
+await step("a reader watches a page; when an editor saves it, they are told once (replaced, not doubled)", async () => {
+  await as(context, origin, "hugo");
+  await page.goto(origin + "/chest/pages/4");
+  const watch = page.getByRole("button", { name: "Watch" });
+  expect((await watch.getAttribute("aria-pressed")) === "false", "not watching");
+  await watch.click();
+  await page.waitForSelector(".toast:has-text('You will be told')");
+  expect((await page.locator(".watch").getAttribute("aria-pressed")) === "true", "watching");
+  await page.reload();
+  expect((await page.locator(".watch").getAttribute("aria-pressed")) === "true", "still watching after a reload");
+  await as(context, origin, "tom");
+  for (const words of [" Ask Tom for a spare charger.", " Chargers are in the cupboard."]) {
+    await page.goto(origin + "/chest/pages/4/edit");
+    await page.locator(".ProseMirror").waitFor();
+    await page.locator(".ProseMirror").click();
+    await page.keyboard.press("Control+End");
+    await page.keyboard.type(words);
+    await page.getByRole("button", { name: "Save", exact: true }).click();
+    await page.waitForURL(/\/chest\/pages\/4(\?saved=\d+)?$/u);
+  }
+  const told = await bell();
+  expect(count(told, "Tom Walker updated “IT setup”") === 1, "one item for Hugo: " + count(told, "Tom Walker updated “IT setup”"));
+});
+
+await step("a new page from a space's template, and from a ready-made one — one step in the dialog", async () => {
+  await as(context, origin, "ines");
+  await context.addCookies([{ name: "dev_locale", value: "en", url: origin }]);
+  await page.goto(origin + "/chest/spaces/2");
+  await page.locator(".space-head").getByRole("button", { name: "New page" }).click();
+  await page.getByLabel("Title").fill("Visit to Hôtel Bellecour");
+  expect(await page.getByLabel("Blank page").isChecked(), "blank by default");
+  await page.getByLabel("Client visit report").check();
+  await page.getByRole("button", { name: "Create and write" }).click();
+  await page.waitForURL(/\/chest\/pages\/\d+\/edit$/u);
+  await page.locator(".ProseMirror :text('What they want')").waitFor();
+  await page.getByRole("button", { name: "Stop editing" }).click();
+  await page.waitForURL(/\/chest\/pages\/\d+$/u);
+  await page.goto(origin + "/chest/spaces/1");
+  await page.locator(".space-head").getByRole("button", { name: "New page" }).click();
+  await page.getByLabel("Title").fill("Team meeting, 28 September");
+  await page.getByLabel("Meeting notes").check();
+  await page.getByRole("button", { name: "Create and write" }).click();
+  await page.waitForURL(/\/chest\/pages\/\d+\/edit$/u);
+  await page.locator(".ProseMirror :text('Agenda')").waitFor();
+  await page.getByRole("button", { name: "Stop editing" }).click();
+  await page.waitForURL(/\/chest\/pages\/\d+$/u);
+});
+
+await step("an editor makes a page a template of its space; it is offered next time", async () => {
+  await as(context, origin, "sofia");
+  await page.goto(origin + "/chest/pages/5");
+  await page.getByRole("button", { name: "More" }).click();
+  await page.getByRole("button", { name: "Use as a template" }).click();
+  await page.waitForSelector(".toast:has-text('is now offered')");
+  await page.waitForSelector(".template-tag");
+  await page.goto(origin + "/chest/spaces/1");
+  await page.locator(".space-head").getByRole("button", { name: "New page" }).click();
+  await page.getByLabel("Wi-Fi and printers").waitFor();
+  await page.keyboard.press("Escape");
+  await page.goto(origin + "/chest/pages/5");
+  await page.getByRole("button", { name: "More" }).click();
+  await page.getByRole("button", { name: "Stop using as a template" }).click();
+  await page.waitForSelector(".toast:has-text('no longer a template')");
+});
+
+await step("review reminders: the owner of a page due is told by the morning run; “Still correct” settles it", async () => {
+  await as(context, origin, "sofia");
+  await page.goto(origin + "/chest");
+  expect((await page.locator(".checks").innerText()).includes("Who to ask"), "Pages to check on the home page");
+  await page.request.post(origin + "/_dev/schedule", { form: { name: "reviews" } });
+  const told = await bell();
+  expect(told.includes("Time to check “Who to ask”"), "Sofia is told");
+  expect(told.includes("À relire : « Wi-Fi and printers »") === false, "Tom's page is his (English)");
+  expect(told.includes("Time to check “Wi-Fi and printers”"), "Tom is told too");
+  await page.goto(origin + "/chest/pages/7");
+  await page.getByRole("button", { name: "Still correct" }).click();
+  await page.waitForSelector(".toast:has-text('Next check in 6 months')");
+  await page.waitForSelector(".ask-review", { state: "detached" });
+  // A reader sees no question.
+  await as(context, origin, "hugo");
+  await page.goto(origin + "/chest/pages/5");
+  expect((await page.locator(".ask-review").count()) === 0, "no review question for readers");
+  // Tom sets a reminder on another page with the dialog.
+  await as(context, origin, "tom");
+  await page.goto(origin + "/chest/pages/13");
+  await page.getByRole("button", { name: "More" }).click();
+  await page.getByRole("button", { name: "Review reminder" }).click();
+  await page.getByLabel("Every 6 months").check();
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await page.waitForSelector(".toast:has-text('every 6 months')");
+  await page.getByRole("button", { name: "More" }).click();
+  await page.getByRole("button", { name: "Review every 6 months" }).waitFor();
+  await page.keyboard.press("Escape");
+});
+
+await step("comments follow the space: a page kept to the office group shows nothing to others", async () => {
+  await as(context, origin, "camille");
+  // Back to each member's own language.
+  await context.addCookies([{ name: "dev_locale", value: "", url: origin }]);
+  await page.goto(origin + "/chest/pages/16");
+  await page.getByLabel("Votre commentaire").fill("À revoir avant mars.");
+  await page.getByRole("button", { name: "Commenter", exact: true }).click();
+  await page.waitForSelector("#comments .comment");
+  await as(context, origin, "hugo");
+  const r = await page.request.get(origin + "/chest/pages/16");
+  expect(r.status() === 404 && !(await r.text()).includes("À revoir avant mars"), "hidden");
+});
+
 await step("a space kept to the office group: set in its settings, gone for the others", async () => {
   await as(context, origin, "camille");
   await page.goto(origin + "/chest/spaces/2/settings");

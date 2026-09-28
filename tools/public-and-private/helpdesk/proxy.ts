@@ -35,6 +35,9 @@ export function proxy(request: NextRequest): NextResponse {
     const t = catalogue(publicLocale(request.cookies.get("lang")?.value, request.headers.get("accept-language")));
     return new NextResponse(t.http.signIn, { status: 401, headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store", "Content-Security-Policy": "default-src 'none'; frame-ancestors 'none'" } });
   }
+  // A customer's file is no page: its route sets its own, stricter headers
+  // (a sandbox, no referrer).
+  if (first === "t" && /^\/t\/[^/]+\/files\/[^/]+$/u.test(request.nextUrl.pathname)) return NextResponse.next();
   const nonce = randomBytes(16).toString("base64");
   const value = policy(nonce);
   const forwarded = new Headers(request.headers);

@@ -83,6 +83,7 @@ export const en = {
     allBoards: "All boards",
     markDone: "Mark “{title}” as done",
     doneToast: "Moved to {column}.",
+    doneRepeatToast: "Moved to {column}. The next one is on its board.",
     reminder: "Remind me each weekday morning of what is due or late",
   },
   boards: {

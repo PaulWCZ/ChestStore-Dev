@@ -195,9 +195,9 @@ textarea.field { resize: vertical; line-height: 1.5; padding-top: var(--space-3)
 .topic { display: inline-flex; align-items: center; gap: 4px; padding: 2px 10px; border-radius: 999px; border: 1px solid var(--line-strong); font-size: var(--text-xs); color: var(--ink); }
 .topics.big { justify-content: flex-start; gap: var(--space-2); }
 .topics.big .topic { font-size: var(--text-s); padding: 4px 14px; background: var(--surface); }
-.away { display: inline-flex; align-items: center; gap: 6px; margin-top: var(--space-2); padding: 3px 12px; border-radius: 999px; background: var(--surface-2); color: var(--ink); font-size: var(--text-xs); font-weight: 600; line-height: 1.35; }
+.away { display: inline-flex; align-self: center; width: fit-content; align-items: center; gap: 6px; margin-top: var(--space-2); padding: 3px 12px; border-radius: 999px; background: var(--surface-2); color: var(--ink); font-size: var(--text-xs); font-weight: 600; line-height: 1.35; }
 .away svg { color: var(--accent-text); flex: none; }
-.profile-id .away { font-size: var(--text-s); padding: 4px 14px; margin: var(--space-2) 0 0; }
+.profile-id .away { align-self: flex-start; font-size: var(--text-s); padding: 4px 14px; margin: var(--space-2) 0 0; }
 .badge { position: absolute; top: var(--space-3); right: var(--space-3); padding: 2px 10px; border-radius: 999px; background: var(--accent); color: var(--accent-ink); font-size: var(--text-xs); font-weight: 650; }
 .badge.me { background: var(--plum); color: var(--plum-ink); }
 .profile-id .badge { position: static; display: inline-block; margin-bottom: var(--space-2); }

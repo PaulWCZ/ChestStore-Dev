@@ -95,6 +95,38 @@ await step("the file goes to the Chest and opens again", async () => {
   expect((await r.text()) === "Stand B12, 3×3 m", "file content");
 });
 
+await step("make a card repeat every Monday and Thursday; the card says when the next one comes", async () => {
+  await page.goto(boardUrl);
+  await page.locator(".card", { hasText: "Print flyers" }).click();
+  await page.waitForURL(/card=/u);
+  await page.locator("#card-repeat").selectOption("week");
+  await page.locator(".weekdays").waitFor();
+  // "Every week" starts on the card's day; then exactly Monday and Thursday.
+  for (const day of ["Monday", "Thursday", "Tuesday", "Wednesday", "Friday", "Saturday", "Sunday"]) {
+    const box = page.getByRole("checkbox", { name: day, exact: true });
+    const wanted = day === "Monday" || day === "Thursday";
+    if ((await box.isChecked()) !== wanted) { await box.setChecked(wanted); await page.waitForTimeout(800); }
+  }
+  await page.waitForFunction(() => /Repeats every Monday and Thursday\./u.test(document.querySelector(".repeat-note")?.textContent ?? ""));
+  const note = await page.locator(".repeat-note").innerText();
+  expect(/Once this card is done, the next one comes in “Ideas”, due (Monday|Thursday) \d+ \w+\./u.test(note), "note: " + note);
+  expect((await page.locator("#card-due").inputValue()) !== "", "a date was given");
+});
+
+await step("done, it makes the next one in the first column, with its people and the next date", async () => {
+  await page.locator("#card-column").selectOption({ label: "Done" });
+  await page.getByRole("link", { name: "Open the next one" }).waitFor();
+  const made = await page.locator(".repeat-note").innerText();
+  expect(made.includes("The next one is on the board, due"), "made: " + made);
+  await page.getByRole("link", { name: "Open the next one" }).click();
+  await page.waitForFunction(() => document.querySelector("#card-title")?.value === "Print flyers" && !document.querySelector(".repeat-note a"));
+  expect((await page.locator("#card-column").inputValue()) === (await page.locator("#card-column option", { hasText: "Ideas" }).getAttribute("value")), "in Ideas");
+  expect((await page.locator(".repeat-note").innerText()).includes("Repeats every Monday and Thursday."), "the rule follows");
+  await page.keyboard.press("Escape");
+  const ideas = await page.locator(".lane").nth(0).locator(".card", { hasText: "Print flyers" });
+  expect(await ideas.locator(".stat[title=Repeats]").count() === 1, "the card shows it repeats");
+});
+
 await step("Inès sees it in My tasks, in French, and in her bell", async () => {
   await as(context, origin, "ines");
   await page.goto(origin + "/chest");
@@ -113,6 +145,26 @@ await step("tick it done from My tasks, then undo", async () => {
   await page.waitForTimeout(1500);
   await page.reload();
   expect(await page.locator(".task", { hasText: "Book the stand" }).count() === 1, "back after undo");
+});
+
+await step("the morning: Inès finds one reminder in French; run again, still one; switched off, it goes", async () => {
+  await page.request.post(origin + "/_dev/clear");
+  for (let i = 0; i < 2; i++) await page.request.post(origin + "/_dev/schedule", { form: { name: "morning" } });
+  const dev = await (await page.request.get(origin + "/_dev")).text();
+  const hers = dev.match(/<b>Inès Moreau<\/b> · [^<]+/gu) ?? [];
+  expect(hers.length === 1, "one item for Inès: " + hers.join(" | "));
+  expect(/tâches? (pour aujourd’hui|en retard)/u.test(hers[0] ?? ""), "in French: " + hers[0]);
+  await page.goto(origin + "/chest");
+  const toggle = page.getByRole("switch", { name: "Me rappeler chaque matin de semaine ce qui est à faire ou en retard" });
+  expect(await toggle.isChecked(), "on by default");
+  await toggle.uncheck();
+  await page.waitForTimeout(1200);
+  await page.reload();
+  expect(!(await page.getByRole("switch").isChecked()), "stays off");
+  const after = await (await page.request.get(origin + "/_dev")).text();
+  expect(!after.includes("<b>Inès Moreau</b> · "), "her item went");
+  await page.getByRole("switch").check();
+  await page.waitForTimeout(800);
 });
 
 await step("a viewer cannot drag or add; a stranger to a private board sees nothing", async () => {

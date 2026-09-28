@@ -4,8 +4,9 @@ import { NewSpaceButton } from "../../components/new-space.tsx";
 import { can } from "../../lib/access.ts";
 import { db } from "../../lib/db.ts";
 import { myDrafts } from "../../lib/editing.ts";
-import { format, plural, relative } from "../../lib/i18n/index.ts";
+import { format, formatDate, plural, relative } from "../../lib/i18n/index.ts";
 import { recent } from "../../lib/pages.ts";
+import { myReviews } from "../../lib/reviews.ts";
 import { nameOf, people } from "../../lib/people.ts";
 import { viewer } from "../../lib/session.ts";
 import { listSpaces } from "../../lib/spaces.ts";
@@ -19,7 +20,7 @@ export default async function Home() {
   if (!v) return null;
   const { member, locale, t } = v;
   const sql = db();
-  const [spaces, latest, drafts] = await Promise.all([listSpaces(sql, member), recent(sql, member, { limit: 8 }), myDrafts(sql, member)]);
+  const [spaces, latest, drafts, checks] = await Promise.all([listSpaces(sql, member), recent(sql, member, { limit: 8 }), myDrafts(sql, member), myReviews(sql, member)]);
   const who = await people(latest.map(p => p.updatedBy));
   const now = new Date();
   const writer = can(member, "write");
@@ -63,6 +64,19 @@ export default async function Home() {
                 <span className="draft-title">{d.title}</span>
                 <span className="muted">{relative(d.updatedAt, locale, now)}</span>
                 <Link className="button quiet small" href={`/chest/pages/${d.pageId}/edit`}>{t.home.continue}</Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+      {checks.length > 0 && (
+        <section className="checks" aria-labelledby="checks-title">
+          <h2 id="checks-title" className="kicker">{t.home.reviews}</h2>
+          <ul>
+            {checks.map(c => (
+              <li key={c.id}>
+                <Link className="draft-title" href={`/chest/pages/${c.id}`}>{c.title}</Link>
+                <span className="muted">{format(t.home.reviewDue, { date: formatDate(c.since, locale, { day: "numeric", month: "short" }) })}</span>
               </li>
             ))}
           </ul>

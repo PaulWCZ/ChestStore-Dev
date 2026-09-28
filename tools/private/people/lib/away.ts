@@ -134,7 +134,7 @@ export async function leaveCancelled(sql: Sql, event: ToolEvent): Promise<boolea
   const done = await sql`
     insert into away (request, member_id, from_day, to_day, from_half, to_half, told_at, cancelled)
     values (${request}, ${member}, null, null, 'day', 'day', ${at}, true)
-    on conflict (request) do update set from_day = null, to_day = null, told_at = excluded.told_at, cancelled = true
+    on conflict (request) do update set from_day = null, to_day = null, from_half = 'day', to_half = 'day', told_at = excluded.told_at, cancelled = true
     where away.told_at <= excluded.told_at and away.member_id = excluded.member_id`;
   return done.count > 0;
 }

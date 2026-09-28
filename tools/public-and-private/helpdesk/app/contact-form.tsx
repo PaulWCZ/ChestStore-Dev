@@ -1,20 +1,24 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
+import { FilePicker, filesPending, readyFiles, type PickedFile } from "../components/file-picker.tsx";
 import { format } from "../lib/i18n/format.ts";
 import type { Catalogue } from "../lib/i18n/index.ts";
-import { sendRequest, type FormState } from "./public-actions.ts";
+import { fileUpload, sendRequest, type FormState } from "./public-actions.ts";
 
-type Words = { public: Catalogue["public"]; errors: Catalogue["errors"] };
+type Words = { public: Catalogue["public"]; errors: Catalogue["errors"]; files: Catalogue["files"] };
 const limits = { name: 120, email: 254, subject: 200, message: 10000 };
 
-// The form a customer fills. What they wrote comes back if something is
-// wrong: nothing is lost.
-export function ContactForm({ started, t }: { started: string; t: Words }) {
+// The form a customer fills, with files if they want (a photo of the
+// damage). What they wrote and added comes back if something is wrong:
+// nothing is lost.
+export function ContactForm({ started, locale, t }: { started: string; locale: string; t: Words }) {
   const [state, action, pending] = useActionState<FormState, FormData>(sendRequest, { error: null, values: {} });
+  const [files, setFiles] = useState<PickedFile[]>([]);
   const v = state.values;
   const w = t.public;
-  const error = state.error ? format(t.errors[state.error], { max: state.error === "too_long" ? limits.message : 0 }) : null;
+  const error = state.error ? format(t.errors[state.error], { max: state.max ?? (state.error === "too_long" ? limits.message : 0) }) : null;
+  const waiting = filesPending(files);
   const invalid = (field: string) => (state.error === "invalid_email" && field === "email") || (state.error === "empty" && field === "message");
   return (
     <form action={action} className="stack" noValidate={false}>
@@ -42,8 +46,10 @@ export function ContactForm({ started, t }: { started: string; t: Words }) {
         <label className="label" htmlFor="message">{w.message}</label>
         <textarea id="message" name="message" className="field" required rows={7} maxLength={limits.message} placeholder={w.messagePlaceholder} defaultValue={v["message"] ?? ""} aria-invalid={invalid("message") || undefined} />
       </div>
+      <input type="hidden" name="files" value={readyFiles(files)} />
+      <FilePicker items={files} setItems={setFiles} upload={fileUpload.bind(null, { started })} kind="public" locale={locale} t={{ files: t.files, errors: t.errors }} />
       {error && <p className="error" role="alert">{error}</p>}
-      <div><button type="submit" className="button" disabled={pending}>{pending ? w.sending : w.send}</button></div>
+      <div><button type="submit" className="button" disabled={pending || waiting} title={waiting ? t.files.wait : undefined}>{pending ? w.sending : w.send}</button></div>
     </form>
   );
 }

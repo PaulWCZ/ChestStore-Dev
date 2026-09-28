@@ -41,6 +41,7 @@ export default async function Home() {
     dueLabel: task.due ? new Intl.DateTimeFormat(intl(locale), { day: "numeric", month: "short", timeZone: "UTC" }).format(new Date(task.due + "T00:00:00Z")) : null,
     state: dueState(task.due, now),
     checklist: task.checklist,
+    repeats: task.repeats,
     done: doneColumns.get(task.boardId) ?? null,
   }));
   const order: DueState[] = ["late", "today", "soon", "later", "none"];
@@ -71,7 +72,7 @@ export default async function Home() {
               <Link className="button quiet" href="/chest/boards">{t.home.empty.action}</Link>
             </div>
           ) : (
-            <TaskGroups rows={rows} order={order} t={{ groups: t.home.groups, markDone: t.home.markDone, doneToast: t.home.doneToast, undo: t.card.undo, errors: t.errors, late: t.card.late, today: t.card.today, progress: t.card.progress }} />
+            <TaskGroups rows={rows} order={order} t={{ groups: t.home.groups, markDone: t.home.markDone, doneToast: t.home.doneToast, doneRepeatToast: t.home.doneRepeatToast, repeats: t.card.repeatBadge, undo: t.card.undo, errors: t.errors, late: t.card.late, today: t.card.today, progress: t.card.progress }} />
           )}
           <section aria-labelledby="your-boards" style={{ marginTop: "var(--space-6)" }}>
             <div className="section-title">

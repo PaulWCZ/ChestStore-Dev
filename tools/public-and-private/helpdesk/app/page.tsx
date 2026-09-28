@@ -23,7 +23,7 @@ export default async function Contact() {
       </div>
       {s.formOpen ? (
         <section className="public-card">
-          <ContactForm started={issue()} t={{ public: t.public, errors: t.errors }} />
+          <ContactForm started={issue()} locale={locale} t={{ public: t.public, errors: t.errors, files: t.files }} />
         </section>
       ) : <p className="notice">{t.public.closed}</p>}
     </PublicShell>

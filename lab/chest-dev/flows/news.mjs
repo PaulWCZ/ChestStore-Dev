@@ -7,7 +7,7 @@ import { as, done, expect, open, step } from "./lib.mjs";
 
 const port = Number(process.argv[2] ?? 4500);
 const { browser, context, page, origin, problems } = await open(port, "camille", { locale: "en" });
-const tmp = process.env.TMPDIR ?? "/tmp";
+const tmp = process.env.FLOW_TMP ?? process.env.TMPDIR ?? "/tmp";
 const speak = locale => context.addCookies([{ name: "dev_locale", value: locale, url: origin }]);
 const dev = async () => (await page.request.get(origin + "/_dev")).text();
 
@@ -141,6 +141,71 @@ await step("filter by kind; a welcome shows the new colleague", async () => {
   expect(titles.length === 1 && titles[0] === "Welcome to Nora, our new designer!", "welcome only: " + titles.join("|"));
   await page.locator(".story .headline a").first().click();
   expect((await page.locator(".welcome-card").innerText()).includes("Say hello to Nora Petit"), "the colleague");
+});
+
+let salesUrl = "";
+await step("a publisher writes for one team only; nobody else sees it, is told or counted", async () => {
+  await as(context, origin, "camille");
+  await speak("en");
+  await page.goto(origin + "/chest/new");
+  await page.getByLabel("Headline").fill("Sales bonus: the new rules");
+  await page.getByLabel("Text", { exact: true }).fill("From October, the bonus is paid **every quarter**.");
+  await page.getByLabel("Some groups only").check();
+  await page.getByRole("button", { name: "Publish" }).click();
+  expect((await page.locator("#form-error").innerText()).includes("Choose at least one group"), "a group is needed");
+  await page.locator(".audience-groups label", { hasText: "Sales" }).locator("input").check();
+  await page.getByLabel("Important").check();
+  await page.getByRole("button", { name: "Publish" }).click();
+  await page.waitForURL(/\/chest\/posts\/\d+$/u);
+  salesUrl = page.url();
+  expect((await page.locator(".notice").innerText()).includes("Only members of Sales can see this post."), "the audience is said");
+  expect(/Read by 0 of 2/u.test(await page.locator(".readers h2").innerText()), "counted on Sales only");
+  const bell = await dev();
+  expect(bell.includes("Hugo Bernard</b> · Important: Sales bonus"), "Hugo (Sales) is told");
+  expect(!bell.includes("Léa Dubois</b> · Important : Sales bonus") && !bell.includes("Tom Walker</b> · Important: Sales bonus"), "Tech is not told");
+  await as(context, origin, "lea");
+  await page.goto(origin + "/chest");
+  expect(!(await page.locator("main").innerText()).includes("Sales bonus"), "not on Léa's front page");
+  expect((await page.request.get(salesUrl)).status() === 404, "not found for Léa");
+  await as(context, origin, "hugo");
+  await speak("en");
+  await page.goto(origin + "/chest");
+  expect((await page.locator(".story", { hasText: "Sales bonus" }).locator(".flag.audience").innerText()).toLowerCase().includes("for sales"), "Hugo sees it, marked For Sales");
+});
+
+await step("search: one box, accents and case aside, words marked, only what one may see", async () => {
+  await as(context, origin, "hugo");
+  await speak("en");
+  await page.goto(origin + "/chest");
+  await page.locator("#top-search").fill("bikes");
+  await page.locator("#top-search").press("Enter");
+  await page.waitForURL(/\/chest\/search\?q=bikes/u);
+  expect((await page.locator(".result mark").allTextContents()).includes("bikes"), "the word is marked");
+  expect((await page.locator(".result-comments").innerText()).includes("Inès Moreau"), "found in a comment, with its author");
+  await page.locator(".result-comments a").first().click();
+  await page.waitForURL(/\/chest\/posts\/4#comment-\d+$/u);
+  await page.goto(origin + "/chest/search?q=objectifs+BONUS");
+  expect((await page.locator("main").innerText()).includes("Nothing found"), "every word must be there");
+  await page.goto(origin + "/chest/search?q=bonus");
+  expect((await page.locator(".result .headline").allTextContents()).some(t => t.includes("Sales bonus")), "Hugo finds the Sales post");
+  await as(context, origin, "lea");
+  await speak("fr");
+  await page.goto(origin + "/chest/search?q=DEMENAGEMENT");
+  expect((await page.locator(".result mark").allTextContents()).includes("déménagement"), "accents and case aside");
+  await page.goto(origin + "/chest/search?q=bonus");
+  expect((await page.locator("main").innerText()).includes("Rien trouvé"), "Léa finds nothing of Sales");
+});
+
+await step("the weekly digest: one item per person, in their language, never doubled, gone once they come", async () => {
+  const count = text => (text.match(/Nora Petit<\/b> · Cette semaine : \d+ publications? que vous n’avez pas encore vues?/gu) ?? []).length;
+  await page.request.post(origin + "/_dev/schedule", { form: { name: "digest" } });
+  expect(count(await dev()) === 1, "Nora (French) has her digest");
+  await page.request.post(origin + "/_dev/schedule", { form: { name: "digest" } });
+  expect(count(await dev()) === 1, "delivered again: still one");
+  expect(!(await dev()).includes("Tom Walker</b> · This week: 1 post you haven’t seen yet<br><small>Sales"), "no Sales post for Tech");
+  await as(context, origin, "nora");
+  await page.goto(origin + "/chest");
+  expect(count(await dev()) === 0, "Nora came: it is withdrawn");
 });
 
 await step("French, phone width: nothing overflows; confirm and write work", async () => {

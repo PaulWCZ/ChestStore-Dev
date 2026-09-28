@@ -308,6 +308,32 @@ Noter deux réussites et une difficulté.
 Penser à une formation qui vous aiderait.
 Le compte rendu est signé par les deux personnes, et chacune en garde une copie.', 'mbr_camilleaaaaaaaaaaaaaaaaaaa', now() - interval '35 days' - interval '29 minutes', 'imported');
 
+insert into pages (id, space_id, parent_id, position, title, doc, body, version, created_by, created_at, updated_by, updated_at) overriding system value values (18, 2, null, 'c', 'Client visit report', '{"type":"doc","content":[{"type":"callout","attrs":{"tone":"tip"},"content":[{"type":"paragraph","content":[{"type":"text","text":"Fill this in on the day of the visit, then link it from the client''s page."}]}]},{"type":"paragraph","content":[{"type":"text","text":"Client:","marks":[{"type":"bold"}]},{"type":"text","text":" name · "},{"type":"text","text":"Site:","marks":[{"type":"bold"}]},{"type":"text","text":" address · "},{"type":"text","text":"Met:","marks":[{"type":"bold"}]},{"type":"text","text":" names and roles"}]},{"type":"heading","attrs":{"level":1},"content":[{"type":"text","text":"What they want"}]},{"type":"paragraph","content":[{"type":"text","text":"The project in their words: the rooms, the mood, the deadline."}]},{"type":"heading","attrs":{"level":1},"content":[{"type":"text","text":"What we showed"}]},{"type":"bulletList","content":[{"type":"listItem","content":[{"type":"paragraph","content":[{"type":"text","text":"References"}]}]},{"type":"listItem","content":[{"type":"paragraph","content":[{"type":"text","text":"Samples"}]}]}]},{"type":"heading","attrs":{"level":1},"content":[{"type":"text","text":"Budget and timing"}]},{"type":"paragraph","content":[{"type":"text","text":"What they said, and what we think."}]},{"type":"heading","attrs":{"level":1},"content":[{"type":"text","text":"Next steps"}]},{"type":"taskList","content":[{"type":"taskItem","attrs":{"checked":false},"content":[{"type":"paragraph","content":[{"type":"text","text":"Send the proposal within a week"}]}]},{"type":"taskItem","attrs":{"checked":false},"content":[{"type":"paragraph","content":[{"type":"text","text":"Book a site survey"}]}]}]}]}'::jsonb, 'Fill this in on the day of the visit, then link it from the client''s page.
+Client: name · Site: address · Met: names and roles
+What they want
+The project in their words: the rooms, the mood, the deadline.
+What we showed
+References
+Samples
+Budget and timing
+What they said, and what we think.
+Next steps
+Send the proposal within a week
+Book a site survey', 1, 'mbr_inesaaaaaaaaaaaaaaaaaaaaaa', now() - interval '30 days', 'mbr_inesaaaaaaaaaaaaaaaaaaaaaa', now() - interval '30 days' - interval '66 minutes');
+insert into page_versions (page_id, number, title, doc, body, author, created_at, kind) values (18, 1, 'Client visit report', '{"type":"doc","content":[{"type":"callout","attrs":{"tone":"tip"},"content":[{"type":"paragraph","content":[{"type":"text","text":"Fill this in on the day of the visit, then link it from the client''s page."}]}]},{"type":"paragraph","content":[{"type":"text","text":"Client:","marks":[{"type":"bold"}]},{"type":"text","text":" name · "},{"type":"text","text":"Site:","marks":[{"type":"bold"}]},{"type":"text","text":" address · "},{"type":"text","text":"Met:","marks":[{"type":"bold"}]},{"type":"text","text":" names and roles"}]},{"type":"heading","attrs":{"level":1},"content":[{"type":"text","text":"What they want"}]},{"type":"paragraph","content":[{"type":"text","text":"The project in their words: the rooms, the mood, the deadline."}]},{"type":"heading","attrs":{"level":1},"content":[{"type":"text","text":"What we showed"}]},{"type":"bulletList","content":[{"type":"listItem","content":[{"type":"paragraph","content":[{"type":"text","text":"References"}]}]},{"type":"listItem","content":[{"type":"paragraph","content":[{"type":"text","text":"Samples"}]}]}]},{"type":"heading","attrs":{"level":1},"content":[{"type":"text","text":"Budget and timing"}]},{"type":"paragraph","content":[{"type":"text","text":"What they said, and what we think."}]},{"type":"heading","attrs":{"level":1},"content":[{"type":"text","text":"Next steps"}]},{"type":"taskList","content":[{"type":"taskItem","attrs":{"checked":false},"content":[{"type":"paragraph","content":[{"type":"text","text":"Send the proposal within a week"}]}]},{"type":"taskItem","attrs":{"checked":false},"content":[{"type":"paragraph","content":[{"type":"text","text":"Book a site survey"}]}]}]}]}'::jsonb, 'Fill this in on the day of the visit, then link it from the client''s page.
+Client: name · Site: address · Met: names and roles
+What they want
+The project in their words: the rooms, the mood, the deadline.
+What we showed
+References
+Samples
+Budget and timing
+What they said, and what we think.
+Next steps
+Send the proposal within a week
+Book a site survey', 'mbr_inesaaaaaaaaaaaaaaaaaaaaaa', now() - interval '30 days' - interval '66 minutes', 'imported');
+update pages set template = true where id = 18;
+
 insert into pages (id, space_id, parent_id, position, title, doc, body, version, created_by, created_at, updated_by, updated_at) overriding system value values (5, 1, 4, 'a', 'Wi-Fi and printers', '{"type":"doc","content":[{"type":"heading","attrs":{"level":1},"content":[{"type":"text","text":"Wi-Fi"}]},{"type":"table","content":[{"type":"tableRow","content":[{"type":"tableHeader","content":[{"type":"paragraph","content":[{"type":"text","text":"Network"}]}]},{"type":"tableHeader","content":[{"type":"paragraph","content":[{"type":"text","text":"For"}]}]},{"type":"tableHeader","content":[{"type":"paragraph","content":[{"type":"text","text":"Password"}]}]}]},{"type":"tableRow","content":[{"type":"tableCell","content":[{"type":"paragraph","content":[{"type":"text","text":"Lumen-Staff"}]}]},{"type":"tableCell","content":[{"type":"paragraph","content":[{"type":"text","text":"You"}]}]},{"type":"tableCell","content":[{"type":"paragraph","content":[{"type":"text","text":"Ask Sofia — never shared by email"}]}]}]},{"type":"tableRow","content":[{"type":"tableCell","content":[{"type":"paragraph","content":[{"type":"text","text":"Lumen-Guest"}]}]},{"type":"tableCell","content":[{"type":"paragraph","content":[{"type":"text","text":"Visitors"}]}]},{"type":"tableCell","content":[{"type":"paragraph","content":[{"type":"text","text":"On the card at the front desk, changes monthly"}]}]}]}]},{"type":"heading","attrs":{"level":1},"content":[{"type":"text","text":"Printers"}]},{"type":"paragraph","content":[{"type":"text","text":"The big printer is next to the kitchen ("},{"type":"text","text":"Atelier-1","marks":[{"type":"bold"}]},{"type":"text","text":"). It prints A3 and in colour. Your laptop finds it by itself; if not, add "},{"type":"text","text":"atelier-1.local","marks":[{"type":"code"}]},{"type":"text","text":"."}]},{"type":"callout","attrs":{"tone":"tip"},"content":[{"type":"paragraph","content":[{"type":"text","text":"Printing a plan in A1? Send it to Hugo, the plotter is in the workshop."}]}]}]}'::jsonb, 'Wi-Fi
 Network │ For │ Password
 Lumen-Staff │ You │ Ask Sofia — never shared by email
@@ -375,6 +401,20 @@ insert into page_links (from_page, to_page) values (10, 12);
 insert into page_links (from_page, to_page) values (13, 4);
 insert into page_links (from_page, to_page) values (13, 14);
 insert into page_links (from_page, to_page) values (14, 15);
+
+insert into page_comments (page_id, author, body, created_at, edited_at) values (2, 'mbr_hugoaaaaaaaaaaaaaaaaaaaaaa', 'Do the two days between Christmas and New Year count against our 25?', now() - interval '5 days' + interval '84 minutes', null);
+insert into page_comments (page_id, author, body, created_at, edited_at) values (2, 'mbr_inesaaaaaaaaaaaaaaaaaaaaaa', 'No, they come on top. I added a line to the page to make it clearer.', now() - interval '4 days' + interval '84 minutes', null);
+insert into page_comments (page_id, author, body, created_at, edited_at) values (2, 'mbr_sofiaaaaaaaaaaaaaaaaaaaaaa', 'The team calendar is here: https://calendar.lumen.example/team. Add yours before asking.', now() - interval '1 days' + interval '344 minutes', null);
+insert into page_comments (page_id, author, body, created_at, edited_at) values (3, 'mbr_tomaaaaaaaaaaaaaaaaaaaaaaa', 'Train tickets: book with the company account on https://www.sncf-connect.com, then the receipt comes by email.', now() - interval '9 days' + interval '230 minutes', now() - interval '9 days' + interval '260 minutes');
+insert into page_comments (page_id, author, body, created_at, edited_at) values (9, 'mbr_leaaaaaaaaaaaaaaaaaaaaaaaa', 'Est-ce qu’on peut changer de jour fixe d’une semaine à l’autre ?', now() - interval '7 days' + interval '32 minutes', null);
+insert into page_comments (page_id, author, body, created_at, edited_at) values (9, 'mbr_camilleaaaaaaaaaaaaaaaaaaa', 'Oui, tant que l’équipe est prévenue la veille. Je l’ajoute à la charte.', now() - interval '6 days' + interval '123 minutes', null);
+insert into page_watchers (page_id, member_id) values (2, 'mbr_camilleaaaaaaaaaaaaaaaaaaa');
+insert into page_watchers (page_id, member_id) values (2, 'mbr_hugoaaaaaaaaaaaaaaaaaaaaaa');
+insert into page_watchers (page_id, member_id) values (3, 'mbr_hugoaaaaaaaaaaaaaaaaaaaaaa');
+insert into page_watchers (page_id, member_id) values (11, 'mbr_sofiaaaaaaaaaaaaaaaaaaaaaa');
+update pages set review_months = 6, review_owner = 'mbr_sofiaaaaaaaaaaaaaaaaaaaaaa', reviewed_at = now() - interval '200 days' where id = 7;
+update pages set review_months = 12, review_owner = 'mbr_camilleaaaaaaaaaaaaaaaaaaa', reviewed_at = now() - interval '14 days' where id = 3;
+update pages set review_months = 3, review_owner = 'mbr_tomaaaaaaaaaaaaaaaaaaaaaaa', reviewed_at = now() - interval '100 days' where id = 5;
 
 select setval(pg_get_serial_sequence('spaces', 'id'), (select max(id) from spaces));
 select setval(pg_get_serial_sequence('pages', 'id'), (select max(id) from pages));

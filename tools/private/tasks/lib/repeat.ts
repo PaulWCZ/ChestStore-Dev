@@ -99,10 +99,3 @@ export function suggest(kind: RepeatKind, day: string): Repeat {
       return { every: kind };
   }
 }
-
-// ruleKey writes a rule the same way whatever the order of its keys (a
-// database may reorder them): to tell whether it changed.
-export function ruleKey(rule: Repeat | null): string {
-  if (!rule) return "none";
-  return rule.every === "week" ? `week:${rule.days.join(",")}` : rule.every === "month" ? `month:${rule.day}` : rule.every;
-}

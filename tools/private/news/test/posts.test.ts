@@ -182,12 +182,12 @@ test("Important: an explicit confirmation; the tile counts what is left; publish
   const q = await write({ kind: "info", title: "Safety drill", important: true });
   const plain = await write({ kind: "info", title: "Parking" });
   await assert.rejects(posts.confirm(database.sql, reader, plain.id), refused("invalid"));
-  let counts = await posts.unconfirmedCounts(database.sql, [hugo.id, ines.id, camille.id]);
+  let counts = await posts.unconfirmedCounts(database.sql, [hugo, ines, camille]);
   assert.deepEqual([...counts], [[hugo.id, 2], [ines.id, 2], [camille.id, 0]]);
   assert.deepEqual((await frontOf()).toConfirm.map(t => t.id), [q.id, p.id]);
   await posts.confirm(database.sql, reader, p.id);
   await posts.confirm(database.sql, reader, p.id);
-  counts = await posts.unconfirmedCounts(database.sql, [hugo.id, ines.id]);
+  counts = await posts.unconfirmedCounts(database.sql, [hugo, ines]);
   assert.deepEqual([...counts], [[hugo.id, 1], [ines.id, 2]]);
   assert.equal((await posts.post(database.sql, reader, p.id, { zone })).confirmed, true);
   await assert.rejects(posts.confirmations(database.sql, reader, p.id), refused("forbidden"));
@@ -196,7 +196,7 @@ test("Important: an explicit confirmation; the tile counts what is left; publish
   await assert.rejects(posts.confirmations(database.sql, pub, plain.id), refused("not_found"));
   // A post older than 90 days no longer counts.
   const later = new Date(Date.now() + 91 * 864e5);
-  assert.deepEqual([...(await posts.unconfirmedCounts(database.sql, [ines.id], later))], [[ines.id, 0]]);
+  assert.deepEqual([...(await posts.unconfirmedCounts(database.sql, [ines], later))], [[ines.id, 0]]);
   // A reminder once a day at most.
   await posts.claimReminder(database.sql, pub, p.id);
   await assert.rejects(posts.claimReminder(database.sql, pub, p.id), refused("too_soon"));

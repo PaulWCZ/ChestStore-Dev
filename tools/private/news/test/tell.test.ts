@@ -46,7 +46,7 @@ test("an Important post is told to everyone who has News, in their language, onc
     assert.equal(chest.notifications.filter(n => n.key === `post:${p.id}:important`).length, 4);
     // Confirming takes it out of that person's bell and tile.
     await posts.confirm(database.sql, asMember(hugo), p.id);
-    await tell.confirmed(database.sql, hugo.id, p.id);
+    await tell.confirmed(database.sql, hugo, p.id);
     assert.ok(!chest.notifications.some(n => n.member === hugo.id && n.key === `post:${p.id}:important`));
     assert.equal(chest.badges.get(hugo.id), undefined);
     // Deleted: out of every bell.
@@ -89,7 +89,7 @@ test("a welcome tells the new colleague; a comment tells the author; a reminder 
     const before = chest.notifications.length;
     await tell.commented(pub, post, "Thanks");
     assert.equal(chest.notifications.length, before);
-    await tell.remind({ id: w.id, title: "Office move", body: "" }, [{ id: hugo.id, name: hugo.name, photo: null, locale: "en", role: "reader" }]);
+    await tell.remind({ id: w.id, title: "Office move", body: "" }, [{ id: hugo.id, name: hugo.name, photo: null, locale: "en", role: "reader", groups: [] }]);
     assert.equal(chest.notifications.at(-1)!.title, "Reminder: Office move");
     assert.equal(chest.notifications.at(-1)!.body, "Please confirm you have read it.");
   } finally {
