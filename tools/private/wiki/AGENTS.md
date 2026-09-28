@@ -19,6 +19,12 @@ what must not break.
 | `lib/files.ts` | Files of pages (records; the bytes are the Chest's) |
 | `lib/importer.ts`, `lib/zip.ts` | Imports (Markdown, Notion zip) and a bounded in-memory ZIP reader/writer |
 | `lib/export.ts`, `lib/origin.ts` | Markdown, HTML and zip exports |
+| `lib/comments.ts` | Comments: read, add, edit (own), remove (own, or the page's editors) and Undo — always through `page()`, so a comment follows its page's access |
+| `lib/watching.ts` | Watching a page |
+| `lib/templates.ts` | Templates: the flag, a space's templates, the built-in models (words in the catalogues' `templates.builtin`), `createFrom` |
+| `lib/reviews.ts` | Review reminders: set, "still correct", due pages |
+| `lib/tell.ts` | **Everything the bell says** (keys `comments:`, `saved:`, `review:`), each recipient checked against the space's access at that moment; the `reviews` schedule's work |
+| `app/chest-jobs/[name]/route.ts` | Scheduled tasks (proposal): `reviews` |
 | `lib/starter.ts` | The one-click example handbook (words in the catalogues' `starter`) |
 | `lib/lifecycle.ts` | Leaving and erasure |
 | `lib/i18n/` | Every word: `en.ts` (source), `fr.ts`; `format.ts` for the browser |
@@ -60,4 +66,8 @@ npm ci && npm test && npm run build   # all three must pass
   placeholders, and look for words written in pages).
 - **Compare timestamps in SQL**, never through JavaScript `Date`s
   (PostgreSQL keeps microseconds).
-- **No network, no disk, no background work.**
+- **Tell people only through `lib/tell.ts`**: it drops anyone who cannot
+  read the page now and the actor; a new reason gets its own key, replaced
+  per page, and is withdrawn in `forget()`/`moved()`.
+- **No network, no disk, no background work** (timed work goes through the
+  `schedules` proposal, `chest.proposals.json`).

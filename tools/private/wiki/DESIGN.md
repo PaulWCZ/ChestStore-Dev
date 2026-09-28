@@ -51,6 +51,15 @@ sideways on phones, a title that is just large text), the history (a list
 of versions, words taken out struck in red, put in underlined in green,
 long unchanged runs folded), search results with a highlighter, a space's
 table of contents numbered like chapters, empty states with one action.
+The conversation under a page reads like margin notes: comments in paper
+cards beside an avatar, the author and time in the interface sans, the
+text as written (line breaks kept, addresses as green links), *Edit* and
+*Remove* as quiet underlined words; a highlighted card when the bell opens
+it. *Watch* is a quiet button that turns green and pressed (an eye, then a
+tick). A page due for review gets one notice with an ochre spine (the
+spaces' ochre) and its two answers. The *New page* dialog's "Start from" is
+a row of choice cards, *Blank page* already chosen; a template carries a
+small green "Template" pill under its title.
 
 ## Icon
 

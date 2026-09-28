@@ -54,6 +54,25 @@ intranet — on the company's own server, for no fee per seat.
   search results, its titles in links.
 - **Trash**: deleting a page (with its subpages) offers *Undo*; the trash
   restores it later, or deletes it for good with its history and files.
+- **Comments** at the bottom of every page: plain text, web addresses
+  become links. Whoever reads a page may comment (readers too); each
+  person edits and removes their own, the page's editors may remove any
+  (with *Undo*). The page's author, earlier commenters and watchers get one
+  item in the Chest's bell per page ("Hugo commented on “Expenses”"),
+  replaced by the next comment, never doubled.
+- **Watch** a page (one switch next to *Edit*): be told in the bell when
+  someone else saves it or comments on it — one item per page, replaced.
+- **Templates**: an editor marks a page "Use as a template"; *New page*
+  then offers, in the same dialog, *Blank page* (chosen), the space's
+  templates and three ready-made ones in the editor's language —
+  *Meeting notes*, *How-to*, *Decision record*. The template's content is
+  copied once; changing it later changes only pages made after.
+- **Review reminders** (optional, quiet): *More → Review reminder*, every
+  3, 6 or 12 months. Whoever sets it is reminded, once, in the bell on the
+  weekday morning it comes due (the `reviews` schedule); the page then asks
+  its editors "Is this page still correct?" — *Still correct* settles it
+  for months, *Update it* opens the editor. The home page lists "Pages to
+  check". Saving the page does not count as a check.
 - **An empty wiki** offers, in one click, an example handbook in the
   editor's language (five short linked pages to edit or delete).
 
@@ -61,14 +80,18 @@ intranet — on the company's own server, for no fee per seat.
 
 | Role | Can |
 |---|---|
-| `editor` | Everything: write and arrange pages, create spaces and set who reads them, import, restore versions, empty the trash |
-| `reader` | Read, search, print and download the spaces they see |
+| `editor` | Everything: write and arrange pages, create spaces and set who reads them, import, restore versions, empty the trash, mark templates, set review reminders, remove any comment of their spaces |
+| `reader` | Read, search, print and download the spaces they see; comment (and edit or remove their own comments); watch pages |
 
 The Chest's owner, admins and the tool's builders arrive as editors. A
 space kept to groups is seen only by the members of those groups, its
 creator and the Chest's admins, whatever their role (a page they cannot
-see answers "not found"). Rules are enforced on the server in
-`lib/access.ts` (tested in `test/access.test.ts`).
+see answers "not found" — and so do its comments, by page or by
+comment id, including a page moved to a space the member cannot read).
+Nobody is told in the bell about a page they cannot read now. Rules are
+enforced on the server in `lib/access.ts`, `lib/comments.ts` and
+`lib/tell.ts` (tested in `test/access.test.ts`, `test/comments.test.ts`,
+`test/templates-reviews.test.ts`).
 
 ## First minute
 
@@ -85,7 +108,7 @@ see answers "not found"). Rules are enforced on the server in
 - **What happens after a mistake?** A deleted page comes back with *Undo*
   (or from the trash). A bad edit is undone from the history with
   **Restore**. Discarded changes come back with *Undo*. A closed tab keeps
-  the draft. Only "Delete for good" in the trash cannot be undone, and it
+  the draft. A removed comment comes back with *Undo* (for an hour). Only "Delete for good" in the trash cannot be undone, and it
   asks once more.
 
 ## Routes
@@ -108,21 +131,32 @@ see answers "not found"). Rules are enforced on the server in
 | `/chest/api/pages/<id>/upload` | POST authorises an upload, PUT records it |
 | `/chest/api/import` | POST the import's files (form) |
 | `/chest-events` | The members' lifecycle, signed by the Chest |
+| `/chest-jobs/reviews` | The `reviews` schedule (Proposal (studio)), signed by the Chest: weekdays 07:40 |
 
 ## On a Chest
 
 - **Capabilities**: `database`, `files` (images and attachments, import),
-  `members` (names of authors and editors; the groups a space is kept to).
-  No notifications, no network.
-- **Database**: `migrations/0001_wiki.sql` creates the `unaccent` and
+  `members` (names of authors and editors; the groups a space is kept to;
+  who may still read a page before telling them), `notifications` (bell
+  items: comments, saves of watched pages, reviews due; keyed
+  `comments:<page>`, `saved:<page>`, `review:<page>`, withdrawn when the
+  page goes to the trash or moves where the person cannot read it). No
+  network. Schedule (proposal, `chest.proposals.json`): `reviews`,
+  `40 7 * * 1-5`.
+- **Database**: `migrations/0002_comments_watching_templates_reviews.sql`
+  adds comments, watchers, the template flag and review reminders.
+  `migrations/0001_wiki.sql` creates the `unaccent` and
   `pg_trgm` extensions (both *trusted*: the database's owner may create
   them — PostgreSQL 13+) and a text search configuration `wiki` (`simple`
   + `unaccent`), so that search works the same in every language.
 - **Lifecycle**: a member who **leaves or loses access** frees the pages
   they were editing; their unsaved drafts are deleted (no one else can
-  read them). What they wrote stays, signed "(former member)". An
+  read them), and they stop watching pages. What they wrote stays, signed
+  "(former member)" — pages and comments. Review reminders they owned stay
+  and go to whoever last saved each page (if they still write there). An
   **erasure** also replaces their id with `erased` as author of pages,
-  versions, files and spaces ("Former member"), then is acknowledged. The
+  versions, files, spaces and comments ("Former member"), then is
+  acknowledged. The
   *text* of pages is the company's: a name written in a page is not
   searched for and removed.
 - **Bounds**: 5,000 pages, 200 spaces, 12 levels deep, 200 files of 25 MiB
@@ -138,8 +172,19 @@ see answers "not found"). Rules are enforced on the server in
 
 ## Needs from the SDK
 
-Nothing is faked; the tool works fully on today's SDK. What would make it
-better (details in the studio's SDK report):
+Uses the working copy's **schedules** proposal (`reviews`, weekday
+mornings) for review reminders; on a Chest without it, reminders stay set
+and due pages still ask their editors "Still correct?" and show on the home
+page — only the bell item is missing. Bell items need `notifications`
+(a Chest that refuses them loses nothing else). What would make it better
+(details in the studio's SDK report):
+
+- **Knowing whether a notification was delivered** per member (today
+  `notify` is fire-and-forget in the tool): a review reminder is marked
+  "told" even if the Chest was briefly unreachable.
+- **Group changes as events** (`member.updated` with `groups`): watchers
+  who lose a space through a group change keep old bell items until the
+  page changes (a move or the trash withdraws them).
 
 - **The team host's address** (e.g. `CHEST_ORIGIN`, or `chest.origin()`):
   exports write links back to the wiki; today the address is taken from the
@@ -166,8 +211,14 @@ node lab/chest-dev/screens.mjs tools/private/wiki --port 4300
 
 - **Live co-editing** and cursors (needs a realtime channel from the Chest);
   one editor at a time instead.
-- **Comments**, **watching a page**, **"read and acknowledged"**, **page
-  templates**, **review reminders** (would use the schedules proposal).
+- **Mentions** (`@name`) in comments, replies in threads, comments on a
+  part of the text, resolving a comment.
+- **"Read and acknowledged"** for policies.
+- **Watching a whole space**; watchers are not told of moves or deletes.
+- A template's images stay the template's files: deleting the template for
+  good breaks them in pages made from it.
+- Changing a space's groups does not withdraw bell items already sent
+  about its pages (moving a page or putting it in the trash does).
 - **Restrictions per page**: access is per space.
 - **Public pages** (a public help centre): the wiki is private only.
 - **Confluence (HTML) and Word/HTML imports**: Markdown and Notion only.
