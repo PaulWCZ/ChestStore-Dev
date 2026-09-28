@@ -271,7 +271,41 @@ _(more sections as tools need them: public accounts, payments, AI.)_
 
 ## 5. Public-facing tools
 
-_(to write with Support, Booking, Hiring, Status)_
+Support and Booking have a public part (a contact form and follow-up page;
+booking pages and a guest's link); Hiring and Status are being built. The
+public host works — one tool, two hosts, the team's part behind `/chest`
+— but every public tool rebuilt the same four things, and each is a
+platform concern:
+
+1. **Abuse on forms.** No captcha is possible without a third party, so
+   each tool built the same guard: a honeypot field, a signed "form shown
+   at" time (refuses a form sent in under 3 seconds or never shown), and
+   per-visitor and global counters in its database, keyed by the first
+   address of `X-Forwarded-For` (assumed set by the Chest's front — the
+   contract should say so). Proposal: `guard.check(request, {perVisitor,
+   perHour})` in the SDK, counted by the Chest across its tools, and the
+   form token helper (`guard.token()` / `guard.verify()`).
+2. **Visitors' language.** Each tool wrote the same `/lang/<code>` switch,
+   a cookie and `Accept-Language` parsing. Proposal: `publicLocale(request)`
+   next to `member()` — the Chest's default language (`chest.locale()`) as
+   the last fallback.
+3. **Secret links instead of accounts.** A customer follows a ticket and a
+   guest moves a booking through a link holding a secret (stored hashed,
+   looked up by SHA-256). It is the right design for one-off visitors — no
+   account to create — and deserves a helper (`secret()`, `hash()`) and a
+   paragraph in the contract (never logged, `Referrer-Policy`, `noindex`).
+   Real **public accounts** (a customer portal with a password or a magic
+   link) are not needed by the opening store; they would be by a shop or a
+   client portal.
+4. **Addresses.** The public host's address was derived from forwarded
+   headers and remembered in each tool's database for emails sent later —
+   now `chest.publicUrl()` (4.5).
+
+What a public tool cannot do yet, and says so on its pages: photos of
+members on the public host (the Chest's photo links are team-host only —
+Booking shows initials), reading a host's other calendars (no outbound
+network, no OAuth), automatic checks for Status (no outbound network, no
+process between requests).
 
 ## 6. Tools as a suite
 
