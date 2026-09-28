@@ -7,7 +7,7 @@ meaningful step (brief/07-plan.md).
 
 Step 3, well advanced. Done, verified and pushed (each: tests on PGlite and
 PostgreSQL, build, manifest, browser flows, screenshots looked at): Tasks,
-Wiki, Leave, News, People, Expenses, Support, Rooms, Booking, Clients, Polls, Equipment, Timesheets, Goals (14 of 17).
+Wiki, Leave, News, People, Expenses, Support, Rooms, Booking, Clients, Polls, Equipment, Timesheets, Goals, Status (15 of 17).
 Builders at work (background agents, one port each, no git; the lead
 verifies with `scratchpad/verify.sh`-style runs and commits): Timesheets (5200), Hiring (5300),
 Goals (5600), Quotes (5700), Status (5800). Builder brief: the Rooms/…
@@ -40,7 +40,7 @@ Checked 2026-09-28 in the cloud container:
 | 0. Environment | done |
 | 1. Ranking and research | done — `reports/01-ranking.md`, 17 files in `reports/02-open-source/`, prices in `reports/01-pricing-sources.md` |
 | 2. Foundations | done — `lab/template` (tested, built, run, screenshots), `lab/chest-dev` (dev.mjs, screens.mjs), `scripts/check-manifest.mjs`, `new-tool.mjs`, `add-font.mjs`, `contrast.mjs`, `build-showcase.mjs` |
-| 3. Tools | 14 of 17 done; Status verifying; Hiring, Quotes being built |
+| 3. Tools | 15 of 17 done; Hiring, Quotes being built |
 | 4. The report | to do |
 | 5. Better | to do |
 
@@ -66,7 +66,7 @@ _One row per chosen tool, in ranking order, once step 1 is done._
 | 14 | Polls | `tools/private/polls` | Doodle, Officevibe | ✓ | ✓ | confetti ballot (Fredoka + Plus Jakarta Sans, coral, navy, mint) | locale, schedules, broadcast | ✓ 42 tests (PGlite + PostgreSQL), build, manifest, 9 browser flows, a11y audit, screens |
 | 15 | Goals | `tools/private/goals` | Lattice Goals, Perdoo | ✓ | ✓ | trail map (Barlow Semi Condensed + Work Sans, forest ink, sunrise orange, contour lines) | locale, schedules, chest | ✓ 34 tests (PGlite + PostgreSQL), build, manifest, 14 browser flow steps, a11y audit, screens |
 | 16 | Quotes | `tools/private/quotes` | Axonaut, Sellsy | ✓ | — | — | locale | — |
-| 17 | Status | `tools/public-and-private/status` | Statuspage | ✓ | — | — | locale | — |
+| 17 | Status | `tools/public-and-private/status` | Statuspage, Instatus | ✓ | ✓ | control room (cool grey, near-black ink, Okabe–Ito state colours with shapes and words) | locale, mail, schedules, chest, visitors, broadcast | ✓ 39 tests (PGlite + PostgreSQL), build, manifest, 10 browser flows, a11y audit (14 pages), screens |
 
 ## SDK working copy
 

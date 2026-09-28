@@ -327,7 +327,7 @@ export function Paper(props: PaperProps) {
               {addressLines(buyer, () => buyer.countryName).map(l => <span key={l}>{l}</span>)}
               {buyer.siren && <span className="grey">{format(w.siren, { value: spacedSiren(buyer.siren) })}</span>}
               {buyer.vatNumber && <span className="grey">{format(w.vatNumber, { value: buyer.vatNumber })}</span>}
-              {buyer.deliveryAddress && <><span className="caps">{w.deliverTo}</span><span className="grey">{buyer.deliveryAddress}</span></>}
+              {buyer.deliveryAddress && <><span className="caps deliver">{w.deliverTo}</span><span className="grey pre">{buyer.deliveryAddress}</span></>}
               {editing && doc.type !== "credit" && <button type="button" className="link-button" onClick={() => setPicking("client")}>{t.editor.changeClient}</button>}
             </>
           ) : editing ? (

@@ -260,7 +260,7 @@ input.ink[type="date"] { min-width: 150px; }
 .lines.read .line .total { padding-top: 2px; }
 .line .desc-read { white-space: pre-wrap; }
 .line .desc-read .first { font-weight: 550; }
-.line textarea.ink { resize: none; field-sizing: content; min-height: 36px; font-weight: 550; }
+.line textarea.ink { resize: none; field-sizing: content; min-height: 36px; }
 .figures-row { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 4px var(--space-2); }
 .mini { display: grid; gap: 0; }
 .mini > span { font-size: 0.66rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-2); padding-left: 6px; }
@@ -392,3 +392,7 @@ input.ink[type="date"] { min-width: 150px; }
 .downloads { display: flex; gap: var(--space-2); flex-wrap: wrap; margin-bottom: var(--space-2); }
 .export-go { align-self: end; }
 .panel .filters { margin-bottom: var(--space-4); }
+.lines.edit .line.section > .desc, .lines.edit .line.section > .grip { grid-area: auto; }
+.lines.edit .line.section > .grip { order: 0; }
+.pre { white-space: pre-line; }
+.party .caps.deliver { margin-top: var(--space-3); }
