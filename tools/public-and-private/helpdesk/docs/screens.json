@@ -6,5 +6,7 @@
   { "name": "inbox-fr", "path": "/chest?folder=open", "member": "camille", "locale": "fr" },
   { "name": "contact-form-fr", "path": "/", "member": "camille", "locale": "fr", "only": ["phone"] },
   { "name": "ticket-dark", "path": "/chest/tickets/1001", "member": "ines", "locale": "fr", "dark": true },
-  { "name": "settings", "path": "/chest/settings", "member": "camille", "locale": "en", "only": ["desktop"] }
+  { "name": "settings", "path": "/chest/settings", "member": "camille", "locale": "en", "only": ["desktop"] },
+  { "name": "inbox-tag", "path": "/chest?tag=2&sort=priority", "member": "hugo", "locale": "en", "only": ["desktop"] },
+  { "name": "follow-up-files", "path": "/t/demoLampFollowUpLinkForScreens00", "member": "hugo", "locale": "fr", "only": ["phone"] }
 ]
