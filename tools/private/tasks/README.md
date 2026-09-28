@@ -19,6 +19,21 @@ for the work of a small company's teams — the 80 % they use every day.
   (Space, arrows, Space). Quick add at the bottom of each column.
 - **List view** of a board; filters by person (or *My cards*) and label.
 - **Search** across every board I see (titles and descriptions).
+- **Recurring cards**: a card can repeat *every day*, *every weekday*
+  (Monday to Friday), *every week* on chosen days, or *every month* on a
+  day (the 31st falls on the last day of shorter months). The card says it
+  in plain words — "Repeats every Monday and Thursday. Once this card is
+  done, the next one comes in “To do”, due Thursday 1 October." When it is
+  done, the next card appears in the board's first column with the same
+  title, description, people and labels, its checklist unticked and the
+  next date; the done card links to it. A repeat set on a card without a
+  date gives it the first one.
+- **The morning reminder**: each weekday at 07:30 in the Chest's time zone,
+  whoever has cards due today or late finds **one** item in their bell,
+  in their language — "1 task due today, 2 tasks late" and the titles,
+  late ones first. It replaces yesterday's, and goes away once nothing is
+  due (as soon as their last card is done). One switch at the bottom of
+  *My tasks* turns it off for oneself.
 - **The bell**: whoever is given a card, mentioned, or has a card commented
   on hears of it in the Chest's inbox, in their own language; the tile's
   number is their tasks late or due today.
@@ -51,7 +66,8 @@ the tool's builders come in with the first role, `manager`.
 - **Clicks for the main job:** giving a task to Inès is 3 clicks from the
   board (open the card, *Give to…*, Inès); ticking my task done is 1.
 - **A mistake:** a card moved to the wrong column is dragged back; ticked
-  by mistake → *Undo*; archived by mistake → *Undo*, or restore it from the
+  by mistake → *Undo* (a repeating card also takes back the next one it
+  made, if nobody touched it yet); archived by mistake → *Undo*, or restore it from the
   board's settings. A refused action puts the screen back and says why.
 
 ## Routes
@@ -68,6 +84,7 @@ the tool's builders come in with the first role, `manager`.
 | `/chest/api/cards/<id>/upload` | who works on the board | authorise then record a file (POST, PUT) |
 | `/chest/files/<id>` (`?download`) | who sees the card | a 15-minute link to the file, signed by the Chest |
 | `/chest-events` | the Chest only (signed) | members' lifecycle |
+| `/chest-jobs/morning` | the Chest only (signed, Proposal (studio)) | the weekday morning |
 | `/` | anyone | "Tasks lives in your Chest" |
 
 ## On a Chest
@@ -79,18 +96,40 @@ the tool's builders come in with the first role, `manager`.
   history says so), they leave the boards' people; done cards keep them.
   **An erasure** removes their id everywhere; what they wrote stays for the
   team, signed "Former member". Then the erasure is acknowledged.
-- **Nothing runs in the background**: deleted-for-good is a click; the
-  tile's number is recomputed whenever something changes and when its owner
-  opens *My tasks* (it can be a day stale otherwise — see "Needs from the
-  SDK").
+- **Schedules** (Proposal (studio), `chest.proposals.json`): `morning`,
+  weekdays at 07:30 in the Chest's time zone, called at
+  `POST /chest-jobs/morning`. It makes any missing next card of a repeating
+  card, sends the reminders (and takes back those no longer true), and sets
+  every tile's number, since dates moved overnight. A run delivered twice
+  makes no second card and no second item. Nothing else runs in the
+  background: deleted-for-good is a click; the tile's number is also
+  recomputed whenever something changes and when its owner opens *My tasks*.
+- **"Today"** is the day in the Chest's time zone (`chest.timeZone()`,
+  Proposal (studio)): late cards, the reminder, the next date of a repeat.
+
+### Why the next card comes when this one is done
+
+Two models exist. Trello's Card Repeater copies a card on a calendar,
+whether the last copy was done or not; Asana makes the next task when the
+current one is completed. Tasks follows Asana: a team that did not water
+the plants on Monday does not want a second "Water the plants" on Thursday
+beside the first — it wants the one card, late, and the next one once it
+is done. The next date comes from the rule after the card's own date, and
+never before today: a weekly card done three days late is not followed by
+one already late. Archiving a repeating card stops its series; choosing
+"Does not repeat" stops it too.
 - No WebSocket: an open board re-reads itself every 15 s while visible.
 
 ## Needs from the SDK
 
 - `member.locale` — **Proposal (studio)**, in `vendor/`: the interface and
   the bell in each member's language.
-- **Scheduled tasks** (not built yet): a morning pass to tell people of
-  what is due today and to keep the tile's number true overnight.
+- `schedules` — **Proposal (studio)**: the morning run (reminders, the
+  repeats' safety net, the tiles' numbers).
+- `chest` — **Proposal (studio)**: the Chest's time zone, for "today".
+- Without schedules on a real Chest today, recurring cards still work (the
+  next card is made at the moment one is done); the reminder does not come
+  and the tile's number is refreshed by use only.
 
 ## Develop
 
@@ -106,6 +145,8 @@ In the studio: `node lab/chest-dev/dev.mjs tools/private/tasks --reset`
 
 ## What it does not do (yet)
 
-Due-date reminders (needs scheduled tasks), recurring tasks, calendar view,
+Reminders by email or at a time each person chooses (the Chest's bell
+only, at 07:30 on weekdays), repeats every *n* weeks or yearly, repeats on
+a calendar whether done or not (Trello's model), start dates, calendar view,
 card templates, custom fields, automations, dependencies, time tracking
 (see Timesheets), public boards, live co-editing.

@@ -16,6 +16,10 @@ must not break.
 | `lib/parse-import.ts`, `lib/importers.ts` | Trello JSON / CSV reading (pure, used in the browser too), then writing a board |
 | `lib/export.ts`, `lib/csv.ts` | CSV and JSON exports; CSV reading and writing (formula-safe) |
 | `lib/tell.ts`, `lib/notify.ts` | The bell (each recipient's language) and badges |
+| `lib/repeat.ts` | Repeat rules and the next due date — pure, used in the browser too, tested alone (month ends, summer time) |
+| `lib/repeats.ts` | A repeating card's series: `makeNext` (once, row locked), `takeBack` (on reopen, if untouched), `catchUp` (the morning) |
+| `lib/morning.ts`, `lib/reminders.ts`, `app/chest-jobs/[name]/route.ts` | The weekday morning (schedule `morning`): reminders, catch-up, badges; the per-person switch and taking an item back |
+| `lib/clock.ts` | "Today" in the Chest's time zone (`chest.timeZone()`) — server only |
 | `lib/lifecycle.ts` | Leaving and erasure |
 | `lib/audience.ts` | Who sees a board, for pickers |
 | `lib/i18n/` | Every word: `en.ts` (source), `fr.ts`; `format.ts` for the browser |
@@ -52,5 +56,12 @@ npm ci && npm test && npm run build   # all three must pass
 - **Files**: authorise with `files.uploadUrl` in a `/chest` route after the
   access check; record only after `files.stat`; open through
   `/chest/files/<id>` (a fresh signed link), never put a signed link in a page.
-- **No network, no disk, no background work.** Deferred work runs on the
-  next request (the badge refresh on the home page).
+- **"Today" is `chestToday()`** (`lib/clock.ts`), never the server's date
+  or a hard-coded zone; the morning uses its run's `scheduledAt` and
+  `timeZone`.
+- **Every path that completes a card calls `makeNext`, every path that
+  reopens one `takeBack`**, inside its transaction (`moveCard`,
+  `updateColumn`). A card makes its next one once: `next_card_id`.
+- **No network, no disk, no background work** but the declared schedule
+  (`chest.proposals.json`). Other deferred work runs on the next request
+  (the badge refresh on the home page).
