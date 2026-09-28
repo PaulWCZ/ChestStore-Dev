@@ -22,7 +22,7 @@ export default async function SettingsPage({ params }: { params: Promise<{ id: s
   const who = await people(ids);
   const zone = chest.timeZone();
   const closes = form.closesAt ? zonedParts(new Date(form.closesAt), zone) : null;
-  const [{ taken }] = (await sql<{ taken: boolean }[]>`select exists (select 1 from answers where form_id = ${form.id}) or exists (select 1 from participants where form_id = ${form.id}) as taken`) as [{ taken: boolean }];
+  const { taken } = (await sql<{ taken: boolean }[]>`select exists (select 1 from answers where form_id = ${form.id}) or exists (select 1 from participants where form_id = ${form.id}) as taken`)[0]!;
   const published = form.version > 0 ? await versionOf(sql, form.id, form.version) : null;
   const hasFiles = [...allQuestions(form.draft), ...(published ? allQuestions(published) : [])].some(q => q.kind === "file");
   return (

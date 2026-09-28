@@ -34,8 +34,13 @@ test("the public part's language: the visitor's choice, then the browser's, then
 });
 
 test("plurals and placeholders follow the language", () => {
-  assert.equal(plural(en.notes.count, 1, "en"), "1 note");
-  assert.equal(plural(en.notes.count, 2, "en"), "2 notes");
-  assert.equal(plural(catalogue("fr").notes.count, 0, "fr"), "0 note");
+  assert.equal(plural(en.home.answers, 1, "en"), "1 answer");
+  assert.equal(plural(en.home.answers, 2, "en"), "2 answers");
+  assert.equal(plural(en.home.answers, 0, "en"), "No answers yet");
+  assert.equal(plural(catalogue("fr").home.answers, 3, "fr"), "3 réponses");
   assert.equal(format("{a} and {b}", { a: 1 }), "1 and {b}");
+});
+
+test("the CSV separator is one a spreadsheet of that language opens", () => {
+  for (const locale of locales) assert.ok([",", ";"].includes(catalogue(locale).csv.separator));
 });

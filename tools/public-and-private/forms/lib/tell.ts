@@ -41,7 +41,7 @@ async function ring(sql: Sql, formId: string): Promise<void> {
   const byCount = new Map<number, string[]>();
   for (const w of watchers) byCount.set(w.unseen, [...(byCount.get(w.unseen) ?? []), w.member]);
   for (const [count, ids] of byCount) {
-    await notify(ids, (t, locale) => ({ title: plural(t.bell.answers, count, locale, { form: form.title || t.forms.untitled }), body: t.bell.body }), { path: `/chest/forms/${formId}/answers`, key: key(formId) });
+    await notify(ids, (t, locale) => ({ title: plural(t.bell.answers, count, locale, { form: form.title || t.builder.untitled }), body: t.bell.body }), { path: `/chest/forms/${formId}/answers`, key: key(formId) });
   }
   await refreshBadges(sql, watchers.map(w => w.member));
 }

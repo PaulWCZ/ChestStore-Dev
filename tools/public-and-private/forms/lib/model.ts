@@ -285,7 +285,7 @@ export function problems(def: Definition): Problem[] {
   if (!all.some(q => q.kind !== "statement")) found.push({ code: "no_questions" });
   const order = new Map(all.map((q, i) => [q.id, i]));
   const byId = new Map(all.map(q => [q.id, q]));
-  const checkCondition = (c: Condition, before: number, where: Problem) => {
+  const checkCondition = (c: Condition, before: number, where: Omit<Problem, "code">) => {
     const target = byId.get(c.question);
     if (!target || !opsFor(target.kind).includes(c.op)) return found.push({ ...where, code: "condition_unknown" });
     if ((order.get(c.question) ?? Infinity) >= before) return found.push({ ...where, code: "condition_later" });

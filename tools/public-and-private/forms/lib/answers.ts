@@ -132,7 +132,7 @@ async function anonymous(tx: Query, formId: string, a: { id: string; version: nu
   const rows = await tx<{ id: string; version: number; data: Answers; month: Date | string; language: string; deleted_at: Date | null }[]>`
     select id, version, data, month, language, deleted_at from answers where form_id = ${formId}`;
   const participants = (await tx<{ member: string }[]>`select member from participants where form_id = ${formId}`).map(p => p.member);
-  const [{ month }] = (await tx<{ month: string }[]>`select to_char(date_trunc('month', now()), 'YYYY-MM-DD') as month`) as [{ month: string }];
+  const { month } = (await tx<{ month: string }[]>`select to_char(date_trunc('month', now()), 'YYYY-MM-DD') as month`)[0]!;
   const all = [...rows.map(r => ({ id: r.id, version: r.version, data: r.data, month: monthText(r.month), language: r.language, deleted_at: r.deleted_at })), { ...a, month, deleted_at: null }];
   await tx`delete from answers where form_id = ${formId}`;
   await tx`delete from participants where form_id = ${formId}`;
@@ -147,7 +147,7 @@ async function anonymous(tx: Query, formId: string, a: { id: string; version: nu
 
 // Anonymous answers stay hidden from everyone until there are five.
 async function live(sql: Query, formId: string): Promise<number> {
-  const [{ count }] = (await sql<{ count: number }[]>`select count(*)::int as count from answers where form_id = ${formId} and deleted_at is null`) as [{ count: number }];
+  const { count } = (await sql<{ count: number }[]>`select count(*)::int as count from answers where form_id = ${formId} and deleted_at is null`)[0]!;
   return count;
 }
 function floor(form: Form, count: number): void {
@@ -173,7 +173,7 @@ export async function listAnswers(sql: Sql, actor: Member | null, formId: unknow
     : question && option ? sql`and data->${question}->'ids' ? ${option}`
     : sql``;
   const where = sql`form_id = ${form.id} and deleted_at is null ${q ? sql`and data::text ilike ${pattern}` : sql``} ${optionCondition}`;
-  const [{ matching }] = (await sql<{ matching: number }[]>`select count(*)::int as matching from answers where ${where}`) as [{ matching: number }];
+  const { matching } = (await sql<{ matching: number }[]>`select count(*)::int as matching from answers where ${where}`)[0]!;
   const rows = await sql<Row[]>`
     select id, version, respondent, email, data, created_at, month, language from answers where ${where}
     order by created_at desc nulls last, id

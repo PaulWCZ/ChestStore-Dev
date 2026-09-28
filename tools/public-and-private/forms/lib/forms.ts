@@ -222,7 +222,7 @@ export async function create(sql: Sql, actor: Member | null, start: Start): Prom
   const def = definition(start.definition);
   const s = start.settings ?? {};
   const anonymous = s.audience === "team" && s.anonymous === true;
-  const [{ count }] = (await sql<{ count: number }[]>`select count(*)::int as count from forms where deleted_at is null`) as [{ count: number }];
+  const { count } = (await sql<{ count: number }[]>`select count(*)::int as count from forms where deleted_at is null`)[0]!;
   if (count >= limits.forms) throw new AppError("limit", { max: limits.forms });
   for (let attempt = 0; attempt < 5; attempt++) {
     const [row] = await sql<Row[]>`
@@ -326,7 +326,7 @@ export async function saveSettings(sql: Sql, actor: Member | null, formId: unkno
     await tx`select 1 from forms where id = ${form.id} for update`;
     const s = readSettings(raw, closesAt ? closesAt.toISOString() : null);
     if (s.anonymous !== form.anonymous) {
-      const [{ taken }] = (await tx<{ taken: boolean }[]>`select exists (select 1 from answers where form_id = ${form.id}) or exists (select 1 from participants where form_id = ${form.id}) as taken`) as [{ taken: boolean }];
+      const { taken } = (await tx<{ taken: boolean }[]>`select exists (select 1 from answers where form_id = ${form.id}) or exists (select 1 from participants where form_id = ${form.id}) as taken`)[0]!;
       if (taken) throw new AppError("anonymous_locked");
     }
     if (s.anonymous && (hasFiles(form.draft) || (form.version > 0 && hasFiles((await versionOf(tx, form.id, form.version))!)))) throw new AppError("anonymous_files");
@@ -356,7 +356,7 @@ export async function share(sql: Sql, actor: Member | null, formId: unknown, mem
     return;
   }
   if (level !== "editor" && level !== "viewer") throw new AppError("invalid");
-  const [{ count }] = (await sql<{ count: number }[]>`select count(*)::int as count from access where form_id = ${form.id}`) as [{ count: number }];
+  const { count } = (await sql<{ count: number }[]>`select count(*)::int as count from access where form_id = ${form.id}`)[0]!;
   if (count >= limits.collaborators) throw new AppError("limit", { max: limits.collaborators });
   await sql`insert into access (form_id, member, level) values (${form.id}, ${member}, ${level}) on conflict (form_id, member) do update set level = excluded.level`;
 }

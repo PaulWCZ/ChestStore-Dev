@@ -38,7 +38,7 @@ export default async function SharePage({ params }: { params: Promise<{ id: stri
       audience={form.audience}
       questions={questions}
       owner={{ id: owner, name: owner === member.id ? t.people.you : nameOf(who.get(owner), locale), photo: who.get(owner)?.photo ?? null }}
-      shared={shared.map(s => ({ id: s.member, level: s.level, name: s.member === member.id ? t.people.you : nameOf(who.get(s.member), locale), photo: who.get(s.member)?.photo ?? null }))}
+      shared={shared.map(s => ({ id: s.member, level: s.level === "editor" ? "editor" as const : "viewer" as const, name: s.member === member.id ? t.people.you : nameOf(who.get(s.member), locale), photo: who.get(s.member)?.photo ?? null }))}
       candidates={candidates}
       canManage={atLeast(level, "owner")}
       t={{ share: t.share, levels: t.levels, errors: t.errors, yes: t.respond.yes, no: t.respond.no }}

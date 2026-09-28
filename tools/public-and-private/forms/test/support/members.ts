@@ -10,7 +10,10 @@ const person = (key: string, firstName: string, lastName: string, role: string |
 });
 
 export const camille = person("camille", "Camille", "Martin", "manager", { isAdmin: true, locale: "fr", groups: [groups.office] });
-export const ines = person("ines", "Inès", "Moreau", "member", { locale: "fr", groups: [groups.sales] });
+export const ines = person("ines", "Inès", "Moreau", "creator", { locale: "fr", groups: [groups.sales] });
 export const hugo = person("hugo", "Hugo", "Bernard", "member", { groups: [groups.sales] });
+export const lea = person("lea", "Léa", "Dubois", "member", { locale: "fr" });
+export const tom = person("tom", "Tom", "Walker", "member");
+export const sofia = person("sofia", "Sofia", "Rossi", "member");
 export const nora = person("nora", "Nora", "Petit", null);
-export const everyone = [camille, ines, hugo, nora];
+export const everyone = [camille, ines, hugo, lea, tom, sofia, nora];
