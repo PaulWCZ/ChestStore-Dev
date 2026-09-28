@@ -53,6 +53,11 @@ _(to be ordered once more tools are built; the evidence so far)_
   the company's time zone; every tool hard-coded Europe/Paris. Built as
   the `chest` module (4.5), with the company's name, currency, default
   language and the tool's addresses.
+- **Someone who lost access is "unknown".** `members.lookup` answers
+  `former` for someone who left the Chest, but `unknown` for someone who
+  only lost access to the tool — so the tool loses their name exactly when
+  it needs it ("Léa holds 3 laptops", "Paul's goals need a new owner").
+  Hit by Equipment and Goals. Wish: `{id, name, status: "no_access"}`.
 
 ### `members`
 - **Groups a tool may offer.** `groups.list()` gives only the groups that
@@ -61,8 +66,23 @@ _(to be ordered once more tools are built; the evidence so far)_
   of the Chest, with its members, for tools that target people (Polls,
   News, Goals), under the `members` capability.
 - `list` pages of 500 are fine, but a tool that shows "who can see this
-  board" or "who has not read this post" lists everyone each time. A
-  cached `members.all()` (or an ETag on `/members`) would save calls.
+  board" or "who has not read this post" lists everyone each time (People
+  reads up to ten pages per view). A cached `members.all()`, an ETag on
+  `/members`, or `list({changedSince})` would save calls.
+- **No event when someone gets the tool.** `member.added` (or
+  `changedSince`) would let People and Leave notice a newcomer at once.
+- **Admins in one call.** "Tell the administrators" (Goals, Equipment)
+  means listing the first role page by page. Wish: `list({admin: true})`
+  or `to: {admins: true}` on `notify` and `broadcast`.
+- **Matching names.** Every importer (Tasks, Leave, People, Timesheets,
+  Expenses) matches spreadsheet names to members itself, over the whole
+  list, with the same folding (accents, case, word order). Wish:
+  `members.match(names)` → `{id} | "ambiguous" | "none"` per name.
+- **A manager.** Leave re-enters "who approves whom"; Goals and People
+  would use the same line. Wish: `members.get(id).manager` (the Chest's
+  org line, set once).
+- **Tests.** `lookup` caches for a minute in the process: a test that
+  changes `chest.members` must call `members.forget()`.
 
 ### `files`
 - **`files.url` and `uploadUrl` refuse `http://` links**, so no local
@@ -72,12 +92,36 @@ _(to be ordered once more tools are built; the evidence so far)_
   test could authorise an upload but never complete it. The working copy's
   `fakeChest` now plays the team host's front (`/_chest/files/upload/…`,
   links, members' photos) and `chest.upload()` plays the browser.
+- **The fake ignores `thumbnail`** and never answers `no_thumbnail`, so a
+  tool's fallback is untested (News, Expenses). HEIC photos (every iPhone)
+  get no thumbnail (Expenses).
+- **`stat` could give the Chest's `sha256`**: Expenses re-downloads each
+  receipt (up to 10 MB) only to hash it.
+- **Framing a file.** Hiring shows a CV inline from a signed link; nothing
+  says whether the Chest lets the tool's own pages frame it. Wish:
+  `files.url(name, {inline: true})` with `frame-ancestors` the team host.
+- **Records that must outlive the tool.** Expenses (receipts, 10 years)
+  and Quotes (invoices, 10 years) hold legally retained data; removing the
+  tool deletes it. Wish: a manifest `retain` declaration so the Chest warns
+  the owner and offers the export before removal.
 
 ### `notifications`
 - Clear and well bounded. Wish: a `notify` with a per-recipient body
   (each recipient's language) in one call; today a tool groups recipients
   by locale and calls once per language (`lib/notify.ts` in every tool).
   For "everyone", built as `broadcast` (4.6).
+- **Important items.** News's "please confirm you read this" competes with
+  every other item and the quota; people who never open the Chest never
+  see it. Wish: an `important` flag (above quota, shown first) or a
+  fallback to email through `mail`.
+
+### `mail`
+- **Is mail granted?** A tool learns it only by a failed send (Status
+  hides its subscribe form after the first failure; Quotes numbers a quote
+  then rolls back). Wish: `mail.available()`, or the granted proposals in
+  the environment.
+- **Logging email.** Clients would log a conversation by BCC to a mailbox
+  (inbound exists, per mailbox); the pattern deserves a documented example.
 
 ### `events`
 - Fine. Wish: an event when a member's **locale** changes (`member.updated`
@@ -99,8 +143,19 @@ _(to be ordered once more tools are built; the evidence so far)_
 - The CSP: Next.js needs a nonce per response (`proxy.ts`); style
   *attributes* need `style-src-attr 'unsafe-inline'` (React's `style=`).
   Worth a paragraph in the contract.
-- Extensions: `pg_trgm` and `unaccent` are "trusted" (a database owner may
-  create them); the contract should say which extensions a tool may use.
+- Extensions: `pg_trgm`, `unaccent` and `btree_gist` (Booking and Rooms'
+  "never booked twice" constraints) are "trusted" — a database owner may
+  create them; Wiki also creates a text search configuration. The contract
+  should say which extensions and objects a tool's migrations may create.
+- **Next.js traps met by several builders** (worth a page in the contract
+  or the starter): the browser and Node write dates differently (Node
+  "Sept", Chromium "Sep"; a comma or not), which breaks hydration — format
+  on the server; a plain function exported from a `"use client"` file
+  cannot be called by a server page (fails at run time only); page files
+  cannot export helpers; libraries that inject `<style>` (Tiptap) are
+  blocked by the nonce policy; Next overwrites `Vary`, so a public page
+  cannot be cached per language by a shared cache; `next dev` breaks the
+  nonce policy with its own styles (screens and flows run on a build).
 
 ## 4. Missing primitives
 
@@ -304,6 +359,30 @@ _(to be ordered once more tools are built; the evidence so far)_
 - **Risks**: shared addresses (a company's office behind one NAT) hitting
   the ceiling; the owner may raise it; a limit answers `retryAfter`, and
   tools say "try again in an hour", never a silent failure.
+
+### 4.9 Checks run by the Chest — `checks` (built)
+
+- **Needed by**: Status — "is the website up?" is the first thing a status
+  page's customer expects, and a tool cannot know it: no outbound network,
+  no process between requests. Also wanted later by any tool that watches
+  something outside (a supplier's API, the company's shop).
+- **Working copy**: `sdk/client/src/checks.ts` — `configure(list)`,
+  `list()`, `handle`/`verify` of signed results on `POST /chest-checks`,
+  `checkManifest`, `checkChecks`; `fakeChest({checks})`, `chest.checks`,
+  `chest.check()`; `sdk/client/test/checks.test.ts`; the harness shows the
+  configured checks with "up"/"down" buttons; the manifest checker reads
+  the permission.
+- **A design point found on the way**: a manifest cannot hold the
+  company's own addresses (the tool is published once for every company).
+  The manifest declares the permission (`"checks": {"max": 10}`); the
+  tool's admin types the addresses; the owner sees each one.
+- **Approval sentence**: "Asks the Chest to check up to 10 web addresses
+  of yours, as often as every minute".
+- **Risks**: the Chest used to probe third parties (bounded: the owner sees
+  every address, 10 per tool, GET only, no private addresses, no cookies);
+  noise (results are signed and deduplicated by id).
+- **Elsewhere**: Better Stack and UptimeRobot probe from their clouds, then
+  push to a status page — the same split, inside one company's server.
 
 _(more sections as tools need them: public accounts, payments, AI.)_
 

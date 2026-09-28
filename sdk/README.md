@@ -28,6 +28,7 @@ module is not in the root).
 | `@argentic/chest-sdk/events` | `handle`, `verify`, `acknowledgeErasure`, `memorySeen`, `erasureIdPattern`, types `ChestEvent`, `MemberUpdated`, `AccessRevoked`, `MemberRemoved`, `MemberErased`, `MemberChange`, `Handlers`, `Seen`: the events of the members' lifecycle the Chest posts to the tool's `/chest-events` (`"receives": ["member.*"]`), verified, deduplicated by id, and the acknowledgment of an erasure |
 | `@argentic/chest-sdk/chest` | **Proposal (studio).** `company`, `timeZone`, `today`, `currency`, `locale`, `teamUrl`, `publicUrl`: the Chest's settings every tool needs |
 | `@argentic/chest-sdk/visitors` | **Proposal (studio).** `formToken`, `checkForm`, `count`, `language`, `visitor`, `address`: the guard and the language of a public host's anonymous visitors |
+| `@argentic/chest-sdk/checks` | **Proposal (studio).** `configure`, `list`, `handle`, `verify`, `checkManifest`, `checkChecks`: web addresses the Chest checks for the tool, and their results |
 | `@argentic/chest-sdk/database` | `databaseUrl()`: the address of the tool's own PostgreSQL database (capability `database`) |
 | `@argentic/chest-sdk/files` | `put`, `get`, `stat`, `list`, `move`, `delete`, `url`, `uploadUrl`, types `FileObject`, `FileData`, `FilePage`: the tool's private files (capability `files`), kept by the Chest, a 15-minute signed link to one (or to its thumbnail), and uploads straight from a member's browser |
 | `@argentic/chest-sdk/errors` | `ChestError` (`code`, `status`), `CapabilityNotGranted` (403), `TooLarge` (413), `QuotaExceeded` (429), `RateLimited` (429), `Unavailable` (503): what the SDK throws when the Chest does not give what a tool asks |
@@ -565,6 +566,37 @@ tries every public tool meets one limit. The visitor's address is the
 first of `X-Forwarded-For`, which the Chest's front sets. For a tool with
 a public part; `count` asks the Chest (`POST /visitors/count`), the rest
 is local. In tests: `fakeChest({visitors: {perAddressHour}})`.
+
+## `checks` — web addresses the Chest checks for the tool (Proposal (studio))
+
+```jsonc
+// chest.json — a permission the owner approves: “Asks the Chest to check up to 10 web addresses of yours”
+"checks": { "max": 10 }
+```
+
+```ts
+import * as checks from "@argentic/chest-sdk/checks";
+await checks.configure([{ name: "website", url: "https://atelier-martin.fr/", every: 5, expect: { status: 200, maxMs: 3000 } }]);
+await checks.list();
+
+// app/chest-checks/route.ts — outside /chest, never behind a session
+export async function POST(request: Request) {
+  return new Response(null, { status: await checks.handle(request, result => record(result)) });
+}
+```
+
+A tool has no outbound network and no process between requests, so it
+cannot watch a website; the Chest can. The addresses are the company's, so
+the manifest declares only the permission and the tool configures them
+(its admin types them; each is shown to the owner). The Chest probes each
+one with a GET every `every` minutes (1 to 60) from outside, and posts
+`{id, name, at, ok, status, ms, error}` to `POST /chest-checks`, signed
+(`Chest-Check`, like `Chest-Job`); `error` is `timeout`, `dns`, `tls`,
+`refused`, `status` or `slow`. At least once (the same `id` may come
+twice). Bounds: `max` 1 to 10, https only (http on localhost for a
+harness), never a private address. In tests: `fakeChest({checks: {max}})`,
+`chest.checks` (the list configured), `chest.check(name, to, {ok, status,
+ms, error})`.
 
 ## `databaseUrl()` — database of a server tool
 

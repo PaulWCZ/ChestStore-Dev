@@ -62,6 +62,9 @@ export type FakeChestOptions = {
   // false: a Chest without notifications.broadcast (404), to test a tool's
   // fallback.
   broadcast?: boolean;
+  // Proposal (studio): checks run by the Chest (chest.json "checks": {max});
+  // configured holds what the tool configured.
+  checks?: { max: number };
   // Proposal (studio): the events this tool publishes (chest.json "emits"),
   // and how many tools receive them.
   emits?: string[];
@@ -114,6 +117,11 @@ export type FakeChest = {
   // hands the tool an event of another tool as the Chest would.
   published: { id: string; type: string; data: Record<string, unknown>; key?: string }[];
   deliver(event: { type: string; source?: string; data: Record<string, unknown>; id?: string; occurredAt?: string }, to: string | ((request: Request) => Response | Promise<Response>)): Promise<number>;
+  // Proposal (studio): check() delivers a result of a declared check to POST
+  // <to>/chest-checks, signed as the Chest would (Chest-Check); ok by default.
+  // Proposal (studio): the checks the tool configured (checks.configure).
+  checks: { name: string; url: string; every: number; expect?: { status?: number; maxMs?: number } }[];
+  check(name: string, to: string | ((request: Request) => Response | Promise<Response>), result?: { ok?: boolean; status?: number | null; ms?: number; error?: string | null; at?: string; id?: string }): Promise<number>;
   // Proposal (studio): the mail the tool sent, and receive(), which delivers
   // a message to its POST /chest-mail as the Chest would.
   outbox: FakeMail[];
@@ -231,7 +239,7 @@ export async function fakeChest(options: FakeChestOptions = {}): Promise<FakeChe
   const publicMaxObject = 10 << 20;
   // The erasures the tool was told of, by emit: those it may acknowledge.
   const erasures = new Set<string>();
-  const chest: FakeChest = { api: "", token, tool, members: [...(options.members ?? [])], former: [...(options.former ?? [])], groups: [...(options.groups ?? [])], files, notifications: [], badges: new Map(), acknowledged: [], emit: async () => 0, upload: async () => new Response(), published: [], deliver: async () => 0, outbox: [], receive: async () => 0, schedules: [...(options.schedules ?? [])], runs: [], run: async () => 0, close: async () => {} };
+  const chest: FakeChest = { api: "", token, tool, members: [...(options.members ?? [])], former: [...(options.former ?? [])], groups: [...(options.groups ?? [])], files, notifications: [], badges: new Map(), acknowledged: [], emit: async () => 0, upload: async () => new Response(), published: [], deliver: async () => 0, checks: [], check: async () => 0, outbox: [], receive: async () => 0, schedules: [...(options.schedules ?? [])], runs: [], run: async () => 0, close: async () => {} };
   const former = chest.former;
   let window = 0, calls = 0;
   const shown = (m: FakeMember) => ({ id: m.id, first_name: m.firstName, last_name: m.lastName, name: m.name, photo: m.photo, role: m.role, admin: m.isAdmin, builder: m.isBuilder, groups: m.groups, ...(m.locale === undefined ? {} : { locale: m.locale }), ...(email && m.email !== undefined ? { email: m.email } : {}) });
@@ -490,6 +498,21 @@ export async function fakeChest(options: FakeChestOptions = {}): Promise<FakeChe
     send(response, 200, { delivered: kept, skipped: ids.filter(id => !access(id)) });
   }
 
+  // Checks run by the Chest (Proposal (studio)): the list the tool configured.
+  async function checksRoute(request: IncomingMessage, response: ServerResponse): Promise<void> {
+    if (!options.checks) return send(response, 404, { error: "not_found" });
+    if (request.method === "GET") return send(response, 200, { checks: chest.checks });
+    if (request.method !== "PUT") return send(response, 404, { error: "not_found" });
+    const raw = await body(request, 16 << 10);
+    let c: Record<string, unknown>;
+    try { c = JSON.parse(raw?.toString() ?? "") as Record<string, unknown>; } catch { return send(response, 400, { error: "invalid_checks" }); }
+    const given = c["checks"];
+    if (!Array.isArray(given)) return send(response, 400, { error: "invalid_checks" });
+    if (given.length > options.checks.max) return send(response, 429, { error: "quota_exceeded" });
+    chest.checks = given as FakeChest["checks"];
+    send(response, 200, { checks: chest.checks });
+  }
+
   // Visitors of the public host (Proposal (studio)): counts per visitor
   // and name, per name, and per address across names (the Chest's
   // ceiling, 60 an hour unless options.visitors says otherwise).
@@ -674,6 +697,7 @@ export async function fakeChest(options: FakeChestOptions = {}): Promise<FakeChe
       : url.pathname.startsWith("/mail/") ? mailRoute
       : url.pathname === "/events" ? eventsRoute
       : url.pathname === "/visitors/count" ? visitorsRoute
+      : url.pathname === "/checks" ? checksRoute
       : url.pathname === "/members" || url.pathname.startsWith("/members/") || url.pathname === "/groups" ? members
       : url.pathname === "/files" || url.pathname.startsWith("/files/") ? filesRoute
       : url.pathname === "/badges" || url.pathname.startsWith("/badges/") || url.pathname.startsWith("/notifications") ? notificationsRoute : null;
@@ -712,6 +736,16 @@ export async function fakeChest(options: FakeChestOptions = {}): Promise<FakeChe
     const answer = typeof to === "string" ? await fetch(request, { redirect: "manual" }) : await to(request);
     await answer.body?.cancel();
     chest.runs.push({ id, name, scheduledAt, attempt, status: answer.status });
+    return answer.status;
+  };
+  chest.check = async (name, to, given = {}) => {
+    if (!chest.checks.some(c => c.name === name)) throw new Error(`fakeChest: no check named ${name} (the tool has not configured it)`);
+    const id = given.id ?? newId("chk_");
+    const ok = given.ok ?? true;
+    const body = JSON.stringify({ id, name, at: given.at ?? new Date().toISOString(), ok, status: given.status === undefined ? (ok ? 200 : 503) : given.status, ms: given.ms ?? 120, error: given.error === undefined ? (ok ? null : "status") : given.error });
+    const request = new Request((typeof to === "string" ? to.replace(/\/$/u, "") : "http://tool.test") + "/chest-checks", { method: "POST", headers: { "Content-Type": "application/json", "Chest-Check": signEvent(id, body, { token, tool, label: "Chest-Check v1" }) }, body });
+    const answer = typeof to === "string" ? await fetch(request, { redirect: "manual" }) : await to(request);
+    await answer.body?.cancel();
     return answer.status;
   };
   // deliver hands the tool an event of another tool (its source is the part

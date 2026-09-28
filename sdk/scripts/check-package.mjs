@@ -29,9 +29,10 @@ const expected = {
   schedules: ["checkSchedules", "describeCron", "handle", "limits", "nextRun", "parseCron", "runIdPattern", "schedulePattern", "timeZone", "verify"],
   chest: ["company", "currency", "locale", "publicUrl", "teamUrl", "timeZone", "today"],
   visitors: ["address", "checkForm", "count", "formToken", "language", "visitor"],
+  checks: ["checkChecks", "checkIdPattern", "checkManifest", "checkPattern", "configure", "handle", "limits", "list", "verify"],
   testing: ["fakeChest", "signAssertion", "withMember"],
 };
-const namespaces = ["files", "members", "notifications", "events", "schedules", "mail", "chest", "visitors"];
+const namespaces = ["files", "members", "notifications", "events", "schedules", "mail", "chest", "visitors", "checks"];
 const rootExports = [...Object.entries(expected).filter(([sub]) => !namespaces.includes(sub) && sub !== "testing").flatMap(([, names]) => names), ...namespaces].sort();
 
 const subpaths = Object.keys(manifest.exports).filter(key => key !== "./package.json");

@@ -112,6 +112,7 @@ const chest = await testing.fakeChest({
   receives: manifest.receives ?? [],
   origin,
   schedules: proposals.schedules ?? [],
+  ...(proposals.checks ? { checks: proposals.checks } : {}),
   timeZone: process.env["CHEST_TIMEZONE"] ?? "Europe/Paris",
   // The Chest's settings (Proposal (studio): the chest module): the cast's
   // company; both hosts are this harness's one origin.
@@ -203,6 +204,12 @@ const front = createServer(async (request, response) => {
       if (path === "/_dev/schedule") {
         const status = await chest.run(form.get("name"), `http://127.0.0.1:${inner}`);
         console.log(`schedule ${form.get("name")} run → ${status}`);
+        return void response.writeHead(303, back).end();
+      }
+      if (path === "/_dev/check") {
+        const ok = form.get("ok") === "1";
+        const status = await chest.check(form.get("name"), `http://127.0.0.1:${inner}`, ok ? {} : { ok: false, status: 503, ms: 870, error: "status" });
+        console.log(`check ${form.get("name")} ${ok ? "ok" : "failed"} → ${status}`);
         return void response.writeHead(303, back).end();
       }
       if (path === "/_dev/receive") {

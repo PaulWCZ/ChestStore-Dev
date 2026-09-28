@@ -16,3 +16,4 @@ export * as schedules from "./src/schedules.js";
 export * as mail from "./src/mail.js";
 export * as chest from "./src/chest.js";
 export * as visitors from "./src/visitors.js";
+export * as checks from "./src/checks.js";

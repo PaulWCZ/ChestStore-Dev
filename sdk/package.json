@@ -1,6 +1,6 @@
 {
   "name": "@argentic/chest-sdk",
-  "version": "0.3.0-studio.9",
+  "version": "0.3.0-studio.10",
   "description": "The client a Chest server tool embeds: the member the Chest asserts on a request, who else has the tool, the tool's own database, its private files, badges and notifications inside the Chest, the events of its members' lifecycle, and a fake Chest for its tests.",
   "keywords": [
     "chest",
@@ -49,6 +49,10 @@
     "./visitors": {
       "types": "./dist/src/visitors.d.ts",
       "default": "./dist/src/visitors.js"
+    },
+    "./checks": {
+      "types": "./dist/src/checks.d.ts",
+      "default": "./dist/src/checks.js"
     },
     "./database": {
       "types": "./dist/src/database.d.ts",
@@ -99,7 +103,8 @@
     "client/src/mail.ts",
     "client/src/chest.ts",
     "client/src/testing.ts",
-    "client/src/visitors.ts"
+    "client/src/visitors.ts",
+    "client/src/checks.ts"
   ],
   "publishConfig": {
     "access": "public",

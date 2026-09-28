@@ -14,9 +14,11 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 // The keys the SDK working copy proposes for the manifest, and their checks.
-const proposalKeys = new Set(["schedules", "mail", "files", "emits", "receives", "translations"]);
+const proposalKeys = new Set(["schedules", "mail", "files", "emits", "receives", "translations", "checks"]);
 const schedulesPath = join(root, "sdk", "dist", "src", "schedules.js");
 const schedulesApi = existsSync(schedulesPath) ? await import(pathToFileURL(schedulesPath).href) : null;
+const checksPath = join(dirname(schedulesPath), "checks.js");
+const checksApi = existsSync(checksPath) ? await import(pathToFileURL(checksPath).href) : null;
 
 const topKeys = new Set(["version", "name", "title", "description", "icon", "preview", "roles", "role_labels", "public", "csp", "capabilities", "receives", "network", "env", "files", "build"]);
 const buildKeys = new Set(["runtime", "install", "command", "start", "port", "static"]);
@@ -316,6 +318,10 @@ export function checkTool(folder) {
           }
           if (Array.isArray(roles) && manifest.role_labels && (!labels || roles.some(r => manifest.role_labels[r] && !labels[r]))) warnings.push(`translations.${lang}: some roles have no label in this language`);
         }
+      }
+      if (proposals.checks !== undefined) {
+        if (!checksApi) warnings.push("checks not checked: build sdk/ first (npm run build)");
+        else for (const problem of checksApi.checkManifest(proposals.checks)) error(`chest.proposals.json: ${problem}`);
       }
       if (proposals.schedules !== undefined) {
         if (!schedulesApi) warnings.push("schedules not checked: build sdk/ first (npm run build)");
