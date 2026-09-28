@@ -53,4 +53,4 @@ export type PaymentView = { id: string; date: string; amount: string; method: st
 export type RelatedView = { id: string; text: string; amount: string; state: string };
 export type Message = { to: string; subject: string; text: string; upcoming?: string };
 
-export type Rights = { edit: boolean; quote: boolean; draftInvoice: boolean; issue: boolean; pay: boolean };
+export type Rights = { edit: boolean; quote: boolean; draftInvoice: boolean; issue: boolean; pay: boolean; settings: boolean };

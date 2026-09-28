@@ -97,7 +97,7 @@ export default async function DocumentPage({ params }: { params: Promise<{ id: s
       today={today}
       todayText={day(today)}
       dates={{ issue: day(full.issueDate ?? today), due: day(full.dueDate), valid: day(full.validUntil), delivery: day(full.deliveryDate), reference: day(ref?.issueDate ?? null) }}
-      rights={{ edit: canEdit, quote: can(member, "quotes.write"), draftInvoice: can(member, "invoices.draft"), issue: can(member, "invoices.issue"), pay: can(member, "payments") }}
+      rights={{ edit: canEdit, quote: can(member, "quotes.write"), draftInvoice: can(member, "invoices.draft"), issue: can(member, "invoices.issue"), pay: can(member, "payments"), settings: can(member, "settings") }}
       clients={clients}
       items={items}
       logo={seller.logo ? `/chest/logo?v=${encodeURIComponent(seller.logo)}` : null}

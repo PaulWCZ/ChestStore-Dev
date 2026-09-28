@@ -5,6 +5,7 @@ import { as, done, expect, open, step } from "./lib.mjs";
 const port = Number(process.argv[2] ?? 5300);
 const { browser, context, page, origin, problems } = await open(port, "camille", { allow404: /\/chest\/(settings|jobs\/2)$|\/no-such-job$/u });
 const pdf = Buffer.from("%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj\n3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 300 200]>>endobj\ntrailer<</Root 1 0 R>>\n%%EOF\n");
+page.on("pageerror", e => console.log("  [pageerror at " + page.url() + "] " + e.message.slice(0, 40)));
 const english = async () => context.addCookies([{ name: "dev_locale", value: "en", url: origin }]);
 const dev = async () => (await page.request.get(origin + "/_dev")).text();
 

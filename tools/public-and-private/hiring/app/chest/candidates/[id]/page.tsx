@@ -122,7 +122,7 @@ export default async function CandidatePage({ params }: { params: Promise<{ id: 
             <div className="panel-head"><h2 id="feedback">{tc.feedback}</h2></div>
             {manage && d.asked.length > 0 && <p className="muted small">{format(tc.waitingFor, { names: d.asked.map(a => name(a)).join(", ") })}</p>}
             <FeedbackList
-              mine={d.mine && d.access === "manage" ? { ...d.mine, authorName: name(member.id) } : null}
+              mine={d.mine ? { ...d.mine, authorName: name(member.id) } : null}
               others={d.others.map(f => ({ ...f, authorName: name(f.author) }))}
               hidden={d.othersHidden}
               locale={locale}

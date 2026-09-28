@@ -7,9 +7,9 @@ meaningful step (brief/07-plan.md).
 
 Step 3, well advanced. Done, verified and pushed (each: tests on PGlite and
 PostgreSQL, build, manifest, browser flows, screenshots looked at): Tasks,
-Wiki, Leave, News, People, Expenses, Support, Rooms, Booking, Clients (10 of 17).
+Wiki, Leave, News, People, Expenses, Support, Rooms, Booking, Clients, Polls, Equipment (12 of 17).
 Builders at work (background agents, one port each, no git; the lead
-verifies with `scratchpad/verify.sh`-style runs and commits): Timesheets (5200), Hiring (5300), Equipment (5400), Polls (5500),
+verifies with `scratchpad/verify.sh`-style runs and commits): Timesheets (5200), Hiring (5300),
 Goals (5600), Quotes (5700), Status (5800). Builder brief: the Rooms/…
 prompts follow `lab/BUILDING.md`; lessons are appended there.
 
@@ -40,7 +40,7 @@ Checked 2026-09-28 in the cloud container:
 | 0. Environment | done |
 | 1. Ranking and research | done — `reports/01-ranking.md`, 17 files in `reports/02-open-source/`, prices in `reports/01-pricing-sources.md` |
 | 2. Foundations | done — `lab/template` (tested, built, run, screenshots), `lab/chest-dev` (dev.mjs, screens.mjs), `scripts/check-manifest.mjs`, `new-tool.mjs`, `add-font.mjs`, `contrast.mjs`, `build-showcase.mjs` |
-| 3. Tools | 10 of 17 done, 7 being built |
+| 3. Tools | 12 of 17 done, 5 being built |
 | 4. The report | to do |
 | 5. Better | to do |
 
@@ -62,7 +62,7 @@ _One row per chosen tool, in ranking order, once step 1 is done._
 | 10 | Timesheets | `tools/private/timesheets` | Harvest, Toggl | ✓ | — | — | locale | — |
 | 11 | Booking | `tools/public-and-private/booking` | Calendly | ✓ | ✓ | appointment card (Young Serif + Figtree, plum, mint, apricot) | locale, mail, schedules | ✓ 33 tests (PGlite + PostgreSQL), build, manifest, 11 browser flows, screens |
 | 12 | Hiring | `tools/public-and-private/hiring` | Teamtailor, WTTJ | ✓ | — | — | locale, public uploads (to design) | — |
-| 13 | Equipment | `tools/private/equipment` | Snipe-IT | ✓ | — | — | locale | — |
+| 13 | Equipment | `tools/private/equipment` | Snipe-IT | ✓ | ✓ | tool crib labels (IBM Plex, utility orange, steel, hazard stripe) | locale, schedules, chest | ✓ 37 tests (PGlite + PostgreSQL), build, manifest, 13 browser flow steps, a11y audit, screens; own QR encoder tested with jsQR |
 | 14 | Polls | `tools/private/polls` | Doodle, Officevibe | ✓ | ✓ | confetti ballot (Fredoka + Plus Jakarta Sans, coral, navy, mint) | locale, schedules, broadcast | ✓ 42 tests (PGlite + PostgreSQL), build, manifest, 9 browser flows, a11y audit, screens |
 | 15 | Goals | `tools/private/goals` | Lattice Goals | ✓ | — | — | locale | — |
 | 16 | Quotes | `tools/private/quotes` | Axonaut, Sellsy | ✓ | — | — | locale | — |
