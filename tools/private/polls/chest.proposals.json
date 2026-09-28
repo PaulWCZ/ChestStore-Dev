@@ -1,1 +1,18 @@
-{ "schedules": [{ "name": "pass", "cron": "*/15 * * * *" }] }
+{
+  "schedules": [
+    {
+      "name": "pass",
+      "cron": "*/15 * * * *"
+    }
+  ],
+  "translations": {
+    "fr": {
+      "title": "Sondages",
+      "description": "Posez une question rapide à l’équipe, trouvez une date qui convient à tous, ou lancez un court sondage anonyme.",
+      "role_labels": {
+        "organiser": "Organisateur",
+        "member": "Membre"
+      }
+    }
+  }
+}
