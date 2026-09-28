@@ -2,16 +2,27 @@
 
 ## Layout
 
-Each tool lives in `tools/<name>/` and is **a complete repository on its own**:
-the day it is ready, it is copied as-is into its own GitHub repository and
-installed by a Chest. Nothing in it may point outside its folder.
+**One tool (one SaaS replacement) = one folder of its own**, filed by kind:
 
 ```
-tools/<name>/
+tools/
+  private/<name>/               tools used only by the team, behind the Chest's sign-in (tasks, wiki, leave…)
+  public-and-private/<name>/    tools that also have a public part (booking page, customer portal, job board…)
+```
+
+Each tool folder is **a complete repository on its own**: the day it is
+ready, it is copied as-is into its own GitHub repository and installed by a
+Chest. Everything about the tool lives in it — code, design system,
+screenshots, docs — and nothing in it may point outside its folder. Tools
+share nothing at runtime; what several tools need goes into the SDK fork
+(below) or `lab/`, never into a sibling tool.
+
+```
+tools/<kind>/<name>/
   chest.json              the manifest (brief/02)
   package.json            scripts: dev, build, start, test
   package-lock.json       required by the Chest (npm ci)
-  vendor/                 the SDK tarball (scripts/add-sdk.mjs puts it there)
+  vendor/                 only if the tool uses a proposal of the SDK fork (scripts/add-sdk.mjs)
   chest/icon.svg          the tile icon (≤ 64 KiB, restricted SVG)
   chest/preview.png       the store preview (≤ 512 KiB, ≤ 4096 px) — a real screenshot
   migrations/0001_*.sql   the schema, run by the Chest in order
@@ -27,18 +38,45 @@ tools/<name>/
 
 ## The SDK
 
-The SDK 0.2.0 is not on npm yet. `sdk/argentic-chest-sdk-0.2.0.tgz` is its
-packed build (same code as `reference/chest-sdk/`, tests green). To give a
-tool its copy:
+**By default, a tool depends on the published SDK**:
+`"@argentic/chest-sdk": "^0.2.0"` from npm. Import its subpaths:
+`@argentic/chest-sdk/member`, `/database`, `/files`, `/members`,
+`/notifications`, `/events`, `/errors`, `/testing`. Server side only — never
+in a `"use client"` module.
+
+**`sdk/` is the studio's fork of the SDK, and you are expected to push it
+forward.** It starts as an exact copy of the published 0.2.0
+(`chest-by-argentic/Chest-SDK` commit `387ae90`). When a SaaS you rebuild
+needs something the Chest does not give (email, scheduled tasks, jobs,
+accounts for outside users, payments, AI, events between tools, audit log,
+realtime…), design the primitive **in the fork**, as it would ship:
+
+1. a module `sdk/client/src/<feature>.ts` with its public API, exported like
+   the others (`client/index.ts`, `exports` in `package.json`,
+   `scripts/check-package.mjs`), dependency-free (`node:*` only);
+2. it talks to the Chest's API (`CHEST_API`) on the routes you propose; on a
+   real Chest those routes do not exist yet, so it throws
+   `CapabilityNotGranted` or `Unavailable` — the tool must catch it and stay
+   useful ("Emails will be sent once your Chest can send them");
+3. **`fakeChest` implements it** in `sdk/client/src/testing.ts`, with the
+   quotas and errors you propose: this is how you show, in tests and in the
+   dev harness, how the primitive would behave — an email outbox you can
+   read, a scheduled task you can trigger, a payment you can complete;
+4. tests in `sdk/client/test/`, a section in `sdk/README.md` marked
+   **Proposal (studio)**, and its entry in the SDK report (brief/06) with the
+   manifest key and the owner's approval sentence;
+5. the fork's version becomes `0.3.0-studio.N` (N bumped at each change);
+   `npm test` and `npm run check:package` stay green in `sdk/`.
+
+A tool that uses a proposal gets the fork packed into its own folder:
 
 ```sh
-node scripts/add-sdk.mjs tools/<name>   # copies the tarball to tools/<name>/vendor/, sets the dependency
-cd tools/<name> && npm install          # the lock records file:vendor/…, npm ci works
+node scripts/add-sdk.mjs tools/private/<name>   # packs sdk/ into tools/private/<name>/vendor/, sets the dependency
+cd tools/private/<name> && npm install          # the lock records file:vendor/…, npm ci works
 ```
 
-Then import it as the published package: `@argentic/chest-sdk/member`,
-`/database`, `/files`, `/members`, `/notifications`, `/events`, `/errors`,
-`/testing`. Server side only — never in a `"use client"` module.
+Re-run it after every change to `sdk/`. The fork's diff against its first
+commit is the concrete SDK proposal the owner will review.
 
 ## The stack
 
@@ -109,37 +147,39 @@ There is no `chest dev` yet (it is specified:
   phase 3 — it starts `fakeChest` with a few demo members, runs a tool with the
   right environment, and serves it on `localhost` with a small member switcher
   that signs `Chest-Member` for the chosen member (`signAssertion`). It is a
-  lab tool, never part of a tool. Everything that was hard about it goes into
-  the SDK report: it is exactly the `chest dev` we are about to build.
+  lab tool, never part of a tool. It uses the SDK fork's `fakeChest`, so the
+  proposed primitives work in it too (show an outbox, fire a scheduled task,
+  complete a fake payment). Everything that was hard about it goes into the
+  SDK report: it is exactly the `chest dev` we are about to build.
 - **Screenshots**: if a headless browser works in your environment
   (Playwright), capture each tool's main screens at 1440 px and 390 px into
-  `tools/<name>/docs/screens/`, and the store preview into `chest/preview.png`.
+  `docs/screens/` of the tool's folder, and the store preview into `chest/preview.png`.
   If it does not, say so in PROGRESS.md; the owner will capture them.
 
 ## Missing platform features
 
-When a tool needs what the Chest does not give yet (email, scheduled work,
-accounts for outside users, payments, AI, events between tools, realtime…):
+When a tool needs what the Chest does not give yet, the answer is a proposal
+in the SDK fork (see "The SDK" above), never a private workaround inside the
+tool:
 
-1. Put it behind a small interface in `lib/platform/<feature>.ts`, shaped as
-   **the SDK API you propose** for it.
-2. Give it a prototype implementation that works inside today's limits
-   (e.g. mail → an "outbox" table shown on an admin page; scheduled work →
-   done lazily on the next request; payments → a fake checkout that marks an
-   order paid). The first line of the file says
-   `PROTOTYPE — replaced by <proposal> (reports/03-sdk-report.md#<anchor>)`.
-3. The tool must stay useful with the feature off, and say so on screen in
-   plain words when it matters ("Emails will be sent once your Chest has a
-   mail connector").
-4. List it in the tool's README ("What is stubbed") and in the SDK report.
+- the tool calls the proposed module exactly as it would call a shipped one;
+- the dev harness and the tests run it against `fakeChest`, so the owner can
+  see the feature working (the outbox shows the email, the fake checkout
+  completes the payment, the scheduled task fires);
+- on a real Chest today, the tool catches `CapabilityNotGranted` /
+  `Unavailable` and stays useful, saying in plain words what will come;
+- the tool's README lists the proposals it uses ("Needs from the SDK").
 
-Never hide a stub, never ship credentials, never reach a service that is not
-declared in `network`.
+Only when something cannot belong in the SDK (business logic of that one
+tool) does it stay in the tool. Never ship credentials, never reach a service
+that is not declared in `network`.
 
 ## Definition of done
 
 A tool is done when, from a clean checkout of its folder:
 
+- [ ] It lives in its own folder, `tools/private/<name>/` or
+      `tools/public-and-private/<name>/`, and depends on nothing outside it.
 - [ ] `npm ci && npm test && npm run build` pass; `npm start` serves `/` and `/chest`.
 - [ ] `chest.json` follows every rule of the contract (write
       `scripts/check-manifest.mjs` once, from the contract, and run it; the

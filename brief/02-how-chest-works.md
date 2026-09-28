@@ -2,7 +2,7 @@
 
 The full sources are in `reference/` (see `reference/README.md`). This page is
 the map; when in doubt, the contract (`reference/contract/application-contract.md`)
-and the SDK README (`reference/chest-sdk/README.md`) win.
+and the SDK README (`sdk/README.md`, the fork; 0.2.0 as published at its first commit) win.
 
 ## The pieces
 
@@ -103,7 +103,7 @@ Required at the repository root: `chest.json`, `package.json`,
 `package-lock.json`. Optional: `migrations/NNNN_name.sql`. Repository archive
 ≤ 32 MiB, no `node_modules/`, no symlinks.
 
-## What the SDK gives a tool today (`@argentic/chest-sdk` 0.2.0)
+## What the SDK gives a tool today (`@argentic/chest-sdk` 0.2.0, on npm)
 
 | Need | SDK | Capability |
 |---|---|---|
@@ -115,8 +115,8 @@ Required at the repository root: `chest.json`, `package.json`,
 | Told when a member changes, loses access, leaves, or asks for erasure | `events.handle` on `POST /chest-events` | `receives` |
 | Tests without a Chest: fake Chest server, signed members, emitted events | `testing` | — |
 
-Read `reference/chest-sdk/README.md` (full reference) and
-`reference/chest-sdk/AGENTS.md` (the short path and the pitfalls) before
+Read `sdk/README.md` (full reference) and
+`sdk/AGENTS.md` (the short path and the pitfalls) before
 writing any tool.
 
 ## The sandbox: hard limits
@@ -153,5 +153,5 @@ it, with evidence from the tools you built.
 | Exact manifest and runtime rules | `reference/contract/application-contract.md` ("Building from source", "Server tools", "Next.js on Chest") |
 | A real store tool (Next.js, database, public + private parts, i18n, CSP) | `reference/forms/` — read its `README.md` and `AGENTS.md` |
 | Every SDK feature used in one small server (members, files, uploads, notifications, events) | `reference/testweb/` — plain `node:http`, its `README.md` lists every route |
-| The SDK itself, its tests | `reference/chest-sdk/` |
+| The SDK itself, its tests — the studio's fork, yours to extend | `sdk/` |
 | Product intent | `reference/product/` |

@@ -13,11 +13,13 @@ The agent's instructions: [CLAUDE.md](CLAUDE.md). Where things stand:
 CLAUDE.md       the mission and the rules (read first)
 PROGRESS.md     state of the work, updated by every session
 brief/          the mission in seven pages
-reference/      snapshots of the platform: SDK source, contract, product specs, two example tools (read-only)
-sdk/            the SDK 0.2.0 packed (not on npm yet)
-scripts/        add-sdk.mjs (gives a tool its SDK copy), and the agents' scripts
+reference/      snapshots of the platform: contract, product specs, two example tools (read-only)
+sdk/            the studio's fork of the SDK: 0.2.0 as published, extended with the proposals the tools need
+scripts/        add-sdk.mjs (packs the fork into a tool that uses a proposal), and the agents' scripts
 lab/            dev harness and tool template (built in phase 2)
-tools/          one folder per tool, each a self-contained repository-to-be
+tools/
+  private/              one folder per team-only tool, each a self-contained repository-to-be
+  public-and-private/   one folder per tool that also has a public part
 reports/        ranking, open-source research, SDK report, specs of tools not built
 showcase/       index.html: every tool's identity side by side (the style contest)
 ```
@@ -36,5 +38,6 @@ Open this repository in Claude Code on the web and give it a task, e.g.:
 
 A tool that the owner approves leaves this repository: its folder becomes a
 repository of the `chest-by-argentic` organisation (history optional,
-`git subtree split --prefix tools/<name>`), and its SDK dependency moves from
-`vendor/` to the published `@argentic/chest-sdk`.
+`git subtree split --prefix tools/<kind>/<name>`). The SDK proposals it relies
+on are proposed to `chest-by-argentic/Chest-SDK` first; once published, its
+dependency moves from `vendor/` to the new `@argentic/chest-sdk`.

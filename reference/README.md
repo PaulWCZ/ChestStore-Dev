@@ -5,11 +5,12 @@ elsewhere; this folder carries copies of what a tool builder needs. **Do not
 edit them** — they are refreshed from their sources by the owner. If something
 here is wrong or unclear, write it in the SDK report.
 
-Snapshot of **28 September 2026**:
+Snapshot of **28 September 2026**. The SDK is not here: `../sdk/` is the
+studio's fork of it, starting from `chest-by-argentic/Chest-SDK` commit
+`387ae90` — exactly `@argentic/chest-sdk` 0.2.0 as published on npm.
 
 | Folder | Source | Version |
 |---|---|---|
-| `chest-sdk/` | `chest-by-argentic/Chest-SDK` (public, MIT) — the SDK's full source, tests, README, AGENTS | commit `387ae90`, version 0.2.0 (not yet on npm; packed in `../sdk/`) |
 | `forms/` | `chest-by-argentic/forms` — the first store tool: Next.js, database, public + private parts, i18n, CSP | commit `a335cd4` |
 | `testweb/` | The Chest's server test bench, exported as a standalone tool: plain `node:http`, uses every SDK feature (members, files, uploads, notifications, events, egress) | Chest repository `8f0e22f` |
 | `contract/application-contract.md` | The Chest's `docs/architecture.md`, sections "Application contract", "Contract map" — the exact rules of the manifest, the build, the runtime, the front, the services | Chest repository `8f0e22f` |

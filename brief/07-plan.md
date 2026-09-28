@@ -11,7 +11,7 @@ in parallel. Spend where it shows: decisions, great tools, a sharp report.
 | **0. Check the environment** | In PROGRESS.md: Node and npm versions, whether PostgreSQL, a container runtime and a headless browser can run here, whether the web is reachable | (with phase 1) | ~2 % |
 | **1. Ranking and research** | `reports/01-ranking.md`, `reports/02-open-source/<tool>.md` for every chosen tool | 1 PR | ~10 % |
 | **2. Foundations + first tool** | `lab/chest-dev/` (dev harness), `scripts/check-manifest.mjs`, `lab/template/` (the starter every tool copies), the **#1 tool** built with them | 1 PR | ~12 % |
-| **3. The tools** | The next tools in ranking order, one per PR; the SDK report and the showcase grow with them | 1 PR per tool | ~65 % |
+| **3. The tools** | The next tools in ranking order, one per PR, each in `tools/private/` or `tools/public-and-private/`; the SDK fork, the SDK report and the showcase grow with them | 1 PR per tool | ~65 % |
 | **4. Consolidation** | `reports/03-sdk-report.md` final, `showcase/index.html` final, PROGRESS.md summary | 1 PR | ~8 % |
 
 Keep a reserve: if the budget runs low, **ten excellent tools beat twenty
@@ -39,7 +39,9 @@ commit, push, open or update the PR. A session that ends without updating
 PROGRESS.md loses its work for the next one.
 
 Parallel sessions work on different tools; each touches only its own
-`tools/<name>/`, its own report files, and its own row in PROGRESS.md.
+tool folder, its own report files, and its own row in PROGRESS.md. The SDK
+fork is shared: keep each proposal in its own module, and rebase before
+opening the PR.
 
 ## Git
 

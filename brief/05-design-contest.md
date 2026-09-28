@@ -72,5 +72,5 @@ One static page (opens with a double-click, no server, no network) that shows
 every tool side by side: icon, name, one-line description, palette swatches,
 type specimen, and its screenshots (desktop and phone) if they exist. Built by
 `scripts/build-showcase.mjs` from each tool's `DESIGN.md` tokens and
-`docs/screens/`, re-run whenever a tool changes. Keep it beautiful: it is the
+`docs/screens/` (both `tools/private/` and `tools/public-and-private/`, shown as two groups), re-run whenever a tool changes. Keep it beautiful: it is the
 page the owner judges the contest on.

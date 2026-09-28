@@ -26,8 +26,14 @@ headless browser, web access._
 
 _One row per chosen tool, in ranking order, once phase 1 is done._
 
-| Rank | Tool | Replaces | Private / public | Research | Built | Design | PR |
-|---|---|---|---|---|---|---|---|
+| Rank | Tool | Folder | Replaces | Research | Built | Design | SDK proposals used | PR |
+|---|---|---|---|---|---|---|---|---|
+
+## SDK fork
+
+`sdk/` = `@argentic/chest-sdk` 0.2.0 (Chest-SDK `387ae90`). Proposals added:
+
+_None yet._
 
 ## Questions for the owner
 
