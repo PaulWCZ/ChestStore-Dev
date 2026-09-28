@@ -19,7 +19,7 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const target = process.argv[2];
 const tool = target && resolve(root, target);
 const kinds = [join(root, "tools", "private"), join(root, "tools", "public-and-private")];
-if (!tool || !kinds.includes(dirname(tool)) || !existsSync(join(tool, "package.json"))) {
+if (!tool || !(kinds.includes(dirname(tool)) || tool === join(root, "lab", "template")) || !existsSync(join(tool, "package.json"))) {
   console.error("usage: node scripts/add-sdk.mjs tools/private/<name> | tools/public-and-private/<name> (with a package.json)");
   process.exit(1);
 }

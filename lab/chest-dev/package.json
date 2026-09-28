@@ -1,0 +1,13 @@
+{
+  "name": "chest-dev",
+  "private": true,
+  "type": "module",
+  "description": "The studio's local Chest: runs a tool against the SDK working copy's fakeChest, with its database, a member switcher and the Chest's bell. A lab tool, never part of a tool.",
+  "scripts": {
+    "dev": "node dev.mjs"
+  },
+  "dependencies": {
+    "playwright-core": "1.56.1",
+    "postgres": "3.4.9"
+  }
+}

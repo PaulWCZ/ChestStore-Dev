@@ -1,0 +1,22 @@
+{
+  "version": 2,
+  "name": "starter",
+  "title": "Notes",
+  "description": "Short notes for the whole team: post, pin what matters, undo a mistake.",
+  "icon": "chest/icon.svg",
+  "preview": "chest/preview.png",
+  "roles": ["manager", "member"],
+  "role_labels": { "manager": "Manager", "member": "Member" },
+  "public": true,
+  "csp": "tool",
+  "capabilities": ["database", "members", "notifications"],
+  "receives": ["member.*"],
+  "build": {
+    "runtime": "node",
+    "install": "npm ci",
+    "command": "npm run build",
+    "start": "npm start",
+    "port": 3000,
+    "static": ["/_next/static/"]
+  }
+}
