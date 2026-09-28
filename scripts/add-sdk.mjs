@@ -9,7 +9,7 @@
 //
 //   node scripts/add-sdk.mjs tools/private/<name>
 //   node scripts/add-sdk.mjs tools/public-and-private/<name>
-//   (then, in the tool: npm install)
+//   (it installs the copy in the tool when its node_modules exists)
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { basename, dirname, join, resolve } from "node:path";
@@ -37,4 +37,16 @@ const manifestPath = join(tool, "package.json");
 const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
 manifest.dependencies = { ...manifest.dependencies, "@argentic/chest-sdk": `file:vendor/${tarball}` };
 writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + "\n");
-console.log(`${basename(tool)}: @argentic/chest-sdk → file:vendor/${tarball} (run npm install in ${target})`);
+
+// The same version packed again has another integrity: npm would keep the
+// copy it installed. Forget it in the lockfile and in node_modules, then
+// install, so the tool runs what sdk/ holds now.
+const lockPath = join(tool, "package-lock.json");
+if (existsSync(lockPath)) {
+  const lock = JSON.parse(readFileSync(lockPath, "utf8"));
+  if (lock.packages) delete lock.packages["node_modules/@argentic/chest-sdk"];
+  writeFileSync(lockPath, JSON.stringify(lock, null, 2) + "\n");
+}
+rmSync(join(tool, "node_modules", "@argentic", "chest-sdk"), { recursive: true, force: true });
+if (existsSync(join(tool, "node_modules"))) execFileSync("npm", ["install", "--no-audit", "--no-fund"], { cwd: tool, stdio: ["ignore", "ignore", "inherit"] });
+console.log(`${basename(tool)}: @argentic/chest-sdk → file:vendor/${tarball}${existsSync(join(tool, "node_modules")) ? " (installed)" : " (run npm install in " + target + ")"}`);

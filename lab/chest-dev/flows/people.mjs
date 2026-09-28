@@ -156,6 +156,52 @@ await step("HR imports a spreadsheet: sees the plan, imports", async () => {
   expect(csv.includes("Senior account manager") && csv.startsWith("﻿Name,Job title"), "export");
 });
 
+async function deliver(type, data) {
+  await page.goto(origin + "/_dev");
+  const form = page.locator('form[action="/_dev/deliver"]');
+  await form.locator("select[name=type]").selectOption(type);
+  await form.locator("textarea[name=data]").fill(JSON.stringify(data));
+  await form.getByRole("button", { name: "Deliver" }).click();
+  await page.waitForLoadState("load");
+}
+
+await step("Hiring tells of a hire: HR sees the arrival and prepares it before she has access", async () => {
+  await as(context, origin, "camille");
+  await deliver("hiring.hired", { candidate: "cand_7", name: "Lucie Garnier", email: "lucie@example.com", job: "Sales associate", team: "Sales", place: "Lyon", startDate: "2026-11-02", hiredBy: id("ines") });
+  await page.goto(origin + "/chest/checklists");
+  const arrival = page.locator(".arrival", { hasText: "Lucie Garnier" });
+  expect((await arrival.innerText()).includes("Sales associate") && (await arrival.innerText()).includes("2 November"), "arrival shown");
+  await arrival.getByRole("link", { name: "Start the arrival checklist" }).click();
+  await page.waitForURL(/\/chest\/checklists\/new\?arrival=/u);
+  await page.getByLabel("Their manager").selectOption({ label: "Inès Moreau" });
+  expect((await page.getByLabel("First day").inputValue()) === "2026-11-02", "first day from Hiring");
+  await page.getByRole("button", { name: "Start", exact: true }).click();
+  await page.waitForURL(/\/chest\/checklists\/\d+$/u);
+  const text = await page.locator("main").innerText();
+  expect(text.includes("Welcome Lucie Garnier") && text.includes("the newcomer, once they have access") && text.includes("Inès Moreau"), "journey: " + text.slice(0, 300));
+});
+
+await step("a hire cancelled after the checklist started: marked cancelled, HR removes it", async () => {
+  await deliver("hiring.hire_cancelled", { candidate: "cand_7" });
+  await page.goto(origin + "/chest/checklists");
+  const arrival = page.locator(".arrival", { hasText: "Lucie Garnier" });
+  expect((await arrival.innerText()).includes("Hire cancelled"), "cancelled");
+  await arrival.getByRole("button", { name: "Remove" }).click();
+  await page.waitForSelector(".toast");
+  await page.reload();
+  expect(await page.locator(".arrival", { hasText: "Lucie Garnier" }).count() === 0, "removed");
+});
+
+await step("a hire who already has access is offered to link on the directory, in one click", async () => {
+  await deliver("hiring.hired", { candidate: "cand_8", name: "Nora Petit", email: null, job: "Sales assistant", team: "Sales", place: null, startDate: null, hiredBy: id("ines") });
+  await page.goto(origin + "/chest");
+  const offer = page.locator(".banner.suggest", { hasText: "Nora Petit now has access" });
+  await offer.getByRole("button", { name: "Yes, link" }).click();
+  await page.waitForSelector(".toast");
+  await page.reload();
+  expect(await page.locator(".banner.suggest").count() === 0, "linked");
+});
+
 await step("in French: the directory and a checklist speak French", async () => {
   const fr = await open(port, "lea", { locale: "fr" });
   await fr.page.goto(fr.origin + "/chest");
