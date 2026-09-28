@@ -122,6 +122,21 @@ export async function send(id: string, message: sending.Message & { upcoming?: s
   return act(async actor => sending.sendDocument(db(), actor, id, message, chest.today()));
 }
 
+// The message the send (or reminder) dialog starts from, written for the
+// document as it is now, in its client's language.
+export async function messageFor(id: string, kind: sending.Kind): Promise<Result<sending.Message & { upcoming?: string }>> {
+  return attempt(async () => {
+    const actor = await currentMember();
+    const sql = db();
+    const today = chest.today();
+    const full = await documents.getDocument(sql, actor, id, today);
+    const c = await company.company(sql);
+    const upcoming = full.number === null ? await documents.upcomingNumber(sql, full.type, today) : undefined;
+    const message = sending.draftMessage(full, kind, { company: c.tradeName || c.legalName, sender: actor?.name ?? "", iban: c.iban, bic: c.bic, today, ...(upcoming ? { upcoming } : {}) });
+    return { ...message, ...(upcoming ? { upcoming } : {}) };
+  });
+}
+
 export async function markSent(id: string): Promise<Result<{ number: string | null }>> {
   return act(async actor => sending.markSent(db(), actor, id, chest.today()));
 }

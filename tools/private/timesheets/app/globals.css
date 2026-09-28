@@ -440,3 +440,6 @@ select.field { padding-right: var(--space-6); }
 }
 .budget .tag { justify-self: start; }
 .row .button.link { white-space: normal; text-align: left; }
+.chips, .segmented { min-width: 0; }
+.chip-choice, .seg { position: relative; }
+.row > * { max-width: 100%; }

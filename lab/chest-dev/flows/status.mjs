@@ -96,7 +96,7 @@ await step("the editor posts an update, then resolves (confirmed in a dialog)", 
   await page.getByLabel("What is new?").fill("A bad release. Rolling back.");
   await page.getByRole("button", { name: "Post the update" }).click();
   await page.waitForSelector(".toast >> text=Update posted.");
-  expect((await page.locator(".team-timeline").innerText()).includes("A bad release. Rolling back."), "timeline");
+  await page.waitForSelector(".team-timeline >> text=A bad release. Rolling back.");
   await page.getByRole("button", { name: "Resolve", exact: true }).click();
   expect((await page.locator("dialog").innerText()).includes("Checkout will show “Operational” again"), "dialog says what changes");
   await page.getByRole("button", { name: "Resolve the incident" }).click();

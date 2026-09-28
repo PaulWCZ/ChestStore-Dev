@@ -6,13 +6,12 @@ import { company, missing } from "../../../../lib/company.ts";
 import { db } from "../../../../lib/db.ts";
 import { editAbility, editable, getDocument, upcomingNumber, type Full } from "../../../../lib/documents.ts";
 import { AppError } from "../../../../lib/errors.ts";
-import { format, formatDate, formatDay, type Catalogue } from "../../../../lib/i18n/index.ts";
+import { catalogue, format, formatDate, formatDay, locales, type Catalogue, type Locale } from "../../../../lib/i18n/index.ts";
 import { listItems } from "../../../../lib/items.ts";
 import { formatMoney } from "../../../../lib/money.ts";
 import { sellerOf } from "../../../../lib/parties.ts";
 import { nameOf, people } from "../../../../lib/people.ts";
 import { countryName, kindOf } from "../../../../lib/rows.ts";
-import { draftMessage } from "../../../../lib/sending.ts";
 import { viewer } from "../../../../lib/session.ts";
 import type { ClientOption, DocView, Fact, Moment, PaymentView, RelatedView } from "../../../../lib/views.ts";
 import { DocumentView } from "./document-view.tsx";
@@ -85,16 +84,13 @@ export default async function DocumentPage({ params }: { params: Promise<{ id: s
     state: r.status === "draft" ? t.states.draft : r.issueDate ? day(r.issueDate) : "",
   }));
 
-  const upcoming = full.number ? undefined : full.type === "quote" || full.status === "draft" ? await upcomingNumber(sql, full.type, today) : undefined;
-  const context = { company: c.tradeName || c.legalName, sender: member.name, iban: c.iban, bic: c.bic, today };
-  const sendMessage = { ...draftMessage(full, "send", { ...context, ...(upcoming ? { upcoming } : {}) }), ...(upcoming ? { upcoming } : {}) };
-  const reminderMessage = full.type === "invoice" && full.status === "final" ? draftMessage(full, "reminder", context) : null;
+  const upcoming = full.number ? undefined : await upcomingNumber(sql, full.type, today);
   const gaps = missing(c);
   const clientGaps = full.client ? clientMissing(full.client) : [];
 
   return (
     <DocumentView
-      key={full.id + full.status + full.updatedAt}
+      key={full.id + full.status + (full.number ?? "")}
       doc={doc}
       t={t}
       locale={locale}
@@ -109,8 +105,7 @@ export default async function DocumentPage({ params }: { params: Promise<{ id: s
       history={history}
       payments={payments}
       related={related}
-      sendMessage={sendMessage}
-      reminderMessage={reminderMessage}
+      words={Object.fromEntries(locales.map(l => [l, catalogue(l).pdf])) as Record<Locale, Catalogue["pdf"]>}
       mailWorks={c.mailWorks}
       upcoming={upcoming ?? null}
       companyMissing={gaps}
