@@ -7,10 +7,9 @@ meaningful step (brief/07-plan.md).
 
 Step 3, well advanced. Done, verified and pushed (each: tests on PGlite and
 PostgreSQL, build, manifest, browser flows, screenshots looked at): Tasks,
-Wiki, Leave, News, People, Expenses, Support, Rooms, Booking (9 of 17).
+Wiki, Leave, News, People, Expenses, Support, Rooms, Booking, Clients (10 of 17).
 Builders at work (background agents, one port each, no git; the lead
-verifies with `scratchpad/verify.sh`-style runs and commits): Clients (crm,
-4800), Timesheets (5200), Hiring (5300), Equipment (5400), Polls (5500),
+verifies with `scratchpad/verify.sh`-style runs and commits): Timesheets (5200), Hiring (5300), Equipment (5400), Polls (5500),
 Goals (5600), Quotes (5700), Status (5800). Builder brief: the Rooms/…
 prompts follow `lab/BUILDING.md`; lessons are appended there.
 
@@ -41,7 +40,7 @@ Checked 2026-09-28 in the cloud container:
 | 0. Environment | done |
 | 1. Ranking and research | done — `reports/01-ranking.md`, 17 files in `reports/02-open-source/`, prices in `reports/01-pricing-sources.md` |
 | 2. Foundations | done — `lab/template` (tested, built, run, screenshots), `lab/chest-dev` (dev.mjs, screens.mjs), `scripts/check-manifest.mjs`, `new-tool.mjs`, `add-font.mjs`, `contrast.mjs`, `build-showcase.mjs` |
-| 3. Tools | 9 of 17 done, 8 being built |
+| 3. Tools | 10 of 17 done, 7 being built |
 | 4. The report | to do |
 | 5. Better | to do |
 
@@ -56,7 +55,7 @@ _One row per chosen tool, in ranking order, once step 1 is done._
 | 3 | Leave | `tools/private/leave` | Lucca Absences, Factorial | ✓ | ✓ | sea-side calm (Nunito + Nunito Sans, sky blue, sunset coral) | locale, schedules | ✓ 41 tests (PGlite + PostgreSQL), build, manifest, 13 browser flow steps, screens |
 | 4 | News | `tools/private/news` | Workvivo, Staffbase | ✓ | ✓ | newspaper (Fraunces + Libre Franklin, ink and red) | locale, schedules | ✓ 33 tests (PGlite + PostgreSQL), build, manifest, 9 browser flows, screens |
 | 5 | People | `tools/private/people` | BambooHR directory | ✓ | ✓ | warm portrait gallery (Outfit, cream, terracotta, plum ink) | locale, schedules | ✓ 22 tests (PGlite + PostgreSQL), build, manifest, 13 browser flows, screens |
-| 6 | Clients | `tools/private/crm` | HubSpot, Pipedrive | ✓ | — | — | locale | — |
+| 6 | Clients | `tools/private/crm` | HubSpot, Pipedrive | ✓ | ✓ | sales desk (IBM Plex Sans + Mono, slate, electric blue) | locale, schedules | ✓ 37 tests (PGlite + PostgreSQL), build, manifest, 20 browser flow steps, a11y audit, screens |
 | 7 | Expenses | `tools/private/expenses` | N2F, Expensify | ✓ | ✓ | receipt paper (grotesk + monospace figures, forest green, zigzag tear) | locale, schedules | ✓ 43 tests (PGlite + PostgreSQL), build, manifest, 13 browser flow steps, screens |
 | 8 | Support | `tools/public-and-private/helpdesk` | Zendesk, Freshdesk | ✓ | ✓ | calm counter (Atkinson Hyperlegible, teal, coral, butter notes) | locale, mail, schedules, public uploads | ✓ 13 tests (PGlite + PostgreSQL), build, manifest, 12 browser flows, screens |
 | 9 | Rooms | `tools/private/rooms` | Robin, deskbird | ✓ | ✓ | calm blueprint (grid paper, navy ink, signal orange) | locale | ✓ 42 tests (PGlite + PostgreSQL), build, manifest, 13 browser flow steps, screens |
@@ -84,6 +83,7 @@ _One row per chosen tool, in ranking order, once step 1 is done._
 
 ## To fold into the SDK report (from builders)
 
+- Clients: `mail` inbound by BCC to log emails, `mail.send` to a contact; links between tools (a won deal starts a quote); harness `member.removed` did not make the member former (fixed: `chest.former`); functions from a `"use client"` module cannot be called by server pages; `.visually-hidden` inside scrolling boards overflows; dnd-kit's disabled sortable sets `aria-disabled`; `array_to_string` not immutable (no tags in generated tsvector); Next prefetch turned off (busy network, small server). Node vs Chromium month names ("Sept" vs "Sep") broke hydration.
 - Rooms: `timeZone()` in a neutral module (read via schedules without schedules → `chest` proposal); a Chest-served per-member iCal feed; a shared resource calendar across Booking and Rooms; a `withMember` that sets Next's request scope (route handlers using `next/headers` are hard to test); screens actions need precise selectors; Playwright drags need scrolling; `hourCycle: "h23"` and "24:00" by hand.
 - Expenses: the Chest's time zone and `today()` outside schedules (→ `chest` proposal); HEIC thumbnails; `files.stat` returning the Chest's `sha256`; a legal-hold/retention manifest key for receipts (10 years) so removing the tool warns; `members.list({role})` documented as including admins under the first role; harness cannot seed files; fake Chest ignores `thumbnail`; flows count every 404; visually-hidden labels escape overflow. French figures (scale, accounts, VAT recovery) from the research file only — to verify.
 - People: `mail.send` to welcome a newcomer before day 1; events between tools (`person.hired` from Hiring starts the arrival checklist; Equipment adds "return the laptop"); a `member.added` event or `members.list({changedSince})`; a cheap total/ETag on `members.list`; `members.lookup` caches a minute in-process (tests must `members.forget()`); literals test trips on `>` in JSX; Next's route announcer is also `role=alert`.

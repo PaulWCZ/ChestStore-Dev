@@ -1,0 +1,10 @@
+{
+  "schedules": [{ "name": "morning", "cron": "30 7 * * 1-5" }],
+  "translations": {
+    "fr": {
+      "title": "Clients",
+      "description": "Entreprises, contacts et affaires au même endroit, sans jamais oublier de rappeler.",
+      "role_labels": { "manager": "Responsable", "sales": "Commercial", "viewer": "Lecteur" }
+    }
+  }
+}

@@ -96,7 +96,7 @@ await step("the board: drag a deal to the next stage with the mouse", async () =
 });
 
 await step("the board: move a deal with the keyboard, then to Won with a reason", async () => {
-  await boardLane("Qualified").locator("li", { hasText: "Dispensary counter" }).focus();
+  await boardLane("Qualified").locator(".deal-handle", { hasText: "Dispensary counter" }).focus();
   await page.keyboard.press("Space");
   await page.waitForTimeout(200);
   await page.keyboard.press("ArrowRight");
@@ -115,6 +115,7 @@ await step("the board: move a deal with the keyboard, then to Won with a reason"
   await page.mouse.up();
   await page.waitForSelector("dialog[open]");
   await page.getByLabel("A few words help the team next time.").fill("Fast delivery promised");
+  await page.waitForFunction(() => document.querySelector("dialog[open] #reason")?.value === "Fast delivery promised");
   await page.locator("dialog[open]").getByRole("button", { name: "Won" }).click();
   await page.waitForSelector(".toast:has-text('Won! Well done.')");
   await page.reload();

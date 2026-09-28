@@ -1,0 +1,13 @@
+[
+  { "name": "my-day", "path": "/chest", "member": "ines", "locale": "en" },
+  { "name": "board", "path": "/chest/deals", "member": "camille", "locale": "en", "preview": true },
+  { "name": "deal", "path": "/chest/deals/1", "member": "ines", "locale": "en" },
+  { "name": "contact", "path": "/chest/contacts/1", "member": "ines", "locale": "en" },
+  { "name": "company-fr", "path": "/chest/companies/1", "member": "camille", "locale": "fr" },
+  { "name": "board-fr", "path": "/chest/deals", "member": "ines", "locale": "fr", "only": ["phone"] },
+  { "name": "deals-list", "path": "/chest/deals?view=list&status=any", "member": "camille", "locale": "en", "only": ["desktop"] },
+  { "name": "day-dark", "path": "/chest", "member": "hugo", "locale": "en", "dark": true },
+  { "name": "search", "path": "/chest/search?q=durand", "member": "hugo", "locale": "en", "only": ["desktop"] },
+  { "name": "import-fr", "path": "/chest/import", "member": "camille", "locale": "fr", "only": ["desktop"] },
+  { "name": "stages", "path": "/chest/settings", "member": "camille", "locale": "en", "only": ["desktop"] }
+]

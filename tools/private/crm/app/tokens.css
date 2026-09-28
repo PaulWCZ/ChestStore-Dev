@@ -1,0 +1,98 @@
+/* Clients — design tokens. A dense pro tool with a monospace touch: cool
+   slate and ink, one electric blue, green for won and red for lost, figures
+   in IBM Plex Mono with tabular numbers. Contrast pairs are checked in
+   DESIGN.md (scripts/contrast.mjs), light and dark. */
+:root {
+  color-scheme: light;
+  --bg: #f4f6f9;
+  --surface: #ffffff;
+  --surface-2: #eef1f5;
+  --surface-3: #e3e8ef;
+  --line: #d5dbe3;
+  --line-strong: #aeb8c5;
+  --ink: #0f1722;
+  --ink-2: #3b4656;
+  --muted: #5b6676;
+  --accent: #2152ff;
+  --accent-hover: #1a3fe0;
+  --accent-ink: #ffffff;
+  --accent-soft: #e6ecff;
+  --accent-soft-ink: #1a3fe0;
+  --won: #0f7a3d;
+  --won-soft: #e3f5ea;
+  --won-bar: #1f9d55;
+  --lost: #c4231c;
+  --lost-soft: #fde8e7;
+  --lost-ink: #ffffff;
+  --today: #9a5200;
+  --today-soft: #fff1db;
+  --late: #c4231c;
+  --late-soft: #fde8e7;
+  --shadow-1: 0 1px 0 rgba(15, 23, 34, 0.06), 0 1px 2px rgba(15, 23, 34, 0.06);
+  --shadow-2: 0 8px 24px rgba(15, 23, 34, 0.14), 0 2px 6px rgba(15, 23, 34, 0.08);
+  --overlay: rgba(11, 15, 21, 0.45);
+
+  --sans: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --text-xs: 0.75rem;
+  --text-sm: 0.8125rem;
+  --text-md: 0.9375rem;
+  --text-lg: 1.125rem;
+  --text-xl: 1.5rem;
+  --text-2xl: 2rem;
+
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2rem;
+  --space-7: 3rem;
+
+  --radius-1: 3px;
+  --radius-2: 6px;
+  --radius-3: 10px;
+  --row: 2.75rem; /* 44 px: every target */
+  --header: 3.5rem;
+  --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+  --fast: 120ms;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --bg: #0b0f15;
+    --surface: #121821;
+    --surface-2: #19212c;
+    --surface-3: #222c39;
+    --line: #263140;
+    --line-strong: #3a4859;
+    --ink: #e6ebf2;
+    --ink-2: #b3bdca;
+    --muted: #8d98a8;
+    --accent: #6f8cff;
+    --accent-hover: #8ea5ff;
+    --accent-ink: #0b0f15;
+    --accent-soft: #19213a;
+    --accent-soft-ink: #9db0ff;
+    --won: #4ade80;
+    --won-soft: #0f2a1a;
+    --won-bar: #22c55e;
+    --lost: #ff7b72;
+    --lost-soft: #2d1414;
+    --lost-ink: #0b0f15;
+    --today: #f0b35a;
+    --today-soft: #2a1f0d;
+    --late: #ff7b72;
+    --late-soft: #2d1414;
+    --shadow-1: 0 1px 0 rgba(0, 0, 0, 0.4);
+    --shadow-2: 0 10px 30px rgba(0, 0, 0, 0.55);
+    --overlay: rgba(0, 0, 0, 0.6);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --fast: 0ms;
+  }
+}

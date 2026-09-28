@@ -1,0 +1,36 @@
+{
+  "version": 2,
+  "name": "crm",
+  "title": "Clients",
+  "description": "Companies, contacts and deals in one place, and never forget to call back.",
+  "icon": "chest/icon.svg",
+  "preview": "chest/preview.png",
+  "roles": [
+    "manager",
+    "sales",
+    "viewer"
+  ],
+  "role_labels": {
+    "manager": "Manager",
+    "sales": "Sales",
+    "viewer": "Viewer"
+  },
+  "capabilities": [
+    "database",
+    "members",
+    "notifications"
+  ],
+  "receives": [
+    "member.*"
+  ],
+  "build": {
+    "runtime": "node",
+    "install": "npm ci",
+    "command": "npm run build",
+    "start": "npm start",
+    "port": 3000,
+    "static": [
+      "/_next/static/"
+    ]
+  }
+}
