@@ -3,7 +3,7 @@ import { db } from "../../../lib/db.ts";
 import { directory } from "../../../lib/directory.ts";
 import { directoryCsv } from "../../../lib/export.ts";
 import { catalogue, isLocale } from "../../../lib/i18n/index.ts";
-import { today } from "../../../lib/model.ts";
+import { today } from "../../../lib/zone.ts";
 import { currentMember } from "../../../lib/session.ts";
 
 // The directory as a CSV file, for HR, headers in their language.

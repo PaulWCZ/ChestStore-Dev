@@ -197,7 +197,7 @@ test("erasing a candidate and the retention delete them with their CV", async ()
   const c = (await candidates.apply(sql, application(job.slug, { name: "Asks erasure", cv: { ...cv, object: "cv/aaaaaaaaaaaaaaaaaaaa.pdf" } }))).candidate;
   await candidates.addNote(sql, recruiter(), c.id, "Asked to be erased.");
   await assert.rejects(candidates.erase(sql, asMember(ines), c.id), { code: "forbidden" });
-  assert.deepEqual(await candidates.erase(sql, recruiter(), c.id), { objects: ["cv/aaaaaaaaaaaaaaaaaaaa.pdf"] });
+  assert.deepEqual(await candidates.erase(sql, recruiter(), c.id), { objects: ["cv/aaaaaaaaaaaaaaaaaaaa.pdf"], wasHired: false });
   await assert.rejects(candidates.candidate(sql, recruiter(), c.id), { code: "not_found" });
   const [left] = await sql<{ n: number }[]>`select (select count(*) from notes where candidate_id = ${c.id})::int + (select count(*) from activity where candidate_id = ${c.id})::int as n`;
   assert.equal(left!.n, 0);

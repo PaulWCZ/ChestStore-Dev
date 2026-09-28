@@ -87,6 +87,9 @@ export type Doc = {
   pdfObject: string | null;
   pdfSha256: string | null;
   deleted: boolean;
+  // Made from a deal won in Clients: its title, and when it was reopened.
+  crmTitle: string | null;
+  crmReopenedAt: string | null;
 };
 
 // What a document is now, as the lists and the pages say it.
@@ -102,6 +105,7 @@ type Row = {
   rates: RateTotal[]; seller: Seller | null; buyer: Buyer | null; created_by: string; created_at: Date; updated_at: Date; ready_at: Date | null; sent_at: Date | null;
   sent_by: string | null; emailed_to: string | null; decided_at: Date | null; decided_by: string | null; finalised_at: Date | null; finalised_by: string | null;
   reminded_at: Date | null; reminders: number; pdf_object: string | null; pdf_sha256: string | null; deleted_at: Date | null;
+  crm_title: string | null; crm_reopened_at: Date | null;
 };
 
 const iso = (d: Date | null) => (d ? d.toISOString() : null);
@@ -115,6 +119,7 @@ export const toDoc = (r: Row): Doc => ({
   updatedAt: r.updated_at.toISOString(), readyAt: iso(r.ready_at), sentAt: iso(r.sent_at), sentBy: r.sent_by, emailedTo: r.emailed_to, decidedAt: iso(r.decided_at),
   decidedBy: r.decided_by, finalisedAt: iso(r.finalised_at), finalisedBy: r.finalised_by, remindedAt: iso(r.reminded_at), reminders: r.reminders,
   pdfObject: r.pdf_object, pdfSha256: r.pdf_sha256, deleted: r.deleted_at !== null,
+  crmTitle: r.crm_title ?? null, crmReopenedAt: iso(r.crm_reopened_at ?? null),
 });
 
 type LineRow = { document_id: number; kind: "line" | "section"; item_id: number | null; description: string; quantity: number; unit: string; unit_price: number; discount: number; vat_rate: number; goods: boolean; net: number };

@@ -5,7 +5,8 @@ import { can } from "../../../../lib/access.ts";
 import { db } from "../../../../lib/db.ts";
 import { directory } from "../../../../lib/directory.ts";
 import { listTemplates } from "../../../../lib/journeys.ts";
-import { isKind, memberPattern, today } from "../../../../lib/model.ts";
+import { isKind, memberPattern } from "../../../../lib/model.ts";
+import { today } from "../../../../lib/zone.ts";
 import { viewer } from "../../../../lib/session.ts";
 import { StartForm } from "./start-form.tsx";
 

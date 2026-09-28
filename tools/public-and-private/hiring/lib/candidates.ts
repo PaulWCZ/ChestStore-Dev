@@ -45,6 +45,8 @@ export type Candidate = {
   consentAt: string | null;
   cv: { fileName: string; type: string; size: number } | null;
   stageEnteredAt: string;
+  // The day a hired candidate starts, when said ("YYYY-MM-DD").
+  startDate: string | null;
   rejectReason: RejectReason | null;
   rejectNote: string | null;
   rejectedAt: string | null;
@@ -55,13 +57,16 @@ export type Candidate = {
 type CandidateDb = {
   id: string; job_id: string; stage_id: string; status: Status; name: string; email: string; phone: string; link: string; cover_letter: string;
   source: "careers" | "team"; added_by: string | null; language: Language; consent_at: Date | null; cv_object: string | null; cv_name: string | null; cv_type: string | null; cv_size: string | null;
-  stage_entered_at: Date; reject_reason: RejectReason | null; reject_note: string | null; rejected_at: Date | null; created_at: Date; last_activity_at: Date;
+  stage_entered_at: Date; start_date: Date | string | null; reject_reason: RejectReason | null; reject_note: string | null; rejected_at: Date | null; created_at: Date; last_activity_at: Date;
 };
+// A date column as "YYYY-MM-DD", whatever the driver gives (a Date at UTC
+// midnight, or the text).
+const dateText = (d: Date | string | null): string | null => (d === null ? null : typeof d === "string" ? d.slice(0, 10) : d.toISOString().slice(0, 10));
 const toCandidate = (r: CandidateDb): Candidate => ({
   id: String(r.id), jobId: String(r.job_id), stageId: String(r.stage_id), status: r.status, name: r.name, email: r.email, phone: r.phone, link: r.link, coverLetter: r.cover_letter,
   source: r.source, addedBy: r.added_by, language: r.language, consentAt: r.consent_at ? r.consent_at.toISOString() : null,
   cv: r.cv_object ? { fileName: r.cv_name ?? "cv", type: r.cv_type ?? "application/octet-stream", size: Number(r.cv_size ?? 0) } : null,
-  stageEnteredAt: r.stage_entered_at.toISOString(), rejectReason: r.reject_reason, rejectNote: r.reject_note, rejectedAt: r.rejected_at ? r.rejected_at.toISOString() : null,
+  stageEnteredAt: r.stage_entered_at.toISOString(), startDate: dateText(r.start_date), rejectReason: r.reject_reason, rejectNote: r.reject_note, rejectedAt: r.rejected_at ? r.rejected_at.toISOString() : null,
   createdAt: r.created_at.toISOString(), lastActivityAt: r.last_activity_at.toISOString(),
 });
 
@@ -327,10 +332,28 @@ export async function candidate(sql: Sql, actor: Member | null, candidateId: unk
 
 // ---- Moving, rejecting -----------------------------------------------------
 
+export async function isHiredStage(sql: Query, stageId: string): Promise<boolean> {
+  const [row] = await sql<{ hired: boolean }[]>`select hired from stages where id = ${stageId}`;
+  return row?.hired === true;
+}
+
 // move puts a candidate in another stage of their job. Says where they
 // were (for Undo) and whether they are now hired.
-export async function move(sql: Sql, actor: Member | null, candidateId: unknown, stageId: unknown): Promise<{ candidate: Candidate; from: Stage; to: Stage }> {
+// A start date as a recruiter gives it: a real day, "YYYY-MM-DD", or none.
+export function startDate(value: unknown): string | null {
+  if (value === undefined || value === null || value === "") return null;
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/u.test(value)) throw new AppError("invalid");
+  const d = new Date(value + "T00:00:00Z");
+  if (Number.isNaN(d.getTime()) || d.toISOString().slice(0, 10) !== value || d.getUTCFullYear() < 2000 || d.getUTCFullYear() > 2100) throw new AppError("invalid");
+  return value;
+}
+
+// move puts a candidate in another stage of their job; into "hired", with
+// the day they start when said (out of it, the day goes). Says where they
+// were (for Undo).
+export async function move(sql: Sql, actor: Member | null, candidateId: unknown, stageId: unknown, start?: unknown): Promise<{ candidate: Candidate; from: Stage; to: Stage }> {
   if (!actor) throw new AppError("forbidden");
+  const day = startDate(start);
   return sql.begin(async tx => {
     const { candidate: c } = await manageable(tx, actor, candidateId, true);
     const list = await stagesOf(tx, c.jobId);
@@ -339,7 +362,7 @@ export async function move(sql: Sql, actor: Member | null, candidateId: unknown,
     if (!to) throw new AppError("invalid");
     if (c.status === "rejected") throw new AppError("invalid");
     if (to.id === from.id) return { candidate: c, from, to };
-    const [row] = await tx<CandidateDb[]>`update candidates set stage_id = ${to.id}, stage_entered_at = now(), last_activity_at = now() where id = ${c.id} returning *`;
+    const [row] = await tx<CandidateDb[]>`update candidates set stage_id = ${to.id}, stage_entered_at = now(), last_activity_at = now(), start_date = ${to.hired ? day : null} where id = ${c.id} returning *`;
     await activity(tx, c.id, actor.id, "moved", { from: from.name, to: to.name });
     return { candidate: toCandidate(row!), from, to };
   });
@@ -479,12 +502,13 @@ export async function waitingOn(sql: Sql, actor: Member | null): Promise<Waiting
 // erase deletes everything of one candidate (their right to erasure: they
 // are not members, the company answers for them). Says the CV's file, to
 // delete from the Chest.
-export async function erase(sql: Sql, actor: Member | null, candidateId: unknown): Promise<{ objects: string[] }> {
+export async function erase(sql: Sql, actor: Member | null, candidateId: unknown): Promise<{ objects: string[]; wasHired: boolean }> {
   if (!can(actor, "candidates.erase")) throw new AppError("forbidden");
   return sql.begin(async tx => {
     const { candidate: c, cvObject } = await manageable(tx, actor, candidateId, true);
+    const wasHired = c.status === "active" && (await isHiredStage(tx, c.stageId));
     await tx`delete from candidates where id = ${c.id}`;
-    return { objects: cvObject ? [cvObject] : [] };
+    return { objects: cvObject ? [cvObject] : [], wasHired };
   });
 }
 

@@ -67,8 +67,8 @@ export function day(value: unknown, options: { optional?: boolean } = {}): strin
   return value;
 }
 
-// Today in the Chest's time zone, as a day.
-export function today(now = new Date(), timeZone = "Europe/Paris"): string {
+// A moment as a day in a time zone (the Chest's: lib/zone.ts).
+export function today(now: Date, timeZone: string): string {
   return new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
 }
 

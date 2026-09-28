@@ -2,7 +2,8 @@ import type { Member } from "@argentic/chest-sdk/member";
 import { can, seesJourney, ticks } from "./access.ts";
 import { AppError } from "./app-error.ts";
 import type { Query, Sql } from "./db.ts";
-import { addDays, clean, day, id, isItemRole, isKind, limits, memberId, offset, today, type ItemRole, type Kind } from "./model.ts";
+import { addDays, clean, day, id, isItemRole, isKind, limits, memberId, offset, type ItemRole, type Kind } from "./model.ts";
+import { today } from "./zone.ts";
 import { present } from "./people.ts";
 
 // Checklists: templates HR writes once ("Office newcomer", "Leaving"), and

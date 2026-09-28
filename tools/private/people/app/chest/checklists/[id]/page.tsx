@@ -9,7 +9,8 @@ import { AppError } from "../../../../lib/errors.ts";
 import { everyone, nameOf, people } from "../../../../lib/people.ts";
 import { format, formatDate, formatDay } from "../../../../lib/i18n/index.ts";
 import { journey as loadJourney, type Journey } from "../../../../lib/journeys.ts";
-import { dueState, id as rowId, today } from "../../../../lib/model.ts";
+import { dueState, id as rowId } from "../../../../lib/model.ts";
+import { today, zone } from "../../../../lib/zone.ts";
 import { viewer } from "../../../../lib/session.ts";
 import { JourneyView, type StepView } from "./journey-view.tsx";
 
@@ -46,7 +47,7 @@ export default async function JourneyPage({ params }: { params: Promise<{ id: st
     assigneeName: i.assignee ? (i.assignee === member.id ? t.people.you : nameOf(who.get(i.assignee), locale)) : t.people.nobody,
     assigneePhoto: i.assignee ? who.get(i.assignee)?.photo ?? null : null,
     role: roleWord(i.role),
-    doneBy: i.done && i.doneBy && i.doneAt ? format(i.doneBy === member.id ? t.journey.doneByYou : t.journey.doneBy, { name: nameOf(who.get(i.doneBy), locale), date: formatDate(i.doneAt, locale, { day: "numeric", month: "short" }) }) : null,
+    doneBy: i.done && i.doneBy && i.doneAt ? format(i.doneBy === member.id ? t.journey.doneByYou : t.journey.doneBy, { name: nameOf(who.get(i.doneBy), locale), date: formatDate(i.doneAt, locale, { day: "numeric", month: "short", timeZone: zone() }) }) : null,
     mine: ticks(member, i),
   }));
   const pickable = hr ? (await everyone()).people.map(p => ({ id: p.id, name: p.name })) : [];

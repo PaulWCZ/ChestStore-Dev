@@ -4,7 +4,7 @@ import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
 import * as members from "@argentic/chest-sdk/members";
 import { POST } from "../app/chest-events/route.ts";
 import * as j from "../lib/journeys.ts";
-import { today } from "../lib/model.ts";
+import { today } from "../lib/zone.ts";
 import { profile, updateJob, updateOwn } from "../lib/profiles.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";

@@ -5,20 +5,16 @@ meaningful step (brief/07-plan.md).
 
 ## Now
 
-Step 3, well advanced. Done, verified and pushed (each: tests on PGlite and
-PostgreSQL, build, manifest, browser flows, screenshots looked at): Tasks,
-Wiki, Leave, News, People, Expenses, Support, Rooms, Booking, Clients, Polls, Equipment, Timesheets, Goals, Status, Hiring, Quotes (all 17).
-Builders at work (background agents, one port each, no git; the lead
-verifies with `scratchpad/verify.sh`-style runs and commits): Timesheets (5200), Hiring (5300),
-Goals (5600), Quotes (5700), Status (5800). Builder brief: the Rooms/…
-prompts follow `lab/BUILDING.md`; lessons are appended there.
-
-Lead work between reviews: SDK proposals (studio.7: `chest`,
-`notifications.broadcast`; manifest `translations`), the suite (Leave →
-Rooms built), the SDK report (sections 4.1–4.7, 6 written), PROGRESS, PR.
-Next after the builders: consolidate the report (step 4: priorities
-table, public-facing tools §5), audits of every tool (security, a11y,
-French), more suite links (Hiring → People, Clients → Quotes), showcase.
+Step 3 done: all 17 tools built, verified by the lead (tests on PGlite and
+PostgreSQL, build, manifest, browser flows, accessibility audit, screens
+read) and pushed. Step 4 under way: the SDK report is consolidated
+(summary, frictions from all builders, proposals 4.1–4.9, public tools,
+suite, developer experience, priorities). Step 5 started — the suite:
+Leave → Rooms is built; builders are adding Hiring → People and Clients →
+Quotes (events between tools) and Status is adopting `checks`
+(SDK studio.10). Next: verify and commit those four, then deepen tools
+(owner-facing polish, remaining "not yet" items), keep the report and PR
+current.
 
 ## Environment
 
@@ -41,8 +37,8 @@ Checked 2026-09-28 in the cloud container:
 | 1. Ranking and research | done — `reports/01-ranking.md`, 17 files in `reports/02-open-source/`, prices in `reports/01-pricing-sources.md` |
 | 2. Foundations | done — `lab/template` (tested, built, run, screenshots), `lab/chest-dev` (dev.mjs, screens.mjs), `scripts/check-manifest.mjs`, `new-tool.mjs`, `add-font.mjs`, `contrast.mjs`, `build-showcase.mjs` |
 | 3. Tools | done — 17 of 17 verified |
-| 4. The report | to do |
-| 5. Better | to do |
+| 4. The report | consolidated; kept current |
+| 5. Better | suite links, SDK checks, audits — under way |
 
 ## Tools
 

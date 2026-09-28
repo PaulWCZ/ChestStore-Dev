@@ -8,7 +8,8 @@ import { db } from "../../../../lib/db.ts";
 import { directory, type Entry } from "../../../../lib/directory.ts";
 import { format, formatDay, plural } from "../../../../lib/i18n/index.ts";
 import { journeysAbout } from "../../../../lib/journeys.ts";
-import { memberPattern, today } from "../../../../lib/model.ts";
+import { memberPattern } from "../../../../lib/model.ts";
+import { today } from "../../../../lib/zone.ts";
 import { viewer } from "../../../../lib/session.ts";
 
 // A person's page: who they are, how to reach them, what to ask them,

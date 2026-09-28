@@ -11,6 +11,7 @@ import { catalogue, isLocale } from "../../lib/i18n/index.ts";
 import type { ImportReport } from "../../lib/importers.ts";
 import { search, type Lookalike } from "../../lib/search.ts";
 import { currentMember } from "../../lib/session.ts";
+import * as share from "../../lib/share.ts";
 import * as stages from "../../lib/stages.ts";
 import * as steps from "../../lib/steps.ts";
 import * as tell from "../../lib/tell.ts";
@@ -85,7 +86,12 @@ export async function updateDeal(id: string, input: DealInput): Promise<Result<n
   return act(async actor => { await deals.updateDeal(db(), actor, id, input); return null; });
 }
 export async function moveDeal(id: string, stageId: string, after: string | null, before: string | null, reason?: string): Promise<Result<null>> {
-  return act(async actor => { await deals.moveDeal(db(), actor, id, stageId, after, before, reason); return null; });
+  return act(async actor => {
+    const sql = db();
+    const done = await deals.moveDeal(sql, actor, id, stageId, after, before, reason);
+    await share.moved(sql, done.deal, done.from, done.to);
+    return null;
+  });
 }
 export async function setDealOwner(id: string, owner: string | null): Promise<Result<null>> {
   return act(async actor => {

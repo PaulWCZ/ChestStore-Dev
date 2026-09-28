@@ -8,7 +8,8 @@ import { db } from "../../lib/db.ts";
 import { directory } from "../../lib/directory.ts";
 import { format, formatDay, plural, relativeDays } from "../../lib/i18n/index.ts";
 import { openCounts } from "../../lib/journeys.ts";
-import { daysBetween, newcomerDays, today } from "../../lib/model.ts";
+import { daysBetween, newcomerDays } from "../../lib/model.ts";
+import { today } from "../../lib/zone.ts";
 import { viewer } from "../../lib/session.ts";
 import { DirectoryView, type Card } from "./directory-view.tsx";
 
