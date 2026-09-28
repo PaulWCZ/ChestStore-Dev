@@ -34,7 +34,14 @@ conversation bubbles (customer coral on the left, team white on the right,
 notes butter and dashed), the composer with two tabs (the note tab turns
 the composer yellow), saved replies menu, side card (from, assigned,
 status, other requests), "someone else is on it" banner, public card form,
-success box with *Copy the link*, toasts with *Undo*.
+success box with *Copy the link*, toasts with *Undo*. Triage: the
+priority chip (nothing for normal; *Urgent* outlined in `--danger` with a
+flag, and a red inner edge on its row — it stands out without filling the
+screen with red; *High* and *Low* with chevrons), tag chips on
+`--accent-soft` with a tag icon, "Waiting 26 h" in the customer's coral
+and bold once past the threshold (plain grey text before). The file
+picker: a quiet *Add a file* button, one line of limits, the files as
+removable rows.
 
 ## Icon
 

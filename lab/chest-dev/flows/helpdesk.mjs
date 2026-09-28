@@ -81,6 +81,7 @@ await step("the customer writes again from their link", async () => {
   await page.getByPlaceholder("Add something, or answer our question.").fill("Also, one shelf is scratched.");
   await page.getByRole("button", { name: "Send" }).click();
   await page.waitForSelector("text=Sent. We will get back to you.");
+  await page.waitForSelector(".thread :text('one shelf is scratched')", { timeout: 5000 }).catch(() => {});
   expect((await page.locator(".thread").innerText()).includes("one shelf is scratched"), "thread");
 });
 

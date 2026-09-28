@@ -203,7 +203,7 @@ export const fr: Catalogue = {
     noTags: "Aucune étiquette pour l’instant.",
     addTag: "Ajouter",
     tagLabel: "Ajouter une étiquette",
-    tagPlaceholder: "Remboursement, livraison…",
+    tagPlaceholder: "Livraison…",
     removeTag: "Retirer l’étiquette {tag}",
     tagTickets: "Demandes avec l’étiquette {tag}",
   },

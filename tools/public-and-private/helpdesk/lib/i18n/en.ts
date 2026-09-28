@@ -203,7 +203,7 @@ export const en = {
     noTags: "No tags yet.",
     addTag: "Add",
     tagLabel: "Add a tag",
-    tagPlaceholder: "Refund, delivery…",
+    tagPlaceholder: "Delivery…",
     removeTag: "Remove the tag {tag}",
     tagTickets: "Tickets tagged {tag}",
   },

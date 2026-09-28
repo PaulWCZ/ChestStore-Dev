@@ -84,10 +84,10 @@ the answer.
 | Search by subject, text, customer email | MVP | all | Postgres full-text search, no Elasticsearch |
 | Notification to the team's shared inbox on new ticket / customer reply | MVP | FreeScout notifications | Uses the platform notification primitive |
 | Collision warning ("Marie is viewing this ticket") | MVP | FreeScout collision detection | Presence via polling with short TTL |
-| Tags / categories | later | Zendesk tags, Chatwoot labels | |
-| Priority | later | Zammad | Most SMEs ignore it |
+| Tags / categories | **built** (2026-09-28) | Zendesk tags, Chatwoot labels, FreeScout Tags module (AGPL, ideas only) | Created on the fly by agents, renamed/merged/deleted by an admin; inbox filter; a click lists a tag's tickets |
+| Priority | **built** (2026-09-28) | Zammad (1 low / 2 normal / 3 high), osTicket (Low/Normal/High/Emergency) — GPL/AGPL, ideas only | Low/Normal/High/Urgent in words; filter and "Most urgent" sort; normal shows nothing |
 | Email in (support@ address creates tickets) and email out (replies sent to customer) | later — **depends on missing primitive** | every helpdesk | Needs inbound + outbound email in the SDK (proposal) |
-| SLA timers / business hours / "first response due" | later — needs scheduled tasks for reminders | Zendesk, Zammad | Can be computed on read; alerts need cron |
+| SLA timers / business hours / "first response due" | **SLA-lite built** (2026-09-28): "waiting since" computed on read, highlighted past an admin threshold; timers, business hours and reminders later | Zendesk, Zammad | Alerts would need a schedule |
 | Auto-close after N days waiting | later — **needs scheduled tasks** | Help Scout, Zammad | |
 | Merge tickets | later | Zammad, FreeScout | |
 | Satisfaction rating (good / bad) on the follow-up page | later | Zendesk CSAT, FreeScout module | |
