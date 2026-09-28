@@ -501,7 +501,7 @@ today), Support → Clients (a customer's history).
   same few faults across tools (icon-only links on phones, drag handles on
   list items, a textarea with an invalid ARIA attribute); all 17 now pass.
   The Chest's own `chest check` should run it.
-- **Agents as builders**: 16 of the 17 tools were built by agents
+- **Agents as builders**: 14 of the 17 tools were built by builder agents (Tasks, Support and Booking by the lead)
   following `lab/BUILDING.md`, verified by a lead agent re-running tests,
   flows, audit and reading every screenshot. What made it work: a
   template, one standard, a harness with screenshots, and a checklist of
