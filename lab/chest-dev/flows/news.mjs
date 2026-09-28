@@ -221,6 +221,13 @@ await step("French, phone width: nothing overflows; confirm and write work", asy
   await page.waitForSelector(".confirm-box.done");
   width = await page.evaluate(() => document.documentElement.scrollWidth);
   expect(width <= 392, "article width " + width);
+  await page.getByRole("button", { name: "Rechercher" }).click();
+  await page.waitForURL(/\/chest\/search/u);
+  await page.locator("#q").fill("déménagement plantes");
+  await page.locator("#q").press("Enter");
+  await page.waitForSelector(".result mark");
+  width = await page.evaluate(() => document.documentElement.scrollWidth);
+  expect(width <= 392, "search width " + width);
   await as(context, origin, "camille");
   await page.goto(origin + "/chest/new?kind=event");
   width = await page.evaluate(() => document.documentElement.scrollWidth);

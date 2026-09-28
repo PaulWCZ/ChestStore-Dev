@@ -45,7 +45,12 @@ event box, confirm box, welcome card, reaction pills, readers panel with a
 meter, comments, the composer (kind choice cards, headline field in serif,
 Markdown toolbar with Write/Preview tabs, side cards, sticky action bar),
 buttons (red primary, ink outline quiet, red outline danger, all 44 px),
-toasts with *Undo*, empty states.
+toasts with *Undo*, empty states. The search: a field in the topbar (a
+magnifier button on a phone), a results list under a thick rule, the words
+found struck with the marker pen (`<mark>`, `--highlight`, semi-bold), the
+comments found indented under a hairline edge. The audience: an ink-grey
+*For Sales* flag with a people icon, a highlight notice on the article,
+"Who can see it" radio cards in the composer.
 
 ## Icon
 

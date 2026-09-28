@@ -254,7 +254,7 @@ textarea.field { resize: vertical; min-height: 88px; line-height: 1.55; }
 .preview { min-height: 300px; padding: var(--space-4); border: 1.5px solid var(--hairline); background: var(--surface); }
 .side-card { display: grid; gap: var(--space-3); padding: var(--space-4) 0 0; border: 0; border-top: 3px solid var(--rule); margin: 0; min-width: 0; }
 .side-card h2, .side-card legend { font-family: var(--font-body); font-size: var(--text-xs); text-transform: uppercase; letter-spacing: 0.12em; font-weight: 800; }
-.when legend { float: left; width: 100%; padding: 0; margin-bottom: var(--space-3); }
+.when legend, .audience legend { float: left; width: 100%; padding: 0; margin-bottom: var(--space-3); }
 .when > label:first-of-type { clear: both; }
 .cover-preview { display: grid; gap: var(--space-2); justify-items: start; }
 .cover-preview img { width: 100%; aspect-ratio: 3 / 2; object-fit: cover; border: 1px solid var(--hairline); }

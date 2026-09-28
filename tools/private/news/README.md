@@ -30,6 +30,27 @@ channel where announcements drown.
   is told of new comments.
 - **Scheduled posts**: pick a day and time; until then only publishers see
   it (*Scheduled*, on the side of the front page).
+- **Who can see it**: a post is for *Everyone* (the default) or for *Some
+  groups only* — the Chest's own groups (Sales, Tech…), ticked in the
+  composer. A post kept to groups is marked *For Sales* and seen by those
+  groups' members, its author and the Chest's admins; **nobody else** sees
+  it, its comments, reactions, files, calendar file or search results (a
+  link to it answers "not found"). Only its audience is told in the bell,
+  asked to confirm, reminded and counted (*Read by 1 of 2*); an admin or the
+  author outside it is never asked. Changing the audience of an Important
+  post tells the new audience; confirmations of people it is no longer for
+  stop counting.
+- **Search**: one box at the top (a button on a phone) across the posts and
+  comments the person may see, case and accents aside (*demenagement*
+  finds *Déménagement*), each word by its beginning, every word needed; a
+  headline with a typo is still found. The words found are marked; a
+  comment found shows under its post, with its author.
+- **The weekly digest**: on Monday morning (08:30, the Chest's time zone),
+  each person finds one item in their bell, in their language — *This
+  week: 3 posts you haven't seen yet* and their headlines — only when there
+  are some: posts of the last 7 days for them, not theirs, published after
+  their last visit to the front page (an Important post they confirmed does
+  not count). Next week's replaces it; opening the front page removes it.
 - **The tile's number**: the Important posts I have not yet confirmed (the
   last 90 days).
 - **Nothing is lost by a click**: a post or a comment deleted comes back
@@ -46,6 +67,9 @@ channel where announcements drown.
 
 The owner, the admins and the tool's builders come in with the first role,
 `publisher`. A scheduled or deleted post does not exist for a reader (404).
+A post kept to groups does not exist for anyone outside them — publishers
+included — except its author and the Chest's admins (the same rule as the
+Wiki's spaces kept to groups).
 
 ## First minute
 
@@ -70,13 +94,14 @@ The owner, the admins and the tool's builders come in with the first role,
 |---|---|---|
 | `/chest` (`?kind=`, `?page=`) | members with a role | the front page |
 | `/chest/posts/<id>` | who sees the post | the article; for publishers of an Important post, who read it |
+| `/chest/search` (`?q=`) | members with a role | search: the posts and comments they may see |
 | `/chest/new` (`?kind=`), `/chest/posts/<id>/edit` | publishers | the composer |
 | `/chest/posts/<id>/calendar` | who sees the event | the `.ics` file |
 | `/chest/posts/<id>/confirmations` | publishers | who confirmed, as CSV |
 | `/chest/api/uploads` | publishers | authorise (POST) then record (PUT) a picture or a file |
 | `/chest/files/<id>` (`?size=256\|1024`, `?download`) | who sees the post (or its uploader, before saving) | a 15-minute link signed by the Chest |
 | `/chest-events` | the Chest only (signed) | members' lifecycle |
-| `/chest-jobs/publish` | the Chest only (signed) | the "publish" schedule (Proposal) |
+| `/chest-jobs/publish`, `/chest-jobs/digest` | the Chest only (signed) | the "publish" and "digest" schedules (Proposal) |
 | `/` | anyone | "News lives in your Chest" |
 
 ## On a Chest
@@ -85,6 +110,19 @@ The owner, the admins and the tool's builders come in with the first role,
   the pictures the Chest makes thumbnails of — attachments 25 MB, uploaded
   from the browser to the Chest); `members` (names, photos, who has News);
   `notifications` (the bell, the tile's number); `receives: ["member.*"]`.
+- **Groups** are the Chest's: `members.groups.list()` gives News only the
+  groups that **give it access** (a Chest shows a tool no other group), and
+  each member's `groups` are those same groups. So a company that opens
+  News to everyone at once has no groups to pick: the composer says *To
+  write for one team, give News to that team's group in your Chest*.
+  Granting News to "Sales", "Tech"… (each as Reader) makes them appear.
+  A group that stops giving News stays on the posts it was on (read
+  *a former group*); only admins and authors then see them.
+- **Search** uses PostgreSQL: `migrations/0002_…` creates the `unaccent`
+  and `pg_trgm` extensions (both *trusted*: the database's owner may create
+  them, PostgreSQL 13+) and a text search configuration `news` (`simple` +
+  `unaccent`: no stemming, the same in English and French), with a
+  generated `tsvector` on posts and comments.
 - **Telling everyone** uses `members.list`, 500 people at a time (up to
   10,000), in each person's language. The Chest takes **1,000 recipients an
   hour** per tool: beyond, News stops, keeps where it stopped, and goes on
@@ -119,14 +157,24 @@ The owner, the admins and the tool's builders come in with the first role,
 - `member.locale` — **Proposal (studio)**, in `vendor/`: the interface and
   the bell in each member's language.
 - **Scheduled tasks** (`schedules`) — **Proposal (studio)**, in `vendor/`:
-  `chest.proposals.json` declares `publish` every 15 minutes
-  (`app/chest-jobs/[name]/route.ts`). Without it News still works: the same
-  pass runs when someone opens the front page.
+  `chest.proposals.json` declares `publish` every 15 minutes and `digest`
+  on Monday at 08:30 (`app/chest-jobs/[name]/route.ts`). Without it News
+  still works — the publish pass runs when someone opens the front page —
+  but **there is no weekly digest** (a visit never sends one). The digest
+  shares the Chest's 1,000 recipients an hour with Important posts (they
+  go first): in a larger company it goes on with each publish pass, a page
+  of 500 at a time, within the week; someone told twice gets the same item
+  again (one key), never two.
 - The Chest's **time zone** (`CHEST_TIMEZONE`, same proposal): event times
   and schedules are typed on the Chest's clock; Europe/Paris otherwise.
 - **Localized manifest title** (studio report): the tile says "News" to a
   French member; the interface says *Actualités*.
-- Wanted, not built: **email** for Important posts (the bell reaches only
+- Wanted, not built: **groups beyond those that give News** — a tool
+  open to everyone sees no group, so audience targeting only works where
+  News is given group by group (SDK report: a `groups` capability, "Sees
+  the Chest's groups and who is in them"); a **per-member digest
+  broadcast** (the digest is one notify call per language and set of
+  posts, within the hourly quota); **email** for Important posts (the bell reaches only
   people who open their Chest) and a **"notify at least once" quota
   exemption or a bulk notification** so a large company is told at once.
 
@@ -147,7 +195,10 @@ cannot hold files).
 
 ## What it does not do (yet)
 
-Email or push notifications (only the Chest's bell), audience targeting
-(a post for one team), @mentions, polls in a post, multi-day events, a
-weekly digest, reading statistics beyond confirmations, import from a
-Slack channel export, search, editing a comment's history, video.
+Email or push notifications (only the Chest's bell; the weekly digest is a
+bell item, not an email), an audience of hand-picked people or of groups
+that do not give News, a digest setting per person (weekly for everyone;
+muting News in the Chest mutes it), @mentions, polls in a post, multi-day
+events, reading statistics beyond confirmations, search in attached files
+or with stemming ("move" does not find "moving"), import from a Slack
+channel export, editing a comment's history, video.
