@@ -1,0 +1,5 @@
+# Server test bench — The web server that exercises the v2 contract of a Chest.
+
+A tool of the Chest by Argentic catalogue. A Chest builds it by itself from this repository, at a pinned commit: `chest.json` names the tool, its roles, its public part, its database, the variables it expects and how to build it: `npm ci`, `npm run build`, then `npm start` serves the tool on `PORT` (3000); the Chest puts it behind its front, the members' part under `/chest`, where `member(request)` (`packages/chest-client/src/member.ts`) says who asks for it. Its migrations are in `migrations/`, run by the Chest before each version; `databaseUrl()` (`packages/chest-client/src/database.ts`) gives the address of its database. Its files are kept by the Chest (`packages/chest-client/src/files.ts`). Who has it is read from the Chest (`packages/chest-client/src/members.ts`). Its counters and notifications go to the members through the Chest (`packages/chest-client/src/notifications.ts`). The Chest tells it of its members' lifecycle on `/chest-events` (`packages/chest-client/src/events.ts`).
+
+To adapt it: fork this repository, change it with your agent, link your fork to your Chest.

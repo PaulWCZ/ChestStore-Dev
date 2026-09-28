@@ -1,0 +1,78 @@
+/* The look of Chest by Argentic: monochrome, a Swiss grotesque (the brand's
+   Suisse Int'l is not shipped to tools; the system's closest stands in), no
+   bold, straight angles, thin rules, numbers 001. Blue only for the focus. */
+:root {
+  font: 15px/1.45 "Suisse Int'l", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  color: #171716;
+  background: #fafaf9;
+  font-synthesis: none;
+  --ink: #171716;
+  --muted: #6a6a66;
+  --line: #deded8;
+  --paper: #f1f1ed;
+  --blue: #0061fe;
+}
+* { box-sizing: border-box; }
+body { margin: 0; }
+h1, h2, h3, p { margin: 0; }
+h1, h2, h3, strong, th, b { font-weight: 400; }
+h1 { font-size: 36px; letter-spacing: -.045em; line-height: 1.15; }
+h2 { font-size: 22px; letter-spacing: -.03em; line-height: 1.2; }
+p { color: var(--muted); }
+a { color: inherit; text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 3px; }
+button, input, select, textarea { font: inherit; color: inherit; border-radius: 0; }
+:focus-visible { outline: 2px solid var(--blue); outline-offset: 3px; }
+
+.page { max-width: 880px; margin: 0 auto; padding: 32px 24px 96px; }
+.bar { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; padding-bottom: 14px; border-bottom: 1px solid var(--ink); margin-bottom: 48px; }
+.bar a { text-decoration: none; }
+.bar .who { color: var(--muted); font-size: 13px; }
+.brand { font-size: 15px; letter-spacing: -.01em; }
+.brand i { font-style: italic; font-family: Georgia, "Times New Roman", serif; }
+.lead { display: flex; justify-content: space-between; align-items: end; gap: 16px; margin-bottom: 32px; }
+.lead p { margin-top: 8px; }
+.small { font-size: 13px; color: var(--muted); }
+
+.button { display: inline-block; appearance: none; background: var(--ink); color: #fff; border: 1px solid var(--ink); padding: 9px 16px; text-decoration: none; cursor: pointer; }
+.button.quiet { background: transparent; color: var(--ink); }
+.button:disabled { opacity: .4; cursor: default; }
+.actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 24px; }
+.actions form { display: contents; }
+
+.list { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--line); }
+.list li { display: grid; grid-template-columns: 48px 1fr auto auto; gap: 16px; align-items: baseline; padding: 14px 0; border-bottom: 1px solid var(--line); }
+.list .num { color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums; }
+.list a { text-decoration: none; }
+.list a:hover { text-decoration: underline; }
+.status { font-size: 13px; color: var(--muted); }
+
+.facts { display: grid; grid-template-columns: 160px 1fr; border-top: 1px solid var(--line); margin: 0; }
+.facts dt, .facts dd { margin: 0; padding: 12px 0; border-bottom: 1px solid var(--line); }
+.facts dt { color: var(--muted); }
+.facts dd { overflow-wrap: anywhere; }
+
+.fields { list-style: none; margin: 0 0 16px; padding: 0; border-top: 1px solid var(--line); }
+.fields > li { padding: 16px 0; border-bottom: 1px solid var(--line); display: grid; grid-template-columns: 48px 1fr; gap: 16px; }
+.row { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin-top: 10px; }
+
+label.field { display: block; margin-bottom: 24px; }
+label.field > span { display: block; margin-bottom: 6px; }
+input[type="text"], input[type="email"], textarea, select { width: 100%; background: #fff; border: 1px solid var(--line); padding: 9px 10px; }
+input[type="text"]:hover, input[type="email"]:hover, textarea:hover, select:hover { border-color: var(--ink); }
+select { width: auto; }
+textarea { min-height: 120px; resize: vertical; }
+.check { display: inline-flex; gap: 8px; align-items: center; }
+.error { display: block; color: var(--ink); border-left: 1px solid var(--ink); padding-left: 10px; margin: 6px 0 0; font-size: 13px; }
+.notice { border: 1px solid var(--ink); padding: 14px 16px; margin-bottom: 24px; }
+
+table { width: 100%; border-collapse: collapse; font-size: 14px; }
+th, td { text-align: left; vertical-align: top; padding: 10px 12px 10px 0; border-bottom: 1px solid var(--line); overflow-wrap: anywhere; }
+th { color: var(--muted); border-bottom-color: var(--ink); }
+.scroll { overflow-x: auto; border-top: 1px solid var(--line); }
+
+.public { max-width: 640px; }
+.public h1 { margin-bottom: 12px; }
+.public .description { white-space: pre-line; margin-bottom: 40px; }
+.required { color: var(--muted); }
+label.field.tight { margin-bottom: 0; }
+.section { margin: 48px 0 16px; }

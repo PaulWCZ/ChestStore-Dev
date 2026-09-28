@@ -1,0 +1,17 @@
+{
+  "name": "chest-testweb",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/apps/testweb/src/server.js",
+    "test": "npm run build && node --test dist/apps/testweb/test/*.test.js dist/packages/chest-client/test/*.test.js"
+  },
+  "dependencies": {
+    "postgres": "3.4.9"
+  },
+  "devDependencies": {
+    "typescript": "7.0.2",
+    "@types/node": "24.13.5"
+  }
+}

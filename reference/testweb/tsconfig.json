@@ -1,0 +1,24 @@
+{
+  "compilerOptions": {
+    "target": "ES2023",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noImplicitOverride": true,
+    "noFallthroughCasesInSwitch": true,
+    "verbatimModuleSyntax": true,
+    "types": [
+      "node"
+    ],
+    "rootDir": ".",
+    "outDir": "dist"
+  },
+  "include": [
+    "apps/testweb/**/*.ts",
+    "packages/chest-client/**/*.ts"
+  ]
+}

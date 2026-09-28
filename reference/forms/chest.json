@@ -1,0 +1,21 @@
+{
+  "version": 2,
+  "name": "forms",
+  "title": "Forms",
+  "description": "Create forms, publish them on the Internet and collect the responses with your team.",
+  "icon": "chest/icon.svg",
+  "preview": "chest/preview.png",
+  "roles": ["editor", "reader"],
+  "role_labels": { "editor": "Editor", "reader": "Reader" },
+  "public": true,
+  "csp": "tool",
+  "capabilities": ["database"],
+  "build": {
+    "runtime": "node",
+    "install": "npm ci",
+    "command": "npm run build",
+    "start": "npm start",
+    "port": 3000,
+    "static": ["/_next/static/"]
+  }
+}

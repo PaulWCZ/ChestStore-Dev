@@ -1,0 +1,11 @@
+/* The style of the test tool, served under /static/ on both hosts. */
+:root { color: #0a0a0a; background: #f1f1ef; font: 16px/1.5 system-ui, sans-serif; }
+main { max-width: 40rem; margin: 3rem auto; padding: 0 1rem; }
+h1 { font-weight: 400; font-size: 2rem; border-bottom: 1px solid #0a0a0a; padding-bottom: .5rem; }
+form { display: flex; gap: .5rem; align-items: center; margin: 1.5rem 0; }
+input { flex: 1; font: inherit; padding: .4rem; border: 1px solid #0a0a0a; border-radius: 0; background: #fff; }
+button { font: inherit; padding: .4rem .8rem; border: 1px solid #0a0a0a; border-radius: 0; background: #0a0a0a; color: #fff; cursor: pointer; }
+ul { list-style: none; padding: 0; }
+li { display: flex; justify-content: space-between; gap: 1rem; padding: .5rem 0; border-bottom: 1px solid #c8c8c4; }
+li button { background: #fff; color: #0a0a0a; }
+.version { color: #555; }

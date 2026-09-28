@@ -1,0 +1,38 @@
+{
+  "version": 2,
+  "name": "testweb",
+  "title": "Server test bench",
+  "description": "The web server that exercises the v2 contract of a Chest.",
+  "icon": "chest/icon.svg",
+  "roles": [
+    "reader",
+    "editor"
+  ],
+  "public": true,
+  "capabilities": [
+    "database",
+    "files",
+    "members",
+    "notifications"
+  ],
+  "receives": [
+    "member.*"
+  ],
+  "network": [
+    "allowed.egress.test",
+    "*.forbidden.egress.test"
+  ],
+  "env": [
+    "TESTWEB_GREETING"
+  ],
+  "build": {
+    "runtime": "node",
+    "install": "npm ci",
+    "command": "npm run build",
+    "start": "npm start",
+    "port": 3000,
+    "static": [
+      "/static/"
+    ]
+  }
+}
