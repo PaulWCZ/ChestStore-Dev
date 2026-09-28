@@ -365,6 +365,48 @@ export async function POST(request: Request) {
   `ChestError` `erasure_not_found` (404: an erasure this tool was not told of)
   or `invalid_id` (400), `CapabilityNotGranted` (403), `Unavailable`.
 
+## `schedules` — scheduled tasks (Proposal (studio))
+
+Work a tool does by itself at set times — reminders, a morning digest,
+purges, a badge kept true overnight. The Chest runs nothing inside the
+tool's container: at each time a cron line gives, in the Chest's time zone,
+it **calls** the tool, as it delivers events.
+
+```jsonc
+// chest.json — each entry is a permission: “Runs by itself on a schedule:
+// morning (weekdays at 07:30)”. Until a Chest accepts the key, the studio's
+// tools keep it in chest.proposals.json (read by the harness and the checker).
+{ "schedules": [{ "name": "morning", "cron": "30 7 * * 1-5" }] }
+```
+
+```ts
+// app/chest-jobs/[name]/route.ts — outside /chest, never behind a session
+import * as schedules from "@argentic/chest-sdk/schedules";
+export async function POST(request: Request) {
+  return new Response(null, { status: await schedules.handle(request, {
+    morning: async run => { await remindDueToday(run.scheduledAt); },
+  }) });
+}
+```
+
+| Export | Gives |
+|---|---|
+| `handle(request, handlers)` | Verifies a delivery and runs its schedule's handler: 204, 401 (not the Chest's), 404 (no handler); a handler that throws makes it throw — answer 500, the run comes again (`run.attempt` 2 to 4) |
+| `verify(request)` | The `Run` `{id: "run_…", name, scheduledAt, attempt, timeZone}` a delivery carries, or null: signature `Chest-Job` (HS256 under HMAC-SHA256("Chest-Job v1") of `CHEST_TOKEN`), this tool, fresh, the body signed, `POST /chest-jobs/<name>` |
+| `timeZone()` | The Chest's time zone (`CHEST_TIMEZONE`, IANA), Europe/Paris by default: the day of "due today" |
+| `parseCron`, `nextRun(line, after?, zone?)`, `describeCron`, `checkSchedules` | Cron lines (five fields: numbers, `*`, ranges, lists, steps), the next run in a time zone, words for the owner, the manifest's rules |
+
+The Chest's bounds: 8 schedules per tool, not more often than every 15
+minutes, 5 minutes per run, one run in flight per schedule (a time that
+comes while one runs is skipped), deliveries at least once (again after 1,
+5 and 15 minutes), a missed time run once when the node comes back, never a
+backlog. Each run's start, duration and answer are in the tool's journal;
+its page shows the next run and a "Run now" for builders.
+
+In tests: `fakeChest({ schedules: [...], timeZone })`, then
+`chest.run(name, to)` delivers a run (signed, like `emit`) and says the
+status; `chest.runs` lists them.
+
 ## `databaseUrl()` — database of a server tool
 
 A v2 tool that declares `"capabilities": ["database"]` in its `chest.json`
@@ -532,6 +574,7 @@ await chest.close();
 | `chest.notifications`, `chest.badges` | What the tool sent: the items kept, `{member, title, body?, path, key?}` cleaned as the Chest cleans them, in the order sent (a replaced item removed, the new one last; `withdraw` removes), and each member's badge (`Map` member → count; 0 removes it) |
 | `chest.upload(url, data, type)` | **Proposal (studio).** Plays a member's browser sending a file to an `uploadUrl` answer: the fake Chest's front checks the token (once, before its expiry), the type and the size, names the object in a folder, and answers `201 {name, type, size}`, or 403 `invalid_token`, 415 `type_refused`, 413 `too_large`, 429 `quota_exceeded` |
 | `fakeChest({origin})` | **Proposal (studio).** The team host its links and uploads point to (`https://<tool>-chest.chest.test` by default). A local harness gives its own (`http://localhost:<port>`) and relays `/_chest/*` of its host to `chest.api`, where the fake Chest's front serves the uploads, the signed links and the members' photos (initials). `files.url` and `uploadUrl` accept `http://localhost` and `http://127.0.0.1` links for that reason |
+| `fakeChest({schedules, timeZone})`, `chest.run(name, to, {id?, scheduledAt?, attempt?})`, `chest.runs` | **Proposal (studio).** A run of a declared schedule delivered to `POST <to>/chest-jobs/<name>` (or a handler of Web Requests), signed as the Chest would; `CHEST_TIMEZONE` set (Europe/Paris by default) |
 | `chest.close()` | Stops it and restores the environment |
 
 ## Version

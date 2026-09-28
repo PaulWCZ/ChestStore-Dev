@@ -2,13 +2,18 @@
 // Chest (bell, badges, files), and buttons that play the Chest.
 const escape = value => String(value ?? "").replace(/[&<>"']/gu, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 
-export function devPage({ manifest, chest, me, origin }) {
+export function devPage({ manifest, chest, me, origin, schedulesApi }) {
   const name = id => chest.members.find(m => m.id === id)?.name ?? id;
   const people = chest.members.map(m => `<option value="${m.id}"${m.id === me.id ? " selected" : ""}>${escape(m.name)} — ${escape(m.role ?? "no role")}${m.isAdmin ? " (admin)" : ""}</option>`).join("");
   const bell = chest.notifications.slice().reverse().map(n => `<li><b>${escape(name(n.member))}</b> · ${escape(n.title)}${n.body ? `<br><small>${escape(n.body)}</small>` : ""}<br><a href="${escape(n.path)}">${escape(n.path)}</a>${n.key ? ` <code>${escape(n.key)}</code>` : ""}</li>`).join("") || "<li class=none>Nothing yet.</li>";
   const badges = [...chest.badges].map(([id, count]) => `<li>${escape(name(id))}: <b>${count}</b></li>`).join("") || "<li class=none>None.</li>";
   const files = [...chest.files].map(([n, f]) => `<li><code>${escape(n)}</code> ${escape(f.type)} · ${f.data.byteLength} B</li>`).join("") || "<li class=none>None.</li>";
-  const extra = typeof chest.devPanels === "function" ? chest.devPanels({ escape, name }) : "";
+  const schedules = (chest.schedules ?? []).map(s => {
+    const next = schedulesApi?.nextRun(s.cron, new Date(), process.env["CHEST_TIMEZONE"] ?? "Europe/Paris");
+    return `<li><form method="post" action="/_dev/schedule"><input type="hidden" name="name" value="${escape(s.name)}"><b>${escape(s.name)}</b> <code>${escape(s.cron)}</code> — ${escape(schedulesApi?.describeCron(s.cron) ?? "")}, next ${escape(next ? next.toISOString().slice(0, 16).replace("T", " ") + " UTC" : "never")} <button>Run now</button></form></li>`;
+  }).join("");
+  const runs = (chest.runs ?? []).slice(-8).reverse().map(r => `<li><code>${escape(r.name)}</code> ${escape(r.scheduledAt.slice(0, 16))} → ${r.status}</li>`).join("");
+  const extra = schedules ? `<section><h2>Schedules (proposal)</h2><ul>${schedules}</ul>${runs ? `<p>Last runs:</p><ul>${runs}</ul>` : ""}</section>` : "";
   const events = chest.members.map(m => `<option value="${m.id}">${escape(m.name)}</option>`).join("");
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>chest dev · ${escape(manifest.title ?? manifest.name)}</title>
 <style>

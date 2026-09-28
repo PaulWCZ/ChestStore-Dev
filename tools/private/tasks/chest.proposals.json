@@ -1,0 +1,1 @@
+{ "schedules": [{ "name": "morning", "cron": "30 7 * * 1-5" }] }

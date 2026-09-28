@@ -10,9 +10,13 @@
 // an exact grammar (role identifiers), the rule used is marked "assumed".
 import { existsSync, lstatSync, readFileSync, readdirSync } from "node:fs";
 import { basename, dirname, join, relative, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+// The keys the SDK working copy proposes for the manifest, and their checks.
+const proposalKeys = new Set(["schedules"]);
+const schedulesPath = join(root, "sdk", "dist", "src", "schedules.js");
+const schedulesApi = existsSync(schedulesPath) ? await import(pathToFileURL(schedulesPath).href) : null;
 
 const topKeys = new Set(["version", "name", "title", "description", "icon", "preview", "roles", "role_labels", "public", "csp", "capabilities", "receives", "network", "env", "files", "build"]);
 const buildKeys = new Set(["runtime", "install", "command", "start", "port", "static"]);
@@ -257,6 +261,24 @@ export function checkTool(folder) {
     if (start && !scripts[start]) error(`package.json has no script "${start}" (build.start)`);
     if (!Number.isInteger(build.port) || build.port < 1024 || build.port > 65535) error("build.port is 1024 to 65535");
     if (build.static !== undefined && (!Array.isArray(build.static) || build.static.length > 4 || !build.static.every(p => typeof p === "string" && /^\/[a-z0-9._-]+(\/[a-z0-9._-]+)*\/$/u.test(p) && !p.split("/").some(seg => seg === "." || seg === "..") && !p.startsWith("/chest/") && !p.startsWith("/_chest/")))) error("build.static is at most 4 prefixes like /_next/static/, never /chest/ nor /_chest/");
+  }
+
+  // Proposals of the SDK working copy: keys a Chest does not accept yet,
+  // kept in chest.proposals.json so chest.json stays installable today.
+  if (existsSync(at("chest.proposals.json"))) {
+    let proposals = null;
+    try {
+      proposals = JSON.parse(readFileSync(at("chest.proposals.json"), "utf8"));
+    } catch (e) {
+      error(`chest.proposals.json is not JSON: ${e.message}`);
+    }
+    if (proposals) {
+      for (const key of Object.keys(proposals)) if (!proposalKeys.has(key)) error(`chest.proposals.json: unknown proposal key "${key}"`);
+      if (proposals.schedules !== undefined) {
+        if (!schedulesApi) warnings.push("schedules not checked: build sdk/ first (npm run build)");
+        else for (const problem of schedulesApi.checkSchedules(proposals.schedules)) error(`chest.proposals.json: ${problem}`);
+      }
+    }
   }
 
   // Studio rules beyond the contract.

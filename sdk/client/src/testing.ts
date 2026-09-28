@@ -50,6 +50,8 @@ export type FakeChestOptions = {
   receives?: string[];
   files?: Record<string, { data: Uint8Array | string; type?: string }>;
   origin?: string;
+  schedules?: { name: string; cron: string }[];
+  timeZone?: string;
 };
 
 // An event for emit: its type and data; its id (a new evt_… by default) and
@@ -79,6 +81,11 @@ export type FakeChest = {
   acknowledged: string[];
   emit(event: FakeEvent, to: string | ((request: Request) => Response | Promise<Response>)): Promise<number>;
   upload(url: string, data: Uint8Array | string, type: string): Promise<Response>;
+  // Proposal (studio): the tool's schedules, the runs delivered, and run(),
+  // which delivers a run of a schedule as the Chest would at its time.
+  schedules: { name: string; cron: string }[];
+  runs: { id: string; name: string; scheduledAt: string; attempt: number; status: number }[];
+  run(name: string, to: string | ((request: Request) => Response | Promise<Response>), options?: { id?: string; scheduledAt?: string; attempt?: number }): Promise<number>;
   close(): Promise<void>;
 };
 
@@ -107,10 +114,10 @@ export function signAssertion(member: FakeMember, options: { token?: string; too
 // signEvent is the Chest-Event value the Chest would send with that body:
 // HS256 under the key the token derives for events, for the tool, naming the
 // event and the digest of the body, valid 60 seconds.
-function signEvent(id: string, body: string, options: { token: string; tool: string }): string {
+function signEvent(id: string, body: string, options: { token: string; tool: string; label?: string }): string {
   const iat = Math.floor(Date.now() / 1000);
   const signed = encode({ alg: "HS256", typ: "JWT" }) + "." + encode({ aud: options.tool, iat, exp: iat + 60, jti: id, digest: createHash("sha256").update(body).digest("base64url") });
-  const key = createHmac("sha256", Buffer.from(options.token, "utf8")).update("Chest-Event v1").digest();
+  const key = createHmac("sha256", Buffer.from(options.token, "utf8")).update(options.label ?? "Chest-Event v1").digest();
   return signed + "." + createHmac("sha256", key).update(signed).digest("base64url");
 }
 
@@ -178,7 +185,7 @@ export async function fakeChest(options: FakeChestOptions = {}): Promise<FakeChe
   const uploads = new Map<string, { name: string; types: string[]; maxSize: number; expires: number }>();
   // The erasures the tool was told of, by emit: those it may acknowledge.
   const erasures = new Set<string>();
-  const chest: FakeChest = { api: "", token, tool, members: [...(options.members ?? [])], groups: [...(options.groups ?? [])], files, notifications: [], badges: new Map(), acknowledged: [], emit: async () => 0, upload: async () => new Response(), close: async () => {} };
+  const chest: FakeChest = { api: "", token, tool, members: [...(options.members ?? [])], groups: [...(options.groups ?? [])], files, notifications: [], badges: new Map(), acknowledged: [], emit: async () => 0, upload: async () => new Response(), schedules: [...(options.schedules ?? [])], runs: [], run: async () => 0, close: async () => {} };
   const former = [...(options.former ?? [])];
   let window = 0, calls = 0;
   const shown = (m: FakeMember) => ({ id: m.id, first_name: m.firstName, last_name: m.lastName, name: m.name, photo: m.photo, role: m.role, admin: m.isAdmin, builder: m.isBuilder, groups: m.groups, ...(m.locale === undefined ? {} : { locale: m.locale }), ...(email && m.email !== undefined ? { email: m.email } : {}) });
@@ -452,9 +459,10 @@ export async function fakeChest(options: FakeChestOptions = {}): Promise<FakeChe
     route(request, response, url).catch(() => { if (!response.headersSent) send(response, 503, { error: "unavailable" }); else response.destroy(); });
   });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
-  const saved = Object.fromEntries(["CHEST_API", "CHEST_TOKEN", "CHEST_TOOL"].map(name => [name, process.env[name]]));
+  const saved = Object.fromEntries(["CHEST_API", "CHEST_TOKEN", "CHEST_TOOL", "CHEST_TIMEZONE"].map(name => [name, process.env[name]]));
   chest.api = "http://127.0.0.1:" + (server.address() as AddressInfo).port;
-  Object.assign(process.env, { CHEST_API: chest.api, CHEST_TOKEN: token, CHEST_TOOL: tool });
+  const zone = options.timeZone ?? "Europe/Paris";
+  Object.assign(process.env, { CHEST_API: chest.api, CHEST_TOKEN: token, CHEST_TOOL: tool, CHEST_TIMEZONE: zone });
   forget();
   chest.emit = async (event, to) => {
     const id = event.id ?? "evt_" + Array.from(randomBytes(26), b => "abcdefghijklmnopqrstuvwxyz234567"[b & 31]).join("");
@@ -463,6 +471,20 @@ export async function fakeChest(options: FakeChestOptions = {}): Promise<FakeChe
     const request = new Request(typeof to === "string" ? to.replace(/\/$/u, "") + "/chest-events" : "http://tool.test/chest-events", { method: "POST", headers: { "Content-Type": "application/json", "Chest-Event": signEvent(id, body, { token, tool }) }, body });
     const answer = typeof to === "string" ? await fetch(request, { redirect: "manual" }) : await to(request);
     await answer.body?.cancel();
+    return answer.status;
+  };
+  // run delivers a run of a declared schedule to POST /chest-jobs/<name>,
+  // signed as the Chest signs it (Chest-Job), and says the status answered.
+  chest.run = async (name, to, runOptions = {}) => {
+    if (!chest.schedules.some(s => s.name === name)) throw new Error(`fakeChest: no schedule named ${name} (options.schedules)`);
+    const id = runOptions.id ?? "run_" + Array.from(randomBytes(26), b => "abcdefghijklmnopqrstuvwxyz234567"[b & 31]).join("");
+    const scheduledAt = runOptions.scheduledAt ?? new Date(Math.floor(Date.now() / 60000) * 60000).toISOString();
+    const attempt = runOptions.attempt ?? 1;
+    const body = JSON.stringify({ id, name, scheduledAt, attempt, timeZone: zone });
+    const request = new Request((typeof to === "string" ? to.replace(/\/$/u, "") : "http://tool.test") + "/chest-jobs/" + name, { method: "POST", headers: { "Content-Type": "application/json", "Chest-Job": signEvent(id, body, { token, tool, label: "Chest-Job v1" }) }, body });
+    const answer = typeof to === "string" ? await fetch(request, { redirect: "manual" }) : await to(request);
+    await answer.body?.cancel();
+    chest.runs.push({ id, name, scheduledAt, attempt, status: answer.status });
     return answer.status;
   };
   // upload plays a member's browser sending a file to an uploadUrl answer.

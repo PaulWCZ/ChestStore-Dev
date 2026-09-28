@@ -316,6 +316,7 @@ export const en = {
     },
   },
   bell: {
+    digest: { one: "{count} task for today", other: "{count} tasks for today" },
     assigned: "{name} gave you a task",
     mentioned: "{name} mentioned you on “{card}”",
     commented: "{name} commented on “{card}”",

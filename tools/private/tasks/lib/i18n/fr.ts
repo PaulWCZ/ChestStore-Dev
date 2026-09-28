@@ -315,6 +315,7 @@ export const fr: Catalogue = {
     },
   },
   bell: {
+    digest: { one: "{count} tâche pour aujourd’hui", other: "{count} tâches pour aujourd’hui" },
     assigned: "{name} vous a confié une tâche",
     mentioned: "{name} vous a mentionné sur « {card} »",
     commented: "{name} a commenté « {card} »",

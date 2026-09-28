@@ -44,6 +44,9 @@ if (!folder || !existsSync(join(folder, "chest.json"))) {
 }
 const tool = resolve(folder);
 const manifest = JSON.parse(readFileSync(join(tool, "chest.json"), "utf8"));
+// Manifest keys of the SDK working copy's proposals, which a Chest does not
+// accept yet: kept apart so the tool stays installable today.
+const proposals = existsSync(join(tool, "chest.proposals.json")) ? JSON.parse(readFileSync(join(tool, "chest.proposals.json"), "utf8")) : {};
 const port = Number(option("port", "4000"));
 const inner = port + 1;
 const origin = `http://localhost:${port}`;
@@ -54,7 +57,7 @@ if (!existsSync(join(sdk, "dist", "src", "testing.js"))) {
   if (!existsSync(join(sdk, "node_modules"))) execFileSync("npm", ["ci", "--no-audit", "--no-fund"], { cwd: sdk, stdio: "inherit" });
   execFileSync("npm", ["run", "build"], { cwd: sdk, stdio: "inherit" });
 }
-const testing = await import(pathToFileURL(join(sdk, "dist", "src", "testing.js")).href);
+const testing = { ...(await import(pathToFileURL(join(sdk, "dist", "src", "testing.js")).href)), schedulesApi: await import(pathToFileURL(join(sdk, "dist", "src", "schedules.js")).href) };
 
 // The database, as the Chest makes it.
 const capabilities = manifest.capabilities ?? [];
@@ -105,6 +108,8 @@ const chest = await testing.fakeChest({
   capabilities: capabilities.filter(c => c !== "database"),
   receives: manifest.receives ?? [],
   origin,
+  schedules: proposals.schedules ?? [],
+  timeZone: process.env["CHEST_TIMEZONE"] ?? "Europe/Paris",
 });
 
 // The tool, with the Chest's environment.
@@ -181,6 +186,11 @@ const front = createServer(async (request, response) => {
         console.log(`event ${type} for ${id} → ${status}`);
         return void response.writeHead(303, back).end();
       }
+      if (path === "/_dev/schedule") {
+        const status = await chest.run(form.get("name"), `http://127.0.0.1:${inner}`);
+        console.log(`schedule ${form.get("name")} run → ${status}`);
+        return void response.writeHead(303, back).end();
+      }
       if (path === "/_dev/clear") {
         chest.notifications.splice(0);
         return void response.writeHead(303, back).end();
@@ -194,11 +204,11 @@ const front = createServer(async (request, response) => {
       }
       return void response.writeHead(404).end();
     }
-    const html = devPage({ manifest, chest, me: current(request), origin });
+    const html = devPage({ manifest, chest, me: current(request), origin, schedulesApi: testing.schedulesApi });
     return void response.writeHead(200, { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" }).end(html);
   }
   if (path.startsWith("/_chest/")) return relay(request, response, { port: Number(new URL(chest.api).port) }, request.headers);
-  if (path === "/chest-events") return void response.writeHead(404).end();
+  if (path === "/chest-events" || path.startsWith("/chest-jobs/")) return void response.writeHead(404).end();
   const headers = { ...request.headers, "x-forwarded-host": `localhost:${port}`, "x-forwarded-proto": "http" };
   delete headers["chest-member"];
   const first = path.split("/")[1]?.toLowerCase();

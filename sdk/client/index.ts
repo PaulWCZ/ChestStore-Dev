@@ -12,3 +12,4 @@ export * as files from "./src/files.js";
 export * as members from "./src/members.js";
 export * as notifications from "./src/notifications.js";
 export * as events from "./src/events.js";
+export * as schedules from "./src/schedules.js";
