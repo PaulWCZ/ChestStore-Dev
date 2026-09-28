@@ -1,29 +1,32 @@
-# Adapting this tool — a guide for AI agents
+# Adapting Tasks — a guide for AI agents
 
-`README.md` says what the tool does; this page says where things are and
-what must not break.
+`README.md` says what Tasks does; this page says where things are and what
+must not break.
 
 ## Map
 
 | Path | What it is |
 |---|---|
-| `chest.json` | The manifest: name, roles, capabilities, build |
-| `lib/access.ts` | **Who may do what** — the only place roles are read |
-| `lib/notes.ts` | The service: rules, bounds, SQL (parameterised); takes `sql` and the member, throws `AppError(code)` |
-| `lib/errors.ts` | Error codes, `Result`, `attempt()` for server actions |
+| `chest.json` | Manifest: roles `manager`, `member`, `viewer`; `database`, `files`, `members`, `notifications`; `receives` |
+| `lib/access.ts` | **Who may do what**: tool abilities (`can`) and a board's access (`boardAccess`: none, read, comment, write, own) |
+| `lib/boards.ts` | Boards, columns, labels, board people and groups |
+| `lib/cards.ts` | Cards, assignees, checklist, comments, files, history, My tasks, search, the tile's count |
+| `lib/model.ts` | Bounds, colours, templates, dates, text cleaning — pure |
+| `lib/position.ts` | Fractional positions (a key between two others) — pure, tested |
+| `lib/parse-import.ts`, `lib/importers.ts` | Trello JSON / CSV reading (pure, used in the browser too), then writing a board |
+| `lib/export.ts`, `lib/csv.ts` | CSV and JSON exports; CSV reading and writing (formula-safe) |
+| `lib/tell.ts`, `lib/notify.ts` | The bell (each recipient's language) and badges |
+| `lib/lifecycle.ts` | Leaving and erasure |
+| `lib/audience.ts` | Who sees a board, for pickers |
 | `lib/i18n/` | Every word: `en.ts` (source), `fr.ts`; `format.ts` for the browser |
-| `lib/session.ts` | The member (`member()` of the SDK) and their language |
-| `lib/people.ts` | Names and photos from member ids (`members.lookup`) |
-| `lib/notify.ts` | Bell items in each recipient's language; badges |
-| `lib/lifecycle.ts` | What happens when a member leaves or is erased |
-| `app/chest/` | The members' part: pages (server) and views (client) |
-| `app/chest/actions.ts` | Server actions: thin, each re-reads the member |
-| `app/chest-events/route.ts` | The Chest's lifecycle events (signed) |
-| `proxy.ts` | Content-Security-Policy with a nonce; 401 on `/chest` without a member |
-| `migrations/` | The schema, run by the Chest in order |
-| `seed/sample.sql` | Sample data for local runs (never run by the Chest) |
-| `test/` | `node:test` with the SDK's `fakeChest` and a real PostgreSQL (PGlite) |
-| `vendor/` | The SDK working copy, packed — do not edit |
+| `app/chest/actions.ts` | Server actions: thin; each re-reads the member; answer `Result` codes |
+| `app/chest/**/page.tsx` | Pages (server): read, resolve names, hand words to views |
+| `app/chest/boards/[id]/board-view.tsx` | The board (client): dnd-kit, keyboard moves, list view, filters |
+| `app/chest/boards/[id]/card-panel.tsx` | A card (client) |
+| `app/chest/api/cards/[id]/upload/route.ts`, `app/chest/files/[id]/route.ts` | Files: authorise, record, open |
+| `migrations/` | Schema. Never edit a shipped file; add `0002_…` |
+| `seed/sample.sql` | Sample boards for local runs |
+| `test/` | `node:test` with `fakeChest` and PostgreSQL (PGlite or `TEST_DATABASE_URL`) |
 
 ## Commands
 
@@ -33,17 +36,21 @@ npm ci && npm test && npm run build   # all three must pass
 
 ## Rules
 
-- **Identity comes only from `member()`** (`lib/session.ts`). Never from a
-  body, a query, a cookie. Store `mbr_…` ids, never names or emails.
-- **Rights live in `lib/access.ts`**; services call `can()` before acting;
-  add a line to `test/access.test.ts` for each new ability.
-- **Services return codes, never sentences**; words go in every catalogue
-  of `lib/i18n/` (the tests compare them and look for words in the pages).
-- **Client components never import the SDK**, `lib/session.ts`,
-  `lib/people.ts` or `lib/db.ts` (the build fails: `node:crypto`).
-- **Schema changes are new migration files.** Never edit one that shipped;
-  the previous version must keep working on the new schema.
-- **No network, no disk, no background work.** Deferred work is done on the
-  next request (see the purge in `listNotes`).
-- **Keep the CSP** in `proxy.ts`: no inline script without the nonce, no
-  other origin.
+- **Identity only from `member()`** (`lib/session.ts`); store `mbr_…` ids.
+- **Every service function takes `(sql, actor, …)`**, checks access through
+  `board()`/`card()` (a board the actor cannot see is `not_found`, never
+  `forbidden`: private boards do not leak), and throws `AppError(code)`.
+- **Add an ability → a line in `test/access.test.ts`.** Add a service →
+  tests with each role.
+- **Client components import only** `lib/i18n/format.ts`, `lib/app-error.ts`,
+  `lib/parse-import.ts`, `lib/initials.ts` and types. Never the SDK,
+  `lib/db.ts`, `lib/session.ts` (the build fails: `node:crypto`).
+- **Words live in `lib/i18n/`**, in every catalogue (tests compare keys and
+  placeholders, and look for words written in pages).
+- **Drag ids are prefixed** (`card:`, `lane:`): a card and a column may
+  share a number.
+- **Files**: authorise with `files.uploadUrl` in a `/chest` route after the
+  access check; record only after `files.stat`; open through
+  `/chest/files/<id>` (a fresh signed link), never put a signed link in a page.
+- **No network, no disk, no background work.** Deferred work runs on the
+  next request (the badge refresh on the home page).

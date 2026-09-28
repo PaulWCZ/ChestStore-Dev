@@ -1,56 +1,72 @@
-# Notes — design
+# Tasks — design
 
 ## Name and personality
 
-**Notes** (French: *Notes*). Calm, plain, friendly.
+**Tasks** (French: *Tâches*). Bright, sturdy, playful — a workshop wall of
+cards, not a spreadsheet.
 
 ## Tokens
 
-Ratios computed with `scripts/contrast.mjs` (WCAG 2; AA is 4.5:1 for text).
-
-Defined once in `app/tokens.css` (light, and dark by the system's choice);
-nothing else in the CSS names a colour or a size.
+All in `app/tokens.css` (light, and dark by the system's choice). Ratios
+computed with `scripts/contrast.mjs` (WCAG 2; AA is 4.5:1 for text).
 
 | Token | Light | Dark | Use |
 |---|---|---|---|
-| `--bg` | `#f7f6f2` | `#161614` | page |
-| `--surface` | `#ffffff` | `#201f1c` | cards, fields |
-| `--ink` | `#1c1b18` | `#f2f0ea` | text — 17.2:1 on `--surface` (light), 14.5:1 (dark) |
-| `--ink-2` | `#57544c` | `#b5b1a6` | secondary text — 7.6:1 / 7.7:1 |
-| `--accent` | `#2b59c3` | `#8fb0ff` | the one action, focus — 6.3:1 with white text / 8.1:1 with `--accent-ink` |
-| `--danger` | `#b3261e` | `#ff8a80` | errors — 6.5:1 / 7.2:1 |
+| `--bg` | `#fff8e7` paper | `#161512` | page |
+| `--surface` | `#ffffff` | `#201f1b` | cards, fields |
+| `--ink` | `#151515` | `#f4efe3` | text, outlines — 17.3:1 on paper; 15.9:1 dark |
+| `--ink-2` | `#5b574e` | `#b9b2a3` | secondary text — 6.8:1 on paper; 7.8:1 dark |
+| `--accent` | `#ffd84d` sun | same | the main action, current tab — ink on sun 13.2:1 |
+| `--link` | `#1f4bff` | `#8fa8ff` | links, focus — 6.0:1 / 7.2:1 |
+| `--danger` | `#c2290f` | `#ff8c73` | errors, delete — 5.8:1 / 7.3:1 |
+| board colours | sun `#ffd84d`, tomato `#ff7a59`, berry `#f266a8`, grape `#9b7bff`, sky `#5bb4ff`, sea `#2fc6b5`, leaf `#7bd05b`, sand `#e9c79a`, slate `#9aa5b1` | same | always with ink text: 5.8:1 (grape) to 13.2:1 (sun) |
 
-Type: **Figtree** (OFL-1.1, self-hosted in `public/fonts/`), 16 px body,
-1.5 line height; headings 700. Spacing: 4, 8, 12, 16, 24, 32, 48 px. Radii
-6, 10, 16 px. Motion: 120 ms and 240 ms, none when the system asks for
-reduced motion.
+**Type**: *Space Grotesk* (display: headings, board and column names) and
+*Inter* (everything else), both OFL-1.1, self-hosted in `public/fonts/`.
+16 px body. **Shape**: 2 px ink outlines, radii 6/10/14 px, a hard offset
+shadow (3 px, 5 px when lifted) — no blur. **Space**: 4, 8, 12, 16, 24, 32,
+48. **Motion**: 120 and 220 ms, none with reduced motion; a card lifts on
+hover and tilts while dragged.
 
 ## Components
 
-Button (primary, quiet, link), text field, avatar (photo or initials), note
-card (normal, pinned, pending), empty state with one action, toast with
-"Undo". Every control is 44 px tall at least; focus is a 3 px ring.
+Buttons (sun primary, quiet, danger, small), icon buttons, fields and
+selects, choice cards (radio), swatches, chips (label, due late / today /
+done), avatars and stacks, board tiles, task rows with a round tick, lanes
+and cards (normal, done, dragging, overlay), a side panel for a card (full
+screen on a phone), dialogs on `<dialog>`, pop-over pickers, menus, toasts
+with *Undo*, empty states with one action.
 
 ## Icon
 
-`chest/icon.svg`: three lines of text on a rounded square in the accent —
-a note. No letters; readable at 24 px on light and dark tiles.
+`chest/icon.svg`: a white card with a tick, on a sun square outlined in ink
+with a hard shadow — the tool's shape language in 48 units. No letters;
+readable at 24 px on light and dark tiles (the ink outline carries it on
+dark).
 
 ## Why
 
-A note board is read in passing: the content is the design, so the frame
-is quiet (warm paper white, one blue) and the action is obvious.
+A task board is handled all day, often on a phone: big targets, bold
+outlines and flat colours make every card easy to grab and every state
+readable at a glance (late is tomato, today is sun, done is leaf and
+struck). The playful shadows make it feel like moving paper cards, which
+is exactly what a non-technical team expects from "a board".
 
 ```json showcase
 {
-  "adjectives": ["calm", "plain", "friendly"],
+  "adjectives": ["bright", "sturdy", "playful"],
   "colors": [
-    { "name": "Paper", "value": "#f7f6f2" },
-    { "name": "Ink", "value": "#1c1b18" },
-    { "name": "Blue", "value": "#2b59c3" },
-    { "name": "Stone", "value": "#57544c" }
+    { "name": "Paper", "value": "#fff8e7" },
+    { "name": "Ink", "value": "#151515" },
+    { "name": "Sun", "value": "#ffd84d" },
+    { "name": "Tomato", "value": "#ff7a59" },
+    { "name": "Grape", "value": "#9b7bff" },
+    { "name": "Leaf", "value": "#7bd05b" }
   ],
-  "fonts": { "display": { "family": "Figtree Variable", "file": "public/fonts/figtree-latin-wght-normal.woff2", "weight": 700 }, "body": { "family": "Figtree Variable", "file": "public/fonts/figtree-latin-wght-normal.woff2", "weight": 400 } },
-  "specimen": "Post a note for the whole team."
+  "fonts": {
+    "display": { "family": "Space Grotesk", "file": "public/fonts/space-grotesk-latin-wght-normal.woff2", "weight": 700 },
+    "body": { "family": "Inter", "file": "public/fonts/inter-latin-wght-normal.woff2", "weight": 400 }
+  },
+  "specimen": "Book the moving truck — due today"
 }
 ```
