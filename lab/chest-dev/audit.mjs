@@ -2,7 +2,9 @@
 // screen of its docs/screens.json — the page, then its "actions" replayed
 // like screens.mjs does, so a state behind a click (a dialog, a form) is
 // checked too — at desktop and phone width (or the sizes its "only" names),
-// light and dark, with axe-core (WCAG 2.1 A and AA rules). A lab tool:
+// light and dark, with axe-core (WCAG 2.1 A and AA rules) — in the company's
+// look a screen names ("look", as screens.mjs), so every theme is audited
+// on the tool's real pages. A lab tool:
 // axe-core is never part of a tool.
 //
 //   node lab/chest-dev/audit.mjs <tool folder> [--port 4000]
@@ -44,12 +46,21 @@ async function run(page, actions = []) {
 // The same page in the same state is audited once, whatever its name.
 const seen = new Set();
 const screens = shots.filter(shot => {
-  const key = `${shot.path}|${shot.member ?? ""}|${shot.locale ?? ""}|${JSON.stringify(shot.actions ?? [])}`;
+  const key = `${shot.path}|${shot.member ?? ""}|${shot.locale ?? ""}|${JSON.stringify(shot.actions ?? [])}|${JSON.stringify(shot.look ?? null)}`;
   return seen.has(key) ? false : (seen.add(key), true);
 });
-const label = shot => (shot.actions?.length ? `${shot.path} → ${shot.name}` : shot.path);
+const label = shot => (shot.actions?.length || shot.look ? `${shot.path} → ${shot.name}` : shot.path);
+const looks = shots.some(shot => shot.look);
+async function setLook(level, choice) {
+  const answer = await fetch(`${origin}/_dev/theme`, { method: "POST", body: new URLSearchParams({ level, choice }), redirect: "manual" });
+  if (answer.status !== 303) throw new Error(`the harness refused the look ${level}=${choice} (${answer.status})`);
+}
 
 for (const shot of screens) {
+  if (looks) {
+    await setLook("all", shot.look?.all ?? "own");
+    await setLook("tool", shot.look?.tool ?? "inherit");
+  }
   for (const [kind, viewport] of [["desktop", { width: 1440, height: 900 }], ["phone", { width: 390, height: 844 }]]) {
     if (shot.only && !shot.only.includes(kind)) continue;
     for (const scheme of ["light", "dark"]) {
@@ -82,6 +93,10 @@ for (const shot of screens) {
       await context.close();
     }
   }
+}
+if (looks) {
+  await setLook("all", "own");
+  await setLook("tool", "inherit");
 }
 await browser.close();
 for (const line of unreached) console.log(`✗ could not reach the screen: ${line}`);

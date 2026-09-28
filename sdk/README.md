@@ -26,7 +26,7 @@ module is not in the root).
 | `@argentic/chest-sdk/members` | `list`, `get`, `lookup`, `groups.list`, `forget`, types `MemberPage`, `Lookup`, `FormerMember`, `Group`: the members who have the tool (capability `members`, their addresses with `members.email`) |
 | `@argentic/chest-sdk/notifications` | `notify`, `withdraw`, `broadcast` (Proposal (studio)), `badge.set`, `badge.setMany`, types `Notice`, `Delivery`, `BadgeCount`, `BadgeWrite`: counters on the tool's tile and items in members' inboxes, inside the Chest (capability `notifications`) |
 | `@argentic/chest-sdk/events` | `handle`, `verify`, `acknowledgeErasure`, `memorySeen`, `erasureIdPattern`, types `ChestEvent`, `MemberUpdated`, `AccessRevoked`, `MemberRemoved`, `MemberErased`, `MemberChange`, `Handlers`, `Seen`: the events of the members' lifecycle the Chest posts to the tool's `/chest-events` (`"receives": ["member.*"]`), verified, deduplicated by id, and the acknowledgment of an erasure |
-| `@argentic/chest-sdk/chest` | **Proposal (studio).** `company`, `timeZone`, `today`, `currency`, `locale`, `teamUrl`, `publicUrl`: the Chest's settings every tool needs |
+| `@argentic/chest-sdk/chest` | **Proposal (studio).** `company`, `timeZone`, `today`, `currency`, `locale`, `teamUrl`, `publicUrl`: the Chest's settings every tool needs; `theme`, `readThemeChoice`, `forgetTheme`, `themeIdPattern`, types `ThemeChoice`, `BrandChoice`, `ThemeFont`: the look the company chose for its tools |
 | `@argentic/chest-sdk/visitors` | **Proposal (studio).** `formToken`, `checkForm`, `count`, `language`, `visitor`, `address`: the guard and the language of a public host's anonymous visitors |
 | `@argentic/chest-sdk/checks` | **Proposal (studio).** `configure`, `list`, `handle`, `verify`, `checkManifest`, `checkChecks`: web addresses the Chest checks for the tool, and their results |
 | `@argentic/chest-sdk/database` | `databaseUrl()`: the address of the tool's own PostgreSQL database (capability `database`) |
@@ -546,6 +546,71 @@ request — an email sent by a schedule, an export, a calendar feed — use
 `teamUrl()` / `publicUrl()` instead of a forwarded host.
 `schedules.timeZone()` is the same function.
 
+### `theme` — the look the company chose (Proposal (studio))
+
+```ts
+import * as chest from "@argentic/chest-sdk/chest";
+await chest.theme();
+// { mode: "own", scope: "default" }                                   each tool its own identity
+// { mode: "catalogue", theme: "library", fonts: "/_chest/theme/fonts", faces: [], scope: "chest" }
+// { mode: "brand", brand: { name, primary, secondary, neutral, corners, density, display, body, logo }, fonts, scope: "tool" }
+```
+
+A company chooses once, in its Chest's admin, how its tools look, **at two
+levels**: **all tools** (each keeps its own identity — the default —, or
+one theme of the catalogue, or the company's brand), and, for any **one
+tool**, something else ("Wiki keeps its own look"). The Chest resolves the
+two levels: a tool receives only its own answer, and `scope` says where
+it came from (`"tool"`: this tool's override; `"chest"`: the choice for
+all; `"default"`: the Chest says nothing). The tool renders it with the UI
+kit (`@argentic/chest-ui`: `resolveTheme(await chest.theme(), identity)`
+and one `<style>` with the page's nonce); a theme is only a look — same
+pages, same words, same accessibility.
+
+| Answer | Carries |
+|---|---|
+| `own` | nothing: the tool's own identity |
+| `catalogue` | `theme`: a catalogue id (`themeIdPattern`); `fonts`: where the Chest serves the catalogue's fonts; `faces`: fonts the Chest holds a licence for and serves itself (`{family, url, weight, style}`, e.g. the portal's Suisse) |
+| `brand` | `brand`: `name`, `primary` (`#rrggbb`), `secondary` and `neutral` (or `null`), `corners` (`sharp`, `soft`, `round`), `density` (`comfortable`, `compact`), `display` and `body` (`{id}` of a catalogue font, or `{family, files: [{url, weight, style}]}` of the company's upload, or `null`), `logo` (`{url, alt, dark}` or `null`); `fonts` as above |
+
+Files are served by the Chest's front **on the tool's own hosts**, under
+`/_chest/theme/` (`fonts/…` for the catalogue's, `brand/…` for the
+company's fonts and logo): the tool's policy (`font-src 'self'`,
+`img-src 'self'`) admits them unchanged, and a public page may use them
+(they are the company's public look). `theme()` asks `GET /theme` of the
+Chest's API and keeps the answer as long as the Chest says
+(`Cache-Control: max-age`, at most 5 minutes, 60 s by default): an owner's
+change shows within that time, with no restart. It never throws and
+checks every word (`readThemeChoice`): outside a Chest, on a Chest
+without themes (404), when unreachable (kept 10 s), or for an answer it
+does not know (an address off `/_chest/theme/`, a family name with
+quotes, a colour that is not `#rrggbb`), the answer is `{mode: "own",
+scope: "default"}` — the look must never break a page.
+
+No manifest key and no approval: a look is not a permission (the tool
+learns nothing about people, and every file stays on its origin). The
+owner's sentence in the admin is the choice itself: "How your tools
+look: each its own / one theme for all / your brand", then per tool
+"Same as all tools / its own look / a theme / your brand".
+
+Risks: a brand colour that reads badly (the kit moves it just enough and
+says so: AA holds in every brand, light and dark); a tool that writes
+colours in its CSS ignores the look (the kit's tests flag a literal
+colour); files served on every tool's origin (only under `/_chest/theme/`,
+the company's public look, no one's data). Elsewhere (from the products'
+admin pages as we know them, not re-read today): Microsoft 365
+organisation themes, Salesforce "Themes and Branding" and Atlassian's
+custom colours let an admin set a logo and colours once for everyone;
+none lets each app keep an identity of its own, which the store's tools
+have.
+
+In tests: `fakeChest({ theme: { all, tools: { <tool>: choice } }, themeFiles: { "fonts/…": {data, type}, "brand/logo.svg": … } })`;
+`chest.theme.all` and `chest.theme.tools[name]` change at any time (the
+fake answers `max-age=0`), and the fake's front serves `themeFiles` at
+`/_chest/theme/…`. `forgetTheme()` drops the answer kept. The harness
+(`lab/chest-dev`) offers both levels on `/_dev`, serves the kit's fonts
+and a sample brand.
+
 ## `visitors` — the public host's visitors (Proposal (studio))
 
 ```ts
@@ -807,6 +872,7 @@ await chest.close();
 | `fakeChest({origin})` | **Proposal (studio).** The team host its links and uploads point to (`https://<tool>-chest.chest.test` by default). A local harness gives its own (`http://localhost:<port>`) and relays `/_chest/*` of its host to `chest.api`, where the fake Chest's front serves the uploads, the signed links and the members' photos (initials). `files.url` and `uploadUrl` accept `http://localhost` and `http://127.0.0.1` links for that reason |
 | `fakeChest({schedules, timeZone})`, `chest.run(name, to, {id?, scheduledAt?, attempt?})`, `chest.runs` | **Proposal (studio).** A run of a declared schedule delivered to `POST <to>/chest-jobs/<name>` (or a handler of Web Requests), signed as the Chest would; `CHEST_TIMEZONE` set (Europe/Paris by default) |
 | `fakeChest({settings: {company, currency, locale, publicUrl}})` | **Proposal (studio).** The Chest's settings (`chest`) in the environment while the fake runs; `CHEST_TEAM_URL` is the fake's origin |
+| `fakeChest({theme, themeFiles})`, `chest.theme`, `chest.themeFiles` | **Proposal (studio).** The company's look at its two levels (`{all, tools}`), which `chest.theme()` answers resolved for the tool (`CHEST_TOOL`) with `max-age=0`; the files its front serves under `/_chest/theme/` |
 | `chest.former` | **Proposal (studio).** Those who left (`{id, name}`) or were erased (`{id, erased: true}`): what `members.lookup` answers "former" for. A test or a harness that removes a member from `chest.members` moves them here, as a real Chest would |
 | `chest.close()` | Stops it and restores the environment |
 

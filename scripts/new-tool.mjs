@@ -1,5 +1,5 @@
 // Starts a store tool from the studio's starter (lab/template): copies it,
-// names it, packs the SDK working copy into it and installs.
+// names it, packs the SDK and UI kit working copies into it and installs.
 //
 //   node scripts/new-tool.mjs private <name>
 //   node scripts/new-tool.mjs public-and-private <name>
@@ -25,6 +25,8 @@ cpSync(template, target, { recursive: true, filter: source => !skipped.includes(
 const pkg = JSON.parse(readFileSync(join(target, "package.json"), "utf8"));
 pkg.name = "chest-" + name;
 delete pkg.dependencies["@argentic/chest-sdk"];
+const usesKit = "@argentic/chest-ui" in pkg.dependencies;
+delete pkg.dependencies["@argentic/chest-ui"];
 writeFileSync(join(target, "package.json"), JSON.stringify(pkg, null, 2) + "\n");
 const manifest = JSON.parse(readFileSync(join(target, "chest.json"), "utf8"));
 manifest.name = name;
@@ -35,5 +37,6 @@ if (kind === "private") {
 writeFileSync(join(target, "chest.json"), JSON.stringify(manifest, null, 2) + "\n");
 rmSync(join(target, "package-lock.json"), { force: true });
 execFileSync("node", [join(root, "scripts", "add-sdk.mjs"), relative(root, target)], { cwd: root, stdio: "inherit" });
+if (usesKit) execFileSync("node", [join(root, "scripts", "add-ui.mjs"), relative(root, target)], { cwd: root, stdio: "inherit" });
 execFileSync("npm", ["install", "--no-audit", "--no-fund"], { cwd: target, stdio: "inherit" });
 console.log(`\n${relative(root, target)} is ready: npm test, npm run build; then replace the notes with the tool.`);

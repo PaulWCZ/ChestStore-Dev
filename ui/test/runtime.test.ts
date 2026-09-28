@@ -40,10 +40,10 @@ test("resolveTheme: the Chest's choice first, the tool's own identity otherwise"
   const unknown = resolveTheme({ mode: "catalogue", theme: "vaporwave", scope: "chest" }, own);
   assert.equal(unknown.theme, own);
   assert.match(unknown.problem!, /vaporwave/u);
-  const brand = resolveTheme({ mode: "brand", brand: { name: "Atelier Martin", primary: "#e4572e", secondary: null, neutral: null, corners: "round", density: "comfortable", display: { id: "fraunces" }, body: null, logo: { url: "/_chest/theme/brand/logo.svg", alt: "Atelier Martin" } }, fonts: "/_chest/theme/fonts", scope: "tool" }, own);
+  const brand = resolveTheme({ mode: "brand", brand: { name: "Atelier Martin", primary: "#e4572e", secondary: null, neutral: null, corners: "round", density: "comfortable", display: { id: "fraunces" }, body: null, logo: { url: "/_chest/theme/brand/logo.svg", alt: "Atelier Martin", dark: "/_chest/theme/brand/logo-dark.svg" } }, fonts: "/_chest/theme/fonts", scope: "tool" }, own);
   assert.equal(brand.source, "brand");
   assert.equal(brand.theme.fonts.display.id, "fraunces");
-  assert.deepEqual(brand.logo, { url: "/_chest/theme/brand/logo.svg", alt: "Atelier Martin" });
+  assert.deepEqual(brand.logo, { url: "/_chest/theme/brand/logo.svg", alt: "Atelier Martin", dark: "/_chest/theme/brand/logo-dark.svg" });
   assert.ok(brand.notes.some(n => n.code === "accent_darkened"));
   const unreadable = resolveTheme({ mode: "brand", brand: { primary: "#zzzzzz" } }, own);
   assert.equal(unreadable.source, "own");

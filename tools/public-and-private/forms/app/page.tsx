@@ -1,17 +1,17 @@
-import { Mark } from "../components/mark.tsx";
-import { LanguageSwitch } from "../components/language-switch.tsx";
+import * as chest from "@argentic/chest-sdk/chest";
+import { RespondFrame, RespondNotice } from "../components/respond-frame.tsx";
+import { format } from "../lib/i18n/index.ts";
 import { publicWords } from "../lib/session.ts";
 
-// The public host's root. This tool has no public part: whoever lands here
-// is told where the tool lives, in their language.
+// The public host's root. Forms are reached by their own link only (a form
+// is never listed for strangers): whoever lands here is told so, in their
+// language.
 export default async function PublicHome() {
   const { t, locale } = await publicWords();
+  const company = chest.company();
   return (
-    <main className="page public">
-      <div className="brand"><Mark />{t.meta.name}</div>
-      <h1>{t.public.title}</h1>
-      <p>{t.public.body}</p>
-      <LanguageSwitch current={locale} label={t.public.language} />
-    </main>
+    <RespondFrame accent="berry" company={company || t.public.title} locale={locale} languageLabel={t.public.language} footer={company ? format(t.respond.footer, { company }) : t.meta.tagline}>
+      <RespondNotice title={t.public.title} body={t.public.body} />
+    </RespondFrame>
   );
 }

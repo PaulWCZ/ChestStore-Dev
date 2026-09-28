@@ -19,11 +19,15 @@ what must not break.
 | `app/chest/` | The members' part: pages (server) and views (client) |
 | `app/chest/actions.ts` | Server actions: thin, each re-reads the member |
 | `app/chest-events/route.ts` | The Chest's lifecycle events (signed) |
+| `lib/theme.ts` | The tool's identity (a theme of `@argentic/chest-ui`) and the look of a request (`chest.theme()` → `resolveTheme`) |
+| `app/layout.tsx` | The look as one `<style>` with the page's nonce (`ThemeStyle`) |
+| `app/tokens.css` | The tool's own tokens, defined from contract tokens only |
+| `components/brand-mark.tsx` | The company's logo in brand mode, the tool's mark otherwise |
 | `proxy.ts` | Content-Security-Policy with a nonce; 401 on `/chest` without a member |
 | `migrations/` | The schema, run by the Chest in order |
 | `seed/sample.sql` | Sample data for local runs (never run by the Chest) |
 | `test/` | `node:test` with the SDK's `fakeChest` and a real PostgreSQL (PGlite) |
-| `vendor/` | The SDK working copy, packed — do not edit |
+| `vendor/` | The SDK and UI kit working copies, packed — do not edit (`scripts/add-sdk.mjs`, `scripts/add-ui.mjs`) |
 
 ## Commands
 
@@ -47,3 +51,9 @@ npm ci && npm test && npm run build   # all three must pass
   next request (see the purge in `listNotes`).
 - **Keep the CSP** in `proxy.ts`: no inline script without the nonce, no
   other origin.
+- **No colour in CSS.** Only the kit's contract tokens
+  (`ui/tokens/CONTRACT.md` of the studio, `tokens/CONTRACT.md` in the
+  package); the tool's own tokens in `app/tokens.css` are defined from
+  them. The identity's colours live in `lib/theme.ts` and must pass
+  `checkTheme` (`test/theme.test.ts` also fails on a colour written in a
+  stylesheet).

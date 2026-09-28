@@ -130,7 +130,8 @@ export type BrandChoice = {
   density: "comfortable" | "compact";
   display: ThemeFont | null;
   body: ThemeFont | null;
-  logo: { url: string; alt: string } | null;
+  // dark: the logo's variant for dark pages, if the company gave one.
+  logo: { url: string; alt: string; dark: string | null } | null;
 };
 export type ThemeScope = "chest" | "tool" | "default";
 export type ThemeChoice =
@@ -199,7 +200,8 @@ export function readThemeChoice(value: unknown): ThemeChoice | null {
     if (b["logo"] !== null && b["logo"] !== undefined) {
       const l = b["logo"];
       if (!record(l) || !themePath(l["url"], "svg|png|webp|jpg|jpeg")) return null;
-      logo = { url: l["url"], alt: typeof l["alt"] === "string" ? l["alt"].replace(/\p{Cc}/gu, "").trim().slice(0, 120) : name };
+      if (l["dark"] !== undefined && l["dark"] !== null && !themePath(l["dark"], "svg|png|webp|jpg|jpeg")) return null;
+      logo = { url: l["url"], alt: typeof l["alt"] === "string" ? l["alt"].replace(/\p{Cc}/gu, "").trim().slice(0, 120) : name, dark: typeof l["dark"] === "string" ? l["dark"] : null };
     }
     const fonts = value["fonts"] === undefined ? "/_chest/theme/fonts" : value["fonts"];
     if (!fontsBase(fonts)) return null;

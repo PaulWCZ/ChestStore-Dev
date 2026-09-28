@@ -12,7 +12,7 @@
 // its shape (ThemeChoice below mirrors chest.theme()'s).
 import type { Theme } from "./contract.js";
 import { themeColors, themeCss } from "./css.js";
-import { deriveTheme, type Brand, type BrandFont } from "./derive.js";
+import { deriveTheme, type Brand, type BrandFont, type BrandLogo } from "./derive.js";
 import { familyPattern, fontBasePattern, fontUrlPattern, type FontSource, type FontSpec } from "./fonts.js";
 import type { Note } from "./notes.js";
 import { themeOf } from "./themes.js";
@@ -23,12 +23,12 @@ type ChoiceFont = { id: string } | { family: string; files: FontFile[] } | null;
 export type ThemeChoice =
   | { mode: "own"; scope?: string }
   | { mode: "catalogue"; theme: string; fonts?: string; faces?: ({ family: string } & FontFile)[]; scope?: string }
-  | { mode: "brand"; brand: { name?: string; primary: string; secondary?: string | null; neutral?: string | null; corners?: "sharp" | "soft" | "round"; density?: "comfortable" | "compact"; display?: ChoiceFont; body?: ChoiceFont; logo?: { url: string; alt?: string } | null }; fonts?: string; scope?: string };
+  | { mode: "brand"; brand: { name?: string; primary: string; secondary?: string | null; neutral?: string | null; corners?: "sharp" | "soft" | "round"; density?: "comfortable" | "compact"; display?: ChoiceFont; body?: ChoiceFont; logo?: { url: string; alt?: string; dark?: string | null } | null }; fonts?: string; scope?: string };
 
 // A page's look: the theme, where it came from, where its registered fonts
 // are served, the company's logo (brand only), and what the kit had to do
 // (a catalogue theme it does not know, a brand it could not read).
-export type Look = { theme: Theme; source: "own" | "catalogue" | "brand"; fontBase: string; logo: { url: string; alt: string } | null; notes: Note[]; problem: string | null };
+export type Look = { theme: Theme; source: "own" | "catalogue" | "brand"; fontBase: string; logo: BrandLogo | null; notes: Note[]; problem: string | null };
 
 export type ResolveOptions = {
   // Where the tool serves its own identity's fonts ("/fonts" by default).

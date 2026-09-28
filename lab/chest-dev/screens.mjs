@@ -7,7 +7,11 @@
 //   [{ "name": "board", "path": "/chest", "member": "camille", "locale": "en",
 //      "actions": [{"click": "text=New task"}, {"fill": ["#title", "Call Inès"]}, {"wait": 300}],
 //      "preview": true }]
-// and writes docs/screens/<name>-desktop.png (1440×900) and
+// A shot may name the company's look (Proposal (studio), the harness's
+// switcher): "look": {"all": "catalogue:newsprint", "tool": "inherit"}
+// ("own", "catalogue:<id>", "brand:sample"; "inherit" for the tool level).
+// When any shot names one, every shot sets it (own by default).
+// It writes docs/screens/<name>-desktop.png (1440×900) and
 // <name>-phone.png (390×844, 3× scale); the entry marked preview also gives
 // chest/preview.png (1280×800, under 512 KiB).
 import { existsSync, mkdirSync, readFileSync, statSync } from "node:fs";
@@ -40,7 +44,17 @@ async function run(page, actions = []) {
   }
 }
 
+const looks = shots.some(shot => shot.look);
+async function setLook(level, choice) {
+  const answer = await fetch(`${origin}/_dev/theme`, { method: "POST", body: new URLSearchParams({ level, choice }), redirect: "manual" });
+  if (answer.status !== 303) throw new Error(`the harness refused the look ${level}=${choice} (${answer.status}): is it dev.mjs of this studio?`);
+}
+
 for (const shot of shots) {
+  if (looks) {
+    await setLook("all", shot.look?.all ?? "own");
+    await setLook("tool", shot.look?.tool ?? "inherit");
+  }
   const sizes = [["desktop", { width: 1440, height: 900 }, 1], ["phone", { width: 390, height: 844 }, 3]];
   if (shot.preview) sizes.push(["preview", { width: 1280, height: 800 }, 1]);
   for (const [kind, viewport, scale] of sizes) {
@@ -60,5 +74,9 @@ for (const shot of shots) {
     console.log(`${shot.name} ${kind} → ${file.slice(tool.length + 1)}`);
     if (kind === "preview" && statSync(file).size > 512 << 10) console.warn("! chest/preview.png is over 512 KiB");
   }
+}
+if (looks) {
+  await setLook("all", "own");
+  await setLook("tool", "inherit");
 }
 await browser.close();

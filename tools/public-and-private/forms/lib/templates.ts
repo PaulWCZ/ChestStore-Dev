@@ -27,7 +27,7 @@ export function template(key: TemplateKey, t: Catalogue): Template {
       const c = w.contact;
       return {
         definition: { title: c.title, intro: c.intro, pages: [page([
-          q("short", c.name, { required: true }),
+          q("short", c.name_, { required: true }),
           q("email", c.email, { required: true }),
           q("phone", c.phone),
           q("choice", c.topic, { required: true, options: [c.topicQuestion, c.topicQuote, c.topicOrder], other: true }),
@@ -42,7 +42,7 @@ export function template(key: TemplateKey, t: Catalogue): Template {
       const diet = q("short", e.diet, { showIf: { question: lunch.id, op: "is", value: true } });
       return {
         definition: { title: e.title, intro: e.intro, pages: [page([
-          q("short", e.name, { required: true }),
+          q("short", e.name_, { required: true }),
           q("email", e.email, { required: true }),
           q("short", e.company),
           q("number", e.people, { required: true, min: 1, max: 10 }),
@@ -69,7 +69,7 @@ export function template(key: TemplateKey, t: Catalogue): Template {
       const j = w.job;
       return {
         definition: { title: j.title, intro: j.intro, pages: [page([
-          q("short", j.name, { required: true }),
+          q("short", j.name_, { required: true }),
           q("email", j.email, { required: true }),
           q("phone", j.phone),
           q("short", j.position, { required: true }),

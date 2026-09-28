@@ -31,10 +31,10 @@ test("the look follows the Chest: the company's choice for all tools, this tool'
     assert.equal(look.source, "catalogue");
     assert.equal(look.theme.id, "newsprint");
     assert.equal(look.fontBase, "/_chest/theme/fonts");
-    chest.theme.tools[chest.tool] = { mode: "brand", brand: { name: "Atelier Martin", primary: "#0e7c66", secondary: "#f2b134", corners: "round", display: { id: "young-serif" }, logo: { url: "/_chest/theme/brand/logo.svg", alt: "Atelier Martin" } } };
+    chest.theme.tools[chest.tool] = { mode: "brand", brand: { name: "Atelier Martin", primary: "#0e7c66", secondary: "#f2b134", corners: "round", display: { id: "young-serif" }, logo: { url: "/_chest/theme/brand/logo.svg", alt: "Atelier Martin", dark: "/_chest/theme/brand/logo-dark.svg" } } };
     look = await currentLook();
     assert.equal(look.source, "brand");
-    assert.deepEqual(look.logo, { url: "/_chest/theme/brand/logo.svg", alt: "Atelier Martin" });
+    assert.deepEqual(look.logo, { url: "/_chest/theme/brand/logo.svg", alt: "Atelier Martin", dark: "/_chest/theme/brand/logo-dark.svg" });
     assert.deepEqual(checkTheme(look.theme), []);
     chest.theme.tools[chest.tool] = { mode: "own" };
     assert.equal((await currentLook()).theme, identity);

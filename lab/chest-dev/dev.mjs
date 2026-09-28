@@ -69,7 +69,10 @@ if (!existsSync(join(ui, "dist", "themes.js"))) {
   execFileSync("npm", ["run", "build"], { cwd: ui, stdio: "inherit" });
 }
 const { catalogue } = await import(pathToFileURL(join(ui, "dist", "themes.js")).href);
-const themeFiles = { "brand/logo.svg": { data: readFileSync(join(root, "lab", "chest-dev", "brand", "atelier-martin.svg")), type: "image/svg+xml" } };
+const themeFiles = {
+  "brand/logo.svg": { data: readFileSync(join(root, "lab", "chest-dev", "brand", "atelier-martin.svg")), type: "image/svg+xml" },
+  "brand/logo-dark.svg": { data: readFileSync(join(root, "lab", "chest-dev", "brand", "atelier-martin-dark.svg")), type: "image/svg+xml" },
+};
 for (const file of existsSync(join(ui, "fonts")) ? readdirSync(join(ui, "fonts")) : []) {
   themeFiles[`fonts/${file}`] = { data: readFileSync(join(ui, "fonts", file)), type: file.endsWith(".woff2") ? "font/woff2" : "text/plain; charset=utf-8" };
 }

@@ -15,9 +15,12 @@ cd tools/private/<name>
 ```
 
 Then delete the starter's notes feature (`lib/notes.ts`, `app/chest/notes-view.tsx`,
-`migrations/0001_notes.sql`, `test/notes.test.ts`), its font (`app/fonts/figtree.css`,
-`public/fonts/figtree*`, `LICENSE-figtree.txt`) and add yours:
+`migrations/0001_notes.sql`, `test/notes.test.ts`), its font (`public/fonts/figtree*`,
+`LICENSE-figtree.txt`) and add yours:
 `node scripts/add-font.mjs tools/private/<name> @fontsource-variable/<font>` (or `@fontsource/<font> 400,700`).
+When the font is in the UI kit's registry (`ui/README.md`, 30 fonts), name it in
+the identity (`lib/theme.ts`) and delete the `app/fonts/<font>.css` the script
+wrote: the kit writes the `@font-face` (same file names).
 
 ## 2. Architecture (keep it)
 
@@ -42,7 +45,13 @@ written in `.tsx` files.
 ## 3. Design
 
 Your own identity (brief/05): a direction nobody else in the store uses,
-tokens in `app/tokens.css` (light + dark), components in `app/globals.css`,
+defined as a theme of the UI kit (`ui/`, `@argentic/chest-ui`, vendored by
+`scripts/add-ui.mjs`): `defineTheme` in `lib/theme.ts`, checked by
+`checkTheme` (every pair of `ui/tokens/CONTRACT.md`, WCAG AA, light and
+dark). The company may give the tool another look in its Chest (a theme of
+the catalogue, its brand): the CSS names **only contract tokens**, the
+tool's own tokens in `app/tokens.css` are defined from them, never a
+colour (`lab/template/test/theme.test.ts` checks it). Components in `app/globals.css`,
 icons drawn in `components/icons.tsx` (24-unit strokes), a mark in
 `components/mark.tsx` and `chest/icon.svg` (+ `app/icon.svg`), contrast
 checked with `node scripts/contrast.mjs "#fg on #bg"` (AA 4.5:1). The

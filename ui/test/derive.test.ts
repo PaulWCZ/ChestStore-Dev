@@ -71,7 +71,7 @@ test("corners, density, fonts and logo come through; the theme follows the syste
   assert.equal(t.fonts.body.family, "Brand Atelier Sans");
   assert.equal(t.modes, "both");
   assert.equal(t.name.en, "Atelier Martin");
-  assert.deepEqual(derived.logo, { url: "/_chest/theme/brand/logo.svg", alt: "Atelier Martin" });
+  assert.deepEqual(derived.logo, { url: "/_chest/theme/brand/logo.svg", alt: "Atelier Martin", dark: null });
   const unknown = deriveTheme({ primary: "#0e7c66", display: { id: "comic-sans" } });
   assert.equal(unknown.theme.fonts.display.id, "inter");
   assert.ok(unknown.notes.some(n => n.code === "font_unknown"));
@@ -84,6 +84,7 @@ test("a brand that cannot be read is refused with a code", () => {
     [{ primary: "#123456", neutral: "#12" }, "invalid_neutral"],
     [{ primary: "#123456", logo: { url: "https://evil.example/logo.svg" } }, "invalid_logo"],
     [{ primary: "#123456", logo: { url: "/_chest/theme/../files/x.svg" } }, "invalid_logo"],
+    [{ primary: "#123456", logo: { url: "/_chest/theme/brand/logo.svg", dark: "data:image/svg+xml,<svg/>" } }, "invalid_logo"],
     [{ primary: "#123456", body: { family: "X'; } *{", files: [] } }, "invalid_font"],
     [{ primary: "#123456", body: { family: "Atelier", files: [{ url: "https://evil.example/a.woff2", weight: "400", style: "normal" }] } }, "invalid_font"],
     [{ primary: "#123456", corners: "blobby" as never }, "invalid_option"],

@@ -46,11 +46,20 @@ The owner, the admins and the tool's builders come in with the first role.
   a visible switch; English first, French second (`lib/i18n/`).
 - No network, no disk writes, nothing in the background: deleted notes are
   purged when the list is next read.
+- **The company's look**: the tool wears what the owner chose in the Chest
+  — its own identity (`lib/theme.ts`), a theme of the catalogue, or the
+  company's brand with its logo — for all tools or for this one
+  (`@argentic/chest-ui`, packed in `vendor/`). Same pages, same words;
+  every look passes WCAG AA. Screens of three looks: `docs/screens/notes-*`,
+  `notes-theme-*` (Newsprint), `notes-brand-*` (a sample brand),
+  `notes-chest-*` (the portal's look).
 
 ## Needs from the SDK
 
 - `member.locale` — **Proposal (studio)** of the SDK working copy
   (`0.3.0-studio`, packed in `vendor/`). Without it, everyone reads English.
+- `chest.theme()` — **Proposal (studio)**, 0.3.0-studio.11: the look the
+  company chose. On a Chest without it, the tool keeps its own identity.
 
 ## Develop
 
@@ -61,8 +70,9 @@ npm run build     # types, then the Next.js build, as the Chest does
 ```
 
 In the studio: `node lab/chest-dev/dev.mjs <this folder>` runs it against a
-fake Chest with sample members; `node lab/chest-dev/screens.mjs` takes the
-screenshots in `docs/screens/`.
+fake Chest with sample members (`/_dev` switches the company's look, for
+all tools or this one); `node lab/chest-dev/screens.mjs` takes the
+screenshots in `docs/screens/` (entries with `"look"` in each theme).
 
 ## What it does not do (yet)
 

@@ -91,6 +91,10 @@ function card(t) {
 
 const sections = groups.map(g => `<section class="group"><h2>${escape(g.title)} <small>${g.tools.length}</small></h2><p class="intro">${escape(g.intro)}</p>${g.tools.map(card).join("\n") || '<p class="none">None yet.</p>'}</section>`).join("\n");
 const count = groups.reduce((n, g) => n + g.tools.length, 0);
+// The UI kit's gallery (ui/gallery/index.html, built by ui's npm run
+// gallery): the same identities as themes, and a brand demo.
+const galleryPath = join(root, "ui", "gallery", "index.html");
+const gallery = existsSync(galleryPath) ? rel(galleryPath) : null;
 const index = groups.flatMap(g => g.tools).map(t => `<a href="#${escape(t.manifest.name)}"><span class="mini" aria-hidden="true">${t.icon}</span>${escape(t.manifest.title ?? t.manifest.name)}</a>`).join("");
 
 const html = `<!doctype html>
@@ -101,7 +105,7 @@ ${faces.join("\n")}
 :root{--bg:#f3f1ec;--ink:#1d1c1a;--muted:#6b675f;--card:#fff;--line:#e2ded5}
 @media (prefers-color-scheme:dark){:root{--bg:#141412;--ink:#eeebe4;--muted:#a19c91;--card:#1d1c1a;--line:#302e2a}}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif}
-.top{padding:56px 24px 24px;max-width:1320px;margin:auto}.top h1{font:600 clamp(32px,5vw,56px)/1.05 ui-serif,Georgia,serif;margin:0 0 12px;letter-spacing:-.02em}.top p{color:var(--muted);max-width:60ch;margin:0}
+.top{padding:56px 24px 24px;max-width:1320px;margin:auto}.themes-link{margin-top:12px!important}.themes-link a{display:inline-block;padding:8px 16px;border-radius:999px;background:var(--ink);color:var(--bg);text-decoration:none;font-weight:600}.top h1{font:600 clamp(32px,5vw,56px)/1.05 ui-serif,Georgia,serif;margin:0 0 12px;letter-spacing:-.02em}.top p{color:var(--muted);max-width:60ch;margin:0}
 nav.index{display:flex;flex-wrap:wrap;gap:8px;padding:16px 24px;max-width:1320px;margin:auto;position:sticky;top:0;background:color-mix(in srgb,var(--bg) 92%,transparent);backdrop-filter:blur(8px);z-index:2;border-bottom:1px solid var(--line)}
 nav.index a{display:flex;align-items:center;gap:6px;padding:4px 10px 4px 4px;border:1px solid var(--line);border-radius:999px;color:inherit;text-decoration:none;font-size:14px;background:var(--card)}
 .mini svg,.mini img{width:22px;height:22px;display:block}
@@ -119,7 +123,7 @@ main{max-width:1320px;margin:auto;padding:0 24px 80px}
 .none{color:var(--muted)}
 @media (max-width:760px){.identity{grid-template-columns:1fr}.tool{padding:18px}.icon svg,.icon img{width:52px;height:52px}.shot .desktop,.shot .phone{height:220px}}
 </style></head><body>
-<div class="top"><h1>The Chest store, side by side</h1><p>${count} tools, each with its own identity. Built by <code>scripts/build-showcase.mjs</code> from each tool's <code>DESIGN.md</code> and <code>docs/screens/</code> — ${new Date().toISOString().slice(0, 10)}.</p></div>
+<div class="top"><h1>The Chest store, side by side</h1><p>${count} tools, each with its own identity. Built by <code>scripts/build-showcase.mjs</code> from each tool's <code>DESIGN.md</code> and <code>docs/screens/</code> — ${new Date().toISOString().slice(0, 10)}.</p>${gallery ? `<p class="themes-link"><a href="${escape(gallery)}">See every identity as a theme any tool can wear, and try your own brand →</a></p>` : ""}</div>
 <nav class="index" aria-label="Tools">${index}</nav>
 <main>${sections}</main>
 </body></html>

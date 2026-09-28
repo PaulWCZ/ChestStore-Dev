@@ -470,6 +470,43 @@ digest in News; two new suite links). What they ran into, by module:
 
 _(more sections as tools need them: public accounts, payments, AI.)_
 
+### 4.10 The company's look — `chest.theme()` (built)
+
+- **Needed by**: every tool, once the owner's wish is met — a company keeps
+  each tool's identity, picks one theme for all its tools, or wears its own
+  brand (colours, fonts, logo), and may choose otherwise for one tool. The
+  looks come from the UI kit `@argentic/chest-ui` (`ui/`, report
+  `reports/04-themes-and-kit.md`); the tool must learn which one applies.
+- **Working copy**: `chest.theme()` in `sdk/client/src/chest.ts` (with
+  `readThemeChoice`, `forgetTheme`, `themeIdPattern`, types `ThemeChoice`,
+  `BrandChoice`, `ThemeFont`); `fakeChest({theme: {all, tools},
+  themeFiles})`, `chest.theme`, `chest.themeFiles`, the fake front's
+  `/_chest/theme/…`; `sdk/client/test/theme.test.ts`; SDK
+  0.3.0-studio.11. The harness's `/_dev` switches both levels; the pilot
+  (`lab/template`) renders all three modes.
+- **Design points**: the Chest resolves the two levels (all tools, this
+  tool) and answers one choice with its `scope`; files (catalogue fonts,
+  brand fonts and logo) are served by the Chest's front on the tool's own
+  hosts under `/_chest/theme/`, so the tools' strict CSP is unchanged;
+  `theme()` never throws (own look on 404, unreachable or unknown answer)
+  and keeps the answer for the Chest's `max-age` (≤ 5 min).
+- **Approval sentence**: none — a look is not a permission (no data about
+  people, files on the tool's origin). The owner's words are the choice
+  itself: "How your tools look: each its own / one theme for all / your
+  brand", then per tool "Same as all tools / its own look / a theme / your
+  brand".
+- **Risks**: an uploaded SVG logo served on a tool's origin (sanitise, or
+  serve with `default-src 'none'`, or rasterise); a brand's font licence
+  (the admin confirms it); tools that write colours in their CSS ignore the
+  look (the kit's tests catch literals).
+- **Elsewhere** (as we know those admin pages, not re-read today): Microsoft
+  365 organisation themes, Salesforce "Themes and Branding" and Atlassian
+  custom colours set a logo and colours once for all users; none keeps a
+  per-app identity as an option.
+- **Still missing**: the admin's preview and the Chest's upload checks
+  (only designed); a light-only choice for any theme; tinting the portal's
+  tiles in brand mode.
+
 ## 5. Public-facing tools
 
 Support and Booking have a public part (a contact form and follow-up page;

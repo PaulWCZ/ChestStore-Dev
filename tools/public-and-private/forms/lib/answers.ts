@@ -4,7 +4,7 @@ import { can } from "./access.ts";
 import { AppError } from "./app-error.ts";
 import type { Query, Sql } from "./db.ts";
 import { open, openState, toForm, columns, versionOf, versions, type Form } from "./forms.ts";
-import { allQuestions, answerIdPattern, isMemberId, limits, type Definition } from "./model.ts";
+import { allQuestions, answerIdPattern, isMemberId, limits, type Definition, type Question } from "./model.ts";
 import { check, isPick, type Answers, type FileRef, type StoredFile, type Value } from "./logic.ts";
 
 // Answers: taking one (the only door strangers use), reading them, the
@@ -39,7 +39,7 @@ export type Submission = {
   language: string;
   // Turns a file sent with the answer into the tool's own object (claimed
   // and checked): lib/uploads.ts.
-  files: (ref: FileRef, questionId: string) => Promise<StoredFile>;
+  files: (ref: FileRef, question: Question) => Promise<StoredFile>;
   // Deletes files already taken when the answer is refused after all.
   drop: (objects: string[]) => Promise<void>;
 };
@@ -66,7 +66,7 @@ export async function submit(sql: Sql, s: Submission): Promise<{ answer: Answer;
     for (const q of allQuestions(def)) {
       const v = answers[q.id];
       if (q.kind !== "file" || v === undefined) continue;
-      const stored = await s.files(v as FileRef, q.id);
+      const stored = await s.files(v as FileRef, q);
       taken.push(stored.file);
       answers[q.id] = stored;
     }

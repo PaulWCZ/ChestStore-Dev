@@ -26,10 +26,12 @@ export type Brand = {
   body?: BrandFont;
   corners?: Corners;
   density?: Density;
-  logo?: { url: string; alt?: string } | null;
+  // dark: the logo's variant for dark pages.
+  logo?: { url: string; alt?: string; dark?: string | null } | null;
 };
 
-export type Derived = { theme: Theme; notes: Note[]; logo: { url: string; alt: string } | null };
+export type BrandLogo = { url: string; alt: string; dark: string | null };
+export type Derived = { theme: Theme; notes: Note[]; logo: BrandLogo | null };
 
 export class BrandError extends Error {
   constructor(readonly code: "invalid_primary" | "invalid_secondary" | "invalid_neutral" | "invalid_font" | "invalid_logo" | "invalid_name" | "invalid_option", message: string) {
@@ -98,8 +100,10 @@ function derive(brand: Brand): Derived {
   if (name.length > 80) throw new BrandError("invalid_name", "a name of 80 characters at most");
   let logo: Derived["logo"] = null;
   if (brand.logo) {
-    if (typeof brand.logo.url !== "string" || !logoUrlPattern.test(brand.logo.url) || brand.logo.url.includes("..")) throw new BrandError("invalid_logo", "the logo is an image on the tool's origin (svg, png, webp, jpg)");
-    logo = { url: brand.logo.url, alt: (brand.logo.alt ?? name).replace(/\p{Cc}/gu, "").trim().slice(0, 120) };
+    const ok = (u: unknown): u is string => typeof u === "string" && logoUrlPattern.test(u) && !u.includes("..");
+    const dark = brand.logo.dark ?? null;
+    if (!ok(brand.logo.url) || (dark !== null && !ok(dark))) throw new BrandError("invalid_logo", "the logo is an image on the tool's origin (svg, png, webp, jpg)");
+    logo = { url: brand.logo.url, alt: (brand.logo.alt ?? name).replace(/\p{Cc}/gu, "").trim().slice(0, 120), dark };
   }
 
   // Greys: the brand's own tint if given, else a whisper of the main colour.
@@ -110,7 +114,7 @@ function derive(brand: Brand): Derived {
   const white = "#ffffff";
 
   const light: Partial<SchemeSource> & Record<string, string> = {};
-  light.bg = at(grey, 0.975, nc * 0.8);
+  light.bg = at(grey, 0.975, nc * 0.55);
   light.surface = at(grey, 0.997, nc * 0.25);
   light["surface-2"] = at(grey, 0.945, nc);
   light.ink = at(grey, 0.21, Math.min(nc * 1.6, 0.03));

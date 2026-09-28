@@ -5,7 +5,7 @@ import { test } from "node:test";
 import { forgetTheme, readThemeChoice, theme } from "../src/chest.js";
 import { fakeChest } from "../src/testing.js";
 
-const brand = { name: "Atelier Martin", primary: "#e4572e", secondary: "#17bebb", neutral: null, corners: "round", density: "compact", display: { id: "young-serif" }, body: { family: "Atelier Sans", files: [{ url: "/_chest/theme/brand/atelier-sans.woff2", weight: "400 700", style: "normal" }] }, logo: { url: "/_chest/theme/brand/logo.svg", alt: "Atelier Martin" } };
+const brand = { name: "Atelier Martin", primary: "#e4572e", secondary: "#17bebb", neutral: null, corners: "round", density: "compact", display: { id: "young-serif" }, body: { family: "Atelier Sans", files: [{ url: "/_chest/theme/brand/atelier-sans.woff2", weight: "400 700", style: "normal" }] }, logo: { url: "/_chest/theme/brand/logo.svg", alt: "Atelier Martin", dark: "/_chest/theme/brand/logo-dark.svg" } };
 
 test("outside a Chest, and on a Chest that says nothing, a tool keeps its own look", async () => {
   const saved = process.env["CHEST_API"];
@@ -59,6 +59,7 @@ test("an answer that is not a choice keeps the tool's own look", async () => {
       { mode: "brand", brand: { ...brand, secondary: "#12345" } },
       { mode: "brand", brand: { ...brand, logo: { url: "https://evil.example/logo.svg" } } },
       { mode: "brand", brand: { ...brand, logo: { url: "/_chest/files/x.fake" } } },
+      { mode: "brand", brand: { ...brand, logo: { url: "/_chest/theme/brand/logo.svg", dark: "javascript:alert(1)" } } },
       { mode: "brand", brand: { ...brand, body: { family: "Atelier", files: [{ url: "/_chest/theme/brand/a.woff2\"), url(https://evil.example/" }] } } },
       { mode: "paint" },
       "own",
