@@ -1,0 +1,48 @@
+{
+  "global": {
+    "colors": {
+      "green": {
+        "50": { "value": "#effaf3", "type": "color" },
+        "400": { "value": "#3fbf7f", "type": "color" },
+        "600": { "value": "#138a55", "type": "color" },
+        "800": { "value": "#0b5c38", "type": "color" }
+      },
+      "coral": {
+        "400": { "value": "#ff8a6b", "type": "color" },
+        "600": { "value": "#e0573a", "type": "color" }
+      },
+      "grey": {
+        "100": { "value": "#f1f4f3", "type": "color" },
+        "500": { "value": "#6c7a75", "type": "color" },
+        "900": { "value": "#17211e", "type": "color" }
+      }
+    },
+    "fontFamilies": {
+      "heading": { "value": "Bricolage Grotesque", "type": "fontFamilies" },
+      "body": { "value": "Nunito Sans", "type": "fontFamilies" }
+    },
+    "borderRadius": {
+      "sm": { "value": "12", "type": "borderRadius" },
+      "md": { "value": "16", "type": "borderRadius" },
+      "lg": { "value": "24", "type": "borderRadius" },
+      "full": { "value": "9999", "type": "borderRadius" }
+    },
+    "typography": {
+      "h1": { "value": { "fontFamily": "{fontFamilies.heading}", "fontWeight": "700", "fontSize": "40" }, "type": "typography" }
+    }
+  },
+  "light": {
+    "brand": {
+      "primary": { "value": "{colors.green.600}", "type": "color" },
+      "accent": { "value": "{colors.coral.600}", "type": "color" }
+    },
+    "bg": {
+      "default": { "value": "{colors.grey.100}", "type": "color" }
+    },
+    "text": {
+      "default": { "value": "{colors.grey.900}", "type": "color" }
+    }
+  },
+  "$themes": [],
+  "$metadata": { "tokenSetOrder": ["global", "light"] }
+}

@@ -1,0 +1,110 @@
+/* Forms — design tokens (DESIGN.md). Lavender mist, aubergine ink, berry.
+   Light by default, dark by the system's choice. Ratios in DESIGN.md
+   (scripts/contrast.mjs). */
+:root {
+  color-scheme: light;
+  --bg: #f5f3fa;
+  --surface: #ffffff;
+  --surface-2: #eeebf6;
+  --line: #dcd6ea;
+  --line-strong: #b9b0cf;
+  --ink: #1d1631;
+  --ink-2: #574d6b;
+  --accent: #b0124f;
+  --accent-ink: #ffffff;
+  --accent-soft: #fbe3ec;
+  --focus: #5b3fd6;
+  --danger: #b3261e;
+  --danger-soft: #fdecea;
+  --ok: #1f7a4d;
+  --ok-soft: #e4f4ea;
+  --warn: #7a4f00;
+  --warn-soft: #fff3d6;
+  --highlight: #f6c945;
+
+  /* A form's colour (its respondents' page): set by [data-accent]. */
+  --form: #b0124f;
+  --form-ink: #ffffff;
+  --form-soft: #fdf0f5;
+
+  --font-display: "DM Serif Display", Georgia, "Times New Roman", serif;
+  --font-body: "DM Sans Variable", "DM Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --text-s: 0.875rem;
+  --text-m: 1rem;
+  --text-l: 1.25rem;
+  --text-xl: 1.75rem;
+  --text-2xl: clamp(1.75rem, 1.2rem + 2.4vw, 2.75rem);
+  --text-q: clamp(1.5rem, 1.1rem + 1.8vw, 2.25rem);
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+  --space-8: 72px;
+
+  --radius-s: 8px;
+  --radius-m: 12px;
+  --radius-l: 20px;
+  --radius-xl: 28px;
+
+  --shadow-1: 0 1px 2px rgb(29 22 49 / 0.06), 0 1px 1px rgb(29 22 49 / 0.04);
+  --shadow-2: 0 10px 30px -12px rgb(29 22 49 / 0.28), 0 2px 6px rgb(29 22 49 / 0.06);
+  --shadow-card: 0 1px 0 var(--line), 0 12px 32px -20px rgb(29 22 49 / 0.35);
+
+  --fast: 140ms;
+  --slow: 320ms;
+  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --bg: #16121f;
+    --surface: #201a2c;
+    --surface-2: #2a2338;
+    --line: #3b3350;
+    --line-strong: #5a5072;
+    --ink: #f3effa;
+    --ink-2: #bdb3cf;
+    --accent: #ff8fb8;
+    --accent-ink: #2a0716;
+    --accent-soft: #4a1f33;
+    --focus: #b9a6ff;
+    --danger: #ff8a80;
+    --danger-soft: #3d1a1c;
+    --ok: #6fd6a0;
+    --ok-soft: #173326;
+    --warn: #ffd27a;
+    --warn-soft: #3a2d10;
+    --highlight: #f6c945;
+    --form: #ff8fb8;
+    --form-ink: #2a0716;
+    --form-soft: #221019;
+    --shadow-1: 0 1px 2px rgb(0 0 0 / 0.4);
+    --shadow-2: 0 12px 32px -12px rgb(0 0 0 / 0.7);
+    --shadow-card: 0 1px 0 var(--line), 0 12px 32px -20px rgb(0 0 0 / 0.8);
+  }
+}
+
+/* The six colours a form may take, each checked for contrast (DESIGN.md). */
+[data-accent="berry"] { --form: #b0124f; --form-ink: #ffffff; --form-soft: #fdf0f5; }
+[data-accent="indigo"] { --form: #3d3fc4; --form-ink: #ffffff; --form-soft: #f1f1fd; }
+[data-accent="teal"] { --form: #0b6b6b; --form-ink: #ffffff; --form-soft: #eef8f7; }
+[data-accent="tangerine"] { --form: #b3470b; --form-ink: #ffffff; --form-soft: #fff4ec; }
+[data-accent="forest"] { --form: #2c6a31; --form-ink: #ffffff; --form-soft: #f0f7ee; }
+[data-accent="ink"] { --form: #1d1631; --form-ink: #ffffff; --form-soft: #f3f2f6; }
+@media (prefers-color-scheme: dark) {
+  [data-accent="berry"] { --form: #ff8fb8; --form-ink: #2a0716; --form-soft: #221019; }
+  [data-accent="indigo"] { --form: #a9abff; --form-ink: #12134a; --form-soft: #15162e; }
+  [data-accent="teal"] { --form: #6fd8d2; --form-ink: #062625; --form-soft: #0f1f1f; }
+  [data-accent="tangerine"] { --form: #ffb07a; --form-ink: #3a1600; --form-soft: #231710; }
+  [data-accent="forest"] { --form: #8fd694; --form-ink: #0c260f; --form-soft: #13200f; }
+  [data-accent="ink"] { --form: #e8e3f5; --form-ink: #16121f; --form-soft: #1a1722; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root { --fast: 0ms; --slow: 0ms; }
+}

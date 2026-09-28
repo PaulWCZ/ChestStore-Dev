@@ -38,7 +38,7 @@ export const systemStacks: Record<FontCategory, string> = {
 // and a few signs only, so nothing a company types can break out of it.
 export const familyPattern = /^[\p{L}\p{N}][\p{L}\p{N} ._-]{0,63}$/u;
 // A stack: family names (quoted or not) separated by commas, nothing else.
-export const stackPattern = /^(\s*('[\p{L}\p{N} ._-]{1,64}'|[a-zA-Z][a-zA-Z0-9-]{0,40})\s*)(,\s*('[\p{L}\p{N} ._-]{1,64}'|[a-zA-Z][a-zA-Z0-9-]{0,40})\s*){0,12}$/u;
+export const stackPattern = /^(\s*('[\p{L}\p{N} ._-]{1,64}'|-?[a-zA-Z][a-zA-Z0-9-]{0,40})\s*)(,\s*('[\p{L}\p{N} ._-]{1,64}'|-?[a-zA-Z][a-zA-Z0-9-]{0,40})\s*){0,12}$/u;
 // A font file's address: a path on the tool's own origin (font-src 'self').
 export const fontUrlPattern = /^\/[A-Za-z0-9._~\-/]{1,200}\.(woff2|woff|ttf|otf)$/u;
 // The base path fonts are served under (the tool's /fonts, or the Chest's

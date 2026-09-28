@@ -27,11 +27,13 @@ if (!tool || !(kinds.includes(dirname(tool)) || tool === join(root, "lab", "temp
 const sdk = join(root, "sdk");
 if (!existsSync(join(sdk, "node_modules"))) execFileSync("npm", ["ci", "--no-audit", "--no-fund"], { cwd: sdk, stdio: "inherit" });
 const vendor = join(tool, "vendor");
-rmSync(vendor, { recursive: true, force: true });
-mkdirSync(vendor);
+mkdirSync(vendor, { recursive: true });
+// Only the SDK's previous copies go: the UI kit's copy (scripts/add-ui.mjs)
+// may live beside it.
+for (const old of readdirSync(vendor).filter((name) => name.startsWith("argentic-chest-sdk-") && name.endsWith(".tgz"))) rmSync(join(vendor, old));
 // prepack builds dist/ from the working copy's sources.
 execFileSync("npm", ["pack", "--pack-destination", vendor], { cwd: sdk, stdio: ["ignore", "ignore", "inherit"] });
-const tarball = readdirSync(vendor).find((name) => name.endsWith(".tgz"));
+const tarball = readdirSync(vendor).find((name) => name.startsWith("argentic-chest-sdk-") && name.endsWith(".tgz"));
 
 const manifestPath = join(tool, "package.json");
 const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));

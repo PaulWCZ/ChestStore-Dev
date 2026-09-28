@@ -2,7 +2,27 @@
 // Chest (bell, badges, files), and buttons that play the Chest.
 const escape = value => String(value ?? "").replace(/[&<>"']/gu, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 
-export function devPage({ manifest, proposals = {}, chest, me, origin, schedulesApi }) {
+// The look's switcher (Proposal (studio): chest.theme()): the owner's two
+// levels, as the Chest's admin would offer them.
+function lookPanel(manifest, chest, catalogue, sampleBrand) {
+  const valueOf = c => (!c ? "" : c.mode === "own" ? "own" : c.mode === "brand" ? "brand:sample" : `catalogue:${c.theme}`);
+  const all = valueOf(chest.theme.all) || "own";
+  const mine = chest.theme.tools[manifest.name];
+  const tool = mine ? valueOf(mine) : "inherit";
+  const options = (current, first) => [
+    ...first,
+    ["own", "Each tool's own look"],
+    ...catalogue.map(t => [`catalogue:${t.id}`, `Theme: ${t.name.en}${t.tool ? ` (from ${t.tool})` : ""}${t.modes === "light" ? " — light only" : ""}`]),
+    ["brand:sample", `Brand: ${sampleBrand.name}`],
+  ].map(([v, label]) => `<option value="${escape(v)}"${v === current ? " selected" : ""}>${escape(label)}</option>`).join("");
+  const effective = mine ? `this tool's override (${escape(tool)})` : chest.theme.all ? `the choice for all tools (${escape(all)})` : "the tool's own identity (the Chest says nothing)";
+  return `<section><h2>Look (proposal)</h2>
+<form method="post" action="/_dev/theme"><input type="hidden" name="level" value="all"><input type="hidden" name="back" value="/_dev"><label>All tools <select name="choice">${options(all, [])}</select></label><button>Set</button></form>
+<form method="post" action="/_dev/theme"><input type="hidden" name="level" value="tool"><input type="hidden" name="back" value="/_dev"><label>This tool (${escape(manifest.name)}) <select name="choice">${options(tool, [["inherit", "Same as all tools"]])}</select></label><button>Set</button></form>
+<p>Now: ${effective}. A page shows it at its next load (the tool asks <code>chest.theme()</code>).</p></section>`;
+}
+
+export function devPage({ manifest, proposals = {}, chest, me, origin, schedulesApi, catalogue = [], sampleBrand = null }) {
   const name = id => chest.members.find(m => m.id === id)?.name ?? id;
   const people = chest.members.map(m => `<option value="${m.id}"${m.id === me.id ? " selected" : ""}>${escape(m.name)} — ${escape(m.role ?? "no role")}${m.isAdmin ? " (admin)" : ""}</option>`).join("");
   const bell = chest.notifications.slice().reverse().map(n => `<li><b>${escape(name(n.member))}</b> · ${escape(n.title)}${n.body ? `<br><small>${escape(n.body)}</small>` : ""}<br><a href="${escape(n.path)}">${escape(n.path)}</a>${n.key ? ` <code>${escape(n.key)}</code>` : ""}</li>`).join("") || "<li class=none>Nothing yet.</li>";
@@ -21,7 +41,7 @@ export function devPage({ manifest, proposals = {}, chest, me, origin, schedules
   const eventsPanel = proposals.emits || proposals.receives ? `<section><h2>Events between tools (proposal)</h2>${proposals.emits ? `<p>Published:</p><ul>${published || "<li class=none>None yet.</li>"}</ul>` : ""}${receivable ? `<form method="post" action="/_dev/deliver" style="display:grid;gap:6px"><p style="margin:0">Deliver an event of another tool:</p><select name="type">${receivable}</select><textarea name="data" rows="3">{"member": "${escape(me.id)}"}</textarea><button>Deliver</button></form>` : ""}</section>` : "";
   const checks = (chest.checks ?? []).map(c => `<li><form method="post" action="/_dev/check"><input type="hidden" name="name" value="${escape(c.name)}"><b>${escape(c.name)}</b> <code>${escape(c.url)}</code> every ${escape(String(c.every))} min <button name="ok" value="1">Send "up"</button> <button name="ok" value="0">Send "down"</button></form></li>`).join("");
   const checksPanel = proposals.checks ? `<section><h2>Checks (proposal)</h2>${checks ? `<ul>${checks}</ul>` : "<p>The tool has configured no check yet.</p>"}</section>` : "";
-  const extra = checksPanel + eventsPanel + mailPanel + (schedules ? `<section><h2>Schedules (proposal)</h2><ul>${schedules}</ul>${runs ? `<p>Last runs:</p><ul>${runs}</ul>` : ""}</section>` : "");
+  const extra = (chest.theme && sampleBrand ? lookPanel(manifest, chest, catalogue, sampleBrand) : "") + checksPanel + eventsPanel + mailPanel + (schedules ? `<section><h2>Schedules (proposal)</h2><ul>${schedules}</ul>${runs ? `<p>Last runs:</p><ul>${runs}</ul>` : ""}</section>` : "");
   const events = chest.members.map(m => `<option value="${m.id}">${escape(m.name)}</option>`).join("");
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>chest dev · ${escape(manifest.title ?? manifest.name)}</title>
 <style>

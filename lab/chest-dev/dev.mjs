@@ -27,6 +27,7 @@ import { createServer, request as httpRequest } from "node:http";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import postgres from "postgres";
+import { sampleBrand } from "./brand/sample.mjs";
 import { cast, castFor } from "./cast.mjs";
 import { devPage } from "./page.mjs";
 
@@ -58,6 +59,27 @@ if (!existsSync(join(sdk, "dist", "src", "testing.js"))) {
   execFileSync("npm", ["run", "build"], { cwd: sdk, stdio: "inherit" });
 }
 const testing = { ...(await import(pathToFileURL(join(sdk, "dist", "src", "testing.js")).href)), schedulesApi: await import(pathToFileURL(join(sdk, "dist", "src", "schedules.js")).href) };
+
+// The UI kit working copy, built: the theme catalogue for the switcher,
+// and its fonts, which the fake Chest's front serves at /_chest/theme/fonts/
+// as a Chest would (Proposal (studio): the theme).
+const ui = join(root, "ui");
+if (!existsSync(join(ui, "dist", "themes.js"))) {
+  if (!existsSync(join(ui, "node_modules"))) execFileSync("npm", ["ci", "--no-audit", "--no-fund"], { cwd: ui, stdio: "inherit" });
+  execFileSync("npm", ["run", "build"], { cwd: ui, stdio: "inherit" });
+}
+const { catalogue } = await import(pathToFileURL(join(ui, "dist", "themes.js")).href);
+const themeFiles = { "brand/logo.svg": { data: readFileSync(join(root, "lab", "chest-dev", "brand", "atelier-martin.svg")), type: "image/svg+xml" } };
+for (const file of existsSync(join(ui, "fonts")) ? readdirSync(join(ui, "fonts")) : []) {
+  themeFiles[`fonts/${file}`] = { data: readFileSync(join(ui, "fonts", file)), type: file.endsWith(".woff2") ? "font/woff2" : "text/plain; charset=utf-8" };
+}
+// A choice of the switcher: "own", "catalogue:<id>", "brand:sample".
+function choiceOf(value) {
+  if (value === "own") return { mode: "own" };
+  if (value === "brand:sample") return { mode: "brand", brand: sampleBrand };
+  const id = /^catalogue:([a-z][a-z0-9-]{1,39})$/u.exec(value ?? "")?.[1];
+  return id && catalogue.some(t => t.id === id) ? { mode: "catalogue", theme: id } : null;
+}
 
 // The database, as the Chest makes it.
 const capabilities = manifest.capabilities ?? [];
@@ -117,6 +139,10 @@ const chest = await testing.fakeChest({
   // The Chest's settings (Proposal (studio): the chest module): the cast's
   // company; both hosts are this harness's one origin.
   settings: { company: "Atelier Martin", currency: "EUR", locale: "en", ...(manifest.public ? { publicUrl: origin } : {}) },
+  // The company's look (Proposal (studio)): its own identity for every tool
+  // until the switcher on /_dev says otherwise.
+  theme: {},
+  themeFiles,
 });
 
 // The tool, with the Chest's environment.
@@ -224,6 +250,16 @@ const front = createServer(async (request, response) => {
         console.log(`event ${form.get("type")} delivered → ${status}`);
         return void response.writeHead(303, back).end();
       }
+      if (path === "/_dev/theme") {
+        // The owner's two levels: all tools, and this tool.
+        const level = form.get("level") === "tool" ? "tool" : "all";
+        const value = form.get("choice");
+        if (level === "all") chest.theme.all = value === "own" ? null : choiceOf(value);
+        else if (value === "inherit") delete chest.theme.tools[manifest.name];
+        else chest.theme.tools[manifest.name] = choiceOf(value);
+        console.log(`look ${level === "all" ? "for all tools" : "for this tool"}: ${value}`);
+        return void response.writeHead(303, back).end();
+      }
       if (path === "/_dev/clear") {
         chest.notifications.splice(0);
         return void response.writeHead(303, back).end();
@@ -237,7 +273,7 @@ const front = createServer(async (request, response) => {
       }
       return void response.writeHead(404).end();
     }
-    const html = devPage({ manifest, proposals, chest, me: current(request), origin, schedulesApi: testing.schedulesApi });
+    const html = devPage({ manifest, proposals, chest, me: current(request), origin, schedulesApi: testing.schedulesApi, catalogue, sampleBrand });
     return void response.writeHead(200, { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" }).end(html);
   }
   if (path.startsWith("/_chest/")) return relay(request, response, { port: Number(new URL(chest.api).port) }, request.headers);

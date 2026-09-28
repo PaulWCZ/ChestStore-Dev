@@ -1,13 +1,14 @@
 import type { ReactNode } from "react";
 import { Avatar } from "../../components/avatar.tsx";
-import { Mark } from "../../components/mark.tsx";
+import { BrandMark } from "../../components/brand-mark.tsx";
 import { roleOf } from "../../lib/access.ts";
 import { viewer } from "../../lib/session.ts";
+import { currentLook } from "../../lib/theme.ts";
 
 // The members' part. proxy.ts already refused a request without the Chest's
 // assertion; a member whose role gives nothing sees why, not an error.
 export default async function MembersLayout({ children }: { children: ReactNode }) {
-  const v = await viewer();
+  const [v, look] = await Promise.all([viewer(), currentLook()]);
   if (!v) return null;
   const { member, t } = v;
   const role = roleOf(member);
@@ -15,7 +16,7 @@ export default async function MembersLayout({ children }: { children: ReactNode 
     <>
       <a className="skip" href="#main">{t.shell.skip}</a>
       <header className="bar">
-        <a className="brand" href="/chest"><Mark />{t.meta.name}</a>
+        <a className="brand" href="/chest"><BrandMark look={look} />{t.meta.name}</a>
         <span className="who">
           <span>{member.firstName || member.name}{role ? " · " + t.roles[role] : ""}</span>
           <Avatar name={member.name} photo={member.photo} />

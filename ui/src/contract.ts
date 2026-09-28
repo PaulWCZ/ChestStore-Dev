@@ -13,7 +13,6 @@ import { familyPattern, stackPattern, type FontSpec } from "./fonts.js";
 export type Words = { en: string; fr: string };
 
 export const categories = 8;
-const cat = (suffix: string) => Array.from({ length: categories }, (_, i) => `cat-${i + 1}${suffix}`);
 
 // The colours, defined per mode.
 export const colorTokens = [
@@ -32,7 +31,9 @@ export const colorTokens = [
   // Keyboard focus, and the marker pen (search hits, what asks for you)
   "focus", "highlight",
   // The categorical palette: labels, kinds, stages, charts
-  ...cat(""), ...cat("-soft"), ...cat("-ink"),
+  "cat-1", "cat-2", "cat-3", "cat-4", "cat-5", "cat-6", "cat-7", "cat-8",
+  "cat-1-soft", "cat-2-soft", "cat-3-soft", "cat-4-soft", "cat-5-soft", "cat-6-soft", "cat-7-soft", "cat-8-soft",
+  "cat-1-ink", "cat-2-ink", "cat-3-ink", "cat-4-ink", "cat-5-ink", "cat-6-ink", "cat-7-ink", "cat-8-ink",
 ] as const;
 export type ColorToken = (typeof colorTokens)[number];
 
@@ -45,7 +46,7 @@ export type Scheme = Record<ColorToken | EffectToken, string>;
 
 // The rest of the contract: the same in both modes.
 export const staticTokens = [
-  "font-display", "font-body", "font-mono", "display-weight", "display-tracking",
+  "font-display", "font-body", "font-mono", "font-accent", "display-weight", "display-tracking", "weight-strong",
   "text-xs", "text-s", "text-m", "text-l", "text-xl", "text-2xl", "leading",
   "space-1", "space-2", "space-3", "space-4", "space-5", "space-6", "space-7", "space-8",
   "radius-s", "radius-m", "radius-l", "radius-pill", "border-width", "control-h",
@@ -64,8 +65,20 @@ export type Theme = {
   description: Words;
   // The tool whose identity it is (a catalogue theme), if any.
   tool?: string;
-  fonts: { display: FontSpec; body: FontSpec; mono: FontSpec };
+  // display: headings; body: everything else; mono: code and figures;
+  // accent: a wordmark or an italic accent (the display font unless said).
+  fonts: { display: FontSpec; body: FontSpec; mono: FontSpec; accent: FontSpec };
+  // Headings' weight and tracking; strong: the weight of emphasis (<strong>,
+  // a selected tab) — 400 in a theme whose hierarchy is size alone.
   display: { weight: number; tracking: string };
+  strong: number;
+  // false: the browser must not fake a bold or an italic the font lacks
+  // (font-synthesis: none).
+  synthesis: boolean;
+  // "both": a light and a dark scheme, following the system; "light": the
+  // theme has no dark mode (its dark scheme is its light one, and the page
+  // says color-scheme: light).
+  modes: "both" | "light";
   // rem sizes, xs to 2xl, and the body's line height.
   type: { xs: number; s: number; m: number; l: number; xl: number; xxl: number; leading: number };
   // px, space-1 to space-8.
@@ -148,17 +161,20 @@ export function validateTheme(theme: Theme): string[] {
     const w = t[key];
     if (!w || typeof w.en !== "string" || typeof w.fr !== "string" || !w.en.trim() || !w.fr.trim() || w.en.length > 160 || w.fr.length > 160) problems.push(`${key}: English and French, 160 characters at most`);
   }
-  for (const which of ["display", "body", "mono"] as const) {
+  for (const which of ["display", "body", "mono", "accent"] as const) {
     const f = t.fonts?.[which];
     if (!f || typeof f.stack !== "string" || !stackPattern.test(f.stack)) problems.push(`fonts.${which}: a stack of family names`);
     else if (f.family && !familyPattern.test(f.family)) problems.push(`fonts.${which}.family: letters, digits, spaces`);
   }
   const d = t.display;
-  if (!d || !Number.isInteger(d.weight) || d.weight < 300 || d.weight > 900 || !/^-?0(\.\d{1,3})?em$/u.test(d.tracking)) problems.push("display: a weight 300 to 900 and a tracking in em (-0.05em to 0.05em)");
+  if (!d || !Number.isInteger(d.weight) || d.weight < 400 || d.weight > 900 || !/^-?0(\.\d{1,3})?em$/u.test(d.tracking)) problems.push("display: a weight 400 to 900 and a tracking in em (-0.05em to 0.05em)");
+  if (!Number.isInteger(t.strong) || t.strong! < 400 || t.strong! > 900) problems.push("strong: a weight 400 to 900");
+  if (typeof t.synthesis !== "boolean") problems.push("synthesis: true or false");
+  if (t.modes !== "both" && t.modes !== "light") problems.push('modes: "both" or "light"');
   const ty = t.type;
   if (!ty || !["xs", "s", "m", "l", "xl", "xxl"].every(k => { const v = (ty as Record<string, number>)[k]; return typeof v === "number" && v >= 0.6 && v <= 6; }) || !(ty.leading >= 1.2 && ty.leading <= 2) || ty.m < 0.9375 || ty.xs < 0.6875) problems.push("type: rem sizes (body at least 0.9375rem, the smallest at least 0.6875rem) and a leading of 1.2 to 2");
   if (!Array.isArray(t.space) || t.space.length !== 8 || !t.space.every((v, i, a) => Number.isFinite(v) && v >= 0 && v <= 160 && (i === 0 || v >= a[i - 1]!))) problems.push("space: eight growing px values");
-  if (!t.radius || !["s", "m", "l"].every(k => { const v = (t.radius as Record<string, number>)[k]; return Number.isFinite(v) && v >= 0 && v <= 48; })) problems.push("radius: s, m, l in px (0 to 48)");
+  if (!t.radius || !["s", "m", "l"].every(k => { const v = (t.radius as Record<string, number>)[k]; return v !== undefined && Number.isFinite(v) && v >= 0 && v <= 48; })) problems.push("radius: s, m, l in px (0 to 48)");
   if (!Number.isFinite(t.border) || t.border! < 1 || t.border! > 4) problems.push("border: 1 to 4 px");
   const mo = t.motion;
   if (!mo || !easePattern.test(mo.ease) || !Number.isInteger(mo.fast) || !Number.isInteger(mo.slow) || mo.fast < 0 || mo.slow < mo.fast || mo.slow > 1000) problems.push("motion: a cubic-bezier and two durations in ms (fast ≤ slow ≤ 1000)");

@@ -1,0 +1,5 @@
+[
+  { "name": "notes", "path": "/chest", "member": "camille", "locale": "en", "preview": true },
+  { "name": "notes-fr", "path": "/chest", "member": "ines", "locale": "fr" },
+  { "name": "notes-dark", "path": "/chest", "member": "hugo", "locale": "en", "dark": true, "only": ["phone"] }
+]

@@ -1,0 +1,19 @@
+/* Boulangerie Petit — charte graphique, variables CSS (export du site). */
+:root {
+  --couleur-marque: #7a2e1d;          /* brun cuit */
+  --couleur-secondaire: #e9b949;      /* doré */
+  --gris-neutre: #8a8178;
+  --texte: #2b2521;
+  --fond: #fbf7f1;
+  --erreur: #c0392b;
+  --bouton-fond: var(--couleur-marque);
+  --lien: var(--couleur-inconnue);
+  --police-titres: "Young Serif", Georgia, serif;
+  --police-texte: "Figtree", system-ui, sans-serif;
+  --arrondi: 2px;
+}
+
+h1, h2, h3 { font-family: var(--police-titres); }
+body { font-family: var(--police-texte); color: var(--texte); background: var(--fond); }
+.button { border-radius: 2px; background: var(--bouton-fond); }
+.card { border-radius: 4px; }

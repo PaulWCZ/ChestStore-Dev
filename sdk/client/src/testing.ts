@@ -3,6 +3,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import type { AddressInfo } from "node:net";
 import type { ChestEvent } from "./events.js";
 import { groupIdPattern, memberIdPattern, type Member } from "./member.js";
+import { forgetTheme } from "./chest.js";
 import { forget } from "./members.js";
 
 // For a tool's own tests, never imported by its production code: a member's
@@ -73,7 +74,22 @@ export type FakeChestOptions = {
   storage?: { publicUploads?: boolean; publicFiles?: boolean; publicOrigin?: string };
   // Proposal (studio): mail (with "mail" in capabilities).
   mail?: { domain?: string; mailboxes?: string[]; perDay?: number; suppressed?: string[] };
+  // Proposal (studio): the look the company chose (chest.theme()): for all
+  // its tools, and per tool (by name) — the tool receives its own override,
+  // or the choice for all, or its own identity. Held in chest.theme, which a
+  // test or a harness changes at any time.
+  theme?: FakeTheme;
+  // Proposal (studio): the files the Chest's front serves under
+  // /_chest/theme/ (the catalogue's fonts, a brand's fonts and logo), by
+  // path below it ("fonts/inter-latin-wght-normal.woff2", "brand/logo.svg").
+  themeFiles?: Record<string, { data: Uint8Array | string; type?: string }>;
 };
+
+// A choice as a test names it: what theme() answers, without its scope
+// (the fake Chest says which level it came from).
+export type FakeThemeChoice = { mode: "own" } | { mode: "catalogue"; theme: string; fonts?: string; faces?: unknown[] } | { mode: "brand"; brand: Record<string, unknown>; fonts?: string } | Record<string, unknown>;
+// The company's two levels: its choice for all tools, and its overrides.
+export type FakeTheme = { all?: FakeThemeChoice | null; tools?: Record<string, FakeThemeChoice | null> };
 
 // A message the tool sent, as the fake Chest's outbox keeps it (addresses
 // resolved, members' included).
@@ -127,6 +143,10 @@ export type FakeChest = {
   outbox: FakeMail[];
   receive(message: FakeIncoming, to: string | ((request: Request) => Response | Promise<Response>)): Promise<number>;
   schedules: { name: string; cron: string }[];
+  // Proposal (studio): the company's look (theme()), both levels, and the
+  // files its front serves under /_chest/theme/.
+  theme: { all: FakeThemeChoice | null; tools: Record<string, FakeThemeChoice | null> };
+  themeFiles: Map<string, { data: Uint8Array; type: string }>;
   runs: { id: string; name: string; scheduledAt: string; attempt: number; status: number }[];
   run(name: string, to: string | ((request: Request) => Response | Promise<Response>), options?: { id?: string; scheduledAt?: string; attempt?: number }): Promise<number>;
   close(): Promise<void>;
@@ -239,7 +259,7 @@ export async function fakeChest(options: FakeChestOptions = {}): Promise<FakeChe
   const publicMaxObject = 10 << 20;
   // The erasures the tool was told of, by emit: those it may acknowledge.
   const erasures = new Set<string>();
-  const chest: FakeChest = { api: "", token, tool, members: [...(options.members ?? [])], former: [...(options.former ?? [])], groups: [...(options.groups ?? [])], files, notifications: [], badges: new Map(), acknowledged: [], emit: async () => 0, upload: async () => new Response(), published: [], deliver: async () => 0, checks: [], check: async () => 0, outbox: [], receive: async () => 0, schedules: [...(options.schedules ?? [])], runs: [], run: async () => 0, close: async () => {} };
+  const chest: FakeChest = { api: "", token, tool, members: [...(options.members ?? [])], former: [...(options.former ?? [])], groups: [...(options.groups ?? [])], files, notifications: [], badges: new Map(), acknowledged: [], emit: async () => 0, upload: async () => new Response(), published: [], deliver: async () => 0, checks: [], check: async () => 0, outbox: [], receive: async () => 0, schedules: [...(options.schedules ?? [])], theme: { all: options.theme?.all ?? null, tools: { ...options.theme?.tools } }, themeFiles: new Map(Object.entries(options.themeFiles ?? {}).map(([path, f]) => [path, { data: typeof f.data === "string" ? new TextEncoder().encode(f.data) : f.data, type: f.type ?? "application/octet-stream" }])), runs: [], run: async () => 0, close: async () => {} };
   const former = chest.former;
   let window = 0, calls = 0;
   const shown = (m: FakeMember) => ({ id: m.id, first_name: m.firstName, last_name: m.lastName, name: m.name, photo: m.photo, role: m.role, admin: m.isAdmin, builder: m.isBuilder, groups: m.groups, ...(m.locale === undefined ? {} : { locale: m.locale }), ...(email && m.email !== undefined ? { email: m.email } : {}) });
@@ -637,6 +657,17 @@ export async function fakeChest(options: FakeChestOptions = {}): Promise<FakeChe
     send(response, 204);
   }
 
+  // Proposal (studio): the look of this tool — its override, or the
+  // company's choice for all tools, or nothing (its own identity) — never
+  // kept by the tool (max-age=0), so a harness's switch shows at once.
+  async function themeRoute(request: IncomingMessage, response: ServerResponse, url: URL): Promise<void> {
+    if (request.method !== "GET" || url.search) return send(response, 404, { error: "not_found" });
+    const own = chest.theme.tools[tool];
+    const chosen = own ?? chest.theme.all;
+    const scope = own ? "tool" : chest.theme.all ? "chest" : "default";
+    send(response, 200, { ...(chosen ?? { mode: "own" }), scope }, { "Cache-Control": "max-age=0" });
+  }
+
   // The team host's own routes, which a Chest's front serves beside the
   // tool: the upload a member's browser sends, the signed links, the members'
   // photos. A harness relays /_chest/ of its host here (origin).
@@ -677,6 +708,13 @@ export async function fakeChest(options: FakeChestOptions = {}): Promise<FakeChe
       if (!object) return send(response, 404, { error: "not_found" });
       return void response.writeHead(200, { "Content-Type": object.type, "Content-Length": String(object.data.byteLength), "Cache-Control": "public, max-age=3600" }).end(object.data);
     }
+    // Proposal (studio): the look's files (fonts, logo), public on both hosts.
+    const look = /^\/_chest\/theme\/([A-Za-z0-9._~\-/]+)$/u.exec(url.pathname);
+    if (look && request.method === "GET") {
+      const file = look[1]!.includes("..") ? undefined : chest.themeFiles.get(look[1]!);
+      if (!file) return send(response, 404, { error: "not_found" });
+      return void response.writeHead(200, { "Content-Type": file.type, "Content-Length": String(file.data.byteLength), "Cache-Control": "public, max-age=86400", "X-Content-Type-Options": "nosniff" }).end(file.data);
+    }
     const photo = /^\/_chest\/members\/(mbr_[a-z2-7]{26})\/photo$/u.exec(url.pathname);
     if (photo && request.method === "GET") {
       const m = chest.members.find(x => x.id === photo[1]);
@@ -696,6 +734,7 @@ export async function fakeChest(options: FakeChestOptions = {}): Promise<FakeChe
       : url.pathname.startsWith("/erasures/") ? erasuresRoute
       : url.pathname.startsWith("/mail/") ? mailRoute
       : url.pathname === "/events" ? eventsRoute
+      : url.pathname === "/theme" ? themeRoute
       : url.pathname === "/visitors/count" ? visitorsRoute
       : url.pathname === "/checks" ? checksRoute
       : url.pathname === "/members" || url.pathname.startsWith("/members/") || url.pathname === "/groups" ? members
@@ -715,6 +754,7 @@ export async function fakeChest(options: FakeChestOptions = {}): Promise<FakeChe
     else process.env[name] = value;
   }
   forget();
+  forgetTheme();
   chest.emit = async (event, to) => {
     const id = event.id ?? "evt_" + Array.from(randomBytes(26), b => "abcdefghijklmnopqrstuvwxyz234567"[b & 31]).join("");
     const body = JSON.stringify({ id, type: event.type, occurredAt: event.occurredAt ?? new Date().toISOString(), data: event.data });
@@ -794,6 +834,7 @@ export async function fakeChest(options: FakeChestOptions = {}): Promise<FakeChe
       else process.env[name] = value;
     }
     forget();
+    forgetTheme();
   };
   return chest;
 }

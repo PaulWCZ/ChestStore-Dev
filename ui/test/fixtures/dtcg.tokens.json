@@ -1,0 +1,61 @@
+{
+  "$description": "Maison Lumière — brand tokens exported from the design system (W3C Design Tokens format).",
+  "color": {
+    "$type": "color",
+    "base": {
+      "blue": {
+        "100": { "$value": "#dbe7ff" },
+        "300": { "$value": "#8fb1ff" },
+        "500": { "$value": "#2f5bea" },
+        "700": { "$value": "#1c3aa6" },
+        "900": { "$value": "#0e1f5c" }
+      },
+      "saffron": {
+        "300": { "$value": "#ffd27a" },
+        "500": { "$value": { "colorSpace": "srgb", "components": [0.96, 0.66, 0.14], "hex": "#f5a824" } }
+      },
+      "stone": {
+        "100": { "$value": "#f2f0ec" },
+        "500": { "$value": "#7d776c" },
+        "900": { "$value": "#26231e" }
+      },
+      "white": { "$value": "#ffffff" }
+    },
+    "brand": {
+      "primary": { "$value": "{color.base.blue.500}", "$description": "Buttons, links, the logo's circle" },
+      "primary-hover": { "$value": "{color.base.blue.700}" },
+      "secondary": { "$value": "{color.base.saffron.500}" }
+    },
+    "neutral": {
+      "text": { "$value": "{color.base.stone.900}" },
+      "muted": { "$value": "{color.base.stone.500}" },
+      "background": { "$value": "{color.base.stone.100}" }
+    },
+    "feedback": {
+      "success": { "$value": "#1e8a4c" },
+      "error": { "$value": "#d13438" },
+      "warning": { "$value": "{color.base.saffron.300}" },
+      "info": { "$value": "{color.base.missing.500}" }
+    }
+  },
+  "font": {
+    "family": {
+      "$type": "fontFamily",
+      "heading": { "$value": ["Fraunces", "Georgia", "serif"] },
+      "body": { "$value": ["Inter", "system-ui", "sans-serif"] }
+    }
+  },
+  "typography": {
+    "title": {
+      "$type": "typography",
+      "$value": { "fontFamily": "{font.family.heading}", "fontSize": { "value": 32, "unit": "px" }, "fontWeight": 600, "lineHeight": 1.2 }
+    }
+  },
+  "radius": {
+    "$type": "dimension",
+    "small": { "$value": { "value": 4, "unit": "px" } },
+    "medium": { "$value": { "value": 8, "unit": "px" } },
+    "large": { "$value": { "value": 16, "unit": "px" } },
+    "pill": { "$value": { "value": 999, "unit": "px" } }
+  }
+}

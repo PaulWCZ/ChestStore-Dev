@@ -53,7 +53,7 @@ primitive that the tool can live without, 1 = blocked.
 | 18 | Team chat (Slack, Teams) | Slack $7.25–15 (V-search); Teams Essentials $4 | 5 | 4 | 5 | **1** | 3 | 2 | 4 | 24 | **Blocked**: no WebSocket; polling chat would be worse than Slack — see SDK report (realtime) |
 | 19 | Password sharing (1Password, Bitwarden) | 1Password $8.99; Bitwarden $4–6 (V-search) | 3 | 3 | 3 | 3 | 3 | 3 | **1** | 19 | Needs end-to-end encryption in the browser and an audit; too risky for the opening store |
 | 20 | File sharing (Dropbox, WeTransfer) | Dropbox $15–24 (not verified) | 4 | 4 | 3 | 3 | 2 | 2 | 3 | 21 | The Chest's files are private per tool; public links and large uploads are proposals |
-| 21 | Forms (Typeform) | Typeform $28–91 per account | — | — | — | — | — | — | — | — | **Already in the store** (Forms) |
+| 21 | **Forms** (Typeform, Tally, Google Forms, Microsoft Forms, Jotform) | Typeform $28–91 per account (3P); Tally Pro $24–39 (V-search/3P); Jotform $34–99 (3P) | 4 | 3 | 2 | 4 | 4 | 2 | 4 | **23** | The store's beta is a prototype; the studio's Forms is **tool 18** (below). Team and anonymous forms use the Chest's identity; public uploads, mail, schedules and visitors are proposals |
 | 22 | Dashboards (Metabase) | Metabase $90/mo + $6/user | 2 | 2 | 2 | 2 | 2 | 1 | 4 | 15 | Needs events from every tool first |
 | 23 | Newsletters (Mailchimp, Brevo) | per account, by contacts | 3 | 2 | 1 | **1** | 2 | 3 | 2 | 14 | Blocked by email |
 | 24 | Whiteboard (Miro) | Miro $8–20 (V-search) | 2 | 3 | 2 | **1** | 3 | 1 | 5 | 17 | Needs realtime co-editing |
@@ -65,7 +65,7 @@ primitive that the tool can live without, 1 = blocked.
 \* Reach is the studio's estimate (no sourced SME penetration survey found);
 the ordering inside a tier is judgement, not arithmetic.
 
-## The opening store: 17 tools, in order
+## The opening store: 18 tools, in order
 
 The order is the build order: the first tools are the daily habit and the
 clearest saving; each later one leans on the ones before.
@@ -89,6 +89,7 @@ clearest saving; each later one leans on the ones before.
 | 15 | Goals | `tools/private/goals/` | private | Lattice Goals, Perdoo | Team OKRs and check-ins |
 | 16 | Quotes | `tools/private/quotes/` | private | Axonaut, Sellsy invoicing | Quotes to invoices, ready for the e-invoicing reform |
 | 17 | Status | `tools/public-and-private/status/` | public + private | Statuspage | Small public page; incidents |
+| 18 | Forms | `tools/public-and-private/forms/` | public + private | Typeform, Tally, Google Forms, Microsoft Forms, Jotform | The studio's version of the store's beta Forms: every other tool's "ask people something" |
 
 Not in the opening store: **team chat** (blocked by realtime — the SDK
 report proposes it first), **passwords** (security bar too high for a first
@@ -246,6 +247,27 @@ maintenance. *Private:* post an incident and its updates. *Left out until
 the SDK has it:* automatic checks (needs schedules and network), email
 subscribers. *Roles:* `editor`.
 
+**18. Forms** (`forms`) — *the studio's version of the store's existing
+beta* (`reference/forms`, a first prototype: three field types, no logic,
+no summary). *Job:* ask people something and read the answers — customers,
+visitors, candidates, colleagues. *Replaces* Typeform, Tally, Google Forms,
+Microsoft Forms, Jotform. *Public:* a form page per published public form,
+one question at a time or all on one page, in the visitor's language, with
+file uploads (public uploads — proposal) and a spam guard (visitors —
+proposal). *Private:* the builder with live preview, 14 question types,
+pages and conditions, templates, team-only and anonymous team forms, the
+answers table, the summary (bars, averages, NPS), CSV, the bell for chosen
+people, retention and erasure. *Left out:* payments, quizzes and scoring,
+partial submissions, integrations (each needs a primitive or a privacy
+decision first). *Roles:* `manager` (every form, erasure), `creator`
+(creates forms), `member` (answers team forms; sees forms shared with
+them). *Why 18th and not higher:* it was already in the store as a beta, so
+it does not open a new category; it scores 23 (every company uses a form
+tool, but it is not daily and most of its spend is per account, not per
+seat). It comes last because it leans on four proposals the earlier tools
+proved (public uploads with claim, mail, schedules, visitors), and it makes
+the suite stronger: every tool that "asks people something" can link to it.
+
 ## Why not…
 
 - **Team chat first?** It is the most used SaaS of all, and the one that
@@ -254,4 +276,4 @@ subscribers. *Roles:* `editor`.
 - **Passwords?** A company's vault is the highest-value target on the
   server; it needs client-side encryption, recovery and an external audit.
   Not an opening-store tool.
-- **Forms?** Already in the store.
+- **Forms?** Already in the store as a beta; the studio rebuilt it as tool 18 (above) because the beta is a first prototype that cannot stand next to Tally or Typeform.

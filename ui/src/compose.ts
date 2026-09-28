@@ -31,15 +31,19 @@ export type ThemeSource = {
   name: Words;
   description: Words;
   tool?: string;
-  fonts: { display: string | FontSpec; body: string | FontSpec; mono?: string | FontSpec };
+  fonts: { display: string | FontSpec; body: string | FontSpec; mono?: string | FontSpec; accent?: string | FontSpec };
   display?: Partial<Theme["display"]>;
+  strong?: number;
+  synthesis?: boolean;
+  modes?: Theme["modes"];
   type?: Partial<Theme["type"]>;
   space?: Theme["space"];
   radius: Theme["radius"];
   border?: number;
   motion?: Partial<Theme["motion"]>;
   light: SchemeSource;
-  dark: SchemeSource;
+  // Omitted for a light-only theme (modes: "light").
+  dark?: SchemeSource;
   palette?: PaletteSource;
 };
 
@@ -118,20 +122,27 @@ const fontOf = (value: string | FontSpec | undefined, fallback: FontSpec): FontS
 // pairs below AA, and the kit's tests hold every catalogue theme to zero.
 export function defineTheme(source: ThemeSource): Theme {
   const body = fontOf(source.fonts.body, systemFont("sans"));
+  const display = fontOf(source.fonts.display, body);
+  const modes = source.modes ?? "both";
+  if ((modes === "both") !== (source.dark !== undefined)) throw new RangeError(`theme ${source.id}: a dark scheme exactly when modes is "both"`);
+  const light = completeScheme(source.light, "light", source.palette);
   const theme: Theme = {
     id: source.id,
     name: source.name,
     description: source.description,
     ...(source.tool ? { tool: source.tool } : {}),
-    fonts: { display: fontOf(source.fonts.display, body), body, mono: fontOf(source.fonts.mono, systemFont("mono")) },
+    fonts: { display, body, mono: fontOf(source.fonts.mono, systemFont("mono")), accent: fontOf(source.fonts.accent, display) },
     display: { weight: 700, tracking: "0em", ...source.display },
+    strong: source.strong ?? 600,
+    synthesis: source.synthesis ?? true,
+    modes,
     type: { ...defaultType, ...source.type },
     space: source.space ?? defaultSpace,
     radius: source.radius,
     border: source.border ?? 1,
     motion: { ...defaultMotion, ...source.motion },
-    light: completeScheme(source.light, "light", source.palette),
-    dark: completeScheme(source.dark, "dark", source.palette),
+    light,
+    dark: source.dark ? completeScheme(source.dark, "dark", source.palette) : light,
   };
   const problems = validateTheme(theme);
   if (problems.length > 0) throw new RangeError(`theme ${source.id}: ${problems.join("; ")}`);

@@ -210,7 +210,7 @@ export function colourWord(input: string, locale: "en" | "fr"): string {
   if (c.c < 0.03) base = c.l > 0.95 ? (fr ? "blanc" : "white") : c.l < 0.2 ? (fr ? "noir" : "black") : fr ? "gris" : "grey";
   else {
     const h = c.h;
-    const table: [number, string, string][] = [[15, "pink", "rose"], [45, "red", "rouge"], [70, "orange", "orange"], [110, "yellow", "jaune"], [165, "green", "vert"], [210, "teal", "turquoise"], [265, "blue", "bleu"], [300, "violet", "violet"], [345, "purple", "pourpre"], [360, "pink", "rose"]];
+    const table: [number, string, string][] = [[15, "pink", "rose"], [40, "red", "rouge"], [70, "orange", "orange"], [110, "yellow", "jaune"], [165, "green", "vert"], [210, "teal", "turquoise"], [285, "blue", "bleu"], [315, "violet", "violet"], [345, "purple", "pourpre"], [360, "pink", "rose"]];
     const hit = table.find(([limit]) => h < limit) ?? table[table.length - 1]!;
     base = fr ? hit[2] : hit[1];
     if (base === "orange" && c.l < 0.55) base = fr ? "brun" : "brown";

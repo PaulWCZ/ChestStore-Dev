@@ -27,7 +27,7 @@ const expected = {
   events: ["acknowledgeErasure", "erasureIdPattern", "handle", "memorySeen", "publish", "toolEventPattern", "verify"],
   mail: ["handle", "isAddress", "limits", "mailboxAddress", "mailboxPattern", "messageIdPattern", "send", "status", "verify"],
   schedules: ["checkSchedules", "describeCron", "handle", "limits", "nextRun", "parseCron", "runIdPattern", "schedulePattern", "timeZone", "verify"],
-  chest: ["company", "currency", "locale", "publicUrl", "teamUrl", "timeZone", "today"],
+  chest: ["company", "currency", "forgetTheme", "locale", "publicUrl", "readThemeChoice", "teamUrl", "theme", "themeIdPattern", "timeZone", "today"],
   visitors: ["address", "checkForm", "count", "formToken", "language", "visitor"],
   checks: ["checkChecks", "checkIdPattern", "checkManifest", "checkPattern", "configure", "handle", "limits", "list", "verify"],
   testing: ["fakeChest", "signAssertion", "withMember"],
