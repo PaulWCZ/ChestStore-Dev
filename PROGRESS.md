@@ -5,18 +5,26 @@ meaningful step (brief/07-plan.md).
 
 ## Now
 
-Step 0: check the environment. Then step 1, the ranking and the research.
+Step 1: the ranking and the research.
 
 ## Environment
 
-_To fill in step 0: Node/npm versions, PostgreSQL, container runtime,
-headless browser, web access._
+Checked 2026-09-28 in the cloud container:
+
+| Need | Here | How we work |
+|---|---|---|
+| Node / npm | Node 22.22.2, npm 10.9.7 | Same major as the Chest (Node 22) |
+| PostgreSQL | PostgreSQL 16 installed (`service postgresql start`; user `postgres`/`postgres` on 127.0.0.1:5432) | Real Postgres for tests and the dev harness; one database per tool (`createdb <tool>`). Not started at boot: start it on every run |
+| Container runtime | `docker` CLI present, no daemon | Not needed |
+| Headless browser | Chromium 1194 in `/opt/pw-browsers` (Playwright) | Screenshots via Playwright (`executablePath` if versions differ) |
+| Web | Web search and fetch work; npm registry and GitHub reachable; some hosts refused by the proxy (e.g. google.com) | Research through web search; GitHub pages for licences |
+| Disk / CPU | ~30 GB free, 4 CPUs, 15 GB RAM | One `node_modules` per tool is fine; delete `.next` after verifying |
 
 ## Steps
 
 | Step | State |
 |---|---|
-| 0. Environment | to do |
+| 0. Environment | done |
 | 1. Ranking and research | to do |
 | 2. Foundations | to do |
 | 3. Tools | to do |
