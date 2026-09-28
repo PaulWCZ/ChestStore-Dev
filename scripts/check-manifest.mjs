@@ -14,7 +14,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 // The keys the SDK working copy proposes for the manifest, and their checks.
-const proposalKeys = new Set(["schedules", "mail", "files", "emits", "receives"]);
+const proposalKeys = new Set(["schedules", "mail", "files", "emits", "receives", "translations"]);
 const schedulesPath = join(root, "sdk", "dist", "src", "schedules.js");
 const schedulesApi = existsSync(schedulesPath) ? await import(pathToFileURL(schedulesPath).href) : null;
 
@@ -289,6 +289,32 @@ export function checkTool(folder) {
         else {
           if (m.send !== undefined && typeof m.send !== "boolean") error("chest.proposals.json: mail.send is true or false");
           if (m.mailboxes !== undefined && (!Array.isArray(m.mailboxes) || m.mailboxes.length > 4 || !m.mailboxes.every(b => typeof b === "string" && /^[a-z][a-z0-9-]{0,31}$/u.test(b)) || new Set(m.mailboxes).size !== m.mailboxes.length)) error("chest.proposals.json: mail.mailboxes is up to 4 distinct names (lowercase letters, digits, hyphens)");
+        }
+      }
+      // The store's words in other languages: {"fr": {"title", "description",
+      // "role_labels"}} — the tile and the admin's screens in each member's
+      // language. The manifest's own words stay the English default.
+      if (proposals.translations !== undefined) {
+        const t = proposals.translations;
+        const languages = ["fr"];
+        if (t === null || typeof t !== "object" || Array.isArray(t)) error('chest.proposals.json: translations is {"fr": {"title", "description", "role_labels"}}');
+        else for (const [lang, words] of Object.entries(t)) {
+          if (!languages.includes(lang)) error(`chest.proposals.json: translations.${lang}: a language the Chest speaks (${languages.join(", ")})`);
+          if (words === null || typeof words !== "object" || Array.isArray(words) || Object.keys(words).some(k => !["title", "description", "role_labels"].includes(k))) { error(`chest.proposals.json: translations.${lang} is {"title", "description", "role_labels"}`); continue; }
+          for (const [key, max] of [["title", 48], ["description", 160]]) {
+            const value = words[key];
+            if (value === undefined) { warnings.push(`translations.${lang} has no ${key}: the English one is shown`); continue; }
+            if (typeof value !== "string" || value.length === 0 || [...value].length > max || invisible.test(value)) error(`chest.proposals.json: translations.${lang}.${key} must be 1 to ${max} characters`);
+          }
+          const labels = words.role_labels;
+          if (labels !== undefined) {
+            if (labels === null || typeof labels !== "object" || Array.isArray(labels)) error(`chest.proposals.json: translations.${lang}.role_labels is an object`);
+            else for (const [role, word] of Object.entries(labels)) {
+              if (!Array.isArray(roles) || !roles.includes(role)) error(`chest.proposals.json: translations.${lang}.role_labels names "${role}", which roles does not declare`);
+              if (typeof word !== "string" || word.length < 1 || [...word].length > 40 || word.trim() !== word || invisible.test(word)) error(`chest.proposals.json: translations.${lang}.role_labels.${role} must be 1 to 40 printable characters`);
+            }
+          }
+          if (Array.isArray(roles) && manifest.role_labels && (!labels || roles.some(r => manifest.role_labels[r] && !labels[r]))) warnings.push(`translations.${lang}: some roles have no label in this language`);
         }
       }
       if (proposals.schedules !== undefined) {

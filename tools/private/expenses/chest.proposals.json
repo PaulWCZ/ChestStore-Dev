@@ -1,1 +1,23 @@
-{ "schedules": [{ "name": "reminder", "cron": "0 9 25 * *" }, { "name": "cleanup", "cron": "40 3 * * *" }] }
+{
+  "schedules": [
+    {
+      "name": "reminder",
+      "cron": "0 9 25 * *"
+    },
+    {
+      "name": "cleanup",
+      "cron": "40 3 * * *"
+    }
+  ],
+  "translations": {
+    "fr": {
+      "title": "Notes de frais",
+      "description": "Photographiez un justificatif, soyez remboursé : notes de frais, validation, indemnités kilométriques et un export mensuel propre pour le comptable.",
+      "role_labels": {
+        "accountant": "Comptable",
+        "approver": "Valideur",
+        "employee": "Salarié"
+      }
+    }
+  }
+}

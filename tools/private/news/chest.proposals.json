@@ -1,1 +1,18 @@
-{ "schedules": [{ "name": "publish", "cron": "*/15 * * * *" }] }
+{
+  "schedules": [
+    {
+      "name": "publish",
+      "cron": "*/15 * * * *"
+    }
+  ],
+  "translations": {
+    "fr": {
+      "title": "Actualités",
+      "description": "La une de l’entreprise : annonces, événements, nouveaux collègues — et qui a lu ce qui compte.",
+      "role_labels": {
+        "publisher": "Rédacteur",
+        "reader": "Lecteur"
+      }
+    }
+  }
+}

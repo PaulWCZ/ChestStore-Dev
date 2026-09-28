@@ -1,1 +1,19 @@
-{ "schedules": [{ "name": "morning", "cron": "30 7 * * 1-5" }] }
+{
+  "schedules": [
+    {
+      "name": "morning",
+      "cron": "30 7 * * 1-5"
+    }
+  ],
+  "translations": {
+    "fr": {
+      "title": "Tâches",
+      "description": "Organisez le travail de l’équipe en tableaux, confiez des tâches, voyez ce qui est en retard.",
+      "role_labels": {
+        "manager": "Responsable",
+        "member": "Membre",
+        "viewer": "Lecteur"
+      }
+    }
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "translations": {
+    "fr": {
+      "title": "Wiki",
+      "description": "Écrivez comment l’entreprise fonctionne — livret d’accueil, règles, modes d’emploi — et trouvez chaque réponse en quelques secondes.",
+      "role_labels": {
+        "editor": "Éditeur",
+        "reader": "Lecteur"
+      }
+    }
+  }
+}

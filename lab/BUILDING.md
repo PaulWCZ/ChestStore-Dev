@@ -93,6 +93,10 @@ Lessons from the tools already built:
 - **Tiptap and similar libraries inject `<style>`**: the nonce policy
   blocks it; turn it off and ship the CSS.
 
+The tile speaks French too: `chest.proposals.json` carries
+`"translations": {"fr": {"title", "description", "role_labels"}}` (checked
+by `scripts/check-manifest.mjs`).
+
 ## 5. Document
 
 `README.md` (what it does, roles table, **First minute**, routes, on a Chest,

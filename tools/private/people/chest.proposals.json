@@ -1,1 +1,18 @@
-{ "schedules": [{ "name": "morning", "cron": "40 7 * * 1-5" }] }
+{
+  "schedules": [
+    {
+      "name": "morning",
+      "cron": "40 7 * * 1-5"
+    }
+  ],
+  "translations": {
+    "fr": {
+      "title": "Équipe",
+      "description": "L’annuaire et l’organigramme : qui fait quoi, comment le joindre, et des listes pour accueillir les arrivants et accompagner les départs.",
+      "role_labels": {
+        "hr": "RH",
+        "member": "Membre"
+      }
+    }
+  }
+}

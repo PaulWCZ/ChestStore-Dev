@@ -81,8 +81,8 @@ _(to be ordered once more tools are built; the evidence so far)_
 ### Manifest
 - **Unknown keys refused** — see summary (4).
 - **`title` and `description` are one language.** A French member sees
-  "Tasks" on the tile while the tool speaks French inside. Proposal:
-  `"title": {"en": "Tasks", "fr": "Tâches"}` (a string stays valid).
+  "Tasks" on the tile while the tool speaks French inside (News, Leave and
+  Wiki's builders each raised it). Built as a manifest proposal (4.7).
 - Role identifiers' grammar is not written in the contract (we assumed
   `^[a-z][a-z0-9_-]{0,31}$`).
 
@@ -249,6 +249,23 @@ _(to be ordered once more tools are built; the evidence so far)_
   owner's mute per tool); a broadcast reaching someone who should not see
   a title (the tool chooses roles and groups; titles are 80 characters and
   open a page the tool still guards).
+
+### 4.7 The store's words in other languages — manifest `translations` (built in the checker)
+
+- **Needed by**: every tool. A tool speaks the member's language inside
+  (`member.locale`), but its tile, its store card and the role names the
+  admin picks from are in English only.
+- **Shape**: `"translations": {"fr": {"title": "Tâches", "description":
+  "…", "role_labels": {"manager": "Responsable"}}}` — the manifest's own
+  words stay the default (English); a language the Chest speaks may give
+  any of the three; same bounds as the originals (48, 160, 40 characters).
+  Kept in `chest.proposals.json` (today's parser refuses the key); checked
+  by `scripts/check-manifest.mjs`; given by all nine finished tools.
+- **Why not `"title": {"en": …, "fr": …}`**: a string must stay valid for
+  every tool already published, and one block per language is what a
+  translator (or an agent) adds in one place.
+- **The Chest's side**: the tile, the store and the roles screen pick the
+  viewer's language, falling back to the manifest's words.
 
 _(more sections as tools need them: public accounts, payments, AI.)_
 

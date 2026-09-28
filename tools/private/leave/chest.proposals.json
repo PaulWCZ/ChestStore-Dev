@@ -1,1 +1,19 @@
-{ "schedules": [{ "name": "morning", "cron": "30 8 * * 1-5" }] }
+{
+  "schedules": [
+    {
+      "name": "morning",
+      "cron": "30 8 * * 1-5"
+    }
+  ],
+  "translations": {
+    "fr": {
+      "title": "Congés",
+      "description": "Demandez un congé, obtenez une réponse en un clic, voyez qui est absent. Règles françaises incluses : jours ouvrés ou ouvrables, jours fériés, acquisition.",
+      "role_labels": {
+        "hr": "RH",
+        "manager": "Manager",
+        "employee": "Salarié"
+      }
+    }
+  }
+}

@@ -1,4 +1,25 @@
 {
-  "mail": { "send": true, "mailboxes": ["support"] },
-  "schedules": [{ "name": "cleanup", "cron": "15 3 * * *" }]
+  "mail": {
+    "send": true,
+    "mailboxes": [
+      "support"
+    ]
+  },
+  "schedules": [
+    {
+      "name": "cleanup",
+      "cron": "15 3 * * *"
+    }
+  ],
+  "translations": {
+    "fr": {
+      "title": "Support",
+      "description": "Répondez à vos clients ensemble : un formulaire de contact, une boîte partagée, des réponses et des notes.",
+      "role_labels": {
+        "admin": "Administrateur",
+        "agent": "Agent",
+        "viewer": "Lecteur"
+      }
+    }
+  }
 }

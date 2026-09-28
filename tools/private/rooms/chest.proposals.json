@@ -1,0 +1,12 @@
+{
+  "translations": {
+    "fr": {
+      "title": "Salles",
+      "description": "Réservez un bureau ou une salle de réunion, et voyez qui est au bureau chaque jour.",
+      "role_labels": {
+        "admin": "Admin",
+        "member": "Membre"
+      }
+    }
+  }
+}
