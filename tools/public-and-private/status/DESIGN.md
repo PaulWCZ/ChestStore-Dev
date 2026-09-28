@@ -1,56 +1,100 @@
-# Notes — design
+# Status — design
 
 ## Name and personality
 
-**Notes** (French: *Notes*). Calm, plain, friendly.
+**Status** (French: *État des services*). **Calm, exact, trustworthy** —
+a control room, not an alarm: when something breaks, the page is where
+customers go to feel reassured, so it must look steady and speak plainly.
 
-## Tokens
+## Tokens (`app/tokens.css`, light and dark)
 
-Ratios computed with `scripts/contrast.mjs` (WCAG 2; AA is 4.5:1 for text).
-
-Defined once in `app/tokens.css` (light, and dark by the system's choice);
-nothing else in the CSS names a colour or a size.
+A cool grey paper, near-black ink, white panels with hairlines. Colour is
+kept for states only, and a state never rests on colour: each has its own
+icon shape (a check in a circle, a wrench, a bar in a rounded square, an
+exclamation in a triangle, a cross in an octagon) and its word. The five
+state colours follow the Okabe–Ito palette (distinguishable with the
+common colour-vision deficiencies), each with an "ink" twin for text and a
+tint for banners.
 
 | Token | Light | Dark | Use |
 |---|---|---|---|
-| `--bg` | `#f7f6f2` | `#161614` | page |
-| `--surface` | `#ffffff` | `#201f1c` | cards, fields |
-| `--ink` | `#1c1b18` | `#f2f0ea` | text — 17.2:1 on `--surface` (light), 14.5:1 (dark) |
-| `--ink-2` | `#57544c` | `#b5b1a6` | secondary text — 7.6:1 / 7.7:1 |
-| `--accent` | `#2b59c3` | `#8fb0ff` | the one action, focus — 6.3:1 with white text / 8.1:1 with `--accent-ink` |
-| `--danger` | `#b3261e` | `#ff8a80` | errors — 6.5:1 / 7.2:1 |
+| `--bg` | `#eef1f4` | `#0c1015` | page |
+| `--surface` | `#ffffff` | `#141a21` | panels |
+| `--ink` | `#0f1419` | `#e7ecf1` | text, primary buttons |
+| `--ink-2` | `#4a5561` | `#9aa7b4` | secondary text |
+| `--link` | `#0b5cad` | `#7cb4ff` | links |
+| `--s-operational` | `#0a7f58` | `#3fbf8a` | Operational |
+| `--s-maintenance` | `#1f66c7` | `#5b9cf0` | Under maintenance |
+| `--s-degraded` | `#a87700` | `#e0b33a` | Degraded performance |
+| `--s-partial` | `#c95a0a` | `#f08a3c` | Partial outage |
+| `--s-major` | `#c42d17` | `#f2665a` | Major outage |
 
-Type: **Figtree** (OFL-1.1, self-hosted in `public/fonts/`), 16 px body,
-1.5 line height; headings 700. Spacing: 4, 8, 12, 16, 24, 32, 48 px. Radii
-6, 10, 16 px. Motion: 120 ms and 240 ms, none when the system asks for
-reduced motion.
+Contrast (scripts/contrast.mjs): ink on paper 16.3:1; `--ink-2` on paper
+6.7:1, on white 7.6:1; `--ink-3` on paper 4.8:1; links on white 6.7:1.
+State colours as graphics on white, all ≥ 3:1 (operational 5.0, maintenance
+5.6, degraded 4.0, partial 4.2, major 5.6); their text twins on their tints
+≥ 5.2:1 (degraded ink `#7d5800` on `#fbf3dc` 5.8:1, partial ink `#a54808`
+on `#fdeee3` 5.2:1, operational ink on its tint 5.7:1). Dark: every state
+ink on its tint ≥ 7.3:1; `--ink-2` on panels 7.1:1. The axe-core audit
+(lab/chest-dev/audit.mjs) passes on every screen, light and dark.
+
+**Type**: Red Hat Text (variable, OFL) for everything, tabular figures for
+times; Red Hat Mono (variable, OFL) for the uptime percentages. Sizes
+0.75 / 0.875 / 1 / 1.25 / 1.625 / 2.125 rem. **Spacing** 4, 8, 12, 16, 24,
+32, 48, 72 px. **Radii** 4 / 6 / 10 px. **Shadows**: one hairline shadow on
+panels, one for toasts and dialogs. **Motion**: 120/220 ms, none with
+`prefers-reduced-motion`.
 
 ## Components
 
-Button (primary, quiet, link), text field, avatar (photo or initials), note
-card (normal, pinned, pending), empty state with one action, toast with
-"Undo". Every control is 44 px tall at least; focus is a 3 px ring.
+- **Banner**: the page's one sentence — tint, a 6 px edge and the state's
+  icon at 40 px.
+- **History bar**: 90 ticks (30 on a phone), 2 px apart; a dark tooltip on
+  hover or focus (the day, its state, its incidents); a sentence and a
+  table for screen readers.
+- **Incident card**: a 5 px edge in the incident's worst colour, a step
+  chip, and a timeline (dots on a hairline, the newest filled).
+- **Rows**: past incidents, a 3 px coloured edge.
+- **State label**: icon + word in the state's ink colour.
+- **Buttons**: ink (primary), white with a line (quiet), link; green for
+  *Resolve*; 44 px targets (36 px for icon buttons in dense lists).
+- **Team header**: an ink bar with tabs underlined in green — a control
+  panel over the calm page.
+- **Toasts** with *Undo*, one **dialog** (resolving, finishing a
+  maintenance), inputs with a blue focus ring.
 
 ## Icon
 
-`chest/icon.svg`: three lines of text on a rounded square in the accent —
-a note. No letters; readable at 24 px on light and dark tiles.
+`chest/icon.svg`: a near-black rounded panel with a history bar of four
+ticks — green, green, amber, green. Readable at 24 px on light and dark
+tiles (a lighter hairline outlines the panel on dark ones); no text.
 
 ## Why
 
-A note board is read in passing: the content is the design, so the frame
-is quiet (warm paper white, one blue) and the action is obvious.
+A status page is read when people are worried. Grey paper and black ink
+are the quietest possible ground, so the one coloured band — the state —
+is the first thing seen; the ticks borrow the heartbeat bar every status
+page user knows, and the mono percentages give the page an instrument's
+exactness. It must not look like the Chest portal (black and white Swiss,
+no state colour), like Tasks (yellow, neo-brutalist) or like a marketing
+page: it is the company's, with its name and monogram on top.
 
 ```json showcase
 {
-  "adjectives": ["calm", "plain", "friendly"],
+  "adjectives": ["calm", "exact", "trustworthy"],
   "colors": [
-    { "name": "Paper", "value": "#f7f6f2" },
-    { "name": "Ink", "value": "#1c1b18" },
-    { "name": "Blue", "value": "#2b59c3" },
-    { "name": "Stone", "value": "#57544c" }
+    { "name": "Paper", "value": "#eef1f4" },
+    { "name": "Ink", "value": "#0f1419" },
+    { "name": "Operational", "value": "#0a7f58" },
+    { "name": "Maintenance", "value": "#1f66c7" },
+    { "name": "Degraded", "value": "#a87700" },
+    { "name": "Partial", "value": "#c95a0a" },
+    { "name": "Major", "value": "#c42d17" }
   ],
-  "fonts": { "display": { "family": "Figtree Variable", "file": "public/fonts/figtree-latin-wght-normal.woff2", "weight": 700 }, "body": { "family": "Figtree Variable", "file": "public/fonts/figtree-latin-wght-normal.woff2", "weight": 400 } },
-  "specimen": "Post a note for the whole team."
+  "fonts": {
+    "display": { "family": "Red Hat Text", "file": "public/fonts/red-hat-text-latin-wght-normal.woff2", "weight": 650 },
+    "body": { "family": "Red Hat Mono", "file": "public/fonts/red-hat-mono-latin-wght-normal.woff2", "weight": 500 }
+  },
+  "specimen": "All systems operational — 99.97% uptime"
 }
 ```

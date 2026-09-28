@@ -1,13 +1,13 @@
 -- Sample data for local runs and screenshots (never run by the Chest):
 -- Atelier Martin, a furniture workshop of about 30 people. Dates are
--- relative to the day the file is loaded: the current cycle "Q4 2026" is
--- in its sixth week, "Q3 2026" before it is closed with its scores and
+-- relative to the day the file is loaded: the current cycle "Autumn 2026" is
+-- in its sixth week, "Summer 2026" before it is closed with its scores and
 -- what the team learned. Member ids are those of the studio's harness
 -- (lab/chest-dev/cast.mjs); Paul Lefèvre has left the company.
 
 insert into cycles (id, name, starts_on, ends_on, current, closed_at, closed_by, created_by, created_at) overriding system value values
-  (1, 'Q3 2026', current_date - 129, current_date - 39, false, now() - interval '36 days', 'mbr_camilleaaaaaaaaaaaaaaaaaaa', 'mbr_camilleaaaaaaaaaaaaaaaaaaa', now() - interval '140 days'),
-  (2, 'Q4 2026', current_date - 38, current_date + 52, true, null, null, 'mbr_camilleaaaaaaaaaaaaaaaaaaa', now() - interval '45 days');
+  (1, 'Summer 2026', current_date - 129, current_date - 39, false, now() - interval '36 days', 'mbr_camilleaaaaaaaaaaaaaaaaaaa', 'mbr_camilleaaaaaaaaaaaaaaaaaaa', now() - interval '140 days'),
+  (2, 'Autumn 2026', current_date - 38, current_date + 52, true, null, null, 'mbr_camilleaaaaaaaaaaaaaaaaaaa', now() - interval '45 days');
 select setval(pg_get_serial_sequence('cycles', 'id'), 2);
 
 insert into teams (id, name, group_id) overriding system value values

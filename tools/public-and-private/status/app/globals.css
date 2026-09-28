@@ -215,16 +215,17 @@ code.copy { display: block; padding: var(--space-3); background: var(--surface-2
 .not-found { padding-top: var(--space-8); }
 
 /* ---- Team part ---------------------------------------------------------- */
-.top { background: var(--ink); color: var(--bg); position: sticky; top: 0; z-index: 10; }
+/* The team's header stays a dark control panel in both themes. */
+.top { --top-ink: #e7ecf1; --top-dim: #b8c1cb; background: #0f1419; color: var(--top-ink); border-bottom: 1px solid #26303b; position: sticky; top: 0; z-index: 10; }
 .top-inner { max-width: 1100px; margin: 0 auto; display: flex; align-items: center; gap: var(--space-5); padding: 0 var(--space-5); min-height: 60px; }
-.brand { display: flex; align-items: center; gap: var(--space-2); font-weight: 700; color: var(--bg); text-decoration: none; white-space: nowrap; }
+.brand { display: flex; align-items: center; gap: var(--space-2); font-weight: 700; color: var(--top-ink); text-decoration: none; white-space: nowrap; }
 .brand .mark { width: 30px; height: 30px; }
 .tabs { display: flex; gap: var(--space-1); overflow-x: auto; scrollbar-width: none; }
-.tabs a { display: inline-flex; align-items: center; min-height: 60px; padding: 0 var(--space-3); color: color-mix(in srgb, var(--bg) 72%, var(--ink)); text-decoration: none; font-weight: 600; font-size: var(--text-s); border-bottom: 3px solid transparent; white-space: nowrap; }
-.tabs a:hover { color: var(--bg); }
-.tabs a[aria-current="page"] { color: var(--bg); border-bottom-color: var(--s-operational); }
+.tabs a { display: inline-flex; align-items: center; min-height: 60px; padding: 0 var(--space-3); color: var(--top-dim); text-decoration: none; font-weight: 600; font-size: var(--text-s); border-bottom: 3px solid transparent; white-space: nowrap; }
+.tabs a:hover { color: var(--top-ink); }
+.tabs a[aria-current="page"] { color: var(--top-ink); border-bottom-color: #3fbf8a; }
 .me { margin-left: auto; display: flex; align-items: center; gap: var(--space-3); }
-.public-link { display: inline-flex; align-items: center; gap: 6px; color: var(--bg); font-size: var(--text-s); font-weight: 600; text-decoration: none; white-space: nowrap; }
+.public-link { display: inline-flex; align-items: center; gap: 6px; color: var(--top-ink); font-size: var(--text-s); font-weight: 600; text-decoration: none; white-space: nowrap; }
 .public-link:hover { text-decoration: underline; }
 .avatar { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; background: var(--surface-3); display: inline-grid; place-items: center; font-size: 0.75rem; font-weight: 700; color: var(--ink); flex: none; }
 .team-main main { padding: var(--space-6) var(--space-5) var(--space-8); margin: 0 auto; }

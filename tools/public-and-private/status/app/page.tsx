@@ -12,7 +12,7 @@ import { impactOf, statusView, touchedNames } from "../lib/status-view.ts";
 
 export async function generateMetadata(): Promise<Metadata> {
   const { t, company } = await publicContext();
-  return { title: company ? format(t.meta.publicTitle, { company }) : t.meta.publicPlain, description: format(t.meta.publicDescription, { company: company || t.mail.team }) };
+  return { title: company ? format(t.meta.publicTitle, { company }) : t.meta.publicPlain, description: format(t.meta.publicDescription, { company: company || t.mail.team }), robots: { index: true, follow: true } };
 }
 
 // The status page: one line that says whether everything works, what is

@@ -137,8 +137,8 @@ export function FinaliseDialog({ t, doc, upcoming, companyMissing, clientMissing
             </div>
           </div>
           <div className="dialog-actions">
-            {companyMissing.length > 0 && canSettings && <a className="button" href="/chest/settings">{f.toSettings}</a>}
-            {clientMissing.length > 0 && doc.clientId && <a className="button" href={`/chest/clients/${doc.clientId}`}>{f.toClient}</a>}
+            {companyMissing.length !== 0 && canSettings && <a className="button" href="/chest/settings">{f.toSettings}</a>}
+            {clientMissing.length !== 0 && doc.clientId && <a className="button" href={`/chest/clients/${doc.clientId}`}>{f.toClient}</a>}
             <button type="button" className="button quiet" onClick={onClose}>{t.common.cancel}</button>
           </div>
         </>

@@ -90,8 +90,10 @@ test("desk days per week: the limit counts days, admins are not held to it", asy
 
 test("cancel: the holder or an admin; another member cannot; undo brings it back if still free", async () => {
   const { sql } = database;
-  const d = workday(4);
-  const b = await desks.bookDesk(sql, asMember(hugo), { deskId: o.desks[1], day: d }, zone);
+  // Desk 4 in the second week: no other test here books it then, whatever
+  // today's date (workday(3) and workday(4) may be the same Monday).
+  const d = workday(10);
+  const b = await desks.bookDesk(sql, asMember(hugo), { deskId: o.desks[3], day: d }, zone);
   await assert.rejects(desks.cancelDesk(sql, asMember(ines), b.id), { code: "forbidden" });
   await desks.cancelDesk(sql, asMember(hugo), b.id);
   await assert.rejects(desks.cancelDesk(sql, asMember(hugo), b.id), { code: "not_found" });
@@ -99,7 +101,7 @@ test("cancel: the holder or an admin; another member cannot; undo brings it back
   // An admin frees it; Hugo cannot undo what he did not do; once someone else took it, undo says so.
   await desks.cancelDesk(sql, asMember(camille), b.id);
   await assert.rejects(desks.restoreDesk(sql, asMember(hugo), b.id), { code: "forbidden" });
-  await desks.bookDesk(sql, asMember(ines), { deskId: o.desks[1], day: d }, zone);
+  await desks.bookDesk(sql, asMember(ines), { deskId: o.desks[3], day: d }, zone);
   await assert.rejects(desks.restoreDesk(sql, asMember(camille), b.id), { code: "taken" });
 });
 

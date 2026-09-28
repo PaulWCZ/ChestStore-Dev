@@ -154,7 +154,7 @@ npm run build     # types, then the Next.js build, as the Chest does
 ```
 
 In the studio: `node lab/chest-dev/dev.mjs tools/private/goals --reset --port 5600`
-(Atelier Martin's cycles from `seed/sample.sql`: a current Q4 2026 in its
+(Atelier Martin's cycles from `seed/sample.sql`: a current Autumn 2026 in its
 sixth week, a closed Q3 with scores and learnings, Paul Lefèvre gone),
 `node lab/chest-dev/flows/goals.mjs 5600`, `node lab/chest-dev/screens.mjs
 tools/private/goals --port 5600`, `node lab/chest-dev/audit.mjs

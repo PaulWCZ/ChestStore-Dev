@@ -2,8 +2,8 @@ import assert from "node:assert/strict";
 import { after, afterEach, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
 import { POST } from "../app/chest-events/route.ts";
-import { clock, today } from "../lib/clock.ts";
-import { addDays, mondayOf } from "../lib/days.ts";
+import { clock, today, zone } from "../lib/clock.ts";
+import { addDays, mondayOf, wall } from "../lib/days.ts";
 import { addEntry, addRow, dayEntries, week } from "../lib/entries.ts";
 import * as projects from "../lib/projects.ts";
 import { report } from "../lib/reports.ts";
@@ -45,9 +45,10 @@ test("someone who leaves: their timer stops into an entry, they leave the projec
   assert.equal(await chest.emit(event("member.removed", hugo.id, "b"), POST), 204);
   assert.equal(await chest.emit(event("member.removed", hugo.id, "b"), POST), 204);
   assert.equal(await timer(sql, asMember(hugo)), null);
-  const mine = await dayEntries(sql, asMember(hugo), day);
-  assert.ok(mine.some(e => e.note === "Kept"));
-  assert.ok(mine.some(e => e.note === "Running" && e.source === "timer"));
+  // The timer's entry belongs to the day it started (yesterday, just after midnight).
+  const startDay = wall(Date.now() - 30 * 60_000, zone()).day;
+  assert.ok((await dayEntries(sql, asMember(hugo), day)).some(e => e.note === "Kept"));
+  assert.ok((await dayEntries(sql, asMember(hugo), startDay)).some(e => e.note === "Running" && e.source === "timer"));
   assert.equal((await projects.project(sql, asMember(camille), secret.id)).people.includes(hugo.id), false);
   // Their grid rows went; their time is in the reports.
   assert.ok((await week(sql, asMember(hugo), mondayOf(day))).rows.every(r => r.cells.some(c => c.minutes > 0)));
@@ -75,12 +76,12 @@ test("an erasure keeps the time for the company, anonymous and without notes, an
   assert.equal(await chest.emit(e, POST), 204);
   assert.equal(await chest.emit(e, POST), 204);
   assert.deepEqual(chest.acknowledged, ["era_" + "d".repeat(26)]);
-  const rows = await sql<{ member_id: string; note: string; minutes: number }[]>`select member_id, note, minutes from entries where day = ${day}`;
+  const rows = await sql<{ member_id: string; note: string; minutes: number }[]>`select member_id, note, minutes from entries where day = ${day} and member_id <> ${hugo.id}`;
   assert.deepEqual([...rows], [{ member_id: "erased", note: "", minutes: 90 }]);
   const [left] = await sql<{ n: number }[]>`select count(*)::int as n from entries where member_id = ${ines.id}`;
   assert.equal(left?.n, 0);
   const r = await report(sql, asMember(camille), { from: day, to: day, group: "person" });
-  assert.deepEqual(r.lines.map(l => [l.memberId, l.minutes]), [["erased", 90]]);
+  assert.deepEqual(r.lines.filter(l => l.memberId !== hugo.id).map(l => [l.memberId, l.minutes]), [["erased", 90]]);
   assert.equal((await projects.project(sql, asMember(camille), secret.id)).people.includes(ines.id), false);
   // The one who locked the period, erased: the lock stays, anonymous.
   assert.equal(await chest.emit(event("member.erased", camille.id, "e"), POST), 204);

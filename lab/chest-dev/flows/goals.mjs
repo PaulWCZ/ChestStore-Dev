@@ -135,7 +135,7 @@ await step("Camille writes the retrospective of a closed cycle's objective, and 
   await page.getByLabel("Ce que nous avons appris").fill("Une annonce plus précise sur nos machines.");
   await page.getByRole("button", { name: "Enregistrer" }).click();
   await page.waitForSelector("text=Rétrospective enregistrée.");
-  await page.getByRole("button", { name: /Reporter sur Q4 2026/u }).click();
+  await page.getByRole("button", { name: /Reporter sur Autumn 2026/u }).click();
   await page.waitForSelector(".toast >> text=Reporté");
   await page.goto(origin + "/chest/cycles/1");
   expect((await page.locator("main").innerText()).includes("Une annonce plus précise"), "review shows the learning");

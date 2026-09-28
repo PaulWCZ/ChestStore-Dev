@@ -192,7 +192,6 @@ fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
 .prose li + li { margin-top: var(--space-2); }
 .prose ul li::marker { color: var(--tomato); }
 .prose ol li::marker { color: var(--tomato); font-weight: 700; }
-@media (min-width: 961px) { .hero-actions { display: none; } }
 .apply-bar { display: none; }
 @media (max-width: 640px) {
   .apply-card { display: none; }
@@ -232,7 +231,7 @@ fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
 .me-role { color: var(--ink-2); font-size: var(--text-xs); }
 @media (max-width: 720px) {
   .team-top { gap: var(--space-3); flex-wrap: wrap; padding-top: var(--space-2); padding-bottom: var(--space-2); }
-  .brand span { display: none; }
+  .brand span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
   .me-text { display: none; }
   .team-nav { order: 3; flex-basis: 100%; }
   .team-nav a:last-child { display: none; }
@@ -256,7 +255,7 @@ fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
 .job-cards { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 380px), 1fr)); gap: var(--space-4); }
 .job-card { display: grid; gap: var(--space-3); height: 100%; padding: var(--space-5); background: var(--card); border: 1px solid var(--line); border-radius: var(--radius-l); box-shadow: var(--shadow-1); color: var(--ink); text-decoration: none; transition: border-color var(--fast), transform var(--fast) var(--ease); }
 .job-card:hover { border-color: var(--cobalt); transform: translateY(-2px); }
-.job-card.state-closed { opacity: 0.8; }
+.job-card.state-closed { background: transparent; border-style: dashed; box-shadow: none; }
 .job-card-top { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-3); }
 .job-card-title { font-family: var(--font-display); font-size: var(--text-xl); font-weight: 700; letter-spacing: -0.02em; line-height: 1.1; overflow-wrap: anywhere; }
 .job-card-facts { color: var(--ink-2); font-size: var(--text-s); }

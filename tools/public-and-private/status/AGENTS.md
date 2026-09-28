@@ -1,29 +1,29 @@
-# Adapting this tool — a guide for AI agents
+# Adapting Status — a guide for AI agents
 
-`README.md` says what the tool does; this page says where things are and
+`README.md` says what Status does; this page says where things are and
 what must not break.
 
 ## Map
 
 | Path | What it is |
 |---|---|
-| `chest.json` | The manifest: name, roles, capabilities, build |
-| `lib/access.ts` | **Who may do what** — the only place roles are read |
-| `lib/notes.ts` | The service: rules, bounds, SQL (parameterised); takes `sql` and the member, throws `AppError(code)` |
-| `lib/errors.ts` | Error codes, `Result`, `attempt()` for server actions |
-| `lib/i18n/` | Every word: `en.ts` (source), `fr.ts`; `format.ts` for the browser |
-| `lib/session.ts` | The member (`member()` of the SDK) and their language |
-| `lib/people.ts` | Names and photos from member ids (`members.lookup`) |
-| `lib/notify.ts` | Bell items in each recipient's language; badges |
-| `lib/lifecycle.ts` | What happens when a member leaves or is erased |
-| `app/chest/` | The members' part: pages (server) and views (client) |
-| `app/chest/actions.ts` | Server actions: thin, each re-reads the member |
-| `app/chest-events/route.ts` | The Chest's lifecycle events (signed) |
-| `proxy.ts` | Content-Security-Policy with a nonce; 401 on `/chest` without a member |
-| `migrations/` | The schema, run by the Chest in order |
-| `seed/sample.sql` | Sample data for local runs (never run by the Chest) |
-| `test/` | `node:test` with the SDK's `fakeChest` and a real PostgreSQL (PGlite) |
-| `vendor/` | The SDK working copy, packed — do not edit |
+| `chest.json`, `chest.proposals.json` | Manifest (role `editor`; public part) and the proposals it uses (`mail`, the `updates` schedule, French tile words) |
+| `migrations/0001_status.sql` | Components, incidents (and maintenance), updates, update states, the update log, subscribers, the mail queue, form counters |
+| `lib/access.ts` | Who may do what (one role) |
+| `lib/model.ts` | States, steps, bounds, text cleaning, times typed in the Chest's zone — pure |
+| `lib/timeline.ts` | From incidents to spans, states now, 90 days and uptime — pure, tested |
+| `lib/zone.ts` | Wall-clock time in a time zone and back — pure |
+| `lib/components.ts` | Components and groups |
+| `lib/incidents.ts` | Incidents, updates, log, maintenance, automatic posts, history |
+| `lib/status-view.ts` | What the public page (and *Now*) shows |
+| `lib/subscribers.ts`, `lib/guard.ts` | Subscriptions (double opt-in), the form's guard |
+| `lib/mailer.ts`, `lib/settings.ts` | Emails and their queue; what the tool remembers of mail and its public address |
+| `lib/tell.ts`, `lib/notify.ts`, `lib/people.ts` | The team's bell (broadcast, fallback), badges, names |
+| `lib/feed.ts`, `lib/feeds.ts`, `lib/ics.ts` | Atom/RSS and the maintenance calendar |
+| `lib/jobs.ts`, `app/chest-jobs/[name]/route.ts` | The "updates" pass (schedule, or an editor's visit) |
+| `lib/lifecycle.ts`, `app/chest-events/route.ts` | Members erased |
+| `app/page.tsx`, `app/incidents/…`, `app/history/…`, `app/subscribe/…`, `app/s/[token]/…`, `app/public-actions.ts`, `components/history-bar.tsx`, `components/incident-card.tsx` | The public part (anonymous, no JS needed) |
+| `app/chest/…`, `app/chest/actions.ts` | The team's part |
 
 ## Commands
 
@@ -33,17 +33,23 @@ npm ci && npm test && npm run build   # all three must pass
 
 ## Rules
 
-- **Identity comes only from `member()`** (`lib/session.ts`). Never from a
-  body, a query, a cookie. Store `mbr_…` ids, never names or emails.
-- **Rights live in `lib/access.ts`**; services call `can()` before acting;
-  add a line to `test/access.test.ts` for each new ability.
-- **Services return codes, never sentences**; words go in every catalogue
-  of `lib/i18n/` (the tests compare them and look for words in the pages).
-- **Client components never import the SDK**, `lib/session.ts`,
-  `lib/people.ts` or `lib/db.ts` (the build fails: `node:crypto`).
-- **Schema changes are new migration files.** Never edit one that shipped;
-  the previous version must keep working on the new schema.
-- **No network, no disk, no background work.** Deferred work is done on the
-  next request (see the purge in `listNotes`).
-- **Keep the CSP** in `proxy.ts`: no inline script without the nonce, no
-  other origin.
+- **The history is evidence.** Never delete an update or rewrite its text
+  without a row in `update_log`; removals are soft (`removed_at`) and
+  hidden from the public only. An incident's status and times follow its
+  visible updates (`refresh()`).
+- **An update's states are the whole picture** at that moment: a service
+  left out is operational again. Uptime and the 90 days are computed in
+  `lib/timeline.ts` only; keep it pure and tested.
+- **Maintenance is read from the clock** (`maintenancePhase`); the
+  automatic posts are dated at the window's edges and idempotent
+  (`start_posted`, `end_posted`).
+- **Public pages** never show member names, hidden services, removed
+  incidents or updates; they render without JavaScript; times go through
+  `<When>` (server in the Chest's zone, the browser rewrites).
+- **Subscribers** are personal data: store only address, language,
+  choices; unsubscribing deletes the row; answers never reveal whether an
+  address was known; the token only opens that subscription.
+- **Email is optional**: every path must work when `mail.send` throws.
+- Identity from `member()` only; rights in `lib/access.ts`; words in every
+  catalogue (`lib/i18n/en.ts` first, `fr.ts` complete); client components
+  never import the SDK or `lib/db.ts`; never hard-code a time zone.

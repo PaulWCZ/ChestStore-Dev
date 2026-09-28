@@ -14,7 +14,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { t, company, sql } = await publicContext();
   const incident = await publicIncident(sql, (await params).id);
   const site = company ? format(t.meta.publicTitle, { company }) : t.meta.publicPlain;
-  return { title: incident ? `${incident.title} — ${site}` : site };
+  return { title: incident ? `${incident.title} — ${site}` : site, robots: { index: true, follow: true } };
 }
 
 // One incident's own page: the address to send customers ("see

@@ -1,4 +1,4 @@
-// The tool's mark: a dark control panel with a history bar — four days
+// The tool's mark: a dark control panel with a history bar — three days
 // fine, one day amber. Drawn inline in the private part's header; the
 // Chest's tile uses chest/icon.svg, the same drawing.
 export function Mark() {

@@ -73,6 +73,7 @@ export default async function CandidatePage({ params }: { params: Promise<{ id: 
         </p>
         {manage && (
           <CandidateActions
+            jobId={c.jobId}
             candidate={{ id: c.id, name: c.name, status: c.status, stageId: c.stageId, email: c.email, phone: c.phone, link: c.link, language: c.language }}
             stages={d.stages.map(x => ({ id: x.id, name: x.name }))}
             next={c.status === "active" && next ? { id: next.id, name: next.name } : null}

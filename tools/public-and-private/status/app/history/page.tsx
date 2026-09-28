@@ -9,7 +9,7 @@ import { impactOf } from "../../lib/status-view.ts";
 
 export async function generateMetadata(): Promise<Metadata> {
   const { t, company } = await publicContext();
-  return { title: `${t.history.title} — ${company ? format(t.meta.publicTitle, { company }) : t.meta.publicPlain}` };
+  return { title: `${t.history.title} — ${company ? format(t.meta.publicTitle, { company }) : t.meta.publicPlain}`, robots: { index: true, follow: true } };
 }
 
 // Past incidents and maintenance, month by month, three months a page.

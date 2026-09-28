@@ -250,6 +250,7 @@ export function Paper(props: PaperProps) {
     return kinds.size === 2 ? w.operations.mixed : kinds.has(true) ? w.operations.goods : w.operations.services;
   })();
   const seller = doc.seller;
+  const sellerId = seller.siret ? format(w.siret, { value: spacedSiren(seller.siret) }) : seller.siren ? format(w.siren, { value: spacedSiren(seller.siren) }) : "";
   const dueText = doc.type === "invoice" ? (doc.dueDate ? dates.due : format(w.dueIn, { days: header.paymentDays })) : "";
 
   return (
@@ -313,7 +314,7 @@ export function Paper(props: PaperProps) {
       <div className="parties">
         <div className="party">
           <span className="caps">{w.from}</span>
-          {seller.siret ? <span>{format(w.siret, { value: spacedSiren(seller.siret) })}</span> : seller.siren ? <span>{format(w.siren, { value: spacedSiren(seller.siren) })}</span> : null}
+          {sellerId && <span>{sellerId}</span>}
           {seller.vatNumber && !seller.franchise && <span>{format(w.vatNumber, { value: seller.vatNumber })}</span>}
           {seller.rcsCity && seller.siren && <span>{format(w.rcs, { city: seller.rcsCity, siren: spacedSiren(seller.siren) })}</span>}
         </div>
@@ -323,7 +324,7 @@ export function Paper(props: PaperProps) {
             <>
               <span className="name">{buyer.name}</span>
               {buyer.contact && <span>{format(w.attention, { name: buyer.contact })}</span>}
-              {addressLines(buyer, () => ("countryName" in buyer ? buyer.countryName : buyer.country)).map(l => <span key={l}>{l}</span>)}
+              {addressLines(buyer, () => buyer.countryName).map(l => <span key={l}>{l}</span>)}
               {buyer.siren && <span className="grey">{format(w.siren, { value: spacedSiren(buyer.siren) })}</span>}
               {buyer.vatNumber && <span className="grey">{format(w.vatNumber, { value: buyer.vatNumber })}</span>}
               {buyer.deliveryAddress && <><span className="caps">{w.deliverTo}</span><span className="grey">{buyer.deliveryAddress}</span></>}

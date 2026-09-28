@@ -20,7 +20,8 @@ const failed = (t: Errors, r: Fail) => format(t[r.error], r.values ?? {});
 
 type ActionWords = { candidate: Catalogue["candidate"]; reject: Catalogue["reject"]; errors: Errors; common: Catalogue["common"]; apply: Catalogue["apply"]; board: Catalogue["board"] };
 
-export function CandidateActions({ candidate, stages, next, askable, draft, languageName, locale, t }: {
+export function CandidateActions({ jobId, candidate, stages, next, askable, draft, languageName, locale, t }: {
+  jobId: string;
   candidate: { id: string; name: string; status: "active" | "rejected"; stageId: string; email: string; phone: string; link: string; language: Language };
   stages: { id: string; name: string }[];
   next: { id: string; name: string } | null;
@@ -115,7 +116,7 @@ export function CandidateActions({ candidate, stages, next, askable, draft, lang
               if (!r.ok) return toast(failed(t.errors, r));
               setDialog(null);
               toast(format(w.erased, { name: candidate.name }));
-              router.back();
+              router.replace(`/chest/jobs/${jobId}`);
             })}><Bin />{w.eraseConfirm}</button>
             <button type="button" className="button quiet" onClick={() => setDialog(null)}>{t.common.cancel}</button>
           </div>

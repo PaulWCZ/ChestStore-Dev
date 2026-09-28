@@ -178,15 +178,17 @@ function Lane({ stage, count, manage, locale, t, children }: { stage: Stage; cou
 function DraggableCard({ card, locale, t, onOpen }: { card: CandidateCard; locale: Locale; t: Words; onOpen: (id: string) => void }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: cardKey(card.id) });
   return (
-    <li ref={setNodeRef} {...attributes} {...listeners}
-      className={`cand${isDragging ? " dragging" : ""}`}
-      aria-roledescription={undefined}
-      onClick={() => onOpen(card.id)}
-      onKeyDown={(e: KeyboardEvent<HTMLLIElement>) => {
-        listeners?.["onKeyDown"]?.(e);
-        if (e.key === "Enter" && !e.defaultPrevented) onOpen(card.id);
-      }}>
-      <CardBody card={card} locale={locale} t={t} />
+    <li>
+      <div ref={setNodeRef} {...attributes} {...listeners}
+        className={`cand${isDragging ? " dragging" : ""}`}
+        aria-roledescription={undefined}
+        onClick={() => onOpen(card.id)}
+        onKeyDown={(e: KeyboardEvent<HTMLDivElement>) => {
+          listeners?.["onKeyDown"]?.(e);
+          if (e.key === "Enter" && !e.defaultPrevented) onOpen(card.id);
+        }}>
+        <CardBody card={card} locale={locale} t={t} />
+      </div>
     </li>
   );
 }

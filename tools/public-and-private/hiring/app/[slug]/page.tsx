@@ -65,12 +65,6 @@ export default async function JobPage({ params }: { params: Promise<{ slug: stri
           {open && (
             <aside className="apply-card" aria-labelledby="apply-card">
               <h2 id="apply-card">{t.careers.applyNow}</h2>
-              <dl>
-                <div><dt>{t.jobForm.contract}</dt><dd>{t.facts.contract[job.contract]}</dd></div>
-                {job.place && <div><dt>{t.jobForm.place}</dt><dd>{job.place}</dd></div>}
-                <div><dt>{t.jobForm.remote}</dt><dd>{t.facts.remote[job.remote]}</dd></div>
-                {salary && <div><dt>{t.careers.salary}</dt><dd>{salary}</dd></div>}
-              </dl>
               <p>{t.apply.intro}</p>
               <a className="button big" href={`/${job.slug}/apply`}>{t.careers.apply}</a>
             </aside>
