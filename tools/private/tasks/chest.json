@@ -1,20 +1,23 @@
 {
   "version": 2,
   "name": "tasks",
-  "title": "Notes",
-  "description": "Short notes for the whole team: post, pin what matters, undo a mistake.",
+  "title": "Tasks",
+  "description": "Plan the team's work in boards, give tasks to people, see what is late.",
   "icon": "chest/icon.svg",
   "preview": "chest/preview.png",
   "roles": [
     "manager",
-    "member"
+    "member",
+    "viewer"
   ],
   "role_labels": {
     "manager": "Manager",
-    "member": "Member"
+    "member": "Member",
+    "viewer": "Viewer"
   },
   "capabilities": [
     "database",
+    "files",
     "members",
     "notifications"
   ],

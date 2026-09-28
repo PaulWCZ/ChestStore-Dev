@@ -3,6 +3,7 @@
 import {
   closestCorners,
   DndContext,
+  pointerWithin,
   DragOverlay,
   KeyboardSensor,
   PointerSensor,
@@ -11,11 +12,14 @@ import {
   useSensor,
   useSensors,
   type Announcements,
+  type CollisionDetection,
+  type KeyboardCoordinateGetter,
+  type UniqueIdentifier,
   type DragEndEvent,
   type DragOverEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
-import { SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
+import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -47,6 +51,13 @@ type Props = {
   t: Words;
 };
 
+// Cards and columns are both drag targets: their keys say which is which
+// (a card and a column may share a number).
+const cardKey = (id: string) => "card:" + id;
+const laneKey = (id: string) => "lane:" + id;
+const isLaneKey = (key: UniqueIdentifier) => String(key).startsWith("lane:");
+const raw = (key: UniqueIdentifier) => String(key).replace(/^(card|lane):/u, "");
+
 // Cards by column, as the board shows them (and as a drag reorders them).
 type Lanes = Record<string, string[]>;
 const lanesOf = (columns: Column[], cards: CardSummary[]): Lanes => Object.fromEntries(columns.map(c => [c.id, cards.filter(k => k.columnId === c.id).map(k => k.id)]));
@@ -75,14 +86,59 @@ export function BoardView({ board, columns, labels, cards, people, audience, me,
     router.replace(`${path}${params.size ? "?" + params.toString() : ""}`, { scroll: false });
   };
 
+  // The keyboard moves a card as on a board: up and down among the cards of
+  // its column, left and right to the neighbouring column (its top).
+  const lanesRef = useRef(lanes);
+  lanesRef.current = lanes;
+  const keyboardCoordinates: KeyboardCoordinateGetter = (event, { context }) => {
+    const { active, over, droppableRects } = context;
+    if (!active) return undefined;
+    const current = lanesRef.current;
+    const activeId = raw(active.id);
+    const at = over ? String(over.id) : cardKey(activeId);
+    const lane = isLaneKey(at) ? raw(at) : Object.keys(current).find(k => current[k]!.includes(raw(at)));
+    if (!lane) return undefined;
+    const ids = current[lane]!;
+    const order = columns.map(c => c.id);
+    let target: string | undefined;
+    if (event.code === "ArrowUp" || event.code === "ArrowDown") {
+      const index = isLaneKey(at) ? ids.indexOf(activeId) : ids.indexOf(raw(at));
+      let id = event.code === "ArrowUp" ? ids[index - 1] : ids[index + 1];
+      if (id === activeId) id = event.code === "ArrowUp" ? ids[index - 2] : ids[index + 2];
+      if (id) target = cardKey(id);
+    } else if (event.code === "ArrowLeft" || event.code === "ArrowRight") {
+      const next = order[order.indexOf(lane) + (event.code === "ArrowLeft" ? -1 : 1)];
+      if (next) {
+        const first = current[next]!.find(x => x !== activeId);
+        target = first ? cardKey(first) : laneKey(next);
+      }
+    } else return undefined;
+    event.preventDefault();
+    const rect = target ? droppableRects.get(target) : undefined;
+    return rect ? { x: rect.left + 4, y: rect.top + 4 } : undefined;
+  };
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
     useSensor(TouchSensor, { activationConstraint: { delay: 220, tolerance: 8 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+    useSensor(KeyboardSensor, { coordinateGetter: keyboardCoordinates }),
   );
-  const laneOf = (id: string): string | undefined => (id in lanes ? id : Object.keys(lanes).find(k => lanes[k]!.includes(id)));
+  // What a dragged card is over: under a pointer, the card (or else the
+  // column) under it; from the keyboard, the nearest card, a column only
+  // when it is empty.
+  const collision: CollisionDetection = args => {
+    if (args.pointerCoordinates) {
+      const within = pointerWithin(args);
+      if (within.length > 0) {
+        const cardsIn = within.filter(h => !isLaneKey(h.id));
+        return cardsIn.length > 0 ? cardsIn : within;
+      }
+    }
+    return closestCorners(args).filter(h => !isLaneKey(h.id) || (lanes[raw(h.id)] ?? []).length === 0);
+  };
+  // The column a drag key (a card's or a column's) is in.
+  const laneOf = (key: string): string | undefined => (isLaneKey(key) ? raw(key) : Object.keys(lanes).find(k => lanes[k]!.includes(raw(key))));
   const columnName = (id: string | undefined) => columns.find(c => c.id === id)?.name ?? "";
-  const titleOf = (id: string | number) => byId.get(String(id))?.title ?? "";
+  const titleOf = (key: UniqueIdentifier) => byId.get(raw(key))?.title ?? "";
   const announcements: Announcements = {
     onDragStart: ({ active }) => format(t.board.picked, { title: titleOf(active.id) }),
     onDragOver: ({ active, over }) => (over ? format(t.board.movedOver, { title: titleOf(active.id), column: columnName(laneOf(String(over.id))) }) : undefined),
@@ -91,25 +147,25 @@ export function BoardView({ board, columns, labels, cards, people, audience, me,
   };
 
   function onDragStart(e: DragStartEvent) {
-    setDragging(String(e.active.id));
+    setDragging(raw(e.active.id));
   }
   // Across columns, the card follows the pointer at once.
   function onDragOver(e: DragOverEvent) {
-    const active = String(e.active.id);
+    const active = raw(e.active.id);
     const over = e.over ? String(e.over.id) : null;
     if (!over) return;
-    const from = laneOf(active), to = laneOf(over);
+    const from = laneOf(cardKey(active)), to = laneOf(over);
     if (!from || !to || from === to) return;
     setLanes(current => {
       const source = current[from]!.filter(x => x !== active);
       const target = [...current[to]!];
-      const at = over === to ? target.length : Math.max(0, target.indexOf(over));
+      const at = isLaneKey(over) ? target.length : Math.max(0, target.indexOf(raw(over)));
       target.splice(at, 0, active);
       return { ...current, [from]: source, [to]: target };
     });
   }
   function onDragEnd(e: DragEndEvent) {
-    const active = String(e.active.id);
+    const active = raw(e.active.id);
     const over = e.over ? String(e.over.id) : null;
     setDragging(null);
     if (!over) return setLanes(lanesOf(columns, cards));
@@ -117,13 +173,13 @@ export function BoardView({ board, columns, labels, cards, people, audience, me,
     if (!to) return;
     const list = [...lanes[to]!];
     const from = list.indexOf(active);
-    const target = over === to ? list.length - 1 : list.indexOf(over);
+    // Over the column itself (its empty space): the card keeps its place.
+    const target = isLaneKey(over) ? from : list.indexOf(raw(over));
     if (from >= 0 && target >= 0 && from !== target) {
       list.splice(from, 1);
       list.splice(target, 0, active);
     }
-    const next = { ...lanes, [to]: list };
-    setLanes(next);
+    setLanes({ ...lanes, [to]: list });
     const index = list.indexOf(active);
     const original = byId.get(active);
     if (original && original.columnId === to && lanesOf(columns, cards)[to]!.indexOf(active) === index) return;
@@ -183,7 +239,7 @@ export function BoardView({ board, columns, labels, cards, people, audience, me,
       {view === "list" ? (
         <ListView columns={columns} lanes={lanes} byId={byId} labels={labels} people={people} matches={matches} today={today} locale={locale} t={t} />
       ) : (
-        <DndContext sensors={sensors} collisionDetection={closestCorners} onDragStart={onDragStart} onDragOver={onDragOver} onDragEnd={onDragEnd} onDragCancel={() => { setDragging(null); setLanes(lanesOf(columns, cards)); }} accessibility={{ announcements, screenReaderInstructions: { draggable: t.board.moveHint } }}>
+        <DndContext sensors={sensors} collisionDetection={collision} onDragStart={onDragStart} onDragOver={onDragOver} onDragEnd={onDragEnd} onDragCancel={() => { setDragging(null); setLanes(lanesOf(columns, cards)); }} accessibility={{ announcements, screenReaderInstructions: { draggable: t.board.moveHint } }}>
           <div className="lanes">
             {columns.map((column, i) => (
               <Lane
@@ -220,7 +276,7 @@ function Lane({ boardId, column, ids, byId, labels, people, matches, today, loca
   neighbours: { before: string | null; beforeBefore: string | null; after: string | null; afterAfter: string | null };
   onOpen: (id: string) => void; onError: (e: keyof Catalogue["errors"], v?: Record<string, string | number>) => void; t: Words;
 }) {
-  const { setNodeRef, isOver } = useDroppable({ id: column.id, disabled: !writable });
+  const { setNodeRef, isOver } = useDroppable({ id: laneKey(column.id), disabled: !writable });
   const [renaming, setRenaming] = useState(false);
   const [, start] = useTransition();
   const toast = useToast();
@@ -259,7 +315,7 @@ function Lane({ boardId, column, ids, byId, labels, people, matches, today, loca
           </details>
         )}
       </div>
-      <SortableContext items={ids} strategy={verticalListSortingStrategy} disabled={!writable}>
+      <SortableContext items={ids.map(cardKey)} strategy={verticalListSortingStrategy} disabled={!writable}>
         <ul ref={setNodeRef} className={`lane-cards${isOver ? " drop-hint" : ""}`} data-empty={t.board.emptyColumn}>
           {shown.map(id => <SortableCard key={id} card={byId.get(id)!} labels={labels} people={people} today={today} locale={locale} writable={writable} onOpen={onOpen} t={t} />)}
         </ul>
@@ -270,7 +326,7 @@ function Lane({ boardId, column, ids, byId, labels, people, matches, today, loca
 }
 
 function SortableCard(props: { card: CardSummary; labels: Label[]; people: People; today: string; locale: Locale; writable: boolean; onOpen: (id: string) => void; t: Words }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: props.card.id, disabled: !props.writable });
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: cardKey(props.card.id), disabled: !props.writable });
   const style = { transform: CSS.Transform.toString(transform), transition };
   const open = () => props.onOpen(props.card.id);
   return (
