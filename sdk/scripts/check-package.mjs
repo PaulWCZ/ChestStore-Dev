@@ -25,10 +25,11 @@ const expected = {
   members: ["forget", "get", "groups", "list", "lookup"],
   notifications: ["badge", "notify", "withdraw"],
   events: ["acknowledgeErasure", "erasureIdPattern", "handle", "memorySeen", "verify"],
+  mail: ["handle", "isAddress", "limits", "mailboxAddress", "mailboxPattern", "messageIdPattern", "send", "status", "verify"],
   schedules: ["checkSchedules", "describeCron", "handle", "limits", "nextRun", "parseCron", "runIdPattern", "schedulePattern", "timeZone", "verify"],
   testing: ["fakeChest", "signAssertion", "withMember"],
 };
-const namespaces = ["files", "members", "notifications", "events", "schedules"];
+const namespaces = ["files", "members", "notifications", "events", "schedules", "mail"];
 const rootExports = [...Object.entries(expected).filter(([sub]) => !namespaces.includes(sub) && sub !== "testing").flatMap(([, names]) => names), ...namespaces].sort();
 
 const subpaths = Object.keys(manifest.exports).filter(key => key !== "./package.json");

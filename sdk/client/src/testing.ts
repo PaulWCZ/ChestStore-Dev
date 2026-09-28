@@ -52,7 +52,15 @@ export type FakeChestOptions = {
   origin?: string;
   schedules?: { name: string; cron: string }[];
   timeZone?: string;
+  // Proposal (studio): mail (with "mail" in capabilities).
+  mail?: { domain?: string; mailboxes?: string[]; perDay?: number; suppressed?: string[] };
 };
+
+// A message the tool sent, as the fake Chest's outbox keeps it (addresses
+// resolved, members' included).
+export type FakeMail = { id: string; messageId: string; from: string; fromName: string | null; to: string[]; cc: string[]; subject: string; text: string; html?: string; replyTo?: string; inReplyTo?: string; references?: string[]; attachments: { name: string; type: string; size: number }[]; key?: string; status: "sent" };
+// A message to deliver to the tool, as someone outside would write it.
+export type FakeIncoming = { mailbox: string; from: string; fromName?: string; subject: string; text: string; html?: string; to?: string[]; cc?: string[]; inReplyTo?: string; references?: string[]; attachments?: { name: string; type: string; content: string | Uint8Array }[]; spam?: number };
 
 // An event for emit: its type and data; its id (a new evt_… by default) and
 // when it happened (now by default) may be named, to deliver the same event
@@ -83,6 +91,10 @@ export type FakeChest = {
   upload(url: string, data: Uint8Array | string, type: string): Promise<Response>;
   // Proposal (studio): the tool's schedules, the runs delivered, and run(),
   // which delivers a run of a schedule as the Chest would at its time.
+  // Proposal (studio): the mail the tool sent, and receive(), which delivers
+  // a message to its POST /chest-mail as the Chest would.
+  outbox: FakeMail[];
+  receive(message: FakeIncoming, to: string | ((request: Request) => Response | Promise<Response>)): Promise<number>;
   schedules: { name: string; cron: string }[];
   runs: { id: string; name: string; scheduledAt: string; attempt: number; status: number }[];
   run(name: string, to: string | ((request: Request) => Response | Promise<Response>), options?: { id?: string; scheduledAt?: string; attempt?: number }): Promise<number>;
@@ -185,7 +197,7 @@ export async function fakeChest(options: FakeChestOptions = {}): Promise<FakeChe
   const uploads = new Map<string, { name: string; types: string[]; maxSize: number; expires: number }>();
   // The erasures the tool was told of, by emit: those it may acknowledge.
   const erasures = new Set<string>();
-  const chest: FakeChest = { api: "", token, tool, members: [...(options.members ?? [])], groups: [...(options.groups ?? [])], files, notifications: [], badges: new Map(), acknowledged: [], emit: async () => 0, upload: async () => new Response(), schedules: [...(options.schedules ?? [])], runs: [], run: async () => 0, close: async () => {} };
+  const chest: FakeChest = { api: "", token, tool, members: [...(options.members ?? [])], groups: [...(options.groups ?? [])], files, notifications: [], badges: new Map(), acknowledged: [], emit: async () => 0, upload: async () => new Response(), outbox: [], receive: async () => 0, schedules: [...(options.schedules ?? [])], runs: [], run: async () => 0, close: async () => {} };
   const former = [...(options.former ?? [])];
   let window = 0, calls = 0;
   const shown = (m: FakeMember) => ({ id: m.id, first_name: m.firstName, last_name: m.lastName, name: m.name, photo: m.photo, role: m.role, admin: m.isAdmin, builder: m.isBuilder, groups: m.groups, ...(m.locale === undefined ? {} : { locale: m.locale }), ...(email && m.email !== undefined ? { email: m.email } : {}) });
@@ -396,6 +408,76 @@ export async function fakeChest(options: FakeChestOptions = {}): Promise<FakeChe
     send(response, 200, { delivered: kept, skipped: ids.filter(id => !access(id)) });
   }
 
+  // Mail (Proposal (studio)): send, status, mailboxes.
+  const mailOptions = options.mail ?? {};
+  const domain = mailOptions.domain ?? "company.test";
+  const mailboxes = new Set(mailOptions.mailboxes ?? []);
+  const suppressed = new Set((mailOptions.suppressed ?? []).map(a => a.toLowerCase()));
+  const sentKeys = new Map<string, FakeMail>();
+  const mailDay: Window = { start: 0, count: 0 };
+  const newId = (prefix: string) => prefix + Array.from(randomBytes(26), b => "abcdefghijklmnopqrstuvwxyz234567"[b & 31]).join("");
+  async function mailRoute(request: IncomingMessage, response: ServerResponse, url: URL): Promise<void> {
+    if (!capabilities.has("mail")) return send(response, 404, { error: "not_found" });
+    const box = /^\/mail\/mailboxes\/([a-z][a-z0-9-]{0,31})$/u.exec(url.pathname);
+    if (request.method === "GET" && box) return mailboxes.has(box[1]!) ? send(response, 200, { address: `${box[1]}@${domain}` }) : send(response, 404, { error: "not_found" });
+    const one = /^\/mail\/messages\/(msg_[a-z2-7]{26})$/u.exec(url.pathname);
+    if (request.method === "GET" && one) {
+      const m = chest.outbox.find(x => x.id === one[1]);
+      return m ? send(response, 200, { id: m.id, status: m.status, at: new Date().toISOString() }) : send(response, 404, { error: "not_found" });
+    }
+    if (request.method !== "POST" || url.pathname !== "/mail/messages") return send(response, 404, { error: "not_found" });
+    const raw = await body(request, 16 << 20);
+    if (raw === null) return send(response, 413, { error: "too_large" });
+    let m: Record<string, unknown>;
+    try { m = JSON.parse(raw.toString()) as Record<string, unknown>; } catch { return send(response, 400, { error: "invalid_message" }); }
+    if (typeof m["key"] === "string" && sentKeys.has(m["key"])) {
+      const first = sentKeys.get(m["key"])!;
+      return send(response, 200, { id: first.id, message_id: first.messageId });
+    }
+    const resolve = (list: unknown): string[] | null => {
+      if (!Array.isArray(list)) return null;
+      const out: string[] = [];
+      for (const r of list) {
+        if (typeof r === "string") out.push(r);
+        else if (r && typeof r === "object" && typeof (r as { member?: unknown }).member === "string") {
+          const who = chest.members.find(x => x.id === (r as { member: string }).member);
+          if (!who?.email) return null;
+          out.push(who.email);
+        } else return null;
+      }
+      return out;
+    };
+    const to = resolve(m["to"]), cc = resolve(m["cc"] ?? []);
+    if (!to || !cc || to.length < 1) return send(response, 400, { error: "invalid_address" });
+    if (m["mailbox"] !== undefined && !mailboxes.has(String(m["mailbox"]))) return send(response, 400, { error: "invalid_mailbox" });
+    const allowed = [...to, ...cc].filter(a => !suppressed.has(a.toLowerCase()));
+    if (allowed.length === 0) return send(response, 422, { error: "suppressed" });
+    const now = Date.now();
+    if (live(mailDay, 86_400_000, now) && mailDay.count >= (mailOptions.perDay ?? 500)) return send(response, 429, { error: "quota_exceeded" }, wait(mailDay, 86_400_000, now));
+    count(mailDay, 86_400_000, now, 1);
+    const attachments = Array.isArray(m["attachments"]) ? (m["attachments"] as Record<string, unknown>[]).map(a => typeof a["file"] === "string"
+      ? { name: String(a["name"] ?? a["file"]), type: files.get(a["file"])?.type ?? "application/octet-stream", size: files.get(a["file"])?.data.byteLength ?? 0 }
+      : { name: String(a["name"]), type: String(a["type"]), size: Buffer.from(String(a["content"] ?? ""), "base64").byteLength }) : [];
+    const id = newId("msg_");
+    const kept: FakeMail = {
+      id, messageId: `<${id}@${domain}>`,
+      from: typeof m["mailbox"] === "string" ? `${m["mailbox"]}@${domain}` : `no-reply@${domain}`,
+      fromName: typeof m["from_name"] === "string" ? m["from_name"] : null,
+      to: to.filter(a => allowed.includes(a)), cc: cc.filter(a => allowed.includes(a)),
+      subject: String(m["subject"]), text: String(m["text"]),
+      ...(typeof m["html"] === "string" ? { html: m["html"] } : {}),
+      ...(typeof m["reply_to"] === "string" ? { replyTo: m["reply_to"] } : {}),
+      ...(typeof m["in_reply_to"] === "string" ? { inReplyTo: m["in_reply_to"] } : {}),
+      ...(Array.isArray(m["references"]) ? { references: m["references"] as string[] } : {}),
+      attachments,
+      ...(typeof m["key"] === "string" ? { key: m["key"] } : {}),
+      status: "sent",
+    };
+    chest.outbox.push(kept);
+    if (kept.key) sentKeys.set(kept.key, kept);
+    send(response, 201, { id, message_id: kept.messageId });
+  }
+
   // The acknowledgment of an erasure the tool was told of (emit).
   async function erasuresRoute(request: IncomingMessage, response: ServerResponse, url: URL): Promise<void> {
     if (!receives.includes("member.*")) return send(response, 403, { error: "capability_not_granted" });
@@ -452,6 +534,7 @@ export async function fakeChest(options: FakeChestOptions = {}): Promise<FakeChe
     const url = new URL(request.url ?? "/", "http://127.0.0.1");
     const route = url.pathname.startsWith("/_chest/") ? frontRoute
       : url.pathname.startsWith("/erasures/") ? erasuresRoute
+      : url.pathname.startsWith("/mail/") ? mailRoute
       : url.pathname === "/members" || url.pathname.startsWith("/members/") || url.pathname === "/groups" ? members
       : url.pathname === "/files" || url.pathname.startsWith("/files/") ? filesRoute
       : url.pathname === "/badges" || url.pathname.startsWith("/badges/") || url.pathname.startsWith("/notifications") ? notificationsRoute : null;
@@ -485,6 +568,28 @@ export async function fakeChest(options: FakeChestOptions = {}): Promise<FakeChe
     const answer = typeof to === "string" ? await fetch(request, { redirect: "manual" }) : await to(request);
     await answer.body?.cancel();
     chest.runs.push({ id, name, scheduledAt, attempt, status: answer.status });
+    return answer.status;
+  };
+  // receive delivers a message to one of the tool's mailboxes: its
+  // attachments stored in the tool's files first (mail/…), then POST
+  // /chest-mail, signed as the Chest signs it (Chest-Mail).
+  chest.receive = async (message, to) => {
+    const id = newId("rcv_");
+    const stored = (message.attachments ?? []).map(a => {
+      const data = typeof a.content === "string" ? new TextEncoder().encode(a.content) : a.content;
+      const extension = (a.name.split(".").pop() ?? "bin").toLowerCase().replace(/[^a-z0-9]/gu, "").slice(0, 8) || "bin";
+      const file = `mail/${randomBytes(10).toString("hex")}.${extension}`;
+      files.set(file, { data, type: a.type, updated: new Date().toISOString() });
+      return { file, name: a.name, type: a.type, size: data.byteLength };
+    });
+    const body = JSON.stringify({
+      id, mailbox: message.mailbox, from: { address: message.from, name: message.fromName ?? null }, to: message.to ?? [`${message.mailbox}@${domain}`], cc: message.cc ?? [],
+      subject: message.subject, text: message.text, html: message.html ?? null, message_id: `<${id}@sender.test>`, in_reply_to: message.inReplyTo ?? null, references: message.references ?? [],
+      attachments: stored, received_at: new Date().toISOString(), spam: message.spam ?? 0,
+    });
+    const request = new Request((typeof to === "string" ? to.replace(/\/$/u, "") : "http://tool.test") + "/chest-mail", { method: "POST", headers: { "Content-Type": "application/json", "Chest-Mail": signEvent(id, body, { token, tool, label: "Chest-Mail v1" }) }, body });
+    const answer = typeof to === "string" ? await fetch(request, { redirect: "manual" }) : await to(request);
+    await answer.body?.cancel();
     return answer.status;
   };
   // upload plays a member's browser sending a file to an uploadUrl answer.

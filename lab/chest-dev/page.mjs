@@ -2,7 +2,7 @@
 // Chest (bell, badges, files), and buttons that play the Chest.
 const escape = value => String(value ?? "").replace(/[&<>"']/gu, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 
-export function devPage({ manifest, chest, me, origin, schedulesApi }) {
+export function devPage({ manifest, proposals = {}, chest, me, origin, schedulesApi }) {
   const name = id => chest.members.find(m => m.id === id)?.name ?? id;
   const people = chest.members.map(m => `<option value="${m.id}"${m.id === me.id ? " selected" : ""}>${escape(m.name)} — ${escape(m.role ?? "no role")}${m.isAdmin ? " (admin)" : ""}</option>`).join("");
   const bell = chest.notifications.slice().reverse().map(n => `<li><b>${escape(name(n.member))}</b> · ${escape(n.title)}${n.body ? `<br><small>${escape(n.body)}</small>` : ""}<br><a href="${escape(n.path)}">${escape(n.path)}</a>${n.key ? ` <code>${escape(n.key)}</code>` : ""}</li>`).join("") || "<li class=none>Nothing yet.</li>";
@@ -13,7 +13,10 @@ export function devPage({ manifest, chest, me, origin, schedulesApi }) {
     return `<li><form method="post" action="/_dev/schedule"><input type="hidden" name="name" value="${escape(s.name)}"><b>${escape(s.name)}</b> <code>${escape(s.cron)}</code> — ${escape(schedulesApi?.describeCron(s.cron) ?? "")}, next ${escape(next ? next.toISOString().slice(0, 16).replace("T", " ") + " UTC" : "never")} <button>Run now</button></form></li>`;
   }).join("");
   const runs = (chest.runs ?? []).slice(-8).reverse().map(r => `<li><code>${escape(r.name)}</code> ${escape(r.scheduledAt.slice(0, 16))} → ${r.status}</li>`).join("");
-  const extra = schedules ? `<section><h2>Schedules (proposal)</h2><ul>${schedules}</ul>${runs ? `<p>Last runs:</p><ul>${runs}</ul>` : ""}</section>` : "";
+  const outbox = (chest.outbox ?? []).slice().reverse().slice(0, 12).map(m => `<li><b>${escape(m.subject)}</b><br><small>${escape(m.fromName ? m.fromName + " — " : "")}${escape(m.from)} → ${escape(m.to.join(", "))}</small><details><summary>text</summary><pre style="white-space:pre-wrap">${escape(m.text)}</pre></details></li>`).join("");
+  const mailboxes = (proposals.mail?.mailboxes ?? []).map(b => `<option>${escape(b)}</option>`).join("");
+  const mailPanel = proposals.mail ? `<section><h2>Mail (proposal)</h2><p>Outbox:</p><ul>${outbox || "<li class=none>Nothing sent.</li>"}</ul>${mailboxes ? `<form method="post" action="/_dev/receive" style="display:grid;gap:6px"><p style="margin:0">Send an email to the tool:</p><select name="mailbox">${mailboxes}</select><input name="from" value="jean.client@example.com"><input name="fromName" value="Jean Client"><input name="subject" value="My order has not arrived"><textarea name="text" rows="3">Hello, I ordered two weeks ago and nothing came. Can you check? Jean</textarea><button>Deliver</button></form>` : ""}</section>` : "";
+  const extra = mailPanel + (schedules ? `<section><h2>Schedules (proposal)</h2><ul>${schedules}</ul>${runs ? `<p>Last runs:</p><ul>${runs}</ul>` : ""}</section>` : "");
   const events = chest.members.map(m => `<option value="${m.id}">${escape(m.name)}</option>`).join("");
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>chest dev · ${escape(manifest.title ?? manifest.name)}</title>
 <style>

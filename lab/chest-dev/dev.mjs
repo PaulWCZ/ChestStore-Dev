@@ -105,7 +105,8 @@ const chest = await testing.fakeChest({
   members,
   former: [{ id: "mbr_" + "paul" + "a".repeat(22), name: "Paul Lefèvre" }],
   groups: cast.groups.map(g => ({ ...g, members: members.filter(m => m.groups.includes(g.id)).map(m => m.id) })),
-  capabilities: capabilities.filter(c => c !== "database"),
+  capabilities: [...capabilities.filter(c => c !== "database"), ...(proposals.mail ? ["mail"] : [])],
+  mail: { domain: "atelier-martin.test", mailboxes: proposals.mail?.mailboxes ?? [] },
   receives: manifest.receives ?? [],
   origin,
   schedules: proposals.schedules ?? [],
@@ -191,6 +192,11 @@ const front = createServer(async (request, response) => {
         console.log(`schedule ${form.get("name")} run → ${status}`);
         return void response.writeHead(303, back).end();
       }
+      if (path === "/_dev/receive") {
+        const status = await chest.receive({ mailbox: form.get("mailbox"), from: form.get("from"), fromName: form.get("fromName") || undefined, subject: form.get("subject"), text: form.get("text") }, `http://127.0.0.1:${inner}`);
+        console.log(`mail to ${form.get("mailbox")} → ${status}`);
+        return void response.writeHead(303, back).end();
+      }
       if (path === "/_dev/clear") {
         chest.notifications.splice(0);
         return void response.writeHead(303, back).end();
@@ -204,11 +210,11 @@ const front = createServer(async (request, response) => {
       }
       return void response.writeHead(404).end();
     }
-    const html = devPage({ manifest, chest, me: current(request), origin, schedulesApi: testing.schedulesApi });
+    const html = devPage({ manifest, proposals, chest, me: current(request), origin, schedulesApi: testing.schedulesApi });
     return void response.writeHead(200, { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" }).end(html);
   }
   if (path.startsWith("/_chest/")) return relay(request, response, { port: Number(new URL(chest.api).port) }, request.headers);
-  if (path === "/chest-events" || path.startsWith("/chest-jobs/")) return void response.writeHead(404).end();
+  if (path === "/chest-events" || path === "/chest-mail" || path.startsWith("/chest-jobs/")) return void response.writeHead(404).end();
   const headers = { ...request.headers, "x-forwarded-host": `localhost:${port}`, "x-forwarded-proto": "http" };
   delete headers["chest-member"];
   const first = path.split("/")[1]?.toLowerCase();

@@ -365,6 +365,54 @@ export async function POST(request: Request) {
   `ChestError` `erasure_not_found` (404: an erasure this tool was not told of)
   or `invalid_id` (400), `CapabilityNotGranted` (403), `Unavailable`.
 
+## `mail` — email in and out (Proposal (studio))
+
+A tool sends email in the company's name, and receives the email sent to
+its mailboxes. The Chest holds the company's mail provider (connected once
+by the owner: SMTP or a provider's API, SPF and DKIM on the company's
+domain); a tool never holds a mail credential.
+
+```jsonc
+// chest.json (chest.proposals.json in the studio) — two permissions:
+//   “Sends emails in your company's name, up to 500 a day”
+//   “Receives the emails sent to support@<your domain>”
+{ "mail": { "send": true, "mailboxes": ["support"] } }
+```
+
+```ts
+import * as mail from "@argentic/chest-sdk/mail";
+await mail.send({ to: "client@example.com", subject: "Re: Broken order [#42]", text, mailbox: "support", fromName: "Camille at Atelier", inReplyTo, references, key: "reply:981" });
+await mail.send({ to: { member: "mbr_…" }, subject, text }); // a member, without the tool knowing their address
+const address = await mail.mailboxAddress("support");          // "support@atelier-martin.fr", or null
+
+// app/chest-mail/route.ts — each received email, signed Chest-Mail
+export async function POST(request: Request) {
+  return new Response(null, { status: await mail.handle(request, async message => openOrContinueTicket(message), { seen }) });
+}
+```
+
+| Export | Gives |
+|---|---|
+| `send(message)` | Queues one message: `to`/`cc` (addresses or `{member}`), `subject`, `text` (+ `html`), `mailbox` (its address and the company's name; the no-reply address otherwise), `fromName`, `replyTo`, `inReplyTo`/`references` (threads), `attachments` (a file of the tool's `files`, or content), `key` (the same key within 24 h sends nothing again). `{id: "msg_…", messageId}` |
+| `status(id)` | `queued`, `sent`, `delivered`, `bounced`, `complained`, `failed` |
+| `mailboxAddress(name)` | The mailbox's address, to show on pages; null until the owner gives it one |
+| `handle(request, handler, {seen?})`, `verify(request)` | A received message: `{id: "rcv_…", mailbox, from {address, name}, to, cc, subject, text, html (unsanitised), messageId, inReplyTo, references, attachments [{file, name, type, size}] already in the tool's files under `mail/`, receivedAt, spam 0–10}` |
+| `isAddress(text)` | A plain address the Chest would send to |
+
+Refusals: `ChestError` `invalid_address`, `invalid_message` (before
+anything is sent: recipients 1–50, a subject without line breaks, …),
+`suppressed` (every recipient bounced or complained before), `TooLarge`
+(10 MiB), `QuotaExceeded` (500 a day unless the owner raises it),
+`CapabilityNotGranted` (not declared, or a Chest without mail yet — the
+tool says "Emails will be sent once your Chest can send them"). The Chest
+journals every message (to, subject, size, status; never the body by
+default) and shows the day's count on the tool's page.
+
+In tests: `fakeChest({ capabilities: [..., "mail"], mail: { domain, mailboxes, perDay, suppressed } })`;
+`chest.outbox` holds what was sent (addresses resolved, members' included);
+`chest.receive({mailbox, from, subject, text, attachments?}, to)` delivers a
+message to `POST <to>/chest-mail`, attachments stored in the tool's files.
+
 ## `schedules` — scheduled tasks (Proposal (studio))
 
 Work a tool does by itself at set times — reminders, a morning digest,

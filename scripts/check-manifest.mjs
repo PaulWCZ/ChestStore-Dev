@@ -14,7 +14,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 // The keys the SDK working copy proposes for the manifest, and their checks.
-const proposalKeys = new Set(["schedules"]);
+const proposalKeys = new Set(["schedules", "mail"]);
 const schedulesPath = join(root, "sdk", "dist", "src", "schedules.js");
 const schedulesApi = existsSync(schedulesPath) ? await import(pathToFileURL(schedulesPath).href) : null;
 
@@ -274,6 +274,14 @@ export function checkTool(folder) {
     }
     if (proposals) {
       for (const key of Object.keys(proposals)) if (!proposalKeys.has(key)) error(`chest.proposals.json: unknown proposal key "${key}"`);
+      if (proposals.mail !== undefined) {
+        const m = proposals.mail;
+        if (m === null || typeof m !== "object" || Array.isArray(m) || Object.keys(m).some(k => k !== "send" && k !== "mailboxes")) error('chest.proposals.json: mail is {"send": true, "mailboxes": [...]}');
+        else {
+          if (m.send !== undefined && typeof m.send !== "boolean") error("chest.proposals.json: mail.send is true or false");
+          if (m.mailboxes !== undefined && (!Array.isArray(m.mailboxes) || m.mailboxes.length > 4 || !m.mailboxes.every(b => typeof b === "string" && /^[a-z][a-z0-9-]{0,31}$/u.test(b)) || new Set(m.mailboxes).size !== m.mailboxes.length)) error("chest.proposals.json: mail.mailboxes is up to 4 distinct names (lowercase letters, digits, hyphens)");
+        }
+      }
       if (proposals.schedules !== undefined) {
         if (!schedulesApi) warnings.push("schedules not checked: build sdk/ first (npm run build)");
         else for (const problem of schedulesApi.checkSchedules(proposals.schedules)) error(`chest.proposals.json: ${problem}`);
