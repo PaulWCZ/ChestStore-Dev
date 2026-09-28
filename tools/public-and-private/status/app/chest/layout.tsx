@@ -34,7 +34,7 @@ export default async function MembersLayout({ children }: { children: ReactNode 
               </nav>
             )}
             <span className="me">
-              {role && <a className="public-link" href={publicHome} target="_blank" rel="noopener"><span>{t.shell.publicPage}</span><External /></a>}
+              {role && <a className="public-link" href={publicHome} target="_blank" rel="noopener" aria-label={t.shell.publicPage}><span>{t.shell.publicPage}</span><External /></a>}
               <Avatar name={member.name} photo={member.photo} />
             </span>
           </div>
