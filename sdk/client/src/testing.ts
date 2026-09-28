@@ -217,7 +217,14 @@ export async function fakeChest(options: FakeChestOptions = {}): Promise<FakeChe
   // Where the team host's links point: the harness that relays /_chest/
   // here, or a host of no one in a test.
   const origin = (options.origin ?? `https://${tool}-chest.chest.test`).replace(/\/$/u, "");
-  const uploads = new Map<string, { name: string; types: string[]; maxSize: number; expires: number; public: boolean }>();
+  const uploads = new Map<string, { name: string; types: string[]; maxSize: number; expires: number; public: boolean; unclaimed?: number }>();
+  // Public uploads a visitor sent, waiting for the tool to claim them: the
+  // claim token → the object, and when the Chest deletes it unclaimed.
+  const claims = new Map<string, { name: string; deleteAt: number | null }>();
+  const sweep = () => {
+    const now = Date.now();
+    for (const [token, c] of claims) if (c.deleteAt !== null && c.deleteAt <= now) { claims.delete(token); files.delete(c.name); }
+  };
   const storage = options.storage ?? {};
   // The public host's origin: the harness serves both hosts on one.
   const publicOrigin = (storage.publicOrigin ?? options.origin ?? `https://${tool}.chest.test`).replace(/\/$/u, "");
@@ -277,6 +284,7 @@ export async function fakeChest(options: FakeChestOptions = {}): Promise<FakeChe
   }
 
   async function filesRoute(request: IncomingMessage, response: ServerResponse, url: URL): Promise<void> {
+    sweep();
     if (!capabilities.has("files")) return send(response, 403, { error: "capability_not_granted" });
     if (request.method === "GET" && url.pathname === "/files") {
       const prefix = url.searchParams.get("prefix") ?? "", after = url.searchParams.get("after") ?? "";
@@ -291,15 +299,24 @@ export async function fakeChest(options: FakeChestOptions = {}): Promise<FakeChe
       if (!files.has(name)) return send(response, 404, { error: "not_found" });
       return send(response, 200, { url: `${origin}/_chest/files/${Buffer.from(name).toString("base64url")}.fake`, expires_in: 900 });
     }
-    if (request.method === "POST" && (url.pathname === "/files/move" || url.pathname === "/files/upload-url")) {
+    if (request.method === "POST" && (url.pathname === "/files/move" || url.pathname === "/files/upload-url" || url.pathname === "/files/claim")) {
       const raw = await body(request, 4096);
       let command: Record<string, unknown> = {};
       try { command = JSON.parse(raw?.toString() ?? "") as Record<string, unknown>; } catch { command = {}; }
+      if (url.pathname === "/files/claim") {
+        sweep();
+        const token = command["claim"];
+        const c = typeof token === "string" ? claims.get(token) : undefined;
+        if (!c || !files.has(c.name)) return send(response, 404, { error: "not_found" });
+        claims.delete(token as string);
+        const object = files.get(c.name)!;
+        return send(response, 200, described(c.name, object));
+      }
       if (url.pathname === "/files/upload-url") {
         // The upload itself goes from a member's browser to the team host:
         // the fake Chest's front receives it (PUT /_chest/files/upload/…,
         // or chest.upload in a test), once, within its bounds.
-        const name = command["name"], types = command["types"], maxSize = command["max_size"], life = command["expires_in"], isPublic = command["public"] === true;
+        const name = command["name"], types = command["types"], maxSize = command["max_size"], life = command["expires_in"], isPublic = command["public"] === true, unclaimed = command["expires_unclaimed_after"];
         if (typeof name !== "string" || !(name.endsWith("/") ? namePattern.test(name.slice(0, -1)) : namePattern.test(name))) return send(response, 400, { error: "invalid_name" });
         if (types !== undefined && (!Array.isArray(types) || !types.every(t => typeof t === "string"))) return send(response, 400, { error: "invalid_type" });
         if (isPublic && !storage.publicUploads) return send(response, 403, { error: "capability_not_granted" });
@@ -307,7 +324,7 @@ export async function fakeChest(options: FakeChestOptions = {}): Promise<FakeChe
         const expiresIn = typeof life === "number" ? life : 900;
         const token = randomBytes(18).toString("base64url") + ".up";
         const bound = isPublic ? publicMaxObject : maxObject;
-        uploads.set(token, { name, types: (types as string[] | undefined) ?? [], maxSize: typeof maxSize === "number" ? Math.min(maxSize, bound) : bound, expires: Date.now() + expiresIn * 1000, public: isPublic });
+        uploads.set(token, { name, types: (types as string[] | undefined) ?? [], maxSize: typeof maxSize === "number" ? Math.min(maxSize, bound) : bound, expires: Date.now() + expiresIn * 1000, public: isPublic, ...(typeof unclaimed === "number" ? { unclaimed } : {}) });
         return send(response, 200, { url: isPublic ? `${publicOrigin}/_chest/upload/${token}` : `${origin}/_chest/files/upload/${token}`, method: "PUT", expires_in: expiresIn });
       }
       const from = command["from"], to = command["to"];
@@ -618,7 +635,12 @@ export async function fakeChest(options: FakeChestOptions = {}): Promise<FakeChe
       const name = grant.name.endsWith("/") ? grant.name + randomBytes(10).toString("hex") + "." + (extension === "jpeg" ? "jpg" : extension) : grant.name;
       const kept = { data: new Uint8Array(data), type, updated: new Date().toISOString() };
       files.set(name, kept);
-      return send(response, 201, { name, type, size: data.length });
+      if (!grant.public) return send(response, 201, { name, type, size: data.length });
+      // A visitor's upload: what they hand to the tool's form is a claim, not
+      // the name — only the one who uploaded holds it.
+      const claim = randomBytes(24).toString("base64url") + ".claim";
+      claims.set(claim, { name, deleteAt: grant.unclaimed === undefined ? null : Date.now() + grant.unclaimed * 1000 });
+      return send(response, 201, { type, size: data.length, claim });
     }
     const link = /^\/_chest\/files\/([A-Za-z0-9_-]+)\.fake$/u.exec(url.pathname);
     if (link && request.method === "GET") {

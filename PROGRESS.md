@@ -7,7 +7,7 @@ meaningful step (brief/07-plan.md).
 
 Step 3, well advanced. Done, verified and pushed (each: tests on PGlite and
 PostgreSQL, build, manifest, browser flows, screenshots looked at): Tasks,
-Wiki, Leave, News, People, Expenses, Support, Rooms, Booking, Clients, Polls, Equipment, Timesheets, Goals, Status (15 of 17).
+Wiki, Leave, News, People, Expenses, Support, Rooms, Booking, Clients, Polls, Equipment, Timesheets, Goals, Status, Hiring (16 of 17).
 Builders at work (background agents, one port each, no git; the lead
 verifies with `scratchpad/verify.sh`-style runs and commits): Timesheets (5200), Hiring (5300),
 Goals (5600), Quotes (5700), Status (5800). Builder brief: the Rooms/…
@@ -40,7 +40,7 @@ Checked 2026-09-28 in the cloud container:
 | 0. Environment | done |
 | 1. Ranking and research | done — `reports/01-ranking.md`, 17 files in `reports/02-open-source/`, prices in `reports/01-pricing-sources.md` |
 | 2. Foundations | done — `lab/template` (tested, built, run, screenshots), `lab/chest-dev` (dev.mjs, screens.mjs), `scripts/check-manifest.mjs`, `new-tool.mjs`, `add-font.mjs`, `contrast.mjs`, `build-showcase.mjs` |
-| 3. Tools | 15 of 17 done; Hiring, Quotes being built |
+| 3. Tools | 16 of 17 done; Quotes being built |
 | 4. The report | to do |
 | 5. Better | to do |
 
@@ -61,7 +61,7 @@ _One row per chosen tool, in ranking order, once step 1 is done._
 | 9 | Rooms | `tools/private/rooms` | Robin, deskbird | ✓ | ✓ | calm blueprint (grid paper, navy ink, signal orange) | locale | ✓ 42 tests (PGlite + PostgreSQL), build, manifest, 13 browser flow steps, screens |
 | 10 | Timesheets | `tools/private/timesheets` | Harvest, Toggl, Clockify | ✓ | ✓ | precise instrument (graphite green, electric lime timer, tabular figures) | locale, schedules, chest | ✓ 45 tests (PGlite + PostgreSQL), build, manifest, 11 browser flows, a11y audit, screens |
 | 11 | Booking | `tools/public-and-private/booking` | Calendly | ✓ | ✓ | appointment card (Young Serif + Figtree, plum, mint, apricot) | locale, mail, schedules | ✓ 33 tests (PGlite + PostgreSQL), build, manifest, 11 browser flows, screens |
-| 12 | Hiring | `tools/public-and-private/hiring` | Teamtailor, WTTJ | ✓ | — | — | locale, public uploads (to design) | — |
+| 12 | Hiring | `tools/public-and-private/hiring` | Welcome to the Jungle ATS, Teamtailor | ✓ | ✓ | editorial careers magazine (Bricolage Grotesque + Instrument Sans, cream, cobalt, tomato) | locale, mail, schedules, public uploads, chest, visitors | ✓ 31 tests (PGlite + PostgreSQL), build, manifest, 16 browser flow steps, a11y audit, screens |
 | 13 | Equipment | `tools/private/equipment` | Snipe-IT | ✓ | ✓ | tool crib labels (IBM Plex, utility orange, steel, hazard stripe) | locale, schedules, chest | ✓ 37 tests (PGlite + PostgreSQL), build, manifest, 13 browser flow steps, a11y audit, screens; own QR encoder tested with jsQR |
 | 14 | Polls | `tools/private/polls` | Doodle, Officevibe | ✓ | ✓ | confetti ballot (Fredoka + Plus Jakarta Sans, coral, navy, mint) | locale, schedules, broadcast | ✓ 42 tests (PGlite + PostgreSQL), build, manifest, 9 browser flows, a11y audit, screens |
 | 15 | Goals | `tools/private/goals` | Lattice Goals, Perdoo | ✓ | ✓ | trail map (Barlow Semi Condensed + Work Sans, forest ink, sunrise orange, contour lines) | locale, schedules, chest | ✓ 34 tests (PGlite + PostgreSQL), build, manifest, 14 browser flow steps, a11y audit, screens |
@@ -79,6 +79,8 @@ _One row per chosen tool, in ranking order, once step 1 is done._
 - `events.publish` and received tool events (`fakeChest({emits, receivers})`, `chest.published`, `chest.deliver()`) — studio.5
 - public uploads and public files (`files.uploadUrl(…, {public})`, `files.publicUrl`) — studio.6
 - `chest` module (company, timeZone, today, currency, locale, teamUrl, publicUrl; `fakeChest({settings})`) and `notifications.broadcast` — studio.7
+- `visitors` module; `broadcast({except})`; `fakeChest({broadcast:false})`; `chest.former` — studio.8
+- public uploads answer a one-time `claim` (`files.claim`), `expiresUnclaimedAfter` — studio.9
 - Manifest proposal `translations` (tile title, description, role names per language), checked by `scripts/check-manifest.mjs`
 
 ## To fold into the SDK report (from builders)

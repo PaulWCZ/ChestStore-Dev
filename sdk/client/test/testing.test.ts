@@ -238,7 +238,19 @@ test("public uploads (proposal): a visitor sends to the public host, 10 MiB at m
     const again = await files.uploadUrl("uploads/public/", { public: true, types: ["application/pdf"] });
     const sent = await chest.upload(again.url, "%PDF-1.7", "application/pdf");
     assert.equal(sent.status, 201);
-    assert.match(((await sent.json()) as { name: string }).name, /^uploads\/public\/[0-9a-f]{20}\.pdf$/u);
+    // The visitor gets a claim, never the object's name; the tool trades it once.
+    const answer = (await sent.json()) as { name?: string; claim: string; size: number };
+    assert.equal(answer.name, undefined);
+    assert.equal(answer.size, 8);
+    const claimed = await files.claim(answer.claim);
+    assert.match(claimed.name, /^uploads\/public\/[0-9a-f]{20}\.pdf$/u);
+    await assert.rejects(files.claim(answer.claim), (e: unknown) => e instanceof ChestError && e.code === "not_found");
+    await assert.rejects(files.claim("guessed" + "x".repeat(20) + ".claim"), (e: unknown) => e instanceof ChestError && e.code === "not_found");
+    // Unclaimed within its time, the Chest deletes it by itself.
+    await assert.rejects(files.uploadUrl("uploads/public/", { public: true, expiresUnclaimedAfter: 5 }), (e: unknown) => e instanceof ChestError);
+    const short = await files.uploadUrl("uploads/public/", { public: true, expiresUnclaimedAfter: 60 });
+    const left = (await (await chest.upload(short.url, "%PDF-1.7", "application/pdf")).json()) as { claim: string };
+    assert.ok(left.claim);
     await files.put("public/logo.svg", "<svg/>", "image/svg+xml");
     assert.equal(files.publicUrl("public/logo.svg", { version: "3" }), "/_chest/public/logo.svg?v=3");
     assert.throws(() => files.publicUrl("private/logo.svg"), (e: unknown) => e instanceof ChestError && e.code === "invalid_name");

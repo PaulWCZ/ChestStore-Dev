@@ -194,7 +194,7 @@ export function publicUrl(name: string, options: { version?: string } = {}): str
 // most, under uploads/public/, 30 uploads a minute per visitor — for a job
 // application's CV, a support request's photo. Authorise it only after the
 // tool's own checks of the visitor (a form's guard).
-export async function uploadUrl(name: string, options: { maxSize?: number; types?: string[]; expiresIn?: number; public?: boolean } = {}): Promise<{ url: string; method: "PUT"; expiresIn: number }> {
+export async function uploadUrl(name: string, options: { maxSize?: number; types?: string[]; expiresIn?: number; public?: boolean; expiresUnclaimedAfter?: number } = {}): Promise<{ url: string; method: "PUT"; expiresIn: number }> {
   if (typeof name !== "string" || !(name.endsWith("/") ? namePattern.test(name.slice(0, -1)) && name.split("/").length <= 8 : namePattern.test(name))) throw new ChestError("invalid_name", 400, "invalid file or folder name");
   const { maxSize, types, expiresIn } = options;
   if (maxSize !== undefined && (typeof maxSize !== "number" || !Number.isSafeInteger(maxSize) || maxSize < 1)) throw new ChestError("invalid_body", 400, "maxSize is a number of bytes");
@@ -202,15 +202,32 @@ export async function uploadUrl(name: string, options: { maxSize?: number; types
   if (types !== undefined && (!Array.isArray(types) || types.length > 8 || types.some((t, i) => typeof t !== "string" || t.length > 100 || !typePattern.test(t) || types.indexOf(t) !== i))) throw new ChestError("invalid_type", 400, "invalid media types");
   if (expiresIn !== undefined && (typeof expiresIn !== "number" || !Number.isInteger(expiresIn) || expiresIn < 1 || expiresIn > uploadLife)) throw new ChestError("invalid_body", 400, "expiresIn is 1 to 900 seconds");
   if (options.public !== undefined && typeof options.public !== "boolean") throw new TypeError("public must be true or false");
+  const unclaimed = options.expiresUnclaimedAfter;
+  if (unclaimed !== undefined && (!options.public || typeof unclaimed !== "number" || !Number.isInteger(unclaimed) || unclaimed < 60 || unclaimed > 604800)) throw new ChestError("invalid_body", 400, "expiresUnclaimedAfter is 60 seconds to 7 days, for a public upload");
   if (options.public) {
     if (!name.startsWith("uploads/public/")) throw new ChestError("invalid_name", 400, "a public upload goes under uploads/public/");
     if (maxSize !== undefined && maxSize > publicMax) throw new TooLarge();
   }
-  const command = { name, ...(maxSize !== undefined ? { max_size: maxSize } : {}), ...(types !== undefined ? { types } : {}), ...(expiresIn !== undefined ? { expires_in: expiresIn } : {}), ...(options.public ? { public: true } : {}) };
+  const command = { name, ...(maxSize !== undefined ? { max_size: maxSize } : {}), ...(types !== undefined ? { types } : {}), ...(expiresIn !== undefined ? { expires_in: expiresIn } : {}), ...(options.public ? { public: true } : {}), ...(unclaimed !== undefined ? { expires_unclaimed_after: unclaimed } : {}) };
   const response = await ask("POST", "/files/upload-url", { body: JSON.stringify(command), type: "application/json" });
   if (response.status !== 200) throw await refusal(response);
   const body = (await json(response)) as { url?: unknown; method?: unknown; expires_in?: unknown } | null;
   const token = body && typeof body.url === "string" ? uploadPattern.exec(body.url)?.[2] : undefined;
   if (!body || token === undefined || token.length > 2048 || body.method !== "PUT" || typeof body.expires_in !== "number" || !Number.isInteger(body.expires_in) || body.expires_in < 1 || body.expires_in > uploadLife) throw new Unavailable();
   return { url: body.url as string, method: "PUT", expiresIn: body.expires_in };
+}
+
+// Proposal (studio): claim takes a visitor's public upload for the tool. A
+// public upload answers the visitor's browser {type, size, claim}, not the
+// object's name: the form hands the claim to the tool's server, which
+// trades it once for the object — so a visitor can attach only what they
+// uploaded themselves, never guess someone else's. Unclaimed within
+// expiresUnclaimedAfter (uploadUrl), the Chest deletes the object itself.
+// Answers the object; ChestError not_found when the claim is unknown,
+// already used or expired.
+export async function claim(token: string): Promise<FileObject> {
+  if (typeof token !== "string" || !/^[A-Za-z0-9_-]{16,128}\.claim$/u.test(token)) throw new ChestError("not_found", 404, "unknown claim");
+  const response = await ask("POST", "/files/claim", { body: JSON.stringify({ claim: token }), type: "application/json" });
+  if (response.status !== 200) throw await refusal(response);
+  return object(await json(response));
 }

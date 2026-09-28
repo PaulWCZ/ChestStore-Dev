@@ -179,6 +179,15 @@ _(to be ordered once more tools are built; the evidence so far)_
   30 uploads a minute per address is a second line, not the first. We would
   add `files.uploadUrl(…, {public: true, visitor})` so the Chest can count
   per visitor across tools.
+- **Found by Hiring, built**: the spec's public upload answered the
+  visitor the object's name, which the visitor then handed to the form —
+  anyone could hand another visitor's name. Now the upload answers a
+  one-time `claim` the tool trades with `files.claim()`, and
+  `expiresUnclaimedAfter` lets the Chest delete what nobody claimed (each
+  tool had its own nightly sweep). Hiring's alternative (the tool names the
+  object and signs the name into its form) also works and stays valid.
+- **Still to do in the fake**: sniff the first bytes of PDFs and archives
+  (the spec says the Chest does) and the 30-a-minute per visitor limit.
 - **Manifest**: `"files": {"publicUploads": true, "publicFiles": true}` —
   refused by today's parser, so kept in `chest.proposals.json`.
 

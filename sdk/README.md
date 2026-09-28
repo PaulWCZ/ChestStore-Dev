@@ -712,6 +712,17 @@ type and content checks; its token works only on the public host's route
 hour, `?v=` for a new version. In tests: `fakeChest({ storage: {
 publicUploads, publicFiles } })`.
 
+
+**Claiming a visitor's upload.** A public upload answers the visitor's
+browser `{type, size, claim}` — never the object's name. The form sends
+the claim with the rest; the tool's server trades it once with
+`files.claim(claim)` → the object (`{name, type, size, updated}`), so a
+visitor can only attach what they sent themselves. With
+`uploadUrl(…, {public: true, expiresUnclaimedAfter: 86400})` (60 s to 7
+days), the Chest deletes an upload nobody claimed in that time: no sweep in
+the tool. (A tool that names each object itself and signs the name into
+its form, as Hiring does, may keep doing so.)
+
 ### Links and thumbnails
 
 `url(name, {thumbnail?, download?})` signs a link to the file as it is, on the
