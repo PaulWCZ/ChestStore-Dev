@@ -63,7 +63,7 @@ _One row per chosen tool, in ranking order, once step 1 is done._
 | 11 | Booking | `tools/public-and-private/booking` | Calendly | ✓ | ✓ | appointment card (Young Serif + Figtree, plum, mint, apricot) | locale, mail, schedules | ✓ 33 tests (PGlite + PostgreSQL), build, manifest, 11 browser flows, screens |
 | 12 | Hiring | `tools/public-and-private/hiring` | Teamtailor, WTTJ | ✓ | — | — | locale, public uploads (to design) | — |
 | 13 | Equipment | `tools/private/equipment` | Snipe-IT | ✓ | — | — | locale | — |
-| 14 | Polls | `tools/private/polls` | Doodle, Officevibe | ✓ | — | — | locale | — |
+| 14 | Polls | `tools/private/polls` | Doodle, Officevibe | ✓ | ✓ | confetti ballot (Fredoka + Plus Jakarta Sans, coral, navy, mint) | locale, schedules, broadcast | ✓ 42 tests (PGlite + PostgreSQL), build, manifest, 9 browser flows, a11y audit, screens |
 | 15 | Goals | `tools/private/goals` | Lattice Goals | ✓ | — | — | locale | — |
 | 16 | Quotes | `tools/private/quotes` | Axonaut, Sellsy | ✓ | — | — | locale | — |
 | 17 | Status | `tools/public-and-private/status` | Statuspage | ✓ | — | — | locale | — |
@@ -83,6 +83,8 @@ _One row per chosen tool, in ranking order, once step 1 is done._
 
 ## To fold into the SDK report (from builders)
 
+- Polls: `members.groups.list({all})` (a tool open to everyone cannot offer the Chest's teams); `broadcast` `except` and `fakeChest({broadcast:false})` (built, studio.8); email reminders; client-module trap (plain functions from a `"use client"` file fail at run time only); template tests import the notes feature; a SQL helper for cast ids. Anonymous mode's limits documented in its README.
+- Equipment: `members.lookup` answers `unknown` for someone who lost access but is still in the company — wish `{includeWithoutAccess}` → `no_access` with the name; an "I received it" acknowledgement primitive; SDK copy drift during builds; `next dev` breaks the nonce CSP with dev styles.
 - Clients: `mail` inbound by BCC to log emails, `mail.send` to a contact; links between tools (a won deal starts a quote); harness `member.removed` did not make the member former (fixed: `chest.former`); functions from a `"use client"` module cannot be called by server pages; `.visually-hidden` inside scrolling boards overflows; dnd-kit's disabled sortable sets `aria-disabled`; `array_to_string` not immutable (no tags in generated tsvector); Next prefetch turned off (busy network, small server). Node vs Chromium month names ("Sept" vs "Sep") broke hydration.
 - Rooms: `timeZone()` in a neutral module (read via schedules without schedules → `chest` proposal); a Chest-served per-member iCal feed; a shared resource calendar across Booking and Rooms; a `withMember` that sets Next's request scope (route handlers using `next/headers` are hard to test); screens actions need precise selectors; Playwright drags need scrolling; `hourCycle: "h23"` and "24:00" by hand.
 - Expenses: the Chest's time zone and `today()` outside schedules (→ `chest` proposal); HEIC thumbnails; `files.stat` returning the Chest's `sha256`; a legal-hold/retention manifest key for receipts (10 years) so removing the tool warns; `members.list({role})` documented as including admins under the first role; harness cannot seed files; fake Chest ignores `thumbnail`; flows count every 404; visually-hidden labels escape overflow. French figures (scale, accounts, VAT recovery) from the research file only — to verify.
