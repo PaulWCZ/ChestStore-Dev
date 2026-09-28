@@ -32,7 +32,17 @@ Step 3 done (17 tools verified). Step 4: the SDK report is kept current. Step 5 
    Forms). The owner's beta is not a quality reference. Folder:
    `tools/public-and-private/forms`, tool 18.
 
-**Round in progress (builders, lead verifies and commits each):**
+**Round done and verified by the lead (2026-09-29):** Tasks (reminders,
+recurring), Support (tags, priority, files, waiting), Wiki (comments,
+watching, templates, reviews), Booking (questions, daily limit), News
+(audience, search, digest), Leave → People and People → Equipment. The
+audit now replays screen actions. Report §3 and §6 updated.
+
+**Still running:** the UI kit and themes foundation; Forms (tool 18); four
+critics writing the severe critique (scratchpad `critique/*.md`, to be
+consolidated into `reports/05-critique.md`).
+
+**Earlier round, for the record:**
 - Tasks: reminders and recurring cards.
 - Support: tags, priority, attachments, waiting time.
 - Wiki: comments, watching, templates, review reminders.
@@ -82,19 +92,19 @@ _One row per chosen tool, in ranking order, once step 1 is done._
 
 | Rank | Tool | Folder | Replaces | Research | Built | Design | SDK proposals used | Verified |
 |---|---|---|---|---|---|---|---|---|
-| 1 | Tasks | `tools/private/tasks` | Trello, Asana, Monday | ✓ | ✓ | bright workshop (Space Grotesk + Inter, sun, ink outlines) | locale, schedules | ✓ 26 tests (PGlite + PostgreSQL), build, manifest, 12 browser flows, screens |
-| 2 | Wiki | `tools/private/wiki` | Notion, Confluence | ✓ | ✓ | warm paper, deep green (Newsreader + Source Sans 3) | locale | ✓ 33 tests (PGlite + PostgreSQL), build, manifest, 14 browser flow steps, screens |
+| 1 | Tasks | `tools/private/tasks` | Trello, Asana, Monday | ✓ | ✓ | bright workshop (Space Grotesk + Inter, sun, ink outlines) | locale, schedules | ✓ 48 tests (PGlite + PostgreSQL), build, manifest, 12 browser flows, screens |
+| 2 | Wiki | `tools/private/wiki` | Notion, Confluence | ✓ | ✓ | warm paper, deep green (Newsreader + Source Sans 3) | locale | ✓ 52 tests (PGlite + PostgreSQL), build, manifest, 14 browser flow steps, screens |
 | 3 | Leave | `tools/private/leave` | Lucca Absences, Factorial | ✓ | ✓ | sea-side calm (Nunito + Nunito Sans, sky blue, sunset coral) | locale, schedules | ✓ 41 tests (PGlite + PostgreSQL), build, manifest, 13 browser flow steps, screens |
-| 4 | News | `tools/private/news` | Workvivo, Staffbase | ✓ | ✓ | newspaper (Fraunces + Libre Franklin, ink and red) | locale, schedules | ✓ 33 tests (PGlite + PostgreSQL), build, manifest, 9 browser flows, screens |
-| 5 | People | `tools/private/people` | BambooHR directory | ✓ | ✓ | warm portrait gallery (Outfit, cream, terracotta, plum ink) | locale, schedules | ✓ 27 tests (PGlite + PostgreSQL), build, manifest, 16 browser flow steps, a11y audit (12 pages), screens; receives hires as arrivals |
+| 4 | News | `tools/private/news` | Workvivo, Staffbase | ✓ | ✓ | newspaper (Fraunces + Libre Franklin, ink and red) | locale, schedules | ✓ 53 tests (PGlite + PostgreSQL), build, manifest, 9 browser flows, screens |
+| 5 | People | `tools/private/people` | BambooHR directory | ✓ | ✓ | warm portrait gallery (Outfit, cream, terracotta, plum ink) | locale, schedules | ✓ 34 tests (PGlite + PostgreSQL), build, manifest, 16 browser flow steps, a11y audit (12 pages), screens; receives hires as arrivals |
 | 6 | Clients | `tools/private/crm` | HubSpot, Pipedrive | ✓ | ✓ | sales desk (IBM Plex Sans + Mono, slate, electric blue) | locale, schedules | ✓ 39 tests (PGlite + PostgreSQL), build, manifest, browser flows, a11y audit, screens; publishes deal won/reopened |
 | 7 | Expenses | `tools/private/expenses` | N2F, Expensify | ✓ | ✓ | receipt paper (grotesk + monospace figures, forest green, zigzag tear) | locale, schedules | ✓ 43 tests (PGlite + PostgreSQL), build, manifest, 13 browser flow steps, screens |
-| 8 | Support | `tools/public-and-private/helpdesk` | Zendesk, Freshdesk | ✓ | ✓ | calm counter (Atkinson Hyperlegible, teal, coral, butter notes) | locale, mail, schedules, public uploads | ✓ 13 tests (PGlite + PostgreSQL), build, manifest, 12 browser flows, screens |
+| 8 | Support | `tools/public-and-private/helpdesk` | Zendesk, Freshdesk | ✓ | ✓ | calm counter (Atkinson Hyperlegible, teal, coral, butter notes) | locale, mail, schedules, public uploads | ✓ 25 tests (PGlite + PostgreSQL), build, manifest, 12 browser flows, screens |
 | 9 | Rooms | `tools/private/rooms` | Robin, deskbird | ✓ | ✓ | calm blueprint (grid paper, navy ink, signal orange) | locale | ✓ 42 tests (PGlite + PostgreSQL), build, manifest, 13 browser flow steps, screens |
 | 10 | Timesheets | `tools/private/timesheets` | Harvest, Toggl, Clockify | ✓ | ✓ | precise instrument (graphite green, electric lime timer, tabular figures) | locale, schedules, chest | ✓ 45 tests (PGlite + PostgreSQL), build, manifest, 11 browser flows, a11y audit, screens |
-| 11 | Booking | `tools/public-and-private/booking` | Calendly | ✓ | ✓ | appointment card (Young Serif + Figtree, plum, mint, apricot) | locale, mail, schedules | ✓ 33 tests (PGlite + PostgreSQL), build, manifest, 11 browser flows, screens |
+| 11 | Booking | `tools/public-and-private/booking` | Calendly | ✓ | ✓ | appointment card (Young Serif + Figtree, plum, mint, apricot) | locale, mail, schedules | ✓ 50 tests (PGlite + PostgreSQL), build, manifest, 11 browser flows, screens |
 | 12 | Hiring | `tools/public-and-private/hiring` | Welcome to the Jungle ATS, Teamtailor | ✓ | ✓ | editorial careers magazine (Bricolage Grotesque + Instrument Sans, cream, cobalt, tomato) | locale, mail, schedules, public uploads, chest, visitors | ✓ 34 tests (PGlite + PostgreSQL), build, manifest, browser flows, a11y audit, screens; publishes hired/hire cancelled |
-| 13 | Equipment | `tools/private/equipment` | Snipe-IT | ✓ | ✓ | tool crib labels (IBM Plex, utility orange, steel, hazard stripe) | locale, schedules, chest | ✓ 37 tests (PGlite + PostgreSQL), build, manifest, 13 browser flow steps, a11y audit, screens; own QR encoder tested with jsQR |
+| 13 | Equipment | `tools/private/equipment` | Snipe-IT | ✓ | ✓ | tool crib labels (IBM Plex, utility orange, steel, hazard stripe) | locale, schedules, chest | ✓ 40 tests (PGlite + PostgreSQL), build, manifest, 13 browser flow steps, a11y audit, screens; own QR encoder tested with jsQR |
 | 14 | Polls | `tools/private/polls` | Doodle, Officevibe | ✓ | ✓ | confetti ballot (Fredoka + Plus Jakarta Sans, coral, navy, mint) | locale, schedules, broadcast | ✓ 42 tests (PGlite + PostgreSQL), build, manifest, 9 browser flows, a11y audit, screens |
 | 15 | Goals | `tools/private/goals` | Lattice Goals, Perdoo | ✓ | ✓ | trail map (Barlow Semi Condensed + Work Sans, forest ink, sunrise orange, contour lines) | locale, schedules, chest | ✓ 34 tests (PGlite + PostgreSQL), build, manifest, 14 browser flow steps, a11y audit, screens |
 | 16 | Quotes & invoices | `tools/private/quotes` | Axonaut, Sellsy, Henrri (invoicing) | ✓ | ✓ | letterpress stationery (Libre Caslon Text + Hanken Grotesk, blue-black, oxblood seal) | locale, mail, schedules, chest | ✓ 70 tests (PGlite + PostgreSQL, gap-free numbering under concurrency), build, manifest, 14 browser flow steps, a11y audit, screens; own PDF writer; a deal won makes a draft |

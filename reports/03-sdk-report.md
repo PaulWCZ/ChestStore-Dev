@@ -176,6 +176,60 @@ typed, tested, faked in `testing`, documented in `sdk/README.md` under
   cannot be cached per language by a shared cache; `next dev` breaks the
   nonce policy with its own styles (screens and flows run on a build).
 
+### Found while deepening the tools (second round, 2026-09-29)
+
+Six tools went deeper (reminders and recurring cards in Tasks; comments,
+watching, templates and review reminders in Wiki; tags, priority and files
+in Support; questions and daily limits in Booking; audience, search and a
+digest in News; two new suite links). What they ran into, by module:
+
+- **`notifications`, per person.** Reminders and digests differ per person, so
+  each costs one `notify` call per member against the hourly quota.
+  Wanted: `notifyMany([{member, title, body}], {key, path})` and a digest
+  quota. `withdraw(key)` without members hits everyone, and the Chest never
+  says who holds a key, so Tasks and News keep their own "who was told"
+  table. Wanted: `withdraw(key, {except})`, several keys or a prefix at
+  once (`page:42:*` — Wiki trashing a branch), and a per-member result
+  from `notify` so a reminder is not marked "told" when the Chest was
+  briefly unreachable.
+- **Time.** The database's `current_date` is UTC while the Chest's day is
+  Paris: after 22:00 UTC a tool comparing with `current_date` is wrong.
+  The Chest should set the session `TimeZone` of the tool's database role
+  to the Chest's zone, or the SDK guide must say "always pass today". Also
+  wanted: the Chest's working days and public holidays (People's "back on",
+  Support's waiting time in business hours) and a per-member time zone for
+  reminders at each person's hour.
+- **`groups`.** A tool sees only the groups that give it access, so a tool
+  open to everyone (News, Polls, Wiki) cannot target "the Sales team".
+  Proposal: a `groups` capability, "Sees the Chest's groups and who is in
+  them" — a product and permission decision, not built. Group changes
+  send no event, so bell items already sent are not withdrawn when someone
+  leaves a group. `members.lookup` caches for a minute: document it for
+  access checks.
+- **`files`.** A customer's file on the public host has to stream through
+  the tool (`files.get`); wanted: a short-lived public signed link.
+  `expiresUnclaimedAfter` for private uploads too (Support sweeps them
+  itself). The name the Chest gives an object should be documented or its
+  extension returned. `files.capabilities()` would let a tool hide "Add a
+  file" on a Chest without public uploads. The fake does not check that
+  bytes match the declared type, as the spec says the Chest does.
+- **`events`.** Delivery is at least once and unordered, so each receiver
+  keeps `occurredAt` per subject and tombstones for cancellations (People,
+  Equipment). The SDK should promise order per subject or ship a
+  `newerThan(stored, event)` helper and document the pattern. The 64
+  character key limit is too short for tool + member id + fact + version:
+  128, or hashed by the SDK. Publishers need "compare, then publish" (only
+  publish when the fact really changed): worth a helper. Asking another
+  tool a question (People: "what does this person hold?") is not an event;
+  request/answer between tools is a wish.
+- **Database.** Booking's daily limit takes a row lock (`select … for
+  update`) inside a transaction: the tool's role must keep plain PostgreSQL
+  locking rights.
+- **Harness (lab).** `/_dev` schedule runs should accept `scheduledAt`; the
+  bell should be readable as JSON; `--prod` reuses a stale `.next` (the
+  lead's verification builds first; `dev.mjs` should warn); the audit now replays each
+  screen's actions, so dialogs and forms are checked.
+
 ## 4. Missing primitives
 
 ### 4.1 Scheduled tasks — `schedules` (built)
@@ -456,7 +510,7 @@ process between requests).
 
 The pitch is "one flat price for all your tools", but what a SaaS bundle
 cannot match is tools that **know each other** without an integration
-project. Three links are built, each tested on both sides with
+project. Five links are built, each tested on both sides with
 `chest.published` and `chest.deliver`, and shown in the receiver's browser
 flow through the harness's `/_dev/deliver`.
 
@@ -477,6 +531,17 @@ join — suggested when exactly one member's name matches. Once linked, the
 arrival keeps no personal data; one never linked is deleted 90 days after
 its start date (`tools/public-and-private/hiring/lib/share.ts`,
 `tools/private/people/lib/arrivals.ts`).
+
+**Leave → People.** The same `leave.approved` / `leave.cancelled`, a second
+receiver: People shows "Away · back on …" (never why) on the card and the
+profile, purged once past (`tools/private/people/lib/away.ts`).
+
+**People → Equipment.** Starting a leaving checklist publishes
+`people.leaving {member, lastDay}`; Equipment tells its managers once what
+that person holds and lists it under "To take back"; stopping it withdraws
+the notice; when the member later leaves the Chest, Equipment's own
+"left and still holds" takes over (`tools/private/people/lib/share.ts`,
+`tools/private/equipment/lib/departures.ts`).
 
 **Clients → Quotes.** When a deal is won, Clients publishes
 `crm.deal.won` (deal, title, amount and currency, owner, company and
@@ -515,8 +580,7 @@ What building it taught:
   Chest running several, with the admin's links, would let a flow show the
   suite working end to end. Tests on both sides stand in for it.
 
-Next links, by value: People →
-Equipment (a departure lists what to take back), Leave → News (who is away
+Next links, by value: Leave → News (who is away
 today), Support → Clients (a customer's history).
 
 ## 7. Developer and agent experience
