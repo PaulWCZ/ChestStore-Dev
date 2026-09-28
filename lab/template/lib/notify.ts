@@ -25,9 +25,9 @@ export async function notify(recipients: Iterable<string>, message: (t: Catalogu
   }
 }
 
-export async function withdraw(key: string): Promise<void> {
+export async function withdraw(key: string, members?: string[]): Promise<void> {
   try {
-    await notifications.withdraw(key);
+    await notifications.withdraw(key, members);
   } catch (error) {
     if (!(error instanceof ChestError)) throw error;
   }

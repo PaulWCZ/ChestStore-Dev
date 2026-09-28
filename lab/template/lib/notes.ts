@@ -1,7 +1,7 @@
 import type { Member } from "@argentic/chest-sdk/member";
 import { can } from "./access.ts";
 import type { Sql } from "./db.ts";
-import { AppError } from "./errors.ts";
+import { AppError } from "./app-error.ts";
 
 // The notes, as the pages see them. Every function takes the database and
 // the member acting, checks the rights (lib/access.ts) and throws AppError

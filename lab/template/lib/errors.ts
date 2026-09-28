@@ -1,20 +1,8 @@
 import { CapabilityNotGranted, QuotaExceeded, RateLimited, Unavailable } from "@argentic/chest-sdk/errors";
 
-// What a service refuses, as a code: the pages put it in words
-// (lib/i18n, errors.<code>). Services never return sentences.
-export const errorCodes = ["forbidden", "not_found", "invalid", "too_long", "empty", "unavailable", "unknown"] as const;
-export type ErrorCode = (typeof errorCodes)[number];
+import { AppError, type ErrorCode } from "./app-error.ts";
 
-export class AppError extends Error {
-  readonly code: ErrorCode;
-  readonly values: Record<string, number | string>;
-  constructor(code: ErrorCode, values: Record<string, number | string> = {}) {
-    super(code);
-    this.name = "AppError";
-    this.code = code;
-    this.values = values;
-  }
-}
+export { AppError, errorCodes, type ErrorCode } from "./app-error.ts";
 
 // The answer of a server action: a value, or a code and the values its
 // words need.

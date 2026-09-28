@@ -5,6 +5,8 @@ import postgres from "postgres";
 // server process, created on first use (never at build time); the Chest
 // allows 10 connections per instance, two instances run during a switch.
 export type Sql = postgres.Sql;
+// A connection or a transaction: what a step inside sql.begin receives.
+export type Query = postgres.Sql | postgres.TransactionSql;
 
 let pool: Sql | undefined;
 
