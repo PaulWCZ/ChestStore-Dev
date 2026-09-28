@@ -35,7 +35,7 @@ drag it to the next column, assign someone, set a due date, tick a checklist, le
 | Licence | `AGPL-3.0-or-later` — https://raw.githubusercontent.com/go-vikunja/vikunja/master/LICENSE |
 | Reuse | **Ideas only** |
 | Stack | Go API + Vue front-end, Postgres/MySQL/SQLite. |
-| What it does best | One task, four views: **List, Kanban, Table, Gantt**; "quick add magic" (type `Call bank *finance @alice tomorrow` → label, assignee, date parsed from the sentence); saved filters; reminders; repeating tasks; import from Trello, Todoist, Microsoft To Do, Planka (v2.6.0). |
+| What it does best | One task, four views: **List, Kanban, Table, Gantt**; "quick add magic" (labels, assignee, due date parsed from the one-line title; exact syntax not verified, docs domain blocked); saved filters; reminders; repeating tasks; migration modules for Trello, Todoist, TickTick, CSV and Planka (folders under `pkg/modules/migration/` read on raw.githubusercontent.com). |
 | What to avoid | Personal-todo roots show: team features (permissions, sharing) feel bolted on; Trello import needs OAuth on the self-hosted side, which trips users (https://community.vikunja.io/t/self-hosted-importing-from-trello/3712, https://community.vikunja.io/t/import-trello-json-how/4766) — we must import a **file**, not an API. A Pro tier appeared in v2.4.0. |
 
 ### Planka
