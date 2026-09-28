@@ -1,0 +1,142 @@
+/* Leave's design tokens, defined once (DESIGN.md explains them): soft,
+   rounded, calm — a pastel sky, peach and mint, big rounded cards. Light
+   first; dark follows the system. Contrast ratios are checked in DESIGN.md
+   (scripts/contrast.mjs). */
+:root {
+  color-scheme: light dark;
+  --font-display: "Nunito Variable", ui-rounded, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-body: "Nunito Sans Variable", system-ui, -apple-system, "Segoe UI", sans-serif;
+
+  --bg: #f3f7fb;
+  --surface: #ffffff;
+  --surface-2: #eaf1f8;
+  --ink: #1d2b3a;
+  --ink-2: #4b5b6e;
+  --line: #d7e2ee;
+  --line-strong: #b8c8da;
+  --accent: #2366a8;
+  --accent-ink: #ffffff;
+  --accent-soft: #dcebfa;
+  --peach: #ffd9c4;
+  --mint: #cdeedd;
+  --sun: #ff9e6e;
+  --danger: #b42318;
+  --danger-soft: #fde4e1;
+  --ok: #1b7a4b;
+  --ok-soft: #d8f3e5;
+  --wait: #7a5600;
+  --wait-soft: #fdf0c7;
+  --focus: #2366a8;
+
+  /* Leave kinds: a soft fill and the ink that reads on it (AA). */
+  --sky: #d6e9fb;
+  --sky-ink: #174a7c;
+  --mint-fill: #cff0e0;
+  --mint-ink: #125c3e;
+  --peach-fill: #ffe0cf;
+  --peach-ink: #8a3a10;
+  --lilac: #e6e0fb;
+  --lilac-ink: #4a3a8f;
+  --sun-fill: #fdefb8;
+  --sun-ink: #6e5200;
+  --rose: #fbd9e3;
+  --rose-ink: #8c2346;
+  --sand: #efe7da;
+  --sand-ink: #5b4b34;
+  --sea: #cdeff0;
+  --sea-ink: #0f5a5e;
+  --away: #dde3ea;
+  --away-ink: #36475a;
+
+  /* The calendar. */
+  --weekend: #eef2f7;
+  --holiday: #fff1e8;
+  --holiday-ink: #8a3a10;
+  --today: #2366a8;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+
+  --radius-s: 10px;
+  --radius-m: 14px;
+  --radius-l: 20px;
+  --radius-xl: 28px;
+  --radius-pill: 999px;
+  --shadow-1: 0 1px 2px rgb(29 43 58 / 0.05), 0 2px 8px rgb(29 43 58 / 0.05);
+  --shadow-2: 0 12px 32px rgb(29 43 58 / 0.14);
+
+  --text-xs: 0.8125rem;
+  --text-s: 0.875rem;
+  --text-m: 1rem;
+  --text-l: 1.25rem;
+  --text-xl: 1.75rem;
+  --text-xxl: 2.75rem;
+
+  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --fast: 140ms;
+  --slow: 260ms;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0f1720;
+    --surface: #17212c;
+    --surface-2: #1f2b38;
+    --ink: #eaf1f8;
+    --ink-2: #a9b8c8;
+    --line: #2c3a4a;
+    --line-strong: #3d4f63;
+    --accent: #8cc4f5;
+    --accent-ink: #0b2540;
+    --accent-soft: #1d3550;
+    --peach: #4a2c1e;
+    --mint: #183f31;
+    --sun: #ff9e6e;
+    --danger: #ff9b8f;
+    --danger-soft: #3d1c1a;
+    --ok: #7fdcaa;
+    --ok-soft: #173a2a;
+    --wait: #f5d77a;
+    --wait-soft: #3a3014;
+    --focus: #8cc4f5;
+
+    --sky: #1e3a56;
+    --sky-ink: #bfe0ff;
+    --mint-fill: #183f31;
+    --mint-ink: #b6f0d4;
+    --peach-fill: #4a2c1e;
+    --peach-ink: #ffd2ba;
+    --lilac: #2e2850;
+    --lilac-ink: #d9d0ff;
+    --sun-fill: #3f3413;
+    --sun-ink: #fbe7a1;
+    --rose: #45202e;
+    --rose-ink: #ffc7d8;
+    --sand: #3a3228;
+    --sand-ink: #eadfcc;
+    --sea: #173e40;
+    --sea-ink: #b8eef0;
+    --away: #2a3542;
+    --away-ink: #c9d4e0;
+
+    --weekend: #141d27;
+    --holiday: #2c1f18;
+    --holiday-ink: #ffd2ba;
+    --today: #8cc4f5;
+
+    --shadow-1: none;
+    --shadow-2: 0 12px 32px rgb(0 0 0 / 0.5);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --fast: 0ms;
+    --slow: 0ms;
+  }
+}

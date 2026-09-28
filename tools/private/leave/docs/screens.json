@@ -1,0 +1,13 @@
+[
+  { "name": "home", "path": "/chest", "member": "hugo", "locale": "en" },
+  { "name": "calendar", "path": "/chest/calendar", "member": "camille", "locale": "en", "preview": true },
+  { "name": "ask", "path": "/chest/new", "member": "hugo", "locale": "en" },
+  { "name": "approvals", "path": "/chest/approvals", "member": "camille", "locale": "en" },
+  { "name": "request", "path": "/chest/requests/13", "member": "ines", "locale": "en", "only": ["phone"] },
+  { "name": "home-fr", "path": "/chest", "member": "ines", "locale": "fr" },
+  { "name": "calendar-fr", "path": "/chest/calendar", "member": "lea", "locale": "fr" },
+  { "name": "people", "path": "/chest/people", "member": "camille", "locale": "en", "only": ["desktop"] },
+  { "name": "person", "path": "/chest/people/mbr_hugoaaaaaaaaaaaaaaaaaaaaaa", "member": "camille", "locale": "fr", "only": ["desktop"] },
+  { "name": "settings", "path": "/chest/settings", "member": "camille", "locale": "en", "only": ["desktop"] },
+  { "name": "home-dark", "path": "/chest", "member": "tom", "locale": "en", "dark": true }
+]

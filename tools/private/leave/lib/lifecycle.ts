@@ -1,0 +1,67 @@
+import * as events from "@argentic/chest-sdk/events";
+import type { Sql } from "./db.ts";
+import { withdraw } from "./notify.ts";
+import { refreshBadges } from "./tell.ts";
+
+// What Leave does when a member loses access, leaves or is erased (the
+// Chest posts these to /chest-events, at least once; each handler may run
+// again safely).
+//
+// - Losing access or leaving: their requests still waiting are cancelled
+//   (the history says why), and the people they approved go back to HR.
+//   Approved leave and balances stay: they are HR's records.
+// - Erasure: the same, then their id, notes and reasons disappear from the
+//   requests, their history and the balance lines, which keep their dates,
+//   kinds and days, signed 'erased' — the absences and balances HR may have
+//   to keep for payroll (see README). Then the erasure is acknowledged.
+export async function leave(sql: Sql, memberId: string): Promise<void> {
+  const cancelled = await sql.begin(async tx => {
+    const rows = await tx<{ id: string }[]>`update requests set status = 'cancelled' where member_id = ${memberId} and status = 'pending' returning id`;
+    for (const r of rows) await tx`insert into request_events (request_id, actor, kind) values (${r.id}, 'chest', 'left')`;
+    await tx`update staff set approver_id = null, updated_at = now() where approver_id = ${memberId}`;
+    return rows.map(r => String(r.id));
+  });
+  for (const id of cancelled) await withdraw(`req:${id}`);
+  await refreshBadges(sql);
+}
+
+export async function erase(sql: Sql, memberId: string): Promise<void> {
+  await leave(sql, memberId);
+  await sql.begin(async tx => {
+    const mine = await tx<{ id: string }[]>`update requests set member_id = 'erased', note = null, reason = null, cancel_asked_at = null where member_id = ${memberId} returning id`;
+    const ids = mine.map(r => String(r.id));
+    if (ids.length > 0) await tx`update request_events set reason = null where request_id in ${tx(ids)}`;
+    await tx`update requests set decided_by = 'erased' where decided_by = ${memberId}`;
+    await tx`update request_events set actor = 'erased' where actor = ${memberId}`;
+    await tx`update ledger set member_id = 'erased', reason = null where member_id = ${memberId}`;
+    await tx`update ledger set created_by = 'erased' where created_by = ${memberId}`;
+    await tx`delete from staff where member_id = ${memberId}`;
+    await tx`update settings set updated_by = null where updated_by = ${memberId}`;
+  });
+}
+
+export function handlers(sql: Sql): events.Handlers {
+  return {
+    "access.revoked": event => leave(sql, event.data.id),
+    "member.removed": event => leave(sql, event.data.id),
+    // A role changed: the approvers' tiles may count differently.
+    "member.updated": async event => {
+      if (event.data.changed.includes("role")) await refreshBadges(sql);
+    },
+    "member.erased": async event => {
+      await erase(sql, event.data.id);
+      await events.acknowledgeErasure(event.data.erasure);
+    },
+  };
+}
+
+// The ids of the events already handled, kept in the database: a delivery
+// made again after a restart is recognised.
+export function seen(sql: Sql): events.Seen {
+  return {
+    has: async id => (await sql`select 1 from chest_events where id = ${id}`).length > 0,
+    add: async id => {
+      await sql`insert into chest_events (id) values (${id}) on conflict do nothing`;
+    },
+  };
+}

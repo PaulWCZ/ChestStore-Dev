@@ -1,0 +1,36 @@
+{
+  "version": 2,
+  "name": "leave",
+  "title": "Leave",
+  "description": "Ask for time off, get an answer in one click, see who is away. French rules built in: jours ouvrés or ouvrables, public holidays, earned leave.",
+  "icon": "chest/icon.svg",
+  "preview": "chest/preview.png",
+  "roles": [
+    "hr",
+    "manager",
+    "employee"
+  ],
+  "role_labels": {
+    "hr": "HR",
+    "manager": "Manager",
+    "employee": "Employee"
+  },
+  "capabilities": [
+    "database",
+    "members",
+    "notifications"
+  ],
+  "receives": [
+    "member.*"
+  ],
+  "build": {
+    "runtime": "node",
+    "install": "npm ci",
+    "command": "npm run build",
+    "start": "npm start",
+    "port": 3000,
+    "static": [
+      "/_next/static/"
+    ]
+  }
+}

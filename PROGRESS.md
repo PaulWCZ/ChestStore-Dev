@@ -46,7 +46,7 @@ _One row per chosen tool, in ranking order, once step 1 is done._
 |---|---|---|---|---|---|---|---|---|
 | 1 | Tasks | `tools/private/tasks` | Trello, Asana, Monday | ✓ | ✓ | bright workshop (Space Grotesk + Inter, sun, ink outlines) | locale, schedules | ✓ 26 tests (PGlite + PostgreSQL), build, manifest, 12 browser flows, screens |
 | 2 | Wiki | `tools/private/wiki` | Notion, Confluence | ✓ | — | — | locale | — |
-| 3 | Leave | `tools/private/leave` | Lucca Absences, Factorial | ✓ | — | — | locale | — |
+| 3 | Leave | `tools/private/leave` | Lucca Absences, Factorial | ✓ | ✓ | sea-side calm (Nunito + Nunito Sans, sky blue, sunset coral) | locale, schedules | ✓ 41 tests (PGlite + PostgreSQL), build, manifest, 13 browser flow steps, screens |
 | 4 | News | `tools/private/news` | Workvivo, Staffbase | ✓ | ✓ | newspaper (Fraunces + Libre Franklin, ink and red) | locale, schedules | ✓ 33 tests (PGlite + PostgreSQL), build, manifest, 9 browser flows, screens |
 | 5 | People | `tools/private/people` | BambooHR directory | ✓ | — | — | locale | — |
 | 6 | Clients | `tools/private/crm` | HubSpot, Pipedrive | ✓ | — | — | locale | — |
@@ -69,6 +69,11 @@ _One row per chosen tool, in ranking order, once step 1 is done._
 - `member.locale` (+ `members.*` answers, `localeOf`, `locales`) — 0.3.0-studio.1
 - `fakeChest({origin})`, `chest.upload()`, the fake Chest's front (uploads, links, photos); `files` accept http://localhost links — 0.3.0-studio.2
 - `schedules` (scheduled tasks: `handle`, `verify`, cron `parseCron`/`nextRun`/`describeCron`/`checkSchedules`, `timeZone()` from `CHEST_TIMEZONE`), `fakeChest({schedules, timeZone})`, `chest.run()` — 0.3.0-studio.3. Manifest keys of proposals live in each tool's `chest.proposals.json` (a Chest refuses unknown keys in `chest.json`)
+
+## To fold into the SDK report (from builders)
+
+- Leave: `mail.send` to members (approvers who never open the Chest); per-member secret feed (`feeds.token(memberId)` / `feeds.verify`) for iCal; the Chest's time zone outside schedules; manager relationship (`members.get(id).manager`); events between tools (`leave.approved` → Rooms, People); localized manifest title; template could ship `app/chest/not-found.tsx`; `toCsv` separator; `Catalogue["x"]` typing pattern in BUILDING.md; harness cannot screenshot another month. French leave rules marked "not verified" in README need a payroll check.
+- News: bulk notification to everyone who has the tool, per language, as one call (`notifications.broadcast`) — today: members.list pages + grouping + 1,000/h quota; an "important" notification (above quota, or email fallback); localized manifest title (tile says "News" to French members); fake Chest ignores `files.url({thumbnail})` (no `no_thumbnail`); harness: `seed/files/` for sample files; `dev_locale` cookie shared across member switches; a safe way for a server component to write (visit marks while rendering).
 
 ## Questions for the owner
 
