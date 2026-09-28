@@ -124,11 +124,17 @@ no word in code, no language-specific logic outside the catalogues.
 - Every word the tool shows — pages, buttons, errors, empty states,
   notifications it sends, emails it would send, exports' headers, the public
   part — comes from the catalogues. Services return codes, never sentences.
-- The language is chosen by: a switch in the tool (remembered per member, in
-  the tool's database; on the public part, in a cookie), otherwise the
-  browser's `Accept-Language` if it is a supported language, otherwise
-  English. (The member's language is not in the SDK yet: propose
-  `member.locale` in the SDK working copy and use it first once there.)
+- **Private part (`/chest`): the language comes from the member**, never
+  from a switch in the tool. The owner decided that the Chest gives each
+  member's language through the SDK: `member(request).locale` (`"en"` or
+  `"fr"`). It is not in 0.2.0 yet, so add it to the SDK working copy first
+  (the `locale` claim of the `Chest-Member` assertion, read and checked by
+  `member()`, set by `signAssertion`/`withMember` and `fakeChest`, English
+  when absent or unknown). The tool shows `/chest` in that language, and
+  uses it for the notifications it sends to that member.
+- **Public part**: no member, so a visible language switch (remembered in a
+  cookie), otherwise the browser's `Accept-Language` if supported,
+  otherwise English.
 - Dates, numbers, currencies with `Intl` in the chosen language; French
   strings are longer — design for them.
 - Tests: the catalogues have the same keys, no empty value, and no string
@@ -173,7 +179,7 @@ There is no `chest dev` yet (it is specified:
   (`@electric-sql/pglite`, with `pglite-socket` to serve the `postgres`
   client) as a **dev-only** dependency. Never ship it.
 - **A dev harness, once, for every tool**: build `lab/chest-dev/` in step 2 — it starts `fakeChest` with a few sample members, runs a tool with the
-  right environment, and serves it on `localhost` with a small member switcher
+  right environment, and serves it on `localhost` with a small member (and language) switcher
   that signs `Chest-Member` for the chosen member (`signAssertion`). It is a
   lab tool, never part of a tool. It uses the SDK working copy's `fakeChest`, so the
   proposed primitives work in it too (show an outbox, fire a scheduled task,
@@ -216,7 +222,7 @@ A tool is done when, from a clean checkout of its folder:
 - [ ] Every `/chest` route checks the member; each role's rights are tested.
 - [ ] Migrations run on an empty database; sample data loads.
 - [ ] English (first, default, fallback) and French (second) complete, same
-      keys; the language switch works; nothing shown is outside the catalogues.
+      keys; `/chest` follows `member.locale`, the public part's switch works; nothing shown is outside the catalogues.
 - [ ] Empty, loading, error and "no access" states designed; works at 390 px;
       keyboard and screen-reader usable; WCAG AA contrast.
 - [ ] No runtime request leaves the tool (fonts, icons, scripts all local).
