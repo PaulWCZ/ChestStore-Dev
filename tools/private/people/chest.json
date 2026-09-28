@@ -1,0 +1,34 @@
+{
+  "version": 2,
+  "name": "people",
+  "title": "People",
+  "description": "The team's directory and org chart: who does what, how to reach them, and checklists to welcome newcomers and see off those who leave.",
+  "icon": "chest/icon.svg",
+  "preview": "chest/preview.png",
+  "roles": [
+    "hr",
+    "member"
+  ],
+  "role_labels": {
+    "hr": "HR",
+    "member": "Member"
+  },
+  "capabilities": [
+    "database",
+    "members",
+    "notifications"
+  ],
+  "receives": [
+    "member.*"
+  ],
+  "build": {
+    "runtime": "node",
+    "install": "npm ci",
+    "command": "npm run build",
+    "start": "npm start",
+    "port": 3000,
+    "static": [
+      "/_next/static/"
+    ]
+  }
+}

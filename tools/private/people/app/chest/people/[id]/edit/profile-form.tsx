@@ -1,0 +1,200 @@
+"use client";
+
+import { useRouter } from "next/navigation";
+import { useId, useState, useTransition, type FormEvent, type KeyboardEvent } from "react";
+import { Close, Plus } from "../../../../../components/icons.tsx";
+import { Portrait } from "../../../../../components/portrait.tsx";
+import { useToast } from "../../../../../components/toast.tsx";
+import type { ErrorCode } from "../../../../../lib/app-error.ts";
+import { format } from "../../../../../lib/i18n/format.ts";
+import { limits } from "../../../../../lib/model.ts";
+import { saveProfile } from "../../../actions.ts";
+
+type Own = { phone: string; pronouns: string; bio: string; skills: string[]; birthday: string | null };
+type Job = { title: string; team: string; office: string; managerId: string | null; startDate: string | null; phone: string };
+type Words = {
+  edit: Record<"aboutYou" | "aboutThem" | "phone" | "phoneHint" | "pronouns" | "pronounsHint" | "bio" | "bioHint" | "skills" | "skillsHint" | "skillPlaceholder" | "addSkill" | "removeSkill" | "birthday" | "birthdayHint" | "day" | "month" | "job" | "jobHint" | "title" | "team" | "office" | "manager" | "noManager" | "startDate" | "save" | "saving" | "saved" | "cancel", string>;
+  errors: Record<ErrorCode, string>;
+};
+
+// The profile form: "About you" for oneself, "Job" for HR. Saved in one
+// click; a refusal says why and keeps what was typed.
+export function ProfileForm({ person, own, job, jobView, managers, known, months, t }: {
+  person: { id: string; name: string; photo: string | null; team: string };
+  own: Own | null;
+  job: Job | null;
+  jobView: { title: string; team: string; office: string };
+  managers: { id: string; name: string }[];
+  known: { teams: string[]; offices: string[]; titles: string[] };
+  months: string[];
+  t: Words;
+}) {
+  const router = useRouter();
+  const toast = useToast();
+  const uid = useId();
+  const [pending, start] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+  const [skills, setSkills] = useState<string[]>(own?.skills ?? []);
+  const [skill, setSkill] = useState("");
+  const [showBirthday, setShowBirthday] = useState(own?.birthday != null);
+  const [month, setMonth] = useState(own?.birthday ? Number(own.birthday.slice(0, 2)) : 1);
+  const [day, setDay] = useState(own?.birthday ? Number(own.birthday.slice(3)) : 1);
+  const longest = [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][month - 1]!;
+
+  const addSkill = () => {
+    const text = skill.replace(/\s+/gu, " ").trim();
+    if (!text) return;
+    if (!skills.some(s => s.toLowerCase() === text.toLowerCase()) && skills.length < limits.skills) setSkills([...skills, text.slice(0, limits.skill)]);
+    setSkill("");
+  };
+  const onSkillKey = (e: KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter" || e.key === ",") {
+      e.preventDefault();
+      addSkill();
+    } else if (e.key === "Backspace" && skill === "" && skills.length > 0) setSkills(skills.slice(0, -1));
+  };
+
+  const submit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const data = new FormData(event.currentTarget);
+    const text = (name: string) => String(data.get(name) ?? "");
+    const pendingSkill = skill.replace(/\s+/gu, " ").trim();
+    const allSkills = pendingSkill && !skills.includes(pendingSkill) ? [...skills, pendingSkill] : skills;
+    const ownInput = own ? { phone: text("phone"), pronouns: text("pronouns"), bio: text("bio"), skills: allSkills, birthday: showBirthday ? { month, day: Math.min(day, longest) } : null } : null;
+    const jobInput = job ? { title: text("title"), team: text("team"), office: text("office"), managerId: text("managerId") || null, startDate: text("startDate") || null, ...(own ? {} : { phone: text("phone") }) } : null;
+    setError(null);
+    start(async () => {
+      const result = await saveProfile(person.id, ownInput, jobInput);
+      if (!result.ok) {
+        setError(format(t.errors[result.error], result.values ?? {}));
+        return;
+      }
+      toast(t.edit.saved);
+      router.push(`/chest/people/${person.id}`);
+    });
+  };
+
+  return (
+    <form className="form" onSubmit={submit} noValidate>
+      {own && (
+        <fieldset className="card-block">
+          <legend>{t.edit.aboutYou}</legend>
+          <div className="with-portrait">
+            <Portrait name={person.name} photo={person.photo} size={72} team={person.team} arch />
+            <div className="field-group">
+              <label htmlFor={uid + "phone"} className="label">{t.edit.phone}</label>
+              <input id={uid + "phone"} name="phone" className="field" type="tel" inputMode="tel" autoComplete="tel" defaultValue={own.phone} maxLength={limits.phone} aria-describedby={uid + "phone-hint"} />
+              <p id={uid + "phone-hint"} className="hint">{t.edit.phoneHint}</p>
+            </div>
+          </div>
+          <div className="field-group">
+            <label htmlFor={uid + "skill"} className="label">{t.edit.skills}</label>
+            <div className="chips-input">
+              {skills.map(s => (
+                <span key={s} className="topic removable">
+                  {s}
+                  <button type="button" onClick={() => setSkills(skills.filter(x => x !== s))} aria-label={format(t.edit.removeSkill, { name: s })}><Close /></button>
+                </span>
+              ))}
+              <input id={uid + "skill"} value={skill} onChange={e => setSkill(e.target.value)} onKeyDown={onSkillKey} onBlur={addSkill} placeholder={skills.length === 0 ? t.edit.skillPlaceholder : ""} maxLength={limits.skill} aria-describedby={uid + "skill-hint"} disabled={skills.length >= limits.skills} />
+              <button type="button" className="button quiet small" onClick={addSkill} disabled={!skill.trim()}><Plus />{t.edit.addSkill}</button>
+            </div>
+            <p id={uid + "skill-hint"} className="hint">{t.edit.skillsHint}</p>
+          </div>
+          <div className="field-group">
+            <label htmlFor={uid + "bio"} className="label">{t.edit.bio}</label>
+            <textarea id={uid + "bio"} name="bio" className="field" rows={4} defaultValue={own.bio} maxLength={limits.bio} aria-describedby={uid + "bio-hint"} />
+            <p id={uid + "bio-hint"} className="hint">{t.edit.bioHint}</p>
+          </div>
+          <div className="field-group">
+            <label htmlFor={uid + "pronouns"} className="label">{t.edit.pronouns}</label>
+            <input id={uid + "pronouns"} name="pronouns" className="field short" defaultValue={own.pronouns} maxLength={limits.pronouns} placeholder={t.edit.pronounsHint} />
+          </div>
+          <div className="field-group">
+            <label className="switch">
+              <input type="checkbox" checked={showBirthday} onChange={e => setShowBirthday(e.target.checked)} aria-describedby={uid + "bd-hint"} />
+              <span>{t.edit.birthday}</span>
+            </label>
+            <p id={uid + "bd-hint"} className="hint">{t.edit.birthdayHint}</p>
+            {showBirthday && (
+              <div className="row birthday">
+                <div className="field-group">
+                  <label htmlFor={uid + "day"} className="label">{t.edit.day}</label>
+                  <select id={uid + "day"} className="select" value={Math.min(day, longest)} onChange={e => setDay(Number(e.target.value))}>
+                    {Array.from({ length: longest }, (_, i) => <option key={i + 1} value={i + 1}>{i + 1}</option>)}
+                  </select>
+                </div>
+                <div className="field-group">
+                  <label htmlFor={uid + "month"} className="label">{t.edit.month}</label>
+                  <select id={uid + "month"} className="select" value={month} onChange={e => setMonth(Number(e.target.value))}>
+                    {months.map((m, i) => <option key={m} value={i + 1}>{m}</option>)}
+                  </select>
+                </div>
+              </div>
+            )}
+          </div>
+        </fieldset>
+      )}
+
+      {job && !own && (
+        <fieldset className="card-block">
+          <legend>{t.edit.aboutThem}</legend>
+          <div className="field-group">
+            <label htmlFor={uid + "phone"} className="label">{t.edit.phone}</label>
+            <input id={uid + "phone"} name="phone" className="field" type="tel" inputMode="tel" defaultValue={job.phone} maxLength={limits.phone} placeholder={t.edit.phoneHint} />
+          </div>
+        </fieldset>
+      )}
+
+      {job ? (
+        <fieldset className="card-block">
+          <legend>{t.edit.job}</legend>
+          <div className="grid-2">
+            <div className="field-group">
+              <label htmlFor={uid + "title"} className="label">{t.edit.title}</label>
+              <input id={uid + "title"} name="title" className="field" defaultValue={job.title} maxLength={limits.title} list={uid + "titles"} autoComplete="off" />
+              <datalist id={uid + "titles"}>{known.titles.map(x => <option key={x} value={x} />)}</datalist>
+            </div>
+            <div className="field-group">
+              <label htmlFor={uid + "team"} className="label">{t.edit.team}</label>
+              <input id={uid + "team"} name="team" className="field" defaultValue={job.team} maxLength={limits.team} list={uid + "teams"} autoComplete="off" />
+              <datalist id={uid + "teams"}>{known.teams.map(x => <option key={x} value={x} />)}</datalist>
+            </div>
+            <div className="field-group">
+              <label htmlFor={uid + "office"} className="label">{t.edit.office}</label>
+              <input id={uid + "office"} name="office" className="field" defaultValue={job.office} maxLength={limits.office} list={uid + "offices"} autoComplete="off" />
+              <datalist id={uid + "offices"}>{known.offices.map(x => <option key={x} value={x} />)}</datalist>
+            </div>
+            <div className="field-group">
+              <label htmlFor={uid + "manager"} className="label">{t.edit.manager}</label>
+              <select id={uid + "manager"} name="managerId" className="select" defaultValue={job.managerId ?? ""}>
+                <option value="">{t.edit.noManager}</option>
+                {managers.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+              </select>
+            </div>
+            <div className="field-group">
+              <label htmlFor={uid + "start"} className="label">{t.edit.startDate}</label>
+              <input id={uid + "start"} name="startDate" className="field" type="date" defaultValue={job.startDate ?? ""} min="1950-01-01" max="2100-12-31" />
+            </div>
+          </div>
+        </fieldset>
+      ) : (
+        <div className="card-block readonly">
+          <h2 className="legend">{t.edit.job}</h2>
+          <dl className="grid-2">
+            {jobView.title && <div><dt>{t.edit.title}</dt><dd>{jobView.title}</dd></div>}
+            {jobView.team && <div><dt>{t.edit.team}</dt><dd>{jobView.team}</dd></div>}
+            {jobView.office && <div><dt>{t.edit.office}</dt><dd>{jobView.office}</dd></div>}
+          </dl>
+          <p className="hint">{t.edit.jobHint}</p>
+        </div>
+      )}
+
+      {error && <p className="error" role="alert">{error}</p>}
+      <div className="row form-actions">
+        <button type="submit" className="button" disabled={pending}>{pending ? t.edit.saving : t.edit.save}</button>
+        <button type="button" className="button quiet" onClick={() => router.push(`/chest/people/${person.id}`)}>{t.edit.cancel}</button>
+      </div>
+    </form>
+  );
+}
