@@ -287,7 +287,7 @@ export function Paper(props: PaperProps) {
             )}
             {(editing || doc.deliveryDate) && doc.type !== "credit" && (
               <>
-                <dt>{editing ? <label htmlFor="delivery">{t.editor.deliveryDate}</label> : w.deliveryDate}</dt>
+                <dt>{editing ? <label htmlFor="delivery">{w.deliveryDate}</label> : w.deliveryDate}</dt>
                 <dd>{editing ? <input id="delivery" type="date" className="ink num" value={header.deliveryDate} onChange={ev => setH({ deliveryDate: ev.target.value })} /> : dates.delivery}</dd>
               </>
             )}

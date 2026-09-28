@@ -7,7 +7,7 @@ meaningful step (brief/07-plan.md).
 
 Step 3, well advanced. Done, verified and pushed (each: tests on PGlite and
 PostgreSQL, build, manifest, browser flows, screenshots looked at): Tasks,
-Wiki, Leave, News, People, Expenses, Support, Rooms, Booking, Clients, Polls, Equipment, Timesheets, Goals, Status, Hiring (16 of 17).
+Wiki, Leave, News, People, Expenses, Support, Rooms, Booking, Clients, Polls, Equipment, Timesheets, Goals, Status, Hiring, Quotes (all 17).
 Builders at work (background agents, one port each, no git; the lead
 verifies with `scratchpad/verify.sh`-style runs and commits): Timesheets (5200), Hiring (5300),
 Goals (5600), Quotes (5700), Status (5800). Builder brief: the Rooms/…
@@ -40,7 +40,7 @@ Checked 2026-09-28 in the cloud container:
 | 0. Environment | done |
 | 1. Ranking and research | done — `reports/01-ranking.md`, 17 files in `reports/02-open-source/`, prices in `reports/01-pricing-sources.md` |
 | 2. Foundations | done — `lab/template` (tested, built, run, screenshots), `lab/chest-dev` (dev.mjs, screens.mjs), `scripts/check-manifest.mjs`, `new-tool.mjs`, `add-font.mjs`, `contrast.mjs`, `build-showcase.mjs` |
-| 3. Tools | 16 of 17 done; Quotes being built |
+| 3. Tools | done — 17 of 17 verified |
 | 4. The report | to do |
 | 5. Better | to do |
 
@@ -65,7 +65,7 @@ _One row per chosen tool, in ranking order, once step 1 is done._
 | 13 | Equipment | `tools/private/equipment` | Snipe-IT | ✓ | ✓ | tool crib labels (IBM Plex, utility orange, steel, hazard stripe) | locale, schedules, chest | ✓ 37 tests (PGlite + PostgreSQL), build, manifest, 13 browser flow steps, a11y audit, screens; own QR encoder tested with jsQR |
 | 14 | Polls | `tools/private/polls` | Doodle, Officevibe | ✓ | ✓ | confetti ballot (Fredoka + Plus Jakarta Sans, coral, navy, mint) | locale, schedules, broadcast | ✓ 42 tests (PGlite + PostgreSQL), build, manifest, 9 browser flows, a11y audit, screens |
 | 15 | Goals | `tools/private/goals` | Lattice Goals, Perdoo | ✓ | ✓ | trail map (Barlow Semi Condensed + Work Sans, forest ink, sunrise orange, contour lines) | locale, schedules, chest | ✓ 34 tests (PGlite + PostgreSQL), build, manifest, 14 browser flow steps, a11y audit, screens |
-| 16 | Quotes | `tools/private/quotes` | Axonaut, Sellsy | ✓ | — | — | locale | — |
+| 16 | Quotes & invoices | `tools/private/quotes` | Axonaut, Sellsy, Henrri (invoicing) | ✓ | ✓ | letterpress stationery (Libre Caslon Text + Hanken Grotesk, blue-black, oxblood seal) | locale, mail, schedules, chest | ✓ 63 tests (PGlite + PostgreSQL, gap-free numbering under concurrency), build, manifest, 13 browser flow steps, a11y audit, screens; own PDF writer |
 | 17 | Status | `tools/public-and-private/status` | Statuspage, Instatus | ✓ | ✓ | control room (cool grey, near-black ink, Okabe–Ito state colours with shapes and words) | locale, mail, schedules, chest, visitors, broadcast | ✓ 39 tests (PGlite + PostgreSQL), build, manifest, 10 browser flows, a11y audit (14 pages), screens |
 
 ## SDK working copy
@@ -85,6 +85,7 @@ _One row per chosen tool, in ranking order, once step 1 is done._
 
 ## To fold into the SDK report (from builders)
 
+- Quotes: `mail.available()` probe (first send numbers then rolls back); events from Clients (`crm.company.saved`, `crm.deal.won`; `clients.external_ref` reserved); for the e-invoicing reform, declared outbound network with per-company secrets to call a PA, and a warning before removing a tool holding legally retained data; postgres.js type parsers for date/bigint; page files cannot export helpers.
 - Hiring: public uploads need a signed `claim` token (`uploadUrl(…, {public: true})` → `claim`; `files.claim(token)` once) or a visitor can claim someone else's upload; the Chest should delete unclaimed public uploads itself (`expiresUnclaimedAfter`); fake front should sniff first bytes and enforce 30/min per visitor; `files.url({inline})` with frame-ancestors for previews; `hiring.hired` → People needs personal data (a candidate is not a member) — decide; re-packing the SDK under the same version leaves npm on the stale copy (bump versions or reinstall in add-sdk); React #441 after erasing the current page; `type="url"` refuses "linkedin.com/in/x".
 - Status: checks run by the Chest (manifest `checks`, signed results to `/chest-checks`, `checks.handle`, `fakeChest({checks})`) — the job customers expect most; `mail.available()` (learned only by a failed send today); public caching per language (Next overwrites `Vary`); a heartbeat URL.
 - Timesheets: `members.match(names)` server-side name matching for importers; a testing clock in `fakeChest`; a harness control to age data (the flow connects to the database); `<fieldset>` min-width makes pages scroll sideways on phones.

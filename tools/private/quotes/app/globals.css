@@ -396,3 +396,10 @@ input.ink[type="date"] { min-width: 150px; }
 .lines.edit .line.section > .grip { order: 0; }
 .pre { white-space: pre-line; }
 .party .caps.deliver { margin-top: var(--space-3); }
+.link-button { display: inline-flex; align-items: center; gap: 4px; }
+.card .more { align-items: center; }
+@media (max-width: 1080px) {
+  .document > .side { display: contents; }
+  .document > .side > .card:first-child { order: -1; }
+  .document > .side > .card { order: 1; }
+}

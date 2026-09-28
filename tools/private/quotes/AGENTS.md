@@ -1,49 +1,49 @@
-# Adapting this tool — a guide for AI agents
+# Adapting Quotes & invoices — a guide for AI agents
 
-`README.md` says what the tool does; this page says where things are and
-what must not break.
+Read `README.md` first (what it does, the legal line). This tool issues
+legal documents: a change that breaks numbering, freezing or mentions is a
+legal defect for the company using it.
 
 ## Map
 
-| Path | What it is |
-|---|---|
-| `chest.json` | The manifest: name, roles, capabilities, build |
-| `lib/access.ts` | **Who may do what** — the only place roles are read |
-| `lib/notes.ts` | The service: rules, bounds, SQL (parameterised); takes `sql` and the member, throws `AppError(code)` |
-| `lib/errors.ts` | Error codes, `Result`, `attempt()` for server actions |
-| `lib/i18n/` | Every word: `en.ts` (source), `fr.ts`; `format.ts` for the browser |
-| `lib/session.ts` | The member (`member()` of the SDK) and their language |
-| `lib/people.ts` | Names and photos from member ids (`members.lookup`) |
-| `lib/notify.ts` | Bell items in each recipient's language; badges |
-| `lib/lifecycle.ts` | What happens when a member leaves or is erased |
-| `app/chest/` | The members' part: pages (server) and views (client) |
-| `app/chest/actions.ts` | Server actions: thin, each re-reads the member |
-| `app/chest-events/route.ts` | The Chest's lifecycle events (signed) |
-| `proxy.ts` | Content-Security-Policy with a nonce; 401 on `/chest` without a member |
-| `migrations/` | The schema, run by the Chest in order |
-| `seed/sample.sql` | Sample data for local runs (never run by the Chest) |
-| `test/` | `node:test` with the SDK's `fakeChest` and a real PostgreSQL (PGlite) |
-| `vendor/` | The SDK working copy, packed — do not edit |
+- `lib/access.ts` — roles and abilities, the only place rights are decided.
+- `lib/model.ts` — bounds, identifiers (SIREN/SIRET Luhn, VAT keys, IBAN),
+  dates, numbering format. Pure.
+- `lib/money.ts`, `lib/totals.ts` — money in cents, parsing, **the rounding
+  rule** (per line, then per rate). Browser-safe: the editor uses the same code.
+- `lib/documents.ts` — quotes, invoices, credit notes: drafts, numbering
+  (`nextNumber`, counter row lock), `finalise`, deposits and balances,
+  states. `lib/payments.ts`, `lib/clients.ts`, `lib/items.ts`, `lib/company.ts`.
+- `lib/pdf/` — `writer.ts` (the PDF writer), `document.ts` (the layout and
+  mandatory mentions), `image.ts` (logo), `metrics.ts` (font widths, generated).
+- `lib/archive.ts` — the PDF of record, kept in the Chest's files.
+- `lib/sending.ts` — the only call site of the mail proposal.
+- `lib/export.ts` — CSV and ZIP for the accountant.
+- `lib/lifecycle.ts`, `lib/tell.ts`, `lib/notify.ts`, `lib/people.ts` — the Chest glue.
+- `migrations/0001_quotes.sql` — the schema **and the freezing triggers**.
+- `app/chest/actions.ts` — thin server actions; `app/chest/**` pages and
+  views; `app/chest/documents/[id]/paper.tsx` — the paper editor.
+- `lib/i18n/en.ts`, `fr.ts` — every word, including the PDF's and emails'.
 
 ## Commands
 
-```sh
-npm ci && npm test && npm run build   # all three must pass
-```
+`npm test` (PGlite), `TEST_DATABASE_URL=… npm test` (PostgreSQL — run it for
+anything touching numbering), `npm run build`, the studio's
+`lab/chest-dev/flows/quotes.mjs` against the harness.
 
 ## Rules
 
-- **Identity comes only from `member()`** (`lib/session.ts`). Never from a
-  body, a query, a cookie. Store `mbr_…` ids, never names or emails.
-- **Rights live in `lib/access.ts`**; services call `can()` before acting;
-  add a line to `test/access.test.ts` for each new ability.
-- **Services return codes, never sentences**; words go in every catalogue
-  of `lib/i18n/` (the tests compare them and look for words in the pages).
-- **Client components never import the SDK**, `lib/session.ts`,
-  `lib/people.ts` or `lib/db.ts` (the build fails: `node:crypto`).
-- **Schema changes are new migration files.** Never edit one that shipped;
-  the previous version must keep working on the new schema.
-- **No network, no disk, no background work.** Deferred work is done on the
-  next request (see the purge in `listNotes`).
-- **Keep the CSP** in `proxy.ts`: no inline script without the nonce, no
-  other origin.
+- Never edit a shipped migration. Never weaken `frozen_document()` /
+  `frozen_lines()`; a new column of `documents` is frozen automatically —
+  add it to the `mutable` list only if it records something that happens
+  *after* issuing (like `sent_at`), in a new migration.
+- Numbers are only given by `nextNumber` inside the transaction that
+  numbers the document, with the document's row locked first. Never compute
+  a number outside it, never let the user choose the date of an invoice.
+- Money is integers of cents. Use `lib/totals.ts`; never round twice.
+- A new mandatory mention goes into `lib/pdf/document.ts` **and** the paper
+  (`paper.tsx`), with its words in both catalogues and a test in
+  `test/pdf.test.ts` that reads it back from the PDF bytes.
+- Identity only from `member(request)`; store `mbr_…` ids; rights in
+  `lib/access.ts` with a test per role.
+- Words only in `lib/i18n/*` (the tests look for words in `.tsx` files).

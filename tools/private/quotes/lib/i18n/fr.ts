@@ -415,7 +415,6 @@ export const fr: Catalogue = {
     paymentTerms: "Paiement",
     onReceipt: "À réception",
     days: "{days} jours",
-    deliveryDate: "Livré / réalisé le",
     language: "Langue",
     chooseClient: "Choisir le client",
     changeClient: "Changer de client",

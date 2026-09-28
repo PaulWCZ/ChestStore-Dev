@@ -415,7 +415,6 @@ export const en = {
     paymentTerms: "Payment",
     onReceipt: "On receipt",
     days: "{days} days",
-    deliveryDate: "Delivered on",
     language: "Language",
     chooseClient: "Choose the client",
     changeClient: "Change the client",
