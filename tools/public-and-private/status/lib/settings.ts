@@ -48,3 +48,13 @@ export async function setMailState(sql: Query, state: "ok" | "none", now = new D
   if (saved?.state === state && state === "ok") return;
   await write(sql, "mail_state", { state, at: now.toISOString() });
 }
+
+// Checks (Proposal (studio)): whether the Chest took the list the last time
+// it was saved.
+export async function checksState(sql: Query): Promise<"running" | "unavailable" | "unknown"> {
+  return (await read<"running" | "unavailable">(sql, "checks_state")) ?? "unknown";
+}
+
+export async function setChecksState(sql: Query, state: "running" | "unavailable"): Promise<void> {
+  await write(sql, "checks_state", state);
+}

@@ -13,6 +13,7 @@ import * as jobs from "../../lib/jobs.ts";
 import * as mailer from "../../lib/mailer.ts";
 import { clean, limits } from "../../lib/model.ts";
 import { currentMember } from "../../lib/session.ts";
+import * as share from "../../lib/share.ts";
 import * as tell from "../../lib/tell.ts";
 
 // The team's actions. Each is an endpoint anyone can call: each reads the
@@ -95,12 +96,21 @@ export async function saveSettings(input: { companyName?: string; intro?: string
 
 // ---- Candidates ------------------------------------------------------------
 
-export async function moveCandidate(candidateId: string, stageId: string): Promise<Result<{ from: string }>> {
+// Tells People of a hire (or of one taken back): Proposal (studio), events
+// between tools; nothing is told when the Chest cannot take it.
+async function tellHired(actor: Member, c: candidates.Candidate): Promise<void> {
+  const [job] = await db()<{ title: string; team: string; place: string }[]>`select title, team, place from jobs where id = ${c.jobId}`;
+  await share.hired({ candidate: c.id, name: c.name, email: c.email, job: job!.title, team: job!.team, place: job!.place, startDate: c.startDate, hiredBy: actor.id }, c.stageEnteredAt);
+}
+
+export async function moveCandidate(candidateId: string, stageId: string, startDate?: string): Promise<Result<{ from: string; hired: boolean }>> {
   return act(async actor => {
     const sql = db();
-    const done = await candidates.move(sql, actor, candidateId, stageId);
+    const done = await candidates.move(sql, actor, candidateId, stageId, startDate);
+    if (done.to.hired && !done.from.hired) await tellHired(actor, done.candidate);
+    if (done.from.hired && !done.to.hired) await share.hireCancelled(done.candidate.id);
     await tell.refreshBadges(sql);
-    return { from: done.from.id };
+    return { from: done.from.id, hired: done.to.hired && !done.from.hired };
   });
 }
 
@@ -111,7 +121,9 @@ export async function rejectCandidate(candidateId: string, reason: string, note:
   return act(async actor => {
     const sql = db();
     const text = email.send ? clean(email.text, limits.emailText, { multiline: true }) : "";
+    const before = await candidates.candidate(sql, actor, candidateId);
     const c = await candidates.reject(sql, actor, candidateId, reason, note);
+    if (before.candidate.status === "active" && (await candidates.isHiredStage(sql, c.stageId))) await share.hireCancelled(c.id);
     await tell.settled(c.id);
     await tell.refreshBadges(sql);
     if (!email.send) return { delivery: "skipped" as const };
@@ -126,7 +138,9 @@ export async function rejectCandidate(candidateId: string, reason: string, note:
 export async function restoreCandidate(candidateId: string): Promise<Result<null>> {
   return act(async actor => {
     const sql = db();
-    await candidates.restore(sql, actor, candidateId);
+    const before = await candidates.candidate(sql, actor, candidateId);
+    const c = await candidates.restore(sql, actor, candidateId);
+    if (before.candidate.status === "rejected" && (await candidates.isHiredStage(sql, c.stageId))) await tellHired(actor, { ...c, stageEnteredAt: new Date().toISOString() });
     await tell.refreshBadges(sql);
     return null;
   });
@@ -205,6 +219,7 @@ export async function eraseCandidate(candidateId: string): Promise<Result<null>>
     const sql = db();
     const gone = await candidates.erase(sql, actor, candidateId);
     await cv.remove(gone.objects);
+    if (gone.wasHired) await share.hireCancelled(candidateId);
     await tell.settled(candidateId);
     await tell.refreshBadges(sql);
     return null;

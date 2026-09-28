@@ -141,6 +141,22 @@ Contacts are personal data of people outside the company.
 - Notes fields remind people not to write sensitive data (health,
   opinions…).
 
+## With the other tools
+
+Through the studio's proposal **events between tools** (`chest.proposals.json`
+`"emits"`), once an admin of the Chest linked Clients to another tool:
+
+| Event | When | Data |
+|---|---|---|
+| `crm.deal.won` | A deal enters Won (board drop or the Won button, after the reason) | `{ deal, title, amount` (integer cents) `, currency: "EUR", company: { ref, name, address, postcode, city, country, siren, vat, email } \| null, contact: { name, email } \| null, owner }` — key `crm:<deal>:won:<time>` |
+| `crm.deal.reopened` | A won deal leaves Won (reopened, or moved to another stage) | `{ deal }` |
+
+**Quotes** starts a quote from `crm.deal.won`. Clients keeps a company's
+address as one text and holds no postcode, city, country, SIREN, VAT number
+or company email: those are sent as `null`, never guessed. Publishing is a
+courtesy (`lib/share.ts`): when the Chest cannot take the event, the deal's
+move still stands. Deals imported already won are not told.
+
 ## Needs from the SDK
 
 - `member.locale` — **Proposal (studio)**, in `vendor/`: the interface and
@@ -150,9 +166,10 @@ Contacts are personal data of people outside the company.
   overnight, the purge of removed history. On a Chest without it, the tile's
   number is set right whenever its owner opens *My day*, and removed history
   simply stays hidden.
+- `events` between tools — **Proposal (studio)**, `emits` in
+  `chest.proposals.json`: see "With the other tools".
 - Wished, not built (the tool works without them): **mail** in and out (log
-  emails by BCC, send from a contact), **links between tools** (a won deal
-  becomes a quote in *Quotes*), **files** on a deal (the capability exists;
+  emails by BCC, send from a contact), **files** on a deal (the capability exists;
   not used yet).
 
 ## Develop

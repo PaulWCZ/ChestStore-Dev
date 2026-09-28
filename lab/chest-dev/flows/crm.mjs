@@ -121,6 +121,8 @@ await step("the board: move a deal with the keyboard, then to Won with a reason"
   await page.reload();
   expect((await boardLane("Won").innerText()).includes("Dispensary counter"), "won");
   await page.goto(dealUrl);
+  const told = await dev();
+  expect(told.includes("crm.deal.won") && told.includes("Dispensary counter and shelving") && told.includes("1480050"), "Quotes is told of the won deal");
   const note = await page.locator(".closed-note").innerText();
   expect(note.includes("Fast delivery promised"), "reason kept: " + note);
 });
@@ -139,6 +141,7 @@ await step("the manager gives Inès a deal: she is told in French", async () => 
   await page.goto(dealUrl);
   await page.getByRole("button", { name: "Rouvrir" }).click();
   await page.waitForSelector(".toast");
+  expect((await dev()).includes("crm.deal.reopened"), "Quotes is told it was reopened");
   await page.locator("#deal-owner").selectOption(id("ines"));
   await page.waitForTimeout(1500);
   expect((await dev()).includes("Camille Martin vous a confié une affaire"), "French bell item");

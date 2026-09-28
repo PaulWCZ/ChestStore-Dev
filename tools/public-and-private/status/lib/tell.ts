@@ -7,6 +7,7 @@ import type { Query } from "./db.ts";
 import { catalogue, format, locales, type Catalogue } from "./i18n/index.ts";
 import { openCount } from "./incidents.ts";
 import { badges, cut } from "./notify.ts";
+import { checkError } from "./check-words.ts";
 
 // What the team is told through the Chest: a new incident rings the bell
 // of everyone who runs the page (each in their language), its resolution
@@ -96,4 +97,18 @@ export async function refreshBadges(sql: Query): Promise<void> {
 
 export async function refreshBadge(sql: Query, memberId: string): Promise<void> {
   await badges(new Map([[memberId, await openCount(sql)]]));
+}
+
+// A watched component stopped answering (three checks in a row), or came
+// back: the editors hear it once each way, the second replacing the first.
+// Nothing is posted on the public page: a person decides.
+export async function checkChanged(change: { componentId: string; kind: "down" | "up"; error: string | null; status: number | null; ms: number }, component: string): Promise<void> {
+  const path = change.kind === "down" ? `/chest#check-${change.componentId}` : "/chest";
+  await tellTeam(
+    t => (change.kind === "down"
+      ? { title: format(t.checks.alertTitle, { component }), body: format(t.checks.alertBody, { error: checkError(t.checks, change.error, change.status, change.ms) }) }
+      : { title: format(t.checks.upTitle, { component }) }),
+    path,
+    `check:${change.componentId}`,
+  );
 }

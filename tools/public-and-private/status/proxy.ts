@@ -62,5 +62,5 @@ export function proxy(request: NextRequest): NextResponse {
 // Not the Chest's own routes (/chest-events is signed, never a page), nor
 // the static files.
 export const config = {
-  matcher: ["/((?!_next/static/|chest-events$|chest-jobs/|favicon\\.ico$).*)"],
+  matcher: ["/((?!_next/static/|chest-events$|chest-jobs/|chest-checks$|favicon\\.ico$).*)"],
 };
