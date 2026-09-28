@@ -275,7 +275,36 @@ _(to write with Support, Booking, Hiring, Status)_
 
 ## 6. Tools as a suite
 
-_(to write)_
+The pitch is "one flat price for all your tools", but what a SaaS bundle
+cannot match is tools that **know each other** without an integration
+project. The first link is built: **Leave → Rooms**. When a leave is
+approved, Leave publishes `leave.approved` (who, which days, which halves —
+never the kind nor the note); Rooms, linked by the admin, marks those whole
+days "Off" and frees the person's desk; `leave.cancelled` takes back exactly
+the days it marked (`tools/private/leave/lib/share.ts`,
+`tools/private/rooms/lib/away.ts`, tested on both sides with
+`chest.published` and `chest.deliver`).
+
+What building it taught:
+
+- **Payloads are contracts.** Rooms validates every field and ignores an
+  event of another shape (accepted, nothing changed): a publisher's upgrade
+  must never break a receiver. The Chest should keep, per event type, the
+  publisher's documented schema, and show it to the admin who links them.
+- **Receivers must never overwrite a person's own choice.** Rooms stores
+  where a day came from (`presence.leave_ref`) so a cancelled leave removes
+  its own days only. Every receiver will need the same care: the pattern
+  belongs in the SDK's documentation.
+- **Idempotency keys must carry the version of the fact** (approved, taken
+  back, approved again = two events): `leave:<id>:approved:<decided at>`.
+- **No harness for two tools yet.** `lab/chest-dev` runs one tool; a local
+  Chest running several, with the admin's links, would let a flow show the
+  suite working end to end. Tests on both sides stand in for it.
+
+Next links, by value: Hiring → People (a hire becomes a newcomer with the
+arrival checklist), Clients → Quotes (a deal won starts a quote), People →
+Equipment (a departure lists what to take back), Leave → News (who is away
+today), Support → Clients (a customer's history).
 
 ## 7. Developer and agent experience
 

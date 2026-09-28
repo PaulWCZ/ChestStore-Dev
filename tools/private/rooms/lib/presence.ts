@@ -44,7 +44,7 @@ export async function setPresence(sql: Sql, actor: Member | null, input: { day?:
       }
       await tx`
         insert into presence (member_id, day, status, office_id) values (${actor.id}, ${d}, ${status}, ${office})
-        on conflict (member_id, day) do update set status = excluded.status, office_id = excluded.office_id`;
+        on conflict (member_id, day) do update set status = excluded.status, office_id = excluded.office_id, leave_ref = null`;
     }
     return { previous, freed };
   });

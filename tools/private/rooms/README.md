@@ -121,6 +121,16 @@ tool's builders come in with the first role.
 - No network, no disk writes, nothing in the background; pages that others
   change re-read themselves every 20–30 s while visible.
 
+## With the other tools
+
+Rooms hears from **Leave** (**Proposal (studio)**: events between tools;
+`chest.proposals.json` `"receives": ["leave.approved", "leave.cancelled"]`),
+once an administrator linked the two: an approved leave marks its whole
+days "Off" for the person (half days are left alone: they may come for the
+other half) and frees their desk those days; a cancelled leave takes back
+the days it marked — never what the person set themselves since. A freed
+desk is not booked again by itself (`lib/away.ts`).
+
 ## Needs from the SDK
 
 - `member.locale` — **Proposal (studio)**, in the working copy packed in

@@ -11,6 +11,7 @@ import { catalogue, locales } from "../../lib/i18n/index.ts";
 import { planImport, type ImportPlan } from "../../lib/import.ts";
 import * as requests from "../../lib/requests.ts";
 import * as rules from "../../lib/rules.ts";
+import * as share from "../../lib/share.ts";
 import { currentMember } from "../../lib/session.ts";
 import * as staff from "../../lib/staff.ts";
 import * as tell from "../../lib/tell.ts";
@@ -35,6 +36,7 @@ export async function askLeave(input: requests.RequestInput): Promise<Result<{ i
   return act(async actor => {
     const r = await requests.createRequest(db(), actor, input);
     await tell.asked(db(), actor, r);
+    await share.approved(r);
     return { id: r.id, status: r.status };
   });
 }
@@ -61,6 +63,7 @@ export async function answer(requestId: string, verdict: "approve" | "refuse", r
   return act(async actor => {
     const r = await requests.decide(db(), actor, requestId, { verdict, reason });
     await tell.answered(db(), actor, r);
+    await share.approved(r);
     return null;
   });
 }
@@ -69,6 +72,7 @@ export async function takeBack(requestId: string): Promise<Result<null>> {
   return act(async actor => {
     const r = await requests.reopen(db(), actor, requestId);
     await tell.reopened(db(), actor, r);
+    await share.cancelled(r);
     return null;
   });
 }
@@ -77,6 +81,7 @@ export async function settleCancel(requestId: string, accept: boolean, reason: s
   return act(async actor => {
     const r = await requests.settleCancel(db(), actor, requestId, { accept, reason });
     await tell.cancelSettled(db(), actor, r);
+    if (r.status === "cancelled") await share.cancelled(r);
     return null;
   });
 }

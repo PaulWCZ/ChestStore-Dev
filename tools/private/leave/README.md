@@ -179,6 +179,17 @@ expert should confirm the rules above before the tool ships.
   morning with the schedule proposal).
 - No WebSocket: the pages re-read themselves every 30–60 s while visible.
 
+## With the other tools
+
+Leave tells the other tools of the Chest when a leave is approved and when
+it no longer stands (**Proposal (studio)**: events between tools;
+`chest.proposals.json` `"emits": ["leave.approved", "leave.cancelled"]`),
+once an administrator linked them: **Rooms** then shows the person "Off"
+those days and frees their desk. What is told: the person (their member
+id), the first and last day and the halves — never the kind of leave nor
+the note (`lib/share.ts`). Without events between tools, nothing changes
+here.
+
 ## Needs from the SDK
 
 - `member.locale` — **Proposal (studio)**, in `vendor/`: the interface and

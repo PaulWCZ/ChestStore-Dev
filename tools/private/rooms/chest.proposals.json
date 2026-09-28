@@ -1,4 +1,8 @@
 {
+  "receives": [
+    "leave.approved",
+    "leave.cancelled"
+  ],
   "translations": {
     "fr": {
       "title": "Salles",

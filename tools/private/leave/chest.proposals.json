@@ -1,4 +1,8 @@
 {
+  "emits": [
+    "leave.approved",
+    "leave.cancelled"
+  ],
   "schedules": [
     {
       "name": "morning",

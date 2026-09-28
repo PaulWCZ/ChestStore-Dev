@@ -93,6 +93,7 @@
     "client/src/events.ts",
     "client/src/schedules.ts",
     "client/src/mail.ts",
+    "client/src/chest.ts",
     "client/src/testing.ts"
   ],
   "publishConfig": {
