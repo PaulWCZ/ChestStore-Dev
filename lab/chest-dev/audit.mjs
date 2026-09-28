@@ -31,7 +31,7 @@ const found = new Map();
 for (const shot of shots) {
   for (const [kind, viewport] of [["desktop", { width: 1440, height: 900 }], ["phone", { width: 390, height: 844 }]]) {
     for (const scheme of ["light", "dark"]) {
-      const context = await browser.newContext({ viewport, colorScheme: scheme, locale: shot.locale === "fr" ? "fr-FR" : "en-GB", reducedMotion: "reduce" });
+      const context = await browser.newContext({ bypassCSP: true, viewport, colorScheme: scheme, locale: shot.locale === "fr" ? "fr-FR" : "en-GB", reducedMotion: "reduce" });
       await context.addCookies([
         { name: "dev_member", value: id(shot.member ?? "camille"), url: origin },
         ...(shot.locale ? [{ name: "dev_locale", value: shot.locale, url: origin }, { name: "lang", value: shot.locale, url: origin }] : []),

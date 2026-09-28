@@ -7,7 +7,7 @@ meaningful step (brief/07-plan.md).
 
 Step 3, well advanced. Done, verified and pushed (each: tests on PGlite and
 PostgreSQL, build, manifest, browser flows, screenshots looked at): Tasks,
-Wiki, Leave, News, People, Expenses, Support, Rooms, Booking, Clients, Polls, Equipment (12 of 17).
+Wiki, Leave, News, People, Expenses, Support, Rooms, Booking, Clients, Polls, Equipment, Timesheets, Goals (14 of 17).
 Builders at work (background agents, one port each, no git; the lead
 verifies with `scratchpad/verify.sh`-style runs and commits): Timesheets (5200), Hiring (5300),
 Goals (5600), Quotes (5700), Status (5800). Builder brief: the Rooms/…
@@ -40,7 +40,7 @@ Checked 2026-09-28 in the cloud container:
 | 0. Environment | done |
 | 1. Ranking and research | done — `reports/01-ranking.md`, 17 files in `reports/02-open-source/`, prices in `reports/01-pricing-sources.md` |
 | 2. Foundations | done — `lab/template` (tested, built, run, screenshots), `lab/chest-dev` (dev.mjs, screens.mjs), `scripts/check-manifest.mjs`, `new-tool.mjs`, `add-font.mjs`, `contrast.mjs`, `build-showcase.mjs` |
-| 3. Tools | 12 of 17 done, 5 being built |
+| 3. Tools | 14 of 17 done; Status verifying; Hiring, Quotes being built |
 | 4. The report | to do |
 | 5. Better | to do |
 
@@ -59,12 +59,12 @@ _One row per chosen tool, in ranking order, once step 1 is done._
 | 7 | Expenses | `tools/private/expenses` | N2F, Expensify | ✓ | ✓ | receipt paper (grotesk + monospace figures, forest green, zigzag tear) | locale, schedules | ✓ 43 tests (PGlite + PostgreSQL), build, manifest, 13 browser flow steps, screens |
 | 8 | Support | `tools/public-and-private/helpdesk` | Zendesk, Freshdesk | ✓ | ✓ | calm counter (Atkinson Hyperlegible, teal, coral, butter notes) | locale, mail, schedules, public uploads | ✓ 13 tests (PGlite + PostgreSQL), build, manifest, 12 browser flows, screens |
 | 9 | Rooms | `tools/private/rooms` | Robin, deskbird | ✓ | ✓ | calm blueprint (grid paper, navy ink, signal orange) | locale | ✓ 42 tests (PGlite + PostgreSQL), build, manifest, 13 browser flow steps, screens |
-| 10 | Timesheets | `tools/private/timesheets` | Harvest, Toggl | ✓ | — | — | locale | — |
+| 10 | Timesheets | `tools/private/timesheets` | Harvest, Toggl, Clockify | ✓ | ✓ | precise instrument (graphite green, electric lime timer, tabular figures) | locale, schedules, chest | ✓ 45 tests (PGlite + PostgreSQL), build, manifest, 11 browser flows, a11y audit, screens |
 | 11 | Booking | `tools/public-and-private/booking` | Calendly | ✓ | ✓ | appointment card (Young Serif + Figtree, plum, mint, apricot) | locale, mail, schedules | ✓ 33 tests (PGlite + PostgreSQL), build, manifest, 11 browser flows, screens |
 | 12 | Hiring | `tools/public-and-private/hiring` | Teamtailor, WTTJ | ✓ | — | — | locale, public uploads (to design) | — |
 | 13 | Equipment | `tools/private/equipment` | Snipe-IT | ✓ | ✓ | tool crib labels (IBM Plex, utility orange, steel, hazard stripe) | locale, schedules, chest | ✓ 37 tests (PGlite + PostgreSQL), build, manifest, 13 browser flow steps, a11y audit, screens; own QR encoder tested with jsQR |
 | 14 | Polls | `tools/private/polls` | Doodle, Officevibe | ✓ | ✓ | confetti ballot (Fredoka + Plus Jakarta Sans, coral, navy, mint) | locale, schedules, broadcast | ✓ 42 tests (PGlite + PostgreSQL), build, manifest, 9 browser flows, a11y audit, screens |
-| 15 | Goals | `tools/private/goals` | Lattice Goals | ✓ | — | — | locale | — |
+| 15 | Goals | `tools/private/goals` | Lattice Goals, Perdoo | ✓ | ✓ | trail map (Barlow Semi Condensed + Work Sans, forest ink, sunrise orange, contour lines) | locale, schedules, chest | ✓ 34 tests (PGlite + PostgreSQL), build, manifest, 14 browser flow steps, a11y audit, screens |
 | 16 | Quotes | `tools/private/quotes` | Axonaut, Sellsy | ✓ | — | — | locale | — |
 | 17 | Status | `tools/public-and-private/status` | Statuspage | ✓ | — | — | locale | — |
 
@@ -83,6 +83,8 @@ _One row per chosen tool, in ranking order, once step 1 is done._
 
 ## To fold into the SDK report (from builders)
 
+- Status: checks run by the Chest (manifest `checks`, signed results to `/chest-checks`, `checks.handle`, `fakeChest({checks})`) — the job customers expect most; `mail.available()` (learned only by a failed send today); public caching per language (Next overwrites `Vary`); a heartbeat URL.
+- Timesheets: `members.match(names)` server-side name matching for importers; a testing clock in `fakeChest`; a harness control to age data (the flow connects to the database); `<fieldset>` min-width makes pages scroll sideways on phones.
 - Goals: `members.lookup` answers `unknown` for someone who lost access but stays in the Chest (second tool to hit it, after Equipment) — wish `{id, name, status: "revoked"}`; tell the admins in one call (`members.list({admin: true})` or `to: {admins: true}` on notify/broadcast); a key result fed by another tool (events/read API); template `format.ts` still hard-codes Europe/Paris (use `chest.timeZone()`); flows+screens+audit exceed the default command timeout.
 - Polls: `members.groups.list({all})` (a tool open to everyone cannot offer the Chest's teams); `broadcast` `except` and `fakeChest({broadcast:false})` (built, studio.8); email reminders; client-module trap (plain functions from a `"use client"` file fail at run time only); template tests import the notes feature; a SQL helper for cast ids. Anonymous mode's limits documented in its README.
 - Equipment: `members.lookup` answers `unknown` for someone who lost access but is still in the company — wish `{includeWithoutAccess}` → `no_access` with the name; an "I received it" acknowledgement primitive; SDK copy drift during builds; `next dev` breaks the nonce CSP with dev styles.

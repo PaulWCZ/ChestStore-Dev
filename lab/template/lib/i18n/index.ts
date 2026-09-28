@@ -42,4 +42,4 @@ export function publicLocale(cookie: string | undefined, acceptLanguage: string 
   return ranked.map(r => r.language).find(isLocale) ?? defaultLocale;
 }
 
-export { format, formatDate, intl, plural, relative, timeZone } from "./format.ts";
+export { format, formatDate, intl, plural, relative } from "./format.ts";

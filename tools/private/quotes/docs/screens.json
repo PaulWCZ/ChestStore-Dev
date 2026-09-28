@@ -1,5 +1,12 @@
 [
-  { "name": "notes", "path": "/chest", "member": "camille", "locale": "en", "preview": true },
-  { "name": "notes-fr", "path": "/chest", "member": "ines", "locale": "fr" },
-  { "name": "notes-dark", "path": "/chest", "member": "hugo", "locale": "en", "dark": true, "only": ["phone"] }
+  { "name": "desk", "path": "/chest", "member": "sofia", "locale": "en" },
+  { "name": "quote-editor", "path": "/chest/documents/7", "member": "hugo", "locale": "en", "preview": true },
+  { "name": "invoice-fr", "path": "/chest/documents/11", "member": "camille", "locale": "fr" },
+  { "name": "invoices", "path": "/chest/invoices", "member": "sofia", "locale": "en" },
+  { "name": "quotes-fr", "path": "/chest/quotes", "member": "ines", "locale": "fr" },
+  { "name": "clients", "path": "/chest/clients", "member": "hugo", "locale": "en", "only": ["desktop"] },
+  { "name": "catalogue-fr", "path": "/chest/catalogue", "member": "ines", "locale": "fr", "only": ["desktop"] },
+  { "name": "export-fr", "path": "/chest/export", "member": "lea", "locale": "fr", "only": ["desktop"] },
+  { "name": "settings", "path": "/chest/settings", "member": "camille", "locale": "en", "only": ["desktop"] },
+  { "name": "desk-dark", "path": "/chest", "member": "camille", "locale": "fr", "dark": true }
 ]

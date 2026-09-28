@@ -1,69 +1,156 @@
-# Notes — short notes for the whole team
+# Hiring — publish your jobs, choose your candidates together
 
-A tool for [Chest](https://argentic.app): the company's private software
-space. A Chest builds it from this repository and runs it on the company's
-own server, with its own database. **This is the studio's starter**: every
-store tool begins as a copy of it (see `lab/README.md` in the studio).
+**Hiring** (French: *Recrutement*) replaces the applicant-tracking part of
+Welcome to the Jungle, Teamtailor or Recruitee — and the "jobs@" mailbox plus
+a spreadsheet — for a company of 10 to 200 people. The company gets its own
+careers page; candidates apply with a short form and their CV; the team
+follows each candidate on one board per job, gives structured feedback, and
+decides together.
 
 ## What it does
 
-Members post short notes; a manager pins what matters; an author deletes
-their note and can undo it for 30 days.
+- **A careers page** (`/`): the company's name, a few words about it, its
+  open jobs (title, team, place, contract, remote work) — an editorial
+  table of contents. English/French switch, remembered in a cookie.
+- **A page per job** (`/<job>`): what, where, how much (the salary range is
+  shown by default — EU pay transparency), a description with headings,
+  lists and bold (marks anyone can type, rendered as text, never HTML), and
+  one action: *Apply*.
+- **The application form** (`/<job>/apply`): name, email, phone and a
+  LinkedIn or portfolio link (optional), **the CV** (PDF or Word, 10 MB at
+  most), a few words, and the consent with the retention in plain words.
+  The CV goes from the browser to the Chest (Proposal *public uploads*); the
+  tool checks its type, size and first bytes before keeping it. No captcha:
+  a honeypot, a signed "shown at" time and counters (Proposal *visitors*).
+  A thank-you page; a confirmation email in the candidate's language
+  (Proposal *mail*) — no candidate account: the email says the team will
+  write.
+- **Jobs** (`/chest`): open jobs with their pipeline at a glance and their
+  new applications, drafts, closed jobs; what waits for *my* feedback
+  first. Write a job (draft), publish, close, reopen — each with *Undo*.
+- **A board per job**: its stages (New, Screening, Interview, Offer, Hired
+  by default; renamed, added, reordered, removed when empty). Candidate
+  cards show the average rating and the days in the stage. Drag with the
+  mouse, a finger or the keyboard (space, arrows, space) — with *Undo*. The
+  rejected are folded below.
+- **A candidate's page**: contact, the CV shown inline (PDF) or downloaded,
+  the cover letter, **structured feedback** (1–4, strengths, concerns,
+  hire or not) that an interviewer sees from others only once they gave
+  theirs, notes, the history, *Move to…*, *Ask for feedback*, *Reject* with a
+  reason (only the team sees it) and an optional email drafted in the
+  candidate's language, *Bring back*, *Edit the details*, *Replace the CV*,
+  *Erase this candidate*. Other applications from the same address are
+  listed.
+- **Add a candidate by hand** (a referral, a CV received by email), with
+  their CV and language.
+- **Interviewers per job**: they see only the jobs they are on.
+- **The bell and the tile**: recruiters hear of each new application (the
+  tile counts those they have not opened); interviewers hear when asked
+  for feedback; whoever asked hears when it is given.
+- **GDPR / CNIL**: candidates are deleted with their CV 2 years (or 1 year,
+  6 months: *Settings*) after their last news, every night (Proposal
+  *schedules*); CVs sent but never claimed go after a day; a recruiter
+  erases a candidate on request; the form and each job page say it. Each
+  job's candidates export as CSV.
 
-| Role (`chest.json`) | Label | May |
-|---|---|---|
-| `manager` | Manager | everything: post, pin, delete any note |
-| `member` | Member | read, post, delete their own notes |
-| (none) | — | sees a "no access yet" page |
+## Roles
 
-The owner, the admins and the tool's builders come in with the first role.
+| Role | Can |
+|---|---|
+| `recruiter` (first: owner, admins, builders) | Everything: jobs, stages, interviewers, candidates, moves, rejections and emails, notes, feedback, erasure, export, settings |
+| `interviewer` | Only the jobs they are on: see candidates and CVs, read notes, give feedback. No moves, no settings |
+
+A member with no role sees why, not an error.
 
 ## First minute
 
-- **What a new user sees:** the notes, newest first, pinned ones on top, and
-  a field "Write a note for the team…". Empty: "No notes yet" and one button
-  that posts an example.
-- **The first thing they do:** type and press *Post* (or Ctrl/⌘+Enter).
-- **Clicks for the main job:** one.
-- **A mistake:** *Delete* acts at once and shows "Note deleted. Undo" for
-  8 seconds; a refused action puts the screen back and says why.
+- **What does a new recruiter see first?** An empty page that says *Post
+  your first job* and one button, *Write a job*.
+- **What is the first thing they do?** Write the title, contract and
+  description (a template in the placeholder), save the draft, press
+  *Publish*: the job is on the careers page, its link one click away.
+- **How many clicks for the main job?** Moving a candidate on: one drag, or
+  one click on *Move to Interview* on their page. Giving feedback: one
+  rating, one recommendation, *Send* (three clicks). Applying: fill the
+  form, one file, one click.
+- **What happens on a mistake?** A move, a rejection, publishing or closing
+  a job: a toast with *Undo*. A candidate who typed something wrong keeps
+  everything they typed; a recruiter corrects their details. Erasing is
+  the only thing that asks first (it cannot be undone).
 
 ## Routes
 
-| Path | Who | What |
+| Route | Who | What |
 |---|---|---|
-| `/chest` | members (team host) | the notes |
-| `/chest-events` | the Chest only (signed) | members' lifecycle |
-| `/` | anyone (public host) | "This tool lives in your Chest", with a language switch |
-| `/lang/<code>` | anyone | remembers the public language (cookie) |
+| `/`, `/<job>`, `/<job>/apply`, `/<job>/thanks` | anyone | The careers page |
+| `POST /api/cv` | anyone (form token, counters) | Authorise one CV upload (public) |
+| `/lang/<code>` | anyone | The language switch |
+| `/chest` | members | Jobs, what waits for me |
+| `/chest/jobs/new`, `/chest/jobs/<id>/edit` | recruiter | Write a job |
+| `/chest/jobs/<id>` | recruiter, its interviewers | The board |
+| `/chest/jobs/<id>/settings` | recruiter | Stages, interviewers, delete an unused job |
+| `/chest/jobs/<id>/add` | recruiter | Add a candidate |
+| `/chest/jobs/<id>/export` | recruiter | CSV |
+| `/chest/candidates/<id>`, `…/cv` | recruiter, the job's interviewers | A candidate, their CV (a fresh signed link) |
+| `POST /chest/api/cv` | recruiter | Authorise one CV upload (team) |
+| `/chest/settings` | recruiter | Careers page settings, retention |
+| `POST /chest-events` | the Chest | Members' lifecycle |
+| `POST /chest-jobs/cleanup` | the Chest | Nightly retention (Proposal) |
 
 ## On a Chest
 
-- `capabilities`: `database` (the notes), `members` (names and photos of
-  authors), `notifications` (an author is told when a manager pins their
-  note), `receives: ["member.*"]` (an erased member's notes are deleted).
-- Private part in the member's language (`member.locale`), public part with
-  a visible switch; English first, French second (`lib/i18n/`).
-- No network, no disk writes, nothing in the background: deleted notes are
-  purged when the list is next read.
+Capabilities: `database`, `files`, `members`, `notifications`; receives
+`member.*`. Proposals (in `chest.proposals.json` until a Chest accepts
+them): `mail.send`, `files.publicUploads`, `schedules` (`cleanup`, 03:25),
+and the tile's French words. When a member loses access or leaves, they are
+taken off their jobs and no longer asked for feedback; what they wrote stays
+under "(former member)". On erasure, their id goes from notes, feedback,
+history (including "asked X for feedback"), jobs and candidates they added,
+then the erasure is acknowledged.
 
 ## Needs from the SDK
 
-- `member.locale` — **Proposal (studio)** of the SDK working copy
-  (`0.3.0-studio`, packed in `vendor/`). Without it, everyone reads English.
+All exist as proposals in the studio's working copy; the tool calls them as
+if shipped and keeps working without them:
+
+- **Public uploads** (`files.uploadUrl(name, { public: true })`): without
+  them (`CapabilityNotGranted`), the form asks for a link to the CV instead.
+- **Mail** (`mail.send`): without it, the thank-you page and the rejection
+  toast say no email left; the candidate is told the team will write.
+- **Schedules** (`cleanup`): without it the retention does not run by
+  itself (see *What it does not do yet*).
+- **Visitors** (`visitors.formToken/checkForm/count/language`): without the
+  Chest's counting, the tool counts in its own table.
+- **Chest settings** (`chest.company()`, `chest.publicUrl()`): the company
+  name by default, the careers page's address for emails and links.
 
 ## Develop
 
 ```sh
 npm ci
-npm test          # node:test; PGlite unless TEST_DATABASE_URL names a PostgreSQL
-npm run build     # types, then the Next.js build, as the Chest does
+npm test                                   # PGlite; TEST_DATABASE_URL=… for PostgreSQL
+npm run build
+node ../../../lab/chest-dev/dev.mjs . --prod --reset --port 5300   # from the studio: harness with seed data
 ```
 
-In the studio: `node lab/chest-dev/dev.mjs <this folder>` runs it against a
-fake Chest with sample members; `node lab/chest-dev/screens.mjs` takes the
-screenshots in `docs/screens/`.
+`seed/sample.sql` fills Atelier Martin's careers page: three open jobs (one
+written in French), a closed one, fifteen candidates with feedback, notes
+and history. Sample CVs cannot be seeded (files are the Chest's): the flows
+upload one.
 
-## What it does not do (yet)
+## What it does not do yet
 
-Rich text, attachments, comments, reactions.
+- No multiposting to job boards (needs outbound network and partner APIs).
+- No interview scheduling (Booking could offer it — events between tools).
+- No talent pool across jobs, no screening questions per job, no hiring
+  requests to approve.
+- No import from Teamtailor / Workable / WTTJ exports (their CSV columns
+  were not read first-hand; a mapping step is needed).
+- No replies from candidates into the tool (a `jobs` mailbox would need the
+  mail proposal's received mail).
+- A hire does not become a newcomer in People yet (events between tools).
+- On a Chest without schedules, the 2-year retention does not run by
+  itself; recruiters still erase by hand.
+- The inline CV preview frames the Chest's signed file link; whether a
+  real Chest lets the tool frame it is not specified (Open/Download work
+  either way).

@@ -1,49 +1,49 @@
-# Adapting this tool — a guide for AI agents
+# Adapting Hiring — a guide for AI agents
 
-`README.md` says what the tool does; this page says where things are and
-what must not break.
+`README.md` says what Hiring does; this page says where things are and what
+must not break.
 
 ## Map
 
 | Path | What it is |
 |---|---|
-| `chest.json` | The manifest: name, roles, capabilities, build |
-| `lib/access.ts` | **Who may do what** — the only place roles are read |
-| `lib/notes.ts` | The service: rules, bounds, SQL (parameterised); takes `sql` and the member, throws `AppError(code)` |
-| `lib/errors.ts` | Error codes, `Result`, `attempt()` for server actions |
-| `lib/i18n/` | Every word: `en.ts` (source), `fr.ts`; `format.ts` for the browser |
-| `lib/session.ts` | The member (`member()` of the SDK) and their language |
-| `lib/people.ts` | Names and photos from member ids (`members.lookup`) |
-| `lib/notify.ts` | Bell items in each recipient's language; badges |
-| `lib/lifecycle.ts` | What happens when a member leaves or is erased |
-| `app/chest/` | The members' part: pages (server) and views (client) |
-| `app/chest/actions.ts` | Server actions: thin, each re-reads the member |
-| `app/chest-events/route.ts` | The Chest's lifecycle events (signed) |
-| `proxy.ts` | Content-Security-Policy with a nonce; 401 on `/chest` without a member |
-| `migrations/` | The schema, run by the Chest in order |
-| `seed/sample.sql` | Sample data for local runs (never run by the Chest) |
-| `test/` | `node:test` with the SDK's `fakeChest` and a real PostgreSQL (PGlite) |
-| `vendor/` | The SDK working copy, packed — do not edit |
+| `chest.json`, `chest.proposals.json` | Manifest (roles `recruiter`, `interviewer`; public part) and the proposals it uses (`mail`, `files.publicUploads`, `schedules`, tile translations) |
+| `lib/access.ts` | Who may do what; `jobAccess` (recruiter: all jobs; interviewer: jobs they are on — others are `not_found`) |
+| `lib/model.ts` | Bounds, lists (contracts, reasons…), email/link/phone checks, slugs, CV types and first-bytes sniffing — pure |
+| `lib/rich-text.ts`, `components/rich-text.tsx` | The job description's marks → blocks → React (never HTML) |
+| `lib/jobs.ts` | Settings, jobs, stages, interviewers, the careers page's reads |
+| `lib/candidates.ts` | Applications, the board, moves, rejections, notes, feedback (and its visibility rule), erasure, retention, export, the tile's counts, the form's fallback counters |
+| `lib/cv.ts`, `lib/upload.ts`, `lib/signature.ts` | CV uploads: grant (tool-named file + signed ticket), browser PUT, accept (signature, stat, type, size, first bytes, move to `cv/`), sweep |
+| `lib/guard.ts` | The public form's guard (SDK `visitors`, fallback to `form_counts`) |
+| `lib/mailer.ts` | Confirmation and rejection emails (mail proposal; `none` without it) |
+| `lib/tell.ts`, `lib/notify.ts` | Bell and tile |
+| `lib/lifecycle.ts` | Members leaving or erased |
+| `app/page.tsx`, `app/[slug]/…`, `app/api/cv`, `app/public-actions.ts` | The public part (anonymous) |
+| `app/chest/…`, `app/chest/actions.ts` | The team's part |
+| `app/chest-jobs/[name]/route.ts`, `app/chest-events/route.ts` | Deliveries from the Chest (signed) |
 
 ## Commands
 
 ```sh
 npm ci && npm test && npm run build   # all three must pass
+TEST_DATABASE_URL=postgres://… npm test
 ```
 
 ## Rules
 
-- **Identity comes only from `member()`** (`lib/session.ts`). Never from a
-  body, a query, a cookie. Store `mbr_…` ids, never names or emails.
-- **Rights live in `lib/access.ts`**; services call `can()` before acting;
-  add a line to `test/access.test.ts` for each new ability.
-- **Services return codes, never sentences**; words go in every catalogue
-  of `lib/i18n/` (the tests compare them and look for words in the pages).
-- **Client components never import the SDK**, `lib/session.ts`,
-  `lib/people.ts` or `lib/db.ts` (the build fails: `node:crypto`).
-- **Schema changes are new migration files.** Never edit one that shipped;
-  the previous version must keep working on the new schema.
-- **No network, no disk, no background work.** Deferred work is done on the
-  next request (see the purge in `listNotes`).
-- **Keep the CSP** in `proxy.ts`: no inline script without the nonce, no
-  other origin.
+- Identity only from `member(request)` (`lib/session.ts`); store `mbr_…`
+  ids, names at render (`lib/people.ts`). Candidates are not members:
+  never use their email as identity.
+- Every service checks rights first; an interviewer never moves, rejects,
+  notes, erases, exports or changes settings; a job they are not on is
+  `not_found`.
+- Feedback of others is hidden from an interviewer until they gave theirs
+  (`candidate()` and `board()` ratings). Keep it that way.
+- A public upload is claimed only with the tool's signed ticket, and the
+  file is checked (type, size, first bytes) before it is kept.
+- Nothing personal in public URLs (the thank-you page shows no name).
+- Words only in `lib/i18n/en.ts` and `fr.ts` (same keys; tests check);
+  services return codes.
+- Migrations that shipped are never edited: add `0002_…`.
+- Anything the Chest does not give goes through the SDK working copy's
+  proposals, caught when absent — never faked inside the tool.
