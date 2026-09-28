@@ -101,7 +101,7 @@ test("starting a checklist gives each step to someone, tells them in their langu
   await assert.rejects(j.tick(sql, asMember(tom), tour.id, "yes"), refused("invalid"));
   const ticked = await j.tick(sql, asMember(tom), tour.id, true);
   assert.equal(ticked.assigneeDone, true);
-  await tell.todo(sql, asMember(tom), { id: started.id, personId: nora.id, kind: "onboarding" }, [tom.id]);
+  await tell.todo(sql, asMember(tom), { id: started.id }, [tom.id]);
   assert.deepEqual(inbox(tom.id), []);
   assert.equal(chest.badges.has(tom.id), false);
   // HR gives Ines's lunch to Hugo, adds a step, removes one and undoes it.

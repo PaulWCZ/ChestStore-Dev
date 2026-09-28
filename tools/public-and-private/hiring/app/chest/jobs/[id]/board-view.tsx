@@ -22,6 +22,7 @@ import {
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, useTransition, type KeyboardEvent, type ReactNode } from "react";
+import { HireDialog } from "../../../../components/hire-dialog.tsx";
 import { Bell, Clock, File, Star } from "../../../../components/icons.tsx";
 import { useToast } from "../../../../components/toast.tsx";
 import type { CandidateCard } from "../../../../lib/candidates.ts";
@@ -30,7 +31,7 @@ import type { Catalogue, Locale } from "../../../../lib/i18n/index.ts";
 import type { Stage } from "../../../../lib/jobs.ts";
 import { moveCandidate } from "../../actions.ts";
 
-type Words = { board: Catalogue["board"]; errors: Catalogue["errors"]; reasons: Catalogue["reject"]["reasons"]; common: Catalogue["common"] };
+type Words = { board: Catalogue["board"]; errors: Catalogue["errors"]; reasons: Catalogue["reject"]["reasons"]; common: Catalogue["common"]; hire: Catalogue["hire"] };
 
 // Candidates and stages are both drag targets: their keys say which is
 // which (a candidate and a stage may share a number).
@@ -61,12 +62,21 @@ export function BoardView({ stages, cards, manage, locale, t }: { stages: Stage[
   const nameOf = (key: UniqueIdentifier) => byId.get(raw(key))?.name ?? "";
   const stageOfKey = (key: string): string | undefined => (key.startsWith("stage:") ? raw(key) : places[raw(key)]);
 
-  function move(id: string, to: string, undo = true) {
+  // Into "hired" (from elsewhere), the day they start is asked first.
+  const [hiring, setHiring] = useState<{ id: string; to: string } | null>(null);
+  const hiredStage = (id: string | undefined) => stages.find(s => s.id === id)?.hired === true;
+  function request(id: string, to: string) {
+    const from = places[id];
+    if (!from || from === to) return;
+    if (hiredStage(to) && !hiredStage(from)) setHiring({ id, to });
+    else move(id, to);
+  }
+  function move(id: string, to: string, undo = true, day?: string | null) {
     const from = places[id];
     if (!from || from === to) return;
     setPlaces(p => ({ ...p, [id]: to }));
     start(async () => {
-      const r = await moveCandidate(id, to);
+      const r = await moveCandidate(id, to, day ?? undefined);
       if (!r.ok) {
         setPlaces(p => ({ ...p, [id]: from }));
         return toast(format(t.errors[r.error], r.values ?? {}));
@@ -115,7 +125,7 @@ export function BoardView({ stages, cards, manage, locale, t }: { stages: Stage[
   function onDragEnd(e: DragEndEvent) {
     setDragging(null);
     const to = e.over ? stageOfKey(String(e.over.id)) : undefined;
-    if (to) move(raw(e.active.id), to);
+    if (to) request(raw(e.active.id), to);
   }
 
   const open = (id: string) => router.push(`/chest/candidates/${id}`);
@@ -138,6 +148,7 @@ export function BoardView({ stages, cards, manage, locale, t }: { stages: Stage[
         </div>
         <DragOverlay>{dragging && byId.get(dragging) ? <div className="cand overlay"><CardBody card={byId.get(dragging)!} locale={locale} t={t} /></div> : null}</DragOverlay>
       </DndContext>
+      <HireDialog name={hiring ? byId.get(hiring.id)?.name ?? "" : null} onCancel={() => setHiring(null)} onConfirm={day => { const h = hiring; setHiring(null); if (h) move(h.id, h.to, true, day); }} t={{ hire: t.hire, common: t.common }} />
       {rejected.length > 0 && (
         <section className="rejected" aria-labelledby="rejected-title">
           <button type="button" className="button quiet small" aria-expanded={showRejected} aria-controls="rejected-list" onClick={() => setShowRejected(s => !s)}>

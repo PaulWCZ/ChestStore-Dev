@@ -270,6 +270,7 @@ export const en = {
       accepted: "Accepted — make the invoice",
       expiring: "Valid until {date}: follow it up",
       expired: "Expired on {date}: follow it up or close it",
+      crm: "From Clients: {title} — check it and send it",
       draft: "Your draft, last changed {date}",
     },
     incomplete: {
@@ -392,11 +393,15 @@ export const en = {
       creditFinalised: "Credit note {number} is issued.",
       invoiceStarted: "Invoice draft ready: check it, then finalise it.",
     },
+    fromCrm: "From Clients: {title}",
     payments: "Payments",
     removePayment: "Remove the payment of {amount} of {date}",
     related: "Linked documents",
     history: {
       title: "History",
+      fromCrm: "Made from Clients: deal “{title}” won",
+      crmTool: "Clients",
+      crmReopened: "The deal was reopened in Clients. This quote was kept, because it had been changed or sent.",
       created: "Created by {name}",
       ready: "Handed to billing",
       finalised: "Finalised as {number} by {name}",
@@ -730,6 +735,9 @@ export const en = {
     keep: "Invoices must be kept ten years. They stay in this tool as long as it is installed — removing it from your Chest deletes them. Export each period and keep the ZIP with your accounts.",
   },
   notifications: {
+    crmWonTitle: "Deal won in Clients: {title}",
+    crmWonBody: "A draft quote for {client} is ready ({amount}): check it and send it.",
+    crmWonNoClient: "A draft quote is ready ({amount}): choose the client, check it and send it.",
     readyTitle: "Invoice ready to finalise: {client}",
     readyBody: "{name} prepared it: {amount}.",
   },

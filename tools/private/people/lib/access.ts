@@ -38,10 +38,10 @@ export function can(actor: Member | null, ability: Ability): boolean {
 
 // Who sees one checklist: HR, the person it is about, their manager, and
 // anyone with an item in it. Others are told it does not exist.
-export function seesJourney(actor: Member | null, journey: { personId: string; managerId: string | null; assignees: string[] }): boolean {
+export function seesJourney(actor: Member | null, journey: { personId: string | null; managerId: string | null; assignees: string[] }): boolean {
   if (!actor || roleOf(actor) === null) return false;
   if (can(actor, "checklists.manage")) return true;
-  return journey.personId === actor.id || journey.managerId === actor.id || journey.assignees.includes(actor.id);
+  return (journey.personId !== null && journey.personId === actor.id) || journey.managerId === actor.id || journey.assignees.includes(actor.id);
 }
 
 // Who ticks one item: whoever it is given to, and HR.

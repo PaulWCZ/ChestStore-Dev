@@ -3,6 +3,7 @@
 import * as chest from "@argentic/chest-sdk/chest";
 import type { Member } from "@argentic/chest-sdk/member";
 import { revalidatePath } from "next/cache";
+import * as checks from "../../lib/checks.ts";
 import * as components from "../../lib/components.ts";
 import { db } from "../../lib/db.ts";
 import { AppError, attempt, type Result } from "../../lib/errors.ts";
@@ -10,6 +11,7 @@ import * as incidents from "../../lib/incidents.ts";
 import { flush } from "../../lib/mailer.ts";
 import { moment, worst, type Impact } from "../../lib/model.ts";
 import { currentMember } from "../../lib/session.ts";
+import { setChecksState } from "../../lib/settings.ts";
 import * as subscribers from "../../lib/subscribers.ts";
 import * as tell from "../../lib/tell.ts";
 
@@ -183,7 +185,27 @@ export async function moveComponent(componentId: string, direction: "up" | "down
 }
 
 export async function removeComponent(componentId: string): Promise<Result> {
-  return act(async actor => { await components.removeComponent(db(), actor, componentId); return null; });
+  return act(async actor => {
+    const sql = db();
+    const watched = (await checks.listWatches(sql)).some(w => w.componentId === componentId);
+    await components.removeComponent(sql, actor, componentId);
+    if (watched) await setChecksState(sql, await checks.syncChest(sql));
+    return null;
+  });
+}
+
+// ---- Checks (Proposal (studio)) --------------------------------------------
+
+// Saving keeps the addresses in the tool, then hands the whole list to the
+// Chest; running is false when this Chest cannot run checks yet.
+export async function saveChecks(list: checks.WatchInput[]): Promise<Result<{ running: boolean }>> {
+  return act(async actor => {
+    const sql = db();
+    await checks.saveWatches(sql, actor, list);
+    const state = await checks.syncChest(sql);
+    await setChecksState(sql, state);
+    return { running: state === "running" };
+  });
 }
 
 // ---- Subscribers -----------------------------------------------------------

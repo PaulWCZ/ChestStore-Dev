@@ -70,18 +70,19 @@ export default async function CandidatePage({ params }: { params: Promise<{ id: 
         <p className="muted">
           {c.source === "careers" ? format(tc.applied, { date: day(c.createdAt, locale) }) : format(tc.addedBy, { name: name(c.addedBy), date: day(c.createdAt, locale) })}
           {" · "}{d.job.title}
+          {c.status === "active" && stage?.hired && c.startDate && <>{" · "}<strong>{format(t.hire.startsOn, { date: formatDate(c.startDate + "T12:00:00Z", locale, { day: "numeric", month: "long", year: "numeric" }) })}</strong></>}
         </p>
         {manage && (
           <CandidateActions
             jobId={c.jobId}
             candidate={{ id: c.id, name: c.name, status: c.status, stageId: c.stageId, email: c.email, phone: c.phone, link: c.link, language: c.language }}
-            stages={d.stages.map(x => ({ id: x.id, name: x.name }))}
+            stages={d.stages.map(x => ({ id: x.id, name: x.name, hired: x.hired }))}
             next={c.status === "active" && next ? { id: next.id, name: next.name } : null}
             askable={askable}
             draft={draft.text}
             languageName={languageNames[c.language] ?? c.language}
             locale={locale}
-            t={{ candidate: tc, reject: t.reject, errors: t.errors, common: t.common, apply: t.apply, board: t.board }}
+            t={{ candidate: tc, reject: t.reject, errors: t.errors, common: t.common, apply: t.apply, board: t.board, hire: t.hire }}
           />
         )}
       </header>

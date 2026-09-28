@@ -8,7 +8,9 @@ import { db } from "../../lib/db.ts";
 import { directory } from "../../lib/directory.ts";
 import { format, formatDay, plural, relativeDays } from "../../lib/i18n/index.ts";
 import { openCounts } from "../../lib/journeys.ts";
-import { daysBetween, newcomerDays } from "../../lib/model.ts";
+import { addDays, daysBetween, newcomerDays } from "../../lib/model.ts";
+import { listArrivals, suggestions } from "../../lib/arrivals.ts";
+import { LinkSuggestion } from "./checklists/arrivals-view.tsx";
 import { today } from "../../lib/zone.ts";
 import { viewer } from "../../lib/session.ts";
 import { DirectoryView, type Card } from "./directory-view.tsx";
@@ -25,6 +27,12 @@ export default async function DirectoryPage({ searchParams }: { searchParams: Pr
   const fresh = newcomers(entries, now, newcomerDays);
   const freshIds = new Set(fresh.map(e => e.id));
   const soon = arriving(entries, now);
+  // HR also sees the arrivals Hiring told of, and, when one of them now has
+  // access, is offered to link them.
+  const hr = can(member, "checklists.manage");
+  const told = hr ? (await listArrivals(sql, member)).filter(a => a.status === "expected") : [];
+  const matches = [...suggestions(told, entries)].flatMap(([arrivalId, found]) => (found.length === 1 ? [{ arrivalId, person: found[0]! }] : [])).slice(0, 3);
+  const soonTold = told.filter(a => a.startDate === null || (a.startDate >= now && a.startDate <= addDays(now, 60)));
   const moments = thisMonth(entries, now);
   const todo = (await openCounts(sql, [member.id])).get(member.id) ?? 0;
   const me = entries.find(e => e.id === member.id);
@@ -71,6 +79,7 @@ export default async function DirectoryPage({ searchParams }: { searchParams: Pr
     <main className="page wide">
       <AutoRefresh seconds={60} />
       {!ok && <p className="banner warn" role="alert">{t.directory.unavailable}</p>}
+      {matches.map(m => <LinkSuggestion key={m.arrivalId} arrivalId={m.arrivalId} memberId={m.person.id} name={m.person.name} t={{ arrivals: t.arrivals, errors: t.errors }} />)}
       {todo > 0 && (
         <Link className="banner todo" href="/chest/todo">
           <CheckList />
@@ -97,7 +106,7 @@ export default async function DirectoryPage({ searchParams }: { searchParams: Pr
         welcome={welcome}
         t={{ directory: t.directory, you: t.profile.you }}
       />
-      {(moments.length > 0 || soon.length > 0) && (
+      {(moments.length > 0 || soon.length > 0 || soonTold.length > 0) && (
         <div className="moments">
           {moments.length > 0 && (
             <section aria-labelledby="month-title">
@@ -118,7 +127,7 @@ export default async function DirectoryPage({ searchParams }: { searchParams: Pr
               </ul>
             </section>
           )}
-          {soon.length > 0 && (
+          {(soon.length > 0 || soonTold.length > 0) && (
             <section aria-labelledby="soon-title">
               <h2 id="soon-title" className="eyebrow"><Wave />{t.directory.arriving}</h2>
               <ul className="moment-list">
@@ -131,6 +140,18 @@ export default async function DirectoryPage({ searchParams }: { searchParams: Pr
                         <span className="muted">{[e.title, e.team].filter(Boolean).join(" · ")}</span>
                       </span>
                       <span className="moment-date">{format(t.directory.startsOn, { date: formatDay(e.startDate!, locale, { day: "numeric", month: "short" }) })}</span>
+                    </Link>
+                  </li>
+                ))}
+                {soonTold.map(a => (
+                  <li key={"arrival" + a.id}>
+                    <Link href="/chest/checklists#arrivals">
+                      <Portrait name={a.name} photo={null} size={40} />
+                      <span className="moment-text">
+                        <strong>{a.name}<span className="source">{t.arrivals.fromHiring}</span></strong>
+                        <span className="muted">{[a.job, a.team].filter(Boolean).join(" · ")}</span>
+                      </span>
+                      <span className="moment-date">{a.startDate ? format(t.directory.startsOn, { date: formatDay(a.startDate, locale, { day: "numeric", month: "short" }) }) : t.arrivals.noDate}</span>
                     </Link>
                   </li>
                 ))}

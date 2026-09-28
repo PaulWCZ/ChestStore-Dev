@@ -144,6 +144,40 @@ await step("an editor adds a service, hides it, and the public page follows", as
   expect(!(await page.locator("main").innerText()).includes("Gift cards"), "hidden from customers");
 });
 
+await step("an editor has the Chest check a service; three failures ring the bell and propose an incident; it answers again", async () => {
+  await as(context, origin, "tom");
+  await english();
+  await page.goto(origin + "/chest/checks");
+  const field = page.getByLabel("Address to check for Checkout");
+  const componentId = ((await field.getAttribute("id")) ?? "").replace("url-", "");
+  await field.fill("https://shop.atelier-martin.test/checkout");
+  await page.getByLabel("Every").first().selectOption("1");
+  await page.getByRole("button", { name: "Save the checks" }).click();
+  await page.waitForSelector(".toast >> text=Saved. Your Chest checks these addresses.");
+  expect((await devText()).includes("https://shop.atelier-martin.test/checkout"), "the Chest has the check");
+  for (let i = 0; i < 3; i++) await page.request.post(origin + "/_dev/check", { form: { name: `c-${componentId}`, ok: "0" } });
+  const dev = await devText();
+  expect(dev.includes("Checkout is not answering"), "Tom's bell");
+  expect(dev.includes("Checkout ne répond plus"), "Camille's bell, in French");
+  await page.goto(origin + "/chest");
+  const alert = page.locator(".alert");
+  expect((await alert.innerText()).includes("Checkout has not answered since"), "the proposal on Now");
+  await alert.getByRole("link", { name: "Open an incident" }).click();
+  await page.waitForURL(/\/chest\/incidents\/new\?component=/u);
+  expect((await page.getByLabel("What is wrong?").inputValue()) === "Checkout is unavailable", "prefilled title");
+  expect(await page.getByRole("checkbox", { name: "Checkout" }).isChecked(), "prefilled service");
+  expect((await page.getByLabel("Impact on Checkout").inputValue()) === "major", "prefilled impact");
+  await page.request.post(origin + "/_dev/check", { form: { name: `c-${componentId}`, ok: "1" } });
+  expect((await devText()).includes("Checkout answers again"), "told once it answers");
+  await page.goto(origin + "/chest");
+  expect((await page.locator(".alert").count()) === 0, "the proposal is gone");
+  await context.clearCookies();
+  await english();
+  await page.goto(origin + "/?fresh=4");
+  expect((await page.locator("main").innerText()).includes("Measured by automatic checks"), "measured uptime on the public page");
+  expect(!(await page.locator("h1").innerText()).includes("Major outage"), "nothing posted by itself");
+});
+
 await step("someone with the tool but no role sees nothing but why", async () => {
   await as(context, origin, "nora");
   await context.addCookies([{ name: "dev_locale", value: "fr", url: origin }]);

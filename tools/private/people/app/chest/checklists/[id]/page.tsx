@@ -6,7 +6,7 @@ import { Portrait } from "../../../../components/portrait.tsx";
 import { can, ticks } from "../../../../lib/access.ts";
 import { db } from "../../../../lib/db.ts";
 import { AppError } from "../../../../lib/errors.ts";
-import { everyone, nameOf, people } from "../../../../lib/people.ts";
+import { everyone, nameOf, people, subjectOf } from "../../../../lib/people.ts";
 import { format, formatDate, formatDay } from "../../../../lib/i18n/index.ts";
 import { journey as loadJourney, type Journey } from "../../../../lib/journeys.ts";
 import { dueState, id as rowId } from "../../../../lib/model.ts";
@@ -30,9 +30,11 @@ export default async function JourneyPage({ params }: { params: Promise<{ id: st
     throw error;
   }
   const hr = can(member, "checklists.manage");
-  const who = await people([journey.personId, ...journey.items.flatMap(i => [i.assignee ?? "", i.doneBy ?? ""])]);
-  const person = who.get(journey.personId);
-  const personName = nameOf(person, locale);
+  const who = await people([journey.personId ?? "", ...journey.items.flatMap(i => [i.assignee ?? "", i.doneBy ?? ""])]);
+  const subject = subjectOf(journey, who, locale);
+  const personName = subject.name;
+  // Steps for someone not a member yet wait until the arrival is linked.
+  const waiting = (role: string, assignee: string | null) => journey.personId === null && role === "person" && assignee === null;
   const now = today();
   const roleWord = (role: string) => role === "person" ? t.journey.roles.person[journey.kind] : role === "manager" ? t.journey.roles.manager : role === "hr" ? t.journey.roles.hr : "";
   const steps: StepView[] = journey.items.map(i => ({
@@ -44,9 +46,10 @@ export default async function JourneyPage({ params }: { params: Promise<{ id: st
     state: dueState(i.due, now),
     when: i.due < journey.anchor ? "before" : i.due === journey.anchor ? "on" : "after",
     assignee: i.assignee,
-    assigneeName: i.assignee ? (i.assignee === member.id ? t.people.you : nameOf(who.get(i.assignee), locale)) : t.people.nobody,
+    assigneeName: i.assignee ? (i.assignee === member.id ? t.people.you : nameOf(who.get(i.assignee), locale)) : waiting(i.role, i.assignee) ? t.journey.waiting : t.people.nobody,
+    waiting: waiting(i.role, i.assignee),
     assigneePhoto: i.assignee ? who.get(i.assignee)?.photo ?? null : null,
-    role: roleWord(i.role),
+    role: waiting(i.role, i.assignee) ? "" : roleWord(i.role),
     doneBy: i.done && i.doneBy && i.doneAt ? format(i.doneBy === member.id ? t.journey.doneByYou : t.journey.doneBy, { name: nameOf(who.get(i.doneBy), locale), date: formatDate(i.doneAt, locale, { day: "numeric", month: "short", timeZone: zone() }) }) : null,
     mine: ticks(member, i),
   }));
@@ -57,9 +60,12 @@ export default async function JourneyPage({ params }: { params: Promise<{ id: st
       <AutoRefresh seconds={30} />
       <Link className="back" href={hr ? "/chest/checklists" : "/chest/todo"}><Back />{hr ? t.checklists.title : t.todo.title}</Link>
       <header className="journey-head">
-        <Portrait name={personName} photo={person?.photo ?? null} size={96} arch />
+        <Portrait name={personName} photo={subject.photo} size={96} arch />
         <div>
-          <span className={`kind ${journey.kind}`}>{t.checklists.kinds[journey.kind]}</span>
+          <span className="row tags">
+            <span className={`kind ${journey.kind}`}>{t.checklists.kinds[journey.kind]}</span>
+            {journey.arrivalId && <span className="source">{t.arrivals.fromHiring}</span>}
+          </span>
           <h1>{format(journey.kind === "onboarding" ? t.journey.onboarding : t.journey.offboarding, { name: personName })}</h1>
           <p className="muted">{journey.name} · {format(journey.kind === "onboarding" ? t.journey.firstDay : t.journey.lastDay, { date: formatDay(journey.anchor, locale, { weekday: "long", day: "numeric", month: "long" }) })}</p>
           <div className="progress-line">

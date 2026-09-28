@@ -102,11 +102,36 @@ A member with no role sees why, not an error.
 Capabilities: `database`, `files`, `members`, `notifications`; receives
 `member.*`. Proposals (in `chest.proposals.json` until a Chest accepts
 them): `mail.send`, `files.publicUploads`, `schedules` (`cleanup`, 03:25),
-and the tile's French words. When a member loses access or leaves, they are
+`emits` (`hiring.hired`, `hiring.hire_cancelled`) and the tile's French words. When a member loses access or leaves, they are
 taken off their jobs and no longer asked for feedback; what they wrote stays
 under "(former member)". On erasure, their id goes from notes, feedback,
 history (including "asked X for feedback"), jobs and candidates they added,
 then the erasure is acknowledged.
+
+## With the other tools
+
+Through the *events between tools* proposal (`chest.proposals.json`
+`"emits"`), once an admin of the Chest linked Hiring to People — the Chest's
+decision, never the tool's:
+
+| Event | When | Data |
+|---|---|---|
+| `hiring.hired` | A candidate is moved into the job's *Hired* stage (the recruiter may give their first day in a small dialog); or a rejected candidate sitting in *Hired* is brought back | `{ candidate, name, email, job, team, place, startDate, hiredBy }` — key `hiring:<candidate>:hired:<time of the move>` |
+| `hiring.hire_cancelled` | Moved out of *Hired* (*Undo* included), rejected from it, or erased | `{ candidate }` — key `hiring:<candidate>:cancelled:<time>` |
+
+Only who is joining, for which job, where and when: never the CV, the cover
+letter, notes, feedback or ratings. Publishing is a courtesy: when the Chest
+cannot take it (not linked, not granted), the move stands and nothing is
+said.
+
+**The consent sentence was not changed.** The name and address go to
+People only once the person is hired, inside the same company (the same
+controller, not a third party), and from then on for their employment,
+whose legal basis is the work contract, not the application's consent. The
+application form's consent covers what it says: keeping the application to
+consider it, and for how long. Telling People is the company's internal
+onboarding, which the Chest's link between the two tools makes explicit to
+its admin.
 
 ## Needs from the SDK
 
@@ -121,6 +146,7 @@ if shipped and keeps working without them:
   itself (see *What it does not do yet*).
 - **Visitors** (`visitors.formToken/checkForm/count/language`): without the
   Chest's counting, the tool counts in its own table.
+- **Events between tools** (`events.publish`): without them, People is not told of hires.
 - **Chest settings** (`chest.company()`, `chest.publicUrl()`): the company
   name by default, the careers page's address for emails and links.
 
@@ -148,7 +174,6 @@ upload one.
   were not read first-hand; a mapping step is needed).
 - No replies from candidates into the tool (a `jobs` mailbox would need the
   mail proposal's received mail).
-- A hire does not become a newcomer in People yet (events between tools).
 - On a Chest without schedules, the 2-year retention does not run by
   itself; recruiters still erase by hand.
 - The inline CV preview frames the Chest's signed file link; whether a

@@ -8,6 +8,10 @@
       "cron": "50 6 * * *"
     }
   ],
+  "receives": [
+    "crm.deal.won",
+    "crm.deal.reopened"
+  ],
   "translations": {
     "fr": {
       "title": "Devis et factures",

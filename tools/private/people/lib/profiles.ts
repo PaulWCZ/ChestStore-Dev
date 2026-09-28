@@ -3,6 +3,7 @@ import { can } from "./access.ts";
 import { AppError } from "./app-error.ts";
 import type { Query, Sql } from "./db.ts";
 import { birthday, clean, day, keepLeftDays, limits, memberId, phone, skills } from "./model.ts";
+import { purgeArrivals } from "./arrivals.ts";
 import { present } from "./people.ts";
 
 // What the directory knows of a person beyond their name and photo (which
@@ -63,9 +64,10 @@ export async function reportsOf(sql: Query, actor: Member | null, id: string): P
 // longer "left"; profiles of people gone for more than 30 days are purged
 // (nothing runs in the background: this runs when the directory is read,
 // and each morning when schedules exist).
-export async function reconcile(sql: Sql, presentIds: string[]): Promise<void> {
+export async function reconcile(sql: Sql, presentIds: string[], now: string): Promise<void> {
   if (presentIds.length > 0) await sql`update profiles set left_at = null where left_at is not null and member_id = any(${presentIds}::text[])`;
   await purgeLeft(sql);
+  await purgeArrivals(sql, now);
 }
 
 export async function purgeLeft(sql: Query): Promise<number> {

@@ -103,5 +103,15 @@ begin
     ('marie.leroy@example.com', 'fr', null, 'demoSubscriberMarie0000000000000', now() - interval '80 days', now() - interval '80 days'),
     ('paul.bernard@example.com', 'en', null, 'demoSubscriberPaul00000000000000', now() - interval '41 days', now() - interval '41 days'),
     ('orders@example-shop.com', 'en', (select array_agg(id) from components where name in ('Checkout', 'Payments')), 'demoSubscriberShop00000000000000', now() - interval '9 days', now() - interval '9 days');
+  -- The website is checked by the Chest (Proposal (studio): checks): a
+  -- result an hour for the last 30 days (a real Chest checks every 5
+  -- minutes), one hour without an answer during the slow-website day.
+  insert into watches (component_id, name, url, every, expect_status, max_ms)
+    select id, 'c-' || id, 'https://atelier-martin.fr/', 5, 200, 3000 from components where name = 'Website';
+  insert into check_results (id, component_id, at, ok, status, ms, error)
+    select 'chk_' || substr(translate(md5('seed' || h), '0189', 'abcd'), 1, 26), c.id, now() - make_interval(hours => h),
+      h <> 400, case when h = 400 then null else 200 end, case when h = 400 then 10000 else 180 + (h % 7) * 23 end, case when h = 400 then 'timeout' end
+    from generate_series(1, 720) h, components c where c.name = 'Website';
+  insert into settings (key, value) values ('checks_state', '"running"');
   insert into settings (key, value) values ('mail_state', jsonb_build_object('state', 'ok', 'at', now()));
 end $$;

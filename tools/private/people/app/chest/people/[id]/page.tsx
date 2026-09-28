@@ -8,6 +8,8 @@ import { db } from "../../../../lib/db.ts";
 import { directory, type Entry } from "../../../../lib/directory.ts";
 import { format, formatDay, plural } from "../../../../lib/i18n/index.ts";
 import { journeysAbout } from "../../../../lib/journeys.ts";
+import { listArrivals, suggestions } from "../../../../lib/arrivals.ts";
+import { LinkSuggestion } from "../../checklists/arrivals-view.tsx";
 import { memberPattern } from "../../../../lib/model.ts";
 import { today } from "../../../../lib/zone.ts";
 import { viewer } from "../../../../lib/session.ts";
@@ -31,6 +33,8 @@ export default async function ProfilePage({ params }: { params: Promise<{ id: st
   const hr = can(member, "profile.job");
   const now = today();
   const checklists = await journeysAbout(sql, member, person.id, now);
+  // HR: is this newcomer someone Hiring told of? Offer to link them.
+  const match = can(member, "checklists.manage") ? [...suggestions((await listArrivals(sql, member)).filter(a => a.status === "expected"), [person])][0] : undefined;
   const empty = !person.title && !person.phone && !person.bio && person.skills.length === 0 && !person.team;
   let since = "";
   if (person.startDate) {
@@ -50,6 +54,7 @@ export default async function ProfilePage({ params }: { params: Promise<{ id: st
   return (
     <main className="page narrow">
       <Link className="back" href="/chest"><Back />{t.profile.back}</Link>
+      {match && <LinkSuggestion arrivalId={match[0]} memberId={person.id} name={person.name} t={{ arrivals: t.arrivals, errors: t.errors }} />}
       <article className="profile">
         <header className="profile-head">
           <Portrait name={person.name} photo={person.photo} size={168} team={person.team} arch />

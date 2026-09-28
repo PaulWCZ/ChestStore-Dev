@@ -165,6 +165,8 @@ legend { padding: 0; }
 .history-legend .rule { flex: 1; height: 1px; background: var(--line); }
 .history-legend .uptime { color: var(--ink-2); font-weight: 600; font-family: var(--font-mono); }
 .history-legend .narrow { display: none; }
+.measured { display: flex; align-items: center; gap: 6px; color: var(--ink-2); font-size: var(--text-xs); font-weight: 600; }
+.measured svg { color: var(--s-maintenance); }
 .history-table summary { cursor: pointer; color: var(--ink-3); font-size: var(--text-xs); width: max-content; }
 .history-table summary:hover { color: var(--ink); }
 .history-table table { width: 100%; border-collapse: collapse; margin-top: var(--space-2); font-size: var(--text-s); }
@@ -302,6 +304,19 @@ details[open] > .summary-button { margin-bottom: var(--space-4); }
 .line-actions { display: inline-flex; align-items: center; gap: 2px; margin-left: auto; }
 .editor { flex: 1; padding: var(--space-2) 0; }
 .add-forms { display: grid; gap: var(--space-4); grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); align-items: start; }
+.check-list { list-style: none; margin: 0; padding: 0; }
+.check-row { padding: var(--space-4) var(--space-5); border-top: 1px solid var(--line); display: grid; gap: var(--space-2); scroll-margin-top: 80px; }
+.check-row:first-child { border-top: 0; }
+.check-head { display: flex; align-items: baseline; gap: var(--space-2) var(--space-3); flex-wrap: wrap; }
+.check-standing { margin-left: auto; font-size: var(--text-s); font-weight: 600; color: var(--s-ink); }
+.check-standing.s-none { color: var(--ink-2); font-weight: 500; }
+.check-fields { display: flex; gap: var(--space-3); flex-wrap: wrap; align-items: flex-end; }
+.check-fields .grow { flex: 1 1 100%; }
+.small-label { font-size: var(--text-xs); font-weight: 600; margin-bottom: 4px; }
+.narrow-field { width: 7.5em; }
+.alert { display: grid; gap: var(--space-2); padding: var(--space-4) var(--space-5); border-radius: var(--radius-l); background: var(--s-major-tint); border: 1px solid color-mix(in srgb, var(--s-major) 40%, transparent); border-left: 5px solid var(--s-major); }
+.alert strong { color: var(--s-major-ink); }
+.alert .actions { margin-top: var(--space-1); }
 .subscriber { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); padding: var(--space-3) var(--space-5); border-top: 1px solid var(--line); flex-wrap: wrap; }
 .subscriber:first-child { border-top: 0; }
 .subscriber .email { overflow-wrap: anywhere; }

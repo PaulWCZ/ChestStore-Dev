@@ -23,14 +23,14 @@ const draftKey = "status:incident-draft";
 // One screen: what is wrong, what it touches and how badly, where the team
 // stands, what customers read. Or, ticked, an incident of the past with
 // its start and end. The title and text are kept as a draft until posted.
-export function IncidentForm({ groups, today, nowMinutes, zoneNote, t }: { groups: PickerGroup[]; today: string; nowMinutes: number; zoneNote: string; t: Words }) {
+export function IncidentForm({ groups, start = null, today, nowMinutes, zoneNote, t }: { groups: PickerGroup[]; start?: { states: Record<string, Impact>; title: string; body: string } | null; today: string; nowMinutes: number; zoneNote: string; t: Words }) {
   const w = t.compose;
   const router = useRouter();
   const toast = useToast();
   const { run, pending } = useRun(t.errors);
-  const [title, setTitle] = useState("");
-  const [body, setBody] = useState("");
-  const [states, setStates] = useState<Record<string, Impact>>({});
+  const [title, setTitle] = useState(start?.title ?? "");
+  const [body, setBody] = useState(start?.body ?? "");
+  const [states, setStates] = useState<Record<string, Impact>>(start?.states ?? {});
   const [status, setStatus] = useState("investigating");
   const [past, setPast] = useState(false);
   const [startDay, setStartDay] = useState(today);
@@ -40,6 +40,7 @@ export function IncidentForm({ groups, today, nowMinutes, zoneNote, t }: { group
   const [resolution, setResolution] = useState(w.resolutionDefault ?? "");
 
   useEffect(() => {
+    if (start) return;
     try {
       const saved = JSON.parse(localStorage.getItem(draftKey) ?? "null") as { title?: string; body?: string } | null;
       if (saved?.title) setTitle(saved.title);
@@ -47,7 +48,7 @@ export function IncidentForm({ groups, today, nowMinutes, zoneNote, t }: { group
     } catch {
       // No storage: no draft.
     }
-  }, []);
+  }, [start]);
   useEffect(() => {
     try {
       if (title || body) localStorage.setItem(draftKey, JSON.stringify({ title, body }));

@@ -1,12 +1,28 @@
 {
-  "mail": { "send": true },
-  "files": { "publicUploads": true },
-  "schedules": [{ "name": "cleanup", "cron": "25 3 * * *" }],
+  "mail": {
+    "send": true
+  },
+  "files": {
+    "publicUploads": true
+  },
+  "schedules": [
+    {
+      "name": "cleanup",
+      "cron": "25 3 * * *"
+    }
+  ],
+  "emits": [
+    "hiring.hired",
+    "hiring.hire_cancelled"
+  ],
   "translations": {
     "fr": {
       "title": "Recrutement",
       "description": "Publiez vos offres sur votre propre page carrières et choisissez vos candidats ensemble : un tableau par offre, les CV, les notes et les avis.",
-      "role_labels": { "recruiter": "Recruteur", "interviewer": "Intervieweur" }
+      "role_labels": {
+        "recruiter": "Recruteur",
+        "interviewer": "Intervieweur"
+      }
     }
   }
 }

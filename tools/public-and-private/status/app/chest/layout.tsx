@@ -30,6 +30,7 @@ export default async function MembersLayout({ children }: { children: ReactNode 
                 <NavLink href="/chest" exact>{t.shell.now}</NavLink>
                 <NavLink href="/chest/history">{t.shell.history}</NavLink>
                 <NavLink href="/chest/components">{t.shell.components}</NavLink>
+                <NavLink href="/chest/checks">{t.shell.checks}</NavLink>
                 <NavLink href="/chest/subscribers">{t.shell.subscribers}</NavLink>
               </nav>
             )}

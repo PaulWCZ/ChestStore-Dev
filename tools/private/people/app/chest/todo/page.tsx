@@ -5,7 +5,7 @@ import { format, formatDay, plural } from "../../../lib/i18n/index.ts";
 import { myItems } from "../../../lib/journeys.ts";
 import { dueState } from "../../../lib/model.ts";
 import { today } from "../../../lib/zone.ts";
-import { nameOf, people } from "../../../lib/people.ts";
+import { people, subjectOf } from "../../../lib/people.ts";
 import { viewer } from "../../../lib/session.ts";
 import { refreshBadges } from "../../../lib/tell.ts";
 import { TodoList, type Group } from "./todo-list.tsx";
@@ -22,16 +22,16 @@ export default async function TodoPage() {
   // The tile's number may have gone stale (dates move overnight, nothing
   // runs in the background without schedules): set it right here.
   await refreshBadges(sql, [member.id]);
-  const who = await people(groups.map(g => g.journey.personId));
+  const who = await people(groups.flatMap(g => (g.journey.personId ? [g.journey.personId] : [])));
   const now = today();
   const shown: Group[] = groups.map(g => {
-    const person = who.get(g.journey.personId);
+    const person = subjectOf(g.journey, who, locale);
     const mine = g.journey.personId === member.id;
-    const name = nameOf(person, locale);
+    const name = person.name;
     return {
       id: g.journey.id,
       title: mine ? (g.journey.kind === "onboarding" ? t.todo.yoursOnboarding : t.todo.yoursOffboarding) : format(g.journey.kind === "onboarding" ? t.todo.onboarding : t.todo.offboarding, { name }),
-      person: { name, photo: person?.photo ?? null },
+      person: { name, photo: person.photo },
       items: g.items.map(i => ({
         id: i.id, text: i.text, done: i.done,
         due: formatDay(i.due, locale, { weekday: "short", day: "numeric", month: "short" }),

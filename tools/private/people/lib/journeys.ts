@@ -147,16 +147,23 @@ export async function addExamples(sql: Sql, actor: Member | null, examples: Exam
 // Checklists started for one person.
 export type JourneyItem = { id: string; text: string; role: ItemRole; assignee: string | null; due: string; done: boolean; doneAt: string | null; doneBy: string | null };
 export type Journey = {
-  id: string; kind: Kind; personId: string; name: string; anchor: string; createdBy: string; createdAt: string;
+  id: string; kind: Kind;
+  // The member it is about; null while it is about an arrival told by
+  // another tool (arrivalId, arrivalName) not linked to a member yet.
+  personId: string | null; arrivalId: string | null; arrivalName: string | null;
+  name: string; anchor: string; createdBy: string; createdAt: string;
   stopped: boolean; completedAt: string | null; managerId: string | null; items: JourneyItem[];
 };
 export type JourneySummary = Omit<Journey, "items"> & { total: number; done: number; next: string | null; late: number };
 
-type JourneyRow = { id: string; kind: Kind; person_id: string; name: string; anchor: string; created_by: string; created_at: Date; stopped_at: Date | null; completed_at: Date | null; manager_id: string | null };
+type JourneyRow = { id: string; kind: Kind; person_id: string | null; arrival_id: string | null; arrival_name: string | null; name: string; anchor: string; created_by: string; created_at: Date; stopped_at: Date | null; completed_at: Date | null; manager_id: string | null };
 type ItemRow = { id: string; journey_id: string; text: string; role: ItemRole; assignee: string | null; due_on: string; done_at: Date | null; done_by: string | null };
-const journeyColumns = "j.id, j.kind, j.person_id, j.name, to_char(j.anchor, 'YYYY-MM-DD') as anchor, j.created_by, j.created_at, j.stopped_at, j.completed_at, p.manager_id";
+// A checklist's manager is the person's (or, for an arrival, the one HR
+// chose when starting it).
+const journeyColumns = "j.id, j.kind, j.person_id, j.arrival_id, a.name as arrival_name, j.name, to_char(j.anchor, 'YYYY-MM-DD') as anchor, j.created_by, j.created_at, j.stopped_at, j.completed_at, coalesce(p.manager_id, a.manager_id) as manager_id";
+const journeyFrom = "journeys j left join profiles p on p.member_id = j.person_id left join arrivals a on a.id = j.arrival_id";
 const toJourney = (r: JourneyRow) => ({
-  id: String(r.id), kind: r.kind, personId: r.person_id, name: r.name, anchor: r.anchor, createdBy: r.created_by, createdAt: r.created_at.toISOString(),
+  id: String(r.id), kind: r.kind, personId: r.person_id, arrivalId: r.arrival_id === null ? null : String(r.arrival_id), arrivalName: r.arrival_name, name: r.name, anchor: r.anchor, createdBy: r.created_by, createdAt: r.created_at.toISOString(),
   stopped: r.stopped_at !== null, completedAt: r.completed_at?.toISOString() ?? null, managerId: r.manager_id,
 });
 const toJourneyItem = (r: ItemRow): JourneyItem => ({ id: String(r.id), text: r.text, role: r.role, assignee: r.assignee, due: r.due_on, done: r.done_at !== null, doneAt: r.done_at?.toISOString() ?? null, doneBy: r.done_by });
@@ -172,21 +179,32 @@ async function itemsOf(sql: Query, journeyIds: string[]): Promise<ItemRow[]> {
 // whom its role names now — the person, their manager (nobody yet if they
 // have none: HR gives it), whoever starts it (HR), or the member named (if
 // still here).
-export type Started = { id: string; personId: string; kind: Kind; assignees: Map<string, string[]> };
+export type Started = { id: string; personId: string | null; kind: Kind; assignees: Map<string, string[]> };
 
-export async function startJourney(sql: Sql, actor: Member | null, input: { personId?: unknown; templateId?: unknown; anchor?: unknown }): Promise<Started> {
+export async function startJourney(sql: Sql, actor: Member | null, input: { personId?: unknown; arrivalId?: unknown; managerId?: unknown; templateId?: unknown; anchor?: unknown }): Promise<Started> {
   const who = manager(actor);
   if (!input || typeof input !== "object") throw new AppError("invalid");
-  const person = memberId(input.personId);
+  // For a member, or for an arrival told by another tool (not a member yet:
+  // their own steps wait until the arrival is linked to them).
+  const arrival = input.arrivalId !== undefined && input.arrivalId !== null && input.arrivalId !== "" ? id(input.arrivalId) : null;
+  const person = arrival ? null : memberId(input.personId);
   const anchor = day(input.anchor)!;
   const t = await template(sql, who, input.templateId);
   if (t.archived) throw new AppError("not_found");
   if (t.items.length === 0) throw new AppError("empty");
+  let managerId: string | null = null;
+  if (arrival) {
+    const [a] = await sql<{ status: string; manager_id: string | null }[]>`select status, manager_id from arrivals where id = ${arrival}`;
+    if (!a || a.status !== "expected") throw new AppError("not_found");
+    managerId = input.managerId === undefined ? a.manager_id : input.managerId === null || input.managerId === "" ? null : memberId(input.managerId);
+  } else {
+    const [managerRow] = await sql<{ manager_id: string | null }[]>`select manager_id from profiles where member_id = ${person}`;
+    managerId = managerRow?.manager_id ?? null;
+  }
   const named = t.items.flatMap(i => (i.memberId ? [i.memberId] : []));
-  const [managerRow] = await sql<{ manager_id: string | null }[]>`select manager_id from profiles where member_id = ${person}`;
-  const managerId = managerRow?.manager_id ?? null;
-  const here = await present([person, ...named, ...(managerId ? [managerId] : [])]);
-  if (!here.has(person)) throw new AppError("not_member");
+  const here = await present([...(person ? [person] : []), ...named, ...(managerId ? [managerId] : [])]);
+  if (person && !here.has(person)) throw new AppError("not_member");
+  if (arrival && managerId && !here.has(managerId)) throw new AppError("not_member");
   const assigneeOf = (item: TemplateItem): string | null => {
     if (item.role === "person") return person;
     if (item.role === "hr") return who.id;
@@ -194,9 +212,10 @@ export async function startJourney(sql: Sql, actor: Member | null, input: { pers
     return item.memberId && here.has(item.memberId) ? item.memberId : null;
   };
   return sql.begin(async tx => {
+    if (arrival) await tx`update arrivals set manager_id = ${managerId} where id = ${arrival}`;
     const [row] = await tx<{ id: string }[]>`
-      insert into journeys (kind, person_id, template_id, name, anchor, created_by)
-      values (${t.kind}, ${person}, ${t.id}, ${t.name}, ${anchor}, ${who.id}) returning id`;
+      insert into journeys (kind, person_id, arrival_id, template_id, name, anchor, created_by)
+      values (${t.kind}, ${person}, ${arrival}, ${t.id}, ${t.name}, ${anchor}, ${who.id}) returning id`;
     const journeyId = String(row!.id);
     const assignees = new Map<string, string[]>();
     let position = 0;
@@ -211,8 +230,16 @@ export async function startJourney(sql: Sql, actor: Member | null, input: { pers
   });
 }
 
+// Whom a checklist is about, for the bell: a member, or an arrival's name.
+export async function about(sql: Query, journeyId: string): Promise<{ personId: string | null; arrivalName: string | null; kind: Kind; createdBy: string }> {
+  const [r] = await sql<{ person_id: string | null; arrival_name: string | null; kind: Kind; created_by: string }[]>`
+    select j.person_id, a.name as arrival_name, j.kind, j.created_by from journeys j left join arrivals a on a.id = j.arrival_id where j.id = ${journeyId}`;
+  if (!r) throw new AppError("not_found");
+  return { personId: r.person_id, arrivalName: r.arrival_name, kind: r.kind, createdBy: r.created_by };
+}
+
 async function loadJourney(sql: Query, journeyId: string): Promise<Journey | null> {
-  const [row] = await sql.unsafe<JourneyRow[]>(`select ${journeyColumns} from journeys j left join profiles p on p.member_id = j.person_id where j.id = $1`, [journeyId]);
+  const [row] = await sql.unsafe<JourneyRow[]>(`select ${journeyColumns} from ${journeyFrom} where j.id = $1`, [journeyId]);
   if (!row) return null;
   return { ...toJourney(row), items: (await itemsOf(sql, [journeyId])).map(toJourneyItem) };
 }
@@ -233,7 +260,7 @@ function summarize(j: Omit<Journey, "items">, items: ItemRow[], now: string): Jo
 export async function listJourneys(sql: Query, actor: Member | null, now = today()): Promise<JourneySummary[]> {
   manager(actor);
   const rows = await sql.unsafe<JourneyRow[]>(`
-    select ${journeyColumns} from journeys j left join profiles p on p.member_id = j.person_id
+    select ${journeyColumns} from ${journeyFrom}
     where j.completed_at is null or j.completed_at > now() - interval '60 days'
     order by j.completed_at is not null, j.stopped_at is not null, j.anchor, j.id limit 500`);
   const items = await itemsOf(sql, rows.map(r => String(r.id)));
@@ -244,7 +271,7 @@ export async function listJourneys(sql: Query, actor: Member | null, now = today
 export async function journeysAbout(sql: Query, actor: Member | null, personId: string, now = today()): Promise<JourneySummary[]> {
   if (!actor) throw new AppError("forbidden");
   const rows = await sql.unsafe<JourneyRow[]>(`
-    select ${journeyColumns} from journeys j left join profiles p on p.member_id = j.person_id
+    select ${journeyColumns} from ${journeyFrom}
     where j.person_id = $1 and j.stopped_at is null and (j.completed_at is null or j.completed_at > now() - interval '14 days')
     order by j.anchor, j.id`, [personId]);
   const visible = [];
@@ -270,7 +297,7 @@ export async function myItems(sql: Query, actor: Member | null): Promise<MyGroup
     order by i.due_on, i.position, i.id limit 500`;
   const ids = [...new Set(rows.map(r => String(r.journey_id)))];
   if (ids.length === 0) return [];
-  const journeys = await sql.unsafe<JourneyRow[]>(`select ${journeyColumns} from journeys j left join profiles p on p.member_id = j.person_id where j.id = any($1::bigint[])`, [ids]);
+  const journeys = await sql.unsafe<JourneyRow[]>(`select ${journeyColumns} from ${journeyFrom} where j.id = any($1::bigint[])`, [ids]);
   const byId = new Map(journeys.map(j => [String(j.id), toJourney(j)]));
   return ids.flatMap(jid => {
     const j = byId.get(jid);
@@ -293,7 +320,7 @@ export async function openCounts(sql: Query, ids: string[]): Promise<Map<string,
 // Ticking an item (or unticking it). Says what changed for the bell: the
 // item's person has nothing left in this checklist, the checklist is
 // complete (or no longer).
-export type Ticked = { journeyId: string; personId: string; kind: Kind; createdBy: string; assignee: string | null; assigneeDone: boolean; completed: boolean; reopened: boolean };
+export type Ticked = { journeyId: string; personId: string | null; kind: Kind; createdBy: string; assignee: string | null; assigneeDone: boolean; completed: boolean; reopened: boolean };
 
 export async function tick(sql: Sql, actor: Member | null, itemId: unknown, done: unknown): Promise<Ticked> {
   if (typeof done !== "boolean") throw new AppError("invalid");
@@ -316,7 +343,7 @@ export async function tick(sql: Sql, actor: Member | null, itemId: unknown, done
 // settle marks a checklist complete when its last item is done (and not
 // when one is unticked), and says who has nothing left.
 async function settle(tx: Query, journeyId: string, assignee: string | null): Promise<Ticked> {
-  const [j] = await tx<{ person_id: string; kind: Kind; created_by: string; completed_at: Date | null }[]>`select person_id, kind, created_by, completed_at from journeys where id = ${journeyId}`;
+  const [j] = await tx<{ person_id: string | null; kind: Kind; created_by: string; completed_at: Date | null }[]>`select person_id, kind, created_by, completed_at from journeys where id = ${journeyId}`;
   const { open, mine, total } = first(await tx<{ open: number; mine: number; total: number }[]>`
     select count(*) filter (where done_at is null)::int as open, count(*) filter (where done_at is null and assignee = ${assignee ?? ""})::int as mine, count(*)::int as total
     from journey_items where journey_id = ${journeyId} and removed_at is null`);

@@ -32,6 +32,7 @@ export default async function DeskPage() {
     if (n.reason === "ready") return format(t.desk.reasons.ready, { name: nameOf(who.get(r.createdBy), locale) });
     if (n.reason === "overdue") return format(t.desk.reasons.overdue, { date: formatDay(r.dueDate ?? today, locale), amount: money(r.due) });
     if (n.reason === "accepted") return t.desk.reasons.accepted;
+    if (n.reason === "crm") return format(t.desk.reasons.crm, { title: r.crmTitle ?? "" });
     if (n.reason === "expiring") return format(r.validUntil && r.validUntil < today ? t.desk.reasons.expired : t.desk.reasons.expiring, { date: formatDay(r.validUntil ?? today, locale) });
     return format(t.desk.reasons.draft, { date: formatDay(r.updatedAt.slice(0, 10), locale) });
   };
@@ -101,7 +102,7 @@ export default async function DeskPage() {
               <ul className="todo">
                 {d.needs.map(n => (
                   <li key={n.reason + n.row.id}>
-                    <span className={n.reason === "overdue" || n.reason === "ready" ? "dot alert" : n.reason === "accepted" ? "dot ok" : "dot"} aria-hidden="true" />
+                    <span className={n.reason === "overdue" || n.reason === "ready" ? "dot alert" : n.reason === "accepted" || n.reason === "crm" ? "dot ok" : "dot"} aria-hidden="true" />
                     <span>
                       <a className="main" href={`/chest/documents/${n.row.id}`}><span className="visually-hidden">{kindOf(n.row, t)} {n.row.number ?? ""}</span></a>
                       <strong>{kindOf(n.row, t)} {n.row.number ?? ""} · {n.row.clientName || t.list.noClient}</strong>

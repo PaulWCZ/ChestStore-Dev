@@ -45,6 +45,7 @@ export type DocView = {
   emailedTo: string | null;
   reminders: number;
   reference: { id: string; number: string; date: string } | null;
+  crmTitle: string | null;
 };
 
 export type Fact = { label: string; value: string; strong?: boolean };

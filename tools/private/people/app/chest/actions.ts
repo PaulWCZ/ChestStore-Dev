@@ -6,6 +6,7 @@ import { db } from "../../lib/db.ts";
 import { attempt, AppError, type Result } from "../../lib/errors.ts";
 import { examples } from "../../lib/examples.ts";
 import { catalogue, isLocale } from "../../lib/i18n/index.ts";
+import * as arrivals from "../../lib/arrivals.ts";
 import * as importer from "../../lib/importer.ts";
 import * as j from "../../lib/journeys.ts";
 import * as profiles from "../../lib/profiles.ts";
@@ -53,9 +54,8 @@ export async function tickItem(itemId: string, done: boolean): Promise<Result<nu
 
 async function afterTick(actor: Member, ticked: j.Ticked): Promise<void> {
   const sql = db();
-  const journey = { id: ticked.journeyId, personId: ticked.personId, kind: ticked.kind };
-  if (ticked.assignee) await tell.todo(sql, actor, journey, [ticked.assignee]);
-  if (ticked.completed) await tell.completed({ ...journey, createdBy: ticked.createdBy }, actor);
+  if (ticked.assignee) await tell.todo(sql, actor, { id: ticked.journeyId }, [ticked.assignee]);
+  if (ticked.completed) await tell.completed(sql, ticked.journeyId, actor);
   if (ticked.reopened) await tell.reopened(ticked.journeyId);
 }
 
@@ -89,7 +89,7 @@ export async function removeTemplateItem(itemId: string): Promise<Result<j.Templ
 }
 
 // Checklists.
-export async function startChecklist(input: { personId: string; templateId: string; anchor: string }): Promise<Result<{ id: string }>> {
+export async function startChecklist(input: { personId?: string; arrivalId?: string; managerId?: string | null; templateId: string; anchor: string }): Promise<Result<{ id: string }>> {
   return act(async actor => {
     const sql = db();
     const started = await j.startJourney(sql, actor, input);
@@ -102,7 +102,7 @@ export async function addChecklistItem(journeyId: string, input: { text: string;
   return act(async actor => {
     const sql = db();
     const { item, ticked } = await j.addJourneyItem(sql, actor, journeyId, input);
-    if (item.assignee) await tell.todo(sql, actor, { id: ticked.journeyId, personId: ticked.personId, kind: ticked.kind }, [item.assignee]);
+    if (item.assignee) await tell.todo(sql, actor, { id: ticked.journeyId }, [item.assignee]);
     if (ticked.reopened) await tell.reopened(ticked.journeyId);
     return null;
   });
@@ -113,8 +113,7 @@ export async function updateChecklistItem(itemId: string, input: { text?: string
     const sql = db();
     const changed = await j.updateJourneyItem(sql, actor, itemId, input);
     if (changed.before !== changed.item.assignee) {
-      const journey = await j.journey(sql, actor, changed.journeyId);
-      await tell.todo(sql, actor, { id: journey.id, personId: journey.personId, kind: journey.kind }, [changed.before, changed.item.assignee].filter((x): x is string => x !== null));
+      await tell.todo(sql, actor, { id: changed.journeyId }, [changed.before, changed.item.assignee].filter((x): x is string => x !== null));
     }
     return null;
   });
@@ -134,10 +133,7 @@ export async function stopChecklist(journeyId: string, stopped: boolean): Promis
     const sql = db();
     const { assignees } = await j.stopJourney(sql, actor, journeyId, stopped);
     if (stopped) await tell.settled(sql, journeyId, assignees);
-    else {
-      const journey = await j.journey(sql, actor, journeyId);
-      await tell.todo(sql, actor, { id: journey.id, personId: journey.personId, kind: journey.kind }, assignees);
-    }
+    else await tell.todo(sql, actor, { id: journeyId }, assignees);
     return null;
   });
 }
@@ -158,4 +154,27 @@ export async function previewImport(text: string): Promise<Result<importer.Plan>
 
 export async function applyImport(text: string): Promise<Result<{ updated: number; skipped: number; loops: string[] }>> {
   return act(actor => importer.applyImport(db(), actor, text));
+}
+
+// Arrivals told by other tools: linked to the member they became, or
+// removed (with the checklists started for them).
+export async function linkArrival(arrivalId: string, memberId: string): Promise<Result<null>> {
+  return act(async actor => {
+    const sql = db();
+    const linked = await arrivals.linkArrival(sql, actor, arrivalId, memberId);
+    for (const journey of linked.journeys) {
+      const open = await sql<{ assignee: string }[]>`select distinct assignee from journey_items where journey_id = ${journey} and assignee like 'mbr_%'`;
+      await tell.todo(sql, actor, { id: journey }, open.map(r => r.assignee));
+    }
+    return null;
+  });
+}
+
+export async function removeArrival(arrivalId: string): Promise<Result<null>> {
+  return act(async actor => {
+    const sql = db();
+    const { journeys } = await arrivals.removeArrival(sql, actor, arrivalId);
+    for (const journey of journeys) await tell.settled(sql, journey.id, journey.assignees);
+    return null;
+  });
 }

@@ -148,6 +148,7 @@ export function DocumentView(props: DocumentViewProps) {
             <span className={`stamp big ${doc.state}`}>{stateLabel}</span>
             <h2>{doc.kindText} {doc.number ?? ""}</h2>
             <p className="hint">{d.explain[doc.state]}</p>
+            {doc.crmTitle && <p className="hint from-crm">{format(d.fromCrm, { title: doc.crmTitle })}</p>}
             <dl className="facts">
               {props.facts.map(f => (
                 <div key={f.label} className="fact">

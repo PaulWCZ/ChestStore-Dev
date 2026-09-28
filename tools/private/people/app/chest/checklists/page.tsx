@@ -7,8 +7,11 @@ import { can } from "../../../lib/access.ts";
 import { db } from "../../../lib/db.ts";
 import { format, formatDay, plural } from "../../../lib/i18n/index.ts";
 import { listJourneys, listTemplates, type JourneySummary } from "../../../lib/journeys.ts";
-import { nameOf, people } from "../../../lib/people.ts";
+import { people, subjectOf } from "../../../lib/people.ts";
 import { viewer } from "../../../lib/session.ts";
+import { listArrivals, suggestions } from "../../../lib/arrivals.ts";
+import { directory } from "../../../lib/directory.ts";
+import { ArrivalList, type ArrivalView } from "./arrivals-view.tsx";
 import { ExamplesButton, NewTemplate } from "./template-buttons.tsx";
 
 // HR's page: the arrivals and departures in progress, with their progress,
@@ -20,21 +23,31 @@ export default async function ChecklistsPage() {
   const { member, locale, t } = v;
   if (!can(member, "checklists.manage")) notFound();
   const sql = db();
-  const [journeys, templates, archived] = await Promise.all([listJourneys(sql, member), listTemplates(sql, member), listTemplates(sql, member, { archived: true })]);
-  const who = await people(journeys.map(j => j.personId));
+  const [journeys, templates, archived, expected, { entries }] = await Promise.all([listJourneys(sql, member), listTemplates(sql, member), listTemplates(sql, member, { archived: true }), listArrivals(sql, member), directory(sql, member)]);
+  const suggested = suggestions(expected, entries);
+  const arrivalViews: ArrivalView[] = expected.map(a => ({
+    id: a.id,
+    name: a.name,
+    details: [a.job, a.team, a.place].filter(Boolean).join(" · "),
+    when: a.startDate ? format(t.arrivals.joins, { date: formatDay(a.startDate, locale, { weekday: "long", day: "numeric", month: "long" }) }) : t.arrivals.noDate,
+    cancelled: a.status === "cancelled",
+    checklists: a.checklists,
+    suggested: suggested.get(a.id)?.length === 1 ? suggested.get(a.id)![0]!.id : null,
+  }));
+  const who = await people(journeys.flatMap(j => (j.personId ? [j.personId] : [])));
   const running = journeys.filter(j => !j.stopped && !j.completedAt);
   const completed = journeys.filter(j => !j.stopped && j.completedAt);
   const stopped = journeys.filter(j => j.stopped);
   const buttonWords = { newTemplate: t.checklists.newTemplate, examples: t.checklists.empty.examples, scratch: t.checklists.empty.scratch, template: t.template, kinds: t.checklists.kinds, errors: t.errors };
   const row = (j: JourneySummary) => {
-    const person = who.get(j.personId);
+    const person = subjectOf(j, who, locale);
     const pct = j.total ? Math.round((j.done / j.total) * 100) : 0;
     return (
       <li key={j.id}>
         <Link className="journey-card" href={`/chest/checklists/${j.id}`}>
-          <Portrait name={nameOf(person, locale)} photo={person?.photo ?? null} size={52} />
+          <Portrait name={person.name} photo={person.photo} size={52} />
           <span className="journey-main">
-            <strong>{nameOf(person, locale)}</strong>
+            <strong>{person.name}{j.arrivalId && <span className="source">{t.arrivals.fromHiring}</span>}</strong>
             <span className="muted">
               <span className={`kind ${j.kind}`}>{t.checklists.kinds[j.kind]}</span> {j.name} · {format(j.kind === "onboarding" ? t.checklists.firstDay : t.checklists.lastDay, { date: formatDay(j.anchor, locale, { day: "numeric", month: "short" }) })}
             </span>
@@ -47,7 +60,7 @@ export default async function ChecklistsPage() {
       </li>
     );
   };
-  const nothing = journeys.length === 0 && templates.length === 0 && archived.length === 0;
+  const nothing = journeys.length === 0 && templates.length === 0 && archived.length === 0 && expected.length === 0;
   return (
     <main className="page narrow">
       <AutoRefresh seconds={60} />
@@ -65,6 +78,12 @@ export default async function ChecklistsPage() {
         </div>
       ) : (
         <>
+          {arrivalViews.length > 0 && (
+            <section id="arrivals" aria-labelledby="arrivals-title" className="section">
+              <h2 id="arrivals-title" className="eyebrow">{t.arrivals.title}</h2>
+              <ArrivalList arrivals={arrivalViews} people={entries.map(e => ({ id: e.id, name: e.name }))} locale={locale} t={{ arrivals: t.arrivals, errors: t.errors }} />
+            </section>
+          )}
           <section aria-labelledby="running-title" className="section">
             <h2 id="running-title" className="eyebrow">{t.checklists.running}</h2>
             {running.length === 0 ? <p className="muted">{t.checklists.noneRunning}</p> : <ul className="journey-cards">{running.map(row)}</ul>}

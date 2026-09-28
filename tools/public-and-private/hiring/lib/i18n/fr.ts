@@ -391,6 +391,14 @@ export const fr: Catalogue = {
       note: "{actor} a écrit une note",
     },
   },
+  hire: {
+    title: "{name} est embauché !",
+    start: "Premier jour",
+    optional: "facultatif",
+    hint: "Si votre Chest relie Recrutement à l’Annuaire, son arrivée s’y prépare.",
+    confirm: "Confirmer l’embauche",
+    startsOn: "Arrive le {date}",
+  },
   reject: {
     title: "Refuser {name}",
     reason: "Motif",

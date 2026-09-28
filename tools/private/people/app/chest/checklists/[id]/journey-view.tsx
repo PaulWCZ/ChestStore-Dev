@@ -12,7 +12,7 @@ import { addChecklistItem, deleteChecklist, removeChecklistItem, stopChecklist, 
 
 export type StepView = {
   id: string; text: string; done: boolean; due: string; dueLabel: string; state: DueState; when: "before" | "on" | "after";
-  assignee: string | null; assigneeName: string; assigneePhoto: string | null; role: string; doneBy: string | null; mine: boolean;
+  assignee: string | null; assigneeName: string; assigneePhoto: string | null; role: string; doneBy: string | null; mine: boolean; waiting: boolean;
 };
 type Words = {
   journey: {
@@ -100,7 +100,7 @@ export function JourneyView({ journey, steps, hr, people, t }: {
                     {s.text}
                     <span className="step-who">
                       <Portrait name={s.assigneeName} photo={s.assigneePhoto} size={22} />
-                      <span className={s.assignee ? undefined : "nobody"}>{s.assigneeName}</span>
+                      <span className={s.assignee ? undefined : s.waiting ? "waiting" : "nobody"}>{s.assigneeName}</span>
                       {s.role && <span className="muted">({s.role})</span>}
                       {s.doneBy && <span className="muted">· {s.doneBy}</span>}
                     </span>

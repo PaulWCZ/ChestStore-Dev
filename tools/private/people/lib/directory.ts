@@ -4,6 +4,7 @@ import { can } from "./access.ts";
 import type { Sql } from "./db.ts";
 import { everyone } from "./people.ts";
 import { profiles, reconcile, type Profile } from "./profiles.ts";
+import { today } from "./zone.ts";
 
 // The directory: everyone who has the tool — the Chest is the truth of who
 // is in the company, with their name and photo — and what this tool knows
@@ -14,7 +15,7 @@ export async function directory(sql: Sql, actor: Member | null): Promise<{ ok: b
   if (!actor || !can(actor, "directory.read")) throw new AppError("forbidden");
   const listed = await everyone();
   const ids = listed.people.map(p => p.id);
-  if (listed.ok) await reconcile(sql, ids);
+  if (listed.ok) await reconcile(sql, ids, today());
   const known = await profiles(sql, actor, ids);
   return {
     ok: listed.ok,

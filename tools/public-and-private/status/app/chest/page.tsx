@@ -4,6 +4,8 @@ import { AutoRefresh } from "../../components/auto-refresh.tsx";
 import { Info, Plus } from "../../components/icons.tsx";
 import { StateLabel } from "../../components/state.tsx";
 import { phaseOf, stepOf } from "../../components/incident-card.tsx";
+import { checkError } from "../../lib/check-words.ts";
+import { statuses } from "../../lib/checks.ts";
 import { db } from "../../lib/db.ts";
 import { format, relative, stamp } from "../../lib/i18n/index.ts";
 import { pass } from "../../lib/jobs.ts";
@@ -27,6 +29,8 @@ export default async function Overview() {
   await pass(sql, now, 25).catch(error => console.error("catch-up failed", error instanceof Error ? error.name : "error"));
   await refreshBadge(sql, member.id);
   const view = await statusView(sql, zone, now);
+  const down = [...(await statuses(sql)).values()].filter(s => s.downSince);
+  const componentName = (id: string) => view.entries.flatMap(e => (e.self ? [e.self] : e.children)).find(c => c.id === id)?.name ?? "";
   const publicHome = publicOrigin(await headers()) ?? "";
   const when = (d: Date) => stamp(d, zone, locale, now);
   const noComponents = view.entries.length === 0;
@@ -55,6 +59,19 @@ export default async function Overview() {
         </div>
       ) : (
         <>
+          {down.length > 0 && (
+            <section aria-labelledby="checks-title" className="stack">
+              <h2 id="checks-title" className="section-title">{t.checks.nowTitle}</h2>
+              {down.map(d => (
+                <div key={d.componentId} id={`check-${d.componentId}`} className="alert" role="status">
+                  <strong>{format(t.checks.nowDown, { component: componentName(d.componentId), time: stamp(d.downSince!, zone, locale, now), error: checkError(t.checks, d.last?.error ?? null, d.last?.status ?? null, d.last?.ms ?? 0) })}</strong>
+                  <p className="muted">{t.checks.nowHint}</p>
+                  <div className="actions"><a className="button" href={`/chest/incidents/new?component=${d.componentId}`}>{t.checks.openIncident}</a></div>
+                </div>
+              ))}
+            </section>
+          )}
+
           <section aria-labelledby="open" className="stack">
             <h2 id="open" className="section-title">{t.overview.open}</h2>
             {view.open.length === 0 ? (

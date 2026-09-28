@@ -54,7 +54,7 @@ export default async function JobBoard({ params }: { params: Promise<{ id: strin
         cards={cards}
         manage={manage}
         locale={locale}
-        t={{ board: t.board, errors: t.errors, reasons: t.reject.reasons, common: t.common }}
+        t={{ board: t.board, errors: t.errors, reasons: t.reject.reasons, common: t.common, hire: t.hire }}
       />
     </div>
   );

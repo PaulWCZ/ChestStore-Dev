@@ -9,7 +9,7 @@
 import { as, done, expect, open, step } from "./lib.mjs";
 
 const port = Number(process.argv[2] ?? 5700);
-const { browser, context, page, origin, problems } = await open(port, "hugo", { viewport: { width: 390, height: 844 }, locale: "en" });
+const { browser, context, page, origin, problems } = await open(port, "hugo", { viewport: { width: 390, height: 844 }, locale: "en", allow404: /\/chest\/documents\/\d+$/u });
 const english = async () => context.addCookies([{ name: "dev_locale", value: "en", url: origin }]);
 const french = async () => context.addCookies([{ name: "dev_locale", value: "fr", url: origin }]);
 const dev = async () => (await page.request.get(origin + "/_dev")).text();
@@ -174,6 +174,28 @@ await step("drafts are forgiving: delete one, undo", async () => {
   await page.waitForURL(/\/chest\/documents\/\d+$/u);
   await page.goto(origin + "/chest/quotes?state=draft");
   expect(await page.locator(".ledger-row").count() === before, "draft back");
+});
+
+await step("a deal won in Clients becomes a draft quote for Hugo; reopened untouched, it goes", async () => {
+  await as(context, origin, "hugo");
+  await english();
+  const deal = { deal: "flow-42", title: "Nouvelle vitrine", amount: 250000, currency: "EUR", owner: "mbr_hugo" + "a".repeat(22),
+    company: { ref: "flow-co", name: "Fleurs Martinez SARL", address: "9 rue Mercière", postcode: "69002", city: "Lyon", country: "FR", siren: "520193848", vat: "FR63520193848", email: "bonjour@fleurs.test" },
+    contact: { name: "Ana Martinez", email: "ana@fleurs.test" } };
+  await page.request.post(origin + "/_dev/deliver", { form: { type: "crm.deal.won", data: JSON.stringify(deal) } });
+  expect((await dev()).includes("Deal won in Clients: Nouvelle vitrine"), "Hugo told in the bell");
+  await page.goto(origin + "/chest");
+  await page.locator(".todo li", { hasText: "From Clients: Nouvelle vitrine" }).locator("a.main").click();
+  await page.waitForURL(/\/chest\/documents\/\d+$/u);
+  const url = page.url();
+  expect((await page.locator(".party.buyer").innerText()).includes("Fleurs Martinez SARL"), "client made from the company");
+  expect((await page.locator(".totals").innerText()).replace(/\s/gu, " ").includes("3 000,00 €"), "the deal's amount, VAT added");
+  await page.request.post(origin + "/_dev/deliver", { form: { type: "crm.deal.won", data: JSON.stringify(deal) } });
+  await page.goto(origin + "/chest/quotes?state=draft");
+  expect((await page.locator(".ledger").innerText()).split("Nouvelle vitrine").length === 2, "once only");
+  await page.request.post(origin + "/_dev/deliver", { form: { type: "crm.deal.reopened", data: JSON.stringify({ deal: "flow-42" }) } });
+  const gone = await page.request.get(url);
+  expect(gone.status() === 404, "untouched draft deleted: " + gone.status());
 });
 
 await step("phone width: no page scrolls sideways", async () => {

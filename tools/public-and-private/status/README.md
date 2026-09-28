@@ -58,8 +58,9 @@ minute, in plain words.
   (`Cache-Control: private, max-age=30`; see *What it does not do yet*).
 - **For the team** (`/chest`):
   - **Now**: *Post an incident* first; the open incidents with *Add an
-    update*; maintenance planned or under way; the page as customers see
-    it; recently resolved.
+    update*; maintenance planned or under way; services a check says are
+    down, with *Open an incident*; the page as customers see it;
+    recently resolved.
   - **Post an incident** in one screen: what is wrong, which services and
     how badly (degraded / partial / major), where you are, what customers
     read. Ticked *It already happened*, it becomes a past incident with
@@ -87,6 +88,7 @@ minute, in plain words.
     late. An editor's visit to *Now* runs the same pass, so a Chest
     without schedules still gets them. A window started or ended more
     than a day before the pass is posted without email.
+  - **Checks**: see *Automatic checks* above.
   - **Services**: add a service or a group, rename, describe, move up and
     down, hide from the page (its history stays), delete one that was
     never in an incident (otherwise: hide it). *Start with an example*
@@ -99,9 +101,23 @@ minute, in plain words.
     Chest without it, the tool lists its editors and notifies each
     language's group); its resolution replaces that item; the tile's
     badge counts the open incidents.
-- **Nothing is checked automatically.** The tool does not watch your
-  website: a Chest tool has no outbound network and no background
-  process. The team's *Now* page says so. See *Needs from the SDK*.
+- **Automatic checks** (Proposal *checks*): on *Checks*, an editor gives a
+  service a web address (https), how often (1 to 60 minutes), the answer
+  expected (HTTP status) and when it is too slow. Saving hands the whole
+  list to the Chest, which opens the addresses **from outside** (the tool
+  has no network) and posts each result, signed, to `/chest-checks`.
+  Results are kept once (by id), 90 days (purged by the `updates`
+  schedule). After **three failures in a row** every editor's bell says
+  "Website is not answering" with the reason, and *Now* shows it with
+  **Open an incident**, prefilled (the service at *Major outage*, a title
+  and words to start from). **Nothing is ever posted publicly by itself**:
+  a person checks and decides. When the address answers again, the bell
+  says so once (the same item, replaced). The public page shows, under a
+  watched service's bar, the **measured** uptime (share of checks answered
+  in time, since the first result in 90 days) beside the **declared** one
+  computed from incidents — each labelled, and explained under the list.
+  On a Chest that cannot run checks, the page says so plainly, the
+  addresses stay saved, and everything else works as before.
 
 ## Roles
 
@@ -142,16 +158,16 @@ enter as editors.
 | `/feed.atom`, `/feed.rss`, `/maintenance.ics` | Feeds |
 | `/subscribe`, `/s/<token>`, `/unsubscribed` | Email updates: subscribe; a subscriber's own page (confirm, choose, unsubscribe) |
 | `/lang/<code>` | The public part's language switch |
-| `/chest`, `/chest/incidents/new`, `/chest/incidents/<id>`, `/chest/maintenance/new`, `/chest/components`, `/chest/subscribers`, `/chest/history` | The team's part |
-| `/chest-events`, `/chest-jobs/updates` | Deliveries from the Chest (signed) |
+| `/chest`, `/chest/incidents/new`, `/chest/incidents/<id>`, `/chest/maintenance/new`, `/chest/components`, `/chest/checks`, `/chest/subscribers`, `/chest/history` | The team's part |
+| `/chest-events`, `/chest-jobs/updates`, `/chest-checks` | Deliveries from the Chest (signed): member events, the schedule, check results |
 
 ## On a Chest
 
 `chest.json`: roles `editor`; a public part; capabilities `database`,
 `members`, `notifications`; `receives: ["member.*"]`.
 `chest.proposals.json` (the studio's proposals, not yet accepted by a
-Chest): `mail.send`, the `updates` schedule (`*/15 * * * *`), the tile's
-French words.
+Chest): `checks` (`{"max": 10}`), `mail.send`, the `updates` schedule
+(`*/15 * * * *`), the tile's French words.
 
 Lifecycle: an editor who leaves or loses access changes nothing (their
 posts stay; names read "(former member)"). An **erasure** writes `erased`
@@ -170,20 +186,15 @@ language and choices only. The public page never shows who posted.
 | `schedules` | Automatic maintenance posts, sending queued emails | An editor's visit does it; the page switches on time anyway |
 | `notifications.broadcast` | The bell of every editor in one call | The tool pages through its members and notifies each language's group |
 | `visitors` | The form's signed time and the Chest's visitor counts | The tool's own counters (`form_counts`) |
+| `checks` | The Chest opens the services' addresses and posts results; measured uptime; alerts | The *Checks* page says the Chest cannot run them yet; incidents are posted by hand as before |
 | `chest` | Company name, time zone, language, public address | — (the SDK's defaults) |
 
 What it would need next (in the final report of the studio):
 
-- **Checks run by the Chest** — the job customers expect most: the
-  manifest declares `"checks": [{"name": "website", "url":
-  "https://atelier-martin.fr", "every": "5m", "expect": {"status": 200,
-  "maxMs": 3000}}]` (each a permission: "Checks
-  https://atelier-martin.fr every 5 minutes"); the Chest probes from
-  outside the tool's container and posts results, signed, to
-  `POST /chest-checks` (`{name, at, ok, status, ms, error}`), with a
-  `checks.handle(request, handler)` in the SDK and `chest.check(name,
-  result)` in `fakeChest`. The tool would then open an incident draft
-  (or post one) after N failures, and show measured uptime.
+- **Checks** are now a proposal (`checks`, above). Next wishes: a
+  heartbeat URL a job could call (silence = down), checks of a keyword in
+  the page, and the Chest's own history of results so a new tool starts
+  with data.
 - **Knowing whether mail works before sending**: `mail.available()`
   (or the granted proposals in the environment), so the form is hidden
   from the first visit on a Chest without mail — today the tool learns it
@@ -211,8 +222,9 @@ evening, three subscribers.
 
 ## What it does not do yet
 
-- No automatic checks (see above) and no heartbeat URL a system could
-  call.
+- Checks open an address and look at its status and speed only (no
+  keyword, no login, no heartbeat URL); the 90-day ticks stay those of the
+  incidents posted — measured uptime is a separate figure.
 - Incident texts are written once, in the company's language; only the
   words around them follow each visitor.
 - No Markdown: texts are plain, with paragraphs and links made from web

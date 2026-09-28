@@ -9,13 +9,17 @@ import type { Kind } from "../../../../lib/model.ts";
 import { startChecklist } from "../../actions.ts";
 
 type Words = {
-  start: { person: string; choosePerson: string; template: string; chooseTemplate: string; firstDay: string; lastDay: string; submit: string; starting: string; told: string };
+  start: { person: string; choosePerson: string; template: string; chooseTemplate: string; firstDay: string; lastDay: string; submit: string; starting: string; told: string; manager: string; noManager: string };
+  group: string;
   kinds: Record<Kind, string>;
   errors: Record<ErrorCode, string>;
 };
 
-export function StartForm({ people, templates, initial, today, t }: {
+// An arrival told by Hiring is "arrival:<id>" in the person picker: not a
+// member yet, so HR names their manager-to-be here.
+export function StartForm({ people, arrivals, templates, initial, today, t }: {
   people: { id: string; name: string; startDate: string | null }[];
+  arrivals: { id: string; name: string; startDate: string | null; managerId: string | null }[];
   templates: { id: string; name: string; kind: Kind; steps: number }[];
   initial: { person: string; kind: Kind; template: string };
   today: string;
@@ -30,20 +34,23 @@ export function StartForm({ people, templates, initial, today, t }: {
   const firstOfKind = templates.find(x => x.kind === initial.kind) ?? templates[0]!;
   const [templateId, setTemplateId] = useState(templates.some(x => x.id === initial.template) ? initial.template : firstOfKind.id);
   const chosen = templates.find(x => x.id === templateId)!;
-  const startDate = people.find(p => p.id === person)?.startDate ?? null;
+  const everyone = [...people, ...arrivals];
+  const arrival = arrivals.find(a => a.id === person);
+  const [managerId, setManagerId] = useState(arrival?.managerId ?? "");
+  const startDate = everyone.find(p => p.id === person)?.startDate ?? null;
   const [anchor, setAnchor] = useState(chosen.kind === "onboarding" && startDate ? startDate : today);
   const [touched, setTouched] = useState(false);
   const suggest = (p: string, tid: string) => {
     if (touched) return;
     const k = templates.find(x => x.id === tid)?.kind;
-    const s = people.find(x => x.id === p)?.startDate ?? null;
+    const s = everyone.find(x => x.id === p)?.startDate ?? null;
     setAnchor(k === "onboarding" && s ? s : today);
   };
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setError(null);
     start(async () => {
-      const result = await startChecklist({ personId: person, templateId, anchor });
+      const result = await startChecklist(arrival ? { arrivalId: arrival.id.slice("arrival:".length), managerId: managerId || null, templateId, anchor } : { personId: person, templateId, anchor });
       if (!result.ok) {
         setError(format(t.errors[result.error], result.values ?? {}));
         return;
@@ -56,11 +63,21 @@ export function StartForm({ people, templates, initial, today, t }: {
     <form className="form card-block" onSubmit={submit}>
       <div className="field-group">
         <label htmlFor={uid + "person"} className="label">{t.start.person}</label>
-        <select id={uid + "person"} className="select" value={person} required onChange={e => { setPerson(e.target.value); suggest(e.target.value, templateId); }}>
+        <select id={uid + "person"} className="select" value={person} required onChange={e => { setPerson(e.target.value); setManagerId(arrivals.find(a => a.id === e.target.value)?.managerId ?? ""); suggest(e.target.value, templateId); }}>
           <option value="" disabled>{t.start.choosePerson}</option>
+          {arrivals.length > 0 && <optgroup label={t.group}>{arrivals.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}</optgroup>}
           {people.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
         </select>
       </div>
+      {arrival && (
+        <div className="field-group">
+          <label htmlFor={uid + "manager"} className="label">{t.start.manager}</label>
+          <select id={uid + "manager"} className="select" value={managerId} onChange={e => setManagerId(e.target.value)}>
+            <option value="">{t.start.noManager}</option>
+            {people.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+          </select>
+        </div>
+      )}
       <fieldset className="field-group">
         <legend className="label">{t.start.template}</legend>
         <div className="choices">

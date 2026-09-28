@@ -20,6 +20,7 @@ what must not break.
 | `lib/mailer.ts`, `lib/settings.ts` | Emails and their queue; what the tool remembers of mail and its public address |
 | `lib/tell.ts`, `lib/notify.ts`, `lib/people.ts` | The team's bell (broadcast, fallback), badges, names |
 | `lib/feed.ts`, `lib/feeds.ts`, `lib/ics.ts` | Atom/RSS and the maintenance calendar |
+| `migrations/0002_checks.sql`, `lib/checks.ts`, `lib/check-results.ts`, `lib/check-words.ts`, `app/chest-checks/route.ts`, `app/chest/checks/…` | Checks run by the Chest: watches, results (kept once, 90 days), down/up after three failures, measured uptime |
 | `lib/jobs.ts`, `app/chest-jobs/[name]/route.ts` | The "updates" pass (schedule, or an editor's visit) |
 | `lib/lifecycle.ts`, `app/chest-events/route.ts` | Members erased |
 | `app/page.tsx`, `app/incidents/…`, `app/history/…`, `app/subscribe/…`, `app/s/[token]/…`, `app/public-actions.ts`, `components/history-bar.tsx`, `components/incident-card.tsx` | The public part (anonymous, no JS needed) |
@@ -49,6 +50,10 @@ npm ci && npm test && npm run build   # all three must pass
 - **Subscribers** are personal data: store only address, language,
   choices; unsubscribing deletes the row; answers never reveal whether an
   address was known; the token only opens that subscription.
+- **Checks never post publicly**: a failed check only tells the editors
+  and proposes an incident; a person decides. Results are idempotent by id
+  and may arrive out of order (read state by time). Checks are optional:
+  every path works when `checks.configure` throws.
 - **Email is optional**: every path must work when `mail.send` throws.
 - Identity from `member()` only; rights in `lib/access.ts`; words in every
   catalogue (`lib/i18n/en.ts` first, `fr.ts` complete); client components

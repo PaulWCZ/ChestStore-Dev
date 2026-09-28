@@ -187,18 +187,44 @@ documents without a client is the Chest's (`chest.locale()`).
   overnight.
 - **chest** (studio proposal): `today()`, `timeZone()`, `currency()`,
   `locale()`.
-- **Events between tools** (studio proposal), the hook for **Clients (CRM)**:
-  `clients.external_ref` is reserved for the CRM's reference of a company.
-  The API we would want: the CRM declares `"emits": ["crm.company.saved",
-  "crm.deal.won"]`; Quotes declares them in `receives` and, in
-  `app/chest-events/route.ts`, `tools: { "crm.company.saved": e =>
-  upsertFromCrm(e.data) /* by external_ref */, "crm.deal.won": e =>
-  createDocument("quote", clientFromCrm(e.data.company)) }`. Not wired yet:
-  the CRM does not publish these events.
+- **Events between tools** (studio proposal, `chest.proposals.json`
+  `receives`): `crm.deal.won`, `crm.deal.reopened` from Clients — see
+  "With the other tools".
 - **Structured e-invoices** are the tool's own work to come (Factur-X
   EN 16931 from the same data), not the SDK's; sending them to a PA would
   need an SDK primitive for declared outbound network with per-company
   credentials (AFNOR XP Z12-013 API) — see the studio's SDK report.
+
+## With the other tools
+
+**Clients (CRM) → Quotes** (Proposal (studio): events between tools, once an
+admin linked the two tools in the Chest). Quotes receives:
+
+- `crm.deal.won` `{ deal, title, amount (cents) | null, currency, company:
+  { ref, name, address, postcode, city, country, siren, vat, email } | null,
+  contact: { name, email } | null, owner: "mbr_…" | null }` — a **draft
+  quote** titled like the deal, with one line of the amount (a price of 0
+  when there is none, or when the currency is not the Chest's) at 20 % VAT,
+  for the deal's client; owned by the deal's owner if they may write quotes
+  here (their Quotes role, asked of the Chest), otherwise by the tool; the
+  owner — or else everyone with the `sales` role — told in the bell. The
+  quote's margin and history say "From Clients: <deal title>", and it waits
+  on the desk. **Once per deal**: a second delivery (or a second "won")
+  never makes a second quote (a unique index on the deal's reference).
+- `crm.deal.reopened` `{ deal }` — the draft is deleted if nobody touched it
+  (never saved since it was made, never sent), and its bell item withdrawn;
+  otherwise the quote stays and its history says the deal was reopened.
+  Won again later, an untouched-and-deleted deal makes a new draft.
+
+**The client**: found by the CRM's reference (`clients.external_ref` =
+`crm:<ref>`), else by SIREN (and then linked), else created from the
+company (or, with no company, from the contact, as an individual). **Rule:
+Clients only fills what is empty in Quotes.** A field a person wrote here
+is never overwritten — this card prints on legal documents, and someone may
+have corrected it on purpose. Every field is checked (SIREN and VAT keys,
+email, country); an invalid value is dropped, an event of another shape is
+accepted and ignored. Code: `lib/crm.ts`, `app/chest-events/route.ts`;
+tests: `test/crm.test.ts` (`chest.deliver`).
 
 ## Develop
 

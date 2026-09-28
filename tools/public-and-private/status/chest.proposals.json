@@ -1,13 +1,23 @@
 {
-  "mail": { "send": true },
+  "checks": {
+    "max": 10
+  },
+  "mail": {
+    "send": true
+  },
   "schedules": [
-    { "name": "updates", "cron": "*/15 * * * *" }
+    {
+      "name": "updates",
+      "cron": "*/15 * * * *"
+    }
   ],
   "translations": {
     "fr": {
       "title": "État des services",
       "description": "Dites à vos clients si vos services fonctionnent : une page d’état publique, les incidents et leur suivi, les maintenances prévues.",
-      "role_labels": { "editor": "Rédacteur" }
+      "role_labels": {
+        "editor": "Rédacteur"
+      }
     }
   }
 }

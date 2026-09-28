@@ -1,15 +1,16 @@
+import { measured } from "./checks.ts";
 import { allComponents, shownComponents, tree, type Component } from "./components.ts";
 import type { Query } from "./db.ts";
 import { forTimeline, recent, touched, type Incident } from "./incidents.ts";
 import { worst, type State } from "./model.ts";
-import { currentStates, history, maintenancePhase, spans, uptime, type Day } from "./timeline.ts";
+import { currentStates, history, lastDays, maintenancePhase, spans, uptime, type Day } from "./timeline.ts";
 
 // Everything the status page shows, read at once: the components with their
 // state now, their 90 days and uptime; the open incidents, the maintenance
 // under way and ahead, the last week's incidents. The public page and the
 // editors' overview read the same thing, so editors see what customers see.
 
-export type ComponentView = { id: string; name: string; description: string; state: State; days: Day[]; uptime: number | null };
+export type ComponentView = { id: string; name: string; description: string; state: State; days: Day[]; uptime: number | null; measured: { percent: number; since: Date } | null };
 export type EntryView = { id: string; kind: "component" | "group"; name: string; description: string; state: State; children: ComponentView[]; self: ComponentView | null };
 export type StatusView = {
   entries: EntryView[];
@@ -24,8 +25,8 @@ export type StatusView = {
 };
 
 export async function statusView(sql: Query, zone: string, now = new Date(), options: { hidden?: boolean } = {}): Promise<StatusView> {
-  const [components, incidents] = await Promise.all([allComponents(sql), recent(sql, now)]);
   const at = now.getTime();
+  const [components, incidents, checked] = await Promise.all([allComponents(sql), recent(sql, now), measured(sql, new Date(lastDays(at, zone, 90)[0]!.from))]);
   const timeline = forTimeline(incidents);
   const all = spans(timeline, at);
   const current = currentStates(timeline, at);
@@ -37,6 +38,7 @@ export async function statusView(sql: Query, zone: string, now = new Date(), opt
     state: current.get(c.id) ?? "operational",
     days: history(c.id, c.createdAt.getTime(), all, at, zone),
     uptime: uptime(c.id, c.createdAt.getTime(), all, at, zone),
+    measured: checked.get(c.id) ?? null,
   });
   const entries: EntryView[] = tree(components, { shown: !options.hidden }).map(e => {
     if (e.kind === "group") {

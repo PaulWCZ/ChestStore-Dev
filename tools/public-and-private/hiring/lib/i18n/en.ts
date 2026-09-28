@@ -394,6 +394,14 @@ export const en = {
       note: "{actor} wrote a note",
     },
   },
+  hire: {
+    title: "{name} is hired!",
+    start: "First day",
+    optional: "optional",
+    hint: "If your Chest links Hiring to People, their arrival is prepared there.",
+    confirm: "Confirm the hire",
+    startsOn: "Starts on {date}",
+  },
   reject: {
     title: "Reject {name}",
     reason: "Reason",

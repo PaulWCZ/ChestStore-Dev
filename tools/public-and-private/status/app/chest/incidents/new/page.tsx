@@ -8,12 +8,18 @@ import { wall } from "../../../../lib/zone.ts";
 import { IncidentForm } from "./incident-form.tsx";
 
 // Post an incident, in one screen.
-export default async function NewIncident() {
+export default async function NewIncident({ searchParams }: { searchParams: Promise<{ component?: string }> }) {
   const v = await viewer();
   if (!v) return null;
   const { t } = v;
   const zone = chest.timeZone();
-  const groups = pickerGroups(await allComponents(db()));
+  const all = await allComponents(db());
+  const groups = pickerGroups(all);
+  // From an automatic check that failed: the service, a major outage and
+  // words to start from — an editor still reads and posts them.
+  const wanted = (await searchParams).component;
+  const from = all.find(c => c.kind === "component" && c.id === wanted);
+  const start = from ? { states: { [from.id]: "major" as const }, title: format(t.checks.incidentTitle, { component: from.name }), body: format(t.checks.incidentBody, { component: from.name }) } : null;
   const now = wall(Date.now(), zone);
   const rounded = Math.floor(now.minutes / 5) * 5;
   return (
@@ -27,6 +33,7 @@ export default async function NewIncident() {
       ) : (
         <IncidentForm
           groups={groups}
+          start={start}
           today={now.date}
           nowMinutes={rounded}
           zoneNote={format(t.maintenance.zone, { zone: zoneName(zone) })}

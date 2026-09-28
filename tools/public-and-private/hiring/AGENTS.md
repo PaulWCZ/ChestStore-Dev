@@ -17,6 +17,7 @@ must not break.
 | `lib/guard.ts` | The public form's guard (SDK `visitors`, fallback to `form_counts`) |
 | `lib/mailer.ts` | Confirmation and rejection emails (mail proposal; `none` without it) |
 | `lib/tell.ts`, `lib/notify.ts` | Bell and tile |
+| `lib/share.ts` | `hiring.hired` / `hiring.hire_cancelled` for People (events between tools; README "With the other tools") — never add application data to them |
 | `lib/lifecycle.ts` | Members leaving or erased |
 | `app/page.tsx`, `app/[slug]/…`, `app/api/cv`, `app/public-actions.ts` | The public part (anonymous) |
 | `app/chest/…`, `app/chest/actions.ts` | The team's part |

@@ -157,6 +157,24 @@ await step("the recruiter rejects with an email in the candidate's language, the
   expect((await page.locator(".cand-title .chip").innerText()).includes("Screening"), "back in Screening");
 });
 
+await step("hire someone with a first day: People is told; Undo takes the hire back", async () => {
+  await page.goto(origin + "/chest/candidates/5");
+  await page.getByRole("button", { name: "Move to Hired" }).click();
+  await page.getByLabel(/First day/u).fill("2026-11-02");
+  await page.getByRole("button", { name: "Confirm the hire" }).click();
+  await page.waitForSelector(".toast");
+  let log = await dev();
+  expect(log.includes("hiring.hired") && log.includes("Clara Fontaine"), "hired published");
+  await page.reload();
+  expect((await page.locator(".cand-head").innerText()).includes("Starts on 2 November 2026"), "start date shown");
+  await page.getByRole("button", { name: "Move to Hired" }).count();
+  await page.locator("#move-to").selectOption({ label: "Offer" });
+  await page.waitForSelector(".toast");
+  await page.waitForTimeout(800);
+  log = await dev();
+  expect(log.includes("hiring.hire_cancelled"), "cancel published");
+});
+
 await step("write a job, publish it: it is on the careers page", async () => {
   await page.goto(origin + "/chest/jobs/new");
   await page.getByLabel("Job title").fill("Wood finisher");

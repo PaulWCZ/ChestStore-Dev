@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useRef, useState, useTransition } from "react";
 import { Dialog } from "../../../../components/dialog.tsx";
+import { HireDialog } from "../../../../components/hire-dialog.tsx";
 import { Arrow, Ban, Bell, Bin, Dots, Pencil, Undo, Upload } from "../../../../components/icons.tsx";
 import { useToast } from "../../../../components/toast.tsx";
 import type { Feedback } from "../../../../lib/candidates.ts";
@@ -18,12 +19,12 @@ const failed = (t: Errors, r: Fail) => format(t[r.error], r.values ?? {});
 
 // ---- The recruiter's actions -----------------------------------------------
 
-type ActionWords = { candidate: Catalogue["candidate"]; reject: Catalogue["reject"]; errors: Errors; common: Catalogue["common"]; apply: Catalogue["apply"]; board: Catalogue["board"] };
+type ActionWords = { candidate: Catalogue["candidate"]; reject: Catalogue["reject"]; errors: Errors; common: Catalogue["common"]; apply: Catalogue["apply"]; board: Catalogue["board"]; hire: Catalogue["hire"] };
 
 export function CandidateActions({ jobId, candidate, stages, next, askable, draft, languageName, locale, t }: {
   jobId: string;
   candidate: { id: string; name: string; status: "active" | "rejected"; stageId: string; email: string; phone: string; link: string; language: Language };
-  stages: { id: string; name: string }[];
+  stages: { id: string; name: string; hired: boolean }[];
   next: { id: string; name: string } | null;
   askable: { id: string; name: string; asked: boolean }[];
   draft: string;
@@ -41,10 +42,16 @@ export function CandidateActions({ jobId, candidate, stages, next, askable, draf
   const stageName = (id: string) => stages.find(s => s.id === id)?.name ?? "";
   const close = () => { if (menu.current) menu.current.open = false; };
 
-  function move(to: string, undo = true) {
+  const [hiring, setHiring] = useState<string | null>(null);
+  const isHired = (id: string) => stages.find(s => s.id === id)?.hired === true;
+  function request(to: string) {
+    if (isHired(to) && !isHired(candidate.stageId)) setHiring(to);
+    else move(to);
+  }
+  function move(to: string, undo = true, day?: string | null) {
     const from = candidate.stageId;
     start(async () => {
-      const r = await moveCandidate(candidate.id, to);
+      const r = await moveCandidate(candidate.id, to, day ?? undefined);
       if (!r.ok) return toast(failed(t.errors, r));
       if (undo) toast(format(w.moved, { stage: stageName(to) }), { label: t.common.undo, run: () => start(async () => { await moveCandidate(candidate.id, from); }) });
     });
@@ -73,10 +80,10 @@ export function CandidateActions({ jobId, candidate, stages, next, askable, draf
     <div className="cand-actions">
       {candidate.status === "active" ? (
         <>
-          {next && <button type="button" className="button" disabled={pending} onClick={() => move(next.id)}>{format(w.next, { stage: next.name })}<Arrow /></button>}
+          {next && <button type="button" className="button" disabled={pending} onClick={() => request(next.id)}>{format(w.next, { stage: next.name })}<Arrow /></button>}
           <div className="move-to">
             <label className="visually-hidden" htmlFor="move-to">{w.moveTo}</label>
-            <select id="move-to" className="field" value="" disabled={pending} onChange={e => { if (e.target.value) move(e.target.value); }}>
+            <select id="move-to" className="field" value="" disabled={pending} onChange={e => { if (e.target.value) request(e.target.value); }}>
               <option value="">{w.moveTo}…</option>
               {stages.filter(s => s.id !== candidate.stageId).map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
             </select>
@@ -98,6 +105,7 @@ export function CandidateActions({ jobId, candidate, stages, next, askable, draf
       </details>
       <input ref={file} type="file" accept={cvAccept} className="visually-hidden" tabIndex={-1} aria-hidden="true" onChange={e => { const f = e.currentTarget.files?.[0]; e.currentTarget.value = ""; if (f) void replaceCv(f); }} />
 
+      <HireDialog name={hiring ? candidate.name : null} onCancel={() => setHiring(null)} onConfirm={day => { const to = hiring; setHiring(null); if (to) move(to, true, day); }} t={{ hire: t.hire, common: t.common }} />
       <Dialog open={dialog === "reject"} title={format(t.reject.title, { name: candidate.name })} closeLabel={t.common.close} onClose={() => setDialog(null)}>
         <RejectForm candidate={candidate} draft={draft} languageName={languageName} t={t} onDone={() => setDialog(null)} />
       </Dialog>

@@ -270,6 +270,7 @@ export const fr: Catalogue = {
       accepted: "Accepté — faites la facture",
       expiring: "Valable jusqu’au {date} : relancez le client",
       expired: "Expiré le {date} : relancez ou classez-le",
+      crm: "Depuis Clients : {title} — vérifiez-le et envoyez-le",
       draft: "Votre brouillon, modifié le {date}",
     },
     incomplete: {
@@ -392,11 +393,15 @@ export const fr: Catalogue = {
       creditFinalised: "L’avoir {number} est émis.",
       invoiceStarted: "Brouillon de facture prêt : vérifiez-le, puis finalisez-le.",
     },
+    fromCrm: "Depuis Clients : {title}",
     payments: "Paiements",
     removePayment: "Supprimer le paiement de {amount} du {date}",
     related: "Documents liés",
     history: {
       title: "Historique",
+      fromCrm: "Créé depuis Clients : affaire « {title} » gagnée",
+      crmTool: "Clients",
+      crmReopened: "L’affaire a été rouverte dans Clients. Ce devis a été gardé, car il avait été modifié ou envoyé.",
       created: "Créé par {name}",
       ready: "Transmise à la facturation",
       finalised: "Finalisée sous le n° {number} par {name}",
@@ -730,6 +735,9 @@ export const fr: Catalogue = {
     keep: "Les factures se conservent dix ans. Elles restent dans cet outil tant qu’il est installé — le retirer de votre Chest les supprime. Exportez chaque période et gardez le ZIP avec votre comptabilité.",
   },
   notifications: {
+    crmWonTitle: "Affaire gagnée dans Clients : {title}",
+    crmWonBody: "Un brouillon de devis pour {client} est prêt ({amount}) : vérifiez-le et envoyez-le.",
+    crmWonNoClient: "Un brouillon de devis est prêt ({amount}) : choisissez le client, vérifiez-le et envoyez-le.",
     readyTitle: "Facture prête à finaliser : {client}",
     readyBody: "Préparée par {name} : {amount}.",
   },

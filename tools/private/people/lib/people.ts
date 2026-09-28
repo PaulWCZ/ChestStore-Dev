@@ -66,3 +66,11 @@ export async function present(ids: Iterable<string>): Promise<Set<string>> {
   const answer = await members.lookup(wanted);
   return new Set(answer.members.map(m => m.id));
 }
+
+// Whom a checklist is about, as a page writes it: a member (their name and
+// photo from the Chest), or an arrival not linked yet (the name another
+// tool gave).
+export function subjectOf(j: { personId: string | null; arrivalName: string | null }, who: Map<string, Person>, locale: Locale): { name: string; photo: string | null } {
+  if (j.personId) return { name: nameOf(who.get(j.personId), locale), photo: who.get(j.personId)?.photo ?? null };
+  return { name: j.arrivalName || catalogue(locale).people.unknown, photo: null };
+}

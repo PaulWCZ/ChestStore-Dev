@@ -4,6 +4,7 @@ import { Back } from "../../../../components/icons.tsx";
 import { can } from "../../../../lib/access.ts";
 import { db } from "../../../../lib/db.ts";
 import { directory } from "../../../../lib/directory.ts";
+import { listArrivals } from "../../../../lib/arrivals.ts";
 import { listTemplates } from "../../../../lib/journeys.ts";
 import { isKind, memberPattern } from "../../../../lib/model.ts";
 import { today } from "../../../../lib/zone.ts";
@@ -18,10 +19,12 @@ export default async function NewChecklistPage({ searchParams }: { searchParams:
   const { member, t } = v;
   if (!can(member, "checklists.manage")) notFound();
   const sql = db();
-  const [{ entries }, templates] = await Promise.all([directory(sql, member), listTemplates(sql, member)]);
+  const [{ entries }, templates, told] = await Promise.all([directory(sql, member), listTemplates(sql, member), listArrivals(sql, member)]);
+  const arrivals = told.filter(a => a.status === "expected");
   const query = await searchParams;
-  const person = typeof query["person"] === "string" && memberPattern.test(query["person"]) ? query["person"] : "";
-  const kind = isKind(query["kind"]) ? query["kind"] : "onboarding";
+  const asked = typeof query["arrival"] === "string" ? arrivals.find(a => a.id === query["arrival"]) : undefined;
+  const person = asked ? "arrival:" + asked.id : typeof query["person"] === "string" && memberPattern.test(query["person"]) ? query["person"] : "";
+  const kind = asked ? "onboarding" : isKind(query["kind"]) ? query["kind"] : "onboarding";
   const template = typeof query["template"] === "string" ? query["template"] : "";
   return (
     <main className="page narrow">
@@ -35,10 +38,11 @@ export default async function NewChecklistPage({ searchParams }: { searchParams:
       ) : (
         <StartForm
           people={entries.map(e => ({ id: e.id, name: e.name, startDate: e.startDate }))}
+          arrivals={arrivals.map(a => ({ id: "arrival:" + a.id, name: a.name, startDate: a.startDate, managerId: a.managerId }))}
           templates={templates.map(x => ({ id: x.id, name: x.name, kind: x.kind, steps: x.items.length }))}
           initial={{ person, kind, template }}
           today={today()}
-          t={{ start: t.start, kinds: t.checklists.kinds, errors: t.errors }}
+          t={{ start: t.start, kinds: t.checklists.kinds, group: t.arrivals.group, errors: t.errors }}
         />
       )}
     </main>

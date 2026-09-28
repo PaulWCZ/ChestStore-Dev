@@ -1,7 +1,7 @@
 import type { Catalogue } from "../lib/i18n/index.ts";
 import { day, format, percent, plural } from "../lib/i18n/format.ts";
 import type { Day } from "../lib/timeline.ts";
-import { StateIcon } from "./icons.tsx";
+import { Pulse, StateIcon } from "./icons.tsx";
 
 // The last 90 days of one component: one tick a day, coloured by its worst
 // state. Pointing at a tick (or focusing one of the days with an incident)
@@ -9,10 +9,10 @@ import { StateIcon } from "./icons.tsx";
 // sentence and a table instead of 90 ticks; a phone shows the last 30.
 type Words = { public: Catalogue["public"]; states: Catalogue["states"] };
 
-export function HistoryBar({ id, name, days, uptime, titles, locale, t }: { id: string; name: string; days: Day[]; uptime: number | null; titles: Map<string, string>; locale: string; t: Words }) {
+export function HistoryBar({ id, name, days, uptime, measured = null, titles, locale, t }: { id: string; name: string; days: Day[]; uptime: number | null; measured?: string | null; titles: Map<string, string>; locale: string; t: Words }) {
   const w = t.public;
   const bad = days.filter(d => d.incidents.length > 0 || (d.state !== "operational" && d.state !== "none"));
-  const uptimeText = uptime === null ? w.noUptime : format(w.uptime, { percent: percent(uptime, locale) });
+  const uptimeText = uptime === null ? w.noUptime : format(measured ? w.uptimeDeclared : w.uptime, { percent: percent(uptime, locale) });
   const summary = `${format(w.historyLabel, { component: name, uptime: uptimeText })} ${plural(w.daysWithIncidents, bad.length, locale)}`;
   return (
     <div className="history">
@@ -44,6 +44,7 @@ export function HistoryBar({ id, name, days, uptime, titles, locale, t }: { id: 
         <span className="rule" />
         <span>{w.today}</span>
       </div>
+      {measured && <p className="measured"><Pulse />{measured}</p>}
       <details className="history-table">
         <summary>{w.tableShow}</summary>
         {bad.length === 0 ? <p>{w.noIncidentDays}</p> : (

@@ -3,6 +3,7 @@ import type { Sql } from "./db.ts";
 import { plural } from "./i18n/index.ts";
 import { today } from "./model.ts";
 import { cut, notify } from "./notify.ts";
+import { purgeArrivals } from "./arrivals.ts";
 import { purgeLeft } from "./profiles.ts";
 import { refreshBadges } from "./tell.ts";
 
@@ -26,4 +27,5 @@ export async function morning(sql: Sql, run: Run): Promise<void> {
     select distinct i.assignee from journey_items i where i.assignee like 'mbr_%' and i.done_at is null limit 5000`).map(r => r.assignee);
   await refreshBadges(sql, holders);
   await purgeLeft(sql);
+  await purgeArrivals(sql, day);
 }

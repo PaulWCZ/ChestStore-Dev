@@ -18,6 +18,7 @@ no import outside it. Read `README.md` first.
 | `lib/export.ts`, `lib/csv.ts` | CSV / vCard / one person's JSON |
 | `lib/tell.ts`, `lib/notify.ts`, `lib/morning.ts` | The bell, the tile's number, the weekday morning |
 | `lib/lifecycle.ts` | Leave, removal, erasure |
+| `lib/share.ts` | Events to other tools (proposal): `crm.deal.won`, `crm.deal.reopened` — the contract Quotes reads; change it only with Quotes |
 | `lib/team.ts`, `lib/people.ts` | Who may own things; names from ids |
 | `lib/i18n/en.ts`, `fr.ts` | Every word. English is the source |
 | `app/chest/actions.ts` | Server actions: thin, re-read the member |

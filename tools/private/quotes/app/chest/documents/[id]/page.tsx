@@ -48,17 +48,19 @@ export default async function DocumentPage({ params }: { params: Promise<{ id: s
     net: full.net, vat: full.vat, gross: full.gross, rates: full.rates, paid: full.paid, credited: full.credited, due: full.due, seller,
     buyer: buyer ? { kind: buyer.kind, name: buyer.name, contact: buyer.contact, email: buyer.email, address: buyer.address, postcode: buyer.postcode, city: buyer.city, country: buyer.country, deliveryAddress: buyer.deliveryAddress, siren: buyer.siren, vatNumber: buyer.vatNumber, countryName: countryName(buyer.country, full.language) } : null,
     readyAt: full.readyAt, sentAt: full.sentAt, emailedTo: full.emailedTo, reminders: full.reminders,
+    crmTitle: full.crmTitle,
     reference: ref && ref.number ? { id: ref.id, number: ref.number, date: ref.issueDate ?? "" } : null,
   };
 
   // Names and dates, written here.
   const ids = [full.createdBy, full.sentBy, full.decidedBy, full.finalisedBy, ...full.payments.map(p => p.createdBy)].filter((x): x is string => typeof x === "string");
   const who = await people(ids);
-  const name = (id: string | null) => (id === member.id ? t.people.you : nameOf(who.get(id ?? ""), locale));
+  const name = (id: string | null) => (id === member.id ? t.people.you : id === "tool:crm" ? t.doc.history.crmTool : nameOf(who.get(id ?? ""), locale));
   const when = (iso: string) => formatDate(iso, locale, { timeZone: zone, day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
   const day = (d: string | null) => (d ? formatDay(d, locale) : "");
   const money = (minor: number) => formatMoney(minor, full.currency, locale);
-  const history: Moment[] = [{ text: format(t.doc.history.created, { name: name(full.createdBy) }), when: when(full.createdAt) }];
+  const history: Moment[] = [{ text: full.crmTitle ? format(t.doc.history.fromCrm, { title: full.crmTitle }) : format(t.doc.history.created, { name: name(full.createdBy) }), when: when(full.createdAt) }];
+  if (full.crmReopenedAt) history.push({ text: t.doc.history.crmReopened, when: when(full.crmReopenedAt) });
   if (full.readyAt && full.status === "draft") history.push({ text: t.doc.history.ready, when: when(full.readyAt) });
   if (full.finalisedAt) history.push({ text: format(t.doc.history.finalised, { name: name(full.finalisedBy), number: full.number ?? "" }), when: when(full.finalisedAt) });
   if (full.sentAt) history.push({ text: full.emailedTo ? format(t.doc.history.emailed, { to: full.emailedTo, name: name(full.sentBy) }) : format(t.doc.history.sentByHand, { name: name(full.sentBy) }), when: when(full.sentAt) });
