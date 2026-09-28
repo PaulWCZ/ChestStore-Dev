@@ -8,20 +8,39 @@ tested, faked in `testing`, documented in `sdk/README.md` (sections marked
 
 ## 1. Summary — the changes that would matter most
 
-_(to be ordered once more tools are built; the evidence so far)_
+Seventeen tools were built for the opening store, each to production
+quality, each in its own folder, by builders who used the SDK as a
+third-party developer would. What they needed and did not find is below,
+proven by code: every proposal is built in `sdk/` (0.3.0-studio.10 —
+typed, tested, faked in `testing`, documented in `sdk/README.md` under
+**Proposal (studio)**) and used by at least one tool.
 
-1. **`member.locale`** — every tool needs the member's language; a claim and
-   a field, nothing else. Built, used by every tool.
-2. **Scheduled tasks** — reminders, digests and badges that stay true
-   overnight are impossible without them. Built (`schedules`), used by Tasks.
-3. **Mail** — Support, Booking and Hiring cannot talk to the outside world
-   without it. Built (`mail`), for Support.
-4. **Proposal keys in the manifest** — the Chest refuses unknown keys, so a
-   tool cannot even be installed with a key of tomorrow: we keep them in
-   `chest.proposals.json`. The Chest should accept (and ignore, with a
-   warning) keys it does not know yet, or version them.
-5. **A local Chest (`chest dev`)** — our harness `lab/chest-dev` shows it is
-   small and changes everything for builders and agents.
+1. **`member.locale`** — every tool speaks the member's language; the
+   Chest knows it, the tool did not. A claim and a field. Used by all 17.
+2. **Accept tomorrow's manifest keys** (warn, or version them). Today a
+   tool that declares any proposal cannot be installed; all 17 keep them
+   in `chest.proposals.json`.
+3. **`schedules`** — reminders, digests, purges and true badges. 15 of the
+   17 tools declare one; without them, tools piggy-back on page views.
+4. **`chest`** — the company's name, time zone, currency, language and the
+   tool's addresses. Every tool had hard-coded Europe/Paris or guessed its
+   address from forwarded headers. Environment variables: nearly free.
+5. **`mail`** — the public tools (Support, Booking, Hiring, Status) and
+   Quotes cannot reach anyone outside the company without it; five more
+   tools wished it for members who never open the Chest. The largest
+   Chest-side cost, and the largest value.
+6. **The tile in the member's language** (`translations`): all 17 give
+   French words; the tile still says "Tasks" to a French member today.
+7. **The public host's toolkit** — `visitors` (form guard counted across
+   tools, the visitor's language), public uploads with a one-time `claim`.
+8. **Telling everyone** (`notifications.broadcast`) and **events between
+   tools** — the first makes News and Polls work beyond a thousand people;
+   the second turns 17 tools into a suite (Leave → Rooms built; Hiring →
+   People and Clients → Quotes being built).
+9. **`checks`** — the Chest probes the company's websites for Status.
+10. **`chest dev` and `chest check`** — our `lab/chest-dev` and
+    `scripts/check-manifest.mjs` are working models; with them an agent
+    can build, verify and screenshot a tool alone.
 
 ## 2. What works well — keep it
 
@@ -469,7 +488,24 @@ today), Support → Clients (a customer's history).
 - **Tests without a database server**: PGlite (dev dependency) with
   `pglite-socket` runs the tool's real SQL and migrations in the test
   process; it accepts one connection at a time, so the tool's pool must be
-  swappable in tests (`provide(sql)` in `lib/db.ts`).
+  swappable in tests (`provide(sql)` in `lib/db.ts`). It hid one real bug
+  (µs vs ms timestamps, Wiki): tools also run their tests on PostgreSQL.
+- **What the harness still lacks** (asked by several builders): seeding
+  files (`seed/files/` into the fake Chest: News, Expenses), a clock to
+  move "now" (Timesheets, Goals — tests crossed midnight twice), a control
+  to age data without a database connection (Wiki's lock, Timesheets'
+  forgotten timer), screenshots of another month (Leave), a local Chest
+  with several tools linked (to see the suite end to end).
+- **Accessibility**: `lab/chest-dev/audit.mjs` (axe-core, WCAG 2.1 AA,
+  every screen of a tool, desktop and phone, light and dark) found the
+  same few faults across tools (icon-only links on phones, drag handles on
+  list items, a textarea with an invalid ARIA attribute); all 17 now pass.
+  The Chest's own `chest check` should run it.
+- **Agents as builders**: 16 of the 17 tools were built by agents
+  following `lab/BUILDING.md`, verified by a lead agent re-running tests,
+  flows, audit and reading every screenshot. What made it work: a
+  template, one standard, a harness with screenshots, and a checklist of
+  lessons appended as they were learned.
 
 ## 8. Priorities
 
