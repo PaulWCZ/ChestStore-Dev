@@ -20,7 +20,7 @@ do instead; here is the API that would have made it trivial".
    options, unclear docs, error messages. Point to the file and line in
    `reference/` when you can.
 4. **Missing primitives** — one section each, with:
-   - the tools that need it, and its implementation in the SDK fork
+   - the tools that need it, and its implementation in the SDK working copy
      (`sdk/client/src/<feature>.ts`, its `fakeChest` part, its tests);
    - the proposed API (TypeScript signatures) and manifest shape;
    - its approval sentence for the owner ("Sends emails from your company
@@ -57,9 +57,9 @@ do instead; here is the API that would have made it trivial".
   quota, a journal, agent access and a fake in `testing`; capabilities, not
   credentials; the SDK stays dependency-free (`node:*` only).
 
-The fork `sdk/` is the report's proof: every proposed primitive exists
+The working copy `sdk/` is the report's proof: every proposed primitive exists
 there, typed, tested, faked, and used by at least one tool. The report
-explains it; the fork's diff against its first commit shows it.
+explains it; the working copy's diff against its first commit shows it.
 
 Write the report progressively: add to it each time a tool hits a wall, then
 consolidate it in step 4.

@@ -30,7 +30,7 @@ _One row per chosen tool, in ranking order, once step 1 is done._
 | Rank | Tool | Folder | Replaces | Research | Built | Design | SDK proposals used | Verified |
 |---|---|---|---|---|---|---|---|---|
 
-## SDK fork
+## SDK working copy
 
 `sdk/` = `@argentic/chest-sdk` 0.2.0 (Chest-SDK `387ae90`). Proposals added:
 

@@ -15,8 +15,8 @@ CLAUDE.md       the mission and the rules (read first)
 PROGRESS.md     state of the work: the agent's memory between runs
 brief/          the mission in seven pages
 reference/      snapshots of the platform: contract, product specs, two example tools (read-only)
-sdk/            the studio's fork of the SDK: 0.2.0 as published, extended with the proposals the tools need
-scripts/        add-sdk.mjs (packs the fork into a tool that uses a proposal), and the agents' scripts
+sdk/            the studio's working copy of the SDK: 0.2.0 as published, extended with the proposals the tools need
+scripts/        add-sdk.mjs (packs the working copy into a tool that uses a proposal), and the agents' scripts
 lab/            dev harness and tool template (built in step 2)
 tools/
   private/              one folder per team-only tool, each a self-contained repository-to-be

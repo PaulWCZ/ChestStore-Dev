@@ -61,7 +61,7 @@ Use these on purpose — they are what a SaaS cannot do:
 2. **Public-facing tools second**: booking pages, customer portals, a shop, a
    public status page, a job board… They need what the platform does not have
    yet (accounts for outside users, payments, sending email). Build them
-   anyway: design the missing primitives in the SDK fork (brief/03), so the
+   anyway: design the missing primitives in the SDK working copy (brief/03), so the
    tool is complete the day the Chest ships them — and the SDK report says
    exactly what they need.
 

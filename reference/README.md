@@ -6,7 +6,7 @@ edit them** — they are refreshed from their sources by the owner. If something
 here is wrong or unclear, write it in the SDK report.
 
 Snapshot of **28 September 2026**. The SDK is not here: `../sdk/` is the
-studio's fork of it, starting from `chest-by-argentic/Chest-SDK` commit
+studio's working copy of it, starting from `chest-by-argentic/Chest-SDK` commit
 `387ae90` — exactly `@argentic/chest-sdk` 0.2.0 as published on npm.
 
 | Folder | Source | Version |

@@ -36,7 +36,7 @@ understand the platform is in `reference/` — you have no other access to it.
 | 2 | **Open-source research** per selected tool: the best projects, their licences, what we may reuse (code or only ideas), the feature list to match | `reports/02-open-source/<tool>.md` | [brief/04](brief/04-research.md) |
 | 3 | **Tools**: production-quality store tools on the SDK, each in its own folder, with its own identity and design system | `tools/private/<name>/` or `tools/public-and-private/<name>/` | [brief/03](brief/03-building-a-tool.md), [brief/05](brief/05-design-contest.md) |
 | 4 | **The style contest**: a gallery that shows every tool's identity side by side | `showcase/index.html` | [brief/05](brief/05-design-contest.md) |
-| 5 | **The SDK report**: what the SDK lacks, proven by the tools that needed it — each proposal built in the SDK fork, with its fake in `testing` | `reports/03-sdk-report.md`, `sdk/` | [brief/06](brief/06-sdk-report.md) |
+| 5 | **The SDK report**: what the SDK lacks, proven by the tools that needed it — each proposal built in the SDK working copy, with its fake in `testing` | `reports/03-sdk-report.md`, `sdk/` | [brief/06](brief/06-sdk-report.md) |
 
 Order, autonomy and budget: [brief/07-plan.md](brief/07-plan.md).
 Where you are right now: [PROGRESS.md](PROGRESS.md) — **your memory: read it
@@ -64,7 +64,7 @@ whenever you (re)start, update it after every meaningful step.**
   `package-lock.json`, `chest.json`, design system, docs and screenshots.
 - **Only what the Chest gives.** No outbound network unless declared, no disk
   writes, no WebSocket, no background process, no cron (see brief/02). When a
-  tool needs something that does not exist, you **design it in the SDK fork
+  tool needs something that does not exist, you **design it in the SDK working copy
   `sdk/`** — module, `fakeChest` support, tests — so it can be seen working,
   and you write it into the SDK report (brief/03, "The SDK"). You never fake
   it silently inside a tool.
@@ -72,11 +72,13 @@ whenever you (re)start, update it after every meaningful step.**
   with attribution; everything else inspires features only (brief/04).
 - **Simplicity is the product.** A screen that needs an explanation is a bug.
   Few words, one obvious action, plain language (brief/05).
-- **English first.** Code, comments, docs, commits, PRs in English. Every tool
-  speaks English by default and French through its own catalogue.
+- **English first, French second.** Code, comments, docs, commits, PRs in
+  English. Every tool is multilingual: English is its first language (default
+  and fallback), French its second and only other one for now; adding a
+  language later is one catalogue file (brief/03, "Languages").
 - **Do not edit `reference/`.** It is a snapshot of private repositories
   (`reference/README.md`); report what is wrong instead. `sdk/` is the
-  opposite: the SDK fork you extend.
+  opposite: the SDK working copy you extend.
 - **Honesty.** A report says what you verified and what you assume. A
   tool says what it cannot do yet. No invented numbers: every price, user count
   or licence you quote has its source (URL) and the date you read it.

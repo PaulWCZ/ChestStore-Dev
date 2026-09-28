@@ -2,7 +2,7 @@
 
 The full sources are in `reference/` (see `reference/README.md`). This page is
 the map; when in doubt, the contract (`reference/contract/application-contract.md`)
-and the SDK README (`sdk/README.md`, the fork; 0.2.0 as published at its first commit) win.
+and the SDK README (`sdk/README.md`, the working copy; 0.2.0 as published at its first commit) win.
 
 ## The pieces
 
@@ -133,9 +133,9 @@ writing any tool.
 | WebSocket | **Refused** (`Upgrade` → 501) | No realtime push. Poll (e.g. every 10–30 s when visible) |
 | Background work | None: no cron, no queue, no worker | Nothing runs unless a request comes. Do work lazily on the next request |
 | Mail | **Not available yet** | No emails to anyone |
-| AI | **Not available yet** (AI gateway specified) | Design it in the SDK fork on the specified gateway (`reference/product/specs/ai-gateway.md`) |
+| AI | **Not available yet** (AI gateway specified) | Design it in the SDK working copy on the specified gateway (`reference/product/specs/ai-gateway.md`) |
 | Outside users | **No accounts for the public part yet** | Public pages are anonymous |
-| Payments | **Not available yet** (Stripe connector planned) | Design it in the SDK fork |
+| Payments | **Not available yet** (Stripe connector planned) | Design it in the SDK working copy |
 | Tool ↔ tool | **Not available yet** (events between tools planned) | Each tool is alone for now |
 | Database | PostgreSQL, 10 connections, 30 s per query | Postgres does search (`tsvector`, `pg_trgm`), queues, counters |
 
@@ -153,5 +153,5 @@ it, with evidence from the tools you built.
 | Exact manifest and runtime rules | `reference/contract/application-contract.md` ("Building from source", "Server tools", "Next.js on Chest") |
 | A real store tool (Next.js, database, public + private parts, i18n, CSP) | `reference/forms/` — read its `README.md` and `AGENTS.md` |
 | Every SDK feature used in one small server (members, files, uploads, notifications, events) | `reference/testweb/` — plain `node:http`, its `README.md` lists every route |
-| The SDK itself, its tests — the studio's fork, yours to extend | `sdk/` |
+| The SDK itself, its tests — the studio's working copy, yours to extend | `sdk/` |
 | Product intent | `reference/product/` |

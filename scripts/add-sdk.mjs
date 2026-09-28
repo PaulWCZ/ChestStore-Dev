@@ -1,9 +1,9 @@
-// Gives a tool the studio's fork of the Chest SDK (sdk/), with the proposed
+// Gives a tool the studio's working copy of the Chest SDK (sdk/), with the proposed
 // modules the published package does not have yet.
 //
 // A tool that uses only what the published SDK offers depends on npm
 // ("@argentic/chest-sdk": "^0.2.0") and never needs this script. A tool that
-// uses a proposal of sdk/ gets a packed copy of the fork in its own vendor/
+// uses a proposal of sdk/ gets a packed copy of it in its own vendor/
 // (a tool stays self-contained: it will become its own repository). Run it
 // again after every change to sdk/.
 //
@@ -29,7 +29,7 @@ if (!existsSync(join(sdk, "node_modules"))) execFileSync("npm", ["ci", "--no-aud
 const vendor = join(tool, "vendor");
 rmSync(vendor, { recursive: true, force: true });
 mkdirSync(vendor);
-// prepack builds dist/ from the fork's sources.
+// prepack builds dist/ from the working copy's sources.
 execFileSync("npm", ["pack", "--pack-destination", vendor], { cwd: sdk, stdio: ["ignore", "ignore", "inherit"] });
 const tarball = readdirSync(vendor).find((name) => name.endsWith(".tgz"));
 

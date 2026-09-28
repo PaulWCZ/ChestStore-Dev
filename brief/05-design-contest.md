@@ -30,8 +30,8 @@ hesitate, we lose.**
   where it makes sense.
 - **Consistent within the tool, familiar across the web.** Standard patterns
   (a list, a board, a calendar, a form) beat clever ones.
-- **Two languages.** English and French from day one: design for the longer
-  French strings.
+- **Two languages.** English first, French second, from day one, with a
+  visible language switch: design for the longer French strings.
 
 Test each main flow against these questions and write the answers in the
 tool's README ("First minute"): What does a new user see first? What is the

@@ -14,7 +14,7 @@ Each tool folder is **a complete repository on its own**: the day it is
 ready, it is copied as-is into its own GitHub repository and installed by a
 Chest. Everything about the tool lives in it — code, design system,
 screenshots, docs — and nothing in it may point outside its folder. Tools
-share nothing at runtime; what several tools need goes into the SDK fork
+share nothing at runtime; what several tools need goes into the SDK working copy
 (below) or `lab/`, never into a sibling tool.
 
 ```
@@ -22,7 +22,7 @@ tools/<kind>/<name>/
   chest.json              the manifest (brief/02)
   package.json            scripts: dev, build, start, test
   package-lock.json       required by the Chest (npm ci)
-  vendor/                 only if the tool uses a proposal of the SDK fork (scripts/add-sdk.mjs)
+  vendor/                 only if the tool uses a proposal of the SDK working copy (scripts/add-sdk.mjs)
   chest/icon.svg          the tile icon (≤ 64 KiB, restricted SVG)
   chest/preview.png       the store preview (≤ 512 KiB, ≤ 4096 px) — a real screenshot
   migrations/0001_*.sql   the schema, run by the Chest in order
@@ -44,12 +44,15 @@ tools/<kind>/<name>/
 `/notifications`, `/events`, `/errors`, `/testing`. Server side only — never
 in a `"use client"` module.
 
-**`sdk/` is the studio's fork of the SDK, and you are expected to push it
-forward.** It starts as an exact copy of the published 0.2.0
+**`sdk/` is the studio's working copy of the SDK, and you are expected to push it
+forward.** It is only a folder of this private repository: it is never
+published — no GitHub fork, no npm package. A proposal reaches the real SDK
+(`chest-by-argentic/Chest-SDK`, `@argentic/chest-sdk` on npm) only when the
+owner accepts it and carries it over there. It starts as an exact copy of the published 0.2.0
 (`chest-by-argentic/Chest-SDK` commit `387ae90`). When a SaaS you rebuild
 needs something the Chest does not give (email, scheduled tasks, jobs,
 accounts for outside users, payments, AI, events between tools, audit log,
-realtime…), design the primitive **in the fork**, as it would ship:
+realtime…), design the primitive **in the working copy**, as it would ship:
 
 1. a module `sdk/client/src/<feature>.ts` with its public API, exported like
    the others (`client/index.ts`, `exports` in `package.json`,
@@ -65,17 +68,17 @@ realtime…), design the primitive **in the fork**, as it would ship:
 4. tests in `sdk/client/test/`, a section in `sdk/README.md` marked
    **Proposal (studio)**, and its entry in the SDK report (brief/06) with the
    manifest key and the owner's approval sentence;
-5. the fork's version becomes `0.3.0-studio.N` (N bumped at each change);
+5. the working copy's version becomes `0.3.0-studio.N` (N bumped at each change);
    `npm test` and `npm run check:package` stay green in `sdk/`.
 
-A tool that uses a proposal gets the fork packed into its own folder:
+A tool that uses a proposal gets the working copy packed into its own folder:
 
 ```sh
 node scripts/add-sdk.mjs tools/private/<name>   # packs sdk/ into tools/private/<name>/vendor/, sets the dependency
 cd tools/private/<name> && npm install          # the lock records file:vendor/…, npm ci works
 ```
 
-Re-run it after every change to `sdk/`. The fork's diff against its first
+Re-run it after every change to `sdk/`. The working copy's diff against its first
 commit is the concrete SDK proposal the owner will review.
 
 ## The stack
@@ -91,7 +94,7 @@ proven on a Chest. Copy Forms' solutions rather than rediscovering them:
 - `next start -H 127.0.0.1`, port from `PORT`;
 - own TypeScript files imported with the `.ts` extension;
 - `lib/i18n.ts`: every word of the interface in one catalogue per language
-  (English default, French), a test that the catalogues have the same keys;
+  (see "Languages" below), a test that the catalogues have the same keys;
 - services return codes, never sentences.
 
 You may choose a lighter stack for a tool (e.g. plain `node:http` like
@@ -104,6 +107,32 @@ Bootstrap, Ant…): each tool has its own identity. Headless primitives (Radix,
 React Aria), small focused libraries (a date picker, a rich-text editor such
 as Tiptap, a chart library) are fine. Fonts and icons are **self-hosted** in
 the repository (open licences such as OFL): the tool has no network.
+
+## Languages
+
+Every tool is **multilingual by construction**, with exactly two languages
+today, in this order:
+
+1. **English** — the first language: the source catalogue, the default, and
+   the fallback for any missing key;
+2. **French** — the second language, complete.
+
+No other language for now, but adding one must only mean adding one
+catalogue file (`lib/i18n/<code>.ts` or similar) and its code to the list:
+no word in code, no language-specific logic outside the catalogues.
+
+- Every word the tool shows — pages, buttons, errors, empty states,
+  notifications it sends, emails it would send, exports' headers, the public
+  part — comes from the catalogues. Services return codes, never sentences.
+- The language is chosen by: a switch in the tool (remembered per member, in
+  the tool's database; on the public part, in a cookie), otherwise the
+  browser's `Accept-Language` if it is a supported language, otherwise
+  English. (The member's language is not in the SDK yet: propose
+  `member.locale` in the SDK working copy and use it first once there.)
+- Dates, numbers, currencies with `Intl` in the chosen language; French
+  strings are longer — design for them.
+- Tests: the catalogues have the same keys, no empty value, and no string
+  literal shown to users outside them.
 
 ## Access rules — the heart of every tool
 
@@ -146,7 +175,7 @@ There is no `chest dev` yet (it is specified:
 - **A dev harness, once, for every tool**: build `lab/chest-dev/` in step 2 — it starts `fakeChest` with a few sample members, runs a tool with the
   right environment, and serves it on `localhost` with a small member switcher
   that signs `Chest-Member` for the chosen member (`signAssertion`). It is a
-  lab tool, never part of a tool. It uses the SDK fork's `fakeChest`, so the
+  lab tool, never part of a tool. It uses the SDK working copy's `fakeChest`, so the
   proposed primitives work in it too (show an outbox, fire a scheduled task,
   complete a fake payment). Everything that was hard about it goes into the
   SDK report: it is exactly the `chest dev` we are about to build.
@@ -158,7 +187,7 @@ There is no `chest dev` yet (it is specified:
 ## Missing platform features
 
 When a tool needs what the Chest does not give yet, the answer is a proposal
-in the SDK fork (see "The SDK" above), never a private workaround inside the
+in the SDK working copy (see "The SDK" above), never a private workaround inside the
 tool:
 
 - the tool calls the proposed module exactly as it would call a shipped one;
@@ -186,7 +215,8 @@ A tool is done when, from a clean checkout of its folder:
       should catch).
 - [ ] Every `/chest` route checks the member; each role's rights are tested.
 - [ ] Migrations run on an empty database; sample data loads.
-- [ ] English and French complete, same keys.
+- [ ] English (first, default, fallback) and French (second) complete, same
+      keys; the language switch works; nothing shown is outside the catalogues.
 - [ ] Empty, loading, error and "no access" states designed; works at 390 px;
       keyboard and screen-reader usable; WCAG AA contrast.
 - [ ] No runtime request leaves the tool (fonts, icons, scripts all local).

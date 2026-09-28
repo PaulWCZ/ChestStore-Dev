@@ -19,7 +19,7 @@ next one immediately. If you ever think you are done, you are not: go to
   in PROGRESS.md under "Questions for the owner" with your recommendation, and
   continue. Never wait for an answer.
 - **Blocked?** Work around it, note it, move to the next task. A missing
-  platform feature is not a blocker: design it in the SDK fork (brief/03).
+  platform feature is not a blocker: design it in the SDK working copy (brief/03).
 - **Verify yourself.** Tests, builds, running the tool in the dev harness,
   looking at its screens. "Done" means verified, never assumed.
 
@@ -29,8 +29,8 @@ next one immediately. If you ever think you are done, you are not: go to
 |---|---|
 | **0. Environment** | In PROGRESS.md: Node/npm versions, whether PostgreSQL, a container runtime, a headless browser and the web are available here; how you will work around what is missing |
 | **1. Ranking and research** | `reports/01-ranking.md` (10–20 tools, ordered), `reports/02-open-source/<tool>.md` for each; the Tools table of PROGRESS.md filled in |
-| **2. Foundations** | `lab/chest-dev/` (dev harness on the SDK fork's `fakeChest`), `scripts/check-manifest.mjs`, `lab/template/` (the starter each tool copies), `scripts/build-showcase.mjs` |
-| **3. The tools** | Each tool of the ranking, in order, to the definition of done (brief/03); the SDK fork, the SDK report and the showcase grow with them |
+| **2. Foundations** | `lab/chest-dev/` (dev harness on the SDK working copy's `fakeChest`), `scripts/check-manifest.mjs`, `lab/template/` (the starter each tool copies), `scripts/build-showcase.mjs` |
+| **3. The tools** | Each tool of the ranking, in order, to the definition of done (brief/03); the SDK working copy, the SDK report and the showcase grow with them |
 | **4. The report** | `reports/03-sdk-report.md` consolidated, `showcase/index.html` complete |
 | **5. Better** | See "When the list is done" |
 
@@ -49,11 +49,11 @@ Keep going, in this order, until the credits run out:
 2. **Deepen the best tools**: the features the research marked "later" that
    users would miss most; importers from the SaaS they replace.
 3. **Make the tools a suite**: links and events between them through the SDK
-   fork (a form response becomes a CRM contact, a leave request shows in the
+   working copy (a form response becomes a CRM contact, a leave request shows in the
    team calendar…).
 4. **Add the next tools** of the ranking (up to 20, then beyond if it still
    makes sense).
-5. **Sharpen the SDK fork and the report**: simpler APIs, better fakes, better
+5. **Sharpen the SDK working copy and the report**: simpler APIs, better fakes, better
    errors, the docs an outside developer would need.
 
 ## Keeping the thread
