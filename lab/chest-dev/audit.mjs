@@ -1,7 +1,9 @@
 // Accessibility audit of a tool running in the harness (dev.mjs): every
-// page of its docs/screens.json, at desktop and phone width, light and dark,
-// checked with axe-core (WCAG 2.1 A and AA rules). A lab tool: axe-core is
-// never part of a tool.
+// screen of its docs/screens.json — the page, then its "actions" replayed
+// like screens.mjs does, so a state behind a click (a dialog, a form) is
+// checked too — at desktop and phone width (or the sizes its "only" names),
+// light and dark, with axe-core (WCAG 2.1 A and AA rules). A lab tool:
+// axe-core is never part of a tool.
 //
 //   node lab/chest-dev/audit.mjs <tool folder> [--port 4000]
 //
@@ -27,9 +29,29 @@ const executablePath = ["/opt/pw-browsers/chromium-1194/chrome-linux/chrome"].fi
 const browser = await chromium.launch({ ...(executablePath ? { executablePath } : {}), args: ["--lang=en-GB"] });
 const id = key => "mbr_" + key + "a".repeat(26 - key.length);
 const found = new Map();
+const unreached = [];
 
-for (const shot of shots) {
+async function run(page, actions = []) {
+  for (const action of actions) {
+    if (action.click) await page.click(action.click, { timeout: 10_000 });
+    if (action.fill) await page.fill(action.fill[0], action.fill[1], { timeout: 10_000 });
+    if (action.press) await page.keyboard.press(action.press);
+    if (action.hover) await page.hover(action.hover, { timeout: 10_000 });
+    if (action.wait) await page.waitForTimeout(action.wait);
+  }
+}
+
+// The same page in the same state is audited once, whatever its name.
+const seen = new Set();
+const screens = shots.filter(shot => {
+  const key = `${shot.path}|${shot.member ?? ""}|${shot.locale ?? ""}|${JSON.stringify(shot.actions ?? [])}`;
+  return seen.has(key) ? false : (seen.add(key), true);
+});
+const label = shot => (shot.actions?.length ? `${shot.path} → ${shot.name}` : shot.path);
+
+for (const shot of screens) {
   for (const [kind, viewport] of [["desktop", { width: 1440, height: 900 }], ["phone", { width: 390, height: 844 }]]) {
+    if (shot.only && !shot.only.includes(kind)) continue;
     for (const scheme of ["light", "dark"]) {
       const context = await browser.newContext({ bypassCSP: true, viewport, colorScheme: scheme, locale: shot.locale === "fr" ? "fr-FR" : "en-GB", reducedMotion: "reduce" });
       await context.addCookies([
@@ -38,6 +60,13 @@ for (const shot of shots) {
       ]);
       const page = await context.newPage();
       await page.goto(origin + shot.path, { waitUntil: "networkidle" });
+      try {
+        await run(page, shot.actions);
+      } catch (error) {
+        unreached.push(`${label(shot)} (${kind} ${scheme}): ${String(error.message).split("\n")[0]}`);
+        await context.close();
+        continue;
+      }
       await page.waitForTimeout(200);
       await page.addScriptTag({ path: axe });
       const result = await page.evaluate(async () => {
@@ -46,8 +75,8 @@ for (const shot of shots) {
         return r.violations.map(v => ({ id: v.id, impact: v.impact, help: v.help, targets: v.nodes.slice(0, 3).map(n => n.target.join(" ")) }));
       });
       for (const v of result) {
-        const key = `${v.id}|${shot.path}`;
-        if (!found.has(key)) found.set(key, { ...v, path: shot.path, where: new Set() });
+        const key = `${v.id}|${label(shot)}`;
+        if (!found.has(key)) found.set(key, { ...v, path: label(shot), where: new Set() });
         found.get(key).where.add(`${kind} ${scheme}`);
       }
       await context.close();
@@ -55,8 +84,9 @@ for (const shot of shots) {
   }
 }
 await browser.close();
-if (found.size === 0) {
-  console.log(`✓ no WCAG A/AA rule broken on ${shots.length} pages (desktop, phone, light, dark)`);
+for (const line of unreached) console.log(`✗ could not reach the screen: ${line}`);
+if (found.size === 0 && unreached.length === 0) {
+  console.log(`✓ no WCAG A/AA rule broken on ${screens.length} screens (desktop, phone, light, dark)`);
   process.exit(0);
 }
 for (const v of found.values()) console.log(`✗ ${v.impact} ${v.id} — ${v.help}\n  ${v.path} (${[...v.where].join(", ")})\n  ${v.targets.join("\n  ")}`);
