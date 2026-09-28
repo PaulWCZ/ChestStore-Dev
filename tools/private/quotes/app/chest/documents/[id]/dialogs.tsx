@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { Dialog } from "../../../../components/dialog.tsx";
 import { Alert, Download, Info, Seal, Send } from "../../../../components/icons.tsx";
-import { format } from "../../../../lib/i18n/format.ts";
+import { format, languageNames } from "../../../../lib/i18n/format.ts";
 import type { Catalogue, Locale } from "../../../../lib/i18n/index.ts";
 import { formatMoney, inputAmount, parsePercent } from "../../../../lib/money.ts";
 import type { DocView, Message } from "../../../../lib/views.ts";
@@ -91,7 +91,7 @@ export function SendDialog({ t, doc, kind, mailWorks, pdfHref, onClose, onDone }
           <div className="field-row">
             <label htmlFor="text">{s.message}</label>
             <textarea id="text" className="field" rows={9} value={message.text} maxLength={4000} onChange={e => setMessage({ ...message, text: e.target.value })} />
-            <span className="hint">{format(s.attached, { language: t.editor.languages[doc.language] })}</span>
+            <span className="hint">{format(s.attached, { language: languageNames[doc.language] ?? doc.language })}</span>
           </div>
           {error && <p className="error" role="alert">{error}</p>}
           <div className="dialog-actions">

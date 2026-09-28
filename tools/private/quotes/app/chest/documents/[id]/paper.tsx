@@ -6,7 +6,7 @@ import { Down, More, Plus, Section, Trash, Up, Box, Copy } from "../../../../com
 import { ItemPicker } from "../../../../components/item-picker.tsx";
 import { useToast } from "../../../../components/toast.tsx";
 import type { Line } from "../../../../lib/documents.ts";
-import { format, formatDay } from "../../../../lib/i18n/format.ts";
+import { format, formatDay, languageNames } from "../../../../lib/i18n/format.ts";
 import type { Catalogue, Locale } from "../../../../lib/i18n/index.ts";
 import { formatMoney, formatNumber, formatQuantity, formatRate, inputAmount, inputPercent, parseAmount, parsePercent, parseQuantity, vatRates } from "../../../../lib/money.ts";
 import { addressLines, spacedSiren } from "../../../../lib/parties.ts";
@@ -301,7 +301,7 @@ export function Paper(props: PaperProps) {
                 <dt><label htmlFor="language">{t.editor.language}</label></dt>
                 <dd>
                   <select id="language" className="ink" value={header.language} onChange={ev => setH({ language: ev.target.value as Locale })}>
-                    {(Object.keys(words) as Locale[]).map(code => <option key={code} value={code} lang={code}>{t.editor.languages[code]}</option>)}
+                    {(Object.keys(words) as Locale[]).map(code => <option key={code} value={code} lang={code}>{languageNames[code] ?? code}</option>)}
                   </select>
                 </dd>
               </>

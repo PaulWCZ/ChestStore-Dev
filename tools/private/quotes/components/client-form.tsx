@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { addClient, updateClient } from "../app/chest/actions.ts";
-import { format } from "../lib/i18n/format.ts";
+import { format, languageNames } from "../lib/i18n/format.ts";
 import type { Catalogue, Locale } from "../lib/i18n/index.ts";
 import type { Client } from "../lib/clients.ts";
 import { useToast } from "./toast.tsx";
@@ -53,7 +53,7 @@ export function ClientForm({ t, initial, id, onSaved, onCancel, compact = false,
       <div className="field-row third">
         <label htmlFor="c-language">{w.language}</label>
         <select id="c-language" className="field" value={f.language} disabled={readOnly} onChange={e => set({ language: e.target.value as Locale })}>
-          {(Object.keys(t.editor.languages) as Locale[]).map(code => <option key={code} value={code}>{t.editor.languages[code]}</option>)}
+          {(Object.keys(languageNames) as Locale[]).map(code => <option key={code} value={code}>{languageNames[code] ?? code}</option>)}
         </select>
       </div>
       {f.kind === "company" && (
