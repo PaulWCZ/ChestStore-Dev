@@ -5,14 +5,21 @@ meaningful step (brief/07-plan.md).
 
 ## Now
 
-Step 3: building the tools. Tasks is done (reference implementation).
-Wiki, Leave and News are being built by parallel builder agents following
-`lab/BUILDING.md` (ports 4300, 4400, 4500); the lead reviews, verifies and
-commits each one. Next: the `mail` proposal (for Support, Booking, Hiring),
-then Clients, Expenses, People. Each tool starts
-from `lab/template` (`node scripts/new-tool.mjs <kind> <name>`), is verified with
-`npm test`, `npm run build`, the harness (`lab/chest-dev`) and screenshots, then
-committed and pushed.
+Step 3, well advanced. Done, verified and pushed (each: tests on PGlite and
+PostgreSQL, build, manifest, browser flows, screenshots looked at): Tasks,
+Wiki, Leave, News, People, Expenses, Support, Rooms, Booking (9 of 17).
+Builders at work (background agents, one port each, no git; the lead
+verifies with `scratchpad/verify.sh`-style runs and commits): Clients (crm,
+4800), Timesheets (5200), Hiring (5300), Equipment (5400), Polls (5500),
+Goals (5600), Quotes (5700), Status (5800). Builder brief: the Rooms/…
+prompts follow `lab/BUILDING.md`; lessons are appended there.
+
+Lead work between reviews: SDK proposals (studio.7: `chest`,
+`notifications.broadcast`; manifest `translations`), the suite (Leave →
+Rooms built), the SDK report (sections 4.1–4.7, 6 written), PROGRESS, PR.
+Next after the builders: consolidate the report (step 4: priorities
+table, public-facing tools §5), audits of every tool (security, a11y,
+French), more suite links (Hiring → People, Clients → Quotes), showcase.
 
 ## Environment
 
@@ -34,7 +41,7 @@ Checked 2026-09-28 in the cloud container:
 | 0. Environment | done |
 | 1. Ranking and research | done — `reports/01-ranking.md`, 17 files in `reports/02-open-source/`, prices in `reports/01-pricing-sources.md` |
 | 2. Foundations | done — `lab/template` (tested, built, run, screenshots), `lab/chest-dev` (dev.mjs, screens.mjs), `scripts/check-manifest.mjs`, `new-tool.mjs`, `add-font.mjs`, `contrast.mjs`, `build-showcase.mjs` |
-| 3. Tools | to do |
+| 3. Tools | 9 of 17 done, 8 being built |
 | 4. The report | to do |
 | 5. Better | to do |
 
@@ -69,6 +76,11 @@ _One row per chosen tool, in ranking order, once step 1 is done._
 - `member.locale` (+ `members.*` answers, `localeOf`, `locales`) — 0.3.0-studio.1
 - `fakeChest({origin})`, `chest.upload()`, the fake Chest's front (uploads, links, photos); `files` accept http://localhost links — 0.3.0-studio.2
 - `schedules` (scheduled tasks: `handle`, `verify`, cron `parseCron`/`nextRun`/`describeCron`/`checkSchedules`, `timeZone()` from `CHEST_TIMEZONE`), `fakeChest({schedules, timeZone})`, `chest.run()` — 0.3.0-studio.3. Manifest keys of proposals live in each tool's `chest.proposals.json` (a Chest refuses unknown keys in `chest.json`)
+- `mail` (send, status, mailboxAddress, handle/verify of received mail; `fakeChest({mail})`, `chest.outbox`, `chest.receive()`) — studio.4
+- `events.publish` and received tool events (`fakeChest({emits, receivers})`, `chest.published`, `chest.deliver()`) — studio.5
+- public uploads and public files (`files.uploadUrl(…, {public})`, `files.publicUrl`) — studio.6
+- `chest` module (company, timeZone, today, currency, locale, teamUrl, publicUrl; `fakeChest({settings})`) and `notifications.broadcast` — studio.7
+- Manifest proposal `translations` (tile title, description, role names per language), checked by `scripts/check-manifest.mjs`
 
 ## To fold into the SDK report (from builders)
 
