@@ -157,8 +157,28 @@ _(to be ordered once more tools are built; the evidence so far)_
   PocketBase has SMTP settings. Better here: one connection by the owner,
   per-tool permission and quota, members addressable by id.
 
-_(more sections as tools need them: public accounts, public uploads,
-payments, events between tools, AI.)_
+### 4.3 Public uploads and public files — `files` options (built from the spec)
+
+- **Needed by**: Hiring (a candidate's CV), Support (a photo with a
+  request), Booking (a document with a booking), News and a future CMS or
+  shop (public images).
+- **Working copy**: `files.uploadUrl(name, {public: true})`,
+  `files.publicUrl(name, {version})`, `fakeChest({storage: {publicUploads,
+  publicFiles}})`, the fake front's `/_chest/upload/<token>` and
+  `/_chest/public/<name>`; tests in `sdk/client/test/testing.test.ts`.
+- **This one was specified already** (`tool-storage.md`) and not built; we
+  built the SDK side exactly as specified. One gap in the spec: it says
+  nothing of **abuse on the tool's side**. A tool must authorise a public
+  upload only after its own guard (Support and Hiring use a signed "form
+  shown at" time and per-visitor counters in their database) — the Chest's
+  30 uploads a minute per address is a second line, not the first. We would
+  add `files.uploadUrl(…, {public: true, visitor})` so the Chest can count
+  per visitor across tools.
+- **Manifest**: `"files": {"publicUploads": true, "publicFiles": true}` —
+  refused by today's parser, so kept in `chest.proposals.json`.
+
+_(more sections as tools need them: public accounts, payments, events
+between tools, AI.)_
 
 ## 5. Public-facing tools
 

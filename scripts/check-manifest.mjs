@@ -14,7 +14,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 // The keys the SDK working copy proposes for the manifest, and their checks.
-const proposalKeys = new Set(["schedules", "mail"]);
+const proposalKeys = new Set(["schedules", "mail", "files"]);
 const schedulesPath = join(root, "sdk", "dist", "src", "schedules.js");
 const schedulesApi = existsSync(schedulesPath) ? await import(pathToFileURL(schedulesPath).href) : null;
 
@@ -274,6 +274,12 @@ export function checkTool(folder) {
     }
     if (proposals) {
       for (const key of Object.keys(proposals)) if (!proposalKeys.has(key)) error(`chest.proposals.json: unknown proposal key "${key}"`);
+      if (proposals.files !== undefined) {
+        const f = proposals.files;
+        if (f === null || typeof f !== "object" || Array.isArray(f) || Object.keys(f).some(k => k !== "publicUploads" && k !== "publicFiles") || Object.values(f).some(v => typeof v !== "boolean")) error('chest.proposals.json: files is {"publicUploads": true, "publicFiles": true}');
+        else if (!(manifest.capabilities ?? []).includes("files")) error("chest.proposals.json: files needs the capability files");
+        else if (f.publicUploads && manifest.public !== true) error("chest.proposals.json: public uploads need a public part");
+      }
       if (proposals.mail !== undefined) {
         const m = proposals.mail;
         if (m === null || typeof m !== "object" || Array.isArray(m) || Object.keys(m).some(k => k !== "send" && k !== "mailboxes")) error('chest.proposals.json: mail is {"send": true, "mailboxes": [...]}');

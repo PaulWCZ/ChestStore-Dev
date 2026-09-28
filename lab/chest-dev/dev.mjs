@@ -107,6 +107,7 @@ const chest = await testing.fakeChest({
   groups: cast.groups.map(g => ({ ...g, members: members.filter(m => m.groups.includes(g.id)).map(m => m.id) })),
   capabilities: [...capabilities.filter(c => c !== "database"), ...(proposals.mail ? ["mail"] : [])],
   mail: { domain: "atelier-martin.test", mailboxes: proposals.mail?.mailboxes ?? [] },
+  storage: { publicUploads: proposals.files?.publicUploads === true, publicFiles: proposals.files?.publicFiles === true },
   receives: manifest.receives ?? [],
   origin,
   schedules: proposals.schedules ?? [],

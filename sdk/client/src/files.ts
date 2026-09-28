@@ -35,7 +35,10 @@ const typePattern = /^[a-z0-9][a-z0-9!#$&^_.+-]{0,62}\/(\*|[a-z0-9][a-z0-9!#$&^_
 // a local Chest (chest dev, the studio's harness) serves them — Proposal
 // (studio).
 const linkPattern = /^(?:https:\/\/[A-Za-z0-9.-]{1,253}|http:\/\/(?:localhost|127\.0\.0\.1))(:[0-9]{1,5})?\/_chest\/files\/([A-Za-z0-9_-]+\.[A-Za-z0-9_-]+)$/u;
-const uploadPattern = /^(?:https:\/\/[A-Za-z0-9.-]{1,253}|http:\/\/(?:localhost|127\.0\.0\.1))(:[0-9]{1,5})?\/_chest\/files\/upload\/([A-Za-z0-9_-]+\.[A-Za-z0-9_-]+)$/u;
+const uploadPattern = /^(?:https:\/\/[A-Za-z0-9.-]{1,253}|http:\/\/(?:localhost|127\.0\.0\.1))(:[0-9]{1,5})?\/_chest\/(?:files\/)?upload\/([A-Za-z0-9_-]+\.[A-Za-z0-9_-]+)$/u;
+// A public upload (Proposal (studio), the storage spec's publicUploads): 10
+// MiB at most whatever the tool asks, into uploads/public/.
+const publicMax = 10 << 20;
 // The longest an upload may wait, in seconds.
 const uploadLife = 900;
 
@@ -165,6 +168,18 @@ export async function url(name: string, options: { thumbnail?: 256 | 1024; downl
   return { url: body.url as string, expiresIn: body.expires_in };
 }
 
+// publicUrl is the permanent address of an object under public/ on the
+// tool's public host (Proposal (studio), the storage spec's publicFiles):
+// served without a signed link, cached an hour; version (its updated time,
+// from stat) changes the address when the file changes. A path of the
+// public host, to put in its pages.
+export function publicUrl(name: string, options: { version?: string } = {}): string {
+  checkName(name);
+  if (!name.startsWith("public/")) throw new ChestError("invalid_name", 400, "only objects under public/ have a public address");
+  const v = options.version === undefined ? "" : "?v=" + encodeURIComponent(options.version);
+  return "/_chest/public/" + name.slice("public/".length).split("/").map(encodeURIComponent).join("/") + v;
+}
+
 // uploadUrl authorises one upload from a member's browser, which sends the
 // file itself to url, the tool's team host, with its session:
 //   fetch(up.url, { method: "PUT", body: file, headers: { "Content-Type": file.type } })
@@ -173,14 +188,25 @@ export async function url(name: string, options: { thumbnail?: 256 | 1024; downl
 // (up to 8, "image/*" for a family; any when not said), within expiresIn
 // seconds (1–900, 900 when not said), once. Call it from a /chest route,
 // after member(); then stat the name before recording it.
-export async function uploadUrl(name: string, options: { maxSize?: number; types?: string[]; expiresIn?: number } = {}): Promise<{ url: string; method: "PUT"; expiresIn: number }> {
+// With public: true (Proposal (studio), the manifest's
+// "files": {"publicUploads": true}), a visitor of the public part sends it,
+// with no session, to /_chest/upload/<token> on the public host: 10 MiB at
+// most, under uploads/public/, 30 uploads a minute per visitor — for a job
+// application's CV, a support request's photo. Authorise it only after the
+// tool's own checks of the visitor (a form's guard).
+export async function uploadUrl(name: string, options: { maxSize?: number; types?: string[]; expiresIn?: number; public?: boolean } = {}): Promise<{ url: string; method: "PUT"; expiresIn: number }> {
   if (typeof name !== "string" || !(name.endsWith("/") ? namePattern.test(name.slice(0, -1)) && name.split("/").length <= 8 : namePattern.test(name))) throw new ChestError("invalid_name", 400, "invalid file or folder name");
   const { maxSize, types, expiresIn } = options;
   if (maxSize !== undefined && (typeof maxSize !== "number" || !Number.isSafeInteger(maxSize) || maxSize < 1)) throw new ChestError("invalid_body", 400, "maxSize is a number of bytes");
   if (maxSize !== undefined && maxSize > maxObject) throw new TooLarge();
   if (types !== undefined && (!Array.isArray(types) || types.length > 8 || types.some((t, i) => typeof t !== "string" || t.length > 100 || !typePattern.test(t) || types.indexOf(t) !== i))) throw new ChestError("invalid_type", 400, "invalid media types");
   if (expiresIn !== undefined && (typeof expiresIn !== "number" || !Number.isInteger(expiresIn) || expiresIn < 1 || expiresIn > uploadLife)) throw new ChestError("invalid_body", 400, "expiresIn is 1 to 900 seconds");
-  const command = { name, ...(maxSize !== undefined ? { max_size: maxSize } : {}), ...(types !== undefined ? { types } : {}), ...(expiresIn !== undefined ? { expires_in: expiresIn } : {}) };
+  if (options.public !== undefined && typeof options.public !== "boolean") throw new TypeError("public must be true or false");
+  if (options.public) {
+    if (!name.startsWith("uploads/public/")) throw new ChestError("invalid_name", 400, "a public upload goes under uploads/public/");
+    if (maxSize !== undefined && maxSize > publicMax) throw new TooLarge();
+  }
+  const command = { name, ...(maxSize !== undefined ? { max_size: maxSize } : {}), ...(types !== undefined ? { types } : {}), ...(expiresIn !== undefined ? { expires_in: expiresIn } : {}), ...(options.public ? { public: true } : {}) };
   const response = await ask("POST", "/files/upload-url", { body: JSON.stringify(command), type: "application/json" });
   if (response.status !== 200) throw await refusal(response);
   const body = (await json(response)) as { url?: unknown; method?: unknown; expires_in?: unknown } | null;

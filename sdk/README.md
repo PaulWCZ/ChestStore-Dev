@@ -572,6 +572,35 @@ type sent; nothing of a refused upload remains. There is no antivirus scan.
 `uploadUrl` answers `Unavailable` while the Chest does not know the tool's
 team host yet.
 
+### Public uploads and public files (Proposal (studio))
+
+Built from the decided storage spec (`reference/product/specs/tool-storage.md`),
+which the Chest has not built yet:
+
+```jsonc
+// chest.json (chest.proposals.json in the studio) — two permissions:
+//   "Lets visitors of its public part upload files (10 MiB each at most)."
+//   "Publishes the files it puts under public/ on its public address."
+{ "files": { "publicUploads": true, "publicFiles": true } }
+```
+
+```ts
+// A public page's action, after the tool's own checks of the visitor:
+const up = await files.uploadUrl("uploads/public/", { public: true, types: ["application/pdf"], maxSize: 5 << 20 });
+// → { url: "https://<tool>.<chest>/_chest/upload/<token>", … }: the visitor's browser PUTs the file there, no session
+const info = await files.stat(name);   // then record it, as for a private upload
+
+files.publicUrl("public/logo.png", { version: info.updated }); // "/_chest/public/logo.png?v=…" on the public host
+```
+
+A public upload: 10 MiB at most whatever `maxSize` says (`TooLarge` beyond),
+only under `uploads/public/`, 30 a minute per visitor address, the same
+type and content checks; its token works only on the public host's route
+(and a private token only on the team host's). Public files: objects under
+`public/`, served on the public host at `/_chest/public/<name>`, cached an
+hour, `?v=` for a new version. In tests: `fakeChest({ storage: {
+publicUploads, publicFiles } })`.
+
 ### Links and thumbnails
 
 `url(name, {thumbnail?, download?})` signs a link to the file as it is, on the

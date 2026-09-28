@@ -21,7 +21,7 @@ const expected = {
   errors: ["CapabilityNotGranted", "ChestError", "QuotaExceeded", "RateLimited", "TooLarge", "Unavailable"],
   member: ["groupIdPattern", "localeOf", "locales", "member", "memberIdPattern"],
   database: ["databaseUrl"],
-  files: ["delete", "get", "list", "move", "put", "stat", "uploadUrl", "url"],
+  files: ["delete", "get", "list", "move", "publicUrl", "put", "stat", "uploadUrl", "url"],
   members: ["forget", "get", "groups", "list", "lookup"],
   notifications: ["badge", "notify", "withdraw"],
   events: ["acknowledgeErasure", "erasureIdPattern", "handle", "memorySeen", "verify"],

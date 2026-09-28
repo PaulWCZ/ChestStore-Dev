@@ -52,6 +52,8 @@ export type FakeChestOptions = {
   origin?: string;
   schedules?: { name: string; cron: string }[];
   timeZone?: string;
+  // Proposal (studio): the storage spec's public uploads and public files.
+  storage?: { publicUploads?: boolean; publicFiles?: boolean; publicOrigin?: string };
   // Proposal (studio): mail (with "mail" in capabilities).
   mail?: { domain?: string; mailboxes?: string[]; perDay?: number; suppressed?: string[] };
 };
@@ -194,7 +196,11 @@ export async function fakeChest(options: FakeChestOptions = {}): Promise<FakeChe
   // Where the team host's links point: the harness that relays /_chest/
   // here, or a host of no one in a test.
   const origin = (options.origin ?? `https://${tool}-chest.chest.test`).replace(/\/$/u, "");
-  const uploads = new Map<string, { name: string; types: string[]; maxSize: number; expires: number }>();
+  const uploads = new Map<string, { name: string; types: string[]; maxSize: number; expires: number; public: boolean }>();
+  const storage = options.storage ?? {};
+  // The public host's origin: the harness serves both hosts on one.
+  const publicOrigin = (storage.publicOrigin ?? options.origin ?? `https://${tool}.chest.test`).replace(/\/$/u, "");
+  const publicMaxObject = 10 << 20;
   // The erasures the tool was told of, by emit: those it may acknowledge.
   const erasures = new Set<string>();
   const chest: FakeChest = { api: "", token, tool, members: [...(options.members ?? [])], groups: [...(options.groups ?? [])], files, notifications: [], badges: new Map(), acknowledged: [], emit: async () => 0, upload: async () => new Response(), outbox: [], receive: async () => 0, schedules: [...(options.schedules ?? [])], runs: [], run: async () => 0, close: async () => {} };
@@ -272,13 +278,16 @@ export async function fakeChest(options: FakeChestOptions = {}): Promise<FakeChe
         // The upload itself goes from a member's browser to the team host:
         // the fake Chest's front receives it (PUT /_chest/files/upload/…,
         // or chest.upload in a test), once, within its bounds.
-        const name = command["name"], types = command["types"], maxSize = command["max_size"], life = command["expires_in"];
+        const name = command["name"], types = command["types"], maxSize = command["max_size"], life = command["expires_in"], isPublic = command["public"] === true;
         if (typeof name !== "string" || !(name.endsWith("/") ? namePattern.test(name.slice(0, -1)) : namePattern.test(name))) return send(response, 400, { error: "invalid_name" });
         if (types !== undefined && (!Array.isArray(types) || !types.every(t => typeof t === "string"))) return send(response, 400, { error: "invalid_type" });
+        if (isPublic && !storage.publicUploads) return send(response, 403, { error: "capability_not_granted" });
+        if (isPublic && !name.startsWith("uploads/public/")) return send(response, 400, { error: "invalid_name" });
         const expiresIn = typeof life === "number" ? life : 900;
         const token = randomBytes(18).toString("base64url") + ".up";
-        uploads.set(token, { name, types: (types as string[] | undefined) ?? [], maxSize: typeof maxSize === "number" ? Math.min(maxSize, maxObject) : maxObject, expires: Date.now() + expiresIn * 1000 });
-        return send(response, 200, { url: `${origin}/_chest/files/upload/${token}`, method: "PUT", expires_in: expiresIn });
+        const bound = isPublic ? publicMaxObject : maxObject;
+        uploads.set(token, { name, types: (types as string[] | undefined) ?? [], maxSize: typeof maxSize === "number" ? Math.min(maxSize, bound) : bound, expires: Date.now() + expiresIn * 1000, public: isPublic });
+        return send(response, 200, { url: isPublic ? `${publicOrigin}/_chest/upload/${token}` : `${origin}/_chest/files/upload/${token}`, method: "PUT", expires_in: expiresIn });
       }
       const from = command["from"], to = command["to"];
       if (typeof from !== "string" || typeof to !== "string" || !namePattern.test(from) || !namePattern.test(to)) return send(response, 400, { error: "invalid_name" });
@@ -494,11 +503,13 @@ export async function fakeChest(options: FakeChestOptions = {}): Promise<FakeChe
   // tool: the upload a member's browser sends, the signed links, the members'
   // photos. A harness relays /_chest/ of its host here (origin).
   async function frontRoute(request: IncomingMessage, response: ServerResponse, url: URL): Promise<void> {
-    const upload = /^\/_chest\/files\/upload\/([A-Za-z0-9_-]+\.up)$/u.exec(url.pathname);
+    const upload = /^\/_chest\/(files\/)?upload\/([A-Za-z0-9_-]+\.up)$/u.exec(url.pathname);
     if (upload && request.method === "PUT") {
-      const token = upload[1]!, grant = uploads.get(token);
+      const token = upload[2]!, grant = uploads.get(token);
       uploads.delete(token);
-      if (!grant || grant.expires < Date.now()) return send(response, 403, { error: "invalid_token" });
+      // A private token on the team host's route, a public one on the public
+      // host's: never the other way round.
+      if (!grant || grant.expires < Date.now() || grant.public !== (upload[1] === undefined)) return send(response, 403, { error: "invalid_token" });
       const type = (request.headers["content-type"] ?? "application/octet-stream").split(";")[0]!.trim().toLowerCase();
       if (grant.types.length > 0 && !grant.types.some(t => t === type || (t.endsWith("/*") && type.startsWith(t.slice(0, -1))))) return send(response, 415, { error: "type_refused" });
       const data = await body(request, grant.maxSize);
@@ -516,6 +527,12 @@ export async function fakeChest(options: FakeChestOptions = {}): Promise<FakeChe
       const object = files.get(Buffer.from(link[1]!, "base64url").toString());
       if (!object) return send(response, 404, { error: "not_found" });
       return void response.writeHead(200, { "Content-Type": object.type, "Content-Length": String(object.data.byteLength), "Cache-Control": "private, max-age=900" }).end(object.data);
+    }
+    const shared = /^\/_chest\/public\/(.+)$/u.exec(url.pathname);
+    if (shared && request.method === "GET") {
+      const object = storage.publicFiles ? files.get("public/" + decodeURIComponent(shared[1]!)) : undefined;
+      if (!object) return send(response, 404, { error: "not_found" });
+      return void response.writeHead(200, { "Content-Type": object.type, "Content-Length": String(object.data.byteLength), "Cache-Control": "public, max-age=3600" }).end(object.data);
     }
     const photo = /^\/_chest\/members\/(mbr_[a-z2-7]{26})\/photo$/u.exec(url.pathname);
     if (photo && request.method === "GET") {

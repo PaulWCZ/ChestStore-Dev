@@ -225,3 +225,33 @@ test("its front receives a member's upload once, within its bounds, and serves l
     await chest.close();
   }
 });
+
+test("public uploads (proposal): a visitor sends to the public host, 10 MiB at most, under uploads/public/; public files are served", async () => {
+  const chest = await fakeChest({ members: [camille], origin: "http://localhost:4000", storage: { publicUploads: true, publicFiles: true } });
+  try {
+    await assert.rejects(files.uploadUrl("cv/", { public: true }), (e: unknown) => e instanceof ChestError && e.code === "invalid_name");
+    await assert.rejects(files.uploadUrl("uploads/public/", { public: true, maxSize: 11 << 20 }), TooLarge);
+    const up = await files.uploadUrl("uploads/public/", { public: true, types: ["application/pdf"] });
+    assert.match(up.url, /^http:\/\/localhost:4000\/_chest\/upload\/[A-Za-z0-9_-]+\.up$/u);
+    // A public token does not work on the team host's route.
+    assert.equal((await chest.upload(up.url.replace("/_chest/upload/", "/_chest/files/upload/"), "%PDF", "application/pdf")).status, 403);
+    const again = await files.uploadUrl("uploads/public/", { public: true, types: ["application/pdf"] });
+    const sent = await chest.upload(again.url, "%PDF-1.7", "application/pdf");
+    assert.equal(sent.status, 201);
+    assert.match(((await sent.json()) as { name: string }).name, /^uploads\/public\/[0-9a-f]{20}\.pdf$/u);
+    await files.put("public/logo.svg", "<svg/>", "image/svg+xml");
+    assert.equal(files.publicUrl("public/logo.svg", { version: "3" }), "/_chest/public/logo.svg?v=3");
+    assert.throws(() => files.publicUrl("private/logo.svg"), (e: unknown) => e instanceof ChestError && e.code === "invalid_name");
+    const served = await fetch(chest.api + "/_chest/public/logo.svg");
+    assert.equal(served.headers.get("cache-control"), "public, max-age=3600");
+    assert.equal(await served.text(), "<svg/>");
+  } finally {
+    await chest.close();
+  }
+  const closed = await fakeChest({ members: [camille] });
+  try {
+    await assert.rejects(files.uploadUrl("uploads/public/", { public: true }), CapabilityNotGranted);
+  } finally {
+    await closed.close();
+  }
+});
