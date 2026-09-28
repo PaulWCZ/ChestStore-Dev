@@ -1,0 +1,12 @@
+[
+  { "name": "bookings", "path": "/chest", "member": "ines", "locale": "en", "preview": true },
+  { "name": "booking", "path": "/chest/bookings/2", "member": "ines", "locale": "en" },
+  { "name": "company-page", "path": "/", "member": "ines", "locale": "en" },
+  { "name": "host-page", "path": "/ines-moreau", "member": "ines", "locale": "en" },
+  { "name": "pick-a-time", "path": "/ines-moreau/project-call", "member": "ines", "locale": "en" },
+  { "name": "guest-booking", "path": "/b/demoGuestLinkForTheScreens000000", "member": "ines", "locale": "en" },
+  { "name": "types", "path": "/chest/types", "member": "ines", "locale": "en", "only": ["desktop"] },
+  { "name": "hours-fr", "path": "/chest/hours", "member": "ines", "locale": "fr" },
+  { "name": "pick-a-time-fr", "path": "/hugo-bernard/measurement", "member": "camille", "locale": "fr", "only": ["phone"] },
+  { "name": "bookings-dark", "path": "/chest?who=all", "member": "camille", "locale": "fr", "dark": true }
+]

@@ -54,7 +54,7 @@ _One row per chosen tool, in ranking order, once step 1 is done._
 | 8 | Support | `tools/public-and-private/helpdesk` | Zendesk, Freshdesk | ✓ | ✓ | calm counter (Atkinson Hyperlegible, teal, coral, butter notes) | locale, mail, schedules, public uploads | ✓ 13 tests (PGlite + PostgreSQL), build, manifest, 12 browser flows, screens |
 | 9 | Rooms | `tools/private/rooms` | Robin, deskbird | ✓ | — | — | locale | — |
 | 10 | Timesheets | `tools/private/timesheets` | Harvest, Toggl | ✓ | — | — | locale | — |
-| 11 | Booking | `tools/public-and-private/booking` | Calendly | ✓ | — | — | locale, email (to design) | — |
+| 11 | Booking | `tools/public-and-private/booking` | Calendly | ✓ | ✓ | appointment card (Young Serif + Figtree, plum, mint, apricot) | locale, mail, schedules | ✓ 33 tests (PGlite + PostgreSQL), build, manifest, 11 browser flows, screens |
 | 12 | Hiring | `tools/public-and-private/hiring` | Teamtailor, WTTJ | ✓ | — | — | locale, public uploads (to design) | — |
 | 13 | Equipment | `tools/private/equipment` | Snipe-IT | ✓ | — | — | locale | — |
 | 14 | Polls | `tools/private/polls` | Doodle, Officevibe | ✓ | — | — | locale | — |
