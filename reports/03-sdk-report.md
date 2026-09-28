@@ -177,8 +177,33 @@ _(to be ordered once more tools are built; the evidence so far)_
 - **Manifest**: `"files": {"publicUploads": true, "publicFiles": true}` —
   refused by today's parser, so kept in `chest.proposals.json`.
 
-_(more sections as tools need them: public accounts, payments, events
-between tools, AI.)_
+### 4.4 Events between tools — `events.publish` and received tool events (built)
+
+- **Needed by** (the suite): Leave → Rooms (away), Hiring → People (a
+  newcomer and their onboarding), Clients → Quotes (a deal won), Forms →
+  Clients (a response becomes a contact), Support → Clients (a customer's
+  history), Leave → News (who is away today)…
+- **Working copy**: `events.publish(type, data, {key})`,
+  `events.handle(…, {tools})`, `ToolEvent`; `fakeChest({emits,
+  receivers})`, `chest.published`, `chest.deliver()`; test in
+  `sdk/client/test/events.test.ts`.
+- **Design choices**: one delivery path for member and tool events (the
+  tool writes one route); an event type is namespaced by its publisher, so
+  a tool cannot impersonate another; the admin links publisher and
+  receiver (no tool chooses where its data goes); data carries member ids,
+  never names; at least once, with `seen`.
+- **Manifest**: `"emits": ["leave.approved"]`; `"receives": [...,
+  "leave.approved"]` (today's parser accepts only `member.*`).
+- **Approval sentences**: "Tells other tools when a leave is approved
+  (who, and which days)"; "Is told by Leave when a leave is approved".
+- **Risks**: data leaving a tool's database (bounded by the admin's link
+  and the publisher's documented payload), loops (a receiver that publishes
+  back: the Chest drops an event whose chain is deeper than 3).
+- **Elsewhere**: Supabase and Firebase have database triggers inside one
+  app; Zapier/n8n link SaaS with credentials. Here the platform owns the
+  link, per company, with permissions in words.
+
+_(more sections as tools need them: public accounts, payments, AI.)_
 
 ## 5. Public-facing tools
 

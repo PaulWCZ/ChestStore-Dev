@@ -1,7 +1,7 @@
 import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 import type { IncomingMessage } from "node:http";
-import { ask, refusal } from "./api.js";
-import { ChestError, Unavailable } from "./errors.js";
+import { ask, json as readJson, refusal } from "./api.js";
+import { CapabilityNotGranted, ChestError, Unavailable } from "./errors.js";
 import { memberIdPattern } from "./member.js";
 import { forget } from "./members.js";
 
@@ -43,6 +43,17 @@ export type ChestEventType = ChestEvent["type"];
 
 // What handle() calls for each type; a type left out is accepted and ignored.
 export type Handlers = { [K in ChestEventType]?: (event: Extract<ChestEvent, { type: K }>) => void | Promise<void> };
+
+// Proposal (studio) — events between tools. A tool publishes events of its
+// own, named after it ("leave.approved" from the tool "leave"); a tool that
+// receives them (chest.json "receives": ["leave.approved"]) gets them on the
+// same POST /chest-events, signed the same way, once an admin linked the
+// two tools (approved in words: "Is told by Leave when a leave is
+// approved"). data is what the publisher documents (plain JSON, 16 KiB at
+// most); people in it are member ids.
+export type ToolEvent = { id: string; type: string; source: string; occurredAt: string; data: Record<string, unknown> };
+export type ToolHandlers = Record<string, (event: ToolEvent) => void | Promise<void>>;
+export const toolEventPattern = /^[a-z0-9]+(-[a-z0-9]+)*\.[a-z][a-z0-9_.-]{0,62}$/u;
 
 // Where handle() remembers the ids of the events already handled: a store
 // the tool chooses. Keep it durable — a table of the tool's database — so a
@@ -127,7 +138,7 @@ async function bodyOf(request: IncomingMessage | Request): Promise<Buffer | null
 // envelope reads a signed delivery: the envelope when the signature, the tool,
 // the time and the digest of the body hold; known says its type is one this
 // SDK reads.
-async function envelope(request: IncomingMessage | Request): Promise<{ event: ChestEvent; known: true } | { event: { id: string }; known: false } | null> {
+async function envelope(request: IncomingMessage | Request): Promise<{ event: ChestEvent; known: true } | { event: ToolEvent; known: "tool" } | { event: { id: string }; known: false } | null> {
   const token = process.env["CHEST_TOKEN"];
   const tool = process.env["CHEST_TOOL"];
   if (!token || !/^[A-Za-z0-9_-]{43,512}$/u.test(token) || !tool || request.method !== "POST") return null;
@@ -154,7 +165,14 @@ async function envelope(request: IncomingMessage | Request): Promise<{ event: Ch
   const told = Buffer.from(digest, "base64url");
   if (told.length !== sum.length || !timingSafeEqual(told, sum)) return null;
   const e = object(json(body.toString("utf8")));
-  if (!e || Object.keys(e).length !== 4 || e["id"] !== jti || typeof e["type"] !== "string" || !instant(e["occurredAt"])) return null;
+  if (!e || e["id"] !== jti || typeof e["type"] !== "string" || !instant(e["occurredAt"])) return null;
+  // An event of another tool (Proposal (studio)): its source names it.
+  if (Object.keys(e).length === 5 && typeof e["source"] === "string") {
+    const source = e["source"], type = e["type"], toolData = object(e["data"]);
+    if (!/^[a-z0-9]+(-[a-z0-9]+)*$/u.test(source) || !toolEventPattern.test(type) || !type.startsWith(source + ".") || !toolData) return null;
+    return { known: "tool", event: { id: jti, type, source, occurredAt: e["occurredAt"] as string, data: toolData } };
+  }
+  if (Object.keys(e).length !== 4) return null;
   const data = object(e["data"]);
   if (!data || typeof data["id"] !== "string" || !memberIdPattern.test(data["id"])) return null;
   const keys = Object.keys(data).sort().join(",");
@@ -183,7 +201,7 @@ async function envelope(request: IncomingMessage | Request): Promise<{ event: Ch
 // before anything else reads it. It never throws for what a request carries.
 export async function verify(request: IncomingMessage | Request): Promise<ChestEvent | null> {
   const read = await envelope(request);
-  return read?.known ? read.event : null;
+  return read?.known === true ? read.event : null;
 }
 
 const remembered = memorySeen();
@@ -195,19 +213,51 @@ const remembered = memorySeen();
 // leaves the event unseen and handle throws: answer 500, the Chest delivers
 // it again. seen is the store of the ids handled (memorySeen by default,
 // lost at a restart: give a durable one).
-export async function handle(request: IncomingMessage | Request, handlers: Handlers, options: { seen?: Seen } = {}): Promise<number> {
+export async function handle(request: IncomingMessage | Request, handlers: Handlers, options: { seen?: Seen; tools?: ToolHandlers } = {}): Promise<number> {
   const read = await envelope(request);
   if (!read) return 401;
-  if (!read.known) return 204;
+  if (read.known === false) return 204;
   const seen = options.seen ?? remembered;
   const event = read.event;
   if (await seen.has(event.id)) return 204;
-  // A member changed or left: what lookup kept of them is stale.
-  forget();
-  const handler = handlers[event.type] as ((e: ChestEvent) => void | Promise<void>) | undefined;
-  if (handler) await handler(event);
+  if (read.known === "tool") {
+    const handler = options.tools && Object.hasOwn(options.tools, read.event.type) ? options.tools[read.event.type] : undefined;
+    if (handler) await handler(read.event);
+  } else {
+    // A member changed or left: what lookup kept of them is stale.
+    forget();
+    const handler = handlers[read.event.type] as ((e: ChestEvent) => void | Promise<void>) | undefined;
+    if (handler) await handler(read.event);
+  }
   await seen.add(event.id);
   return 204;
+}
+
+// publish tells the tools that receive it that something happened here
+// (Proposal (studio)): type is "<this tool>.<name>" as chest.json "emits"
+// declares it; data a JSON object of 16 KiB at most (member ids for
+// people). key makes a retry harmless: the same key within 24 hours is one
+// event. Says the event's id and how many tools it goes to (the Chest
+// delivers, at least once, like member events). Errors: ChestError
+// invalid_event (400: a type this tool does not emit, data too large),
+// CapabilityNotGranted (not declared, or a Chest without events between
+// tools yet), QuotaExceeded (1,000 events an hour), Unavailable.
+export async function publish(type: string, data: Record<string, unknown>, options: { key?: string } = {}): Promise<{ id: string; receivers: number }> {
+  const tool = process.env["CHEST_TOOL"] ?? "";
+  if (!toolEventPattern.test(type) || !type.startsWith(tool + ".")) throw new ChestError("invalid_event", 400, `an event of this tool is named "${tool}.<name>"`);
+  if (data === null || typeof data !== "object" || Array.isArray(data)) throw new ChestError("invalid_event", 400, "data is a JSON object");
+  const body = JSON.stringify({ type, data, ...(options.key !== undefined ? { key: options.key } : {}) });
+  if (Buffer.byteLength(body) > 16 << 10) throw new ChestError("invalid_event", 400, "data is 16 KiB at most");
+  if (options.key !== undefined && !/^[A-Za-z0-9._:-]{1,64}$/u.test(options.key)) throw new ChestError("invalid_event", 400, "invalid key");
+  const response = await ask("events", "POST", "/events", { body, type: "application/json" });
+  if (response.status === 404) {
+    await response.body?.cancel();
+    throw new CapabilityNotGranted("events");
+  }
+  if (response.status !== 200 && response.status !== 201) throw await refusal(response, "events");
+  const answer = (await readJson(response)) as { id?: unknown; receivers?: unknown } | null;
+  if (!answer || typeof answer.id !== "string" || !/^evt_[a-z2-7]{26}$/u.test(answer.id) || typeof answer.receivers !== "number") throw new Unavailable();
+  return { id: answer.id, receivers: answer.receivers };
 }
 
 // acknowledgeErasure tells the Chest the tool deleted or anonymised what it

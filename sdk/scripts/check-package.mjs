@@ -24,7 +24,7 @@ const expected = {
   files: ["delete", "get", "list", "move", "publicUrl", "put", "stat", "uploadUrl", "url"],
   members: ["forget", "get", "groups", "list", "lookup"],
   notifications: ["badge", "notify", "withdraw"],
-  events: ["acknowledgeErasure", "erasureIdPattern", "handle", "memorySeen", "verify"],
+  events: ["acknowledgeErasure", "erasureIdPattern", "handle", "memorySeen", "publish", "toolEventPattern", "verify"],
   mail: ["handle", "isAddress", "limits", "mailboxAddress", "mailboxPattern", "messageIdPattern", "send", "status", "verify"],
   schedules: ["checkSchedules", "describeCron", "handle", "limits", "nextRun", "parseCron", "runIdPattern", "schedulePattern", "timeZone", "verify"],
   testing: ["fakeChest", "signAssertion", "withMember"],

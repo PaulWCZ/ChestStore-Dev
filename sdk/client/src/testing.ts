@@ -52,6 +52,10 @@ export type FakeChestOptions = {
   origin?: string;
   schedules?: { name: string; cron: string }[];
   timeZone?: string;
+  // Proposal (studio): the events this tool publishes (chest.json "emits"),
+  // and how many tools receive them.
+  emits?: string[];
+  receivers?: number;
   // Proposal (studio): the storage spec's public uploads and public files.
   storage?: { publicUploads?: boolean; publicFiles?: boolean; publicOrigin?: string };
   // Proposal (studio): mail (with "mail" in capabilities).
@@ -93,6 +97,10 @@ export type FakeChest = {
   upload(url: string, data: Uint8Array | string, type: string): Promise<Response>;
   // Proposal (studio): the tool's schedules, the runs delivered, and run(),
   // which delivers a run of a schedule as the Chest would at its time.
+  // Proposal (studio): the events the tool published, and deliver(), which
+  // hands the tool an event of another tool as the Chest would.
+  published: { id: string; type: string; data: Record<string, unknown>; key?: string }[];
+  deliver(event: { type: string; source?: string; data: Record<string, unknown>; id?: string; occurredAt?: string }, to: string | ((request: Request) => Response | Promise<Response>)): Promise<number>;
   // Proposal (studio): the mail the tool sent, and receive(), which delivers
   // a message to its POST /chest-mail as the Chest would.
   outbox: FakeMail[];
@@ -203,7 +211,7 @@ export async function fakeChest(options: FakeChestOptions = {}): Promise<FakeChe
   const publicMaxObject = 10 << 20;
   // The erasures the tool was told of, by emit: those it may acknowledge.
   const erasures = new Set<string>();
-  const chest: FakeChest = { api: "", token, tool, members: [...(options.members ?? [])], groups: [...(options.groups ?? [])], files, notifications: [], badges: new Map(), acknowledged: [], emit: async () => 0, upload: async () => new Response(), outbox: [], receive: async () => 0, schedules: [...(options.schedules ?? [])], runs: [], run: async () => 0, close: async () => {} };
+  const chest: FakeChest = { api: "", token, tool, members: [...(options.members ?? [])], groups: [...(options.groups ?? [])], files, notifications: [], badges: new Map(), acknowledged: [], emit: async () => 0, upload: async () => new Response(), published: [], deliver: async () => 0, outbox: [], receive: async () => 0, schedules: [...(options.schedules ?? [])], runs: [], run: async () => 0, close: async () => {} };
   const former = [...(options.former ?? [])];
   let window = 0, calls = 0;
   const shown = (m: FakeMember) => ({ id: m.id, first_name: m.firstName, last_name: m.lastName, name: m.name, photo: m.photo, role: m.role, admin: m.isAdmin, builder: m.isBuilder, groups: m.groups, ...(m.locale === undefined ? {} : { locale: m.locale }), ...(email && m.email !== undefined ? { email: m.email } : {}) });
@@ -417,6 +425,23 @@ export async function fakeChest(options: FakeChestOptions = {}): Promise<FakeChe
     send(response, 200, { delivered: kept, skipped: ids.filter(id => !access(id)) });
   }
 
+  // Events between tools (Proposal (studio)): what the tool publishes.
+  const emits = new Set(options.emits ?? []);
+  const publishedKeys = new Map<string, string>();
+  async function eventsRoute(request: IncomingMessage, response: ServerResponse): Promise<void> {
+    if (request.method !== "POST") return send(response, 404, { error: "not_found" });
+    const raw = await body(request, 32 << 10);
+    let e: Record<string, unknown>;
+    try { e = JSON.parse(raw?.toString() ?? "") as Record<string, unknown>; } catch { return send(response, 400, { error: "invalid_event" }); }
+    const type = e["type"], data = e["data"], key = e["key"];
+    if (typeof type !== "string" || !emits.has(type) || data === null || typeof data !== "object" || Array.isArray(data)) return send(response, 400, { error: "invalid_event" });
+    if (typeof key === "string" && publishedKeys.has(key)) return send(response, 200, { id: publishedKeys.get(key), receivers: options.receivers ?? 0 });
+    const id = newId("evt_");
+    chest.published.push({ id, type, data: data as Record<string, unknown>, ...(typeof key === "string" ? { key } : {}) });
+    if (typeof key === "string") publishedKeys.set(key, id);
+    send(response, 201, { id, receivers: options.receivers ?? 0 });
+  }
+
   // Mail (Proposal (studio)): send, status, mailboxes.
   const mailOptions = options.mail ?? {};
   const domain = mailOptions.domain ?? "company.test";
@@ -552,6 +577,7 @@ export async function fakeChest(options: FakeChestOptions = {}): Promise<FakeChe
     const route = url.pathname.startsWith("/_chest/") ? frontRoute
       : url.pathname.startsWith("/erasures/") ? erasuresRoute
       : url.pathname.startsWith("/mail/") ? mailRoute
+      : url.pathname === "/events" ? eventsRoute
       : url.pathname === "/members" || url.pathname.startsWith("/members/") || url.pathname === "/groups" ? members
       : url.pathname === "/files" || url.pathname.startsWith("/files/") ? filesRoute
       : url.pathname === "/badges" || url.pathname.startsWith("/badges/") || url.pathname.startsWith("/notifications") ? notificationsRoute : null;
@@ -585,6 +611,17 @@ export async function fakeChest(options: FakeChestOptions = {}): Promise<FakeChe
     const answer = typeof to === "string" ? await fetch(request, { redirect: "manual" }) : await to(request);
     await answer.body?.cancel();
     chest.runs.push({ id, name, scheduledAt, attempt, status: answer.status });
+    return answer.status;
+  };
+  // deliver hands the tool an event of another tool (its source is the part
+  // of the type before the first dot), signed as the Chest signs events.
+  chest.deliver = async (event, to) => {
+    const id = event.id ?? newId("evt_");
+    const source = event.source ?? event.type.split(".")[0]!;
+    const body = JSON.stringify({ id, type: event.type, source, occurredAt: event.occurredAt ?? new Date().toISOString(), data: event.data });
+    const request = new Request((typeof to === "string" ? to.replace(/\/$/u, "") : "http://tool.test") + "/chest-events", { method: "POST", headers: { "Content-Type": "application/json", "Chest-Event": signEvent(id, body, { token, tool }) }, body });
+    const answer = typeof to === "string" ? await fetch(request, { redirect: "manual" }) : await to(request);
+    await answer.body?.cancel();
     return answer.status;
   };
   // receive delivers a message to one of the tool's mailboxes: its

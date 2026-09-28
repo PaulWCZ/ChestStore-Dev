@@ -190,3 +190,26 @@ test("the ids kept in memory are bounded", () => {
   for (const n of ["a", "b", "c"]) seen.add(n);
   assert.deepEqual([seen.has("a"), seen.has("b"), seen.has("c")], [false, true, true]);
 });
+
+test("events between tools (proposal): a tool publishes its own events; another receives them on /chest-events", async () => {
+  const chest = await fakeChest({ members: [camille], emits: ["tool.approved"], receivers: 2 });
+  try {
+    const sent = await events.publish("tool.approved", { member: camille.id, from: "2026-10-12", to: "2026-10-16" }, { key: "leave:42" });
+    assert.equal(sent.receivers, 2);
+    assert.equal((await events.publish("tool.approved", { member: camille.id }, { key: "leave:42" })).id, sent.id);
+    assert.deepEqual(chest.published.map(p => p.type), ["tool.approved"]);
+    await assert.rejects(events.publish("other.approved", {}), (e: unknown) => e instanceof ChestError && e.code === "invalid_event");
+    await assert.rejects(events.publish("tool.unknown", {}), (e: unknown) => e instanceof ChestError && e.code === "invalid_event");
+    const got: events.ToolEvent[] = [];
+    const app = async (request: Request) => new Response(null, { status: await events.handle(request, {}, { tools: { "leave.approved": e => { got.push(e); } } }) });
+    assert.equal(await chest.deliver({ type: "leave.approved", data: { member: camille.id, from: "2026-10-12" } }, app), 204);
+    assert.equal(got[0]?.source, "leave");
+    assert.equal(got[0]?.data["from"], "2026-10-12");
+    // A type without a handler is accepted and ignored; a source that is not
+    // the type's own is refused.
+    assert.equal(await chest.deliver({ type: "crm.won", data: {} }, app), 204);
+    assert.equal(await chest.deliver({ type: "leave.approved", source: "crm", data: {} }, app), 401);
+  } finally {
+    await chest.close();
+  }
+});

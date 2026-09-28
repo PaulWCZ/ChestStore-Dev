@@ -107,6 +107,7 @@ const chest = await testing.fakeChest({
   groups: cast.groups.map(g => ({ ...g, members: members.filter(m => m.groups.includes(g.id)).map(m => m.id) })),
   capabilities: [...capabilities.filter(c => c !== "database"), ...(proposals.mail ? ["mail"] : [])],
   mail: { domain: "atelier-martin.test", mailboxes: proposals.mail?.mailboxes ?? [] },
+  emits: proposals.emits ?? [],
   storage: { publicUploads: proposals.files?.publicUploads === true, publicFiles: proposals.files?.publicFiles === true },
   receives: manifest.receives ?? [],
   origin,
@@ -196,6 +197,13 @@ const front = createServer(async (request, response) => {
       if (path === "/_dev/receive") {
         const status = await chest.receive({ mailbox: form.get("mailbox"), from: form.get("from"), fromName: form.get("fromName") || undefined, subject: form.get("subject"), text: form.get("text") }, `http://127.0.0.1:${inner}`);
         console.log(`mail to ${form.get("mailbox")} → ${status}`);
+        return void response.writeHead(303, back).end();
+      }
+      if (path === "/_dev/deliver") {
+        let data = {};
+        try { data = JSON.parse(form.get("data") || "{}"); } catch { data = {}; }
+        const status = await chest.deliver({ type: form.get("type"), data }, `http://127.0.0.1:${inner}`);
+        console.log(`event ${form.get("type")} delivered → ${status}`);
         return void response.writeHead(303, back).end();
       }
       if (path === "/_dev/clear") {

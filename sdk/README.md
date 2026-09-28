@@ -455,6 +455,47 @@ In tests: `fakeChest({ schedules: [...], timeZone })`, then
 `chest.run(name, to)` delivers a run (signed, like `emit`) and says the
 status; `chest.runs` lists them.
 
+## Events between tools (Proposal (studio))
+
+The tools of one Chest share its people; with events they also share what
+happens: a leave approved in Leave shows the person "off" in Rooms, a hire
+in Hiring becomes a newcomer in People, a deal won in Clients starts a
+quote. A tool publishes events **named after itself**; another tool
+**receives** the ones it declares, once an admin linked the two ("Is told by
+Leave when a leave is approved"). Delivery is the member events' own: `POST
+/chest-events`, signed, at least once.
+
+```jsonc
+// chest.json of Leave (chest.proposals.json in the studio)
+{ "emits": ["leave.approved", "leave.cancelled"] }
+// chest.json of Rooms
+{ "receives": ["member.*", "leave.approved", "leave.cancelled"] }
+```
+
+```ts
+// Leave, when a leave is approved:
+await events.publish("leave.approved", { member: "mbr_…", from: "2026-10-12", to: "2026-10-16", request: "42" }, { key: "leave:42:approved" });
+
+// Rooms, in its /chest-events route:
+await events.handle(request, memberHandlers, { seen, tools: {
+  "leave.approved": e => markAway(e.data),
+  "leave.cancelled": e => clearAway(e.data),
+} });
+```
+
+| Export | Gives |
+|---|---|
+| `publish(type, data, {key?})` | `{id, receivers}`: `type` is `"<tool>.<name>"` of this tool, declared in `emits`; `data` a JSON object (16 KiB at most; people as member ids); the same `key` within 24 h is one event. `ChestError` `invalid_event`, `CapabilityNotGranted` (not declared, or no events between tools yet), `QuotaExceeded` (1,000 an hour) |
+| `handle(request, handlers, {seen, tools})` | Also hands a received tool event `{id, type, source, occurredAt, data}` to `tools[type]`; a type without a handler is accepted and ignored |
+
+What the owner approves: for the publisher, "Tells other tools when a
+leave is approved (who, and which days)"; for the receiver, "Is told by
+Leave when …"; the admin links the two in the Chest (a tool never picks its
+publishers). The Chest journals each event (type, source, receivers, never
+data) and keeps undelivered ones 72 hours, like member events. In tests:
+`fakeChest({ emits, receivers })` records `chest.published`;
+`chest.deliver({type, data}, to)` hands the tool another tool's event.
+
 ## `databaseUrl()` — database of a server tool
 
 A v2 tool that declares `"capabilities": ["database"]` in its `chest.json`
