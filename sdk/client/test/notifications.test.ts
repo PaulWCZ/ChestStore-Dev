@@ -4,6 +4,7 @@ import type { AddressInfo } from "node:net";
 import { after, afterEach, before, test } from "node:test";
 import { CapabilityNotGranted, ChestError, QuotaExceeded, RateLimited, Unavailable } from "../src/errors.js";
 import * as notifications from "../src/notifications.js";
+import { fakeChest } from "../src/testing.js";
 
 // A Chest's API as its notifications answer (badges, inbox items): the SDK is
 // tested against its routes, its shapes and its codes.
@@ -166,4 +167,27 @@ test("an answer that does not split the identifiers asked, each once in their or
   await assert.rejects(notifications.notify([camille], { title: "a" }), Unavailable);
   reply = () => ({ status: 200, value: { set: [dan, camille], skipped: [] } });
   await assert.rejects(notifications.badge.setMany([{ memberId: camille, count: 1 }, { memberId: dan, count: 1 }]), Unavailable);
+});
+
+test("broadcast (Proposal (studio)): everyone who has the tool, or some roles or groups, each in their language, once per key", async () => {
+  const people = [
+    { id: "mbr_" + "a".repeat(26), firstName: "Ada", lastName: "L", name: "Ada L", photo: null, role: "reader", isAdmin: false, isBuilder: false, groups: ["grp_" + "o".repeat(26)], locale: "fr" },
+    { id: "mbr_" + "b".repeat(26), firstName: "Bo", lastName: "K", name: "Bo K", photo: null, role: "publisher", isAdmin: false, isBuilder: false, groups: [], locale: "en" },
+    { id: "mbr_" + "c".repeat(26), firstName: "Cy", lastName: "M", name: "Cy M", photo: null, role: "reader", isAdmin: false, isBuilder: false, groups: [] },
+  ];
+  const fake = await fakeChest({ members: people, capabilities: ["notifications"] });
+  try {
+    const messages = { en: { title: "We move on 2 November" }, fr: { title: "Nous déménageons le 2 novembre", body: "Lisez le détail." } };
+    assert.deepEqual(await notifications.broadcast({ messages, path: "/chest/posts/4", key: "post:4" }), { delivered: 3 });
+    assert.deepEqual(fake.notifications.map((n: { member: string; title: string }) => [n.member.slice(4, 5), n.title]), [["a", "Nous déménageons le 2 novembre"], ["b", "We move on 2 November"], ["c", "We move on 2 November"]]);
+    // The same key replaces, it does not add.
+    await notifications.broadcast({ messages, path: "/chest/posts/4", key: "post:4" });
+    assert.equal(fake.notifications.length, 3);
+    assert.deepEqual(await notifications.broadcast({ messages: { en: { title: "Publishers only" } }, to: { roles: ["publisher"] } }), { delivered: 1 });
+    assert.deepEqual(await notifications.broadcast({ messages: { en: { title: "The office group" } }, to: { groups: ["grp_" + "o".repeat(26)] } }), { delivered: 1 });
+    await assert.rejects(notifications.broadcast({ messages: { fr: { title: "Sans anglais" } } } as never), (e: unknown) => e instanceof ChestError && e.code === "invalid_body");
+    await assert.rejects(notifications.broadcast({ messages: { en: { title: "" } } }), (e: unknown) => e instanceof ChestError && e.code === "invalid_title");
+  } finally {
+    await fake.close();
+  }
 });

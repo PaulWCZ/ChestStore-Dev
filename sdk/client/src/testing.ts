@@ -52,6 +52,10 @@ export type FakeChestOptions = {
   origin?: string;
   schedules?: { name: string; cron: string }[];
   timeZone?: string;
+  // Proposal (studio): the Chest's settings (chest.ts), set in the
+  // environment while the fake runs. The team URL is the fake's origin;
+  // the public URL is set only when named (a tool with a public part).
+  settings?: { company?: string; currency?: string; locale?: string; publicUrl?: string };
   // Proposal (studio): the events this tool publishes (chest.json "emits"),
   // and how many tools receive them.
   emits?: string[];
@@ -331,7 +335,7 @@ export async function fakeChest(options: FakeChestOptions = {}): Promise<FakeChe
   // counts: the tool's recipients this hour, each member's items this day,
   // the tool's badge writes this minute.
   type Window = { start: number; count: number };
-  const hour: Window = { start: 0, count: 0 }, minute: Window = { start: 0, count: 0 }, days = new Map<string, Window>();
+  const hour: Window = { start: 0, count: 0 }, minute: Window = { start: 0, count: 0 }, broadcasts: Window = { start: 0, count: 0 }, days = new Map<string, Window>();
   const live = (w: Window | undefined, span: number, now: number): boolean => w !== undefined && w.count > 0 && now - w.start < span;
   const wait = (w: Window, span: number, now: number): Record<string, string> => ({ "Retry-After": String(Math.max(1, Math.ceil((w.start + span - now) / 1000))) });
   const count = (w: Window, span: number, now: number, n: number): void => {
@@ -353,7 +357,7 @@ export async function fakeChest(options: FakeChestOptions = {}): Promise<FakeChe
   async function notificationsRoute(request: IncomingMessage, response: ServerResponse, url: URL): Promise<void> {
     if (!capabilities.has("notifications")) return send(response, 403, { error: "capability_not_granted" });
     const badge = request.method === "PUT" && url.pathname.startsWith("/badges/");
-    if (!badge && !(request.method === "PUT" && url.pathname === "/badges") && !(request.method === "POST" && (url.pathname === "/notifications" || url.pathname === "/notifications/withdraw"))) return send(response, 404, { error: "not_found" });
+    if (!badge && !(request.method === "PUT" && url.pathname === "/badges") && !(request.method === "POST" && (url.pathname === "/notifications" || url.pathname === "/notifications/withdraw" || url.pathname === "/notifications/broadcast"))) return send(response, 404, { error: "not_found" });
     const raw = await body(request, 64 << 10);
     let command: Record<string, unknown> | null = null;
     try {
@@ -401,6 +405,38 @@ export async function fakeChest(options: FakeChestOptions = {}): Promise<FakeChe
       if (named !== null && !Array.isArray(named)) return send(response, 400, named);
       drop(n => n.key === key && (named === null || named.includes(n.member)));
       return send(response, 204);
+    }
+    if (url.pathname === "/notifications/broadcast") {
+      // Proposal (studio): everyone who has the tool (or some roles or
+      // groups), each in their language; 30 broadcasts an hour.
+      if (!keys("messages", "path", "key", "to")) return send(response, 400, { error: "invalid_body" });
+      const messages = command!["messages"] as Record<string, { title?: unknown; body?: unknown }> | undefined;
+      if (!messages || typeof messages !== "object" || !messages["en"]) return send(response, 400, { error: "invalid_body" });
+      for (const m of Object.values(messages)) {
+        if (typeof m?.title !== "string" || [...m.title].length < 1 || [...m.title].length > maxTitle || cleanTitle(m.title) === "") return send(response, 400, { error: "invalid_title" });
+        if (m.body !== undefined && (typeof m.body !== "string" || [...m.body].length > maxText)) return send(response, 400, { error: "invalid_text" });
+      }
+      const { path, key } = command!;
+      if (path !== undefined && !isPath(path)) return send(response, 400, { error: "invalid_path" });
+      if (key !== undefined && (typeof key !== "string" || !keyPattern.test(key))) return send(response, 400, { error: "invalid_key" });
+      const to = (command!["to"] ?? {}) as { roles?: string[]; groups?: string[] };
+      if (live(broadcasts, 3_600_000, now) && broadcasts.count >= 30) return send(response, 429, { error: "quota_exceeded" }, wait(broadcasts, 3_600_000, now));
+      count(broadcasts, 3_600_000, now, 1);
+      const everyone = !to.roles && !to.groups;
+      let told = 0;
+      for (const m of chest.members) {
+        if (!everyone && !(to.roles ?? []).includes(m.role ?? "") && !m.groups.some(g => (to.groups ?? []).includes(g))) continue;
+        const w = days.get(m.id);
+        if (w && live(w, 86_400_000, now) && w.count >= itemsPerDay) continue;
+        if (!days.has(m.id)) days.set(m.id, { start: 0, count: 0 });
+        count(days.get(m.id)!, 86_400_000, now, 1);
+        const words = messages[m.locale ?? "en"] ?? messages["en"]!;
+        if (key !== undefined) drop(n => n.member === m.id && n.key === key);
+        const text = typeof words.body === "string" ? cleanText(words.body) : "";
+        chest.notifications.push({ member: m.id, title: cleanTitle(words.title as string), ...(text ? { body: text } : {}), path: (path as string | undefined) ?? "/chest", ...(key !== undefined ? { key: key as string } : {}) });
+        told++;
+      }
+      return send(response, 200, { delivered: told });
     }
     if (!keys("members", "title", "body", "path", "key")) return send(response, 400, { error: "invalid_body" });
     const { title, body: text, path, key } = command!;
@@ -585,10 +621,15 @@ export async function fakeChest(options: FakeChestOptions = {}): Promise<FakeChe
     route(request, response, url).catch(() => { if (!response.headersSent) send(response, 503, { error: "unavailable" }); else response.destroy(); });
   });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
-  const saved = Object.fromEntries(["CHEST_API", "CHEST_TOKEN", "CHEST_TOOL", "CHEST_TIMEZONE"].map(name => [name, process.env[name]]));
+  const saved = Object.fromEntries(["CHEST_API", "CHEST_TOKEN", "CHEST_TOOL", "CHEST_TIMEZONE", "CHEST_COMPANY", "CHEST_CURRENCY", "CHEST_LOCALE", "CHEST_TEAM_URL", "CHEST_PUBLIC_URL"].map(name => [name, process.env[name]]));
   chest.api = "http://127.0.0.1:" + (server.address() as AddressInfo).port;
   const zone = options.timeZone ?? "Europe/Paris";
-  Object.assign(process.env, { CHEST_API: chest.api, CHEST_TOKEN: token, CHEST_TOOL: tool, CHEST_TIMEZONE: zone });
+  Object.assign(process.env, { CHEST_API: chest.api, CHEST_TOKEN: token, CHEST_TOOL: tool, CHEST_TIMEZONE: zone, CHEST_TEAM_URL: origin });
+  const settings = options.settings ?? {};
+  for (const [name, value] of [["CHEST_COMPANY", settings.company], ["CHEST_CURRENCY", settings.currency], ["CHEST_LOCALE", settings.locale], ["CHEST_PUBLIC_URL", settings.publicUrl]] as const) {
+    if (value === undefined) delete process.env[name];
+    else process.env[name] = value;
+  }
   forget();
   chest.emit = async (event, to) => {
     const id = event.id ?? "evt_" + Array.from(randomBytes(26), b => "abcdefghijklmnopqrstuvwxyz234567"[b & 31]).join("");

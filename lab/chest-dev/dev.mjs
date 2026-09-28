@@ -113,6 +113,9 @@ const chest = await testing.fakeChest({
   origin,
   schedules: proposals.schedules ?? [],
   timeZone: process.env["CHEST_TIMEZONE"] ?? "Europe/Paris",
+  // The Chest's settings (Proposal (studio): the chest module): the cast's
+  // company; both hosts are this harness's one origin.
+  settings: { company: "Atelier Martin", currency: "EUR", locale: "en", ...(manifest.public ? { publicUrl: origin } : {}) },
 });
 
 // The tool, with the Chest's environment.

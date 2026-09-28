@@ -1,6 +1,6 @@
 import { ask as chest, json, refusal } from "./api.js";
 import { ChestError, Unavailable } from "./errors.js";
-import { memberIdPattern } from "./member.js";
+import { locales, memberIdPattern, type Locale } from "./member.js";
 
 // Counters and notifications inside the Chest, for a server tool whose
 // chest.json declares "capabilities": ["notifications"]: a badge is a count
@@ -109,6 +109,51 @@ export async function notify(memberIds: Iterable<string>, notice: Notice): Promi
   await expect(response, 200);
   const [delivered, skipped] = partition(await json(response), "delivered", "skipped", members);
   return { delivered, skipped };
+}
+
+// Proposal (studio): broadcast — one item for everyone who has the tool (or
+// those of some roles or groups), each in their language, in one call. The
+// Chest resolves the members, picks each one's message by their locale
+// (English when theirs is missing), and delivers in the background. Before:
+// a tool listed its members page by page, grouped them by language, and hit
+// the 1,000 recipients an hour after a thousand people (News, Polls).
+//
+//   await notifications.broadcast({
+//     messages: { en: { title: "Please read: we move on 2 November" }, fr: { title: "À lire : nous déménageons le 2 novembre" } },
+//     path: "/chest/posts/4", key: "post:4",
+//   });
+//
+// Quota: 30 broadcasts an hour per tool, not counted in recipients an hour;
+// each member still gets at most 100 items a day. to: roles and groups
+// (either matches); none: everyone with the tool. Answers how many members
+// were told.
+export type Message = { title: string; body?: string };
+export type Broadcast = { messages: { en: Message } & Partial<Record<Locale, Message>>; path?: string; key?: string; to?: { roles?: string[]; groups?: string[] } };
+
+const rolePattern = /^[a-z][a-z0-9_-]{0,31}$/u, groupPattern = /^grp_[a-z2-7]{26}$/u;
+
+function checkMessage(m: unknown): Message {
+  const o = m !== null && typeof m === "object" && !Array.isArray(m) ? (m as Record<string, unknown>) : null;
+  const title = o?.["title"], body = o?.["body"];
+  if (!o || Object.keys(o).some(k => k !== "title" && k !== "body")) throw new ChestError("invalid_body", 400, "a message is {title, body}");
+  if (typeof title !== "string" || length(title) < 1 || length(title) > maxTitle || title.replace(removed, "").trim() === "") throw new ChestError("invalid_title", 400, "a title is 1 to 80 characters");
+  if (body !== undefined && (typeof body !== "string" || length(body) > maxBody)) throw new ChestError("invalid_text", 400, "a body is 280 characters at most");
+  return { title, ...(body ? { body: body as string } : {}) };
+}
+
+export async function broadcast(b: Broadcast): Promise<{ delivered: number }> {
+  const given = b?.messages as Record<string, unknown> | undefined;
+  if (!given || typeof given !== "object" || !("en" in given) || Object.keys(given).some(k => !(locales as readonly string[]).includes(k))) throw new ChestError("invalid_body", 400, "messages: en, and other languages of the Chest");
+  const messages = Object.fromEntries(Object.entries(given).map(([k, m]) => [k, checkMessage(m)]));
+  const roles = b.to?.roles, groups = b.to?.groups;
+  if (roles !== undefined && (!Array.isArray(roles) || roles.length > 16 || !roles.every(r => typeof r === "string" && rolePattern.test(r)))) throw new ChestError("invalid_body", 400, "roles: up to 16 role identifiers");
+  if (groups !== undefined && (!Array.isArray(groups) || groups.length > 64 || !groups.every(g => typeof g === "string" && groupPattern.test(g)))) throw new ChestError("invalid_body", 400, "groups: up to 64 group identifiers");
+  const command = { messages, ...(b.path !== undefined ? { path: checkPath(b.path) } : {}), ...(b.key !== undefined ? { key: checkKey(b.key) } : {}), ...(roles || groups ? { to: { ...(roles ? { roles } : {}), ...(groups ? { groups } : {}) } } : {}) };
+  const response = await ask("POST", "/notifications/broadcast", command);
+  await expect(response, 200);
+  const answer = (await json(response)) as { delivered?: unknown } | null;
+  if (!answer || typeof answer.delivered !== "number" || !Number.isInteger(answer.delivered) || answer.delivered < 0) throw new Unavailable();
+  return { delivered: answer.delivered };
 }
 
 // withdraw removes the items of that key, from every member or from those

@@ -1,4 +1,5 @@
 import { createHash, randomBytes } from "node:crypto";
+import * as chest from "@argentic/chest-sdk/chest";
 import type { Member } from "@argentic/chest-sdk/member";
 import { can } from "./access.ts";
 import { AppError } from "./app-error.ts";
@@ -65,16 +66,18 @@ const newSecret = () => randomBytes(24).toString("base64url");
 
 // ——— Settings ———
 
-const defaults: Settings = { companyName: "", retentionMonths: 24, defaultZone: "Europe/Paris", publicOrigin: null, mailWorks: null };
-
+// The Chest gives its company name, time zone and public address (Proposal
+// (studio): the chest module); an administrator may name the company
+// otherwise for visitors, and the address seen in requests is remembered
+// for a Chest that does not give it yet.
 export async function settings(sql: Query): Promise<Settings> {
   const rows = await sql<{ key: string; value: unknown }[]>`select key, value from settings`;
-  const s: Settings = { ...defaults };
+  const s: Settings = { companyName: chest.company(), retentionMonths: 24, defaultZone: chest.timeZone(), publicOrigin: chest.publicUrl(), mailWorks: null };
   for (const { key, value } of rows) {
-    if (key === "company_name" && typeof value === "string") s.companyName = value;
+    if (key === "company_name" && typeof value === "string" && value !== "") s.companyName = value;
     if (key === "retention_months" && typeof value === "number") s.retentionMonths = value;
     if (key === "default_zone" && isZone(value)) s.defaultZone = value;
-    if (key === "public_origin" && typeof value === "string") s.publicOrigin = value;
+    if (key === "public_origin" && typeof value === "string" && !chest.publicUrl()) s.publicOrigin = value;
     if (key === "mail_works" && typeof value === "boolean") s.mailWorks = value;
   }
   return s;

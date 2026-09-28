@@ -24,8 +24,9 @@ module is not in the root).
 |---|---|
 | `@argentic/chest-sdk/member` | `member(request)`, type `Member`: the member of a request on the team host of a server tool, read from the `Chest-Member` assertion and verified; `null` without a valid assertion. `memberIdPattern`, `groupIdPattern`: the grammars of the identifiers (`mbr_…`, `grp_…`) |
 | `@argentic/chest-sdk/members` | `list`, `get`, `lookup`, `groups.list`, `forget`, types `MemberPage`, `Lookup`, `FormerMember`, `Group`: the members who have the tool (capability `members`, their addresses with `members.email`) |
-| `@argentic/chest-sdk/notifications` | `notify`, `withdraw`, `badge.set`, `badge.setMany`, types `Notice`, `Delivery`, `BadgeCount`, `BadgeWrite`: counters on the tool's tile and items in members' inboxes, inside the Chest (capability `notifications`) |
+| `@argentic/chest-sdk/notifications` | `notify`, `withdraw`, `broadcast` (Proposal (studio)), `badge.set`, `badge.setMany`, types `Notice`, `Delivery`, `BadgeCount`, `BadgeWrite`: counters on the tool's tile and items in members' inboxes, inside the Chest (capability `notifications`) |
 | `@argentic/chest-sdk/events` | `handle`, `verify`, `acknowledgeErasure`, `memorySeen`, `erasureIdPattern`, types `ChestEvent`, `MemberUpdated`, `AccessRevoked`, `MemberRemoved`, `MemberErased`, `MemberChange`, `Handlers`, `Seen`: the events of the members' lifecycle the Chest posts to the tool's `/chest-events` (`"receives": ["member.*"]`), verified, deduplicated by id, and the acknowledgment of an erasure |
+| `@argentic/chest-sdk/chest` | **Proposal (studio).** `company`, `timeZone`, `today`, `currency`, `locale`, `teamUrl`, `publicUrl`: the Chest's settings every tool needs |
 | `@argentic/chest-sdk/database` | `databaseUrl()`: the address of the tool's own PostgreSQL database (capability `database`) |
 | `@argentic/chest-sdk/files` | `put`, `get`, `stat`, `list`, `move`, `delete`, `url`, `uploadUrl`, types `FileObject`, `FileData`, `FilePage`: the tool's private files (capability `files`), kept by the Chest, a 15-minute signed link to one (or to its thumbnail), and uploads straight from a member's browser |
 | `@argentic/chest-sdk/errors` | `ChestError` (`code`, `status`), `CapabilityNotGranted` (403), `TooLarge` (413), `QuotaExceeded` (429), `RateLimited` (429), `Unavailable` (503): what the SDK throws when the Chest does not give what a tool asks |
@@ -294,6 +295,27 @@ A badge suits a count that goes up and down (tasks assigned, messages
 unread); a notification, an event worth a look — with a key, so that it goes
 away by itself once handled.
 
+### `broadcast` — everyone, each in their language (Proposal (studio))
+
+```ts
+const { delivered } = await notifications.broadcast({
+  messages: { en: { title: "Please read: we move on 2 November" }, fr: { title: "À lire : nous déménageons le 2 novembre" } },
+  path: "/chest/posts/4",
+  key: "post:4",
+  to: { roles: ["reader"], groups: ["grp_…"] }, // optional: either matches; none = everyone with the tool
+});
+```
+
+One call tells everyone who has the tool (or the members of some roles or
+groups), each with the message of their language (`en` required, used when
+a member's is missing). The Chest resolves the members and delivers in the
+background; a key replaces each member's earlier item of that key. Quota:
+30 broadcasts an hour per tool, not counted in the 1,000 recipients an
+hour; each member still gets at most 100 items a day (a member at their
+limit is skipped). Answers how many members were told. Before it, a tool
+that told everyone listed its members page by page, grouped them by
+language and stopped at a thousand people (News, Polls).
+
 ## `events` — the members' lifecycle
 
 A v2 tool that holds `members` and declares `"receives": ["member.*"]` in its
@@ -496,6 +518,29 @@ data) and keeps undelivered ones 72 hours, like member events. In tests:
 `fakeChest({ emits, receivers })` records `chest.published`;
 `chest.deliver({type, data}, to)` hands the tool another tool's event.
 
+## `chest` — the Chest's settings (Proposal (studio))
+
+```ts
+import * as chest from "@argentic/chest-sdk/chest";
+chest.company();   // "Atelier Martin" ("" when none)
+chest.timeZone();  // "Europe/Paris": the day of "due today", the hour of a reminder
+chest.today();     // "2026-09-28" in that zone
+chest.currency();  // "EUR" (ISO 4217)
+chest.locale();    // "fr": the Chest's default language (a public page before the visitor chooses)
+chest.teamUrl();   // "https://booking-chest.atelier-martin.fr" (null outside a Chest)
+chest.publicUrl(); // "https://booking.atelier-martin.fr" (null without a public part)
+```
+
+What every tool needs of the Chest and none should ask its admin again. The
+Chest gives them in the tool's environment (`CHEST_COMPANY`,
+`CHEST_TIMEZONE`, `CHEST_CURRENCY`, `CHEST_LOCALE`, `CHEST_TEAM_URL`,
+`CHEST_PUBLIC_URL`); each function checks the value and falls back to a
+safe default (a zone the runtime does not know is Europe/Paris; an address
+that is neither https nor localhost is null). Links written outside a
+request — an email sent by a schedule, an export, a calendar feed — use
+`teamUrl()` / `publicUrl()` instead of a forwarded host.
+`schedules.timeZone()` is the same function.
+
 ## `databaseUrl()` — database of a server tool
 
 A v2 tool that declares `"capabilities": ["database"]` in its `chest.json`
@@ -693,6 +738,7 @@ await chest.close();
 | `chest.upload(url, data, type)` | **Proposal (studio).** Plays a member's browser sending a file to an `uploadUrl` answer: the fake Chest's front checks the token (once, before its expiry), the type and the size, names the object in a folder, and answers `201 {name, type, size}`, or 403 `invalid_token`, 415 `type_refused`, 413 `too_large`, 429 `quota_exceeded` |
 | `fakeChest({origin})` | **Proposal (studio).** The team host its links and uploads point to (`https://<tool>-chest.chest.test` by default). A local harness gives its own (`http://localhost:<port>`) and relays `/_chest/*` of its host to `chest.api`, where the fake Chest's front serves the uploads, the signed links and the members' photos (initials). `files.url` and `uploadUrl` accept `http://localhost` and `http://127.0.0.1` links for that reason |
 | `fakeChest({schedules, timeZone})`, `chest.run(name, to, {id?, scheduledAt?, attempt?})`, `chest.runs` | **Proposal (studio).** A run of a declared schedule delivered to `POST <to>/chest-jobs/<name>` (or a handler of Web Requests), signed as the Chest would; `CHEST_TIMEZONE` set (Europe/Paris by default) |
+| `fakeChest({settings: {company, currency, locale, publicUrl}})` | **Proposal (studio).** The Chest's settings (`chest`) in the environment while the fake runs; `CHEST_TEAM_URL` is the fake's origin |
 | `chest.close()` | Stops it and restores the environment |
 
 ## Version

@@ -55,21 +55,10 @@ export const runIdPattern = /^run_[a-z2-7]{26}$/u;
 export const schedulePattern = /^[a-z][a-z0-9-]{0,31}$/u;
 export const limits = { schedules: 8, minimumMinutes: 15, attempts: 4 } as const;
 
-// timeZone is the Chest's time zone, which the Chest gives every tool
-// (CHEST_TIMEZONE, an IANA name): the day of "due today", the hour of a
-// reminder. Europe/Paris when the Chest says none (Proposal (studio)).
-export function timeZone(): string {
-  const value = process.env["CHEST_TIMEZONE"];
-  if (typeof value === "string" && value.length <= 64) {
-    try {
-      new Intl.DateTimeFormat("en", { timeZone: value });
-      return value;
-    } catch {
-      // Not a zone this runtime knows: the default.
-    }
-  }
-  return "Europe/Paris";
-}
+// timeZone is the Chest's time zone (chest.timeZone(), kept here for the
+// tools that import it from schedules).
+import { timeZone } from "./chest.js";
+export { timeZone };
 
 // ---- Cron lines: minute hour day-of-month month day-of-week ----------------
 

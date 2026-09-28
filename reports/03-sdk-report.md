@@ -50,10 +50,9 @@ _(to be ordered once more tools are built; the evidence so far)_
   (done in the working copy): a tool notifies *other* members, in *their*
   language.
 - **No time zone.** "Due today", "this week", a reminder at 07:30 all need
-  the company's time zone; every tool hard-coded Europe/Paris. Proposal:
-  `CHEST_TIMEZONE` for every tool (read by `schedules.timeZone()` in the
-  working copy); it belongs in a small "chest settings" module (zone,
-  company name, currency, default language).
+  the company's time zone; every tool hard-coded Europe/Paris. Built as
+  the `chest` module (4.5), with the company's name, currency, default
+  language and the tool's addresses.
 
 ### `members`
 - `list` pages of 500 are fine, but a tool that shows "who can see this
@@ -73,6 +72,7 @@ _(to be ordered once more tools are built; the evidence so far)_
 - Clear and well bounded. Wish: a `notify` with a per-recipient body
   (each recipient's language) in one call; today a tool groups recipients
   by locale and calls once per language (`lib/notify.ts` in every tool).
+  For "everyone", built as `broadcast` (4.6).
 
 ### `events`
 - Fine. Wish: an event when a member's **locale** changes (`member.updated`
@@ -202,6 +202,53 @@ _(to be ordered once more tools are built; the evidence so far)_
 - **Elsewhere**: Supabase and Firebase have database triggers inside one
   app; Zapier/n8n link SaaS with credentials. Here the platform owns the
   link, per company, with permissions in words.
+
+### 4.5 The Chest's settings — `chest` (built)
+
+- **Needed by**: every tool with days (Tasks, Leave, Rooms, Expenses,
+  Booking, News: "today", "this week", a reminder's hour), every tool that
+  writes a link outside a request (Support's and Booking's emails sent by
+  a schedule, Wiki's exports, Booking's calendar feed), every public page
+  that names the company (Support, Booking, Hiring). Five builders asked
+  for it separately; each had hard-coded Europe/Paris, derived its public
+  address from `X-Forwarded-Host` and remembered it in its database, and
+  asked its own admin for the company's name.
+- **Working copy**: `sdk/client/src/chest.ts` — `company()`, `timeZone()`,
+  `today()`, `currency()`, `locale()`, `teamUrl()`, `publicUrl()`, read
+  from `CHEST_COMPANY`, `CHEST_TIMEZONE`, `CHEST_CURRENCY`, `CHEST_LOCALE`,
+  `CHEST_TEAM_URL`, `CHEST_PUBLIC_URL`, each checked, each with a safe
+  default; `fakeChest({settings})`; `sdk/client/test/chest.test.ts`;
+  `schedules.timeZone()` is now the same function. Used by Booking
+  (company name, new hosts' zone, the public address of its emails); the
+  harness gives every tool the cast's company.
+- **Why environment variables**: they are what the Chest already gives a
+  tool (`CHEST_API`, `CHEST_TOKEN`, `DATABASE_URL`), they cost no request,
+  and a tool restarts when the owner changes them — these change rarely.
+- **Not a capability**: nothing here is private to the company beyond what
+  its pages already show; no approval sentence.
+- **Elsewhere**: Vercel gives `VERCEL_URL`/`VERCEL_PROJECT_PRODUCTION_URL`;
+  Heroku and Render give the app's URL; none gives the tenant's locale or
+  zone, because none has a tenant. The Chest has one: its company.
+
+### 4.6 Notify everyone — `notifications.broadcast` (built)
+
+- **Needed by**: News (an Important post to everyone), Polls (a question to
+  everyone or some groups), later Status (an incident to the team) and
+  Goals (the quarter's check-in). News had to list members page by page,
+  group them by language, call once per language and per 500, and stop at
+  the 1,000 recipients an hour — a company of 1,300 people could not be
+  told of its move in one go.
+- **Working copy**: `notifications.broadcast({messages: {en, fr…}, path,
+  key, to: {roles, groups}})` → `{delivered}`; the fake resolves members,
+  roles and groups and picks each member's language; test in
+  `sdk/client/test/notifications.test.ts`.
+- **Quota**: 30 broadcasts an hour per tool, outside the recipients-an-hour
+  quota (the Chest delivers in the background, at its own pace); each
+  member keeps the 100 items a day limit.
+- **Risks**: a tool spamming everyone (bounded by 30 an hour and the
+  owner's mute per tool); a broadcast reaching someone who should not see
+  a title (the tool chooses roles and groups; titles are 80 characters and
+  open a page the tool still guards).
 
 _(more sections as tools need them: public accounts, payments, AI.)_
 

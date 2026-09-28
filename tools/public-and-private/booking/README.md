@@ -106,8 +106,11 @@ company's time zone, weekday hours (9:00–12:30, 14:00–17:30) and one
   kept until an administrator erases them.
 - **Photos on the public host**: the Chest's photo links work on the team
   host only; public pages show initials.
-- **The public host's address** is derived from the request (and
-  remembered for emails sent by a schedule); the Chest should give it.
+- **The Chest's settings** — **Proposal (studio)** (`chest`): the company's
+  name (an administrator may name it otherwise for visitors), the default
+  time zone of new hosts, and the public host's address. On a Chest that
+  does not give them yet: no name, Europe/Paris, and the address derived
+  from the request (remembered for emails sent by a schedule).
 - **The visitor's address** for the booking form's counters is read from
   `X-Forwarded-For`, assumed set by the Chest's front.
 - **Calendars**: Booking does not read the host's other calendar (Google,
