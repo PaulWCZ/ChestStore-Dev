@@ -1,0 +1,13 @@
+[
+  { "name": "week", "path": "/chest", "member": "hugo", "locale": "en", "preview": true },
+  { "name": "desks", "path": "/chest/desks", "member": "tom", "locale": "en" },
+  { "name": "rooms", "path": "/chest/rooms", "member": "camille", "locale": "en" },
+  { "name": "booking", "path": "/chest/rooms", "member": "hugo", "locale": "en", "actions": [{ "click": "button:has-text('Book a room')" }, { "wait": 400 }] },
+  { "name": "week-fr", "path": "/chest", "member": "ines", "locale": "fr" },
+  { "name": "desks-fr", "path": "/chest/desks", "member": "lea", "locale": "fr" },
+  { "name": "rooms-fr", "path": "/chest/rooms", "member": "ines", "locale": "fr" },
+  { "name": "people", "path": "/chest/people", "member": "sofia", "locale": "en" },
+  { "name": "places", "path": "/chest/places", "member": "camille", "locale": "en", "only": ["desktop"] },
+  { "name": "rooms-dark", "path": "/chest/rooms", "member": "tom", "locale": "en", "dark": true },
+  { "name": "week-dark", "path": "/chest", "member": "lea", "locale": "fr", "dark": true }
+]

@@ -1,0 +1,35 @@
+{
+  "version": 2,
+  "name": "rooms",
+  "title": "Rooms",
+  "description": "Book a desk or a meeting room, and see who is in the office which day.",
+  "icon": "chest/icon.svg",
+  "preview": "chest/preview.png",
+  "roles": [
+    "admin",
+    "member"
+  ],
+  "role_labels": {
+    "admin": "Admin",
+    "member": "Member"
+  },
+  "capabilities": [
+    "database",
+    "files",
+    "members",
+    "notifications"
+  ],
+  "receives": [
+    "member.*"
+  ],
+  "build": {
+    "runtime": "node",
+    "install": "npm ci",
+    "command": "npm run build",
+    "start": "npm start",
+    "port": 3000,
+    "static": [
+      "/_next/static/"
+    ]
+  }
+}
