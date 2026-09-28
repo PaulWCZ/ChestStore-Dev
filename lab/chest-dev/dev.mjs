@@ -1,14 +1,15 @@
 // The studio's `chest dev`: runs one tool as a Chest would, on this machine.
 //
-//   node lab/chest-dev/dev.mjs tools/private/<name> [--port 4000] [--prod] [--seed] [--reset]
+//   node lab/chest-dev/dev.mjs tools/private/<name> [--port 4000] [--prod] [--seed] [--reset] [--empty]
 //
 // - a fake Chest (the SDK working copy's fakeChest: members, groups, files,
 //   notifications, events, and every proposal it fakes), with a cast of
 //   sample members given the tool's roles;
 // - the tool's database on the local PostgreSQL, as the Chest makes it
 //   (role and database t_<tool>, migrations run as the tool in name order,
-//   recorded in chest_migrations); --reset starts it empty, --seed loads
-//   seed/sample.sql (also on a fresh database);
+//   recorded in chest_migrations); --reset drops it and starts again, --seed
+//   loads seed/sample.sql (also on a fresh database), --empty never loads it
+//   (a new company's first visit: with --reset, an empty tool);
 // - the tool itself (`npm run dev`, or `npm start` after `npm run build`
 //   with --prod) on a port of its own, with the Chest's environment;
 // - in front, http://localhost:<port>: /chest… carries the Chest-Member
@@ -40,7 +41,7 @@ const option = (name, fallback) => {
   return i >= 0 && args[i + 1] ? args[i + 1] : fallback;
 };
 if (!folder || !existsSync(join(folder, "chest.json"))) {
-  console.error("usage: node lab/chest-dev/dev.mjs <tool folder> [--port 4000] [--prod] [--seed] [--reset]");
+  console.error("usage: node lab/chest-dev/dev.mjs <tool folder> [--port 4000] [--prod] [--seed] [--reset] [--empty]");
   process.exit(1);
 }
 const tool = resolve(folder);
@@ -116,7 +117,7 @@ if (capabilities.includes("database")) {
     });
     console.log(`migration ${file} run`);
   }
-  if ((fresh || flag("seed")) && existsSync(join(tool, "seed", "sample.sql"))) {
+  if ((fresh || flag("seed")) && !flag("empty") && existsSync(join(tool, "seed", "sample.sql"))) {
     await sql.unsafe(readFileSync(join(tool, "seed", "sample.sql"), "utf8")).simple();
     console.log("seed/sample.sql loaded");
   }

@@ -38,9 +38,24 @@ watching, templates, reviews), Booking (questions, daily limit), News
 (audience, search, digest), Leave → People and People → Equipment. The
 audit now replays screen actions. Report §3 and §6 updated.
 
-**Still running:** the UI kit and themes foundation; Forms (tool 18); four
-critics writing the severe critique (scratchpad `critique/*.md`, to be
-consolidated into `reports/05-critique.md`).
+**UI kit and themes: done, verified by the lead** (kit 31 tests, SDK
+studio.11 65 tests, template 14 tests on PGlite and PostgreSQL, package
+checks, gallery `ui/gallery/index.html` looked at). Report
+`reports/04-themes-and-kit.md`. Next for it: components from the best of
+the tools (critique `_store.md` names them), then migrate the 17 tools
+(estimate in report 04 §10).
+
+**Severe critique:** collaboration (tasks, wiki, news, polls, goals) and
+sales (crm, quotes, helpdesk, booking) are written in the scratchpad
+`critique/*.md`. HR and the rest of the store are still running. To be
+consolidated into `reports/05-critique.md`. **No tool can be cancelled
+against its competitor tomorrow**: the recurring gaps are email (SDK mail
+not shipped), imports, and group targeting.
+
+**Fixes under way:** Clients, Quotes, Tasks, Wiki, Polls. Then News,
+Goals, Support, Booking. Forms (tool 18) is still being built.
+
+**Harness:** `--empty` starts a tool with no sample data.
 
 **Earlier round, for the record:**
 - Tasks: reminders and recurring cards.
