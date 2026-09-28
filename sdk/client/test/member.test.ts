@@ -11,7 +11,7 @@ import { member } from "../src/member.js";
 const chestToken = "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8";
 const signedByChest = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhZG1pbiI6dHJ1ZSwiYXVkIjoid2ViIiwiYnVpbGRlciI6ZmFsc2UsImVtYWlsIjoiYWxpY2VAZXhhbXBsZS50ZXN0IiwiZXhwIjoxNzkwMDAwMDYwLCJmYW1pbHlfbmFtZSI6Ik1hcnRpbiIsImdpdmVuX25hbWUiOiJBbGljZSIsImdyb3VwcyI6WyJncnBfbjRyZHE3dzJ4a3o1bTNidmM2aHkydHBsNGUiXSwiaWF0IjoxNzkwMDAwMDAwLCJpc3MiOiJodHRwczovL3dlYi1jaGVzdC5hdGVsaWVyLmV4YW1wbGUiLCJuYW1lIjoiQWxpY2UgTWFydGluIiwicGljdHVyZSI6Ii9fY2hlc3QvbWVtYmVycy9tYnJfazJxaHg0bXpjN3YzYjZuZnA1cjJ0N3c0eWEvcGhvdG8_dj1hYmNkZWZnaCIsInJvbGUiOiJlZGl0b3IiLCJzdWIiOiJtYnJfazJxaHg0bXpjN3YzYjZuZnA1cjJ0N3c0eWEifQ.M7MUfaYRD9eiDlR45C7eTalqWncBQGsn0dQdPIAH5K4";
 const signedAt = 1790000000;
-const alice = { id: "mbr_k2qhx4mzc7v3b6nfp5r2t7w4ya", firstName: "Alice", lastName: "Martin", name: "Alice Martin", photo: "/_chest/members/mbr_k2qhx4mzc7v3b6nfp5r2t7w4ya/photo?v=abcdefgh", role: "editor", isAdmin: true, isBuilder: false, groups: ["grp_n4rdq7w2xkz5m3bvc6hy2tpl4e"], email: "alice@example.test" };
+const alice = { id: "mbr_k2qhx4mzc7v3b6nfp5r2t7w4ya", firstName: "Alice", lastName: "Martin", name: "Alice Martin", photo: "/_chest/members/mbr_k2qhx4mzc7v3b6nfp5r2t7w4ya/photo?v=abcdefgh", role: "editor", isAdmin: true, isBuilder: false, groups: ["grp_n4rdq7w2xkz5m3bvc6hy2tpl4e"], locale: "en" as const, email: "alice@example.test" };
 const bob = "mbr_bobaaaaaaaaaaaaaaaaaaaaaaa";
 
 const encode = (value: unknown): string => Buffer.from(JSON.stringify(value)).toString("base64url");
@@ -52,8 +52,8 @@ test("an assertion signed by the Chest reads as its member, on a Web Request and
 });
 
 test("photo and role are null when the Chest names none; the address is there only when the tool may read it", () => {
-  assert.deepEqual(member(web(sign())), { id: bob, firstName: "Bob", lastName: "", name: "Bob", photo: null, role: null, isAdmin: false, isBuilder: false, groups: [] });
-  assert.deepEqual(member(node(sign({ role: "reader", builder: true, email: "bob@example.test" }))), { id: bob, firstName: "Bob", lastName: "", name: "Bob", photo: null, role: "reader", isAdmin: false, isBuilder: true, groups: [], email: "bob@example.test" });
+  assert.deepEqual(member(web(sign())), { id: bob, firstName: "Bob", lastName: "", name: "Bob", photo: null, role: null, isAdmin: false, isBuilder: false, groups: [], locale: "en" });
+  assert.deepEqual(member(node(sign({ role: "reader", builder: true, email: "bob@example.test" }))), { id: bob, firstName: "Bob", lastName: "", name: "Bob", photo: null, role: "reader", isAdmin: false, isBuilder: true, groups: [], locale: "en", email: "bob@example.test" });
 });
 
 test("no assertion, or one that is not exactly a Chest-Member, is null — never an error", () => {
@@ -103,4 +103,16 @@ test("without CHEST_TOKEN or CHEST_TOOL, nobody is a member", () => {
   assert.equal(member(node(assertion)), null);
   process.env["CHEST_TOKEN"] = "short";
   assert.equal(member(node(assertion)), null);
+});
+
+test("locale (proposal): the member's language among the store's, English when absent or not spoken", () => {
+  assert.equal(member(web(sign({ locale: "fr" })))?.locale, "fr");
+  assert.equal(member(web(sign({ locale: "fr-CA" })))?.locale, "fr");
+  assert.equal(member(web(sign({ locale: "FR" })))?.locale, "fr");
+  assert.equal(member(web(sign({ locale: "de" })))?.locale, "en");
+  assert.equal(member(web(sign({ locale: "" })))?.locale, "en");
+  assert.equal(member(web(sign()))?.locale, "en");
+  // A claim of another type is not the Chest's.
+  assert.equal(member(web(sign({ locale: 7 }))), null);
+  assert.equal(member(web(sign({ locale: ["fr"] }))), null);
 });

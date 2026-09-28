@@ -50,4 +50,6 @@ _None yet._
 
 ## Decisions taken
 
+- Owner, 2026-09-28: Forms (`reference/forms`) is a first prototype with no quality value. Take from it only what the Chest imposes (CSP nonce, webpack build, read-only disk); the template, architecture and UX follow our own bar.
+
 - Tools are MIT-licensed, © 2026 Argentic, like the SDK (to be confirmed by the owner).

@@ -19,6 +19,10 @@ import { forget } from "./members.js";
 //   assert.equal(await chest.emit({ type: "access.revoked", data: { id: camille.id } }, request => app(request)), 204);
 //   await chest.close();
 
+// A member as a test names them: a Member, whose locale may be left out
+// (the Chest then says none, and the tool reads English).
+export type FakeMember = Omit<Member, "locale"> & { locale?: string };
+
 // A group as a fake Chest keeps it: its identifier, its name, and the
 // identifiers of the members it gives the tool to.
 export type FakeGroup = { id: string; name: string; members: string[] };
@@ -36,7 +40,7 @@ export type FakeNotification = { member: string; title: string; body?: string; p
 // addresses), the events it receives (["member.*"] by default, [] to answer
 // an acknowledgment 403) and the files it keeps.
 export type FakeChestOptions = {
-  members?: Member[];
+  members?: FakeMember[];
   former?: { id: string; name?: string; erased?: boolean }[];
   groups?: FakeGroup[];
   capabilities?: string[];
@@ -62,7 +66,7 @@ export type FakeChest = {
   api: string;
   token: string;
   tool: string;
-  members: Member[];
+  members: FakeMember[];
   groups: FakeGroup[];
   files: Map<string, FakeFile>;
   notifications: FakeNotification[];
@@ -77,7 +81,7 @@ const encode = (value: unknown): string => Buffer.from(JSON.stringify(value)).to
 // signAssertion is the Chest-Member value the Chest's front would send for
 // that member: HS256 under the key of the token (CHEST_TOKEN by default), for
 // the tool (CHEST_TOOL by default), valid 60 seconds from now.
-export function signAssertion(member: Member, options: { token?: string; tool?: string; now?: Date } = {}): string {
+export function signAssertion(member: FakeMember, options: { token?: string; tool?: string; now?: Date } = {}): string {
   const token = options.token ?? process.env["CHEST_TOKEN"];
   const tool = options.tool ?? process.env["CHEST_TOOL"];
   if (!token || !tool) throw new Error("signAssertion needs a token and a tool: start a fakeChest, or name them");
@@ -86,7 +90,7 @@ export function signAssertion(member: Member, options: { token?: string; tool?: 
   const body = encode({ alg: "HS256", typ: "JWT" }) + "." + encode({
     iss: `https://${tool}-chest.chest.test`, aud: tool, iat, exp: iat + 60, sub: member.id,
     given_name: member.firstName, family_name: member.lastName, name: member.name, picture: member.photo ?? "", role: member.role ?? "",
-    admin: member.isAdmin, builder: member.isBuilder, groups: member.groups, ...(member.email === undefined ? {} : { email: member.email }),
+    admin: member.isAdmin, builder: member.isBuilder, groups: member.groups, ...(member.email === undefined ? {} : { email: member.email }), ...(member.locale === undefined ? {} : { locale: member.locale }),
   });
   // The key as the Chest derives it, and member() reads it: HMAC-SHA256 of
   // the label of the assertion's shape under the text of the token.
@@ -106,7 +110,7 @@ function signEvent(id: string, body: string, options: { token: string; tool: str
 
 // withMember is the request carrying that member's assertion: a new Web
 // Request, or the same Node request with its header set.
-export function withMember<R extends Request | IncomingMessage>(request: R, member: Member, options: { token?: string; tool?: string; now?: Date } = {}): R {
+export function withMember<R extends Request | IncomingMessage>(request: R, member: FakeMember, options: { token?: string; tool?: string; now?: Date } = {}): R {
   const assertion = signAssertion(member, options);
   if (request instanceof Request) {
     const headers = new Headers(request.headers);
@@ -167,8 +171,8 @@ export async function fakeChest(options: FakeChestOptions = {}): Promise<FakeChe
   const chest: FakeChest = { api: "", token, tool, members: [...(options.members ?? [])], groups: [...(options.groups ?? [])], files, notifications: [], badges: new Map(), acknowledged: [], emit: async () => 0, close: async () => {} };
   const former = [...(options.former ?? [])];
   let window = 0, calls = 0;
-  const shown = (m: Member) => ({ id: m.id, first_name: m.firstName, last_name: m.lastName, name: m.name, photo: m.photo, role: m.role, admin: m.isAdmin, builder: m.isBuilder, groups: m.groups, ...(email && m.email !== undefined ? { email: m.email } : {}) });
-  const key = (m: Member) => fold(m.name) + "\u0000" + m.id;
+  const shown = (m: FakeMember) => ({ id: m.id, first_name: m.firstName, last_name: m.lastName, name: m.name, photo: m.photo, role: m.role, admin: m.isAdmin, builder: m.isBuilder, groups: m.groups, ...(m.locale === undefined ? {} : { locale: m.locale }), ...(email && m.email !== undefined ? { email: m.email } : {}) });
+  const key = (m: FakeMember) => fold(m.name) + "\u0000" + m.id;
   const described = (name: string, f: FakeFile) => ({ name, type: f.type, size: f.data.byteLength, updated: f.updated });
 
   async function members(request: IncomingMessage, response: ServerResponse, url: URL): Promise<void> {

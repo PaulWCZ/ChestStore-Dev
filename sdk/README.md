@@ -96,6 +96,7 @@ type Member = {
   isAdmin: boolean;      // owner or admin of the Chest
   isBuilder: boolean;    // builder of this tool
   groups: string[];      // "grp_…": the groups that give the member this tool
+  locale: "en" | "fr";   // Proposal (studio): the member's language, English by default
   email?: string;        // only with the capability "members.email"
 };
 ```
@@ -126,6 +127,30 @@ host to members who have the tool; `role` is the one the Chest gives the
 member among those the manifest declares. Only the Chest's front reaches the
 container: the signature is a second defence; business rules (who writes
 what) remain the tool's.
+
+### `locale` — the member's language (Proposal (studio))
+
+The Chest knows the language each member reads it in; it gives it to every
+tool in the optional `locale` claim of the assertion (and in the `locale`
+field of `members.*` answers), a BCP 47 tag. `member()` and `members.*` read
+it as one of the store's languages, `locales` (`["en", "fr"]`, the first the
+default): its primary subtag when the store speaks it (`"fr-FR"` → `"fr"`),
+English when absent or not spoken (`"de"` → `"en"`); a claim that is not a
+string makes the assertion invalid. `localeOf(tag)` applies the same rule.
+
+A tool shows its members' part in `member(request).locale` — never a switch
+of its own — and writes the notifications it sends a member in *that*
+member's `locale` (`members.lookup`), not the sender's. In tests,
+`fakeChest` members and `withMember` take an optional `locale`.
+
+```ts
+import { member } from "@argentic/chest-sdk/member";
+const who = member(request);
+const t = catalogue[who?.locale ?? "en"];
+```
+
+No manifest key: every tool receives it. Adding a language to the store is
+one entry in `locales`.
 
 ## `members` — who has the tool
 

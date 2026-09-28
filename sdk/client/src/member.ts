@@ -15,6 +15,12 @@ import type { IncomingMessage } from "node:http";
 // - isBuilder says they build this tool; groups are the groups that give them
 //   this tool ("grp_…").
 // - email is there only when the tool holds "members.email".
+// - locale is the language the member reads the Chest in, among the
+//   languages of the store (locales): English when the Chest says none, or
+//   one the store does not speak yet. A tool shows its members' part in it
+//   and writes the notifications it sends that member in it.
+//   Proposal (studio): the "locale" claim of the assertion, and of the
+//   members API.
 export type Member = {
   id: string;
   firstName: string;
@@ -25,8 +31,22 @@ export type Member = {
   isAdmin: boolean;
   isBuilder: boolean;
   groups: string[];
+  locale: Locale;
   email?: string;
 };
+
+// The languages of the store, the first one the default and fallback.
+export const locales = ["en", "fr"] as const;
+export type Locale = (typeof locales)[number];
+
+// localeOf is the store's language for a language tag of the Chest ("fr",
+// "fr-FR", "FR"): its primary subtag when the store speaks it, English
+// otherwise — also for anything that is not a tag.
+export function localeOf(tag: unknown): Locale {
+  if (typeof tag !== "string" || tag.length > 35) return locales[0];
+  const primary = tag.split(/[-_]/u)[0]!.toLowerCase();
+  return (locales as readonly string[]).includes(primary) ? primary as Locale : locales[0];
+}
 
 // The grammars of the identifiers the Chest mints: a tool may check with them
 // the identifiers it stores.
@@ -39,7 +59,8 @@ export const groupIdPattern = /^grp_[a-z2-7]{26}$/u;
 // module stands alone (node:* only), so that it can be copied by itself.
 const label = "Chest-Member v2";
 // The claims every assertion carries; email only for a tool that holds
-// members.email.
+// members.email, locale when the member chose a language (English
+// otherwise).
 const claims = ["iss", "aud", "iat", "exp", "sub", "given_name", "family_name", "name", "picture", "role", "admin", "builder", "groups"] as const;
 // Clocks of the Chest and of the container may differ by this much, in seconds.
 const skew = 5;
@@ -87,12 +108,12 @@ export function member(request: IncomingMessage | Request): Member | null {
   if (signature.length !== expected.length || !timingSafeEqual(signature, expected)) return null;
   const payload = json(encodedPayload);
   if (!payload || !claims.every(name => Object.hasOwn(payload, name))) return null;
-  const { iss, aud, iat, exp, sub, given_name, family_name, name, email, picture, role, admin, builder, groups } = payload;
+  const { iss, aud, iat, exp, sub, given_name, family_name, name, email, picture, role, admin, builder, groups, locale } = payload;
   if (typeof iss !== "string" || iss === "" || aud !== tool || typeof sub !== "string" || !memberIdPattern.test(sub)) return null;
   if (typeof iat !== "number" || !Number.isSafeInteger(iat) || typeof exp !== "number" || !Number.isSafeInteger(exp) || exp <= iat) return null;
   const now = Math.floor(Date.now() / 1000);
   if (iat > now + skew || exp <= now - skew) return null;
   if (typeof given_name !== "string" || typeof family_name !== "string" || typeof name !== "string" || typeof picture !== "string" || typeof role !== "string" || typeof admin !== "boolean" || typeof builder !== "boolean") return null;
-  if (!Array.isArray(groups) || groups.length > 16 || !groups.every(g => typeof g === "string" && groupIdPattern.test(g)) || (email !== undefined && typeof email !== "string")) return null;
-  return { id: sub, firstName: given_name, lastName: family_name, name, photo: picture === "" ? null : picture, role: role === "" ? null : role, isAdmin: admin, isBuilder: builder, groups: [...groups] as string[], ...(email === undefined ? {} : { email }) };
+  if (!Array.isArray(groups) || groups.length > 16 || !groups.every(g => typeof g === "string" && groupIdPattern.test(g)) || (email !== undefined && typeof email !== "string") || (locale !== undefined && typeof locale !== "string")) return null;
+  return { id: sub, firstName: given_name, lastName: family_name, name, photo: picture === "" ? null : picture, role: role === "" ? null : role, isAdmin: admin, isBuilder: builder, groups: [...groups] as string[], locale: localeOf(locale), ...(email === undefined ? {} : { email }) };
 }
