@@ -229,14 +229,14 @@ await step("Leave tells of an approved leave: the card and the profile say “Aw
   const card = page.locator(".wall li", { hasText: "Léa Dubois" });
   const badge = (await card.locator(".away").innerText()).trim();
   expect(/^Away · back on \S+ \d+ \S+$/u.test(badge), "card: " + badge);
-  expect(await page.locator(".wall .away").count() === 1, "only Léa is away");
+  // Others may be away too (the sample data): only Léa's card is checked.
   await card.getByRole("link").click();
   await page.waitForURL(/\/chest\/people\/mbr_/u);
   const note = (await page.locator(".profile-id .away").innerText()).trim();
   expect(note.startsWith("Away · back on") && !/holiday|sick|note/iu.test(await page.locator("main").innerText()), "profile: " + note);
   await deliver("leave.cancelled", { member: id("lea"), from: day(-1), to: day(2), fromHalf: "am", toHalf: "pm", request: "901" });
   await page.goto(origin + "/chest");
-  expect(await page.locator(".wall .away").count() === 0, "gone once cancelled");
+  expect(await page.locator(".wall li", { hasText: "Léa Dubois" }).locator(".away").count() === 0, "gone once cancelled");
   // Away again for the screenshots and the audit.
   await deliver("leave.approved", { member: id("lea"), from: day(0), to: day(4), fromHalf: "am", toHalf: "pm", request: "902" });
   await deliver("leave.approved", { member: id("tom"), from: day(0), to: day(0), fromHalf: "pm", toHalf: "pm", request: "903" });

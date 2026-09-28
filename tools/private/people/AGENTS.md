@@ -8,7 +8,7 @@ must not break.
 | Path | What it is |
 |---|---|
 | `chest.json` | Manifest: roles `hr`, `member`; `database`, `members`, `notifications`; `receives` |
-| `chest.proposals.json` | Proposal keys (the `morning` schedule) — kept apart, a Chest refuses unknown keys |
+| `chest.proposals.json` | Proposal keys (the `morning` schedule, `emits`, `receives` of other tools' events) — kept apart, a Chest refuses unknown keys |
 | `lib/access.ts` | **Who may do what**: abilities (`can`), who sees a checklist (`seesJourney`), who ticks a step (`ticks`) |
 | `lib/model.ts` | Bounds, text cleaning, days, phones, topics, birthdays, checklist roles and offsets — pure |
 | `lib/profiles.ts` | Profiles: read, own edits, HR's job edits, the loop check (`wouldLoop`), purge of departed people |
@@ -16,6 +16,8 @@ must not break.
 | `lib/tree.ts`, `lib/calendar.ts` | The org chart from managers; newcomers, arrivals, birthdays, anniversaries — pure, used in pages |
 | `lib/journeys.ts` | Templates and checklists (called *journeys* in code): start, tick, edit steps, stop, lists, counts |
 | `lib/arrivals.ts` | Arrivals told by Hiring (events between tools): read and check each event, cancel, link to a member, remove, purge after 90 days, name suggestions |
+| `lib/away.ts` | Leaves told by Leave (events between tools): read and check each event, "away today and back when" (`awayToday`, pure), the badge's words, purge once past |
+| `lib/share.ts` | What People tells other tools: departures (`people.leaving`, `people.leaving_cancelled`) around a leaving checklist's start, stop and restart (`around`) |
 | `lib/zone.ts` | The Chest's time zone and today (the `chest` module) — server only |
 | `lib/examples.ts` | The two example templates, in the reader's words |
 | `lib/importer.ts`, `lib/export.ts`, `lib/csv.ts` | CSV import (header aliases, name matching, dates), export, CSV reading/writing (formula-safe) |
@@ -51,6 +53,13 @@ npm ci && npm test && npm run build   # all three must pass
 - **Arrivals hold personal data of people who are not members**: never
   store their email; clear everything when linked; keep the 90-day purge.
   A tool event is validated field by field and ignored when it does not fit.
+- **Leaves keep only dates**: never a kind of leave nor a note; only for
+  members; forgotten once past and when the person leaves. The badge is
+  written on the server (dates in the Chest's zone).
+- **A departure is a running leaving checklist**: every change of one
+  (start, stop, restart) goes through `share.around`, which publishes only
+  when the last day actually changed. Never publish more than
+  `{member, lastDay}`.
 - **Birthdays are opt-in**: stored only while the person shows it; never
   written by HR nor by the import.
 - **Add an ability → a line in `test/access.test.ts`.** Add a service →

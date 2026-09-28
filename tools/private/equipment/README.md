@@ -48,6 +48,34 @@ people. French name: **Matériel**.
   same file twice adds nothing. **Export** CSV in the reader's language —
   and it imports back.
 
+## With the other tools
+
+**People → Equipment** (Proposal (studio): events between tools, once an
+admin linked the two; `chest.proposals.json` `receives`):
+
+- `people.leaving` `{member, lastDay}` — HR started a leaving checklist in
+  People. If the person holds something, every equipment manager hears it
+  **once** in the bell, in their language: *"Marc Lefort leaves on 12 Oct
+  — 3 items to take back"*, linking to their page. The overview shows them
+  under **To take back** (soonest first, with what they hold and their last
+  day), their page says *"Last day: Monday 12 October. Take everything back
+  before then."*, and the People list adds their last day. Nothing is taken
+  back by itself.
+- `people.leaving_cancelled` `{member}` — the departure was stopped in
+  People: the bell item is withdrawn and the list forgets them. Told again
+  later, it comes back.
+- **Both paths stay coherent**: when everything is back, the notice goes.
+  When the person then leaves the Chest (`member.removed`,
+  `access.revoked`), the departure is forgotten and its notice withdrawn;
+  *"Léa left and holds 3 items"* and *Held by people who left* take over,
+  as before. An erasure forgets it too.
+- Every field is checked; an event of another shape, from another tool, or
+  about someone who is not a member is ignored. Events come at least once
+  and not always in order: each departure keeps when People said so, and
+  an older word delivered late changes nothing (a cancelled departure keeps
+  only that time, for a week). A departure is forgotten 30 days after the
+  last day (weekly run and overview).
+
 ## Roles
 
 | Role (`chest.json`) | Label | May |
@@ -66,7 +94,7 @@ the first role, `manager`.
 
 - **What a new user sees:** a manager, the *Overview* — stock per category
   and "Needs your attention" (problems, warranties ending, repairs, people
-  who left with equipment); on an empty tool, "Every laptop, phone and key,
+  leaving soon and people who left with equipment); on an empty tool, "Every laptop, phone and key,
   in one place" with *Add your first item* and *Import a spreadsheet*. A
   member, *My equipment*.
 - **The first thing they do:** *Add equipment* → pick the kind → type the
@@ -126,6 +154,9 @@ All in `vendor/` (the studio's working copy):
   `currency()` for prices, `company()` on the labels, `teamUrl()` for the QR
   codes' links (without it, the host the request came to).
 - `translations` in `chest.proposals.json` — the tile's French title.
+- **Events between tools** — receives `people.leaving`,
+  `people.leaving_cancelled` (see "With the other tools"). Without it,
+  departures are seen only when the person leaves the Chest.
 
 ## Develop
 
@@ -147,5 +178,7 @@ Acceptance of a handover by the employee ("I received it") and a printable
 handover sheet; scanning with the camera inside the tool (a phone's own
 camera opens the label's link); bookable shared equipment (see Rooms);
 kits; custom fields; consumables with quantities; licence keys (secrets);
-depreciation and the fixed-asset register (the accountant's job); network
+depreciation and the fixed-asset register (the accountant's job); adding
+"return the laptop" steps to People's leaving checklist (it would need a
+request between tools, not an event); network
 discovery or MDM agents; a bell to the holder when their warranty ends.

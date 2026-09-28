@@ -4,6 +4,7 @@
   { "name": "item", "path": "/chest/items/2", "member": "sofia", "locale": "en" },
   { "name": "licence", "path": "/chest/items/39", "member": "sofia", "locale": "en", "only": ["desktop"] },
   { "name": "mine-fr", "path": "/chest", "member": "ines", "locale": "fr" },
+  { "name": "person-leaving", "path": "/chest/people/mbr_leaaaaaaaaaaaaaaaaaaaaaaaa", "member": "sofia", "locale": "en" },
   { "name": "person-fr", "path": "/chest/people/mbr_tomaaaaaaaaaaaaaaaaaaaaaaa", "member": "camille", "locale": "fr" },
   { "name": "overview-fr", "path": "/chest", "member": "camille", "locale": "fr", "only": ["phone"] },
   { "name": "labels", "path": "/chest/labels?category=1", "member": "sofia", "locale": "en", "only": ["desktop"] },

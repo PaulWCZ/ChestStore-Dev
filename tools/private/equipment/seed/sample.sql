@@ -95,3 +95,7 @@ insert into problems (item_id, reported_by, body, created_at)
 select id, 'mbr_inesaaaaaaaaaaaaaaaaaaaaaa', 'La batterie ne tient plus qu’une heure, même en veille.', now() - interval '2 days' from items where tag = 'EQ-0002';
 insert into history (item_id, at, actor, kind, note)
 select item_id, created_at, reported_by, 'reported', body from problems;
+
+-- Told by People (events between tools): Léa's last day is in twelve days.
+insert into departures (member_id, last_day, told_at) values
+  ('mbr_leaaaaaaaaaaaaaaaaaaaaaaaa', (now() at time zone 'Europe/Paris')::date + 12, now());

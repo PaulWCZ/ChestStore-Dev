@@ -79,6 +79,35 @@ admin linked the two; `chest.proposals.json` `receives`):
   arrival and its checklists are deleted 90 days after the start date (or
   after it was told, without a date).
 
+**Leave → People** — "away until": `leave.approved` / `leave.cancelled`
+`{member, from, to, fromHalf, toHalf, request}` (Leave's own events, the
+ones Rooms receives; unchanged).
+
+- While an approved leave covers today (the Chest's day, `chest.today()`),
+  the person's card and profile say **"Away · back on Mon 12 Oct"** —
+  *"Away this morning"* or *"Away this afternoon"* for half days, *"back on
+  … afternoon"* when the leave ends at noon. The day back skips Saturdays
+  and Sundays and follows leaves that follow each other. **Never the kind
+  of leave nor its note** (Leave does not send them).
+- Kept: the member, the dates and halves, Leave's request reference and
+  when Leave said so — for members who have People only; forgotten once
+  the last day is past (directory read, morning run) and when the person
+  leaves the Chest or is erased. Leave's events are checked field by
+  field; another shape changes nothing. A cancelled leave keeps its
+  reference and time for a week, so an approval delivered late (events
+  come at least once, not always in order) cannot bring the badge back.
+
+**People → other tools** — departures (`chest.proposals.json` `emits`):
+
+- When HR **starts a leaving checklist** for a member, its last day is
+  their departure: People publishes `people.leaving` `{member, lastDay}`.
+  Stopping it publishes `people.leaving_cancelled` `{member}`; *Undo* (or
+  *Start it again*) tells it again. With several leaving checklists
+  running, the latest last day counts; a change that moves nothing tells
+  nothing. Who and when only — never the checklist, its steps or a
+  reason. **Equipment** receives it: it lists what the person holds to
+  take back before that day.
+
 ## Roles
 
 | Role (`chest.json`) | Label | May |
@@ -152,15 +181,19 @@ The owner, the admins and the tool's builders arrive as `hr`.
   departed profiles. **Without it** the tool is fully usable: the tile's
   number is set whenever a step changes and when its owner opens *My
   to-dos*, and the purge runs whenever the directory is read.
-- **Events between tools** — **Proposal (studio)**: `hiring.hired`,
-  `hiring.hire_cancelled` (see "With the other tools"). Without it, HR
-  starts checklists for members only.
+- **Events between tools** — **Proposal (studio)**: receives
+  `hiring.hired`, `hiring.hire_cancelled`, `leave.approved`,
+  `leave.cancelled`; emits `people.leaving`, `people.leaving_cancelled`
+  (see "With the other tools"). Without it, HR starts checklists for
+  members only, nobody reads "Away", and Equipment is not told of
+  departures.
 - **The Chest's time zone** — **Proposal (studio)** (`chest.timeZone()`,
   `chest.today()`): "today", due days and anniversaries.
 - **Wished for, not built**: **email** would let HR send a welcome message
-  before day 1 (the newcomer often has no Chest access yet); more events
-  between tools would let *Equipment* add "return the laptop" steps to a
-  departure automatically.
+  before day 1 (the newcomer often has no Chest access yet); the Chest's
+  **working week and public holidays** (the "back on" day skips Saturdays
+  and Sundays only); Equipment's items as steps of the leaving checklist
+  (a request/answer between tools, not an event).
 
 ## Develop
 
@@ -179,6 +212,7 @@ welcome checklist is under way), `node lab/chest-dev/flows/people.mjs 4700`
 
 A column-mapping step in the import (column names are recognised from a
 list of English and French headers), vCard export, custom profile fields,
-languages spoken as a field, an "away until" badge (would come from Leave),
-teams as Chest groups, drag-and-drop in the org chart, reminders by email,
+languages spoken as a field, "away" from other sources than Leave (a
+calendar), public holidays in the "back on" day, a "last day" field apart
+from a leaving checklist, teams as Chest groups, drag-and-drop in the org chart, reminders by email,
 emailing the newcomer before day 1, sensitive HR files (never).

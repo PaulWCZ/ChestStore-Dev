@@ -9,6 +9,7 @@ what must not break.
 |---|---|
 | `chest.json`, `chest.proposals.json` | The manifest; the SDK proposals it uses (weekly schedule, French tile) |
 | `migrations/0001_equipment.sql` | Categories, items, seats, problems, history (append-only trigger), chest_events |
+| `migrations/0002_departures.sql` | Departures told by People (member, last day, when told) |
 | `lib/access.ts` | **Who may do what** — the only place roles are read |
 | `lib/model.ts` | Pure rules: limits, statuses, tags, money, dates, `clean()` |
 | `lib/items.ts` | Items: list, detail (full / brief), create, edit, give, take back, status, seats, problems, holdings, overview |
@@ -17,7 +18,8 @@ what must not break.
 | `lib/export.ts`, `lib/csv.ts` | CSV out (reads back through the importer) |
 | `lib/qr.ts` | The QR encoder (tested by decoding) |
 | `lib/tell.ts`, `lib/notify.ts` | Bell items (keyed, withdrawn when settled), managers' badges |
-| `lib/lifecycle.ts`, `lib/weekly.ts` | Members leaving / erased; Monday's run |
+| `lib/departures.ts` | Departures told by People (events between tools): read and check each event, ordering by `occurredAt`, the "To take back" list, purge |
+| `lib/lifecycle.ts`, `lib/weekly.ts` | Members leaving / erased (they also forget a departure); Monday's run |
 | `lib/view.ts`, `lib/words.ts` | Items as rows in words for the views |
 | `lib/i18n/` | Every word: `en.ts` (source), `fr.ts`; `format.ts` for the browser |
 | `app/chest/` | Pages (server) and views (`"use client"`); `actions.ts` server actions |
@@ -35,6 +37,10 @@ what must not break.
 - The history is append-only: add a `kind` (migration + catalogue
   `history.*`) rather than editing rows. A shipped migration is never
   edited.
+- A tool event is validated field by field and ignored when it does not
+  fit; a departure keeps only the member, the day and when it was told.
+  The `leaving:<member>` bell item is withdrawn when all is back, when the
+  departure is cancelled, and when the member leaves or is erased.
 - Nothing leaves the tool: fonts, icons and QR codes are local.
 - Client components never import the SDK, `lib/db.ts`, `lib/session.ts`,
   `lib/people.ts`.

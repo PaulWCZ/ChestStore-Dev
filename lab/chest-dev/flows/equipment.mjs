@@ -147,7 +147,8 @@ await step("People tells that Tom leaves: the managers hear it once, see what to
   await deliver("people.leaving_cancelled", { member: id("tom") });
   expect(!/Tom Walker leaves on/u.test(await dev()), "notice withdrawn");
   await page.goto(origin + "/chest");
-  expect(await page.locator("#leaving").count() === 0, "panel gone");
+  // Others may be leaving too (the sample data): only Tom's entry is checked.
+  expect(await page.locator("#leaving", { hasText: "Tom Walker" }).count() === 0, "Tom gone from the panel");
   // Leaving again: then he leaves the Chest, and "left and holds" takes over.
   await deliver("people.leaving", { member: id("tom"), lastDay });
   expect(/Tom Walker leaves on/u.test(await dev()), "told again");
