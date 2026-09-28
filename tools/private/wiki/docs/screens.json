@@ -7,5 +7,9 @@
   { "name": "search-fr", "path": "/chest/search?q=teletravail", "member": "camille", "locale": "fr" },
   { "name": "space", "path": "/chest/spaces/1", "member": "sofia", "locale": "en", "only": ["desktop"] },
   { "name": "page-dark", "path": "/chest/pages/3", "member": "tom", "locale": "en", "dark": true },
-  { "name": "import", "path": "/chest/import", "member": "camille", "locale": "en", "only": ["desktop"] }
+  { "name": "import", "path": "/chest/import", "member": "camille", "locale": "en", "only": ["desktop"] },
+  { "name": "comments", "path": "/chest/pages/2", "member": "hugo", "locale": "en", "actions": [{ "hover": "#comment-new" }, { "wait": 300 }] },
+  { "name": "comments-fr", "path": "/chest/pages/9", "member": "lea", "locale": "fr", "dark": true, "actions": [{ "hover": "#comment-new" }, { "wait": 300 }] },
+  { "name": "new-page", "path": "/chest/spaces/2", "member": "ines", "locale": "en", "actions": [{ "click": ".space-head button:has-text('New page')" }, { "wait": 800 }] },
+  { "name": "review-due", "path": "/chest/pages/7", "member": "sofia", "locale": "fr" }
 ]

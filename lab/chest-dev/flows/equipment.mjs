@@ -130,9 +130,33 @@ await step("the manager solves the problem from the overview", async () => {
   expect(await page.locator(".problem", { hasText: "The fan is very loud" }).count() === 0, "gone");
 });
 
+await step("People tells that Tom leaves: the managers hear it once, see what to take back; taken back in People, the notice goes", async () => {
+  const deliver = (type, data) => page.request.post(origin + "/_dev/deliver", { form: { type, data: JSON.stringify(data) } });
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Paris", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+  const lastDay = new Date(Date.parse(today + "T00:00:00Z") + 14 * 864e5).toISOString().slice(0, 10);
+  await deliver("people.leaving", { member: id("tom"), lastDay });
+  expect(/Tom Walker leaves on \d+ \S+ — \d+ items to take back/u.test(await dev()), "bell to Sofia");
+  await page.goto(origin + "/chest");
+  const panel = await page.locator("#leaving").innerText();
+  expect(panel.includes("To take back") && panel.includes("Tom Walker") && panel.includes("last day"), "overview: " + panel.slice(0, 160));
+  await page.locator("#leaving a", { hasText: "Tom Walker" }).click();
+  await page.waitForURL(/\/chest\/people\/mbr_tom/u);
+  expect((await page.locator(".notice").innerText()).startsWith("Last day:"), "person page");
+  await page.goto(origin + "/chest/people");
+  expect((await page.locator("main").innerText()).includes("last day"), "people list");
+  await deliver("people.leaving_cancelled", { member: id("tom") });
+  expect(!/Tom Walker leaves on/u.test(await dev()), "notice withdrawn");
+  await page.goto(origin + "/chest");
+  expect(await page.locator("#leaving").count() === 0, "panel gone");
+  // Leaving again: then he leaves the Chest, and "left and holds" takes over.
+  await deliver("people.leaving", { member: id("tom"), lastDay });
+  expect(/Tom Walker leaves on/u.test(await dev()), "told again");
+});
+
 await step("Tom leaves: nothing comes back by itself, the managers are told; Camille takes everything back (in French), Undo, again", async () => {
   await page.request.post(origin + "/_dev/event", { form: { type: "member.removed", member: id("tom") } });
   expect((await dev()).includes("Tom Walker left and holds"), "bell to Sofia");
+  expect(!(await dev()).includes("Tom Walker leaves on"), "the leaving notice gave way");
   await as(context, origin, "camille");
   await context.addCookies([{ name: "dev_locale", value: "fr", url: origin }]);
   await page.goto(origin + "/chest");
