@@ -5,7 +5,11 @@ meaningful step (brief/07-plan.md).
 
 ## Now
 
-Step 3: building the tools in ranking order, starting with Tasks. Each tool starts
+Step 3: building the tools. Tasks is done (reference implementation).
+Wiki, Leave and News are being built by parallel builder agents following
+`lab/BUILDING.md` (ports 4300, 4400, 4500); the lead reviews, verifies and
+commits each one. Next: the `mail` proposal (for Support, Booking, Hiring),
+then Clients, Expenses, People. Each tool starts
 from `lab/template` (`node scripts/new-tool.mjs <kind> <name>`), is verified with
 `npm test`, `npm run build`, the harness (`lab/chest-dev`) and screenshots, then
 committed and pushed.
@@ -40,7 +44,7 @@ _One row per chosen tool, in ranking order, once step 1 is done._
 
 | Rank | Tool | Folder | Replaces | Research | Built | Design | SDK proposals used | Verified |
 |---|---|---|---|---|---|---|---|---|
-| 1 | Tasks | `tools/private/tasks` | Trello, Asana, Monday | ✓ | — | — | locale | — |
+| 1 | Tasks | `tools/private/tasks` | Trello, Asana, Monday | ✓ | ✓ | bright workshop (Space Grotesk + Inter, sun, ink outlines) | locale, schedules | ✓ 26 tests (PGlite + PostgreSQL), build, manifest, 12 browser flows, screens |
 | 2 | Wiki | `tools/private/wiki` | Notion, Confluence | ✓ | — | — | locale | — |
 | 3 | Leave | `tools/private/leave` | Lucca Absences, Factorial | ✓ | — | — | locale | — |
 | 4 | News | `tools/private/news` | Workvivo, Staffbase | ✓ | — | — | locale | — |
@@ -64,6 +68,7 @@ _One row per chosen tool, in ranking order, once step 1 is done._
 
 - `member.locale` (+ `members.*` answers, `localeOf`, `locales`) — 0.3.0-studio.1
 - `fakeChest({origin})`, `chest.upload()`, the fake Chest's front (uploads, links, photos); `files` accept http://localhost links — 0.3.0-studio.2
+- `schedules` (scheduled tasks: `handle`, `verify`, cron `parseCron`/`nextRun`/`describeCron`/`checkSchedules`, `timeZone()` from `CHEST_TIMEZONE`), `fakeChest({schedules, timeZone})`, `chest.run()` — 0.3.0-studio.3. Manifest keys of proposals live in each tool's `chest.proposals.json` (a Chest refuses unknown keys in `chest.json`)
 
 ## Questions for the owner
 
@@ -71,6 +76,9 @@ _One row per chosen tool, in ranking order, once step 1 is done._
 - **Web research limits**: vendor sites and French official sites (legifrance, service-public, urssaf) were blocked by the proxy; legal figures came from search summaries and are marked so in each research file. A human should confirm them before a tool ships.
 
 ## Decisions taken
+
+- Proposal manifest keys go in `chest.proposals.json`, not `chest.json`: a real Chest refuses unknown keys, and the tools must stay installable today. The harness and `scripts/check-manifest.mjs` read both.
+- Tools after Tasks are built by builder agents in parallel (one folder each, no git), reviewed and committed by the lead.
 
 - Owner, 2026-09-28: Forms (`reference/forms`) is a first prototype with no quality value. Take from it only what the Chest imposes (CSP nonce, webpack build, read-only disk); the template, architecture and UX follow our own bar.
 
