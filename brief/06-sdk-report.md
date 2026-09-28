@@ -62,4 +62,4 @@ there, typed, tested, faked, and used by at least one tool. The report
 explains it; the fork's diff against its first commit shows it.
 
 Write the report progressively: add to it each time a tool hits a wall, then
-consolidate it in phase 4.
+consolidate it in step 4.

@@ -33,7 +33,7 @@ decide to move its daily work into a Chest?
    | Spend | Typical cost per seat × seats — what the company saves |
    | Daily use | Does it bring people into the Chest every day? (the habit that sells everything else) |
    | Feasibility now | Can it be excellent with **today's** SDK (brief/02)? 5 = yes, 1 = blocked by a missing feature |
-   | Demo power | Does it make someone say "oh, we'd drop X" in a 10-minute demo? |
+   | Conviction | Does it make a company say "we can drop X" the first time they use it? |
    | Switching cost | Can a company move its data in (import)? |
    | Risk | Legal/regulatory exposure, security sensitivity (lower is better) |
 

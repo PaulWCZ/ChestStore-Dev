@@ -17,9 +17,10 @@ typically 5 to 250 people) and opens a Chest for them. What is sold:
 - **Tools that fit.** Every store tool is open source and forkable: the company
   (or its coding agent) can adapt it to how it really works.
 
-The store is the first thing a new customer sees in an empty Chest. **It is
-the demo.** If it holds a handful of beautiful, obvious, daily-use tools, the
-company switches; if it holds half-finished clones, it does not.
+The store is the first thing a new customer sees in an empty Chest, and what
+they will use every day after. If it holds beautiful, obvious, daily-use
+tools, the company switches; if it holds half-finished clones, it does not.
+The tools you build here are **the real store**: the good ones ship.
 
 ## What "winning" means for a tool
 
@@ -59,9 +60,10 @@ Use these on purpose — they are what a SaaS cannot do:
    the opening store.
 2. **Public-facing tools second**: booking pages, customer portals, a shop, a
    public status page, a job board… They need what the platform does not have
-   yet (accounts for outside users, payments, sending email). Prototype them
-   anyway, behind interfaces (brief/03), because they show where Chest is
-   going — and the SDK report will say exactly what they need.
+   yet (accounts for outside users, payments, sending email). Build them
+   anyway: design the missing primitives in the SDK fork (brief/03), so the
+   tool is complete the day the Chest ships them — and the SDK report says
+   exactly what they need.
 
 ## What you are not asked
 

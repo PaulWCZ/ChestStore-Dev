@@ -1,8 +1,9 @@
 # ChestStore-Dev — the Chest store studio
 
-Where the tools of the Chest store's opening catalogue are chosen, researched,
-designed and prototyped, and where the Chest SDK is put to the test. Worked on
-by AI coding agents in cloud sessions; reviewed and merged by the owner.
+Where the tools of the store Chest launches with are chosen, researched,
+designed and built — to production quality, as real candidates for the store —
+and where the Chest SDK is pushed forward. Worked on autonomously by an AI
+coding agent in long cloud sessions; reviewed and merged by the owner.
 
 The agent's instructions: [CLAUDE.md](CLAUDE.md). Where things stand:
 [PROGRESS.md](PROGRESS.md).
@@ -11,12 +12,12 @@ The agent's instructions: [CLAUDE.md](CLAUDE.md). Where things stand:
 
 ```
 CLAUDE.md       the mission and the rules (read first)
-PROGRESS.md     state of the work, updated by every session
+PROGRESS.md     state of the work: the agent's memory between runs
 brief/          the mission in seven pages
 reference/      snapshots of the platform: contract, product specs, two example tools (read-only)
 sdk/            the studio's fork of the SDK: 0.2.0 as published, extended with the proposals the tools need
 scripts/        add-sdk.mjs (packs the fork into a tool that uses a proposal), and the agents' scripts
-lab/            dev harness and tool template (built in phase 2)
+lab/            dev harness and tool template (built in step 2)
 tools/
   private/              one folder per team-only tool, each a self-contained repository-to-be
   public-and-private/   one folder per tool that also has a public part
@@ -26,13 +27,13 @@ showcase/       index.html: every tool's identity side by side (the style contes
 
 ## Launching a session
 
-Open this repository in Claude Code on the web and give it a task, e.g.:
+Open this repository in Claude Code on the web and give it one prompt:
 
-- "Phase 0 and 1: check the environment, then do the ranking and the
-  open-source research. Open a PR."
-- "Phase 2: foundations and the #1 tool of the ranking."
-- "Phase 3: build the next tool in PROGRESS.md." (or name one)
-- "Phase 4: consolidate the SDK report and the showcase."
+> Read CLAUDE.md and PROGRESS.md, then carry out the whole mission
+> autonomously, following brief/07-plan.md. Do not stop to ask or report:
+> keep building, verifying, committing and pushing until the credits run out.
+
+A later run takes over from PROGRESS.md with the same prompt.
 
 ## From here to the store
 

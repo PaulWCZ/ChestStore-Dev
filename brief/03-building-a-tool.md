@@ -28,7 +28,7 @@ tools/<kind>/<name>/
   migrations/0001_*.sql   the schema, run by the Chest in order
   app/ lib/ …             the code
   test/                   node:test, with the SDK's fakeChest
-  demo/seed.sql           realistic demo data for screenshots and local runs (never run by the Chest)
+  seed/sample.sql         realistic sample data for screenshots and local runs (never run by the Chest)
   README.md               what it does, what it replaces, roles, routes, what is stubbed
   DESIGN.md               its identity and design system (brief/05)
   AGENTS.md               how an agent adapts it safely (model: reference/forms/AGENTS.md)
@@ -143,8 +143,7 @@ There is no `chest dev` yet (it is specified:
   install postgresql`, or a container). If not, PGlite
   (`@electric-sql/pglite`, with `pglite-socket` to serve the `postgres`
   client) as a **dev-only** dependency. Never ship it.
-- **A dev harness, once, for every tool**: build `lab/chest-dev/` early in
-  phase 3 — it starts `fakeChest` with a few demo members, runs a tool with the
+- **A dev harness, once, for every tool**: build `lab/chest-dev/` in step 2 — it starts `fakeChest` with a few sample members, runs a tool with the
   right environment, and serves it on `localhost` with a small member switcher
   that signs `Chest-Member` for the chosen member (`signAssertion`). It is a
   lab tool, never part of a tool. It uses the SDK fork's `fakeChest`, so the
@@ -186,7 +185,7 @@ A tool is done when, from a clean checkout of its folder:
       real `chest check` does not exist yet — say in the SDK report what it
       should catch).
 - [ ] Every `/chest` route checks the member; each role's rights are tested.
-- [ ] Migrations run on an empty database; demo seed loads.
+- [ ] Migrations run on an empty database; sample data loads.
 - [ ] English and French complete, same keys.
 - [ ] Empty, loading, error and "no access" states designed; works at 390 px;
       keyboard and screen-reader usable; WCAG AA contrast.

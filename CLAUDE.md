@@ -9,11 +9,21 @@ companies and say:
 > tasks, your wiki, your CRM, your leave requests — runs inside your own Chest,
 > on your own server, for one flat price."
 
-That pitch only works if, **on the day a Chest opens, its store already holds
-10 to 20 excellent tools**. Your job is to decide which ones, research the
-best of open source for each, build them on the Chest SDK with a UI that a
-non-technical employee understands in seconds, and tell us what the SDK is
-missing.
+That pitch only works if, **on the day Chest launches, its store already
+holds 10 to 20 excellent tools**. Your job is to decide which ones, research
+the best of open source for each, **build them for real** on the Chest SDK —
+with a UI that a non-technical employee understands in seconds — and push the
+SDK forward where they need it.
+
+**These are not demos or prototypes.** Every tool you build is a candidate
+for the real store: if it is good enough, it ships to customers as it is.
+Build it to production quality — correct, secure, tested, maintainable,
+documented — or do not build it.
+
+**You work alone, for a long time.** You have a budget of credits and the
+owner wants all of it spent on this project, without being asked anything.
+Never stop to report or ask; decide, build, verify, commit, continue. See
+[brief/07-plan.md](brief/07-plan.md).
 
 Read this file first, then `brief/` in order. Everything you need to
 understand the platform is in `reference/` — you have no other access to it.
@@ -24,13 +34,13 @@ understand the platform is in `reference/` — you have no other access to it.
 |---|---|---|---|
 | 1 | **The ranking**: the SaaS categories companies pay for, scored, and the 10–20 tools of the opening store, in order | `reports/01-ranking.md` | [brief/04](brief/04-research.md) |
 | 2 | **Open-source research** per selected tool: the best projects, their licences, what we may reuse (code or only ideas), the feature list to match | `reports/02-open-source/<tool>.md` | [brief/04](brief/04-research.md) |
-| 3 | **Tools**: working prototypes on the SDK, each in its own folder, with its own identity and design system | `tools/private/<name>/` or `tools/public-and-private/<name>/` | [brief/03](brief/03-building-a-tool.md), [brief/05](brief/05-design-contest.md) |
+| 3 | **Tools**: production-quality store tools on the SDK, each in its own folder, with its own identity and design system | `tools/private/<name>/` or `tools/public-and-private/<name>/` | [brief/03](brief/03-building-a-tool.md), [brief/05](brief/05-design-contest.md) |
 | 4 | **The style contest**: a gallery that shows every tool's identity side by side | `showcase/index.html` | [brief/05](brief/05-design-contest.md) |
 | 5 | **The SDK report**: what the SDK lacks, proven by the tools that needed it — each proposal built in the SDK fork, with its fake in `testing` | `reports/03-sdk-report.md`, `sdk/` | [brief/06](brief/06-sdk-report.md) |
 
-Order, sessions and budget: [brief/07-plan.md](brief/07-plan.md).
-Where you are right now: [PROGRESS.md](PROGRESS.md) — **read it at the start
-of every session, update it at the end.**
+Order, autonomy and budget: [brief/07-plan.md](brief/07-plan.md).
+Where you are right now: [PROGRESS.md](PROGRESS.md) — **your memory: read it
+whenever you (re)start, update it after every meaningful step.**
 
 ## The brief
 
@@ -40,7 +50,7 @@ of every session, update it at the end.**
 4. [brief/04-research.md](brief/04-research.md) — how to rank, how to research open source, licence rules
 5. [brief/05-design-contest.md](brief/05-design-contest.md) — the UX bar and the style contest
 6. [brief/06-sdk-report.md](brief/06-sdk-report.md) — what the SDK report must contain
-7. [brief/07-plan.md](brief/07-plan.md) — phases, sessions, budget, Git
+7. [brief/07-plan.md](brief/07-plan.md) — working autonomously until the credits run out, Git
 
 ## Rules that never bend
 
@@ -68,5 +78,5 @@ of every session, update it at the end.**
   (`reference/README.md`); report what is wrong instead. `sdk/` is the
   opposite: the SDK fork you extend.
 - **Honesty.** A report says what you verified and what you assume. A
-  prototype says what is stubbed. No invented numbers: every price, user count
+  tool says what it cannot do yet. No invented numbers: every price, user count
   or licence you quote has its source (URL) and the date you read it.

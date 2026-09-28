@@ -133,9 +133,9 @@ writing any tool.
 | WebSocket | **Refused** (`Upgrade` → 501) | No realtime push. Poll (e.g. every 10–30 s when visible) |
 | Background work | None: no cron, no queue, no worker | Nothing runs unless a request comes. Do work lazily on the next request |
 | Mail | **Not available yet** | No emails to anyone |
-| AI | **Not available yet** (AI gateway specified) | No LLM calls unless you declare a provider in `network` — prototype only |
+| AI | **Not available yet** (AI gateway specified) | Design it in the SDK fork on the specified gateway (`reference/product/specs/ai-gateway.md`) |
 | Outside users | **No accounts for the public part yet** | Public pages are anonymous |
-| Payments | **Not available yet** (Stripe connector planned) | Prototype only |
+| Payments | **Not available yet** (Stripe connector planned) | Design it in the SDK fork |
 | Tool ↔ tool | **Not available yet** (events between tools planned) | Each tool is alone for now |
 | Database | PostgreSQL, 10 connections, 30 s per query | Postgres does search (`tsvector`, `pg_trgm`), queues, counters |
 
