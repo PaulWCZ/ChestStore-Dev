@@ -102,6 +102,9 @@ await step("unsaved changes come back after the tab is closed", async () => {
   expect((await page.locator(".ProseMirror").innerText()).includes("Bring the receipt within a week."), "draft text");
   await page.getByRole("button", { name: "Stop editing" }).click();
   await page.waitForSelector(".toast:has-text('Changes discarded')");
+  // The read view, not the editor, before reading the page.
+  await page.waitForURL(url => !url.pathname.endsWith("/edit"));
+  await page.locator(".prose").first().waitFor();
   expect(!(await page.locator(".prose").innerText()).includes("within a week"), "discarded");
 });
 
