@@ -1,0 +1,151 @@
+"use client";
+
+import { useRouter } from "next/navigation";
+import { useMemo, useState, useTransition } from "react";
+import { DateBox, Stamp, Thumb, Warnings } from "../../components/bits.tsx";
+import { Car, Plus, Receipt, Send } from "../../components/icons.tsx";
+import { useToast } from "../../components/toast.tsx";
+import type { Catalogue } from "../../lib/i18n/index.ts";
+import { format, plural } from "../../lib/i18n/format.ts";
+import { formatMoney } from "../../lib/money.ts";
+import type { RowView } from "../../lib/rows.ts";
+import { sendExpenses } from "./actions.ts";
+
+export type HomeGroup = { key: string; title: string; total: string; rows: RowView[] };
+type Draft = RowView & { amountValue: number; currency: string };
+type Words = { home: Catalogue["home"]; figures: { waiting: string; toPay: string; paid: string }; errors: Catalogue["errors"]; refused: string; companyCard: string };
+
+export function HomeView({ locale, empty, figures, drafts, waiting, approved, history, limit, t }: {
+  locale: string;
+  empty: boolean;
+  figures: { waiting: string; toPay: string; paid: string };
+  drafts: Draft[];
+  waiting: HomeGroup;
+  approved: HomeGroup;
+  history: HomeGroup[];
+  limit: string | null;
+  t: Words;
+}) {
+  const router = useRouter();
+  const toast = useToast();
+  const [pending, start] = useTransition();
+  // Every draft is selected unless the person unticks it.
+  const [unticked, setUnticked] = useState<Set<string>>(new Set());
+  const selected = drafts.filter(d => !unticked.has(d.id));
+  const total = useMemo(() => {
+    const sums = new Map<string, number>();
+    for (const d of selected) sums.set(d.currency, (sums.get(d.currency) ?? 0) + d.amountValue);
+    return [...sums].map(([c, a]) => formatMoney(a, c, locale)).join(" + ");
+  }, [selected, locale]);
+
+  function toggle(id: string, on: boolean) {
+    setUnticked(set => {
+      const next = new Set(set);
+      if (on) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function send() {
+    const ids = selected.map(d => d.id);
+    start(async () => {
+      const result = await sendExpenses(ids);
+      if (!result.ok) return toast(format(t.errors[result.error], result.values ?? {}));
+      toast(plural(t.home.sent, result.value.count, locale, { name: result.value.to }));
+      setUnticked(new Set());
+      router.refresh();
+    });
+  }
+
+  const dock = (
+    <div className="dock">
+      <a className="button" href="/chest/new"><Plus />{t.home.add}</a>
+      <a className="button quiet" href="/chest/new?trip=1" aria-label={t.home.addTrip} title={t.home.addTrip}><Car /></a>
+    </div>
+  );
+
+  if (empty) {
+    return (
+      <>
+        <div className="paper empty">
+          <span className="glyph"><Receipt /></span>
+          <h1>{t.home.empty.title}</h1>
+          <p>{t.home.empty.body}</p>
+          <a className="button" href="/chest/new"><Plus />{t.home.empty.action}</a>
+          <a className="link-button" href="/chest/new?trip=1">{t.home.addTrip}</a>
+        </div>
+        {dock}
+      </>
+    );
+  }
+
+  return (
+    <>
+      <div className="page-head">
+        <h1>{t.home.title}</h1>
+        <a className="button quiet small hide-phone" href="/chest/new?trip=1"><Car />{t.home.addTrip}</a>
+      </div>
+      <div className="figures">
+        <div className="figure"><span className="label">{t.figures.waiting}</span><span className="amount">{figures.waiting}</span></div>
+        <div className="figure money"><span className="label">{t.figures.toPay}</span><span className="amount">{figures.toPay}</span></div>
+        <div className="figure"><span className="label">{t.figures.paid}</span><span className="amount">{figures.paid}</span></div>
+      </div>
+
+      {drafts.length > 0 && (
+        <section className="paper" aria-labelledby="to-send">
+          <div className="paper-head">
+            <h2 id="to-send" className="label">{t.home.toSend}</h2>
+            <span className="hint">{t.home.toSendHint}</span>
+          </div>
+          <hr className="rule" />
+          <ul className="rows">
+            {drafts.map(d => (
+              <li key={d.id} className="row selectable">
+                <input type="checkbox" className="pick" checked={!unticked.has(d.id)} onChange={e => toggle(d.id, e.target.checked)} aria-label={`${t.home.select}: ${d.what}, ${d.amount}`} />
+                <Thumb row={d} />
+                <a className="main" href={d.href}>
+                  <span className="what">{d.what}</span>
+                  <span className="sub"><span className="mono">{d.day} {d.month}</span>{d.sub && <span>{d.sub}</span>}{d.card && <span>{t.companyCard}</span>}<Warnings list={d.warnings} /></span>
+                  {d.reason && <span className="reason">{format(t.home.refusedBecause, { reason: d.reason })}</span>}
+                </a>
+                <span className="right"><span className="amount">{d.amount}</span>{d.stamp.kind === "refused" && <Stamp row={d} />}</span>
+              </li>
+            ))}
+          </ul>
+          <hr className="rule" />
+          <div className="total-line"><span className="label">{plural(t.home.count, selected.length, locale)}</span><span className="amount">{total || "—"}</span></div>
+          <button type="button" className="button block" style={{ marginTop: 12 }} onClick={send} disabled={pending || selected.length === 0}>
+            <Send />{plural(t.home.send, selected.length, locale)}
+          </button>
+        </section>
+      )}
+
+      {[waiting, approved].filter(g => g.rows.length > 0).map(g => <Group key={g.key} group={g} companyCard={t.companyCard} />)}
+      {history.length > 0 && <h2 className="section label" style={{ marginBottom: 0 }}>{t.home.history}</h2>}
+      {history.map(g => <Group key={g.key} group={g} companyCard={t.companyCard} />)}
+      {limit && <p className="hint" style={{ marginTop: 16 }}>{limit}</p>}
+      {dock}
+    </>
+  );
+}
+
+function Group({ group, companyCard }: { group: HomeGroup; companyCard: string }) {
+  return (
+    <section className="section" aria-label={group.title}>
+      <h2><span>{group.title}</span><span className="amount">{group.total}</span></h2>
+      <ul className="rows">
+        {group.rows.map(r => (
+          <li key={r.id} className="row">
+            <DateBox row={r} />
+            <a className="main" href={r.href}>
+              <span className="what">{r.what}</span>
+              <span className="sub">{r.sub && <span>{r.sub}</span>}{r.card && <span>{companyCard}</span>}<Warnings list={r.warnings} /></span>
+            </a>
+            <span className="right"><span className="amount">{r.amount}</span><Stamp row={r} /></span>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}

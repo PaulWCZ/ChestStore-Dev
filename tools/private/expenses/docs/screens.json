@@ -1,0 +1,11 @@
+[
+  { "name": "my-expenses", "path": "/chest", "member": "hugo", "locale": "en" },
+  { "name": "add", "path": "/chest/new", "member": "hugo", "locale": "en" },
+  { "name": "receipt", "path": "/chest/expenses/101", "member": "camille", "locale": "en", "preview": true },
+  { "name": "approve-fr", "path": "/chest/approve", "member": "ines", "locale": "fr" },
+  { "name": "trip-fr", "path": "/chest/new?trip=1", "member": "lea", "locale": "fr" },
+  { "name": "pay-fr", "path": "/chest/pay", "member": "camille", "locale": "fr" },
+  { "name": "export", "path": "/chest/export", "member": "camille", "locale": "en", "only": ["desktop"] },
+  { "name": "settings", "path": "/chest/settings", "member": "camille", "locale": "en", "only": ["desktop"] },
+  { "name": "my-expenses-dark", "path": "/chest", "member": "sofia", "locale": "en", "dark": true }
+]

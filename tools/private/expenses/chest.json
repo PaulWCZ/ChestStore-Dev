@@ -1,0 +1,37 @@
+{
+  "version": 2,
+  "name": "expenses",
+  "title": "Expenses",
+  "description": "Snap a receipt, get paid back: expense claims, approvals, mileage, and a clean monthly export for the accountant.",
+  "icon": "chest/icon.svg",
+  "preview": "chest/preview.png",
+  "roles": [
+    "accountant",
+    "approver",
+    "employee"
+  ],
+  "role_labels": {
+    "accountant": "Accountant",
+    "approver": "Approver",
+    "employee": "Employee"
+  },
+  "capabilities": [
+    "database",
+    "files",
+    "members",
+    "notifications"
+  ],
+  "receives": [
+    "member.*"
+  ],
+  "build": {
+    "runtime": "node",
+    "install": "npm ci",
+    "command": "npm run build",
+    "start": "npm start",
+    "port": 3000,
+    "static": [
+      "/_next/static/"
+    ]
+  }
+}
