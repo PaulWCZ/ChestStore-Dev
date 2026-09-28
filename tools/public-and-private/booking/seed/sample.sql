@@ -32,6 +32,16 @@ begin
   insert into types (member_id, slug, title, duration, interval, location_kind, location, notice_minutes, color, active, position)
     values (camille, 'founder', 'Meet the founder', 45, 45, 'video', 'https://meet.example.com/camille', 1440, 'grape', true, 0) returning id into founder;
 
+  -- The host's own questions, and a daily limit on the showroom visits.
+  update types set questions = '[
+      {"id": "project1", "label": "What is it for?", "kind": "choice", "required": true, "options": ["A home", "A shop or an office", "A hotel or a restaurant"]},
+      {"id": "budget01", "label": "Your budget, roughly", "kind": "short", "required": false, "options": []},
+      {"id": "plans001", "label": "Do you have plans or photos to share?", "kind": "yesno", "required": false, "options": []}
+    ]'::jsonb where id = call;
+  update types set daily_limit = 3, questions = '[
+      {"id": "rooms001", "label": "Which rooms?", "kind": "long", "required": false, "options": []}
+    ]'::jsonb where id = showroom;
+
   insert into overrides (member_id, day, ranges, note) values
     (ines, (now() at time zone 'Europe/Paris')::date + 9, '[]', 'Trade fair'),
     (ines, (now() at time zone 'Europe/Paris')::date + 10, '[]', 'Trade fair'),
@@ -59,4 +69,12 @@ begin
   insert into bookings (type_id, member_id, title, duration, location_kind, location, starts_at, ends_at, blocked, guest_name, guest_email, guest_note, guest_zone, guest_language, secret_hash, secret, status, cancelled_by, cancel_reason, cancelled_at, created_at)
   values (call, ines, 'Project call', 30, 'video', 'https://meet.example.com/atelier-ines', pg_temp.at(2, 600), pg_temp.at(2, 630), tstzrange(pg_temp.at(2, 600), pg_temp.at(2, 630)),
     'Tom Leclerc', 'tom.leclerc@example.com', '', 'Europe/Paris', 'fr', encode(sha256(convert_to(gen_random_uuid()::text, 'UTF8')), 'hex'), gen_random_uuid()::text, 'cancelled', 'guest', 'Finalement nous avons trouvé.', now() - interval '1 day', now() - interval '4 days');
+  update bookings set answers = '[
+      {"id": "project1", "label": "What is it for?", "kind": "choice", "answer": "A hotel or a restaurant"},
+      {"id": "budget01", "label": "Your budget, roughly", "kind": "short", "answer": "80 000 € for the lobby"},
+      {"id": "plans001", "label": "Do you have plans or photos to share?", "kind": "yesno", "answer": "yes"}
+    ]'::jsonb where guest_email = 'sarah.klein@lumiere-hotels.example';
+  update bookings set answers = '[
+      {"id": "rooms001", "label": "Which rooms?", "kind": "long", "answer": "Living room (5 × 4 m) and the dining room."}
+    ]'::jsonb where guest_email = 'marie.leroy@example.com';
 end $$;

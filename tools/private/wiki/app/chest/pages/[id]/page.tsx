@@ -6,13 +6,16 @@ import { Clock, Lock, Pen } from "../../../../components/icons.tsx";
 import { db } from "../../../../lib/db.ts";
 import { lockOf } from "../../../../lib/editing.ts";
 import { AppError } from "../../../../lib/errors.ts";
-import { format, moment, relative } from "../../../../lib/i18n/index.ts";
+import { comments as commentsOf } from "../../../../lib/comments.ts";
+import { format, moment, newPageWords, relative } from "../../../../lib/i18n/index.ts";
 import { ancestors, backlinks, page, titles, tree, type Page } from "../../../../lib/pages.ts";
 import { nameOf, people } from "../../../../lib/people.ts";
 import { render } from "../../../../lib/render.ts";
 import { viewer } from "../../../../lib/session.ts";
 import { listSpaces } from "../../../../lib/spaces.ts";
-import { PageActions, type MovePlace } from "./page-actions.tsx";
+import { isWatching } from "../../../../lib/watching.ts";
+import { Comments } from "./comments.tsx";
+import { PageActions, ReviewAsk, type MovePlace } from "./page-actions.tsx";
 
 // Reading a page: the default for everyone. Where it is, its title, who
 // changed it last, the text set for reading; for editors one obvious
@@ -31,16 +34,18 @@ export default async function ReadPage({ params, searchParams }: { params: Promi
     if (error instanceof AppError) notFound();
     throw error;
   }
-  const [path, known, linked, lock, nodes, draft] = await Promise.all([
+  const [path, known, linked, lock, nodes, draft, thread, watching] = await Promise.all([
     ancestors(sql, p.id),
     titles(sql, member, p.doc),
     backlinks(sql, member, p.id),
     lockOf(sql, p.id),
     tree(sql, member, [p.spaceId]),
     sql`select 1 from drafts where page_id = ${p.id} and member_id = ${member.id}`,
+    commentsOf(sql, member, p.id),
+    isWatching(sql, member, p.id),
   ]);
   const { html, headings } = render(p.doc, { title: i => known.get(i), missing: t.page.missing });
-  const who = await people([p.updatedBy, ...(lock ? [lock.memberId] : [])]);
+  const who = await people([p.updatedBy, ...(lock ? [lock.memberId] : []), ...thread.map(c => c.author), ...(p.review?.owner ? [p.review.owner] : [])]);
   const now = new Date();
   const writer = p.space.access === "write";
   const children = nodes.filter(n => n.parentId === p.id);
@@ -50,6 +55,7 @@ export default async function ReadPage({ params, searchParams }: { params: Promi
     : query["restored"] ? format(t.history.restoredToast, { number: query["restored"] })
     : query["example"] ? t.home.exampleAdded : null;
   const toc = headings.filter(h => h.level <= 2);
+  const owner = p.review?.owner ?? null;
   // Where the page may move: the spaces the editor writes in, and their pages.
   let places: MovePlace | undefined;
   if (writer) {
@@ -69,6 +75,7 @@ export default async function ReadPage({ params, searchParams }: { params: Promi
         <article className="article">
           <header className="article-head">
             <h1>{p.title}</h1>
+            {p.template && <p className="template-tag"><span className="pill">{t.templates.tag}</span></p>}
             <div className="article-meta">
               <Link href={`/chest/pages/${p.id}/history`} className="byline">
                 <Clock />
@@ -78,13 +85,19 @@ export default async function ReadPage({ params, searchParams }: { params: Promi
                 page={{ id: p.id, title: p.title, spaceId: p.spaceId, parentId: p.parentId, hasChildren: children.length > 0 }}
                 writer={writer}
                 editHref={`/chest/pages/${p.id}/edit`}
-                t={{ page: t.page, move: t.move, shell: t.shell, common: t.common, errors: t.errors, newPage: t.newPage, spaceName: p.space.name, locale }}
+                t={{ ...newPageWords(t), page: t.page, move: t.move, shell: t.shell, watch: t.watch, review: t.review, marks: { tag: t.templates.tag, mark: t.templates.mark, unmark: t.templates.unmark, marked: t.templates.marked, unmarked: t.templates.unmarked }, spaceName: p.space.name, locale }}
+                state={{ watching, template: p.template, review: { months: p.review?.months ?? null, ownerName: owner ? nameOf(who.get(owner), locale) : null, mine: owner === member.id } }}
                 {...(places ? { places } : {})}
               />
             </div>
           </header>
           {holder && (
             <p className="notice" role="status"><Lock />{format(holder.idle ? t.page.editingIdle : t.page.editing, { name: nameOf(who.get(holder.memberId), locale), time: moment(holder.since, locale, now) })}</p>
+          )}
+          {writer && p.review?.due && (
+            <ReviewAsk pageId={p.id} months={p.review.months} editHref={`/chest/pages/${p.id}/edit`}
+              text={format(t.review.due, { when: relative(p.review.reviewedAt, locale, now) })}
+              t={{ stillCorrect: t.review.stillCorrect, update: t.review.update, done: t.review.done, errors: t.errors }} />
           )}
           {draft.length > 0 && !holder && (
             <p className="notice mine" role="status"><Pen />{t.page.yourDraft} <Link href={`/chest/pages/${p.id}/edit`}>{t.page.continueDraft}</Link></p>
@@ -109,6 +122,17 @@ export default async function ReadPage({ params, searchParams }: { params: Promi
               <ul>{linked.map(c => <li key={c.id}><Link href={`/chest/pages/${c.id}`}>{c.title}</Link></li>)}</ul>
             </section>
           )}
+          <Comments
+            key={p.id}
+            pageId={p.id}
+            me={member.id}
+            moderator={writer}
+            initial={thread.map(c => {
+              const person = who.get(c.author);
+              return { id: c.id, author: c.author, name: nameOf(person, locale), photo: person?.photo ?? null, body: c.body, at: c.createdAt.toISOString(), when: moment(c.createdAt, locale, now), edited: c.editedAt !== null };
+            })}
+            t={{ comments: t.comments, errors: t.errors, locale }}
+          />
         </article>
         {toc.length >= 3 && (
           <aside className="toc" aria-labelledby="toc-title">

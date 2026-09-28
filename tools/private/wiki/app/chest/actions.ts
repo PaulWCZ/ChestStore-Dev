@@ -11,6 +11,11 @@ import { nameOf, people } from "../../lib/people.ts";
 import { currentMember } from "../../lib/session.ts";
 import * as spaces from "../../lib/spaces.ts";
 import { addExample as starter } from "../../lib/starter.ts";
+import * as comments from "../../lib/comments.ts";
+import * as reviews from "../../lib/reviews.ts";
+import * as tell from "../../lib/tell.ts";
+import * as templates from "../../lib/templates.ts";
+import * as watching from "../../lib/watching.ts";
 
 // The server actions of the members' part. Each is an endpoint anyone can
 // call: each reads the member from the Chest's assertion again; the
@@ -56,17 +61,37 @@ export async function addExample(): Promise<Result<{ spaceId: string; pageId: st
   return act(actor => starter(db(), actor, catalogue(isLocale(actor.locale) ? actor.locale : "en")));
 }
 
-// Pages.
-export async function createPage(input: { spaceId: string; parentId?: string | null; title: string }): Promise<Result<{ id: string }>> {
-  return act(actor => pages.createPage(db(), actor, input));
+const wordsOf = (actor: Actor) => catalogue(isLocale(actor.locale) ? actor.locale : "en");
+
+// Pages. A new page starts blank, from a template of its space, or from a
+// built-in model in the editor's language.
+export async function createPage(input: { spaceId: string; parentId?: string | null; title: string; start?: string }): Promise<Result<{ id: string }>> {
+  return act(actor => templates.createFrom(db(), actor, input, wordsOf(actor)));
+}
+
+export async function listTemplates(spaceId: string): Promise<Result<{ id: string; title: string }[]>> {
+  return act(actor => templates.spaceTemplates(db(), actor, spaceId), { refresh: false });
+}
+
+export async function setTemplate(pageId: string, on: boolean): Promise<Result<boolean>> {
+  return act(actor => templates.setTemplate(db(), actor, pageId, on));
 }
 
 export async function movePage(pageId: string, input: { spaceId: string; parentId: string | null; index?: number | null }): Promise<Result<null>> {
-  return act(async actor => { await pages.movePage(db(), actor, pageId, input); return null; });
+  return act(async actor => {
+    const before = await pages.page(db(), actor, pageId, "write");
+    await pages.movePage(db(), actor, pageId, input);
+    if (String(input.spaceId) !== before.spaceId) await tell.moved(db(), before.id, String(input.spaceId));
+    return null;
+  });
 }
 
 export async function deletePage(pageId: string): Promise<Result<{ pages: number }>> {
-  return act(actor => pages.deletePage(db(), actor, pageId));
+  return act(async actor => {
+    const { pages: count, ids } = await pages.deletePage(db(), actor, pageId);
+    await tell.forget(db(), ids);
+    return { pages: count };
+  });
 }
 
 export async function restorePage(pageId: string): Promise<Result<null>> {
@@ -106,7 +131,11 @@ export async function saveDraft(pageId: string, input: { title: string; doc: unk
 }
 
 export async function publishPage(pageId: string, input: { title: string; doc: unknown; baseVersion: number }): Promise<Result<{ version: number; changed: boolean; replaced: string | null }>> {
-  return act(actor => editing.publish(db(), actor, pageId, input));
+  return act(async actor => {
+    const done = await editing.publish(db(), actor, pageId, input);
+    if (done.changed) await tell.saved(db(), actor, await pages.page(db(), actor, pageId));
+    return done;
+  });
 }
 
 export async function stopEditing(pageId: string, keepDraft = false): Promise<Result<null>> {
@@ -115,5 +144,61 @@ export async function stopEditing(pageId: string, keepDraft = false): Promise<Re
 
 // History.
 export async function restoreVersion(pageId: string, number: number): Promise<Result<{ version: number }>> {
-  return act(actor => history.restore(db(), actor, pageId, number));
+  return act(async actor => {
+    const done = await history.restore(db(), actor, pageId, number);
+    await tell.saved(db(), actor, await pages.page(db(), actor, pageId));
+    return done;
+  });
+}
+
+// Comments. Each answers what the thread shows; a new one is told to the
+// page's author, earlier commenters and watchers who may read it.
+export type CommentView = { id: string; author: string; name: string; photo: string | null; body: string; at: string; when: string; edited: boolean };
+
+async function view(c: comments.Comment, actor: Actor): Promise<CommentView> {
+  const locale = isLocale(actor.locale) ? actor.locale : "en";
+  const person = (await people([c.author])).get(c.author);
+  return { id: c.id, author: c.author, name: nameOf(person, locale), photo: person?.photo ?? null, body: c.body, at: c.createdAt.toISOString(), when: "", edited: c.editedAt !== null };
+}
+
+export async function addComment(pageId: string, body: string): Promise<Result<CommentView>> {
+  return act(async actor => {
+    const { comment, page } = await comments.addComment(db(), actor, pageId, body);
+    await tell.commented(db(), actor, page, comment);
+    return view(comment, actor);
+  }, { refresh: false });
+}
+
+export async function editComment(commentId: string, body: string): Promise<Result<CommentView>> {
+  return act(async actor => view(await comments.editComment(db(), actor, commentId, body), actor), { refresh: false });
+}
+
+export async function removeComment(commentId: string): Promise<Result<null>> {
+  return act(async actor => { await comments.removeComment(db(), actor, commentId); return null; }, { refresh: false });
+}
+
+export async function restoreComment(commentId: string): Promise<Result<null>> {
+  return act(async actor => { await comments.restoreComment(db(), actor, commentId); return null; }, { refresh: false });
+}
+
+// Watching a page.
+export async function setWatching(pageId: string, on: boolean): Promise<Result<boolean>> {
+  return act(actor => watching.setWatching(db(), actor, pageId, on), { refresh: false });
+}
+
+// Review reminders: set (or turn off, with null), and "Still correct".
+export async function setReview(pageId: string, months: number | null): Promise<Result<null>> {
+  return act(async actor => {
+    await reviews.setReview(db(), actor, pageId, months);
+    await tell.reviewSettled(String(pageId));
+    return null;
+  });
+}
+
+export async function markReviewed(pageId: string): Promise<Result<null>> {
+  return act(async actor => {
+    await reviews.markReviewed(db(), actor, pageId);
+    await tell.reviewSettled(String(pageId));
+    return null;
+  });
 }

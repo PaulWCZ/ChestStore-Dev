@@ -1,10 +1,13 @@
 import { CapabilityNotGranted, ChestError, QuotaExceeded, RateLimited } from "@argentic/chest-sdk/errors";
 import type { Locale, Member } from "@argentic/chest-sdk/member";
+import * as members from "@argentic/chest-sdk/members";
+import { inAudience, type Grouped } from "./access.ts";
 import * as notifications from "@argentic/chest-sdk/notifications";
 import { page, type Reader, maxPages } from "./audience.ts";
 import type { Sql } from "./db.ts";
 import { catalogue, format } from "./i18n/index.ts";
 import { excerpt } from "./markdown.ts";
+import { continueDigest, seenDigest } from "./digest.ts";
 import { badges, cut, notify, withdraw } from "./notify.ts";
 import { purge, unconfirmedCounts } from "./posts.ts";
 import { removeObjects } from "./storage.ts";
@@ -12,8 +15,8 @@ import { removeObjects } from "./storage.ts";
 // What News tells people through the Chest's bell, each in their own
 // language, and the number on its tile (Important posts not yet confirmed).
 //
-// An Important post, once published, is told to everyone who has News, a
-// page of 500 members at a time. The Chest takes 1,000 recipients an hour
+// An Important post, once published, is told to its audience (everyone who
+// has News, or the members of its groups), a page of 500 members at a time. The Chest takes 1,000 recipients an hour
 // per tool: beyond, it refuses (QuotaExceeded) and News keeps where it
 // stopped (announce_after) and goes on at the next pass — a pass runs on
 // the "publish" schedule (every 15 minutes, Proposal (studio)) and whenever
@@ -22,7 +25,7 @@ import { removeObjects } from "./storage.ts";
 export const postPath = (postId: string) => `/chest/posts/${postId}`;
 const importantKey = (postId: string) => `post:${postId}:important`;
 
-type Due = { id: string; title: string; body: string; author: string; important: boolean; kind: string; welcome: string | null; announce_after: string | null };
+type Due = { id: string; title: string; body: string; author: string; important: boolean; kind: string; welcome: string | null; announce_after: string | null; groups: string[] };
 
 // A result of telling one post: done, or stopped (quota, Chest unreachable)
 // at a cursor to go on from.
@@ -46,7 +49,7 @@ async function tellEveryone(sql: Sql, post: Due): Promise<Told> {
       throw error;
     }
     const confirmed = new Set((await sql<{ member: string }[]>`select member from confirmations where post_id = ${post.id}`).map(r => r.member));
-    const people = found.people.filter(p => p.id !== post.author && !confirmed.has(p.id));
+    const people = found.people.filter(p => p.id !== post.author && inAudience(p, post) && !confirmed.has(p.id));
     for (const [locale, group] of byLocale(people)) {
       const t = catalogue(locale);
       try {
@@ -57,7 +60,7 @@ async function tellEveryone(sql: Sql, post: Due): Promise<Told> {
         throw error;
       }
     }
-    await badges(await unconfirmedCounts(sql, people.map(p => p.id)));
+    await badges(await unconfirmedCounts(sql, people));
     if (!found.next) return { done: true };
     after = found.next;
     await sql`update posts set announce_after = ${after} where id = ${post.id}`;
@@ -65,8 +68,20 @@ async function tellEveryone(sql: Sql, post: Due): Promise<Told> {
   return { done: true };
 }
 
+// The new colleague is told only when the post is for them.
 async function tellWelcomed(post: Due): Promise<Told> {
   if (!post.welcome || post.welcome === "erased") return { done: true };
+  if (post.groups.length > 0) {
+    let colleague;
+    try {
+      colleague = await members.get(post.welcome);
+    } catch (error) {
+      if (error instanceof CapabilityNotGranted) return { done: true };
+      if (error instanceof ChestError) return { done: false, after: null };
+      throw error;
+    }
+    if (!colleague || !inAudience(colleague, post)) return { done: true };
+  }
   await notify([post.welcome], t => ({ title: t.bell.welcome, body: post.title }), { path: postPath(post.id), key: `post:${post.id}:welcome` });
   return { done: true };
 }
@@ -84,7 +99,8 @@ export async function announce(sql: Sql, now = new Date()): Promise<{ told: stri
   for (const { id } of due) {
     const [post] = await sql<Due[]>`
       update posts set announce_lease = ${now} where id = ${id} and announced_at is null and (announce_lease is null or announce_lease < ${now}::timestamptz - interval '2 minutes')
-      returning id, title, body, author, important, kind, welcome, announce_after`;
+      returning id, title, body, author, important, kind, welcome, announce_after,
+        array(select g.group_id from post_groups g where g.post_id = posts.id) as groups`;
     if (!post) continue;
     const key = String(post.id);
     const result = post.important ? await tellEveryone(sql, { ...post, id: key }) : await tellWelcomed({ ...post, id: key });
@@ -100,10 +116,12 @@ export async function announce(sql: Sql, now = new Date()): Promise<{ told: stri
   return { told, waiting };
 }
 
-// pass is the work News does by itself, on its schedule or on a visit: tell
-// what is due, and purge what was deleted long ago.
+// pass is the work News does by itself on its schedule: tell what is due,
+// go on with a weekly digest the hourly quota stopped (after the Important
+// posts: they come first), and purge what was deleted long ago.
 export async function pass(sql: Sql, now = new Date()): Promise<{ told: string[]; waiting: string[] }> {
   const result = await announce(sql, now);
+  if (result.waiting.length === 0) await continueDigest(sql, now);
   await removeObjects(await purge(sql));
   return result;
 }
@@ -129,9 +147,9 @@ export async function remind(post: { id: string; title: string; body: string }, 
 }
 
 // Confirmed: the item goes from that member's bell.
-export async function confirmed(sql: Sql, memberId: string, postId: string): Promise<void> {
-  await withdraw(importantKey(postId), [memberId]);
-  await badges(await unconfirmedCounts(sql, [memberId]));
+export async function confirmed(sql: Sql, person: Grouped, postId: string): Promise<void> {
+  await withdraw(importantKey(postId), [person.id]);
+  await badges(await unconfirmedCounts(sql, [person]));
 }
 
 // A post deleted, or no longer Important: its items go from every bell.
@@ -143,8 +161,8 @@ export async function settled(postId: string): Promise<void> {
 // (after an Important post is deleted, restored or changed). The Chest takes
 // 600 badge writes a minute: in a larger company the rest are set right at
 // each member's next visit.
-export async function refreshBadges(sql: Sql, memberIds: string[]): Promise<void> {
-  const unique = [...new Set(memberIds)].filter(m => m.startsWith("mbr_"));
+export async function refreshBadges(sql: Sql, people: Grouped[]): Promise<void> {
+  const unique = people.filter(p => p.id.startsWith("mbr_"));
   if (unique.length > 0) await badges(await unconfirmedCounts(sql, unique));
 }
 
@@ -158,7 +176,7 @@ export async function refreshEveryone(sql: Sql): Promise<void> {
       if (error instanceof ChestError) return;
       throw error;
     }
-    await badges(await unconfirmedCounts(sql, found.people.map(p => p.id)));
+    await badges(await unconfirmedCounts(sql, found.people));
     if (!found.next) return;
     after = found.next;
   }
@@ -166,10 +184,13 @@ export async function refreshEveryone(sql: Sql): Promise<void> {
 
 // catchUp is the pass a visit runs, so News works on a Chest without
 // schedules: what is due is told when someone opens the front page; the
-// purge runs at most every 10 minutes per server.
+// purge runs at most every 10 minutes per server. The visitor's weekly
+// digest leaves their bell: they are here. (The digest itself needs the
+// schedule: a visit never sends one.)
 let lastPurge = 0;
-export async function catchUp(sql: Sql, now = new Date()): Promise<void> {
+export async function catchUp(sql: Sql, now = new Date(), visitor?: string): Promise<void> {
   await announce(sql, now);
+  if (visitor) await seenDigest(sql, visitor);
   if (now.getTime() - lastPurge > 10 * 60 * 1000) {
     lastPurge = now.getTime();
     await removeObjects(await purge(sql));

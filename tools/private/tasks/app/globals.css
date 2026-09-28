@@ -252,6 +252,20 @@ table.cards tr.is-done a { text-decoration: line-through; color: var(--ink-2); }
 .facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: var(--space-3); }
 .fact { display: grid; gap: var(--space-1); align-content: start; }
 .fact .label { margin: 0; }
+/* Repeat: the choice, the days of a week, and what the card says of it. */
+.repeat { display: grid; gap: var(--space-2); }
+.repeat .fact { max-width: 360px; }
+.weekdays { display: flex; flex-wrap: wrap; gap: var(--space-1); border: 0; margin: 0; padding: 0; }
+.weekdays legend { width: 100%; margin-bottom: var(--space-1); }
+.weekday { position: relative; display: inline-grid; place-items: center; min-width: 44px; min-height: 44px; padding: 0 var(--space-2); border: var(--border) solid var(--line); border-radius: 999px; background: var(--surface); font-weight: 700; font-size: var(--text-s); cursor: pointer; }
+.weekday input { position: absolute; inset: 0; opacity: 0; margin: 0; cursor: pointer; }
+.weekday.on { background: var(--c, var(--accent)); color: #151515; }
+.weekday:has(input:focus-visible) { box-shadow: 0 0 0 3px var(--focus); }
+.weekday:has(input:disabled) { cursor: default; }
+.repeat-note { margin: 0; padding: var(--space-2) var(--space-3); border-left: 4px solid var(--c, var(--accent)); background: var(--surface); border-radius: 0 var(--radius-s) var(--radius-s) 0; }
+.repeat-note .link-button { padding-left: 0; }
+.reminder-switch { display: flex; align-items: center; gap: var(--space-2); margin-top: var(--space-6); min-height: 44px; color: var(--ink-2); font-size: var(--text-s); cursor: pointer; }
+.reminder-switch input { width: 20px; height: 20px; accent-color: var(--ok); flex: none; }
 .description { white-space: pre-wrap; overflow-wrap: anywhere; padding: var(--space-3); border: var(--border) solid var(--line-soft); border-radius: var(--radius-m); background: var(--surface); cursor: text; min-height: 56px; }
 .description.empty-text { color: var(--ink-2); }
 .checklist { display: grid; gap: var(--space-1); }

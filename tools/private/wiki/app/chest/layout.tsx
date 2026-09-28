@@ -3,6 +3,7 @@ import { Shell } from "../../components/shell.tsx";
 import { Toasts } from "../../components/toast.tsx";
 import { can, roleOf } from "../../lib/access.ts";
 import { db } from "../../lib/db.ts";
+import { newPageWords } from "../../lib/i18n/index.ts";
 import { tree } from "../../lib/pages.ts";
 import { viewer } from "../../lib/session.ts";
 import { listSpaces } from "../../lib/spaces.ts";
@@ -36,7 +37,7 @@ export default async function MembersLayout({ children }: { children: ReactNode 
         nodes={nodes.map(n => ({ id: n.id, spaceId: n.spaceId, parentId: n.parentId, title: n.title }))}
         canWrite={can(member, "write")}
         me={{ name: member.name, first: member.firstName || member.name, photo: member.photo, role: t.roles[role] }}
-        t={{ shell: t.shell, common: t.common, newPage: t.newPage, newSpace: t.newSpace, errors: t.errors, undo: t.page.undo, name: t.meta.name }}
+        t={{ ...newPageWords(t), shell: t.shell, newSpace: t.newSpace, undo: t.page.undo, name: t.meta.name }}
       >
         {children}
       </Shell>

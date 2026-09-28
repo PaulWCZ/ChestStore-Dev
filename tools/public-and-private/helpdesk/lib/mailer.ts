@@ -38,8 +38,10 @@ export async function confirm(ticket: Pick<Ticket, "number" | "subject" | "custo
   });
 }
 
-// answer sends an agent's reply, threaded under the customer's emails.
-export async function answer(ticket: Pick<Ticket, "number" | "subject" | "customerEmail" | "customerName" | "language">, body: string, agent: Member, company: string, threading: string[], messageId: string): Promise<Delivery> {
+// answer sends an agent's reply, threaded under the customer's emails,
+// with its files (the Chest carries 10 MiB a message: a larger one is not
+// sent, and the answer stays on the follow-up page, files included).
+export async function answer(ticket: Pick<Ticket, "number" | "subject" | "customerEmail" | "customerName" | "language">, body: string, agent: Member, company: string, threading: string[], messageId: string, files: { object: string; fileName: string }[] = []): Promise<Delivery> {
   const t = wordsFor(ticket.language).mail;
   const last = threading.at(-1);
   return sendOrPage({
@@ -49,6 +51,7 @@ export async function answer(ticket: Pick<Ticket, "number" | "subject" | "custom
     mailbox: "support",
     fromName: company ? `${agent.firstName || agent.name} — ${company}` : agent.firstName || agent.name,
     ...(last ? { inReplyTo: last, references: threading.slice(-20) } : {}),
+    ...(files.length > 0 ? { attachments: files.map(f => ({ file: f.object, name: f.fileName })) } : {}),
     key: `reply:${messageId}`,
   });
 }

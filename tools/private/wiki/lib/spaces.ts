@@ -1,5 +1,5 @@
 import type { Member } from "@argentic/chest-sdk/member";
-import { can, spaceAccess, type SpaceAccess } from "./access.ts";
+import { can, spaceAccess, type SpaceAccess, type SpaceAudience } from "./access.ts";
 import type { Fragment, Query, Sql } from "./db.ts";
 import { AppError } from "./errors.ts";
 import { clean, colors, groupIds, id, isColor, limits, type Color } from "./model.ts";
@@ -129,4 +129,11 @@ export async function deleteSpace(sql: Sql, actor: Member | null, spaceId: unkno
 // The ids of the spaces the actor sees (for searches and lists).
 export async function visibleSpaceIds(sql: Query, actor: Member | null): Promise<string[]> {
   return (await listSpaces(sql, actor)).map(s => s.id);
+}
+
+// Who a space is open to, read without an actor: to check, before telling
+// someone about one of its pages, that they may still see it.
+export async function audienceOf(sql: Query, spaceId: string): Promise<SpaceAudience | null> {
+  const [found] = await rows(sql, sql`s.id = ${spaceId}`);
+  return found ? { visibility: found.visibility, groups: found.groups, createdBy: found.createdBy } : null;
 }

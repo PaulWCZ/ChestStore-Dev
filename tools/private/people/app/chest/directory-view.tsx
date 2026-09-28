@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { Close, Pin, Search } from "../../components/icons.tsx";
+import { Close, Moon, Pin, Search } from "../../components/icons.tsx";
 import { Portrait } from "../../components/portrait.tsx";
 import { plural } from "../../lib/i18n/format.ts";
 import { fold } from "../../lib/model.ts";
@@ -11,7 +11,10 @@ import { fold } from "../../lib/model.ts";
 // "ask me about"; accents and case aside) and filtered by team and office.
 // Every person is on the page already: nothing waits for the server. The
 // search stays in the address, so "back" finds it again.
-export type Card = { id: string; name: string; photo: string | null; title: string; team: string; office: string; skills: string[]; isNew: boolean; me: boolean };
+export type Card = { id: string; name: string; photo: string | null; title: string; team: string; office: string; skills: string[]; isNew: boolean; me: boolean;
+  // "Away · back on Mon 12 Oct", written on the server (Leave told People).
+  away: string | null;
+};
 
 type Words = {
   directory: {
@@ -100,6 +103,7 @@ export function DirectoryView({ cards, locale, initial, welcome, t }: { cards: C
                     {c.office && <span className="office"><Pin />{c.office}</span>}
                   </span>
                 )}
+                {c.away && <span className="away"><Moon />{c.away}</span>}
                 {c.skills.length > 0 && (
                   <span className="topics" aria-label={t.directory.askMe}>
                     {c.skills.slice(0, 3).map(s => <span key={s} className="topic">{s}</span>)}

@@ -28,3 +28,9 @@ export const Quote = () => <Icon><path d="M7 7h10M7 11h10M7 15h6" /><rect x="3.5
 export const Download = () => <Icon><path d="M12 4v12M7 11l5 5 5-5M4 20h16" /></Icon>;
 export const Eye = () => <Icon><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z" /><circle cx="12" cy="12" r="2.8" /></Icon>;
 export const Heart = () => <Icon><path d="M12 20s-7.5-4.6-7.5-10A4.3 4.3 0 0112 7.3 4.3 4.3 0 0119.5 10c0 5.4-7.5 10-7.5 10z" /></Icon>;
+export const Cross = () => <Icon><path d="M6.5 6.5l11 11M17.5 6.5l-11 11" /></Icon>;
+export const Tag = () => <Icon><path d="M3.5 12.2V4.5a1 1 0 011-1h7.7a1 1 0 01.7.3l7.8 7.8a1 1 0 010 1.4l-7.7 7.7a1 1 0 01-1.4 0l-7.8-7.8a1 1 0 01-.3-.7z" /><circle cx="8" cy="8" r="1.4" /></Icon>;
+// Priority: a flag for urgent, one chevron up for high, one down for low.
+export const Flag = () => <Icon><path d="M5.5 21V4" /><path d="M5.5 4.5h11l-2.5 4 2.5 4h-11" /></Icon>;
+export const Up = () => <Icon><path d="M6 15l6-6 6 6" /></Icon>;
+export const Down = () => <Icon><path d="M6 9l6 6 6-6" /></Icon>;

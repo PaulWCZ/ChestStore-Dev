@@ -46,3 +46,7 @@ export const Undo = () => <Icon><path d="M9 14L4 9l5-5" /><path d="M4 9h10.5a5.5
 export const Redo = () => <Icon><path d="M15 14l5-5-5-5" /><path d="M20 9H9.5a5.5 5.5 0 000 11H13" /></Icon>;
 export const Folder = () => <Icon><path d="M3.5 6.5a1.5 1.5 0 011.5-1.5h4.5l2 2.5H19a1.5 1.5 0 011.5 1.5v8.5A1.5 1.5 0 0119 19H5a1.5 1.5 0 01-1.5-1.5z" /></Icon>;
 export const People = () => <Icon><circle cx="9" cy="8.5" r="3.5" /><path d="M2.5 20a6.5 6.5 0 0113 0M16 5.5a3.5 3.5 0 010 7M18 14.5a6.5 6.5 0 013.5 5.5" /></Icon>;
+export const Eye = () => <Icon><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z" /><circle cx="12" cy="12" r="3" /></Icon>;
+export const Chat = () => <Icon><path d="M4.5 5.5h15v10h-9l-4.5 3.5v-3.5H4.5z" /></Icon>;
+export const Stamp = () => <Icon><path d="M8 3.5h10.5V16M5.5 6.5h10v14h-10z" /><path d="M8.5 11h4M8.5 14.5h4" /></Icon>;
+export const Calendar = () => <Icon><rect x="3.5" y="5" width="17" height="15" rx="2" /><path d="M3.5 9.5h17M8 3v4M16 3v4M9 14.5l2 2 4-4" /></Icon>;

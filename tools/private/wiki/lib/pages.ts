@@ -25,9 +25,15 @@ export type Page = {
   updatedAt: Date;
   deleted: boolean;
   space: Space;
+  // Offered as a model for new pages of its space.
+  template: boolean;
+  // Checked every few months (lib/reviews.ts), or null.
+  review: Review | null;
 };
 
-type PageRow = { id: string; space_id: string; parent_id: string | null; title: string; doc: unknown; version: number; created_by: string; created_at: Date; updated_by: string; updated_at: Date; deleted_at: Date | null };
+export type Review = { months: number; owner: string | null; reviewedAt: Date; due: boolean };
+
+type PageRow = { id: string; space_id: string; parent_id: string | null; title: string; doc: unknown; version: number; created_by: string; created_at: Date; updated_by: string; updated_at: Date; deleted_at: Date | null; template: boolean; review_months: number | null; review_owner: string | null; reviewed_at: Date | null; review_due: boolean };
 
 // The trees of the spaces the actor sees: ids, titles and places only
 // (the sidebar, the page pickers, the titles of links).
@@ -45,7 +51,10 @@ export async function tree(sql: Query, actor: Member | null, spaceIds?: string[]
 // read by who may restore it.
 export async function page(sql: Query, actor: Member | null, pageId: unknown, needed: "read" | "write" = "read", options: { deleted?: boolean } = {}): Promise<Page> {
   const key = id(pageId);
-  const [row] = await sql<PageRow[]>`select id, space_id, parent_id, title, doc, version, created_by, created_at, updated_by, updated_at, deleted_at from pages where id = ${key}`;
+  const [row] = await sql<PageRow[]>`
+    select id, space_id, parent_id, title, doc, version, created_by, created_at, updated_by, updated_at, deleted_at, template,
+      review_months, review_owner, reviewed_at, coalesce(reviewed_at + make_interval(months => review_months) <= now(), false) as review_due
+    from pages where id = ${key}`;
   if (!row) throw new AppError("not_found");
   const s = await space(sql, actor, String(row.space_id));
   if (row.deleted_at !== null && (!options.deleted || s.access !== "write")) throw new AppError("not_found");
@@ -63,6 +72,8 @@ export async function page(sql: Query, actor: Member | null, pageId: unknown, ne
     updatedAt: row.updated_at,
     deleted: row.deleted_at !== null,
     space: s,
+    template: row.template,
+    review: row.review_months !== null && row.reviewed_at !== null ? { months: row.review_months, owner: row.review_owner, reviewedAt: row.reviewed_at, due: row.review_due } : null,
   };
 }
 
@@ -105,45 +116,54 @@ async function checkParent(sql: Query, actor: Member | null, spaceId: string, pa
   return p.id;
 }
 
-// createPage adds an empty page (version 1) in a space, under a page or at
-// the top, at the end.
-export async function createPage(sql: Sql, actor: Member | null, input: { spaceId: unknown; parentId?: unknown; title: unknown }): Promise<{ id: string }> {
+// createPage adds a page (version 1) in a space, under a page or at the
+// top, at the end: empty, or with a starting document (a template's,
+// already normalized by the caller).
+export async function createPage(sql: Sql, actor: Member | null, input: { spaceId: unknown; parentId?: unknown; title: unknown; doc?: Doc }): Promise<{ id: string }> {
   const s = await space(sql, actor, input.spaceId, "write");
   const title = clean(input.title, limits.title);
   const parentId = await checkParent(sql, actor, s.id, input.parentId);
   if ((await depthOf(sql, parentId)) >= limits.depth) throw new AppError("too_many", { max: limits.depth });
   const [count] = await sql<{ n: number }[]>`select count(*)::int as n from pages`;
   if ((count?.n ?? 0) >= limits.pages) throw new AppError("too_many", { max: limits.pages });
-  const doc = emptyDoc();
+  const doc = input.doc ?? emptyDoc();
   return sql.begin(async tx => {
     const position = await place(tx, s.id, parentId, null, null);
     const [row] = await tx<{ id: string }[]>`
       insert into pages (space_id, parent_id, position, title, doc, body, created_by, updated_by)
       values (${s.id}, ${parentId}, ${position}, ${title}, ${tx.json(json(doc))}, '', ${actor!.id}, ${actor!.id}) returning id`;
-    await tx`insert into page_versions (page_id, number, title, doc, body, author, kind) values (${row!.id}, 1, ${title}, ${tx.json(json(doc))}, '', ${actor!.id}, 'created')`;
-    return { id: String(row!.id) };
+    const pageId = String(row!.id);
+    const { body, targets } = await derive(tx, pageId, doc);
+    if (body !== "") await tx`update pages set body = ${body} where id = ${pageId}`;
+    await tx`insert into page_versions (page_id, number, title, doc, body, author, kind) values (${pageId}, 1, ${title}, ${tx.json(json(doc))}, ${body}, ${actor!.id}, 'created')`;
+    for (const t of targets) await tx`insert into page_links (from_page, to_page) values (${pageId}, ${t}) on conflict do nothing`;
+    return { id: pageId };
   });
+}
+
+// derive gives what a page's document means for the rest of the wiki: its
+// words for search — naming the pages it links to, only those whose title
+// its own readers may see (its space, or an open one) — and the pages it
+// links to.
+async function derive(tx: Query, pageId: string, doc: Doc): Promise<{ body: string; targets: string[] }> {
+  const linked = await tx<{ id: string; title: string; shown: boolean }[]>`
+    select p.id, p.title, (p.space_id = here.space_id or s.visibility = 'everyone') as shown
+    from pages p join spaces s on s.id = p.space_id, (select space_id from pages where id = ${pageId}) here
+    where p.id in ${tx(references(doc).pages.concat(["0"]))}`;
+  const shown = new Map(linked.filter(r => r.shown).map(r => [String(r.id), r.title]));
+  return { body: plainText(doc, i => shown.get(i)), targets: linked.map(r => String(r.id)).filter(t => t !== pageId) };
 }
 
 // writeContent stores a new version of a page (a save, a restore, an
 // import) and the links it holds. The caller checked the rights.
 export async function writeContent(tx: Query, pageId: string, author: string, input: { title: string; doc: Doc; kind: "edited" | "restored" | "imported"; restoredFrom?: number }): Promise<number> {
-  // The words of the page, for search, name the pages it links to — only
-  // those whose title its own readers may see (its space, or an open one).
-  const linked = await tx<{ id: string; title: string; shown: boolean }[]>`
-    select p.id, p.title, (p.space_id = here.space_id or s.visibility = 'everyone') as shown
-    from pages p join spaces s on s.id = p.space_id, (select space_id from pages where id = ${pageId}) here
-    where p.id in ${tx(references(input.doc).pages.concat(["0"]))}`;
-  const titles = new Map(linked.map(r => [String(r.id), r.title]));
-  const shown = new Map(linked.filter(r => r.shown).map(r => [String(r.id), r.title]));
-  const body = plainText(input.doc, i => shown.get(i));
+  const { body, targets } = await derive(tx, pageId, input.doc);
   const [row] = await tx<{ version: number }[]>`
     update pages set title = ${input.title}, doc = ${tx.json(json(input.doc))}, body = ${body}, version = version + 1, updated_by = ${author}, updated_at = now()
     where id = ${pageId} returning version`;
   const version = row!.version;
   await tx`insert into page_versions (page_id, number, title, doc, body, author, kind, restored_from) values (${pageId}, ${version}, ${input.title}, ${tx.json(json(input.doc))}, ${body}, ${author}, ${input.kind}, ${input.restoredFrom ?? null})`;
   await tx`delete from page_links where from_page = ${pageId}`;
-  const targets = [...titles.keys()].filter(t => t !== pageId);
   for (const t of targets) await tx`insert into page_links (from_page, to_page) values (${pageId}, ${t}) on conflict do nothing`;
   return version;
 }
@@ -178,13 +198,14 @@ export async function movePage(sql: Sql, actor: Member | null, pageId: unknown, 
 // them out (back under their parent, or at the top if it is in the trash
 // too); purgePage deletes them for good, with their history — the Chest
 // objects of their files are answered, for the caller to remove.
-export async function deletePage(sql: Sql, actor: Member | null, pageId: unknown): Promise<{ pages: number }> {
+export async function deletePage(sql: Sql, actor: Member | null, pageId: unknown): Promise<{ pages: number; ids: string[] }> {
   const p = await page(sql, actor, pageId, "write");
   const done = await sql`
     with recursive down (id) as (select ${p.id}::bigint union all select c.id from pages c join down d on c.parent_id = d.id where c.deleted_at is null)
     update pages set deleted_at = now() where id in (select id from down) and deleted_at is null returning id`;
-  await sql`delete from page_locks where page_id in ${sql(done.map(r => String(r["id"])))}`;
-  return { pages: done.length };
+  const ids = done.map(r => String(r["id"]));
+  await sql`delete from page_locks where page_id in ${sql(ids)}`;
+  return { pages: done.length, ids };
 }
 
 export async function restorePage(sql: Sql, actor: Member | null, pageId: unknown): Promise<void> {

@@ -34,3 +34,21 @@ export function can(actor: Member | null, ability: Ability): boolean {
   const role = roleOf(actor);
   return role !== null && grants[role].includes(ability);
 }
+
+// Audience. A post is for everyone (no groups), or for the members of some
+// of the Chest's groups. Its audience — and only its audience — is told in
+// the bell, asked to confirm, counted in "Read by", and in the digest.
+export type Audience = { groups: readonly string[] };
+export type Grouped = { id: string; groups: readonly string[] };
+
+export function inAudience(person: Grouped, post: Audience): boolean {
+  return post.groups.length === 0 || post.groups.some(g => person.groups.includes(g));
+}
+
+// Who sees a post kept to groups: its audience, its author (who may edit
+// it) and the Chest's admins (who answer for the whole Chest). Nobody else,
+// whatever their role: for them it does not exist (not_found). Same rule
+// as the SQL of lib/posts.ts (audienceSeen).
+export function seesPost(actor: Member, post: Audience & { author: string }): boolean {
+  return actor.isAdmin || post.author === actor.id || inAudience(actor, post);
+}

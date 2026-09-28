@@ -3,6 +3,7 @@ import { Alarm, Clock, Pen } from "../../components/icons.tsx";
 import { can } from "../../lib/access.ts";
 import { dates } from "../../lib/dates.ts";
 import { db } from "../../lib/db.ts";
+import { audienceLabel, groupNames } from "../../lib/groups.ts";
 import { format, plural } from "../../lib/i18n/index.ts";
 import { kinds } from "../../lib/model.ts";
 import { nameOf, people } from "../../lib/people.ts";
@@ -25,12 +26,14 @@ export default async function FrontPage({ searchParams }: { searchParams: Promis
   const now = new Date();
   // Nothing runs in the background on a Chest without schedules: what is due
   // is told now; the tile's number is set right for whoever comes.
-  await catchUp(sql, now);
+  await catchUp(sql, now, member.id);
   const marker = await visit(sql, member, now);
   const f = await front(sql, member, { kind, page: pageText, zone, now });
-  await refreshBadges(sql, [member.id]);
+  await refreshBadges(sql, [member]);
   const all = [...f.posts, ...f.upcoming, ...f.scheduled];
   const who = await people(all.flatMap(p => [p.author, ...(p.welcome ? [p.welcome] : [])]));
+  const names = all.some(p => p.groups.length > 0) ? await groupNames() : new Map<string, string>();
+  const audience = (p: (typeof all)[number]) => audienceLabel(p.groups, names, locale);
   const byline = (id: string): Byline => (id === member.id ? { name: t.people.you, photo: member.photo } : { name: nameOf(who.get(id), locale), photo: who.get(id)?.photo ?? null });
   const d = dates(locale, zone, now);
   const isNew = (p: (typeof all)[number]) => marker !== null && p.author !== member.id && p.publishAt > marker;
@@ -71,7 +74,7 @@ export default async function FrontPage({ searchParams }: { searchParams: Promis
       ) : (
         <div className="front-grid">
           <div className="lead-slot">
-            <Story post={lead} lead author={byline(lead.author)} welcome={lead.welcome ? byline(lead.welcome) : null} isNew={isNew(lead)} d={d} locale={locale} t={words} />
+            <Story post={lead} lead author={byline(lead.author)} welcome={lead.welcome ? byline(lead.welcome) : null} isNew={isNew(lead)} audience={audience(lead)} d={d} locale={locale} t={words} />
           </div>
           <aside className="side" aria-label={t.front.comingUp}>
             <section>
@@ -107,7 +110,7 @@ export default async function FrontPage({ searchParams }: { searchParams: Promis
           </aside>
           {rest.length > 0 && (
             <div className="stories">
-              {rest.map(p => <Story key={p.id} post={p} author={byline(p.author)} welcome={p.welcome ? byline(p.welcome) : null} isNew={isNew(p)} d={d} locale={locale} t={words} />)}
+              {rest.map(p => <Story key={p.id} post={p} author={byline(p.author)} welcome={p.welcome ? byline(p.welcome) : null} isNew={isNew(p)} audience={audience(p)} d={d} locale={locale} t={words} />)}
             </div>
           )}
         </div>

@@ -5,9 +5,10 @@ import * as files from "@argentic/chest-sdk/files";
 import * as members from "@argentic/chest-sdk/members";
 import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
-import { answering } from "../../lib/access.ts";
+import { answering, can } from "../../lib/access.ts";
+import * as attachments from "../../lib/attachments.ts";
 import { db } from "../../lib/db.ts";
-import { AppError, attempt, type Result } from "../../lib/errors.ts";
+import { AppError, attempt, type ErrorCode, type Result } from "../../lib/errors.ts";
 import * as mailer from "../../lib/mailer.ts";
 import { publicOrigin } from "../../lib/public-origin.ts";
 import { currentMember } from "../../lib/session.ts";
@@ -27,12 +28,16 @@ async function act<T>(step: (actor: NonNullable<Awaited<ReturnType<typeof curren
   return result;
 }
 
-export async function reply(number: number, body: string, close: boolean): Promise<Result<{ delivery: "email" | "page" }>> {
+// The files a member added to a message: uploads of theirs, checked again
+// and kept (lib/attachments.ts), deleted if the message is refused.
+const memberFiles = (list: unknown): tickets.Files => ({ take: () => attachments.take("team", list), drop: attachments.remove });
+
+export async function reply(number: number, body: string, close: boolean, files: { ref: string; name: string }[] = []): Promise<Result<{ delivery: "email" | "page" }>> {
   return act(async actor => {
     const sql = db();
-    const done = await tickets.reply(sql, actor, number, body, { close });
+    const done = await tickets.reply(sql, actor, number, body, { close }, memberFiles(files));
     const s = await tickets.settings(sql);
-    const sent = await mailer.answer(done.ticket, body.trim(), actor, s.companyName, done.threading, done.messageId);
+    const sent = await mailer.answer(done.ticket, body.trim(), actor, s.companyName, done.threading, done.messageId, done.files);
     await tickets.delivered(sql, done.messageId, sent.delivery, sent.delivery === "email" ? sent.mail : undefined);
     await tell.answered(done.ticket);
     await tell.refreshBadges(sql);
@@ -40,8 +45,43 @@ export async function reply(number: number, body: string, close: boolean): Promi
   });
 }
 
-export async function note(number: number, body: string): Promise<Result<null>> {
-  return act(async actor => { await tickets.note(db(), actor, number, body); return null; });
+export async function note(number: number, body: string, files: { ref: string; name: string }[] = []): Promise<Result<null>> {
+  return act(async actor => { await tickets.note(db(), actor, number, body, memberFiles(files)); return null; });
+}
+
+// fileUpload lets someone who answers send one file to the Chest, to add
+// to their reply or note.
+export async function fileUpload(type: string, size: number): Promise<{ ok: true; url: string } | { ok: false; error: ErrorCode; max?: number }> {
+  const result = await attempt(async () => {
+    const actor = await currentMember();
+    if (!can(actor, "tickets.answer")) throw new AppError("forbidden");
+    return attachments.grant("team", type, size);
+  });
+  return result.ok ? { ok: true, url: result.value.url } : { ok: false, error: result.error, ...(typeof result.values?.["max"] === "number" ? { max: result.values["max"] } : {}) };
+}
+
+export async function setPriority(number: number, priority: string): Promise<Result<null>> {
+  return act(async actor => { await tickets.setPriority(db(), actor, number, priority); return null; });
+}
+
+export async function addTag(number: number, name: string): Promise<Result<tickets.Tag>> {
+  return act(actor => tickets.addTag(db(), actor, number, name));
+}
+
+export async function removeTag(number: number, tagId: string): Promise<Result<null>> {
+  return act(async actor => { await tickets.removeTag(db(), actor, number, tagId); return null; });
+}
+
+export async function renameTag(tagId: string, name: string): Promise<Result<tickets.Tag>> {
+  return act(actor => tickets.renameTag(db(), actor, tagId, name));
+}
+
+export async function deleteTag(tagId: string): Promise<Result<{ name: string; tickets: string[] }>> {
+  return act(actor => tickets.deleteTag(db(), actor, tagId));
+}
+
+export async function restoreTag(input: { name: string; tickets: string[] }): Promise<Result<tickets.Tag>> {
+  return act(actor => tickets.restoreTag(db(), actor, input));
 }
 
 // Someone who answers tickets: the Chest says their role.
@@ -97,7 +137,7 @@ export async function removeReply(id: string): Promise<Result<null>> {
   return act(async actor => { await tickets.removeReply(db(), actor, id); return null; });
 }
 
-export async function saveSettings(input: { companyName?: string; formOpen?: boolean; intro?: string; retentionMonths?: number }): Promise<Result<null>> {
+export async function saveSettings(input: { companyName?: string; formOpen?: boolean; intro?: string; retentionMonths?: number; lateHours?: number }): Promise<Result<null>> {
   return act(async actor => { await tickets.saveSettings(db(), actor, input); return null; });
 }
 

@@ -33,6 +33,8 @@ export const Italic = () => <Icon><path d="M10 5h8M6 19h8M14 5l-4 14" /></Icon>;
 export const List = () => <Icon><path d="M9 6h11M9 12h11M9 18h11" /><circle cx="4.5" cy="6" r="1" /><circle cx="4.5" cy="12" r="1" /><circle cx="4.5" cy="18" r="1" /></Icon>;
 export const LinkIcon = () => <Icon><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1" /><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1" /></Icon>;
 export const Bell = () => <Icon><path d="M6 16V11a6 6 0 0 1 12 0v5l2 2H4z" /><path d="M10 20a2 2 0 0 0 4 0" /></Icon>;
+export const Search = () => <Icon><circle cx="10.5" cy="10.5" r="6.5" /><path d="M15.5 15.5L20 20" /></Icon>;
+export const Group = () => <Icon><circle cx="9" cy="8" r="3.5" /><path d="M2.5 20a6.5 6.5 0 0 1 13 0" /><path d="M15.5 4.8a3.5 3.5 0 0 1 0 6.4M18 14a6.5 6.5 0 0 1 3.5 6" /></Icon>;
 export const Alarm = () => <Icon><path d="M12 3l9.5 17h-19z" /><path d="M12 10v4M12 17v.01" /></Icon>;
 
 export const kindIcons = { announcement: Megaphone, event: Calendar, welcome: Wave, info: Info } as const;

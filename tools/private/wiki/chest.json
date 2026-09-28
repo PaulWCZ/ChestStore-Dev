@@ -16,7 +16,8 @@
   "capabilities": [
     "database",
     "files",
-    "members"
+    "members",
+    "notifications"
   ],
   "receives": [
     "member.*"

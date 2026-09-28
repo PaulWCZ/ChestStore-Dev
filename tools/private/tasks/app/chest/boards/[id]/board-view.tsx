@@ -25,7 +25,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, useTransition, type KeyboardEvent } from "react";
 import { Avatar } from "../../../../components/avatar.tsx";
-import { Archive, Arrow, Back, Calendar, Chat, Check, CheckList, Clip, Columns, Dots, Gear, ListIcon, Plus, Text } from "../../../../components/icons.tsx";
+import { Archive, Arrow, Back, Calendar, Chat, Check, CheckList, Clip, Columns, Dots, Gear, ListIcon, Plus, RepeatIcon, Text } from "../../../../components/icons.tsx";
 import { useToast } from "../../../../components/toast.tsx";
 import type { BoardAccess } from "../../../../lib/access.ts";
 import type { Column, Label } from "../../../../lib/boards.ts";
@@ -355,9 +355,10 @@ function CardTile({ card, labels, people, today, locale, overlay = false, t }: {
     <div className={`card${card.done ? " is-done" : ""}${overlay ? " overlay" : ""}`}>
       {cardLabels.length > 0 && <div className="labels">{cardLabels.map(l => <span key={l.id} className={`bar c-${l.color}`} title={l.name || t.colors[l.color]} />)}</div>}
       <span className="card-title">{card.title}</span>
-      {(due || card.checklist.total > 0 || card.comments > 0 || card.attachments > 0 || card.hasDescription || card.assignees.length > 0) && (
+      {(due || card.repeats || card.checklist.total > 0 || card.comments > 0 || card.attachments > 0 || card.hasDescription || card.assignees.length > 0) && (
         <span className="meta">
           {due && <span className={`chip ${card.done ? "done" : state}`}><Calendar />{state === "due-today" ? t.card.today : new Intl.DateTimeFormat(intl(locale), { day: "numeric", month: "short", timeZone: "UTC" }).format(new Date(due + "T00:00:00Z"))}</span>}
+          {card.repeats && !card.done && <span className="stat" title={t.card.repeatBadge}><RepeatIcon /><span className="visually-hidden">{t.card.repeatBadge}</span></span>}
           {card.hasDescription && <span className="stat" title={t.card.description}><Text /></span>}
           {card.checklist.total > 0 && <span className={`stat${card.checklist.done === card.checklist.total ? " chip done" : ""}`} title={t.card.checklist}><CheckList />{card.checklist.done}/{card.checklist.total}</span>}
           {card.comments > 0 && <span className="stat" title={t.card.comments}><Chat />{card.comments}</span>}

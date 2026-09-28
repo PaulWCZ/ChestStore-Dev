@@ -3,7 +3,8 @@ import type { Member } from "@argentic/chest-sdk/member";
 import { can } from "./access.ts";
 import { AppError } from "./app-error.ts";
 import type { Query, Sql } from "./db.ts";
-import { clean, email, fillReply, id, isFolder, isStatus, limits, ticketNumber, type Folder, type Status } from "./model.ts";
+import type { Stored } from "./attachments.ts";
+import { clean, defaultLateHours, email, fillReply, id, isFolder, isPriority, isSort, isStatus, lateChoices, limits, tagName, ticketNumber, type Folder, type Priority, type Sort, type Status } from "./model.ts";
 
 // Tickets and their messages. Team functions take (sql, actor, …) and check
 // the rights first; public functions take what an anonymous visitor may
@@ -19,15 +20,21 @@ export type Ticket = {
   assignee: string | null;
   channel: "form" | "email" | "team";
   language: string;
+  priority: Priority;
+  // Since when the customer waits for an answer (open tickets), or null.
+  waitingSince: string | null;
   createdAt: string;
   updatedAt: string;
 };
+export type Tag = { id: string; name: string };
 export type Message = { id: string; kind: "customer" | "reply" | "note"; author: string | null; body: string; at: string; delivery: "email" | "page" | null; emailId: string | null; attachments: { id: string; fileName: string; type: string; size: number }[] };
-export type TicketRow = Ticket & { last: string; lastKind: string; messages: number };
+export type TicketRow = Ticket & { last: string; lastKind: string; messages: number; tags: Tag[] };
 
-type TicketDb = { id: string; number: number; subject: string; status: Status; customer_email: string; customer_name: string; assignee: string | null; channel: Ticket["channel"]; language: string; created_at: Date; updated_at: Date };
-const toTicket = (r: TicketDb): Ticket => ({ id: String(r.id), number: r.number, subject: r.subject, status: r.status, customerEmail: r.customer_email, customerName: r.customer_name, assignee: r.assignee, channel: r.channel, language: r.language, createdAt: r.created_at.toISOString(), updatedAt: r.updated_at.toISOString() });
-const columns = (sql: Query) => sql`t.id, t.number, t.subject, t.status, t.customer_email, t.customer_name, t.assignee, t.channel, t.language, t.created_at, t.updated_at`;
+type TicketDb = { id: string; number: number; subject: string; status: Status; customer_email: string; customer_name: string; assignee: string | null; channel: Ticket["channel"]; language: string; priority: Priority; waiting_since: Date | null; created_at: Date; updated_at: Date };
+const toTicket = (r: TicketDb): Ticket => ({ id: String(r.id), number: r.number, subject: r.subject, status: r.status, customerEmail: r.customer_email, customerName: r.customer_name, assignee: r.assignee, channel: r.channel, language: r.language, priority: r.priority, waitingSince: r.status === "open" && r.waiting_since ? r.waiting_since.toISOString() : null, createdAt: r.created_at.toISOString(), updatedAt: r.updated_at.toISOString() });
+const columns = (sql: Query) => sql`t.id, t.number, t.subject, t.status, t.customer_email, t.customer_name, t.assignee, t.channel, t.language, t.priority, t.waiting_since, t.created_at, t.updated_at`;
+// A ticket's tags, as JSON, sorted by name.
+const tagsOf = (sql: Query) => sql`(select coalesce(json_agg(json_build_object('id', g.id::text, 'name', g.name) order by lower(g.name)), '[]'::json) from ticket_tags tt join tags g on g.id = tt.tag_id where tt.ticket_id = t.id)`;
 
 export const hashSecret = (secret: string) => createHash("sha256").update(secret).digest("hex");
 export const newSecret = () => randomBytes(24).toString("base64url");
@@ -44,8 +51,10 @@ async function refreshSearch(sql: Query, ticketId: string): Promise<void> {
 
 // ---- Settings --------------------------------------------------------------
 
-export type Settings = { companyName: string; formOpen: boolean; intro: string; retentionMonths: number; publicOrigin: string | null };
-const defaults: Settings = { companyName: "", formOpen: true, intro: "", retentionMonths: 24, publicOrigin: null };
+// lateHours: an open ticket whose customer has waited that long is
+// highlighted (0: never).
+export type Settings = { companyName: string; formOpen: boolean; intro: string; retentionMonths: number; lateHours: number; publicOrigin: string | null };
+const defaults: Settings = { companyName: "", formOpen: true, intro: "", retentionMonths: 24, lateHours: defaultLateHours, publicOrigin: null };
 
 export async function settings(sql: Query): Promise<Settings> {
   const rows = await sql<{ key: string; value: unknown }[]>`select key, value from settings`;
@@ -55,6 +64,7 @@ export async function settings(sql: Query): Promise<Settings> {
     formOpen: typeof found["form_open"] === "boolean" ? found["form_open"] : defaults.formOpen,
     intro: typeof found["intro"] === "string" ? found["intro"] : defaults.intro,
     retentionMonths: typeof found["retention_months"] === "number" ? found["retention_months"] : defaults.retentionMonths,
+    lateHours: typeof found["late_hours"] === "number" ? found["late_hours"] : defaults.lateHours,
     publicOrigin: typeof found["public_origin"] === "string" ? found["public_origin"] : null,
   };
 }
@@ -63,7 +73,7 @@ async function setSetting(sql: Query, key: string, value: unknown): Promise<void
   await sql`insert into settings (key, value) values (${key}, ${sql.json(value as never)}) on conflict (key) do update set value = excluded.value`;
 }
 
-export async function saveSettings(sql: Sql, actor: Member | null, input: { companyName?: unknown; formOpen?: unknown; intro?: unknown; retentionMonths?: unknown }): Promise<void> {
+export async function saveSettings(sql: Sql, actor: Member | null, input: { companyName?: unknown; formOpen?: unknown; intro?: unknown; retentionMonths?: unknown; lateHours?: unknown }): Promise<void> {
   if (!can(actor, "settings")) throw new AppError("forbidden");
   if (input.companyName !== undefined) await setSetting(sql, "company_name", clean(input.companyName, 80, { optional: true }));
   if (input.intro !== undefined) await setSetting(sql, "intro", clean(input.intro, 500, { multiline: true, optional: true }));
@@ -72,6 +82,11 @@ export async function saveSettings(sql: Sql, actor: Member | null, input: { comp
     const months = Number(input.retentionMonths);
     if (!Number.isInteger(months) || months < 0 || months > 120) throw new AppError("invalid");
     await setSetting(sql, "retention_months", months);
+  }
+  if (input.lateHours !== undefined) {
+    const hours = Number(input.lateHours);
+    if (!(lateChoices as readonly number[]).includes(hours)) throw new AppError("invalid");
+    await setSetting(sql, "late_hours", hours);
   }
 }
 
@@ -94,49 +109,79 @@ async function insertTicket(sql: Query, input: { subject: string; email: string;
   return { id: String(row!.id), number: row!.number, secret };
 }
 
-async function insertMessage(sql: Query, ticketId: string, input: { kind: Message["kind"]; author: string | null; body: string; emailId?: string | null; delivery?: Message["delivery"] }): Promise<string> {
+// insertMessage adds a message and its files. A customer's message starts
+// the wait for an answer, unless they were already waiting (a closed
+// ticket starts again).
+async function insertMessage(sql: Query, ticketId: string, input: { kind: Message["kind"]; author: string | null; body: string; emailId?: string | null; delivery?: Message["delivery"]; files?: Stored[] }): Promise<string> {
   const [row] = await sql<{ id: string }[]>`
     insert into messages (ticket_id, kind, author, body, email_id, delivery)
     values (${ticketId}, ${input.kind}, ${input.author}, ${input.body}, ${input.emailId ?? null}, ${input.delivery ?? null})
     returning id`;
-  return String(row!.id);
+  const messageId = String(row!.id);
+  for (const f of input.files ?? []) await sql`insert into attachments (message_id, object, file_name, type, size) values (${messageId}, ${f.object}, ${f.fileName}, ${f.type}, ${f.size})`;
+  if (input.kind === "customer") await sql`update tickets set waiting_since = case when status in ('closed', 'spam') then now() else coalesce(waiting_since, now()) end where id = ${ticketId}`;
+  return messageId;
+}
+
+// withFiles takes the files of a message (take: after the text was
+// checked, so a refusal never spends them), runs the step, and deletes the
+// files again if the step fails: nothing stays that no message holds.
+type Take = () => Promise<Stored[]>;
+async function withFiles<T>(take: Take | undefined, step: (stored: Stored[]) => Promise<T>, drop: (objects: string[]) => Promise<void>): Promise<T> {
+  const stored = take ? await take() : [];
+  try {
+    return await step(stored);
+  } catch (error) {
+    if (stored.length > 0) await drop(stored.map(f => f.object));
+    throw error;
+  }
 }
 
 // The public form's guard: 5 requests an hour from one address (a hash of
 // it), 100 an hour from everyone; a honeypot field; a form sent faster than
-// a person can type is refused.
-export const formLimits = { perVisitorHour: 5, perHour: 100, minimumSeconds: 3 } as const;
+// a person can type is refused. Files have their own counters: 20 an hour
+// from one address, 300 from everyone (the Chest adds its own, per
+// minute).
+export const formLimits = { perVisitorHour: 5, perHour: 100, minimumSeconds: 3, filesPerVisitorHour: 20, filesPerHour: 300 } as const;
 
-export async function guard(sql: Query, visitor: string): Promise<void> {
+export async function guard(sql: Query, visitor: string, what: "form" | "file" = "form"): Promise<void> {
   const hour = new Date(Math.floor(Date.now() / 3600000) * 3600000);
-  const key = "v:" + createHash("sha256").update(visitor).digest("hex").slice(0, 32);
+  const prefix = what === "form" ? "v:" : "f:";
+  const everyone = what === "form" ? "all" : "files";
+  const key = prefix + createHash("sha256").update(visitor).digest("hex").slice(0, 32);
   const counts = await sql<{ key: string; count: number }[]>`
-    insert into form_counts (key, hour, count) values (${key}, ${hour}, 1), ('all', ${hour}, 1)
+    insert into form_counts (key, hour, count) values (${key}, ${hour}, 1), (${everyone}, ${hour}, 1)
     on conflict (key, hour) do update set count = form_counts.count + 1
     returning key, count`;
   const mine = counts.find(c => c.key === key)?.count ?? 0;
-  const all = counts.find(c => c.key === "all")?.count ?? 0;
-  if (mine > formLimits.perVisitorHour || all > formLimits.perHour) throw new AppError("too_many");
+  const all = counts.find(c => c.key === everyone)?.count ?? 0;
+  const [perVisitor, perHour] = what === "form" ? [formLimits.perVisitorHour, formLimits.perHour] : [formLimits.filesPerVisitorHour, formLimits.filesPerHour];
+  if (mine > perVisitor || all > perHour) throw new AppError("too_many");
   await sql`delete from form_counts where hour < ${new Date(hour.getTime() - 86400000)}`;
 }
 
 export type PublicInput = { name: unknown; email: unknown; subject: unknown; message: unknown; language: string };
+// How the files of a message are taken, and deleted if it is not saved
+// (lib/attachments.ts: take and remove).
+export type Files = { take?: Take; drop: (objects: string[]) => Promise<void> };
+const noFiles: Files = { drop: async () => {} };
 
-// fromForm opens a ticket from the public form; says its number and the
-// follow-up link's secret (shown once, never stored).
-export async function fromForm(sql: Sql, input: PublicInput): Promise<{ id: string; number: number; secret: string }> {
+// fromForm opens a ticket from the public form, with the files the visitor
+// sent; says its number and the follow-up link's secret (shown once, never
+// stored).
+export async function fromForm(sql: Sql, input: PublicInput, files: Files = noFiles): Promise<{ id: string; number: number; secret: string; files: number }> {
   const s = await settings(sql);
   if (!s.formOpen) throw new AppError("closed_form");
   const name = clean(input.name, limits.name, { optional: true });
   const address = email(input.email);
   const subject = clean(input.subject, limits.subject);
   const body = clean(input.message, limits.publicBody, { multiline: true });
-  return sql.begin(async tx => {
+  return withFiles(files.take, stored => sql.begin(async tx => {
     const t = await insertTicket(tx, { subject, email: address, name, channel: "form", language: input.language });
-    await insertMessage(tx, t.id, { kind: "customer", author: null, body });
+    await insertMessage(tx, t.id, { kind: "customer", author: null, body, files: stored });
     await refreshSearch(tx, t.id);
-    return t;
-  });
+    return { ...t, files: stored.length };
+  }), files.drop);
 }
 
 // fromTeam opens a ticket for a customer who called or came by: what they
@@ -175,7 +220,7 @@ export async function fromEmail(sql: Sql, message: IncomingEmail, numberFromSubj
     if (found) {
       ticketId = String(found.id);
       number = found.number;
-      await tx`update tickets set status = case when status = 'spam' then 'spam' else 'open' end, closed_at = null, updated_at = now() where id = ${ticketId}`;
+      await tx`update tickets set waiting_since = case when status in ('closed', 'spam') then now() else waiting_since end, status = case when status = 'spam' then 'spam' else 'open' end, closed_at = null, updated_at = now() where id = ${ticketId}`;
     } else {
       const subject = clean(message.subject || "—", limits.subject);
       const t = await insertTicket(tx, { subject, email: message.from.address, name: clean(message.from.name ?? "", limits.name, { optional: true }), channel: "email", language: "en", status: message.spam >= 7 ? "spam" : "open" });
@@ -202,31 +247,54 @@ export async function folderCounts(sql: Query, actor: Member): Promise<FolderCou
       count(*) filter (where status = 'open')::int as open,
       count(*) filter (where status = 'waiting')::int as waiting,
       count(*) filter (where status = 'closed')::int as closed,
-      count(*) filter (where status = 'spam')::int as spam
+      count(*) filter (where status = 'spam')::int as spam,
+      count(*) filter (where status <> 'spam')::int as "all"
     from tickets`;
   return row!;
 }
 
-export async function listTickets(sql: Sql, actor: Member | null, folder: unknown, query?: unknown): Promise<TicketRow[]> {
+// The inbox's filters: one priority, one tag, and the order.
+export type Filters = { priority?: unknown; tag?: unknown; sort?: unknown };
+
+export async function listTickets(sql: Sql, actor: Member | null, folder: unknown, query?: unknown, filters: Filters = {}): Promise<TicketRow[]> {
   if (!actor || !can(actor, "tickets.read")) throw new AppError("forbidden");
   const f: Folder = isFolder(folder) ? folder : "unassigned";
+  const priority: Priority | null = isPriority(filters.priority) ? filters.priority : null;
+  let tag: string | null = null;
+  try {
+    tag = filters.tag === undefined || filters.tag === null || filters.tag === "" ? null : id(filters.tag);
+  } catch {
+    tag = "0";
+  }
+  const sort: Sort = isSort(filters.sort) ? filters.sort : "waiting";
   const q = typeof query === "string" ? query.trim().slice(0, 100) : "";
   const words = q.split(/\s+/u).map(w => w.replace(/[^\p{L}\p{N}@._-]/gu, "")).filter(Boolean).slice(0, 8);
   const where = q
     ? sql`(t.search @@ to_tsquery('simple', ${words.map(w => w.replace(/[@._-]/gu, " ").trim().split(" ").map(x => x + ":*").join(" & ")).join(" & ") || "x"}) or t.subject ilike ${"%" + q.replace(/[\\%_]/gu, "\\$&") + "%"} or lower(t.customer_email) = lower(${q}) or t.number::text = ${q.replace(/^#/u, "")})`
     : f === "unassigned" ? sql`t.status = 'open' and t.assignee is null`
     : f === "mine" ? sql`t.status in ('open', 'waiting') and t.assignee = ${actor.id}`
+    : f === "all" ? sql`t.status <> 'spam'`
     : sql`t.status = ${f}`;
-  const rows = await sql<(TicketDb & { last: string; last_kind: string; messages: number })[]>`
+  // Who has waited longest first (the customer's first unanswered message,
+  // else the last change); a closed folder, a search or everything: the
+  // latest first.
+  const natural = f === "closed" || f === "all" || q ? sql`t.updated_at desc` : sql`coalesce(t.waiting_since, t.updated_at) asc`;
+  const order = sort === "recent" ? sql`t.updated_at desc`
+    : sort === "priority" ? sql`case t.priority when 'urgent' then 3 when 'high' then 2 when 'normal' then 1 else 0 end desc, ${natural}`
+    : natural;
+  const rows = await sql<(TicketDb & { last: string; last_kind: string; messages: number; tags: Tag[] })[]>`
     select ${columns(sql)},
       (select body from messages where ticket_id = t.id and kind <> 'note' order by created_at desc, id desc limit 1) as last,
       (select kind from messages where ticket_id = t.id order by created_at desc, id desc limit 1) as last_kind,
-      (select count(*)::int from messages where ticket_id = t.id) as messages
+      (select count(*)::int from messages where ticket_id = t.id) as messages,
+      ${tagsOf(sql)} as tags
     from tickets t
     where ${where}
-    order by ${f === "closed" || q ? sql`t.updated_at desc` : sql`t.updated_at asc`}
+      ${priority ? sql`and t.priority = ${priority}` : sql``}
+      ${tag ? sql`and exists (select 1 from ticket_tags x where x.ticket_id = t.id and x.tag_id = ${tag})` : sql``}
+    order by ${order}, t.id
     limit ${limits.page}`;
-  return rows.map(r => ({ ...toTicket(r), last: (r.last ?? "").slice(0, 200), lastKind: r.last_kind, messages: r.messages }));
+  return rows.map(r => ({ ...toTicket(r), last: (r.last ?? "").slice(0, 200), lastKind: r.last_kind, messages: r.messages, tags: r.tags ?? [] }));
 }
 
 async function byNumber(sql: Query, number: unknown): Promise<Ticket> {
@@ -245,7 +313,7 @@ async function messagesOf(sql: Query, ticketId: string, withNotes: boolean): Pro
   return rows.map(r => ({ id: String(r.id), kind: r.kind, author: r.author, body: r.body, at: r.created_at.toISOString(), delivery: r.delivery, emailId: r.email_id, attachments: files.filter(f => String(f.message_id) === String(r.id)).map(f => ({ id: String(f.id), fileName: f.file_name, type: f.type, size: Number(f.size) })) }));
 }
 
-export type TicketDetail = Ticket & { messages: Message[]; others: { number: number; subject: string; status: Status; updatedAt: string }[]; viewing: string[] };
+export type TicketDetail = Ticket & { messages: Message[]; others: { number: number; subject: string; status: Status; updatedAt: string }[]; viewing: string[]; tags: Tag[] };
 
 // ticket reads one ticket for the team, notes included; marks the actor as
 // on it (for "Hugo is on this ticket").
@@ -256,26 +324,28 @@ export async function ticket(sql: Sql, actor: Member | null, number: unknown): P
   const viewing = (await sql<{ member_id: string }[]>`select member_id from viewing where ticket_id = ${t.id} and member_id <> ${actor.id} and at > now() - interval '40 seconds'`).map(r => r.member_id);
   const others = await sql<{ number: number; subject: string; status: Status; updated_at: Date }[]>`
     select number, subject, status, updated_at from tickets where lower(customer_email) = lower(${t.customerEmail}) and id <> ${t.id} order by updated_at desc limit 10`;
-  return { ...t, messages: await messagesOf(sql, t.id, true), others: others.map(o => ({ number: o.number, subject: o.subject, status: o.status, updatedAt: o.updated_at.toISOString() })), viewing };
+  const [tagged] = await sql<{ tags: Tag[] }[]>`select ${tagsOf(sql)} as tags from tickets t where t.id = ${t.id}`;
+  return { ...t, messages: await messagesOf(sql, t.id, true), others: others.map(o => ({ number: o.number, subject: o.subject, status: o.status, updatedAt: o.updated_at.toISOString() })), viewing, tags: tagged?.tags ?? [] };
 }
 
 // ---- Answering -------------------------------------------------------------
 
-// reply adds the team's answer; the ticket then waits on the customer (or
-// closes). Says what the mail needs to send it.
-export async function reply(sql: Sql, actor: Member | null, number: unknown, body: unknown, options: { close?: boolean } = {}): Promise<{ ticket: Ticket; messageId: string; threading: string[] }> {
+// reply adds the team's answer, with its files; the ticket then waits on
+// the customer (or closes), who no longer waits on us. Says what the mail
+// needs to send it.
+export async function reply(sql: Sql, actor: Member | null, number: unknown, body: unknown, options: { close?: boolean } = {}, files: Files = noFiles): Promise<{ ticket: Ticket; messageId: string; threading: string[]; files: Stored[] }> {
   if (!actor || !can(actor, "tickets.answer")) throw new AppError("forbidden");
   const text = clean(body, limits.body, { multiline: true });
   const t = await byNumber(sql, number);
   if (t.status === "spam") throw new AppError("forbidden");
-  return sql.begin(async tx => {
-    const messageId = await insertMessage(tx, t.id, { kind: "reply", author: actor.id, body: text });
+  return withFiles(files.take, stored => sql.begin(async tx => {
+    const messageId = await insertMessage(tx, t.id, { kind: "reply", author: actor.id, body: text, files: stored });
     const status: Status = options.close ? "closed" : "waiting";
-    await tx`update tickets set status = ${status}, closed_at = ${options.close ? tx`now()` : null}, updated_at = now(), assignee = coalesce(assignee, ${actor.id}) where id = ${t.id}`;
+    await tx`update tickets set status = ${status}, closed_at = ${options.close ? tx`now()` : null}, updated_at = now(), waiting_since = null, assignee = coalesce(assignee, ${actor.id}) where id = ${t.id}`;
     await refreshSearch(tx, t.id);
     const threading = (await tx<{ email_id: string }[]>`select email_id from messages where ticket_id = ${t.id} and email_id is not null order by created_at`).map(r => r.email_id);
-    return { ticket: { ...t, status, assignee: t.assignee ?? actor.id }, messageId, threading };
-  });
+    return { ticket: { ...t, status, waitingSince: null, assignee: t.assignee ?? actor.id }, messageId, threading, files: stored };
+  }), files.drop);
 }
 
 // delivered records how a reply reached the customer.
@@ -283,14 +353,14 @@ export async function delivered(sql: Query, messageId: string, delivery: "email"
   await sql`update messages set delivery = ${delivery}, mail_id = ${mail?.id ?? null}, email_id = ${mail?.messageId ?? null} where id = ${messageId}`;
 }
 
-export async function note(sql: Sql, actor: Member | null, number: unknown, body: unknown): Promise<Ticket> {
+export async function note(sql: Sql, actor: Member | null, number: unknown, body: unknown, files: Files = noFiles): Promise<Ticket> {
   if (!actor || !can(actor, "tickets.answer")) throw new AppError("forbidden");
   const text = clean(body, limits.body, { multiline: true });
   const t = await byNumber(sql, number);
-  await sql.begin(async tx => {
-    await insertMessage(tx, t.id, { kind: "note", author: actor.id, body: text });
+  await withFiles(files.take, stored => sql.begin(async tx => {
+    await insertMessage(tx, t.id, { kind: "note", author: actor.id, body: text, files: stored });
     await tx`update tickets set updated_at = now() where id = ${t.id}`;
-  });
+  }), files.drop);
   return t;
 }
 
@@ -302,6 +372,104 @@ export async function assign(sql: Sql, actor: Member | null, number: unknown, as
   if (assignee !== null && (!/^mbr_[a-z2-7]{26}$/u.test(assignee) || !(await answers(assignee)))) throw new AppError("invalid");
   await sql`update tickets set assignee = ${assignee}, updated_at = now() where id = ${t.id}`;
   return { ticket: { ...t, assignee }, previous: t.assignee };
+}
+
+// setPriority: low, normal, high or urgent. Does not move the ticket in
+// the inbox's default order (its wait does not change).
+export async function setPriority(sql: Sql, actor: Member | null, number: unknown, priority: unknown): Promise<Ticket> {
+  if (!actor || !can(actor, "tickets.manage")) throw new AppError("forbidden");
+  if (!isPriority(priority)) throw new AppError("invalid");
+  const t = await byNumber(sql, number);
+  await sql`update tickets set priority = ${priority} where id = ${t.id}`;
+  return { ...t, priority };
+}
+
+// ---- Tags ------------------------------------------------------------------
+
+// tags lists the team's tags, with how many tickets carry each.
+export async function tags(sql: Sql, actor: Member | null): Promise<(Tag & { tickets: number })[]> {
+  if (!can(actor, "tickets.read")) throw new AppError("forbidden");
+  const rows = await sql<{ id: string; name: string; tickets: number }[]>`
+    select g.id, g.name, (select count(*)::int from ticket_tags x join tickets t on t.id = x.ticket_id where x.tag_id = g.id and t.status <> 'spam') as tickets
+    from tags g order by lower(g.name)`;
+  return rows.map(r => ({ id: String(r.id), name: r.name, tickets: r.tickets }));
+}
+
+// tagFor finds a tag by its name, whatever its case, or creates it.
+async function tagFor(sql: Query, name: string): Promise<Tag> {
+  const [found] = await sql<{ id: string; name: string }[]>`select id, name from tags where lower(name) = lower(${name})`;
+  if (found) return { id: String(found.id), name: found.name };
+  const [count] = await sql<{ n: number }[]>`select count(*)::int as n from tags`;
+  if ((count?.n ?? 0) >= limits.tags) throw new AppError("too_many", { max: limits.tags });
+  const [made] = await sql<{ id: string; name: string }[]>`insert into tags (name) values (${name}) on conflict (lower(name)) do update set name = tags.name returning id, name`;
+  return { id: String(made!.id), name: made!.name };
+}
+
+// addTag puts a tag on a ticket, creating it on the fly: those who answer
+// build the list as they go. Ten tags a ticket at most.
+export async function addTag(sql: Sql, actor: Member | null, number: unknown, name: unknown): Promise<Tag> {
+  if (!actor || !can(actor, "tickets.manage")) throw new AppError("forbidden");
+  const text = tagName(name);
+  const t = await byNumber(sql, number);
+  return sql.begin(async tx => {
+    const tag = await tagFor(tx, text);
+    const [count] = await tx<{ n: number }[]>`select count(*)::int as n from ticket_tags where ticket_id = ${t.id} and tag_id <> ${tag.id}`;
+    if ((count?.n ?? 0) >= limits.tagsPerTicket) throw new AppError("too_many", { max: limits.tagsPerTicket });
+    await tx`insert into ticket_tags (ticket_id, tag_id) values (${t.id}, ${tag.id}) on conflict do nothing`;
+    return tag;
+  });
+}
+
+export async function removeTag(sql: Sql, actor: Member | null, number: unknown, tagId: unknown): Promise<void> {
+  if (!actor || !can(actor, "tickets.manage")) throw new AppError("forbidden");
+  const t = await byNumber(sql, number);
+  await sql`delete from ticket_tags where ticket_id = ${t.id} and tag_id = ${id(tagId)}`;
+}
+
+// renameTag: for everyone, on every ticket. A name another tag has merges
+// the two (their tickets keep one tag).
+export async function renameTag(sql: Sql, actor: Member | null, tagId: unknown, name: unknown): Promise<Tag> {
+  if (!can(actor, "tags.manage")) throw new AppError("forbidden");
+  const key = id(tagId);
+  const text = tagName(name);
+  return sql.begin(async tx => {
+    const [current] = await tx<{ id: string }[]>`select id from tags where id = ${key} for update`;
+    if (!current) throw new AppError("not_found");
+    const [other] = await tx<{ id: string; name: string }[]>`select id, name from tags where lower(name) = lower(${text}) and id <> ${key}`;
+    if (!other) {
+      await tx`update tags set name = ${text} where id = ${key}`;
+      return { id: key, name: text };
+    }
+    await tx`insert into ticket_tags (ticket_id, tag_id) select ticket_id, ${other.id} from ticket_tags where tag_id = ${key} on conflict do nothing`;
+    await tx`delete from tags where id = ${key}`;
+    return { id: String(other.id), name: other.name };
+  });
+}
+
+// deleteTag takes a tag off every ticket; says what undoing needs.
+export async function deleteTag(sql: Sql, actor: Member | null, tagId: unknown): Promise<{ name: string; tickets: string[] }> {
+  if (!can(actor, "tags.manage")) throw new AppError("forbidden");
+  const key = id(tagId);
+  return sql.begin(async tx => {
+    const tickets = (await tx<{ ticket_id: string }[]>`select ticket_id from ticket_tags where tag_id = ${key}`).map(r => String(r.ticket_id));
+    const [tag] = await tx<{ name: string }[]>`delete from tags where id = ${key} returning name`;
+    if (!tag) throw new AppError("not_found");
+    return { name: tag.name, tickets };
+  });
+}
+
+// restoreTag undoes deleteTag: the tag again, on the tickets it was on
+// (those that still exist).
+export async function restoreTag(sql: Sql, actor: Member | null, input: { name: unknown; tickets: unknown }): Promise<Tag> {
+  if (!can(actor, "tags.manage")) throw new AppError("forbidden");
+  const text = tagName(input.name);
+  if (!Array.isArray(input.tickets) || input.tickets.length > 100000) throw new AppError("invalid");
+  const ids = input.tickets.map(x => id(x));
+  return sql.begin(async tx => {
+    const tag = await tagFor(tx, text);
+    for (let i = 0; i < ids.length; i += 1000) await tx`insert into ticket_tags (ticket_id, tag_id) select id, ${tag.id} from tickets where id in ${tx(ids.slice(i, i + 1000))} on conflict do nothing`;
+    return tag;
+  });
 }
 
 export async function setStatus(sql: Sql, actor: Member | null, number: unknown, status: unknown): Promise<Ticket> {
@@ -322,18 +490,35 @@ export async function byLink(sql: Query, secret: unknown): Promise<(Ticket & { m
   return { ...t, messages: await messagesOf(sql, t.id, false) };
 }
 
-// customerReply adds the customer's message from the follow-up page; the
-// ticket goes back to the team.
-export async function customerReply(sql: Sql, secret: unknown, body: unknown): Promise<Ticket> {
+// customerReply adds the customer's message (and files) from the
+// follow-up page; the ticket goes back to the team.
+export async function customerReply(sql: Sql, secret: unknown, body: unknown, files: Files = noFiles): Promise<Ticket> {
   const t = await byLink(sql, secret);
   if (!t) throw new AppError("not_found");
   const text = clean(body, limits.publicBody, { multiline: true });
-  await sql.begin(async tx => {
-    await insertMessage(tx, t.id, { kind: "customer", author: null, body: text });
+  await withFiles(files.take, stored => sql.begin(async tx => {
+    await insertMessage(tx, t.id, { kind: "customer", author: null, body: text, files: stored });
     await tx`update tickets set status = 'open', closed_at = null, updated_at = now() where id = ${t.id}`;
     await refreshSearch(tx, t.id);
-  });
+  }), files.drop);
   return { ...t, status: "open" };
+}
+
+// linkFile finds a file a follow-up link may open: on that ticket, in a
+// message the customer sees (never a note's). Null otherwise.
+export async function linkFile(sql: Query, secret: unknown, fileId: unknown): Promise<{ object: string; fileName: string; type: string } | null> {
+  if (typeof secret !== "string" || !secretPattern.test(secret)) return null;
+  let key: string;
+  try {
+    key = id(fileId);
+  } catch {
+    return null;
+  }
+  const [row] = await sql<{ object: string; file_name: string; type: string }[]>`
+    select a.object, a.file_name, a.type from attachments a
+    join messages m on m.id = a.message_id join tickets t on t.id = m.ticket_id
+    where a.id = ${key} and t.secret_hash = ${hashSecret(secret)} and t.status <> 'spam' and m.kind <> 'note'`;
+  return row ? { object: row.object, fileName: row.file_name, type: row.type } : null;
 }
 
 // ---- Saved replies ---------------------------------------------------------
@@ -405,8 +590,8 @@ export async function waitingCounts(sql: Query, people: string[]): Promise<Map<s
   return counts;
 }
 
-export async function exportRows(sql: Sql, actor: Member | null): Promise<{ number: number; subject: string; status: Status; customerEmail: string; customerName: string; assignee: string | null; channel: string; createdAt: string; updatedAt: string; messages: number }[]> {
+export async function exportRows(sql: Sql, actor: Member | null): Promise<{ number: number; subject: string; status: Status; priority: Priority; tags: string[]; customerEmail: string; customerName: string; assignee: string | null; channel: string; createdAt: string; updatedAt: string; messages: number }[]> {
   if (!can(actor, "export")) throw new AppError("forbidden");
-  const rows = await sql<(TicketDb & { messages: number })[]>`select ${columns(sql)}, (select count(*)::int from messages where ticket_id = t.id) as messages from tickets t where status <> 'spam' order by number`;
-  return rows.map(r => ({ ...toTicket(r), messages: r.messages }));
+  const rows = await sql<(TicketDb & { messages: number; tags: Tag[] })[]>`select ${columns(sql)}, (select count(*)::int from messages where ticket_id = t.id) as messages, ${tagsOf(sql)} as tags from tickets t where status <> 'spam' order by number`;
+  return rows.map(r => ({ ...toTicket(r), messages: r.messages, tags: (r.tags ?? []).map(g => g.name) }));
 }

@@ -1,4 +1,4 @@
-import { everyone } from "../../../../../lib/audience.ts";
+import { everyone, tally } from "../../../../../lib/audience.ts";
 import { toCsv } from "../../../../../lib/csv.ts";
 import { db } from "../../../../../lib/db.ts";
 import { AppError } from "../../../../../lib/errors.ts";
@@ -17,13 +17,12 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     const list = await confirmations(db(), actor, id);
     const locale = isLocale(actor?.locale) ? actor!.locale : "en";
     const t = catalogue(locale);
-    const done = new Set(list.confirmed.map(c => c.member));
-    const pending = (await everyone()).people.filter(p => p.id !== list.post.author && !done.has(p.id));
-    const who = await people(list.confirmed.map(c => c.member));
+    const { confirmed, pending } = tally(list.post, list.confirmed, (await everyone()).people);
+    const who = await people(confirmed.map(c => c.member));
     const when = new Intl.DateTimeFormat(intl(locale), { dateStyle: "short", timeStyle: "short", timeZone: chestZone() });
     const rows: unknown[][] = [
       [t.csv.person, t.csv.status, t.csv.at],
-      ...list.confirmed.map(c => [nameOf(who.get(c.member), locale), t.csv.confirmed, when.format(new Date(c.at))]),
+      ...confirmed.map(c => [nameOf(who.get(c.member), locale), t.csv.confirmed, when.format(new Date(c.at))]),
       ...pending.map(p => [p.name, t.csv.pending, ""]),
     ];
     return new Response(toCsv(rows), {

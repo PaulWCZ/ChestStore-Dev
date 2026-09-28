@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { everyone } from "../../lib/audience.ts";
+import { everyone, tally } from "../../lib/audience.ts";
 import { db } from "../../lib/db.ts";
 import { attempt, AppError, type Result } from "../../lib/errors.ts";
 import * as posts from "../../lib/posts.ts";
@@ -34,8 +34,10 @@ export async function savePost(postId: string | null, input: posts.PostInput): P
     const options = { zone: chestZone() };
     const saved = postId === null ? await posts.createPost(sql, actor, input, options) : await posts.updatePost(sql, actor, postId, input, options);
     await removeObjects(saved.removed);
-    if ("importantChanged" in saved && saved.importantChanged) {
-      if (!saved.important) await tell.settled(saved.id);
+    // No longer Important, or for another audience: its items go from
+    // every bell (the next lines tell the new audience again).
+    if ("importantChanged" in saved && (saved.importantChanged || (saved.important && saved.audienceChanged))) {
+      await tell.settled(saved.id);
       await tell.refreshEveryone(sql);
     }
     if (saved.published && (saved.important || saved.kind === "welcome")) await tell.announce(sql);
@@ -97,7 +99,7 @@ export async function confirmRead(postId: string): Promise<Result<null>> {
   return act(async actor => {
     const sql = db();
     const done = await posts.confirm(sql, actor, postId);
-    await tell.confirmed(sql, actor.id, done.id);
+    await tell.confirmed(sql, actor, done.id);
     return null;
   });
 }
@@ -112,8 +114,7 @@ export async function remind(postId: string): Promise<Result<{ count: number }>>
     const sql = db();
     const post = await posts.claimReminder(sql, actor, postId);
     const { confirmed } = await posts.confirmations(sql, actor, postId);
-    const done = new Set(confirmed.map(c => c.member));
-    const pending = (await everyone()).people.filter(p => p.id !== post.author && !done.has(p.id));
+    const { pending } = tally(post, confirmed, (await everyone()).people);
     await tell.remind(post, pending);
     return { count: pending.length };
   });

@@ -12,7 +12,8 @@ import { left } from "./tell.ts";
 //   then purged. The people they managed no longer have a manager, and the
 //   open to-dos given to them go back to "nobody yet"; HR is told. Their
 //   checklist history stays, read "(former member)". Templates that named
-//   them give the item to HR instead.
+//   them give the item to HR instead. The leaves Leave told of them are
+//   forgotten.
 // - Erasure: their profile is deleted, the checklists about them too (their
 //   HR record), and their id disappears from everything else ('erased').
 //   Then the erasure is acknowledged.
@@ -24,6 +25,7 @@ export async function leave(sql: Sql, memberId: string): Promise<{ reports: stri
     const open = await tx`update journey_items set assignee = null where assignee = ${memberId} and done_at is null and removed_at is null returning id`;
     await tx`update template_items set role = 'hr', member_id = null where member_id = ${memberId}`;
     await tx`update arrivals set manager_id = null where manager_id = ${memberId}`;
+    await tx`delete from away where member_id = ${memberId}`;
     return { reports: reports.sort(), open: open.length };
   });
 }
@@ -42,6 +44,7 @@ export async function erase(sql: Sql, memberId: string): Promise<void> {
     await tx`update arrivals set manager_id = null where manager_id = ${memberId}`;
     await tx`update arrivals set hired_by = null where hired_by = ${memberId}`;
     await tx`update arrivals set member_id = 'erased' where member_id = ${memberId}`;
+    await tx`delete from away where member_id = ${memberId}`;
   });
 }
 

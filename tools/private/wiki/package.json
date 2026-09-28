@@ -15,7 +15,7 @@
     "test": "node --test --test-concurrency=1 --disable-warning=ExperimentalWarning test/*.test.ts"
   },
   "dependencies": {
-    "@argentic/chest-sdk": "file:vendor/argentic-chest-sdk-0.3.0-studio.3.tgz",
+    "@argentic/chest-sdk": "file:vendor/argentic-chest-sdk-0.3.0-studio.10.tgz",
     "@tiptap/core": "3.31.3",
     "@tiptap/extension-image": "3.31.3",
     "@tiptap/extension-list": "3.31.3",

@@ -3,6 +3,7 @@ import * as mail from "@argentic/chest-sdk/mail";
 import type { Booking } from "./booking.ts";
 import { calendar } from "./ics.ts";
 import { catalogue, format, isLocale, meetingTime } from "./i18n/index.ts";
+import { answerText } from "./questions.ts";
 
 // Email to guests through the Chest's mail (Proposal (studio): the "mail"
 // capability, chest.proposals.json). On a Chest without mail yet, nothing
@@ -68,9 +69,17 @@ function values(b: Booking, c: Context) {
 const attachment = (b: Booking, c: Context, cancelled = false): mail.Attachment => ({ name: wordsFor(b.guestLanguage).mail.fileName, type: "text/calendar; charset=utf-8", content: invitation(b, c, cancelled) });
 const from = (c: Context) => (c.company ? `${c.hostName} — ${c.company}` : c.hostName);
 
+// The guest's answers to the host's questions, as a block of the
+// confirmation (nothing when there were none).
+function answersBlock(b: Booking): string {
+  if (b.answers.length === 0) return "";
+  const words = wordsFor(b.guestLanguage);
+  return `\n\n${words.mail.answersIntro}\n` + b.answers.map(a => `${a.label}: ${answerText(a, words.answers)}`).join("\n");
+}
+
 export async function confirmed(b: Booking, c: Context): Promise<Delivery> {
   const t = wordsFor(b.guestLanguage).mail;
-  const v = values(b, c);
+  const v = { ...values(b, c), answers: answersBlock(b) };
   return send({ to: b.guestEmail, subject: format(t.confirmedSubject, v), text: format(t.confirmedBody, v), fromName: from(c), attachments: [attachment(b, c)], key: `booked:${b.id}` });
 }
 

@@ -41,8 +41,8 @@ export async function boardJson(sql: Sql, actor: Member | null, boardId: unknown
   const b = await board(sql, actor, boardId, "read");
   const cols = await columns(sql, b.id);
   const labs = await labels(sql, b.id);
-  const cards = await sql<{ id: string; column_id: string; title: string; description: string; due_on: string | null; created_by: string; created_at: Date; completed_at: Date | null }[]>`
-    select id, column_id, title, description, to_char(due_on, 'YYYY-MM-DD') as due_on, created_by, created_at, completed_at from cards where board_id = ${b.id} and archived_at is null order by position`;
+  const cards = await sql<{ id: string; column_id: string; title: string; description: string; due_on: string | null; created_by: string; created_at: Date; completed_at: Date | null; repeat: unknown }[]>`
+    select id, column_id, title, description, to_char(due_on, 'YYYY-MM-DD') as due_on, created_by, created_at, completed_at, repeat from cards where board_id = ${b.id} and archived_at is null order by position`;
   const ids = cards.map(c => String(c.id));
   const assignees = ids.length ? await sql<{ card_id: string; member_id: string }[]>`select card_id, member_id from card_assignees where card_id in ${sql(ids)}` : [];
   const cardLabels = ids.length ? await sql<{ card_id: string; label_id: string }[]>`select card_id, label_id from card_labels where card_id in ${sql(ids)}` : [];
@@ -64,6 +64,7 @@ export async function boardJson(sql: Sql, actor: Member | null, boardId: unknown
         title: c.title,
         description: c.description,
         due: c.due_on,
+        repeat: c.repeat ?? null,
         createdBy: person(c.created_by),
         createdAt: c.created_at.toISOString(),
         completedAt: c.completed_at?.toISOString() ?? null,

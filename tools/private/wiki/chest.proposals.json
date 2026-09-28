@@ -1,4 +1,10 @@
 {
+  "schedules": [
+    {
+      "name": "reviews",
+      "cron": "40 7 * * 1-5"
+    }
+  ],
   "translations": {
     "fr": {
       "title": "Wiki",

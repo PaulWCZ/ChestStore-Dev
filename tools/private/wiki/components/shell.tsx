@@ -9,7 +9,7 @@ import { format } from "../lib/i18n/format.ts";
 import { Avatar } from "./avatar.tsx";
 import { Chevron, Close, Home, Menu as MenuIcon, Plus, Search, Trash, Upload } from "./icons.tsx";
 import { Mark } from "./mark.tsx";
-import { NewPageDialog, type PageTarget } from "./new-page.tsx";
+import { NewPageDialog, type NewPageWords, type PageTarget } from "./new-page.tsx";
 import { NewSpaceDialog } from "./new-space.tsx";
 import { useToast } from "./toast.tsx";
 
@@ -21,6 +21,7 @@ export type ShellWords = {
   newPage: Catalogue["newPage"];
   newSpace: Catalogue["newSpace"];
   errors: Catalogue["errors"];
+  templates: NewPageWords["templates"];
   undo: string;
   name: string;
 };

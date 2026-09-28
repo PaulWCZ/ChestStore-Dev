@@ -43,3 +43,10 @@ export function relative(value: Date | string, locale: Locale, now = new Date())
 
 // Each language named in itself, never translated (a switch, a picker).
 export const languageNames: Record<string, string> = { en: "English", fr: "Français" };
+
+// fileSize says "340 KB", "2.4 MB" in that language (format it on the
+// server, or after mount: Node's and the browser's Intl may differ).
+export function fileSize(bytes: number, locale: Locale): string {
+  const [unit, value] = bytes < 1024 * 1024 ? ["kilobyte", Math.max(1, Math.round(bytes / 1024))] as const : ["megabyte", Math.round((bytes / (1024 * 1024)) * 10) / 10] as const;
+  return new Intl.NumberFormat(intl(locale), { style: "unit", unit, unitDisplay: "short", maximumFractionDigits: 1 }).format(value);
+}

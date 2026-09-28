@@ -1,10 +1,12 @@
 import { CapabilityNotGranted, ChestError } from "@argentic/chest-sdk/errors";
 import type { Locale } from "@argentic/chest-sdk/member";
 import * as members from "@argentic/chest-sdk/members";
+import { inAudience, type Audience } from "./access.ts";
 
 // Everyone who has News with a role: the readers of the company's front
 // page. The Chest answers 500 at a time; News reads up to 10,000 people.
-export type Reader = { id: string; name: string; photo: string | null; locale: Locale; role: string | null };
+// groups: the groups that give them News (a post's audience).
+export type Reader = { id: string; name: string; photo: string | null; locale: Locale; role: string | null; groups: string[] };
 
 export const pageSize = 500;
 export const maxPages = 20;
@@ -15,7 +17,7 @@ export type Page = { people: Reader[]; next: string | null };
 export async function page(after: string | null): Promise<Page> {
   const answer = await members.list({ limit: pageSize, ...(after ? { after } : {}) });
   return {
-    people: answer.members.filter(m => m.role !== null).map(m => ({ id: m.id, name: m.name, photo: m.photo, locale: m.locale, role: m.role })),
+    people: answer.members.filter(m => m.role !== null).map(m => ({ id: m.id, name: m.name, photo: m.photo, locale: m.locale, role: m.role, groups: m.groups })),
     next: answer.next,
   };
 }
@@ -48,4 +50,18 @@ export async function hasTool(memberId: string): Promise<boolean | "unavailable"
     if (error instanceof CapabilityNotGranted || error instanceof ChestError) return "unavailable";
     throw error;
   }
+}
+
+// tally is who confirmed an Important post and who has not yet, counted on
+// its audience only: a confirmation left by someone it is no longer for
+// (its groups changed, or theirs) is not counted; someone who left the
+// Chest stays in the record. Its author is never asked.
+export function tally<C extends { member: string }>(post: Audience & { author: string }, confirmed: C[], people: Reader[]): { confirmed: C[]; pending: Reader[] } {
+  const byId = new Map(people.map(p => [p.id, p]));
+  const counted = confirmed.filter(c => {
+    const person = byId.get(c.member);
+    return !person || inAudience(person, post);
+  });
+  const done = new Set(counted.map(c => c.member));
+  return { confirmed: counted, pending: people.filter(p => p.id !== post.author && inAudience(p, post) && !done.has(p.id)) };
 }

@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { Avatar } from "../../components/avatar.tsx";
-import { Pen } from "../../components/icons.tsx";
+import { Pen, Search } from "../../components/icons.tsx";
 import { Mark } from "../../components/mark.tsx";
 import { Toasts } from "../../components/toast.tsx";
 import { can, roleOf } from "../../lib/access.ts";
@@ -18,6 +18,13 @@ export default async function MembersLayout({ children }: { children: ReactNode 
       <a className="skip" href="#main">{t.shell.skip}</a>
       <header className="topbar">
         <a className="brand" href="/chest"><Mark /><span>{t.meta.name}</span></a>
+        {role && (
+          <form className="search" role="search" action="/chest/search" method="get">
+            <label htmlFor="top-search" className="visually-hidden">{t.search.label}</label>
+            <input id="top-search" name="q" type="search" className="field" placeholder={t.shell.search} maxLength={200} />
+            <button type="submit" className="icon-button"><Search /><span className="visually-hidden">{t.search.button}</span></button>
+          </form>
+        )}
         {can(member, "publish") && <a className="button small write" href="/chest/new"><Pen /><span>{t.shell.write}</span></a>}
         <span className="me">
           <span className="who">{member.firstName || member.name}{role ? " · " + t.roles[role] : ""}</span>

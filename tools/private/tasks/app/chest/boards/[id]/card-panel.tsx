@@ -3,15 +3,17 @@
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition, type ReactNode } from "react";
 import { Avatar } from "../../../../components/avatar.tsx";
-import { Archive, Calendar, Chat, CheckList, Clip, Clock, Close, Download, File, People, Plus, Restore, Tag, Text, Trash } from "../../../../components/icons.tsx";
+import Link from "next/link";
+import { Archive, Calendar, Chat, CheckList, Clip, Clock, Close, Download, File, People, Plus, RepeatIcon, Restore, Tag, Text, Trash } from "../../../../components/icons.tsx";
 import { useToast } from "../../../../components/toast.tsx";
 import type { Column, Label } from "../../../../lib/boards.ts";
 import type { Activity, Attachment, CardDetail, Comment } from "../../../../lib/cards.ts";
 import { format } from "../../../../lib/i18n/format.ts";
 import type { Catalogue } from "../../../../lib/i18n/index.ts";
 import type { Color } from "../../../../lib/model.ts";
+import { repeatKinds, suggest, type Repeat, type RepeatKind } from "../../../../lib/repeat.ts";
 import {
-  addComment, addItem, addLabel, archiveCard, deleteCard, detach, editComment, moveCard, removeComment, removeItem, setAssignees, setLabel, updateCard, updateItem,
+  addComment, addItem, addLabel, archiveCard, deleteCard, detach, editComment, moveCard, removeComment, removeItem, setAssignees, setLabel, setRepeat, updateCard, updateItem,
 } from "../../actions.ts";
 
 export type PanelCard = Omit<CardDetail, "thread" | "history" | "files"> & {
@@ -21,6 +23,15 @@ export type PanelCard = Omit<CardDetail, "thread" | "history" | "files"> & {
   thread: (Comment & { when: string; date: string })[];
   history: (Activity & { when: string })[];
   files: (Attachment & { when: string })[];
+};
+// What the page wrote of the card's repeat (dates and day names are
+// written on the server).
+export type RepeatView = {
+  summary: string | null;
+  upcoming: string | null;
+  made: { text: string; href: string } | null;
+  days: { value: number; short: string; long: string }[];
+  today: string;
 };
 type Words = { card: Catalogue["card"]; activity: Catalogue["activity"]; errors: Catalogue["errors"]; colors: Catalogue["colors"] };
 type People = Record<string, { name: string; photo: string | null }>;
@@ -33,13 +44,14 @@ type Props = {
   people: People;
   audience: Person[];
   me: string;
+  repeat: RepeatView;
   t: Words;
 };
 const labelColors: Color[] = ["sun", "tomato", "berry", "grape", "sky", "sea", "leaf", "sand", "slate"];
 
 // A card, in full, beside the board. Each change is saved at once; the
 // page refreshes itself from the server after it.
-export function CardPanel({ card, board, columns, labels, people, audience, me, t }: Props) {
+export function CardPanel({ card, board, columns, labels, people, audience, me, repeat, t }: Props) {
   const router = useRouter();
   const path = usePathname();
   const toast = useToast();
@@ -107,6 +119,8 @@ export function CardPanel({ card, board, columns, labels, people, audience, me, 
             </div>
           </div>
 
+          <RepeatField card={card} view={repeat} writable={writable} t={t} onSave={rule => run(() => setRepeat(card.id, rule))} />
+
           <Section icon={<People />} title={t.card.assignees}>
             <Assignees card={card} audience={audience} people={people} writable={writable} me={me} t={t} onSave={ids => run(() => setAssignees(card.id, ids))} />
           </Section>
@@ -154,6 +168,60 @@ export function CardPanel({ card, board, columns, labels, people, audience, me, 
         </div>
       </div>
     </>
+  );
+}
+
+// Repeat: plain choices; the card then says what repeats and when the next
+// one comes. Once the next card is made, this one only points to it.
+function RepeatField({ card, view, writable, t, onSave }: { card: PanelCard; view: RepeatView; writable: boolean; t: Words; onSave: (rule: Repeat | null) => void }) {
+  const [rule, setRule] = useState<Repeat | null>(card.repeat);
+  useEffect(() => setRule(card.repeat), [card.repeat]);
+  const change = (next: Repeat | null) => { setRule(next); onSave(next); };
+  const editable = writable && !card.next;
+  const kind: RepeatKind | "none" = rule?.every ?? "none";
+  return (
+    <div className="repeat">
+      <div className="fact">
+        <label className="label" htmlFor="card-repeat"><RepeatIcon /> {t.card.repeat}</label>
+        {editable ? (
+          <select id="card-repeat" className="select" value={kind} onChange={e => change(e.target.value === "none" ? null : suggest(e.target.value as RepeatKind, card.due ?? view.today))}>
+            <option value="none">{t.card.repeatEvery.none}</option>
+            {repeatKinds.map(k => <option key={k} value={k}>{t.card.repeatEvery[k]}</option>)}
+          </select>
+        ) : !rule && <span>{t.card.repeatEvery.none}</span>}
+      </div>
+      {editable && rule?.every === "week" && (
+        <fieldset className="weekdays">
+          <legend className="label">{t.card.repeatDays}</legend>
+          {view.days.map(d => {
+            const on = rule.days.includes(d.value);
+            return (
+              <label key={d.value} className={`weekday${on ? " on" : ""}`}>
+                <input type="checkbox" checked={on} disabled={on && rule.days.length === 1} aria-label={d.long}
+                  onChange={() => change({ every: "week", days: on ? rule.days.filter(x => x !== d.value) : [...rule.days, d.value].sort((a, b) => a - b) })} />
+                <span aria-hidden="true">{d.short}</span>
+              </label>
+            );
+          })}
+        </fieldset>
+      )}
+      {editable && rule?.every === "month" && (
+        <div className="fact">
+          <label className="label" htmlFor="repeat-day">{t.card.repeatMonthDay}</label>
+          <div className="row">
+            <select id="repeat-day" className="select" value={rule.day} onChange={e => change({ every: "month", day: Number(e.target.value) })}>
+              {Array.from({ length: 31 }, (_, i) => i + 1).map(n => <option key={n} value={n}>{n}</option>)}
+            </select>
+            {rule.day > 28 && <span className="hint">{t.card.repeatShortMonths}</span>}
+          </div>
+        </div>
+      )}
+      {(view.summary || view.upcoming || view.made) && (
+        <p className="repeat-note" role="status">
+          {view.summary && <strong>{view.summary}</strong>} {view.upcoming}{view.made && <>{view.made.text} <Link href={view.made.href} className="link-button">{t.card.repeatOpen}</Link></>}
+        </p>
+      )}
+    </div>
   );
 }
 

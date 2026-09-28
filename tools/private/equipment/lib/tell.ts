@@ -1,6 +1,6 @@
 import type { Member } from "@argentic/chest-sdk/member";
 import type { Query } from "./db.ts";
-import { format, plural } from "./i18n/index.ts";
+import { format, formatDay, plural } from "./i18n/index.ts";
 import { badges, cut, notify, withdraw } from "./notify.ts";
 import { managers } from "./people.ts";
 
@@ -50,12 +50,36 @@ export async function left(person: { id: string; name: string }, count: number):
   }), { path: `/chest/people/${person.id}`, key: `left:${person.id}` });
 }
 
-// When the person holds nothing more, the "left and holds" item goes.
+// Someone is leaving (People told Equipment): every manager hears it once,
+// "Marc Lefort leaves on 12 Oct — 3 items to take back"; the item goes when
+// all is back, when the departure is taken back, or when the person has
+// left (then "left and holds" says the rest).
+export async function leaving(person: { id: string; name: string }, lastDay: string, count: number): Promise<void> {
+  if (count === 0) {
+    await withdraw(`leaving:${person.id}`);
+    return;
+  }
+  const to = await managers();
+  await notify(to, (t, locale) => ({
+    title: plural(person.name ? t.bell.leaving : t.bell.leavingUnnamed, count, locale, { name: cut(person.name, 30), date: formatDay(lastDay, locale, { day: "numeric", month: "short" }) }),
+    body: t.bell.leavingBody,
+  }), { path: `/chest/people/${person.id}`, key: `leaving:${person.id}` });
+}
+
+export async function stays(memberId: string): Promise<void> {
+  await withdraw(`leaving:${memberId}`);
+}
+
+// When the person holds nothing more, the "left and holds" (or "leaves on")
+// item goes.
 export async function maybeAllBack(sql: Query, holder: string): Promise<void> {
   if (!holder.startsWith("mbr_")) return;
   const [row] = await sql<{ n: number }[]>`
     select ((select count(*) from items where holder = ${holder} and deleted_at is null) + (select count(*) from seats where member_id = ${holder}))::int as n`;
-  if ((row?.n ?? 0) === 0) await withdraw(`left:${holder}`);
+  if ((row?.n ?? 0) === 0) {
+    await withdraw(`left:${holder}`);
+    await withdraw(`leaving:${holder}`);
+  }
 }
 
 // The weekly word to managers (schedule "weekly"): what ends soon.

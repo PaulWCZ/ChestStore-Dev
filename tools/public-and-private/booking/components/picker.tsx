@@ -6,10 +6,11 @@ import { bookTime, moveMine, type BookState } from "../app/public-actions.ts";
 import type { ErrorCode } from "../lib/app-error.ts";
 import { format, intl } from "../lib/i18n/format.ts";
 import type { Catalogue } from "../lib/i18n/index.ts";
+import { questionLimits, type Question } from "../lib/questions.ts";
 import { addDays, isZone, wall } from "../lib/zone.ts";
 import { Alert, Back, Check, Clock, Globe, Next } from "./icons.tsx";
 
-type Words = { public: Catalogue["public"]; days: Catalogue["days"]; errors: Catalogue["errors"] };
+type Words = { public: Catalogue["public"]; days: Catalogue["days"]; errors: Catalogue["errors"]; answers: Catalogue["answers"] };
 
 type Props = {
   hostSlug: string;
@@ -22,6 +23,8 @@ type Props = {
   phone: boolean;
   company: string;
   started: string;
+  // The host's own questions on the form.
+  questions?: Question[];
   t: Words;
   // Moving a booking: the guest's secret instead of the form.
   move?: { secret: string; zone: string };
@@ -42,7 +45,7 @@ function daysIn(month: string): number {
 // Picking a time: a month with the days that have free times, the day's
 // times in the visitor's time zone (they can change it), then the few
 // fields of the booking — or, when moving a booking, one button.
-export function Picker({ hostSlug, typeSlug, hostName, hostZone, first, locale, phone, company, started, t, move }: Props) {
+export function Picker({ hostSlug, typeSlug, hostName, hostZone, first, locale, phone, company, started, questions = [], t, move }: Props) {
   const p = t.public;
   const [zone, setZone] = useState(move?.zone ?? hostZone);
   useEffect(() => {
@@ -176,14 +179,14 @@ export function Picker({ hostSlug, typeSlug, hostName, hostZone, first, locale, 
         </div>
       ) : null}
       {notice && <p className="error" role="alert"><Alert />{notice}</p>}
-      {time && !move && <GuestForm hostSlug={hostSlug} typeSlug={typeSlug} start={time} zone={zone} when={`${dayLabel(wall(Date.parse(time), zone).date)}, ${clock(time)}`} hostName={hostName} phone={phone} company={company} started={started} t={t} onChange={() => setTime(null)} onError={retake} />}
+      {time && !move && <GuestForm hostSlug={hostSlug} typeSlug={typeSlug} start={time} zone={zone} when={`${dayLabel(wall(Date.parse(time), zone).date)}, ${clock(time)}`} hostName={hostName} phone={phone} company={company} started={started} questions={questions} t={t} onChange={() => setTime(null)} onError={retake} />}
       {time && move && <MoveButton secret={move.secret} start={time} when={`${dayLabel(wall(Date.parse(time), zone).date)}, ${clock(time)}`} t={t} onError={retake} />}
     </div>
   );
 }
 
-function GuestForm({ hostSlug, typeSlug, start, zone, when, hostName, phone, company, started, t, onChange, onError }: {
-  hostSlug: string; typeSlug: string; start: string; zone: string; when: string; hostName: string; phone: boolean; company: string; started: string; t: Words; onChange: () => void; onError: (code: ErrorCode | null) => void;
+function GuestForm({ hostSlug, typeSlug, start, zone, when, hostName, phone, company, started, questions, t, onChange, onError }: {
+  hostSlug: string; typeSlug: string; start: string; zone: string; when: string; hostName: string; phone: boolean; company: string; started: string; questions: Question[]; t: Words; onChange: () => void; onError: (code: ErrorCode | null) => void;
 }) {
   const p = t.public;
   const [state, action, pending] = useActionState<BookState, FormData>(bookTime.bind(null, hostSlug, typeSlug), { error: null, values: {} });
@@ -192,7 +195,7 @@ function GuestForm({ hostSlug, typeSlug, start, zone, when, hostName, phone, com
   tell.current = onError;
   useEffect(() => { tell.current(state.error); }, [state]);
   const v = state.values;
-  const error = state.error && state.error !== "taken" ? format(t.errors[state.error], { max: 2000 }) : null;
+  const error = state.error && state.error !== "taken" ? format(t.errors[state.error], { max: 2000, ...state.detail }) : null;
   return (
     <form action={action} className="stack guest-form">
       <p className="chosen" style={{ margin: 0 }}>
@@ -207,11 +210,30 @@ function GuestForm({ hostSlug, typeSlug, start, zone, when, hostName, phone, com
       <div><label className="label" htmlFor="name">{p.name}</label><input id="name" name="name" className="field" autoComplete="name" maxLength={120} required defaultValue={v["name"]} autoFocus /></div>
       <div><label className="label" htmlFor="email">{p.email}</label><input id="email" name="email" type="email" className="field" autoComplete="email" maxLength={254} required defaultValue={v["email"]} aria-describedby="email-hint" /><p id="email-hint" className="hint">{p.emailHint}</p></div>
       {phone && <div><label className="label" htmlFor="phone">{p.phone}</label><input id="phone" name="phone" type="tel" className="field" autoComplete="tel" maxLength={40} required defaultValue={v["phone"]} aria-describedby="phone-hint" /><p id="phone-hint" className="hint">{format(p.phoneHint, { name: hostName })}</p></div>}
+      {questions.map(q => <Ask key={q.id} q={q} value={v[`q_${q.id}`] ?? ""} t={t} />)}
       <div><label className="label" htmlFor="note">{p.note}</label><textarea id="note" name="note" className="field" rows={3} maxLength={2000} defaultValue={v["note"]} /></div>
       {error && <p className="error" role="alert"><Alert />{error}</p>}
       <div><button type="submit" className="button wide" disabled={pending}><Check />{pending ? p.confirming : p.confirm}</button></div>
       <p className="hint">{company ? format(p.privacy, { company }) : p.privacyPlain}</p>
     </form>
+  );
+}
+
+// One of the host's questions: a line, a box, one choice among options, or
+// yes/no. Optional ones say so; the server checks the answers again.
+function Ask({ q, value, t }: { q: Question; value: string; t: Words }) {
+  const name = `q_${q.id}`;
+  const label = q.required ? q.label : format(t.public.optional, { label: q.label });
+  if (q.kind === "short") return <div><label className="label" htmlFor={name}>{label}</label><input id={name} name={name} className="field" maxLength={questionLimits.short} required={q.required} defaultValue={value} /></div>;
+  if (q.kind === "long") return <div><label className="label" htmlFor={name}>{label}</label><textarea id={name} name={name} className="field" rows={3} maxLength={questionLimits.long} required={q.required} defaultValue={value} /></div>;
+  const options = q.kind === "choice" ? q.options.map(o => ({ value: o, text: o })) : [{ value: "yes", text: t.answers.yes }, { value: "no", text: t.answers.no }];
+  return (
+    <fieldset className="stack-s" style={{ border: 0, padding: 0, margin: 0 }}>
+      <legend className="label">{label}</legend>
+      <div className={q.kind === "choice" ? "choices" : "pills"}>
+        {options.map(o => <label key={o.value} className="choice"><input type="radio" name={name} value={o.value} required={q.required} defaultChecked={value === o.value} /><span>{o.text}</span></label>)}
+      </div>
+    </fieldset>
   );
 }
 

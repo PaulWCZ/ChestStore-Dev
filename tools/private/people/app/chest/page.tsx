@@ -10,6 +10,7 @@ import { format, formatDay, plural, relativeDays } from "../../lib/i18n/index.ts
 import { openCounts } from "../../lib/journeys.ts";
 import { addDays, daysBetween, newcomerDays } from "../../lib/model.ts";
 import { listArrivals, suggestions } from "../../lib/arrivals.ts";
+import { awayOf, awayText } from "../../lib/away.ts";
 import { LinkSuggestion } from "./checklists/arrivals-view.tsx";
 import { today } from "../../lib/zone.ts";
 import { viewer } from "../../lib/session.ts";
@@ -39,8 +40,14 @@ export default async function DirectoryPage({ searchParams }: { searchParams: Pr
   const bare = me !== undefined && !me.phone && !me.bio && me.skills.length === 0;
   const query = await searchParams;
   const pick = (key: string) => (typeof query[key] === "string" ? (query[key] as string).slice(0, 100) : "");
+  // Who is away today (Leave tells People): written here, dates on the server.
+  const away = await awayOf(sql, entries.map(e => e.id), now);
+  const awayWords = (id: string) => {
+    const a = away.get(id);
+    return a ? awayText(a, now, t.away, d => formatDay(d, locale, { weekday: "short", day: "numeric", month: "short" }), format) : null;
+  };
   const cards: Card[] = entries.map(e => ({
-    id: e.id, name: e.name, photo: e.photo, title: e.title, team: e.team, office: e.office, skills: e.skills, isNew: freshIds.has(e.id), me: e.id === member.id,
+    id: e.id, name: e.name, photo: e.photo, title: e.title, team: e.team, office: e.office, skills: e.skills, isNew: freshIds.has(e.id), me: e.id === member.id, away: awayWords(e.id),
   }));
   const welcome = (
     <>

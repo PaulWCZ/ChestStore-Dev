@@ -173,7 +173,7 @@ export function Comments({ id, thread, canModerate, me, t, errors, locale, you }
       {shown.length === 0 && <p className="quiet-text">{t.empty}</p>}
       <ol className="thread">
         {shown.map(c => (
-          <li key={c.id} className={"comment" + (c.id === "pending" ? " pending" : "")}>
+          <li key={c.id} id={"comment-" + c.id} className={"comment" + (c.id === "pending" ? " pending" : "")}>
             <Avatar name={c.author} photo={c.photo} size={32} />
             <div className="comment-body">
               <p className="comment-meta"><strong>{c.author}</strong>{c.when && <time title={c.date}>{c.when}</time>}{c.edited && <span>{t.edited}</span>}</p>

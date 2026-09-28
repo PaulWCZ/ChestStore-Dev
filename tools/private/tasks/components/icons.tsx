@@ -33,3 +33,4 @@ export const Clock = () => <Icon><circle cx="12" cy="12" r="8.5" /><path d="M12 
 export const Arrow = () => <Icon><path d="M5 12h14M13 6l6 6-6 6" /></Icon>;
 export const Restore = () => <Icon><path d="M4 12a8 8 0 108-8 8.5 8.5 0 00-6 2.5L4 8.5M4 4v4.5h4.5" /></Icon>;
 export const Trash = () => <Icon><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" /></Icon>;
+export const RepeatIcon = () => <Icon><path d="M4 11V9.5A3.5 3.5 0 017.5 6H19M16 3l3 3-3 3M20 13v1.5a3.5 3.5 0 01-3.5 3.5H5M8 21l-3-3 3-3" /></Icon>;

@@ -4,14 +4,16 @@ import { plural } from "./i18n/index.ts";
 import { today } from "./model.ts";
 import { cut, notify } from "./notify.ts";
 import { purgeArrivals } from "./arrivals.ts";
+import { purgeAway } from "./away.ts";
 import { purgeLeft } from "./profiles.ts";
 import { refreshBadges } from "./tell.ts";
 
 // The weekday morning (schedule "morning", a Proposal (studio)): everyone
 // with checklist to-dos due today or late finds one item in their bell, in
 // their own language, replacing yesterday's; every tile's number is set
-// right; profiles of people gone for 30 days are purged. Idempotent: a run
-// delivered twice sends the same item again under the same key.
+// right; profiles of people gone for 30 days are purged, and leaves told by
+// Leave once past. Idempotent: a run delivered twice sends the same item
+// again under the same key.
 export async function morning(sql: Sql, run: Run): Promise<void> {
   const day = today(new Date(run.scheduledAt), run.timeZone);
   const rows = await sql<{ assignee: string; text: string }[]>`
@@ -28,4 +30,5 @@ export async function morning(sql: Sql, run: Run): Promise<void> {
   await refreshBadges(sql, holders);
   await purgeLeft(sql);
   await purgeArrivals(sql, day);
+  await purgeAway(sql, day);
 }

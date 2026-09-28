@@ -226,6 +226,13 @@ export const fr: Catalogue = {
       },
     },
   },
+  away: {
+    away: "Absence",
+    morning: "Absence ce matin",
+    afternoon: "Absence cet après-midi",
+    back: "retour le {date}",
+    backAfternoon: "retour le {date} après-midi",
+  },
   arrivals: {
     title: "Arrivées annoncées",
     fromHiring: "Recrutement",

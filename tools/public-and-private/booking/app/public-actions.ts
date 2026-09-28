@@ -15,10 +15,16 @@ import * as tell from "../lib/tell.ts";
 // hold no member; they check the form's guard, bound everything, and never
 // reveal anything but what the visitor's own link shows.
 
-export type BookState = { error: ErrorCode | null; values: Record<string, string> };
+// detail: the values the error's words need (which question, how long).
+export type BookState = { error: ErrorCode | null; detail?: Record<string, number | string>; values: Record<string, string> };
+
+// The answers to the host's questions come as q_<question id>.
+const answerField = /^q_([a-z0-9]{4,12})$/u;
 
 export async function bookTime(hostSlug: string, typeSlug: string, _: BookState, data: FormData): Promise<BookState> {
   const values = Object.fromEntries(["start", "name", "email", "phone", "note", "zone"].map(k => [k, String(data.get(k) ?? "").slice(0, 4000)]));
+  for (const [key, value] of [...data.entries()].filter(([k]) => answerField.test(k)).slice(0, 10)) values[key] = String(value).slice(0, 4000);
+  const answers = Object.fromEntries(Object.entries(values).flatMap(([k, v]) => { const m = answerField.exec(k); return m ? [[m[1]!, v]] : []; }));
   let secret: string;
   let mailed = false;
   try {
@@ -31,14 +37,14 @@ export async function bookTime(hostSlug: string, typeSlug: string, _: BookState,
     const place = await b.publicType(sql, String(hostSlug), String(typeSlug));
     if (!place) throw new AppError("not_found");
     const { locale } = await publicWords();
-    const made = await b.book(sql, place.host, place.type, { start: values["start"], name: values["name"], email: values["email"], phone: values["phone"], note: values["note"], zone: values["zone"], language: locale });
+    const made = await b.book(sql, place.host, place.type, { start: values["start"], name: values["name"], email: values["email"], phone: values["phone"], note: values["note"], answers, zone: values["zone"], language: locale });
     secret = made.secret;
     const origin = publicOrigin(h);
     await b.rememberPublicOrigin(sql, origin);
     mailed = (await email(sql, "confirmed", made.booking, origin)) === "email";
     await tell.booked(made.booking, place.host.zone);
   } catch (error) {
-    if (error instanceof AppError) return { error: error.code, values };
+    if (error instanceof AppError) return { error: error.code, detail: error.values, values };
     console.error("booking not saved", error instanceof Error ? error.name : "error");
     return { error: "unavailable", values };
   }

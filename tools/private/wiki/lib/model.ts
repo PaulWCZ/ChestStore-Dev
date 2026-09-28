@@ -18,7 +18,16 @@ export const limits = {
   importBytes: 60 << 20,
   importFile: 2 << 20,
   versionsShown: 200,
+  comment: 5000,
+  commentsPerPage: 1000,
+  watchedPerMember: 2000,
+  templatesShown: 30,
 } as const;
+
+// How often a page's owner is asked to check it is still correct.
+export const reviewEvery = [3, 6, 12] as const;
+export type ReviewMonths = (typeof reviewEvery)[number];
+export const isReviewMonths = (value: unknown): value is ReviewMonths => typeof value === "number" && (reviewEvery as readonly number[]).includes(value);
 
 // Someone editing a page keeps it for themselves while they are active;
 // idle this long, another editor may take it over.
@@ -68,4 +77,30 @@ export function fileName(value: unknown): string {
   const base = raw.split(/[\\/]/u).at(-1) ?? "";
   const text = base.replace(/\p{Cc}/gu, "").trim().slice(0, limits.fileName);
   return text || "file";
+}
+
+// The parts of a comment: plain text, and the web addresses in it (http,
+// https), which become links. Punctuation that ends a sentence is not part
+// of an address; a closing parenthesis is, when the address opened one.
+export type TextPart = { text: string; href?: string };
+
+export function linkParts(text: string): TextPart[] {
+  const parts: TextPart[] = [];
+  let last = 0;
+  for (const found of text.matchAll(/\bhttps?:\/\/[^\s<>"]+/giu)) {
+    let url = found[0];
+    for (;;) {
+      const end = url.at(-1) ?? "";
+      if (/[.,;:!?'’»]/u.test(end)) url = url.slice(0, -1);
+      else if (end === ")" && (url.match(/\(/gu)?.length ?? 0) < (url.match(/\)/gu)?.length ?? 0)) url = url.slice(0, -1);
+      else break;
+    }
+    if (!/^https?:\/\/[^/?#\s]+/iu.test(url)) continue;
+    const at = found.index;
+    if (at > last) parts.push({ text: text.slice(last, at) });
+    parts.push({ text: url, href: url });
+    last = at + url.length;
+  }
+  if (last < text.length) parts.push({ text: text.slice(last) });
+  return parts;
 }

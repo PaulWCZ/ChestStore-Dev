@@ -1,5 +1,5 @@
 import { Avatar } from "../../components/avatar.tsx";
-import { Calendar, Clock, Pin, Place, kindIcons } from "../../components/icons.tsx";
+import { Calendar, Clock, Group, Pin, Place, kindIcons } from "../../components/icons.tsx";
 import type { Dates } from "../../lib/dates.ts";
 import { format, plural } from "../../lib/i18n/format.ts";
 import type { Catalogue, Locale } from "../../lib/i18n/index.ts";
@@ -11,7 +11,8 @@ import type { PostSummary } from "../../lib/posts.ts";
 export type Byline = { name: string; photo: string | null };
 export type StoryWords = Pick<Catalogue, "kinds" | "front" | "event">;
 
-export function Kicker({ post, isNew, t }: { post: PostSummary; isNew: boolean; t: StoryWords }) {
+// audience: the groups it is kept to, in words (null: everyone).
+export function Kicker({ post, isNew, audience = null, t }: { post: PostSummary; isNew: boolean; audience?: string | null; t: StoryWords }) {
   const Icon = kindIcons[post.kind];
   return (
     <p className="kicker">
@@ -19,6 +20,7 @@ export function Kicker({ post, isNew, t }: { post: PostSummary; isNew: boolean; 
       {post.pinned && <span className="flag"><Pin />{t.front.pinned}</span>}
       {post.important && (post.confirmed ? <span className="flag ok">{t.front.confirmed}</span> : <span className="flag alert">{t.front.important}</span>)}
       {isNew && <span className="flag new">{t.front.new}</span>}
+      {audience && <span className="flag audience"><Group />{format(t.front.audience, { groups: audience })}</span>}
     </p>
   );
 }
@@ -34,7 +36,7 @@ export function EventLine({ post, d, t }: { post: PostSummary; d: Dates; t: Stor
   );
 }
 
-export function Story({ post, lead = false, author, welcome, isNew, d, locale, t }: { post: PostSummary; lead?: boolean; author: Byline; welcome: Byline | null; isNew: boolean; d: Dates; locale: Locale; t: StoryWords }) {
+export function Story({ post, lead = false, author, welcome, isNew, audience = null, d, locale, t }: { post: PostSummary; lead?: boolean; author: Byline; welcome: Byline | null; isNew: boolean; audience?: string | null; d: Dates; locale: Locale; t: StoryWords }) {
   const Heading = lead ? "h2" : "h3";
   const picture = post.cover
     ? <img className="story-cover" src={`/chest/files/${post.cover}?size=1024`} alt="" loading={lead ? "eager" : "lazy"} />
@@ -48,7 +50,7 @@ export function Story({ post, lead = false, author, welcome, isNew, d, locale, t
     <article className={"story" + (lead ? " lead" : "") + (picture ? " has-picture" : "") + (post.important && !post.confirmed ? " asks" : "")}>
       {picture && <div className="story-picture">{picture}</div>}
       <div className="story-text">
-        <Kicker post={post} isNew={isNew} t={t} />
+        <Kicker post={post} isNew={isNew} audience={audience} t={t} />
         <Heading className="headline"><a href={`/chest/posts/${post.id}`} className="stretched">{post.title}</a></Heading>
         <EventLine post={post} d={d} t={t} />
         {post.excerpt && <p className="dek">{post.excerpt}</p>}

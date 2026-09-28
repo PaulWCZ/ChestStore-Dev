@@ -1,11 +1,28 @@
 {
-  "schedules": [{ "name": "morning", "cron": "40 7 * * 1-5" }],
-  "receives": ["hiring.hired", "hiring.hire_cancelled"],
+  "emits": [
+    "people.leaving",
+    "people.leaving_cancelled"
+  ],
+  "schedules": [
+    {
+      "name": "morning",
+      "cron": "40 7 * * 1-5"
+    }
+  ],
+  "receives": [
+    "hiring.hired",
+    "hiring.hire_cancelled",
+    "leave.approved",
+    "leave.cancelled"
+  ],
   "translations": {
     "fr": {
       "title": "Équipe",
       "description": "L’annuaire et l’organigramme de l’équipe : qui fait quoi, comment les joindre, et des check-lists pour accueillir les nouveaux et accompagner les départs.",
-      "role_labels": { "hr": "RH", "member": "Membre" }
+      "role_labels": {
+        "hr": "RH",
+        "member": "Membre"
+      }
     }
   }
 }

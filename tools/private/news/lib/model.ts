@@ -14,6 +14,12 @@ export const limits = {
   coverSize: 15 << 20,
   commentsPerPost: 1000,
   page: 20,
+  // The groups a post may be kept to.
+  groupsPerPost: 16,
+  // A search: its length, its words, its results.
+  query: 200,
+  queryWords: 8,
+  results: 30,
   // How far ahead a post may be scheduled, in days.
   scheduleDays: 366,
   // An Important post asks for confirmation this many days (then it stops
@@ -73,4 +79,15 @@ export function ids(value: unknown, max: number): string[] {
 // A file name as a person may see it: no path, no control characters.
 export function fileName(value: unknown): string {
   return clean(typeof value === "string" ? value.replace(/[/\\]/gu, "_") : value, limits.fileName);
+}
+
+export const groupPattern = /^grp_[a-z2-7]{26}$/u;
+// groupIds reads the groups a post is kept to: each once, sorted, at most
+// limits.groupsPerPost; anything else is no group.
+export function groupIds(value: unknown): string[] {
+  if (!Array.isArray(value)) throw new AppError("invalid");
+  if (value.some(v => typeof v !== "string" || !groupPattern.test(v))) throw new AppError("no_group");
+  const list = [...new Set(value as string[])].sort();
+  if (list.length > limits.groupsPerPost) throw new AppError("too_many", { max: limits.groupsPerPost });
+  return list;
 }

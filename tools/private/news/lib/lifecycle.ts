@@ -7,19 +7,21 @@ import { chestZone } from "./zone.ts";
 // posts these to /chest-events, at least once; every handler may run twice).
 //
 // - Losing access or leaving: their answers to events still to come are
-//   removed (nobody counts on them), and their last visit is forgotten.
-//   What they wrote and confirmed stays: it is the company's record, and
-//   their name reads "(former member)".
+//   removed (nobody counts on them), their last visit and weekly digest are
+//   forgotten. What they wrote and confirmed stays: it is the company's
+//   record, and their name reads "(former member)".
 // - Erasure: what they wrote stays for the company, unsigned ('erased'):
 //   posts, comments, reactions (still counted), files they added; a welcome
 //   post about them names nobody. Their confirmations, answers and visit
-//   are deleted. Then the erasure is acknowledged. The words others wrote
-//   about them (a welcome text, a photo) are not changed: a publisher
-//   deletes the post if it must go (README, "On a Chest").
+//   are deleted (and their digest's record). Then the erasure is
+//   acknowledged. The words others wrote about them (a welcome text, a
+//   photo) are not changed: a publisher deletes the post if it must go
+//   (README, "On a Chest").
 export async function leave(sql: Sql, memberId: string, day = today(chestZone())): Promise<void> {
   await sql.begin(async tx => {
     await tx`delete from rsvps r using posts p where p.id = r.post_id and r.member = ${memberId} and p.event_day >= ${day}`;
     await tx`delete from visits where member = ${memberId}`;
+    await tx`delete from digests where member = ${memberId}`;
   });
 }
 
@@ -33,6 +35,7 @@ export async function erase(sql: Sql, memberId: string): Promise<void> {
     await tx`delete from confirmations where member = ${memberId}`;
     await tx`delete from rsvps where member = ${memberId}`;
     await tx`delete from visits where member = ${memberId}`;
+    await tx`delete from digests where member = ${memberId}`;
   });
 }
 

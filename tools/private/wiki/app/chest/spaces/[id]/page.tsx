@@ -5,7 +5,7 @@ import { Menu } from "../../../../components/menu.tsx";
 import { NewPageButton } from "../../../../components/new-page.tsx";
 import { db } from "../../../../lib/db.ts";
 import { AppError } from "../../../../lib/errors.ts";
-import { format, plural, relative } from "../../../../lib/i18n/index.ts";
+import { format, newPageWords, plural, relative } from "../../../../lib/i18n/index.ts";
 import { recent, tree } from "../../../../lib/pages.ts";
 import { nameOf, people } from "../../../../lib/people.ts";
 import { viewer } from "../../../../lib/session.ts";
@@ -35,7 +35,7 @@ export default async function SpacePage({ params }: { params: Promise<{ id: stri
   const below = (id: string) => nodes.filter(n => n.parentId === id);
   const count = (id: string): number => below(id).reduce((n, c) => n + 1 + count(c.id), 0);
   const now = new Date();
-  const words = { newPage: t.newPage, common: t.common, errors: t.errors };
+  const words = newPageWords(t);
   return (
     <main className={`page space-home color-${s.color}`}>
       <header className="space-head">

@@ -36,7 +36,7 @@ export default async function TypePage({ params }: { params: Promise<{ host: str
         </aside>
         <section className="sheet-when" aria-labelledby="when">
           <h2 id="when">{t.public.pickTime}</h2>
-          <Picker hostSlug={host.slug} typeSlug={type.slug} hostName={person.firstName || person.name} hostZone={host.zone} first={first} locale={locale} phone={type.locationKind === "phone"} company={s.companyName} started={formToken()} t={{ public: t.public, days: t.days, errors: t.errors }} />
+          <Picker hostSlug={host.slug} typeSlug={type.slug} hostName={person.firstName || person.name} hostZone={host.zone} first={first} locale={locale} phone={type.locationKind === "phone"} company={s.companyName} started={formToken()} questions={type.questions} t={{ public: t.public, days: t.days, errors: t.errors, answers: t.answers }} />
         </section>
       </div>
     </PublicShell>

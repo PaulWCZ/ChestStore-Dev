@@ -3,6 +3,7 @@ import { urgentCounts } from "./cards.ts";
 import type { Sql } from "./db.ts";
 import { format } from "./i18n/index.ts";
 import { badges, cut, notify, withdraw } from "./notify.ts";
+import { settle } from "./reminders.ts";
 
 // What Tasks tells people through the Chest's bell, each in their own
 // language, and the number on its tile. A notification is keyed by the card
@@ -35,9 +36,12 @@ export async function settled(cardId: string): Promise<void> {
 }
 
 // refreshBadges sets the tile's number of these members: their late or
-// due-today tasks.
+// due-today tasks; with none left, their morning reminder is taken back.
 export async function refreshBadges(sql: Sql, people: string[]): Promise<void> {
   const unique = [...new Set(people)].filter(p => p.startsWith("mbr_"));
   if (unique.length === 0) return;
-  await badges(await urgentCounts(sql, unique));
+  const counts = await urgentCounts(sql, unique);
+  await badges(counts);
+  // Nothing late or due today any more: the morning's reminder goes.
+  await settle(sql, [...counts].filter(([, n]) => n === 0).map(([m]) => m));
 }

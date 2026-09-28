@@ -2,16 +2,21 @@ import { addDays, instantOf, wall, weekdayOf } from "./zone.ts";
 
 // The free times of a booking type: the host's weekly hours (and the days
 // they changed), minus what is booked (with buffers), from the minimum
-// notice to the end of the booking window. Pure: given the same inputs,
-// the same slots — the page shows them, the booking re-checks them.
+// notice to the end of the booking window, on days the type's daily limit
+// is not reached yet. Pure: given the same inputs, the same slots — the
+// page shows them, the booking re-checks them (in a transaction).
 
 // Ranges of minutes in a day, [start, end).
 export type Ranges = [number, number][];
 // weekly[0] is Sunday … weekly[6] Saturday; overrides: a date's own ranges
 // ([] = a day off).
 export type Availability = { weekly: Ranges[]; overrides: Record<string, Ranges>; zone: string };
-export type Rules = { duration: number; interval: number; bufferBefore: number; bufferAfter: number; noticeMinutes: number; windowDays: number };
-export type Busy = { start: number; end: number };
+// dailyLimit: at most this many bookings of the type on a day of the
+// host's calendar (0: no limit).
+export type Rules = { duration: number; interval: number; bufferBefore: number; bufferAfter: number; noticeMinutes: number; windowDays: number; dailyLimit: number };
+// The time a confirmed booking takes (buffers included); sameType: the
+// start of a booking of this very type, which counts for the daily limit.
+export type Busy = { start: number; end: number; sameType?: number };
 export type Slot = { start: string; end: string };
 
 export function validRanges(value: unknown): value is Ranges {
@@ -31,8 +36,16 @@ export function slots(availability: Availability, rules: Rules, busy: Busy[], ra
   const from = range.from < today ? today : range.from;
   const to = range.to > lastDay ? lastDay : range.to;
   const blocked = busy.map(b => ({ start: b.start - rules.bufferAfter * 60000, end: b.end + rules.bufferBefore * 60000 })).sort((a, b) => a.start - b.start);
+  // The type's bookings per day of the host's calendar.
+  const perDay = new Map<string, number>();
+  for (const b of busy) {
+    if (b.sameType === undefined) continue;
+    const day = wall(b.sameType, availability.zone).date;
+    perDay.set(day, (perDay.get(day) ?? 0) + 1);
+  }
   const found: Slot[] = [];
   for (let date = from; date <= to && found.length < 3000; date = addDays(date, 1)) {
+    if (rules.dailyLimit > 0 && (perDay.get(date) ?? 0) >= rules.dailyLimit) continue;
     const ranges = availability.overrides[date] ?? availability.weekly[weekdayOf(date)] ?? [];
     for (const [open, close] of ranges) {
       for (let minute = open; minute + rules.duration <= close; minute += rules.interval) {

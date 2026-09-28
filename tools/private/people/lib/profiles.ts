@@ -4,6 +4,7 @@ import { AppError } from "./app-error.ts";
 import type { Query, Sql } from "./db.ts";
 import { birthday, clean, day, keepLeftDays, limits, memberId, phone, skills } from "./model.ts";
 import { purgeArrivals } from "./arrivals.ts";
+import { purgeAway } from "./away.ts";
 import { present } from "./people.ts";
 
 // What the directory knows of a person beyond their name and photo (which
@@ -68,6 +69,7 @@ export async function reconcile(sql: Sql, presentIds: string[], now: string): Pr
   if (presentIds.length > 0) await sql`update profiles set left_at = null where left_at is not null and member_id = any(${presentIds}::text[])`;
   await purgeLeft(sql);
   await purgeArrivals(sql, now);
+  await purgeAway(sql, now);
 }
 
 export async function purgeLeft(sql: Query): Promise<number> {

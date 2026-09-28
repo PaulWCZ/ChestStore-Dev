@@ -80,7 +80,7 @@ export default async function GuestBookingPage({ params, searchParams }: { param
         {moving && (
           <section className="card stack">
             <h2>{t.public.moveTitle}</h2>
-            {place ? <Picker hostSlug={place.host.slug} typeSlug={place.type.slug} hostName={shortName} hostZone={place.host.zone} first={await firstFree(sql, place.host, place.type)} locale={locale} phone={false} company={s.companyName} started="" t={{ public: t.public, days: t.days, errors: t.errors }} move={{ secret, zone: b.guestZone }} /> : <p className="hint">{t.public.unavailableHost}</p>}
+            {place ? <Picker hostSlug={place.host.slug} typeSlug={place.type.slug} hostName={shortName} hostZone={place.host.zone} first={await firstFree(sql, place.host, place.type)} locale={locale} phone={false} company={s.companyName} started="" t={{ public: t.public, days: t.days, errors: t.errors, answers: t.answers }} move={{ secret, zone: b.guestZone }} /> : <p className="hint">{t.public.unavailableHost}</p>}
             <div><a className="link-button" href={self}>{t.public.keep}</a></div>
           </section>
         )}

@@ -1,16 +1,17 @@
 import { notFound } from "next/navigation";
 import { Avatar } from "../../../../components/avatar.tsx";
-import { Back, Calendar, Chat, Clock, kindIcon, Mail, Person, Phone } from "../../../../components/icons.tsx";
+import { Back, Calendar, Chat, Check, Clock, kindIcon, Mail, Person, Phone } from "../../../../components/icons.tsx";
 import { AppError } from "../../../../lib/app-error.ts";
 import * as b from "../../../../lib/booking.ts";
 import { db } from "../../../../lib/db.ts";
 import { format, meetingTime, plural, relative, zoneName } from "../../../../lib/i18n/index.ts";
 import { nameOf, people } from "../../../../lib/people.ts";
+import { answerText } from "../../../../lib/questions.ts";
 import { viewer } from "../../../../lib/session.ts";
 import { CancelMeeting } from "./cancel-meeting.tsx";
 
 // One booking: who, when (in the host's zone, and the guest's when it
-// differs), where, their note; cancelling tells the guest.
+// differs), where, their note and answers; cancelling tells the guest.
 export default async function BookingPage({ params }: { params: Promise<{ id: string }> }) {
   const v = await viewer();
   if (!v) return null;
@@ -61,6 +62,19 @@ export default async function BookingPage({ params }: { params: Promise<{ id: st
           <div className="stack-s" style={{ marginTop: "var(--space-5)" }}>
             <h2 className="row" style={{ fontSize: "var(--text-m)", fontFamily: "var(--font-body)", fontWeight: 650 }}><Chat />{t.booking.note}</h2>
             <p className="quote">{x.guestNote}</p>
+          </div>
+        )}
+        {x.answers.length > 0 && (
+          <div className="stack-s" style={{ marginTop: "var(--space-5)" }}>
+            <h2 className="row" style={{ fontSize: "var(--text-m)", fontFamily: "var(--font-body)", fontWeight: 650 }}><Check />{t.booking.answers}</h2>
+            <dl className="answers">
+              {x.answers.map(a => (
+                <div key={a.id}>
+                  <dt>{a.label}</dt>
+                  <dd>{answerText(a, t.answers)}</dd>
+                </div>
+              ))}
+            </dl>
           </div>
         )}
         {x.status === "cancelled" && x.cancelReason && <p className="quote" style={{ marginTop: "var(--space-4)" }}>{format(t.booking.reason, { reason: x.cancelReason })}</p>}

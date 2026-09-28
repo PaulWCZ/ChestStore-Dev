@@ -5,6 +5,7 @@ import { can } from "./access.ts";
 import { AppError } from "./app-error.ts";
 import type { Query } from "./db.ts";
 import { clean, colors, email, id, isColor, isLocationKind, limits, minutes, phone, slug, slugify, type Color, type LocationKind } from "./model.ts";
+import { cleanAnswers, cleanQuestions, readAnswers, readQuestions, type Answer, type Question } from "./questions.ts";
 import { defaultWeek, slots, validRanges, type Busy, type Ranges, type Slot } from "./slots.ts";
 import { addDays, isDate, isZone, wall } from "./zone.ts";
 
@@ -28,6 +29,10 @@ export type BookingType = {
   bufferAfter: number;
   noticeMinutes: number;
   windowDays: number;
+  // At most this many bookings of the type a day (0: no limit).
+  dailyLimit: number;
+  // The host's own questions on the booking form.
+  questions: Question[];
   color: Color;
   active: boolean;
 };
@@ -46,6 +51,8 @@ export type Booking = {
   guestEmail: string;
   guestPhone: string;
   guestNote: string;
+  // Their answers to the host's questions.
+  answers: Answer[];
   guestZone: string;
   guestLanguage: string;
   status: "confirmed" | "cancelled";
@@ -249,6 +256,8 @@ type TypeRow = {
   buffer_after: number;
   notice_minutes: number;
   window_days: number;
+  daily_limit: number;
+  questions: unknown;
   color: string;
   active: boolean;
 };
@@ -266,6 +275,8 @@ const toType = (r: TypeRow): BookingType => ({
   bufferAfter: r.buffer_after,
   noticeMinutes: r.notice_minutes,
   windowDays: r.window_days,
+  dailyLimit: r.daily_limit ?? 0,
+  questions: readQuestions(r.questions),
   color: isColor(r.color) ? r.color : "sky",
   active: r.active,
 });
@@ -288,6 +299,9 @@ export type TypeInput = {
   bufferAfter: unknown;
   noticeMinutes: unknown;
   windowDays: unknown;
+  // Optional for callers written before them: no limit, no question.
+  dailyLimit?: unknown;
+  questions?: unknown;
   color: unknown;
   active: unknown;
 };
@@ -311,6 +325,8 @@ function typeValues(input: TypeInput) {
     buffer_after: minutes(input.bufferAfter, 0, 240),
     notice_minutes: minutes(input.noticeMinutes, 0, 20160),
     window_days: minutes(input.windowDays, 1, 365),
+    daily_limit: input.dailyLimit === undefined ? 0 : minutes(input.dailyLimit, 0, 50),
+    questions: cleanQuestions(input.questions),
     color: isColor(input.color) ? input.color : colors[0],
     active: input.active !== false,
   };
@@ -324,7 +340,7 @@ export async function createType(sql: Query, actor: Member, input: TypeInput): P
   const n = row?.n ?? 0;
   if (n >= limits.typesPerHost) throw new AppError("too_many_types", { max: limits.typesPerHost });
   try {
-    const [row] = await sql<TypeRow[]>`insert into types ${sql({ ...v, member_id: actor.id, position: n })} returning *`;
+    const [row] = await sql<TypeRow[]>`insert into types ${sql({ ...v, questions: sql.json(v.questions as never), member_id: actor.id, position: n })} returning *`;
     return toType(row!);
   } catch (error) {
     if (isUnique(error)) throw new AppError("slug_taken");
@@ -336,7 +352,7 @@ export async function updateType(sql: Query, actor: Member, typeId: unknown, inp
   if (!can(actor, "host")) throw new AppError("forbidden");
   const v = typeValues(input);
   try {
-    const [row] = await sql<TypeRow[]>`update types set ${sql(v)} where id = ${id(typeId)} and member_id = ${actor.id} returning *`;
+    const [row] = await sql<TypeRow[]>`update types set ${sql({ ...v, questions: sql.json(v.questions as never) })} where id = ${id(typeId)} and member_id = ${actor.id} returning *`;
     if (!row) throw new AppError("not_found");
     return toType(row);
   } catch (error) {
@@ -400,12 +416,14 @@ export async function publicType(sql: Query, hostSlug: string, typeSlug: string)
   return { host: toHost(row), type: toType({ ...row.type, id: String(row.type.id) }) };
 }
 
-async function busyOf(sql: Query, memberId: string, from: Date, to: Date, except: string | null): Promise<Busy[]> {
-  const rows = await sql<{ lo: Date; hi: Date }[]>`
-    select lower(blocked) as lo, upper(blocked) as hi from bookings
+// The host's confirmed bookings between two instants (buffers included);
+// those of typeId carry their start, for the type's daily limit.
+async function busyOf(sql: Query, memberId: string, typeId: string, from: Date, to: Date, except: string | null): Promise<Busy[]> {
+  const rows = await sql<{ lo: Date; hi: Date; starts_at: Date; same: boolean }[]>`
+    select lower(blocked) as lo, upper(blocked) as hi, starts_at, coalesce(type_id = ${typeId}, false) as same from bookings
     where member_id = ${memberId} and status = 'confirmed' and blocked && tstzrange(${from}, ${to})
     ${except ? sql`and id <> ${except}` : sql``}`;
-  return rows.map(r => ({ start: r.lo.getTime(), end: r.hi.getTime() }));
+  return rows.map(r => ({ start: r.lo.getTime(), end: r.hi.getTime(), ...(r.same ? { sameType: r.starts_at.getTime() } : {}) }));
 }
 
 // freeTimes: the starts a visitor can pick between two dates of the host's
@@ -414,11 +432,11 @@ export async function freeTimes(sql: Query, host: Host, type: BookingType, from:
   if (!isDate(from) || !isDate(to) || to < from || addDays(from, 42) < to) throw new AppError("invalid");
   const overrides = Object.fromEntries((await overridesOf(sql, host.memberId, addDays(from, -1))).map(o => [o.day, o.ranges]));
   // Wide enough for any zone: a day before, a day after.
-  const busy = await busyOf(sql, host.memberId, new Date(Date.parse(from + "T00:00:00Z") - 2 * 86400000), new Date(Date.parse(to + "T00:00:00Z") + 3 * 86400000), except);
+  const busy = await busyOf(sql, host.memberId, type.id, new Date(Date.parse(from + "T00:00:00Z") - 2 * 86400000), new Date(Date.parse(to + "T00:00:00Z") + 3 * 86400000), except);
   return slots({ weekly: host.weekly, overrides, zone: host.zone }, rulesOf(type), busy, { from, to }, now);
 }
 
-const rulesOf = (t: BookingType) => ({ duration: t.duration, interval: t.interval, bufferBefore: t.bufferBefore, bufferAfter: t.bufferAfter, noticeMinutes: t.noticeMinutes, windowDays: t.windowDays });
+const rulesOf = (t: BookingType) => ({ duration: t.duration, interval: t.interval, bufferBefore: t.bufferBefore, bufferAfter: t.bufferAfter, noticeMinutes: t.noticeMinutes, windowDays: t.windowDays, dailyLimit: t.dailyLimit });
 
 // The first date with a free time, to open the calendar on it.
 export async function firstFree(sql: Query, host: Host, type: BookingType, now = Date.now()): Promise<string | null> {
@@ -449,6 +467,7 @@ type BookingRow = {
   guest_email: string;
   guest_phone: string;
   guest_note: string;
+  answers: unknown;
   guest_zone: string;
   guest_language: string;
   status: "confirmed" | "cancelled";
@@ -473,6 +492,7 @@ const toBooking = (r: BookingRow): Booking => ({
   guestEmail: r.guest_email,
   guestPhone: r.guest_phone,
   guestNote: r.guest_note,
+  answers: readAnswers(r.answers),
   guestZone: r.guest_zone,
   guestLanguage: r.guest_language,
   status: r.status,
@@ -497,11 +517,28 @@ function blockedRange(type: Pick<BookingType, "bufferBefore" | "bufferAfter">, s
   return `[${new Date(start.getTime() - type.bufferBefore * 60000).toISOString()},${new Date(end.getTime() + type.bufferAfter * 60000).toISOString()})`;
 }
 
-export type GuestInput = { start: unknown; name: unknown; email: unknown; phone?: unknown; note: unknown; zone: unknown; language: string };
+// answers: the form's answers to the host's questions, by question id.
+export type GuestInput = { start: unknown; name: unknown; email: unknown; phone?: unknown; note: unknown; answers?: Record<string, unknown>; zone: unknown; language: string };
 
-// book takes a free time for a visitor. The time is checked again (the
-// page may be old), and the database refuses two confirmed bookings of a
-// host that overlap: two visitors on the same time, one gets "taken".
+// A transaction, or a savepoint inside the caller's.
+function transaction<T>(sql: Query, step: (tx: Query) => Promise<T>): Promise<T> {
+  return ("begin" in sql ? sql.begin(step) : sql.savepoint(step)) as Promise<T>;
+}
+
+// lockType takes the booking type's row for the rest of the transaction:
+// bookings of one type are made one at a time, so two visitors cannot
+// both take the last place of a day (the daily limit). It reads the type
+// again, as it is now.
+async function lockType(tx: Query, type: BookingType): Promise<BookingType> {
+  const [row] = await tx<TypeRow[]>`select * from types where id = ${type.id} and active for update`;
+  if (!row) throw new AppError("not_found");
+  return toType(row);
+}
+
+// book takes a free time for a visitor. In one transaction, the type
+// locked, the time is checked again (the page may be old; the day may have
+// filled up), and the database refuses two confirmed bookings of a host
+// that overlap: two visitors on the same time, one gets "taken".
 export async function book(sql: Query, host: Host, type: BookingType, input: GuestInput, now = Date.now()): Promise<{ booking: Booking; secret: string }> {
   if (host.away || !type.active) throw new AppError("not_found");
   const start = typeof input.start === "string" ? new Date(input.start) : null;
@@ -511,16 +548,21 @@ export async function book(sql: Query, host: Host, type: BookingType, input: Gue
   const phoneNumber = type.locationKind === "phone" ? phone(input.phone) : "";
   const note = clean(input.note, limits.note, { optional: true, multiline: true });
   const zone = isZone(input.zone) ? input.zone : host.zone;
-  if (!(await isFree(sql, host, type, start, now, null))) throw new AppError("taken");
-  const end = new Date(start.getTime() + type.duration * 60000);
   const secret = newSecret();
   try {
-    const [row] = await sql<BookingRow[]>`
-      insert into bookings (type_id, member_id, title, duration, location_kind, location, starts_at, ends_at, blocked, guest_name, guest_email, guest_phone, guest_note, guest_zone, guest_language, secret_hash, secret)
-      values (${type.id}, ${host.memberId}, ${type.title}, ${type.duration}, ${type.locationKind}, ${type.location}, ${start}, ${end}, ${blockedRange(type, start, end)}::tstzrange,
-        ${name}, ${address}, ${phoneNumber}, ${note}, ${zone}, ${input.language}, ${hashSecret(secret)}, ${secret})
-      returning *`;
-    return { booking: toBooking(row!), secret };
+    return await transaction(sql, async tx => {
+      const current = await lockType(tx, type);
+      // Answered against the questions as they are now.
+      const answers = cleanAnswers(current.questions, input.answers ?? {});
+      if (!(await isFree(tx, host, current, start, now, null))) throw new AppError("taken");
+      const end = new Date(start.getTime() + current.duration * 60000);
+      const [row] = await tx<BookingRow[]>`
+        insert into bookings (type_id, member_id, title, duration, location_kind, location, starts_at, ends_at, blocked, guest_name, guest_email, guest_phone, guest_note, answers, guest_zone, guest_language, secret_hash, secret)
+        values (${current.id}, ${host.memberId}, ${current.title}, ${current.duration}, ${current.locationKind}, ${current.location}, ${start}, ${end}, ${blockedRange(current, start, end)}::tstzrange,
+          ${name}, ${address}, ${phoneNumber}, ${note}, ${tx.json(answers as never)}, ${zone}, ${input.language}, ${hashSecret(secret)}, ${secret})
+        returning *`;
+      return { booking: toBooking(row!), secret };
+    });
   } catch (error) {
     if (isOverlap(error)) throw new AppError("taken");
     throw error;
@@ -568,14 +610,18 @@ export async function moveByGuest(sql: Query, secret: string, start: unknown, no
   if (!place) throw new AppError("not_found");
   const when = typeof start === "string" ? new Date(start) : null;
   if (!when || Number.isNaN(when.getTime())) throw new AppError("invalid");
-  if (!(await isFree(sql, place.host, place.type, when, now, booking.id))) throw new AppError("taken");
-  const end = new Date(when.getTime() + place.type.duration * 60000);
   try {
-    const [row] = await sql<BookingRow[]>`
-      update bookings set starts_at = ${when}, ends_at = ${end}, duration = ${place.type.duration}, blocked = ${blockedRange(place.type, when, end)}::tstzrange, moves = moves + 1, reminded_at = null
-      where id = ${booking.id} and status = 'confirmed' returning *`;
-    if (!row) throw new AppError("too_late");
-    return { booking: toBooking(row), before: booking.startsAt };
+    return await transaction(sql, async tx => {
+      // As for a new booking: one at a time per type, checked again.
+      const type = await lockType(tx, place.type);
+      if (!(await isFree(tx, place.host, type, when, now, booking.id))) throw new AppError("taken");
+      const end = new Date(when.getTime() + type.duration * 60000);
+      const [row] = await tx<BookingRow[]>`
+        update bookings set starts_at = ${when}, ends_at = ${end}, duration = ${type.duration}, blocked = ${blockedRange(type, when, end)}::tstzrange, moves = moves + 1, reminded_at = null
+        where id = ${booking.id} and status = 'confirmed' returning *`;
+      if (!row) throw new AppError("too_late");
+      return { booking: toBooking(row), before: booking.startsAt };
+    });
   } catch (error) {
     if (isOverlap(error)) throw new AppError("taken");
     throw error;

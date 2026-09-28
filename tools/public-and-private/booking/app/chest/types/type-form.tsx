@@ -2,21 +2,23 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import { Alert, Bin, kindIcon } from "../../../components/icons.tsx";
+import { Alert, Bin, Close, Down, kindIcon, Plus, Up } from "../../../components/icons.tsx";
 import { useToast } from "../../../components/toast.tsx";
 import { format, plural } from "../../../lib/i18n/format.ts";
 import type { Catalogue } from "../../../lib/i18n/index.ts";
 import { colors, durations, locationKinds, slugify, type Color, type LocationKind } from "../../../lib/model.ts";
+import { newQuestionId, questionKinds, questionLimits, type Question, type QuestionKind } from "../../../lib/questions.ts";
 import { createType, removeType, updateType } from "../actions.ts";
 
 export type TypeValues = {
   title: string; slug: string; description: string; duration: number; interval: number; locationKind: LocationKind; location: string;
-  bufferBefore: number; bufferAfter: number; noticeMinutes: number; windowDays: number; color: Color; active: boolean;
+  bufferBefore: number; bufferAfter: number; noticeMinutes: number; windowDays: number; dailyLimit: number; questions: Question[]; color: Color; active: boolean;
 };
 
 type Words = Pick<Catalogue, "types" | "kinds" | "colors" | "minutes" | "errors">;
 const steps = [5, 10, 15, 20, 30, 45, 60, 90, 120];
 const buffers = [0, 5, 10, 15, 30, 45, 60];
+const perDay = [0, 1, 2, 3, 4, 5, 6, 8, 10, 15, 20];
 
 // Creating or editing a booking type: the name, how long, where — the rest
 // behind "More options", with sensible defaults.
@@ -33,7 +35,9 @@ export function TypeForm({ id, initial, base, locale, t }: { id: string | null; 
   const durationChoices = [...new Set([...durations, v.duration])].sort((a, b) => a - b);
 
   const submit = () => start(async () => {
-    const input = { ...v, noticeMinutes: v.noticeMinutes };
+    // Choices are typed one per line; blank lines are dropped here (the
+    // server checks everything again).
+    const input = { ...v, questions: v.questions.map(q => ({ ...q, options: q.kind === "choice" ? q.options.map(o => o.trim()).filter(o => o !== "") : [] })) };
     const r = id ? await updateType(id, input) : await createType(input);
     if (!r.ok) return setError(format(t.errors[r.error], r.values ?? {}));
     setError(null);
@@ -73,6 +77,7 @@ export function TypeForm({ id, initial, base, locale, t }: { id: string | null; 
         <label className="label" htmlFor="description">{f.description}</label>
         <textarea id="description" className="field" rows={3} maxLength={1000} placeholder={f.descriptionPlaceholder} value={v.description} onChange={e => set("description", e.target.value)} />
       </div>
+      <Questions questions={v.questions} onChange={q => set("questions", q)} t={t} />
       <fieldset className="stack-s" style={{ border: 0, padding: 0, margin: 0 }}>
         <legend className="label">{f.color}</legend>
         <div className="swatches">
@@ -94,6 +99,7 @@ export function TypeForm({ id, initial, base, locale, t }: { id: string | null; 
               <label className="label" htmlFor="notice">{f.notice}</label>
               <div className="inline"><input id="notice" className="field short" type="number" min={0} max={336} value={Math.round(v.noticeMinutes / 60)} onChange={e => set("noticeMinutes", Math.max(0, Math.min(336, Number(e.target.value) || 0)) * 60)} /><span className="muted">{f.noticeUnit}</span></div>
             </div>
+            <Select id="daily" label={f.dailyLimit} value={v.dailyLimit} options={perDay} show={n => (n === 0 ? f.noLimit : plural(f.perDay, n, locale))} onChange={n => set("dailyLimit", n)} />
             <div>
               <label className="label" htmlFor="window">{f.window}</label>
               <div className="inline"><input id="window" className="field short" type="number" min={1} max={365} value={v.windowDays} onChange={e => set("windowDays", Math.max(1, Math.min(365, Number(e.target.value) || 1)))} /><span className="muted">{f.windowUnit}</span></div>
@@ -118,6 +124,61 @@ export function TypeForm({ id, initial, base, locale, t }: { id: string | null; 
         )}
       </div>
     </form>
+  );
+}
+
+// The host's own questions: up to five, each a label, the kind of answer,
+// required or not; moved up and down with two buttons. Nothing is saved
+// until the form is.
+function Questions({ questions, onChange, t }: { questions: Question[]; onChange: (q: Question[]) => void; t: Words }) {
+  const f = t.types.form;
+  const change = (i: number, patch: Partial<Question>) => onChange(questions.map((q, j) => (j === i ? { ...q, ...patch } : q)));
+  const swap = (i: number, j: number) => {
+    const next = [...questions];
+    [next[i], next[j]] = [next[j]!, next[i]!];
+    onChange(next);
+  };
+  return (
+    <fieldset className="stack-s" style={{ border: 0, padding: 0, margin: 0 }}>
+      <legend className="label">{f.questions}</legend>
+      <p className="hint">{format(f.questionsHint, { max: questionLimits.perType })}</p>
+      {questions.length > 0 && (
+        <ol className="questions">
+          {questions.map((q, i) => {
+            const n = i + 1;
+            return (
+              <li key={q.id} className="question">
+                <div className="question-head">
+                  <label className="label" htmlFor={`q-${q.id}`}>{format(f.question, { n })}</label>
+                  <button type="button" className="icon-button" aria-label={format(f.moveUp, { n })} disabled={i === 0} onClick={() => swap(i, i - 1)}><Up /></button>
+                  <button type="button" className="icon-button" aria-label={format(f.moveDown, { n })} disabled={i === questions.length - 1} onClick={() => swap(i, i + 1)}><Down /></button>
+                  <button type="button" className="icon-button" aria-label={format(f.removeQuestion, { n })} onClick={() => onChange(questions.filter((_, j) => j !== i))}><Close /></button>
+                </div>
+                <input id={`q-${q.id}`} className="field" maxLength={questionLimits.label} placeholder={f.questionPlaceholder} value={q.label} onChange={e => change(i, { label: e.target.value })} />
+                <div className="question-foot">
+                  <div className="inline">
+                    <label className="hint" htmlFor={`k-${q.id}`}>{f.answerKind}</label>
+                    <select id={`k-${q.id}`} className="field" value={q.kind} onChange={e => change(i, { kind: e.target.value as QuestionKind })}>
+                      {questionKinds.map(k => <option key={k} value={k}>{f.kinds[k]}</option>)}
+                    </select>
+                  </div>
+                  <label className="switch"><input type="checkbox" checked={q.required} onChange={e => change(i, { required: e.target.checked })} />{f.required}</label>
+                </div>
+                {q.kind === "choice" && (
+                  <div>
+                    <label className="label" htmlFor={`o-${q.id}`}>{f.choices}</label>
+                    <textarea id={`o-${q.id}`} className="field" rows={3} value={q.options.join("\n")} onChange={e => change(i, { options: e.target.value.split("\n").slice(0, questionLimits.options + 5) })} />
+                  </div>
+                )}
+              </li>
+            );
+          })}
+        </ol>
+      )}
+      {questions.length < questionLimits.perType && (
+        <div><button type="button" className="button quiet small" onClick={() => onChange([...questions, { id: newQuestionId(), label: "", kind: "short", required: false, options: [] }])}><Plus />{f.addQuestion}</button></div>
+      )}
+    </fieldset>
   );
 }
 

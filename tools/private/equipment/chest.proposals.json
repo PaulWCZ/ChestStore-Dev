@@ -1,6 +1,13 @@
 {
+  "receives": [
+    "people.leaving",
+    "people.leaving_cancelled"
+  ],
   "schedules": [
-    { "name": "weekly", "cron": "50 7 * * 1" }
+    {
+      "name": "weekly",
+      "cron": "50 7 * * 1"
+    }
   ],
   "translations": {
     "fr": {

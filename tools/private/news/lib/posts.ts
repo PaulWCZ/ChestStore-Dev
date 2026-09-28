@@ -1,10 +1,11 @@
 import type { Member } from "@argentic/chest-sdk/member";
-import { can, roleOf } from "./access.ts";
+import { can, inAudience, roleOf, type Grouped } from "./access.ts";
 import { hasTool } from "./audience.ts";
+import { groupsOfTool } from "./groups.ts";
 import type { Query, Sql } from "./db.ts";
 import { AppError } from "./errors.ts";
 import { excerpt } from "./markdown.ts";
-import { clean, emojiNames, id, ids, isCoverType, isEmoji, isKind, limits, memberId, type Emoji, type Kind } from "./model.ts";
+import { clean, emojiNames, groupIds, id, ids, isCoverType, isEmoji, isKind, limits, memberId, type Emoji, type Kind } from "./model.ts";
 import { day as readDay, local, time as readTime, today, zoned } from "./time.ts";
 
 // Posts and what hangs on them: files, reactions, comments, "I have read
@@ -26,6 +27,8 @@ export type PostSummary = {
   editedAt: string | null;
   event: EventInfo | null;
   welcome: string | null;
+  // The groups it is kept to; none: everyone.
+  groups: string[];
   cover: string | null;
   reactions: number;
   comments: number;
@@ -46,17 +49,21 @@ export type PostDetail = PostSummary & {
   answers: { member: string; answer: "yes" | "no" }[];
   eventOpen: boolean;
   confirmedAt: string | null;
+  // The actor is in its audience (an admin or its author may see a post
+  // that is not for them: they are not asked to confirm it).
+  forMe: boolean;
 };
 
 type Row = {
   id: string; kind: Kind; title: string; body: string; author: string; important: boolean; pinned_at: Date | null; publish_at: Date; edited_at: Date | null; created_at: Date;
-  event_day: string | null; event_start: Date | null; event_end: Date | null; place: string | null; welcome: string | null;
+  event_day: string | null; event_start: Date | null; event_end: Date | null; place: string | null; welcome: string | null; groups: string[];
   cover: string | null; reactions: number; comments: number; confirmed: boolean; rsvp: "yes" | "no" | null; going: number;
 };
 
 const columns = (sql: Query, actor: string) => sql`
   p.id, p.kind, p.title, p.body, p.author, p.important, p.pinned_at, p.publish_at, p.edited_at, p.created_at,
   to_char(p.event_day, 'YYYY-MM-DD') as event_day, p.event_start, p.event_end, p.place, p.welcome,
+  array(select g.group_id from post_groups g where g.post_id = p.id order by g.group_id) as groups,
   (select f.id from files f where f.post_id = p.id and f.role = 'cover') as cover,
   (select count(*)::int from reactions r where r.post_id = p.id) as reactions,
   (select count(*)::int from comments c where c.post_id = p.id and c.deleted_at is null) as comments,
@@ -78,6 +85,7 @@ function summary(r: Row, now: Date): PostSummary {
     editedAt: r.edited_at?.toISOString() ?? null,
     event: r.kind === "event" && r.event_day ? { day: r.event_day, start: r.event_start?.toISOString() ?? null, end: r.event_end?.toISOString() ?? null, place: r.place } : null,
     welcome: r.welcome,
+    groups: r.groups,
     cover: r.cover === null ? null : String(r.cover),
     reactions: r.reactions,
     comments: r.comments,
@@ -97,9 +105,21 @@ function publisher(actor: Member | null): Member {
   return actor;
 }
 
+// A post is for this person: for everyone, or for one of their groups.
+export const forPerson = (sql: Query, person: Grouped) => person.groups.length === 0
+  ? sql`not exists (select 1 from post_groups g where g.post_id = p.id)`
+  : sql`(not exists (select 1 from post_groups g where g.post_id = p.id) or exists (select 1 from post_groups g where g.post_id = p.id and g.group_id in ${sql([...person.groups])}))`;
+
+// Who sees a post kept to groups: its audience, its author, the Chest's
+// admins (lib/access.ts, seesPost).
+export const audienceSeen = (sql: Query, actor: Member) => (actor.isAdmin ? sql`true` : sql`(p.author = ${actor.id} or ${forPerson(sql, actor)})`);
+
 // What the actor sees: readers, what is published; publishers, what is
-// scheduled too. Deleted posts, nobody (but "Undo").
-const seen = (sql: Query, actor: Member) => (can(actor, "publish") ? sql`p.deleted_at is null` : sql`p.deleted_at is null and p.publish_at <= now()`);
+// scheduled too; both, only posts for them (audienceSeen). Deleted posts,
+// nobody (but "Undo").
+export const seen = (sql: Query, actor: Member) => (can(actor, "publish")
+  ? sql`p.deleted_at is null and ${audienceSeen(sql, actor)}`
+  : sql`p.deleted_at is null and p.publish_at <= now() and ${audienceSeen(sql, actor)}`);
 
 // The front page: pinned first, then newest first; the upcoming events; the
 // scheduled posts (publishers); the Important posts the actor has not yet
@@ -113,21 +133,21 @@ export async function front(sql: Sql, actor: Member | null, options: { kind?: un
   const pageNumber = typeof options.page === "string" && /^[1-9][0-9]{0,4}$/u.test(options.page) ? Number(options.page) : 1;
   const rows = await sql<Row[]>`
     select ${columns(sql, who.id)} from posts p
-    where p.deleted_at is null and p.publish_at <= ${now} ${kind ? sql`and p.kind = ${kind}` : sql``}
+    where p.deleted_at is null and p.publish_at <= ${now} and ${audienceSeen(sql, who)} ${kind ? sql`and p.kind = ${kind}` : sql``}
     order by p.pinned_at desc nulls last, p.publish_at desc, p.id desc
     limit ${limits.page + 1} offset ${(pageNumber - 1) * limits.page}`;
   const upcoming = await sql<Row[]>`
     select ${columns(sql, who.id)} from posts p
-    where p.deleted_at is null and p.publish_at <= ${now} and p.kind = 'event' and p.event_day >= ${today(options.zone, now)}
+    where p.deleted_at is null and p.publish_at <= ${now} and ${audienceSeen(sql, who)} and p.kind = 'event' and p.event_day >= ${today(options.zone, now)}
     order by p.event_day, p.event_start nulls first, p.id
     limit 5`;
   const scheduled = can(who, "publish")
-    ? await sql<Row[]>`select ${columns(sql, who.id)} from posts p where p.deleted_at is null and p.publish_at > ${now} order by p.publish_at, p.id limit 50`
+    ? await sql<Row[]>`select ${columns(sql, who.id)} from posts p where p.deleted_at is null and p.publish_at > ${now} and ${audienceSeen(sql, who)} order by p.publish_at, p.id limit 50`
     : [];
   const toConfirm = await sql<{ id: string; title: string }[]>`
     select p.id, p.title from posts p
     where p.important and p.deleted_at is null and p.publish_at <= ${now} and p.publish_at > ${now}::timestamptz - make_interval(days => ${limits.confirmDays})
-      and p.author <> ${who.id} and not exists (select 1 from confirmations k where k.post_id = p.id and k.member = ${who.id})
+      and p.author <> ${who.id} and ${forPerson(sql, who)} and not exists (select 1 from confirmations k where k.post_id = p.id and k.member = ${who.id})
     order by p.publish_at desc limit 20`;
   return {
     posts: rows.slice(0, limits.page).map(r => summary(r, now)),
@@ -178,6 +198,7 @@ export async function post(sql: Sql, actor: Member | null, postId: unknown, opti
     answers,
     eventOpen: eventOpen(row, options.zone, now),
     confirmedAt: mine?.at.toISOString() ?? null,
+    forMe: inAudience(who, row),
   };
 }
 
@@ -192,6 +213,9 @@ export type PostInput = {
   publishAt?: { day?: unknown; time?: unknown } | null;
   event?: { day?: unknown; start?: unknown; end?: unknown; place?: unknown } | null;
   welcome?: unknown;
+  // The groups it is kept to (grp_… of the groups that give News); none or
+  // absent: everyone.
+  groups?: unknown;
   cover?: unknown;
   attachments?: unknown;
 };
@@ -199,10 +223,13 @@ export type PostInput = {
 type Clean = {
   kind: Kind; title: string; body: string; important: boolean; pinned: boolean; publishAt: Date | null;
   event: { day: string; start: Date | null; end: Date | null; place: string | null } | null;
-  welcome: string | null; cover: string | null; attachments: string[];
+  welcome: string | null; cover: string | null; attachments: string[]; groups: string[];
 };
 
-async function read(input: PostInput, zone: string, now: Date): Promise<Clean> {
+// kept is the groups the post already has: they stay valid when the Chest
+// no longer lists one (a group that stopped giving News); a new one must be
+// a group that gives News now.
+async function read(input: PostInput, zone: string, now: Date, kept: readonly string[] = []): Promise<Clean> {
   if (!input || typeof input !== "object") throw new AppError("invalid");
   if (!isKind(input.kind)) throw new AppError("invalid");
   const kind = input.kind;
@@ -234,7 +261,14 @@ async function read(input: PostInput, zone: string, now: Date): Promise<Clean> {
   }
   const cover = input.cover === null || input.cover === undefined || input.cover === "" ? null : id(input.cover);
   const attachments = input.attachments === undefined ? [] : ids(input.attachments, limits.attachmentsPerPost).filter(a => a !== cover);
-  return { kind, title, body, important: input.important === true, pinned: input.pinned === true, publishAt, event, welcome, cover, attachments };
+  const groups = input.groups === undefined || input.groups === null ? [] : groupIds(input.groups);
+  const added = groups.filter(g => !kept.includes(g));
+  if (added.length > 0) {
+    const known = await groupsOfTool();
+    if (known === "unavailable") throw new AppError("unavailable");
+    if (added.some(g => !known.some(k => k.id === g))) throw new AppError("no_group");
+  }
+  return { kind, title, body, important: input.important === true, pinned: input.pinned === true, publishAt, event, welcome, cover, attachments, groups };
 }
 
 // files puts the post's cover and attachments as the composer lists them:
@@ -258,7 +292,7 @@ async function setFiles(tx: Query, actor: Member, postId: string, cover: string 
   return gone.map(g => g.object);
 }
 
-export type Saved = { id: string; published: boolean; important: boolean; kind: Kind; welcome: string | null; removed: string[] };
+export type Saved = { id: string; published: boolean; important: boolean; kind: Kind; welcome: string | null; groups: string[]; removed: string[] };
 
 export async function createPost(sql: Sql, actor: Member | null, input: PostInput, options: { zone: string; now?: Date }): Promise<Saved> {
   const who = publisher(actor);
@@ -271,26 +305,29 @@ export async function createPost(sql: Sql, actor: Member | null, input: PostInpu
               ${c.event?.day ?? null}, ${c.event?.start ?? null}, ${c.event?.end ?? null}, ${c.event?.place ?? null}, ${c.welcome})
       returning id`;
     const key = String(row!.id);
+    for (const g of c.groups) await tx`insert into post_groups (post_id, group_id) values (${key}, ${g})`;
     const removed = await setFiles(tx, who, key, c.cover, c.attachments);
-    return { id: key, published: c.publishAt === null, important: c.important, kind: c.kind, welcome: c.welcome, removed };
+    return { id: key, published: c.publishAt === null, important: c.important, kind: c.kind, welcome: c.welcome, groups: c.groups, removed };
   });
 }
 
 // Editing a post: its words, its kind's details, its files, Important and
-// pinned. Its time of publication changes only while it is scheduled. A
-// post made Important (or a new welcome) is told again by the next pass.
-export type Updated = Saved & { importantChanged: boolean };
+// pinned, its audience. Its time of publication changes only while it is
+// scheduled. A post made Important (or a new welcome, or an Important post
+// for another audience) is told again by the next pass.
+export type Updated = Saved & { importantChanged: boolean; audienceChanged: boolean };
 
 export async function updatePost(sql: Sql, actor: Member | null, postId: unknown, input: PostInput, options: { zone: string; now?: Date }): Promise<Updated> {
   const who = publisher(actor);
   const now = options.now ?? new Date();
   const current = await visible(sql, who, postId);
   const key = String(current.id);
-  const c = await read(input, options.zone, now);
+  const c = await read(input, options.zone, now, current.groups);
   const scheduled = current.publish_at.getTime() > now.getTime();
+  const audienceChanged = c.groups.join(",") !== [...current.groups].sort().join(",");
   const publishAt = scheduled ? (c.publishAt ?? now) : current.publish_at;
   const pinnedAt = c.pinned ? (current.pinned_at ?? now) : null;
-  const tellAgain = (c.important && !current.important) || (c.welcome !== null && c.welcome !== current.welcome);
+  const tellAgain = (c.important && !current.important) || (c.welcome !== null && c.welcome !== current.welcome) || ((c.important || c.welcome !== null) && audienceChanged);
   return sql.begin(async tx => {
     await tx`
       update posts set kind = ${c.kind}, title = ${c.title}, body = ${c.body}, important = ${c.important}, pinned_at = ${pinnedAt}, publish_at = ${publishAt},
@@ -300,8 +337,12 @@ export async function updatePost(sql: Sql, actor: Member | null, postId: unknown
       where id = ${key}`;
     if (c.kind !== "event") await tx`delete from rsvps where post_id = ${key}`;
     if (!c.important) await tx`delete from confirmations where post_id = ${key}`;
+    if (audienceChanged) {
+      await tx`delete from post_groups where post_id = ${key}`;
+      for (const g of c.groups) await tx`insert into post_groups (post_id, group_id) values (${key}, ${g})`;
+    }
     const removed = await setFiles(tx, who, key, c.cover, c.attachments);
-    return { id: key, published: publishAt.getTime() <= now.getTime(), important: c.important, kind: c.kind, welcome: c.welcome, removed, importantChanged: c.important !== current.important };
+    return { id: key, published: publishAt.getTime() <= now.getTime(), important: c.important, kind: c.kind, welcome: c.welcome, groups: c.groups, removed, importantChanged: c.important !== current.important, audienceChanged };
   });
 }
 
@@ -313,9 +354,10 @@ export async function deletePost(sql: Sql, actor: Member | null, postId: unknown
   return { important: row.important };
 }
 
+// Only who could see a post brings it back.
 export async function restorePost(sql: Sql, actor: Member | null, postId: unknown): Promise<{ important: boolean }> {
-  publisher(actor);
-  const [row] = await sql<{ important: boolean }[]>`update posts set deleted_at = null where id = ${id(postId)} and deleted_at is not null returning important`;
+  const who = publisher(actor);
+  const [row] = await sql<{ important: boolean }[]>`update posts p set deleted_at = null where p.id = ${id(postId)} and p.deleted_at is not null and ${audienceSeen(sql, who)} returning p.important`;
   if (!row) throw new AppError("not_found");
   return row;
 }
@@ -382,7 +424,8 @@ export async function editComment(sql: Sql, actor: Member | null, commentId: unk
 export async function confirm(sql: Sql, actor: Member | null, postId: unknown): Promise<{ id: string }> {
   const who = reader(actor);
   const row = await visible(sql, who, postId);
-  if (!row.important || row.publish_at.getTime() > Date.now()) throw new AppError("invalid");
+  // Only its audience is asked (an admin or the author outside it is not).
+  if (!row.important || row.publish_at.getTime() > Date.now() || !inAudience(who, row)) throw new AppError("invalid");
   await sql`insert into confirmations (post_id, member) values (${row.id}, ${who.id}) on conflict do nothing`;
   return { id: String(row.id) };
 }
@@ -401,35 +444,40 @@ export async function answer(sql: Sql, actor: Member | null, postId: unknown, va
 }
 
 // Who confirmed an Important post, and when: its publishers only.
-export async function confirmations(sql: Sql, actor: Member | null, postId: unknown): Promise<{ post: { id: string; title: string; author: string; publishAt: string; remindedAt: string | null }; confirmed: { member: string; at: string }[] }> {
+// Only its audience counts: a confirmation left by someone the post is no
+// longer for (its audience changed) is kept, not counted.
+export async function confirmations(sql: Sql, actor: Member | null, postId: unknown): Promise<{ post: { id: string; title: string; author: string; publishAt: string; remindedAt: string | null; groups: string[] }; confirmed: { member: string; at: string }[] }> {
   if (!actor || !can(actor, "confirmations")) throw new AppError("forbidden");
   const row = await visible(sql, actor, postId);
   if (!row.important) throw new AppError("not_found");
   const [extra] = await sql<{ reminded_at: Date | null }[]>`select reminded_at from posts where id = ${row.id}`;
   const list = await sql<{ member: string; at: Date }[]>`select member, at from confirmations where post_id = ${row.id} order by at, member`;
   return {
-    post: { id: String(row.id), title: row.title, author: row.author, publishAt: row.publish_at.toISOString(), remindedAt: extra?.reminded_at?.toISOString() ?? null },
+    post: { id: String(row.id), title: row.title, author: row.author, publishAt: row.publish_at.toISOString(), remindedAt: extra?.reminded_at?.toISOString() ?? null, groups: row.groups },
     confirmed: list.map(c => ({ member: c.member, at: c.at.toISOString() })),
   };
 }
 
 // A reminder to those who have not confirmed: once a day at most.
-export async function claimReminder(sql: Sql, actor: Member | null, postId: unknown): Promise<{ id: string; title: string; body: string; author: string }> {
+export async function claimReminder(sql: Sql, actor: Member | null, postId: unknown): Promise<{ id: string; title: string; body: string; author: string; groups: string[] }> {
   if (!actor || !can(actor, "confirmations")) throw new AppError("forbidden");
   const row = await visible(sql, actor, postId);
   if (!row.important || row.publish_at.getTime() > Date.now()) throw new AppError("not_found");
   const [claimed] = await sql<{ id: string }[]>`update posts set reminded_at = now() where id = ${row.id} and (reminded_at is null or reminded_at < now() - interval '20 hours') returning id`;
   if (!claimed) throw new AppError("too_soon");
-  return { id: String(row.id), title: row.title, body: row.body, author: row.author };
+  return { id: String(row.id), title: row.title, body: row.body, author: row.author, groups: row.groups };
 }
 
 // The number on each member's tile: Important posts of the last 90 days
-// they have not confirmed (not their own).
-export async function unconfirmedCounts(sql: Sql, memberIds: string[], now = new Date()): Promise<Map<string, number>> {
+// for them (their audience) they have not confirmed (not their own).
+export async function unconfirmedCounts(sql: Sql, people: readonly Grouped[], now = new Date()): Promise<Map<string, number>> {
+  const memberIds = [...new Set(people.map(p => p.id))];
+  const groupsOf = new Map(people.map(p => [p.id, p]));
   const counts = new Map<string, number>(memberIds.map(m => [m, 0]));
   if (memberIds.length === 0) return counts;
-  const open = await sql<{ id: string; author: string }[]>`
-    select id, author from posts where important and deleted_at is null and publish_at <= ${now} and publish_at > ${now}::timestamptz - make_interval(days => ${limits.confirmDays})`;
+  const open = await sql<{ id: string; author: string; groups: string[] }[]>`
+    select p.id, p.author, array(select g.group_id from post_groups g where g.post_id = p.id) as groups
+    from posts p where p.important and p.deleted_at is null and p.publish_at <= ${now} and p.publish_at > ${now}::timestamptz - make_interval(days => ${limits.confirmDays})`;
   if (open.length === 0) return counts;
   const done = new Set<string>();
   for (let i = 0; i < memberIds.length; i += 1000) {
@@ -437,7 +485,7 @@ export async function unconfirmedCounts(sql: Sql, memberIds: string[], now = new
     const rows = await sql<{ post_id: string; member: string }[]>`select post_id, member from confirmations where post_id in ${sql(open.map(p => p.id))} and member in ${sql(chunk)}`;
     for (const r of rows) done.add(String(r.post_id) + ":" + r.member);
   }
-  for (const m of memberIds) counts.set(m, open.filter(p => p.author !== m && !done.has(String(p.id) + ":" + m)).length);
+  for (const m of memberIds) counts.set(m, open.filter(p => p.author !== m && inAudience(groupsOf.get(m)!, p) && !done.has(String(p.id) + ":" + m)).length);
   return counts;
 }
 
@@ -494,7 +542,7 @@ export type Draft = {
   kind: Kind; title: string; body: string; important: boolean; pinned: boolean; scheduled: boolean;
   publishAt: { day: string; time: string } | null;
   event: { day: string; start: string; end: string; place: string } | null;
-  welcome: string | null; cover: FileInfo | null; attachments: FileInfo[];
+  welcome: string | null; cover: FileInfo | null; attachments: FileInfo[]; groups: string[];
 };
 
 export async function draftOf(sql: Sql, actor: Member | null, postId: unknown, options: { zone: string; now?: Date }): Promise<Draft> {
@@ -506,7 +554,7 @@ export async function draftOf(sql: Sql, actor: Member | null, postId: unknown, o
     kind: d.kind, title: d.title, body: d.body, important: d.important, pinned: d.pinned, scheduled,
     publishAt: scheduled ? local(d.publishAt, options.zone) : null,
     event: d.event ? { day: d.event.day, start: d.event.start ? local(d.event.start, options.zone).time : "", end: d.event.end ? local(d.event.end, options.zone).time : "", place: d.event.place ?? "" } : null,
-    welcome: d.welcome, cover: d.coverFile, attachments: d.attachments,
+    welcome: d.welcome, cover: d.coverFile, attachments: d.attachments, groups: d.groups,
   };
 }
 

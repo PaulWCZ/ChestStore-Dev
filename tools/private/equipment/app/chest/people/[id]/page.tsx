@@ -6,7 +6,8 @@ import { Back } from "../../../../components/icons.tsx";
 import { can } from "../../../../lib/access.ts";
 import { AppError } from "../../../../lib/app-error.ts";
 import { db } from "../../../../lib/db.ts";
-import { plural } from "../../../../lib/i18n/index.ts";
+import { lastDayOf } from "../../../../lib/departures.ts";
+import { format, formatDay, plural } from "../../../../lib/i18n/index.ts";
 import { holdings, listItems } from "../../../../lib/items.ts";
 import { memberPattern } from "../../../../lib/model.ts";
 import { nameOf, people } from "../../../../lib/people.ts";
@@ -15,7 +16,8 @@ import { rowOf } from "../../../../lib/view.ts";
 import { PersonView } from "./person-view.tsx";
 
 // Everything one person holds (managers): the checklist of the day they
-// leave, with "Take everything back"; and "Give something" from the stock.
+// leave, with "Take everything back" (and their last day, when People told
+// it); and "Give something" from the stock.
 export default async function PersonPage({ params }: { params: Promise<{ id: string }> }) {
   const v = await viewer();
   if (!v) return null;
@@ -39,6 +41,8 @@ export default async function PersonPage({ params }: { params: Promise<{ id: str
   const stock = present ? (await listItems(sql, member, { status: "in_stock" }, 500)).concat((await listItems(sql, member, { status: "in_use" }, 500)).filter(i => i.seats !== null && i.seatsUsed < i.seats)) : [];
   const offer = stock.filter(i => !held.seats.some(s => s.id === i.id)).map(i => rowOf(i, new Map(), t, locale, today, member.id));
   const count = held.items.length + held.seats.length;
+  const lastDay = present ? await lastDayOf(sql, member, id) : null;
+  const leaving = lastDay ? format(t.person.leaving, { date: formatDay(lastDay, locale, { weekday: "long", day: "numeric", month: "long" }) }) : null;
   return (
     <main className="wide">
       <Link className="back" href="/chest/people"><Back />{t.peopleList.title}</Link>
@@ -61,6 +65,7 @@ export default async function PersonPage({ params }: { params: Promise<{ id: str
         seats={seatRows}
         offer={offer}
         count={count}
+        leaving={leaving}
         t={{ person: t.person, errors: t.errors, common: t.common, give: t.give, takeBack: t.takeBack, item: t.item, list: t.list }}
         locale={locale}
       />

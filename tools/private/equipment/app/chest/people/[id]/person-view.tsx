@@ -16,8 +16,10 @@ type Words = { person: Catalogue["person"]; errors: Catalogue["errors"]; common:
 
 // A person's equipment as a checklist: take one thing back, or everything
 // at once (Undo gives it all back); give them something from the stock.
-export function PersonView({ holder, name, present, gone, items, seats, offer, count, t, locale }: {
-  holder: string; name: string; present: boolean; gone: boolean; items: Row[]; seats: Row[]; offer: Row[]; count: number; t: Words; locale: string;
+export function PersonView({ holder, name, present, gone, items, seats, offer, count, leaving = null, t, locale }: {
+  holder: string; name: string; present: boolean; gone: boolean; items: Row[]; seats: Row[]; offer: Row[]; count: number;
+  // "Last day: Monday 12 October…", when People told Equipment they leave.
+  leaving?: string | null; t: Words; locale: string;
 }) {
   const router = useRouter();
   const toast = useToast();
@@ -77,6 +79,7 @@ export function PersonView({ holder, name, present, gone, items, seats, offer, c
   return (
     <div className="stack">
       {gone && count > 0 && <p className="notice warn">{holder === "erased" ? t.person.erased : t.person.left}</p>}
+      {!gone && leaving && count > 0 && <p className="notice warn">{leaving}</p>}
       <div className="row">
         {count > 0 && <button type="button" className="button" disabled={pending} onClick={takeAll}><TakeBack />{t.person.takeAll}</button>}
         {present && <button type="button" className={count > 0 ? "button quiet" : "button"} onClick={() => { setError(null); setGiving(true); }}><Give />{t.person.give}</button>}

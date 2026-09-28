@@ -1,7 +1,7 @@
 import * as events from "@argentic/chest-sdk/events";
 import type { Sql } from "./db.ts";
 import { people } from "./people.ts";
-import { left } from "./tell.ts";
+import { left, stays } from "./tell.ts";
 import { withdraw } from "./notify.ts";
 
 // What Equipment does when a member loses access, leaves or is erased (the
@@ -11,7 +11,9 @@ import { withdraw } from "./notify.ts";
 //   is still in their bag until someone takes it back. Each item they hold
 //   notes it in its history, and the managers are told "Léa left and holds
 //   3 items", with a link to her page and its "Take everything back". Their
-//   name then reads "(former member)" wherever they appear.
+//   name then reads "(former member)" wherever they appear. A departure
+//   People told of is forgotten (and its "leaves on" bell item goes): they
+//   have left.
 // - Erasure: their id disappears from everything ('erased'). What they held
 //   stays held by "Former member" until a manager takes it back: the company
 //   still has to get it back. Then the erasure is acknowledged.
@@ -26,6 +28,7 @@ export async function leave(sql: Sql, memberId: string): Promise<number> {
       if (last?.kind === "left" && last.member === memberId) continue;
       await tx`insert into history (item_id, actor, kind, member) values (${id}, 'chest', 'left', ${memberId})`;
     }
+    await tx`delete from departures where member_id = ${memberId}`;
     return held.length;
   });
 }
@@ -39,12 +42,15 @@ export async function erase(sql: Sql, memberId: string): Promise<void> {
     await tx`update problems set solved_by = 'erased' where solved_by = ${memberId}`;
     await tx`update history set actor = 'erased' where actor = ${memberId}`;
     await tx`update history set member = 'erased' where member = ${memberId}`;
+    await tx`delete from departures where member_id = ${memberId}`;
   });
   await withdraw(`left:${memberId}`);
+  await stays(memberId);
 }
 
 async function departed(sql: Sql, memberId: string): Promise<void> {
   const count = await leave(sql, memberId);
+  await stays(memberId);
   if (count === 0) return;
   const who = (await people([memberId])).get(memberId);
   await left({ id: memberId, name: who && (who.status === "member" || who.status === "former") ? who.name : "" }, count);

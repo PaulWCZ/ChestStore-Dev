@@ -1,9 +1,11 @@
 import type { Member } from "@argentic/chest-sdk/member";
 import { atLeast, boardAccess, can, type BoardAccess } from "./access.ts";
+import { chestToday } from "./clock.ts";
 import type { Sql } from "./db.ts";
 import { AppError } from "./errors.ts";
 import { clean, colors, groupPattern, id, isColor, isTemplate, limits, memberIds, templates, type Color, type Template } from "./model.ts";
 import { between, isPosition, sequence } from "./position.ts";
+import { makeNext, takeBack } from "./repeats.ts";
 
 // Boards, their columns, labels and people. Every function takes the
 // database and the member acting, checks the board's access
@@ -25,7 +27,7 @@ export type Label = { id: string; name: string; color: Color };
 
 type BoardRow = { id: string; name: string; color: string; visibility: "team" | "private"; archived_at: Date | null; created_by: string };
 
-async function membership(sql: Sql, ids: string[]): Promise<Map<string, { people: Board["people"]; groups: string[] }>> {
+export async function membership(sql: Sql, ids: string[]): Promise<Map<string, { people: Board["people"]; groups: string[] }>> {
   const found = new Map<string, { people: Board["people"]; groups: string[] }>(ids.map(i => [i, { people: [], groups: [] }]));
   if (ids.length === 0) return found;
   for (const p of await sql<{ board_id: string; member_id: string; owner: boolean }[]>`select board_id, member_id, owner from board_people where board_id in ${sql(ids)}`) found.get(String(p.board_id))?.people.push({ memberId: p.member_id, owner: p.owner });
@@ -62,7 +64,7 @@ export async function listBoards(sql: Sql, actor: Member | null, options: { arch
     select b.id, b.name, b.color, b.visibility, b.archived_at, b.created_by,
       (select count(*)::int from cards c join columns k on k.id = c.column_id where c.board_id = b.id and c.archived_at is null and k.archived_at is null and not k.done) as open,
       (select count(*)::int from cards c join columns k on k.id = c.column_id join card_assignees a on a.card_id = c.id where c.board_id = b.id and c.archived_at is null and k.archived_at is null and not k.done and a.member_id = ${actor.id}) as mine,
-      (select count(*)::int from cards c join columns k on k.id = c.column_id where c.board_id = b.id and c.archived_at is null and k.archived_at is null and not k.done and c.due_on < (now() at time zone 'Europe/Paris')::date) as late
+      (select count(*)::int from cards c join columns k on k.id = c.column_id where c.board_id = b.id and c.archived_at is null and k.archived_at is null and not k.done and c.due_on < ${chestToday()}) as late
     from boards b
     where ${options.archived ? sql`b.archived_at is not null` : sql`b.archived_at is null`}
     order by lower(b.name), b.id`;
@@ -162,6 +164,11 @@ export async function updateColumn(sql: Sql, actor: Member | null, columnId: unk
     await tx`update columns set name = ${name}, done = ${done} where id = ${c.id}`;
     // Cards follow the column: complete in a "done" column, open otherwise.
     if (done !== c.done) await tx`update cards set completed_at = ${done ? tx`now()` : null} where column_id = ${c.id}`;
+    // Repeating cards completed with it make their next ones (reopened, take them back).
+    if (done !== c.done) {
+      const repeating = await tx<{ id: string }[]>`select id from cards where column_id = ${c.id} and repeat is not null and archived_at is null order by position`;
+      for (const r of repeating) await (done ? makeNext(tx, String(r.id), chestToday(), actor!.id) : takeBack(tx, String(r.id)));
+    }
   });
 }
 

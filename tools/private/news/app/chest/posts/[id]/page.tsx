@@ -1,12 +1,13 @@
 import { notFound } from "next/navigation";
 import { AutoRefresh } from "../../../../components/auto-refresh.tsx";
 import { Avatar } from "../../../../components/avatar.tsx";
-import { Back, Calendar, Clip, Clock, Download, Place } from "../../../../components/icons.tsx";
+import { Back, Calendar, Clip, Clock, Download, Group, Place } from "../../../../components/icons.tsx";
 import { RichText } from "../../../../components/rich-text.tsx";
 import { can } from "../../../../lib/access.ts";
-import { everyone } from "../../../../lib/audience.ts";
+import { everyone, tally } from "../../../../lib/audience.ts";
 import { dates } from "../../../../lib/dates.ts";
 import { db } from "../../../../lib/db.ts";
+import { audienceLabel, groupNames } from "../../../../lib/groups.ts";
 import { AppError } from "../../../../lib/errors.ts";
 import { format, plural } from "../../../../lib/i18n/index.ts";
 import { emojis } from "../../../../lib/model.ts";
@@ -40,15 +41,16 @@ export default async function PostPage({ params }: { params: Promise<{ id: strin
   const who = await people(ids);
   const name = (memberId: string) => (memberId === member.id ? t.people.you : nameOf(who.get(memberId), locale));
   const photo = (memberId: string) => (memberId === member.id ? member.photo : who.get(memberId)?.photo ?? null);
+  const audience = p.groups.length > 0 ? audienceLabel(p.groups, await groupNames(), locale) : null;
   const going = p.answers.filter(a => a.answer === "yes");
   const notGoing = p.answers.filter(a => a.answer === "no");
 
   async function readersOf(post: PostDetail) {
     const list = await confirmations(sql, member, post.id);
     const all = await everyone();
-    const done = new Set(list.confirmed.map(c => c.member));
-    const pending = all.people.filter(x => x.id !== post.author && !done.has(x.id)).map(x => ({ id: x.id, name: x.name, photo: x.photo }));
-    return { confirmed: list.confirmed, pending, complete: all.complete, remindedAt: list.post.remindedAt };
+    const counted = tally(post, list.confirmed, all.people);
+    const pending = counted.pending.map(x => ({ id: x.id, name: x.name, photo: x.photo }));
+    return { confirmed: counted.confirmed, pending, complete: all.complete, remindedAt: list.post.remindedAt };
   }
 
   return (
@@ -73,6 +75,7 @@ export default async function PostPage({ params }: { params: Promise<{ id: strin
         </header>
 
         {p.scheduled && <p className="notice"><Clock />{format(t.post.scheduled, { date: d.full(p.publishAt) })}</p>}
+        {audience && <p className="notice"><Group />{format(t.post.audience, { groups: audience })}</p>}
 
         {p.cover && <figure className="cover"><img src={`/chest/files/${p.cover}?size=1024`} alt="" /></figure>}
 
@@ -106,7 +109,7 @@ export default async function PostPage({ params }: { params: Promise<{ id: strin
           </section>
         )}
 
-        {p.important && !p.scheduled && (
+        {p.important && !p.scheduled && (p.forMe || p.author === member.id) && (
           <ConfirmBox
             id={p.id}
             own={p.author === member.id}

@@ -23,6 +23,8 @@ export const Mail = () => <Icon><rect x="3.5" y="5.5" width="17" height="13" rx=
 export const Globe = () => <Icon><circle cx="12" cy="12" r="8.5" /><path d="M3.5 12h17M12 3.5c2.5 2.6 3.5 5.4 3.5 8.5s-1 5.9-3.5 8.5c-2.5-2.6-3.5-5.4-3.5-8.5s1-5.9 3.5-8.5z" /></Icon>;
 export const Back = () => <Icon><path d="M15 5l-7 7 7 7" /></Icon>;
 export const Next = () => <Icon><path d="M9 5l7 7-7 7" /></Icon>;
+export const Up = () => <Icon><path d="M5 15l7-7 7 7" /></Icon>;
+export const Down = () => <Icon><path d="M5 9l7 7 7-7" /></Icon>;
 export const Arrow = () => <Icon><path d="M5 12h14M13 6l6 6-6 6" /></Icon>;
 export const Copy = () => <Icon><rect x="8" y="8" width="12" height="12" rx="2" /><path d="M16 8V5.5A1.5 1.5 0 0014.5 4h-9A1.5 1.5 0 004 5.5v9A1.5 1.5 0 005.5 16H8" /></Icon>;
 export const Download = () => <Icon><path d="M12 4v12M7 11l5 5 5-5M4 20h16" /></Icon>;

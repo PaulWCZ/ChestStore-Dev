@@ -15,11 +15,13 @@ export function issue(now = Date.now()): string {
   return `${value}.${sign(value)}`;
 }
 
-export function check(token: unknown, now = Date.now()): void {
+// check refuses a token not signed here, older than a day, or (unless
+// fast is allowed: a file added while the form is filled) too recent.
+export function check(token: unknown, now = Date.now(), options: { fast?: boolean } = {}): void {
   const [value = "", signature = ""] = typeof token === "string" ? token.split(".") : [];
   const expected = sign(value);
   if (!/^\d{13}$/u.test(value) || signature.length !== expected.length || !timingSafeEqual(Buffer.from(signature), Buffer.from(expected))) throw new AppError("invalid");
   const age = now - Number(value);
-  if (age < formLimits.minimumSeconds * 1000) throw new AppError("too_fast");
+  if (age < formLimits.minimumSeconds * 1000 && !options.fast) throw new AppError("too_fast");
   if (age > 86400000) throw new AppError("invalid");
 }

@@ -121,6 +121,9 @@ export const en = {
     endingHint: "In the next 60 days, or ended this month.",
     repair: "In repair",
     repairSince: "since {date}",
+    leaving: "To take back",
+    leavingHint: "Before their last day.",
+    lastDay: "last day {date}",
     leavers: "Held by people who left",
     leaverHolds: { one: "holds {count} item", other: "holds {count} items" },
     empty: {
@@ -343,6 +346,7 @@ export const en = {
     holds: { zero: "Holds nothing.", one: "Holds {count} item.", other: "Holds {count} items." },
     seats: { one: "Has {count} licence seat.", other: "Has {count} licence seats." },
     left: "Left the company. Get these back:",
+    leaving: "Last day: {date}. Take everything back before then.",
     erased: "What people whose data was erased still hold.",
     takeAll: "Take everything back",
     takenAll: { one: "{count} thing taken back.", other: "{count} things taken back." },
@@ -480,6 +484,9 @@ export const en = {
     left: { one: "{name} left and holds {count} item", other: "{name} left and holds {count} items" },
     leftUnnamed: { one: "Someone without access holds {count} item", other: "Someone without access holds {count} items" },
     leftBody: "Nothing is taken back by itself: get the equipment back, then tick it off on their page.",
+    leaving: { one: "{name} leaves on {date} — {count} item to take back", other: "{name} leaves on {date} — {count} items to take back" },
+    leavingUnnamed: { one: "Someone leaves on {date} — {count} item to take back", other: "Someone leaves on {date} — {count} items to take back" },
+    leavingBody: "Their page lists everything they hold, with “Take everything back”.",
     ending: { one: "{count} warranty or renewal ends soon", other: "{count} warranties or renewals end soon" },
   },
 } as const;

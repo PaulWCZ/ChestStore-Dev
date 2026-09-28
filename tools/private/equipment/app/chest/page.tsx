@@ -2,12 +2,13 @@ import * as chest from "@argentic/chest-sdk/chest";
 import Link from "next/link";
 import { AssetTag, StatusStamp } from "../../components/bits.tsx";
 import { Avatar } from "../../components/avatar.tsx";
-import { Alert, CategoryIcon, Chevron, Clock, Plus, Print, Sliders, Upload, Wrench } from "../../components/icons.tsx";
+import { Alert, CategoryIcon, Chevron, Clock, Plus, Print, Sliders, TakeBack, Upload, Wrench } from "../../components/icons.tsx";
 import { SolveButton } from "../../components/solve-button.tsx";
 import { can } from "../../lib/access.ts";
 import { categoryCounts } from "../../lib/categories.ts";
 import { db } from "../../lib/db.ts";
-import { format, plural, relative } from "../../lib/i18n/index.ts";
+import { leavingList, purgeDepartures } from "../../lib/departures.ts";
+import { format, formatDay, plural, relative } from "../../lib/i18n/index.ts";
 import { holderCounts, overview } from "../../lib/items.ts";
 import { nameOf, people } from "../../lib/people.ts";
 import { viewer } from "../../lib/session.ts";
@@ -16,7 +17,8 @@ import { categoryName } from "../../lib/words.ts";
 import { MinePage } from "./mine/mine-page.tsx";
 
 // The first page. A manager sees the stock and what needs them: problems
-// reported, warranties and renewals ending, repairs, people who left with
+// reported, warranties and renewals ending, repairs, what to take back from
+// people leaving (People tells Equipment) and from people who left with
 // equipment. A member sees their own equipment.
 export default async function Home() {
   const v = await viewer();
@@ -25,9 +27,12 @@ export default async function Home() {
   if (!can(member, "items.manage")) return <MinePage />;
   const sql = db();
   const today = chest.today();
-  const [counts, ov, holders] = await Promise.all([categoryCounts(sql, member), overview(sql, member, today), holderCounts(sql, member)]);
-  const names = await people([...holders.keys(), ...ov.problems.map(p => p.reportedBy), ...holderIds([...ov.ending, ...ov.repair])]);
+  await purgeDepartures(sql, today);
+  const [counts, ov, holders, departing] = await Promise.all([categoryCounts(sql, member), overview(sql, member, today), holderCounts(sql, member), leavingList(sql, member)]);
+  const names = await people([...holders.keys(), ...departing.map(d => d.memberId), ...ov.problems.map(p => p.reportedBy), ...holderIds([...ov.ending, ...ov.repair])]);
   const leavers = [...holders].filter(([id, c]) => (id === "erased" || names.get(id)?.status !== "member") && c.items + c.seats > 0);
+  // Still here, leaving soon: once they have left, "leavers" says the rest.
+  const leaving = departing.filter(d => names.get(d.memberId)?.status === "member");
   const stocked = counts.filter(c => c.total > 0);
   const now = new Date();
 
@@ -47,7 +52,7 @@ export default async function Home() {
     );
   }
 
-  const attention = ov.problems.length + ov.ending.length + ov.repair.length + leavers.length;
+  const attention = ov.problems.length + ov.ending.length + ov.repair.length + leavers.length + leaving.length;
   return (
     <main className="wide">
       <div className="page-head">
@@ -85,6 +90,30 @@ export default async function Home() {
         <h2 id="attention" className="section-title">{t.overview.attention}</h2>
         {attention === 0 && <p className="all-clear"><span aria-hidden="true">✓</span> {t.overview.allClear}</p>}
         <div className="panels">
+          {leaving.length > 0 && (
+            <section className="panel" id="leaving" aria-labelledby="leaving-title">
+              <h3 id="leaving-title"><TakeBack />{t.overview.leaving}</h3>
+              <p className="small muted">{t.overview.leavingHint}</p>
+              <ul className="plain">
+                {leaving.map(d => {
+                  const person = names.get(d.memberId);
+                  const name = nameOf(person, locale);
+                  return (
+                    <li key={d.memberId} className="mini">
+                      <Link href={`/chest/people/${d.memberId}`} className="mini-link">
+                        <Avatar name={name} photo={person?.photo ?? null} size={28} />
+                        <span className="mini-what">
+                          <span className="strong">{name}</span>{" "}
+                          <span className="muted">{plural(t.overview.leaverHolds, d.items + d.seats, locale)} · {format(t.overview.lastDay, { date: formatDay(d.lastDay, locale, { weekday: "short", day: "numeric", month: "short" }) })}</span>
+                        </span>
+                        <Chevron />
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
+            </section>
+          )}
           {ov.problems.length > 0 && (
             <section className="panel" aria-labelledby="problems">
               <h3 id="problems"><Alert />{t.overview.problems}</h3>

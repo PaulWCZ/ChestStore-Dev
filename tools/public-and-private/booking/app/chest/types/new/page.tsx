@@ -17,7 +17,7 @@ export default async function NewTypePage() {
       <a className="back" href="/chest/types"><Back />{t.types.title}</a>
       <div className="page-head"><h1>{t.types.form.titleNew}</h1></div>
       <TypeForm id={null} base={base} locale={locale} t={{ types: t.types, kinds: t.kinds, colors: t.colors, minutes: t.minutes, errors: t.errors }}
-        initial={{ title: "", slug: "", description: "", duration: 30, interval: 30, locationKind: "video", location: "", bufferBefore: 0, bufferAfter: 0, noticeMinutes: 240, windowDays: 45, color: "sky", active: true }} />
+        initial={{ title: "", slug: "", description: "", duration: 30, interval: 30, locationKind: "video", location: "", bufferBefore: 0, bufferAfter: 0, noticeMinutes: 240, windowDays: 45, dailyLimit: 0, questions: [], color: "sky", active: true }} />
     </>
   );
 }

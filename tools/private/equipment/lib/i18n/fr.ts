@@ -121,6 +121,9 @@ export const fr: Catalogue = {
     endingHint: "Dans les 60 prochains jours, ou échus ce mois-ci.",
     repair: "En réparation",
     repairSince: "depuis le {date}",
+    leaving: "À reprendre",
+    leavingHint: "Avant leur dernier jour.",
+    lastDay: "dernier jour le {date}",
     leavers: "Encore entre les mains de personnes parties",
     leaverHolds: { one: "a encore {count} objet", other: "a encore {count} objets" },
     empty: {
@@ -343,6 +346,7 @@ export const fr: Catalogue = {
     holds: { zero: "N’a rien.", one: "A {count} objet.", other: "A {count} objets." },
     seats: { one: "A {count} poste de licence.", other: "A {count} postes de licence." },
     left: "A quitté l’entreprise. À récupérer :",
+    leaving: "Dernier jour : {date}. Reprenez tout d’ici là.",
     erased: "Ce que des personnes dont les données ont été effacées ont encore.",
     takeAll: "Tout reprendre",
     takenAll: { one: "{count} élément repris.", other: "{count} éléments repris." },
@@ -480,6 +484,9 @@ export const fr: Catalogue = {
     left: { one: "{name} est parti avec encore {count} objet", other: "{name} est parti avec encore {count} objets" },
     leftUnnamed: { one: "Une personne sans accès a encore {count} objet", other: "Une personne sans accès a encore {count} objets" },
     leftBody: "Rien n’est repris tout seul : récupérez le matériel, puis cochez-le sur sa page.",
+    leaving: { one: "{name} part le {date} — {count} objet à reprendre", other: "{name} part le {date} — {count} objets à reprendre" },
+    leavingUnnamed: { one: "Une personne part le {date} — {count} objet à reprendre", other: "Une personne part le {date} — {count} objets à reprendre" },
+    leavingBody: "Sa page liste tout ce qu’elle a, avec « Tout reprendre ».",
     ending: { one: "{count} garantie ou renouvellement arrive à échéance", other: "{count} garanties ou renouvellements arrivent à échéance" },
   },
 };

@@ -6,7 +6,8 @@ import type { Sql } from "./db.ts";
 //
 // - Losing access or leaving: their open cards are unassigned (the history
 //   says so), so nothing waits on someone who is gone; they leave the
-//   boards' people. Done and archived cards keep who did them.
+//   boards' people, and their reminder setting goes. Done and archived
+//   cards keep who did them.
 // - Erasure: their id disappears from everything — assignments, boards'
 //   people, the history's mentions of them — and what they wrote stays for
 //   the team, signed "Former member" ('erased'). Then the erasure is
@@ -21,6 +22,7 @@ export async function leave(sql: Sql, memberId: string): Promise<void> {
       await tx`insert into activity (card_id, actor, kind, data) values (${card_id}, 'chest', 'unassigned_left', ${tx.json({ member: memberId })})`;
     }
     await tx`delete from board_people where member_id = ${memberId}`;
+    await tx`delete from reminders where member_id = ${memberId}`;
   });
 }
 
@@ -28,6 +30,7 @@ export async function erase(sql: Sql, memberId: string): Promise<void> {
   await sql.begin(async tx => {
     await tx`delete from card_assignees where member_id = ${memberId}`;
     await tx`delete from board_people where member_id = ${memberId}`;
+    await tx`delete from reminders where member_id = ${memberId}`;
     await tx`update boards set created_by = 'erased' where created_by = ${memberId}`;
     await tx`update cards set created_by = 'erased' where created_by = ${memberId}`;
     await tx`update comments set author = 'erased' where author = ${memberId}`;

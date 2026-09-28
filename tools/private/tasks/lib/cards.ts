@@ -5,8 +5,11 @@ import { atLeast, boardAccess, roleOf, type BoardAccess } from "./access.ts";
 import { board, type Board } from "./boards.ts";
 import type { Query, Sql } from "./db.ts";
 import { AppError } from "./errors.ts";
-import { clean, day, id, limits, memberIds, today } from "./model.ts";
+import { chestToday } from "./clock.ts";
+import { clean, day, id, limits, memberIds } from "./model.ts";
 import { between } from "./position.ts";
+import { firstDue, parseRepeat, ruleKey, type Repeat } from "./repeat.ts";
+import { makeNext, takeBack } from "./repeats.ts";
 
 // Cards and what hangs on them: assignees, labels, checklist, comments,
 // files, history. Every change checks the board's access and records what
@@ -25,6 +28,8 @@ export type CardSummary = {
   comments: number;
   attachments: number;
   hasDescription: boolean;
+  // The card repeats (its next one is made when it is done).
+  repeats: boolean;
 };
 
 export type Activity = { id: string; actor: string; kind: string; data: Record<string, unknown>; at: string };
@@ -41,9 +46,12 @@ export type CardDetail = CardSummary & {
   thread: Comment[];
   history: Activity[];
   files: Attachment[];
+  repeat: Repeat | null;
+  // The next card of the series, once this one was done.
+  next: { id: string; due: string | null; done: boolean; archived: boolean } | null;
 };
 
-type SummaryRow = { id: string; column_id: string; title: string; position: string; due_on: string | null; done: boolean; description: string; assignees: string[] | null; labels: string[] | null; items_done: number; items: number; comments: number; attachments: number };
+type SummaryRow = { id: string; column_id: string; title: string; position: string; due_on: string | null; done: boolean; description: string; assignees: string[] | null; labels: string[] | null; items_done: number; items: number; comments: number; attachments: number; repeats: boolean };
 
 const summary = (r: SummaryRow): CardSummary => ({
   id: String(r.id),
@@ -58,6 +66,7 @@ const summary = (r: SummaryRow): CardSummary => ({
   comments: r.comments,
   attachments: r.attachments,
   hasDescription: r.description !== "",
+  repeats: r.repeats,
 });
 
 const summaryColumns = (sql: Sql) => sql`
@@ -67,7 +76,8 @@ const summaryColumns = (sql: Sql) => sql`
   (select count(*)::int from checklist_items where card_id = c.id and done) as items_done,
   (select count(*)::int from checklist_items where card_id = c.id) as items,
   (select count(*)::int from comments where card_id = c.id) as comments,
-  (select count(*)::int from attachments where card_id = c.id) as attachments`;
+  (select count(*)::int from attachments where card_id = c.id) as attachments,
+  c.repeat is not null as repeats`;
 
 // The open cards of a board (in live columns), in order.
 export async function boardCards(sql: Sql, boardId: string, options: { archived?: boolean } = {}): Promise<CardSummary[]> {
@@ -78,6 +88,15 @@ export async function boardCards(sql: Sql, boardId: string, options: { archived?
     order by k.position, c.position, c.id
     limit ${limits.cardsPerBoard}`;
   return rows.map(summary);
+}
+
+// A stored rule; one this version cannot read counts as none.
+function readRule(value: unknown): Repeat | null {
+  try {
+    return parseRepeat(value);
+  } catch {
+    return null;
+  }
 }
 
 type CardRow = { id: string; board_id: string; column_id: string; title: string; archived_at: Date | null };
@@ -97,8 +116,11 @@ async function record(sql: Query, cardId: string, actor: string, kind: string, d
 
 export async function cardDetail(sql: Sql, actor: Member | null, cardId: unknown): Promise<CardDetail & { access: BoardAccess }> {
   const { row, board: b } = await card(sql, actor, cardId, "read");
-  const [s] = await sql<(SummaryRow & { created_by: string; created_at: Date })[]>`
-    select ${summaryColumns(sql)}, c.created_by, c.created_at from cards c join columns k on k.id = c.column_id where c.id = ${row.id}`;
+  const [s] = await sql<(SummaryRow & { created_by: string; created_at: Date; repeat: unknown; next_card_id: string | null })[]>`
+    select ${summaryColumns(sql)}, c.created_by, c.created_at, c.repeat, c.next_card_id from cards c join columns k on k.id = c.column_id where c.id = ${row.id}`;
+  const [next] = s!.next_card_id ? await sql<{ id: string; due_on: string | null; done: boolean; archived: boolean }[]>`
+    select n.id, to_char(n.due_on, 'YYYY-MM-DD') as due_on, k.done, n.archived_at is not null as archived from cards n join columns k on k.id = n.column_id where n.id = ${s!.next_card_id}` : [];
+  const repeat = readRule(s!.repeat);
   const items = await sql<{ id: string; text: string; done: boolean; position: string }[]>`select id, text, done, position from checklist_items where card_id = ${row.id} order by position, id`;
   const thread = await sql<{ id: string; author: string; body: string; created_at: Date; edited_at: Date | null; imported_author: string | null }[]>`select id, author, body, created_at, edited_at, imported_author from comments where card_id = ${row.id} order by created_at, id`;
   const history = await sql<{ id: string; actor: string; kind: string; data: Record<string, unknown>; at: Date }[]>`select id, actor, kind, data, at from activity where card_id = ${row.id} order by at desc, id desc limit 50`;
@@ -115,6 +137,8 @@ export async function cardDetail(sql: Sql, actor: Member | null, cardId: unknown
     thread: thread.map(c => ({ id: String(c.id), author: c.author, body: c.body, at: c.created_at.toISOString(), edited: c.edited_at !== null, importedAuthor: c.imported_author })),
     history: history.map(h => ({ id: String(h.id), actor: h.actor, kind: h.kind, data: h.data, at: h.at.toISOString() })),
     files: files.map(f => ({ id: String(f.id), object: f.object, fileName: f.file_name, type: f.type, size: Number(f.size), addedBy: f.added_by, at: f.added_at.toISOString() })),
+    repeat,
+    next: next ? { id: String(next.id), due: next.due_on, done: next.done, archived: next.archived } : null,
   };
 }
 
@@ -141,7 +165,7 @@ export async function addCard(sql: Sql, actor: Member | null, boardId: unknown, 
     await record(tx, String(row!.id), actor!.id, "created");
     return String(row!.id);
   });
-  return { id: created, columnId: c.id, title: text, position, due: null, done: c.done, assignees: [], labels: [], checklist: { done: 0, total: 0 }, comments: 0, attachments: 0, hasDescription: false };
+  return { id: created, columnId: c.id, title: text, position, due: null, done: c.done, assignees: [], labels: [], checklist: { done: 0, total: 0 }, comments: 0, attachments: 0, hasDescription: false, repeats: false };
 }
 
 export async function updateCard(sql: Sql, actor: Member | null, cardId: unknown, input: { title?: unknown; description?: unknown; due?: unknown }): Promise<{ title: string; due: string | null; dueChanged: boolean }> {
@@ -160,9 +184,30 @@ export async function updateCard(sql: Sql, actor: Member | null, cardId: unknown
   return { title, due, dueChanged: due !== current!.due_on };
 }
 
+// setRepeat makes a card repeat (a rule of lib/repeat.ts), or stop (null).
+// A card without a date gets the first day of the rule; a card already
+// done makes its next one at once. The card of a series whose next one is
+// made no longer changes: the rule lives on in the next one.
+export async function setRepeat(sql: Sql, actor: Member | null, cardId: unknown, value: unknown): Promise<{ due: string | null; next: string | null }> {
+  const { row } = await card(sql, actor, cardId, "write");
+  if (row.archived_at) throw new AppError("forbidden");
+  const rule = parseRepeat(value);
+  const [current] = await sql<{ repeat: unknown; next_card_id: string | null; due_on: string | null }[]>`select repeat, next_card_id, to_char(due_on, 'YYYY-MM-DD') as due_on from cards where id = ${row.id}`;
+  if (current!.next_card_id) throw new AppError("invalid");
+  const today = chestToday();
+  const due = rule && !current!.due_on ? firstDue(rule, today) : current!.due_on;
+  const next = await sql.begin(async tx => {
+    await tx`update cards set repeat = ${rule ? tx.json(rule as never) : null}, due_on = ${due}, updated_at = now() where id = ${row.id}`;
+    if (ruleKey(rule) !== ruleKey(readRule(current!.repeat))) await record(tx, row.id, actor!.id, rule ? "repeat_set" : "repeat_stopped");
+    if (due !== current!.due_on) await record(tx, row.id, actor!.id, "due_set", { due });
+    return rule ? makeNext(tx, row.id, today, actor!.id) : null;
+  });
+  return { due, next };
+}
+
 // moveCard puts a card in a column, after one card and before another (ids
 // of that column, or null at an end).
-export async function moveCard(sql: Sql, actor: Member | null, cardId: unknown, columnId: unknown, afterId: unknown, beforeId: unknown): Promise<{ from: string; to: string; completed: boolean | null }> {
+export async function moveCard(sql: Sql, actor: Member | null, cardId: unknown, columnId: unknown, afterId: unknown, beforeId: unknown): Promise<{ from: string; to: string; completed: boolean | null; next: string | null; takenBack: string | null }> {
   const { row, board: b } = await card(sql, actor, cardId, "write");
   if (row.archived_at) throw new AppError("forbidden");
   const c = await liveColumn(sql, b.id, columnId);
@@ -182,11 +227,15 @@ export async function moveCard(sql: Sql, actor: Member | null, cardId: unknown, 
   const position = between(low, high);
   const [was] = await sql<{ done: boolean }[]>`select done from columns where id = ${row.column_id}`;
   const completed = was?.done === c.done ? null : c.done;
-  await sql.begin(async tx => {
+  const series = await sql.begin(async tx => {
     await tx`update cards set column_id = ${c.id}, position = ${position}, updated_at = now(), completed_at = ${c.done ? (completed === null ? tx`completed_at` : tx`now()`) : null} where id = ${row.id}`;
     if (row.column_id !== c.id) await record(tx, row.id, actor!.id, completed === true ? "completed" : completed === false ? "reopened" : "moved", { from: row.column_id, to: c.id });
+    // A repeating card done makes its next one; reopened, it takes it back.
+    if (completed === true) return { next: await makeNext(tx, row.id, chestToday(), actor!.id), takenBack: null };
+    if (completed === false) return { next: null, takenBack: await takeBack(tx, row.id) };
+    return { next: null, takenBack: null };
   });
-  return { from: row.column_id, to: c.id, completed };
+  return { from: row.column_id, to: c.id, completed, ...series };
 }
 
 // audience says which of these people may see the board: only they may be
@@ -380,7 +429,7 @@ export async function myTasks(sql: Sql, actor: Member | null): Promise<MyTask[]>
 
 // The number on the tile: open tasks given to each member, late or due
 // today.
-export async function urgentCounts(sql: Sql, memberIdsList: string[], now = today()): Promise<Map<string, number>> {
+export async function urgentCounts(sql: Sql, memberIdsList: string[], now = chestToday()): Promise<Map<string, number>> {
   const counts = new Map<string, number>(memberIdsList.map(m => [m, 0]));
   if (memberIdsList.length === 0) return counts;
   const rows = await sql<{ member_id: string; count: number }[]>`

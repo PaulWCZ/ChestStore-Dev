@@ -42,4 +42,17 @@ export function publicLocale(cookie: string | undefined, acceptLanguage: string 
   return ranked.map(r => r.language).find(isLocale) ?? defaultLocale;
 }
 
+// The words of the "New page" dialog: the built-in templates' names only
+// (their text stays on the server).
+export function newPageWords(t: Catalogue) {
+  const b = t.templates.builtin;
+  return {
+    newPage: t.newPage,
+    common: t.common,
+    errors: t.errors,
+    templates: { start: t.templates.start, blank: t.templates.blank, builtin: { meeting: b.meeting.name, howto: b.howto.name, decision: b.decision.name } },
+  };
+}
+export type NewPageWords = ReturnType<typeof newPageWords>;
+
 export { format, formatDate, intl, moment, plural, relative, timeZone } from "./format.ts";

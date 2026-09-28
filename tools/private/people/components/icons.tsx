@@ -44,4 +44,5 @@ export const ChevronDown = () => <Icon><path d="M6 9l6 6 6-6" /></Icon>;
 export const Pencil = () => <Icon><path d="M4 20l1-4.5L15.5 5a2.1 2.1 0 013 3L8 18.5z" /><path d="M13.5 7l3 3" /></Icon>;
 export const Clipboard = () => <Icon><rect x="5" y="4.5" width="14" height="16" rx="2" /><path d="M9 4.5V3h6v1.5M9 11l2 2 4-4M9 17h6" /></Icon>;
 export const Door = () => <Icon><path d="M4 20h16M6 20V4h9v16M15 6h3v14" /><circle cx="12" cy="12" r=".8" /></Icon>;
+export const Moon = () => <Icon><path d="M19.5 14.5A7.5 7.5 0 019.5 4.5a7.5 7.5 0 1010 10z" /></Icon>;
 export const Sparkle = () => <Icon><path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5L18 18M6 18l2.5-2.5M15.5 8.5L18 6" /></Icon>;

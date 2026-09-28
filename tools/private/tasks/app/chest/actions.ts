@@ -6,6 +6,7 @@ import * as cards from "../../lib/cards.ts";
 import { db } from "../../lib/db.ts";
 import { attempt, AppError, type Result } from "../../lib/errors.ts";
 import { catalogue, isLocale } from "../../lib/i18n/index.ts";
+import * as reminders from "../../lib/reminders.ts";
 import { currentMember } from "../../lib/session.ts";
 import * as tell from "../../lib/tell.ts";
 
@@ -94,6 +95,22 @@ export async function updateCard(cardId: string, input: { title?: string; descri
     }
     return null;
   });
+}
+
+// Repeat: a rule of lib/repeat.ts, or null to stop.
+export async function setRepeat(cardId: string, rule: unknown): Promise<Result<null>> {
+  return act(async actor => {
+    const sql = db();
+    await cards.setRepeat(sql, actor, cardId, rule);
+    const detail = await cards.cardDetail(sql, actor, cardId);
+    await tell.refreshBadges(sql, detail.assignees);
+    return null;
+  });
+}
+
+// The morning reminder's switch, for oneself.
+export async function setReminder(on: boolean): Promise<Result<null>> {
+  return act(async actor => { await reminders.setReminder(db(), actor, on); return null; });
 }
 
 export async function moveCard(cardId: string, columnId: string, after: string | null, before: string | null): Promise<Result<null>> {

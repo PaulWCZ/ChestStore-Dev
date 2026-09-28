@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Back, Cake, Door, Pencil, Phone, Pin, Wave } from "../../../../components/icons.tsx";
+import { Back, Cake, Door, Moon, Pencil, Phone, Pin, Wave } from "../../../../components/icons.tsx";
 import { Portrait } from "../../../../components/portrait.tsx";
 import { can } from "../../../../lib/access.ts";
 import { tenure } from "../../../../lib/calendar.ts";
@@ -9,6 +9,7 @@ import { directory, type Entry } from "../../../../lib/directory.ts";
 import { format, formatDay, plural } from "../../../../lib/i18n/index.ts";
 import { journeysAbout } from "../../../../lib/journeys.ts";
 import { listArrivals, suggestions } from "../../../../lib/arrivals.ts";
+import { awayOf, awayText } from "../../../../lib/away.ts";
 import { LinkSuggestion } from "../../checklists/arrivals-view.tsx";
 import { memberPattern } from "../../../../lib/model.ts";
 import { today } from "../../../../lib/zone.ts";
@@ -33,6 +34,9 @@ export default async function ProfilePage({ params }: { params: Promise<{ id: st
   const hr = can(member, "profile.job");
   const now = today();
   const checklists = await journeysAbout(sql, member, person.id, now);
+  // Away today (Leave tells People): never why.
+  const gone = (await awayOf(sql, [person.id], now)).get(person.id);
+  const away = gone ? awayText(gone, now, t.away, d => formatDay(d, locale, { weekday: "long", day: "numeric", month: "long" }), format) : null;
   // HR: is this newcomer someone Hiring told of? Offer to link them.
   const match = can(member, "checklists.manage") ? [...suggestions((await listArrivals(sql, member)).filter(a => a.status === "expected"), [person])][0] : undefined;
   const empty = !person.title && !person.phone && !person.bio && person.skills.length === 0 && !person.team;
@@ -63,6 +67,7 @@ export default async function ProfilePage({ params }: { params: Promise<{ id: st
             <h1>{person.name}</h1>
             {person.pronouns && <p className="pronouns"><span className="visually-hidden">{t.profile.pronouns}</span>{person.pronouns}</p>}
             {person.title && <p className="profile-title">{person.title}</p>}
+            {away && <p className="away"><Moon />{away}</p>}
             {(person.team || person.office) && (
               <p className="person-where">
                 {person.team && <span className="team"><span className="visually-hidden">{t.profile.team}</span>{person.team}</span>}

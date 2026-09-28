@@ -7,14 +7,19 @@ import type { Sql } from "./db.ts";
 // - Losing access or leaving: the pages they were editing are free again
 //   (their locks go) and their unsaved drafts go — nobody else can read a
 //   draft, and they will not come back to it. What they wrote stays, signed
-//   with their name ("former member").
+//   with their name ("former member"), their comments too. They stop
+//   watching pages; the pages whose review reminders they owned keep their
+//   reminders, which now go to whoever last saved each page.
 // - Erasure: the same, and their id disappears from everything — authors
-//   of pages, versions, files and spaces read "Former member" ('erased').
-//   The pages stay for the team. Then the erasure is acknowledged.
+//   of pages, versions, files, spaces and comments read "Former member"
+//   ('erased'). The pages stay for the team. Then the erasure is
+//   acknowledged.
 export async function leave(sql: Sql, memberId: string): Promise<void> {
   await sql.begin(async tx => {
     await tx`delete from page_locks where member_id = ${memberId}`;
     await tx`delete from drafts where member_id = ${memberId}`;
+    await tx`delete from page_watchers where member_id = ${memberId}`;
+    await tx`update pages set review_owner = null where review_owner = ${memberId}`;
   });
 }
 
@@ -22,6 +27,9 @@ export async function erase(sql: Sql, memberId: string): Promise<void> {
   await sql.begin(async tx => {
     await tx`delete from page_locks where member_id = ${memberId}`;
     await tx`delete from drafts where member_id = ${memberId}`;
+    await tx`delete from page_watchers where member_id = ${memberId}`;
+    await tx`update pages set review_owner = null where review_owner = ${memberId}`;
+    await tx`update page_comments set author = 'erased' where author = ${memberId}`;
     await tx`update pages set created_by = 'erased' where created_by = ${memberId}`;
     await tx`update pages set updated_by = 'erased' where updated_by = ${memberId}`;
     await tx`update page_versions set author = 'erased' where author = ${memberId}`;

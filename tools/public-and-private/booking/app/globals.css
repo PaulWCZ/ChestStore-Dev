@@ -248,3 +248,14 @@ details.more[open] > summary { margin-bottom: var(--space-3); }
   .hero h1, .host-head h1, .confirmation h1 { font-size: 1.9rem; }
   .public-top, .public-main { padding-left: var(--space-4); padding-right: var(--space-4); }
 }
+
+/* The guest's answers (a booking's page) and the host's questions (a type's form). */
+.answers { margin: 0; display: grid; gap: var(--space-3); }
+.answers dt { color: var(--ink-2); font-weight: 600; font-size: var(--text-s); }
+.answers dd { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.questions { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-3); }
+.question { border: 1.5px solid var(--line); border-radius: var(--radius-m); padding: var(--space-4); background: var(--surface-2); display: grid; gap: var(--space-3); }
+.question-head { display: flex; align-items: center; gap: var(--space-1); }
+.question-head .label { margin: 0; flex: 1; }
+.question-foot { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); flex-wrap: wrap; }
+.question-foot .switch { min-height: 40px; }

@@ -227,6 +227,13 @@ export const en = {
       },
     },
   },
+  away: {
+    away: "Away",
+    morning: "Away this morning",
+    afternoon: "Away this afternoon",
+    back: "back on {date}",
+    backAfternoon: "back on {date} afternoon",
+  },
   arrivals: {
     title: "Arriving",
     fromHiring: "Hiring",

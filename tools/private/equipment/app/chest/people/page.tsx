@@ -2,7 +2,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { can } from "../../../lib/access.ts";
 import { db } from "../../../lib/db.ts";
-import { plural } from "../../../lib/i18n/index.ts";
+import { leavingList } from "../../../lib/departures.ts";
+import { format, formatDay, plural } from "../../../lib/i18n/index.ts";
 import { holderCounts, placeCounts } from "../../../lib/items.ts";
 import { everyone, nameOf, people } from "../../../lib/people.ts";
 import { viewer } from "../../../lib/session.ts";
@@ -16,12 +17,19 @@ export default async function PeoplePage() {
   const { member, locale, t } = v;
   if (!can(member, "items.manage")) notFound();
   const sql = db();
-  const [counts, placeList, team] = await Promise.all([holderCounts(sql, member), placeCounts(sql, member), everyone()]);
+  const [counts, placeList, team, departing] = await Promise.all([holderCounts(sql, member), placeCounts(sql, member), everyone(), leavingList(sql, member)]);
+  // Their last day, when People told it.
+  const lastDays = new Map(departing.map(d => [d.memberId, d.lastDay]));
   const present = new Set(team.people.map(p => p.id));
   const names = await people([...counts.keys()].filter(id => !present.has(id)));
   const describe = (id: string) => {
     const c = counts.get(id) ?? { items: 0, seats: 0 };
-    return [plural(t.peopleList.holds, c.items, locale), ...(c.seats > 0 ? [plural(t.peopleList.seats, c.seats, locale)] : [])].join(" · ");
+    const last = present.has(id) ? lastDays.get(id) : undefined;
+    return [
+      plural(t.peopleList.holds, c.items, locale),
+      ...(c.seats > 0 ? [plural(t.peopleList.seats, c.seats, locale)] : []),
+      ...(last ? [format(t.overview.lastDay, { date: formatDay(last, locale, { day: "numeric", month: "short" }) })] : []),
+    ].join(" · ");
   };
   const leavers: Entry[] = [...counts.keys()].filter(id => !present.has(id)).map(id => ({
     id, name: id === "erased" ? t.people.erased : nameOf(names.get(id), locale), photo: null, text: describe(id), count: (counts.get(id)?.items ?? 0) + (counts.get(id)?.seats ?? 0),

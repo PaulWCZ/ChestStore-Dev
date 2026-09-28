@@ -6,11 +6,14 @@ import { listBoards } from "../../lib/boards.ts";
 import { myTasks } from "../../lib/cards.ts";
 import { db } from "../../lib/db.ts";
 import { intl, plural } from "../../lib/i18n/index.ts";
-import { dueState, today, type DueState } from "../../lib/model.ts";
+import { chestToday } from "../../lib/clock.ts";
+import { dueState, type DueState } from "../../lib/model.ts";
+import { reminderOn } from "../../lib/reminders.ts";
 import { viewer } from "../../lib/session.ts";
 import { refreshBadges } from "../../lib/tell.ts";
 import { BoardTiles } from "./board-tiles.tsx";
 import { NewBoardButton } from "./new-board.tsx";
+import { ReminderSwitch } from "./reminder-switch.tsx";
 import { TaskGroups, type TaskRow } from "./task-groups.tsx";
 
 // Home: what is on my plate, across every board, by when it is due; and
@@ -20,13 +23,13 @@ export default async function Home() {
   if (!v) return null;
   const { member, locale, t } = v;
   const sql = db();
-  const [boards, tasks] = await Promise.all([listBoards(sql, member), myTasks(sql, member)]);
+  const [boards, tasks, reminder] = await Promise.all([listBoards(sql, member), myTasks(sql, member), reminderOn(sql, member)]);
   // The tile's number may have gone stale overnight (nothing runs in the
   // background): set it right whenever its owner comes home.
   await refreshBadges(sql, [member.id]);
   const doneColumns = new Map((await sql<{ board_id: string; id: string; name: string }[]>`
     select distinct on (board_id) board_id, id, name from columns where done and archived_at is null order by board_id, position`).map(r => [String(r.board_id), { id: String(r.id), name: r.name }]));
-  const now = today();
+  const now = chestToday();
   const rows: TaskRow[] = tasks.map(task => ({
     id: task.id,
     title: task.title,
@@ -79,6 +82,7 @@ export default async function Home() {
               {can(member, "boards.create") && <NewBoardButton t={{ create: t.create, templates: t.templates, errors: t.errors }} label={t.boards.new} tile />}
             </BoardTiles>
           </section>
+          <ReminderSwitch on={reminder} t={{ label: t.home.reminder, errors: t.errors }} />
         </>
       )}
     </main>

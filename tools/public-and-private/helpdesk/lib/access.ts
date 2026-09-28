@@ -4,16 +4,18 @@ import type { Member } from "@argentic/chest-sdk/member";
 // the owner, the admins and the tool's builders enter with the first.
 //
 // - admin: everything, and the settings (the public form, saved replies,
+//   renaming and deleting tags, the "waiting too long" threshold,
 //   retention, erasing a customer's data, export);
-// - agent: reads every ticket, answers, notes, assigns, closes;
+// - agent: reads every ticket, answers, notes, assigns, closes, sets the
+//   priority, tags (a new tag is created on the fly);
 // - viewer: reads the tickets, changes nothing.
 export const roles = ["admin", "agent", "viewer"] as const;
 export type Role = (typeof roles)[number];
 
-export type Ability = "tickets.read" | "tickets.answer" | "tickets.manage" | "replies.manage" | "settings" | "customers.erase" | "export";
+export type Ability = "tickets.read" | "tickets.answer" | "tickets.manage" | "replies.manage" | "tags.manage" | "settings" | "customers.erase" | "export";
 
 const grants: Record<Role, readonly Ability[]> = {
-  admin: ["tickets.read", "tickets.answer", "tickets.manage", "replies.manage", "settings", "customers.erase", "export"],
+  admin: ["tickets.read", "tickets.answer", "tickets.manage", "replies.manage", "tags.manage", "settings", "customers.erase", "export"],
   agent: ["tickets.read", "tickets.answer", "tickets.manage", "replies.manage", "export"],
   viewer: ["tickets.read"],
 };

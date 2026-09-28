@@ -13,6 +13,7 @@ export function dates(locale: string, zone: string, now = new Date()) {
   return {
     ago: (value: string) => relative(value, locale, now),
     full: (value: string) => at(value, { dateStyle: "long", timeStyle: "short" }),
+    date: (value: string) => at(value, { day: "numeric", month: "long", year: "numeric" }),
     short: (value: string) => at(value, { weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" }),
     today: () => at(now.toISOString(), { weekday: "long", day: "numeric", month: "long", year: "numeric" }),
     time: (value: string) => at(value, { hour: "numeric", minute: "2-digit" }),

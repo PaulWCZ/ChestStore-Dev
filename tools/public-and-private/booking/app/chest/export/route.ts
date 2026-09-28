@@ -3,6 +3,7 @@ import { toCsv } from "../../../lib/csv.ts";
 import { db } from "../../../lib/db.ts";
 import { AppError } from "../../../lib/errors.ts";
 import { nameOf, people } from "../../../lib/people.ts";
+import { answerText } from "../../../lib/questions.ts";
 import { viewer } from "../../../lib/session.ts";
 
 // The bookings as a spreadsheet (the host's, or everyone's for an
@@ -20,8 +21,8 @@ export async function GET(request: Request): Promise<Response> {
     const stamp = (d: Date) => new Intl.DateTimeFormat("sv-SE", { timeZone: zone, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }).format(d);
     const h = v.t.export.headers;
     const csv = toCsv([
-      [h.start, h.end, h.type, h.host, h.guest, h.email, h.phone, h.status, h.note, h.created],
-      ...rows.map(r => [stamp(r.startsAt), stamp(r.endsAt), r.title, nameOf(who.get(r.memberId), v.locale), r.guestName, r.guestEmail, r.guestPhone, v.t.export.statuses[r.status], r.guestNote, stamp(r.createdAt)]),
+      [h.start, h.end, h.type, h.host, h.guest, h.email, h.phone, h.status, h.note, h.answers, h.created],
+      ...rows.map(r => [stamp(r.startsAt), stamp(r.endsAt), r.title, nameOf(who.get(r.memberId), v.locale), r.guestName, r.guestEmail, r.guestPhone, v.t.export.statuses[r.status], r.guestNote, r.answers.map(a => `${a.label}: ${answerText(a, v.t.answers)}`).join("\n"), stamp(r.createdAt)]),
     ]);
     return new Response(csv, { headers: { "Content-Type": "text/csv; charset=utf-8", "Content-Disposition": 'attachment; filename="bookings.csv"', "Cache-Control": "no-store" } });
   } catch (error) {

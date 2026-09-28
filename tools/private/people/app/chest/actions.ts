@@ -10,6 +10,7 @@ import * as arrivals from "../../lib/arrivals.ts";
 import * as importer from "../../lib/importer.ts";
 import * as j from "../../lib/journeys.ts";
 import * as profiles from "../../lib/profiles.ts";
+import * as share from "../../lib/share.ts";
 import { currentMember } from "../../lib/session.ts";
 import * as tell from "../../lib/tell.ts";
 
@@ -92,7 +93,9 @@ export async function removeTemplateItem(itemId: string): Promise<Result<j.Templ
 export async function startChecklist(input: { personId?: string; arrivalId?: string; managerId?: string | null; templateId: string; anchor: string }): Promise<Result<{ id: string }>> {
   return act(async actor => {
     const sql = db();
-    const started = await j.startJourney(sql, actor, input);
+    // A leaving checklist sets the person's last day: other tools are told.
+    const person = typeof input?.personId === "string" && !input.arrivalId ? input.personId : null;
+    const started = await share.around(sql, person, () => j.startJourney(sql, actor, input));
     await tell.todo(sql, actor, started, started.assignees.keys());
     return { id: started.id };
   });
@@ -131,7 +134,10 @@ export async function removeChecklistItem(itemId: string, removed: boolean): Pro
 export async function stopChecklist(journeyId: string, stopped: boolean): Promise<Result<null>> {
   return act(async actor => {
     const sql = db();
-    const { assignees } = await j.stopJourney(sql, actor, journeyId, stopped);
+    // Stopping (or restarting) a leaving checklist changes the person's
+    // departure: other tools are told.
+    const it = /^\d{1,18}$/u.test(String(journeyId)) ? await j.about(sql, String(journeyId)).catch(() => null) : null;
+    const { assignees } = await share.around(sql, it?.personId ?? null, () => j.stopJourney(sql, actor, journeyId, stopped));
     if (stopped) await tell.settled(sql, journeyId, assignees);
     else await tell.todo(sql, actor, { id: journeyId }, assignees);
     return null;
