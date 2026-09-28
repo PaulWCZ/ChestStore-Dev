@@ -530,6 +530,8 @@ await chest.close();
 | `chest.acknowledged` | The erasures the tool acknowledged, each once |
 | `chest.members`, `chest.groups`, `chest.files` | What the fake Chest holds, to change or assert on; its `members` are those who have the tool |
 | `chest.notifications`, `chest.badges` | What the tool sent: the items kept, `{member, title, body?, path, key?}` cleaned as the Chest cleans them, in the order sent (a replaced item removed, the new one last; `withdraw` removes), and each member's badge (`Map` member → count; 0 removes it) |
+| `chest.upload(url, data, type)` | **Proposal (studio).** Plays a member's browser sending a file to an `uploadUrl` answer: the fake Chest's front checks the token (once, before its expiry), the type and the size, names the object in a folder, and answers `201 {name, type, size}`, or 403 `invalid_token`, 415 `type_refused`, 413 `too_large`, 429 `quota_exceeded` |
+| `fakeChest({origin})` | **Proposal (studio).** The team host its links and uploads point to (`https://<tool>-chest.chest.test` by default). A local harness gives its own (`http://localhost:<port>`) and relays `/_chest/*` of its host to `chest.api`, where the fake Chest's front serves the uploads, the signed links and the members' photos (initials). `files.url` and `uploadUrl` accept `http://localhost` and `http://127.0.0.1` links for that reason |
 | `chest.close()` | Stops it and restores the environment |
 
 ## Version

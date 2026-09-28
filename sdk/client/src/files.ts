@@ -31,8 +31,11 @@ const namePattern = /^[A-Za-z0-9][A-Za-z0-9._-]{0,99}(\/[A-Za-z0-9][A-Za-z0-9._-
 // family (RFC 6838 names).
 const typePattern = /^[a-z0-9][a-z0-9!#$&^_.+-]{0,62}\/(\*|[a-z0-9][a-z0-9!#$&^_.+-]{0,62})$/u;
 // Where the team host serves a link, and where it takes an upload.
-const linkPattern = /^https:\/\/[A-Za-z0-9.-]{1,253}(:[0-9]{1,5})?\/_chest\/files\/([A-Za-z0-9_-]+\.[A-Za-z0-9_-]+)$/u;
-const uploadPattern = /^https:\/\/[A-Za-z0-9.-]{1,253}(:[0-9]{1,5})?\/_chest\/files\/upload\/([A-Za-z0-9_-]+\.[A-Za-z0-9_-]+)$/u;
+// Links are https on the tool's team host; http only on this machine, where
+// a local Chest (chest dev, the studio's harness) serves them — Proposal
+// (studio).
+const linkPattern = /^(?:https:\/\/[A-Za-z0-9.-]{1,253}|http:\/\/(?:localhost|127\.0\.0\.1))(:[0-9]{1,5})?\/_chest\/files\/([A-Za-z0-9_-]+\.[A-Za-z0-9_-]+)$/u;
+const uploadPattern = /^(?:https:\/\/[A-Za-z0-9.-]{1,253}|http:\/\/(?:localhost|127\.0\.0\.1))(:[0-9]{1,5})?\/_chest\/files\/upload\/([A-Za-z0-9_-]+\.[A-Za-z0-9_-]+)$/u;
 // The longest an upload may wait, in seconds.
 const uploadLife = 900;
 

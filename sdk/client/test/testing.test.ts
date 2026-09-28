@@ -196,3 +196,32 @@ test("its notification quotas are a Chest's, and a refused call changes nothing"
     mock.timers.reset();
   }
 });
+
+test("its front receives a member's upload once, within its bounds, and serves links and photos (origin for a harness)", async () => {
+  const chest = await fakeChest({ members: [camille], origin: "http://localhost:4000" });
+  try {
+    const up = await files.uploadUrl("photos/", { maxSize: 8, types: ["image/*"] });
+    assert.match(up.url, /^http:\/\/localhost:4000\/_chest\/files\/upload\/[A-Za-z0-9_-]+\.up$/u);
+    assert.equal((await chest.upload(up.url, "not an image", "text/plain")).status, 415);
+    // A token serves once, even refused.
+    assert.equal((await chest.upload(up.url, "x", "image/png")).status, 403);
+    const again = await files.uploadUrl("photos/", { maxSize: 8, types: ["image/*"] });
+    assert.equal((await chest.upload(again.url, "123456789", "image/png")).status, 413);
+    const third = await files.uploadUrl("photos/", { maxSize: 8, types: ["image/*"] });
+    const sent = await chest.upload(third.url, "1234", "image/png");
+    assert.equal(sent.status, 201);
+    const { name, size } = await sent.json() as { name: string; size: number };
+    assert.match(name, /^photos\/[0-9a-f]{20}\.png$/u);
+    assert.equal(size, 4);
+    assert.equal((await files.stat(name))?.type, "image/png");
+    const link = await files.url(name);
+    assert.match(link.url, /^http:\/\/localhost:4000\/_chest\/files\//u);
+    const served = await fetch(chest.api + new URL(link.url).pathname);
+    assert.equal(await served.text(), "1234");
+    const photo = await fetch(chest.api + "/_chest/members/" + camille.id + "/photo");
+    assert.equal(photo.headers.get("content-type"), "image/svg+xml");
+    assert.match(await photo.text(), />CM</u);
+  } finally {
+    await chest.close();
+  }
+});
