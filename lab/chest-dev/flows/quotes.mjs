@@ -137,8 +137,8 @@ await step("Camille changes the payment terms in Settings", async () => {
   await page.waitForSelector("text=Enregistré. Vos documents sont prêts à partir.");
   await page.getByLabel("SIREN", { exact: true }).fill("123");
   await page.getByRole("button", { name: "Enregistrer" }).click();
-  await page.waitForSelector("[role=alert]");
-  const alert = await page.locator("[role=alert]").first().innerText();
+  await page.waitForSelector("p.error[role=alert]");
+  const alert = await page.locator("p.error[role=alert]").innerText();
   expect(alert.includes("SIREN"), "SIREN refused, in French: " + alert);
 });
 
