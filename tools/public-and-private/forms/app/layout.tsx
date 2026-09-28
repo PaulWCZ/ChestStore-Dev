@@ -2,7 +2,8 @@ import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
 import { catalogue } from "../lib/i18n/index.ts";
 import { pageLocale } from "../lib/session.ts";
-import "./fonts/figtree.css";
+import "./fonts/dm-sans.css";
+import "./fonts/dm-serif-display.css";
 import "./tokens.css";
 import "./globals.css";
 
@@ -20,8 +21,8 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#f7f6f2" },
-    { media: "(prefers-color-scheme: dark)", color: "#161614" },
+    { media: "(prefers-color-scheme: light)", color: "#f5f3fa" },
+    { media: "(prefers-color-scheme: dark)", color: "#16121f" },
   ],
 };
 
