@@ -1,0 +1,108 @@
+/* The wiki's design tokens, defined once (DESIGN.md explains them): warm
+   paper, ink, one deep green, a serif to read and a sober sans for the
+   interface. Light first; dark follows the system. Contrast ratios are
+   checked in DESIGN.md (scripts/contrast.mjs). */
+:root {
+  color-scheme: light dark;
+  --font-read: "Newsreader Variable", "Iowan Old Style", Georgia, "Times New Roman", serif;
+  --font-ui: "Source Sans 3 Variable", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+
+  --paper: #faf6ee;
+  --paper-2: #f3eee2;
+  --surface: #fffdf8;
+  --ink: #23201a;
+  --ink-2: #5d574b;
+  --line: #e2d9c7;
+  --line-strong: #cfc3ab;
+  --accent: #1d5b43;
+  --accent-ink: #ffffff;
+  --accent-soft: #e3ede5;
+  --accent-hover: #164934;
+  --marker: #f6e3a1;
+  --danger: #a93226;
+  --danger-soft: #f8e1dc;
+  --added: #1d6b3a;
+  --added-soft: #e3f0e2;
+  --removed: #a93226;
+  --removed-soft: #f8e1dc;
+  --focus: #1d5b43;
+  --code-bg: #f1ebdd;
+
+  /* The spaces' colours: a spine and a dot, never text on their own. */
+  --space-green: #2f6e4f;
+  --space-blue: #2d5b8a;
+  --space-plum: #7a3f6b;
+  --space-rust: #a2502c;
+  --space-ochre: #a0700f;
+  --space-slate: #55616c;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+  --space-8: 72px;
+
+  --radius-s: 5px;
+  --radius-m: 8px;
+  --radius-l: 14px;
+  --shadow-1: 0 1px 0 rgb(60 45 20 / 0.06);
+  --shadow-2: 0 10px 30px rgb(60 45 20 / 0.14), 0 2px 6px rgb(60 45 20 / 0.06);
+
+  --text-xs: 0.8125rem;
+  --text-s: 0.9375rem;
+  --text-m: 1.0625rem;
+  --text-l: 1.3125rem;
+  --text-xl: 1.75rem;
+  --text-2xl: 2.5rem;
+  --read-size: 1.1875rem;
+  --measure: 40rem;
+  --sidebar: 288px;
+
+  --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+  --fast: 120ms;
+  --slow: 240ms;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #16140f;
+    --paper-2: #1c1a14;
+    --surface: #211e18;
+    --ink: #ece5d6;
+    --ink-2: #b3aa98;
+    --line: #343026;
+    --line-strong: #4a4436;
+    --accent: #8fcfae;
+    --accent-ink: #0d2419;
+    --accent-soft: #22362b;
+    --accent-hover: #a9dcc1;
+    --marker: #5c4a14;
+    --danger: #ff9b8a;
+    --danger-soft: #3d201b;
+    --added: #9fdcad;
+    --added-soft: #1f3524;
+    --removed: #ff9b8a;
+    --removed-soft: #3d201b;
+    --focus: #8fcfae;
+    --code-bg: #2a261e;
+    --space-green: #74b793;
+    --space-blue: #7fa9d6;
+    --space-plum: #c690b8;
+    --space-rust: #df8e68;
+    --space-ochre: #d9ad55;
+    --space-slate: #9aa8b4;
+    --shadow-1: none;
+    --shadow-2: 0 12px 32px rgb(0 0 0 / 0.55);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --fast: 0ms;
+    --slow: 0ms;
+  }
+}

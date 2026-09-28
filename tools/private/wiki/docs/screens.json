@@ -1,0 +1,11 @@
+[
+  { "name": "home", "path": "/chest", "member": "hugo", "locale": "en" },
+  { "name": "page", "path": "/chest/pages/2", "member": "camille", "locale": "en", "preview": true },
+  { "name": "page-fr", "path": "/chest/pages/9", "member": "lea", "locale": "fr" },
+  { "name": "edit", "path": "/chest/pages/1/edit", "member": "tom", "locale": "en", "actions": [{ "wait": 1500 }] },
+  { "name": "history", "path": "/chest/pages/2/history", "member": "ines", "locale": "en" },
+  { "name": "search-fr", "path": "/chest/search?q=teletravail", "member": "camille", "locale": "fr" },
+  { "name": "space", "path": "/chest/spaces/1", "member": "sofia", "locale": "en", "only": ["desktop"] },
+  { "name": "page-dark", "path": "/chest/pages/3", "member": "tom", "locale": "en", "dark": true },
+  { "name": "import", "path": "/chest/import", "member": "camille", "locale": "en", "only": ["desktop"] }
+]

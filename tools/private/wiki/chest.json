@@ -1,0 +1,34 @@
+{
+  "version": 2,
+  "name": "wiki",
+  "title": "Wiki",
+  "description": "Write down how the company works — handbook, policies, how-tos — and find any answer in seconds.",
+  "icon": "chest/icon.svg",
+  "preview": "chest/preview.png",
+  "roles": [
+    "editor",
+    "reader"
+  ],
+  "role_labels": {
+    "editor": "Editor",
+    "reader": "Reader"
+  },
+  "capabilities": [
+    "database",
+    "files",
+    "members"
+  ],
+  "receives": [
+    "member.*"
+  ],
+  "build": {
+    "runtime": "node",
+    "install": "npm ci",
+    "command": "npm run build",
+    "start": "npm start",
+    "port": 3000,
+    "static": [
+      "/_next/static/"
+    ]
+  }
+}

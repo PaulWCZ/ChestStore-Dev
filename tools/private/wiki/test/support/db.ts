@@ -54,9 +54,8 @@ export async function testDatabase(): Promise<TestDatabase> {
   const { PGlite } = await import("@electric-sql/pglite");
   const { pg_trgm } = await import("@electric-sql/pglite/contrib/pg_trgm");
   const { unaccent } = await import("@electric-sql/pglite/contrib/unaccent");
-  const { btree_gist } = await import("@electric-sql/pglite/contrib/btree_gist");
   const { PGLiteSocketServer } = await import("@electric-sql/pglite-socket");
-  const pg = await PGlite.create({ extensions: { pg_trgm, unaccent, btree_gist } });
+  const pg = await PGlite.create({ extensions: { pg_trgm, unaccent } });
   const socket = new PGLiteSocketServer({ db: pg, port: 0, host: "127.0.0.1" });
   await socket.start();
   const address = (socket as unknown as { server?: { address(): { port: number } } }).server?.address();

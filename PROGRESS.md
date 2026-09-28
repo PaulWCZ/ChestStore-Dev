@@ -45,7 +45,7 @@ _One row per chosen tool, in ranking order, once step 1 is done._
 | Rank | Tool | Folder | Replaces | Research | Built | Design | SDK proposals used | Verified |
 |---|---|---|---|---|---|---|---|---|
 | 1 | Tasks | `tools/private/tasks` | Trello, Asana, Monday | ✓ | ✓ | bright workshop (Space Grotesk + Inter, sun, ink outlines) | locale, schedules | ✓ 26 tests (PGlite + PostgreSQL), build, manifest, 12 browser flows, screens |
-| 2 | Wiki | `tools/private/wiki` | Notion, Confluence | ✓ | — | — | locale | — |
+| 2 | Wiki | `tools/private/wiki` | Notion, Confluence | ✓ | ✓ | warm paper, deep green (Newsreader + Source Sans 3) | locale | ✓ 33 tests (PGlite + PostgreSQL), build, manifest, 14 browser flow steps, screens |
 | 3 | Leave | `tools/private/leave` | Lucca Absences, Factorial | ✓ | ✓ | sea-side calm (Nunito + Nunito Sans, sky blue, sunset coral) | locale, schedules | ✓ 41 tests (PGlite + PostgreSQL), build, manifest, 13 browser flow steps, screens |
 | 4 | News | `tools/private/news` | Workvivo, Staffbase | ✓ | ✓ | newspaper (Fraunces + Libre Franklin, ink and red) | locale, schedules | ✓ 33 tests (PGlite + PostgreSQL), build, manifest, 9 browser flows, screens |
 | 5 | People | `tools/private/people` | BambooHR directory | ✓ | — | — | locale | — |
@@ -72,6 +72,8 @@ _One row per chosen tool, in ranking order, once step 1 is done._
 
 ## To fold into the SDK report (from builders)
 
+- Wiki: the team host's address (`CHEST_ORIGIN` or `origin()`), for absolute links in exports; presence/realtime (who is editing) later; localized manifest title; Tiptap injects a `<style>` blocked by the nonce CSP (`injectCSS: false`); server actions mangle ProseMirror JSON (send strings); PGlite hid a µs-vs-ms timestamp comparison bug (test on real PostgreSQL); flows needing DB changes need a `/_dev/sql` hook; unknown whether a real Chest migration role may `create extension unaccent/pg_trgm` and text search configurations; import body size limit of the Chest front unknown.
+- Studio (Booking): Node and Chromium ICU write some dates differently ("Monday 19 October" vs "Monday, 19 October"): format dates on the server, never in the first render of a client component (React hydration error 418). BUILDING.md.
 - Leave: `mail.send` to members (approvers who never open the Chest); per-member secret feed (`feeds.token(memberId)` / `feeds.verify`) for iCal; the Chest's time zone outside schedules; manager relationship (`members.get(id).manager`); events between tools (`leave.approved` → Rooms, People); localized manifest title; template could ship `app/chest/not-found.tsx`; `toCsv` separator; `Catalogue["x"]` typing pattern in BUILDING.md; harness cannot screenshot another month. French leave rules marked "not verified" in README need a payroll check.
 - News: bulk notification to everyone who has the tool, per language, as one call (`notifications.broadcast`) — today: members.list pages + grouping + 1,000/h quota; an "important" notification (above quota, or email fallback); localized manifest title (tile says "News" to French members); fake Chest ignores `files.url({thumbnail})` (no `no_thumbnail`); harness: `seed/files/` for sample files; `dev_locale` cookie shared across member switches; a safe way for a server component to write (visit marks while rendering).
 
