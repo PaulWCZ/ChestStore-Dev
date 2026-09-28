@@ -56,6 +56,12 @@ export type FakeChestOptions = {
   // environment while the fake runs. The team URL is the fake's origin;
   // the public URL is set only when named (a tool with a public part).
   settings?: { company?: string; currency?: string; locale?: string; publicUrl?: string };
+  // Proposal (studio): the Chest's ceiling per visitor's address across
+  // the tools, an hour (visitors.count).
+  visitors?: { perAddressHour?: number };
+  // false: a Chest without notifications.broadcast (404), to test a tool's
+  // fallback.
+  broadcast?: boolean;
   // Proposal (studio): the events this tool publishes (chest.json "emits"),
   // and how many tools receive them.
   emits?: string[];
@@ -412,7 +418,9 @@ export async function fakeChest(options: FakeChestOptions = {}): Promise<FakeChe
     if (url.pathname === "/notifications/broadcast") {
       // Proposal (studio): everyone who has the tool (or some roles or
       // groups), each in their language; 30 broadcasts an hour.
-      if (!keys("messages", "path", "key", "to")) return send(response, 400, { error: "invalid_body" });
+      if (options.broadcast === false) return send(response, 404, { error: "not_found" });
+      if (!keys("messages", "path", "key", "to", "except")) return send(response, 400, { error: "invalid_body" });
+      const except = new Set(Array.isArray(command!["except"]) ? (command!["except"] as string[]) : []);
       const messages = command!["messages"] as Record<string, { title?: unknown; body?: unknown }> | undefined;
       if (!messages || typeof messages !== "object" || !messages["en"]) return send(response, 400, { error: "invalid_body" });
       for (const m of Object.values(messages)) {
@@ -428,6 +436,7 @@ export async function fakeChest(options: FakeChestOptions = {}): Promise<FakeChe
       const everyone = !to.roles && !to.groups;
       let told = 0;
       for (const m of chest.members) {
+        if (except.has(m.id)) continue;
         if (!everyone && !(to.roles ?? []).includes(m.role ?? "") && !m.groups.some(g => (to.groups ?? []).includes(g))) continue;
         const w = days.get(m.id);
         if (w && live(w, 86_400_000, now) && w.count >= itemsPerDay) continue;
@@ -462,6 +471,31 @@ export async function fakeChest(options: FakeChestOptions = {}): Promise<FakeChe
       chest.notifications.push({ member: id, title: cleanTitle(title), ...(cleaned ? { body: cleaned } : {}), path: (path as string | undefined) ?? "/chest", ...(key !== undefined ? { key: key as string } : {}) });
     }
     send(response, 200, { delivered: kept, skipped: ids.filter(id => !access(id)) });
+  }
+
+  // Visitors of the public host (Proposal (studio)): counts per visitor
+  // and name, per name, and per address across names (the Chest's
+  // ceiling, 60 an hour unless options.visitors says otherwise).
+  const visitorCounts = new Map<string, Window>();
+  const perAddressHour = options.visitors?.perAddressHour ?? 60;
+  async function visitorsRoute(request: IncomingMessage, response: ServerResponse): Promise<void> {
+    if (request.method !== "POST") return send(response, 404, { error: "not_found" });
+    const raw = await body(request, 4 << 10);
+    let c: Record<string, unknown>;
+    try { c = JSON.parse(raw?.toString() ?? "") as Record<string, unknown>; } catch { return send(response, 400, { error: "invalid_body" }); }
+    const name = c["name"], address = c["address"], perVisitor = c["per_visitor"], perHour = c["per_hour"];
+    if (typeof name !== "string" || !/^[a-z][a-z0-9-]{0,31}$/u.test(name) || (address !== null && typeof address !== "string") || typeof perVisitor !== "number" || typeof perHour !== "number") return send(response, 400, { error: "invalid_body" });
+    const now = Date.now();
+    const who = (address as string | null) ?? "unknown";
+    const windows = [[`v|${name}|${who}`, perVisitor], [`n|${name}`, perHour], [`a|${who}`, perAddressHour]] as const;
+    for (const [k] of windows) if (!visitorCounts.has(k)) visitorCounts.set(k, { start: 0, count: 0 });
+    const full = windows.find(([k, max]) => live(visitorCounts.get(k), 3_600_000, now) && visitorCounts.get(k)!.count >= max);
+    if (full) {
+      const w = visitorCounts.get(full[0])!;
+      return send(response, 200, { allowed: false, retry_after: Math.max(1, Math.ceil((w.start + 3_600_000 - now) / 1000)) });
+    }
+    for (const [k] of windows) count(visitorCounts.get(k)!, 3_600_000, now, 1);
+    send(response, 200, { allowed: true, retry_after: 0 });
   }
 
   // Events between tools (Proposal (studio)): what the tool publishes.
@@ -617,6 +651,7 @@ export async function fakeChest(options: FakeChestOptions = {}): Promise<FakeChe
       : url.pathname.startsWith("/erasures/") ? erasuresRoute
       : url.pathname.startsWith("/mail/") ? mailRoute
       : url.pathname === "/events" ? eventsRoute
+      : url.pathname === "/visitors/count" ? visitorsRoute
       : url.pathname === "/members" || url.pathname.startsWith("/members/") || url.pathname === "/groups" ? members
       : url.pathname === "/files" || url.pathname.startsWith("/files/") ? filesRoute
       : url.pathname === "/badges" || url.pathname.startsWith("/badges/") || url.pathname.startsWith("/notifications") ? notificationsRoute : null;

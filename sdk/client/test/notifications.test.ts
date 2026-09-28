@@ -184,9 +184,19 @@ test("broadcast (Proposal (studio)): everyone who has the tool, or some roles or
     await notifications.broadcast({ messages, path: "/chest/posts/4", key: "post:4" });
     assert.equal(fake.notifications.length, 3);
     assert.deepEqual(await notifications.broadcast({ messages: { en: { title: "Publishers only" } }, to: { roles: ["publisher"] } }), { delivered: 1 });
+    assert.deepEqual(await notifications.broadcast({ messages: { en: { title: "Not Bo" } }, except: ["mbr_" + "b".repeat(26)] }), { delivered: 2 });
     assert.deepEqual(await notifications.broadcast({ messages: { en: { title: "The office group" } }, to: { groups: ["grp_" + "o".repeat(26)] } }), { delivered: 1 });
     await assert.rejects(notifications.broadcast({ messages: { fr: { title: "Sans anglais" } } } as never), (e: unknown) => e instanceof ChestError && e.code === "invalid_body");
     await assert.rejects(notifications.broadcast({ messages: { en: { title: "" } } }), (e: unknown) => e instanceof ChestError && e.code === "invalid_title");
+  } finally {
+    await fake.close();
+  }
+});
+
+test("broadcast on a Chest without it is a refusal the tool can fall back from", async () => {
+  const fake = await fakeChest({ members: [], capabilities: ["notifications"], broadcast: false });
+  try {
+    await assert.rejects(notifications.broadcast({ messages: { en: { title: "Hello" } } }), (e: unknown) => e instanceof ChestError);
   } finally {
     await fake.close();
   }

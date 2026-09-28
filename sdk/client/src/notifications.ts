@@ -125,10 +125,11 @@ export async function notify(memberIds: Iterable<string>, notice: Notice): Promi
 //
 // Quota: 30 broadcasts an hour per tool, not counted in recipients an hour;
 // each member still gets at most 100 items a day. to: roles and groups
-// (either matches); none: everyone with the tool. Answers how many members
-// were told.
+// (either matches); none: everyone with the tool; except: up to 500 members
+// left out (the author, those who already answered). Answers how many
+// members were told.
 export type Message = { title: string; body?: string };
-export type Broadcast = { messages: { en: Message } & Partial<Record<Locale, Message>>; path?: string; key?: string; to?: { roles?: string[]; groups?: string[] } };
+export type Broadcast = { messages: { en: Message } & Partial<Record<Locale, Message>>; path?: string; key?: string; to?: { roles?: string[]; groups?: string[] }; except?: string[] };
 
 const rolePattern = /^[a-z][a-z0-9_-]{0,31}$/u, groupPattern = /^grp_[a-z2-7]{26}$/u;
 
@@ -148,7 +149,9 @@ export async function broadcast(b: Broadcast): Promise<{ delivered: number }> {
   const roles = b.to?.roles, groups = b.to?.groups;
   if (roles !== undefined && (!Array.isArray(roles) || roles.length > 16 || !roles.every(r => typeof r === "string" && rolePattern.test(r)))) throw new ChestError("invalid_body", 400, "roles: up to 16 role identifiers");
   if (groups !== undefined && (!Array.isArray(groups) || groups.length > 64 || !groups.every(g => typeof g === "string" && groupPattern.test(g)))) throw new ChestError("invalid_body", 400, "groups: up to 64 group identifiers");
-  const command = { messages, ...(b.path !== undefined ? { path: checkPath(b.path) } : {}), ...(b.key !== undefined ? { key: checkKey(b.key) } : {}), ...(roles || groups ? { to: { ...(roles ? { roles } : {}), ...(groups ? { groups } : {}) } } : {}) };
+  if (b.except !== undefined && (!Array.isArray(b.except) || b.except.length > maxMembers)) throw new ChestError("invalid_body", 400, "except: up to 500 member identifiers");
+  const except = b.except?.map(checkId);
+  const command = { messages, ...(except && except.length > 0 ? { except } : {}), ...(b.path !== undefined ? { path: checkPath(b.path) } : {}), ...(b.key !== undefined ? { key: checkKey(b.key) } : {}), ...(roles || groups ? { to: { ...(roles ? { roles } : {}), ...(groups ? { groups } : {}) } } : {}) };
   const response = await ask("POST", "/notifications/broadcast", command);
   await expect(response, 200);
   const answer = (await json(response)) as { delivered?: unknown } | null;

@@ -55,6 +55,11 @@ _(to be ordered once more tools are built; the evidence so far)_
   language and the tool's addresses.
 
 ### `members`
+- **Groups a tool may offer.** `groups.list()` gives only the groups that
+  give the tool; a tool open to everyone (Polls: "ask Sales only") cannot
+  offer the Chest's teams. Wish: `groups.list({all: true})` — every group
+  of the Chest, with its members, for tools that target people (Polls,
+  News, Goals), under the `members` capability.
 - `list` pages of 500 are fine, but a tool that shows "who can see this
   board" or "who has not read this post" lists everyone each time. A
   cached `members.all()` (or an ETag on `/members`) would save calls.
@@ -245,6 +250,9 @@ _(to be ordered once more tools are built; the evidence so far)_
 - **Quota**: 30 broadcasts an hour per tool, outside the recipients-an-hour
   quota (the Chest delivers in the background, at its own pace); each
   member keeps the 100 items a day limit.
+- **Since**: `except` (up to 500 members left out — the author, those who
+  already answered: Polls' reminders) and `fakeChest({broadcast: false})`
+  to test a tool's fallback, both asked by Polls' builder.
 - **Risks**: a tool spamming everyone (bounded by 30 an hour and the
   owner's mute per tool); a broadcast reaching someone who should not see
   a title (the tool chooses roles and groups; titles are 80 characters and
@@ -267,6 +275,27 @@ _(to be ordered once more tools are built; the evidence so far)_
 - **The Chest's side**: the tile, the store and the roles screen pick the
   viewer's language, falling back to the manifest's words.
 
+### 4.8 The public host's visitors — `visitors` (built)
+
+- **Needed by**: Support (contact form), Booking (booking form, moves and
+  cancellations), Hiring (applications with a CV), Status (email
+  subscriptions) — each had rebuilt a signed form token, per-visitor
+  counters in its database, a daily purge of them, and the visitor's
+  language.
+- **Working copy**: `sdk/client/src/visitors.ts` — `formToken`,
+  `checkForm`, `count`, `language`, `visitor`, `address`;
+  `fakeChest({visitors})` counts; `sdk/client/test/visitors.test.ts`.
+  Used by Booking (form token and counting, with its own counters as the
+  fallback on a Chest without it).
+- **Why the Chest counts**: it sees every public tool's traffic; a per-tool
+  counter lets a robot spread over five tools five times the allowance.
+  The tool keeps its own limits per name; the Chest adds one ceiling per
+  address.
+- **Approval**: none new — a public tool already receives visitors.
+- **Risks**: shared addresses (a company's office behind one NAT) hitting
+  the ceiling; the owner may raise it; a limit answers `retryAfter`, and
+  tools say "try again in an hour", never a silent failure.
+
 _(more sections as tools need them: public accounts, payments, AI.)_
 
 ## 5. Public-facing tools
@@ -282,13 +311,11 @@ platform concern:
    at" time (refuses a form sent in under 3 seconds or never shown), and
    per-visitor and global counters in its database, keyed by the first
    address of `X-Forwarded-For` (assumed set by the Chest's front — the
-   contract should say so). Proposal: `guard.check(request, {perVisitor,
-   perHour})` in the SDK, counted by the Chest across its tools, and the
-   form token helper (`guard.token()` / `guard.verify()`).
+   contract should say so). Built as the `visitors` module (4.8).
 2. **Visitors' language.** Each tool wrote the same `/lang/<code>` switch,
-   a cookie and `Accept-Language` parsing. Proposal: `publicLocale(request)`
-   next to `member()` — the Chest's default language (`chest.locale()`) as
-   the last fallback.
+   a cookie and `Accept-Language` parsing. Built: `visitors.language()`,
+   with the Chest's default language (`chest.locale()`) as the last
+   fallback.
 3. **Secret links instead of accounts.** A customer follows a ticket and a
    guest moves a booking through a link holding a secret (stored hashed,
    looked up by SHA-256). It is the right design for one-off visitors — no
@@ -358,4 +385,25 @@ today), Support → Clients (a customer's history).
 
 ## 8. Priorities
 
-_(table at the end)_
+Ordered by what the opening store needs (counts from the 17 tools'
+`chest.proposals.json` and code; final counts once every tool is in).
+
+| # | Change | Kind | Used by | Without it | Cost for the Chest |
+|---|---|---|---|---|---|
+| 1 | `member.locale` (and in `members`) | claim + field | all 17 | tools speak English to French members, or ask each member again | tiny: the Chest has the setting |
+| 2 | Accept unknown manifest keys (warn), or version them | contract | all 17 (`chest.proposals.json`) | no tool of tomorrow can be installed today | tiny |
+| 3 | `schedules` | new primitive | 15 of 17 | reminders, digests, purges and true badges are impossible; tools piggy-back on page views | medium: a scheduler and a journal |
+| 4 | `chest` settings (zone, company, addresses…) | environment | 9+ | hard-coded Europe/Paris, forwarded-host guessing, company name asked again | tiny: environment variables |
+| 5 | `mail` | new primitive | Support, Booking, Hiring, Quotes, Status (+ wished by 5 more) | public tools cannot reach customers; members who never open the Chest miss what matters | large: a mail provider, domains, quotas, suppression |
+| 6 | `translations` of the tile | contract | all 17 | French members see English names on tiles | tiny |
+| 7 | `visitors` (guard, language) | new module | every public tool (4) | each rebuilds a guard; robots spread across tools | small: counters |
+| 8 | `notifications.broadcast` | new call | News, Polls, Status | "tell everyone" stops at 1,000 people an hour, per-language paging | small |
+| 9 | Public uploads/files | spec'd, now built in the SDK | Hiring | a candidate cannot send a CV | medium (already specified) |
+| 10 | Events between tools | new primitive | Leave → Rooms (built); 5 more links wanted | the suite is a set of silos | medium: routing, admin links, journal |
+| 11 | `chest dev` (local Chest) and `chest check` | tooling | every builder | a day of harness per team; agents cannot verify | medium — our `lab/chest-dev` is a working model |
+
+Deliberately not proposed: WebSockets and background processes (polling
+every 20–45 s and schedules covered every case met), outbound network per
+tool (only Status's automatic checks needed it — better as a Chest-run
+check declared in the manifest), public accounts (no opening-store tool
+needs them).

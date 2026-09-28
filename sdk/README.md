@@ -27,6 +27,7 @@ module is not in the root).
 | `@argentic/chest-sdk/notifications` | `notify`, `withdraw`, `broadcast` (Proposal (studio)), `badge.set`, `badge.setMany`, types `Notice`, `Delivery`, `BadgeCount`, `BadgeWrite`: counters on the tool's tile and items in members' inboxes, inside the Chest (capability `notifications`) |
 | `@argentic/chest-sdk/events` | `handle`, `verify`, `acknowledgeErasure`, `memorySeen`, `erasureIdPattern`, types `ChestEvent`, `MemberUpdated`, `AccessRevoked`, `MemberRemoved`, `MemberErased`, `MemberChange`, `Handlers`, `Seen`: the events of the members' lifecycle the Chest posts to the tool's `/chest-events` (`"receives": ["member.*"]`), verified, deduplicated by id, and the acknowledgment of an erasure |
 | `@argentic/chest-sdk/chest` | **Proposal (studio).** `company`, `timeZone`, `today`, `currency`, `locale`, `teamUrl`, `publicUrl`: the Chest's settings every tool needs |
+| `@argentic/chest-sdk/visitors` | **Proposal (studio).** `formToken`, `checkForm`, `count`, `language`, `visitor`, `address`: the guard and the language of a public host's anonymous visitors |
 | `@argentic/chest-sdk/database` | `databaseUrl()`: the address of the tool's own PostgreSQL database (capability `database`) |
 | `@argentic/chest-sdk/files` | `put`, `get`, `stat`, `list`, `move`, `delete`, `url`, `uploadUrl`, types `FileObject`, `FileData`, `FilePage`: the tool's private files (capability `files`), kept by the Chest, a 15-minute signed link to one (or to its thumbnail), and uploads straight from a member's browser |
 | `@argentic/chest-sdk/errors` | `ChestError` (`code`, `status`), `CapabilityNotGranted` (403), `TooLarge` (413), `QuotaExceeded` (429), `RateLimited` (429), `Unavailable` (503): what the SDK throws when the Chest does not give what a tool asks |
@@ -303,6 +304,7 @@ const { delivered } = await notifications.broadcast({
   path: "/chest/posts/4",
   key: "post:4",
   to: { roles: ["reader"], groups: ["grp_…"] }, // optional: either matches; none = everyone with the tool
+  except: ["mbr_…"],                             // optional: up to 500 left out (the author, those who answered)
 });
 ```
 
@@ -314,7 +316,9 @@ background; a key replaces each member's earlier item of that key. Quota:
 hour; each member still gets at most 100 items a day (a member at their
 limit is skipped). Answers how many members were told. Before it, a tool
 that told everyone listed its members page by page, grouped them by
-language and stopped at a thousand people (News, Polls).
+language and stopped at a thousand people (News, Polls). In tests,
+`fakeChest({broadcast: false})` is a Chest without it (a refusal), to
+test a tool's fallback.
 
 ## `events` — the members' lifecycle
 
@@ -540,6 +544,27 @@ that is neither https nor localhost is null). Links written outside a
 request — an email sent by a schedule, an export, a calendar feed — use
 `teamUrl()` / `publicUrl()` instead of a forwarded host.
 `schedules.timeZone()` is the same function.
+
+## `visitors` — the public host's visitors (Proposal (studio))
+
+```ts
+import * as visitors from "@argentic/chest-sdk/visitors";
+const started = visitors.formToken();                       // put it in the form, hidden
+visitors.checkForm(data.get("started"));                    // "ok" | "too_fast" | "invalid"
+const { allowed, retryAfter } = await visitors.count(request, "apply", { perVisitor: 5, perHour: 100 });
+visitors.language(request);                                 // the switch's cookie "lang", Accept-Language, then chest.locale()
+visitors.visitor(request);                                  // an opaque key for the tool's own records (never the address)
+```
+
+No captcha without a third party: a form is refused when sent faster
+than a person types or never shown (its token, signed with a key derived
+from `CHEST_TOKEN`, dated), and the Chest counts what visitors do — per
+visitor and per name, per name for everyone, and its own ceiling per
+address **across the tools of the Chest** (60 an hour), so a robot that
+tries every public tool meets one limit. The visitor's address is the
+first of `X-Forwarded-For`, which the Chest's front sets. For a tool with
+a public part; `count` asks the Chest (`POST /visitors/count`), the rest
+is local. In tests: `fakeChest({visitors: {perAddressHour}})`.
 
 ## `databaseUrl()` — database of a server tool
 

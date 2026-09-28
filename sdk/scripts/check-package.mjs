@@ -28,9 +28,10 @@ const expected = {
   mail: ["handle", "isAddress", "limits", "mailboxAddress", "mailboxPattern", "messageIdPattern", "send", "status", "verify"],
   schedules: ["checkSchedules", "describeCron", "handle", "limits", "nextRun", "parseCron", "runIdPattern", "schedulePattern", "timeZone", "verify"],
   chest: ["company", "currency", "locale", "publicUrl", "teamUrl", "timeZone", "today"],
+  visitors: ["address", "checkForm", "count", "formToken", "language", "visitor"],
   testing: ["fakeChest", "signAssertion", "withMember"],
 };
-const namespaces = ["files", "members", "notifications", "events", "schedules", "mail", "chest"];
+const namespaces = ["files", "members", "notifications", "events", "schedules", "mail", "chest", "visitors"];
 const rootExports = [...Object.entries(expected).filter(([sub]) => !namespaces.includes(sub) && sub !== "testing").flatMap(([, names]) => names), ...namespaces].sort();
 
 const subpaths = Object.keys(manifest.exports).filter(key => key !== "./package.json");

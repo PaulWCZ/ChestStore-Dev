@@ -46,6 +46,10 @@
       "types": "./dist/src/chest.d.ts",
       "default": "./dist/src/chest.js"
     },
+    "./visitors": {
+      "types": "./dist/src/visitors.d.ts",
+      "default": "./dist/src/visitors.js"
+    },
     "./database": {
       "types": "./dist/src/database.d.ts",
       "default": "./dist/src/database.js"
@@ -94,7 +98,8 @@
     "client/src/schedules.ts",
     "client/src/mail.ts",
     "client/src/chest.ts",
-    "client/src/testing.ts"
+    "client/src/testing.ts",
+    "client/src/visitors.ts"
   ],
   "publishConfig": {
     "access": "public",
