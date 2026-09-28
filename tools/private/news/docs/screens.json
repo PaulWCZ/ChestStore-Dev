@@ -1,0 +1,9 @@
+[
+  { "name": "front", "path": "/chest", "member": "hugo", "locale": "en", "preview": true },
+  { "name": "front-fr", "path": "/chest", "member": "ines", "locale": "fr" },
+  { "name": "important", "path": "/chest/posts/4", "member": "camille", "locale": "en" },
+  { "name": "event", "path": "/chest/posts/3", "member": "hugo", "locale": "en" },
+  { "name": "welcome-fr", "path": "/chest/posts/5", "member": "lea", "locale": "fr" },
+  { "name": "compose", "path": "/chest/new?kind=event", "member": "sofia", "locale": "en" },
+  { "name": "front-dark", "path": "/chest", "member": "tom", "locale": "en", "dark": true }
+]

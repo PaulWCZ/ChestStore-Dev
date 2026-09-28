@@ -1,0 +1,63 @@
+import { Avatar } from "../../components/avatar.tsx";
+import { Calendar, Clock, Pin, Place, kindIcons } from "../../components/icons.tsx";
+import type { Dates } from "../../lib/dates.ts";
+import { format, plural } from "../../lib/i18n/format.ts";
+import type { Catalogue, Locale } from "../../lib/i18n/index.ts";
+import type { PostSummary } from "../../lib/posts.ts";
+
+// A story on the front page: the lead (large, its picture first) or one of
+// the others. Its headline is the link; the whole card answers the click
+// (a stretched link), the rest is text.
+export type Byline = { name: string; photo: string | null };
+export type StoryWords = Pick<Catalogue, "kinds" | "front" | "event">;
+
+export function Kicker({ post, isNew, t }: { post: PostSummary; isNew: boolean; t: StoryWords }) {
+  const Icon = kindIcons[post.kind];
+  return (
+    <p className="kicker">
+      <span className="kind"><Icon />{t.kinds[post.kind]}</span>
+      {post.pinned && <span className="flag"><Pin />{t.front.pinned}</span>}
+      {post.important && (post.confirmed ? <span className="flag ok">{t.front.confirmed}</span> : <span className="flag alert">{t.front.important}</span>)}
+      {isNew && <span className="flag new">{t.front.new}</span>}
+    </p>
+  );
+}
+
+export function EventLine({ post, d, t }: { post: PostSummary; d: Dates; t: StoryWords }) {
+  if (!post.event) return null;
+  return (
+    <p className="event-line">
+      <span><Calendar />{d.dayLong(post.event.day)}</span>
+      <span><Clock />{d.hours(post.event, t.event)}</span>
+      {post.event.place && <span><Place />{post.event.place}</span>}
+    </p>
+  );
+}
+
+export function Story({ post, lead = false, author, welcome, isNew, d, locale, t }: { post: PostSummary; lead?: boolean; author: Byline; welcome: Byline | null; isNew: boolean; d: Dates; locale: Locale; t: StoryWords }) {
+  const Heading = lead ? "h2" : "h3";
+  const picture = post.cover
+    ? <img className="story-cover" src={`/chest/files/${post.cover}?size=1024`} alt="" loading={lead ? "eager" : "lazy"} />
+    : (welcome ? <div className="story-portrait"><Avatar name={welcome.name} photo={welcome.photo} size={lead ? 168 : 96} /></div> : null);
+  const counts = [
+    post.comments > 0 ? plural(t.front.comments, post.comments, locale) : null,
+    post.reactions > 0 ? plural(t.front.reactions, post.reactions, locale) : null,
+    post.kind === "event" && post.going > 0 ? plural(t.front.going, post.going, locale) : null,
+  ].filter(Boolean);
+  return (
+    <article className={"story" + (lead ? " lead" : "") + (picture ? " has-picture" : "") + (post.important && !post.confirmed ? " asks" : "")}>
+      {picture && <div className="story-picture">{picture}</div>}
+      <div className="story-text">
+        <Kicker post={post} isNew={isNew} t={t} />
+        <Heading className="headline"><a href={`/chest/posts/${post.id}`} className="stretched">{post.title}</a></Heading>
+        <EventLine post={post} d={d} t={t} />
+        {post.excerpt && <p className="dek">{post.excerpt}</p>}
+        <p className="byline">
+          <span>{format(t.front.by, { name: author.name })}</span>
+          <time dateTime={post.publishAt} title={d.full(post.publishAt)}>{d.ago(post.publishAt)}</time>
+          {counts.map(c => <span key={c}>{c}</span>)}
+        </p>
+      </div>
+    </article>
+  );
+}

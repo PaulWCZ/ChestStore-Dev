@@ -47,11 +47,11 @@ _One row per chosen tool, in ranking order, once step 1 is done._
 | 1 | Tasks | `tools/private/tasks` | Trello, Asana, Monday | ✓ | ✓ | bright workshop (Space Grotesk + Inter, sun, ink outlines) | locale, schedules | ✓ 26 tests (PGlite + PostgreSQL), build, manifest, 12 browser flows, screens |
 | 2 | Wiki | `tools/private/wiki` | Notion, Confluence | ✓ | — | — | locale | — |
 | 3 | Leave | `tools/private/leave` | Lucca Absences, Factorial | ✓ | — | — | locale | — |
-| 4 | News | `tools/private/news` | Workvivo, Staffbase | ✓ | — | — | locale | — |
+| 4 | News | `tools/private/news` | Workvivo, Staffbase | ✓ | ✓ | newspaper (Fraunces + Libre Franklin, ink and red) | locale, schedules | ✓ 33 tests (PGlite + PostgreSQL), build, manifest, 9 browser flows, screens |
 | 5 | People | `tools/private/people` | BambooHR directory | ✓ | — | — | locale | — |
 | 6 | Clients | `tools/private/crm` | HubSpot, Pipedrive | ✓ | — | — | locale | — |
 | 7 | Expenses | `tools/private/expenses` | N2F, Expensify | ✓ | — | — | locale | — |
-| 8 | Support | `tools/public-and-private/helpdesk` | Zendesk, Freshdesk | ✓ | — | — | locale, email (to design) | — |
+| 8 | Support | `tools/public-and-private/helpdesk` | Zendesk, Freshdesk | ✓ | ✓ | calm counter (Atkinson Hyperlegible, teal, coral, butter notes) | locale, mail, schedules, public uploads | ✓ 13 tests (PGlite + PostgreSQL), build, manifest, 12 browser flows, screens |
 | 9 | Rooms | `tools/private/rooms` | Robin, deskbird | ✓ | — | — | locale | — |
 | 10 | Timesheets | `tools/private/timesheets` | Harvest, Toggl | ✓ | — | — | locale | — |
 | 11 | Booking | `tools/public-and-private/booking` | Calendly | ✓ | — | — | locale, email (to design) | — |

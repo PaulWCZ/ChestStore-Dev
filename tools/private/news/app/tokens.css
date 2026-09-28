@@ -1,0 +1,73 @@
+/* News — design tokens (DESIGN.md explains them). Newsprint and ink, one
+   red; light first, dark follows the system. Contrast ratios are checked in
+   DESIGN.md with scripts/contrast.mjs. */
+:root {
+  color-scheme: light dark;
+  --font-display: "Fraunces Variable", Georgia, "Times New Roman", serif;
+  --font-body: "Libre Franklin Variable", system-ui, -apple-system, "Segoe UI", sans-serif;
+
+  --bg: #f7f3ea;          /* newsprint */
+  --surface: #fffdf8;     /* a clean sheet: fields, panels */
+  --ink: #16130f;         /* text and rules — 16.7:1 on newsprint */
+  --ink-2: #5c554b;       /* bylines, dates — 6.6:1 */
+  --rule: #16130f;        /* black rules between items */
+  --hairline: #d9d0bf;    /* thin separators, field borders */
+  --accent: #c4121a;      /* press red: kickers, Important, the main action — 5.5:1 */
+  --accent-ink: #ffffff;  /* on red — 6.1:1 */
+  --accent-soft: #f6ddd5;
+  --highlight: #f2e3b8;   /* the marker pen: what asks for you */
+  --ok: #1d6b3a;          /* confirmed, coming — 5.9:1 */
+  --focus: #c4121a;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+  --space-8: 72px;
+
+  --radius-s: 2px;
+  --radius-m: 4px;
+  --radius-pill: 999px;
+  --shadow-pop: 0 10px 30px rgb(22 19 15 / 0.16);
+
+  --text-xs: 0.75rem;
+  --text-s: 0.875rem;
+  --text-m: 1rem;
+  --text-l: 1.1875rem;
+  --text-xl: 1.625rem;
+  --text-2xl: 2.25rem;
+  --text-lead: clamp(2rem, 1.2rem + 3.4vw, 3.5rem);
+  --text-plate: clamp(3rem, 1.4rem + 7vw, 6.5rem);
+
+  --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+  --fast: 120ms;
+  --slow: 240ms;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #121110;
+    --surface: #1c1a17;
+    --ink: #f3ede2;       /* 16.2:1 */
+    --ink-2: #b8ae9e;     /* 8.6:1 */
+    --rule: #f3ede2;
+    --hairline: #3a352e;
+    --accent: #ff6f61;    /* 6.9:1 */
+    --accent-ink: #16130f;/* on red — 6.8:1 */
+    --accent-soft: #3a1f1b;
+    --highlight: #3b331c;
+    --ok: #6fcf8f;
+    --focus: #ff6f61;
+    --shadow-pop: 0 10px 30px rgb(0 0 0 / 0.5);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --fast: 0ms;
+    --slow: 0ms;
+  }
+}
