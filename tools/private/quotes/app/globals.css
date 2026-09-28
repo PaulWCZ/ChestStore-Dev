@@ -195,7 +195,7 @@ select.field { appearance: none; background-image: linear-gradient(45deg, transp
 .document > .side { position: sticky; top: 88px; display: grid; gap: var(--space-4); }
 @media (max-width: 1080px) { .document { grid-template-columns: 1fr; } .document > .side { position: static; order: -1; } }
 .sheet { position: relative; background: var(--paper); box-shadow: var(--shadow-paper); border-radius: 2px; padding: 56px 56px 40px; min-height: 900px; }
-.sheet.draft-sheet::before { content: attr(data-mark); position: absolute; left: 50%; top: 380px; transform: translate(-50%, 0) rotate(-24deg); font-family: var(--font-serif); font-size: 7rem; letter-spacing: 0.1em; color: var(--accent); opacity: 0.05; pointer-events: none; white-space: nowrap; }
+.sheet.draft-sheet::before { content: attr(data-mark); position: absolute; left: 50%; top: 42%; transform: translate(-50%, 0) rotate(-24deg); font-family: var(--font-serif); font-size: 7rem; letter-spacing: 0.1em; color: var(--accent); opacity: 0.035; pointer-events: none; white-space: nowrap; }
 @media (max-width: 760px) { .sheet { padding: var(--space-5) var(--space-4); min-height: 0; } .sheet.draft-sheet::before { font-size: 3.5rem; top: 240px; } }
 .letterhead { display: flex; justify-content: space-between; gap: var(--space-5); align-items: flex-start; }
 .letterhead .seller { display: grid; gap: 2px; font-size: var(--text-s); color: var(--ink-2); }
@@ -238,37 +238,56 @@ textarea.ink { resize: vertical; line-height: 1.45; min-height: 36px; display: b
 select.ink { appearance: none; cursor: pointer; padding-right: 18px; background-image: linear-gradient(45deg, transparent 50%, var(--ink-2) 50%), linear-gradient(135deg, var(--ink-2) 50%, transparent 50%); background-position: calc(100% - 9px) 55%, calc(100% - 5px) 55%; background-size: 4px 4px; background-repeat: no-repeat; }
 input.ink[type="date"] { min-width: 150px; }
 
-/* The lines, as the paper prints them. */
+/* The lines, as the paper prints them. Reading: a table, as in the PDF.
+   Writing: the description, and under it quantity × price, discount, VAT —
+   the amount on the right, as it will print. */
 .lines { margin: var(--space-2) 0 var(--space-3); }
-.lines-head, .line { display: grid; grid-template-columns: minmax(0, 1fr) 70px 78px 104px 60px 72px 112px 36px; gap: var(--space-2); align-items: start; }
-.lines.no-vat .lines-head, .lines.no-vat .line { grid-template-columns: minmax(0, 1fr) 70px 78px 104px 60px 112px 36px; }
-.lines.read .lines-head, .lines.read .line { grid-template-columns: minmax(0, 1fr) 90px 110px 60px 72px 120px; }
-.lines.read.no-vat .lines-head, .lines.read.no-vat .line { grid-template-columns: minmax(0, 1fr) 90px 110px 60px 120px; }
-.lines-head { font-size: 0.7rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-2); padding-bottom: 6px; border-bottom: 1.5px solid var(--ink); }
+.lines-head { display: grid; gap: var(--space-2); font-size: 0.7rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-2); padding-bottom: 6px; border-bottom: 1.5px solid var(--ink); }
 .lines-head .r { text-align: right; }
-.line { padding: 8px 0; border-bottom: 1px solid var(--rule); }
+.line { display: grid; gap: var(--space-2); align-items: start; padding: 10px 0; border-bottom: 1px solid var(--rule); }
+.lines.read .lines-head, .lines.read .line { grid-template-columns: minmax(0, 1fr) 96px 100px 64px 110px; }
+.lines.read.discounted .lines-head, .lines.read.discounted .line { grid-template-columns: minmax(0, 1fr) 96px 100px 60px 64px 110px; }
+.lines.read.no-vat .lines-head, .lines.read.no-vat .line { grid-template-columns: minmax(0, 1fr) 96px 100px 110px; }
+.lines.read.no-vat.discounted .lines-head, .lines.read.no-vat.discounted .line { grid-template-columns: minmax(0, 1fr) 96px 100px 60px 110px; }
+.lines.edit .lines-head { grid-template-columns: minmax(0, 1fr) 120px 36px; }
+.lines.edit .line { grid-template-columns: minmax(0, 1fr) 120px 36px; grid-template-areas: "desc total grip" "figs total grip"; row-gap: 4px; }
+.lines.edit .line > .desc { grid-area: desc; }
+.lines.edit .line > .figures-row { grid-area: figs; }
+.lines.edit .line > .total { grid-area: total; }
+.lines.edit .line > .grip { grid-area: grip; }
 .line .total { text-align: right; font-weight: 750; font-variant-numeric: tabular-nums; padding: 7px 0 0; white-space: nowrap; }
-.line .cell { font-variant-numeric: tabular-nums; padding-top: 7px; text-align: right; white-space: nowrap; }
-.line .desc-read { padding-top: 7px; white-space: pre-wrap; }
+.line .cell { font-variant-numeric: tabular-nums; padding-top: 2px; text-align: right; white-space: nowrap; }
+.lines.read .line .total { padding-top: 2px; }
+.line .desc-read { white-space: pre-wrap; }
 .line .desc-read .first { font-weight: 550; }
+.line textarea.ink { resize: none; field-sizing: content; min-height: 36px; font-weight: 550; }
+.figures-row { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 4px var(--space-2); }
+.mini { display: grid; gap: 0; }
+.mini > span { font-size: 0.66rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-2); padding-left: 6px; }
+.mini .ink { min-height: 32px; font-size: var(--text-s); }
+.mini.qty { width: 64px; }
+.mini.unit { width: 92px; }
+.mini.price { width: 112px; }
+.mini.disc { width: 64px; }
+.mini.vat { width: 84px; }
+.figures-row .times { color: var(--ink-2); padding-bottom: 7px; }
 .line .grip { display: flex; flex-direction: column; align-items: center; }
 .line .grip .icon-button { width: 36px; height: 36px; }
-.line.section { grid-template-columns: minmax(0, 1fr) 36px; padding-top: var(--space-4); }
+.line.section, .lines.edit .line.section { grid-template-columns: minmax(0, 1fr) 36px; grid-template-areas: none; padding-top: var(--space-4); }
 .lines.read .line.section { grid-template-columns: 1fr; }
 .line.section .ink, .line.section .desc-read { font-family: var(--font-serif); font-weight: 700; font-size: 1.1rem; }
 .line .phone-label { display: none; }
-.lines-foot { border-top: 1.5px solid var(--ink); }
 .add-lines { display: flex; gap: var(--space-2); flex-wrap: wrap; margin: var(--space-3) 0 var(--space-5); }
 @media (max-width: 760px) {
   .lines-head { display: none; }
-  .line, .lines.no-vat .line, .lines.read .line, .lines.read.no-vat .line { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px var(--space-2); padding: var(--space-3) 0; }
-  .line > .desc { grid-column: 1 / -1; }
-  .line > .grip { grid-column: 1 / -1; flex-direction: row; justify-content: flex-end; order: 10; }
-  .line > .total { grid-column: 1 / -1; order: 9; border-top: 1px dotted var(--rule); padding-top: 6px; }
-  .line .phone-label { display: block; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-2); }
-  .line .cell { text-align: left; padding-top: 0; }
-  .line.section { grid-template-columns: minmax(0, 1fr) auto; }
-  .line.section > .grip { grid-column: auto; order: 0; }
+  .lines.read .line, .lines.read.discounted .line, .lines.read.no-vat .line, .lines.read.no-vat.discounted .line { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px var(--space-2); padding: var(--space-3) 0; }
+  .lines.read .line > .desc { grid-column: 1 / -1; }
+  .lines.read .line > .total { grid-column: 1 / -1; border-top: 1px dotted var(--rule); padding-top: 6px; }
+  .line .phone-label { display: block; font-size: 0.66rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-2); }
+  .line .cell { text-align: left; }
+  .lines.edit .line { grid-template-columns: minmax(0, 1fr) 36px; grid-template-areas: "desc grip" "figs figs" "total total"; }
+  .lines.edit .line > .total { border-top: 1px dotted var(--rule); padding-top: 6px; }
+  .mini.price { width: 104px; }
 }
 
 /* Totals, right; the legal words, left. */

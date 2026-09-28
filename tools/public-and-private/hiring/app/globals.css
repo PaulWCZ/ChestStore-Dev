@@ -197,7 +197,7 @@ fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
   .apply-card { display: none; }
   .apply-bar { display: block; position: sticky; bottom: 0; margin: 0 calc(-1 * var(--space-4)); padding: var(--space-3) var(--space-4); background: linear-gradient(to top, var(--paper) 70%, transparent); }
   .apply-bar .button { width: 100%; }
-  .hero-actions .button { width: 100%; }
+  .hero-actions { display: none; }
 }
 
 .apply-head { display: grid; gap: var(--space-3); padding: var(--space-5) 0 var(--space-6); }

@@ -72,7 +72,7 @@ export function Paper(props: PaperProps) {
     clientId: doc.clientId, title: doc.title, language: doc.language, deliveryDate: doc.deliveryDate ?? "", validUntil: doc.validUntil ?? "",
     paymentDays: String(doc.paymentDays), vatTreatment: doc.vatTreatment, notes: doc.notes,
   });
-  const [lines, setLines] = useState<EditLine[]>(() => doc.lines.map(l => editLine(l, doc.currency, locale)));
+  const [lines, setLines] = useState<EditLine[]>(() => doc.lines.map(l => editLine(l, doc.currency, doc.language)));
   const [clients, setClients] = useState(props.clients);
   const [picking, setPicking] = useState<"client" | "item" | null>(null);
   const latest = useRef({ header, lines });
@@ -88,6 +88,7 @@ export function Paper(props: PaperProps) {
   const invalid = parsed.some(p => p.quantity === null || p.unitPrice === null || p.discount === null) || (doc.type === "invoice" && !/^\d{1,3}$/u.test(header.paymentDays.trim())) || (doc.type === "quote" && editing && header.validUntil === "");
   const sums = useMemo(() => totals(lines.map((l, i) => ({ kind: l.kind, quantity: parsed[i]!.quantity ?? 0, unitPrice: parsed[i]!.unitPrice ?? 0, discount: parsed[i]!.discount ?? 0, vatRate: l.vatRate })), { noVat }), [lines, parsed, noVat]);
   const money = (minor: number) => formatMoney(minor, doc.currency, header.language);
+  const anyDiscount = parsed.some((p, i) => lines[i]!.kind === "line" && (p.discount ?? 0) !== 0);
   const figure = (minor: number) => formatNumber(minor, doc.currency, header.language);
   const { onTotals, onState } = props;
   useEffect(() => onTotals(sums.gross), [sums.gross, onTotals]);
@@ -182,7 +183,7 @@ export function Paper(props: PaperProps) {
           <div className="desc desc-read">{readOnlyDescription(l.description)}</div>
           <div className="cell"><span className="phone-label">{w.quantity}</span>{formatQuantity(p.quantity ?? 0, header.language)}{l.unit ? " " + l.unit : ""}</div>
           <div className="cell"><span className="phone-label">{w.unitPrice}</span>{figure(p.unitPrice ?? 0)}</div>
-          <div className="cell"><span className="phone-label">{w.discount}</span>{(p.discount ?? 0) > 0 ? "−" + formatRate(p.discount ?? 0, header.language) : ""}</div>
+          {anyDiscount && <div className="cell"><span className="phone-label">{w.discount}</span>{(p.discount ?? 0) !== 0 ? "−" + formatRate(p.discount ?? 0, header.language) : ""}</div>}
           {!noVat && <div className="cell"><span className="phone-label">{w.vat}</span>{formatRate(l.vatRate, header.language)}</div>}
           <div className="total">{figure(net ?? 0)}</div>
         </>
@@ -195,35 +196,34 @@ export function Paper(props: PaperProps) {
           <textarea id={`desc-${l.key}`} className="ink" rows={Math.max(1, l.description.split("\n").length)} value={l.description} placeholder={e.descriptionPlaceholder}
             onChange={ev => setLine(l.key, { description: ev.target.value })} maxLength={2000} />
         </div>
-        <div>
-          <label className="phone-label" htmlFor={`qty-${l.key}`}>{w.quantity}</label>
-          <input id={`qty-${l.key}`} className="ink num" inputMode="decimal" value={l.quantity} aria-invalid={p.quantity === null ? true : undefined}
-            aria-label={format(e.quantity, { n: i + 1 })} onChange={ev => setLine(l.key, { quantity: ev.target.value })} />
+        <div className="figures-row">
+          <label className="mini qty">
+            <span>{w.quantity}</span>
+            <input className="ink num" inputMode="decimal" value={l.quantity} aria-invalid={p.quantity === null ? true : undefined} aria-label={format(e.quantity, { n: i + 1 })} onChange={ev => setLine(l.key, { quantity: ev.target.value })} />
+          </label>
+          <label className="mini unit">
+            <span>{e.unit}</span>
+            <input className="ink" list="units" value={l.unit} maxLength={20} placeholder={e.unitPlaceholder} aria-label={format(e.unitOf, { n: i + 1 })} onChange={ev => setLine(l.key, { unit: ev.target.value })} />
+          </label>
+          <span className="times" aria-hidden="true">×</span>
+          <label className="mini price">
+            <span>{w.unitPrice}</span>
+            <input className="ink num" inputMode="decimal" value={l.unitPrice} placeholder="0" aria-invalid={p.unitPrice === null ? true : undefined} aria-label={format(e.unitPrice, { n: i + 1 })} onChange={ev => setLine(l.key, { unitPrice: ev.target.value })} />
+          </label>
+          <label className="mini disc">
+            <span>{w.discount}</span>
+            <input className="ink num" inputMode="decimal" value={l.discount} placeholder="%" aria-invalid={p.discount === null ? true : undefined} aria-label={format(e.discount, { n: i + 1 })} onChange={ev => setLine(l.key, { discount: ev.target.value })} />
+          </label>
+          {!noVat && (
+            <label className="mini vat">
+              <span>{w.vat}</span>
+              <select className="ink num" value={l.vatRate} aria-label={format(e.vatRate, { n: i + 1 })} onChange={ev => setLine(l.key, { vatRate: Number(ev.target.value) })}>
+                {vatRates.map(r => <option key={r} value={r}>{formatRate(r, lang)}</option>)}
+              </select>
+            </label>
+          )}
         </div>
-        <div>
-          <label className="phone-label" htmlFor={`unit-${l.key}`}>{e.unit}</label>
-          <input id={`unit-${l.key}`} className="ink" list="units" value={l.unit} maxLength={20} placeholder={e.unitPlaceholder} aria-label={format(e.unitOf, { n: i + 1 })}
-            onChange={ev => setLine(l.key, { unit: ev.target.value })} />
-        </div>
-        <div>
-          <label className="phone-label" htmlFor={`price-${l.key}`}>{w.unitPrice}</label>
-          <input id={`price-${l.key}`} className="ink num" inputMode="decimal" value={l.unitPrice} placeholder="0" aria-invalid={p.unitPrice === null ? true : undefined}
-            aria-label={format(e.unitPrice, { n: i + 1 })} onChange={ev => setLine(l.key, { unitPrice: ev.target.value })} />
-        </div>
-        <div>
-          <label className="phone-label" htmlFor={`disc-${l.key}`}>{w.discount}</label>
-          <input id={`disc-${l.key}`} className="ink num" inputMode="decimal" value={l.discount} placeholder="—" aria-invalid={p.discount === null ? true : undefined}
-            aria-label={format(e.discount, { n: i + 1 })} onChange={ev => setLine(l.key, { discount: ev.target.value })} />
-        </div>
-        {!noVat && (
-          <div>
-            <label className="phone-label" htmlFor={`vat-${l.key}`}>{w.vat}</label>
-            <select id={`vat-${l.key}`} className="ink num" value={l.vatRate} aria-label={format(e.vatRate, { n: i + 1 })} onChange={ev => setLine(l.key, { vatRate: Number(ev.target.value) })}>
-              {vatRates.map(r => <option key={r} value={r}>{formatRate(r, locale)}</option>)}
-            </select>
-          </div>
-        )}
-        <div className="total" aria-live="off" suppressHydrationWarning>{net === null ? "—" : figure(net)}</div>
+        <div className="total" suppressHydrationWarning>{net === null ? "—" : figure(net)}</div>
       </>
     );
   };
@@ -347,14 +347,13 @@ export function Paper(props: PaperProps) {
         ) : header.title ? <span>{format(w.subject, { title: header.title })}</span> : null}
       </div>
 
-      <div className={`lines${noVat ? " no-vat" : ""}${editing ? "" : " read"}`}>
+      <div className={`lines${noVat ? " no-vat" : ""}${editing ? " edit" : " read"}${anyDiscount ? " discounted" : ""}`}>
         <div className="lines-head" aria-hidden="true">
           <span>{w.description}</span>
-          <span className="r">{w.quantity}</span>
-          {editing && <span>{e.unit}</span>}
-          <span className="r">{w.unitPrice}</span>
-          <span className="r">{w.discount}</span>
-          {!noVat && <span className="r">{w.vat}</span>}
+          {!editing && <span className="r">{w.quantity}</span>}
+          {!editing && <span className="r">{w.unitPrice}</span>}
+          {!editing && anyDiscount && <span className="r">{w.discount}</span>}
+          {!editing && !noVat && <span className="r">{w.vat}</span>}
           <span className="r">{w.amount}</span>
           {editing && <span />}
         </div>
@@ -439,7 +438,7 @@ export function Paper(props: PaperProps) {
       {picking === "item" && (
         <ItemPicker t={t} items={props.items} currency={doc.currency} locale={locale} onClose={() => setPicking(null)}
           onPick={item => {
-            addLine({ itemId: item.id, description: item.description ? `${item.name}\n${item.description}` : item.name, unit: item.unit, unitPrice: inputAmount(item.unitPrice, doc.currency, locale), vatRate: doc.franchise ? 0 : item.vatRate, goods: item.goods });
+            addLine({ itemId: item.id, description: item.description ? `${item.name}\n${item.description}` : item.name, unit: item.unit, unitPrice: inputAmount(item.unitPrice, doc.currency, header.language), vatRate: doc.franchise ? 0 : item.vatRate, goods: item.goods });
             focusNext.current = null;
             setPicking(null);
             toast(format(t.editor.itemAdded, { name: item.name }));
