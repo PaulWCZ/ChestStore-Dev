@@ -5,12 +5,42 @@ meaningful step (brief/07-plan.md).
 
 ## Now
 
-Step 3 done: all 17 tools built and verified by the lead. Step 4: the SDK
-report is consolidated and kept current. Step 5 under way — the suite has
-three links built (Leave → Rooms, Hiring → People, Clients → Quotes) and
-Status uses the `checks` proposal (SDK studio.10); all verified by the lead. Next: deepen tools
-(owner-facing polish, remaining "not yet" items), next suite links
-(People → Equipment, Leave → News), keep the report and PR current.
+Step 3 done (17 tools verified). Step 4: the SDK report is kept current. Step 5 under way.
+
+**Owner's requests (2026-09-28), to honour from now on:**
+1. When the current round is done: a **very severe, constructive critique**
+   of every tool, as if in employees' hands. Is the UI/UX simple and
+   perfect? Can we honestly tell a company "cancel those subscriptions,
+   nothing will be missing compared with the competition"? Tools must be
+   **complete**. Output: `reports/05-critique.md`, then fix what it finds.
+2. **Themes**: same features, different looks. Each company can pick a
+   theme for its tools, keep each tool's identity, or **import its brand
+   guidelines** (colours, fonts, logo). The 17 identities become the theme
+   catalogue.
+3. **A reusable UI kit** (`ui/`, `@argentic/chest-ui`, vendored per tool
+   like the SDK). It avoids rebuilding everything each time and is handed
+   to the agent that builds custom tools.
+4. Always compare new work with earlier work, and bring the best of each
+   into the kit.
+
+**Round in progress (builders, lead verifies and commits each):**
+- Tasks: reminders and recurring cards.
+- Support: tags, priority, attachments, waiting time.
+- Wiki: comments, watching, templates, review reminders.
+- Leave → People (away badge) and People → Equipment (departures).
+- Booking: host's questions and limits.
+- News: audience, search, weekly digest.
+- The UI kit and theme foundation: `ui/`, token contract, 19 themes,
+  `deriveTheme` and `importBrand`, SDK `theme` proposal (studio.11), harness
+  theme switcher, gallery, pilot on `lab/template`,
+  `reports/04-themes-and-kit.md`.
+
+**Next:**
+1. The severe critique of all 17 tools (hands-on, against the competitors'
+   feature lists in `reports/02-open-source/`).
+2. The kit's components, extracted from the best of the 17 tools.
+3. Migrate every tool to the kit and themes (screens in several themes).
+4. Fix the critique's findings.
 
 ## Environment
 
@@ -34,7 +64,7 @@ Checked 2026-09-28 in the cloud container:
 | 2. Foundations | done — `lab/template` (tested, built, run, screenshots), `lab/chest-dev` (dev.mjs, screens.mjs), `scripts/check-manifest.mjs`, `new-tool.mjs`, `add-font.mjs`, `contrast.mjs`, `build-showcase.mjs` |
 | 3. Tools | done — 17 of 17 verified |
 | 4. The report | consolidated; kept current |
-| 5. Better | suite links, SDK checks, audits — under way |
+| 5. Better | suite links, SDK checks, audits, deepening; UI kit and themes; severe critique — under way |
 
 ## Tools
 
