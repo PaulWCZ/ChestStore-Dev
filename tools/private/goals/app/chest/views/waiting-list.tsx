@@ -3,10 +3,10 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import { Contours } from "../../../components/contours.tsx";
+import { useToast } from "@argentic/chest-ui/components";
 import { Check } from "../../../components/icons.tsx";
+import { MapEmpty } from "../../../components/map-empty.tsx";
 import { Progress } from "../../../components/progress.tsx";
-import { useToast } from "../../../components/toast.tsx";
 import { format } from "../../../lib/i18n/format.ts";
 import type { Catalogue } from "../../../lib/i18n/index.ts";
 import { undoCheckIn } from "../actions.ts";
@@ -26,27 +26,25 @@ export function WaitingList({ items, t }: { items: WaitingItem[]; t: Words }) {
 
   function done(item: WaitingItem, checkInId: string) {
     setGone(g => [...g, item.id]);
-    toast(t.checkIn.done, {
-      label: t.checkIn.undo,
-      run: () => start(async () => {
+    // One toast per check-in; its Undo says whether it worked (too late:
+    // why not).
+    toast({
+      id: `check-in-${item.id}`,
+      text: t.checkIn.done,
+      undo: async () => {
         const back = await undoCheckIn(checkInId);
-        if (!back.ok) return toast(format(t.errors[back.error], back.values ?? {}));
+        if (!back.ok) return format(t.errors[back.error], back.values ?? {});
         setGone(g => g.filter(x => x !== item.id));
-        toast(t.checkIn.undone);
-        router.refresh();
-      }),
+        start(() => router.refresh());
+        return true;
+      },
     });
     router.refresh();
   }
 
   if (shown.length === 0) {
     return (
-      <div className="empty">
-        <Contours variant="small" />
-        <Check />
-        <h2>{t.home.allDone}</h2>
-        <p>{t.home.allDoneBody}</p>
-      </div>
+      <MapEmpty icon={<Check />} title={t.home.allDone} body={t.home.allDoneBody} />
     );
   }
   return (

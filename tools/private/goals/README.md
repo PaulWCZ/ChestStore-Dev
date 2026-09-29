@@ -72,8 +72,10 @@ Weekdone, 15Five OKRs — or the OKR spreadsheet** — for a company of 10 to
   see it; nobody else finds it anywhere (the tree, the team page, the
   review, the export, what an objective may support, comments). Those
   chosen hear of it in the bell.
-- **Nothing is lost by a click**: objectives, key results, comments and
-  teams are removed with *Undo*; a closed cycle reopens.
+- **Nothing is lost by a click**: objectives, key results and comments are
+  deleted with *Undo*, teams archived with *Undo*; a closed cycle reopens.
+  Only an empty cycle is deleted for good, and the page asks first. A
+  dialog with something typed in it asks before closing.
 
 ### Teams: the Chest's groups first
 
@@ -97,6 +99,20 @@ reviews and is never tied to reviews or pay.** When an admin turns personal
 objectives on, the setting says so; a personal objective is visible to
 everyone unless its owner chooses who sees it (for example only their
 manager).
+
+## Looks
+
+Goals wears its own identity, **Trail map** (sand paper, forest ink, a
+sunrise orange for progress; `DESIGN.md`), unless the company chooses
+otherwise in its Chest: **any theme of the store's catalogue** (the other
+tools' identities, "Chest", "High contrast") or **its own brand** (its
+colours, fonts, corners and logo, which then stands where Goals' mark is)
+— for all its tools, or for Goals alone. Every feature is the same in
+every look, light and dark, and every text stays readable (WCAG AA: the
+kit checks each theme). The look is the store's UI kit
+(`@argentic/chest-ui`, vendored in `vendor/`), and so are the shell, the
+toasts, dialogs, people pickers, date fields, filters and file picker —
+the same in every store tool.
 
 ## Roles
 
@@ -128,7 +144,7 @@ owner, the admins and the tool's builders come in with the first role.
   confidence did not change (the value, *Check in*); opening the company's
   tree is 1.
 - **A mistake:** a wrong check-in → *Undo* in the toast (or in its history
-  for 30 minutes); a removed objective → *Undo*; a cycle closed too early →
+  for 30 minutes); a deleted objective → *Undo*; a cycle closed too early →
   *Undo* or *Reopen*. A refused action says why, in plain words, and keeps
   what was typed.
 
@@ -194,6 +210,8 @@ owner, the admins and the tool's builders come in with the first role.
   Without it, nothing fails: the bell still says it.
 - **Events between tools** — **Proposal (studio)**: `crm.deal.won` and
   `crm.deal.reopened` from Clients feed key results.
+- `chest.theme()` — **Proposal (studio)**: the company's look (a catalogue
+  theme or its brand); outside a Chest that has it, Goals wears its own.
 - **Not in the SDK, needed** (see the final report / SDK report):
   - **A manager relation** (`member.manager` or `members.reportsTo(id)`):
     "visible to the owner's manager chain" and "remind my team" need it; today

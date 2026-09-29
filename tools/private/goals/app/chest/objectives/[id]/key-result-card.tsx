@@ -1,17 +1,17 @@
 "use client";
 
+import { DataTable, Menu, useToast } from "@argentic/chest-ui/components";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { Chart, type ChartPoint } from "../../../../components/chart.tsx";
-import { Check, Clock, Dots, Pencil, Trash } from "../../../../components/icons.tsx";
+import { Check, Clock, Pencil, Shape, Trash } from "../../../../components/icons.tsx";
 import { PersonLine } from "../../../../components/person.tsx";
 import { Confidence, Progress } from "../../../../components/progress.tsx";
-import { Shape } from "../../../../components/icons.tsx";
-import { useToast } from "../../../../components/toast.tsx";
 import { format, plural } from "../../../../lib/i18n/format.ts";
 import type { KeyResultView } from "../../../../lib/views.ts";
 import { archiveKeyResult, undoCheckIn } from "../../actions.ts";
 import { CheckInForm } from "../../views/check-in-form.tsx";
+import type { Owner } from "../../views/key-result-fields.tsx";
 import { EditKeyResult, type KrWords } from "./key-result-dialog.tsx";
 
 export type ChangeEntry = { id: string; text: string; when: string; date: string };
@@ -21,7 +21,7 @@ type ChartProps = { points: ChartPoint[]; start: number; target: number; from: n
 // A key result on its objective's page: its numbers, a chart of its
 // check-ins (and the same as a table), the latest notes, and — for its
 // owner — the check-in form.
-export function KeyResultCard({ kr, history, changes, chart, openCheckIn, owners, locale, me, t }: { kr: KeyResultView; me: string; history: HistoryEntry[]; changes: ChangeEntry[]; chart: ChartProps; openCheckIn: boolean; owners: { id: string; name: string }[]; locale: string; t: KrWords }) {
+export function KeyResultCard({ kr, history, changes, chart, openCheckIn, owners, locale, me, t }: { kr: KeyResultView; me: string; history: HistoryEntry[]; changes: ChangeEntry[]; chart: ChartProps; openCheckIn: boolean; owners: Owner[]; locale: string; t: KrWords }) {
   const [checking, setChecking] = useState(openCheckIn && kr.canCheckIn);
   const [editing, setEditing] = useState(false);
   const [, start] = useTransition();
@@ -34,20 +34,37 @@ export function KeyResultCard({ kr, history, changes, chart, openCheckIn, owners
   const latest = [...history].reverse().slice(0, 4);
   const words = (code: keyof typeof t.errors, values: Record<string, string | number> = {}) => format(t.errors[code], values);
 
+  // Deleting goes to the archive first: Undo from the toast brings it back.
   function removeIt() {
     start(async () => {
       const r = await archiveKeyResult(kr.id, true);
-      if (!r.ok) return toast(words(r.error, r.values));
-      toast(t.objective.keyResultRemoved, { label: t.checkIn.undo, run: () => start(async () => { const b = await archiveKeyResult(kr.id, false); if (!b.ok) toast(words(b.error, b.values)); router.refresh(); }) });
+      if (!r.ok) return void toast({ text: words(r.error, r.values), tone: "error" });
+      toast({
+        id: `key-result-${kr.id}`,
+        text: t.objective.keyResultRemoved,
+        undo: async () => {
+          const b = await archiveKeyResult(kr.id, false);
+          if (!b.ok) return words(b.error, b.values);
+          router.refresh();
+          return true;
+        },
+      });
       router.refresh();
     });
   }
 
+  // Taking a check-in back: from the toast (its Undo), or from the history
+  // for a few minutes (the page's own "Undo" link).
+  async function undoIt(id: string): Promise<true | string> {
+    const r = await undoCheckIn(id);
+    router.refresh();
+    return r.ok ? true : words(r.error, r.values);
+  }
+
   function takeBack(id: string) {
     start(async () => {
-      const r = await undoCheckIn(id);
-      toast(r.ok ? t.checkIn.undone : words(r.error, r.values));
-      router.refresh();
+      const r = await undoIt(id);
+      toast(r === true ? { id: `check-in-${kr.id}`, text: t.checkIn.undone } : { text: r, tone: "error" });
     });
   }
 
@@ -56,17 +73,17 @@ export function KeyResultCard({ kr, history, changes, chart, openCheckIn, owners
       <div className="kr-card-head">
         <h3 id={`krt-${kr.id}`}>{kr.title}</h3>
         {kr.canEdit && (
-          <details className="menu">
-            <summary className="icon-button" aria-label={format(t.objective.keyResultMenu, { title: kr.title })}><Dots /></summary>
-            <div className="menu-list">
-              <button type="button" onClick={e => { (e.currentTarget.closest("details") as HTMLDetailsElement).open = false; setEditing(true); }}><Pencil />{t.objective.editKeyResult}</button>
-              <button type="button" className="danger" onClick={e => { (e.currentTarget.closest("details") as HTMLDetailsElement).open = false; removeIt(); }}><Trash />{t.objective.removeKeyResult}</button>
-            </div>
-          </details>
+          <Menu
+            label={format(t.objective.keyResultMenu, { title: kr.title })}
+            items={[
+              { label: t.objective.editKeyResult, icon: <Pencil />, onSelect: () => setEditing(true) },
+              { label: t.objective.removeKeyResult, icon: <Trash />, tone: "danger", onSelect: removeIt },
+            ]}
+          />
         )}
       </div>
       <div className="meta">
-        <PersonLine person={kr.owner} size={22} />
+        <PersonLine person={kr.owner} />
         {kr.owner.gone && <span className="tag gone">{t.objective.ownerLeft}</span>}
         <Confidence value={kr.confidence} words={t.confidence} />
         {kr.stale && <span className="tag stale"><Clock />{t.progress.stale}</span>}
@@ -96,7 +113,7 @@ export function KeyResultCard({ kr, history, changes, chart, openCheckIn, owners
           onCancel={() => setChecking(false)}
           onDone={d => {
             setChecking(false);
-            toast(t.checkIn.done, { label: t.checkIn.undo, run: () => takeBack(d.checkInId) });
+            toast({ id: `check-in-${kr.id}`, text: t.checkIn.done, undo: () => undoIt(d.checkInId) });
             router.refresh();
           }}
         />
@@ -124,14 +141,20 @@ export function KeyResultCard({ kr, history, changes, chart, openCheckIn, owners
       {history.length > 0 && (
         <details className="table-alt">
           <summary>{t.objective.showTable}</summary>
-          <div className="table-scroll">
-            <table className="data-table">
-              <thead><tr><th scope="col">{t.objective.table.date}</th><th scope="col">{t.objective.table.value}</th><th scope="col">{t.objective.table.confidence}</th><th scope="col">{t.objective.table.note}</th><th scope="col">{t.objective.table.by}</th></tr></thead>
-              <tbody>
-                {history.map(h => <tr key={h.id}><td>{h.date}</td><td>{h.value}</td><td>{t.confidence[h.confidence]}</td><td>{h.note}</td><td>{h.by}</td></tr>)}
-              </tbody>
-            </table>
-          </div>
+          <DataTable
+            caption={format(t.objective.tableCaption, { title: kr.title })}
+            rows={history}
+            rowKey={h => h.id}
+            rowName={h => h.date}
+            columns={[
+              { key: "date", label: t.objective.table.date, render: h => h.date, rowHeader: true },
+              { key: "value", label: t.objective.table.value, render: h => h.value },
+              { key: "confidence", label: t.objective.table.confidence, render: h => t.confidence[h.confidence] },
+              { key: "note", label: t.objective.table.note, render: h => h.note },
+              { key: "by", label: t.objective.table.by, render: h => h.by },
+            ]}
+            labels={t.tables}
+          />
         </details>
       )}
       {editing && <EditKeyResult kr={kr} owners={owners} locale={locale} t={t} onClose={() => setEditing(false)} />}

@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { AutoRefresh } from "../../components/auto-refresh.tsx";
-import { Contours } from "../../components/contours.tsx";
 import { CycleChip } from "../../components/cycle-chip.tsx";
 import { Alert, Mountain, Plus } from "../../components/icons.tsx";
+import { MapEmpty } from "../../components/map-empty.tsx";
 import { ObjectiveCard } from "../../components/objective-card.tsx";
 import { can } from "../../lib/access.ts";
 import { db } from "../../lib/db.ts";
@@ -37,22 +37,21 @@ export default async function MyGoals() {
     return (
       <div className="narrow">
         <div className="head"><div className="titles"><h1>{t.home.title}</h1></div></div>
-        <div className="empty">
-          <Contours variant="small" />
-          <span className="summit"><Mountain /></span>
-          <h2>{t.home.noCycle}</h2>
-          <p>{can(member, "cycles.manage") ? t.home.noCycleBody : t.home.noCycleMember}</p>
-          {can(member, "cycles.manage") && (() => {
+        <MapEmpty
+          icon={<Mountain />}
+          title={t.home.noCycle}
+          body={can(member, "cycles.manage") ? t.home.noCycleBody : t.home.noCycleMember}
+          action={can(member, "cycles.manage") ? (() => {
             const choices = firstCycleChoices(clock.today);
             const label = (s: Suggestion, words: string) => format(words, { name: quarterName(t, s.quarter), dates: format(t.cycle.dates, { start: formatDay(s.quarter.startsOn, locale, { day: "numeric", month: "short" }), end: formatDay(s.quarter.endsOn, locale, { day: "numeric", month: "short" }) }), left: plural(t.cycle.daysLeft, daysBetween(clock.today, s.quarter.endsOn), locale) });
             return (
-              <>
+              <div className="stack-s start-cycle">
                 {choices.other && <p className="hint">{format(t.home.lateInQuarter, { name: quarterName(t, choices.other.quarter), left: plural(t.cycle.daysLeft, daysBetween(clock.today, choices.other.quarter.endsOn), locale) })}</p>}
                 <StartCycle main={{ which: choices.main.which, label: label(choices.main, t.home.startCycle) }} other={choices.other ? { which: choices.other.which, label: label(choices.other, t.home.startCurrent) } : null} errors={t.errors} />
-              </>
+              </div>
             );
-          })()}
-        </div>
+          })() : null}
+        />
       </div>
     );
   }
@@ -106,27 +105,22 @@ export default async function MyGoals() {
         {ownsAnyKr || waiting.length > 0 ? (
           <WaitingList items={waiting} t={{ checkIn: t.checkIn, confidence: t.confidence, confidenceHelp: t.confidenceHelp, errors: t.errors, home: t.home, objective: t.objective, progress: t.progress }} />
         ) : (
-          <div className="empty">
-            <Contours variant="small" />
-            <h2>{t.home.nothingToCheck}</h2>
-            <p>{t.home.nothingToCheckBody}</p>
-          </div>
+          <MapEmpty title={t.home.nothingToCheck} body={t.home.nothingToCheckBody} />
         )}
       </section>
 
       <section className="section" aria-labelledby="owned">
         <div className="section-title"><h2 id="owned">{t.home.owned}</h2></div>
         {mineFirst.length === 0 ? (
-          <div className="empty">
-            <Contours variant="small" />
-            <span className="summit"><Mountain /></span>
-            <h2>{t.home.ownedEmpty}</h2>
-            <p>{t.home.ownedEmptyBody}</p>
-            <div className="row">
+          <MapEmpty
+            icon={<Mountain />}
+            title={t.home.ownedEmpty}
+            body={t.home.ownedEmptyBody}
+            action={<>
               {current && !current.closed && <Link className="button" href={`/chest/objectives/new?cycle=${current.id}`}><Plus />{t.home.newObjective}</Link>}
               <Link className="button quiet" href="/chest/company">{t.home.seeCompany}</Link>
-            </div>
-          </div>
+            </>}
+          />
         ) : (
           <div className="cards">
             {mineFirst.map(o => <ObjectiveCard key={o.id} o={o} mine={member.id} t={{ progress: t.progress, confidence: t.confidence, objective: t.objective, checkIn: t.checkIn, levels: t.levels }} />)}

@@ -41,5 +41,7 @@ The test files `test/fixtures/lattice-goals.csv` (built from the Lattice
 columns above) and `test/fixtures/goals-export-fr.csv` (Goals' own French
 export) are ours.
 
-Dependencies (`next`, `react`, `postgres`, `@argentic/chest-sdk`) are
-installed from npm under their own licences.
+Dependencies (`next`, `react`, `postgres`) are installed from npm under
+their own licences. `@argentic/chest-sdk` and `@argentic/chest-ui` (the
+store's UI kit: themes and components) are Argentic's own, MIT, vendored
+in `vendor/`.

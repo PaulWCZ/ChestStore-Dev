@@ -1,9 +1,11 @@
+import type { FilterGroup } from "@argentic/chest-ui/components";
+import { paramValues } from "@argentic/chest-ui/components/logic";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AutoRefresh } from "../../../components/auto-refresh.tsx";
-import { Contours } from "../../../components/contours.tsx";
 import { CycleChip } from "../../../components/cycle-chip.tsx";
 import { Download, Mountain, Plus, Shape, Upload } from "../../../components/icons.tsx";
+import { MapEmpty } from "../../../components/map-empty.tsx";
 import { Progress } from "../../../components/progress.tsx";
 import { can, readerOf } from "../../../lib/access.ts";
 import { db } from "../../../lib/db.ts";
@@ -16,8 +18,8 @@ import { viewer } from "../../../lib/session.ts";
 import { idsOf, objectiveView, pctText, personView, type ObjectiveView } from "../../../lib/views.ts";
 import { AddExample } from "../views/add-example.tsx";
 import { ChaseList, type ChasePerson } from "../views/chase-list.tsx";
-import { CompanyFilters, type Filters } from "../views/company-filters.tsx";
-import { CyclePicker } from "../views/cycle-picker.tsx";
+import { cycleGroup } from "../views/cycle-group.ts";
+import { LinkFilters, OwnerFilter } from "../views/company-filters.tsx";
 import { Tree, type TreeNode } from "../views/tree.tsx";
 
 // The company's goals as a trail map: each company objective, and beneath
@@ -37,7 +39,7 @@ export default async function Company({ searchParams }: { searchParams: Promise<
     return (
       <div className="page">
         <div className="head"><div className="titles"><h1>{t.company.title}</h1></div></div>
-        <div className="empty"><Contours variant="small" /><h2>{t.home.noCycle}</h2><p>{can(member, "cycles.manage") ? t.home.noCycleBody : t.home.noCycleMember}</p>{can(member, "cycles.manage") && <Link className="button" href="/chest/cycles">{t.cycles.new}</Link>}</div>
+        <MapEmpty title={t.home.noCycle} body={can(member, "cycles.manage") ? t.home.noCycleBody : t.home.noCycleMember} action={can(member, "cycles.manage") ? <Link className="button" href="/chest/cycles">{t.cycles.new}</Link> : null} />
       </div>
     );
   }
@@ -57,23 +59,35 @@ export default async function Company({ searchParams }: { searchParams: Promise<
   const stale = views.filter(o => o.stale).length;
   const cw = cycleWords(cycle, ctx.clock.today, t, locale);
   const open = !cycle.closed;
-  // Filters, in the address: how it goes, a team, an owner.
-  const filters: Filters = {
-    cycle: cycle.id,
-    status: q.status === "at_risk" || q.status === "off_track" || q.status === "quiet" ? q.status : "",
+  // Filters, in the address: how it goes (one or several), a team, an
+  // owner. Unknown values are ignored.
+  const statuses = ["at_risk", "off_track", "quiet"] as const;
+  type Status = (typeof statuses)[number];
+  const filters = {
+    status: paramValues({ status: q.status }, "status").filter((x): x is Status => (statuses as readonly string[]).includes(x)),
     team: q.team && ctx.teams.has(q.team) ? q.team : "",
     owner: q.owner && /^mbr_[a-z2-7]{26}$/u.test(q.owner) ? q.owner : "",
   };
-  const filtering = filters.status !== "" || filters.team !== "" || filters.owner !== "";
-  const matches = (o: ObjectiveView, ignoreStatus = false) =>
-    (ignoreStatus || filters.status === "" || (filters.status === "quiet" ? o.stale : o.confidence === filters.status))
-    && (filters.team === "" || o.teamId === filters.team)
-    && (filters.owner === "" || o.owner.id === filters.owner || o.keyResults.some(k => k.owner.id === filters.owner));
-  const narrowed = views.filter(o => matches(o, true));
-  const counts = { all: narrowed.length, at_risk: narrowed.filter(o => o.confidence === "at_risk").length, off_track: narrowed.filter(o => o.confidence === "off_track").length, quiet: narrowed.filter(o => o.stale).length };
+  const filtering = filters.status.length > 0 || filters.team !== "" || filters.owner !== "";
+  const isStatus = (o: ObjectiveView, st: Status) => (st === "quiet" ? o.stale : o.confidence === st);
+  const byOwner = (o: ObjectiveView) => filters.owner === "" || o.owner.id === filters.owner || o.keyResults.some(k => k.owner.id === filters.owner);
+  const matches = (o: ObjectiveView, ignore: "status" | "team" | null = null) =>
+    (ignore === "status" || filters.status.length === 0 || filters.status.some(st => isStatus(o, st)))
+    && (ignore === "team" || filters.team === "" || o.teamId === filters.team)
+    && byOwner(o);
+  const counts = Object.fromEntries(statuses.map(st => [st, views.filter(o => matches(o, "status") && isStatus(o, st)).length])) as Record<Status, number>;
   const found = views.filter(o => matches(o));
-  const teamChoices = [...new Set(views.map(o => o.teamId).filter((x): x is string => x !== null))].map(id => ({ id, name: ctx.teams.get(id) ?? "" })).sort((a, b) => a.name.localeCompare(b.name));
-  const ownerChoices = [...new Map(views.flatMap(o => [o.owner, ...o.keyResults.map(k => k.owner)]).filter(p => p.id.startsWith("mbr_")).map(p => [p.id, { id: p.id, name: p.name }])).values()].sort((a, b) => a.name.localeCompare(b.name));
+  const teamChoices = [...new Set(views.map(o => o.teamId).filter((x): x is string => x !== null))].map(id => ({ id, name: ctx.teams.get(id) ?? "", count: views.filter(o => o.teamId === id && matches(o, "team")).length })).sort((a, b) => a.name.localeCompare(b.name));
+  const ownerChoices = [...new Map(views.flatMap(o => [o.owner, ...o.keyResults.map(k => k.owner)]).filter(p => p.id.startsWith("mbr_")).map(p => [p.id, { id: p.id, name: p.name, photo: p.photo }])).values()].sort((a, b) => a.name.localeCompare(b.name));
+  const params = { cycle: cycle.id, status: filters.status.join(",") || undefined, team: filters.team || undefined, owner: filters.owner || undefined };
+  // The owner, once chosen with the picker, is a chip like the others:
+  // one tap, or "Clear filters", lets it go.
+  const chosenOwner = ownerChoices.find(p => p.id === filters.owner) ?? null;
+  const groups: FilterGroup[] = [
+    { key: "status", label: t.company.status, all: true, multiple: true, options: statuses.map(st => ({ value: st, label: st === "quiet" ? t.progress.staleShort : t.confidence[st], count: counts[st] })) },
+    ...(teamChoices.length > 0 ? [{ key: "team", label: t.company.team, all: true, options: teamChoices.map(x => ({ value: x.id, label: x.name, count: x.count })) }] : []),
+    ...(chosenOwner ? [{ key: "owner", label: t.company.owner, options: [{ value: chosenOwner.id, label: chosenOwner.name }] }] : []),
+  ];
   // Who has not checked in this week: for the admins, everyone; for an
   // objective's owner, its key results. Only in the cycle running today.
   const running = open && runsOn(cycle, ctx.clock.today);
@@ -103,7 +117,7 @@ export default async function Company({ searchParams }: { searchParams: Promise<
       </div>
 
       <div className="tree-tools">
-        <CyclePicker cycles={ctx.cycles.map(c => ({ id: c.id, name: c.name, closed: c.closed, current: c.current }))} value={cycle.id} t={{ label: t.cycle.label, show: t.cycle.show, closed: t.cycle.closed, current: t.cycle.current }} />
+        <LinkFilters path="/chest/company" params={params} groups={[cycleGroup(ctx.cycles, cycle.id, t)]} labels={t.filters} />
         <div className="end">
           {can(member, "any.write") && open && <Link className="button quiet small" href={`/chest/import?cycle=${cycle.id}`}><Upload />{t.company.import}</Link>}
           <a className="button quiet small" href={`/chest/cycles/${cycle.id}/export`} download><Download />{t.company.export}</a>
@@ -111,23 +125,18 @@ export default async function Company({ searchParams }: { searchParams: Promise<
       </div>
 
       {views.length === 0 ? (
-        <div className="empty">
-          <Contours variant="small" />
-          <span className="summit"><Mountain /></span>
-          <h2>{format(t.company.empty, { cycle: cycle.name })}</h2>
-          <p>{can(member, "company.write") ? t.company.emptyBody : t.company.emptyMember}</p>
-          {open && (
-            <div className="row">
-              {can(member, "company.write") ? (
-                <>
-                  <Link className="button" href={`/chest/objectives/new?cycle=${cycle.id}&level=company`}><Plus />{t.company.firstObjective}</Link>
-                  <AddExample cycleId={cycle.id} label={t.company.example} errors={t.errors} />
-                  <Link className="button quiet" href={`/chest/import?cycle=${cycle.id}`}><Upload />{t.company.import}</Link>
-                </>
-              ) : <Link className="button" href={`/chest/objectives/new?cycle=${cycle.id}&level=team`}><Plus />{t.company.newTeam}</Link>}
-            </div>
-          )}
-        </div>
+        <MapEmpty
+          icon={<Mountain />}
+          title={format(t.company.empty, { cycle: cycle.name })}
+          body={can(member, "company.write") ? t.company.emptyBody : t.company.emptyMember}
+          action={open ? (can(member, "company.write") ? (
+            <>
+              <Link className="button" href={`/chest/objectives/new?cycle=${cycle.id}&level=company`}><Plus />{t.company.firstObjective}</Link>
+              <AddExample cycleId={cycle.id} label={t.company.example} errors={t.errors} />
+              <Link className="button quiet" href={`/chest/import?cycle=${cycle.id}`}><Upload />{t.company.import}</Link>
+            </>
+          ) : <Link className="button" href={`/chest/objectives/new?cycle=${cycle.id}&level=team`}><Plus />{t.company.newTeam}</Link>) : null}
+        />
       ) : (
         <>
           <div className="overview">
@@ -145,7 +154,10 @@ export default async function Company({ searchParams }: { searchParams: Promise<
             </div>
           </div>
           {chase.length > 0 && <ChaseList people={chase} all={can(member, "any.write")} locale={locale} t={{ chase: t.chase, errors: t.errors, objective: t.objective }} />}
-          <CompanyFilters value={filters} counts={counts} teams={teamChoices} owners={ownerChoices} t={{ filter: t.company.filter, all: t.company.all, team: t.company.team, anyTeam: t.company.anyTeam, owner: t.company.owner, anyOwner: t.company.anyOwner, show: t.company.show, clear: t.company.clear, status: { at_risk: t.confidence.at_risk, off_track: t.confidence.off_track, quiet: t.progress.staleShort } }} />
+          <div className="filters">
+            <LinkFilters path="/chest/company" params={params} groups={groups} labels={t.filters} />
+            {!chosenOwner && <OwnerFilter path="/chest/company" params={params} owners={ownerChoices} label={t.company.owner} labels={t.peoplePicker} lang={locale} />}
+          </div>
           {filtering ? (
             <section aria-labelledby="found">
               <h2 id="found" className="group-title" aria-live="polite">{plural(t.company.matches, found.length, locale)}</h2>

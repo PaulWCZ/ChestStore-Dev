@@ -1,6 +1,7 @@
 import Link from "next/link";
-import { Contours } from "../../../components/contours.tsx";
 import { People } from "../../../components/icons.tsx";
+import { MapEmpty } from "../../../components/map-empty.tsx";
+import { Contours } from "../../../components/contours.tsx";
 import { Confidence, Progress } from "../../../components/progress.tsx";
 import { can, readerOf } from "../../../lib/access.ts";
 import { db } from "../../../lib/db.ts";
@@ -10,7 +11,8 @@ import { context } from "../../../lib/page-data.ts";
 import { cycleObjectives, defaultCycle } from "../../../lib/read.ts";
 import { viewer } from "../../../lib/session.ts";
 import { pctText } from "../../../lib/views.ts";
-import { CyclePicker } from "../views/cycle-picker.tsx";
+import { LinkFilters } from "../views/company-filters.tsx";
+import { cycleGroup } from "../views/cycle-group.ts";
 
 // The teams, each a tile: its progress in the cycle shown, its
 // confidence, how many objectives and people.
@@ -28,16 +30,10 @@ export default async function Teams({ searchParams }: { searchParams: Promise<{ 
     <div className="page">
       <div className="head">
         <div className="titles"><h1>{t.teams.title}</h1></div>
-        {cycle && <div className="actions"><CyclePicker cycles={ctx.cycles.map(c => ({ id: c.id, name: c.name, closed: c.closed, current: c.current }))} value={cycle.id} t={{ label: t.cycle.label, show: t.cycle.show, closed: t.cycle.closed, current: t.cycle.current }} /></div>}
       </div>
+      {cycle && active.length > 0 && <LinkFilters path="/chest/teams" params={{ cycle: cycle.id }} groups={[cycleGroup(ctx.cycles, cycle.id, t)]} labels={t.filters} />}
       {active.length === 0 ? (
-        <div className="empty">
-          <Contours variant="small" />
-          <span className="summit"><People /></span>
-          <h2>{t.teams.empty}</h2>
-          <p>{t.teams.emptyBody}</p>
-          {can(member, "settings.manage") && <Link className="button" href="/chest/settings#teams">{t.teams.emptyAdmin}</Link>}
-        </div>
+        <MapEmpty icon={<People />} title={t.teams.empty} body={t.teams.emptyBody} action={can(member, "settings.manage") ? <Link className="button" href="/chest/settings#teams">{t.teams.emptyAdmin}</Link> : null} />
       ) : (
         <ul className="team-grid">
           {active.map(team => {

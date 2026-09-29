@@ -5,25 +5,41 @@
 **Goals** (French: *Objectifs*). Calm, sturdy, outdoorsy — a trail map for
 the quarter: where the summit is, how far we climbed, who carries what.
 
-## Tokens
+## Tokens — the identity is a theme
 
-All in `app/tokens.css` (light, and dark by the system's choice). Ratios
-computed with `scripts/contrast.mjs` (WCAG 2; AA is 4.5:1 for text, 3:1 for
-interface parts).
+Goals' identity, **Trail map**, is a theme of the store's UI kit
+(`@argentic/chest-ui`): `defineTheme` in `lib/theme.ts` holds every colour,
+font, corner and motion of the tool, light and dark, and the catalogue's
+`trail` theme is the very same source (`test/theme.test.ts` holds them
+equal and checks every contrast pair of the kit's contract, WCAG AA, in
+both modes). The page's look is resolved per request (`currentLook()`:
+the company's choice in its Chest, else Trail map) and written by
+`<ThemeStyle>` in `app/layout.tsx`, one `<style>` with the page's nonce.
+The CSS names only the contract's tokens; `app/tokens.css` holds Goals'
+own few, defined from them:
 
-| Token | Light | Dark | Use |
-|---|---|---|---|
-| `--bg` | `#f3eee2` sand paper | `#0f1715` | page |
-| `--surface` | `#fbf9f3` | `#16211e` | cards, fields |
-| `--ink` | `#17302a` deep forest | `#efe8d8` | text — 12.2:1 on sand; 14.9:1 dark |
-| `--ink-2` | `#4c5f58` | `#a7b3ac` | secondary text — 5.9:1 / 7.6:1 |
-| `--accent` / `--accent-ink` | `#1f4a3f` / `#f7f3e8` | `#e6dcc4` / `#16211e` | the main button — 9.0:1 / 12.1:1 |
-| `--sunrise` | `#bf4f1d` | `#f08a4b` | the check-in button, the chart's line, the reminder list's edge, focus — 4.6:1 on surface; white on it 4.8:1; 6.7:1 dark |
-| `--on` / `--on-soft` | `#2e6b45` / `#e0eee3` | `#6fc48e` / `#183124` | on track — 5.3:1 / 6.6:1 |
-| `--risk` / `--risk-soft` | `#8a5a00` / `#f6e8c8` | `#e2b04a` / `#33290f` | at risk — 4.9:1 / 7.2:1 |
-| `--off` / `--off-soft` | `#a8321f` / `#f7ddd6` | `#f0806a` / `#3a1c16` | off track, danger — 5.2:1 / 5.9:1 |
-| `--top-bg` | `#17302a` | `#0b1210` | the header, the map's dark margin; its text 12.2:1, current tab `#f08a4b` 5.7:1 |
-| `--contour`, `--top-contour` | `#d8ceb9`, `#2a463e` | `#1d2926`, `#1a2724` | contour lines, decoration only |
+| Goals' idea | Trail map (light / dark) | Token now |
+|---|---|---|
+| sand paper, forest ink | `#f3eee2`, `#17302a` / `#0f1715`, `#efe8d8` | `--bg`, `--ink` (and `--surface`, `--ink-2`) |
+| the main button | `#1f4a3f` / `#e6dcc4` | `--accent`, `--accent-ink`, `--accent-line` |
+| on track · at risk · off track | `#2e6b45` · `#8a5a00` · `#a8321f` | the states `--ok` · `--wait` · `--danger` (+ `-soft`, `-ink`) |
+| the sunrise (check-in, the waiting list's edge) | `#bf4f1d` / `#f08a4b` | `--sunrise` = `--cat-3` (the palette's orange slot), `--sunrise-soft`/`-ink` its soft ground and label |
+| the header, the map's dark margin | forest / its dark ground | `--top-bg`, `--top-ink`: the inverse pair (`--ink` ground, `--bg` text) in light mode; the page's ground with its ink in dark mode, so it stays dark |
+| the current tab's mark | peach / the accent's edge | `--top-mark` = `--highlight` (4.5:1 on ink) / `--accent-line` |
+| contour lines | — | `--contour`, `--top-contour`: `color-mix(in oklab, …)`, decoration only |
+| the chart's line | — | `--accent-line` (3:1 on every ground) |
+
+Field and control borders are `--line-strong` (3:1, WCAG 1.4.11; they
+were the hairline `#d6ccb8`, 1.4:1).
+
+**Looks.** The company may give Goals another look in its Chest — any
+theme of the catalogue (Workshop, Magazine, Chest, High contrast…) or its
+own brand (colours, fonts, corners, logo) — for all tools or Goals alone.
+Every feature stays the same, and every text stays readable: states and
+categories come from the theme, the header is its inverse pair, and in
+brand mode the company's logo stands where Goals' mark is. The mark itself
+is drawn with the look's tokens (sand = `--bg`, forest = `--ink`, the sun
+= the palette's orange); in the Trail map it is the tile's drawing exactly.
 
 **Confidence is never a colour alone**: a filled circle (on track), a
 triangle (at risk), a square (off track), a dashed ring (no check-in yet),
@@ -43,14 +59,26 @@ motion.
 
 ## Components
 
-Header with contour lines and tabs; cycle chip with a "time gone" line;
-buttons (forest primary, sunrise check-in, quiet, danger, small); fields,
-selects, segmented choices (confidence with shapes), choice cards (level);
-progress bar + percentage; confidence pill; tags (quiet, needs a new owner);
-objective card with key-result rows; tree nodes with a dashed trail and
-fold buttons; key-result card with the SVG chart, history and a table
-alternative; comments; retrospective; dialogs on `<dialog>`; menus on
-`<details>`; toasts with *Undo*; empty states on a small contour map.
+The store's UI kit (`@argentic/chest-ui/components`) gives the shell and
+the common pieces, restyled only where Goals' identity asks (the dark
+header with its contour lines, in `app/globals.css`): the app shell with
+labelled tabs (a row of their own on a phone), the toasts (*Undo* that
+tells the truth; *Sent* for a reminder), dialogs that never lose what was
+typed, `Confirm` before deleting an empty cycle, people pickers (owners,
+who sees a confidential objective, the import's unknown owners, handing
+over), date fields (a cycle's start and end), the file picker (the
+import), filter chips (the cycle, how it goes — several at once — and the
+team), menus, the check-ins' table, the empty states (on a small contour
+map), avatars, the confidence badge (the kit's state badge with Goals'
+shapes).
+
+Goals' own: the cycle chip with its "time gone" line; buttons (forest
+primary, the sunrise check-in on its soft ground, quiet, danger); the
+check-in's segmented choices (confidence in the states' colours and
+shapes — the kit's `Segmented` is neutral); choice cards (level, who sees
+it); progress bar + percentage; tags; objective cards with key-result
+rows; tree nodes with a dashed trail and fold buttons; the key result's
+SVG chart; comments; retrospective.
 
 ## Icon
 

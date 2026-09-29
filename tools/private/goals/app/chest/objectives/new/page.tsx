@@ -1,14 +1,15 @@
 import * as chest from "@argentic/chest-sdk/chest";
 import Link from "next/link";
-import { Contours } from "../../../../components/contours.tsx";
 import { Back, Lock } from "../../../../components/icons.tsx";
+import { MapEmpty } from "../../../../components/map-empty.tsx";
 import { db } from "../../../../lib/db.ts";
 import { formChoices } from "../../../../lib/form-data.ts";
 import { isLevel } from "../../../../lib/model.ts";
 import { context } from "../../../../lib/page-data.ts";
 import { everyone } from "../../../../lib/people.ts";
 import { viewer } from "../../../../lib/session.ts";
-import { CyclePicker } from "../../views/cycle-picker.tsx";
+import { LinkFilters } from "../../views/company-filters.tsx";
+import { cycleGroup } from "../../views/cycle-group.ts";
 import { ObjectiveForm } from "../../views/objective-form.tsx";
 
 // A new objective, in the cycle asked (?cycle=), at the level asked
@@ -27,7 +28,7 @@ export default async function NewObjective({ searchParams }: { searchParams: Pro
     return (
       <div className="narrow">
         <div className="head"><div className="titles"><h1>{t.form.newTitle}</h1></div></div>
-        <div className="empty"><Contours variant="small" /><Lock /><p>{t.form.closed}</p><Link className="button quiet" href="/chest/cycles">{t.shell.cycles}</Link></div>
+        <MapEmpty icon={<Lock />} title={t.form.closed} action={<Link className="button quiet" href="/chest/cycles">{t.shell.cycles}</Link>} />
       </div>
     );
   }
@@ -36,7 +37,7 @@ export default async function NewObjective({ searchParams }: { searchParams: Pro
     return (
       <div className="narrow">
         <div className="head"><div className="titles"><h1>{t.form.newTitle}</h1></div></div>
-        <div className="empty"><Contours variant="small" /><p>{t.form.cannot}</p></div>
+        <MapEmpty icon={<Lock />} title={t.form.cannot} />
       </div>
     );
   }
@@ -49,8 +50,8 @@ export default async function NewObjective({ searchParams }: { searchParams: Pro
       <Link className="link-button" href="/chest/company"><Back />{t.company.title}</Link>
       <div className="head">
         <div className="titles"><h1>{t.form.newTitle}</h1></div>
-        {open.length > 1 && <div className="actions"><CyclePicker cycles={open.map(c => ({ id: c.id, name: c.name, closed: c.closed, current: c.current }))} value={cycle.id} t={{ label: t.cycle.label, show: t.cycle.show, closed: t.cycle.closed, current: t.cycle.current }} /></div>}
       </div>
+      {open.length > 1 && <LinkFilters path="/chest/objectives/new" params={{ cycle: cycle.id, level: q.level, team: q.team, parent: q.parent }} groups={[cycleGroup(open, cycle.id, t)]} labels={t.filters} />}
       <ObjectiveForm
         mode="new"
         cycleId={cycle.id}
@@ -63,7 +64,7 @@ export default async function NewObjective({ searchParams }: { searchParams: Pro
         locale={v.locale}
         currency={chest.currency()}
         personalNote
-        t={{ form: t.form, kinds: t.kinds, kindHints: t.kindHints, levels: t.levels, errors: t.errors, visibility: t.visibility }}
+        t={{ form: t.form, kinds: t.kinds, kindHints: t.kindHints, levels: t.levels, errors: t.errors, visibility: t.visibility, peoplePicker: t.peoplePicker }}
       />
     </div>
   );

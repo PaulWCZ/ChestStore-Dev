@@ -24,7 +24,9 @@ what must not break.
 | `lib/i18n/` | Every word: `en.ts` (source), `fr.ts` |
 | `app/chest/` | Pages (server) and views (client); `actions.ts` thin server actions |
 | `app/chest-events/`, `app/chest-jobs/[name]/` | The Chest's signed calls |
-| `components/` | Shared pieces: progress, confidence, chart, contours, icons, cards |
+| `lib/theme.ts` | The identity, **Trail map** (`defineTheme`, the catalogue's `trail` theme value for value) and `currentLook()` (the company's choice first) |
+| `app/layout.tsx`, `app/tokens.css`, `app/globals.css` | `<ThemeStyle>` with the page's nonce; Goals' own tokens (from contract tokens only); its styles |
+| `components/` | Goals' own pieces: the shell's client part (`shell.tsx`), progress and confidence (the kit's `StatusBadge`), the chart, contours and the map-like empty state, icons, the mark, cards |
 | `migrations/` | The schema, run by the Chest in order |
 | `seed/sample.sql` | Atelier Martin (never run by the Chest) |
 | `test/` | `node:test` with the SDK's `fakeChest`; PGlite or `TEST_DATABASE_URL` |
@@ -58,3 +60,16 @@ npm ci && npm test && npm run build   # all three must pass
   schedules and events; the tool must stay useful without them (and
   without mail).
 - **Keep the CSP** in `proxy.ts`.
+- **The look**: the CSS names only the kit's contract tokens (and Goals'
+  own of `app/tokens.css`, defined from them) — never a colour
+  (`test/theme.test.ts` checks it). A state always has its word and its
+  shape; text sits only on measured pairs (`ui/AGENTS.md` in the studio).
+- **The kit first** (`@argentic/chest-ui/components`): toasts (`useToast`,
+  one `id` per act, `undo` that returns `true` or why not, `sent: true`
+  once a bell item or an email left), `Dialog` with `dirty`, `Confirm` for
+  what cannot be undone (never `window.confirm`), `PeoplePicker`,
+  `DateField` (never `type="date"`), `FilePicker`, `Filters`, `Menu`,
+  `DataTable`, `EmptyState`, `Avatar`, `StatusBadge`, `AppShell`. Their
+  words are the catalogues' `toast`, `dialog`, `peoplePicker`, `date`,
+  `files`, `filters`, `tables` sections; `node scripts/lint-words.mjs`
+  (studio) must report 0 errors.

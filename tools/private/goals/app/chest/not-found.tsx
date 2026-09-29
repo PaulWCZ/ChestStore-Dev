@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Contours } from "../../components/contours.tsx";
+import { MapEmpty } from "../../components/map-empty.tsx";
 import { catalogue } from "../../lib/i18n/index.ts";
 import { pageLocale } from "../../lib/session.ts";
 
@@ -9,12 +9,7 @@ export default async function NotFound() {
   const t = catalogue(await pageLocale());
   return (
     <div className="narrow">
-      <div className="empty">
-        <Contours variant="small" />
-        <h1>{t.notFound.title}</h1>
-        <p>{t.notFound.body}</p>
-        <Link className="button quiet" href="/chest">{t.notFound.back}</Link>
-      </div>
+      <MapEmpty headingLevel={1} title={t.notFound.title} body={t.notFound.body} action={<Link className="button quiet" href="/chest">{t.notFound.back}</Link>} />
     </div>
   );
 }

@@ -2,9 +2,8 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import { Avatar } from "../../../../components/avatar.tsx";
+import { Avatar, useToast } from "@argentic/chest-ui/components";
 import { Alert } from "../../../../components/icons.tsx";
-import { useToast } from "../../../../components/toast.tsx";
 import { format } from "../../../../lib/i18n/format.ts";
 import type { Catalogue } from "../../../../lib/i18n/index.ts";
 import { addComment, editComment, removeComment, restoreComment } from "../../actions.ts";
@@ -43,9 +42,19 @@ export function Comments({ objectiveId, isAdmin, comments, t }: { objectiveId: s
       const r = await removeComment(id);
       if (!r.ok) {
         setHidden(h => h.filter(x => x !== id));
-        return toast(words(r.error, r.values));
+        return void toast({ text: words(r.error, r.values), tone: "error" });
       }
-      toast(c.removed, { label: c.undo, run: () => start(async () => { const b = await restoreComment(id); if (b.ok) setHidden(h => h.filter(x => x !== id)); else toast(words(b.error, b.values)); router.refresh(); }) });
+      toast({
+        id: `comment-${id}`,
+        text: c.removed,
+        undo: async () => {
+          const b = await restoreComment(id);
+          if (!b.ok) return words(b.error, b.values);
+          setHidden(h => h.filter(x => x !== id));
+          router.refresh();
+          return true;
+        },
+      });
       router.refresh();
     });
   }
@@ -54,7 +63,7 @@ export function Comments({ objectiveId, isAdmin, comments, t }: { objectiveId: s
     if (!editing) return;
     start(async () => {
       const r = await editComment(editing.id, editing.body);
-      if (!r.ok) return toast(words(r.error, r.values));
+      if (!r.ok) return void toast({ text: words(r.error, r.values), tone: "error" });
       setEditing(null);
       router.refresh();
     });
@@ -68,7 +77,7 @@ export function Comments({ objectiveId, isAdmin, comments, t }: { objectiveId: s
         <ul className="comments">
           {shown.map(x => (
             <li key={x.id} className="comment">
-              <Avatar name={x.author.name} photo={x.author.photo} size={32} />
+              <Avatar name={x.author.name} photo={x.author.photo} size="m" />
               <div className="stack-s">
                 <div className="meta"><strong className="author">{x.author.name}</strong><time title={x.date}>{x.when}</time>{x.edited && <span>· {c.edited}</span>}</div>
                 {editing?.id === x.id ? (

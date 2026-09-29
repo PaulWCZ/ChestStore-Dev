@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Contours } from "../../../../components/contours.tsx";
+import { MapEmpty } from "../../../../components/map-empty.tsx";
 import { CycleChip } from "../../../../components/cycle-chip.tsx";
 import { Back, Download } from "../../../../components/icons.tsx";
 import { PersonLine } from "../../../../components/person.tsx";
@@ -42,11 +42,11 @@ export default async function CycleReview({ params }: { params: Promise<{ id: st
         <div className="actions">
           <a className="button quiet" href={`/chest/cycles/${cycle.id}/export`} download><Download />{t.cycles.download}</a>
           <a className="button quiet" href={`/chest/cycles/${cycle.id}/export?what=check-ins`} download><Download />{t.export.checkIns}</a>
-          {can(member, "cycles.manage") && !cycle.closed && <CloseCycle cycleId={cycle.id} name={cycle.name} t={{ cycles: t.cycles, errors: t.errors, checkIn: t.checkIn }} />}
+          {can(member, "cycles.manage") && !cycle.closed && <CloseCycle cycleId={cycle.id} name={cycle.name} t={{ cycles: t.cycles, errors: t.errors }} />}
         </div>
       </div>
       {views.length === 0 ? (
-        <div className="empty"><Contours variant="small" /><p>{t.cycles.reviewEmpty}</p></div>
+        <MapEmpty title={t.cycles.reviewEmpty} />
       ) : (
         <ul className="card rows">
           {views.map(o => (
@@ -54,7 +54,7 @@ export default async function CycleReview({ params }: { params: Promise<{ id: st
               <div className="grow">
                 <span className="eyebrow">{o.teamName ?? o.levelText}</span>
                 <Link href={`/chest/objectives/${o.id}`}>{o.title}</Link>
-                <span className="meta"><PersonLine person={o.owner} size={20} /><Confidence value={o.confidence} words={t.confidence} />{o.score !== null && <strong>{format(t.retro.scoreValue, { percent: pctText(t, percent(o.score)) })}</strong>}</span>
+                <span className="meta"><PersonLine person={o.owner} /><Confidence value={o.confidence} words={t.confidence} />{o.score !== null && <strong>{format(t.retro.scoreValue, { percent: pctText(t, percent(o.score)) })}</strong>}</span>
                 {o.learned ? <blockquote className="learned">{o.learned}</blockquote> : null}
               </div>
               <div className="row-progress"><Progress percent={o.percent} text={o.percentText} label={`${o.title}: ${o.percentText}`} confidence={o.confidence} /></div>

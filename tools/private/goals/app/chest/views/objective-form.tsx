@@ -1,15 +1,17 @@
 "use client";
 
+import { PeoplePicker } from "@argentic/chest-ui/components";
+import { localSearch, type PeoplePickerWords } from "@argentic/chest-ui/components/logic";
 import { useRouter } from "next/navigation";
 import { useId, useState, useTransition } from "react";
 import { Alert, Plus, Trash } from "../../../components/icons.tsx";
 import { format } from "../../../lib/i18n/format.ts";
 import type { Catalogue } from "../../../lib/i18n/index.ts";
 import { createObjective, updateObjective } from "../actions.ts";
-import { emptyDraft, KeyResultFields, krInput, type KrDraft } from "./key-result-fields.tsx";
+import { emptyDraft, KeyResultFields, krInput, type KrDraft, type Owner } from "./key-result-fields.tsx";
 
 type Level = "company" | "team" | "personal";
-export type FormWords = { form: Catalogue["form"]; kinds: Catalogue["kinds"]; kindHints: Catalogue["kindHints"]; levels: Catalogue["levels"]; errors: Catalogue["errors"]; visibility: Catalogue["visibility"] };
+export type FormWords = { form: Catalogue["form"]; kinds: Catalogue["kinds"]; kindHints: Catalogue["kindHints"]; levels: Catalogue["levels"]; errors: Catalogue["errors"]; visibility: Catalogue["visibility"]; peoplePicker: PeoplePickerWords };
 type Visibility = "everyone" | "team" | "people";
 export type Choice = { id: string; name: string };
 export type ParentChoice = { id: string; title: string; level: Level; team: string | null };
@@ -21,7 +23,7 @@ type Props = {
   levels: Level[];                // the levels this person may write
   teams: (Choice & { writable: boolean; group: boolean })[];
   parents: ParentChoice[];
-  owners: Choice[];
+  owners: Owner[];
   me: string;
   initial: { level: Level; teamId: string; parentId: string; owner: string; title: string; why: string; visibility: Visibility; viewers: string[] };
   personalNote: boolean;
@@ -60,6 +62,10 @@ export function ObjectiveForm({ mode, objectiveId, cycleId, levels, teams, paren
     if (!title.trim()) {
       setError(t.errors.empty);
       document.getElementById(`${uid}-title`)?.focus();
+      return;
+    }
+    if ((level !== "personal" && !owner) || (mode === "new" && krs.some(k => k.title.trim() !== "" && !k.owner))) {
+      setError(f.ownerMissing);
       return;
     }
     setError(null);
@@ -114,13 +120,8 @@ export function ObjectiveForm({ mode, objectiveId, cycleId, levels, teams, paren
       </div>
       <div className="grid-2">
         {level !== "personal" && owners.length > 0 && (
-          <div>
-            <label className="label" htmlFor={`${uid}-owner`}>{f.owner}</label>
-            <select id={`${uid}-owner`} className="select" value={owner} onChange={e => { setOwner(e.target.value); setKrs(list => list.map(k => (k.owner === owner ? { ...k, owner: e.target.value } : k))); }}>
-              {!owners.some(o => o.id === owner) && <option value={owner}>—</option>}
-              {owners.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
-            </select>
-          </div>
+          <PeoplePicker label={f.owner} value={owners.filter(o => o.id === owner)} search={localSearch(owners)} labels={t.peoplePicker} lang={locale}
+            onChange={v => { const next = v[0]?.id ?? ""; setOwner(next); if (next) setKrs(list => list.map(k => (k.owner === owner ? { ...k, owner: next } : k))); }} />
         )}
         {level !== "company" && (
           <div>
@@ -147,19 +148,8 @@ export function ObjectiveForm({ mode, objectiveId, cycleId, levels, teams, paren
         </fieldset>
         {seen === "people" && (
           <div className="viewers">
-            {viewers.length === 0 ? <p className="hint">{t.visibility.nobody}</p> : (
-              <ul className="viewer-chips">
-                {viewers.map(id => {
-                  const name = owners.find(o => o.id === id)?.name ?? "—";
-                  return <li key={id}><span>{name}</span><button type="button" className="icon-button" onClick={() => setViewers(v => v.filter(x => x !== id))}><Trash /><span className="visually-hidden">{format(t.visibility.remove, { name })}</span></button></li>;
-                })}
-              </ul>
-            )}
-            <label className="label" htmlFor={`${uid}-viewer`}>{t.visibility.add}</label>
-            <select id={`${uid}-viewer`} className="select" value="" onChange={e => { const id = e.target.value; if (id) setViewers(v => (v.includes(id) ? v : [...v, id])); }}>
-              <option value="">{t.visibility.choose}</option>
-              {owners.filter(o => !viewers.includes(o.id) && o.id !== owner).map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
-            </select>
+            <PeoplePicker label={t.visibility.add} multiple value={viewers.map(id => owners.find(o => o.id === id) ?? { id, name: "—", photo: null })} onChange={v => setViewers(v.map(x => x.id))}
+              search={localSearch(owners.filter(o => o.id !== owner))} hint={viewers.length === 0 ? t.visibility.nobody : undefined} labels={t.peoplePicker} lang={locale} />
           </div>
         )}
         <p className="hint">{t.visibility.hint}</p>

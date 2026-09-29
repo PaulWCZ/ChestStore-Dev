@@ -58,22 +58,23 @@ await step("Hugo sees his check-ins of the week and checks one in with a note", 
   await item.locator("label.segment", { hasText: "On track" }).click();
   await item.getByLabel("What happened?").fill("Signed Meubles Durand in Grenoble");
   await item.getByRole("button", { name: "Check in" }).click();
-  await page.waitForSelector(".toast");
-  expect((await page.locator(".toast").innerText()).includes("Checked in"), "toast");
+  await page.waitForSelector(".ck-toast");
+  expect((await page.locator(".ck-toast").innerText()).includes("Checked in"), "toast");
   await page.waitForTimeout(800);
   expect(await page.locator(".waiting-item", { hasText: "Shops signed" }).count() === 0, "left the list");
 });
 
 await step("…takes it back with Undo, then checks in again", async () => {
-  await page.locator(".toast button").click();
-  await page.waitForTimeout(1500);
+  await page.locator(".ck-toast-undo").click();
+  await page.waitForSelector(".ck-toast >> text=Undone.");
+  await page.waitForTimeout(500);
   await page.reload();
   const item = page.locator(".waiting-item", { hasText: "Shops signed" });
   expect(await item.count() === 1, "back in the list");
   await item.getByLabel("Value now").fill("6");
   await item.locator("label.segment", { hasText: "On track" }).click();
   await item.getByRole("button", { name: "Check in" }).click();
-  await page.waitForSelector(".toast");
+  await page.waitForSelector(".ck-toast");
   await page.goto(origin + "/chest/objectives/7");
   const card = page.locator(".kr-card", { hasText: "Shops signed" });
   expect((await card.innerText()).includes("6 shops"), "new value on the objective");
@@ -106,7 +107,8 @@ await step("Hugo writes a Sales objective with two key results, supporting a com
   await page.getByRole("button", { name: "Add a key result" }).click();
   await rows.nth(1).getByLabel("What we’ll count", { exact: true }).fill("New showroom signage installed");
   await rows.nth(1).getByLabel("Measured as").selectOption("milestone");
-  await rows.nth(1).getByLabel("Owner").selectOption({ label: "Inès Moreau" });
+  await rows.nth(1).getByRole("combobox", { name: "Owner" }).fill("Inès");
+  await page.getByRole("option", { name: /Inès Moreau/u }).click();
   await page.getByRole("button", { name: "Create the objective" }).click();
   await page.waitForURL(/\/chest\/objectives\/\d+$/u);
   created = page.url();
@@ -151,7 +153,8 @@ await step("Camille (admin, French) hands Paul's key result to Tom; the banner g
   await page.goto(origin + "/chest");
   expect((await page.locator(".banner").innerText()).includes("nouveau responsable"), "banner");
   await page.goto(origin + "/chest/settings");
-  await page.locator("select[id^=all-]").first().selectOption({ label: "Tom Walker" });
+  await page.locator(".orphans").first().getByRole("combobox").first().fill("Tom");
+  await page.getByRole("option", { name: /Tom Walker/u }).click();
   await page.getByRole("button", { name: "Confier", exact: true }).first().click();
   await page.waitForSelector("text=Chaque objectif a un responsable.");
   await page.goto(origin + "/chest");
@@ -175,7 +178,7 @@ await step("Camille writes the retrospective of a closed cycle's objective, and 
   await page.getByRole("button", { name: "Enregistrer" }).click();
   await page.waitForSelector("text=Rétrospective enregistrée.");
   await page.getByRole("button", { name: /Reporter sur Autumn 2026/u }).click();
-  await page.waitForSelector(".toast >> text=Reporté");
+  await page.waitForSelector(".ck-toast >> text=Reporté");
   await page.goto(origin + "/chest/cycles/1");
   expect((await page.locator("main").innerText()).includes("Une annonce plus précise"), "review shows the learning");
 });
@@ -201,7 +204,7 @@ await step("a quiet week: Hugo checks in \"Same as last week\" in one click", as
   await page.goto(origin + "/chest");
   const item = page.locator(".waiting-item", { hasText: "Customers lost" });
   await item.getByRole("button", { name: /Same as last week/u }).click();
-  await page.waitForSelector(".toast");
+  await page.waitForSelector(".ck-toast");
   await page.waitForTimeout(800);
   expect(await page.locator(".waiting-item", { hasText: "Customers lost" }).count() === 0, "left the list");
   expect((await page.locator("main").innerText()).includes("1 customer") && !(await page.locator("main").innerText()).includes("1 customers"), "one customer, not customers");
@@ -210,24 +213,25 @@ await step("a quiet week: Hugo checks in \"Same as last week\" in one click", as
 await step("Hugo turns the reminders' email off (and on again)", async () => {
   const toggle = page.getByRole("switch", { name: /Also email me/u });
   await toggle.uncheck();
-  await page.waitForSelector(".toast >> text=Reminders stay in the bell only.");
+  await page.waitForSelector(".ck-toast >> text=Reminders stay in the bell only.");
   await toggle.check();
-  await page.waitForSelector(".toast >> text=Reminders will also come by email.");
+  await page.waitForSelector(".ck-toast >> text=Reminders will also come by email.");
 });
 
 await step("the company tree filters by status and owner, kept in the address", async () => {
   await english("sofia");
   await page.goto(origin + "/chest/company");
-  await page.locator(".chips a", { hasText: "At risk" }).click();
+  await page.locator(".ck-filter-chip", { hasText: "At risk" }).click();
   await page.waitForURL(/status=at_risk/u);
   const title = await page.locator("#found").innerText();
   expect(/objectives? match/u.test(title), "matches: " + title);
   expect(!(await page.locator("main").innerText()).includes("Halve the time we spend on paperwork"), "on-track objective hidden");
-  await page.locator(".filters select[name=owner]").selectOption({ label: "Tom Walker" });
+  await page.locator(".owner-filter").getByRole("combobox", { name: "Owner" }).fill("Tom");
+  await page.getByRole("option", { name: /Tom Walker/u }).click();
   await page.waitForURL(/owner=mbr_tom/u);
   expect((await page.locator("main").innerText()).includes("Deliver every order on time"), "Tom's at risk objective");
-  await page.getByRole("link", { name: "Clear the filters" }).click();
-  await page.waitForURL(u => !/status=/u.test(String(u)));
+  await page.getByRole("link", { name: "Clear filters" }).click();
+  await page.waitForURL(u => !/status=/u.test(String(u)) && !/owner=/u.test(String(u)));
 });
 
 await step("a confidential objective: Tom (chosen) sees it, Sofia does not", async () => {
@@ -253,7 +257,7 @@ await step("Camille sees who has not checked in and reminds Tom: the bell and an
   await page.locator(".chase summary").click();
   const row = page.locator(".chase-rows > li", { hasText: "Tom Walker" });
   await row.getByRole("button", { name: "Remind Tom Walker" }).click();
-  await page.waitForSelector(".toast >> text=Tom Walker is reminded");
+  await page.waitForSelector(".ck-toast >> text=Tom Walker is reminded");
   expect((await row.innerText()).includes("Reminded today"), "marked");
   const bell = await dev();
   expect(bell.includes("Camille Martin asks for your weekly check-in"), "bell and outbox");
@@ -265,14 +269,15 @@ await step("Camille imports Lattice's goals file: columns guessed, an unknown ow
   await page.waitForSelector(".import-list");
   expect((await page.locator("main").innerText()).includes("2 objectives and 5 key results will be added"), "summary");
   const pick = page.locator(".owner-pick", { hasText: "jean.dupont@atelier-martin.fr" });
-  await pick.locator("select").selectOption({ label: "Sofia Rossi" });
+  await pick.getByRole("combobox").fill("Sofia");
+  await page.getByRole("option", { name: /Sofia Rossi/u }).click();
   await page.waitForTimeout(600);
   await page.getByRole("button", { name: "Import 2 objectives" }).click();
   await page.waitForURL(/\/chest\/company/u);
   await page.waitForSelector("text=Grow revenue in the Lyon region");
-  expect((await page.locator(".toast").innerText()).includes("Imported"), "toast");
-  await page.locator(".toast button").click();
-  await page.waitForSelector(".toast >> text=Import taken back.");
+  expect((await page.locator(".ck-toast").innerText()).includes("Imported"), "toast");
+  await page.locator(".ck-toast-undo").click();
+  await page.waitForSelector(".ck-toast >> text=Undone.");
   await page.reload();
   expect(!(await page.locator("main").innerText()).includes("Grow revenue in the Lyon region"), "undone");
 });
@@ -307,6 +312,34 @@ await step("someone leaves: the admins are told, their goals wait for a new owne
   expect((await page.locator(".banner").innerText()).includes("nouveau responsable"), "banner again");
   await page.goto(origin + "/chest/objectives/6");
   expect((await page.locator("main").innerText()).includes("Sofia Rossi (ancien membre)"), "former member");
+});
+
+await step("the tree shows at risk and off track together; the cycle is always one of the chips", async () => {
+  await english("sofia");
+  await page.goto(origin + "/chest/company");
+  await page.locator(".ck-filter-chip", { hasText: "At risk" }).click();
+  await page.waitForURL(/status=at_risk/u);
+  await page.locator(".ck-filter-chip", { hasText: "Off track" }).click();
+  await page.waitForURL(/status=at_risk(%2C|,)off_track/u);
+  const text = await page.locator("main").innerText();
+  expect(text.includes("Deliver every order on time"), "an at-risk objective");
+  expect(!text.includes("Halve the time we spend on paperwork"), "on-track objective hidden");
+  expect(await page.locator(".ck-filter-chip[aria-current=true]", { hasText: "Autumn 2026" }).count() === 1, "the cycle shown is a chosen chip");
+});
+
+await step("a key result's dialog never loses what was typed: Escape asks first", async () => {
+  await english("camille");
+  await page.goto(origin + "/chest/objectives/4");
+  await page.getByRole("button", { name: "Add a key result" }).first().click();
+  const dialog = page.locator("dialog[open]");
+  await dialog.getByLabel("What we’ll count").fill("Visits to the new showroom");
+  await page.keyboard.press("Escape");
+  await dialog.getByText("Discard your changes?").waitFor();
+  await dialog.getByRole("button", { name: "Keep editing" }).click();
+  expect(await dialog.getByLabel("What we’ll count").inputValue() === "Visits to the new showroom", "text kept");
+  await page.keyboard.press("Escape");
+  await dialog.getByRole("button", { name: "Discard" }).click();
+  expect(await page.locator("dialog[open]").count() === 0, "closed once discarded");
 });
 
 await step("phone width: My goals, the tree and an objective fit the screen", async () => {

@@ -36,13 +36,13 @@ export function nameOf(person: Person | undefined, locale: Locale): string {
 
 // Everyone who has the tool (the owners a form offers), by name; [] when
 // the Chest cannot be asked.
-export async function everyone(): Promise<{ id: string; name: string }[]> {
-  const found: { id: string; name: string }[] = [];
+export async function everyone(): Promise<{ id: string; name: string; photo: string | null }[]> {
+  const found: { id: string; name: string; photo: string | null }[] = [];
   try {
     let after: string | undefined;
     do {
       const page = await members.list({ limit: 500, ...(after ? { after } : {}) });
-      for (const m of page.members) found.push({ id: m.id, name: m.name });
+      for (const m of page.members) found.push({ id: m.id, name: m.name, photo: m.photo });
       after = page.next ?? undefined;
     } while (after && found.length < 2000);
   } catch (error) {

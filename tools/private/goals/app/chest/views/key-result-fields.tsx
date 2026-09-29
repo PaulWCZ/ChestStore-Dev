@@ -1,5 +1,7 @@
 "use client";
 
+import { PeoplePicker } from "@argentic/chest-ui/components";
+import { localSearch, type PeoplePickerWords } from "@argentic/chest-ui/components/logic";
 import { useId } from "react";
 import { format } from "../../../lib/i18n/format.ts";
 import type { Catalogue } from "../../../lib/i18n/index.ts";
@@ -7,9 +9,15 @@ import { valueText } from "../../../lib/values.ts";
 
 type Source = "manual" | "crm.won_amount" | "crm.won_count";
 export type KrDraft = { title: string; kind: "number" | "percent" | "money" | "milestone"; start: string; target: string; unit: string; owner: string; weight: string; source: Source };
-export type FieldWords = { form: Catalogue["form"]; kinds: Catalogue["kinds"]; kindHints: Catalogue["kindHints"] };
+export type FieldWords = { form: Catalogue["form"]; kinds: Catalogue["kinds"]; kindHints: Catalogue["kindHints"]; peoplePicker: PeoplePickerWords };
+// Someone who may own a key result (everyone who has the tool).
+export type Owner = { id: string; name: string; photo: string | null };
 
 export const emptyDraft = (owner: string): KrDraft => ({ title: "", kind: "number", start: "0", target: "", unit: "", owner, weight: "1", source: "manual" });
+
+// Whether a draft is still as it was (a dialog asks before closing only
+// when something changed).
+export const sameDraft = (a: KrDraft, b: KrDraft): boolean => (Object.keys(a) as (keyof KrDraft)[]).every(k => a[k] === b[k]);
 
 // A number typed in either convention ("12,5" or "12.5"), for the sentence
 // under the fields only: the server reads and checks the real value.
@@ -22,7 +30,7 @@ const typed = (text: string): number | null => {
 // who owns it; how much it counts and where its value comes from wait
 // under "More options". Once the target is typed, a sentence says it back
 // ("From 0 to 20 customers") — never before, so no example reads as a value.
-export function KeyResultFields({ draft, onChange, owners, t, autoFocus = false, locale = "en", currency = null }: { draft: KrDraft; onChange: (d: KrDraft) => void; owners: { id: string; name: string }[]; t: FieldWords; autoFocus?: boolean; locale?: string; currency?: string | null }) {
+export function KeyResultFields({ draft, onChange, owners, t, locale = "en", currency = null }: { draft: KrDraft; onChange: (d: KrDraft) => void; owners: Owner[]; t: FieldWords; locale?: string; currency?: string | null }) {
   const uid = useId();
   const set = (patch: Partial<KrDraft>) => onChange({ ...draft, ...patch });
   const f = t.form;
@@ -37,7 +45,7 @@ export function KeyResultFields({ draft, onChange, owners, t, autoFocus = false,
     <>
       <div>
         <label className="label" htmlFor={`${uid}-title`}>{f.krName}</label>
-        <input id={`${uid}-title`} className="field" maxLength={200} value={draft.title} placeholder={f.krTitlePlaceholder} autoFocus={autoFocus} onChange={e => set({ title: e.target.value })} />
+        <input id={`${uid}-title`} className="field" maxLength={200} value={draft.title} placeholder={f.krTitlePlaceholder} onChange={e => set({ title: e.target.value })} />
       </div>
       <div className="grid-2">
         <div>
@@ -48,13 +56,7 @@ export function KeyResultFields({ draft, onChange, owners, t, autoFocus = false,
           <p id={`${uid}-kind-hint`} className="hint">{t.kindHints[draft.kind]}</p>
         </div>
         {owners.length > 0 && (
-          <div>
-            <label className="label" htmlFor={`${uid}-owner`}>{f.krOwner}</label>
-            <select id={`${uid}-owner`} className="select" value={draft.owner} onChange={e => set({ owner: e.target.value })}>
-              {!owners.some(o => o.id === draft.owner) && <option value={draft.owner}>—</option>}
-              {owners.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
-            </select>
-          </div>
+          <PeoplePicker label={f.krOwner} value={owners.filter(o => o.id === draft.owner)} onChange={v => set({ owner: v[0]?.id ?? "" })} search={localSearch(owners)} labels={t.peoplePicker} lang={locale} />
         )}
       </div>
       {draft.kind !== "milestone" && (

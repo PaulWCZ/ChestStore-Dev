@@ -49,7 +49,7 @@ export default async function EditObjective({ params }: { params: Promise<{ id: 
         locale={v.locale}
         currency={chest.currency()}
         personalNote={false}
-        t={{ form: t.form, kinds: t.kinds, kindHints: t.kindHints, levels: t.levels, errors: t.errors, visibility: t.visibility }}
+        t={{ form: t.form, kinds: t.kinds, kindHints: t.kindHints, levels: t.levels, errors: t.errors, visibility: t.visibility, peoplePicker: t.peoplePicker }}
       />
     </div>
   );

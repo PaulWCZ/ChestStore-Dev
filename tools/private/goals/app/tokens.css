@@ -1,98 +1,46 @@
-/* Goals' design tokens, defined once (DESIGN.md explains them): a trail
-   map — sand paper, deep forest ink, one sunrise colour for progress.
-   Light first; dark follows the system. Contrast ratios in DESIGN.md. */
+/* Goals' own tokens. The contract's (colours, fonts, sizes, spacing,
+   corners, motion: @argentic/chest-ui, tokens/CONTRACT.md) are set by the
+   look of the page — the tool's identity, the Trail map, in lib/theme.ts,
+   or the theme or brand the company chose — in a <style> of
+   app/layout.tsx. Here only what is this tool's alone, always defined from
+   contract tokens, never from a colour, so it follows every theme. */
 :root {
-  color-scheme: light dark;
-  --font-body: "Work Sans Variable", system-ui, -apple-system, "Segoe UI", sans-serif;
-  --font-display: "Barlow Semi Condensed", "Work Sans Variable", system-ui, sans-serif;
+  /* The sunrise: progress and the check-in. It is the palette's orange
+     slot (slot 3 is orange in every theme; in the Trail map, Goals' own
+     #bf4f1d): a spine, a dot, a border — 3:1 on the surfaces — and its
+     soft ground with its ink for a button or a tag (a measured pair). */
+  --sunrise: var(--cat-3);
+  --sunrise-soft: var(--cat-3-soft);
+  --sunrise-ink: var(--cat-3-ink);
 
-  --bg: #f3eee2;          /* sand paper */
-  --surface: #fbf9f3;
-  --surface-2: #e8e0cf;   /* bar tracks, quiet fills */
-  --ink: #17302a;         /* deep forest */
-  --ink-2: #4c5f58;
-  --line: #d6ccb8;
-  --contour: #d8ceb9;     /* the map's lines, decoration only */
-  --accent: #1f4a3f;      /* the main button */
-  --accent-ink: #f7f3e8;
-  --sunrise: #bf4f1d;     /* progress, the check-in */
-  --sunrise-ink: #ffffff;
-  --sunrise-soft: #f6dfcd;
-  --on: #2e6b45;          /* on track */
-  --on-soft: #e0eee3;
-  --risk: #8a5a00;        /* at risk */
-  --risk-soft: #f6e8c8;
-  --off: #a8321f;         /* off track */
-  --off-soft: #f7ddd6;
-  --danger: #a8321f;
-  --focus: #bf4f1d;
+  /* The header is the map's dark margin: the inverse pair (ink as the
+     ground, the page's background as the text — measured in every theme,
+     and it turns light on dark pages). The current tab is underlined with
+     the marker pen, which the contract holds at 4.5:1 against the ink. */
+  --top-bg: var(--ink);
+  --top-ink: var(--bg);
+  --top-mark: var(--highlight);
 
-  --top-bg: #17302a;      /* the header: the map's dark margin */
-  --top-ink: #f3eee2;
-  --top-ink-2: #c5d0c8;
-  --top-contour: #2a463e;
-  --top-accent: #f08a4b;  /* the current tab, on the dark header */
+  /* The map's contour lines: decoration only (nothing is read from them). */
+  --contour: color-mix(in oklab, var(--line) 75%, var(--surface));
+  --top-contour: color-mix(in oklab, var(--bg) 13%, var(--ink));
+  --top-rule: color-mix(in oklab, var(--bg) 22%, var(--ink));
 
-  --space-1: 4px;
-  --space-2: 8px;
-  --space-3: 12px;
-  --space-4: 16px;
-  --space-5: 24px;
-  --space-6: 32px;
-  --space-7: 48px;
-
-  --radius-s: 6px;
-  --radius-m: 10px;
-  --radius-l: 14px;
-  --shadow-1: 0 1px 2px rgb(23 48 42 / 0.07), 0 2px 6px rgb(23 48 42 / 0.05);
-  --shadow-2: 0 10px 30px rgb(23 48 42 / 0.18);
-
-  --text-xs: 0.8125rem;
-  --text-s: 0.875rem;
-  --text-m: 1rem;
-  --text-l: 1.25rem;
-  --text-xl: 1.75rem;
-  --text-xxl: 2.25rem;
-
-  --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
-  --fast: 120ms;
-  --slow: 260ms;
+  /* Page widths. */
+  --page-width: 1180px;
+  --narrow-width: 820px;
 }
 
+/* In dark mode the header stays the map's dark margin, as Goals always
+   drew it: the page's own ground with its ink (a measured pair), a line
+   under it, and the current tab underlined with the accent's edge (3:1 on
+   the ground). The inverse pair would turn it light on a dark page. */
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #0f1715;
-    --surface: #16211e;
-    --surface-2: #26332f;
-    --ink: #efe8d8;
-    --ink-2: #a7b3ac;
-    --line: #2d3b37;
-    --contour: #1d2926;
-    --accent: #e6dcc4;
-    --accent-ink: #16211e;
-    --sunrise: #f08a4b;
-    --sunrise-ink: #1a0f08;
-    --sunrise-soft: #3a2519;
-    --on: #6fc48e;
-    --on-soft: #183124;
-    --risk: #e2b04a;
-    --risk-soft: #33290f;
-    --off: #f0806a;
-    --off-soft: #3a1c16;
-    --danger: #f0806a;
-    --focus: #f08a4b;
-    --top-bg: #0b1210;
-    --top-ink: #efe8d8;
-    --top-ink-2: #a7b3ac;
-    --top-contour: #1a2724;
-    --shadow-1: none;
-    --shadow-2: 0 10px 30px rgb(0 0 0 / 0.55);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  :root {
-    --fast: 0ms;
-    --slow: 0ms;
+    --top-bg: var(--bg);
+    --top-ink: var(--ink);
+    --top-mark: var(--accent-line);
+    --top-contour: color-mix(in oklab, var(--ink) 9%, var(--bg));
+    --top-rule: var(--line);
   }
 }

@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useToast } from "@argentic/chest-ui/components";
 import { Mail } from "../../../components/icons.tsx";
-import { useToast } from "../../../components/toast.tsx";
 import { format } from "../../../lib/i18n/format.ts";
 import type { Catalogue } from "../../../lib/i18n/index.ts";
 import { setEmail } from "../actions.ts";
@@ -20,8 +20,8 @@ export function EmailSwitch({ on, t }: { on: boolean; t: { label: string; on: st
         setChecked(next);
         start(async () => {
           const r = await setEmail(next);
-          if (!r.ok) { setChecked(!next); return toast(format(t.errors[r.error], r.values ?? {})); }
-          toast(next ? t.on : t.off);
+          if (!r.ok) { setChecked(!next); return void toast({ id: "email", text: format(t.errors[r.error], r.values ?? {}), tone: "error" }); }
+          toast({ id: "email", text: next ? t.on : t.off });
         });
       }} />
       <Mail />

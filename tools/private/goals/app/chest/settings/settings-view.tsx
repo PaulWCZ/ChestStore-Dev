@@ -1,19 +1,21 @@
 "use client";
 
+import { PeoplePicker, useToast } from "@argentic/chest-ui/components";
+import { localSearch, type PeoplePickerWords } from "@argentic/chest-ui/components/logic";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { Alert, Check, Pencil, Plus } from "../../../components/icons.tsx";
-import { useToast } from "../../../components/toast.tsx";
 import { format, plural } from "../../../lib/i18n/format.ts";
 import type { Catalogue } from "../../../lib/i18n/index.ts";
 import { addAllGroups, addGroupTeam, addTeam, archiveTeam, reassign, renameTeam, saveSettings } from "../actions.ts";
 
 type TeamRow = { id: string; name: string; group: boolean; archived: boolean; members: number | null };
 type Orphans = { owner: string; name: string; items: { kind: "objective" | "key_result"; id: string; title: string; objectiveTitle: string; objectiveId: string; cycle: string }[] }[];
-type Words = { settings: Catalogue["settings"]; errors: Catalogue["errors"]; teams: Catalogue["teams"] };
+type Words = { settings: Catalogue["settings"]; errors: Catalogue["errors"]; teams: Catalogue["teams"]; peoplePicker: PeoplePickerWords };
+type Person = { id: string; name: string; photo: string | null };
 
-export function SettingsView({ personal, teams, groups, orphans, owners, locale, t }: { personal: boolean; teams: TeamRow[]; groups: { id: string; name: string }[]; orphans: Orphans; owners: { id: string; name: string }[]; locale: string; t: Words }) {
+export function SettingsView({ personal, teams, groups, orphans, owners, locale, t }: { personal: boolean; teams: TeamRow[]; groups: { id: string; name: string }[]; orphans: Orphans; owners: Person[]; locale: string; t: Words }) {
   const s = t.settings;
   const [pending, start] = useTransition();
   const router = useRouter();
@@ -25,7 +27,7 @@ export function SettingsView({ personal, teams, groups, orphans, owners, locale,
   const [error, setError] = useState<string | null>(null);
   const words = (code: keyof Words["errors"], values: Record<string, string | number> = {}) => format(t.errors[code], values);
 
-  function act<T>(step: () => Promise<{ ok: true; value: T } | { ok: false; error: keyof Words["errors"]; values?: Record<string, string | number> }>, done: (value: T) => string | null, undo?: () => Promise<unknown>) {
+  function act<T>(step: () => Promise<{ ok: true; value: T } | { ok: false; error: keyof Words["errors"]; values?: Record<string, string | number> }>, done: (value: T) => string | null, undo?: () => Promise<{ ok: true } | { ok: false; error: keyof Words["errors"]; values?: Record<string, string | number> }>) {
     start(async () => {
       const r = await step();
       if (!r.ok) {
@@ -34,7 +36,7 @@ export function SettingsView({ personal, teams, groups, orphans, owners, locale,
       }
       setError(null);
       const text = done(r.value);
-      if (text) toast(text, undo ? { label: s.undo, run: () => start(async () => { await undo(); router.refresh(); }) } : undefined);
+      if (text) toast({ id: "settings", text, ...(undo ? { undo: async () => { const back = await undo(); router.refresh(); return back.ok ? true : words(back.error, back.values); } } : {}) });
       router.refresh();
     });
   }
@@ -113,7 +115,7 @@ export function SettingsView({ personal, teams, groups, orphans, owners, locale,
         {orphans.length === 0 ? <p className="muted"><Check /> {s.ownersEmpty}</p> : (
           <>
             <p className="muted">{s.ownersBody}</p>
-            {orphans.map(g => <OrphanGroup key={g.owner} group={g} owners={owners} pending={pending} onGive={(input, n) => act(() => reassign(input), () => plural(s.given, n, locale))} t={t} />)}
+            {orphans.map(g => <OrphanGroup key={g.owner} group={g} owners={owners} pending={pending} locale={locale} onGive={(input, n) => act(() => reassign(input), () => plural(s.given, n, locale))} t={t} />)}
           </>
         )}
       </section>
@@ -121,19 +123,17 @@ export function SettingsView({ personal, teams, groups, orphans, owners, locale,
   );
 }
 
-function OrphanGroup({ group, owners, pending, onGive, t }: { group: Orphans[number]; owners: { id: string; name: string }[]; pending: boolean; onGive: (input: { kind: "objective" | "key_result" | "all"; id?: string; from?: string; to: string }, n: number) => void; t: Words }) {
+function OrphanGroup({ group, owners, pending, locale, onGive, t }: { group: Orphans[number]; owners: Person[]; pending: boolean; locale: string; onGive: (input: { kind: "objective" | "key_result" | "all"; id?: string; from?: string; to: string }, n: number) => void; t: Words }) {
   const s = t.settings;
   const [all, setAll] = useState("");
   const [each, setEach] = useState<Record<string, string>>({});
   return (
     <div className="orphans">
       <form className="row" onSubmit={e => { e.preventDefault(); if (all) onGive({ kind: "all", from: group.owner, to: all }, group.items.length); }}>
-        <label className="label full" htmlFor={`all-${group.owner}`}>{format(s.giveAll, { name: group.name })}</label>
-        <select id={`all-${group.owner}`} className="select auto" value={all} onChange={e => setAll(e.target.value)}>
-          <option value="">{s.choose}</option>
-          {owners.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
-        </select>
-        <button type="submit" className="button small" disabled={pending || !all}>{s.give}</button>
+        <div className="grow-field">
+          <PeoplePicker label={format(s.giveAll, { name: group.name })} value={owners.filter(o => o.id === all)} onChange={v => setAll(v[0]?.id ?? "")} search={localSearch(owners)} labels={t.peoplePicker} lang={locale} />
+        </div>
+        <button type="submit" className="button" disabled={pending || !all}>{s.give}</button>
       </form>
       <ul className="rows bordered">
         {group.items.map(i => {
@@ -145,13 +145,11 @@ function OrphanGroup({ group, owners, pending, onGive, t }: { group: Orphans[num
                 <Link href={`/chest/objectives/${i.objectiveId}`}>{i.title}</Link>
                 {i.kind === "key_result" && <span className="hint">{format(s.in, { objective: i.objectiveTitle })}</span>}
               </div>
-              <form className="row" onSubmit={e => { e.preventDefault(); const to = each[key]; if (to) onGive({ kind: i.kind, id: i.id, to }, 1); }}>
-                <label className="visually-hidden" htmlFor={`give-${key}`}>{s.giveTo}</label>
-                <select id={`give-${key}`} className="select auto" value={each[key] ?? ""} onChange={e => setEach({ ...each, [key]: e.target.value })}>
-                  <option value="">{s.giveTo}</option>
-                  {owners.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
-                </select>
-                <button type="submit" className="button quiet small" disabled={pending || !each[key]}>{s.give}</button>
+              <form className="row give" onSubmit={e => { e.preventDefault(); const to = each[key]; if (to) onGive({ kind: i.kind, id: i.id, to }, 1); }}>
+                <div className="grow-field">
+                  <PeoplePicker label={format(s.giveOne, { title: i.title })} hideLabel value={owners.filter(o => o.id === each[key])} onChange={v => setEach({ ...each, [key]: v[0]?.id ?? "" })} search={localSearch(owners)} labels={t.peoplePicker} lang={locale} />
+                </div>
+                <button type="submit" className="button quiet" disabled={pending || !each[key]}>{s.give}</button>
               </form>
             </li>
           );

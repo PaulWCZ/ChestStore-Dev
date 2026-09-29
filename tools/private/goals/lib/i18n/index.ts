@@ -9,7 +9,11 @@ export type Locale = (typeof locales)[number];
 export const defaultLocale: Locale = "en";
 
 // A catalogue has the shape of the English one, every leaf a string.
-type Shape<T> = { readonly [K in keyof T]: T[K] extends string ? string : Shape<T[K]> };
+// (The kit's date words keep their exact types: a date order and a week
+// start are choices, not free text.)
+type Shape<T> = {
+  readonly [K in keyof T]: T[K] extends "dmy" | "mdy" | "ymd" ? "dmy" | "mdy" | "ymd" : T[K] extends string ? string : T[K] extends 0 | 1 ? 0 | 1 : Shape<T[K]>;
+};
 export type Catalogue = Shape<typeof en>;
 
 const catalogues: Record<Locale, Catalogue> = { en, fr };

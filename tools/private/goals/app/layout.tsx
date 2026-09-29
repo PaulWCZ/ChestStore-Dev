@@ -1,9 +1,13 @@
+import { ThemeStyle } from "@argentic/chest-ui/react";
+import { lookColors, nonceOf } from "@argentic/chest-ui/runtime";
 import type { Metadata, Viewport } from "next";
+import { headers } from "next/headers";
 import type { ReactNode } from "react";
 import { catalogue } from "../lib/i18n/index.ts";
 import { pageLocale } from "../lib/session.ts";
-import "./fonts/work-sans.css";
-import "./fonts/barlow-semi-condensed.css";
+import { currentLook } from "../lib/theme.ts";
+// The kit's components first, so the tool's own CSS can restyle them.
+import "@argentic/chest-ui/components.css";
 import "./tokens.css";
 import "./globals.css";
 
@@ -17,19 +21,21 @@ export async function generateMetadata(): Promise<Metadata> {
   return { title: t.meta.name, description: t.meta.tagline, robots: { index: false, follow: false } };
 }
 
-export const viewport: Viewport = {
-  width: "device-width",
-  initialScale: 1,
-  themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#17302a" },
-    { media: "(prefers-color-scheme: dark)", color: "#0b1210" },
-  ],
-};
+export async function generateViewport(): Promise<Viewport> {
+  return { width: "device-width", initialScale: 1, themeColor: lookColors(await currentLook()) };
+}
 
+// The look (lib/theme.ts) is one <style> in the head, with the page's
+// nonce: its colours, fonts and dark mode arrive with the page, no script.
 export default async function RootLayout({ children }: { children: ReactNode }) {
-  const locale = await pageLocale();
+  // The nonce of this response's Content-Security-Policy (proxy.ts sets it
+  // on the request): the theme's <style> carries it.
+  const [locale, look, nonce] = await Promise.all([pageLocale(), currentLook(), headers().then(h => nonceOf(h.get("content-security-policy")))]);
   return (
     <html lang={locale}>
+      <head>
+        <ThemeStyle look={look} nonce={nonce} />
+      </head>
       <body>{children}</body>
     </html>
   );

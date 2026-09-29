@@ -1,4 +1,5 @@
 import * as chest from "@argentic/chest-sdk/chest";
+import { EmptyState } from "@argentic/chest-ui/components";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AutoRefresh } from "../../../../components/auto-refresh.tsx";
@@ -70,7 +71,7 @@ export default async function ObjectivePage({ params, searchParams }: { params: 
   const to = instantOf(addDays(cycle.endsOn, 1), 0, ctx.zone).getTime() - 1;
   const next = ctx.cycles.filter(c => !c.closed && c.id !== cycle.id).sort((a, b) => (a.startsOn < b.startsOn ? -1 : 1));
   const carryTarget = ended && mayEdit(member, o) ? next.find(c => c.startsOn > cycle.endsOn) ?? next[0] ?? null : null;
-  const cardWords = { checkIn: t.checkIn, confidence: t.confidence, confidenceHelp: t.confidenceHelp, errors: t.errors, objective: t.objective, progress: t.progress, form: t.form, kinds: t.kinds, kindHints: t.kindHints };
+  const cardWords = { checkIn: t.checkIn, confidence: t.confidence, confidenceHelp: t.confidenceHelp, errors: t.errors, objective: t.objective, progress: t.progress, form: t.form, kinds: t.kinds, kindHints: t.kindHints, peoplePicker: t.peoplePicker, dialog: t.dialog, tables: t.tables };
   const levelLine = o.level === "team" ? view.teamName ?? t.levels.team : t.levels[o.level];
 
   return (
@@ -115,11 +116,7 @@ export default async function ObjectivePage({ params, searchParams }: { params: 
               {editable && <span className="end"><AddKeyResult objectiveId={o.id} owners={owners} defaultOwner={o.owner} locale={locale} currency={chest.currency()} t={cardWords} /></span>}
             </div>
             {view.keyResults.length === 0 ? (
-              <div className="empty">
-                <h2>{t.objective.noKeyResults}</h2>
-                <p>{t.objective.noKeyResultsBody}</p>
-                {editable && <AddKeyResult objectiveId={o.id} owners={owners} defaultOwner={o.owner} locale={locale} currency={chest.currency()} t={cardWords} primary />}
-              </div>
+              <EmptyState title={t.objective.noKeyResults} body={t.objective.noKeyResultsBody} action={editable ? <AddKeyResult objectiveId={o.id} owners={owners} defaultOwner={o.owner} locale={locale} currency={chest.currency()} t={cardWords} primary /> : null} />
             ) : view.keyResults.map(k => {
               const raw = o.keyResults.find(x => x.id === k.id)!;
               const list = history.get(k.id) ?? [];
@@ -186,7 +183,7 @@ export default async function ObjectivePage({ params, searchParams }: { params: 
                     <div className="grow">
                       <span className="eyebrow">{c.teamName ?? c.levelText}</span>
                       <Link href={`/chest/objectives/${c.id}`}>{c.title}</Link>
-                      <span className="meta"><PersonLine person={c.owner} size={20} /><Confidence value={c.confidence} words={t.confidence} /></span>
+                      <span className="meta"><PersonLine person={c.owner} /><Confidence value={c.confidence} words={t.confidence} /></span>
                     </div>
                     <div className="row-progress"><Progress percent={c.percent} text={c.percentText} label={`${c.title}: ${c.percentText}`} confidence={c.confidence} /></div>
                   </li>
@@ -217,7 +214,7 @@ export default async function ObjectivePage({ params, searchParams }: { params: 
               objectiveId={o.id}
               canEdit={editable}
               carry={carryTarget ? { id: carryTarget.id, label: format(t.objective.carryOver, { cycle: carryTarget.name }) } : null}
-              t={{ objective: t.objective, checkIn: t.checkIn, errors: t.errors }}
+              t={{ objective: t.objective, errors: t.errors }}
             />
           )}
         </aside>

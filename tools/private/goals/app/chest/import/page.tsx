@@ -1,6 +1,6 @@
 import Link from "next/link";
-import { Contours } from "../../../components/contours.tsx";
 import { Back, Lock } from "../../../components/icons.tsx";
+import { MapEmpty } from "../../../components/map-empty.tsx";
 import { can } from "../../../lib/access.ts";
 import { db } from "../../../lib/db.ts";
 import { context } from "../../../lib/page-data.ts";
@@ -30,7 +30,7 @@ export default async function ImportPage({ searchParams }: { searchParams: Promi
     return (
       <div className="narrow">
         {head}
-        <div className="empty"><Contours variant="small" /><Lock /><p>{!cycle ? t.import.noCycle : t.import.onlyAdmins}</p>{!cycle && can(member, "cycles.manage") && <Link className="button" href="/chest/cycles">{t.shell.cycles}</Link>}</div>
+        <MapEmpty icon={<Lock />} title={!cycle ? t.import.noCycle : t.import.onlyAdmins} action={!cycle && can(member, "cycles.manage") ? <Link className="button" href="/chest/cycles">{t.shell.cycles}</Link> : null} />
       </div>
     );
   }
@@ -43,7 +43,7 @@ export default async function ImportPage({ searchParams }: { searchParams: Promi
         cycleId={cycle.id}
         people={people}
         locale={locale}
-        t={{ import: t.import, errors: t.errors, levels: t.levels, objective: t.objective, kinds: t.kinds }}
+        t={{ import: t.import, errors: t.errors, levels: t.levels, objective: t.objective, kinds: t.kinds, files: t.files, peoplePicker: t.peoplePicker }}
       />
     </div>
   );

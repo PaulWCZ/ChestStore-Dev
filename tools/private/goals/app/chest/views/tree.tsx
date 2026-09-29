@@ -40,7 +40,7 @@ function Node({ n, t, closed, toggle }: { n: TreeNode; t: Words; closed: string[
           <span className="eyebrow">{o.teamName ?? o.levelText}</span>
           <Link className="objective-title" href={`/chest/objectives/${o.id}`}>{o.title}</Link>
           <span className="meta">
-            <PersonLine person={o.owner} size={20} />
+            <PersonLine person={o.owner} />
             {o.owner.gone && <span className="tag gone">{t.objective.ownerLeft}</span>}
             {o.visibility !== "everyone" && <span className="tag confidential"><Lock />{t.objective.confidential}</span>}
             <span>{o.keyResultsText}</span>

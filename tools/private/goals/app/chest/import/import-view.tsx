@@ -1,9 +1,10 @@
 "use client";
 
+import { FilePicker, PeoplePicker, useToast, type PickedFile } from "@argentic/chest-ui/components";
+import { localSearch, type FileWords, type PeoplePickerWords } from "@argentic/chest-ui/components/logic";
 import { useRouter } from "next/navigation";
 import { useId, useState, useTransition } from "react";
 import { Alert, Download, Upload } from "../../../components/icons.tsx";
-import { useToast } from "../../../components/toast.tsx";
 import { format, plural } from "../../../lib/i18n/format.ts";
 import type { Catalogue } from "../../../lib/i18n/index.ts";
 import type { Field, Mapping, Preview } from "../../../lib/import.ts";
@@ -14,12 +15,13 @@ import { previewImport, runImport, undoImport } from "../actions.ts";
 const fields: Field[] = ["objective", "keyResult", "rowKind", "owner", "krOwner", "level", "team", "parent", "why", "kind", "start", "target", "current", "unit", "confidence"];
 const maxBytes = 3 * 1024 * 1024;
 
-type Words = { import: Catalogue["import"]; errors: Catalogue["errors"]; levels: Catalogue["levels"]; objective: Catalogue["objective"]; kinds: Catalogue["kinds"] };
+type Words = { import: Catalogue["import"]; errors: Catalogue["errors"]; levels: Catalogue["levels"]; objective: Catalogue["objective"]; kinds: Catalogue["kinds"]; files: FileWords; peoplePicker: PeoplePickerWords };
 
-export function ImportView({ cycles, cycleId, people, locale, t }: { cycles: { id: string; name: string }[]; cycleId: string; people: { id: string; name: string }[]; locale: string; t: Words }) {
+export function ImportView({ cycles, cycleId, people, locale, t }: { cycles: { id: string; name: string }[]; cycleId: string; people: { id: string; name: string; photo: string | null }[]; locale: string; t: Words }) {
   const uid = useId();
   const w = t.import;
   const [cycle, setCycle] = useState(cycleId);
+  const [files, setFiles] = useState<readonly PickedFile[]>([]);
   const [text, setText] = useState<string | null>(null);
   const [mapping, setMapping] = useState<Mapping | null>(null);
   const [owners, setOwners] = useState<Record<string, string>>({});
@@ -44,8 +46,23 @@ export function ImportView({ cycles, cycleId, people, locale, t }: { cycles: { i
     });
   }
 
-  async function choose(file: File | undefined) {
-    if (!file) return;
+  // The kit's file picker keeps the file in the page (nothing is sent until
+  // "Import"): a new file is read at once; taking it away starts again.
+  function pick(update: (current: readonly PickedFile[]) => PickedFile[]) {
+    const next = update(files);
+    setFiles(next);
+    const file = next[0]?.file ?? null;
+    if (!file) {
+      setText(null);
+      setMapping(null);
+      setPreview(null);
+      setError(null);
+      return;
+    }
+    if (next[0]!.key !== files[0]?.key) void choose(file);
+  }
+
+  async function choose(file: File) {
     if (file.size > maxBytes) return setError(t.errors.import_too_big);
     const read = await file.text();
     setText(read);
@@ -60,9 +77,14 @@ export function ImportView({ cycles, cycleId, people, locale, t }: { cycles: { i
       const r = await runImport({ text, mapping, cycleId: cycle, owners });
       if (!r.ok) return setError(format(t.errors[r.error], r.values ?? {}));
       const ids = r.value.objectives;
-      toast(format(w.done, { objectives: plural(w.objectives, ids.length, locale), keyResults: plural(t.objective.keyResultsCount, r.value.keyResults, locale) }), {
-        label: w.undo,
-        run: () => { void undoImport(ids).then(back => { toast(back.ok ? w.undone : format(t.errors[back.error], back.values ?? {})); router.refresh(); }); },
+      toast({
+        id: "import",
+        text: format(w.done, { objectives: plural(w.objectives, ids.length, locale), keyResults: plural(t.objective.keyResultsCount, r.value.keyResults, locale) }),
+        undo: async () => {
+          const back = await undoImport(ids);
+          router.refresh();
+          return back.ok ? true : format(t.errors[back.error], back.values ?? {});
+        },
       });
       router.push(`/chest/company?cycle=${cycle}`);
       router.refresh();
@@ -86,9 +108,9 @@ export function ImportView({ cycles, cycleId, people, locale, t }: { cycles: { i
       <div className="card form-card">
         <div className="grid-2">
           <div>
-            <label className="label" htmlFor={`${uid}-file`}>{w.file}</label>
-            <input id={`${uid}-file`} className="field file" type="file" accept=".csv,text/csv,text/plain" onChange={e => void choose(e.target.files?.[0])} aria-describedby={`${uid}-file-hint`} />
-            <p id={`${uid}-file-hint`} className="hint">{w.fileHint} <a href="/chest/import/example" download><Download />{w.example}</a></p>
+            <span className="label" aria-hidden="true">{w.file}</span>
+            <FilePicker label={w.file} files={files} onChange={pick} maxFiles={1} maxSize={maxBytes} accept={[".csv", "text/csv", "text/plain"]} labels={t.files} />
+            <p className="hint">{w.fileHint} <a href="/chest/import/example" download><Download />{w.example}</a></p>
           </div>
           <div>
             <label className="label" htmlFor={`${uid}-cycle`}>{w.into}</label>
@@ -141,11 +163,8 @@ export function ImportView({ cycles, cycleId, people, locale, t }: { cycles: { i
                 <legend className="stack-s"><span className="h3">{w.owners}</span><span className="hint">{w.ownersHint}</span></legend>
                 {unmatched.map(o => (
                   <div key={o.key} className="owner-pick">
-                    <label className="label" htmlFor={`${uid}-o-${o.key}`}>{o.written} <span className="muted">· {plural(w.ownerRows, o.rows, locale)}</span></label>
-                    <select id={`${uid}-o-${o.key}`} className="select" value={owners[o.key] ?? ""} onChange={e => { const next = { ...owners, [o.key]: e.target.value }; if (!e.target.value) delete next[o.key]; setOwners(next); look({ owners: next }); }}>
-                      <option value="">{w.me}</option>
-                      {people.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                    </select>
+                    <PeoplePicker label={`${o.written} · ${plural(w.ownerRows, o.rows, locale)}`} value={people.filter(p => p.id === owners[o.key])} search={localSearch(people)} labels={t.peoplePicker} lang={locale}
+                      onChange={v => { const next = { ...owners }; if (v[0]) next[o.key] = v[0].id; else delete next[o.key]; setOwners(next); look({ owners: next }); }} />
                   </div>
                 ))}
               </fieldset>

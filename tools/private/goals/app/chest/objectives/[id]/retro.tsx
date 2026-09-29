@@ -2,8 +2,8 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
+import { useToast } from "@argentic/chest-ui/components";
 import { Alert, Check } from "../../../../components/icons.tsx";
-import { useToast } from "../../../../components/toast.tsx";
 import { format } from "../../../../lib/i18n/format.ts";
 import type { Catalogue } from "../../../../lib/i18n/index.ts";
 import { saveRetro } from "../../actions.ts";
@@ -42,7 +42,7 @@ export function Retro({ objectiveId, canWrite, score, learned, suggested, scoreT
           const result = await saveRetro(objectiveId, { score: value === "" ? "" : `${value}%`, learned: text });
           if (!result.ok) return setError(format(t.errors[result.error], result.values ?? {}));
           setError(null);
-          toast(r.saved);
+          toast({ id: `retro-${objectiveId}`, text: r.saved });
           router.refresh();
         });
       }}>

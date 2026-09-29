@@ -41,7 +41,7 @@ export function KeyResultRow({ k, t, mine }: { k: KeyResultView; t: CardWords; m
       <div className="kr-text">
         <span className="kr-title">{k.title}</span>
         <span className="kr-meta">
-          <PersonLine person={k.owner} size={20} />
+          <PersonLine person={k.owner} />
           <Confidence value={k.confidence} words={t.confidence} />
           {k.stale && <span className="tag stale"><Clock />{t.progress.staleShort}</span>}
           {k.canCheckIn && k.owner.id === mine && !k.done && <Link className="link-button" href={`/chest/objectives/${k.objectiveId}?checkin=${k.id}#kr-${k.id}`}>{t.checkIn.open}</Link>}

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Contours } from "../../../components/contours.tsx";
+import { MapEmpty } from "../../../components/map-empty.tsx";
 import { Progress } from "../../../components/progress.tsx";
 import { can, readerOf } from "../../../lib/access.ts";
 import { db } from "../../../lib/db.ts";
@@ -42,10 +42,10 @@ export default async function Cycles() {
     <div className="page narrow">
       <div className="head">
         <div className="titles"><h1>{t.cycles.title}</h1><p className="hint">{t.cycles.intro}</p></div>
-        {admin && <div className="actions"><NewCycle suggestion={suggestion} first={ctx.cycles.length === 0} t={{ cycles: t.cycles, errors: t.errors }} /></div>}
+        {admin && <div className="actions"><NewCycle suggestion={suggestion} first={ctx.cycles.length === 0} today={ctx.clock.today} t={{ cycles: t.cycles, errors: t.errors, date: t.date, dialog: t.dialog }} /></div>}
       </div>
       {ctx.cycles.length === 0 ? (
-        <div className="empty"><Contours variant="small" /><h2>{t.cycles.noCycles}</h2><p>{admin ? t.home.noCycleBody : t.home.noCycleMember}</p></div>
+        <MapEmpty title={t.cycles.noCycles} body={admin ? t.home.noCycleBody : t.home.noCycleMember} />
       ) : (
         <ul className="card rows">
           {ctx.cycles.map(c => {
@@ -60,7 +60,7 @@ export default async function Cycles() {
                   <span className="meta"><span>{cw.dates}</span><span>· {plural(t.cycles.objectives, s.n, locale)}</span>{c.closed && s.n > 0 && <span>· {format(t.cycles.retroDone, { done: s.retro, total: s.n })}</span>}</span>
                 </div>
                 <div className="row-progress"><Progress percent={p} text={pctText(t, p)} label={`${c.name}: ${pctText(t, p)}`} /></div>
-                {admin && <CycleAdmin cycle={{ id: c.id, name: c.name, startsOn: c.startsOn, endsOn: c.endsOn, current: c.current, closed: c.closed, empty: s.n === 0 }} t={{ cycles: t.cycles, errors: t.errors, checkIn: t.checkIn }} />}
+                {admin && <CycleAdmin cycle={{ id: c.id, name: c.name, startsOn: c.startsOn, endsOn: c.endsOn, current: c.current, closed: c.closed, empty: s.n === 0 }} today={ctx.clock.today} t={{ cycles: t.cycles, errors: t.errors, date: t.date, dialog: t.dialog }} />}
               </li>
             );
           })}

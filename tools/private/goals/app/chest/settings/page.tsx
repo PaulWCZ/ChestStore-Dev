@@ -35,7 +35,7 @@ export default async function Settings() {
         orphans={[...byOwner.values()].map(g => ({ owner: g.owner, name: g.name, items: g.items.map(i => ({ kind: i.kind, id: i.id, title: i.title, objectiveTitle: i.objectiveTitle, objectiveId: i.objectiveId, cycle: i.cycle })) }))}
         owners={owners}
         locale={locale}
-        t={{ settings: t.settings, errors: t.errors, teams: t.teams }}
+        t={{ settings: t.settings, errors: t.errors, teams: t.teams, peoplePicker: t.peoplePicker }}
       />
     </div>
   );
