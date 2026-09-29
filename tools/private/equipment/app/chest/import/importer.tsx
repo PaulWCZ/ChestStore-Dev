@@ -119,10 +119,10 @@ export function Importer({ t, locale }: { t: Words; locale: string }) {
           {picked.plan.newFields.length > 0 && <p>{format(w.newFields, { names: [...new Set(picked.plan.newFields.map(f => f.name))].join(", ") })}</p>}
           {picked.plan.ignored.length > 0 && <p className="small muted">{format(w.ignored, { names: picked.plan.ignored.join(", ") })}</p>}
           {skipped > 0 && <p className="small">{plural(w.skipped, skipped, locale)}</p>}
-          <p className="small muted">{format(w.rowsShown, { count: Math.min(rows.length, 50) })}</p>
           <div className="preview-table">
             <DataTable<PlanRow>
-              caption={w.check}
+              caption={format(w.rowsShown, { count: Math.min(rows.length, 50) })}
+              showCaption
               rows={rows.slice(0, 50)}
               rowKey={r => String(r.line)}
               rowName={r => r.name}

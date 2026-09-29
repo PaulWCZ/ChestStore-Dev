@@ -26,7 +26,10 @@ what must not break.
 | `lib/departures.ts` | Departures told by People (events between tools): read and check each event, ordering by `occurredAt`, the "To take back" list, purge |
 | `lib/lifecycle.ts`, `lib/weekly.ts` | Members leaving / erased (they also forget a departure); Monday's run |
 | `lib/view.ts`, `lib/words.ts` | Items as rows in words for the views |
-| `lib/i18n/` | Every word: `en.ts` (source), `fr.ts`; `format.ts` for the browser |
+| `lib/i18n/` | Every word: `en.ts` (source), `fr.ts`; `format.ts` for the browser; the UI kit's word sections (`toast`, `dialog`, `peoplePicker`, `date`, `files`, `table`, `filters`, `search`) |
+| `lib/theme.ts` | The identity "Tool crib" (`defineTheme`, equal to the kit's catalogue theme `labels`) and `currentLook()` |
+| `app/tokens.css` | The tool's own tokens, all defined from contract tokens (steel bar, tag, paper) |
+| `components/shell.tsx`, `components/bits.tsx` | The kit's `AppShell` with Next's `Link`; asset tag, status stamps (the kit's `StatusBadge`), item lines |
 | `app/chest/` | Pages (server) and views (`"use client"`); `actions.ts` server actions |
 | `seed/sample.sql` | Sample equipment of the studio's cast |
 
@@ -52,6 +55,24 @@ what must not break.
   The `leaving:<member>` bell item is withdrawn when all is back, when the
   departure is cancelled, and when the member leaves or is erased.
 - Nothing leaves the tool: fonts, icons and QR codes are local.
+- **The UI kit** (`@argentic/chest-ui`, vendored in `vendor/`): `AppShell`
+  (+ `Nav`, `BrandMark`, `NoAccess`), `Toasts`/`useToast` (Undo returns
+  `true` or why not; `sent: true` once a bell left), `Dialog` (pass
+  `dirty` when something was typed), `Confirm` (only for the irreversible:
+  deleting a photo or an invoice), `PeoplePicker` (`localSearch` over the
+  team), `DateField` (never `type="date"`), `Segmented`, `Menu`,
+  `Filters`, `SearchBox`, `FilePicker` (importer), `DataTable` (import
+  preview), `EmptyState`, `Avatar`, `StatusBadge`, `PageHeader`,
+  `LanguageSwitch`. Kept on purpose: the item lines (labels with a tick
+  to print), the stock pickers in dialogs (records, not people), the
+  category icon menu, the photo and invoice buttons, the paper forms.
+- **CSS names only contract tokens** and the tool's own from
+  `app/tokens.css` (`test/theme.test.ts`); never a colour. The paper
+  (sheets, labels) uses the system's `Canvas`/`CanvasText` (and a dark grey mixed from them)
+  with `color-scheme: light`, so it prints black on white in every look.
+- Words follow `lab/GLOSSARY.md` (`node scripts/lint-words.mjs` in the
+  studio: 0 errors): Undo « Annuler l’action », Delete « Supprimer »,
+  narrow no-break spaces in French.
 - Client components never import the SDK, `lib/db.ts`, `lib/session.ts`,
   `lib/people.ts`.
 - Verify with `npm test` (PGlite and `TEST_DATABASE_URL`), `npm run build`,

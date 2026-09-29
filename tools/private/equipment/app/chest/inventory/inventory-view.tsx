@@ -33,12 +33,17 @@ export function InventoryView({ open, seen, notSeen, t, locale }: { open: boolea
     return u.ok || fault(u);
   };
 
+  // A scanner types the next label while the last one is still on its
+  // way: the box is emptied at once (and never disabled), so each Enter is
+  // its own scan; a refused scan gives its text back if the box is empty.
   function scan(input: { text?: string; itemId?: string }) {
     setError(null);
+    if (input.text !== undefined) setText("");
     start(async () => {
       const r = await markSeen(input);
       if (!r.ok) {
         setError(format(t.errors[r.error], r.values));
+        if (input.text !== undefined) setText(now => (now === "" ? input.text! : now));
         return;
       }
       const v = r.value;
@@ -47,7 +52,6 @@ export function InventoryView({ open, seen, notSeen, t, locale }: { open: boolea
         text: v.outOfScope ? format(w.outOfScope, { tag: v.tag }) : v.already ? format(w.alreadyToast, { tag: v.tag }) : format(w.seenToast, { tag: v.tag, name: v.name }),
         ...(v.already || v.outOfScope ? {} : { undo: undoing(() => unmarkSeen(v.id)) }),
       });
-      setText("");
       router.refresh();
       box.current?.focus();
     });
@@ -79,7 +83,7 @@ export function InventoryView({ open, seen, notSeen, t, locale }: { open: boolea
         <form className="filter-q" onSubmit={e => { e.preventDefault(); if (text.trim()) scan({ text }); }}>
           <label htmlFor="scan-box" className="visually-hidden">{w.scan}</label>
           <input id="scan-box" ref={box} className="field mono" value={text} onChange={e => setText(e.target.value)} placeholder={w.scan} autoFocus autoComplete="off" spellCheck={false} maxLength={400} aria-describedby="scan-hint" />
-          <button type="submit" className="button" disabled={pending || !text.trim()}><Check />{w.scanButton}</button>
+          <button type="submit" className="button" disabled={!text.trim()}><Check />{w.scanButton}</button>
         </form>
         <p id="scan-hint" className="hint">{w.scanHint}</p>
         {error && <p className="error" role="alert">{error}</p>}

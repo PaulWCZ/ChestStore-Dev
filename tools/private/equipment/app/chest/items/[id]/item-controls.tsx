@@ -4,7 +4,7 @@ import { Avatar, DateField, Dialog, Menu, PeoplePicker, Segmented, useToast } fr
 import { localSearch } from "@argentic/chest-ui/components/logic";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useEffect, useLayoutEffect, useMemo, useState, useTransition } from "react";
 import { StatusStamp } from "../../../../components/bits.tsx";
 import { Check, Dots, Give, Pencil, Plus, Print, Seat, Sliders, TakeBack, Trash } from "../../../../components/icons.tsx";
 import type { Catalogue } from "../../../../lib/i18n/index.ts";
@@ -58,6 +58,8 @@ export function ItemControls({ item, holder, holderText, seatHolders, team, plac
   }, [extras.opening]); // eslint-disable-line react-hooks/exhaustive-deps
   const [error, setError] = useState<string | null>(null);
   // Something typed in the open dialog: closing it asks first (the kit's).
+  // The forms report it in a layout effect, so an Escape pressed right after
+  // a key already finds it dirty.
   const [dirty, setDirty] = useState(false);
   const fail = (r: { error: keyof Catalogue["errors"]; values?: Record<string, string | number> }) => setError(format(t.errors[r.error], r.values));
   const open = (d: typeof dialog) => { setError(null); setDirty(false); setDialog(d); };
@@ -299,7 +301,7 @@ function GiveForm({ item, team, places, today, t, error, pending, onDirty, onSub
   const [place, setPlace] = useState("");
   const [note, setNote] = useState("");
   const [day, setDay] = useState<string | null>(today);
-  useEffect(() => onDirty(note.trim() !== "" || place.trim() !== ""), [note, place]); // eslint-disable-line react-hooks/exhaustive-deps
+  useLayoutEffect(() => onDirty(note.trim() !== "" || place.trim() !== ""), [note, place]); // eslint-disable-line react-hooks/exhaustive-deps
   const ready = day !== null && (mode === "person" ? person !== null : place.trim() !== "" && place.trim() !== item.placeName);
   return (
     <form className="stack" onSubmit={e => {
@@ -334,7 +336,7 @@ function BackForm({ from, today, t, error, pending, onDirty, onSubmit }: { from:
   const [note, setNote] = useState("");
   const [repair, setRepair] = useState(false);
   const [day, setDay] = useState<string | null>(today);
-  useEffect(() => onDirty(note.trim() !== ""), [note]); // eslint-disable-line react-hooks/exhaustive-deps
+  useLayoutEffect(() => onDirty(note.trim() !== ""), [note]); // eslint-disable-line react-hooks/exhaustive-deps
   return (
     <form className="stack" onSubmit={e => { e.preventDefault(); if (day) onSubmit(note, repair, day); }}>
       <p className="strong">{format(t.takeBack.from, { name: from })}</p>
@@ -361,7 +363,7 @@ function StatusForm({ item, today, t, error, pending, onDirty, onSubmit }: {
   const [ref, setRef] = useState("");
   const [due, setDue] = useState<string | null>(null);
   const [cost, setCost] = useState("");
-  useEffect(() => onDirty(note.trim() !== "" || ref.trim() !== "" || cost.trim() !== ""), [note, ref, cost]); // eslint-disable-line react-hooks/exhaustive-deps
+  useLayoutEffect(() => onDirty(note.trim() !== "" || ref.trim() !== "" || cost.trim() !== ""), [note, ref, cost]); // eslint-disable-line react-hooks/exhaustive-deps
   // Going to repair: the repairer's ticket and when it comes back; coming
   // back from it: what it cost.
   const toRepair = status === "in_repair";
@@ -416,7 +418,7 @@ function HandOutForm({ max, team, places, t, error, pending, onDirty, onSubmit }
   const [person, setPerson] = useState<Colleague | null>(null);
   const [place, setPlace] = useState("");
   const [note, setNote] = useState("");
-  useEffect(() => onDirty(note.trim() !== "" || place.trim() !== ""), [note, place]); // eslint-disable-line react-hooks/exhaustive-deps
+  useLayoutEffect(() => onDirty(note.trim() !== "" || place.trim() !== ""), [note, place]); // eslint-disable-line react-hooks/exhaustive-deps
   const n = Number(qty);
   const ready = Number.isInteger(n) && n >= 1 && n <= max && (mode === "nobody" || (mode === "person" ? person !== null : place.trim() !== ""));
   return (
@@ -453,7 +455,7 @@ function HandOutForm({ max, team, places, t, error, pending, onDirty, onSubmit }
 function RestockForm({ t, error, pending, onDirty, onSubmit }: { t: Words; error: string | null; pending: boolean; onDirty: (dirty: boolean) => void; onSubmit: (qty: string, note: string) => void }) {
   const [qty, setQty] = useState("");
   const [note, setNote] = useState("");
-  useEffect(() => onDirty(qty.trim() !== "" || note.trim() !== ""), [qty, note]); // eslint-disable-line react-hooks/exhaustive-deps
+  useLayoutEffect(() => onDirty(qty.trim() !== "" || note.trim() !== ""), [qty, note]); // eslint-disable-line react-hooks/exhaustive-deps
   const n = Number(qty);
   return (
     <form className="stack" onSubmit={e => { e.preventDefault(); if (Number.isInteger(n) && n >= 1) onSubmit(qty, note); }}>

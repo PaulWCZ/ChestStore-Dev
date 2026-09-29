@@ -231,6 +231,28 @@ qualified electronic signature (the receipt is a confirmation in the
 tool; the sheets are signed on paper), and the person's **job title and
 department** on the handover sheet (`members` gives names only).
 
+## Looks
+
+Equipment wears its own identity, **Tool crib** (steel shelves, utility
+orange tags, printed labels: `lib/theme.ts`, DESIGN.md) — or any look the
+company chooses in its Chest, for all its tools or for this one: a theme
+of the store's catalogue (the seventeen tools' identities, "Chest", "High
+contrast") or **the company's own brand** (its colours, fonts, corners and
+logo, derived with every text kept readable). Same features in every look;
+in brand mode the company's logo stands beside "Equipment" in the header
+and on the public page. The look is resolved on the server
+(`chest.theme()`, UI kit `@argentic/chest-ui`), with no script and no
+switch in the tool. **What is printed stays black on white in every look**:
+the handover and return sheets and the QR labels use the paper's own
+colours (the system's `Canvas` / `CanvasText`), on screen too, where they
+are previews of the paper; the fonts follow the look.
+
+The screens are the store's shared components (UI kit): the header with
+labelled tabs (a row of their own on a phone), toasts whose Undo tells the
+truth, dialogs that never lose what was typed, the people picker, date
+fields in the reader's language, filter chips, the file picker of the
+importer, empty states.
+
 ## Develop
 
 ```sh
@@ -240,7 +262,7 @@ npm run build     # types, then the Next.js build, as the Chest does
 ```
 
 In the studio: `node lab/chest-dev/dev.mjs tools/private/equipment --reset
---port 5400` (sample equipment from `seed/sample.sql`),
+--prod --port 5400` (build first; sample equipment from `seed/sample.sql`),
 `node lab/chest-dev/flows/equipment.mjs 5400` (the browser flows),
 `node lab/chest-dev/screens.mjs tools/private/equipment --port 5400`,
 `node lab/chest-dev/audit.mjs tools/private/equipment --port 5400`.

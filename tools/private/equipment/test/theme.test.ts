@@ -81,7 +81,7 @@ test("the stylesheets name only contract tokens and the tool's own, defined from
   for (const own1 of own) assert.ok(!contract.has(own1), `${own1} redefines a contract token`);
   for (const m of tokens.matchAll(/(--[\w-]+)\s*:\s*([^;]+);/gu)) {
     const names = [...m[2]!.matchAll(/var\((--[\w-]+)\)/gu)].map(v => v[1]!);
-    const system = /^(Canvas|CanvasText|GrayText)$/u.test(m[2]!.trim());
+    const system = /^(Canvas|CanvasText|color-mix\(in oklab, CanvasText \d+%, Canvas\))$/u.test(m[2]!.trim());
     assert.ok(system || names.length > 0, `${m[1]} is not made of tokens`);
     for (const n of names) assert.ok(contract.has(n) || own.has(n), `${m[1]} uses ${n}`);
   }

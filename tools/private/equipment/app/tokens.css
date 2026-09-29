@@ -33,7 +33,8 @@
      same on screen, where the sheet is a preview of the paper). */
   --paper: Canvas;
   --paper-ink: CanvasText;
-  --paper-ink-2: GrayText;
+  /* Secondary words on paper: a dark grey of the two (about 8:1). */
+  --paper-ink-2: color-mix(in oklab, CanvasText 70%, Canvas);
 }
 
 /* In a dark look the steel bar is the quiet ground of the page (dark

@@ -6,24 +6,35 @@
 crib of a workshop: steel shelves, printed labels, a strip of safety tape —
 and nothing frightening.
 
-## Tokens
+## The identity is a theme
 
-Defined once in `app/tokens.css` (light, and dark by the system's choice).
-Ratios computed with `scripts/contrast.mjs` (WCAG 2; AA is 4.5:1 for text);
-the audit (`lab/chest-dev/audit.mjs`, axe-core) passes on every screen,
-light and dark.
+"Tool crib" is a theme of the store's UI kit: `defineTheme` in
+`lib/theme.ts`, value for value the kit's catalogue theme `labels`
+(`test/theme.test.ts` holds the two equal), checked against every pair of
+the token contract (WCAG AA, light and dark). A company may give Equipment
+another look — a catalogue theme or its brand — and the tool follows: its
+stylesheets name only contract tokens, and its own tokens
+(`app/tokens.css`) are made of them:
 
-| Token | Light | Dark | Use |
-|---|---|---|---|
-| `--bg` | `#f4f2ee` warm off-white | `#14181b` | page |
-| `--surface` | `#ffffff` | `#1d2226` | cards, labels, fields |
-| `--ink` | `#1b1f22` | `#eef1f3` | text — 14.8:1 on `--bg` / 14.1:1 on `--surface` |
-| `--ink-2` | `#56606a` steel grey | `#a9b4bd` | secondary text — 5.7:1 / 7.6:1 |
-| `--steel` | `#2e3d48` | `#222b32` | the header bar, toasts — white text 11.2:1 / 14.4:1 |
-| `--accent` | `#c2410c` utility orange | `#ff8a4c` | the one action — white 5.2:1 / dark ink 7.1:1 |
-| `--tag` | `#f06a1f` | `#ff8a4c` | asset-tag tape, safety stripe — ink 5.4:1 / 7.1:1 |
-| `--focus` | `#1f6fb2` | `#8cc2f0` | focus ring — 4.7:1 on `--bg` |
-| status stamps | stock `#1e7a45`/`#e1f2e7` 4.6:1, in use `#245a86`/`#e0ebf5` 6.0:1, repair `#9a4a00`/`#fdebd8` 5.4:1, lost `#b3261e`/`#fbe3e1` 5.4:1, retired `#5b636a`/`#e9e9e7` 5.0:1 | light tints on dark tints, 7.1–7.8:1 | |
+| Tool token | Made of | Use |
+|---|---|---|
+| `--steel`, `--steel-ink`, `--steel-2` | light: the inverse pair (`--ink` ground, `--bg` text, `--surface-2` secondary); dark: `--surface-2` with `--ink` / `--ink-2` | the header bar (was `#2e3d48`; now the look's ink, `#1b1f22` in Tool crib) |
+| `--steel-line` | a mix of the two (decoration) | hovered and current tab, the search well |
+| `--tag`, `--tag-ink` | `--accent`, `--accent-ink` | asset-tag tape, the safety stripe, the mark's tag (the tape is now `#c2410c` with white text; it was `#f06a1f` with ink) |
+| `--crib-icon` | `--ink` (dark: `--ink-2`) | the drawings in bins, lines and cards |
+| `--shadow-label` | the look's `--overlay`, mixed | a label's lift |
+| `--paper`, `--paper-ink`, `--paper-ink-2` | the system's `Canvas`, `CanvasText` (and a dark grey mixed from them) in `color-scheme: light` | printed forms and QR labels: black on white in every look, on screen and on paper |
+
+Statuses are the kit's `StatusBadge` (a shape or dot and a word) inked as
+stamps: in stock `--ok`, in repair and low stock `--wait`, lost `--danger`,
+in use slot 1 of the categorical palette (blue), retired and cancelled
+slot 8 (steel, dashed). Field borders are `--line-strong` (the old
+`#d9d5cc` was 1.4:1, under WCAG 1.4.11's 3:1).
+
+What changes in another look, by the look's choice: the header is the
+look's ink (a light look) or its quiet ground (a dark look); where a look's
+action colour is its ink (Chest, Blueprint), the safety stripe becomes a
+plain band and the mark's tag keeps only its thin edge.
 
 Type: **IBM Plex Sans** (variable) for everything people read, **IBM Plex
 Mono** for what is printed or stamped — asset tags, serial numbers, section
@@ -34,9 +45,10 @@ with reduced motion.
 
 ## Components
 
-- **Header**: steel bar, the mark, tabs (the current one underlined in
-  orange), search; under it a **safety-tape stripe**. On a phone the tabs
-  become a bottom row of icons with words.
+- **Header**: the kit's `AppShell` as the steel bar — the mark (or the
+  company's logo in brand mode), labelled tabs (the current one underlined
+  in orange), the search, the member; under it a **safety-tape stripe**.
+  On a phone the tabs take a row of their own, icons above words.
 - **Asset tag**: monospaced black on orange tape with a notched end — the
   label printed on the thing.
 - **Status stamp**: uppercase monospaced ink stamp, square corners, dashed
@@ -50,9 +62,12 @@ with reduced motion.
   attention (orange top edge when it is a warning).
 - **Printed label**: QR, company, tag, name, "Scan to see or report" — the
   same drawing on screen and on the A4 sheet (print CSS, 3 × 7).
-- Buttons (primary orange, quiet, link, small), fields, segmented choice,
-  people picker, dialog (native `<dialog>`), "More" menu, toast with *Undo*,
-  empty states with one action. 44 px targets; 3 px focus ring.
+- Buttons (primary orange, quiet, link, small) and fields are the tool's;
+  segmented choice, people picker, date fields, dialogs and `Confirm`,
+  the "More" menu, toasts with *Undo*, filter chips, search boxes, the
+  file picker, empty states, avatars are the UI kit's, restyled only where
+  the tool crib needs it (stamps, the steel bar). 44 px targets; 3 px focus
+  ring.
 
 - **Receipt band** — a strip with a left rule under the holder: orange
   tape and soft orange while it waits for "I received it", stock-green
@@ -84,10 +99,9 @@ white.
   "adjectives": ["sturdy", "orderly", "friendly"],
   "colors": [
     { "name": "Paper", "value": "#f4f2ee" },
-    { "name": "Steel", "value": "#2e3d48" },
+    { "name": "Steel", "value": "#1b1f22" },
     { "name": "Utility orange", "value": "#c2410c" },
-    { "name": "Tag tape", "value": "#f06a1f" },
-    { "name": "Ink", "value": "#1b1f22" }
+        { "name": "Ink", "value": "#1b1f22" }
   ],
   "fonts": { "display": { "family": "IBM Plex Sans Variable", "file": "public/fonts/ibm-plex-sans-latin-wght-normal.woff2", "weight": 650 }, "body": { "family": "IBM Plex Mono", "file": "public/fonts/ibm-plex-mono-latin-400-normal.woff2", "weight": 400 } },
   "specimen": "EQ-0042 · MacBook Pro 14″ — with Inès since 9 Oct."

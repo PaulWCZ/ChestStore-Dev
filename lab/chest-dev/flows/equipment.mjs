@@ -26,13 +26,15 @@ await step("a manager adds a laptop: the next tag is given, the item page opens"
   expect(await page.getByRole("heading", { name: "MacBook Pro 16″ M4" }).isVisible(), "title");
   expect((await page.locator(".item-head .asset-tag").textContent()) === "EQ-0042", "tag EQ-0042");
   expect((await page.locator(".facts").innerText()).includes("€2,899"), "price");
+  // The warranty was typed in the kit's date field (never the browser's).
+  expect((await page.locator(".facts").innerText()).includes("31 January 2029"), "warranty date");
   expect(await page.locator(".label-face svg.qr").count() === 1, "QR label");
 });
 
 await step("give it to Hugo with its condition; he finds it in his bell, in English", async () => {
   await page.getByRole("button", { name: "Give to someone" }).click();
   await page.getByPlaceholder("Find someone").fill("hug");
-  await page.locator(".pick-list button", { hasText: "Hugo Bernard" }).click();
+  await page.getByRole("option", { name: /Hugo Bernard/u }).click();
   await page.getByLabel(/^Condition/u).fill("New, in its box");
   await page.getByRole("button", { name: "Give it to Hugo Bernard" }).click();
   await page.getByText("Given to Hugo Bernard.").waitFor();
@@ -59,7 +61,8 @@ await step("a licence: give a seat to Inès; the count follows", async () => {
   await page.waitForURL(/\/chest\/items\/\d+$/u);
   await page.getByRole("button", { name: "Give a seat" }).click();
   await page.getByPlaceholder("Find someone").fill("ines");
-  await page.locator(".pick-list button", { hasText: "Inès Moreau" }).click();
+  await page.getByRole("option", { name: /Inès Moreau/u }).click();
+  await page.getByRole("button", { name: "Give a seat to Inès Moreau" }).click();
   await page.getByText("Inès Moreau has a seat now.").waitFor();
   await page.waitForTimeout(800);
   expect((await page.locator(".holder-panel").innerText()).includes("4 of 5 seats used"), "seats: " + (await page.locator(".holder-panel").innerText()).slice(0, 60));
@@ -68,7 +71,7 @@ await step("a licence: give a seat to Inès; the count follows", async () => {
 await step("search: a serial number finds it; a tag typed exactly opens the item", async () => {
   await page.goto(origin + "/chest/items?q=FLOW-SN");
   expect((await page.locator(".line-name").allTextContents()).join("|") === "MacBook Pro 16″ M4", "serial search");
-  await page.locator("header .search input").fill("eq-0002");
+  await page.locator("header .ck-search input").fill("eq-0002");
   await page.keyboard.press("Enter");
   await page.waitForURL(/\/chest\/items\/2$/u);
   await page.goto(origin + "/chest/items?status=in_repair");
@@ -168,7 +171,7 @@ await step("Tom leaves: nothing comes back by itself, the managers are told; Cam
   expect((await page.locator(".notice").innerText()).includes("A quitté l’entreprise"), "left notice");
   await page.getByRole("button", { name: "Tout reprendre" }).click();
   await page.getByText(/éléments repris/u).waitFor();
-  await page.getByRole("button", { name: "Annuler" }).click();
+  await page.getByRole("button", { name: "Annuler l’action" }).click();
   await page.waitForTimeout(1500);
   await page.reload();
   expect(await page.locator(".checklist .line").count() >= 5, "all back with Tom after Undo");
@@ -205,7 +208,7 @@ await step("Hugo confirms he received the keyboard, reading the rules, with a no
   await as(context, origin, "hugo");
   await english();
   await page.goto(origin + "/chest");
-  expect(/\d+ things? to confirm/u.test(await page.locator(".page-head").innerText()), "count to confirm");
+  expect(/\d+ things? to confirm/u.test(await page.locator(".ck-page-head").innerText()), "count to confirm");
   const card = page.locator(".label-card.to-confirm", { hasText: "Logitech MX Keys" });
   await card.getByRole("button", { name: "I received it" }).click();
   expect(await page.getByRole("heading", { name: "The rules for company equipment" }).isVisible(), "rules shown");
@@ -286,7 +289,7 @@ await step("three identical laptops at once, serials pasted from the delivery no
   await page.getByRole("button", { name: "Add and give to someone" }).click();
   await page.waitForURL(/\/chest\/items\/\d+/u);
   await page.getByPlaceholder("Find someone").fill("ine");
-  await page.locator(".pick-list button", { hasText: "Inès Moreau" }).click();
+  await page.getByRole("option", { name: /Inès Moreau/u }).click();
   await page.getByRole("button", { name: "Give it to Inès Moreau" }).click();
   await page.getByText("Given to Inès Moreau.").waitFor();
 });
@@ -305,8 +308,8 @@ await step("fields: phones carry an IMEI (searchable); a manager adds one to lap
   await page.getByText("MDM ID added.").waitFor();
   await page.goto(origin + "/chest/items?q=EQ-0006");
   await page.waitForURL(/\/chest\/items\/\d+$/u);
-  await page.locator(".holder-panel summary", { hasText: "More" }).click();
-  await page.getByRole("link", { name: "Edit" }).click();
+  await page.locator(".holder-panel").getByRole("button", { name: "More" }).click();
+  await page.getByRole("menuitem", { name: "Edit" }).click();
   await page.getByLabel(/^MDM ID/u).fill("INTUNE-7F3A-22");
   await page.getByRole("button", { name: "Save" }).click();
   await page.waitForURL(/\/chest\/items\/\d+$/u);
@@ -319,9 +322,11 @@ await step("supplies: two chargers left under a minimum of 3 — handed out, the
   await page.locator("#low a", { hasText: "USB-C charger 65 W" }).click();
   await page.waitForURL(/\/chest\/items\/\d+$/u);
   await page.getByRole("button", { name: "Hand out" }).click();
-  await page.getByRole("radio", { name: "To a person" }).check();
+  // The kit's segmented choice: the word is the target.
+  await page.locator("dialog[open]").getByText("To a person", { exact: true }).click();
+  expect(await page.getByRole("radio", { name: "To a person" }).isChecked(), "to a person");
   await page.getByPlaceholder("Find someone").fill("hug");
-  await page.locator("dialog[open] .pick-list button", { hasText: "Hugo Bernard" }).click();
+  await page.locator("dialog[open]").getByRole("option", { name: /Hugo Bernard/u }).click();
   await page.getByRole("button", { name: "Hand them out" }).click();
   await page.getByText("1 handed out.").waitFor();
   await page.waitForTimeout(800);
@@ -338,8 +343,8 @@ await step("supplies: two chargers left under a minimum of 3 — handed out, the
 await step("a repair with its ticket and return day shows on the overview", async () => {
   await page.goto(origin + "/chest/items?q=EQ-0022");
   await page.waitForURL(/\/chest\/items\/\d+$/u);
-  await page.locator(".holder-panel summary", { hasText: "More" }).click();
-  await page.getByRole("button", { name: "Change the status" }).click();
+  await page.locator(".holder-panel").getByRole("button", { name: "More" }).click();
+  await page.getByRole("menuitem", { name: "Change the status" }).click();
   await page.locator("dialog[open] label.choice", { hasText: "In repair" }).click();
   await page.getByLabel(/^Repairer’s ticket/u).fill("RMA-88120");
   const due = new Date(Date.now() + 10 * 864e5).toISOString().slice(0, 10);
@@ -396,7 +401,7 @@ await step("Snipe-IT's Custom Asset Report imports with its custom fields kept",
 await step("the initials of someone who left are theirs: TW for “Tom Walker (former member)”", async () => {
   await page.goto(origin + "/chest/people/" + id("tom"));
   expect((await page.locator(".person-head h1").innerText()).includes("(former member)"), "former");
-  expect((await page.locator(".person-head .avatar").innerText()).trim() === "TW", "initials");
+  expect((await page.locator(".person-head .ck-avatar").innerText()).trim() === "TW", "initials");
 });
 
 await step("phone, French: Inès reports a problem from her list; no horizontal scroll", async () => {
@@ -411,7 +416,7 @@ await step("phone, French: Inès reports a problem from her list; no horizontal 
   const wide = await p.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
   expect(!wide, "no horizontal scroll");
   await p.locator(".label-card", { hasText: "EQ-0011" }).getByRole("button", { name: "Signaler un problème" }).click();
-  await p.getByLabel("Qu’est-ce qui ne va pas ?").fill("L’écran est fissuré");
+  await p.getByLabel(/^Qu’est-ce qui ne va pas\u202f\?$/u).fill("L’écran est fissuré");
   await p.getByRole("button", { name: "Envoyer aux gestionnaires" }).click();
   await p.getByText("Envoyé. Les gestionnaires du matériel sont prévenus.").waitFor();
   for (const path of ["/chest/items", "/chest/items/2", "/chest/people/" + id("ines") + "/handover"]) {
@@ -419,6 +424,21 @@ await step("phone, French: Inès reports a problem from her list; no horizontal 
     expect(!(await p.evaluate(() => document.documentElement.scrollWidth > window.innerWidth)), "no scroll on " + path);
   }
   await phone.close();
+});
+
+await step("a dialog never loses what was typed: Escape asks first; Keep editing, then Discard", async () => {
+  await as(context, origin, "sofia");
+  await english();
+  await page.goto(itemUrl);
+  await page.getByRole("button", { name: "Take back" }).first().click();
+  await page.getByLabel(/^Condition/u).fill("Scratched lid");
+  await page.keyboard.press("Escape");
+  await page.getByText("Discard your changes?").waitFor();
+  await page.getByRole("button", { name: "Keep editing" }).click();
+  expect((await page.getByLabel(/^Condition/u).inputValue()) === "Scratched lid", "text kept");
+  await page.keyboard.press("Escape");
+  await page.getByRole("button", { name: "Discard" }).click();
+  expect(await page.locator("dialog[open]").count() === 0, "closed");
 });
 
 await browser.close();

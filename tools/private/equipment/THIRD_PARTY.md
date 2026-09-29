@@ -33,5 +33,5 @@ licences with seats, its CSV sample's header), Shelf.nu (AGPL-3.0: QR labels,
 custody, "report" from a scanned label), GLPI (GPL-3.0: what not to become).
 See `reports/02-open-source/equipment.md` in the studio.
 
-Dependencies (`next`, `react`, `postgres`, `@argentic/chest-sdk`) are
+Dependencies (`next`, `react`, `postgres`, `@argentic/chest-sdk`, `@argentic/chest-ui` — the studio's UI kit, MIT, © 2026 Argentic, vendored in `vendor/`) are
 installed from npm under their own licences.
