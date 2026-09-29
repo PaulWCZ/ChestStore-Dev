@@ -6,20 +6,25 @@ import { AssetTag, StatusStamp } from "../../../../components/bits.tsx";
 import { Avatar } from "../../../../components/avatar.tsx";
 import { Alert, Back, CategoryIcon, Print } from "../../../../components/icons.tsx";
 import { LabelFace } from "../../../../components/label-face.tsx";
+import { ReceiveButton } from "../../../../components/receive-button.tsx";
 import { ReportButton } from "../../../../components/report-button.tsx";
 import { SolveButton } from "../../../../components/solve-button.tsx";
 import { can } from "../../../../lib/access.ts";
 import { AppError } from "../../../../lib/app-error.ts";
 import { db } from "../../../../lib/db.ts";
 import type { Catalogue, Locale } from "../../../../lib/i18n/index.ts";
-import { format, formatDate, formatDay, relative } from "../../../../lib/i18n/index.ts";
-import { itemDetail, places, type HistoryEntry } from "../../../../lib/items.ts";
+import { format, formatDate, formatDay, plural, relative } from "../../../../lib/i18n/index.ts";
+import { fieldsOf, valuesOf } from "../../../../lib/fields.ts";
+import { lastSeen, openInventory } from "../../../../lib/inventory.ts";
+import { itemDetail, places, repairCosts, repairOf, type HistoryEntry, type Receipt } from "../../../../lib/items.ts";
+import { currentCharter } from "../../../../lib/receipts.ts";
 import { everyone, nameOf, people, type Person } from "../../../../lib/people.ts";
 import { teamOrigin } from "../../../../lib/origin.ts";
 import { viewer } from "../../../../lib/session.ts";
 import { endingOf, holderOf } from "../../../../lib/view.ts";
 import { categoryName, moneyText } from "../../../../lib/words.ts";
 import { ItemControls } from "./item-controls.tsx";
+import { InvoiceControl } from "./invoice-control.tsx";
 import { PhotoControl } from "./photo-control.tsx";
 
 type Names = Map<string, Person>;
@@ -33,7 +38,7 @@ function who(id: string | null, names: Names, t: Catalogue, locale: Locale): str
 
 // One line of the history, in the reader's words.
 function historyText(h: HistoryEntry, names: Names, t: Catalogue, locale: Locale): string {
-  const kind = h.kind as keyof Catalogue["history"];
+  const kind = (h.kind === "handed_out" && (h.member || h.place) ? "handedOutTo" : h.kind) as keyof Catalogue["history"];
   const template = typeof t.history[kind] === "string" ? (t.history[kind] as string) : h.kind;
   const fields = (h.note ?? "").split(",").map(f => t.history.fields[f as keyof Catalogue["history"]["fields"]]).filter(Boolean).join(", ");
   return format(template, {
@@ -41,12 +46,30 @@ function historyText(h: HistoryEntry, names: Names, t: Catalogue, locale: Locale
     who: h.member ? who(h.member, names, t, locale) : h.place ?? "",
     status: h.status && h.status in t.status ? t.status[h.status as keyof Catalogue["status"]] : "",
     fields,
+    qty: h.qty ?? "",
   });
+}
+
+// What a history line carries besides: a repair's ticket, its return day,
+// its cost.
+function historyExtra(h: HistoryEntry, t: Catalogue, locale: Locale, currency: string): string {
+  return [
+    h.ref && !h.ref.startsWith("charter:") ? format(t.history.ref, { ref: h.ref }) : "",
+    h.due ? format(t.history.due, { date: formatDay(h.due, locale) }) : "",
+    h.costCents !== null ? format(t.history.cost, { amount: moneyText(h.costCents, currency, locale) }) : "",
+  ].filter(Boolean).join(" · ");
 }
 
 // An item's page. A manager sees everything and does everything from here;
 // a member sees the short view, and reports a problem on what they hold.
-export default async function ItemPage({ params }: { params: Promise<{ id: string }> }) {
+// The receipt of the holder, in words: waiting, or confirmed on a day.
+function receiptText(receipt: Receipt, holderName: string, t: Catalogue, locale: Locale, zone: string, you: boolean): { text: string; waiting: boolean; remark: string | null } {
+  if (!receipt.confirmedAt) return { text: you ? t.item.receiptYou : format(t.item.receiptWaiting, { name: holderName }), waiting: true, remark: null };
+  const date = formatDate(receipt.confirmedAt, locale, { day: "numeric", month: "long", year: "numeric" }, zone);
+  return { text: you ? format(t.item.receiptYours, { date }) : format(t.item.receiptDone, { name: holderName, date }), waiting: false, remark: receipt.remark ? format(t.item.receiptRemark, { text: receipt.remark }) : null };
+}
+
+export default async function ItemPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const v = await viewer();
   if (!v) return null;
   const { member, locale, t } = v;
@@ -62,6 +85,7 @@ export default async function ItemPage({ params }: { params: Promise<{ id: strin
   const now = new Date();
   const ids = [
     item.holder ?? "",
+    detail.receipt?.givenBy ?? "",
     ...(detail.full ? [...detail.seats.map(s => s.member), ...detail.problems.map(p => p.reportedBy), ...detail.history.flatMap(h => [h.actor, h.member ?? ""])] : []),
   ];
   const names = await people(ids);
@@ -91,8 +115,16 @@ export default async function ItemPage({ params }: { params: Promise<{ id: strin
     </header>
   );
 
+  // "Given by Sofia on 3 October 2026." for the confirm dialog.
+  const givenText = (r: Receipt | null) => {
+    const date = day(r?.givenOn ?? item.heldSince) ?? "";
+    const by = r && r.givenBy.startsWith("mbr_") ? nameOf(names.get(r.givenBy), locale) : null;
+    return by ? format(t.receive.given, { name: by, date }) : format(t.receive.givenOn, { date });
+  };
+
   if (!detail.full) {
     const mine = detail.mine;
+    const charter = mine && holder.kind === "member" && !detail.receipt?.confirmedAt ? await currentCharter(sql) : null;
     return (
       <main className="narrow item-page">
         <Link className="back" href={mine ? "/chest" : "/chest/items"}><Back />{mine ? t.mine.title : t.list.title}</Link>
@@ -104,13 +136,30 @@ export default async function ItemPage({ params }: { params: Promise<{ id: strin
             <p className="holder-line"><strong>{format(t.item.atPlace, { place: holder.name })}</strong></p>
           ) : holder.kind === "seats" ? (
             <p className="holder-line"><strong>{format(t.item.seatsUsed, { used: holder.used, seats: holder.seats })}</strong></p>
+          ) : holder.kind === "stock" ? (
+            <p className="holder-line"><strong>{holderText}</strong></p>
           ) : (
             <p className="holder-line muted">{item.status === "in_stock" ? t.item.inStock : t.item.notAvailable}</p>
           )}
+          {mine && holder.kind === "member" && (() => {
+            const r = detail.receipt;
+            const waiting = !r || !r.confirmedAt;
+            return (
+              <div className={waiting ? "receipt waiting" : "receipt"}>
+                <p>{r?.confirmedAt ? format(t.item.receiptYours, { date: formatDate(r.confirmedAt, locale, { day: "numeric", month: "long", year: "numeric" }, zone) }) : t.item.receiptYou}</p>
+              </div>
+            );
+          })()}
           {mine && (
             <>
               <p className="muted">{t.item.mineHint}</p>
-              <div><ReportButton id={item.id} name={item.name} label={t.item.report} t={words} primary /></div>
+              <div className="row">
+                {holder.kind === "member" && !detail.receipt?.confirmedAt && (
+                  <ReceiveButton id={item.id} name={item.name} label={t.item.received} charter={charter ? { id: charter.id, body: charter.body } : null}
+                    given={givenText(detail.receipt)} condition={detail.receipt?.condition ?? null} t={{ receive: t.receive, errors: t.errors, common: t.common }} />
+                )}
+                <ReportButton id={item.id} name={item.name} label={t.item.report} t={words} primary={holder.kind !== "member" || Boolean(detail.receipt?.confirmedAt)} />
+              </div>
             </>
           )}
         </section>
@@ -121,9 +170,33 @@ export default async function ItemPage({ params }: { params: Promise<{ id: strin
   }
 
   const full = detail.item;
-  const [team, placeList] = await Promise.all([can(member, "items.manage") ? everyone() : Promise.resolve({ ok: true, people: [] }), places(sql, member)]);
+  const [team, placeList, ownFields, repair, costs, seenInfo, inventory] = await Promise.all([
+    can(member, "items.manage") ? everyone() : Promise.resolve({ ok: true, people: [] }), places(sql, member), fieldsOf(sql, full.category.id),
+    full.status === "in_repair" ? repairOf(sql, full.id) : Promise.resolve(null), repairCosts(sql, full.id), lastSeen(sql, full.id), openInventory(sql),
+  ]);
+  const opening = (await searchParams).give === "1" ? "give" as const : null;
+  const repairText = repair ? [
+    format(t.item.inRepair, { date: formatDate(repair.since, locale, { day: "numeric", month: "long" }, zone) }),
+    repair.ref ? format(t.item.ticket, { ref: repair.ref }) : "",
+    repair.due ? format(t.item.expected, { date: formatDay(repair.due, locale, { day: "numeric", month: "long" }) }) + (repair.due < today ? ` (${t.item.late})` : "") : "",
+  ].filter(Boolean).join(" · ") : null;
+  const receipt = detail.receipt && holder.kind === "member" ? receiptText(detail.receipt, holder.name, t, locale, zone, holder.you) : null;
+  const extras = {
+    receipt, repair: repairText, opening,
+    sheet: item.holder && item.holder.startsWith("mbr_") ? `/chest/people/${item.holder}/handover?items=${item.id}` : null,
+    inventory: { open: inventory !== null && full.category.kind === "asset", seen: seenInfo.openSeen },
+  };
+  const seenText = seenInfo.missedIn ? format(t.item.missed, { date: formatDate(seenInfo.missedIn, locale, { day: "numeric", month: "long", year: "numeric" }, zone) })
+    : seenInfo.seenAt ? format(t.item.lastSeenValue, { date: formatDate(seenInfo.seenAt, locale, { day: "numeric", month: "long", year: "numeric" }, zone) }) : null;
   const seats = detail.seats.map(s => ({ member: s.member, name: who(s.member, names, t, locale), photo: names.get(s.member)?.photo ?? null, since: day(s.since.slice(0, 10)) ?? "" }));
-  const details: [string, string | null][] = licence
+  const details: [string, string | null][] = full.category.kind === "consumable"
+    ? [
+      [t.item.quantity, String(full.quantity ?? 0)],
+      [t.item.minQuantity, full.minQuantity !== null ? String(full.minQuantity) : null],
+      [t.item.bought, day(full.purchasedOn)],
+      [t.item.supplier, full.supplier],
+    ]
+    : licence
     ? [
       [t.item.seats, full.seats !== null ? String(full.seats) : null],
       [t.item.renews, day(full.renewsOn)],
@@ -135,7 +208,10 @@ export default async function ItemPage({ params }: { params: Promise<{ id: strin
       [t.item.price, full.priceCents !== null ? moneyText(full.priceCents, currency, locale) : null],
       [t.item.supplier, full.supplier],
       [t.item.warranty, day(full.warrantyUntil)],
+      ...(costs.count > 0 ? [[t.item.repairs, plural(t.item.repairsTotal, costs.count, locale, { amount: moneyText(costs.cents, currency, locale) })] as [string, string]] : []),
+      ...(full.category.kind === "asset" && (seenText || inventory) ? [[t.item.lastSeen, seenText ?? t.item.neverSeen] as [string, string]] : []),
     ];
+  for (const { field, value } of valuesOf(ownFields, full.extra)) details.push([field.name, field.type === "date" ? day(value) : value]);
 
   return (
     <main className="wide item-page">
@@ -144,7 +220,7 @@ export default async function ItemPage({ params }: { params: Promise<{ id: strin
         <div className="item-main">
           {head}
           <ItemControls
-            item={{ id: item.id, name: item.name, tag: item.tag, status: item.status, licence, seats: full.seats ?? 0, heldSince: day(item.heldSince), placeName: item.place }}
+            item={{ id: item.id, name: item.name, tag: item.tag, status: item.status, kind: full.category.kind, seats: full.seats ?? 0, heldSince: day(item.heldSince), placeName: item.place, quantity: full.quantity, minQuantity: full.minQuantity }}
             holder={holder}
             holderText={holderText}
             seatHolders={seats}
@@ -152,7 +228,8 @@ export default async function ItemPage({ params }: { params: Promise<{ id: strin
             places={placeList}
             today={today}
             locale={locale}
-            t={{ item: t.item, give: t.give, takeBack: t.takeBack, status: t.status, errors: t.errors, common: t.common, people: t.people }}
+            extras={extras}
+            t={{ item: t.item, give: t.give, takeBack: t.takeBack, status: t.status, errors: t.errors, common: t.common, people: t.people, handOut: t.handOut, restock: t.restock, repair: t.repair, list: t.list }}
           />
           {detail.problems.length > 0 && (
             <section className="panel warn" aria-labelledby="problems">
@@ -175,13 +252,14 @@ export default async function ItemPage({ params }: { params: Promise<{ id: strin
             <dl className="facts">
               <div><dt>{t.item.category}</dt><dd>{cat}</dd></div>
               <div><dt>{t.item.tag}</dt><dd className="mono">{item.tag}</dd></div>
-              {!licence && <div><dt>{t.item.serial}</dt><dd className="mono">{item.serial ?? t.common.none}</dd></div>}
+              {full.category.kind === "asset" && <div><dt>{t.item.serial}</dt><dd className="mono">{item.serial ?? t.common.none}</dd></div>}
               {details.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value ?? t.common.none}</dd></div>)}
             </dl>
             {full.notes && <div className="notes"><h3>{t.item.notes}</h3><p>{full.notes}</p></div>}
             <p className="small muted">{format(t.item.added, { date: formatDate(full.createdAt, locale, { day: "numeric", month: "long", year: "numeric" }, zone) })}</p>
           </section>
           <PhotoControl id={item.id} has={item.photo !== null} t={{ item: t.item, errors: t.errors }} />
+          <InvoiceControl id={item.id} has={full.invoice !== null} t={{ item: t.item, errors: t.errors }} />
         </div>
         <aside className="item-side">
           <section className="panel" aria-labelledby="label">
@@ -199,7 +277,8 @@ export default async function ItemPage({ params }: { params: Promise<{ id: strin
                     {formatDate(h.at, locale, { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }, zone)}
                     {h.day && h.day !== h.at.slice(0, 10) && <> · {format(t.history.on, { date: formatDay(h.day, locale) })}</>}
                   </span>
-                  {h.note && h.kind !== "edited" && h.kind !== "photo" && <span className="tl-note">{h.note}</span>}
+                  {h.note && h.kind !== "edited" && h.kind !== "photo" && h.kind !== "invoice" && <span className="tl-note">{h.note}</span>}
+                  {historyExtra(h, t, locale, currency) && <span className="tl-note">{historyExtra(h, t, locale, currency)}</span>}
                 </li>
               ))}
             </ol>

@@ -60,7 +60,9 @@ export function proxy(request: NextRequest): NextResponse {
 }
 
 // Not the Chest's own routes (/chest-events is signed, never a page), nor
-// the static files.
+// the static files, nor what sets its own headers: the public API (JSON
+// for any site, lib/api.ts), the badge (a picture) and the widget (its own
+// policy, framed by the sites the editors listed), heartbeats.
 export const config = {
-  matcher: ["/((?!_next/static/|chest-events$|chest-jobs/|chest-checks$|favicon\\.ico$).*)"],
+  matcher: ["/((?!_next/static/|chest-events$|chest-jobs/|chest-checks$|favicon\\.ico$|api/v2/|badge\\.svg$|embed$|heartbeat/).*)"],
 };

@@ -19,6 +19,7 @@ export function StatusStamp({ status, text }: { status: string; text: string }) 
 export function HolderLine({ row }: { row: Row }) {
   const h = row.holder;
   if (h.kind === "member") return <span className={h.gone ? "holder gone" : "holder"}><Avatar name={h.name} photo={h.photo} size={24} />{row.holderText}</span>;
+  if (h.kind === "stock") return <span className={h.low ? "holder low" : "holder"}>{row.holderText}</span>;
   return <span className={h.kind === "none" ? "holder muted" : "holder"}>{row.holderText}</span>;
 }
 
@@ -34,7 +35,7 @@ export function ItemLine({ row, lead, extra }: { row: Row; lead?: ReactNode; ext
           <span className="line-sub"><AssetTag tag={row.tag} /><span className="line-cat">{row.category}</span>{row.serial && <span className="mono muted small">{row.serial}</span>}</span>
         </span>
       </Link>
-      <span className="line-status"><StatusStamp status={row.status} text={row.statusText} />{row.problems > 0 && <span className="flag"><Alert /><span className="visually-hidden">{row.problemsLabel}</span></span>}</span>
+      <span className="line-status"><StatusStamp status={row.status} text={row.statusText} />{row.problems > 0 && <span className="flag"><Alert /><span className="visually-hidden">{row.problemsLabel}</span></span>}{row.low && <span className="stamp st-low">{row.lowLabel}</span>}</span>
       <span className="line-holder"><HolderLine row={row} />{row.since && <span className="small muted">{row.since}</span>}</span>
       <span className="line-end">{row.ending ? <span className={`ending ${row.ending.state}`}><Clock />{row.ending.text} · {row.ending.when}</span> : null}</span>
       {extra}

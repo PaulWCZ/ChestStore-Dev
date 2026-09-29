@@ -43,3 +43,9 @@ export async function publicWords(): Promise<{ locale: Locale; t: Catalogue }> {
 export async function pageLocale(): Promise<Locale> {
   return (await viewer())?.locale ?? (await publicWords()).locale;
 }
+
+// The nonce of this response's Content-Security-Policy (proxy.ts): a
+// script the page writes itself (the job's structured data) carries it.
+export function nonceOf(h: Headers): string | undefined {
+  return /'nonce-([A-Za-z0-9+/=]+)'/u.exec(h.get("content-security-policy") ?? "")?.[1];
+}

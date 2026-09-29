@@ -14,11 +14,24 @@ create table calendar_queue (
   queued_at timestamptz not null default now()
 );
 
+-- What is in the calendars now, and the last day it covers: an event is
+-- taken back a month after it is over (the Chest keeps 5,000 events per
+-- tool; the calendars keep what their owners imported themselves).
+create table calendar_sent (
+  key text primary key check (key ~ '^[A-Za-z0-9._:-]{1,64}$'),
+  last_day date not null
+);
+create index calendar_sent_day on calendar_sent (last_day);
+
 -- Whether this Chest keeps calendars: unknown until asked, on, or off (a
 -- Chest without the calendar: the tool then offers its .ics files only and
 -- asks again at most once an hour).
 alter table settings add column calendar text not null default 'unknown' check (calendar in ('unknown', 'on', 'off'));
 alter table settings add column calendar_tried timestamptz;
+-- The same for email (Proposal (studio): mail): guests are told by email
+-- once the Chest can send it; the booking form says what they will get.
+alter table settings add column mail text not null default 'unknown' check (mail in ('unknown', 'on', 'off'));
+alter table settings add column mail_tried timestamptz;
 
 -- A booking's changes, for the .ics file and the email sent to its guests
 -- (SEQUENCE and DTSTAMP: a calendar replaces the older version).

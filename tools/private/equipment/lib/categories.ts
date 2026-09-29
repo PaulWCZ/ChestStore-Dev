@@ -2,15 +2,19 @@ import type { Member } from "@argentic/chest-sdk/member";
 import { can } from "./access.ts";
 import { AppError } from "./app-error.ts";
 import type { Query, Sql } from "./db.ts";
-import { clean, id, isIcon, limits, optional, type CategoryKey, type IconName } from "./model.ts";
+import { clean, id, isIcon, isKind, limits, optional, type CategoryKey, type IconName, type Kind } from "./model.ts";
 
 // Categories: the eight built-in ones (named by the reader's catalogue until
 // a manager renames them) and the company's own. A category of kind
-// "licence" holds licences and subscriptions, with seats.
-export type Category = { id: string; key: CategoryKey | null; name: string | null; icon: IconName; kind: "asset" | "licence" };
-export type CategoryCount = Category & { total: number; inStock: number; inUse: number; inRepair: number };
+// "licence" holds licences and subscriptions, with seats; one of kind
+// "consumable" holds things counted in bulk (cables, toner), with a
+// quantity.
+export type Category = { id: string; key: CategoryKey | null; name: string | null; icon: IconName; kind: Kind };
+// For a category of things counted in bulk, inStock is the number of units
+// and low the items at or under their minimum.
+export type CategoryCount = Category & { total: number; inStock: number; inUse: number; inRepair: number; low: number };
 
-type Row = { id: string; key: CategoryKey | null; name: string | null; icon: IconName; kind: "asset" | "licence" };
+type Row = { id: string; key: CategoryKey | null; name: string | null; icon: IconName; kind: Kind };
 const shape = (r: Row): Category => ({ id: String(r.id), key: r.key, name: r.name, icon: r.icon, kind: r.kind });
 
 function manager(actor: Member | null): Member {
@@ -28,16 +32,18 @@ export async function listCategories(sql: Query, actor: Member | null): Promise<
 // (retired and lost ones are not counted as stock).
 export async function categoryCounts(sql: Query, actor: Member | null): Promise<CategoryCount[]> {
   if (!can(actor, "items.browse")) throw new AppError("forbidden");
-  const rows = await sql<(Row & { total: number; in_stock: number; in_use: number; in_repair: number })[]>`
+  const rows = await sql<(Row & { total: number; in_stock: number; in_use: number; in_repair: number; units: number; low: number })[]>`
     select c.id, c.key, c.name, c.icon, c.kind,
       count(i.id) filter (where i.status not in ('retired', 'lost'))::int as total,
       count(i.id) filter (where i.status = 'in_stock')::int as in_stock,
       count(i.id) filter (where i.status = 'in_use')::int as in_use,
-      count(i.id) filter (where i.status = 'in_repair')::int as in_repair
+      count(i.id) filter (where i.status = 'in_repair')::int as in_repair,
+      coalesce(sum(i.quantity) filter (where i.status <> 'retired'), 0)::int as units,
+      count(i.id) filter (where i.status <> 'retired' and i.min_quantity is not null and i.quantity <= i.min_quantity)::int as low
     from categories c left join items i on i.category_id = c.id and i.deleted_at is null
     where c.removed_at is null
     group by c.id order by c.position, c.id`;
-  return rows.map(r => ({ ...shape(r), total: r.total, inStock: r.in_stock, inUse: r.in_use, inRepair: r.in_repair }));
+  return rows.map(r => ({ ...shape(r), total: r.total, inStock: r.kind === "consumable" ? r.units : r.in_stock, inUse: r.in_use, inRepair: r.in_repair, low: r.low }));
 }
 
 export async function category(sql: Query, categoryId: unknown): Promise<Category> {
@@ -46,11 +52,12 @@ export async function category(sql: Query, categoryId: unknown): Promise<Categor
   return shape(rows[0]);
 }
 
-export async function addCategory(sql: Sql, actor: Member | null, input: { name?: unknown; icon?: unknown; licence?: unknown }): Promise<Category> {
+export async function addCategory(sql: Sql, actor: Member | null, input: { name?: unknown; icon?: unknown; licence?: unknown; kind?: unknown }): Promise<Category> {
   manager(actor);
   const name = clean(input.name, limits.categoryName);
   const icon = isIcon(input.icon) ? input.icon : "box";
-  const kind = input.licence === true ? "licence" : "asset";
+  if (input.kind !== undefined && !isKind(input.kind)) throw new AppError("invalid");
+  const kind: Kind = isKind(input.kind) ? input.kind : input.licence === true ? "licence" : "asset";
   return sql.begin(async tx => {
     await tx`select pg_advisory_xact_lock(hashtext('equipment.categories'))`;
     const [counted] = await tx<{ n: number }[]>`select count(*)::int as n from categories where removed_at is null`;

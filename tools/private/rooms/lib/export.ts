@@ -68,3 +68,31 @@ export async function occupancyCsv(sql: Sql, actor: Member | null, fromValue: un
     ...rows.map(r => [r.day, r.office, r.at_office, r.desks_booked, r.desks, r.desks > 0 ? Math.round((100 * r.desks_booked) / r.desks) : "", Math.round(r.room_minutes / 6) / 10]),
   ]);
 }
+
+// How full the office is on each working day of the week, on average over
+// the last weeks: people at the office and desks booked (counts only). For
+// the admin's "which days are busy?" at a glance.
+export type WeekdayLoad = { weekday: number; people: number; desks: number; days: number };
+
+export async function weekdayLoad(sql: Sql, actor: Member | null, officeId: string, zone: string, weeks = 8): Promise<{ loads: WeekdayLoad[]; desks: number }> {
+  if (!can(actor, "export")) throw new AppError("forbidden");
+  const rows = await sql<{ weekday: number; people: number; desks: number; days: number }[]>`
+    with days as (
+      select d::date as day from generate_series((now() at time zone ${zone})::date - ${weeks * 7}::int, (now() at time zone ${zone})::date - 1, interval '1 day') d
+    ), per_day as (
+      select x.day,
+        (select count(distinct m)::int from (
+          select p.member_id as m from presence p where p.day = x.day and p.status = 'office' and (p.office_id = ${officeId} or p.office_id is null)
+          union
+          select b.member_id from desk_bookings b join desks d on d.id = b.desk_id join areas a on a.id = d.area_id join floors f on f.id = a.floor_id
+          where b.day = x.day and b.cancelled_at is null and f.office_id = ${officeId}) s) as people,
+        (select count(distinct b.desk_id)::int from desk_bookings b join desks d on d.id = b.desk_id join areas a on a.id = d.area_id join floors f on f.id = a.floor_id
+          where b.day = x.day and b.cancelled_at is null and f.office_id = ${officeId}) as desks
+      from days x
+    )
+    select extract(isodow from day)::int as weekday, avg(people)::float as people, avg(desks)::float as desks, count(*)::int as days
+    from per_day group by 1 order by 1`;
+  const [{ n } = { n: 0 }] = await sql<{ n: number }[]>`
+    select count(*)::int as n from desks d join areas a on a.id = d.area_id join floors f on f.id = a.floor_id where f.office_id = ${officeId} and d.archived_at is null`;
+  return { loads: rows.map(r => ({ weekday: Number(r.weekday), people: Number(r.people), desks: Number(r.desks), days: Number(r.days) })), desks: n };
+}

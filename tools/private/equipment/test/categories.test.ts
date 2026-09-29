@@ -21,10 +21,11 @@ after(async () => {
 const M = asMember(camille), H = asMember(hugo);
 const refused = (p: Promise<unknown>, code: string) => assert.rejects(p, (e: unknown) => e instanceof AppError && e.code === code);
 
-test("eight built-in categories, named by the reader's catalogue; a manager renames, re-icons, adds and removes", async () => {
+test("nine built-in categories (supplies counted in bulk among them), named by the reader's catalogue; a manager renames, re-icons, adds and removes", async () => {
   const { sql } = database;
   const cats = await listCategories(sql, H);
-  assert.deepEqual(cats.map(c => c.key), ["laptop", "phone", "screen", "accessory", "licence", "key", "vehicle", "other"]);
+  assert.deepEqual(cats.map(c => c.key), ["laptop", "phone", "screen", "accessory", "licence", "key", "vehicle", "other", "consumable"]);
+  assert.equal(cats.find(c => c.key === "consumable")!.kind, "consumable");
   assert.ok(cats.every(c => c.name === null));
   assert.equal(cats.find(c => c.key === "licence")!.kind, "licence");
   const phone = cats.find(c => c.key === "phone")!;

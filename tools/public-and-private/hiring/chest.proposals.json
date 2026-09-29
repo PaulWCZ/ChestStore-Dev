@@ -1,14 +1,27 @@
 {
   "mail": {
-    "send": true
+    "send": true,
+    "mailboxes": [
+      "jobs"
+    ]
   },
+  "calendar": true,
   "files": {
-    "publicUploads": true
+    "publicUploads": true,
+    "publicFiles": true
   },
   "schedules": [
     {
       "name": "cleanup",
       "cron": "25 3 * * *"
+    },
+    {
+      "name": "outbox",
+      "cron": "*/15 * * * *"
+    },
+    {
+      "name": "morning",
+      "cron": "40 7 * * 1-5"
     }
   ],
   "emits": [
@@ -18,7 +31,7 @@
   "translations": {
     "fr": {
       "title": "Recrutement",
-      "description": "Publiez vos offres sur votre propre page carrières et choisissez vos candidats ensemble : un tableau par offre, les CV, les notes et les avis.",
+      "description": "Publiez vos offres sur votre page carrières, sur Google et Indeed, et choisissez vos candidats ensemble : un tableau par offre, les CV, les emails, les entretiens.",
       "role_labels": {
         "recruiter": "Recruteur",
         "interviewer": "Intervieweur"

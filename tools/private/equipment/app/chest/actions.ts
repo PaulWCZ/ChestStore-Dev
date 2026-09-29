@@ -4,8 +4,12 @@ import { revalidatePath } from "next/cache";
 import { addCategory, removeCategory, restoreCategory, updateCategory } from "../../lib/categories.ts";
 import { db } from "../../lib/db.ts";
 import { attempt, type Result } from "../../lib/errors.ts";
+import { addField, removeField, renameField, restoreField } from "../../lib/fields.ts";
 import { applyImport, previewImport, type Plan } from "../../lib/importer.ts";
+import * as inventory from "../../lib/inventory.ts";
 import * as items from "../../lib/items.ts";
+import { confirm, setCharter } from "../../lib/receipts.ts";
+import * as requests from "../../lib/requests.ts";
 import { currentMember } from "../../lib/session.ts";
 
 // The server actions of the members' part. Each is an endpoint anyone can
@@ -17,11 +21,9 @@ async function act<T>(step: (actor: Awaited<ReturnType<typeof currentMember>>) =
   return result;
 }
 
-export async function createItem(input: items.ItemInput): Promise<Result<{ id: string; tag: string }>> {
-  return act(async actor => {
-    const item = await items.createItem(db(), actor, input);
-    return { id: item.id, tag: item.tag };
-  });
+// One item or several identical ones: their ids and tags, in order.
+export async function createItem(input: items.ItemInput): Promise<Result<{ id: string; tag: string }[]>> {
+  return act(async actor => (await items.createItems(db(), actor, input)).map(i => ({ id: i.id, tag: i.tag })));
 }
 
 export async function updateItem(id: string, input: items.ItemInput): Promise<Result> {
@@ -49,8 +51,90 @@ export async function undoTakeBack(id: string, to: { member: string } | { place:
   return act(async actor => { await items.give(db(), actor, id, { to }, { quiet: true }); return null; });
 }
 
-export async function setItemStatus(id: string, status: string, note?: string): Promise<Result> {
-  return act(async actor => { await items.setStatus(db(), actor, id, status, note); return null; });
+export async function setItemStatus(id: string, status: string, note?: string, repair?: { ref?: string; due?: string; cost?: string }): Promise<Result> {
+  return act(async actor => { await items.setStatus(db(), actor, id, status, note, repair ?? {}); return null; });
+}
+
+export async function handOut(id: string, input: { qty: string; to?: { member: string } | { place: string } | null; note?: string }): Promise<Result<number>> {
+  return act(async actor => (await items.handOut(db(), actor, id, input)).quantity ?? 0);
+}
+
+export async function restock(id: string, input: { qty: string; note?: string }): Promise<Result<number>> {
+  return act(async actor => (await items.restock(db(), actor, id, input)).quantity ?? 0);
+}
+
+// "I received it".
+export async function confirmReceipt(id: string, input: { remark?: string; charterId?: string }): Promise<Result> {
+  return act(async actor => { await confirm(db(), actor, id, input); return null; });
+}
+
+export async function saveCharter(body: string): Promise<Result> {
+  return act(async actor => { await setCharter(db(), actor, body); return null; });
+}
+
+// Requests.
+export async function askFor(input: { body: string; categoryId?: string }): Promise<Result> {
+  return act(async actor => { await requests.ask(db(), actor, input); return null; });
+}
+
+export async function cancelRequest(id: string): Promise<Result> {
+  return act(async actor => { await requests.cancel(db(), actor, id); return null; });
+}
+
+export async function approveRequest(id: string, answer?: string): Promise<Result> {
+  return act(async actor => { await requests.approve(db(), actor, id, answer); return null; });
+}
+
+export async function refuseRequest(id: string, answer?: string): Promise<Result> {
+  return act(async actor => { await requests.refuse(db(), actor, id, answer); return null; });
+}
+
+export async function fulfilRequest(id: string, itemId: string): Promise<Result> {
+  return act(async actor => { await requests.fulfil(db(), actor, id, itemId); return null; });
+}
+
+// Fields of a category.
+export async function newField(input: { categoryId: string; name: string; type: string }): Promise<Result> {
+  return act(async actor => { await addField(db(), actor, input); return null; });
+}
+
+export async function saveField(id: string, name: string): Promise<Result> {
+  return act(async actor => { await renameField(db(), actor, id, name); return null; });
+}
+
+export async function dropField(id: string): Promise<Result> {
+  return act(async actor => { await removeField(db(), actor, id); return null; });
+}
+
+export async function undoDropField(id: string): Promise<Result> {
+  return act(async actor => { await restoreField(db(), actor, id); return null; });
+}
+
+// The inventory.
+export async function startInventory(): Promise<Result> {
+  return act(async actor => { await inventory.startInventory(db(), actor); return null; });
+}
+
+export async function markSeen(input: { text?: string; itemId?: string }): Promise<Result<{ id: string; tag: string; name: string; already: boolean; outOfScope: boolean }>> {
+  return act(async actor => {
+    const r = await inventory.markSeen(db(), actor, input);
+    return { id: r.item.id, tag: r.item.tag, name: r.item.name, already: r.already, outOfScope: r.outOfScope };
+  });
+}
+
+export async function unmarkSeen(itemId: string): Promise<Result> {
+  return act(async actor => { await inventory.unmarkSeen(db(), actor, itemId); return null; });
+}
+
+export async function closeInventory(): Promise<Result<{ id: string; missing: number }>> {
+  return act(async actor => {
+    const done = await inventory.closeInventory(db(), actor);
+    return { id: done.id, missing: (done.total ?? 0) - (done.seen ?? 0) };
+  });
+}
+
+export async function reopenInventory(id: string): Promise<Result> {
+  return act(async actor => { await inventory.reopenInventory(db(), actor, id); return null; });
 }
 
 export async function giveSeat(id: string, member: string): Promise<Result> {
@@ -85,7 +169,7 @@ export async function saveCategory(id: string, input: { name?: string; icon?: st
   return act(async actor => { await updateCategory(db(), actor, id, input); return null; });
 }
 
-export async function newCategory(input: { name: string; icon: string; licence: boolean }): Promise<Result> {
+export async function newCategory(input: { name: string; icon: string; kind: string }): Promise<Result> {
   return act(async actor => { await addCategory(db(), actor, input); return null; });
 }
 
@@ -97,10 +181,10 @@ export async function undoDropCategory(id: string): Promise<Result> {
   return act(async actor => { await restoreCategory(db(), actor, id); return null; });
 }
 
-export async function checkImport(source: string, text: string): Promise<Result<Plan>> {
-  return attempt(async () => previewImport(db(), await currentMember(), source, text));
+export async function checkImport(source: string, text: string, options?: { keep?: string[] }): Promise<Result<Plan>> {
+  return attempt(async () => previewImport(db(), await currentMember(), source, text, options));
 }
 
-export async function runImport(source: string, text: string): Promise<Result<{ imported: number; skipped: number }>> {
-  return act(async actor => applyImport(db(), actor, source, text));
+export async function runImport(source: string, text: string, options?: { keep?: string[] }): Promise<Result<{ imported: number; skipped: number; fields: number }>> {
+  return act(async actor => applyImport(db(), actor, source, text, options));
 }

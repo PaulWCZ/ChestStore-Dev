@@ -25,10 +25,12 @@ type Words = {
 };
 type Editing = { kind: "room"; floorId: string; room: RoomView | null } | { kind: "desk"; areaId: string; desk: DeskView } | null;
 
-export function PlacesView({ offices, office, people, names, locale, t }: {
+export function PlacesView({ offices, office, people, groups, names, locale, t }: {
   offices: { id: string; name: string; address: string }[];
   office: OfficeView | null;
   people: { id: string; name: string }[];
+  // The Chest's groups a room or an area may be kept for.
+  groups: { id: string; name: string }[];
   names: Record<string, string>;
   locale: string;
   t: Words;
@@ -80,7 +82,7 @@ export function PlacesView({ offices, office, people, names, locale, t }: {
         <section key={f.id} className="panel floor-panel" aria-labelledby={"f-" + f.id}>
           <div className="panel-head">
             <EditableName id={"f-" + f.id} value={f.name} max={limits.floorName} label={t2.floorName} t={t} busy={pending} onSave={name => run(() => actions.renameFloor(f.id, name))} />
-            <button type="button" className="icon-button" onClick={() => run(() => actions.removeFloor(f.id), () => toast(t2.removed))}><Trash /><span className="visually-hidden">{t2.remove} · {f.name}</span></button>
+            <button type="button" className="button quiet small danger" onClick={() => run(() => actions.removeFloor(f.id), () => toast(t2.removed))}><Trash />{t2.removeFloor}</button>
           </div>
 
           <h3 className="sub">{t2.rooms}</h3>
@@ -108,8 +110,17 @@ export function PlacesView({ offices, office, people, names, locale, t }: {
             <div key={a.id} className="area-admin">
               <div className="panel-head">
                 <EditableName id={"a-" + a.id} value={a.name} max={limits.areaName} label={t2.areaName} t={t} busy={pending} small onSave={name => run(() => actions.renameArea(a.id, name))} />
-                <button type="button" className="icon-button" onClick={() => run(() => actions.removeArea(a.id), () => toast(t2.removed))}><Trash /><span className="visually-hidden">{t2.remove} · {a.name}</span></button>
+                <button type="button" className="button quiet small danger" onClick={() => run(() => actions.removeArea(a.id), () => toast(t2.removed))}><Trash />{t2.removeArea}</button>
               </div>
+              {groups.length > 0 && (
+                <label className="inline-label kept-for">
+                  <span className="small muted">{t2.keptFor}</span>
+                  <select className="select narrow-select" value={a.groupId ?? ""} onChange={e => run(() => actions.setAreaGroup(a.id, e.target.value || null), () => toast(t2.saved))}>
+                    <option value="">{t2.everyone}</option>
+                    {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+                  </select>
+                </label>
+              )}
               <ul className="tiles admin-tiles">
                 {a.desks.map(d => (
                   <li key={d.id} className={"tile" + (d.assignedTo ? " is-assigned" : " is-free")}>
@@ -121,7 +132,10 @@ export function PlacesView({ offices, office, people, names, locale, t }: {
                   </li>
                 ))}
               </ul>
-              <AddDesks t={t} busy={pending} onAdd={n => run(() => actions.addDesks(a.id, n, []), r => toast(plural(t2.desksAdded, r.ids.length, locale)))} />
+              <AddDesks t={t} busy={pending} onAdd={n => run(() => actions.addDesks(a.id, n, []), r => toast(plural(t2.desksAdded, r.ids.length, locale), {
+                label: t.booking.undo,
+                run: () => run(() => actions.undoAddDesks(r.ids), () => toast(t2.removed)),
+              }))} />
             </div>
           ))}
           <AddInline label={t2.addArea} placeholder={t2.areaPlaceholder} max={limits.areaName} busy={pending} onSave={name => run(() => actions.addArea(f.id, name))} />
@@ -129,11 +143,12 @@ export function PlacesView({ offices, office, people, names, locale, t }: {
       ))}
 
       <AddInline label={t2.addFloor} placeholder={t2.floorPlaceholder} max={limits.floorName} busy={pending} onSave={name => run(() => actions.addFloor(office.id, name))} />
+      <ImportPanel officeId={office.id} t={t} locale={locale} onDone={() => router.refresh()} />
       <p className="hint">{t2.csr}</p>
 
       <Dialog open={editing !== null} title={editing?.kind === "room" ? (editing.room ? format(t2.editRoom, { room: editing.room.name }) : t2.newRoom) : editing?.kind === "desk" ? format(t2.editDesk, { desk: editing.desk.name }) : ""} closeLabel={t.booking.close} onClose={() => setEditing(null)}>
         {editing?.kind === "room" && (
-          <RoomEditor key={editing.room?.id ?? "new"} room={editing.room} floorId={editing.floorId} floors={floors.map(f => ({ id: f.id, name: f.name }))} t={t} busy={pending}
+          <RoomEditor key={editing.room?.id ?? "new"} room={editing.room} floorId={editing.floorId} floors={floors.map(f => ({ id: f.id, name: f.name }))} groups={groups} t={t} busy={pending}
             onSave={v => run(() => (editing.room ? actions.updateRoom(editing.room.id, v) : actions.addRoom(editing.floorId, v)), () => { setEditing(null); toast(t2.saved); })}
             onRemove={() => run(() => actions.removeRoom(editing.room!.id), r => { setEditing(null); toast(r.cancelled > 0 ? plural(t2.cancelledPeople, r.cancelled, locale) : t2.removed); })}
             onPhoto={() => router.refresh()} onRemovePhoto={() => run(() => actions.removeRoomPhoto(editing.room!.id))} />
@@ -174,7 +189,7 @@ function AddInline({ label, placeholder, max, busy, onSave }: { label: string; p
     <form className="inline-form" onSubmit={e => { e.preventDefault(); if (value.trim()) { onSave(value); setValue(""); setOpen(false); } }}>
       <label className="visually-hidden" htmlFor={"add-" + label}>{label}</label>
       <input id={"add-" + label} className="field" autoFocus value={value} maxLength={max} placeholder={placeholder} onChange={e => setValue(e.target.value)} onKeyDown={e => { if (e.key === "Escape") setOpen(false); }} />
-      <button type="submit" className="button small" disabled={busy}><Plus />{label}</button>
+      <button type="submit" className="button small" disabled={busy || value.trim() === ""}><Plus />{label}</button>
     </form>
   );
 }
@@ -232,8 +247,8 @@ function Remove({ label, confirm, onRemove }: { label: string; confirm: string; 
   return <button type="button" className="button quiet danger" onClick={() => (sure ? onRemove() : setSure(true))}><Trash />{sure ? confirm : label}</button>;
 }
 
-function RoomEditor({ room, floorId, floors, t, busy, onSave, onRemove, onPhoto, onRemovePhoto }: {
-  room: RoomView | null; floorId: string; floors: { id: string; name: string }[]; t: Words; busy: boolean;
+function RoomEditor({ room, floorId, floors, groups, t, busy, onSave, onRemove, onPhoto, onRemovePhoto }: {
+  room: RoomView | null; floorId: string; floors: { id: string; name: string }[]; groups: { id: string; name: string }[]; t: Words; busy: boolean;
   onSave: (v: actions.RoomFields) => void; onRemove: () => void; onPhoto: () => void; onRemovePhoto: () => void;
 }) {
   const [name, setName] = useState(room?.name ?? "");
@@ -241,8 +256,9 @@ function RoomEditor({ room, floorId, floors, t, busy, onSave, onRemove, onPhoto,
   const [equipment, setEquipment] = useState<Equipment[]>(room?.equipment ?? []);
   const [note, setNote] = useState(room?.note ?? "");
   const [floor, setFloor] = useState(floorId);
+  const [group, setGroup] = useState(room?.groupId ?? "");
   return (
-    <form className="stack" onSubmit={e => { e.preventDefault(); onSave({ name, capacity, equipment, note, floorId: floor }); }}>
+    <form className="stack" onSubmit={e => { e.preventDefault(); onSave({ name, capacity, equipment, note, floorId: floor, groupId: group || null }); }}>
       <div className="form-grid">
         <label className="span-3">
           <span className="label">{t.places.roomName}</span>
@@ -264,6 +280,15 @@ function RoomEditor({ room, floorId, floors, t, busy, onSave, onRemove, onPhoto,
         <span className="label">{t.places.note}</span>
         <input className="field" value={note} maxLength={limits.roomNote} placeholder={t.places.notePlaceholder} onChange={e => setNote(e.target.value)} />
       </label>
+      {groups.length > 0 && (
+        <label>
+          <span className="label">{t.places.keptFor}</span>
+          <select className="select" value={group} onChange={e => setGroup(e.target.value)}>
+            <option value="">{t.places.everyone}</option>
+            {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+          </select>
+        </label>
+      )}
       {room && <Photo room={room} t={t} onDone={onPhoto} onRemove={onRemovePhoto} />}
       <div className="row actions">
         <button type="submit" className="button" disabled={busy}>{t.places.save}</button>
@@ -351,5 +376,55 @@ function DeskEditor({ desk, areaId, areas, people, t, busy, onSave, onRemove }: 
         <Remove label={t.places.remove} confirm={t.places.confirmRemove} onRemove={onRemove} />
       </div>
     </form>
+  );
+}
+
+// Moving in: rooms from Google Workspace's resources CSV, desks and who has
+// them from any spreadsheet. The file is read here and sent as text; what
+// was left out is said line by line.
+function ImportPanel({ officeId, t, locale, onDone }: { officeId: string; t: Words; locale: string; onDone: () => void }) {
+  const toast = useToast();
+  const [busy, start] = useTransition();
+  const [report, setReport] = useState<{ said: string; lines: string[] } | null>(null);
+  const t2 = t.places.import;
+  function send(kind: "rooms" | "desks", file: File) {
+    if (file.size > 2 << 20) return void toast(t.errors.file_too_large);
+    start(async () => {
+      const text = await file.text();
+      const r = kind === "rooms" ? await actions.importRooms(officeId, text) : await actions.importDesks(officeId, text);
+      if (!r.ok) return void toast(format(t.errors[r.error], r.values));
+      const v = r.value;
+      const said = "floors" in v
+        ? plural(t2.roomsDone, v.added, locale) + (v.floors > 0 ? " " + plural(t2.floorsDone, v.floors, locale) : "")
+        : plural(t2.desksDone, v.given, locale) + (v.added > 0 ? " " + plural(t2.desksAdded, v.added, locale) : "") + (v.cancelled > 0 ? " " + plural(t.places.cancelledPeople, v.cancelled, locale) : "");
+      setReport({ said, lines: v.skipped.slice(0, 20).map(x => format(t2.line, { line: x.line, reason: t2.reasons[x.reason] })).concat(v.skipped.length > 20 ? [plural(t2.more, v.skipped.length - 20, locale)] : []) });
+      onDone();
+    });
+  }
+  return (
+    <section className="panel" aria-labelledby="import-title">
+      <h2 id="import-title" className="annotation">{t2.title}</h2>
+      <p className="hint">{t2.body}</p>
+      <div className="row">
+        <label className="button quiet small file-input">
+          <Upload />{t2.rooms}
+          <input type="file" accept=".csv,text/csv" className="visually-hidden" disabled={busy} onChange={e => { const f = e.target.files?.[0]; if (f) send("rooms", f); e.target.value = ""; }} />
+        </label>
+        <label className="button quiet small file-input">
+          <Upload />{t2.desks}
+          <input type="file" accept=".csv,text/csv" className="visually-hidden" disabled={busy} onChange={e => { const f = e.target.files?.[0]; if (f) send("desks", f); e.target.value = ""; }} />
+        </label>
+      </div>
+      <ul className="hint notes">
+        <li>{t2.roomsHelp}</li>
+        <li>{t2.desksHelp}</li>
+      </ul>
+      {report && (
+        <div className="import-report" role="status">
+          <p><strong>{report.said}</strong></p>
+          {report.lines.length > 0 && <ul className="hint notes">{report.lines.map((l, i) => <li key={i}>{l}</li>)}</ul>}
+        </div>
+      )}
+    </section>
   );
 }

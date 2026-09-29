@@ -13,8 +13,9 @@ export type Group = { id: string; name: string; size: number | null };
 // Kept a minute (the SDK's advice), per Chest API (tests start many).
 let cached: { at: number; api: string | undefined; groups: Group[] } | null = null;
 
-export async function chestGroups(): Promise<Group[] | "unavailable"> {
-  if (cached && cached.api === process.env["CHEST_API"] && Date.now() - cached.at < 60_000) return cached.groups;
+// fresh: ask the Chest now (a group checked before a post is kept to it).
+export async function chestGroups(options: { fresh?: boolean } = {}): Promise<Group[] | "unavailable"> {
+  if (!options.fresh && cached && cached.api === process.env["CHEST_API"] && Date.now() - cached.at < 60_000) return cached.groups;
   let groups: Group[];
   try {
     groups = (await members.groups.all()).map(g => ({ id: g.id, name: g.name, size: g.size }));

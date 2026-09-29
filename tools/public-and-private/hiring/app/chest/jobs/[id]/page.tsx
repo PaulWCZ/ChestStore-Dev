@@ -8,6 +8,8 @@ import { AppError } from "../../../../lib/errors.ts";
 import { job as readJob, type JobDetail } from "../../../../lib/jobs.ts";
 import { publicOrigin } from "../../../../lib/public-origin.ts";
 import { viewer } from "../../../../lib/session.ts";
+import { stageLabel } from "../../../../lib/stages.ts";
+import { shareLinks } from "../../../../lib/reach.ts";
 import { BoardView } from "./board-view.tsx";
 import { JobActions } from "./job-actions.tsx";
 
@@ -42,6 +44,7 @@ export default async function JobBoard({ params }: { params: Promise<{ id: strin
           <JobActions
             job={{ id: job.id, state: job.state, hasDescription: job.description.trim() !== "" }}
             link={link}
+            share={shareLinks(link, job.title)}
             t={{ board: t.board, errors: t.errors, common: t.common }}
           />
         )}
@@ -50,11 +53,11 @@ export default async function JobBoard({ params }: { params: Promise<{ id: strin
       {job.state === "closed" && <p className="notice">{t.board.closedNotice}</p>}
       {!manage && <p className="notice">{t.board.readOnly}</p>}
       <BoardView
-        stages={stages}
+        stages={stages.map(s => ({ ...s, label: stageLabel(s, t.jobSettings.defaults) }))}
         cards={cards}
         manage={manage}
         locale={locale}
-        t={{ board: t.board, errors: t.errors, reasons: t.reject.reasons, common: t.common, hire: t.hire }}
+        t={{ board: t.board, errors: t.errors, reasons: t.reject.reasons, reject: t.reject, common: t.common, hire: t.hire }}
       />
     </div>
   );

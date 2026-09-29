@@ -41,3 +41,12 @@ test("plurals and placeholders follow the language", () => {
   assert.equal(plural(catalogue("fr").bell.left, 3, "fr", { name: "Léa" }), "Léa est parti avec encore 3 objets");
   assert.equal(format("{a} and {b}", { a: 1 }), "1 and {b}");
 });
+
+test("the first of a month as each language writes it: 1er février, 1 February", async () => {
+  const { formatDay } = await import("../lib/i18n/index.ts");
+  assert.equal(formatDay("2023-02-01", "fr", { day: "numeric", month: "long", year: "numeric" }), "1er février 2023");
+  assert.equal(formatDay("2023-02-02", "fr", { day: "numeric", month: "long", year: "numeric" }), "2 février 2023");
+  assert.equal(formatDay("2023-02-01", "en", { day: "numeric", month: "long", year: "numeric" }), "1 February 2023");
+  assert.equal(formatDay("2023-02-01", "fr", { day: "numeric", month: "short" }), "1er févr.");
+  assert.equal(formatDay("2023-02-11", "fr", { day: "numeric", month: "long" }), "11 février");
+});

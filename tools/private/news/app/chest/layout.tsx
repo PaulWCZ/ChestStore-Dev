@@ -1,8 +1,9 @@
 import type { ReactNode } from "react";
 import { Avatar } from "../../components/avatar.tsx";
-import { Pen, Search } from "../../components/icons.tsx";
+import { Search } from "../../components/icons.tsx";
 import { Mark } from "../../components/mark.tsx";
 import { Toasts } from "../../components/toast.tsx";
+import { WriteButton } from "../../components/write-button.tsx";
 import { can, roleOf } from "../../lib/access.ts";
 import { viewer } from "../../lib/session.ts";
 
@@ -25,7 +26,7 @@ export default async function MembersLayout({ children }: { children: ReactNode 
             <button type="submit" className="icon-button"><Search /><span className="visually-hidden">{t.search.button}</span></button>
           </form>
         )}
-        {can(member, "publish") && <a className="button small write" href="/chest/new"><Pen /><span>{t.shell.write}</span></a>}
+        {can(member, "publish") && <WriteButton label={t.shell.write} />}
         <span className="me">
           <span className="who">{member.firstName || member.name}{role ? " · " + t.roles[role] : ""}</span>
           <Avatar name={member.name} photo={member.photo} />

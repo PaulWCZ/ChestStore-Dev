@@ -8,14 +8,15 @@ import { TimeSelect } from "../../../components/time-select.tsx";
 export type WindowValue = { title: string; start: { day: string; minutes: number }; end: { day: string; minutes: number }; components: string[]; autoPosts: boolean };
 type Words = { maintenance: Record<string, string>; compose: Record<string, string> };
 
-export function MaintenanceFields({ value, onChange, groups, zoneNote, t }: { value: WindowValue; onChange: (next: WindowValue) => void; groups: PickerGroup[]; zoneNote: string; t: Words }) {
+export function MaintenanceFields({ value, onChange, groups, zoneNote, missing = null, t }: { value: WindowValue; onChange: (next: WindowValue) => void; groups: PickerGroup[]; zoneNote: string; missing?: string | null; t: Words }) {
   const w = t.maintenance;
   const set = (patch: Partial<WindowValue>) => onChange({ ...value, ...patch });
   return (
     <>
       <div>
         <label className="label" htmlFor="m-title">{w.title}</label>
-        <input id="m-title" className="field big" required maxLength={160} placeholder={w.titlePlaceholder} value={value.title} onChange={e => set({ title: e.target.value })} />
+        <input id="m-title" className="field big" maxLength={160} placeholder={w.titlePlaceholder} value={value.title} onChange={e => set({ title: e.target.value })} aria-invalid={missing ? true : undefined} aria-describedby={missing ? "m-title-missing" : undefined} />
+        {missing && <p id="m-title-missing" className="error" role="alert">{missing}</p>}
       </div>
       <fieldset className="when-fields">
         <div className="when-row">

@@ -8,13 +8,15 @@ import { Toasts } from "../../components/toast.tsx";
 import { roleOf } from "../../lib/access.ts";
 import { publicOrigin } from "../../lib/public-origin.ts";
 import { viewer } from "../../lib/session.ts";
+import { TeamStatus } from "./team-status.tsx";
 
 // The members' part. proxy.ts already refused a request without the Chest's
-// assertion; a member whose role gives nothing sees why, not an error.
+// assertion; a member without a role sees the team's status page (read
+// only), whatever the address.
 export default async function MembersLayout({ children }: { children: ReactNode }) {
   const v = await viewer();
   if (!v) return null;
-  const { member, t } = v;
+  const { member, locale, t } = v;
   const role = roleOf(member);
   // Editors see the page as it is now, not a copy their browser kept.
   const publicHome = `${publicOrigin(await headers()) ?? ""}/?fresh=${Math.floor(Date.now() / 1000)}`;
@@ -32,6 +34,7 @@ export default async function MembersLayout({ children }: { children: ReactNode 
                 <NavLink href="/chest/components">{t.shell.components}</NavLink>
                 <NavLink href="/chest/checks">{t.shell.checks}</NavLink>
                 <NavLink href="/chest/subscribers">{t.shell.subscribers}</NavLink>
+                <NavLink href="/chest/settings">{t.shell.settings}</NavLink>
               </nav>
             )}
             <span className="me">
@@ -41,14 +44,7 @@ export default async function MembersLayout({ children }: { children: ReactNode 
           </div>
         </header>
         <div id="main" className="team-main">
-          {role ? children : (
-            <main className="narrow">
-              <div className="empty">
-                <h1>{t.noAccess.title}</h1>
-                <p>{t.noAccess.body}</p>
-              </div>
-            </main>
-          )}
+          {role ? children : <TeamStatus locale={locale} t={t} />}
         </div>
       </div>
     </Toasts>

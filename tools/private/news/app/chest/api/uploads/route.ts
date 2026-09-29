@@ -3,11 +3,11 @@ import * as files from "@argentic/chest-sdk/files";
 import { can } from "../../../../lib/access.ts";
 import { db } from "../../../../lib/db.ts";
 import { AppError, type ErrorCode } from "../../../../lib/errors.ts";
-import { coverTypes, fileName, limits } from "../../../../lib/model.ts";
-import { recordUpload } from "../../../../lib/posts.ts";
+import { coverTypes, fileName, limits, videoTypes } from "../../../../lib/model.ts";
+import { recordUpload, type UploadRole } from "../../../../lib/posts.ts";
 import { currentMember } from "../../../../lib/session.ts";
 
-// A picture or a file for a post, in two steps around the browser's own
+// A picture (cover, gallery, in the text), a video (gallery) or a file for a post, in two steps around the browser's own
 // upload to the Chest: POST authorises one upload into the uploads folder
 // (publishers), PUT records it once the Chest confirms it holds it. The
 // file is its uploader's until they save the post (lib/posts.ts).
@@ -21,9 +21,10 @@ function failure(error: unknown): Response {
   throw error;
 }
 
-const roleOf = (value: unknown): "cover" | "attachment" => {
-  if (value !== "cover" && value !== "attachment") throw new AppError("invalid");
-  return value;
+const roles = ["cover", "attachment", "image", "inline"] as const;
+const roleOf = (value: unknown): UploadRole => {
+  if (!(roles as readonly unknown[]).includes(value)) throw new AppError("invalid");
+  return value as UploadRole;
 };
 
 export async function POST(request: Request): Promise<Response> {
@@ -31,9 +32,12 @@ export async function POST(request: Request): Promise<Response> {
     if (!can(await currentMember(), "publish")) throw new AppError("forbidden");
     const body = (await request.json().catch(() => ({}))) as { role?: unknown; size?: unknown };
     const role = roleOf(body.role);
-    const max = role === "cover" ? limits.coverSize : limits.attachmentSize;
+    // Pictures as the Chest makes thumbnails of them; a gallery also takes
+    // videos (played as they are), up to the attachments' size.
+    const max = role === "cover" || role === "inline" ? limits.coverSize : limits.attachmentSize;
+    const types = role === "cover" || role === "inline" ? [...coverTypes] : role === "image" ? [...coverTypes, ...videoTypes] : null;
     if (typeof body.size === "number" && body.size > max) return refuse("file_too_large", 413);
-    const up = await files.uploadUrl(folder, { maxSize: max, expiresIn: 600, ...(role === "cover" ? { types: [...coverTypes] } : {}) });
+    const up = await files.uploadUrl(folder, { maxSize: max, expiresIn: 600, ...(types ? { types } : {}) });
     return Response.json(up, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     return failure(error);

@@ -8,10 +8,14 @@ import * as candidates from "../../lib/candidates.ts";
 import * as cv from "../../lib/cv.ts";
 import { db } from "../../lib/db.ts";
 import { AppError, attempt, type Result } from "../../lib/errors.ts";
-import { catalogue } from "../../lib/i18n/index.ts";
 import * as jobs from "../../lib/jobs.ts";
+import * as brand from "../../lib/brand.ts";
+import { importRows, undoImport as undoImportRows } from "../../lib/import.ts";
+import * as interviews from "../../lib/interviews.ts";
 import * as mailer from "../../lib/mailer.ts";
-import { clean, limits } from "../../lib/model.ts";
+import * as messages from "../../lib/messages.ts";
+import { clean, isCandidateReason, limits } from "../../lib/model.ts";
+import * as outbox from "../../lib/outbox.ts";
 import { currentMember } from "../../lib/session.ts";
 import * as share from "../../lib/share.ts";
 import * as tell from "../../lib/tell.ts";
@@ -45,10 +49,13 @@ const isRecruiter = (memberId: string) => ask(async () => (await members.get(mem
 
 export async function createJob(input: jobs.JobInput): Promise<Result<{ id: string }>> {
   return act(async actor => {
-    const t = catalogue(actor.locale).jobSettings.defaults;
-    const job = await jobs.createJob(db(), actor, input, [t.new, t.screening, t.interview, t.offer, t.hired]);
+    const job = await jobs.createJob(db(), actor, input);
     return { id: job.id };
   });
+}
+
+export async function duplicateJob(jobId: string): Promise<Result<{ id: string }>> {
+  return act(async actor => ({ id: (await jobs.duplicateJob(db(), actor, jobId)).id }));
 }
 
 export async function updateJob(jobId: string, input: jobs.JobInput): Promise<Result<null>> {
@@ -90,8 +97,28 @@ export async function removeInterviewer(jobId: string, memberId: string): Promis
   return act(async actor => { await jobs.removeInterviewer(db(), actor, jobId, memberId); return null; });
 }
 
-export async function saveSettings(input: { companyName?: string; intro?: string; careersOpen?: boolean; retentionMonths?: number }): Promise<Result<null>> {
+export async function saveSettings(input: { companyName?: string; intros?: Record<string, string>; careersOpen?: boolean; retentionMonths?: number; country?: string; website?: string; accent?: string }): Promise<Result<null>> {
   return act(async actor => { await jobs.saveSettings(db(), actor, input); return null; });
+}
+
+// The careers page's logo or photos: the image the browser sent is
+// checked and published, then recorded; images no longer shown are
+// deleted. photos: the objects to keep, in order, plus the new one.
+export async function setBrandImage(which: "logo" | "photos", ticket: string | null, keep: string[] = []): Promise<Result<null>> {
+  return act(async actor => {
+    if (which !== "logo" && which !== "photos") throw new AppError("invalid");
+    const s = await jobs.settings(db());
+    const added = ticket ? await brand.acceptImage(ticket) : null;
+    const kept = which === "photos" ? s.photos.filter(p => keep.includes(p.object)) : [];
+    try {
+      const unused = await jobs.setImages(db(), actor, which, [...kept, ...(added ? [added] : [])]);
+      await cv.remove(unused);
+    } catch (error) {
+      if (added) await cv.remove([added.object]);
+      throw error;
+    }
+    return null;
+  });
 }
 
 // ---- Candidates ------------------------------------------------------------
@@ -114,24 +141,92 @@ export async function moveCandidate(candidateId: string, stageId: string, startD
   });
 }
 
-// rejectCandidate records the rejection, then sends the email the
-// recruiter wrote, when they asked for it (the mail proposal: without it,
-// the rejection stands and the page says no email left).
-export async function rejectCandidate(candidateId: string, reason: string, note: string, email: { send: boolean; text: string }): Promise<Result<{ delivery: "email" | "none" | "skipped" }>> {
+// rejectCandidate records the rejection, then queues the email the
+// recruiter wrote, when they asked for it: it leaves only once the Undo of
+// the toast is over (messages.undoSeconds) — Undo cancels it before
+// anything left.
+export async function rejectCandidate(candidateId: string, reason: string, note: string, email: { send: boolean; text: string }): Promise<Result<{ delivery: "waiting" | "skipped"; seconds: number }>> {
   return act(async actor => {
     const sql = db();
     const text = email.send ? clean(email.text, limits.emailText, { multiline: true }) : "";
     const before = await candidates.candidate(sql, actor, candidateId);
     const c = await candidates.reject(sql, actor, candidateId, reason, note);
     if (before.candidate.status === "active" && (await candidates.isHiredStage(sql, c.stageId))) await share.hireCancelled(c.id);
+    await interviews.requeue(sql, { candidate: c.id });
     await tell.settled(c.id);
     await tell.refreshBadges(sql);
-    if (!email.send) return { delivery: "skipped" as const };
-    const [job] = await sql<{ title: string }[]>`select title from jobs where id = ${c.jobId}`;
+    if (!email.send || before.candidate.status !== "active") return { delivery: "skipped" as const, seconds: 0 };
     const s = await jobs.settings(sql);
-    const delivery = await mailer.reject(c, { title: job!.title }, s.companyName, actor.firstName || actor.name, text);
-    if (delivery === "email") await candidates.emailed(sql, c.id, actor.id, "rejection");
-    return { delivery };
+    const draft = mailer.rejectionDraft(c, before.job, s.companyName, actor.firstName || actor.name);
+    await messages.queue(sql, actor, c.id, { kind: "rejection", subject: draft.subject, text, delaySeconds: messages.undoSeconds });
+    return { delivery: "waiting" as const, seconds: messages.undoSeconds };
+  });
+}
+
+// bulkReject rejects several candidates of a job with one reason, each
+// with the rejection email in their own language when asked — every email
+// waiting for the Undo like one rejection's. Says who was rejected.
+export async function bulkReject(ids: string[], reason: string, send: boolean): Promise<Result<{ done: string[]; seconds: number }>> {
+  return act(async actor => {
+    const sql = db();
+    if (!Array.isArray(ids) || ids.length === 0 || ids.length > limits.bulk) throw new AppError("invalid");
+    const s = await jobs.settings(sql);
+    const done: string[] = [];
+    for (const id of ids) {
+      const before = await candidates.candidate(sql, actor, id);
+      if (before.candidate.status !== "active") continue;
+      const c = await candidates.reject(sql, actor, id, reason, "");
+      if (await candidates.isHiredStage(sql, c.stageId)) await share.hireCancelled(c.id);
+      await interviews.requeue(sql, { candidate: c.id });
+      await tell.settled(c.id);
+      if (send && !isCandidateReason(reason)) {
+        const draft = mailer.rejectionDraft(c, before.job, s.companyName, actor.firstName || actor.name);
+        await messages.queue(sql, actor, c.id, { kind: "rejection", subject: draft.subject, text: draft.text, delaySeconds: messages.undoSeconds });
+      }
+      done.push(c.id);
+    }
+    await tell.refreshBadges(sql);
+    return { done, seconds: messages.undoSeconds };
+  });
+}
+
+// bulkRestore: the Undo of a bulk rejection (their emails never leave).
+export async function bulkRestore(ids: string[]): Promise<Result<null>> {
+  return act(async actor => {
+    if (!Array.isArray(ids) || ids.length > limits.bulk) throw new AppError("invalid");
+    for (const id of ids) await candidates.restore(db(), actor, id);
+    await tell.refreshBadges(db());
+    return null;
+  });
+}
+
+// bulkMove moves several candidates of a job to one stage (never into
+// "hired": each hire asks its first day). Says where each was, for Undo.
+export async function bulkMove(ids: string[], stageId: string): Promise<Result<{ from: Record<string, string> }>> {
+  return act(async actor => {
+    const sql = db();
+    if (!Array.isArray(ids) || ids.length === 0 || ids.length > limits.bulk) throw new AppError("invalid");
+    if (await candidates.isHiredStage(sql, String(stageId))) throw new AppError("invalid");
+    const from: Record<string, string> = {};
+    for (const id of ids) {
+      const done = await candidates.move(sql, actor, id, stageId);
+      if (done.from.id !== done.to.id) from[id] = done.from.id;
+      if (done.from.hired && !done.to.hired) await share.hireCancelled(done.candidate.id);
+    }
+    await tell.refreshBadges(sql);
+    return { from };
+  });
+}
+
+// bulkMoveBack: the Undo of a bulk move.
+export async function bulkMoveBack(from: Record<string, string>): Promise<Result<null>> {
+  return act(async actor => {
+    const entries = Object.entries(from ?? {}).slice(0, limits.bulk);
+    for (const [id, stage] of entries) {
+      const done = await candidates.move(db(), actor, id, stage);
+      if (done.to.hired && !done.from.hired) await tellHired(actor, done.candidate);
+    }
+    return null;
   });
 }
 
@@ -140,6 +235,7 @@ export async function restoreCandidate(candidateId: string): Promise<Result<null
     const sql = db();
     const before = await candidates.candidate(sql, actor, candidateId);
     const c = await candidates.restore(sql, actor, candidateId);
+    await interviews.requeue(sql, { candidate: c.id });
     if (before.candidate.status === "rejected" && (await candidates.isHiredStage(sql, c.stageId))) await tellHired(actor, { ...c, stageEnteredAt: new Date().toISOString() });
     await tell.refreshBadges(sql);
     return null;
@@ -214,11 +310,109 @@ export async function setCv(candidateId: string, ticket: string, fileName: strin
   });
 }
 
+// ---- Emails -------------------------------------------------------------------
+
+// writeTo sends a recruiter's email to a candidate now. Without mail on
+// this Chest, the email is kept as "not sent" and the page opens the
+// recruiter's own mail app with it (mailto:), then records it was written
+// there.
+export async function writeTo(candidateId: string, subject: string, text: string): Promise<Result<{ status: "sent" | "none" | "waiting"; message: string; to: string }>> {
+  return act(async actor => {
+    const sql = db();
+    const message = await messages.write(sql, actor, candidateId, { subject, text });
+    const status = await outbox.sendNow(sql, message);
+    const [c] = await sql<{ email: string }[]>`select email from candidates where id = ${candidateId}`;
+    return { status, message, to: c?.email ?? "" };
+  });
+}
+
+export async function writtenOutside(messageId: string): Promise<Result<null>> {
+  return act(async actor => { await messages.writtenOutside(db(), actor, messageId); return null; });
+}
+
+export async function saveTemplate(input: { id?: string; name: string; language: string; subject: string; body: string }): Promise<Result<{ id: string }>> {
+  return act(async actor => ({ id: (await messages.saveTemplate(db(), actor, input)).id }));
+}
+
+export async function removeTemplate(templateId: string): Promise<Result<null>> {
+  return act(async actor => { await messages.removeTemplate(db(), actor, templateId); return null; });
+}
+
+export async function fileMessage(messageId: string, candidateId: string): Promise<Result<null>> {
+  return act(async actor => { await messages.file(db(), actor, messageId, candidateId); return null; });
+}
+
+export async function removeMessage(messageId: string): Promise<Result<null>> {
+  return act(async actor => { await cv.remove(await messages.remove(db(), actor, messageId)); return null; });
+}
+
+// ---- Interviews ---------------------------------------------------------------
+
+// Who may be on a candidate's interview: the job's interviewers, and the
+// recruiters (the Chest says their role).
+async function isTeam(memberId: string, jobId: string): Promise<boolean> {
+  const [on] = await db()<{ x: number }[]>`select 1 as x from job_interviewers where job_id = ${jobId} and member_id = ${memberId}`;
+  return on !== undefined || (await isRecruiter(memberId));
+}
+
+export async function scheduleInterview(candidateId: string, input: interviews.InterviewInput): Promise<Result<{ status: "sent" | "none" | "waiting" | "skipped" }>> {
+  return act(async actor => {
+    const sql = db();
+    const done = await interviews.schedule(sql, actor, candidateId, input, isTeam);
+    const status = done.message ? await outbox.sendNow(sql, done.message) : "skipped";
+    await interviews.flushCalendars(sql);
+    return { status };
+  });
+}
+
+export async function cancelInterview(interviewId: string, tellThem: boolean): Promise<Result<{ status: "sent" | "none" | "waiting" | "skipped" }>> {
+  return act(async actor => {
+    const sql = db();
+    const done = await interviews.cancel(sql, actor, interviewId, tellThem);
+    const status = done.message ? await outbox.sendNow(sql, done.message) : "skipped";
+    await interviews.flushCalendars(sql);
+    return { status };
+  });
+}
+
+// busyTimes: when these people already have interviews on a day.
+export async function busyTimes(people: string[], day: string): Promise<Result<interviews.Busy[]>> {
+  return act(async actor => interviews.busy(db(), actor, people, day));
+}
+
+// ---- Talent pool, import ----------------------------------------------------
+
+export async function considerFor(candidateId: string, jobId: string): Promise<Result<{ id: string }>> {
+  return act(async actor => {
+    const sql = db();
+    const copy = await candidates.considerFor(sql, actor, candidateId, jobId, cv.copy);
+    await tell.refreshBadges(sql);
+    return { id: copy.id };
+  });
+}
+
+export async function setPool(candidateId: string, on: boolean): Promise<Result<null>> {
+  return act(async actor => { await candidates.setPool(db(), actor, candidateId, on); return null; });
+}
+
+export async function importCandidates(jobId: string, input: { rows: unknown[]; stages: Record<string, string>; origin: string; language: string }): Promise<Result<{ added: { id: string; email: string }[]; skipped: { line: number; reason: string }[] }>> {
+  return act(async actor => {
+    const done = await importRows(db(), actor, jobId, input);
+    await tell.refreshBadges(db());
+    return done;
+  });
+}
+
+export async function undoImport(ids: string[]): Promise<Result<null>> {
+  return act(async actor => { await cv.remove(await undoImportRows(db(), actor, ids)); return null; });
+}
+
 export async function eraseCandidate(candidateId: string): Promise<Result<null>> {
   return act(async actor => {
     const sql = db();
     const gone = await candidates.erase(sql, actor, candidateId);
     await cv.remove(gone.objects);
+    await interviews.flushCalendars(sql);
     if (gone.wasHired) await share.hireCancelled(candidateId);
     await tell.settled(candidateId);
     await tell.refreshBadges(sql);

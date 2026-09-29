@@ -34,11 +34,14 @@ export function worst(list: Iterable<State>): State {
   return found;
 }
 
-// How much of an hour a state costs the uptime: a major outage is down, a
-// partial outage half down; degraded performance and planned maintenance
-// are up (the service answers, or customers were told in advance). Our
-// rule, written on the page and in the README.
-export const downtimeWeight: Record<State, number> = { operational: 0, maintenance: 0, degraded: 0, partial: 0.5, major: 1 };
+// How much of a minute a state costs the uptime — Atlassian Statuspage's
+// documented rule, so a company moving from it keeps its figures: a major
+// outage counts in full, a partial outage for 30 %, degraded performance
+// and planned maintenance not at all ("Display historical uptime of
+// components", https://support.atlassian.com/statuspage/docs/display-historical-uptime-of-components/,
+// read through a web search on 2026-09-29). Slower days are said beside the
+// figure (history bar), so "100 %" never stands alone next to yellow days.
+export const downtimeWeight: Record<State, number> = { operational: 0, maintenance: 0, degraded: 0, partial: 0.3, major: 1 };
 
 // The steps of an incident, and of a maintenance.
 export const incidentSteps = ["investigating", "identified", "monitoring", "resolved"] as const;
@@ -46,7 +49,9 @@ export type IncidentStep = (typeof incidentSteps)[number];
 export const openSteps = ["investigating", "identified", "monitoring"] as const;
 export const maintenanceSteps = ["scheduled", "in_progress", "update", "completed", "cancelled"] as const;
 export type MaintenanceStep = (typeof maintenanceSteps)[number];
-export type Step = IncidentStep | MaintenanceStep;
+// After "Resolved", an incident may get one post-mortem: what happened and
+// what was changed. It is an update of its own step that changes no state.
+export type Step = IncidentStep | MaintenanceStep | "postmortem";
 export const isIncidentStep = (v: unknown): v is IncidentStep => typeof v === "string" && (incidentSteps as readonly string[]).includes(v);
 
 // clean trims a text and bounds it; line breaks are kept only where the
@@ -59,6 +64,15 @@ export function clean(value: unknown, max: number, options: { multiline?: boolea
   if (text === "" && !options.optional) throw new AppError("empty");
   if ([...text].length > max) throw new AppError("too_long", { max });
   return text;
+}
+
+// An optional text: null when absent or blank, else cleaned and bounded
+// like the text it goes with (the second-language version of a title or
+// of an update).
+export function optionalText(value: unknown, max: number, options: { multiline?: boolean } = {}): string | null {
+  if (value === undefined || value === null) return null;
+  const text = clean(value, max, { ...options, optional: true });
+  return text === "" ? null : text;
 }
 
 const idPattern = /^[1-9][0-9]{0,17}$/u;

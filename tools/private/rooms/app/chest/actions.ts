@@ -12,6 +12,11 @@ import { setRules as saveRules } from "../../lib/settings.ts";
 import { currentMember } from "../../lib/session.ts";
 import * as tell from "../../lib/tell.ts";
 import { zone } from "../../lib/zone.ts";
+import { flush } from "../../lib/calendar.ts";
+import { checkIn as checkInto } from "../../lib/check-in.ts";
+import * as usual from "../../lib/usual.ts";
+import { directory } from "../../lib/directory.ts";
+import * as imports from "../../lib/import.ts";
 
 // The server actions of the members' part. Each is an endpoint anyone can
 // call: each reads the member from the Chest's assertion again; the
@@ -24,6 +29,8 @@ async function act<T>(step: (actor: Member) => Promise<T>): Promise<Result<T>> {
     if (!actor) throw new AppError("forbidden");
     return step(actor);
   });
+  // The calendars hear of what changed (queued in the same transaction).
+  if (result.ok) await flush(db(), zone()).catch(error => console.error("calendar flush failed", error instanceof Error ? error.name : "non-error thrown"));
   revalidatePath("/chest", "layout");
   return result;
 }
@@ -34,16 +41,22 @@ export async function setPresence(day: string, status: string | null, officeId?:
   return act(actor => savePresence(db(), actor, { day, status, ...(officeId ? { officeId } : {}) }, zone()));
 }
 
+export async function setUsualWeek(input: { days: Record<string, string | null>; deskId: string | null; lendDesk: boolean }): Promise<Result<{ applied: number }>> {
+  return act(actor => usual.setUsualWeek(db(), actor, input, zone()));
+}
+
 export async function setMyOffice(officeId: string): Promise<Result<null>> {
   return act(async actor => { await places.setMyOffice(db(), actor, officeId); return null; });
 }
 
 // ---------- Desks ----------
 
-export async function bookDesk(deskId: string, day: string, part: string, move = false): Promise<Result<{ id: string; deskName: string; replaced: string[] }>> {
+// forWhom: an admin books for someone else (they are told).
+export async function bookDesk(deskId: string, day: string, part: string, move = false, forWhom?: string | null): Promise<Result<{ id: string; deskName: string; replaced: string[]; lent: boolean }>> {
   return act(async actor => {
-    const b = await desks.bookDesk(db(), actor, { deskId, day, part, move }, zone());
-    return { id: b.id, deskName: b.deskName, replaced: b.replaced };
+    const b = await desks.bookDesk(db(), actor, { deskId, day, part, move, ...(forWhom ? { for: forWhom } : {}) }, zone());
+    await tell.bookedForYou(actor, b.memberId, { desk: b });
+    return { id: b.id, deskName: b.deskName, replaced: b.replaced, lent: b.lent };
   });
 }
 
@@ -70,11 +83,13 @@ export async function restoreDesk(bookingId: string): Promise<Result<null>> {
 
 // ---------- Rooms ----------
 
-export type RoomForm = { roomId: string; day: string; start: number; end: number; title: string; attendees: string[]; weeks?: number };
+export type RoomForm = { roomId: string; day: string; start: number; end: number; title: string; attendees: string[]; weeks?: number; for?: string };
 
 export async function bookRoom(input: RoomForm): Promise<Result<{ ids: string[]; days: string[]; taken: string[]; roomName: string }>> {
   return act(async actor => {
     const done = await rooms.bookRoom(db(), actor, input, zone());
+    const organiser = done.bookings[0]?.memberId;
+    if (organiser) await tell.bookedForYou(actor, organiser, { room: done.bookings });
     await tell.invited(actor, done.bookings[0]?.attendees ?? [], done.bookings);
     return { ids: done.bookings.map(b => b.id), days: done.bookings.map(b => b.day), taken: done.taken, roomName: done.bookings[0]?.roomName ?? "" };
   });
@@ -94,6 +109,10 @@ export async function cancelRoomBooking(bookingId: string, scope: "one" | "follo
     await tell.cancelled(actor, gone, gone.some(b => b.memberId !== actor.id) ? "admin" : "none");
     return { ids: gone.map(b => b.id) };
   });
+}
+
+export async function checkIn(bookingId: string): Promise<Result<null>> {
+  return act(async actor => { await checkInto(db(), actor, bookingId); return null; });
 }
 
 export async function restoreRoomBookings(ids: string[]): Promise<Result<null>> {
@@ -134,7 +153,7 @@ export async function removeArea(areaId: string): Promise<Result<null>> {
   return act(async actor => { await places.removeArea(db(), actor, areaId); return null; });
 }
 
-export type RoomFields = { name: string; capacity: number; equipment: string[]; note: string; floorId?: string };
+export type RoomFields = { name: string; capacity: number; equipment: string[]; note: string; floorId?: string; groupId?: string | null };
 export async function addRoom(floorId: string, input: RoomFields): Promise<Result<{ id: string }>> {
   return act(actor => places.addRoom(db(), actor, floorId, input));
 }
@@ -161,6 +180,31 @@ export type DeskFields = { name: string; features: string[]; assignedTo: string 
 export async function addDesks(areaId: string, count: number, features: string[]): Promise<Result<{ ids: string[] }>> {
   return act(actor => places.addDesks(db(), actor, areaId, count, features));
 }
+// Undo of "4 desks added": they go (new, so nobody booked them).
+export async function undoAddDesks(ids: string[]): Promise<Result<null>> {
+  return act(async actor => {
+    for (const id of ids.slice(0, 50)) await places.removeDesk(db(), actor, id);
+    return null;
+  });
+}
+export async function setAreaGroup(areaId: string, groupId: string | null): Promise<Result<null>> {
+  return act(async actor => { await places.setAreaGroup(db(), actor, areaId, groupId); return null; });
+}
+
+// ---------- Moving in (admins) ----------
+
+export async function importRooms(officeId: string, text: string): Promise<Result<imports.RoomsImported>> {
+  return act(actor => imports.importRooms(db(), actor, officeId, text));
+}
+export async function importDesks(officeId: string, text: string): Promise<Result<Omit<imports.DesksImported, "cancelled"> & { cancelled: number }>> {
+  return act(async actor => {
+    const everyone = await directory();
+    const done = await imports.importDesks(db(), actor, officeId, text, everyone);
+    await tell.desksCancelled(actor, done.cancelled, "given");
+    return { ...done, cancelled: done.cancelled.length };
+  });
+}
+
 export async function updateDesk(deskId: string, input: DeskFields): Promise<Result<{ cancelled: number }>> {
   return act(async actor => {
     const { cancelled } = await places.updateDesk(db(), actor, deskId, input);

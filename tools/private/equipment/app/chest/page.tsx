@@ -2,24 +2,30 @@ import * as chest from "@argentic/chest-sdk/chest";
 import Link from "next/link";
 import { AssetTag, StatusStamp } from "../../components/bits.tsx";
 import { Avatar } from "../../components/avatar.tsx";
-import { Alert, CategoryIcon, Chevron, Clock, Plus, Print, Sliders, TakeBack, Upload, Wrench } from "../../components/icons.tsx";
+import { Alert, CategoryIcon, Check, Chevron, Clipboard, Clock, Plus, Print, Sliders, TakeBack, Upload, Wrench } from "../../components/icons.tsx";
 import { SolveButton } from "../../components/solve-button.tsx";
 import { can } from "../../lib/access.ts";
 import { categoryCounts } from "../../lib/categories.ts";
 import { db } from "../../lib/db.ts";
 import { leavingList, purgeDepartures } from "../../lib/departures.ts";
 import { format, formatDay, plural, relative } from "../../lib/i18n/index.ts";
-import { holderCounts, overview } from "../../lib/items.ts";
+import { openInventory } from "../../lib/inventory.ts";
+import { holderCounts, listItems, overview, unconfirmedReceipts } from "../../lib/items.ts";
+import { addDays } from "../../lib/model.ts";
+import { waitingRequests } from "../../lib/requests.ts";
 import { nameOf, people } from "../../lib/people.ts";
 import { viewer } from "../../lib/session.ts";
 import { holderIds, rowOf } from "../../lib/view.ts";
 import { categoryName } from "../../lib/words.ts";
 import { MinePage } from "./mine/mine-page.tsx";
+import { RequestsPanel } from "./requests-panel.tsx";
 
-// The first page. A manager sees the stock and what needs them: problems
-// reported, warranties and renewals ending, repairs, what to take back from
-// people leaving (People tells Equipment) and from people who left with
-// equipment. A member sees their own equipment.
+// The first page. A manager sees the stock and what needs them: requests
+// for equipment, problems reported, supplies running low, warranties and
+// renewals ending, repairs (and when they are due back), what to take back
+// from people leaving (People tells Equipment) and from people who left
+// with equipment, receipts not confirmed after a week. A member sees their
+// own equipment.
 export default async function Home() {
   const v = await viewer();
   if (!v) return null;
@@ -28,15 +34,18 @@ export default async function Home() {
   const sql = db();
   const today = chest.today();
   await purgeDepartures(sql, today);
-  const [counts, ov, holders, departing] = await Promise.all([categoryCounts(sql, member), overview(sql, member, today), holderCounts(sql, member), leavingList(sql, member)]);
-  const names = await people([...holders.keys(), ...departing.map(d => d.memberId), ...ov.problems.map(p => p.reportedBy), ...holderIds([...ov.ending, ...ov.repair])]);
+  const [counts, ov, holders, departing, requests, unconfirmed, inventory] = await Promise.all([
+    categoryCounts(sql, member), overview(sql, member, today), holderCounts(sql, member), leavingList(sql, member), waitingRequests(sql, member),
+    unconfirmedReceipts(sql, member, addDays(today, -7)), openInventory(sql),
+  ]);
+  const names = await people([...holders.keys(), ...departing.map(d => d.memberId), ...ov.problems.map(p => p.reportedBy), ...holderIds([...ov.ending, ...ov.repair]), ...requests.map(r => r.member), ...unconfirmed.map(u => u.member)]);
   const leavers = [...holders].filter(([id, c]) => (id === "erased" || names.get(id)?.status !== "member") && c.items + c.seats > 0);
   // Still here, leaving soon: once they have left, "leavers" says the rest.
   const leaving = departing.filter(d => names.get(d.memberId)?.status === "member");
   const stocked = counts.filter(c => c.total > 0);
   const now = new Date();
 
-  if (stocked.length === 0 && ov.repair.length === 0 && leavers.length === 0) {
+  if (stocked.length === 0 && ov.repair.length === 0 && leavers.length === 0 && requests.length === 0) {
     return (
       <main className="narrow">
         <div className="empty hero">
@@ -52,7 +61,14 @@ export default async function Home() {
     );
   }
 
-  const attention = ov.problems.length + ov.ending.length + ov.repair.length + leavers.length + leaving.length;
+  const attention = ov.problems.length + ov.ending.length + ov.repair.length + leavers.length + leaving.length + requests.length + ov.low.length + unconfirmed.length;
+  // What a request may be answered with: things in stock, supplies left,
+  // licences with a free seat.
+  const offer = requests.length === 0 ? [] : [
+    ...(await listItems(sql, member, { status: "in_stock" }, 300)),
+    ...(await listItems(sql, member, { status: "in_use" }, 300)).filter(i => i.seats !== null && i.seatsUsed < i.seats),
+  ].filter(i => i.category.kind !== "consumable" || (i.quantity ?? 0) > 0).map(i => ({ ...rowOf(i, names, t, locale, today, member.id), categoryId: i.category.id }));
+  const kindName = new Map(counts.map(c => [c.id, categoryName(c, t)]));
   return (
     <main className="wide">
       <div className="page-head">
@@ -60,6 +76,7 @@ export default async function Home() {
         <div className="actions">
           <Link className="button quiet" href="/chest/import"><Upload /><span>{t.shell.import}</span></Link>
           <Link className="button quiet" href="/chest/labels?all=1"><Print /><span>{t.shell.labels}</span></Link>
+          <Link className="button quiet" href="/chest/inventory"><Clipboard /><span>{inventory ? t.inventory.open : t.shell.inventory}</span></Link>
           <Link className="button" href="/chest/items/new"><Plus />{t.overview.add}</Link>
         </div>
       </div>
@@ -75,11 +92,18 @@ export default async function Home() {
               <Link className="bin" href={`/chest/items?category=${c.id}`}>
                 <span className="bin-icon" aria-hidden="true"><CategoryIcon name={c.icon} /></span>
                 <span className="bin-name">{categoryName(c, t)}</span>
-                <span className="bin-count">{plural(t.overview.inStock, c.inStock, locale)}</span>
-                <span className="bin-sub">
-                  {format(t.overview.inUse, { count: c.inUse })}
-                  {c.inRepair > 0 && <> · {format(t.overview.inRepair, { count: c.inRepair })}</>}
-                </span>
+                <span className="bin-count">{plural(c.kind === "consumable" ? t.overview.units : t.overview.inStock, c.inStock, locale)}</span>
+                {c.kind === "consumable" ? (
+                  <span className="bin-sub">
+                    {plural(t.overview.kinds, c.total, locale)}
+                    {c.low > 0 && <> · <span className="low-text">{plural(t.overview.lowCount, c.low, locale)}</span></>}
+                  </span>
+                ) : (
+                  <span className="bin-sub">
+                    {format(t.overview.inUse, { count: c.inUse })}
+                    {c.inRepair > 0 && <> · {format(t.overview.inRepair, { count: c.inRepair })}</>}
+                  </span>
+                )}
               </Link>
             </li>
           ))}
@@ -90,6 +114,20 @@ export default async function Home() {
         <h2 id="attention" className="section-title">{t.overview.attention}</h2>
         {attention === 0 && <p className="all-clear"><span aria-hidden="true">✓</span> {t.overview.allClear}</p>}
         <div className="panels">
+          {requests.length > 0 && (
+            <RequestsPanel
+              requests={requests.map(r => {
+                const person = names.get(r.member);
+                return {
+                  id: r.id, member: r.member, name: r.member === "erased" ? t.people.erased : nameOf(person, locale), photo: person?.photo ?? null, body: r.body,
+                  kind: r.categoryId ? kindName.get(r.categoryId) ?? null : null, categoryId: r.categoryId, approved: r.status === "approved",
+                  when: relative(r.createdAt, locale, now), gone: person?.status !== "member",
+                };
+              })}
+              offer={offer}
+              t={{ overview: t.overview, requests: t.requests, errors: t.errors, common: t.common }}
+            />
+          )}
           {leaving.length > 0 && (
             <section className="panel" id="leaving" aria-labelledby="leaving-title">
               <h3 id="leaving-title"><TakeBack />{t.overview.leaving}</h3>
@@ -133,6 +171,22 @@ export default async function Home() {
               </ul>
             </section>
           )}
+          {ov.low.length > 0 && (
+            <section className="panel" id="low" aria-labelledby="low-title">
+              <h3 id="low-title"><Alert />{t.overview.low}</h3>
+              <ul className="plain">
+                {ov.low.map(item => (
+                  <li key={item.id} className="mini">
+                    <Link href={`/chest/items/${item.id}`} className="mini-link">
+                      <span className="mini-icon" aria-hidden="true"><CategoryIcon name={item.category.icon} /></span>
+                      <span className="mini-what"><span className="strong">{item.name}</span> <AssetTag tag={item.tag} /></span>
+                      <span className="low-text small">{plural(t.overview.left, item.quantity ?? 0, locale)} · {format(t.overview.minimum, { min: item.minQuantity ?? 0 })}</span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
           {ov.ending.length > 0 && (
             <section className="panel" id="ending" aria-labelledby="ending-title">
               <h3 id="ending-title"><Clock />{t.overview.ending}</h3>
@@ -162,10 +216,33 @@ export default async function Home() {
                     <Link href={`/chest/items/${item.id}`} className="mini-link">
                       <span className="mini-icon" aria-hidden="true"><CategoryIcon name={item.category.icon} /></span>
                       <span className="mini-what"><span className="strong">{item.name}</span> <AssetTag tag={item.tag} /></span>
-                      <StatusStamp status={item.status} text={t.status[item.status]} />
+                      {item.repair?.due ? (
+                        <span className={item.repair.due < today ? "ending past" : "ending"}>
+                          {format(t.overview.expectedBack, { date: formatDay(item.repair.due, locale, { day: "numeric", month: "short" }) })}{item.repair.due < today && <> · {t.overview.late}</>}
+                        </span>
+                      ) : <StatusStamp status={item.status} text={t.status[item.status]} />}
                     </Link>
                   </li>
                 ))}
+              </ul>
+            </section>
+          )}
+          {unconfirmed.length > 0 && (
+            <section className="panel" id="unconfirmed" aria-labelledby="unconfirmed-title">
+              <h3 id="unconfirmed-title"><Check />{t.overview.unconfirmed}</h3>
+              <p className="small muted">{t.overview.unconfirmedHint}</p>
+              <ul className="plain">
+                {unconfirmed.map(u => {
+                  const name = nameOf(names.get(u.member), locale);
+                  return (
+                    <li key={u.item.id} className="mini">
+                      <Link href={`/chest/items/${u.item.id}`} className="mini-link">
+                        <Avatar name={name} photo={names.get(u.member)?.photo ?? null} size={28} />
+                        <span className="mini-what"><span className="strong">{u.item.name}</span> <AssetTag tag={u.item.tag} /> <span className="muted">{name} · {format(t.overview.givenOn, { date: formatDay(u.givenOn, locale, { day: "numeric", month: "short" }) })}</span></span>
+                      </Link>
+                    </li>
+                  );
+                })}
               </ul>
             </section>
           )}

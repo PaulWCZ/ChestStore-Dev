@@ -2,6 +2,7 @@ import * as chest from "@argentic/chest-sdk/chest";
 import { allComponents } from "../../../../lib/components.ts";
 import { db } from "../../../../lib/db.ts";
 import { format, zoneName } from "../../../../lib/i18n/index.ts";
+import { otherLanguage } from "../../../../lib/languages.ts";
 import { pickerGroups } from "../../../../lib/picker.ts";
 import { viewer } from "../../../../lib/session.ts";
 import { addDays } from "../../../../lib/zone.ts";
@@ -29,6 +30,7 @@ export default async function NewMaintenance() {
           start={{ day: tomorrow, minutes: 22 * 60 }}
           end={{ day: tomorrow, minutes: 23 * 60 }}
           zoneNote={format(t.maintenance.zone, { zone: zoneName(zone) })}
+          languages={{ second: otherLanguage(), secondName: (t.languages as Record<string, string>)[otherLanguage()] ?? otherLanguage() }}
           t={{ maintenance: t.maintenance, compose: t.compose, errors: t.errors }}
         />
       )}

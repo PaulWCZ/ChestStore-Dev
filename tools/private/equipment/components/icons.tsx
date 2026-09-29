@@ -56,3 +56,6 @@ const shapes: Record<IconName, ReactNode> = {
 export function CategoryIcon({ name }: { name: IconName }) {
   return <Icon>{shapes[name] ?? shapes.box}</Icon>;
 }
+
+export const Inbox = () => <Icon><path d="M3.5 13.5l2.5-8h12l2.5 8v6h-17z" /><path d="M3.5 13.5h5l1.5 2.5h4l1.5-2.5h5" /></Icon>;
+export const Clipboard = () => <Icon><rect x="5" y="4.5" width="14" height="17" rx="2" /><path d="M9 4.5V3h6v1.5M8.5 11l2 2 4-4M8.5 17h7" /></Icon>;

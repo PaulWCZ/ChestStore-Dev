@@ -5,7 +5,8 @@
 export function parseCsv(text: string, maxRows = 20000): string[][] {
   const source = text.replace(/^﻿/u, "");
   const firstLine = source.slice(0, source.search(/\r?\n|$/u));
-  const separator = (firstLine.match(/;/gu)?.length ?? 0) > (firstLine.match(/,/gu)?.length ?? 0) ? ";" : ",";
+  const count = (c: string) => firstLine.split(c).length - 1;
+  const separator = [",", ";", "\t"].reduce((best, c) => (count(c) > count(best) ? c : best), ",");
   const rows: string[][] = [];
   let row: string[] = [];
   let field = "";

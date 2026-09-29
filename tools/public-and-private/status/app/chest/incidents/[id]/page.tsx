@@ -5,7 +5,8 @@ import { AppError } from "../../../../lib/app-error.ts";
 import { allComponents } from "../../../../lib/components.ts";
 import { db } from "../../../../lib/db.ts";
 import { format, stamp, zoneName } from "../../../../lib/i18n/index.ts";
-import { incidentFor, touched, type Incident } from "../../../../lib/incidents.ts";
+import { incidentFor, postmortemOf, touched, type Incident } from "../../../../lib/incidents.ts";
+import { otherLanguage } from "../../../../lib/languages.ts";
 import type { Impact } from "../../../../lib/model.ts";
 import { nameOf, people } from "../../../../lib/people.ts";
 import { pickerGroups } from "../../../../lib/picker.ts";
@@ -38,20 +39,27 @@ export default async function IncidentPage({ params }: { params: Promise<{ id: s
   const nameFor = (id: string | null) => (id === "auto" ? t.people.auto : id === member.id ? t.people.you : nameOf(who.get(id ?? ""), locale));
   const components = await allComponents(sql);
   const names = new Map(components.map(c => [c.id, c.name]));
+  const second = incident.secondLanguage ?? otherLanguage(incident.language);
+  const secondName = (t.languages as Record<string, string>)[second] ?? second;
   const updates: UpdateView[] = incident.updates.map(u => ({
     id: u.id,
     status: u.status,
     body: u.body,
+    bodySecond: u.bodySecond,
     time: when(u.postedAt),
     author: nameFor(u.author),
     auto: u.author === "auto",
     removed: u.removedAt ? format(t.incident.removedBy, { name: nameFor(u.removedBy), time: when(u.removedAt) }) : null,
     states: Object.entries(u.states).map(([c, s]) => ({ name: names.get(c) ?? "", state: s })),
-    log: u.log.map(l => ({ text: format(l.action === "edited" ? t.incident.editedBy : l.action === "removed" ? t.incident.removedBy : t.incident.restoredBy, { name: nameFor(l.actor), time: when(l.at) }), previous: l.action === "edited" ? l.previousBody : null })),
+    log: u.log.map(l => {
+      const text = format(l.action === "edited" ? t.incident.editedBy : l.action === "removed" ? t.incident.removedBy : t.incident.restoredBy, { name: nameFor(l.actor), time: when(l.at) });
+      return { text: l.second ? format(t.incident.secondLog, { text, language: secondName }) : text, previous: l.action === "edited" ? l.previousBody : null };
+    }),
   }));
   const publicLink = `${publicOrigin(await headers()) ?? ""}/incidents/${incident.id}?fresh=${Math.floor(now.getTime() / 1000)}`;
   const removed = incident.removedAt ? format(t.incident.removedBanner, { name: nameFor(incident.removedBy), time: when(incident.removedAt) }) : null;
   const words = { incident: t.incident, compose: t.compose, steps: t.steps, stepHelp: t.stepHelp, states: t.states, errors: t.errors, maintenance: t.maintenance, people: t.people };
+  const languages = { second, secondName };
   const groups = pickerGroups(components);
   const affected = touched(incident).map(c => names.get(c) ?? "").filter(Boolean);
 
@@ -60,7 +68,8 @@ export default async function IncidentPage({ params }: { params: Promise<{ id: s
     const start = wall(incident.startedAt, zone), end = wall(incident.endsAt ?? incident.startedAt, zone);
     return (
       <MaintenanceView
-        incident={{ id: incident.id, title: incident.title, phase, window: format(t.time.range, { from: when(incident.startedAt), to: incident.endsAt ? when(incident.endsAt) : "" }), affected, autoPosts: incident.autoPosts, removed }}
+        incident={{ id: incident.id, title: incident.title, titleSecond: incident.titleSecond, phase, window: format(t.time.range, { from: when(incident.startedAt), to: incident.endsAt ? when(incident.endsAt) : "" }), affected, autoPosts: incident.autoPosts, removed, hasSecond: incident.secondLanguage !== null }}
+        languages={languages}
         form={{ start: { day: start.date, minutes: start.minutes }, end: { day: end.date, minutes: end.minutes }, components: incident.components, groups, zoneNote: format(t.maintenance.zone, { zone: zoneName(zone) }) }}
         updates={updates}
         publicLink={publicLink}
@@ -69,10 +78,12 @@ export default async function IncidentPage({ params }: { params: Promise<{ id: s
     );
   }
 
-  const latest = incident.updates.find(u => u.removedAt === null && u.status !== "resolved");
+  const latest = incident.updates.find(u => u.removedAt === null && u.status !== "resolved" && u.status !== "postmortem");
+  const pm = postmortemOf(incident);
   return (
     <IncidentView
-      incident={{ id: incident.id, title: incident.title, status: incident.status, backfilled: incident.backfilled, removed, affected }}
+      incident={{ id: incident.id, title: incident.title, titleSecond: incident.titleSecond, status: incident.status, backfilled: incident.backfilled, removed, affected, hasSecond: incident.secondLanguage !== null, postmortem: pm ? { body: pm.body, bodySecond: pm.bodySecond } : null }}
+      languages={languages}
       current={(latest?.states ?? {}) as Record<string, Impact>}
       groups={groups}
       updates={updates}

@@ -2,14 +2,15 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState, useTransition, type ComponentType } from "react";
+import { useEffect, useRef, useState, useTransition, type ComponentType, type KeyboardEvent } from "react";
 import { Avatar } from "../../components/avatar.tsx";
-import { Desk, Door, Laptop, Moon, Plan } from "../../components/icons.tsx";
+import { Dialog } from "../../components/dialog.tsx";
+import { CalendarAdd, Check, Desk, Door, Download, Laptop, Moon, Plan, Repeat } from "../../components/icons.tsx";
 import { useToast } from "../../components/toast.tsx";
 import type { Catalogue } from "../../lib/i18n/index.ts";
 import { format, formatDay, plural } from "../../lib/i18n/format.ts";
 import type { Part, Status } from "../../lib/model.ts";
-import { bookDesk, cancelDesk, restoreDesk, setPresence } from "./actions.ts";
+import { bookDesk, cancelDesk, checkIn, restoreDesk, setPresence, setUsualWeek } from "./actions.ts";
 
 export type WeekDay = {
   day: string;
@@ -19,30 +20,46 @@ export type WeekDay = {
   isToday: boolean;
   past: boolean;
   me: Status | null;
-  others: { id: string; name: string; photo: string | null }[];
+  // Colleagues at the office, my teams first (team: shares a group with me).
+  others: { id: string; name: string; photo: string | null; team: boolean }[];
   desks: { id: string; name: string; area: string; part: Part }[];
-  rooms: { id: string; room: string; span: string; title: string; by: string | null }[];
+  rooms: { id: string; room: string; span: string; title: string; by: string | null; checkable: boolean }[];
   usualFree: boolean;
+  // My own desk, lent that day to this person.
+  lentTo: string | null;
 };
 
 type Words = {
   week: Catalogue["week"];
+  usual: Catalogue["usual"];
   status: Catalogue["status"];
   parts: Catalogue["parts"];
   days: Catalogue["days"];
   errors: Catalogue["errors"];
   undo: string;
   you: string;
+  close: string;
+  checkIn: string;
+  checkedIn: string;
 };
 
-const icons: Record<Status, ComponentType> = { office: Plan, remote: Laptop, off: Moon };
+type Pattern = { days: Partial<Record<number, Status>>; deskId: string | null; lendDesk: boolean };
 
-export function WeekView({ days, officeId, focus, usual, self, locale, t }: {
+const icons: Record<Status, ComponentType> = { office: Plan, remote: Laptop, off: Moon };
+const choices = ["office", "remote", "off"] as const;
+// Faces shown before "+n": few enough that none is hidden under the next.
+const faces = 3;
+
+export function WeekView({ days, officeId, focus, usual, pattern, weekdays, desks, calendarPage, self, locale, t }: {
   days: WeekDay[];
   self: { name: string; photo: string | null };
   officeId: string;
   focus: string | null;
   usual: { id: string; name: string; areaName: string; assigned: boolean } | null;
+  pattern: Pattern;
+  weekdays: { day: number; name: string }[];
+  desks: { id: string; name: string; mine: boolean }[];
+  calendarPage: string | null;
   locale: string;
   t: Words;
 }) {
@@ -51,6 +68,7 @@ export function WeekView({ days, officeId, focus, usual, self, locale, t }: {
   const [, start] = useTransition();
   // What the member just chose shows at once; the server's answer follows.
   const [chosen, setChosen] = useState<Record<string, Status | null>>({});
+  const [editing, setEditing] = useState(false);
   useEffect(() => setChosen({}), [days]);
   useEffect(() => {
     if (focus) document.getElementById("day-" + focus)?.scrollIntoView({ block: "center" });
@@ -100,6 +118,15 @@ export function WeekView({ days, officeId, focus, usual, self, locale, t }: {
     });
   }
 
+  function here(bookingId: string) {
+    start(async () => {
+      const r = await checkIn(bookingId);
+      if (!r.ok) return fail(r.error, r.values);
+      toast(t.checkedIn);
+      router.refresh();
+    });
+  }
+
   function free(day: WeekDay, desk: WeekDay["desks"][number]) {
     start(async () => {
       const r = await cancelDesk(desk.id);
@@ -116,8 +143,15 @@ export function WeekView({ days, officeId, focus, usual, self, locale, t }: {
     });
   }
 
+  const hasPattern = Object.keys(pattern.days).length > 0;
+  const summary = weekdays.filter(w => pattern.days[w.day] === "office").map(w => w.name).join(", ");
+
   return (
     <div className="weeks">
+      <div className="usual-bar">
+        <button type="button" className="button quiet" onClick={() => setEditing(true)}><Repeat />{t.usual.open}</button>
+        <span className="hint">{hasPattern ? (summary ? format(t.usual.summary, { days: summary }) : t.usual.summaryNone) : t.usual.pitch}</span>
+      </div>
       {([0, 1] as const).map(w => (
         <section key={w} className="week" aria-labelledby={"week-" + w}>
           <h2 id={"week-" + w} className="annotation">{w === 0 ? t.week.thisWeek : t.week.nextWeek}</h2>
@@ -135,24 +169,16 @@ export function WeekView({ days, officeId, focus, usual, self, locale, t }: {
                     {d.isToday && <span className="tag">{t.days.today}</span>}
                     {d.past && <span className="tag quiet">{t.week.past}</span>}
                   </div>
-                  <div className="choice-row" role="radiogroup" aria-label={format(t.week.whereOn, { day: d.label })}>
-                    {(["office", "remote", "off"] as const).map(s => {
-                      const Icon = icons[s];
-                      return (
-                        <button key={s} type="button" role="radio" aria-checked={me === s} className={"seg seg-" + s} disabled={d.past} onClick={() => say(d, s)}>
-                          <Icon /><span>{t.status[s]}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
+                  <Choice day={d} me={me} label={format(t.week.whereOn, { day: d.label })} t={t} onSay={s => say(d, s)} />
                   <div className="present">
                     <span className="stack-avatars" aria-hidden="true">
                       {me === "office" && <span className="me-dot" title={t.you}><Avatar name={self.name} photo={self.photo} size={28} /></span>}
-                      {d.others.slice(0, 5).map(p => <Avatar key={p.id} name={p.name} photo={p.photo} size={28} />)}
-                      {d.others.length > 5 && <span className="avatar more">+{d.others.length - 5}</span>}
+                      {d.others.slice(0, faces).map(p => <Avatar key={p.id} name={p.name} photo={p.photo} size={28} />)}
+                      {faces < d.others.length && <span className="avatar more">+{d.others.length - faces}</span>}
                     </span>
                     <Link href={`/chest/people?day=${d.day}`} className="present-link">
                       {plural(t.week.inOffice, count, locale)}
+                      {d.others.some(p => p.team) && <span className="team-count"> · {plural(t.week.team, d.others.filter(p => p.team).length, locale)}</span>}
                       {d.others.length > 0 && <span className="visually-hidden">: {d.others.map(p => p.name).join(", ")}</span>}
                     </Link>
                   </div>
@@ -176,18 +202,20 @@ export function WeekView({ days, officeId, focus, usual, self, locale, t }: {
                             {b.title && <span> · {b.title}</span>}
                             {b.by && <span className="muted"> · {b.by}</span>}
                           </Link>
+                          {b.checkable && <button type="button" className="button small" onClick={() => here(b.id)}><Check />{t.checkIn}</button>}
                         </li>
                       ))}
                     </ul>
                   )}
+                  {d.lentTo && !d.past && <p className="suggest hint">{format(me === "office" ? t.week.lentBack : t.week.lent, { desk: usual?.name ?? "", name: d.lentTo })}</p>}
                   {me === "office" && !d.past && d.desks.length === 0 && (
                     <div className="suggest">
-                      {usual?.assigned ? (
+                      {usual?.assigned && !d.lentTo ? (
                         <span className="muted"><Desk /> {format(t.week.yourDesk, { desk: usual.name })}</span>
                       ) : (
                         <>
-                          {usual && d.usualFree && <button type="button" className="button small" onClick={() => bookUsual(d)}><Desk />{format(t.week.bookUsual, { desk: usual.name })}</button>}
-                          {usual && !d.usualFree && <span className="muted small">{format(t.week.usualTaken, { desk: usual.name })}</span>}
+                          {usual && !usual.assigned && d.usualFree && <button type="button" className="button small" onClick={() => bookUsual(d)}><Desk />{format(t.week.bookUsual, { desk: usual.name })}</button>}
+                          {usual && !usual.assigned && !d.usualFree && <span className="muted small">{format(t.week.usualTaken, { desk: usual.name })}</span>}
                           <Link className="button quiet small" href={`/chest/desks?day=${d.day}&office=${officeId}`}>{t.week.chooseDesk}</Link>
                         </>
                       )}
@@ -199,6 +227,104 @@ export function WeekView({ days, officeId, focus, usual, self, locale, t }: {
           </ol>
         </section>
       ))}
+      <footer className="week-foot">
+        <a className="button quiet small" href="/chest/calendar/mine" download><CalendarAdd />{t.week.addAll}</a>
+        <a className="button quiet small" href="/chest/mine" download><Download />{t.week.myData}</a>
+        {calendarPage && <span className="hint">{t.week.inCalendar} <a href={calendarPage}>{t.week.calendarHow}</a></span>}
+      </footer>
+      <Dialog open={editing} title={t.usual.title} closeLabel={t.close} dismissible={false} onClose={() => setEditing(false)}>
+        {editing && <UsualForm pattern={pattern} weekdays={weekdays} desks={desks} assigned={usual?.assigned ? usual : null} t={t}
+          onSaved={applied => { setEditing(false); toast(applied > 0 ? plural(t.usual.saved, applied, locale) : t.usual.savedNone); router.refresh(); }} />}
+      </Dialog>
     </div>
+  );
+}
+
+// Office / Remote / Off for one day: one Tab stop; the arrow keys move
+// between the three, Enter or Space chooses (choosing frees a desk, so an
+// arrow never chooses by itself).
+function Choice({ day, me, label, t, onSay }: { day: WeekDay; me: Status | null; label: string; t: Words; onSay: (s: Status) => void }) {
+  const refs = useRef<(HTMLButtonElement | null)[]>([]);
+  const current = me === null ? 0 : choices.indexOf(me);
+  const [focusAt, setFocusAt] = useState(current);
+  useEffect(() => setFocusAt(current), [current]);
+  function key(e: KeyboardEvent<HTMLDivElement>) {
+    const move = e.key === "ArrowRight" || e.key === "ArrowDown" ? 1 : e.key === "ArrowLeft" || e.key === "ArrowUp" ? -1 : e.key === "Home" ? -9 : e.key === "End" ? 9 : 0;
+    if (move === 0) return;
+    e.preventDefault();
+    const next = move === -9 ? 0 : move === 9 ? choices.length - 1 : (focusAt + move + choices.length) % choices.length;
+    setFocusAt(next);
+    refs.current[next]?.focus();
+  }
+  return (
+    <div className="choice-row" role="radiogroup" aria-label={label} onKeyDown={key}>
+      {choices.map((s, i) => {
+        const Icon = icons[s];
+        return (
+          <button key={s} ref={el => { refs.current[i] = el; }} type="button" role="radio" aria-checked={me === s} tabIndex={i === focusAt ? 0 : -1}
+            className={"seg seg-" + s} disabled={day.past} onClick={() => onSay(s)}>
+            <Icon /><span>{t.status[s]}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// "My usual week": for each working day, where I usually am, and the desk
+// I want on office days. Rooms then says it for me as the days come.
+function UsualForm({ pattern, weekdays, desks, assigned, t, onSaved }: {
+  pattern: Pattern; weekdays: { day: number; name: string }[]; desks: { id: string; name: string; mine: boolean }[];
+  assigned: { name: string } | null; t: Words; onSaved: (applied: number) => void;
+}) {
+  const [days, setDays] = useState<Partial<Record<number, Status>>>(pattern.days);
+  const [deskId, setDeskId] = useState(pattern.deskId ?? "");
+  const [lend, setLend] = useState(pattern.lendDesk);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, start] = useTransition();
+  function save() {
+    setError(null);
+    start(async () => {
+      const r = await setUsualWeek({ days: Object.fromEntries(weekdays.map(w => [String(w.day), days[w.day] ?? null])), deskId: deskId || null, lendDesk: lend });
+      if (!r.ok) return setError(format(t.errors[r.error], r.values));
+      onSaved(r.value.applied);
+    });
+  }
+  return (
+    <form className="stack usual-form" onSubmit={e => { e.preventDefault(); save(); }}>
+      <p className="hint">{t.usual.body}</p>
+      <ul className="usual-days">
+        {weekdays.map(w => (
+          <li key={w.day} className="usual-day">
+            <span className="usual-name">{w.name}</span>
+            <div className="choice-row" role="radiogroup" aria-label={w.name}>
+              {([...choices, null] as const).map(s => (
+                <button key={s ?? "none"} type="button" role="radio" aria-checked={(days[w.day] ?? null) === s} className="seg"
+                  onClick={() => setDays({ ...days, [w.day]: s ?? undefined })}>
+                  {s ? t.status[s] : t.usual.none}
+                </button>
+              ))}
+            </div>
+          </li>
+        ))}
+      </ul>
+      {assigned ? (
+        <label className="check">
+          <input type="checkbox" checked={lend} onChange={e => setLend(e.target.checked)} />
+          {format(t.usual.lend, { desk: assigned.name })}
+        </label>
+      ) : (
+        <label>
+          <span className="label">{t.usual.desk}</span>
+          <select className="select" value={deskId} onChange={e => setDeskId(e.target.value)}>
+            <option value="">{t.usual.noDesk}</option>
+            {desks.filter(d => !d.mine).map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+          </select>
+        </label>
+      )}
+      <p className="hint">{t.usual.never}</p>
+      {error && <p className="error" role="alert">{error}</p>}
+      <div className="row"><button type="submit" className="button" disabled={busy}>{t.usual.save}</button></div>
+    </form>
   );
 }

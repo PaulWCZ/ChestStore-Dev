@@ -1,0 +1,3 @@
+﻿ID,Asset Tag,Asset Name,Company,Serial,Model,Model No.,Category,Status,Checked Out To,Location,Manufacturer,Supplier,Purchase Date,Purchase Cost,Order Number,Warranty,Warranty Expires,Notes,Checkouts,Checkins,Requests,Created At,Updated At,Checkout Date,Last Audit,IMEI
+21,ATL-0021,,Atelier Lune,C02ZZ1,"MacBook Air 13"" M2",MLY33FN/A,Laptops,Deployed,Camille Martin,Paris HQ,Apple,Apple Store Business,2023-10-05,"1,299.00",PO-2023-044,36,2026-10-05,,2,1,0,2023-10-05 09:30:00,2024-09-02 10:00:00,2024-09-02 10:00:00,,
+22,ATL-0022,,Atelier Lune,R58W11XY9ZQ,Galaxy A54,SM-A546B,Mobile Phones,Ready to Deploy,,Paris HQ,Samsung,Boulanger Pro,2024-11-08,399.00,,24,2026-11-08,Spare phone for on-call week.,0,0,0,2024-11-08 10:00:00,2024-11-08 10:00:00,,,352099001761499

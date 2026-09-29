@@ -50,7 +50,13 @@ hatching with the holder's face; given: pale blue), the rooms grid (rooms as
 columns, bookings as blocks — mine orange —, a drag selection outlined in
 orange, the past hatched, a "now" line), room cards with free-slot chips
 (phone), dialogs on `<dialog>` (a bottom sheet on a phone), a people picker,
-rows, panels, toasts with *Undo*, empty states with one action.
+rows, panels, toasts with *Undo*, empty states with one action. After the
+critique: the *Find a free room* panel (three selects, equipment chips,
+free rooms as dashed chips), desk tiles that say what they offer in words
+("Screen · Dock +1") and a pale "not open yet" state, a lock and "Sales
+only" in orange for places kept for a team, avatar stacks side by side
+(three faces, then "+n"), the usual-week form (four-way segmented rows), and
+a bar per working day for how full the office is.
 
 ## Icon
 

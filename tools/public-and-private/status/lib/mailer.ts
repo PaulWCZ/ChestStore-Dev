@@ -6,12 +6,14 @@ import { catalogue, format, isLocale, stamp, type Catalogue } from "./i18n/index
 import type { Step } from "./model.ts";
 import { company, publicOrigin, setMailState } from "./settings.ts";
 import type { Subscriber } from "./subscribers.ts";
+import { mainLanguage } from "./languages.ts";
+import { pick } from "./texts.ts";
 
 // Email to subscribers through the Chest's mail (Proposal (studio): the
 // "mail" capability, chest.proposals.json). On a Chest without mail,
 // nothing is sent, the tool remembers it and the public page offers the
-// feeds instead of the form. The texts of incidents are written once, in
-// the company's language; the words around them follow each subscriber's.
+// feeds instead of the form. The words around the texts follow each
+// subscriber's language; the texts too, when the team wrote them in it.
 
 const wordsFor = (language: string): Catalogue => catalogue(isLocale(language) ? language : "en");
 export const subscriberLink = (origin: string, token: string) => `${origin}/s/${token}`;
@@ -50,18 +52,21 @@ export async function welcome(sql: Query, s: Subscriber, state: "new" | "pending
   });
 }
 
-type Queued = {
+type Queued = { incident_language: string | null;
   id: string; attempts: number; subscriber_id: string; email: string; language: string; token: string;
-  update_id: string; status: Step; body: string; posted_at: Date;
-  incident_id: string; kind: "incident" | "maintenance"; title: string; started_at: Date; ends_at: Date | null;
+  update_id: string; status: Step; body: string; body_second: string | null; posted_at: Date;
+  incident_id: string; kind: "incident" | "maintenance"; title: string; title_second: string | null; second_language: string | null; started_at: Date; ends_at: Date | null;
 };
 
 // The text of one update's email, in the subscriber's language.
-export function updateEmail(q: Pick<Queued, "language" | "token" | "update_id" | "status" | "body" | "posted_at" | "incident_id" | "kind" | "title" | "started_at" | "ends_at">, components: string[], origin: string, zone: string): { subject: string; text: string } {
+export function updateEmail(q: Pick<Queued, "language" | "token" | "update_id" | "status" | "body" | "posted_at" | "incident_id" | "kind" | "title" | "started_at" | "ends_at"> & Partial<Pick<Queued, "body_second" | "title_second" | "second_language">> & { incident_language?: string | null }, components: string[], origin: string, zone: string): { subject: string; text: string } {
   const all = wordsFor(q.language);
   const t = all.mail;
   const name = company() || t.team;
-  const values = { company: name, title: q.title, step: all.steps[q.status] };
+  const languages = { language: q.incident_language ?? mainLanguage(), secondLanguage: q.second_language ?? null };
+  const title = pick(q.title, q.title_second, languages, q.language).text;
+  const body = pick(q.body, q.body_second, languages, q.language).text;
+  const values = { company: name, title, step: all.steps[q.status] };
   const when = q.kind === "maintenance" && q.status === "scheduled" && q.ends_at
     ? format(t.window, { from: stamp(q.started_at, zone, q.language), to: stamp(q.ends_at, zone, q.language), zone })
     : format(t.when, { time: stamp(q.posted_at, zone, q.language), zone });
@@ -69,7 +74,7 @@ export function updateEmail(q: Pick<Queued, "language" | "token" | "update_id" |
     subject: format(t.updateSubject, values),
     text: format(t.updateBody, {
       ...values,
-      body: q.body,
+      body,
       affected: components.length ? format(t.affected, { list: components.join(", ") }) : "",
       when,
       incident: `${origin}/incidents/${q.incident_id}`,
@@ -87,7 +92,7 @@ export async function flush(sql: Sql, options: { limit?: number; now?: Date } = 
   await sql`delete from mail_queue where created_at < ${new Date(now.getTime() - 86400000)} or attempts >= 5`;
   const batch = await sql<Queued[]>`
     select q.id, q.attempts, s.id as subscriber_id, s.email, s.language, s.token,
-      u.id as update_id, u.status, u.body, u.posted_at, i.id as incident_id, i.kind, i.title, i.started_at, i.ends_at
+      u.id as update_id, u.status, u.body, u.body_second, u.posted_at, i.id as incident_id, i.kind, i.title, i.title_second, i.language as incident_language, i.second_language, i.started_at, i.ends_at
     from mail_queue q
       join subscribers s on s.id = q.subscriber_id and s.confirmed_at is not null
       join updates u on u.id = q.update_id and u.removed_at is null

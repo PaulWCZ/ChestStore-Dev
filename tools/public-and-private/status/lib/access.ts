@@ -7,10 +7,10 @@ import type { Member } from "@argentic/chest-sdk/member";
 // page is open to everyone anyway).
 export const roles = ["editor"] as const;
 export type Role = (typeof roles)[number];
-export type Ability = "read" | "incidents" | "components" | "subscribers";
+export type Ability = "read" | "incidents" | "components" | "subscribers" | "settings";
 
 const grants: Record<Role, readonly Ability[]> = {
-  editor: ["read", "incidents", "components", "subscribers"],
+  editor: ["read", "incidents", "components", "subscribers", "settings"],
 };
 
 export function roleOf(actor: Member | null): Role | null {

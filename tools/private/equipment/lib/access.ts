@@ -5,8 +5,9 @@ import type { Member } from "@argentic/chest-sdk/member";
 //
 // - manager: everything — add, edit, give, take back, labels, import,
 //   export, categories, everyone's page, problems.
-// - member: their own equipment ("Mine"), and a problem reported on what
-//   they hold. They may also look through the catalogue, read-only and
+// - member: their own equipment ("Mine"): say "I received it", report a
+//   problem on what they hold, ask for something (a request), print their
+//   own handover sheet. They may also look through the catalogue, read-only and
 //   without money, suppliers, notes or history: "who has the projector?"
 //   and a found badge's owner are everyday questions in a small company.
 //   A label scanned by a member opens that same short view.
@@ -16,11 +17,12 @@ export type Role = (typeof roles)[number];
 export type Ability =
   | "items.browse"   // the catalogue, short view
   | "items.manage"   // everything about items, their full view, people's pages
-  | "report";        // report a problem on what one holds
+  | "report"         // report a problem on what one holds
+  | "request";       // ask for equipment
 
 const grants: Record<Role, readonly Ability[]> = {
-  manager: ["items.browse", "items.manage", "report"],
-  member: ["items.browse", "report"],
+  manager: ["items.browse", "items.manage", "report", "request"],
+  member: ["items.browse", "report", "request"],
 };
 
 export function roleOf(actor: Member | null): Role | null {

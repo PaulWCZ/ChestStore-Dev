@@ -121,6 +121,8 @@ section:first-of-type > .section-head, .page-head + section > .section-head { ma
   border: 1px solid var(--line); border-radius: var(--radius-m); background: var(--surface); color: var(--ink);
 }
 textarea.field { resize: vertical; line-height: 1.45; }
+/* Placeholders are examples ("e.g. …"), never mistaken for a value. */
+.field::placeholder { color: var(--ink-2); opacity: 0.75; font-style: italic; }
 .field:focus { border-color: var(--focus); outline: 3px solid color-mix(in srgb, var(--focus) 30%, transparent); outline-offset: 0; }
 .field.big { font-size: 1.15rem; font-weight: 500; }
 .field.mono { font-family: var(--font-mono); }
@@ -160,6 +162,15 @@ select.field { padding-right: var(--space-6); }
 .st-lost { color: var(--st-lost); background: var(--st-lost-bg); }
 .st-retired { color: var(--st-retired); background: var(--st-retired-bg); border-style: dashed; }
 .flag { color: var(--warn); display: inline-flex; }
+.st-low, .st-confirm { color: var(--st-repair); background: var(--st-repair-bg); }
+.st-received { color: var(--st-stock); background: var(--st-stock-bg); }
+.low-text, .holder.low { color: var(--warn); font-weight: 600; }
+/* Requests: a stamp per state. */
+.rq-open { color: var(--st-use); background: var(--st-use-bg); }
+.rq-approved { color: var(--st-stock); background: var(--st-stock-bg); }
+.rq-refused { color: var(--st-lost); background: var(--st-lost-bg); }
+.rq-done { color: var(--st-stock); background: var(--st-stock-bg); }
+.rq-cancelled { color: var(--st-retired); background: var(--st-retired-bg); border-style: dashed; }
 .ending { display: inline-flex; align-items: center; gap: 6px; font-size: var(--text-s); color: var(--ink-2); }
 .ending.soon { color: var(--warn); font-weight: 500; }
 .ending.past { color: var(--danger); font-weight: 500; }
@@ -311,6 +322,22 @@ select.field { padding-right: var(--space-6); }
 .tl-note { font-size: var(--text-s); color: var(--ink-2); font-style: italic; overflow-wrap: anywhere; }
 .photo-control { gap: var(--space-2); }
 
+/* The receipt: waiting for "I received it", or confirmed. */
+.receipt { border-left: 4px solid var(--st-stock); background: var(--st-stock-bg); color: var(--ink); padding: var(--space-2) var(--space-3); border-radius: var(--radius-s); display: grid; gap: var(--space-1); }
+.receipt.waiting { border-left-color: var(--tag); background: var(--accent-soft); }
+.audit-line { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); flex-wrap: wrap; padding: var(--space-2) var(--space-3); border: 1.5px dashed var(--line-strong); border-radius: var(--radius-m); }
+.rules { display: grid; gap: var(--space-2); }
+.rules h3 { font-size: var(--text-s); }
+.rules-text { white-space: pre-wrap; max-height: 220px; overflow-y: auto; padding: var(--space-3); background: var(--surface-2); border-radius: var(--radius-m); font-size: var(--text-s); overflow-wrap: anywhere; }
+.label-card.to-confirm { border-color: var(--tag); box-shadow: 0 0 0 2px var(--tag); }
+.requests { gap: var(--space-4); }
+.request { display: grid; gap: var(--space-2); padding: var(--space-3) var(--space-4); background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-m); }
+.request-head { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
+.pager { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
+.scan-panel .filter-q .field { padding-left: var(--space-3); font-size: 1.1rem; }
+.seen-list summary { cursor: pointer; }
+.keep { border: 0; padding: 0; margin: 0; display: grid; gap: var(--space-1); }
+
 /* The "More" menu. */
 .menu { position: relative; }
 .menu summary { list-style: none; cursor: pointer; }
@@ -354,6 +381,48 @@ select.field { padding-right: var(--space-6); }
   .sheet { margin: 0; box-shadow: none; break-after: page; }
   .sheet:last-child { break-after: auto; }
   .sticker { outline: 0; }
+}
+
+/* ---- Printed forms: the handover and return sheets (A4) ------------------ */
+.sheet-page { max-width: 1000px; }
+.paper { background: #fff; color: #111; box-shadow: var(--shadow-2); margin: var(--space-5) auto; padding: 16mm 14mm; max-width: 210mm; display: grid; gap: 5mm; font-size: 10pt; line-height: 1.4; }
+.paper .muted { color: #555; }
+.paper .small { font-size: 0.9em; }
+.paper-head { display: flex; justify-content: space-between; gap: 6mm; flex-wrap: wrap; border-bottom: 2px solid #111; padding-bottom: 4mm; }
+.paper-company { font-size: 9pt; text-transform: uppercase; letter-spacing: 0.08em; }
+.paper-title { font-size: 16pt; }
+.paper-who { margin: 0; display: grid; gap: 1mm; text-align: right; }
+.paper-who div { display: flex; gap: 2mm; justify-content: flex-end; }
+.paper-who dt { font-weight: 600; }
+.paper-who dt::after { content: ":"; }
+.paper-who dt.visually-hidden::after { content: none; }
+.paper-who dd { margin: 0; }
+.paper-section { font-size: 11pt; margin-top: 2mm; }
+.paper-table { width: 100%; border-collapse: collapse; }
+.paper-table th { text-align: left; font-size: 8pt; text-transform: uppercase; letter-spacing: 0.04em; border-bottom: 1.5px solid #111; padding: 1.5mm; vertical-align: bottom; }
+.paper-table td { border-bottom: 1px solid #bbb; padding: 1.5mm; vertical-align: top; overflow-wrap: break-word; }
+.paper-table .nowrap { white-space: nowrap; }
+.paper-rules { border: 1px solid #bbb; padding: 3mm; }
+.paper-rules h3 { font-size: 10pt; margin-bottom: 1mm; }
+.paper-rules p { white-space: pre-wrap; }
+.paper-statement { font-style: italic; }
+.signatures { display: grid; grid-template-columns: 1fr 1fr; gap: 8mm; margin-top: 4mm; }
+.sign-box { border: 1px solid #111; padding: 3mm; min-height: 42mm; display: grid; align-content: start; gap: 5mm; }
+.sign-box p:not(.strong) { border-bottom: 1px dotted #888; padding-bottom: 1mm; }
+@media (max-width: 700px) {
+  .paper { padding: var(--space-4); font-size: 0.9rem; }
+  .paper-table thead { display: none; }
+  .paper-table tr { display: grid; border-bottom: 1px solid #bbb; padding: var(--space-2) 0; }
+  .paper-table td { border: 0; padding: 1px 0; }
+  .signatures { grid-template-columns: 1fr; }
+  .paper-who { text-align: left; }
+  .paper-who div { justify-content: flex-start; }
+}
+@media print {
+  main.sheet-page { padding: 0; max-width: none; }
+  .paper { box-shadow: none; margin: 0; max-width: none; padding: 12mm 12mm; }
+  .paper-table tr { break-inside: avoid; }
+  .signatures { break-inside: avoid; }
 }
 
 /* ---- Mine: label cards --------------------------------------------------- */
@@ -423,6 +492,20 @@ select.field { padding-right: var(--space-6); }
 .icon-choice.picked { border-color: var(--accent); color: var(--accent); }
 @media (max-width: 520px) { .cat-row { flex-wrap: wrap; } .cat-row > .button { margin-left: 60px; } }
 
+/* A category's own fields. */
+.cat-row { flex-wrap: wrap; }
+.fields-editor { flex-basis: 100%; }
+.fields-editor > summary { list-style: none; display: inline-flex; gap: var(--space-2); cursor: pointer; }
+.fields-editor > summary::-webkit-details-marker { display: none; }
+.fields-summary { font-weight: 400; }
+.fields-editor[open] > .stack { padding: var(--space-3) 0 var(--space-2); }
+.field-list { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-2); }
+.field-list li { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: var(--space-2); align-items: center; }
+.field-add { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) auto; gap: var(--space-2); align-items: end; }
+@media (max-width: 600px) { .field-add { grid-template-columns: 1fr; } }
+.kind-choices { border: 0; padding: 0; margin: 0; }
+.rules-form { margin-top: var(--space-6); }
+
 /* Import. */
 .sources { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3); }
 @media (max-width: 640px) { .sources { grid-template-columns: 1fr; } }
@@ -460,8 +543,8 @@ select.field { padding-right: var(--space-6); }
    (their words stay for screen readers). */
 @media (max-width: 600px) {
   .page-head .actions { flex-direction: row-reverse; justify-content: flex-end; width: 100%; }
-  .page-head .actions .button.quiet span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-  .page-head .actions .button.quiet { width: 44px; padding: 0; }
+  .page-head .actions .button.quiet:not(.keep-label) span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .page-head .actions .button.quiet:not(.keep-label) { width: 44px; padding: 0; }
   .bins { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-2); }
   .bin { grid-template-columns: 1fr; padding: var(--space-3); }
   .bin-icon { grid-row: auto; width: 36px; height: 36px; margin-bottom: var(--space-2); }

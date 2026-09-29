@@ -3,6 +3,7 @@ import { can } from "./access.ts";
 import { AppError } from "./app-error.ts";
 import type { Fragment, Query, Sql } from "./db.ts";
 import { clean, equipment as equipmentKeys, features as featureKeys, id, int, keysOf, limits, memberId, nextNames, type Equipment, type Feature } from "./model.ts";
+import { dayKeys, enqueue } from "./calendar.ts";
 import { cancelRoomBookings, type RoomBooking } from "./room-bookings.ts";
 
 // The places of the company: offices, their floors, the areas of a floor
@@ -12,8 +13,9 @@ import { cancelRoomBookings, type RoomBooking } from "./room-bookings.ts";
 // cancelled and their people told (by the caller, from what is returned).
 
 export type DeskView = { id: string; name: string; features: Feature[]; assignedTo: string | null };
-export type AreaView = { id: string; name: string; desks: DeskView[] };
-export type RoomView = { id: string; name: string; capacity: number; equipment: Equipment[]; note: string; photo: boolean };
+// groupId: a Chest group the area or room is kept for (null: everyone).
+export type AreaView = { id: string; name: string; groupId: string | null; desks: DeskView[] };
+export type RoomView = { id: string; name: string; capacity: number; equipment: Equipment[]; note: string; photo: boolean; groupId: string | null };
 export type FloorView = { id: string; name: string; rooms: RoomView[]; areas: AreaView[] };
 export type OfficeView = { id: string; name: string; address: string; floors: FloorView[] };
 
@@ -31,18 +33,18 @@ export async function offices(sql: Query, actor: Member | null): Promise<OfficeV
   const [os, fs, as, rs, ds] = await Promise.all([
     sql<{ id: string; name: string; address: string }[]>`select id, name, address from offices order by position, id`,
     sql<{ id: string; office_id: string; name: string }[]>`select id, office_id, name from floors order by position, id`,
-    sql<{ id: string; floor_id: string; name: string }[]>`select id, floor_id, name from areas order by position, id`,
-    sql<{ id: string; floor_id: string; name: string; capacity: number; equipment: string[]; note: string; photo: string | null }[]>`
-      select id, floor_id, name, capacity, equipment, note, photo from rooms where archived_at is null order by position, id`,
+    sql<{ id: string; floor_id: string; name: string; group_id: string | null }[]>`select id, floor_id, name, group_id from areas order by position, id`,
+    sql<{ id: string; floor_id: string; name: string; capacity: number; equipment: string[]; note: string; photo: string | null; group_id: string | null }[]>`
+      select id, floor_id, name, capacity, equipment, note, photo, group_id from rooms where archived_at is null order by position, id`,
     sql<{ id: string; area_id: string; name: string; features: string[]; assigned_to: string | null }[]>`
       select id, area_id, name, features, assigned_to from desks where archived_at is null order by position, id`,
   ]);
   const desksOf = new Map<string, DeskView[]>();
   for (const d of ds) desksOf.set(String(d.area_id), [...(desksOf.get(String(d.area_id)) ?? []), { id: String(d.id), name: d.name, features: d.features.filter((f): f is Feature => (featureKeys as readonly string[]).includes(f)), assignedTo: d.assigned_to }]);
   const areasOf = new Map<string, AreaView[]>();
-  for (const a of as) areasOf.set(String(a.floor_id), [...(areasOf.get(String(a.floor_id)) ?? []), { id: String(a.id), name: a.name, desks: desksOf.get(String(a.id)) ?? [] }]);
+  for (const a of as) areasOf.set(String(a.floor_id), [...(areasOf.get(String(a.floor_id)) ?? []), { id: String(a.id), name: a.name, groupId: a.group_id, desks: desksOf.get(String(a.id)) ?? [] }]);
   const roomsOf = new Map<string, RoomView[]>();
-  for (const r of rs) roomsOf.set(String(r.floor_id), [...(roomsOf.get(String(r.floor_id)) ?? []), { id: String(r.id), name: r.name, capacity: r.capacity, equipment: r.equipment.filter((e): e is Equipment => (equipmentKeys as readonly string[]).includes(e)), note: r.note, photo: r.photo !== null }]);
+  for (const r of rs) roomsOf.set(String(r.floor_id), [...(roomsOf.get(String(r.floor_id)) ?? []), { id: String(r.id), name: r.name, capacity: r.capacity, equipment: r.equipment.filter((e): e is Equipment => (equipmentKeys as readonly string[]).includes(e)), note: r.note, photo: r.photo !== null, groupId: r.group_id }]);
   const floorsOf = new Map<string, FloorView[]>();
   for (const f of fs) floorsOf.set(String(f.office_id), [...(floorsOf.get(String(f.office_id)) ?? []), { id: String(f.id), name: f.name, rooms: roomsOf.get(String(f.id)) ?? [], areas: areasOf.get(String(f.id)) ?? [] }]);
   return os.map(o => ({ id: String(o.id), name: o.name, address: o.address, floors: floorsOf.get(String(o.id)) ?? [] }));
@@ -141,13 +143,21 @@ export async function addArea(sql: Sql, actor: Member | null, floorId: unknown, 
   const text = clean(name, limits.areaName);
   const [floor] = await sql`select 1 from floors where id = ${fid}`;
   if (!floor) throw new AppError("not_found");
-  const [row] = await sql<{ id: string }[]>`insert into areas (floor_id, name, position) values (${fid}, ${text}, (select count(*) from areas where floor_id = ${fid})) returning id`;
+  const [row] = await sql<{ id: string }[]>`insert into areas (floor_id, name, position) values (${fid}, ${text}, (select coalesce(max(position) + 1, 0) from areas where floor_id = ${fid})) returning id`;
   return { id: String(row!.id) };
 }
 
 export async function renameArea(sql: Sql, actor: Member | null, areaId: unknown, name: unknown): Promise<void> {
   admin(actor);
   const done = await sql`update areas set name = ${clean(name, limits.areaName)} where id = ${id(areaId)}`;
+  if (done.count === 0) throw new AppError("not_found");
+}
+
+// Keeps an area's desks for a group (or opens them to everyone again).
+// Bookings already made stay: a rule for what comes, not a purge.
+export async function setAreaGroup(sql: Sql, actor: Member | null, areaId: unknown, groupId: unknown): Promise<void> {
+  admin(actor);
+  const done = await sql`update areas set group_id = ${groupOf(groupId)} where id = ${id(areaId)}`;
   if (done.count === 0) throw new AppError("not_found");
 }
 
@@ -162,14 +172,23 @@ export async function removeArea(sql: Sql, actor: Member | null, areaId: unknown
 
 // ---------- Rooms ----------
 
-type RoomInput = { name?: unknown; capacity?: unknown; equipment?: unknown; note?: unknown };
+type RoomInput = { name?: unknown; capacity?: unknown; equipment?: unknown; note?: unknown; groupId?: unknown };
 function roomFields(input: RoomInput) {
   return {
     name: clean(input.name, limits.roomName),
     capacity: int(input.capacity, 1, limits.capacity),
     equipment: keysOf(input.equipment, equipmentKeys),
     note: clean(input.note, limits.roomNote, { optional: true }),
+    groupId: groupOf(input.groupId),
   };
+}
+
+// A group a place is kept for: a Chest group id, or none.
+const groupPattern = /^grp_[a-z2-7]{26}$/u;
+function groupOf(value: unknown): string | null {
+  if (value === undefined || value === null || value === "") return null;
+  if (typeof value !== "string" || !groupPattern.test(value)) throw new AppError("invalid");
+  return value;
 }
 
 async function officeOfFloor(sql: Query, floorId: string): Promise<string> {
@@ -188,8 +207,8 @@ export async function addRoom(sql: Sql, actor: Member | null, floorId: unknown, 
     const [{ n } = { n: 0 }] = await tx<{ n: number }[]>`select count(*)::int as n from rooms r join floors f on f.id = r.floor_id where f.office_id = ${office} and r.archived_at is null`;
     if (n >= limits.roomsPerOffice) throw new AppError("too_many", { max: limits.roomsPerOffice });
     const [row] = await tx<{ id: string }[]>`
-      insert into rooms (floor_id, name, capacity, equipment, note, position)
-      values (${fid}, ${f.name}, ${f.capacity}, ${f.equipment}, ${f.note}, (select count(*) from rooms where floor_id = ${fid}))
+      insert into rooms (floor_id, name, capacity, equipment, note, group_id, position)
+      values (${fid}, ${f.name}, ${f.capacity}, ${f.equipment}, ${f.note}, ${f.groupId}, (select coalesce(max(position) + 1, 0) from rooms where floor_id = ${fid}))
       returning id`;
     return { id: String(row!.id) };
   });
@@ -208,7 +227,7 @@ export async function updateRoom(sql: Sql, actor: Member | null, roomId: unknown
     if (await officeOfFloor(sql, target) !== await officeOfFloor(sql, floor)) throw new AppError("invalid");
     floor = target;
   }
-  await sql`update rooms set name = ${f.name}, capacity = ${f.capacity}, equipment = ${f.equipment}, note = ${f.note}, floor_id = ${floor} where id = ${rid}`;
+  await sql`update rooms set name = ${f.name}, capacity = ${f.capacity}, equipment = ${f.equipment}, note = ${f.note}, group_id = ${f.groupId}, floor_id = ${floor} where id = ${rid}`;
 }
 
 export async function setRoomPhoto(sql: Sql, actor: Member | null, roomId: unknown, object: string | null): Promise<{ previous: string | null }> {
@@ -269,7 +288,8 @@ export async function addDesks(sql: Sql, actor: Member | null, areaId: unknown, 
       select d.name from desks d join areas a on a.id = d.area_id join floors f on f.id = a.floor_id where f.office_id = ${office} and d.archived_at is null order by d.id`).map(r => r.name);
     if (names.length + n > limits.desksPerOffice) throw new AppError("too_many", { max: limits.desksPerOffice });
     const ids: string[] = [];
-    const [{ p } = { p: 0 }] = await tx<{ p: number }[]>`select count(*)::int as p from desks where area_id = ${aid}`;
+    // After the area's last desk, whatever numbers the others carry.
+    const [{ p } = { p: 0 }] = await tx<{ p: number }[]>`select coalesce(max(position) + 1, 0)::int as p from desks where area_id = ${aid}`;
     for (const [i, name] of nextNames(names, n).entries()) {
       const [row] = await tx<{ id: string }[]>`insert into desks (area_id, name, features, position) values (${aid}, ${name.slice(0, limits.deskName)}, ${fs}, ${p + i}) returning id`;
       ids.push(String(row!.id));
@@ -299,7 +319,9 @@ export async function updateDesk(sql: Sql, actor: Member | null, deskId: unknown
       // One desk each: giving a second one takes the first back.
       await tx`update desks set assigned_to = null where assigned_to = ${assigned} and id <> ${did}`;
     }
-    await tx`update desks set name = ${name}, features = ${fs}, assigned_to = ${assigned}, area_id = ${area} where id = ${did}`;
+    const moved = area !== String(desk.area_id);
+    await tx`update desks set name = ${name}, features = ${fs}, assigned_to = ${assigned}, area_id = ${area},
+      position = ${moved ? tx`(select coalesce(max(position) + 1, 0) from desks where area_id = ${area})` : tx`position`} where id = ${did}`;
     const cancelled = assigned
       ? await cancelDeskBookings(tx, actor!.id, tx`desk_id = ${did} and member_id <> ${assigned} and upper(during) > now()`)
       : [];
@@ -327,5 +349,7 @@ export async function cancelDeskBookings(tx: Query, by: string, where: Fragment)
     update desk_bookings b set cancelled_at = now(), cancelled_by = ${by}
     from desks d where d.id = b.desk_id and b.cancelled_at is null and ${where}
     returning b.id, b.member_id, to_char(b.day, 'YYYY-MM-DD') as day, b.part, d.name`;
-  return rows.map(r => ({ id: String(r.id), memberId: r.member_id, day: r.day, part: r.part, deskName: r.name }));
+  const cancelled = rows.map(r => ({ id: String(r.id), memberId: r.member_id, day: r.day, part: r.part, deskName: r.name }));
+  await enqueue(tx, dayKeys(cancelled));
+  return cancelled;
 }

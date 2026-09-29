@@ -39,6 +39,7 @@ export async function applied(c: { id: string; name: string }, job: { title: str
 // Opened by a recruiter: their item goes.
 export async function opened(actor: Member, candidateId: string): Promise<void> {
   await withdraw(`candidate:${candidateId}:new`, [actor.id]);
+  await withdraw(`candidate:${candidateId}:reply`, [actor.id]);
 }
 
 // Asked for feedback: each one asked hears of it, until they give it.
@@ -59,10 +60,32 @@ export async function withdrawAsk(candidateId: string, memberId: string): Promis
 
 // A candidate settled (rejected, erased): nothing about them waits.
 export async function settled(candidateId: string): Promise<void> {
-  for (const reason of ["new", "asked"]) await withdraw(`candidate:${candidateId}:${reason}`);
+  for (const reason of ["new", "asked", "reply"]) await withdraw(`candidate:${candidateId}:${reason}`);
 }
 
 export async function refreshBadges(sql: Sql): Promise<void> {
   const people = await recruiters();
   if (people.length > 0) await badges(await unseenCounts(sql, people));
+}
+
+// A candidate answered: every recruiter hears of it, until one opens them.
+export async function replied(c: { id: string; name: string }, job: { title: string }): Promise<void> {
+  await notify(await recruiters(), t => ({ title: format(t.bell.replied, { name: cut(c.name, 40) }), body: job.title }), { path: path(c.id), key: `candidate:${c.id}:reply` });
+}
+
+// An email the tool could not file: the recruiters file it.
+export async function unmatched(from: string): Promise<void> {
+  await notify(await recruiters(), t => ({ title: format(t.bell.unmatched, { from: cut(from, 60) }) }), { path: "/chest/mail", key: "mail:unmatched" });
+}
+
+// An email to a candidate did not arrive (the address is wrong).
+export async function bounced(c: { id: string; name: string }): Promise<void> {
+  await notify(await recruiters(), t => ({ title: format(t.bell.bounced, { name: cut(c.name, 40) }) }), { path: path(c.id), key: `candidate:${c.id}:bounced` });
+}
+
+// The morning of an interview, each interviewer hears of their day's.
+export async function interviewsToday(list: { id: string; candidateId: string; candidateName: string; jobTitle: string; start: string; people: string[] }[], time: (start: string) => string): Promise<void> {
+  for (const i of list) {
+    await notify(i.people, t => ({ title: format(t.bell.interviewToday, { name: cut(i.candidateName, 40), time: time(i.start) }), body: i.jobTitle }), { path: path(i.candidateId), key: `interview:${i.id}:today` });
+  }
 }

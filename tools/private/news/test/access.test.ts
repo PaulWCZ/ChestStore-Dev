@@ -19,12 +19,12 @@ test("a publisher does everything; a reader reads and takes part; no role, nothi
 test("a post kept to groups: its members, its author and the admins see it; only its members are its audience", async () => {
   const { inAudience, seesPost } = await import("../lib/access.ts");
   const { groups, sofia, lea } = await import("./support/members.ts");
-  const sales = { groups: [groups.sales], author: sofia.id };
-  const open = { groups: [], author: sofia.id };
+  const sales = { groups: [groups.sales], people: [], author: sofia.id };
+  const open = { groups: [], people: [], author: sofia.id };
   assert.equal(inAudience(asMember(hugo), sales), true);
   assert.equal(inAudience(asMember(lea), sales), false);
   assert.equal(inAudience(asMember(lea), open), true);
-  assert.equal(inAudience(asMember(camille), { groups: [groups.sales, groups.office] }), true);
+  assert.equal(inAudience(asMember(camille), { groups: [groups.sales, groups.office], people: [] }), true);
   assert.equal(seesPost(asMember(hugo), sales), true);
   assert.equal(seesPost(asMember(lea), sales), false);
   assert.equal(seesPost(asMember(sofia), sales), true, "its author");

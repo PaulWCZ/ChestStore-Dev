@@ -100,3 +100,20 @@ from made join plan p on p.title = made.title join rooms r on r.id = made.room_i
 -- The stand-up is weekly.
 select setval('room_series', 1);
 update room_bookings set series = 1 where title = 'Team stand-up';
+
+-- Tom is in on Mondays to Thursdays, at D-03: his usual week (the tool
+-- says the coming days for him when a page is read).
+insert into usual_week (member_id, weekday, status)
+select 'mbr_' || rpad('tom', 26, 'a'), w, 'office' from generate_series(1, 4) w;
+insert into member_prefs (member_id, usual_desk) select 'mbr_' || rpad('tom', 26, 'a'), id from desks where name = 'D-03';
+
+-- Everything above goes to the members' calendars (lib/calendar.ts).
+insert into calendar_queue (key)
+select 'room:' || id from room_bookings where cancelled_at is null and upper(during) > now() - interval '30 days'
+on conflict do nothing;
+insert into calendar_queue (key)
+select distinct 'day:' || member_id || ':' || to_char(day, 'YYYY-MM-DD') from (
+  select member_id, day from presence where status = 'office'
+  union select member_id, day from desk_bookings where cancelled_at is null
+) s
+on conflict do nothing;

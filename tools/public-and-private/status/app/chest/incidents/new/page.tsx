@@ -2,7 +2,9 @@ import * as chest from "@argentic/chest-sdk/chest";
 import { allComponents } from "../../../../lib/components.ts";
 import { db } from "../../../../lib/db.ts";
 import { format, zoneName } from "../../../../lib/i18n/index.ts";
+import { otherLanguage } from "../../../../lib/languages.ts";
 import { pickerGroups } from "../../../../lib/picker.ts";
+import { listTemplates } from "../../../../lib/templates.ts";
 import { viewer } from "../../../../lib/session.ts";
 import { wall } from "../../../../lib/zone.ts";
 import { IncidentForm } from "./incident-form.tsx";
@@ -11,7 +13,7 @@ import { IncidentForm } from "./incident-form.tsx";
 export default async function NewIncident({ searchParams }: { searchParams: Promise<{ component?: string }> }) {
   const v = await viewer();
   if (!v) return null;
-  const { t } = v;
+  const { t, member } = v;
   const zone = chest.timeZone();
   const all = await allComponents(db());
   const groups = pickerGroups(all);
@@ -34,6 +36,8 @@ export default async function NewIncident({ searchParams }: { searchParams: Prom
         <IncidentForm
           groups={groups}
           start={start}
+          templates={await listTemplates(db(), member)}
+          languages={{ second: otherLanguage(), secondName: (t.languages as Record<string, string>)[otherLanguage()] ?? otherLanguage() }}
           today={now.date}
           nowMinutes={rounded}
           zoneNote={format(t.maintenance.zone, { zone: zoneName(zone) })}

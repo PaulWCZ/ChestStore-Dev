@@ -2,11 +2,16 @@
   { "name": "front", "path": "/chest", "member": "hugo", "locale": "en", "preview": true },
   { "name": "front-fr", "path": "/chest", "member": "ines", "locale": "fr" },
   { "name": "important", "path": "/chest/posts/4", "member": "camille", "locale": "en" },
+  { "name": "important-fr", "path": "/chest/posts/4", "member": "ines", "locale": "fr" },
   { "name": "event", "path": "/chest/posts/3", "member": "hugo", "locale": "en" },
+  { "name": "places", "path": "/chest/posts/9", "member": "nora", "locale": "fr" },
   { "name": "welcome-fr", "path": "/chest/posts/5", "member": "lea", "locale": "fr" },
-  { "name": "compose", "path": "/chest/new?kind=event", "member": "sofia", "locale": "en" },
+  { "name": "compose", "path": "/chest/new", "member": "sofia", "locale": "en" },
+  { "name": "compose-event", "path": "/chest/new?kind=event", "member": "sofia", "locale": "en" },
   { "name": "for-a-team", "path": "/chest/posts/8", "member": "hugo", "locale": "en" },
+  { "name": "for-people", "path": "/chest/posts/10", "member": "camille", "locale": "en" },
   { "name": "search", "path": "/chest/search?q=bikes", "member": "hugo", "locale": "en" },
   { "name": "search-fr", "path": "/chest/search?q=demenagement", "member": "lea", "locale": "fr" },
+  { "name": "transfer", "path": "/chest/transfer", "member": "camille", "locale": "en" },
   { "name": "front-dark", "path": "/chest", "member": "tom", "locale": "en", "dark": true }
 ]

@@ -83,9 +83,9 @@ test("what a publisher writes is bounded and checked; a reader cannot write", as
 test("an event keeps its day, times on the Chest's clock, and place; a welcome names a colleague", async () => {
   const e = await write({ kind: "event", title: "Team dinner", event: { day: "2026-10-15", start: "19:30", end: "23:00", place: "Chez Paul" } });
   const d = await posts.post(database.sql, reader, e.id, { zone });
-  assert.deepEqual(d.event, { day: "2026-10-15", start: "2026-10-15T17:30:00.000Z", end: "2026-10-15T21:00:00.000Z", place: "Chez Paul" });
+  assert.deepEqual(d.event, { day: "2026-10-15", start: "2026-10-15T17:30:00.000Z", end: "2026-10-15T21:00:00.000Z", place: "Chez Paul", lastDay: null, seats: null });
   const allDay = await write({ kind: "event", title: "Seminar", event: { day: "2026-11-02", start: "", place: "" } });
-  assert.deepEqual((await posts.post(database.sql, reader, allDay.id, { zone })).event, { day: "2026-11-02", start: null, end: null, place: null });
+  assert.deepEqual((await posts.post(database.sql, reader, allDay.id, { zone })).event, { day: "2026-11-02", start: null, end: null, place: null, lastDay: null, seats: null });
   const w = await write({ kind: "welcome", title: "Welcome Nora!", welcome: nora.id });
   assert.equal((await posts.post(database.sql, reader, w.id, { zone })).welcome, nora.id);
 });

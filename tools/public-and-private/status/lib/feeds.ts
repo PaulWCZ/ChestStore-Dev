@@ -5,6 +5,7 @@ import { atom, rss, type Feed } from "./feed.ts";
 import { calendar } from "./ics.ts";
 import { format, stamp } from "./i18n/index.ts";
 import { recentActivity, upcomingMaintenance } from "./incidents.ts";
+import { pick } from "./texts.ts";
 import { publicOrigin } from "./public-origin.ts";
 import { publicWords } from "./session.ts";
 import { rememberPublicOrigin } from "./settings.ts";
@@ -30,9 +31,10 @@ export async function incidentFeed(): Promise<Feed> {
   const list = await recentActivity(sql, now, 50);
   const entries = list.map(i => {
     const visible = i.updates.filter(u => u.postedAt.getTime() <= now.getTime());
-    const text = visible.map(u => `${t.steps[u.status]} — ${stamp(u.postedAt, zone, locale, now)}\n${u.body}`).join("\n\n");
+    const text = visible.map(u => `${t.steps[u.status]} — ${stamp(u.postedAt, zone, locale, now)}\n${pick(u.body, u.bodySecond, i, locale).text}`).join("\n\n");
     const updated = visible[0]?.postedAt ?? i.createdAt;
-    return { id: `${base}/incidents/${i.id}`, title: i.kind === "maintenance" ? `${t.public.maintenanceTag} — ${i.title}` : i.title, link: `${base}/incidents/${i.id}`, published: i.createdAt, updated, text };
+    const title = pick(i.title, i.titleSecond, i, locale).text;
+    return { id: `${base}/incidents/${i.id}`, title: i.kind === "maintenance" ? `${t.public.maintenanceTag} — ${title}` : title, link: `${base}/incidents/${i.id}`, published: i.createdAt, updated, text };
   });
   return {
     title: format(t.public.feedTitle, { company }),
@@ -54,7 +56,7 @@ export async function rssFeed(): Promise<string> {
 }
 
 export async function maintenanceCalendar(): Promise<string> {
-  const { t } = await publicWords();
+  const { t, locale } = await publicWords();
   const sql = db();
   const base = await origin();
   const company = chest.company() || t.mail.team;
@@ -71,8 +73,8 @@ export async function maintenanceCalendar(): Promise<string> {
     sequence: m.updates.length,
     start: m.startedAt,
     end: m.status === "completed" && m.resolvedAt && m.endsAt && m.resolvedAt < m.endsAt ? m.resolvedAt : m.endsAt ?? m.startedAt,
-    summary: `${t.public.maintenanceTag} — ${m.title}`,
-    description: [...m.updates].reverse()[0]?.body ?? "",
+    summary: `${t.public.maintenanceTag} — ${pick(m.title, m.titleSecond, m, locale).text}`,
+    description: (() => { const first = [...m.updates].reverse()[0]; return first ? pick(first.body, first.bodySecond, m, locale).text : ""; })(),
     url: `${base}/incidents/${m.id}`,
     cancelled: m.status === "cancelled",
     stamp: m.createdAt,

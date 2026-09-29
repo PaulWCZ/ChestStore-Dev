@@ -185,7 +185,7 @@ export function plainInline(nodes: Inline[]): string {
 export function plain(text: string): string {
   return parse(text)
     .filter(b => b.t !== "img")
-    .map(b => (b.t === "img" ? "" : b.t === "ul" ? b.items.map(i => "• " + plainInline(i)).join("\n") : b.t === "ol" ? b.items.map((item, k) => `${b.start + k}. ${plainInline(item)}`).join("\n") : plainInline(b.c)))
+    .map(b => (b.t === "ul" ? b.items.map(i => "• " + plainInline(i)).join("\n") : b.t === "ol" ? b.items.map((item, k) => `${b.start + k}. ${plainInline(item)}`).join("\n") : plainInline(b.c)))
     .join("\n\n");
 }
 

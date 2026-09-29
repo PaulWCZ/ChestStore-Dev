@@ -11,8 +11,10 @@ export type CalendarEvent = {
   title: string;
   description: string;
   place: string | null;
-  // A whole day ("YYYY-MM-DD"), or a start and an end (instants).
+  // Whole days ("YYYY-MM-DD", from day to lastDay), or a start and an end
+  // (instants).
   day: string;
+  lastDay?: string | null;
   start: Date | null;
   end: Date | null;
   stamp: Date;
@@ -77,7 +79,7 @@ export function calendar(event: CalendarEvent): string {
     "DTSTAMP:" + utc(event.stamp),
     ...(event.start
       ? ["DTSTART:" + utc(event.start), "DTEND:" + utc(event.end ?? new Date(event.start.getTime() + defaultLength))]
-      : ["DTSTART;VALUE=DATE:" + date(event.day), "DTEND;VALUE=DATE:" + date(nextDay(event.day))]),
+      : ["DTSTART;VALUE=DATE:" + date(event.day), "DTEND;VALUE=DATE:" + date(nextDay(event.lastDay ?? event.day))]),
     "SUMMARY:" + escape(event.title),
     ...(event.place ? ["LOCATION:" + escape(event.place)] : []),
     ...(event.description ? ["DESCRIPTION:" + escape(event.description)] : []),

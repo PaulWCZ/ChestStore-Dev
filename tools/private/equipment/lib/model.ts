@@ -21,6 +21,22 @@ export const limits = {
   importRows: 5000,
   labels: 240,
   search: 100,
+  // Fields per category (IMEI, RAM…) and their values.
+  fieldName: 40,
+  fieldValue: 200,
+  fieldsPerCategory: 20,
+  // Items with a quantity.
+  quantity: 1000000,
+  // Several identical items added at once.
+  bulk: 100,
+  request: 500,
+  openRequests: 10,
+  remark: 1000,
+  charter: 8000,
+  ref: 80,
+  invoiceSize: 10 << 20,
+  // Items per page of the list.
+  page: 100,
 } as const;
 
 // What an item can be. "in_use" is only reached by giving it to someone
@@ -34,11 +50,50 @@ export const isChosenStatus = (value: unknown): value is ChosenStatus => typeof 
 
 // The built-in categories and the icons a category may wear (drawn in
 // components/icons.tsx, named in the catalogues).
-export const categoryKeys = ["laptop", "phone", "screen", "accessory", "licence", "key", "vehicle", "other"] as const;
+export const categoryKeys = ["laptop", "phone", "screen", "accessory", "licence", "key", "vehicle", "other", "consumable"] as const;
 export type CategoryKey = (typeof categoryKeys)[number];
 export const icons = ["laptop", "phone", "screen", "tablet", "keyboard", "headset", "licence", "key", "badge", "car", "printer", "camera", "chair", "tool", "plug", "box"] as const;
 export type IconName = (typeof icons)[number];
 export const isIcon = (value: unknown): value is IconName => typeof value === "string" && (icons as readonly string[]).includes(value);
+
+// What a category holds: things one by one (asset), licences and
+// subscriptions with seats (licence), or things counted in bulk — cables,
+// toner, badges — with a quantity (consumable).
+export const kinds = ["asset", "licence", "consumable"] as const;
+export type Kind = (typeof kinds)[number];
+export const isKind = (value: unknown): value is Kind => typeof value === "string" && (kinds as readonly string[]).includes(value);
+
+// The type of a field a manager adds to a category.
+export const fieldTypes = ["text", "number", "date"] as const;
+export type FieldType = (typeof fieldTypes)[number];
+export const isFieldType = (value: unknown): value is FieldType => typeof value === "string" && (fieldTypes as readonly string[]).includes(value);
+
+// fieldValue reads what a person wrote in a field of that type: a text, a
+// number ("16", "2,5" → "2.5"), a day. Empty is null.
+export function fieldValue(type: FieldType, value: unknown): string | null {
+  const text = optional(value, limits.fieldValue);
+  if (text === null) return null;
+  if (type === "number") {
+    const n = text.replace(/\s/gu, "").replace(",", ".");
+    if (!/^-?\d{1,12}(\.\d{1,6})?$/u.test(n)) throw new AppError("invalid_field");
+    return String(Number(n));
+  }
+  if (type === "date") {
+    try {
+      return day(text);
+    } catch {
+      throw new AppError("invalid_field");
+    }
+  }
+  return text;
+}
+
+// A count: a whole number from min to the limit.
+export function count(value: unknown, min = 0, max: number = limits.quantity): number {
+  const n = typeof value === "number" ? value : typeof value === "string" && /^\s*\d{1,7}\s*$/u.test(value) ? Number(value) : NaN;
+  if (!Number.isInteger(n) || n < min || n > max) throw new AppError("invalid_quantity", { max });
+  return n;
+}
 
 export const periods = ["month", "year"] as const;
 export type Period = (typeof periods)[number];
@@ -123,6 +178,20 @@ export function tag(value: unknown): string {
 }
 export const tagPrefix = "EQ-";
 export const makeTag = (n: number) => tagPrefix + String(n).padStart(4, "0");
+
+// The tags that follow a tag a person chose, for several items added at
+// once: "LAP-009" → "LAP-010", "LAP-011"… (the digits at its end count up,
+// keeping their width). A tag without digits at its end has no series.
+export function tagSeries(first: string, n: number): string[] {
+  const m = /^(.*?)(\d+)$/u.exec(first);
+  if (!m) {
+    if (n === 1) return [first];
+    throw new AppError("tag_series");
+  }
+  const [, head, digits] = m as unknown as [string, string, string];
+  const start = Number(digits);
+  return Array.from({ length: n }, (_, k) => tag(head + String(start + k).padStart(digits.length, "0")));
+}
 
 // Money as a person writes it ("1 299,90", "1,299.90", "€ 45"), in cents.
 export function money(value: unknown): number | null {

@@ -22,6 +22,8 @@ function policy(nonce: string): string {
     "object-src 'none'",
     "base-uri 'self'",
     "form-action 'self'",
+    // The candidate's page frames the CV, from the tool itself.
+    "frame-src 'self'",
     "frame-ancestors 'none'",
   ].join("; ");
 }
@@ -35,6 +37,13 @@ export function proxy(request: NextRequest): NextResponse {
     const t = catalogue(publicLocale(request.cookies.get("lang")?.value, request.headers.get("accept-language")));
     return new NextResponse(t.http.signIn, { status: 401, headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store", "Content-Security-Policy": "default-src 'none'; frame-ancestors 'none'" } });
   }
+  // A CV, a file of an email: the route sends its own policy (a sandbox,
+  // framed by the tool's pages only), never a page's.
+  if (/^\/chest\/(candidates\/\d+\/cv|messages\/\d+\/files\/[a-z0-9]+)$/u.test(request.nextUrl.pathname)) {
+    const response = NextResponse.next();
+    response.headers.set("X-Robots-Tag", "noindex, nofollow");
+    return response;
+  }
   const nonce = randomBytes(16).toString("base64");
   const value = policy(nonce);
   const forwarded = new Headers(request.headers);
@@ -43,7 +52,10 @@ export function proxy(request: NextRequest): NextResponse {
   response.headers.set("Content-Security-Policy", value);
   response.headers.set("Referrer-Policy", "same-origin");
   response.headers.set("X-Content-Type-Options", "nosniff");
-  if (first === "chest") response.headers.set("Cache-Control", "no-store");
+  if (first === "chest") {
+    response.headers.set("Cache-Control", "no-store");
+    response.headers.set("X-Robots-Tag", "noindex, nofollow");
+  }
   return response;
 }
 

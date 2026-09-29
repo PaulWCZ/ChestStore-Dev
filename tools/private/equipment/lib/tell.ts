@@ -10,11 +10,12 @@ import { managers } from "./people.ts";
 // once settled (the item taken back, the problem solved, the person's
 // equipment all returned).
 type Named = { id: string; name: string; tag: string };
+type Stocked = Named & { quantity: number | null; minQuantity: number | null; status: string };
 const itemPath = (itemId: string) => `/chest/items/${itemId}`;
 
 export async function given(actor: Member, holder: string, item: Named): Promise<void> {
   if (holder === actor.id || !holder.startsWith("mbr_")) return;
-  await notify([holder], t => ({ title: format(t.bell.given, { name: actor.firstName || actor.name, item: cut(item.name, 40), tag: item.tag }), body: t.bell.givenBody }), { path: itemPath(item.id), key: `item:${item.id}:given` });
+  await notify([holder], t => ({ title: format(t.bell.given, { name: actor.firstName || actor.name, item: cut(item.name, 40), tag: item.tag }), body: t.bell.givenBody }), { path: "/chest/mine", key: `item:${item.id}:given` });
 }
 
 export async function seatGiven(actor: Member, holder: string, item: Named): Promise<void> {
@@ -92,10 +93,57 @@ export async function endingSoon(names: string[]): Promise<void> {
   await notify(to, (t, locale) => ({ title: plural(t.bell.ending, names.length, locale), body: cut(names.join(" · "), 280) }), { path: "/chest#ending", key: "ending" });
 }
 
-// The managers' tile: how many problems wait for them.
-export async function refreshBadges(sql: Query): Promise<void> {
-  const [row] = await sql<{ n: number }[]>`select count(*)::int as n from problems p join items i on i.id = p.item_id where p.solved_at is null and i.deleted_at is null`;
-  const count = row?.n ?? 0;
+// The number on the tool's tile: for managers, the problems and requests
+// waiting for them; for everyone, the things they hold and have not yet
+// confirmed receiving. Set for the managers and for the members named.
+export async function refreshBadges(sql: Query, members: (string | null | undefined)[] = []): Promise<void> {
+  const [row] = await sql<{ n: number }[]>`
+    select ((select count(*) from problems p join items i on i.id = p.item_id where p.solved_at is null and i.deleted_at is null)
+      + (select count(*) from requests where status = 'open'))::int as n`;
+  const waiting = row?.n ?? 0;
   const to = await managers();
-  if (to.length > 0) await badges(new Map(to.map(id => [id, count])));
+  const ids = [...new Set([...to, ...members.filter((m): m is string => typeof m === "string" && m.startsWith("mbr_"))])];
+  if (ids.length === 0) return;
+  const pending = await sql<{ member_id: string; n: number }[]>`
+    select r.member_id, count(*)::int as n from receipts r join items i on i.id = r.item_id
+    where r.member_id = any(${ids}) and r.confirmed_at is null and r.closed_at is null and i.holder = r.member_id and i.deleted_at is null
+    group by r.member_id`;
+  const mine = new Map(pending.map(p => [p.member_id, p.n]));
+  await badges(new Map(ids.map(id => [id, (to.includes(id) ? waiting : 0) + (mine.get(id) ?? 0)])));
+}
+
+// Stock of a thing counted in bulk: when it falls to its minimum or under,
+// the managers hear it once; restocked above it, the word goes.
+export async function stockLevel(after: Stocked, before: Stocked): Promise<void> {
+  const low = (i: Stocked) => i.status !== "retired" && i.minQuantity !== null && i.quantity !== null && i.quantity <= i.minQuantity;
+  if (low(after) && (!low(before) || after.quantity! < before.quantity!)) {
+    const to = await managers();
+    await notify(to, (t, locale) => ({ title: plural(t.bell.low, after.quantity!, locale, { item: cut(after.name, 40) }), body: t.bell.lowBody }), { path: itemPath(after.id), key: `low:${after.id}` });
+  } else if (!low(after) && low(before)) await withdraw(`low:${after.id}`);
+}
+
+// Someone confirmed receiving an item and noted something about it: the
+// managers hear it (the remark is kept on the receipt and in the history).
+export async function receivedWithRemark(person: Member, item: Named, remark: string): Promise<void> {
+  const to = (await managers()).filter(id => id !== person.id);
+  await notify(to, t => ({ title: format(t.bell.remark, { name: person.firstName || person.name, item: cut(item.name, 30), tag: item.tag }), body: cut(remark, 280) }), { path: itemPath(item.id), key: `remark:${item.id}` });
+}
+
+// A request for equipment: the managers hear it; the one who asked hears the
+// answer. Each bell item goes once settled.
+export async function requested(sql: Query, person: Member, request: { id: string; body: string }): Promise<void> {
+  const to = (await managers()).filter(id => id !== person.id);
+  await notify(to, t => ({ title: format(t.bell.requested, { name: person.firstName || person.name }), body: cut(request.body, 280) }), { path: "/chest#requests", key: `request:${request.id}` });
+  await refreshBadges(sql);
+}
+
+export async function answered(sql: Query, actor: Member, request: { id: string; member: string; body: string; status: "approved" | "refused" | "done" | "cancelled"; answer: string | null; item?: Named | null }): Promise<void> {
+  await withdraw(`request:${request.id}`);
+  await refreshBadges(sql);
+  if (request.status === "cancelled" || request.member === actor.id || !request.member.startsWith("mbr_")) return;
+  const status = request.status;
+  await notify([request.member], t => ({
+    title: format(t.bell.answer[status], { name: actor.firstName || actor.name, what: cut(request.body, 40), item: request.item ? cut(request.item.name, 40) : "" }),
+    ...(request.answer ? { body: cut(request.answer, 280) } : {}),
+  }), { path: status === "done" && request.item ? itemPath(request.item.id) : "/chest", key: `request:${request.id}:answer` });
 }

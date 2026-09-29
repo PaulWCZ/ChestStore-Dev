@@ -3,6 +3,7 @@ import { can } from "../../../lib/access.ts";
 import { toCsv } from "../../../lib/csv.ts";
 import { db } from "../../../lib/db.ts";
 import { exportRows } from "../../../lib/export.ts";
+import { allFields } from "../../../lib/fields.ts";
 import { catalogue, isLocale } from "../../../lib/i18n/index.ts";
 import { listItems, sorts } from "../../../lib/items.ts";
 import { nameOf, people } from "../../../lib/people.ts";
@@ -20,7 +21,7 @@ export async function GET(request: Request): Promise<Response> {
   const sort = p.get("sort") ?? "tag";
   const items = await listItems(db(), actor, { q: p.get("q") ?? "", category: p.get("category") ?? "", status: p.get("status") ?? "", holder: p.get("holder") ?? "", sort: sorts.includes(sort as never) ? sort : "tag" }, 20000);
   const names = await people(holderIds(items));
-  const body = toCsv(exportRows(items, t, chest.currency(), id => (id === "erased" ? t.people.erased : nameOf(names.get(id), locale))));
+  const body = toCsv(exportRows(items, t, chest.currency(), id => (id === "erased" ? t.people.erased : nameOf(names.get(id), locale)), await allFields(db())));
   return new Response(body, {
     headers: {
       "Content-Type": "text/csv; charset=utf-8",

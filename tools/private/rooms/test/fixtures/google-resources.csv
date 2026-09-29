@@ -1,0 +1,6 @@
+Resource ID,Calendar Resource Name,Resource Email,Type,Category,Capacity,Building ID,Floor Name,Floor Section,Internal Description,User Visible Description,#Whiteboard,#Google Meet hardware,#TV,#Wheelchair accessible
+4815162342,Paris-2-Everest (12),c_18892a7e1b2c@resource.calendar.google.com,Meeting room,CONFERENCE_ROOM,12,paris-paradis,2,North,Board room,"Big table; HDMI, USB-C",TRUE,TRUE,TRUE,FALSE
+4815162343,Paris-2-Kilimandjaro (6),c_18892a7e1b2d@resource.calendar.google.com,Meeting room,CONFERENCE_ROOM,6,paris-paradis,2,South,,,FALSE,TRUE,FALSE,TRUE
+4815162344,Phone booth 1,c_18892a7e1b2e@resource.calendar.google.com,Booth,CONFERENCE_ROOM,1,paris-paradis,1,,,For calls,FALSE,FALSE,FALSE,FALSE
+4815162345,Projector (mobile),c_18892a7e1b2f@resource.calendar.google.com,Equipment,OTHER,,paris-paradis,,,,,FALSE,FALSE,FALSE,FALSE
+4815162346,Salle Opéra,c_18892a7e1b30@resource.calendar.google.com,Salle,CATEGORY_UNKNOWN,dix,paris-paradis,1,,,,FALSE,FALSE,FALSE,FALSE

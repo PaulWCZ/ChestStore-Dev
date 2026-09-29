@@ -200,7 +200,7 @@ test("automatic posts: 'in progress' and 'completed' dated at the window's edges
   const now = new Date();
   const start = new Date(now.getTime() + 3600000), end = new Date(start.getTime() + 3600000);
   const { incidentId } = await incidents.planMaintenance(sql, editor, { title: "Upgrade", body: "Planned.", start, end, components: [website], autoPosts: true }, now);
-  const words = { started: "Started.", completed: "Completed." };
+  const words = () => ({ started: "Started.", completed: "Completed." });
   assert.deepEqual(await incidents.autoPost(sql, words, now), []);
   assert.equal((await incidents.autoPost(sql, words, new Date(start.getTime() + 14 * 60000))).length, 1);
   assert.equal((await incidents.autoPost(sql, words, new Date(start.getTime() + 20 * 60000))).length, 0);

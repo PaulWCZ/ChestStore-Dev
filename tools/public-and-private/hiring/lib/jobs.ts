@@ -13,17 +13,26 @@ import {
   isLanguage,
   isMemberId,
   isPeriod,
+  isCountry,
+  isHours,
   isRemote,
+  day,
+  defaultStages,
   limits,
+  questions as readQuestions,
   retentionChoices,
   slugify,
   type Contract,
   type Currency,
+  type Hours,
   type JobState,
   type Language,
   type Period,
+  type Question,
   type Remote,
+  type StagePreset,
 } from "./model.ts";
+import { locales, type Locale } from "./i18n/index.ts";
 
 // Jobs, their stages and their interviewers; the careers page's settings.
 // Team functions take (sql, actor, …) and check the rights first; the
@@ -50,60 +59,150 @@ export type Job = {
   updatedAt: string;
   openedAt: string | null;
   closedAt: string | null;
+  country: string;
+  postalCode: string;
+  street: string;
+  hours: Hours;
+  closesOn: string | null;
+  questions: Question[];
 };
-export type Stage = { id: string; name: string; position: number; hired: boolean };
+// name: the team's word, or null for a default stage (preset), which each
+// reader sees in their language (lib/stages.ts).
+export type Stage = { id: string; name: string | null; preset: StagePreset | null; position: number; hired: boolean };
 
 type JobDb = {
   id: string; slug: string; title: string; team: string; place: string; contract: Contract; remote: Remote; description: string; language: Language;
   salary_min: number | null; salary_max: number | null; salary_currency: Currency; salary_period: Period; salary_shown: boolean; state: JobState;
   created_by: string; created_at: Date; updated_at: Date; opened_at: Date | null; closed_at: Date | null;
+  country: string; postal_code: string; street: string; hours: Hours; closes_on: Date | string | null; questions: Question[] | null;
 };
+const dateText = (d: Date | string | null): string | null => (d === null ? null : typeof d === "string" ? d.slice(0, 10) : d.toISOString().slice(0, 10));
 const iso = (d: Date | null) => (d ? d.toISOString() : null);
 export const toJob = (r: JobDb): Job => ({
   id: String(r.id), slug: r.slug, title: r.title, team: r.team, place: r.place, contract: r.contract, remote: r.remote, description: r.description, language: r.language,
   salaryMin: r.salary_min, salaryMax: r.salary_max, salaryCurrency: r.salary_currency, salaryPeriod: r.salary_period, salaryShown: r.salary_shown, state: r.state,
   createdBy: r.created_by, createdAt: r.created_at.toISOString(), updatedAt: r.updated_at.toISOString(), openedAt: iso(r.opened_at), closedAt: iso(r.closed_at),
+  country: r.country ?? "FR", postalCode: r.postal_code ?? "", street: r.street ?? "", hours: r.hours ?? "full_time", closesOn: dateText(r.closes_on ?? null), questions: Array.isArray(r.questions) ? r.questions : [],
 });
-const toStage = (r: { id: string; name: string; position: number; hired: boolean }): Stage => ({ id: String(r.id), name: r.name, position: r.position, hired: r.hired });
+type StageDb = { id: string; name: string | null; preset: StagePreset | null; position: number; hired: boolean };
+const toStage = (r: StageDb): Stage => ({ id: String(r.id), name: r.name, preset: r.preset, position: r.position, hired: r.hired });
 
 // ---- Settings --------------------------------------------------------------
 
 // companyName is what the careers page is signed with: the tool's own
 // setting, or the company's name the Chest gives (chest.company()).
-export type Settings = { companyName: string; ownName: string; intro: string; careersOpen: boolean; retentionMonths: number };
-const defaults = { intro: "", careersOpen: true, retentionMonths: 24 };
+// intros: the few words under the title, one per language (the French
+// page never shows the English words); intro: the single text of before,
+// shown in every language until the intros are written. The brand: an
+// accent among a few checked for contrast, the company's website, a logo
+// and up to three photos (public files of the tool).
+export const accents = ["cobalt", "forest", "plum", "tomato", "ocean", "graphite"] as const;
+export type Accent = (typeof accents)[number];
+export type PublicImage = { object: string; version: string };
+export type Settings = {
+  companyName: string; ownName: string; intro: string; intros: Partial<Record<Locale, string>>; careersOpen: boolean; retentionMonths: number;
+  country: string; website: string; accent: Accent; logo: PublicImage | null; photos: PublicImage[];
+};
+const defaults = { intro: "", careersOpen: true, retentionMonths: 24, country: "FR", accent: "cobalt" as Accent };
+const isImage = (v: unknown): v is PublicImage => typeof v === "object" && v !== null && typeof (v as PublicImage).object === "string" && (v as PublicImage).object.startsWith("public/") && typeof (v as PublicImage).version === "string";
 
 export async function settings(sql: Query): Promise<Settings> {
   const rows = await sql<{ key: string; value: unknown }[]>`select key, value from settings`;
   const found = Object.fromEntries(rows.map(r => [r.key, r.value]));
   const own = typeof found["company_name"] === "string" ? found["company_name"] : "";
+  const intros: Partial<Record<Locale, string>> = {};
+  const given = found["intros"];
+  if (typeof given === "object" && given !== null) for (const l of locales) { const v = (given as Record<string, unknown>)[l]; if (typeof v === "string" && v) intros[l] = v; }
   return {
     companyName: own || chest.company(),
     ownName: own,
     intro: typeof found["intro"] === "string" ? found["intro"] : defaults.intro,
+    intros,
     careersOpen: typeof found["careers_open"] === "boolean" ? found["careers_open"] : defaults.careersOpen,
     retentionMonths: typeof found["retention_months"] === "number" && (retentionChoices as readonly number[]).includes(found["retention_months"]) ? found["retention_months"] : defaults.retentionMonths,
+    country: isCountry(found["country"]) ? found["country"] : defaults.country,
+    website: typeof found["website"] === "string" ? found["website"] : "",
+    accent: (accents as readonly unknown[]).includes(found["accent"]) ? found["accent"] as Accent : defaults.accent,
+    logo: isImage(found["logo"]) ? found["logo"] : null,
+    photos: Array.isArray(found["photos"]) ? found["photos"].filter(isImage).slice(0, limits.photos) : [],
   };
+}
+
+// introFor: the careers page's words in a language — its own, else the
+// single intro of before; empty means the tool's default sentence.
+export function introFor(s: Settings, locale: Locale): string {
+  return s.intros[locale] ?? (Object.keys(s.intros).length === 0 ? s.intro : "");
 }
 
 async function setSetting(sql: Query, key: string, value: unknown): Promise<void> {
   await sql`insert into settings (key, value) values (${key}, ${sql.json(value as never)}) on conflict (key) do update set value = excluded.value`;
 }
 
-export async function saveSettings(sql: Sql, actor: Member | null, input: { companyName?: unknown; intro?: unknown; careersOpen?: unknown; retentionMonths?: unknown }): Promise<Settings> {
+export type SettingsInput = { companyName?: unknown; intros?: unknown; careersOpen?: unknown; retentionMonths?: unknown; country?: unknown; website?: unknown; accent?: unknown };
+
+export async function saveSettings(sql: Sql, actor: Member | null, input: SettingsInput): Promise<Settings> {
   if (!can(actor, "settings")) throw new AppError("forbidden");
   const companyName = input.companyName === undefined ? undefined : clean(input.companyName, limits.companyName, { optional: true });
-  const intro = input.intro === undefined ? undefined : clean(input.intro, limits.intro, { multiline: true, optional: true });
+  let intros: Partial<Record<Locale, string>> | undefined;
+  if (input.intros !== undefined) {
+    if (typeof input.intros !== "object" || input.intros === null) throw new AppError("invalid");
+    intros = {};
+    for (const l of locales) {
+      const text = clean((input.intros as Record<string, unknown>)[l], limits.intro, { multiline: true, optional: true });
+      if (text) intros[l] = text;
+    }
+  }
   if (input.careersOpen !== undefined && typeof input.careersOpen !== "boolean") throw new AppError("invalid");
   const months = input.retentionMonths === undefined ? undefined : Number(input.retentionMonths);
   if (months !== undefined && !(retentionChoices as readonly number[]).includes(months)) throw new AppError("invalid");
+  if (input.country !== undefined && !isCountry(input.country)) throw new AppError("invalid");
+  if (input.accent !== undefined && !(accents as readonly unknown[]).includes(input.accent)) throw new AppError("invalid");
+  const website = input.website === undefined ? undefined : webAddress(input.website);
   await sql.begin(async tx => {
     if (companyName !== undefined) await setSetting(tx, "company_name", companyName);
-    if (intro !== undefined) await setSetting(tx, "intro", intro);
+    if (intros !== undefined) {
+      await setSetting(tx, "intros", intros);
+      await tx`delete from settings where key = 'intro'`;
+    }
     if (typeof input.careersOpen === "boolean") await setSetting(tx, "careers_open", input.careersOpen);
     if (months !== undefined) await setSetting(tx, "retention_months", months);
+    if (input.country !== undefined) await setSetting(tx, "country", input.country);
+    if (input.accent !== undefined) await setSetting(tx, "accent", input.accent);
+    if (website !== undefined) await setSetting(tx, "website", website);
   });
   return settings(sql);
+}
+
+// The company's website: https only, or nothing.
+function webAddress(value: unknown): string {
+  const text = clean(value, limits.website, { optional: true });
+  if (text === "") return "";
+  let url: URL;
+  try {
+    url = new URL(/^[a-z][a-z0-9+.-]*:/iu.test(text) ? text : "https://" + text);
+  } catch {
+    throw new AppError("invalid_link");
+  }
+  if ((url.protocol !== "https:" && url.protocol !== "http:") || !url.hostname.includes(".") || url.username || url.password) throw new AppError("invalid_link");
+  return url.href;
+}
+
+// setImages records the careers page's logo or photos (public files the
+// caller already put under public/). Says the objects no longer used, for
+// the caller to delete.
+export async function setImages(sql: Sql, actor: Member | null, which: "logo" | "photos", images: PublicImage[]): Promise<string[]> {
+  if (!can(actor, "settings")) throw new AppError("forbidden");
+  if (!images.every(isImage) || (which === "logo" ? images.length > 1 : images.length > limits.photos)) throw new AppError("invalid");
+  return sql.begin(async tx => {
+    const before = await settings(tx);
+    const old = which === "logo" ? (before.logo ? [before.logo] : []) : before.photos;
+    if (which === "logo") {
+      if (images[0]) await setSetting(tx, "logo", images[0]);
+      else await tx`delete from settings where key = 'logo'`;
+    } else await setSetting(tx, "photos", images);
+    const kept = new Set(images.map(i => i.object));
+    return old.map(i => i.object).filter(o => !kept.has(o));
+  });
 }
 
 // ---- Reading jobs ----------------------------------------------------------
@@ -123,8 +222,8 @@ export async function listJobs(sql: Sql, actor: Member | null): Promise<JobRow[]
     limit ${limits.jobs}`;
   if (rows.length === 0) return [];
   const ids = rows.map(r => String(r.id));
-  const stages = await sql<{ id: string; job_id: string; name: string; position: number; hired: boolean; count: number }[]>`
-    select s.id, s.job_id, s.name, s.position, s.hired, (select count(*)::int from candidates c where c.stage_id = s.id and c.status = 'active') as count
+  const stages = await sql<(StageDb & { job_id: string; count: number })[]>`
+    select s.id, s.job_id, s.name, s.preset, s.position, s.hired, (select count(*)::int from candidates c where c.stage_id = s.id and c.status = 'active') as count
     from stages s where s.job_id in ${sql(ids)} order by s.job_id, s.position`;
   const counts = await sql<{ job_id: string; active: number; rejected: number; unseen: number }[]>`
     select c.job_id,
@@ -150,7 +249,7 @@ export async function listJobs(sql: Sql, actor: Member | null): Promise<JobRow[]
 }
 
 export async function stagesOf(sql: Query, jobId: string): Promise<Stage[]> {
-  const rows = await sql<{ id: string; name: string; position: number; hired: boolean }[]>`select id, name, position, hired from stages where job_id = ${jobId} order by position, id`;
+  const rows = await sql<StageDb[]>`select id, name, preset, position, hired from stages where job_id = ${jobId} order by position, id`;
   return rows.map(toStage);
 }
 
@@ -176,6 +275,7 @@ export async function job(sql: Sql, actor: Member | null, jobId: unknown): Promi
 export type JobInput = {
   title: unknown; team?: unknown; place?: unknown; contract: unknown; remote: unknown; description?: unknown; language?: unknown;
   salaryMin?: unknown; salaryMax?: unknown; salaryCurrency?: unknown; salaryPeriod?: unknown; salaryShown?: unknown;
+  country?: unknown; postalCode?: unknown; street?: unknown; hours?: unknown; closesOn?: unknown; questions?: unknown;
 };
 
 function readJob(input: JobInput) {
@@ -189,7 +289,17 @@ function readJob(input: JobInput) {
   const language = input.language === undefined ? "en" : input.language;
   if (!isLanguage(language)) throw new AppError("invalid");
   if (input.salaryShown !== undefined && typeof input.salaryShown !== "boolean") throw new AppError("invalid");
+  const country = input.country === undefined || input.country === "" ? "FR" : input.country;
+  if (!isCountry(country)) throw new AppError("invalid");
+  const hours = input.hours === undefined || input.hours === "" ? "full_time" : input.hours;
+  if (!isHours(hours)) throw new AppError("invalid");
   return {
+    country,
+    postalCode: clean(input.postalCode, limits.postalCode, { optional: true }),
+    street: clean(input.street, limits.street, { optional: true }),
+    hours,
+    closesOn: day(input.closesOn),
+    questions: readQuestions(input.questions),
     title,
     team: clean(input.team, limits.team, { optional: true }),
     place: clean(input.place, limits.place, { optional: true }),
@@ -213,24 +323,46 @@ async function freeSlug(sql: Query, title: string, except: string | null): Promi
   for (let n = 2; ; n++) if (!taken.has(`${base}-${n}`)) return `${base}-${n}`;
 }
 
-// createJob writes a draft with the default stages (their names in the
-// writer's language: they are the team's words from then on).
-export async function createJob(sql: Sql, actor: Member | null, input: JobInput, stageNames: readonly string[]): Promise<Job> {
+// createJob writes a draft with the default stages: keys, each reader
+// sees them in their language until the team renames them.
+export async function createJob(sql: Sql, actor: Member | null, input: JobInput): Promise<Job> {
   if (!actor || !can(actor, "jobs.manage")) throw new AppError("forbidden");
   const v = readJob(input);
-  const names = stageNames.map(n => clean(n, limits.stageName));
-  if (names.length < 2 || names.length > limits.stages) throw new AppError("invalid");
   const [count] = await sql<{ n: number }[]>`select count(*)::int as n from jobs`;
   if ((count?.n ?? 0) >= limits.jobs) throw new AppError("too_many", { max: limits.jobs });
   return sql.begin(async tx => {
-    const slug = await freeSlug(tx, v.title, null);
-    const [row] = await tx<JobDb[]>`
-      insert into jobs (slug, title, team, place, contract, remote, description, language, salary_min, salary_max, salary_currency, salary_period, salary_shown, created_by)
-      values (${slug}, ${v.title}, ${v.team}, ${v.place}, ${v.contract}, ${v.remote}, ${v.description}, ${v.language}, ${v.salaryMin}, ${v.salaryMax}, ${v.salaryCurrency}, ${v.salaryPeriod}, ${v.salaryShown}, ${actor.id})
-      returning *`;
-    const jobId = String(row!.id);
-    for (const [i, name] of names.entries()) await tx`insert into stages (job_id, name, position, hired) values (${jobId}, ${name}, ${i}, ${i === names.length - 1})`;
-    return toJob(row!);
+    const row = await insertJob(tx, actor.id, v);
+    for (const [i, preset] of defaultStages.entries()) await tx`insert into stages (job_id, preset, position, hired) values (${row.id}, ${preset}, ${i}, ${preset === "hired"})`;
+    return row;
+  });
+}
+
+async function insertJob(tx: Query, author: string, v: ReturnType<typeof readJob>): Promise<Job> {
+  const slug = await freeSlug(tx, v.title, null);
+  const [row] = await tx<JobDb[]>`
+    insert into jobs (slug, title, team, place, contract, remote, description, language, salary_min, salary_max, salary_currency, salary_period, salary_shown, created_by,
+      country, postal_code, street, hours, closes_on, questions)
+    values (${slug}, ${v.title}, ${v.team}, ${v.place}, ${v.contract}, ${v.remote}, ${v.description}, ${v.language}, ${v.salaryMin}, ${v.salaryMax}, ${v.salaryCurrency}, ${v.salaryPeriod}, ${v.salaryShown}, ${author},
+      ${v.country}, ${v.postalCode}, ${v.street}, ${v.hours}, ${v.closesOn}, ${tx.json(v.questions as never)})
+    returning *`;
+  return toJob(row!);
+}
+
+// duplicateJob starts a new draft from a job: its words, facts, questions
+// and stages (the team's names kept), its interviewers; no candidates.
+export async function duplicateJob(sql: Sql, actor: Member | null, jobId: unknown): Promise<Job> {
+  if (!actor || !can(actor, "jobs.manage")) throw new AppError("forbidden");
+  const key = id(jobId);
+  const [count] = await sql<{ n: number }[]>`select count(*)::int as n from jobs`;
+  if ((count?.n ?? 0) >= limits.jobs) throw new AppError("too_many", { max: limits.jobs });
+  return sql.begin(async tx => {
+    const [source] = await tx<JobDb[]>`select * from jobs where id = ${key}`;
+    if (!source) throw new AppError("not_found");
+    const j = toJob(source);
+    const copy = await insertJob(tx, actor.id, { ...j, salaryMin: j.salaryMin, salaryMax: j.salaryMax, closesOn: null });
+    await tx`insert into stages (job_id, name, preset, position, hired) select ${copy.id}, name, preset, position, hired from stages where job_id = ${key} order by position, id`;
+    await tx`insert into job_interviewers (job_id, member_id, added_by) select ${copy.id}, member_id, ${actor.id} from job_interviewers where job_id = ${key}`;
+    return copy;
   });
 }
 
@@ -246,6 +378,7 @@ export async function updateJob(sql: Sql, actor: Member | null, jobId: unknown, 
     const [row] = await tx<JobDb[]>`
       update jobs set title = ${v.title}, team = ${v.team}, place = ${v.place}, contract = ${v.contract}, remote = ${v.remote}, description = ${v.description}, language = ${v.language},
         salary_min = ${v.salaryMin}, salary_max = ${v.salaryMax}, salary_currency = ${v.salaryCurrency}, salary_period = ${v.salaryPeriod}, salary_shown = ${v.salaryShown},
+        country = ${v.country}, postal_code = ${v.postalCode}, street = ${v.street}, hours = ${v.hours}, closes_on = ${v.closesOn}, questions = ${tx.json(v.questions as never)},
         slug = coalesce(${slug}, slug), updated_at = now()
       where id = ${key} returning *`;
     return toJob(row!);
@@ -303,13 +436,13 @@ export async function addStage(sql: Sql, actor: Member | null, jobId: unknown, n
     const hired = list.find(s => s.hired);
     const at = hired ? hired.position : list.length;
     if (hired) await tx`update stages set position = position + 1 where job_id = ${key} and position >= ${at}`;
-    const [row] = await tx<{ id: string; name: string; position: number; hired: boolean }[]>`insert into stages (job_id, name, position) values (${key}, ${text}, ${at}) returning id, name, position, hired`;
+    const [row] = await tx<StageDb[]>`insert into stages (job_id, name, position) values (${key}, ${text}, ${at}) returning id, name, preset, position, hired`;
     return toStage(row!);
   });
 }
 
 async function stageOf(sql: Query, stageId: unknown): Promise<Stage & { jobId: string }> {
-  const [row] = await sql<{ id: string; job_id: string; name: string; position: number; hired: boolean }[]>`select id, job_id, name, position, hired from stages where id = ${id(stageId)}`;
+  const [row] = await sql<(StageDb & { job_id: string })[]>`select id, job_id, name, preset, position, hired from stages where id = ${id(stageId)}`;
   if (!row) throw new AppError("not_found");
   return { ...toStage(row), jobId: String(row.job_id) };
 }
@@ -385,22 +518,29 @@ export async function removeInterviewer(sql: Sql, actor: Member | null, jobId: u
 
 // ---- The careers page ------------------------------------------------------
 
-export type PublicJob = Pick<Job, "slug" | "title" | "team" | "place" | "contract" | "remote" | "description" | "language" | "state" | "openedAt"> & { salary: { min: number | null; max: number | null; currency: Currency; period: Period } | null };
+export type PublicJob = Pick<Job, "slug" | "title" | "team" | "place" | "contract" | "remote" | "description" | "language" | "state" | "openedAt" | "updatedAt" | "country" | "postalCode" | "street" | "hours" | "closesOn" | "questions">
+  & { id: string; salary: { min: number | null; max: number | null; currency: Currency; period: Period } | null };
 
 const toPublic = (j: Job): PublicJob => ({
-  slug: j.slug, title: j.title, team: j.team, place: j.place, contract: j.contract, remote: j.remote, description: j.description, language: j.language, state: j.state, openedAt: j.openedAt,
+  id: j.id, slug: j.slug, title: j.title, team: j.team, place: j.place, contract: j.contract, remote: j.remote, description: j.description, language: j.language, state: j.state, openedAt: j.openedAt, updatedAt: j.updatedAt,
+  country: j.country, postalCode: j.postalCode, street: j.street, hours: j.hours, closesOn: j.closesOn, questions: j.questions,
   salary: j.salaryShown && (j.salaryMin !== null || j.salaryMax !== null) ? { min: j.salaryMin, max: j.salaryMax, currency: j.salaryCurrency, period: j.salaryPeriod } : null,
 });
 
-// The open jobs, newest first: nothing else of the tool is public.
+// A job takes applications while open and its last day has not passed
+// (in the Chest's time zone).
+export const takesApplications = (j: { state: JobState; closesOn: string | null }, today = chest.today()): boolean => j.state === "open" && (j.closesOn === null || j.closesOn >= today);
+
+// The open jobs, newest first: nothing else of the tool is public. A job
+// whose last day passed is no longer listed.
 export async function publicJobs(sql: Query): Promise<PublicJob[]> {
-  const rows = await sql<JobDb[]>`select * from jobs where state = 'open' order by opened_at desc, id desc limit ${limits.jobs}`;
+  const rows = await sql<JobDb[]>`select * from jobs where state = 'open' and (closes_on is null or closes_on >= ${chest.today()}::date) order by opened_at desc, id desc limit ${limits.jobs}`;
   return rows.map(r => toPublic(toJob(r)));
 }
 
 // One job's page: open, or closed (the page says so); a draft does not exist.
-export async function publicJob(sql: Query, slug: unknown): Promise<(PublicJob & { id: string }) | null> {
+export async function publicJob(sql: Query, slug: unknown): Promise<PublicJob | null> {
   if (typeof slug !== "string" || slug.length > 80) return null;
   const [row] = await sql<JobDb[]>`select * from jobs where slug = ${slug} and state <> 'draft'`;
-  return row ? { ...toPublic(toJob(row)), id: String(row.id) } : null;
+  return row ? toPublic(toJob(row)) : null;
 }

@@ -1,7 +1,10 @@
 import * as events from "@argentic/chest-sdk/events";
 import type { Sql } from "./db.ts";
+import { eraseSightings } from "./inventory.ts";
 import { people } from "./people.ts";
-import { left, stays } from "./tell.ts";
+import { eraseReceipts } from "./receipts.ts";
+import { cancelAllOf } from "./requests.ts";
+import { left, refreshBadges, stays } from "./tell.ts";
 import { withdraw } from "./notify.ts";
 
 // What Equipment does when a member loses access, leaves or is erased (the
@@ -13,7 +16,8 @@ import { withdraw } from "./notify.ts";
 //   3 items", with a link to her page and its "Take everything back". Their
 //   name then reads "(former member)" wherever they appear. A departure
 //   People told of is forgotten (and its "leaves on" bell item goes): they
-//   have left.
+//   have left. What they asked for and was not given is cancelled. Their
+//   receipts stay: the handover sheet is the proof the company keeps.
 // - Erasure: their id disappears from everything ('erased'). What they held
 //   stays held by "Former member" until a manager takes it back: the company
 //   still has to get it back. Then the erasure is acknowledged.
@@ -43,14 +47,22 @@ export async function erase(sql: Sql, memberId: string): Promise<void> {
     await tx`update history set actor = 'erased' where actor = ${memberId}`;
     await tx`update history set member = 'erased' where member = ${memberId}`;
     await tx`delete from departures where member_id = ${memberId}`;
+    await eraseReceipts(tx, memberId);
+    await eraseSightings(tx, memberId);
+    await tx`update requests set status = case when status in ('open', 'approved') then 'cancelled' else status end, member_id = 'erased', updated_at = now() where member_id = ${memberId}`;
+    await tx`update requests set decided_by = 'erased' where decided_by = ${memberId}`;
   });
   await withdraw(`left:${memberId}`);
   await stays(memberId);
+  await refreshBadges(sql);
 }
 
 async function departed(sql: Sql, memberId: string): Promise<void> {
   const count = await leave(sql, memberId);
   await stays(memberId);
+  const cancelled = await cancelAllOf(sql, memberId);
+  for (const id of cancelled) await withdraw(`request:${id}`);
+  if (cancelled.length > 0) await refreshBadges(sql);
   if (count === 0) return;
   const who = (await people([memberId])).get(memberId);
   await left({ id: memberId, name: who && (who.status === "member" || who.status === "former") ? who.name : "" }, count);

@@ -9,14 +9,20 @@ import { format, plural } from "../../../lib/i18n/format.ts";
 import { statuses } from "../../../lib/model.ts";
 import type { Row } from "../../../lib/view.ts";
 
-type Words = { list: Catalogue["list"]; status: Catalogue["status"]; shell: Catalogue["shell"] };
+type Words = { list: Catalogue["list"]; status: Catalogue["status"]; shell: Catalogue["shell"]; common: Catalogue["common"] };
 type Option = { value: string; label: string };
+
+const pageQuery = (query: string, page: number) => {
+  const p = new URLSearchParams(query);
+  if (page > 1) p.set("page", String(page)); else p.delete("page");
+  return p.toString();
+};
 
 // The list and its filters: a plain GET form (it works without script),
 // sent again as soon as a filter changes. A manager ticks items to print
 // their labels, or prints those shown.
-export function ItemsView({ rows, capped, manager, filtered, query, values, categories, holders, places, t, locale }: {
-  rows: Row[]; capped: number; manager: boolean; filtered: boolean; query: string;
+export function ItemsView({ rows, paging, manager, filtered, query, values, categories, holders, places, t, locale }: {
+  rows: Row[]; paging: { page: number; pages: number; text: string } | null; manager: boolean; filtered: boolean; query: string;
   values: { q: string; category: string; status: string; holder: string; sort: string };
   categories: Option[]; holders: Option[]; places: string[]; t: Words; locale: string;
 }) {
@@ -53,6 +59,7 @@ export function ItemsView({ rows, capped, manager, filtered, query, values, cate
             <select name="status" className="field" defaultValue={values.status} onChange={submit}>
               <option value="">{w.any}</option>
               {statuses.map(s => <option key={s} value={s}>{t.status[s]}</option>)}
+              <option value="low">{w.low}</option>
             </select>
           </label>
           <label className="select-label">
@@ -103,7 +110,13 @@ export function ItemsView({ rows, capped, manager, filtered, query, values, cate
           ))}
         </ul>
       )}
-      {capped > 0 && <p className="muted small">{format(w.capped, { count: capped })}</p>}
+      {paging && (
+        <nav className="pager" aria-label={w.pages}>
+          {paging.page > 1 ? <Link className="button quiet small" href={`/chest/items?${pageQuery(query, paging.page - 1)}`}>{t.common.previous}</Link> : <span />}
+          <span className="small muted">{paging.text}</span>
+          {paging.page < paging.pages ? <Link className="button quiet small" href={`/chest/items?${pageQuery(query, paging.page + 1)}`}>{t.common.next}</Link> : <span />}
+        </nav>
+      )}
     </div>
   );
 }

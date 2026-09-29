@@ -9,6 +9,14 @@
       "cron": "30 8 * * 1"
     }
   ],
+  "mail": {
+    "send": true
+  },
+  "calendar": true,
+  "groups": "read",
+  "receives": [
+    "group.*"
+  ],
   "translations": {
     "fr": {
       "title": "Actualités",

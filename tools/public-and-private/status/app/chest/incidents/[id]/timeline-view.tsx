@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Pencil, Trash } from "../../../../components/icons.tsx";
+import { SecondField } from "../../../../components/second-field.tsx";
 import { useToast } from "../../../../components/toast.tsx";
 import { useRun } from "../../../../components/use-run.ts";
 import type { ErrorCode } from "../../../../lib/app-error.ts";
@@ -15,6 +16,7 @@ export type UpdateView = {
   id: string;
   status: string;
   body: string;
+  bodySecond: string | null;
   time: string;
   author: string;
   auto: boolean;
@@ -23,14 +25,16 @@ export type UpdateView = {
   log: { text: string; previous: string | null }[];
 };
 
-type Words = { incident: Record<string, string>; steps: Record<string, string>; states: Record<string, string>; errors: Record<ErrorCode, string> };
+type Words = { incident: Record<string, string>; compose: Record<string, string>; steps: Record<string, string>; states: Record<string, string>; errors: Record<ErrorCode, string> };
+type Languages = { second: string; secondName: string };
 
-function Entry({ u, t }: { u: UpdateView; t: Words }) {
+function Entry({ u, languages, t }: { u: UpdateView; languages: Languages; t: Words }) {
   const w = t.incident;
   const toast = useToast();
   const { run, pending } = useRun(t.errors);
   const [editing, setEditing] = useState(false);
   const [text, setText] = useState(u.body);
+  const [second, setSecond] = useState(u.bodySecond ?? "");
   const remove = () => run(() => removeUpdate(u.id), () => toast(w.removedUpdate!, { label: w.undo!, run: () => void run(() => restoreUpdate(u.id), w.updateBack) }));
   return (
     <li className={`step step-${u.status}${u.removed ? " removed" : ""}`}>
@@ -46,16 +50,20 @@ function Entry({ u, t }: { u: UpdateView; t: Words }) {
         )}
       </div>
       {editing ? (
-        <form className="stack" onSubmit={async e => { e.preventDefault(); const r = await run(() => editUpdate(u.id, text), w.savedUpdate); if (r.ok) setEditing(false); }}>
+        <form className="stack" onSubmit={async e => { e.preventDefault(); const r = await run(() => editUpdate(u.id, text, second !== (u.bodySecond ?? "") ? second : undefined), w.savedUpdate); if (r.ok) setEditing(false); }}>
           <label className="visually-hidden" htmlFor={`edit-${u.id}`}>{w.edit}</label>
           <textarea id={`edit-${u.id}`} className="field" rows={4} maxLength={5000} value={text} onChange={e => setText(e.target.value)} autoFocus />
+          <SecondField id={`edit-second-${u.id}`} label={format(t.compose.bodyIn!, { language: languages.secondName })} value={second} onChange={setSecond} lang={languages.second} />
           <div className="actions">
             <button type="submit" className="button small" disabled={pending}>{w.save}</button>
-            <button type="button" className="button link" onClick={() => { setEditing(false); setText(u.body); }}>{t.incident.cancelEdit}</button>
+            <button type="button" className="button link" onClick={() => { setEditing(false); setText(u.body); setSecond(u.bodySecond ?? ""); }}>{t.incident.cancelEdit}</button>
           </div>
         </form>
       ) : (
-        <p className="body">{u.body}</p>
+        <>
+          <p className="body">{u.body}</p>
+          {u.bodySecond && <p className="body second-body" lang={languages.second}><span className="muted">{format(w.inLanguage!, { language: languages.secondName })} · </span>{u.bodySecond}</p>}
+        </>
       )}
       {u.states.length > 0 && (
         <p className="step-states">
@@ -77,10 +85,10 @@ function Entry({ u, t }: { u: UpdateView; t: Words }) {
   );
 }
 
-export function TimelineView({ updates, t }: { updates: UpdateView[]; t: Words }) {
+export function TimelineView({ updates, languages, t }: { updates: UpdateView[]; languages: Languages; t: Words }) {
   return (
     <ol className="timeline team-timeline">
-      {updates.map(u => <Entry key={u.id} u={u} t={t} />)}
+      {updates.map(u => <Entry key={u.id} u={u} languages={languages} t={t} />)}
     </ol>
   );
 }

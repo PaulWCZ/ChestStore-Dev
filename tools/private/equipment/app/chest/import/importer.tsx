@@ -17,7 +17,7 @@ type Source = "snipe" | "csv";
 // file and matches people), import. Nothing is added before the button.
 export function Importer({ t, locale }: { t: Words; locale: string }) {
   const w = t.importer;
-  const [picked, setPicked] = useState<{ source: Source; text: string; plan: Plan } | null>(null);
+  const [picked, setPicked] = useState<{ source: Source; text: string; plan: Plan; keep: string[] | undefined } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<number | null>(null);
   const [pending, start] = useTransition();
@@ -33,13 +33,25 @@ export function Importer({ t, locale }: { t: Words; locale: string }) {
         setPicked(null);
         return setError(format(t.errors[r.error], r.values));
       }
-      setPicked({ source, text, plan: r.value });
+      setPicked({ source, text, plan: r.value, keep: undefined });
+    });
+  }
+  // Keep a column as a field, or not: the plan is read again.
+  function toggle(column: string) {
+    if (!picked) return;
+    const current = picked.keep ?? picked.plan.offered;
+    const keep = current.includes(column) ? current.filter(c => c !== column) : [...current, column];
+    setPicked({ ...picked, keep });
+    start(async () => {
+      const r = await checkImport(picked.source, picked.text, { keep });
+      if (!r.ok) return setError(format(t.errors[r.error], r.values));
+      setPicked(old => (old ? { ...old, plan: r.value, keep } : old));
     });
   }
   function submit() {
     if (!picked) return;
     start(async () => {
-      const r = await runImport(picked.source, picked.text);
+      const r = await runImport(picked.source, picked.text, picked.keep ? { keep: picked.keep } : undefined);
       if (!r.ok) return setError(format(t.errors[r.error], r.values));
       setDone(r.value.imported);
       setPicked(null);
@@ -84,6 +96,18 @@ export function Importer({ t, locale }: { t: Words; locale: string }) {
           <h2 id="check">{w.check}</h2>
           <p className="strong">{format(w.summary, { items: usable.length, given: usable.filter(r => r.holder).length, placed: usable.filter(r => r.place).length })}</p>
           {picked.plan.newCategories.length > 0 && <p>{format(w.newCategories, { names: picked.plan.newCategories.join(", ") })}</p>}
+          {picked.plan.offered.length > 0 && (
+            <fieldset className="keep">
+              <legend className="strong">{w.keep}</legend>
+              <p className="hint">{w.keepHint}</p>
+              <div className="row">
+                {picked.plan.offered.map(c => (
+                  <label key={c} className="check"><input type="checkbox" checked={(picked.keep ?? picked.plan.offered).includes(c)} onChange={() => toggle(c)} /><span>{c}</span></label>
+                ))}
+              </div>
+            </fieldset>
+          )}
+          {picked.plan.newFields.length > 0 && <p>{format(w.newFields, { names: [...new Set(picked.plan.newFields.map(f => f.name))].join(", ") })}</p>}
           {picked.plan.ignored.length > 0 && <p className="small muted">{format(w.ignored, { names: picked.plan.ignored.join(", ") })}</p>}
           {skipped > 0 && <p className="small">{plural(w.skipped, skipped, locale)}</p>}
           <p className="small muted">{format(w.rowsShown, { count: Math.min(rows.length, 50) })}</p>

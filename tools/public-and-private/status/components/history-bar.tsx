@@ -13,7 +13,11 @@ export function HistoryBar({ id, name, days, uptime, measured = null, titles, lo
   const w = t.public;
   const bad = days.filter(d => d.incidents.length > 0 || (d.state !== "operational" && d.state !== "none"));
   const uptimeText = uptime === null ? w.noUptime : format(measured ? w.uptimeDeclared : w.uptime, { percent: percent(uptime, locale) });
-  const summary = `${format(w.historyLabel, { component: name, uptime: uptimeText })} ${plural(w.daysWithIncidents, bad.length, locale)}`;
+  // Slower days do not lower the uptime (Statuspage's rule): they are said
+  // beside it, so "100 %" never stands alone next to yellow ticks.
+  const slower = days.filter(d => d.state === "degraded").length;
+  const slowerText = slower > 0 ? plural(w.slowerDays, slower, locale) : null;
+  const summary = `${format(w.historyLabel, { component: name, uptime: uptimeText })}${slowerText ? ` ${slowerText}.` : ""} ${plural(w.daysWithIncidents, bad.length, locale)}`;
   return (
     <div className="history">
       <p className="visually-hidden">{summary}</p>
@@ -40,7 +44,7 @@ export function HistoryBar({ id, name, days, uptime, measured = null, titles, lo
       <div className="history-legend" aria-hidden="true">
         <span className="far wide">{w.daysAgo}</span><span className="far narrow">{w.daysAgoPhone}</span>
         <span className="rule" />
-        <span className="uptime">{uptimeText}</span>
+        <span className="uptime">{uptimeText}{slowerText && <span className="slower"> · {slowerText}</span>}</span>
         <span className="rule" />
         <span>{w.today}</span>
       </div>

@@ -88,10 +88,34 @@ export async function accept(ticket: unknown, kind: Kind, fileName: unknown): Pr
   }
 }
 
-// remove deletes CV files from the Chest (erasure, a replaced CV, the
-// retention): a file already gone is fine.
+// remove deletes the tool's files from the Chest (erasure, a replaced CV,
+// the retention): CVs, the files received emails brought (mail/, stored
+// by the Chest), the careers page's images (public/brand/). A file
+// already gone is fine; nothing else of the tool's files is ever deleted.
 export async function remove(objects: Iterable<string>): Promise<void> {
-  for (const object of objects) if (/^(cv|uploads\/(public|team))\/[0-9a-f]{20}\.(pdf|docx?)$/u.test(object)) await files.delete(object).catch(() => false);
+  for (const object of objects) {
+    const ours = /^(cv|uploads\/(public|team))\/[0-9a-f]{20}\.(pdf|docx?)$/u.test(object)
+      || /^public\/brand\/[0-9a-f]{20}\.(png|jpg|webp)$/u.test(object)
+      || (/^mail\/[^\s]{1,400}$/u.test(object) && !object.includes(".."));
+    if (ours) await files.delete(object).catch(() => false);
+  }
+}
+
+// copy gives a CV a second file (the same person considered for another
+// job: each application keeps its own, erased with it).
+export async function copy(object: string): Promise<Cv | null> {
+  const m = /^cv\/[0-9a-f]{20}\.(pdf|docx?)$/u.exec(object);
+  if (!m) return null;
+  try {
+    const body = await files.get(object);
+    if (!body) return null;
+    const kept = `cv/${randomBytes(10).toString("hex")}.${m[1]}`;
+    await files.put(kept, body.data, body.type);
+    return { object: kept, fileName: "", type: body.type.split(";")[0]!.trim(), size: body.data.byteLength };
+  } catch (error) {
+    if (error instanceof ChestError) throw new AppError("unavailable");
+    throw error;
+  }
 }
 
 // sweep deletes the uploads nobody claimed within a day: a visitor who

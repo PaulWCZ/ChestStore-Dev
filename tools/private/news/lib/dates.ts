@@ -21,6 +21,11 @@ export function dates(locale: string, zone: string, now = new Date()) {
     dayNumber: (value: string) => day(value, { day: "numeric" }),
     month: (value: string) => day(value, { month: "short" }),
     weekday: (value: string) => day(value, { weekday: "short" }),
+    // "Monday 3 November", or "Monday 3 – Wednesday 5 November" over several days.
+    days(event: EventInfo, words: { dayRange: string }): string {
+      if (!event.lastDay) return day(event.day, { weekday: "long", day: "numeric", month: "long" });
+      return format(words.dayRange, { first: day(event.day, { weekday: "short", day: "numeric", month: "short" }), last: day(event.lastDay, { weekday: "short", day: "numeric", month: "short" }) });
+    },
     // "19:30 – 23:00", "19:30", or the words for all day.
     hours(event: EventInfo, words: { allDay: string; timeRange: string }): string {
       if (!event.start) return words.allDay;

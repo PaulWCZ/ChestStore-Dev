@@ -44,3 +44,12 @@ export const List = () => <Icon><path d="M9 6h11M9 12h11M9 18h11" /><circle cx="
 export const Heading = () => <Icon><path d="M6 4v16M18 4v16M6 12h12" /></Icon>;
 export const Ban = () => <Icon><circle cx="12" cy="12" r="8.5" /><path d="M6 6l12 12" /></Icon>;
 export const Bell = () => <Icon><path d="M6 16V11a6 6 0 0112 0v5l1.5 2h-15z" /><path d="M10 20.5a2 2 0 004 0" /></Icon>;
+export const Search = () => <Icon><circle cx="10.5" cy="10.5" r="6" /><path d="M15 15l5 5" /></Icon>;
+export const Calendar = () => <Icon><rect x="3.5" y="5" width="17" height="15" rx="2" /><path d="M3.5 10h17M8 3v4M16 3v4" /></Icon>;
+export const Send = () => <Icon><path d="M4 12l16-7-6 15-2.5-6.5z" /><path d="M11.5 13.5L20 5" /></Icon>;
+export const Chart = () => <Icon><path d="M4 20V4M4 20h16" /><path d="M8 16v-4M12 16V8M16 16v-6" /></Icon>;
+export const Inbox = () => <Icon><path d="M4 13l2.5-8h11L20 13v6H4z" /><path d="M4 13h5l1 2h4l1-2h5" /></Icon>;
+export const Share = () => <Icon><circle cx="6" cy="12" r="2.5" /><circle cx="18" cy="6" r="2.5" /><circle cx="18" cy="18" r="2.5" /><path d="M8.2 10.8l7.6-3.6M8.2 13.2l7.6 3.6" /></Icon>;
+export const Feed = () => <Icon><path d="M5 5a14 14 0 0114 14M5 11a8 8 0 018 8" /><circle cx="6" cy="18" r="1.3" /></Icon>;
+export const Select = () => <Icon><rect x="4" y="4" width="16" height="16" rx="3" /><path d="M8.5 12l2.5 2.5 4.5-5" /></Icon>;
+export const Duplicate = () => <Icon><rect x="8" y="8" width="12" height="12" rx="2" /><path d="M16 8V5.5A1.5 1.5 0 0014.5 4h-9A1.5 1.5 0 004 5.5v9A1.5 1.5 0 005.5 16H8M14 11v6M11 14h6" /></Icon>;

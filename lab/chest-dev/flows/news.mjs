@@ -1,7 +1,8 @@
 // News, as people use it, in a real browser: node lab/chest-dev/flows/news.mjs [port]
 // (the harness runs the tool with --reset: the sample month is there —
-// posts 1 to 7; 3 is the team dinner, 4 the Important office move, 7 is
-// scheduled).
+// posts 1 to 10; 3 is the team dinner, 4 the Important office move (in
+// English and French), 7 is scheduled, 8 for Sales, 9 the first-aid
+// training with 3 places, 10 for three people).
 import { writeFileSync } from "node:fs";
 import { as, done, expect, open, step } from "./lib.mjs";
 
@@ -10,6 +11,16 @@ const { browser, context, page, origin, problems } = await open(port, "camille",
 const tmp = process.env.FLOW_TMP ?? process.env.TMPDIR ?? "/tmp";
 const speak = locale => context.addCookies([{ name: "dev_locale", value: locale, url: origin }]);
 const dev = async () => (await page.request.get(origin + "/_dev")).text();
+// The text box shows formatting as it is typed: no marks to type.
+async function type(text, { bold = null } = {}) {
+  await page.locator("#body").click();
+  await page.keyboard.type(text);
+  if (bold) {
+    await page.keyboard.press("Control+b");
+    await page.keyboard.type(bold);
+    await page.keyboard.press("Control+b");
+  }
+}
 
 // A cover picture: an illustration drawn here, made a PNG by the browser.
 async function picture(file, hue) {
@@ -33,16 +44,23 @@ await step("a publisher writes an Important post with a picture and a file", asy
   await page.getByRole("link", { name: "Write a post" }).first().click();
   await page.waitForURL(/\/chest\/new/u);
   await page.getByLabel("Headline").fill("New badges from Monday");
-  await page.getByLabel("Text", { exact: true }).fill("Your new badge opens **both doors**.\n\n- Collect it at the desk\n- Return the old one");
+  await type("Your new badge opens ", { bold: "both doors" });
+  await page.keyboard.type(".");
+  await page.keyboard.press("Enter");
+  await page.keyboard.type("- Collect it at the desk");
+  await page.keyboard.press("Enter");
+  await page.keyboard.type("Return the old one");
+  expect(await page.locator("#body strong", { hasText: "both doors" }).isVisible(), "bold shows as it is typed");
+  expect(await page.locator("#body ul li").count() === 2, "a list from the toolbar's rules");
   await page.locator(".side-card input[type=file]").first().setInputFiles(cover);
   await page.waitForSelector(".cover-preview img", { timeout: 8000 });
   await page.locator("label", { hasText: "Attach a file" }).locator("input").setInputFiles(tmp + "/badge-rules.txt");
   await page.waitForSelector(".file-list li:has-text('badge-rules.txt')", { timeout: 8000 });
-  await page.getByRole("tab", { name: "Preview" }).click();
-  expect(await page.locator(".preview strong", { hasText: "both doors" }).isVisible(), "preview renders bold");
   await page.getByLabel("Important").check();
-  await page.getByRole("button", { name: "Publish" }).click();
+  await page.getByRole("button", { name: "Publish and tell 6 people by bell and email" }).click();
   await page.waitForURL(/\/chest\/posts\/\d+$/u);
+  expect(await page.locator(".toast", { hasText: "Telling 6 people in 10 seconds" }).isVisible(), "the Undo toast");
+  expect(await page.locator(".prose strong", { hasText: "both doors" }).isVisible() && await page.locator(".prose li").count() >= 2, "kept as formatted");
   expect(await page.getByRole("heading", { name: "New badges from Monday" }).isVisible(), "the article");
   const width = await page.locator(".cover img").evaluate(img => img.naturalWidth);
   expect(width > 0, "the cover shows");
@@ -51,8 +69,11 @@ await step("a publisher writes an Important post with a picture and a file", asy
 });
 const badgesUrl = page.url();
 
-await step("everyone is told in their bell, in their language", async () => {
+await step("after 10 seconds, everyone is told in their bell and by email, in their language", async () => {
+  expect(!(await dev()).includes("Important: New badges from Monday"), "nothing sent during the Undo seconds");
+  await page.waitForSelector(".toast:has-text('Sent.')", { timeout: 15000 });
   const text = await dev();
+  expect(text.includes("<b>Important : New badges from Monday</b>") && text.includes("<b>Important: New badges from Monday</b>"), "emails in both languages");
   expect(text.includes("Important : New badges from Monday"), "French bell for Inès");
   expect(text.includes("Important: New badges from Monday"), "English bell for Hugo");
 });
@@ -66,7 +87,7 @@ await step("a reader confirms from the front page; reacts and comments", async (
   await page.getByRole("button", { name: "I have read it" }).click();
   await page.waitForSelector(".confirm-box.done");
   await page.locator(".reaction", { hasText: "🎉" }).click();
-  await page.locator("#comment").fill("Great, thanks!");
+  await page.getByLabel("Your comment").fill("Great, thanks!");
   await page.getByRole("button", { name: "Comment", exact: true }).click();
   await page.waitForTimeout(1200);
   await page.reload();
@@ -149,16 +170,19 @@ await step("a publisher writes for one team only; nobody else sees it, is told o
   await speak("en");
   await page.goto(origin + "/chest/new");
   await page.getByLabel("Headline").fill("Sales bonus: the new rules");
-  await page.getByLabel("Text", { exact: true }).fill("From October, the bonus is paid **every quarter**.");
-  await page.getByLabel("Some groups only").check();
-  await page.getByRole("button", { name: "Publish" }).click();
+  await type("From October, the bonus is paid ", { bold: "every quarter" });
+  await page.getByLabel("Some groups or people").check();
+  await page.getByRole("button", { name: "Publish for 0 people" }).click();
   expect((await page.locator("#form-error").innerText()).includes("Choose at least one group"), "a group is needed");
   await page.locator(".audience-groups label", { hasText: "Sales" }).locator("input").check();
+  expect((await page.locator("#audience-count").innerText()).includes("2 people can see it"), "the count follows");
   await page.getByLabel("Important").check();
-  await page.getByRole("button", { name: "Publish" }).click();
+  await page.getByRole("button", { name: "Publish and tell 2 people by bell and email" }).click();
   await page.waitForURL(/\/chest\/posts\/\d+$/u);
   salesUrl = page.url();
-  expect((await page.locator(".notice").innerText()).includes("Only members of Sales can see this post."), "the audience is said");
+  await page.waitForSelector(".toast:has-text('Sent.')", { timeout: 15000 });
+  await page.reload();
+  expect((await page.locator(".notices").innerText()).includes("Only for Sales: nobody else sees this post."), "the audience is said");
   expect(/Read by 0 of 2/u.test(await page.locator(".readers h2").innerText()), "counted on Sales only");
   const bell = await dev();
   expect(bell.includes("Hugo Bernard</b> · Important: Sales bonus"), "Hugo (Sales) is told");
@@ -234,10 +258,159 @@ await step("French, phone width: nothing overflows; confirm and write work", asy
   expect(width <= 392, "composer width " + width);
   await page.getByLabel("Titre").fill("Apéro sur la terrasse");
   await page.getByLabel("Lieu").fill("Terrasse, 3e étage");
-  await page.getByLabel("Début").fill("18:30");
+  await page.getByLabel("Début").selectOption("18:30");
   await page.getByRole("button", { name: "Publier" }).click();
   await page.waitForURL(/\/chest\/posts\/\d+$/u);
   expect((await page.locator(".event-box").innerText()).includes("Terrasse"), "event published");
+});
+
+await step("Undo within 10 seconds: nothing leaves, the post is back in the composer", async () => {
+  await page.setViewportSize({ width: 1280, height: 860 });
+  await as(context, origin, "sofia");
+  await speak("en");
+  const before = (await dev()).split("Oops: wrong date").length;
+  await page.goto(origin + "/chest/new");
+  await page.getByLabel("Headline").fill("Oops: wrong date");
+  await type("The party is on the 32nd.");
+  await page.getByLabel("Important").check();
+  await page.getByRole("button", { name: /^Publish and tell \d+ people/u }).click();
+  await page.waitForURL(/\/chest\/posts\/\d+$/u);
+  await page.locator(".toast").getByRole("button", { name: "Undo" }).click();
+  await page.waitForURL(/\/chest\/new$/u);
+  expect(await page.getByLabel("Headline").inputValue() === "Oops: wrong date", "the draft is back");
+  await page.waitForTimeout(11000);
+  expect((await dev()).split("Oops: wrong date").length === before, "no bell, no email");
+  await page.getByRole("button", { name: "Start over" }).click();
+});
+
+await step("hand-picked people, and any group of the Chest", async () => {
+  await as(context, origin, "camille");
+  await page.goto(origin + "/chest/new");
+  await page.getByLabel("Headline").fill("Client visit: who comes");
+  await page.getByLabel("Some groups or people").check();
+  await page.locator("#people-search").fill("lé");
+  await page.locator(".suggestions button", { hasText: "Léa Dubois" }).click();
+  await page.locator("#people-search").fill("Tom");
+  await page.locator(".suggestions button", { hasText: "Tom Walker" }).click();
+  await page.getByRole("button", { name: "Publish for 2 people" }).click();
+  await page.waitForURL(/\/chest\/posts\/\d+$/u);
+  const url = page.url();
+  expect((await page.locator(".notices").innerText()).includes("Only for 2 people"), "said on the post");
+  await as(context, origin, "hugo");
+  expect((await page.request.get(url)).status() === 404, "Hugo does not see it");
+  await as(context, origin, "tom");
+  expect((await page.request.get(url)).status() === 200, "Tom does");
+  // Tech is a group of the Chest: offered even though News is open to all.
+  await as(context, origin, "camille");
+  await page.goto(origin + "/chest/new");
+  await page.getByLabel("Some groups or people").check();
+  expect(await page.locator(".audience-groups label", { hasText: "Tech" }).isVisible(), "every group offered");
+});
+
+await step("two languages: each reader sees theirs", async () => {
+  await page.goto(origin + "/chest/new");
+  await page.getByLabel("Headline").fill("Canteen closed on Friday");
+  await type("Bring your lunch.");
+  await page.getByRole("button", { name: "Add a version in French" }).click();
+  await page.getByLabel("Headline").fill("Cantine fermée vendredi");
+  await type("Apportez votre déjeuner.");
+  await page.getByRole("button", { name: "Publish", exact: true }).click();
+  await page.waitForURL(/\/chest\/posts\/\d+$/u);
+  const url = page.url();
+  await as(context, origin, "ines");
+  await speak("fr");
+  await page.goto(url);
+  expect((await page.locator("#headline").innerText()) === "Cantine fermée vendredi", "Inès reads French");
+  await page.getByRole("link", { name: "Read in English" }).click();
+  expect((await page.locator("#headline").innerText()) === "Canteen closed on Friday", "and may read the English one");
+});
+
+await step("an event with places: a waiting list, and the Chest's calendar", async () => {
+  await as(context, origin, "hugo");
+  await speak("en");
+  await page.goto(origin + "/chest/posts/9");
+  expect((await page.locator(".seats").innerText()).includes("3 of 3 places taken"), "full");
+  await page.getByRole("button", { name: "Join the waiting list" }).click();
+  await page.waitForSelector(".toast:has-text('waiting list')");
+  await as(context, origin, "lea");
+  await page.goto(origin + "/chest/posts/9");
+  await page.getByRole("button", { name: /I’m coming/u }).click();
+  await page.waitForTimeout(1200);
+  const panel = await dev();
+  expect(panel.includes("event:9") && panel.includes("Nora Petit"), "Nora (first waiting) got the place and the calendar");
+  expect(panel.includes("Une place est à vous"), "and was told");
+  await as(context, origin, "camille");
+  await page.goto(origin + "/chest/posts/3");
+  expect(await page.getByRole("link", { name: "It’s in your Chest calendar" }).isVisible(), "the calendar link for those coming");
+});
+
+await step("replies and mentions", async () => {
+  await as(context, origin, "hugo");
+  await page.goto(origin + "/chest/posts/4");
+  await page.locator(".comment", { hasText: "bikes" }).getByRole("button", { name: "Reply" }).click();
+  const box = page.getByLabel("Reply to Inès Moreau");
+  await box.fill("Thanks! @Sof");
+  await page.locator(".suggestions button", { hasText: "Sofia Rossi" }).click();
+  await box.pressSequentially("will you check?");
+  await page.locator(".reply-form").getByRole("button", { name: "Reply", exact: true }).click();
+  // Wait for the saved reply itself, not a fixed time: then read it again from the server.
+  await page.locator(".comment.reply", { hasText: "will you check?" }).waitFor();
+  await page.reload();
+  const mention = page.locator(".comment.reply .mention", { hasText: "@Sofia Rossi" });
+  await mention.waitFor({ timeout: 10_000 }).catch(() => {});
+  expect(await mention.isVisible(), "the mention shows as a name");
+  const panel = await dev();
+  expect(panel.includes("Hugo Bernard mentioned you"), "Sofia is told");
+  expect(panel.includes("Hugo Bernard vous a répondu"), "Inès is told of the reply, in French");
+});
+
+await step("a changed Important text: its earlier version kept, everyone asked again", async () => {
+  await as(context, origin, "camille");
+  await page.goto(origin + "/chest/posts/4/edit");
+  await page.locator("#body").click();
+  await page.keyboard.press("Control+End");
+  await page.keyboard.type(" Parking opens on 3 November.");
+  await page.getByLabel("Ask everyone to confirm again").check();
+  await page.getByRole("button", { name: /^Save and tell \d+ people/u }).click();
+  await page.waitForURL(/\/chest\/posts\/4$/u);
+  expect(/Read by 0 of 6/u.test(await page.locator(".readers h2").innerText()), "counted again");
+  expect((await page.locator(".readers").innerText()).includes("confirmed an earlier version"), "earlier confirmations said");
+  await page.locator(".history summary").click();
+  expect((await page.locator(".history").innerText()).includes("Version 2"), "earlier versions kept");
+  expect((await page.locator(".reach").innerText()).includes("Sent by email"), "reach, counts only");
+});
+
+await step("schedule from the bar, next to Publish", async () => {
+  await page.goto(origin + "/chest/new");
+  await page.getByLabel("Headline").fill("Monday meeting moved");
+  await page.getByRole("button", { name: "Schedule…" }).click();
+  await page.locator("#later-time").selectOption("08:30");
+  await page.getByRole("button", { name: "Schedule", exact: true }).click();
+  await page.waitForURL(/\/chest\/posts\/\d+$/u);
+  expect((await page.locator(".notices").innerText()).includes("Scheduled for"), "scheduled");
+});
+
+await step("import a Slack channel, take it back; download all posts", async () => {
+  const fixture = new URL("../../../tools/private/news/test/fixtures/slack-export-viewer-testarchive.zip", import.meta.url).pathname;
+  await page.goto(origin + "/chest/transfer");
+  await page.locator(".transfer input[type=file]").setInputFiles(fixture);
+  await page.waitForSelector(".channels");
+  await page.getByLabel(/#enrique/u).check();
+  await page.getByRole("button", { name: "Import 30 messages" }).click();
+  await page.waitForSelector(".toast:has-text('30 posts imported')");
+  await page.locator(".toast").getByRole("button", { name: "Undo" }).click();
+  await page.waitForSelector(".toast:has-text('30 imported posts taken back')");
+  const zip = await page.request.get(origin + "/chest/transfer/export");
+  expect(zip.status() === 200 && (zip.headers()["content-type"] ?? "").includes("zip") && (await zip.body()).length > 1000, "the ZIP");
+});
+
+await step("the weekly digest email can be turned off", async () => {
+  await as(context, origin, "hugo");
+  await page.goto(origin + "/chest");
+  await page.getByRole("button", { name: "Stop the email" }).click();
+  await page.waitForSelector(".toast:has-text('No more weekly email')");
+  await page.reload();
+  expect(await page.getByRole("button", { name: "Also by email" }).isVisible(), "kept");
 });
 
 await browser.close();

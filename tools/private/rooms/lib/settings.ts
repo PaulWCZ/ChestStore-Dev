@@ -13,14 +13,16 @@ export type Rules = {
   dayEnd: number;
   weekdays: number[];
   keepMonths: number;
+  // A room nobody checked in to is freed a quarter of an hour after its start.
+  checkIn: boolean;
 };
 
-type Row = { days_ahead: number; max_desk_days: number | null; repeat_weeks: number; day_start: number; day_end: number; weekdays: number[]; keep_months: number };
+type Row = { days_ahead: number; max_desk_days: number | null; repeat_weeks: number; day_start: number; day_end: number; weekdays: number[]; keep_months: number; check_in: boolean };
 
 export async function rules(sql: Query): Promise<Rules> {
-  const [r] = await sql<Row[]>`select days_ahead, max_desk_days, repeat_weeks, day_start, day_end, weekdays, keep_months from settings`;
-  if (!r) return { daysAhead: 14, maxDeskDays: null, repeatWeeks: 12, dayStart: 420, dayEnd: 1200, weekdays: [1, 2, 3, 4, 5], keepMonths: 12 };
-  return { daysAhead: r.days_ahead, maxDeskDays: r.max_desk_days, repeatWeeks: r.repeat_weeks, dayStart: r.day_start, dayEnd: r.day_end, weekdays: [...r.weekdays].sort(), keepMonths: r.keep_months };
+  const [r] = await sql<Row[]>`select days_ahead, max_desk_days, repeat_weeks, day_start, day_end, weekdays, keep_months, check_in from settings`;
+  if (!r) return { daysAhead: 14, maxDeskDays: null, repeatWeeks: 12, dayStart: 420, dayEnd: 1200, weekdays: [1, 2, 3, 4, 5], keepMonths: 12, checkIn: false };
+  return { daysAhead: r.days_ahead, maxDeskDays: r.max_desk_days, repeatWeeks: r.repeat_weeks, dayStart: r.day_start, dayEnd: r.day_end, weekdays: [...r.weekdays].sort(), keepMonths: r.keep_months, checkIn: r.check_in };
 }
 
 export async function setRules(sql: Sql, actor: Member | null, input: Record<string, unknown>): Promise<Rules> {
@@ -34,7 +36,9 @@ export async function setRules(sql: Sql, actor: Member | null, input: Record<str
     dayEnd: input["dayEnd"] === undefined ? current.dayEnd : int(input["dayEnd"], 60, 1440),
     weekdays: current.weekdays,
     keepMonths: input["keepMonths"] === undefined ? current.keepMonths : int(input["keepMonths"], 1, 60),
+    checkIn: input["checkIn"] === undefined ? current.checkIn : input["checkIn"] === true,
   };
+  if (input["checkIn"] !== undefined && typeof input["checkIn"] !== "boolean") throw new AppError("invalid");
   if (input["weekdays"] !== undefined) {
     const days = input["weekdays"];
     if (!Array.isArray(days) || days.length === 0 || !days.every(d => Number.isInteger(d) && d >= 1 && d <= 7)) throw new AppError("invalid");
@@ -42,7 +46,7 @@ export async function setRules(sql: Sql, actor: Member | null, input: Record<str
   }
   if (next.dayStart % 60 !== 0 || next.dayEnd % 60 !== 0 || next.dayEnd <= next.dayStart) throw new AppError("invalid");
   await sql`update settings set days_ahead = ${next.daysAhead}, max_desk_days = ${next.maxDeskDays}, repeat_weeks = ${next.repeatWeeks},
-    day_start = ${next.dayStart}, day_end = ${next.dayEnd}, weekdays = ${next.weekdays}, keep_months = ${next.keepMonths}`;
+    day_start = ${next.dayStart}, day_end = ${next.dayEnd}, weekdays = ${next.weekdays}, keep_months = ${next.keepMonths}, check_in = ${next.checkIn}`;
   return next;
 }
 
@@ -55,4 +59,5 @@ export async function purge(sql: Sql, zone: string): Promise<void> {
   await sql`delete from presence where day < ${cutoff}`;
   await sql`delete from desk_bookings where day < ${cutoff} or cancelled_at < now() - interval '1 day'`;
   await sql`delete from room_bookings where day < ${cutoff} or cancelled_at < now() - interval '1 day'`;
+  await sql`delete from usual_applied where day < (now() at time zone ${zone})::date`;
 }

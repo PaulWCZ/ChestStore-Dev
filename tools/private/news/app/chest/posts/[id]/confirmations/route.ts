@@ -9,7 +9,8 @@ import { currentMember } from "../../../../../lib/session.ts";
 import { chestZone } from "../../../../../lib/zone.ts";
 
 // Who confirmed an Important post, as a spreadsheet: its publishers only,
-// in their language. Those who have not confirmed yet are listed too.
+// in their language. Those who have not confirmed yet are listed too; a
+// confirmation of an earlier version of the text says which.
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }): Promise<Response> {
   try {
     const { id } = await params;
@@ -20,10 +21,14 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     const { confirmed, pending } = tally(list.post, list.confirmed, (await everyone()).people);
     const who = await people(confirmed.map(c => c.member));
     const when = new Intl.DateTimeFormat(intl(locale), { dateStyle: "short", timeStyle: "short", timeZone: chestZone() });
+    const earlier = new Map(list.earlier.map(e => [e.member, e]));
     const rows: unknown[][] = [
-      [t.csv.person, t.csv.status, t.csv.at],
-      ...confirmed.map(c => [nameOf(who.get(c.member), locale), t.csv.confirmed, when.format(new Date(c.at))]),
-      ...pending.map(p => [p.name, t.csv.pending, ""]),
+      [t.csv.person, t.csv.status, t.csv.at, t.csv.version],
+      ...confirmed.map(c => [nameOf(who.get(c.member), locale), t.csv.confirmed, when.format(new Date(c.at)), c.version]),
+      ...pending.map(p => {
+        const before = earlier.get(p.id);
+        return before ? [p.name, t.csv.earlier, when.format(new Date(before.at)), before.version] : [p.name, t.csv.pending, "", ""];
+      }),
     ];
     return new Response(toCsv(rows), {
       headers: {

@@ -76,10 +76,16 @@ export function RulesForm({ rules, locale, t }: { rules: Rules; locale: string; 
         <span>{t.rules.keepMonths}</span>
         <input className="field narrow-field" type="number" min={1} max={60} value={r.keepMonths} onChange={e => setR({ ...r, keepMonths: Number(e.target.value) || 1 })} />
       </label>
+      <div className="stack-s">
+        <label className="check">
+          <input type="checkbox" checked={r.checkIn} onChange={e => setR({ ...r, checkIn: e.target.checked })} />
+          {t.rules.checkIn}
+        </label>
+        <p className="hint">{r.checkIn ? t.rules.checkInHint : t.rules.noCheckIn}</p>
+      </div>
       <ul className="hint notes">
         <li>{t.rules.keepHint}</li>
         <li>{t.rules.adminsFree}</li>
-        <li>{t.rules.noCheckIn}</li>
       </ul>
       <div><button type="submit" className="button" disabled={pending}>{t.rules.save}</button></div>
     </form>

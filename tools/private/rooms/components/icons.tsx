@@ -28,6 +28,9 @@ export const Trash = () => <Icon><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" />
 export const Download = () => <Icon><path d="M12 4v12M7 11l5 5 5-5M4 20h16" /></Icon>;
 export const Upload = () => <Icon><path d="M12 16V4M7 9l5-5 5 5M4 16v4h16v-4" /></Icon>;
 export const Pin = () => <Icon><path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0113 0c0 5.4-6.5 11-6.5 11z" /><circle cx="12" cy="10" r="2.3" /></Icon>;
+export const Lock = () => <Icon><rect x="5" y="10.5" width="14" height="10" rx="1.5" /><path d="M8 10.5V7.5a4 4 0 018 0v3" /></Icon>;
+export const CalendarAdd = () => <Icon><rect x="3.5" y="5" width="17" height="15" rx="1.5" /><path d="M3.5 10h17M8 3v4M16 3v4M12 12.5v5M9.5 15h5" /></Icon>;
+export const Bolt = () => <Icon><path d="M13 3L5 13.5h6L10 21l8-10.5h-6z" /></Icon>;
 export const Seat = () => <Icon><path d="M7 4h10v8H7zM5 12h14v3H5zM7 15v5M17 15v5" /></Icon>;
 
 // Equipment and desk features.

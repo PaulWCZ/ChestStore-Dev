@@ -1,10 +1,15 @@
 import Link from "next/link";
-import { Arrow, Plus, Star } from "../../components/icons.tsx";
+import { Arrow, Calendar, Inbox, Plus, Star } from "../../components/icons.tsx";
 import { can } from "../../lib/access.ts";
 import { waitingOn } from "../../lib/candidates.ts";
 import { db } from "../../lib/db.ts";
 import { format, plural, relative } from "../../lib/i18n/index.ts";
+import { upcoming } from "../../lib/interviews.ts";
 import { listJobs, type JobRow } from "../../lib/jobs.ts";
+import { unmatchedCount } from "../../lib/messages.ts";
+import { stageLabel } from "../../lib/stages.ts";
+import { meetingTime } from "../../lib/i18n/format.ts";
+import * as chest from "@argentic/chest-sdk/chest";
 import { nameOf, people } from "../../lib/people.ts";
 import { viewer } from "../../lib/session.ts";
 
@@ -15,7 +20,9 @@ export default async function Jobs() {
   if (!v) return null;
   const { member, t, locale } = v;
   const sql = db();
-  const [list, waiting] = await Promise.all([listJobs(sql, member), waitingOn(sql, member)]);
+  const [list, waiting, next] = await Promise.all([listJobs(sql, member), waitingOn(sql, member), upcoming(sql, member)]);
+  const toFile = can(member, "candidates.manage") ? await unmatchedCount(sql) : 0;
+  const zone = chest.timeZone();
   const who = await people(waiting.map(w => w.requestedBy));
   const recruiter = can(member, "jobs.manage");
   const groups: [string, JobRow[]][] = [
@@ -40,6 +47,27 @@ export default async function Jobs() {
                   <span className="waiting-name">{format(t.home.waitingItem, { candidate: w.name, job: w.jobTitle })}</span>
                   <span className="muted small">{format(t.home.askedBy, { name: nameOf(who.get(w.requestedBy), locale), when: relative(w.requestedAt, locale) })}</span>
                   <Arrow />
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {toFile > 0 && (
+        <p className="notice with-link"><Inbox /><Link href="/chest/mail">{plural(t.mailbox.toFile, toFile, locale)}</Link></p>
+      )}
+
+      {next.length > 0 && (
+        <section className="upcoming" aria-labelledby="upcoming">
+          <h2 id="upcoming" className="group-title"><Calendar />{t.home.interviews}</h2>
+          <ul className="upcoming-list">
+            {next.map(i => (
+              <li key={i.id}>
+                <Link href={`/chest/candidates/${i.candidateId}`}>
+                  <span className="up-when">{meetingTime(i.start, zone, locale)}</span>
+                  <span className="up-who">{format(t.home.waitingItem, { candidate: i.candidateName, job: i.jobTitle })}</span>
+                  {i.place && <span className="muted small">{i.place}</span>}
                 </Link>
               </li>
             ))}
@@ -77,7 +105,7 @@ export default async function Jobs() {
                       {j.stages.map(s => (
                         <span key={s.id} className={`pipe${s.count > 0 ? " full" : ""}${s.hired ? " hired" : ""}`}>
                           <span className="pipe-n">{s.count}</span>
-                          <span className="pipe-name">{s.name}</span>
+                          <span className="pipe-name">{stageLabel(s, t.jobSettings.defaults)}</span>
                         </span>
                       ))}
                     </span>

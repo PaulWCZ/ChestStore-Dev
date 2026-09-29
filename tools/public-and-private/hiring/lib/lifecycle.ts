@@ -8,6 +8,10 @@ import type { Sql } from "./db.ts";
 // signed "Former member", then the erasure is acknowledged.
 export async function leave(sql: Sql, memberId: string): Promise<void> {
   await sql.begin(async tx => {
+    // Their interviews to come are rewritten in the others' calendars
+    // (the Chest drops them from a feed they no longer have).
+    await tx`update interviews set calendar = 'pending', updated_at = now() where calendar = 'done' and starts_at > now() and id in (select interview_id from interview_people where member_id = ${memberId})`;
+    await tx`delete from interview_people p using interviews i where i.id = p.interview_id and p.member_id = ${memberId} and i.starts_at > now()`;
     await tx`delete from job_interviewers where member_id = ${memberId}`;
     await tx`delete from feedback_requests where member_id = ${memberId}`;
     await tx`delete from candidate_seen where member_id = ${memberId}`;
@@ -31,6 +35,16 @@ export async function erase(sql: Sql, memberId: string): Promise<void> {
         from jsonb_array_elements(data->'members') as m))
       where kind = 'asked' and data->'members' @> to_jsonb(array[${memberId}::text])`;
     await tx`update candidates set added_by = 'erased' where added_by = ${memberId}`;
+    await tx`update interviews set calendar = 'pending', updated_at = now() where calendar = 'done' and id in (select interview_id from interview_people where member_id = ${memberId})`;
+    await tx`delete from interview_people where member_id = ${memberId}`;
+    await tx`update interviews set created_by = 'erased' where created_by = ${memberId}`;
+    await tx`update messages set author = 'erased' where author = ${memberId}`;
+    await tx`update templates set created_by = 'erased' where created_by = ${memberId}`;
+    await tx`
+      update activity set data = jsonb_set(data, '{people}', (
+        select coalesce(jsonb_agg(case when m = to_jsonb(${memberId}::text) then to_jsonb('erased'::text) else m end), '[]'::jsonb)
+        from jsonb_array_elements(data->'people') as m))
+      where kind = 'interview' and data->'people' @> to_jsonb(array[${memberId}::text])`;
     await tx`update jobs set created_by = 'erased' where created_by = ${memberId}`;
   });
 }

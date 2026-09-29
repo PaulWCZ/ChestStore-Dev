@@ -2,15 +2,16 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import { CategoryIcon, Plus, Seat, Trash } from "../../../components/icons.tsx";
+import { CategoryIcon, Plus, Seat, Sliders, Trash } from "../../../components/icons.tsx";
 import { useToast } from "../../../components/toast.tsx";
 import type { Catalogue } from "../../../lib/i18n/index.ts";
 import { format, plural } from "../../../lib/i18n/format.ts";
-import { icons, limits, type IconName } from "../../../lib/model.ts";
-import { dropCategory, newCategory, saveCategory, undoDropCategory } from "../actions.ts";
+import { fieldTypes, icons, kinds, limits, type FieldType, type IconName, type Kind } from "../../../lib/model.ts";
+import { dropCategory, dropField, newCategory, newField, saveCategory, saveField, undoDropCategory, undoDropField } from "../actions.ts";
 
 type Words = { settings: Catalogue["settings"]; icons: Catalogue["icons"]; errors: Catalogue["errors"]; common: Catalogue["common"] };
-type Cat = { id: string; name: string; builtIn: string | null; icon: IconName; licence: boolean; total: number };
+type FieldRow = { id: string; name: string; type: FieldType };
+type Cat = { id: string; name: string; builtIn: string | null; icon: IconName; kind: Kind; total: number; fields: FieldRow[] };
 
 // Each category on one line: its icon (a menu of icons), its name (saved when
 // one leaves the field), how many items, remove when empty (with Undo).
@@ -18,7 +19,7 @@ export function CategoriesView({ categories, t, locale }: { categories: Cat[]; t
   const router = useRouter();
   const toast = useToast();
   const [pending, start] = useTransition();
-  const [adding, setAdding] = useState({ name: "", icon: "box" as IconName, licence: false });
+  const [adding, setAdding] = useState({ name: "", icon: "box" as IconName, kind: "asset" as Kind });
   const [error, setError] = useState<string | null>(null);
   const w = t.settings;
   const show = (r: { ok: boolean; error?: keyof Catalogue["errors"]; values?: Record<string, string | number> }) => {
@@ -36,9 +37,14 @@ export function CategoriesView({ categories, t, locale }: { categories: Cat[]; t
               <IconMenu value={c.icon} label={format(w.iconOf, { name: label })} t={t} onPick={icon => start(async () => show(await saveCategory(c.id, { name: c.name, icon })))} />
               <div className="cat-name">
                 <label className="visually-hidden" htmlFor={`cat-${c.id}`}>{w.name}</label>
-                <input id={`cat-${c.id}`} className="field" defaultValue={c.name} placeholder={c.builtIn ?? ""} maxLength={limits.categoryName}
-                  onBlur={e => { const name = e.target.value.trim(); if (name !== c.name && (name || c.builtIn)) start(async () => show(await saveCategory(c.id, { name, icon: c.icon }))); }} />
-                <span className="small muted">{plural(w.count, c.total, locale)}{c.licence && <> · <Seat /> {w.licenceKind}</>}</span>
+                {/* A built-in category shows its name in the reader's language until renamed; emptied, it takes that name again. */}
+                <input id={`cat-${c.id}`} className="field" defaultValue={label} maxLength={limits.categoryName}
+                  onBlur={e => {
+                    const name = e.target.value.trim();
+                    if (name === label || (!name && !c.builtIn)) return;
+                    start(async () => show(await saveCategory(c.id, { name: name === c.builtIn ? "" : name, icon: c.icon })));
+                  }} />
+                <span className="small muted">{plural(w.count, c.total, locale)}{c.kind === "licence" && <> · <Seat /> {w.licenceKind}</>}{c.kind === "consumable" && <> · {w.consumableKind}</>}</span>
               </div>
               <button type="button" className="button small quiet" disabled={pending || c.total > 0} title={c.total > 0 ? w.inUse : undefined} onClick={() => start(async () => {
                 const r = await dropCategory(c.id);
@@ -46,6 +52,7 @@ export function CategoriesView({ categories, t, locale }: { categories: Cat[]; t
                 toast(format(w.removed, { name: label }), { label: t.common.undo, run: () => void undoDropCategory(c.id).then(() => router.refresh()) });
                 router.refresh();
               })}><Trash /><span>{w.remove}</span></button>
+              <FieldsEditor category={c} label={label} t={t} />
             </li>
           );
         })}
@@ -57,7 +64,7 @@ export function CategoriesView({ categories, t, locale }: { categories: Cat[]; t
           const r = await newCategory(adding);
           if (!r.ok) return setError(format(t.errors[r.error], r.values));
           toast(format(w.added, { name: adding.name.trim() }));
-          setAdding({ name: "", icon: "box", licence: false });
+          setAdding({ name: "", icon: "box", kind: "asset" });
           router.refresh();
         });
       }}>
@@ -69,7 +76,12 @@ export function CategoriesView({ categories, t, locale }: { categories: Cat[]; t
             <input id="cat-new" className="field" value={adding.name} onChange={e => setAdding(a => ({ ...a, name: e.target.value }))} placeholder={w.addPlaceholder} maxLength={limits.categoryName} />
           </div>
         </div>
-        <label className="check"><input type="checkbox" checked={adding.licence} onChange={e => setAdding(a => ({ ...a, licence: e.target.checked }))} /><span>{w.licence}</span></label>
+        <fieldset className="kind-choices">
+          <legend className="label">{w.kind}</legend>
+          {kinds.map(k => (
+            <label key={k} className="check"><input type="radio" name="new-kind" checked={adding.kind === k} onChange={() => setAdding(a => ({ ...a, kind: k }))} /><span>{w.kinds[k]}</span></label>
+          ))}
+        </fieldset>
         {error && <p className="error" role="alert">{error}</p>}
         <div><button type="submit" className="button" disabled={pending || !adding.name.trim()}><Plus />{w.add}</button></div>
       </form>
@@ -88,6 +100,70 @@ function IconMenu({ value, label, t, onPick }: { value: IconName; label: string;
             <CategoryIcon name={icon} /><span className="visually-hidden">{t.icons[icon]}</span>
           </button>
         ))}
+      </div>
+    </details>
+  );
+}
+
+// A category's own fields (IMEI, RAM, licence plate…): renamed when one
+// leaves the name, removed with Undo, added with a name and a type.
+function FieldsEditor({ category, label, t }: { category: Cat; label: string; t: Words }) {
+  const router = useRouter();
+  const toast = useToast();
+  const [pending, start] = useTransition();
+  const [name, setName] = useState("");
+  const [type, setType] = useState<FieldType>("text");
+  const [error, setError] = useState<string | null>(null);
+  const w = t.settings;
+  const summary = category.fields.length > 0 ? category.fields.map(f => f.name).join(" · ") : w.fieldsNone;
+  return (
+    <details className="fields-editor">
+      <summary className="button link small"><Sliders />{w.fields}<span className="muted fields-summary">{summary}</span></summary>
+      <div className="stack">
+        <h3 className="visually-hidden">{format(w.fieldsOf, { name: label })}</h3>
+        {category.fields.length > 0 && (
+          <ul className="field-list">
+            {category.fields.map(f => (
+              <li key={f.id}>
+                <label className="visually-hidden" htmlFor={`field-${f.id}`}>{format(w.renameField, { name: f.name })}</label>
+                <input id={`field-${f.id}`} className="field" defaultValue={f.name} maxLength={limits.fieldName}
+                  onBlur={e => { const v = e.target.value.trim(); if (v && v !== f.name) start(async () => { const r = await saveField(f.id, v); if (!r.ok) toast(format(t.errors[r.error], r.values)); router.refresh(); }); }} />
+                <span className="small muted">{w.fieldTypes[f.type]}</span>
+                <button type="button" className="icon-button" disabled={pending} onClick={() => start(async () => {
+                  const r = await dropField(f.id);
+                  if (!r.ok) return toast(format(t.errors[r.error], r.values));
+                  toast(format(w.fieldRemoved, { name: f.name }), { label: t.common.undo, run: () => void undoDropField(f.id).then(() => router.refresh()) });
+                  router.refresh();
+                })}><Trash /><span className="visually-hidden">{format(w.removeField, { name: f.name })}</span></button>
+              </li>
+            ))}
+          </ul>
+        )}
+        <form className="field-add" onSubmit={e => {
+          e.preventDefault();
+          setError(null);
+          start(async () => {
+            const r = await newField({ categoryId: category.id, name, type });
+            if (!r.ok) return setError(format(t.errors[r.error], r.values));
+            toast(format(w.fieldAdded, { name: name.trim() }));
+            setName("");
+            setType("text");
+            router.refresh();
+          });
+        }}>
+          <div className="form-field">
+            <label className="label" htmlFor={`new-field-${category.id}`}>{w.fieldName}</label>
+            <input id={`new-field-${category.id}`} className="field" value={name} onChange={e => setName(e.target.value)} maxLength={limits.fieldName} placeholder={w.fieldPlaceholder} />
+          </div>
+          <div className="form-field">
+            <label className="label" htmlFor={`new-type-${category.id}`}>{w.fieldType}</label>
+            <select id={`new-type-${category.id}`} className="field" value={type} onChange={e => setType(e.target.value as FieldType)}>
+              {fieldTypes.map(ft => <option key={ft} value={ft}>{w.fieldTypes[ft]}</option>)}
+            </select>
+          </div>
+          <button type="submit" className="button quiet" disabled={pending || !name.trim()}><Plus />{w.addField}</button>
+        </form>
+        {error && <p className="error" role="alert">{error}</p>}
       </div>
     </details>
   );

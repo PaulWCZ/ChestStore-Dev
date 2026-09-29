@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { Check } from "../../../components/icons.tsx";
 import { PublicShell } from "../../../components/public-shell.tsx";
-import { retentionWords } from "../../../lib/careers.ts";
+import { brandOf, retentionWords } from "../../../lib/careers.ts";
 import { db } from "../../../lib/db.ts";
 import { format } from "../../../lib/i18n/index.ts";
 import { publicJob, settings } from "../../../lib/jobs.ts";
@@ -20,7 +20,7 @@ export default async function Thanks({ params, searchParams }: { params: Promise
   const company = s.companyName || t.careers.titlePlain;
   const foot = <><span>{format(t.careers.footer, { company })}</span><span>{format(t.careers.privacy, { period: retentionWords(t, s.retentionMonths) })}</span></>;
   return (
-    <PublicShell company={company} locale={locale} label={t.careers.language} back={`/${job.slug}/thanks${mailed ? "?mailed=1" : ""}`} foot={foot}>
+    <PublicShell company={company} locale={locale} label={t.careers.language} back={`/${job.slug}/thanks${mailed ? "?mailed=1" : ""}`} foot={foot} brand={brandOf(s)} website={t.careers.website}>
       <section className="thanks" role="status">
         <span className="thanks-mark" aria-hidden="true"><Check /></span>
         <h1 className="display">{t.thanks.title}</h1>

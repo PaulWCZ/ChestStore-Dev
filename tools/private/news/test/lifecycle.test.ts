@@ -40,6 +40,9 @@ test("an erasure leaves the company's posts unsigned, removes the person's own r
   const { sql } = database;
   const mine = await posts.createPost(sql, asMember(camille), { kind: "welcome", title: "Welcome Hugo", welcome: hugo.id, important: true }, { zone });
   await posts.addComment(sql, asMember(hugo), mine.id, "Thanks!");
+  await posts.addComment(sql, asMember(ines), mine.id, `Welcome @[${hugo.id}]`);
+  const forHugo = await posts.createPost(sql, asMember(camille), { kind: "info", title: "For Hugo", people: [hugo.id, ines.id] }, { zone });
+  await posts.touch(sql, hugo.id);
   await posts.react(sql, asMember(hugo), mine.id, "heart", true);
   await posts.confirm(sql, asMember(hugo), mine.id);
   const hisEvent = await posts.createPost(sql, asMember(camille), { kind: "event", title: "Party", event: { day: "2099-06-01" } }, { zone });
@@ -54,7 +57,9 @@ test("an erasure leaves the company's posts unsigned, removes the person's own r
   const d = await posts.post(sql, asMember(ines), mine.id, { zone });
   assert.equal(d.author, "erased");
   assert.equal(d.welcome, "erased");
-  assert.deepEqual(d.thread.map(c => [c.author, c.body]), [["erased", "Thanks!"]]);
+  assert.deepEqual(d.thread.map(c => [c.author, c.body]), [["erased", "Thanks!"], [ines.id, "Welcome @[erased]"]]);
+  assert.deepEqual((await posts.post(sql, asMember(ines), forHugo.id, { zone })).people, [ines.id], "nobody knows the post was for him");
+  assert.equal((await sql`select 1 from activity where member = ${hugo.id}`).length, 0);
   assert.equal(d.reactionList.find(r => r.emoji === "heart")!.count, 1);
   assert.equal((await sql`select 1 from confirmations where member = ${hugo.id}`).length, 0);
   assert.equal((await sql`select 1 from rsvps where member = ${hugo.id}`).length, 0);

@@ -6,7 +6,7 @@ import { as, done, expect, id, open, step } from "./lib.mjs";
 
 const port = Number(process.argv[2] ?? 5400);
 const { browser, context, page, origin, problems } = await open(port, "sofia", { allow404: /\/chest\/people$/u });
-const tmp = process.env.TMPDIR ?? "/tmp";
+const tmp = process.env.FLOW_TMP ?? process.env.TMPDIR ?? "/tmp";
 const english = () => context.addCookies([{ name: "dev_locale", value: "en", url: origin }]);
 const dev = async () => (await page.request.get(origin + "/_dev")).text();
 await english();
@@ -181,7 +181,7 @@ await step("Tom leaves: nothing comes back by itself, the managers are told; Cam
 
 await step("categories: rename one and add one", async () => {
   await page.goto(origin + "/chest/settings");
-  const vehicles = page.locator(".cat-row input").nth(6);
+  const vehicles = page.locator(".cat-name input").nth(6);
   await vehicles.fill("Voitures de service");
   await page.locator("h1").click();
   await page.waitForTimeout(800);
@@ -189,13 +189,214 @@ await step("categories: rename one and add one", async () => {
   await page.getByRole("button", { name: "Ajouter une catégorie" }).click();
   await page.getByText("Drones ajoutée.").waitFor();
   await page.reload();
-  expect((await page.locator(".cat-row input").nth(6).inputValue()) === "Voitures de service", "renamed");
+  expect((await page.locator(".cat-name input").nth(6).inputValue()) === "Voitures de service", "renamed");
 });
 
 await step("the weekly run tells the managers what ends soon, in their language", async () => {
   await page.request.post(origin + "/_dev/schedule", { form: { name: "weekly" } });
   const text = await dev();
   expect(/garanties ou renouvellements arrivent à échéance/u.test(text), "French bell for Camille");
+});
+
+// ---- After the critique: receipts, sheets, requests, bulk add, fields,
+// supplies, inventory, repairs, Snipe-IT's own export --------------------------
+
+await step("Hugo confirms he received the keyboard, reading the rules, with a note; the managers hear the note", async () => {
+  await as(context, origin, "hugo");
+  await english();
+  await page.goto(origin + "/chest");
+  expect(/\d+ things? to confirm/u.test(await page.locator(".page-head").innerText()), "count to confirm");
+  const card = page.locator(".label-card.to-confirm", { hasText: "Logitech MX Keys" });
+  await card.getByRole("button", { name: "I received it" }).click();
+  expect(await page.getByRole("heading", { name: "The rules for company equipment" }).isVisible(), "rules shown");
+  expect((await page.locator("dialog[open]").innerText()).includes("Given by Sofia Rossi on"), "who gave it");
+  await page.getByLabel(/^Anything to note/u).fill("The Q key sticks a little");
+  await page.getByRole("button", { name: "I received it and accept the rules" }).click();
+  await page.getByText("Thank you. It’s confirmed.").waitFor();
+  await page.waitForTimeout(800);
+  await page.reload();
+  expect(await page.locator(".label-card.to-confirm", { hasText: "Logitech MX Keys" }).count() === 0, "the keyboard is confirmed");
+  expect(/Hugo received Logitech MX Keys.* EQ-0027, with a note/u.test(await dev()), "managers told of the note");
+});
+
+await step("the manager sees the receipt on the item and prints Hugo's handover sheet (serials, IMEI, receipt, rules, signatures) and return sheet", async () => {
+  await as(context, origin, "sofia");
+  await english();
+  await page.goto(origin + "/chest/items?q=EQ-0027");
+  await page.waitForURL(/\/chest\/items\/\d+$/u);
+  const panel = await page.locator(".holder-panel").innerText();
+  expect(panel.includes("Hugo Bernard confirmed receiving it on") && panel.includes("The Q key sticks a little"), "receipt: " + panel.slice(0, 200));
+  await page.getByRole("link", { name: "Print the handover sheet" }).click();
+  await page.waitForURL(/\/handover\?items=/u);
+  const one = await page.locator(".paper").innerText();
+  expect(one.includes("Equipment handover form") && one.includes("EQ-0027") && one.includes("Confirmed in Equipment on") && one.includes("Signature"), "one item's sheet");
+  await page.goto(origin + "/chest/people/" + id("hugo"));
+  await page.getByRole("link", { name: "Handover sheet" }).click();
+  await page.waitForURL(/\/handover$/u);
+  const sheet = await page.locator(".paper").innerText();
+  expect(sheet.includes("Hugo Bernard") && sheet.includes("IMEI: 356938035643809") && sheet.includes("Rules for company equipment") && sheet.includes("The employee") && sheet.includes("For the company"), "full sheet: " + sheet.slice(0, 300));
+  await page.goto(origin + "/chest/people/" + id("hugo") + "/return");
+  const back = await page.locator(".paper").innerText();
+  expect(back.includes("Equipment return form") && back.includes("Not returned"), "return sheet");
+});
+
+await step("Hugo asks for a privacy filter; Sofia gives one from the stock from the overview; Inès's request is refused with a reason", async () => {
+  await as(context, origin, "hugo");
+  await english();
+  await page.goto(origin + "/chest");
+  await page.getByRole("button", { name: "Ask for something" }).click();
+  await page.getByLabel("What do you need?").fill("A privacy filter for trains");
+  await page.getByLabel(/^Kind of thing/u).selectOption({ label: "Accessories" });
+  await page.getByRole("button", { name: "Send the request" }).click();
+  await page.getByText("Sent. The equipment managers will answer.").waitFor();
+  await page.waitForTimeout(800);
+  expect((await dev()).includes("Hugo asks for equipment"), "managers' bell");
+  await as(context, origin, "sofia");
+  await english();
+  await page.goto(origin + "/chest");
+  const request = page.locator("#requests .problem", { hasText: "A privacy filter for trains" });
+  await request.getByRole("button", { name: "Give…" }).click();
+  await page.getByPlaceholder("Find something in stock").fill("Dell P2422H");
+  await page.locator("dialog[open] .pick-list button").first().click();
+  await page.getByText("Given to Hugo Bernard.").waitFor();
+  await page.waitForTimeout(800);
+  expect(/Sofia gave you Dell P2422H for your request/u.test(await dev()), "Hugo told");
+  await page.reload();
+  const refuse = page.locator("#requests .problem", { hasText: "Un second écran" });
+  await refuse.getByRole("button", { name: "Refuse" }).click();
+  await page.getByLabel("Why? They will read it.").fill("We have spare 24-inch screens: pick one up at reception.");
+  await page.locator("dialog[open]").getByRole("button", { name: "Refuse" }).click();
+  await page.getByText("Refused. Inès Moreau is told.").waitFor();
+  await page.waitForTimeout(800);
+  expect((await dev()).includes("Sofia a refusé votre demande"), "Inès told, in French");
+});
+
+await step("three identical laptops at once, serials pasted from the delivery note; one more, added and given at once", async () => {
+  await page.goto(origin + "/chest/items/new");
+  await page.getByLabel("Name or model").fill("Lenovo ThinkPad T14 Gen 5");
+  await page.getByLabel("How many?").fill("3");
+  await page.getByLabel(/^Serial numbers/u).fill("PF5AA001\nPF5AA002\nPF5AA003");
+  await page.getByRole("button", { name: "Add 3 items" }).click();
+  await page.getByText(/3 items added: EQ-\d+ to EQ-\d+\./u).waitFor();
+  await page.waitForURL(/sort=newest/u);
+  expect((await page.locator(".line-name").allTextContents()).filter(n => n === "Lenovo ThinkPad T14 Gen 5").length === 3, "three in the list");
+  expect((await page.locator(".lines").innerText()).includes("PF5AA003"), "serials kept");
+  await page.goto(origin + "/chest/items/new");
+  await page.getByLabel("Name or model").fill("Jabra Evolve2 55");
+  await page.getByRole("button", { name: "Add and give to someone" }).click();
+  await page.waitForURL(/\/chest\/items\/\d+/u);
+  await page.getByPlaceholder("Find someone").fill("ine");
+  await page.locator(".pick-list button", { hasText: "Inès Moreau" }).click();
+  await page.getByRole("button", { name: "Give it to Inès Moreau" }).click();
+  await page.getByText("Given to Inès Moreau.").waitFor();
+});
+
+await step("fields: phones carry an IMEI (searchable); a manager adds one to laptops, and fills it", async () => {
+  await page.goto(origin + "/chest/items?q=356938035643817");
+  expect((await page.locator(".line-name").allTextContents()).join("|") === "iPhone 15", "found by its IMEI");
+  await page.locator(".line-main").first().click();
+  await page.waitForURL(/\/chest\/items\/\d+$/u);
+  expect((await page.locator(".facts").innerText()).includes("356938035643817"), "IMEI shown");
+  await page.goto(origin + "/chest/settings");
+  const laptops = page.locator(".cat-row").first();
+  await laptops.locator(".fields-editor summary").click();
+  await laptops.getByLabel("New field").fill("MDM ID");
+  await laptops.getByRole("button", { name: "Add the field" }).click();
+  await page.getByText("MDM ID added.").waitFor();
+  await page.goto(origin + "/chest/items?q=EQ-0006");
+  await page.waitForURL(/\/chest\/items\/\d+$/u);
+  await page.locator(".holder-panel summary", { hasText: "More" }).click();
+  await page.getByRole("link", { name: "Edit" }).click();
+  await page.getByLabel(/^MDM ID/u).fill("INTUNE-7F3A-22");
+  await page.getByRole("button", { name: "Save" }).click();
+  await page.waitForURL(/\/chest\/items\/\d+$/u);
+  expect((await page.locator(".facts").innerText()).includes("INTUNE-7F3A-22"), "field saved");
+});
+
+await step("supplies: two chargers left under a minimum of 3 — handed out, the managers hear it; restocked, the word goes", async () => {
+  await page.goto(origin + "/chest");
+  expect((await page.locator("#low").innerText()).includes("USB-C charger 65 W"), "running low on the overview");
+  await page.locator("#low a", { hasText: "USB-C charger 65 W" }).click();
+  await page.waitForURL(/\/chest\/items\/\d+$/u);
+  await page.getByRole("button", { name: "Hand out" }).click();
+  await page.getByRole("radio", { name: "To a person" }).check();
+  await page.getByPlaceholder("Find someone").fill("hug");
+  await page.locator("dialog[open] .pick-list button", { hasText: "Hugo Bernard" }).click();
+  await page.getByRole("button", { name: "Hand them out" }).click();
+  await page.getByText("1 handed out.").waitFor();
+  await page.waitForTimeout(800);
+  expect((await dev()).includes("USB-C charger 65 W: 1 left"), "low-stock bell");
+  await page.getByRole("button", { name: "Add stock" }).click();
+  await page.getByLabel("How many came in").fill("10");
+  await page.getByRole("button", { name: "Add to the stock" }).click();
+  await page.getByText("10 added to the stock.").waitFor();
+  await page.waitForTimeout(800);
+  expect(!(await dev()).includes("USB-C charger 65 W: 1 left"), "bell withdrawn");
+  expect((await page.locator(".holder-panel").innerText()).includes("11 in stock"), "count");
+});
+
+await step("a repair with its ticket and return day shows on the overview", async () => {
+  await page.goto(origin + "/chest/items?q=EQ-0022");
+  await page.waitForURL(/\/chest\/items\/\d+$/u);
+  await page.locator(".holder-panel summary", { hasText: "More" }).click();
+  await page.getByRole("button", { name: "Change the status" }).click();
+  await page.locator("dialog[open] label.choice", { hasText: "In repair" }).click();
+  await page.getByLabel(/^Repairer’s ticket/u).fill("RMA-88120");
+  const due = new Date(Date.now() + 10 * 864e5).toISOString().slice(0, 10);
+  await page.getByLabel(/^Expected back/u).fill(due);
+  await page.locator("dialog[open]").getByRole("button", { name: "Save" }).click();
+  await page.waitForTimeout(1000);
+  await page.reload();
+  expect((await page.locator(".holder-panel").innerText()).includes("ticket RMA-88120"), "repair line");
+  await page.goto(origin + "/chest");
+  expect((await page.locator(".panel", { hasText: "Dell P2422H" }).last().innerText()).includes("expected back"), "overview");
+});
+
+await step("the inventory under way: a scanner types a tag or a label's link, a phone's camera opens a label and taps Seen; closed, the missing are listed", async () => {
+  await page.goto(origin + "/chest");
+  await page.getByRole("link", { name: "Inventory under way" }).click();
+  await page.waitForURL(/\/chest\/inventory$/u);
+  const seenBefore = Number((await page.locator(".scan-panel .holder-line").innerText()).split(" ")[0]);
+  await page.getByLabel("Scan a label or type an asset tag").fill("eq-0002");
+  await page.keyboard.press("Enter");
+  await page.getByText(/EQ-0002 .*: seen\./u).waitFor();
+  await page.getByLabel("Scan a label or type an asset tag").fill(origin + "/chest/items/4");
+  await page.keyboard.press("Enter");
+  await page.getByText(/EQ-0004 .*: seen\./u).waitFor();
+  await page.goto(origin + "/chest/items/5");
+  await page.getByRole("button", { name: "Seen", exact: true }).click();
+  await page.getByText("Seen in this inventory.").waitFor();
+  await page.goto(origin + "/chest/inventory");
+  const seenAfter = Number((await page.locator(".scan-panel .holder-line").innerText()).split(" ")[0]);
+  expect(seenAfter === seenBefore + 3, `progress ${seenBefore} → ${seenAfter}`);
+  await page.getByRole("button", { name: "Close the inventory" }).click();
+  await page.waitForURL(/\/chest\/inventory\/\d+$/u);
+  expect((await page.locator("main").innerText()).includes("missing"), "report");
+  // A new one can start.
+  await page.goto(origin + "/chest/inventory");
+  expect(await page.getByRole("button", { name: "Start an inventory" }).isVisible(), "start again");
+});
+
+await step("Snipe-IT's Custom Asset Report imports with its custom fields kept", async () => {
+  await page.goto(origin + "/chest/import");
+  await page.locator(".source").nth(0).locator("input[type=file]").setInputFiles("tools/private/equipment/test/fixtures/snipe-it-custom-asset-report.csv");
+  await page.getByText("Check before importing").waitFor();
+  const preview = await page.locator(".summary-box").innerText();
+  expect(preview.includes("Keep these columns as fields") && preview.includes("IMEI") && preview.includes("New fields:"), "preview: " + preview.slice(0, 300));
+  await page.getByRole("checkbox", { name: "MAC Address" }).uncheck();
+  await page.waitForTimeout(800);
+  await page.getByRole("button", { name: "Import 9 items" }).click();
+  await page.getByText("9 items imported.").waitFor();
+  await page.goto(origin + "/chest/items?q=ATL-0012");
+  await page.waitForURL(/\/chest\/items\/\d+$/u);
+  const facts = await page.locator(".facts").innerText();
+  expect(facts.includes("macOS 15 Sequoia") && !facts.includes("A4:83"), "fields: " + facts.slice(0, 300));
+});
+
+await step("the initials of someone who left are theirs: TW for “Tom Walker (former member)”", async () => {
+  await page.goto(origin + "/chest/people/" + id("tom"));
+  expect((await page.locator(".person-head h1").innerText()).includes("(former member)"), "former");
+  expect((await page.locator(".person-head .avatar").innerText()).trim() === "TW", "initials");
 });
 
 await step("phone, French: Inès reports a problem from her list; no horizontal scroll", async () => {
@@ -205,13 +406,15 @@ await step("phone, French: Inès reports a problem from her list; no horizontal 
   p.on("pageerror", e => problems.push("phone: " + e.message));
   await p.goto(origin + "/chest");
   expect(await p.getByRole("heading", { name: "Mon matériel" }).isVisible(), "mine fr");
+  const text = await p.locator("main").innerText();
+  expect(text.includes("1er février 2023") && text.includes("Licence attribuée le"), "French dates and words");
   const wide = await p.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
   expect(!wide, "no horizontal scroll");
-  await p.locator(".label-card", { hasText: "iPhone 15" }).getByRole("button", { name: "Signaler un problème" }).click();
+  await p.locator(".label-card", { hasText: "EQ-0011" }).getByRole("button", { name: "Signaler un problème" }).click();
   await p.getByLabel("Qu’est-ce qui ne va pas ?").fill("L’écran est fissuré");
   await p.getByRole("button", { name: "Envoyer aux gestionnaires" }).click();
   await p.getByText("Envoyé. Les gestionnaires du matériel sont prévenus.").waitFor();
-  for (const path of ["/chest/items", "/chest/items/2"]) {
+  for (const path of ["/chest/items", "/chest/items/2", "/chest/people/" + id("ines") + "/handover"]) {
     await p.goto(origin + path);
     expect(!(await p.evaluate(() => document.documentElement.scrollWidth > window.innerWidth)), "no scroll on " + path);
   }

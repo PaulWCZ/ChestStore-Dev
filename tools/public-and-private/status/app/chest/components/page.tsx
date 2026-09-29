@@ -12,9 +12,9 @@ export default async function ComponentsPage() {
   const { t } = v;
   const sql = db();
   const now = new Date();
-  const [list, incidents] = await Promise.all([allComponents(sql), recent(sql, now)]);
+  const [list, incidents] = await Promise.all([allComponents(sql), recent(sql, now, undefined, { team: true })]);
   const states = currentStates(forTimeline(incidents), now.getTime());
-  const row = (c: (typeof list)[number]): Row => ({ id: c.id, kind: c.kind, name: c.name, description: c.description, hidden: c.hidden, parentId: c.parentId, state: states.get(c.id) ?? "operational" });
+  const row = (c: (typeof list)[number]): Row => ({ id: c.id, kind: c.kind, name: c.name, description: c.description, hidden: c.hidden, teamOnly: c.teamOnly, parentId: c.parentId, state: states.get(c.id) ?? "operational" });
   const entries = tree(list).map(e => ({ ...row(e), children: e.children.map(row) }));
   return (
     <main className="narrow stack-l">

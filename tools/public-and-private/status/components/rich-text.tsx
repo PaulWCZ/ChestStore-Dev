@@ -19,10 +19,10 @@ function linked(text: string, keyBase: string): ReactNode[] {
   return out;
 }
 
-export function RichText({ text, className = "prose" }: { text: string; className?: string }) {
+export function RichText({ text, className = "prose", lang }: { text: string; className?: string; lang?: string | undefined }) {
   const paragraphs = text.split(/\n{2,}/u).filter(p => p.trim() !== "");
   return (
-    <div className={className}>
+    <div className={className} lang={lang}>
       {paragraphs.map((p, i) => <p key={i}>{linked(p, String(i))}</p>)}
     </div>
   );

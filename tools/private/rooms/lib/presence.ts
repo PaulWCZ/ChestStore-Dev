@@ -2,6 +2,7 @@ import type { Member } from "@argentic/chest-sdk/member";
 import { can } from "./access.ts";
 import { AppError } from "./app-error.ts";
 import type { Query, Sql } from "./db.ts";
+import { dayKey, enqueue } from "./calendar.ts";
 import { cancelDeskBookings } from "./places.ts";
 import { day, daysBetween, id, isStatus, today, type Status } from "./model.ts";
 
@@ -25,6 +26,9 @@ export async function setPresence(sql: Sql, actor: Member | null, input: { day?:
     const [before] = await tx<{ status: Status; office_id: string | null }[]>`select status, office_id from presence where member_id = ${actor.id} and day = ${d} for update`;
     const previous: Said | null = before ? { status: before.status, officeId: before.office_id === null ? null : String(before.office_id) } : null;
     let freed: string[] = [];
+    // The person said it: their usual week never changes this day again.
+    await tx`insert into usual_applied (member_id, day) values (${actor.id}, ${d}) on conflict do nothing`;
+    await enqueue(tx, [dayKey(actor.id, d)]);
     if (status === null) {
       await tx`delete from presence where member_id = ${actor.id} and day = ${d}`;
     } else {
@@ -44,7 +48,7 @@ export async function setPresence(sql: Sql, actor: Member | null, input: { day?:
       }
       await tx`
         insert into presence (member_id, day, status, office_id) values (${actor.id}, ${d}, ${status}, ${office})
-        on conflict (member_id, day) do update set status = excluded.status, office_id = excluded.office_id, leave_ref = null`;
+        on conflict (member_id, day) do update set status = excluded.status, office_id = excluded.office_id, leave_ref = null, usual = false`;
     }
     return { previous, freed };
   });

@@ -4,7 +4,8 @@ import { useRouter } from "next/navigation";
 import { useMemo, useState, useTransition } from "react";
 import { ItemLine } from "../../../../components/bits.tsx";
 import { Dialog } from "../../../../components/dialog.tsx";
-import { CategoryIcon, Give, Search, TakeBack } from "../../../../components/icons.tsx";
+import Link from "next/link";
+import { CategoryIcon, Give, Print, Search, TakeBack } from "../../../../components/icons.tsx";
 import { useToast } from "../../../../components/toast.tsx";
 import type { Catalogue } from "../../../../lib/i18n/index.ts";
 import { format, plural } from "../../../../lib/i18n/format.ts";
@@ -16,10 +17,15 @@ type Words = { person: Catalogue["person"]; errors: Catalogue["errors"]; common:
 
 // A person's equipment as a checklist: take one thing back, or everything
 // at once (Undo gives it all back); give them something from the stock.
-export function PersonView({ holder, name, present, gone, items, seats, offer, count, leaving = null, t, locale }: {
+export function PersonView({ holder, name, present, gone, items, seats, offer, count, leaving = null, receipt = {}, sheets = null, t, locale }: {
   holder: string; name: string; present: boolean; gone: boolean; items: Row[]; seats: Row[]; offer: Row[]; count: number;
   // "Last day: Monday 12 October…", when People told Equipment they leave.
-  leaving?: string | null; t: Words; locale: string;
+  leaving?: string | null;
+  // Per item held: did they confirm receiving it?
+  receipt?: Record<string, "confirmed" | "waiting">;
+  // Their handover and return sheets.
+  sheets?: { handover: string; back: string } | null;
+  t: Words; locale: string;
 }) {
   const router = useRouter();
   const toast = useToast();
@@ -70,6 +76,7 @@ export function PersonView({ holder, name, present, gone, items, seats, offer, c
 
   const back = (row: Row) => (
     <span className="line-act">
+      {receipt[row.id] && <span className={receipt[row.id] === "confirmed" ? "stamp st-received" : "stamp st-confirm"}>{receipt[row.id] === "confirmed" ? t.person.confirmed : t.person.toConfirm}</span>}
       <button type="button" className="button small quiet" disabled={pending} onClick={() => takeOne(row)}>
         <TakeBack /><span aria-hidden="true">{t.item.takeBack}</span><span className="visually-hidden">{format(t.takeBack.title, { name: row.name })}</span>
       </button>
@@ -83,6 +90,8 @@ export function PersonView({ holder, name, present, gone, items, seats, offer, c
       <div className="row">
         {count > 0 && <button type="button" className="button" disabled={pending} onClick={takeAll}><TakeBack />{t.person.takeAll}</button>}
         {present && <button type="button" className={count > 0 ? "button quiet" : "button"} onClick={() => { setError(null); setGiving(true); }}><Give />{t.person.give}</button>}
+        {sheets && count > 0 && <Link className="button quiet" href={sheets.handover}><Print />{t.person.handover}</Link>}
+        {sheets && <Link className="button quiet" href={sheets.back}><Print />{t.person.returnSheet}</Link>}
       </div>
       {count === 0 && <div className="empty"><p>{t.person.empty}</p></div>}
       {items.length > 0 && (

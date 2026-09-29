@@ -105,6 +105,16 @@ legend { padding: 0; }
 .company-name { font-weight: 700; font-size: var(--text-l); letter-spacing: -0.01em; overflow-wrap: anywhere; }
 .company-sub { color: var(--ink-2); font-weight: 500; padding-left: var(--space-3); border-left: 1px solid var(--line-strong); }
 .public-actions { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; }
+.back-site { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; color: var(--ink-2); font-size: var(--text-s); font-weight: 600; text-decoration: none; }
+.back-site:hover { text-decoration: underline; }
+.logo { display: inline-flex; }
+.logo img { display: block; height: 40px; width: auto; max-width: 220px; }
+/* The company's brand (lib/brand.ts): its colour on the mark, the main
+   button and links of the public pages; states keep their own colours. */
+.branded { --accent: var(--brand); --accent-ink: var(--brand-ink); --link: var(--brand-text); }
+.branded .public-head { border-bottom: 3px solid var(--brand); }
+.postmortem { padding: var(--space-5); display: grid; gap: var(--space-2); }
+.postmortem h2 { font-size: var(--text-l); }
 .languages { display: inline-flex; border: 1px solid var(--line-strong); border-radius: var(--radius-m); overflow: hidden; }
 .languages a { display: inline-flex; align-items: center; min-height: 36px; padding: 0 var(--space-3); color: var(--ink-2); text-decoration: none; font-size: var(--text-s); font-weight: 600; }
 .languages a[aria-current="true"] { background: var(--ink); color: var(--bg); }
@@ -163,7 +173,8 @@ legend { padding: 0; }
 .tick:hover .tip, .tick:focus-within .tip { display: grid; gap: 2px; }
 .history-legend { display: flex; align-items: center; gap: var(--space-2); color: var(--ink-3); font-size: var(--text-xs); }
 .history-legend .rule { flex: 1; height: 1px; background: var(--line); }
-.history-legend .uptime { color: var(--ink-2); font-weight: 600; font-family: var(--font-mono); }
+.history-legend .uptime { color: var(--ink-2); font-weight: 600; font-family: var(--font-mono); text-align: center; }
+.history-legend .slower { font-family: var(--font-body); font-weight: 500; }
 .history-legend .narrow { display: none; }
 .measured { display: flex; align-items: center; gap: 6px; color: var(--ink-2); font-size: var(--text-xs); font-weight: 600; }
 .measured svg { color: var(--s-maintenance); }
@@ -333,6 +344,8 @@ details[open] > .summary-button { margin-bottom: var(--space-4); }
   .public-bar { min-height: 60px; }
   .company-name { font-size: var(--text-m); }
   .company-sub { display: none; }
+  .back-site { display: none; }
+  .logo img { height: 32px; max-width: 160px; }
   .banner { padding: var(--space-4); gap: var(--space-3); }
   .banner > svg { width: 30px; height: 30px; }
   .banner h1 { font-size: var(--text-xl); }
@@ -359,3 +372,31 @@ details[open] > .summary-button { margin-bottom: var(--space-4); }
   .page-head .actions .button { flex: 1; }
   .component-children { margin-left: var(--space-3); }
 }
+
+/* Settings */
+.snippet { display: grid; gap: var(--space-1); }
+.snippet-row { display: flex; gap: var(--space-2); align-items: center; }
+.snippet-row .field { flex: 1; min-width: 0; }
+.field.mono { font-family: var(--font-mono); font-size: var(--text-s); }
+.plain-list { list-style: none; margin: 0; padding: 0; }
+.plain-row { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); padding: var(--space-2) 0; border-top: 1px solid var(--line); }
+.plain-row:first-child { border-top: 0; }
+.resolved-line { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); flex-wrap: wrap; padding: var(--space-3) var(--space-4); border-radius: var(--radius-m); background: var(--s-operational-tint); color: var(--s-operational-ink); font-weight: 600; }
+.second-toggle { font-weight: 500; }
+.second-title, .second-body { margin-top: var(--space-1); }
+.template-pick .field { max-width: 420px; }
+.setup { text-align: center; padding: var(--space-7) var(--space-4); }
+
+/* A row's rarer actions: a "···" menu (details/summary: keyboard and
+   screen readers without script). */
+.menu { position: relative; }
+.menu > summary { list-style: none; font-weight: 700; letter-spacing: 0.05em; }
+.menu > summary::-webkit-details-marker { display: none; }
+.menu[open] > summary { background: var(--surface-2); color: var(--ink); }
+.menu-list { position: absolute; right: 0; top: calc(100% + 4px); z-index: 20; min-width: 220px; display: grid; padding: var(--space-1); background: var(--surface); border: 1px solid var(--line-strong); border-radius: var(--radius-m); box-shadow: var(--shadow-2); }
+.menu-list button { display: flex; align-items: center; gap: var(--space-2); min-height: 44px; padding: 0 var(--space-3); border: 0; background: none; color: var(--ink); font: inherit; font-size: var(--text-s); text-align: left; border-radius: var(--radius-s); cursor: pointer; }
+.menu-list button:hover:not([disabled]), .menu-list button:focus-visible { background: var(--surface-2); }
+.menu-list button[disabled] { color: var(--ink-3); cursor: default; }
+.menu-list button.danger { color: var(--danger); }
+.menu-list svg { width: 18px; height: 18px; flex: none; }
+.line-actions { display: inline-flex; align-items: center; gap: var(--space-2); margin-left: auto; }

@@ -1,5 +1,6 @@
 import * as events from "@argentic/chest-sdk/events";
 import { leaveApproved, leaveCancelled } from "../../lib/away.ts";
+import { flush } from "../../lib/calendar.ts";
 import { db } from "../../lib/db.ts";
 import { handlers, seen } from "../../lib/lifecycle.ts";
 import { zone } from "../../lib/zone.ts";
@@ -13,8 +14,8 @@ export async function POST(request: Request): Promise<Response> {
     status: await events.handle(request, handlers(sql), {
       seen: seen(sql),
       tools: {
-        "leave.approved": async e => { await leaveApproved(sql, e, zone()); },
-        "leave.cancelled": async e => { await leaveCancelled(sql, e); },
+        "leave.approved": async e => { await leaveApproved(sql, e, zone()); await flush(sql, zone()); },
+        "leave.cancelled": async e => { await leaveCancelled(sql, e); await flush(sql, zone()); },
       },
     }),
   });

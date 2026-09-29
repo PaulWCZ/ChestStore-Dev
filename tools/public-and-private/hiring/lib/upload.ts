@@ -40,3 +40,21 @@ export async function uploadCv(file: File, grantUrl: string, extra: Record<strin
     return { ok: false, error: "unavailable" };
   }
 }
+
+// An image of the careers page (logo, photo): PNG, JPEG or WebP, 2 MB.
+export const imageAccept = "image/png,image/jpeg,image/webp";
+export async function uploadImage(file: File, grantUrl = "/chest/api/image"): Promise<UploadResult> {
+  if (!["image/png", "image/jpeg", "image/webp"].includes(file.type)) return { ok: false, error: "invalid" };
+  if (file.size > 2 << 20) return { ok: false, error: "too_large_image" };
+  try {
+    const answer = await fetch(grantUrl, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ type: file.type, size: file.size }) });
+    const grant = (await answer.json().catch(() => ({}))) as { url?: string; ticket?: string; error?: ErrorCode };
+    if (!answer.ok || !grant.url || !grant.ticket) return { ok: false, error: grant.error ?? "unavailable" };
+    const put = await fetch(grant.url, { method: "PUT", body: file, headers: { "Content-Type": file.type } });
+    if (put.status === 413) return { ok: false, error: "too_large_image" };
+    if (!put.ok) return { ok: false, error: put.status === 429 ? "too_many" : "unavailable" };
+    return { ok: true, ticket: grant.ticket };
+  } catch {
+    return { ok: false, error: "unavailable" };
+  }
+}

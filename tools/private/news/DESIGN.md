@@ -43,14 +43,21 @@ picture beside on a phone), kickers and flags (kind in red, *Pinned*,
 blocks), article head (kicker, headline, byline row with tools), drop cap,
 event box, confirm box, welcome card, reaction pills, readers panel with a
 meter, comments, the composer (kind choice cards, headline field in serif,
-Markdown toolbar with Write/Preview tabs, side cards, sticky action bar),
+a text editor that shows formatting as typed under a sticky icon toolbar —
+pressed tools inverted to ink —, language tabs, side cards, a sticky action
+bar whose red button says who will be told, with *Schedule…* beside it),
 buttons (red primary, ink outline quiet, red outline danger, all 44 px),
 toasts with *Undo*, empty states. The search: a field in the topbar (a
 magnifier button on a phone), a results list under a thick rule, the words
 found struck with the marker pen (`<mark>`, `--highlight`, semi-bold), the
 comments found indented under a hairline edge. The audience: an ink-grey
 *For Sales* flag with a people icon, a highlight notice on the article,
-"Who can see it" radio cards in the composer.
+"Who is it for?" radio cards in the composer with group checkboxes, a
+name picker (ink-outlined pill chips) and a live count. The reach panel
+(a big serif percentage, counts only), the earlier versions (a hairline-
+edged list under a disclosure), the gallery (a grid of 4:3 pictures,
+videos full width), replies indented under their comment with @mentions
+in press red, the "going out in 10 s" notice with its Undo button.
 
 ## Icon
 

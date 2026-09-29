@@ -13,36 +13,80 @@ in?*
 
 - **My week** (home): each working day of this week and the next, where I
   am — *Office*, *Remote*, *Off* — in one tap; who else is at the office
-  that day (faces and a count); my desk and my meetings under each day.
-  Saying *Office* offers my usual desk in one tap (the one given to me, or
-  the one I booked last); saying *Remote* or *Off* frees the desk I had
-  that day, with *Undo*.
+  that day (faces and a count, my teams first: "3 people at the office · 1
+  from your team"); my desk and my meetings under each day. Saying
+  *Office* offers my usual desk in one tap (the one given to me, the one of
+  my usual week, or the one I booked last); saying *Remote* or *Off* frees
+  the desk I had that day, with *Undo*. One Tab stop per day: the arrow
+  keys move between *Office*, *Remote* and *Off*.
+- **My usual week**: for each working day, *Office*, *Remote*, *Off* or
+  nothing, and the desk I want on office days. As days enter the booking
+  window, Rooms says them for me and books that desk — once per day: a day
+  I change myself is never changed again, and changing the usual week
+  takes back only what the old one did. Nothing runs in the background:
+  it is applied when any page of the tool is read.
+- **In everyone's calendar** (**Proposal (studio)**: `calendar`): every
+  room booking is an event in the Chest calendar feed of its organiser and
+  its guests (each in their language), moved when it moves, gone when it
+  is cancelled; every day at the office is a whole "free" day with the
+  desk in the member's own feed. Each booking downloads as an `.ics` file
+  (*Add to my calendar*), and so do all my coming bookings. Guests get an
+  email with the `.ics` when the Chest can send email (**Proposal
+  (studio)**: `mail`).
 - **Desks**: pick a day and *whole day / morning / afternoon*; tap a free
   desk on the plan (each floor's areas as tiles) or in the list of free
   desks; filter by what a desk offers (screen, dock, standing, window,
   quiet). Tapping another desk moves my booking there. A desk *given* to
   someone is theirs: nobody else books it.
-- **Rooms**: the day's grid (rooms × quarter hours, 07:00–20:00 by
+- **Rooms**: *Find a free room* — how many people, at what time, for how
+  long, with what — lists the rooms free then (and how many are busy or too
+  small); on today it starts at the current quarter hour: the rooms free
+  now. Then the day's grid (rooms × quarter hours, 07:00–20:00 by
   default); click or drag an empty stretch, or press *Book a room*. Title
   and guests optional; guests hear it in the Chest's bell, in their own
   language. Change the time, room or guests; cancel with *Undo*; repeat
   *every week on this day for N weeks* (each occurrence is a booking of its
   own, cancelled one by one or "this and the next ones"). On a phone the
-  grid becomes a list of rooms with their free slots.
+  grid becomes a list of rooms with their free slots ("Tap a free time").
+  A tap outside a booking form someone started does not close it; moving
+  the start keeps the length chosen. Days beyond how far ahead one may book
+  say "Not open for booking yet: it opens on …" instead of offering desks
+  and rooms that would then be refused.
+- **Check-in** (off by default; **Proposal (studio)**: `schedules`): a
+  reminder in the bell a quarter of an hour before each meeting; when an
+  admin turns check-in on, people tap *I'm here* (from ten minutes before),
+  and a room nobody checked in to is freed 15 to 30 minutes after its
+  start — its people told. A room booked on the spot counts as checked in.
 - **No double booking, enforced by PostgreSQL**: exclusion constraints on
   time ranges (`tstzrange`) refuse two live bookings of one desk or one room
   that overlap, and two desks for one person at once — whatever runs at the
   same moment. The second person is told *Someone just took it*.
 - **Who's where**: everyone on a day, grouped *at the office / remote / off
-  / not said*, with their desk; search a name — *Where is Léa today?* — to
-  see that person's coming days too.
+  / not said*, with their desk; a team chip (the Chest's groups: Sales,
+  Tech…; **Proposal (studio)**: `groups`) keeps that team; search a name —
+  *Where is Léa today?* — to see that person's coming days too.
+- **Given desks lent**: a desk given to someone is booked by others on the
+  days its holder said *Remote* or *Off* (or Leave told Rooms they are
+  away), unless the holder keeps it (*My usual week*). The holder sees
+  "Your desk D-12 is lent to Léa that day".
+- **For someone else** (admins): book a room or a desk for a person who
+  has Rooms; they are told in the bell.
+- **Kept for a team**: a room or a desk area may be kept for one Chest
+  group ("Sales only"); only its members and admins book there.
+- **Moving in** (admins, *Places*): rooms from Google Workspace's resources
+  CSV (floors made, seats and equipment read), and who has which desk from
+  any sheet (desk, person's name, optional area); both only add what is
+  missing and say line by line what they left out. **My data**: a member
+  downloads everything Rooms keeps about them (CSV).
 - **Places** (admins): offices (name, address), floors, meeting rooms
   (seats, equipment, a note, a photo), desk areas and desks (added by the
   dozen, numbered on: D-07, D-08…), a desk given to someone. **Rules**: how
   many days ahead (14), desk days per person and week (no limit), how long a
   weekly booking lasts (12 weeks), the rooms' hours, the working days, how
-  long past bookings are kept (12 months). **Export**: every booking of a
-  period, and the occupancy per day (counts only), as CSV.
+  long past bookings are kept (12 months), check-in. **Export**: how full
+  the office is on each working day (the last eight weeks' average, a bar
+  per day, counts only), every booking of a period, and the occupancy per
+  day (counts only), as CSV.
 
 | Role (`chest.json`) | Label | May |
 |---|---|---|
@@ -61,14 +105,17 @@ tool's builders come in with the first role.
   their bookings. Before an admin sets up the office: "No office yet" and,
   for an admin, *Set up the office*.
 - **The first thing they do:** tap *Office* on Thursday. The card offers
-  *Book D-04* (their usual desk) — one more tap.
+  *Book D-04* (their usual desk) — one more tap. Or once, *My usual week*:
+  Monday to Thursday *Office*, a desk, *Save* — the coming weeks fill
+  themselves.
 - **Clicks for the main jobs:** presence 1; a desk 1 from the plan (2 from
-  home); a room 2–4 (drag, *Book*; title and guests optional).
+  home); a room 2–4 (drag, *Book*; title and guests optional), or 2 from
+  *Find a free room* (the room, *Book*).
 - **A mistake:** every booking, cancellation and desk freed shows a toast
   with *Undo* (8 s). A slot someone took meanwhile is refused in plain words;
   the form stays open to pick another time. Removing a room or a desk asks
   a second click and says how many bookings were cancelled (their people are
-  told).
+  told). A tap outside a form someone started keeps it open.
 
 ## Routes
 
@@ -77,19 +124,25 @@ tool's builders come in with the first role.
 | `/chest` | members | My week (`?day=` highlights a day: the bell's links) |
 | `/chest/desks` | members | Book a desk (`?day`, `part`, `view=list`, `f=screen,window`, `office`) |
 | `/chest/rooms` | members | The rooms' day (`?day`, `booking=<id>` opens one, `office`) |
-| `/chest/people` | members | Who's where (`?day`, `q`) |
+| `/chest/people` | members | Who's where (`?day`, `q`, `team`) |
+| `/chest/calendar/room/<id>` | members | One booking as an `.ics` file |
+| `/chest/calendar/mine` | members | All my coming bookings and office days, `.ics` |
+| `/chest/mine` | members | Everything Rooms keeps about me, CSV |
 | `/chest/places`, `/rules`, `/export` | admins | Offices; rules; downloads |
 | `/chest/export?kind=bookings\|occupancy&from&to` | admins | CSV |
 | `/chest/api/rooms/<id>/photo` | admins | Authorise (POST) and record (PUT) a room photo upload |
 | `/chest/files/rooms/<id>` | members | A room photo: a fresh signed thumbnail link |
-| `/chest-events` | the Chest only (signed) | members' lifecycle |
+| `/chest-events` | the Chest only (signed) | members' lifecycle; Leave's events |
+| `/chest-jobs/quarter` | the Chest only (signed) | every quarter of an hour: reminders, check-in |
 | `/` | anyone (public host) | "This tool lives in your Chest", with a language switch |
 
 ## On a Chest
 
 - `capabilities`: `database`, `files` (room photos), `members` (names,
   photos, the guest picker, *Who's where*), `notifications` (guests told);
-  `receives: ["member.*"]`.
+  `receives: ["member.*"]`. Proposals in `chest.proposals.json`:
+  `calendar`, `groups: "read"`, `mail.send`, `schedules` (`quarter`), and
+  `receives` Leave's events.
 - **PostgreSQL extension `btree_gist` is required.** The first migration
   runs `create extension if not exists btree_gist`: PostgreSQL marks it
   *trusted*, so the database's owner (the tool's role on a Chest) may create
@@ -107,9 +160,20 @@ tool's builders come in with the first role.
   nothing here does (no check-in, no approval). A count of today's bookings
   would sit on the tile every day and mean nothing; keeping it right would
   also need a schedule every morning.
-- **No schedule** needed: bookings in the past are simply past. What the
-  rules no longer keep (bookings and presence older than N months;
-  cancellations after a day) is deleted when *My week* is next read.
+- **One schedule** (**Proposal (studio)**, `chest.proposals.json`):
+  `quarter`, every 15 minutes — reminders before meetings and, with
+  check-in on, freeing unclaimed rooms. Everything else needs none: what
+  the rules no longer keep is deleted when *My week* is next read; the
+  usual weeks are applied and the calendars told when any page is read.
+- **Calendar, email, groups** (**Proposals (studio)**): `"calendar": true`,
+  `"mail": {"send": true}`, `"groups": "read"`. Each change writes the keys
+  it touched in `calendar_queue` in its own transaction; the tool then puts
+  or removes each event from what the database holds, so a Chest that did
+  not answer is asked again at the next change or page read. An event
+  leaves the calendars a month after it is over (the Chest keeps 5,000 per
+  tool). On a Chest without these, the tool learns it, asks again hourly,
+  and says only what is true ("They find it in their bell and in their
+  week"); the `.ics` downloads always work.
 - **Lifecycle**: someone who loses access or leaves — their coming bookings
   are cancelled (rooms free, guests told "the organiser left"), they leave
   the meetings they were invited to, their given desk is free, their coming
@@ -128,18 +192,30 @@ Rooms hears from **Leave** (**Proposal (studio)**: events between tools;
 once an administrator linked the two: an approved leave marks its whole
 days "Off" for the person (half days are left alone: they may come for the
 other half) and frees their desk those days; a cancelled leave takes back
-the days it marked — never what the person set themselves since. A freed
-desk is not booked again by itself (`lib/away.ts`).
+the days it marked — never what the person set themselves since — and
+leaves them to the person's usual week again. A freed desk is not booked
+again by itself; the days leave the person's calendar feed; a given desk
+is lent to others on those days (`lib/away.ts`).
 
 ## Needs from the SDK
 
-- `member.locale` — **Proposal (studio)**, in the working copy packed in
-  `vendor/`. Without it, everyone reads English.
-- `schedules.timeZone()` — **Proposal (studio)**: the Chest's time zone.
-  Without it the tool would have to assume Europe/Paris.
-- Would help (not used): a way to hold **one room booking across tools**
-  (Booking, a future Calendar) and an **iCal feed per member** (a signed
-  per-member URL the Chest serves) — see "What it does not do yet".
+All in the SDK working copy packed in `vendor/` (0.3.0-studio.12):
+
+- `member.locale`, `schedules.timeZone()` / `chest.teamUrl()` — **Proposal (studio)**.
+- `calendar` (`put`, `remove`, `ics`, `uidOf`, `page`) — **Proposal (studio)**:
+  the members' calendar feeds, the `.ics` files.
+- `mail.send` to `{member}` with attachments — **Proposal (studio)**: guests' emails.
+- `members.groups.all`, all of `member.groups` — **Proposal (studio)** (`"groups": "read"`).
+- `schedules` — **Proposal (studio)**: the quarter-hour reminders and check-in.
+- Events between tools — **Proposal (studio)**: Leave's `leave.approved` / `leave.cancelled`.
+- Would help, not built: a way for a tool to know the UID the Chest's feed
+  gives one of its events (today the `.ics` files use the team host as
+  domain, the feed the Chest's: a person who both imports a file and
+  subscribes sees the event twice); a **higher calendar quota** or events
+  that expire on their own (5,000 per tool is about 6 weeks of desk days at
+  200 people — Rooms takes events back a month after they are over); a
+  **free/busy and room-resources connector** for Google Workspace and
+  Microsoft 365 (see below).
 
 ## Develop
 
@@ -157,13 +233,22 @@ screenshots in `docs/screens/`.
 
 ## What it does not do (yet)
 
-- A **floor-plan image** with desks placed on it (the plan is tiles by area
-  today): later, with drag-and-drop placement.
-- **Check-in** and releasing no-shows, reminders before a meeting: they need
-  scheduled tasks and, for check-in, a reason to exist (no sensors here).
-- Booking **for someone else**; rooms or areas **reserved to a group**;
-  releasing a given desk when its owner is away.
-- **iCal feed**, Outlook/Google room resources, door tablets.
-- **Importing** rooms from a Google Workspace resources CSV or desk
-  assignments from Robin/deskbird: setting up an office takes minutes here.
+- **Google Calendar / Outlook room resources are not synced.** A room
+  booked in Google Calendar or Outlook does not reach Rooms, and Rooms
+  bookings reach people's calendars only through the Chest's feed (which
+  those apps refresh at their own pace — Google every several hours) and
+  the `.ics` files. Two-way sync with room resources needs a **platform
+  connector** (OAuth held by the Chest, declared network, Google Calendar
+  API / Microsoft Graph): later, on the Chest's side. Until then, a company
+  that keeps booking rooms in its calendar keeps two places to book.
+- **Importing future bookings** (the Monday stand-up for the next 12
+  weeks) from Google Calendar or Robin: re-create them as weekly bookings.
+- Desk assignments are matched by **name**, not email (email would need
+  the `members.email` permission, not asked for this alone).
+- **Booking for a visitor** (someone without a Chest account); booking for
+  someone else is for admins only (no "office manager" or delegate role).
+- A **floor-plan image** with desks placed on it (the plan is tiles by area).
+- **Door tablets**, sensors, parking spaces and other resources.
+- Check-in is **15 to 30 minutes** late at worst (the Chest calls the tool
+  every quarter of an hour), and reminders come 0–15 minutes before.
 - Offices in **different time zones** within one Chest.

@@ -5,7 +5,8 @@ import { plain } from "../../../../../lib/markdown.ts";
 import { eventFor } from "../../../../../lib/posts.ts";
 import { currentMember } from "../../../../../lib/session.ts";
 
-// "Add to my calendar": the event as an .ics file, for whoever sees it.
+// "Add to my calendar": the event as an .ics file, for whoever sees it, in
+// their language when the post has it.
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }): Promise<Response> {
   try {
     const { id } = await params;
@@ -16,6 +17,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
       description: plain(e.body).slice(0, 4000),
       place: e.event.place,
       day: e.event.day,
+      lastDay: e.event.lastDay,
       start: e.event.start,
       end: e.event.end,
       stamp: new Date(),

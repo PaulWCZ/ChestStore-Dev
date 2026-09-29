@@ -4,6 +4,7 @@ import { Back } from "../../../../../components/icons.tsx";
 import { db } from "../../../../../lib/db.ts";
 import { AppError } from "../../../../../lib/errors.ts";
 import { job as readJob, type JobDetail } from "../../../../../lib/jobs.ts";
+import { stageLabel } from "../../../../../lib/stages.ts";
 import { viewer } from "../../../../../lib/session.ts";
 import { AddForm } from "./add-form.tsx";
 
@@ -26,7 +27,7 @@ export default async function AddCandidate({ params }: { params: Promise<{ id: s
       <Link className="back-link" href={`/chest/jobs/${detail.job.id}`}><Back />{detail.job.title}</Link>
       <div className="page-head"><h1>{t.addForm.title}</h1></div>
       <p className="lede-s">{t.addForm.intro}</p>
-      <AddForm jobId={detail.job.id} stages={detail.stages.map(s => ({ id: s.id, name: s.name }))} language={detail.job.language} locale={locale}
+      <AddForm jobId={detail.job.id} stages={detail.stages.map(s => ({ id: s.id, name: stageLabel(s, t.jobSettings.defaults) }))} language={detail.job.language} locale={locale}
         t={{ addForm: t.addForm, apply: t.apply, candidate: t.candidate, errors: t.errors }} />
     </div>
   );

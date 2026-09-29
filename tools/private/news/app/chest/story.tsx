@@ -29,7 +29,7 @@ export function EventLine({ post, d, t }: { post: PostSummary; d: Dates; t: Stor
   if (!post.event) return null;
   return (
     <p className="event-line">
-      <span><Calendar />{d.dayLong(post.event.day)}</span>
+      <span><Calendar />{d.days(post.event, t.event)}</span>
       <span><Clock />{d.hours(post.event, t.event)}</span>
       {post.event.place && <span><Place />{post.event.place}</span>}
     </p>
@@ -38,9 +38,9 @@ export function EventLine({ post, d, t }: { post: PostSummary; d: Dates; t: Stor
 
 export function Story({ post, lead = false, author, welcome, isNew, audience = null, d, locale, t }: { post: PostSummary; lead?: boolean; author: Byline; welcome: Byline | null; isNew: boolean; audience?: string | null; d: Dates; locale: Locale; t: StoryWords }) {
   const Heading = lead ? "h2" : "h3";
-  const picture = post.cover
-    ? <img className="story-cover" src={`/chest/files/${post.cover}?size=1024`} alt="" loading={lead ? "eager" : "lazy"} />
-    : (welcome ? <div className="story-portrait"><Avatar name={welcome.name} photo={welcome.photo} size={lead ? 168 : 96} /></div> : null);
+  // A welcome without a cover shows the colleague's photo beside the
+  // headline, not as a picture: a large block of initials would lead the page.
+  const picture = post.cover ? <img className="story-cover" src={`/chest/files/${post.cover}?size=1024`} alt="" loading={lead ? "eager" : "lazy"} /> : null;
   const counts = [
     post.comments > 0 ? plural(t.front.comments, post.comments, locale) : null,
     post.reactions > 0 ? plural(t.front.reactions, post.reactions, locale) : null,
@@ -51,6 +51,7 @@ export function Story({ post, lead = false, author, welcome, isNew, audience = n
       {picture && <div className="story-picture">{picture}</div>}
       <div className="story-text">
         <Kicker post={post} isNew={isNew} audience={audience} t={t} />
+        {welcome && !post.cover && <p className="welcome-line"><Avatar name={welcome.name} photo={welcome.photo} size={lead ? 72 : 48} /><span>{welcome.name}</span></p>}
         <Heading className="headline"><a href={`/chest/posts/${post.id}`} className="stretched">{post.title}</a></Heading>
         <EventLine post={post} d={d} t={t} />
         {post.excerpt && <p className="dek">{post.excerpt}</p>}

@@ -1,22 +1,31 @@
 import type { Metadata } from "next";
+import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { Back, Briefcase, Coins, House, Pin } from "../../components/icons.tsx";
 import { PublicShell } from "../../components/public-shell.tsx";
 import { RichText } from "../../components/rich-text.tsx";
-import { retentionWords } from "../../lib/careers.ts";
+import { brandOf, retentionWords } from "../../lib/careers.ts";
 import { db } from "../../lib/db.ts";
 import { salaryText } from "../../lib/facts.ts";
 import { format, formatDate } from "../../lib/i18n/index.ts";
-import { publicJob, settings } from "../../lib/jobs.ts";
+import { publicJob, settings, takesApplications } from "../../lib/jobs.ts";
+import { companyOf, reachJob } from "../../lib/public-feed.ts";
+import { publicOrigin } from "../../lib/public-origin.ts";
+import { jobPosting, jsonLd } from "../../lib/reach.ts";
 import { plain } from "../../lib/rich-text.ts";
-import { publicWords } from "../../lib/session.ts";
+import { nonceOf, publicWords } from "../../lib/session.ts";
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params;
   const job = await publicJob(db(), slug);
   const { t } = await publicWords();
   const s = await settings(db());
-  return job ? { title: `${job.title} — ${s.companyName || t.careers.titlePlain}`, description: plain(job.description) } : { title: t.notFound.title };
+  // A job's page is for search engines too: indexed, with its canonical
+  // address on the careers page's host.
+  const origin = publicOrigin(await headers());
+  return job
+    ? { title: `${job.title} — ${s.companyName || t.careers.titlePlain}`, description: plain(job.description), robots: { index: true, follow: true }, ...(origin ? { alternates: { canonical: `${origin}/${job.slug}` } } : {}) }
+    : { title: t.notFound.title };
 }
 
 // One job, as a candidate reads it: what, where, how much, the description,
@@ -32,7 +41,13 @@ export default async function JobPage({ params }: { params: Promise<{ slug: stri
   // The ad is written in its own language; the page's words follow the
   // visitor's.
   const salary = job.salary ? salaryText(job.salary, t.facts, locale) : "";
-  const open = job.state === "open" && s.careersOpen;
+  const open = takesApplications(job) && s.careersOpen;
+  // Google for Jobs reads the job from its JobPosting data, while it takes
+  // applications only (a closed job's page keeps no markup: Google's rule
+  // for expired jobs).
+  const h = await headers();
+  const origin = publicOrigin(h) ?? "";
+  const posting = open ? jsonLd(jobPosting(reachJob(job), companyOf(s, origin), `${origin}/${job.slug}`)) : null;
   const facts = [
     { icon: <Briefcase />, text: t.facts.contract[job.contract] },
     { icon: <Pin />, text: job.place },
@@ -41,7 +56,8 @@ export default async function JobPage({ params }: { params: Promise<{ slug: stri
   ].filter(f => f.text);
   const foot = <><span>{format(t.careers.footer, { company })}</span><span>{format(t.careers.privacy, { period: retentionWords(t, s.retentionMonths) })}</span></>;
   return (
-    <PublicShell company={company} locale={locale} label={t.careers.language} back={`/${job.slug}`} foot={foot}>
+    <PublicShell company={company} locale={locale} label={t.careers.language} back={`/${job.slug}`} foot={foot} brand={brandOf(s)} website={t.careers.website}>
+      {posting && <script type="application/ld+json" nonce={nonceOf(h)} dangerouslySetInnerHTML={{ __html: posting }} />}
       <a className="back-link" href="/"><Back />{t.careers.allJobs}</a>
       <article className="job-page">
         <header className="job-hero">

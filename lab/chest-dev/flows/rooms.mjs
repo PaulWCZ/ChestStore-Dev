@@ -12,6 +12,10 @@ const monday = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate(
 const friday = iso(new Date(monday.getTime() + 11 * 864e5));
 const thursday = iso(new Date(monday.getTime() + 10 * 864e5));
 const toastText = async () => (await page.locator(".toast").last().innerText()).trim();
+// A field of the booking form by its visible label (a select's name also
+// holds its options, so getByLabel would match "To" in "October").
+const field = (scope, label) => scope.locator("label", { has: page.locator(".label", { hasText: new RegExp(`^${label}$`, "u") }) }).locator("select, input").first();
+const far = iso(new Date(monday.getTime() + 24 * 864e5));
 
 await step("my week: say 'office' for a day in one tap; it stays", async () => {
   await page.goto(origin + "/chest");
@@ -60,9 +64,9 @@ await step("book a room with a title and a guest; Inès hears it in French", asy
   await page.goto(origin + `/chest/rooms?day=${friday}`);
   await page.getByRole("button", { name: "Book a room" }).click();
   const dialog = page.locator("dialog[open]");
-  await dialog.getByLabel("Room").selectOption({ label: "Cabin · 2 seats" });
-  await dialog.getByLabel("From").selectOption({ label: "11:00" });
-  await dialog.getByLabel("To").selectOption({ label: "12:00" });
+  await field(dialog, "Room").selectOption({ label: "Cabin · 2 seats" });
+  await field(dialog, "From").selectOption({ label: "11:00" });
+  await field(dialog, "To").selectOption({ label: "12:00" });
   await dialog.getByLabel("What for (optional)").fill("Quarterly numbers");
   await dialog.getByPlaceholder("Find someone").fill("ine");
   await dialog.locator(".suggestion", { hasText: "Inès" }).click();
@@ -80,9 +84,9 @@ await step("someone else cannot take the same slot: a clear message", async () =
   await page.goto(origin + `/chest/rooms?day=${friday}`);
   await page.getByRole("button", { name: "Book a room" }).click();
   const dialog = page.locator("dialog[open]");
-  await dialog.getByLabel("Room").selectOption({ label: "Cabin · 2 seats" });
-  await dialog.getByLabel("From").selectOption({ label: "11:30" });
-  await dialog.getByLabel("To").selectOption({ label: "12:30" });
+  await field(dialog, "Room").selectOption({ label: "Cabin · 2 seats" });
+  await field(dialog, "From").selectOption({ label: "11:30" });
+  await field(dialog, "To").selectOption({ label: "12:30" });
   await dialog.getByRole("button", { name: "Book", exact: true }).click();
   await dialog.locator(".error").waitFor();
   expect((await dialog.locator(".error").innerText()).includes("Someone just took it"), "taken");
@@ -107,8 +111,8 @@ await step("drag on the grid to choose a slot; the form opens with it", async ()
   await page.mouse.up();
   const dialog = page.locator("dialog[open]");
   await dialog.waitFor();
-  expect(await dialog.getByLabel("From").inputValue() === "960", "from 16:00");
-  expect(await dialog.getByLabel("To").inputValue() === "1020", "to 17:00");
+  expect(await field(dialog, "From").inputValue() === "960", "from 16:00");
+  expect(await field(dialog, "To").inputValue() === "1020", "to 17:00");
   await dialog.getByRole("button", { name: "Book", exact: true }).click();
   await page.waitForSelector(".toast");
 });
@@ -131,9 +135,9 @@ await step("a weekly booking: several occurrences at once", async () => {
   await page.goto(origin + `/chest/rooms?day=${thursday}`);
   await page.getByRole("button", { name: "Book a room" }).click();
   const dialog = page.locator("dialog[open]");
-  await dialog.getByLabel("Room").selectOption({ label: "Bora · 4 seats" });
-  await dialog.getByLabel("From").selectOption({ label: "17:00" });
-  await dialog.getByLabel("To").selectOption({ label: "17:30" });
+  await field(dialog, "Room").selectOption({ label: "Bora · 4 seats" });
+  await field(dialog, "From").selectOption({ label: "17:00" });
+  await field(dialog, "To").selectOption({ label: "17:30" });
   await dialog.getByLabel(/Every week on/u).check();
   await dialog.getByLabel("For how many weeks").fill("3");
   await dialog.getByRole("button", { name: "Book", exact: true }).click();
@@ -161,14 +165,16 @@ await step("a member has no Places; an admin adds desks, saves the rules, export
   await area.getByRole("button", { name: "Ajouter des bureaux" }).click();
   await page.waitForTimeout(1500);
   expect(await page.locator(".area-admin", { hasText: "Quiet zone" }).locator(".tile").count() === before + 4, "4 desks added");
+  const names = await page.locator(".area-admin", { hasText: "Quiet zone" }).locator(".tile-name").allInnerTexts();
+  expect(names.slice(-4).join(",") === "D-13,D-14,D-15,D-16", "new desks come last: " + names.join(","));
   await page.goto(origin + "/chest/places/rules");
-  await page.getByLabel("Réserver jusqu’à … jours à l’avance").fill("21");
+  await page.getByLabel("Combien de jours à l’avance on peut réserver").fill("21");
   await page.getByRole("button", { name: "Enregistrer les règles" }).click();
   await page.waitForSelector(".toast");
   await page.reload();
-  expect(await page.getByLabel("Réserver jusqu’à … jours à l’avance").inputValue() === "21", "rule saved");
+  expect(await page.getByLabel("Combien de jours à l’avance on peut réserver").inputValue() === "21", "rule saved");
   const csv = await (await page.request.get(origin + `/chest/export?kind=bookings&from=${iso(monday)}&to=${friday}`)).text();
-  expect(csv.includes("Réservé par") && csv.includes("Quarterly numbers"), "csv");
+  expect(csv.includes("Réservé par") && csv.includes("Quarterly numbers"), "csv: " + csv.slice(0, 200));
 });
 
 await step("someone without a role sees why", async () => {
@@ -192,6 +198,125 @@ await step("phone width, in French: free slots per room; one tap opens the form"
   await page.goto(origin + "/chest");
   const w2 = await page.evaluate(() => document.documentElement.scrollWidth);
   expect(w2 <= 392, "week fits: " + w2);
+});
+
+
+await step("a day beyond the booking window: desks shown as not open yet, with the day it opens", async () => {
+  await as(context, origin, "hugo");
+  await page.setViewportSize({ width: 1280, height: 860 });
+  await page.goto(origin + `/chest/desks?day=${far}`);
+  const hint = await page.locator(".hint.is-locked").innerText();
+  expect(/opens on/u.test(hint), "hint: " + hint);
+  expect(await page.getByRole("button", { name: /free\. Book it/u }).count() === 0, "no bookable desk");
+  expect(await page.locator(".tile.is-locked").count() > 0, "locked tiles");
+  await page.goto(origin + `/chest/rooms?day=${far}`);
+  expect(await page.getByRole("button", { name: "Book a room" }).isDisabled(), "no room booking");
+});
+
+await step("find a free room: 6 people at 14:00 for an hour; one tap opens the form with that slot", async () => {
+  await page.goto(origin + `/chest/rooms?day=${thursday}`);
+  const finder = page.locator(".finder");
+  await field(finder, "People").selectOption({ label: "6 or more" });
+  await field(finder, "At").selectOption({ label: "14:00" });
+  await field(finder, "For").selectOption({ label: "1 h" });
+  const text = await finder.innerText();
+  expect(/too small/u.test(text), "says what is too small: " + text);
+  const chips = await finder.locator(".room-chip").allInnerTexts();
+  expect(chips.length >= 1 && chips.every(c => !/Cabin|Bora/u.test(c)), "only big enough rooms: " + chips.join(" | "));
+  await finder.locator(".room-chip").first().click();
+  const dialog = page.locator("dialog[open]");
+  await dialog.waitFor();
+  expect(await field(dialog, "From").inputValue() === "840" && await field(dialog, "To").inputValue() === "900", "14:00–15:00");
+  // Moving the start keeps the hour.
+  await field(dialog, "From").selectOption({ label: "16:00" });
+  expect(await field(dialog, "To").inputValue() === "1020", "to 17:00 after moving the start");
+  // A tap outside keeps what was typed.
+  await dialog.getByLabel("What for (optional)").fill("Kick-off");
+  await page.mouse.click(5, 5);
+  await page.waitForTimeout(300);
+  expect(await page.locator("dialog[open]").count() === 1, "still open after a tap outside");
+  await page.keyboard.press("Escape");
+});
+
+await step("a booking goes into the organiser's and the guest's calendars, and downloads as .ics", async () => {
+  await page.goto(origin + `/chest/rooms?day=${thursday}`);
+  await page.getByRole("button", { name: "Book a room" }).click();
+  const dialog = page.locator("dialog[open]");
+  await field(dialog, "Room").selectOption({ label: "Atlas · 8 seats" });
+  await field(dialog, "From").selectOption({ label: "18:00" });
+  await field(dialog, "To").selectOption({ label: "19:00" });
+  await dialog.getByLabel("What for (optional)").fill("Calendar check");
+  await dialog.getByPlaceholder("Find someone").fill("léa");
+  await dialog.locator(".suggestion", { hasText: "Léa" }).click();
+  await dialog.getByRole("button", { name: "Book", exact: true }).click();
+  await page.waitForSelector(".toast");
+  await page.waitForTimeout(800);
+  await page.locator(".block", { hasText: "Calendar check" }).click();
+  const link = page.locator("dialog[open]").getByRole("link", { name: "Add to my calendar" });
+  const ics = await (await page.request.get(origin + await link.getAttribute("href"))).text();
+  expect(ics.startsWith("BEGIN:VCALENDAR") && ics.includes("SUMMARY:Calendar check"), "ics: " + ics.slice(0, 80));
+  await page.keyboard.press("Escape");
+  const dev = await (await page.request.get(origin + "/_dev")).text();
+  const feed = /href="(http:\/\/localhost:\d+\/_chest\/calendar\/[^"]+\.ics)"/u.exec(dev)?.[1];
+  expect(feed, "Hugo's feed address");
+  const hugoFeed = await (await page.request.get(feed)).text();
+  expect(hugoFeed.includes("SUMMARY:Calendar check"), "in Hugo's feed");
+  expect(dev.includes("Invitation") || dev.includes("Calendar check"), "Léa emailed");
+});
+
+await step("my usual week: say it once; coming days are filled; a tap outside the form keeps it", async () => {
+  await as(context, origin, "hugo");
+  await page.goto(origin + "/chest");
+  await page.getByRole("button", { name: "My usual week" }).click();
+  const dialog = page.locator("dialog[open]");
+  for (const day of ["Monday", "Tuesday", "Wednesday", "Thursday"]) await dialog.getByRole("radiogroup", { name: day }).getByRole("radio", { name: "Office" }).click();
+  await dialog.getByRole("radiogroup", { name: "Friday" }).getByRole("radio", { name: "Remote" }).click();
+  await page.mouse.click(5, 5);
+  expect(await page.locator("dialog[open]").count() === 1, "kept open");
+  await dialog.getByRole("button", { name: "Save" }).click();
+  await page.waitForSelector(".toast");
+  expect(/Usual week saved/u.test(await toastText()), await toastText());
+  await page.reload();
+  expect(/Usually at the office: Monday, Tuesday, Wednesday, Thursday/u.test(await page.locator(".usual-bar").innerText()), "summary");
+});
+
+await step("keyboard: one Tab stop per day, the arrows move between Office, Remote and Off", async () => {
+  await page.goto(origin + "/chest");
+  const group = page.locator("#day-" + friday + " .choice-row");
+  await group.getByRole("radio").first().focus();
+  const stops = await group.locator("[tabindex='0']").count();
+  expect(stops === 1, "one tab stop: " + stops);
+  await page.keyboard.press("ArrowRight");
+  const focused = await page.evaluate(() => document.activeElement?.textContent);
+  expect(/Remote|Off|Office/u.test(focused ?? ""), "arrow moved focus: " + focused);
+});
+
+await step("who's where by team: Sales shows only its people", async () => {
+  await page.goto(origin + "/chest/people");
+  await page.locator(".team-chips").getByRole("link", { name: "Sales" }).click();
+  await page.waitForURL(/team=/u);
+  const text = await page.locator("main").innerText();
+  expect(text.includes("Inès Moreau") && text.includes("Hugo Bernard") && !text.includes("Tom Walker"), "only Sales");
+});
+
+await step("an admin moves in: rooms from Google Workspace's CSV; the office's week by day", async () => {
+  await as(context, origin, "camille");
+  await page.goto(origin + "/chest/places");
+  const csv = "Resource ID,Calendar Resource Name,Resource Email,Type,Category,Capacity,Building ID,Floor Name,Floor Section,Internal Description,User Visible Description\r\n1,Everest,c_1@resource.calendar.google.com,Meeting room,CONFERENCE_ROOM,12,paris,Second floor,,,TV and Google Meet\r\n2,Projector,c_2@resource.calendar.google.com,Equipment,OTHER,,paris,,,,\r\n";
+  await page.locator("input[type=file]").first().setInputFiles({ name: "resources.csv", mimeType: "text/csv", buffer: Buffer.from(csv) });
+  await page.locator(".import-report").waitFor();
+  const report = await page.locator(".import-report").innerText();
+  expect(/1 salle ajoutée/u.test(report) && /Ligne 3/u.test(report), "report: " + report);
+  await page.goto(origin + "/chest/places/export");
+  expect(await page.locator("table.load tbody tr").count() >= 5, "a row per working day");
+});
+
+await step("a phone says to tap, not to drag", async () => {
+  await as(context, origin, "tom");
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(origin + `/chest/rooms?day=${friday}`);
+  expect(await page.locator(".on-phone").isVisible() && !(await page.locator(".on-desktop").isVisible()), "phone hint");
+  expect((await page.locator(".on-phone").innerText()).startsWith("Tap"), "tap");
 });
 
 await browser.close();

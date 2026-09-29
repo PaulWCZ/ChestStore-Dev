@@ -14,6 +14,7 @@ import { currentMember } from "../../lib/session.ts";
 import { removeObjects } from "../../lib/storage.ts";
 import * as tell from "../../lib/tell.ts";
 import { today } from "../../lib/time.ts";
+import { undoImport } from "../../lib/transfer.ts";
 import { chestZone } from "../../lib/zone.ts";
 
 // The server actions of the members' part. Each is an endpoint anyone can
@@ -189,4 +190,9 @@ export async function remind(postId: string): Promise<Result<{ count: number }>>
 // The weekly digest by email, or only in the bell.
 export async function digestByEmail(on: boolean): Promise<Result<null>> {
   return act(async actor => { await setDigestEmail(db(), actor, on); return null; });
+}
+
+// An import from Slack taken back (lib/transfer.ts).
+export async function undoSlackImport(batch: string): Promise<Result<{ count: number }>> {
+  return act(async actor => ({ count: await undoImport(db(), actor, batch) }));
 }

@@ -148,3 +148,17 @@ export const mentionToken = /@\[(mbr_[a-z2-7]{26}|erased)\]/gu;
 export function withNames(text: string, name: (id: string) => string): string {
   return text.replace(mentionToken, (_whole, who: string) => "@" + name(who));
 }
+
+// A comment's text in pieces: words, and the people it mentions (by name).
+export type Piece = { t: "text"; v: string } | { t: "mention"; name: string };
+export function pieces(text: string, name: (id: string) => string): Piece[] {
+  const out: Piece[] = [];
+  let at = 0;
+  for (const m of text.matchAll(mentionToken)) {
+    if (m.index > at) out.push({ t: "text", v: text.slice(at, m.index) });
+    out.push({ t: "mention", name: name(m[1]!) });
+    at = m.index + m[0].length;
+  }
+  if (at < text.length) out.push({ t: "text", v: text.slice(at) });
+  return out;
+}

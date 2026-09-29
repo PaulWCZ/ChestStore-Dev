@@ -23,11 +23,16 @@ export function plural(forms: { readonly one: string; readonly other: string; re
 // Moments in the reader's language, in the zone the page gives (the
 // Chest's: chest.timeZone(), read on the server). A day ("2026-10-15") is
 // a day wherever one reads it: formatDay never shifts it.
-export function formatDate(value: Date | string, locale: Locale, options: Intl.DateTimeFormatOptions = { day: "numeric", month: "short", year: "numeric" }, zone = "UTC"): string {
-  return new Intl.DateTimeFormat(intl(locale), { timeZone: zone, ...options }).format(typeof value === "string" ? new Date(value) : value);
+// dayOne is how the language writes the first of a month beside a month's
+// name (the catalogue's dates.dayOne: "1er" in French).
+export function formatDate(value: Date | string, locale: Locale, options: Intl.DateTimeFormatOptions = { day: "numeric", month: "short", year: "numeric" }, zone = "UTC", dayOne?: string): string {
+  const f = new Intl.DateTimeFormat(intl(locale), { timeZone: zone, ...options });
+  const d = typeof value === "string" ? new Date(value) : value;
+  if (!dayOne || options.day !== "numeric" || (options.month !== "long" && options.month !== "short")) return f.format(d);
+  return f.formatToParts(d).map(p => (p.type === "day" && p.value === "1" ? dayOne : p.value)).join("");
 }
-export function formatDay(value: string, locale: Locale, options: Intl.DateTimeFormatOptions = { day: "numeric", month: "short", year: "numeric" }): string {
-  return formatDate(value + "T00:00:00Z", locale, options, "UTC");
+export function formatDay(value: string, locale: Locale, options: Intl.DateTimeFormatOptions = { day: "numeric", month: "short", year: "numeric" }, dayOne?: string): string {
+  return formatDate(value + "T00:00:00Z", locale, options, "UTC", dayOne);
 }
 
 // relative says "3 minutes ago", "yesterday"… in that language.

@@ -1,10 +1,13 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
 import { AppError } from "../lib/app-error.ts";
 import { listCategories } from "../lib/categories.ts";
 import { toCsv, parseCsv } from "../lib/csv.ts";
 import { exportRows } from "../lib/export.ts";
+import { allFields } from "../lib/fields.ts";
 import { catalogue } from "../lib/i18n/index.ts";
 import { applyImport, plan, previewImport, readDate, type Context } from "../lib/importer.ts";
 import * as items from "../lib/items.ts";
@@ -48,6 +51,7 @@ async function context(): Promise<Context> {
     people: everyone.map(p => ({ id: p.id, name: p.name, firstName: p.firstName, lastName: p.lastName, photo: null, role: p.role, locale: "en" as const })),
     tags: new Set(), serials: new Set(),
     categories: cats.map(c => ({ id: c.id, key: c.key, name: c.name, kind: c.kind })),
+    fields: [],
   };
 }
 
@@ -75,7 +79,14 @@ test("Snipe-IT's CSV: model and maker, US dates, holders by name, places, new ca
   assert.equal(drone!.category.newName, "Drones");
   assert.equal(noName!.skip, "no_name");
   assert.deepEqual(p.newCategories, ["Drones"]);
-  assert.ok(p.ignored.includes("Order Number") && p.ignored.includes("Location") && p.ignored.includes("Asset EOL Date"));
+  assert.ok(p.ignored.includes("Location") && p.ignored.includes("Asset EOL Date") && p.ignored.includes("Company"));
+  // A column of its own (Snipe-IT's order number) may be kept as a field.
+  assert.deepEqual(p.offered, ["Order Number"]);
+  assert.deepEqual(p.newFields, [{ name: "Order Number", categoryId: mac!.category.ref!.id, categoryName: null, type: "text" }]);
+  assert.deepEqual(mac!.extraNew, { "Order Number": "PO-1" });
+  const without = plan(snipe, "snipe", await context(), { keep: [] });
+  assert.deepEqual(without.newFields, []);
+  assert.ok(without.ignored.includes("Order Number"));
 });
 
 test("a French spreadsheet: day-first dates, euros, warranty in months, “Last First”, statuses in French", async () => {
@@ -118,7 +129,7 @@ test("the import adds the items, gives them, and a second import of the same fil
   await assert.rejects(applyImport(sql, asMember(hugo), "snipe", snipe), (e: unknown) => e instanceof AppError && e.code === "forbidden");
   await assert.rejects(applyImport(sql, M, "excel", snipe), (e: unknown) => e instanceof AppError && e.code === "invalid");
   const first = await applyImport(sql, M, "snipe", snipe);
-  assert.deepEqual(first, { imported: 4, skipped: 2 });
+  assert.deepEqual(first, { imported: 4, skipped: 2, fields: 1 });
   const [mac] = await items.listItems(sql, M, { q: "SN-001" });
   assert.equal(mac!.holder, hugo.id);
   const detail = await items.itemDetail(sql, M, mac!.id);
@@ -158,4 +169,91 @@ test("this tool's own export reads back, in English and in French", async () => 
     const same = await previewImport(sql, M, "csv", text);
     assert.ok(same.rows.every(r => r.skip === "exists"));
   }
+});
+
+// Snipe-IT's own exports, as its source writes them (test/fixtures/, columns
+// cited in THIRD_PARTY.md): the Custom Asset Report and the assets list's
+// export, with custom fields.
+const fixture = (name: string) => readFileSync(join(import.meta.dirname, "fixtures", name), "utf8");
+
+test("Snipe-IT's Custom Asset Report: holders, places, statuses, the asset's notes, custom fields kept", async () => {
+  const p = plan(fixture("snipe-it-custom-asset-report.csv"), "snipe", await context());
+  const byTag = new Map(p.rows.map(r => [r.tag, r]));
+  assert.equal(p.rows.length, 9);
+  const mac = byTag.get("ATL-0012")!;
+  assert.equal(mac.name, "Apple MacBook Pro 14\" M3");
+  assert.equal(mac.serial, "C02XK1ZZMD6T");
+  assert.equal(mac.holder, hugo.id);
+  assert.equal(mac.status, "in_use");
+  assert.equal(mac.since, "2024-02-14");
+  assert.equal(mac.purchasedOn, "2024-02-12");
+  assert.equal(mac.priceCents, 239900);
+  assert.equal(mac.warrantyUntil, "2027-02-12");
+  assert.equal(mac.supplier, "Apple Store Business");
+  // The asset's notes (the last "Notes"), not the user's.
+  assert.equal(mac.notes, "Charger and USB-C hub included.");
+  assert.deepEqual(mac.extraNew, { "Order Number": "PO-2024-017", RAM: "16", "Operating System": "macOS 15 Sequoia", "MAC Address": "A4:83:E7:1B:22:9C" });
+  const phone = byTag.get("ATL-0013")!;
+  assert.equal(phone.holder, ines.id);
+  assert.equal(phone.category.ref?.key, "phone");
+  assert.equal(phone.notes, "Inès — phone\nLine 06 12 34 56 79");
+  assert.equal(phone.extraNew["IMEI"], "356938035643809");
+  const screen = byTag.get("ATL-0014")!;
+  assert.equal(screen.holder, null);
+  assert.equal(screen.place, "Meeting room Atlas");
+  assert.equal(screen.status, "in_use");
+  assert.equal(byTag.get("ATL-0015")!.status, "in_stock");
+  assert.equal(byTag.get("ATL-0015")!.priceCents, 134900);
+  assert.equal(byTag.get("ATL-0016")!.status, "lost");
+  assert.equal(byTag.get("ATL-0017")!.status, "in_repair");
+  assert.equal(byTag.get("ATL-0018")!.status, "retired");
+  // Checked out to another asset (a dock on a laptop): with nobody here.
+  const dock = byTag.get("ATL-0019")!;
+  assert.equal(dock.holder, null);
+  assert.equal(dock.place, null);
+  assert.deepEqual(dock.problems, []);
+  assert.deepEqual(byTag.get("ATL-0020")!.problems, [{ code: "holder_not_found", name: "John Doe" }]);
+  // Snipe-IT's own columns are not offered as fields; its custom fields are.
+  assert.deepEqual(p.offered, ["Order Number", "IMEI", "RAM", "Operating System", "MAC Address"]);
+  for (const own of ["Current Value", "Company", "Location", "Default Location", "URL", "Last Audit", "Employee No.", "Manager"]) assert.ok(p.ignored.includes(own), own);
+  const ram = p.newFields.find(f => f.name === "RAM")!;
+  assert.equal(ram.type, "number");
+  assert.equal(ram.categoryId, mac.category.ref!.id);
+  assert.equal(p.newFields.find(f => f.name === "IMEI")!.type, "text");
+  assert.deepEqual(p.newFields.filter(f => f.name === "Operating System").map(f => f.categoryId).sort(), [mac.category.ref!.id, phone.category.ref!.id].sort());
+});
+
+test("Snipe-IT's assets list export reads too", async () => {
+  const p = plan(fixture("snipe-it-assets-list-export.csv"), "snipe", await context());
+  const [air, galaxy] = p.rows;
+  assert.equal(air!.holder, camille.id);
+  assert.equal(air!.status, "in_use");
+  assert.equal(air!.purchasedOn, "2023-10-05");
+  assert.equal(air!.priceCents, 129900);
+  assert.equal(air!.warrantyUntil, "2026-10-05");
+  assert.equal(galaxy!.status, "in_stock");
+  assert.equal(galaxy!.notes, "Spare phone for on-call week.");
+  assert.equal(galaxy!.extraNew["IMEI"], "352099001761499");
+});
+
+test("importing the Custom Asset Report makes the fields and fills them", async () => {
+  const { sql } = database;
+  const text = fixture("snipe-it-custom-asset-report.csv");
+  const done = await applyImport(sql, M, "snipe", text, { keep: ["IMEI", "RAM", "Operating System"] });
+  assert.equal(done.imported, 9);
+  // IMEI (phones), RAM (laptops), Operating System (both) — and Order
+  // Number for phones: laptops already have that field (the import above),
+  // so that column is always read.
+  assert.equal(done.fields, 5);
+  const fields = await allFields(sql);
+  const [mac] = await items.listItems(sql, M, { q: "ATL-0012" });
+  const ram = fields.find(f => f.name === "RAM" && f.categoryId === mac!.category.id)!;
+  assert.equal(mac!.extra[ram.id], "16");
+  assert.equal(fields.some(f => f.name === "MAC Address"), false, "a column not kept makes no field");
+  const [phone] = await items.listItems(sql, M, { q: "356938035643809" });
+  assert.equal(phone!.tag, "ATL-0013");
+  // Twice: nothing more, and the columns now match the fields.
+  const again = await previewImport(sql, M, "snipe", text);
+  assert.ok(again.rows.every(r => r.skip === "exists"));
+  assert.deepEqual(again.offered, ["MAC Address"]);
 });

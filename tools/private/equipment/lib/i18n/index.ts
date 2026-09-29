@@ -1,3 +1,4 @@
+import * as base from "./format.ts";
 import { en } from "./en.ts";
 import { fr } from "./fr.ts";
 
@@ -42,4 +43,13 @@ export function publicLocale(cookie: string | undefined, acceptLanguage: string 
   return ranked.map(r => r.language).find(isLocale) ?? defaultLocale;
 }
 
-export { format, formatDate, formatDay, intl, plural, relative } from "./format.ts";
+export { format, intl, plural, relative } from "./format.ts";
+
+// Dates on the server, with the language's own way of writing the first of
+// a month ("1er février").
+export function formatDate(value: Date | string, locale: Locale, options?: Intl.DateTimeFormatOptions, zone?: string): string {
+  return base.formatDate(value, locale, options, zone, catalogue(locale).dates.dayOne);
+}
+export function formatDay(value: string, locale: Locale, options?: Intl.DateTimeFormatOptions): string {
+  return base.formatDay(value, locale, options, catalogue(locale).dates.dayOne);
+}

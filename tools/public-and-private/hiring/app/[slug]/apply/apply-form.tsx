@@ -4,6 +4,7 @@ import { startTransition, useActionState, useRef, useState, type FormEvent } fro
 import { Check, File, Upload } from "../../../components/icons.tsx";
 import { fileSize, format } from "../../../lib/i18n/format.ts";
 import type { Catalogue } from "../../../lib/i18n/index.ts";
+import type { Question } from "../../../lib/model.ts";
 import { cvAccept, uploadCv } from "../../../lib/upload.ts";
 import { sendApplication, type FormState } from "../../public-actions.ts";
 
@@ -14,7 +15,7 @@ const limits = { name: 120, email: 254, phone: 40, link: 500, coverLetter: 10000
 // Chest (lib/upload.ts), then the form with the ticket the tool gave for
 // it. Nothing typed is lost when something is refused: the form is sent
 // by hand, never reset.
-export function ApplyForm({ slug, started, consent, t, locale }: { slug: string; started: string; consent: string; t: Words; locale: string }) {
+export function ApplyForm({ slug, started, kept, pool, questions, t, locale }: { slug: string; started: string; kept: string; pool: string; questions: Question[]; t: Words; locale: string }) {
   const [state, dispatch, pending] = useActionState<FormState, FormData>(sendApplication, { error: null });
   const [file, setFile] = useState<File | null>(null);
   const [ticket, setTicket] = useState<{ file: File; value: string } | null>(null);
@@ -114,9 +115,37 @@ export function ApplyForm({ slug, started, consent, t, locale }: { slug: string;
         <label className="label" htmlFor="coverLetter">{w.coverLetter} <span className="optional">{w.optional}</span></label>
         <textarea id="coverLetter" name="coverLetter" className="field" rows={6} maxLength={limits.coverLetter} placeholder={w.coverLetterHint} />
       </div>
+      {questions.length > 0 && (
+        <fieldset className="questions">
+          <legend className="label">{w.questions}</legend>
+          {questions.map(q => (
+            <div key={q.id} className="field-block">
+              {q.kind === "text" ? (
+                <>
+                  <label className="label" htmlFor={`answer-${q.id}`}>{q.label} {!q.required && <span className="optional">{w.optional}</span>}</label>
+                  <textarea id={`answer-${q.id}`} name={`answer:${q.id}`} className="field" rows={2} maxLength={1000} required={q.required} />
+                </>
+              ) : (
+                <fieldset className="choices">
+                  <legend className="label">{q.label} {!q.required && <span className="optional">{w.optional}</span>}</legend>
+                  <div className="reason-grid">
+                    {(q.kind === "yesno" ? [["yes", w.yes], ["no", w.no]] : q.options.map(o => [o, o])).map(([value, text]) => (
+                      <label key={value} className="pill">
+                        <input type="radio" name={`answer:${q.id}`} value={value} required={q.required} />
+                        <span>{text}</span>
+                      </label>
+                    ))}
+                  </div>
+                </fieldset>
+              )}
+            </div>
+          ))}
+        </fieldset>
+      )}
+      <p className="kept">{kept} <span className="muted">{w.consentMore}</span></p>
       <label className="consent">
-        <input type="checkbox" name="consent" value="yes" required aria-invalid={error === "consent" || undefined} />
-        <span>{consent} <span className="muted">{w.consentMore}</span></span>
+        <input type="checkbox" name="pool" value="yes" />
+        <span>{pool} <span className="optional">{w.optional}</span></span>
       </label>
       {message && <p className="error" role="alert">{message}</p>}
       <div className="form-actions">

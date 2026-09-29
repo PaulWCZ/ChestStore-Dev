@@ -8,6 +8,7 @@ must not break.
 | Path | What it is |
 |---|---|
 | `chest.json` | Manifest: roles `admin`, `member`; `database`, `files`, `members`, `notifications`; `receives` |
+| `migrations/0003_…`, `0004_check_in.sql` | Calendar queue, usual week, lent desks, groups, check-in |
 | `migrations/0001_rooms.sql` | Schema. **The exclusion constraints** (`desk_taken`, `desk_already`, `room_taken`) are what prevents double booking; `btree_gist` is required. Never edit a shipped file; add `0002_…` |
 | `lib/access.ts` | **Who may do what**: abilities (`can`) and `mayChange` (the booker or an admin) |
 | `lib/model.ts` | Bounds, keys (equipment, features, statuses, parts), days, quarter hours, free slots, desk numbering — pure, browser-safe |
@@ -17,7 +18,14 @@ must not break.
 | `lib/desk-bookings.ts`, `lib/room-bookings.ts` | Booking, changing, cancelling, undoing; the day views |
 | `lib/presence.ts` | Office / remote / off per day; who is at an office |
 | `lib/tell.ts`, `lib/notify.ts` | The bell, in each recipient's language (no badge, on purpose) |
-| `lib/lifecycle.ts` | Leaving and erasure |
+| `lib/lifecycle.ts` | Leaving and erasure (calendar keys naming the person go too) |
+| `lib/calendar.ts` | The members' calendar feeds (Proposal: calendar): `enqueue` keys in the transaction that changes them, `flush` puts/removes from the database's state, `icsFile` for downloads |
+| `lib/usual.ts` | "My usual week": saved per weekday, applied once per (member, day) within the booking window when pages are read (`usual_applied`) |
+| `lib/check-in.ts`, `app/chest-jobs/[name]/route.ts` | The `quarter` schedule: reminders, check-in, freeing unclaimed rooms |
+| `lib/mail.ts` | Guests' emails with the `.ics` (Proposal: mail) |
+| `lib/groups.ts` | The Chest's groups (teams in Who's where, rooms/areas kept for a group) |
+| `lib/import.ts` | Moving in: Google Workspace resources CSV, desk owners CSV (tolerant headers) |
+| `lib/mine.ts`, `app/chest/calendar/**`, `app/chest/mine/route.ts` | A member's `.ics` files and their own data (CSV) |
 | `lib/export.ts`, `lib/csv.ts` | CSV downloads (formula-safe) |
 | `lib/context.ts`, `lib/zone.ts` | What every page starts from; the Chest's time zone |
 | `lib/i18n/` | Every word: `en.ts` (source), `fr.ts`; `format.ts` for the browser (days, times, plurals) |
@@ -56,5 +64,12 @@ TEST_DATABASE_URL=postgres://… npm test   # also plays two people booking the 
   placeholders, and look for words written in pages).
 - **Whoever loses a booking they did not cancel is told** (`lib/tell.ts`);
   booking for oneself is silent.
-- **No network, no disk, no background work.** Old data is purged when My
-  week is read.
+- **No network, no disk.** Background work is only the `quarter` schedule;
+  old data is purged when My week is read; usual weeks and calendar
+  flushes run when pages are read and after each action.
+- **Anything that changes a booking or a day enqueues its calendar keys**
+  (`enqueue(tx, …)` with `roomKey`/`dayKey`) in the same transaction; never
+  call `calendar.put` directly.
+- **A day the member set themselves is never touched by the usual week**:
+  write `usual_applied` when a person says a day, `usual = false` on their
+  own presence and desk rows.

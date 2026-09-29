@@ -377,7 +377,7 @@ async function read(input: PostInput, author: Member, zone: string, now: Date, k
   const groups = blank(input.groups) ? [] : groupIds(input.groups);
   const addedGroups = groups.filter(g => !kept.groups.includes(g));
   if (addedGroups.length > 0) {
-    const known = await chestGroups();
+    const known = await chestGroups({ fresh: true });
     if (known === "unavailable") throw new AppError("unavailable");
     if (addedGroups.some(g => !known.some(k => k.id === g))) throw new AppError("no_group");
   }
@@ -819,6 +819,7 @@ export async function eventOf(sql: Sql, postId: string): Promise<(Omit<EventFor,
 // The composer's view of a post being edited: days and times on the
 // Chest's clock.
 export type Draft = {
+  author: string;
   kind: Kind; title: string; body: string; locale: string; versions: Version[]; important: boolean; pinned: boolean; pinnedUntil: string | null; scheduled: boolean;
   publishAt: { day: string; time: string } | null;
   event: { day: string; lastDay: string; start: string; end: string; place: string; seats: string } | null;
@@ -833,7 +834,7 @@ export async function draftOf(sql: Sql, actor: Member | null, postId: unknown, o
   // The last day it is pinned, as the composer shows it.
   const until = d.pinnedUntil ? local(new Date(new Date(d.pinnedUntil).getTime() - 60_000), options.zone).day : null;
   return {
-    kind: d.kind, title: d.own.title, body: d.own.body, locale: d.own.locale, versions: d.versions, important: d.important, pinned: d.pinned, pinnedUntil: until, scheduled,
+    author: d.author, kind: d.kind, title: d.own.title, body: d.own.body, locale: d.own.locale, versions: d.versions, important: d.important, pinned: d.pinned, pinnedUntil: until, scheduled,
     publishAt: scheduled ? local(d.publishAt, options.zone) : null,
     event: d.event ? { day: d.event.day, lastDay: d.event.lastDay ?? "", start: d.event.start ? local(d.event.start, options.zone).time : "", end: d.event.end ? local(d.event.end, options.zone).time : "", place: d.event.place ?? "", seats: d.event.seats === null ? "" : String(d.event.seats) } : null,
     welcome: d.welcome, cover: d.coverFile, attachments: d.attachments, gallery: d.gallery, groups: d.groups, people: d.people,

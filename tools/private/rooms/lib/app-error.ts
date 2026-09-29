@@ -3,7 +3,7 @@
 // (lib/i18n, errors.<code>). Services never return sentences.
 export const errorCodes = [
   "forbidden", "not_found", "invalid", "too_long", "empty", "too_many",
-  "taken", "already_booked", "past", "too_far", "closed_day", "outside_hours", "desk_limit", "assigned",
+  "taken", "already_booked", "past", "too_far", "closed_day", "outside_hours", "desk_limit", "assigned", "group_only", "too_early",
   "not_empty", "file_missing", "file_too_large", "unavailable", "unknown",
 ] as const;
 export type ErrorCode = (typeof errorCodes)[number];

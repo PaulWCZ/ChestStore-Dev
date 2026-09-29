@@ -5,6 +5,7 @@ import { db } from "../../../../../lib/db.ts";
 import { AppError } from "../../../../../lib/errors.ts";
 import { job as readJob, type JobDetail } from "../../../../../lib/jobs.ts";
 import { nameOf, people } from "../../../../../lib/people.ts";
+import { stageLabel } from "../../../../../lib/stages.ts";
 import { viewer } from "../../../../../lib/session.ts";
 import { teammates } from "../../../../../lib/team.ts";
 import { JobSettingsView } from "./job-settings-view.tsx";
@@ -33,7 +34,7 @@ export default async function JobSettings({ params }: { params: Promise<{ id: st
       <div className="page-head"><h1>{t.jobSettings.title}</h1></div>
       <JobSettingsView
         jobId={detail.job.id}
-        stages={detail.stages.map(s => ({ ...s, count: stageCounts.find(c => String(c.stage_id) === s.id)?.n ?? 0 }))}
+        stages={detail.stages.map(s => ({ ...s, name: stageLabel(s, t.jobSettings.defaults), count: stageCounts.find(c => String(c.stage_id) === s.id)?.n ?? 0 }))}
         interviewers={detail.interviewers.map(m => ({ id: m, name: nameOf(who.get(m), locale), photo: who.get(m)?.photo ?? null }))}
         choices={team.filter(m => !detail.interviewers.includes(m.id)).map(m => ({ id: m.id, name: m.name, role: m.role === "recruiter" ? t.roles.recruiter : m.role === "interviewer" ? t.roles.interviewer : "" }))}
         deletable={(count?.n ?? 0) === 0}

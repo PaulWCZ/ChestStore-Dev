@@ -82,14 +82,14 @@ test("a welcome tells the new colleague; a comment tells the author; a reminder 
     const w = await posts.createPost(database.sql, pub, { kind: "welcome", title: "Welcome Nora!", welcome: nora.id }, { zone });
     await tell.announce(database.sql);
     assert.deepEqual(chest.notifications.map(n => [n.member, n.title]), [[nora.id, "Bienvenue ! L’équipe vous salue dans les Actualités"]]);
-    const { comment, post } = await posts.addComment(database.sql, asMember(hugo), w.id, "Welcome!");
-    await tell.commented(asMember(hugo), post, comment.body);
+    const done = await posts.addComment(database.sql, asMember(hugo), w.id, "Welcome!");
+    await tell.commented(asMember(hugo), done);
     assert.deepEqual(chest.notifications.at(-1), { member: camille.id, title: "Hugo Bernard a commenté « Welcome Nora! »", body: "Welcome!", path: `/chest/posts/${w.id}#comments`, key: `post:${w.id}:comments` });
     // Her own comment tells nobody.
     const before = chest.notifications.length;
-    await tell.commented(pub, post, "Thanks");
+    await tell.commented(pub, { ...done, comment: { ...done.comment, body: "Thanks" } });
     assert.equal(chest.notifications.length, before);
-    await tell.remind({ id: w.id, title: "Office move", body: "" }, [{ id: hugo.id, name: hugo.name, photo: null, locale: "en", role: "reader", groups: [] }]);
+    await tell.remind(database.sql, { id: w.id, title: "Office move", body: "", locale: "en", versions: [], author: camille.id }, [{ id: hugo.id, name: hugo.name, photo: null, locale: "en", role: "reader", groups: [] }], "2026-10-01");
     assert.equal(chest.notifications.at(-1)!.title, "Reminder: Office move");
     assert.equal(chest.notifications.at(-1)!.body, "Please confirm you have read it.");
   } finally {

@@ -13,31 +13,39 @@ export type Component = {
   description: string;
   position: number;
   hidden: boolean;
+  // For the team only: on the members' status page, never on the public one.
+  teamOnly: boolean;
   createdAt: Date;
 };
 
-type Row = { id: string; kind: "component" | "group"; parent_id: string | null; name: string; description: string; position: number; hidden: boolean; created_at: Date };
-const shape = (r: Row): Component => ({ id: String(r.id), kind: r.kind, parentId: r.parent_id === null ? null : String(r.parent_id), name: r.name, description: r.description, position: r.position, hidden: r.hidden, createdAt: new Date(r.created_at) });
+type Row = { id: string; kind: "component" | "group"; parent_id: string | null; name: string; description: string; position: number; hidden: boolean; team_only: boolean; created_at: Date };
+const shape = (r: Row): Component => ({ id: String(r.id), kind: r.kind, parentId: r.parent_id === null ? null : String(r.parent_id), name: r.name, description: r.description, position: r.position, hidden: r.hidden, teamOnly: r.team_only, createdAt: new Date(r.created_at) });
+const fields = "id, kind, parent_id, name, description, position, hidden, team_only, created_at";
 
 // Every component and group, groups before their components, in order.
 export async function allComponents(sql: Query): Promise<Component[]> {
-  const rows = await sql<Row[]>`select id, kind, parent_id, name, description, position, hidden, created_at from components order by position, id`;
+  const rows = await sql<Row[]>`select ${sql.unsafe(fields)} from components order by position, id`;
   return rows.map(shape);
 }
 
 // A tree as pages show it: top-level entries in order, each group with its
-// components in order.
+// components in order. shown: what visitors see (not hidden, not for the
+// team only); team: what the team's page shows (not hidden).
 export type Entry = Component & { children: Component[] };
-export function tree(list: Component[], options: { shown?: boolean } = {}): Entry[] {
-  const visible = options.shown ? list.filter(c => !c.hidden) : list;
+export function tree(list: Component[], options: { shown?: boolean; team?: boolean } = {}): Entry[] {
+  const visible = options.shown ? list.filter(c => !c.hidden && (options.team || !c.teamOnly)) : list;
   const top = visible.filter(c => c.parentId === null);
   return top.map(c => ({ ...c, children: visible.filter(k => k.parentId === c.id) })).filter(e => !(options.shown && e.kind === "group" && e.children.length === 0));
 }
 
-// The components a visitor sees: a hidden group hides its components.
-export function shownComponents(list: Component[]): Component[] {
-  const hiddenGroups = new Set(list.filter(c => c.kind === "group" && c.hidden).map(c => c.id));
-  return list.filter(c => c.kind === "component" && !c.hidden && !(c.parentId && hiddenGroups.has(c.parentId)));
+// The components a visitor sees: a hidden group hides its components; a
+// service for the team only is never public (a group holding nothing else
+// disappears with it). The team's page
+// (team: true) shows those too.
+export function shownComponents(list: Component[], options: { team?: boolean } = {}): Component[] {
+  const off = (c: Component) => c.hidden || (!options.team && c.teamOnly);
+  const hiddenGroups = new Set(list.filter(c => c.kind === "group" && off(c)).map(c => c.id));
+  return list.filter(c => c.kind === "component" && !off(c) && !(c.parentId && hiddenGroups.has(c.parentId)));
 }
 
 function check(actor: Member | null): void {
@@ -45,7 +53,7 @@ function check(actor: Member | null): void {
 }
 
 async function one(sql: Query, componentId: string): Promise<Component> {
-  const [row] = await sql<Row[]>`select id, kind, parent_id, name, description, position, hidden, created_at from components where id = ${componentId}`;
+  const [row] = await sql<Row[]>`select ${sql.unsafe(fields)} from components where id = ${componentId}`;
   if (!row) throw new AppError("not_found");
   return shape(row);
 }
@@ -57,7 +65,7 @@ async function groupOf(sql: Query, value: unknown): Promise<string | null> {
   return parent.id;
 }
 
-export type ComponentInput = { name: unknown; description?: unknown; parentId?: unknown; kind?: unknown };
+export type ComponentInput = { name: unknown; description?: unknown; parentId?: unknown; kind?: unknown; teamOnly?: unknown };
 
 export async function addComponent(sql: Sql, actor: Member | null, input: ComponentInput): Promise<Component> {
   check(actor);
@@ -70,14 +78,14 @@ export async function addComponent(sql: Sql, actor: Member | null, input: Compon
     if (count >= limits.components) throw new AppError("too_many", { max: limits.components });
     const [{ next }] = (await tx<{ next: number }[]>`select coalesce(max(position), -1)::int + 1 as next from components where parent_id is not distinct from ${parentId}`) as unknown as [{ next: number }];
     const [row] = await tx<Row[]>`
-      insert into components (kind, parent_id, name, description, position)
-      values (${kind}, ${parentId}, ${name}, ${description}, ${next})
-      returning id, kind, parent_id, name, description, position, hidden, created_at`;
+      insert into components (kind, parent_id, name, description, position, team_only)
+      values (${kind}, ${parentId}, ${name}, ${description}, ${next}, ${kind === "component" && input.teamOnly === true})
+      returning ${tx.unsafe(fields)}`;
     return shape(row!);
   });
 }
 
-export async function updateComponent(sql: Sql, actor: Member | null, componentId: unknown, input: { name?: unknown; description?: unknown; parentId?: unknown; hidden?: unknown }): Promise<Component> {
+export async function updateComponent(sql: Sql, actor: Member | null, componentId: unknown, input: { name?: unknown; description?: unknown; parentId?: unknown; hidden?: unknown; teamOnly?: unknown }): Promise<Component> {
   check(actor);
   const key = id(componentId);
   return sql.begin(async tx => {
@@ -85,6 +93,8 @@ export async function updateComponent(sql: Sql, actor: Member | null, componentI
     const name = input.name === undefined ? c.name : clean(input.name, limits.componentName);
     const description = input.description === undefined ? c.description : clean(input.description, limits.componentDescription, { optional: true });
     const hidden = input.hidden === undefined ? c.hidden : input.hidden === true;
+    // Only a service is for the team only; a group follows its services.
+    const teamOnly = c.kind === "component" && (input.teamOnly === undefined ? c.teamOnly : input.teamOnly === true);
     let parentId = c.parentId;
     let position = c.position;
     if (input.parentId !== undefined && c.kind === "component") {
@@ -95,8 +105,8 @@ export async function updateComponent(sql: Sql, actor: Member | null, componentI
       }
     }
     const [row] = await tx<Row[]>`
-      update components set name = ${name}, description = ${description}, hidden = ${hidden}, parent_id = ${parentId}, position = ${position}
-      where id = ${key} returning id, kind, parent_id, name, description, position, hidden, created_at`;
+      update components set name = ${name}, description = ${description}, hidden = ${hidden}, team_only = ${teamOnly}, parent_id = ${parentId}, position = ${position}
+      where id = ${key} returning ${tx.unsafe(fields)}`;
     return shape(row!);
   });
 }

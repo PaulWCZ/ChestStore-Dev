@@ -1,6 +1,7 @@
 import type { ToolEvent } from "@argentic/chest-sdk/events";
 import type { Sql } from "./db.ts";
 import { addDays, daysBetween, today } from "./model.ts";
+import { dayKey, enqueue } from "./calendar.ts";
 import { cancelDeskBookings } from "./places.ts";
 import { presenceHorizon } from "./presence.ts";
 
@@ -49,9 +50,10 @@ export async function leaveApproved(sql: Sql, event: ToolEvent, zone: string): P
     for (const d of days) {
       await tx`
         insert into presence (member_id, day, status, office_id, leave_ref) values (${t.member}, ${d}, 'off', null, ${ref(t)})
-        on conflict (member_id, day) do update set status = 'off', office_id = null, leave_ref = excluded.leave_ref`;
+        on conflict (member_id, day) do update set status = 'off', office_id = null, leave_ref = excluded.leave_ref, usual = false`;
     }
     await cancelDeskBookings(tx, "chest", tx`b.member_id = ${t.member} and b.day in ${tx(days)} and upper(b.during) > now()`);
+    await enqueue(tx, days.map(d => dayKey(t.member, d)));
   });
   return days.length;
 }
@@ -59,7 +61,13 @@ export async function leaveApproved(sql: Sql, event: ToolEvent, zone: string): P
 export async function leaveCancelled(sql: Sql, event: ToolEvent): Promise<number> {
   const request = event.data["request"];
   const member = event.data["member"];
-  if (typeof request !== "string" || !/^[A-Za-z0-9._:-]{1,60}$/u.test(request) || typeof member !== "string") return 0;
-  const done = await sql`delete from presence where member_id = ${member} and leave_ref = ${ref({ request })}`;
-  return done.count;
+  if (typeof request !== "string" || !/^[A-Za-z0-9._:-]{1,60}$/u.test(request) || typeof member !== "string" || !/^mbr_[a-z2-7]{26}$/u.test(member)) return 0;
+  return sql.begin(async tx => {
+    const days = (await tx<{ day: string }[]>`
+      delete from presence where member_id = ${member} and leave_ref = ${ref({ request })} returning to_char(day, 'YYYY-MM-DD') as day`).map(r => r.day);
+    // Those days are open again: the usual week may say them.
+    if (days.length > 0) await tx`delete from usual_applied where member_id = ${member} and day in ${tx(days)}`;
+    await enqueue(tx, days.map(d => dayKey(member, d)));
+    return days.length;
+  });
 }

@@ -5,19 +5,19 @@ import { Plus } from "../../../components/icons.tsx";
 import { can } from "../../../lib/access.ts";
 import { listCategories } from "../../../lib/categories.ts";
 import { db } from "../../../lib/db.ts";
-import { plural } from "../../../lib/i18n/index.ts";
-import { holderCounts, listItems, places, sorts, type Filters } from "../../../lib/items.ts";
+import { format, plural } from "../../../lib/i18n/index.ts";
+import { countItems, holderCounts, listItems, places, sorts, type Filters } from "../../../lib/items.ts";
+import { limits } from "../../../lib/model.ts";
 import { nameOf, people } from "../../../lib/people.ts";
 import { viewer } from "../../../lib/session.ts";
 import { holderIds, rowOf } from "../../../lib/view.ts";
 import { categoryName } from "../../../lib/words.ts";
 import { ItemsView } from "./items-view.tsx";
 
-const max = 500;
-
-// The catalogue: search (a tag, a serial number, a model, a person), filters
-// by category, status and holder, sort. A tag typed exactly opens its item
-// (what a scanner types). Managers pick items to print their labels.
+// The catalogue: search (a tag, a serial number, a model, a field's value,
+// a person), filters by category, status and holder, sort; 100 a page. A
+// tag typed exactly opens its item (what a scanner types). Managers pick
+// items to print their labels.
 export default async function ItemsPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const v = await viewer();
   if (!v) return null;
@@ -27,13 +27,16 @@ export default async function ItemsPage({ searchParams }: { searchParams: Promis
   const filters: Filters = { q: one("q"), category: one("category"), status: one("status"), holder: one("holder"), sort: sorts.includes(one("sort") as never) ? one("sort") : "tag" };
   const manager = can(member, "items.manage");
   const sql = db();
-  const found = await listItems(sql, member, filters, max + 1);
+  const size = limits.page;
+  const total = await countItems(sql, member, filters);
+  const pages = Math.max(1, Math.ceil(total / size));
+  const page = Math.min(Math.max(1, Number.parseInt(one("page"), 10) || 1), pages);
+  const shown = await listItems(sql, member, filters, size, (page - 1) * size);
   const q = filters.q?.trim() ?? "";
-  if (q && !filters.category && !filters.status && !filters.holder) {
-    const exact = found.filter(i => i.tag.toLowerCase() === q.toLowerCase());
+  if (q && !filters.category && !filters.status && !filters.holder && page === 1) {
+    const exact = shown.filter(i => i.tag.toLowerCase() === q.toLowerCase());
     if (exact.length === 1) redirect(`/chest/items/${exact[0]!.id}`);
   }
-  const shown = found.slice(0, max);
   const [categories, placeList, holders] = await Promise.all([listCategories(sql, member), places(sql, member), manager ? holderCounts(sql, member) : Promise.resolve(new Map())]);
   const names = await people([...holderIds(shown), ...holders.keys()]);
   const today = chest.today();
@@ -49,13 +52,13 @@ export default async function ItemsPage({ searchParams }: { searchParams: Promis
       <div className="page-head">
         <div>
           <h1>{t.list.title}</h1>
-          <p className="muted" aria-live="polite">{plural(t.list.count, shown.length, locale)}</p>
+          <p className="muted" aria-live="polite">{plural(t.list.count, total, locale)}</p>
         </div>
         {manager && <div className="actions"><Link className="button" href="/chest/items/new"><Plus />{t.overview.add}</Link></div>}
       </div>
       <ItemsView
         rows={rows}
-        capped={found.length > max ? max : 0}
+        paging={pages > 1 ? { page, pages, text: format(t.list.page, { from: (page - 1) * size + 1, to: (page - 1) * size + shown.length, total }) } : null}
         manager={manager}
         filtered={filtered}
         query={query}
@@ -63,7 +66,7 @@ export default async function ItemsPage({ searchParams }: { searchParams: Promis
         categories={categories.map(c => ({ value: c.id, label: categoryName(c, t) }))}
         holders={holderOptions}
         places={placeList}
-        t={{ list: t.list, status: t.status, shell: t.shell }}
+        t={{ list: t.list, status: t.status, shell: t.shell, common: t.common }}
         locale={locale}
       />
     </main>

@@ -28,7 +28,9 @@ export default async function Overview() {
   // maintenance posts due, a few emails.
   await pass(sql, now, 25).catch(error => console.error("catch-up failed", error instanceof Error ? error.name : "error"));
   await refreshBadge(sql, member.id);
-  const view = await statusView(sql, zone, now);
+  // Editors see every incident (those about services for the team only
+  // too); "What your customers see" is the public page's own view.
+  const [view, customers] = await Promise.all([statusView(sql, zone, now, { team: true }), statusView(sql, zone, now)]);
   const down = [...(await statuses(sql)).values()].filter(s => s.downSince);
   const componentName = (id: string) => view.entries.flatMap(e => (e.self ? [e.self] : e.children)).find(c => c.id === id)?.name ?? "";
   const publicHome = publicOrigin(await headers()) ?? "";
@@ -124,17 +126,21 @@ export default async function Overview() {
               <h2 id="sees" className="section-title">{t.overview.publicSees}</h2>
               <a href={`${publicHome}/?fresh=${Math.floor(now.getTime() / 1000)}`} target="_blank" rel="noopener">{t.shell.publicPage}</a>
             </div>
-            <div className={`banner small s-${view.overall}`}>
-              <StateLabel state={view.overall} word={t.banner[view.overall]} />
+            {customers.entries.length === 0 ? <p className="quiet-line">{t.public.setupTitle}</p> : (
+            <>
+            <div className={`banner small s-${customers.overall}`}>
+              <StateLabel state={customers.overall} word={t.banner[customers.overall]} />
             </div>
             <ul className="mini card">
-              {view.entries.flatMap(e => (e.kind === "group" ? [{ id: e.id, name: e.name, state: e.state, group: true }, ...e.children.map(c => ({ id: c.id, name: c.name, state: c.state, group: false, child: true }))] : [{ id: e.id, name: e.name, state: e.state, group: false }])).map(row => (
+              {customers.entries.flatMap(e => (e.kind === "group" ? [{ id: e.id, name: e.name, state: e.state, group: true }, ...e.children.map(c => ({ id: c.id, name: c.name, state: c.state, group: false, child: true }))] : [{ id: e.id, name: e.name, state: e.state, group: false }])).map(row => (
                 <li key={row.id} className={`mini-row${"child" in row ? " child" : ""}${row.group ? " group" : ""}`}>
                   <span>{row.name}</span>
                   <StateLabel state={row.state} word={t.states[row.state]} quiet />
                 </li>
               ))}
             </ul>
+            </>
+            )}
           </section>
 
           {view.recent.length > 0 && (

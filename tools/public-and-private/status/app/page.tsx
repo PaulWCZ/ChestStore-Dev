@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { Fill } from "../components/fill.tsx";
 import { HistoryBar } from "../components/history-bar.tsx";
 import { Arrow, StateIcon } from "../components/icons.tsx";
-import { IncidentCard, IncidentRow } from "../components/incident-card.tsx";
+import { IncidentCard, IncidentRow, titleIn } from "../components/incident-card.tsx";
 import { PublicShell } from "../components/public-shell.tsx";
 import { StateLabel } from "../components/state.tsx";
 import { When } from "../components/when.tsx";
@@ -23,13 +23,25 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function StatusPage() {
   const { t, locale, sql, now, zone, company, offerMail } = await publicContext();
   const view = await statusView(sql, zone, now);
-  const titles = new Map([...view.incidents.values()].map(i => [i.id, i.title]));
+  const titles = new Map([...view.incidents.values()].map(i => [i.id, titleIn(i, locale).text]));
   const words = { public: t.public, steps: t.steps, states: t.states, time: t.time, maintenance: t.maintenance };
   const current = [...view.open, ...view.maintenanceNow];
   // Where the Chest checks a service, the uptime it measured, beside the
   // declared one — each labelled for what it is.
   const measuredText = (m: { percent: number; since: Date } | null) => (m ? format(t.public.measured, { percent: percent(m.percent, locale), date: day(wall(m.since, zone).date, locale, { day: "numeric", month: "long" }) }) : null);
   const anyMeasured = view.entries.some(e => (e.self ? [e.self] : e.children).some(c => c.measured));
+  // Before any service is listed, the page says only that it is being set
+  // up: never "All systems operational" about nothing.
+  if (view.entries.length === 0) {
+    return (
+      <PublicShell company={company} locale={locale} zone={zone} t={t} path="/" offerMail={false}>
+        <section className="empty setup" aria-labelledby="setup">
+          <h1 id="setup">{t.public.setupTitle}</h1>
+          <p>{t.public.setupBody}</p>
+        </section>
+      </PublicShell>
+    );
+  }
   return (
     <PublicShell company={company} locale={locale} zone={zone} t={t} path="/" offerMail={offerMail}>
       <section className={`banner s-${view.overall}`} aria-labelledby="overall">
@@ -51,47 +63,43 @@ export default async function StatusPage() {
 
       <section className="section" aria-labelledby="components">
         <h2 id="components" className="visually-hidden">{t.public.now}</h2>
-        {view.entries.length === 0 ? (
-          <div className="empty"><h2>{t.public.noComponents}</h2><p>{t.public.noComponentsBody}</p></div>
-        ) : (
-          <ul className="components card">
-            {view.entries.map(e => (
-              <li key={e.id} className={`entry entry-${e.kind}`}>
-                {e.kind === "group" ? (
-                  <>
-                    <div className="entry-head group-head">
-                      <h3>{e.name}</h3>
-                      <StateLabel state={e.state} word={t.states[e.state]} />
-                    </div>
-                    {e.description && <p className="entry-desc">{e.description}</p>}
-                    <ul className="children">
-                      {e.children.map(c => (
-                        <li key={c.id} className="child">
-                          <div className="entry-head">
-                            <h4>{c.name}</h4>
-                            <StateLabel state={c.state} word={t.states[c.state]} />
-                          </div>
-                          {c.description && <p className="entry-desc">{c.description}</p>}
-                          <HistoryBar id={c.id} name={c.name} days={c.days} uptime={c.uptime} measured={measuredText(c.measured)} titles={titles} locale={locale} t={{ public: t.public, states: t.states }} />
-                        </li>
-                      ))}
-                    </ul>
-                  </>
-                ) : e.self && (
-                  <>
-                    <div className="entry-head">
-                      <h3>{e.name}</h3>
-                      <StateLabel state={e.state} word={t.states[e.state]} />
-                    </div>
-                    {e.description && <p className="entry-desc">{e.description}</p>}
-                    <HistoryBar id={e.id} name={e.name} days={e.self.days} uptime={e.self.uptime} measured={measuredText(e.self.measured)} titles={titles} locale={locale} t={{ public: t.public, states: t.states }} />
-                  </>
-                )}
-              </li>
-            ))}
-          </ul>
-        )}
-        {view.entries.length > 0 && <p className="fine">{t.public.howCounted} {anyMeasured ? t.public.measuredNote : t.public.notMeasured}</p>}
+        <ul className="components card">
+          {view.entries.map(e => (
+            <li key={e.id} className={`entry entry-${e.kind}`}>
+              {e.kind === "group" ? (
+                <>
+                  <div className="entry-head group-head">
+                    <h3>{e.name}</h3>
+                    <StateLabel state={e.state} word={t.states[e.state]} />
+                  </div>
+                  {e.description && <p className="entry-desc">{e.description}</p>}
+                  <ul className="children">
+                    {e.children.map(c => (
+                      <li key={c.id} className="child">
+                        <div className="entry-head">
+                          <h4>{c.name}</h4>
+                          <StateLabel state={c.state} word={t.states[c.state]} />
+                        </div>
+                        {c.description && <p className="entry-desc">{c.description}</p>}
+                        <HistoryBar id={c.id} name={c.name} days={c.days} uptime={c.uptime} measured={measuredText(c.measured)} titles={titles} locale={locale} t={{ public: t.public, states: t.states }} />
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              ) : e.self && (
+                <>
+                  <div className="entry-head">
+                    <h3>{e.name}</h3>
+                    <StateLabel state={e.state} word={t.states[e.state]} />
+                  </div>
+                  {e.description && <p className="entry-desc">{e.description}</p>}
+                  <HistoryBar id={e.id} name={e.name} days={e.self.days} uptime={e.self.uptime} measured={measuredText(e.self.measured)} titles={titles} locale={locale} t={{ public: t.public, states: t.states }} />
+                </>
+              )}
+            </li>
+          ))}
+        </ul>
+        <p className="fine">{t.public.howCounted} {anyMeasured ? t.public.measuredNote : t.public.notMeasured}</p>
       </section>
 
       {view.maintenanceAhead.length > 0 && (

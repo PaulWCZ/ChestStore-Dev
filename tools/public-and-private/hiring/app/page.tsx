@@ -1,27 +1,45 @@
+import type { Metadata } from "next";
 import { Arrow } from "../components/icons.tsx";
 import { PublicShell } from "../components/public-shell.tsx";
-import { retentionWords } from "../lib/careers.ts";
+import { brandOf, retentionWords } from "../lib/careers.ts";
 import { db } from "../lib/db.ts";
 import { format, plural } from "../lib/i18n/index.ts";
-import { publicJobs, settings } from "../lib/jobs.ts";
+import { introFor, publicJobs, settings } from "../lib/jobs.ts";
 import { publicWords } from "../lib/session.ts";
 
-// The careers page: the company, a few words, its open jobs — nothing else
-// of the tool is public.
+// The careers page is for search engines too: indexed, with its feeds.
+export async function generateMetadata(): Promise<Metadata> {
+  const { t } = await publicWords();
+  const s = await settings(db());
+  return {
+    title: s.companyName ? format(t.careers.title, { company: s.companyName }) : t.careers.titlePlain,
+    robots: { index: true, follow: true },
+    alternates: { types: { "application/rss+xml": "/feed.xml" } },
+  };
+}
+
+// The careers page: the company, a few words, its photos, its open jobs —
+// nothing else of the tool is public.
 export default async function Careers() {
   const { t, locale } = await publicWords();
   const sql = db();
   const s = await settings(sql);
   const list = s.careersOpen ? await publicJobs(sql) : [];
   const company = s.companyName || t.careers.titlePlain;
+  const brand = brandOf(s);
   const foot = <><span>{format(t.careers.footer, { company })}</span><span>{format(t.careers.privacy, { period: retentionWords(t, s.retentionMonths) })}</span></>;
   return (
-    <PublicShell company={company} locale={locale} label={t.careers.language} back="/" foot={foot}>
+    <PublicShell company={company} locale={locale} label={t.careers.language} back="/" foot={foot} brand={brand} website={t.careers.website}>
       <section className="hero">
         <p className="kicker">{t.careers.kicker}</p>
         <h1 className="display">{s.companyName ? format(t.careers.title, { company: s.companyName }) : t.careers.titlePlain}</h1>
-        <p className="lede">{s.intro || t.careers.intro}</p>
+        <p className="lede">{introFor(s, locale) || t.careers.intro}</p>
       </section>
+      {brand.photos.length > 0 && (
+        <div className={`photos n${brand.photos.length}`}>
+          {brand.photos.map(src => <img key={src} src={src} alt="" loading="lazy" />)}
+        </div>
+      )}
       {!s.careersOpen ? (
         <section className="notice-block">
           <h2>{t.careers.closed}</h2>

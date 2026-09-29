@@ -12,7 +12,9 @@ import { flush } from "../../lib/mailer.ts";
 import { moment, worst, type Impact } from "../../lib/model.ts";
 import { currentMember } from "../../lib/session.ts";
 import { setChecksState } from "../../lib/settings.ts";
+import { savePageSettings } from "../../lib/page-settings.ts";
 import * as subscribers from "../../lib/subscribers.ts";
+import * as templates from "../../lib/templates.ts";
 import * as tell from "../../lib/tell.ts";
 
 // The server actions of the members' part. Each is an endpoint anyone can
@@ -50,7 +52,9 @@ async function namesOf(ids: string[]): Promise<string[]> {
 export type WhenInput = { day: string; minutes: number };
 const zone = () => chest.timeZone();
 
-export async function postIncident(input: { title: string; status: string; body: string; states: Record<string, string> }): Promise<Result<{ id: string }>> {
+type SecondInput = { title?: string; body?: string; resolution?: string } | null;
+
+export async function postIncident(input: { title: string; status: string; body: string; states: Record<string, string>; second?: SecondInput }): Promise<Result<{ id: string }>> {
   return act(async actor => {
     const sql = db();
     const { incidentId } = await incidents.openIncident(sql, actor, input);
@@ -62,16 +66,18 @@ export async function postIncident(input: { title: string; status: string; body:
   });
 }
 
-export async function backfillIncident(input: { title: string; body: string; resolution: string; states: Record<string, string>; started: WhenInput; resolved: WhenInput }): Promise<Result<{ id: string }>> {
+export async function backfillIncident(input: { title: string; body: string; resolution: string; states: Record<string, string>; started: WhenInput; resolved: WhenInput; second?: SecondInput }): Promise<Result<{ id: string }>> {
   return act(async actor => {
     const startedAt = moment(input.started?.day, input.started?.minutes, zone());
     const resolvedAt = moment(input.resolved?.day, input.resolved?.minutes, zone());
-    const { incidentId } = await incidents.backfill(db(), actor, { title: input.title, body: input.body, resolution: input.resolution, states: input.states, startedAt, resolvedAt });
+    const { incidentId } = await incidents.backfill(db(), actor, { title: input.title, body: input.body, resolution: input.resolution, states: input.states, startedAt, resolvedAt, second: input.second ?? null });
     return { id: incidentId };
   });
 }
 
-export async function postUpdate(incidentId: string, input: { status: string; body: string; states?: Record<string, string> }): Promise<Result<{ resolved: boolean }>> {
+// An update; reopen: true only from the "Reopen" dialog (a resolved
+// incident refuses any other step).
+export async function postUpdate(incidentId: string, input: { status: string; body: string; bodySecond?: string; states?: Record<string, string>; reopen?: boolean }): Promise<Result<{ resolved: boolean }>> {
   return act(async actor => {
     const sql = db();
     const before = await incidents.incidentFor(sql, actor, incidentId);
@@ -88,12 +94,22 @@ export async function postUpdate(incidentId: string, input: { status: string; bo
   });
 }
 
-export async function renameIncident(incidentId: string, title: string): Promise<Result> {
-  return act(async actor => { await incidents.renameIncident(db(), actor, incidentId, title); return null; });
+export async function renameIncident(incidentId: string, title: string, titleSecond?: string): Promise<Result> {
+  return act(async actor => { await incidents.renameIncident(db(), actor, incidentId, title, titleSecond); return null; });
 }
 
-export async function editUpdate(updateId: string, body: string): Promise<Result> {
-  return act(async actor => { await incidents.editUpdate(db(), actor, updateId, body); return null; });
+// Corrects an update's text and, when given, its second version: each
+// change is logged.
+export async function editUpdate(updateId: string, body: string, bodySecond?: string): Promise<Result> {
+  return act(async actor => {
+    await incidents.editUpdate(db(), actor, updateId, body);
+    if (bodySecond !== undefined) await incidents.editUpdate(db(), actor, updateId, bodySecond, new Date(), { second: true });
+    return null;
+  });
+}
+
+export async function writePostmortem(incidentId: string, input: { body: string; bodySecond?: string }): Promise<Result> {
+  return act(async actor => { await incidents.writePostmortem(db(), actor, incidentId, input); return null; });
 }
 
 export async function removeUpdate(updateId: string): Promise<Result> {
@@ -131,13 +147,13 @@ export async function restoreIncident(incidentId: string): Promise<Result> {
 
 // ---- Maintenance -----------------------------------------------------------
 
-type MaintenanceForm = { title: string; body?: string; start: WhenInput; end: WhenInput; components: string[]; autoPosts: boolean };
+type MaintenanceForm = { title: string; body?: string; start: WhenInput; end: WhenInput; components: string[]; autoPosts: boolean; second?: SecondInput };
 
 export async function planMaintenance(input: MaintenanceForm): Promise<Result<{ id: string }>> {
   return act(async actor => {
     const start = moment(input.start?.day, input.start?.minutes, zone());
     const end = moment(input.end?.day, input.end?.minutes, zone());
-    const { incidentId } = await incidents.planMaintenance(db(), actor, { title: input.title, body: input.body, start, end, components: input.components, autoPosts: input.autoPosts });
+    const { incidentId } = await incidents.planMaintenance(db(), actor, { title: input.title, body: input.body, start, end, components: input.components, autoPosts: input.autoPosts, second: input.second ?? null });
     await sendSoon();
     return { id: incidentId };
   });
@@ -152,7 +168,7 @@ export async function changeMaintenance(incidentId: string, input: MaintenanceFo
   });
 }
 
-export async function postMaintenanceUpdate(incidentId: string, input: { status: string; body: string }): Promise<Result> {
+export async function postMaintenanceUpdate(incidentId: string, input: { status: string; body: string; bodySecond?: string }): Promise<Result> {
   return act(async actor => {
     await incidents.maintenanceUpdate(db(), actor, incidentId, input);
     await sendSoon();
@@ -162,7 +178,7 @@ export async function postMaintenanceUpdate(incidentId: string, input: { status:
 
 // ---- Components ------------------------------------------------------------
 
-export async function addComponent(input: { name: string; description?: string; parentId?: string | null; kind?: string }): Promise<Result<{ id: string }>> {
+export async function addComponent(input: { name: string; description?: string; parentId?: string | null; kind?: string; teamOnly?: boolean }): Promise<Result<{ id: string }>> {
   return act(async actor => ({ id: (await components.addComponent(db(), actor, input)).id }));
 }
 
@@ -176,7 +192,7 @@ export async function addExample(names: string[]): Promise<Result> {
   });
 }
 
-export async function updateComponent(componentId: string, input: { name?: string; description?: string; parentId?: string | null; hidden?: boolean }): Promise<Result> {
+export async function updateComponent(componentId: string, input: { name?: string; description?: string; parentId?: string | null; hidden?: boolean; teamOnly?: boolean }): Promise<Result> {
   return act(async actor => { await components.updateComponent(db(), actor, componentId, input); return null; });
 }
 
@@ -212,4 +228,20 @@ export async function saveChecks(list: checks.WatchInput[]): Promise<Result<{ ru
 
 export async function removeSubscriber(subscriberId: string): Promise<Result> {
   return act(async actor => { await subscribers.removeSubscriber(db(), actor, subscriberId); return null; });
+}
+
+// ---- Templates -------------------------------------------------------------
+
+export async function saveTemplate(input: templates.TemplateInput & { title: string; body: string }): Promise<Result<{ name: string }>> {
+  return act(async actor => ({ name: (await templates.saveTemplate(db(), actor, input)).name }));
+}
+
+export async function removeTemplate(templateId: string): Promise<Result> {
+  return act(async actor => { await templates.removeTemplate(db(), actor, templateId); return null; });
+}
+
+// ---- The public page's settings --------------------------------------------
+
+export async function savePage(input: { website: string; support: string; embedSites: string }): Promise<Result> {
+  return act(async actor => { await savePageSettings(db(), actor, input); return null; });
 }

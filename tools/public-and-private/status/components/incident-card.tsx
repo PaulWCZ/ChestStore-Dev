@@ -2,6 +2,7 @@ import type { Incident, Update } from "../lib/incidents.ts";
 import type { Catalogue } from "../lib/i18n/index.ts";
 import { duration, format } from "../lib/i18n/format.ts";
 import type { State } from "../lib/model.ts";
+import { pick } from "../lib/texts.ts";
 import { maintenancePhase } from "../lib/timeline.ts";
 import { RichText } from "./rich-text.tsx";
 import { When } from "./when.tsx";
@@ -20,26 +21,56 @@ export function stepOf(i: Incident, now: Date): keyof Catalogue["steps"] {
   return phaseOf(i, now);
 }
 
-export function Timeline({ updates, zone, locale, t, now }: { updates: Update[]; zone: string; locale: string; t: CardWords; now: Date }) {
+type Languages = Pick<Incident, "language" | "secondLanguage">;
+
+// The title of an incident in the visitor's language when it has one.
+export function titleIn(i: Incident, locale: string) {
+  return pick(i.title, i.titleSecond, i, locale);
+}
+
+// A text as the visitor reads it: their language when written in it,
+// otherwise the first version, marked with its own language.
+export function TextIn({ update, languages, locale, className }: { update: Pick<Update, "body" | "bodySecond">; languages: Languages; locale: string; className?: string }) {
+  const { text, lang } = pick(update.body, update.bodySecond, languages, locale);
+  return <RichText text={text} lang={lang === locale ? undefined : lang} {...(className ? { className } : {})} />;
+}
+
+export function Timeline({ incident, zone, locale, t, now }: { incident: Incident; zone: string; locale: string; t: CardWords; now: Date }) {
   return (
     <ol className="timeline">
-      {updates.filter(u => u.removedAt === null && u.postedAt.getTime() <= now.getTime()).map(u => (
+      {incident.updates.filter(u => u.removedAt === null && u.status !== "postmortem" && u.postedAt.getTime() <= now.getTime()).map(u => (
         <li key={u.id} className={`step step-${u.status}`}>
           <div className="step-head">
             <strong>{t.steps[u.status]}</strong>
             <When at={u.postedAt} zone={zone} locale={locale} now={now} />
           </div>
-          <RichText text={u.body} />
+          <TextIn update={u} languages={incident} locale={locale} />
         </li>
       ))}
     </ol>
   );
 }
 
+// The post-mortem of a resolved incident, under its timeline: what
+// happened and what was changed — the part an SLA claim refers to.
+export function Postmortem({ incident, zone, locale, t, now }: { incident: Incident; zone: string; locale: string; t: CardWords; now: Date }) {
+  const found = incident.updates.find(u => u.status === "postmortem" && u.removedAt === null);
+  if (!found) return null;
+  return (
+    <section className="card postmortem" id="postmortem" aria-labelledby="postmortem-title">
+      <h2 id="postmortem-title">{t.public.postmortem}</h2>
+      <p className="fine"><When at={found.postedAt} zone={zone} locale={locale} now={now} /></p>
+      <TextIn update={found} languages={incident} locale={locale} />
+    </section>
+  );
+}
+
 export function IncidentCard({ incident: i, impact, affected, zone, locale, t, now, heading = "h3", link = true }: { incident: Incident; impact: State; affected: string[]; zone: string; locale: string; t: CardWords; now: Date; heading?: "h1" | "h2" | "h3"; link?: boolean }) {
   const H = heading;
   const step = stepOf(i, now);
-  const title = link ? <a href={`/incidents/${i.id}`}>{i.title}</a> : i.title;
+  const named = titleIn(i, locale);
+  const lang = named.lang === locale ? undefined : named.lang;
+  const title = link ? <a href={`/incidents/${i.id}`} lang={lang}>{named.text}</a> : <span lang={lang}>{named.text}</span>;
   return (
     <article className={`card incident s-${i.kind === "maintenance" ? "maintenance" : impact}`}>
       <header className="incident-head">
@@ -52,7 +83,7 @@ export function IncidentCard({ incident: i, impact, affected, zone, locale, t, n
         ) : null}
         {affected.length > 0 && <span>{format(t.public.affected, { list: affected.join(", ") })}</span>}
       </p>
-      <Timeline updates={i.updates} zone={zone} locale={locale} t={t} now={now} />
+      <Timeline incident={i} zone={zone} locale={locale} t={t} now={now} />
     </article>
   );
 }
@@ -61,15 +92,19 @@ export function IncidentCard({ incident: i, impact, affected, zone, locale, t, n
 export function IncidentRow({ incident: i, impact, zone, locale, t, now }: { incident: Incident; impact: State; zone: string; locale: string; t: CardWords; now: Date }) {
   const step = stepOf(i, now);
   const end = i.kind === "maintenance" ? (i.status === "completed" && i.resolvedAt ? i.resolvedAt : i.endsAt) : i.resolvedAt;
-  const last = i.updates.find(u => u.removedAt === null && u.postedAt.getTime() <= now.getTime());
+  const last = i.updates.find(u => u.removedAt === null && u.status !== "postmortem" && u.postedAt.getTime() <= now.getTime());
+  const named = titleIn(i, locale);
+  const text = last ? pick(last.body, last.bodySecond, i, locale) : null;
+  const hasPostmortem = i.updates.some(u => u.status === "postmortem" && u.removedAt === null);
   return (
     <li className={`row-incident s-${i.kind === "maintenance" ? "maintenance" : impact}`}>
       <div className="row-head">
-        <a href={`/incidents/${i.id}`}>{i.title}</a>
+        <a href={`/incidents/${i.id}`} lang={named.lang === locale ? undefined : named.lang}>{named.text}</a>
         {i.kind === "maintenance" && <span className="tag">{t.public.maintenanceTag}</span>}
         <span className={`chip step-${step}`}>{t.steps[step]}</span>
       </div>
-      {last && <p className="row-text">{last.body.length > 240 ? last.body.slice(0, 239) + "…" : last.body}</p>}
+      {text && <p className="row-text" lang={text.lang === locale ? undefined : text.lang}>{text.text.length > 240 ? text.text.slice(0, 239) + "…" : text.text}</p>}
+      {hasPostmortem && <p className="row-meta"><a href={`/incidents/${i.id}#postmortem`}>{t.public.readPostmortem}</a></p>}
       <p className="row-meta">
         <When at={i.startedAt} zone={zone} locale={locale} now={now} />
         {end && step !== "cancelled" && <span> · {format(t.public.lasted, { duration: duration(end.getTime() - i.startedAt.getTime(), t.time) })}</span>}

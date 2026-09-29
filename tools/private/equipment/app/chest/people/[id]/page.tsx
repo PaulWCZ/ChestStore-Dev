@@ -8,7 +8,7 @@ import { AppError } from "../../../../lib/app-error.ts";
 import { db } from "../../../../lib/db.ts";
 import { lastDayOf } from "../../../../lib/departures.ts";
 import { format, formatDay, plural } from "../../../../lib/i18n/index.ts";
-import { holdings, listItems } from "../../../../lib/items.ts";
+import { holdings, listItems, openReceipts } from "../../../../lib/items.ts";
 import { memberPattern } from "../../../../lib/model.ts";
 import { nameOf, people } from "../../../../lib/people.ts";
 import { viewer } from "../../../../lib/session.ts";
@@ -39,7 +39,10 @@ export default async function PersonPage({ params }: { params: Promise<{ id: str
   const rows = held.items.map(i => rowOf(i, names, t, locale, today, member.id));
   const seatRows = held.seats.map(i => rowOf(i, names, t, locale, today, member.id));
   const stock = present ? (await listItems(sql, member, { status: "in_stock" }, 500)).concat((await listItems(sql, member, { status: "in_use" }, 500)).filter(i => i.seats !== null && i.seatsUsed < i.seats)) : [];
-  const offer = stock.filter(i => !held.seats.some(s => s.id === i.id)).map(i => rowOf(i, new Map(), t, locale, today, member.id));
+  const offer = stock.filter(i => !held.seats.some(s => s.id === i.id) && i.category.kind !== "consumable").map(i => rowOf(i, new Map(), t, locale, today, member.id));
+  // Each thing they hold: received (they confirmed) or to confirm.
+  const receipts = id === "erased" ? new Map() : await openReceipts(sql, id);
+  const receipt = Object.fromEntries(held.items.map(i => [i.id, receipts.get(i.id)?.confirmedAt ? "confirmed" as const : "waiting" as const]));
   const count = held.items.length + held.seats.length;
   const lastDay = present ? await lastDayOf(sql, member, id) : null;
   const leaving = lastDay ? format(t.person.leaving, { date: formatDay(lastDay, locale, { weekday: "long", day: "numeric", month: "long" }) }) : null;
@@ -66,6 +69,8 @@ export default async function PersonPage({ params }: { params: Promise<{ id: str
         offer={offer}
         count={count}
         leaving={leaving}
+        receipt={receipt}
+        sheets={id !== "erased" ? { handover: `/chest/people/${id}/handover`, back: `/chest/people/${id}/return` } : null}
         t={{ person: t.person, errors: t.errors, common: t.common, give: t.give, takeBack: t.takeBack, item: t.item, list: t.list }}
         locale={locale}
       />

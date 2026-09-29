@@ -21,6 +21,11 @@ export const errorCodes = [
   "has_candidates",
   "last_stage",
   "salary_order",
+  "answer_missing",
+  "import_invalid",
+  "no_mailbox",
+  "already_there",
+  "too_large_image",
   "unavailable",
   "unknown",
 ] as const;

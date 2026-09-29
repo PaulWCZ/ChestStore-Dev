@@ -9,6 +9,8 @@ import { db } from "../lib/db.ts";
 import { admit, checkForm } from "../lib/guard.ts";
 import { settings } from "../lib/jobs.ts";
 import * as mailer from "../lib/mailer.ts";
+import * as messages from "../lib/messages.ts";
+import * as outbox from "../lib/outbox.ts";
 import { publicOrigin } from "../lib/public-origin.ts";
 import { publicWords } from "../lib/session.ts";
 import * as tell from "../lib/tell.ts";
@@ -18,6 +20,13 @@ import * as tell from "../lib/tell.ts";
 // nothing but "received".
 
 export type FormState = { error: ErrorCode | null };
+
+// The answers to the job's questions: fields named answer:<question id>.
+function answersOf(data: FormData): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [key, value] of data.entries()) if (key.startsWith("answer:") && typeof value === "string" && key.length <= 30) out[key.slice(7)] = value.slice(0, 2000);
+  return out;
+}
 
 export async function sendApplication(_: FormState, data: FormData): Promise<FormState> {
   const text = (key: string, max = 12000) => String(data.get(key) ?? "").slice(0, max);
@@ -37,17 +46,18 @@ export async function sendApplication(_: FormState, data: FormData): Promise<For
     const { locale } = await publicWords();
     const { candidate, job } = await candidates.apply(sql, {
       slug, name: text("name"), email: text("email"), phone: text("phone"), link: text("link"), coverLetter: text("coverLetter"),
-      consent: data.get("consent") === "yes", language: locale, cv: file,
+      pool: data.get("pool") === "yes", answers: answersOf(data), language: locale, cv: file,
     }).catch(async error => {
       if (file) await cv.remove([file.object]);
       throw error;
     });
+    // The confirmation leaves from the jobs mailbox with the candidate's
+    // thread address: if they answer it, their answer lands in their
+    // history.
     const s = await settings(sql);
-    const sent = await mailer.confirm(candidate, job, s.companyName, publicOrigin(h));
-    if (sent === "email") {
-      mailed = true;
-      await candidates.emailed(sql, candidate.id, null, "confirmation");
-    }
+    const words = mailer.confirmation(candidate, job, s.companyName, publicOrigin(h));
+    const message = await messages.queueConfirmation(sql, candidate.id, words.subject, words.text);
+    mailed = (await outbox.sendNow(sql, message)) === "sent";
     await tell.applied(candidate, job);
     await tell.refreshBadges(sql);
   } catch (error) {

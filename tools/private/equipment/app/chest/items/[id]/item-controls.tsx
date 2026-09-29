@@ -2,32 +2,56 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { Avatar } from "../../../../components/avatar.tsx";
 import { Dialog } from "../../../../components/dialog.tsx";
-import { Dots, Give, Pencil, Search, Seat, Sliders, TakeBack, Trash } from "../../../../components/icons.tsx";
+import { Check, Dots, Give, Pencil, Plus, Print, Search, Seat, Sliders, TakeBack, Trash } from "../../../../components/icons.tsx";
 import { useToast } from "../../../../components/toast.tsx";
 import type { Catalogue } from "../../../../lib/i18n/index.ts";
 import { format, plural } from "../../../../lib/i18n/format.ts";
-import { chosenStatuses, fold, limits, type Status } from "../../../../lib/model.ts";
+import { chosenStatuses, fold, limits, type Kind, type Status } from "../../../../lib/model.ts";
 import type { Holder } from "../../../../lib/view.ts";
-import { deleteItem, giveItem, giveSeat, restoreItem, setItemStatus, takeBackItem, takeSeat, undoTakeBack, undoTakeSeat } from "../../actions.ts";
+import { deleteItem, giveItem, giveSeat, handOut, markSeen, restock, restoreItem, setItemStatus, takeBackItem, takeSeat, undoTakeBack, undoTakeSeat, unmarkSeen } from "../../actions.ts";
 
-type Words = { item: Catalogue["item"]; give: Catalogue["give"]; takeBack: Catalogue["takeBack"]; status: Catalogue["status"]; errors: Catalogue["errors"]; common: Catalogue["common"]; people: Catalogue["people"] };
+type Words = {
+  item: Catalogue["item"]; give: Catalogue["give"]; takeBack: Catalogue["takeBack"]; status: Catalogue["status"]; errors: Catalogue["errors"]; common: Catalogue["common"];
+  people: Catalogue["people"]; handOut: Catalogue["handOut"]; restock: Catalogue["restock"]; repair: Catalogue["repair"]; list: Catalogue["list"];
+};
 type Colleague = { id: string; name: string; photo: string | null };
 type SeatHolder = { member: string; name: string; photo: string | null; since: string };
-type ItemInfo = { id: string; name: string; tag: string; status: Status; licence: boolean; seats: number; heldSince: string | null; placeName: string | null };
+type ItemInfo = {
+  id: string; name: string; tag: string; status: Status; kind: Kind; seats: number; heldSince: string | null; placeName: string | null;
+  quantity: number | null; minQuantity: number | null;
+};
+// What the page wrote about the item's receipt and repair, in the reader's
+// words; the inventory under way, if any.
+type Extras = {
+  receipt: { text: string; waiting: boolean; remark: string | null } | null;
+  repair: string | null;
+  sheet: string | null;
+  inventory: { open: boolean; seen: boolean };
+  opening: "give" | null;
+};
 
 // Who has it, and the one action that follows: give it (in stock), take it
-// back (held), a seat (licence). Rare actions — edit, status, delete — are
-// in "More". Taking back and deleting offer Undo instead of a question.
-export function ItemControls({ item, holder, holderText, seatHolders, team, places, today, locale, t }: {
-  item: ItemInfo; holder: Holder; holderText: string; seatHolders: SeatHolder[]; team: Colleague[]; places: string[]; today: string; locale: string; t: Words;
+// back (held), a seat (licence), hand some out (supplies). Rare actions —
+// edit, status, delete — are in "More". Taking back and deleting offer Undo
+// instead of a question.
+export function ItemControls({ item, holder, holderText, seatHolders, team, places, today, locale, extras, t }: {
+  item: ItemInfo; holder: Holder; holderText: string; seatHolders: SeatHolder[]; team: Colleague[]; places: string[]; today: string; locale: string; extras: Extras; t: Words;
 }) {
   const router = useRouter();
   const toast = useToast();
   const [pending, start] = useTransition();
-  const [dialog, setDialog] = useState<"give" | "back" | "status" | "seat" | null>(null);
+  const [dialog, setDialog] = useState<"give" | "back" | "status" | "seat" | "out" | "in" | null>(null);
+  const licence = item.kind === "licence";
+  // "Add and give to someone" lands here with the dialog open.
+  useEffect(() => {
+    if (extras.opening === "give" && holder.kind === "none" && item.status !== "retired") {
+      setDialog("give");
+      router.replace(`/chest/items/${item.id}`, { scroll: false });
+    }
+  }, [extras.opening]); // eslint-disable-line react-hooks/exhaustive-deps
   const [error, setError] = useState<string | null>(null);
   const fail = (r: { error: keyof Catalogue["errors"]; values?: Record<string, string | number> }) => setError(format(t.errors[r.error], r.values));
   const open = (d: typeof dialog) => { setError(null); setDialog(d); };
@@ -66,9 +90,44 @@ export function ItemControls({ item, holder, holderText, seatHolders, team, plac
     </details>
   );
 
+  function seen(on: boolean) {
+    start(async () => {
+      const r = on ? await markSeen({ itemId: item.id }) : await unmarkSeen(item.id);
+      if (!r.ok) return toast(format(t.errors[r.error], r.values));
+      router.refresh();
+    });
+  }
+
   return (
     <section className="holder-panel" aria-label={t.item.with}>
-      {item.licence ? (
+      {extras.inventory.open && (
+        <div className="audit-line">
+          {extras.inventory.seen ? (
+            <>
+              <span className="strong"><Check /> {t.item.seenDone}</span>
+              <button type="button" className="button link small" disabled={pending} onClick={() => seen(false)}>{t.common.undo}</button>
+            </>
+          ) : (
+            <>
+              <span>{t.item.inventoryOpen}</span>
+              <button type="button" className="button small" disabled={pending} onClick={() => seen(true)}><Check />{t.item.markSeen}</button>
+            </>
+          )}
+        </div>
+      )}
+      {item.kind === "consumable" ? (
+        <>
+          <div className="seats-head">
+            <p className="holder-line"><strong className={holder.kind === "stock" && holder.low ? "low-text" : undefined}>{holderText}</strong></p>
+            {item.minQuantity !== null && <p className="small muted">{format(t.item.stockLine, { min: item.minQuantity })}</p>}
+          </div>
+          <div className="row">
+            {item.status !== "retired" && <button type="button" className="button" disabled={(item.quantity ?? 0) === 0} onClick={() => open("out")}><Give />{t.item.handOut}</button>}
+            <button type="button" className="button quiet" onClick={() => open("in")}><Plus />{t.item.restock}</button>
+            {more}
+          </div>
+        </>
+      ) : licence ? (
         <>
           <div className="seats-head">
             <p className="holder-line"><strong>{format(t.item.seatsUsed, { used: seatHolders.length, seats: item.seats })}</strong></p>
@@ -100,6 +159,13 @@ export function ItemControls({ item, holder, holderText, seatHolders, team, plac
           ) : (
             <p className="holder-line muted">{item.status === "in_stock" ? t.item.inStock : t.item.notAvailable}</p>
           )}
+          {extras.repair && <p className="small">{extras.repair}</p>}
+          {extras.receipt && (
+            <div className={extras.receipt.waiting ? "receipt waiting" : "receipt"}>
+              <p>{extras.receipt.text}</p>
+              {extras.receipt.remark && <p className="quote small">{extras.receipt.remark}</p>}
+            </div>
+          )}
           <div className="row">
             {held ? (
               <>
@@ -109,6 +175,7 @@ export function ItemControls({ item, holder, holderText, seatHolders, team, plac
             ) : item.status !== "retired" ? (
               <button type="button" className="button" onClick={() => open("give")}><Give />{t.item.give}</button>
             ) : null}
+            {extras.sheet && <Link className="button quiet" href={extras.sheet}><Print /><span>{t.item.handoverSheet}</span></Link>}
             {more}
           </div>
         </>
@@ -146,11 +213,31 @@ export function ItemControls({ item, holder, holderText, seatHolders, team, plac
           })} />
       </Dialog>
       <Dialog open={dialog === "status"} title={format(t.item.statusTitle, { name: item.name })} closeLabel={t.common.close} onClose={() => setDialog(null)}>
-        <StatusForm item={item} t={t} error={error} pending={pending}
-          onSubmit={(status, note) => start(async () => {
-            const r = await setItemStatus(item.id, status, note);
+        <StatusForm item={item} today={today} t={t} error={error} pending={pending}
+          onSubmit={(status, note, repair) => start(async () => {
+            const r = await setItemStatus(item.id, status, note, repair);
             if (!r.ok) return fail(r);
             setDialog(null);
+            router.refresh();
+          })} />
+      </Dialog>
+      <Dialog open={dialog === "out"} title={format(t.handOut.title, { name: item.name })} closeLabel={t.common.close} onClose={() => setDialog(null)}>
+        <HandOutForm max={item.quantity ?? 0} team={team} places={places} t={t} error={error} pending={pending}
+          onSubmit={(qty, to, note) => start(async () => {
+            const r = await handOut(item.id, { qty, to, note });
+            if (!r.ok) return fail(r);
+            setDialog(null);
+            toast(plural(t.handOut.done, Number(qty), locale));
+            router.refresh();
+          })} />
+      </Dialog>
+      <Dialog open={dialog === "in"} title={format(t.restock.title, { name: item.name })} closeLabel={t.common.close} onClose={() => setDialog(null)}>
+        <RestockForm t={t} error={error} pending={pending}
+          onSubmit={(qty, note) => start(async () => {
+            const r = await restock(item.id, { qty, note });
+            if (!r.ok) return fail(r);
+            setDialog(null);
+            toast(plural(t.restock.done, Number(qty), locale));
             router.refresh();
           })} />
       </Dialog>
@@ -261,12 +348,21 @@ function BackForm({ from, today, t, error, pending, onSubmit }: { from: string; 
   );
 }
 
-function StatusForm({ item, t, error, pending, onSubmit }: { item: ItemInfo; t: Words; error: string | null; pending: boolean; onSubmit: (status: string, note: string) => void }) {
-  const choices = item.licence ? (["in_stock", "retired"] as const) : chosenStatuses;
+function StatusForm({ item, today, t, error, pending, onSubmit }: {
+  item: ItemInfo; today: string; t: Words; error: string | null; pending: boolean; onSubmit: (status: string, note: string, repair: { ref?: string; due?: string; cost?: string }) => void;
+}) {
+  const choices = item.kind !== "asset" ? (["in_stock", "retired"] as const) : chosenStatuses;
   const [status, setStatus] = useState<string>(choices.includes(item.status as never) ? item.status : choices[0]);
   const [note, setNote] = useState("");
+  const [ref, setRef] = useState("");
+  const [due, setDue] = useState("");
+  const [cost, setCost] = useState("");
+  // Going to repair: the repairer's ticket and when it comes back; coming
+  // back from it: what it cost.
+  const toRepair = status === "in_repair";
+  const fromRepair = item.status === "in_repair" && status !== "in_repair";
   return (
-    <form className="stack" onSubmit={e => { e.preventDefault(); onSubmit(status, note); }}>
+    <form className="stack" onSubmit={e => { e.preventDefault(); onSubmit(status, note, toRepair ? { ref, due } : fromRepair ? { cost } : {}); }}>
       <fieldset className="choices">
         <legend className="visually-hidden">{t.item.status}</legend>
         {choices.map(s => (
@@ -276,7 +372,25 @@ function StatusForm({ item, t, error, pending, onSubmit }: { item: ItemInfo; t: 
           </label>
         ))}
       </fieldset>
-      <p className="hint">{item.licence ? t.item.statusHintLicence : t.item.statusHint}</p>
+      <p className="hint">{item.kind === "licence" ? t.item.statusHintLicence : t.item.statusHint}</p>
+      {toRepair && (
+        <div className="two">
+          <div className="form-field">
+            <label className="label" htmlFor="repair-ref">{t.repair.ref} <span className="muted">({t.common.optional})</span></label>
+            <input id="repair-ref" className="field mono" value={ref} onChange={e => setRef(e.target.value)} maxLength={limits.ref} placeholder={t.repair.refPlaceholder} autoComplete="off" />
+          </div>
+          <div className="form-field">
+            <label className="label" htmlFor="repair-due">{t.repair.due} <span className="muted">({t.common.optional})</span></label>
+            <input id="repair-due" className="field" type="date" min={today} value={due} onChange={e => setDue(e.target.value)} />
+          </div>
+        </div>
+      )}
+      {fromRepair && (
+        <div className="form-field">
+          <label className="label" htmlFor="repair-cost">{t.repair.cost} <span className="muted">({t.common.optional})</span></label>
+          <input id="repair-cost" className="field" value={cost} onChange={e => setCost(e.target.value)} inputMode="decimal" maxLength={20} />
+        </div>
+      )}
       <div className="form-field">
         <label className="label" htmlFor="status-note">{t.item.statusNote}</label>
         <input id="status-note" className="field" value={note} onChange={e => setNote(e.target.value)} maxLength={limits.condition} />
@@ -284,6 +398,76 @@ function StatusForm({ item, t, error, pending, onSubmit }: { item: ItemInfo; t: 
       {error && <p className="error" role="alert">{error}</p>}
       <div className="row end">
         <button type="submit" className="button" disabled={pending}>{t.common.save}</button>
+      </div>
+    </form>
+  );
+}
+
+// Hand some out: how many, for whom (nobody in particular, a person, a
+// place), a note.
+function HandOutForm({ max, team, places, t, error, pending, onSubmit }: {
+  max: number; team: Colleague[]; places: string[]; t: Words; error: string | null; pending: boolean;
+  onSubmit: (qty: string, to: { member: string } | { place: string } | null, note: string) => void;
+}) {
+  const [qty, setQty] = useState("1");
+  const [mode, setMode] = useState<"nobody" | "person" | "place">("nobody");
+  const [person, setPerson] = useState<Colleague | null>(null);
+  const [place, setPlace] = useState("");
+  const [note, setNote] = useState("");
+  const n = Number(qty);
+  const ready = Number.isInteger(n) && n >= 1 && n <= max && (mode === "nobody" || (mode === "person" ? person !== null : place.trim() !== ""));
+  return (
+    <form className="stack" onSubmit={e => {
+      e.preventDefault();
+      if (!ready) return;
+      onSubmit(qty, mode === "person" ? { member: person!.id } : mode === "place" ? { place: place.trim() } : null, note);
+    }}>
+      <div className="form-field narrow-field">
+        <label className="label" htmlFor="out-qty">{t.handOut.qty}</label>
+        <input id="out-qty" className="field" type="number" min={1} max={max} inputMode="numeric" value={qty} onChange={e => setQty(e.target.value)} required autoFocus />
+      </div>
+      <div className="segmented" role="radiogroup" aria-label={t.handOut.to}>
+        <label className={mode === "nobody" ? "on" : undefined}><input type="radio" name="out-mode" checked={mode === "nobody"} onChange={() => setMode("nobody")} />{t.handOut.nobody}</label>
+        <label className={mode === "person" ? "on" : undefined}><input type="radio" name="out-mode" checked={mode === "person"} onChange={() => setMode("person")} />{t.give.toPerson}</label>
+        <label className={mode === "place" ? "on" : undefined}><input type="radio" name="out-mode" checked={mode === "place"} onChange={() => setMode("place")} />{t.give.toPlace}</label>
+      </div>
+      {mode === "person" && <PeoplePicker people={team} t={t} error={null} pending={pending} picked={person?.id} onPick={setPerson} />}
+      {mode === "place" && (
+        <div className="form-field">
+          <label className="label" htmlFor="out-place">{t.give.place}</label>
+          <input id="out-place" className="field" list="out-places" value={place} onChange={e => setPlace(e.target.value)} maxLength={limits.place} placeholder={t.give.placePlaceholder} />
+          <datalist id="out-places">{places.map(p => <option key={p} value={p} />)}</datalist>
+        </div>
+      )}
+      <div className="form-field">
+        <label className="label" htmlFor="out-note">{t.restock.note} <span className="muted">({t.common.optional})</span></label>
+        <input id="out-note" className="field" value={note} onChange={e => setNote(e.target.value)} maxLength={limits.condition} placeholder={t.handOut.notePlaceholder} />
+      </div>
+      {error && <p className="error" role="alert">{error}</p>}
+      <div className="row end">
+        <button type="submit" className="button" disabled={pending || !ready}><Give />{t.handOut.submit}</button>
+      </div>
+    </form>
+  );
+}
+
+function RestockForm({ t, error, pending, onSubmit }: { t: Words; error: string | null; pending: boolean; onSubmit: (qty: string, note: string) => void }) {
+  const [qty, setQty] = useState("");
+  const [note, setNote] = useState("");
+  const n = Number(qty);
+  return (
+    <form className="stack" onSubmit={e => { e.preventDefault(); if (Number.isInteger(n) && n >= 1) onSubmit(qty, note); }}>
+      <div className="form-field narrow-field">
+        <label className="label" htmlFor="in-qty">{t.restock.qty}</label>
+        <input id="in-qty" className="field" type="number" min={1} max={limits.quantity} inputMode="numeric" value={qty} onChange={e => setQty(e.target.value)} required autoFocus />
+      </div>
+      <div className="form-field">
+        <label className="label" htmlFor="in-note">{t.restock.note} <span className="muted">({t.common.optional})</span></label>
+        <input id="in-note" className="field" value={note} onChange={e => setNote(e.target.value)} maxLength={limits.condition} placeholder={t.restock.notePlaceholder} />
+      </div>
+      {error && <p className="error" role="alert">{error}</p>}
+      <div className="row end">
+        <button type="submit" className="button" disabled={pending || !(Number.isInteger(n) && n >= 1)}><Plus />{t.restock.submit}</button>
       </div>
     </form>
   );

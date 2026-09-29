@@ -25,6 +25,24 @@ export const limits = {
   interviewers: 50,
   jobs: 500,
   page: 500,
+  postalCode: 20,
+  street: 200,
+  questions: 5,
+  questionLabel: 200,
+  questionOptions: 8,
+  optionLabel: 80,
+  answer: 1000,
+  subject: 200,
+  templateName: 80,
+  templates: 100,
+  interviewPlace: 200,
+  interviewNote: 2000,
+  interviewPeople: 10,
+  searchResults: 50,
+  bulk: 200,
+  importRows: 2000,
+  website: 300,
+  photos: 3,
 } as const;
 
 export const contracts = ["permanent", "fixed_term", "internship", "apprenticeship", "freelance"] as const;
@@ -44,6 +62,22 @@ export type Recommendation = (typeof recommendations)[number];
 export const languages = ["en", "fr"] as const;
 export type Language = (typeof languages)[number];
 export const retentionChoices = [6, 12, 24] as const;
+export const hoursKinds = ["full_time", "part_time"] as const;
+export type Hours = (typeof hoursKinds)[number];
+// The reasons the company decides; the others say the candidate stepped
+// back (they withdrew, never answered): no rejection email by default.
+export const companyReasons = ["experience", "skills", "salary", "location", "filled", "other"] as const;
+export const candidateReasons = ["withdrew", "no_answer"] as const;
+export const isCandidateReason = (value: unknown): boolean => (candidateReasons as readonly unknown[]).includes(value);
+// The countries a job may be in (ISO 3166-1 alpha-2): their names come
+// from Intl.DisplayNames in the reader's language.
+export const countries = ["FR", "BE", "CH", "LU", "MC", "DE", "AT", "NL", "ES", "PT", "IT", "IE", "GB", "DK", "SE", "NO", "FI", "PL", "CZ", "RO", "GR", "US", "CA", "MA", "TN", "DZ", "SN", "CI", "CM", "RE", "GP", "MQ", "GF", "YT", "NC", "PF", "MU", "AE", "SG", "AU"] as const;
+export const isCountry = (value: unknown): value is string => typeof value === "string" && /^[A-Z]{2}$/u.test(value) && (countries as readonly string[]).includes(value);
+// Screening questions: a short text, yes or no, or one choice.
+export const questionKinds = ["text", "yesno", "choice"] as const;
+export type QuestionKind = (typeof questionKinds)[number];
+export type Question = { id: string; kind: QuestionKind; label: string; options: string[]; required: boolean };
+export type Answer = { id: string; label: string; answer: string };
 
 const oneOf = <T extends string>(list: readonly T[]) => (value: unknown): value is T => typeof value === "string" && (list as readonly string[]).includes(value);
 export const isContract = oneOf(contracts);
@@ -54,6 +88,8 @@ export const isPeriod = oneOf(periods);
 export const isRejectReason = oneOf(rejectReasons);
 export const isRecommendation = oneOf(recommendations);
 export const isLanguage = oneOf(languages);
+export const isHours = oneOf(hoursKinds);
+export const isQuestionKind = oneOf(questionKinds);
 
 // The CVs a candidate may send: PDF, Word (old and new), 10 MiB at most.
 export const cvTypes = {
@@ -172,4 +208,65 @@ export function daysBetween(from: Date | string, to: Date | string = new Date())
   return Math.max(0, Math.floor((b.getTime() - a.getTime()) / 86400000));
 }
 
+// The default stages: keys each reader sees in their language until the
+// team renames them.
 export const defaultStages = ["new", "screening", "interview", "offer", "hired"] as const;
+export type StagePreset = (typeof defaultStages)[number];
+export const isStagePreset = oneOf(defaultStages);
+
+// questions reads a job's screening questions as the form sends them:
+// at most five; a choice has 2 to 8 options; each gets a short id that
+// stays when it is edited (answers point to it).
+export function questions(value: unknown): Question[] {
+  if (value === undefined || value === null) return [];
+  if (!Array.isArray(value) || value.length > limits.questions) throw new AppError("invalid");
+  const seen = new Set<string>();
+  return value.map((raw, i) => {
+    if (typeof raw !== "object" || raw === null) throw new AppError("invalid");
+    const q = raw as Record<string, unknown>;
+    if (!isQuestionKind(q["kind"])) throw new AppError("invalid");
+    const label = clean(q["label"], limits.questionLabel);
+    const options = q["kind"] === "choice" ? (Array.isArray(q["options"]) ? q["options"] : []).map(o => clean(o, limits.optionLabel, { optional: true })).filter(o => o !== "") : [];
+    if (q["kind"] === "choice" && (options.length < 2 || options.length > limits.questionOptions || new Set(options).size !== options.length)) throw new AppError("invalid");
+    let key = typeof q["id"] === "string" && /^q[a-z0-9]{1,12}$/u.test(q["id"]) ? q["id"] : "";
+    if (!key || seen.has(key)) key = "q" + (i + 1) + Math.random().toString(36).slice(2, 8);
+    seen.add(key);
+    return { id: key, kind: q["kind"], label, options, required: q["required"] === true };
+  });
+}
+
+// answers checks a candidate's answers against the job's questions: a
+// required question answered, yes/no as "yes" or "no", a choice among the
+// options. Keeps the question's words (a later edit does not change what
+// the candidate was asked).
+export function answers(asked: Question[], given: unknown): Answer[] {
+  const found = typeof given === "object" && given !== null ? given as Record<string, unknown> : {};
+  const out: Answer[] = [];
+  for (const q of asked) {
+    const raw = found[q.id];
+    const text = typeof raw === "string" ? clean(raw, limits.answer, { multiline: q.kind === "text", optional: true }) : "";
+    if (text === "") {
+      if (q.required) throw new AppError("answer_missing");
+      continue;
+    }
+    if (q.kind === "yesno" && text !== "yes" && text !== "no") throw new AppError("invalid");
+    if (q.kind === "choice" && !q.options.includes(text)) throw new AppError("invalid");
+    out.push({ id: q.id, label: q.label, answer: text });
+  }
+  return out;
+}
+
+// A day as the recruiter types it ("YYYY-MM-DD"), a real one, or null.
+export function day(value: unknown): string | null {
+  if (value === undefined || value === null || value === "") return null;
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/u.test(value)) throw new AppError("invalid");
+  const d = new Date(value + "T00:00:00Z");
+  if (Number.isNaN(d.getTime()) || d.toISOString().slice(0, 10) !== value || d.getUTCFullYear() < 2000 || d.getUTCFullYear() > 2100) throw new AppError("invalid");
+  return value;
+}
+
+// fold writes a text as the search compares it: lower case, no accents
+// (the database's hiring_fold does the same).
+export function fold(text: string): string {
+  return text.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/gu, "").replace(/ß/gu, "s").replace(/œ/gu, "o").replace(/æ/gu, "a").replace(/ł/gu, "l").replace(/ø/gu, "o").replace(/ı/gu, "i");
+}

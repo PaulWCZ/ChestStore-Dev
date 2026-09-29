@@ -12,6 +12,7 @@ export type Holder =
   | { kind: "member"; id: string; name: string; photo: string | null; gone: boolean; you: boolean }
   | { kind: "place"; name: string }
   | { kind: "seats"; used: number; seats: number }
+  | { kind: "stock"; count: number; low: boolean }
   | { kind: "none" };
 
 export type Row = {
@@ -30,12 +31,18 @@ export type Row = {
   photo: boolean;
   problems: number;
   problemsLabel: string;
+  // Things counted in bulk at or under their minimum.
+  low: boolean;
+  lowLabel: string;
 };
 
 export type Names = Map<string, Person>;
 
 export function holderOf(item: BriefItem, names: Names, t: Catalogue, locale: Locale, me: string): { holder: Holder; text: string } {
   if (item.seats !== null) return { holder: { kind: "seats", used: item.seatsUsed, seats: item.seats }, text: format(t.list.seatsUsed, { used: item.seatsUsed, seats: item.seats }) };
+  if (item.quantity !== null && item.category.kind === "consumable") {
+    return { holder: { kind: "stock", count: item.quantity, low: isLow(item) }, text: plural(t.list.units, item.quantity, locale) };
+  }
   if (item.holder) {
     const person = names.get(item.holder);
     const you = item.holder === me;
@@ -66,6 +73,9 @@ export function endingOf(item: Pick<Item, "warrantyUntil" | "renewsOn" | "status
   return { text, when, state: past ? "past" : "soon" };
 }
 
+export const isLow = (item: Pick<BriefItem, "quantity" | "status"> & { minQuantity?: number | null }): boolean =>
+  item.status !== "retired" && item.quantity !== null && item.minQuantity !== null && item.minQuantity !== undefined && item.quantity <= item.minQuantity;
+
 export function rowOf(item: BriefItem & Partial<Pick<Item, "openProblems">>, names: Names, t: Catalogue, locale: Locale, today: string, me: string): Row {
   const { holder, text } = holderOf(item, names, t, locale, me);
   return {
@@ -84,6 +94,8 @@ export function rowOf(item: BriefItem & Partial<Pick<Item, "openProblems">>, nam
     photo: item.photo !== null,
     problems: item.openProblems ?? 0,
     problemsLabel: t.item.problems,
+    low: isLow(item),
+    lowLabel: t.list.low,
   };
 }
 

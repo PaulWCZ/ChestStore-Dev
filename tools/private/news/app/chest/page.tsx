@@ -7,9 +7,11 @@ import { audienceLabel, groupNames } from "../../lib/groups.ts";
 import { format, plural } from "../../lib/i18n/index.ts";
 import { kinds } from "../../lib/model.ts";
 import { nameOf, people } from "../../lib/people.ts";
+import { digestEmail } from "../../lib/preferences.ts";
 import { front, visit } from "../../lib/posts.ts";
 import { viewer } from "../../lib/session.ts";
 import { catchUp, refreshBadges } from "../../lib/tell.ts";
+import { DigestSwitch } from "./digest-switch.tsx";
 import { Story, type Byline } from "./story.tsx";
 
 // The front page: the lead story, then the others, newest first (pinned on
@@ -33,7 +35,8 @@ export default async function FrontPage({ searchParams }: { searchParams: Promis
   const all = [...f.posts, ...f.upcoming, ...f.scheduled];
   const who = await people(all.flatMap(p => [p.author, ...(p.welcome ? [p.welcome] : [])]));
   const names = all.some(p => p.groups.length > 0) ? await groupNames() : new Map<string, string>();
-  const audience = (p: (typeof all)[number]) => audienceLabel(p.groups, names, locale);
+  const audience = (p: (typeof all)[number]) => audienceLabel(p, names, locale);
+  const digestOn = await digestEmail(sql, member);
   const byline = (id: string): Byline => (id === member.id ? { name: t.people.you, photo: member.photo } : { name: nameOf(who.get(id), locale), photo: who.get(id)?.photo ?? null });
   const d = dates(locale, zone, now);
   const isNew = (p: (typeof all)[number]) => marker !== null && p.author !== member.id && p.publishAt > marker;
@@ -85,9 +88,9 @@ export default async function FrontPage({ searchParams }: { searchParams: Promis
                     <li key={e.id}>
                       <span className="date-block" aria-hidden="true"><span>{d.weekday(e.event!.day)}</span><strong>{d.dayNumber(e.event!.day)}</strong><span>{d.month(e.event!.day)}</span></span>
                       <span className="agenda-text">
-                        <a href={`/chest/posts/${e.id}`} className="stretched"><span className="visually-hidden">{d.dayLong(e.event!.day)} — </span>{e.title}</a>
-                        <span className="quiet-text">{d.hours(e.event!, t.event)}{e.event!.place ? " · " + e.event!.place : ""}</span>
-                        {e.rsvp && <span className={"answer " + e.rsvp}>{e.rsvp === "yes" ? t.event.youCome : t.event.youDont}</span>}
+                        <a href={`/chest/posts/${e.id}`} className="stretched"><span className="visually-hidden">{d.days(e.event!, t.event)} — </span>{e.title}</a>
+                        <span className="quiet-text">{e.event!.lastDay ? d.days(e.event!, t.event) + " · " : ""}{d.hours(e.event!, t.event)}{e.event!.place ? " · " + e.event!.place : ""}</span>
+                        {e.rsvp && <span className={"answer " + e.rsvp}>{e.rsvp === "yes" ? t.event.youCome : e.rsvp === "wait" ? t.event.youWait : t.event.youDont}</span>}
                       </span>
                     </li>
                   ))}
@@ -122,6 +125,8 @@ export default async function FrontPage({ searchParams }: { searchParams: Promis
           {f.more && <a className="button quiet" href={link({ page: String(page + 1) })}>{t.front.older}</a>}
         </nav>
       )}
+      <DigestSwitch on={digestOn} t={t.front} errors={t.errors} />
+      {publisher && <p className="foot-link"><a href="/chest/transfer">{t.transfer.link}</a></p>}
     </main>
   );
 }

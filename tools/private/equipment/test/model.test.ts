@@ -62,3 +62,11 @@ test("texts are trimmed and bounded; seats are whole numbers", () => {
   assert.equal(code(() => seatsCount("0")), "invalid_seats");
   assert.equal(code(() => seatsCount("2.5")), "invalid_seats");
 });
+
+test("a series of tags for several items: the digits at the end count up", async () => {
+  const { tagSeries } = await import("../lib/model.ts");
+  assert.deepEqual(tagSeries("LAP-009", 3), ["LAP-009", "LAP-010", "LAP-011"]);
+  assert.deepEqual(tagSeries("KEY", 1), ["KEY"]);
+  assert.deepEqual(tagSeries("A99", 2), ["A99", "A100"]);
+  assert.throws(() => tagSeries("KEY", 2));
+});

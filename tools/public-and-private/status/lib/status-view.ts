@@ -10,7 +10,7 @@ import { currentStates, history, lastDays, maintenancePhase, spans, uptime, type
 // under way and ahead, the last week's incidents. The public page and the
 // editors' overview read the same thing, so editors see what customers see.
 
-export type ComponentView = { id: string; name: string; description: string; state: State; days: Day[]; uptime: number | null; measured: { percent: number; since: Date } | null };
+export type ComponentView = { id: string; name: string; description: string; teamOnly: boolean; state: State; days: Day[]; uptime: number | null; measured: { percent: number; since: Date } | null };
 export type EntryView = { id: string; kind: "component" | "group"; name: string; description: string; state: State; children: ComponentView[]; self: ComponentView | null };
 export type StatusView = {
   entries: EntryView[];
@@ -24,23 +24,27 @@ export type StatusView = {
   updatedAt: Date | null;
 };
 
-export async function statusView(sql: Query, zone: string, now = new Date(), options: { hidden?: boolean } = {}): Promise<StatusView> {
+// team: the members' own status page — services for the team only and
+// their incidents included (never on the public page).
+export async function statusView(sql: Query, zone: string, now = new Date(), options: { team?: boolean } = {}): Promise<StatusView> {
   const at = now.getTime();
-  const [components, incidents, checked] = await Promise.all([allComponents(sql), recent(sql, now), measured(sql, new Date(lastDays(at, zone, 90)[0]!.from))]);
+  const team = options.team === true;
+  const [components, incidents, checked] = await Promise.all([allComponents(sql), recent(sql, now, undefined, { team }), measured(sql, new Date(lastDays(at, zone, 90)[0]!.from))]);
   const timeline = forTimeline(incidents);
   const all = spans(timeline, at);
   const current = currentStates(timeline, at);
-  const shown = new Set((options.hidden ? components.filter(c => c.kind === "component") : shownComponents(components)).map(c => c.id));
+  const shown = new Set(shownComponents(components, { team }).map(c => c.id));
   const view = (c: Component): ComponentView => ({
     id: c.id,
     name: c.name,
     description: c.description,
+    teamOnly: c.teamOnly,
     state: current.get(c.id) ?? "operational",
     days: history(c.id, c.createdAt.getTime(), all, at, zone),
     uptime: uptime(c.id, c.createdAt.getTime(), all, at, zone),
     measured: checked.get(c.id) ?? null,
   });
-  const entries: EntryView[] = tree(components, { shown: !options.hidden }).map(e => {
+  const entries: EntryView[] = tree(components, { shown: true, team }).map(e => {
     if (e.kind === "group") {
       const children = e.children.filter(c => shown.has(c.id)).map(view);
       return { id: e.id, kind: "group" as const, name: e.name, description: e.description, state: worst(children.map(c => c.state)), children, self: null };
@@ -61,7 +65,7 @@ export async function statusView(sql: Query, zone: string, now = new Date(), opt
     maintenanceAhead: incidents.filter(i => i.kind === "maintenance" && phase(i) === "scheduled").sort(byStart),
     recent: incidents.filter(i => (i.kind === "incident" && i.status === "resolved" && (i.resolvedAt?.getTime() ?? 0) >= week) || (i.kind === "maintenance" && phase(i) === "completed" && (i.endsAt?.getTime() ?? 0) >= week && (i.endsAt?.getTime() ?? 0) <= at)),
     incidents: new Map(incidents.map(i => [i.id, i])),
-    names: new Map(components.filter(c => options.hidden || shown.has(c.id)).map(c => [c.id, c.name])),
+    names: new Map(components.filter(c => shown.has(c.id)).map(c => [c.id, c.name])),
     updatedAt: latest.length ? new Date(Math.max(...latest)) : null,
   };
 }
@@ -70,7 +74,7 @@ export async function statusView(sql: Query, zone: string, now = new Date(), opt
 // what it touches.
 export function impactOf(i: Incident, now = new Date()): State {
   if (i.kind === "maintenance") return "maintenance";
-  const last = i.updates.filter(u => u.removedAt === null && u.status !== "resolved" && u.postedAt.getTime() <= now.getTime())[0];
+  const last = i.updates.filter(u => u.removedAt === null && u.status !== "resolved" && u.status !== "postmortem" && u.postedAt.getTime() <= now.getTime())[0];
   const picked = last ?? i.updates.find(u => u.removedAt === null && Object.keys(u.states).length > 0);
   return worst(Object.values(picked?.states ?? {}));
 }
