@@ -318,6 +318,39 @@ await step("a closed form says so to visitors; a form not shared is not found", 
   expect((await page.request.get(origin + "/zzzzzzzz")).status() === 404, "unknown form");
 });
 
+await step("a date question: the kit's date field, typed in words, Enter reads it then goes on; a wrong date says why", async () => {
+  await as(context, origin, "ines");
+  await english();
+  await page.goto(origin + "/chest/new");
+  await page.locator(".template-card", { hasText: "Blank form" }).click();
+  await page.waitForURL(/\/chest\/forms\/\d+$/u);
+  await page.locator("#form-title").fill("Start date");
+  let card = await add("A day", "When can you start?");
+  await card.locator("label.switch").click();
+  await card.getByRole("button", { name: "Done" }).click();
+  card = await add("A name, a word, a line", "Your name");
+  await card.getByRole("button", { name: "Done" }).click();
+  expect((await page.locator("input[type=date]").count()) === 0, "never the browser's date field");
+  await page.waitForSelector(".save-state.saved", { timeout: 10000 });
+  await page.getByRole("button", { name: "Publish" }).click();
+  await page.waitForSelector("dialog[open]");
+  const dated = (await page.locator("dialog[open] code").innerText()).trim();
+  await page.keyboard.press("Escape");
+  const p = await phone.newPage();
+  await p.goto(dated);
+  await p.getByRole("button", { name: "Start", exact: true }).click();
+  await p.locator(".ck-date-input").fill("31/02/2027");
+  await p.keyboard.press("Enter");
+  await p.waitForSelector(".ck-date .ck-error");
+  expect((await p.locator(".q-title").first().innerText()).startsWith("When can you start?"), "a wrong date stays on its question");
+  await p.locator(".ck-date-input").fill("tomorrow");
+  await p.keyboard.press("Enter");
+  await p.waitForFunction(() => document.querySelector(".q-title")?.textContent?.startsWith("Your name"));
+  await p.getByRole("button", { name: "Previous" }).click();
+  expect(/Tomorrow/u.test(await p.locator(".ck-date-read").innerText()), "the day in words under the field");
+  await p.close();
+});
+
 await phone.close();
 await browser.close();
 done(problems);
