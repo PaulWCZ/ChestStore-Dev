@@ -14,7 +14,7 @@ update fields set seen = 'private' where kind = 'date';
 -- days before); the days of the week a part-timer works (ISO: 1 Monday …
 -- 7 Sunday; the part-time contract says how the hours fall, L3123-6).
 alter table records
-  add column employee_number text not null default '' check (char_length(employee_number) <= 20),
+  add column employee_number text not null default '' check (char_length(employee_number) <= 30),
   add column permit_end date,
   add column work_days smallint[] check (work_days is null or (cardinality(work_days) between 1 and 7 and work_days <@ array[1, 2, 3, 4, 5, 6, 7]::smallint[])),
   -- What People last told the other tools about this record (events

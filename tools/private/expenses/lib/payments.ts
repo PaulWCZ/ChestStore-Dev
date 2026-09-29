@@ -24,9 +24,11 @@ type FileBody = { payer: { iban: string; bic: string | null; name: string; addre
 
 // Why a person is not in a transfer file: no account in the SEPA zone; an
 // account outside the EEA without its postal address; or the company's
-// own address missing (it goes with those transfers). Paid by hand, or
-// once the details are there.
-export type SkipReason = "no_bank" | "address" | "company_address";
+// own address missing (it goes with those transfers); or the person left
+// the company (paid on their final pay slip, then "Mark paid": a transfer
+// to a former employee's account is exactly what a diversion would ask
+// for). Paid by hand, or once the details are there.
+export type SkipReason = "no_bank" | "address" | "company_address" | "left";
 export type Skipped = { member: string; reason: SkipReason };
 
 export type Run = { id: string; messageId: string; executionDate: string; count: number; total: number; currency: string; createdAt: string; createdBy: string; cancelled: boolean };
@@ -74,6 +76,8 @@ export async function createRun(sql: Sql, actor: Member | null, input: { members
         ${chosen ? tx`and member_id = any(${chosen}::text[])` : tx``}
       order by member_id, spent_on, id for update`;
     const accounts = await sealedAccounts(tx, ["company", ...new Set(rows.map(r => r.member_id))]);
+    const who = await people(new Set(rows.map(r => r.member_id)));
+    const gone = (member: string) => who.get(member)?.status === "former" || who.get(member)?.status === "erased";
     const payer = accounts.get("company");
     if (!payer) throw new AppError("no_company_bank");
     const byMember = new Map<string, { amount: number; ids: string[] }>();
@@ -86,6 +90,10 @@ export async function createRun(sql: Sql, actor: Member | null, input: { members
     const transfers: FileTransfer[] = [];
     const skipped: Skipped[] = [];
     for (const [member, line] of byMember) {
+      if (gone(member)) {
+        skipped.push({ member, reason: "left" });
+        continue;
+      }
       const account = accounts.get(member);
       if (!account || !sepaCountry(account.country)) {
         skipped.push({ member, reason: "no_bank" });
@@ -103,8 +111,8 @@ export async function createRun(sql: Sql, actor: Member | null, input: { members
       transfers.push({ member, iban: account.iban, bic: account.bic, holder: account.holder, amount: line.amount, ids: line.ids, address: far ? account.address : null });
     }
     if (transfers.length === 0) {
-      if (byMember.size === 0) throw new AppError("nothing_to_pay");
-      throw new AppError(skipped.every(s => s.reason === "no_bank") ? "no_bank_details" : "address_needed");
+      if (byMember.size === 0 || skipped.every(s => s.reason === "left")) throw new AppError("nothing_to_pay");
+      throw new AppError(skipped.every(s => s.reason === "no_bank" || s.reason === "left") ? "no_bank_details" : "address_needed");
     }
     const total = transfers.reduce((sum, t) => sum + t.amount, 0);
     // The payer's address goes in the file when a transfer leaves the EEA.

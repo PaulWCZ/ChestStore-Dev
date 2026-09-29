@@ -18,7 +18,7 @@ import { tripCents } from "../../lib/scale.ts";
 import { allowanceDetail, km } from "../../lib/words.ts";
 import { saveAllowance, saveExpense, saveTrip, sendExpenses } from "./actions.ts";
 
-export type ComposeWords = Pick<Catalogue, "form" | "receipt" | "trip" | "allowance" | "errors" | "date"> & { saved: string; send: string; sent: Catalogue["home"]["sent"] };
+export type ComposeWords = Pick<Catalogue, "form" | "receipt" | "trip" | "allowance" | "errors" | "date"> & { saved: string; send: string; sent: Catalogue["home"]["sent"]; sentAlone: Catalogue["home"]["sentAlone"] };
 type ErrorKey = keyof Catalogue["errors"];
 
 // Once saved: back to the list, with "Send it now" in the toast. Once
@@ -33,7 +33,7 @@ function useSaved(t: ComposeWords, locale: string) {
       action: {
         label: t.send,
         run: () => void sendExpenses([id]).then(r => {
-          toast(r.ok ? { id: `send-${id}`, text: plural(t.sent, r.value.count, locale, { name: r.value.to }), sent: true } : { text: format(t.errors[r.error], r.values ?? {}), tone: "error" });
+          toast(r.ok ? { id: `send-${id}`, text: r.value.to === null ? plural(t.sentAlone, r.value.count, locale) : plural(t.sent, r.value.count, locale, { name: r.value.to }), sent: true } : { text: format(t.errors[r.error], r.values ?? {}), tone: "error" });
           router.refresh();
         }),
       },

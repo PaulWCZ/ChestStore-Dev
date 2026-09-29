@@ -31,11 +31,11 @@ test("a draft is its owner's alone; a sent expense is seen by its approver and t
   assert.deepEqual(expenseAccess(asMember(ines), { ...sent, approver: null }), { see: true, own: false, decide: false });
 });
 
-test("nobody approves their own expense, except an accountant nobody was named to approve", () => {
+test("nobody approves their own expense, not even an accountant nobody was named to approve", () => {
   const own = { owner: ines.id, status: "submitted", approver: ines.id, assignedTo: ines.id };
   assert.equal(expenseAccess(asMember(ines), own).decide, false);
   const accountant = { owner: camille.id, status: "submitted", approver: null, assignedTo: null };
-  assert.equal(expenseAccess(asMember(camille), accountant).decide, true);
+  assert.deepEqual(expenseAccess(asMember(camille), accountant), { see: true, own: true, decide: false });
   assert.equal(expenseAccess(asMember(camille), { ...accountant, assignedTo: ines.id, approver: ines.id }).decide, false);
   assert.equal(expenseAccess(asMember(ines), { ...accountant, assignedTo: ines.id, approver: ines.id }).decide, true);
 });

@@ -9,13 +9,16 @@ import { clean, id, isIcon, isKind, limits, optional, type CategoryKey, type Ico
 // "licence" holds licences and subscriptions, with seats; one of kind
 // "consumable" holds things counted in bulk (cables, toner), with a
 // quantity.
-export type Category = { id: string; key: CategoryKey | null; name: string | null; icon: IconName; kind: Kind };
+// membersSee: whether members (not managers) see who holds its items
+// (off by default for keys and badges and for vehicles: security
+// information). A member always sees their own.
+export type Category = { id: string; key: CategoryKey | null; name: string | null; icon: IconName; kind: Kind; membersSee: boolean };
 // For a category of things counted in bulk, inStock is the number of units
 // and low the items at or under their minimum.
 export type CategoryCount = Category & { total: number; inStock: number; inUse: number; inRepair: number; low: number };
 
-type Row = { id: string; key: CategoryKey | null; name: string | null; icon: IconName; kind: Kind };
-const shape = (r: Row): Category => ({ id: String(r.id), key: r.key, name: r.name, icon: r.icon, kind: r.kind });
+type Row = { id: string; key: CategoryKey | null; name: string | null; icon: IconName; kind: Kind; members_see: boolean };
+const shape = (r: Row): Category => ({ id: String(r.id), key: r.key, name: r.name, icon: r.icon, kind: r.kind, membersSee: r.members_see });
 
 function manager(actor: Member | null): Member {
   if (!actor || !can(actor, "items.manage")) throw new AppError("forbidden");
@@ -24,7 +27,7 @@ function manager(actor: Member | null): Member {
 
 export async function listCategories(sql: Query, actor: Member | null): Promise<Category[]> {
   if (!can(actor, "items.browse")) throw new AppError("forbidden");
-  const rows = await sql<Row[]>`select id, key, name, icon, kind from categories where removed_at is null order by position, id`;
+  const rows = await sql<Row[]>`select id, key, name, icon, kind, members_see from categories where removed_at is null order by position, id`;
   return rows.map(shape);
 }
 
@@ -33,7 +36,7 @@ export async function listCategories(sql: Query, actor: Member | null): Promise<
 export async function categoryCounts(sql: Query, actor: Member | null): Promise<CategoryCount[]> {
   if (!can(actor, "items.browse")) throw new AppError("forbidden");
   const rows = await sql<(Row & { total: number; in_stock: number; in_use: number; in_repair: number; units: number; low: number })[]>`
-    select c.id, c.key, c.name, c.icon, c.kind,
+    select c.id, c.key, c.name, c.icon, c.kind, c.members_see,
       count(i.id) filter (where i.status not in ('retired', 'lost'))::int as total,
       count(i.id) filter (where i.status = 'in_stock')::int as in_stock,
       count(i.id) filter (where i.status = 'in_use')::int as in_use,
@@ -47,7 +50,7 @@ export async function categoryCounts(sql: Query, actor: Member | null): Promise<
 }
 
 export async function category(sql: Query, categoryId: unknown): Promise<Category> {
-  const rows = await sql<Row[]>`select id, key, name, icon, kind from categories where id = ${id(categoryId)} and removed_at is null`;
+  const rows = await sql<Row[]>`select id, key, name, icon, kind, members_see from categories where id = ${id(categoryId)} and removed_at is null`;
   if (!rows[0]) throw new AppError("not_found");
   return shape(rows[0]);
 }
@@ -65,7 +68,7 @@ export async function addCategory(sql: Sql, actor: Member | null, input: { name?
     const [row] = await tx<Row[]>`
       insert into categories (name, icon, kind, position)
       values (${name}, ${icon}, ${kind}, (select coalesce(max(position), 0) + 1 from categories))
-      returning id, key, name, icon, kind`;
+      returning id, key, name, icon, kind, members_see`;
     return shape(row!);
   });
 }
@@ -77,7 +80,17 @@ export async function updateCategory(sql: Sql, actor: Member | null, categoryId:
   const name = current.key ? optional(input.name, limits.categoryName) : clean(input.name, limits.categoryName);
   if (input.icon !== undefined && !isIcon(input.icon)) throw new AppError("invalid");
   const icon = (input.icon as IconName | undefined) ?? current.icon;
-  const [row] = await sql<Row[]>`update categories set name = ${name}, icon = ${icon} where id = ${current.id} returning id, key, name, icon, kind`;
+  const [row] = await sql<Row[]>`update categories set name = ${name}, icon = ${icon} where id = ${current.id} returning id, key, name, icon, kind, members_see`;
+  return shape(row!);
+}
+
+// Whether members see who holds this category's items (settings). Their
+// own items stay theirs to see either way.
+export async function setMembersSee(sql: Sql, actor: Member | null, categoryId: unknown, value: unknown): Promise<Category> {
+  manager(actor);
+  if (typeof value !== "boolean") throw new AppError("invalid");
+  const current = await category(sql, categoryId);
+  const [row] = await sql<Row[]>`update categories set members_see = ${value} where id = ${current.id} returning id, key, name, icon, kind, members_see`;
   return shape(row!);
 }
 
@@ -97,7 +110,7 @@ export async function restoreCategory(sql: Sql, actor: Member | null, categoryId
   manager(actor);
   const [row] = await sql<Row[]>`update categories set removed_at = null where id = ${id(categoryId)} and removed_at is not null
     and (key is null or not exists (select 1 from categories c where c.key = categories.key and c.removed_at is null))
-    returning id, key, name, icon, kind`;
+    returning id, key, name, icon, kind, members_see`;
   if (!row) throw new AppError("not_found");
   return shape(row);
 }

@@ -47,7 +47,8 @@ export async function morning(sql: Sql, run: Run): Promise<void> {
 
 // "Hugo Bernard's trial period ends on 12 October": one item per record and
 // ending, for HR, in their language — two weeks before a trial period ends,
-// a month before a contract does.
+// a month before a contract does, two months before a work permit runs out
+// (and every morning after, until HR writes the new one's end).
 export async function endings(sql: Sql, day: string): Promise<void> {
   const soon = await upcoming(sql, day);
   if (soon.length === 0) return;
@@ -56,7 +57,7 @@ export async function endings(sql: Sql, day: string): Promise<void> {
   for (const s of soon) {
     const name = (s.memberId ? names.get(s.memberId)?.name : "") || s.legalName;
     await notify(hr, (t, locale) => ({
-      title: cut(format(s.what === "trial" ? t.bell.ending.trial : t.bell.ending.contract, { name, date: formatDay(s.day, locale, { day: "numeric", month: "long" }) }), 80),
+      title: cut(format(s.what === "trial" ? t.bell.ending.trial : s.what === "contract" ? t.bell.ending.contract : s.day < day ? t.bell.ending.permitEnded : t.bell.ending.permit, { name, date: formatDay(s.day, locale, { day: "numeric", month: "long" }) }), 80),
       body: t.bell.ending.body,
     }), { path: `/chest/records/${s.id}`, key: `record:${s.id}:${s.what}:${s.day}` });
   }

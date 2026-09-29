@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import type { Member } from "@argentic/chest-sdk/member";
 import { db } from "../../lib/db.ts";
 import { attempt, AppError, type Result } from "../../lib/errors.ts";
+import { approversFor } from "../../lib/approvals.ts";
 import * as bank from "../../lib/bank.ts";
 import { can } from "../../lib/access.ts";
 import * as cards from "../../lib/cards.ts";
@@ -81,14 +82,16 @@ export async function restoreExpense(expenseId: string): Promise<Result> {
   });
 }
 
-// Sends drafts; answers how many and to whom, in the sender's words.
-export async function sendExpenses(ids: string[]): Promise<Result<{ count: number; to: string }>> {
+// Sends drafts; answers how many and to whom, in the sender's words — null
+// when nobody may approve them yet (an accountant alone, nobody named).
+export async function sendExpenses(ids: string[]): Promise<Result<{ count: number; to: string | null }>> {
   return act(async actor => {
     const sql = db();
     const sent = await expenses.submit(sql, actor, ids, mayApprove);
     await tell.sent(sql, actor, sent);
     const locale = isLocale(actor.locale) ? actor.locale : "en";
-    const to = sent.approver ? nameOf((await people([sent.approver])).get(sent.approver), locale) : catalogue(locale).people.accountants;
+    const to = sent.approver ? nameOf((await people([sent.approver])).get(sent.approver), locale)
+      : (await approversFor(sql, actor.id)).length > 0 ? catalogue(locale).people.accountants : null;
     return { count: sent.expenses.length, to };
   });
 }

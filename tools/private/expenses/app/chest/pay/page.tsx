@@ -43,10 +43,13 @@ export default async function Pay() {
   // and the company's; without them, it waits (and says why).
   const addressProblem = (b: BankView | undefined): string | null =>
     !b || !b.sepa || !b.needsAddress ? null : !b.address ? t.pay.addressMissing : !companyBank?.address ? t.pay.companyAddressMissing : null;
+  // Someone who left is paid on their final pay slip, never by the file.
+  const left = (owner: string) => who.get(owner)?.status === "former" || who.get(owner)?.status === "erased";
   const groups: PayGroup[] = [...byOwner].map(([owner, l]) => {
     const bank = banks.get(owner);
     return {
       owner,
+      left: left(owner),
       name: nameOf(who.get(owner), locale),
       photo: who.get(owner)?.photo ?? null,
       total: money(l),
@@ -55,7 +58,7 @@ export default async function Pay() {
       bank: bank ? { masked: bank.masked, bic: bank.bic, holder: bank.holder, since: relative(bank.updatedAt, locale), sepa: bank.sepa, problem: addressProblem(bank), country: bank.country, address: bank.address, needsAddress: bank.needsAddress, changed: now - Date.parse(bank.updatedAt) < recentChange ? format(t.pay.changed, { when: relative(bank.updatedAt, locale) }) : null } : null,
     };
   });
-  const payable = ready === "ready" ? [...byOwner].filter(([owner]) => banks.get(owner)?.sepa && addressProblem(banks.get(owner)) === null).map(([, l]) => inFile(l)).filter(l => l.length > 0) : [];
+  const payable = ready === "ready" ? [...byOwner].filter(([owner]) => !left(owner) && banks.get(owner)?.sepa && addressProblem(banks.get(owner)) === null).map(([, l]) => inFile(l)).filter(l => l.length > 0) : [];
   const fileTotal = payable.reduce((sum, l) => sum + l.reduce((s, e) => s + (e.base ?? 0), 0), 0);
   const grand = money(list);
   return (

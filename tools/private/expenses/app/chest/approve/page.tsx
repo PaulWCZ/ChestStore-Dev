@@ -31,11 +31,13 @@ export default async function Approve() {
   const now = new Date();
   const groups: PersonGroup[] = [...byOwner].map(([owner, l]) => ({
     owner,
-    name: owner === member.id ? t.people.you : nameOf(who.get(owner), locale),
+    name: nameOf(who.get(owner), locale),
     photo: who.get(owner)?.photo ?? null,
     summary: plural(t.approve.summary, l.length, locale, { total: money(l) }),
     sent: l[0]?.submittedAt ? relative(l[0].submittedAt, locale, now) : "",
-    self: owner === member.id,
+    // Someone who left: approving still means paying them (on their last
+    // pay slip, never by the transfer file).
+    left: who.get(owner)?.status === "former" || who.get(owner)?.status === "erased",
     rows: l.map(e => rowView(e, ctx)),
   }));
   return (

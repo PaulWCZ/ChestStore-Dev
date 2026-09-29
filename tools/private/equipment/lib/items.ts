@@ -45,11 +45,16 @@ export type Item = {
   quantity: number | null;
   minQuantity: number | null;
   invoice: string | null;
+  // Read by a member who may not see who holds it (the category's setting):
+  // holder, place and "since" are blanked, and the item says it is held.
+  holderHidden: boolean;
 };
 
 // What a member (not a manager) may read of an item: what it is, where it
 // is — no money, supplier, notes, fields, invoice or history.
-export type BriefItem = Pick<Item, "id" | "category" | "tag" | "name" | "serial" | "status" | "photo" | "seats" | "seatsUsed" | "holder" | "place" | "heldSince" | "warrantyUntil" | "renewsOn" | "quantity" | "minQuantity">;
+// A member reads the serial number of their own items only, and who holds
+// an item only where its category shows holders (see forMember).
+export type BriefItem = Pick<Item, "id" | "category" | "tag" | "name" | "serial" | "status" | "photo" | "seats" | "seatsUsed" | "holder" | "place" | "heldSince" | "warrantyUntil" | "renewsOn" | "quantity" | "minQuantity" | "holderHidden">;
 
 export type Seat = { id: string; member: string; since: string };
 export type Problem = { id: string; itemId: string; reportedBy: string; body: string; createdAt: string };
@@ -78,7 +83,7 @@ export async function currentReceipt(sql: Query, item: Pick<Item, "id" | "holder
 }
 
 type Row = {
-  id: string; category_id: string; c_key: Category["key"]; c_name: string | null; c_icon: Category["icon"]; c_kind: Category["kind"];
+  id: string; category_id: string; c_key: Category["key"]; c_name: string | null; c_icon: Category["icon"]; c_kind: Category["kind"]; c_see: boolean;
   tag: string; name: string; serial: string | null; status: Status; purchased_on: string | null; price_cents: string | null; supplier: string | null;
   warranty_until: string | null; notes: string | null; photo: string | null; seats: number | null; seats_used: number; renews_on: string | null;
   cost_cents: string | null; period: Period | null; holder: string | null; place: string | null; held_since: string | null; created_at: Date; open_problems: number;
@@ -87,7 +92,7 @@ type Row = {
 
 // One query shape for every read of items.
 const select = (sql: Query) => sql`
-  select i.id, i.category_id, c.key as c_key, c.name as c_name, c.icon as c_icon, c.kind as c_kind,
+  select i.id, i.category_id, c.key as c_key, c.name as c_name, c.icon as c_icon, c.kind as c_kind, c.members_see as c_see,
     i.tag, i.name, i.serial, i.status, to_char(i.purchased_on, 'YYYY-MM-DD') as purchased_on, i.price_cents, i.supplier,
     to_char(i.warranty_until, 'YYYY-MM-DD') as warranty_until, i.notes, i.photo, i.seats,
     (select count(*)::int from seats s where s.item_id = i.id) as seats_used,
@@ -100,19 +105,37 @@ const select = (sql: Query) => sql`
 function shape(r: Row): Item {
   return {
     id: String(r.id),
-    category: { id: String(r.category_id), key: r.c_key, name: r.c_name, icon: r.c_icon, kind: r.c_kind },
+    category: { id: String(r.category_id), key: r.c_key, name: r.c_name, icon: r.c_icon, kind: r.c_kind, membersSee: r.c_see },
     tag: r.tag, name: r.name, serial: r.serial, status: r.status, purchasedOn: r.purchased_on,
     priceCents: r.price_cents === null ? null : Number(r.price_cents), supplier: r.supplier, warrantyUntil: r.warranty_until,
     notes: r.notes, photo: r.photo, seats: r.seats, seatsUsed: r.seats_used, renewsOn: r.renews_on,
     costCents: r.cost_cents === null ? null : Number(r.cost_cents), period: r.period,
     holder: r.holder, place: r.place, heldSince: r.held_since, createdAt: new Date(r.created_at).toISOString(), openProblems: r.open_problems,
-    extra: r.extra ?? {}, quantity: r.quantity, minQuantity: r.min_quantity, invoice: r.invoice,
+    extra: r.extra ?? {}, quantity: r.quantity, minQuantity: r.min_quantity, invoice: r.invoice, holderHidden: false,
   };
 }
 
 export function brief(item: Item): BriefItem {
-  const { id, category: c, tag, name, serial, status, photo, seats, seatsUsed, holder, place, heldSince, warrantyUntil, renewsOn, quantity, minQuantity } = item;
-  return { id, category: c, tag, name, serial, status, photo, seats, seatsUsed, holder, place, heldSince, warrantyUntil, renewsOn, quantity, minQuantity };
+  const { id, category: c, tag, name, serial, status, photo, seats, seatsUsed, holder, place, heldSince, warrantyUntil, renewsOn, quantity, minQuantity, holderHidden } = item;
+  return { id, category: c, tag, name, serial, status, photo, seats, seatsUsed, holder, place, heldSince, warrantyUntil, renewsOn, quantity, minQuantity, holderHidden };
+}
+
+// What a member (not a manager) may read of an item. Their own (held, or
+// a seat of theirs): all of the short view. Anyone else's: no serial
+// number (it helps talk a vendor's support into things), and no holder,
+// place or "since" where the category hides who holds its items (keys and
+// badges, vehicles by default). Money, supplier, notes, fields and the
+// invoice are never theirs (defence in depth: the pages show the short
+// view already).
+export function forMember(item: Item, me: string, mySeat = false): Item {
+  const mine = item.holder === me || mySeat;
+  const hide = !mine && !item.category.membersSee && (item.holder !== null || item.place !== null);
+  return {
+    ...item,
+    serial: mine ? item.serial : null,
+    holder: hide ? null : item.holder, place: hide ? null : item.place, heldSince: hide ? null : item.heldSince, holderHidden: hide,
+    priceCents: null, supplier: null, notes: null, extra: {}, invoice: null, costCents: null, period: null, purchasedOn: null,
+  };
 }
 
 export function manager(actor: Member | null): Member {
@@ -190,7 +213,13 @@ export type Filters = { q?: string; category?: string; status?: string; holder?:
 // name (the Chest is asked). holder: a member id, "erased",
 // "place:<name>", or "nobody".
 // (The clause is wrapped: a fragment awaited on its own would run.)
-async function where(sql: Query, filters: Filters) {
+// A member (viewer.manager false) searches what they may read: a serial
+// number or a field's value on their own items only, a holder or a place
+// only where the category shows holders (or their own).
+type Viewer = { id: string; manager: boolean };
+const viewerOf = (actor: Member): Viewer => ({ id: actor.id, manager: can(actor, "items.manage") });
+
+async function where(sql: Query, filters: Filters, viewer: Viewer) {
   const q = typeof filters.q === "string" ? filters.q.trim().slice(0, limits.search) : "";
   const like = "%" + q.replace(/[\\%_]/gu, m => "\\" + m) + "%";
   const holders = q ? await namedLike(q) : [];
@@ -199,38 +228,56 @@ async function where(sql: Query, filters: Filters) {
   const low = filters.status === "low";
   const h = filters.holder ?? "";
   const ids = filters.ids?.filter(x => /^[1-9][0-9]{0,17}$/u.test(x)).slice(0, limits.labels);
+  const me = viewer.id;
+  // For a member: their own item, and an item whose holders they may see.
+  const own = sql`(i.holder = ${me} or exists (select 1 from seats s where s.item_id = i.id and s.member_id = ${me}))`;
+  const shown = viewer.manager ? sql`true` : sql`(c.members_see or ${own})`;
+  const mine = viewer.manager ? sql`true` : own;
   return { clause: sql`i.deleted_at is null
-    ${q ? sql`and (i.tag ilike ${like} or i.serial ilike ${like} or i.name ilike ${like} or i.supplier ilike ${like} or i.place ilike ${like}
-      or exists (select 1 from jsonb_each_text(i.extra) e where e.value ilike ${like})
-      or i.holder = any(${holders}) or exists (select 1 from seats s where s.item_id = i.id and s.member_id = any(${holders})))` : sql``}
+    ${q ? sql`and (i.tag ilike ${like} or i.name ilike ${like}
+      ${viewer.manager ? sql`or i.supplier ilike ${like}` : sql``}
+      or (${mine} and i.serial ilike ${like})
+      or (${shown} and i.place ilike ${like})
+      or (${mine} and exists (select 1 from jsonb_each_text(i.extra) e where e.value ilike ${like}))
+      or (${shown} and (i.holder = any(${holders}) or exists (select 1 from seats s where s.item_id = i.id and s.member_id = any(${holders})))))` : sql``}
     ${categoryId ? sql`and i.category_id = ${categoryId}` : sql``}
     ${status ? sql`and i.status = ${status}` : sql``}
     ${low ? sql`and i.status <> 'retired' and i.min_quantity is not null and i.quantity <= i.min_quantity` : sql``}
-    ${h === "nobody" ? sql`and i.holder is null and i.place is null and i.seats is null and i.quantity is null`
-      : h.startsWith("place:") ? sql`and i.place = ${h.slice(6)}`
-      : /^mbr_[a-z2-7]{26}$/u.test(h) || h === "erased" ? sql`and (i.holder = ${h} or exists (select 1 from seats s where s.item_id = i.id and s.member_id = ${h}))`
+    ${h === "nobody" ? sql`and ${shown} and i.holder is null and i.place is null and i.seats is null and i.quantity is null`
+      : h.startsWith("place:") ? sql`and ${shown} and i.place = ${h.slice(6)}`
+      : /^mbr_[a-z2-7]{26}$/u.test(h) || h === "erased" ? sql`and ${h === me ? sql`true` : shown} and (i.holder = ${h} or exists (select 1 from seats s where s.item_id = i.id and s.member_id = ${h}))`
       : sql``}
     ${ids ? sql`and i.id = any(${ids})` : sql``}` };
 }
 
 export async function listItems(sql: Query, actor: Member | null, filters: Filters = {}, max = 1000, offset = 0): Promise<Item[]> {
-  browser(actor);
+  const viewer = viewerOf(browser(actor));
   const order = filters.sort === "name" ? sql`lower(i.name), i.id`
     : filters.sort === "newest" ? sql`i.created_at desc, i.id desc`
     : filters.sort === "ending" ? sql`least(i.warranty_until, i.renews_on) nulls last, i.id`
     : sql`lower(i.tag), i.id`;
   const rows = await sql<Row[]>`${select(sql)}
-    where ${(await where(sql, filters)).clause}
+    where ${(await where(sql, filters, viewer)).clause}
     order by ${order}
     limit ${max} offset ${Math.max(0, Math.floor(offset))}`;
-  return rows.map(shape);
+  const items = rows.map(shape);
+  if (viewer.manager) return items;
+  const seated = await mySeats(sql, viewer.id, items);
+  return items.map(i => forMember(i, viewer.id, seated.has(i.id)));
 }
 
 // How many items the filters find (the list's pages).
 export async function countItems(sql: Query, actor: Member | null, filters: Filters = {}): Promise<number> {
-  browser(actor);
-  const [row] = await sql<{ n: number }[]>`select count(*)::int as n from items i where ${(await where(sql, filters)).clause}`;
+  const viewer = viewerOf(browser(actor));
+  const [row] = await sql<{ n: number }[]>`select count(*)::int as n from items i join categories c on c.id = i.category_id where ${(await where(sql, filters, viewer)).clause}`;
   return row?.n ?? 0;
+}
+
+// The licences, among these items, where this member has a seat.
+async function mySeats(sql: Query, me: string, items: Item[]): Promise<Set<string>> {
+  const licences = items.filter(i => i.seats !== null).map(i => i.id);
+  if (licences.length === 0) return new Set();
+  return new Set((await sql<{ item_id: string }[]>`select item_id from seats where member_id = ${me} and item_id = any(${licences})`).map(r => String(r.item_id)));
 }
 
 // One item: its full page for a manager, the short one for a member.
@@ -246,18 +293,21 @@ export async function itemDetail(sql: Query, actor: Member | null, itemId: unkno
   if (!can(who, "items.manage")) {
     const mySeat = seats.some(s => s.member === who.id);
     const mine = item.holder === who.id || mySeat;
-    return { full: false, item: brief(item), mySeat, mine, myProblems: problems.filter(p => p.reportedBy === who.id), receipt: item.holder === who.id ? receipt : null };
+    return { full: false, item: brief(forMember(item, who.id, mySeat)), mySeat, mine, myProblems: problems.filter(p => p.reportedBy === who.id), receipt: item.holder === who.id ? receipt : null };
   }
   const historyRows = await sql<{ id: string; at: Date; day: string | null; actor: string; kind: string; member: string | null; place: string | null; status: string | null; note: string | null; qty: number | null; cost_cents: string | null; ref: string | null; due: string | null }[]>`
     select id, at, to_char(day, 'YYYY-MM-DD') as day, actor, kind, member, place, status, note, qty, cost_cents, ref, to_char(due, 'YYYY-MM-DD') as due
-    from history where item_id = ${item.id} order by id desc limit 200`;
+    from history where item_id = ${item.id}
+    order by coalesce(day, (at at time zone ${chest.timeZone()})::date) desc, at desc, id desc limit 200`;
   const history = historyRows.map(({ cost_cents, ...h }) => ({ ...h, id: String(h.id), at: new Date(h.at).toISOString(), costCents: cost_cents === null ? null : Number(cost_cents) }));
   return { full: true, item, seats, problems, history, receipt };
 }
 
 export async function places(sql: Query, actor: Member | null): Promise<string[]> {
-  browser(actor);
-  return (await sql<{ place: string }[]>`select distinct place from items where place is not null and deleted_at is null order by place limit 200`).map(r => r.place);
+  const viewer = viewerOf(browser(actor));
+  // A member lists the places of the categories that show who holds them.
+  return (await sql<{ place: string }[]>`select distinct i.place from items i join categories c on c.id = i.category_id
+    where i.place is not null and i.deleted_at is null ${viewer.manager ? sql`` : sql`and c.members_see`} order by i.place limit 200`).map(r => r.place);
 }
 
 // ---- Writing --------------------------------------------------------------

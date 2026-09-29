@@ -6,8 +6,8 @@ import { AppError } from "./app-error.ts";
 import type { Query, Sql } from "./db.ts";
 import { note } from "./journal.ts";
 import {
-  addDays, clean, day, documentTypes, fromElsewhere, hours, id, isContract, isDocumentKind, keepRecordYears,
-  limits, memberId, phone, sexes, type Contract, type DocumentKind, type Sex,
+  addDays, clean, day, documentTypes, employeeNumber, fromElsewhere, hours, id, isContract, isDocumentKind, keepRecordYears,
+  limits, memberId, phone, sexes, workDays, type Contract, type DocumentKind, type Sex,
 } from "./model.ts";
 import { everyone, present } from "./people.ts";
 
@@ -28,28 +28,31 @@ export type Fields = {
   startDate: string | null; trialEnd: string | null; contractEnd: string | null; endDate: string | null;
   workPermit: string; agency: string; tutorId: string | null; workplace: string;
   emergencyName: string; emergencyRelation: string; emergencyPhone: string; address: string;
+  employeeNumber: string; permitEnd: string | null; workDays: number[] | null;
 };
 export type Field = keyof Fields;
 export const fieldNames: Field[] = [
   "legalName", "sex", "birthDate", "nationality", "job", "qualification", "contract", "workingTime", "hours", "startDate", "trialEnd", "contractEnd", "endDate",
   "workPermit", "agency", "tutorId", "workplace", "emergencyName", "emergencyRelation", "emergencyPhone", "address",
+  "employeeNumber", "permitEnd", "workDays",
 ];
 
 export type Document = { id: string; kind: DocumentKind; name: string; type: string; size: number; addedBy: string; addedAt: string };
 export type HrRecord = Fields & { id: string; memberId: string | null; erased: boolean; updatedAt: string; documents: Document[] };
-export type Summary = Pick<HrRecord, "id" | "memberId" | "legalName" | "job" | "contract" | "workingTime" | "startDate" | "trialEnd" | "contractEnd" | "endDate" | "erased"> & { missing: Field[] };
+export type Summary = Pick<HrRecord, "id" | "memberId" | "legalName" | "job" | "contract" | "workingTime" | "startDate" | "trialEnd" | "contractEnd" | "endDate" | "erased" | "employeeNumber"> & { missing: Field[] };
 
 type Row = {
   id: string; member_id: string | null; legal_name: string; sex: Sex | null; birth_date: string | null; nationality: string; job: string; qualification: string;
   contract: Contract; working_time: "full" | "part"; hours: string | null; start_date: string | null; trial_end: string | null; contract_end: string | null; end_date: string | null;
   work_permit: string; agency: string; tutor_id: string | null; workplace: string; emergency_name: string; emergency_relation: string; emergency_phone: string; address: string;
+  employee_number: string; permit_end: string | null; work_days: number[] | null;
   erased_at: Date | null; updated_at: Date;
 };
 const d = (column: string) => `to_char(${column}, 'YYYY-MM-DD') as ${column}`;
 const columns = [
   "id", "member_id", "legal_name", "sex", d("birth_date"), "nationality", "job", "qualification", "contract", "working_time", "hours::text as hours",
   d("start_date"), d("trial_end"), d("contract_end"), d("end_date"), "work_permit", "agency", "tutor_id", "workplace",
-  "emergency_name", "emergency_relation", "emergency_phone", "address", "erased_at", "updated_at",
+  "emergency_name", "emergency_relation", "emergency_phone", "address", "employee_number", d("permit_end"), "work_days", "erased_at", "updated_at",
 ].join(", ");
 
 const toFields = (r: Row): Fields => ({
@@ -58,6 +61,7 @@ const toFields = (r: Row): Fields => ({
   startDate: r.start_date, trialEnd: r.trial_end, contractEnd: r.contract_end, endDate: r.end_date,
   workPermit: r.work_permit, agency: r.agency, tutorId: r.tutor_id, workplace: r.workplace,
   emergencyName: r.emergency_name, emergencyRelation: r.emergency_relation, emergencyPhone: r.emergency_phone, address: r.address,
+  employeeNumber: r.employee_number, permitEnd: r.permit_end, workDays: r.work_days === null ? null : r.work_days.map(Number),
 });
 
 // What the staff register needs and the record does not say yet. A work
@@ -127,7 +131,7 @@ export async function listRecords(sql: Query, actor: Member | null): Promise<Sum
   const rows = await sql.unsafe<Row[]>(`select ${columns} from records order by end_date is not null, end_date desc, lower(legal_name), id limit 5000`);
   return rows.map(r => {
     const f = toFields(r);
-    return { id: String(r.id), memberId: r.member_id, legalName: f.legalName, job: f.job, contract: f.contract, workingTime: f.workingTime, startDate: f.startDate, trialEnd: f.trialEnd, contractEnd: f.contractEnd, endDate: f.endDate, erased: r.erased_at !== null, missing: missing(f) };
+    return { id: String(r.id), memberId: r.member_id, legalName: f.legalName, job: f.job, contract: f.contract, workingTime: f.workingTime, startDate: f.startDate, trialEnd: f.trialEnd, contractEnd: f.contractEnd, endDate: f.endDate, erased: r.erased_at !== null, employeeNumber: f.employeeNumber, missing: missing(f) };
   });
 }
 
@@ -183,7 +187,7 @@ async function createFor(sql: Sql, actor: Member, people: { id: string; name: st
 }
 
 // Reading what HR typed, field by field; only the fields given change.
-function read(given: { [key: string]: unknown }): Partial<Fields> {
+export function read(given: { [key: string]: unknown }): Partial<Fields> {
   const f: Partial<Fields> = {};
   const text = (key: string, max: number, multiline = false) => clean(given[key], max, { optional: true, multiline });
   const date = (key: string, from = 1950) => day(given[key], { optional: true, from });
@@ -222,13 +226,16 @@ function read(given: { [key: string]: unknown }): Partial<Fields> {
       case "emergencyRelation": f.emergencyRelation = text(key, limits.relation); break;
       case "emergencyPhone": f.emergencyPhone = phone(given[key]); break;
       case "address": f.address = text(key, limits.address, true); break;
+      case "employeeNumber": f.employeeNumber = employeeNumber(given[key]); break;
+      case "permitEnd": f.permitEnd = date(key, 1900); break;
+      case "workDays": f.workDays = workDays(given[key]); break;
       default: throw new AppError("invalid");
     }
   }
   return f;
 }
 
-const same = (a: unknown, b: unknown) => (a ?? null) === (b ?? null);
+const same = (a: unknown, b: unknown) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
 
 export async function updateRecord(sql: Sql, actor: Member | null, recordId: unknown, input: unknown): Promise<{ changed: Field[] }> {
   const who = hr(actor);
@@ -250,11 +257,18 @@ export async function updateRecord(sql: Sql, actor: Member | null, recordId: unk
         start_date = ${next.startDate}, trial_end = ${next.trialEnd}, contract_end = ${next.contractEnd}, end_date = ${next.endDate},
         work_permit = ${next.workPermit}, agency = ${next.agency}, tutor_id = ${next.tutorId}, workplace = ${next.workplace},
         emergency_name = ${next.emergencyName}, emergency_relation = ${next.emergencyRelation}, emergency_phone = ${next.emergencyPhone}, address = ${next.address},
+        employee_number = ${next.employeeNumber}, permit_end = ${next.permitEnd}, work_days = ${next.workDays === null ? null : tx.array(next.workDays)}::smallint[],
         updated_at = now()
       where id = ${key}`;
     await note(tx, who, "changed", { recordId: key, fields: changed });
     return { changed };
-  });
+  }).catch(error => { throw numberTaken(error); });
+}
+
+// A unique employee number: another record's is refused in words.
+export function numberTaken(error: unknown): unknown {
+  return error && typeof error === "object" && "code" in error && error.code === "23505" && String((error as { constraint_name?: string }).constraint_name ?? (error as { message?: string }).message).includes("employee_number")
+    ? new AppError("number_taken") : error;
 }
 
 // Linking a record to the member it is about (someone who got the Chest),
@@ -362,19 +376,24 @@ export async function openDocument(sql: Query, actor: Member | null, recordId: u
 }
 
 // What HR should see coming: trial periods ending in the next 14 days,
-// contracts with an end in the next 30, of people still here.
-export type Upcoming = { id: string; memberId: string | null; legalName: string; what: "trial" | "contract"; day: string };
+// contracts with an end in the next 30, work permits running out in the
+// next 60 (or already run out: employing someone without a valid permit
+// is an offence, L8251-1), of people still here.
+export type Upcoming = { id: string; memberId: string | null; legalName: string; what: "trial" | "contract" | "permit"; day: string };
+export const aheadDays = { trial: 14, contract: 30, permit: 60 } as const;
 
 export async function upcoming(sql: Query, now: string): Promise<Upcoming[]> {
-  const rows = await sql<{ id: string; member_id: string | null; legal_name: string; trial_end: string | null; contract_end: string | null }[]>`
-    select id, member_id, legal_name, to_char(trial_end, 'YYYY-MM-DD') as trial_end, to_char(contract_end, 'YYYY-MM-DD') as contract_end from records
-    where end_date is null and erased_at is null
-      and ((trial_end between ${now}::date and ${addDays(now, 14)}::date) or (contract_end between ${now}::date and ${addDays(now, 30)}::date))
-    order by least(trial_end, contract_end), id limit 200`;
+  const rows = await sql<{ id: string; member_id: string | null; legal_name: string; trial_end: string | null; contract_end: string | null; permit_end: string | null }[]>`
+    select id, member_id, legal_name, to_char(trial_end, 'YYYY-MM-DD') as trial_end, to_char(contract_end, 'YYYY-MM-DD') as contract_end, to_char(permit_end, 'YYYY-MM-DD') as permit_end from records
+    where (end_date is null or end_date >= ${now}::date) and erased_at is null
+      and ((trial_end between ${now}::date and ${addDays(now, aheadDays.trial)}::date) or (contract_end between ${now}::date and ${addDays(now, aheadDays.contract)}::date)
+        or permit_end <= ${addDays(now, aheadDays.permit)}::date)
+    order by least(trial_end, contract_end, permit_end), id limit 200`;
   const found: Upcoming[] = [];
   for (const r of rows) {
-    if (r.trial_end && r.trial_end >= now && r.trial_end <= addDays(now, 14)) found.push({ id: String(r.id), memberId: r.member_id, legalName: r.legal_name, what: "trial", day: r.trial_end });
-    if (r.contract_end && r.contract_end >= now && r.contract_end <= addDays(now, 30)) found.push({ id: String(r.id), memberId: r.member_id, legalName: r.legal_name, what: "contract", day: r.contract_end });
+    if (r.trial_end && r.trial_end >= now && r.trial_end <= addDays(now, aheadDays.trial)) found.push({ id: String(r.id), memberId: r.member_id, legalName: r.legal_name, what: "trial", day: r.trial_end });
+    if (r.contract_end && r.contract_end >= now && r.contract_end <= addDays(now, aheadDays.contract)) found.push({ id: String(r.id), memberId: r.member_id, legalName: r.legal_name, what: "contract", day: r.contract_end });
+    if (r.permit_end && r.permit_end <= addDays(now, aheadDays.permit)) found.push({ id: String(r.id), memberId: r.member_id, legalName: r.legal_name, what: "permit", day: r.permit_end });
   }
   return found.sort((a, b) => a.day.localeCompare(b.day));
 }

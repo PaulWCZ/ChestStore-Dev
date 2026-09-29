@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { Back } from "../../../../components/icons.tsx";
 import { can } from "../../../../lib/access.ts";
 import { AppError } from "../../../../lib/app-error.ts";
+import { approversFor } from "../../../../lib/approvals.ts";
 import { db } from "../../../../lib/db.ts";
 import { expense, warnings } from "../../../../lib/expenses.ts";
 import { format, formatDate, plural, type Catalogue, type Locale } from "../../../../lib/i18n/index.ts";
@@ -77,7 +78,7 @@ export default async function ExpensePage({ params }: { params: Promise<{ id: st
         facts={facts}
         warnings={(warned.get(e.id) ?? []).map(w => warningText(w, t, company.currency, locale))}
         reason={e.status === "draft" && e.refusedReason ? format(t.home.refusedBecause, { reason: e.refusedReason }) : null}
-        waitingFor={e.status === "submitted" ? format(t.home.waitingFor, { name: e.approver ? name(e.approver) : t.people.accountants }) : null}
+        waitingFor={e.status === "submitted" ? (e.approver ? format(t.home.waitingFor, { name: name(e.approver) }) : (await approversFor(sql, e.owner)).length === 0 ? t.home.waitingNobody : format(t.home.waitingFor, { name: t.people.accountants })) : null}
         history={history.map(h => ({ when: formatDate(h.at, locale, { day: "numeric", month: "short" }), text: historyText(h, t, locale, name, e.paidOn) }))}
         t={{ detail: t.detail, receipt: t.receipt, form: t.form, errors: t.errors, deleted: t.home.deleted, approved: t.approve.approved, refused: t.approve.refused }}
         locale={locale}

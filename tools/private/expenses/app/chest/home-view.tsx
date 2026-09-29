@@ -58,7 +58,7 @@ export function HomeView({ locale, empty, figures, drafts, waiting, approved, hi
       const result = await sendExpenses(ids);
       if (!result.ok) return void toast({ text: format(t.errors[result.error], result.values ?? {}), tone: "error" });
       // The approver has been told: sent, never an Undo.
-      toast({ id: "send", text: plural(t.home.sent, result.value.count, locale, { name: result.value.to }), sent: true });
+      toast({ id: "send", text: result.value.to === null ? plural(t.home.sentAlone, result.value.count, locale) : plural(t.home.sent, result.value.count, locale, { name: result.value.to }), sent: true });
       setUnticked(new Set(drafts.filter(d => d.receiptNeeded && !ids.includes(d.id)).map(d => d.id)));
       router.refresh();
     });

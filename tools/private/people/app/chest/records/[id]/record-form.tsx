@@ -13,11 +13,13 @@ import { deleteRecord, linkRecord, saveRecord } from "../../actions.ts";
 
 type Field =
   | "legalName" | "sex" | "birthDate" | "nationality" | "job" | "qualification" | "contract" | "workingTime" | "hours" | "startDate" | "trialEnd" | "contractEnd" | "endDate"
-  | "workPermit" | "agency" | "tutorId" | "workplace" | "emergencyName" | "emergencyRelation" | "emergencyPhone" | "address";
+  | "workPermit" | "agency" | "tutorId" | "workplace" | "emergencyName" | "emergencyRelation" | "emergencyPhone" | "address"
+  | "employeeNumber" | "permitEnd" | "workDays";
 type Words = {
   record: {
     identity: string; contract: string; emergency: string; fields: Record<Field, string>;
-    hints: { legalName: string; qualification: string; workPermit: string; agency: string; register: string };
+    hints: { legalName: string; qualification: string; workPermit: string; agency: string; register: string; permitEnd: string; employeeNumber: string; workDays: string };
+    weekDays: string[];
     contracts: Record<Contract, string>; sexes: Record<"female" | "male", string>; notSaid: string; workingTimes: { full: string; part: string };
     save: string; saving: string; saved: string; noChange: string; link: string; linkNone: string; linked: string;
     delete: string; deleteHint: string; deleted: string; deleteTitle: string; deleteBody: string; deleteConfirm: string; cancel: string;
@@ -72,16 +74,24 @@ export function RecordForm({ id, initial, linked, erased, members, today, lang, 
   // A date: the kit's field (typed as people write dates, or chosen on a
   // calendar). Its label is a string, so what the register needs is marked
   // by a star in the words themselves.
-  const date = (f: Field, needed = false) => (
+  const date = (f: Field, needed = false, hint?: string) => (
     <div className="field-group">
-      <WatchedDateField label={t.record.fields[f] + (needed ? " *" : "")} value={values[f] || null} onChange={day => put(f, day ?? "")} onProblem={dates.watch(f)} today={today} min="1900-01-01" max="2100-12-31" chips={false} labels={t.date} />
+      <WatchedDateField label={t.record.fields[f] + (needed ? " *" : "")} hint={hint} value={values[f] || null} onChange={day => put(f, day ?? "")} onProblem={dates.watch(f)} today={today} min="1900-01-01" max="2100-12-31" chips={false} labels={t.date} />
     </div>
   );
+  // The days a part-timer works: one box per day of the week (ISO 1–7).
+  const days = new Set(values.workDays.split(",").filter(Boolean).map(Number));
+  const toggleDay = (n: number) => {
+    const next = new Set(days);
+    if (next.has(n)) next.delete(n);
+    else next.add(n);
+    put("workDays", [...next].sort((a, b) => a - b).join(","));
+  };
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (dates.problem) return;
-    const changed = Object.fromEntries((Object.keys(values) as Field[]).filter(f => values[f] !== initial[f]).map(f => [f, values[f] === "" && ["sex", "tutorId", "hours"].includes(f) ? null : values[f]]));
+    const changed = Object.fromEntries((Object.keys(values) as Field[]).filter(f => values[f] !== initial[f]).map(f => [f, values[f] === "" && ["sex", "tutorId", "hours", "workDays"].includes(f) ? null : values[f]]));
     setError(null);
     start(async () => {
       const r = await saveRecord(id, changed);
@@ -111,6 +121,7 @@ export function RecordForm({ id, initial, linked, erased, members, today, lang, 
             {date("birthDate", !intern)}
             {text("nationality", limits.nationality, !intern)}
             {text("workPermit", limits.workPermit, false, t.record.hints.workPermit)}
+            {(values.workPermit !== "" || values.permitEnd !== "") && date("permitEnd", false, t.record.hints.permitEnd)}
             {field("address", <textarea id={uid + "address"} className="field" rows={3} value={values.address} onChange={set("address")} maxLength={limits.address} />)}
           </div>
         </fieldset>
@@ -123,6 +134,7 @@ export function RecordForm({ id, initial, linked, erased, members, today, lang, 
                 {contracts.map(c => <option key={c} value={c}>{t.record.contracts[c]}</option>)}
               </select>
             ))}
+            {text("employeeNumber", limits.employeeNumber, false, t.record.hints.employeeNumber)}
             {text("job", limits.title, !intern)}
             {text("qualification", limits.qualification, !intern, t.record.hints.qualification)}
             {field("workingTime", (
@@ -132,6 +144,20 @@ export function RecordForm({ id, initial, linked, erased, members, today, lang, 
               </select>
             ))}
             {text("hours", 5, false, undefined, "text")}
+            {(values.workingTime === "part" || values.workDays !== "") && (
+              <fieldset className="field-group week-days" aria-describedby={uid + "workDays-hint"}>
+                <legend className="label">{t.record.fields.workDays}</legend>
+                <div className="row">
+                  {t.record.weekDays.map((name, i) => (
+                    <label key={name} className="check-chip">
+                      <input type="checkbox" checked={days.has(i + 1)} onChange={() => toggleDay(i + 1)} />
+                      <span>{name}</span>
+                    </label>
+                  ))}
+                </div>
+                <p id={uid + "workDays-hint"} className="hint">{t.record.hints.workDays}</p>
+              </fieldset>
+            )}
             {date("startDate", true)}
             {date("trialEnd")}
             {contract !== "permanent" && date("contractEnd", intern)}

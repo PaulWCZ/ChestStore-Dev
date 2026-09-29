@@ -686,8 +686,8 @@ export async function unmarkPaid(sql: Sql, actor: Member | null, selection: unkn
 }
 
 // What waits for each of these members: expenses to decide (for an
-// accountant, those nobody else approves too), and their own refused
-// drafts. The number on the tool's tile.
+// accountant, those sent to the accountants, never their own), and their
+// own refused drafts. The number on the tool's tile.
 export async function waitingCounts(sql: Query, memberIds: string[], accountantIds: string[]): Promise<Map<string, number>> {
   const counts = new Map(memberIds.map(m => [m, 0]));
   if (memberIds.length === 0) return counts;
@@ -697,8 +697,7 @@ export async function waitingCounts(sql: Query, memberIds: string[], accountantI
     from unnest(${memberIds}::text[]) as m(member)
     join expenses e on e.status = 'submitted' and e.deleted_at is null and (
       (e.approver_id = m.member and e.member_id <> m.member)
-      or (m.member = any(${accountants}::text[]) and e.approver_id is null
-          and (e.member_id <> m.member or not exists (select 1 from approvers a where a.member_id = e.member_id))))
+      or (m.member = any(${accountants}::text[]) and e.approver_id is null and e.member_id <> m.member))
     group by m.member`;
   for (const r of approvals) counts.set(r.member, (counts.get(r.member) ?? 0) + r.n);
   const refused = await sql<{ member: string; n: number }[]>`

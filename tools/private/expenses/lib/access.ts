@@ -12,9 +12,10 @@ import type { Member } from "@argentic/chest-sdk/member";
 // - employee: their own expenses.
 //
 // Everyone with a role adds and sends their own expenses. A draft is its
-// owner's alone until it is sent. Nobody approves their own expense, except
-// an accountant nobody was named to approve (a company of one accountant):
-// the record then says who approved it.
+// owner's alone until it is sent. Nobody approves their own expense, ever:
+// an accountant's own go to the approver named for them, or else to the
+// other accountants; with neither, they wait (and the pages say so) until
+// someone is named. The one who pays is never the one who approved.
 export const roles = ["accountant", "approver", "employee"] as const;
 export type Role = (typeof roles)[number];
 
@@ -51,10 +52,7 @@ export function expenseAccess(actor: Member | null, e: ExpenseFacts): ExpenseAcc
   const see = own || can(actor, "see.all") || (can(actor, "approve") && approverOf);
   if (!see) return none;
   let decide = false;
-  if (e.status === "submitted") {
-    if (!own) decide = can(actor, "approve.all") || (can(actor, "approve") && e.approver === actor.id);
-    // An accountant nobody approves approves their own.
-    else decide = can(actor, "approve.all") && e.approver === null && e.assignedTo === null;
-  }
+  // Never one's own: not even an accountant nobody else approves.
+  if (e.status === "submitted" && !own) decide = can(actor, "approve.all") || (can(actor, "approve") && e.approver === actor.id);
   return { see, own, decide };
 }

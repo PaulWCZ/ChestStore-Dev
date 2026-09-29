@@ -35,6 +35,7 @@ export const limits = {
   documentName: 120,
   documentBytes: 20 << 20,
   documentsPerRecord: 100,
+  employeeNumber: 30,
 } as const;
 
 // How long a departed person's profile is kept (to restore it if they come
@@ -210,3 +211,31 @@ export function hours(value: unknown): number | null {
 // How long the staff register keeps someone after they left (Code du
 // travail R1221-26: five years), then their record goes.
 export const keepRecordYears = 5;
+
+// An employee number (matricule) as payroll writes it: letters, digits and
+// - _ . / only ("0017", "E-2041"), 30 at most; empty when not given.
+export function employeeNumber(value: unknown): string {
+  if (value === null || value === undefined) return "";
+  if (typeof value !== "string") throw new AppError("invalid");
+  const text = value.trim();
+  if (text === "") return "";
+  if ([...text].length > limits.employeeNumber) throw new AppError("too_long", { max: limits.employeeNumber });
+  if (!/^[\p{L}\p{N}][\p{L}\p{N}._/-]*$/u.test(text)) throw new AppError("invalid");
+  return text;
+}
+
+// The days of the week someone works (ISO: 1 Monday … 7 Sunday), in order;
+// null when not said (a full week). Given as a list or "1,2,3".
+export const weekDays = [1, 2, 3, 4, 5, 6, 7] as const;
+export function workDays(value: unknown): number[] | null {
+  if (value === null || value === undefined || value === "") return null;
+  const list = typeof value === "string" ? value.split(",").map(v => v.trim()) : Array.isArray(value) ? value : null;
+  if (!list || list.length === 0) throw new AppError("invalid");
+  const found = new Set<number>();
+  for (const item of list) {
+    const n = typeof item === "number" ? item : typeof item === "string" && /^[1-7]$/u.test(item) ? Number(item) : NaN;
+    if (!Number.isInteger(n) || n < 1 || n > 7) throw new AppError("invalid");
+    found.add(n);
+  }
+  return [...found].sort((a, b) => a - b);
+}

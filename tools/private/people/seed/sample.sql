@@ -91,8 +91,9 @@ insert into arrivals (source, ref, name, job, team, place, start_date, hired_by,
 
 -- An extra field HR added; people fill it in.
 insert into fields (label, editor, position) values ('Languages', 'person', 1);
--- A date HR follows, with a reminder a month before (the morning bell).
-insert into fields (label, editor, position, kind, alert_days) values ('Medical visit', 'hr', 2, 'date', 30);
+-- A date HR follows, with a reminder a month before (the morning bell),
+-- seen by HR and the person only (occupational health is not the team's).
+insert into fields (label, editor, seen, position, kind, alert_days) values ('Medical visit', 'hr', 'private', 2, 'date', 30);
 insert into field_values (member_id, field_id, value) values
   ('mbr_sofiaaaaaaaaaaaaaaaaaaaaaa', 1, 'Italian, English, French'),
   ('mbr_tomaaaaaaaaaaaaaaaaaaaaaaa', 1, 'English, French'),
@@ -125,6 +126,15 @@ insert into records (member_id, legal_name, sex, birth_date, nationality, job, q
    '', '', 'mbr_inesaaaaaaaaaaaaaaaaaaaaaa', 'Lyon office', '', '', '', '', 'mbr_camilleaaaaaaaaaaaaaaaaaaa'),
   ('mbr_noraaaaaaaaaaaaaaaaaaaaaaa', 'PETIT Nora', 'female', date '2000-02-11', 'Française', 'Sales assistant', 'Employée, niveau 2', 'permanent', 'full', 35, current_date - 6, current_date + 9, null, null,
    '', '', null, '', 'Anne Petit', 'Mother', '+33 6 77 88 99 00', '', 'mbr_camilleaaaaaaaaaaaaaaaaaaa');
+
+-- Employee numbers (the ones Leave and payroll know); Aminata's residence
+-- permit runs out in seven weeks (HR is told 60 days before); she works
+-- Monday to Wednesday; Tom four days a week (not on Fridays).
+update records set employee_number = n from (values
+  ('MARTIN Camille Hélène', '0001'), ('GIRAUD Paul', '0003'), ('MOREAU Inès', '0007'), ('DUBOIS Léa', '0012'), ('DIALLO Aminata', '0017'),
+  ('WALKER Thomas', '0019'), ('ROSSI Sofia', '0021'), ('PETIT Nora', '0024'), ('NGUYEN Linh', '0026')) as v(name, n) where legal_name = v.name;
+update records set permit_end = current_date + 50, work_days = '{1,2,3}' where legal_name = 'DIALLO Aminata';
+update records set working_time = 'part', hours = 28, work_days = '{1,2,3,4}' where legal_name = 'WALKER Thomas';
 
 insert into journal (at, actor, action, record_id, fields) values
   (now() - interval '6 days', 'mbr_camilleaaaaaaaaaaaaaaaaaaa', 'created', 9, '{}'),

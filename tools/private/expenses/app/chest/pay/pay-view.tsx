@@ -14,7 +14,7 @@ import type { RowView } from "../../../lib/rows.ts";
 import { cancelTransferFile, makeTransferFile, markPaid, unmarkPaid } from "../actions.ts";
 
 type Bank = { masked: string; country: string; bic: string | null; holder: string; since: string; sepa: boolean; changed: string | null; problem: string | null; address: BankAddress | null; needsAddress: boolean };
-export type PayGroup = { owner: string; name: string; photo: string | null; total: string; summary: string; rows: RowView[]; bank: Bank | null };
+export type PayGroup = { owner: string; left: boolean; name: string; photo: string | null; total: string; summary: string; rows: RowView[]; bank: Bank | null };
 type FileLine = { id: string; title: string; sub: string; cancelled: boolean };
 type Words = { pay: Catalogue["pay"]; errors: Catalogue["errors"]; bank: Catalogue["settings"]["bank"]; cancel: string; dialog: Catalogue["dialog"]; date: Catalogue["date"] };
 
@@ -153,6 +153,7 @@ export function PayView({ groups, ready, preview, files, recent, today, locale, 
               : <span className="hint">{t.pay.noBank}</span>}
             {g.bank?.changed && <Warning text={g.bank.changed} />}
             {g.bank?.problem && <Warning text={g.bank.problem} />}
+            {g.left && <Warning text={t.pay.left} />}
             <button type="button" className="link-button" onClick={() => setEditing(g)}>{g.bank ? t.pay.editBank : t.pay.addBank}<span className="visually-hidden"> · {g.name}</span></button>
           </div>
           <hr className="rule" />

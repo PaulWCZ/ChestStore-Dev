@@ -7,6 +7,7 @@ import { today } from "../lib/model.ts";
 import { grant } from "../lib/receipts.ts";
 import * as settings from "../lib/settings.ts";
 import * as tell from "../lib/tell.ts";
+import * as approvals from "../lib/approvals.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, hugo, ines, lea, nora, tom } from "./support/members.ts";
@@ -350,16 +351,30 @@ test("an approver who may no longer approve is passed over: the accountants get 
   assert.deepEqual((await expenses.waiting(sql, asMember(ines))).map(e => e.id), [a.id]);
 });
 
-test("an accountant nobody approves approves their own; with an approver named, they cannot", async () => {
+test("an accountant never approves their own: it waits for another accountant or the approver named for them", async () => {
   const { sql } = database;
-  const a = (await expenses.saveExpense(sql, asMember(camille), null, lunch())).expense;
-  await expenses.submit(sql, asMember(camille), [a.id], yes);
-  await expenses.decide(sql, asMember(camille), [a.id], "approve");
-  assert.equal((await expenses.expense(sql, asMember(camille), a.id)).expense.decidedBy, camille.id);
+  const second = { ...nora, role: "accountant" };
+  // The only accountant, nobody named: it waits, for nobody yet.
+  const a = (await expenses.saveExpense(sql, asMember(camille), null, lunch({ amount: "250" }))).expense;
+  const sent = await expenses.submit(sql, asMember(camille), [a.id], yes);
+  assert.equal(sent.approver, null);
+  assert.deepEqual(await approvals.approversFor(sql, camille.id), []);
+  assert.deepEqual(await approvals.alone(sql), [camille.id]);
+  await assert.rejects(expenses.decide(sql, asMember(camille), [a.id], "approve"), refuses("self_approval"));
+  assert.deepEqual((await expenses.waiting(sql, asMember(camille))).map(e => e.id), []);
+  assert.equal((await expenses.waitingCounts(sql, [camille.id], [camille.id])).get(camille.id), 0);
+  // A second accountant approves it (and counts it on her tile).
+  assert.equal((await expenses.waitingCounts(sql, [second.id], [camille.id, second.id])).get(second.id), 1);
+  await expenses.decide(sql, asMember(second), [a.id], "approve");
+  assert.equal((await expenses.expense(sql, asMember(camille), a.id)).expense.decidedBy, second.id);
+  // Named for her: Inès, who then approves it.
   await settings.setApprover(sql, asMember(camille), camille.id, ines.id, yes);
+  assert.deepEqual(await approvals.approversFor(sql, camille.id), [ines.id]);
+  assert.deepEqual(await approvals.alone(sql), []);
   const b = (await expenses.saveExpense(sql, asMember(camille), null, lunch({ amount: "10" }))).expense;
-  await expenses.submit(sql, asMember(camille), [b.id], yes);
+  assert.equal((await expenses.submit(sql, asMember(camille), [b.id], yes)).approver, ines.id);
   await assert.rejects(expenses.decide(sql, asMember(camille), [b.id], "approve"), refuses("self_approval"));
+  await expenses.decide(sql, asMember(ines), [b.id], "approve");
 });
 
 test("the accountant pays back what was approved and paid with one's own money; company card never", async () => {

@@ -83,7 +83,7 @@ export default async function RecordsPage() {
                   <li key={s.id + s.what}>
                     <Link href={`/chest/records/${s.id}`}>
                       <span className="moment-text"><strong>{nameOfRecord(s.id, s.legalName)}</strong></span>
-                      <span className="moment-date">{format(s.what === "trial" ? t.records.trialEnds : t.records.contractEnds, { date: day(s.day) })}</span>
+                      <span className="moment-date">{format(s.what === "trial" ? t.records.trialEnds : s.what === "contract" ? t.records.contractEnds : s.day < now ? t.records.permitEnded : t.records.permitEnds, { date: day(s.day) })}</span>
                     </Link>
                   </li>
                 ))}

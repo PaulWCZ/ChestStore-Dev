@@ -138,6 +138,8 @@ export default async function ItemPage({ params, searchParams }: { params: Promi
             <p className="holder-line"><strong>{format(t.item.seatsUsed, { used: holder.used, seats: holder.seats })}</strong></p>
           ) : holder.kind === "stock" ? (
             <p className="holder-line"><strong>{holderText}</strong></p>
+          ) : holder.kind === "hidden" ? (
+            <p className="holder-line"><span><strong>{holderText}</strong><span className="muted block">{t.item.heldHidden}</span></span></p>
           ) : (
             <p className="holder-line muted">{item.status === "in_stock" ? t.item.inStock : t.item.notAvailable}</p>
           )}

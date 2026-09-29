@@ -13,6 +13,8 @@ export type Holder =
   | { kind: "place"; name: string }
   | { kind: "seats"; used: number; seats: number }
   | { kind: "stock"; count: number; low: boolean }
+  // Held by someone a member may not see (keys and badges, vehicles).
+  | { kind: "hidden" }
   | { kind: "none" };
 
 export type Row = {
@@ -43,6 +45,7 @@ export function holderOf(item: BriefItem, names: Names, t: Catalogue, locale: Lo
   if (item.quantity !== null && item.category.kind === "consumable") {
     return { holder: { kind: "stock", count: item.quantity, low: isLow(item) }, text: plural(t.list.units, item.quantity, locale) };
   }
+  if (item.holderHidden) return { holder: { kind: "hidden" }, text: t.list.heldHidden };
   if (item.holder) {
     const person = names.get(item.holder);
     const you = item.holder === me;
