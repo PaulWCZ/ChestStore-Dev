@@ -552,3 +552,4 @@ select.field { appearance: none; padding-right: var(--space-6); background-image
   .trend-chart .dot { stroke-width: 3; r: 8px; }
   .trend-chart .dot.current { r: 10px; }
 }
+@media (max-width: 560px) { .scale-result > div:not(.average) { justify-self: stretch; width: 100%; } }

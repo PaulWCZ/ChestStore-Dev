@@ -263,7 +263,9 @@ await step("the organiser reminds those who have not answered, once per 12 hours
   await page.goto(origin + "/chest/polls/4");
   await page.getByRole("button", { name: "Remind those who haven’t answered" }).click();
   await page.waitForSelector(".toast:has-text('Reminder sent')");
-  expect((await dev()).includes("Reminder: Which plants for the office?"), "the reminder in the bell");
+  const told = await dev();
+  expect(told.includes("Reminder: Which plants for the office?"), "the reminder in the bell");
+  expect(told.includes("→ tom@example.test"), "and by email to Tom, who has not answered");
   await page.getByRole("button", { name: "Remind those who haven’t answered" }).click();
   await page.waitForSelector(".toast:has-text('less than 12 hours')");
 });

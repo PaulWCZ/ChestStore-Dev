@@ -55,9 +55,22 @@ dark ink (`--mint-ink` 5.7:1, `--sun-ink` 6.1:1). The axe audit
   bubbles, the participation meter.
 - **Cards** on the home page: kind chip, title, who, closing time,
   participation, one action. Poll-to-answer cards stand on a navy ledge.
-- **Kind tiles**: three big tiles, an icon on a tint, a name and one line.
+- **Kind tiles**: four big tiles (a question, a date, a survey, the team
+  pulse), an icon on a tint, a name and one line; two by two from 640 px.
+- **Over time** (a repeating pulse): one thin coral line per question on
+  recessive grid lines, the current round a filled dot, the latest number
+  big with its change (▲ mint / ▼ coral, with the sign), the numbers in a
+  table under *See the numbers*. On a phone the chart's words and marks
+  grow so they stay readable.
+- **eNPS**: the score in the yellow disc, then three bars — critics
+  (coral), neutral (sunflower), fans (mint), each labelled in words.
+- **Sign-up places**: a small mint pill "2 places left", grey "Full"; a
+  full answer is dimmed and cannot be ticked.
+- **Comments**: avatar, name, "3 hours ago", the words; a quiet textarea
+  and *Post* below.
 - **Empty states**: "Nothing to answer. You're all caught up!"; the
-  anonymous threshold shows five dots filling up.
+  anonymous threshold (a closed poll under five answers) shows five dots;
+  an open anonymous poll says its results come at the close, in mint.
 - **Toasts**: a navy pill at the bottom, with *Undo*.
 
 ## Icon

@@ -61,8 +61,8 @@ them to everyone, organiser included, only once it closes.
   language, sees it on the poll, and can **add it to their calendar** (.ics,
   RFC 5545; all-day or timed, on the Chest's clock).
 - **Reminder**: the day before a poll closes, those who have not answered
-  get one bell item ("Closes tomorrow: …") — only for polls sent more than a
-  day before their close. The organiser is told when their poll closed by
+  get one bell item ("Closes tomorrow: …"), and an email where the Chest
+  sends them — only for polls sent more than a day before their close. The organiser is told when their poll closed by
   its date (for a date poll: "Pick the date and tell everyone").
 - **Drafts**: save a poll as a draft and send it later; a new poll's words
   are also kept in the browser until saved, so a closed tab loses nothing.
@@ -87,19 +87,32 @@ The organiser ticks *Anonymous* when writing the poll. Then:
   carries the same transaction id (`xmin`) and a new place on disk; neither
   row order, ids nor PostgreSQL's own stamps say which answer came last
   (tested in `test/answers.test.ts`).
-- **Results are hidden while fewer than 5 people have answered** — from
-  everyone, including the organiser and the Chest's admins — and free texts
-  are shown in a random order. The organiser never sees *who* has answered
-  an anonymous poll, only how many. The CSV holds counts and texts only.
+- **Results show only once the poll is closed — to everyone at once, the
+  organiser and the Chest's admins included — and only from 5 answers.**
+  While it is open nobody sees a number move: watching the results after
+  each answer ("6 of 7", then "7 of 7" right after a colleague says "done")
+  would tell what that colleague answered. *Live results* cannot be chosen
+  with *Anonymous* (the composer does not offer it; the server and the
+  database refuse it). The CSV is refused while it is open.
+- **A closed anonymous poll is never reopened** — not by its organiser, not
+  by an admin: reopening and closing again would let anyone compare the two
+  results and read the answers given in between. *Close now* asks a second
+  tap ("Close for good") instead of offering *Undo*.
+- Free texts are shown in a random order. The organiser never sees *who*
+  has answered an anonymous poll, only how many; *Remind those who haven't
+  answered* reaches them without naming them. The CSV holds counts and
+  texts only. An anonymous poll takes no comments and no place limits (both
+  name people).
+- **A repeating pulse** compares rounds, never answers: each round is its
+  own anonymous poll, shown once closed and from 5 answers.
 - **An anonymous answer cannot be changed**: nothing says which one is yours.
   The form says so before you send it.
 
 What anonymity here does **not** protect against, honestly:
 
-- **Watching live.** With *Show them as answers come in*, someone who sees
-  the count go from 7 to 8 right after a colleague says "done" can guess
-  that colleague's answer. When anonymity matters, choose *Show them when the
-  poll closes* (the composer switches to it when *Anonymous* is ticked).
+- **Who has answered.** The participation count ("6 of 7 answered") moves
+  as people answer: it says *that* someone answered, never what. Results
+  never move while the poll is open.
 - **Small groups and free text.** Five answers is a floor, not a guarantee:
   a free text can give its author away by what it says; in a team of six,
   a unanimous result says what everyone answered.
@@ -116,8 +129,8 @@ What anonymity here does **not** protect against, honestly:
 
 | Role | Can |
 |---|---|
-| `organiser` | Everything a member can; create polls; see the results of their polls at any time; edit their words and closing time; close, reopen, delete, restore them; pick a date poll's final date; download the answers |
-| `member` | Answer the polls put to them; see results when the organiser allows it |
+| `organiser` | Everything a member can, and always create polls — even when an admin keeps that to organisers |
+| `member` | Answer the polls put to them; see results when the organiser allows it; comment on named polls; **create polls** (unless an admin turned *Everyone can start a poll* off), and for their own polls: see the results at any time (an anonymous poll's only once closed), edit the words and closing time, remind, close, reopen, delete, restore, pick a date poll's final date, stop a pulse's rounds, download the answers |
 
 Admins of the Chest (who arrive as organisers) also manage every poll that is
 not a draft: see its results (an anonymous poll's only once closed, like
@@ -130,17 +143,21 @@ closed poll is seen by those asked, its organiser and admins.
 ## First minute
 
 - **What a new person sees first**: the home page. *To answer* comes first,
-  with each poll's closing time and a big *Answer* button; an organiser then
-  sees *Ask the team* with the three kinds, each one line. With nothing to
+  with each poll's closing time and a big *Answer* button; then *Ask the
+  team* with four tiles — a question, find a date, a short survey, a team
+  pulse — each one line (for everyone, unless an admin keeps it to
+  organisers). With nothing to
   answer: "Nothing to answer. You're all caught up!"
 - **The first thing they do**: tap the bell item or the card, tap an answer,
   *Send my answer*. **Two taps** for a question, one tap per date plus
   *Send* for a date poll. Confetti, then "Thanks! Your answer is in."
 - **An organiser's main job**: *A question* → type the question and two
   answers → *Send to the team*: **three fields and one button**. Everyone is
-  told in their bell.
+  told in their bell. *A team pulse* → *Send to the team*: **one button**,
+  and it comes back every week.
 - **A mistake**: a wrong answer → *Change my answer* (named polls, until the
-  close); closed too early → *Undo* in the toast, or *Reopen*; deleted →
+  close); closed too early → *Undo* in the toast, or *Reopen* (not an
+  anonymous poll: its close is confirmed instead); deleted →
   *Undo*; a date chosen by mistake → *Change the date* (everyone is told
   again, the calendar event replaced). An anonymous answer cannot be changed —
   the form says so before sending.
@@ -150,8 +167,8 @@ closed poll is seen by those asked, its organiser and admins.
 | Route | What |
 |---|---|
 | `/` | Public host: "Polls lives in your Chest", with a language switch |
-| `/chest` | Home: to answer, ask the team (organisers), your polls, answered and still open, closed recently |
-| `/chest/new?kind=choice\|date\|survey` | Composer (organisers) |
+| `/chest` | Home: to answer, ask the team, your polls, answered and still open, closed recently (a pulse once: its latest round); for admins, *Settings* |
+| `/chest/new?kind=choice\|date\|survey` | Composer (whoever may start a poll); `&preset=pulse`: the team pulse |
 | `/chest/polls/[id]` | A poll: answer, results, participation, organise |
 | `/chest/polls/[id]/edit` | A draft to finish, or an open poll's words and closing time |
 | `/chest/polls/[id]/export` | CSV of the answers (those who manage the poll) |
@@ -162,8 +179,11 @@ closed poll is seen by those asked, its organiser and admins.
 ## On a Chest
 
 - `capabilities`: `database`; `members` (names, photos, groups, who is
-  asked); `notifications` (the bell, the tile's number);
-  `receives: ["member.*"]`.
+  asked, people found by name); `notifications` (the bell, the tile's
+  number); `receives: ["member.*"]`. Proposal (studio), in
+  `chest.proposals.json`: `mail: {send: true}` — reminders by email, one
+  per person, sent to `{member}` (Polls never sees an address); without it,
+  reminders are bell items only.
 - **Telling those asked** uses one `notifications.broadcast` per poll
   (Proposal (studio): each member's item in their language, 30 an hour,
   outside the recipients quota). Where the Chest has no broadcast, and for
@@ -173,18 +193,21 @@ closed poll is seen by those asked, its organiser and admins.
   the next pass.
 - **Without schedules**: polls close by their date on the next page view
   (closing is evaluated on every read), and the same pass (closing
-  follow-ups, reminders, tellings, purge) runs at most once a minute when
-  someone opens a page. With the `pass` schedule (every 15 minutes) it runs
-  on time.
+  follow-ups, the next rounds of repeating surveys, reminders, tellings,
+  purge) runs at most once a minute when someone opens a page. With the
+  `pass` schedule (every 15 minutes) it runs on time. A round missed while
+  nobody came is skipped, never opened in a burst.
 - **Groups**: the Chest shows a tool only the groups that *give* it access.
-  If Polls is open to everyone through no group, the composer says "No group
-  gives Polls here, so everyone is asked."
+  If Polls is open to everyone through no group, the composer offers people
+  by name ("No group gives Polls here: add people by name").
 - **Someone loses access**: nothing changes; they are no longer asked or
   counted. **Someone leaves**: their open polls stay open (organiser shown
-  "(former member)"; an admin can close them), their answers stay, their
-  drafts are deleted. **An erasure**: their named answers stay counted but
-  read "Former member"; polls they organised are authored `erased`; their
-  drafts are deleted; the erasure is acknowledged.
+  "(former member)"; an admin can close them), their answers and comments
+  stay, their drafts are deleted, their repeating surveys stop. **An
+  erasure**: their named answers stay counted but read "Former member", so
+  do their comments; polls they organised are authored `erased`; their
+  repeating surveys stop; their id leaves the lists of people picked by
+  name; their drafts are deleted; the erasure is acknowledged.
 - No WebSocket: an open poll re-reads itself every 20 s, the home page every
   30 s, while visible.
 
@@ -198,12 +221,25 @@ closed poll is seen by those asked, its organiser and admins.
   every 15 minutes. Without it, Polls still works (see above).
 - `chest.timeZone()` / `today()` — **Proposal (studio)**: dates and closing
   times on the Chest's clock.
-- Wanted, not built: **`members.groups.list({ all: true })`** — all of the
-  Chest's groups (not only those that give the tool) so a tool open to
-  everyone can still ask "Sales only"; a **broadcast that excludes members**
-  (`except: [ids]`) so a reminder or a poll's first telling need not page
-  through members; **email** for reminders, since the bell reaches only
-  those who open their Chest.
+- `mail` — **Proposal (studio)**: reminders by email (`send` to `{member}`).
+- Wanted, not built:
+  - **A public part for guests without a Chest account** — Doodle's main
+    outside use (a client meeting, a candidate's interview slot). Polls is
+    a private-only tool; it would need `public: true` and a way for a
+    visitor to answer one date poll through an unguessable link, with a
+    name field and no account, rate-limited per link and per address. The
+    public-part and `visitors` proposals give the pieces; turning a private
+    tool into a public-and-private one (a second host, its own CSP, a
+    public page per poll) is a structure change for the studio to decide.
+  - **`members.groups.list({ all: true })`** — all of the Chest's groups
+    (not only those that give the tool) so a tool open to everyone can
+    still ask "Sales only"; until then, people picked by name.
+  - A **broadcast to members by id** (`to: { members: [ids] }`) and one
+    that **excludes members** (`except: [ids]`), so a poll put to people by
+    name, a reminder or a poll's first telling need not page through
+    members.
+  - **Push to a phone**: the bell reaches only those who open their Chest;
+    email helps; a push would be Officevibe's Slack nudge.
 
 ## Develop
 
@@ -221,10 +257,17 @@ In the studio: `node lab/chest-dev/dev.mjs tools/private/polls --prod --reset
 
 ## What it does not do (yet)
 
-Comments on a poll; participants adding options; limits per option (a
-sign-up sheet); recurring pulse surveys with a trend chart (needs
-schedules per poll); ranking questions; guests outside the Chest (no public
-voting link); email or push reminders; import from Doodle (Doodle exports
-only an Excel file, on paid plans — nothing worth importing for short-lived
-polls); calendar conflict hints on dates; time zones other than the Chest's
-for date options.
+- **Guests outside the Chest**: no public answering link (see *Needs from
+  the SDK*). A meeting with a client or a candidate still needs Doodle or an
+  email thread.
+- **Pulse breakdowns per team or manager** (Officevibe's heat map): only the
+  whole audience's results. A per-group breakdown with its own five-answer
+  floor is possible, not built.
+- **Importing past Officevibe or Doodle data**: none. A pulse's history
+  starts with its first round in Polls; the old one stays in Officevibe's
+  export. (Doodle exports only an Excel file, on paid plans — nothing worth
+  importing for short-lived polls.)
+- **An export of every poll at once** for an admin: one CSV per poll.
+- Participants adding options; ranking questions; a date picker showing
+  more than one month; calendar conflict hints on dates; time zones other
+  than the Chest's for date options; push reminders.
