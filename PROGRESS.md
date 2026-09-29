@@ -52,14 +52,17 @@ cross-cutting fixes). No tool can be cancelled tomorrow; ~6 categories
 today, 8 partly, 4 public ones not (mail, calendar, custom domains).
 
 **Fix queue (each builder works its critique's Fix plan; lead verifies):**
-running — Clients, Quotes, Tasks, Wiki, Polls, Expenses, Leave; SDK
-studio.12 (calendar bridge, groups capability, inbound mail). Next —
-People, Timesheets, Equipment, News, Goals, Support, Booking, Rooms,
-Hiring, Status (and adopt calendar/groups/inbound mail where they apply).
-Then the kit's shared components (`_store.md` §3 names the best source for
-each) and the migration of all tools to the kit and themes; the store
-glossary + lint (`_store.md` §2). Forms (tool 18) still being built; it
-needs screenshots + preview and its own critique once done.
+- **Done and verified:** Polls (54 tests), Tasks (65 tests), and Forms,
+  tool 18 (59 tests; screenshots looked at).
+- **SDK studio.12 verified** (78 tests): calendar, groups read, inbound
+  mail.
+- **Running:** Clients, Quotes, Wiki, Expenses, Leave, People,
+  Timesheets, Goals.
+- **Next:** Equipment, News, Support, Booking, Rooms, Hiring, Status. They
+  adopt calendar, groups and inbound mail where they apply. Then a
+  critique of Forms. Forms nit: "press Enter" is shown on phones.
+- **Then:** the kit's shared components (`_store.md` §3), the migration of
+  all tools to the kit and themes, and the store glossary with its lint.
 
 **Harness:** `--empty` starts a tool with no sample data.
 
