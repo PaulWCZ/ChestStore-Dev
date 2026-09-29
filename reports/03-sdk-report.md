@@ -719,6 +719,40 @@ through `chest.publicUrl()` (§4.5), which already exists for this — no
 tool code changes. Mail links and calendar feeds then use the company's
 name too.
 
+### 4.16 Wanted after the critique fixes (designed, not built)
+
+Sixteen tools were reworked against the severe critique (reports/05-critique/)
+on 2026-09-29. What they needed from the Chest and could not build, grouped,
+with the tools that asked. None is faked in a tool: each tool says in its
+README what it cannot do until then.
+
+| Need | Asked by | Shape proposed |
+|---|---|---|
+| **Sealed values** — encrypt a field at rest with a key the Chest keeps and rotates | Expenses (IBANs), People (employee records) | `secrets.seal(value, context)` / `secrets.open(sealed, context)`. Today Expenses encrypts only when an optional env key is set, and says so; People stores no salary or social security number at all. |
+| **A role builders do not get** | People | Builders arrive with the tool's roles (`hr` reads HR records). A "builder" grant that never includes roles marked `sensitive` in the manifest. |
+| **A Chest-wide audit journal** | People, Support | `audit.write({action, subject})`, read by the owner. People keeps its own journal meanwhile. |
+| **Framing public pages** | Booking, Support, Status | The front's floor CSP forces `frame-ancestors 'none'` on public responses. A manifest key `"public": {"frameable": true}` with the origins the owner lists; `/chest` stays `'none'`. Tools already set the header behind an admin list. |
+| **Mailboxes chosen at install** | Support | `"mail": {"mailboxes": {"min": 1, "max": 3}}` and `mail.mailboxes()`, so a company adds `sales@` without a new version. |
+| **Knowing whether mail works** | News, Polls | `mail.capable()` → `{send, perDay, usedToday}`; a per-recipient "skipped" result instead of `invalid_address` thrown. |
+| **Group deltas** | News, Wiki | `group.changed` carrying `{added, removed}` member ids; `access.granted` when someone gets a tool. |
+| **A manager relation** | Goals, People, Leave | `member.manager`, `members.reportsTo(id)` — or People publishes it and others read it (a request between tools). |
+| **Asking another tool a question** | Goals (deals won before the link), People ("what does this person hold?"), Timesheets → Quotes | `tools.query(tool, name, params)`, granted like events, read-only. |
+| **Members by role, in one call** | Timesheets, Status | `members.ids({roles})`, or `notify({toRoles})` with a message per language. |
+| **Sending to a partner service** | Quotes (the company's approved e-invoicing platform), Booking (payments) | `partners` declared in the manifest, credentials held by the Chest, `partners.send(name, {kind, file, key})` and status events. |
+| **Guest accounts** | Quotes (the outside accountant), Polls (external participants) | A time-limited guest with one tool and one role. |
+| **Webhooks to customer URLs** | Status (subscribers' Slack or webhooks) | The Chest delivers signed POSTs to URLs subscribers give; the tool never needs open egress. |
+| **Bulk file export** | Support, News, Wiki | `files.archive(names)` → a signed ZIP download. |
+| **Video** | News | A poster frame and size caps in `files`. |
+| **OCR / AI on a stored file** | Expenses (receipts the phone cannot read) | `ai` or `ocr.read(object)`. Expenses reads receipts locally in the browser today. |
+| **Shorter schedules, or a push** | Booking (busy times up to ~15 min stale) | A 5-minute floor for declared calendars, or a change notification. |
+
+Harness items raised by the same builders are fixed in the studio:
+- `--empty` for a first visit;
+- `--prod` refuses without a build and warns when the build is older than
+  the sources;
+- the audit replays screen actions;
+- screens and audit accept file uploads.
+
 ## 5. Public-facing tools
 
 Support and Booking have a public part (a contact form and follow-up page;
