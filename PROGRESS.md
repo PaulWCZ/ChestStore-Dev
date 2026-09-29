@@ -100,7 +100,18 @@ acceptance, in a later round.
 - **Kit 0.2.1 is verified** (93 tests). The findings for 0.2.2 are
   collected in the scratchpad `kit-next.md`.
 - **All 18 tools are migrated.** The word lint is 0 everywhere (was 1,258).
-- **Running:** kit 0.2.2 (incl. Forms as the 20th theme); the frame-origin cache and News mention-token fixes.
+- **Done and verified:**
+  - kit 0.2.2 (119 tests; 20 themes incl. Invitation from Forms;
+    `--font-read`, `--inverse`, 44 px targets, nested-dialog fix);
+  - the frame-origin cache fix (Support, Booking, Forms);
+  - the News search mention names.
+- **Running:** re-vendoring kit 0.2.2 into all 18 tools, removing
+  workarounds (four builders, groups A–D).
+- **Noted:** News search still matches raw mention tokens in its index
+  (needs a migration).
+- **The lead's verify script** now waits for free ports and a live
+  harness. The earlier "screens crash" came from a restart race under
+  load.
 - **Then:**
   - kit 0.2.2 (findings in the scratchpad `kit-next.md`), and add the Forms
     identity as the 20th catalogue theme;
