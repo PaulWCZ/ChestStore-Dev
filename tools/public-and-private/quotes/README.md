@@ -199,7 +199,9 @@ collected here.
   columns of the French FEC: client account 411 with each client's
   auxiliary account, sales of services 706 / goods 707, deposits 4191, VAT
   collected per rate — every account set in Settings; each entry balanced;
-  credit notes reversed; the lines that take back a deposit clear 4191);
+  credit notes reversed; the lines that take back a deposit clear 4191,
+  and so does a credit note cancelling a deposit invoice — the same
+  entries in the export, its ZIP and the monthly archive);
   and a ZIP of everything (the Factur-X PDFs of record, the summary, the
   entries, `clients.csv`, `catalogue.csv`). The clients and the catalogue
   also download alone, in the importer's columns (what leaves comes back).

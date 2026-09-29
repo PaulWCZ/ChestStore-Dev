@@ -638,9 +638,9 @@ await step("round 3: “I’m coming” in one tap from the email of an Importan
 });
 
 await step("round 3: an empty front page: no empty band, one import link; a reader is told whom to ask and may share something", async () => {
+  // Every post out of sight for this step (the screenshots, taken after the flows, get them back).
   const sql = postgres("postgres://t_news:dev@127.0.0.1:5432/t_news", { max: 1, onnotice: () => {} });
-  await sql`update posts set deleted_at = now()`;
-  await sql.end();
+  const hidden = (await sql`update posts set deleted_at = now() where deleted_at is null returning id`).map(r => r.id);
   await as(context, origin, "hugo");
   await speak("en");
   await page.goto(origin + "/chest");
@@ -652,6 +652,8 @@ await step("round 3: an empty front page: no empty band, one import link; a read
   await as(context, origin, "sofia");
   await page.goto(origin + "/chest");
   expect(await page.getByRole("link", { name: /Import/u }).count() === 1, "one Slack import link");
+  await sql`update posts set deleted_at = null where id in ${sql(hidden)}`;
+  await sql.end();
 });
 
 await browser.close();

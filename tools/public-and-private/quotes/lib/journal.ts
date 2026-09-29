@@ -15,8 +15,9 @@ import { lineNet, totals } from "./totals.ts";
 // invoice or credit note, balanced — the client's account debited with the
 // total, the sales (services or goods) and the VAT collected (per rate)
 // credited; a credit note the other way round. A deposit invoice credits
-// the deposits received account, and the final invoice's lines that take
-// deposits back debit it. In the columns of the French "fichier des
+// the deposits received account (4191), and the final invoice's lines that
+// take deposits back debit it; a credit note of a deposit invoice debits
+// it too (it cancels a deposit, not a sale): 4191 returns to zero. In the columns of the French "fichier des
 // écritures comptables" (article A47 A-1 of the Livre des procédures
 // fiscales: JournalCode, JournalLib, EcritureNum, EcritureDate, CompteNum,
 // CompteLib, CompAuxNum, CompAuxLib, PieceRef, PieceDate, EcritureLib,
@@ -42,6 +43,8 @@ export type JournalDoc = {
   franchise: boolean;
   vatTreatment: "standard" | "reverse_charge";
   depositPercent: number | null;
+  // A credit note of a deposit invoice.
+  creditOfDeposit?: boolean;
   clientId: string | null;
   clientAccount: string;
   buyerName: string;
@@ -63,7 +66,7 @@ export function entriesOf(doc: JournalDoc, lines: readonly Line[], accounts: Acc
   const byAccount = new Map<string, { label: Entry["label"]; amount: number }>();
   for (const l of lines) {
     if (l.kind !== "line") continue;
-    const label: Entry["label"] = doc.depositPercent !== null || l.depositOf ? "deposits" : l.goods ? "goods" : "services";
+    const label: Entry["label"] = doc.depositPercent !== null || doc.creditOfDeposit === true || l.depositOf ? "deposits" : l.goods ? "goods" : "services";
     const account = label === "deposits" ? accounts.deposits : label === "goods" ? accounts.goods : accounts.services;
     const current = byAccount.get(account) ?? { label, amount: 0 };
     current.amount += lineNet(l);
@@ -78,7 +81,7 @@ export function entriesOf(doc: JournalDoc, lines: readonly Line[], accounts: Acc
   return out;
 }
 
-type Row = { id: number; type: "invoice" | "credit"; number: string; issue_date: string; currency: string; franchise: boolean; vat_treatment: "standard" | "reverse_charge"; deposit_percent: number | null; client_id: number | null; account: string | null; buyer: { name?: string } | null; client_name: string | null };
+type Row = { id: number; type: "invoice" | "credit"; number: string; issue_date: string; currency: string; franchise: boolean; vat_treatment: "standard" | "reverse_charge"; deposit_percent: number | null; of_deposit: boolean; client_id: number | null; account: string | null; buyer: { name?: string } | null; client_name: string | null };
 
 export async function exportJournal(sql: Query, actor: Member | null, locale: Locale, p: Period): Promise<{ text: string; fileName: string; count: number }> {
   if (!can(actor, "export")) throw new AppError("forbidden");
@@ -86,8 +89,9 @@ export async function exportJournal(sql: Query, actor: Member | null, locale: Lo
   const t = catalogue(locale);
   const j = t.journal;
   const docs = await sql<Row[]>`
-    select d.id, d.type, d.number, d.issue_date, d.currency, d.franchise, d.vat_treatment, d.deposit_percent, d.client_id, cl.account, d.buyer, cl.name as client_name
-    from documents d left join clients cl on cl.id = d.client_id
+    select d.id, d.type, d.number, d.issue_date, d.currency, d.franchise, d.vat_treatment, d.deposit_percent, d.client_id, cl.account, d.buyer, cl.name as client_name,
+           (d.type = 'credit' and inv.deposit_percent is not null) as of_deposit
+    from documents d left join clients cl on cl.id = d.client_id left join documents inv on inv.id = d.invoice_id
     where d.type in ('invoice', 'credit') and d.status = 'final' and d.issue_date >= ${p.from} and d.issue_date <= ${p.to}
     order by d.issue_date, d.type desc, d.seq
     limit ${limits.exportRows + 1}`;
@@ -99,7 +103,7 @@ export async function exportJournal(sql: Query, actor: Member | null, locale: Lo
   for (const d of docs) {
     const lines = await linesOf(sql, String(d.id));
     const buyerName = d.buyer?.name ?? d.client_name ?? "";
-    const entries = entriesOf({ type: d.type, franchise: d.franchise, vatTreatment: d.vat_treatment, depositPercent: d.deposit_percent, clientId: d.client_id === null ? null : String(d.client_id), clientAccount: d.account ?? "", buyerName }, lines, c.accounts);
+    const entries = entriesOf({ type: d.type, franchise: d.franchise, vatTreatment: d.vat_treatment, depositPercent: d.deposit_percent, creditOfDeposit: d.of_deposit, clientId: d.client_id === null ? null : String(d.client_id), clientAccount: d.account ?? "", buyerName }, lines, c.accounts);
     const kind = d.type === "credit" ? t.types.credit : d.deposit_percent !== null ? t.types.deposit : t.types.invoice;
     // The amounts are in the document's currency (the Chest's): named in
     // Idevise when it is not the euro.
