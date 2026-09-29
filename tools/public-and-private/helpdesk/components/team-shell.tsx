@@ -4,7 +4,7 @@ import { AppShell, Toasts, useAutoRefresh, type NavItem } from "@argentic/chest-
 import type { ToastWords } from "@argentic/chest-ui/components/logic";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import type { ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 import { Keys, type KeyWords } from "./keys.tsx";
 
 // The team's frame, in the kit's shell: Support's sections as labelled
@@ -46,6 +46,13 @@ export function TeamShell({ brand, nav, member, folders, views, labels, toast, k
   const same = (a: URLSearchParams, b: URLSearchParams) => [...a.keys(), ...b.keys()].every(k => a.get(k) === b.get(k));
   const folderShown = (key: string) => inbox && !params.get("q") && !params.get("tag") && !params.get("priority") && (params.get("folder") ?? "unassigned") === key;
   const viewShown = (href: string) => inbox && same(params, new URLSearchParams(href.split("?")[1] ?? ""));
+  // On a phone the folders slide sideways: the one shown is brought into view.
+  const shown = `${path}?${params.toString()}`;
+  useEffect(() => {
+    const row = document.querySelector<HTMLElement>(".folders");
+    const current = row?.querySelector<HTMLElement>("a[aria-current=page]");
+    if (row && current && row.scrollWidth > row.clientWidth) row.scrollLeft = current.offsetLeft - row.clientWidth / 2 + current.offsetWidth / 2;
+  }, [shown]);
   return (
     <Toasts labels={toast}>
       <AppShell brand={brand} nav={nav} path={path} link={Link} member={member} labels={labels} width="full">

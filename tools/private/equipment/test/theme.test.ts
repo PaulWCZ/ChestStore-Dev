@@ -5,6 +5,7 @@ import { test } from "node:test";
 import { forgetTheme } from "@argentic/chest-sdk/chest";
 import { fakeChest } from "@argentic/chest-sdk/testing";
 import { checkTheme, validateTheme } from "@argentic/chest-ui";
+import { allTokens } from "@argentic/chest-ui/contract";
 import { fontFiles } from "@argentic/chest-ui/fonts";
 import { themeStyle } from "@argentic/chest-ui/runtime";
 import { identityOf } from "@argentic/chest-ui/themes";
@@ -67,4 +68,24 @@ test("no colour is written in the tool's stylesheets: only contract tokens", () 
 // own look: the catalogue's theme and the identity are one.
 test("the identity is the catalogue's Tool crib, value for value", () => {
   assert.deepEqual(identity, identityOf("equipment"));
+});
+
+// The stylesheets name only the contract's tokens and the tool's own
+// (app/tokens.css), and those are themselves made of contract tokens (or
+// of the system's page colours for the printed paper, which stays black on
+// white in every look).
+test("the stylesheets name only contract tokens and the tool's own, defined from them", () => {
+  const contract = new Set(allTokens);
+  const tokens = readFileSync(join(root, "app", "tokens.css"), "utf8").replace(/\/\*[\s\S]*?\*\//gu, "");
+  const own = new Set([...tokens.matchAll(/(--[\w-]+)\s*:/gu)].map(m => m[1]!));
+  for (const own1 of own) assert.ok(!contract.has(own1), `${own1} redefines a contract token`);
+  for (const m of tokens.matchAll(/(--[\w-]+)\s*:\s*([^;]+);/gu)) {
+    const names = [...m[2]!.matchAll(/var\((--[\w-]+)\)/gu)].map(v => v[1]!);
+    const system = /^(Canvas|CanvasText|GrayText)$/u.test(m[2]!.trim());
+    assert.ok(system || names.length > 0, `${m[1]} is not made of tokens`);
+    for (const n of names) assert.ok(contract.has(n) || own.has(n), `${m[1]} uses ${n}`);
+  }
+  const css = readFileSync(join(root, "app", "globals.css"), "utf8").replace(/\/\*[\s\S]*?\*\//gu, "");
+  const unknown = [...css.matchAll(/var\((--[\w-]+)/gu)].map(m => m[1]!).filter(n => !contract.has(n) && !own.has(n));
+  assert.deepEqual([...new Set(unknown)], []);
 });

@@ -496,9 +496,9 @@ select.field { padding-right: var(--space-6); }
 /* On a phone the one action comes first; the quiet ones keep only their icon
    (their words stay for screen readers). */
 @media (max-width: 600px) {
-  .page-head .actions { flex-direction: row-reverse; justify-content: flex-end; width: 100%; }
-  .page-head .actions .button.quiet:not(.keep-label) span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-  .page-head .actions .button.quiet:not(.keep-label) { width: 44px; padding: 0; }
+  .page-head .actions, .ck-page-actions { flex-direction: row-reverse; justify-content: flex-end; width: 100%; }
+  .page-head .actions .button.quiet:not(.keep-label) span, .ck-page-actions .button.quiet:not(.keep-label) span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .page-head .actions .button.quiet:not(.keep-label), .ck-page-actions .button.quiet:not(.keep-label) { flex: 0 0 44px; width: 44px; padding: 0; }
   .bins { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-2); }
   .bin { grid-template-columns: 1fr; padding: var(--space-3); }
   .bin-icon { grid-row: auto; width: 36px; height: 36px; margin-bottom: var(--space-2); }

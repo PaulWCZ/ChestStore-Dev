@@ -90,6 +90,8 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .ck-table thead th { font-family: var(--font-mono); font-size: var(--text-xs); font-weight: var(--weight-strong); text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-2); }
 .ck-table tbody tr:hover { background: var(--surface-2); }
 .ck-table td .strong { color: var(--ink); }
+/* Links in a table cell are underlined: a cell may hold other words beside them. */
+.ck-table a { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 2px; }
 .compact-table .ck-table th, .compact-table .ck-table td { padding-top: var(--space-1); padding-bottom: var(--space-1); }
 /* Empty states inside a page (not a whole page): a quiet framed box. */
 .empty-box .ck-empty { padding: var(--space-6) var(--space-4); background: var(--surface); border: var(--border-width) dashed var(--line-strong); border-radius: var(--radius-m); }
