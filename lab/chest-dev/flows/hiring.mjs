@@ -86,7 +86,7 @@ await step("a file that says PDF but is not one is refused; what was typed stays
   await page.locator(".questions .pill", { hasText: "Yes" }).first().click();
   await page.getByRole("button", { name: "Send my application" }).click();
   await page.waitForSelector("p.error");
-  expect((await page.locator("p.error").innerText()).includes("PDF or a Word file"), "refused");
+  expect((await page.locator("p.error").innerText()).includes("must be a PDF, a Word file"), "refused");
   expect((await page.getByLabel("Full name").inputValue()) === "Bot Faker", "kept");
 });
 
