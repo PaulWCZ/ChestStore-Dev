@@ -28,7 +28,7 @@ function read(file: string): { meta: Meta; body: string } {
   return { meta, body: text.slice(m[0].length) };
 }
 
-const spaces = JSON.parse(readFileSync(join(here, "spaces.json"), "utf8")) as { key: string; id: number; name: string; description: string; color: string; by: string; groups?: string[] }[];
+const spaces = JSON.parse(readFileSync(join(here, "spaces.json"), "utf8")) as { key: string; id: number; name: string; description: string; color: string; by: string; groups?: string[]; editors?: string[] }[];
 const files = readdirSync(join(here, "pages")).filter(f => /^[a-z-]+\.md$/u.test(f)).sort();
 const pages = files.map(f => ({ key: f.replace(/\.md$/u, ""), ...read(f) }));
 const ids = new Map(pages.map(p => [p.key, p.meta["id"]!]));
@@ -60,6 +60,11 @@ const out: string[] = [
 for (const s of spaces) {
   out.push(`insert into spaces (id, name, description, color, position, visibility, created_by, created_at) overriding system value values (${s.id}, ${q(s.name)}, ${q(s.description)}, ${q(s.color)}, ${q(String.fromCharCode(104 + s.id))}, ${q(s.groups ? "groups" : "everyone")}, ${q(member(s.by))}, now() - interval '200 days');`);
   for (const g of s.groups ?? []) out.push(`insert into space_groups (space_id, group_id) values (${s.id}, ${q(group(g))});`);
+  // Edited only by some groups (the others read it).
+  if (s.editors) {
+    out.push(`update spaces set editing = 'some' where id = ${s.id};`);
+    for (const g of s.editors) out.push(`insert into space_editors (space_id, who) values (${s.id}, ${q(group(g))});`);
+  }
 }
 out.push("");
 // Parents first, so that the tree holds; positions in file order per parent.
@@ -91,13 +96,25 @@ for (const p of order) {
 }
 out.push(...linkRows, "");
 
-type Conversation = { comments: { page: number; by: string; days: number; text: string; edited?: boolean }[]; watchers: { page: number; by: string }[]; reviews: { page: number; months: number; owner: string; days: number }[] };
+type Conversation = {
+  comments: { page: number; by: string; days: number; text: string; edited?: boolean }[];
+  watchers: { page: number; by: string }[];
+  reviews: { page: number; months: number; owner: string; days: number }[];
+  reads: { page: number; by: string; days: number; confirmed: { by: string; days: number }[] }[];
+  pins: { page: number; days: number }[];
+};
 const talk = JSON.parse(readFileSync(join(here, "conversation.json"), "utf8")) as Conversation;
 for (const c of talk.comments) {
   out.push(`insert into page_comments (page_id, author, body, created_at, edited_at) values (${c.page}, ${q(member(c.by))}, ${q(c.text)}, now() - interval '${c.days} days' + interval '${(c.text.length * 13) % 400} minutes', ${c.edited ? `now() - interval '${c.days} days' + interval '${(c.text.length * 13) % 400 + 30} minutes'` : "null"});`);
 }
 for (const w of talk.watchers) out.push(`insert into page_watchers (page_id, member_id) values (${w.page}, ${q(member(w.by))});`);
 for (const r of talk.reviews) out.push(`update pages set review_months = ${r.months}, review_owner = ${q(member(r.owner))}, reviewed_at = now() - interval '${r.days} days' where id = ${r.page};`);
+// Pages whose readers were asked to confirm they read them, and who did.
+for (const r of talk.reads) {
+  out.push(`update pages set read_asked_at = now() - interval '${r.days} days', read_asked_by = ${q(member(r.by))}, read_version = version where id = ${r.page};`);
+  for (const c of r.confirmed) out.push(`insert into page_reads (page_id, member_id, version, read_at) select id, ${q(member(c.by))}, version, now() - interval '${c.days} days' from pages where id = ${r.page};`);
+}
+for (const p of talk.pins) out.push(`update pages set pinned_at = now() - interval '${p.days} days' where id = ${p.page};`);
 out.push("");
 out.push("select setval(pg_get_serial_sequence('spaces', 'id'), (select max(id) from spaces));");
 out.push("select setval(pg_get_serial_sequence('pages', 'id'), (select max(id) from pages));");

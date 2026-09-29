@@ -43,7 +43,7 @@ declare
   tom text := 'mbr_tomaaaaaaaaaaaaaaaaaaaaaaa';
   sofia text := 'mbr_sofiaaaaaaaaaaaaaaaaaaaaaa';
   nora text := 'mbr_noraaaaaaaaaaaaaaaaaaaaaaa';
-  paid bigint; rtt bigint; sick bigint; unpaid bigint;
+  paid bigint; rtt bigint; sick bigint; unpaid bigint; remote bigint;
   today date := (now() at time zone 'Europe/Paris')::date;
   month_start date := date_trunc('month', (now() at time zone 'Europe/Paris'))::date;
   next_month date := (date_trunc('month', (now() at time zone 'Europe/Paris')) + interval '1 month')::date;
@@ -56,15 +56,20 @@ begin
   select id into rtt from leave_types where key = 'rtt';
   select id into sick from leave_types where key = 'sick';
   select id into unpaid from leave_types where key = 'unpaid';
+  select id into remote from leave_types where key = 'remote';
   period := case when extract(month from today) >= 6 then make_date(extract(year from today)::int, 6, 1) else make_date(extract(year from today)::int - 1, 6, 1) end;
 
-  -- Approvers and start dates.
-  insert into staff (member_id, approver_id, start_date) values
-    (camille, null, '2019-03-04'), (ines, null, '2021-09-06'), (lea, null, '2022-04-01'),
-    (hugo, ines, '2024-01-15'), (tom, lea, '2025-11-03'), (sofia, null, '2023-06-12'), (nora, null, '2026-02-02');
+  -- The rules were chosen (HR's first run is done).
+  update settings set updated_at = now() - interval '120 days', updated_by = camille;
 
-  -- Opening balances, from the spreadsheet, at the start of the leave year;
-  -- RTT for the year.
+  -- Approvers, start dates, employee numbers; Tom works four days a week
+  -- (not on Fridays).
+  insert into staff (member_id, approver_id, start_date, employee_number, work_days) values
+    (camille, null, '2019-03-04', '0001', null), (ines, null, '2021-09-06', '0007', null), (lea, null, '2022-04-01', '0012', null),
+    (hugo, ines, '2024-01-15', '0015', null), (tom, lea, '2025-11-03', '0019', '{1,2,3,4}'), (sofia, null, '2023-06-12', '0021', null), (nora, null, '2026-02-02', '0024', null);
+
+  -- Opening balances, from the spreadsheet, at the start of the leave year
+  -- (what was left to take: acquired); RTT for the year.
   insert into ledger (member_id, type_id, kind, days, on_date, reason, created_by) values
     (camille, paid, 'opening', 14.5, period, 'Opening balance (spreadsheet)', camille),
     (ines, paid, 'opening', 9, period, 'Opening balance (spreadsheet)', camille),
@@ -74,7 +79,7 @@ begin
     (sofia, paid, 'opening', 7.5, period, 'Opening balance (spreadsheet)', camille),
     (nora, paid, 'opening', 8.5, period, 'Opening balance (spreadsheet)', camille);
   insert into ledger (member_id, type_id, kind, days, on_date, reason, created_by)
-    select m, rtt, 'adjustment', 10, period, 'RTT for the year', camille from unnest(array[camille, ines, lea, hugo, tom, sofia, nora]) m;
+    select m, rtt, 'adjustment', 10, make_date(extract(year from today)::int, 1, 1), 'RTT for the year', camille from unnest(array[camille, ines, lea, hugo, tom, sofia, nora]) m;
 
   -- The requests: who, kind, first day, half, last day, half, status, who
   -- answered, note, reason, asked how long ago.
@@ -89,11 +94,12 @@ begin
     (lea, paid, week + 3, 'am', week + 4, 'pm', 'approved', camille, null, null, 25),
     (sofia, sick, week + 1, 'am', week + 2, 'pm', 'approved', 'chest', null, null, 5),
     (tom, rtt, pg_temp.workday(week + 8), 'am', pg_temp.workday(week + 8), 'pm', 'pending', null, 'Moving flat', null, 3),
-    (tom, paid, pg_temp.workday(month_start + 3), 'am', pg_temp.workday(month_start + 3), 'pm', 'refused', lea, null, 'Release day, sorry — any other day that week is fine', 30),
+    (tom, paid, pg_temp.workday(date_trunc('week', month_start + 14)::date + 1), 'am', pg_temp.workday(date_trunc('week', month_start + 14)::date + 1), 'pm', 'refused', lea, null, 'Release day, sorry — any other day that week is fine', 30),
     (lea, paid, date_trunc('week', next_month + 7)::date, 'am', date_trunc('week', next_month + 7)::date + 2, 'pm', 'pending', null, null, null, 4),
     (hugo, paid, date_trunc('week', next_month + 7)::date + 3, 'am', date_trunc('week', next_month + 7)::date + 4, 'pm', 'pending', null, 'My cousin''s wedding in Nantes', null, 1),
     (nora, paid, date_trunc('week', next_month + 14)::date, 'am', date_trunc('week', next_month + 14)::date + 4, 'pm', 'approved', camille, null, null, 15),
-    (ines, unpaid, pg_temp.workday(date_trunc('week', next_month + 21)::date), 'am', pg_temp.workday(date_trunc('week', next_month + 21)::date), 'am', 'pending', null, 'School meeting', null, 0)
+    (ines, unpaid, pg_temp.workday(date_trunc('week', next_month + 21)::date), 'am', pg_temp.workday(date_trunc('week', next_month + 21)::date), 'am', 'pending', null, 'School meeting', null, 0),
+    (sofia, remote, pg_temp.workday(week + 10), 'am', pg_temp.workday(week + 10), 'pm', 'approved', 'chest', null, null, 2)
   ) as t(who, kind, s, sh, e, eh, status, by_whom, note, reason, ago)
   loop
     insert into requests (member_id, type_id, start_date, start_half, end_date, end_half, days, note, status, decided_by, decided_at, reason, created_at)
@@ -102,8 +108,8 @@ begin
       case when r.status = 'pending' then null else now() - make_interval(days => greatest(r.ago - 1, 0)) end,
       r.reason, now() - make_interval(days => r.ago, hours => 2))
     returning id into k;
-    insert into request_events (request_id, actor, kind, at) values (k, r.who, case when r.kind = sick then 'declared' else 'asked' end, now() - make_interval(days => r.ago, hours => 2));
-    if r.status in ('approved', 'refused') and r.kind <> sick then
+    insert into request_events (request_id, actor, kind, at) values (k, r.who, case when r.kind in (sick, remote) then 'declared' else 'asked' end, now() - make_interval(days => r.ago, hours => 2));
+    if r.status in ('approved', 'refused') and r.kind not in (sick, remote) then
       insert into request_events (request_id, actor, kind, reason, at) values (k, case when r.by_whom = 'self' then camille else r.by_whom end, r.status, r.reason, now() - make_interval(days => greatest(r.ago - 1, 0)));
     end if;
     if r.status = 'approved' and r.kind in (paid, rtt) then

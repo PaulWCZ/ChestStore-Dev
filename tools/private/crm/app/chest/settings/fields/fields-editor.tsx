@@ -101,7 +101,7 @@ function AddField({ object, disabled, run, t }: { object: FieldObject; disabled:
           <textarea id={`opts-${object}`} className="field" rows={3} value={options} onChange={e => setOptions(e.target.value)} required />
         </span>
       )}
-      <button type="submit" className="button small" disabled={disabled}><Plus />{w.add}</button>
+      <button type="submit" className="button small quiet" disabled={disabled}><Plus />{w.add}</button>
     </form>
   );
 }

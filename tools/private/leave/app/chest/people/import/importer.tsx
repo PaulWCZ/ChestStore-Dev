@@ -125,7 +125,7 @@ export function Importer({ what, example, today, fields, kinds, t }: {
           {recognised.length > 0 && <p className="muted small">{format(t.import.recognised, { list: recognised.join(" · ") })}</p>}
           {(unknown.length > 0 || unknownKinds.length > 0) && (
             <div className="mapping">
-              <p><strong>{t.import.mapTitle}</strong></p>
+              {unknown.length > 0 && <p><strong>{t.import.mapTitle}</strong></p>}
               {unknown.map(c => (
                 <div key={c.index} className="form-row">
                   <label htmlFor={`map-${c.index}`}>{c.header || format(t.import.column, { n: c.index + 1 })}</label>
@@ -134,6 +134,7 @@ export function Importer({ what, example, today, fields, kinds, t }: {
                   </select>
                 </div>
               ))}
+              {unknownKinds.length > 0 && <p><strong>{t.import.mapKinds}</strong></p>}
               {unknownKinds.map(k => (
                 <div key={k} className="form-row">
                   <label htmlFor={`kind-${normalize(k)}`}>{format(t.import.kindIs, { name: k })}</label>

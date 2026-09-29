@@ -67,21 +67,36 @@ floats (menus, dialogs, a dragged deal). **Motion**: 120 ms, off with
 - **Buttons**: primary electric blue; *quiet* white with a strong hairline;
   *won* green, *danger* red; small (34 px) in dense places.
 - **Stage path**: the deal's stages as arrow segments — past tinted, current
-  solid blue, the others clickable (one click moves the deal).
+  solid blue, the others clickable (one click moves the deal). On a phone it
+  becomes a plain "Stage" list (arrows cut off at 390 px). *Won* is solid
+  green only at the last open stage; before, it is an outline.
 - **Deal card**: title, company, amount in mono, close date, a dot for its
   next step (red late, amber today, blue planned, hollow none), owner's
   avatar; a blue left edge on mine; locked (not draggable) when not mine.
+  A one-line legend of the dots sits under the board's filter.
 - **Columns**: stage name, count, total (mono), probability; a coloured top
   rule (blue open, green won, red lost).
-- **Rows**: 56 px, name bold, details muted, figures in mono, owner avatar.
-- **Next step box**: a coloured left edge by urgency; *Done* first.
-- **Composer**: a field and four one-tap buttons (Call, Meeting, Email,
-  Note).
+- **Rows**: 56 px, name bold, details muted, figures in mono, owner avatar;
+  a 44 px checkbox column for those who may change them; a sticky bar with
+  a blue hairline appears when rows are ticked (give, tag, delete). Lists
+  come 100 a page ("101–200 of 2,500", previous / next).
+- **Picker**: a field that searches as one types (ARIA combobox), each
+  option a name and a muted detail, "+ New company “…”" last.
+- **Next step box**: a coloured left edge by the soonest step's urgency;
+  each open step with its *Done*; "Plan another step" as a link.
+- **Composer**: a field and four one-tap outline buttons that say what they
+  do (*Log a call*, *Log a meeting*, *Log an email*, *Add a note*) — never a
+  second blue "Call" next to the one that dials.
+- **Details and files**: side panels on each record — the team's own fields
+  as a hairline list, files with size, author and a download icon.
+- **Team report**: plain tables with a thin bar beside the figure, month
+  columns of won value in green, lost reasons in red bars — no chart
+  library, the same bars as *My day*.
 - **Timeline**: a thin vertical rule, round icons tinted by kind, what
   people wrote in a bordered block, what the tool recorded as a sentence.
 - **Dialog** (native `<dialog>`, full screen on a phone), **toast** with
   *Undo*, **empty states** with one action.
-- **Phone**: a bottom bar (My day, Deals, Companies, Contacts) under the
+- **Phone**: a bottom bar (My day, Deals, Companies, Contacts, Team) under the
   thumb; the board scrolls one column at a time.
 
 ## Icon

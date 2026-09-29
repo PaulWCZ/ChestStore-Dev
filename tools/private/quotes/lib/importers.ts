@@ -33,7 +33,11 @@ async function importClient(ctx: Context, m: Mapped): Promise<"created" | "dupli
   if (ctx.count >= limits.clients) throw new AppError("too_many", { max: limits.clients });
   const countryCode = m.country ? countryOf(m.country) ?? checkCountry(m.country) : "FR";
   const address = [m.address, m.address2].filter(Boolean).join("\n");
-  const contact = m.contact ?? (kind === "company" && m.name && person ? person : "");
+  // A company's contact: the contact column, with the first name when the
+  // sheet splits it ("Prénom du contact", "Nom du contact").
+  const contact = kind === "person" ? m.contact ?? ""
+    : m.contact ? (m.firstName && !m.contact.startsWith(m.firstName) ? `${m.firstName} ${m.contact}` : m.contact)
+    : m.name && person ? person : "";
   const [row] = await ctx.tx<{ id: number }[]>`
     insert into clients ${ctx.tx({
       kind,

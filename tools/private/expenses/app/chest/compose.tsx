@@ -4,16 +4,18 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, useTransition, type FormEvent } from "react";
 import { Camera, Car, Check, Close, FileIcon, Receipt } from "../../components/icons.tsx";
 import { useToast } from "../../components/toast.tsx";
+import { typeOf, upload } from "../../components/upload.ts";
+import { readReceipt } from "../../components/ocr.ts";
 import type { ComposeData, Initial } from "../../lib/compose.ts";
 import type { Catalogue } from "../../lib/i18n/index.ts";
 import { format, intl, plural } from "../../lib/i18n/format.ts";
 import { convert, formatMoney, inputAmount, parseAmount, parseRate, rateText, vatInside, vatRates } from "../../lib/money.ts";
 import { limits, receiptTypes } from "../../lib/model.ts";
 import { tripCents } from "../../lib/scale.ts";
-import { km } from "../../lib/words.ts";
-import { saveExpense, saveTrip, sendExpenses } from "./actions.ts";
+import { allowanceDetail, km } from "../../lib/words.ts";
+import { saveAllowance, saveExpense, saveTrip, sendExpenses } from "./actions.ts";
 
-export type ComposeWords = Pick<Catalogue, "form" | "receipt" | "trip" | "errors"> & { saved: string; send: string; sent: Catalogue["home"]["sent"] };
+export type ComposeWords = Pick<Catalogue, "form" | "receipt" | "trip" | "allowance" | "errors"> & { saved: string; send: string; sent: Catalogue["home"]["sent"] };
 type ErrorKey = keyof Catalogue["errors"];
 
 // Once saved: back to the list, with "Send it now" in the toast.
@@ -41,19 +43,14 @@ function symbolOf(currency: string, locale: string): string {
   }
 }
 
-// A phone's HEIC photo sometimes comes without a type: its name tells.
-function typeOf(file: File): string {
-  if (file.type) return file.type === "image/jpg" ? "image/jpeg" : file.type;
-  const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
-  return ({ heic: "image/heic", heif: "image/heif", jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", webp: "image/webp", pdf: "application/pdf" } as Record<string, string>)[ext] ?? "";
-}
-
 // The receipt: straight from the phone's camera, or a file (a photo, a PDF
 // from an email). It goes to the Chest while the person types the amount.
-function ReceiptPicker({ t, initial, onChange, onBusy, onError }: {
+function ReceiptPicker({ t, initial, onChange, onFile, onBusy, onError }: {
   t: ComposeWords;
   initial: Initial["receipt"];
   onChange: (object: string | null | undefined, name?: string) => void;
+  // The file itself, as soon as it is picked (to read it while it uploads).
+  onFile: (file: File, type: string) => void;
   onBusy: (busy: boolean) => void;
   onError: (code: ErrorKey, values?: Record<string, string | number>) => void;
 }) {
@@ -75,27 +72,16 @@ function ReceiptPicker({ t, initial, onChange, onBusy, onError }: {
     setSending(true);
     setReady(false);
     onBusy(true);
-    try {
-      const grant = await fetch("/chest/api/receipts", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ type, size: file.size }) });
-      const up = (await grant.json()) as { url?: string; object?: string; error?: ErrorKey; values?: Record<string, number> };
-      if (!grant.ok || !up.url || !up.object) {
-        setShown(null);
-        return onError(up.error ?? "unavailable", up.values);
-      }
-      const put = await fetch(up.url, { method: "PUT", body: file, headers: { "Content-Type": type } });
-      if (!put.ok) {
-        setShown(null);
-        return onError(put.status === 413 ? "file_too_large" : put.status === 415 || put.status === 400 ? "file_type" : "file_missing", { max: limits.receiptSize >> 20 });
-      }
-      onChange(up.object, file.name);
-      setReady(true);
-    } catch {
+    onFile(file, type);
+    const sent = await upload(file);
+    setSending(false);
+    onBusy(false);
+    if (!sent.ok) {
       setShown(null);
-      onError("unavailable");
-    } finally {
-      setSending(false);
-      onBusy(false);
+      return onError(sent.error, sent.values);
     }
+    onChange(sent.object, file.name);
+    setReady(true);
   }
 
   const input = (capture: boolean) => (
@@ -183,6 +169,31 @@ export function ExpenseForm({ data, initial, locale, t }: { data: ComposeData; i
   const [paidBy, setPaidBy] = useState<"me" | "company">(initial?.paidBy ?? "me");
   const [category, setCategory] = useState(initial?.categoryId ?? "");
   const [guests, setGuests] = useState<Guests>(initial?.guests ?? { members: [], names: [] });
+  const [merchant, setMerchant] = useState(initial?.merchant ?? "");
+  const [day, setDay] = useState(initial?.spentOn ?? data.today);
+  // What the photo said: the fields it filled (only empty ones), until
+  // the person changes them.
+  const [reading, setReading] = useState<"idle" | "reading" | "read" | "unread">("idle");
+  const [suggested, setSuggested] = useState<Set<"amount" | "date" | "vat" | "merchant">>(new Set());
+  const typed = (field: "amount" | "date" | "vat" | "merchant") => setSuggested(set => { const next = new Set(set); next.delete(field); return next; });
+  const latest = useRef({ amount, vat, merchant, day, currency });
+  latest.current = { amount, vat, merchant, day, currency };
+
+  async function read(file: File, type: string) {
+    if (!["image/jpeg", "image/png", "image/webp"].includes(type)) return;
+    setReading("reading");
+    const guess = await readReceipt(file, type, data.today);
+    const now = latest.current;
+    const filled = new Set<"amount" | "date" | "vat" | "merchant">();
+    const minor = guess?.amount ? parseAmount(guess.amount, now.currency) : null;
+    if (minor !== null && minor > 0 && now.amount.trim() === "") { setAmount(inputAmount(minor, now.currency, locale)); filled.add("amount"); }
+    const vatMinor = guess?.vat ? parseAmount(guess.vat, now.currency) : null;
+    if (vatMinor !== null && minor !== null && vatMinor < minor && now.vat.trim() === "") { setVat(inputAmount(vatMinor, now.currency, locale)); filled.add("vat"); }
+    if (guess?.date && now.day === (initial?.spentOn ?? data.today) && guess.date !== now.day) { setDay(guess.date); filled.add("date"); }
+    if (guess?.merchant && now.merchant.trim() === "") { setMerchant(guess.merchant); filled.add("merchant"); }
+    setSuggested(filled);
+    setReading(filled.size > 0 ? "read" : "unread");
+  }
   const amountRef = useRef<HTMLInputElement>(null);
   const parsed = parseAmount(amount, currency);
   // Another currency than the company's: the rate typed, else the company's.
@@ -190,7 +201,12 @@ export function ExpenseForm({ data, initial, locale, t }: { data: ComposeData; i
   const companyRate = data.rates[currency] ?? null;
   const rateUsed = foreign ? (rate.trim() ? parseRate(rate) : companyRate) : null;
   const converted = foreign && rateUsed !== null && parsed !== null && parsed > 0 ? format(t.form.converted, { amount: formatMoney(convert(parsed, currency, rateUsed, data.currency), data.currency, locale) }) : null;
-  const asksGuests = data.categories.find(c => c.id === category)?.guests ?? false;
+  const chosen = data.categories.find(c => c.id === category);
+  const asksGuests = chosen?.guests ?? false;
+  // A hotel: how many nights, and what that makes per night.
+  const [nights, setNights] = useState(initial?.nights ?? "1");
+  const nightCount = /^\d{1,3}$/u.test(nights.trim()) ? Number(nights) : 0;
+  const perNight = chosen?.perNight && nightCount > 1 && parsed !== null && parsed > 0 ? format(t.form.perNight, { amount: formatMoney(Math.round(parsed / nightCount), currency, locale) }) : null;
   const atTable = 1 + guests.members.length + guests.names.length;
   const perPerson = atTable > 1 && parsed !== null && parsed > 0 ? plural(t.form.perPerson, atTable, locale, { amount: formatMoney(Math.round(parsed / atTable), currency, locale) }) : null;
 
@@ -204,8 +220,8 @@ export function ExpenseForm({ data, initial, locale, t }: { data: ComposeData; i
     }
     if (!category) return setError(t.errors.category_invalid);
     setError(null);
-    const input = { spentOn: String(form.get("date") ?? ""), amount, currency, vat, rate: foreign ? rate : "", categoryId: category, merchant: String(form.get("merchant") ?? ""), note: String(form.get("note") ?? ""), paidBy, receiptName,
-      guestMembers: asksGuests ? guests.members.map(m => m.id) : [], guestNames: asksGuests ? guests.names : [] };
+    const input = { spentOn: day, amount, currency, vat, rate: foreign ? rate : "", categoryId: category, merchant, note: String(form.get("note") ?? ""), paidBy, receiptName,
+      guestMembers: asksGuests ? guests.members.map(m => m.id) : [], guestNames: asksGuests ? guests.names : [], nights: chosen?.perNight ? nights : undefined };
     start(async () => {
       const result = await saveExpense(initial?.id ?? null, input, receipt);
       if (!result.ok) return setError(format(t.errors[result.error], result.values ?? {}));
@@ -215,12 +231,17 @@ export function ExpenseForm({ data, initial, locale, t }: { data: ComposeData; i
 
   return (
     <form className="compose" onSubmit={submit} noValidate>
-      <ReceiptPicker t={t} initial={initial?.receipt ?? null} onBusy={setBusy} onChange={(object, name) => { setReceipt(object); setReceiptName(name ?? ""); if (object && !amount) setTimeout(() => amountRef.current?.focus(), 50); }} onError={(code, values) => setError(format(t.errors[code], values ?? {}))} />
+      <ReceiptPicker t={t} initial={initial?.receipt ?? null} onBusy={setBusy} onFile={(file, type) => void read(file, type)} onChange={(object, name) => { setReceipt(object); setReceiptName(name ?? ""); if (object && !latest.current.amount) setTimeout(() => amountRef.current?.focus(), 50); }} onError={(code, values) => setError(format(t.errors[code], values ?? {}))} />
+      {reading !== "idle" && (
+        <p className={`reading ${reading}`} role="status">
+          {reading === "reading" ? t.receipt.reading : reading === "read" ? format(t.receipt.read, { fields: [...suggested].map(f => t.receipt.fields[f]).join(", ") }) : t.receipt.unread}
+        </p>
+      )}
 
       <div className="field-row">
         <label htmlFor="amount">{t.form.amount}</label>
-        <div className="money-input">
-          <input id="amount" ref={amountRef} name="amount" inputMode="decimal" autoComplete="off" placeholder={inputAmount(0, currency, locale)} value={amount} onChange={e => setAmount(e.target.value)} aria-invalid={error === t.errors.amount_invalid} aria-describedby="amount-hint" />
+        <div className={`money-input${suggested.has("amount") ? " suggested" : ""}`}>
+          <input id="amount" ref={amountRef} name="amount" inputMode="decimal" autoComplete="off" placeholder={inputAmount(0, currency, locale)} value={amount} onChange={e => { setAmount(e.target.value); typed("amount"); }} aria-invalid={error === t.errors.amount_invalid} aria-describedby="amount-hint" />
           <span className="unit" aria-hidden="true">{symbolOf(currency, locale)}</span>
         </div>
         <span id="amount-hint" className="hint">{converted ?? t.form.amountHint}</span>
@@ -237,16 +258,23 @@ export function ExpenseForm({ data, initial, locale, t }: { data: ComposeData; i
       </fieldset>
 
       {asksGuests && <GuestsField team={data.team} value={guests} onChange={setGuests} perPerson={perPerson} t={t} />}
+      {chosen?.perNight && (
+        <div className="field-row nights">
+          <label htmlFor="nights">{t.form.nights}</label>
+          <input id="nights" className="field mono" inputMode="numeric" autoComplete="off" value={nights} onChange={e => setNights(e.target.value)} aria-describedby={perNight ? "nights-hint" : undefined} />
+          {perNight && <span id="nights-hint" className="hint">{perNight}</span>}
+        </div>
+      )}
 
       <div className="two stack">
         <div className="field-row">
           <label htmlFor="merchant">{t.form.merchant}</label>
-          <input id="merchant" name="merchant" className="field" list="merchants" maxLength={limits.merchant} placeholder={t.form.merchantPlaceholder} defaultValue={initial?.merchant ?? ""} autoComplete="off" />
+          <input id="merchant" name="merchant" className={`field${suggested.has("merchant") ? " suggested" : ""}`} list="merchants" maxLength={limits.merchant} placeholder={t.form.merchantPlaceholder} value={merchant} onChange={e => { setMerchant(e.target.value); typed("merchant"); }} autoComplete="off" />
           <datalist id="merchants">{data.merchants.map(m => <option key={m} value={m} />)}</datalist>
         </div>
         <div className="field-row">
           <label htmlFor="date">{t.form.date}</label>
-          <input id="date" name="date" type="date" className="field mono" max={data.today} defaultValue={initial?.spentOn ?? data.today} required />
+          <input id="date" name="date" type="date" className={`field mono${suggested.has("date") ? " suggested" : ""}`} max={data.today} value={day} onChange={e => { setDay(e.target.value); typed("date"); }} required />
         </div>
       </div>
 
@@ -269,7 +297,7 @@ export function ExpenseForm({ data, initial, locale, t }: { data: ComposeData; i
         <div className="inside">
           <div className="field-row">
             <label htmlFor="vat">{t.form.vat}</label>
-            <input id="vat" name="vat" className="field mono" inputMode="decimal" autoComplete="off" value={vat} onChange={e => setVat(e.target.value)} aria-describedby="vat-hint" />
+            <input id="vat" name="vat" className={`field mono${suggested.has("vat") ? " suggested" : ""}`} inputMode="decimal" autoComplete="off" value={vat} onChange={e => { setVat(e.target.value); typed("vat"); }} aria-describedby="vat-hint" />
             <span id="vat-hint" className="hint">{t.form.vatHint}</span>
             <div className="chips" role="group" aria-label={t.form.vatRates}>
               {vatRates.map(r => (
@@ -317,6 +345,8 @@ export function TripForm({ data, initial, locale, t }: { data: ComposeData; init
   const [day, setDay] = useState(initial?.spentOn ?? data.today);
   const [distance, setDistance] = useState(initial?.distance ?? "");
   const [round, setRound] = useState(false);
+  const [from, setFrom] = useState(initial?.from ?? "");
+  const [to, setTo] = useState(initial?.to ?? "");
 
   const estimate = useMemo(() => {
     const v = data.vehicle;
@@ -328,7 +358,8 @@ export function TripForm({ data, initial, locale, t }: { data: ComposeData; init
     const sorted = [...data.scales].sort((a, b) => (a.year <= year) === (b.year <= year) ? (a.year <= year ? b.year - a.year : a.year - b.year) : a.year <= year ? -1 : 1);
     const scale = sorted[0];
     if (!scale) return null;
-    const before = data.trips.filter(tr => tr.id !== initial?.id && tr.kind === v.kind && tr.day.slice(0, 4) === day.slice(0, 4) && tr.day <= day).reduce((s, tr) => s + tr.tenths, 0);
+    const prior = data.prior.find(p => p.year === year && p.kind === v.kind)?.tenths ?? 0;
+    const before = prior + data.trips.filter(tr => tr.id !== initial?.id && tr.kind === v.kind && tr.day.slice(0, 4) === day.slice(0, 4) && tr.day <= day).reduce((s, tr) => s + tr.tenths, 0);
     try {
       return { amount: formatMoney(Math.max(1, tripCents(scale.data, v.kind, v.power, v.electric, before, tenths)), "EUR", locale), year: scale.year, before: km(before, locale) };
     } catch {
@@ -350,7 +381,7 @@ export function TripForm({ data, initial, locale, t }: { data: ComposeData; init
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
-    const input = { spentOn: day, from: String(form.get("from") ?? ""), to: String(form.get("to") ?? ""), distance, roundTrip: round, note: String(form.get("note") ?? "") };
+    const input = { spentOn: day, from, to, distance, roundTrip: round, note: String(form.get("note") ?? "") };
     start(async () => {
       const result = await saveTrip(initial?.id ?? null, input);
       if (!result.ok) return setError(format(t.errors[result.error], result.values ?? {}));
@@ -360,14 +391,24 @@ export function TripForm({ data, initial, locale, t }: { data: ComposeData; init
 
   return (
     <form className="compose" onSubmit={submit} noValidate>
+      {!initial && data.usual.length > 0 && (
+        <div className="chips" role="group" aria-label={t.trip.usual}>
+          <span className="field-label" aria-hidden="true" style={{ width: "100%" }}>{t.trip.usual}</span>
+          {data.usual.map(u => (
+            <button key={`${u.from}|${u.to}|${u.tenths}`} type="button" className="chip" onClick={() => { setFrom(u.from); setTo(u.to); setDistance(String(u.tenths / 10).replace(".", locale === "fr" ? "," : ".")); setRound(false); }}>
+              {format(t.trip.usualTrip, { from: u.from, to: u.to, km: km(u.tenths, locale) })}
+            </button>
+          ))}
+        </div>
+      )}
       <div className="two stack">
         <div className="field-row">
           <label htmlFor="from">{t.trip.from}</label>
-          <input id="from" name="from" className="field" maxLength={limits.place} placeholder={t.trip.fromPlaceholder} defaultValue={initial?.from ?? ""} required />
+          <input id="from" name="from" className="field" maxLength={limits.place} placeholder={t.trip.fromPlaceholder} value={from} onChange={e => setFrom(e.target.value)} required />
         </div>
         <div className="field-row">
           <label htmlFor="to">{t.trip.to}</label>
-          <input id="to" name="to" className="field" maxLength={limits.place} placeholder={t.trip.toPlaceholder} defaultValue={initial?.to ?? ""} required />
+          <input id="to" name="to" className="field" maxLength={limits.place} placeholder={t.trip.toPlaceholder} value={to} onChange={e => setTo(e.target.value)} required />
         </div>
       </div>
       <div className="field-row">
@@ -399,6 +440,74 @@ export function TripForm({ data, initial, locale, t }: { data: ComposeData; init
       {error && <p className="error" role="alert">{error}</p>}
       <div className="save-bar">
         <button type="submit" className="button" disabled={pending}>{pending ? t.form.saving : t.form.save}</button>
+        <a className="button quiet" href={initial ? `/chest/expenses/${initial.id}` : "/chest"}>{t.form.cancel}</a>
+      </div>
+    </form>
+  );
+}
+
+// A flat rate: which one, how many days, nights or meals, from which day.
+// The amount is the rate times the number, shown live; no receipt.
+export function AllowanceForm({ data, initial, locale, t }: { data: ComposeData; initial: Initial | null; locale: string; t: ComposeWords }) {
+  const saved = useSaved(t, locale);
+  const [pending, start] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+  const [rate, setRate] = useState(initial?.allowanceId || (data.allowances[0]?.id ?? ""));
+  const [units, setUnits] = useState(initial?.units ?? "1");
+  const chosen = data.allowances.find(a => a.id === rate);
+  const count = /^\d{1,3}$/u.test(units.trim()) ? Number(units) : 0;
+  const unit = (chosen?.unit ?? "day") as keyof ComposeWords["allowance"]["count"];
+
+  if (data.allowances.length === 0) {
+    return <div className="paper flat empty"><p>{t.allowance.none}</p></div>;
+  }
+
+  function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    const input = { spentOn: String(form.get("date") ?? ""), allowanceId: rate, units, note: String(form.get("note") ?? "") };
+    start(async () => {
+      const result = await saveAllowance(initial?.id ?? null, input);
+      if (!result.ok) return setError(format(t.errors[result.error], result.values ?? {}));
+      saved(result.value.id);
+    });
+  }
+
+  return (
+    <form className="compose" onSubmit={submit} noValidate>
+      <fieldset className="chips stacked" role="radiogroup">
+        <legend>{t.allowance.which}</legend>
+        {data.allowances.map(a => (
+          <label key={a.id} className="chip">
+            <input type="radio" name="allowance" value={a.id} checked={rate === a.id} onChange={() => setRate(a.id)} />
+            <span>{a.name}</span><span className="chip-note mono">{a.rate}</span>
+          </label>
+        ))}
+      </fieldset>
+      <div className="two stack">
+        <div className="field-row">
+          <label htmlFor="units">{t.allowance.count[unit]}</label>
+          <input id="units" className="field mono" inputMode="numeric" autoComplete="off" value={units} onChange={e => setUnits(e.target.value)} />
+        </div>
+        <div className="field-row">
+          <label htmlFor="date">{t.allowance.date}</label>
+          <input id="date" name="date" type="date" className="field mono" max={data.today} defaultValue={initial?.spentOn ?? data.today} required />
+        </div>
+      </div>
+      <div className="paper flat" aria-live="polite">
+        <div className="estimate">
+          <span className="label">{chosen && count > 0 ? allowanceDetail(count, chosen.unit, formatMoney(chosen.amount, data.currency, locale), t, locale) : ""}</span>
+          <span className="amount">{chosen && count > 0 ? formatMoney(chosen.amount * count, data.currency, locale) : "—"}</span>
+        </div>
+        <p className="hint">{t.allowance.hint}</p>
+      </div>
+      <div className="field-row">
+        <label htmlFor="note">{t.form.note}</label>
+        <textarea id="note" name="note" className="field" maxLength={limits.note} placeholder={t.form.notePlaceholder} defaultValue={initial?.note ?? ""} />
+      </div>
+      {error && <p className="error" role="alert">{error}</p>}
+      <div className="save-bar">
+        <button type="submit" className="button" disabled={pending || !chosen || count === 0}>{pending ? t.form.saving : t.form.save}</button>
         <a className="button quiet" href={initial ? `/chest/expenses/${initial.id}` : "/chest"}>{t.form.cancel}</a>
       </div>
     </form>

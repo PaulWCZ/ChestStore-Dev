@@ -32,6 +32,15 @@ export function addMonths(start: string, n: number): string {
   return `${year}-${String(month + 1).padStart(2, "0")}-${String(Math.min(d, last)).padStart(2, "0")}`;
 }
 
+// The first day a repeat of an invoice issued on `issued` would make its
+// draft: one period later, or the first such day still to come.
+export function firstRepeatDate(issued: string, every: Every, today: string): string {
+  let k = 1;
+  let start = addMonths(issued, months[every]);
+  while (start <= today && k < 1200) start = addMonths(issued, months[every] * ++k);
+  return start;
+}
+
 export type Repeat = { id: string; sourceId: string; every: Every; startsOn: string; nextOn: string; active: boolean; made: number; createdBy: string };
 type Row = { id: number; source_id: number; every: Every; starts_on: string; next_on: string; active: boolean; made: number; created_by: string };
 const toRepeat = (r: Row): Repeat => ({ id: String(r.id), sourceId: String(r.source_id), every: r.every, startsOn: r.starts_on, nextOn: r.next_on, active: r.active, made: r.made, createdBy: r.created_by });
@@ -57,12 +66,9 @@ export async function repeatInvoice(sql: Sql, actor: Member | null, invoiceId: u
       select id, type, status, deposit_percent, issue_date, deleted_at from documents where id = ${docId} for update`;
     if (!source || source.deleted_at || source.type !== "invoice") throw new AppError("not_found");
     if (source.status !== "final" || source.deposit_percent !== null) throw new AppError("repeat_invalid");
-    let start = startsOn === undefined || startsOn === null || startsOn === "" ? addMonths(source.issue_date ?? today, months[period]) : day(startsOn);
-    if (start <= today) {
-      if (startsOn !== undefined && startsOn !== null && startsOn !== "") throw new AppError("date_invalid");
-      let k = 1;
-      while (start <= today && k < 1200) start = addMonths(source.issue_date ?? today, months[period] * ++k);
-    }
+    const given = startsOn !== undefined && startsOn !== null && startsOn !== "";
+    const start = given ? day(startsOn) : firstRepeatDate(source.issue_date ?? today, period, today);
+    if (start <= today) throw new AppError("date_invalid");
     await tx`update repeats set active = false, updated_at = now() where source_id = ${docId} and active`;
     const [row] = await tx<Row[]>`
       insert into repeats (source_id, every, starts_on, next_on, created_by) values (${docId}, ${period}, ${start}, ${start}, ${actor!.id}) returning *`;

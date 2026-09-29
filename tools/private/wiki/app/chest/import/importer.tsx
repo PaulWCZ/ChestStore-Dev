@@ -70,6 +70,7 @@ export function Importer({ spaces, initialSpace, locale, t }: { spaces: { id: st
           <li>{t.importer.howConfluence}</li>
           <li>{t.importer.howNotion}</li>
           <li>{t.importer.howGoogle}</li>
+          <li>{t.importer.howWord}</li>
         </ul>
       </div>
       <div>
@@ -78,7 +79,7 @@ export function Importer({ spaces, initialSpace, locale, t }: { spaces: { id: st
           <Upload />
           <span>{files.length > 0 ? plural(t.importer.chosen, files.length, locale) : t.importer.choose}</span>
           {files.length > 0 && <span className="muted small">{files.map(f => f.name).slice(0, 3).join(", ")}{files.length > 3 ? "…" : ""}</span>}
-          <input type="file" multiple accept=".zip,.md,.markdown,.txt,.html,.htm" onChange={e => choose(e.target.files)} />
+          <input type="file" multiple accept=".zip,.docx,.md,.markdown,.txt,.html,.htm" onChange={e => choose(e.target.files)} />
         </label>
         <p className="muted small">{t.importer.limits}</p>
       </div>

@@ -65,3 +65,33 @@ test("the scale of a year: its own, else the latest before, else the first after
   await assert.rejects(settings.saveScale(sql, asMember(camille), 1999, data, ""), refuses("invalid"));
   await assert.rejects(settings.saveScale(sql, asMember(camille), 2028, { ...data, car: null }, ""), refuses("scale_invalid"));
 });
+
+test("flat rates: URSSAF's built in, renamed and named back; the accountant adds, changes and hides them", async () => {
+  const { sql } = database;
+  const built = await settings.allowances(sql);
+  assert.deepEqual(built.map(a => [a.key, a.amount, a.unit]), [["meal_away", 2140, "meal"], ["night_paris", 7660, "night"], ["night_other", 5680, "night"]]);
+  assert.ok(built.every(a => a.source.startsWith("https://www.urssaf.fr/")));
+  await assert.rejects(settings.saveAllowanceRate(sql, asMember(hugo), null, { name: "Per diem", amount: "30", unit: "day" }), refuses("forbidden"));
+  await assert.rejects(settings.saveAllowanceRate(sql, asMember(camille), null, { name: "", amount: "30", unit: "day" }), refuses("empty"));
+  await assert.rejects(settings.saveAllowanceRate(sql, asMember(camille), null, { name: "Per diem", amount: "0", unit: "day" }), refuses("amount_invalid"));
+  await assert.rejects(settings.saveAllowanceRate(sql, asMember(camille), null, { name: "Per diem", amount: "30", unit: "week" }), refuses("invalid"));
+  await assert.rejects(settings.saveAllowanceRate(sql, asMember(camille), null, { name: "Per diem", amount: "30", unit: "day", account: "=1" }), refuses("account_invalid"));
+  const added = await settings.saveAllowanceRate(sql, asMember(camille), null, { name: "Per diem Germany", amount: "28", unit: "day", account: "625110" });
+  assert.deepEqual([added.name, added.amount, added.unit, added.account], ["Per diem Germany", 2800, "day", "625110"]);
+  const renamed = await settings.saveAllowanceRate(sql, asMember(camille), built[0]!.id, { name: "Repas chantier", amount: "21,90" });
+  assert.deepEqual([renamed.key, renamed.name, renamed.amount, renamed.unit], ["meal_away", "Repas chantier", 2190, "meal"]);
+  assert.equal((await settings.saveAllowanceRate(sql, asMember(camille), built[0]!.id, { name: "" })).name, null);
+  await settings.saveAllowanceRate(sql, asMember(camille), added.id, { archived: true });
+  assert.ok(!(await settings.allowances(sql)).some(a => a.id === added.id));
+  await assert.rejects(settings.saveAllowanceRate(sql, asMember(camille), "999999", { name: "x" }), refuses("not_found"));
+});
+
+test("each person's account in the journal: accountants only, letters and digits", async () => {
+  const { sql } = database;
+  await assert.rejects(settings.setMemberAccount(sql, asMember(ines), hugo.id, "421B"), refuses("forbidden"));
+  await assert.rejects(settings.setMemberAccount(sql, asMember(camille), hugo.id, "421-B"), refuses("account_invalid"));
+  await settings.setMemberAccount(sql, asMember(camille), hugo.id, " 421BERNARD ");
+  assert.equal((await settings.memberAccounts(sql)).get(hugo.id), "421BERNARD");
+  await settings.setMemberAccount(sql, asMember(camille), hugo.id, "");
+  assert.equal((await settings.memberAccounts(sql)).has(hugo.id), false);
+});

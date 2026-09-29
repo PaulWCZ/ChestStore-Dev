@@ -6,6 +6,7 @@ import * as editing from "../../lib/editing.ts";
 import { attempt, AppError, type Result } from "../../lib/errors.ts";
 import * as history from "../../lib/history.ts";
 import { catalogue, isLocale } from "../../lib/i18n/index.ts";
+import { memberPattern } from "../../lib/model.ts";
 import * as pages from "../../lib/pages.ts";
 import { nameOf, people } from "../../lib/people.ts";
 import { currentMember } from "../../lib/session.ts";
@@ -190,10 +191,13 @@ async function view(c: comments.Comment, actor: Actor): Promise<CommentView> {
   return { id: c.id, author: c.author, name: nameOf(person, locale), photo: person?.photo ?? null, body: c.body, at: c.createdAt.toISOString(), when: "", edited: c.editedAt !== null };
 }
 
-export async function addComment(pageId: string, body: string): Promise<Result<CommentView>> {
+// People named with "@" in it (picked from the list the page offers) are
+// told on their own, if they may read the page.
+export async function addComment(pageId: string, body: string, mentioned: string[] = []): Promise<Result<CommentView>> {
   return act(async actor => {
     const { comment, page } = await comments.addComment(db(), actor, pageId, body);
-    await tell.commented(db(), actor, page, comment);
+    const named = Array.isArray(mentioned) ? [...new Set(mentioned.filter(m => typeof m === "string" && memberPattern.test(m)))].slice(0, 20) : [];
+    await tell.commented(db(), actor, page, comment, named);
     return view(comment, actor);
   }, { refresh: false });
 }

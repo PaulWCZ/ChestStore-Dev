@@ -1,6 +1,6 @@
 [
   { "key": "handbook", "id": 1, "name": "Handbook", "description": "How we work at Lumen & Co: the essentials for everyone.", "color": "green", "by": "camille" },
-  { "key": "sales", "id": 2, "name": "Sales", "description": "Playbook, pricing and how we look after our clients.", "color": "blue", "by": "ines" },
+  { "key": "sales", "id": 2, "name": "Sales", "description": "Playbook, pricing and how we look after our clients.", "color": "blue", "by": "ines", "editors": ["sales"] },
   { "key": "tech", "id": 3, "name": "Tech", "description": "Setting up, shipping and keeping things running.", "color": "plum", "by": "tom" },
   { "key": "people", "id": 4, "name": "People & management", "description": "Reviews, pay and hiring — for the office team.", "color": "rust", "by": "camille", "groups": ["office"] }
 ]

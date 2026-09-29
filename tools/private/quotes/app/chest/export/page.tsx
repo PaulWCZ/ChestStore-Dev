@@ -101,12 +101,25 @@ export default async function ExportPage({ searchParams }: { searchParams: Promi
               <dt>{x.gross}</dt><dd className="strong">{formatMoney(sum("gross"), currency, locale)}</dd>
             </dl>
             <div className="downloads">
-              <a className="button download" href={`/chest/export/csv?${query}`} download><Table />{x.csv}</a>
-              <a className="button quiet download" href={`/chest/export/zip?${query}`} download><Zip />{x.zip}</a>
+              <a className="button download" href={`/chest/export/zip?${query}`} download><Zip />{x.zip}</a>
+              <a className="button quiet download" href={`/chest/export/journal?${query}`} download><Table />{x.journal}</a>
+              <a className="button quiet download" href={`/chest/export/csv?${query}`} download><Table />{x.csv}</a>
             </div>
-            <p className="hint">{x.csvHint}</p>
+            <ul className="hint export-notes">
+              <li>{x.zipHint}</li>
+              <li>{x.journalHint}</li>
+              <li>{x.csvHint}</li>
+            </ul>
           </>
         )}
+      </section>
+      <section className="panel" aria-labelledby="lists">
+        <h2 id="lists">{x.lists}</h2>
+        <p className="hint">{x.listsHint}</p>
+        <div className="downloads">
+          <a className="button quiet download" href="/chest/export/lists/clients" download><Table />{x.clients}</a>
+          <a className="button quiet download" href="/chest/export/lists/items" download><Table />{x.items}</a>
+        </div>
       </section>
       <div className="callout quiet" role="note">
         <Info />

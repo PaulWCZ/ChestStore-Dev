@@ -13,7 +13,7 @@ import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { everyone, hugo, ines } from "./support/members.ts";
 
-// Imports from HTML, with files shaped as the competitors' own exports
+// Imports from HTML and Word, with files shaped as the competitors' own exports
 // (test/fixtures, see THIRD_PARTY.md for the formats' documentation):
 // - confluence/: a Confluence space exported as HTML (Space settings →
 //   Export space → HTML): a folder named by the space's key, index.html
@@ -22,7 +22,9 @@ import { everyone, hugo, ines } from "./support/members.ts";
 //   #main-content, breadcrumbs, attachments/<page id>/<id>.<ext>, and the
 //   export's styles and icons;
 // - google-docs/: a Google Docs document downloaded as "Web page (.html,
-//   zipped)": the document with its styles as classes, images/.
+//   zipped)": the document with its styles as classes, images/;
+// - word/: a .docx written by python-docx (MIT) from its default template,
+//   itself a Word document (test/fixtures/word/make.py).
 
 let database: TestDatabase;
 let chest: FakeChest;
@@ -173,6 +175,6 @@ test("Word in French: headings are found by their style's inner name (Titre 1 is
   const page = await pages.page(sql, asMember(hugo), result.firstPageId!);
   assert.equal(page.title, "Charte informatique");
   assert.deepEqual(page.doc.content.map(n => n.type), ["heading", "paragraph"]);
-  assert.equal(texts(page.doc), "Mots de passe\nJamais partagés");
+  assert.equal(texts(page.doc), "# Mots de passe\nJamais partagés");
   assert.deepEqual(page.doc.content[1]!.content!.map(n => n.marks ?? []), [[], [{ type: "bold" }]]);
 });

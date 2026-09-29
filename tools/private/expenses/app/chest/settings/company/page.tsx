@@ -6,11 +6,12 @@ import { commonCurrencies, inputAmount } from "../../../../lib/money.ts";
 import { holders } from "../../../../lib/people.ts";
 import { vehicleKinds } from "../../../../lib/scale.ts";
 import { viewer } from "../../../../lib/session.ts";
-import { approverMap, categories, scaleFor, scales, settings } from "../../../../lib/settings.ts";
+import { allowanceUnits, allowances, approverMap, categories, memberAccounts, rates, scaleFor, scales, settings, vehicles } from "../../../../lib/settings.ts";
+import { rateText } from "../../../../lib/money.ts";
 import { bankDetails } from "../../../../lib/bank.ts";
 import { relative } from "../../../../lib/i18n/index.ts";
 import { sealing } from "../../../../lib/seal.ts";
-import { categoryName, powerName, vehicleName } from "../../../../lib/words.ts";
+import { allowanceName, categoryName, powerName, vehicleName } from "../../../../lib/words.ts";
 import { SettingsNav } from "../settings-nav.tsx";
 import { CompanyView } from "../settings-view.tsx";
 
@@ -23,7 +24,11 @@ export default async function CompanySettings() {
   if (!can(member, "settings")) return <main className="page"><div className="empty"><h1>{t.noAccess.title}</h1><p>{t.errors.forbidden}</p></div></main>;
   const sql = db();
   const year = Number(today().slice(0, 4));
-  const [company, cats, map, all, everyone, current, bank] = await Promise.all([settings(sql), categories(sql, { archived: true }), approverMap(sql), scales(sql), holders(), scaleFor(sql, year), bankDetails(sql, member, "company")]);
+  const [company, cats, map, all, everyone, current, bank, flat, known, cars, accounts] = await Promise.all([
+    settings(sql), categories(sql, { archived: true }), approverMap(sql), scales(sql), holders(), scaleFor(sql, year), bankDetails(sql, member, "company"),
+    allowances(sql, { archived: true }), rates(sql), vehicles(sql, member), memberAccounts(sql),
+  ]);
+  const names = new Map(everyone.map(h => [h.id, h.name]));
   const approvers = everyone.filter(h => h.role === "approver" || h.role === "accountant");
   const withRole = everyone.filter(h => h.role !== null);
   return (
@@ -35,14 +40,21 @@ export default async function CompanySettings() {
       <CompanyView
         locale={locale}
         company={{
+          team: everyone.map(h => ({ id: h.id, name: h.name })),
           payer: company.payer,
           bank: bank && { masked: bank.masked, bic: bank.bic, holder: "", since: relative(bank.updatedAt, locale) },
           sealed: sealing(),
+          journal: company.journal,
+          vehicles: cars.map(c => ({ member: c.member, name: names.get(c.member) ?? t.people.unknown, label: `${vehicleName(c.kind, t)} · ${powerName(c.kind, c.power, t)}${c.electric ? " · " + t.trip.electric : ""}`, proof: c.proof ? `/chest/vehicles/${c.member}/proof` : null, checked: c.checked }))
+            .sort((a, b) => a.name.localeCompare(b.name, locale)),
+          allowances: flat.map(a => ({ id: a.id, name: a.name ?? "", placeholder: a.key ? allowanceName({ key: a.key, name: null }, t) : "", amount: inputAmount(a.amount, company.currency, locale), unit: a.unit, account: a.account, archived: a.archived })),
+          units: allowanceUnits.map(u => ({ value: u, label: t.allowance.units[u] })),
+          rates: known.map(r => ({ currency: r.currency, rate: rateText(r.rate, locale) })),
           currency: company.currency,
           currencies: [...new Set([company.currency, ...commonCurrencies])],
           reminder: company.reminder,
-          categories: cats.map(c => ({ id: c.id, name: c.name ?? "", placeholder: c.key ? categoryName({ key: c.key, name: null }, t) : "", account: c.account, vatRecovery: String(c.vatRecovery), cap: c.cap === null ? "" : inputAmount(c.cap, company.currency, locale), mileage: c.mileage, archived: c.archived, guests: c.guests })),
-          people: withRole.map(h => ({ id: h.id, name: h.name, photo: h.photo, role: t.roles[h.role as keyof typeof t.roles] ?? "", approver: map.get(h.id) ?? "" })),
+          categories: cats.map(c => ({ id: c.id, name: c.name ?? "", placeholder: c.key ? categoryName({ key: c.key, name: null }, t) : "", account: c.account, vatRecovery: String(c.vatRecovery), cap: c.cap === null ? "" : inputAmount(c.cap, company.currency, locale), mileage: c.mileage, archived: c.archived, guests: c.guests, perNight: c.perNight, allowance: c.key === "allowance" })),
+          people: withRole.map(h => ({ id: h.id, name: h.name, photo: h.photo, role: t.roles[h.role as keyof typeof t.roles] ?? "", approver: map.get(h.id) ?? "", account: accounts.get(h.id) ?? "" })),
           approvers: approvers.map(h => ({ id: h.id, name: h.name })),
           scales: all.map(s => ({ year: s.year, data: s.data, source: s.source })),
           year,

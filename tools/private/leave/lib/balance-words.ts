@@ -9,7 +9,9 @@ import { format, formatDay, formatDays, plural } from "./i18n/format.ts";
 type Figures = { left: number; acquired: number; earning: number; carried: number; deadline: string | null; perMonth: number; pending: number; until: string | null };
 type Words = { balance: Catalogue["balance"] };
 
-export function balanceNotes(b: Figures, period: "running" | "acquired" | "yearly", locale: string, t: Words): string[] {
+// perMonth: false leaves out "+2.08 each month" (where the months earned
+// are written out beside it).
+export function balanceNotes(b: Figures, period: "running" | "acquired" | "yearly", locale: string, t: Words, options: { perMonth?: boolean } = {}): string[] {
   const notes: string[] = [];
   const date = (d: string) => formatDay(d, locale, { day: "numeric", month: "long" });
   if (period === "acquired") {
@@ -17,7 +19,7 @@ export function balanceNotes(b: Figures, period: "running" | "acquired" | "yearl
     notes.push(format(t.balance.earning, { days: formatDays(b.earning, locale) }));
   } else if (b.deadline && b.left > 0) notes.push(format(t.balance.takeBy, { date: date(b.deadline) }));
   if (b.carried > 0) notes.push(format(t.balance.carried, { days: formatDays(b.carried, locale) }));
-  if (b.perMonth > 0 && !b.until) notes.push(format(t.balance.perMonth, { days: formatDays(b.perMonth, locale) }));
+  if (b.perMonth > 0 && !b.until && options.perMonth !== false) notes.push(format(t.balance.perMonth, { days: formatDays(b.perMonth, locale) }));
   if (b.until) notes.push(format(t.balance.until, { date: formatDay(b.until, locale, { day: "numeric", month: "long", year: "numeric" }) }));
   if (b.pending > 0) notes.push(plural(t.balance.waiting, b.pending, locale));
   return notes;

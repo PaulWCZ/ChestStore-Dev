@@ -85,7 +85,10 @@ const prefixes = ["solde", "soldes", "balance", "compteur", "reste", "restant", 
 // 2025-2026", "RTT"), and which part of a paid-leave balance.
 function kindOf(text: string, kinds: readonly KindNames[]): { typeId: string; part: Part } | null {
   let h = normalize(text);
-  for (const p of prefixes) if (h.startsWith(p + " ")) h = h.slice(p.length + 1);
+  for (const p of prefixes) {
+    if (h.startsWith(p + " ")) h = h.slice(p.length + 1);
+    if (h.endsWith(" " + p)) h = h.slice(0, -p.length - 1);
+  }
   h = h.replace(/\b(19|20)\d\d\b/gu, "").replace(/\s+/gu, " ").trim();
   const best: { typeId: string; part: Part; size: number }[] = [];
   for (const k of kinds) {
@@ -191,8 +194,12 @@ function matcher(people: readonly Person[]) {
     const number = get("number") || null;
     const name = get("name") || [get("firstName"), get("lastName")].filter(Boolean).join(" ");
     const known = number ? byNumber.get(normalize(number)) : undefined;
-    if (known) return { name: name || number!, id: known, problem: null, number };
     const ids = byName.get(normalize(name));
+    if (known) {
+      // The number and the name say two different people: nothing guessed.
+      const other = ids && ids.size === 1 && !ids.has(known);
+      return { name: name || number!, id: known, problem: other ? "number_taken" : null, number };
+    }
     if (!ids) return { name: name || number || "", id: null, problem: "unknown", number };
     if (ids.size > 1) return { name, id: null, problem: "ambiguous", number };
     const id = [...ids][0]!;
@@ -200,6 +207,14 @@ function matcher(people: readonly Person[]) {
     if (number && people.some(p => p.id !== id && p.employeeNumber && normalize(p.employeeNumber) === normalize(number))) return { name, id, problem: "number_taken", number };
     return { name, id, problem: null, number };
   };
+}
+
+// A table whose needed columns were not all recognised: when some column
+// is unknown, HR is asked what it is (no line read yet); otherwise it is
+// not a file the tool can read.
+function unreadable(columns: ImportColumn[]): { columns: ImportColumn[]; rows: [] } {
+  if (!columns.some(c => !c.known)) throw new AppError("import_invalid");
+  return { columns, rows: [] };
 }
 
 const hasPerson = (columns: ImportColumn[]) => columns.some(c => c.field === "name" || c.field === "number" || c.field === "lastName");
@@ -210,7 +225,7 @@ export function planImport(text: string, kinds: readonly KindNames[], people: re
   if (!header || header.length < 2) throw new AppError("import_invalid");
   const columns = columnsOf(header, kinds, ["name", "lastName", "firstName", "number", "start"], true, mapping);
   const data = columns.some(c => c.field.startsWith("b:") || c.field === "start" || c.field === "number");
-  if (!hasPerson(columns) || !data) throw new AppError("import_invalid");
+  if (!hasPerson(columns) || !data) return unreadable(columns);
   const who = matcher(people);
   const rows: ImportRow[] = [];
   lines.forEach((cells, i) => {
@@ -250,7 +265,7 @@ export function planLeave(text: string, kinds: readonly KindNames[], people: rea
   const [header, ...lines] = table(text);
   if (!header || header.length < 3) throw new AppError("import_invalid");
   const columns = columnsOf(header, kinds, ["name", "lastName", "firstName", "number", "kind", "from", "fromHalf", "to", "toHalf", "status"], false, mapping);
-  if (!hasPerson(columns) || !columns.some(c => c.field === "from") || !columns.some(c => c.field === "kind")) throw new AppError("import_invalid");
+  if (!hasPerson(columns) || !columns.some(c => c.field === "from") || !columns.some(c => c.field === "kind")) return { ...unreadable(columns), unknownKinds: [] };
   const who = matcher(people);
   const rows: LeaveRow[] = [];
   const unknownKinds = new Set<string>();
@@ -258,7 +273,7 @@ export function planLeave(text: string, kinds: readonly KindNames[], people: rea
     if (cells.every(c => !c.trim())) return;
     const get = (f: Field) => columns.filter(c => c.field === f).map(c => cells[c.index] ?? "").find(v => v.trim()) ?? "";
     const m = who(cells, columns);
-    let problem: Problem | null = m.problem === "number_taken" ? null : m.problem;
+    let problem: Problem | null = m.problem;
     const named = get("kind").trim();
     const chosen = kindMap[normalize(named)];
     const kind = chosen && kinds.some(k => k.typeId === chosen) ? { typeId: chosen } : kindOf(named, kinds);

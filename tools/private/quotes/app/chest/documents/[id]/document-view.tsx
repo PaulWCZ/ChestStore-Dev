@@ -2,14 +2,14 @@
 
 import { useRouter } from "next/navigation";
 import { useCallback, useRef, useState } from "react";
-import { Back, Coins, Copy, Download, Invoice, Seal, Send, Trash, Bell, Check, Close } from "../../../../components/icons.tsx";
+import { Back, Coins, Copy, Download, Invoice, Seal, Send, Trash, Bell, Check, Close, Repeat } from "../../../../components/icons.tsx";
 import { useToast } from "../../../../components/toast.tsx";
-import { format } from "../../../../lib/i18n/format.ts";
+import { format, formatDay } from "../../../../lib/i18n/format.ts";
 import type { Catalogue, Locale } from "../../../../lib/i18n/index.ts";
 import { formatMoney } from "../../../../lib/money.ts";
 import type { ClientOption, DocView, Fact, ItemOption, Moment, PaymentView, RelatedView, Rights } from "../../../../lib/views.ts";
-import { decide, duplicate, markReady, removeDraft, removePayment, restoreDraft, restorePayment, startCreditNote } from "../../actions.ts";
-import { FinaliseDialog, InvoiceDialog, PaymentDialog, SendDialog } from "./dialogs.tsx";
+import { decide, duplicate, markReady, removeDraft, removePayment, restoreDraft, restorePayment, startCreditNote, stopRepeat } from "../../actions.ts";
+import { FinaliseDialog, InvoiceDialog, PaymentDialog, RepeatDialog, SendDialog } from "./dialogs.tsx";
 import { Paper, type SaveState } from "./paper.tsx";
 
 // A document's page: the paper, and in its margin what it is now and the
@@ -37,9 +37,11 @@ export type DocumentViewProps = {
   companyMissing: string[];
   clientMissing: string[];
   readyText: string | null;
+  // The first dates a repeat would suggest, per period (an issued invoice).
+  repeatDates: Record<"month" | "quarter" | "year", string> | null;
 };
 
-type Open = "send" | "reminder" | "finalise" | "invoice" | "payment" | null;
+type Open = "send" | "reminder" | "finalise" | "invoice" | "payment" | "repeat" | null;
 
 export function DocumentView(props: DocumentViewProps) {
   const { doc, t, locale, rights } = props;
@@ -108,6 +110,8 @@ export function DocumentView(props: DocumentViewProps) {
       return null;
     }
     if (final && !doc.sentAt && rights.issue) return <button type="button" className="button block" onClick={() => setOpen("send")}><Send />{d.actions.sendToClient}</button>;
+    // Late, the job is the reminder; otherwise the payment.
+    if (invoice && final && doc.due > 0 && rights.pay && doc.state === "overdue") return <button type="button" className="button block" onClick={() => setOpen("reminder")}><Bell />{d.actions.remind}</button>;
     if (invoice && final && doc.due > 0 && rights.pay) return <button type="button" className="button block" onClick={() => setOpen("payment")}><Coins />{d.actions.recordPayment}</button>;
     return null;
   })();
@@ -117,8 +121,10 @@ export function DocumentView(props: DocumentViewProps) {
   add("pdf", <a className="link-button" href={pdfHref} onClick={e => void downloadPdf(e)}><Download /> {draft ? d.actions.previewPdf : d.actions.downloadPdf}</a>);
   if (quote && rights.quote && !draft && doc.state !== "refused") add("resend", <button type="button" className="link-button" onClick={() => void openDialog("send")}>{d.actions.sendAgain}</button>);
   if (final && doc.sentAt && rights.issue) add("resend", <button type="button" className="link-button" onClick={() => setOpen("send")}>{d.actions.sendAgain}</button>);
-  if (invoice && final && doc.due > 0 && rights.pay && doc.sentAt === null) add("pay", <button type="button" className="link-button" onClick={() => setOpen("payment")}>{d.actions.recordPayment}</button>);
-  if (invoice && final && doc.due > 0 && rights.pay) add("remind", <button type="button" className="link-button" onClick={() => setOpen("reminder")}>{d.actions.remind}</button>);
+  if (invoice && final && doc.due > 0 && rights.pay && (doc.sentAt === null || doc.state === "overdue")) add("pay", <button type="button" className="link-button" onClick={() => setOpen("payment")}>{d.actions.recordPayment}</button>);
+  if (invoice && final && doc.due > 0 && rights.pay && doc.state !== "overdue") add("remind", <button type="button" className="link-button" onClick={() => setOpen("reminder")}>{d.actions.remind}</button>);
+  if (invoice && final && doc.depositPercent === null && rights.issue && !doc.repeat && props.repeatDates) add("repeat", <button type="button" className="link-button" onClick={() => setOpen("repeat")}><Repeat /> {d.actions.repeat}</button>);
+  if (doc.repeat && rights.issue) add("stop", <button type="button" className="link-button" onClick={() => void run(() => stopRepeat(doc.repeat!.id), () => { toast(d.toasts.repeatStopped); router.refresh(); })}>{d.actions.stopRepeat}</button>);
   if (invoice && final && rights.issue && doc.credited < doc.gross) add("credit", <button type="button" className="link-button" onClick={() => void run(() => startCreditNote(doc.id), v => { toast(d.toasts.creditStarted); router.push(`/chest/documents/${v.id}`); })}>{d.actions.creditNote}</button>);
   if (quote && rights.quote && (doc.state === "accepted" || doc.state === "refused")) add("reopen", <button type="button" className="link-button" onClick={() => void run(() => decide(doc.id, "sent"), () => toast(d.toasts.reopened))}>{d.actions.reopen}</button>);
   if (!credit && (quote ? rights.quote : rights.draftInvoice)) add("copy", <button type="button" className="link-button" onClick={() => void run(() => duplicate(doc.id), v => { toast(d.toasts.copied); router.push(`/chest/documents/${v.id}`); })}><Copy /> {d.actions.duplicate}</button>);
@@ -149,6 +155,8 @@ export function DocumentView(props: DocumentViewProps) {
             <h2>{doc.kindText} {doc.number ?? ""}</h2>
             <p className="hint">{d.explain[doc.state]}</p>
             {doc.crmTitle && <p className="hint from-crm">{format(d.fromCrm, { title: doc.crmTitle })}</p>}
+            {doc.madeFrom && <p className="hint from-crm"><a href={`/chest/documents/${doc.madeFrom.id}`}>{format(d.madeFrom, { number: doc.madeFrom.number })}</a></p>}
+            {doc.repeat && <p className="hint repeat-note"><Repeat /> {format(d.repeats, { every: d.every[doc.repeat.every], date: doc.repeat.next })}</p>}
             <dl className="facts">
               {props.facts.map(f => (
                 <div key={f.label} className="fact">
@@ -157,7 +165,7 @@ export function DocumentView(props: DocumentViewProps) {
                 </div>
               ))}
             </dl>
-            {primary && <div className="actions">{primary}</div>}
+            {primary && <div className="actions wide-actions">{primary}</div>}
             {secondary.length > 0 && <div className="more">{secondary.map(s => <span key={s.key}>{s.node}</span>)}</div>}
           </section>
           {props.payments.length > 0 && (
@@ -194,6 +202,13 @@ export function DocumentView(props: DocumentViewProps) {
         </aside>
       </div>
 
+      {primary && (
+        <div className="phone-action">
+          <span className="phone-total"><span className="hint">{t.doc.facts.total}</span><b className="num" suppressHydrationWarning>{formatMoney(gross, doc.currency, locale)}</b></span>
+          <div className="actions">{primary}</div>
+        </div>
+      )}
+
       {(open === "send" || open === "reminder") && (
         <SendDialog t={t} doc={doc} kind={open} mailWorks={props.mailWorks} pdfHref={pdfHref} onClose={() => setOpen(null)} onDone={text => { setOpen(null); toast(text); }} />
       )}
@@ -203,6 +218,7 @@ export function DocumentView(props: DocumentViewProps) {
       )}
       {open === "invoice" && <InvoiceDialog t={t} doc={doc} onClose={() => setOpen(null)} onDone={id => { setOpen(null); toast(d.toasts.invoiceStarted); router.push(`/chest/documents/${id}`); }} />}
       {open === "payment" && <PaymentDialog t={t} doc={doc} locale={locale} today={props.today} onClose={() => setOpen(null)} onDone={text => { setOpen(null); toast(text); }} />}
+      {open === "repeat" && props.repeatDates && <RepeatDialog t={t} doc={doc} locale={locale} suggested={props.repeatDates} onClose={() => setOpen(null)} onDone={date => { setOpen(null); toast(format(d.toasts.repeatSet, { date: formatDay(date, locale, { day: "numeric", month: "long", year: "numeric" }) })); router.refresh(); }} />}
     </main>
   );
 }

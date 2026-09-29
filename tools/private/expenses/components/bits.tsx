@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import type { RowView } from "../lib/rows.ts";
-import { Alert, Car, FileIcon, Receipt } from "./icons.tsx";
+import { Alert, Calendar, Car, FileIcon, Receipt } from "./icons.tsx";
 
 // Small pieces every list of expenses uses.
 
@@ -11,7 +11,7 @@ import { Alert, Car, FileIcon, Receipt } from "./icons.tsx";
 export function Thumb({ row }: { row: Pick<RowView, "thumb" | "icon"> }) {
   const [failed, setFailed] = useState(false);
   if (row.thumb && !failed) return <img className="thumb" src={row.thumb} alt="" loading="lazy" onError={() => setFailed(true)} />;
-  return <span className="thumb" aria-hidden="true">{row.icon === "car" ? <Car /> : row.icon === "pdf" ? <FileIcon /> : <Receipt />}</span>;
+  return <span className="thumb" aria-hidden="true">{row.icon === "car" ? <Car /> : row.icon === "flat" ? <Calendar /> : row.icon === "pdf" ? <FileIcon /> : <Receipt />}</span>;
 }
 
 export function DateBox({ row }: { row: Pick<RowView, "day" | "month"> }) {

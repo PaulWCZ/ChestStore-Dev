@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { can } from "../../../../lib/access.ts";
+import { can, spaceAccess } from "../../../../lib/access.ts";
 import { AutoRefresh } from "../../../../components/auto-refresh.tsx";
 import { Flash } from "../../../../components/flash.tsx";
 import { Check, Clock, Lock, Pen } from "../../../../components/icons.tsx";
@@ -15,7 +15,7 @@ import { render } from "../../../../lib/render.ts";
 import { viewer } from "../../../../lib/session.ts";
 import { listSpaces } from "../../../../lib/spaces.ts";
 import { isWatching } from "../../../../lib/watching.ts";
-import { groupsOfTool } from "../../../../lib/groups.ts";
+import { groupsOfTool, membersOfTool } from "../../../../lib/groups.ts";
 import { isPinned } from "../../../../lib/pins.ts";
 import { readState } from "../../../../lib/reads.ts";
 import { Comments } from "./comments.tsx";
@@ -63,6 +63,8 @@ export default async function ReadPage({ params, searchParams }: { params: Promi
   const toc = headings.filter(h => h.level <= 2);
   const owner = p.review?.owner ?? null;
   // Where the page may move: the spaces the editor writes in, and their pages.
+  // Whom a comment may name with "@": the people who read this page.
+  const mentionable = (await membersOfTool()).filter(m => m.id !== member.id && spaceAccess(m, p.space) !== "none").map(m => ({ id: m.id, name: m.name }));
   let places: MovePlace | undefined;
   let groups: { id: string; name: string }[] = [];
   if (writer) {
@@ -152,6 +154,7 @@ export default async function ReadPage({ params, searchParams }: { params: Promi
               const person = who.get(c.author);
               return { id: c.id, author: c.author, name: nameOf(person, locale), photo: person?.photo ?? null, body: c.body, at: c.createdAt.toISOString(), when: moment(c.createdAt, locale, now), edited: c.editedAt !== null };
             })}
+            people={mentionable}
             t={{ comments: t.comments, errors: t.errors, locale }}
           />
         </article>

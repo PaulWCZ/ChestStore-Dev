@@ -124,3 +124,33 @@ the HR or office manager exporting the month's absences for payroll.
 - https://www.cnil.fr/sites/default/files/2026-04/referentiel_durees_de_conservation_gestion_des_ressources_humaines.pdf (search result)
 
 Note: service-public.fr, legifrance.gouv.fr, urssaf.fr and most French sites are blocked by this environment's egress policy; every French-law statement above comes from search-result summaries and must be re-checked against Légifrance before the tool ships.
+
+## Addendum 2026-09-29 — rules re-read for the fix after the critique
+
+Read on 2026-09-29 through search-result summaries (service-public.fr,
+legifrance.gouv.fr, code.travail.gouv.fr and lucca.fr are still blocked by
+the network egress policy; nothing below was read first-hand):
+
+- Part-time paid leave is counted like full time: from the first day the
+  person would have worked to the last jour ouvrable before they are back
+  (a Monday–Wednesday worker off 20–22 October, back 27 October, is charged
+  6 days) — https://www.ghr.fr/social/actualites/conges-payes-des-salaries-a-temps-partiel-piqure-de-rappel-sur-le-decompte,
+  https://www.skello.io/blog/decompte-des-conges-payes-a-temps-partiel,
+  https://www.l-expert-comptable.com/a/532462-les-conges-payes-des-salaries-temps-partiel.html.
+- Reference period 1 June N-1 – 31 May N, 2.5 jours ouvrables a month, leave
+  open from hiring — https://www.service-public.gouv.fr/particuliers/vosdroits/F2258?lang=en (summary),
+  https://www.urssaf.fr/accueil/particulier/particulier-employeur/gerer-les-absences/gestion-conges-payes.html.
+- Unused days are lost in principle unless the person could not take them
+  or an agreement carries them over; paid only at the end of the contract —
+  https://www.legisocial.fr/actualites-sociales/7953-jours-conges-pris-31-mai-2026.html,
+  https://www.juritravail.com/Actualite/report-des-conges-payes-motifs-delai-demarches/Id/378240.
+- Family events (art. L3142-4): wedding/PACS 4, birth/adoption 3, death of a
+  child 12 (14 under 25), spouse 3, child's disability or cancer 5, counted
+  in jours ouvrables in principle — https://code.travail.gouv.fr/code-du-travail/l3142-4,
+  https://code.travail.gouv.fr/contribution/les-conges-pour-evenements-familiaux.
+- Lucca's absence import/export columns: employeeNumber, lastName,
+  firstName, accountId, startDate (DD/MM/YYYY), flagStartDate (AM/PM),
+  endDate, flagEndDate, isApproved — https://developers.lucca.fr/api-reference/legacy/timmi-absences/imports/import-leaves
+  (summary). Lucca's balance counters (Acquis, Pris, Solde, Congés payés
+  N-1) — https://support.luccasoftware.com/s/article/configurer-un-export-paie-dans-lucca-absences?language=fr
+  (summary); the exact CSV headers of a balances export are not public.

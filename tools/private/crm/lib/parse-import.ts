@@ -21,7 +21,7 @@ export const fieldsOf = {
   companies: ["name", "website", "phone", "email", "address", "city", "postcode", "country", "siren", "vat", "industry", "tags", "notes", "owner", "createdAt"],
   contacts: ["name", "firstName", "lastName", "email", "phone", "phone2", "url", "title", "company", "tags", "notes", "owner", "createdAt"],
   deals: ["title", "company", "contact", "contactEmail", "value", "stage", "status", "closeDate", "owner", "reason", "createdAt"],
-  activities: ["date", "type", "subject", "text", "done", "deal", "contact", "contactEmail", "company", "owner"],
+  activities: ["date", "time", "type", "subject", "text", "done", "deal", "contact", "contactEmail", "company", "owner"],
 } as const;
 export type Field = (typeof fieldsOf)[ImportKind][number];
 
@@ -85,6 +85,7 @@ const headers: Record<ImportKind, Record<string, Field>> = {
   }),
   activities: dictionary({
     date: ["date", "activitydate", "duedate", "addtime", "createdate", "createdat", "notedate", "dateofactivity", "datedelactivite", "echeance", "dateecheance", "timestamp"],
+    time: ["time", "duetime", "heure", "activitytime", "starttime", "heuredebut"],
     type: ["type", "activitytype", "typedactivite", "engagementtype", "kind"],
     subject: ["subject", "calltitle", "meetingname", "emailsubject", "tasktitle", "sujet", "objet", "titre"],
     text: ["note", "notes", "content", "notecontent", "body", "notebody", "callnotes", "meetingdescription", "emailbody", "taskbody", "description", "commentaire", "texte", "contenu"],

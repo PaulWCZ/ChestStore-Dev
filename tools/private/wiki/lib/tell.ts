@@ -22,7 +22,8 @@ import { watchers } from "./watching.ts";
 // - saved:<page> — someone else saved the page, to its watchers;
 // - review:<page> — the page is due for a check, to its review owner;
 // - read:<page> — the page's editors ask its readers to confirm they read
-//   it, to each of them until they do.
+//   it, to each of them until they do;
+// - mention:<page> — someone named them ("@Camille Martin") in a comment.
 //
 // Nobody is ever told about a page they cannot read (checked at the moment
 // of telling, against the space's access and the member's current role and
@@ -47,11 +48,14 @@ export async function audience(space: SpaceAudience, ids: Iterable<string>, need
   }
 }
 
-export async function commented(sql: Query, actor: Member, page: { id: string; title: string; createdBy: string; space: SpaceAudience }, comment: Comment): Promise<string[]> {
-  const people = [page.createdBy, ...(await commenters(sql, page.id)), ...(await watchers(sql, page.id))].filter(p => p !== actor.id);
+export async function commented(sql: Query, actor: Member, page: { id: string; title: string; createdBy: string; space: SpaceAudience }, comment: Comment, mentioned: string[] = []): Promise<string[]> {
+  // Those named in it get their own item, and not this one too.
+  const named = await audience(page.space, mentioned.filter(p => p !== actor.id));
+  await notify(named, t => ({ title: format(t.bell.mentioned, { name: actor.name, title: cut(page.title, 40) }), body: comment.body }), { path: `${pagePath(page.id)}#comment-${comment.id}`, key: `mention:${page.id}` });
+  const people = [page.createdBy, ...(await commenters(sql, page.id)), ...(await watchers(sql, page.id))].filter(p => p !== actor.id && !named.includes(p));
   const told = await audience(page.space, people);
   await notify(told, t => ({ title: format(t.bell.commented, { name: actor.name, title: cut(page.title, 40) }), body: comment.body }), { path: `${pagePath(page.id)}#comment-${comment.id}`, key: `comments:${page.id}` });
-  return told;
+  return [...named, ...told];
 }
 
 export async function saved(sql: Query, actor: Member, page: { id: string; title: string; space: SpaceAudience }): Promise<string[]> {
@@ -65,7 +69,7 @@ export async function reviewSettled(pageId: string): Promise<void> {
   await withdraw(`review:${pageId}`);
 }
 
-const keysOf = (pageId: string) => [`comments:${pageId}`, `saved:${pageId}`, `review:${pageId}`, `read:${pageId}`];
+const keysOf = (pageId: string) => [`comments:${pageId}`, `saved:${pageId}`, `review:${pageId}`, `read:${pageId}`, `mention:${pageId}`];
 
 // The members asked to confirm they read a page: those who read its space
 // now (and are in its groups, when the editors chose some). Without an

@@ -7,7 +7,7 @@ import { formatMoney } from "../../../lib/money.ts";
 import { nameOf, people } from "../../../lib/people.ts";
 import { rowView } from "../../../lib/rows.ts";
 import { viewer } from "../../../lib/session.ts";
-import { categories, settings } from "../../../lib/settings.ts";
+import { allowances, categories, settings } from "../../../lib/settings.ts";
 import { ApproveView, type PersonGroup } from "./approve-view.tsx";
 
 // To approve: what people sent, grouped by person, oldest first; approve
@@ -22,7 +22,8 @@ export default async function Approve() {
   const recent = await decided(sql, member);
   const [cats, company, warned] = await Promise.all([categories(sql, { archived: true }), settings(sql), warnings(sql, list, { anyone: true })]);
   const who = await people([...list, ...recent].map(e => e.owner));
-  const ctx = { t, locale, categories: new Map(cats.map(c => [c.id, c])), warnings: warned, currency: company.currency };
+  const flat = new Map((await allowances(sql, { archived: true })).map(a => [a.id, a]));
+  const ctx = { t, locale, allowances: flat, categories: new Map(cats.map(c => [c.id, c])), warnings: warned, currency: company.currency };
   const money = (l: Expense[]) => totals(l).map(x => formatMoney(x.amount, x.currency, locale)).join(" + ");
   const byOwner = new Map<string, Expense[]>();
   for (const e of list) byOwner.set(e.owner, [...(byOwner.get(e.owner) ?? []), e]);

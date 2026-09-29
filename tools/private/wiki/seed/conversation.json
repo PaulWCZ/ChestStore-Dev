@@ -1,21 +1,110 @@
 {
   "comments": [
-    { "page": 2, "by": "hugo", "days": 5, "text": "Do the two days between Christmas and New Year count against our 25?" },
-    { "page": 2, "by": "ines", "days": 4, "text": "No, they come on top. I added a line to the page to make it clearer." },
-    { "page": 2, "by": "sofia", "days": 1, "text": "The team calendar is here: https://calendar.lumen.example/team. Add yours before asking." },
-    { "page": 3, "by": "tom", "days": 9, "text": "Train tickets: book with the company account on https://www.sncf-connect.com, then the receipt comes by email.", "edited": true },
-    { "page": 9, "by": "lea", "days": 7, "text": "Est-ce qu’on peut changer de jour fixe d’une semaine à l’autre ?" },
-    { "page": 9, "by": "camille", "days": 6, "text": "Oui, tant que l’équipe est prévenue la veille. Je l’ajoute à la charte." }
+    {
+      "page": 2,
+      "by": "hugo",
+      "days": 5,
+      "text": "Do the two days between Christmas and New Year count against our 25?"
+    },
+    {
+      "page": 2,
+      "by": "ines",
+      "days": 4,
+      "text": "No, they come on top. I added a line to the page to make it clearer."
+    },
+    {
+      "page": 2,
+      "by": "sofia",
+      "days": 1,
+      "text": "The team calendar is here: https://calendar.lumen.example/team. Add yours before asking."
+    },
+    {
+      "page": 3,
+      "by": "tom",
+      "days": 9,
+      "text": "Train tickets: book with the company account on https://www.sncf-connect.com, then the receipt comes by email.",
+      "edited": true
+    },
+    {
+      "page": 9,
+      "by": "lea",
+      "days": 7,
+      "text": "Est-ce qu’on peut changer de jour fixe d’une semaine à l’autre ?"
+    },
+    {
+      "page": 9,
+      "by": "camille",
+      "days": 6,
+      "text": "Oui, tant que l’équipe est prévenue la veille. Je l’ajoute à la charte."
+    }
   ],
   "watchers": [
-    { "page": 2, "by": "camille" },
-    { "page": 2, "by": "hugo" },
-    { "page": 3, "by": "hugo" },
-    { "page": 11, "by": "sofia" }
+    {
+      "page": 2,
+      "by": "camille"
+    },
+    {
+      "page": 3,
+      "by": "hugo"
+    },
+    {
+      "page": 11,
+      "by": "sofia"
+    }
   ],
   "reviews": [
-    { "page": 7, "months": 6, "owner": "sofia", "days": 200 },
-    { "page": 3, "months": 12, "owner": "camille", "days": 14 },
-    { "page": 5, "months": 3, "owner": "tom", "days": 100 }
+    {
+      "page": 7,
+      "months": 6,
+      "owner": "sofia",
+      "days": 200
+    },
+    {
+      "page": 3,
+      "months": 12,
+      "owner": "camille",
+      "days": 14
+    },
+    {
+      "page": 5,
+      "months": 3,
+      "owner": "tom",
+      "days": 100
+    }
+  ],
+  "reads": [
+    {
+      "page": 8,
+      "by": "camille",
+      "days": 20,
+      "confirmed": [
+        {
+          "by": "sofia",
+          "days": 19
+        },
+        {
+          "by": "ines",
+          "days": 18
+        },
+        {
+          "by": "tom",
+          "days": 12
+        }
+      ]
+    }
+  ],
+  "pins": [
+    {
+      "page": 2,
+      "days": 30
+    },
+    {
+      "page": 7,
+      "days": 29
+    },
+    {
+      "page": 5,
+      "days": 28
+    }
   ]
 }

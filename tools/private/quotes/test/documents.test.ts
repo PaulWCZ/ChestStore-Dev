@@ -313,3 +313,13 @@ test("states follow the documents and the Chest's today", () => {
   assert.equal(stateOf({ ...base, type: "invoice", status: "final" }, { paid: 0, credited: 1000 }, "2026-10-02"), "credited");
   assert.equal(stateOf({ ...base, type: "credit", status: "final" }, { paid: 0, credited: 0 }, "2026-10-02"), "final");
 });
+
+test("a new document without a client speaks its author's language; with one, the client's", async () => {
+  const { sql } = database;
+  const english = await createDocument(sql, asMember(hugo), "quote", null, { ...defaults, locale: "fr" });
+  assert.equal(english.language, "en");
+  const french = await createDocument(sql, asMember(ines), "quote", null, { ...defaults, locale: "en" });
+  assert.equal(french.language, "fr");
+  const c = await client(sql, { name: "English Ltd", language: "en", siren: "", vatNumber: "" });
+  assert.equal((await createDocument(sql, asMember(ines), "quote", c.id, defaults)).language, "en");
+});

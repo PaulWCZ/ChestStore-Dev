@@ -19,6 +19,8 @@ function policy(nonce: string): string {
     "img-src 'self' data: blob:",
     "font-src 'self'",
     "connect-src 'self'",
+    // The receipt reader's worker (components/ocr.ts), the tool's own file.
+    "worker-src 'self'",
     "object-src 'none'",
     "base-uri 'self'",
     "form-action 'self'",
@@ -48,7 +50,8 @@ export function proxy(request: NextRequest): NextResponse {
 }
 
 // Not the Chest's own routes (/chest-events is signed, never a page), nor
-// the static files.
+// the static files — the receipt reader's (/ocr/) included: its worker runs
+// WebAssembly, which a page's policy would forbid.
 export const config = {
-  matcher: ["/((?!_next/static/|chest-events$|favicon\\.ico$).*)"],
+  matcher: ["/((?!_next/static/|ocr/|chest-events$|favicon\\.ico$).*)"],
 };

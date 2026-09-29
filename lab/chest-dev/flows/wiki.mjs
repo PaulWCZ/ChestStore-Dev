@@ -1,13 +1,14 @@
 // The wiki, as people use it, in a real browser: node lab/chest-dev/flows/wiki.mjs [port]
 // (the harness runs the tool with --reset: the sample handbook is there —
 // seed/sample.sql of tools/private/wiki).
+import { execFileSync } from "node:child_process";
 import { writeFileSync } from "node:fs";
 import postgres from "postgres";
 import { as, done, expect, open, step } from "./lib.mjs";
 
 const port = Number(process.argv[2] ?? 4300);
 const { browser, context, page, origin, problems } = await open(port, "tom", { allow404: /\/chest\/(pages\/(16|999)|pages\/\d+\/edit)$/u });
-const tmp = process.env.TMPDIR ?? "/tmp";
+const tmp = process.env.FLOW_TMP ?? process.env.TMPDIR ?? "/tmp";
 // A 1×1 PNG: the fake Chest checks that an image is what it says.
 const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==", "base64");
 let created = "";
@@ -15,13 +16,16 @@ let created = "";
 await step("an editor writes a new page from its space: title, heading, list; saved as a version", async () => {
   await page.goto(origin + "/chest/spaces/1");
   await page.locator(".space-head").getByRole("button", { name: "New page" }).click();
-  await page.getByLabel("Title").fill("Parking and bikes");
-  await page.getByRole("button", { name: "Create and write" }).click();
-  await page.waitForURL(/\/chest\/pages\/\d+\/edit$/u);
-  created = page.url().replace(/\/edit$/u, "");
+  // The dialog opens on its title field: typing at once lands there.
+  await page.waitForFunction(() => document.activeElement?.id === "new-page-title");
+  await page.keyboard.type("Parking and bikes");
+  await page.keyboard.press("Enter");
+  await page.waitForURL(/\/chest\/pages\/\d+\/edit(\?new=1)?$/u);
+  created = page.url().replace(/\/edit(\?new=1)?$/u, "");
   const body = page.locator(".ProseMirror");
   await body.waitFor();
-  await body.click();
+  // The cursor waits in the page: no click needed before the first words.
+  await page.waitForFunction(() => document.activeElement?.classList.contains("ProseMirror"));
   await page.keyboard.type("There are six parking spaces behind the workshop.");
   await page.keyboard.press("Enter");
   await page.keyboard.type("# Bikes");
@@ -299,7 +303,7 @@ await step("a new page from a space's template, and from a ready-made one — on
   expect(await page.getByLabel("Blank page").isChecked(), "blank by default");
   await page.getByLabel("Client visit report").check();
   await page.getByRole("button", { name: "Create and write" }).click();
-  await page.waitForURL(/\/chest\/pages\/\d+\/edit$/u);
+  await page.waitForURL(/\/chest\/pages\/\d+\/edit(\?new=1)?$/u);
   await page.locator(".ProseMirror :text('What they want')").waitFor();
   await page.getByRole("button", { name: "Stop editing" }).click();
   await page.waitForURL(/\/chest\/pages\/\d+$/u);
@@ -308,7 +312,7 @@ await step("a new page from a space's template, and from a ready-made one — on
   await page.getByLabel("Title").fill("Team meeting, 28 September");
   await page.getByLabel("Meeting notes").check();
   await page.getByRole("button", { name: "Create and write" }).click();
-  await page.waitForURL(/\/chest\/pages\/\d+\/edit$/u);
+  await page.waitForURL(/\/chest\/pages\/\d+\/edit(\?new=1)?$/u);
   await page.locator(".ProseMirror :text('Agenda')").waitFor();
   await page.getByRole("button", { name: "Stop editing" }).click();
   await page.waitForURL(/\/chest\/pages\/\d+$/u);
@@ -378,7 +382,7 @@ await step("a space kept to the office group: set in its settings, gone for the 
   await as(context, origin, "camille");
   await page.goto(origin + "/chest/spaces/2/settings");
   await page.getByText("Seulement certains groupes").click();
-  await page.getByLabel("Office").check();
+  await page.getByRole("group", { name: "Qui peut le lire" }).getByLabel("Office").check();
   await page.getByRole("button", { name: "Enregistrer" }).click();
   await page.waitForURL(/\/chest\/spaces\/2$/u);
   await page.waitForSelector(".space-head .restricted:has-text('Réservé à certains groupes')", { timeout: 8000 });
@@ -389,6 +393,200 @@ await step("a space kept to the office group: set in its settings, gone for the 
   expect(!(await page.locator(".sidebar").innerText()).includes("Sales playbook"), "not in the sidebar");
   const zip = await page.request.get(origin + "/chest/spaces/1/export");
   expect(zip.ok() && (await zip.body()).subarray(0, 2).toString() === "PK", "space export is a zip");
+});
+
+await step("Save with nothing typed says so, and saves no empty page", async () => {
+  await as(context, origin, "tom");
+  await context.addCookies([{ name: "dev_locale", value: "en", url: origin }]);
+  await page.goto(origin + "/chest/spaces/1");
+  await page.locator(".space-head").getByRole("button", { name: "New page" }).click();
+  await page.keyboard.type("Empty for now");
+  await page.keyboard.press("Enter");
+  await page.waitForURL(/\/edit\?new=1$/u);
+  await page.locator(".ProseMirror").waitFor();
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await page.waitForSelector(".save-status:has-text('Nothing to save yet')");
+  expect(page.url().includes("/edit"), "still in the editor");
+  await page.getByRole("button", { name: "Stop editing" }).click();
+  await page.waitForURL(u => !u.pathname.endsWith("/edit"));
+});
+
+await step("leaving the editor without a word frees the page at once: another editor opens it", async () => {
+  await as(context, origin, "tom");
+  await page.goto(origin + "/chest/pages/3/edit");
+  await page.locator(".ProseMirror").waitFor();
+  await page.locator(".ProseMirror").click();
+  await page.keyboard.press("Control+End");
+  await page.keyboard.type(" Left behind.");
+  // Tom goes elsewhere through the browser (no "Stop editing").
+  await page.goto(origin + "/chest");
+  await page.waitForTimeout(600);
+  const sql = postgres("postgres://t_wiki:dev@127.0.0.1:5432/t_wiki", { max: 1, onnotice: () => {} });
+  const locks = await sql`select member_id from page_locks where page_id = 3`;
+  const drafts = await sql`select doc::text as doc from drafts where page_id = 3 and member_id = ${"mbr_tom" + "a".repeat(23)}`;
+  await sql.end();
+  expect(locks.length === 0, "lock released: " + JSON.stringify(locks));
+  expect(drafts.length === 1 && drafts[0].doc.includes("Left behind."), "his last words kept as his draft");
+  await as(context, origin, "sofia");
+  await page.goto(origin + "/chest/pages/3/edit");
+  await page.locator(".ProseMirror").waitFor();
+  await page.getByRole("button", { name: "Stop editing" }).click();
+  await page.waitForURL(/\/chest\/pages\/3$/u);
+  // Tom finds his draft on the page, and drops it (with Undo).
+  await as(context, origin, "tom");
+  await page.goto(origin + "/chest/pages/3");
+  await page.getByRole("button", { name: "Discard them" }).click();
+  await page.waitForSelector(".toast:has-text('Unsaved changes discarded')");
+  await page.locator(".toast").getByRole("button", { name: "Undo" }).click();
+  await page.waitForSelector(".notice.mine:has-text('unsaved changes')");
+  await page.getByRole("button", { name: "Discard them" }).click();
+  await page.waitForSelector(".notice.mine", { state: "detached" });
+});
+
+await step("search: “wifi” finds the Wi-Fi page; “wifi password” puts it first; a typo still finds", async () => {
+  await as(context, origin, "hugo");
+  for (const [q, first] of [["wifi", "Wi-Fi and printers"], ["wifi password", "Wi-Fi and printers"], ["pasword", "Password manager"]]) {
+    await page.goto(origin + "/chest/search?q=" + encodeURIComponent(q));
+    const title = await page.locator(".result-title").first().innerText();
+    expect(title === first, `${q} → ${title}`);
+  }
+  await page.goto(origin + "/chest/search?q=wifi%20password");
+  expect((await page.locator(".results li").allInnerTexts()).some(t => t.includes("Password manager")), "the page with one of the words follows");
+});
+
+await step("the “/” menu inserts a table, a checklist, found by typing", async () => {
+  await as(context, origin, "tom");
+  await page.goto(created + "/edit");
+  await page.locator(".ProseMirror").waitFor();
+  await page.locator(".ProseMirror").click();
+  await page.keyboard.press("Control+End");
+  await page.keyboard.press("Enter");
+  await page.keyboard.type("/");
+  await page.waitForSelector(".slash [role=option]");
+  await page.keyboard.type("check");
+  expect((await page.locator(".slash [role=option]").allInnerTexts()).join("|") === "Checklist", "filtered");
+  await page.keyboard.press("Enter");
+  await page.keyboard.type("Lock the bike");
+  await page.keyboard.press("Enter");
+  await page.keyboard.press("Enter");
+  await page.keyboard.type("/tab");
+  await page.keyboard.press("Enter");
+  await page.waitForSelector(".ProseMirror table");
+  expect(!(await page.locator(".ProseMirror").innerText()).includes("/tab"), "the typed words go");
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await page.waitForURL(/\/chest\/pages\/\d+(\?saved=\d+)?$/u);
+  expect(await page.locator(".prose ul.tasks").count() === 1 && await page.locator(".prose table").count() === 1, "checklist and table saved");
+});
+
+await step("per-space edit rights: Sales is edited by the sales group; Tom (tech) reads it and is told why", async () => {
+  // Each member in their own language again; Sales open to everyone again (a step above kept it to the office).
+  await context.addCookies([{ name: "dev_locale", value: "", url: origin }]);
+  const sql = postgres("postgres://t_wiki:dev@127.0.0.1:5432/t_wiki", { max: 1, onnotice: () => {} });
+  await sql`update spaces set visibility = 'everyone' where id = 2`;
+  await sql`delete from space_groups where space_id = 2`;
+  await sql.end();
+  await as(context, origin, "tom");
+  await page.goto(origin + "/chest/pages/10");
+  expect(await page.getByRole("link", { name: "Edit" }).count() === 0, "no Edit for Tom");
+  await page.waitForSelector(".read-only:has-text('Only some people edit')");
+  expect((await page.request.get(origin + "/chest/pages/10/edit")).status() === 404, "the editor refused");
+  await as(context, origin, "ines");
+  await page.goto(origin + "/chest/pages/10");
+  await page.getByRole("link", { name: "Modifier" }).waitFor();
+  await page.goto(origin + "/chest/spaces/2/settings");
+  const who = page.getByRole("group", { name: "Qui peut la modifier" });
+  expect(await who.getByLabel("Seulement certaines personnes").isChecked(), "some people");
+  expect(await who.getByLabel("Sales").isChecked(), "the sales group");
+  // Inès adds Tom by name.
+  await who.getByLabel("Tom Walker").check();
+  await page.getByRole("button", { name: "Enregistrer" }).click();
+  await page.waitForURL(/\/chest\/spaces\/2$/u);
+  await as(context, origin, "tom");
+  await page.goto(origin + "/chest/pages/10");
+  await page.getByRole("link", { name: "Edit" }).waitFor();
+});
+
+await step("read and acknowledged: Hugo is asked, confirms in one click; Camille sees who read which version, as a table", async () => {
+  await as(context, origin, "hugo");
+  await page.goto(origin + "/chest");
+  expect((await page.locator(".to-read").innerText()).includes("Règlement intérieur"), "Pages to read on his home page");
+  await page.goto(origin + "/chest/pages/8");
+  await page.getByRole("button", { name: "I have read it" }).click();
+  await page.waitForSelector(".toast:has-text('your reading is recorded')");
+  await page.waitForSelector(".ask-read", { state: "detached" });
+  await as(context, origin, "camille");
+  await page.goto(origin + "/chest/pages/8");
+  await page.getByRole("button", { name: "Plus" }).click();
+  await page.getByRole("link", { name: "Qui l’a lue" }).click();
+  await page.waitForURL(/\/reads$/u);
+  expect((await page.locator(".lead").innerText()).startsWith("4 sur"), "4 confirmed: " + await page.locator(".lead").innerText());
+  const csv = await (await page.request.get(origin + "/chest/pages/8/reads/csv")).text();
+  expect(csv.includes("Hugo Bernard") && csv.includes("Léa Dubois") && csv.includes("Pas encore"), "table");
+  // Tom asks for confirmations of another page, by the menu.
+  await as(context, origin, "tom");
+  await page.goto(origin + "/chest/pages/13");
+  await page.getByRole("button", { name: "More" }).click();
+  await page.getByRole("button", { name: "Ask readers to confirm" }).click();
+  await page.getByRole("button", { name: "Ask", exact: true }).click();
+  await page.waitForSelector(".toast:has-text('people asked')");
+  expect((await bell()).includes("Tom Walker vous demande de lire"), "Léa is told, in French");
+});
+
+await step("pinned pages on the home page; everything downloads as one zip", async () => {
+  await as(context, origin, "lea");
+  await page.goto(origin + "/chest");
+  expect((await page.locator(".pins").innerText()).includes("Wi-Fi and printers"), "pins");
+  await as(context, origin, "sofia");
+  const zip = await page.request.get(origin + "/chest/export");
+  expect(zip.ok() && (await zip.body()).subarray(0, 2).toString() === "PK", "export all");
+});
+
+await step("import a Confluence space export (HTML zip): its tree comes along", async () => {
+  await as(context, origin, "ines");
+  await context.addCookies([{ name: "dev_locale", value: "en", url: origin }]);
+  const zip = tmp + "/Confluence-space-export-HB.html.zip";
+  execFileSync("zip", ["-qr", zip, "HB"], { cwd: new URL("../../../tools/private/wiki/test/fixtures/confluence/", import.meta.url).pathname });
+  await page.goto(origin + "/chest/import");
+  await page.locator(".dropzone input[type=file]").setInputFiles(zip);
+  await page.getByLabel("Name of the new space").fill("Handbook (Confluence)");
+  await page.getByRole("button", { name: "Import" }).click();
+  await page.waitForSelector("text=Imported 5 pages.");
+  await page.getByRole("link", { name: "Open the pages" }).click();
+  await page.waitForURL(/\/chest\/pages\/\d+$/u);
+  expect((await page.locator("h1").innerText()) === "Handbook home", "the space's home page");
+  expect(await page.locator(".prose aside.callout").count() === 1 && await page.locator(".prose img").count() === 1, "note box and image");
+  expect((await page.locator(".related").first().innerText()).includes("IT setup"), "its pages inside");
+});
+
+await step("phone: every editing tool in sight, “Stop editing” and “Watching” keep their words", async () => {
+  await as(context, origin, "hugo");
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(origin + "/chest/pages/3");
+  expect((await page.locator(".watch").innerText()).trim() === "Watching", "the watch button says it");
+  await as(context, origin, "tom");
+  await page.goto(origin + "/chest/pages/4/edit");
+  await page.locator(".ProseMirror").waitFor();
+  const outside = await page.evaluate(() => [...document.querySelectorAll(".toolbar .tool, .toolbar select")].filter(e => { const r = e.getBoundingClientRect(); return r.right > window.innerWidth || r.left < 0; }).length);
+  expect(outside === 0, outside + " tools off-screen");
+  expect((await page.locator(".writer-bar").getByRole("button", { name: "Stop editing" }).innerText()).includes("Stop editing"), "its words are visible");
+  const width = await page.evaluate(() => document.documentElement.scrollWidth);
+  expect(width <= 392, "no sideways scroll: " + width);
+  await page.getByRole("button", { name: "Stop editing" }).click();
+  await page.setViewportSize({ width: 1280, height: 860 });
+});
+
+await step("a comment names Tom with “@”: he is told in the bell, on his own", async () => {
+  await as(context, origin, "hugo");
+  await page.goto(origin + "/chest/pages/5");
+  await page.locator("#comment-new").click();
+  await page.keyboard.type("Thanks @To");
+  await page.waitForSelector(".mentions [role=option]:has-text('Tom Walker')");
+  await page.keyboard.press("Enter");
+  await page.keyboard.type("the printer works again.");
+  expect((await page.locator("#comment-new").inputValue()) === "Thanks @Tom Walker the printer works again.", await page.locator("#comment-new").inputValue());
+  await page.getByRole("button", { name: "Comment", exact: true }).click();
+  await page.waitForSelector("#comments .comment:has-text('@Tom Walker')");
+  expect((await bell()).includes("Hugo Bernard mentioned you on “Wi-Fi and printers”"), "Tom is told");
 });
 
 await browser.close();

@@ -9,7 +9,7 @@ import type { Query, Sql, TransactionSql } from "./db.ts";
 import { AppError } from "./errors.ts";
 import { addField, listFields } from "./fields.ts";
 import { fold } from "./fold.ts";
-import { clean, email as checkEmail, limits, owner as checkOwner, phone as checkPhone, siren as checkSiren, tags as checkTags, today, vat as checkVat, website as checkWebsite, stageName, type Stage, type StageKey } from "./model.ts";
+import { clean, email as checkEmail, limits, owner as checkOwner, phone as checkPhone, siren as checkSiren, tags as checkTags, today, vat as checkVat, website as checkWebsite, zoned, stageName, type Stage, type StageKey } from "./model.ts";
 import { activityKind, checkMapping, dayOf, doneOf, endOf, firstName, isImportKind, mapRow, readTable, timeOf, type ImportKind, type Mapped, type Mapping } from "./parse-import.ts";
 import { between } from "./position.ts";
 import { listStages } from "./stages.ts";
@@ -107,7 +107,7 @@ function createdAt(m: Mapped): Date | null {
   const d = dayOf(m.createdAt);
   if (!d) return null;
   const t = timeOf(m.createdAt) ?? "12:00";
-  const at = new Date(`${d}T${t}:00Z`);
+  const at = zoned(d, t);
   return at.getTime() > Date.now() ? null : at;
 }
 
@@ -297,7 +297,7 @@ async function importActivity(ctx: Context, m: Mapped): Promise<"created"> {
   const kind = activityKind(m.type);
   const done = doneOf(m.done);
   const day = dayOf(m.date);
-  const time = timeOf(m.date);
+  const time = timeOf(m.date) ?? (m.time && /^\d{1,2}:\d{2}/u.test(m.time.trim()) ? timeOf("x " + m.time.trim()) : null);
   const owner = m.owner ? ctx.owners.get(fold(m.owner)) ?? null : null;
   let anchor: { dealId: string | null; contactId: string | null; companyId: string | null };
   if (dealId) {
@@ -318,7 +318,7 @@ async function importActivity(ctx: Context, m: Mapped): Promise<"created"> {
   }
   const logged = kind === "task" ? "note" : kind;
   if (body === "" && logged === "note") throw new AppError("empty");
-  const at = day ? new Date(`${day}T${time ?? "12:00"}:00Z`) : null;
+  const at = day ? zoned(day, time ?? "12:00") : null;
   const activity = await record(ctx.tx, logged, owner ?? ctx.actor.id, anchor, body, { imported: 1, ...(m.owner && !owner ? { by: m.owner.trim().slice(0, 80) } : {}) });
   await ctx.tx`update activities set import_id = ${ctx.importId}${at && at.getTime() <= Date.now() ? ctx.tx`, at = ${at}` : ctx.tx``} where id = ${activity}`;
   if (anchor.contactId && logged !== "note" && at && at.getTime() <= Date.now()) {

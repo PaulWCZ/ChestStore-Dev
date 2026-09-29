@@ -106,7 +106,7 @@ export const fr: Catalogue = {
     },
     fieldFilter: {
       label: "Filtrer par un champ",
-      none: "Tous les champs",
+      none: "Filtrer par un champ…",
       value: "Valeur",
       any: "Toutes",
       min: "Au moins",
@@ -564,6 +564,7 @@ export const fr: Catalogue = {
     open: "Les voir",
     needs: { companies: "Associez une colonne à « Nom ».", contacts: "Associez une colonne à « Nom » ou « E-mail ».", deals: "Associez une colonne à « Intitulé ».", activities: "Associez une colonne à une affaire, un contact, l’e-mail d’un contact ou une entreprise." },
     fields: {
+      time: "Heure",
       phone2: "Autre téléphone",
       url: "LinkedIn ou site web",
       siren: "SIREN ou SIRET",

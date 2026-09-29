@@ -1,7 +1,7 @@
 "use client";
 
 import type { Editor as TiptapEditor } from "@tiptap/react";
-import type { ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import * as I from "../../../../../components/icons.tsx";
 import type { Catalogue } from "../../../../../lib/i18n/index.ts";
 
@@ -44,8 +44,15 @@ export function matching(items: SlashItem[], query: string): SlashItem[] {
 }
 
 export function SlashMenu({ slash, items, label, empty, onChoose }: { slash: Slash; items: SlashItem[]; label: string; empty: string; onChoose: (item: SlashItem) => void }) {
+  const box = useRef<HTMLDivElement>(null);
+  // The chosen item stays in sight as the arrows move through a long list.
+  useEffect(() => {
+    box.current?.querySelector("[aria-selected=true]")?.scrollIntoView({ block: "nearest" });
+  }, [slash.index, slash.query]);
+  // Keyboard users move with the arrows from the page; the list can also
+  // be reached and scrolled on its own (it never takes the text's focus by a click).
   return (
-    <div className="slash" style={{ left: slash.x, top: slash.y }}>
+    <div ref={box} className="slash" style={{ left: slash.x, top: slash.y }} tabIndex={0} onMouseDown={e => e.preventDefault()}>
       {items.length === 0 ? <p className="muted small">{empty}</p> : (
         <ul role="listbox" id="slash-list" aria-label={label}>
           {items.map((item, i) => (

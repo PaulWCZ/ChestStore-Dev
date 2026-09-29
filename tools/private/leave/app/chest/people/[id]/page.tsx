@@ -90,7 +90,7 @@ export default async function PersonPage({ params, searchParams }: { params: Pro
             <li key={b.typeId} className={`balance k-${ty?.color ?? "sky"}`}>
               <span className="balance-name">{typeName(ty, t.types)}</span>
               <span className="balance-figure"><strong>{b.setUp ? formatDays(b.left, locale) : "–"}</strong> <span>{t.units.left}</span></span>
-              {b.setUp && balanceNotes(b, ty?.period ?? "running", locale, t).map(n => <span key={n} className="balance-note">{n}</span>)}
+              {b.setUp && balanceNotes(b, ty?.period ?? "running", locale, t, { perMonth: false }).map(n => <span key={n} className="balance-note">{n}</span>)}
               {b.since && b.perMonth !== 0 && (
                 <span className="balance-note">
                   {format(b.sinceOpening ? t.team.earnedSinceOpening : t.team.earnedSinceStart, { months: b.months, perMonth: formatDays(b.perMonth, locale), date: long(b.since) })}

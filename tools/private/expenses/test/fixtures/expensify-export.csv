@@ -1,0 +1,6 @@
+Timestamp,Merchant,Amount,Category,Tag,Comment,Reimbursable,Original Currency,Original Amount,Receipt,Submitter
+03/14/2026,Uber,23.40,Taxi,,"Airport to office, late flight",Yes,EUR,23.40,https://www.expensify.com/receipts/w_3f2a.jpg,Hugo Bernard
+03/18/2026,Pret A Manger,12.90,Meals,Client,Lunch with Acme,Yes,EUR,12.90,,Hugo Bernard
+03/21/2026,Heathrow Express,25.00,Travel,,,Yes,GBP,25.00,https://www.expensify.com/receipts/w_91bb.pdf,Léa Dubois
+03/22/2026,Amazon,-15.00,Office Supplies,,Refund,Yes,EUR,-15.00,,Léa Dubois
+04/02/2026,Hotel Ibis,"1,240.00",Hotel,,"3 nights, trade fair",Yes,EUR,"1,240.00",,Robert Smith

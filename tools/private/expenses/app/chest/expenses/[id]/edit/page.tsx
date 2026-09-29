@@ -6,7 +6,7 @@ import { db } from "../../../../../lib/db.ts";
 import { expense } from "../../../../../lib/expenses.ts";
 import { format } from "../../../../../lib/i18n/index.ts";
 import { viewer } from "../../../../../lib/session.ts";
-import { ExpenseForm, TripForm } from "../../../compose.tsx";
+import { AllowanceForm, ExpenseForm, TripForm } from "../../../compose.tsx";
 
 // Edit a draft (a refused one shows why, above the fields).
 export default async function EditExpense({ params }: { params: Promise<{ id: string }> }) {
@@ -22,17 +22,17 @@ export default async function EditExpense({ params }: { params: Promise<{ id: st
   if (!found || found.expense.deleted) notFound();
   if (!found.access.own || found.expense.status !== "draft") redirect(`/chest/expenses/${id}`);
   const e = found.expense;
-  const data = await composeData(sql, member, t, e.categoryId);
+  const data = await composeData(sql, member, t, locale, { category: e.categoryId, ...(e.allowance ? { allowance: e.allowance.id } : {}) });
   const initial = initialOf(e, locale, await guestNames(e, locale));
   return (
     <main className="page">
       <div className="page-head">
-        <h1>{e.trip ? t.form.editTrip : t.form.editTitle}</h1>
+        <h1>{e.trip ? t.form.editTrip : e.allowance ? t.form.editAllowance : t.form.editTitle}</h1>
       </div>
       {e.refusedReason && <p className="notice bad" style={{ marginBottom: 24 }}>{format(t.home.refusedBecause, { reason: e.refusedReason })}</p>}
-      {e.trip
-        ? <TripForm data={data} initial={initial} locale={locale} t={composeWords(t)} />
-        : <ExpenseForm data={data} initial={initial} locale={locale} t={composeWords(t)} />}
+      {e.trip && <TripForm data={data} initial={initial} locale={locale} t={composeWords(t)} />}
+      {e.allowance && <AllowanceForm data={data} initial={initial} locale={locale} t={composeWords(t)} />}
+      {!e.trip && !e.allowance && <ExpenseForm data={data} initial={initial} locale={locale} t={composeWords(t)} />}
     </main>
   );
 }

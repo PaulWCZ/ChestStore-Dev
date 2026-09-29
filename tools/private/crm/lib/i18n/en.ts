@@ -106,7 +106,7 @@ export const en = {
     },
     fieldFilter: {
       label: "Filter by a field",
-      none: "Any field",
+      none: "Filter by a field…",
       value: "Value",
       any: "Any",
       min: "At least",
@@ -564,6 +564,7 @@ export const en = {
     open: "See them",
     needs: { companies: "Match a column to “Name”.", contacts: "Match a column to “Name” or “Email”.", deals: "Match a column to “Title”.", activities: "Match a column to a deal, a contact, a contact’s email or a company." },
     fields: {
+      time: "Time",
       phone2: "Other phone",
       url: "LinkedIn or website",
       siren: "SIREN or SIRET",

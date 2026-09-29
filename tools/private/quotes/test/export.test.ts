@@ -5,11 +5,13 @@ import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
 import { finalise, saveDraft, startCreditNote } from "../lib/documents.ts";
 import { AppError } from "../lib/errors.ts";
 import { exportCsv, exportZip, period } from "../lib/export.ts";
+import { exportJournal } from "../lib/journal.ts";
+import { updateCompany } from "../lib/company.ts";
 import { addPayment } from "../lib/payments.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { client, company, draft, line, today } from "./support/fixtures.ts";
 import { asMember } from "./support/member.ts";
-import { everyone, hugo, lea, sofia } from "./support/members.ts";
+import { camille, everyone, hugo, lea, sofia } from "./support/members.ts";
 import { pdfText } from "./support/pdf.ts";
 
 let database: TestDatabase;
@@ -87,8 +89,51 @@ test("the ZIP holds each document's PDF and the spreadsheet", async () => {
   assert.equal(fileName, "Devis-et-factures_2026-09-01_2026-09-30.zip");
   const bytes = Buffer.from(await new Response(stream).arrayBuffer());
   const entries = unzip(bytes);
-  assert.deepEqual([...entries.keys()], ["Facture-F-2026-0001.pdf", "Facture-F-2026-0002.pdf", "Avoir-A-2026-0001.pdf", "Devis-et-factures_2026-09-01_2026-09-30.csv"]);
+  assert.deepEqual([...entries.keys()], ["Facture-F-2026-0001.pdf", "Facture-F-2026-0002.pdf", "Avoir-A-2026-0001.pdf", "Devis-et-factures_2026-09-01_2026-09-30.csv",
+    "ecritures-ventes_2026-09-01_2026-09-30.csv", "clients.csv", "catalogue.csv"]);
+  assert.ok(entries.get("clients.csv")!.toString("utf8").includes("Boulangerie Dupain SAS;Entreprise;Marie Dupain"));
   assert.ok(pdfText(entries.get("Avoir-A-2026-0001.pdf")!).includes("Avoir sur la facture F-2026-0001 du 10/09/2026."));
   // Each PDF was kept in the Chest's files on the way.
   assert.ok(chest.files.has("documents/2026/F-2026-0001.pdf"));
+});
+
+test("the accountant's entries: one balanced entry per document, in the columns of the FEC", async () => {
+  const { sql } = database;
+  const [c] = await sql<{ id: number }[]>`select id from clients order by id limit 1`;
+  const aux = "C" + String(c!.id).padStart(5, "0");
+  const { text, fileName, count } = await exportJournal(sql, asMember(lea), "fr", period("2026-09-01", "2026-09-30"));
+  assert.equal(count, 3);
+  assert.equal(fileName, "ecritures-ventes_2026-09-01_2026-09-30.csv");
+  const rows = text.replace(/^\ufeff/u, "").trimEnd().split("\r\n").map(r => r.split(";"));
+  assert.deepEqual(rows[0], ["JournalCode", "JournalLib", "EcritureNum", "EcritureDate", "CompteNum", "CompteLib", "CompAuxNum", "CompAuxLib", "PieceRef", "PieceDate", "EcritureLib", "Debit", "Credit", "EcritureLet", "DateLet", "ValidDate", "Montantdevise", "Idevise"]);
+  const brief = rows.slice(1).map(r => [r[2], r[4], r[6], r[11], r[12]].join(" "));
+  assert.deepEqual(brief, [
+    `F-2026-0001 411000 ${aux} 1221,10 0,00`,
+    "F-2026-0001 706000  0,00 1020,00",
+    "F-2026-0001 445710  0,00 200,00",
+    "F-2026-0001 445710  0,00 1,10",
+    `F-2026-0002 411000 ${aux} 600,00 0,00`,
+    "F-2026-0002 706000  0,00 500,00",
+    "F-2026-0002 445710  0,00 100,00",
+    `A-2026-0001 411000 ${aux} 0,00 120,00`,
+    "A-2026-0001 706000  100,00 0,00",
+    "A-2026-0001 445710  20,00 0,00",
+  ]);
+  assert.deepEqual(rows[1]!.slice(0, 4), ["VE", "Ventes", "F-2026-0001", "20260910"]);
+  assert.equal(rows[1]![10], "Facture F-2026-0001 Boulangerie Dupain SAS");
+  // Each entry balances.
+  for (const n of ["F-2026-0001", "F-2026-0002", "A-2026-0001"]) {
+    const mine = rows.slice(1).filter(r => r[2] === n);
+    const sum = (i: number) => mine.reduce((s2, r) => s2 + Number(r[i]!.replace(",", ".")) * 100, 0);
+    assert.equal(Math.round(sum(11)), Math.round(sum(12)), n);
+  }
+  // The company's own accounts and the client's code in the books.
+  await updateCompany(sql, asMember(camille), { accounts: { journal: "VT", client: "41100000", services: "70600000", vat: { "2000": "44571200", "550": "44571055" } } });
+  await sql`update clients set account = 'DUPAIN' where id = ${c!.id}`;
+  const again = (await exportJournal(sql, asMember(lea), "en", period("2026-09-01", "2026-09-10"))).text.replace(/^\ufeff/u, "").trimEnd().split("\r\n").map(r => r.split(","));
+  assert.deepEqual(again.slice(1).map(r => [r[0], r[4], r[6], r[11], r[12]].join(" ")), [
+    "VT 41100000 DUPAIN 1221.10 0.00", "VT 70600000  0.00 1020.00", "VT 44571200  0.00 200.00", "VT 44571055  0.00 1.10",
+  ]);
+  await assert.rejects(updateCompany(sql, asMember(camille), { accounts: { client: "411 ?" } }), refused("account_invalid"));
+  await assert.rejects(exportJournal(sql, asMember(hugo), "fr", period("2026-09-01", "2026-09-30")), refused("forbidden"));
 });

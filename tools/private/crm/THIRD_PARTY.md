@@ -14,3 +14,26 @@ Dependencies installed from npm under their own licences: `next`, `react`,
 (MIT, the studio's working copy in `vendor/`). PostgreSQL extensions
 `unaccent` and `pg_trgm` ship with PostgreSQL. Icons are drawn for this
 tool (`components/icons.tsx`).
+
+## Export formats the importer reads
+
+The importer's header lists (`lib/parse-import.ts`) and the test files
+(`test/import-more.test.ts`, `test/importers.test.ts`) follow the export
+formats of HubSpot and Pipedrive as their help pages and community answers
+describe them. The pages were read through web search snippets on
+2026-09-28 (the sites themselves were blocked from this environment): a
+human should compare with a real export before claiming exact parity.
+
+- Pipedrive — deals, persons, organizations, activities and notes are
+  exported separately, as CSV or Excel, with "Entity - Field" headers
+  ("Deal - Title", "Activity - Subject", "Activity - Due date", "Activity
+  - Done", "Activity - Note", "Person - Email"…):
+  https://support.pipedrive.com/en/article/exporting-data-from-pipedrive
+  and https://blog.coupler.io/pipedrive-export-notes/
+- HubSpot — contacts, companies and deals export from their index pages;
+  notes are engagements, not part of those exports; a notes report has
+  "Activity date" (DD/MM/YYYY) and "Note body" columns with the associated
+  records: https://knowledge.hubspot.com/import-and-export/export-records
+  and https://community.hubspot.com/t5/CRM/Export-Notes/m-p/737750
+- ZIP (the whole-book export, `lib/zip.ts`, written for this tool):
+  PKWARE APPNOTE 6.3, stored entries, UTF-8 names; CRC-32 as in ISO 3309.

@@ -70,16 +70,25 @@ export async function updateSettings(sql: Sql, actor: Member | null, input: Sett
 
 // Categories. A built-in one has a key the pages name in each language,
 // until the accountant gives it a name.
-// guests: people choosing it are asked who was at the table (meals).
-export type Category = { id: string; key: string | null; name: string | null; account: string; vatRecovery: number; cap: number | null; mileage: boolean; archived: boolean; guests: boolean };
+// guests: people choosing it are asked who was at the table (meals);
+// perNight: its limit is per night (hotels), people say how many nights.
+export type Category = { id: string; key: string | null; name: string | null; account: string; vatRecovery: number; cap: number | null; mileage: boolean; archived: boolean; guests: boolean; perNight: boolean };
 
-type CategoryRow = { id: string; key: string | null; name: string | null; account: string; vat_recovery: number; cap_cents: string | null; mileage: boolean; archived_at: Date | null; guests: boolean };
-const toCategory = (r: CategoryRow): Category => ({ id: String(r.id), key: r.key, name: r.name, account: r.account, vatRecovery: r.vat_recovery, cap: r.cap_cents === null ? null : Number(r.cap_cents), mileage: r.mileage, archived: r.archived_at !== null, guests: r.guests });
-const categoryColumns = "id, key, name, account, vat_recovery, cap_cents, mileage, archived_at, guests";
+type CategoryRow = { id: string; key: string | null; name: string | null; account: string; vat_recovery: number; cap_cents: string | null; mileage: boolean; archived_at: Date | null; guests: boolean; per_night: boolean };
+const toCategory = (r: CategoryRow): Category => ({ id: String(r.id), key: r.key, name: r.name, account: r.account, vatRecovery: r.vat_recovery, cap: r.cap_cents === null ? null : Number(r.cap_cents), mileage: r.mileage, archived: r.archived_at !== null, guests: r.guests, perNight: r.per_night });
+const categoryColumns = "id, key, name, account, vat_recovery, cap_cents, mileage, archived_at, guests, per_night";
 
 export async function categories(sql: Query, options: { archived?: boolean } = {}): Promise<Category[]> {
   const rows = await sql<CategoryRow[]>`select ${sql.unsafe(categoryColumns)} from categories ${options.archived ? sql`` : sql`where archived_at is null`} order by archived_at nulls first, position, id`;
   return rows.map(toCategory);
+}
+
+// The category of flat rates (built in: they are booked there, unless a
+// rate has an account of its own).
+export async function allowanceCategory(sql: Query): Promise<Category> {
+  const [row] = await sql<CategoryRow[]>`select ${sql.unsafe(categoryColumns)} from categories where key = 'allowance'`;
+  if (!row) throw new AppError("category_invalid");
+  return toCategory(row);
 }
 
 export async function mileageCategory(sql: Query): Promise<Category> {
@@ -88,13 +97,14 @@ export async function mileageCategory(sql: Query): Promise<Category> {
   return toCategory(row);
 }
 
-type CategoryInput = { name?: unknown; account?: unknown; vatRecovery?: unknown; cap?: unknown; guests?: unknown };
+type CategoryInput = { name?: unknown; account?: unknown; vatRecovery?: unknown; cap?: unknown; guests?: unknown; perNight?: unknown };
 
 function categoryFields(input: CategoryInput, currency: string) {
-  const out: { name?: string | null; account?: string; vatRecovery?: number; cap?: number | null; guests?: boolean } = {};
-  if (input.guests !== undefined) {
-    if (typeof input.guests !== "boolean") throw new AppError("invalid");
-    out.guests = input.guests;
+  const out: { name?: string | null; account?: string; vatRecovery?: number; cap?: number | null; guests?: boolean; perNight?: boolean } = {};
+  for (const key of ["guests", "perNight"] as const) {
+    if (input[key] === undefined) continue;
+    if (typeof input[key] !== "boolean") throw new AppError("invalid");
+    out[key] = input[key];
   }
   // An empty name gives a built-in category its own name back (the caller
   // refuses it for the others).
@@ -140,8 +150,8 @@ export async function updateCategory(sql: Sql, actor: Member | null, categoryId:
   let archived = current.archived_at !== null;
   if (input.archived !== undefined) {
     if (typeof input.archived !== "boolean") throw new AppError("invalid");
-    // The mileage category stays: trips need it.
-    if (input.archived && current.mileage) throw new AppError("category_invalid");
+    // The mileage and flat-rate categories stay: trips and flat rates need them.
+    if (input.archived && (current.mileage || current.key === "allowance")) throw new AppError("category_invalid");
     archived = input.archived;
   }
   if (f.name === null && current.key === null) throw new AppError("empty");
@@ -152,6 +162,7 @@ export async function updateCategory(sql: Sql, actor: Member | null, categoryId:
       vat_recovery = ${f.vatRecovery !== undefined ? f.vatRecovery : current.vat_recovery},
       cap_cents = ${f.cap !== undefined ? f.cap : current.cap_cents},
       guests = ${f.guests !== undefined ? f.guests : current.guests},
+      per_night = ${f.perNight !== undefined ? f.perNight : current.per_night},
       archived_at = ${archived ? (current.archived_at ?? new Date()) : null}
     where id = ${cid}
     returning ${sql.unsafe(categoryColumns)}`;
@@ -188,8 +199,10 @@ export async function saveScale(sql: Sql, actor: Member | null, yearValue: unkno
   return scaleFor(sql, year);
 }
 
-// Each person's vehicle.
+// Each person's vehicle, and the registration certificate that proves it
+// (checked by an accountant; a change of vehicle takes the check off).
 export type Vehicle = { kind: VehicleKind; power: string; electric: boolean };
+export type VehicleProof = { name: string; type: string; checkedBy: string | null; checkedAt: string | null };
 
 export async function vehicleOf(sql: Query, member: string): Promise<Vehicle | null> {
   const [row] = await sql<{ kind: VehicleKind; power: string; electric: boolean }[]>`select kind, power, electric from vehicles where member_id = ${member}`;
@@ -203,8 +216,73 @@ export async function setVehicle(sql: Sql, actor: Member | null, input: { kind?:
   if (!powers(data, input.kind).includes(input.power)) throw new AppError("invalid");
   await sql`
     insert into vehicles (member_id, kind, power, electric) values (${actor!.id}, ${input.kind}, ${input.power}, ${input.electric})
-    on conflict (member_id) do update set kind = excluded.kind, power = excluded.power, electric = excluded.electric, updated_at = now()`;
+    on conflict (member_id) do update set kind = excluded.kind, power = excluded.power, electric = excluded.electric, updated_at = now(),
+      checked_by = case when (vehicles.kind, vehicles.power, vehicles.electric) = (excluded.kind, excluded.power, excluded.electric) then vehicles.checked_by end,
+      checked_at = case when (vehicles.kind, vehicles.power, vehicles.electric) = (excluded.kind, excluded.power, excluded.electric) then vehicles.checked_at end`;
   return { kind: input.kind, power: input.power, electric: input.electric };
+}
+
+export async function vehicleProof(sql: Query, member: string): Promise<VehicleProof | null> {
+  const [row] = await sql<{ proof_name: string | null; proof_type: string | null; checked_by: string | null; checked_at: Date | null }[]>`
+    select proof_name, proof_type, checked_by, checked_at from vehicles where member_id = ${member} and proof_object is not null`;
+  return row ? { name: row.proof_name ?? "", type: row.proof_type ?? "", checkedBy: row.checked_by, checkedAt: row.checked_at?.toISOString() ?? null } : null;
+}
+
+// setVehicleProof puts the registration certificate on the actor's vehicle
+// (an upload of theirs, inspected by the caller), or takes it off (null).
+// Answers the object it replaced, for the caller to forget.
+export async function setVehicleProof(sql: Sql, actor: Member | null, file: { object: string; type: string; sha256: string } | null, name?: unknown): Promise<string | null> {
+  if (!actor || !can(actor, "own")) throw new AppError("forbidden");
+  const fileName = clean(name ?? "", limits.fileName, { optional: true });
+  return sql.begin(async tx => {
+    const [current] = await tx<{ proof_object: string | null }[]>`select proof_object from vehicles where member_id = ${actor.id} for update`;
+    if (!current) throw new AppError("no_vehicle");
+    if (file) {
+      const [used] = await tx`delete from uploads where object = ${file.object} and member_id = ${actor.id} returning object`;
+      if (!used) throw new AppError("file_missing");
+    }
+    await tx`update vehicles set proof_object = ${file?.object ?? null}, proof_name = ${file ? fileName || file.object.split("/").at(-1)! : null}, proof_type = ${file?.type ?? null},
+      proof_sha256 = ${file?.sha256 ?? null}, checked_by = null, checked_at = null where member_id = ${actor.id}`;
+    return current.proof_object;
+  });
+}
+
+// The object of a person's registration certificate, for that person and
+// the accountants.
+export async function vehicleProofObject(sql: Query, actor: Member | null, memberValue: unknown): Promise<{ object: string; type: string; name: string }> {
+  const member = memberId(memberValue);
+  if (!actor || (actor.id !== member && !can(actor, "settings"))) throw new AppError("not_found");
+  const [row] = await sql<{ proof_object: string | null; proof_type: string | null; proof_name: string | null }[]>`select proof_object, proof_type, proof_name from vehicles where member_id = ${member}`;
+  if (!row?.proof_object) throw new AppError("not_found");
+  return { object: row.proof_object, type: row.proof_type ?? "", name: row.proof_name ?? "" };
+}
+
+// An accountant looked at the certificate: the vehicle matches it (or not,
+// to take the check off).
+export async function checkVehicle(sql: Sql, actor: Member | null, memberValue: unknown, checked: unknown): Promise<void> {
+  if (!can(actor, "settings")) throw new AppError("forbidden");
+  const member = memberId(memberValue);
+  if (typeof checked !== "boolean") throw new AppError("invalid");
+  const [row] = await sql`update vehicles set checked_by = ${checked ? actor!.id : null}, checked_at = ${checked ? new Date() : null}
+    where member_id = ${member} and proof_object is not null returning member_id`;
+  if (!row) throw new AppError("not_found");
+}
+
+// Every vehicle, for the accountants: what the scale uses for each person,
+// and whether its certificate was seen.
+export type VehicleRow = Vehicle & { member: string; proof: boolean; checked: boolean };
+export async function vehicles(sql: Query, actor: Member | null): Promise<VehicleRow[]> {
+  if (!can(actor, "settings")) throw new AppError("forbidden");
+  const rows = await sql<{ member_id: string; kind: VehicleKind; power: string; electric: boolean; proof_object: string | null; checked_at: Date | null }[]>`
+    select member_id, kind, power, electric, proof_object, checked_at from vehicles order by member_id limit 5000`;
+  return rows.map(r => ({ member: r.member_id, kind: r.kind, power: r.power, electric: r.electric, proof: r.proof_object !== null, checked: r.checked_at !== null }));
+}
+
+// The kilometres driven for work in a year before this tool, with the
+// actor's vehicle kind; the year's trips not yet approved move with it.
+export async function priorDistance(sql: Query, member: string, year: number, kind: VehicleKind): Promise<number> {
+  const [row] = await sql<{ distance_tenths: number }[]>`select distance_tenths from prior_distances where member_id = ${member} and year = ${year} and vehicle = ${kind}`;
+  return row?.distance_tenths ?? 0;
 }
 
 // Who approves whom. Without a row, the accountants.
@@ -271,4 +349,78 @@ export async function setRate(sql: Sql, actor: Member | null, currencyValue: unk
     }
     return open.length;
   });
+}
+
+// Flat rates (forfaits): an amount per day, night or meal. A built-in one
+// has a key the pages name in each language, until the accountant renames
+// it. Archived ones stay on the expenses that used them.
+export const allowanceUnits = ["day", "night", "meal"] as const;
+export type AllowanceUnit = (typeof allowanceUnits)[number];
+export type Allowance = { id: string; key: string | null; name: string | null; amount: number; unit: AllowanceUnit; account: string; source: string; archived: boolean };
+type AllowanceRow = { id: string; key: string | null; name: string | null; amount_cents: string; unit: AllowanceUnit; account: string; source: string; archived_at: Date | null };
+const toAllowance = (r: AllowanceRow): Allowance => ({ id: String(r.id), key: r.key, name: r.name, amount: Number(r.amount_cents), unit: r.unit, account: r.account, source: r.source, archived: r.archived_at !== null });
+
+export async function allowances(sql: Query, options: { archived?: boolean } = {}): Promise<Allowance[]> {
+  const rows = await sql<AllowanceRow[]>`
+    select id, key, name, amount_cents, unit, account, source, archived_at from allowances
+    ${options.archived ? sql`` : sql`where archived_at is null`} order by archived_at nulls first, position, id`;
+  return rows.map(toAllowance);
+}
+
+type AllowanceInput = { name?: unknown; amount?: unknown; unit?: unknown; account?: unknown; source?: unknown; archived?: unknown };
+
+export async function saveAllowanceRate(sql: Sql, actor: Member | null, allowanceId: unknown, input: AllowanceInput): Promise<Allowance> {
+  if (!can(actor, "settings")) throw new AppError("forbidden");
+  const { currency } = await settings(sql);
+  const current = allowanceId === null || allowanceId === undefined ? null : (await sql<AllowanceRow[]>`select id, key, name, amount_cents, unit, account, source, archived_at from allowances where id = ${id(allowanceId)}`)[0];
+  if (allowanceId !== null && allowanceId !== undefined && !current) throw new AppError("not_found");
+  const name = input.name === undefined ? current?.name ?? null : input.name === "" ? null : clean(input.name, limits.allowanceName);
+  if (name === null && !current?.key) throw new AppError("empty");
+  let amount = current ? Number(current.amount_cents) : null;
+  if (input.amount !== undefined) {
+    amount = parseAmount(input.amount, currency);
+    if (amount === null || amount <= 0 || amount > 10_000_000) throw new AppError("amount_invalid");
+  }
+  if (amount === null) throw new AppError("amount_invalid");
+  const unit = input.unit === undefined ? current?.unit : input.unit;
+  if (typeof unit !== "string" || !(allowanceUnits as readonly string[]).includes(unit)) throw new AppError("invalid");
+  const account = input.account === undefined ? current?.account ?? "" : clean(input.account, limits.account, { optional: true });
+  if (!/^[0-9A-Za-z .-]*$/u.test(account)) throw new AppError("account_invalid");
+  const source = input.source === undefined ? current?.source ?? "" : clean(input.source, 500, { optional: true });
+  let archived = current?.archived_at ?? null;
+  if (input.archived !== undefined) {
+    if (typeof input.archived !== "boolean") throw new AppError("invalid");
+    archived = input.archived ? archived ?? new Date() : null;
+  }
+  if (!current) {
+    const [counted] = await sql<{ n: number }[]>`select count(*)::int as n from allowances where archived_at is null`;
+    if ((counted?.n ?? 0) >= limits.categories) throw new AppError("too_many", { max: limits.categories });
+    const [row] = await sql<AllowanceRow[]>`
+      insert into allowances (name, amount_cents, unit, account, source, position)
+      values (${name}, ${amount}, ${unit}, ${account}, ${source}, (select coalesce(max(position), 0) + 1 from allowances))
+      returning id, key, name, amount_cents, unit, account, source, archived_at`;
+    return toAllowance(row!);
+  }
+  const [row] = await sql<AllowanceRow[]>`
+    update allowances set name = ${name}, amount_cents = ${amount}, unit = ${unit}, account = ${account}, source = ${source}, archived_at = ${archived}
+    where id = ${current.id} returning id, key, name, amount_cents, unit, account, source, archived_at`;
+  return toAllowance(row!);
+}
+
+// Each person's account in the journal (lib/journal.ts), for accountants.
+export async function memberAccounts(sql: Query): Promise<Map<string, string>> {
+  const rows = await sql<{ member_id: string; account: string }[]>`select member_id, account from member_accounts`;
+  return new Map(rows.map(r => [r.member_id, r.account]));
+}
+
+export async function setMemberAccount(sql: Sql, actor: Member | null, memberValue: unknown, accountValue: unknown): Promise<void> {
+  if (!can(actor, "settings")) throw new AppError("forbidden");
+  const member = memberId(memberValue);
+  const account = clean(accountValue ?? "", limits.account, { optional: true });
+  if (account === "") {
+    await sql`delete from member_accounts where member_id = ${member}`;
+    return;
+  }
+  if (!/^[0-9A-Za-z]{1,20}$/u.test(account)) throw new AppError("account_invalid");
+  await sql`insert into member_accounts (member_id, account) values (${member}, ${account}) on conflict (member_id) do update set account = excluded.account`;
 }

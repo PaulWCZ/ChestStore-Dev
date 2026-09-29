@@ -98,3 +98,43 @@ insert into activities (kind, contact_id, company_id, author, at, created_at)
   select 'created', id, company_id, created_by, created_at, created_at from contacts;
 insert into activities (kind, deal_id, company_id, contact_id, author, at, created_at)
   select 'created', d.id, d.company_id, d.contact_id, d.created_by, d.created_at, d.created_at from deals d where d.title <> 'Head office fit-out, 40 desks';
+
+-- Second version: addresses in parts, legal identities (fictional numbers of
+-- a valid shape), the team's own fields, several next steps with a time, a
+-- step of one's own, and deals closed in the past months (the Team page).
+update companies set address = split_part(address, E'\n', 1), postcode = split_part(split_part(address, E'\n', 2), ' ', 1),
+  city = substr(split_part(address, E'\n', 2), length(split_part(split_part(address, E'\n', 2), ' ', 1)) + 2), country = 'FR';
+update companies set siren = '362275869', vat = 'FR43362275869', email = 'compta@durand-boulangeries.fr' where name = 'Boulangeries Durand';
+update companies set siren = '530530419', vat = 'FR40530530419' where name = 'Cabinet Lefèvre Avocats';
+update companies set siren = '749008934', vat = 'FR86749008934' where name = 'Hôtel Le Méridien Sud';
+update companies set siren = '353246119' where name = 'Studio Blanc Architecture';
+
+insert into fields (object, label, kind, options, position) values
+  ('companies', 'Segment', 'choice', '{"Small business","Mid-market","Key account"}', 0),
+  ('companies', 'Employees', 'number', '{}', 1),
+  ('contacts', 'Lead source', 'choice', '{"Referral","Trade fair","Website","Cold call"}', 0),
+  ('deals', 'Competitor', 'text', '{}', 0),
+  ('deals', 'Delivery wanted by', 'date', '{}', 1);
+update companies set custom = jsonb_build_object((select id::text from fields where label = 'Segment'), 'Key account', (select id::text from fields where label = 'Employees'), 140) where name in ('Boulangeries Durand', 'Hôtel Le Méridien Sud');
+update companies set custom = jsonb_build_object((select id::text from fields where label = 'Segment'), 'Small business', (select id::text from fields where label = 'Employees'), 12) where name in ('Garage Petit & Fils', 'Imprimerie Roux', 'Nouvelle Boulangerie');
+update companies set custom = jsonb_build_object((select id::text from fields where label = 'Segment'), 'Mid-market', (select id::text from fields where label = 'Employees'), 35) where name in ('Cabinet Lefèvre Avocats', 'Clinique Vétérinaire des Tilleuls', 'Studio Blanc Architecture');
+update contacts set custom = jsonb_build_object((select id::text from fields where label = 'Lead source'), 'Trade fair') where name in ('Claire Durand', 'Pierre Petit', 'Bernard Fabre');
+update contacts set custom = jsonb_build_object((select id::text from fields where label = 'Lead source'), 'Referral') where name in ('Élodie Lefèvre', 'Dr Nadia Chérif', 'Antoine Vidal');
+update contacts set phone2 = '04 78 42 16 91', url = 'linkedin.com/in/claire-durand-achats' where name = 'Claire Durand';
+update deals set custom = jsonb_build_object((select id::text from fields where label = 'Competitor'), 'Bureau Direct', (select id::text from fields where label = 'Delivery wanted by'), to_char((now() at time zone 'Europe/Paris')::date + 60, 'YYYY-MM-DD')) where title = 'Head office fit-out, 40 desks';
+update deals set custom = jsonb_build_object((select id::text from fields where label = 'Competitor'), 'Mobilier Pro') where title in ('Meeting room furniture', 'Studio desks, second floor');
+
+update steps set due_time = '10:00' where text = 'Send the revised quote with the 3D plan';
+update steps set due_time = '14:30' where text = 'Confirm delivery date with Julien';
+insert into steps (deal_id, contact_id, text, due_on, due_time, owner, created_by) values
+  ((select id from deals where title = 'Head office fit-out, 40 desks'), null, 'Call Claire to walk through the plan', (now() at time zone 'Europe/Paris')::date + 2, '11:00', 'mbr_inesaaaaaaaaaaaaaaaaaaaaaa', 'mbr_inesaaaaaaaaaaaaaaaaaaaaaa'),
+  (null, null, 'Prepare the stand for the Lyon trade fair', (now() at time zone 'Europe/Paris')::date + 3, null, 'mbr_inesaaaaaaaaaaaaaaaaaaaaaa', 'mbr_inesaaaaaaaaaaaaaaaaaaaaaa');
+
+insert into deals (title, company_id, contact_id, value_cents, stage_id, position, owner, reason, closed_at, created_by, created_at) values
+  ('Reception area, second shop', (select id from companies where name = 'Boulangeries Durand'), (select id from contacts where name = 'Claire Durand'), 1480000, (select id from stages where key = 'won'), 'n', 'mbr_inesaaaaaaaaaaaaaaaaaaaaaa', 'Best layout', now() - interval '40 days', 'mbr_inesaaaaaaaaaaaaaaaaaaaaaa', now() - interval '100 days'),
+  ('Archive shelving', (select id from companies where name = 'Cabinet Lefèvre Avocats'), (select id from contacts where name = 'Julien Moreau'), 610000, (select id from stages where key = 'won'), 'n', 'mbr_hugoaaaaaaaaaaaaaaaaaaaaaa', 'Price', now() - interval '70 days', 'mbr_hugoaaaaaaaaaaaaaaaaaaaaaa', now() - interval '110 days'),
+  ('Print shop break room', (select id from companies where name = 'Imprimerie Roux'), (select id from contacts where name = 'Hélène Roux'), 290000, (select id from stages where key = 'lost'), 'n', 'mbr_sofiaaaaaaaaaaaaaaaaaaaaaa', 'No budget', now() - interval '55 days', 'mbr_sofiaaaaaaaaaaaaaaaaaaaaaa', now() - interval '90 days'),
+  ('Partner showroom', (select id from companies where name = 'Studio Blanc Architecture'), (select id from contacts where name = 'Sophie Blanc'), 3350000, (select id from stages where key = 'won'), 'n', 'mbr_camilleaaaaaaaaaaaaaaaaaaa', 'Long-standing partner', now() - interval '100 days', 'mbr_camilleaaaaaaaaaaaaaaaaaaa', now() - interval '130 days'),
+  ('Clinic reception desk', (select id from companies where name = 'Clinique Vétérinaire des Tilleuls'), (select id from contacts where name = 'Dr Nadia Chérif'), 540000, (select id from stages where key = 'lost'), 'n', 'mbr_inesaaaaaaaaaaaaaaaaaaaaaa', 'Went with a competitor', now() - interval '85 days', 'mbr_inesaaaaaaaaaaaaaaaaaaaaaa', now() - interval '120 days');
+insert into activities (kind, deal_id, company_id, contact_id, author, at, created_at)
+  select 'created', d.id, d.company_id, d.contact_id, d.created_by, d.created_at, d.created_at from deals d where d.position = 'n';

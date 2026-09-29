@@ -1,6 +1,7 @@
 import * as chest from "@argentic/chest-sdk/chest";
 import type { ReactNode } from "react";
 import { Avatar } from "../../components/avatar.tsx";
+import { BottomBar } from "../../components/bottom-bar.tsx";
 import { Box, Desk, Download, Gear, Invoice, People, Quote } from "../../components/icons.tsx";
 import { Mark } from "../../components/mark.tsx";
 import { NavLink } from "../../components/nav-link.tsx";
@@ -34,13 +35,30 @@ export default async function MembersLayout({ children }: { children: ReactNode 
             </nav>
           )}
           <span className="me">
-            {role && can(member, "export") && <NavLink href="/chest/export" className="icon-link" label={t.shell.export}><Download /></NavLink>}
-            {role && <NavLink href="/chest/settings" className="icon-link" label={t.shell.settings}><Gear /></NavLink>}
+            {role && can(member, "export") && <NavLink href="/chest/export" className="icon-link wide-only" label={t.shell.export}><Download /></NavLink>}
+            {role && <NavLink href="/chest/settings" className="icon-link wide-only" label={t.shell.settings}><Gear /></NavLink>}
             <span className="who">{member.firstName || member.name}{role ? " · " + t.roles[role] : ""}</span>
             <Avatar name={member.name} photo={member.photo} />
           </span>
         </div>
       </header>
+      {role && (
+        <BottomBar
+          label={t.shell.nav}
+          moreLabel={t.shell.more}
+          main={[
+            { href: "/chest", exact: true, label: t.shell.desk, icon: <Desk /> },
+            { href: "/chest/quotes", label: t.shell.quotes, icon: <Quote /> },
+            { href: "/chest/invoices", label: t.shell.invoices, icon: <Invoice />, count: { value: overdue, label: t.shell.overdueCount.replace("{count}", String(overdue)) } },
+          ]}
+          more={[
+            { href: "/chest/clients", label: t.shell.clients, icon: <People /> },
+            { href: "/chest/catalogue", label: t.shell.catalogue, icon: <Box /> },
+            ...(can(member, "export") ? [{ href: "/chest/export", label: t.shell.export, icon: <Download /> }] : []),
+            { href: "/chest/settings", label: t.shell.settings, icon: <Gear /> },
+          ]}
+        />
+      )}
       <div id="main">
         {role ? children : (
           <main className="page narrow">

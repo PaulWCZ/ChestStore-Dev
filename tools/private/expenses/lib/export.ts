@@ -2,13 +2,13 @@ import * as files from "@argentic/chest-sdk/files";
 import type { Member } from "@argentic/chest-sdk/member";
 import { toCsv, separatorFor } from "./csv.ts";
 import type { Query } from "./db.ts";
-import { exportReceipts, exportRows, type ExportRow } from "./expenses.ts";
+import { exportReceipts, exportRows, type ExportBy, type ExportRow } from "./expenses.ts";
 import { catalogue, format, type Locale } from "./i18n/index.ts";
-import { monthRange, slug } from "./model.ts";
+import { memberId, month, monthRange, slug } from "./model.ts";
 import { plainAmount, rateText, recoverable } from "./money.ts";
 import { nameOf, people, type Person } from "./people.ts";
 import { settings } from "./settings.ts";
-import { categoryName, km, powerName, vehicleName } from "./words.ts";
+import { allowanceDetail, allowanceName, categoryName, km, powerName, vehicleName } from "./words.ts";
 import { ZipWriter } from "./zip.ts";
 
 // The accountant's monthly export: a CSV of everything approved or paid in
@@ -20,7 +20,12 @@ import { ZipWriter } from "./zip.ts";
 // one receipt in memory at a time (10 MiB at most each), 5,000 receipts and
 // 1 GiB per archive at most — far under the 256 MiB a tool has.
 
-type Selection = { month: string; person: string | null };
+export type Selection = { month: string; person: string | null; by?: ExportBy };
+
+// What a download asks for: ?month=YYYY-MM[&person=mbr_…][&by=paid].
+export function selectionOf(query: URLSearchParams): Selection {
+  return { month: month(query.get("month")), person: query.get("person") ? memberId(query.get("person")) : null, by: query.get("by") === "paid" ? "paid" : "spent" };
+}
 
 export function receiptFileName(row: { id: string; spentOn: string; amount: number; currency: string; object: string }, name: string): string {
   const ext = row.object.split(".").at(-1) ?? "bin";
@@ -39,11 +44,16 @@ function details(r: ExportRow, locale: Locale): string {
       `${vehicleName(r.trip.vehicle, t)} ${powerName(r.trip.vehicle, r.trip.power, t)}${r.trip.electric ? " " + t.trip.electric : ""}`,
       format(t.trip.scaleNote, { year: r.trip.scaleYear })].join(", ");
   }
-  return r.note.replace(/\s+/gu, " ");
+  if (r.flat && r.allowance) {
+    const each = plainAmount(Math.round(r.amount / r.allowance.units), r.currency, locale) + " " + r.currency;
+    return [allowanceName(r.flat, t), allowanceDetail(r.allowance.units, r.flat.unit, each, t, locale), r.note.replace(/\s+/gu, " ")].filter(Boolean).join(", ");
+  }
+  const nights = r.nights !== null && r.nights > 1 ? format(t.csv.nights, { count: r.nights }) : "";
+  return [nights, r.note.replace(/\s+/gu, " ")].filter(Boolean).join(", ");
 }
 
-async function lines(sql: Query, actor: Member, selection: Selection): Promise<{ rows: ExportRow[]; who: Map<string, Person>; currency: string }> {
-  const rows = await exportRows(sql, actor, monthRange(selection.month), selection.person);
+export async function lines(sql: Query, actor: Member, selection: Selection): Promise<{ rows: ExportRow[]; who: Map<string, Person>; currency: string }> {
+  const rows = await exportRows(sql, actor, { ...monthRange(selection.month), by: selection.by ?? "spent" }, selection.person);
   const who = await people(rows.flatMap(r => [r.owner, r.decidedBy ?? "", ...r.guests.members]));
   return { rows, who, currency: (await settings(sql)).currency };
 }
@@ -100,16 +110,16 @@ async function objectNames(sql: Query, rows: ExportRow[], who: Map<string, Perso
   return names;
 }
 
-function fileBase(selection: Selection, who: Map<string, Person>, locale: Locale): string {
+export function fileBase(selection: Selection, who: Map<string, Person>, locale: Locale): string {
   const t = catalogue(locale);
-  return `${slug(t.meta.name)}_${selection.month}${selection.person ? "_" + slug(nameOf(who.get(selection.person), locale)) : ""}`;
+  return `${slug(t.meta.name)}_${selection.month}${selection.by === "paid" ? "_" + slug(t.export.paidSuffix) : ""}${selection.person ? "_" + slug(nameOf(who.get(selection.person), locale)) : ""}`;
 }
 
 // The ZIP, as a stream: each receipt read from the Chest when the reader
 // asks for more, then the CSV, then the directory. A receipt the Chest no
 // longer has is left out (its line in the CSV says no file).
 export async function exportZip(sql: Query, actor: Member, locale: Locale, selection: Selection): Promise<{ stream: ReadableStream<Uint8Array>; fileName: string }> {
-  const receipts = await exportReceipts(sql, actor, monthRange(selection.month), selection.person);
+  const receipts = await exportReceipts(sql, actor, { ...monthRange(selection.month), by: selection.by ?? "spent" }, selection.person);
   const { rows, who, currency } = await lines(sql, actor, selection);
   const zip = new ZipWriter();
   const names = new Map<string, string>();

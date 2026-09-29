@@ -7,7 +7,8 @@ import { format, languageNames } from "../../../../lib/i18n/format.ts";
 import type { Catalogue, Locale } from "../../../../lib/i18n/index.ts";
 import { formatMoney, inputAmount, parsePercent } from "../../../../lib/money.ts";
 import type { DocView, Message } from "../../../../lib/views.ts";
-import { addPayment, finalise, invoiceFromQuote, markReminded, markSent, messageFor, remind, send } from "../../actions.ts";
+import { addPayment, finalise, invoiceFromQuote, markReminded, markSent, messageFor, remind, repeatInvoice, send } from "../../actions.ts";
+import { DateField } from "../../../../components/date-field.tsx";
 
 type Close = { onClose: () => void };
 const errorText = (t: Catalogue, code: string, values?: Record<string, number | string>) => format(t.errors[code as keyof Catalogue["errors"]] ?? t.errors.unknown, values ?? {});
@@ -244,6 +245,46 @@ export function PaymentDialog({ t, doc, locale, today, onClose, onDone }: Close 
         <div className="dialog-actions">
           <button type="button" className="button quiet" onClick={onClose}>{t.common.cancel}</button>
           <button type="submit" className="button" disabled={busy}>{p.record}</button>
+        </div>
+      </form>
+    </Dialog>
+  );
+}
+
+// Repeating an issued invoice: every month, quarter or year, a draft is
+// prepared for billing. The first date is one period after the invoice's.
+export function RepeatDialog({ t, doc, locale, suggested, onClose, onDone }: Close & { t: Catalogue; doc: DocView; locale: Locale; suggested: Record<"month" | "quarter" | "year", string>; onDone: (date: string) => void }) {
+  const r = t.repeatDialog;
+  const [every, setEvery] = useState<"month" | "quarter" | "year">("month");
+  const [first, setFirst] = useState(suggested.month);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    const result = await repeatInvoice(doc.id, every, first);
+    setBusy(false);
+    if (!result.ok) return setError(errorText(t, result.error, result.values));
+    onDone(result.value.nextOn);
+  }
+  return (
+    <Dialog open title={r.title} closeLabel={t.shell.close} onClose={onClose}>
+      <form className="form-grid" onSubmit={submit} noValidate>
+        <p>{r.body}</p>
+        <div className="field-row half">
+          <label htmlFor="repeat-every">{r.every}</label>
+          <select id="repeat-every" className="field" value={every} onChange={e => { const v = e.target.value as typeof every; setEvery(v); setFirst(suggested[v]); }}>
+            {(["month", "quarter", "year"] as const).map(k => <option key={k} value={k}>{r.options[k]}</option>)}
+          </select>
+        </div>
+        <div className="field-row half">
+          <label htmlFor="repeat-first">{r.first}</label>
+          <DateField id="repeat-first" value={first} locale={locale} label={r.first} placeholder={t.editor.pickDate} required onChange={setFirst} />
+        </div>
+        {error && <p className="error" role="alert">{error}</p>}
+        <div className="dialog-actions">
+          <button type="button" className="button quiet" onClick={onClose}>{t.common.cancel}</button>
+          <button type="submit" className="button" disabled={busy || !first}>{r.confirm}</button>
         </div>
       </form>
     </Dialog>

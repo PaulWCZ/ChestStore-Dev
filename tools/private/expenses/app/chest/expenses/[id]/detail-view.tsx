@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { Warnings } from "../../../../components/bits.tsx";
-import { Car, Check, Close, Download, FileIcon, Pencil, Receipt, Trash } from "../../../../components/icons.tsx";
+import { Calendar, Car, Check, Close, Download, FileIcon, Pencil, Receipt, Trash } from "../../../../components/icons.tsx";
 import { useToast } from "../../../../components/toast.tsx";
 import type { Catalogue } from "../../../../lib/i18n/index.ts";
 import { format, plural } from "../../../../lib/i18n/format.ts";
@@ -19,6 +19,8 @@ export function DetailView(props: {
   decide: boolean;
   receipt: { image: string | null; open: string; download: string; name: string } | null;
   trip: string | null;
+  // A flat rate: what it is (it has no receipt, by nature).
+  flat: string | null;
   owner: string | null;
   amount: string;
   stamp: { kind: StampKind; text: string };
@@ -39,7 +41,7 @@ export function DetailView(props: {
   const [reason, setReason] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [imageFailed, setImageFailed] = useState(false);
-  const Glyph = props.trip ? Car : props.receipt ? FileIcon : Receipt;
+  const Glyph = props.trip ? Car : props.flat ? Calendar : props.receipt ? FileIcon : Receipt;
 
   function remove() {
     start(async () => {
@@ -68,7 +70,7 @@ export function DetailView(props: {
           : (
             <div className="none">
               <Glyph />
-              <strong>{props.trip ?? (props.receipt ? props.receipt.name : t.receipt.none)}</strong>
+              <strong>{props.trip ?? props.flat ?? (props.receipt ? props.receipt.name : t.receipt.none)}</strong>
               {props.receipt && <a className="button quiet small" href={props.receipt.open} target="_blank" rel="noopener">{t.receipt.open}</a>}
             </div>
           )}

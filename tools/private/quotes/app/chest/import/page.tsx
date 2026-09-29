@@ -1,3 +1,4 @@
+import { Back } from "../../../components/icons.tsx";
 import { can } from "../../../lib/access.ts";
 import { isImportKind } from "../../../lib/parse-import.ts";
 import { viewer } from "../../../lib/session.ts";
@@ -14,7 +15,7 @@ export default async function ImportPage({ searchParams }: { searchParams: Promi
   const allowed = { clients: can(member, "clients.write"), items: can(member, "catalogue.write") };
   return (
     <main className="page narrow">
-      <a className="back" href={kind === "clients" ? "/chest/clients" : "/chest/catalogue"}>{kind === "clients" ? t.shell.clients : t.shell.catalogue}</a>
+      <a className="back" href={kind === "clients" ? "/chest/clients" : "/chest/catalogue"}><Back />{kind === "clients" ? t.shell.clients : t.shell.catalogue}</a>
       <div className="page-head">
         <div>
           <h1>{t.importer.title}</h1>

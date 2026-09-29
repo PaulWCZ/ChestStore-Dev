@@ -6,7 +6,7 @@ import { formatMoney } from "../../lib/money.ts";
 import { nameOf, people } from "../../lib/people.ts";
 import { rowView } from "../../lib/rows.ts";
 import { viewer } from "../../lib/session.ts";
-import { categories, settings } from "../../lib/settings.ts";
+import { allowances, categories, settings } from "../../lib/settings.ts";
 import { can } from "../../lib/access.ts";
 import { HomeView, type HomeGroup } from "./home-view.tsx";
 import { SetupBanner } from "./setup-banner.tsx";
@@ -24,7 +24,8 @@ export default async function MyExpenses() {
   const [cats, company, warned] = await Promise.all([categories(sql, { archived: true }), settings(sql), warnings(sql, list)]);
   const byId = new Map(cats.map(c => [c.id, c]));
   const approvers = await people(list.filter(e => e.status === "submitted" && e.approver).map(e => e.approver!));
-  const ctx = { t, locale, categories: byId, warnings: warned, currency: company.currency };
+  const flat = new Map((await allowances(sql, { archived: true })).map(a => [a.id, a]));
+  const ctx = { t, locale, allowances: flat, categories: byId, warnings: warned, currency: company.currency };
   const money = (l: typeof list) => totals(l).map(x => formatMoney(x.amount, x.currency, locale)).join(" + ") || formatMoney(0, company.currency, locale);
 
   const drafts = list.filter(e => e.status === "draft").sort((a, b) => Number(b.refusedReason !== null) - Number(a.refusedReason !== null));

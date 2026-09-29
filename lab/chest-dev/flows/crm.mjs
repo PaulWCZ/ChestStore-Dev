@@ -5,7 +5,7 @@ import { as, done, expect, id, open, step } from "./lib.mjs";
 
 const port = Number(process.argv[2] ?? 4800);
 const { browser, context, page, origin, problems } = await open(port, "hugo", { allow404: /\/chest\/contacts\/\d+$/u });
-const tmp = process.env.TMPDIR ?? "/tmp";
+const tmp = process.env.FLOW_TMP ?? process.env.TMPDIR ?? "/tmp";
 let companyUrl = "", dealUrl = "";
 const dev = async () => (await page.request.get(origin + "/_dev")).text();
 const boardLane = name => page.locator(".lane", { has: page.locator("h2", { hasText: name }) });
@@ -42,7 +42,9 @@ await step("add a person there, then a deal for her", async () => {
   await page.waitForSelector(".mini-list a:has-text('Aurélie Masson')");
   await page.getByRole("button", { name: "New deal" }).click();
   await page.getByLabel("What are you selling?").fill("Dispensary counter and shelving");
-  await page.getByLabel("Contact").selectOption({ label: "Aurélie Masson" });
+  expect((await page.locator("#dl-company").inputValue()) === "Pharmacie Centrale", "the company is already there");
+  await page.locator("#dl-contact").fill("Auré");
+  await page.locator(".combo-list li", { hasText: "Aurélie Masson" }).click();
   await page.getByLabel("Amount (€, excl. tax)").fill("14 800,50");
   await page.getByRole("button", { name: "Create the deal" }).click();
   await page.waitForURL(/\/chest\/deals\/\d+$/u);
@@ -52,8 +54,8 @@ await step("add a person there, then a deal for her", async () => {
   expect(head.includes("Pharmacie Centrale") && head.includes("Aurélie Masson"), "links");
 });
 
-await step("log a call in one tap; the history shows it; Undo takes it back", async () => {
-  await page.getByRole("button", { name: "Call", exact: true }).click();
+await step("log a call in one tap (a button that says “Log a call”); the history shows it; Undo takes it back", async () => {
+  await page.getByRole("button", { name: "Log a call", exact: true }).click();
   await page.waitForSelector(".toast:has-text('Call logged')");
   await page.waitForSelector(".timeline .event.k-call");
   await page.locator(".toast button").click();
@@ -61,7 +63,7 @@ await step("log a call in one tap; the history shows it; Undo takes it back", as
   await page.reload();
   expect(await page.locator(".timeline .event.k-call").count() === 0, "undone");
   await page.getByRole("textbox", { name: "What was said" }).fill("Wants the counter before the winter season.");
-  await page.getByRole("button", { name: "Meeting", exact: true }).click();
+  await page.getByRole("button", { name: "Log a meeting", exact: true }).click();
   await page.waitForSelector(".event-body:has-text('before the winter season')");
 });
 
@@ -78,6 +80,49 @@ await step("plan a next step; Done logs it and asks what comes next", async () =
   await page.getByRole("button", { name: "Plan it" }).click();
   await page.waitForSelector(".step-box .step-text:has-text('Call back about the quote')");
   expect(await page.locator(".event.k-step:has-text('Send the quote')").count() === 1, "done step in the history");
+});
+
+await step("several next steps on one deal, one with a time", async () => {
+  await page.getByRole("button", { name: "Plan another step" }).click();
+  await page.getByLabel("What", { exact: true }).fill("Send fabric samples");
+  await page.getByRole("button", { name: "Tomorrow" }).click();
+  await page.locator("select[id^=step-time]").selectOption("14:30");
+  await page.getByRole("button", { name: "Plan it" }).click();
+  await page.waitForSelector(".step-item:has-text('Send fabric samples')");
+  expect(await page.locator(".step-item").count() === 2, "two open steps");
+  expect((await page.locator(".step-item", { hasText: "Send fabric samples" }).innerText()).includes("14:30"), "its time");
+});
+
+await step("a new deal from My day: a company found by typing, or added on the spot", async () => {
+  await page.goto(origin + "/chest");
+  await page.getByRole("button", { name: "New deal" }).click();
+  await page.getByLabel("What are you selling?").fill("Canteen tables");
+  await page.locator("#dl-company").fill("Lefev");
+  await page.waitForSelector(".combo-list li:has-text('Cabinet Lefèvre Avocats')");
+  await page.locator("#dl-company").fill("Cantine Scolaire Martel");
+  await page.locator(".combo-create").click();
+  await page.waitForSelector(".toast:has-text('Cantine Scolaire Martel')");
+  expect((await page.locator("#dl-company").inputValue()) === "Cantine Scolaire Martel", "chosen");
+  await page.getByRole("button", { name: "Create the deal" }).click();
+  await page.waitForURL(/\/chest\/deals\/\d+$/u);
+  expect((await page.locator(".record-head").innerText()).includes("Cantine Scolaire Martel"), "on the deal");
+});
+
+await step("a step of my own from My day", async () => {
+  await page.goto(origin + "/chest");
+  await page.getByRole("button", { name: "A step for me" }).click();
+  await page.getByLabel("What", { exact: true }).fill("Prepare the trade show stand");
+  await page.getByRole("button", { name: "Today" }).click();
+  await page.getByRole("button", { name: "Plan it" }).click();
+  await page.waitForSelector(".step-row:has-text('Prepare the trade show stand')");
+  expect((await page.locator(".step-row", { hasText: "Prepare the trade show stand" }).innerText()).includes("My own"), "no client");
+});
+
+await step("a phone number pasted from a caller ID finds the company", async () => {
+  await page.goto(origin + "/chest/search?q=0478421690");
+  expect((await page.locator("main").innerText()).includes("Boulangeries Durand"), "found without spaces");
+  await page.goto(origin + "/chest/search?q=" + encodeURIComponent("+33 4 78 42 16 90"));
+  expect((await page.locator("main").innerText()).includes("Boulangeries Durand"), "found with +33");
 });
 
 await step("the board: drag a deal to the next stage with the mouse", async () => {
@@ -172,6 +217,54 @@ await step("import a HubSpot contacts export: columns matched, previewed, import
   expect((await page.locator(".rows").innerText()).includes("Gaëlle Perrin"), "imported");
 });
 
+await step("import a HubSpot file: unknown columns kept in the notes, unknown owners said, then Undo this import", async () => {
+  const file = tmp + "/hubspot-more.csv";
+  writeFileSync(file, "Record ID,First Name,Last Name,Email,Company Name,Contact owner,Lifecycle Stage,Create Date\n7001,Bastien,Roche,b.roche@roche-menuiserie.fr,Menuiserie Roche,Paul Witczak,Customer,2024-03-02\n7002,Emma,Vial,emma@vial-conseil.fr,Vial Conseil,Paul Witczak,Lead,2025-01-20\n");
+  await page.goto(origin + "/chest/import");
+  await page.locator(".source", { hasText: "Spreadsheet" }).locator("input[type=file]").setInputFiles(file);
+  await page.waitForSelector("table.mapping");
+  expect((await page.locator("#map-6").inputValue()) === "keep", "Lifecycle Stage goes to the notes");
+  await page.waitForSelector(".owners-check:has-text('Paul Witczak')");
+  await page.getByRole("button", { name: /^Import · 2 rows$/u }).click();
+  await page.waitForSelector("text=Imported: 2 new, 0 already here.");
+  const report = await page.locator(".report-panel").innerText();
+  expect(report.includes("Kept in the notes: Record ID, Lifecycle Stage."), "kept: " + report);
+  expect(report.includes("Paul Witczak (2 rows)"), "owners said");
+  await page.goto(origin + "/chest/contacts?q=roche");
+  await page.locator(".row-link", { hasText: "Bastien Roche" }).click();
+  await page.waitForURL(/\/chest\/contacts\/\d+$/u);
+  expect((await page.locator("main").innerText()).includes("Lifecycle Stage: Customer"), "in the notes");
+  await page.goto(origin + "/chest/import");
+  await page.locator(".mini-list li", { hasText: "hubspot-more.csv" }).getByRole("button", { name: "Undo this import" }).click();
+  await page.locator("dialog[open]").getByRole("button", { name: "Undo this import" }).click();
+  await page.waitForSelector(".toast:has-text('Import undone')");
+  await page.goto(origin + "/chest/contacts?q=roche");
+  expect(await page.locator(".row-link", { hasText: "Bastien Roche" }).count() === 0, "taken back");
+});
+
+await step("select contacts, tag them at once", async () => {
+  await page.goto(origin + "/chest/contacts?q=durand");
+  await page.getByLabel("Select this page").check();
+  await page.waitForSelector(".bulk-bar");
+  await page.locator(".bulk-bar").getByRole("button", { name: "Add a tag" }).click();
+  await page.locator("#bulk-tag").fill("Salon 2026");
+  await page.locator(".bulk-bar").getByRole("button", { name: "Apply" }).click();
+  await page.waitForSelector(".toast:has-text('changed')");
+  await page.goto(origin + "/chest/contacts?tag=Salon%202026");
+  expect((await page.locator(".rows").innerText()).includes("Claire Durand"), "tagged");
+});
+
+await step("a file on a deal: sent to the Chest, listed, opened", async () => {
+  const file = tmp + "/signed-quote.pdf";
+  writeFileSync(file, "%PDF-1.4\n% signed quote\n");
+  await page.goto(dealUrl);
+  await page.locator(".files-panel input[type=file]").setInputFiles(file);
+  await page.waitForSelector(".file-list a:has-text('signed-quote.pdf')");
+  const href = await page.locator(".file-main a", { hasText: "signed-quote.pdf" }).getAttribute("href");
+  const opened = await page.request.get(origin + href, { maxRedirects: 0 });
+  expect(opened.status() === 303, "a fresh link: " + opened.status());
+});
+
 await step("import an address book (vCard) and download one back", async () => {
   const file = tmp + "/phone.vcf";
   writeFileSync(file, "BEGIN:VCARD\r\nVERSION:3.0\r\nN:Lambert;Yves;;;\r\nFN:Yves Lambert\r\nORG:Menuiserie Lambert\r\nTEL;TYPE=CELL:06 70 80 90 10\r\nEND:VCARD\r\n");
@@ -222,6 +315,70 @@ await step("a viewer reads everything and changes nothing", async () => {
   expect((await page.locator("main").innerText()).includes("Seuls les managers"), "stages read-only");
 });
 
+await step("a viewer's home is the team's pipeline, not a to-do list", async () => {
+  await page.goto(origin + "/chest");
+  const text = (await page.locator("main").innerText()).toLowerCase();
+  expect(text.includes("affaires en cours") && text.includes("dernières affaires gagnées"), "team home");
+  expect(!text.includes("préparez vos prochains appels"), "not told to do what she cannot");
+});
+
+await step("the manager adds a field, fills it, filters by it, exports it", async () => {
+  await as(context, origin, "camille");
+  await context.addCookies([{ name: "dev_locale", value: "en", url: origin }]);
+  await page.goto(origin + "/chest/settings/fields");
+  await page.locator("#new-companies").fill("Payment terms");
+  await page.locator("#kind-companies").selectOption("choice");
+  await page.locator("#opts-companies").fill("30 days\n45 days\n60 days");
+  await page.locator("form.add-field").first().getByRole("button", { name: "Add the field" }).click();
+  await page.waitForSelector(".toast:has-text('Field added.')");
+  await page.goto(companyUrl);
+  await page.getByRole("button", { name: "Edit", exact: true }).click();
+  await page.getByLabel("Payment terms").selectOption("45 days");
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await page.waitForSelector(".facts:has-text('45 days')");
+  await page.goto(origin + "/chest/companies");
+  await page.locator("#f-cf").selectOption({ label: "Payment terms" });
+  await page.waitForSelector("#f-cv");
+  await page.locator("#f-cv").selectOption("45 days");
+  await page.waitForURL(/cv=45/u);
+  const rows = await page.locator(".rows").innerText();
+  expect(rows.includes("Pharmacie Centrale") && !rows.includes("Boulangeries Durand"), "filtered: " + rows);
+  const csv = await (await page.request.get(origin + "/chest/export/companies")).text();
+  expect(csv.split("\r\n")[0].includes("Payment terms") && csv.includes("45 days"), "exported");
+});
+
+await step("merge a duplicate company: its deals and history move", async () => {
+  await page.goto(origin + "/chest/companies");
+  await page.getByRole("button", { name: "New company" }).click();
+  await page.getByLabel("Name").fill("Pharmacie Centrale SARL");
+  await page.getByRole("button", { name: "Add the company" }).click();
+  await page.waitForURL(/\/chest\/companies\/\d+$/u);
+  await page.getByRole("button", { name: "Log a call", exact: true }).click();
+  await page.waitForSelector(".timeline .event.k-call");
+  await page.locator(".record-bar summary").click();
+  await page.getByRole("button", { name: "Merge with a duplicate" }).click();
+  await page.locator("#merge-into").fill("Pharmacie Centrale");
+  await page.locator(".combo-list li", { hasText: /^Pharmacie Centrale/u }).first().click();
+  await page.locator("dialog[open]").getByRole("button", { name: "Merge", exact: true }).click();
+  await page.waitForURL(companyUrl);
+  const text = await page.locator("main").innerText();
+  expect(text.includes("merged “Pharmacie Centrale SARL” into it"), "said in the history");
+});
+
+await step("the Team page: pipeline by person, won and lost by month", async () => {
+  await page.goto(origin + "/chest/team");
+  const text = (await page.locator("main").innerText()).toLowerCase();
+  expect(text.includes("open deals by person") && text.includes("hugo bernard") && text.includes("win rate"), "report: " + text.slice(0, 200));
+});
+
+await step("the manager exports the whole client book as one ZIP", async () => {
+  const zip = await page.request.get(origin + "/chest/export/all");
+  expect(zip.status() === 200 && zip.headers()["content-type"] === "application/zip", "zip");
+  const body = await zip.body();
+  expect(body.includes(Buffer.from("activities.csv")) && body.includes(Buffer.from("Pharmacie Centrale")), "contents");
+  await context.clearCookies({ name: "dev_locale" });
+});
+
 await step("the manager renames a stage: everyone reads the new name", async () => {
   await as(context, origin, "camille");
   await page.goto(origin + "/chest/settings");
@@ -268,9 +425,20 @@ await step("phone width: My day first, bottom bar, nothing overflows; the board 
     expect(width <= 392, `${path} overflows: ${width}`);
   }
   expect(await page.locator(".bottom-nav").isVisible(), "bottom bar");
+
   await page.goto(origin + "/chest");
   await page.locator(".bottom-nav a", { hasText: "Affaires" }).click();
   await page.waitForURL(/\/chest\/deals$/u);
+  // On a phone the stages are a list to choose from; Won is quiet at the first stage.
+  await as(context, origin, "hugo");
+  await page.goto(origin + "/chest/deals?view=list&status=any&owner=me");
+  await page.locator("table a", { hasText: "Workshop office and lockers" }).click();
+  await page.waitForURL(/\/chest\/deals\/\d+$/u);
+  expect(await page.locator("#deal-stage").isVisible(), "stage list");
+  expect(!(await page.locator(".stage-path").isVisible()), "no clipped path");
+  expect((await page.locator(".deal-actions button", { hasText: "Won" }).getAttribute("class")).includes("quiet"), "Won is quiet at Lead");
+  await page.goto(companyUrl);
+  expect(await page.locator(".record-bar .danger-text").count() === 0, "no red Delete under the name");
 });
 
 await browser.close();

@@ -1,0 +1,8 @@
+Nom;Prénom du contact;Nom du contact;Email;Téléphone;Adresse;Code postal;Ville;Pays;SIRET;N° TVA intracommunautaire;Catégorie
+Boulangerie Dupain SAS;Marie;Dupain;marie@dupain.test;04 78 37 12 40;3 place Bellecour;69002;Lyon;France;812 345 676 00009;FR19812345676;Client
+"Cabinet Lefort; Avocats";Hélène;Lefort;secretariat@lefort-avocats.test;04 78 92 60 00;"8 quai Saint-Antoine
+3e étage";69002;Lyon;France;904123452 00008;FR11904123452;Client
+Studio Verbeke BV;Pieter;Verbeke;finance@verbeke.test;+32 2 511 42 00;Rue Antoine Dansaert 92;1000;Bruxelles;Belgique;;BE0765432146;Client
+Garage Mauvais SIREN;Luc;Faux;luc@faux.test;;1 rue du Test;69001;Lyon;France;12345678900011;;Prospect
+;;;;;;;;;;;
+Menuiserie Colin;Paul;Colin;paul@colin.test;06 11 22 33 44;5 chemin des Bois;38000;Grenoble;France;;;Client

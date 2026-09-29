@@ -1,7 +1,7 @@
 // Leave, as people use it, in a real browser: node lab/chest-dev/flows/leave.mjs [port]
 // (the harness runs the tool with --reset: the sample company is there).
 import { writeFileSync } from "node:fs";
-import { as, done, expect, open, step } from "./lib.mjs";
+import { as, done, expect, id, open, step } from "./lib.mjs";
 
 const port = Number(process.argv[2] ?? 4400);
 const { browser, context, page, origin, problems } = await open(port, "hugo", { locale: "en", allow404: /\/chest\/(approvals|settings|people)$/u });
@@ -46,12 +46,17 @@ await step("an employee asks for a week of paid leave: the cost shows as he pick
 });
 
 await step("a half day costs half a day; a week-end costs nothing and cannot be sent", async () => {
-  const friday = day(plus(monday, 11));
-  expect((await ask(friday, friday, { half: "Morning" })) === "0.5 days", "morning");
+  // A Friday that is not a public holiday (25 December and 1 January can be).
+  let friday = "", half = "";
+  for (let n = 11; n < 40 && half !== "0.5 days"; n += 7) {
+    friday = day(plus(monday, n));
+    half = await ask(friday, friday, { half: "Morning" });
+  }
+  expect(half === "0.5 days", "morning: " + half + " on " + friday);
   const saturday = day(plus(monday, 12));
   await ask(saturday, day(plus(monday, 13)));
   expect(await page.getByRole("button", { name: "Send the request" }).isDisabled(), "disabled on a week-end");
-  expect(await page.getByText("they are week-ends or public holidays").isVisible(), "why");
+  expect(await page.getByText("week-ends, public holidays or days not worked").isVisible(), "why");
 });
 
 await step("cancel a waiting request, then undo", async () => {
@@ -158,8 +163,8 @@ await step("HR imports opening balances from a spreadsheet", async () => {
   await page.goto(origin + "/chest/people/import");
   await page.locator("#csv").fill("Name;Paid leave;RTT\nTOM walker;11,5;4\nNobody Here;3;1\n");
   await page.getByRole("button", { name: "Check" }).click();
-  await page.waitForSelector("text=Nobody of that name has Leave");
-  await page.getByRole("button", { name: "Set 2 balances" }).click();
+  await page.waitForSelector("text=Nobody of that name has access to Leave");
+  await page.getByRole("button", { name: "Import 1 person" }).click();
   await page.waitForURL(/\/chest\/people$/u);
   expect((await page.locator("tr", { hasText: "Tom Walker" }).innerText()).includes("11.5"), "Tom's balance");
 });
@@ -168,7 +173,7 @@ await step("HR downloads the month's payroll export", async () => {
   const response = await page.request.get(origin + "/chest/people/export?month=" + day(monday).slice(0, 7));
   expect(response.status() === 200, "status " + response.status());
   const text = await response.text();
-  expect(text.includes("Person,Kind,First day"), "header: " + text.slice(0, 80));
+  expect(text.includes("Employee number,Person,Kind,First day"), "header: " + text.slice(0, 80));
   writeFileSync(tmp + "/leave-export.csv", text);
 });
 
@@ -178,6 +183,107 @@ await step("HR switches the company to Alsace-Moselle", async () => {
   await page.waitForSelector(".toast");
   await page.reload();
   expect(await page.getByText("Good Friday", { exact: true }).isVisible(), "Good Friday listed");
+});
+
+await step("coming up: the soonest first", async () => {
+  await as(context, origin, "hugo");
+  await speak("en");
+  await page.goto(origin + "/chest");
+  const list = page.locator("h3", { hasText: "Coming up" }).locator("xpath=following-sibling::ul[1]");
+  const starts = await list.locator("li.request").evaluateAll(rows => rows.map(r => r.getAttribute("data-start")));
+  expect(starts.length >= 2, "at least two coming up: " + starts.join(" "));
+  expect(starts.every((d, i) => i === 0 || starts[i - 1] <= d), "soonest first: " + starts.join(" "));
+});
+
+await step("the home and the form say the same 'left'; the approver's balance counts the earlier waiting request", async () => {
+  const cardLeft = (await page.locator(".balance", { hasText: "Paid leave" }).locator("strong").innerText()).trim();
+  await page.goto(origin + "/chest/new");
+  const formLeft = await page.locator(".kind-option", { hasText: "Paid leave" }).locator(".kind-left").innerText();
+  expect(formLeft.startsWith(cardLeft + " left"), `home ${cardLeft} / form ${formLeft}`);
+  // A second waiting request, after the one already waiting.
+  const later = day(plus(monday, 21));
+  await ask(later, later);
+  await send();
+  await as(context, origin, "ines");
+  await page.goto(origin + "/chest/approvals");
+  expect(await page.getByText(/counting 1 earlier request still waiting/u).count() >= 1, "counts the earlier one");
+});
+
+await step("HR imports Lucca's balances (Nom, Prénom, CP N-1, CP N) and sees both parts", async () => {
+  await as(context, origin, "camille");
+  await speak("en");
+  await page.goto(origin + "/chest/people/import");
+  await page.locator("#csv").fill("Matricule;Nom;Prénom;Date d'entrée;CP N-1;CP N;RTT\n0015;BERNARD;Hugo;15/01/2024;10;6,25;3\n");
+  await page.getByRole("button", { name: "Check" }).click();
+  await page.waitForSelector("text=Paid leave 10 + 6.25 being earned");
+  await page.getByRole("button", { name: "Import 1 person" }).click();
+  await page.waitForURL(/\/chest\/people$/u);
+  await page.goto(origin + "/chest/people/" + id("hugo"));
+  const card = await page.locator(".balance", { hasText: "Paid leave" }).innerText();
+  expect(card.includes("10 to take now (N-1)") && card.includes("6.25 being earned (N)"), card);
+});
+
+await step("HR says what an unknown column is, then imports it", async () => {
+  await page.goto(origin + "/chest/people/import");
+  await page.locator("#csv").fill("Salarié;Solde congés annuels\nSofia Rossi;7,5\n");
+  await page.getByRole("button", { name: "Check" }).click();
+  await page.waitForSelector(".mapping");
+  await page.locator(".mapping select").selectOption({ label: "Paid leave · earned, to take now (N-1)" });
+  await page.waitForSelector("text=Paid leave 7.5");
+  await page.getByRole("button", { name: "Import 1 person" }).click();
+  await page.waitForURL(/\/chest\/people$/u);
+});
+
+await step("HR imports the leave already approved in Lucca", async () => {
+  await page.goto(origin + "/chest/people/import?what=leave");
+  const from = plus(monday, 35);
+  const fr = d => d.toISOString().slice(0, 10).split("-").reverse().join("/");
+  await page.locator("#csv").fill(`employeeNumber;lastName;firstName;accountId;startDate;flagStartDate;endDate;flagEndDate;isApproved\n0015;Bernard;Hugo;Congés payés 2025-2026;${fr(from)};AM;${fr(plus(from, 4))};PM;true\n`);
+  await page.getByRole("button", { name: "Check" }).click();
+  await page.getByRole("button", { name: "Import 1 leave" }).click();
+  await page.waitForURL(/\/chest\/people$/u);
+  await page.goto(origin + "/chest/people/" + id("hugo"));
+  expect((await page.locator(".requests").innerText()).includes("Approved"), "imported and approved");
+});
+
+await step("HR records a sick day phoned in, for Nora", async () => {
+  await page.goto(origin + "/chest/people/" + id("nora"));
+  await page.getByRole("link", { name: "Record leave" }).click();
+  await page.waitForURL(/\/chest\/new\?for=/u);
+  expect(await page.getByRole("heading", { name: "Leave for Nora Petit" }).isVisible(), "title");
+  await page.locator(".kind-option", { hasText: "Sick leave" }).click();
+  const tuesday = day(plus(monday, 29));
+  await page.locator("#start").fill(tuesday);
+  await page.locator("#end").fill(tuesday);
+  await page.getByRole("button", { name: "Record it" }).click();
+  await page.waitForURL(/done=recorded/u);
+  expect((await page.locator(".requests").innerText()).includes("Sick leave"), "recorded");
+});
+
+await step("a four-day week: Tom, off on Fridays, away Monday to Thursday is charged the Friday too", async () => {
+  await as(context, origin, "tom");
+  const cost = await ask(day(plus(monday, 42)), day(plus(monday, 45)));
+  expect(cost === "5 days", "cost: " + cost);
+});
+
+await step("HR changes a kind in place: saved at once, nothing to forget", async () => {
+  await as(context, origin, "camille");
+  await page.goto(origin + "/chest/settings");
+  const rtt = page.locator(".type-editor").filter({ has: page.locator('input[placeholder="RTT"]') });
+  await rtt.getByLabel("May go below zero").uncheck();
+  await page.waitForSelector(".toast");
+  await page.reload();
+  expect(!(await page.locator(".type-editor").filter({ has: page.locator('input[placeholder="RTT"]') }).getByLabel("May go below zero").isChecked()), "saved");
+});
+
+await step("someone leaves: their last day is set; HR finds them under Former, with their balance", async () => {
+  await page.request.post(origin + "/_dev/event", { form: { type: "member.removed", member: id("sofia") } });
+  await page.goto(origin + "/chest/people");
+  await page.getByRole("link", { name: /Former \(\d+\)/u }).click();
+  await page.waitForURL(/show=former/u);
+  expect(await page.locator("tr", { hasText: "Sofia Rossi" }).count() === 1, "Sofia listed");
+  const csv = await page.request.get(origin + "/chest/people/balances");
+  expect(csv.status() === 200 && (await csv.text()).includes("Sofia Rossi"), "balances CSV");
 });
 
 await step("phone width, in French: the month as a list of days, tabs under the thumb, no sideways scroll", async () => {
@@ -190,7 +296,10 @@ await step("phone width, in French: the month as a list of days, tabs under the 
     expect(width <= 392, path + " overflows: " + width);
   }
   await page.goto(origin + "/chest/calendar?month=" + day(monday).slice(0, 7));
-  expect(await page.locator(".day-list").isVisible(), "list of days");
+  expect(await page.locator(".day-list").isVisible(), "list by week");
+  const cards = await page.locator(".week-group li:not(.holiday-row)").count();
+  const people = new Set(await page.locator(".week-group li:not(.holiday-row) .day-who strong").allInnerTexts());
+  expect(cards >= 1 && cards <= 40, "one card per absence: " + cards + " for " + people.size + " people");
   expect(!(await page.locator(".grid-wrap").isVisible()), "grid hidden");
   const tabs = await page.locator(".tabs").boundingBox();
   expect(tabs.y > 700, "tab bar at the bottom: " + tabs.y);

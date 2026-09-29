@@ -6,6 +6,7 @@ import { can } from "../../lib/access.ts";
 import { company, missing } from "../../lib/company.ts";
 import { db } from "../../lib/db.ts";
 import { desk } from "../../lib/desk.ts";
+import { followUpOnce } from "../../lib/followup.ts";
 import { format, formatDay, plural } from "../../lib/i18n/index.ts";
 import { formatMoney } from "../../lib/money.ts";
 import { nameOf, people } from "../../lib/people.ts";
@@ -19,6 +20,9 @@ export default async function DeskPage() {
   const { member, locale, t } = v;
   const sql = db();
   const today = chest.today();
+  // The morning's follow-up (reminders, recurring drafts), when the Chest's
+  // schedule has not run it today.
+  await followUpOnce(sql, today);
   const d = await desk(sql, member, today);
   const c = await company(sql);
   const gaps = missing(c);
@@ -70,9 +74,10 @@ export default async function DeskPage() {
           {canQuote && (
             <div className="actions">
               <NewDocument type="quote" errors={t.errors}><Plus />{t.desk.empty.action}</NewDocument>
-              <a className="button quiet" href="/chest/clients">{t.desk.empty.clients}</a>
+              {can(member, "clients.write") && <a className="button quiet" href="/chest/import?kind=clients">{t.desk.empty.clients}</a>}
             </div>
           )}
+          {can(member, "clients.write") && <p className="hint">{t.desk.empty.switching}</p>}
         </div>
       ) : (
         <>

@@ -235,3 +235,15 @@ export function phoneDigits(value: string): string {
   if (/^\s*0033/u.test(v)) return "0" + digits.slice(4);
   return digits;
 }
+
+// A day and a time of day in the Chest's time zone, as an instant
+// ("2026-03-02", "14:30" in Paris → 13:30 UTC).
+export function zoned(day: string, clock: string, timeZone = "Europe/Paris"): Date {
+  const guess = Date.parse(`${day}T${clock}:00Z`);
+  const offset = (at: number) => {
+    const parts = Object.fromEntries(new Intl.DateTimeFormat("en-US", { timeZone, hourCycle: "h23", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" }).formatToParts(new Date(at)).map(p => [p.type, p.value]));
+    return Date.UTC(Number(parts["year"]), Number(parts["month"]) - 1, Number(parts["day"]), Number(parts["hour"]), Number(parts["minute"]), Number(parts["second"])) - at;
+  };
+  const first = guess - offset(guess);
+  return new Date(guess - offset(first));
+}

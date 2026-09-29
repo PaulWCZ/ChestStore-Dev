@@ -10,7 +10,9 @@ import { catalogue, format, formatDate, formatDay, locales, type Catalogue, type
 import { listItems } from "../../../../lib/items.ts";
 import { formatMoney } from "../../../../lib/money.ts";
 import { sellerOf } from "../../../../lib/parties.ts";
+import { continuedAt } from "../../../../lib/numbering.ts";
 import { nameOf, people } from "../../../../lib/people.ts";
+import { firstRepeatDate, repeatOf } from "../../../../lib/repeats.ts";
 import { countryName, kindOf } from "../../../../lib/rows.ts";
 import { viewer } from "../../../../lib/session.ts";
 import type { ClientOption, DocView, Fact, Moment, PaymentView, RelatedView } from "../../../../lib/views.ts";
@@ -33,6 +35,7 @@ export default async function DocumentPage({ params }: { params: Promise<{ id: s
   }
   const c = await company(sql);
   const seller = full.seller ?? sellerOf(c);
+  const repeating = full.type === "invoice" ? await repeatOf(sql, full.id) : null;
   const canEdit = editable(full) && can(member, editAbility(full.type));
   const clients: ClientOption[] = canEdit
     ? (await listClients(sql, member)).map(x => ({ ...x, countryName: countryName(x.country, full.language) }))
@@ -50,6 +53,10 @@ export default async function DocumentPage({ params }: { params: Promise<{ id: s
     readyAt: full.readyAt, sentAt: full.sentAt, emailedTo: full.emailedTo, reminders: full.reminders,
     crmTitle: full.crmTitle,
     reference: ref && ref.number ? { id: ref.id, number: ref.number, date: ref.issueDate ?? "" } : null,
+    facturx: full.type !== "quote" && full.status === "final" && full.pdfFormat !== "pdf",
+    repeat: repeating && repeating.repeat.sourceId === full.id && repeating.repeat.active
+      ? { id: repeating.repeat.id, every: repeating.repeat.every, next: formatDay(repeating.repeat.nextOn, locale, { day: "numeric", month: "long", year: "numeric" }) } : null,
+    madeFrom: repeating && repeating.repeat.sourceId !== full.id ? { id: repeating.repeat.sourceId, number: repeating.sourceNumber ?? "" } : null,
   };
 
   // Names and dates, written here.
@@ -66,6 +73,17 @@ export default async function DocumentPage({ params }: { params: Promise<{ id: s
   if (full.sentAt) history.push({ text: full.emailedTo ? format(t.doc.history.emailed, { to: full.emailedTo, name: name(full.sentBy) }) : format(t.doc.history.sentByHand, { name: name(full.sentBy) }), when: when(full.sentAt) });
   if (full.decidedAt) history.push({ text: format(full.status === "accepted" ? t.doc.history.accepted : t.doc.history.refused, { name: name(full.decidedBy) }), when: when(full.decidedAt) });
   if (full.remindedAt) history.push({ text: format(t.doc.history.reminded, { count: full.reminders }), when: when(full.remindedAt) });
+  // The first number after the sequence was continued from another tool.
+  const [numbered] = await sql<{ year: number | null; seq: number | null }[]>`select year, seq from documents where id = ${full.id}`;
+  const continued = numbered ? await continuedAt(sql, { type: full.type, year: numbered.year, seq: numbered.seq }) : null;
+  if (continued && full.number) {
+    const setter = (await people([continued.changedBy])).get(continued.changedBy);
+    history.push({ text: format(t.doc.history.continued, { number: full.number, name: continued.changedBy === member.id ? t.people.you : nameOf(setter, locale) }), when: when(continued.changedAt) });
+  }
+  for (const step of await sql<{ step: number; channel: "email" | "bell"; done_at: Date }[]>`select step, channel, done_at from reminder_steps where document_id = ${full.id} and channel <> 'none' order by step`) {
+    history.push({ text: format(step.channel === "email" ? t.doc.history.autoEmailed : t.doc.history.autoTold, { step: step.step + 1 }), when: when(step.done_at.toISOString()) });
+  }
+  if (repeating && repeating.repeat.sourceId !== full.id) history.push({ text: format(t.doc.history.fromRepeat, { number: repeating.sourceNumber ?? "" }), when: when(full.createdAt) });
 
   const facts: Fact[] = [];
   if (full.number) facts.push({ label: t.doc.facts.number, value: full.number });
@@ -77,6 +95,8 @@ export default async function DocumentPage({ params }: { params: Promise<{ id: s
     if (full.credited > 0) facts.push({ label: t.doc.facts.credited, value: money(full.credited) });
     facts.push({ label: t.doc.facts.left, value: money(Math.max(full.due, 0)), strong: true });
   }
+
+  if (doc.facturx) facts.push({ label: t.doc.facts.format, value: t.doc.facts.facturx });
 
   const payments: PaymentView[] = full.payments.map(p => ({ id: p.id, date: day(p.paidOn), amount: money(p.amount), method: t.methods[p.method as keyof Catalogue["methods"]] ?? p.method, note: p.note }));
   const related: RelatedView[] = full.related.map(r => ({
@@ -114,6 +134,8 @@ export default async function DocumentPage({ params }: { params: Promise<{ id: s
       companyMissing={gaps}
       clientMissing={clientGaps}
       readyText={full.readyAt ? format(t.doc.readyOn, { date: when(full.readyAt) }) : null}
+      repeatDates={full.type === "invoice" && full.status === "final" && full.depositPercent === null && full.issueDate
+        ? { month: firstRepeatDate(full.issueDate, "month", today), quarter: firstRepeatDate(full.issueDate, "quarter", today), year: firstRepeatDate(full.issueDate, "year", today) } : null}
     />
   );
 }

@@ -42,7 +42,11 @@ rounded number), the hero (greeting, a sun over the sea), a peach banner
 ("2 requests wait for your answer"), request rows, answer cards, a timeline
 of what happened, the month grid (sticky names and days, bars that join
 across days, half-day halves, shaded week-ends and holidays, today ringed),
-the day list for phones, tables for people and history, settings panels,
+the absence cards by week for phones, rest days hatched in a part-timer's
+row, tables for people and history (computed "End of the year" lines in
+italics on grey), week-day toggles (pill checkboxes Mon–Sun), HR's
+first-run checklist (a sea-bordered card with round ticks), the import's
+mapping box (the "waiting" yellow: something to answer), settings panels,
 the bottom tab bar on phones, dialogs on `<dialog>`, toasts with *Undo*,
 empty states.
 

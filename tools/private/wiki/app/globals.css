@@ -493,8 +493,8 @@ mark { background: var(--marker); color: var(--ink); padding: 0 0.1em; border-ra
   /* Every tool in sight: the bar wraps on two rows instead of hiding half of them. */
   .toolbar { flex-wrap: wrap; overflow-x: visible; padding: var(--space-1) var(--space-2); row-gap: 0; }
   .toolbar .sep { display: none; }
-  .tool { width: 38px; height: 40px; }
-  .style-select { max-width: 7.5rem; }
+  .tool { width: 36px; height: 40px; }
+  .style-select { max-width: 6.5rem; }
   .sheet { padding: 0 var(--space-4); margin-top: var(--space-5); }
   .contents > li { padding-left: 2.4rem; }
   .version { padding: var(--space-4); }
@@ -538,3 +538,6 @@ mark { background: var(--marker); color: var(--ink); padding: 0 0.1em; border-ra
 .read-status { display: inline-block; padding: 2px var(--space-2); border-radius: 999px; background: var(--paper-2); font-weight: 600; font-size: var(--text-xs); }
 .reads-table .done .read-status { background: var(--accent-soft); color: var(--accent); }
 .reads-table .not-yet .read-status { background: var(--danger-soft); color: var(--danger); }
+.mentions { list-style: none; margin: var(--space-1) 0 0; padding: var(--space-1); max-width: 320px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-m); box-shadow: var(--shadow-1); }
+.mentions li { min-height: 40px; display: flex; align-items: center; padding: 0 var(--space-3); border-radius: var(--radius-s); cursor: pointer; font-size: var(--text-s); }
+.mentions li[aria-selected="true"], .mentions li:hover { background: var(--accent-soft); color: var(--accent); }

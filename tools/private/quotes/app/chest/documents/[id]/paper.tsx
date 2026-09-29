@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useRef, useState, type MutableRefObject } from "react";
 import { ClientPicker } from "../../../../components/client-picker.tsx";
-import { Down, More, Plus, Section, Trash, Up, Box, Copy } from "../../../../components/icons.tsx";
+import { DateField } from "../../../../components/date-field.tsx";
+import { Down, More, Plus, Section, Trash, Up, Box, Copy, Close } from "../../../../components/icons.tsx";
 import { ItemPicker } from "../../../../components/item-picker.tsx";
 import { useToast } from "../../../../components/toast.tsx";
 import type { Line } from "../../../../lib/documents.ts";
@@ -273,7 +274,7 @@ export function Paper(props: PaperProps) {
             {doc.type === "quote" && (
               <>
                 <dt>{editing ? <label htmlFor="valid">{w.validUntil}</label> : w.validUntil}</dt>
-                <dd>{editing ? <input id="valid" type="date" className="ink num" value={header.validUntil} required onChange={ev => setH({ validUntil: ev.target.value })} /> : dates.valid}</dd>
+                <dd>{editing ? <DateField id="valid" value={header.validUntil} locale={lang} label={w.validUntil} placeholder={t.editor.pickDate} required onChange={v => setH({ validUntil: v })} /> : dates.valid}</dd>
               </>
             )}
             {doc.type === "invoice" && (
@@ -289,7 +290,12 @@ export function Paper(props: PaperProps) {
             {(editing || doc.deliveryDate) && doc.type !== "credit" && (
               <>
                 <dt>{editing ? <label htmlFor="delivery">{w.deliveryDate}</label> : w.deliveryDate}</dt>
-                <dd>{editing ? <input id="delivery" type="date" className="ink num" value={header.deliveryDate} onChange={ev => setH({ deliveryDate: ev.target.value })} /> : dates.delivery}</dd>
+                <dd>{editing ? (
+                  <span className="date-pair">
+                    <DateField id="delivery" value={header.deliveryDate} locale={lang} label={w.deliveryDate} placeholder={t.editor.pickDate} onChange={v => setH({ deliveryDate: v })} />
+                    {header.deliveryDate && <button type="button" className="icon-button small" aria-label={t.editor.clearDate} title={t.editor.clearDate} onClick={() => setH({ deliveryDate: "" })}><Close /></button>}
+                  </span>
+                ) : dates.delivery}</dd>
               </>
             )}
             {doc.reference && (
@@ -391,12 +397,7 @@ export function Paper(props: PaperProps) {
         <div className="mentions">
           <span>{format(w.operation, { kind: operation })}</span>
           {doc.franchise ? <span>{w.franchise}</span> : header.vatTreatment === "reverse_charge" ? <span>{w.reverseCharge}</span> : null}
-          {editing && !doc.franchise && doc.type !== "credit" && (
-            <label className="check small">
-              <input type="checkbox" checked={header.vatTreatment === "reverse_charge"} onChange={ev => setH({ vatTreatment: ev.target.checked ? "reverse_charge" : "standard" })} />
-              <span>{e.reverseCharge}</span>
-            </label>
-          )}
+          {editing && !doc.franchise && header.vatTreatment === "reverse_charge" && <span className="hint">{e.reverseChargeFromClient}</span>}
         </div>
         <div className="totals" aria-live="polite">
           <div className="row"><span>{w.net}</span><b suppressHydrationWarning>{money(sums.net)}</b></div>
@@ -424,6 +425,7 @@ export function Paper(props: PaperProps) {
         {doc.type === "invoice" && <span>{doc.dueDate ? format(w.dueBy, { date: dates.due }) : Number(header.paymentDays) === 0 ? w.dueOnReceipt : format(w.dueIn, { days: header.paymentDays })} {seller.iban ? format(w.transfer, { iban: seller.iban, bic: seller.bic ? format(w.bic, { bic: seller.bic }) : "", bank: seller.bank ? seller.bank + " — " : "" }) : ""}</span>}
         {doc.type === "invoice" && <span>{seller.penaltyRate === null ? w.penaltiesLegal : format(w.penalties, { rate: formatRate(seller.penaltyRate, lang) })} {buyer?.kind !== "person" ? w.indemnity : ""}</span>}
         {doc.type === "invoice" && <span>{seller.earlyDiscount ? format(w.earlyDiscount, { terms: seller.earlyDiscount }) : w.noDiscount}</span>}
+        {doc.type === "invoice" && seller.paymentLink && <span>{format(w.payOnline, { link: seller.paymentLink })}</span>}
         {doc.type === "quote" && header.validUntil && <span>{format(w.validity, { date: formatDay(header.validUntil, lang, { day: "2-digit", month: "2-digit", year: "numeric" }) })}</span>}
         {seller.footer && <span>{seller.footer}</span>}
       </footer>

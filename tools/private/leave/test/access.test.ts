@@ -25,6 +25,9 @@ test("who sees what of someone's leave: themselves and their approvers the detai
   assert.equal(sightOf(asMember(lea), hugosLeave), "team"); // a manager, not his
   assert.equal(sightOf(asMember(sofia), hugosLeave), "team");
   assert.equal(sightOf(asMember(nora), hugosLeave), null);
+  // Recording leave for someone (lib/requests.ts subject): only those who
+  // see them as "approver" — HR, and their approver.
+  assert.deepEqual([camille, ines, lea, sofia].map(m => sightOf(asMember(m), hugosLeave) === "approver"), [true, true, false, false]);
 });
 
 test("who answers: the named approver, HR for anyone, nobody their own — but the only HR person", () => {

@@ -5,7 +5,7 @@ title: Pricing 2026
 author: ines
 created: 40
 updated: 1
-lock: tom
+lock: camille
 lockMinutes: 4
 ---
 Our day rates and standard fixtures for 2026. Prices are before VAT.

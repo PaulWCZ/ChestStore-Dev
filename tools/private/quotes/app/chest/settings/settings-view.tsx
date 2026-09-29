@@ -1,25 +1,28 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useRef, useState } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { Alert, Info, Trash, Upload } from "../../../components/icons.tsx";
 import { useToast } from "../../../components/toast.tsx";
-import type { Company } from "../../../lib/company.ts";
+import type { Accounts, Company } from "../../../lib/company.ts";
 import { format } from "../../../lib/i18n/format.ts";
 import type { Catalogue, Locale } from "../../../lib/i18n/index.ts";
 import { inputAmount, inputPercent } from "../../../lib/money.ts";
 import { removeLogo, saveLogo, updateCompany } from "../actions.ts";
 
-type Fields = Record<"legalName" | "tradeName" | "legalForm" | "capital" | "address" | "postcode" | "city" | "country" | "siren" | "siret" | "rcsCity" | "vatNumber" | "email" | "phone" | "website" | "bank" | "iban" | "bic" | "paymentDays" | "validityDays" | "penaltyRate" | "earlyDiscount" | "footer" | "quotePrefix" | "invoicePrefix" | "creditPrefix", string> & { franchise: boolean; vatOnDebits: boolean };
+type Fields = Record<"legalName" | "tradeName" | "legalForm" | "capital" | "address" | "postcode" | "city" | "country" | "siren" | "siret" | "rcsCity" | "vatNumber" | "email" | "phone" | "website" | "bank" | "iban" | "bic" | "paymentDays" | "validityDays" | "penaltyRate" | "earlyDiscount" | "footer" | "quotePrefix" | "invoicePrefix" | "creditPrefix" | "paymentLink" | "reminderDays", string>
+  & { franchise: boolean; vatOnDebits: boolean; remindersOn: boolean; remindersEmail: boolean; accounts: Accounts };
 
 const fieldOf: Record<string, keyof Fields> = {
   siren_invalid: "siren", siret_invalid: "siret", vat_number_invalid: "vatNumber", iban_invalid: "iban", bic_invalid: "bic", email_invalid: "email", prefix_invalid: "invoicePrefix",
-  capital_invalid: "capital", penalty_invalid: "penaltyRate", terms_invalid: "paymentDays", country_invalid: "country",
+  capital_invalid: "capital", penalty_invalid: "penaltyRate", terms_invalid: "paymentDays", country_invalid: "country", link_invalid: "paymentLink", reminder_days_invalid: "reminderDays",
+  account_invalid: "accounts",
 };
 const forms = ["SARL", "SAS", "SASU", "EURL", "EI", "SA", "SCOP", "SNC", "SCI"];
 
-export function SettingsView({ t, locale, company: c, missing, canEdit, currency, year, sample, logo }: { t: Catalogue; locale: Locale; company: Company; missing: string[]; canEdit: boolean; currency: string; year: number; sample: string; logo: string | null }) {
+export function SettingsView({ t, locale, company: c, missing, canEdit, currency, sample, logo, rates, numbering }: { t: Catalogue; locale: Locale; company: Company; missing: string[]; canEdit: boolean; currency: string; sample: string; logo: string | null; rates: { rate: string; text: string }[]; numbering: ReactNode }) {
   const s = t.settings;
+  const r = s.reminderRules;
   const router = useRouter();
   const toast = useToast();
   const [f, setF] = useState<Fields>({
@@ -28,6 +31,7 @@ export function SettingsView({ t, locale, company: c, missing, canEdit, currency
     website: c.website, bank: c.bank, iban: c.iban, bic: c.bic, paymentDays: String(c.paymentDays), validityDays: String(c.validityDays),
     penaltyRate: c.penaltyRate === null ? "" : inputPercent(c.penaltyRate, locale), earlyDiscount: c.earlyDiscount, footer: c.footer, quotePrefix: c.quotePrefix,
     invoicePrefix: c.invoicePrefix, creditPrefix: c.creditPrefix, franchise: c.franchise, vatOnDebits: c.vatOnDebits,
+    paymentLink: c.paymentLink ?? "", remindersOn: c.reminders.on, reminderDays: c.reminders.days.join(", "), remindersEmail: c.reminders.email, accounts: c.accounts,
   });
   const [gaps, setGaps] = useState(missing);
   const [error, setError] = useState<{ field: keyof Fields | null; text: string } | null>(null);
@@ -36,7 +40,11 @@ export function SettingsView({ t, locale, company: c, missing, canEdit, currency
   const file = useRef<HTMLInputElement>(null);
   const set = (patch: Partial<Fields>) => setF(v => ({ ...v, ...patch }));
   const bad = (k: keyof Fields) => (error?.field === k ? true : undefined);
-  const needed = (k: string) => gaps.includes(k);
+  // The VAT number is not needed under the exemption, even before saving.
+  const needed = (k: string) => gaps.includes(k) && !(k === "vatNumber" && f.franchise);
+  const shownGaps = gaps.filter(needed);
+  const setAccount = (key: keyof Omit<Accounts, "vat">, value: string) => set({ accounts: { ...f.accounts, [key]: value.toUpperCase() } });
+  const setVatAccount = (rate: string, value: string) => set({ accounts: { ...f.accounts, vat: { ...f.accounts.vat, [rate]: value.toUpperCase() } } });
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -89,12 +97,12 @@ export function SettingsView({ t, locale, company: c, missing, canEdit, currency
           <p>{canEdit ? s.intro : s.readOnly}</p>
         </div>
       </div>
-      {gaps.length > 0 && (
+      {shownGaps.length > 0 && (
         <div className="callout" role="note">
           <Alert />
           <div>
             <p><strong>{s.missingTitle}</strong></p>
-            <p>{gaps.map(g => s.fields[g as keyof Catalogue["settings"]["fields"]] ?? g).join(" · ")}</p>
+            <p>{shownGaps.map(g => s.fields[g as keyof Catalogue["settings"]["fields"]] ?? g).join(" · ")}</p>
           </div>
         </div>
       )}
@@ -174,6 +182,30 @@ export function SettingsView({ t, locale, company: c, missing, canEdit, currency
             {text("paymentDays", s.fields.paymentDays, { className: "third", inputMode: "numeric", max: 3, hint: s.hints.paymentDays })}
             {text("penaltyRate", s.fields.penaltyRate, { className: "third", inputMode: "decimal", max: 6, placeholder: s.hints.penaltyPlaceholder, hint: s.hints.penaltyRate })}
             {text("earlyDiscount", s.fields.earlyDiscount, { max: 500, placeholder: s.hints.earlyPlaceholder, hint: s.hints.earlyDiscount })}
+            {text("paymentLink", s.fields.paymentLink, { max: 300, inputMode: "url", placeholder: s.hints.paymentLinkPlaceholder, hint: s.hints.paymentLink })}
+          </div>
+        </section>
+
+        <section className="panel" aria-labelledby="s-reminders">
+          <h2 id="s-reminders">{s.sections.reminders}</h2>
+          <p className="hint">{s.sections.remindersHint}</p>
+          <div className="form-grid">
+            <label className="check">
+              <input type="checkbox" checked={f.remindersOn} disabled={!canEdit} onChange={e => set({ remindersOn: e.target.checked })} />
+              <span>{r.on}<br /><span className="hint">{f.remindersOn ? r.onHint : r.off}</span></span>
+            </label>
+            {f.remindersOn && (
+              <>
+                {text("reminderDays", r.days, { className: "half", max: 40, inputMode: "numeric", hint: r.daysHint })}
+                <fieldset className="choice" disabled={!canEdit}>
+                  <legend>{r.how}</legend>
+                  <div className="two-col">
+                    <label className="option"><input type="radio" name="reminder-how" checked={f.remindersEmail} onChange={() => set({ remindersEmail: true })} /><span>{r.email}</span><span className="sub">{r.emailHint}</span></label>
+                    <label className="option"><input type="radio" name="reminder-how" checked={!f.remindersEmail} onChange={() => set({ remindersEmail: false })} /><span>{r.bell}</span><span className="sub">{r.bellHint}</span></label>
+                  </div>
+                </fieldset>
+              </>
+            )}
           </div>
         </section>
 
@@ -185,7 +217,6 @@ export function SettingsView({ t, locale, company: c, missing, canEdit, currency
             {text("quotePrefix", s.fields.quotePrefix, { className: "third", max: 8, hint: sample.replace("X", f.quotePrefix || "?") })}
             {text("invoicePrefix", s.fields.invoicePrefix, { className: "third", max: 8, hint: sample.replace("X", f.invoicePrefix || "?") })}
             {text("creditPrefix", s.fields.creditPrefix, { className: "third", max: 8, hint: sample.replace("X", f.creditPrefix || "?") })}
-            <p className="hint two-thirds">{format(s.hints.numbering, { year })}</p>
             <div className="field-row">
               <label htmlFor="s-footer">{s.fields.footer}</label>
               <textarea id="s-footer" className="field" rows={2} value={f.footer} maxLength={500} readOnly={!canEdit} placeholder={s.hints.footerPlaceholder} aria-describedby="s-footer-hint" onChange={e => set({ footer: e.target.value })} />
@@ -194,12 +225,22 @@ export function SettingsView({ t, locale, company: c, missing, canEdit, currency
           </div>
         </section>
 
-        <section className="panel" aria-labelledby="s-law">
-          <h2 id="s-law">{s.law.title}</h2>
-          <div className="notice">
-            <p><Info /> {s.law.reform}</p>
-            <p>{s.law.notPa}</p>
-            <p>{s.law.keep}</p>
+        <section className="panel" aria-labelledby="s-accounts">
+          <h2 id="s-accounts">{s.sections.accounts}</h2>
+          <p className="hint">{s.sections.accountsHint}</p>
+          <div className="form-grid accounts">
+            {([["journal", s.fields.accountJournal], ["client", s.fields.accountClient], ["services", s.fields.accountServices], ["goods", s.fields.accountGoods], ["deposits", s.fields.accountDeposits]] as const).map(([key, label]) => (
+              <div key={key} className="field-row third">
+                <label htmlFor={`a-${key}`}>{label}</label>
+                <input id={`a-${key}`} className="field num" value={f.accounts[key]} maxLength={20} readOnly={!canEdit} aria-invalid={error?.field === "accounts" ? true : undefined} onChange={e => setAccount(key, e.target.value)} />
+              </div>
+            ))}
+            {rates.map(x => (
+              <div key={x.rate} className="field-row third">
+                <label htmlFor={`a-vat-${x.rate}`}>{format(s.fields.accountVat, { rate: x.text })}</label>
+                <input id={`a-vat-${x.rate}`} className="field num" value={f.accounts.vat[x.rate] ?? ""} maxLength={20} readOnly={!canEdit} onChange={e => setVatAccount(x.rate, e.target.value)} />
+              </div>
+            ))}
           </div>
         </section>
 
@@ -210,6 +251,15 @@ export function SettingsView({ t, locale, company: c, missing, canEdit, currency
           </div>
         )}
       </form>
+      {numbering}
+      <section className="panel" aria-labelledby="s-law">
+        <h2 id="s-law">{s.law.title}</h2>
+        <div className="notice">
+          <p><Info /> {s.law.reform}</p>
+          <p>{s.law.notPa}</p>
+          <p>{s.law.keep}</p>
+        </div>
+      </section>
     </main>
   );
 }

@@ -191,6 +191,9 @@ export function languageOf(value: string | undefined): "en" | "fr" | null {
 // A country as ISO 3166-1 alpha-2, from a code ("FR", "fr") or its name in
 // English or French ("France", "Belgique", "Germany").
 let names: Map<string, string> | null = null;
+// Codes of countries that no longer are, or are not countries, which
+// share a name with a current one ("Germany": DE, not DD).
+const retired = new Set(["AN", "BU", "CS", "DD", "EU", "EZ", "FX", "NT", "QO", "SU", "TP", "UN", "YD", "YU", "ZR", "ZZ"]);
 export function countryOf(value: string | undefined): string | null {
   const text = (value ?? "").trim();
   if (!text) return null;
@@ -206,8 +209,9 @@ export function countryOf(value: string | undefined): string | null {
         continue;
       }
       for (const a of letters) for (const b of letters) {
+        if (retired.has(a + b)) continue;
         const name = display.of(a + b);
-        if (name) names.set(fold(name), a + b);
+        if (name && !names.has(fold(name))) names.set(fold(name), a + b);
       }
     }
   }

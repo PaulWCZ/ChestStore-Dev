@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { Avatar } from "../../../../components/avatar.tsx";
 import { Chat } from "../../../../components/icons.tsx";
 import { useToast } from "../../../../components/toast.tsx";
@@ -14,8 +14,9 @@ type Words = { comments: Catalogue["comments"]; errors: Catalogue["errors"]; loc
 // The conversation at the bottom of a page: its comments, oldest first, and
 // a field to add one. Each person edits and removes their own; the page's
 // editors may remove any (with Undo). Web addresses become links; nothing
-// else is interpreted.
-export function Comments({ pageId, initial, me, moderator, t }: { pageId: string; initial: CommentView[]; me: string; moderator: boolean; t: Words }) {
+// else is interpreted. Typing "@" and the start of a name offers the people
+// who read the page; the one picked is written "@Name" and told in the bell.
+export function Comments({ pageId, initial, me, moderator, people = [], t }: { pageId: string; initial: CommentView[]; me: string; moderator: boolean; people?: { id: string; name: string }[]; t: Words }) {
   const toast = useToast();
   const [list, setList] = useState(initial);
   const [text, setText] = useState("");
@@ -23,6 +24,31 @@ export function Comments({ pageId, initial, me, moderator, t }: { pageId: string
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
   const words = t.comments;
+  // "@" mentions: who was picked, and the list offered while typing a name.
+  const [named, setNamed] = useState<{ id: string; name: string }[]>([]);
+  const [asking, setAsking] = useState<{ query: string; at: number; index: number } | null>(null);
+  const field = useRef<HTMLTextAreaElement>(null);
+  const offered = asking ? people.filter(p => fold(p.name).split(/\s+/u).some(w => w.startsWith(fold(asking.query))) || fold(p.name).startsWith(fold(asking.query))).slice(0, 6) : [];
+  function typed(value: string, caret: number) {
+    setText(value);
+    const m = /(^|\s)@([\p{L}'’-]{0,24})$/u.exec(value.slice(0, caret));
+    setAsking(m && people.length > 0 ? { query: m[2]!, at: caret - m[2]!.length - 1, index: 0 } : null);
+  }
+  function pick(person: { id: string; name: string }) {
+    if (!asking) return;
+    const caret = field.current?.selectionStart ?? text.length;
+    const next = text.slice(0, asking.at) + "@" + person.name + " " + text.slice(caret);
+    // The field changes at once (not at the next render): a fast typist's
+    // next letter lands after the name.
+    const at = asking.at + person.name.length + 2;
+    if (field.current) {
+      field.current.value = next;
+      field.current.setSelectionRange(at, at);
+    }
+    setText(next);
+    setNamed(list => (list.some(x => x.id === person.id) ? list : [...list, person]));
+    setAsking(null);
+  }
   // The page re-reads itself now and then (others comment too): take the
   // server's thread when it changed, unless a comment is being edited.
   const signature = initial.map(c => `${c.id}:${c.edited ? c.body : ""}`).join(",");
@@ -36,10 +62,11 @@ export function Comments({ pageId, initial, me, moderator, t }: { pageId: string
     if (!body) return;
     setError(null);
     start(async () => {
-      const result = await addComment(pageId, body);
+      const result = await addComment(pageId, body, named.filter(p => body.includes("@" + p.name)).map(p => p.id));
       if (!result.ok) return setError(fail(result));
       setList(l => [...l, result.value]);
       setText("");
+      setNamed([]);
     });
   }
 
@@ -110,13 +137,36 @@ export function Comments({ pageId, initial, me, moderator, t }: { pageId: string
       )}
       <form className="composer" onSubmit={e => { e.preventDefault(); send(); }}>
         <label className="visually-hidden" htmlFor="comment-new">{words.label}</label>
-        <textarea id="comment-new" className="field" rows={2} maxLength={limits.comment} value={text} placeholder={words.placeholder}
+        <textarea ref={field} id="comment-new" className="field" rows={2} maxLength={limits.comment} value={text} placeholder={words.placeholder}
           aria-describedby={error ? "comment-error" : undefined}
-          onChange={e => setText(e.target.value)}
-          onKeyDown={e => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); send(); } }} />
+          aria-controls={offered.length > 0 ? "mention-list" : undefined}
+          aria-activedescendant={asking && offered[asking.index] ? `mention-${offered[asking.index]!.id}` : undefined}
+          onChange={e => typed(e.target.value, e.target.selectionStart)}
+          onBlur={() => setAsking(null)}
+          onKeyDown={e => {
+            if (asking && offered.length > 0) {
+              if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+                e.preventDefault();
+                setAsking({ ...asking, index: (asking.index + (e.key === "ArrowDown" ? 1 : offered.length - 1)) % offered.length });
+                return;
+              }
+              if (e.key === "Enter" || e.key === "Tab") { e.preventDefault(); pick(offered[asking.index]!); return; }
+              if (e.key === "Escape") { e.preventDefault(); setAsking(null); return; }
+            }
+            if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); send(); }
+          }} />
+        {offered.length > 0 && asking && (
+          <ul className="mentions" role="listbox" id="mention-list" aria-label={words.mention}>
+            {offered.map((p, i) => (
+              <li key={p.id} id={`mention-${p.id}`} role="option" aria-selected={i === asking.index} onMouseDown={e => { e.preventDefault(); pick(p); }}>@{p.name}</li>
+            ))}
+          </ul>
+        )}
         {error && <p id="comment-error" className="error" role="alert">{error}</p>}
         <div className="row-actions"><button type="submit" className="button small" disabled={pending || !text.trim()}>{words.send}</button></div>
       </form>
     </section>
   );
 }
+
+const fold = (s: string) => s.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();

@@ -46,7 +46,7 @@ export default async function Team() {
         <div className="report">
           <section className="panel" aria-labelledby="r-pipeline">
             <h2 id="r-pipeline" className="label-mono">{w.pipeline}</h2>
-            <div className="table-wrap">
+            <div className="table-wrap" tabIndex={0} role="region" aria-labelledby="r-pipeline">
               <table className="table">
                 <thead>
                   <tr>
@@ -90,13 +90,13 @@ export default async function Team() {
               {byMonth.map(m => (
                 <li key={m.month} aria-label={format(w.chartLabel, { month: month(m.month), won: money(m.wonValue, locale), lost: m.lost })}>
                   <span className="month-bar" aria-hidden="true"><span className="bar-fill won" style={{ height: `${Math.round((m.wonValue / maxMonth) * 100)}%` }} /></span>
-                  <span className="num small-text">{money(m.wonValue, locale, { compact: true })}</span>
+                  <span className="num small-text">{m.wonValue > 0 ? money(m.wonValue, locale, { compact: true }) : "—"}</span>
                   <span className="label-mono">{month(m.month)}</span>
                 </li>
               ))}
             </ol>
             {people.length > 0 && (
-              <div className="table-wrap">
+              <div className="table-wrap" tabIndex={0} role="region" aria-labelledby="r-results">
                 <table className="table compact-table">
                   <thead>
                     <tr>
@@ -114,7 +114,7 @@ export default async function Team() {
                           <th scope="row">{who(p)}</th>
                           {r.months.map(m => {
                             const x = lines.find(l => l.month === m);
-                            return <td key={m} className="right num">{x ? <><span className="won-text">{money(x.wonValue, locale, { compact: true })}</span><span className="muted small-text"> {x.won}/{x.won + x.lost}</span></> : <span className="muted">—</span>}</td>;
+                            return <td key={m} className="right num">{x ? <>{x.won > 0 && <span className="won-text">{money(x.wonValue, locale, { compact: true })} </span>}<span className="muted small-text">{x.won}/{x.won + x.lost}</span></> : <span className="muted">—</span>}</td>;
                           })}
                           <td className="right num">{won + lost > 0 ? `${Math.round((won / (won + lost)) * 100)} %` : "—"}</td>
                         </tr>

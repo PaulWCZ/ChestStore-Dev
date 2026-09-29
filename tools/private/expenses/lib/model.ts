@@ -12,6 +12,7 @@ export const limits = {
   guests: 30,
   guestName: 120,
   categoryName: 60,
+  allowanceName: 80,
   // The company's name in a transfer file (SEPA: 70 characters).
   payer: 70,
   // The name on a bank account (SEPA: 70 characters).
@@ -27,6 +28,8 @@ export const limits = {
   // One expense: 1,000,000.00 at most.
   amount: 100_000_000,
   categories: 50,
+  // Lines of one import of past expenses.
+  importLines: 2000,
   // One export: this many expenses (CSV) and receipts (ZIP), and bytes of
   // receipts in one ZIP — above, the accountant exports per person.
   exportRows: 20_000,

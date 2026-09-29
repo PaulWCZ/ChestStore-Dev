@@ -8,9 +8,9 @@ import { format, formatDate, plural, type Catalogue, type Locale } from "../../.
 import { thumbnailTypes } from "../../../../lib/model.ts";
 import { formatMoney, rateText, recoverable } from "../../../../lib/money.ts";
 import { nameOf, people } from "../../../../lib/people.ts";
-import { stampOf, warningText } from "../../../../lib/rows.ts";
+import { allowanceWords, stampOf, warningText } from "../../../../lib/rows.ts";
 import { viewer } from "../../../../lib/session.ts";
-import { categories, settings } from "../../../../lib/settings.ts";
+import { allowances, categories, settings } from "../../../../lib/settings.ts";
 import { categoryName, km, powerName, vehicleName } from "../../../../lib/words.ts";
 import { DetailView } from "./detail-view.tsx";
 
@@ -30,6 +30,7 @@ export default async function ExpensePage({ params }: { params: Promise<{ id: st
   const { expense: e, access, history } = found;
   const [cats, company, warned] = await Promise.all([categories(sql, { archived: true }), settings(sql), warnings(sql, [e], { anyone: access.decide || can(member, "see.all") })]);
   const category = cats.find(c => c.id === e.categoryId);
+  const flat = allowanceWords(e, { t, locale, allowances: new Map((await allowances(sql, { archived: true })).map(a => [a.id, a])) });
   const who = await people([e.owner, ...(e.approver ? [e.approver] : []), ...history.map(h => h.actor), ...e.guests.members]);
   const name = (id: string) => (id === member.id ? t.people.youInText : id === "chest" ? t.people.accountants : nameOf(who.get(id), locale));
   const date = (d: string) => formatDate(d.length === 10 ? d + "T12:00:00Z" : d, locale, { day: "numeric", month: "long", year: "numeric" });
@@ -39,8 +40,11 @@ export default async function ExpensePage({ params }: { params: Promise<{ id: st
     facts.push([t.detail.fields.trip, format(t.trip.detail, { from: e.trip.from, to: e.trip.to })]);
     facts.push([t.detail.fields.distance, format(t.trip.km, { km: km(e.trip.distance, locale) })]);
     facts.push([t.detail.fields.scale, `${format(t.trip.scaleNote, { year: e.trip.scaleYear })} · ${vehicleName(e.trip.vehicle, t)} ${powerName(e.trip.vehicle, e.trip.power, t)}${e.trip.electric ? " · " + t.trip.electric : ""}`]);
+  } else if (flat) {
+    facts.push([t.detail.fields.allowance, `${flat.name}\n${flat.detail}`]);
   } else {
     if (e.merchant) facts.push([t.detail.fields.merchant, e.merchant]);
+    if (e.nights !== null && e.nights > 1) facts.push([t.detail.fields.nights, `${e.nights} · ${format(t.form.perNight, { amount: formatMoney(Math.round(e.amount / e.nights), e.currency, locale) })}`]);
     const guests = [...e.guests.members.map(g => nameOf(who.get(g), locale)), ...e.guests.names];
     if (guests.length > 0) facts.push([t.detail.fields.guests, `${guests.join(", ")}\n${plural(t.form.perPerson, guests.length + 1, locale, { amount: formatMoney(Math.round(e.amount / (guests.length + 1)), e.currency, locale) })}`]);
     facts.push([t.detail.fields.paidBy, e.paidBy === "me" ? t.form.paidByMe : t.form.paidByCompany]);
@@ -64,6 +68,7 @@ export default async function ExpensePage({ params }: { params: Promise<{ id: st
         decide={access.decide}
         receipt={receipt}
         trip={e.trip ? format(t.trip.detail, { from: e.trip.from, to: e.trip.to }) : null}
+        flat={flat ? `${flat.name} · ${t.allowance.hint}` : null}
         owner={access.own ? null : format(t.detail.by, { name: nameOf(who.get(e.owner), locale) })}
         amount={formatMoney(e.amount, e.currency, locale)}
         stamp={stampOf(e, t)}

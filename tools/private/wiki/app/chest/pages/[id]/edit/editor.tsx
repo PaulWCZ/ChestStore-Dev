@@ -144,7 +144,10 @@ function Writing({ page, start, pages, fresh, locale, t }: { page: PageInfo; sta
         setTimeout(() => {
           const box = view.coordsAtPos(from);
           const x = Math.max(8, Math.min(box.left, window.innerWidth - 272));
-          setSlash({ from, query: "", index: 0, x, y: box.bottom + 6 });
+          // Below the line, or above it when the screen ends first.
+          const tall = Math.min(340, window.innerHeight / 2);
+          const y = box.bottom + 6 + tall > window.innerHeight ? Math.max(8, box.top - 6 - tall) : box.bottom + 6;
+          setSlash({ from, query: "", index: 0, x, y });
         }, 0);
         return false;
       },

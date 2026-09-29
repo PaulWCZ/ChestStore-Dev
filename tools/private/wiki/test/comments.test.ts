@@ -264,3 +264,28 @@ test("leaving stops watching; an erasure signs comments 'Former member'", async 
     assert.equal(row!["n"], 0, table);
   }
 });
+
+test("a comment naming someone with @ tells them on their own — once, only if they may read the page", async () => {
+  const { sql } = database;
+  const s = await openSpace("Mentions");
+  const p = await newPage(s.id, ines, "Parking");
+  const kept = await spaces.createSpace(sql, asMember(camille), { name: "Office only", visibility: "groups", groups: [groups.office] });
+  const hidden = await newPage(kept.id, camille, "Pay");
+  const c = await comments.addComment(sql, asMember(tom), p.id, "@Hugo Bernard can you check the bikes? cc @Léa Dubois");
+  const told = await tell.commented(sql, asMember(tom), c.page, c.comment, [hugo.id, lea.id, tom.id]);
+  assert.deepEqual(itemsOf(hugo.id, `mention:${p.id}`).length, 1);
+  assert.equal(itemsOf(lea.id, `mention:${p.id}`)[0]?.title, "Tom Walker vous a mentionné sur « Parking »");
+  assert.equal(itemsOf(tom.id, `mention:${p.id}`).length, 0); // never oneself
+  // Inès, the author, gets the usual item; Hugo is not told twice.
+  assert.equal(itemsOf(ines.id, `comments:${p.id}`).length, 1);
+  assert.equal(itemsOf(hugo.id, `comments:${p.id}`).length, 0);
+  assert.ok(told.includes(hugo.id) && told.includes(ines.id));
+  // Named on a page they cannot read: nothing.
+  const secret = await comments.addComment(sql, asMember(camille), hidden.id, "@Hugo Bernard");
+  await tell.commented(sql, asMember(camille), secret.page, secret.comment, [hugo.id]);
+  assert.equal(itemsOf(hugo.id, `mention:${hidden.id}`).length, 0);
+  // The page in the trash: the mention goes too.
+  const { ids } = await pages.deletePage(sql, asMember(ines), p.id);
+  await tell.forget(sql, ids);
+  assert.equal(itemsOf(hugo.id, `mention:${p.id}`).length, 0);
+});

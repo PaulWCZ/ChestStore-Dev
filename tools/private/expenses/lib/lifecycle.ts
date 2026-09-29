@@ -45,7 +45,10 @@ export async function erase(sql: Sql, memberId: string): Promise<void> {
     await tx`update claims set member_id = 'erased' where member_id = ${memberId}`;
     await tx`update history set actor = 'erased' where actor = ${memberId}`;
     await tx`update mileage_scales set updated_by = 'erased' where updated_by = ${memberId}`;
-    await tx`delete from vehicles where member_id = ${memberId}`;
+    const proofs = await tx<{ proof_object: string | null }[]>`delete from vehicles where member_id = ${memberId} returning proof_object`;
+    await tx`update vehicles set checked_by = 'erased' where checked_by = ${memberId}`;
+    await tx`delete from prior_distances where member_id = ${memberId}`;
+    await tx`delete from member_accounts where member_id = ${memberId}`;
     await tx`delete from bank_accounts where owner = ${memberId}`;
     await tx`update bank_accounts set updated_by = 'erased' where updated_by = ${memberId}`;
     await tx`update payment_runs set created_by = 'erased' where created_by = ${memberId}`;
@@ -53,7 +56,7 @@ export async function erase(sql: Sql, memberId: string): Promise<void> {
     await tx`update rates set updated_by = 'erased' where updated_by = ${memberId}`;
     await forgetInRuns(tx, memberId);
     const uploads = await tx<{ object: string }[]>`delete from uploads where member_id = ${memberId} returning object`;
-    return [...drafts.map(d => d.receipt_object).filter((o): o is string => o !== null), ...uploads.map(u => u.object)];
+    return [...[...drafts.map(d => d.receipt_object), ...proofs.map(p => p.proof_object)].filter((o): o is string => o !== null), ...uploads.map(u => u.object)];
   });
   await forget(objects);
   await refresh(sql, []);

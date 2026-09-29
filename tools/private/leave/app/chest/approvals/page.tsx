@@ -41,7 +41,7 @@ export default async function ApprovalsPage() {
     // requests of the kind that come before it.
     const after = b && b.setUp && !r.cancelAsked ? afterRequest(b.left, open.filter(o => o.memberId === r.memberId && o.typeId === r.typeId), r) : null;
     const person = who.get(r.memberId);
-    const also = [...new Set(around.filter(e => e.memberId !== r.memberId && e.status === "approved" && overlaps(e, r)).map(e => nameOf(who.get(e.memberId), locale)))];
+    const also = [...new Set(around.filter(e => e.memberId !== r.memberId && e.status === "approved" && e.away && overlaps(e, r)).map(e => nameOf(who.get(e.memberId), locale)))];
     const mine = !hr || (dir.reached ? answerers({ memberId: r.memberId, approverId: r.approverId }, dir.people).includes(member.id) : r.approverId === null || r.approverId === member.id);
     return {
       id: r.id,

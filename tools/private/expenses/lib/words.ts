@@ -3,9 +3,9 @@
 // category is named in each language until the accountant renames it; a
 // vehicle's power is written as the scale names it.
 import type { Catalogue } from "./i18n/index.ts";
-import { format } from "./i18n/format.ts";
+import { format, plural } from "./i18n/format.ts";
 
-type Words = Pick<Catalogue, "categories" | "powers" | "vehicles">;
+type Words = Pick<Catalogue, "categories" | "powers" | "vehicles" | "allowance">;
 
 export function categoryName(c: { key: string | null; name: string | null } | undefined, t: Pick<Catalogue, "categories">): string {
   if (!c) return "";
@@ -25,4 +25,18 @@ export function vehicleName(kind: string, t: Pick<Words, "vehicles">): string {
 // A distance in tenths of a km, in the reader's language ("12,5").
 export function km(tenths: number, locale: string): string {
   return new Intl.NumberFormat(locale === "en" ? "en-GB" : locale, { maximumFractionDigits: 1 }).format(tenths / 10);
+}
+
+// A flat rate's name: the accountant's, or the built-in one's in the
+// reader's language.
+export function allowanceName(a: { key: string | null; name: string | null } | undefined, t: Pick<Words, "allowance">): string {
+  if (!a) return "";
+  if (a.name) return a.name;
+  return a.key && a.key in t.allowance.names ? t.allowance.names[a.key as keyof Catalogue["allowance"]["names"]] : "";
+}
+
+// "3 nights × €56.80".
+export function allowanceDetail(units: number, unit: string, unitAmount: string, t: Pick<Words, "allowance">, locale: string): string {
+  const u = unit as keyof Catalogue["allowance"]["units"];
+  return plural(t.allowance.detail, units, locale, { unit: t.allowance.units[u] ?? unit, units: t.allowance.plural[u] ?? unit, amount: unitAmount });
 }

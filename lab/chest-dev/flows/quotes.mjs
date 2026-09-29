@@ -5,7 +5,10 @@
 // client accepts; he makes a deposit invoice and hands it to billing. Sofia
 // (billing, English) finalises it, sends it, records a payment. Camille
 // (admin, French) makes a credit note, changes a setting, exports for the
-// accountant. Léa (viewer, French) reads; Nora has no role.
+// accountant. Léa (viewer, French) reads; Nora has no role. Then what
+// switching from another tool needs: the Factur-X, the reminder first on a
+// late invoice, a repeating invoice, the clients imported from an Axonaut
+// export, the numbering continued, the reminders by themselves.
 import { as, done, expect, open, step } from "./lib.mjs";
 
 const port = Number(process.argv[2] ?? 5700);
@@ -142,14 +145,19 @@ await step("Camille changes the payment terms in Settings", async () => {
   expect(alert.includes("SIREN"), "SIREN refused, in French: " + alert);
 });
 
-await step("the accountant's export: a French CSV and a ZIP of PDFs", async () => {
+await step("the accountant's export: a French CSV, the accounting entries, a ZIP of everything", async () => {
   await as(context, origin, "lea");
   await french();
   await page.goto(origin + "/chest/export?" + new URLSearchParams({ from: "2000-01-01", to: "2100-12-31" }));
-  const csv = await (await page.request.get(origin + (await page.locator("a.download").first().getAttribute("href")))).text();
+  const get = async name => page.request.get(origin + (await page.getByRole("link", { name }).getAttribute("href")));
+  const csv = await (await get("Récapitulatif (CSV)")).text();
   expect(csv.includes("Journal;Date;Numéro;Type;Client") && /VE;\d\d\/\d\d\/\d{4};A-\d{4}-0002;Avoir;Garage Rossi SARL/u.test(csv), "CSV");
-  const zip = Buffer.from(await (await page.request.get(origin + (await page.locator("a.download").nth(1).getAttribute("href")))).body());
-  expect(zip.subarray(0, 2).toString() === "PK" && zip.includes(Buffer.from("Avoir-A-")), "ZIP");
+  const entries = await (await get("Écritures comptables (CSV)")).text();
+  expect(entries.includes("JournalCode;JournalLib;EcritureNum") && /VE;Ventes;A-\d{4}-0002;\d{8};411000;Clients;C\d{5};Garage Rossi SARL/u.test(entries), "entries: " + entries.slice(0, 300));
+  const zip = Buffer.from(await (await get("Tout (ZIP)")).body());
+  expect(zip.subarray(0, 2).toString() === "PK" && zip.includes(Buffer.from("Avoir-A-")) && zip.includes(Buffer.from("clients.csv")) && zip.includes(Buffer.from("ecritures-ventes_")), "ZIP");
+  const clients = await (await get("Clients (CSV)")).text();
+  expect(clients.includes("Nom;Entreprise ou particulier;Personne à contacter"), "clients CSV");
 });
 
 await step("rights: a viewer reads but writes nothing; no role, no tool", async () => {
@@ -198,10 +206,93 @@ await step("a deal won in Clients becomes a draft quote for Hugo; reopened untou
   expect(gone.status() === 404, "untouched draft deleted: " + gone.status());
 });
 
+await step("an issued invoice is a Factur-X: its PDF carries factur-x.xml", async () => {
+  await as(context, origin, "sofia");
+  const r = await page.request.get(invoiceUrl + "/pdf?download");
+  const body = Buffer.from(await r.body()).toString("latin1");
+  expect(body.includes("/AFRelationship /Alternative") && body.includes("(factur-x.xml)") && body.includes("<fx:ConformanceLevel>EN 16931</fx:ConformanceLevel>"), "Factur-X parts");
+  await english();
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto(invoiceUrl);
+  expect((await page.locator(".facts").innerText()).includes("Factur-X (EN 16931)"), "the margin says so");
+});
+
+await step("a late invoice's first action is the reminder; a unit reads in the plural", async () => {
+  await page.goto(origin + "/chest/invoices?state=overdue");
+  await page.locator(".ledger-row a.main").first().click();
+  await page.waitForSelector(".stamp.big.overdue");
+  expect(await page.locator(".wide-actions").getByRole("button", { name: "Send a reminder" }).count() === 1, "remind is the primary action");
+  await page.goto(origin + "/chest/invoices");
+  await page.locator(".ledger-row", { hasText: "Jardins" }).first().locator("a.main").click();
+  const paper = await page.locator(".sheet").innerText();
+  expect(/10 exemplaires/u.test(paper), "10 exemplaires on the paper");
+});
+
+await step("Sofia makes a paid invoice repeat every quarter, then stops it", async () => {
+  await page.goto(origin + "/chest/invoices?state=paid");
+  await page.locator(".ledger-row a.main").first().click();
+  await page.getByRole("button", { name: "Repeat this invoice" }).click();
+  await page.getByLabel("Every").selectOption("quarter");
+  await page.getByRole("button", { name: "Repeat it" }).click();
+  await page.waitForSelector("text=It repeats: the next draft comes on");
+  await page.waitForSelector(".repeat-note");
+  expect((await page.locator(".repeat-note").innerText()).includes("Repeats every quarter"), "repeat shown");
+  await page.getByRole("button", { name: "Stop repeating" }).click();
+  await page.waitForSelector("text=It no longer repeats.");
+});
+
+await step("Hugo brings his clients from Axonaut: columns matched, first rows shown, bad rows said", async () => {
+  await as(context, origin, "hugo");
+  await english();
+  await page.goto(origin + "/chest/clients");
+  await page.getByRole("link", { name: "Import a file" }).click();
+  await page.waitForURL(/\/chest\/import\?kind=clients$/u);
+  await page.locator('input[type=file]').setInputFiles(new URL("../../../tools/private/quotes/test/fixtures/axonaut-clients.csv", import.meta.url).pathname);
+  await page.waitForSelector("table.mapping");
+  expect(await page.getByLabel("Where column SIRET goes").inputValue() === "siret", "SIRET recognised");
+  expect((await page.locator("table.preview").innerText()).includes("Boulangerie Dupain SAS"), "preview");
+  await page.getByRole("button", { name: /^Import 6 rows$/u }).click();
+  await page.waitForSelector("text=clients imported.");
+  const report = await page.locator(".report").innerText();
+  expect(report.includes("Line 5: A SIRET has 14 digits"), "bad SIRET said: " + report);
+  expect(/1 was already here|already here/u.test(report), "Dupain already there: " + report);
+});
+
+await step("Camille continues the numbering of her previous tool, and turns reminders on", async () => {
+  await as(context, origin, "camille");
+  await french();
+  await page.goto(origin + "/chest/settings");
+  // Invoices were numbered here already this year: the sequence cannot move.
+  expect((await page.locator(".sequences").innerText()).includes("plus de changement possible"), "started sequences are locked");
+  await page.getByText("Sans l’année", { exact: true }).click();
+  await page.waitForSelector("text=Les numéros seront de la forme F-0001.");
+  await page.locator(".sequence", { hasText: "Factures" }).getByRole("button", { name: "Continuer depuis mon ancien outil" }).click();
+  await page.locator("#next-seq").fill("348");
+  await page.getByRole("button", { name: "Commencer à F-0348" }).click();
+  await page.waitForSelector("text=Le prochain sera F-0348.");
+  await page.locator("details.history summary").click();
+  expect((await page.locator("details.history").innerText()).includes("a fixé le prochain numéro à F-0348"), "kept in the history");
+  await page.getByText("Avec l’année", { exact: true }).click();
+  await page.waitForSelector("text=Les numéros seront de la forme F-");
+  await page.getByText("Relancer automatiquement les retards de paiement").click();
+  await page.getByRole("button", { name: "Enregistrer" }).click();
+  await page.waitForSelector("text=Enregistré.");
+  await page.request.post(origin + "/_dev/schedule", { form: { name: "followup" } });
+  expect(/Relance : facture F-\d{4}-\d{4}/u.test(await dev()), "a late payer reminded by email");
+});
+
+await step("phone: the bottom bar holds every place, with words", async () => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(origin + "/chest");
+  await page.locator(".bar-more summary").click();
+  await page.locator(".bar-menu").getByRole("link", { name: "Catalogue" }).click();
+  await page.waitForURL(/\/chest\/catalogue$/u);
+});
+
 await step("phone width: no page scrolls sideways", async () => {
   await as(context, origin, "camille");
   await page.setViewportSize({ width: 390, height: 844 });
-  for (const path of ["/chest", "/chest/quotes", "/chest/invoices", "/chest/clients", "/chest/clients/1", "/chest/catalogue", "/chest/export", "/chest/settings", "/chest/documents/7", "/chest/documents/11", new URL(invoiceUrl).pathname]) {
+  for (const path of ["/chest", "/chest/quotes", "/chest/invoices", "/chest/clients", "/chest/clients/1", "/chest/catalogue", "/chest/export", "/chest/settings", "/chest/import", "/chest/documents/7", "/chest/documents/11", new URL(invoiceUrl).pathname]) {
     await page.goto(origin + path);
     const wide = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
     expect(wide <= 0, `${path} scrolls sideways by ${wide}px`);

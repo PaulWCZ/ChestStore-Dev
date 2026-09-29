@@ -108,3 +108,28 @@ test("leave earned month by month, and the reference period from 1 June", () => 
   assert.equal(e.total, 12.5);
   assert.equal(e.thisPeriod, 8.33);
 });
+
+test("part-time and four-day weeks: paid leave from the first day the person would have worked to the day before they are back", () => {
+  const all = off("2026-01-01", "2026-12-31");
+  const monToWed = [1, 2, 3];
+  // Works Monday to Wednesday, off Monday 5 to Wednesday 7 October, back
+  // on Monday 12: 6 jours ouvrables (to Saturday), 5 jours ouvrés.
+  assert.equal(cost(span("2026-10-05", "2026-10-07"), { counting: "ouvrables", daysOff: all, workDays: monToWed }), 6);
+  assert.equal(cost(span("2026-10-05", "2026-10-07"), { counting: "ouvres", daysOff: all, workDays: monToWed }), 5);
+  // Off on Wednesdays: a week still costs a week.
+  const noWednesday = [1, 2, 4, 5];
+  assert.equal(cost(span("2026-10-05", "2026-10-09"), { counting: "ouvres", daysOff: all, workDays: noWednesday }), 5);
+  assert.equal(cost(span("2026-10-05", "2026-10-09"), { counting: "ouvrables", daysOff: all, workDays: noWednesday }), 6);
+  // The day not worked alone costs nothing; leave starting on it starts the next day worked.
+  assert.equal(cost(span("2026-10-07", "2026-10-07"), { counting: "ouvres", daysOff: all, workDays: noWednesday }), 0);
+  assert.equal(cost(span("2026-10-07", "2026-10-09"), { counting: "ouvres", daysOff: all, workDays: noWednesday }), 2);
+  // Off on Fridays, away Monday to Thursday: the Friday before coming back counts.
+  assert.equal(cost(span("2026-10-05", "2026-10-08"), { counting: "ouvres", daysOff: all, workDays: [1, 2, 3, 4] }), 5);
+  // Full time, the same as before.
+  assert.equal(cost(span("2026-10-05", "2026-10-09"), { counting: "ouvrables", daysOff: all, workDays: [1, 2, 3, 4, 5] }), 6);
+  // RTT and remote days: only the days the person works.
+  assert.equal(cost(span("2026-10-05", "2026-10-09"), { counting: "worked", daysOff: all, workDays: monToWed }), 3);
+  assert.equal(cost(span("2026-11-09", "2026-11-13"), { counting: "worked", daysOff: all }), 4);
+  // The rest of a leave cut at a month's start: it had begun, its first day counts.
+  assert.equal(cost(span("2026-10-07", "2026-10-07"), { counting: "ouvrables", daysOff: all, workDays: noWednesday }, { head: false, tail: false }), 1);
+});

@@ -257,6 +257,78 @@ test("a refusal recorded before the fingerprint counts as unchanged until the dr
   assert.equal((await expenses.expense(sql, asMember(hugo), a.id)).expense.refusedUnchanged, false);
 });
 
+test("flat rates: units × the rate, in the company's currency, no receipt asked; hotels are checked per night", async () => {
+  const { sql } = database;
+  const [meal] = await sql<{ id: string }[]>`select id from allowances where key = 'meal_away'`;
+  const flat = await expenses.saveAllowance(sql, asMember(hugo), null, { spentOn: "2026-09-14", allowanceId: String(meal!.id), units: "4", note: "Chantier" });
+  assert.deepEqual([flat.kind, flat.amount, flat.currency, flat.base, flat.paidBy, flat.allowance], ["allowance", 8560, "EUR", 8560, "me", { id: String(meal!.id), units: 4 }]);
+  assert.equal((await expenses.warnings(sql, [flat])).get(flat.id), undefined);
+  for (const units of ["0", "367", "1.5", "x"]) await assert.rejects(expenses.saveAllowance(sql, asMember(hugo), null, { spentOn: "2026-09-14", allowanceId: String(meal!.id), units }), refuses("count_invalid"), units);
+  await assert.rejects(expenses.saveAllowance(sql, asMember(hugo), null, { spentOn: "2026-09-14", allowanceId: "999999", units: 1 }), refuses("allowance_invalid"));
+  await assert.rejects(expenses.saveAllowance(sql, asMember(lea), flat.id, { spentOn: "2026-09-14", allowanceId: String(meal!.id), units: 1 }), refuses("not_found"));
+  const edited = await expenses.saveAllowance(sql, asMember(hugo), flat.id, { spentOn: "2026-09-15", allowanceId: String(meal!.id), units: 2 });
+  assert.equal(edited.amount, 4280);
+  // The flat-rate category is not one to pick for a receipt.
+  await assert.rejects(expenses.saveExpense(sql, asMember(hugo), null, lunch({ categoryId: cat["allowance"] })), refuses("category_invalid"));
+  // A hotel: its limit is per night.
+  await settings.updateCategory(sql, asMember(camille), cat["lodging"], { cap: "100" });
+  const two = (await expenses.saveExpense(sql, asMember(hugo), null, lunch({ amount: "180", categoryId: cat["lodging"], merchant: "Ibis", nights: "2" }))).expense;
+  const one = (await expenses.saveExpense(sql, asMember(hugo), null, lunch({ amount: "180", categoryId: cat["lodging"], merchant: "Novotel" }))).expense;
+  assert.equal(two.nights, 2);
+  assert.equal(one.nights, 1);
+  const found = await expenses.warnings(sql, [two, one]);
+  assert.equal(found.get(two.id)?.some(w => w.code.startsWith("over_cap")), false);
+  assert.deepEqual(found.get(one.id)?.filter(w => w.code.startsWith("over_cap")), [{ code: "over_cap_night", cap: 10000 }]);
+  await assert.rejects(expenses.saveExpense(sql, asMember(hugo), null, lunch({ categoryId: cat["lodging"], nights: "0" })), refuses("count_invalid"));
+  // Other categories keep no nights.
+  assert.equal((await expenses.saveExpense(sql, asMember(hugo), null, lunch({ nights: "3" }))).expense.nights, null);
+  await settings.updateCategory(sql, asMember(camille), cat["lodging"], { cap: null });
+});
+
+test("kilometres driven before the tool count in the year: trips fall in the right band", async () => {
+  const { sql } = database;
+  await assert.rejects(expenses.setPriorDistance(sql, asMember(tom), { year: 2026, distance: "100" }), refuses("no_vehicle"));
+  await settings.setVehicle(sql, asMember(tom), { kind: "car", power: "5", electric: false });
+  const trip = await expenses.saveTrip(sql, asMember(tom), null, { spentOn: "2026-09-20", from: "A", to: "B", distance: "100" });
+  assert.equal(trip.amount, 6360); // 100 km × 0.636, the first band
+  await assert.rejects(expenses.setPriorDistance(sql, asMember(tom), { year: 2020, distance: "100" }), refuses("invalid"));
+  await assert.rejects(expenses.setPriorDistance(sql, asMember(tom), { year: 2026, distance: "-5" }), refuses("distance_invalid"));
+  await expenses.setPriorDistance(sql, asMember(tom), { year: 2026, distance: "6000" });
+  // After 6,000 km: the middle band, 100 km × 0.357 (the fixed part is the year's, already counted).
+  assert.equal((await expenses.expense(sql, asMember(tom), trip.id)).expense.amount, 3570);
+  assert.equal(await expenses.yearDistance(sql, tom.id, 2026), 61_000);
+  await expenses.setPriorDistance(sql, asMember(tom), { year: 2026, distance: "" });
+  assert.equal((await expenses.expense(sql, asMember(tom), trip.id)).expense.amount, 6360);
+  await sql`delete from vehicles where member_id = ${tom.id}`;
+});
+
+test("the registration certificate: its owner's upload, seen by accountants, checked until the vehicle changes", async () => {
+  const { sql } = database;
+  await settings.setVehicle(sql, asMember(lea), { kind: "car", power: "4", electric: false });
+  const file = await upload(chest, sql, asMember(lea), "%PDF-1.4 carte grise");
+  await assert.rejects(settings.setVehicleProof(sql, asMember(tom), file), refuses("no_vehicle"));
+  assert.equal(await settings.setVehicleProof(sql, asMember(lea), file, "carte-grise.pdf"), null);
+  assert.deepEqual(await settings.vehicleProof(sql, lea.id), { name: "carte-grise.pdf", type: "application/pdf", checkedBy: null, checkedAt: null });
+  assert.equal((await settings.vehicleProofObject(sql, asMember(camille), lea.id)).object, file.object);
+  assert.equal((await settings.vehicleProofObject(sql, asMember(lea), lea.id)).object, file.object);
+  await assert.rejects(settings.vehicleProofObject(sql, asMember(ines), lea.id), refuses("not_found"));
+  await assert.rejects(settings.checkVehicle(sql, asMember(ines), lea.id, true), refuses("forbidden"));
+  await settings.checkVehicle(sql, asMember(camille), lea.id, true);
+  assert.deepEqual((await settings.vehicles(sql, asMember(camille))).find(v => v.member === lea.id), { member: lea.id, kind: "car", power: "4", electric: false, proof: true, checked: true });
+  // The same vehicle saved again: still checked; another one: not any more.
+  await settings.setVehicle(sql, asMember(lea), { kind: "car", power: "4", electric: false });
+  assert.notEqual((await settings.vehicleProof(sql, lea.id))?.checkedAt, null);
+  await settings.setVehicle(sql, asMember(lea), { kind: "car", power: "6", electric: false });
+  assert.equal((await settings.vehicleProof(sql, lea.id))?.checkedAt, null);
+  // Replaced: the old file is handed back to be forgotten.
+  const second = await upload(chest, sql, asMember(lea), "%PDF-1.4 new");
+  assert.equal(await settings.setVehicleProof(sql, asMember(lea), second), file.object);
+  await assert.rejects(settings.setVehicleProof(sql, asMember(lea), second), refuses("file_missing"));
+  await settings.setVehicleProof(sql, asMember(lea), null);
+  assert.equal(await settings.vehicleProof(sql, lea.id), null);
+  await sql`delete from vehicles where member_id = ${lea.id}`;
+});
+
 test("an approver who may no longer approve is passed over: the accountants get it", async () => {
   const { sql } = database;
   await settings.setApprover(sql, asMember(camille), hugo.id, tom.id, yes);

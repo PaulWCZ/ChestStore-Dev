@@ -38,6 +38,7 @@ export const Clock = () => <Icon><circle cx="12" cy="12" r="8" /><path d="M12 8v
 export const More = () => <Icon><circle cx="6" cy="12" r="1" /><circle cx="12" cy="12" r="1" /><circle cx="18" cy="12" r="1" /></Icon>;
 export const Table = () => <Icon><rect x="4" y="5" width="16" height="14" rx="1.5" /><path d="M4 10h16M4 14.5h16M10 5v14" /></Icon>;
 export const Zip = () => <Icon><path d="M6 3h12v18H6z" /><path d="M12 3v2M12 7v2M12 11v2M11 15h2v3h-2z" /></Icon>;
+export const Repeat = () => <Icon><path d="M4 11V9a3 3 0 013-3h12M16 3l3 3-3 3" /><path d="M20 13v2a3 3 0 01-3 3H5M8 21l-3-3 3-3" /></Icon>;
 export const Upload = () => <Icon><path d="M12 20V9M7 14l5-5 5 5M4 5h16" /></Icon>;
 
 // The empty desk: a blank sheet with a seal, drawn larger.

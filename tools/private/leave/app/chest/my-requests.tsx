@@ -68,7 +68,7 @@ export function MyRequests({ rows, t }: { rows: RequestRow[]; t: Words }) {
   const list = (items: RequestRow[]) => (
     <ul className="requests">
       {items.map(r => (
-        <li key={r.id} className={`request${hidden.has(r.id) ? " gone" : ""}`}>
+        <li key={r.id} className={`request${hidden.has(r.id) ? " gone" : ""}`} data-start={r.start}>
           <span className={`kind k-${r.color}`}>{r.type}</span>
           <span className="request-when">
             <Link href={`/chest/requests/${r.id}`}>{r.when}</Link>

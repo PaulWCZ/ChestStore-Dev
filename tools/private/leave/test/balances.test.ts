@@ -107,7 +107,9 @@ test("importing opening balances: names matched whatever their accents, case or 
   const twins = [...people, { id: "mbr_twinaaaaaaaaaaaaaaaaaaaaaa", name: "Inès Moreau", firstName: "Inès", lastName: "Moreau" }];
   assert.equal(planImport(csv, names, twins).rows[0]!.problem, "ambiguous");
   assert.throws(() => planImport("just one column\nx", names, people), refused("import_invalid"));
-  assert.throws(() => planImport("Name,Shoes\nInès Moreau,3", names, people), refused("import_invalid"));
+  // A column nobody knows: HR is asked what it is before any line is read.
+  assert.deepEqual(planImport("Name,Shoes\nInès Moreau,3", names, people).rows, []);
+  assert.throws(() => planImport("Name,Email\nInès Moreau,x", names, people), refused("import_invalid"));
   // Applied: only the clean lines, in one go.
   const rows = plan.rows.filter(r => r.problem === null && r.memberId).flatMap(r => r.values.map(v => ({ memberId: r.memberId!, ...v })));
   assert.equal(await balances.openings(database.sql, asMember(camille), rows, addDays(today(), -1), "From Lucca"), 3);

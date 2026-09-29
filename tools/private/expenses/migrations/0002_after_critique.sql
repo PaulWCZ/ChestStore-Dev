@@ -107,3 +107,58 @@ alter table vehicles add column proof_type text;
 alter table vehicles add column proof_sha256 text check (proof_sha256 is null or proof_sha256 ~ '^[0-9a-f]{64}$');
 alter table vehicles add column checked_by text;
 alter table vehicles add column checked_at timestamptz;
+
+-- Each person's account in the accounting journal (an auxiliary account
+-- such as 421DUPONT), set by the accountant; without one, the employees'
+-- account alone (lib/journal.ts).
+create table member_accounts (
+  member_id text primary key check (member_id ~ '^mbr_[a-z2-7]{26}$'),
+  account text not null check (account ~ '^[0-9A-Za-z]{1,20}$')
+);
+
+-- Flat rates (forfaits): an amount per day, night or meal the company pays
+-- without a receipt (URSSAF allowances when working away, a company's own
+-- per diem). Claimed as a number of units; the amount is units × the rate
+-- of the day it was saved.
+create table allowances (
+  id bigint generated always as identity primary key,
+  -- A built-in rate has a key (named in each reader's language) until the
+  -- accountant renames it, as categories do.
+  key text unique check (key in ('meal_away', 'night_paris', 'night_other')),
+  name text check (name is null or char_length(name) between 1 and 80),
+  amount_cents bigint not null check (amount_cents > 0 and amount_cents <= 10000000),
+  unit text not null check (unit in ('day', 'night', 'meal')),
+  account text not null default '' check (char_length(account) <= 20),
+  source text not null default '' check (char_length(source) <= 500),
+  position integer not null default 0,
+  archived_at timestamptz,
+  constraint named check (key is not null or name is not null)
+);
+-- URSSAF's 2026 allowances for employees working away who cannot go home
+-- each day (grand déplacement, first three months), as read on 2026-09-29
+-- in search results quoting urssaf.fr (not re-read on urssaf.fr itself):
+-- the accountant checks them each January (Settings → Company).
+insert into allowances (key, amount_cents, unit, account, source, position) values
+  ('meal_away', 2140, 'meal', '625100', 'https://www.urssaf.fr/accueil/employeur/beneficier-exonerations/frais-professionnels.html (2026, via search results read 2026-09-29, not re-read on urssaf.fr)', 1),
+  ('night_paris', 7660, 'night', '625100', 'https://www.urssaf.fr/accueil/employeur/beneficier-exonerations/frais-professionnels.html (2026, via search results read 2026-09-29, not re-read on urssaf.fr)', 2),
+  ('night_other', 5680, 'night', '625100', 'https://www.urssaf.fr/accueil/employeur/beneficier-exonerations/frais-professionnels.html (2026, via search results read 2026-09-29, not re-read on urssaf.fr)', 3);
+insert into categories (key, account, vat_recovery, mileage, position) values ('allowance', '625100', 0, false, 20);
+alter table expenses drop constraint expenses_kind_check;
+alter table expenses add constraint expenses_kind_check check (kind in ('expense', 'mileage', 'allowance'));
+alter table expenses add column allowance_id bigint references allowances (id);
+alter table expenses add column units smallint check (units is null or units between 1 and 366);
+alter table expenses add constraint allowance check (kind <> 'allowance' or (allowance_id is not null and units is not null));
+
+-- A hotel is checked per night: the category's limit applies to the amount
+-- divided by the nights.
+alter table categories add column per_night boolean not null default false;
+update categories set per_night = true where key = 'lodging';
+alter table expenses add column nights smallint check (nights is null or nights between 1 and 366);
+
+-- Past expenses imported from the tool used before (an Expensify or N2F
+-- export, columns mapped by the accountant): the history of each person,
+-- already paid back there — never paid, exported or booked again here.
+-- `import_key` recognises a line imported twice.
+alter table expenses add column imported_at timestamptz;
+alter table expenses add column import_key text check (import_key is null or import_key ~ '^[0-9a-f]{64}$');
+create unique index expenses_import_key on expenses (member_id, import_key) where import_key is not null;

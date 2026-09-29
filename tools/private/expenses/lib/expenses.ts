@@ -3,23 +3,26 @@ import type { Member } from "@argentic/chest-sdk/member";
 import { can, expenseAccess, type ExpenseAccess } from "./access.ts";
 import { AppError } from "./app-error.ts";
 import type { Query, Sql } from "./db.ts";
-import { clean, distanceTenths, id, ids, limits, memberId, paidByValues, spentOn, type PaidBy, type Status } from "./model.ts";
+import { clean, distanceTenths, id, ids, limits, memberId, paidByValues, spentOn, today, type PaidBy, type Status } from "./model.ts";
 import { convert, isCurrency, parseAmount, parseRate } from "./money.ts";
 import type { ReceiptFile } from "./receipts.ts";
 import { tripCents, type VehicleKind } from "./scale.ts";
-import { approverOf, mileageCategory, scaleFor, settings, vehicleOf } from "./settings.ts";
+import { allowanceCategory, approverOf, mileageCategory, scaleFor, settings, vehicleOf } from "./settings.ts";
 
 // Expenses: a person adds them (a receipt, or a trip with their vehicle),
 // sends them, their approver approves or refuses each, the accountant marks
 // them paid. Every function checks the actor's rights first and answers
 // data or an AppError code.
 
+// expense: with a receipt; mileage: a car trip (the scale); allowance: a
+// flat rate (units × the company's rate, no receipt).
+export type Kind = "expense" | "mileage" | "allowance";
 export type Trip = { from: string; to: string; distance: number; vehicle: VehicleKind; power: string; electric: boolean; scaleYear: number };
 export type Receipt = { name: string; type: string; size: number };
 export type Expense = {
   id: string;
   owner: string;
-  kind: "expense" | "mileage";
+  kind: Kind;
   status: Status;
   spentOn: string;
   amount: number;
@@ -38,6 +41,9 @@ export type Expense = {
   paidBy: PaidBy;
   receipt: Receipt | null;
   trip: Trip | null;
+  allowance: { id: string; units: number } | null;
+  // A hotel: the nights it covers (its limit is per night).
+  nights: number | null;
   // Who was at the table: people of the Chest (ids) and from outside (names).
   guests: { members: string[]; names: string[] };
   approver: string | null;
@@ -50,15 +56,18 @@ export type Expense = {
   paidOn: string | null;
   createdAt: string;
   deleted: boolean;
+  // Imported from the tool used before: history, paid back there.
+  imported: boolean;
 };
 
 type Row = {
-  id: string; member_id: string; kind: "expense" | "mileage"; status: Status; spent_on: string; amount_cents: string; currency: string; vat_cents: string | null;
+  id: string; member_id: string; kind: Kind; status: Status; spent_on: string; amount_cents: string; currency: string; vat_cents: string | null;
   category_id: string; merchant: string; note: string; paid_by: PaidBy; receipt_object: string | null; receipt_name: string | null; receipt_type: string | null; receipt_size: string | null;
   from_place: string | null; to_place: string | null; distance_tenths: number | null; vehicle: VehicleKind | null; power: string | null; electric: boolean | null; scale_year: number | null;
   approver_id: string | null; submitted_at: Date | null; decided_by: string | null; decided_at: Date | null; refused_reason: string | null; paid_on: string | null; created_at: Date; deleted_at: Date | null;
   refused_fingerprint: string | null; updated_at: Date; guest_members: string[]; guest_names: string[];
   rate_micro: string | null; rate_source: "typed" | "company" | null; base_cents: string | null; base_currency: string | null; payment_run_id: string | null;
+  allowance_id: string | null; units: number | null; nights: number | null; imported_at: Date | null;
 };
 
 const columns = (sql: Query) => sql`
@@ -66,7 +75,7 @@ const columns = (sql: Query) => sql`
   e.receipt_object, e.receipt_name, e.receipt_type, e.receipt_size, e.from_place, e.to_place, e.distance_tenths, e.vehicle, e.power, e.electric, e.scale_year,
   e.approver_id, e.submitted_at, e.decided_by, e.decided_at, e.refused_reason, to_char(e.paid_on, 'YYYY-MM-DD') as paid_on, e.created_at, e.deleted_at,
   e.refused_fingerprint, e.updated_at, e.guest_members, e.guest_names,
-  e.rate_micro, e.rate_source, e.base_cents, e.base_currency, e.payment_run_id`;
+  e.rate_micro, e.rate_source, e.base_cents, e.base_currency, e.payment_run_id, e.allowance_id, e.units, e.nights, e.imported_at`;
 
 // What its owner put on an expense, as one hash: what a refusal remembers,
 // so that the same expense cannot come back unchanged. A trip's amount is
@@ -77,7 +86,7 @@ export function fingerprint(r: Row): string {
   const fields: Record<string, unknown> = {
     kind: r.kind, spentOn: r.spent_on, amount: r.kind === "mileage" ? null : String(r.amount_cents), currency: r.currency, vat: r.vat_cents === null ? null : String(r.vat_cents),
     category: String(r.category_id), merchant: r.merchant, note: r.note, paidBy: r.paid_by, receipt: r.receipt_object,
-    from: r.from_place, to: r.to_place, distance: r.distance_tenths, guestMembers: r.guest_members, guestNames: r.guest_names, rate: r.rate_source === "typed" ? r.rate_micro : null,
+    from: r.from_place, to: r.to_place, distance: r.distance_tenths, allowance: r.allowance_id === null ? null : String(r.allowance_id), units: r.units, nights: r.nights, guestMembers: r.guest_members, guestNames: r.guest_names, rate: r.rate_source === "typed" ? r.rate_micro : null,
   };
   const kept = Object.entries(fields).filter(([, v]) => v !== null && v !== undefined && v !== "" && !(Array.isArray(v) && v.length === 0)).sort(([a], [b]) => a.localeCompare(b));
   return createHash("sha256").update(JSON.stringify(kept)).digest("hex");
@@ -112,6 +121,8 @@ function toExpense(r: Row): Expense {
     paidBy: r.paid_by,
     receipt: r.receipt_object ? { name: r.receipt_name ?? "", type: r.receipt_type ?? "", size: Number(r.receipt_size ?? 0) } : null,
     guests: { members: r.guest_members ?? [], names: r.guest_names ?? [] },
+    allowance: r.kind === "allowance" && r.allowance_id !== null ? { id: String(r.allowance_id), units: r.units ?? 1 } : null,
+    nights: r.nights,
     trip: r.kind === "mileage" ? { from: r.from_place ?? "", to: r.to_place ?? "", distance: r.distance_tenths ?? 0, vehicle: r.vehicle!, power: r.power ?? "", electric: r.electric ?? false, scaleYear: r.scale_year ?? 0 } : null,
     approver: r.approver_id,
     submittedAt: r.submitted_at?.toISOString() ?? null,
@@ -122,6 +133,7 @@ function toExpense(r: Row): Expense {
     paidOn: r.paid_on,
     createdAt: r.created_at.toISOString(),
     deleted: r.deleted_at !== null,
+    imported: r.imported_at !== null,
   };
 }
 
@@ -129,7 +141,7 @@ function toExpense(r: Row): Expense {
 // "resent": sent again after a refusal (changed since: otherwise it could
 // not be sent), with the reason of the last refusal — the approver checks
 // the change, and "Approve all" leaves it for a look of its own.
-export type Warning = { code: "duplicate" | "receipt_reused" | "no_receipt" | "over_cap" | "resent" | "no_guests" | "no_rate"; cap?: number; reason?: string };
+export type Warning = { code: "duplicate" | "receipt_reused" | "no_receipt" | "over_cap" | "resent" | "no_guests" | "no_rate" | "over_cap_night"; cap?: number; reason?: string };
 
 export async function warnings(sql: Query, list: Expense[], options: { anyone?: boolean } = {}): Promise<Map<string, Warning[]>> {
   const out = new Map<string, Warning[]>();
@@ -157,7 +169,9 @@ export async function warnings(sql: Query, list: Expense[], options: { anyone?: 
     if (e.kind === "expense" && !e.receipt) found.push({ code: "no_receipt" });
     if (e.base === null) found.push({ code: "no_rate" });
     if (e.kind === "expense" && r?.guests && e.guests.members.length + e.guests.names.length === 0) found.push({ code: "no_guests" });
-    if (r?.cap !== null && r?.cap !== undefined && e.currency === currency && e.amount > Number(r.cap)) found.push({ code: "over_cap", cap: Number(r.cap) });
+    // A hotel's limit is per night.
+    const perUnit = e.nights ? Math.ceil(e.amount / e.nights) : e.amount;
+    if (r?.cap !== null && r?.cap !== undefined && e.currency === currency && perUnit > Number(r.cap)) found.push({ code: e.nights ? "over_cap_night" : "over_cap", cap: Number(r.cap) });
     if (found.length > 0) out.set(e.id, found);
   }
   return out;
@@ -199,7 +213,7 @@ export async function receiptObject(sql: Query, actor: Member | null, expenseId:
   return { object: row.receipt_object, type: row.receipt_type ?? "", name: row.receipt_name ?? "" };
 }
 
-async function ownDraft(tx: Query, actor: Member, expenseId: string, kind: "expense" | "mileage"): Promise<Row> {
+async function ownDraft(tx: Query, actor: Member, expenseId: string, kind: Kind): Promise<Row> {
   const [row] = await tx<Row[]>`select ${columns(tx)} from expenses e where e.id = ${expenseId} and e.deleted_at is null for update`;
   if (!row || row.member_id !== actor.id) throw new AppError("not_found");
   if (row.kind !== kind) throw new AppError("invalid");
@@ -209,7 +223,7 @@ async function ownDraft(tx: Query, actor: Member, expenseId: string, kind: "expe
 
 // An expense with a receipt. `receipt`: a new upload (inspected by the
 // caller: lib/receipts.ts), null to take it off, undefined to keep it.
-export type ExpenseInput = { spentOn?: unknown; amount?: unknown; currency?: unknown; vat?: unknown; categoryId?: unknown; merchant?: unknown; note?: unknown; paidBy?: unknown; receiptName?: unknown; guestMembers?: unknown; guestNames?: unknown; rate?: unknown };
+export type ExpenseInput = { spentOn?: unknown; amount?: unknown; currency?: unknown; vat?: unknown; categoryId?: unknown; merchant?: unknown; note?: unknown; paidBy?: unknown; receiptName?: unknown; guestMembers?: unknown; guestNames?: unknown; rate?: unknown; nights?: unknown };
 
 // The guests of a meal: member ids (never the actor: they paid) and names
 // of people from outside, 30 of each at most.
@@ -263,8 +277,9 @@ export async function saveExpense(sql: Sql, actor: Member | null, expenseId: unk
   const receiptName = receipt ? clean(input.receiptName ?? "", limits.fileName, { optional: true }) || receipt.object.split("/").at(-1)! : null;
   return sql.begin(async tx => {
     const existing = expenseId === null || expenseId === undefined ? null : await ownDraft(tx, actor, id(expenseId), "expense");
-    const [category] = await tx<{ id: string; mileage: boolean; archived_at: Date | null }[]>`select id, mileage, archived_at from categories where id = ${categoryId}`;
-    if (!category || category.mileage || (category.archived_at !== null && String(existing?.category_id) !== categoryId)) throw new AppError("category_invalid");
+    const [category] = await tx<{ id: string; key: string | null; mileage: boolean; per_night: boolean; archived_at: Date | null }[]>`select id, key, mileage, per_night, archived_at from categories where id = ${categoryId}`;
+    if (!category || category.mileage || category.key === "allowance" || (category.archived_at !== null && String(existing?.category_id) !== categoryId)) throw new AppError("category_invalid");
+    const nights = category.per_night ? count(input.nights ?? 1) : null;
     // The upload is used once, by the member it was granted to.
     if (receipt) {
       const [used] = await tx`delete from uploads where object = ${receipt.object} and member_id = ${actor.id} returning object`;
@@ -280,9 +295,9 @@ export async function saveExpense(sql: Sql, actor: Member | null, expenseId: unk
     let row: Row | undefined;
     if (!existing) {
       [row] = await tx<Row[]>`
-        insert into expenses as e (member_id, kind, spent_on, amount_cents, currency, vat_cents, category_id, merchant, note, paid_by, guest_members, guest_names, rate_micro, rate_source, base_cents, base_currency, receipt_object, receipt_name, receipt_type, receipt_size, receipt_sha256)
+        insert into expenses as e (member_id, kind, spent_on, amount_cents, currency, vat_cents, category_id, merchant, note, paid_by, guest_members, guest_names, rate_micro, rate_source, base_cents, base_currency, nights, receipt_object, receipt_name, receipt_type, receipt_size, receipt_sha256)
         values (${actor.id}, 'expense', ${day}, ${amount}, ${currency}, ${vat}, ${categoryId}, ${merchant}, ${note}, ${paidBy}, ${guests.members}::text[], ${guests.names}::text[],
-                ${rate?.micro ?? null}, ${rate?.source ?? null}, ${base}, ${baseCurrency},
+                ${rate?.micro ?? null}, ${rate?.source ?? null}, ${base}, ${baseCurrency}, ${nights},
                 ${fileFields?.object ?? null}, ${fileFields?.name ?? null}, ${fileFields?.type ?? null}, ${fileFields?.size ?? null}, ${fileFields?.sha ?? null})
         returning ${columns(tx)}`;
       await tx`insert into history (expense_id, actor, kind) values (${row!.id}, ${actor.id}, 'created')`;
@@ -290,7 +305,7 @@ export async function saveExpense(sql: Sql, actor: Member | null, expenseId: unk
       [row] = await tx<Row[]>`
         update expenses as e set spent_on = ${day}, amount_cents = ${amount}, currency = ${currency}, vat_cents = ${vat}, category_id = ${categoryId},
           merchant = ${merchant}, note = ${note}, paid_by = ${paidBy}, guest_members = ${guests.members}::text[], guest_names = ${guests.names}::text[],
-          rate_micro = ${rate?.micro ?? null}, rate_source = ${rate?.source ?? null}, base_cents = ${base}, base_currency = ${baseCurrency}, updated_at = now()
+          rate_micro = ${rate?.micro ?? null}, rate_source = ${rate?.source ?? null}, base_cents = ${base}, base_currency = ${baseCurrency}, nights = ${nights}, updated_at = now()
           ${fileFields ? tx`, receipt_object = ${fileFields.object}, receipt_name = ${fileFields.name}, receipt_type = ${fileFields.type}, receipt_size = ${fileFields.size}, receipt_sha256 = ${fileFields.sha}` : tx``}
         where e.id = ${existing.id}
         returning ${columns(tx)}`;
@@ -298,6 +313,48 @@ export async function saveExpense(sql: Sql, actor: Member | null, expenseId: unk
     }
     return { expense: toExpense(row!), dropped };
   });
+}
+
+// A number of days, nights or meals: a whole number from 1 to 366.
+export function count(value: unknown): number {
+  const n = typeof value === "number" ? value : typeof value === "string" && /^\s*\d{1,3}\s*$/u.test(value) ? Number(value) : NaN;
+  if (!Number.isInteger(n) || n < 1 || n > 366) throw new AppError("count_invalid");
+  return n;
+}
+
+// A flat rate: a number of days, nights or meals at one of the company's
+// rates (lib/settings.ts, allowances), in the company's currency, paid back
+// to its owner; no receipt.
+export type AllowanceInput = { spentOn?: unknown; allowanceId?: unknown; units?: unknown; note?: unknown };
+
+export async function saveAllowance(sql: Sql, actor: Member | null, expenseId: unknown, input: AllowanceInput): Promise<Expense> {
+  if (!actor || !can(actor, "own")) throw new AppError("forbidden");
+  const day = spentOn(input.spentOn);
+  const units = count(input.units);
+  const note = clean(input.note ?? "", limits.note, { optional: true, multiline: true });
+  const rateId = id(input.allowanceId);
+  const { currency } = await settings(sql);
+  const eid = await sql.begin(async tx => {
+    const existing = expenseId === null || expenseId === undefined ? null : await ownDraft(tx, actor, id(expenseId), "allowance");
+    const [rate] = await tx<{ id: string; amount_cents: string; archived_at: Date | null }[]>`select id, amount_cents, archived_at from allowances where id = ${rateId}`;
+    if (!rate || (rate.archived_at !== null && String(existing?.allowance_id) !== rateId)) throw new AppError("allowance_invalid");
+    const amount = Number(rate.amount_cents) * units;
+    if (amount > limits.amount) throw new AppError("amount_invalid");
+    const category = await allowanceCategory(tx);
+    if (!existing) {
+      const [row] = await tx<{ id: string }[]>`
+        insert into expenses (member_id, kind, spent_on, amount_cents, base_cents, currency, base_currency, category_id, note, paid_by, allowance_id, units)
+        values (${actor.id}, 'allowance', ${day}, ${amount}, ${amount}, ${currency}, ${currency}, ${category.id}, ${note}, 'me', ${rateId}, ${units})
+        returning id`;
+      await tx`insert into history (expense_id, actor, kind) values (${row!.id}, ${actor.id}, 'created')`;
+      return String(row!.id);
+    }
+    await tx`update expenses set spent_on = ${day}, amount_cents = ${amount}, base_cents = ${amount}, currency = ${currency}, base_currency = ${currency}, note = ${note},
+      allowance_id = ${rateId}, units = ${units}, updated_at = now() where id = ${existing.id}`;
+    await tx`insert into history (expense_id, actor, kind) values (${existing.id}, ${actor.id}, 'edited')`;
+    return String(existing.id);
+  });
+  return (await expense(sql, actor, eid)).expense;
 }
 
 // A trip with one's own vehicle: the amount comes from the scale and the
@@ -351,7 +408,8 @@ export async function saveTrip(sql: Sql, actor: Member | null, expenseId: unknow
 // recomputeTrips sets again the amount of a person's trips of a year with
 // one kind of vehicle that are not yet approved, in the order they were
 // made: a trip added before others moves them along the scale. Approved and
-// paid trips keep their amount, and still count in the year's distance.
+// paid trips keep their amount, and still count in the year's distance; so
+// do the kilometres driven that year before the tool (prior_distances).
 export async function recomputeTrips(tx: Query, member: string, year: number, kind: VehicleKind): Promise<number> {
   const trips = await tx<{ id: string; status: Status; amount_cents: string; distance_tenths: number; power: string; electric: boolean; scale_year: number }[]>`
     select id, status, amount_cents, distance_tenths, power, electric, scale_year from expenses
@@ -361,7 +419,8 @@ export async function recomputeTrips(tx: Query, member: string, year: number, ki
     for update`;
   if (trips.length === 0) return 0;
   const scale = await scaleFor(tx, year);
-  let before = 0;
+  const [prior] = await tx<{ distance_tenths: number }[]>`select distance_tenths from prior_distances where member_id = ${member} and year = ${year} and vehicle = ${kind}`;
+  let before = prior?.distance_tenths ?? 0;
   let changed = 0;
   for (const t of trips) {
     if (t.status === "draft" || t.status === "submitted") {
@@ -395,9 +454,31 @@ export async function recomputeAllTrips(sql: Sql): Promise<number> {
 // The distance of a person's trips in a year (tenths of km), by vehicle.
 export async function yearDistance(sql: Query, member: string, year: number): Promise<number> {
   const [row] = await sql<{ d: string | null }[]>`
-    select sum(distance_tenths) as d from expenses where member_id = ${member} and kind = 'mileage' and deleted_at is null
-      and spent_on >= ${`${year}-01-01`} and spent_on < ${`${year + 1}-01-01`}`;
+    select coalesce((select sum(distance_tenths) from expenses where member_id = ${member} and kind = 'mileage' and deleted_at is null
+      and spent_on >= ${`${year}-01-01`} and spent_on < ${`${year + 1}-01-01`}), 0)
+      + coalesce((select sum(distance_tenths) from prior_distances where member_id = ${member} and year = ${year}), 0) as d`;
   return Number(row?.d ?? 0);
+}
+
+// setPriorDistance records the kilometres the actor drove for work this
+// year (or last year) before using the tool, with their vehicle's kind:
+// their trips of that year not yet approved move along the scale.
+export async function setPriorDistance(sql: Sql, actor: Member | null, input: { year?: unknown; distance?: unknown }): Promise<number> {
+  if (!actor || !can(actor, "own")) throw new AppError("forbidden");
+  const vehicle = await vehicleOf(sql, actor.id);
+  if (!vehicle) throw new AppError("no_vehicle");
+  const current = Number(today().slice(0, 4));
+  const year = typeof input.year === "number" ? input.year : Number(input.year);
+  if (year !== current && year !== current - 1) throw new AppError("invalid");
+  const empty = input.distance === "" || input.distance === null || input.distance === undefined || input.distance === "0";
+  const tenths = empty ? 0 : distanceTenths(input.distance);
+  return sql.begin(async tx => {
+    if (tenths === 0) await tx`delete from prior_distances where member_id = ${actor.id} and year = ${year} and vehicle = ${vehicle.kind}`;
+    else await tx`insert into prior_distances (member_id, year, vehicle, distance_tenths) values (${actor.id}, ${year}, ${vehicle.kind}, ${tenths})
+      on conflict (member_id, year, vehicle) do update set distance_tenths = excluded.distance_tenths, updated_at = now()`;
+    await recomputeTrips(tx, actor.id, year, vehicle.kind);
+    return tenths;
+  });
 }
 
 // Deleting a draft keeps it a week (Undo), then the job forgets it.
@@ -611,30 +692,40 @@ export async function waitingCounts(sql: Query, memberIds: string[], accountantI
   return counts;
 }
 
-// The export of a month (by the day of the expense): approved and paid
-// expenses, with their category, oldest first; one person or everyone.
-export type ExportRow = Expense & { categoryKey: string | null; categoryName: string | null; account: string; vatRecovery: number; decidedBy: string | null };
+// The export of a month: by the day of the expense (approved and paid
+// expenses), or by the day it was paid back (paid ones); with their
+// category, oldest first; one person or everyone.
+export type ExportBy = "spent" | "paid";
+export type ExportRange = { from: string; to: string; by?: ExportBy };
+// Imported history never comes out again: it was booked by the tool before.
+const within = (sql: Query, range: ExportRange) => range.by === "paid"
+  ? sql`e.imported_at is null and e.status = 'paid' and e.paid_on >= ${range.from} and e.paid_on < ${range.to}`
+  : sql`e.imported_at is null and e.status in ('approved', 'paid') and e.spent_on >= ${range.from} and e.spent_on < ${range.to}`;
+// account: the flat rate's own when it has one, else the category's.
+export type ExportRow = Expense & { categoryKey: string | null; categoryName: string | null; account: string; vatRecovery: number; decidedBy: string | null; flat: { key: string | null; name: string | null; unit: string } | null };
 
-export async function exportRows(sql: Query, actor: Member | null, range: { from: string; to: string }, person?: string | null): Promise<ExportRow[]> {
+export async function exportRows(sql: Query, actor: Member | null, range: ExportRange, person?: string | null): Promise<ExportRow[]> {
   if (!can(actor, "export")) throw new AppError("forbidden");
-  const rows = await sql<(Row & { category_key: string | null; category_name: string | null; account: string; vat_recovery: number })[]>`
-    select ${columns(sql)}, c.key as category_key, c.name as category_name, c.account, c.vat_recovery
-    from expenses e join categories c on c.id = e.category_id
-    where e.deleted_at is null and e.status in ('approved', 'paid') and e.spent_on >= ${range.from} and e.spent_on < ${range.to}
+  const rows = await sql<(Row & { category_key: string | null; category_name: string | null; account: string; vat_recovery: number; flat_key: string | null; flat_name: string | null; flat_unit: string | null })[]>`
+    select ${columns(sql)}, c.key as category_key, c.name as category_name, coalesce(nullif(a.account, ''), c.account) as account, c.vat_recovery,
+      a.key as flat_key, a.name as flat_name, a.unit as flat_unit
+    from expenses e join categories c on c.id = e.category_id left join allowances a on a.id = e.allowance_id
+    where e.deleted_at is null and ${within(sql, range)}
       ${person ? sql`and e.member_id = ${person}` : sql``}
     order by e.spent_on, e.member_id, e.id limit ${limits.exportRows + 1}`;
   if (rows.length > limits.exportRows) throw new AppError("export_too_large", { max: limits.exportRows });
-  return rows.map(r => ({ ...toExpense(r), categoryKey: r.category_key, categoryName: r.category_name, account: r.account, vatRecovery: r.vat_recovery }));
+  return rows.map(r => ({ ...toExpense(r), categoryKey: r.category_key, categoryName: r.category_name, account: r.account, vatRecovery: r.vat_recovery,
+    flat: r.flat_unit === null ? null : { key: r.flat_key, name: r.flat_name, unit: r.flat_unit } }));
 }
 
 // The receipts of the same selection, for the ZIP: bounded in count and
 // bytes before anything is sent.
-export async function exportReceipts(sql: Query, actor: Member | null, range: { from: string; to: string }, person?: string | null): Promise<{ id: string; owner: string; spentOn: string; amount: number; currency: string; object: string; type: string; size: number }[]> {
+export async function exportReceipts(sql: Query, actor: Member | null, range: ExportRange, person?: string | null): Promise<{ id: string; owner: string; spentOn: string; amount: number; currency: string; object: string; type: string; size: number }[]> {
   if (!can(actor, "export")) throw new AppError("forbidden");
   const rows = await sql<{ id: string; member_id: string; spent_on: string; amount_cents: string; currency: string; receipt_object: string; receipt_type: string; receipt_size: string }[]>`
     select e.id, e.member_id, to_char(e.spent_on, 'YYYY-MM-DD') as spent_on, e.amount_cents, e.currency, e.receipt_object, e.receipt_type, e.receipt_size
     from expenses e
-    where e.deleted_at is null and e.status in ('approved', 'paid') and e.receipt_object is not null and e.spent_on >= ${range.from} and e.spent_on < ${range.to}
+    where e.deleted_at is null and e.receipt_object is not null and ${within(sql, range)}
       ${person ? sql`and e.member_id = ${person}` : sql``}
     order by e.spent_on, e.member_id, e.id limit ${limits.exportFiles + 1}`;
   if (rows.length > limits.exportFiles) throw new AppError("export_too_large", { max: limits.exportFiles });
@@ -645,19 +736,32 @@ export async function exportReceipts(sql: Query, actor: Member | null, range: { 
 
 // The months that have something to export, newest first (the Export
 // page's picker), with counts.
-export async function exportMonths(sql: Query, actor: Member | null): Promise<{ month: string; count: number; people: number }[]> {
+export async function exportMonths(sql: Query, actor: Member | null, by: ExportBy = "spent"): Promise<{ month: string; count: number; people: number }[]> {
   if (!can(actor, "export")) throw new AppError("forbidden");
-  const rows = await sql<{ month: string; count: number; people: number }[]>`
-    select to_char(spent_on, 'YYYY-MM') as month, count(*)::int as count, count(distinct member_id)::int as people from expenses
-    where deleted_at is null and status in ('approved', 'paid') group by 1 order by 1 desc limit 36`;
+  const rows = by === "paid"
+    ? await sql<{ month: string; count: number; people: number }[]>`
+        select to_char(paid_on, 'YYYY-MM') as month, count(*)::int as count, count(distinct member_id)::int as people from expenses
+        where deleted_at is null and imported_at is null and status = 'paid' and paid_on is not null group by 1 order by 1 desc limit 36`
+    : await sql<{ month: string; count: number; people: number }[]>`
+        select to_char(spent_on, 'YYYY-MM') as month, count(*)::int as count, count(distinct member_id)::int as people from expenses
+        where deleted_at is null and imported_at is null and status in ('approved', 'paid') group by 1 order by 1 desc limit 36`;
   return rows;
 }
 
+// Expenses of the selection without an amount in the company's currency
+// (another currency, no rate yet): the journal leaves them out.
+export async function exportWithoutRate(sql: Query, actor: Member | null, range: ExportRange, person?: string | null): Promise<number> {
+  if (!can(actor, "export")) throw new AppError("forbidden");
+  const [row] = await sql<{ n: number }[]>`
+    select count(*)::int as n from expenses e where e.deleted_at is null and e.base_cents is null and ${within(sql, range)}
+      ${person ? sql`and e.member_id = ${person}` : sql``}`;
+  return row?.n ?? 0;
+}
+
 // Who has something to export in a month, and how much.
-export async function exportPeople(sql: Query, actor: Member | null, range: { from: string; to: string }): Promise<{ member: string; count: number }[]> {
+export async function exportPeople(sql: Query, actor: Member | null, range: ExportRange): Promise<{ member: string; count: number }[]> {
   if (!can(actor, "export")) throw new AppError("forbidden");
   const rows = await sql<{ member_id: string; n: number }[]>`
-    select member_id, count(*)::int as n from expenses where deleted_at is null and status in ('approved', 'paid')
-      and spent_on >= ${range.from} and spent_on < ${range.to} group by member_id`;
+    select e.member_id, count(*)::int as n from expenses e where e.deleted_at is null and ${within(sql, range)} group by e.member_id`;
   return rows.map(r => ({ member: r.member_id, count: r.n }));
 }

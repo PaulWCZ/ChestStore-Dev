@@ -19,7 +19,7 @@
   "translations": {
     "fr": {
       "title": "Devis et factures",
-      "description": "Envoyez un vrai devis, transformez-le en facture avec le numéro légal suivant, voyez ce qui reste à encaisser, exportez pour le comptable.",
+      "description": "Devis, factures numérotées selon la loi et en Factur-X, relances, exports comptables. Gardez votre plateforme agréée (PA) pour la transmission.",
       "role_labels": {
         "admin": "Administrateur",
         "billing": "Facturation",

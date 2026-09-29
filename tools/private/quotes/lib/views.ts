@@ -46,6 +46,12 @@ export type DocView = {
   reminders: number;
   reference: { id: string; number: string; date: string } | null;
   crmTitle: string | null;
+  // Its structured copy: an issued invoice or credit note is a Factur-X.
+  facturx: boolean;
+  // This invoice repeats (every period, the next draft's day, written), or
+  // this draft was made by the repeat of an invoice (its number).
+  repeat: { id: string; every: "month" | "quarter" | "year"; next: string } | null;
+  madeFrom: { id: string; number: string } | null;
 };
 
 export type Fact = { label: string; value: string; strong?: boolean };

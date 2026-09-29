@@ -6,9 +6,10 @@ import { db } from "../../lib/db.ts";
 import { attempt, AppError, type Result } from "../../lib/errors.ts";
 import * as bank from "../../lib/bank.ts";
 import * as expenses from "../../lib/expenses.ts";
+import { importExpenses as importLines, type Imported } from "../../lib/imports.ts";
 import * as payments from "../../lib/payments.ts";
 import { catalogue, isLocale } from "../../lib/i18n/index.ts";
-import { mayApprove, nameOf, people } from "../../lib/people.ts";
+import { holders, mayApprove, nameOf, people } from "../../lib/people.ts";
 import { forget, inspect } from "../../lib/receipts.ts";
 import { currentMember } from "../../lib/session.ts";
 import * as settings from "../../lib/settings.ts";
@@ -47,6 +48,10 @@ export async function saveExpense(expenseId: string | null, input: expenses.Expe
 
 export async function saveTrip(expenseId: string | null, input: expenses.TripInput): Promise<Result<{ id: string }>> {
   return act(async actor => ({ id: (await expenses.saveTrip(db(), actor, expenseId, input)).id }));
+}
+
+export async function saveAllowance(expenseId: string | null, input: expenses.AllowanceInput): Promise<Result<{ id: string }>> {
+  return act(async actor => ({ id: (await expenses.saveAllowance(db(), actor, expenseId, input)).id }));
 }
 
 export async function removeExpense(expenseId: string): Promise<Result> {
@@ -110,7 +115,7 @@ export async function addCategory(input: { name: string; account?: string; vatRe
   return act(async actor => ({ id: (await settings.addCategory(db(), actor, input)).id }));
 }
 
-export async function updateCategory(categoryId: string, input: { name?: string; account?: string; vatRecovery?: number; cap?: string | null; archived?: boolean; guests?: boolean }): Promise<Result> {
+export async function updateCategory(categoryId: string, input: { name?: string; account?: string; vatRecovery?: number; cap?: string | null; archived?: boolean; guests?: boolean; perNight?: boolean }): Promise<Result> {
   return act(async actor => { await settings.updateCategory(db(), actor, categoryId, input); return null; });
 }
 
@@ -168,4 +173,44 @@ export async function cancelTransferFile(runId: string): Promise<Result> {
     await tell.refresh(sql, owners);
     return null;
   });
+}
+
+// The registration certificate of the actor's vehicle (an upload of
+// theirs), or null to take it off.
+export async function setVehicleProof(object: string | null, name?: string): Promise<Result> {
+  return act(async actor => {
+    const sql = db();
+    const file = object === null ? null : await inspect(sql, actor, object);
+    const dropped = await settings.setVehicleProof(sql, actor, file, name);
+    if (dropped && dropped !== object) await forget([dropped]);
+    return null;
+  });
+}
+
+export async function checkVehicle(memberId: string, checked: boolean): Promise<Result> {
+  return act(async actor => { await settings.checkVehicle(db(), actor, memberId, checked); return null; });
+}
+
+export async function setPriorDistance(year: number, distance: string): Promise<Result> {
+  return act(async actor => { await expenses.setPriorDistance(db(), actor, { year, distance }); return null; });
+}
+
+export async function saveAllowanceRate(allowanceId: string | null, input: { name?: string; amount?: string; unit?: string; account?: string; archived?: boolean }): Promise<Result> {
+  return act(async actor => { await settings.saveAllowanceRate(db(), actor, allowanceId, input); return null; });
+}
+
+// A company exchange rate ("" takes it off); answers how many expenses
+// not yet approved it changed.
+export async function setRate(currency: string, rate: string): Promise<Result<{ count: number }>> {
+  return act(async actor => ({ count: await settings.setRate(db(), actor, currency, rate) }));
+}
+
+export async function setMemberAccount(memberId: string, account: string): Promise<Result> {
+  return act(async actor => { await settings.setMemberAccount(db(), actor, memberId, account); return null; });
+}
+
+// Past expenses from the previous tool, their columns mapped in the page:
+// the people they name are found in the team by name.
+export async function importExpenses(lines: Record<string, string>[], dateOrder: string): Promise<Result<Imported>> {
+  return act(async actor => importLines(db(), actor, { lines, dateOrder }, (await holders()).map(h => ({ id: h.id, name: h.name }))));
 }

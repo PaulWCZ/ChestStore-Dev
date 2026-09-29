@@ -11,5 +11,9 @@
   { "name": "comments", "path": "/chest/pages/2", "member": "hugo", "locale": "en", "actions": [{ "hover": "#comment-new" }, { "wait": 300 }] },
   { "name": "comments-fr", "path": "/chest/pages/9", "member": "lea", "locale": "fr", "dark": true, "actions": [{ "hover": "#comment-new" }, { "wait": 300 }] },
   { "name": "new-page", "path": "/chest/spaces/2", "member": "ines", "locale": "en", "actions": [{ "click": ".space-head button:has-text('New page')" }, { "wait": 800 }] },
-  { "name": "review-due", "path": "/chest/pages/7", "member": "sofia", "locale": "fr" }
+  { "name": "review-due", "path": "/chest/pages/7", "member": "sofia", "locale": "fr" },
+  { "name": "read-ask", "path": "/chest/pages/8", "member": "hugo", "locale": "en" },
+  { "name": "reads", "path": "/chest/pages/8/reads", "member": "camille", "locale": "en" },
+  { "name": "space-settings", "path": "/chest/spaces/2/settings", "member": "ines", "locale": "en" },
+  { "name": "slash", "path": "/chest/pages/4/edit", "member": "sofia", "locale": "en", "actions": [{ "wait": 1500 }, { "click": ".ProseMirror > p" }, { "press": "End" }, { "press": "Enter" }, { "press": "/" }, { "wait": 400 }] }
 ]

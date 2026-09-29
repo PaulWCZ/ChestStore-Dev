@@ -89,6 +89,9 @@ export type Doc = {
   reminders: number;
   pdfObject: string | null;
   pdfSha256: string | null;
+  // The format of the stored PDF: "factur-x", "pdf" (issued before
+  // Factur-X), or null until it is stored.
+  pdfFormat: "pdf" | "factur-x" | null;
   deleted: boolean;
   // Made from a deal won in Clients: its title, and when it was reopened.
   crmTitle: string | null;
@@ -107,7 +110,7 @@ type Row = {
   franchise: boolean; notes: string; quote_id: number | null; deposit_percent: number | null; invoice_id: number | null; net: number; vat: number; gross: number;
   rates: RateTotal[]; seller: Seller | null; buyer: Buyer | null; created_by: string; created_at: Date; updated_at: Date; ready_at: Date | null; sent_at: Date | null;
   sent_by: string | null; emailed_to: string | null; decided_at: Date | null; decided_by: string | null; finalised_at: Date | null; finalised_by: string | null;
-  reminded_at: Date | null; reminders: number; pdf_object: string | null; pdf_sha256: string | null; deleted_at: Date | null;
+  reminded_at: Date | null; reminders: number; pdf_object: string | null; pdf_sha256: string | null; pdf_format?: "pdf" | "factur-x" | null; deleted_at: Date | null;
   crm_title: string | null; crm_reopened_at: Date | null;
 };
 
@@ -121,7 +124,7 @@ export const toDoc = (r: Row): Doc => ({
   net: r.net, vat: r.vat, gross: r.gross, rates: r.rates, seller: r.seller, buyer: r.buyer, createdBy: r.created_by, createdAt: r.created_at.toISOString(),
   updatedAt: r.updated_at.toISOString(), readyAt: iso(r.ready_at), sentAt: iso(r.sent_at), sentBy: r.sent_by, emailedTo: r.emailed_to, decidedAt: iso(r.decided_at),
   decidedBy: r.decided_by, finalisedAt: iso(r.finalised_at), finalisedBy: r.finalised_by, remindedAt: iso(r.reminded_at), reminders: r.reminders,
-  pdfObject: r.pdf_object, pdfSha256: r.pdf_sha256, deleted: r.deleted_at !== null,
+  pdfObject: r.pdf_object, pdfSha256: r.pdf_sha256, pdfFormat: r.pdf_format ?? null, deleted: r.deleted_at !== null,
   crmTitle: r.crm_title ?? null, crmReopenedAt: iso(r.crm_reopened_at ?? null),
 });
 
@@ -423,6 +426,13 @@ export async function saveDraft(sql: Sql, actor: Member | null, documentId: unkn
     if (input.vatTreatment !== undefined) {
       if (d.type === "credit") throw new AppError("invalid");
       set["vat_treatment"] = oneOf(vatTreatments, input.vatTreatment);
+    }
+    // With a client, the reverse charge is the client card's (a tax matter,
+    // decided once for the client, not on each paper).
+    const clientNow = set["client_id"] === undefined ? d.clientId : set["client_id"] === null ? null : String(set["client_id"]);
+    if (clientNow && d.type !== "credit") {
+      const [row] = await tx<{ reverse_charge: boolean }[]>`select reverse_charge from clients where id = ${clientNow}`;
+      if (row) set["vat_treatment"] = row.reverse_charge ? "reverse_charge" : "standard";
     }
     // A draft follows the company's VAT regime until it is numbered; a
     // credit note keeps its invoice's.

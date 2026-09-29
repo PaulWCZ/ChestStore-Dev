@@ -200,8 +200,12 @@ export function renderPdf(input: PdfInput): Uint8Array {
   // --- The lines.
   const anyDiscount = input.lines.some(l => l.kind === "line" && l.discount > 0);
   type Column = { key: "qty" | "price" | "discount" | "vat" | "total"; label: string; w: number };
+  // The quantity's column fits its widest cell ("10 exemplaires"), within
+  // bounds.
+  const qtyText = (line: Line) => formatQuantity(line.quantity, locale) + (line.unit ? " " + unitText(line.unit, line.quantity, t, locale) : "");
+  const qtyWidth = Math.min(120, Math.max(64, ...input.lines.filter(x => x.kind === "line").map(x => textWidth(qtyText(x), "Helvetica", 9.5) + 8)));
   const columns: Column[] = [
-    { key: "qty", label: t.quantity, w: 64 },
+    { key: "qty", label: t.quantity, w: qtyWidth },
     { key: "price", label: t.unitPrice, w: 72 },
     ...(anyDiscount ? [{ key: "discount" as const, label: t.discount, w: 42 }] : []),
     ...(withoutVat ? [] : [{ key: "vat" as const, label: t.vat, w: 40 }]),
@@ -240,7 +244,7 @@ export function renderPdf(input: PdfInput): Uint8Array {
     texts.forEach((l, i) => page.text(margin, top + 9 + i * 12, l, i === 0 ? "Helvetica" : "Helvetica", size, i === 0 ? ink : grey));
     let x = margin + descW + 10;
     const cells: Record<Column["key"], string> = {
-      qty: formatQuantity(line.quantity, locale) + (line.unit ? " " + unitText(line.unit, line.quantity, t, locale) : ""),
+      qty: qtyText(line),
       price: figure(line.unitPrice),
       discount: line.discount > 0 ? "−" + formatRate(line.discount, locale) : "",
       vat: formatRate(line.vatRate, locale),
