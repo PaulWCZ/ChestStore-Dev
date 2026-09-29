@@ -1,6 +1,7 @@
+import { EmptyState, PageHeader } from "@argentic/chest-ui/components";
 import Link from "next/link";
 import { AutoRefresh } from "../../../components/auto-refresh.tsx";
-import { DayStrip } from "../../../components/day-strip.tsx";
+import { DayPicker } from "../../../components/day-picker.tsx";
 import { Desk } from "../../../components/icons.tsx";
 import { OfficePicker } from "../../../components/office-picker.tsx";
 import { can } from "../../../lib/access.ts";
@@ -57,32 +58,26 @@ export default async function Desks({ searchParams }: { searchParams: Promise<Re
       })),
     })).filter(a => a.desks.length > 0),
   })).filter(f => f.areas.length > 0);
+  // What the day links keep: the page's other parameters, in its order.
+  const keep = Object.fromEntries([...new URLSearchParams(href({ day: null }).split("?")[1] ?? "").entries()].map(([k, v]) => [k, v]));
   const lock = lockOf(c, day, exempt);
   const hint = lock?.why === "closed" ? t.rooms.closedDay
     : lock?.why === "past" ? t.errors.past
     : lock?.why === "notYet" ? format(t.rooms.opensOn, { date: formatDay(lock.opens!, locale, { weekday: "long", day: "numeric", month: "long" }) })
     : c.rules.maxDeskDays ? format(t.desks.rulesWeek, { days: c.rules.daysAhead, max: c.rules.maxDeskDays }) : format(t.desks.rules, { days: c.rules.daysAhead });
   return (
-    <main className="wide">
+    <div className="wide">
       <AutoRefresh seconds={20} />
-      <div className="page-head">
-        <div>
-          <h1>{t.desks.title}</h1>
-          <p className="muted place-line">{formatDay(day, locale, { weekday: "long", day: "numeric", month: "long" })}{office ? " · " + office.name : ""}</p>
-        </div>
-        <div className="row">
-          {exempt && office && <BookFor people={everyone.filter(p => p.id !== member.id).map(p => ({ id: p.id, name: p.name }))} current={target?.id ?? ""} path={href({ for: null })} t={{ label: t.booking.for, me: t.booking.forMe }} />}
+      <PageHeader title={t.desks.title}
+        intro={<span className="place-line">{formatDay(day, locale, { weekday: "long", day: "numeric", month: "long" })}{office ? " · " + office.name : ""}</span>}
+        secondary={exempt || c.offices.length > 1 ? <>
+          {exempt && office && <BookFor people={everyone.filter(p => p.id !== member.id).map(p => ({ id: p.id, name: p.name, photo: p.photo }))} current={target?.id ?? ""} path={href({ for: null })} locale={locale} t={{ label: t.booking.for, hint: t.booking.forHint, picker: t.peoplePicker }} />}
           {office && <OfficePicker offices={c.offices.map(o => ({ id: o.id, name: o.name }))} current={office.id} label={t.shell.office} path={href({})} />}
-        </div>
-      </div>
-      <DayStrip days={bookableDays(c)} current={day} today={c.today} locale={locale} t={t.days} href={d => href({ day: d })} hidden={{ ...(office ? { office: office.id } : {}), ...(target ? { for: target.id } : {}) }} />
+        </> : undefined} />
+      <DayPicker days={bookableDays(c)} current={day} today={c.today} path="/chest/desks" keep={keep} label={t.days.date} labels={t.date} />
       {floors.length === 0 ? (
-        <div className="empty">
-          <Desk />
-          <h2>{t.desks.none.title}</h2>
-          <p>{t.desks.none.body}</p>
-          {can(member, "places.manage") && <Link className="button" href="/chest/places">{t.week.noOffice.action}</Link>}
-        </div>
+        <EmptyState icon={<Desk />} title={t.desks.none.title} body={t.desks.none.body}
+          {...(can(member, "places.manage") ? { action: <Link className="button" href="/chest/places">{t.week.noOffice.action}</Link> } : {})} />
       ) : (
         <DeskView
           key={day + part + (target?.id ?? "")}
@@ -100,9 +95,9 @@ export default async function Desks({ searchParams }: { searchParams: Promise<Re
             features: Object.fromEntries(featureKeys.map(f => [f, href({ f: (wanted.includes(f) ? wanted.filter(x => x !== f) : [...wanted, f]).join(",") || null })])) as Record<Feature, string>,
           }}
           locale={locale}
-          t={{ desks: t.desks, parts: t.parts, features: t.features, featuresShort: t.featuresShort, errors: t.errors, undo: t.booking.undo, keptFor: t.rooms.keptFor }}
+          t={{ desks: t.desks, parts: t.parts, features: t.features, featuresShort: t.featuresShort, errors: t.errors, keptFor: t.rooms.keptFor }}
         />
       )}
-    </main>
+    </div>
   );
 }

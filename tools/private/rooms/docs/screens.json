@@ -11,6 +11,15 @@
   {"name": "rooms-dark", "path": "/chest/rooms", "member": "tom", "locale": "en", "dark": true},
   {"name": "week-dark", "path": "/chest", "member": "lea", "locale": "fr", "dark": true},
   {"name": "usual-week", "path": "/chest", "member": "hugo", "locale": "en", "actions": [{"click": "button:has-text('My usual week')"}, {"wait": 400}]},
-  {"name": "people-team", "path": "/chest/people", "member": "ines", "locale": "fr", "actions": [{"click": ".team-chips a:has-text('Sales')"}, {"wait": 800}]},
-  {"name": "occupancy", "path": "/chest/places/export", "member": "camille", "locale": "en"}
+  {"name": "people-team", "path": "/chest/people", "member": "ines", "locale": "fr", "actions": [{"click": "nav[aria-label='Équipes'] a:has-text('Sales')"}, {"wait": 800}]},
+  {"name": "occupancy", "path": "/chest/places/export", "member": "camille", "locale": "en"},
+  {"name": "desk-undo", "path": "/chest/desks", "member": "lea", "locale": "fr", "actions": [{"click": ".tile.is-free button"}, {"wait": 900}], "only": ["desktop"]},
+  {"name": "guests", "path": "/chest/rooms", "member": "hugo", "locale": "en", "actions": [{"click": "button:has-text('Book a room')"}, {"wait": 300}, {"fill": ["dialog[open] [role=combobox] >> nth=-1", "l"]}, {"wait": 600}], "only": ["desktop"]},
+  {"name": "week-chest", "path": "/chest", "member": "hugo", "locale": "en", "look": {"all": "catalogue:chest"}},
+  {"name": "week-theme", "path": "/chest", "member": "hugo", "locale": "en", "look": {"all": "catalogue:library"}},
+  {"name": "week-theme-dark", "path": "/chest", "member": "lea", "locale": "fr", "dark": true, "look": {"all": "catalogue:library"}, "only": ["phone"]},
+  {"name": "week-brand", "path": "/chest", "member": "ines", "locale": "fr", "look": {"all": "catalogue:library", "tool": "brand:sample"}},
+  {"name": "week-brand-dark", "path": "/chest", "member": "hugo", "locale": "en", "dark": true, "look": {"tool": "brand:sample"}, "only": ["phone"]},
+  {"name": "rooms-theme", "path": "/chest/rooms", "member": "camille", "locale": "en", "look": {"all": "catalogue:workshop"}},
+  {"name": "desks-brand-dark", "path": "/chest/desks", "member": "tom", "locale": "en", "dark": true, "look": {"tool": "brand:sample"}}
 ]

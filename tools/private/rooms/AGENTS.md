@@ -28,7 +28,10 @@ must not break.
 | `lib/mine.ts`, `app/chest/calendar/**`, `app/chest/mine/route.ts` | A member's `.ics` files and their own data (CSV) |
 | `lib/export.ts`, `lib/csv.ts` | CSV downloads (formula-safe) |
 | `lib/context.ts`, `lib/zone.ts` | What every page starts from; the Chest's time zone |
-| `lib/i18n/` | Every word: `en.ts` (source), `fr.ts`; `format.ts` for the browser (days, times, plurals) |
+| `lib/i18n/` | Every word: `en.ts` (source), `fr.ts`; `format.ts` for the browser (days, times, plurals); the kit's word sections (`toast`, `dialog`, `peoplePicker`, `date`, `filters`, `search`) |
+| `lib/theme.ts` | The identity, Blueprint (`defineTheme`, equal to the catalogue's `blueprint`), and `currentLook()` (the company's choice, else the identity) |
+| `app/layout.tsx`, `app/tokens.css`, `app/globals.css` | `<ThemeStyle>` with the page's nonce; Rooms' own tokens (from contract tokens only); its components (contract tokens only) |
+| `components/shell.tsx`, `components/day-picker.tsx`, `components/auto-refresh.tsx` | Thin client wrappers over the kit: `AppShell` with Next's `Link` and path; `DayStrip` + `DateField` ("Another day…"); `useAutoRefresh` |
 | `app/chest/actions.ts` | Server actions: thin; each re-reads the member; answer `Result` codes; send the bell |
 | `app/chest/page.tsx` + `week-view.tsx` | My week |
 | `app/chest/desks/` | Desk plan and list |
@@ -58,8 +61,27 @@ TEST_DATABASE_URL=postgres://… npm test   # also plays two people booking the 
 - **Every service function takes `(sql, actor, …)`**, checks rights first and
   throws `AppError(code)`. Add an ability → a line in `test/access.test.ts`.
 - **Client components import only** `lib/i18n/format.ts`, `lib/model.ts`,
-  `lib/app-error.ts`, `lib/initials.ts` and types. Never the SDK, `lib/db.ts`,
-  `lib/session.ts`.
+  `lib/app-error.ts`, `@argentic/chest-ui/components` (and `/components/logic`)
+  and types. Never the SDK, `lib/db.ts`, `lib/session.ts`.
+- **The kit's components first** (`@argentic/chest-ui/components`): `AppShell`
+  (labelled tabs, never icons alone), `Toasts`/`useToast` (one toast per
+  action id; `undo` returns `true` or the reason it failed), `Dialog` with
+  `dirty` for any form, `Confirm` for what cannot be undone (never
+  `window.confirm`), `PeoplePicker` (guests, "book for", a desk's holder),
+  `TimeSelect` + `moveStart`/`moveEnd`, `DayStrip`/`DateField` (never
+  `type="date"`), `Segmented`, `Tabs`, `Filters`, `SearchBox`, `Avatar`,
+  `AvatarStack`, `EmptyState`, `PageHeader`, `NoAccess`, `BrandMark`. Kept on
+  purpose: the Office/Remote/Off radio row of a day (arrows move without
+  choosing: choosing frees a desk), the desk-feature chips (several at
+  once; the kit's `Filters` take one per group), the desk tiles and the
+  rooms' grid.
+- **CSS names only contract tokens** (and Rooms' own, `app/tokens.css`,
+  defined from them); never a colour (`test/theme.test.ts`). A colour of
+  the identity changes in `lib/theme.ts`.
+- **Words follow the store's glossary** (`node scripts/lint-words.mjs
+  tools/private/rooms`, 0 errors): Delete (a place, gone) vs Remove (a guest
+  from a list), Undo = « Annuler l’action », a narrow no-break space before
+  `: ; ? !` in French.
 - **Words live in `lib/i18n/`**, in every catalogue (tests compare keys and
   placeholders, and look for words written in pages).
 - **Whoever loses a booking they did not cancel is told** (`lib/tell.ts`);

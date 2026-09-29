@@ -7,9 +7,11 @@
 | Hybrid-office ideas | [sebo-b/warp](https://github.com/sebo-b/warp) (assigned seats, zones), [seatsurfing/seatsurfing](https://github.com/seatsurfing/seatsurfing) (booking rules, "enforce limits in one transaction"), [MRBS](https://github.com/meeting-room-booking-system/mrbs-code) (the rooms × time grid) | MIT; GPL-3.0; GPL-2.0 | Ideas only — **no code copied** (see `reports/02-open-source/rooms.md` in the studio) |
 
 Dependencies installed from npm under their own licences: `next`, `react`,
-`react-dom` (MIT), `postgres` (Unlicense), `@argentic/chest-sdk` (MIT, the
-studio's working copy in `vendor/`). Icons are drawn for this tool
-(`components/icons.tsx`). `lib/csv.ts` and the shell come from the studio's
+`react-dom` (MIT), `postgres` (Unlicense), `@argentic/chest-sdk` and `@argentic/chest-ui`
+(MIT, © Argentic: the studio's working copies, packed in `vendor/`). The
+fonts are named in the identity (`lib/theme.ts`); the UI kit writes their
+`@font-face` for the files in `public/fonts/`. Icons are drawn for this tool
+(`components/icons.tsx`). `lib/csv.ts` comes from the studio's
 own Tasks tool (same licence and owner).
 
 ## Formats read (no code reused)

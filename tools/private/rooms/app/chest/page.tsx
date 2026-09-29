@@ -1,3 +1,4 @@
+import { EmptyState, PageHeader } from "@argentic/chest-ui/components";
 import Link from "next/link";
 import { AutoRefresh } from "../../components/auto-refresh.tsx";
 import { Building } from "../../components/icons.tsx";
@@ -27,14 +28,10 @@ export default async function MyWeek({ searchParams }: { searchParams: Promise<R
   const { member, locale, t, sql, office } = c;
   if (!office) {
     return (
-      <main className="narrow">
-        <div className="empty">
-          <Building />
-          <h1>{t.week.noOffice.title}</h1>
-          <p>{t.week.noOffice.body}</p>
-          {can(member, "places.manage") ? <Link className="button" href="/chest/places">{t.week.noOffice.action}</Link> : <p className="muted">{t.week.noOffice.member}</p>}
-        </div>
-      </main>
+      <div className="narrow">
+        <EmptyState headingLevel={1} icon={<Building />} title={t.week.noOffice.title} body={t.week.noOffice.body}
+          {...(can(member, "places.manage") ? { action: <Link className="button" href="/chest/places">{t.week.noOffice.action}</Link> } : { note: t.week.noOffice.member })} />
+      </div>
     );
   }
   // What the rules no longer keep goes (nothing runs in the background).
@@ -92,15 +89,10 @@ export default async function MyWeek({ searchParams }: { searchParams: Promise<R
     .filter(d => (d.assignedTo === null || d.assignedTo === member.id) && (a.groupId === null || can(member, "bookings.any") || member.groups.includes(a.groupId)))
     .map(d => ({ id: d.id, name: `${d.name} · ${a.name}`, mine: d.assignedTo === member.id }))));
   return (
-    <main className="narrow">
+    <div className="narrow">
       <AutoRefresh seconds={30} />
-      <div className="page-head">
-        <div>
-          <h1>{t.week.title}</h1>
-          <p className="muted place-line">{office.name}{office.address ? " · " + office.address : ""}</p>
-        </div>
-        <OfficePicker offices={c.offices.map(o => ({ id: o.id, name: o.name }))} current={office.id} label={t.shell.office} path="/chest" />
-      </div>
+      <PageHeader title={t.week.title} intro={<span className="place-line">{office.name}{office.address ? " · " + office.address : ""}</span>}
+        secondary={c.offices.length > 1 ? <OfficePicker offices={c.offices.map(o => ({ id: o.id, name: o.name }))} current={office.id} label={t.shell.office} path="/chest" /> : undefined} />
       <WeekView
         days={rows}
         officeId={office.id}
@@ -112,8 +104,8 @@ export default async function MyWeek({ searchParams }: { searchParams: Promise<R
         calendarPage={how.calendarOn ? feedPage : null}
         self={{ name: member.name, photo: member.photo }}
         locale={locale}
-        t={{ week: t.week, usual: t.usual, status: t.status, parts: t.parts, days: t.days, errors: t.errors, undo: t.booking.undo, you: t.people.you, close: t.booking.close, checkIn: t.booking.checkIn, checkedIn: t.booking.checkedInToast }}
+        t={{ week: t.week, usual: t.usual, status: t.status, parts: t.parts, days: t.days, errors: t.errors, dialog: t.dialog, you: t.people.you, checkIn: t.booking.checkIn, checkedIn: t.booking.checkedInToast }}
       />
-    </main>
+    </div>
   );
 }

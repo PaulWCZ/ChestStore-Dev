@@ -1,7 +1,8 @@
+import { EmptyState, PageHeader } from "@argentic/chest-ui/components";
 import type { ReactNode } from "react";
-import { NavLink } from "../../../components/nav-link.tsx";
 import { can } from "../../../lib/access.ts";
 import { viewer } from "../../../lib/session.ts";
+import { PlacesTabs } from "./tabs.tsx";
 
 // The admins' part: offices, rules, export. Others see why they cannot.
 export default async function PlacesLayout({ children }: { children: ReactNode }) {
@@ -10,25 +11,16 @@ export default async function PlacesLayout({ children }: { children: ReactNode }
   const { member, t } = v;
   if (!can(member, "places.manage")) {
     return (
-      <main className="narrow">
-        <div className="empty">
-          <h1>{t.places.title}</h1>
-          <p>{t.errors.forbidden}</p>
-        </div>
-      </main>
+      <div className="narrow">
+        <EmptyState headingLevel={1} title={t.places.title} body={t.errors.forbidden} />
+      </div>
     );
   }
   return (
-    <main className="narrow places">
-      <div className="page-head">
-        <h1>{t.places.title}</h1>
-      </div>
-      <nav className="subtabs" aria-label={t.places.title}>
-        <NavLink href="/chest/places" exact>{t.places.tabs.places}</NavLink>
-        <NavLink href="/chest/places/rules">{t.places.tabs.rules}</NavLink>
-        <NavLink href="/chest/places/export">{t.places.tabs.export}</NavLink>
-      </nav>
-      {children}
-    </main>
+    <div className="narrow places">
+      <PageHeader title={t.places.title} />
+      <PlacesTabs label={t.places.title} words={t.places.tabs} />
+      <div className="places-body">{children}</div>
+    </div>
   );
 }

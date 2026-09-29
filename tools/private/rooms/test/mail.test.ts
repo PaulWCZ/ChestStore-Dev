@@ -32,7 +32,7 @@ test("guests get an invitation in their language with the .ics; a change and a c
   await tell.invited(asMember(hugo), bookings[0]!.attendees, bookings);
   assert.deepEqual(chest.outbox.map(m => m.to).flat().sort(), ["inès@atelier.test", "léa@atelier.test"].sort());
   const toInes = chest.outbox.find(m => m.to.includes("inès@atelier.test"))!;
-  assert.match(toInes.subject, /^Invitation : Budget — /u);
+  assert.match(toInes.subject, /^Invitation : Budget — /u);
   assert.match(toInes.text, /Hugo Bernard vous invite à une réunion\./u);
   assert.deepEqual(toInes.attachments.map(a => [a.name, a.type]), [["reservation.ics", "text/calendar"]]);
   assert.equal(chest.outbox.some(m => m.to.includes("hugo@atelier.test")), false);

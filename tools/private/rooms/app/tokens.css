@@ -1,94 +1,26 @@
-/* Rooms — "architectural blueprint, calm": pale blue-white drafting paper
-   with a faint grid, navy ink, thin lines, and one warm orange for what is
-   yours or taken. Every colour and size of the tool is here (DESIGN.md
-   explains them); ratios checked with scripts/contrast.mjs. */
+/* Rooms' own tokens. The contract's (colours, fonts, sizes, spacing,
+   corners, motion: @argentic/chest-ui, tokens/CONTRACT.md) are set by the
+   look of the page — the tool's identity, Blueprint, in lib/theme.ts, or
+   the theme or brand the company chose — in a <style> of app/layout.tsx.
+   Here only what is this tool's alone, always defined from contract
+   tokens, never from a colour, so it follows every theme. */
 :root {
-  color-scheme: light dark;
-  --font-body: "Albert Sans Variable", system-ui, -apple-system, "Segoe UI", sans-serif;
-  --font-display: "Albert Sans Variable", system-ui, sans-serif;
-  --font-mono: "DM Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  /* Yours, or taken: categorical slot 3 (an orange in every theme).
+     Filled: the slot's ink as the ground, the surface as the text — the
+     pair "cat-3-ink on surface" is measured (4.5:1), and contrast is
+     symmetric. */
+  --mine: var(--cat-3-ink);
+  --mine-ink: var(--surface);
+  /* Its soft ground carries its ink (a measured pair). */
+  --mine-soft: var(--cat-3-soft);
+  --mine-text: var(--cat-3-ink);
+  /* An orange line that must be seen (the "now" line, a selection): 3:1. */
+  --mine-line: var(--cat-3);
 
-  /* Paper and ink */
-  --bg: #f3f7fc;          /* drafting paper */
-  --grid: rgb(31 95 191 / 0.07);
-  --grid-major: rgb(31 95 191 / 0.12);
-  --surface: #ffffff;
-  --surface-2: #e8f0f9;   /* pale blue fill: hover, secondary areas */
-  --ink: #0f2447;         /* navy ink: 14.3:1 on paper */
-  --ink-2: #4a5d7e;       /* secondary text: 6.2:1 on paper, 5.8:1 on surface-2 */
-  --line: #c3d3e8;        /* thin drafting lines */
-  --line-strong: #0f2447;
-  /* The one action colour is the ink itself: navy buttons, white words (15.4:1). */
-  --action: #0f2447;
-  --action-ink: #ffffff;
-  /* Orange: yours, or taken. White on it 5.2:1; as text on white 5.6:1. */
-  --accent: #c2410c;
-  --accent-ink: #ffffff;
-  --accent-text: #b93d0b;
-  --accent-soft: #fdebe0;  /* navy on it 13.3:1, accent-text 4.9:1 */
-  --link: #1f5fbf;        /* 6.1:1 on white */
-  --danger: #b3261e;      /* 6.5:1 on white */
-  --focus: #1f5fbf;
-  --overlay: rgb(15 36 71 / 0.4);
-  --shadow: 0 1px 0 rgb(15 36 71 / 0.06), 0 8px 24px -12px rgb(15 36 71 / 0.25);
-
-  --space-1: 4px;
-  --space-2: 8px;
-  --space-3: 12px;
-  --space-4: 16px;
-  --space-5: 24px;
-  --space-6: 32px;
-  --space-7: 48px;
-
-  /* Technical, not bubbly: small radii. */
-  --radius-s: 4px;
-  --radius-m: 6px;
-  --radius-l: 10px;
-
-  --text-xs: 0.75rem;
-  --text-s: 0.875rem;
-  --text-m: 1rem;
-  --text-l: 1.25rem;
-  --text-xl: 1.625rem;
-  --text-xxl: 2.125rem;
-
-  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
-  --fast: 120ms;
-  --slow: 220ms;
+  /* Drafting paper: decoration only, no text, no meaning. */
+  --grid: color-mix(in oklch, var(--accent-text) 7%, transparent);
+  --grid-major: color-mix(in oklch, var(--accent-text) 12%, transparent);
 
   /* The rooms' grid: one quarter hour is this tall. */
   --slot: 14px;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    /* The classic blueprint: deep blue paper, pale lines. */
-    --bg: #0b1a30;
-    --grid: rgb(140 184 255 / 0.06);
-    --grid-major: rgb(140 184 255 / 0.1);
-    --surface: #102440;
-    --surface-2: #16304f;
-    --ink: #e8f0fb;        /* 15.2:1 on paper */
-    --ink-2: #a9bcd8;      /* 8.1:1 on surface */
-    --line: #2b4668;
-    --line-strong: #e8f0fb;
-    --action: #e8f0fb;
-    --action-ink: #0b1a30; /* 15.2:1 */
-    --accent: #ff8a4c;
-    --accent-ink: #0b1a30; /* 7.5:1 */
-    --accent-text: #ff8a4c; /* 6.7:1 on surface */
-    --accent-soft: #3a2a26;
-    --link: #8cb8ff;       /* 7.7:1 on surface */
-    --danger: #ff8a80;     /* 6.8:1 on surface */
-    --focus: #8cb8ff;
-    --overlay: rgb(0 0 0 / 0.6);
-    --shadow: 0 1px 0 rgb(0 0 0 / 0.3), 0 8px 24px -12px rgb(0 0 0 / 0.6);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  :root {
-    --fast: 0ms;
-    --slow: 0ms;
-  }
 }

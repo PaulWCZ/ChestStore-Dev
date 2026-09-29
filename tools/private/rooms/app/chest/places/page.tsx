@@ -21,11 +21,11 @@ export default async function Places({ searchParams }: { searchParams: Promise<R
     <PlacesView
       offices={c.offices.map(o => ({ id: o.id, name: o.name, address: o.address }))}
       office={office}
-      people={everyone.map(p => ({ id: p.id, name: p.name }))}
+      people={everyone.map(p => ({ id: p.id, name: p.name, photo: p.photo }))}
       groups={groups}
       names={names}
       locale={locale}
-      t={{ places: t.places, equipment: t.equipment, features: t.features, errors: t.errors, rooms: t.rooms, booking: t.booking }}
+      t={{ places: t.places, equipment: t.equipment, features: t.features, errors: t.errors, rooms: t.rooms, booking: t.booking, dialog: t.dialog, peoplePicker: t.peoplePicker }}
     />
   );
 }

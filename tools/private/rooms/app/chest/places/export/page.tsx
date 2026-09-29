@@ -4,6 +4,7 @@ import { context } from "../../../../lib/context.ts";
 import { weekdayLoad } from "../../../../lib/export.ts";
 import { format, formatDay } from "../../../../lib/i18n/index.ts";
 import { addDays } from "../../../../lib/model.ts";
+import { Period } from "./period.tsx";
 
 // The admin's view of how full the office is (each working day of the
 // week, the last eight weeks, counts only), and the downloads: a period,
@@ -47,16 +48,7 @@ export default async function Export({ searchParams }: { searchParams: Promise<R
       )}
       <form className="panel stack" method="get" action="/chest/export">
         <p>{t.export.body}</p>
-        <div className="form-grid">
-          <label className="span-2">
-            <span className="label">{t.export.from}</span>
-            <input className="field" type="date" name="from" defaultValue={first} required />
-          </label>
-          <label className="span-2">
-            <span className="label">{t.export.to}</span>
-            <input className="field" type="date" name="to" defaultValue={c.today} required />
-          </label>
-        </div>
+        <Period first={first} today={c.today} t={{ from: t.export.from, to: t.export.to }} labels={t.date} />
         <div className="row">
           <button type="submit" className="button" name="kind" value="bookings"><Download />{t.export.bookings}</button>
           <button type="submit" className="button quiet" name="kind" value="occupancy"><Download />{t.export.occupancy}</button>

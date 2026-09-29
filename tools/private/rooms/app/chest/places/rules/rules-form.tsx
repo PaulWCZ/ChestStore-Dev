@@ -1,10 +1,10 @@
 "use client";
 
+import { TimeSelect, useToast } from "@argentic/chest-ui/components";
 import { useRouter } from "next/navigation";
 import { useState, useTransition, type FormEvent } from "react";
-import { useToast } from "../../../../components/toast.tsx";
 import type { Catalogue } from "../../../../lib/i18n/index.ts";
-import { format, formatDay, formatTime } from "../../../../lib/i18n/format.ts";
+import { format, formatDay } from "../../../../lib/i18n/format.ts";
 import type { Rules } from "../../../../lib/settings.ts";
 import { setRules } from "../../actions.ts";
 
@@ -16,13 +16,12 @@ export function RulesForm({ rules, locale, t }: { rules: Rules; locale: string; 
   const toast = useToast();
   const [pending, start] = useTransition();
   const [r, setR] = useState(rules);
-  const hours = Array.from({ length: 25 }, (_, i) => i * 60);
   function save(e: FormEvent) {
     e.preventDefault();
     start(async () => {
       const done = await setRules({ ...r });
-      if (!done.ok) return void toast(format(t.errors[done.error], done.values));
-      toast(t.rules.saved);
+      if (!done.ok) return void toast({ text: format(t.errors[done.error], done.values), tone: "error" });
+      toast({ id: "rules", text: t.rules.saved });
       router.refresh();
     });
   }
@@ -49,15 +48,11 @@ export function RulesForm({ rules, locale, t }: { rules: Rules; locale: string; 
         <legend className="label">{t.rules.hours}</legend>
         <label className="inline-label">
           <span>{t.rules.from}</span>
-          <select className="select narrow-field" value={r.dayStart} onChange={e => setR({ ...r, dayStart: Number(e.target.value) })}>
-            {hours.slice(0, -1).map(m => <option key={m} value={m}>{formatTime(m, locale)}</option>)}
-          </select>
+          <TimeSelect className="narrow-field" value={r.dayStart} step={60} onChange={m => setR({ ...r, dayStart: m, dayEnd: Math.max(r.dayEnd, m + 60) })} />
         </label>
         <label className="inline-label">
           <span>{t.rules.to}</span>
-          <select className="select narrow-field" value={r.dayEnd} onChange={e => setR({ ...r, dayEnd: Number(e.target.value) })}>
-            {hours.filter(m => m > r.dayStart).map(m => <option key={m} value={m}>{formatTime(m, locale)}</option>)}
-          </select>
+          <TimeSelect className="narrow-field" value={r.dayEnd} step={60} end min={r.dayStart} onChange={m => setR({ ...r, dayEnd: m })} />
         </label>
       </fieldset>
       <fieldset className="checks">

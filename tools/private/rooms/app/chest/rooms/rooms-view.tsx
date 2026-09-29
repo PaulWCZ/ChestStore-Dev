@@ -1,11 +1,11 @@
 "use client";
 
+import { Avatar, Dialog, PageHeader, PeoplePicker, TimeSelect, useToast } from "@argentic/chest-ui/components";
+import { localSearch, moveEnd, moveStart } from "@argentic/chest-ui/components/logic";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState, useTransition, type ComponentType, type FormEvent, type PointerEvent as ReactPointerEvent } from "react";
-import { Avatar } from "../../../components/avatar.tsx";
-import { Dialog } from "../../../components/dialog.tsx";
-import { Accessible, CalendarAdd, Check, Close, Lock, Phone, Plus, Repeat, Screen, Seat, Video, Whiteboard } from "../../../components/icons.tsx";
-import { useToast } from "../../../components/toast.tsx";
+import { useEffect, useMemo, useRef, useState, useTransition, type ComponentType, type FormEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
+import { Accessible, CalendarAdd, Check, Lock, Phone, Plus, Repeat, Screen, Seat, Video, Whiteboard } from "../../../components/icons.tsx";
+import type { Result } from "../../../lib/errors.ts";
 import type { Catalogue } from "../../../lib/i18n/index.ts";
 import { format, formatDay, formatSpan, formatTime, plural } from "../../../lib/i18n/format.ts";
 import { addDays, equipment as equipmentKeys, freeSlots, limits, step, type Equipment } from "../../../lib/model.ts";
@@ -15,7 +15,7 @@ export type GridRoom = { id: string; name: string; capacity: number; equipment: 
 type Person = { id: string; name: string; photo: string | null };
 // checkable: check-in is on, it is mine, and it starts within ten minutes or is under way.
 export type GridBooking = { id: string; roomId: string; start: number; end: number; title: string; series: string | null; organiser: Person; attendees: Person[]; mine: boolean; canChange: boolean; checkedIn: boolean; checkable: boolean };
-type Words = { rooms: Catalogue["rooms"]; booking: Catalogue["booking"]; equipment: Catalogue["equipment"]; errors: Catalogue["errors"] };
+type Words = { rooms: Catalogue["rooms"]; booking: Catalogue["booking"]; equipment: Catalogue["equipment"]; errors: Catalogue["errors"]; dialog: Catalogue["dialog"]; peoplePicker: Catalogue["peoplePicker"] };
 type Draft = { roomId: string; day: string; start: number; end: number; title: string; attendees: string[]; weekly: boolean; weeks: number; for: string };
 type Open = { mode: "new"; draft: Draft } | { mode: "detail"; id: string } | { mode: "edit"; id: string; draft: Draft } | null;
 // Why a day cannot be booked, if it cannot: past, closed, or not open yet
@@ -24,7 +24,11 @@ export type Locked = { why: "past" | "closed" | "notYet"; opensOn?: string } | n
 
 export const equipmentIcons: Record<Equipment, ComponentType> = { screen: Screen, video: Video, whiteboard: Whiteboard, phone: Phone, accessible: Accessible };
 
-export function RoomsView({ day, days, now, locked: lockedDay, open, close, maxWeeks, rooms, bookings, people, bookFor, initial, told, calendarPage, locale, t }: {
+export function RoomsView({ head, strip, day, days, now, locked: lockedDay, open, close, maxWeeks, rooms, bookings, people, bookFor, initial, told, calendarPage, locale, t }: {
+  // The page's title and the line under it; the office picker; the days.
+  // Here, so that the page's one action, "Book a room", sits at the top.
+  head: { title: string; intro: ReactNode; secondary?: ReactNode };
+  strip: ReactNode;
   day: string;
   // The days the booking form offers (value, words), the day shown among them.
   days: { value: string; label: string }[];
@@ -55,7 +59,9 @@ export function RoomsView({ day, days, now, locked: lockedDay, open, close, maxW
   const earliest = now === null ? open : Math.max(open, Math.floor(now / step) * step);
   const locked = lockedDay !== null || earliest >= close;
   const bookable = (r: GridRoom) => r.group === null || r.group.mine;
-  const fail = (error: keyof Catalogue["errors"], values?: Record<string, string | number>) => toast(format(t.errors[error], values));
+  const fail = (error: keyof Catalogue["errors"], values?: Record<string, string | number>) => void toast({ text: format(t.errors[error], values), tone: "error" });
+  // What an Undo answers the toast: true, or why it did not work.
+  const undone = (r: Result<unknown>) => (r.ok ? true : format(t.errors[r.error], r.values));
   const takenOf = (roomId: string, except?: string) => bookings.filter(b => b.roomId === roomId && b.id !== except);
 
   // A new booking from a slot: half an hour, or up to the next booking.
@@ -86,13 +92,16 @@ export function RoomsView({ day, days, now, locked: lockedDay, open, close, maxW
       const said = ids.length > 1
         ? plural(t.booking.bookedWeekly, ids.length, locale, { room: roomName })
         : format(t.booking.booked, { room: roomName, when: formatDay(d.day, locale) + " " + formatSpan(d.start, d.end, locale) });
-      toast(said + (taken.length ? " " + format(t.booking.skipped, { days: taken.map(x => formatDay(x, locale)).join(", ") }) : ""), {
-        label: t.booking.undo,
-        run: () => start(async () => {
+      // Undo cancels it again; its guests are told (their bell item is
+      // replaced), so what they know stays true.
+      toast({
+        id: "room-" + ids[0],
+        text: said + (taken.length ? " " + format(t.booking.skipped, { days: taken.map(x => formatDay(x, locale)).join(", ") }) : ""),
+        undo: async () => {
           const back = await cancelRoomBooking(ids[0]!, ids.length > 1 ? "following" : "one");
-          if (!back.ok) fail(back.error, back.values);
           router.refresh();
-        }),
+          return undone(back);
+        },
       });
       router.refresh();
     });
@@ -104,7 +113,7 @@ export function RoomsView({ day, days, now, locked: lockedDay, open, close, maxW
       if (!r.ok) return done(r.error, r.values);
       done(null);
       close_();
-      toast(t.booking.changed);
+      toast({ id: "room-" + id, text: t.booking.changed });
       router.refresh();
     });
   }
@@ -114,14 +123,15 @@ export function RoomsView({ day, days, now, locked: lockedDay, open, close, maxW
     start(async () => {
       const r = await cancelRoomBooking(b.id, scope);
       if (!r.ok) return fail(r.error, r.values);
-      toast(plural(t.booking.cancelled, r.value.ids.length, locale), {
-        label: t.booking.undo,
-        run: () => start(async () => {
+      // Undo puts the bookings back and invites their guests again.
+      toast({
+        id: "room-" + b.id,
+        text: plural(t.booking.cancelled, r.value.ids.length, locale),
+        undo: async () => {
           const back = await restoreRoomBookings(r.value.ids);
-          if (!back.ok) fail(back.error, back.values);
-          else toast(t.booking.restored);
           router.refresh();
-        }),
+          return undone(back);
+        },
       });
       router.refresh();
     });
@@ -138,13 +148,14 @@ export function RoomsView({ day, days, now, locked: lockedDay, open, close, maxW
     : null;
 
   return (
+    <>
+    <PageHeader title={head.title} intro={head.intro} secondary={head.secondary}
+      action={<button type="button" className="button" disabled={locked || !rooms.some(bookable)} onClick={() => openNew()}><Plus />{t.rooms.book}</button>} />
+    {strip}
     <div className="stack">
-      <div className="toolbar">
-        <button type="button" className="button" disabled={locked || !rooms.some(bookable)} onClick={() => openNew()}><Plus />{t.rooms.book}</button>
-        {hint
-          ? <p className="hint is-locked" role="status">{hint}</p>
-          : <p className="hint"><span className="on-desktop">{t.rooms.dragHint}</span><span className="on-phone">{t.rooms.tapHint}</span></p>}
-      </div>
+      {hint
+        ? <p className="hint is-locked" role="status">{hint}</p>
+        : <p className="hint"><span className="on-desktop">{t.rooms.dragHint}</span><span className="on-phone">{t.rooms.tapHint}</span></p>}
 
       {!locked && <Finder rooms={rooms} bookings={bookings} earliest={earliest} close={close} bookable={bookable} locale={locale} t={t}
         onPick={(roomId, from, to) => openDraft(draftFrom(roomId, from, to))} />}
@@ -191,8 +202,8 @@ export function RoomsView({ day, days, now, locked: lockedDay, open, close, maxW
       <Dialog
         open={dialog !== null}
         title={dialog?.mode === "new" ? t.booking.newTitle : dialog?.mode === "edit" ? t.booking.editTitle : shownBooking?.title || t.booking.detailTitle}
-        closeLabel={t.booking.close}
-        dismissible={dialog?.mode === "detail" || !dirty}
+        dirty={dialog?.mode !== "detail" && dirty}
+        labels={t.dialog}
         onClose={close_}
       >
         {dialog?.mode === "new" && (
@@ -210,12 +221,13 @@ export function RoomsView({ day, days, now, locked: lockedDay, open, close, maxW
             onCheckIn={() => start(async () => {
               const r = await checkIn(shownBooking.id);
               if (!r.ok) return fail(r.error, r.values);
-              toast(t.booking.checkedInToast);
+              toast({ id: "room-" + shownBooking.id, text: t.booking.checkedInToast });
               router.refresh();
             })} />
         )}
       </Dialog>
     </div>
+    </>
   );
 }
 
@@ -232,7 +244,6 @@ function Finder({ rooms, bookings, earliest, close, bookable, locale, t, onPick 
   const [at, setAt] = useState(earliest);
   const [length, setLength] = useState(60);
   const [wanted, setWanted] = useState<Equipment[]>([]);
-  const times = useMemo(() => Array.from({ length: Math.max(0, (close - earliest) / step) }, (_, i) => earliest + i * step), [earliest, close]);
   const from = Math.max(at, earliest);
   const to = Math.min(close, from + length);
   const offered = equipmentKeys.filter(e => rooms.some(r => r.equipment.includes(e)));
@@ -252,9 +263,7 @@ function Finder({ rooms, bookings, earliest, close, bookable, locale, t, onPick 
         </label>
         <label>
           <span className="label">{t.rooms.find.at}</span>
-          <select className="select" value={from} onChange={e => setAt(Number(e.target.value))}>
-            {times.map(m => <option key={m} value={m}>{formatTime(m, locale)}</option>)}
-          </select>
+          <TimeSelect value={from} min={earliest} max={close} step={step} onChange={setAt} />
         </label>
         <label>
           <span className="label">{t.rooms.find.for}</span>
@@ -398,10 +407,10 @@ function Detail({ b, room, day, over, calendarPage, locale, t, onEdit, onCancel,
       {room.note && <p className="hint">{room.note}</p>}
       <dl className="facts">
         <dt>{t.booking.organiser}</dt>
-        <dd><span className="person"><Avatar name={b.organiser.name} photo={b.organiser.photo} size={24} />{b.organiser.name}</span></dd>
+        <dd><span className="person"><Avatar name={b.organiser.name} photo={b.organiser.photo} size="s" />{b.organiser.name}</span></dd>
         {b.attendees.length > 0 && <>
           <dt>{t.booking.attendees}</dt>
-          <dd className="people-line">{b.attendees.map(a => <span key={a.id} className="person"><Avatar name={a.name} photo={a.photo} size={24} />{a.name}</span>)}</dd>
+          <dd className="people-line">{b.attendees.map(a => <span key={a.id} className="person"><Avatar name={a.name} photo={a.photo} size="s" />{a.name}</span>)}</dd>
         </>}
       </dl>
       <div className="row calendar-row">
@@ -433,13 +442,15 @@ function BookingForm({ initial, isNew, days, rooms, bookable, open, close, maxWe
   const [d, setDraft] = useState(initial);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [q, setQ] = useState("");
-  // Whatever was typed or chosen: a tap outside no longer closes the form.
+  // Whatever was typed or chosen: closing the form now asks first.
   const setD = (next: Draft) => { setDraft(next); onDirty(true); };
-  const times = useMemo(() => Array.from({ length: (close - open) / step + 1 }, (_, i) => open + i * step), [open, close]);
-  const chosen = d.attendees.map(id => people.find(p => p.id === id) ?? { id, name: id, photo: null });
-  const fold = (text: string) => text.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
-  const found = q.trim().length === 0 ? [] : people.filter(p => !d.attendees.includes(p.id) && p.id !== d.for && fold(p.name).split(/\s+/u).some(w => w.startsWith(fold(q.trim())))).slice(0, 6);
+  const personOf = (id: string) => people.find(p => p.id === id) ?? { id, name: id, photo: null };
+  const chosen = d.attendees.map(personOf);
+  // The kit's picker searches the team the page holds (accents and case
+  // aside, any word of the name); neither the organiser nor the person
+  // booked for is offered as a guest.
+  const findGuest = useMemo(() => localSearch(people, { exclude: [...d.attendees, d.for].filter(Boolean) }), [people, d.attendees, d.for]);
+  const findPerson = useMemo(() => localSearch(people), [people]);
   const dayChoices = days.some(x => x.value === d.day) ? days : [...days, { value: d.day, label: d.day }];
   const titleLength = [...d.title].length;
 
@@ -452,24 +463,15 @@ function BookingForm({ initial, isNew, days, rooms, bookable, open, close, maxWe
       if (code) setError(format(t.errors[code], values));
     });
   }
-  const add = (id: string) => { setD({ ...d, attendees: [...d.attendees, id] }); setQ(""); };
-  // Moving the start keeps the length chosen (within the day's hours).
-  const moveStart = (s: number) => {
-    const length = Math.max(step, d.end - d.start);
-    setD({ ...d, start: s, end: Math.min(close, s + length) > s ? Math.min(close, s + length) : s + step });
-  };
 
   return (
     <form className="stack booking-form" onSubmit={submit}>
       <div className="form-grid">
         {bookFor && isNew && (
-          <label className="span-4">
-            <span className="label">{t.booking.for}</span>
-            <select className="select" value={d.for} onChange={e => setD({ ...d, for: e.target.value, attendees: d.attendees.filter(a => a !== e.target.value) })}>
-              <option value="">{t.booking.forMe}</option>
-              {people.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-            </select>
-          </label>
+          <div className="span-4">
+            <PeoplePicker label={t.booking.for} hint={t.booking.forHint} value={d.for ? [personOf(d.for)] : []} search={findPerson} labels={t.peoplePicker} lang={locale}
+              onChange={v => { const id = v[0]?.id ?? ""; setD({ ...d, for: id, attendees: d.attendees.filter(a => a !== id) }); }} />
+          </div>
         )}
         <label className="span-2">
           <span className="label">{t.booking.room}</span>
@@ -483,17 +485,15 @@ function BookingForm({ initial, isNew, days, rooms, bookable, open, close, maxWe
             {dayChoices.map(x => <option key={x.value} value={x.value}>{x.label}</option>)}
           </select>
         </label>
+        {/* A 24-hour list every quarter hour (the kit's TimeSelect); moving
+            the start keeps the length chosen, the end never passes it. */}
         <label>
           <span className="label">{t.booking.from}</span>
-          <select className="select" value={d.start} onChange={e => moveStart(Number(e.target.value))}>
-            {times.slice(0, -1).map(m => <option key={m} value={m}>{formatTime(m, locale)}</option>)}
-          </select>
+          <TimeSelect value={d.start} min={open} max={close} step={step} onChange={s => setD({ ...d, ...moveStart(d, s, { step, max: close }) })} />
         </label>
         <label>
           <span className="label">{t.booking.to}</span>
-          <select className="select" value={d.end} onChange={e => setD({ ...d, end: Number(e.target.value) })}>
-            {times.filter(m => m > d.start).map(m => <option key={m} value={m}>{formatTime(m, locale)}</option>)}
-          </select>
+          <TimeSelect value={d.end} min={d.start} max={close} step={step} end onChange={e => setD({ ...d, ...moveEnd(d, e, { step }) })} />
         </label>
         <label className="span-4">
           <span className="label">{t.booking.title}</span>
@@ -501,30 +501,8 @@ function BookingForm({ initial, isNew, days, rooms, bookable, open, close, maxWe
           {titleLength >= limits.title - 20 && <span id="title-count" className="hint counter">{format(t.booking.count, { count: titleLength, max: limits.title })}</span>}
         </label>
       </div>
-      <div className="stack-s">
-        <label htmlFor="find-people" className="label">{t.booking.people}</label>
-        {chosen.length > 0 && (
-          <ul className="picked">
-            {chosen.map(p => (
-              <li key={p.id} className="person-chip">
-                <Avatar name={p.name} photo={p.photo} size={22} />{p.name}
-                <button type="button" className="icon-button small" onClick={() => setD({ ...d, attendees: d.attendees.filter(a => a !== p.id) })}><Close /><span className="visually-hidden">{format(t.booking.remove, { name: p.name })}</span></button>
-              </li>
-            ))}
-          </ul>
-        )}
-        <input id="find-people" className="field" type="search" value={q} placeholder={t.booking.findPeople} autoComplete="off"
-          onChange={e => setQ(e.target.value)}
-          onKeyDown={e => { if (e.key === "Enter" && found[0]) { e.preventDefault(); add(found[0].id); } }} />
-        {q.trim() && (
-          <ul className="suggestions" role="list">
-            {found.length === 0 ? <li className="hint">{t.booking.noMatch}</li> : found.map(p => (
-              <li key={p.id}><button type="button" className="suggestion" onClick={() => add(p.id)}><Avatar name={p.name} photo={p.photo} size={24} />{p.name}</button></li>
-            ))}
-          </ul>
-        )}
-        <p className="hint">{t.booking.peopleHint[told]}</p>
-      </div>
+      <PeoplePicker label={t.booking.people} multiple value={chosen} search={findGuest} hint={t.booking.peopleHint[told]} labels={t.peoplePicker} lang={locale}
+        onChange={v => setD({ ...d, attendees: v.map(p => p.id) })} />
       {isNew && (
         <div className="repeat">
           <label className="check">

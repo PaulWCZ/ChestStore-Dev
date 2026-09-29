@@ -2,13 +2,12 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { AvatarStack, Dialog, Segmented, useToast } from "@argentic/chest-ui/components";
 import { useEffect, useRef, useState, useTransition, type ComponentType, type KeyboardEvent } from "react";
-import { Avatar } from "../../components/avatar.tsx";
-import { Dialog } from "../../components/dialog.tsx";
 import { CalendarAdd, Check, Desk, Door, Download, Laptop, Moon, Plan, Repeat } from "../../components/icons.tsx";
-import { useToast } from "../../components/toast.tsx";
 import type { Catalogue } from "../../lib/i18n/index.ts";
 import { format, formatDay, plural } from "../../lib/i18n/format.ts";
+import type { Result } from "../../lib/errors.ts";
 import type { Part, Status } from "../../lib/model.ts";
 import { bookDesk, cancelDesk, checkIn, restoreDesk, setPresence, setUsualWeek } from "./actions.ts";
 
@@ -36,9 +35,8 @@ type Words = {
   parts: Catalogue["parts"];
   days: Catalogue["days"];
   errors: Catalogue["errors"];
-  undo: string;
+  dialog: Catalogue["dialog"];
   you: string;
-  close: string;
   checkIn: string;
   checkedIn: string;
 };
@@ -47,8 +45,8 @@ type Pattern = { days: Partial<Record<number, Status>>; deskId: string | null; l
 
 const icons: Record<Status, ComponentType> = { office: Plan, remote: Laptop, off: Moon };
 const choices = ["office", "remote", "off"] as const;
-// Faces shown before "+n": few enough that none is hidden under the next.
-const faces = 3;
+// Faces shown, "+n" included: few enough that every face stays readable.
+const faces = 4;
 
 export function WeekView({ days, officeId, focus, usual, pattern, weekdays, desks, calendarPage, self, locale, t }: {
   days: WeekDay[];
@@ -69,12 +67,15 @@ export function WeekView({ days, officeId, focus, usual, pattern, weekdays, desk
   // What the member just chose shows at once; the server's answer follows.
   const [chosen, setChosen] = useState<Record<string, Status | null>>({});
   const [editing, setEditing] = useState(false);
+  const [dirty, setDirty] = useState(false);
   useEffect(() => setChosen({}), [days]);
   useEffect(() => {
     if (focus) document.getElementById("day-" + focus)?.scrollIntoView({ block: "center" });
   }, [focus]);
 
-  const fail = (error: keyof Catalogue["errors"], values?: Record<string, string | number>) => toast(format(t.errors[error], values));
+  const fail = (error: keyof Catalogue["errors"], values?: Record<string, string | number>) => void toast({ text: format(t.errors[error], values), tone: "error" });
+  // What an Undo answers the toast: true, or why it did not work.
+  const undone = (r: Result<unknown>) => (r.ok ? true : format(t.errors[r.error], r.values));
 
   function say(day: WeekDay, status: Status) {
     const before = chosen[day.day] !== undefined ? chosen[day.day]! : day.me;
@@ -89,16 +90,19 @@ export function WeekView({ days, officeId, focus, usual, pattern, weekdays, desk
       const { previous, freed } = r.value;
       if (freed.length > 0) {
         const names = day.desks.map(d => d.name).join(", ");
-        toast(format(t.week.deskFreed, { desk: names }), {
-          label: t.undo,
-          run: () => start(async () => {
-            await setPresence(day.day, previous?.status ?? null, previous?.officeId ?? null);
+        toast({
+          id: "presence-" + day.day,
+          text: format(t.week.deskFreed, { desk: names }),
+          undo: async () => {
+            const said = await setPresence(day.day, previous?.status ?? null, previous?.officeId ?? null);
+            if (!said.ok) return undone(said);
             for (const id of freed) {
               const back = await restoreDesk(id);
-              if (!back.ok) fail(back.error, back.values);
+              if (!back.ok) return undone(back);
             }
             router.refresh();
-          }),
+            return true;
+          },
         });
       }
       router.refresh();
@@ -110,9 +114,14 @@ export function WeekView({ days, officeId, focus, usual, pattern, weekdays, desk
     start(async () => {
       const r = await bookDesk(usual.id, day.day, "day");
       if (!r.ok) return fail(r.error, r.values);
-      toast(format(t.week.deskBooked, { desk: r.value.deskName, day: formatDay(day.day, locale) }), {
-        label: t.undo,
-        run: () => start(async () => { await cancelDesk(r.value.id); router.refresh(); }),
+      toast({
+        id: "desk-" + r.value.id,
+        text: format(t.week.deskBooked, { desk: r.value.deskName, day: formatDay(day.day, locale) }),
+        undo: async () => {
+          const back = await cancelDesk(r.value.id);
+          router.refresh();
+          return undone(back);
+        },
       });
       router.refresh();
     });
@@ -131,13 +140,14 @@ export function WeekView({ days, officeId, focus, usual, pattern, weekdays, desk
     start(async () => {
       const r = await cancelDesk(desk.id);
       if (!r.ok) return fail(r.error, r.values);
-      toast(format(t.week.deskCancelled, { desk: desk.name, day: formatDay(day.day, locale) }), {
-        label: t.undo,
-        run: () => start(async () => {
+      toast({
+        id: "desk-" + desk.id,
+        text: format(t.week.deskCancelled, { desk: desk.name, day: formatDay(day.day, locale) }),
+        undo: async () => {
           const back = await restoreDesk(desk.id);
-          if (!back.ok) fail(back.error, back.values);
           router.refresh();
-        }),
+          return undone(back);
+        },
       });
       router.refresh();
     });
@@ -159,6 +169,9 @@ export function WeekView({ days, officeId, focus, usual, pattern, weekdays, desk
             {days.filter(d => d.week === w).map(d => {
               const me = chosen[d.day] !== undefined ? chosen[d.day]! : d.me;
               const count = d.others.length + (me === "office" ? 1 : 0);
+              // Me first (ringed in orange), then my teams, then the others.
+              const faceList = [...(me === "office" ? [{ id: "me", name: self.name, photo: self.photo }] : []), ...d.others];
+              const names = [...(me === "office" ? [t.you] : []), ...d.others.map(p => p.name)].join(", ");
               return (
                 <li key={d.day} id={"day-" + d.day} className={"day-card" + (d.isToday ? " is-today" : "") + (d.past ? " is-past" : "") + (me ? " is-" + me : "") + (focus === d.day ? " is-focus" : "")}>
                   <div className="day-head">
@@ -170,16 +183,11 @@ export function WeekView({ days, officeId, focus, usual, pattern, weekdays, desk
                     {d.past && <span className="tag quiet">{t.week.past}</span>}
                   </div>
                   <Choice day={d} me={me} label={format(t.week.whereOn, { day: d.label })} t={t} onSay={s => say(d, s)} />
-                  <div className="present">
-                    <span className="stack-avatars" aria-hidden="true">
-                      {me === "office" && <span className="me-dot" title={t.you}><Avatar name={self.name} photo={self.photo} size={28} /></span>}
-                      {d.others.slice(0, faces).map(p => <Avatar key={p.id} name={p.name} photo={p.photo} size={28} />)}
-                      {faces < d.others.length && <span className="avatar more">+{d.others.length - faces}</span>}
-                    </span>
+                  <div className={"present" + (me === "office" ? " me-in" : "")}>
+                    {faceList.length > 0 && <AvatarStack people={faceList} max={faces} size="s" label={names} />}
                     <Link href={`/chest/people?day=${d.day}`} className="present-link">
                       {plural(t.week.inOffice, count, locale)}
                       {d.others.some(p => p.team) && <span className="team-count"> · {plural(t.week.team, d.others.filter(p => p.team).length, locale)}</span>}
-                      {d.others.length > 0 && <span className="visually-hidden">: {d.others.map(p => p.name).join(", ")}</span>}
                     </Link>
                   </div>
                   {(d.desks.length > 0 || d.rooms.length > 0) && (
@@ -232,9 +240,9 @@ export function WeekView({ days, officeId, focus, usual, pattern, weekdays, desk
         <a className="button quiet small" href="/chest/mine" download><Download />{t.week.myData}</a>
         {calendarPage && <span className="hint">{t.week.inCalendar} <a href={calendarPage}>{t.week.calendarHow}</a></span>}
       </footer>
-      <Dialog open={editing} title={t.usual.title} closeLabel={t.close} dismissible={false} onClose={() => setEditing(false)}>
-        {editing && <UsualForm pattern={pattern} weekdays={weekdays} desks={desks} assigned={usual?.assigned ? usual : null} t={t}
-          onSaved={applied => { setEditing(false); toast(applied > 0 ? plural(t.usual.saved, applied, locale) : t.usual.savedNone); router.refresh(); }} />}
+      <Dialog open={editing} title={t.usual.title} dirty={dirty} labels={t.dialog} onClose={() => { setEditing(false); setDirty(false); }}>
+        {editing && <UsualForm pattern={pattern} weekdays={weekdays} desks={desks} assigned={usual?.assigned ? usual : null} t={t} onDirty={() => setDirty(true)}
+          onSaved={applied => { setEditing(false); setDirty(false); toast({ id: "usual", text: applied > 0 ? plural(t.usual.saved, applied, locale) : t.usual.savedNone }); router.refresh(); }} />}
       </Dialog>
     </div>
   );
@@ -273,13 +281,17 @@ function Choice({ day, me, label, t, onSay }: { day: WeekDay; me: Status | null;
 
 // "My usual week": for each working day, where I usually am, and the desk
 // I want on office days. Rooms then says it for me as the days come.
-function UsualForm({ pattern, weekdays, desks, assigned, t, onSaved }: {
+function UsualForm({ pattern, weekdays, desks, assigned, t, onDirty, onSaved }: {
   pattern: Pattern; weekdays: { day: number; name: string }[]; desks: { id: string; name: string; mine: boolean }[];
-  assigned: { name: string } | null; t: Words; onSaved: (applied: number) => void;
+  assigned: { name: string } | null; t: Words; onDirty: () => void; onSaved: (applied: number) => void;
 }) {
-  const [days, setDays] = useState<Partial<Record<number, Status>>>(pattern.days);
-  const [deskId, setDeskId] = useState(pattern.deskId ?? "");
-  const [lend, setLend] = useState(pattern.lendDesk);
+  const [days, setDaysNow] = useState<Partial<Record<number, Status>>>(pattern.days);
+  const [deskId, setDeskIdNow] = useState(pattern.deskId ?? "");
+  const [lend, setLendNow] = useState(pattern.lendDesk);
+  // Anything chosen: closing the form asks first (the kit's Dialog).
+  const setDays = (v: Partial<Record<number, Status>>) => { setDaysNow(v); onDirty(); };
+  const setDeskId = (v: string) => { setDeskIdNow(v); onDirty(); };
+  const setLend = (v: boolean) => { setLendNow(v); onDirty(); };
   const [error, setError] = useState<string | null>(null);
   const [busy, start] = useTransition();
   function save() {
@@ -296,15 +308,10 @@ function UsualForm({ pattern, weekdays, desks, assigned, t, onSaved }: {
       <ul className="usual-days">
         {weekdays.map(w => (
           <li key={w.day} className="usual-day">
-            <span className="usual-name">{w.name}</span>
-            <div className="choice-row" role="radiogroup" aria-label={w.name}>
-              {([...choices, null] as const).map(s => (
-                <button key={s ?? "none"} type="button" role="radio" aria-checked={(days[w.day] ?? null) === s} className="seg"
-                  onClick={() => setDays({ ...days, [w.day]: s ?? undefined })}>
-                  {s ? t.status[s] : t.usual.none}
-                </button>
-              ))}
-            </div>
+            <span className="usual-name" aria-hidden="true">{w.name}</span>
+            <Segmented label={w.name} name={"usual-" + w.day} value={days[w.day] ?? "none"}
+              options={[...choices.map(s => ({ value: s, label: t.status[s] })), { value: "none" as const, label: t.usual.none }]}
+              onChange={s => setDays({ ...days, [w.day]: s === "none" ? undefined : s })} />
           </li>
         ))}
       </ul>

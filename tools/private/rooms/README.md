@@ -112,10 +112,25 @@ tool's builders come in with the first role.
   home); a room 2–4 (drag, *Book*; title and guests optional), or 2 from
   *Find a free room* (the room, *Book*).
 - **A mistake:** every booking, cancellation and desk freed shows a toast
-  with *Undo* (8 s). A slot someone took meanwhile is refused in plain words;
-  the form stays open to pick another time. Removing a room or a desk asks
-  a second click and says how many bookings were cancelled (their people are
-  told). A tap outside a form someone started keeps it open.
+  with *Undo* (French « Annuler l’action », never the « Annuler » of a
+  cancelled booking; 10 s, waiting while it is hovered or focused, Ctrl+Z
+  too); it then says whether it was undone. A slot someone took meanwhile is refused in plain words;
+  the form stays open to pick another time. Deleting a room or a desk
+  cannot be undone (its bookings are cancelled, their people told): it asks
+  first, in the page, and then says how many bookings were cancelled. A form
+  someone started asks before it is closed (Escape, a tap outside).
+
+## Looks
+
+Rooms wears its own identity, **Blueprint** (drafting paper, navy ink, one
+signal orange: `lib/theme.ts`, DESIGN.md), unless the company chose
+otherwise in its Chest: any theme of the store's catalogue (the other
+tools' identities, "Chest", "High contrast"), or **its own brand** (its
+colours, fonts, corners and logo), for all its tools or for Rooms alone.
+Every look has the same pages, words and features, and passes the same
+contrast checks, light and dark. Screens: `docs/screens/week-chest-*`
+(Chest), `week-theme-*` (Library), `rooms-theme-*` (Workshop),
+`week-brand-*` and `desks-brand-dark-*` (a sample brand).
 
 ## Routes
 

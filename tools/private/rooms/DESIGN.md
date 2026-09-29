@@ -7,25 +7,39 @@ blueprint of the office, drawn in navy ink on pale drafting paper, where
 the only warm colour is *you* (your desk, your meetings) and what someone
 else holds.
 
-## Tokens
+## Tokens: the identity is a theme
 
-All in `app/tokens.css` (light, and dark by the system's choice — the dark
-theme is the classic blueprint: deep blue paper, pale lines). Ratios
-computed with `scripts/contrast.mjs` (WCAG 2; AA is 4.5:1 for text).
+Rooms' look is **Blueprint**, a theme of the UI kit (`@argentic/chest-ui`),
+defined with `defineTheme` in **`lib/theme.ts`** — every colour of the tool
+is there, nowhere else — and identical to the catalogue's `blueprint` (a
+test holds them equal). `checkTheme` measures every pair of the token
+contract (`ui/tokens/CONTRACT.md`) in light and dark: WCAG AA for text, 3:1
+for lines and controls that must be seen. The dark scheme is the classic
+blueprint: deep blue paper, pale lines.
 
-| Token | Light | Dark | Use |
+| Contract token | Light | Dark | Use in Rooms |
 |---|---|---|---|
 | `--bg` | `#f3f7fc` drafting paper, with a 24 px grid and a 120 px major grid | `#0b1a30` | page |
 | `--surface` / `--surface-2` | `#ffffff` / `#e8f0f9` | `#102440` / `#16304f` | cards, fields / hover, others' bookings |
-| `--ink` | `#0f2447` navy | `#e8f0fb` | text, strong lines — 14.3:1 on paper; 15.2:1 dark |
-| `--ink-2` | `#4a5d7e` | `#a9bcd8` | secondary text — 6.2:1 on paper, 5.8:1 on surface-2; 8.1:1 dark |
-| `--line` | `#c3d3e8` | `#2b4668` | thin drafting lines (never carries text) |
-| `--action` | `#0f2447` (white on it 15.4:1) | `#e8f0fb` (paper on it 15.2:1) | the one action colour: buttons, selected choices, the current day |
-| `--accent` | `#c2410c` orange (white on it 5.2:1) | `#ff8a4c` (paper on it 7.5:1) | **yours or taken**: my desk, my meetings, the "now" line, today |
-| `--accent-text` | `#b93d0b` (5.6:1 on white, 4.9:1 on accent-soft) | `#ff8a4c` (6.7:1 on surface, 5.8:1 on accent-soft) | orange words |
-| `--accent-soft` | `#fdebe0` (navy on it 13.3:1) | `#3a2a26` | hatching of a taken desk, my booking in a list |
-| `--link` | `#1f5fbf` (6.1:1) | `#8cb8ff` (7.7:1) | links, focus ring |
-| `--danger` | `#b3261e` (6.5:1) | `#ff8a80` (6.8:1) | errors, remove |
+| `--ink` / `--ink-2` | `#0f2447` navy / `#4a5d7e` | `#e8f0fb` / `#a9bcd8` | text / secondary text |
+| `--line` / `--line-strong` | `#c3d3e8` / `#0f2447` | `#2b4668` / `#e8f0fb` | hairlines / field and chip edges, the header's rule |
+| `--accent` (+ `-ink`, `-line`) | `#0f2447` navy | `#e8f0fb` | the one action colour: buttons, selected choices, the current day |
+| `--accent-text` | `#1f5fbf` | `#8cb8ff` | links |
+| `--cat-3` (solid / soft / ink) | `#c2410c` / `#fdebe0` / `#b93d0b` | `#ff8a4c` / `#3a2a26` / `#ff8a4c` | **yours or taken** (the signal orange) |
+| `--danger` | `#b3261e` | `#ff8a80` | errors, delete |
+
+`app/tokens.css` holds only Rooms' own names, each defined from contract
+tokens: `--mine` / `--mine-ink` (a filled "mine": the slot-3 ink as ground,
+the surface as text), `--mine-soft` / `--mine-text`, `--mine-line` (the
+"now" line, a selection: 3:1), `--grid` / `--grid-major` (the paper's grid,
+decoration: `color-mix` of `--accent-text`), `--slot` (a quarter hour of
+the rooms' grid). The stylesheets name no colour (`test/theme.test.ts`).
+
+**Looks.** A company may dress Rooms in another theme of the catalogue, or
+in its own brand, from its Chest: the same pages, the same words, the same
+features, every pair still measured. Orange stays "yours" wherever slot 3
+is an orange (in Workshop its ink is black: "mine" is then a black tile).
+In brand mode the company's logo stands where the Rooms mark is.
 
 **Type**: *Albert Sans* (variable, OFL-1.1) for everything people read —
 a clean geometric-grotesque with a technical flavour that stays friendly;
@@ -36,11 +50,18 @@ figures for times. 16 px body.
 
 **Shape**: thin 1 px lines, dashed for what is free (a free desk, a free
 slot), solid for what is held; small radii (4/6/10 px); no shadows except
-under dialogs and toasts. **Space**: 4, 8, 12, 16, 24, 32, 48. **Motion**:
+under dialogs and toasts (the theme's `--shadow-1/2`). **Space**: 4, 8, 12, 16, 24, 32, 48. **Motion**:
 120 and 220 ms (hover, toasts), none with reduced motion. The rooms' grid:
 one quarter hour is 14 px; hours are full lines, quarters faint ones.
 
 ## Components
+
+The shared pieces are the kit's (`@argentic/chest-ui/components`, restyled
+in `app/globals.css` only where Blueprint needs it: a navy rule under the
+header, mono capitals on the day tiles): the shell with its labelled tabs,
+toasts, dialogs and the in-page Confirm, the people picker, date fields and
+24-hour time lists, the day strip, tabs and segmented choices, filters and
+search box, avatars and stacks, empty states. Rooms' own:
 
 Day strip (links, today in orange, the chosen day inked), segmented choices
 (*Office / Remote / Off*, *whole day / morning / afternoon*), filter chips,
@@ -55,7 +76,7 @@ critique: the *Find a free room* panel (three selects, equipment chips,
 free rooms as dashed chips), desk tiles that say what they offer in words
 ("Screen · Dock +1") and a pale "not open yet" state, a lock and "Sales
 only" in orange for places kept for a team, avatar stacks side by side
-(three faces, then "+n"), the usual-week form (four-way segmented rows), and
+(four places, the last one "+n" when more come), the usual-week form (four-way segmented rows), and
 a bar per working day for how full the office is.
 
 ## Icon

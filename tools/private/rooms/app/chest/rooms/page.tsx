@@ -1,6 +1,7 @@
+import { EmptyState, PageHeader } from "@argentic/chest-ui/components";
 import Link from "next/link";
 import { AutoRefresh } from "../../../components/auto-refresh.tsx";
-import { DayStrip } from "../../../components/day-strip.tsx";
+import { DayPicker } from "../../../components/day-picker.tsx";
 import { Door } from "../../../components/icons.tsx";
 import { OfficePicker } from "../../../components/office-picker.tsx";
 import { can, mayChange } from "../../../lib/access.ts";
@@ -28,7 +29,6 @@ export default async function Rooms({ searchParams }: { searchParams: Promise<Re
   // Once today's hours are over, the next working day opens by default.
   const over = minutesNow(c.zone) >= c.rules.dayEnd - 15;
   const day = shownDay(params["day"], over ? { ...c, today: addDays(c.today, 1) } : c);
-  const href = (d: string) => `/chest/rooms?day=${d}${office ? "&office=" + office.id : ""}`;
   const groups = new Map((await chestGroups()).map(g => [g.id, g.name]));
   const rooms: GridRoom[] = (office?.floors ?? []).flatMap(f => f.rooms.map(r => ({
     id: r.id, name: r.name, capacity: r.capacity, equipment: r.equipment, note: r.note, photo: r.photo, floor: f.name,
@@ -53,27 +53,26 @@ export default async function Rooms({ searchParams }: { searchParams: Promise<Re
   }));
   const open = typeof params["booking"] === "string" && shown.some(b => b.id === params["booking"]) ? params["booking"] : null;
   const lock = lockOf(c, day, exempt);
+  const keep: Record<string, string> = office ? { office: office.id } : {};
+  const intro = <span className="place-line">{formatDay(day, locale, { weekday: "long", day: "numeric", month: "long" })}{office ? " · " + office.name : ""}</span>;
+  const picker = office && c.offices.length > 1 ? <OfficePicker offices={c.offices.map(o => ({ id: o.id, name: o.name }))} current={office.id} label={t.shell.office} path={`/chest/rooms?day=${day}`} /> : undefined;
+  const header = <PageHeader title={t.rooms.title} intro={intro} secondary={picker} />;
+  const strip = <DayPicker days={bookableDays(c)} current={day} today={c.today} path="/chest/rooms" keep={keep} label={t.days.date} labels={t.date} />;
   const days = formDays(c, exempt).map(d => ({ value: d, label: formatDay(d, locale, { weekday: "long", day: "numeric", month: "long" }) }));
   return (
-    <main className="wide">
+    <div className="wide">
       <AutoRefresh seconds={20} />
-      <div className="page-head">
-        <div>
-          <h1>{t.rooms.title}</h1>
-          <p className="muted place-line">{formatDay(day, locale, { weekday: "long", day: "numeric", month: "long" })}{office ? " · " + office.name : ""}</p>
-        </div>
-        {office && <OfficePicker offices={c.offices.map(o => ({ id: o.id, name: o.name }))} current={office.id} label={t.shell.office} path={href(day)} />}
-      </div>
-      <DayStrip days={bookableDays(c)} current={day} today={c.today} locale={locale} t={t.days} href={href} hidden={office ? { office: office.id } : {}} />
       {rooms.length === 0 ? (
-        <div className="empty">
-          <Door />
-          <h2>{t.rooms.none.title}</h2>
-          <p>{t.rooms.none.body}</p>
-          {can(member, "places.manage") && <Link className="button" href="/chest/places">{t.week.noOffice.action}</Link>}
-        </div>
+        <>
+          {header}
+          {strip}
+          <EmptyState icon={<Door />} title={t.rooms.none.title} body={t.rooms.none.body}
+            {...(can(member, "places.manage") ? { action: <Link className="button" href="/chest/places">{t.week.noOffice.action}</Link> } : {})} />
+        </>
       ) : (
         <RoomsView
+          head={{ title: t.rooms.title, intro, secondary: picker }}
+          strip={strip}
           key={day}
           day={day}
           days={days}
@@ -90,9 +89,9 @@ export default async function Rooms({ searchParams }: { searchParams: Promise<Re
           told={how.told}
           calendarPage={how.calendarOn ? feedPage : null}
           locale={locale}
-          t={{ rooms: t.rooms, booking: t.booking, equipment: t.equipment, errors: t.errors }}
+          t={{ rooms: t.rooms, booking: t.booking, equipment: t.equipment, errors: t.errors, dialog: t.dialog, peoplePicker: t.peoplePicker }}
         />
       )}
-    </main>
+    </div>
   );
 }

@@ -1,11 +1,11 @@
 "use client";
 
+import { Confirm, Dialog, EmptyState, PeoplePicker, useToast } from "@argentic/chest-ui/components";
+import { localSearch } from "@argentic/chest-ui/components/logic";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState, useTransition, type FormEvent, type ReactNode } from "react";
-import { Dialog } from "../../../components/dialog.tsx";
+import { useMemo, useState, useTransition, type FormEvent, type ReactNode } from "react";
 import { Building, Pencil, Plus, Seat, Trash, Upload } from "../../../components/icons.tsx";
-import { useToast } from "../../../components/toast.tsx";
 import type { Catalogue } from "../../../lib/i18n/index.ts";
 import { format, plural } from "../../../lib/i18n/format.ts";
 import { equipment as equipmentKeys, features as featureKeys, limits, type Equipment, type Feature } from "../../../lib/model.ts";
@@ -22,13 +22,15 @@ type Words = {
   errors: Catalogue["errors"];
   rooms: Catalogue["rooms"];
   booking: Catalogue["booking"];
+  dialog: Catalogue["dialog"];
+  peoplePicker: Catalogue["peoplePicker"];
 };
 type Editing = { kind: "room"; floorId: string; room: RoomView | null } | { kind: "desk"; areaId: string; desk: DeskView } | null;
 
 export function PlacesView({ offices, office, people, groups, names, locale, t }: {
   offices: { id: string; name: string; address: string }[];
   office: OfficeView | null;
-  people: { id: string; name: string }[];
+  people: { id: string; name: string; photo: string | null }[];
   // The Chest's groups a room or an area may be kept for.
   groups: { id: string; name: string }[];
   names: Record<string, string>;
@@ -39,12 +41,14 @@ export function PlacesView({ offices, office, people, groups, names, locale, t }
   const toast = useToast();
   const [pending, start] = useTransition();
   const [editing, setEditing] = useState<Editing>(null);
+  const [dirty, setDirty] = useState(false);
+  const edit = (e: Editing) => { setDirty(false); setEditing(e); };
 
   // Runs an action; says what went wrong, or refreshes the page.
   function run<T>(step: () => Promise<Result<T>>, done?: (value: T) => void) {
     start(async () => {
       const r = await step();
-      if (!r.ok) return void toast(format(t.errors[r.error], r.values));
+      if (!r.ok) return void toast({ text: format(t.errors[r.error], r.values), tone: "error" });
       done?.(r.value);
       router.refresh();
     });
@@ -53,13 +57,8 @@ export function PlacesView({ offices, office, people, groups, names, locale, t }
 
   if (!office) {
     return (
-      <div className="empty">
-        <Building />
-        <h2>{t2.firstOffice.title}</h2>
-        <p>{t2.firstOffice.body}</p>
-        <OfficeForm t={t} busy={pending} onSave={v => run(() => actions.addOffice(v), r => router.push(`/chest/places?office=${r.id}`))} />
-        <p className="hint">{t2.csr}</p>
-      </div>
+      <EmptyState icon={<Building />} title={t2.firstOffice.title} body={t2.firstOffice.body} note={t2.csr}
+        action={<OfficeForm t={t} busy={pending} onSave={v => run(() => actions.addOffice(v), r => router.push(`/chest/places?office=${r.id}`))} />} />
     );
   }
 
@@ -74,15 +73,15 @@ export function PlacesView({ offices, office, people, groups, names, locale, t }
 
       <section className="panel" aria-labelledby="office-title">
         <h2 id="office-title" className="annotation">{office.name}</h2>
-        <OfficeForm key={office.id} t={t} busy={pending} initial={office} onSave={v => run(() => actions.updateOffice(office.id, v), () => toast(t2.saved))} />
-        <button type="button" className="link-button danger small" onClick={() => run(() => actions.removeOffice(office.id), () => { toast(t2.removed); router.push("/chest/places"); })}>{t2.removeOffice}</button>
+        <OfficeForm key={office.id} t={t} busy={pending} initial={office} onSave={v => run(() => actions.updateOffice(office.id, v), () => toast({ id: "office", text: t2.saved }))} />
+        <button type="button" className="link-button danger small" onClick={() => run(() => actions.removeOffice(office.id), () => { toast({ id: "office", text: t2.removed }); router.push("/chest/places"); })}>{t2.removeOffice}</button>
       </section>
 
       {floors.map(f => (
         <section key={f.id} className="panel floor-panel" aria-labelledby={"f-" + f.id}>
           <div className="panel-head">
             <EditableName id={"f-" + f.id} value={f.name} max={limits.floorName} label={t2.floorName} t={t} busy={pending} onSave={name => run(() => actions.renameFloor(f.id, name))} />
-            <button type="button" className="button quiet small danger" onClick={() => run(() => actions.removeFloor(f.id), () => toast(t2.removed))}><Trash />{t2.removeFloor}</button>
+            <button type="button" className="button quiet small danger" onClick={() => run(() => actions.removeFloor(f.id), () => toast({ id: "floor-" + f.id, text: t2.removed }))}><Trash />{t2.removeFloor}</button>
           </div>
 
           <h3 className="sub">{t2.rooms}</h3>
@@ -98,24 +97,24 @@ export function PlacesView({ offices, office, people, groups, names, locale, t }
                       {r.equipment.map(e => { const Icon = equipmentIcons[e]; return <span key={e}><Icon />{t.equipment[e]}</span>; })}
                     </span>
                   </span>
-                  <button type="button" className="button quiet small" onClick={() => setEditing({ kind: "room", floorId: f.id, room: r })}><Pencil />{t.booking.change}</button>
+                  <button type="button" className="button quiet small" onClick={() => edit({ kind: "room", floorId: f.id, room: r })}><Pencil />{t.booking.change}</button>
                 </li>
               ))}
             </ul>
           )}
-          <button type="button" className="button quiet small" onClick={() => setEditing({ kind: "room", floorId: f.id, room: null })}><Plus />{t2.addRoom}</button>
+          <button type="button" className="button quiet small" onClick={() => edit({ kind: "room", floorId: f.id, room: null })}><Plus />{t2.addRoom}</button>
 
           <h3 className="sub">{t2.areas}</h3>
           {f.areas.map(a => (
             <div key={a.id} className="area-admin">
               <div className="panel-head">
                 <EditableName id={"a-" + a.id} value={a.name} max={limits.areaName} label={t2.areaName} t={t} busy={pending} small onSave={name => run(() => actions.renameArea(a.id, name))} />
-                <button type="button" className="button quiet small danger" onClick={() => run(() => actions.removeArea(a.id), () => toast(t2.removed))}><Trash />{t2.removeArea}</button>
+                <button type="button" className="button quiet small danger" onClick={() => run(() => actions.removeArea(a.id), () => toast({ id: "area-" + a.id, text: t2.removed }))}><Trash />{t2.removeArea}</button>
               </div>
               {groups.length > 0 && (
                 <label className="inline-label kept-for">
                   <span className="small muted">{t2.keptFor}</span>
-                  <select className="select narrow-select" value={a.groupId ?? ""} onChange={e => run(() => actions.setAreaGroup(a.id, e.target.value || null), () => toast(t2.saved))}>
+                  <select className="select narrow-select" value={a.groupId ?? ""} onChange={e => run(() => actions.setAreaGroup(a.id, e.target.value || null), () => toast({ id: "area-" + a.id, text: t2.saved }))}>
                     <option value="">{t2.everyone}</option>
                     {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
                   </select>
@@ -124,7 +123,7 @@ export function PlacesView({ offices, office, people, groups, names, locale, t }
               <ul className="tiles admin-tiles">
                 {a.desks.map(d => (
                   <li key={d.id} className={"tile" + (d.assignedTo ? " is-assigned" : " is-free")}>
-                    <button type="button" onClick={() => setEditing({ kind: "desk", areaId: a.id, desk: d })} aria-label={format(t2.editDesk, { desk: d.name })}>
+                    <button type="button" onClick={() => edit({ kind: "desk", areaId: a.id, desk: d })} aria-label={format(t2.editDesk, { desk: d.name })}>
                       <span className="tile-name">{d.name}</span>
                       <span className="tile-state">{d.assignedTo ? names[d.assignedTo]?.split(" ")[0] : ""}</span>
                       <span className="tile-features" aria-hidden="true">{d.features.map(k => { const Icon = featureIcons[k]; return <Icon key={k} />; })}</span>
@@ -132,9 +131,14 @@ export function PlacesView({ offices, office, people, groups, names, locale, t }
                   </li>
                 ))}
               </ul>
-              <AddDesks t={t} busy={pending} onAdd={n => run(() => actions.addDesks(a.id, n, []), r => toast(plural(t2.desksAdded, r.ids.length, locale), {
-                label: t.booking.undo,
-                run: () => run(() => actions.undoAddDesks(r.ids), () => toast(t2.removed)),
+              <AddDesks t={t} busy={pending} onAdd={n => run(() => actions.addDesks(a.id, n, []), r => toast({
+                id: "desks-" + a.id,
+                text: plural(t2.desksAdded, r.ids.length, locale),
+                undo: async () => {
+                  const back = await actions.undoAddDesks(r.ids);
+                  router.refresh();
+                  return back.ok ? true : format(t.errors[back.error], back.values);
+                },
               }))} />
             </div>
           ))}
@@ -146,17 +150,17 @@ export function PlacesView({ offices, office, people, groups, names, locale, t }
       <ImportPanel officeId={office.id} t={t} locale={locale} onDone={() => router.refresh()} />
       <p className="hint">{t2.csr}</p>
 
-      <Dialog open={editing !== null} title={editing?.kind === "room" ? (editing.room ? format(t2.editRoom, { room: editing.room.name }) : t2.newRoom) : editing?.kind === "desk" ? format(t2.editDesk, { desk: editing.desk.name }) : ""} closeLabel={t.booking.close} onClose={() => setEditing(null)}>
+      <Dialog open={editing !== null} dirty={dirty} labels={t.dialog} title={editing?.kind === "room" ? (editing.room ? format(t2.editRoom, { room: editing.room.name }) : t2.newRoom) : editing?.kind === "desk" ? format(t2.editDesk, { desk: editing.desk.name }) : ""} onClose={() => edit(null)}>
         {editing?.kind === "room" && (
-          <RoomEditor key={editing.room?.id ?? "new"} room={editing.room} floorId={editing.floorId} floors={floors.map(f => ({ id: f.id, name: f.name }))} groups={groups} t={t} busy={pending}
-            onSave={v => run(() => (editing.room ? actions.updateRoom(editing.room.id, v) : actions.addRoom(editing.floorId, v)), () => { setEditing(null); toast(t2.saved); })}
-            onRemove={() => run(() => actions.removeRoom(editing.room!.id), r => { setEditing(null); toast(r.cancelled > 0 ? plural(t2.cancelledPeople, r.cancelled, locale) : t2.removed); })}
+          <RoomEditor key={editing.room?.id ?? "new"} room={editing.room} floorId={editing.floorId} floors={floors.map(f => ({ id: f.id, name: f.name }))} groups={groups} t={t} busy={pending} onDirty={() => setDirty(true)}
+            onSave={v => run(() => (editing.room ? actions.updateRoom(editing.room.id, v) : actions.addRoom(editing.floorId, v)), () => { edit(null); toast({ id: "room-" + (editing.room?.id ?? "new"), text: t2.saved }); })}
+            onRemove={() => run(() => actions.removeRoom(editing.room!.id), r => { edit(null); toast({ id: "room-" + editing.room!.id, text: r.cancelled > 0 ? plural(t2.cancelledPeople, r.cancelled, locale) : t2.removed }); })}
             onPhoto={() => router.refresh()} onRemovePhoto={() => run(() => actions.removeRoomPhoto(editing.room!.id))} />
         )}
         {editing?.kind === "desk" && (
-          <DeskEditor key={editing.desk.id} desk={editing.desk} areaId={editing.areaId} areas={floors.flatMap(f => f.areas.map(a => ({ id: a.id, name: f.name + " · " + a.name })))} people={people} t={t} busy={pending}
-            onSave={v => run(() => actions.updateDesk(editing.desk.id, v), r => { setEditing(null); toast(r.cancelled > 0 ? plural(t2.cancelledPeople, r.cancelled, locale) : t2.saved); })}
-            onRemove={() => run(() => actions.removeDesk(editing.desk.id), r => { setEditing(null); toast(r.cancelled > 0 ? plural(t2.cancelledPeople, r.cancelled, locale) : t2.removed); })} />
+          <DeskEditor key={editing.desk.id} desk={editing.desk} areaId={editing.areaId} areas={floors.flatMap(f => f.areas.map(a => ({ id: a.id, name: f.name + " · " + a.name })))} people={people} locale={locale} t={t} busy={pending} onDirty={() => setDirty(true)}
+            onSave={v => run(() => actions.updateDesk(editing.desk.id, v), r => { edit(null); toast({ id: "desk-" + editing.desk.id, text: r.cancelled > 0 ? plural(t2.cancelledPeople, r.cancelled, locale) : t2.saved }); })}
+            onRemove={() => run(() => actions.removeDesk(editing.desk.id), r => { edit(null); toast({ id: "desk-" + editing.desk.id, text: r.cancelled > 0 ? plural(t2.cancelledPeople, r.cancelled, locale) : t2.removed }); })} />
         )}
       </Dialog>
     </div>
@@ -242,14 +246,22 @@ function Checks<K extends string>({ legend, keys, value, words, onChange }: { le
   );
 }
 
-function Remove({ label, confirm, onRemove }: { label: string; confirm: string; onRemove: () => void }) {
-  const [sure, setSure] = useState(false);
-  return <button type="button" className="button quiet danger" onClick={() => (sure ? onRemove() : setSure(true))}><Trash />{sure ? confirm : label}</button>;
+// Deleting a room or a desk cancels its coming bookings and tells their
+// people: it cannot be undone, so it asks first, in the page (the kit's
+// Confirm; never the browser's window.confirm).
+function Remove({ label, title, body, cancel, onRemove }: { label: string; title: string; body: string; cancel: string; onRemove: () => void }) {
+  const [asking, setAsking] = useState(false);
+  return (
+    <>
+      <button type="button" className="button quiet danger" onClick={() => setAsking(true)}><Trash />{label}</button>
+      <Confirm open={asking} title={title} body={body} confirmLabel={label} cancelLabel={cancel} onCancel={() => setAsking(false)} onConfirm={() => { setAsking(false); onRemove(); }} />
+    </>
+  );
 }
 
-function RoomEditor({ room, floorId, floors, groups, t, busy, onSave, onRemove, onPhoto, onRemovePhoto }: {
+function RoomEditor({ room, floorId, floors, groups, t, busy, onDirty, onSave, onRemove, onPhoto, onRemovePhoto }: {
   room: RoomView | null; floorId: string; floors: { id: string; name: string }[]; groups: { id: string; name: string }[]; t: Words; busy: boolean;
-  onSave: (v: actions.RoomFields) => void; onRemove: () => void; onPhoto: () => void; onRemovePhoto: () => void;
+  onDirty: () => void; onSave: (v: actions.RoomFields) => void; onRemove: () => void; onPhoto: () => void; onRemovePhoto: () => void;
 }) {
   const [name, setName] = useState(room?.name ?? "");
   const [capacity, setCapacity] = useState(room?.capacity ?? 6);
@@ -258,7 +270,7 @@ function RoomEditor({ room, floorId, floors, groups, t, busy, onSave, onRemove, 
   const [floor, setFloor] = useState(floorId);
   const [group, setGroup] = useState(room?.groupId ?? "");
   return (
-    <form className="stack" onSubmit={e => { e.preventDefault(); onSave({ name, capacity, equipment, note, floorId: floor, groupId: group || null }); }}>
+    <form className="stack" onChange={onDirty} onSubmit={e => { e.preventDefault(); onSave({ name, capacity, equipment, note, floorId: floor, groupId: group || null }); }}>
       <div className="form-grid">
         <label className="span-3">
           <span className="label">{t.places.roomName}</span>
@@ -292,7 +304,7 @@ function RoomEditor({ room, floorId, floors, groups, t, busy, onSave, onRemove, 
       {room && <Photo room={room} t={t} onDone={onPhoto} onRemove={onRemovePhoto} />}
       <div className="row actions">
         <button type="submit" className="button" disabled={busy}>{t.places.save}</button>
-        {room && <Remove label={t.places.remove} confirm={t.places.confirmRemove} onRemove={onRemove} />}
+        {room && <Remove label={t.places.remove} title={format(t.places.deleteRoom, { room: room.name })} body={t.places.deleteBody} cancel={t.places.keep} onRemove={onRemove} />}
       </div>
     </form>
   );
@@ -304,7 +316,7 @@ function Photo({ room, t, onDone, onRemove }: { room: RoomView; t: Words; onDone
   const toast = useToast();
   const [sending, setSending] = useState(false);
   const [version, setVersion] = useState(0);
-  const fail = (code: keyof Catalogue["errors"]) => toast(t.errors[code]);
+  const fail = (code: keyof Catalogue["errors"]) => toast({ text: t.errors[code], tone: "error" });
   async function send(file: File) {
     if (file.size > limits.photoSize) return fail("file_too_large");
     setSending(true);
@@ -317,7 +329,7 @@ function Photo({ room, t, onDone, onRemove }: { room: RoomView; t: Words; onDone
       const { name } = await put.json() as { name: string };
       const confirm = await fetch(`/chest/api/rooms/${room.id}/photo`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name }) });
       if (!confirm.ok) return fail(((await confirm.json().catch(() => ({}))) as { error?: keyof Catalogue["errors"] }).error ?? "file_missing");
-      toast(t.places.photoSaved);
+      toast({ id: "photo-" + room.id, text: t.places.photoSaved });
       setVersion(v => v + 1);
       onDone();
     } catch {
@@ -343,16 +355,18 @@ function Photo({ room, t, onDone, onRemove }: { room: RoomView; t: Words; onDone
   );
 }
 
-function DeskEditor({ desk, areaId, areas, people, t, busy, onSave, onRemove }: {
-  desk: DeskView; areaId: string; areas: { id: string; name: string }[]; people: { id: string; name: string }[]; t: Words; busy: boolean;
-  onSave: (v: actions.DeskFields) => void; onRemove: () => void;
+function DeskEditor({ desk, areaId, areas, people, locale, t, busy, onDirty, onSave, onRemove }: {
+  desk: DeskView; areaId: string; areas: { id: string; name: string }[]; people: { id: string; name: string; photo: string | null }[]; locale: string; t: Words; busy: boolean;
+  onDirty: () => void; onSave: (v: actions.DeskFields) => void; onRemove: () => void;
 }) {
   const [name, setName] = useState(desk.name);
   const [features, setFeatures] = useState<Feature[]>(desk.features);
   const [assignedTo, setAssigned] = useState(desk.assignedTo ?? "");
   const [area, setArea] = useState(areaId);
+  const search = useMemo(() => localSearch(people), [people]);
+  const holder = people.filter(p => p.id === assignedTo);
   return (
-    <form className="stack" onSubmit={e => { e.preventDefault(); onSave({ name, features, assignedTo: assignedTo || null, areaId: area }); }}>
+    <form className="stack" onChange={onDirty} onSubmit={e => { e.preventDefault(); onSave({ name, features, assignedTo: assignedTo || null, areaId: area }); }}>
       <div className="form-grid">
         <label className="span-2">
           <span className="label">{t.places.deskName}</span>
@@ -364,16 +378,11 @@ function DeskEditor({ desk, areaId, areas, people, t, busy, onSave, onRemove }: 
         </label>
       </div>
       <Checks legend={t.places.deskFeatures} keys={featureKeys} value={features} words={t.features} onChange={setFeatures} />
-      <label>
-        <span className="label">{t.places.assignedTo}</span>
-        <select className="select" value={assignedTo} onChange={e => setAssigned(e.target.value)}>
-          <option value="">{t.places.nobody}</option>
-          {people.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-        </select>
-      </label>
+      <PeoplePicker label={t.places.assignedTo} hint={t.places.nobody} value={holder} search={search} labels={t.peoplePicker} lang={locale}
+        onChange={v => { setAssigned(v[0]?.id ?? ""); onDirty(); }} />
       <div className="row actions">
         <button type="submit" className="button" disabled={busy}>{t.places.save}</button>
-        <Remove label={t.places.remove} confirm={t.places.confirmRemove} onRemove={onRemove} />
+        <Remove label={t.places.remove} title={format(t.places.deleteDesk, { desk: desk.name })} body={t.places.deleteBody} cancel={t.places.keep} onRemove={onRemove} />
       </div>
     </form>
   );
@@ -388,11 +397,11 @@ function ImportPanel({ officeId, t, locale, onDone }: { officeId: string; t: Wor
   const [report, setReport] = useState<{ said: string; lines: string[] } | null>(null);
   const t2 = t.places.import;
   function send(kind: "rooms" | "desks", file: File) {
-    if (file.size > 2 << 20) return void toast(t.errors.file_too_large);
+    if (file.size > 2 << 20) return void toast({ text: t.errors.file_too_large, tone: "error" });
     start(async () => {
       const text = await file.text();
       const r = kind === "rooms" ? await actions.importRooms(officeId, text) : await actions.importDesks(officeId, text);
-      if (!r.ok) return void toast(format(t.errors[r.error], r.values));
+      if (!r.ok) return void toast({ text: format(t.errors[r.error], r.values), tone: "error" });
       const v = r.value;
       const said = "floors" in v
         ? plural(t2.roomsDone, v.added, locale) + (v.floors > 0 ? " " + plural(t2.floorsDone, v.floors, locale) : "")

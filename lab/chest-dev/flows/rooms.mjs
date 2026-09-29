@@ -11,7 +11,7 @@ const now = new Date(new Date().toLocaleString("en-US", { timeZone: "Europe/Pari
 const monday = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate() - ((now.getDay() + 6) % 7)));
 const friday = iso(new Date(monday.getTime() + 11 * 864e5));
 const thursday = iso(new Date(monday.getTime() + 10 * 864e5));
-const toastText = async () => (await page.locator(".toast").last().innerText()).trim();
+const toastText = async () => (await page.locator(".ck-toast .ck-toast-text").last().innerText()).trim();
 // A field of the booking form by its visible label (a select's name also
 // holds its options, so getByLabel would match "To" in "October").
 const field = (scope, label) => scope.locator("label", { has: page.locator(".label", { hasText: new RegExp(`^${label}$`, "u") }) }).locator("select, input").first();
@@ -30,7 +30,7 @@ await step("my week: say 'office' for a day in one tap; it stays", async () => {
 await step("book a desk on the plan with one tap; the week shows it", async () => {
   await page.goto(origin + `/chest/desks?day=${friday}`);
   await page.getByRole("button", { name: "D-06, free. Book it." }).click();
-  await page.waitForSelector(".toast");
+  await page.waitForSelector(".ck-toast");
   expect((await toastText()).startsWith("Desk D-06 booked"), "toast");
   await page.reload();
   expect(await page.getByRole("button", { name: "D-06, booked by you. Free it." }).count() === 1, "mine after reload");
@@ -41,9 +41,9 @@ await step("book a desk on the plan with one tap; the week shows it", async () =
 await step("tap another desk: I change desks; undo puts me back", async () => {
   await page.goto(origin + `/chest/desks?day=${friday}`);
   await page.getByRole("button", { name: "D-07, free. Book it." }).click();
-  await page.waitForSelector(".toast");
+  await page.waitForSelector(".ck-toast");
   await page.waitForTimeout(800);
-  await page.locator(".toast button").last().click();
+  await page.locator(".ck-toast-undo").last().click();
   await page.waitForTimeout(1500);
   await page.reload();
   expect(await page.getByRole("button", { name: "D-06, booked by you. Free it." }).count() === 1, "back on D-06");
@@ -52,9 +52,9 @@ await step("tap another desk: I change desks; undo puts me back", async () => {
 await step("saying 'remote' frees the desk, with an undo", async () => {
   await page.goto(origin + "/chest");
   await page.locator("#day-" + friday).getByRole("radio", { name: "Remote" }).click();
-  await page.waitForSelector(".toast");
+  await page.waitForSelector(".ck-toast");
   expect((await toastText()).includes("Desk D-06 freed"), "freed: " + (await toastText()));
-  await page.locator(".toast button").last().click();
+  await page.locator(".ck-toast-undo").last().click();
   await page.waitForTimeout(1800);
   await page.reload();
   expect((await page.locator("#day-" + friday).innerText()).includes("Desk D-06"), "desk back");
@@ -68,15 +68,16 @@ await step("book a room with a title and a guest; Inès hears it in French", asy
   await field(dialog, "From").selectOption({ label: "11:00" });
   await field(dialog, "To").selectOption({ label: "12:00" });
   await dialog.getByLabel("What for (optional)").fill("Quarterly numbers");
-  await dialog.getByPlaceholder("Find someone").fill("ine");
-  await dialog.locator(".suggestion", { hasText: "Inès" }).click();
+  await dialog.getByRole("combobox", { name: "Invite people (optional)" }).fill("ine");
+  await dialog.getByRole("option", { name: /Inès/u }).click();
+  expect(await dialog.locator(".ck-chip", { hasText: "Inès" }).count() === 1, "Inès chosen");
   await dialog.getByRole("button", { name: "Book", exact: true }).click();
-  await page.waitForSelector(".toast");
+  await page.waitForSelector(".ck-toast");
   expect((await toastText()).startsWith("Cabin booked"), "toast");
   await page.waitForTimeout(800);
   expect(await page.locator(".block", { hasText: "Quarterly numbers" }).count() === 1, "on the grid");
   const dev = await (await page.request.get(origin + "/_dev")).text();
-  expect(dev.includes("Hugo Bernard vous invite : Quarterly numbers"), "bell in French");
+  expect(/Hugo Bernard vous invite[ \u202f]: Quarterly numbers/u.test(dev), "bell in French");
 });
 
 await step("someone else cannot take the same slot: a clear message", async () => {
@@ -91,6 +92,10 @@ await step("someone else cannot take the same slot: a clear message", async () =
   await dialog.locator(".error").waitFor();
   expect((await dialog.locator(".error").innerText()).includes("Someone just took it"), "taken");
   await page.keyboard.press("Escape");
+  // Something was chosen: it asks first, and "Discard" closes it.
+  await dialog.getByRole("button", { name: "Discard" }).click();
+  await page.waitForTimeout(200);
+  expect(await page.locator("dialog[open]").count() === 0, "closed after Discard");
   // Tom's booking is not his to change.
   await page.locator(".block", { hasText: "Quarterly numbers" }).click();
   expect(await page.locator("dialog[open]").getByRole("button", { name: "Cancel booking" }).count() === 0, "no cancel for others");
@@ -114,7 +119,7 @@ await step("drag on the grid to choose a slot; the form opens with it", async ()
   expect(await field(dialog, "From").inputValue() === "960", "from 16:00");
   expect(await field(dialog, "To").inputValue() === "1020", "to 17:00");
   await dialog.getByRole("button", { name: "Book", exact: true }).click();
-  await page.waitForSelector(".toast");
+  await page.waitForSelector(".ck-toast");
 });
 
 await step("the organiser cancels, then undoes it", async () => {
@@ -122,11 +127,14 @@ await step("the organiser cancels, then undoes it", async () => {
   await page.goto(origin + `/chest/rooms?day=${friday}`);
   await page.locator(".block", { hasText: "Quarterly numbers" }).click();
   await page.locator("dialog[open]").getByRole("button", { name: "Cancel booking" }).click();
-  await page.waitForSelector(".toast");
+  await page.waitForSelector(".ck-toast");
   await page.waitForTimeout(800);
   expect(await page.locator(".block", { hasText: "Quarterly numbers" }).count() === 0, "gone");
-  await page.locator(".toast button").last().click();
+  // The French word for Undo is no longer the word for Cancel: in English here, the button says Undo.
+  expect((await page.locator(".ck-toast-undo").last().innerText()).trim() === "Undo", "the toast's button says Undo");
+  await page.locator(".ck-toast-undo").last().click();
   await page.waitForTimeout(1500);
+  expect((await toastText()) === "Undone.", "the toast says it was undone: " + (await toastText()));
   await page.reload();
   expect(await page.locator(".block", { hasText: "Quarterly numbers" }).count() === 1, "back");
 });
@@ -141,7 +149,7 @@ await step("a weekly booking: several occurrences at once", async () => {
   await dialog.getByLabel(/Every week on/u).check();
   await dialog.getByLabel("For how many weeks").fill("3");
   await dialog.getByRole("button", { name: "Book", exact: true }).click();
-  await page.waitForSelector(".toast");
+  await page.waitForSelector(".ck-toast");
   expect((await toastText()).startsWith("Bora booked for 3 weeks"), await toastText());
 });
 
@@ -170,7 +178,7 @@ await step("a member has no Places; an admin adds desks, saves the rules, export
   await page.goto(origin + "/chest/places/rules");
   await page.getByLabel("Combien de jours à l’avance on peut réserver").fill("21");
   await page.getByRole("button", { name: "Enregistrer les règles" }).click();
-  await page.waitForSelector(".toast");
+  await page.waitForSelector(".ck-toast");
   await page.reload();
   expect(await page.getByLabel("Combien de jours à l’avance on peut réserver").inputValue() === "21", "rule saved");
   const csv = await (await page.request.get(origin + `/chest/export?kind=bookings&from=${iso(monday)}&to=${friday}`)).text();
@@ -193,7 +201,7 @@ await step("phone width, in French: free slots per room; one tap opens the form"
   const dialog = page.locator("dialog[open]");
   await dialog.waitFor();
   await dialog.getByRole("button", { name: "Réserver", exact: true }).click();
-  await page.waitForSelector(".toast");
+  await page.waitForSelector(".ck-toast");
   expect((await toastText()).startsWith("Atlas réservée"), await toastText());
   await page.goto(origin + "/chest");
   const w2 = await page.evaluate(() => document.documentElement.scrollWidth);
@@ -235,7 +243,9 @@ await step("find a free room: 6 people at 14:00 for an hour; one tap opens the f
   await page.mouse.click(5, 5);
   await page.waitForTimeout(300);
   expect(await page.locator("dialog[open]").count() === 1, "still open after a tap outside");
-  await page.keyboard.press("Escape");
+  expect(await page.locator("dialog[open]").getByText("Discard your changes?").count() === 1, "asks before losing what was typed");
+  await page.locator("dialog[open]").getByRole("button", { name: "Keep editing" }).click();
+  expect(await page.locator("dialog[open]").getByLabel("What for (optional)").inputValue() === "Kick-off", "what was typed is kept");
 });
 
 await step("a booking goes into the organiser's and the guest's calendars, and downloads as .ics", async () => {
@@ -246,10 +256,10 @@ await step("a booking goes into the organiser's and the guest's calendars, and d
   await field(dialog, "From").selectOption({ label: "18:00" });
   await field(dialog, "To").selectOption({ label: "19:00" });
   await dialog.getByLabel("What for (optional)").fill("Calendar check");
-  await dialog.getByPlaceholder("Find someone").fill("léa");
-  await dialog.locator(".suggestion", { hasText: "Léa" }).click();
+  await dialog.getByRole("combobox", { name: "Invite people (optional)" }).fill("léa");
+  await dialog.getByRole("option", { name: /Léa/u }).click();
   await dialog.getByRole("button", { name: "Book", exact: true }).click();
-  await page.waitForSelector(".toast");
+  await page.waitForSelector(".ck-toast");
   await page.waitForTimeout(800);
   await page.locator(".block", { hasText: "Calendar check" }).click();
   const link = page.locator("dialog[open]").getByRole("link", { name: "Add to my calendar" });
@@ -269,12 +279,13 @@ await step("my usual week: say it once; coming days are filled; a tap outside th
   await page.goto(origin + "/chest");
   await page.getByRole("button", { name: "My usual week" }).click();
   const dialog = page.locator("dialog[open]");
-  for (const day of ["Monday", "Tuesday", "Wednesday", "Thursday"]) await dialog.getByRole("radiogroup", { name: day }).getByRole("radio", { name: "Office" }).click();
-  await dialog.getByRole("radiogroup", { name: "Friday" }).getByRole("radio", { name: "Remote" }).click();
+  for (const day of ["Monday", "Tuesday", "Wednesday", "Thursday"]) await dialog.getByRole("group", { name: day }).getByRole("radio", { name: "Office" }).check();
+  await dialog.getByRole("group", { name: "Friday" }).getByRole("radio", { name: "Remote" }).check();
   await page.mouse.click(5, 5);
   expect(await page.locator("dialog[open]").count() === 1, "kept open");
+  await dialog.getByRole("button", { name: "Keep editing" }).click();
   await dialog.getByRole("button", { name: "Save" }).click();
-  await page.waitForSelector(".toast");
+  await page.waitForSelector(".ck-toast");
   expect(/Usual week saved/u.test(await toastText()), await toastText());
   await page.reload();
   expect(/Usually at the office: Monday, Tuesday, Wednesday, Thursday/u.test(await page.locator(".usual-bar").innerText()), "summary");
@@ -293,7 +304,7 @@ await step("keyboard: one Tab stop per day, the arrows move between Office, Remo
 
 await step("who's where by team: Sales shows only its people", async () => {
   await page.goto(origin + "/chest/people");
-  await page.locator(".team-chips").getByRole("link", { name: "Sales" }).click();
+  await page.getByRole("navigation", { name: "Teams" }).getByRole("link", { name: /^Sales/u }).click();
   await page.waitForURL(/team=/u);
   const text = await page.locator("main").innerText();
   expect(text.includes("Inès Moreau") && text.includes("Hugo Bernard") && !text.includes("Tom Walker"), "only Sales");

@@ -1,11 +1,11 @@
 "use client";
 
+import { Avatar, EmptyState, Segmented, Tabs, useToast } from "@argentic/chest-ui/components";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition, type ComponentType } from "react";
-import { Avatar } from "../../../components/avatar.tsx";
 import { Check, Dock, Lock, Plus, Quiet, Screen, Standing, Window } from "../../../components/icons.tsx";
-import { useToast } from "../../../components/toast.tsx";
+import type { Result } from "../../../lib/errors.ts";
 import type { Catalogue } from "../../../lib/i18n/index.ts";
 import { format, formatDay, plural } from "../../../lib/i18n/format.ts";
 import { features as featureKeys, overlaps, type Feature, type Part } from "../../../lib/model.ts";
@@ -28,7 +28,6 @@ type Words = {
   features: Catalogue["features"];
   featuresShort: Catalogue["featuresShort"];
   errors: Catalogue["errors"];
-  undo: string;
   keptFor: string;
 };
 
@@ -56,7 +55,9 @@ export function DeskView({ floors, day, part, view, wanted, locked, hint, forWho
   const [, start] = useTransition();
   // Bookings made or freed here show at once, before the page reloads.
   const [mine, setMine] = useState<Record<string, string | null>>({});
-  const fail = (error: keyof Catalogue["errors"], values?: Record<string, string | number>) => toast(format(t.errors[error], values));
+  const fail = (error: keyof Catalogue["errors"], values?: Record<string, string | number>) => void toast({ text: format(t.errors[error], values), tone: "error" });
+  // What an Undo answers the toast: true, or why it did not work.
+  const undone = (r: Result<unknown>) => (r.ok ? true : format(t.errors[r.error], r.values));
 
   function stateOf(d: DeskTile, area: Area): { state: State; holders: DeskTile["bookings"]; myBooking: string | null } {
     const local = mine[d.id];
@@ -83,14 +84,15 @@ export function DeskView({ floors, day, part, view, wanted, locked, hint, forWho
         return;
       }
       setMine(m => ({ ...m, [d.id]: r.value.id }));
-      toast(format(t.desks.booked, { desk: d.name, day: formatDay(day, locale) }), {
-        label: t.undo,
-        run: () => start(async () => {
+      toast({
+        id: "desk-" + d.id + "-" + day,
+        text: format(t.desks.booked, { desk: d.name, day: formatDay(day, locale) }),
+        undo: async () => {
           const back = await undoDesk(r.value.id, r.value.replaced);
-          if (!back.ok) fail(back.error, back.values);
           setMine({});
           router.refresh();
-        }),
+          return undone(back);
+        },
       });
       router.refresh();
     });
@@ -104,13 +106,14 @@ export function DeskView({ floors, day, part, view, wanted, locked, hint, forWho
         setMine(m => { const n = { ...m }; delete n[d.id]; return n; });
         return fail(r.error, r.values);
       }
-      toast(format(t.desks.cancelled, { desk: d.name }), {
-        label: t.undo,
-        run: () => start(async () => {
+      toast({
+        id: "desk-" + d.id + "-" + day,
+        text: format(t.desks.cancelled, { desk: d.name }),
+        undo: async () => {
           const back = await restoreDesk(bookingId);
-          if (!back.ok) fail(back.error, back.values);
           router.refresh();
-        }),
+          return undone(back);
+        },
       });
       router.refresh();
     });
@@ -134,20 +137,21 @@ export function DeskView({ floors, day, part, view, wanted, locked, hint, forWho
 
   return (
     <div className="stack desk-page">
-      <div className="toolbar">
-        <div className="segmented" role="group" aria-label={t.desks.part}>
-          {(["day", "am", "pm"] as const).map(p => <Link key={p} href={links.parts[p]} aria-current={p === part ? "true" : undefined} scroll={false}>{t.parts[p]}</Link>)}
-        </div>
-        <div className="chips" role="group" aria-label={t.desks.filters}>
-          {featureKeys.map(f => {
-            const Icon = featureIcons[f];
-            return <Link key={f} href={links.features[f]} className="chip" aria-current={wanted.includes(f) ? "true" : undefined} scroll={false}><Icon />{t.features[f]}</Link>;
-          })}
-        </div>
-        <div className="segmented small" role="group" aria-label={t.desks.view}>
-          <Link href={links.views.plan} aria-current={view === "plan" ? "true" : undefined} scroll={false}>{t.desks.plan}</Link>
-          <Link href={links.views.list} aria-current={view === "list" ? "true" : undefined} scroll={false}>{t.desks.list}</Link>
-        </div>
+      {/* Two rows, each fitting a phone: when (the kit's Segmented) and
+          the plan or the list (the kit's Tabs); then what a desk offers —
+          several at once, so the tool's own chips (the kit's Filters take
+          one value per group). */}
+      <div className="toolbar desk-toolbar">
+        <Segmented label={t.desks.part} name="part" value={part} options={(["day", "am", "pm"] as const).map(p => ({ value: p, label: t.parts[p] }))}
+          onChange={p => router.push(links.parts[p], { scroll: false })} />
+        <Tabs label={t.desks.view} current={view} link={props => <Link {...props} scroll={false} />}
+          items={[{ id: "plan", label: t.desks.plan, href: links.views.plan }, { id: "list", label: t.desks.list, href: links.views.list }]} />
+      </div>
+      <div className="chips feature-chips" role="group" aria-label={t.desks.filters}>
+        {featureKeys.map(f => {
+          const Icon = featureIcons[f];
+          return <Link key={f} href={links.features[f]} className="chip" aria-current={wanted.includes(f) ? "true" : undefined} scroll={false}><Icon />{t.features[f]}</Link>;
+        })}
       </div>
       <p className={"hint" + (locked ? " is-locked" : "")} aria-live="polite">
         {locked ? hint : <>{plural(t.desks.freeCount, freeDesks.length, locale)} · {hint}</>}
@@ -173,7 +177,7 @@ export function DeskView({ floors, day, part, view, wanted, locked, hint, forWho
                             {s.state === "free" && locked === "notYet" && t.desks.notYet}
                             {s.state === "free" && !locked && d.assigned?.lent && <span className="lent">{format(t.desks.lentBy, { name: d.assigned.name.split(" ")[0] ?? d.assigned.name })}</span>}
                             {s.state === "mine" && <><Check />{forWhom ? forWhom.name.split(" ")[0] : t.desks.you}</>}
-                            {s.state === "taken" && s.holders.map(h => <span key={h.id} className="holder"><Avatar name={h.name} photo={h.photo} size={20} /><span>{part === "day" && h.part !== "day" ? format(t.desks.halfTaken, { part: t.parts[h.part], name: h.name.split(" ")[0] ?? h.name }) : h.name.split(" ")[0]}</span></span>)}
+                            {s.state === "taken" && s.holders.map(h => <span key={h.id} className="holder"><Avatar name={h.name} photo={h.photo} size="s" /><span>{part === "day" && h.part !== "day" ? format(t.desks.halfTaken, { part: t.parts[h.part], name: h.name.split(" ")[0] ?? h.name }) : h.name.split(" ")[0]}</span></span>)}
                             {s.state === "assigned" && format(t.desks.assignedTo, { name: d.assigned?.name.split(" ")[0] ?? "" })}
                             {s.state === "yours" && t.desks.yours}
                             {s.state === "kept" && <><Lock />{t.desks.kept}</>}
@@ -189,7 +193,7 @@ export function DeskView({ floors, day, part, view, wanted, locked, hint, forWho
           </section>
         ))
       ) : freeDesks.length === 0 ? (
-        <p className="empty small">{locked ? hint : t.desks.noneFree}</p>
+        <EmptyState title={locked ? hint : t.desks.noneFree} />
       ) : (
         <ul className="rows">
           {freeDesks.map(({ d, floor, area }) => (

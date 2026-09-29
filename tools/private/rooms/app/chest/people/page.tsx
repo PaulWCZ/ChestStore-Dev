@@ -1,8 +1,6 @@
-import Link from "next/link";
+import { Avatar, EmptyState, Filters, PageHeader, SearchBox } from "@argentic/chest-ui/components";
 import { AutoRefresh } from "../../../components/auto-refresh.tsx";
-import { Avatar } from "../../../components/avatar.tsx";
-import { DayStrip } from "../../../components/day-strip.tsx";
-import { Search } from "../../../components/icons.tsx";
+import { DayPicker } from "../../../components/day-picker.tsx";
 import { bookableDays, context, shownDay } from "../../../lib/context.ts";
 import { deskBookingsOf } from "../../../lib/desk-bookings.ts";
 import { directory } from "../../../lib/directory.ts";
@@ -38,44 +36,25 @@ export default async function WhoIsWhere({ searchParams }: { searchParams: Promi
   const groups: Record<Status | "none", typeof everyone> = { office: [], remote: [], off: [], none: [] };
   for (const p of everyone) groups[statusOf(p.id, day)].push(p);
   const detailed = q !== "" && everyone.length <= 5;
-  const link = (changes: { day?: string; team?: string | null }) => {
-    const u = new URLSearchParams({ day: changes.day ?? day });
-    if (q) u.set("q", q);
-    const tm = changes.team === undefined ? team?.id : changes.team;
-    if (tm) u.set("team", tm);
-    return "/chest/people?" + u.toString();
-  };
-  const href = (d: string) => link({ day: d });
   const days = bookableDays(c).length > 0 ? bookableDays(c) : [nextWorkingDay(c.today, c.rules.weekdays)];
   return (
-    <main className="narrow">
+    <div className="narrow">
       <AutoRefresh seconds={30} />
-      <div className="page-head">
-        <div>
-          <h1>{t.who.title}</h1>
-          <p className="muted place-line">{formatDay(day, locale, { weekday: "long", day: "numeric", month: "long" })}</p>
-        </div>
+      <PageHeader title={t.who.title} intro={<span className="place-line">{formatDay(day, locale, { weekday: "long", day: "numeric", month: "long" })}</span>} />
+      {/* A name (the kit's SearchBox: "/" reaches it), a team (the kit's
+          Filters: links, one team at a time, "Everyone" first). */}
+      <div className="who-find">
+        <SearchBox action="/chest/people" value={q} keep={{ day, team: team?.id }} labels={t.search} />
+        {teams.length > 0 && (
+          <div className="team-chips">
+            <Filters path="/chest/people" params={{ day, q: q || undefined, team: team?.id }} labels={t.filters}
+              groups={[{ key: "team", label: t.who.teams, all: true, options: teams.slice(0, 16).map(g => ({ value: g.id, label: c.member.groups.includes(g.id) ? format(t.who.myTeamName, { team: g.name }) : g.name })) }]} />
+          </div>
+        )}
       </div>
-      <form className="searchbar" method="get" role="search">
-        <input type="hidden" name="day" value={day} />
-        {team && <input type="hidden" name="team" value={team.id} />}
-        <Search />
-        <label htmlFor="who-q" className="visually-hidden">{t.who.searchLabel}</label>
-        <input id="who-q" className="field" type="search" name="q" defaultValue={q} placeholder={t.who.search} maxLength={limits.search} />
-      </form>
-      {teams.length > 0 && (
-        <nav className="chips team-chips" aria-label={t.who.teams}>
-          <Link className="chip" href={link({ team: null })} aria-current={team === null ? "true" : undefined} scroll={false}>{t.who.everyone}</Link>
-          {teams.slice(0, 16).map(g => (
-            <Link key={g.id} className="chip" href={link({ team: g.id })} aria-current={team?.id === g.id ? "true" : undefined} scroll={false}>
-              {g.name}{c.member.groups.includes(g.id) && <span className="visually-hidden"> {t.who.myTeam}</span>}
-            </Link>
-          ))}
-        </nav>
-      )}
-      <DayStrip days={days} current={day} today={c.today} locale={locale} t={t.days} href={href} hidden={{ ...(q ? { q } : {}), ...(team ? { team: team.id } : {}) }} />
+      <DayPicker days={days} current={day} today={c.today} path="/chest/people" keep={{ ...(q ? { q } : {}), ...(team ? { team: team.id } : {}) }} label={t.days.date} labels={t.date} />
       {everyone.length === 0 ? (
-        <p className="empty small">{q ? t.who.noMatch : team ? t.who.noTeam : t.who.nobody}</p>
+        <EmptyState title={q ? t.who.noMatch : team ? t.who.noTeam : t.who.nobody} />
       ) : (
         (["office", "remote", "off", "none"] as const).filter(g => groups[g].length > 0).map(g => (
           <section key={g} className={"who-group is-" + g} aria-labelledby={"who-" + g}>
@@ -86,7 +65,7 @@ export default async function WhoIsWhere({ searchParams }: { searchParams: Promi
                 const office = said.get(p.id)?.get(day)?.officeId;
                 return (
                   <li key={p.id} className="row-item person-row">
-                    <Avatar name={p.name} photo={p.photo} size={36} />
+                    <Avatar name={p.name} photo={p.photo} size="l" />
                     <span className="grow">
                       <strong>{p.name}</strong>
                       {desk.map(b => <span key={b.id} className="muted small sub-line">{format(t.who.desk, { desk: b.deskName, area: b.areaName })}{b.part !== "day" ? " · " + t.parts[b.part] : ""}{c.offices.length > 1 ? " · " + (officeName.get(b.officeId) ?? "") : ""}</span>)}
@@ -107,6 +86,6 @@ export default async function WhoIsWhere({ searchParams }: { searchParams: Promi
           </section>
         ))
       )}
-    </main>
+    </div>
   );
 }
