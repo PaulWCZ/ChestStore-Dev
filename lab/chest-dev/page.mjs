@@ -5,7 +5,7 @@ const escape = value => String(value ?? "").replace(/[&<>"']/gu, c => ({ "&": "&
 // The look's switcher (Proposal (studio): chest.theme()): the owner's two
 // levels, as the Chest's admin would offer them.
 function lookPanel(manifest, chest, catalogue, sampleBrand) {
-  const valueOf = c => (!c ? "" : c.mode === "own" ? "own" : c.mode === "brand" ? "brand:sample" : `catalogue:${c.theme}`);
+  const valueOf = c => (!c ? "" : c.mode === "own" ? "own" : c.mode === "brand" ? (c.brand?.name === "Café du Port" ? "brand:port" : "brand:sample") : `catalogue:${c.theme}`);
   const all = valueOf(chest.theme.all) || "own";
   const mine = chest.theme.tools[manifest.name];
   const tool = mine ? valueOf(mine) : "inherit";
@@ -14,6 +14,7 @@ function lookPanel(manifest, chest, catalogue, sampleBrand) {
     ["own", "Each tool's own look"],
     ...catalogue.map(t => [`catalogue:${t.id}`, `Theme: ${t.name.en}${t.tool ? ` (from ${t.tool})` : ""}${t.modes === "light" ? " — light only" : ""}`]),
     ["brand:sample", `Brand: ${sampleBrand.name}`],
+    ["brand:port", "Brand: Café du Port"],
   ].map(([v, label]) => `<option value="${escape(v)}"${v === current ? " selected" : ""}>${escape(label)}</option>`).join("");
   const effective = mine ? `this tool's override (${escape(tool)})` : chest.theme.all ? `the choice for all tools (${escape(all)})` : "the tool's own identity (the Chest says nothing)";
   return `<section><h2>Look (proposal)</h2>

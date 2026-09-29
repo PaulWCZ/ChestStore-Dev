@@ -737,7 +737,16 @@ changelog in `ui/README.md`; what mattered most:
   3), so CRM can drop its `.ck-badge` override and stay equal to it.
 - **Backward compatibility, checked** — see the list of tools below (each
   copied once, then checked with the packed 0.2.2 and with the packed
-  0.2.3 on the same copy: `next typegen` + `tsc`, and its tests).
+  0.2.3 on the same copy: `next typegen` + `tsc`, and its tests). All
+  eighteen give identical results with both kits. Twelve are clean (CRM,
+  Equipment, Goals, Leave, News, Polls, Timesheets, Wiki, Forms, Support,
+  Hiring, Status: 0 type errors, every test passing). Six were being
+  edited by their own sessions while this ran and fail the same way on
+  0.2.2 as on 0.2.3, which makes them tool changes: Expenses (3 tests),
+  People (4 type errors, 1 test), Tasks (31 type errors, 8 test files),
+  Rooms (1 test), Booking (8 tests), Quotes (3 type errors, 1 test). An
+  earlier full run of an intermediate 0.2.3 build had all of these at 0 type
+  errors, with only Leave failing tests (in the same mid-edit window).
   `lab/template` re-vendored: 14 tests, build passes. `check:package`
   passes (the size budget moved from 300 to 350 KB: 308 KB packed).
 - **Tool matters, not the kit's**: Quotes' logo hint repeats the kit's
