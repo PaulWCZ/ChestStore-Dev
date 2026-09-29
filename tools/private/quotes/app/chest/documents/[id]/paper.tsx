@@ -276,7 +276,7 @@ export function Paper(props: PaperProps) {
             {doc.type === "quote" && (
               <>
                 <dt className={editing ? "at-field" : undefined} aria-hidden={editing ? true : undefined}>{w.validUntil}</dt>
-                <dd>{editing ? <DateField id="valid" label={w.validUntil} value={header.validUntil || null} onChange={v => setH({ validUntil: v ?? "" })} today={props.today} required chips={false} labels={props.dateWords} /> : dates.valid}</dd>
+                <dd>{editing ? <DateField id="valid" label={w.validUntil} hideLabel value={header.validUntil || null} onChange={v => setH({ validUntil: v ?? "" })} today={props.today} required chips={false} labels={props.dateWords} /> : dates.valid}</dd>
               </>
             )}
             {doc.type === "invoice" && (
@@ -292,7 +292,7 @@ export function Paper(props: PaperProps) {
             {(editing || doc.deliveryDate) && doc.type !== "credit" && (
               <>
                 <dt className={editing ? "at-field" : undefined} aria-hidden={editing ? true : undefined}>{w.deliveryDate}</dt>
-                <dd>{editing ? <DateField id="delivery" label={w.deliveryDate} value={header.deliveryDate || null} onChange={v => setH({ deliveryDate: v ?? "" })} today={props.today} chips={false} labels={props.dateWords} /> : dates.delivery}</dd>
+                <dd>{editing ? <DateField id="delivery" label={w.deliveryDate} hideLabel value={header.deliveryDate || null} onChange={v => setH({ deliveryDate: v ?? "" })} today={props.today} chips={false} labels={props.dateWords} /> : dates.delivery}</dd>
               </>
             )}
             {doc.reference && (

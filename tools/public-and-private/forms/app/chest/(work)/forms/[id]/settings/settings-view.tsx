@@ -1,6 +1,6 @@
 "use client";
 
-import { DateField, TimeSelect, useToast } from "@argentic/chest-ui/components";
+import { DateField, Switch, TimeSelect, useToast } from "@argentic/chest-ui/components";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useId, useRef, useState, useTransition, type ReactNode } from "react";
 import { Globe, Mask, Picture, Users } from "../../../../../../components/icons.tsx";
@@ -161,10 +161,10 @@ export function SettingsView(p: Props) {
         {p.anonymityLocked && <p className="hint">{s.anonymousLocked}</p>}
         {p.hasFiles && !v.anonymous && <p className="hint">{p.t.errors.anonymous_files}</p>}
         {v.audience === "team" && !v.anonymous && (
-          <label className="switch"><input type="checkbox" role="switch" checked={v.once} onChange={e => set("once", e.target.checked)} /><span className="switch-track" aria-hidden="true" /><span>{s.once}<small className="switch-hint">{s.onceHint}</small></span></label>
+          <Switch label={s.once} hint={s.onceHint} checked={v.once} onChange={on => set("once", on)} />
         )}
         {v.audience === "team" && (
-          <label className="switch"><input type="checkbox" role="switch" checked={v.tellTeam} onChange={e => set("tellTeam", e.target.checked)} /><span className="switch-track" aria-hidden="true" />{s.tellTeam}</label>
+          <Switch label={s.tellTeam} checked={v.tellTeam} onChange={on => set("tellTeam", on)} />
         )}
       </fieldset>
 
@@ -243,11 +243,7 @@ export function SettingsView(p: Props) {
           <input className="field" type="url" inputMode="url" value={v.redirectUrl} maxLength={2000} placeholder={s.redirectPlaceholder} onChange={e => set("redirectUrl", e.target.value)} />
         </label>
         {v.anonymous ? <p className="hint">{s.sendCopyAnonymous}</p> : (
-          <label className="switch">
-            <input type="checkbox" role="switch" checked={v.sendCopy} onChange={e => set("sendCopy", e.target.checked)} />
-            <span className="switch-track" aria-hidden="true" />
-            <span>{v.audience === "team" ? s.sendCopyTeam : s.sendCopy}{v.audience === "public" && <small className="switch-hint">{s.sendCopyHint}</small>}</span>
-          </label>
+          <Switch label={v.audience === "team" ? s.sendCopyTeam : s.sendCopy} hint={v.audience === "public" ? s.sendCopyHint : undefined} checked={v.sendCopy} onChange={on => set("sendCopy", on)} />
         )}
       </fieldset>
 
@@ -262,22 +258,14 @@ export function SettingsView(p: Props) {
             </label>
           ))}
         </div>
-        <label className="switch">
-          <input type="checkbox" role="switch" checked={v.notifyEmail} onChange={e => set("notifyEmail", e.target.checked)} />
-          <span className="switch-track" aria-hidden="true" />
-          <span>{s.notifyEmail}<small className="switch-hint">{v.anonymous ? s.notifyEmailAnonymous : s.notifyEmailHint}</small></span>
-        </label>
+        <Switch label={s.notifyEmail} hint={v.anonymous ? s.notifyEmailAnonymous : s.notifyEmailHint} checked={v.notifyEmail} onChange={on => set("notifyEmail", on)} />
         {v.notifyEmail && p.mailWorks === false && <p className="notice">{s.mailOff}</p>}
       </fieldset>
 
       <fieldset className="panel" disabled={ro}>
         <legend>{s.tools}</legend>
         {v.anonymous ? <p className="hint">{s.toolsAnonymous}</p> : (
-          <label className="switch">
-            <input type="checkbox" role="switch" checked={v.shareEvents} onChange={e => set("shareEvents", e.target.checked)} />
-            <span className="switch-track" aria-hidden="true" />
-            <span>{s.toolsSwitch}<small className="switch-hint">{s.toolsHint}</small></span>
-          </label>
+          <Switch label={s.toolsSwitch} hint={s.toolsHint} checked={v.shareEvents} onChange={on => set("shareEvents", on)} />
         )}
         <p className="hint">{s.webhooksNote}</p>
       </fieldset>

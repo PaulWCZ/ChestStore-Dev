@@ -38,7 +38,7 @@ must not break.
 | `app/chest/f/[slug]` | A team form, answered in the Chest |
 | `app/chest-jobs/[name]`, `app/chest-events` | Deliveries from the Chest (signed) |
 
-## The UI kit (`@argentic/chest-ui` 0.2.1-studio.1, `vendor/`)
+## The UI kit (`@argentic/chest-ui` 0.2.2-studio.1, `vendor/`)
 
 Used: `AppShell`, `BrandMark`, `NoAccess`, `Toasts`/`useToast` (Undo for
 deleting a question, a page, an answer, a form, taking someone off a
@@ -46,15 +46,19 @@ form, closing/reopening; `sent` once a bell item left), `Dialog` (the form
 is live), `Confirm` (erasing a person's answers), `Tabs` (a form's tabs,
 answers/summary), `Segmented`, `PeoplePicker` (sharing), `DateField`
 (closing day, answers' days, a share link's prefill, the date question),
-`TimeSelect` (closing hour), `FilePicker` (the file question, importing a
+`TimeSelect` (closing hour), `Switch` (every on/off of the builder and the settings: they save at once), `FilePicker` (the file question, importing a
 form), `DataTable` (answers, a person's answers), `Filters` (where an
 answer stands), `SearchBox`, `EmptyState`, `Avatar`, `StatusBadge`,
-`LanguageSwitch`, `useAutoRefresh`. Words: the kit's sections in the
+`LanguageSwitch`, `useAutoRefresh`. The identity is the catalogue's `identityOf("forms")` (`lib/theme.ts`, held equal by `test/theme.test.ts`); chips and badges take `--radius-chip`, fields `--field-pad-x`, a form's description and help `--font-read`. Words: the kit's sections in the
 catalogues (`toast`, `dialog`, `peoplePicker`, `date`, `files`, `table`,
 `filters`, `search`), checked by `node scripts/lint-words.mjs`.
 
 Kept on purpose: the runner's own choice pills, stars, scales, matrix and
-ranking (the product's heart, in the form's colour); the picture slot of a
+ranking (the product's heart, in the form's colour); the answers' "where"
+filter as a `<select>` with one group per question (`Filters`' select has
+no option groups) and its own "Clear filters" (it keeps the chosen
+columns); the answers' two days as two `DateField`s (a filter's range: the
+`DateRangeField` keeps the length when the first day moves); the picture slot of a
 picture-choice option and the cover picker (a thumbnail, stored at once);
 the privacy lookup form (at least 3 characters, a *Find* button); the
 first-visit card (three templates in one click).

@@ -10,8 +10,9 @@ time, keys to press, a seal when it is sent.
 
 ## Tokens — the identity is a theme
 
-Forms' identity is a theme of the UI kit's contract, **"Invitation"**
-(`lib/theme.ts`, `defineTheme`): every colour lives there, light and dark,
+Forms' identity is a theme of the UI kit's contract, **"Invitation"** —
+the catalogue's 20th theme since 0.2.2 (`lib/theme.ts` is
+`identityOf("forms")`, one source): every colour lives there, light and dark,
 checked by `checkTheme` and `checkPalette` (`test/theme.test.ts`). The CSS
 names only contract tokens (`--bg`, `--ink`, `--accent`, `--cat-5-ink`…)
 and Forms' own tokens, made of them (`app/tokens.css`). The company may

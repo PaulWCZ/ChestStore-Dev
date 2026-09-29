@@ -45,8 +45,10 @@ legal defect for the company using it.
   and `currentLook()`; `app/layout.tsx` writes it with the page's nonce;
   `app/tokens.css` holds only the tool's own tokens.
 - `components/shell.tsx` (the kit's AppShell and "More" menu),
-  `stamp.tsx` (StatusBadge as a stamp), `doc-table.tsx` (the kit's
-  DataTable as the ledger), `list-page.tsx`; `mark.tsx` and `icons.tsx`
+  `stamp.tsx` (StatusBadge as a stamp, through its `className`),
+  `doc-table.tsx` (the kit's DataTable as the ledger: `rowHref` opens the
+  document from anywhere in its row, `phone="stack"` makes cards on a
+  phone — no hand-made phone columns), `list-page.tsx`; `mark.tsx` and `icons.tsx`
   are the tool's own drawings.
 
 ## Commands

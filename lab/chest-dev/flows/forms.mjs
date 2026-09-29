@@ -28,7 +28,7 @@ await step("a creator starts a blank form and builds it: five kinds, a required 
   formId = formUrl.split("/").pop();
   await page.locator("#form-title").fill("Team lunch on Friday");
   let card = await add("A name, a word, a line", "Your name");
-  await card.locator("label.switch").click();
+  await card.locator("label.ck-switch-label").click();
   await card.getByRole("button", { name: "Done" }).click();
   card = await add("Checked as an address", "Your email address");
   await card.getByRole("button", { name: "Done" }).click();
@@ -121,9 +121,9 @@ await step("a manager allows the company's website on the Share tab: the public 
 await step("settings save by themselves (no Save button): a copy by email, the bell and email for the owner, other tools", async () => {
   await page.goto(formUrl + "/settings");
   expect((await page.getByRole("button", { name: "Save" }).count()) === 0, "no Save button");
-  await page.locator("label.switch", { hasText: "Email a copy" }).click();
-  await page.locator("label.switch", { hasText: "Also send them each batch by email" }).click();
-  await page.locator("label.switch", { hasText: "The other tools of your Chest" }).click();
+  await page.locator("label.ck-switch-label", { hasText: "Email a copy" }).click();
+  await page.locator("label.ck-switch-label", { hasText: "Also send them each batch by email" }).click();
+  await page.locator("label.ck-switch-label", { hasText: "The other tools of your Chest" }).click();
   await page.locator("input[placeholder='Thank you!']").fill("Thanks, see you Friday");
   // Straight to another tab: the change goes first.
   await page.getByRole("link", { name: "Answers", exact: true }).click();
@@ -351,7 +351,7 @@ await step("a date question: the kit's date field, typed in words, Enter reads i
   await page.waitForURL(/\/chest\/forms\/\d+$/u);
   await page.locator("#form-title").fill("Start date");
   let card = await add("A day", "When can you start?");
-  await card.locator("label.switch").click();
+  await card.locator("label.ck-switch-label").click();
   await card.getByRole("button", { name: "Done" }).click();
   card = await add("A name, a word, a line", "Your name");
   await card.getByRole("button", { name: "Done" }).click();

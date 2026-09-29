@@ -6,6 +6,7 @@ import { forgetTheme } from "@argentic/chest-sdk/chest";
 import { fakeChest } from "@argentic/chest-sdk/testing";
 import { catalogue, checkPalette, checkTheme, contrast, deriveTheme, validateTheme, type Theme } from "@argentic/chest-ui";
 import { themeStyle } from "@argentic/chest-ui/runtime";
+import { identityOf } from "@argentic/chest-ui/themes";
 import { accents, formSlots } from "../lib/model.ts";
 import { currentLook, identity, ownLook } from "../lib/theme.ts";
 
@@ -17,6 +18,13 @@ test("Forms' own identity is a valid theme and passes every pair of the contract
   assert.deepEqual(checkPalette(identity), []);
   assert.equal(identity.id, "forms");
   assert.equal(identity.tool, "forms");
+});
+
+// One source: a company that picks Invitation from the catalogue for all
+// its tools gets exactly Forms' own look.
+test("the identity is the catalogue's Invitation, value for value", () => {
+  assert.deepEqual(identity, identityOf("forms"));
+  assert.ok(catalogue.some(theme => theme.id === "forms"), "Invitation is in the catalogue");
 });
 
 test("its signature colours are the ones Forms always had", () => {
@@ -40,7 +48,7 @@ test("its fonts are the tool's own files, served at /fonts, and the look's style
   assert.ok(urls.length >= 3, "the display and body faces");
   for (const url of urls) assert.ok(present.has(url.slice("/fonts/".length)), url);
   assert.match(css, /font-family:'DM Serif Display'/u);
-  assert.match(css, /font-family:'DM Sans'/u);
+  assert.match(css, /font-family:'DM Sans Variable'/u); // the registry's name of the variable face
 });
 
 test("the look follows the Chest: the company's choice for all tools, this tool's override, the identity otherwise", async () => {

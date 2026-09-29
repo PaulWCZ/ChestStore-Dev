@@ -71,7 +71,9 @@ next action as a full-width button, the rest as links. **Figures** on the
 desk (a ruled top, a Caslon amount). **On phones**: the sections in a row
 of labelled tabs under the header (the store's one rule), the paper first
 and its one next action in a sticky bar with the total (the page's action,
-not a navigation); the client and item pickers (records of the tool, not
+not a navigation); the ledgers as the kit's stacked cards (one card per
+document, each line named, the whole card opens it — on every screen
+the whole row does); filter chips take the look's `--radius-chip`; the client and item pickers (records of the tool, not
 people: not the kit's PeoplePicker).
 
 ## Icon

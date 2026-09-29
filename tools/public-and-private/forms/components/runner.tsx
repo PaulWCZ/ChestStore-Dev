@@ -544,7 +544,7 @@ function QuestionField(p: FieldProps) {
     return (
       <div className={`question kind-date${p.error ? " has-error" : ""}`} {...auto}>
         <p className="q-heading" aria-hidden="true">{heading}</p>
-        <DateField id={inputId} label={q.title + (q.required ? ` (${w.requiredMark})` : "")} value={value} onChange={d => p.onChange(d ?? undefined)} today={p.today} required={q.required} labels={w.date} {...(q.help ? { hint: q.help } : {})} error={errorText} />
+        <DateField id={inputId} hideLabel label={q.title + (q.required ? ` (${w.requiredMark})` : "")} value={value} onChange={d => p.onChange(d ?? undefined)} today={p.today} required={q.required} labels={w.date} {...(q.help ? { hint: q.help } : {})} error={errorText} />
       </div>
     );
   }

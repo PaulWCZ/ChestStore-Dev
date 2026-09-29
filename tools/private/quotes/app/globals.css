@@ -98,7 +98,7 @@ select.field { appearance: none; background-image: linear-gradient(45deg, transp
 
 /* Chips as links: a list's states (the kit's Filters), the export's periods. */
 .filters { display: flex; gap: var(--space-2); flex-wrap: wrap; align-items: center; margin-bottom: var(--space-4); }
-.filters a { display: inline-flex; align-items: center; gap: 6px; min-height: var(--control-h); padding: 0 14px; border-radius: var(--radius-pill); border: var(--border-width) solid var(--line-strong); background: var(--surface); text-decoration: none; font-size: var(--text-s); color: var(--ink); }
+.filters a { display: inline-flex; align-items: center; gap: 6px; min-height: var(--control-h); padding: 0 14px; border-radius: var(--radius-chip); border: var(--border-width) solid var(--line-strong); background: var(--surface); text-decoration: none; font-size: var(--text-s); color: var(--ink); }
 .filters a:hover { background: var(--surface-2); }
 .filters a[aria-current="true"] { background: var(--accent-soft); border-color: var(--accent-line); font-weight: var(--weight-strong); }
 .toolbar { display: flex; gap: var(--space-3); align-items: center; flex-wrap: wrap; justify-content: space-between; margin-bottom: var(--space-4); }
@@ -109,13 +109,12 @@ select.field { appearance: none; background-image: linear-gradient(45deg, transp
 /* ── Stamps: a document's state, as a rubber stamp on the margin ──── */
 /* The kit's StatusBadge (a shape and a word, never colour alone), inked
    as a stamp: capitals, a border in its own colour. */
-.stamp { display: inline-flex; }
-.stamp .ck-badge { gap: 5px; min-height: 0; padding: 1px 8px; border: 1.5px solid currentColor; border-radius: var(--radius-s); font-size: var(--text-xs); font-weight: var(--weight-strong); letter-spacing: 0.06em; text-transform: uppercase; line-height: 1.5; }
-.stamp .ck-tone-neutral { background: transparent; color: var(--ink); }
-.stamp.draft .ck-badge { border-style: dashed; color: var(--ink-2); }
-.stamp.expired .ck-badge, .stamp.credited .ck-badge { color: var(--ink-2); text-decoration: line-through; text-decoration-thickness: 1.5px; }
-.stamp.big .ck-badge { font-size: var(--text-s); padding: 3px 12px; transform: rotate(-2deg); border-width: 2px; }
-@media (prefers-reduced-motion: reduce) { .stamp.big .ck-badge { transform: none; } }
+.ck-badge.stamp { gap: 5px; min-height: 0; padding: 1px 8px; border: 1.5px solid currentColor; border-radius: var(--radius-s); font-size: var(--text-xs); font-weight: var(--weight-strong); letter-spacing: 0.06em; text-transform: uppercase; line-height: 1.5; }
+.stamp.ck-tone-neutral { background: transparent; color: var(--ink); }
+.stamp.draft { border-style: dashed; color: var(--ink-2); }
+.stamp.expired, .stamp.credited { color: var(--ink-2); text-decoration: line-through; text-decoration-thickness: 1.5px; }
+.ck-badge.stamp.big { font-size: var(--text-s); padding: 3px 12px; transform: rotate(-2deg); border-width: 2px; }
+@media (prefers-reduced-motion: reduce) { .ck-badge.stamp.big { transform: none; } }
 
 /* ── The ledger: lists of documents, clients, items (the kit's table) ─ */
 .ck-table-wrap { box-shadow: var(--shadow-1); }
@@ -187,11 +186,10 @@ select.field { appearance: none; background-image: linear-gradient(45deg, transp
 .meta { display: grid; grid-template-columns: auto auto; gap: 4px var(--space-4); font-size: var(--text-s); justify-content: end; align-items: center; margin-top: 4px; }
 .meta dt { color: var(--ink-2); text-align: right; }
 .meta dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
-/* A day written on the paper (the kit's DateField): its label is the
-   term on the left, its day in words under it, no chips. */
+/* A day written on the paper (the kit's DateField, its label hidden: the
+   term on the left names it), its day in words under it, no chips. */
 .meta .ck-date { text-align: left; }
-.meta .ck-date > .ck-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-.meta .ck-date-input { min-height: 36px; width: 12ch; padding: 4px 6px; border: 0; border-bottom: 1px dashed var(--line-strong); border-radius: 2px 2px 0 0; background: transparent; font-variant-numeric: tabular-nums; }
+.meta .ck-date-input { width: 12ch; padding: 4px 6px; border: 0; border-bottom: 1px dashed var(--line-strong); border-radius: 2px 2px 0 0; background: transparent; font-variant-numeric: tabular-nums; }
 .meta .ck-date-input:hover { background: var(--surface-2); }
 .meta .ck-date-input:focus { outline: none; border-bottom: 1.5px solid var(--ink); background: var(--surface-2); box-shadow: 0 2px 0 -0.5px var(--focus); }
 .meta .ck-date-read { font-size: var(--text-xs); margin: 0; }
@@ -417,32 +415,11 @@ select.ink { appearance: none; cursor: pointer; padding-right: 18px; background-
   .phone-action .button.block { width: auto; }
 }
 .export-notes { margin: var(--space-2) 0 0; padding-left: 1.2em; display: grid; gap: var(--space-1); }
-/* On a phone the list's stamp sits under the amount (its column goes). */
-.phone-stamp { display: none; }
-@media (max-width: 640px) { .phone-stamp { display: flex; justify-content: flex-end; margin-top: 2px; } }
-/* On a phone the list is four narrow columns: the subject under the
-   client, wrapped; smaller figures; the brand's name a line of its own. */
-.phone-what { display: none; }
+/* On a phone the list is the kit's stacked cards: the subject wraps. */
 @media (max-width: 640px) {
-  .phone-what { display: block; }
   .ck-table .what { max-width: none; white-space: normal; overflow-wrap: anywhere; }
-  .ck-table th, .ck-table td { padding-left: var(--space-2); padding-right: var(--space-2); }
-  .ck-table .doc-link, .ck-table .amount { font-size: var(--text-s); }
   .ck-table .who { overflow-wrap: anywhere; }
   .ck-brand { font-size: var(--text-m); }
 }
 /* A true count on a section (overdue invoices): inked like the seal. */
 .ck-nav-link .ck-count { background: var(--accent); color: var(--accent-ink); }
-/* A document list on a phone: number, client (and subject), amount (and
-   stamp) share the width; nothing runs off the side. */
-@media (max-width: 640px) {
-  .doc-table .ck-table { table-layout: fixed; }
-  .doc-table .ck-table thead th:nth-child(1) { width: 32%; }
-  .doc-table .ck-table thead th:nth-child(2) { width: auto; }
-  .doc-table .ck-table thead th:nth-child(5) { width: 34%; }
-  .doc-table .ck-table thead th { white-space: normal; letter-spacing: 0.04em; }
-  .doc-table .ck-table .doc-link { overflow-wrap: anywhere; }
-  .doc-table .ck-table .ck-col-narrow { white-space: normal; }
-  .doc-table .ck-table .amount { white-space: normal; }
-  .doc-table .phone-stamp .ck-badge { white-space: normal; text-align: left; }
-}

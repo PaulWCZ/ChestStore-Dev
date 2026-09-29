@@ -12,5 +12,5 @@ const tones: Record<State, Tone> = {
 };
 
 export function Stamp({ state, label, big = false }: { state: State; label: string; big?: boolean }) {
-  return <span className={`stamp ${state}${big ? " big" : ""}`}><StatusBadge tone={tones[state]} label={label} size={big ? "m" : "s"} /></span>;
+  return <StatusBadge className={`stamp ${state}${big ? " big" : ""}`} tone={tones[state]} label={label} size={big ? "m" : "s"} />;
 }

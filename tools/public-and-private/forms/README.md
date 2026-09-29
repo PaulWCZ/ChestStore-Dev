@@ -277,11 +277,11 @@ if shipped and keeps working without them:
   opening is not announced; its link is shared by hand.
 - **Chest settings** (`chest.company()`, `timeZone()`, `publicUrl()`,
   `teamUrl()`, `theme()`: the look the company chose, and its logo).
-- **The UI kit's catalogue** (`@argentic/chest-ui`, 0.2.1-studio.1): Forms'
-  identity as its 20th theme, `forms` (with the fonts `dm-sans` and
-  `dm-serif-display` in its registry), so any other tool may wear it and
-  `lib/theme.ts` becomes `identityOf("forms")`. Until then the identity
-  declares its fonts from its own files, latin subsets only.
+- **The UI kit's catalogue** (`@argentic/chest-ui`, 0.2.2-studio.1):
+  Forms' identity is its 20th theme, `forms` ("Invitation"), with the
+  fonts `dm-sans` and `dm-serif-display` in its registry: `lib/theme.ts`
+  is `identityOf("forms")`, so any other tool may wear it and a company
+  that picks it gets exactly Forms' own look.
 - **Public files** (`files.publicUrl`): covers and picture choices; without
   them, the pictures do not show on the public page.
 - **Events between tools** (`events.publish("forms.answered")`): without

@@ -1,6 +1,6 @@
 "use client";
 
-import { Dialog, Segmented, useToast } from "@argentic/chest-ui/components";
+import { Dialog, Segmented, Switch, useToast } from "@argentic/chest-ui/components";
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { flushSync } from "react-dom";
 import { CopyButton } from "../../../../../components/copy-button.tsx";
@@ -646,11 +646,7 @@ function QuestionCard(p: CardProps) {
             other={q.kind === "choice" || q.kind === "choices" ? { on: q.other === true, set: on => set(x => { if (on) x.other = true; else delete x.other; }) } : undefined} />
         )}
         {q.kind === "picture" && (
-          <label className="switch">
-            <input type="checkbox" role="switch" checked={q.multiple === true} disabled={ro} onChange={e => set(x => { if (e.target.checked) x.multiple = true; else { delete x.multiple; delete x.min; delete x.max; } })} />
-            <span className="switch-track" aria-hidden="true" />
-            {b.multiple}
-          </label>
+          <Switch label={b.multiple} checked={q.multiple === true} disabled={ro} onChange={on => set(x => { if (on) x.multiple = true; else { delete x.multiple; delete x.min; delete x.max; } })} />
         )}
 
         {(q.kind === "short" || q.kind === "long") && (
@@ -697,11 +693,7 @@ function QuestionCard(p: CardProps) {
         )}
 
         {q.kind !== "statement" && (
-          <label className="switch">
-            <input type="checkbox" role="switch" checked={q.required} disabled={ro} onChange={e => set(x => { x.required = e.target.checked; })} />
-            <span className="switch-track" aria-hidden="true" />
-            {q.kind === "matrix" ? b.requiredRows : q.kind === "ranking" ? b.requiredRank : b.required}
-          </label>
+          <Switch label={q.kind === "matrix" ? b.requiredRows : q.kind === "ranking" ? b.requiredRank : b.required} checked={q.required} disabled={ro} onChange={on => set(x => { x.required = on; })} />
         )}
 
         <ConditionEditor label={b.logic} condition={q.showIf} before={p.before} ro={ro} b={b}
