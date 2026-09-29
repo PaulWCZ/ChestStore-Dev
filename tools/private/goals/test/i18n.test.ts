@@ -34,8 +34,8 @@ test("the public part's language: the visitor's choice, then the browser's, then
 });
 
 test("plurals and placeholders follow the language", () => {
-  assert.equal(plural(en.bell.reminder, 1, "en"), "1 key result waits for your weekly check-in");
-  assert.equal(plural(en.bell.reminder, 3, "en"), "3 key results wait for your weekly check-in");
+  assert.equal(plural(en.bell.reminder, 1, "en"), "1 key result waits for your weekly update");
+  assert.equal(plural(en.bell.reminder, 3, "en"), "3 key results wait for your weekly update");
   assert.equal(plural(catalogue("fr").objective.keyResultsCount, 0, "fr"), "0 résultat clé");
   assert.equal(plural(catalogue("fr").company.summary, 0, "fr"), "Pas encore d’objectif");
   assert.equal(format("{a} and {b}", { a: 1 }), "1 and {b}");

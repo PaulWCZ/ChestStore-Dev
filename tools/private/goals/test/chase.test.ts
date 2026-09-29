@@ -39,9 +39,9 @@ test("the admins see who has not checked in this week, an objective's owner sees
   assert.deepEqual(await waitingFor(sql, sofiaM, clock), []);
   await assert.rejects(remind(sql, sofiaM, hugo.id, clock), refused("not_found"));
   await remind(sql, inesM, hugo.id, clock);
-  assert.ok(w.chest.notifications.some(n => n.member === hugo.id && n.title === "Inès Moreau asks for your weekly check-in" && n.key === "checkin"));
+  assert.ok(w.chest.notifications.some(n => n.member === hugo.id && n.title === "Inès Moreau asks for your weekly update" && n.key === "checkin"));
   const mail = w.chest.outbox.find(m => m.to.includes("hugo@atelier-martin.test"))!;
-  assert.equal(mail.subject, "Inès Moreau asks for your weekly check-in");
+  assert.equal(mail.subject, "Inès Moreau asks for your weekly update");
   assert.ok(mail.text.includes("Shops signed") && mail.text.includes("To stop these emails"));
   // Once a day, whoever asks.
   await assert.rejects(remind(sql, admin, hugo.id, clock), refused("already_reminded"));

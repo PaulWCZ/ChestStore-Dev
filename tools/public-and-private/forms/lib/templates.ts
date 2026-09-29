@@ -16,10 +16,10 @@ function q(kind: Kind, title: string, extra: Extra = {}): Question {
 }
 const page = (questions: Question[], title = "") => ({ id: newId(), title, questions, jumps: [] as Definition["pages"][number]["jumps"] });
 
-// routes: the links to the other tools a template starts with, turned on
+// links: the links to the other tools a template starts with, turned on
 // when the receiving tool is installed on the Chest (the mapping is
 // guessRoutes'); the Contact form becomes a contact in Clients.
-export type Template = { definition: Definition; settings: Partial<Pick<Settings, "audience" | "once" | "layout" | "accent" | "sendCopy" | "anonymous">>; routes?: { contact?: boolean; request?: boolean } };
+export type Template = { definition: Definition; settings: Partial<Pick<Settings, "audience" | "once" | "layout" | "accent" | "sendCopy" | "anonymous">>; links?: { contact?: boolean; request?: boolean } };
 
 // A new form is written in the language of the person who starts it: the
 // respondent's page then speaks that language, or the form's second one.
@@ -46,7 +46,7 @@ function build(key: TemplateKey, t: Catalogue): Template {
           q("long", c.message, { required: true, max: 2000 }),
         ])] },
         settings: { audience: "public", layout: "classic", accent: "indigo", sendCopy: true },
-        routes: { contact: true },
+        links: { contact: true },
       };
     }
     case "event": {

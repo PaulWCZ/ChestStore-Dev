@@ -61,7 +61,7 @@ export default async function ChooseTime({ params }: { params: Promise<{ token: 
             <p className="notice" role="status">{w.none}</p>
           ) : (
             <TimePicker token={token} days={found.days.map(d => ({ day: d.day, label: dayLabel(d.day), times: d.times }))} zoneNote={format(w.zone, { zone: zoneName })}
-              t={{ legend: w.legend, confirm: w.confirm, confirming: w.confirming, choose: w.choose, errors: t.errors }} />
+              t={{ legend: w.legend, confirm: w.confirm, confirming: w.confirming, choose: w.choose, more: w.moreDays, errors: t.errors }} />
           )}
         </section>
       )}

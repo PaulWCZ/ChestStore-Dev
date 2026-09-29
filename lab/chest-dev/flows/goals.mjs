@@ -33,7 +33,7 @@ if (process.argv.includes("--empty")) {
   await step(`a member of an empty Chest is told an admin starts; the admin is offered ${main}${late ? " first, the current quarter second" : ""}`, async () => {
     await english("hugo");
     await page.goto(origin + "/chest");
-    expect((await page.locator("main").innerText()).includes("An admin starts the first cycle"), "member told");
+    expect((await page.locator("main").innerText()).includes("Ask Camille Martin to start the first quarter"), "member told whom to ask, by name");
     await english("camille");
     await page.goto(origin + "/chest");
     const start = page.getByRole("button", { name: new RegExp(`^Start ${main} \\(`, "u") });
@@ -53,14 +53,14 @@ if (process.argv.includes("--empty")) {
 
 await step("Hugo sees his check-ins of the week and checks one in with a note", async () => {
   await page.goto(origin + "/chest");
-  expect(await page.getByRole("heading", { name: "This week’s check-ins" }).isVisible(), "waiting section");
+  expect(await page.getByRole("heading", { name: "This week’s updates" }).isVisible(), "waiting section");
   const item = page.locator(".waiting-item", { hasText: "Shops signed" });
   await item.getByLabel("Value now").fill("6");
   await item.locator("label.segment", { hasText: "On track" }).click();
   await item.getByLabel("What happened?").fill("Signed Meubles Durand in Grenoble");
-  await item.getByRole("button", { name: "Check in" }).click();
+  await item.getByRole("button", { name: "Save the update" }).click();
   await page.waitForSelector(".ck-toast");
-  expect((await page.locator(".ck-toast").innerText()).includes("Checked in"), "toast");
+  expect((await page.locator(".ck-toast").innerText()).includes("Updated."), "toast");
   await page.waitForTimeout(800);
   expect(await page.locator(".waiting-item", { hasText: "Shops signed" }).count() === 0, "left the list");
 });
@@ -74,7 +74,7 @@ await step("…takes it back with Undo, then checks in again", async () => {
   expect(await item.count() === 1, "back in the list");
   await item.getByLabel("Value now").fill("6");
   await item.locator("label.segment", { hasText: "On track" }).click();
-  await item.getByRole("button", { name: "Check in" }).click();
+  await item.getByRole("button", { name: "Save the update" }).click();
   await page.waitForSelector(".ck-toast");
   await page.goto(origin + "/chest/objectives/7");
   const card = page.locator(".kr-card", { hasText: "Shops signed" });
@@ -86,7 +86,7 @@ await step("a check-in without a confidence is refused on the spot", async () =>
   await page.goto(origin + "/chest");
   const item = page.locator(".waiting-item", { hasText: "Customers lost" });
   await item.getByLabel("Value now").fill("abc");
-  await item.getByRole("button", { name: "Check in" }).click();
+  await item.getByRole("button", { name: "Save the update" }).click();
   await page.waitForSelector(".waiting-item .error");
   expect((await item.locator(".error").innerText()).length > 0, "error shown");
 });
@@ -240,7 +240,7 @@ await step("Friday's reminder reaches whoever has key results waiting, in their 
   await page.request.post(origin + "/_dev/schedule", { form: { name: "reminder" } });
   const bell = await dev();
   expect(/attendent votre point de la semaine|attend votre point de la semaine/u.test(bell), "French reminder");
-  expect(/wait for your weekly check-in|waits for your weekly check-in/u.test(bell), "English reminder");
+  expect(/wait for your weekly update|waits for your weekly update/u.test(bell), "English reminder");
 });
 
 await step("a quiet week: Hugo checks in \"Same as last week\" in one click", async () => {
@@ -304,7 +304,7 @@ await step("Camille sees who has not checked in and reminds Tom: the bell and an
   await page.waitForSelector(".ck-toast >> text=Tom Walker is reminded");
   expect((await row.innerText()).includes("Reminded today"), "marked");
   const bell = await dev();
-  expect(bell.includes("Camille Martin asks for your weekly check-in"), "bell and outbox");
+  expect(bell.includes("Camille Martin asks for your weekly update"), "bell and outbox");
 });
 
 await step("Camille imports Lattice's goals file: columns guessed, an unknown owner given to Sofia, then Undo", async () => {
@@ -412,7 +412,56 @@ await step("a cycle the tool named reads in each reader's language; the phone Co
   const tree = await page.locator(".tree").first().boundingBox();
   const chase = (await page.locator(".chase").count()) ? await page.locator(".chase").boundingBox() : null;
   expect(!chase || tree.y < chase.y, "the tree before the waiting list");
+  // Where a person sees it: the first objective starts within the first
+  // screen (844 px), measured on the page — not only its order in the DOM.
+  for (const [who, speak] of [["camille", french], ["hugo", english]]) {
+    await speak(who);
+    await page.goto(origin + "/chest/company");
+    const top = await page.evaluate(() => { const a = document.querySelector('.tree a[href^="/chest/objectives/"]'); return a ? a.getBoundingClientRect().top + window.scrollY : null; });
+    expect(top !== null && top < 844, `${who}: the first objective at y = ${top}, within the first screen`);
+  }
+  // The choices fold behind one button; one tap shows them.
+  await french("camille");
+  await page.goto(origin + "/chest/company");
+  expect(!(await page.locator(".filters").isVisible()) && !(await page.locator(".tree-tools .foldable").isVisible()), "status, team, owner and cycle folded");
+  await page.getByRole("button", { name: "Filtres" }).click();
+  expect(await page.locator(".filters").isVisible(), "shown by the Filters button");
+  expect(await page.locator(".overview .tally.compact").isVisible() && !(await page.locator(".overview .card + .card").isVisible()), "the confidence in one line under the progress");
   await page.setViewportSize({ width: 1280, height: 860 });
+  await page.goto(origin + "/chest/company");
+  expect(await page.locator(".filters").isVisible() && !(await page.getByRole("button", { name: "Filtres" }).isVisible()), "on a large screen: all in sight, no button");
+});
+
+await step("key results fed by Support and Tasks: counted from what the tools told, per owner, per board", async () => {
+  await english("hugo");
+  await page.goto(origin + "/chest/objectives/8");
+  const card = page.locator(".kr-card", { hasText: "Support tickets solved" });
+  const text = await card.innerText();
+  expect(text.includes("7 tickets") && text.includes("Fed by Support"), "Hugo's solved tickets, fed by Support: " + text.slice(0, 160));
+  await english("camille");
+  await page.goto(origin + "/chest/objectives/9");
+  await page.getByRole("button", { name: "Add a key result" }).first().click();
+  const dialog = page.locator("dialog[open]");
+  await dialog.getByLabel("What we’ll count").fill("Workshop cards done");
+  await dialog.locator("summary", { hasText: "More options" }).click();
+  await dialog.getByLabel("Its value").selectOption("tasks.done");
+  await dialog.getByLabel("Board").selectOption({ label: "Workshop orders" });
+  expect(await dialog.getByText("Only the cards its owner is on").isVisible(), "only theirs, where the tool names people");
+  await dialog.getByLabel("To", { exact: true }).fill("30");
+  await dialog.getByRole("button", { name: "Add", exact: true }).click();
+  await page.waitForSelector(".kr-card:has-text('Workshop cards done')");
+  const fed = await page.locator(".kr-card", { hasText: "Workshop cards done" }).innerText();
+  expect(fed.includes("Fed by Tasks") && /\b1\b/u.test(fed), "one card done on that board this cycle: " + fed.slice(0, 160));
+});
+
+await step("teams: every group of the Chest is offered; a French unit reads by its own rule", async () => {
+  await english("camille");
+  await page.goto(origin + "/chest/settings");
+  expect((await page.locator("main").innerText()).includes("Tech"), "a group not yet a team is offered");
+  await french("camille");
+  await page.goto(origin + "/chest/objectives/4");
+  const main = await page.locator("main").innerText();
+  expect(!/\b0 customer\b/u.test(main), "never “0 customer” (an English unit keeps English grammar)");
 });
 
 await step("the dark map band is the Trail map's own: another look gets the kit's normal header", async () => {

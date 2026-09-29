@@ -637,3 +637,6 @@ select.field { appearance: auto; }
 /* Which question gives each piece of a contact or a ticket. */
 .route-fields { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 13rem), 1fr)); gap: var(--space-3); padding-left: var(--space-4); border-left: 3px solid var(--line-strong); margin: 0 0 var(--space-2); }
 .route-fields .hint { grid-column: 1 / -1; margin: 0; }
+/* Where an answer went besides Forms (Clients, Support, web addresses). */
+.answer-sent { font-size: var(--text-s); overflow-wrap: anywhere; }
+.answer-sent a { text-decoration: underline; text-underline-offset: 2px; }

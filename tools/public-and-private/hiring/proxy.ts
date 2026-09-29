@@ -2,7 +2,7 @@ import { randomBytes } from "node:crypto";
 import { member } from "@argentic/chest-sdk/member";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { catalogue, publicLocale } from "./lib/i18n/index.ts";
+import { catalogue, isLocale, publicLocale } from "./lib/i18n/index.ts";
 
 // Every page carries its own Content-Security-Policy with a nonce per
 // response: Next.js runs inline scripts, which the nonce allows and nothing
@@ -48,6 +48,12 @@ export function proxy(request: NextRequest): NextResponse {
   const value = policy(nonce);
   const forwarded = new Headers(request.headers);
   forwarded.set("Content-Security-Policy", value);
+  // A candidate's link carries their language (?lang=fr: the language they
+  // applied in, as their emails): the page speaks it unless they chose
+  // another with the switch (lib/session.ts publicWords).
+  forwarded.delete("x-link-lang");
+  const said = request.nextUrl.searchParams.get("lang");
+  if (first === "interview" && isLocale(said)) forwarded.set("x-link-lang", said);
   const response = NextResponse.next({ request: { headers: forwarded } });
   response.headers.set("Content-Security-Policy", value);
   response.headers.set("Referrer-Policy", "same-origin");

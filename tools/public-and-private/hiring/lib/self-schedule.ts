@@ -7,6 +7,7 @@ import type { Query, Sql } from "./db.ts";
 import { catalogue, format } from "./i18n/index.ts";
 import { invite, read as readInterview, type Interview } from "./interviews.ts";
 import { settings } from "./jobs.ts";
+import { toldBusy } from "./share.ts";
 import * as mailer from "./mailer.ts";
 import { queue } from "./messages.ts";
 import { clean, day as readDay, id, isMemberId, limits } from "./model.ts";
@@ -15,9 +16,10 @@ import { addDays, dayOf, durations, instantOf, timeOf } from "./time.ts";
 // Candidates choose their own interview time. A recruiter sends a link —
 // who meets them, how long, between which days and hours —; the
 // candidate's page (/interview/<token>, public) offers the times when all
-// of those people are free, by the tool's own interviews (nothing else of
-// their agendas is known: a free/busy connector is the calendar
-// proposal's next step, README). The time chosen becomes an interview like
+// of those people are free: by the tool's own interviews, and by what
+// Booking tells of them (lib/share.ts: their bookings, blocked times and
+// Google/Outlook/Apple calendars), lunch left out unless asked for. The
+// time chosen becomes an interview like
 // one a recruiter plans: the candidate's email with its .ics, the
 // interviewers' Chest calendars, the bell. One open link per candidate: a
 // new one replaces it. The link's secret is never stored (its SHA-256).
@@ -39,8 +41,10 @@ export type Request = {
   createdAt: string;
   status: "open" | "booked" | "cancelled" | "expired";
   interviewId: string | null;
+  // Lunch (12:00–14:00) left out of the times offered.
+  skipLunch: boolean;
 };
-type RequestDb = { id: string; candidate_id: string; minutes: number; first_day: string; last_day: string; day_start: number; day_end: number; place: string; note: string; created_by: string; created_at: Date; interview_id: string | null; booked_at: Date | null; cancelled_at: Date | null; people: string[] | null };
+type RequestDb = { id: string; candidate_id: string; minutes: number; first_day: string; last_day: string; day_start: number; day_end: number; place: string; note: string; created_by: string; created_at: Date; interview_id: string | null; booked_at: Date | null; cancelled_at: Date | null; people: string[] | null; skip_lunch: boolean | null };
 const zone = () => chest.timeZone();
 
 function toRequest(r: RequestDb, now: Date): Request {
@@ -49,18 +53,22 @@ function toRequest(r: RequestDb, now: Date): Request {
     id: String(r.id), candidateId: String(r.candidate_id), minutes: r.minutes, firstDay: r.first_day, lastDay: r.last_day, dayStart: r.day_start, dayEnd: r.day_end,
     place: r.place, note: r.note, people: (r.people ?? []).filter(isMemberId), createdBy: r.created_by, createdAt: r.created_at.toISOString(),
     status: r.cancelled_at ? "cancelled" : r.booked_at ? "booked" : expired ? "expired" : "open", interviewId: r.interview_id === null ? null : String(r.interview_id),
+    skipLunch: r.skip_lunch ?? false,
   };
 }
 const select = (sql: Query) => sql`
   select r.id, r.candidate_id, r.minutes, to_char(r.first_day, 'YYYY-MM-DD') as first_day, to_char(r.last_day, 'YYYY-MM-DD') as last_day, r.day_start, r.day_end,
-    r.place, r.note, r.created_by, r.created_at, r.interview_id, r.booked_at, r.cancelled_at,
+    r.place, r.note, r.created_by, r.created_at, r.interview_id, r.booked_at, r.cancelled_at, r.skip_lunch,
     coalesce((select array_agg(p.member_id order by p.member_id) from interview_request_people p where p.request_id = r.id), '{}') as people
   from interview_requests r`;
 
 export const hashOf = (token: string) => createHash("sha256").update(token).digest("base64url");
 const tokenPattern = /^[A-Za-z0-9_-]{43}$/u;
 
-export type RequestInput = { people: unknown; minutes: unknown; firstDay: unknown; lastDay: unknown; dayStart: unknown; dayEnd: unknown; place?: unknown; note?: unknown };
+// skipLunch: true unless said otherwise (a time over 12:00–14:00 is not
+// offered).
+export type RequestInput = { people: unknown; minutes: unknown; firstDay: unknown; lastDay: unknown; dayStart: unknown; dayEnd: unknown; place?: unknown; note?: unknown; skipLunch?: unknown };
+export const lunch = { start: 12 * 60, end: 14 * 60 } as const;
 
 function readInput(input: RequestInput, now: Date) {
   const minutes = Number(input.minutes);
@@ -72,7 +80,7 @@ function readInput(input: RequestInput, now: Date) {
   if (!Number.isInteger(dayStart) || !Number.isInteger(dayEnd) || dayStart % 15 !== 0 || dayEnd % 15 !== 0 || dayStart < 0 || dayEnd > 1440 || dayEnd - dayStart < minutes) throw new AppError("invalid");
   if (!Array.isArray(input.people) || input.people.length < 1 || input.people.length > limits.interviewPeople || !input.people.every(isMemberId)) throw new AppError("invalid");
   return {
-    minutes, first, last, dayStart, dayEnd, people: [...new Set(input.people as string[])],
+    minutes, first, last, dayStart, dayEnd, people: [...new Set(input.people as string[])], skipLunch: input.skipLunch !== false,
     place: clean(input.place, limits.interviewPlace, { optional: true }),
     note: clean(input.note, limits.interviewNote, { multiline: true, optional: true }),
   };
@@ -89,13 +97,14 @@ export async function send(sql: Sql, actor: Member | null, candidateId: unknown,
   if (candidate.status !== "active") throw new AppError("invalid");
   for (const m of v.people) if (!(await isTeam(m, candidate.jobId))) throw new AppError("invalid");
   const token = randomBytes(32).toString("base64url");
-  const link = `${origin ?? ""}/interview/${token}`;
+  // In the candidate's language, as their emails (the page follows it).
+  const link = `${origin ?? ""}/interview/${token}?lang=${candidate.language}`;
   return sql.begin(async tx => {
     // One open link per candidate: the one before stops working.
     await tx`update interview_requests set cancelled_at = now() where candidate_id = ${candidate.id} and cancelled_at is null and booked_at is null`;
     const [row] = await tx<{ id: string }[]>`
-      insert into interview_requests (candidate_id, token_hash, minutes, first_day, last_day, day_start, day_end, place, note, created_by)
-      values (${candidate.id}, ${hashOf(token)}, ${v.minutes}, ${v.first}, ${v.last}, ${v.dayStart}, ${v.dayEnd}, ${v.place}, ${v.note}, ${actor.id}) returning id`;
+      insert into interview_requests (candidate_id, token_hash, minutes, first_day, last_day, day_start, day_end, place, note, created_by, skip_lunch)
+      values (${candidate.id}, ${hashOf(token)}, ${v.minutes}, ${v.first}, ${v.last}, ${v.dayStart}, ${v.dayEnd}, ${v.place}, ${v.note}, ${actor.id}, ${v.skipLunch}) returning id`;
     const requestId = String(row!.id);
     for (const m of v.people) await tx`insert into interview_request_people (request_id, member_id) values (${requestId}, ${m})`;
     await activity(tx, candidate.id, actor.id, "interview_link", { people: v.people, from: v.first, to: v.last });
@@ -183,15 +192,19 @@ export async function offer(sql: Query, token: unknown, now = new Date()): Promi
 // freeTimes: every start in the request's days (Monday to Friday) and
 // hours, on the quarter hour for 15- and 45-minute interviews and the half
 // hour otherwise, at least scheduleLimits.noticeHours ahead, when none of
-// the people is in another interview.
+// the people is in another interview nor busy by what another tool told
+// (Booking), and — unless the recruiter asked for it, or chose hours
+// within it — not over lunch.
 export async function freeTimes(sql: Query, r: Request, now: Date): Promise<{ day: string; times: string[] }[]> {
   const z = zone();
   const step = r.minutes % 30 === 0 ? 30 : 15;
   const from = instantOf(r.firstDay, "00:00", z);
   const to = new Date(instantOf(r.lastDay, "00:00", z).getTime() + 30 * 3600_000);
-  const busy = r.people.length === 0 ? [] : await sql<{ starts_at: Date; ends_at: Date }[]>`
+  const busy: { starts_at: Date; ends_at: Date }[] = r.people.length === 0 ? [] : await sql<{ starts_at: Date; ends_at: Date }[]>`
     select distinct i.starts_at, i.ends_at from interviews i join interview_people p on p.interview_id = i.id
     where i.cancelled_at is null and p.member_id in ${sql(r.people)} and i.starts_at < ${to} and i.ends_at > ${from}`;
+  for (const b of await toldBusy(sql, r.people, from, to)) busy.push({ starts_at: b.start, ends_at: b.end });
+  const noLunch = r.skipLunch && !(r.dayStart >= lunch.start && r.dayEnd <= lunch.end);
   const earliest = now.getTime() + scheduleLimits.noticeHours * 3600_000;
   const out: { day: string; times: string[] }[] = [];
   let count = 0;
@@ -206,6 +219,7 @@ export async function freeTimes(sql: Query, r: Request, now: Date): Promise<{ da
       // A time the clock skips (spring) reads on another hour: left out.
       if (dayOf(new Date(start), z) !== d || timeOf(new Date(start), z) !== hhmm) continue;
       if (start < earliest) continue;
+      if (noLunch && m < lunch.end && m + r.minutes > lunch.start) continue;
       if (busy.some(b => b.starts_at.getTime() < end && b.ends_at.getTime() > start)) continue;
       times.push(hhmm);
     }

@@ -32,7 +32,7 @@ function setup(anonymous: boolean) {
   v2.pages[0]!.questions[0]!.title = "Favourite colour";
   const versions = new Map([[1, v1], [2, v2]]);
   const [red, blue] = colour.options!.map(o => o.id) as [string, string];
-  const a = (id: string, version: number, data: Answer["data"], respondent: string | null, createdAt: string | null): Answer => ({ id, version, data, respondent, email: null, createdAt, month: "2026-09-01", language: "en", status: "new", note: "", handledAt: null });
+  const a = (id: string, version: number, data: Answer["data"], respondent: string | null, createdAt: string | null): Answer => ({ id, version, data, respondent, email: null, createdAt, month: "2026-09-01", language: "en", status: "new", note: "", handledAt: null, sent: [] });
   const answers = [
     a("aaaaaaaaaaaaaaaa", 1, { [colour.id]: { ids: [red] }, [score.id]: 10, [gone.id]: "=cmd" }, anonymous ? null : "mbr_hugoaaaaaaaaaaaaaaaaaaaaaa", anonymous ? null : "2026-09-20T10:00:00Z"),
     a("bbbbbbbbbbbbbbbb", 2, { [colour.id]: { ids: [blue] }, [score.id]: 3 }, null, anonymous ? null : "2026-09-21T10:00:00Z"),

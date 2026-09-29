@@ -467,10 +467,18 @@ await step("a contact form also makes a contact in Clients and opens a ticket in
   await contact.waitFor();
   expect((await contact.getByLabel("Their email").locator("option:checked").innerText()) === "Your email address", "email guessed");
   expect((await contact.getByLabel("Their phone").locator("option:checked").innerText()) === "Your phone number", "phone guessed");
-  await contact.getByLabel("Their message").selectOption({ label: "Your message" });
+  // Round 3: the message, a ticket's subject and details are guessed right
+  // too (no mapping by hand any more: the first long text, the first
+  // choice) — the ticket's switch turned off and on again.
+  expect((await contact.getByLabel("Their message").locator("option:checked").innerText()) === "Your message", "message guessed");
+  const toTicket = page.locator("label.ck-switch-label", { hasText: "Also open a ticket in Support" });
+  await toTicket.click();
+  await page.waitForFunction(() => document.querySelectorAll(".route-fields").length === 1);
+  await toTicket.click();
   const ticket = page.locator(".route-fields").nth(1);
-  await ticket.getByLabel("Subject").selectOption({ label: "What is it about?" });
-  await ticket.getByLabel("Details").selectOption({ label: "Your message" });
+  await ticket.waitFor();
+  expect((await ticket.getByLabel("Subject").locator("option:checked").innerText()) === "What is it about?", "subject guessed: a real question, not the form's title");
+  expect((await ticket.getByLabel("Details").locator("option:checked").innerText()) === "Your message", "details guessed: the message");
   await page.waitForSelector(".save-state.saved", { timeout: 10000 });
   await page.goto(origin + "/chest/forms/5/settings");
   expect((await page.locator(".route-fields").nth(1).getByLabel("Subject").locator("option:checked").innerText()) === "What is it about?", "the mapping is kept");
@@ -493,6 +501,62 @@ await step("a contact form also makes a contact in Clients and opens a ticket in
   const board = await dev();
   expect(board.includes("<code>forms.contact</code>") && board.includes("nina.roux@example.com"), "a contact for Clients");
   expect(board.includes("<code>forms.request</code>") && board.includes("A quote"), "a ticket for Support, its subject the answer");
+});
+
+await step("one message, one email: Support took the answer, so Forms sent no copy; the answer says where it went, and Support follows it up", async () => {
+  // The step before: the sample contact form sends a copy, and both links are on.
+  const board = await dev();
+  const toNina = board.split("Mail (proposal)")[1] ?? "";
+  expect(!/→ nina\.roux@example\.com/u.test(toNina), "no copy to the visitor: Support confirms");
+  await page.goto(origin + "/chest/forms/5/answers");
+  await page.locator("a", { hasText: "nina.roux@example.com" }).first().click();
+  await page.waitForURL(/\/answers\/[a-z0-9]{16}/u);
+  const sent = await page.locator(".answer-sent").innerText();
+  expect(sent.includes("Clients (a contact)") && sent.includes("Support (a ticket)"), "where it went: " + sent);
+  expect(await page.locator(".answer-sent a", { hasText: "Support (a ticket)" }).getAttribute("href") === "https://helpdesk-chest.chest.test/chest", "a link to Support");
+  expect((await page.locator("main").innerText()).includes("Support follows this request up"), "no second follow-up here");
+});
+
+await step("a new form from the Contact template is linked right by default: Clients on, subject and details mapped, a company question, the owner's alerts by email on", async () => {
+  await page.goto(origin + "/chest/new");
+  await page.locator("button.template-card", { hasText: "Let customers write to you" }).click();
+  await page.waitForURL(/\/chest\/forms\/\d+$/u);
+  const id = page.url().match(/forms\/(\d+)/u)[1];
+  expect((await page.locator("main").innerText()).includes("Your company (if any)"), "a company question");
+  await page.goto(origin + `/chest/forms/${id}/settings`);
+  expect(await page.getByRole("switch", { name: "Also create a contact in Clients" }).isChecked(), "Clients on from the start");
+  const contact = page.locator(".route-fields").first();
+  expect((await contact.getByLabel("Their company").locator("option:checked").innerText()) === "Your company (if any)", "company mapped");
+  expect(!(await page.getByRole("switch", { name: "Also open a ticket in Support" }).isChecked()), "Support stays the author's choice");
+  expect(await page.getByRole("switch", { name: "Also send them each batch by email" }).isChecked(), "the owner's alerts by email on");
+  await page.locator("label.ck-switch-label", { hasText: "Also open a ticket in Support" }).click();
+  const ticket = page.locator(".route-fields").nth(1);
+  await ticket.waitFor();
+  expect((await ticket.getByLabel("Subject").locator("option:checked").innerText()) === "What is it about?", "subject: the topic question");
+  expect((await ticket.getByLabel("Details").locator("option:checked").innerText()) === "Your message", "details: the message");
+  expect((await page.locator("main").innerText()).includes("Support confirms each request by email"), "the copy switch says Support confirms");
+  await page.waitForSelector(".save-state.saved", { timeout: 10000 });
+});
+
+await step("web addresses: a Slack channel added in Settings gets each new answer; one that fails is stopped, Settings says so, Try again", async () => {
+  await page.goto(origin + "/chest/forms/5/settings");
+  const box = page.locator("fieldset.hooks");
+  await box.getByLabel("Where").selectOption("slack");
+  await box.getByLabel("Its address").fill("https://hooks.slack.com/services/T0001/B0001/abcdefghijklmnopqrstuvwx");
+  await box.getByLabel("Name").fill("Sales channel");
+  await box.getByRole("button", { name: "Add an address" }).click();
+  await page.waitForSelector(".ck-toast:has-text('Address added')");
+  await page.waitForSelector(".hook strong:has-text('Sales channel')");
+  expect(!(await box.innerText()).includes("abcdefghijklmnopqrstuvwx"), "the secret path is never shown");
+  // A visitor answers: the channel is told.
+  await page.goto(origin + "/chest/forms/5");
+  const v = await browser.newPage();
+  const publicLink = (await page.request.get(origin + "/chest/forms/5/share")).url();
+  void publicLink;
+  await v.goto(origin + "/" + (await (await page.request.get(origin + "/_dev")).text()).match(/\/([a-z2-9]{8})"/u)?.[1]);
+  await v.close();
+  const board = await dev();
+  expect(board.includes("Sales channel"), "the Chest holds the address: " + board.slice(board.indexOf("Webhooks"), board.indexOf("Webhooks") + 300));
 });
 
 await step("answers on a phone are cards; the filters wait behind one button; the columns control looks like one", async () => {

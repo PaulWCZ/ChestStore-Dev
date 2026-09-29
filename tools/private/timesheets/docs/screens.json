@@ -24,5 +24,8 @@
   { "name": "settings", "path": "/chest/settings", "member": "camille", "locale": "en" },
   { "name": "settings-calendar-fr", "path": "/chest/settings", "member": "camille", "locale": "fr", "actions": [{ "click": ".ck-date-open" }, { "wait": 400 }], "only": ["desktop"] },
   { "name": "week-dark", "path": "/chest", "member": "hugo", "locale": "en", "dark": true },
-  { "name": "week-port", "path": "/chest", "member": "camille", "locale": "en", "look": { "tool": "brand:port" }, "actions": [{ "click": "a[aria-label='Previous week']:visible" }, { "wait": 1200 }] }
+  { "name": "week-port", "path": "/chest", "member": "camille", "locale": "en", "look": { "tool": "brand:port" }, "actions": [{ "click": "a[aria-label='Previous week']:visible" }, { "wait": 1200 }] },
+  { "name": "reports-search-fr", "path": "/chest/reports?preset=month&q=Feyssine", "member": "camille", "locale": "fr" },
+  { "name": "reports-quotes-fr", "path": "/chest/reports?preset=month&kind=uninvoiced", "member": "camille", "locale": "fr" },
+  { "name": "day-phone-fr", "path": "/chest", "member": "lea", "locale": "fr", "only": ["phone"] }
 ]

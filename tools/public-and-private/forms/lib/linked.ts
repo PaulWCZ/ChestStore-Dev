@@ -30,8 +30,8 @@ export async function startOf(sql: Query, made: Template): Promise<Start> {
     definition: made.definition,
     settings: { ...made.settings, notifyEmail: audience === "public" && mail !== false },
     routes: {
-      contact: made.routes?.contact && on.contact && (guess.contact.email || guess.contact.phone) ? guess.contact : null,
-      request: made.routes?.request && on.request ? guess.request : null,
+      contact: made.links?.contact && on.contact && (guess.contact.email || guess.contact.phone) ? guess.contact : null,
+      request: made.links?.request && on.request ? guess.request : null,
     },
   };
 }

@@ -7,13 +7,13 @@ what must not break.
 
 | Path | What it is |
 |---|---|
-| `chest.json`, `chest.proposals.json` | Manifest (role `editor`; public part) and the proposals it uses (`mail`, the `updates` schedule, French tile words) |
+| `chest.json`, `chest.proposals.json` | Manifest (role `editor`; public part) and the proposals it uses (`mail`, the `updates` schedule, `emits` `status.incident`, `webhooks`, French tile words) |
 | `migrations/0001_status.sql` | Components, incidents (and maintenance), updates, update states, the update log, subscribers, the mail queue, form counters |
 | `lib/access.ts` | Who may do what (one role) |
 | `lib/model.ts` | States, steps, bounds, text cleaning, times typed in the Chest's zone — pure |
 | `lib/timeline.ts` | From incidents to spans, states now, 90 days and uptime — pure, tested |
 | `lib/zone.ts` | Wall-clock time in a time zone and back — pure |
-| `lib/components.ts` | Components and groups |
+| `lib/components.ts` | Components and groups; their name and description in two languages (`inLocale`, `allComponents(sql, {locale})`) |
 | `lib/incidents.ts` | Incidents, updates, log, maintenance, automatic posts, history |
 | `lib/status-view.ts` | What the public page (and *Now*) shows |
 | `lib/subscribers.ts`, `lib/guard.ts` | Subscriptions (double opt-in), the form's guard |
@@ -36,6 +36,9 @@ what must not break.
 | `lib/heartbeats.ts`, `app/heartbeat/[token]/route.ts`, `app/chest/checks/heartbeats-view.tsx` | Heartbeats |
 | `app/chest/team-status.tsx` | The team's read-only status page (members without a role) |
 | `lib/lifecycle.ts`, `app/chest-events/route.ts` | Members erased |
+| `migrations/0004_after_critique_3.sql` | Services' second language; chat subscriptions (`hook_subscribers`) and their queue |
+| `lib/hooks.ts`, `app/subscribe/chat/`, `app/w/[token]/`, `app/chest-webhooks/route.ts` | Updates in Slack, Teams or at a web address (`webhooks`): subscribe, the subscription's page, `queueHooks` (from `announce()`), `flushHooks` (after an update and in the `updates` pass), `webhook.disabled` |
+| `lib/tell-tools.ts` | `status.incident` to the other tools (Support): `tellTools` after each change of an incident (`app/chest/actions.ts`) |
 | `app/page.tsx`, `app/incidents/…`, `app/history/…`, `app/subscribe/…`, `app/s/[token]/…`, `app/public-actions.ts`, `components/history-bar.tsx`, `components/incident-card.tsx` | The public part (anonymous, no JS needed) |
 | `app/chest/…`, `app/chest/actions.ts` | The team's part |
 
@@ -52,6 +55,16 @@ Used: `ThemeStyle`/`resolveTheme` (look), `AppShell` + `Nav` (sections), `BrandM
 Kept on purpose: `components/state.tsx` + `icons.tsx` (five states with five shapes and fixed colours; the kit's `StatusBadge` has three tones that follow the theme — none in the Chest theme — and states here must not change with the look); the step chooser (radio cards with a line of help each, which `Segmented` cannot show); the impact picker (a service and its impact per row); `TeamStatus` instead of `NoAccess` (every member may see what works); the public history bar, cards and table.
 
 ## Rules
+
+- **`status.incident` is a contract** (README, "With the other tools"):
+  add fields, never rename one; never a member, never an update's text,
+  never an incident only about services for the team, never a backfill.
+- **A chat subscription is like an email one**: queued in `announce()`
+  only, never about services for the team; the address stays with the
+  Chest (the tool keeps the target id and the shown address); a generic
+  receiver's secret is shown once (`takeSecret`) and forgotten.
+- **No history before a service existed**: `history()` draws those days
+  "none"; the view says `since` and the bar says "… since <date>".
 
 - **The history is evidence.** Never delete an update or rewrite its text
   without a row in `update_log`; removals are soft (`removed_at`) and

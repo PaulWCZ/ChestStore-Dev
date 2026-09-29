@@ -11,7 +11,10 @@ import { zonedParts } from "../../../../../../lib/zone.ts";
 import { imageUrl } from "../../../../../../lib/images.ts";
 import { getSetting } from "../../../../../../lib/settings.ts";
 import { ownLook, publicLook, teamLook } from "../../../../../../lib/theme.ts";
-import { contactSlots, requestSlots } from "../../../../../../lib/routes.ts";
+import { contactSlots, guessRoutes, requestSlots } from "../../../../../../lib/routes.ts";
+import { hooksOf } from "../../../../../../lib/hooks.ts";
+import { installed } from "../../../../../../lib/linked.ts";
+import { HooksBox } from "./hooks-box.tsx";
 import { SettingsView, type RouteChoices } from "./settings-view.tsx";
 
 // Settings: who answers, how it looks, until when, what happens after, who
@@ -38,8 +41,12 @@ export default async function SettingsPage({ params }: { params: Promise<{ id: s
     contact: Object.fromEntries(Object.entries(contactSlots).map(([k, kinds]) => [k, eligible(kinds)])),
     request: Object.fromEntries(Object.entries(requestSlots).map(([k, kinds]) => [k, eligible(kinds)])),
   } as RouteChoices;
+  const addresses = await hooksOf(sql, member, form.id);
   return (
     <SettingsView
+      routeGuess={guessRoutes(form.draft)}
+      installed={installed()}
+      hooks={<HooksBox formId={form.id} available={addresses.available} hooks={addresses.hooks} anonymous={form.anonymous} canEdit={atLeast(level, "editor")} t={{ s: t.settings, errors: t.errors, dialog: t.dialog }} />}
       formId={form.id}
       canEdit={atLeast(level, "editor")}
       canDelete={atLeast(level, "owner")}

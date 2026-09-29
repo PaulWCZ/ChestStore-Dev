@@ -664,7 +664,7 @@ await step("an admin sends new requests to a Slack channel; the channel gets the
     subject: "Wobbly table leg", details: "The left leg of my table is loose. My order is 4417.", requester: { name: "Paul Martin", email: "paul.m@example.com", member: null }, fields: [],
   }) } });
   const dev = (await (await page.request.get(origin + "/_dev")).text()).replace(/<[^>]*>/gu, " ");
-  const posted = /ticket\.new → Support channel: delivered[^{]*(\{[^}]*\})/u.exec(dev)?.[1] ?? "";
+  const posted = /ticket\.new\s+→\s+Support channel:\s+delivered[^{]*(\{[^}]*Paul Martin[^}]*\})/u.exec(dev)?.[1] ?? "";
   expect(/New request [0-9]+ from Paul Martin: Wobbly table leg\\nhttp:\/\/localhost:[0-9]+\/chest\/tickets\/[0-9]+/u.test(posted), "the channel is told: " + posted);
   expect(!posted.includes("left leg"), "never the message");
 });

@@ -6,6 +6,7 @@
 | Hanken Grotesk (font, the screens; in the UI kit's registry) | [marcologous/hanken-grotesk](https://github.com/marcologous/hanken-grotesk), via `@fontsource-variable/hanken-grotesk` 5.3.0 | OFL-1.1 | `public/fonts/`, licence in `public/fonts/LICENSE-hanken-grotesk.txt` |
 | Liberation Sans Regular and Bold, Liberation Serif Regular, Bold and Italic 2.1.5 (fonts, the PDFs) | [liberationfonts](https://github.com/liberationfonts), as packaged by Debian/Ubuntu (`fonts-liberation` 1:2.1.5-3), files unmodified | OFL-1.1 (Reserved Font Name "Liberation") | `lib/pdf/fonts/*.ttf`, licence and copyright in `lib/pdf/fonts/LICENSE-liberation.txt` |
 | CSV reader | Written for the studio's Clients tool (same licence, same studio), copied | MIT (this repository) | `parseCsv` in `lib/csv.ts`, `lib/fold.ts` |
+| Test fixture of the public directory's answer (`test/fixtures/registry-search.json`) | The ADEME record of [annuaire-entreprises-data-gouv-fr/site](https://github.com/annuaire-entreprises-data-gouv-fr/site) `unit-tests/recherche-entreprise/fixtures/search-385290309.json` (read 2026-09-29), reshaped to the API's top-level `results` list and trimmed | MIT (that repository) | `test/fixtures/registry-search.json` only; no code copied |
 | ZIP writer, CSV writer | Written for the studio's Expenses tool (same licence, same studio), copied | MIT (this repository) | `lib/zip.ts`, `lib/csv.ts` |
 
 **The PDF fonts.** PDF/A (and so Factur-X) requires every font to be
@@ -87,3 +88,29 @@ SolidInvoice (MIT — VAT rate kept on each line).
 
 Dependencies (`next`, `react`, `postgres`, `@argentic/chest-sdk`, `@argentic/chest-ui` — the studio's UI kit, MIT, packed in `vendor/`) are
 installed from npm under their own licences. No PDF library is used.
+
+**Filling a client from its SIREN** (`lib/registry.ts`). Written for this
+tool against the State's free "API Recherche d'entreprises"
+(`https://recherche-entreprises.api.gouv.fr/search?q=…`). Its own
+documentation (`/docs/`, `/openapi.json`) and data.gouv.fr's page could
+**not** be read from the studio on 2026-09-29 (network egress refused).
+What was read, on 2026-09-29: the README of
+[annuaire-entreprises-data-gouv-fr/search-api](https://github.com/annuaire-entreprises-data-gouv-fr/search-api)
+(example requests `…/search?q=DINUM`, `…/search?q=siren:130025265`, MIT),
+and the directory site's own test fixture above for the field names
+(`siren`, `nom_raison_sociale`, `nom_complet`, `etat_administratif`,
+`siege.adresse`, `siege.code_postal`, `siege.libelle_commune`). The "7
+requests per second, no key" limit is quoted from a secondary source (a
+web search result summarising api.gouv.fr's catalogue, 2026-09-29), not
+verified. The top-level `results` list is inferred from the site's
+fixture (which wraps it in `result`); unverified against the live API.
+
+**Bank statements** (`lib/bank-parse.ts`). No bank's CSV specification
+could be read from the studio on 2026-09-29: the help pages found by a web
+search (macompta.fr, comptalib.com, openflyers.com) were refused by the
+network egress. The headers recognised are the usual French and English
+column names (Date, Date opération, Date valeur, Libellé, Débit, Crédit,
+Débit euros, Crédit euros, Montant, Référence…), written from general
+knowledge; the page lets the person match any other column. CAMT.053
+(ISO 20022) and OFX are not read. No code was copied (the ofxstatement
+plugins found are GPL-3.0: not used).

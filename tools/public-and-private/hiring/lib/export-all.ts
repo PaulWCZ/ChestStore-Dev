@@ -8,7 +8,7 @@ import type { Sql } from "./db.ts";
 import type { Catalogue } from "./i18n/index.ts";
 import { ofCandidate } from "./interviews.ts";
 import { conversation } from "./messages.ts";
-import { slugify } from "./model.ts";
+import { cvTypes, isCvType, slugify } from "./model.ts";
 import { stageLabel } from "./stages.ts";
 import type { Entry } from "./zip.ts";
 
@@ -21,7 +21,7 @@ import type { Entry } from "./zip.ts";
 
 const csvOf = (rows: (string | number | null | undefined)[][]) => new TextEncoder().encode(toCsv(rows.map(r => r.map(v => (v === null || v === undefined ? "" : v)))));
 const day = (d: Date | string | null) => (d === null ? "" : (typeof d === "string" ? d : d.toISOString()).slice(0, 16).replace("T", " "));
-const extension = (type: string | null) => (type === "application/pdf" ? "pdf" : type === "application/msword" ? "doc" : "docx");
+const extension = (type: string | null) => (type && isCvType(type) ? cvTypes[type] : "docx");
 
 export async function* everything(sql: Sql, actor: Member | null, t: Catalogue): AsyncGenerator<Entry> {
   if (!can(actor, "export")) throw new AppError("forbidden");

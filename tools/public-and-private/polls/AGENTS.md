@@ -7,11 +7,12 @@ must not break.
 
 | Path | What it is |
 |---|---|
-| `chest.json` | Manifest: roles `organiser`, `member`; `database`, `members`, `notifications`; `receives` |
-| `chest.proposals.json` | The `pass` schedule (every 15 minutes), `mail: {send}` (email reminders) and `groups: "read"` + `group.*` (any group, results per team) — Proposals of the studio’s SDK |
+| `chest.json` | Manifest: roles `organiser`, `member`; `public: true`, `csp: "tool"` (guest pages); `database`, `members`, `notifications`; `receives` |
+| `chest.proposals.json` | The `pass` schedule (every 15 minutes), `mail: {send}` (email reminders, the chosen date to guests), `calendar: true` (the chosen date in Chest calendars) and `groups: "read"` + `group.*` (any group, results per team) — Proposals of the studio’s SDK |
 | `migrations/0001_polls.sql` | Schema: polls, questions, options, participants, answers (named), tallies and texts (anonymous), tellings, chest_events |
 | `migrations/0002_team_polls.sql` | Settings (who starts polls), people picked by name, sign-up places, edits after answers, reminders on demand, series (repeating pulses), eNPS, comments; anonymous ⇒ results after the close (a constraint). Never edit a shipped file; add `0004_…` |
 | `migrations/0003_teams.sql` | `settings.members_surveys` (company surveys: organisers by default) and `group_tallies` (an anonymous survey's counts per group) |
+| `migrations/0004_guests_replies.sql` | Guests (`polls.guest_link`, guest participants, `guest_counts`), replies to anonymous texts (`texts.reply_key`, `replies`), `settings.calendar` |
 | `lib/access.ts` | **Who may do what**: roles and the admin's policy (`can`, `settles`, `surveys`/`companySurvey`: a repeating survey or eNPS), `asked` (everyone, groups, people), `sees`, `manages`, `edits`, `resultsState` (live / after close; anonymous: closed and five answers, for everyone) |
 | `lib/model.ts` | Bounds, reading a poll (`readPoll`) and an answer (`readAnswer`), `checkOpening` — pure |
 | `lib/polls.ts` | Services: create, drafts, edit, send, close, reopen, delete, restore, purge, final date, home, view, export, tile counts |
@@ -23,6 +24,11 @@ must not break.
 | `lib/groups.ts` | The Chest's groups (`groups: "read"` proposal, else those giving Polls), cached a minute; who is in them |
 | `lib/teams.ts` | An anonymous survey per team: `visibleTeams` (floor 5, nothing deducible by subtraction — pure, tested) and `teamResults` |
 | `lib/audience.ts` | Who a poll asks (`members.list`, groups, people by name), finding people by name |
+| `lib/guests.ts`, `lib/guard.ts`, `lib/public-origin.ts` | Guests on a date poll: the link, answering by name, the secret's hash, removing; the public form's guard (visitors, own counters); the public address |
+| `lib/replies.ts`, `lib/reply-keys.ts` | Replies to anonymous free texts: the organiser's replies, the author's conversations by key, answering back; the keys kept in the author's browser |
+| `lib/agenda.ts` | The chosen date in Chest calendars (`calendar` proposal) and by email to guests |
+| `lib/look.ts` | The look of a request: the team's (`teamLook`) or the public one (`publicLook`: brand or identity only) |
+| `app/p/[link]/` | The guest page (public host): `page.tsx`, `guest-form.tsx`, `actions.ts` (the one public action), `cookie.ts`, `calendar/` |
 | `lib/ics.ts`, `lib/csv.ts` | .ics (RFC 5545) and CSV writers — pure, tested |
 | `lib/time.ts`, `lib/zone.ts`, `lib/dates.ts` | Days and times on the Chest's clock, in the reader's words |
 | `lib/composer-value.ts` | The composer's data shape (browser-safe) |
@@ -76,6 +82,14 @@ npm ci && npm test && npm run build   # all three must pass
   counted; shown only through `visibleTeams` (never lower its floor or drop
   the subtraction rules). A company survey (repeat, eNPS) is checked with
   `surveys()` on create and on a draft's update, not only in the UI.
+- **Guests** answer only through `lib/guests.ts`: the link opens a named
+  date poll; a guest is a participant `guest` (never a member id); their
+  secret's hash only; the public page never shows other answers or the
+  team's names; the public action checks the honeypot, `checkForm` and
+  `admit` first. Counts of members (`x of y answered`) exclude guests.
+- **Replies** never tie a member to a text: no member id or time in
+  `texts` or on an author's reply; `lib/replies.ts` reads keys and keeps
+  nothing of the request; conversations only for managers and key holders.
 - **Anonymous means no link.** Never add a member id, a time, a sequence or
   anything orderable to `tallies` or `texts`; never join `participants` to
   them; keep the whole-poll rewrite in one transaction; show results only

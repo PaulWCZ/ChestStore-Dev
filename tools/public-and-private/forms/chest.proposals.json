@@ -11,6 +11,9 @@
     "forms.contact",
     "forms.request"
   ],
+  "webhooks": {
+    "max": 200
+  },
   "schedules": [
     {
       "name": "bell",

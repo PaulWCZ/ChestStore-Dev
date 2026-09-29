@@ -7,11 +7,15 @@ what must not break.
 
 | Path | What it is |
 |---|---|
-| `chest.json`, `chest.proposals.json` | Manifest (roles `admin`, `agent`, `viewer`; public part) and the proposals it uses (`mail`, public uploads, `schedules`) |
+| `chest.json`, `chest.proposals.json` | Manifest (roles `admin`, `agent`, `viewer`; public part) and the proposals it uses (`mail`, public uploads, `schedules` `cleanup` and `late`, `receives` `forms.request` and `status.incident`, `webhooks`) |
 | `lib/access.ts` | Who may do what |
 | `lib/model.ts` | Bounds, statuses, folders, priorities, sorts, file types and limits, "waiting since" and the threshold, email check, `[#number]` in subjects — pure |
 | `lib/tickets.ts` | The service: public form, follow-up link (and its files, following merges), email filing (`fromEmail`: thread, headers, then same vouched-for sender), bounces, inbox (filters, sorts), answers, notes, assignment, priority, tags, merge/unmerge, bulk/unbulk, customer's address, rating, saved replies, settings (per-language sentence, hours, frame origins, help URL), erasure (and its log), cleanup, `exportAll` |
 | `lib/forms-in.ts` | What `forms.request` from Forms does (`/chest-events`, `tools`): `readRequest` reads the untrusted event (bounds, address, member id, path), `received` opens the ticket (`tickets.fromForms`) then confirms and tells as the public form does; `formsLink`, the link back |
+| `lib/tickets.ts` "A colleague's own requests" | My requests: `myRequests`, `myRequest`, `writeMine`, `rateMine`, `myFile`, `myOpenCount` — the requester's own tickets only |
+| `app/chest/mine/…` | My requests' pages (any member; the layout sends a member without a role there), `mine-reply.tsx` (write again, rate), `files/[id]` (a file of their own request) |
+| `lib/notices.ts`, `app/chest/settings/notices-box.tsx`, `app/chest-webhooks/route.ts` | Slack, Teams and web-address notices (`webhooks`): the channels (admins), what each is told, `notice()`/`about()` after a new request or a customer's message, `late()` (the `late` schedule), `webhook.disabled` |
+| `lib/incidents-in.ts`, `components/incident-banner.tsx` | `status.incident` from Status: read as untrusted, kept by id (ordered by `occurredAt`), the banner, the incident's saved reply |
 | `lib/mail-in.ts` | What `/chest-mail` does: file an email, confirm a new one (never to robots, three an hour per address), tell the team; mark a bounce and tell its author |
 | `lib/hours.ts` | Working hours (pure): the week, days off, `workMinutes`, time zones with Intl, France's public holidays, local timestamps |
 | `lib/text.ts` | Pure text: an email's quoted history (`splitQuoted`), links (`linkify`), `baseSubject`, robots' addresses |
@@ -68,7 +72,33 @@ npm ci && npm test && npm run build   # all three must pass
   input, the link back. Flow step in `lab/chest-dev/flows/helpdesk.mjs`
   (`/_dev/deliver`).
 
+## Added in round 3 of the critique
+
+- `migrations/0006_notices_incidents.sql`: `notice_targets` (the channels:
+  the Chest's target id, never the address), `tickets.late_noticed_for`
+  (one "waiting too long" notice per wait), `incidents` (Status' news).
+- `proxy.ts` sets `X-Support-Path` on every request (whatever the browser
+  sent): `app/chest/layout.tsx` reads it to send a member without a role
+  to My requests. It chooses a layout only; every service checks rights.
+- `lib/forms-in.ts`: `betterSubject`, `messageField` — the subject and
+  the message of a request from Forms' default mapping.
+- `lib/text.ts` `linkify(text, {contacts})`: `mailto:` and `tel:` on the
+  team's side only (`components/body.tsx` `contacts`).
+- Tests: `test/mine.test.ts` (isolation), `test/notices.test.ts`,
+  `test/incidents-in.test.ts`; flow steps "critique 3" in
+  `lab/chest-dev/flows/helpdesk.mjs`.
+
 ## Rules
+
+- **My requests shows a member their own tickets and nothing else**: every
+  query filters on `requester = actor.id`; any other ticket is
+  `not_found` (never `forbidden`: nothing tells that it exists); only
+  `publicKinds` (never a note, never an automatic answer); files through
+  `myFile`. A member without a role reaches nothing else of `/chest`
+  (`lib/access.ts` gives them no ability). Keep `test/mine.test.ts` green.
+- **Notices leave the Chest**: the number, the subject, who asked, a link —
+  never a message or a note; the address stays with the Chest (the tool
+  keeps the target id and the shown address only).
 
 - **The public part never shows a note, another customer's request, or a
   member's full name** — only what the visitor's own link opens, and

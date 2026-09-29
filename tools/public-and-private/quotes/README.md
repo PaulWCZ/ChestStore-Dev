@@ -28,6 +28,15 @@ collected here.
   terms, late-payment penalty rate (empty: the legal ECB + 10 points), early
   discount, footer, numbering prefixes. What is missing is listed on the desk
   and blocks sending — the documents would lack mandatory mentions.
+- **A client from its SIREN**: "Fill in from the SIREN" asks France's
+  free public directory of companies (the State's API Recherche
+  d'entreprises, the tool's **one declared network host**,
+  `recherche-entreprises.api.gouv.fr`) and fills what is still empty:
+  name, head-office address, VAT number (computed from the SIREN); a
+  ceased company is said. When the directory cannot be reached the tool
+  says so and fills nothing (the studio's harness cannot reach it: only
+  the failure was seen in a browser; the success is tested with the
+  directory's recorded answer).
 - **Clients**: a company or an individual, address, delivery address, SIREN,
   VAT number (French keys checked), email, contact, language of their
   documents (English or French), reverse charge by default. Archived, never
@@ -38,8 +47,21 @@ collected here.
   catalogue or free: quantity with up to three decimals, unit, unit price,
   discount %, VAT rate), section titles, notes, validity date; saved as you
   type. Draft → sent (numbered `D-2026-0001` when first sent) → accepted or
-  refused; a sent quote past its date reads *expired*. Duplicate. A sent
-  quote may still be corrected (quotes are not regulated documents).
+  refused; a sent quote past its date reads *expired*. Duplicate.
+- **Versions of a sent quote**: a quote that went to its client never
+  changes silently under its number. "Change the quote" starts its
+  **version 2** (`D-2026-0007 v2`; Undo takes it back): the version sent
+  is kept as it was — its lines, totals and the very PDF the client was
+  shown (Chest's files, SHA-256) — and listed with its PDF in the margin.
+  While v2 is written, the client's link says a new version is coming and
+  takes no answer (the earlier PDF stays readable); "Send version 2"
+  emails it ("version 2 of our quote …, it replaces the version sent on
+  …"), and the **same link** then shows it, saying which version it
+  replaces. A version not sent yet may be discarded: the quote is again
+  the version sent, its link and PDF too. An answer online names the
+  version it was given on, and its proof keeps that version's PDF hash.
+  The version suffix is the studio's choice (no French rule was found for
+  quotes, which are not regulated documents).
 - **Invoices**: from an accepted quote — the whole of it (less the deposits
   already invoiced, rate by rate) or a deposit (*acompte*) of a percentage —
   or blank. A draft is prepared by anyone selling and handed to billing
@@ -85,7 +107,16 @@ collected here.
   when the quantity says so ("10 exemplaires"). An optional online payment
   link is printed on invoices and in their emails.
 - **Sending** by email with the PDF attached, in the client's language, the
-  words changeable, through the Chest's mail (a studio proposal). Where the
+  words changeable, through the Chest's mail (a studio proposal). A
+  quote's email **opens with its answer link** ("Read quote D-… and accept
+  it online: <link>"), shown as a fixed first line in the send dialog; it
+  never asks the client to reply to accept.
+- **Terms and conditions of sale (CGV)**: an administrator adds one PDF in
+  Settings; it is attached to every quote's email, linked on the client's
+  page, and accepting online says "and the terms and conditions of sale"
+  (the answer keeps the terms' SHA-256; terms changed while the page was
+  open: the answer is refused and the page redrawn). Not merged into the
+  quote's own PDF. Where the
   Chest cannot send email, the tool says so: download the PDF, send it
   yourself, mark it as sent.
 - **The client answers online** (the tool's public part): a sent quote
@@ -100,13 +131,35 @@ collected here.
   kept in the Chest's files, and downloadable from the quote's margin).
   The quote becomes accepted or refused, its author (and whoever sent it)
   hears it in the bell, the history says "Accepted online by …". If the
-  quote was changed while the client was reading, the answer is refused
-  and the page asks to read it again. The link works while the quote waits
+  quote was changed while the client was reading, the answer is refused,
+  **the page is drawn again in place with the new version** (the name
+  typed kept, the box to tick again) and says what changed ("Total incl.
+  VAT: €120.00 → €144.00", lines changed, added, removed). The link works while the quote waits
   and is valid, then says the quote expired; an answered quote shows its
   answer; the person who sent it may turn the link off (the page then
   shows nothing of the quote) and make a new one. **This is a record of
   agreement given online, not a qualified or certified electronic
   signature (eIDAS)**: the page and the proof say so.
+- **Bank statement** (billing and administrators, `/chest/bank`, from the
+  Invoices page or "More"): the CSV the bank exports — the account's
+  details above the header found and skipped, UTF-8 or Latin-1, ";" and
+  decimal commas, a signed amount or debit/credit columns, columns
+  matched from their names (changeable). Each payment received is
+  proposed with the invoice it pays — its number in the bank's words,
+  else the same amount from a client named there, else the only open
+  invoice of that amount, else the only open invoice of a client named
+  there — and recorded in **one tap** (by transfer, on the line's day, the
+  bank's words as the note; Undo). Money out is left aside; a line already
+  recorded is never offered twice (its fingerprint stays with the
+  payment). Nothing is recorded by itself. See THIRD_PARTY.md for what
+  could not be verified of the banks' formats.
+- **Revenue at a glance** (the desk, for administrators, billing and the
+  accountant's seat): this month's sales excluding VAT against last month
+  and the same month a year ago, since 1 January, by client and by
+  salesperson (who wrote the quote an invoice came from). What the
+  accounting entries count as sales: invoices issued here less credit
+  notes, a deposit counted with its final invoice; imported invoices not
+  counted.
 - **Payments**: date, amount, method, reference; partial payments; states
   *unpaid*, *partly paid*, *paid*, *overdue* (by the Chest's today),
   *cancelled* (credited in full). On a late invoice, "Send a reminder" is
@@ -210,7 +263,7 @@ and that person is rarely the one who manages the company's legal settings.
 |---|---|
 | `/` | Public host: "open the link from your email" (nothing is listed or linked there) |
 | `/q/:secret` | Public: the client's page of a quote — read it, accept ("Bon pour accord") or decline |
-| `/q/:secret/pdf` | Public: that quote's PDF (the one answered on, once answered) |
+| `/q/:secret/pdf` | Public: that quote's PDF (the one answered on, once answered; `?version=n` an earlier version) |
 | `/lang/:code` | Public: the visitor's language switch (a cookie) |
 | `/chest` | The desk |
 | `/chest/quotes`, `/chest/invoices` | Lists with state filters and search (`?state=`, `?q=`) |
@@ -222,6 +275,10 @@ and that person is rarely the one who manages the company's legal settings.
 | `/chest/export`, `/chest/export/csv`, `/chest/export/journal`, `/chest/export/zip` | The accountant's export (`?from=&to=`): summary, accounting entries, everything |
 | `/chest/export/lists/clients`, `/chest/export/lists/items` | The clients, the catalogue (CSV, the importer's columns) |
 | `/chest/import?kind=clients\|items\|invoices` | Import a spreadsheet |
+| `/chest/bank` | Match a bank statement to the invoices still to collect |
+| `/chest/documents/:id/versions/:n` | The PDF of a quote's earlier version, as it was sent |
+| `/chest/terms`, `/chest/api/terms` | The terms and conditions of sale; authorise their upload |
+| `/q/:secret/terms` | Public: the terms and conditions of sale, for the link's holder |
 | `/chest/export/archives/:period` | A month's archive (`?part=`) |
 | `/chest/settings` | The company's details (admin; read only for others) |
 | `/chest/api/logo`, `/chest/logo` | Authorise a logo upload; the logo through a fresh signed link |
@@ -265,11 +322,13 @@ empty states and state badges (drawn as the tool's rubber stamps).
 `chest.json`: `"public": true` with `"csp": "tool"` (the client's pages;
 the tool sends its own nonce policy from `proxy.ts`, framed by nobody,
 `Referrer-Policy: same-origin`, `no-store` and `noindex` on `/q/`);
-capabilities `database`, `files` (the logo, the PDFs kept, the PDFs
-answered on, the monthly archives),
+capabilities `database`, `files` (the logo, the terms and conditions, the
+PDFs kept, the PDFs answered on and of earlier versions, the monthly
+archives),
 `members` (names of who did what), `notifications` (billing told of drafts
 handed to them; a badge counting those drafts and the overdue invoices);
-receives `member.*`. `chest.proposals.json`: `mail.send`, the schedule
+receives `member.*`; `network`: `recherche-entreprises.api.gouv.fr` only
+(filling a client from its SIREN). `chest.proposals.json`: `mail.send`, the schedule
 `badges` (06:50 every day, sets the badge again — an invoice becomes overdue
 by the date alone), `followup` (07:10 every day: the recurring invoices'
 drafts, and the reminders if an administrator turned them on — the only
@@ -402,6 +461,12 @@ schemas and schematrons).
   link's address (`lib/public-origin.ts` derives it from the request
   otherwise). Without **mail** on a real Chest, the member copies the
   link from the quote's margin into their own email.
+- **Declared network** (`chest.json` `network`, in the Chest today, not a
+  proposal): the public directory of companies, through the Chest's
+  egress proxy (`lib/registry.ts`, Node's fetch with `NODE_USE_ENV_PROXY`).
+  The studio's harness has no egress: the SDK's `fakeChest` could offer a
+  fake egress (declared hosts answered by the test) so a flow can see the
+  success in a browser — see the report.
 - **Guest accounts** (for the external accountant): not in the Chest;
   until then the accountant gets the period's ZIP.
 
@@ -480,9 +545,18 @@ verified of their formats).
   words are not editable per company.
 - A 0 % line is sent in the Factur-X as "exempt" (E) without the precise
   exemption; debits/disbursements outside the scope of VAT are not handled.
+- Bank: no connection to the bank (a file the person exports); CAMT.053
+  and OFX files are not read; a payment covering several invoices is
+  recorded on one (split it by hand); card and SEPA collection are not in
+  the tool.
+- Revenue: no chart over the months, no export of it (the accountant's
+  export has the figures); imported invoices are not counted.
+- A quote's variants or optional lines ("option : pose +200 €"), and
+  knowing whether the client opened the quote: not built.
+- The client's page speaks the visitor's browser language, not the
+  document's (the switch is one tap).
 - Multi-currency within one company; purchase invoices; full bookkeeping
-  and bank reconciliation (the entries are a sales journal, not a whole
-  FEC); other VAT rates than 20/10/5.5/2.1/0 % (Corsica, overseas);
+  (the entries are a sales journal, not a whole FEC); other VAT rates than 20/10/5.5/2.1/0 % (Corsica, overseas);
   situation invoices and retention money (*factures de situation*,
   *retenue de garantie*): **not for construction firms billing by
   progress**.

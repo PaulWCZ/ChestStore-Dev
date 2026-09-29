@@ -16,6 +16,7 @@ import { currentMember } from "../../lib/session.ts";
 import * as tell from "../../lib/tell.ts";
 import { isTemplate, template } from "../../lib/templates.ts";
 import { startOf } from "../../lib/linked.ts";
+import * as hooks from "../../lib/hooks.ts";
 import * as uploads from "../../lib/uploads.ts";
 import { zonedInstant } from "../../lib/zone.ts";
 import * as chest from "@argentic/chest-sdk/chest";
@@ -138,6 +139,23 @@ export async function restoreForm(id: string): Promise<Result> {
 
 // saveSettings: the settings page's values; the closing day and hour are
 // read on the Chest's clock.
+// A form's web addresses (lib/hooks.ts): its editors add, retry, remove.
+export async function addFormHook(id: string, input: { url: string; kind: string; label: string }): Promise<Result<{ secret: string | null }>> {
+  const result = await attempt(async () => ({ secret: (await hooks.addHook(db(), await currentMember(), id, input)).secret }));
+  if (result.ok) revalidatePath(`/chest/forms/${id}/settings`);
+  return result;
+}
+export async function enableFormHook(id: string, hook: string): Promise<Result> {
+  const result = await attempt(async () => { await hooks.enableHook(db(), await currentMember(), id, hook); return null; });
+  if (result.ok) revalidatePath(`/chest/forms/${id}/settings`);
+  return result;
+}
+export async function removeFormHook(id: string, hook: string): Promise<Result> {
+  const result = await attempt(async () => { await hooks.removeHook(db(), await currentMember(), id, hook); return null; });
+  if (result.ok) revalidatePath(`/chest/forms/${id}/settings`);
+  return result;
+}
+
 export async function saveSettings(id: string, json: string): Promise<Result> {
   const result = await attempt(async () => {
     let value: Record<string, unknown>;

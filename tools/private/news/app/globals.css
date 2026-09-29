@@ -264,11 +264,12 @@ textarea.field { resize: vertical; min-height: 88px; line-height: 1.55; }
 .composer-main, .composer-side { display: grid; gap: var(--space-5); min-width: 0; }
 .field-group { display: grid; gap: var(--space-1); min-width: 0; }
 .field-group > label, .kinds legend, .when legend { font-size: var(--text-xs); text-transform: uppercase; letter-spacing: 0.12em; font-weight: var(--weight-label); }
-.kinds { border: 0; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(8.5rem, 1fr)); gap: var(--space-2); }
+/* Five kinds: compact cards (the icon beside the name), three to a row. */
+.kinds { border: 0; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-2); }
 .kinds legend { margin-bottom: var(--space-2); padding: 0; }
-.kind-choice { position: relative; display: grid; gap: var(--space-2); padding: var(--space-3); border: 1.5px solid var(--line); background: var(--surface); cursor: pointer; min-height: 44px; }
+.kind-choice { position: relative; display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: start; gap: var(--space-2); padding: var(--space-2) var(--space-3); border: 1.5px solid var(--line); background: var(--surface); cursor: pointer; min-height: 44px; }
 .kind-choice input { position: absolute; opacity: 0; inset: 0; cursor: pointer; }
-.kind-choice > svg { width: 1.5em; height: 1.5em; color: var(--ink-2); }
+.kind-choice > svg { width: 1.3em; height: 1.3em; margin-top: 2px; color: var(--ink-2); }
 .kind-choice span { display: grid; }
 .kind-choice small { color: var(--ink-2); font-size: var(--text-xs); }
 .kind-choice.on { border: 2px solid var(--ink); box-shadow: inset 0 -4px 0 var(--accent-line); }
@@ -394,6 +395,7 @@ mark { background: var(--highlight); color: var(--ink); font-weight: var(--weigh
 .propose-form { display: grid; gap: var(--space-4); padding-bottom: var(--space-6); }
 .kinds.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .cover-preview.small img { max-width: 240px; }
+.propose-form .file-input { justify-self: start; }
 .proposals-mine ul { list-style: none; margin: 0; padding: 0; display: grid; }
 .proposals-mine li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px var(--space-3); align-items: center; padding: var(--space-3) 0; border-bottom: 1px solid var(--line); }
 .proposals-mine .proposal-title { font-weight: var(--weight-strong); overflow-wrap: anywhere; }

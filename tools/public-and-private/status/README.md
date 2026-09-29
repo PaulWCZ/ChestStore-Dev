@@ -33,8 +33,12 @@ minute, in plain words.
   components", support.atlassian.com, read through a web search on
   2026-09-29). Slower days are said beside the figure ("100.00% uptime ·
   1 day slower than usual"), so the percentage never stands alone next to
-  yellow ticks. The page says the rule under the list. An incident entered
-  afterwards counts from its own start, even before the service was added.
+  yellow ticks. The page says the rule under the list. **A service younger
+  than the bar has no history before it existed**: those days are drawn
+  empty ("No data"), and its figure reads "100.00% since 29 September" —
+  never "90 days, 100 %" for a service added a minute ago (screen readers
+  hear the same). An incident entered afterwards counts from its own
+  start, even before the service was added.
 - **Before any service is listed** the page says only "This status page is
   being set up" — never "All systems operational" about nothing (the API
   and the badge say the same).
@@ -46,7 +50,14 @@ minute, in plain words.
   each title and text a second version. Visitors, feeds and subscribers' emails get the version
   in their language when there is one; otherwise the first, marked with
   its language (`lang`) so screen readers read it right. Automatic
-  maintenance posts are written in both.
+  maintenance posts are written in both. **Services too**: a name and a
+  description in the language they were written in (*Written in*, the
+  editor's own by default) and, behind "Also in English" (or French), a
+  second version — the public page, the subscribe form, emails, chat
+  updates and the team's pages name each service in the reader's
+  language. *Start with an example* makes the usual services in both
+  languages. **The team's pages** (*Now*, *History*) show an incident's
+  title in the member's language when it has one.
 - **Post-mortem**: once resolved, an incident gets an optional "What
   happened and what we changed" section, shown under its timeline on the
   public page (and linked from the history). Corrections are logged like
@@ -110,6 +121,26 @@ minute, in plain words.
   answer is the same whether the address was known or not. Unconfirmed
   addresses are forgotten after 7 days. **Without mail on the Chest** the
   form disappears and `/subscribe` gives the RSS address instead.
+- **Updates in a chat** (Proposal *webhooks*): under the email form, "Or
+  in Slack, Teams or your own tool" → where (Slack, Microsoft Teams, a web
+  address that receives JSON), the channel's webhook address (where to
+  find it is one fold away), what to follow → *Connect*. The Chest checks
+  the address before anything is kept (https, public, the provider's
+  shape; a web address must answer a signed ping — the proof someone set
+  it up), keeps it encrypted and delivers: each update of an incident or
+  maintenance the subscription follows, in its language — for Slack and
+  Teams a few lines (company, step, title, text, services, time, link);
+  for a web address JSON (`page`, `incident`, `update`, `components`)
+  signed with a secret key shown once. The subscription's own page
+  (`/w/<secret>`, shown once, like a password): where updates go, what it
+  follows, *Stopped: the address kept failing (http_410)* with *Try
+  again* once the Chest stopped it, *Stop the updates* (the Chest forgets
+  the address). Same rules as email: never a backfill, never about
+  services for the team only; the same form guard (hidden field, signed
+  time, 5 an hour per visitor). On a Chest without webhooks the link
+  disappears. Editors see these subscriptions on *Subscribers* (the
+  address without its secret part, language, what they follow, stopped
+  or not) and remove one on request.
 - **Times**: written by the server in the Chest's time zone with its
   short name ("14:05 CEST"), readable without JavaScript, then rewritten
   in the visitor's own zone by the browser.
@@ -158,7 +189,9 @@ minute, in plain words.
     group); the rarer actions in a "···" menu with words — move up and
     down, hide from the page (its history stays), **for the team only**,
     delete one that was never in an incident (otherwise: hide it). *Start
-    with an example* makes four usual services in one click.
+    with an example* makes four usual services in one click, named in both
+    languages. Each service has *Written in* and "Also in English" (or
+    French): its name and description in the other language.
   - **Services for the team only** (the office network, the back office):
     shown on the members' status page, never on the public page; an
     incident touching only such services never reaches the public page,
@@ -191,6 +224,8 @@ minute, in plain words.
   - **Subscribers**: who, what they follow, whether email works on this
     Chest, emails still waiting; remove one on request.
   - **History**: every incident and maintenance, removed ones included.
+  - **The other tools are told** (Proposal *events between tools*): see
+    *With the other tools*.
   - **The team is told**: a new incident rings the bell of every editor,
     each in their language (`notifications.broadcast`, Proposal; on a
     Chest without it, the tool lists its editors and notifies each
@@ -219,6 +254,49 @@ minute, in plain words.
   customers as "25 %".
   On a Chest that cannot run checks, the page says so plainly, the
   addresses stay saved, and everything else works as before.
+
+## With the other tools
+
+Status **publishes `status.incident`** (version 1; `chest.proposals.json`
+`"emits"`; a receiving tool declares it, and an administrator links the
+two in the Chest). **Support receives it** (its README, "With the other
+tools"): while an incident is open, its inbox and tickets say "Incident in
+progress: Payments unavailable" with the public page, and its saved
+replies start with one that tells the customer, with the link; both go
+once it is resolved or removed.
+
+Sent when an incident customers can see is posted (`opened`), gets an
+update or a correction (`updated`; `opened` again when reopened or
+restored), is resolved (`resolved`), or removed (`removed`) — never for a
+maintenance, a backfilled incident (already over) or one only about
+services for the team. Published after the incident is saved; if the
+Chest cannot take it, the incident is kept all the same (the next change
+brings receivers up to date). The same news twice is one event (the key
+is a digest of it).
+
+```jsonc
+{
+  "v": 1,
+  "action": "opened",                        // opened | updated | resolved | removed
+  "incident": {
+    "id": "42",
+    "title": "Paiements en échec",           // as written, in `language`
+    "language": "fr",
+    "titles": { "fr": "Paiements en échec", "en": "Payments failing" },
+    "status": "investigating",               // investigating | identified | monitoring | resolved
+    "impact": "major",                       // the worst now: degraded | partial | major; operational once resolved
+    "started_at": "2026-09-29T14:00:00.000Z",
+    "resolved_at": null,
+    "url": "https://status.atelier-martin.fr/incidents/42",   // its public page, or null
+    "services": [{ "id": "3", "names": { "fr": "Paiement", "en": "Payments" }, "state": "major" }]
+  },
+  "update": { "id": "311", "status": "investigating", "at": "2026-09-29T14:00:00.000Z" }
+}
+```
+
+No member, no text of the updates (the public page has them). Events may
+arrive out of order: a receiver orders them by the Chest's `occurredAt`.
+Version 1; a later version adds fields, never changes one.
 
 ## Roles
 
@@ -261,10 +339,11 @@ enter as editors.
 | `/history?page=N` | Past incidents by month |
 | `/feed.atom`, `/feed.rss`, `/maintenance.ics` | Feeds |
 | `/subscribe`, `/s/<token>`, `/unsubscribed` | Email updates: subscribe; a subscriber's own page (confirm, choose, unsubscribe) |
+| `/subscribe/chat`, `/w/<token>` | Updates in Slack, Teams or at a web address: connect; the subscription's own page (choose, try again, stop) |
 | `/lang/<code>` | The public part's language switch |
 | `/chest`, `/chest/incidents/new`, `/chest/incidents/<id>`, `/chest/maintenance/new`, `/chest/components`, `/chest/checks`, `/chest/subscribers`, `/chest/history`, `/chest/settings` | The team's part |
 | `/chest/import` (POST), `/chest/export`, `/chest/export/subscribers.csv` | Import from Statuspage; download everything |
-| `/chest-events`, `/chest-jobs/updates`, `/chest-checks` | Deliveries from the Chest (signed): member events, the schedule, check results |
+| `/chest-events`, `/chest-jobs/updates`, `/chest-checks`, `/chest-webhooks` | Deliveries from the Chest (signed): member events, the schedule, check results, a chat address the Chest stopped |
 
 ## On a Chest
 
@@ -272,7 +351,8 @@ enter as editors.
 `members`, `notifications`; `receives: ["member.*"]`.
 `chest.proposals.json` (the studio's proposals, not yet accepted by a
 Chest): `checks` (`{"max": 10}`), `mail.send`, the `updates` schedule
-(`*/15 * * * *`), the tile's French words.
+(`*/15 * * * *`), `emits: ["status.incident"]`, `webhooks` (`{"max":
+200}`), the tile's French words.
 
 Lifecycle: an editor who leaves or loses access changes nothing (their
 posts stay; names read "(former member)"). An **erasure** writes `erased`
@@ -281,7 +361,9 @@ corrected or removed one — and keeps the texts: they were published to
 customers. Then the erasure is acknowledged.
 
 Personal data kept: members' ids (authors); subscribers' address,
-language and choices only. The public page never shows who posted.
+language and choices only; chat subscriptions' target id, the address as
+the Chest shows it (without its secret part), language and choices. The
+public page never shows who posted.
 
 ## Needs from the SDK
 
@@ -292,6 +374,8 @@ language and choices only. The public page never shows who posted.
 | `notifications.broadcast` | The bell of every editor in one call | The tool pages through its members and notifies each language's group |
 | `visitors` | The form's signed time and the Chest's visitor counts | The tool's own counters (`form_counts`) |
 | `checks` | The Chest opens the services' addresses and posts results; measured uptime; alerts | The *Checks* page says the Chest cannot run them yet; incidents are posted by hand as before |
+| `webhooks` | Updates delivered to Slack, Teams and web addresses (SDK report §4.17) | "Or in Slack, Teams…" disappears after the first refusal (tried again after a day) |
+| events between tools | `status.incident` to Support | Support shows no incident; nothing else changes |
 | `chest` | Company name, time zone, language, public address; `theme()` for the look the company chose (a catalogue theme or its brand) | — (the SDK's defaults; the tool's own look) |
 
 What it would need next (in the final report of the studio):
@@ -300,14 +384,13 @@ What it would need next (in the final report of the studio):
   report §4.15 — the Chest maps the hostname and its certificate, and
   `chest.publicUrl()` already carries the address, so no tool change.
   Until then the page lives at the Chest's own address; *Settings* says so.
-- **`webhooks`** — signed POSTs the Chest delivers to URLs customers give
-  (webhook subscribers, Slack and Teams incoming webhooks). A tool cannot
-  declare arbitrary customer hosts in `network`, and must not hold an open
-  egress; the Chest would deliver instead: `webhooks.deliver({url, body,
-  key})` with the Chest's signature header, retries and per-URL disabling
-  after repeated failures, a `webhooks.verifyUrl(url)` that refuses
-  private addresses, and a quota. Not built in the tool (a subscription
-  that delivers nothing would be a lie).
+- **`webhooks.available()`** (or the granted proposals in the
+  environment): the tool learns that the Chest has no webhooks from a
+  refused `add`, so the "Or in Slack, Teams…" link shows once on such a
+  Chest.
+- **A label the owner reads, per webhook target, without personal data**:
+  a public subscriber has no name; the tool labels it "Status subscriber
+  (slack) 3f9a1c" (a digest of the address).
 - **Independence**: the page shares its Chest's fate — if the Chest's
   server is down, so is the status page. The Chest could publish the
   public pages as static files to a second origin on every change.
@@ -349,13 +432,14 @@ evening, three subscribers.
 - **No address of its own** (`status.your-company.com`): the Chest must
   offer custom domains (SDK report §4.15). A company whose customers link
   to its Statuspage address cannot move without changing those links.
-- **Customers are reached by email only** — and only on a Chest that runs
-  the `mail` proposal; otherwise the page offers RSS/Atom. No SMS, no
-  webhook, Slack or Teams subscriptions: they need the Chest's
-  `webhooks` primitive (above). The seam is ready: every update reaches
-  its subscribers through one function, `announce()` in
-  `lib/incidents.ts`, where webhook subscribers would be queued beside the
-  emails.
+- **Customers are reached by email** (on a Chest that runs `mail`) **or in
+  Slack, Teams or at a web address** (on a Chest that runs `webhooks`);
+  otherwise the page offers RSS/Atom. No SMS. A chat subscription follows
+  services, not groups of them, and is never confirmed by a person (the
+  Chest's check of the address is the proof).
+- **The public API has one name per service** (the first language):
+  Statuspage's shape has no languages.
+- **Settings save with a button per box**, unlike Forms' autosave.
 - **A service's state changes only with an incident**: there is no
   one-click "Degraded" switch as in Statuspage (Services says so: post an
   incident to show it).

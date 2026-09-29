@@ -1,5 +1,6 @@
 import * as events from "@argentic/chest-sdk/events";
 import type { Sql } from "./db.ts";
+import { forget } from "./share.ts";
 
 // When a member loses access or leaves the Chest, they are taken off the
 // jobs they interviewed for and no longer asked for feedback; what they
@@ -18,6 +19,8 @@ export async function leave(sql: Sql, memberId: string): Promise<void> {
     // A link a candidate has not used yet no longer offers them.
     await tx`delete from interview_request_people p using interview_requests r where r.id = p.request_id and p.member_id = ${memberId} and r.booked_at is null`;
   });
+  // What Booking told of their times, and what Hiring told of them.
+  await forget(sql, memberId);
 }
 
 export async function erase(sql: Sql, memberId: string): Promise<void> {
@@ -51,6 +54,7 @@ export async function erase(sql: Sql, memberId: string): Promise<void> {
       where kind in ('interview', 'interview_chosen', 'interview_link') and data->'people' @> to_jsonb(array[${memberId}::text])`;
     await tx`update jobs set created_by = 'erased' where created_by = ${memberId}`;
   });
+  await forget(sql, memberId);
 }
 
 export function handlers(sql: Sql): events.Handlers {

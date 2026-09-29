@@ -7,7 +7,7 @@ what must not break.
 
 | Path | What it is |
 |---|---|
-| `chest.json`, `chest.proposals.json` | The manifest; the proposals (studio): `schedules`, `mail.send`, `receives` of Clients' deal events |
+| `chest.json`, `chest.proposals.json` | The manifest; the proposals (studio): `schedules`, `mail.send`, `groups: "read"` (+ `group.*`), `receives` of Clients', Tasks', Support's and Hiring's events |
 | `lib/access.ts` | **Who may do what** — roles, `mayCreate`, `mayEdit`, `mayCheckIn`: the only place rights are decided |
 | `lib/model.ts` | Pure rules: bounds, values ("12,5"), measures, progress, confidence, cycles' time, scores |
 | `lib/read.ts` | Read models: cycles, objectives with key results, progress, stale, "this week", waiting counts and list, check-ins, key results' changes; `visibleTo(reader)`: **the one filter of confidential objectives** — every read of objectives for a person goes through it |
@@ -19,6 +19,8 @@ what must not break.
 | `lib/import.ts` | CSV import: headers guessed (Goals' export, Lattice, spreadsheets), mapping, owners by name, plan (dry run), run in one transaction, undo |
 | `lib/remind.ts`, `lib/mail.ts` | Who waits for a check-in (admins: all; an objective's owner: its key results), *Remind* once a day; email beside the bell with a per-person switch |
 | `lib/crm.ts` | Key results fed by Clients' `crm.deal.won` / `crm.deal.reopened` events |
+| `lib/sources.ts` | Every source of a fed key result (`sources`, `sourceKind`), the handlers of Tasks', Support's and Hiring's events (v1 contracts, README "With the other tools"), `knownBoards`, and `refreshFed` — the one place fed values are computed |
+| `components/fold.tsx` | The Company page's choices folded behind one "Filters" button on a phone (`FoldArea`, `FoldButton`, class `foldable`) |
 | `lib/views.ts`, `lib/page-data.ts`, `lib/form-data.ts` | What pages hand to views: words, names, dates and values already written |
 | `lib/time.ts`, `lib/zone.ts` | The Chest's today and this week (its time zone) |
 | `lib/values.ts`, `lib/i18n/format.ts` | Browser-safe formatting |
@@ -56,6 +58,14 @@ npm ci && npm test && npm run build   # all three must pass
   zone); format instants on the server; days with `formatDay`.
 - **Client components never import the SDK**, `lib/session.ts`,
   `lib/people.ts`, `lib/db.ts` or services.
+- **Fed values**: a new source is a value of `sources` (lib/sources.ts),
+  the migration's check, its handler (read every field, keep only what a
+  count needs, ignore any other shape), its words (`form.sources`,
+  `form.mine`, `tools`), and its contract in README "With the other tools".
+  Never keep a title, a customer's words or a candidate's name.
+- **Units** carry the language they were written in (`unit_locale`, set
+  from the writer on every write); `unitFor` uses that rule, never the
+  reader's.
 - **Schema changes are new migration files.** Never edit one that shipped.
 - **No network, no disk, no background work** outside the Chest's signed
   schedules and events; the tool must stay useful without them (and

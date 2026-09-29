@@ -46,6 +46,13 @@ export const errorCodes = [
   "invalid_site",
   // Importing: a file the tool cannot read.
   "import_invalid",
+  // Web addresses (lib/hooks.ts): not of the kind's shape, did not answer
+  // the Chest's check, or a Chest that cannot send to them yet.
+  "webhook_slack",
+  "webhook_teams",
+  "webhook_address",
+  "webhook_no_answer",
+  "webhooks_unavailable",
 ] as const;
 export type ErrorCode = (typeof errorCodes)[number];
 

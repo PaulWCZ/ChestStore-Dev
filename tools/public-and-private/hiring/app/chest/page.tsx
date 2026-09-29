@@ -7,7 +7,7 @@ import { waitingOn } from "../../lib/candidates.ts";
 import { db } from "../../lib/db.ts";
 import { format, plural, relative } from "../../lib/i18n/index.ts";
 import { upcoming } from "../../lib/interviews.ts";
-import { listJobs, type JobRow } from "../../lib/jobs.ts";
+import { jobTemplateKeys, listJobs, type JobRow } from "../../lib/jobs.ts";
 import { unmatchedCount } from "../../lib/messages.ts";
 import { stageLabel } from "../../lib/stages.ts";
 import { meetingTime } from "../../lib/i18n/format.ts";
@@ -36,11 +36,14 @@ export default async function Jobs() {
   ];
   return (
     <>
+      {/* One primary action: "New job" — in the empty state when there is
+          none yet (with a few jobs to start from), in the header after. The
+          careers page is a quiet link, never a button above it. */}
       <PageHeader
         title={t.home.title}
-        secondary={<a className="button quiet" href={careers} target="_blank" rel="noopener">{t.shell.careers}<External /></a>}
-        action={recruiter ? <Link className="button" href="/chest/jobs/new"><Plus />{t.shell.newJob}</Link> : null}
+        action={recruiter && list.length > 0 ? <Link className="button" href="/chest/jobs/new"><Plus />{t.shell.newJob}</Link> : null}
       />
+      {list.length > 0 && <p className="careers-link"><a href={careers} target="_blank" rel="noopener">{t.shell.careers}<External /></a></p>}
 
       {waiting.length > 0 && (
         <section className="waiting" aria-labelledby="waiting">
@@ -82,7 +85,17 @@ export default async function Jobs() {
 
       {list.length === 0 ? (
         recruiter
-          ? <EmptyState title={t.home.emptyTitle} body={t.home.emptyBody} action={<Link className="button" href="/chest/jobs/new"><Plus />{t.home.emptyAction}</Link>} />
+          ? (
+            <>
+              <EmptyState title={t.home.emptyTitle} body={t.home.emptyBody} action={<Link className="button" href="/chest/jobs/new"><Plus />{t.home.emptyAction}</Link>} />
+              <nav className="job-templates" aria-labelledby="templates-title">
+                <h2 id="templates-title" className="label">{t.jobTemplates.intro}</h2>
+                <ul>
+                  {jobTemplateKeys.map(k => <li key={k}><Link href={`/chest/jobs/new?template=${k}`}>{t.jobTemplates.items[k].title}<Arrow /></Link></li>)}
+                </ul>
+              </nav>
+            </>
+          )
           : <EmptyState title={t.home.emptyInterviewerTitle} body={t.home.emptyInterviewerBody} />
       ) : (
         groups.filter(([, jobs]) => jobs.length > 0).map(([title, jobs]) => (

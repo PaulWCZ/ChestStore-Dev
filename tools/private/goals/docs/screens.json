@@ -289,5 +289,11 @@
   "only": [
    "phone"
   ]
+ },
+ {
+  "name": "objective-fed",
+  "path": "/chest/objectives/8",
+  "member": "hugo",
+  "locale": "en"
  }
 ]

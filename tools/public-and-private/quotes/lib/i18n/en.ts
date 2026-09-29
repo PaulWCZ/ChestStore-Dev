@@ -479,6 +479,7 @@ export const en = {
       title: "Answer online",
       explain: "The client can read this quote and accept or decline it online until {date}. The link is in the email; copy it to send it yourself.",
       explainAnswered: "The quote has its answer; the link now shows it.",
+      explainRevising: "Until you send the new version, the link says it is coming and takes no answer. Sent, the same link shows it.",
       linkLabel: "Link for the client",
       copy: "Copy the link",
       copied: "Copied",

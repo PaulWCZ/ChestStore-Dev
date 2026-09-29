@@ -13,13 +13,15 @@ must not break.
 | `lib/logic.ts` | Browser-safe: the logic engine — `walk()` (pages visited, questions asked), `read()` (one answer by kind), `check()` (what the server keeps), `prefill()`, `answerText()` |
 | `lib/forms.ts` | Forms: open (with level), list, team forms, create, save draft (revision), publish (versions), discard, close/reopen, settings, share, duplicate, delete/restore |
 | `lib/answers.ts` | Taking an answer (`submit`: version, files, limit, once, anonymity rewrite), reading, filters, delete/restore, find and erase a person, retention cleanup |
-| `lib/respond.ts` | The one path from a respondent's page: `take()` = submit + copy by email + bell |
+| `lib/respond.ts` | The one path from a respondent's page: `take()` = submit + events + web addresses + copy by email (none when Support took it: `supportConfirms`) + `answers.sent` + bell |
 | `lib/uploads.ts`, `lib/upload-client.ts`, `lib/signature.ts` | Files: grant (public claim / team signed ticket), browser PUT, accept (claim, type, size, first bytes, move to `answers/<form>/`), sweep, signed links |
 | `lib/guard.ts` | The public form's guard (SDK `visitors`, fallback to `form_counts`) |
 | `lib/tell.ts`, `lib/notify.ts` | The bell (batched, keyed `answers:<form>`), badges, the team broadcast |
 | `lib/mailer.ts` | The copy of an answer (mail proposal) |
 | `lib/alerts.ts` | New answers by email to the people told, in the bell's batches (`mailed_at`) |
 | `lib/answered.ts` | Publishing to the other tools (events between tools): `answered()` (`forms.answered`) and `routed()` (`forms.contact`, `forms.request`); never anonymous, never blocks an answer |
+| `lib/linked.ts` | Which receivers are installed (`chest.toolUrl`: `crm`, `helpdesk`) and what a template's new form starts with (`startOf`: its links on, the owner's email alerts on for a public form) |
+| `lib/hooks.ts`, `app/chest-webhooks`, `settings/hooks-box.tsx` | Each answer to web addresses (Proposal webhooks): add/remove/retry per form (editors), `sendHooks` from `lib/respond.ts`, `stopped` on `webhook.disabled`; `form_hooks` (migration 0004) |
 | `lib/routes.ts` | Pure: the author's mapping (which question gives a contact's name, email…, a ticket's subject…) — `cleanRoutes`, `readRoutes` — and the events' contract v1 (`contactEvent`, `requestEvent`); README "With the other tools" |
 | `lib/images.ts` | Covers and picture-choice pictures: grant, check, publish under `public/`, addresses, sweep |
 | `lib/embed.ts`, `lib/settings.ts` | The websites allowed to frame the public forms (proxy.ts), the tool's settings table |
@@ -78,6 +80,12 @@ TEST_DATABASE_URL=postgres://… npm test
   never for an anonymous form (`anonymous_no_routes` in the database); a
   new route is mapped by the author in Settings and tested with
   `chest.published`.
+- **One message, one email**: no respondent copy for an answer Support
+  took (`supportConfirms` in `lib/respond.ts`) — Support confirms it.
+  Keep the rule in step with Support's README.
+- Web addresses (`lib/hooks.ts`) get only what Settings says (the form,
+  its questions and answers as text, a link, the email) — never a file,
+  never an anonymous form's answer. The tool keeps only the target's id.
 
 - Identity only from `member(request)` (`lib/session.ts`); store `mbr_…`
   ids, names at render (`lib/people.ts`). A public respondent is never a
@@ -112,6 +120,6 @@ TEST_DATABASE_URL=postgres://… npm test
   signed ticket on a team form), and checked (type, size, first bytes).
 - Words only in `lib/i18n/en.ts` and `fr.ts` (same keys; tests check);
   services return codes. The CSV separator is a catalogue word.
-- Migrations that shipped are never edited: add `0003_…` (`0002_follow_up.sql`: follow-up, email alerts, events, cover, settings).
+- Migrations that shipped are never edited: add `0005_…` (`0002_follow_up.sql`: follow-up, email alerts, events, cover, settings; `0003_routes.sql`: the links; `0004_sent_and_hooks.sql`: where an answer went, web addresses).
 - Anything the Chest does not give goes through the SDK working copy's
   proposals, caught when absent — never faked inside the tool.

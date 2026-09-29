@@ -9,6 +9,8 @@ import type { AnswerError } from "./logic.ts";
 import { answered, routed } from "./answered.ts";
 import { sendCopy } from "./mailer.ts";
 import { isLanguage, localize } from "./model.ts";
+import { sendHooks } from "./hooks.ts";
+import { installed } from "./linked.ts";
 import { afterAnswer } from "./tell.ts";
 import * as uploads from "./uploads.ts";
 
@@ -43,21 +45,30 @@ export async function take(sql: Sql, form: Form, payload: { version: unknown; an
       files: (ref, question) => uploads.accept(kind, form.id, question, ref),
       drop: objects => uploads.remove(objects),
     });
+    // Other tools of the Chest (Proposal (studio): events between tools).
+    await answered(form, definition, answer);
+    // A contact in Clients, a ticket in Support, when the form says so;
+    // the form's web addresses (lib/hooks.ts).
+    const routedTo = await routed(form, definition, answer);
+    const hooked = (await sendHooks(sql, form, definition, answer)) > 0;
     // The copy by email (Proposal (studio): mail): to the address given in
     // the answer, or — on a team form — to the member, without the tool
-    // knowing their address.
+    // knowing their address. Not when Support opened a ticket of it:
+    // Support confirms the request itself (its "we received your request"
+    // email), and one message must not bring two emails (README, "With the
+    // other tools").
+    const supportConfirms = routedTo.includes("forms.request") && installed().request;
     let copy = false;
-    if (form.sendCopy && !form.anonymous) {
+    if (form.sendCopy && !form.anonymous && !supportConfirms) {
       const to = form.audience === "team" && respondent ? { member: respondent.id } : answer.email;
       // In the language the person read the form in: its second version
       // when it has one in their language.
       const read = isLanguage(language) ? localize(definition, language) : definition;
       if (to) copy = (await sendCopy(to, read, answer.data, language, chest.company(), answer.id)) === "email";
     }
-    // Other tools of the Chest (Proposal (studio): events between tools).
-    await answered(form, definition, answer);
-    // A contact in Clients, a ticket in Support, when the form says so.
-    await routed(form, definition, answer);
+    // Where it went, for the answer's page.
+    const sent = [...routedTo, ...(hooked ? ["webhooks"] : []), ...(copy ? ["copy"] : [])];
+    if (sent.length > 0 && !form.anonymous) await sql`update answers set sent = ${sent} where id = ${answer.id}`;
     await afterAnswer(sql, form.id).catch(() => false);
     return copy;
   });

@@ -13,7 +13,8 @@ import { duplicateJob, setJobState } from "../../actions.ts";
 type Words = { board: Catalogue["board"]; errors: Catalogue["errors"]; common: Catalogue["common"] };
 
 // A job's actions for a recruiter: the one that matters now (publish a
-// draft; add a candidate to an open job), the others in a menu. Every
+// draft, reopen a closed job), adding a candidate by hand quietly, the
+// others in a menu. Every
 // change of state can be undone.
 export function JobActions({ job, link, share, t }: { job: { id: string; state: JobState; hasDescription: boolean }; link: string; share: { linkedin: string; x: string; email: string }; t: Words }) {
   const toast = useToast();
@@ -62,7 +63,9 @@ export function JobActions({ job, link, share, t }: { job: { id: string; state: 
     <div className="job-actions">
       {job.state === "draft" && <button type="button" className="button" disabled={pending || !job.hasDescription} onClick={() => change("open", w.published)} title={w.publishHint}><Globe />{w.publish}</button>}
       {job.state === "closed" && <button type="button" className="button" disabled={pending} onClick={() => change("open", w.published)}><Globe />{w.reopen}</button>}
-      <Link className={job.state === "open" ? "button" : "button quiet"} href={`/chest/jobs/${job.id}/add`}><Plus />{w.add}</Link>
+      {/* Adding by hand is rare (a referral): quiet — reviewing the new
+          candidates on the board is what this page is for. */}
+      <Link className="button quiet" href={`/chest/jobs/${job.id}/add`}><Plus />{w.add}</Link>
       <details className="menu" ref={menu}>
         <summary className="button quiet icon-only" title={w.menu}><Dots /><span className="visually-hidden">{w.menu}</span></summary>
         <div className="menu-pop">

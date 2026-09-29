@@ -115,21 +115,44 @@ built again from the studio's template to stand next to Tally and Typeform.
   send them each batch by email* (Proposal *mail*), the same batches come
   by email, the answers written in it, and *Reply* writes to the
   respondent when the batch holds one answer that gave an address; an
-  anonymous form's email says only how many.
+  anonymous form's email says only how many. **On by default for a new
+  public form** (its owner is told), unless the Chest is known to have no
+  mail yet.
 - **Other tools of the Chest** (Settings → *Send answers to*): *Also
   create a contact in Clients* and *Also open a ticket in Support* — the
   form's author says which question gives the name, the email, the phone,
   the company, the message, or the ticket's subject and details (each
   choice lists only the questions that can give it; the obvious ones are
-  guessed) — and *The other tools of your Chest* for every answer as it
-  is. See **With the other tools** below. Never for an anonymous form.
+  guessed by the kinds of the questions: the first choice or list is the
+  subject, the first long text the details or the message, the second
+  short text the company) — and *The other tools of your Chest* for every
+  answer as it is. A switch is **greyed, with a sentence** ("Clients is
+  not installed in your Chest…") while the receiving tool is not
+  installed (`chest.toolUrl`, SDK studio.14); it can always be turned
+  off. **The Contact template starts linked to Clients** when Clients is
+  installed, its mapping made; it has a *Your company* question. Each
+  answer's page says **where it went** ("Also sent to: Clients (a
+  contact) · Support (a ticket) · your web addresses · a copy to the
+  person", Clients and Support as links); an answer Support took shows
+  no *New / In progress / Done* of its own — Support's ticket follows it
+  up. See **With the other tools** below. Never for an anonymous form.
+- **Each answer to a web address** (Settings → *Send each answer to a web
+  address*, Proposal *webhooks*): a Slack or Microsoft Teams channel is
+  told of each new answer (the form, its questions and answers as text,
+  a link), or any receiver — Zapier, Make, a spreadsheet's script, the
+  company's server — gets the answer as JSON, signed by the Chest (its
+  secret key shown once). Five addresses per form. The Chest checks the
+  address, delivers, retries; one that keeps failing is stopped, Settings
+  says so with *Try again*, and the form's owner is told in the bell.
+  Never for an anonymous form.
 - **Deleted forms** stay 30 days in *Deleted forms* (their owner, or any
   manager, brings one back); deleting a form with answers asks first and
   says how many go. Forms started and never touched go after a day.
 - **Search** on the forms list (title words, accents aside).
 - **A copy by email** of their answers to the person who gave an address
   (public forms) or to the member (team forms), in their language
-  (Proposal *mail*). Never for anonymous forms.
+  (Proposal *mail*). Never for anonymous forms. **Not when Support took
+  the answer** (see "One message, one email" below).
 - **Privacy**: answers deleted after 1–36 months if chosen (every night,
   with their files: Proposal *schedules*); a manager finds a person's
   answers by email address or name and erases them (*Erase a person's
@@ -152,20 +175,36 @@ the respondent read. `path` is the answer's page on the Chest's team
 address (`chest.teamUrl()` + `path`), for a link back.
 
 **Clients receives `forms.contact`** (its README, "What Clients receives":
-the contact found by email then phone, or made; one line "Filled in the
-form …" in its history with the message; never twice for one event or one
-answer). **Support receives `forms.request`** (its README, "With the other
-tools": a ticket, once per event and per answer). This
-is the contract receivers build to. Version 1 (`v: 1`); a later version
-adds fields, never changes one.
+the contact found by email — or by phone only when the name is the same
+too, otherwise a new contact marked "maybe the same person" —; one line
+"Filled in the form …" in its history with the message and what the form
+gave; a lead in its *My day*; never twice for one event or one answer).
+**Support receives `forms.request`** (its README, "With the other
+tools": a ticket, once per event and per answer, and its "we received
+your request" email to the requester). Both link back to the answer here
+(`chest.toolLink("forms", path)`). This is the contract receivers build
+to. Version 1 (`v: 1`); a later version adds fields, never changes one.
+
+**One message, one email.** When a form's *Also open a ticket in Support*
+is on, Support is installed and the ticket event left for an answer,
+**Forms sends no copy of that answer** even with *Send them a copy* on:
+Support confirms the request by email itself, and a visitor must not get
+two emails from two senders for one message. Settings says so under the
+copy switch ("Support confirms each request by email…"). Without Support
+installed, or for an answer that opens no ticket (no email given), the
+copy goes as usual. Support's side needs nothing new (it already
+confirms every `forms.request`); should Support ever stop confirming, it
+must say so in its README and Forms must drop this rule
+(`lib/respond.ts`, `supportConfirms`).
 
 ### `forms.contact` — make or update a contact (Clients)
 
 Sent when the form maps a contact (Settings) **and** the answer gives an
 email or a phone. The receiver matches an existing contact by `email`
-(lower case) or `phone`, else creates one; it keeps `message` in the
-contact's history (Clients keeps `answer.path` with it; it does not link
-to it yet — a tool does not know another tool's address).
+(lower case); by `phone` only when `name` agrees too (a phone is often
+shared: a switchboard, a shop); else creates one. It keeps `message` and
+the given `name`, `email`, `phone`, `company` in the contact's history,
+with `answer.path` for a link back.
 
 ```jsonc
 {
@@ -336,6 +375,7 @@ an error.
 | `POST /chest/api/upload` | members | Authorise one file upload (team form) |
 | `/chest/privacy` | manager | Find and erase a person's answers |
 | `POST /chest-events` | the Chest | Members' lifecycle |
+| `POST /chest-webhooks` | the Chest (signed) | A web address the Chest stopped (`webhook.disabled`) — Proposal |
 | `POST /chest-jobs/bell`, `/chest-jobs/cleanup` | the Chest | The bell's batches (every 15 min), retention (03:20) — Proposal |
 
 ## On a Chest
@@ -384,6 +424,16 @@ if shipped and keeps working without them:
 - **Events between tools** (`events.publish("forms.answered" |
   "forms.contact" | "forms.request")`): without them, the switches are
   harmless — nothing leaves, the answer is kept.
+- **The other tools' addresses** (`chest.toolUrl`, `toolLink`, studio.14):
+  whether Clients (`crm`) and Support (`helpdesk`) are installed — the
+  switches are greyed otherwise — and the links from an answer to them.
+- **Webhooks** (`webhooks.add`, `send`, `list`, `enable`, `remove`,
+  `handle` on `POST /chest-webhooks`; `chest.proposals.json`
+  `"webhooks": {"max": 200}`, studio.13+): each answer to Slack, Teams or
+  a signed JSON receiver. Without them, Settings says the Chest cannot
+  send answers to other services yet and hides the form to add one;
+  answers are kept. In the harness, `/_dev` lists the addresses and the
+  deliveries (bodies and signatures) and can make one fail.
 
 Not in the working copy yet (see the SDK report):
 
@@ -393,14 +443,7 @@ Not in the working copy yet (see the SDK report):
   today. Needed: a manifest permission such as `"embeddable": true` that
   lets the front drop its own `frame-ancestors` for the public host and
   keep the tool's (which lists the sites a manager allowed).
-- **Webhooks to a customer's URL** (Zapier, Make, a spreadsheet script):
-  a tool has no outbound network except declared hosts, and a customer's
-  URL is not known when the manifest is written. Needed: a `webhooks`
-  capability — the tool calls `webhooks.send(target, body)` for a target
-  its admin configured in the Chest (`https` only, never a private
-  address), the Chest signs (HMAC-SHA256, `Chest-Webhook` header),
-  delivers at least once with retries for 24 h, journals each delivery and
-  shows failures to the admin.
+
 
 ## Develop
 
@@ -408,11 +451,13 @@ Not in the working copy yet (see the SDK report):
 npm ci
 npm test                                   # PGlite; TEST_DATABASE_URL=… for PostgreSQL
 npm run build
-node ../../../lab/chest-dev/dev.mjs . --prod --reset --port 6800   # from the studio: harness with seed data
+node ../../../lab/chest-dev/dev.mjs . --prod --reset --port 6800 --tools crm,helpdesk   # from the studio: harness with seed data, Clients and Support "installed" beside it
 node ../../../lab/chest-dev/flows/forms.mjs 6800
 ```
 
-`seed/sample.sql` fills Atelier Martin's forms: customer feedback with NPS
+`seed/sample.sql` fills Atelier Martin's forms, each written in English
+with its French version (the form's second language: a French reader
+sees the French titles, a French visitor the French form): customer feedback with NPS
 and logic (27 answers), an open day registration with a limit and a date,
 an IT request (a team form, shared with an editor), an anonymous weekly
 check-in, a draft contact form, a closed form. Sample files cannot be
@@ -425,12 +470,21 @@ seeded (files are the Chest's): the flow uploads one.
 - No partial answers (what someone typed but did not send stays on their
   device) — a privacy decision to take first.
 - **Not shown in another website yet** (the Chest's frame policy, above);
-  the button code works. No webhooks or spreadsheet sync (a Chest
-  capability is needed, above). Other tools receive answers only once the
-  Chest has events between tools and an admin linked them — **no store tool
-  receives `forms.answered`, `forms.contact` or `forms.request` yet**
-  (Clients and Support will; the contract is above). A contact is made
-  from one answer's fields only (no merging rules chosen by the author).
+  the button code works. Web addresses get each answer (webhooks), but
+  there is **no two-way spreadsheet sync** and no Google Sheets
+  connector of its own (a Zapier or Make scenario, or a sheet's Apps
+  Script receiving the JSON, does it). Clients receives `forms.contact`
+  and Support `forms.request` (above) once the Chest has events between
+  tools and an admin linked them; **no store tool receives
+  `forms.answered` yet**. A contact is made from one answer's fields only
+  (no merging rules chosen by the author). The first guess of a mapping
+  reads the kinds and order of the questions, never their words: an
+  unusual form may need its mapping chosen by hand. Forms cannot know
+  whether Clients or Support took an event (only that the Chest did), nor
+  the ticket's number.
+- Web addresses: per form (no "every form to this channel" setting); the
+  text for Slack and Teams is plain (no buttons, no cards); the JSON
+  carries files by their names only.
 - **Email alerts** need the Chest's mail; without it Settings says so and
   the bell alone tells. No daily digest (the batches are every 10 minutes).
 - Import: form definitions from Google Forms and Typeform only (not

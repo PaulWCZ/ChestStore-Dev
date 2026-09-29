@@ -79,6 +79,6 @@ function valid(y: number, mo: number, d: number): string | null {
 export function emailInName(fileName: string): string | null {
   // "_" and spaces separate words of a file name ("cv_lucie@…"): an
   // address rarely holds them.
-  const m = /[A-Za-z0-9.%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/u.exec(fileName.replace(/\.(pdf|docx?|PDF|DOCX?)$/u, ""));
+  const m = /[A-Za-z0-9.%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/u.exec(fileName.replace(/\.(pdf|docx?|jpe?g|png|heic)$/iu, ""));
   return m ? m[0].toLowerCase() : null;
 }

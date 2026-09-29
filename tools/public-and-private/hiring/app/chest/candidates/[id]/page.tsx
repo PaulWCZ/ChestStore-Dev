@@ -14,6 +14,7 @@ import { rejectionDraft, values as mailValues } from "../../../../lib/mailer.ts"
 import { conversation, templates as companyTemplates } from "../../../../lib/messages.ts";
 import { nameOf, people } from "../../../../lib/people.ts";
 import { viewer } from "../../../../lib/session.ts";
+import { isPictureCv } from "../../../../lib/model.ts";
 import { labelOf, stageLabel } from "../../../../lib/stages.ts";
 import * as tell from "../../../../lib/tell.ts";
 import { teammates } from "../../../../lib/team.ts";
@@ -77,6 +78,8 @@ export default async function CandidatePage({ params }: { params: Promise<{ id: 
   const sender = member.firstName || member.name;
   const draft = rejectionDraft(c, d.job, s.companyName, sender);
   const isPdf = c.cv?.type === "application/pdf";
+  // A photo of a CV (taken with a phone) shows as an image.
+  const isPicture = isPictureCv(c.cv?.type);
   const tc = t.candidate;
   const status = c.status === "rejected" ? format(tc.rejectedLine, { reason: c.rejectReason ? t.reject.reasons[c.rejectReason] : "" }) : stage?.hired ? tc.hiredLine : stageLabel(stage, defaults);
   // The templates a recruiter starts from: the tool's own in each language
@@ -116,10 +119,12 @@ export default async function CandidatePage({ params }: { params: Promise<{ id: 
             draft={draft.text}
             languageName={languageNames[c.language] ?? c.language}
             locale={locale}
-            write={{ templates: [...builtIn, ...own.map(x => ({ id: x.id, name: x.name, language: x.language, subject: x.subject, body: x.body }))], values, languageNames }}
-            interview={{ people: eligible.map(m => ({ id: m.id, name: m.name })), preselected: [member.id], today, zone: zone.split("/").at(-1)?.replace(/_/gu, " ") ?? zone, zoneId: zone }}
+            write={{ templates: [...builtIn, ...own.map(x => ({ id: x.id, name: x.name, language: x.language, subject: x.subject, body: x.body, attachments: x.attachments.map(a => ({ file: a.file, name: a.name, type: a.type, size: a.size })) }))], values, languageNames }}
+            // Ticked at first: the job's own interviewers — never the
+            // recruiter silently (the button then names who is on it).
+            interview={{ people: eligible.map(m => ({ id: m.id, name: m.name })), preselected: eligible.filter(m => onJob.includes(m.id)).map(m => m.id), today, zone: zone.split("/").at(-1)?.replace(/_/gu, " ") ?? zone, zoneId: zone }}
             jobs={otherJobs.map(j => ({ id: String(j.id), title: j.title }))}
-            t={{ candidate: tc, reject: t.reject, errors: t.errors, common: t.common, apply: t.apply, board: t.board, hire: t.hire, write: t.write, interview: t.interview, dialog: t.dialog, date: t.dates }}
+            t={{ candidate: tc, reject: t.reject, errors: t.errors, common: t.common, apply: t.apply, board: t.board, hire: t.hire, write: t.write, interview: t.interview, dialog: t.dialog, date: t.dates, files: t.files }}
           />
         )}
       </header>
@@ -138,7 +143,7 @@ export default async function CandidatePage({ params }: { params: Promise<{ id: 
               <h2 id="cv">{tc.cv}</h2>
               {c.cv && (
                 <span className="panel-actions">
-                  {isPdf && <a className="button quiet small" href={`/chest/candidates/${c.id}/cv`} target="_blank" rel="noopener"><External />{tc.openCv}</a>}
+                  {(isPdf || isPicture) && <a className="button quiet small" href={`/chest/candidates/${c.id}/cv`} target="_blank" rel="noopener"><External />{tc.openCv}</a>}
                   <a className="button quiet small" href={`/chest/candidates/${c.id}/cv?download`}><Download />{tc.downloadCv}</a>
                 </span>
               )}
@@ -147,6 +152,7 @@ export default async function CandidatePage({ params }: { params: Promise<{ id: 
               <>
                 <p className="muted small">{c.cv.fileName} · {fileSize(c.cv.size, locale)}</p>
                 {isPdf && <iframe className="cv-frame" src={`/chest/candidates/${c.id}/cv`} title={tc.cvPreview} loading="lazy" />}
+                {isPicture && <img className="cv-picture" src={`/chest/candidates/${c.id}/cv`} alt={tc.cvPreview} loading="lazy" />}
               </>
             ) : <p className="muted">{tc.noCv}</p>}
             {c.answers.length > 0 && (
@@ -248,7 +254,9 @@ export default async function CandidatePage({ params }: { params: Promise<{ id: 
           <section className="panel" aria-labelledby="history">
             <h2 id="history">{tc.history}</h2>
             <ol className="timeline">
-              {d.activity.map(a => (
+              {/* One action, one line: the email that carried a link to choose a
+                  time is the link's own line (older histories wrote both). */}
+              {d.activity.filter(a => !(a.kind === "wrote" && a.data["kind"] === "interview_request")).map(a => (
                 <li key={a.id}>
                   <span>{line(a, t, name, zone, locale)}</span>
                   <time dateTime={a.at} className="muted small">{formatDate(a.at, locale, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</time>

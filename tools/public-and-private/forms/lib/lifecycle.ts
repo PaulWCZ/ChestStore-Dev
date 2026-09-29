@@ -32,6 +32,7 @@ export function handlers(sql: Sql): events.Handlers {
         for (const r of rows) if (!r.deleted_at) await tx`update forms set answer_count = greatest(answer_count - 1, 0) where id = ${r.form_id}`;
         await tx`update participants set member = 'erased' where member = ${id}`;
         await tx`update forms set owner = 'erased' where owner = ${id}`;
+        await tx`update form_hooks set created_by = 'erased' where created_by = ${id}`;
         return rows.flatMap(r => filesOf(r.data));
       });
       await remove(gone);

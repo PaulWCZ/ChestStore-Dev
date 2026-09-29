@@ -1,24 +1,27 @@
 "use client";
 
-import { useToast } from "@argentic/chest-ui/components";
+import { FilePicker, filesReady, useToast, type PickedFile } from "@argentic/chest-ui/components";
 import { useRef, useState, useTransition } from "react";
 import { CopyButton } from "../../../components/copy-button.tsx";
 import { Bin, Download, Pencil, Plus, Upload } from "../../../components/icons.tsx";
-import { format, languageNames } from "../../../lib/i18n/format.ts";
+import { format, languageNames, plural } from "../../../lib/i18n/format.ts";
 import type { Catalogue } from "../../../lib/i18n/index.ts";
 import { languages, limits, retentionChoices } from "../../../lib/model.ts";
-import { imageAccept, uploadImage } from "../../../lib/upload.ts";
+import { cvKinds, cvMaxSize, imageAccept, uploadCv, uploadImage } from "../../../lib/upload.ts";
 import { removeTemplate, saveSettings, saveTemplate, setBrandImage } from "../actions.ts";
 
-type Words = { settings: Catalogue["settings"]; retention: Catalogue["retention"]; errors: Catalogue["errors"]; common: Catalogue["common"]; careers: Catalogue["careers"]; templatesWords: Catalogue["templates"] };
+type Words = { settings: Catalogue["settings"]; retention: Catalogue["retention"]; errors: Catalogue["errors"]; common: Catalogue["common"]; careers: Catalogue["careers"]; templatesWords: Catalogue["templates"]; files: Catalogue["files"] };
 type Settings = { companyName: string; intros: Record<string, string>; careersOpen: boolean; retentionMonths: number; country: string; website: string; accent: string };
-type Template = { id: string; name: string; language: string; subject: string; body: string };
+type TemplateFile = { file: string; name: string; type: string; size: number };
+type Template = { id: string; name: string; language: string; subject: string; body: string; attachments: TemplateFile[] };
+// A template's file already kept: in the picker, never sent again.
+const storedFile = (a: TemplateFile): PickedFile => ({ key: a.file, name: a.name, size: a.size, type: a.type, file: null, status: "ready", progress: 1, ref: a.file, error: null, stored: true });
 
 const accents = ["cobalt", "forest", "plum", "tomato", "ocean", "graphite"] as const;
 
-export function SettingsView({ settings, fallbackName, address, feeds, logo, photos, templates, countryNames, look, t }: {
+export function SettingsView({ settings, fallbackName, address, feeds, logo, photos, templates, countryNames, look, locale, t }: {
   settings: Settings; fallbackName: string; address: string; feeds: { indeed: string; rss: string; sitemap: string };
-  look: "own" | "brand"; logo: string | null; photos: { object: string; url: string }[]; templates: Template[]; countryNames: [string, string][]; t: Words;
+  look: "own" | "brand"; logo: string | null; photos: { object: string; url: string }[]; templates: Template[]; countryNames: [string, string][]; locale: string; t: Words;
 }) {
   const toast = useToast();
   const [pending, start] = useTransition();
@@ -132,7 +135,7 @@ export function SettingsView({ settings, fallbackName, address, feeds, logo, pho
         <p className="hint">{w.noAudience}</p>
       </section>
 
-      <Templates templates={templates} t={t} />
+      <Templates templates={templates} locale={locale} t={t} />
 
       <section className="panel" aria-labelledby="leave">
         <h2 id="leave">{w.exportTitle}</h2>
@@ -191,17 +194,20 @@ function Images({ logo, photos, brandLogo, t }: { logo: string | null; photos: {
 }
 
 // The company's email templates: a name, a language, a subject, a text
-// with {firstName}, {job}, {company}, {sender}.
-function Templates({ templates, t }: { templates: Template[]; t: Words }) {
+// with {firstName}, {job}, {company}, {sender} — and files sent with each
+// email written from it (the offer letter).
+function Templates({ templates, locale, t }: { templates: Template[]; locale: string; t: Words }) {
   const toast = useToast();
   const [pending, start] = useTransition();
-  const [editing, setEditing] = useState<Template | null>(null);
+  const [editing, setEditingState] = useState<Template | null>(null);
+  const [files, setFiles] = useState<PickedFile[]>([]);
+  const setEditing = (x: Template | null) => { setEditingState(x); setFiles((x?.attachments ?? []).map(storedFile)); };
   const w = t.settings;
   return (
     <section className="panel" aria-labelledby="templates">
       <div className="panel-head">
         <h2 id="templates">{w.templates}</h2>
-        {!editing && <button type="button" className="button quiet small" onClick={() => setEditing({ id: "", name: "", language: languages[0], subject: "", body: "" })}><Plus />{w.addTemplate}</button>}
+        {!editing && <button type="button" className="button quiet small" onClick={() => setEditing({ id: "", name: "", language: languages[0], subject: "", body: "", attachments: [] })}><Plus />{w.addTemplate}</button>}
       </div>
       <p className="hint tight-top">{w.templatesHint}</p>
       {templates.length === 0 && !editing && <p className="muted">{w.noTemplates}</p>}
@@ -209,7 +215,7 @@ function Templates({ templates, t }: { templates: Template[]; t: Words }) {
         {templates.map(x => (
           <li key={x.id}>
             <span className="person-name">{x.name}</span>
-            <span className="muted small">{languageNames[x.language]}</span>
+            <span className="muted small">{languageNames[x.language]}{x.attachments.length > 0 && <> · {plural(w.templateFileCount, x.attachments.length, locale)}</>}</span>
             <button type="button" className="button link small" onClick={() => setEditing(x)} aria-label={`${t.common.edit} · ${x.name}`}><Pencil />{t.common.edit}</button>
             <button type="button" className="button link small" disabled={pending} aria-label={`${t.common.delete} · ${x.name}`} onClick={() => start(async () => {
               const r = await removeTemplate(x.id);
@@ -219,7 +225,7 @@ function Templates({ templates, t }: { templates: Template[]; t: Words }) {
                 id: `template-${x.id}`,
                 text: format(w.templateDeleted, { name: x.name }),
                 undo: async () => {
-                  const back = await saveTemplate({ name: x.name, language: x.language, subject: x.subject, body: x.body });
+                  const back = await saveTemplate({ name: x.name, language: x.language, subject: x.subject, body: x.body, keep: x.attachments.map(a => ({ file: a.file, name: a.name })) });
                   return back.ok || format(t.errors[back.error], back.values ?? {});
                 },
               });
@@ -233,7 +239,11 @@ function Templates({ templates, t }: { templates: Template[]; t: Words }) {
           const data = new FormData(e.currentTarget);
           const text = (k: string) => String(data.get(k) ?? "");
           start(async () => {
-            const r = await saveTemplate({ id: editing.id || undefined, name: text("name"), language: text("language"), subject: text("subject"), body: text("body") } as { id?: string; name: string; language: string; subject: string; body: string });
+            const r = await saveTemplate({
+              ...(editing.id ? { id: editing.id } : {}), name: text("name"), language: text("language"), subject: text("subject"), body: text("body"),
+              files: files.filter(f => !f.stored && f.ref).map(f => ({ ticket: f.ref!, name: f.name })),
+              keep: files.filter(f => f.stored && f.ref).map(f => ({ file: f.ref!, name: f.name })),
+            });
             if (!r.ok) return void toast({ text: format(t.errors[r.error], r.values ?? {}), tone: "error" });
             setEditing(null);
             toast(t.common.saved);
@@ -246,8 +256,17 @@ function Templates({ templates, t }: { templates: Template[]; t: Words }) {
           </div>
           <div className="field-block"><label className="small-label" htmlFor="tpl-subject">{w.templateSubject}</label><input id="tpl-subject" name="subject" className="field" required maxLength={limits.subject} defaultValue={editing.subject} /></div>
           <div className="field-block"><label className="small-label" htmlFor="tpl-body">{w.templateBody}</label><textarea id="tpl-body" name="body" className="field" rows={8} required maxLength={limits.emailText} defaultValue={editing.body} aria-describedby="tpl-hint" /><p className="hint" id="tpl-hint">{w.placeholders}</p></div>
+          <div className="field-block">
+            <span className="small-label">{w.templateFiles}</span>
+            <FilePicker label={w.templateFiles} files={files} onChange={setFiles} accept={cvKinds} maxFiles={5} maxSize={cvMaxSize} labels={t.files}
+              upload={async file => {
+                const sent = await uploadCv(file, "/chest/api/cv");
+                return sent.ok ? { ok: true, ref: sent.ticket } : { ok: false, error: t.errors[sent.error === "cv_off" ? "unavailable" : sent.error === "cv_invalid" ? "file_invalid" : sent.error] };
+              }} />
+            <p className="hint">{w.templateFilesHint}</p>
+          </div>
           <div className="form-actions">
-            <button type="submit" className="button" disabled={pending}>{t.common.save}</button>
+            <button type="submit" className="button" disabled={pending || !filesReady(files)}>{t.common.save}</button>
             <button type="button" className="button quiet" onClick={() => setEditing(null)}>{t.common.cancel}</button>
           </div>
         </form>

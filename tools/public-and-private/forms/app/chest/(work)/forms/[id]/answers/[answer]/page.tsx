@@ -49,6 +49,10 @@ export default async function AnswerPage({ params, searchParams }: Props) {
   const others = columnsOf(await versions(sql, form.id)).filter(c => !inVersion.has(c.question.id) && answer.data[c.question.id] !== undefined).map(c => c.question);
   const size = (n: number) => new Intl.NumberFormat(locale === "en" ? "en-GB" : locale, { style: "unit", unit: n > 1 << 20 ? "megabyte" : "kilobyte", maximumFractionDigits: 1 }).format(n > 1 << 20 ? n / (1 << 20) : Math.max(1, n / 1024));
   const base = `/chest/forms/${form.id}/answers`;
+  const where = { "forms.contact": ["contact", chest.toolLink("crm", "/chest/contacts")], "forms.request": ["request", chest.toolLink("helpdesk", "/chest")], webhooks: ["webhooks", null], copy: ["copy", null] } as const;
+  const places = answer.sent.filter((x): x is keyof typeof where => x in where).map(x => ({ key: x, label: t.answers.sentPlaces[where[x][0]], href: where[x][1] }));
+  // A ticket in Support is followed up there: no second state here.
+  const inSupport = answer.sent.includes("forms.request");
   return (
     <div className="answer-page">
       <div className="answer-nav">
@@ -63,6 +67,14 @@ export default async function AnswerPage({ params, searchParams }: Props) {
         {form.version > 1 && <p className="hint">{format(t.answers.version, { n: answer.version })}</p>}
       </header>
       {deleted && <p className="notice" role="status">{t.answers.deletedState}</p>}
+      {/* Where it went besides Forms (lib/respond.ts): Clients and Support
+          link to their tool while it is installed (chest.toolUrl). */}
+      {places.length > 0 && (
+        <p className="answer-sent">
+          <span className="dim">{t.answers.sentTo}</span>{" "}
+          {places.map((x, i) => <span key={x.key}>{i > 0 ? " · " : ""}{x.href ? <a href={x.href} target="_blank" rel="noopener">{x.label}</a> : x.label}</span>)}
+        </p>
+      )}
       <dl className="answer-list">
         {[...asked, ...others].map(q => {
           const value = answer.data[q.id];
@@ -79,7 +91,8 @@ export default async function AnswerPage({ params, searchParams }: Props) {
           );
         })}
       </dl>
-      {!deleted && (atLeast(level, "editor") || answer.note) && (
+      {inSupport && !deleted && <p className="hint">{t.answers.followedInSupport}</p>}
+      {!deleted && !inSupport && (atLeast(level, "editor") || answer.note) && (
         <FollowUp formId={form.id} answerId={answer.id} status={answer.status} note={answer.note} canEdit={atLeast(level, "editor")} team={form.audience === "team"} locale={locale} t={{ f: t.follow, errors: t.errors }} />
       )}
       {atLeast(level, "editor") && <AnswerActions formId={form.id} answerId={answer.id} deleted={deleted} t={{ a: t.answers, errors: t.errors }} />}

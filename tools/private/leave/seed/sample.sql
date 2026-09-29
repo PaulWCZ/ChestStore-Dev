@@ -75,7 +75,7 @@ begin
     (camille, paid, 'opening', 14.5, period, 'opening', camille),
     (ines, paid, 'opening', 9, period, 'opening', camille),
     (lea, paid, 'opening', 11.5, period, 'opening', camille),
-    (hugo, paid, 'opening', 6, period, 'opening', camille),
+    (hugo, paid, 'opening', 12, period, 'opening', camille),
     (tom, paid, 'opening', 12.5, period, 'opening', camille),
     (sofia, paid, 'opening', 7.5, period, 'opening', camille),
     (nora, paid, 'opening', 8.5, period, 'opening', camille);

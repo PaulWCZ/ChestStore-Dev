@@ -18,7 +18,7 @@ import { people } from "./people.ts";
 // message:<id>, so the Chest sends it once even when sent twice.
 
 type Due = {
-  id: string; candidate_id: string; kind: string; author: string | null; subject: string; body: string; calendar: string | null;
+  id: string; candidate_id: string; kind: string; author: string | null; subject: string; body: string; calendar: string | null; attachments: { file: string; name: string }[] | null;
   email: string; language: string; title: string; status: string; reply_to: string | null;
 };
 
@@ -28,7 +28,7 @@ export async function flush(sql: Sql, limit = 20): Promise<number> {
     from candidates c, jobs j
     where m.id in (select id from messages where status = 'waiting' and send_after <= now() order by send_after, id limit ${limit} for update skip locked)
       and c.id = m.candidate_id and j.id = c.job_id
-    returning m.id, m.candidate_id, m.kind, m.author, m.subject, m.body, m.calendar, c.email, c.language, j.title, c.status,
+    returning m.id, m.candidate_id, m.kind, m.author, m.subject, m.body, m.calendar, m.attachments, c.email, c.language, j.title, c.status,
       (select r.message_id from messages r where r.candidate_id = m.candidate_id and r.direction = 'in' and r.message_id is not null order by r.created_at desc limit 1) as reply_to`);
   let sent = 0;
   if (due.length > 0) {
@@ -43,7 +43,12 @@ export async function flush(sql: Sql, limit = 20): Promise<number> {
         candidateId: String(d.candidate_id),
         fromName: sender ? mailer.fromName(sender, s.companyName) : s.companyName || undefined,
         key: `message:${d.id}`,
-        ...(d.calendar ? { attachments: [{ name: d.kind === "interview_cancelled" ? "cancelled.ics" : "invitation.ics", type: `text/calendar; charset=utf-8; method=${d.kind === "interview_cancelled" ? "CANCEL" : "PUBLISH"}`, content: d.calendar }] } : {}),
+        // The invitation's calendar file, and the files the recruiter sent
+        // (the tool's own files: the Chest reads them itself).
+        attachments: [
+          ...(d.calendar ? [{ name: d.kind === "interview_cancelled" ? "cancelled.ics" : "invitation.ics", type: `text/calendar; charset=utf-8; method=${d.kind === "interview_cancelled" ? "CANCEL" : "PUBLISH"}`, content: d.calendar }] : []),
+          ...(Array.isArray(d.attachments) ? d.attachments.filter(a => typeof a.file === "string").map(a => ({ file: a.file, name: a.name })) : []),
+        ],
         // A message answers the candidate's last email: their mail app
         // shows one conversation.
         ...(d.reply_to && d.kind === "message" ? { inReplyTo: d.reply_to, references: [d.reply_to] } : {}),
@@ -58,7 +63,9 @@ export async function flush(sql: Sql, limit = 20): Promise<number> {
           where id = ${d.id} and status = 'waiting'`;
         if (done.count === 0) return;
         if (result.delivery === "email") {
-          await activity(tx, String(d.candidate_id), d.author, d.kind === "rejection" || d.kind === "confirmation" ? "emailed" : "wrote", { kind: d.kind, message: String(d.id) });
+          // A link to choose a time has its own line already ("sent a link
+          // to choose…"): one action, one line.
+          if (d.kind !== "interview_request") await activity(tx, String(d.candidate_id), d.author, d.kind === "rejection" || d.kind === "confirmation" ? "emailed" : "wrote", { kind: d.kind, message: String(d.id) });
           await touch(tx, String(d.candidate_id));
           sent++;
         }

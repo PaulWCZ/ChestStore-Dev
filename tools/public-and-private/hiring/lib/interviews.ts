@@ -8,10 +8,11 @@ import { activity, load, manageable, touch, type Candidate } from "./candidates.
 import type { Query, Sql } from "./db.ts";
 import { catalogue, format, locales, type Catalogue, type Locale } from "./i18n/index.ts";
 import { settings } from "./jobs.ts";
+import { toldBusy } from "./share.ts";
 import * as mailer from "./mailer.ts";
 import { queue } from "./messages.ts";
 import { clean, day as readDay, id, isMemberId, limits } from "./model.ts";
-import { dayOf, durations, instantOf, isTime, timeOf } from "./time.ts";
+import { addDays, dayOf, durations, instantOf, isTime, timeOf } from "./time.ts";
 
 // Interviews: a time with a candidate and some of the team. Scheduling
 // one sends the candidate an invitation by email with an .ics file (any
@@ -140,9 +141,10 @@ export async function upcoming(sql: Sql, actor: Member | null, now = new Date())
 }
 
 // busy: the times some people are already in an interview on a day (in
-// the Chest's zone), to plan around them. Only times: which candidate is
-// not said (an interviewer of another job must not learn it).
-export type Busy = { member: string; start: string; end: string };
+// the Chest's zone), or busy by what another tool told (source: "booking"
+// — their bookings and other calendars), to plan around them. Only times:
+// which candidate or customer is never said.
+export type Busy = { member: string; start: string; end: string; source?: string };
 export async function busy(sql: Sql, actor: Member | null, people: unknown, onDay: unknown): Promise<Busy[]> {
   if (roleOf(actor) !== "recruiter") throw new AppError("forbidden");
   const d = readDay(onDay);
@@ -154,7 +156,13 @@ export async function busy(sql: Sql, actor: Member | null, people: unknown, onDa
     select p.member_id, i.starts_at, i.ends_at from interviews i join interview_people p on p.interview_id = i.id
     where i.cancelled_at is null and p.member_id in ${sql(people as string[])} and i.starts_at < ${to} and i.ends_at > ${from}
     order by i.starts_at`;
-  return rows.filter(r => dayOf(r.starts_at, zone()) === d).map(r => ({ member: r.member_id, start: r.starts_at.toISOString(), end: r.ends_at.toISOString() }));
+  const own: Busy[] = rows.filter(r => dayOf(r.starts_at, zone()) === d).map(r => ({ member: r.member_id, start: r.starts_at.toISOString(), end: r.ends_at.toISOString() }));
+  // What another tool told, clipped to the day (a day-long event reads
+  // 00:00–23:59).
+  const dayEnd = instantOf(addDays(d, 1), "00:00", zone());
+  const told: Busy[] = (await toldBusy(sql, people as string[], from, dayEnd))
+    .map(b => ({ member: b.member, start: new Date(Math.max(b.start.getTime(), from.getTime())).toISOString(), end: new Date(Math.min(b.end.getTime(), dayEnd.getTime() - 60_000)).toISOString(), source: b.source }));
+  return [...own, ...told].sort((a, b) => a.start.localeCompare(b.start));
 }
 
 // ---- The invitation ---------------------------------------------------------

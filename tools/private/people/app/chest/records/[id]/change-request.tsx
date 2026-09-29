@@ -22,6 +22,9 @@ export type ChangeWords = {
 type Words = { change: ChangeWords; fields: Record<Askable, string>; emergency: string; errors: Record<ErrorCode, string>; dialog: DialogWords };
 export type Waiting = { id: string; changes: Partial<Record<Askable, string>>; note: string; asked: string };
 
+// A field's name in a list of changes: the emergency contact's say so.
+const label = (t: Words, f: Askable) => (f === "address" ? t.fields[f] : `${t.emergency} · ${t.fields[f]}`);
+
 const fail = (t: Words, r: { error: ErrorCode; values?: Record<string, string | number> }) => format(t.errors[r.error], r.values ?? {});
 
 // The person's side: a button, a dialog with what HR keeps now, and — once
@@ -41,7 +44,7 @@ export function AskChange({ recordId, current, waiting, t }: { recordId: string;
       <div className="banner change-waiting" role="status">
         <div>
           <p><strong>{format(t.change.waiting, { date: waiting.asked })}</strong></p>
-          <ChangeList changes={waiting.changes} fields={t.fields} empty={t.change.empty} />
+          <ChangeList changes={waiting.changes} t={t} />
         </div>
         <button type="button" className="button quiet small" disabled={pending} onClick={() => start(async () => {
           const r = await withdrawChange(waiting.id);
@@ -116,7 +119,7 @@ export function AnswerChange({ name, waiting, current, t }: { name: string; wait
       <dl className="change-diff">
         {askable.filter(f => waiting.changes[f] !== undefined).map(f => (
           <div key={f}>
-            <dt>{t.fields[f]}</dt>
+            <dt>{label(t, f)}</dt>
             <dd>
               <span className="muted"><span className="visually-hidden">{t.change.from} </span>{current[f] || t.change.empty}</span>
               <span aria-hidden="true"> → </span>
@@ -138,10 +141,10 @@ export function AnswerChange({ name, waiting, current, t }: { name: string; wait
   );
 }
 
-function ChangeList({ changes, fields, empty }: { changes: Partial<Record<Askable, string>>; fields: Record<Askable, string>; empty: string }) {
+function ChangeList({ changes, t }: { changes: Partial<Record<Askable, string>>; t: Words }) {
   return (
     <ul className="change-list">
-      {askable.filter(f => changes[f] !== undefined).map(f => <li key={f}><span className="muted">{fields[f]}</span> {changes[f] || empty}</li>)}
+      {askable.filter(f => changes[f] !== undefined).map(f => <li key={f}><span className="muted">{label(t, f)}</span> {changes[f] || t.change.empty}</li>)}
     </ul>
   );
 }

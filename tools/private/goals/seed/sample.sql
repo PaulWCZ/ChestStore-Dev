@@ -142,3 +142,25 @@ insert into comments (objective_id, author, body, created_at) values
 
 -- Paul Lefèvre left the company: what he owned waits for a new owner.
 insert into departed (member_id, at) values ('mbr_paulaaaaaaaaaaaaaaaaaaaaaa', now() - interval '9 days');
+
+-- Units were written in English here (lib/values.ts: "0 customers", whoever reads).
+update key_results set unit_locale = 'en' where unit <> '';
+
+-- A key result fed by Support (lib/sources.ts): the tickets Hugo solved
+-- this cycle, as Support told them (helpdesk.ticket.solved), counted by
+-- Goals — nobody types it.
+insert into key_results (id, objective_id, title, kind, unit, unit_locale, currency, start_value, target_value, current_value, weight, owner, source, source_mine, position, created_by, created_at) overriding system value values
+  (20, 8, 'Support tickets solved', 'number', 'ticket/tickets', 'en', null, 0, 60, 7, 1, 'mbr_hugoaaaaaaaaaaaaaaaaaaaaaa', 'helpdesk.solved', true, 9, 'mbr_camilleaaaaaaaaaaaaaaaaaaa', now() - interval '30 days');
+select setval(pg_get_serial_sequence('key_results', 'id'), 20);
+insert into fed_events (kind, ref, members, at) values
+  ('helpdesk.ticket', 'T-101', '{mbr_hugoaaaaaaaaaaaaaaaaaaaaaa}', now() - interval '29 days'),
+  ('helpdesk.ticket', 'T-104', '{mbr_hugoaaaaaaaaaaaaaaaaaaaaaa}', now() - interval '25 days'),
+  ('helpdesk.ticket', 'T-110', '{mbr_inesaaaaaaaaaaaaaaaaaaaaaa}', now() - interval '21 days'),
+  ('helpdesk.ticket', 'T-112', '{mbr_hugoaaaaaaaaaaaaaaaaaaaaaa}', now() - interval '18 days'),
+  ('helpdesk.ticket', 'T-117', '{mbr_hugoaaaaaaaaaaaaaaaaaaaaaa}', now() - interval '12 days'),
+  ('helpdesk.ticket', 'T-120', '{mbr_hugoaaaaaaaaaaaaaaaaaaaaaa}', now() - interval '8 days'),
+  ('helpdesk.ticket', 'T-121', '{mbr_inesaaaaaaaaaaaaaaaaaaaaaa}', now() - interval '6 days'),
+  ('helpdesk.ticket', 'T-125', '{mbr_hugoaaaaaaaaaaaaaaaaaaaaaa}', now() - interval '3 days'),
+  ('helpdesk.ticket', 'T-127', '{mbr_hugoaaaaaaaaaaaaaaaaaaaaaa}', now() - interval '1 day'),
+  ('tasks.card', 'C-31', '{mbr_tomaaaaaaaaaaaaaaaaaaaaaaa}', now() - interval '10 days');
+update fed_events set scope = 'B-workshop', scope_name = 'Workshop orders' where ref = 'C-31';

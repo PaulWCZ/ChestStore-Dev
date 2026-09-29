@@ -63,8 +63,11 @@ const safeName = (value: unknown, extension: string): string => {
   return text || `cv.${extension}`;
 };
 
-// accept checks the file a ticket names and keeps it as a CV.
-export async function accept(ticket: unknown, kind: Kind, fileName: unknown): Promise<Cv> {
+// accept checks the file a ticket names and keeps it as a CV — or, for a
+// file a recruiter sends with an email or keeps with a template (the same
+// kinds of file: PDF, Word, a picture), in sent/ or templates/.
+export type Folder = "cv" | "sent" | "templates";
+export async function accept(ticket: unknown, kind: Kind, fileName: unknown, folder: Folder = "cv"): Promise<Cv> {
   const { name, hex, extension } = readTicket(ticket, kind);
   try {
     const held = await files.stat(name);
@@ -78,7 +81,7 @@ export async function accept(ticket: unknown, kind: Kind, fileName: unknown): Pr
     if (!isCvType(declared) || cvTypes[declared] !== extension) throw await refuse("cv_invalid");
     const body = await files.get(name);
     if (!body || sniff(body.data.subarray(0, 16)) !== declared) throw await refuse("cv_invalid");
-    const kept = `cv/${hex}.${extension}`;
+    const kept = `${folder}/${hex}.${extension}`;
     await files.move(name, kept);
     return { object: kept, fileName: safeName(fileName, extension), type: declared, size: held.size };
   } catch (error) {
@@ -94,7 +97,7 @@ export async function accept(ticket: unknown, kind: Kind, fileName: unknown): Pr
 // already gone is fine; nothing else of the tool's files is ever deleted.
 export async function remove(objects: Iterable<string>): Promise<void> {
   for (const object of objects) {
-    const ours = /^(cv|uploads\/(public|team))\/[0-9a-f]{20}\.(pdf|docx?)$/u.test(object)
+    const ours = /^(cv|sent|templates|uploads\/(public|team))\/[0-9a-f]{20}\.(pdf|docx?|jpg|png|heic)$/u.test(object)
       || /^public\/brand\/[0-9a-f]{20}\.(png|jpg|webp)$/u.test(object)
       || (/^mail\/[^\s]{1,400}$/u.test(object) && !object.includes(".."));
     if (ours) await files.delete(object).catch(() => false);
@@ -102,14 +105,15 @@ export async function remove(objects: Iterable<string>): Promise<void> {
 }
 
 // copy gives a CV a second file (the same person considered for another
-// job: each application keeps its own, erased with it).
-export async function copy(object: string): Promise<Cv | null> {
-  const m = /^cv\/[0-9a-f]{20}\.(pdf|docx?)$/u.exec(object);
+// job: each application keeps its own, erased with it) — or a template's
+// file its own copy in an email (sent/: erased with the candidate).
+export async function copy(object: string, folder: Folder = "cv"): Promise<Cv | null> {
+  const m = /^(cv|templates)\/[0-9a-f]{20}\.(pdf|docx?|jpg|png|heic)$/u.exec(object);
   if (!m) return null;
   try {
     const body = await files.get(object);
     if (!body) return null;
-    const kept = `cv/${randomBytes(10).toString("hex")}.${m[1]}`;
+    const kept = `${folder}/${randomBytes(10).toString("hex")}.${m[2]}`;
     await files.put(kept, body.data, body.type);
     return { object: kept, fileName: "", type: body.type.split(";")[0]!.trim(), size: body.data.byteLength };
   } catch (error) {

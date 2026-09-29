@@ -45,6 +45,12 @@ type Props = {
   // Whether the page wears Forms' own look (the default colour's name).
   own: boolean;
   routeChoices: RouteChoices;
+  // The first guess of each piece when a link is turned on (lib/routes.ts
+  // guessRoutes), and which receiving tools this Chest has (lib/linked.ts).
+  routeGuess: Routes;
+  installed: { contact: boolean; request: boolean };
+  // The form's web addresses (hooks-box.tsx), placed after the links.
+  hooks?: ReactNode;
   t: { s: Catalogue["settings"]; errors: Catalogue["errors"]; b: Catalogue["builder"]; date: Catalogue["date"] };
 };
 type SaveState = "saved" | "saving" | "error" | "held";
@@ -275,7 +281,7 @@ export function SettingsView(p: Props) {
           <input className="field" type="url" inputMode="url" value={v.redirectUrl} maxLength={2000} placeholder={s.redirectPlaceholder} onChange={e => set("redirectUrl", e.target.value)} />
         </label>
         {v.anonymous ? <p className="hint">{s.sendCopyAnonymous}</p> : (
-          <Switch label={v.audience === "team" ? s.sendCopyTeam : s.sendCopy} hint={v.audience === "public" ? s.sendCopyHint : undefined} checked={v.sendCopy} onChange={on => set("sendCopy", on)} />
+          <Switch label={v.audience === "team" ? s.sendCopyTeam : s.sendCopy} hint={v.routes.request && p.installed.request ? s.supportConfirms : v.audience === "public" ? s.sendCopyHint : undefined} checked={v.sendCopy} onChange={on => set("sendCopy", on)} />
         )}
       </fieldset>
 
@@ -300,15 +306,17 @@ export function SettingsView(p: Props) {
           <>
             {/* A contact in Clients: the form's author says which question
                 gives what (lib/routes.ts, README "With the other tools"). */}
-            <Switch label={s.contactSwitch} hint={s.contactHint} checked={v.routes.contact !== null}
-              onChange={on => set("routes", { ...v.routes, contact: on ? { ...emptyContact, ...guess(p.routeChoices.contact) } : null })} />
+            {/* Greyed while Clients is not installed (chest.toolUrl), unless
+                already on: it can always be turned off. */}
+            <Switch label={s.contactSwitch} hint={p.installed.contact ? s.contactHint : s.contactMissing} checked={v.routes.contact !== null} disabled={ro || (!p.installed.contact && v.routes.contact === null)}
+              onChange={on => set("routes", { ...v.routes, contact: on ? { ...emptyContact, ...p.routeGuess.contact } : null })} />
             {v.routes.contact && (
               <RouteFields slots={["name", "email", "phone", "company", "message"] as const} route={v.routes.contact} choices={p.routeChoices.contact} s={s}
                 onChange={contact => set("routes", { ...v.routes, contact })} />
             )}
             {v.routes.contact && p.routeChoices.contact.email.length + p.routeChoices.contact.phone.length === 0 && <p className="notice">{s.noQuestions}</p>}
-            <Switch label={s.requestSwitch} hint={s.requestHint} checked={v.routes.request !== null}
-              onChange={on => set("routes", { ...v.routes, request: on ? { ...emptyRequest, ...guess(p.routeChoices.request) } : null })} />
+            <Switch label={s.requestSwitch} hint={p.installed.request ? s.requestHint : s.requestMissing} checked={v.routes.request !== null} disabled={ro || (!p.installed.request && v.routes.request === null)}
+              onChange={on => set("routes", { ...v.routes, request: on ? { ...emptyRequest, ...p.routeGuess.request } : null })} />
             {v.routes.request && (
               <RouteFields slots={v.audience === "team" ? (["subject", "details"] as const) : (["subject", "details", "email", "name"] as const)} route={v.routes.request} choices={p.routeChoices.request} s={s}
                 special={{ subject: s.routeTitle }} member={v.audience === "team" ? s.routeMember : null}
@@ -318,8 +326,9 @@ export function SettingsView(p: Props) {
             <Switch label={s.toolsSwitch} hint={s.toolsHint} checked={v.shareEvents} onChange={on => set("shareEvents", on)} />
           </>
         )}
-        <p className="hint">{s.webhooksNote}</p>
       </fieldset>
+
+      {p.hooks}
 
       <fieldset className="panel" disabled={ro}>
         <legend>{s.privacy}</legend>
@@ -350,21 +359,6 @@ export function SettingsView(p: Props) {
     if (r.ok) router.push(`/chest?deleted=${p.formId}`);
     return r;
   }
-}
-
-// A first guess when a route is turned on: each piece from the only
-// question that can give it (one email question → "Their email").
-function guess<K extends string>(choices: Record<K, { id: string }[]>): Partial<Record<K, string>> {
-  const out: Partial<Record<K, string>> = {};
-  const used = new Set<string>();
-  for (const key of Object.keys(choices) as K[]) {
-    const free = choices[key].filter(q => !used.has(q.id));
-    if (free.length === 1) {
-      out[key] = free[0]!.id;
-      used.add(free[0]!.id);
-    }
-  }
-  return out;
 }
 
 // Which question gives each piece: one select per piece, its questions

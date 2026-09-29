@@ -36,14 +36,15 @@ export default async function Settings() {
       <SettingsView
         settings={{ companyName: s.ownName, intros: Object.fromEntries(locales.map(l => [l, introFor(s, l)])), careersOpen: s.careersOpen, retentionMonths: s.retentionMonths, country: s.country, website: s.website, accent: s.accent }}
         fallbackName={s.companyName}
+        locale={locale}
         address={origin + "/"}
         feeds={{ indeed: origin + "/jobs.xml", rss: origin + "/feed.xml", sitemap: origin + "/sitemap.xml" }}
         logo={s.logo ? url(s.logo) : null}
         photos={s.photos.map(p => ({ object: p.object, url: url(p) }))}
-        templates={own.map(x => ({ id: x.id, name: x.name, language: x.language, subject: x.subject, body: x.body }))}
+        templates={own.map(x => ({ id: x.id, name: x.name, language: x.language, subject: x.subject, body: x.body, attachments: x.attachments.map(a => ({ file: a.file, name: a.name, type: a.type, size: a.size })) }))}
         countryNames={countryNames(locale)}
         look={look.source === "brand" ? "brand" : "own"}
-        t={{ settings: t.settings, retention: t.retention, errors: t.errors, common: t.common, careers: t.careers, templatesWords: t.templates }}
+        t={{ settings: t.settings, retention: t.retention, errors: t.errors, common: t.common, careers: t.careers, templatesWords: t.templates, files: t.files }}
       />
     </div>
   );

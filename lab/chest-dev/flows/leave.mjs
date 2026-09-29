@@ -59,7 +59,8 @@ async function ask(start, end, options = {}) {
 async function outbox() {
   const back = page.url();
   await page.goto(origin + "/_dev");
-  const mails = await page.locator("section", { hasText: "Mail (proposal)" }).locator("ul > li").allInnerTexts();
+  // The text of each email too (folded under "text" on the page).
+  const mails = await page.locator("section", { hasText: "Mail (proposal)" }).locator("ul > li").evaluateAll(items => items.map(li => li.textContent ?? ""));
   if (back.startsWith(origin + "/chest")) await page.goto(back);
   return mails;
 }
@@ -433,7 +434,7 @@ await step("payroll's balances file on the last day of next month: a projection,
 });
 
 await step("People tells Leave of Tom's record: his number and working week follow it, and HR sees where they come from", async () => {
-  await deliver("people.record", { member: id("tom"), employeeNumber: "T-0019", startDate: "2025-11-03", lastDay: null, workDays: [1, 2, 3, 4, 5], weeklyHours: 35 });
+  await deliver("people.record", { member: id("tom"), employeeNumber: "T-0019", startDate: "2025-11-03", lastDay: null, workDays: [1, 2, 3, 4], weeklyHours: 28 });
   await page.goto(origin + "/chest/people/" + id("tom"));
   expect((await page.locator("main").innerText()).includes("Kept up to date from their HR record in People"), "said where it comes from");
   expect((await page.getByLabel("Employee number").inputValue()) === "T-0019", "number from People");

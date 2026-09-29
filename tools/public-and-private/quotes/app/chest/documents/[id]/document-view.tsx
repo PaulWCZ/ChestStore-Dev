@@ -200,7 +200,7 @@ export function DocumentView(props: DocumentViewProps) {
             {primary && <div className="actions wide-actions">{primary}</div>}
             {secondary.length > 0 && <div className="more">{secondary.map(s => <span key={s.key}>{s.node}</span>)}</div>}
           </section>
-          {props.online && <OnlineCard docId={doc.id} online={props.online} t={t} canWrite={rights.quote} waiting={doc.state === "sent"} onDone={(text: string) => { say(text); router.refresh(); }} onError={fail} />}
+          {props.online && <OnlineCard docId={doc.id} online={props.online} t={t} canWrite={rights.quote} waiting={doc.state === "sent"} revising={nextVersion} onDone={(text: string) => { say(text); router.refresh(); }} onError={fail} />}
           {props.versions.length > 0 && (
             <section className="card versions" aria-labelledby="versions-title">
               <h2 id="versions-title">{d.versions.title}</h2>
@@ -274,7 +274,7 @@ export function DocumentView(props: DocumentViewProps) {
 // with its proof — the name typed, the day, the time, a hash of the
 // visitor's address, their browser, the fingerprint of the exact PDF —
 // and that PDF.
-function OnlineCard({ docId, online, t, canWrite, waiting, onDone, onError }: { docId: string; online: OnlineView; t: Catalogue; canWrite: boolean; waiting: boolean; onDone: (text: string) => void; onError: (error: string) => void }) {
+function OnlineCard({ docId, online, t, canWrite, waiting, revising, onDone, onError }: { docId: string; online: OnlineView; t: Catalogue; canWrite: boolean; waiting: boolean; revising: boolean; onDone: (text: string) => void; onError: (error: string) => void }) {
   const o = t.doc.online;
   const [busy, setBusy] = useState(false);
   async function run(step: () => Promise<{ ok: true } | { ok: false; error: string }>, text: string) {
@@ -293,7 +293,7 @@ function OnlineCard({ docId, online, t, canWrite, waiting, onDone, onError }: { 
       <h2 id="online-title">{o.title}</h2>
       {online.live ? (
         <>
-          <p className="hint">{waiting ? format(o.explain, { date: online.until }) : o.explainAnswered}</p>
+          <p className="hint">{revising ? o.explainRevising : waiting ? format(o.explain, { date: online.until }) : o.explainAnswered}</p>
           {online.url ? <CopyLink url={online.url} label={o.linkLabel} copy={o.copy} done={o.copied} /> : <p className="hint">{o.noAddress}</p>}
           {canWrite && <p className="more"><button type="button" className="link-button" disabled={busy} onClick={() => void run(() => revokeLink(docId), o.offDone)}>{o.off}</button></p>}
         </>

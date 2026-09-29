@@ -22,7 +22,7 @@ test("Friday's reminder: one bell item per owner still waiting, in their languag
   const items = w.chest.notifications.filter(n => n.key === "checkin").sort((a, b) => b.member.localeCompare(a.member));
   assert.deepEqual(items.map(n => [n.member, n.title, n.body, n.path]), [
     [ines.id, "1 résultat clé attend votre point de la semaine", "Customers signed", "/chest"],
-    [hugo.id, "1 key result waits for your weekly check-in", "Website live", "/chest"],
+    [hugo.id, "1 key result waits for your weekly update", "Website live", "/chest"],
   ]);
   assert.equal(w.chest.badges.get(ines.id), 1);
   assert.equal(w.chest.badges.get(hugo.id), 1);

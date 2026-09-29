@@ -343,10 +343,10 @@ export async function setCv(candidateId: string, ticket: string, fileName: strin
 // this Chest, the email is kept as "not sent" and the page opens the
 // recruiter's own mail app with it (mailto:), then records it was written
 // there.
-export async function writeTo(candidateId: string, subject: string, text: string): Promise<Result<{ status: "sent" | "none" | "waiting"; message: string; to: string }>> {
+export async function writeTo(candidateId: string, subject: string, text: string, attach: { files?: { ticket: string; name: string }[]; template?: string; templateFiles?: string[] } = {}): Promise<Result<{ status: "sent" | "none" | "waiting"; message: string; to: string }>> {
   return act(async actor => {
     const sql = db();
-    const message = await messages.write(sql, actor, candidateId, { subject, text });
+    const message = await messages.write(sql, actor, candidateId, { subject, text, files: attach.files, template: attach.template, templateFiles: attach.templateFiles });
     const status = await outbox.sendNow(sql, message);
     const [c] = await sql<{ email: string }[]>`select email from candidates where id = ${candidateId}`;
     return { status, message, to: c?.email ?? "" };
@@ -357,7 +357,7 @@ export async function writtenOutside(messageId: string): Promise<Result<null>> {
   return act(async actor => { await messages.writtenOutside(db(), actor, messageId); return null; });
 }
 
-export async function saveTemplate(input: { id?: string; name: string; language: string; subject: string; body: string }): Promise<Result<{ id: string }>> {
+export async function saveTemplate(input: { id?: string; name: string; language: string; subject: string; body: string; files?: { ticket: string; name: string }[]; keep?: { file: string; name: string }[] }): Promise<Result<{ id: string }>> {
   return act(async actor => ({ id: (await messages.saveTemplate(db(), actor, input)).id }));
 }
 
@@ -388,6 +388,8 @@ export async function scheduleInterview(candidateId: string, input: interviews.I
     const done = await interviews.schedule(sql, actor, candidateId, input, isTeam);
     const status = done.message ? await outbox.sendNow(sql, done.message) : "skipped";
     await interviews.flushCalendars(sql);
+    // Booking hears these people are taken then (lib/share.ts).
+    await share.shareBusy(sql, done.interview.people);
     return { status };
   });
 }
@@ -398,6 +400,7 @@ export async function cancelInterview(interviewId: string, tellThem: boolean): P
     const done = await interviews.cancel(sql, actor, interviewId, tellThem);
     const status = done.message ? await outbox.sendNow(sql, done.message) : "skipped";
     await interviews.flushCalendars(sql);
+    await share.shareBusy(sql, done.interview.people);
     return { status };
   });
 }

@@ -13,7 +13,7 @@ import { camille, everyone, groups, hugo, ines, sofia } from "./members.ts";
 // set up a cycle running today with teams.
 export type World = { database: TestDatabase; chest: FakeChest; close(): Promise<void> };
 
-export async function world(options: { schedules?: { name: string; cron: string }[]; mail?: boolean } = {}): Promise<World> {
+export async function world(options: { schedules?: { name: string; cron: string }[]; mail?: boolean; groups?: boolean } = {}): Promise<World> {
   const database = await testDatabase();
   const chest = await fakeChest({
     members: everyone,
@@ -21,8 +21,10 @@ export async function world(options: { schedules?: { name: string; cron: string 
     groups: [
       { id: groups.sales, name: "Sales", members: [ines.id, hugo.id] },
       { id: groups.office, name: "Office", members: [camille.id, sofia.id] },
+      // A group that does not give Goals: seen only with "groups": "read".
+      { id: "grp_warehouseaaaaaaaaaaaaaaaaa", name: "Warehouse", members: [hugo.id], grants: false },
     ],
-    capabilities: ["members", "notifications", ...(options.mail === false ? [] : ["mail" as const])],
+    capabilities: ["members", "notifications", ...(options.mail === false ? [] : ["mail" as const]), ...(options.groups ? ["groups" as const] : [])],
     mail: { domain: "atelier-martin.test" },
     timeZone: "Europe/Paris",
     settings: { company: "Atelier Martin", currency: "EUR", locale: "fr" },

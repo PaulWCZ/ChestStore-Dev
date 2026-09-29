@@ -12,11 +12,11 @@ import { check, filesIn, type Answers, type FileRef, type StoredFile } from "./l
 
 export const followStates = ["new", "doing", "done"] as const;
 export type FollowState = (typeof followStates)[number];
-export type Answer = { id: string; version: number; respondent: string | null; email: string | null; data: Answers; createdAt: string | null; month: string; language: string; status: FollowState; note: string; handledAt: string | null };
-type Row = { id: string; version: number; respondent: string | null; email: string | null; data: Answers; created_at: Date | null; month: Date | string; language: string; status: FollowState; note: string; handled_at: Date | null };
+export type Answer = { id: string; version: number; respondent: string | null; email: string | null; data: Answers; createdAt: string | null; month: string; language: string; status: FollowState; note: string; handledAt: string | null; sent: string[] };
+type Row = { id: string; version: number; respondent: string | null; email: string | null; data: Answers; created_at: Date | null; month: Date | string; language: string; status: FollowState; note: string; handled_at: Date | null; sent?: string[] | null };
 const monthText = (m: Date | string) => (typeof m === "string" ? m.slice(0, 10) : m.toISOString().slice(0, 10));
-const toAnswer = (r: Row): Answer => ({ id: r.id, version: r.version, respondent: r.respondent, email: r.email, data: r.data, createdAt: r.created_at ? r.created_at.toISOString() : null, month: monthText(r.month), language: r.language, status: r.status ?? "new", note: r.note ?? "", handledAt: r.handled_at ? r.handled_at.toISOString() : null });
-const answerColumns = "id, version, respondent, email, data, created_at, month, language, status, note, handled_at";
+const toAnswer = (r: Row): Answer => ({ id: r.id, version: r.version, respondent: r.respondent, email: r.email, data: r.data, createdAt: r.created_at ? r.created_at.toISOString() : null, month: monthText(r.month), language: r.language, status: r.status ?? "new", note: r.note ?? "", handledAt: r.handled_at ? r.handled_at.toISOString() : null, sent: r.sent ?? [] });
+const answerColumns = "id, version, respondent, email, data, created_at, month, language, status, note, handled_at, sent";
 
 const answerAlphabet = "abcdefghijklmnopqrstuvwxyz0123456789";
 export const newAnswerId = () => Array.from({ length: 16 }, () => answerAlphabet[randomInt(answerAlphabet.length)]).join("");
@@ -107,7 +107,7 @@ export async function submit(sql: Sql, s: Submission): Promise<{ answer: Answer;
       const id = newAnswerId();
       if (now.anonymous) {
         await anonymous(tx, form.id, { id, version, data: answers, language: s.language }, member!);
-        return { id, version, respondent: null, email: null, data: answers, createdAt: null, month: "", language: s.language, status: "new", note: "", handledAt: null } satisfies Answer;
+        return { id, version, respondent: null, email: null, data: answers, createdAt: null, month: "", language: s.language, status: "new", note: "", handledAt: null, sent: [] } satisfies Answer;
       }
       const [kept] = await tx<Row[]>`
         insert into answers (id, form_id, version, respondent, email, data, created_at, month, language)
@@ -398,6 +398,8 @@ export async function cleanup(sql: Sql, now = new Date()): Promise<{ answers: nu
   for (const f of goneForms) {
     const rows = await sql<{ data: Answers }[]>`select data from answers where form_id = ${f.id}`;
     formObjects.push(...rows.flatMap(r => filesOf(r.data)));
+    // Its web addresses: the Chest forgets them too (lib/hooks.ts).
+    await (await import("./hooks.ts")).forgetHooks(sql, f.id);
     await sql`delete from forms where id = ${f.id}`;
   }
   // A form started from a template and never touched (no edit, no

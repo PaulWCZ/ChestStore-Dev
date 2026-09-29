@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { Confirm, Dialog, Segmented, StatusBadge, TimeSelect, useToast } from "@argentic/chest-ui/components";
+import { Confirm, Dialog, FilePicker, filesReady, Segmented, StatusBadge, TimeSelect, useToast, type PickedFile } from "@argentic/chest-ui/components";
 import { addDays as addIsoDays, type DateWords, type DialogWords } from "@argentic/chest-ui/components/logic";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useDateProblems, WatchedDateField } from "../../../../components/date-problems.tsx";
@@ -17,7 +17,7 @@ import { durations, startTimes } from "../../../../lib/time.ts";
 // The interview's start: the tool's own steps (07:00 to 20:45), as minutes.
 const toMinutes = (hhmm: string) => Number(hhmm.slice(0, 2)) * 60 + Number(hhmm.slice(3, 5));
 const firstStart = toMinutes(startTimes[0]!), lastStart = toMinutes(startTimes.at(-1)!);
-import { cvAccept, uploadCv } from "../../../../lib/upload.ts";
+import { cvAccept, cvKinds, cvMaxSize, uploadCv } from "../../../../lib/upload.ts";
 import { addNote, askFeedback, busyTimes, cancelAsk, cancelInterview, considerFor, editCandidate, eraseCandidate, giveFeedback, moveCandidate, rejectCandidate, rejectionsLeft, removeNote, restoreCandidate, scheduleInterview, sendInterviewLink, cancelInterviewLink, setCv, setPool, undoReject, writeTo, writtenOutside } from "../../actions.ts";
 import { ReasonPicker } from "../../jobs/[id]/board-view.tsx";
 
@@ -27,8 +27,11 @@ const failed = (t: Errors, r: Fail) => format(t[r.error], r.values ?? {});
 
 // ---- The recruiter's actions -----------------------------------------------
 
-type ActionWords = { candidate: Catalogue["candidate"]; reject: Catalogue["reject"]; errors: Errors; common: Catalogue["common"]; apply: Catalogue["apply"]; board: Catalogue["board"]; hire: Catalogue["hire"]; write: Catalogue["write"]; interview: Catalogue["interview"]; dialog: DialogWords; date: DateWords };
-type Template = { id: string; name: string; language: string; subject: string; body: string };
+type ActionWords = { candidate: Catalogue["candidate"]; reject: Catalogue["reject"]; errors: Errors; common: Catalogue["common"]; apply: Catalogue["apply"]; board: Catalogue["board"]; hire: Catalogue["hire"]; write: Catalogue["write"]; interview: Catalogue["interview"]; dialog: DialogWords; date: DateWords; files: Catalogue["files"] };
+type TemplateFile = { file: string; name: string; type: string; size: number };
+type Template = { id: string; name: string; language: string; subject: string; body: string; attachments?: TemplateFile[] };
+// A template's file, shown in the picker as already there (kept, never sent again by the browser).
+const storedFile = (a: TemplateFile): PickedFile => ({ key: a.file, name: a.name, size: a.size, type: a.type, file: null, status: "ready", progress: 1, ref: a.file, error: null, stored: true });
 
 export function CandidateActions({ jobId, candidate, stages, next, askable, draft, languageName, locale, write, interview, jobs, t }: {
   jobId: string;
@@ -267,15 +270,18 @@ function RejectForm({ candidate, draft, languageName, t, onDone, onTyped }: { ca
 }
 
 // Writing to a candidate: a template (in their language first), the
-// subject and the text filled with their name, the job, the company. It
-// leaves from the jobs mailbox; their answer comes back to their page.
-// Without email on this Chest, the recruiter's own mail app opens with it.
+// subject and the text filled with their name, the job, the company, and
+// files (an offer letter: the template's, or added here). It leaves from
+// the jobs mailbox; their answer comes back to their page, and the files
+// stay in the conversation. Without email on this Chest, the recruiter's
+// own mail app opens with the text (the files are kept here).
 function WriteForm({ candidate, write, t, onDone, onTyped }: { candidate: { id: string; name: string; email: string; language: Language }; write: { templates: Template[]; values: Record<string, string>; languageNames: Record<string, string> }; t: ActionWords; onDone: () => void; onTyped: () => void }) {
   const toast = useToast();
   const [pending, start] = useTransition();
   const [chosen, setChosen] = useState("");
   const [subject, setSubject] = useState("");
   const [text, setText] = useState("");
+  const [files, setFiles] = useState<PickedFile[]>([]);
   const [error, setError] = useState<string | null>(null);
   const w = t.write;
   const groups = useMemo(() => {
@@ -285,6 +291,9 @@ function WriteForm({ candidate, write, t, onDone, onTyped }: { candidate: { id: 
   function pick(id: string) {
     setChosen(id);
     const found = write.templates.find(x => x.id === id);
+    // The template's files replace the previous template's; those added
+    // by hand stay.
+    setFiles(list => [...(found?.attachments ?? []).map(storedFile), ...list.filter(f => !f.stored)]);
     if (!found) return;
     setSubject(format(found.subject, write.values));
     setText(format(found.body, write.values));
@@ -294,7 +303,11 @@ function WriteForm({ candidate, write, t, onDone, onTyped }: { candidate: { id: 
       e.preventDefault();
       setError(null);
       start(async () => {
-        const r = await writeTo(candidate.id, subject, text);
+        const r = await writeTo(candidate.id, subject, text, {
+          files: files.filter(f => !f.stored && f.ref).map(f => ({ ticket: f.ref!, name: f.name })),
+          template: /^\d+$/u.test(chosen) ? chosen : "",
+          templateFiles: files.filter(f => f.stored && f.ref).map(f => f.ref!),
+        });
         if (!r.ok) return setError(failed(t.errors, r));
         onDone();
         if (r.value.status === "none") {
@@ -326,9 +339,18 @@ function WriteForm({ candidate, write, t, onDone, onTyped }: { candidate: { id: 
         <textarea id="write-text" className="field" rows={10} required maxLength={limits.emailText} value={text} onChange={e => setText(e.target.value)} aria-describedby="write-hint" />
         <p className="hint" id="write-hint">{format(w.hint, { email: candidate.email })}</p>
       </div>
+      <div className="field-block">
+        <span className="label">{w.files} <span className="optional">{t.apply.optional}</span></span>
+        <FilePicker label={w.files} files={files} onChange={setFiles} accept={cvKinds} maxFiles={5} maxSize={cvMaxSize} labels={t.files}
+          upload={async file => {
+            const sent = await uploadCv(file, "/chest/api/cv");
+            return sent.ok ? { ok: true, ref: sent.ticket } : { ok: false, error: t.errors[sent.error === "cv_off" ? "unavailable" : sent.error === "cv_invalid" ? "file_invalid" : sent.error] };
+          }} />
+        <p className="hint">{w.filesHint}</p>
+      </div>
       {error && <p className="error" role="alert">{error}</p>}
       <div className="form-actions">
-        <button type="submit" className="button" disabled={pending || !subject.trim() || !text.trim()}><Send />{w.send}</button>
+        <button type="submit" className="button" disabled={pending || !subject.trim() || !text.trim() || !filesReady(files)}><Send />{w.send}</button>
         <button type="button" className="button quiet" onClick={onDone}>{t.common.cancel}</button>
       </div>
     </form>
@@ -350,8 +372,9 @@ function InterviewForm({ candidate, interview, t, onDone, onTyped }: { candidate
   const [time, setTime] = useState(600);
   const [minutes, setMinutes] = useState(60);
   const [people, setPeople] = useState<Set<string>>(new Set(interview.preselected.filter(p => interview.people.some(x => x.id === p))));
-  const [busy, setBusy] = useState<{ member: string; start: string; end: string }[]>([]);
+  const [busy, setBusy] = useState<{ member: string; start: string; end: string; source?: string }[]>([]);
   const [tell, setTell] = useState(true);
+  const [skipLunch, setSkipLunch] = useState(true);
   const [error, setError] = useState<string | null>(null);
   // The link's days (tomorrow to a week later) and hours (09:00–18:00).
   const [firstDay, setFirstDay] = useState<string | null>(addIsoDays(interview.today, 1));
@@ -362,6 +385,7 @@ function InterviewForm({ candidate, interview, t, onDone, onTyped }: { candidate
   const [link, setLink] = useState<string | null>(null);
   const w = t.interview;
   const names = new Map(interview.people.map(p => [p.id, p.name]));
+  const firstNames = [...people].filter(id => names.has(id)).map(id => names.get(id)!.split(/\s+/u)[0]).join(", ");
   // The day, typed or picked in the member's language (the kit's
   // DateField: never the browser's date field), in the next 90 days.
   const last = addIsoDays(interview.today, 89);
@@ -420,7 +444,7 @@ function InterviewForm({ candidate, interview, t, onDone, onTyped }: { candidate
       start(async () => {
         if (mode === "link") {
           if (!firstDay || !lastDay) return;
-          const r = await sendInterviewLink(candidate.id, { people: chosen, minutes, firstDay, lastDay, dayStart, dayEnd, place, note });
+          const r = await sendInterviewLink(candidate.id, { people: chosen, minutes, firstDay, lastDay, dayStart, dayEnd, place, note, skipLunch });
           if (!r.ok) return setError(failed(t.errors, r));
           if (r.value.status === "sent") {
             onDone();
@@ -472,6 +496,10 @@ function InterviewForm({ candidate, interview, t, onDone, onTyped }: { candidate
               <TimeSelect id="iv-hours-to" value={dayEnd} onChange={setDayEnd} step={30} min={dayStart + 30} max={22 * 60} end />
             </div>
           </div>
+          <label className="check">
+            <input type="checkbox" checked={skipLunch} onChange={e => setSkipLunch(e.target.checked)} />
+            <span>{w.skipLunch}</span>
+          </label>
         </>
       ) : (
         <div className="three">
@@ -489,7 +517,7 @@ function InterviewForm({ candidate, interview, t, onDone, onTyped }: { candidate
         <div className={`busy${clash.length ? " clash" : ""}`} role="status">
           <p className="label">{clash.length ? w.clash : w.busy}</p>
           <ul className="plain-list">
-            {busy.map((b, i) => <li key={i}>{format(w.busyLine, { name: names.get(b.member) ?? "", from: hhmm(b.start), to: hhmm(b.end) })}</li>)}
+            {busy.map((b, i) => <li key={i}>{format(b.source ? w.busyLineBooking : w.busyLine, { name: names.get(b.member) ?? "", from: hhmm(b.start), to: hhmm(b.end) })}</li>)}
           </ul>
         </div>
       )}
@@ -510,9 +538,10 @@ function InterviewForm({ candidate, interview, t, onDone, onTyped }: { candidate
       )}
       {error && <p className="error" role="alert">{error}</p>}
       <div className="form-actions">
+        {/* The button says who meets them: nobody is on it without being chosen. */}
         {mode === "link"
-          ? <button type="submit" className="button" disabled={pending || !firstDay || !lastDay || chosen.length === 0}><Send />{w.sendLink}</button>
-          : <button type="submit" className="button" disabled={pending || !day || chosen.length === 0}><Calendar />{tell ? w.send : w.save}</button>}
+          ? <button type="submit" className="button" disabled={pending || !firstDay || !lastDay || chosen.length === 0}><Send />{chosen.length ? format(w.sendLinkTo, { names: firstNames }) : w.sendLink}</button>
+          : <button type="submit" className="button" disabled={pending || !day || chosen.length === 0}><Calendar />{chosen.length ? format(tell ? w.sendTo : w.saveFor, { names: firstNames }) : tell ? w.send : w.save}</button>}
         <button type="button" className="button quiet" onClick={onDone}>{t.common.cancel}</button>
       </div>
     </form>
@@ -580,10 +609,10 @@ export function Conversation({ messages, candidate, locale, t }: { messages: Sho
               {state(m)}
             </summary>
             <p className="pre mail-body">{m.body}</p>
-            {m.direction === "in" && (m.attachments.length > 0 || m.hasOriginal) && (
+            {(m.attachments.length > 0 || (m.direction === "in" && m.hasOriginal)) && (
               <ul className="mail-files">
                 {m.attachments.map((a, i) => <li key={i}><a href={`/chest/messages/${m.id}/files/${i}`} download><Download />{a.name}</a> <span className="muted small">{fileSize(a.size, locale)}</span></li>)}
-                {m.hasOriginal && <li><a href={`/chest/messages/${m.id}/files/original`} download><Download />{w.original}</a></li>}
+                {m.direction === "in" && m.hasOriginal && <li><a href={`/chest/messages/${m.id}/files/original`} download><Download />{w.original}</a></li>}
               </ul>
             )}
             {m.direction === "in" && m.authenticated === false && <p className="hint">{w.unverified}</p>}

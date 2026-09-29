@@ -28,6 +28,11 @@ export async function publicWords(): Promise<{ locale: Locale; t: Catalogue }> {
   // The Chest's reading first (Proposal (studio): visitors.language — the
   // switch's cookie, Accept-Language, then the Chest's own language).
   const h = await headers();
+  // A candidate's own link says the language they applied in (proxy.ts);
+  // the switch's choice wins over it.
+  const cookie = (await cookies()).get("lang")?.value;
+  const linked = h.get("x-link-lang");
+  if (!isLocale(cookie) && isLocale(linked)) return { locale: linked, t: catalogue(linked) };
   let locale: Locale;
   try {
     const said = visitors.language(h);

@@ -10,19 +10,26 @@ const byExtension: Record<string, string> = {
   pdf: "application/pdf",
   doc: "application/msword",
   docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  png: "image/png",
+  heic: "image/heic",
+  heif: "image/heic",
 };
 
 // typeOf: the file's type as the browser says it, or from its extension
 // (some systems say nothing for Word files).
 export function typeOf(file: { name: string; type: string }): string {
+  // A phone's photo may say image/heif: the same family, one name here.
+  if (file.type === "image/heif") return "image/heic";
   if (file.type && file.type !== "application/octet-stream") return file.type;
   return byExtension[file.name.split(".").pop()?.toLowerCase() ?? ""] ?? "application/octet-stream";
 }
 
-export const cvAccept = ".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+export const cvAccept = ".pdf,.doc,.docx,.jpg,.jpeg,.png,.heic,.heif,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,image/jpeg,image/png,image/heic,image/heif";
 // The same, as the kit's file picker takes it (by extension: some systems
-// give Word files no type).
-export const cvKinds = [".pdf", ".doc", ".docx"];
+// give Word files no type): a photo of the CV is fine.
+export const cvKinds = [".pdf", ".doc", ".docx", ".jpg", ".jpeg", ".png", ".heic", ".heif"];
 export const cvMaxSize = 10 << 20;
 
 export async function uploadCv(file: File, grantUrl: string, extra: Record<string, string> = {}): Promise<UploadResult> {

@@ -147,6 +147,44 @@ Intercom): there is no chat bubble.
   message tells the ticket's agent; giving a ticket to someone tells them —
   each in their own language. The tile's number: open tickets nobody took
   plus open ones given to you.
+- **Slack and Teams** (Settings, administrators — `webhooks`, Proposal
+  (studio)): paste a Slack incoming webhook, a Teams workflow's address or
+  any https receiver (Zapier, Make, your server: JSON signed by the
+  Chest, its secret key shown once), name it, and tick what it is told —
+  *a new request arrives*, *a customer writes again*, *a request waits too
+  long* (past the threshold, in working hours, once per wait; checked every
+  15 minutes by the `late` schedule). What leaves: the number, the
+  subject, who asked and a link to the ticket — never a message, never a
+  note — in the Chest's language. The Chest checks the address before
+  anything is kept (https, public, the provider's shape; a generic receiver
+  must answer a signed ping), keeps it encrypted (Settings shows it without
+  its secret part), delivers, retries, and stops an address that keeps
+  failing: Settings then says *Stopped* with the reason and *Try again*,
+  and the administrators hear of it in the bell. Removing a channel asks
+  first (the Chest forgets the address). On a Chest without webhooks,
+  Settings says so and hides the form.
+- **An incident in progress** (from **Status**, below): a line above the
+  inbox and every ticket — "Incident in progress: Payments unavailable",
+  the services it touches, a link to its public page — and, first in
+  *Saved replies*, "Incident: Payments unavailable": a reply in the
+  customer's language that says so and links the public page. Both go
+  once Status resolves (or removes) it.
+
+**For colleagues (`/chest/mine`, any member of the Chest who has
+Support):**
+- **My requests**: a colleague who asked the team something with a team
+  form of Forms (an IT request, a facilities request) — most have no role
+  in Support — reads their own requests here, newest first: the team's
+  answers (never a note), the state, their files and the team's; writes
+  again (with files; a closed request reopens); rates a closed one. Only
+  the tickets they asked (`requester` = their member id): any other
+  ticket, a customer's or another colleague's, is "not found", exactly as
+  one that does not exist. A member without a role lands here when they
+  open Support (any other page leads here; a ticket's address to their own
+  view of it); someone who answers tickets sees the tab when they asked
+  something themselves. The bell "Inès answered your request 1017" opens
+  their view of it. With nothing asked yet: "Open Forms" when Forms is on
+  the Chest.
 
 
 ## With the other tools
@@ -163,18 +201,27 @@ of the public form:
   their member id only (`requester`), never a name or an address, even if
   the event carries them. The team sees them by name when they have
   Support, "A colleague" otherwise, "Former member" once erased.
-- **The ticket**: the event's subject (else the form's title), its details,
-  then every other answer, one a line ("Your phone number: …", in the
-  answer's language); channel *Forms*; under the title, **From the form
-  “Contact us”**, linked to the answer in Forms while Forms is installed
-  on the Chest (below).
+- **The ticket**: a subject worth reading — the event's, unless it is only
+  the form's title (Forms' default mapping): then what the request is
+  about (a short answer to a question labelled *subject*, *topic*, *about*,
+  *sujet*, *objet*…) and the first line of the message, "Un devis —
+  Bonjour, je voudrais un devis pour six chaises en chêne."; the form's
+  title only when there is nothing better. **The message first**: the
+  details, else the answer that is the message (labelled *message*,
+  *details*, *question*…, else the longest free text), then every other
+  answer, one a line ("Your phone number: …", in the answer's language).
+  On the team's side phone numbers are `tel:` links and addresses
+  `mailto:` (an agent on a phone calls back in one tap). Channel *Forms*;
+  under the title, **From the form “Contact us”**, linked to the answer in
+  Forms while Forms is installed on the Chest (below).
 - **As a request of the public form**: the rules on arrival, the bell for
   those who answer (or the one a rule gave it to), the tiles; to a
   customer, the confirmation email with the follow-up link when the Chest
   can send email (never to a robot's address, three an hour to one address
   at most). A colleague gets no email — Support keeps no address of
-  theirs —: answers to them stay in Support (*In Support only*), and they
-  hear of each one in the Chest's bell when they have Support.
+  theirs —: answers to them stay in Support (*In Support only*); they read
+  them in **My requests** and hear of each one in the Chest's bell (its
+  item opens their request).
 - **Once**: the same event delivered again, or another event for the same
   answer, opens nothing and tells no one (the event's id and the form and
   answer ids are unique in `tickets`).
@@ -190,6 +237,17 @@ of the public form:
   the Chest, the form is named without a link. Following it opens Forms
   only for a member who has Forms; its host tells the others.
 
+Support **receives `status.incident`** (version 1) from **Status**
+(declared in `chest.proposals.json` `"receives"`; an administrator links
+the two). The contract is Status' (its README, "With the other tools"):
+`{v, action: opened|updated|resolved|removed, incident: {id, title,
+language, titles, status, impact, started_at, resolved_at, url, services:
+[{id, names, state}]}, update: {id, status, at}}`. Read as untrusted
+(`lib/incidents-in.ts`: texts bounded and cleaned, the link https only,
+states from a closed list); kept by the incident's id; an event published
+earlier (the Chest's `occurredAt`) never replaces a later one — they may
+arrive out of order. What the team sees of it: above.
+
 ## Roles
 
 | Role (`chest.json`) | Label | May |
@@ -197,7 +255,7 @@ of the public form:
 | `admin` | Administrator | everything, the settings (hours and threshold, rules, framing, renaming and deleting tags), erasing a customer's data, reports |
 | `agent` | Agent | read, answer, note, assign, close, priority, tags (adding a new one), files, saved replies, merge, several at once, saved views, correct a customer's address, export |
 | `viewer` | Viewer | read the tickets |
-| (none) | — | "You can't use Support yet" |
+| (none) | — | **My requests** only: the tickets they asked, and nothing else |
 
 ## First minute
 
@@ -207,6 +265,9 @@ of the public form:
 - **The first thing they do:** open the request, type the answer, *Send*.
 - **Clicks for the main job:** 2 (open, send) plus the typing; a saved
   reply is 2 more.
+- **A colleague without a role** (they asked IT something with a form):
+  the bell "Inès answered your request 1017" opens it in My requests —
+  the answer, a box to write again. Zero clicks to read, one to answer.
 - **A mistake:** *Close* has *Undo*; a note is written in yellow, in its own
   tab, so it is not mistaken for a reply; a refused action says why and
   keeps the text.
@@ -224,10 +285,13 @@ of the public form:
 | `/chest/new`, `/chest/settings`, `/chest/export` | idem (writing: agents, admins) | new ticket, settings, the ZIP export |
 | `/chest/reports` (`?weeks=`) | admins | reports |
 | `/chest/messages/<id>/original` | members with a role | a received email's original `.eml` (a download) |
+| `/chest/mine`, `/chest/mine/<number>` | any member, their own requests only | My requests; one of them (answers, write again, rate) |
+| `/chest/mine/<number>/files/<id>` | idem | a file of their own request (never a note's), as a download |
 | `/chest/files/<id>` (`?thumbnail=1`) | idem | an attachment (a fresh 15-minute link), or a photo's thumbnail |
-| `/chest-events` | the Chest only (signed) | members' lifecycle; `forms.request` from Forms (proposal) |
+| `/chest-events` | the Chest only (signed) | members' lifecycle; `forms.request` from Forms, `status.incident` from Status (proposal) |
 | `/chest-mail` | the Chest only (signed) — proposal | received email and bounces |
-| `/chest-jobs/cleanup` | the Chest only (signed) — proposal | nightly retention |
+| `/chest-jobs/cleanup`, `/chest-jobs/late` | the Chest only (signed) — proposal | nightly retention; every 15 minutes, requests waiting too long told to the channels that asked |
+| `/chest-webhooks` | the Chest only (signed) — proposal | a Slack/Teams channel the Chest stopped (`webhook.disabled`) |
 
 ## Looks
 
@@ -249,7 +313,8 @@ browser for it. Outside a Chest that offers looks, Support wears its own.
 - `capabilities`: `database`; `files` (attachments: the form's, the
   team's, received emails');
   `members` (names, and who answers: roles `admin`, `agent`);
-  `notifications`; `receives: ["member.*"]` (and `forms.request` in
+  `notifications`; `receives: ["member.*"]` (and `forms.request`,
+  `status.incident`, `webhooks: {max: 10}` and the `late` schedule in
   `chest.proposals.json`: Proposal (studio)).
 - **Customers are not members**: their email and name are kept to answer
   them, erased on request (Settings), and closed tickets are deleted after
@@ -300,7 +365,13 @@ browser for it. Outside a Chest that offers looks, Support wears its own.
   `X-Forwarded-For`, assumed set by the Chest's front.
 
 - **Events between tools** — **Proposal (studio)**: `forms.request` from
-  Forms (above). Without it, Forms' answers stay in Forms.
+  Forms, `status.incident` from Status (above). Without it, Forms' answers
+  stay in Forms and the inbox shows no incident.
+- **`webhooks`** — **Proposal (studio)** (SDK report §4.17,
+  `chest.proposals.json` `"webhooks": {"max": 10}`): the Slack, Teams and
+  web-address notices (Settings). Without it, Settings says the Chest
+  cannot send them yet. The "waiting too long" notice also needs
+  **scheduled tasks** (the `late` schedule, every 15 minutes).
 - **`chest.toolLink`** — **Proposal (studio)** (SDK report §4.18): the
   link back to an answer in Forms, from the addresses the Chest gives in
   `CHEST_TOOL_URLS`. On a Chest without it, the form is named without a
@@ -340,9 +411,21 @@ mailbox), `node lab/chest-dev/flows/helpdesk.mjs`,
   it (Settings, "help centre's address"); a public mode of the Wiki is in
   the suite's report.
 - **Several mailboxes or brands**, one company name per tool.
-- **SLA reminders**: the wait is counted in working hours and
-  highlighted, reports give the first-answer time, but nobody is emailed
+- **SLA reminders by email**: the wait is counted in working hours and
+  highlighted, reports give the first-answer time, and a Slack/Teams
+  channel can be told when a request waits too long; nobody is emailed
   when a target is missed, and there is no separate "resolution" target.
+- **Asking the team from Support itself**: a colleague's request comes
+  from a team form of Forms; My requests shows and answers it, but has no
+  "New request" of its own.
+- **The ticket's state in Forms**: Forms' "What you sent" does not show
+  whether the team answered — the colleague reads it in Support's My
+  requests. (A `support.request.updated` event back to Forms would need
+  Forms to receive it.)
+- **Settings save with a button per box**, unlike Forms' autosave.
+- **An event to Status or from it that the Chest cannot take** is not
+  retried by Support: the next event of the incident brings it up to
+  date.
 - **Rules beyond arrival**: rules run when a request arrives, not on
   later events (no "when a ticket waits 2 days…"), no "any of / all of".
 - **Merging across customers** (Zendesk adds the other as CC): refused,

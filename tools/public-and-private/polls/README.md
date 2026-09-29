@@ -1,8 +1,13 @@
 # Polls — ask the team a quick question, find a date, run a short survey
 
 *Polls* (French interface: *Sondages*) replaces Doodle, Framadate, Slack and
-Teams polls, and Officevibe-style weekly pulse surveys (with eNPS and the
-trend over time), inside the company's own Chest. Everyone signed in to the
+Teams polls, and Officevibe-style weekly pulse surveys (with eNPS, the
+trend over time and anonymous two-way feedback), inside the company's own
+Chest. A date poll can also be opened to **guests outside the Chest** (a
+client, a candidate) through a secret link, on the tool's public host —
+which is why Polls is a tool with a public part
+(`tools/public-and-private/polls`, moved from `tools/private/` on
+2026-09-29). Everyone signed in to the
 Chest can ask the team and answer in a few seconds; the organiser sees the
 results as they come in, or when the poll closes — an anonymous poll shows
 them to everyone, organiser included, only once it closes.
@@ -23,6 +28,24 @@ them to everyone, organiser included, only once it closes.
   - **A team pulse** (fourth tile, organisers) — a survey ready to send:
     anonymous, every week, three questions (how the week was, eNPS, anything
     to say), written in the language of whoever asks it.
+- **Guests outside the Chest** (date polls): the organiser (or an admin)
+  turns on *Anyone with the link can answer* on a named date poll and
+  copies the link. A guest opens it on the public host, types a name (an
+  email if they want the chosen date), says yes / if need be / no per date
+  — no account. They see the poll's words and their own answer, never the
+  others' answers or the team's names. Their browser keeps a secret
+  (a cookie for that poll's page only; the database keeps its hash) to
+  come back and change the answer until the poll closes. The team sees
+  them in the grid, marked **Guest**, counted apart ("4 of 7 answered · and
+  2 guests"); the organiser sees their emails and may remove an answer
+  (after a confirmation: it is deleted for good). Turned off, the link
+  stops; on again, it is a new link. Guarded like Forms' and Booking's
+  public forms: a field only robots fill, a signed "shown at" token (a
+  form sent faster than a person types waits), the Chest's visitor
+  counters (20 answers a visitor an hour, 600 for everyone; Polls' own
+  counters without them), 300 guests a poll. Once the date is chosen, the
+  guest's page shows it with a calendar file, and guests who gave an email
+  get it by email (where the Chest sends email).
 - **Anyone asks.** Every member of the tool can start a poll (as in Slack
   or Teams); an admin can keep that to organisers (*Settings* on the home
   page). A member's own poll is theirs to edit, close and delete.
@@ -37,6 +60,9 @@ them to everyone, organiser included, only once it closes.
   state (*Open*, *Draft*, *Closed*), how many of those asked answered
   ("4 of 7 answered", with a bar) and when it closes. Your own polls are
   not mixed into *To answer*.
+- **Two pulses, two names**: a new repeating survey named like one already
+  running is named apart — "Météo de l'équipe (2)" — so two identical cards
+  never sit side by side in *To answer*.
 - **Repeating surveys**: *Repeat — every week / every month*. Each round is
   a poll of its own, opened by itself at the same time for the same people,
   and open until the next one starts. The poll page shows **Over time**: the
@@ -78,8 +104,13 @@ them to everyone, organiser included, only once it closes.
   averages; free texts; **CSV download** in the reader's language.
 - **The chosen date**: after a date poll closes, the organiser picks the date
   and *Tell everyone*: everyone asked gets a bell item with the date in their
-  language, sees it on the poll, and can **add it to their calendar** (.ics,
-  RFC 5545; all-day or timed, on the Chest's clock).
+  language, sees it on the poll, and finds it **in their Chest calendar**
+  (the `calendar` proposal, as News: one feed per person that Google,
+  Outlook or Apple Calendar subscribe to) — everyone asked except those who
+  said *No* to that date; it moves when the date changes and leaves when
+  the choice is taken back or the poll deleted. The .ics file (RFC 5545;
+  all-day or timed, on the Chest's clock) stays, for a Chest without the
+  calendar and for anyone who prefers it.
 - **Reminder**: the day before a poll closes, those who have not answered
   get one bell item ("Closes tomorrow: …"), and an email where the Chest
   sends them — only for polls sent more than a day before their close. The organiser is told when their poll closed by
@@ -139,6 +170,19 @@ The organiser ticks *Anonymous* when writing the poll. Then:
   groups are not shown, and why.
 - **An anonymous answer cannot be changed**: nothing says which one is yours.
   The form says so before you send it.
+- **Replies to anonymous free texts** (Officevibe's two-way feedback,
+  `lib/replies.ts`): when someone writes a free text in an anonymous poll,
+  their browser makes a random key and sends only its hash with the text
+  (`texts.reply_key`); the key stays in that browser (localStorage). Nothing
+  else changes: no member id, no time with the text or its hash. Once the
+  poll is closed and its results show (5 answers), those who manage it
+  reply under a text (named); everyone asked gets one bell item "Sofia
+  replied to an anonymous comment" — never to whom. On the poll's page, the
+  author's browser sends its keys; the server hashes them, answers the
+  conversations they open and keeps nothing of the asking; the author reads
+  the reply ("Only you see this, in this browser") and may answer back,
+  stored as *The author (anonymous)* with no time (its id orders the
+  conversation). Nobody else asked sees the conversation.
 
 What anonymity here does **not** protect against, honestly:
 
@@ -154,6 +198,14 @@ What anonymity here does **not** protect against, honestly:
   person has answered so far, read that person's answer. Nobody can do it
   through Polls, its pages or exports. Groups of fewer than 5 members are
   never counted.
+- **Replies, on another browser.** The key lives in the browser the author
+  answered with: on another device, or after clearing the browser's data,
+  they cannot read the replies (nobody can tell them — that is the point).
+- **Replies and the server.** Reading or answering a reply sends the key in
+  a request the Chest signs with the member's identity; Polls keeps nothing
+  of it, but someone who changed the tool's code, or logs requests with
+  their body, could tie the key to the member. The same holds for the
+  anonymous answer itself (below).
 - **The server's administrator.** Someone with direct access to the
   database server (not through the Chest) could keep copies of the database
   between two answers and compare them, or read old row versions on disk
@@ -227,23 +279,32 @@ closed poll is seen by those asked, its organiser and admins.
 | Route | What |
 |---|---|
 | `/` | Public host: "Polls lives in your Chest", with a language switch |
+| `/p/[link]` | Public host: a date poll open to guests — the dates, a name (and email), their answer; the chosen date once picked (a language switch) |
+| `/p/[link]/calendar` | Public host: the chosen date as an .ics file for guests |
 | `/chest` | Home: to answer, asked by you, ask the team, answered and still open, closed recently (a pulse once: its latest round); for admins, *Settings* |
 | `/chest/new?kind=choice\|date\|survey` | Composer (whoever may start a poll); `&preset=pulse`: the team pulse (who may start a company survey) |
 | `/chest/polls/[id]` | A poll: answer, results, participation, organise |
 | `/chest/polls/[id]/edit` | A draft to finish, or an open poll's words and closing time |
 | `/chest/polls/[id]/export` | CSV of the answers (those who manage the poll) |
-| `/chest/polls/[id]/calendar` | The chosen date as an .ics file |
+| `/chest/polls/[id]/calendar` | The chosen date as an .ics file (the Chest calendar has it too) |
 | `POST /chest-events` | The Chest's lifecycle events (signed) |
 | `POST /chest-jobs/pass` | The scheduled pass (signed; Proposal (studio)) |
 
 ## On a Chest
 
+- `public: true` with `"csp": "tool"` (the guest pages, Next.js's own
+  policy as Forms and Booking); the owner opens the public part in the
+  Chest — until then, the guest link cannot be reached (and the organiser's
+  card cannot show a public address). Public pages wear the company's brand
+  or Polls' own look, never a catalogue theme chosen for the team.
 - `capabilities`: `database`; `members` (names, photos, groups, who is
   asked, people found by name); `notifications` (the bell, the tile's
   number); `receives: ["member.*"]`. Proposal (studio), in
   `chest.proposals.json`: `mail: {send: true}` — reminders by email, one
   per person, sent to `{member}` (Polls never sees an address); without it,
-  reminders are bell items only. `groups: "read"` with `receives:
+  reminders are bell items only; it also sends a guest the chosen date.
+  `calendar: true` — the chosen date in each person's Chest calendar.
+  `groups: "read"` with `receives:
   ["group.*"]` — every group of the Chest as an audience, and results per
   team; without it, only the groups that give Polls.
 - **Telling those asked** uses one `notifications.broadcast` per poll
@@ -295,16 +356,16 @@ closed poll is seen by those asked, its organiser and admins.
 - `groups: "read"` — **Proposal (studio)**, in `vendor/` (`members.groups.all`,
   `members.groups.members`, `group.*` events): any group of the Chest as an
   audience; results per team (`lib/groups.ts`, adapted from News).
+- `calendar` — **Proposal (studio)**: the chosen date in each person's
+  Chest calendar (`calendar.put`, key `poll:<id>`); without it, the .ics
+  file (Polls remembers the Chest's answer in `settings.calendar`).
+- `visitors` — **Proposal (studio)**: the guest form's token and the
+  Chest's counters of visitors; without them, Polls counts in its own
+  table (`guest_counts`).
+- `chest.publicUrl()` — **Proposal (studio)**: the guest link's address
+  (else derived from the request, as Booking does).
 - Wanted, not built:
-  - **A public part for guests without a Chest account** — Doodle's main
-    outside use (a client meeting, a candidate's interview slot). Polls is
-    a private-only tool; it would need `public: true` and a way for a
-    visitor to answer one date poll through an unguessable link, with a
-    name field and no account, rate-limited per link and per address. The
-    public-part and `visitors` proposals give the pieces; turning a private
-    tool into a public-and-private one (a second host, its own CSP, a
-    public page per poll) is a structure change for the studio to decide.
-  - A **broadcast to members by id** (`to: { members: [ids] }`) and one
+  - **A broadcast to members by id** (`to: { members: [ids] }`) and one
     that **excludes members** (`except: [ids]`), so a poll put to people by
     name, a reminder or a poll's first telling need not page through
     members.
@@ -327,9 +388,16 @@ In the studio: `node lab/chest-dev/dev.mjs tools/public-and-private/polls --prod
 
 ## What it does not do (yet)
 
-- **Guests outside the Chest**: no public answering link (see *Needs from
-  the SDK*). A meeting with a client or a candidate still needs Doodle or an
-  email thread.
+- **Guests**: on date polls only (not a question, not a survey), never
+  anonymous; no comments by guests; a guest changes their answer from the
+  browser they answered with only (no "edit link" by email); guests are not
+  reminded; a guest's answer is kept with the poll (deleted with it, or by
+  the organiser) — there is no separate retention for guests' names and
+  emails yet. The public part must be opened by the Chest's owner.
+- **Replies to anonymous texts**: only on free-text questions (not an
+  "Other" answer), only once the poll is closed with 5 answers, 20 messages
+  a conversation; the author reads them in the browser they answered with;
+  no email to the author (nobody knows who they are).
 - **Per manager** (Officevibe's heat map by manager): results are per Chest
   group only — the Chest has no manager relation. Named polls have no team
   view (their names are shown already). A question bank and a driver model

@@ -38,7 +38,7 @@ export default async function ProposalsPage() {
                 <h2 className="headline">{p.title}</h2>
                 {p.colleague && <p className="thanks"><Avatar name={name(p.colleague)} photo={who.get(p.colleague)?.photo ?? null} size="s" />{format(w.thanks, { name: name(p.colleague) })}</p>}
                 {p.body && <p className="dek">{plain(p.body)}</p>}
-                <p className="byline">{format(w.by, { name: name(p.author), when: d.ago(p.createdAt) })}</p>
+                <p className="quiet-text">{format(w.by, { name: name(p.author), when: d.ago(p.createdAt) })}</p>
                 {p.author === member.id ? <p className="quiet-text">{w.own}</p> : <Decide id={p.id} author={name(p.author)} t={w} errors={t.errors} />}
               </div>
             </li>

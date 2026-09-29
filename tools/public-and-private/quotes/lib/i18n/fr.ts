@@ -474,6 +474,7 @@ export const fr: Catalogue = {
       title: "Réponse en ligne",
       explain: "Le client peut lire ce devis et l’accepter ou le refuser en ligne jusqu’au {date}. Le lien est dans l’e-mail ; copiez-le pour l’envoyer vous-même.",
       explainAnswered: "Le devis a sa réponse ; le lien l’affiche désormais.",
+      explainRevising: "Tant que la nouvelle version n’est pas envoyée, le lien l’annonce et ne prend aucune réponse. Envoyée, le même lien l’affiche.",
       linkLabel: "Lien pour le client",
       copy: "Copier le lien",
       copied: "Copié",

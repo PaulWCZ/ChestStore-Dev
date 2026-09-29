@@ -546,3 +546,10 @@ export async function publicJob(sql: Query, slug: unknown): Promise<PublicJob | 
   const [row] = await sql<JobDb[]>`select * from jobs where slug = ${slug} and state <> 'draft'`;
   return row ? toPublic(toJob(row)) : null;
 }
+
+// Jobs to start from (the empty tool, /chest/jobs/new?template=…): their
+// words in the catalogue's jobTemplates, in the recruiter's language — a
+// draft to adapt, never published as it is.
+export const jobTemplateKeys = ["officeManager", "sales", "support"] as const;
+export type JobTemplateKey = (typeof jobTemplateKeys)[number];
+export const isJobTemplate = (value: unknown): value is JobTemplateKey => typeof value === "string" && (jobTemplateKeys as readonly string[]).includes(value);

@@ -91,23 +91,34 @@ export const isLanguage = oneOf(languages);
 export const isHours = oneOf(hoursKinds);
 export const isQuestionKind = oneOf(questionKinds);
 
-// The CVs a candidate may send: PDF, Word (old and new), 10 MiB at most.
+// The CVs a candidate may send: PDF, Word (old and new), or a photo of it
+// (JPEG, PNG, HEIC — what a phone takes), 10 MiB at most.
 export const cvTypes = {
   "application/pdf": "pdf",
   "application/msword": "doc",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "docx",
+  "image/jpeg": "jpg",
+  "image/png": "png",
+  "image/heic": "heic",
 } as const;
+// A CV the team's browsers show on the page (a photo: JPEG, PNG).
+export const isPictureCv = (type: string | null | undefined) => type === "image/jpeg" || type === "image/png";
 export type CvType = keyof typeof cvTypes;
 export const isCvType = (value: unknown): value is CvType => typeof value === "string" && Object.hasOwn(cvTypes, value);
 
 // What a file's first bytes say it is: a PDF starts with "%PDF-", an old
-// Word file is an OLE compound file, a new one a ZIP. The type the browser
-// declared must agree with them.
+// Word file is an OLE compound file, a new one a ZIP, a JPEG FF D8 FF, a
+// PNG its 8-byte signature, a HEIC an ISO box "ftyp" of a HEIF brand. The
+// type the browser declared must agree with them.
 export function sniff(head: Uint8Array): CvType | null {
   const starts = (bytes: number[]) => bytes.every((b, i) => head[i] === b);
   if (starts([0x25, 0x50, 0x44, 0x46, 0x2d])) return "application/pdf";
   if (starts([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1])) return "application/msword";
   if (starts([0x50, 0x4b, 0x03, 0x04])) return "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+  if (starts([0xff, 0xd8, 0xff])) return "image/jpeg";
+  if (starts([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])) return "image/png";
+  const box = String.fromCharCode(...head.subarray(4, 12));
+  if (/^ftyp(heic|heix|heim|heis|hevc|hevx|mif1|msf1)$/u.test(box)) return "image/heic";
   return null;
 }
 

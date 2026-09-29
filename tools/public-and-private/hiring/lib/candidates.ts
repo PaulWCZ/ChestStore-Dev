@@ -529,13 +529,14 @@ export async function erase(sql: Sql, actor: Member | null, candidateId: unknown
   });
 }
 
-// forget prepares candidates' deletion: the files their emails brought
-// (attachments, originals), and their interviews' calendar events, which
+// forget prepares candidates' deletion: the files of their emails (what
+// they brought, the originals, what the team sent them), and their
+// interviews' calendar events, which
 // leave the interviewers' calendars at the next flush.
 async function forget(tx: Query, ids: string[]): Promise<string[]> {
   if (ids.length === 0) return [];
   await tx`insert into calendar_gone (key) select 'interview:' || i.id from interviews i where i.candidate_id in ${tx(ids)} and i.calendar <> 'off' on conflict do nothing`;
-  const files = await tx<{ attachments: { file?: string }[]; original: string | null }[]>`select attachments, original from messages where candidate_id in ${tx(ids)} and direction = 'in'`;
+  const files = await tx<{ attachments: { file?: string }[]; original: string | null }[]>`select attachments, original from messages where candidate_id in ${tx(ids)}`;
   return files.flatMap(f => [...(Array.isArray(f.attachments) ? f.attachments.map(a => a.file).filter((x): x is string => typeof x === "string") : []), ...(f.original ? [f.original] : [])]);
 }
 

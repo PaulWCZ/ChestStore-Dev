@@ -556,3 +556,4 @@ select.ink { appearance: none; cursor: pointer; padding-right: 18px; background-
 @media (max-width: 640px) { .bank-line { grid-template-columns: 1fr; } }
 .siren-fill { display: flex; gap: var(--space-2); flex-wrap: wrap; }
 .siren-fill .field { flex: 1 1 12ch; min-width: 0; }
+.terms-row .logo-actions { display: grid; gap: var(--space-2); justify-items: start; }

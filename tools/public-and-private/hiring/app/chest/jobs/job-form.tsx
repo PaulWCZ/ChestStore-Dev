@@ -20,13 +20,14 @@ const toDraft = (q: Question): Draft => ({ id: q.id, kind: q.kind, label: q.labe
 
 // Writing a job: the facts a candidate looks for first, the description
 // (a real editor: headings, bold, lists as they will look), the salary. A new job is saved
-// as a draft: nothing is public until "Publish" on its board.
-export function JobForm({ job, defaultLanguage, defaultCountry, countryNames, today, t }: { job: Job | null; defaultLanguage: string; defaultCountry: string; countryNames: [string, string][]; today: string; t: Words }) {
+// as a draft: nothing is public until "Publish" on its board. start: a
+// job to start from (a template's title, team and description).
+export function JobForm({ job, start: from, defaultLanguage, defaultCountry, countryNames, today, t }: { job: Job | null; start?: { title: string; team: string; description: string }; defaultLanguage: string; defaultCountry: string; countryNames: [string, string][]; today: string; t: Words }) {
   const router = useRouter();
   const toast = useToast();
   const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
-  const [description, setDescription] = useState(job?.description ?? "");
+  const [description, setDescription] = useState(job?.description ?? from?.description ?? "");
   const [closesOn, setClosesOn] = useState<string | null>(job?.closesOn || null);
   // A closing day the field could not read leaves the previous one in
   // `closesOn`: saving waits, on the field and its sentence.
@@ -75,12 +76,12 @@ export function JobForm({ job, defaultLanguage, defaultCountry, countryNames, to
     }}>
       <div className="field-block">
         <label className="label" htmlFor="title">{w.title}</label>
-        <input id="title" name="title" className="field big-field" required maxLength={limits.title} defaultValue={job?.title ?? ""} placeholder={w.titlePlaceholder} autoFocus={!job} />
+        <input id="title" name="title" className="field big-field" required maxLength={limits.title} defaultValue={job?.title ?? from?.title ?? ""} placeholder={w.titlePlaceholder} autoFocus={!job} />
       </div>
       <div className="three">
         <div className="field-block">
           <label className="label" htmlFor="team">{w.team}</label>
-          <input id="team" name="team" className="field" maxLength={limits.team} defaultValue={job?.team ?? ""} placeholder={w.teamPlaceholder} />
+          <input id="team" name="team" className="field" maxLength={limits.team} defaultValue={job?.team ?? from?.team ?? ""} placeholder={w.teamPlaceholder} />
         </div>
         <div className="field-block">
           <label className="label" htmlFor="place">{w.place}</label>

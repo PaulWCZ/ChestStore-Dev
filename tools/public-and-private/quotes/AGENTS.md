@@ -45,7 +45,21 @@ legal defect for the company using it.
 - Imported invoices (`status = 'imported'`, migration `0005_switching.sql`):
   `lib/importers.ts` (`importInvoice`, `undoImport`), `collectable()` in
   `lib/documents.ts`.
-- `lib/sending.ts` — the only call site of the mail proposal.
+- `lib/sending.ts` — the only call site of the mail proposal; a quote's
+  email opens with its answer line (`answerLine`) and carries the terms.
+- `lib/versions.ts` — versions of a sent quote (`quote_versions`,
+  migration `0006_versions.sql`): `reviseQuote`, `discardVersion`,
+  `versionPdf`, `changesSince`/`diffLines` (what the client is told
+  changed). A sent quote is **never** edited in place (`editable()` is
+  drafts only); `versioned()` in `lib/model.ts` writes "D-… v2".
+- `lib/terms.ts` — the terms and conditions of sale (migration
+  `0007_terms.sql`); `app/chest/terms`, `app/q/[secret]/terms`.
+- `lib/bank-parse.ts` (browser-safe) and `lib/bank.ts` — a bank
+  statement matched to open invoices (migration `0008_bank.sql`:
+  `payments.bank_line`); `app/chest/bank/`.
+- `lib/revenue.ts` — the desk's revenue card (as the journal counts sales).
+- `lib/registry.ts` — the public directory of companies, the tool's only
+  declared network host (`chest.json` `network`); tests inject a fetcher.
 - `lib/export.ts` — CSV and ZIP for the accountant.
 - `lib/lifecycle.ts`, `lib/tell.ts`, `lib/notify.ts`, `lib/people.ts` — the Chest glue.
 - `migrations/0001_quotes.sql` — the schema **and the freezing triggers**;
@@ -106,6 +120,9 @@ anything touching numbering), `npm run build`, the studio's
   StatusBadge, AppShell) before writing one; never `window.confirm`, never
   `<input type="date">`; a reversible act is a toast with `undo`, what
   already left (an email, a bell item) is `sent: true`.
+- **Public words**: every catalogue word a public page shows with a
+  `{placeholder}` goes through `format()`; `test/public-words.test.ts`
+  scans the public files (list a new public page there).
 - **The public part** (`/`, `/q/<secret>`) shows nothing without the
   secret, and nothing but the quote the secret opens; it never reads a
   member; its look is `publicLook()` (brand, else the tool's own — never a
