@@ -118,16 +118,25 @@ acceptance, in a later round.
   - SDK studio.13, webhooks (84 tests).
 - **Severe critique round 2 is done:** `reports/05-critique.md` §Round 2 and
   `reports/05-critique/round-2/`.
-- **Round-2 fixes verified by the lead (kit 0.2.3):** Expenses 82,
+- **Round-2 fixes: all 18 tools verified by the lead** (tests on PGlite +
+  PostgreSQL, builds, flows, audits 0, screenshots, lint 0): Expenses 82,
   Timesheets 73, Leave 73, People 59, Equipment 89, News 82, Polls 63,
-  Goals 56, Tasks 82, Wiki 82 tests (PGlite + PostgreSQL), builds,
-  flows, audits 0, screenshots, lint 0.
-- **Round-2 fixes done by their builders, the lead's check queued:**
-  Quotes (moved to `tools/public-and-private/quotes`, online "Bon pour
-  accord"), Clients, Support; Rooms, Hiring, Status. **Still building:**
-  Booking and Forms.
-- **Open:** one Clients flow step (drag to Won, reason dialog) failed in
-  2 of 5 of its builder's runs — reproduce and root-cause.
+  Goals 56, Tasks 82, Wiki 82, Quotes 126 (moved to
+  `tools/public-and-private/quotes`, online "Bon pour accord"), Support
+  54, Rooms 79, Hiring 70, Status 74, Booking 81, Forms 96, Clients 70.
+  The Clients flake was a race in the flow (fixed; 5 clean runs in a row).
+- **Kit 0.2.4** (148 tests): a refused date stays as typed, never saved
+  silently; phone nav never cuts a name with spaces. **Kit 0.2.5** (153):
+  the sentence clears while typing so the Save click after a correction
+  is not lost. Vendoring now packs one at a time (parallel packs gave
+  incomplete copies; all 18 copies checked complete).
+- **On kit 0.2.5:** 12 tools. Tasks, Wiki, Leave, Timesheets verified on
+  it; News, Polls, Quotes, Support, People, Equipment, Expenses, Goals
+  (0.2.4 date audits + News mention-search migration) queued for the
+  lead's check. **Being moved:** Clients, Booking, Forms (+ Clients
+  receives `forms.contact`), Rooms, Hiring, Status.
+- **Next:** Support receives `forms.request`; the showcase with looks;
+  critique update; PR description.
 - **Then:** re-vendor 0.2.3 everywhere; the showcase with looks; fix what
   critique round 2 finds.
 - **Noted:** News search still matches raw mention tokens in its index
