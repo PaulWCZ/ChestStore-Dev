@@ -40,7 +40,15 @@ async function ask(start, end, options = {}) {
     expect(await radio.isChecked(), options.half + " chosen");
   }
   if (options.note) await page.locator("#note").fill(options.note);
-  return page.locator(".quote-days").innerText();
+  // The cost is worked out after the last change: read it once it has settled.
+  let last = "", same = 0;
+  for (let i = 0; i < 40 && same < 3; i++) {
+    await page.waitForTimeout(150);
+    const now = await page.locator(".quote-days").innerText();
+    same = now === last ? same + 1 : 0;
+    last = now;
+  }
+  return last;
 }
 
 async function send(label = "Send the request") {
