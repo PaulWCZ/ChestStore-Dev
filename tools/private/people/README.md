@@ -29,10 +29,14 @@ see "What it does not do yet".
   kit's date field; "Medical visit", "Badge expires" — it may **remind HR
   in the bell each morning** from a number of days before), or a
   **choice** from HR's list ("Size": S, M, L; any case accepted, stored as
-  HR wrote it). Each filled by the person (and HR) or by HR only, shown on
-  the profile, found by the search, in the export and the import (dates
-  in the file's order, choices checked). Deleting one has *Undo* (kept 30
-  days).
+  HR wrote it). Each filled by the person (and HR) or by HR only, and
+  **seen by everyone or by HR and the person only** (a lock marks it; a
+  date is HR's and the person's by default — a medical visit is nobody
+  else's business). A private value never leaves the server for anyone
+  else: not on the profile, not in the search. Shown on the profile, found
+  by the search, in the export and the import (dates in the file's order,
+  choices checked). HR changes who sees a field from the table's column
+  head. Deleting one has *Undo* (kept 30 days).
 - **A profile page** per person: how to reach them (one tap to call), what
   to ask them, whom they report to and who reports to them, how long they
   have been here, their checklists (for those allowed to see them).
@@ -113,6 +117,9 @@ The part of BambooHR / Lucca Core HR a French SME is required to have.
   (contracts, amendments, certificates, ID: PDFs, pictures, Word or
   OpenDocument files up to 20 MB, kept through the Chest's files, opened
   through a fresh 15-minute link).
+- Also: the **employee number** (*matricule*, unique), the **work
+  permit's end of validity**, and the **days worked** of a part-timer
+  (Monday to Sunday, as the part-time contract says).
 - **Who sees what**: HR edits every record; **the person reads their own**
   ("My HR record" on their profile), read-only; **anyone else — their
   manager included — is told it does not exist** (404).
@@ -124,7 +131,42 @@ The part of BambooHR / Lucca Core HR a French SME is required to have.
 - **One click to start**: "Create their 12 records" for everyone in the
   directory who has none, filled with their name, job and start date.
 - **Coming up** and in HR's bell each morning: trial periods ending within
-  two weeks, contracts within a month.
+  two weeks, contracts within a month, **work permits running out within
+  60 days** (and every morning after they lapsed, until HR writes the new
+  end: employing someone without a valid permit is an offence).
+- **Request a change** on *My HR record*: the person proposes a new home
+  address or emergency contact (with a word for HR); HR sees it under
+  *Changes asked* and on the record, what is there now and what is asked,
+  and **accepts** (the record changes, in the journal as HR's change) or
+  **declines** with a word; the person is told in the bell and may take
+  their request back meanwhile. One waits at a time. The asked values live
+  in the request only while it waits (the journal names fields).
+- **Import HR records** from Lucca Core HR's or BambooHR's export or any
+  spreadsheet (*Records → Import*): the same steps as the profile import —
+  columns recognised in English and French (Matricule, Nom, Prénom,
+  Civilité, Date de naissance, Nationalité, Type de contrat, Temps de
+  travail, Heures hebdomadaires, Date d'entrée, Date de fin de contrat,
+  Date de sortie, Titre de séjour and its expiry, an address in parts,
+  the emergency contact… — header words from the studio's knowledge of
+  these exports, not checked against a live one), a mapping step, columns left out named, dates
+  asked when ambiguous, a preview row by row. Each row finds its record by
+  employee number, then work email or name (a member), then legal name;
+  otherwise it makes one — linked to the member, or **"Not in the Chest"**
+  (a warehouse worker, an intern, someone arriving). Unreadable cells (a
+  contract "bizarre", 31/13/2020, an end before the start) are said and
+  left out; one transaction; the journal says "Imported: …" (field names).
+- **Letters from templates** (*Records → Letters*): HR writes a letter
+  once with fields ({name}, {job}, {firstDay}, {lastDay}, {contract},
+  {company}, {today}, {signer}…, inserted with a click) and prints it for
+  anyone from their record — a page laid out as paper, printed or saved as
+  PDF by the browser. Two examples in one click, the **certificat de
+  travail** (the mentions of D1234-6 and the health-cover portability of
+  L911-8, from the studio's knowledge — not verified first-hand: a payroll
+  expert should read it once) and an **attestation d'emploi**,
+  each shown in the reader's language until HR rewords it (the company's
+  address, the town: once). What the record lacks is left blank ("……")
+  and named on screen, never silently; each printing is noted in the
+  record's journal. Signed by hand; the signed copy goes in the documents.
 - **The staff register** (*registre unique du personnel*, Code du travail
   L1221-13, D1221-23, R1221-26 — sources in THIRD_PARTY.md), written from
   the records: employees in the order they were hired (name and first
@@ -151,7 +193,8 @@ The part of BambooHR / Lucca Core HR a French SME is required to have.
   Headcount, by team, office and contract (each adds up to the headcount);
   arrivals and departures for each of the last twelve months; turnover
   over twelve months (half of arrivals plus departures, divided by the
-  headcount a year ago — the usual French *taux de rotation*), each figure
+  headcount a year ago — the usual French *taux de rotation*, **interns
+  left out**: they are not employees; the page says so), each figure
   written next to its bar. Someone who left the Chest without an exit date
   in their record is not counted, and the page says to write it.
 - **Salary is not kept here — a decision.** In France the pay slip and the
@@ -215,7 +258,7 @@ ones Rooms receives; unchanged).
   reference and time for a week, so an approval delivered late (events
   come at least once, not always in order) cannot bring the badge back.
 
-**People → other tools** — departures (`chest.proposals.json` `emits`):
+**People → other tools** — departures and records (`chest.proposals.json` `emits`):
 
 - When HR **starts a leaving checklist** for a member, its last day is
   their departure: People publishes `people.leaving` `{member, lastDay}`.
@@ -224,7 +267,19 @@ ones Rooms receives; unchanged).
   running, the latest last day counts; a change that moves nothing tells
   nothing. Who and when only — never the checklist, its steps or a
   reason. **Equipment** receives it: it lists what the person holds to
-  take back before that day.
+  take back before that day; **Leave** sets the person's last day from it
+  (unless HR typed one in Leave or the record has one).
+- `people.record` `{member, employeeNumber, startDate, lastDay, workDays,
+  weeklyHours}` — what Leave (and any HR tool) needs of an HR record, so
+  HR types it once: told when a record linked to a member is written,
+  linked, created or imported, **only when one of these changed** since
+  People last told it (`records.told`; a record not told is told at its
+  next change). `employeeNumber` string or null, days `YYYY-MM-DD` or null
+  (`lastDay` is the record's last day), `workDays` ISO days `[1..7]` (1 =
+  Monday) or null when not said, `weeklyHours` a number or null. Never the
+  name, the contract, the address or anything else of the record. A record
+  of someone without the Chest is never told. **Leave** receives it: the
+  number, first day, days worked and last day follow the record.
 
 ## Looks
 
@@ -248,8 +303,8 @@ empty states, avatars — are the store's UI kit (`@argentic/chest-ui`,
 
 | Role (`chest.json`) | Label | May |
 |---|---|---|
-| `hr` | HR | everything below, and: everyone's job fields and extra fields, the table, templates, start/follow/stop checklists, arrivals, tick any step, import, export, **HR records, documents, the staff register, numbers** |
-| `member` | Member | read the directory and the org chart, edit their own profile, do and tick the steps given to them, see the checklists they take part in (theirs, their reports', those with a step for them), **read their own HR record** — never anyone else's |
+| `hr` | HR | everything below, and: everyone's job fields and extra fields, the table, templates, start/follow/stop checklists, arrivals, tick any step, import, export, **HR records, documents, the staff register, numbers, the records import, letters, answering asked changes** |
+| `member` | Member | read the directory and the org chart, edit their own profile, do and tick the steps given to them, see the checklists they take part in (theirs, their reports', those with a step for them), **read their own HR record and ask HR to change their address or emergency contact** — never anyone else's |
 | (none) | — | "You can't use People yet" |
 
 The owner, the admins and the tool's builders arrive as `hr` (and so read HR
@@ -295,6 +350,9 @@ records: see "On a Chest").
 | `/chest/records` | HR | HR records: coming up, without a record, working here, starting, left |
 | `/chest/records/<id>` | HR, the record's person | one record (HR edits; the person reads) |
 | `/chest/records/<id>/documents/<doc>` | HR, the record's person | a document, through a fresh signed link (303) |
+| `/chest/records/<id>/letters/<letter>` | HR | a letter filled from the record, laid out as paper |
+| `/chest/records/import` | HR | import HR records from a CSV (Lucca, BambooHR, a spreadsheet) |
+| `/chest/records/letters` | HR | the letters' templates |
 | `/chest/records/register`, `/chest/records/register/csv` | HR | the staff register; its CSV |
 | `/chest/numbers` | HR | headcount, arrivals and departures, turnover |
 | `/chest-events` | the Chest only (signed) | members' lifecycle |
@@ -352,8 +410,8 @@ records: see "On a Chest").
   to-dos*, and the purge runs whenever the directory is read.
 - **Events between tools** — **Proposal (studio)**: receives
   `hiring.hired`, `hiring.hire_cancelled`, `leave.approved`,
-  `leave.cancelled`; emits `people.leaving`, `people.leaving_cancelled`
-  (see "With the other tools"). Without it, HR starts checklists for
+  `leave.cancelled`; emits `people.leaving`, `people.leaving_cancelled`,
+  `people.record` (see "With the other tools"). Without it, HR starts checklists for
   members only, nobody reads "Away", and Equipment is not told of
   departures.
 - **The Chest's time zone** — **Proposal (studio)** (`chest.timeZone()`,
@@ -393,20 +451,30 @@ welcome checklist is under way), `node lab/chest-dev/flows/people.mjs 4700`
 ## What it does not do (yet)
 
 Payroll, salary and compensation reviews, and the social security number
-(never here: see "HR records"); e-signature of contracts; a generated work
-certificate or contract from a template; the dates of an administrative
+(never here: see "HR records"); **e-signature** of contracts and letters
+(needs a qualified signature connector: letters are printed and signed by
+hand); contracts and amendments generated from templates (the letters
+cover certificates and attestations; a contract is longer and legal —
+written in Word, uploaded); the **attestation employeur France Travail**
+(made by payroll through the DSN, not a letter — from the studio's
+knowledge, not verified first-hand); the dates of an administrative
 authorisation of hiring or dismissal in the register (rare cases); the
 register's "indelible" history as a legal PDF signed and timestamped (the
-journal names changes; the printed register is the day's state);
-encryption at rest of records (needs the SDK); field-level visibility on
-profiles (for example the phone for the team only); vCard export; "away"
-from other sources than Leave (a calendar); public holidays in the "back
-on" day; teams as Chest groups; drag-and-drop in the org chart; reminders
-by email; emailing the newcomer before day 1; ticking "return the laptop"
-when Equipment has everything back (needs an Equipment event); an export
-of checklists and their history; changing a choice field's list or a date
-field's reminder after it was added (remove it and add it again: Undo
-keeps its values meanwhile); a field's kind never changes. The sample
-company's job titles, teams and fields are the company's own words (the
-example checklists' names and steps are the tool's, and speak each
-reader's language until HR rewords them).
+journal names changes, never values: no dated history of job and contract
+values yet); encryption at rest of records (needs the SDK); **the directory
+and org chart leave out people without the Chest** (they have HR records
+and are in the register and Numbers, not on the wall); "Request a change"
+covers the home address and the emergency contact only (the rest of the
+record comes from documents; the work phone is the person's own to edit);
+field visibility has two levels (everyone, or HR and the person) — no
+"team only"; vCard export; "away" from other sources than Leave (a
+calendar); public holidays in the "back on" day; teams as Chest groups;
+drag-and-drop in the org chart; reminders by email; emailing the newcomer
+before day 1 (the `mail` proposal exists, People does not use it yet);
+ticking "return the laptop" when Equipment has everything back (needs an
+Equipment event); an export of checklists and their history; changing a
+choice field's list or a date field's reminder after it was added (remove
+it and add it again: Undo keeps its values meanwhile); a field's kind never
+changes. The sample company's job titles, teams and fields are the
+company's own words (the example checklists' and letters' names and texts
+are the tool's, and speak each reader's language until HR rewords them).

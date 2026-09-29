@@ -439,6 +439,93 @@ await step("a French editor on this English Chest writes in French: the form say
   expect(await card.locator("[lang=fr]").count() > 0, "her French text is marked French for an English visitor");
 });
 
+// ---- Round 3 of the critique ------------------------------------------------
+
+await step("services in two languages: an English visitor reads “Payments”, a French one “Paiement”; the team's Now speaks the member's language (critique 3, N2, N4)", async () => {
+  await context.clearCookies();
+  await english();
+  await page.goto(origin + "/?fresh=31");
+  const en = await page.locator(".components").innerText();
+  expect(en.includes("Payments") && en.includes("Delivery tracking") && !en.includes("Paiement"), "English names");
+  await page.goto(origin + "/lang/fr?back=/");
+  const fr = await page.locator(".components").innerText();
+  expect(fr.includes("Paiement") && fr.includes("Suivi de livraison") && !fr.includes("Delivery tracking"), "French names");
+  expect(await page.locator(".components h4[lang]").count() === 0, "no name marked as another language");
+  await as(context, origin, "camille");
+  await context.addCookies([{ name: "dev_locale", value: "fr", url: origin }]);
+  await page.goto(origin + "/chest");
+  const now = await page.locator(".open-list").innerText();
+  expect(now.includes("Dates de livraison affichées en retard") && !now.includes("Delivery dates shown late"), "the incident's French title for Camille: " + now.slice(0, 80));
+  expect(now.includes("Suivi de livraison"), "the service's French name");
+});
+
+await step("a service added today has no 90 days of 100 %: empty days, “since” today (critique 3, N1)", async () => {
+  await as(context, origin, "tom");
+  await english();
+  await page.goto(origin + "/chest/components");
+  await page.locator("#add-component-name").fill("Loyalty card");
+  await page.getByRole("checkbox", { name: "Also in French" }).first().check();
+  await page.locator("#add-component-name2").fill("Carte de fidélité");
+  await page.getByRole("button", { name: "Add a service" }).click();
+  await page.waitForSelector(".component-line >> text=Loyalty card");
+  expect((await page.locator(".component-list").innerText()).includes("Also in French: Carte de fidélité"), "its French name");
+  await context.clearCookies();
+  await english();
+  await page.goto(origin + "/?fresh=32");
+  const entry = page.locator(".entry", { hasText: "Loyalty card" });
+  const legend = await entry.locator(".uptime").innerText();
+  expect(/100\.00% since \d{1,2} \w+/u.test(legend), "uptime since today: " + legend);
+  const summary = await entry.locator(".history .visually-hidden").first().innerText();
+  expect(summary.includes("since") && !summary.includes("last 90 days"), "said to screen readers: " + summary);
+  expect(await entry.locator(".tick.s-none").count() >= 29, "the days before are empty");
+});
+
+await step("a customer's team gets updates in Slack: connected on “Get updates”, told of the next incident, stopped from its own page (critique 3, top 1)", async () => {
+  await context.clearCookies();
+  await english();
+  await page.goto(origin + "/subscribe");
+  await page.getByRole("link", { name: "Or in Slack, Teams or your own tool" }).click();
+  await page.waitForURL(origin + "/subscribe/chat");
+  await page.waitForTimeout(2200);
+  await page.getByLabel("Slack").check();
+  await page.locator("#url").fill("https://example.com/not-a-slack-hook");
+  await page.getByRole("button", { name: "Connect" }).click();
+  await page.waitForSelector("#form-error");
+  expect((await page.locator("#form-error").innerText()).includes("Paste the address Slack gave you"), "a wrong address is said");
+  await page.waitForTimeout(2200);
+  await page.getByLabel("Slack").check();
+  await page.locator("#url").fill("https://hooks.slack.com/services/T0CUST/B0CUST/customerSecret0123456789");
+  await page.getByRole("button", { name: "Connect" }).click();
+  await page.waitForURL(/\/w\/[A-Za-z0-9_-]{32}\?new=1$/u);
+  const hookPage = page.url().split("?")[0];
+  const text = await page.locator("main").innerText();
+  expect(text.includes("Updates go to your channel") && text.includes("hooks.slack.com") && !text.includes("customerSecret0123456789"), "its page, the address without its secret");
+  // The next incident on a public service is posted to the channel.
+  await as(context, origin, "tom");
+  await english();
+  await page.goto(origin + "/chest/incidents/new");
+  await page.getByLabel("What is wrong?").fill("Search is slow");
+  await page.getByLabel("Catalogue").check();
+  await page.getByLabel("What do you tell your customers?").fill("Searching takes a few seconds longer. We are on it.");
+  await page.getByRole("button", { name: "Post the incident" }).click();
+  await page.waitForURL(/\/chest\/incidents\/\d+$/u);
+  const dev = (await devText()).replace(/<[^>]*>/gu, " ");
+  expect(/incident\.update\s+→\s+Status subscriber \(slack\)[^:]*:\s+delivered[^{]*\{[^}]*Atelier Martin — Investigating: Search is slow/u.test(dev), "posted to Slack");
+  // Editors see the subscription (never its secret part).
+  await page.goto(origin + "/chest/subscribers");
+  const subs = await page.locator("main").innerText();
+  expect(subs.includes("In a chat or at a web address") && subs.includes("hooks.slack.com") && !subs.includes("customerSecret0123456789"), "on Subscribers");
+  // Stopped from its own page: the Chest forgets it.
+  await context.clearCookies();
+  await english();
+  await page.goto(hookPage);
+  await page.getByRole("button", { name: "Stop the updates" }).click();
+  await page.waitForURL(/\/w\/gone/u);
+  expect((await page.locator("h1").innerText()).includes("The updates are stopped"), "stopped");
+  await page.goto(hookPage);
+  expect((await page.locator("h1").innerText()).includes("This link does not work"), "the link is dead");
+});
+
 await step("French, phone width: the page reads without sideways scroll; the subscriber unsubscribes", async () => {
   await context.clearCookies();
   await page.setViewportSize({ width: 390, height: 844 });

@@ -22,6 +22,14 @@ import type { IncomingMessage } from "node:http";
 //   and writes the notifications it sends that member in it.
 //   Proposal (studio): the "locale" claim of the assertion, and of the
 //   members API.
+// - mailPreference (Proposal (studio.15)) is how the member chose, once in
+//   the Chest, to receive the email of every tool: "all", "digest" (one
+//   email a day from the Chest gathering the others) or "none". Read-only:
+//   the Chest applies it in mail.send (transactional mail goes whatever
+//   it says); a tool reads it to say so ("You chose a daily email") and
+//   never keeps a switch of its own. Absent when the Chest says nothing
+//   (a Chest before it): read it as "all".
+export type MailPreference = "all" | "digest" | "none";
 export type Member = {
   id: string;
   firstName: string;
@@ -34,7 +42,15 @@ export type Member = {
   groups: string[];
   locale: Locale;
   email?: string;
+  mailPreference?: MailPreference;
 };
+
+// mailPreferenceOf reads the Chest's word for a member's email preference:
+// one of the three, or undefined for anything else (a later Chest's value
+// is not a reason to refuse the member).
+export function mailPreferenceOf(value: unknown): MailPreference | undefined {
+  return value === "all" || value === "digest" || value === "none" ? value : undefined;
+}
 
 // The languages of the store, the first one the default and fallback.
 export const locales = ["en", "fr"] as const;
@@ -109,12 +125,12 @@ export function member(request: IncomingMessage | Request): Member | null {
   if (signature.length !== expected.length || !timingSafeEqual(signature, expected)) return null;
   const payload = json(encodedPayload);
   if (!payload || !claims.every(name => Object.hasOwn(payload, name))) return null;
-  const { iss, aud, iat, exp, sub, given_name, family_name, name, email, picture, role, admin, builder, groups, locale } = payload;
+  const { iss, aud, iat, exp, sub, given_name, family_name, name, email, picture, role, admin, builder, groups, locale, mail_pref } = payload;
   if (typeof iss !== "string" || iss === "" || aud !== tool || typeof sub !== "string" || !memberIdPattern.test(sub)) return null;
   if (typeof iat !== "number" || !Number.isSafeInteger(iat) || typeof exp !== "number" || !Number.isSafeInteger(exp) || exp <= iat) return null;
   const now = Math.floor(Date.now() / 1000);
   if (iat > now + skew || exp <= now - skew) return null;
   if (typeof given_name !== "string" || typeof family_name !== "string" || typeof name !== "string" || typeof picture !== "string" || typeof role !== "string" || typeof admin !== "boolean" || typeof builder !== "boolean") return null;
   if (!Array.isArray(groups) || groups.length > 64 || !groups.every(g => typeof g === "string" && groupIdPattern.test(g)) || (email !== undefined && typeof email !== "string") || (locale !== undefined && typeof locale !== "string")) return null;
-  return { id: sub, firstName: given_name, lastName: family_name, name, photo: picture === "" ? null : picture, role: role === "" ? null : role, isAdmin: admin, isBuilder: builder, groups: [...groups] as string[], locale: localeOf(locale), ...(email === undefined ? {} : { email }) };
+  return { id: sub, firstName: given_name, lastName: family_name, name, photo: picture === "" ? null : picture, role: role === "" ? null : role, isAdmin: admin, isBuilder: builder, groups: [...groups] as string[], locale: localeOf(locale), ...(email === undefined ? {} : { email }), ...(mailPreferenceOf(mail_pref) ? { mailPreference: mailPreferenceOf(mail_pref)! } : {}) };
 }

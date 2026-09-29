@@ -254,5 +254,29 @@
   "only": [
    "phone"
   ]
+ },
+ {
+  "name": "propose",
+  "path": "/chest/propose",
+  "member": "hugo",
+  "locale": "en"
+ },
+ {
+  "name": "propose-fr",
+  "path": "/chest/propose",
+  "member": "lea",
+  "locale": "fr"
+ },
+ {
+  "name": "approve",
+  "path": "/chest/proposals",
+  "member": "sofia",
+  "locale": "en"
+ },
+ {
+  "name": "shoutout-fr",
+  "path": "/chest/posts/11",
+  "member": "ines",
+  "locale": "fr"
  }
 ]

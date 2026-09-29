@@ -147,3 +147,41 @@ test("bounces: status bounced, the address suppressed, the tool told once", asyn
     await chest.close();
   }
 });
+
+// Studio.15 bug: a send key was capped at 64 characters, so tools cut
+// `${key}:${member}` to 64 — past 33 characters of their own key, the cut
+// took the recipient off, two recipients of one send shared a key, and the
+// Chest answered the second with the first message: one email dropped,
+// silently.
+test("idempotency: a long per-recipient key never loses its recipient; a key reused for other recipients is refused, not dropped", async () => {
+  const lea: Member = { ...camille, id: "mbr_leaaaaaaaaaaaaaaaaaaaaaaaa", firstName: "Léa", name: "Léa Martin", email: "lea@company.test" };
+  const chest = await fakeChest({ members: [camille, lea], capabilities: ["mail"] });
+  try {
+    // A tool's own key of 61 characters: with ":mbr_…" the whole id is past 64.
+    const key = "digest:2026-09-29:project:atelier-martin-renovation-phase-two";
+    assert.equal(key.length, 61);
+    for (const who of [camille, lea]) await mail.send({ to: { member: who.id }, subject: "Your digest", text: "…", key: `${key}:${who.id}` });
+    assert.deepEqual(chest.outbox.map(m => m.to), [["camille@company.test"], ["lea@company.test"]]);
+    // A retry of each sends nothing again.
+    for (const who of [camille, lea]) await mail.send({ to: { member: who.id }, subject: "Your digest", text: "…", key: `${key}:${who.id}` });
+    assert.equal(chest.outbox.length, 2);
+    // The long key reaches the Chest as a fixed-length digest; a short key as is.
+    assert.equal(chest.outbox[0]?.key, mail.idempotencyKey(`${key}:${camille.id}`));
+    assert.match(chest.outbox[0]?.key ?? "", /^sha256:[A-Za-z0-9_-]{43}$/u);
+    assert.equal(mail.idempotencyKey("reply:981"), "reply:981");
+    // What tools did until now — cutting the key themselves — collides: the
+    // Chest now says so instead of answering the first message.
+    const cut = (id: string) => `${key}:${id}`.slice(0, 64);
+    await mail.send({ to: { member: camille.id }, subject: "Old way", text: "…", key: cut(camille.id) });
+    await assert.rejects(mail.send({ to: { member: lea.id }, subject: "Old way", text: "…", key: cut(lea.id) }), code("key_conflict"));
+    assert.equal(chest.outbox.length, 3);
+    // Beyond 512 characters, or with a control character, a key is refused before sending.
+    await assert.rejects(mail.send({ to: "a@example.com", subject: "x", text: "", key: "k".repeat(513) }), code("invalid_message"));
+    await assert.rejects(mail.send({ to: "a@example.com", subject: "x", text: "", key: "a\nb" }), code("invalid_message"));
+    // An address in a key (a guest's) is fine: it is hashed.
+    await mail.send({ to: "guest@example.com", subject: "Invite", text: "…", key: "room:981:0:guest@example.com" });
+    assert.match(chest.outbox.at(-1)?.key ?? "", /^sha256:/u);
+  } finally {
+    await chest.close();
+  }
+});

@@ -75,7 +75,9 @@ export type Put = { key: string; members: string[]; skipped: string[] };
 // An event as the Chest keeps it, read back with list().
 export type KeptEvent = { key: string; members: string[]; title: Partial<Record<Locale, string>>; description?: Partial<Record<Locale, string>>; location?: string; path?: string; busy: boolean; private: boolean; updated: string; sequence: number } & ({ start: string; end: string } | { days: { first: string; last: string } });
 
-export const limits = { events: 5000, members: 1000, title: 120, description: 1000, location: 200, behindDays: 365, aheadDays: 730, feedEvents: 2000, perMinute: 600 } as const;
+// perMinute counts calls that write: one put, one remove, or one batch of
+// putMany (up to perBatch events).
+export const limits = { events: 5000, members: 1000, title: 120, description: 1000, location: 200, behindDays: 365, aheadDays: 730, feedEvents: 2000, perMinute: 600, perBatch: 100 } as const;
 export const keyPattern = /^[A-Za-z0-9._:-]{1,64}$/u;
 // Where a member finds their feed: the Chest's front serves it on every
 // tool's team host (and sends the member to the Chest's own page), so a
@@ -192,6 +194,45 @@ export async function put(event: CalendarEvent): Promise<Put> {
   const ids = (v: unknown): v is string[] => Array.isArray(v) && v.every(id => typeof id === "string" && memberIdPattern.test(id));
   if (!answer || !ids(answer.members) || !ids(answer.skipped)) throw new Unavailable();
   return { key, members: answer.members, skipped: answer.skipped };
+}
+
+// putMany puts many events (Proposal (studio.15)): a first sync — every
+// open task with a due date, every approved leave — is one call per 100
+// events, not one per event against the 600 writes a minute. Each event is
+// checked before anything is sent (one wrong event: nothing sent), keys are
+// distinct, and the answer is each event's Put in the order given. The
+// Chest applies a batch whole or not at all (QuotaExceeded when its new
+// keys would pass 5,000 events; RateLimited counts a batch as one write);
+// beyond 100 the SDK sends batches one after the other, so an error
+// after the first leaves the earlier batches applied — put again: it is
+// idempotent by key.
+export async function putMany(events: CalendarEvent[]): Promise<Put[]> {
+  if (!Array.isArray(events)) throw invalid("events is an array");
+  const bodies = events.map(e => check(e));
+  const keys = new Set<string>();
+  for (const b of bodies) {
+    if (keys.has(b["key"] as string)) throw invalid(`the key ${b["key"] as string} is given twice`);
+    keys.add(b["key"] as string);
+  }
+  const ids = (v: unknown): v is string[] => Array.isArray(v) && v.every(id => typeof id === "string" && memberIdPattern.test(id));
+  const out: Put[] = [];
+  for (let i = 0; i < bodies.length; i += limits.perBatch) {
+    const batch = bodies.slice(i, i + limits.perBatch);
+    const response = await ask("calendar", "PUT", "/calendar/events", { body: JSON.stringify({ events: batch }), type: "application/json" });
+    if (response.status === 404) {
+      await response.body?.cancel();
+      throw new CapabilityNotGranted("calendar");
+    }
+    if (response.status !== 200) throw await refusal(response, "calendar");
+    const answer = (await json(response)) as { results?: unknown } | null;
+    const results = answer && Array.isArray(answer.results) ? answer.results as { key?: unknown; members?: unknown; skipped?: unknown }[] : null;
+    if (!results || results.length !== batch.length) throw new Unavailable();
+    results.forEach((r, n) => {
+      if (!r || r.key !== batch[n]!["key"] || !ids(r.members) || !ids(r.skipped)) throw new Unavailable();
+      out.push({ key: r.key as string, members: r.members, skipped: r.skipped });
+    });
+  }
+  return out;
 }
 
 // remove takes the event of that key out of every feed; true when there

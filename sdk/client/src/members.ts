@@ -1,6 +1,6 @@
 import { ask, json, refusal } from "./api.js";
 import { ChestError, Unavailable } from "./errors.js";
-import { groupIdPattern, localeOf, memberIdPattern, type Member } from "./member.js";
+import { groupIdPattern, localeOf, mailPreferenceOf, memberIdPattern, type Member } from "./member.js";
 
 // Who has the tool, for a server tool whose chest.json declares
 // "capabilities": ["members"] (and "members.email" for their addresses):
@@ -23,8 +23,11 @@ import { groupIdPattern, localeOf, memberIdPattern, type Member } from "./member
 export type MemberPage = { members: Member[]; next: string | null };
 // A member who left the Chest after having the tool: "former" with the name
 // they had, or "erased" without any once the owner had their data erased —
-// render “Former member”.
-export type FormerMember = { id: string; name: string | null; status: "former" | "erased" };
+// render “Former member”. leftAt (Proposal (studio.15)) is when they left
+// the Chest (an ISO 8601 instant; null from a Chest before it): a final
+// pay, a last day on a receipt — "Camille Martin (left on 30 Sept.)". Kept
+// after an erasure too: a date alone names nobody.
+export type FormerMember = { id: string; name: string | null; status: "former" | "erased"; leftAt: string | null };
 // What a lookup found: members who have the tool, former members, and
 // identifiers the tool does not know.
 export type Lookup = { members: Member[]; former: FormerMember[]; unknown: string[] };
@@ -51,7 +54,7 @@ const text = (value: unknown, max: number): value is string => typeof value === 
 function shown(value: unknown): Member {
   const m = value !== null && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null;
   if (!m || typeof m["id"] !== "string" || !memberIdPattern.test(m["id"]) || !text(m["first_name"], 256) || !text(m["last_name"], 256) || !text(m["name"], 520) || !(m["photo"] === null || text(m["photo"], 200)) || !(m["role"] === null || text(m["role"], 48)) || typeof m["admin"] !== "boolean" || typeof m["builder"] !== "boolean" || !Array.isArray(m["groups"]) || m["groups"].length > maxGroups || !m["groups"].every(g => typeof g === "string" && groupIdPattern.test(g)) || !(m["email"] === undefined || text(m["email"], 254)) || !(m["locale"] === undefined || typeof m["locale"] === "string")) throw new Unavailable();
-  return { id: m["id"], firstName: m["first_name"], lastName: m["last_name"], name: m["name"], photo: m["photo"], role: m["role"], isAdmin: m["admin"], isBuilder: m["builder"], groups: [...m["groups"]] as string[], locale: localeOf(m["locale"]), ...(m["email"] === undefined ? {} : { email: m["email"] }) };
+  return { id: m["id"], firstName: m["first_name"], lastName: m["last_name"], name: m["name"], photo: m["photo"], role: m["role"], isAdmin: m["admin"], isBuilder: m["builder"], groups: [...m["groups"]] as string[], locale: localeOf(m["locale"]), ...(m["email"] === undefined ? {} : { email: m["email"] }), ...(mailPreferenceOf(m["mail_pref"]) ? { mailPreference: mailPreferenceOf(m["mail_pref"])! } : {}) };
 }
 
 // list says the members who have the tool, by name then identifier, limit
@@ -131,9 +134,10 @@ export async function lookup(ids: Iterable<string>): Promise<Lookup> {
       told.add(m.id);
     }
     for (const value of answer.former) {
-      const f = value as { id?: unknown; name?: unknown; status?: unknown } | null;
+      const f = value as { id?: unknown; name?: unknown; status?: unknown; left_at?: unknown } | null;
       if (!f || typeof f.id !== "string" || !memberIdPattern.test(f.id) || !(f.status === "former" ? f.name === undefined || text(f.name, 520) : f.status === "erased" && f.name === undefined)) throw new Unavailable();
-      keep(f.id, { former: { id: f.id, name: (f.name as string | undefined) ?? null, status: f.status as FormerMember["status"] } });
+      if (!(f.left_at === undefined || f.left_at === null || (typeof f.left_at === "string" && f.left_at.length <= 40 && !Number.isNaN(Date.parse(f.left_at))))) throw new Unavailable();
+      keep(f.id, { former: { id: f.id, name: (f.name as string | undefined) ?? null, status: f.status as FormerMember["status"], leftAt: typeof f.left_at === "string" ? new Date(f.left_at).toISOString() : null } });
       told.add(f.id);
     }
     for (const id of answer.unknown) {
@@ -151,6 +155,61 @@ export async function lookup(ids: Iterable<string>): Promise<Lookup> {
     else result.unknown.push(id);
   }
   return result;
+}
+
+// ---- Matching email addresses (Proposal (studio.15)) -----------------------
+//
+// A tool that holds addresses from elsewhere — Intune's devices (their
+// user's sign-in address), an imported spreadsheet, a calendar — needs to
+// know which member each one is, without reading every member's address
+// (members.email is a permission of its own, for good reason). The Chest
+// matches: the tool sends addresses it already has and learns, for those
+// of members who have the tool, their member id — nothing else. An address
+// of nobody, of a former member or of a member without the tool is simply
+// not in the answer: the three are indistinguishable, so the answer never
+// says whether an address exists in the Chest outside a match. No
+// capability beyond "members".
+//
+//   const ids = await members.matchEmails(devices.map(d => d.user));
+//   for (const d of devices) d.member = ids[d.user] ?? null;
+//
+// Matching is on the whole address, whatever its case, after trimming
+// spaces; the member's sign-in address only (no alias). Bounds: 200
+// addresses a call (the SDK sends any number, 200 at a time), counted in
+// the 600 calls a minute of members (RateLimited), and 5,000 distinct
+// addresses a day per tool (QuotaExceeded: a tool cannot walk a directory
+// of guesses; the same address again the same day is free). The Chest
+// journals each call (count, not the addresses). What is not an address
+// is never sent, and never matches.
+export const matchLimits = { perCall: 200, perDay: 5000 } as const;
+const looseAddress = /^[^\s@]{1,64}@[^\s@]{1,253}$/u;
+
+// matchEmails says which of these addresses are members who have the tool:
+// each address as given → its member id; the others are left out.
+export async function matchEmails(emails: Iterable<string>): Promise<Record<string, string>> {
+  const asked = new Map<string, string[]>();
+  for (const given of emails) {
+    if (typeof given !== "string") throw new ChestError("invalid_query", 400, "emails are strings");
+    const address = given.trim().toLowerCase();
+    if (address.length > 254 || !looseAddress.test(address)) continue;
+    asked.set(address, [...(asked.get(address) ?? []), given]);
+  }
+  const wanted = [...asked.keys()];
+  const found: Record<string, string> = {};
+  for (let i = 0; i < wanted.length; i += matchLimits.perCall) {
+    const batch = wanted.slice(i, i + matchLimits.perCall);
+    const response = await ask("members", "POST", "/members/match", { body: JSON.stringify({ emails: batch }), type: "application/json" });
+    if (response.status !== 200) throw await refusal(response, "members");
+    const answer = (await json(response)) as { matches?: unknown } | null;
+    if (!answer || !Array.isArray(answer.matches) || answer.matches.length > batch.length) throw new Unavailable();
+    const sent = new Set(batch);
+    for (const value of answer.matches) {
+      const m = value as { email?: unknown; id?: unknown } | null;
+      if (!m || typeof m.email !== "string" || !sent.has(m.email) || typeof m.id !== "string" || !memberIdPattern.test(m.id)) throw new Unavailable();
+      for (const given of asked.get(m.email)!) found[given] = m.id;
+    }
+  }
+  return found;
 }
 
 // A group of the Chest as a tool with "groups": "read" sees it: its

@@ -1,6 +1,6 @@
 import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 import type { IncomingMessage } from "node:http";
-import { ask, json, refusal } from "./api.js";
+import { ask, idempotencyKey, json, refusal } from "./api.js";
 import { CapabilityNotGranted, ChestError, TooLarge, Unavailable } from "./errors.js";
 import { memberIdPattern } from "./member.js";
 
@@ -64,11 +64,26 @@ export type Message = {
   references?: string[];
   attachments?: Attachment[];
   // The same key within 24 hours sends nothing again and answers the first
-  // message: a retry never sends twice.
+  // message: a retry never sends twice. Any text of 1 to 512 characters
+  // without control characters (studio.15): build it from what names the
+  // message — `digest:${day}:${member}` — and never cut it; the SDK sends
+  // a long one as its SHA-256 (idempotencyKey). The same key for other
+  // recipients is refused (ChestError key_conflict), never dropped.
   key?: string;
+  // Proposal (studio.15): a message the person must get whatever their
+  // email preference (member.mailPreference) — a password, a booking's
+  // confirmation, a payslip, an answer to what they asked. Everything else
+  // (reminders, digests, "a task was assigned") honours it: a member who
+  // turned email off is skipped, one who reads a daily digest gets it
+  // there. The Chest journals the flag; the owner sees each tool's share.
+  transactional?: boolean;
 };
-export type Sent = { id: string; messageId: string; status: "queued" };
-export type Status = { id: string; status: "queued" | "sent" | "delivered" | "bounced" | "complained" | "failed"; at: string };
+// What send did: the message queued, and (Proposal (studio.15)) the members
+// it did not go to now because of their email preference — skipped: email
+// off; digest: in their daily digest from the Chest. status "held" when
+// nobody receives it now.
+export type Sent = { id: string; messageId: string; status: "queued" | "held"; skipped: string[]; digest: string[] };
+export type Status = { id: string; status: "queued" | "held" | "sent" | "delivered" | "bounced" | "complained" | "failed"; at: string };
 
 export type Received = {
   kind: "message";
@@ -135,6 +150,11 @@ export type Bounce = {
 };
 export type MailHandlers = { message?: (message: Received) => void | Promise<void>; bounce?: (bounce: Bounce) => void | Promise<void> };
 
+// idempotencyKey (studio.15) is the key the Chest receives for a key a tool
+// gives: the key itself when it is 1 to 64 of A-Z a-z 0-9 . _ : -,
+// otherwise "sha256:" and its digest; null when it is not a key.
+export { idempotencyKey };
+
 export const limits = { recipients: 50, size: 10 << 20, subject: 998, perDay: 500, received: 25 << 20, attachments: 20, text: 1 << 20, html: 2 << 20 } as const;
 export const threadPattern = /^[a-z0-9]{1,16}$/u;
 export const mailboxPattern = /^[a-z][a-z0-9-]{0,31}$/u;
@@ -161,9 +181,11 @@ const headerSafe = (s: string) => !/[\r\n]/u.test(s);
 // send asks the Chest to send one message; it answers once the message is
 // queued (sending is the Chest's). Errors: ChestError invalid_address,
 // invalid_message, suppressed (every recipient refuses email: bounced or
-// complained), TooLarge, QuotaExceeded (the day's messages), and
-// CapabilityNotGranted when the version does not declare "mail" or the
-// Chest has no mail yet.
+// complained), key_conflict (409: the key was used within 24 hours for
+// other recipients — nothing sent; studio.15), TooLarge, QuotaExceeded
+// (the day's messages), and CapabilityNotGranted when the version does not
+// declare "mail" or the Chest has no mail yet. A member held back by their
+// email preference is not an error: Sent says skipped or digest.
 export async function send(message: Message): Promise<Sent> {
   const to = recipients(message.to), cc = recipients(message.cc);
   if (to.length < 1 || to.length + cc.length > limits.recipients) throw new ChestError("invalid_message", 400, `1 to ${limits.recipients} recipients`);
@@ -173,7 +195,9 @@ export async function send(message: Message): Promise<Sent> {
   if (message.fromName !== undefined && (typeof message.fromName !== "string" || message.fromName.length > 100 || !headerSafe(message.fromName))) throw new ChestError("invalid_message", 400, "invalid sender name");
   if (message.replyTo !== undefined && !isAddress(message.replyTo)) throw new ChestError("invalid_address", 400, "invalid reply-to");
   if (message.thread !== undefined && (typeof message.thread !== "string" || !threadPattern.test(message.thread) || message.mailbox === undefined || message.replyTo !== undefined)) throw new ChestError("invalid_message", 400, "a thread is 1 to 16 of a-z 0-9, with a mailbox and without replyTo");
-  if (message.key !== undefined && !/^[A-Za-z0-9._:-]{1,64}$/u.test(message.key)) throw new ChestError("invalid_message", 400, "invalid key");
+  const key = message.key === undefined ? undefined : idempotencyKey(message.key);
+  if (key === null) throw new ChestError("invalid_message", 400, "a key is 1 to 512 characters, without control characters");
+  if (message.transactional !== undefined && typeof message.transactional !== "boolean") throw new ChestError("invalid_message", 400, "transactional is true or false");
   for (const id of [message.inReplyTo, ...(message.references ?? [])]) if (id !== undefined && (typeof id !== "string" || id.length > 998 || !headerSafe(id))) throw new ChestError("invalid_message", 400, "invalid message id");
   const attachments = (message.attachments ?? []).map(a => ("file" in a ? { file: a.file, ...(a.name ? { name: a.name } : {}) } : { name: a.name, type: a.type, content: Buffer.from(typeof a.content === "string" ? new TextEncoder().encode(a.content) : a.content).toString("base64") }));
   const body = JSON.stringify({
@@ -186,7 +210,8 @@ export async function send(message: Message): Promise<Sent> {
     ...(message.inReplyTo !== undefined ? { in_reply_to: message.inReplyTo } : {}),
     ...(message.references !== undefined ? { references: message.references } : {}),
     ...(attachments.length ? { attachments } : {}),
-    ...(message.key !== undefined ? { key: message.key } : {}),
+    ...(key !== undefined ? { key } : {}),
+    ...(message.transactional ? { transactional: true } : {}),
   });
   if (Buffer.byteLength(body) > limits.size * 1.4) throw new TooLarge();
   const response = await ask("mail", "POST", "/mail/messages", { body, type: "application/json" });
@@ -195,9 +220,13 @@ export async function send(message: Message): Promise<Sent> {
     throw new CapabilityNotGranted("mail");
   }
   if (response.status !== 200 && response.status !== 201) throw await refusal(response, "mail");
-  const answer = (await json(response)) as { id?: unknown; message_id?: unknown } | null;
+  const answer = (await json(response)) as { id?: unknown; message_id?: unknown; status?: unknown; skipped?: unknown; digest?: unknown } | null;
   if (!answer || typeof answer.id !== "string" || !messageIdPattern.test(answer.id) || typeof answer.message_id !== "string") throw new Unavailable();
-  return { id: answer.id, messageId: answer.message_id, status: "queued" };
+  // A Chest before email preferences says neither: nobody was held back.
+  const ids = (v: unknown): string[] | null => (v === undefined ? [] : Array.isArray(v) && v.length <= limits.recipients && v.every(id => typeof id === "string" && memberIdPattern.test(id)) ? [...v] as string[] : null);
+  const skipped = ids(answer.skipped), digest = ids(answer.digest);
+  if (!skipped || !digest) throw new Unavailable();
+  return { id: answer.id, messageId: answer.message_id, status: answer.status === "held" ? "held" : "queued", skipped, digest };
 }
 
 // status says where a sent message stands.
@@ -210,7 +239,7 @@ export async function status(id: string): Promise<Status | null> {
   }
   if (response.status !== 200) throw await refusal(response, "mail");
   const answer = (await json(response)) as { id?: unknown; status?: unknown; at?: unknown } | null;
-  const known = ["queued", "sent", "delivered", "bounced", "complained", "failed"];
+  const known = ["queued", "held", "sent", "delivered", "bounced", "complained", "failed"];
   if (!answer || answer.id !== id || typeof answer.status !== "string" || !known.includes(answer.status) || typeof answer.at !== "string") throw new Unavailable();
   return { id, status: answer.status as Status["status"], at: answer.at };
 }

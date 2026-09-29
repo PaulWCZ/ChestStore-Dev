@@ -15,7 +15,9 @@ time off, PayFit absences or the shared leave spreadsheet** for companies of
   it — one button *Ask for time off*, who is away this week, and my requests
   (coming up: the soonest first; earlier: the latest first) with *Cancel*
   (with *Undo*) or *Ask to cancel*. HR also sees a three-step **first-run
-  checklist** (counting rule, import, approvers) until it is done.
+  checklist** (counting rule, import, approvers) until it is done; before
+  a balance is set, HR's own card says *Set your balance* (a link), an
+  employee's "HR will enter your balance".
 - **Asking**: the kind of leave, the first and last day, a half day at
   either end (or *Morning* / *Afternoon* for one day), an optional note. What
   it costs is counted **as the days are picked** — with the company's rule,
@@ -23,7 +25,15 @@ time off, PayFit absences or the shared leave spreadsheet** for companies of
   person's week** (part time, four-day week) — and what will be left once
   the requests still waiting are counted. The server counts again when it
   is sent. Two requests of a person never overlap, not even by half a day.
-  A kind may refuse to go below zero (a setting). A **family event** says
+  A kind may refuse to go below zero (a setting). **Paid leave refuses by
+  default** (French practice: leave not yet earned is an advance the
+  employer decides; Lucca and PayFit refuse by default too, as the studio
+  knows them — not verified first-hand): the form says "cannot go below
+  zero" and the button stays off. HR (or the person's approver) recording
+  leave for someone may go below — the advance they decided, said as such
+  on the form — or HR turns "May go below zero" on for the kind. While a
+  date is refused by its field, the form counts nothing and says to fix it
+  (never one day shown and another counted). A **family event** says
   which one (wedding or PACS, birth, death…), shows the days the law
   gives (art. L3142-4), warns when the dates cost more, and **counts only
   the days the person works** (a part-timer on Monday–Wednesday away
@@ -104,13 +114,26 @@ time off, PayFit absences or the shared leave spreadsheet** for companies of
   whatever their accents, case or order; nothing is guessed (an unknown or
   ambiguous person, a number that is someone else's, an unreadable date is
   shown, not imported). No address needed.
+- **Emails beside the bell** (the `mail` proposal): the approver gets
+  "Hugo Bernard asks for time off" (the kind, the days, the cost, and the
+  link to answer it), the requester the answer (with the approver's word),
+  the approver a request to cancel, the requester its outcome, the person
+  leave recorded for them — each in the reader's language, sent by the
+  Chest to their address (the tool never knows it). Never the note. One
+  switch at the foot of *My leave* turns them off. On a Chest without mail
+  nothing is sent and nothing fails.
 - **Payroll files** (*People → Payroll files*): a month's approved absences
   as a CSV — employee number, person, kind, **payroll code**, first day and from when, last
   day and until when, days this month (a leave across two months is split,
   with the person's week), days in all; and **everyone's balances on a
-  day** — paid leave N-1 and N (earned, taken, left), carried over, leave
-  approved for later, what is left, waiting — those who left included (the
-  final pay); each kind's columns carry its payroll code ("Paid leave (CP)
+  day** — **any day up to the end of next month** (payroll is prepared
+  around the 20th for the month's end: a later day is a projection —
+  earned months added, approved leave up to it taken — and the file is
+  named "…-projected.csv"), counted **at the end of that day** (on the
+  30th, September's +2.08 is in) — paid leave N-1 and N (earned, taken,
+  left), carried over, leave approved for later, what is left, waiting —
+  those who left included (the final pay), **names written as they are**
+  (never "(former member)": the last-day column says who left); each kind's columns carry its payroll code ("Paid leave (CP)
   left"). In HR's language (`;` and decimal commas in French).
 - **Settings** (HR): jours ouvrés (Monday–Friday) or jours ouvrables
   (Monday–Saturday); Alsace-Moselle; the public holidays the company works
@@ -255,7 +278,8 @@ comparison of ouvrés with ouvrables.
 ## On a Chest
 
 - `capabilities`: `database`; `members` (names, photos, roles and groups
-  for the calendar, the approvers and the import — no addresses);
+  for the calendar, the approvers and the import — no addresses; emails go
+  to `{member}` through the `mail` proposal);
   `notifications` (the bell and the tile's number); `receives: ["member.*"]`.
 - **Someone leaves** (or loses access): their requests still waiting are
   cancelled (the history says why), the people they approved go back to HR,
@@ -314,6 +338,29 @@ id), the first and last day and the halves — never the kind of leave nor
 the note (`lib/share.ts`). Without events between tools, nothing changes
 here.
 
+**People → Leave** (**Proposal (studio)**: events between tools;
+`chest.proposals.json` `"receives"`), once an admin linked them — HR
+types a person's employee number, first day, last day and working week
+once, in People's HR record:
+
+- `people.record` `{member, employeeNumber, startDate, lastDay, workDays,
+  weeklyHours}`: the number, first day and working week (ISO days → Leave's
+  week) follow the record; what People does not say (null) stays as HR set
+  it here; a number already someone else's here is left. Its `lastDay`
+  sets the last day (and settles the leave after it, HR told in the bell);
+  cleared in People, it goes — but never a last day HR typed here or the
+  Chest's own when the person left. The person's page says "Kept up to date
+  from their HR record in People". Weekly hours are not used (Leave counts
+  days).
+- `people.leaving` `{member, lastDay}` (a leaving checklist in People) sets
+  the last day unless HR typed one here, the record gave one or the person
+  already left the Chest; `people.leaving_cancelled` `{member}` takes back
+  only the day it set. Leave cancelled by a last day stays cancelled when
+  the day goes (HR records it again).
+- Every event is checked field by field (another shape changes nothing);
+  an event older than the last one applied changes nothing (events come
+  at least once, not always in order).
+
 ## Needs from the SDK
 
 - `member.locale` — **Proposal (studio)**, in `vendor/`: the interface and
@@ -326,16 +373,18 @@ here.
 - **Events between tools** — **Proposal (studio)**: `leave.approved` /
   `leave.cancelled` to Rooms (payload unchanged: member, from, to, halves,
   request — never the kind, the note or the family event).
-- Wished, not built: **email** (the mail proposal exists in the SDK working
-  copy; this tool does not use it yet — an approver who never opens the
-  Chest only sees the tile and the bell); a **per-member secret feed** for
+- **Mail** — **Proposal (studio)** (`chest.proposals.json` `"mail":
+  {"send": true}`): emails beside the bell (see "What it does"). Without
+  it, the bell and the tile only.
+- **Events from People** — **Proposal (studio)**: receives
+  `people.record`, `people.leaving`, `people.leaving_cancelled`.
+- Wished, not built: a **per-member secret feed** for
   an iCal/Outlook/Google calendar of absences (needs a route the Chest
   serves without a signed-in member, tied to one member, revocable:
   `feeds.url(memberId, name)` + `feeds.verify(request) → memberId`); the
   Chest's **time zone** (today is Europe/Paris); a member's **manager**
-  known by the Chest (HR sets approvers here instead); a member's **employee
-  number** and **start date** from the Chest or People (HR types or imports
-  them here).
+  known by the Chest (HR sets approvers here instead). (The `calendar`
+  proposal now exists in the SDK working copy; Leave does not use it yet.)
 
 ## Develop
 
@@ -352,13 +401,13 @@ In the studio: `node lab/chest-dev/dev.mjs tools/private/leave --prod --reset --
 
 ## What it does not do (yet)
 
-- **No email and no calendar feed** (see "Needs from the SDK"): approvers
-  learn of requests from the tile and the bell only.
+- **No calendar feed yet**: approved leave does not reach Outlook or
+  Google (the SDK working copy's `calendar` proposal would carry it; not
+  wired in Leave yet).
 - The automatic French computations listed under "Not done — HR adjusts by
   hand".
-- No week view of *Who's away* (a month, and a list by week on a phone); no
-  date picker showing holidays and colleagues already away (native date
-  fields).
+- No week view of *Who's away* (a month, and a list by week on a phone);
+  the date fields do not show holidays or colleagues already away.
 - No blackout periods, minimum staffing rules or "3 people from Sales
   already off" warning when asking (approvers see "Also away" on each
   card).
@@ -373,3 +422,5 @@ In the studio: `node lab/chest-dev/dev.mjs tools/private/leave --prod --reset --
 - The import does not bring history older than a year, nor Lucca's own
   counters beyond the balances in the file (a column the tool does not know
   is left out unless HR maps it).
+- A last day People takes back does not bring back the leave it cancelled
+  (HR records it again; the bell said what was cancelled).

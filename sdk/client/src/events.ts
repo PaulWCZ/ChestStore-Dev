@@ -1,6 +1,6 @@
 import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 import type { IncomingMessage } from "node:http";
-import { ask, json as readJson, refusal } from "./api.js";
+import { ask, idempotencyKey, json as readJson, refusal } from "./api.js";
 import { CapabilityNotGranted, ChestError, Unavailable } from "./errors.js";
 import { groupIdPattern, memberIdPattern } from "./member.js";
 import { forget } from "./members.js";
@@ -254,7 +254,10 @@ export async function handle(request: IncomingMessage | Request, handlers: Handl
 // (Proposal (studio)): type is "<this tool>.<name>" as chest.json "emits"
 // declares it; data a JSON object of 16 KiB at most (member ids for
 // people). key makes a retry harmless: the same key within 24 hours is one
-// event. Says the event's id and how many tools it goes to (the Chest
+// event — any text of 1 to 512 characters without control characters,
+// never cut (a long one goes as its SHA-256, as mail's; studio.15); the
+// same key with another type or other data is refused (ChestError
+// key_conflict, 409), never answered with the first event. Says the event's id and how many tools it goes to (the Chest
 // delivers, at least once, like member events). Errors: ChestError
 // invalid_event (400: a type this tool does not emit, data too large),
 // CapabilityNotGranted (not declared, or a Chest without events between
@@ -263,9 +266,10 @@ export async function publish(type: string, data: Record<string, unknown>, optio
   const tool = process.env["CHEST_TOOL"] ?? "";
   if (!toolEventPattern.test(type) || !type.startsWith(tool + ".")) throw new ChestError("invalid_event", 400, `an event of this tool is named "${tool}.<name>"`);
   if (data === null || typeof data !== "object" || Array.isArray(data)) throw new ChestError("invalid_event", 400, "data is a JSON object");
-  const body = JSON.stringify({ type, data, ...(options.key !== undefined ? { key: options.key } : {}) });
+  const key = options.key === undefined ? undefined : idempotencyKey(options.key);
+  if (key === null) throw new ChestError("invalid_event", 400, "a key is 1 to 512 characters, without control characters");
+  const body = JSON.stringify({ type, data, ...(key !== undefined ? { key } : {}) });
   if (Buffer.byteLength(body) > 16 << 10) throw new ChestError("invalid_event", 400, "data is 16 KiB at most");
-  if (options.key !== undefined && !/^[A-Za-z0-9._:-]{1,64}$/u.test(options.key)) throw new ChestError("invalid_event", 400, "invalid key");
   const response = await ask("events", "POST", "/events", { body, type: "application/json" });
   if (response.status === 404) {
     await response.body?.cancel();

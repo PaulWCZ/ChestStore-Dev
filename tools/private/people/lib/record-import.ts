@@ -35,8 +35,9 @@ const addressParts = ["street", "street2", "postcode", "city", "country"] as con
 const dateTargets: RecordTarget[] = ["birthDate", "startDate", "trialEnd", "contractEnd", "endDate", "permitEnd"];
 
 // Header words, folded as the profile import folds them ("#" read as
-// "number"). Sources: BambooHR's and Lucca's export columns as their help
-// pages name them (THIRD_PARTY.md), and the words of French HR files.
+// "number"): the columns of BambooHR's reports and Lucca's exports as the
+// studio knows them, and the words of French HR files — not checked against
+// a live export of either (the mapping step covers any other header).
 const aliases: Record<Exclude<Target, "skip">, string[]> = {
   employeeNumber: ["employee number", "employee no", "employee id", "matricule", "numero de matricule", "n matricule", "no matricule", "matricule salarie", "payroll id"],
   legalName: ["legal name", "full legal name", "nom et prenoms", "nom prenoms", "nom complet", "nom et prenom", "name", "full name", "employee name", "salarie", "collaborateur"],

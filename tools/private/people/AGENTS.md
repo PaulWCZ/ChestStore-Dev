@@ -17,12 +17,15 @@ must not break.
 | `lib/journeys.ts` | Templates and checklists (called *journeys* in code): start, tick, edit steps, stop, lists, counts |
 | `lib/arrivals.ts` | Arrivals written by HR (`manual`) or told by Hiring (events between tools): read and check each event, add and correct by hand, cancel, link to a member, remove, purge after 90 days, suggestions (work email, then name) |
 | `lib/away.ts` | Leaves told by Leave (events between tools): read and check each event, "away today and back when" (`awayToday`, pure), the badge's words, purge once past |
-| `lib/share.ts` | What People tells other tools: departures (`people.leaving`, `people.leaving_cancelled`) around a leaving checklist's start, stop and restart (`around`) |
+| `lib/share.ts` | What People tells other tools: departures (`people.leaving`, `people.leaving_cancelled`) around a leaving checklist's start, stop and restart (`around`); a record's number, days and week (`people.record`, `tellRecords`, only when changed: `records.told`) |
 | `lib/zone.ts` | The Chest's time zone and today (the `chest` module) — server only |
 | `lib/examples.ts` | The two example templates; their steps' phrases and their names (`phrase` = kind), shown in each reader's language (`stepText`, `listName`) until reworded (`samePhrase`, `sameName`) |
 | `lib/importer.ts`, `lib/export.ts`, `lib/csv.ts` | CSV import (header aliases, HR's column mapping, email then name matching, date order asked when ambiguous), export, CSV reading/writing (formula-safe, phones untouched, `unquote` on the way back) |
 | `lib/records.ts` | **HR records**: read (journal), create (one, for everyone), edit (field by field), link, delete a mistake, documents (upload through the Chest, open by signed link), what is coming up, purge after five years, erasure |
 | `lib/register.ts` | The staff register (registre unique du personnel) from the records, its mentions and its CSV; `registerGaps`: who it cannot list (no record, no first day, gone without an exit date, an intern's tutor gone) — shown, printed and in the CSV |
+| `lib/changes.ts` | "Request a change": the person asks (address, emergency contact), HR accepts (through `writeRecord`) or declines; values kept only while waiting |
+| `lib/record-import.ts` | Import of HR records (Lucca, BambooHR, a spreadsheet): header aliases, value readers (contract, sex, working time), matching (number → member → legal name → new record), one transaction |
+| `lib/letters.ts` | Letters from templates: merge fields (`fill`, pure), the two examples by phrase, printing from a record (journal `letter_printed`) |
 | `lib/journal.ts` | Who read or changed a record, the register, someone's job details — field names only; kept two years |
 | `lib/fields.ts` | HR's extra profile fields (text, date with an optional reminder, choice) and their values (`valueFor` checks one); `dueDates` for the morning bell |
 | `lib/numbers.ts` | One population (`workersOf`: records + members without one): headcount, by team/office/contract, arrivals and departures by month, turnover — pure |
@@ -39,7 +42,7 @@ must not break.
 | `app/chest/**/page.tsx` | Pages (server): read, resolve names, hand words to views |
 | `app/chest/**/*-view.tsx`, `*-form.tsx`, `*-editor.tsx`, `org-chart.tsx`, `todo-list.tsx`, `importer.tsx` | Client views |
 | `app/chest-events/route.ts`, `app/chest-jobs/[name]/route.ts` | Lifecycle events; scheduled runs |
-| `migrations/` | Schema (`0004_records.sql`: manual arrivals, manager left, phrases, extra fields, records, documents, journal; `0005_field_kinds_and_names.sql`: field kinds, choices and reminders; example template names as phrases). Never edit a shipped file; add the next number |
+| `migrations/` | Schema (`0004_records.sql`: manual arrivals, manager left, phrases, extra fields, records, documents, journal; `0005_field_kinds_and_names.sql`: field kinds, choices and reminders; example template names as phrases; `0006_privacy_permits_requests_letters.sql`: who sees a field (dates made private), employee number, permit end, days worked, `told`, asked changes, letters, journal actions). Never edit a shipped file; add the next number |
 | `seed/sample.sql` | A sample company for local runs and screenshots |
 | `test/` | `node:test` with `fakeChest` and PostgreSQL (PGlite or `TEST_DATABASE_URL`) |
 
@@ -95,6 +98,14 @@ npm ci && npm test && npm run build   # all three must pass
   same workers, and each list adds up to the headcount.
 - **An import never drops a column silently** (`Plan.leftOut`): the page
   names it and offers an extra field.
+- **A private extra field ("HR and the person") never leaves the server
+  for anyone else**: `valuesOf(sql, actor, …)` filters it; any new reader
+  of field values goes through it (the directory's search included).
+- **`people.record` carries only** `{member, employeeNumber, startDate,
+  lastDay, workDays, weeklyHours}`; every write of a record goes through
+  `writeRecord` and then `tellRecords` (records.ts, record-import.ts).
+- **Letters never print a blank silently**: `fill` returns what is
+  missing, the page says it.
 - **Birthdays are opt-in**: stored only while the person shows it; never
   written by HR nor by the import.
 - **Add an ability → a line in `test/access.test.ts`.** Add a service →

@@ -1,7 +1,7 @@
 import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 import type { IncomingMessage } from "node:http";
 import { BlockList, isIP } from "node:net";
-import { ask, json as answerOf, refusal } from "./api.js";
+import { ask, idempotencyKey, json as answerOf, refusal } from "./api.js";
 import { ChestError, Unavailable } from "./errors.js";
 import { memberIdPattern } from "./member.js";
 
@@ -78,7 +78,9 @@ export type WebhookMessage = {
   // For generic receivers only: a JSON object of 16 KiB at most.
   data?: Record<string, unknown>;
   // The same key within 24 hours is the same delivery: a retry of send()
-  // never delivers twice.
+  // never delivers twice. 1 to 512 characters without control characters
+  // (studio.15): a long one goes as its SHA-256 (the journal shows that),
+  // never cut; the same key for another event is refused (key_conflict).
   key: string;
 };
 export type WebhookSent = { deliveries: { id: string; target: string }[]; skipped: { target: string; reason: "disabled" | "not_found" }[] };
@@ -317,7 +319,7 @@ export function checkMessage(message: unknown): string[] {
   if (typeof o["event"] !== "string" || !webhookEventPattern.test(o["event"])) problems.push("event is 1 to 64 of a-z 0-9 _ . - (starting with a letter)");
   const text = o["text"];
   if (typeof text !== "string" || text.trim() === "" || [...text].length > limits.text) problems.push("text is 1 to 4,000 characters");
-  if (typeof o["key"] !== "string" || !keyPattern.test(o["key"])) problems.push("key is 1 to 64 of A-Z a-z 0-9 . _ : -");
+  if (idempotencyKey(o["key"]) === null) problems.push("key is 1 to 512 characters, without control characters");
   if (o["data"] !== undefined) {
     const data = object(o["data"]);
     if (!data) problems.push("data is a JSON object");
@@ -413,7 +415,7 @@ export async function send(targets: string | string[], message: WebhookMessage):
   if (ids.length < 1 || ids.length > limits.perSend || !ids.every(id => typeof id === "string" && targetIdPattern.test(id))) throw new ChestError("invalid_message", 400, "1 to 500 target ids (whk_…)");
   const problems = checkMessage(message);
   if (problems.length > 0) throw new ChestError("invalid_message", 400, problems.join("; "));
-  const response = await call("POST", "/webhooks/send", { targets: ids, event: message.event, text: message.text, ...(message.data !== undefined ? { data: message.data } : {}), key: message.key });
+  const response = await call("POST", "/webhooks/send", { targets: ids, event: message.event, text: message.text, ...(message.data !== undefined ? { data: message.data } : {}), key: idempotencyKey(message.key)! });
   if (response.status !== 200) throw await refusal(response, "webhooks");
   const answer = object(await answerOf(response));
   const deliveries = answer?.["deliveries"], skipped = answer?.["skipped"];

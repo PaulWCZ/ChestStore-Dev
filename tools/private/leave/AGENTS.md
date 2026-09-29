@@ -8,7 +8,7 @@ must not break.
 | Path | What it is |
 |---|---|
 | `chest.json` | Manifest: roles `hr`, `manager`, `employee`; `database`, `members`, `notifications`; `receives` |
-| `chest.proposals.json` | Manifest keys of SDK proposals (the `morning` schedule) |
+| `chest.proposals.json` | Manifest keys of SDK proposals (`mail`, `emits`, `receives` from People, the `morning` schedule) |
 | `lib/access.ts` | **Who may do what**: abilities (`can`), what one sees of someone's leave (`sightOf`: own, approver, team), who may answer (`mayDecide`) |
 | `lib/calendar.ts` | **Pure**, browser-safe: days, French public holidays, the cost of a span (ouvrés, ouvrables, worked days, calendar — with the person's week: from the first day they would have worked to the day before they are back), overlaps, months earned |
 | `lib/rules.ts` | The company's settings and kinds of leave |
@@ -23,7 +23,9 @@ must not break.
 | `lib/import.ts`, `lib/normalize.ts`, `lib/csv.ts` | The two imports (pure plans: people and balances; approved leave), header recognition and HR's mapping, Lucca's columns; CSV read/write (formula-safe). Fixtures in `test/fixtures/` |
 | `lib/payroll.ts` | The month's approved absences for payroll (`app/chest/people/balances/route.ts`: everyone's balances on a day) |
 | `lib/tell.ts`, `lib/notify.ts` | The bell (each recipient's language) and approvers' tile numbers |
-| `lib/lifecycle.ts` | Leaving and erasure |
+| `lib/lifecycle.ts` | Leaving and erasure; `tools()`: the handlers of other tools' events |
+| `lib/from-people.ts` | People → Leave (events between tools): `people.record` (number, first day, week, last day), `people.leaving(_cancelled)`; checked field by field, older events ignored, a last day People set is the only one People clears (`staff.end_by`) |
+| `lib/mail.ts` | Emails beside the bell (mail proposal): `email()` in each reader's language, the person's switch (`staff.email_off`) |
 | `lib/morning.ts` | The weekday reminder (schedule proposal) |
 | `lib/theme.ts` | **The look**: the identity "Seaside" (`defineTheme`, equal to the catalogue's) and `currentLook()` (the company's choice from `chest.theme()`, else the identity) |
 | `app/tokens.css`, `app/globals.css` | Leave's own tokens (kinds → categorical slots, calendar shades), defined from contract tokens only; its components |
@@ -35,7 +37,7 @@ must not break.
 | `app/chest/new/request-form.tsx` | The request form (client): the live cost uses `lib/calendar.ts` |
 | `app/chest/calendar/page.tsx` | The month grid and the phone's day list (server-rendered) |
 | `app/chest/people/export/route.ts` | The payroll CSV |
-| `migrations/` | Schema: `0001` the tool, `0002` years, weeks, last days, employee numbers, family events, remote work; `0003` payroll codes, family events on worked days, ledger reason keys, `after_last_day`/`cut` history steps. Never edit a shipped file; add `0004_…` |
+| `migrations/` | Schema: `0001` the tool, `0002` years, weeks, last days, employee numbers, family events, remote work; `0003` payroll codes, family events on worked days, ledger reason keys, `after_last_day`/`cut` history steps; `0004` who set a last day (`end_by`), when People last told, the email switch, paid leave not below zero by default. Never edit a shipped file; add `0005_…` |
 | `seed/sample.sql` | A seven-person company, dates around today |
 | `test/` | `node:test` with `fakeChest` and PostgreSQL (PGlite or `TEST_DATABASE_URL`) |
 
@@ -58,6 +60,12 @@ npm ci && npm test && npm run build   # all three must pass
 - **Years are computed, never stored**: no job closes a period; `compute` classifies days by the dates. A new rule is a change there, with its test in `test/years.test.ts`.
 - **A line the tool writes itself has a `reason_key`** (`opening`, `rttYear`, `afterLastDay`), written in the reader's language (`team.reasonKeys`); never write an English sentence into `reason` from code or seed.
 - **A last day never leaves leave after it counting**: every way of setting one goes through `settleAfterLastDay` (`lib/last-day.ts`), in the same transaction.
+- **Every bell item about a request goes through `tellBoth`** (lib/tell.ts):
+  the same words by email, never the note.
+- **A last day People told is People's**: set with `end_by` 'record' or
+  'leaving'; People never clears 'hr' or 'chest'. HR's own setter writes
+  'hr'.
+- **Payroll files write names with `plainName`**, never "(former member)".
 - **The ledger is append-only** (a trigger refuses updates and deletes, but
   the erasure's anonymisation). Correct a balance by adding a line.
 - **A request's cost is fixed when asked** (`requests.days`); counting rules
