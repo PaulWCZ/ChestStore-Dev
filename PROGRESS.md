@@ -118,10 +118,16 @@ acceptance, in a later round.
   - SDK studio.13, webhooks (84 tests).
 - **Severe critique round 2 is done:** `reports/05-critique.md` §Round 2 and
   `reports/05-critique/round-2/`.
-- **Running:** round-2 fixes on 17 tools with seven builders. Each
-  re-vendors kit 0.2.3 before its final checks (scratchpad
-  `kit023-note.md`). Quotes moves to `tools/public-and-private/` for online
-  quote acceptance.
+- **Round-2 fixes verified by the lead (kit 0.2.3):** Expenses 82,
+  Timesheets 73, Leave 73, People 59, Equipment 89, News 82, Polls 63,
+  Goals 56, Tasks 82, Wiki 82 tests (PGlite + PostgreSQL), builds,
+  flows, audits 0, screenshots, lint 0.
+- **Round-2 fixes done by their builders, the lead's check queued:**
+  Quotes (moved to `tools/public-and-private/quotes`, online "Bon pour
+  accord"), Clients, Support; Rooms, Hiring, Status. **Still building:**
+  Booking and Forms.
+- **Open:** one Clients flow step (drag to Won, reason dialog) failed in
+  2 of 5 of its builder's runs — reproduce and root-cause.
 - **Then:** re-vendor 0.2.3 everywhere; the showcase with looks; fix what
   critique round 2 finds.
 - **Noted:** News search still matches raw mention tokens in its index
