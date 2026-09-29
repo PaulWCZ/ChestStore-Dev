@@ -16,7 +16,9 @@ what must not break.
 | `lib/journal.ts` | Accounting entries in the FEC column layout |
 | `lib/csv-read.ts`, `lib/imports.ts` | Reading another tool's CSV and guessing its columns (browser-safe); importing past expenses as history |
 | `lib/receipt-text.ts`, `components/ocr.ts` | What a receipt's text says (pure, tested); reading the photo in the browser with tesseract.js (files copied to `public/ocr/` by `scripts/ocr-assets.mjs`) |
-| `components/upload.ts`, `components/bank-form.tsx` | A file from the browser to the Chest; the bank details form |
+| `components/upload.ts`, `components/bank-form.tsx` | A file from the browser to the Chest (with the kit's `putWithProgress`); the bank details form and `EraseBank` (the kit's `Confirm`) |
+| `lib/theme.ts`, `app/tokens.css`, `app/globals.css` | The identity "Receipt" as a kit theme (`defineTheme`, equal to the catalogue's `receipt`) and `currentLook` (the Chest's choice, else the identity); the tool's own tokens, from contract tokens; the CSS (contract tokens only) |
+| `components/shell.tsx`, `components/bits.tsx`, `components/mark.tsx` | The kit's `AppShell` with Next's `Link` and path; thumbnails, date boxes, stamps and warnings (the kit's `StatusBadge`); the mark in the look's tokens |
 | `lib/scale.ts` | The mileage scale as data and a trip's amount — **pure, browser-safe, tested** |
 | `lib/money.ts` | Integer minor units, parsing what people type, Intl formatting, VAT — browser-safe |
 | `lib/model.ts` | Bounds, text cleaning, days and months — pure |
@@ -43,6 +45,33 @@ npm ci && npm test && npm run build   # all three must pass
 ```
 
 ## Rules
+
+- **The UI kit first** (`@argentic/chest-ui`, `vendor/`, `node
+  ../../../scripts/add-ui.mjs` from the studio): used here are `AppShell`
+  (via `components/shell.tsx`), `BrandMark`, `NoAccess`, `Toasts`/`useToast`
+  (one toast per `id`; `undo` returns `true` or the reason it failed;
+  `sent: true` once someone was told), `Dialog` (`dirty` while an IBAN is
+  typed), `Confirm` (erasing bank details), `DateField` (every date: never
+  `type="date"`), `FilePicker` (registration certificate, CSV import),
+  `DataTable` (import preview), `Tabs`, `Segmented`, `EmptyState`,
+  `Avatar`, `StatusBadge`, `LanguageSwitch`, `useAutoRefresh`. Their words
+  are the catalogues' `toast`, `dialog`, `date`, `files`, `table` sections.
+  Kept on purpose: the receipt picker of `compose.tsx` (camera and file
+  side by side, the photo shown large, read at once in the browser), the
+  guests field (colleagues and outside names), the paid-with segments (each
+  with its meaning), the approver `<select>` per person (a few approvers
+  and "the accountants"), the settings' editable grids.
+- **CSS names only contract tokens** (`ui/tokens/CONTRACT.md`) or the
+  tool's tokens of `app/tokens.css`, themselves defined from contract
+  tokens; never a colour (`test/theme.test.ts`). Text sits only on measured
+  pairs (`--ok-ink` on `--ok-soft`…); field borders are `--line-strong`.
+- **Never a Confirm inside a Dialog** (kit 0.2.1: React passes the inner
+  dialog's close to the outer one): render it beside, as `pay-view.tsx`
+  does with `EraseBank`.
+- **Words**: `node ../../../scripts/lint-words.mjs tools/private/expenses`
+  (store glossary) stays at 0 errors — French narrow no-break spaces before
+  `: ; ? ! %`, Undo « Annuler l’action », Remove/Delete/Erase =
+  Retirer/Supprimer/Effacer.
 
 - **Identity only from `member()`** (`lib/session.ts`, `lib/http.ts`); store
   `mbr_…` ids, never names.

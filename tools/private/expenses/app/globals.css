@@ -175,7 +175,6 @@ select.field { appearance: none; background-image: linear-gradient(45deg, transp
 .stamp.big .ck-badge { font-size: var(--text-s); padding: 4px 10px; border-width: 2.5px; }
 
 /* A warning: the kit's badge (its shape and its word), small. */
-.warn .ck-badge, .ck-badge.warn { min-height: 0; padding: 1px 8px; font-size: var(--text-xs); font-weight: var(--weight-strong); }
 .row .sub .ck-badge { white-space: normal; }
 
 .section { margin-top: var(--space-6); }

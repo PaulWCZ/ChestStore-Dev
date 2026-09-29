@@ -292,9 +292,28 @@ suggestions to confirm with the company's accountant.
     executed;
   - `members.email` for importers (matching an Expensify export's
     submitter by email rather than by name);
-  - a **time zone and currency of the Chest** in the vendored SDK (the
-    working copy has `chest`; this tool still vendors studio.5 and assumes
+  - a **time zone and currency of the Chest** used by the tool (the
+    vendored SDK, studio.12, has `chest`; the tool still assumes
     Europe/Paris), and **thumbnails of HEIC photos** (iPhone).
+
+## Looks
+
+Expenses wears its own look — **Receipt**: thermal paper, ink black, money
+green, amounts in a till-roll monospace — by default. The company may give
+it, in its Chest, **any theme of the store's catalogue** (Chest, High
+contrast, or another tool's identity) or **its own brand** (colours, fonts,
+corners, logo), for all its tools or for Expenses alone: every screen and
+feature stays the same, and every text stays readable (WCAG AA, light and
+dark). In brand mode the company's logo stands where the Expenses mark
+does. The look is chosen on the server (`chest.theme()`, `lib/theme.ts`);
+the tool has no switch of its own. Screenshots: `docs/screens/*-chest-*`,
+`*-theme-*` (Library, Seaside), `*-brand-*` (a sample brand).
+
+The screens are built from the store's UI kit (`@argentic/chest-ui`): the
+header and its labelled tabs, toasts with an Undo that says whether it
+worked (and none once someone was told), dialogs that never lose a typed
+IBAN, a confirmation before erasing bank details, date fields typed in the
+reader's language, the file picker for certificates and imports.
 
 ## Develop
 

@@ -22,6 +22,8 @@ dependencies `tesseract.js-core` (Apache-2.0), `bmp-js`, `idb-keyval`, `is-url`,
 `regenerator-runtime`, `wasm-feature-detect`, `zlibjs` (MIT, Apache-2.0 or
 BSD-2-Clause) and `opencollective-postinstall` (MIT, prints a message at
 install)), `@tesseract.js-data/fra` (MIT), `@argentic/chest-sdk` (MIT, the
-studio's working copy in `vendor/`). Development only: `@electric-sql/pglite`,
+studio's working copy in `vendor/`), `@argentic/chest-ui` (MIT, the
+studio's UI kit, packed in `vendor/`: themes, runtime and components; its
+catalogue fonts are served by the Chest, not shipped here). Development only: `@electric-sql/pglite`,
 `@electric-sql/pglite-socket` (Apache-2.0), `typescript` (Apache-2.0),
 `@types/*` (MIT). Icons are drawn for this tool (`components/icons.tsx`).
