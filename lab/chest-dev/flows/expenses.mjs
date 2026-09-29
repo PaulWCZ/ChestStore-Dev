@@ -355,7 +355,7 @@ await step("Camille imports the company card statement: one payment finds Hugo's
   await page.reload();
   expect(!(await page.locator("main").innerText()).includes("CB PAUL"), "the wrong statement is gone");
   // The paid-twice check, once looked at, leaves the list (Undo brings it back).
-  await page.getByRole("button", { name: /^Vérifié: CB CAFE KITSUNE/u }).click();
+  await page.getByRole("button", { name: /^Vérifié\s?:\s?CB CAFE KITSUNE/u }).click();
   await page.locator(".ck-toast", { hasText: "Retiré de la liste." }).waitFor();
 });
 
@@ -388,7 +388,7 @@ await step("Hugo, on his phone: the card payment asks for its receipt; he adds i
 await step("Hugo adds his registration certificate (the kit's file picker, straight to the Chest)", async () => {
   await as(context, origin, "hugo");
   await page.goto(origin + "/chest/settings");
-  await page.locator("#vehicle input[type=file]").setInputFiles(receipt);
+  await page.locator("#vehicle input[type=file]:not(.ck-file-camera-input)").setInputFiles(receipt); // "Choose a file" (the kit's camera input is a phone's)
   await page.locator(".ck-toast", { hasText: "Certificate saved." }).waitFor({ timeout: 8000 });
   await page.reload();
   const vehicle = await page.locator("#vehicle").innerText();
@@ -419,7 +419,7 @@ await step("Camille imports Expensify's history: columns guessed, the unknown pe
   expect((await page.locator("#import").innerText()).includes("un remboursement"), "the refund is left out, and said");
   await as(context, origin, "hugo");
   await page.goto(origin + "/chest");
-  const uber = page.locator(".row", { hasText: "Uber" });
+  const uber = page.locator(".row:not(.needs-receipt)", { hasText: "Uber" }); // not the card payment "UBER *TRIP" of the sample statement
   expect(/imported/iu.test(await uber.innerText()), "in Hugo's history, stamped");
   await as(context, origin, "camille");
 });

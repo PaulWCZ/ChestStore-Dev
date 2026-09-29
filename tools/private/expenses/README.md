@@ -86,7 +86,38 @@ expense part of Spendesk, and the spreadsheet-plus-shoebox of receipts.
   later *Cancel this file*: back to "to pay back"). The file can be
   downloaded again, identical (same message id, which banks use to refuse a
   duplicate). People without bank details are named and paid by hand with
-  *Mark paid* as before.
+  *Mark paid* as before. The text on each person's bank statement
+  ("Notes de frais E12 E13") is in the **company's language**, chosen in
+  *Settings → Company* (the Chest's language by default), whatever language
+  the person reads. An account in a **SEPA country outside the EEA** (the
+  UK, Switzerland, Monaco…) needs its holder's **postal address** (asked in
+  the bank details form, the IBAN kept as it is), and the company's own
+  address: both go in the file for those transfers; until they are there,
+  that person is left out of the file with the reason, and *To pay back*
+  says what is missing.
+- **Company cards.** *To pay → Company cards*: the accountant imports the
+  month's **card statement** (the CSV of the bank or card provider — the
+  file is read in the browser; columns guessed, then checked: date, label,
+  amount or debit, currency, card holder; one holder for the file, or a
+  holder column matched to the team by name). Card payments are the
+  negative amounts (or the debit column); refunds and credits are left
+  out, and said. Each payment is **matched** to the expense its holder
+  already added — same person, amount equal or within 2 % / €0.50 (4 % /
+  €1 against an expense in another currency, through its amount in
+  euros), the expense from 5 days before the statement's date to 1 day
+  after, the label's words against the shop's name to decide between close
+  candidates; each expense once. A payment with no expense becomes a
+  **draft of its holder**, paid with the company card, the shop taken from
+  the label, waiting for its receipt: in their *To send*, "Company card:
+  receipt needed" and *Add the receipt*, not ticked for sending until then;
+  the holder is **asked in their bell** (and counted on the tile), and
+  asked again with *Remind*. The accountant sees *Waiting for a receipt*
+  by person, and *To check*: a payment matched to an expense its owner
+  said they **paid with their own money** (not to be paid back twice —
+  the approver and *To pay back* show the warning too), or whose draft its
+  holder **deleted** (personal spending?). The same payment imported again
+  (overlapping statements) is recognised; *Undo* takes a statement back
+  while nobody touched what it made.
 - **Monthly export.** Pick a month — of the expense, or of the payment —
   (and a person, or everyone): a **CSV**
   (date, person, category, account code, where, details, amount excl. VAT,
@@ -158,6 +189,10 @@ enforced on the server in `lib/access.ts` and tested per role.
   Save); send = 1 tap; approve = 1 tap per person (*Approve all*); pay back =
   1 tap for everyone with bank details (one transfer file), or 1 tap per
   person; export = 1 click.
+- **A meal without guests named** says so on the form before saving
+  ("Guests not named: your approver will ask who was there"), not only to
+  the approver. On a phone, the field being typed in is never left under
+  the sticky *Save* bar.
 - **Mistakes**: an amount that isn't one says "Enter an amount, like 12.50";
   a wrong file type or size is refused before it is sent; *Delete* on a
   draft offers *Undo* (kept a week); *Mark paid* offers *Undo*; a sent
@@ -177,6 +212,7 @@ enforced on the server in `lib/access.ts` and tested per role.
 | `/chest/approve` | To approve (approvers, accountants) |
 | `/chest/new?allowance=1` | Add a flat rate |
 | `/chest/pay` | To pay back (accountants): the transfer file, by person, the files made |
+| `/chest/cards` | Company cards (accountants): import a card statement, receipts waiting, to check, statements imported |
 | `/chest/pay/files/[id]` | A transfer file (pain.001.001.03 XML), the same each time (accountants) |
 | `/chest/export`, `/chest/export/csv`, `/chest/export/zip`, `/chest/export/journal` | Monthly export (accountants): `?month=YYYY-MM[&person=mbr_…][&by=paid]` |
 | `/chest/settings` | Me: my vehicle, kilometres before the tool, registration certificate, bank details |
@@ -274,6 +310,9 @@ suggestions to confirm with the company's accountant.
 
 - `member.locale` — **Proposal (studio)**, in `vendor/`: interface, bell and
   export in each member's language.
+- `chest.locale()` — **Proposal (studio)** (`@argentic/chest-sdk/chest`): the
+  Chest's language, the default of the bank statements' text until the
+  accountant picks one (`settings.bankLocale`). Without it, English.
 - **Scheduled tasks** — **Proposal (studio)** (`chest.proposals.json`):
   `reminder` (25th, 09:00) and `cleanup` (nightly). On a Chest without them,
   nobody is reminded and unused uploads and deleted drafts stay (the tool
@@ -288,8 +327,9 @@ suggestions to confirm with the company's accountant.
     or PDF receipts and HEIC photos, which the phone's Tesseract cannot;
     today's seam: `components/ocr.ts` → `lib/receipt-text.ts`;
   - **bank and card feeds** (a bank connection through the Chest, PSD2):
-    matching company-card lines with receipts, and knowing a transfer was
-    executed;
+    card payments arriving by themselves instead of a monthly CSV (the
+    matching is built: `lib/cards.ts` takes lines from any source), and
+    knowing a transfer was executed;
   - `members.email` for importers (matching an Expensify export's
     submitter by email rather than by name);
   - a **time zone and currency of the Chest** used by the tool (the
@@ -336,9 +376,19 @@ schema with `xmllint`; the schema is not shipped. `npm run build` (and
 
 ## What it does not do (yet)
 
-- **Company cards and bank feeds**: card lines are not imported nor matched
-  with receipts; a company-card expense is entered by hand like the others
-  (needs a bank connection: SDK).
+- **Card feeds**: card payments come from a CSV the accountant imports each
+  month, not live from the bank (needs a bank connection: SDK). The CSV
+  shapes relied on are **assumed from documentation summaries, not from
+  real exports** (THIRD_PARTY.md: French bank exports `Date;Libellé;
+  Montant` with negative spending or `Débit`/`Crédit` columns; Qonto's
+  settlement date, counterparty name and total amount); any other shape is
+  mapped by hand. OFX/QIF and CFONB 120 files are not read. The matching
+  is a heuristic: a wrong pair is undone by the accountant (*Undo* of the
+  statement) or noticed by the approver.
+- **Transfers outside the EEA**: whether the address the file writes
+  (structured, in `pain.001.001.03`) is taken by every bank is **not
+  verified** (see THIRD_PARTY.md); the tool does not write
+  `pain.001.001.09`.
 - **Advances** (avances sur frais) deducted from later claims.
 - **Reading difficult receipts**: the phone reads clear photos; blurred,
   crumpled or PDF receipts and HEIC photos are typed (needs an OCR or AI

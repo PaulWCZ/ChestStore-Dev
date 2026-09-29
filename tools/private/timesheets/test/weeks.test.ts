@@ -70,7 +70,11 @@ test("a manager approves (it locks) or sends back with a word (it opens); the pe
   await assert.rejects(weeks.approveWeek(sql, me, hugo.id, lastWeek), refused("forbidden"));
   await assert.rejects(weeks.approveWeek(sql, asMember(camille), ines.id, lastWeek), refused("week_state"));
   await assert.rejects(weeks.approveWeek(sql, asMember(camille), "robert", lastWeek), refused("not_found"));
-  const approved = await weeks.approveWeek(sql, asMember(camille), hugo.id, lastWeek);
+  // 15:00 of a 35:00 week: said on the line, and approved only on purpose.
+  assert.deepEqual(waiting[0]!.fullness, { over: true, minutes: 900, capacity: 2100, short: true });
+  await assert.rejects(weeks.approveWeek(sql, asMember(camille), hugo.id, lastWeek), refused("week_short"));
+  assert.equal((await weeks.weekState(sql, hugo.id, lastWeek)).status, "submitted");
+  const approved = await weeks.approveWeek(sql, asMember(camille), hugo.id, lastWeek, { anyway: true });
   assert.equal(approved.status, "approved");
   assert.equal(approved.decidedBy, camille.id);
   assert.deepEqual(chest.notifications.map(n => [n.member, n.title, n.key]), [[hugo.id, `Your week of ${enDay(lastWeek)} is approved`, `approval:${lastWeek}`]]);
@@ -142,3 +146,65 @@ test("with approvals turned off, nobody submits; weeks waiting open again", asyn
 
 const enDay = (day: string) => new Intl.DateTimeFormat("en-GB", { timeZone: "UTC", day: "numeric", month: "short" }).format(new Date(day + "T00:00:00Z"));
 const frDay = (day: string) => new Intl.DateTimeFormat("fr", { timeZone: "UTC", day: "numeric", month: "short" }).format(new Date(day + "T00:00:00Z"));
+
+test("approving: a week not over is never approved by the bulk way; a full, finished week is", async () => {
+  const { sql } = database;
+  const m = asMember(camille);
+  // Tom sends this week on its Monday with a whole usual week in it: still not over.
+  await weeks.setCapacity(sql, m, tom.id, 480);
+  await entries.addEntry(sql, asMember(tom), { projectId: site.id, day: thisWeek, minutes: 480 });
+  await weeks.submitWeek(sql, asMember(tom), thisWeek);
+  const line = (await weeks.waiting(sql, m)).find(w => w.memberId === tom.id && w.week === thisWeek)!;
+  assert.deepEqual([line.fullness.over, line.fullness.short, weeks.needsLook(line.fullness)], [false, false, true]);
+  await assert.rejects(weeks.approveWeek(sql, m, tom.id, thisWeek), refused("week_short"));
+  await weeks.withdrawWeek(sql, asMember(tom), thisWeek);
+  // Two weeks ago, full: approved at once.
+  const before = addDays(lastWeek, -7);
+  await entries.addEntry(sql, asMember(tom), { projectId: site.id, day: before, minutes: 480 });
+  await weeks.submitWeek(sql, asMember(tom), before);
+  assert.equal((await weeks.approveWeek(sql, m, tom.id, before)).status, "approved");
+  assert.equal(weeks.needsLook(weeks.fullness(before, 480, 480, today())), false);
+  await weeks.setCapacity(sql, m, tom.id, null);
+});
+
+test("the team's weeks start with each person: weeks before their first time (or first visit) and before the tool are not short, and nobody is reminded of them", async () => {
+  const { sql } = database;
+  const m = asMember(camille);
+  const old = addDays(thisWeek, -70);
+  // The tool's start: its first project or entry (weeks ago here).
+  const start = await weeks.toolStart(sql);
+  assert.ok(start !== null && start <= lastWeek);
+  const starts = await weeks.startWeeks(sql, [hugo.id, camille.id]);
+  assert.equal(starts.get(hugo.id), lastWeek); // his first entry
+  assert.equal(starts.get(camille.id), start); // no entry, never seen: the tool's start
+  let rows = await weeks.teamWeeks(sql, m, [hugo.id, camille.id], [old, lastWeek]);
+  // Long before anyone recorded anything: "before", not short.
+  assert.deepEqual(rows.map(r => r.weeks[0]!.before), [true, true]);
+  assert.equal(weeks.isShort(rows[1]!.weeks[0]!, rows[1]!.capacity), false);
+  // Camille never recorded time: counted from the tool's start, so last week is short…
+  assert.equal(weeks.isShort(rows[1]!.weeks[1]!, rows[1]!.capacity), true);
+  // …until the tool knows she only arrived this week (her first visit).
+  await weeks.seenNow(sql, camille.id);
+  await weeks.seenNow(sql, camille.id); // once: a later visit changes nothing
+  assert.equal((await weeks.startWeeks(sql, [camille.id])).get(camille.id), thisWeek);
+  rows = await weeks.teamWeeks(sql, m, [camille.id], [lastWeek]);
+  assert.deepEqual([rows[0]!.weeks[0]!.before, weeks.isShort(rows[0]!.weeks[0]!, rows[0]!.capacity)], [true, false]);
+  assert.equal(await weeks.remind(sql, m, [camille.id], lastWeek), 0);
+  // Remind for a week before a person's start rings nobody.
+  chest.notifications.length = 0;
+  assert.equal(await weeks.remind(sql, m, [hugo.id, camille.id], old), 0);
+  assert.equal(chest.notifications.length, 0);
+});
+
+test("an empty tool: no start, no week expected of anyone", async () => {
+  const fresh = await testDatabase();
+  try {
+    const m = asMember(camille);
+    assert.equal(await weeks.toolStart(fresh.sql), null);
+    const rows = await weeks.teamWeeks(fresh.sql, m, [hugo.id, ines.id], [lastWeek, thisWeek]);
+    assert.ok(rows.every(r => r.start === null && r.weeks.every(w => w.before)));
+    assert.equal(await weeks.remind(fresh.sql, m, [hugo.id, ines.id], lastWeek), 0);
+  } finally {
+    await fresh.close();
+  }
+});

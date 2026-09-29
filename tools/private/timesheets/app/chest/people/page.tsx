@@ -5,10 +5,10 @@ import { currency, today } from "../../../lib/clock.ts";
 import { db } from "../../../lib/db.ts";
 import { everyoneOrNone } from "../../../lib/directory.ts";
 import { formatDuration } from "../../../lib/duration.ts";
-import { format, formatDay, money } from "../../../lib/i18n/index.ts";
+import { format, formatDay, money, plural } from "../../../lib/i18n/index.ts";
 import { formerPeople } from "../../../lib/import.ts";
 import { nameFor, people } from "../../../lib/people.ts";
-import { origin, peopleRates, rateOn, type RateStep } from "../../../lib/rates.ts";
+import { origin, peopleRates, rateLock, rateOn, rateUse, type RateStep } from "../../../lib/rates.ts";
 import { viewer } from "../../../lib/session.ts";
 import { settings } from "../../../lib/settings.ts";
 import { withRole } from "../../../lib/weeks.ts";
@@ -31,7 +31,17 @@ export default async function PeoplePage() {
   ]);
   const team = withRole(dir.people);
   const ids = [...new Set([...team.map(p => p.id), ...rates.map(r => r.memberId)])];
-  const who = await people(ids);
+  const [who, used] = await Promise.all([people(ids), rateUse(sql, member, ids)]);
+  // Where each person's usual rate applies: a project's own rate wins.
+  const useText = (id: string): string | null => {
+    const list = used.get(id) ?? [];
+    if (list.length === 0) return null;
+    const own = list.filter(p => p.source === "own");
+    const names = (l: typeof list) => l.map(p => p.name).join(", ");
+    if (own.length === list.length) return plural(t.people.useAll, list.length, locale, { names: names(list) });
+    if (own.length === 0) return plural(t.people.useNone, list.length, locale, { names: names(list) });
+    return format(t.people.useSome, { used: own.length, count: list.length, names: names(own) });
+  };
   const code = currency();
   const now = today();
   const long = (d: string) => formatDay(d, locale, { day: "numeric", month: "long", year: "numeric" });
@@ -49,6 +59,7 @@ export default async function PeoplePage() {
       cost: rateOn(cost, now),
       week: mine,
       billText: bill.length ? describe(bill).join(" · ") : null,
+      useText: useText(id),
       costText: cost.length ? describe(cost).join(" · ") : null,
       weekText: formatDuration(mine ?? s.reminder.minutes) + (mine === null ? ` · ${t.people.companyWeek}` : ""),
       steps: [...bill.map(x => ({ kind: "bill" as const, from: x.from, label: describe([x])[0]! })), ...cost.map(x => ({ kind: "cost" as const, from: x.from, label: describe([x])[0]! }))].filter(x => s.lockedUntil === null || x.from > s.lockedUntil),
@@ -59,7 +70,7 @@ export default async function PeoplePage() {
       <PageHeader title={t.people.title} intro={format(t.people.intro, { currency: code })} />
       {!dir.reached && <p className="notice small">{t.errors.unavailable}</p>}
       <ul className="person-list">
-        {rows.map(p => <PersonRow key={p.id} person={p} today={now} lockedUntil={s.lockedUntil} companyWeek={s.reminder.minutes} currency={code} comma={locale === "fr"} t={{ people: t.people, errors: t.errors, date: t.date }} />)}
+        {rows.map(p => <PersonRow key={p.id} person={p} today={now} lock={rateLock(s.lockedUntil, locale, t)} companyWeek={s.reminder.minutes} currency={code} comma={locale === "fr"} t={{ people: t.people, errors: t.errors, date: t.date }} />)}
       </ul>
       {formers.length > 0 && (
         <section className="panel formers" aria-labelledby="formers-title">

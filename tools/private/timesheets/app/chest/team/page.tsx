@@ -12,7 +12,7 @@ import { format, formatDay, plural } from "../../../lib/i18n/index.ts";
 import { nameFor, people } from "../../../lib/people.ts";
 import { viewer } from "../../../lib/session.ts";
 import { settings } from "../../../lib/settings.ts";
-import { teamWeeks, waiting, withRole } from "../../../lib/weeks.ts";
+import { isShort, needsLook, teamWeeks, waiting, withRole, type Fullness } from "../../../lib/weeks.ts";
 import { ApproveAll, RemindButton, TeamTable, WaitingRow, type TeamRow } from "./team-view.tsx";
 
 // The team, for managers: the weeks waiting for approval, and everyone's
@@ -33,7 +33,13 @@ export default async function TeamPage({ searchParams }: { searchParams: Promise
   const team = withRole(dir.people).sort((a, b) => a.name.localeCompare(b.name, locale));
   const ids = [...new Set([...team.map(p => p.id), ...list.map(w => w.memberId)])];
   const [rows, last, who] = await Promise.all([teamWeeks(sql, member, team.map(p => p.id), mondays), teamWeeks(sql, member, team.map(p => p.id), [lastWeek]), people(ids)]);
-  const short = last.filter(r => r.weeks[0]!.status !== "submitted" && r.weeks[0]!.status !== "approved" && r.weeks[0]!.minutes < r.capacity).map(r => r.memberId);
+  const short = last.filter(r => isShort(r.weeks[0]!, r.capacity)).map(r => r.memberId);
+  const expected = last.some(r => !r.weeks[0]!.before);
+  // A week waiting: said short or not over on its line; the bulk action
+  // takes the complete ones only, and names those it leaves.
+  const fullText = (f: Fullness) => [f.over ? "" : t.team.notOver, format(t.team.ofUsualShort, { hours: formatDuration(f.minutes), usual: formatDuration(f.capacity) })].filter(Boolean).join(" · ");
+  const complete = list.filter(w => !needsLook(w.fullness));
+  const leftOut = list.filter(w => needsLook(w.fullness));
   const weekLabel = (w: string) => formatDay(w, locale, { day: "numeric", month: "short" });
   const photo = (id: string) => who.get(id)?.photo ?? null;
   const tableRows: TeamRow[] = rows.map(r => {
@@ -46,6 +52,8 @@ export default async function TeamPage({ searchParams }: { searchParams: Promise
       capacityText: formatDuration(r.capacity),
       weeks: r.weeks.map(c => {
         const past = c.week < now;
+        // Before the person's start: nothing was expected, nothing is said.
+        if (c.before) return { week: c.week, minutes: 0, text: "—", state: "" as const, label: `${name}, ${format(t.team.weekOf, { date: weekLabel(c.week) })}: ${t.team.before}` };
         const state = c.status === "approved" ? "approved" : c.status === "submitted" ? "sent" : c.status === "returned" ? "returned" : past && c.minutes < r.capacity ? "short" : "";
         return { week: c.week, minutes: c.minutes, text: formatDuration(c.minutes), state, label: `${name}, ${format(t.team.weekOf, { date: weekLabel(c.week) })}: ${formatDuration(c.minutes)}${state ? ", " + t.team.states[state] : ""}` };
       }),
@@ -59,7 +67,7 @@ export default async function TeamPage({ searchParams }: { searchParams: Promise
         <section className="panel" aria-labelledby="waiting-title">
           <div className="panel-head">
             <h2 id="waiting-title"><Send />{t.team.toApprove}{list.length > 0 && <span className="count num">{list.length}</span>}</h2>
-            {list.length > 1 && <ApproveAll weeks={list.map(w => ({ memberId: w.memberId, week: w.week }))} label={plural(t.team.approveAll, list.length, locale)} locale={locale} t={{ team: t.team, errors: t.errors }} />}
+            {complete.length > 0 && list.length > 1 && <ApproveAll weeks={complete.map(w => ({ memberId: w.memberId, week: w.week }))} label={leftOut.length ? plural(t.team.approveComplete, complete.length, locale) : plural(t.team.approveAll, complete.length, locale)} locale={locale} t={{ team: t.team, errors: t.errors }} />}
           </div>
           {list.length === 0 ? <p className="muted">{t.team.nothingToApprove}</p> : (
             <ul className="waiting">
@@ -72,10 +80,14 @@ export default async function TeamPage({ searchParams }: { searchParams: Promise
                   photo={photo(w.memberId)}
                   label={format(t.team.weekOf, { date: weekLabel(w.week) })}
                   hours={format(t.team.hours, { total: formatDuration(w.minutes), billable: formatDuration(w.billableMinutes) })}
+                  look={needsLook(w.fullness) ? fullText(w.fullness) : null}
                   t={{ team: t.team, errors: t.errors }}
                 />
               ))}
             </ul>
+          )}
+          {list.length > 1 && complete.length > 0 && leftOut.length > 0 && (
+            <p className="small muted left-out">{plural(t.team.leftOut, leftOut.length, locale, { list: leftOut.map(w => `${nameFor(w.memberId, who, locale)} (${fullText(w.fullness)})`).join(", ") })}</p>
           )}
         </section>
       )}
@@ -93,7 +105,7 @@ export default async function TeamPage({ searchParams }: { searchParams: Promise
           <div className="team-weeks"><TeamTable rows={tableRows} heads={mondays.map(w => (w === now ? t.team.thisWeek : weekLabel(w)))} t={{ team: t.team, errors: t.errors }} labels={t.table} /></div>
         )}
         <div className="remind-bar">
-          <p>{short.length ? plural(t.team.shortLast, short.length, locale) : t.team.allFilled}</p>
+          <p>{short.length ? plural(t.team.shortLast, short.length, locale) : expected ? t.team.allFilled : t.team.notStarted}</p>
           {short.length > 0 && <RemindButton memberIds={short} week={lastWeek} label={plural(t.team.remind, short.length, locale)} locale={locale} t={{ team: t.team, errors: t.errors }} />}
         </div>
       </section>

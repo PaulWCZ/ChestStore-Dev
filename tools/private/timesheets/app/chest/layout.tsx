@@ -12,6 +12,7 @@ import { lastWork } from "../../lib/entries.ts";
 import { clock, formatDate, relative } from "../../lib/i18n/index.ts";
 import { offeredProjects } from "../../lib/projects.ts";
 import { viewer } from "../../lib/session.ts";
+import { seenNow } from "../../lib/weeks.ts";
 import { currentLook } from "../../lib/theme.ts";
 import { isForgotten, timer } from "../../lib/timer.ts";
 import { TimerBar, type Forgotten, type RunningView } from "./timer-bar.tsx";
@@ -38,7 +39,9 @@ export default async function MembersLayout({ children }: { children: ReactNode 
     );
   }
   const sql = db();
-  const [running, projects, last] = await Promise.all([timer(sql, member), offeredProjects(sql, member), lastWork(sql, member)]);
+  // The first day this person opened the tool: their start on the Team
+  // page while they have no entry (once; later visits change nothing).
+  const [running, projects, last] = await Promise.all([timer(sql, member), offeredProjects(sql, member), lastWork(sql, member), seenNow(sql, member.id)]);
   const z = zone();
   const at = now.now();
   const view: RunningView | null = running && {

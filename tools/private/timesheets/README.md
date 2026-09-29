@@ -41,16 +41,29 @@ the hour and wants to know where its time goes.
   person (their usual rate) and per person on a project (a senior billed
   more), and a **cost rate** per person. Every rate applies **from a day**:
   an entry's amount uses the rate in force on its day, so raising a rate
-  never rewrites last year's amounts (a new rate cannot start inside the
-  locked period). An entry's rates are written on it for good once it is
+  never rewrites last year's amounts. A new rate cannot start inside the
+  locked period: the form says so before saving ("Locked up to 31 August
+  2026: a new rate starts on 1 September 2026 at the earliest…") and saves
+  nothing — a typed day is never replaced by today. Under each person's
+  usual rate, *People* says **where it is used**: "Used on all 3 of their
+  projects", "Used on 1 of their 3 projects (Refonte). The others have a
+  rate of their own, which wins", or "Not used now: their 2 projects each
+  have a rate of their own" (their billable projects of the last 90 days). An entry's rates are written on it for good once it is
   invoiced, imported with the old tool's rates, or its author erased.
 - **Budget alerts**: when a project crosses 80 % and then 100 % of its
   budget (hours, or billable amount), the managers get one bell item each
   time (checked when time or a budget changes).
-- **Team** (managers): the weeks to approve (one by one, or all); everyone's
-  hours over four weeks against their usual week (the company's 35 h, or
-  their own), who is short in red, and *Remind* — one bell item in each
-  person's language. A person's week opens read-only with every note.
+- **Team** (managers): the weeks to approve — each line says when a week is
+  **short or not over** ("week not over · 10:00 of 35:00"); approving such
+  a week asks first ("… Approve it as it is? It locks the week" → *Approve
+  anyway*, also checked on the server), and the bulk action takes only the
+  complete weeks ("Approve the 2 complete weeks"), naming those it leaves
+  out. Everyone's hours over four weeks against their usual week (the
+  company's 35 h, or their own), who is short in red, and *Remind* — one
+  bell item in each person's language. Weeks **before a person's start**
+  (their first entry, else the first day they opened the tool, never
+  before the tool's first project or entry) show "—": never "short", never
+  reminded; an empty tool expects nothing of anyone. A person's week opens read-only with every note.
 - **Reports**: this week, last week, this month, last month or chosen days;
   grouped by project, client, person or task; billable or not, or
   billable and not invoiced yet; for managers the amount, the cost and the
@@ -132,6 +145,10 @@ every service checks them on the server.
   example project*, and the import from Toggl, Clockify or Harvest. A
   member who asks a managers' page reads "This page is for managers"
   (HTTP 403), not an error.
+
+**A manager's first visit** on an empty tool: the panel's *Add a project*,
+and the week says "Start with a project — nobody can record time until
+there is a project" (a member reads that a manager opens projects).
 
 ## Routes
 
@@ -217,6 +234,8 @@ In the studio: `node lab/chest-dev/dev.mjs tools/private/timesheets --prod --res
 - Budget alerts go to every manager (there is no "project manager" per
   project yet) and are checked when time or a budget changes, not when a
   person's rate changes.
+- Members' reports show a project's whole budget ("251:15 of 230:00 used"),
+  not only their share (seen by the critic as harmless; not changed).
 - Approval is weekly and for every person alike (no approval by project
   manager, no monthly periods).
 - No export of the projects and clients themselves (their time exports as

@@ -22,7 +22,7 @@
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "tesseract.js": "7.0.0",
-    "@argentic/chest-ui": "file:vendor/argentic-chest-ui-0.2.2-studio.1.tgz"
+    "@argentic/chest-ui": "file:vendor/argentic-chest-ui-0.2.3-studio.1.tgz"
   },
   "devDependencies": {
     "@electric-sql/pglite": "0.5.8",

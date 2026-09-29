@@ -6,6 +6,9 @@ import { today } from "./clock.ts";
 import type { Query } from "./db.ts";
 import { cents, day as checkDay, id, limits, memberPattern } from "./model.ts";
 import { transaction } from "./tx.ts";
+import type { RateLock } from "../components/rate-day.ts";
+import { addDays } from "./days.ts";
+import { format, formatDay, type Catalogue, type Locale } from "./i18n/index.ts";
 import { isLocked, settings } from "./settings.ts";
 
 // Hourly rates with their history. A rate applies from a day on; the amount
@@ -159,4 +162,40 @@ export async function fixRates(tx: Query, where: { entryIds?: string[]; memberId
     update entries e set rates_fixed = true,
       bill_rate_cents = bill_rate(e.member_id, e.project_id, e.day), cost_rate_cents = cost_rate(e.member_id, e.day)
     where ${filter} and not e.rates_fixed`;
+}
+
+// What the rate forms say of the locked period ("Locked up to 31 August
+// 2026: a new rate starts on 1 September 2026 at the earliest…"), in the
+// reader's words; null when nothing is locked.
+export function rateLock(lockedUntil: string | null, locale: Locale, t: Catalogue): RateLock {
+  if (lockedUntil === null) return null;
+  const long = (d: string) => formatDay(d, locale, { day: "numeric", month: "long", year: "numeric" });
+  return { until: lockedUntil, text: format(t.people.lockHint, { lock: long(lockedUntil), next: long(addDays(lockedUntil, 1)) }) };
+}
+
+// Where a person's usual rate is used today: on their billable projects of
+// the last 90 days (open ones), the rate that wins for them — their own
+// rate on that project, the project's, or their usual one. The People page
+// says it, so that a usual rate that no project uses is never a surprise.
+export type RateUse = { memberId: string; projects: { id: string; name: string; source: "person_project" | "project" | "own" }[] };
+
+export async function rateUse(sql: Query, actor: Member | null, memberIds: readonly string[]): Promise<Map<string, RateUse["projects"]>> {
+  if (!actor || !can(actor, "rates")) throw new AppError("forbidden");
+  if (memberIds.length === 0) return new Map();
+  const now = today();
+  const rows = await sql<{ member_id: string; id: string; name: string; mine: string | null; project: string | null }[]>`
+    select w.member_id, p.id::text, p.name,
+      (select rate_cents::text from rates where kind = 'bill' and project_id = p.id and member_id = w.member_id and from_day <= ${now} order by from_day desc limit 1) as mine,
+      (select rate_cents::text from rates where kind = 'bill' and project_id = p.id and member_id is null and from_day <= ${now} order by from_day desc limit 1) as project
+    from (select distinct member_id, project_id from entries
+          where deleted_at is null and billable and day > ${addDays(now, -90)} and member_id = any(${[...memberIds]}::text[])) w
+    join projects p on p.id = w.project_id
+    where p.archived_at is null and p.billable
+    order by w.member_id, p.name`;
+  const out = new Map<string, RateUse["projects"]>();
+  for (const r of rows) {
+    const source = r.mine !== null ? "person_project" : r.project !== null ? "project" : "own";
+    out.set(r.member_id, [...(out.get(r.member_id) ?? []), { id: r.id, name: r.name, source }]);
+  }
+  return out;
 }

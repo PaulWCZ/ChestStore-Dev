@@ -1,7 +1,7 @@
 import type { Member } from "@argentic/chest-sdk/member";
 import { can, roles } from "./access.ts";
 import { AppError } from "./app-error.ts";
-import { today } from "./clock.ts";
+import { today, zone } from "./clock.ts";
 import type { Query } from "./db.ts";
 import { addDays, isDay, mondayOf } from "./days.ts";
 import { managerIds } from "./directory.ts";
@@ -110,11 +110,27 @@ export async function withdrawWeek(sql: Query, actor: Member | null, week: unkno
   await withdraw(approveKey(actor.id, w));
 }
 
-// A manager's answer.
-export async function approveWeek(sql: Query, actor: Member | null, memberId: unknown, week: unknown): Promise<WeekState> {
+// Whether a week may be approved without a second look: it is over (its
+// Sunday is past) and holds at least the person's usual week. Approving
+// locks the week: a short or unfinished one is approved only on purpose.
+export type Fullness = { over: boolean; minutes: number; capacity: number; short: boolean };
+export function fullness(week: string, minutes: number, capacity: number, now = today()): Fullness {
+  const over = addDays(week, 6) < now;
+  return { over, minutes, capacity, short: minutes < capacity };
+}
+export const needsLook = (f: Fullness) => !f.over || f.short;
+
+// A manager's answer. A week not over, or under the person's usual week,
+// is approved only with `anyway` (the manager saw it: week_short).
+export async function approveWeek(sql: Query, actor: Member | null, memberId: unknown, week: unknown, options: { anyway?: unknown } = {}): Promise<WeekState> {
   if (!actor || !can(actor, "approve")) throw new AppError("forbidden");
   const who = person(memberId);
   const w = monday(week);
+  if (options.anyway !== true) {
+    const [minutes, caps] = await Promise.all([total(sql, who, w), capacities(sql, [who])]);
+    const [state] = await sql<{ status: string }[]>`select status from weeks where member_id = ${who} and week = ${w}`;
+    if (state?.status === "submitted" && needsLook(fullness(w, minutes, caps.get(who) ?? 0))) throw new AppError("week_short");
+  }
   const [r] = await sql<Row[]>`
     update weeks set status = 'approved', decided_by = ${actor.id}, decided_at = now(), reason = ''
     where member_id = ${who} and week = ${w} and status = 'submitted' returning ${columns(sql)}`;
@@ -146,7 +162,7 @@ export async function returnWeek(sql: Query, actor: Member | null, memberId: unk
 }
 
 // The weeks waiting for a manager, oldest first.
-export type Waiting = { memberId: string; week: string; minutes: number; billableMinutes: number; submittedAt: string };
+export type Waiting = { memberId: string; week: string; minutes: number; billableMinutes: number; submittedAt: string; fullness: Fullness };
 
 export async function waiting(sql: Query, actor: Member | null): Promise<Waiting[]> {
   if (!actor || !can(actor, "approve")) throw new AppError("forbidden");
@@ -155,7 +171,9 @@ export async function waiting(sql: Query, actor: Member | null): Promise<Waiting
       coalesce((select sum(e.minutes) from entries e where e.member_id = w.member_id and e.day between w.week and w.week + 6 and e.deleted_at is null), 0)::text as minutes,
       coalesce((select sum(e.minutes) from entries e where e.member_id = w.member_id and e.day between w.week and w.week + 6 and e.deleted_at is null and e.billable), 0)::text as billable
     from weeks w where w.status = 'submitted' order by w.week, w.submitted_at limit 500`;
-  return rows.map(r => ({ memberId: r.member_id, week: r.week, minutes: numeric(r.minutes), billableMinutes: numeric(r.billable), submittedAt: new Date(r.submitted_at).toISOString() }));
+  const caps = await capacities(sql, [...new Set(rows.map(r => r.member_id))]);
+  const now = today();
+  return rows.map(r => ({ memberId: r.member_id, week: r.week, minutes: numeric(r.minutes), billableMinutes: numeric(r.billable), submittedAt: new Date(r.submitted_at).toISOString(), fullness: fullness(r.week, numeric(r.minutes), caps.get(r.member_id) ?? 0, now) }));
 }
 
 // People's usual weeks.
@@ -179,29 +197,72 @@ export async function setCapacity(sql: Query, actor: Member | null, memberId: un
 
 // The team's weeks: for each person and each of some Mondays, their hours,
 // the state of that week and their usual week.
-export type TeamCell = { week: string; minutes: number; status: WeekStatus; reason: string };
-export type TeamRow = { memberId: string; capacity: number; weeks: TeamCell[] };
+// `before`: a week before the person's start in the tool — nothing was
+// expected of them then (no "short", no Remind).
+export type TeamCell = { week: string; minutes: number; status: WeekStatus; reason: string; before: boolean };
+export type TeamRow = { memberId: string; capacity: number; start: string | null; weeks: TeamCell[] };
+
+// When the tool started being used: the Monday of its first project or of
+// its first entry (imported time included); null while it holds neither.
+export async function toolStart(sql: Query): Promise<string | null> {
+  const [r] = await sql<{ first: string | null }[]>`
+    select to_char(least((select min(day) from entries where deleted_at is null), (select min(created_at at time zone ${zone()})::date from projects)), 'YYYY-MM-DD') as first`;
+  return r?.first ? mondayOf(r.first) : null;
+}
+
+// Each person's first week in the tool: the Monday of their first entry,
+// else of the first day they opened it (people.first_seen), never before the
+// tool's start; null when neither is known and the tool has not started.
+export async function startWeeks(sql: Query, memberIds: readonly string[]): Promise<Map<string, string | null>> {
+  const start = await toolStart(sql);
+  const rows = memberIds.length ? await sql<{ member_id: string; first: string | null }[]>`
+    select m.member_id, to_char(least(
+      (select min(day) from entries e where e.member_id = m.member_id and e.deleted_at is null),
+      (select first_seen from seen s where s.member_id = m.member_id)), 'YYYY-MM-DD') as first
+    from unnest(${[...memberIds]}::text[]) as m(member_id)` : [];
+  return new Map(memberIds.map(id => {
+    const first = rows.find(r => r.member_id === id)?.first ?? null;
+    if (start === null) return [id, null];
+    const own = first ? mondayOf(first) : start;
+    return [id, own > start ? own : start];
+  }));
+}
+
+// seenNow remembers the first day a member opened the tool (their start,
+// when they have no entry yet). Once per member: later calls change nothing.
+export async function seenNow(sql: Query, memberId: string): Promise<void> {
+  if (!memberPattern.test(memberId)) return;
+  await sql`insert into seen (member_id, first_seen) values (${memberId}, ${today()}) on conflict (member_id) do nothing`;
+}
 
 export async function teamWeeks(sql: Query, actor: Member | null, memberIds: readonly string[], mondays: readonly string[]): Promise<TeamRow[]> {
   if (!actor || !can(actor, "approve")) throw new AppError("forbidden");
   if (memberIds.length === 0 || mondays.length === 0) return [];
   const first = mondays.reduce((a, b) => (a < b ? a : b));
   const last = addDays(mondays.reduce((a, b) => (a > b ? a : b)), 6);
-  const [sums, states, caps] = await Promise.all([
+  const [sums, states, caps, starts] = await Promise.all([
     sql<{ member_id: string; week: string; total: string }[]>`
       select member_id, to_char(date_trunc('week', day)::date, 'YYYY-MM-DD') as week, sum(minutes)::text as total from entries
       where deleted_at is null and day between ${first} and ${last} and member_id = any(${[...memberIds]}::text[]) group by 1, 2`,
     sql<Row[]>`select ${columns(sql)} from weeks where week between ${first} and ${last} and member_id = any(${[...memberIds]}::text[])`,
     capacities(sql, memberIds),
+    startWeeks(sql, memberIds),
   ]);
-  return memberIds.map(memberId => ({
-    memberId,
-    capacity: caps.get(memberId) ?? 0,
-    weeks: mondays.map(week => {
-      const st = states.find(s => s.member_id === memberId && s.week === week);
-      return { week, minutes: numeric(sums.find(s => s.member_id === memberId && s.week === week)?.total), status: st?.status ?? "open", reason: st?.reason ?? "" };
-    }),
-  }));
+  return memberIds.map(memberId => {
+    const start = starts.get(memberId) ?? null;
+    return {
+      memberId,
+      capacity: caps.get(memberId) ?? 0,
+      start,
+      weeks: mondays.map(week => {
+        const st = states.find(s => s.member_id === memberId && s.week === week);
+        const minutes = numeric(sums.find(s => s.member_id === memberId && s.week === week)?.total);
+        // Time recorded (or a week sent) always counts, whatever the start.
+        const before = (start === null || week < start) && minutes === 0 && !st;
+        return { week, minutes, status: st?.status ?? "open", reason: st?.reason ?? "", before };
+      }),
+    };
+  });
 }
 
 // remind rings the bell of those, among the people named, whose week is
@@ -214,7 +275,7 @@ export async function remind(sql: Query, actor: Member | null, memberIds: unknow
   if (!Array.isArray(memberIds) || memberIds.length === 0 || memberIds.length > 2000) throw new AppError("invalid");
   const ids = [...new Set(memberIds.map(person))];
   const rows = await teamWeeks(sql, actor, ids, [w]);
-  const short = rows.filter(r => r.weeks[0]!.status !== "submitted" && r.weeks[0]!.status !== "approved" && r.weeks[0]!.minutes < r.capacity);
+  const short = rows.filter(r => isShort(r.weeks[0]!, r.capacity));
   const found = await people(short.map(r => r.memberId));
   const current = short.filter(r => found.get(r.memberId)?.status === "member");
   for (const r of current) {
@@ -226,6 +287,12 @@ export async function remind(sql: Query, actor: Member | null, memberIds: unknow
     }), { path: `/chest?week=${w}`, key: `remind:${w}` });
   }
   return current.length;
+}
+
+// A week to remind of: expected of the person (not before their start),
+// not sent, under their usual week.
+export function isShort(c: TeamCell, capacity: number): boolean {
+  return !c.before && c.status !== "submitted" && c.status !== "approved" && c.minutes < capacity;
 }
 
 // The people of the team: whoever has the tool with a role, as the Chest

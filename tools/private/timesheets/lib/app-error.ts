@@ -20,7 +20,7 @@ export const errorCodes = [
   "future",
   "import_invalid",
   "import_too_big",
-  "rate_locked",
+  "rate_locked", "rate_day_missing", "week_short",
   "week_submitted",
   "week_approved",
   "invoiced",

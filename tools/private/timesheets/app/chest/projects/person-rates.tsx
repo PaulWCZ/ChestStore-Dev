@@ -8,14 +8,15 @@ import { parseAmount } from "../../../lib/amounts.ts";
 import type { Catalogue } from "../../../lib/i18n/index.ts";
 import { format } from "../../../lib/i18n/format.ts";
 import { removeRateStep, setRate } from "../actions.ts";
+import { rateDayProblem, type RateLock } from "../../../components/rate-day.ts";
 
 type Words = { project: Catalogue["project"]; errors: Catalogue["errors"]; date: Catalogue["date"] };
 export type PersonRate = { memberId: string; name: string; steps: { from: string; label: string; removable: boolean }[] };
 
 // Rates of some people on this project (a senior billed more than the
 // project's rate): each from a day, like every rate.
-export function PersonRates({ projectId, rates, people, hasTime, today, origin, lockedUntil, currency, t }: {
-  projectId: string; rates: PersonRate[]; people: { id: string; name: string }[]; hasTime: boolean; today: string; origin: string; lockedUntil: string | null; currency: string; t: Words;
+export function PersonRates({ projectId, rates, people, hasTime, today, origin, lock, currency, t }: {
+  projectId: string; rates: PersonRate[]; people: { id: string; name: string }[]; hasTime: boolean; today: string; origin: string; lock: RateLock; currency: string; t: Words;
 }) {
   const w = t.project;
   const router = useRouter();
@@ -29,8 +30,10 @@ export function PersonRates({ projectId, rates, people, hasTime, today, origin, 
   function add() {
     const cents = rate.trim() === "" ? null : parseAmount(rate);
     if (!who || (rate.trim() !== "" && cents === null)) return fail("invalid");
+    const problem = hasTime ? rateDayProblem(from, lock, { missing: t.errors.rate_day_missing }) : null;
+    if (problem) return void toast({ text: problem, tone: "error" });
     start(async () => {
-      const r = await setRate({ kind: "bill", projectId, memberId: who, cents, from: hasTime ? from ?? today : origin });
+      const r = await setRate({ kind: "bill", projectId, memberId: who, cents, from: hasTime ? from! : origin });
       if (!r.ok) return fail(r.error, r.values);
       setWho("");
       setRateText("");
@@ -74,7 +77,7 @@ export function PersonRates({ projectId, rates, people, hasTime, today, origin, 
         </select>
         <label className="visually-hidden" htmlFor="pr-rate">{format(w.rate, { currency })}</label>
         <input id="pr-rate" className="field num short" inputMode="decimal" autoComplete="off" placeholder={format(w.rate, { currency })} value={rate} onChange={e => setRateText(e.target.value)} />
-        {hasTime && <DateField id="pr-from" label={w.personRateFrom} value={from} onChange={setFrom} today={today} min={lockedUntil} chips={false} labels={t.date} />}
+        {hasTime && <DateField id="pr-from" label={w.personRateFrom} value={from} onChange={setFrom} today={today} hint={lock?.text} chips={false} labels={t.date} />}
         <button type="submit" className="button quiet" disabled={pending || !who}><Plus />{w.personRateAdd}</button>
       </form>
     </section>

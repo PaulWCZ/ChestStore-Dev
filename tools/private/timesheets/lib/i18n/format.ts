@@ -42,8 +42,12 @@ export function relative(value: Date | string, locale: Locale, now = new Date())
 
 // A calendar day ("2026-09-21") in the reader's language: "Mon 21 Sep" and
 // the like. Days are not instants: written as they are, whatever the zone.
+// French writes the first of a month "1er" ("jeudi 1er octobre") when the
+// month is written out in words beside it.
 export function formatDay(day: string, locale: Locale, options: Intl.DateTimeFormatOptions = { weekday: "short", day: "numeric", month: "short" }): string {
-  return new Intl.DateTimeFormat(intl(locale), { timeZone: "UTC", ...options }).format(new Date(day + "T00:00:00Z"));
+  const parts = new Intl.DateTimeFormat(intl(locale), { timeZone: "UTC", ...options }).formatToParts(new Date(day + "T00:00:00Z"));
+  const first = locale === "fr" && (options.month === "long" || options.month === "short");
+  return parts.map(p => (first && p.type === "day" && (p.value === "1" || p.value === "01") ? "1er" : p.value)).join("");
 }
 
 // A time of day, "09:30", in a zone.

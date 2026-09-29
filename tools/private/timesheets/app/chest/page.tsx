@@ -1,4 +1,5 @@
 import { today, zone } from "../../lib/clock.ts";
+import { can } from "../../lib/access.ts";
 import { db } from "../../lib/db.ts";
 import { addDays, isDay, mondayOf } from "../../lib/days.ts";
 import { dayEntries, week } from "../../lib/entries.ts";
@@ -63,6 +64,7 @@ export default async function WeekPage({ searchParams }: { searchParams: Promise
         standing={standing}
         lock={s.lockedUntil ? { text: format(t.week.lockedUntil, { date: formatDay(s.lockedUntil, locale, { day: "numeric", month: "long", year: "numeric" }), name: s.lockedBy ? nameFor(s.lockedBy, who, locale) : t.people.unknown }), short: format(t.week.lockedShort, { date: formatDay(s.lockedUntil, locale, { day: "numeric", month: "short" }) }) } : null}
         t={{ week: t.week, day: t.day, work: t.work, errors: t.errors, timer: t.timer }}
+        canManage={can(member, "projects.manage")}
       />
     </div>
   );

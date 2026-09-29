@@ -39,6 +39,7 @@ export async function erase(sql: Sql, memberId: string): Promise<void> {
     await tx`delete from rates where member_id = ${memberId}`;
     await tx`update rates set set_by = 'erased' where set_by = ${memberId}`;
     await tx`delete from people where member_id = ${memberId}`;
+    await tx`delete from seen where member_id = ${memberId}`;
     await tx`delete from weeks where member_id = ${memberId}`;
     await tx`update weeks set decided_by = 'erased' where decided_by = ${memberId}`;
     await tx`update settings set locked_by = 'erased' where locked_by = ${memberId}`;

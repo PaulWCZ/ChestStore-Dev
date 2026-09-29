@@ -185,12 +185,22 @@ await step("the team: approve last week, send this one back with a word, remind 
   await page.goto(origin + "/chest/team");
   const rows = page.locator(".waiting-row", { hasText: "Hugo Bernard" });
   expect(await rows.count() === 2, "Hugo's two weeks wait: " + await rows.count());
+  // Neither is complete (last week under 35:00, this one not over): no bulk
+  // approval, and each line says why.
+  expect(await page.getByRole("button", { name: /^Valider (les|la|toutes)/u }).count() === 0, "no bulk approval of short or unfinished weeks");
+  expect(/semaine pas finie/u.test(await rows.last().innerText()) && /30:15 sur 35:00/u.test(await rows.first().innerText()), "shortness said: " + (await page.locator(".waiting").innerText()));
+  // Weeks before a person's start in the tool are "—", never "short".
+  const camille = page.locator("tr", { hasText: "Camille Martin" });
+  expect((await camille.getByRole("link", { name: /avant son arrivée/u }).count()) === 1, "Camille's first week shown as before her start: " + (await camille.innerText()));
   // This week's (the newest) goes back with a word.
   await rows.last().getByRole("button", { name: "Renvoyer…" }).click();
   await page.getByPlaceholder("Que faut-il corriger\u202f?").fill("Il manque la réunion de mardi");
   await page.getByRole("button", { name: "Renvoyer", exact: true }).click();
   await page.locator(".ck-toast", { hasText: "Semaine renvoyée à Hugo Bernard." }).waitFor();
+  // A short week: approving asks first, saying what it holds.
   await page.locator(".waiting-row", { hasText: "Hugo Bernard" }).first().getByRole("button", { name: "Valider" }).click();
+  await page.getByText(/30:15 sur 35:00\. La valider telle quelle\s\?/u).waitFor();
+  await page.getByRole("button", { name: "Valider quand même" }).click();
   await page.locator(".ck-toast", { hasText: "La semaine de Hugo Bernard est validée." }).waitFor();
   await page.getByText("Aucune semaine ne vous attend.").waitFor();
   await page.getByRole("button", { name: /^Rappeler/u }).click();
@@ -243,6 +253,24 @@ await step("lock a period: the week shows why nothing changes there", async () =
   await page.goto(origin + `/chest?week=${lastMonday}`);
   await page.locator(".notice", { hasText: "verrouillé" }).first().waitFor();
   expect(await page.locator(".grid td.ro").count() > 0, "locked cells read-only");
+  // A rate typed from a day in the locked period: refused with a sentence,
+  // nothing saved (critique N1: it was saved from today, "Enregistré.").
+  await page.goto(origin + "/chest/people");
+  const hugo = page.locator(".person", { hasText: "Hugo Bernard" });
+  const before = await hugo.innerText();
+  expect(/Pas utilisé en ce moment\s: ses \d projets ont chacun leur propre taux/u.test(before), "where his usual rate applies: " + before);
+  await hugo.getByRole("button", { name: "Modifier" }).click();
+  await hugo.locator("input[id^='bill-']").fill("50");
+  await hugo.locator("input[id^='from-']").fill(lastMonday);
+  await hugo.locator("input[id^='from-']").press("Enter");
+  await hugo.getByRole("button", { name: "Enregistrer" }).click();
+  await hugo.locator(".ck-error", { hasText: /Verrouillé jusqu’au .*: un nouveau taux commence au plus tôt le/u }).waitFor();
+  expect(await page.evaluate(() => document.activeElement?.id?.startsWith("from-")), "the day field has the focus");
+  await page.waitForTimeout(800);
+  expect(await page.locator(".ck-toast", { hasText: "Enregistré." }).count() === 0, "nothing saved");
+  await hugo.getByRole("button", { name: "Annuler" }).click();
+  await page.reload();
+  expect(!/50,00\s€/u.test(await page.locator(".person", { hasText: "Hugo Bernard" }).innerText()), "no €50 rate anywhere");
   await page.goto(origin + "/chest/settings");
   await page.getByRole("button", { name: "Tout déverrouiller" }).click();
   await page.locator(".ck-toast", { hasText: "Tout est déverrouillé." }).waitFor();

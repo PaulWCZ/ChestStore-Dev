@@ -28,6 +28,8 @@ const link = (week: string, day?: string) => `/chest?week=${week}${day ? `&day=$
 export function WeekView(props: {
   monday: string; previous: string; next: string; thisWeek: boolean; title: string; days: DayInfo[]; rows: GridRow[]; selected: string; items: DayItem[];
   projects: PickerProject[]; lock: { text: string; short: string } | null; standing: WeekStanding; locale: string; t: WeekWords;
+  // A manager adds the projects: an empty tool speaks to them as such.
+  canManage?: boolean;
 }) {
   const { t, days, monday, standing } = props;
   const router = useRouter();
@@ -281,7 +283,9 @@ export function WeekView(props: {
             </table>
           </div>
         ) : (
-          <EmptyState title={t.week.empty.title} body={noProjects ? t.week.empty.noProjects : t.week.empty.body} />
+          noProjects && props.canManage
+            ? <EmptyState title={t.week.empty.managerTitle} body={t.week.empty.noProjectsManager} />
+            : <EmptyState title={t.week.empty.title} body={noProjects ? t.week.empty.noProjects : t.week.empty.body} />
         )}
         {!closed && !noProjects && (
           <div className="grid-actions">

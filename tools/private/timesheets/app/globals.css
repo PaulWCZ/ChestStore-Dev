@@ -46,7 +46,7 @@ button, input, textarea, select { font: inherit; color: inherit; }
 .ck-bar-nav { margin-left: var(--space-4); }
 .ck-nav-link { min-height: 56px; color: var(--panel-ink-2); font-weight: var(--w-semi); font-size: var(--text-s); border-bottom-width: 3px; }
 .ck-nav-link:hover { color: var(--panel-ink); }
-.ck-nav-link[aria-current="page"] { color: var(--panel-ink); font-weight: var(--w-semi); border-bottom-color: var(--signal); }
+.ck-nav-link[aria-current="page"] { color: var(--panel-ink); font-weight: var(--w-semi); border-bottom-color: var(--panel-signal); }
 .ck-member-name { color: var(--panel-ink); }
 .ck-member-role { color: var(--panel-ink-2); }
 .ck-bar :focus-visible { outline-color: var(--panel-ink); }
@@ -61,7 +61,7 @@ button, input, textarea, select { font: inherit; color: inherit; }
   position: sticky; top: 0; z-index: 15;
 }
 .timer :focus-visible { outline-color: var(--panel-ink); }
-.timer.running { box-shadow: inset 0 -3px 0 var(--signal); }
+.timer.running { box-shadow: inset 0 -3px 0 var(--panel-signal); }
 .timer-line { display: flex; align-items: center; gap: var(--space-3); max-width: 1320px; margin: 0 auto; }
 .timer-note {
   flex: 1 1 auto; min-width: 0; min-height: 48px; padding: 0 var(--space-3);
@@ -82,9 +82,9 @@ button, input, textarea, select { font: inherit; color: inherit; }
   font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-size: var(--text-l); font-weight: var(--weight-strong); letter-spacing: -0.04em;
   min-width: 7.2ch; text-align: right; color: var(--panel-ink-2);
 }
-.timer.running .timer-clock { color: var(--panel-ink); text-shadow: 0 0 18px var(--signal-glow); }
+.timer.running .timer-clock { color: var(--panel-ink); text-shadow: 0 0 18px var(--panel-signal-glow); }
 .timer .swatch { width: 12px; height: 12px; }
-.timer.running .swatch { animation: beat 2s var(--ease) infinite; box-shadow: 0 0 0 3px var(--signal-glow); }
+.timer.running .swatch { animation: beat 2s var(--ease) infinite; box-shadow: 0 0 0 3px var(--panel-signal-glow); }
 @keyframes beat { 50% { transform: scale(0.7); } }
 @media (prefers-reduced-motion: reduce) { .timer.running .swatch { animation: none; } }
 .timer-since { max-width: 1320px; margin: var(--space-1) auto 0; font-size: var(--text-xs); color: var(--panel-ink-2); padding-left: calc(12px + var(--space-3) + var(--space-3)); }
@@ -115,6 +115,9 @@ button, input, textarea, select { font: inherit; color: inherit; }
 /* The signal's button (Start, Stop): ink on the signal, its edge the signal. */
 .button.signal, .button.stop { background: var(--signal); color: var(--signal-ink); border-color: var(--signal); min-width: 104px; font-size: var(--text-m); }
 .button.signal:hover, .button.stop:hover { box-shadow: 0 0 0 4px var(--signal-glow); }
+/* On the panel (the timer), the panel's own signal. */
+.timer .button.signal, .timer .button.stop { background: var(--panel-signal); color: var(--panel-signal-ink); border-color: var(--panel-signal); }
+.timer .button.signal:hover, .timer .button.stop:hover { box-shadow: 0 0 0 4px var(--panel-signal-glow); }
 .button.danger-link { color: var(--danger); margin-left: auto; }
 .field {
   width: 100%; min-height: var(--control-h); padding: var(--space-2) var(--space-3);
@@ -176,7 +179,8 @@ select.field { padding-right: var(--space-6); }
 .day-head .wd { text-transform: uppercase; letter-spacing: 0.08em; }
 .day-head .dn { font-size: var(--text-m); color: var(--ink); font-weight: var(--weight-strong); }
 /* A ruler under the day names: the instrument's tick marks. */
-.grid thead tr { background-image: repeating-linear-gradient(90deg, var(--line-strong) 0 1px, transparent 1px 12px); background-size: 100% 5px; background-repeat: no-repeat; background-position: bottom; }
+/* The ruler's ticks under the days: decoration, gone where --decor is 0 (a brand, the Chest's sheet, High contrast; kit 0.2.3). */
+.grid thead tr { background-image: repeating-linear-gradient(90deg, var(--line-strong) 0 1px, transparent 1px 12px); background-size: 100% calc(5px * var(--decor, 1)); background-repeat: no-repeat; background-position: bottom; }
 .day-head.today { background: var(--today); }
 .day-head.today .dn { background: var(--signal); color: var(--signal-ink); border-radius: var(--radius-chip); padding: 0 8px; }
 .day-head.chosen { box-shadow: inset 0 3px 0 var(--accent-line); }
@@ -250,7 +254,7 @@ select.field { padding-right: var(--space-6); }
 .chip-choice { position: relative; }
 .chip-choice input { position: absolute; opacity: 0; width: 1px; height: 1px; }
 .chip-choice span { display: inline-flex; align-items: center; min-height: 40px; padding: 0 var(--space-4); border: var(--border-width) solid var(--line-strong); border-radius: var(--radius-chip); background: var(--surface); font-weight: var(--w-semi); font-size: var(--text-s); cursor: pointer; }
-.chip-choice input:checked + span { background: var(--panel); color: var(--panel-ink); border-color: var(--panel); box-shadow: inset 0 -3px 0 var(--signal); }
+.chip-choice input:checked + span { background: var(--panel); color: var(--panel-ink); border-color: var(--panel); box-shadow: inset 0 -3px 0 var(--panel-signal); }
 .chip-choice input:focus-visible + span { outline: 3px solid var(--focus); outline-offset: 2px; }
 .range { display: flex; flex-wrap: wrap; align-items: flex-start; gap: var(--space-3); }
 .range .ck-range { flex: 0 1 38rem; }
@@ -400,6 +404,11 @@ select.field { padding-right: var(--space-6); }
 .waiting-who { display: grid; flex: 1 1 14rem; min-width: 0; }
 .waiting-who a { color: var(--ink); }
 .decision { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+/* A short or unfinished week: its mark under the line, asked before approving. */
+.waiting-who .ck-badge { justify-self: start; margin-top: 2px; }
+.decision.asking { align-items: center; max-width: 34rem; }
+.decision.asking > span { flex: 1 1 14rem; }
+.left-out { margin-top: var(--space-3); }
 .back-form { flex: 1 1 100%; }
 .who-cell { display: flex; align-items: center; gap: var(--space-2); }
 .ck-table td:has(> .week-cell) { padding: 0; }
@@ -457,7 +466,7 @@ select.field { padding-right: var(--space-6); }
   .strip-day .dn { font-size: var(--text-s); font-weight: var(--weight-strong); }
   .strip-day .tt { font-size: 0.625rem; color: var(--ink-2); }
   .strip-day.today { border-color: var(--accent-line); }
-  .strip-day[aria-current="date"] { background: var(--panel); color: var(--panel-ink); border-color: var(--panel); box-shadow: inset 0 -3px 0 var(--signal); }
+  .strip-day[aria-current="date"] { background: var(--panel); color: var(--panel-ink); border-color: var(--panel); box-shadow: inset 0 -3px 0 var(--panel-signal); }
   .strip-day[aria-current="date"] .wd, .strip-day[aria-current="date"] .tt { color: var(--panel-ink-2); }
   .day-panel { padding: var(--space-3) var(--space-4); }
   .entry { grid-template-columns: 4px 1fr auto; row-gap: 0; }
@@ -482,7 +491,7 @@ select.field { padding-right: var(--space-6); }
 @media (max-width: 760px) {
   .ck-bar-nav { margin: 0 calc(-1 * var(--space-4)); border-top-color: var(--panel-line); }
   .ck-nav-link { min-height: 56px; border-bottom: 0; border-top: 3px solid transparent; }
-  .ck-nav-link[aria-current="page"] { border-top-color: var(--signal); }
+  .ck-nav-link[aria-current="page"] { border-top-color: var(--panel-signal); }
   .ck-nav-icon svg { width: 22px; height: 22px; }
 }
 .row .button.link { white-space: normal; text-align: left; }

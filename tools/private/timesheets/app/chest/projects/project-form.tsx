@@ -11,6 +11,7 @@ import { format } from "../../../lib/i18n/format.ts";
 import { colors } from "../../../lib/model.ts";
 import type { Budget, Task } from "../../../lib/projects.ts";
 import { addTask, archiveProject, archiveTask, createProject, updateProject } from "../actions.ts";
+import { rateDayProblem, type RateLock } from "../../../components/rate-day.ts";
 
 type Words = { project: Catalogue["project"]; colors: Catalogue["colors"]; errors: Catalogue["errors"]; date: Catalogue["date"] };
 export type FormProject = {
@@ -24,7 +25,7 @@ export function ProjectForm({ initial, clients, people, currency, comma, default
   initial: FormProject; clients: { id: string; name: string }[]; people: { id: string; name: string }[]; currency: string; comma: boolean; defaultTasks: string[];
   // An existing project with time: a changed rate applies from a day, and
   // its history shows.
-  rates?: { hasTime: boolean; today: string; lockedUntil: string | null; history: string | null };
+  rates?: { hasTime: boolean; today: string; lock: RateLock; history: string | null };
   t: Words;
 }) {
   const w = t.project;
@@ -61,6 +62,10 @@ export function ProjectForm({ initial, clients, people, currency, comma, default
       if (!cents) return setError(t.errors.invalid);
       b = { kind: "money", cents };
     }
+    // A changed rate on a project with time needs its first day, after the
+    // locked period.
+    const problem = askFrom ? rateDayProblem(rateFrom, rates?.lock ?? null, { missing: t.errors.rate_day_missing }) : null;
+    if (problem) return setError(problem);
     setError(null);
     const input = {
       name, color, billable, rateCents, budget: b, everyone, people: everyone ? [] : chosen,
@@ -152,7 +157,7 @@ export function ProjectForm({ initial, clients, people, currency, comma, default
             {rates?.history && <p className="hint">{rates.history}</p>}
             {askFrom && (
               <>
-                <DateField id="p-rate-from" label={w.rateFrom} value={rateFrom} onChange={setRateFrom} today={rates?.today ?? ""} min={rates?.lockedUntil ?? null} hint={w.rateFromHint} chips={false} labels={t.date} />
+                <DateField id="p-rate-from" label={w.rateFrom} value={rateFrom} onChange={setRateFrom} today={rates?.today ?? ""} hint={rates?.lock ? `${w.rateFromHint} ${rates.lock.text}` : w.rateFromHint} chips={false} labels={t.date} />
               </>
             )}
           </div>

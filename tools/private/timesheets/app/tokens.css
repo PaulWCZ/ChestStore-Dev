@@ -24,6 +24,12 @@
   --signal: var(--highlight);
   --signal-ink: var(--ink);
   --signal-glow: color-mix(in oklab, var(--highlight) 40%, transparent);
+  /* The signal on the panel (kit 0.2.3): the theme's --inverse-signal,
+     measured on the panel in every look and mode — Instrument's lime in
+     both modes — with its own ink for a filled button there. */
+  --panel-signal: var(--inverse-signal);
+  --panel-signal-ink: var(--inverse-signal-ink);
+  --panel-signal-glow: color-mix(in oklab, var(--inverse-signal) 40%, transparent);
 
   /* The mark: a dial of the panel's colours, the signal's hand. */
   --mark-dial: var(--panel);

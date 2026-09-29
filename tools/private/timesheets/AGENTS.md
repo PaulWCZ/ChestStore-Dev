@@ -33,6 +33,25 @@ first; this page is the map and the rules.
 | `components/shell.tsx`, `app/chest/layout.tsx` | The kit's `AppShell` (tabs, member chip, `BrandMark`, `NoAccess`), the timer, `Toasts` |
 | `components/work-picker.tsx` | The project picker: the tool's own combobox (the kit has no picker of records), with the kit's keys (`listKey`) and search (`matches`) |
 
+## Rules added after the second critique (2026-09-29)
+
+- **A rate's first day** is checked in the form (`components/rate-day.ts`,
+  the lock's sentence from `rateLock()` in `lib/rates.ts`) and on the
+  server (`rate_locked`): never fall back to today when a typed day is
+  refused. The kit's `DateField` is not given `min` for it (its `min`
+  drops a day typed before it, and the old value would be saved).
+- **Approving** a week not over or under the usual week needs `anyway`
+  (`weeks.approveWeek(…, { anyway: true })`, `week_short` otherwise);
+  `fullness()`/`needsLook()` say it; the bulk action sends only complete
+  weeks.
+- **A person's start** (`startWeeks`: first entry, else `seen.first_seen`
+  written once by `seenNow` in the members' layout, never before
+  `toolStart`): cells before it are `before` ("—"), never short, never
+  reminded (`isShort`). Erasure deletes the `seen` row.
+- **The signal on the panel** is `--panel-signal` (the kit's
+  `--inverse-signal`, 0.2.3), never `--signal`; decoration (the grid's
+  ruler) is keyed on `--decor`.
+
 ## Commands
 
 ```sh

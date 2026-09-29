@@ -33,7 +33,8 @@ colours are its categorical palette.
 | `--panel`, `--panel-ink` | `--inverse`, `--inverse-ink` (kit 0.2.2) | The instrument panel: header, timer, the report's total tile, the chosen chip and day; its text and its focus ring |
 | `--panel-ink-2` | `--inverse-ink-2` | Secondary text on the panel (a measured pair) |
 | `--panel-line`, `--panel-field-line` | `--inverse-line`; `color-mix` of `--inverse-ink` into `--inverse` | The panel's hairline (decoration); a field's edge on the panel |
-| `--signal`, `--signal-ink` | `--highlight`, `--ink` | *Start*/*Stop*, today's pill, the current tab's rule, the running clock's glow, the mark's hand — never text on the panel |
+| `--signal`, `--signal-ink` | `--highlight`, `--ink` | today's pill in the grid, the toasts' edge, a *Start* off the panel — never text on the panel |
+| `--panel-signal`, `--panel-signal-ink` | `--inverse-signal`, `--inverse-signal-ink` (kit 0.2.3) | on the panel: *Start*/*Stop*, the current tab's rule, the running clock's glow and rule, the mark's hand — measured on the panel in every look and mode (Instrument's lime in both) |
 | `--today`, `--chosen` | `color-mix` of `--highlight` and `--surface`; `--surface-2` | Today's column; the row under the pointer, open forms |
 | `--billable`, `--other` | `--accent-line`, `--cat-8` | Chart bars (3:1 on the card) |
 | `--w-body`, `--w-semi`, `--w-bold` | computed from `--weight-strong` | Instrument's 500 / 650 / 750, and 400 in a theme that forbids synthetic bold (Chest) |

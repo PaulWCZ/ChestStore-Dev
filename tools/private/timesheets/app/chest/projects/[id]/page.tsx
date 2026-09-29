@@ -6,7 +6,7 @@ import { db } from "../../../../lib/db.ts";
 import { everyoneOrNone } from "../../../../lib/directory.ts";
 import { formatDuration } from "../../../../lib/duration.ts";
 import { format, formatDay, money } from "../../../../lib/i18n/index.ts";
-import { origin, projectRates, type RateStep } from "../../../../lib/rates.ts";
+import { origin, projectRates, rateLock, type RateStep } from "../../../../lib/rates.ts";
 import { settings } from "../../../../lib/settings.ts";
 import { nameFor, people as lookup } from "../../../../lib/people.ts";
 import { listClients, project, type Project } from "../../../../lib/projects.ts";
@@ -52,7 +52,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
         initial={{ id: p.id, name: p.name, clientId: p.clientId, color: p.color, billable: p.billable, rateCents: p.rateCents, budget: p.budget, everyone: p.everyone, people: p.people, archived: p.archived, tasks: p.tasks }}
         clients={clients.filter(c => !c.archived || c.id === p.clientId).map(c => ({ id: c.id, name: c.name }))}
         people={everyoneNamed}
-        rates={{ hasTime: p.used.minutes > 0, today: now, lockedUntil: s.lockedUntil, history: rates.project.length > 1 ? rates.project.map(step).join(" · ") : null }}
+        rates={{ hasTime: p.used.minutes > 0, today: now, lock: rateLock(s.lockedUntil, locale, t), history: rates.project.length > 1 ? rates.project.map(step).join(" · ") : null }}
         currency={code}
         comma={locale === "fr"}
         defaultTasks={[]}
@@ -67,7 +67,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
           hasTime={p.used.minutes > 0}
           today={now}
           origin={origin}
-          lockedUntil={s.lockedUntil}
+          lock={rateLock(s.lockedUntil, locale, t)}
           currency={code}
           t={{ project: t.project, errors: t.errors, date: t.date }}
         />

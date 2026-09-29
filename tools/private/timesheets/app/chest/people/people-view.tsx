@@ -8,6 +8,7 @@ import { amountText, hoursText, parseAmount, parseHours } from "../../../lib/amo
 import type { Catalogue } from "../../../lib/i18n/index.ts";
 import { format } from "../../../lib/i18n/format.ts";
 import { forgetFormer, removeRateStep, setCapacity, setRate } from "../actions.ts";
+import { rateDayProblem, type RateLock } from "../../../components/rate-day.ts";
 
 type Words = { people: Catalogue["people"]; errors: Catalogue["errors"]; date: Catalogue["date"] };
 export type PersonView = {
@@ -15,13 +16,16 @@ export type PersonView = {
   // In force today (cents), and their histories in words.
   bill: number | null; cost: number | null; week: number | null;
   billText: string | null; costText: string | null; weekText: string;
+  // Where their usual rate applies now (a project's own rate wins), or
+  // null without billable time lately.
+  useText: string | null;
   // The steps a manager may take back (not in the locked period).
   steps: { kind: "bill" | "cost"; from: string; label: string }[];
 };
 
 // A person: their rates and usual week; "Change" opens the form, where a
 // changed rate applies from a day (today unless said).
-export function PersonRow({ person, today, lockedUntil, companyWeek, currency, comma, t }: { person: PersonView; today: string; lockedUntil: string | null; companyWeek: number; currency: string; comma: boolean; t: Words }) {
+export function PersonRow({ person, today, lock, companyWeek, currency, comma, t }: { person: PersonView; today: string; lock: RateLock; companyWeek: number; currency: string; comma: boolean; t: Words }) {
   const w = t.people;
   const router = useRouter();
   const toast = useToast();
@@ -32,6 +36,7 @@ export function PersonRow({ person, today, lockedUntil, companyWeek, currency, c
   const [week, setWeek] = useState(person.week === null ? "" : hoursText(person.week, comma));
   const [from, setFrom] = useState<string | null>(today);
   const [error, setError] = useState<string | null>(null);
+  const [dayError, setDayError] = useState<string | null>(null);
   const changedRate = (text: string, now: number | null) => (text.trim() === "" ? null : parseAmount(text)) !== now;
 
   function save() {
@@ -39,14 +44,19 @@ export function PersonRow({ person, today, lockedUntil, companyWeek, currency, c
     const c = cost.trim() === "" ? null : parseAmount(cost);
     const h = week.trim() === "" ? null : parseHours(week);
     if ((bill.trim() !== "" && b === null) || (cost.trim() !== "" && c === null) || (week.trim() !== "" && h === null)) return setError(t.errors.invalid);
+    // A changed rate needs its first day, after the locked period.
+    const problem = b !== person.bill || c !== person.cost ? rateDayProblem(from, lock, { missing: t.errors.rate_day_missing }) : null;
+    setDayError(problem);
+    // The day field then says why, and takes the focus (its error is read).
+    if (problem) return void document.getElementById(`from-${person.id}`)?.focus();
     setError(null);
     start(async () => {
       if (b !== person.bill) {
-        const r = await setRate({ kind: "bill", memberId: person.id, cents: b, from: from ?? today });
+        const r = await setRate({ kind: "bill", memberId: person.id, cents: b, from: from! });
         if (!r.ok) return setError(format(t.errors[r.error], r.values));
       }
       if (c !== person.cost) {
-        const r = await setRate({ kind: "cost", memberId: person.id, cents: c, from: from ?? today });
+        const r = await setRate({ kind: "cost", memberId: person.id, cents: c, from: from! });
         if (!r.ok) return setError(format(t.errors[r.error], r.values));
       }
       if (h !== person.week) {
@@ -76,7 +86,7 @@ export function PersonRow({ person, today, lockedUntil, companyWeek, currency, c
       </div>
       {!editing ? (
         <dl className="person-facts">
-          <div><dt>{w.bill}</dt><dd>{person.billText ?? <span className="muted">{w.noRate}</span>}</dd></div>
+          <div><dt>{w.bill}</dt><dd>{person.billText ?? <span className="muted">{w.noRate}</span>}{person.bill !== null && person.useText && <span className="small muted block">{person.useText}</span>}</dd></div>
           <div><dt>{w.cost}</dt><dd>{person.costText ?? <span className="muted">{w.noRate}</span>}</dd></div>
           <div><dt>{w.week}</dt><dd>{person.weekText}</dd></div>
         </dl>
@@ -86,7 +96,7 @@ export function PersonRow({ person, today, lockedUntil, companyWeek, currency, c
             <div className="field-block">
               <label className="label" htmlFor={`bill-${person.id}`}>{format(w.billLabel, { currency })}</label>
               <input id={`bill-${person.id}`} className="field num" inputMode="decimal" autoComplete="off" value={bill} onChange={e => setBill(e.target.value)} />
-              <p className="hint">{w.billHint}</p>
+              <p className="hint">{person.useText ?? w.billHint}</p>
             </div>
             <div className="field-block">
               <label className="label" htmlFor={`cost-${person.id}`}>{format(w.costLabel, { currency })}</label>
@@ -101,7 +111,7 @@ export function PersonRow({ person, today, lockedUntil, companyWeek, currency, c
           </div>
           {(changedRate(bill, person.bill) || changedRate(cost, person.cost)) && (
             <div className="field-block from">
-              <DateField id={`from-${person.id}`} label={w.from} value={from} onChange={setFrom} today={today} min={lockedUntil} hint={w.fromHint} chips={false} labels={t.date} />
+              <DateField id={`from-${person.id}`} label={w.from} value={from} onChange={d => { setFrom(d); setDayError(null); }} today={today} hint={lock ? `${w.fromHint} ${lock.text}` : w.fromHint} error={dayError ?? undefined} chips={false} labels={t.date} />
             </div>
           )}
           {person.steps.length > 0 && (

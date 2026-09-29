@@ -7,7 +7,9 @@ import { addDays, mondayOf } from "../lib/days.ts";
 import { addEntry } from "../lib/entries.ts";
 import { erase } from "../lib/lifecycle.ts";
 import * as projects from "../lib/projects.ts";
-import { history, origin, peopleRates, projectRates, rateOn, removeStep, setRate } from "../lib/rates.ts";
+import { history, origin, peopleRates, projectRates, rateLock, rateOn, rateUse, removeStep, setRate } from "../lib/rates.ts";
+import { rateDayProblem } from "../components/rate-day.ts";
+import { catalogue } from "../lib/i18n/index.ts";
 import { report } from "../lib/reports.ts";
 import { lock } from "../lib/settings.ts";
 import { migrate, testDatabase, type TestDatabase } from "./support/db.ts";
@@ -153,3 +155,33 @@ test("the migration keeps every rate the previous version had, since always", as
 function tom() {
   return everyone.find(p => p.firstName === "Tom")!;
 }
+
+test("a rate's first day inside the locked period is refused with a sentence, never saved from today (critique N1)", () => {
+  const lock = rateLock("2026-08-31", "en", catalogue("en"));
+  assert.deepEqual(lock, { until: "2026-08-31", text: "Locked up to 31 August 2026: a new rate starts on 1 September 2026 at the earliest. To change the time before, unlock it in Settings first." });
+  assert.equal(rateLock(null, "en", catalogue("en")), null);
+  assert.match(rateLock("2026-08-31", "fr", catalogue("fr"))!.text, /^Verrouillé jusqu’au 31 août 2026\u202f: un nouveau taux commence au plus tôt le 1er septembre 2026\./u);
+  const words = { missing: "Choose the day" };
+  assert.equal(rateDayProblem("2026-08-01", lock, words), lock!.text);
+  assert.equal(rateDayProblem("2026-08-31", lock, words), lock!.text);
+  assert.equal(rateDayProblem("2026-09-01", lock, words), null);
+  assert.equal(rateDayProblem(null, lock, words), "Choose the day");
+  assert.equal(rateDayProblem("2020-01-01", null, words), null);
+});
+
+test("where a person's usual rate is used: a project's own rate, or theirs on it, wins (critique N2)", async () => {
+  const { sql } = database;
+  const own = await projects.createProject(sql, m(), { name: "Use: no rate" });
+  const priced = await projects.createProject(sql, m(), { name: "Use: priced", rateCents: 9000 });
+  const special = await projects.createProject(sql, m(), { name: "Use: special" });
+  const inside = await projects.createProject(sql, m(), { name: "Use: internal", billable: false });
+  const day = addDays(mondayOf(today()), -3);
+  for (const p of [own, priced, special, inside]) await addEntry(sql, asMember(ines), { projectId: p.id, day, minutes: 60 });
+  await setRate(sql, m(), { kind: "bill", projectId: special.id, memberId: ines.id, cents: 15000, from: origin });
+  const use = await rateUse(sql, m(), [ines.id, nora.id]);
+  assert.deepEqual(use.get(ines.id)?.filter(p => p.name.startsWith("Use:")).map(p => [p.name, p.source]), [
+    ["Use: no rate", "own"], ["Use: priced", "project"], ["Use: special", "person_project"],
+  ]);
+  assert.equal(use.get(nora.id), undefined);
+  await assert.rejects(rateUse(sql, asMember(hugo), [ines.id]), refused("forbidden"));
+});

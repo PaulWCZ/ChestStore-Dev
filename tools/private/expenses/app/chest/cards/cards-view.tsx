@@ -303,7 +303,7 @@ function StatementImport({ locale, currency, team, t }: { locale: string; curren
                   reading.lines.length > ready.length ? plural(t.cards.noHolder, reading.lines.length - ready.length, locale) : "",
                 ].filter(Boolean).join(" ")}
             </p>
-            <div><button type="button" className="button" disabled={pending || missingColumns || ready.length === 0} onClick={run}>{plural(t.cards.run, ready.length, locale)}</button></div>
+            <div><button type="button" className="button" disabled={pending || missingColumns || ready.length === 0} onClick={run}>{plural(t.cards.run, ready.length || reading.lines.length, locale)}</button></div>
           </>
         )}
       </div>

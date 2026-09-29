@@ -116,7 +116,8 @@ select.field { appearance: none; background-image: linear-gradient(45deg, transp
 
 /* ── Paper: the receipt look ──────────────────────────────────────── */
 .paper { position: relative; background: var(--surface); border-radius: var(--radius-s) var(--radius-s) 0 0; padding: var(--space-4); filter: drop-shadow(0 1px 1px var(--paper-shade)) drop-shadow(0 4px 10px var(--paper-shade-far)); margin-bottom: calc(var(--space-5) + 8px); }
-.paper::after { content: ""; position: absolute; left: 0; right: 0; bottom: -8px; height: 8px; background: var(--surface); mask: conic-gradient(from 135deg at top, currentColor 90deg, transparent 0) 50% / 14px 100%; -webkit-mask: conic-gradient(from 135deg at top, currentColor 90deg, transparent 0) 50% / 14px 100%; }
+/* The torn edge of a till receipt: the tool's decoration, which steps aside in a brand, the Chest's sheet and High contrast (--decor, kit 0.2.3). */
+.paper::after { content: ""; position: absolute; left: 0; right: 0; bottom: -8px; height: 8px; background: var(--surface); opacity: var(--decor, 1); mask: conic-gradient(from 135deg at top, currentColor 90deg, transparent 0) 50% / 14px 100%; -webkit-mask: conic-gradient(from 135deg at top, currentColor 90deg, transparent 0) 50% / 14px 100%; }
 .paper.flat { border-radius: var(--radius-m); margin-bottom: var(--space-5); }
 .paper.flat::after { display: none; }
 .paper-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); flex-wrap: wrap; }

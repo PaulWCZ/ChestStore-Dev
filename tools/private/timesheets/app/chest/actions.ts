@@ -99,8 +99,8 @@ export async function submitWeek(week: string): Promise<Result<weeks.WeekState>>
 export async function withdrawWeek(week: string): Promise<Result<null>> {
   return act(async actor => { await weeks.withdrawWeek(db(), actor, week); return null; });
 }
-export async function approveWeek(memberId: string, week: string): Promise<Result<null>> {
-  return act(async actor => { await weeks.approveWeek(db(), actor, memberId, week); return null; });
+export async function approveWeek(memberId: string, week: string, anyway = false): Promise<Result<null>> {
+  return act(async actor => { await weeks.approveWeek(db(), actor, memberId, week, { anyway }); return null; });
 }
 export async function returnWeek(memberId: string, week: string, reason: string): Promise<Result<null>> {
   return act(async actor => { await weeks.returnWeek(db(), actor, memberId, week, reason); return null; });

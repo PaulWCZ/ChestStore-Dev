@@ -166,10 +166,10 @@ function PriorForm({ prior, t, errors }: { prior: VehicleData["prior"]; t: Words
 }
 
 // The registration certificate: a photo or a PDF, straight to the Chest
-// (the kit's FilePicker, a thumbnail of the photo while it goes; not its
-// `camera` yet: on a computer its hidden camera input has no label — the
-// kit's 0.2.2 hides the label but not the input). Once it
-// arrived, it is kept as the vehicle's certificate.
+// (the kit's FilePicker: on a phone "Take a photo" beside "Choose a file"
+// — kit 0.2.3 hides the camera's input off a touch screen — and a 64 px
+// thumbnail of the photo while it goes). Once it arrived, it is kept as
+// the vehicle's certificate.
 function ProofField({ proof, t, errors }: { proof: VehicleData["proof"]; t: Words; errors: Errors }) {
   const { run, pending } = useRun(errors);
   const [files, setFiles] = useState<readonly PickedFile[]>([]);
@@ -197,6 +197,8 @@ function ProofField({ proof, t, errors }: { proof: VehicleData["proof"]; t: Word
         onChange={setFiles}
         maxFiles={1}
         maxSize={limits.receiptSize}
+        camera
+        previewSize="m"
         accept={[...receiptTypes, ".heic", ".heif", ".pdf"]}
         disabled={pending}
         labels={t.files}

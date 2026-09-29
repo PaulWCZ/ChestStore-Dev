@@ -12,30 +12,38 @@ import { approveWeek, remind, returnWeek } from "../actions.ts";
 type Words = { team: Catalogue["team"]; errors: Catalogue["errors"] };
 
 // A week waiting for a manager: approve it, or send it back with a word.
-export function WaitingRow({ memberId, week, name, photo, label, hours, t }: { memberId: string; week: string; name: string; photo: string | null; label: string; hours: string; t: Words }) {
+// `look`: the week is short or not over (said on the line; approving it
+// asks first).
+export function WaitingRow({ memberId, week, name, photo, label, hours, look, t }: { memberId: string; week: string; name: string; photo: string | null; label: string; hours: string; look: string | null; t: Words }) {
   return (
     <li className="waiting-row">
       <Avatar name={name} photo={photo} />
       <span className="waiting-who">
         <Link href={`/chest/team/${memberId}?week=${week}`}><strong>{name}</strong></Link>
         <span className="small muted">{label} · {hours}</span>
+        {look && <StatusBadge tone="wait" size="s" label={look} />}
       </span>
-      <Decision memberId={memberId} week={week} name={name} t={t} />
+      <Decision memberId={memberId} week={week} name={name} look={look} t={t} />
     </li>
   );
 }
 
 // Approve, or send back with a word: the two answers to a week.
-export function Decision({ memberId, week, name, t, approved = false }: { memberId: string; week: string; name: string; t: Words; approved?: boolean }) {
+// A short or unfinished week (`look`) is approved in two steps: the first
+// click says what it holds and asks; "Approve anyway" approves it.
+export function Decision({ memberId, week, name, t, approved = false, look = null }: { memberId: string; week: string; name: string; t: Words; approved?: boolean; look?: string | null }) {
   const router = useRouter();
   const toast = useToast();
   const [pending, start] = useTransition();
   const [back, setBack] = useState(false);
   const [reason, setReason] = useState("");
+  const [asking, setAsking] = useState(false);
   const fail = (code: keyof Catalogue["errors"], values?: Record<string, string | number>) => void toast({ text: format(t.errors[code], values), tone: "error" });
-  function approve() {
+  function approve(anyway = false) {
+    if (look && !anyway) return setAsking(true);
     start(async () => {
-      const r = await approveWeek(memberId, week);
+      const r = await approveWeek(memberId, week, anyway);
+      setAsking(false);
       if (!r.ok) return fail(r.error, r.values);
       toast({ id: `week-${memberId}-${week}`, text: format(t.team.approved, { name }) });
       router.refresh();
@@ -60,9 +68,18 @@ export function Decision({ memberId, week, name, t, approved = false }: { member
       </form>
     );
   }
+  if (asking && look) {
+    return (
+      <span className="decision asking" role="group" aria-labelledby={`ask-${memberId}-${week}`}>
+        <span id={`ask-${memberId}-${week}`} className="small">{format(t.team.anywayAsk, { fullness: look })}</span>
+        <button type="button" className="button" disabled={pending} autoFocus onClick={() => approve(true)}><Check />{t.team.anyway}</button>
+        <button type="button" className="button link" onClick={() => setAsking(false)}>{t.team.cancel}</button>
+      </span>
+    );
+  }
   return (
     <span className="decision">
-      {!approved && <button type="button" className="button" disabled={pending} onClick={approve}><Check />{t.team.approve}</button>}
+      {!approved && <button type="button" className="button" disabled={pending} onClick={() => approve()}><Check />{t.team.approve}</button>}
       <button type="button" className="button quiet" disabled={pending} onClick={() => setBack(true)}>{approved ? t.team.reopen : t.team.sendBackOpen}</button>
     </span>
   );

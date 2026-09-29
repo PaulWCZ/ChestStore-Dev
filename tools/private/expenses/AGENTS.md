@@ -14,6 +14,7 @@ what must not break.
 | `lib/bank.ts`, `lib/iban.ts`, `lib/seal.ts` | Bank details: rights (own, accountants), IBAN/BIC checks (mod 97; pure, browser-safe), sealing with `BANK_DETAILS_KEY` |
 | `lib/payments.ts`, `lib/sepa.ts` | Transfer files: the batch (create, cancel, list, write again) and the pain.001.001.03 XML (pure) |
 | `lib/journal.ts` | Accounting entries in the FEC column layout |
+| `lib/card-read.ts`, `lib/card-match.ts`, `lib/cards.ts`, `app/chest/cards/` | Company card statements: columns guessed and payments read in the browser (pure); matching payments to expenses (pure, tested: amount tolerance, date window, label words, one each); the import (matched, or a card draft waiting for its receipt), Undo, the accountant's lists, "checked" |
 | `lib/csv-read.ts`, `lib/imports.ts` | Reading another tool's CSV and guessing its columns (browser-safe); importing past expenses as history |
 | `lib/receipt-text.ts`, `components/ocr.ts` | What a receipt's text says (pure, tested); reading the photo in the browser with tesseract.js (files copied to `public/ocr/` by `scripts/ocr-assets.mjs`) |
 | `components/upload.ts`, `components/bank-form.tsx` | A file from the browser to the Chest (with the kit's `putWithProgress`); the bank details form and `EraseBank` (the kit's `Confirm`) |
@@ -34,7 +35,7 @@ what must not break.
 | `app/chest/api/receipts/route.ts`, `app/chest/receipts/[id]/route.ts` | Upload grant; open a receipt through a fresh signed link |
 | `app/chest/export/{csv,zip,journal}/route.ts`, `app/chest/pay/files/[id]/route.ts`, `app/chest/vehicles/[member]/proof/route.ts` | Downloads for accountants (and a certificate for its owner) |
 | `app/chest/settings/page.tsx`, `app/chest/settings/company/page.tsx`, `settings-view.tsx`, `import-view.tsx` | Settings → Me; Settings → Company (accountants) |
-| `migrations/` | Schema and the default categories and scale (`0001`), everything after the critique (`0002`). Never edit a shipped file; add `0003_…` |
+| `migrations/` | Schema and the default categories and scale (`0001`), everything after the critique (`0002`), after the second one: card statements, addresses (`0003`). Never edit a shipped file; add `0004_…` |
 | `seed/sample.sql` | A month of sample expenses for local runs |
 | `test/` | `node:test` with `fakeChest` and PostgreSQL (PGlite or `TEST_DATABASE_URL`) |
 
@@ -52,7 +53,7 @@ npm ci && npm test && npm run build   # all three must pass
   (one toast per `id`; `undo` returns `true` or the reason it failed;
   `sent: true` once someone was told), `Dialog` (`dirty` while an IBAN is
   typed), `Confirm` (erasing bank details), `DateField` (every date: never
-  `type="date"`), `FilePicker` (registration certificate, CSV import),
+  `type="date"`), `FilePicker` (registration certificate, with `camera` and `previewSize` since 0.2.3; CSV import; card statement),
   `DataTable` (import preview), `Tabs`, `Segmented` (Export's "Month of"
   is its link variant), `Filters` (Export's month and person, as select
   groups in the address), `Switch` (the month-end reminder), `EmptyState`,
@@ -62,8 +63,10 @@ npm ci && npm test && npm run build   # all three must pass
   (`preview`). Kept on purpose: the receipt picker of `compose.tsx`
   (camera and file side by side on every screen, the photo shown large,
   the stored receipt shown when editing, read at once in the browser —
-  the kit's `camera`/`preview` give a 40 px thumbnail and no stored file;
-  and its `camera` leaves an unlabelled input on a computer, 0.2.2), the
+  the kit's `previewSize` goes to 96 px (0.2.3), too small to check what
+  the phone read on the photo — amount, date, VAT — against the photo
+  itself; its `camera` and `storedFile` would fit, the large photo would
+  not), the
   guests field (colleagues and outside names), the paid-with segments (each
   with its meaning), the approver `<select>` per person (a few approvers
   and "the accountants"), the settings' editable grids.
@@ -108,5 +111,15 @@ npm ci && npm test && npm run build   # all three must pass
 - **Bank details are never shown whole** in a page, a log or an export
   other than the transfer file; only the person and the accountants reach
   them (`lib/bank.ts`).
+- **Card payments** (`card_lines`) are the company's bank records: erasure
+  keeps them with `erased`; a draft made for one (`link = 'created'`) is
+  counted in the holder's badge and bell (`card:<member>`, withdrawn by
+  `settleCardReceipts` once every receipt is there) until it has its
+  receipt. `Expense.fromCard` says so; the matching never takes imported
+  history nor an expense already tied to a payment.
+- **Bank texts** (the remittance) are in `settings.bankLocale` (the
+  company's), never the payee's. An account where `needsAddress(country)`
+  goes in a transfer file only with its address and the company's
+  (`lib/payments.ts` skips it with a reason otherwise).
 - Imported expenses (`imported_at`) are history: keep them out of pay,
   exports and the journal (`within()`).
