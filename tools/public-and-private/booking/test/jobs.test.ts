@@ -4,6 +4,7 @@ import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
 import { POST } from "../app/chest-jobs/[name]/route.ts";
 import * as b from "../lib/booking.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
+import { openHost } from "./support/host.ts";
 import { asMember } from "./support/member.ts";
 import { everyone, ines } from "./support/members.ts";
 
@@ -20,7 +21,7 @@ after(async () => {
 
 test("the hourly run emails tomorrow's guests once, in the language they booked in, with their link", async () => {
   const { sql } = database;
-  const host = await b.ensureHost(sql, asMember(ines), { title: "Meeting", slug: "meeting" });
+  const host = await openHost(sql, asMember(ines), { title: "Meeting", slug: "meeting" });
   await b.saveWeekly(sql, asMember(ines), Array.from({ length: 7 }, () => [[0, 1440]]));
   const [type] = await b.typesOf(sql, ines.id);
   const tomorrow = new Date(Date.now() + 20 * 3600000);
@@ -45,7 +46,7 @@ test("the nightly run is accepted, and a run not signed by the Chest is refused"
 
 test("every 15 minutes the hosts' other calendars are read again; one that cannot be read keeps its error", async () => {
   const { sql } = database;
-  await b.ensureHost(sql, asMember(ines), { title: "Meeting", slug: "meeting" });
+  await openHost(sql, asMember(ines), { title: "Meeting", slug: "meeting" });
   // An address of a declared host that answers nothing here (no network in
   // tests): the run still succeeds, the calendar says why.
   await sql`insert into calendars (member_id, url, provider, tried_at) values (${ines.id}, 'https://calendar.google.com/calendar/ical/x/private-y/basic.ics', 'calendar.google.com', now() - interval '1 hour')`;

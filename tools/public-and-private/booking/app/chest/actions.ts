@@ -97,7 +97,7 @@ export async function removeException(day: string): Promise<Result<null>> {
   });
 }
 
-export async function savePage(input: { slug: string; welcome: string; listed: boolean }): Promise<Result<null>> {
+export async function savePage(input: { slug: string; welcome: string; listed: boolean; language: string; second: string; welcomeAlt: string }): Promise<Result<null>> {
   return act(async actor => {
     const sql = db();
     const host = await b.hostOf(sql, actor.id);
@@ -153,9 +153,15 @@ export async function savePrefs(input: { dailyMax: number; emailMe: boolean }): 
 
 // ——— Times blocked, other calendars ———
 
-export async function blockTime(day: string, from: number, to: number, note: string): Promise<Result<null>> {
+export async function blockTime(day: string, from: number, to: number, note: string): Promise<Result<string>> {
+  return act(async actor => (await b.blockTime(db(), actor, { day, from, to, note })).id);
+}
+
+// No calendar to connect: the host says their hours are right; their page
+// is public from now on.
+export async function confirmHours(): Promise<Result<null>> {
   return act(async actor => {
-    await b.blockTime(db(), actor, { day, from, to, note });
+    await b.confirmHours(db(), actor);
     return null;
   });
 }

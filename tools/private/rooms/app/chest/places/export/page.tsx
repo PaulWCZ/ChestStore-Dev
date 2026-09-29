@@ -2,7 +2,7 @@ import { Download } from "../../../../components/icons.tsx";
 import { can } from "../../../../lib/access.ts";
 import { context } from "../../../../lib/context.ts";
 import { weekdayLoad } from "../../../../lib/export.ts";
-import { format, formatDay } from "../../../../lib/i18n/index.ts";
+import { format, formatDay, plural } from "../../../../lib/i18n/index.ts";
 import { addDays } from "../../../../lib/model.ts";
 import { Period } from "./period.tsx";
 
@@ -17,13 +17,15 @@ export default async function Export({ searchParams }: { searchParams: Promise<R
   const load = office ? await weekdayLoad(c.sql, c.member, office.id, c.zone) : null;
   const rows = (load?.loads ?? []).filter(l => c.rules.weekdays.includes(l.weekday));
   const top = Math.max(1, load?.desks ?? 0, ...rows.map(r => r.people));
-  const one = (n: number) => new Intl.NumberFormat(locale === "en" ? "en-GB" : locale, { maximumFractionDigits: 1 }).format(n);
+  // One decimal at most ("1.5 people"); the plural follows the number as
+  // written (French: "0,5 personne", "1,5 personne", "2 personnes").
+  const tenth = (n: number) => Math.round(n * 10) / 10;
   return (
     <div className="stack-l">
       {office && load && (
         <section className="panel" aria-labelledby="load-title">
           <h2 id="load-title" className="annotation">{format(t.export.load.title, { office: office.name })}</h2>
-          {rows.every(r => r.people === 0) ? <p className="hint">{t.export.load.empty}</p> : (
+          {load.since === null ? <p className="hint">{t.export.load.empty}</p> : (
             <table className="load">
               <caption className="visually-hidden">{format(t.export.load.title, { office: office.name })}</caption>
               <thead className="visually-hidden">
@@ -33,17 +35,23 @@ export default async function Export({ searchParams }: { searchParams: Promise<R
                 {rows.map(r => (
                   <tr key={r.weekday}>
                     <th scope="row">{formatDay(addDays("2024-01-01", r.weekday - 1), locale, { weekday: "long" })}</th>
-                    <td className="load-bar">
-                      <span className="bar" style={{ width: `${(100 * r.people) / top}%` }} />
-                      <span className="load-value">{format(t.export.load.peopleValue, { count: one(r.people) })}</span>
-                    </td>
-                    <td className="load-desks">{load.desks > 0 ? format(t.export.load.desksValue, { count: one(r.desks), total: load.desks }) : ""}</td>
+                    {r.days === 0 ? (
+                      <td className="load-bar" colSpan={2}><span className="load-value muted">{t.export.load.notYet}</span></td>
+                    ) : (
+                      <>
+                        <td className="load-bar">
+                          <span className="bar" style={{ width: `${(100 * r.people) / top}%` }} />
+                          <span className="load-value">{plural(t.export.load.peopleValue, tenth(r.people), locale)}</span>
+                        </td>
+                        <td className="load-desks">{load.desks > 0 ? plural(t.export.load.desksValue, tenth(r.desks), locale, { total: load.desks }) : ""}</td>
+                      </>
+                    )}
                   </tr>
                 ))}
               </tbody>
             </table>
           )}
-          <p className="hint">{t.export.load.note}</p>
+          <p className="hint">{load.since === null ? t.export.load.noteEmpty : format(t.export.load.note, { date: formatDay(load.since, locale, { day: "numeric", month: "long" }) })}</p>
         </section>
       )}
       <form className="panel stack" method="get" action="/chest/export">

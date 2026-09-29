@@ -4,6 +4,7 @@ import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
 import { POST } from "../app/chest-events/route.ts";
 import * as b from "../lib/booking.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
+import { openHost } from "./support/host.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, hugo, ines } from "./support/members.ts";
 
@@ -26,7 +27,7 @@ const soon = () => {
 
 async function bookSomething(who: typeof ines) {
   const sql = database.sql;
-  await b.ensureHost(sql, asMember(who), first);
+  await openHost(sql, asMember(who), first);
   // Every day open all day, no notice: a time is always free.
   await b.saveWeekly(sql, asMember(who), Array.from({ length: 7 }, () => [[0, 1440]]));
   const [type] = await b.typesOf(sql, who.id);
@@ -42,7 +43,7 @@ test("leaving: the page takes no new booking; the bookings stay; access given ag
   assert.equal(await chest.emit(event, POST), 204);
   assert.equal(await b.publicHost(sql, "hugo-bernard"), null);
   assert.equal((await b.bookingsByIds(sql, [made.id]))[0]!.status, "confirmed");
-  await b.ensureHost(sql, asMember(hugo), first);
+  await openHost(sql, asMember(hugo), first);
   assert.ok(await b.publicHost(sql, "hugo-bernard"));
 });
 

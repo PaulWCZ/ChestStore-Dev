@@ -64,6 +64,34 @@ export async function register(sql: Query, actor: Member | null, as: "register_v
   return { employees, interns };
 }
 
+// What the register cannot list, so that it never leaves someone out
+// silently (a labour inspector is handed the printed register):
+// - withoutRecord: members of the directory with no HR record at all;
+// - noStart: records without a first day (the register is ordered by it);
+// - noExit: people in the register who left the Chest, no exit date written;
+// - tutorLeft: interns still here whose tutor left (an intern needs one).
+export type Gaps = {
+  withoutRecord: { id: string; name: string }[];
+  noStart: { recordId: string; name: string }[];
+  noExit: { recordId: string; name: string }[];
+  tutorLeft: { recordId: string; name: string }[];
+};
+
+export async function registerGaps(sql: Query, actor: Member | null, r: Register, directory: readonly { id: string; name: string }[], today: string): Promise<Gaps> {
+  if (!actor || !can(actor, "records.manage")) throw new AppError("forbidden");
+  const listed = new Set(directory.map(p => p.id));
+  const rows = await sql<{ id: string; member_id: string | null; legal_name: string; start_date: string | null; end_date: string | null; erased: boolean }[]>`
+    select id, member_id, legal_name, to_char(start_date, 'YYYY-MM-DD') as start_date, to_char(end_date, 'YYYY-MM-DD') as end_date, erased_at is not null as erased from records`;
+  const linked = new Set(rows.flatMap(x => (x.member_id ? [x.member_id] : [])));
+  const byId = new Map(rows.map(x => [String(x.id), x]));
+  return {
+    withoutRecord: directory.filter(p => !linked.has(p.id)).map(p => ({ id: p.id, name: p.name })),
+    noStart: rows.filter(x => !x.start_date && !x.end_date && !x.erased).map(x => ({ recordId: String(x.id), name: x.legal_name })),
+    noExit: [...r.employees, ...r.interns].filter(l => !l.endDate && byId.get(l.recordId)?.member_id && !listed.has(byId.get(l.recordId)!.member_id!)).map(l => ({ recordId: l.recordId, name: l.name })),
+    tutorLeft: r.interns.filter(l => l.tutorId && !listed.has(l.tutorId) && (l.endDate ?? l.contractEnd ?? "9999") >= today).map(l => ({ recordId: l.recordId, name: l.name })),
+  };
+}
+
 // The mentions the law asks for, in the reader's words.
 export type MentionWords = { fixed_term: string; temporary: string; seconded: string; apprenticeship: string; professionalisation: string; partTime: string };
 
@@ -77,6 +105,7 @@ export function mentions(line: Pick<Line, "contract" | "partTime" | "agency">, w
   return found.join(" · ");
 }
 
+export type GapWords = { title: string; withoutRecord: string; noStart: string; noExit: string };
 export type RegisterWords = {
   employees: string; interns: string; number: string; name: string; nationality: string; birthDate: string; sex: string; job: string; qualification: string;
   entry: string; exit: string; permit: string; mentions: string; start: string; end: string; tutor: string; workplace: string;
@@ -84,8 +113,10 @@ export type RegisterWords = {
 };
 
 // The register as a spreadsheet: the employees' part, an empty line, the
-// interns' part. Days as YYYY-MM-DD, read the same by every spreadsheet.
-export function registerCsv(r: Register, words: RegisterWords, tutorName: (id: string | null) => string): string {
+// interns' part; then, when some people could not be listed, who they are
+// and why (never left out silently). Days as YYYY-MM-DD, read the same by
+// every spreadsheet.
+export function registerCsv(r: Register, words: RegisterWords, tutorName: (id: string | null) => string, gaps?: Gaps, gapWords?: GapWords): string {
   const rows: unknown[][] = [
     [words.employees],
     [words.number, words.name, words.nationality, words.birthDate, words.sex, words.job, words.qualification, words.entry, words.exit, words.permit, words.mentions],
@@ -94,6 +125,10 @@ export function registerCsv(r: Register, words: RegisterWords, tutorName: (id: s
   if (r.interns.length > 0) {
     rows.push([], [words.interns], [words.number, words.name, words.start, words.end, words.tutor, words.workplace]);
     rows.push(...r.interns.map(l => [l.number, l.name, l.startDate, l.endDate ?? l.contractEnd ?? "", tutorName(l.tutorId), l.workplace]));
+  }
+  if (gaps && gapWords && gaps.withoutRecord.length + gaps.noStart.length + gaps.noExit.length > 0) {
+    rows.push([], [gapWords.title]);
+    rows.push(...gaps.withoutRecord.map(p => [p.name, gapWords.withoutRecord]), ...gaps.noStart.map(p => [p.name, gapWords.noStart]), ...gaps.noExit.map(p => [p.name, gapWords.noExit]));
   }
   return toCsv(rows);
 }

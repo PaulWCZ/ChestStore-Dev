@@ -1,13 +1,14 @@
 import * as chest from "@argentic/chest-sdk/chest";
 import { EmptyState, PageHeader } from "@argentic/chest-ui/components";
 import { DocTable } from "../../components/doc-table.tsx";
-import { Alert, BlankSheet, Plus } from "../../components/icons.tsx";
+import { Alert, BlankSheet, Plus, Zip } from "../../components/icons.tsx";
 import { NewDocument } from "../../components/new-document.tsx";
 import { can } from "../../lib/access.ts";
 import { company, missing } from "../../lib/company.ts";
 import { db } from "../../lib/db.ts";
 import { desk } from "../../lib/desk.ts";
 import { followUpOnce } from "../../lib/followup.ts";
+import { waitingArchives } from "../../lib/monthly.ts";
 import { format, formatDay, plural } from "../../lib/i18n/index.ts";
 import { formatMoney } from "../../lib/money.ts";
 import { nameOf, people } from "../../lib/people.ts";
@@ -25,12 +26,19 @@ export default async function DeskPage() {
   // schedule has not run it today.
   await followUpOnce(sql, today);
   const d = await desk(sql, member, today);
+  // A month's archive nobody kept a copy of yet (for who exports).
+  const archive = (await waitingArchives(sql, member))[0] ?? null;
   const c = await company(sql);
   const gaps = missing(c);
   const currency = d.currency ?? chest.currency();
   const money = (minor: number) => formatMoney(minor, currency, locale);
   const who = await people(d.needs.map(n => n.row.createdBy));
   const canQuote = can(member, "quotes.write");
+  const isAdmin = can(member, "settings");
+  // While the legal details are missing, filling them is an administrator's
+  // one obvious action: every other button is quiet.
+  const fillFirst = gaps.length > 0 && isAdmin;
+  const switching = isAdmin ? t.desk.empty.switchingAdmin : can(member, "invoices.issue") ? t.desk.empty.switchingBilling : can(member, "clients.write") ? t.desk.empty.switching : undefined;
   const head = t.list.head;
   const reason = (n: (typeof d.needs)[number]) => {
     const r = n.row;
@@ -47,8 +55,8 @@ export default async function DeskPage() {
       <PageHeader
         size="m"
         title={t.desk.title}
-        secondary={canQuote && can(member, "invoices.draft") ? <NewDocument type="invoice" className="button quiet" errors={t.errors}><Plus />{t.desk.newInvoice}</NewDocument> : undefined}
-        action={canQuote ? <NewDocument type="quote" errors={t.errors}><Plus />{t.desk.newQuote}</NewDocument> : undefined}
+        secondary={canQuote && !d.empty && can(member, "invoices.draft") ? <NewDocument type="invoice" className="button quiet" errors={t.errors}><Plus />{t.desk.newInvoice}</NewDocument> : undefined}
+        action={canQuote && !d.empty ? <NewDocument type="quote" className={fillFirst ? "button quiet" : undefined} errors={t.errors}><Plus />{t.desk.newQuote}</NewDocument> : undefined}
       />
 
       {gaps.length > 0 && (
@@ -62,19 +70,35 @@ export default async function DeskPage() {
         </div>
       )}
 
+      {archive && !fillFirst && (
+        <div className="callout quiet" role="note">
+          <Zip />
+          <div>
+            <p><strong>{format(t.desk.archive.title, { month: formatDay(archive.period + "-01", locale, { month: "long", year: "numeric" }) })}</strong></p>
+            <p>{t.desk.archive.body}</p>
+            <p className="actions"><a className="button quiet small" href={`/chest/export/archives/${archive.period}?part=${archive.part}`} download>{t.desk.archive.action}</a></p>
+          </div>
+        </div>
+      )}
+
       {d.empty ? (
-        <EmptyState
-          icon={<BlankSheet />}
-          title={t.desk.empty.title}
-          body={t.desk.empty.body}
-          action={canQuote ? (
-            <>
-              <NewDocument type="quote" errors={t.errors}><Plus />{t.desk.empty.action}</NewDocument>
-              {can(member, "clients.write") && <a className="button quiet" href="/chest/import?kind=clients">{t.desk.empty.clients}</a>}
-            </>
-          ) : undefined}
-          note={can(member, "clients.write") ? t.desk.empty.switching : undefined}
-        />
+        canQuote ? (
+          <EmptyState
+            icon={<BlankSheet />}
+            title={t.desk.empty.title}
+            body={t.desk.empty.body}
+            action={
+              <>
+                <NewDocument type="quote" className={fillFirst ? "button quiet" : undefined} errors={t.errors}><Plus />{t.desk.empty.action}</NewDocument>
+                {can(member, "clients.write") && <a className="button quiet" href="/chest/import?kind=clients">{t.desk.empty.clients}</a>}
+              </>
+            }
+            note={switching}
+          />
+        ) : (
+          // Someone who reads (the accountant's seat) is never told to write.
+          <EmptyState icon={<BlankSheet />} title={t.desk.empty.readerTitle} body={t.desk.empty.readerBody} />
+        )
       ) : (
         <>
           <div className="figures">
@@ -103,7 +127,8 @@ export default async function DeskPage() {
               <ul className="todo">
                 {d.needs.map(n => (
                   <li key={n.reason + n.row.id}>
-                    <span className={n.reason === "overdue" || n.reason === "ready" ? "dot alert" : n.reason === "accepted" || n.reason === "crm" ? "dot ok" : "dot"} aria-hidden="true" />
+                    {/* Red is for money that is late, and only that; work waiting for someone is plain. */}
+                    <span className={n.reason === "overdue" ? "dot alert" : n.reason === "accepted" || n.reason === "crm" ? "dot ok" : "dot"} aria-hidden="true" />
                     <span>
                       <a className="main" href={`/chest/documents/${n.row.id}`}><span className="visually-hidden">{kindOf(n.row, t)} {n.row.number ?? ""}</span></a>
                       <strong>{kindOf(n.row, t)} {n.row.number ?? ""} · {n.row.clientName || t.list.noClient}</strong>
@@ -121,8 +146,8 @@ export default async function DeskPage() {
               <div className="section-head">
                 <h2 id="recent">{t.desk.recent}</h2>
               </div>
-              <DocTable rows={d.recent.map(r => rowView(r, t, locale))} labels={t.table}
-                words={{ caption: t.desk.recent, number: head.number, client: head.client, what: head.what, date: head.date, amount: head.amount, state: head.state, total: t.list.total }} />
+              <DocTable rows={d.recent.map(r => rowView(r, t, locale, "issued"))} labels={t.table}
+                words={{ caption: t.desk.recent, number: head.number, client: head.client, what: head.what, date: head.issued, amount: head.amount, state: head.state, total: t.list.total }} />
             </section>
           )}
         </>

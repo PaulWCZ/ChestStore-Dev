@@ -25,7 +25,8 @@ export async function addPayment(sql: Sql, actor: Member | null, invoiceId: unkn
     const [doc] = await tx<{ id: number; type: string; status: string; gross: number; currency: string; deleted_at: Date | null }[]>`
       select id, type, status, gross, currency, deleted_at from documents where id = ${docId} for update`;
     if (!doc || doc.deleted_at || doc.type !== "invoice") throw new AppError("not_found");
-    if (doc.status !== "final") throw new AppError("not_final");
+    // Issued here, or imported from the previous tool.
+    if (doc.status !== "final" && doc.status !== "imported") throw new AppError("not_final");
     const amount = parseAmount(input.amount, doc.currency);
     if (amount === null || amount <= 0 || amount > limits.total) throw new AppError("payment_invalid");
     const [sums] = await tx<{ paid: number; credited: number }[]>`

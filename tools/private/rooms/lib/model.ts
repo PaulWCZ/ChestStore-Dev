@@ -31,6 +31,16 @@ export type Equipment = (typeof equipment)[number];
 export const features = ["screen", "dock", "standing", "window", "quiet"] as const;
 export type Feature = (typeof features)[number];
 
+// The floors and areas the tool names itself (the sample, "Start with an
+// example") are keys: each reader sees them in their own language (the
+// catalogues' `presets`) until an admin renames them.
+export const floorPresets = ["ground", "first", "second", "third"] as const;
+export const areaPresets = ["open_space", "quiet_zone"] as const;
+export type Preset = (typeof floorPresets)[number] | (typeof areaPresets)[number];
+export function placeName(name: string, preset: string | null | undefined, words: Readonly<Record<string, string>> | undefined): string {
+  return (preset && words?.[preset]) || name;
+}
+
 export const statuses = ["office", "remote", "off"] as const;
 export type Status = (typeof statuses)[number];
 export const isStatus = (value: unknown): value is Status => typeof value === "string" && (statuses as readonly string[]).includes(value);

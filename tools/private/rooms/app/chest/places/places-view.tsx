@@ -13,6 +13,7 @@ import type { OfficeView, RoomView, DeskView } from "../../../lib/places.ts";
 import type { Result } from "../../../lib/errors.ts";
 import * as actions from "../actions.ts";
 import { featureIcons } from "../desks/desk-view.tsx";
+import { useExampleOffice } from "../../../components/example-office.tsx";
 import { equipmentIcons } from "../rooms/rooms-view.tsx";
 
 type Words = {
@@ -40,6 +41,8 @@ export function PlacesView({ offices, office, people, groups, names, locale, t }
   const router = useRouter();
   const toast = useToast();
   const [pending, start] = useTransition();
+  const example = useExampleOffice({ label: t.places.example.start, added: t.places.example.added, errors: t.errors });
+  const [dropExample, setDropExample] = useState(false);
   const [editing, setEditing] = useState<Editing>(null);
   const [dirty, setDirty] = useState(false);
   const edit = (e: Editing) => { setDirty(false); setEditing(e); };
@@ -58,6 +61,7 @@ export function PlacesView({ offices, office, people, groups, names, locale, t }
   if (!office) {
     return (
       <EmptyState icon={<Building />} title={t2.firstOffice.title} body={t2.firstOffice.body} note={t2.csr}
+        example={{ label: t2.example.start, onClick: example.start, busy: example.busy }}
         action={<OfficeForm t={t} busy={pending} onSave={v => run(() => actions.addOffice(v), r => router.push(`/chest/places?office=${r.id}`))} />} />
     );
   }
@@ -70,6 +74,16 @@ export function PlacesView({ offices, office, people, groups, names, locale, t }
         <AddInline label={t2.addOffice} placeholder={t2.officeNamePlaceholder} max={limits.officeName} busy={pending}
           onSave={name => run(() => actions.addOffice({ name, address: "" }), r => router.push(`/chest/places?office=${r.id}`))} />
       </nav>
+
+      {office.example && (
+        <div className="example-note" role="note">
+          <p>{t2.example.note}</p>
+          <button type="button" className="button quiet" onClick={() => setDropExample(true)}><Trash />{t2.example.delete}</button>
+          <Confirm open={dropExample} title={t2.example.deleteTitle} body={t2.example.deleteBody} confirmLabel={t2.example.delete} cancelLabel={t2.keep}
+            onCancel={() => setDropExample(false)}
+            onConfirm={() => { setDropExample(false); run(() => actions.removeExample(office.id), () => { toast({ id: "office", text: t2.example.removed }); router.push("/chest/places"); }); }} />
+        </div>
+      )}
 
       <section className="panel" aria-labelledby="office-title">
         <h2 id="office-title" className="annotation">{office.name}</h2>

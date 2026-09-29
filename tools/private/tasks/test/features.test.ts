@@ -44,6 +44,8 @@ beforeEach(async () => {
   chest.notifications.length = 0;
 });
 
+// A moment after the quiet minute of lib/mail.ts.
+const later = () => new Date(Date.now() + (mail.quietSeconds + 5) * 1000);
 const refused = (code: string) => (error: unknown) => error instanceof AppError && error.code === code;
 async function setup(name = "Trade show", visibility: "team" | "private" = "team", by = hugo) {
   const b = await boards.createBoard(database.sql, asMember(by), { name, visibility }, en.templates.columns);
@@ -176,6 +178,9 @@ test("a step of a checklist given to someone with a date is a subtask: in their 
   // Told in her language, by the bell and by email.
   await tell.stepAssigned(asMember(hugo), ines.id, { id: step.id, text: "Get the keys" }, change.card, sql);
   assert.equal(chest.notifications.at(-1)?.title, "Hugo Bernard vous a confié une étape de « Open the new office »");
+  // The email waits a minute for anything else from the same moment.
+  assert.equal(chest.outbox.length, 0);
+  await mail.flushMail(sql, later());
   assert.match(chest.outbox.at(-1)?.subject ?? "", /confié une étape/u);
   // Ticked: out of her list.
   await cards.updateItem(sql, asMember(ines), step.id, { done: true });
@@ -271,17 +276,22 @@ test("email beside the bell: given a card, mentioned, the morning; in each one's
   const c = await cards.addCard(sql, asMember(hugo), b.id, todo.id, "Order boxes");
   const change = await cards.setAssignees(sql, asMember(hugo), c.id, [ines.id, hugo.id]);
   await tell.assigned(asMember(hugo), change.added, { id: c.id, title: "Order boxes", boardId: b.id }, sql);
-  // Only Inès (Hugo gave it to himself), in French, with the link when the Chest gives the address.
+  // Nothing leaves at once; a minute later, only Inès (Hugo gave it to
+  // himself), in French, with the link when the Chest gives the address.
+  assert.equal(chest.outbox.length, 0);
+  assert.equal(await mail.flushMail(sql, new Date(Date.now() + 30_000)), 0);
+  assert.equal(await mail.flushMail(sql, later()), 1);
   assert.equal(chest.outbox.length, 1);
   const letter = chest.outbox[0]!;
   assert.equal(letter.subject, "Hugo Bernard vous a confié une tâche : Order boxes");
   assert.match(letter.text, /décochez « M’envoyer aussi tout cela par e-mail »/u);
-  // A retry sends nothing twice (the key).
-  await tell.assigned(asMember(hugo), change.added, { id: c.id, title: "Order boxes", boardId: b.id }, sql);
+  // Sent, it is gone from the queue: flushing again sends nothing twice.
+  assert.equal(await mail.flushMail(sql, later()), 0);
   assert.equal(chest.outbox.length, 1);
   // Mentioned: Hugo, in English.
   const said = await cards.addComment(sql, asMember(ines), c.id, "@Hugo Bernard which size?", [hugo.id]);
   await tell.mentioned(asMember(ines), said.mentions, { id: c.id, title: "Order boxes", boardId: b.id }, said.comment.body, sql, said.comment.id);
+  await mail.flushMail(sql, later());
   assert.equal(chest.outbox.at(-1)?.subject, "Inès Moreau mentioned you on “Order boxes”");
   // Switched off: the bell only.
   assert.equal(await mail.emailOn(sql, asMember(hugo)), true);
@@ -290,6 +300,7 @@ test("email beside the bell: given a card, mentioned, the morning; in each one's
   const before = chest.outbox.length;
   const again = await cards.addComment(sql, asMember(ines), c.id, "@Hugo Bernard?", [hugo.id]);
   await tell.mentioned(asMember(ines), again.mentions, { id: c.id, title: "Order boxes", boardId: b.id }, again.comment.body, sql, again.comment.id);
+  await mail.flushMail(sql, later());
   assert.equal(chest.outbox.length, before);
   // The morning: what is due, by email too (Inès; Hugo turned it off).
   await cards.updateCard(sql, asMember(hugo), c.id, { due: addDays(chestToday(), -1) });

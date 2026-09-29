@@ -1,6 +1,6 @@
 "use client";
 
-import { Avatar, Dialog, PageHeader, PeoplePicker, TimeSelect, useToast } from "@argentic/chest-ui/components";
+import { Avatar, DateField, Dialog, PageHeader, PeoplePicker, TimeSelect, useToast } from "@argentic/chest-ui/components";
 import { localSearch, moveEnd, moveStart } from "@argentic/chest-ui/components/logic";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, useTransition, type ComponentType, type FormEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
@@ -15,7 +15,7 @@ export type GridRoom = { id: string; name: string; capacity: number; equipment: 
 type Person = { id: string; name: string; photo: string | null };
 // checkable: check-in is on, it is mine, and it starts within ten minutes or is under way.
 export type GridBooking = { id: string; roomId: string; start: number; end: number; title: string; series: string | null; organiser: Person; attendees: Person[]; mine: boolean; canChange: boolean; checkedIn: boolean; checkable: boolean };
-type Words = { rooms: Catalogue["rooms"]; booking: Catalogue["booking"]; equipment: Catalogue["equipment"]; errors: Catalogue["errors"]; dialog: Catalogue["dialog"]; peoplePicker: Catalogue["peoplePicker"] };
+type Words = { rooms: Catalogue["rooms"]; booking: Catalogue["booking"]; equipment: Catalogue["equipment"]; errors: Catalogue["errors"]; dialog: Catalogue["dialog"]; peoplePicker: Catalogue["peoplePicker"]; date: Catalogue["date"] };
 type Draft = { roomId: string; day: string; start: number; end: number; title: string; attendees: string[]; weekly: boolean; weeks: number; for: string };
 type Open = { mode: "new"; draft: Draft } | { mode: "detail"; id: string } | { mode: "edit"; id: string; draft: Draft } | null;
 // Why a day cannot be booked, if it cannot: past, closed, or not open yet
@@ -24,7 +24,7 @@ export type Locked = { why: "past" | "closed" | "notYet"; opensOn?: string } | n
 
 export const equipmentIcons: Record<Equipment, ComponentType> = { screen: Screen, video: Video, whiteboard: Whiteboard, phone: Phone, accessible: Accessible };
 
-export function RoomsView({ head, strip, day, days, now, locked: lockedDay, open, close, maxWeeks, rooms, bookings, people, bookFor, initial, told, calendarPage, locale, t }: {
+export function RoomsView({ head, strip, day, days, today, now, locked: lockedDay, open, close, maxWeeks, rooms, bookings, people, bookFor, initial, told, calendarPage, locale, t }: {
   // The page's title and the line under it; the office picker; the days.
   // Here, so that the page's one action, "Book a room", sits at the top.
   head: { title: string; intro: ReactNode; secondary?: ReactNode };
@@ -32,6 +32,8 @@ export function RoomsView({ head, strip, day, days, now, locked: lockedDay, open
   day: string;
   // The days the booking form offers (value, words), the day shown among them.
   days: { value: string; label: string }[];
+  // Today in the Chest's zone (the day field's "today").
+  today: string;
   now: number | null;
   locked: Locked;
   open: number;
@@ -57,6 +59,9 @@ export function RoomsView({ head, strip, day, days, now, locked: lockedDay, open
   const [dirty, setDirty] = useState(false);
   // The earliest a new booking may start: now's quarter on today.
   const earliest = now === null ? open : Math.max(open, Math.floor(now / step) * step);
+  // Where a new booking starts when nothing was picked: the next round
+  // hour today, 09:00 on another day (never the grid's first quarter).
+  const preferred = Math.min(Math.max(now === null ? 9 * 60 : Math.ceil(earliest / 60) * 60, earliest, open), Math.max(earliest, close - step));
   const locked = lockedDay !== null || earliest >= close;
   const bookable = (r: GridRoom) => r.group === null || r.group.mine;
   const fail = (error: keyof Catalogue["errors"], values?: Record<string, string | number>) => void toast({ text: format(t.errors[error], values), tone: "error" });
@@ -77,7 +82,7 @@ export function RoomsView({ head, strip, day, days, now, locked: lockedDay, open
   }
   function openNew(roomId?: string, from?: number, to?: number) {
     const room = roomId ?? rooms.find(bookable)?.id ?? rooms[0]!.id;
-    const first = from ?? freeSlots(takenOf(room), open, close, earliest)[0]?.start ?? earliest;
+    const first = from ?? freeSlots(takenOf(room), open, close, preferred)[0]?.start ?? freeSlots(takenOf(room), open, close, earliest)[0]?.start ?? earliest;
     openDraft(draftFrom(room, first, to));
   }
   const close_ = () => { setDialog(null); setDirty(false); };
@@ -157,7 +162,7 @@ export function RoomsView({ head, strip, day, days, now, locked: lockedDay, open
         ? <p className="hint is-locked" role="status">{hint}</p>
         : <p className="hint"><span className="on-desktop">{t.rooms.dragHint}</span><span className="on-phone">{t.rooms.tapHint}</span></p>}
 
-      {!locked && <Finder rooms={rooms} bookings={bookings} earliest={earliest} close={close} bookable={bookable} locale={locale} t={t}
+      {!locked && <Finder rooms={rooms} bookings={bookings} earliest={earliest} preferred={preferred} close={close} bookable={bookable} locale={locale} t={t}
         onPick={(roomId, from, to) => openDraft(draftFrom(roomId, from, to))} />}
 
       <Grid rooms={rooms} bookings={bookings} open={open} close={close} earliest={locked ? close : earliest} now={now} bookable={bookable} locale={locale} t={t}
@@ -207,11 +212,11 @@ export function RoomsView({ head, strip, day, days, now, locked: lockedDay, open
         onClose={close_}
       >
         {dialog?.mode === "new" && (
-          <BookingForm initial={dialog.draft} isNew days={days} rooms={rooms} bookable={bookable} open={open} close={close} maxWeeks={maxWeeks} people={people} bookFor={bookFor} told={told} locale={locale} t={t}
+          <BookingForm initial={dialog.draft} isNew days={days} today={today} rooms={rooms} bookable={bookable} open={open} close={close} maxWeeks={maxWeeks} people={people} bookFor={bookFor} told={told} locale={locale} t={t}
             onDirty={setDirty} onSubmit={saveNew} />
         )}
         {dialog?.mode === "edit" && shownBooking && (
-          <BookingForm initial={dialog.draft} isNew={false} days={days} rooms={rooms} bookable={bookable} open={open} close={close} maxWeeks={maxWeeks} people={people} bookFor={false} told={told} locale={locale} t={t}
+          <BookingForm initial={dialog.draft} isNew={false} days={days} today={today} rooms={rooms} bookable={bookable} open={open} close={close} maxWeeks={maxWeeks} people={people} bookFor={false} told={told} locale={locale} t={t}
             onDirty={setDirty} onSubmit={(d, done) => saveEdit(shownBooking.id, d, done)} />
         )}
         {dialog?.mode === "detail" && shownBooking && (
@@ -234,14 +239,14 @@ export function RoomsView({ head, strip, day, days, now, locked: lockedDay, open
 // "I need a room for 6 at 14:00 for an hour": the rooms free then, big
 // enough, with what was asked — one tap opens the form with that slot. On
 // today it starts at the current quarter hour: the rooms free now.
-function Finder({ rooms, bookings, earliest, close, bookable, locale, t, onPick }: {
-  rooms: GridRoom[]; bookings: GridBooking[]; earliest: number; close: number; bookable: (r: GridRoom) => boolean; locale: string; t: Words;
+function Finder({ rooms, bookings, earliest, preferred, close, bookable, locale, t, onPick }: {
+  rooms: GridRoom[]; bookings: GridBooking[]; earliest: number; preferred: number; close: number; bookable: (r: GridRoom) => boolean; locale: string; t: Words;
   onPick: (roomId: string, from: number, to: number) => void;
 }) {
   const biggest = Math.max(...rooms.map(r => r.capacity));
   const sizes = [1, 2, 4, 6, 8, 10, 12, 16, 20, 30, 50].filter(n => n <= biggest);
   const [size, setSize] = useState(1);
-  const [at, setAt] = useState(earliest);
+  const [at, setAt] = useState(preferred);
   const [length, setLength] = useState(60);
   const [wanted, setWanted] = useState<Equipment[]>([]);
   const from = Math.max(at, earliest);
@@ -434,8 +439,8 @@ function Detail({ b, room, day, over, calendarPage, locale, t, onEdit, onCancel,
   );
 }
 
-function BookingForm({ initial, isNew, days, rooms, bookable, open, close, maxWeeks, people, bookFor, told, locale, t, onDirty, onSubmit }: {
-  initial: Draft; isNew: boolean; days: { value: string; label: string }[]; rooms: GridRoom[]; bookable: (r: GridRoom) => boolean; open: number; close: number; maxWeeks: number; people: Person[]; bookFor: boolean; told: "bell" | "calendar" | "mail"; locale: string; t: Words;
+function BookingForm({ initial, isNew, days, today, rooms, bookable, open, close, maxWeeks, people, bookFor, told, locale, t, onDirty, onSubmit }: {
+  initial: Draft; isNew: boolean; days: { value: string; label: string }[]; today: string; rooms: GridRoom[]; bookable: (r: GridRoom) => boolean; open: number; close: number; maxWeeks: number; people: Person[]; bookFor: boolean; told: "bell" | "calendar" | "mail"; locale: string; t: Words;
   onDirty: (dirty: boolean) => void;
   onSubmit: (d: Draft, done: (error: keyof Catalogue["errors"] | null, values?: Record<string, string | number>) => void) => void;
 }) {
@@ -451,7 +456,12 @@ function BookingForm({ initial, isNew, days, rooms, bookable, open, close, maxWe
   // booked for is offered as a guest.
   const findGuest = useMemo(() => localSearch(people, { exclude: [...d.attendees, d.for].filter(Boolean) }), [people, d.attendees, d.for]);
   const findPerson = useMemo(() => localSearch(people), [people]);
-  const dayChoices = days.some(x => x.value === d.day) ? days : [...days, { value: d.day, label: d.day }];
+  // The day is the kit's DateField (typed "tomorrow", "12/10" or picked),
+  // bounded by the days one may book; a closed day is said at once.
+  const lastDay = days.at(-1)?.value ?? d.day;
+  const closedDay = d.day !== initial.day && d.day >= today && d.day <= lastDay && !days.some(x => x.value === d.day);
+  // Booking for someone else is rare: a link under the booking itself.
+  const [forOpen, setForOpen] = useState(Boolean(initial.for));
   const titleLength = [...d.title].length;
 
   function submit(e: FormEvent) {
@@ -467,24 +477,17 @@ function BookingForm({ initial, isNew, days, rooms, bookable, open, close, maxWe
   return (
     <form className="stack booking-form" onSubmit={submit}>
       <div className="form-grid">
-        {bookFor && isNew && (
-          <div className="span-4">
-            <PeoplePicker label={t.booking.for} hint={t.booking.forHint} clearable value={d.for ? [personOf(d.for)] : []} search={findPerson} labels={t.peoplePicker} lang={locale}
-              onChange={v => { const id = v[0]?.id ?? ""; setD({ ...d, for: id, attendees: d.attendees.filter(a => a !== id) }); }} />
-          </div>
-        )}
         <label className="span-2">
           <span className="label">{t.booking.room}</span>
           <select className="select" value={d.roomId} onChange={e => setD({ ...d, roomId: e.target.value })}>
             {rooms.map(r => <option key={r.id} value={r.id} disabled={!bookable(r)}>{r.name} · {plural(t.rooms.capacity, r.capacity, locale)}{r.group ? " · " + format(t.rooms.keptFor, { group: r.group.name }) : ""}</option>)}
           </select>
         </label>
-        <label className="span-2">
-          <span className="label">{t.booking.day}</span>
-          <select className="select" value={d.day} onChange={e => setD({ ...d, day: e.target.value })}>
-            {dayChoices.map(x => <option key={x.value} value={x.value}>{x.label}</option>)}
-          </select>
-        </label>
+        <div className="span-2">
+          <DateField label={t.booking.day} value={d.day} today={today} min={today} max={lastDay} required labels={t.date}
+            {...(closedDay ? { error: t.errors.closed_day } : {})}
+            onChange={v => { if (v) setD({ ...d, day: v }); }} />
+        </div>
         {/* A 24-hour list every quarter hour (the kit's TimeSelect); moving
             the start keeps the length chosen, the end never passes it. */}
         <label>
@@ -501,6 +504,12 @@ function BookingForm({ initial, isNew, days, rooms, bookable, open, close, maxWe
           {titleLength >= limits.title - 20 && <span id="title-count" className="hint counter">{format(t.booking.count, { count: titleLength, max: limits.title })}</span>}
         </label>
       </div>
+      {bookFor && isNew && (forOpen ? (
+        <PeoplePicker label={t.booking.for} hint={t.booking.forHint} clearable value={d.for ? [personOf(d.for)] : []} search={findPerson} labels={t.peoplePicker} lang={locale}
+          onChange={v => { const id = v[0]?.id ?? ""; setD({ ...d, for: id, attendees: d.attendees.filter(a => a !== id) }); }} />
+      ) : (
+        <button type="button" className="link-button for-link" onClick={() => setForOpen(true)}>{t.booking.forOpen}</button>
+      ))}
       <PeoplePicker label={t.booking.people} multiple value={chosen} search={findGuest} hint={t.booking.peopleHint[told]} labels={t.peoplePicker} lang={locale}
         onChange={v => setD({ ...d, attendees: v.map(p => p.id) })} />
       {isNew && (

@@ -253,7 +253,10 @@ export type DocumentType = (typeof documentTypes)[number];
 // final (numbered and frozen).
 export const quoteStatuses = ["draft", "sent", "accepted", "refused"] as const;
 export const issuedStatuses = ["draft", "final"] as const;
-export type Status = (typeof quoteStatuses)[number] | (typeof issuedStatuses)[number];
+// An invoice imported from the previous tool (its own number, collected
+// here, never finalised here).
+export const importedStatus = "imported" as const;
+export type Status = (typeof quoteStatuses)[number] | (typeof issuedStatuses)[number] | typeof importedStatus;
 
 export const paymentMethods = ["transfer", "card", "cheque", "cash", "direct_debit", "other"] as const;
 export type PaymentMethod = (typeof paymentMethods)[number];

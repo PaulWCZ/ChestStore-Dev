@@ -119,9 +119,14 @@ textarea.field { resize: vertical; line-height: 1.5; }
 .chip svg { width: 13px; height: 13px; }
 .chip .ck-avatar { border-width: 1px; }
 .chip.label-chip { background: var(--c); color: var(--c-ink); }
-/* Due dates: late (orange), today (sun), done (leaf). Each also says it
-   in words (a heading, "Today", or a hidden "Late"). */
-.chip.due-late { background: var(--cat-3-soft); color: var(--cat-3-ink); }
+/* Due dates: late (orange, a danger edge), today (sun), done (leaf). Each
+   also says it in words and signs ("Late" with a warning sign, "Today"):
+   in a look of greys the words still tell them apart. */
+.chip.due-late { background: var(--cat-3-soft); color: var(--cat-3-ink); border-color: var(--danger); }
+/* Blocked: waits for other cards — a stop sign in the danger colour, a
+   dashed edge, and the word. */
+.chip.blocked { border-style: dashed; border-color: var(--danger); }
+.chip.blocked svg { color: var(--danger); }
 .chip.due-today { background: var(--cat-7-soft); color: var(--cat-7-ink); }
 .chip.done { background: var(--cat-2-soft); color: var(--cat-2-ink); }
 .dot { width: 12px; height: 12px; border-radius: 50%; background: var(--c); border: 1.5px solid var(--line-strong); flex: none; }
@@ -182,6 +187,13 @@ textarea.field { resize: vertical; line-height: 1.5; }
 .filters { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
 .filters select { min-height: 36px; border: var(--border-width) solid var(--head-ink); border-radius: var(--radius-m); background: var(--surface); color: var(--ink); padding: 0 var(--space-2); font-size: var(--text-s); font-weight: var(--weight-strong); }
 .filters .link-button { color: var(--head-ink); }
+/* The view and the filters: in the header on a computer, folded behind
+   one button on a phone (the first card then shows near the top). */
+.board-tools { display: contents; }
+.tools-toggle, .phone-only { display: none; }
+.tools-toggle { align-items: center; gap: var(--space-2); min-height: 44px; padding: 0 var(--space-3); border: var(--border-width) solid var(--head-ink); border-radius: var(--radius-m); background: var(--surface); color: var(--ink); font-weight: var(--weight-strong); cursor: pointer; }
+.tools-toggle svg { width: 18px; height: 18px; }
+.tools-toggle .count { display: inline-grid; place-items: center; min-width: 22px; height: 22px; border-radius: var(--radius-pill); background: var(--accent); color: var(--accent-ink); font-size: var(--text-xs); }
 .notice { margin: var(--space-3) var(--space-4) 0; padding: var(--space-2) var(--space-3); border: var(--border-width) solid var(--line-strong); border-radius: var(--radius-m); background: var(--surface-2); display: flex; gap: var(--space-3); align-items: center; flex-wrap: wrap; }
 .notice.flat { margin: 0; }
 .lanes { display: flex; align-items: flex-start; gap: var(--space-3); padding: var(--space-4); overflow-x: auto; overscroll-behavior-x: contain; scroll-snap-type: x proximity; }
@@ -219,7 +231,8 @@ textarea.field { resize: vertical; line-height: 1.5; }
 .card.dragging, .lane-cards > li.dragging { opacity: 0.35; }
 .card.overlay { cursor: grabbing; transform: rotate(-2deg); box-shadow: var(--shadow-2); }
 .card .labels { display: flex; gap: var(--space-1); flex-wrap: wrap; }
-.card .labels .bar { height: 8px; min-width: 32px; border-radius: var(--radius-pill); border: 1.5px solid var(--line-strong); background: var(--c); }
+/* Labels on a card by name, on their colour. */
+.card .labels .label-tag, .label-tag { display: inline-block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 0 var(--space-2); border: 1.5px solid var(--line-strong); border-radius: var(--radius-chip); background: var(--c); color: var(--c-ink); font-size: var(--text-xs); font-weight: var(--weight-strong); line-height: 1.6; }
 .card .card-title { font-weight: var(--weight-strong); overflow-wrap: anywhere; line-height: 1.35; }
 .card .meta { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; font-size: var(--text-xs); color: var(--ink-2); }
 .card .meta .push { margin-left: auto; }
@@ -230,11 +243,19 @@ textarea.field { resize: vertical; line-height: 1.5; }
 /* On a phone, the columns by name: one tap scrolls to it. */
 .lane-jump { display: none; }
 @media (max-width: 760px) {
-  .lane-jump { display: flex; gap: var(--space-2); overflow-x: auto; padding: var(--space-3) var(--space-3) 0; }
+  .lane-jump { display: flex; gap: var(--space-2); overflow-x: auto; padding: var(--space-2) var(--space-3) 0; }
   .lane-jump .chip { min-height: 36px; padding: 0 var(--space-3); font-size: var(--text-s); cursor: pointer; }
-  .lanes { padding: var(--space-3); gap: var(--space-2); }
+  .lanes { padding: var(--space-2) var(--space-3) var(--space-3); gap: var(--space-2); }
   .lane { flex-basis: 84vw; max-height: none; }
-  .board-head { padding: var(--space-3); }
+  .board-head { padding: var(--space-2) var(--space-3); gap: var(--space-2); }
+  .board-head h1 { font-size: var(--text-l); flex: 1 1 0; min-width: 0; }
+  .board-head .spacer { display: none; }
+  .tools-toggle, .phone-only { display: inline-flex; }
+  .board-tools { display: none; }
+  .board-tools.is-open { display: flex; flex-direction: column; align-items: stretch; gap: var(--space-2); flex-basis: 100%; padding-top: var(--space-2); }
+  .board-tools .filters select { flex: 1 1 10em; min-height: 44px; }
+  /* On a board, the Chest's search box folds into "View and filters". */
+  body:has(.board-page) .ck-bar-end .ck-search { display: none; }
 }
 
 /* List view */
@@ -257,6 +278,73 @@ table.cards th[aria-sort] button.sort .arrow { color: var(--ink); }
 .check-line input { width: 18px; height: 18px; accent-color: var(--ink); }
 .list-group + .list-group { margin-top: var(--space-5); }
 .list-group-title { font-size: var(--text-m); display: flex; align-items: center; gap: var(--space-2); margin-bottom: var(--space-2); }
+
+/* The list on a phone: stacked cards instead of a wide table. */
+.list-cards { display: none; }
+@media (max-width: 760px) {
+  .table-wrap { padding: var(--space-3); }
+  .table-wrap table.cards { display: none; }
+  .list-cards { display: grid; gap: var(--space-2); }
+  .list-cards > li { display: grid; gap: var(--space-1); padding: var(--space-2) var(--space-3); background: var(--surface); border: var(--border-width) solid var(--line-strong); border-radius: var(--radius-m); }
+  .list-card-title { color: var(--ink); font-weight: var(--weight-strong); text-decoration: none; overflow-wrap: anywhere; min-height: 32px; display: flex; align-items: center; }
+  .list-cards > li.is-done .list-card-title { text-decoration: line-through; color: var(--ink-2); }
+  .list-card-meta { display: flex; align-items: center; gap: var(--space-1) var(--space-2); flex-wrap: wrap; }
+  .list-card-meta .chip { white-space: normal; }
+  .list-card-meta .push { margin-left: auto; }
+}
+
+/* Timeline view: bars from the start date to the due date, day columns
+   of --day; the sizes are the ones timeline-view.tsx draws its lines with
+   (scale 48, group 36, row 44). */
+.timeline { padding: var(--space-4); display: grid; gap: var(--space-3); }
+.tl-empty { padding: var(--space-3) 0; }
+.tl-scroll { overflow-x: auto; border: var(--border-width) solid var(--line-strong); border-radius: var(--radius-l); background: var(--surface); }
+.tl-scroll:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+.tl-grid { --name: 220px; position: relative; width: calc(var(--name) + var(--days) * var(--day)); }
+.tl-grid ul { display: block; }
+.tl-row { display: flex; height: 44px; box-sizing: border-box; border-top: 1px solid var(--line); }
+.tl-scale { height: 48px; border-top: 0; background: var(--surface-2); border-bottom: var(--border-width) solid var(--line-strong); }
+.tl-name { flex: none; width: var(--name); display: flex; align-items: center; padding: 0 var(--space-3); border-right: var(--border-width) solid var(--line-strong); min-width: 0; position: sticky; left: 0; z-index: 3; background: var(--surface); }
+.tl-scale .tl-name { background: var(--surface-2); }
+.tl-name a { color: var(--ink); font-weight: var(--weight-strong); font-size: var(--text-s); text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tl-name a:hover { text-decoration: underline; }
+.tl-name a.is-done { text-decoration: line-through; color: var(--ink-2); }
+.tl-track { position: relative; flex: none; width: calc(var(--days) * var(--day)); display: flex;
+  /* Weekends: the windows always start on a Monday. */
+  background: repeating-linear-gradient(to right, transparent 0 calc(5 * var(--day)), var(--surface-2) calc(5 * var(--day)) calc(7 * var(--day))); }
+.tl-day { flex: none; width: var(--day); display: grid; justify-items: center; align-content: end; padding-bottom: 4px; font-size: var(--text-xs); line-height: 1.2; position: relative; }
+.tl-day .tl-letter { color: var(--ink-2); }
+.tl-day .tl-num { font-weight: var(--weight-strong); }
+.tl-day.today .tl-num { background: var(--accent); color: var(--accent-ink); border-radius: var(--radius-pill); padding: 0 4px; }
+.tl-month { position: absolute; top: 3px; left: 3px; font-weight: var(--weight-strong); text-transform: uppercase; letter-spacing: 0.04em; white-space: nowrap; }
+.tl-group-title { display: flex; align-items: center; gap: var(--space-2); height: 36px; box-sizing: border-box; padding: 0 var(--space-3); border-top: var(--border-width) solid var(--line-strong); font-size: var(--text-s); text-transform: uppercase; letter-spacing: 0.05em; background: var(--bg); position: sticky; left: 0; width: max-content; min-width: 100%; }
+.tl-today { position: absolute; top: 48px; bottom: 0; left: calc(var(--name) + var(--today) * var(--day) + var(--day) / 2); width: 2px; background: var(--accent-text); pointer-events: none; z-index: 1; }
+.tl-bar { position: absolute; top: 7px; height: 30px; left: calc(var(--from) * var(--day) + 2px); width: calc(var(--len) * var(--day) - 4px + var(--grow, 0px)); min-width: 24px; display: flex; z-index: 2;
+  background: var(--c, var(--accent)); color: var(--c-ink, var(--accent-ink)); border: var(--border-width) solid var(--line-strong); border-radius: var(--radius-s); box-shadow: var(--shadow-1); }
+.tl-bar.cut-start { border-left-style: dashed; border-top-left-radius: 0; border-bottom-left-radius: 0; }
+.tl-bar.cut-end { border-right-style: dashed; border-top-right-radius: 0; border-bottom-right-radius: 0; }
+.tl-bar.is-done { background: var(--surface-2); color: var(--ink-2); box-shadow: none; }
+.tl-bar.is-done .tl-title { text-decoration: line-through; }
+.tl-bar.is-blocked { border-style: dashed; border-color: var(--danger); }
+.tl-bar.conflict { outline: 2px solid var(--danger); outline-offset: 1px; }
+.tl-bar.moving { z-index: 6; box-shadow: var(--shadow-2); }
+.tl-handle { flex: 1; min-width: 0; display: flex; align-items: center; gap: 4px; padding: 0 6px; cursor: grab; font-size: var(--text-xs); font-weight: var(--weight-strong); touch-action: manipulation; border-radius: inherit; }
+.tl-handle svg { width: 14px; height: 14px; color: var(--danger); }
+.tl-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tl-end { flex: none; width: 10px; cursor: ew-resize; border-left: 1.5px solid currentColor; opacity: 0.6; border-radius: 0 var(--radius-s) var(--radius-s) 0; touch-action: none; }
+.tl-end:hover, .tl-end:focus-visible { opacity: 1; background: var(--surface); }
+.tl-links { position: absolute; top: 0; left: var(--name); pointer-events: none; z-index: 1; overflow: visible; }
+.tl-links path { fill: none; stroke: var(--ink-2); stroke-width: 1.5; }
+.tl-links path.conflict { stroke: var(--danger); stroke-width: 2; stroke-dasharray: 5 3; }
+@media (max-width: 760px) {
+  .timeline { padding: var(--space-3); }
+  .tl-grid { --name: 128px; }
+}
+/* "Blocked by" in the card. */
+.links { display: grid; gap: var(--space-1); }
+.link-line { display: flex; align-items: center; gap: var(--space-2); min-height: 40px; padding: 0 var(--space-2); border: 1px solid var(--line); border-radius: var(--radius-s); background: var(--surface); }
+.link-line a { flex: 1; min-width: 0; color: var(--ink); font-weight: var(--weight-strong); overflow-wrap: anywhere; }
+.link-line.is-done a { text-decoration: line-through; color: var(--ink-2); }
 
 /* Calendar view */
 .calendar { padding: var(--space-4); display: grid; gap: var(--space-3); }
@@ -281,6 +369,7 @@ table.cards th[aria-sort] button.sort .arrow { color: var(--ink); }
 .cal-card .bar { flex: none; width: 6px; align-self: stretch; border-radius: 3px; background: var(--c); border: 1px solid var(--line-strong); }
 .cal-card .cal-time { font-variant-numeric: tabular-nums; color: var(--ink-2); white-space: nowrap; }
 .cal-card.late { border-color: var(--danger); box-shadow: inset 3px 0 0 var(--danger); }
+.cal-card.late svg { width: 12px; height: 12px; color: var(--danger); align-self: center; }
 .cal-card.is-done span:last-of-type { text-decoration: line-through; color: var(--ink-2); }
 .cal-card.dragging { opacity: 0.6; }
 .cal-day li.moving { position: relative; z-index: 5; }

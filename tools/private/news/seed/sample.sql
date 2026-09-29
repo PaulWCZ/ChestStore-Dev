@@ -115,15 +115,18 @@ insert into comments (post_id, author, body, created_at, parent_id) values
   (4, 'mbr_camilleaaaaaaaaaaaaaaaaaaa', 'Yes: a locked room in the courtyard, 20 spaces.', pg_temp.at(5, '11:40'), 1),
   (5, 'mbr_noraaaaaaaaaaaaaaaaaaaaaaa', 'Thank you all, what a warm welcome! Thursday it is.', pg_temp.at(2, '09:50'), 4);
 
--- Each person's last visit: what came since shows as new; and when each
--- last opened News (the reach counts).
+-- Each person's last visit: what came since shows as new.
 insert into visits (member, seen_at, marker_at) values
   ('mbr_hugoaaaaaaaaaaaaaaaaaaaaaa', now() - interval '5 minutes', pg_temp.at(4, '17:30')),
   ('mbr_inesaaaaaaaaaaaaaaaaaaaaaa', now() - interval '5 minutes', pg_temp.at(4, '17:30')),
   ('mbr_tomaaaaaaaaaaaaaaaaaaaaaaa', now() - interval '5 minutes', pg_temp.at(4, '17:30'));
-insert into activity (member, at) values
-  ('mbr_hugoaaaaaaaaaaaaaaaaaaaaaa', now() - interval '5 minutes'),
-  ('mbr_inesaaaaaaaaaaaaaaaaaaaaaa', now() - interval '5 minutes'),
-  ('mbr_tomaaaaaaaaaaaaaaaaaaaaaaa', now() - interval '5 minutes'),
-  ('mbr_leaaaaaaaaaaaaaaaaaaaaaaaa', pg_temp.at(1, '09:00')),
-  ('mbr_sofiaaaaaaaaaaaaaaaaaaaaaa', pg_temp.at(1, '17:55'));
+
+-- Views, as the tool keeps them (lib/views.ts): per post, a key of its
+-- own and one fingerprint per person who opened it — never who. Random
+-- here: a sample. Six of six opened the first posts; the latest post
+-- (two days old) was opened by 3, below the floor of 5: it shows "< 5".
+update posts set view_key = md5(random()::text) || md5(random()::text) where id <= 6;
+insert into post_views (post_id, fingerprint, hour)
+  select p.id, md5(random()::text), date_trunc('hour', p.publish_at) + interval '1 hour'
+  from posts p cross join generate_series(1, 6) n
+  where p.id <= 6 and n <= case p.id when 6 then 3 when 5 then 5 else 6 end;

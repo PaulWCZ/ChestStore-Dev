@@ -41,11 +41,8 @@ export function Exceptions({ list, today, locale, t }: { list: Exception[]; toda
       router.refresh();
     });
   return (
-    <section className="card stack" aria-labelledby="exceptions">
-      <div>
-        <h2 id="exceptions">{h.exceptions}</h2>
-        <p className="hint">{h.exceptionsHint}</p>
-      </div>
+    <>
+      <p className="hint">{h.exceptionsHint}</p>
       {list.length === 0 ? <p className="muted">{h.none}</p> : (
         <ul className="exceptions">
           {list.map(x => (
@@ -94,6 +91,6 @@ export function Exceptions({ list, today, locale, t }: { list: Exception[]; toda
         </form>
       </div>
       {error && <p className="error" role="alert"><Alert />{error}</p>}
-    </section>
+    </>
   );
 }

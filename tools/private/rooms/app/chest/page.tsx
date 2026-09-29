@@ -2,13 +2,14 @@ import { EmptyState, PageHeader } from "@argentic/chest-ui/components";
 import Link from "next/link";
 import { AutoRefresh } from "../../components/auto-refresh.tsx";
 import { Building } from "../../components/icons.tsx";
+import { ExampleButton } from "../../components/example-office.tsx";
 import { OfficePicker } from "../../components/office-picker.tsx";
 import { can } from "../../lib/access.ts";
 import { feedPage } from "../../lib/calendar.ts";
 import { context, told } from "../../lib/context.ts";
 import { deskBookingsOf, deskBookingsOn, usualDesk } from "../../lib/desk-bookings.ts";
 import { formatDay, formatSpan } from "../../lib/i18n/index.ts";
-import { addDays, minutesNow, mondayOf, overlaps, twoWeeks } from "../../lib/model.ts";
+import { addDays, minutesNow, mondayOf, overlaps, twoWeeks, placeName } from "../../lib/model.ts";
 import { checkInOpens } from "../../lib/check-in.ts";
 import { nameOf, people } from "../../lib/people.ts";
 import { atOffice, presenceOf } from "../../lib/presence.ts";
@@ -30,7 +31,9 @@ export default async function MyWeek({ searchParams }: { searchParams: Promise<R
     return (
       <div className="narrow">
         <EmptyState headingLevel={1} icon={<Building />} title={t.week.noOffice.title} body={t.week.noOffice.body}
-          {...(can(member, "places.manage") ? { action: <Link className="button" href="/chest/places">{t.week.noOffice.action}</Link> } : { note: t.week.noOffice.member })} />
+          {...(can(member, "places.manage")
+            ? { action: <><Link className="button" href="/chest/places">{t.week.noOffice.action}</Link><ExampleButton t={{ label: t.week.noOffice.example, added: t.places.example.added, errors: t.errors }} /></> }
+            : { note: t.week.noOffice.member })} />
       </div>
     );
   }
@@ -70,7 +73,7 @@ export default async function MyWeek({ searchParams }: { searchParams: Promise<R
       others: at.filter(id => id !== member.id)
         .sort((a, b) => Number(shared(b)) - Number(shared(a)))
         .map(id => ({ id, name: nameOf(who.get(id), locale), photo: who.get(id)?.photo ?? null, team: shared(id) })),
-      desks: myDesks.filter(b => b.day === d).map(b => ({ id: b.id, name: b.deskName, area: b.areaName, part: b.part })),
+      desks: myDesks.filter(b => b.day === d).map(b => ({ id: b.id, name: b.deskName, area: placeName(b.areaName, b.areaPreset, t.presets), part: b.part })),
       rooms: myRooms.filter(b => b.day === d).map(b => ({
         id: b.id,
         room: b.roomName,
@@ -97,7 +100,7 @@ export default async function MyWeek({ searchParams }: { searchParams: Promise<R
         days={rows}
         officeId={office.id}
         focus={focus}
-        usual={usual}
+        usual={usual ? { ...usual, areaName: placeName(usual.areaName, usual.areaPreset, t.presets) } : null}
         pattern={pattern}
         weekdays={c.rules.weekdays.map(w => ({ day: w, name: formatDay(addDays("2024-01-01", w - 1), locale, { weekday: "long" }) }))}
         desks={choices}

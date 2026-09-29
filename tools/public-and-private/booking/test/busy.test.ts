@@ -8,6 +8,7 @@ import * as b from "../lib/booking.ts";
 import * as calendars from "../lib/calendars.ts";
 import * as publish from "../lib/publish.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
+import { openHost } from "./support/host.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, hugo, ines, nora } from "./support/members.ts";
 
@@ -41,7 +42,7 @@ const base = { title: "Call", slug: "call", description: "", duration: 60, inter
 
 async function ready(extra: Record<string, unknown> = {}) {
   const sql = database.sql;
-  const host = await b.ensureHost(sql, asMember(ines), { title: "Meeting", slug: "meeting" });
+  const host = await openHost(sql, asMember(ines), { title: "Meeting", slug: "meeting" });
   const type = await b.createType(sql, asMember(ines), { ...base, ...extra });
   return { sql, host, type };
 }
@@ -164,8 +165,13 @@ test("a host's daily maximum holds across all their types", async () => {
 });
 
 test("a room of its own for each video meeting; a payment link travels with the booking", async () => {
-  const { sql, host, type } = await ready({ videoRooms: true, location: "", paymentLink: "https://buy.stripe.com/test_abc" });
+  const { sql, host, type } = await ready({ videoRooms: true, location: b.defaultRooms, paymentLink: "https://buy.stripe.com/test_abc" });
   assert.equal(type.location, b.defaultRooms);
+  assert.ok(b.isPublicJitsi(b.roomLink(type.location, "x")));
+  assert.equal(b.isPublicJitsi("https://meet.example.com/x"), false);
+  // No silent default: the host chooses where rooms are made (meet.jit.si
+  // asks whoever opens a room to sign in, since 2023).
+  await refuses(b.createType(sql, asMember(ines), { ...base, slug: "rooms", locationKind: "video", videoRooms: true, location: "" }), "rooms_address");
   const one = await b.book(sql, host, type, { ...guest, start: "2026-10-06T07:00:00.000Z" }, monday, { company: "Atelier Martin" });
   const two = await b.book(sql, host, type, { ...guest, start: "2026-10-06T09:00:00.000Z" }, monday, { company: "Atelier Martin" });
   assert.match(one.booking.videoLink, /^https:\/\/meet\.jit\.si\/atelier-martin-[a-z0-9x]{12}$/u);
@@ -182,10 +188,10 @@ test("a room of its own for each video meeting; a payment link travels with the 
 
 test("round robin: a team type is free when any of its hosts is, and goes to the least booked free one", async () => {
   const sql = database.sql;
-  await b.ensureHost(sql, asMember(hugo), { title: "Meeting", slug: "meeting" });
-  const owner = await b.ensureHost(sql, asMember(camille), { title: "Meeting", slug: "meeting" });
+  await openHost(sql, asMember(hugo), { title: "Meeting", slug: "meeting" });
+  const owner = await openHost(sql, asMember(camille), { title: "Meeting", slug: "meeting" });
   // Only an administrator makes a team; a host alone cannot.
-  await b.ensureHost(sql, asMember(ines), { title: "Meeting", slug: "meeting" });
+  await openHost(sql, asMember(ines), { title: "Meeting", slug: "meeting" });
   await refuses(b.createType(sql, asMember(ines), { ...base, slug: "team", pool: [hugo.id] }), "forbidden");
   const type = await b.createType(sql, asMember(camille), { ...base, slug: "demo", pool: [hugo.id, nora.id] });
   // Nora is no host: left out.

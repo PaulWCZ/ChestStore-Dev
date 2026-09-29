@@ -6,8 +6,10 @@ import { can } from "../../../../lib/access.ts";
 import { db } from "../../../../lib/db.ts";
 import { format, formatDate, formatDay, plural } from "../../../../lib/i18n/index.ts";
 import { ofRegister } from "../../../../lib/journal.ts";
-import { nameOf, people } from "../../../../lib/people.ts";
-import { mentions, register, type Line } from "../../../../lib/register.ts";
+import { everyone, nameOf, people, plainName } from "../../../../lib/people.ts";
+import { today } from "../../../../lib/zone.ts";
+import { CreateRecord } from "../create-record.tsx";
+import { mentions, register, registerGaps, type Line } from "../../../../lib/register.ts";
 import { viewer } from "../../../../lib/session.ts";
 import { PrintButton } from "./print-button.tsx";
 import { RegisterTable, type RegisterRow } from "./register-table.tsx";
@@ -23,7 +25,9 @@ export default async function RegisterPage() {
   if (!can(member, "records.manage")) notFound();
   const sql = db();
   const r = await register(sql, member, "register_viewed");
-  const reads = await ofRegister(sql, 5);
+  const [reads, listed] = await Promise.all([ofRegister(sql, 5), everyone()]);
+  const g = await registerGaps(sql, member, r, listed.people, today());
+  const left = g.withoutRecord.length + g.noStart.length + g.noExit.length;
   const names = await people([...r.interns.map(l => l.tutorId ?? ""), ...reads.map(x => x.actor)]);
   const c = t.register.columns;
   const day = (d: string | null) => (d ? formatDay(d, locale, { day: "2-digit", month: "2-digit", year: "numeric" }) : "");
@@ -38,7 +42,10 @@ export default async function RegisterPage() {
         secondary={<span className="row no-print"><a className="button quiet small" href="/chest/records/register/csv" download><Download />{t.register.csv}</a></span>}
         action={<span className="no-print"><PrintButton label={t.register.print} /></span>}
       />
+      {left > 0 && <p className="banner warn no-print" role="status"><a href="#gaps-title">{plural(t.register.gaps.banner, left, locale)}</a></p>}
+      {!listed.ok && <p className="banner warn">{t.register.gaps.unreachable}</p>}
       {gaps > 0 && <p className="banner warn no-print">{plural(t.register.missing, gaps, locale)}</p>}
+      {g.tutorLeft.map(x => <p key={x.recordId} className="banner warn no-print"><Link href={`/chest/records/${x.recordId}`}>{format(t.register.gaps.tutorLeft, { name: x.name })}</Link></p>)}
       {r.employees.length === 0 && r.interns.length === 0 ? <EmptyState title={t.register.empty} /> : (
         <>
           <section className="section" aria-labelledby="emp-title">
@@ -52,10 +59,30 @@ export default async function RegisterPage() {
               <h2 id="int-title" className="eyebrow">{t.register.interns}</h2>
               <RegisterTable caption={c.interns} gap={t.register.gap} labels={t.tables}
                 heads={{ number: c.number, name: c.name, rest: [c.start, c.end, c.tutor, c.workplace] }}
-                rows={r.interns.map(l => row(l, [day(l.startDate), day(l.endDate ?? l.contractEnd), l.tutorId ? nameOf(names.get(l.tutorId), locale) : "", l.workplace]))} />
+                rows={r.interns.map(l => row(l, [day(l.startDate), day(l.endDate ?? l.contractEnd), l.tutorId ? plainName(names.get(l.tutorId), locale) : "", l.workplace]))} />
             </section>
           )}
         </>
+      )}
+      {left > 0 && (
+        <section className="section register-gaps" aria-labelledby="gaps-title">
+          <h2 id="gaps-title" className="eyebrow">{t.register.gaps.title}</h2>
+          <p className="muted small">{t.register.gaps.lead}</p>
+          <ul className="gap-list">
+            {g.withoutRecord.map(x => (
+              <li key={x.id}>
+                <span><strong>{x.name}</strong> · {t.register.gaps.withoutRecord}</span>
+                <span className="no-print"><CreateRecord memberId={x.id} label={t.register.gaps.create} errors={t.errors} /></span>
+              </li>
+            ))}
+            {[...g.noStart.map(x => ({ ...x, why: t.register.gaps.noStart })), ...g.noExit.map(x => ({ ...x, why: t.register.gaps.noExit }))].map(x => (
+              <li key={x.recordId + x.why}>
+                <span><strong>{x.name}</strong> · {x.why}</span>
+                <Link className="button quiet small no-print" href={`/chest/records/${x.recordId}`}>{t.register.gaps.complete}</Link>
+              </li>
+            ))}
+          </ul>
+        </section>
       )}
       {reads.length > 0 && (
         <section className="section no-print" aria-labelledby="reads-title">

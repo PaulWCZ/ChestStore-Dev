@@ -76,6 +76,7 @@ export default async function Rooms({ searchParams }: { searchParams: Promise<Re
           key={day}
           day={day}
           days={days}
+          today={c.today}
           now={day === c.today ? minutesNow(c.zone) : null}
           locked={lock ? { why: lock.why, ...(lock.opens ? { opensOn: formatDay(lock.opens, locale, { weekday: "long", day: "numeric", month: "long" }) } : {}) } : null}
           open={c.rules.dayStart}
@@ -89,7 +90,7 @@ export default async function Rooms({ searchParams }: { searchParams: Promise<Re
           told={how.told}
           calendarPage={how.calendarOn ? feedPage : null}
           locale={locale}
-          t={{ rooms: t.rooms, booking: t.booking, equipment: t.equipment, errors: t.errors, dialog: t.dialog, peoplePicker: t.peoplePicker }}
+          t={{ rooms: t.rooms, booking: t.booking, equipment: t.equipment, errors: t.errors, dialog: t.dialog, peoplePicker: t.peoplePicker, date: t.date }}
         />
       )}
     </div>

@@ -13,13 +13,13 @@ import { addDays, day, id, isPart, memberId, mondayOf, partMinutes, type Part } 
 // in a week are counted under a lock on that member, so two quick clicks
 // cannot both pass the limit.
 
-export type DeskBooking = { id: string; deskId: string; deskName: string; areaName: string; floorName: string; officeId: string; memberId: string; day: string; part: Part; lent: boolean };
+export type DeskBooking = { id: string; deskId: string; deskName: string; areaName: string; areaPreset: string | null; floorName: string; officeId: string; memberId: string; day: string; part: Part; lent: boolean };
 
-type Row = { id: string; desk_id: string; desk_name: string; area_name: string; floor_name: string; office_id: string; member_id: string; day: string; part: Part; lent: boolean };
-const toBooking = (r: Row): DeskBooking => ({ id: String(r.id), deskId: String(r.desk_id), deskName: r.desk_name, areaName: r.area_name, floorName: r.floor_name, officeId: String(r.office_id), memberId: r.member_id, day: r.day, part: r.part, lent: r.lent === true });
+type Row = { id: string; desk_id: string; desk_name: string; area_name: string; area_preset: string | null; floor_name: string; office_id: string; member_id: string; day: string; part: Part; lent: boolean };
+const toBooking = (r: Row): DeskBooking => ({ id: String(r.id), deskId: String(r.desk_id), deskName: r.desk_name, areaName: r.area_name, areaPreset: r.area_preset, floorName: r.floor_name, officeId: String(r.office_id), memberId: r.member_id, day: r.day, part: r.part, lent: r.lent === true });
 
 const select = (sql: Query) => sql`
-  select b.cancelled_by, b.id, b.desk_id, d.name as desk_name, a.name as area_name, f.name as floor_name, f.office_id, b.member_id, to_char(b.day, 'YYYY-MM-DD') as day, b.part, b.lent
+  select b.cancelled_by, b.id, b.desk_id, d.name as desk_name, a.name as area_name, a.preset as area_preset, f.name as floor_name, f.office_id, b.member_id, to_char(b.day, 'YYYY-MM-DD') as day, b.part, b.lent
   from desk_bookings b join desks d on d.id = b.desk_id join areas a on a.id = d.area_id join floors f on f.id = a.floor_id`;
 
 // Books a desk. Booking a desk also says "at the office" that day. With
@@ -169,21 +169,21 @@ export async function deskBookingsOn(sql: Query, deskId: string, from: string, t
 // The desk a member usually sits at in an office: the one given to them,
 // else the one they chose in their usual week, else the one they booked
 // last (in the last two months).
-export async function usualDesk(sql: Query, actor: Member, officeId: string): Promise<{ id: string; name: string; areaName: string; assigned: boolean } | null> {
-  const [assigned] = await sql<{ id: string; name: string; area_name: string }[]>`
-    select d.id, d.name, a.name as area_name from desks d join areas a on a.id = d.area_id join floors f on f.id = a.floor_id
+export async function usualDesk(sql: Query, actor: Member, officeId: string): Promise<{ id: string; name: string; areaName: string; areaPreset: string | null; assigned: boolean } | null> {
+  const [assigned] = await sql<{ id: string; name: string; area_name: string; area_preset: string | null }[]>`
+    select d.id, d.name, a.name as area_name, a.preset as area_preset from desks d join areas a on a.id = d.area_id join floors f on f.id = a.floor_id
     where d.assigned_to = ${actor.id} and d.archived_at is null and f.office_id = ${officeId}`;
-  if (assigned) return { id: String(assigned.id), name: assigned.name, areaName: assigned.area_name, assigned: true };
-  const [chosen] = await sql<{ id: string; name: string; area_name: string }[]>`
-    select d.id, d.name, a.name as area_name from member_prefs p join desks d on d.id = p.usual_desk join areas a on a.id = d.area_id join floors f on f.id = a.floor_id
+  if (assigned) return { id: String(assigned.id), name: assigned.name, areaName: assigned.area_name, areaPreset: assigned.area_preset, assigned: true };
+  const [chosen] = await sql<{ id: string; name: string; area_name: string; area_preset: string | null }[]>`
+    select d.id, d.name, a.name as area_name, a.preset as area_preset from member_prefs p join desks d on d.id = p.usual_desk join areas a on a.id = d.area_id join floors f on f.id = a.floor_id
     where p.member_id = ${actor.id} and d.archived_at is null and d.assigned_to is null and f.office_id = ${officeId}`;
-  if (chosen) return { id: String(chosen.id), name: chosen.name, areaName: chosen.area_name, assigned: false };
-  const [last] = await sql<{ id: string; name: string; area_name: string }[]>`
-    select d.id, d.name, a.name as area_name from desk_bookings b join desks d on d.id = b.desk_id join areas a on a.id = d.area_id join floors f on f.id = a.floor_id
+  if (chosen) return { id: String(chosen.id), name: chosen.name, areaName: chosen.area_name, areaPreset: chosen.area_preset, assigned: false };
+  const [last] = await sql<{ id: string; name: string; area_name: string; area_preset: string | null }[]>`
+    select d.id, d.name, a.name as area_name, a.preset as area_preset from desk_bookings b join desks d on d.id = b.desk_id join areas a on a.id = d.area_id join floors f on f.id = a.floor_id
     where b.member_id = ${actor.id} and b.cancelled_at is null and d.archived_at is null and d.assigned_to is null and f.office_id = ${officeId}
       and b.day > current_date - 60
     order by b.day desc, b.id desc limit 1`;
-  return last ? { id: String(last.id), name: last.name, areaName: last.area_name, assigned: false } : null;
+  return last ? { id: String(last.id), name: last.name, areaName: last.area_name, areaPreset: last.area_preset, assigned: false } : null;
 }
 
 // The desks given to someone that are lent on a day: their holder said

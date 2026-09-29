@@ -67,11 +67,11 @@ export async function saveCell(memberId: string, key: string, value: string | nu
 }
 
 // HR's extra profile fields.
-export async function addField(input: { label: string; editor: string }): Promise<Result<fields.Extra>> {
+export async function addField(input: { label: string; editor: string; kind?: string; options?: string; alertDays?: string }): Promise<Result<fields.Extra>> {
   return act(actor => fields.addField(db(), actor, input));
 }
 
-export async function updateField(fieldId: string, input: { label: string; editor: string }): Promise<Result<null>> {
+export async function updateField(fieldId: string, input: { label: string; editor: string; options?: string; alertDays?: string }): Promise<Result<null>> {
   return act(async actor => { await fields.updateField(db(), actor, fieldId, input); return null; });
 }
 

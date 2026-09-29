@@ -31,7 +31,7 @@ export function ProfileForm({ person, own, job, jobView, managers, known, extras
   jobView: { title: string; team: string; office: string };
   managers: { id: string; name: string }[];
   known: { teams: string[]; offices: string[]; titles: string[] };
-  extras: { id: string; label: string; value: string; editable: boolean }[];
+  extras: { id: string; label: string; value: string; shown: string; editable: boolean; kind: "text" | "date" | "choice"; options: string[] }[];
   months: string[];
   // Today in the Chest's time zone (for the date field), and the words' language.
   today: string;
@@ -48,6 +48,8 @@ export function ProfileForm({ person, own, job, jobView, managers, known, extras
   const [showBirthday, setShowBirthday] = useState(own?.birthday != null);
   const [month, setMonth] = useState(own?.birthday ? Number(own.birthday.slice(0, 2)) : 1);
   const [day, setDay] = useState(own?.birthday ? Number(own.birthday.slice(3)) : 1);
+  // HR's date fields, in the kit's date field (never the browser's).
+  const [dates, setDates] = useState<Record<string, string | null>>(() => Object.fromEntries(extras.filter(x => x.kind === "date").map(x => [x.id, x.value || null])));
   // The manager: a person picker over those offered (none below the person).
   const [manager, setManager] = useState<Choice[]>(() => managers.filter(m => m.id === job?.managerId).map(m => ({ id: m.id, name: m.name })));
   const searchManagers = useMemo(() => localSearch(managers), [managers]);
@@ -75,7 +77,7 @@ export function ProfileForm({ person, own, job, jobView, managers, known, extras
     const allSkills = pendingSkill && !skills.includes(pendingSkill) ? [...skills, pendingSkill] : skills;
     const ownInput = own ? { phone: text("phone"), pronouns: text("pronouns"), bio: text("bio"), skills: allSkills, birthday: showBirthday ? { month, day: Math.min(day, longest) } : null } : null;
     const jobInput = job ? { title: text("title"), team: text("team"), office: text("office"), managerId: manager[0]?.id ?? null, startDate, ...(own ? {} : { phone: text("phone") }) } : null;
-    const extraInput = Object.fromEntries(extras.filter(x => x.editable).map(x => [x.id, text("x-" + x.id)]));
+    const extraInput = Object.fromEntries(extras.filter(x => x.editable).map(x => [x.id, x.kind === "date" ? dates[x.id] ?? "" : text("x-" + x.id)]));
     setError(null);
     start(async () => {
       const result = await saveProfile(person.id, ownInput, jobInput, extraInput);
@@ -204,12 +206,26 @@ export function ProfileForm({ person, own, job, jobView, managers, known, extras
           <legend>{t.edit.more}</legend>
           <div className="grid-2">
             {extras.map(x => x.editable ? (
-              <div key={x.id} className="field-group">
-                <label htmlFor={uid + "x" + x.id} className="label">{x.label}</label>
-                <input id={uid + "x" + x.id} name={"x-" + x.id} className="field" defaultValue={x.value} maxLength={limits.fieldValue} />
-              </div>
+              x.kind === "date" ? (
+                <div key={x.id} className="field-group">
+                  <DateField label={x.label} value={dates[x.id] ?? null} onChange={v => setDates(d => ({ ...d, [x.id]: v }))} today={today} min="1950-01-01" max="2100-12-31" chips={false} labels={t.date} />
+                </div>
+              ) : x.kind === "choice" ? (
+                <div key={x.id} className="field-group">
+                  <label htmlFor={uid + "x" + x.id} className="label">{x.label}</label>
+                  <select id={uid + "x" + x.id} name={"x-" + x.id} className="field" defaultValue={x.value}>
+                    <option value="">—</option>
+                    {[...x.options, ...(x.value && !x.options.includes(x.value) ? [x.value] : [])].map(o => <option key={o} value={o}>{o}</option>)}
+                  </select>
+                </div>
+              ) : (
+                <div key={x.id} className="field-group">
+                  <label htmlFor={uid + "x" + x.id} className="label">{x.label}</label>
+                  <input id={uid + "x" + x.id} name={"x-" + x.id} className="field" defaultValue={x.value} maxLength={limits.fieldValue} />
+                </div>
+              )
             ) : x.value ? (
-              <div key={x.id} className="field-group readonly-field"><span className="label">{x.label}</span><span>{x.value}</span></div>
+              <div key={x.id} className="field-group readonly-field"><span className="label">{x.label}</span><span>{x.shown}</span></div>
             ) : null)}
           </div>
           <p className="hint">{t.edit.moreHint}</p>

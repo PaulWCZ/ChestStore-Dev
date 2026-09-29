@@ -9,6 +9,7 @@ import { period as checkPeriod, type Period } from "../../../lib/export.ts";
 import { format, formatDay, plural } from "../../../lib/i18n/index.ts";
 import { addDays } from "../../../lib/model.ts";
 import { formatMoney } from "../../../lib/money.ts";
+import { listArchives } from "../../../lib/monthly.ts";
 import { viewer } from "../../../lib/session.ts";
 import { PeriodForm } from "./period-form.tsx";
 
@@ -59,6 +60,9 @@ export default async function ExportPage({ searchParams }: { searchParams: Promi
   const sum = (key: "net" | "vat" | "gross") => rows.reduce((s, r) => s + (r.type === "credit" ? -r[key] : r[key]), 0);
   const query = new URLSearchParams(chosen).toString();
   const day = (d: string) => formatDay(d, locale, { day: "numeric", month: "long", year: "numeric" });
+  const archives = await listArchives(db(), member);
+  const monthName = (period: string) => formatDay(period + "-01", locale, { month: "long", year: "numeric" });
+  const size = (bytes: number) => new Intl.NumberFormat(locale === "fr" ? "fr-FR" : "en-GB", { style: "unit", unit: bytes >= 1048576 ? "megabyte" : "kilobyte", maximumFractionDigits: 1 }).format(bytes >= 1048576 ? bytes / 1048576 : Math.max(1, bytes / 1024));
   return (
     <div className="page narrow">
       <PageHeader size="m" title={x.title} intro={x.intro} />
@@ -96,6 +100,23 @@ export default async function ExportPage({ searchParams }: { searchParams: Promi
               <li>{x.csvHint}</li>
             </ul>
           </>
+        )}
+      </section>
+      <section className="panel" aria-labelledby="archives">
+        <h2 id="archives">{x.archives}</h2>
+        <p className="hint">{x.archivesHint}</p>
+        {archives.length === 0 ? <p className="muted">{x.archivesNone}</p> : (
+          <ul className="archives">
+            {archives.map(a => (
+              <li key={a.period + a.part}>
+                <span>
+                  <strong>{a.parts > 1 ? format(x.archivePart, { month: monthName(a.period), part: a.part, parts: a.parts }) : monthName(a.period)}</strong>
+                  <span className="sub">{plural(x.count, a.documents, locale)} · {size(a.size)}{a.downloadedAt ? " · " + x.archiveKept : ""}</span>
+                </span>
+                <a className="button quiet small download" href={`/chest/export/archives/${a.period}?part=${a.part}`} download><Zip />{x.archiveDownload}</a>
+              </li>
+            ))}
+          </ul>
         )}
       </section>
       <section className="panel" aria-labelledby="lists">

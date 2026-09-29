@@ -103,6 +103,8 @@ the list of tokens; this page is the short path and the mistakes to avoid.
   on the band to its measured pair (`--cat-N-ink` on `--cat-N-soft`).
 - A file stored before (an expense's receipt): `storedFile({ ref, name,
   size })` in the FilePicker's list (0.2.3).
+  The FilePicker says its limits (how many, how big, which kinds): a
+  tool's own hint beside it never repeats them.
 - Every control stays 44 px: `ck-button-small` is smaller words, not a
   smaller target (0.2.2). A row that opens a page: `DataTable rowHref`,
   not an `onClick` on a `<tr>`.

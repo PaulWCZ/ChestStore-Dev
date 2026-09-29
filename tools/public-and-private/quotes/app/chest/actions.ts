@@ -3,6 +3,7 @@
 import * as chest from "@argentic/chest-sdk/chest";
 import type { Member } from "@argentic/chest-sdk/member";
 import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
 import { can } from "../../lib/access.ts";
 import { keep, draw } from "../../lib/archive.ts";
 import * as clients from "../../lib/clients.ts";
@@ -18,6 +19,8 @@ import * as payments from "../../lib/payments.ts";
 import * as sending from "../../lib/sending.ts";
 import { currentMember } from "../../lib/session.ts";
 import * as numbering from "../../lib/numbering.ts";
+import * as online from "../../lib/online.ts";
+import { publicOrigin } from "../../lib/public-origin.ts";
 import { settledLate } from "../../lib/reminders.ts";
 import * as repeats from "../../lib/repeats.ts";
 import { readyForBilling, refreshBadges, settled } from "../../lib/tell.ts";
@@ -124,7 +127,21 @@ export async function startCreditNote(invoiceId: string): Promise<Result<{ id: s
 // --- Sending --------------------------------------------------------------------
 
 export async function send(id: string, message: sending.Message & { upcoming?: string }): Promise<Result<{ delivery: sending.Delivery; number: string | null }>> {
-  return act(async actor => sending.sendDocument(db(), actor, id, message, chest.today()));
+  return act(async actor => sending.sendDocument(db(), actor, id, message, chest.today(), { origin: publicOrigin(await headers()) }));
+}
+
+// The quote's link to answer online: turned off for good, or a new one
+// (the old one stops working).
+export async function revokeLink(id: string): Promise<Result> {
+  return act(async actor => { await online.revokeLink(db(), actor, id); return null; });
+}
+
+export async function renewLink(id: string): Promise<Result<{ url: string | null }>> {
+  return act(async actor => {
+    const link = await online.renewLink(db(), actor, id);
+    const origin = publicOrigin(await headers());
+    return { url: origin ? `${origin}/q/${link.secret}` : null };
+  });
 }
 
 // The message the send (or reminder) dialog starts from, written for the
@@ -204,7 +221,19 @@ export async function archiveItem(id: string, archived: boolean): Promise<Result
 export async function importFile(kind: string, text: string, mapping: (string | null)[]): Promise<Result<importers.ImportReport>> {
   return act(async actor => {
     const locale = chest.locale();
-    return importers.importTable(db(), actor, kind, text, mapping, { currency: chest.currency(), defaultLanguage: isLocale(locale) ? locale : "en" });
+    const report = await importers.importTable(db(), actor, kind, text, mapping, { currency: chest.currency(), defaultLanguage: isLocale(locale) ? locale : "en", today: chest.today() });
+    // Imported invoices may be overdue already: billing's count follows.
+    if (kind === "invoices" && report.created > 0) await refreshBadges(db(), chest.today());
+    return report;
+  });
+}
+
+// An import of invoices taken back (while nothing was recorded on them).
+export async function undoImport(batch: string): Promise<Result<{ removed: number }>> {
+  return act(async actor => {
+    const done = await importers.undoImport(db(), actor, batch);
+    await refreshBadges(db(), chest.today());
+    return done;
   });
 }
 

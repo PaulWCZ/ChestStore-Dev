@@ -34,12 +34,23 @@ await step("phone: Hugo snaps the receipt, types the amount, picks Meals, saves"
   await page.waitForFunction(() => document.activeElement?.id === "amount", null, { timeout: 3000 }); // the amount, next
   await page.locator("#amount").fill("41,00");
   await page.getByText("Meals", { exact: true }).click();
+  // Nobody named yet: the form says it before the approver would.
+  expect(await page.locator("#guest-missing").isVisible(), "the form warns that guests are not named");
   // Who was there: a colleague picked by name, a guest from outside typed.
   await page.locator("#guest").fill("Inès Moreau");
   await page.locator("#guest").press("Enter");
   await page.locator("#guest").fill("Mme Garnier (Garnier & Fils)");
   await page.getByRole("button", { name: "Add", exact: true }).click();
   expect((await page.locator(".guests").innerText()).includes("3 people at the table · €13.67 each"), "per person: " + (await page.locator(".guests").innerText()));
+  expect(await page.locator("#guest-missing").count() === 0, "guests named: no more warning");
+  // The sticky Save bar never covers the field being typed in.
+  for (const field of ["#merchant", "#guest"]) {
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await page.locator(field).focus();
+    await page.waitForTimeout(500);
+    const [fieldBottom, barTop] = await page.evaluate(f => [document.querySelector(f).getBoundingClientRect().bottom, document.querySelector(".save-bar").getBoundingClientRect().top], field);
+    expect(fieldBottom <= barTop, `${field} (bottom ${fieldBottom}) is under the Save bar (top ${barTop})`);
+  }
   await page.locator("#merchant").fill("Café Kitsuné");
   await page.getByText("VAT and note").click();
   await page.getByRole("button", { name: "10 %" }).click();
@@ -208,9 +219,42 @@ await step("Camille pays Hugo back, undoes it, pays again", async () => {
   expect(dev.includes("Paid back:"), "Hugo told in English");
 });
 
+await step("Tom's account is British: his postal address, then the company's, are asked before he can be in the transfer file", async () => {
+  await page.goto(origin + "/chest/pay");
+  const tom = page.locator("section.paper", { hasText: "Tom Walker" });
+  expect(/Compte au Royaume-Uni ou en Suisse\s: son adresse postale est d’abord nécessaire/u.test(await tom.innerText()), "Tom's missing address said: " + (await tom.innerText()));
+  expect(await page.locator("section.by-file").getByRole("button", { name: /^Créer le fichier/u }).count() === 0, "nobody payable by file yet");
+  await tom.getByRole("button", { name: /^Modifier/u }).click();
+  const dialog = page.locator("dialog[open]");
+  await dialog.getByRole("button", { name: "Remplacer" }).click();
+  expect((await dialog.innerText()).includes("la banque demande l’adresse postale du titulaire"), "why the address is asked");
+  // The IBAN left empty keeps Tom's account; only the address is added.
+  await page.locator("#person-bank-street").fill("12 King's Road");
+  await page.locator("#person-bank-postcode").fill("SW3 4RP");
+  await page.locator("#person-bank-town").fill("London");
+  expect((await page.locator("#person-bank-country").inputValue()) === "GB", "the account's country by default");
+  await page.getByRole("button", { name: "Enregistrer ses coordonnées" }).click();
+  await page.waitForSelector("dialog[open]", { state: "detached", timeout: 5000 });
+  await page.reload();
+  const again = page.locator("section.paper", { hasText: "Tom Walker" });
+  expect((await again.innerText()).includes("GB•• •••• 5432") && /l’adresse postale de l’entreprise est d’abord nécessaire/u.test(await again.innerText()), "same account; now the company's address: " + (await again.innerText()));
+  await page.goto(origin + "/chest/settings/company#bank");
+  const bank = page.locator("#bank");
+  expect(/Ils liront\s:\s«\sNotes de frais E12 E13\s»/u.test(await bank.innerText()), "the bank text, in the company's language");
+  await bank.getByRole("button", { name: "Remplacer" }).click();
+  await page.locator("#company-bank-street").fill("8 rue de la Roquette");
+  await page.locator("#company-bank-postcode").fill("75011");
+  await page.locator("#company-bank-town").fill("Paris");
+  await bank.getByRole("button", { name: "Enregistrer le compte de l’entreprise" }).click();
+  await page.waitForTimeout(1200);
+  await page.reload();
+  expect((await page.locator("#bank").innerText()).includes("8 rue de la Roquette, 75011 Paris, France"), "the company's address kept: " + (await page.locator("#bank").innerText()));
+});
+
 await step("Camille pays the others by one transfer file (SEPA), then enters Léa's bank details", async () => {
   await page.goto(origin + "/chest/pay");
   const panel = page.locator("section.by-file");
+  expect(/Leur relevé bancaire affichera\s«\sNotes de frais E12\s»\s\(Français\)/u.test(await panel.innerText()), "what the bank statement will read: " + (await panel.innerText()));
   const make = panel.getByRole("button", { name: /^Créer le fichier · 1 virement · 188,40\s€$/u });
   expect(await make.count() === 1, "one transfer: Tom's (Léa has no bank details) — " + (await panel.innerText()));
   const [download] = await Promise.all([page.waitForEvent("download"), make.click()]);
@@ -218,11 +262,14 @@ await step("Camille pays the others by one transfer file (SEPA), then enters Lé
   const xml = readFileSync(await download.path(), "utf8");
   expect(/^EXP-\d{8}-[0-9A-F]{8}\.xml$/u.test(download.suggestedFilename()), "file name " + download.suggestedFilename());
   expect(xml.includes('xmlns="urn:iso:std:iso:20022:tech:xsd:pain.001.001.03"') && xml.includes("<IBAN>GB82WEST12345698765432</IBAN>") && xml.includes('<InstdAmt Ccy="EUR">188.40</InstdAmt>') && xml.includes("<Nm>Atelier Roux SARL</Nm>") && xml.includes("<IBAN>FR1420041010050500013M02606</IBAN>"), "pain.001 content");
+  expect(xml.includes("<Cdtr><Nm>Tom Walker</Nm><PstlAdr><StrtNm>12 King's Road</StrtNm><PstCd>SW3 4RP</PstCd><TwnNm>London</TwnNm><Ctry>GB</Ctry></PstlAdr></Cdtr>"), "Tom's address in the file");
+  expect(xml.includes("<PstlAdr><StrtNm>8 rue de la Roquette</StrtNm><PstCd>75011</PstCd><TwnNm>Paris</TwnNm><Ctry>FR</Ctry></PstlAdr></Dbtr>"), "the company's address in the file");
+  expect(/<Ustrd>Notes de frais E\d+ E\d+<\/Ustrd>/u.test(xml), "the bank text in French");
   if (process.env.SEPA_XSD) {
     const { execFileSync } = await import("node:child_process");
     execFileSync("xmllint", ["--noout", "--schema", process.env.SEPA_XSD, await download.path()], { stdio: "pipe" });
   }
-  await page.waitForSelector("text=1 personne n’a pas de coordonnées bancaires");
+  await page.waitForSelector("text=1 personne est laissée de côté");
   await page.waitForTimeout(800);
   await page.reload();
   expect(await page.locator("section.paper", { hasText: "Tom Walker" }).count() === 0, "Tom paid by the file");
@@ -269,6 +316,73 @@ await step("Camille: a half-typed IBAN is not lost by a stray Escape; erasing ba
   await page.waitForSelector("dialog[open]", { state: "detached", timeout: 5000 });
   await page.reload();
   expect((await page.locator("section.paper", { hasText: "Léa Dubois" }).innerText()).includes("Pas de coordonnées bancaires"), "erased");
+});
+
+await step("Camille imports the company card statement: one payment finds Hugo's paid expense (to check), one waits for its receipt, the refund is left out; Hugo is reminded", async () => {
+  const { writeFileSync } = await import("node:fs");
+  const statement = tmp + "/expenses-cards.csv";
+  writeFileSync(statement, "\ufeffDate;Libellé;Montant;Devise\r\n29/09/2026;CB CAFE KITSUNE 29/09;-41,00;EUR\r\n27/09/2026;CB FNAC PARIS;-59,90;EUR\r\n26/09/2026;AVOIR SNCF;+12,00;EUR\r\n");
+  await page.goto(origin + "/chest/pay");
+  await page.getByRole("link", { name: "Cartes de l’entreprise" }).click();
+  await page.waitForURL(/\/chest\/cards$/u);
+  await page.locator("input[type=file]").setInputFiles(statement);
+  await page.waitForSelector("#card-owner");
+  expect((await page.locator("#card-map-date").inputValue()) === "0" && (await page.locator("#card-map-amount").inputValue()) === "2", "columns guessed");
+  const status = () => page.locator("p[role=status]").last().innerText();
+  expect((await status()).includes("2 paiements par carte.") && (await status()).includes("1 remboursement ou crédit laissé de côté."), "payments and refund told apart: " + (await status()));
+  expect(await page.getByRole("button", { name: "Importer 2 paiements par carte" }).isDisabled(), "whose card first");
+  await page.locator("#card-owner").selectOption({ label: "Hugo Bernard" });
+  await page.getByRole("button", { name: "Importer 2 paiements par carte" }).click();
+  await page.waitForSelector("text=1 a retrouvé sa dépense");
+  await page.waitForTimeout(800);
+  await page.reload();
+  const waiting = await page.locator("section", { hasText: "En attente d’un justificatif" }).first().innerText();
+  expect(waiting.includes("CB FNAC PARIS") && waiting.includes("3 paiements par carte"), "FNAC waits with Hugo's two others: " + waiting);
+  const check = await page.locator("section", { hasText: "À vérifier" }).last().innerText();
+  expect(check.includes("CB CAFE KITSUNE") && check.includes("ne pas le rembourser"), "paid back already: to check — " + check);
+  await page.getByRole("button", { name: /^Relancer · Hugo Bernard$/u }).click();
+  await page.locator(".ck-toast", { hasText: "Envoyé à 1 personne." }).waitFor();
+  const dev = await (await page.request.get(origin + "/_dev")).text();
+  expect(dev.includes("3 company card payments need their receipt"), "Hugo asked in his bell, in English");
+  // A statement imported by mistake: Undo takes it back whole.
+  const wrong = tmp + "/expenses-cards-wrong.csv";
+  writeFileSync(wrong, "Date;Libellé;Montant\n20/09/2026;CB PAUL GARE DE LYON;-7,20\n");
+  await page.locator("input[type=file]").setInputFiles(wrong);
+  await page.locator("#card-owner").selectOption({ label: "Hugo Bernard" });
+  await page.getByRole("button", { name: "Importer 1 paiement par carte" }).click();
+  await page.locator(".ck-toast", { hasText: "1 paiement par carte importé." }).locator(".ck-toast-undo").click();
+  await page.locator(".ck-toast", { hasText: "Action annulée." }).waitFor();
+  await page.reload();
+  expect(!(await page.locator("main").innerText()).includes("CB PAUL"), "the wrong statement is gone");
+  // The paid-twice check, once looked at, leaves the list (Undo brings it back).
+  await page.getByRole("button", { name: /^Vérifié: CB CAFE KITSUNE/u }).click();
+  await page.locator(".ck-toast", { hasText: "Retiré de la liste." }).waitFor();
+});
+
+await step("Hugo, on his phone: the card payment asks for its receipt; he adds it, and it no longer waits", async () => {
+  await as(context, origin, "hugo");
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(origin + "/chest");
+  const fnac = page.locator(".row", { hasText: "FNAC PARIS" });
+  expect((await fnac.innerText()).includes("Company card: receipt needed"), "said on the row: " + (await fnac.innerText()));
+  expect(!(await fnac.locator("input.pick").isChecked()), "not ticked until its receipt is there");
+  const wide = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+  expect(wide <= 0, `home scrolls sideways by ${wide}px`);
+  await fnac.getByRole("link", { name: /^Add the receipt/u }).click();
+  await page.waitForURL(/\/edit$/u);
+  await page.locator(".capture .pick-file input[type=file]").setInputFiles(receipt);
+  await page.waitForSelector("text=Receipt added", { timeout: 8000 });
+  await page.waitForSelector(".reading.read, .reading:not(.reading)", { timeout: 40000 }).catch(() => {});
+  await page.locator("#amount").fill("59,90");
+  await page.getByText("Supplies", { exact: true }).click();
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await page.waitForURL(/\/chest$/u);
+  const row = page.locator(".row", { hasText: "FNAC PARIS" });
+  expect(!(await row.innerText()).includes("receipt needed") && (await row.locator("img.thumb").count()) === 1, "receipt there: " + (await row.innerText()));
+  await as(context, origin, "camille");
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto(origin + "/chest/cards");
+  expect(!(await page.locator("main").innerText()).includes("CB FNAC PARIS") && (await page.locator("main").innerText()).includes("2 paiements par carte"), "FNAC no longer waits");
 });
 
 await step("Hugo adds his registration certificate (the kit's file picker, straight to the Chest)", async () => {
@@ -373,7 +487,7 @@ await step("rights: an employee cannot pay or see another's expense; no role, no
 await step("phone width: no page scrolls sideways", async () => {
   await as(context, origin, "camille");
   await page.setViewportSize({ width: 390, height: 844 });
-  for (const path of ["/chest", "/chest/new", "/chest/new?trip=1", "/chest/new?allowance=1", "/chest/approve", "/chest/pay", "/chest/export", "/chest/settings", "/chest/settings/company"]) {
+  for (const path of ["/chest", "/chest/new", "/chest/new?trip=1", "/chest/new?allowance=1", "/chest/approve", "/chest/pay", "/chest/cards", "/chest/export", "/chest/settings", "/chest/settings/company"]) {
     await page.goto(origin + path);
     const wide = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
     expect(wide <= 0, `${path} scrolls sideways by ${wide}px`);

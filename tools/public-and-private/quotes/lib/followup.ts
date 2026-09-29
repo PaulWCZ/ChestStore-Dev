@@ -1,4 +1,7 @@
+import * as chest from "@argentic/chest-sdk/chest";
 import type { Sql } from "./db.ts";
+import { isLocale } from "./i18n/index.ts";
+import { archiveDue } from "./monthly.ts";
 import { remindLatePayers } from "./reminders.ts";
 import { makeDueDrafts } from "./repeats.ts";
 import { refreshBadges } from "./tell.ts";
@@ -13,7 +16,15 @@ export async function followUp(sql: Sql, today: string): Promise<{ drafts: numbe
   const drafts = await makeDueDrafts(sql, today);
   const { emailed, told } = await remindLatePayers(sql, today);
   await refreshBadges(sql, today);
+  // The monthly archive, if the "archive" schedule missed it.
+  await archiveDue(sql, today, archiveLocale());
   return { drafts, emailed, told };
+}
+
+// The archive's spreadsheets speak the Chest's language.
+export function archiveLocale(): "en" | "fr" {
+  const l = chest.locale();
+  return isLocale(l) ? l : "en";
 }
 
 export async function followUpOnce(sql: Sql, today: string): Promise<void> {
@@ -23,6 +34,7 @@ export async function followUpOnce(sql: Sql, today: string): Promise<void> {
     await makeDueDrafts(sql, today);
     await remindLatePayers(sql, today);
     await refreshBadges(sql, today);
+    await archiveDue(sql, today, archiveLocale());
   } catch (error) {
     // A page never fails for it: the schedule, or tomorrow, runs it again.
     console.error("follow-up failed", error instanceof Error ? error.name : "error");

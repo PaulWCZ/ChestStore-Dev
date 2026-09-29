@@ -18,6 +18,7 @@ type Words = {
   table: {
     person: string; saved: string; addField: string; fieldName: string; fieldPlaceholder: string; fieldEditor: string; editors: { person: string; hr: string };
     create: string; cancel: string; removeField: string; fieldRemoved: string; renameField: string; cell: string;
+    fieldKind: string; kinds: Record<"text" | "date" | "choice", string>; fieldOptions: string; fieldAlert: string; fieldAlertHint: string; noChoice: string;
   };
   edit: { title: string; team: string; office: string; manager: string; noManager: string; startDate: string; phone: string };
   errors: Record<ErrorCode, string>;
@@ -37,7 +38,7 @@ type Words = {
 export function TableEditor({ rows, managers, fields, known, today, t }: {
   rows: TableRow[];
   managers: { id: string; name: string; left?: boolean }[];
-  fields: { id: string; label: string; editor: "person" | "hr" }[];
+  fields: { id: string; label: string; editor: "person" | "hr"; kind: "text" | "date" | "choice"; options: string[] }[];
   known: { teams: string[]; offices: string[]; titles: string[] };
   // Today in the Chest's time zone ("tomorrow" in a date cell).
   today: string;
@@ -139,7 +140,25 @@ export function TableEditor({ rows, managers, fields, known, today, t }: {
  />
                 </td>
                 <td>{input(r, "phone", t.edit.phone, { type: "tel", maxLength: limits.phone })}</td>
-                {fields.map(f => <td key={f.id}>{input(r, `x:${f.id}`, f.label, { maxLength: limits.fieldValue })}</td>)}
+                {fields.map(f => {
+                  const cell = `${r.id}|x:${f.id}`;
+                  const label = format(t.table.cell, { field: f.label, name: r.name });
+                  if (f.kind === "date") {
+                    return <td key={f.id}><DateCell value={values[cell] ?? ""} label={label} today={today} words={t.date} onCommit={iso => { setValues(v => ({ ...v, [cell]: iso })); commit(r.id, `x:${f.id}`, iso, saved[cell] ?? ""); }} /></td>;
+                  }
+                  if (f.kind === "choice") {
+                    const current = values[cell] ?? "";
+                    return (
+                      <td key={f.id}>
+                        <select className="cell" value={current} aria-label={label} onChange={e => { const before = saved[cell] ?? ""; setValues(v => ({ ...v, [cell]: e.target.value })); commit(r.id, `x:${f.id}`, e.target.value, before); }}>
+                          <option value="">{t.table.noChoice}</option>
+                          {[...f.options, ...(current && !f.options.includes(current) ? [current] : [])].map(o => <option key={o} value={o}>{o}</option>)}
+                        </select>
+                      </td>
+                    );
+                  }
+                  return <td key={f.id}>{input(r, `x:${f.id}`, f.label, { maxLength: limits.fieldValue })}</td>;
+                })}
               </tr>
             ))}
           </tbody>
@@ -155,7 +174,7 @@ export function TableEditor({ rows, managers, fields, known, today, t }: {
 
 // A column of HR's own: its name can be changed in place; removing it has
 // "Undo".
-function FieldHead({ field, t, onRemoved }: { field: { id: string; label: string; editor: "person" | "hr" }; t: Words; onRemoved: () => void }) {
+function FieldHead({ field, t, onRemoved }: { field: { id: string; label: string; editor: "person" | "hr"; kind: "text" | "date" | "choice" }; t: Words; onRemoved: () => void }) {
   const router = useRouter();
   const toast = useToast();
   const [label, setLabel] = useState(field.label);
@@ -199,13 +218,14 @@ function NewField({ t }: { t: Words }) {
   const uid = useId();
   const [open, setOpen] = useState(false);
   const [editor, setEditor] = useState<"person" | "hr">("person");
+  const [kind, setKind] = useState<"text" | "date" | "choice">("text");
   const [pending, start] = useTransition();
   if (!open) return <p className="section-actions"><button type="button" className="button quiet" onClick={() => setOpen(true)}><Plus />{t.table.addField}</button></p>;
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const data = new FormData(event.currentTarget);
     start(async () => {
-      const r = await addField({ label: String(data.get("label") ?? ""), editor });
+      const r = await addField({ label: String(data.get("label") ?? ""), editor, kind, options: String(data.get("options") ?? ""), alertDays: String(data.get("alert") ?? "") });
       if (!r.ok) { toast({ text: format(t.errors[r.error], r.values ?? {}), tone: "error" }); return; }
       setOpen(false);
       router.refresh();
@@ -217,6 +237,20 @@ function NewField({ t }: { t: Words }) {
         <label htmlFor={uid + "label"} className="label">{t.table.fieldName}</label>
         <input id={uid + "label"} name="label" className="field" required maxLength={limits.fieldLabel} placeholder={t.table.fieldPlaceholder} autoFocus />
       </div>
+      <Segmented label={t.table.fieldKind} hideLabel={false} value={kind} onChange={setKind} options={(["text", "date", "choice"] as const).map(k => ({ value: k, label: t.table.kinds[k] }))} />
+      {kind === "choice" && (
+        <div className="field-group">
+          <label htmlFor={uid + "options"} className="label">{t.table.fieldOptions}</label>
+          <textarea id={uid + "options"} name="options" className="field" rows={4} required />
+        </div>
+      )}
+      {kind === "date" && (
+        <div className="field-group">
+          <label htmlFor={uid + "alert"} className="label">{t.table.fieldAlert}</label>
+          <input id={uid + "alert"} name="alert" className="field compact" inputMode="numeric" pattern="[0-9]*" maxLength={3} aria-describedby={uid + "alert-hint"} />
+          <p id={uid + "alert-hint"} className="hint">{t.table.fieldAlertHint}</p>
+        </div>
+      )}
       <Segmented label={t.table.fieldEditor} hideLabel={false} value={editor} onChange={setEditor} options={[{ value: "person", label: t.table.editors.person }, { value: "hr", label: t.table.editors.hr }]} />
       <div className="row">
         <button type="submit" className="button" disabled={pending}>{t.table.create}</button>
@@ -226,7 +260,7 @@ function NewField({ t }: { t: Words }) {
   );
 }
 
-// A start date in a cell: typed as people write dates in their language
+// A date in a cell (the start date, a date field): typed as people write dates in their language
 // ("29/09/2026", "1er octobre", "demain") or chosen on a calendar.
 function DateCell({ value, label, today, words, onCommit }: { value: string; label: string; today: string; words: DateWords; onCommit: (iso: string) => void }) {
   // The kit's date field in its compact form: the cell and its calendar

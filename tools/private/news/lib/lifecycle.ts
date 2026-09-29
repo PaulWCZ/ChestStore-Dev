@@ -4,6 +4,7 @@ import type { Sql } from "./db.ts";
 import { forgetGroups } from "./groups.ts";
 import { promoted, reconcile } from "./tell.ts";
 import { today } from "./time.ts";
+import { forgetViewer } from "./views.ts";
 import { chestZone } from "./zone.ts";
 
 // What News does when a member loses access, leaves or is erased (the Chest
@@ -16,7 +17,8 @@ import { chestZone } from "./zone.ts";
 // - Erasure: what they wrote stays for the company, unsigned ('erased'):
 //   posts, comments, reactions (still counted), files they added; a welcome
 //   post about them names nobody, a mention of them in a comment names
-//   nobody. Their confirmations, answers, visits, choices, the record of
+//   nobody. Their confirmations, answers, visits, the fingerprints of the posts
+//   they opened (lib/views.ts), choices, the record of
 //   the emails sent to them and of posts kept to them are deleted. Then the erasure is
 //   acknowledged. The words others wrote about them (a welcome text, a
 //   photo) are not changed: a publisher deletes the post if it must go
@@ -25,7 +27,6 @@ export async function leave(sql: Sql, memberId: string, day = today(chestZone())
   const events = await sql.begin(async tx => {
     const gone = await tx<{ post_id: string }[]>`delete from rsvps r using posts p where p.id = r.post_id and r.member = ${memberId} and coalesce(p.event_last_day, p.event_day) >= ${day} returning r.post_id`;
     await tx`delete from visits where member = ${memberId}`;
-    await tx`delete from activity where member = ${memberId}`;
     await tx`delete from preferences where member = ${memberId}`;
     await tx`delete from digests where member = ${memberId}`;
     return [...new Set(gone.map(g => String(g.post_id)))];
@@ -58,9 +59,9 @@ export async function erase(sql: Sql, memberId: string): Promise<void> {
     await tx`update files set added_by = 'erased' where added_by = ${memberId}`;
     await tx`update revisions set edited_by = 'erased' where edited_by = ${memberId}`;
     await tx`delete from confirmations where member = ${memberId}`;
+    await forgetViewer(tx, memberId);
     const gone = await tx<{ post_id: string }[]>`delete from rsvps where member = ${memberId} returning post_id`;
     await tx`delete from visits where member = ${memberId}`;
-    await tx`delete from activity where member = ${memberId}`;
     await tx`delete from preferences where member = ${memberId}`;
     await tx`delete from digests where member = ${memberId}`;
     await tx`delete from emails where member = ${memberId}`;

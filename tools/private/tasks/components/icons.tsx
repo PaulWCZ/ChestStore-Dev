@@ -40,3 +40,11 @@ export const MoveTo = () => <Icon><path d="M4 12h11M11 8l4 4-4 4" /><path d="M15
 export const SortIcon = () => <Icon><path d="M8 5v14M5 8l3-3 3 3M16 19V5M13 16l3 3 3-3" /></Icon>;
 export const Fields = () => <Icon><rect x="3.5" y="5" width="17" height="5" rx="1.5" /><rect x="3.5" y="14" width="17" height="5" rx="1.5" /><path d="M7 7.5h4M7 16.5h7" /></Icon>;
 export const Flag = () => <Icon><path d="M5 21V4M5 4h11l-2 4 2 4H5" /></Icon>;
+// "Late": a warning triangle, beside the word.
+export const Alert = () => <Icon><path d="M12 4l9 16H3z" /><path d="M12 10v4M12 17.3h.01" /></Icon>;
+// "Blocked by": a padlock-free stop — a bar across a circle.
+export const Blocked = () => <Icon><circle cx="12" cy="12" r="8.5" /><path d="M6 6l12 12" /></Icon>;
+// The timeline view: bars across days.
+export const Timeline = () => <Icon><path d="M4 4v16" /><rect x="7" y="5.5" width="9" height="3.5" rx="1.2" /><rect x="10" y="10.5" width="10" height="3.5" rx="1.2" /><rect x="7" y="15.5" width="6" height="3.5" rx="1.2" /></Icon>;
+// On a phone: the button that shows the view and the filters.
+export const Sliders = () => <Icon><path d="M4 7h9M17 7h3M4 17h3M11 17h9" /><circle cx="15" cy="7" r="2" /><circle cx="9" cy="17" r="2" /></Icon>;

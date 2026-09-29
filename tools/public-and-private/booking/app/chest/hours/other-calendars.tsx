@@ -3,7 +3,7 @@
 import { useToast } from "@argentic/chest-ui/components";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import { Alert, Calendar, Check, Close, Moved } from "../../../components/icons.tsx";
+import { Alert, Check, Close, Moved } from "../../../components/icons.tsx";
 import { format, plural } from "../../../lib/i18n/format.ts";
 import type { Catalogue } from "../../../lib/i18n/index.ts";
 import { connectCalendar, disconnectCalendar, readCalendars } from "../actions.ts";
@@ -13,7 +13,8 @@ type Words = { others: Catalogue["others"]; errors: Catalogue["errors"] };
 type Other = { id: string; provider: string; hint: string; events: number; error: keyof Catalogue["others"]["failures"] | null; stale: boolean; read: string | null; tried: string | null };
 
 // The host's other calendars: paste a secret iCal address, see when each
-// was last read, read them again, disconnect one.
+// was last read, read them again, disconnect one (inside the Hours page's
+// fold).
 export function OtherCalendars({ list, locale, t }: { list: Other[]; locale: string; t: Words }) {
   const o = t.others;
   const [pending, start] = useTransition();
@@ -21,11 +22,8 @@ export function OtherCalendars({ list, locale, t }: { list: Other[]; locale: str
   const toast = useToast();
   const router = useRouter();
   return (
-    <section className="card stack" id="calendars" aria-labelledby="others">
-      <div>
-        <h2 id="others"><Calendar />{o.title}</h2>
-        <p className="hint">{o.hint}</p>
-      </div>
+    <>
+      <p className="hint">{o.hint}</p>
       {list.length > 0 && (
         <ul className="calendars">
           {list.map(c => (
@@ -88,6 +86,6 @@ export function OtherCalendars({ list, locale, t }: { list: Other[]; locale: str
       )}
       <p className="hint">{o.delay}</p>
       {error && <p className="error" role="alert"><Alert />{error}</p>}
-    </section>
+    </>
   );
 }

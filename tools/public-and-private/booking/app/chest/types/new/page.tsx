@@ -8,6 +8,7 @@ import { can } from "../../../../lib/access.ts";
 import { otherHosts } from "../../../../lib/booking.ts";
 import { db } from "../../../../lib/db.ts";
 import { people } from "../../../../lib/people.ts";
+import { languageNames } from "../../../../lib/i18n/format.ts";
 import { TypeForm } from "../type-form.tsx";
 
 // The hosts an administrator may put in a type's team, with their names
@@ -30,8 +31,8 @@ export default async function NewTypePage() {
     <>
       <a className="back" href="/chest/types"><Back />{t.types.title}</a>
       <PageHeader size="m" title={t.types.form.titleNew} />
-      <TypeForm team={await teamChoices(v)} id={null} base={base} locale={locale} t={{ types: t.types, kinds: t.kinds, colors: t.colors, minutes: t.minutes, errors: t.errors }}
-        initial={{ title: "", slug: "", description: "", duration: 30, interval: 30, locationKind: "video", location: "", bufferBefore: 0, bufferAfter: 0, noticeMinutes: 240, windowDays: 45, dailyLimit: 0, questions: [], color: "sky", active: true, videoRooms: false, paymentLink: "", pool: [] }} />
+      <TypeForm second={host.second ? { code: host.second, name: (t.languages as Record<string, string>)[host.second] ?? languageNames[host.second] ?? host.second } : null} team={await teamChoices(v)} id={null} base={base} locale={locale} t={{ types: t.types, kinds: t.kinds, colors: t.colors, minutes: t.minutes, errors: t.errors }}
+        initial={{ title: "", slug: "", description: "", duration: 30, interval: 30, locationKind: "video", location: "", bufferBefore: 0, bufferAfter: 0, noticeMinutes: 240, windowDays: 45, dailyLimit: 0, questions: [], color: "sky", active: true, videoRooms: false, paymentLink: "", pool: [], alt: {} }} />
     </>
   );
 }

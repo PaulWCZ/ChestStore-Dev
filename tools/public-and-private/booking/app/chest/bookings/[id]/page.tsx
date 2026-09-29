@@ -50,7 +50,8 @@ export default async function BookingPage({ params }: { params: Promise<{ id: st
             {x.guestZone !== zone && <div className="hint">{format(t.booking.theirTime, { time: `${meetingTime(x.startsAt, x.guestZone, locale)} (${zoneName(x.guestZone)})` })}</div>}
           </dd>
           <dt><Kind />{t.booking.where}</dt>
-          <dd>{t.kinds[x.locationKind]}{where ? " — " : ""}{x.locationKind === "video" && where ? <a href={where} target="_blank" rel="noopener noreferrer">{where}</a> : where}</dd>
+          <dd>{t.kinds[x.locationKind]}{where ? " — " : ""}{x.locationKind === "video" && where ? <a href={where} target="_blank" rel="noopener noreferrer">{where}</a> : where}
+            {upcoming && x.locationKind === "video" && b.isPublicJitsi(where) && <div className="hint">{t.booking.jitsiHost}</div>}</dd>
           <dt><Person />{t.booking.host}</dt>
           <dd className="row"><Avatar name={nameOf(person, locale)} photo={person?.photo ?? null} size="s" />{person?.id === member.id ? t.people.you : nameOf(person, locale)}</dd>
           <dt><Mail />{t.booking.email}</dt>

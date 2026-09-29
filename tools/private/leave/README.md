@@ -24,8 +24,11 @@ time off, PayFit absences or the shared leave spreadsheet** for companies of
   the requests still waiting are counted. The server counts again when it
   is sent. Two requests of a person never overlap, not even by half a day.
   A kind may refuse to go below zero (a setting). A **family event** says
-  which one (wedding or PACS, birth, death…) and shows the days the law
-  gives (art. L3142-4).
+  which one (wedding or PACS, birth, death…), shows the days the law
+  gives (art. L3142-4), warns when the dates cost more, and **counts only
+  the days the person works** (a part-timer on Monday–Wednesday away
+  Monday to Thursday is charged 3 days, not the paid-leave rule's 5; HR
+  may choose another counting for the kind).
 - **Recording for someone**: HR, or a person's approver, records leave for
   them from their page (*Record leave*: the warehouse worker without a
   computer, a sick day phoned in, a correction) — approved at once, the
@@ -73,7 +76,11 @@ time off, PayFit absences or the shared leave spreadsheet** for companies of
   kind may keep one running balance instead.
 - **People** (HR): everyone's approver (changed in place), employee
   number, balances and waiting days; **Former**: those who left, with their
-  last day and final balance. A person's page: start date, **last day**,
+  last day and final balance. **Setting a last day cancels the leave
+  recorded after it, and cuts at that day the leave that runs past it**:
+  the days come back in the history ("After their last day"), so the
+  final balance payroll pays is right; the toast says how many. A person's
+  page: start date, **last day**,
   **employee number**, **the days of the week they work**, balances,
   history and requests; *Record leave*; *Add or remove days* (paid leave:
   to the acquired or the being-earned part), *Set the balance* (paid leave:
@@ -98,12 +105,13 @@ time off, PayFit absences or the shared leave spreadsheet** for companies of
   ambiguous person, a number that is someone else's, an unreadable date is
   shown, not imported). No address needed.
 - **Payroll files** (*People → Payroll files*): a month's approved absences
-  as a CSV — employee number, person, kind, first day and from when, last
+  as a CSV — employee number, person, kind, **payroll code**, first day and from when, last
   day and until when, days this month (a leave across two months is split,
   with the person's week), days in all; and **everyone's balances on a
   day** — paid leave N-1 and N (earned, taken, left), carried over, leave
   approved for later, what is left, waiting — those who left included (the
-  final pay). In HR's language (`;` and decimal commas in French).
+  final pay); each kind's columns carry its payroll code ("Paid leave (CP)
+  left"). In HR's language (`;` and decimal commas in French).
 - **Settings** (HR): jours ouvrés (Monday–Friday) or jours ouvrables
   (Monday–Saturday); Alsace-Moselle; the public holidays the company works
   (e.g. Whit Monday as the solidarity day); the month the leave year starts
@@ -112,7 +120,9 @@ time off, PayFit absences or the shared leave spreadsheet** for companies of
   balance), the month it starts, unused days carried over or lost, may go
   below zero, half days, counted with the company's rule / the days the
   person works / calendar days, needs an answer, note allowed, counts as an
-  absence; hide and show again. Each change is saved at once (a toast), so
+  absence, **payroll code** (the code Silae, PayFit or Sage import the
+  absence by: CP, RTT, CSS, MAL and EVF to start with); hide and show
+  again. Each change is saved at once (a toast), so
   nothing waits for a button. New companies get seven kinds: paid leave,
   RTT, unpaid leave, sick leave, other absence, **family event**, **remote
   work**.
@@ -250,10 +260,13 @@ comparison of ouvrés with ouvrables.
 - **Someone leaves** (or loses access): their requests still waiting are
   cancelled (the history says why), the people they approved go back to HR,
   and **their last day is set** to that day (unless HR set one before):
-  nothing is earned after it. Their approved leave and balance lines stay:
-  they are HR's records; they are listed under *People → Former* with their
-  final balance, and in the balances file. If they come back, HR clears the
-  last day.
+  nothing is earned after it. Their approved leave up to that day and
+  their balance lines stay: they are HR's records. **Approved leave after
+  it is cancelled (or cut at it) and its days come back**, and HR is told in
+  the bell to check the final balance. They are listed under *People →
+  Former* with their final balance, and in the balances file. If they come
+  back, HR clears the last day (leave cancelled by it stays cancelled: HR
+  records it again).
 - **An erasure**: the same, then their id, notes, reasons and start date
   disappear; requests and balance lines keep their dates, kinds and days,
   signed "Former member" (`erased`), so HR's totals still add up. Then the

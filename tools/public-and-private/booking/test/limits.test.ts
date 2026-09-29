@@ -4,6 +4,7 @@ import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
 import { AppError } from "../lib/app-error.ts";
 import * as b from "../lib/booking.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
+import { openHost } from "./support/host.ts";
 import { asMember } from "./support/member.ts";
 import { everyone, hugo, ines } from "./support/members.ts";
 
@@ -35,7 +36,7 @@ const base = { title: "Showroom visit", slug: "showroom", description: "", durat
 
 async function ready(limits: Partial<typeof base> & { dailyLimit?: number } = {}) {
   const sql = database.sql;
-  const host = await b.ensureHost(sql, asMember(ines), { title: "Meeting", slug: "meeting" });
+  const host = await openHost(sql, asMember(ines), { title: "Meeting", slug: "meeting" });
   const type = await b.createType(sql, asMember(ines), { ...base, ...limits });
   return { sql, host, type };
 }
@@ -130,7 +131,7 @@ test("moves racing with bookings for the last place of a day: never more than th
 
 test("the limit is per type and per host: Hugo's bookings do not fill Inès's day", async () => {
   const { sql, host, type } = await ready({ dailyLimit: 1 });
-  const hugoHost = await b.ensureHost(sql, asMember(hugo), { title: "Meeting", slug: "meeting" });
+  const hugoHost = await openHost(sql, asMember(hugo), { title: "Meeting", slug: "meeting" });
   const hugoType = await b.createType(sql, asMember(hugo), { ...base, dailyLimit: 1 });
   await b.book(sql, hugoHost, hugoType, { ...guest(1), start: tuesday(9) }, monday);
   await b.book(sql, host, type, { ...guest(2), start: tuesday(9) }, monday);

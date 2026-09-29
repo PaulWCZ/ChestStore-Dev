@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { columnName } from "../../../lib/boards.ts";
 import { searchCards } from "../../../lib/cards.ts";
 import { db } from "../../../lib/db.ts";
 import { AppError } from "../../../lib/errors.ts";
@@ -46,7 +47,7 @@ export default async function Search({ searchParams }: { searchParams: Promise<{
             <Link className="title" href={`/chest/boards/${c.boardId}?card=${c.id}`}>{c.title}</Link>
             <span className="where">
               {c.archived && <span className="chip">{t.search.archived}</span>}
-              <span className="chip">{c.columnName}</span>
+              <span className="chip">{columnName(c.columnName, c.columnKey, t.templates.columns)}</span>
               <span className={`chip label-chip c-${c.boardColor}`}>{c.boardName}</span>
             </span>
           </li>

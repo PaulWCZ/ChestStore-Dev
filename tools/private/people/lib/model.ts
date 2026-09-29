@@ -24,6 +24,7 @@ export const limits = {
   fieldLabel: 40,
   fieldValue: 200,
   fields: 20,
+  fieldOptions: 30,
   nationality: 60,
   qualification: 120,
   workPermit: 120,

@@ -37,7 +37,7 @@ export default async function MembersLayout({ children }: { children: ReactNode 
   const nav: NavItem[] = [
     { href: "/chest", label: t.shell.mine, icon: <Receipt />, exact: true, also: ["/chest/new", "/chest/expenses"] },
     ...(can(member, "approve") ? [{ href: "/chest/approve", label: t.shell.approve, icon: <Stamp />, count: approvals }] : []),
-    ...(can(member, "pay") ? [{ href: "/chest/pay", label: t.shell.pay, icon: <Wallet />, count: payments }] : []),
+    ...(can(member, "pay") ? [{ href: "/chest/pay", label: t.shell.pay, icon: <Wallet />, count: payments, also: ["/chest/cards"] }] : []),
     ...(can(member, "export") ? [{ href: "/chest/export", label: t.shell.export, icon: <Download /> }] : []),
     { href: "/chest/settings", label: t.shell.settings, icon: <Gear /> },
   ];

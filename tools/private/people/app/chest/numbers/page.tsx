@@ -4,8 +4,8 @@ import { Back } from "../../../components/icons.tsx";
 import { can } from "../../../lib/access.ts";
 import { db } from "../../../lib/db.ts";
 import { directory } from "../../../lib/directory.ts";
-import { formatDay, intl } from "../../../lib/i18n/index.ts";
-import { numbers, type Count } from "../../../lib/numbers.ts";
+import { formatDay, intl, plural } from "../../../lib/i18n/index.ts";
+import { numbers, workersOf, type Count } from "../../../lib/numbers.ts";
 import { listRecords } from "../../../lib/records.ts";
 import { viewer } from "../../../lib/session.ts";
 import { today } from "../../../lib/zone.ts";
@@ -22,7 +22,11 @@ export default async function NumbersPage() {
   const sql = db();
   const now = today();
   const [{ entries }, records] = await Promise.all([directory(sql, member), listRecords(sql, member)]);
-  const n = numbers(entries, records, entries.map(e => e.startDate), now);
+  // One population for every figure (lib/numbers.ts): the records of
+  // people here, and the directory's members without a record.
+  const workers = workersOf(records.filter(r => !r.erased), entries);
+  const n = numbers(workers, now);
+  const gone = workers.filter(w => w.gone).length;
   const fmt = new Intl.NumberFormat(intl(locale), { maximumFractionDigits: 1 });
   const pct = new Intl.NumberFormat(intl(locale), { style: "percent", maximumFractionDigits: 1 });
   const bars = (title: string, list: Count[], none: string) => (
@@ -45,17 +49,18 @@ export default async function NumbersPage() {
       <Link className="back" href="/chest/records"><Back />{t.record.back}</Link>
       <h1 className="edit-title">{t.numbers.title}</h1>
       <div className="stats">
-        <div className="stat"><span className="stat-value">{fmt.format(n.headcount)}</span><span className="muted">{t.numbers.headcount}</span></div>
+        <div className="stat"><span className="stat-value">{fmt.format(n.headcount)}</span><span className="muted">{t.numbers.headcount}</span><span className="hint">{t.numbers.population}</span></div>
         <div className="stat">
           <span className="stat-value">{n.turnover === null ? "—" : pct.format(n.turnover / 100)}</span>
           <span className="muted">{t.numbers.turnover}</span>
           <span className="hint">{n.turnover === null ? t.numbers.noTurnover : t.numbers.turnoverHint}</span>
         </div>
       </div>
+      {gone > 0 && <p className="banner warn"><Link href="/chest/records/register#gaps-title">{plural(t.numbers.gone, gone, locale)}</Link></p>}
       <div className="grid-2 section">
         {bars(t.numbers.byTeam, n.byTeam, t.numbers.noTeam)}
         {bars(t.numbers.byOffice, n.byOffice, t.numbers.noOffice)}
-        {n.byContract.length > 0 && bars(t.numbers.byContract, n.byContract.map(c => ({ label: t.record.contracts[c.contract], count: c.count })), "")}
+        {n.byContract.length > 0 && bars(t.numbers.byContract, n.byContract.map(c => ({ label: c.contract ? t.record.contracts[c.contract] : t.numbers.noRecord, count: c.count })), "")}
       </div>
       <section className="card-block section" aria-labelledby="months-title">
         <h2 id="months-title" className="legend">{t.numbers.months}</h2>

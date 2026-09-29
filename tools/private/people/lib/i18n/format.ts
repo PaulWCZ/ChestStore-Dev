@@ -48,7 +48,11 @@ export const languageNames: Record<string, string> = { en: "English", fr: "FranÃ
 // that language, whatever the server's time zone.
 export function formatDay(value: string, locale: Locale, options: Intl.DateTimeFormatOptions = { day: "numeric", month: "long", year: "numeric" }): string {
   const iso = /^\d{2}-\d{2}$/u.test(value) ? "2000-" + value : value;
-  return new Intl.DateTimeFormat(intl(locale), { timeZone: "UTC", ...options }).format(new Date(iso + "T00:00:00Z"));
+  const f = new Intl.DateTimeFormat(intl(locale), { timeZone: "UTC", ...options });
+  const date = new Date(iso + "T00:00:00Z");
+  // French writes the first of a month "1er juin", never "1 juin".
+  if (!locale.startsWith("fr") || iso.slice(8, 10) !== "01" || (options.month !== "long" && options.month !== "short") || options.day === undefined) return f.format(date);
+  return f.formatToParts(date).map(p => (p.type === "day" ? p.value + "er" : p.value)).join("");
 }
 
 // relativeDays says "today", "yesterday", "6 days ago", "in 2 weeks"â€¦ for a

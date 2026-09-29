@@ -6,6 +6,10 @@
     {
       "name": "morning",
       "cron": "30 7 * * 1-5"
+    },
+    {
+      "name": "mail",
+      "cron": "*/15 * * * *"
     }
   ],
   "translations": {

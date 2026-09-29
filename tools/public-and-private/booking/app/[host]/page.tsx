@@ -6,25 +6,29 @@ import { publicHost, settings } from "../../lib/booking.ts";
 import { db } from "../../lib/db.ts";
 import { format, plural } from "../../lib/i18n/index.ts";
 import { people } from "../../lib/people.ts";
-import { publicWords } from "../../lib/session.ts";
+import { hostWords } from "../../lib/session.ts";
+import { localizeType, localizeWelcome } from "../../lib/texts.ts";
 
 // A host's page: who they are, and the kinds of meeting to book with them.
 export default async function HostPage({ params }: { params: Promise<{ host: string }> }) {
   const { host: slug } = await params;
-  const { t, locale } = await publicWords();
   const sql = db();
   const found = await publicHost(sql, slug);
   const person = found ? (await people([found.host.memberId])).get(found.host.memberId) : undefined;
   if (!found || person?.status !== "member") notFound();
   const s = await settings(sql);
-  const { host, types } = found;
+  // The page in one language: the host's texts and the tool's words.
+  const { t, locale, languages } = await hostWords(found.host);
+  const host = found.host;
+  const welcome = localizeWelcome(host, locale);
+  const types = found.types.map(ty => localizeType(ty, host, locale));
   return (
-    <PublicShell company={s.companyName} locale={locale} label={t.public.language} back={`/${host.slug}`}>
+    <PublicShell company={s.companyName} locale={locale} languages={languages} label={t.public.language} back={`/${host.slug}`}>
       {host.listed && <a className="back" href="/"><Back />{t.public.back}</a>}
       <section className="host-head">
         <Avatar name={person.name} photo={null} size="xl" className="host-portrait" />
         <h1>{person.name}</h1>
-        {host.welcome && <p className="welcome">{host.welcome}</p>}
+        {welcome && <p className="welcome">{welcome}</p>}
         {types.length > 0 && <p className="muted">{t.public.pickType}</p>}
       </section>
       {types.length === 0 ? <EmptyState title={format(t.public.noTypes, { name: person.firstName || person.name })} /> : (

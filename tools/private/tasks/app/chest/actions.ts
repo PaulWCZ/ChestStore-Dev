@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 import * as boards from "../../lib/boards.ts";
 import * as cards from "../../lib/cards.ts";
 import { db } from "../../lib/db.ts";
@@ -23,6 +24,8 @@ async function act<T>(step: (actor: NonNullable<Awaited<ReturnType<typeof curren
     return step(actor);
   });
   revalidatePath("/chest", "layout");
+  // Emails that waited long enough leave once the answer is sent.
+  after(() => mail.flushMail(db()).then(() => undefined, error => console.error("mail queue", error instanceof Error ? error.name : "error")));
   return result;
 }
 
@@ -60,8 +63,8 @@ export async function updateColumn(columnId: string, input: { name?: string; don
   return act(async actor => { await boards.updateColumn(db(), actor, columnId, input); return null; });
 }
 
-export async function moveColumn(columnId: string, after: string | null, before: string | null): Promise<Result<null>> {
-  return act(async actor => { await boards.moveColumn(db(), actor, columnId, after, before); return null; });
+export async function moveColumn(columnId: string, afterId: string | null, beforeId: string | null): Promise<Result<null>> {
+  return act(async actor => { await boards.moveColumn(db(), actor, columnId, afterId, beforeId); return null; });
 }
 
 // Archive a column; its cards go with it, or first to another column (to).
@@ -162,17 +165,30 @@ export async function setEmail(on: boolean): Promise<Result<null>> {
   return act(async actor => { await mail.setEmail(db(), actor, on); return null; });
 }
 
-export async function moveCard(cardId: string, columnId: string, after: string | null, before: string | null): Promise<Result<null>> {
+// force: done although it waits for open cards (the person said so).
+export async function moveCard(cardId: string, columnId: string, afterId: string | null, beforeId: string | null, force = false): Promise<Result<null>> {
   return act(async actor => {
     const sql = db();
-    const moved = await cards.moveCard(sql, actor, cardId, columnId, after, before);
+    const moved = await cards.moveCard(sql, actor, cardId, columnId, afterId, beforeId, { force: force === true });
     if (moved.completed !== null) {
       const detail = await cards.cardDetail(sql, actor, cardId);
-      if (moved.completed) await tell.settled(cardId);
+      if (moved.completed) {
+        await tell.settled(cardId);
+        await tell.unblocked({ title: detail.title }, await cards.freed(sql, cardId));
+      } else await tell.blockedAgain(await cards.waitingOn(sql, cardId));
       await tell.refreshBadges(sql, detail.assignees);
     }
     return null;
   });
+}
+
+// "Blocked by": this card waits for another of its board.
+export async function addBlocker(cardId: string, blockerId: string): Promise<Result<null>> {
+  return act(async actor => { await cards.addBlocker(db(), actor, cardId, blockerId); return null; });
+}
+
+export async function removeBlocker(cardId: string, blockerId: string): Promise<Result<null>> {
+  return act(async actor => { await cards.removeBlocker(db(), actor, cardId, blockerId); return null; });
 }
 
 export async function setAssignees(cardId: string, people: string[]): Promise<Result<null>> {
@@ -238,21 +254,23 @@ export async function addComment(cardId: string, body: string, mentions: string[
     const done = await cards.addComment(db(), actor, cardId, body, mentions);
     const card = { id: cardId, title: done.title, boardId: done.boardId };
     await tell.mentioned(actor, done.mentions, card, done.comment.body, db(), done.comment.id);
-    await tell.commented(actor, done.assignees.filter(a => !done.mentions.includes(a)), card, done.comment.body);
+    await tell.commented(actor, done.assignees.filter(a => !done.mentions.includes(a)), card, done.comment.body, db(), done.comment.id);
     return done.comment;
   });
 }
 
+// A comment edited, deleted or brought back: what the bell shows of it
+// follows (lib/tell.ts).
 export async function editComment(commentId: string, body: string): Promise<Result<null>> {
-  return act(async actor => { await cards.editComment(db(), actor, commentId, body); return null; });
+  return act(async actor => { const sql = db(); await tell.commentShown(sql, await cards.editComment(sql, actor, commentId, body)); return null; });
 }
 
 export async function removeComment(commentId: string): Promise<Result<null>> {
-  return act(async actor => { await cards.removeComment(db(), actor, commentId); return null; });
+  return act(async actor => { const sql = db(); await tell.commentGone(sql, await cards.removeComment(sql, actor, commentId)); return null; });
 }
 
 export async function restoreComment(commentId: string): Promise<Result<null>> {
-  return act(async actor => { await cards.restoreComment(db(), actor, commentId); return null; });
+  return act(async actor => { const sql = db(); await tell.commentShown(sql, await cards.restoreComment(sql, actor, commentId)); return null; });
 }
 
 export async function archiveCard(cardId: string, archived: boolean): Promise<Result<null>> {

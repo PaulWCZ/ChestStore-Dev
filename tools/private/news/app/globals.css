@@ -200,7 +200,7 @@ textarea.field { resize: vertical; min-height: 88px; line-height: 1.55; }
 .prose li::marker { color: var(--accent-text); font-weight: var(--weight-bold); }
 .prose blockquote { margin: 0; padding: var(--space-1) 0 var(--space-1) var(--space-4); border-left: 3px solid var(--accent-line); font-family: var(--font-display); font-style: italic; font-size: 1.25rem; }
 .prose a { color: var(--ink); text-decoration-color: var(--accent-line); text-decoration-thickness: 2px; }
-.article .prose > p:first-child::first-letter { float: left; font-family: var(--font-display); font-weight: var(--weight-heavy); font-size: 3.6em; line-height: 0.8; padding: 0.08em 0.1em 0 0; color: var(--accent-text); }
+.article .prose.drop-cap > p:first-child::first-letter { float: left; font-family: var(--font-display); font-weight: var(--weight-heavy); font-size: 3.6em; line-height: 0.8; padding: 0.08em 0.1em 0 0; color: var(--accent-text); }
 .attachments { display: grid; gap: var(--space-2); border-top: 1px solid var(--rule); padding-top: var(--space-3); }
 .attachments h2 { font-family: var(--font-body); font-size: var(--text-xs); text-transform: uppercase; letter-spacing: 0.12em; font-weight: var(--weight-label); }
 .attachments ul { list-style: none; margin: 0; padding: 0; display: grid; }
@@ -320,7 +320,9 @@ textarea.field { resize: vertical; min-height: 88px; line-height: 1.55; }
 .check input { width: 22px; height: 22px; margin: 2px 0 0; accent-color: var(--accent); flex: none; }
 .check span { display: grid; }
 .check small { color: var(--ink-2); font-size: var(--text-xs); }
-.composer-bar { position: sticky; bottom: 0; display: flex; align-items: center; justify-content: flex-end; gap: var(--space-3); flex-wrap: wrap; padding: var(--space-3) 0; background: var(--bg); border-top: 1px solid var(--rule); z-index: 5; }
+/* The actions stay at hand under the text column only: never over the
+   right column; on phones they follow the form (below). */
+.composer-bar { position: sticky; bottom: 0; margin-right: calc(320px + var(--space-6)); display: flex; align-items: center; justify-content: flex-end; gap: var(--space-3); flex-wrap: wrap; padding: var(--space-3) 0; background: var(--bg); border-top: 1px solid var(--rule); z-index: 5; }
 .composer-bar .error { margin-right: auto; }
 .composer-bar button[type="submit"] { white-space: normal; text-align: center; }
 .when-fields { display: flex; align-items: flex-start; flex-wrap: wrap; gap: var(--space-2) var(--space-3); margin-right: auto; }
@@ -350,6 +352,7 @@ textarea.field { resize: vertical; min-height: 88px; line-height: 1.55; }
 .ck-avatar.avatar-96 { width: 96px; height: 96px; font-size: 35px; }
 /* An empty page: between rules, a headline. */
 .ck-empty { border: 0; border-top: 3px solid var(--rule); border-bottom: 1px solid var(--rule); border-radius: 0; margin-top: var(--space-6); }
+.nameplate + .ck-empty { border-top: 0; margin-top: var(--space-4); }
 .ck-empty-title { font-size: var(--text-2xl); font-weight: var(--weight-heavy); }
 .ck-empty .ck-empty-body { max-width: 44ch; }
 /* Toasts: a strip of ink, square. */
@@ -393,6 +396,7 @@ mark { background: var(--highlight); color: var(--ink); font-weight: var(--weigh
   .front-grid { grid-template-columns: minmax(0, 1fr); grid-template-areas: "lead" "side" "rest"; }
   .side { position: static; border-left: 0; padding-left: 0; margin-top: var(--space-5); }
   .composer-grid { grid-template-columns: minmax(0, 1fr); }
+  .composer-bar { position: static; margin-right: 0; }
   .kinds { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (max-width: 600px) {

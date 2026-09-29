@@ -30,7 +30,7 @@ export default async function BoardSettings({ params }: { params: Promise<{ id: 
   const [labs, boardFields, archivedColumns, archivedCards, everyone, groups] = await Promise.all([
     readLabels(sql, b.id),
     readFields(sql, b.id),
-    readColumns(sql, b.id, { archived: true }),
+    readColumns(sql, b.id, { archived: true, words: t.templates.columns }),
     boardCards(sql, b.id, { archived: true }),
     // Everyone who has Tasks may be added to a private board.
     own ? boardAudience({ visibility: "team", people: [], groups: [] }) : Promise.resolve([]),

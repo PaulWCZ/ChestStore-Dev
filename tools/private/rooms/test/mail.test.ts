@@ -47,14 +47,23 @@ test("guests get an invitation in their language with the .ics; a change and a c
   assert.equal((await sql`select mail from settings`)[0]!.mail, "on");
 });
 
-test("the office, day by day: the average of the last weeks, counts only; admins only", async () => {
+test("the office, day by day: the average since the first day anyone came, counts only; admins only", async () => {
   const { sql } = database;
   const load = await weekdayLoad(sql, asMember(camille), o.office, zone);
   assert.equal(load.desks, 4);
-  assert.ok(load.loads.every(l => l.people === 0 && l.days >= 7));
+  // Nobody came yet: no data, not zeros.
+  assert.equal(load.since, null);
+  assert.ok(load.loads.every(l => l.people === 0 && l.days === 0));
   await assert.rejects(weekdayLoad(sql, asMember(hugo), o.office, zone), { code: "forbidden" });
-  // A past day at the office counts.
-  await sql`insert into presence (member_id, day, status, office_id) values (${lea.id}, current_date - 7, 'office', ${o.office})`;
+  // Léa came a week ago and Hugo today: only the days since then count —
+  // the seven weeks before are not averaged in as zeros.
+  const [dates] = await sql<{ week_ago: string; today: string }[]>`select to_char((now() at time zone ${zone})::date - 7, 'YYYY-MM-DD') as week_ago, to_char((now() at time zone ${zone})::date, 'YYYY-MM-DD') as today`;
+  const weekAgo = dates!.week_ago, day0 = dates!.today;
+  await sql`insert into presence (member_id, day, status, office_id) values (${lea.id}, ${weekAgo}::date, 'office', ${o.office}), (${hugo.id}, ${day0}::date, 'office', ${o.office}), (${lea.id}, ${day0}::date, 'office', ${o.office})`;
   const after = await weekdayLoad(sql, asMember(camille), o.office, zone);
-  assert.ok(after.loads.some(l => l.people > 0));
+  assert.equal(after.since, weekAgo);
+  const todays = after.loads.find(l => l.days === 2)!;
+  // The same weekday a week ago (1 person) and today (2): 1.5 on average, over 2 days — not over 8.
+  assert.equal(todays.people, 1.5);
+  assert.equal(after.loads.reduce((sum, l) => sum + l.days, 0), 8);
 });

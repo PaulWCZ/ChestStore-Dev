@@ -27,14 +27,14 @@ export function period(from: unknown, to: unknown): Period {
   return { from: f, to: t };
 }
 
-async function rows(sql: Query, actor: Member | null, p: Period, today: string): Promise<ListRow[]> {
+export async function rows(sql: Query, actor: Member | null, p: Period, today: string): Promise<ListRow[]> {
   if (!can(actor, "export")) throw new AppError("forbidden");
   const found = (await listDocuments(sql, actor, { types: ["invoice", "credit"], from: p.from, to: p.to, limit: limits.exportRows + 1 }, today)).filter(r => r.status === "final");
   if (found.length > limits.exportRows) throw new AppError("export_too_large");
   return found.sort((a, b) => (a.issueDate ?? "").localeCompare(b.issueDate ?? "") || a.type.localeCompare(b.type) || (a.number ?? "").localeCompare(b.number ?? ""));
 }
 
-function csvText(list: ListRow[], locale: Locale, corrected: Map<string, string>): string {
+export function csvText(list: ListRow[], locale: Locale, corrected: Map<string, string>): string {
   const t = catalogue(locale);
   const c = t.csv;
   const rates = [...vatRates];
@@ -68,7 +68,7 @@ function csvText(list: ListRow[], locale: Locale, corrected: Map<string, string>
   return toCsv([header, ...body], separatorFor(locale));
 }
 
-const fileBase = (p: Period, locale: Locale) => `${slug(catalogue(locale).meta.name)}_${p.from}_${p.to}`;
+export const fileBase = (p: Period, locale: Locale) => `${slug(catalogue(locale).meta.name)}_${p.from}_${p.to}`;
 
 export async function exportCsv(sql: Query, actor: Member | null, locale: Locale, p: Period, today: string): Promise<{ text: string; fileName: string; count: number }> {
   const list = await rows(sql, actor, p, today);
@@ -77,7 +77,7 @@ export async function exportCsv(sql: Query, actor: Member | null, locale: Locale
 
 // The numbers of the invoices the credit notes correct, even when those
 // were issued in an earlier period.
-async function corrected(sql: Query, list: ListRow[]): Promise<Map<string, string>> {
+export async function corrected(sql: Query, list: ListRow[]): Promise<Map<string, string>> {
   const wanted = [...new Set(list.filter(r => r.invoiceId).map(r => Number(r.invoiceId)))];
   if (wanted.length === 0) return new Map();
   const found = await sql<{ id: number; number: string | null }[]>`select id, number from documents where id = any(${wanted}::bigint[])`;

@@ -25,6 +25,9 @@ export async function leave(sql: Sql, memberId: string): Promise<void> {
     await tx`update checklist_items set assignee = null where assignee = ${memberId} and not done`;
     await tx`delete from board_people where member_id = ${memberId}`;
     await tx`delete from reminders where member_id = ${memberId}`;
+    // Emails waiting for them, and what their bell showed, go.
+    await tx`delete from mail_queue where member_id = ${memberId}`;
+    await tx`delete from comment_notices where member_id = ${memberId}`;
   });
 }
 
@@ -34,6 +37,11 @@ export async function erase(sql: Sql, memberId: string): Promise<void> {
     await tx`update checklist_items set assignee = null where assignee = ${memberId}`;
     await tx`delete from board_people where member_id = ${memberId}`;
     await tx`delete from reminders where member_id = ${memberId}`;
+    await tx`delete from mail_queue where member_id = ${memberId}`;
+    await tx`delete from comment_notices where member_id = ${memberId}`;
+    // What they did to others, still waiting to be emailed, leaves unsigned: it goes.
+    await tx`delete from mail_queue where actor = ${memberId}`;
+    await tx`update card_blockers set created_by = 'erased' where created_by = ${memberId}`;
     await tx`update boards set created_by = 'erased' where created_by = ${memberId}`;
     await tx`update cards set created_by = 'erased' where created_by = ${memberId}`;
     await tx`update comments set author = 'erased' where author = ${memberId}`;

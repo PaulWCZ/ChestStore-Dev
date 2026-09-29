@@ -454,3 +454,8 @@ a.booking-text:hover { text-decoration: underline; }
 .who-find .ck-search { max-width: none; }
 .places-body { padding-top: var(--space-5); }
 .book-for { min-width: 16rem; }
+
+/* "This is an example": said above the example office on Places. */
+.example-note { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-3); padding: var(--space-3) var(--space-4); border: var(--border-width) dashed var(--line); border-radius: var(--radius-m); background: var(--surface); }
+.example-note p { margin: 0; flex: 1 1 18rem; }
+.for-link { min-height: 44px; justify-self: start; padding-left: 0; }

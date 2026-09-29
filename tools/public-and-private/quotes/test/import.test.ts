@@ -35,7 +35,7 @@ after(async () => {
 });
 
 const fixture = (name: string) => readFileSync(join(import.meta.dirname, "fixtures", name), "utf8");
-const options = { currency: "EUR", defaultLanguage: "fr" as const };
+const options = { currency: "EUR", defaultLanguage: "fr" as const, today: "2026-09-29" };
 const refused = (code: string) => (error: unknown) => error instanceof AppError && error.code === code;
 
 test("the values of other tools: VAT rates, kinds, countries", () => {

@@ -25,7 +25,7 @@ import { AvatarStack, Dialog, Menu, Segmented, useToast } from "@argentic/chest-
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useId, useMemo, useRef, useState, useTransition, type KeyboardEvent } from "react";
-import { Archive, Arrow, Back, Calendar, Chat, Check, CheckList, Clip, Columns, Gear, ListIcon, Lock, Plus, RepeatIcon, Text } from "../../../../components/icons.tsx";
+import { Alert, Archive, Arrow, Back, Blocked, Calendar, Chat, Check, CheckList, Clip, Columns, Gear, ListIcon, Lock, Plus, RepeatIcon, Search, Sliders, Text, Timeline } from "../../../../components/icons.tsx";
 import type { BoardAccess } from "../../../../lib/access.ts";
 import type { Column, Field, Label } from "../../../../lib/boards.ts";
 import type { CardSummary } from "../../../../lib/cards.ts";
@@ -34,7 +34,8 @@ import type { Catalogue, Locale } from "../../../../lib/i18n/index.ts";
 import { addCard, addColumn, archiveBoard, archiveColumn, moveCard, moveColumn, updateColumn } from "../../actions.ts";
 import { CalendarView } from "./calendar-view.tsx";
 import { ListView } from "./list-view.tsx";
-import type { CalendarMonth } from "./page.tsx";
+import type { CalendarMonth, TimelineWindow } from "./page.tsx";
+import { TimelineView } from "./timeline-view.tsx";
 
 type Words = { board: Catalogue["board"]; card: Catalogue["card"]; errors: Catalogue["errors"]; colors: Catalogue["colors"]; dialog: Catalogue["dialog"] };
 export type People = Record<string, { name: string; photo: string | null }>;
@@ -49,8 +50,9 @@ type Props = {
   me: string;
   today: string;
   locale: Locale;
-  view: "board" | "list" | "calendar";
+  view: "board" | "list" | "calendar" | "timeline";
   calendar: CalendarMonth | null;
+  timeline: TimelineWindow | null;
   filter: { who: string; label: string };
   t: Words;
 };
@@ -66,7 +68,7 @@ const raw = (key: UniqueIdentifier) => String(key).replace(/^(card|lane):/u, "")
 type Lanes = Record<string, string[]>;
 const lanesOf = (columns: Column[], cards: CardSummary[]): Lanes => Object.fromEntries(columns.map(c => [c.id, cards.filter(k => k.columnId === c.id).map(k => k.id)]));
 
-export function BoardView({ board, columns, labels, fields, cards, people, audience, me, today, locale, view, calendar, filter, t }: Props) {
+export function BoardView({ board, columns, labels, fields, cards, people, audience, me, today, locale, view, calendar, timeline, filter, t }: Props) {
   const router = useRouter();
   const path = usePathname();
   const toast = useToast();
@@ -84,9 +86,12 @@ export function BoardView({ board, columns, labels, fields, cards, people, audie
   const fail = (error: keyof Catalogue["errors"], values?: Record<string, string | number>) => void toast({ text: format(t.errors[error], values), tone: "error" });
   const matches = (c: CardSummary) => (filter.who === "" || (filter.who === "me" ? c.assignees.includes(me) : c.assignees.includes(filter.who))) && (filter.label === "" || c.labels.includes(filter.label));
   const filtered = filter.who !== "" || filter.label !== "";
+  // On a phone the view and the filters fold behind one button.
+  const [tools, setTools] = useState(false);
+  const on = Number(filter.who !== "") + Number(filter.label !== "");
   // The address keeps the view and the filters (a link shows the same).
   const query = (change: Record<string, string>) => {
-    const params = new URLSearchParams({ ...(view !== "board" ? { view } : {}), ...(view === "calendar" && calendar ? { month: calendar.month } : {}), ...(filter.who ? { who: filter.who } : {}), ...(filter.label ? { label: filter.label } : {}) });
+    const params = new URLSearchParams({ ...(view !== "board" ? { view } : {}), ...(view === "calendar" && calendar ? { month: calendar.month } : {}), ...(view === "timeline" && timeline && timeline.first !== timeline.current ? { from: timeline.first } : {}), ...(filter.who ? { who: filter.who } : {}), ...(filter.label ? { label: filter.label } : {}) });
     for (const [key, value] of Object.entries(change)) if (value) params.set(key, value); else params.delete(key);
     return `${path}${params.size ? "?" + params.toString() : ""}`;
   };
@@ -191,11 +196,15 @@ export function BoardView({ board, columns, labels, fields, cards, people, audie
     const index = list.indexOf(active);
     const original = byId.get(active);
     if (original && original.columnId === to && lanesOf(columns, cards)[to]!.indexOf(active) === index) return;
+    const after = list[index - 1] ?? null, before = list[index + 1] ?? null;
     start(async () => {
-      const result = await moveCard(active, to, list[index - 1] ?? null, list[index + 1] ?? null);
+      const result = await moveCard(active, to, after, before);
       if (!result.ok) {
         setLanes(lanesOf(columns, cards));
-        fail(result.error, result.values);
+        // A card that waits for others: said, and "Mark done anyway".
+        if (result.error === "blocked") {
+          toast({ id: `blocked-${active}`, text: format(t.errors.blocked, result.values), tone: "error", action: { label: t.card.doneAnyway, run: () => start(async () => { const again = await moveCard(active, to, after, before, true); if (!again.ok) fail(again.error, again.values); }) } });
+        } else fail(result.error, result.values);
       }
     });
   }
@@ -213,6 +222,10 @@ export function BoardView({ board, columns, labels, fields, cards, people, audie
         <h1>{board.name}</h1>
         {board.privacy && <Link className="privacy" href={`/chest/boards/${board.id}/settings`} title={t.board.privateTitle}><Lock /><span className="visually-hidden">{t.board.privateTitle}: </span>{board.privacy}</Link>}
         <span className="spacer" />
+        <button type="button" className="tools-toggle" aria-expanded={tools} aria-controls="board-tools" onClick={() => setTools(!tools)}>
+          <Sliders />{t.board.tools}{on > 0 && <span className="count" aria-label={plural(t.board.toolsOn, on, locale)}>{on}</span>}
+        </button>
+        <div id="board-tools" className={`board-tools${tools ? " is-open" : ""}`}>
         <div className="filters">
           <label className="visually-hidden" htmlFor="filter-who">{t.board.filter}</label>
           <select id="filter-who" value={filter.who} onChange={e => setFilter("who", e.target.value)}>
@@ -233,10 +246,14 @@ export function BoardView({ board, columns, labels, fields, cards, people, audie
         </div>
         {/* The view is kept in the address: the kit's Segmented, its link variant. */}
         <Segmented label={t.board.views} link={Link} value={view} className="views" options={[
-          { value: "board", label: t.board.boardView, icon: <Columns />, href: query({ view: "", month: "" }) },
-          { value: "list", label: t.board.listView, icon: <ListIcon />, href: query({ view: "list", month: "" }) },
-          { value: "calendar", label: t.board.calendarView, icon: <Calendar />, href: query({ view: "calendar" }) },
+          { value: "board", label: t.board.boardView, icon: <Columns />, href: query({ view: "", month: "", from: "" }) },
+          { value: "list", label: t.board.listView, icon: <ListIcon />, href: query({ view: "list", month: "", from: "" }) },
+          { value: "calendar", label: t.board.calendarView, icon: <Calendar />, href: query({ view: "calendar", from: "" }) },
+          { value: "timeline", label: t.board.timelineView, icon: <Timeline />, href: query({ view: "timeline", month: "" }) },
         ]} />
+        {/* The Chest's search box is folded away on a phone's board: here it is. */}
+        <Link className="button small quiet phone-only" href="/chest/search"><Search />{t.board.search}</Link>
+        </div>
         <Link className="icon-button" href={`/chest/boards/${board.id}/settings`} title={t.board.settings}><Gear /><span className="visually-hidden">{t.board.settings}</span></Link>
       </div>
       {board.archived && (
@@ -251,6 +268,8 @@ export function BoardView({ board, columns, labels, fields, cards, people, audie
         <ListView columns={columns} cards={cards.filter(matches)} labels={labels} fields={fields} people={people} today={today} locale={locale} t={t} />
       ) : view === "calendar" && calendar ? (
         <CalendarView calendar={calendar} cards={cards.filter(matches)} labels={labels} writable={writable} locale={locale} query={query} onError={fail} t={t} />
+      ) : view === "timeline" && timeline ? (
+        <TimelineView timeline={timeline} columns={columns} cards={cards.filter(matches)} people={people} writable={writable} locale={locale} query={query} onError={fail} t={t} />
       ) : (
         <DndContext sensors={sensors} collisionDetection={collision} onDragStart={onDragStart} onDragOver={onDragOver} onDragEnd={onDragEnd} onDragCancel={() => { setDragging(null); setLanes(lanesOf(columns, cards)); }} accessibility={{ announcements, screenReaderInstructions: { draggable: t.board.moveHint } }}>
           {columns.length > 1 && (
@@ -386,13 +405,17 @@ function CardTile({ card, labels, people, today, locale, overlay = false, t }: {
   const cardLabels = card.labels.map(id => labels.find(l => l.id === id)).filter((l): l is Label => !!l);
   const due = card.due;
   const state = !due || card.done ? "" : due < today ? "due-late" : due === today ? "due-today" : "";
+  const blocked = card.waiting > 0 && !card.done;
   return (
     <div className={`card${card.done ? " is-done" : ""}${overlay ? " overlay" : ""}`}>
-      {cardLabels.length > 0 && <div className="labels">{cardLabels.map(l => <span key={l.id} className={`bar c-${l.color}`} title={l.name || t.colors[l.color]} />)}</div>}
+      {/* Labels by name: in a look of greys the words still tell them apart. */}
+      {cardLabels.length > 0 && <div className="labels">{cardLabels.map(l => <span key={l.id} className={`label-tag c-${l.color}`}>{l.name || t.colors[l.color]}</span>)}</div>}
       <span className="card-title">{card.title}</span>
-      {(due || card.repeats || card.checklist.total > 0 || card.comments > 0 || card.attachments > 0 || card.hasDescription || card.assignees.length > 0) && (
+      {(due || blocked || card.repeats || card.checklist.total > 0 || card.comments > 0 || card.attachments > 0 || card.hasDescription || card.assignees.length > 0) && (
         <span className="meta">
-          {due && <span className={`chip ${card.done ? "done" : state}`}><Calendar />{state === "due-late" && <span className="visually-hidden">{t.card.late} · </span>}{state === "due-today" ? t.card.today : new Intl.DateTimeFormat(intl(locale), { day: "numeric", month: "short", timeZone: "UTC" }).format(new Date(due + "T00:00:00Z"))}{card.dueTime && " · " + card.dueTime}</span>}
+          {/* Late says so in a word and a sign, never by its colour alone. */}
+          {due && <span className={`chip ${card.done ? "done" : state}`}>{state === "due-late" ? <><Alert /><span>{t.card.late}</span> · </> : <Calendar />}{state === "due-today" ? t.card.today : new Intl.DateTimeFormat(intl(locale), { day: "numeric", month: "short", timeZone: "UTC" }).format(new Date(due + "T00:00:00Z"))}{card.dueTime && " · " + card.dueTime}</span>}
+          {blocked && <span className="chip blocked" title={plural(t.card.blockedCount, card.waiting, locale)}><Blocked />{t.card.blockedBadge}<span className="visually-hidden"> · {plural(t.card.blockedCount, card.waiting, locale)}</span></span>}
           {card.repeats && !card.done && <span className="stat" title={t.card.repeatBadge}><RepeatIcon /><span className="visually-hidden">{t.card.repeatBadge}</span></span>}
           {card.hasDescription && <span className="stat" title={t.card.description}><Text /></span>}
           {card.checklist.total > 0 && <span className={`stat${card.checklist.done === card.checklist.total ? " chip done" : ""}`} title={t.card.checklist}><CheckList />{card.checklist.done}/{card.checklist.total}</span>}

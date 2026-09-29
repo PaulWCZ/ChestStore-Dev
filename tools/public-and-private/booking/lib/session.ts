@@ -1,6 +1,7 @@
 import { member, type Member } from "@argentic/chest-sdk/member";
 import { cookies, headers } from "next/headers";
 import { catalogue, isLocale, publicLocale, type Catalogue, type Locale } from "./i18n/index.ts";
+import { pageLanguage, pageLanguages, type HostLanguages } from "./texts.ts";
 
 // Who is making this request, as the Chest asserts it (the Chest-Member
 // header on the team host): null on the public host, or for anything that
@@ -26,6 +27,15 @@ export async function viewer(): Promise<Viewer | null> {
 export async function publicWords(): Promise<{ locale: Locale; t: Catalogue }> {
   const locale = publicLocale((await cookies()).get("lang")?.value, (await headers()).get("accept-language"));
   return { locale, t: catalogue(locale) };
+}
+
+// The language of a host's public page: the visitor's when the host wrote
+// their texts in it, otherwise the host's (lib/texts.ts); languages: those
+// the page's switch offers.
+export async function hostWords(host: HostLanguages): Promise<{ locale: Locale; t: Catalogue; languages: Locale[] }> {
+  const wanted = await publicWords();
+  const locale = pageLanguage(host, wanted.locale);
+  return { locale, t: catalogue(locale), languages: pageLanguages(host) };
 }
 
 // The language of whatever page is being rendered: the member's on /chest,

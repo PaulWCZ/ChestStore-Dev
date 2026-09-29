@@ -61,10 +61,11 @@ export default async function FrontPage({ searchParams }: { searchParams: Promis
         <p className="dateline"><span>{d.today()}</span></p>
         <h1>{t.meta.name}</h1>
       </header>
-      <nav className="sections" aria-label={t.shell.sections}>
+      {/* A company with nothing published yet sees no empty sections. */}
+      {(lead || kind) && <nav className="sections" aria-label={t.shell.sections}>
         <a href="/chest" aria-current={kind === null ? "page" : undefined}>{t.sections.all}</a>
         {kinds.map(k => <a key={k} href={`/chest?kind=${k}`} aria-current={kind === k ? "page" : undefined}>{t.sections[k]}</a>)}
-      </nav>
+      </nav>}
 
       {f.toConfirm.length > 0 && (
         <p className="asks-you" role="status">
@@ -79,6 +80,8 @@ export default async function FrontPage({ searchParams }: { searchParams: Promis
           title={kind ? t.front.emptySection[kind as keyof typeof t.front.emptySection] : t.front.empty.title}
           body={kind ? null : publisher ? t.front.empty.body : t.front.empty.reader}
           action={emptyAction}
+          example={!kind && publisher ? { label: t.front.empty.welcome, href: "/chest/new?kind=welcome" } : null}
+          note={!kind && publisher ? <a href="/chest/transfer">{t.front.empty.moving}</a> : null}
         />
       ) : (
         <div className="front-grid">

@@ -18,10 +18,10 @@ begin
   -- Office move: the team's shared board.
   insert into boards (name, color, visibility, created_by) values ('Office move', 'sun', 'team', camille) returning id into b1;
   insert into board_people (board_id, member_id, owner) values (b1, camille, true);
-  insert into columns (board_id, name, position) values (b1, 'To do', 'i') returning id into c_todo;
+  insert into columns (board_id, key, name, position) values (b1, 'todo', 'To do', 'i') returning id into c_todo;
   c_move := c_todo;
-  insert into columns (board_id, name, position) values (b1, 'Doing', 'r') returning id into c_doing;
-  insert into columns (board_id, name, position, done) values (b1, 'Done', 'v', true) returning id into c_done;
+  insert into columns (board_id, key, name, position) values (b1, 'doing', 'Doing', 'r') returning id into c_doing;
+  insert into columns (board_id, key, name, position, done) values (b1, 'done', 'Done', 'v', true) returning id into c_done;
   insert into labels (board_id, name, color) values (b1, 'Urgent', 'tomato') returning id into l_urgent;
   insert into labels (board_id, name, color) values (b1, 'Suppliers', 'sky') returning id into l_client;
   insert into fields (board_id, name, kind, options, position) values (b1, 'Budget (€)', 'number', '[]', 'i') returning id into f_budget;
@@ -36,18 +36,18 @@ begin
   insert into comments (card_id, author, body, created_at) values (k, ines, 'MoveUp answered: 1,450 € with insurance.', now() - interval '3 hours');
   insert into activity (card_id, actor, kind, at) values (k, camille, 'created', now() - interval '6 days');
 
-  insert into cards (board_id, column_id, title, position, due_on, created_by, created_at) values (b1, c_todo, 'Order 40 archive boxes', 'r', current_date, camille, now() - interval '4 days') returning id into k;
+  insert into cards (board_id, column_id, title, position, due_on, start_on, created_by, created_at) values (b1, c_todo, 'Order 40 archive boxes', 'r', current_date, current_date - 2, camille, now() - interval '4 days') returning id into k;
   insert into card_assignees values (k, ines);
   insert into card_values values (k, f_budget, '120'), (k, f_priority, 'Medium');
   insert into checklist_items (card_id, text, done, position) values (k, 'Compare prices', true, 'i'), (k, 'Order', false, 'r');
   insert into activity (card_id, actor, kind, at) values (k, camille, 'created', now() - interval '4 days');
 
-  insert into cards (board_id, column_id, title, position, due_on, created_by, created_at) values (b1, c_todo, 'Tell our clients about the new address', 'v', current_date + 4, camille, now() - interval '4 days') returning id into k;
+  insert into cards (board_id, column_id, title, position, due_on, start_on, created_by, created_at) values (b1, c_todo, 'Tell our clients about the new address', 'v', current_date + 4, current_date + 1, camille, now() - interval '4 days') returning id into k;
   insert into card_assignees values (k, sofia), (k, ines); insert into card_labels values (k, l_client);
   insert into card_values values (k, f_priority, 'Medium');
   insert into activity (card_id, actor, kind, at) values (k, camille, 'created', now() - interval '4 days');
 
-  insert into cards (board_id, column_id, title, position, due_on, created_by, created_at) values (b1, c_todo, 'Plan the housewarming drinks', 'x', current_date + 12, camille, now() - interval '2 days') returning id into k;
+  insert into cards (board_id, column_id, title, position, due_on, start_on, created_by, created_at) values (b1, c_todo, 'Plan the housewarming drinks', 'x', current_date + 12, current_date + 8, camille, now() - interval '2 days') returning id into k;
   insert into card_values values (k, f_budget, '300'), (k, f_priority, 'Low');
   insert into activity (card_id, actor, kind, at) values (k, camille, 'created', now() - interval '2 days');
 
@@ -57,7 +57,7 @@ begin
   insert into checklist_items (card_id, text, done, position, assignee, due_on) values (k, 'Sign the contract', true, 'i', null, null), (k, 'Technician visit', false, 'r', tom, current_date + 2), (k, 'Test the Wi-Fi', false, 'v', hugo, current_date + 3);
   insert into activity (card_id, actor, kind, at) values (k, tom, 'created', now() - interval '5 days');
 
-  insert into cards (board_id, column_id, title, position, due_on, created_by, created_at) values (b1, c_doing, 'Floor plan: who sits where', 'r', current_date + 6, camille, now() - interval '3 days') returning id into k;
+  insert into cards (board_id, column_id, title, position, due_on, start_on, created_by, created_at) values (b1, c_doing, 'Floor plan: who sits where', 'r', current_date + 6, current_date + 1, camille, now() - interval '3 days') returning id into k;
   insert into card_assignees values (k, camille);
   insert into comments (card_id, author, body, created_at) values (k, lea, 'Can the tech team be next to the window? @Camille Martin', now() - interval '1 day');
   insert into activity (card_id, actor, kind, at) values (k, camille, 'created', now() - interval '3 days');
@@ -69,19 +69,19 @@ begin
   -- Website redesign: a project board.
   insert into boards (name, color, visibility, created_by) values ('Website redesign', 'grape', 'team', lea) returning id into b2;
   insert into board_people (board_id, member_id, owner) values (b2, lea, true);
-  insert into columns (board_id, name, position) values (b2, 'Ideas', 'i') returning id into c_ideas;
-  insert into columns (board_id, name, position) values (b2, 'To do', 'r') returning id into c_todo;
-  insert into columns (board_id, name, position) values (b2, 'Doing', 'v') returning id into c_doing;
-  insert into columns (board_id, name, position) values (b2, 'To check', 'x') returning id into c_review;
-  insert into columns (board_id, name, position, done) values (b2, 'Done', 'z', true) returning id into c_done;
+  insert into columns (board_id, key, name, position) values (b2, 'ideas', 'Ideas', 'i') returning id into c_ideas;
+  insert into columns (board_id, key, name, position) values (b2, 'todo', 'To do', 'r') returning id into c_todo;
+  insert into columns (board_id, key, name, position) values (b2, 'doing', 'Doing', 'v') returning id into c_doing;
+  insert into columns (board_id, key, name, position) values (b2, 'review', 'To check', 'x') returning id into c_review;
+  insert into columns (board_id, key, name, position, done) values (b2, 'done', 'Done', 'z', true) returning id into c_done;
   insert into labels (board_id, name, color) values (b2, 'Design', 'berry') returning id into l_design;
   insert into labels (board_id, name, color) values (b2, 'Development', 'sea') returning id into l_dev;
   insert into cards (board_id, column_id, title, position, created_by) values (b2, c_ideas, 'A page per service, with prices', 'i', sofia) returning id into k;
-  insert into cards (board_id, column_id, title, position, due_on, created_by) values (b2, c_todo, 'Write the "About us" text', 'i', current_date + 10, lea) returning id into k;
+  insert into cards (board_id, column_id, title, position, due_on, start_on, created_by) values (b2, c_todo, 'Write the "About us" text', 'i', current_date + 10, current_date + 4, lea) returning id into k;
   insert into card_assignees values (k, sofia);
-  insert into cards (board_id, column_id, title, position, due_on, created_by) values (b2, c_doing, 'Homepage mockup', 'i', current_date + 3, lea) returning id into k;
+  insert into cards (board_id, column_id, title, position, due_on, start_on, created_by) values (b2, c_doing, 'Homepage mockup', 'i', current_date + 3, current_date - 4, lea) returning id into k;
   insert into card_assignees values (k, lea); insert into card_labels values (k, l_design);
-  insert into cards (board_id, column_id, title, position, due_on, created_by) values (b2, c_review, 'Contact form sends to Support', 'i', current_date + 1, tom) returning id into k;
+  insert into cards (board_id, column_id, title, position, due_on, start_on, created_by) values (b2, c_review, 'Contact form sends to Support', 'i', current_date + 1, current_date - 1, tom) returning id into k;
   insert into card_assignees values (k, tom), (k, hugo); insert into card_labels values (k, l_dev);
   insert into cards (board_id, column_id, title, position, created_by, completed_at) values (b2, c_done, 'Pick the fonts', 'i', lea, now() - interval '5 days') returning id into k;
   insert into card_labels values (k, l_design);
@@ -89,10 +89,10 @@ begin
   -- Léa's arrival: a private onboarding board.
   insert into boards (name, color, visibility, created_by) values ('Arrival of Nora', 'leaf', 'private', camille) returning id into b3;
   insert into board_people (board_id, member_id, owner) values (b3, camille, true), (b3, tom, false);
-  insert into columns (board_id, name, position) values (b3, 'Before day one', 'i') returning id into c_todo;
-  insert into columns (board_id, name, position) values (b3, 'Day one', 'r') returning id into c_doing;
-  insert into columns (board_id, name, position) values (b3, 'First week', 'v') returning id into c_review;
-  insert into columns (board_id, name, position, done) values (b3, 'Done', 'x', true) returning id into c_done;
+  insert into columns (board_id, key, name, position) values (b3, 'before', 'Before day one', 'i') returning id into c_todo;
+  insert into columns (board_id, key, name, position) values (b3, 'firstDay', 'Day one', 'r') returning id into c_doing;
+  insert into columns (board_id, key, name, position) values (b3, 'firstWeek', 'First week', 'v') returning id into c_review;
+  insert into columns (board_id, key, name, position, done) values (b3, 'done', 'Done', 'x', true) returning id into c_done;
   insert into cards (board_id, column_id, title, position, due_on, created_by) values (b3, c_todo, 'Prepare her laptop', 'i', current_date + 5, camille) returning id into k;
   insert into card_assignees values (k, tom);
   insert into cards (board_id, column_id, title, position, created_by) values (b3, c_doing, 'Welcome breakfast', 'i', camille);
@@ -103,4 +103,11 @@ begin
   insert into card_assignees values (k, ines);
   insert into checklist_items (card_id, text, done, position) values (k, 'Big plants by the window', false, 'i'), (k, 'Reception desk', false, 'r');
   insert into activity (card_id, actor, kind) values (k, ines, 'created'), (k, ines, 'repeat_set');
+
+  -- "Blocked by": the clients are told once the truck is booked; the
+  -- drinks wait for the floor plan; the contact form waits for the
+  -- homepage (and is due before it: the timeline shows it in red).
+  insert into card_blockers (card_id, blocker_id, created_by)
+    select a.id, b.id, camille from cards a join cards b on b.board_id = a.board_id
+    where (a.title, b.title) in (('Tell our clients about the new address', 'Book the moving truck for the 14th'), ('Plan the housewarming drinks', 'Floor plan: who sits where'), ('Contact form sends to Support', 'Homepage mockup'));
 end $$;

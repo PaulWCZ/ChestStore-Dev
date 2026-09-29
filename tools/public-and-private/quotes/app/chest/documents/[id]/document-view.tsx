@@ -8,8 +8,9 @@ import { Stamp } from "../../../../components/stamp.tsx";
 import { format, formatDay } from "../../../../lib/i18n/format.ts";
 import type { Catalogue, Locale } from "../../../../lib/i18n/index.ts";
 import { formatMoney } from "../../../../lib/money.ts";
-import type { ClientOption, DocView, Fact, ItemOption, Moment, PaymentView, RelatedView, Rights } from "../../../../lib/views.ts";
-import { decide, duplicate, markReady, removeDraft, removePayment, restoreDraft, restorePayment, startCreditNote, stopRepeat } from "../../actions.ts";
+import type { ClientOption, DocView, Fact, ItemOption, Moment, OnlineView, PaymentView, RelatedView, Rights } from "../../../../lib/views.ts";
+import { CopyLink } from "../../../../components/copy-link.tsx";
+import { decide, duplicate, markReady, removeDraft, removePayment, renewLink, restoreDraft, restorePayment, revokeLink, startCreditNote, stopRepeat } from "../../actions.ts";
 import { FinaliseDialog, InvoiceDialog, PaymentDialog, RepeatDialog, SendDialog } from "./dialogs.tsx";
 import { Paper, type SaveState } from "./paper.tsx";
 
@@ -40,6 +41,8 @@ export type DocumentViewProps = {
   readyText: string | null;
   // The first dates a repeat would suggest, per period (an issued invoice).
   repeatDates: Record<"month" | "quarter" | "year", string> | null;
+  // A sent quote's online answer: its link and the answers given.
+  online: OnlineView | null;
 };
 
 type Open = "send" | "reminder" | "finalise" | "invoice" | "payment" | "repeat" | null;
@@ -91,6 +94,8 @@ export function DocumentView(props: DocumentViewProps) {
   const invoice = doc.type === "invoice";
   const credit = doc.type === "credit";
   const final = doc.status === "final";
+  // An invoice imported from the previous tool: only collected here.
+  const collectable = final || doc.imported;
   const canFinalise = rights.issue && draft && !quote;
 
   const primary = (() => {
@@ -115,18 +120,18 @@ export function DocumentView(props: DocumentViewProps) {
     }
     if (final && !doc.sentAt && rights.issue) return <button type="button" className="button block" onClick={() => setOpen("send")}><Send />{d.actions.sendToClient}</button>;
     // Late, the job is the reminder; otherwise the payment.
-    if (invoice && final && doc.due > 0 && rights.pay && doc.state === "overdue") return <button type="button" className="button block" onClick={() => setOpen("reminder")}><Bell />{d.actions.remind}</button>;
-    if (invoice && final && doc.due > 0 && rights.pay) return <button type="button" className="button block" onClick={() => setOpen("payment")}><Coins />{d.actions.recordPayment}</button>;
+    if (invoice && collectable && doc.due > 0 && rights.pay && doc.state === "overdue") return <button type="button" className="button block" onClick={() => setOpen("reminder")}><Bell />{d.actions.remind}</button>;
+    if (invoice && collectable && doc.due > 0 && rights.pay) return <button type="button" className="button block" onClick={() => setOpen("payment")}><Coins />{d.actions.recordPayment}</button>;
     return null;
   })();
 
   const secondary: { key: string; node: React.ReactNode }[] = [];
   const add = (key: string, node: React.ReactNode) => secondary.push({ key, node });
-  add("pdf", <a className="link-button" href={pdfHref} onClick={e => void downloadPdf(e)}><Download /> {draft ? d.actions.previewPdf : d.actions.downloadPdf}</a>);
+  if (!doc.imported) add("pdf", <a className="link-button" href={pdfHref} onClick={e => void downloadPdf(e)}><Download /> {draft ? d.actions.previewPdf : d.actions.downloadPdf}</a>);
   if (quote && rights.quote && !draft && doc.state !== "refused") add("resend", <button type="button" className="link-button" onClick={() => void openDialog("send")}>{d.actions.sendAgain}</button>);
   if (final && doc.sentAt && rights.issue) add("resend", <button type="button" className="link-button" onClick={() => setOpen("send")}>{d.actions.sendAgain}</button>);
-  if (invoice && final && doc.due > 0 && rights.pay && (doc.sentAt === null || doc.state === "overdue")) add("pay", <button type="button" className="link-button" onClick={() => setOpen("payment")}>{d.actions.recordPayment}</button>);
-  if (invoice && final && doc.due > 0 && rights.pay && doc.state !== "overdue") add("remind", <button type="button" className="link-button" onClick={() => setOpen("reminder")}>{d.actions.remind}</button>);
+  if (invoice && collectable && doc.due > 0 && rights.pay && ((final && doc.sentAt === null) || doc.state === "overdue")) add("pay", <button type="button" className="link-button" onClick={() => setOpen("payment")}>{d.actions.recordPayment}</button>);
+  if (invoice && collectable && doc.due > 0 && rights.pay && doc.state !== "overdue") add("remind", <button type="button" className="link-button" onClick={() => setOpen("reminder")}>{d.actions.remind}</button>);
   if (invoice && final && doc.depositPercent === null && rights.issue && !doc.repeat && props.repeatDates) add("repeat", <button type="button" className="link-button" onClick={() => setOpen("repeat")}><Repeat /> {d.actions.repeat}</button>);
   if (doc.repeat && rights.issue) add("stop", <button type="button" className="link-button" onClick={() => void run(() => stopRepeat(doc.repeat!.id), () => { say(d.toasts.repeatStopped); router.refresh(); })}>{d.actions.stopRepeat}</button>);
   if (invoice && final && rights.issue && doc.credited < doc.gross) add("credit", <button type="button" className="link-button" onClick={() => void run(() => startCreditNote(doc.id), v => { say(d.toasts.creditStarted); router.push(`/chest/documents/${v.id}`); })}>{d.actions.creditNote}</button>);
@@ -150,8 +155,19 @@ export function DocumentView(props: DocumentViewProps) {
               {doc.status === "sent" ? d.editingSent + " · " : ""}{saveText}
             </p>
           )}
-          <Paper doc={doc} t={t} words={props.words} locale={locale} today={props.today} dateWords={t.date} editing={rights.edit} clients={props.clients} items={props.items} canAddClient={rights.quote}
-            logo={props.logo} dates={props.dates} flushRef={flushRef} onState={onState} onTotals={onTotals} />
+          {doc.imported ? (
+            <section className="card imported-note">
+              <h2>{format(d.importedTitle, { number: doc.number ?? "" })}</h2>
+              <p>{d.importedBody}</p>
+              <dl className="facts">
+                <div className="fact"><dt>{t.list.head.client}</dt><dd>{doc.buyer?.name ?? t.list.noClient}</dd></div>
+                <div className="fact"><dt>{d.facts.issued}</dt><dd>{props.dates.issue}</dd></div>
+              </dl>
+            </section>
+          ) : (
+            <Paper doc={doc} t={t} words={props.words} locale={locale} today={props.today} dateWords={t.date} editing={rights.edit} clients={props.clients} items={props.items} canAddClient={rights.quote}
+              logo={props.logo} dates={props.dates} flushRef={flushRef} onState={onState} onTotals={onTotals} />
+          )}
         </div>
         <aside className="side" aria-label={d.margin}>
           <section className="card">
@@ -172,6 +188,7 @@ export function DocumentView(props: DocumentViewProps) {
             {primary && <div className="actions wide-actions">{primary}</div>}
             {secondary.length > 0 && <div className="more">{secondary.map(s => <span key={s.key}>{s.node}</span>)}</div>}
           </section>
+          {props.online && <OnlineCard docId={doc.id} online={props.online} t={t} canWrite={rights.quote} waiting={doc.state === "sent"} onDone={(text: string) => { say(text); router.refresh(); }} onError={fail} />}
           {props.payments.length > 0 && (
             <section className="card">
               <h2>{d.payments}</h2>
@@ -224,5 +241,54 @@ export function DocumentView(props: DocumentViewProps) {
       {open === "payment" && <PaymentDialog t={t} doc={doc} locale={locale} today={props.today} onClose={() => setOpen(null)} onDone={text => { setOpen(null); say(text); }} />}
       {open === "repeat" && props.repeatDates && <RepeatDialog t={t} doc={doc} today={props.today} suggested={props.repeatDates} onClose={() => setOpen(null)} onDone={date => { setOpen(null); say(format(d.toasts.repeatSet, { date: formatDay(date, locale, { day: "numeric", month: "long", year: "numeric" }) })); router.refresh(); }} />}
     </div>
+  );
+}
+
+// The quote's online answer, in the margin: the link to give the client
+// (copied, or turned off; a new one made), and every answer given online
+// with its proof — the name typed, the day, the time, a hash of the
+// visitor's address, their browser, the fingerprint of the exact PDF —
+// and that PDF.
+function OnlineCard({ docId, online, t, canWrite, waiting, onDone, onError }: { docId: string; online: OnlineView; t: Catalogue; canWrite: boolean; waiting: boolean; onDone: (text: string) => void; onError: (error: string) => void }) {
+  const o = t.doc.online;
+  const [busy, setBusy] = useState(false);
+  async function run(step: () => Promise<{ ok: true } | { ok: false; error: string }>, text: string) {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const result = await step();
+      if (result.ok) onDone(text);
+      else onError(result.error);
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <section className="card online" aria-labelledby="online-title">
+      <h2 id="online-title">{o.title}</h2>
+      {online.live ? (
+        <>
+          <p className="hint">{waiting ? format(o.explain, { date: online.until }) : o.explainAnswered}</p>
+          {online.url ? <CopyLink url={online.url} label={o.linkLabel} copy={o.copy} done={o.copied} /> : <p className="hint">{o.noAddress}</p>}
+          {canWrite && <p className="more"><button type="button" className="link-button" disabled={busy} onClick={() => void run(() => revokeLink(docId), o.offDone)}>{o.off}</button></p>}
+        </>
+      ) : (
+        <>
+          <p className="hint">{o.none}</p>
+          {canWrite && waiting && <p><button type="button" className="button quiet small" disabled={busy} onClick={() => void run(() => renewLink(docId), o.renewed)}>{o.renew}</button></p>}
+        </>
+      )}
+      {online.answers.map(a => (
+        <details key={a.id} className="proof">
+          <summary><span className={a.accepted ? "tag ok" : "tag"}>{a.title}</span> <span className="when">{a.when}</span></summary>
+          {a.reason && <blockquote>{a.reason}</blockquote>}
+          <dl className="facts">
+            {a.proof.map(f => <div key={f.label} className="fact"><dt>{f.label}</dt><dd className="proof-value">{f.value}</dd></div>)}
+          </dl>
+          {a.pdf && <p><a className="link-button" href={a.pdf}><Download /> {o.proofPdf}</a></p>}
+          <p className="hint">{o.notSignature}</p>
+        </details>
+      ))}
+    </section>
   );
 }

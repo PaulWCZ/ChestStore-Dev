@@ -18,6 +18,8 @@ export type RowView = {
   amount: string;
   stamp: { kind: StampKind; text: string };
   card: boolean;
+  // A company card payment of a statement, still without its receipt.
+  receiptNeeded: boolean;
   thumb: string | null;
   // The receipt itself (opens in a new tab) and a large preview of a photo.
   open: string | null;
@@ -67,6 +69,7 @@ export function rowView(e: Expense, ctx: RowContext): RowView {
     amount: formatMoney(e.amount, e.currency, locale),
     stamp: stampOf(e, t),
     card: e.paidBy === "company",
+    receiptNeeded: e.fromCard && !e.receipt && e.status === "draft",
     thumb: e.receipt && thumbnailTypes.includes(e.receipt.type) ? `/chest/receipts/${e.id}?size=256` : null,
     open: e.receipt ? `/chest/receipts/${e.id}` : null,
     preview: e.receipt && thumbnailTypes.includes(e.receipt.type) ? `/chest/receipts/${e.id}?size=1024` : null,

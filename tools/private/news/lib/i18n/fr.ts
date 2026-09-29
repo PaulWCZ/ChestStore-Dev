@@ -24,7 +24,7 @@ export const fr: Catalogue = {
     back: "Retour à la une",
   },
   roles: {
-    publisher: "Rédaction",
+    publisher: "Rédacteur",
     reader: "Lecteur",
   },
   shell: {
@@ -82,6 +82,8 @@ export const fr: Catalogue = {
       title: "Rien de publié pour l’instant",
       body: "Les Actualités, c’est là que toute l’entreprise apprend ce qui compte : annonces, événements, nouveaux collègues.",
       action: "Écrire la première publication",
+      welcome: "Accueillir un nouveau collègue",
+      moving: "Vous venez de Slack ? Importez un canal",
       reader: "Les premières publications apparaîtront ici.",
     },
     emptySection: {
@@ -156,16 +158,19 @@ export const fr: Catalogue = {
     reminded: { one: "Relance envoyée à {count} personne.", other: "Relance envoyée à {count} personnes." },
     download: "Télécharger la liste",
     incomplete: "Le Chest n’a pas donné la liste complète des personnes : certaines peuvent manquer.",
-    privacy: "Seul un clic sur « Je l’ai lue » compte. Actualités n’enregistre jamais qui a ouvert une publication.",
+    privacy: "Seul un clic sur « Je l’ai lue » compte. Qui a ouvert une publication n’est jamais montré.",
     earlier: { one: "{count} personne a confirmé une version précédente et doit reconfirmer.", other: "{count} personnes ont confirmé une version précédente et doivent reconfirmer." },
   },
   reach: {
     title: "Portée",
-    came: "{came} des {total} personnes concernées ont ouvert les Actualités depuis sa publication.",
+    opened: "Ouverte par {count} des {total} personnes concernées.",
+    few: "Moins de 5 des {total} personnes concernées l’ont ouverte pour l’instant.",
+    hourly: "Compté toutes les heures.",
+    small: "Elle concerne moins de 5 personnes : combien l’ont ouverte n’est pas affiché, pour que personne ne soit reconnu.",
     emailed: { zero: "Personne ne l’a encore reçue par e-mail.", one: "Envoyée par e-mail à {count} personne.", other: "Envoyée par e-mail à {count} personnes." },
     emailShort: "La limite d’e-mails du jour du Chest a arrêté les autres : ils ont été prévenus dans leur cloche.",
     emailOff: "Votre Chest n’envoie pas encore d’e-mails : chacun a été prévenu dans sa cloche.",
-    privacy: "Des nombres seulement : Actualités n’enregistre jamais qui a ouvert quelle publication.",
+    privacy: "Un nombre seulement, affiché à partir de 5 personnes : Actualités ne montre jamais qui a ouvert une publication, et l’oublie 30 jours après sa parution.",
   },
   history: {
     title: { one: "{count} version précédente", other: "{count} versions précédentes" },

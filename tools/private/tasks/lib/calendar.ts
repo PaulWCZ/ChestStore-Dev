@@ -33,3 +33,44 @@ export function grid(month: string): string[][] {
   }
   return weeks;
 }
+
+// The timeline view: six weeks from a Monday, moved four weeks at a time.
+export const timelineDays = 42;
+export const timelineStep = 28;
+
+// timelineStart reads the first day asked in the address ("YYYY-MM-DD", any
+// day: its week's Monday); anything else is the Monday of last week, so
+// the recent past shows too.
+export function timelineStart(value: unknown, today: string): string {
+  const asked = typeof value === "string" && /^(20[0-9]{2}|2100)-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$/u.test(value) && addDays(value, 0) === value ? value : addDays(today, -7);
+  return addDays(asked, -((weekday(asked) + 6) % 7));
+}
+
+// daysBetween counts the days from one day to another (negative before).
+export function daysBetween(from: string, to: string): number {
+  return Math.round((Date.parse(to + "T00:00:00Z") - Date.parse(from + "T00:00:00Z")) / 86_400_000);
+}
+
+// span is where a card's bar lies in a window: from its start (or its due
+// date) to its due date (or its start), as day indexes; cut says the bar
+// goes on past an edge; null when it has no date or lies outside.
+export function span(card: { start: string | null; due: string | null }, first: string, days = timelineDays): { from: number; to: number; cutStart: boolean; cutEnd: boolean } | null {
+  const a = card.start ?? card.due, b = card.due ?? card.start;
+  if (!a || !b) return null;
+  const [s, e] = a <= b ? [a, b] : [b, a];
+  const from = daysBetween(first, s), to = daysBetween(first, e);
+  if (to < 0 || from > days - 1) return null;
+  return { from: Math.max(from, 0), to: Math.min(to, days - 1), cutStart: from < 0, cutEnd: to > days - 1 };
+}
+
+// shifted moves a card's dates by n days (a bar dragged); only the due
+// date when end is set (the bar's end dragged), never before the start.
+export function shifted(card: { start: string | null; due: string | null }, n: number, end = false): { start: string | null; due: string | null } {
+  if (end) {
+    const base = card.due ?? card.start;
+    if (!base) return card;
+    const due = addDays(base, n);
+    return { start: card.start, due: card.start && due < card.start ? card.start : due };
+  }
+  return { start: card.start ? addDays(card.start, n) : null, due: card.due ? addDays(card.due, n) : null };
+}

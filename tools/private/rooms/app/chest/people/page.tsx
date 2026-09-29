@@ -6,7 +6,7 @@ import { deskBookingsOf } from "../../../lib/desk-bookings.ts";
 import { directory } from "../../../lib/directory.ts";
 import { chestGroups } from "../../../lib/groups.ts";
 import { format, formatDay, plural } from "../../../lib/i18n/index.ts";
-import { limits, nextWorkingDay, twoWeeks, type Status } from "../../../lib/model.ts";
+import { limits, nextWorkingDay, placeName, twoWeeks, type Status } from "../../../lib/model.ts";
 import { presenceOf } from "../../../lib/presence.ts";
 
 // "Who's where": everyone who has Rooms, on one day, grouped by where they
@@ -68,7 +68,7 @@ export default async function WhoIsWhere({ searchParams }: { searchParams: Promi
                     <Avatar name={p.name} photo={p.photo} size="l" />
                     <span className="grow">
                       <strong>{p.name}</strong>
-                      {desk.map(b => <span key={b.id} className="muted small sub-line">{format(t.who.desk, { desk: b.deskName, area: b.areaName })}{b.part !== "day" ? " · " + t.parts[b.part] : ""}{c.offices.length > 1 ? " · " + (officeName.get(b.officeId) ?? "") : ""}</span>)}
+                      {desk.map(b => <span key={b.id} className="muted small sub-line">{format(t.who.desk, { desk: b.deskName, area: placeName(b.areaName, b.areaPreset, t.presets) })}{b.part !== "day" ? " · " + t.parts[b.part] : ""}{c.offices.length > 1 ? " · " + (officeName.get(b.officeId) ?? "") : ""}</span>)}
                       {desk.length === 0 && g === "office" && 1 < c.offices.length && office && <span className="muted small sub-line">{format(t.who.in, { office: officeName.get(office) ?? "" })}</span>}
                     </span>
                     {detailed && (

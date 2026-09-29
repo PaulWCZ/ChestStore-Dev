@@ -2,13 +2,13 @@
 
 import { DataTable, FilePicker, type PickedFile } from "@argentic/chest-ui/components";
 import { useState, useTransition } from "react";
-import { Box, People, Upload } from "../../../components/icons.tsx";
+import { Box, Invoice, People, Upload } from "../../../components/icons.tsx";
 import { AppError } from "../../../lib/app-error.ts";
 import { format, plural } from "../../../lib/i18n/format.ts";
 import type { Catalogue, Locale } from "../../../lib/i18n/index.ts";
 import type { ImportReport } from "../../../lib/importers.ts";
 import { fieldsOf, guessMapping, importKinds, importLimits, mapRow, mappingReady, readTable, type Field, type ImportKind, type Mapped, type Mapping, type Table } from "../../../lib/parse-import.ts";
-import { importFile } from "../actions.ts";
+import { importFile, undoImport } from "../actions.ts";
 
 type Picked = { text: string; table: Table; mapping: Mapping; fileName: string };
 
@@ -23,6 +23,7 @@ export function Importer({ t, locale, initialKind, allowed }: { t: Catalogue; lo
   const [error, setError] = useState<string | null>(null);
   const [report, setReport] = useState<{ report: ImportReport; kind: ImportKind } | null>(null);
   const [pending, start] = useTransition();
+  const [undone, setUndone] = useState<number | null>(null);
   const label = (field: Field) => w.fields[kind][field as keyof (typeof w.fields)[ImportKind]] as string;
 
   async function read(file: File) {
@@ -58,16 +59,31 @@ export function Importer({ t, locale, initialKind, allowed }: { t: Catalogue; lo
       const r = await importFile(kind, picked.text, picked.mapping);
       if (!r.ok) return setError(format(t.errors[r.error], r.values ?? {}));
       setReport({ report: r.value, kind });
+      setUndone(null);
       setPicked(null);
       setFiles([]);
     });
   }
 
+  if (report && undone !== null) {
+    return (
+      <section className="panel report" role="status">
+        <h2>{plural(w.undone, undone, locale)}</h2>
+        <div className="row-actions">
+          <button type="button" className="button" onClick={() => { setReport(null); setUndone(null); }}>{w.again}</button>
+        </div>
+      </section>
+    );
+  }
   if (report) {
     const r = report.report;
+    const batch = r.batch;
     return (
       <section className="panel report" role="status">
         <h2>{format(w.done[report.kind], { created: r.created })}</h2>
+        {report.kind === "invoices" && r.created > 0 && <p>{w.importedNote}</p>}
+        {(r.clients ?? 0) > 0 && <p className="muted">{plural(w.clientsAdded, r.clients ?? 0, locale)}</p>}
+        {(r.paid ?? 0) > 0 && <p className="muted">{plural(w.alreadyPaid, r.paid ?? 0, locale)}</p>}
         {r.duplicates > 0 && <p className="muted">{plural(w.duplicates, r.duplicates, locale)}</p>}
         {r.skipped.length > 0 && (
           <>
@@ -76,9 +92,17 @@ export function Importer({ t, locale, initialKind, allowed }: { t: Catalogue; lo
           </>
         )}
         <div className="row-actions">
-          <a className="button" href={report.kind === "clients" ? "/chest/clients" : "/chest/catalogue"}>{w.open[report.kind]}</a>
+          <a className="button" href={report.kind === "clients" ? "/chest/clients" : report.kind === "items" ? "/chest/catalogue" : "/chest/invoices?state=open"}>{w.open[report.kind]}</a>
           <button type="button" className="button quiet" onClick={() => setReport(null)}>{w.again}</button>
+          {batch && r.created > 0 && (
+            <button type="button" className="link-button" disabled={pending} onClick={() => start(async () => {
+              const back = await undoImport(batch);
+              if (!back.ok) return setError(format(t.errors[back.error], back.values ?? {}));
+              setUndone(back.value.removed);
+            })}>{w.undo}</button>
+          )}
         </div>
+        {error && <p className="error" role="alert">{error}</p>}
       </section>
     );
   }
@@ -92,17 +116,17 @@ export function Importer({ t, locale, initialKind, allowed }: { t: Catalogue; lo
         <h2 id="source">{w.what}</h2>
         <fieldset className="choice">
           <legend className="visually-hidden">{w.what}</legend>
-          <div className="two-col">
+          <div className="kind-options">
             {importKinds.filter(k => allowed[k]).map(k => (
               <label key={k} className="option">
                 <input type="radio" name="kind" checked={kind === k} onChange={() => changeKind(k)} />
-                <span>{k === "clients" ? <People /> : <Box />} {w.kinds[k]}</span>
+                <span>{k === "clients" ? <People /> : k === "items" ? <Box /> : <Invoice />} {w.kinds[k]}</span>
                 <span className="sub">{w.kindHints[k]}</span>
               </label>
             ))}
           </div>
         </fieldset>
-        <p className="hint">{w.how}</p>
+        <p className="hint">{kind === "invoices" ? w.howInvoices : w.how}</p>
         <FilePicker label={w.file} files={files} onChange={onFiles} maxFiles={1} maxSize={importLimits.bytes} accept={[".csv", "text/csv", ".txt", "text/plain"]} labels={{ ...t.files, addOne: w.choose }} />
         {error && <p className="error" role="alert">{error}</p>}
       </section>

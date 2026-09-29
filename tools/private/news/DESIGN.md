@@ -64,7 +64,7 @@ comments found indented under a hairline edge. The audience: an ink-grey
 *For Sales* flag with a people icon, a highlight notice on the article,
 "Who is it for?" radio cards in the composer with group checkboxes, a
 name picker (ink-outlined pill chips) and a live count. The reach panel
-(a big serif percentage, counts only), the earlier versions (a hairline-
+(a big serif number of people who opened it — "< 5" below the floor — never names), the earlier versions (a hairline-
 edged list under a disclosure), the gallery (a grid of 4:3 pictures,
 videos full width), replies indented under their comment with @mentions
 in press red, the "going out in 10 s" notice with its Undo button.

@@ -195,7 +195,7 @@ await step("the time-zone list reads as cities with their offset, grouped by reg
   expect(!options.some(o => /Asmera|Calcutta|Saigon|Kiev/u.test(o)), "no old names");
 });
 
-await step("a host blocks a whole day: visitors are no longer offered it", async () => {
+await step("a host blocks a whole day from the agenda: visitors are no longer offered it", async () => {
   await context.clearCookies();
   await page.goto(origin + "/ines-moreau/project-call");
   await page.waitForSelector(".calendar button.open");
@@ -204,7 +204,11 @@ await step("a host blocks a whole day: visitors are no longer offered it", async
   const dayNumber = Number((await first.innerText()).replace(/\D+/gu, ""));
   await as(context, origin, "ines");
   await english();
-  await page.goto(origin + "/chest/hours");
+  // "Block a time" sits beside "New booking" on the agenda.
+  await page.goto(origin + "/chest");
+  await page.getByRole("button", { name: "Block a time" }).click();
+  const dialog = page.getByRole("dialog", { name: "Block a time" });
+  await dialog.waitFor();
   // The day, as the date field wants it.
   const now = new Date();
   let date = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
@@ -215,11 +219,11 @@ await step("a host blocks a whole day: visitors are no longer offered it", async
   await page.locator("#bl-from").selectOption("0");
   await page.locator("#bl-to").selectOption("1440");
   await page.locator("#bl-note").fill("Trade fair set-up");
-  await page.getByRole("button", { name: "Block this time" }).click();
+  await dialog.getByRole("button", { name: "Block this time" }).click();
   await page.waitForSelector(".ck-toast >> text=Time blocked.");
-  await page.waitForSelector(".blocked-list >> text=Trade fair set-up");
-  const listed = await page.locator("section", { has: page.locator("#blocks") }).innerText();
-  expect(listed.includes("Trade fair set-up") && listed.includes("00:00–24:00"), "listed: " + listed.slice(0, 120));
+  await page.waitForSelector(".meeting.blocked >> text=Trade fair set-up");
+  const row = await page.locator(".meeting.blocked", { hasText: "Trade fair set-up" }).innerText();
+  expect(row.includes("00:00") && row.includes("24:00"), "on the agenda: " + row.slice(0, 120));
   await context.clearCookies();
   await page.goto(origin + "/ines-moreau/project-call");
   await page.waitForSelector(".calendar button.open");
@@ -227,11 +231,37 @@ await step("a host blocks a whole day: visitors are no longer offered it", async
   expect(await same.isDisabled(), "the blocked day is not offered");
 });
 
+await step("a host taps a free stretch of the agenda to block it, frees it again, and Undo blocks it back", async () => {
+  await as(context, origin, "ines");
+  await english();
+  await page.goto(origin + "/chest");
+  const free = page.locator("button.meeting.free").first();
+  await free.waitFor();
+  const from = (await free.locator(".time").innerText()).slice(0, 5);
+  await free.click();
+  const dialog = page.getByRole("dialog", { name: "Block a time" });
+  await dialog.waitFor();
+  const chosen = await page.locator("#bl-from").inputValue();
+  expect(String(Number(from.slice(0, 2)) * 60 + Number(from.slice(3, 5))) === chosen, `starts at the stretch (${from} = ${chosen})`);
+  await page.locator("#bl-note").fill("Supplier call");
+  await dialog.getByRole("button", { name: "Block this time" }).click();
+  await page.waitForSelector(".meeting.blocked >> text=Supplier call");
+  const blocked = page.locator(".meeting.blocked", { hasText: "Supplier call" });
+  await blocked.getByRole("button", { name: /^Unblock / }).click();
+  await page.waitForSelector(".ck-toast >> text=Time unblocked.");
+  await page.waitForSelector(".meeting.blocked >> text=Supplier call", { state: "detached" });
+  await page.locator(".ck-toast", { hasText: "Time unblocked." }).getByRole("button", { name: "Undo" }).click();
+  await page.waitForSelector(".meeting.blocked >> text=Supplier call");
+});
+
 await step("a host's other calendar: a wrong address is refused plainly, the one connected says when it was read", async () => {
   await as(context, origin, "ines");
   await english();
   await page.goto(origin + "/chest/hours");
   const others = page.locator("#calendars");
+  // Folded: its line says what it holds; one tap opens it.
+  expect((await others.locator("summary").innerText()).includes("1 calendar connected"), "folded with its count");
+  await others.locator("summary").click();
   expect((await others.innerText()).includes("calendar.google.com") && /Read .* · 38 events/u.test(await others.innerText()), "connected calendar shown");
   expect(!(await others.innerText()).includes("private-5f1c"), "its secret part is never shown");
   await page.getByLabel("Secret address (iCal)").fill("https://example.com/my-calendar.ics");
@@ -313,13 +343,15 @@ await step("French dates keep their small letters in a sentence", async () => {
   await as(context, origin, "ines");
   await context.addCookies([{ name: "dev_locale", value: "fr", url: origin }]);
   await page.goto(origin + "/chest/hours");
-  const text = await page.locator("section", { has: page.locator("#exceptions") }).innerText();
+  await page.locator("#exceptions > summary").click();
+  const text = await page.locator("#exceptions").innerText();
   await english();
   expect(/ (janvier|février|mars|avril|mai|juin|juillet|août|septembre|octobre|novembre|décembre) /u.test(text) && !/ (Octobre|Novembre|Septembre|Décembre) /u.test(text), "lower-case months: " + text.slice(0, 80));
 });
 
 await step("a host sets a day off and changes Friday's hours", async () => {
   await page.goto(origin + "/chest/hours");
+  await page.locator("#exceptions > summary").click();
   await page.getByLabel("First day").fill(new Date(Date.now() + 20 * 864e5).toISOString().slice(0, 10));
   await page.getByRole("button", { name: "Add the days off" }).click();
   await page.waitForSelector(".ck-toast");
@@ -359,6 +391,82 @@ await step("French, phone width: a visitor books without sideways scroll", async
   expect(await page.getByLabel("Votre nom").isVisible(), "form in French");
   const wide = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1);
   expect(!wide, "no sideways scroll");
+  await page.goto(origin + "/lang/en?back=/");
+});
+
+await step("a new host is not public until they connect a calendar or confirm their hours; the first screen asks for the calendar", async () => {
+  await page.setViewportSize({ width: 1280, height: 860 });
+  await as(context, origin, "sofia");
+  await page.goto(origin + "/chest");
+  const first = page.locator(".first-run");
+  expect((await first.innerText()).includes("Your page is not public yet"), "says it");
+  expect(await page.getByLabel("Your calendar’s secret address (Google, Outlook or Apple)").isVisible(), "asks for the calendar first");
+  expect((await page.getByRole("button", { name: "Copy the link" }).count()) === 0, "no link to share yet");
+  await context.clearCookies();
+  expect(!(await (await page.request.get(origin + "/")).text()).includes("Sofia Rossi"), "not on the company page");
+  expect((await page.request.get(origin + "/sofia-rossi")).status() === 404, "no public page");
+  expect((await page.request.get(origin + "/api/slots?host=sofia-rossi&type=meeting&from=2026-01-01&to=2026-01-10")).status() === 404, "no free times");
+  await as(context, origin, "sofia");
+  await page.goto(origin + "/chest/hours");
+  expect((await page.locator(".notice").first().innerText()).includes("not public yet"), "Hours says it too");
+  expect(await page.getByRole("button", { name: "Save the hours and make my page public" }).isVisible(), "the save button says what it does");
+  await page.goto(origin + "/chest");
+  await page.getByRole("button", { name: "My hours are right: make my page public" }).click();
+  await page.waitForSelector(".ck-toast >> text=Your page is public.");
+  await page.waitForSelector(".ticket");
+  await context.clearCookies();
+  expect((await (await page.request.get(origin + "/")).text()).includes("Sofia Rossi"), "now on the company page");
+  expect((await page.request.get(origin + "/sofia-rossi")).status() === 200, "public page");
+});
+
+await step("a French visitor reads Inès's questions in French; the page never mixes languages", async () => {
+  await context.clearCookies();
+  await page.goto(origin + "/lang/fr?back=/ines-moreau/project-call");
+  await page.waitForSelector(".calendar button.open");
+  expect((await page.locator("h1").innerText()).includes("Appel projet"), "title in French");
+  await pickFirstTime();
+  const form = await page.locator(".guest-form").innerText();
+  expect(form.includes("À quoi est-ce destiné") && form.includes("Un logement") && form.includes("Votre budget, à peu près (facultatif)"), "questions in French: " + form.slice(0, 200));
+  expect(!/What is it for|A home|Your budget/u.test(form), "no English question");
+  expect((await page.locator(".ck-languages .ck-language").count()) === 2, "Inès wrote both: both offered");
+  await page.goto(origin + "/lang/en?back=/");
+});
+
+await step("a video type asks where its rooms are made, and says what meet.jit.si asks of the host", async () => {
+  await as(context, origin, "ines");
+  await english();
+  await page.goto(origin + "/chest/types/new");
+  await page.getByLabel("Name", { exact: true }).fill("Design review");
+  await page.locator(".choices label", { hasText: "Video call" }).click();
+  await page.getByLabel("A new room for each meeting").check();
+  await page.getByRole("button", { name: "Create" }).click();
+  await page.waitForSelector("p.error");
+  expect((await page.locator("p.error").innerText()).includes("Choose where the rooms are made"), "no silent default");
+  const jitsi = page.locator(".rooms .choice", { hasText: "Jitsi Meet" });
+  expect((await jitsi.innerText()).includes("you sign in with Google, GitHub or Facebook"), "says the sign-in");
+  await jitsi.click();
+  // Inès writes in English with a French version: the French fields are there.
+  await page.getByLabel("Name — in French").fill("Revue de projet");
+  await page.getByRole("button", { name: "Create" }).click();
+  await page.waitForURL(origin + "/chest/types");
+  await context.clearCookies();
+  await page.goto(origin + "/lang/fr?back=/ines-moreau/design-review");
+  expect((await page.locator("h1").innerText()).includes("Revue de projet"), "the French name on the French page");
+  await page.goto(origin + "/lang/en?back=/");
+});
+
+await step("a host who writes in one language only: every visitor reads the page in it, with no language switch", async () => {
+  await as(context, origin, "hugo");
+  await page.goto(origin + "/chest/settings");
+  await page.getByLabel("Also in").selectOption("");
+  await page.locator("form", { has: page.getByLabel("Also in") }).getByRole("button", { name: "Save" }).click();
+  await page.waitForSelector(".ck-toast >> text=Saved.");
+  await context.clearCookies();
+  await page.goto(origin + "/lang/fr?back=/hugo-bernard/measurement");
+  await page.waitForSelector(".calendar button.open");
+  expect((await page.locator("h1").innerText()).includes("Measurement visit at your home"), "his English text");
+  expect((await page.locator("h2").first().innerText()).includes("Pick a time"), "the page's words in the same language");
+  expect((await page.locator(".ck-languages").count()) === 0, "no switch to a language he did not write");
   await page.goto(origin + "/lang/en?back=/");
 });
 

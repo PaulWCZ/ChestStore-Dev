@@ -35,6 +35,10 @@ export type CardSummary = {
   repeats: boolean;
   // The board's fields: field id → value.
   values: Record<string, string>;
+  // The cards it waits for (its blockers), and how many of them are still
+  // open: while one is, the card is "blocked".
+  blockedBy: string[];
+  waiting: number;
 };
 
 export type Activity = { id: string; actor: string; kind: string; data: Record<string, unknown>; at: string };
@@ -44,6 +48,8 @@ export type Comment = { id: string; author: string; body: string; at: string; ed
 export type CheckItem = { id: string; text: string; done: boolean; position: string; checklistId: string | null; assignee: string | null; due: string | null };
 export type Checklist = { id: string; title: string };
 export type Attachment = { id: string; object: string; fileName: string; type: string; size: number; addedBy: string; at: string };
+// A card linked to another by "blocked by", as its panel lists it.
+export type Link = { id: string; title: string; done: boolean; archived: boolean };
 export type CardDetail = CardSummary & {
   boardId: string;
   description: string;
@@ -58,9 +64,12 @@ export type CardDetail = CardSummary & {
   repeat: Repeat | null;
   // The next card of the series, once this one was done.
   next: { id: string; due: string | null; done: boolean; archived: boolean } | null;
+  // The cards it waits for, and those that wait for it.
+  blockers: Link[];
+  blocking: Link[];
 };
 
-type SummaryRow = { id: string; column_id: string; title: string; position: string; due_on: string | null; due_time: string | null; start_on: string | null; done: boolean; description: string; assignees: string[] | null; labels: string[] | null; items_done: number; items: number; comments: number; attachments: number; repeats: boolean; vals: Record<string, string> | null };
+type SummaryRow = { id: string; column_id: string; title: string; position: string; due_on: string | null; due_time: string | null; start_on: string | null; done: boolean; description: string; assignees: string[] | null; labels: string[] | null; items_done: number; items: number; comments: number; attachments: number; repeats: boolean; vals: Record<string, string> | null; blocked_by: string[] | null; waiting: number };
 
 const summary = (r: SummaryRow): CardSummary => ({
   id: String(r.id),
@@ -79,6 +88,8 @@ const summary = (r: SummaryRow): CardSummary => ({
   hasDescription: r.description !== "",
   repeats: r.repeats,
   values: r.vals ?? {},
+  blockedBy: (r.blocked_by ?? []).map(String),
+  waiting: r.waiting,
 });
 
 const summaryColumns = (sql: Sql) => sql`
@@ -90,7 +101,10 @@ const summaryColumns = (sql: Sql) => sql`
   (select count(*)::int from comments where card_id = c.id and removed_at is null) as comments,
   (select count(*)::int from attachments where card_id = c.id) as attachments,
   c.repeat is not null as repeats,
-  (select jsonb_object_agg(field_id::text, value) from card_values where card_id = c.id) as vals`;
+  (select jsonb_object_agg(field_id::text, value) from card_values where card_id = c.id) as vals,
+  (select array_agg(blocker_id order by blocker_id) from card_blockers where card_id = c.id) as blocked_by,
+  (select count(*)::int from card_blockers bl join cards x on x.id = bl.blocker_id join columns xk on xk.id = x.column_id
+    where bl.card_id = c.id and not xk.done and x.archived_at is null and xk.archived_at is null) as waiting`;
 
 // The open cards of a board (in live columns), in order.
 export async function boardCards(sql: Sql, boardId: string, options: { archived?: boolean } = {}): Promise<CardSummary[]> {
@@ -140,6 +154,14 @@ export async function cardDetail(sql: Sql, actor: Member | null, cardId: unknown
   const thread = await sql<{ id: string; author: string; body: string; created_at: Date; edited_at: Date | null; imported_author: string | null }[]>`select id, author, body, created_at, edited_at, imported_author from comments where card_id = ${row.id} and removed_at is null order by created_at, id`;
   const history = await sql<{ id: string; actor: string; kind: string; data: Record<string, unknown>; at: Date }[]>`select id, actor, kind, data, at from activity where card_id = ${row.id} order by at desc, id desc limit 50`;
   const files = await sql<{ id: string; object: string; file_name: string; type: string; size: string; added_by: string; added_at: Date }[]>`select id, object, file_name, type, size, added_by, added_at from attachments where card_id = ${row.id} order by added_at, id`;
+  const links = await sql<{ id: string; title: string; done: boolean; archived: boolean; side: "blocker" | "blocking" }[]>`
+    select x.id, x.title, xk.done, (x.archived_at is not null or xk.archived_at is not null) as archived, 'blocker' as side
+    from card_blockers bl join cards x on x.id = bl.blocker_id join columns xk on xk.id = x.column_id where bl.card_id = ${row.id}
+    union all
+    select x.id, x.title, xk.done, (x.archived_at is not null or xk.archived_at is not null) as archived, 'blocking' as side
+    from card_blockers bl join cards x on x.id = bl.card_id join columns xk on xk.id = x.column_id where bl.blocker_id = ${row.id}
+    order by title, id`;
+  const link = (l: (typeof links)[number]): Link => ({ id: String(l.id), title: l.title, done: l.done, archived: l.archived });
   return {
     ...summary(s!),
     boardId: b.id,
@@ -155,6 +177,8 @@ export async function cardDetail(sql: Sql, actor: Member | null, cardId: unknown
     files: files.map(f => ({ id: String(f.id), object: f.object, fileName: f.file_name, type: f.type, size: Number(f.size), addedBy: f.added_by, at: f.added_at.toISOString() })),
     repeat,
     next: next ? { id: String(next.id), due: next.due_on, done: next.done, archived: next.archived } : null,
+    blockers: links.filter(l => l.side === "blocker").map(link),
+    blocking: links.filter(l => l.side === "blocking").map(link),
   };
 }
 
@@ -181,7 +205,7 @@ export async function addCard(sql: Sql, actor: Member | null, boardId: unknown, 
     await record(tx, String(row!.id), actor!.id, "created");
     return String(row!.id);
   });
-  return { id: created, columnId: c.id, title: text, position, due: null, dueTime: null, start: null, done: c.done, assignees: [], labels: [], checklist: { done: 0, total: 0 }, comments: 0, attachments: 0, hasDescription: false, repeats: false, values: {} };
+  return { id: created, columnId: c.id, title: text, position, due: null, dueTime: null, start: null, done: c.done, assignees: [], labels: [], checklist: { done: 0, total: 0 }, comments: 0, attachments: 0, hasDescription: false, repeats: false, values: {}, blockedBy: [], waiting: 0 };
 }
 
 // updateCard changes what is given: title, description, due date (and
@@ -243,7 +267,11 @@ export async function setRepeat(sql: Sql, actor: Member | null, cardId: unknown,
 
 // moveCard puts a card in a column, after one card and before another (ids
 // of that column, or null at an end).
-export async function moveCard(sql: Sql, actor: Member | null, cardId: unknown, columnId: unknown, afterId: unknown, beforeId: unknown): Promise<{ from: string; to: string; completed: boolean | null; next: string | null; takenBack: string | null }> {
+// A card that waits for open cards (its blockers) is not marked done —
+// moved to a "done" column — unless force says the person means it (the
+// history then says so): "blocked", with how many and the first one's
+// title.
+export async function moveCard(sql: Sql, actor: Member | null, cardId: unknown, columnId: unknown, afterId: unknown, beforeId: unknown, options: { force?: boolean } = {}): Promise<{ from: string; to: string; completed: boolean | null; next: string | null; takenBack: string | null }> {
   const { row, board: b } = await card(sql, actor, cardId, "write");
   if (row.archived_at) throw new AppError("forbidden");
   const c = await liveColumn(sql, b.id, columnId);
@@ -263,9 +291,11 @@ export async function moveCard(sql: Sql, actor: Member | null, cardId: unknown, 
   const position = between(low, high);
   const [was] = await sql<{ done: boolean }[]>`select done from columns where id = ${row.column_id}`;
   const completed = was?.done === c.done ? null : c.done;
+  const open = completed === true ? await openBlockers(sql, row.id) : [];
+  if (open.length > 0 && !options.force) throw new AppError("blocked", { count: open.length, title: open[0]! });
   const series = await sql.begin(async tx => {
     await tx`update cards set column_id = ${c.id}, position = ${position}, updated_at = now(), completed_at = ${c.done ? (completed === null ? tx`completed_at` : tx`now()`) : null} where id = ${row.id}`;
-    if (row.column_id !== c.id) await record(tx, row.id, actor!.id, completed === true ? "completed" : completed === false ? "reopened" : "moved", { from: row.column_id, to: c.id });
+    if (row.column_id !== c.id) await record(tx, row.id, actor!.id, completed === true ? (open.length > 0 ? "completed_anyway" : "completed") : completed === false ? "reopened" : "moved", { from: row.column_id, to: c.id });
     // A repeating card done makes its next one; reopened, it takes it back.
     if (completed === true) return { next: await makeNext(tx, row.id, chestToday(), actor!.id), takenBack: null };
     if (completed === false) return { next: null, takenBack: await takeBack(tx, row.id) };
@@ -325,12 +355,12 @@ async function carry(tx: Query, cardId: string, from: Board, to: Board): Promise
 // moveToBoard moves a card to a column of another board, with its
 // comments, checklists, files and history; the history says where it came
 // from. Says who was left behind (they no longer see it).
-export async function moveToBoard(sql: Sql, actor: Member | null, cardId: unknown, boardId: unknown, columnId: unknown): Promise<{ from: string; to: string; dropped: string[]; stayed: string[]; completed: boolean | null }> {
+export async function moveToBoard(sql: Sql, actor: Member | null, cardId: unknown, boardId: unknown, columnId: unknown, options: { force?: boolean } = {}): Promise<{ from: string; to: string; dropped: string[]; stayed: string[]; completed: boolean | null }> {
   const { row, board: from } = await card(sql, actor, cardId, "write");
   if (row.archived_at) throw new AppError("forbidden");
   const to = await target(sql, actor, boardId, columnId);
   if (to.board.id === from.id) {
-    const moved = await moveCard(sql, actor, row.id, to.column.id, null, null);
+    const moved = await moveCard(sql, actor, row.id, to.column.id, null, null, options);
     const stayed = (await sql<{ member_id: string }[]>`select member_id from card_assignees where card_id = ${row.id}`).map(r => r.member_id);
     return { from: from.id, to: from.id, dropped: [], stayed, completed: moved.completed };
   }
@@ -352,6 +382,9 @@ export async function moveToBoard(sql: Sql, actor: Member | null, cardId: unknow
       await tx`update checklist_items set assignee = null where card_id = ${row.id} and assignee = ${p}`;
     }
     await record(tx, row.id, actor!.id, "moved_board", { from: from.name, to: to.board.name });
+    // "Blocked by" links cards of one board: they stay behind.
+    const unlinked = await tx`delete from card_blockers where card_id = ${row.id} or blocker_id = ${row.id} returning card_id`;
+    if (unlinked.length > 0) await record(tx, row.id, actor!.id, "links_left", { count: unlinked.length });
     for (const p of kept.dropped) await record(tx, row.id, actor!.id, "unassigned", { member: p });
     if (completed === true) await makeNext(tx, row.id, chestToday(), actor!.id);
     if (completed === false) await takeBack(tx, row.id);
@@ -542,6 +575,73 @@ export async function removeChecklist(sql: Sql, actor: Member | null, checklistI
   return { assignees: held.map(h => h.assignee) };
 }
 
+// "Blocked by": a card waits for other cards of its board. A link that
+// would close a loop (A waits for B, which waits for A) is refused.
+export const maxBlockers = 20;
+
+// openBlockers: the titles of the cards this one still waits for (not
+// done, not archived), in order.
+export async function openBlockers(sql: Sql | Query, cardId: string): Promise<string[]> {
+  const rows = await sql<{ title: string }[]>`
+    select x.title from card_blockers bl join cards x on x.id = bl.blocker_id join columns xk on xk.id = x.column_id
+    where bl.card_id = ${cardId} and not xk.done and x.archived_at is null and xk.archived_at is null order by x.title, x.id`;
+  return rows.map(r => r.title);
+}
+
+export async function addBlocker(sql: Sql, actor: Member | null, cardId: unknown, blockerId: unknown): Promise<{ title: string }> {
+  const { row, board: b } = await card(sql, actor, cardId, "write");
+  if (row.archived_at) throw new AppError("forbidden");
+  const other = id(blockerId);
+  if (other === row.id) throw new AppError("invalid");
+  const [blocker] = await sql<{ id: string; title: string }[]>`select id, title from cards where id = ${other} and board_id = ${b.id} and archived_at is null`;
+  if (!blocker) throw new AppError("not_found");
+  const [counted] = await sql<{ count: number }[]>`select count(*)::int as count from card_blockers where card_id = ${row.id}`;
+  if ((counted?.count ?? 0) >= maxBlockers) throw new AppError("too_many", { max: maxBlockers });
+  // Does the blocker already wait (maybe through others) for this card?
+  const [loop] = await sql<{ id: string }[]>`
+    with recursive up(id) as (
+      select blocker_id from card_blockers where card_id = ${other}
+      union select bl.blocker_id from card_blockers bl join up on bl.card_id = up.id
+    ) select id from up where id = ${row.id} limit 1`;
+  if (loop) throw new AppError("cycle");
+  await sql.begin(async tx => {
+    const [made] = await tx`insert into card_blockers (card_id, blocker_id, created_by) values (${row.id}, ${other}, ${actor!.id}) on conflict do nothing returning card_id`;
+    if (made) await record(tx, row.id, actor!.id, "blocker_added", { title: blocker.title });
+  });
+  return { title: blocker.title };
+}
+
+export async function removeBlocker(sql: Sql, actor: Member | null, cardId: unknown, blockerId: unknown): Promise<void> {
+  const { row } = await card(sql, actor, cardId, "write");
+  const other = id(blockerId);
+  await sql.begin(async tx => {
+    const [gone] = await tx<{ title: string }[]>`
+      delete from card_blockers bl using cards x where bl.card_id = ${row.id} and bl.blocker_id = ${other} and x.id = bl.blocker_id returning x.title`;
+    if (gone) await record(tx, row.id, actor!.id, "blocker_removed", { title: gone.title });
+  });
+}
+
+// freed: the open cards that waited for this one and wait for nothing
+// else now (it was just done) — to tell their people they can start.
+export async function freed(sql: Sql, cardId: string): Promise<{ id: string; title: string; boardId: string; assignees: string[] }[]> {
+  const rows = await sql<{ id: string; title: string; board_id: string; assignees: string[] | null }[]>`
+    select c.id, c.title, c.board_id, (select array_agg(member_id order by member_id) from card_assignees where card_id = c.id) as assignees
+    from card_blockers bl join cards c on c.id = bl.card_id join columns k on k.id = c.column_id
+    where bl.blocker_id = ${cardId} and not k.done and c.archived_at is null and k.archived_at is null
+      and not exists (
+        select 1 from card_blockers o join cards x on x.id = o.blocker_id join columns xk on xk.id = x.column_id
+        where o.card_id = c.id and not xk.done and x.archived_at is null and xk.archived_at is null)
+    order by c.id`;
+  return rows.map(r => ({ id: String(r.id), title: r.title, boardId: String(r.board_id), assignees: r.assignees ?? [] }));
+}
+
+// waitingOn: the open cards that wait for this one (it was reopened: they
+// are blocked again).
+export async function waitingOn(sql: Sql, cardId: string): Promise<string[]> {
+  const rows = await sql<{ id: string }[]>`select card_id as id from card_blockers where blocker_id = ${cardId}`;
+  return rows.map(r => String(r.id));
+}
+
 // Comments: whoever may comment on the board; mentions name people who see
 // the board (checked), to tell them.
 export async function addComment(sql: Sql, actor: Member | null, cardId: unknown, body: unknown, mentioned: unknown = []): Promise<{ comment: Comment; mentions: string[]; assignees: string[]; title: string; boardId: string }> {
@@ -555,19 +655,24 @@ export async function addComment(sql: Sql, actor: Member | null, cardId: unknown
   return { comment: { id: String(created!.id), author: actor!.id, body: text, at: created!.created_at.toISOString(), edited: false, importedAuthor: null }, mentions, assignees, title: row.title, boardId: b.id };
 }
 
-async function comment(sql: Sql, actor: Member | null, commentId: unknown): Promise<{ id: string; author: string; access: BoardAccess; removed: Date | null }> {
+// What the bell needs of a comment: its card, its author, its words.
+export type CommentRef = { id: string; author: string; body: string; card: { id: string; title: string; boardId: string } };
+
+async function comment(sql: Sql, actor: Member | null, commentId: unknown): Promise<{ id: string; author: string; access: BoardAccess; removed: Date | null; ref: CommentRef }> {
   const key = id(commentId);
-  const [row] = await sql<{ card_id: string; author: string; removed_at: Date | null }[]>`select card_id, author, removed_at from comments where id = ${key}`;
+  const [row] = await sql<{ card_id: string; author: string; body: string; removed_at: Date | null }[]>`select card_id, author, body, removed_at from comments where id = ${key}`;
   if (!row) throw new AppError("not_found");
-  const { board: b } = await card(sql, actor, String(row.card_id), "comment");
-  return { id: key, author: row.author, access: b.access, removed: row.removed_at };
+  const { row: c, board: b } = await card(sql, actor, String(row.card_id), "comment");
+  return { id: key, author: row.author, access: b.access, removed: row.removed_at, ref: { id: key, author: row.author, body: row.body, card: { id: c.id, title: c.title, boardId: b.id } } };
 }
 
-export async function editComment(sql: Sql, actor: Member | null, commentId: unknown, body: unknown): Promise<void> {
+export async function editComment(sql: Sql, actor: Member | null, commentId: unknown, body: unknown): Promise<CommentRef> {
   const c = await comment(sql, actor, commentId);
   if (c.removed) throw new AppError("not_found");
   if (c.author !== actor!.id) throw new AppError("forbidden");
-  await sql`update comments set body = ${clean(body, limits.comment, { multiline: true })}, edited_at = now() where id = ${c.id}`;
+  const text = clean(body, limits.comment, { multiline: true });
+  await sql`update comments set body = ${text}, edited_at = now() where id = ${c.id}`;
+  return { ...c.ref, body: text };
 }
 
 // How long a removed comment can be brought back ("Undo"); after that it
@@ -582,21 +687,23 @@ export async function purgeComments(sql: Query): Promise<void> {
 
 // A comment is removed by its author, or by a board owner: hidden at
 // once, kept a few minutes for "Undo", then deleted for good.
-export async function removeComment(sql: Sql, actor: Member | null, commentId: unknown): Promise<void> {
+export async function removeComment(sql: Sql, actor: Member | null, commentId: unknown): Promise<CommentRef> {
   const c = await comment(sql, actor, commentId);
   if (c.author !== actor!.id && !atLeast(c.access, "own")) throw new AppError("forbidden");
-  if (c.removed) return;
+  if (c.removed) return c.ref;
   await sql`update comments set removed_at = now() where id = ${c.id}`;
   await purgeComments(sql);
+  return c.ref;
 }
 
 // restoreComment brings back a comment removed a moment ago, by whoever
 // may remove it.
-export async function restoreComment(sql: Sql, actor: Member | null, commentId: unknown): Promise<void> {
+export async function restoreComment(sql: Sql, actor: Member | null, commentId: unknown): Promise<CommentRef> {
   const c = await comment(sql, actor, commentId);
   if (c.author !== actor!.id && !atLeast(c.access, "own")) throw new AppError("forbidden");
   const [back] = await sql<{ id: string }[]>`update comments set removed_at = null where id = ${c.id} and removed_at > now() - make_interval(mins => ${undoMinutes}) returning id`;
   if (!back && c.removed) throw new AppError("not_found");
+  return c.ref;
 }
 
 // Archive and delete: a card is archived (and restored) by whoever works on
@@ -657,11 +764,11 @@ export async function detach(sql: Sql, actor: Member | null, attachmentId: unkno
 }
 
 // My tasks: open cards given to the actor, on boards they still see.
-export type MyTask = CardSummary & { boardId: string; boardName: string; boardColor: string; columnName: string };
+export type MyTask = CardSummary & { boardId: string; boardName: string; boardColor: string; columnName: string; columnKey: string | null };
 export async function myTasks(sql: Sql, actor: Member | null): Promise<MyTask[]> {
   if (!actor || roleOf(actor) === null) throw new AppError("forbidden");
-  const rows = await sql<(SummaryRow & { board_id: string; board_name: string; board_color: string; column_name: string })[]>`
-    select ${summaryColumns(sql)}, c.board_id, b.name as board_name, b.color as board_color, k.name as column_name
+  const rows = await sql<(SummaryRow & { board_id: string; board_name: string; board_color: string; column_name: string; column_key: string | null })[]>`
+    select ${summaryColumns(sql)}, c.board_id, b.name as board_name, b.color as board_color, k.name as column_name, k.key as column_key
     from cards c join columns k on k.id = c.column_id join boards b on b.id = c.board_id
     join card_assignees a on a.card_id = c.id and a.member_id = ${actor.id}
     where c.archived_at is null and k.archived_at is null and b.archived_at is null and not k.done
@@ -677,7 +784,7 @@ export async function myTasks(sql: Sql, actor: Member | null): Promise<MyTask[]>
       // A board the actor no longer sees keeps its cards out of their list.
     }
   }
-  return rows.filter(r => visible.has(String(r.board_id))).map(r => ({ ...summary(r), boardId: String(r.board_id), boardName: r.board_name, boardColor: r.board_color, columnName: r.column_name }));
+  return rows.filter(r => visible.has(String(r.board_id))).map(r => ({ ...summary(r), boardId: String(r.board_id), boardName: r.board_name, boardColor: r.board_color, columnName: r.column_name, columnKey: r.column_key }));
 }
 
 // My steps: open steps of checklists given to the actor (subtasks), on
@@ -732,8 +839,8 @@ export async function searchCards(sql: Sql, actor: Member | null, query: unknown
   const words = q.split(/\s+/u).map(w => w.replace(/[^\p{L}\p{N}]/gu, "")).filter(Boolean).slice(0, 8);
   if (words.length === 0) return [];
   const pattern = "%" + q.replace(/[\\%_]/gu, "\\$&") + "%";
-  const rows = await sql<(SummaryRow & { board_id: string; board_name: string; board_color: string; column_name: string; archived: boolean })[]>`
-    select ${summaryColumns(sql)}, c.board_id, b.name as board_name, b.color as board_color, k.name as column_name,
+  const rows = await sql<(SummaryRow & { board_id: string; board_name: string; board_color: string; column_name: string; column_key: string | null; archived: boolean })[]>`
+    select ${summaryColumns(sql)}, c.board_id, b.name as board_name, b.color as board_color, k.name as column_name, k.key as column_key,
       (c.archived_at is not null or k.archived_at is not null or b.archived_at is not null) as archived
     from cards c join columns k on k.id = c.column_id join boards b on b.id = c.board_id
     where ${options.archived ? sql`true` : sql`c.archived_at is null and k.archived_at is null and b.archived_at is null`}
@@ -749,7 +856,7 @@ export async function searchCards(sql: Sql, actor: Member | null, query: unknown
   for (const r of rows) {
     const key = String(r.board_id);
     if (!seen.has(key)) seen.set(key, await board(sql, actor, key, "read").then(() => true, () => false));
-    if (seen.get(key)) result.push({ ...summary(r), boardId: key, boardName: r.board_name, boardColor: r.board_color, columnName: r.column_name, archived: r.archived });
+    if (seen.get(key)) result.push({ ...summary(r), boardId: key, boardName: r.board_name, boardColor: r.board_color, columnName: r.column_name, columnKey: r.column_key, archived: r.archived });
   }
   // Archived ones after the others.
   return result.sort((a, b) => Number(a.archived) - Number(b.archived)).slice(0, 50);

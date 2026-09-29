@@ -3,8 +3,8 @@
 import { EmptyState, PageHeader, useToast } from "@argentic/chest-ui/components";
 import { useRouter } from "next/navigation";
 import { useMemo, useState, useTransition } from "react";
-import { DateBox, RowStamp, Thumb, Warnings } from "../../components/bits.tsx";
-import { Car, Plus, Receipt, Send } from "../../components/icons.tsx";
+import { DateBox, RowStamp, Thumb, Warning, Warnings } from "../../components/bits.tsx";
+import { Camera, Car, Plus, Receipt, Send } from "../../components/icons.tsx";
 import type { Catalogue } from "../../lib/i18n/index.ts";
 import { format, plural } from "../../lib/i18n/format.ts";
 import { formatMoney } from "../../lib/money.ts";
@@ -33,7 +33,9 @@ export function HomeView({ locale, empty, figures, drafts, waiting, approved, hi
   const [pending, start] = useTransition();
   // Every draft is selected unless the person unticks it — except a refused
   // one not changed since, which waits for its fix.
-  const [unticked, setUnticked] = useState<Set<string>>(new Set());
+  // A card payment still without its receipt is not ticked either: its
+  // receipt comes first.
+  const [unticked, setUnticked] = useState<Set<string>>(() => new Set(drafts.filter(d => d.receiptNeeded).map(d => d.id)));
   const selected = drafts.filter(d => !d.blocked && !unticked.has(d.id));
   const total = useMemo(() => {
     const sums = new Map<string, number>();
@@ -57,7 +59,7 @@ export function HomeView({ locale, empty, figures, drafts, waiting, approved, hi
       if (!result.ok) return void toast({ text: format(t.errors[result.error], result.values ?? {}), tone: "error" });
       // The approver has been told: sent, never an Undo.
       toast({ id: "send", text: plural(t.home.sent, result.value.count, locale, { name: result.value.to }), sent: true });
-      setUnticked(new Set());
+      setUnticked(new Set(drafts.filter(d => d.receiptNeeded && !ids.includes(d.id)).map(d => d.id)));
       router.refresh();
     });
   }
@@ -104,21 +106,23 @@ export function HomeView({ locale, empty, figures, drafts, waiting, approved, hi
           <hr className="rule" />
           <ul className="rows">
             {drafts.map(d => (
-              <li key={d.id} className="row selectable">
+              <li key={d.id} className={d.receiptNeeded ? "row selectable needs-receipt" : "row selectable"}>
                 {d.blocked
                   ? <span className="pick" aria-hidden="true" />
                   : <input type="checkbox" className="pick" checked={!unticked.has(d.id)} onChange={e => toggle(d.id, e.target.checked)} aria-label={`${t.home.select}: ${d.what}, ${d.amount}`} />}
                 <Thumb row={d} />
                 <a className="main" href={d.href}>
                   <span className="what">{d.what}</span>
-                  <span className="sub"><span className="mono">{d.day} {d.month}</span>{d.sub && <span>{d.sub}</span>}{d.card && <span>{t.companyCard}</span>}<Warnings list={d.warnings} /></span>
+                  <span className="sub"><span className="mono">{d.day} {d.month}</span>{d.sub && <span>{d.sub}</span>}{d.card && !d.receiptNeeded && <span>{t.companyCard}</span>}{d.receiptNeeded ? <Warning text={t.home.receiptNeeded} /> : <Warnings list={d.warnings} />}</span>
                   {d.reason && <span className="reason">{format(t.home.refusedBecause, { reason: d.reason })}</span>}
                   {d.blocked && <span className="reason">{t.home.fixFirst}</span>}
                   {d.fixed && <span className="fixed">{t.home.fixed}</span>}
                 </a>
                 <span className="right">
                   <span className="amount">{d.amount}</span>
-                  {d.blocked ? <a className="button small quiet" href={`${d.href}/edit`}>{t.home.fix}<span className="visually-hidden">: {d.what}</span></a> : d.stamp.kind === "refused" && <RowStamp row={d} />}
+                  {d.blocked && <a className="button small quiet" href={`${d.href}/edit`}>{t.home.fix}<span className="visually-hidden">: {d.what}</span></a>}
+                  {!d.blocked && d.receiptNeeded && <a className="button small quiet" href={`${d.href}/edit`}><Camera />{t.home.addReceipt}<span className="visually-hidden">: {d.what}</span></a>}
+                  {!d.blocked && !d.receiptNeeded && d.stamp.kind === "refused" && <RowStamp row={d} />}
                 </span>
               </li>
             ))}

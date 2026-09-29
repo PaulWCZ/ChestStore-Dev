@@ -6,13 +6,13 @@ import { useState, useTransition, type ReactNode } from "react";
 import { CopyButton } from "../../../components/copy-button.tsx";
 import { Alert, Arrow, Calendar, Download, Gear, Globe, Link, Moved, Person } from "../../../components/icons.tsx";
 import { ZoneSelect } from "../../../components/zone-select.tsx";
-import { format, intl, plural } from "../../../lib/i18n/format.ts";
+import { format, intl, languageNames, plural } from "../../../lib/i18n/format.ts";
 import type { Catalogue } from "../../../lib/i18n/index.ts";
 import type { Result } from "../../../lib/errors.ts";
 import type { ZoneGroup } from "../../../lib/zones.ts";
 import { eraseGuest, importCalendly, saveSites, newFeed, savePage, savePrefs, saveSettings, stopFeed } from "../actions.ts";
 
-type Words = { settings: Catalogue["settings"]; errors: Catalogue["errors"]; files: Catalogue["files"] };
+type Words = { settings: Catalogue["settings"]; errors: Catalogue["errors"]; files: Catalogue["files"]; languages?: Catalogue["languages"] };
 
 function useRun(t: Words) {
   const [pending, start] = useTransition();
@@ -38,11 +38,18 @@ function Box({ title, icon, children }: { title: string; icon: ReactNode; childr
 // chestCalendar: the Chest's page of the member's calendar feed, where
 // every booking goes (null: this Chest has no calendar bridge yet — the
 // tool's own feed is then the way).
-export function PageSettings({ host, chestCalendar, origin, t }: { host: { slug: string; welcome: string; listed: boolean; hasFeed: boolean; emailMe: boolean; dailyMax: number }; chestCalendar: string | null; origin: string; t: Words }) {
+// language: the language the host writes their texts in; second: another
+// version of them (optional) — the welcome here, the types in their form.
+export function PageSettings({ host, chestCalendar, origin, t }: { host: { slug: string; welcome: string; listed: boolean; hasFeed: boolean; emailMe: boolean; dailyMax: number; language: string; second: string; welcomeAlt: string }; chestCalendar: string | null; origin: string; t: Words }) {
   const s = t.settings;
   const { pending, error, run } = useRun(t);
   const [feed, setFeed] = useState<string | null>(null);
   const [emailMe, setEmailMe] = useState(host.emailMe);
+  const [language, setLanguage] = useState(host.language);
+  const [second, setSecond] = useState(host.second);
+  const codes = Object.keys(languageNames);
+  // A language named in a sentence ("in French"), in the reader's words.
+  const named = (code: string) => (t.languages as Record<string, string> | undefined)?.[code] ?? languageNames[code] ?? code;
   const own = (
     <>
       {feed ? (
@@ -64,13 +71,32 @@ export function PageSettings({ host, chestCalendar, origin, t }: { host: { slug:
         <form className="stack" onSubmit={e => {
           e.preventDefault();
           const d = new FormData(e.currentTarget);
-          run(() => savePage({ slug: String(d.get("slug") ?? ""), welcome: String(d.get("welcome") ?? ""), listed: d.get("listed") === "on" }), () => s.saved);
+          run(() => savePage({ slug: String(d.get("slug") ?? ""), welcome: String(d.get("welcome") ?? ""), listed: d.get("listed") === "on", language, second: second === language ? "" : second, welcomeAlt: String(d.get("welcomeAlt") ?? "") }), () => s.saved);
         }}>
           <div>
             <label className="label" htmlFor="slug">{s.address}</label>
             <div className="inline"><span className="muted">{origin}/</span><input id="slug" name="slug" className="field" style={{ maxWidth: 260 }} maxLength={40} defaultValue={host.slug} required /></div>
           </div>
-          <div><label className="label" htmlFor="welcome">{s.welcome}</label><textarea id="welcome" name="welcome" className="field" rows={2} maxLength={300} placeholder={s.welcomePlaceholder} defaultValue={host.welcome} /></div>
+          <div className="grid-2">
+            <div>
+              <label className="label" htmlFor="language">{s.textLanguage}</label>
+              <select id="language" className="field" value={language} onChange={e => setLanguage(e.target.value)} aria-describedby="language-hint">
+                {codes.map(code => <option key={code} value={code}>{languageNames[code]}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="label" htmlFor="second">{s.secondLanguage}</label>
+              <select id="second" className="field" value={second === language ? "" : second} onChange={e => setSecond(e.target.value)} aria-describedby="language-hint">
+                <option value="">{s.noSecond}</option>
+                {codes.filter(code => code !== language).map(code => <option key={code} value={code}>{languageNames[code]}</option>)}
+              </select>
+            </div>
+          </div>
+          <p id="language-hint" className="hint">{second && second !== language ? format(s.secondHint, { language: named(second) }) : format(s.languageHint, { language: named(language) })}</p>
+          <div><label className="label" htmlFor="welcome">{s.welcome}</label><textarea id="welcome" name="welcome" className="field" rows={2} maxLength={300} placeholder={s.welcomePlaceholder} defaultValue={host.welcome} lang={language} /></div>
+          {second && second !== language && (
+            <div><label className="label" htmlFor="welcomeAlt">{format(s.welcomeIn, { language: named(second) })}</label><textarea id="welcomeAlt" name="welcomeAlt" className="field" rows={2} maxLength={300} defaultValue={host.welcomeAlt} lang={second} /></div>
+          )}
           <label className="switch"><input type="checkbox" name="listed" defaultChecked={host.listed} />{s.listed}</label>
           {error && <p className="error" role="alert"><Alert />{error}</p>}
           <div><button type="submit" className="button" disabled={pending}>{s.save}</button></div>

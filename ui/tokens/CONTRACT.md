@@ -210,6 +210,20 @@ the portal's sheet has none. Its dark scheme is its light one, the page
 says `color-scheme: light`, and the stylesheet has no dark block. A tool
 does nothing special: its pages simply stay light.
 
+This is intended (the owner's sheet, confirmed after the second critique,
+0.2.3): a person whose computer is dark sees the Chest theme's pages
+light, as the portal itself is. The browser's own parts follow it —
+`color-scheme: light` on the page gives light scrollbars, fields and
+menus, never dark ones on white — and `lookColors` gives the light
+ground for the browser's bar in both modes. Two things a tool must not
+do, or a dark computer shows a half-dark page: set `color-scheme` itself
+(`light dark` in its CSS would win over the theme's), or change colours
+in its own `@media (prefers-color-scheme: dark)` block — a light-only
+theme is still light there. A colour that differs by mode is a contract
+token (each theme says both); the few tools that key a tool token on the
+media query (Goals' current-tab mark) change it to a token of the
+contract (`--inverse-signal`, 0.2.3).
+
 ## A tool's own tokens
 
 A tool keeps names of its own for what is its business alone (Leave's

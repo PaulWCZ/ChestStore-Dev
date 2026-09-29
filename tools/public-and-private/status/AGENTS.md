@@ -20,10 +20,10 @@ what must not break.
 | `lib/mailer.ts`, `lib/settings.ts` | Emails and their queue; what the tool remembers of mail and its public address |
 | `lib/tell.ts`, `lib/notify.ts`, `lib/people.ts` | The team's bell (broadcast, fallback), badges, names |
 | `lib/feed.ts`, `lib/feeds.ts`, `lib/ics.ts` | Atom/RSS and the maintenance calendar |
-| `migrations/0002_checks.sql`, `lib/checks.ts`, `lib/check-results.ts`, `lib/check-words.ts`, `app/chest-checks/route.ts`, `app/chest/checks/…` | Checks run by the Chest: watches, results (kept once, 90 days), down/up after three failures, measured uptime |
+| `migrations/0002_checks.sql`, `lib/checks.ts`, `lib/check-results.ts`, `lib/check-words.ts`, `app/chest-checks/route.ts`, `app/chest/checks/…` | Checks run by the Chest: watches, results (kept once, 90 days), down/up after three failures, measured uptime (a figure only after `measuredSample`: 24 h and 24 checks) |
 | `lib/jobs.ts`, `app/chest-jobs/[name]/route.ts` | The "updates" pass (schedule, or an editor's visit): automatic posts, mail, purge, silent heartbeats |
 | `migrations/0003_after_critique.sql` | Second-language texts, post-mortem step, `source_id` of imports, templates, `team_only`, heartbeats |
-| `lib/texts.ts`, `lib/languages.ts`, `components/second-field.tsx` | Texts in two languages: which version a reader gets (pure), the Chest's language and the other one, the form fields |
+| `lib/texts.ts`, `lib/languages.ts`, `components/second-field.tsx` | Texts in two languages: which version a reader gets (pure), the writer's language (`writtenIn`: the "Written in" choice, the editor's own by default — never the Chest's, which is only for texts nobody wrote: API descriptions, imports, old rows) and the other one, the form fields (`LanguagePick`) |
 | `lib/api.ts`, `app/api/v2/**` | The public API in Statuspage's shape (indicator rule, CORS) |
 | `lib/badge.ts`, `app/badge.svg/`, `app/embed/route.ts`, `lib/public-summary.ts` | The badge (plain SVG) and the framed banner (its own CSP, `frame-ancestors` from the settings) |
 | `lib/theme.ts`, `app/layout.tsx`, `app/tokens.css` | The look: the "Control room" identity (`defineTheme`, equal to the catalogue's), `currentLook()` (the Chest's choice, else the identity), one `<ThemeStyle>` with the page's nonce for every page, team and public; tool tokens defined from contract tokens only |

@@ -71,6 +71,7 @@ export function SendDialog({ t, doc, kind, mailWorks, pdfHref, onClose, onDone }
             <li>{s.step1}</li>
             <li>{kind === "reminder" ? s.step2Reminder : s.step2}</li>
             <li>{kind === "reminder" ? s.step3Reminder : s.step3}</li>
+            {kind === "send" && doc.type === "quote" && <li>{s.step4Quote}</li>}
           </ol>
           {error && <p className="error" role="alert">{error}</p>}
           <div className="dialog-actions">
@@ -95,7 +96,7 @@ export function SendDialog({ t, doc, kind, mailWorks, pdfHref, onClose, onDone }
           <div className="field-row">
             <label htmlFor="text">{s.message}</label>
             <textarea id="text" className="field" rows={9} value={message.text} maxLength={4000} onChange={e => setMessage({ ...message, text: e.target.value })} />
-            <span className="hint">{format(s.attached, { language: languageNames[doc.language] ?? doc.language })}</span>
+            <span className="hint">{format(s.attached, { language: languageNames[doc.language] ?? doc.language })}{doc.type === "quote" && kind === "send" ? " " + s.withLink : ""}</span>
           </div>
           {error && <p className="error" role="alert">{error}</p>}
           <div className="dialog-actions">

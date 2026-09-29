@@ -277,6 +277,11 @@ await step("French, phone width: nothing overflows; confirm and write work", asy
   expect(width <= 392, "front page width " + width);
   expect((await page.locator(".asks-you").innerText()).includes("confirmer"), "French strip");
   await page.locator(".asks-you a").click();
+  // The confirm strip is right under the headline: in the first screen,
+  // above the cover picture.
+  const strip = await page.locator(".confirm-box").boundingBox();
+  const cover = (await page.locator(".cover").count()) ? await page.locator(".cover").boundingBox() : null;
+  expect(strip && strip.y + strip.height <= 844 && (!cover || strip.y < cover.y), "confirm strip in the first screen, above the picture: " + JSON.stringify(strip));
   await saved(() => page.getByRole("button", { name: "Je l’ai lue" }).click());
   await page.waitForSelector(".confirm-box.done");
   width = await page.evaluate(() => document.documentElement.scrollWidth);
@@ -292,6 +297,8 @@ await step("French, phone width: nothing overflows; confirm and write work", asy
   await compose("/chest/new?kind=event");
   width = await page.evaluate(() => document.documentElement.scrollWidth);
   expect(width <= 392, "composer width " + width);
+  // On a phone the actions follow the form: they never sit over the text.
+  expect(await page.locator(".composer-bar").evaluate(e => getComputedStyle(e).position) === "static", "phone bar not sticky");
   await page.getByLabel("Titre").fill("Apéro sur la terrasse");
   await page.getByLabel("Lieu").fill("Terrasse, 3e étage");
   await page.getByLabel("Début").selectOption("18:30");
@@ -454,6 +461,36 @@ await step("the weekly digest email can be turned off", async () => {
   await page.waitForSelector(".ck-toast:has-text('No more weekly email')");
   await page.reload();
   expect(await page.getByRole("button", { name: "Also by email" }).isVisible(), "kept");
+});
+
+await step("views are a number only, from 5; events ask when and where under the headline; the bar never covers the side", async () => {
+  await page.setViewportSize({ width: 1280, height: 860 });
+  await as(context, origin, "camille");
+  await speak("en");
+  await page.goto(origin + "/chest/posts/1");
+  const reach = await page.locator(".reach").innerText();
+  expect(/Opened by 6 of the 6 people it is for/u.test(reach) && reach.includes("Counted every hour"), "views of post 1: " + reach);
+  expect(!/opened News since/u.test(reach), "the old line is gone");
+  expect(!/Hugo|Inès|Léa|Nora|Tom|Sofia/u.test(reach), "never who");
+  await page.goto(origin + "/chest/posts/6");
+  expect((await page.locator(".reach").innerText()).includes("Fewer than 5"), "below the floor: not shown");
+  // The drop cap only on a whole first word of 4 letters or more.
+  await page.goto(origin + "/chest/posts/3");
+  expect(await page.locator(".article .prose.drop-cap").count() === 0, "no drop cap on “Let’s”");
+  await page.goto(origin + "/chest/posts/4");
+  expect(await page.locator(".article .prose.drop-cap").count() === 1, "a drop cap on “After”");
+  // The composer: an event's day, time and place right under the headline,
+  // in the first screen; the sticky bar only under the text column.
+  await compose("/chest/new?kind=event");
+  const title = await page.locator("#title").boundingBox();
+  const day = await page.locator("#event-day").boundingBox();
+  const place = await page.locator("#event-place").boundingBox();
+  const body = await page.locator("#body").boundingBox();
+  expect(day.y > title.y && place.y < body.y, "when and where between headline and text");
+  expect(place.y + place.height <= 860, "the place is in the first screen: " + place.y);
+  const bar = await page.locator(".composer-bar").boundingBox();
+  const side = await page.locator(".composer-side").boundingBox();
+  expect(bar.x + bar.width <= side.x, "the bar stops before the right column");
 });
 
 await browser.close();

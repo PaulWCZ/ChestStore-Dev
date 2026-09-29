@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { parse, type Inline } from "../lib/markdown.ts";
+import { dropCap, parse, type Inline } from "../lib/markdown.ts";
 
 // A post's text, rendered from its small tree (lib/markdown.ts) as React
 // elements: what a person wrote never reaches the page as markup. Links
@@ -15,10 +15,12 @@ function inline(nodes: Inline[], key = ""): ReactNode[] {
   });
 }
 
-export function RichText({ text, className = "prose" }: { text: string; className?: string }) {
+// lead: the article's own text, which may open with a drop cap — only on a
+// first word that carries one (lib/markdown.ts, dropCap).
+export function RichText({ text, className = "prose", lead = false }: { text: string; className?: string; lead?: boolean }) {
   const blocks = parse(text);
   return (
-    <div className={className}>
+    <div className={className + (lead && dropCap(text) ? " drop-cap" : "")}>
       {blocks.map((b, i) => {
         if (b.t === "p") return <p key={i}>{inline(b.c)}</p>;
         if (b.t === "h") return <h2 key={i}>{inline(b.c)}</h2>;

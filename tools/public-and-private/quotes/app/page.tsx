@@ -1,19 +1,21 @@
-import { BrandMark, LanguageSwitch } from "@argentic/chest-ui/components";
-import { Mark } from "../components/mark.tsx";
-import { languageNames, locales } from "../lib/i18n/index.ts";
+import { PublicShell } from "../components/public-shell.tsx";
+import { company } from "../lib/company.ts";
+import { db } from "../lib/db.ts";
 import { publicWords } from "../lib/session.ts";
-import { currentLook } from "../lib/theme.ts";
 
-// The public host's root. This tool has no public part: whoever lands here
-// is told where the tool lives, in their language.
+// The public host's root. The public part is only the quotes' own pages
+// (/q/<secret>, reached from the link in a quote's email): nothing links
+// here, and whoever lands here is told where to go, in their language —
+// nothing of the company's documents is shown.
 export default async function PublicHome() {
-  const [{ t, locale }, look] = await Promise.all([publicWords(), currentLook()]);
+  const { t, locale } = await publicWords();
+  const c = await company(db());
   return (
-    <main className="page public">
-      <div className="brand"><BrandMark logo={look.logo}><Mark /></BrandMark>{t.meta.name}</div>
-      <h1>{t.public.title}</h1>
-      <p>{t.public.body}</p>
-      <LanguageSwitch languages={locales.map(code => ({ code, name: languageNames[code] ?? code }))} current={locale} label={t.public.language} />
-    </main>
+    <PublicShell company={c.tradeName || c.legalName || t.meta.name} locale={locale} label={t.public.language} back="/">
+      <div className="answer-state off">
+        <h1>{t.public.title}</h1>
+        <p className="lead">{t.public.body}</p>
+      </div>
+    </PublicShell>
   );
 }

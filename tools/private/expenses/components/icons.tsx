@@ -12,6 +12,8 @@ export const Close = () => <Icon><path d="M6 6l12 12M18 6L6 18" /></Icon>;
 export const Camera = () => <Icon><path d="M4 8h3l2-3h6l2 3h3v11H4z" /><circle cx="12" cy="13" r="3.5" /></Icon>;
 export const FileIcon = () => <Icon><path d="M6 3h8l4 4v14H6z" /><path d="M14 3v4h4M9 13h6M9 17h6" /></Icon>;
 export const Receipt = () => <Icon><path d="M6 3h12v18l-2-1.5-2 1.5-2-1.5-2 1.5-2-1.5L6 21z" /><path d="M9 8h6M9 12h6M9 16h3" /></Icon>;
+// No receipt: the receipt's outline, dashed and crossed.
+export const NoReceipt = () => <Icon><path d="M6 3h12v18l-2-1.5-2 1.5-2-1.5-2 1.5-2-1.5L6 21z" strokeDasharray="2.5 2.5" /><path d="M4 4l16 16" /></Icon>;
 export const Car = () => <Icon><path d="M4 16v-4l2-5h12l2 5v4z" /><path d="M4 12h16M6 16v2M18 16v2" /><circle cx="8" cy="13.5" r=".6" /><circle cx="16" cy="13.5" r=".6" /></Icon>;
 export const Send = () => <Icon><path d="M4 12l16-8-6 16-3-7z" /><path d="M11 13l9-9" /></Icon>;
 export const Download = () => <Icon><path d="M12 4v11M7 10l5 5 5-5M4 19h16" /></Icon>;

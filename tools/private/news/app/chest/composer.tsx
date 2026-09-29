@@ -259,6 +259,46 @@ export function Composer({ postId, initial, author, people, groups, languages, m
   const welcomed = d.welcome ? [{ kind: "member" as const, id: d.welcome, name: byId.get(d.welcome)?.name ?? "…" }] : [];
   const eventDraft = d.event ?? { day: defaults.day, lastDay: "", start: "", end: "", place: "", seats: "" };
   const setEvent = (patch: Partial<typeof eventDraft>) => update({ event: { ...eventDraft, ...patch } });
+  // What the post is about besides its words — who is welcomed, when and
+  // where the event is — right under the headline: an event is never
+  // published without its date because the fields were below the text.
+  const facts = (
+    <>
+          {d.kind === "welcome" && (
+            <div className="field-group">
+              <PeoplePicker id="welcome" label={w.welcome} hint={w.welcomeHint} search={findAnyone} value={welcomed} onChange={list => update({ welcome: list[0]?.id ?? null })} labels={{ ...t.peoplePicker, placeholder: w.welcomePick }} lang={locale} />
+            </div>
+          )}
+
+          {d.kind === "event" && (
+            <div className="event-fields">
+              <div className="field-group">
+                <DateField id="event-day" label={w.eventDay} value={eventDraft.day || null} onChange={day => setEvent({ day: day ?? "", ...(day && eventDraft.lastDay && eventDraft.lastDay < day ? { lastDay: "" } : {}) })} today={defaults.today} labels={t.date} />
+              </div>
+              <div className="field-group">
+                <DateField id="event-last" label={w.eventLastDay} hint={w.lastDayHint} value={eventDraft.lastDay || null} min={eventDraft.day || null} chips={false} onChange={day => setEvent({ lastDay: day ?? "" })} today={defaults.today} labels={t.date} />
+              </div>
+              <div className="field-group">
+                <label htmlFor="event-seats">{w.seats}</label>
+                <input id="event-seats" type="number" inputMode="numeric" min={1} max={limits.seats} className="field" value={eventDraft.seats} onChange={e => setEvent({ seats: e.target.value })} aria-describedby="seats-hint" />
+              </div>
+              <div className="field-group">
+                <label htmlFor="event-start">{w.eventStart}</label>
+                <TimeSelect id="event-start" empty={w.allDay} value={minutes(eventDraft.start)} onChange={m => setEvent({ start: hhmm(m), ...(m === null ? { end: "" } : {}) })} describedBy="time-hint" />
+              </div>
+              <div className="field-group">
+                <label htmlFor="event-end">{w.eventEnd}</label>
+                <TimeSelect id="event-end" empty="—" end value={minutes(eventDraft.end)} disabled={!eventDraft.start} onChange={m => setEvent({ end: hhmm(m) })} />
+              </div>
+              <p className="hint wide"><span id="time-hint">{w.timeHint}</span> <span id="seats-hint">{w.seatsHint}</span></p>
+              <div className="field-group wide">
+                <label htmlFor="event-place">{w.place}</label>
+                <input id="event-place" className="field" value={eventDraft.place} maxLength={limits.place} placeholder={w.placePlaceholder} onChange={e => setEvent({ place: e.target.value })} />
+              </div>
+            </div>
+          )}
+    </>
+  );
   // The headline and the text of the language shown.
   const textPanel = (
             <div id="text-panel" className="text-panel">
@@ -278,6 +318,8 @@ export function Composer({ postId, initial, author, people, groups, languages, m
                   onChange={e => write({ title: e.target.value })}
                 />
               </div>
+
+              {facts}
 
               <div className="field-group">
                 <span className="label" id="body-label">{w.body}</span>
@@ -342,39 +384,6 @@ export function Composer({ postId, initial, author, people, groups, languages, m
             </Tabs>
           ) : textPanel}
 
-          {d.kind === "welcome" && (
-            <div className="field-group">
-              <PeoplePicker id="welcome" label={w.welcome} hint={w.welcomeHint} search={findAnyone} value={welcomed} onChange={list => update({ welcome: list[0]?.id ?? null })} labels={{ ...t.peoplePicker, placeholder: w.welcomePick }} lang={locale} />
-            </div>
-          )}
-
-          {d.kind === "event" && (
-            <div className="event-fields">
-              <div className="field-group">
-                <DateField id="event-day" label={w.eventDay} value={eventDraft.day || null} onChange={day => setEvent({ day: day ?? "", ...(day && eventDraft.lastDay && eventDraft.lastDay < day ? { lastDay: "" } : {}) })} today={defaults.today} labels={t.date} />
-              </div>
-              <div className="field-group">
-                <DateField id="event-last" label={w.eventLastDay} hint={w.lastDayHint} value={eventDraft.lastDay || null} min={eventDraft.day || null} chips={false} onChange={day => setEvent({ lastDay: day ?? "" })} today={defaults.today} labels={t.date} />
-              </div>
-              <div className="field-group">
-                <label htmlFor="event-seats">{w.seats}</label>
-                <input id="event-seats" type="number" inputMode="numeric" min={1} max={limits.seats} className="field" value={eventDraft.seats} onChange={e => setEvent({ seats: e.target.value })} aria-describedby="seats-hint" />
-              </div>
-              <div className="field-group">
-                <label htmlFor="event-start">{w.eventStart}</label>
-                <TimeSelect id="event-start" empty={w.allDay} value={minutes(eventDraft.start)} onChange={m => setEvent({ start: hhmm(m), ...(m === null ? { end: "" } : {}) })} describedBy="time-hint" />
-              </div>
-              <div className="field-group">
-                <label htmlFor="event-end">{w.eventEnd}</label>
-                <TimeSelect id="event-end" empty="—" end value={minutes(eventDraft.end)} disabled={!eventDraft.start} onChange={m => setEvent({ end: hhmm(m) })} />
-              </div>
-              <p className="hint wide"><span id="time-hint">{w.timeHint}</span> <span id="seats-hint">{w.seatsHint}</span></p>
-              <div className="field-group wide">
-                <label htmlFor="event-place">{w.place}</label>
-                <input id="event-place" className="field" value={eventDraft.place} maxLength={limits.place} placeholder={w.placePlaceholder} onChange={e => setEvent({ place: e.target.value })} />
-              </div>
-            </div>
-          )}
         </div>
 
         <div className="composer-side">

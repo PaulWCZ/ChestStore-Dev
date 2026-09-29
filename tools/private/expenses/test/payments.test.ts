@@ -171,7 +171,7 @@ test("the transfer file: one transfer per person with bank details, everything p
   const made = await payments.createRun(sql, asMember(camille), { executionDate: execution });
   assert.equal(made.run.count, 1);
   assert.equal(made.run.total, 6070);
-  assert.deepEqual(made.skipped.sort(), [lea.id, tom.id].sort());
+  assert.deepEqual(made.skipped.map(x => `${x.member}:${x.reason}`).sort(), [`${lea.id}:no_bank`, `${tom.id}:no_bank`].sort());
   assert.deepEqual(made.decisions.map(d => [d.owner, d.expenses.map(e => e.id)]), [[hugo.id, [h1, h2]]]);
   for (const id of [h1, h2]) {
     const e = (await expenses.expense(sql, asMember(hugo), id)).expense;
@@ -197,7 +197,9 @@ test("the transfer file: one transfer per person with bank details, everything p
   assert.match(xml, /<CdtrAgt><FinInstnId><BIC>BDFEFRPP<\/BIC><\/FinInstnId><\/CdtrAgt>/u);
   assert.match(xml, /<Cdtr><Nm>Hugo Bernard<\/Nm><\/Cdtr>/u);
   assert.match(xml, /<IBAN>FR7630006000011234567890189<\/IBAN>/u);
-  assert.match(xml, new RegExp(`<Ustrd>Expenses E${h1} E${h2}</Ustrd>`, "u")); // Hugo reads English
+  // The company's language (the Chest's, English here), whoever is paid.
+  assert.match(xml, new RegExp(`<Ustrd>Expenses E${h1} E${h2}</Ustrd>`, "u"));
+  assert.doesNotMatch(xml, /<PstlAdr>/u); // inside the EEA: no address
   assert.match(xml, new RegExp(`<EndToEndId>${made.run.messageId}-1</EndToEndId>`, "u"));
   // Downloaded again: the very same file.
   assert.equal((await payments.runFile(sql, asMember(camille), made.run.id)).xml, xml);
@@ -291,4 +293,72 @@ test("rates: typed on the expense, or the company's; totals in the company's cur
   // Removed: the expense that followed it has no rate again.
   await settings.setRate(sql, asMember(camille), "JPY", "");
   assert.equal((await expenses.expense(sql, asMember(hugo), none.id)).expense.base, null);
+});
+
+test("bank texts in the company's language: set by the accountant, whatever the payee reads", async () => {
+  const { sql } = database;
+  await company();
+  await bank.setBankDetails(sql, asMember(hugo), hugo.id, { iban: hugoIban });
+  const h = await approved(hugo, "10");
+  assert.equal((await settings.settings(sql)).bankLocale, "en");
+  await assert.rejects(settings.updateSettings(sql, asMember(camille), { bankLocale: "de" }), refuses("invalid"));
+  await assert.rejects(settings.updateSettings(sql, asMember(hugo), { bankLocale: "fr" }), refuses("forbidden"));
+  await settings.updateSettings(sql, asMember(camille), { bankLocale: "fr" });
+  const made = await payments.createRun(sql, asMember(camille), { executionDate: today() });
+  const { xml } = await payments.runFile(sql, asMember(camille), made.run.id);
+  assert.match(xml, new RegExp(`<Ustrd>Notes de frais E${h}</Ustrd>`, "u")); // Hugo reads English; the bank speaks French
+  assert.equal(payments.remittance("en", "E1"), "Expenses E1");
+});
+
+test("an account outside the EEA (UK, Switzerland): the holder's address is asked, and goes in the file with the company's", async () => {
+  const { sql } = database;
+  const london = ibanOf("GB", "NWBK60161331926819");
+  const zurich = ibanOf("CH", "0483000000000000A");
+  // Asked when saving: a town (the country is the account's by default).
+  await assert.rejects(bank.setBankDetails(sql, asMember(tom), tom.id, { iban: london }), refuses("address_needed"));
+  await assert.rejects(bank.setBankDetails(sql, asMember(tom), tom.id, { iban: london, street: "1 King's Road" }), refuses("address_needed"));
+  await assert.rejects(bank.setBankDetails(sql, asMember(tom), tom.id, { iban: london, town: "London", addressCountry: "Britain" }), refuses("invalid"));
+  const saved = await bank.setBankDetails(sql, asMember(tom), tom.id, { iban: london, street: "1 King's Road", postcode: "SW3 4RP", town: "London" });
+  assert.deepEqual(saved.address, { street: "1 King's Road", postcode: "SW3 4RP", town: "London", country: "GB" });
+  assert.equal(saved.needsAddress, true);
+  // Inside the EEA the address is optional; a country alone is not kept.
+  const french = await bank.setBankDetails(sql, asMember(hugo), hugo.id, { iban: hugoIban, addressCountry: "FR" });
+  assert.equal(french.address, null);
+  // The IBAN left empty keeps the saved one: only the address changes.
+  const moved = await bank.setBankDetails(sql, asMember(tom), tom.id, { iban: "", town: "Bath", addressCountry: "gb" });
+  assert.equal(moved.masked, saved.masked);
+  assert.equal(moved.address?.town, "Bath");
+  await assert.rejects(bank.setBankDetails(sql, asMember(lea), lea.id, { iban: " " }), refuses("iban_invalid"));
+  // Accounts saved before the rule (no address): left out of the file, with the reason.
+  await sql`insert into bank_accounts (owner, iban, last4, country, updated_by) values (${lea.id}, ${seal(zurich.replace(/\s/gu, ""), "bank:" + lea.id)}, ${zurich.slice(-4)}, 'CH', ${lea.id})`;
+  const t = await approved(tom, "20");
+  const l = await approved(lea, "30");
+  const h = await approved(hugo, "5");
+  await company();
+  // The company's own address is missing: Tom waits too.
+  let made = await payments.createRun(sql, asMember(camille), { executionDate: today() });
+  assert.deepEqual(made.skipped.map(x => `${x.member}:${x.reason}`).sort(), [`${lea.id}:address`, `${tom.id}:company_address`].sort());
+  assert.deepEqual(made.decisions.map(d => d.owner), [hugo.id]);
+  await payments.cancelRun(sql, asMember(camille), made.run.id);
+  // Only people outside the EEA to pay, without what they need: said so.
+  await assert.rejects(payments.createRun(sql, asMember(camille), { executionDate: today(), members: [lea.id, tom.id] }), refuses("address_needed"));
+  await bank.setBankDetails(sql, asMember(camille), "company", { iban: "", street: "12 rue des Arts", postcode: "75011", town: "Paris" });
+  made = await payments.createRun(sql, asMember(camille), { executionDate: today() });
+  assert.deepEqual(made.skipped.map(x => `${x.member}:${x.reason}`), [`${lea.id}:address`]);
+  const { xml } = await payments.runFile(sql, asMember(camille), made.run.id);
+  assert.match(xml, /<Dbtr><Nm>Atelier Roux \+ Fils<\/Nm><PstlAdr><StrtNm>12 rue des Arts<\/StrtNm><PstCd>75011<\/PstCd><TwnNm>Paris<\/TwnNm><Ctry>FR<\/Ctry><\/PstlAdr><\/Dbtr>/u);
+  assert.match(xml, /<Cdtr><Nm>Tom Walker<\/Nm><PstlAdr><TwnNm>Bath<\/TwnNm><Ctry>GB<\/Ctry><\/PstlAdr><\/Cdtr>/u);
+  assert.match(xml, /<Cdtr><Nm>Hugo Bernard<\/Nm><\/Cdtr>/u); // inside the EEA: none
+  assert.ok([t, h].every(id => xml.includes(`E${id}`)) && !xml.includes(`E${l}<`));
+  // Checked against the ISO 20022 schema when it is at hand (SEPA_XSD).
+  const xsd = process.env["SEPA_XSD"];
+  if (xsd && existsSync(xsd)) {
+    const file = join(mkdtempSync(join(tmpdir(), "sepa-")), "file.xml");
+    writeFileSync(file, xml);
+    execFileSync("xmllint", ["--noout", "--schema", xsd, file], { stdio: "pipe" });
+  }
+  // An erased person's address leaves the batch with their account.
+  await erase(sql, tom.id);
+  const [run] = await sql`select file::text as file from payment_runs where id = ${made.run.id}`;
+  assert.equal(String(run!["file"]).includes("Bath"), false);
 });

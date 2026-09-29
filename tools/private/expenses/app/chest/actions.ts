@@ -5,6 +5,8 @@ import type { Member } from "@argentic/chest-sdk/member";
 import { db } from "../../lib/db.ts";
 import { attempt, AppError, type Result } from "../../lib/errors.ts";
 import * as bank from "../../lib/bank.ts";
+import { can } from "../../lib/access.ts";
+import * as cards from "../../lib/cards.ts";
 import * as expenses from "../../lib/expenses.ts";
 import { importExpenses as importLines, type Imported } from "../../lib/imports.ts";
 import * as payments from "../../lib/payments.ts";
@@ -42,6 +44,12 @@ export async function saveExpense(expenseId: string | null, input: expenses.Expe
     if (guests.length > 0 && [...(await people(guests)).values()].some(p => p.status === "unknown")) throw new AppError("invalid");
     const saved = await expenses.saveExpense(sql, actor, expenseId, input, file);
     if (saved.dropped) await forget([saved.dropped]);
+    // A card payment's receipt arrived: the bell's "needs its receipt" goes
+    // once none is missing.
+    if (saved.expense.fromCard) {
+      await tell.settleCardReceipts(sql, [actor.id]);
+      await tell.refresh(sql, [actor.id]);
+    }
     return { id: saved.expense.id };
   });
 }
@@ -55,11 +63,22 @@ export async function saveAllowance(expenseId: string | null, input: expenses.Al
 }
 
 export async function removeExpense(expenseId: string): Promise<Result> {
-  return act(async actor => { await expenses.remove(db(), actor, expenseId); return null; });
+  return act(async actor => {
+    const sql = db();
+    await expenses.remove(sql, actor, expenseId);
+    await tell.settleCardReceipts(sql, [actor.id]);
+    await tell.refresh(sql, [actor.id]);
+    return null;
+  });
 }
 
 export async function restoreExpense(expenseId: string): Promise<Result> {
-  return act(async actor => { await expenses.restore(db(), actor, expenseId); return null; });
+  return act(async actor => {
+    const sql = db();
+    await expenses.restore(sql, actor, expenseId);
+    await tell.refresh(sql, [actor.id]);
+    return null;
+  });
 }
 
 // Sends drafts; answers how many and to whom, in the sender's words.
@@ -216,4 +235,43 @@ export async function setMemberAccount(memberId: string, account: string): Promi
 // the people they name are found in the team by name.
 export async function importExpenses(lines: Record<string, string>[], dateOrder: string): Promise<Result<Imported>> {
   return act(async actor => importLines(db(), actor, { lines, dateOrder }, (await holders()).map(h => ({ id: h.id, name: h.name }))));
+}
+
+// A company card statement, read and mapped in the page: each payment
+// matched to its expense, or a draft waiting for its receipt; the holders
+// are asked for the missing receipts. The card holders must be people of
+// the tool.
+export async function importCardStatement(fileName: string, lines: cards.StatementLine[]): Promise<Result<Omit<cards.StatementResult, "owners">>> {
+  return act(async actor => {
+    const sql = db();
+    const team = new Set((await holders()).filter(h => h.role !== null).map(h => h.id));
+    const done = await cards.importStatement(sql, actor, { fileName, lines }, team);
+    await tell.cardReceipts(sql, done.owners);
+    const { owners: _owners, ...counts } = done;
+    return counts;
+  });
+}
+
+export async function undoCardStatement(statementId: string): Promise<Result> {
+  return act(async actor => {
+    const sql = db();
+    const owners = await cards.undoStatement(sql, actor, statementId);
+    await tell.settleCardReceipts(sql, owners);
+    await tell.refresh(sql, owners);
+    return null;
+  });
+}
+
+// Asks a holder (or everyone owing some) again for their card receipts.
+export async function remindCardReceipts(memberId?: string): Promise<Result<{ count: number }>> {
+  return act(async actor => {
+    if (!can(actor, "pay")) throw new AppError("forbidden");
+    const sql = db();
+    const owed = await cards.receiptsOwed(sql, memberId ? [memberId] : undefined);
+    return { count: await tell.cardReceipts(sql, [...owed.keys()]) };
+  });
+}
+
+export async function checkCardLine(lineId: string, checked: boolean): Promise<Result> {
+  return act(async actor => { await cards.checkLine(db(), actor, lineId, checked); return null; });
 }

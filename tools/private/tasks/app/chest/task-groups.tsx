@@ -28,7 +28,7 @@ export type TaskRow = {
   repeats: boolean;
   done: { id: string; name: string } | null;
 };
-type Words = { groups: Catalogue["home"]["groups"]; markDone: string; doneToast: string; doneRepeatToast: string; stepDone: string; stepOf: string; repeats: string; errors: Catalogue["errors"]; late: string; today: string; progress: string };
+type Words = { groups: Catalogue["home"]["groups"]; markDone: string; doneAnyway: string; doneToast: string; doneRepeatToast: string; stepDone: string; stepOf: string; repeats: string; errors: Catalogue["errors"]; late: string; today: string; progress: string };
 
 // My tasks by when they are due. Ticking a card moves it to its board's
 // "done" column at once, ticking a step ticks it on its card; with "Undo".
@@ -54,6 +54,8 @@ export function TaskGroups({ rows, order, t }: { rows: TaskRow[]; order: DueStat
     start(async () => {
       remove(key(row));
       const result = await moveCard(row.id, target.id, null, null);
+      // A card that waits for others: said, with "Mark done anyway".
+      if (!result.ok && result.error === "blocked") return void toast({ id: `done-${row.id}`, text: fail(result), tone: "error", action: { label: t.doneAnyway, run: () => start(async () => { remove(key(row)); const again = await moveCard(row.id, target.id, null, null, true); if (!again.ok) toast({ text: fail(again), tone: "error" }); }) } });
       if (!result.ok) return void toast({ text: fail(result), tone: "error" });
       toast({ id: `done-${row.id}`, text: format(row.repeats ? t.doneRepeatToast : t.doneToast, { column: target.name }), undo: async () => { const back = await moveCard(row.id, from, null, null); return back.ok || fail(back); } });
     });

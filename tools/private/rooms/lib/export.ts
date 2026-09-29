@@ -21,15 +21,17 @@ function period(fromValue: unknown, toValue: unknown): { from: string; to: strin
 export async function bookingsCsv(sql: Sql, actor: Member | null, fromValue: unknown, toValue: unknown, t: Catalogue, locale: Locale, zone: string): Promise<string> {
   if (!can(actor, "export")) throw new AppError("forbidden");
   const { from, to } = period(fromValue, toValue);
+  // The names the tool gave (floors, areas) in the reader's language.
+  const presets = JSON.stringify(t.presets);
   const rows = await sql<{ day: string; kind: "desk" | "room"; office: string; floor: string; place: string; start: number; end: number; member_id: string; title: string; people: number }[]>`
-    select to_char(b.day, 'YYYY-MM-DD') as day, 'desk' as kind, o.name as office, f.name as floor, d.name || ' · ' || a.name as place,
+    select to_char(b.day, 'YYYY-MM-DD') as day, 'desk' as kind, o.name as office, coalesce(${presets}::jsonb ->> f.preset, f.name) as floor, d.name || ' · ' || coalesce(${presets}::jsonb ->> a.preset, a.name) as place,
       (extract(epoch from (lower(b.during) at time zone ${zone}) - b.day::timestamp) / 60)::int as start,
       (extract(epoch from (upper(b.during) at time zone ${zone}) - b.day::timestamp) / 60)::int as "end",
       b.member_id, '' as title, 0 as people
     from desk_bookings b join desks d on d.id = b.desk_id join areas a on a.id = d.area_id join floors f on f.id = a.floor_id join offices o on o.id = f.office_id
     where b.cancelled_at is null and b.day between ${from} and ${to}
     union all
-    select to_char(b.day, 'YYYY-MM-DD'), 'room', o.name, f.name, r.name,
+    select to_char(b.day, 'YYYY-MM-DD'), 'room', o.name, coalesce(${presets}::jsonb ->> f.preset, f.name), r.name,
       (extract(epoch from (lower(b.during) at time zone ${zone}) - b.day::timestamp) / 60)::int,
       (extract(epoch from (upper(b.during) at time zone ${zone}) - b.day::timestamp) / 60)::int,
       b.member_id, b.title, (select count(*)::int from room_attendees x where x.booking_id = b.id)
@@ -72,13 +74,26 @@ export async function occupancyCsv(sql: Sql, actor: Member | null, fromValue: un
 // How full the office is on each working day of the week, on average over
 // the last weeks: people at the office and desks booked (counts only). For
 // the admin's "which days are busy?" at a glance.
+//
+// Only the days since the office's first presence or desk booking count
+// (today included): in the first weeks after moving in, the weeks before
+// anyone used Rooms are not zeros, they are no data. `since` says from
+// when; a weekday with no day in that range has days = 0 ("not yet").
 export type WeekdayLoad = { weekday: number; people: number; desks: number; days: number };
 
-export async function weekdayLoad(sql: Sql, actor: Member | null, officeId: string, zone: string, weeks = 8): Promise<{ loads: WeekdayLoad[]; desks: number }> {
+export async function weekdayLoad(sql: Sql, actor: Member | null, officeId: string, zone: string, weeks = 8): Promise<{ loads: WeekdayLoad[]; desks: number; since: string | null }> {
   if (!can(actor, "export")) throw new AppError("forbidden");
-  const rows = await sql<{ weekday: number; people: number; desks: number; days: number }[]>`
+  const [{ first } = { first: null }] = await sql<{ first: string | null }[]>`
+    select to_char(least(
+      (select min(p.day) from presence p where p.status = 'office' and (p.office_id = ${officeId} or p.office_id is null)
+        and p.day >= (now() at time zone ${zone})::date - ${weeks * 7}::int),
+      (select min(b.day) from desk_bookings b join desks d on d.id = b.desk_id join areas a on a.id = d.area_id join floors f on f.id = a.floor_id
+        where b.cancelled_at is null and f.office_id = ${officeId} and b.day >= (now() at time zone ${zone})::date - ${weeks * 7}::int)
+    ), 'YYYY-MM-DD') as first`;
+  const since = first ?? null;
+  const rows = since === null ? [] : await sql<{ weekday: number; people: number; desks: number; days: number }[]>`
     with days as (
-      select d::date as day from generate_series((now() at time zone ${zone})::date - ${weeks * 7}::int, (now() at time zone ${zone})::date - 1, interval '1 day') d
+      select d::date as day from generate_series(${since}::date, (now() at time zone ${zone})::date, interval '1 day') d
     ), per_day as (
       select x.day,
         (select count(distinct m)::int from (
@@ -92,7 +107,12 @@ export async function weekdayLoad(sql: Sql, actor: Member | null, officeId: stri
     )
     select extract(isodow from day)::int as weekday, avg(people)::float as people, avg(desks)::float as desks, count(*)::int as days
     from per_day group by 1 order by 1`;
+  const found = new Map(rows.map(r => [Number(r.weekday), r]));
+  const loads = [1, 2, 3, 4, 5, 6, 7].map(weekday => {
+    const r = found.get(weekday);
+    return { weekday, people: r ? Number(r.people) : 0, desks: r ? Number(r.desks) : 0, days: r ? Number(r.days) : 0 };
+  });
   const [{ n } = { n: 0 }] = await sql<{ n: number }[]>`
     select count(*)::int as n from desks d join areas a on a.id = d.area_id join floors f on f.id = a.floor_id where f.office_id = ${officeId} and d.archived_at is null`;
-  return { loads: rows.map(r => ({ weekday: Number(r.weekday), people: Number(r.people), desks: Number(r.desks), days: Number(r.days) })), desks: n };
+  return { loads, desks: n, since };
 }

@@ -296,12 +296,12 @@ textarea.ck-field { padding-block: var(--space-2); line-height: var(--leading); 
    "Choose a file" beside it; elsewhere the one button says "Add files". */
 .ck-file-camera, .ck-file-camera-input, .ck-file-choose { display: none; }
 @media (pointer: coarse) {
-  /* Nothing is dropped with a finger: no "or drop them here" (0.2.3). */
-  .ck-drop-hint { display: none; }
   .ck-file-camera { display: inline-flex; }
   .ck-file-camera-input { display: block; }
   .ck-file-choose { display: inline; }
   .ck-file-add { display: none; }
+  /* Nothing is dropped with a finger: no "or drop them here" (0.2.3). */
+  .ck-drop-hint { display: none; }
 }
 .ck-file-problems .ck-error { margin: 0; }
 

@@ -4,7 +4,7 @@ import { CalendarCheck, CalendarOff, Check, Clock, Download, kindIcon, Person } 
 import { Picker } from "../../../components/picker.tsx";
 import { PublicShell } from "../../../components/public-shell.tsx";
 import { CopyButton } from "../../../components/copy-button.tsx";
-import { bySecret, firstFree, meetingPlace, publicType, settings } from "../../../lib/booking.ts";
+import { bySecret, firstFree, isPublicJitsi, meetingPlace, settings, typeForMove } from "../../../lib/booking.ts";
 import { db } from "../../../lib/db.ts";
 import { format, meetingTime, plural, zoneName } from "../../../lib/i18n/index.ts";
 import { nameOf, people } from "../../../lib/people.ts";
@@ -43,7 +43,7 @@ export default async function GuestBookingPage({ params, searchParams }: { param
   const past = b.endsAt.getTime() <= now;
   const live = b.status === "confirmed" && b.startsAt.getTime() > now;
   const moving = live && q["move"] === "1";
-  const place = moving && found.hostSlug && found.typeSlug ? await publicType(sql, found.hostSlug, found.typeSlug) : null;
+  const place = moving && found.hostSlug && found.typeSlug ? await typeForMove(sql, found.booking) : null;
   const again = found.hostSlug ? `/${found.hostSlug}` : "/";
   const room = meetingPlace(b);
   const where = b.locationKind === "phone" ? format(t.public.phoneCall, { name: shortName, phone: b.guestPhone }) : room || (b.locationKind === "video" ? format(t.public.whereLater, { name: shortName }) : "");
@@ -64,7 +64,8 @@ export default async function GuestBookingPage({ params, searchParams }: { param
             <dt><Person />{b.title}</dt>
             <dd className="row"><Avatar name={hostName} photo={null} size="s" />{format(t.public.with, { name: hostName })}</dd>
             <dt><Kind />{t.public.where}</dt>
-            <dd>{t.kinds[b.locationKind]}{where && <><br />{b.locationKind === "video" && room ? <a href={room} target="_blank" rel="noopener noreferrer">{room}</a> : where}</>}</dd>
+            <dd>{t.kinds[b.locationKind]}{where && <><br />{b.locationKind === "video" && room ? <a href={room} target="_blank" rel="noopener noreferrer">{room}</a> : where}</>}
+              {live && b.locationKind === "video" && isPublicJitsi(room) && <div className="hint">{format(t.public.jitsiGuest, { name: shortName })}</div>}</dd>
           </dl>
           {live && b.paymentLink && (
             <div className="pay">

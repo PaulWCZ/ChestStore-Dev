@@ -6,8 +6,10 @@
 
 insert into offices (name, address, position) values ('Paris — Rue de Paradis', '12 rue de Paradis, 75010 Paris', 0);
 
-insert into floors (office_id, name, position)
-select id, f.name, f.position from offices, (values ('Ground floor', 0), ('First floor', 1)) as f(name, position);
+-- Floors and areas the sample names are keys (preset): each reader sees
+-- them in their own language until an admin renames them.
+insert into floors (office_id, name, preset, position)
+select id, f.name, f.preset, f.position from offices, (values ('Ground floor', 'ground', 0), ('First floor', 'first', 1)) as f(name, preset, position);
 
 insert into rooms (floor_id, name, capacity, equipment, note, position)
 select fl.id, r.name, r.capacity, r.equipment, r.note, r.position
@@ -18,8 +20,8 @@ from (values
 ) as r(floor, name, capacity, equipment, note, position)
 join floors fl on fl.name = r.floor;
 
-insert into areas (floor_id, name, position)
-select fl.id, a.name, a.position from (values ('First floor', 'Open space', 0), ('Ground floor', 'Quiet zone', 1)) as a(floor, name, position)
+insert into areas (floor_id, name, preset, position)
+select fl.id, a.name, a.preset, a.position from (values ('First floor', 'Open space', 'open_space', 0), ('Ground floor', 'Quiet zone', 'quiet_zone', 1)) as a(floor, name, preset, position)
 join floors fl on fl.name = a.floor;
 
 insert into desks (area_id, name, features, assigned_to, position)

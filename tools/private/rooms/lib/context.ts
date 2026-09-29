@@ -19,7 +19,7 @@ export async function context(params: { office?: string | string[] | undefined }
   const sql = db();
   const z = zone();
   await catchUp(sql, z);
-  const [all, r] = await Promise.all([offices(sql, v.member), rules(sql)]);
+  const [all, r] = await Promise.all([offices(sql, v.member, v.t.presets), rules(sql)]);
   const office = await chooseOffice(sql, v.member, all, typeof params.office === "string" ? params.office : null);
   return { ...v, sql, zone: z, today: today(z), rules: r, offices: all, office };
 }

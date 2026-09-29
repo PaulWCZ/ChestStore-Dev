@@ -423,3 +423,90 @@ select.ink { appearance: none; cursor: pointer; padding-right: 18px; background-
 }
 /* A true count on a section (overdue invoices): inked like the seal. */
 .ck-nav-link .ck-count { background: var(--accent); color: var(--accent-ink); }
+.kind-options { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: var(--space-4); }
+
+/* ── The public part: a client's quote (/q/<secret>) ───────────────── */
+/* The company's page, not the tool's: its name (or its logo), the
+   language switch, the quote on its sheet of paper, the answer below. */
+.public-frame { min-height: 100dvh; display: grid; grid-template-rows: auto 1fr auto; }
+.public-top { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); flex-wrap: wrap; max-width: 860px; width: 100%; margin: 0 auto; padding: var(--space-4) var(--space-5); }
+.public-top .company { font-family: var(--font-display); font-size: 1.2rem; }
+.public-main { max-width: 860px; width: 100%; margin: 0 auto; padding: var(--space-3) var(--space-5) var(--space-7); display: grid; gap: var(--space-5); align-content: start; }
+.public-foot { max-width: 860px; width: 100%; margin: 0 auto; padding: var(--space-4) var(--space-5) var(--space-6); border-top: 1px solid var(--line); color: var(--ink-2); }
+.public-foot .fine, .fine { font-size: var(--text-xs); color: var(--ink-2); }
+.answer-state { display: grid; gap: var(--space-2); justify-items: center; text-align: center; padding: var(--space-4) 0 0; }
+.answer-state .lead { font-size: var(--text-m); color: var(--ink-2); max-width: 60ch; }
+.answer-state.off { padding-top: 12vh; }
+.seal-mark { display: grid; place-items: center; width: 56px; height: 56px; border-radius: 50%; border: 2px solid var(--line-strong); color: var(--ink-2); }
+.seal-mark svg { width: 26px; height: 26px; }
+.seal-mark.ok { border-color: var(--ok); color: var(--ok-ink); background: var(--ok-soft); }
+.row.centre { display: flex; gap: var(--space-3); align-items: center; justify-content: center; flex-wrap: wrap; margin-top: var(--space-2); }
+.sheet { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-s); box-shadow: var(--shadow-paper); padding: var(--space-6); display: grid; gap: var(--space-4); overflow-wrap: anywhere; }
+.sheet h2 { font-family: var(--font-body); font-size: var(--text-xs); font-weight: var(--weight-strong); letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-2); margin-bottom: var(--space-1); }
+.sheet-head { display: flex; justify-content: space-between; gap: var(--space-4); flex-wrap: wrap; border-bottom: 2px solid var(--ink); padding-bottom: var(--space-3); }
+.sheet-kind { font-family: var(--font-display); font-size: var(--text-xl); line-height: 1.1; }
+.sheet-number { color: var(--ink-2); }
+.sheet-dates { display: grid; gap: 2px; margin: 0; font-size: var(--text-s); }
+.sheet-dates div { display: flex; gap: var(--space-2); justify-content: flex-end; }
+.sheet-dates dt { color: var(--ink-2); }
+.sheet-dates dd { margin: 0; }
+.sheet-parties { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: var(--space-4); font-size: var(--text-s); }
+.sheet-parties p + p { margin-top: var(--space-1); }
+.sheet-subject { font-weight: var(--weight-strong); }
+.sheet-lines { width: 100%; border-collapse: collapse; font-size: var(--text-s); }
+.sheet-lines th { text-align: left; font-size: var(--text-xs); color: var(--ink-2); font-weight: var(--weight-strong); padding: var(--space-2); border-bottom: 1px solid var(--line-strong); }
+.sheet-lines td { padding: var(--space-2); border-bottom: 1px solid var(--line); vertical-align: top; }
+.sheet-lines .n { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.sheet-lines .strong { font-weight: var(--weight-strong); }
+.sheet-lines small { display: block; color: var(--ink-2); }
+.sheet-lines .what .more { display: block; color: var(--ink-2); }
+.sheet-lines .section-row th { font-family: var(--font-display); font-size: var(--text-m); text-transform: none; letter-spacing: 0; color: var(--ink); padding-top: var(--space-4); }
+.sheet-totals { justify-self: end; min-width: min(100%, 320px); display: grid; gap: 4px; margin: 0; font-size: var(--text-s); }
+.sheet-totals div { display: flex; justify-content: space-between; gap: var(--space-4); }
+.sheet-totals dd { margin: 0; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.sheet-totals .grand { border-top: 2px solid var(--ink); padding-top: var(--space-2); font-size: var(--text-m); font-weight: var(--weight-strong); }
+.sheet-notes p { font-size: var(--text-s); }
+/* On a phone each line of the quote is a small card: no sideways scroll. */
+@media (max-width: 640px) {
+  .sheet { padding: var(--space-4); }
+  .sheet-dates div { justify-content: flex-start; }
+  .sheet-lines thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+  .sheet-lines tr { display: grid; grid-template-columns: 1fr auto; gap: 2px var(--space-3); padding: var(--space-2) 0; border-bottom: 1px solid var(--line); }
+  .sheet-lines td { display: flex; justify-content: space-between; gap: var(--space-3); border: 0; padding: 0; }
+  .sheet-lines td.what { grid-column: 1 / -1; display: block; font-weight: var(--weight-strong); }
+  .sheet-lines td.n { grid-column: 1 / -1; }
+  .sheet-lines td.n::before { content: attr(data-label); color: var(--ink-2); font-weight: normal; }
+  .sheet-lines .section-row { display: block; }
+  .sheet-lines .section-row th { display: block; padding: var(--space-3) 0 0; }
+  .sheet-totals { justify-self: stretch; }
+}
+.card.answer { padding: var(--space-5); border-color: var(--line-strong); }
+.answer-form { display: grid; gap: var(--space-4); }
+.answer-form .label { display: block; font-weight: var(--weight-strong); font-size: var(--text-s); margin-bottom: 6px; }
+.answer-form .optional { font-weight: normal; color: var(--ink-2); }
+.answer-form .agree { display: flex; gap: var(--space-3); align-items: flex-start; padding: var(--space-3); border: 1.5px solid var(--line-strong); border-radius: var(--radius-m); cursor: pointer; }
+.answer-form .agree input { width: 22px; height: 22px; margin: 2px 0 0; accent-color: var(--accent); flex: none; }
+.answer-form .agree strong { font-family: var(--font-display); font-size: var(--text-l); font-weight: var(--display-weight); }
+.answer-form .answer-date { font-size: var(--text-s); }
+.answer-form .row { display: flex; gap: var(--space-2); flex-wrap: wrap; }
+.answer-form .decline-line { text-align: center; }
+.answer-form .error { display: flex; gap: 6px; align-items: flex-start; }
+.trap { position: absolute; left: -10000px; width: 1px; height: 1px; overflow: hidden; }
+@media (max-width: 640px) {
+  .public-top, .public-main, .public-foot { padding-left: var(--space-3); padding-right: var(--space-3); }
+}
+
+/* ── The margin's online answer, the imported invoice, the archives ── */
+.copy-link { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--space-2); align-items: center; }
+.copy-link .field { font-size: var(--text-xs); min-height: 36px; }
+.proof { border-top: 1px solid var(--line); padding-top: var(--space-2); display: grid; gap: var(--space-2); font-size: var(--text-s); }
+.proof summary { cursor: pointer; display: flex; flex-wrap: wrap; gap: 4px var(--space-2); align-items: baseline; min-height: 32px; }
+.proof .when { color: var(--ink-2); font-size: var(--text-xs); }
+.proof .tag { font-weight: var(--weight-strong); }
+.proof .tag.ok { color: var(--ok); }
+.proof blockquote { margin: 0; padding-left: var(--space-3); border-left: 3px solid var(--line-strong); font-style: italic; }
+.proof .proof-value { font-family: ui-monospace, "SFMono-Regular", Menlo, monospace; font-size: var(--text-xs); text-align: left; }
+.imported-note { border-left: 3px solid var(--line-strong); }
+.archives { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-2); }
+.archives li { display: flex; justify-content: space-between; align-items: center; gap: var(--space-3); padding: var(--space-2) 0; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+.archives .sub { display: block; color: var(--ink-2); font-size: var(--text-s); }

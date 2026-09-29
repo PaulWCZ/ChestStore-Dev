@@ -16,6 +16,7 @@ must not break.
 | `lib/balances.ts` | The ledger and balances: `compute` (pure) — years (N-1 / N, calendar year, running), oldest days first, the end of a year (carried over or lost), the last day; adjustments, openings (two parts for paid leave) |
 | `lib/left.ts`, `lib/balance-words.ts` | **The one "days left"** and "balance after" (pure, browser-safe); a balance in words, the same on every screen |
 | `lib/staff.ts` | Each person's approver, start date, last day, week (work days) and employee number; who left |
+| `lib/last-day.ts` | A last day set: leave after it cancelled, leave across it cut, days given back (reason key `afterLastDay`) — by the Chest's leaving event and by HR |
 | `lib/setup.ts` | HR's first-run checklist |
 | `lib/routing.ts` | Who answers a person's requests, given the directory (pure) |
 | `lib/directory.ts` | The members who have the tool, from the Chest |
@@ -34,7 +35,7 @@ must not break.
 | `app/chest/new/request-form.tsx` | The request form (client): the live cost uses `lib/calendar.ts` |
 | `app/chest/calendar/page.tsx` | The month grid and the phone's day list (server-rendered) |
 | `app/chest/people/export/route.ts` | The payroll CSV |
-| `migrations/` | Schema: `0001` the tool, `0002` years, weeks, last days, employee numbers, family events, remote work. Never edit a shipped file; add `0003_…` |
+| `migrations/` | Schema: `0001` the tool, `0002` years, weeks, last days, employee numbers, family events, remote work; `0003` payroll codes, family events on worked days, ledger reason keys, `after_last_day`/`cut` history steps. Never edit a shipped file; add `0004_…` |
 | `seed/sample.sql` | A seven-person company, dates around today |
 | `test/` | `node:test` with `fakeChest` and PostgreSQL (PGlite or `TEST_DATABASE_URL`) |
 
@@ -55,6 +56,8 @@ npm ci && npm test && npm run build   # all three must pass
   sick leave.
 - **One "days left"**: `Balance.left` (approved leave deducted, waiting days beside it). Never show `left − pending` as "left"; use `leftIfApproved`/`afterRequest` (`lib/left.ts`) and say what they count.
 - **Years are computed, never stored**: no job closes a period; `compute` classifies days by the dates. A new rule is a change there, with its test in `test/years.test.ts`.
+- **A line the tool writes itself has a `reason_key`** (`opening`, `rttYear`, `afterLastDay`), written in the reader's language (`team.reasonKeys`); never write an English sentence into `reason` from code or seed.
+- **A last day never leaves leave after it counting**: every way of setting one goes through `settleAfterLastDay` (`lib/last-day.ts`), in the same transaction.
 - **The ledger is append-only** (a trigger refuses updates and deletes, but
   the erasure's anonymisation). Correct a balance by adding a line.
 - **A request's cost is fixed when asked** (`requests.days`); counting rules

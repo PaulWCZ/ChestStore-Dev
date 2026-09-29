@@ -17,6 +17,10 @@ import { checkIn as checkInto } from "../../lib/check-in.ts";
 import * as usual from "../../lib/usual.ts";
 import { directory } from "../../lib/directory.ts";
 import * as imports from "../../lib/import.ts";
+import * as example from "../../lib/example.ts";
+import * as calendarImport from "../../lib/calendar-import.ts";
+import { locale as chestLocale } from "@argentic/chest-sdk/chest";
+import { catalogue, isLocale } from "../../lib/i18n/index.ts";
 
 // The server actions of the members' part. Each is an endpoint anyone can
 // call: each reads the member from the Chest's assertion again; the
@@ -191,6 +195,23 @@ export async function setAreaGroup(areaId: string, groupId: string | null): Prom
   return act(async actor => { await places.setAreaGroup(db(), actor, areaId, groupId); return null; });
 }
 
+// ---------- Start with an example (admins) ----------
+
+// The office is named in the admin's language (they rename it); the
+// floors' and areas' stored names in the Chest's (the keys show each
+// reader their own).
+export async function addExample(): Promise<Result<{ id: string }>> {
+  return act(actor => {
+    const mine = catalogue(isLocale(actor.locale) ? actor.locale : "en");
+    const given = chestLocale();
+    const company = catalogue(isLocale(given) ? given : "en");
+    return example.addExample(db(), actor, { office: mine.places.example.office, presets: company.presets });
+  });
+}
+export async function removeExample(officeId: string): Promise<Result<null>> {
+  return act(async actor => { await example.removeExample(db(), actor, officeId); return null; });
+}
+
 // ---------- Moving in (admins) ----------
 
 export async function importRooms(officeId: string, text: string): Promise<Result<imports.RoomsImported>> {
@@ -203,6 +224,15 @@ export async function importDesks(officeId: string, text: string): Promise<Resul
     await tell.desksCancelled(actor, done.cancelled, "given");
     return { ...done, cancelled: done.cancelled.length };
   });
+}
+
+// A room calendar's .ics export: first a preview (nothing is written),
+// then the import; Undo takes the whole import back.
+export async function readRoomCalendar(roomId: string, text: string, commit: boolean): Promise<Result<calendarImport.CalendarImport>> {
+  return act(async actor => calendarImport.importRoomCalendar(db(), actor, { roomId, text, commit }, await directory(), zone()));
+}
+export async function undoRoomCalendar(batch: string): Promise<Result<{ removed: number }>> {
+  return act(async actor => ({ removed: await calendarImport.undoCalendarImport(db(), actor, batch) }));
 }
 
 export async function updateDesk(deskId: string, input: DeskFields): Promise<Result<{ cancelled: number }>> {

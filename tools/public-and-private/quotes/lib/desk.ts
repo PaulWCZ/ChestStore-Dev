@@ -1,7 +1,7 @@
 import type { Member } from "@argentic/chest-sdk/member";
 import { can } from "./access.ts";
 import type { Query } from "./db.ts";
-import { listDocuments, type ListRow } from "./documents.ts";
+import { collectable, listDocuments, type ListRow } from "./documents.ts";
 import { addDays } from "./model.ts";
 
 // The desk: what the company waits for (quotes sent, money to collect), what
@@ -20,7 +20,7 @@ export type Desk = {
 export async function desk(sql: Query, actor: Member, today: string): Promise<Desk> {
   const all = await listDocuments(sql, actor, { types: ["quote", "invoice", "credit"], limit: 2000 }, today);
   const waitingQuotes = all.filter(r => r.type === "quote" && r.state === "sent");
-  const open = all.filter(r => r.type === "invoice" && r.status === "final" && r.due > 0 && r.state !== "credited");
+  const open = all.filter(r => collectable(r) && r.due > 0 && r.state !== "credited");
   const late = open.filter(r => r.state === "overdue");
   const needs: Desk["needs"] = [];
   const issuer = can(actor, "invoices.issue");

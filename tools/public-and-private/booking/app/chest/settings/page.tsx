@@ -27,7 +27,7 @@ export default async function SettingsPage() {
     <>
       <PageHeader size="m" title={t.settings.title} />
       {s.mailWorks === false && <p className="notice spaced">{t.settings.noMail}</p>}
-      {host && <PageSettings host={{ slug: host.slug, welcome: host.welcome, listed: host.listed, hasFeed: host.hasFeed, emailMe: host.emailMe, dailyMax: host.dailyMax }} chestCalendar={s.calendarWorks === false ? null : calendar.page} origin={origin} t={{ settings: t.settings, errors: t.errors, files: t.files }} />}
+      {host && <PageSettings host={{ slug: host.slug, welcome: host.welcome, listed: host.listed, hasFeed: host.hasFeed, emailMe: host.emailMe, dailyMax: host.dailyMax, language: host.language ?? locale, second: host.second ?? "", welcomeAlt: host.welcomeAlt }} chestCalendar={s.calendarWorks === false ? null : calendar.page} origin={origin} t={{ settings: t.settings, errors: t.errors, files: t.files, languages: t.languages }} />}
       {host && <ImportCalendly zone={host.zone} zones={zones} locale={locale} t={{ settings: t.settings, errors: t.errors, files: t.files }} />}
       <CompanySettings admin={admin} settings={{ companyName: s.companyName, retentionMonths: s.retentionMonths, defaultZone: s.defaultZone }} zones={zones} locale={locale} t={{ settings: t.settings, errors: t.errors, files: t.files }} />
       {admin && <EmbedSettings sites={s.embedOrigins} origin={origin} colors={{ accent: look.theme.light.accent, ink: look.theme.light["accent-ink"] }} t={{ settings: t.settings, errors: t.errors, files: t.files }} />}

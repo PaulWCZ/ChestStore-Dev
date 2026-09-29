@@ -23,6 +23,6 @@ export default async function QuotesPage({ searchParams }: { searchParams: Promi
   ];
   return (
     <ListPage t={t} locale={locale} path="/chest/quotes" title={t.quotes.title} intro={t.quotes.intro} filters={filters} current={typeof params["state"] === "string" ? params["state"] : "all"} q={q} rows={rows}
-      create={can(member, "quotes.write") ? { type: "quote", label: t.quotes.new } : null} empty={t.quotes.empty} />
+      create={can(member, "quotes.write") ? { type: "quote", label: t.quotes.new } : null} empty={t.quotes.empty} readerEmpty={t.quotes.readerEmpty} />
   );
 }

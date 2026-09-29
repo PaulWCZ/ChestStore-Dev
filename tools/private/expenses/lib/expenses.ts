@@ -60,6 +60,9 @@ export type Expense = {
   deleted: boolean;
   // Imported from the tool used before: history, paid back there.
   imported: boolean;
+  // Made from a company card payment of a statement (lib/cards.ts): it
+  // waits for its receipt.
+  fromCard: boolean;
 };
 
 type Row = {
@@ -69,7 +72,7 @@ type Row = {
   approver_id: string | null; submitted_at: Date | null; decided_by: string | null; decided_at: Date | null; refused_reason: string | null; paid_on: string | null; created_at: Date; deleted_at: Date | null;
   refused_fingerprint: string | null; updated_at: Date; guest_members: string[]; guest_names: string[];
   rate_micro: string | null; rate_source: "typed" | "company" | null; base_cents: string | null; base_currency: string | null; payment_run_id: string | null;
-  allowance_id: string | null; units: number | null; nights: number | null; imported_at: Date | null; alone: boolean;
+  allowance_id: string | null; units: number | null; nights: number | null; imported_at: Date | null; alone: boolean; from_card: boolean;
 };
 
 const columns = (sql: Query) => sql`
@@ -77,7 +80,8 @@ const columns = (sql: Query) => sql`
   e.receipt_object, e.receipt_name, e.receipt_type, e.receipt_size, e.from_place, e.to_place, e.distance_tenths, e.vehicle, e.power, e.electric, e.scale_year,
   e.approver_id, e.submitted_at, e.decided_by, e.decided_at, e.refused_reason, to_char(e.paid_on, 'YYYY-MM-DD') as paid_on, e.created_at, e.deleted_at,
   e.refused_fingerprint, e.updated_at, e.guest_members, e.guest_names,
-  e.rate_micro, e.rate_source, e.base_cents, e.base_currency, e.payment_run_id, e.allowance_id, e.units, e.nights, e.imported_at, e.alone`;
+  e.rate_micro, e.rate_source, e.base_cents, e.base_currency, e.payment_run_id, e.allowance_id, e.units, e.nights, e.imported_at, e.alone,
+  exists (select 1 from card_lines cl where cl.expense_id = e.id and cl.link = 'created') as from_card`;
 
 // What its owner put on an expense, as one hash: what a refusal remembers,
 // so that the same expense cannot come back unchanged. A trip's amount is
@@ -137,6 +141,7 @@ function toExpense(r: Row): Expense {
     createdAt: r.created_at.toISOString(),
     deleted: r.deleted_at !== null,
     imported: r.imported_at !== null,
+    fromCard: r.from_card === true,
   };
 }
 
@@ -144,14 +149,17 @@ function toExpense(r: Row): Expense {
 // "resent": sent again after a refusal (changed since: otherwise it could
 // not be sent), with the reason of the last refusal — the approver checks
 // the change, and "Approve all" leaves it for a look of its own.
-export type Warning = { code: "duplicate" | "receipt_reused" | "no_receipt" | "over_cap" | "resent" | "no_guests" | "no_rate" | "over_cap_night"; cap?: number; reason?: string };
+// "card_own_money": a company card payment of the statement matches it,
+// yet its owner says they paid with their own money (it must not be paid
+// back twice).
+export type Warning = { code: "duplicate" | "receipt_reused" | "no_receipt" | "over_cap" | "resent" | "no_guests" | "no_rate" | "over_cap_night" | "card_own_money"; cap?: number; reason?: string };
 
 export async function warnings(sql: Query, list: Expense[], options: { anyone?: boolean } = {}): Promise<Map<string, Warning[]>> {
   const out = new Map<string, Warning[]>();
   if (list.length === 0) return out;
   const idList = list.map(e => e.id);
   const { currency } = await settings(sql);
-  const rows = await sql<{ id: string; duplicate: boolean; reused: boolean; cap: string | null; refused: string | null; guests: boolean }[]>`
+  const rows = await sql<{ id: string; duplicate: boolean; reused: boolean; cap: string | null; refused: string | null; guests: boolean; card: boolean }[]>`
     select e.id,
       exists (select 1 from expenses o where o.id <> e.id and o.deleted_at is null and o.kind = 'expense' and e.kind = 'expense'
               and o.member_id = e.member_id and o.spent_on = e.spent_on and o.amount_cents = e.amount_cents and o.currency = e.currency
@@ -159,6 +167,7 @@ export async function warnings(sql: Query, list: Expense[], options: { anyone?: 
       exists (select 1 from expenses o where o.id <> e.id and o.deleted_at is null and e.receipt_sha256 is not null and o.receipt_sha256 = e.receipt_sha256
               and (${options.anyone === true} or o.member_id = e.member_id)) as reused,
       c.cap_cents as cap, c.guests,
+      (e.paid_by = 'me' and exists (select 1 from card_lines l where l.expense_id = e.id)) as card,
       case when e.status = 'submitted' then (select h.detail from history h where h.expense_id = e.id and h.kind = 'refused' order by h.at desc, h.id desc limit 1) end as refused
     from expenses e join categories c on c.id = e.category_id
     where e.id = any(${idList}::bigint[])`;
@@ -171,6 +180,7 @@ export async function warnings(sql: Query, list: Expense[], options: { anyone?: 
     if (r?.reused) found.push({ code: "receipt_reused" });
     if (e.kind === "expense" && !e.receipt) found.push({ code: "no_receipt" });
     if (e.base === null) found.push({ code: "no_rate" });
+    if (r?.card) found.push({ code: "card_own_money" });
     if (e.kind === "expense" && r?.guests && !e.alone && e.guests.members.length + e.guests.names.length === 0) found.push({ code: "no_guests" });
     // A hotel's limit is per night.
     const perUnit = e.nights ? Math.ceil(e.amount / e.nights) : e.amount;
@@ -695,6 +705,11 @@ export async function waitingCounts(sql: Query, memberIds: string[], accountantI
     select member_id as member, count(*)::int as n from expenses
     where member_id = any(${memberIds}::text[]) and status = 'draft' and refused_reason is not null and deleted_at is null group by member_id`;
   for (const r of refused) counts.set(r.member, (counts.get(r.member) ?? 0) + r.n);
+  // Company card payments waiting for their receipt (lib/cards.ts).
+  const card = await sql<{ member: string; n: number }[]>`
+    select e.member_id as member, count(*)::int as n from card_lines c join expenses e on e.id = c.expense_id
+    where c.link = 'created' and e.member_id = any(${memberIds}::text[]) and e.status = 'draft' and e.refused_reason is null and e.deleted_at is null and e.receipt_object is null group by e.member_id`;
+  for (const r of card) counts.set(r.member, (counts.get(r.member) ?? 0) + r.n);
   return counts;
 }
 

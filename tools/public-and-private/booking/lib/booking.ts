@@ -6,7 +6,9 @@ import { AppError } from "./app-error.ts";
 import type { Query } from "./db.ts";
 import { clean, colors, email, id, isColor, isLocationKind, limits, minutes, phone, slug, slugify, type Color, type LocationKind } from "./model.ts";
 import { cleanAnswers, cleanQuestions, readAnswers, readQuestions, type Answer, type Question } from "./questions.ts";
-import { defaultWeek, slots, validRanges, type Busy, type Ranges, type Slot } from "./slots.ts";
+import { defaultWeek, freeWindows, slots, validRanges, type Busy, type Ranges, type Slot, type Window } from "./slots.ts";
+import { isLocale, type Locale } from "./i18n/index.ts";
+import { cleanLanguages, cleanTypeTexts, localizeType, pageLanguage, readTypeTexts, type TypeTexts } from "./texts.ts";
 import { addDays, instantOf, isDate, isZone, wall } from "./zone.ts";
 
 // Booking's services: hosts and their hours, booking types, the free times
@@ -16,7 +18,11 @@ import { addDays, instantOf, isDate, isZone, wall } from "./zone.ts";
 
 // dailyMax: at most this many meetings a day, all types (0: no limit);
 // emailMe: an email with each booking's calendar file.
-export type Host = { memberId: string; slug: string; zone: string; weekly: Ranges[]; listed: boolean; away: boolean; welcome: string; hasFeed: boolean; dailyMax: number; emailMe: boolean };
+// ready: the host connected a calendar or confirmed their hours — until
+// then their page is not public (not listed, not bookable). language: the
+// language of their texts (null: not said); second: another version of
+// them, optional (welcomeAlt, each type's alt).
+export type Host = { memberId: string; slug: string; zone: string; weekly: Ranges[]; listed: boolean; away: boolean; welcome: string; hasFeed: boolean; dailyMax: number; emailMe: boolean; ready: boolean; language: Locale | null; second: Locale | null; welcomeAlt: string };
 export type BookingType = {
   id: string;
   memberId: string;
@@ -43,6 +49,8 @@ export type BookingType = {
   paymentLink: string;
   // Other hosts who take this type too: the first of them free takes it.
   pool: string[];
+  // Its texts in the host's second language (lib/texts.ts).
+  alt: TypeTexts;
 };
 export type Override = { day: string; ranges: Ranges; note: string };
 export type Booking = {
@@ -173,8 +181,12 @@ export async function rememberDelivery(sql: Query, delivery: "email" | "page"): 
 
 // ——— Hosts ———
 
-type HostRow = { member_id: string; slug: string; zone: string; weekly: Ranges[]; listed: boolean; away: boolean; welcome: string; feed_hash: string | null; daily_max: number; email_me: boolean };
-const toHost = (r: HostRow): Host => ({ memberId: r.member_id, slug: r.slug, zone: r.zone, weekly: r.weekly, listed: r.listed, away: r.away, welcome: r.welcome, hasFeed: r.feed_hash !== null, dailyMax: r.daily_max ?? 0, emailMe: r.email_me ?? true });
+type HostRow = { member_id: string; slug: string; zone: string; weekly: Ranges[]; listed: boolean; away: boolean; welcome: string; feed_hash: string | null; daily_max: number; email_me: boolean; ready: boolean; language: string | null; second_language: string | null; welcome_alt: string };
+const toHost = (r: HostRow): Host => {
+  const language = isLocale(r.language) ? r.language : null;
+  const second = language && isLocale(r.second_language) && r.second_language !== language ? r.second_language : null;
+  return { memberId: r.member_id, slug: r.slug, zone: r.zone, weekly: r.weekly, listed: r.listed, away: r.away, welcome: r.welcome, hasFeed: r.feed_hash !== null, dailyMax: r.daily_max ?? 0, emailMe: r.email_me ?? true, ready: r.ready ?? true, language, second, welcomeAlt: r.welcome_alt ?? "" };
+};
 
 export async function hostOf(sql: Query, memberId: string): Promise<Host | null> {
   const [row] = await sql<HostRow[]>`select * from hosts where member_id = ${memberId}`;
@@ -185,22 +197,30 @@ export async function hostOf(sql: Query, memberId: string): Promise<Host | null>
 // they open the tool: an address from their name, the company's time zone,
 // weekday hours and one booking type to start from. Coming back after being
 // away (access given again) makes their page work again.
-export async function ensureHost(sql: Query, actor: Member, first: { title: string; slug: string }): Promise<Host> {
+// The page is not public until the host connects a calendar or confirms
+// their hours (ready). Their texts are taken to be in their language
+// until they say otherwise (Settings); the first type's name is written
+// in the other languages too (alt), ready for a second language.
+export async function ensureHost(sql: Query, actor: Member, first: { title: string; slug: string; others?: Partial<Record<Locale, string>> }): Promise<Host> {
   if (!can(actor, "host")) throw new AppError("forbidden");
+  const own: Locale = isLocale(actor.locale) ? actor.locale : "en";
   const existing = await hostOf(sql, actor.id);
   if (existing) {
     if (existing.away) await sql`update hosts set away = false where member_id = ${actor.id}`;
-    return { ...existing, away: false };
+    // A host made before languages were asked: their language, once.
+    if (!existing.language) await sql`update hosts set language = ${own} where member_id = ${actor.id} and language is null`;
+    return { ...existing, away: false, language: existing.language ?? own };
   }
   const s = await settings(sql);
   const base = slugify(actor.name || "page");
   for (let n = 1; n < 50; n++) {
     const candidate = n === 1 ? base : `${base.slice(0, 36)}-${n}`;
     const [row] = await sql<HostRow[]>`
-      insert into hosts (member_id, slug, zone, weekly) values (${actor.id}, ${candidate}, ${s.defaultZone}, ${sql.json(defaultWeek as never)})
+      insert into hosts (member_id, slug, zone, weekly, language) values (${actor.id}, ${candidate}, ${s.defaultZone}, ${sql.json(defaultWeek as never)}, ${own})
       on conflict do nothing returning *`;
     if (row) {
-      await sql`insert into types (member_id, slug, title, duration, interval, location_kind) values (${actor.id}, ${first.slug}, ${first.title}, 30, 30, 'video')`;
+      const other = Object.entries(first.others ?? {}).find(([code]) => code !== own)?.[1];
+      await sql`insert into types (member_id, slug, title, duration, interval, location_kind, alt) values (${actor.id}, ${first.slug}, ${first.title}, 30, 30, 'video', ${sql.json((other ? { title: other } : {}) as never)})`;
       return toHost(row);
     }
     // Another request created this host meanwhile: take it.
@@ -210,13 +230,19 @@ export async function ensureHost(sql: Query, actor: Member, first: { title: stri
   throw new AppError("slug_taken");
 }
 
-export async function saveHost(sql: Query, actor: Member, input: { slug: unknown; zone: unknown; welcome: unknown; listed: unknown }): Promise<void> {
+// language, second, welcomeAlt: optional for callers that do not change
+// them (the hours' form keeps them as they are).
+export async function saveHost(sql: Query, actor: Member, input: { slug: unknown; zone: unknown; welcome: unknown; listed: unknown; language?: unknown; second?: unknown; welcomeAlt?: unknown }): Promise<void> {
   if (!can(actor, "host")) throw new AppError("forbidden");
   const s = slug(input.slug);
   if (!isZone(input.zone)) throw new AppError("invalid");
   const welcome = clean(input.welcome, limits.welcome, { optional: true, multiline: true });
+  const languages = input.language === undefined ? null : cleanLanguages(input.language, input.second);
+  const welcomeAlt = languages?.second ? clean(input.welcomeAlt ?? "", limits.welcome, { optional: true, multiline: true }) : "";
   try {
-    const done = await sql`update hosts set slug = ${s}, zone = ${input.zone}, welcome = ${welcome}, listed = ${input.listed === true} where member_id = ${actor.id}`;
+    const done = languages
+      ? await sql`update hosts set slug = ${s}, zone = ${input.zone}, welcome = ${welcome}, listed = ${input.listed === true}, language = ${languages.language}, second_language = ${languages.second}, welcome_alt = ${welcomeAlt} where member_id = ${actor.id}`
+      : await sql`update hosts set slug = ${s}, zone = ${input.zone}, welcome = ${welcome}, listed = ${input.listed === true} where member_id = ${actor.id}`;
     if (done.count === 0) throw new AppError("not_host");
   } catch (error) {
     if (isUnique(error)) throw new AppError("slug_taken");
@@ -237,7 +263,17 @@ export async function saveWeekly(sql: Query, actor: Member, weekly: unknown): Pr
   if (!can(actor, "host")) throw new AppError("forbidden");
   if (!Array.isArray(weekly) || weekly.length !== 7 || !weekly.every(validRanges)) throw new AppError("invalid");
   const sorted = (weekly as Ranges[]).map(day => [...day].sort((a, b) => a[0] - b[0]));
-  const done = await sql`update hosts set weekly = ${sql.json(sorted as never)} where member_id = ${actor.id}`;
+  // Saving the hours confirms them: the page is public from now on.
+  const done = await sql`update hosts set weekly = ${sql.json(sorted as never)}, ready = true where member_id = ${actor.id}`;
+  if (done.count === 0) throw new AppError("not_host");
+}
+
+// confirmHours: the host says their hours are right as they are (no
+// calendar to connect): their page is public from now on. markReady does
+// the same once a calendar is connected (lib/calendars.ts).
+export async function confirmHours(sql: Query, actor: Member): Promise<void> {
+  if (!can(actor, "host")) throw new AppError("forbidden");
+  const done = await sql`update hosts set ready = true where member_id = ${actor.id}`;
   if (done.count === 0) throw new AppError("not_host");
 }
 
@@ -327,6 +363,7 @@ type TypeRow = {
   video_rooms: boolean;
   payment_link: string;
   pool: unknown;
+  alt: unknown;
 };
 const toType = (r: TypeRow): BookingType => ({
   id: String(r.id),
@@ -349,6 +386,7 @@ const toType = (r: TypeRow): BookingType => ({
   videoRooms: r.video_rooms ?? false,
   paymentLink: r.payment_link ?? "",
   pool: Array.isArray(r.pool) ? r.pool.filter((m): m is string => typeof m === "string" && memberIdPattern.test(m)) : [],
+  alt: readTypeTexts(r.alt),
 });
 
 export async function typesOf(sql: Query, memberId: string, options: { activeOnly?: boolean } = {}): Promise<BookingType[]> {
@@ -378,6 +416,8 @@ export type TypeInput = {
   paymentLink?: unknown;
   // Administrators only: other hosts who take the type too.
   pool?: unknown;
+  // Its texts in the host's second language (lib/texts.ts); optional.
+  alt?: unknown;
 };
 
 function typeValues(input: TypeInput) {
@@ -385,9 +425,12 @@ function typeValues(input: TypeInput) {
   const duration = minutes(input.duration, 5, 480);
   if (!isLocationKind(input.locationKind)) throw new AppError("invalid");
   const videoRooms = input.locationKind === "video" && input.videoRooms === true;
-  // A room per booking: under Jitsi's free rooms unless the host gives
-  // their own address.
-  const location = clean(input.location, limits.location, { optional: true }) || (videoRooms ? defaultRooms : "");
+  // A room per booking: the host chooses where rooms are made — Jitsi's
+  // public server (meet.jit.si: whoever opens a room signs in with Google,
+  // GitHub or Facebook since 24 August 2023) or their own server. No silent
+  // default: the type form says what each one asks.
+  const location = clean(input.location, limits.location, { optional: true });
+  if (videoRooms && location === "") throw new AppError("rooms_address");
   // A video link is a web address the guest opens: only https.
   if (input.locationKind === "video" && location !== "" && !isLink(location)) throw new AppError("invalid_link");
   const paymentLink = clean(input.paymentLink ?? "", limits.location, { optional: true });
@@ -413,8 +456,19 @@ function typeValues(input: TypeInput) {
   };
 }
 
+// The type's values with its second-language texts (checked against its
+// questions as sent).
+function typeRow(input: TypeInput) {
+  const v = typeValues(input);
+  return { ...v, alt: cleanTypeTexts(input.alt, v.questions) };
+}
+
 const isLink = (text: string) => /^https:\/\/[^\s<>"]+$/u.test(text);
+// Jitsi's public server: free, no account for guests; the host signs in
+// (Google, GitHub or Facebook) to open each room — until then guests wait
+// ("waiting for a moderator"). https://jitsi.org/blog/authentication-on-meet-jit-si/
 export const defaultRooms = "https://meet.jit.si/";
+export const isPublicJitsi = (link: string) => link.startsWith(defaultRooms);
 
 // roomLink makes a booking's own video room: the type's address with a
 // room name nobody can guess ("{room}" in it is replaced; otherwise the
@@ -440,14 +494,14 @@ async function cleanPool(sql: Query, actor: Member, value: unknown): Promise<str
 
 export async function createType(sql: Query, actor: Member, input: TypeInput): Promise<BookingType> {
   if (!can(actor, "host")) throw new AppError("forbidden");
-  const v = typeValues(input);
+  const v = typeRow(input);
   if (!(await hostOf(sql, actor.id))) throw new AppError("not_host");
   const pool = (await cleanPool(sql, actor, input.pool)) ?? [];
   const [row] = await sql<{ n: number }[]>`select count(*)::int as n from types where member_id = ${actor.id}`;
   const n = row?.n ?? 0;
   if (n >= limits.typesPerHost) throw new AppError("too_many_types", { max: limits.typesPerHost });
   try {
-    const [row] = await sql<TypeRow[]>`insert into types ${sql({ ...v, questions: sql.json(v.questions as never), pool: sql.json(pool as never), member_id: actor.id, position: n })} returning *`;
+    const [row] = await sql<TypeRow[]>`insert into types ${sql({ ...v, questions: sql.json(v.questions as never), alt: sql.json(v.alt as never), pool: sql.json(pool as never), member_id: actor.id, position: n })} returning *`;
     return toType(row!);
   } catch (error) {
     if (isUnique(error)) throw new AppError("slug_taken");
@@ -457,11 +511,11 @@ export async function createType(sql: Query, actor: Member, input: TypeInput): P
 
 export async function updateType(sql: Query, actor: Member, typeId: unknown, input: TypeInput): Promise<BookingType> {
   if (!can(actor, "host")) throw new AppError("forbidden");
-  const v = typeValues(input);
+  const v = typeRow(input);
   // A host who is not an administrator keeps the type's team as it is.
   const pool = can(actor, "settings") ? await cleanPool(sql, actor, input.pool) : undefined;
   try {
-    const [row] = await sql<TypeRow[]>`update types set ${sql({ ...v, questions: sql.json(v.questions as never), ...(pool !== undefined ? { pool: sql.json(pool as never) } : {}) })} where id = ${id(typeId)} and member_id = ${actor.id} returning *`;
+    const [row] = await sql<TypeRow[]>`update types set ${sql({ ...v, questions: sql.json(v.questions as never), alt: sql.json(v.alt as never), ...(pool !== undefined ? { pool: sql.json(pool as never) } : {}) })} where id = ${id(typeId)} and member_id = ${actor.id} returning *`;
     if (!row) throw new AppError("not_found");
     return toType(row);
   } catch (error) {
@@ -512,13 +566,13 @@ export async function otherHosts(sql: Query, actor: Member): Promise<string[]> {
 export async function listedHosts(sql: Query): Promise<(Host & { types: number })[]> {
   const rows = await sql<(HostRow & { types: number })[]>`
     select h.*, count(t.id)::int as types from hosts h join types t on t.member_id = h.member_id and t.active
-    where h.listed and not h.away group by h.member_id order by h.created_at limit 200`;
+    where h.listed and h.ready and not h.away group by h.member_id order by h.created_at limit 200`;
   return rows.map(r => ({ ...toHost(r), types: r.types }));
 }
 
 export async function publicHost(sql: Query, hostSlug: string): Promise<{ host: Host; types: BookingType[] } | null> {
   if (!/^[a-z0-9-]{1,40}$/u.test(hostSlug)) return null;
-  const [row] = await sql<HostRow[]>`select * from hosts where slug = ${hostSlug} and not away`;
+  const [row] = await sql<HostRow[]>`select * from hosts where slug = ${hostSlug} and ready and not away`;
   if (!row) return null;
   return { host: toHost(row), types: await typesOf(sql, row.member_id, { activeOnly: true }) };
 }
@@ -527,7 +581,7 @@ export async function publicType(sql: Query, hostSlug: string, typeSlug: string)
   if (!/^[a-z0-9-]{1,40}$/u.test(hostSlug) || !/^[a-z0-9-]{1,40}$/u.test(typeSlug)) return null;
   const [row] = await sql<(HostRow & { type: TypeRow })[]>`
     select h.*, to_jsonb(t) as type from hosts h join types t on t.member_id = h.member_id
-    where h.slug = ${hostSlug} and t.slug = ${typeSlug} and t.active and not h.away`;
+    where h.slug = ${hostSlug} and t.slug = ${typeSlug} and t.active and h.ready and not h.away`;
   if (!row) return null;
   return { host: toHost(row), type: toType({ ...row.type, id: String(row.type.id) }) };
 }
@@ -556,7 +610,8 @@ async function busyOf(sql: Query, memberId: string, typeId: string, from: Date, 
 // still have a page.
 async function hostsOf(sql: Query, owner: Host, type: BookingType): Promise<Host[]> {
   if (type.pool.length === 0) return [owner];
-  const rows = await sql<HostRow[]>`select * from hosts where member_id in ${sql(type.pool)} and not away`;
+  // A host whose page is not public yet takes nobody's bookings either.
+  const rows = await sql<HostRow[]>`select * from hosts where member_id in ${sql(type.pool)} and ready and not away`;
   const byId = new Map(rows.map(r => [r.member_id, toHost(r)]));
   return [owner, ...type.pool.flatMap(m => byId.get(m) ?? [])];
 }
@@ -632,6 +687,21 @@ export async function unblock(sql: Query, actor: Member, blockId: unknown): Prom
   if (!can(actor, "host")) throw new AppError("forbidden");
   const done = await sql`delete from blocks where id = ${id(blockId)} and member_id = ${actor.id}`;
   if (done.count === 0) throw new AppError("not_found");
+}
+
+// The host's free stretches of the coming days (their calendar), for the
+// agenda: tap one to block it. Busy is everything busyOf knows.
+export async function freeStretches(sql: Query, host: Host, days = 7, now = Date.now()): Promise<Map<string, Window[]>> {
+  const today = wall(now, host.zone).date;
+  const last = addDays(today, days - 1);
+  const overrides = Object.fromEntries((await overridesOf(sql, host.memberId, today)).map(o => [o.day, o.ranges]));
+  const busy = await busyOf(sql, host.memberId, "0", new Date(now - 86400000), new Date(Date.parse(last + "T00:00:00Z") + 2 * 86400000), null);
+  const out = new Map<string, Window[]>();
+  for (let day = today; day <= last; day = addDays(day, 1)) {
+    const found = freeWindows({ weekly: host.weekly, overrides, zone: host.zone }, busy, day, now);
+    if (found.length > 0) out.set(day, found);
+  }
+  return out;
 }
 
 // The host's blocks still to come (or ending after from), in order.
@@ -774,12 +844,19 @@ export async function book(sql: Query, host: Host, type: BookingType, input: Gue
   const secret = newSecret();
   return transaction(sql, async tx => {
     const current = await lockType(tx, type);
+    // The language the guest read the page in: theirs when the host wrote
+    // their texts in it, otherwise the host's (lib/texts.ts); a host booking
+    // for someone chose the language of their emails. The booking keeps the
+    // type's name and the questions as the guest saw them.
+    const asked: Locale = isLocale(input.language) ? input.language : "en";
+    const language = byHost ? asked : pageLanguage(host, asked);
+    const shown = localizeType(current, host, language);
     // Answered against the questions as they are now; a host booking for
     // someone may leave them.
-    const answers = cleanAnswers(byHost ? current.questions.map(q => ({ ...q, required: false })) : current.questions, input.answers ?? {});
+    const answers = cleanAnswers(byHost ? shown.questions.map(q => ({ ...q, required: false })) : shown.questions, input.answers ?? {});
     const notice = byHost ? 0 : current.noticeMinutes;
     const end = new Date(start.getTime() + current.duration * 60000);
-    const videoLink = current.locationKind === "video" && current.videoRooms ? roomLink(current.location || defaultRooms, options.company ?? "") : "";
+    const videoLink = current.locationKind === "video" && current.videoRooms && current.location ? roomLink(current.location, options.company ?? "") : "";
     for (const who of await candidates(tx, host, current, start, now, null, notice)) {
       try {
         return await transaction(tx, async step => {
@@ -789,8 +866,8 @@ export async function book(sql: Query, host: Host, type: BookingType, input: Gue
           if (!(await hostFree(step, who, current, day, day, now, null, notice)).some(s => Date.parse(s.start) === start.getTime())) throw new AppError("taken");
           const [row] = await step<BookingRow[]>`
             insert into bookings (type_id, member_id, title, duration, location_kind, location, starts_at, ends_at, blocked, guest_name, guest_email, guest_phone, guest_note, answers, guest_zone, guest_language, secret_hash, secret, video_link, source, booked_by, payment_link)
-            values (${current.id}, ${who.memberId}, ${current.title}, ${current.duration}, ${current.locationKind}, ${current.location}, ${start}, ${end}, ${blockedRange(current, start, end)}::tstzrange,
-              ${name}, ${address}, ${phoneNumber}, ${note}, ${step.json(answers as never)}, ${zone}, ${input.language}, ${hashSecret(secret)}, ${secret},
+            values (${current.id}, ${who.memberId}, ${shown.title}, ${current.duration}, ${current.locationKind}, ${current.location}, ${start}, ${end}, ${blockedRange(current, start, end)}::tstzrange,
+              ${name}, ${address}, ${phoneNumber}, ${note}, ${step.json(answers as never)}, ${zone}, ${language}, ${hashSecret(secret)}, ${secret},
               ${videoLink}, ${byHost ? "host" : "page"}, ${options.bookedBy ?? null}, ${current.paymentLink})
             returning *`;
           return { booking: toBooking(row!), secret };
@@ -816,7 +893,7 @@ export async function bySecret(sql: Query, secret: string): Promise<{ booking: B
   const [row] = await sql<(BookingRow & { host_slug: string | null; type_slug: string | null })[]>`
     select b.*, h.slug as host_slug, t.slug as type_slug from bookings b
     left join types t on t.id = b.type_id and t.active
-    left join hosts h on h.member_id = t.member_id and not h.away
+    left join hosts h on h.member_id = t.member_id and h.ready and not h.away
     where b.secret_hash = ${hashSecret(secret)}`;
   return row ? { booking: toBooking(row), hostSlug: row.type_slug ? row.host_slug : null, typeSlug: row.host_slug ? row.type_slug : null } : null;
 }
@@ -874,8 +951,9 @@ export async function moveByGuest(sql: Query, secret: string, start: unknown, no
   const { booking } = found;
   if (booking.status !== "confirmed" || booking.startsAt.getTime() <= now) throw new AppError("too_late");
   if (booking.moves >= 5) throw new AppError("too_many_moves");
+  // Its type as it is now, when its host's page is public.
   if (!found.hostSlug || !found.typeSlug) throw new AppError("not_found");
-  const place = await publicType(sql, found.hostSlug, found.typeSlug);
+  const place = await typeForMove(sql, booking);
   if (!place) throw new AppError("not_found");
   return moveTo(sql, booking, place.host, place.type, start, now, "type");
 }

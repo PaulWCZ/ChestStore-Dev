@@ -3,7 +3,8 @@ import { after, before, beforeEach, test } from "node:test";
 import { fakeChest, type FakeChest, type FakeMember } from "@argentic/chest-sdk/testing";
 import { POST as chestEvents } from "../app/chest-events/route.ts";
 import { eventKey, syncEvent } from "../lib/agenda.ts";
-import { everyone as everyoneWithNews, reach, tally } from "../lib/audience.ts";
+import { everyone as everyoneWithNews, tally } from "../lib/audience.ts";
+import { forgetViewer, freezeViews, recordView, shown, views } from "../lib/views.ts";
 import { AppError } from "../lib/errors.ts";
 import { chestGroups, forgetGroups } from "../lib/groups.ts";
 import { setDigestEmail } from "../lib/preferences.ts";
@@ -30,7 +31,7 @@ after(async () => {
   await database.close();
 });
 beforeEach(async () => {
-  await database.sql`truncate posts, files, reactions, comments, confirmations, rsvps, visits, digests, digest_runs, activity, preferences, chest_state restart identity cascade`;
+  await database.sql`truncate posts, files, reactions, comments, confirmations, rsvps, visits, digests, digest_runs, post_views, preferences, chest_state restart identity cascade`;
   forgetGroups();
 });
 
@@ -251,23 +252,45 @@ test("stemmed search: move finds moving, déménager finds déménagement", asyn
   }
 });
 
-test("reach counts who came to News after a post, among its audience — never who", async () => {
+test("views are a number of people only: counted once each, among the audience, shown from 5 as of the last full hour, frozen after 30 days", async () => {
   await open();
   try {
+    const { sql } = database;
     const t0 = new Date("2026-10-01T09:00:00Z");
-    const p = await posts.createPost(database.sql, pub, { kind: "info", title: "Canteen menu" }, { zone, now: t0 });
-    await posts.touch(database.sql, hugo.id, new Date("2026-10-01T08:00:00Z"));
-    await posts.touch(database.sql, ines.id, new Date("2026-10-01T10:00:00Z"));
-    await posts.touch(database.sql, camille.id, new Date("2026-10-01T10:00:00Z"));
-    const rows = await database.sql<{ member: string; at: Date }[]>`select member, at from activity`;
-    const list = (await everyoneWithNews()).people;
-    const counted = reach({ groups: [], people: [], author: camille.id, publishAt: t0.toISOString() }, list, new Map(rows.map(r => [r.member, r.at])));
-    // Audience: everyone with a role but its author (5); Inès came after.
-    assert.deepEqual(counted, { came: 1, total: 5 });
-    // A touch is written at most every five minutes.
-    await posts.touch(database.sql, ines.id, new Date("2026-10-01T10:02:00Z"));
-    assert.equal((await database.sql<{ at: Date }[]>`select at from activity where member = ${ines.id}`)[0]!.at.toISOString(), "2026-10-01T10:00:00.000Z");
-    assert.ok(p.id);
+    const p = await posts.createPost(sql, pub, { kind: "info", title: "Canteen menu" }, { zone, now: t0 });
+    const at = (minutes: number) => new Date(t0.getTime() + minutes * 60_000);
+    const detail = await posts.post(sql, pub, p.id, { zone, now: at(1) });
+    // Its author is never counted; a second visit is not counted twice.
+    assert.equal(await recordView(sql, asMember(camille), detail, at(5)), false);
+    for (const m of [hugo, ines, lea, nora]) assert.equal(await recordView(sql, asMember(m), detail, at(10)), true);
+    await recordView(sql, asMember(hugo), detail, at(12));
+    assert.equal((await sql`select count(*)::int as n from post_views`)[0]!.n, 4);
+    // Below 5: never shown.
+    assert.deepEqual(await views(sql, p.id, at(120)), { count: null });
+    // Sofia at 10:40: counted from 11:00, not at once (nobody sees it rise).
+    await recordView(sql, asMember(sofia), detail, at(100));
+    assert.deepEqual(await views(sql, p.id, at(110)), { count: null });
+    assert.deepEqual(await views(sql, p.id, at(121)), { count: 5 });
+    // What is stored names nobody: no member id, one fingerprint each.
+    const stored = JSON.stringify(await sql`select * from post_views`);
+    assert.doesNotMatch(stored, /mbr_/u);
+    // After 30 days the count is kept, the key and the fingerprints go.
+    await freezeViews(sql, new Date(t0.getTime() + 31 * 864e5));
+    assert.equal((await sql`select count(*)::int as n from post_views`)[0]!.n, 0);
+    const [kept] = await sql<{ view_key: string | null; views_kept: number }[]>`select view_key, views_kept from posts where id = ${p.id}`;
+    assert.deepEqual({ ...kept }, { view_key: null, views_kept: 5 });
+    assert.deepEqual(await views(sql, p.id, new Date(t0.getTime() + 40 * 864e5)), { count: 5 });
+    assert.equal(await recordView(sql, asMember(stranger), detail, at(200)), false);
+    // A post kept to some people: only they are counted.
+    const kept2 = await posts.createPost(sql, pub, { kind: "info", title: "For Hugo", people: [hugo.id] }, { zone, now: t0 });
+    const d2 = await posts.post(sql, pub, kept2.id, { zone, now: at(1) });
+    assert.equal(await recordView(sql, asMember(ines), d2, at(10)), false);
+    assert.equal(await recordView(sql, asMember(hugo), d2, at(10)), true);
+    // An erasure deletes the person's fingerprints at once.
+    await forgetViewer(sql, hugo.id);
+    assert.equal((await sql`select count(*)::int as n from post_views where post_id = ${kept2.id}`)[0]!.n, 0);
+    assert.equal(shown(4), null);
+    assert.equal(shown(5), 5);
   } finally {
     await chest.close();
   }

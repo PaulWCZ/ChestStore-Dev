@@ -28,6 +28,10 @@ create table card_lines (
   line_key text not null check (line_key ~ '^[0-9a-f]{64}$'),
   expense_id bigint references expenses (id) on delete set null,
   link text check (link is null or link in ('matched', 'created')),
+  -- The accountant looked at a payment to check (matched to an expense paid
+  -- with the holder's own money, or its draft deleted) and cleared it.
+  checked_by text,
+  checked_at timestamptz,
   created_at timestamptz not null default now()
 );
 create unique index card_lines_key on card_lines (member_id, line_key);

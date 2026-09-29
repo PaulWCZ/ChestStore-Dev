@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { calendar, escape, fold } from "../lib/ics.ts";
-import { excerpt, inline, isSafeHref, parse, plain } from "../lib/markdown.ts";
+import { dropCap, excerpt, inline, isSafeHref, parse, plain } from "../lib/markdown.ts";
 import { day, local, nextDay, time, today, zoned } from "../lib/time.ts";
 
 // The text of a post: a few marks, never HTML.
@@ -36,6 +36,20 @@ test("bold, italic, links; unsafe links stay text", () => {
   inline("_a".repeat(10000));
   inline("[".repeat(10000) + "](");
   assert.ok(Date.now() - started < 2000);
+});
+
+test("a drop cap only on a whole first word of 4 letters or more", () => {
+  assert.equal(dropCap("We closed the quarter."), false, "two letters");
+  assert.equal(dropCap("Let's celebrate the quarter together!"), false, "an apostrophe cuts it");
+  assert.equal(dropCap("L’équipe s’agrandit."), false);
+  assert.equal(dropCap("Porte-parole : Léa."), false, "a hyphen cuts it");
+  assert.equal(dropCap("First things first."), false, "fi ligature");
+  assert.equal(dropCap("After six years, we move."), true);
+  assert.equal(dropCap("**Nora** joins us today."), true, "bold first word");
+  assert.equal(dropCap("Été 2026 : les dates."), false, "three letters");
+  assert.equal(dropCap("Déménagement le 2 novembre."), true);
+  assert.equal(dropCap("## Heading\n\nText"), false, "not a paragraph");
+  assert.equal(dropCap(""), false);
 });
 
 test("plain text and excerpts", () => {

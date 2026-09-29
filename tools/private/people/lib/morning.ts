@@ -1,7 +1,7 @@
 import type { Run } from "@argentic/chest-sdk/schedules";
 import type { Sql } from "./db.ts";
 import { stepText } from "./examples.ts";
-import { purgeFields } from "./fields.ts";
+import { dueDates, purgeFields } from "./fields.ts";
 import { format, formatDay, plural } from "./i18n/index.ts";
 import { purgeJournal } from "./journal.ts";
 import { today } from "./model.ts";
@@ -33,6 +33,7 @@ export async function morning(sql: Sql, run: Run): Promise<void> {
     await notify([member], (t, locale) => ({ title: plural(t.bell.digest, steps.length, locale), body: cut(steps.map(s => stepText(s, t)).join(" · "), 280) }), { path: "/chest/todo", key: "digest" });
   }
   await endings(sql, day);
+  await fieldDates(sql, day);
   const holders = (await sql<{ assignee: string }[]>`
     select distinct i.assignee from journey_items i where i.assignee like 'mbr_%' and i.done_at is null limit 5000`).map(r => r.assignee);
   await refreshBadges(sql, holders);
@@ -58,5 +59,23 @@ export async function endings(sql: Sql, day: string): Promise<void> {
       title: cut(format(s.what === "trial" ? t.bell.ending.trial : t.bell.ending.contract, { name, date: formatDay(s.day, locale, { day: "numeric", month: "long" }) }), 80),
       body: t.bell.ending.body,
     }), { path: `/chest/records/${s.id}`, key: `record:${s.id}:${s.what}:${s.day}` });
+  }
+}
+
+// "Hugo Bernard: Medical visit on 12 October": an extra date field with a
+// reminder, for HR, in their language, from that many days before the day
+// (one item per person, field and date: a date changed is a new item).
+export async function fieldDates(sql: Sql, day: string): Promise<void> {
+  const due = await dueDates(sql, day);
+  if (due.length === 0) return;
+  const hr = (await everyone({ role: "hr" })).people.map(p => p.id);
+  const names = await people(due.map(d => d.memberId));
+  for (const d of due) {
+    const person = names.get(d.memberId);
+    if (!person || person.status !== "member") continue;
+    await notify(hr, (t, locale) => ({
+      title: cut(format(t.bell.ending.field, { name: person.name, field: d.label, date: formatDay(d.day, locale, { day: "numeric", month: "long" }) }), 80),
+      body: t.bell.ending.fieldBody,
+    }), { path: `/chest/people/${d.memberId}`, key: `field:${d.fieldId}:${d.memberId}:${d.day}` });
   }
 }

@@ -214,6 +214,31 @@ export const en = {
     thisMonth: "This month",
     undated: { one: "{count} open card without a date", other: "{count} open cards without a date" },
     calendarHint: "Press Enter to open a card. To change its date: space to pick it up, the arrows to move it a day or a week, space to drop it.",
+    // On a phone the view and the filters fold behind one button, so the
+    // first card is near the top.
+    tools: "View and filters",
+    toolsOn: { one: "{count} filter on", other: "{count} filters on" },
+    search: "Search cards",
+    timelineView: "Timeline",
+    timeline: {
+      rows: "Rows",
+      byColumn: "By column",
+      byPerson: "By person",
+      nobody: "Nobody",
+      earlier: "Earlier",
+      later: "Later",
+      today: "Today",
+      undated: { one: "{count} open card has no dates: give it a start or due date to see it here.", other: "{count} open cards have no dates: give them a start or due date to see them here." },
+      empty: "No card has dates in these weeks.",
+      hint: "Press Enter to open a card. To move its dates: space to pick up its bar, the arrows to move it a day (up and down: a week), space to drop it.",
+      endHint: "To change only the due date: space, the arrows, space.",
+      bar: "{title}: {from} to {to}",
+      oneDay: "{title}: {from}",
+      end: "Due date of “{title}”",
+      moved: "“{title}” now runs {from} to {to}.",
+      conflict: "Starts before “{title}” is due",
+      waits: "Waits for “{title}”",
+    },
   },
   card: {
     close: "Close",
@@ -318,6 +343,17 @@ export const en = {
     stepWho: "Given to",
     stepDue: "Date",
     you: "You",
+    blockedBy: "Blocked by",
+    blockedByHint: "This card waits for these cards to be done.",
+    addBlocker: "It waits for…",
+    blockerNone: "Choose a card",
+    removeBlocker: "Remove “{title}” from what it waits for",
+    blocking: "Waiting for this card",
+    blockedBadge: "Blocked",
+    blockedCount: { one: "Blocked by {count} card", other: "Blocked by {count} cards" },
+    doneAnyway: "Mark done anyway",
+    noOtherCards: "No other card on this board yet.",
+    linkDone: "done",
   },
   activity: {
     created: "{name} created the card",
@@ -347,6 +383,10 @@ export const en = {
     step_assigned: "{name} gave the step “{step}” to {person}",
     moved_board: "{name} moved it here from the board “{from}”",
     copied: "{name} copied it from “{from}”",
+    completed_anyway: "{name} marked it done while it still waited for other cards",
+    blocker_added: "{name} said it waits for “{title}”",
+    blocker_removed: "{name} said it no longer waits for “{title}”",
+    links_left: "Its “Blocked by” links stayed on the other board",
   },
   settings: {
     title: "Board settings",
@@ -465,6 +505,8 @@ export const en = {
     mentioned: "{name} mentioned you on “{card}”",
     commented: "{name} commented on “{card}”",
     stepAssigned: "{name} gave you a step of “{card}”",
+    unblocked: "You can start “{card}”",
+    unblockedBody: "“{blocker}” is done.",
   },
   fields: {
     title: "Fields",
@@ -493,6 +535,14 @@ export const en = {
     why: "You get this email because you use Tasks in your company’s Chest. To stop these emails, untick “Also send me these by email” at the bottom of My tasks.",
     lateHeading: "Late:",
     todayHeading: "Due today:",
+    // Several things from one moment, in one email: "Hugo Bernard: 1 task
+    // given to you, 1 step and 1 mention".
+    digest: {
+      subject: "{names}: {things}",
+      tasks: { one: "{count} task given to you", other: "{count} tasks given to you" },
+      steps: { one: "{count} step", other: "{count} steps" },
+      mentions: { one: "{count} mention", other: "{count} mentions" },
+    },
   },
   // The words of the UI kit's components (@argentic/chest-ui/components:
   // ToastWords, DialogWords, PeoplePickerWords, DateWords, FileWords,
@@ -588,5 +638,7 @@ export const en = {
     import_invalid: "This file is not one we can read. Check it is the export described above.",
     unavailable: "The Chest did not answer. Try again in a moment.",
     unknown: "Something went wrong. Try again.",
+    blocked: "Blocked: “{title}” is not done yet.",
+    cycle: "That card already waits for this one: they would wait for each other.",
   },
 } as const;

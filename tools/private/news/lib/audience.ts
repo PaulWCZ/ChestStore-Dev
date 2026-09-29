@@ -79,11 +79,8 @@ export function tally<C extends { member: string }>(post: Audience & { author: s
   return { confirmed: counted, pending: people.filter(p => p.id !== post.author && inAudience(p, post) && !done.has(p.id)) };
 }
 
-// reach counts, among a post's audience (not its author), how many came to
-// News after it was published — any page, never which (lib/posts.ts,
-// touch). Counts only: never who (README, "Works council").
-export function reach(post: Audience & { author: string; publishAt: string }, people: Reader[], activity: Map<string, Date>): { came: number; total: number } {
-  const audience = people.filter(p => p.id !== post.author && inAudience(p, post));
-  const since = new Date(post.publishAt).getTime();
-  return { came: audience.filter(p => (activity.get(p.id)?.getTime() ?? 0) >= since).length, total: audience.length };
+// audienceSize counts the people a post is for (not its author): what
+// "Read by" and views are counted against.
+export function audienceSize(post: Audience & { author: string }, people: Reader[]): number {
+  return people.filter(p => p.id !== post.author && inAudience(p, post)).length;
 }

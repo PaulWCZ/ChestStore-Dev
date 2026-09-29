@@ -123,7 +123,7 @@ function nameIndex(people: Colleague[]): Map<string, string[]> {
   return index;
 }
 
-export type Problem = "phone" | "date" | "too_long" | "manager_not_found" | "manager_self" | "manager_loop";
+export type Problem = "phone" | "date" | "choice" | "too_long" | "manager_not_found" | "manager_self" | "manager_loop";
 export type PlanRow = {
   line: number;
   name: string;
@@ -151,6 +151,8 @@ export type Plan = {
   dateOrder: "dmy" | "mdy";
   // The dates could be read both ways: HR says which.
   askDateOrder: boolean;
+  // The headers of columns that hold something and are not read.
+  leftOut: string[];
 };
 export type Choices = { targets?: unknown; dateOrder?: unknown };
 
@@ -180,13 +182,17 @@ export function plan(text: unknown, people: Colleague[], extras: readonly Extra[
   const columns = fieldOrder.filter(f => at(f) >= 0);
   const extraColumns = targets.filter((t): t is `x:${string}` => t.startsWith("x:")).map(t => t.slice(2));
   const hasName = at("name") >= 0 || (at("first") >= 0 && at("last") >= 0) || at("email") >= 0;
-  const detected = dateOrder(body.map(r => cell(r, "startDate")));
+  const dateExtras = extraColumns.filter(x => extras.find(e => e.id === x)?.kind === "date").map(x => `x:${x}` as const);
+  // The dates of the file: the start date and HR's date fields, read in one order.
+  const detected = dateOrder(body.flatMap(r => [cell(r, "startDate"), ...dateExtras.map(t => cell(r, t))]));
   const asked = choices.dateOrder === "dmy" || choices.dateOrder === "mdy" ? choices.dateOrder : null;
   // A guess before HR says: BambooHR (its "Employee #" column) writes US
   // dates; other files day-first, as in Europe.
   const usLike = headers.some(h => headerKey(h) === "employee number");
   const order = detected === "dmy" || detected === "mdy" ? detected : asked ?? (usLike ? "mdy" : "dmy");
-  const base = { headers, targets, samples, columns, extras: extraColumns, dateOrder: order, askDateOrder: detected === "ambiguous" };
+  // The columns nothing is read from: shown, never dropped without a word.
+  const leftOut = headers.flatMap((h, i) => (targets[i] === "skip" && h && samples[i]!.length > 0 ? [h] : []));
+  const base = { headers, targets, samples, columns, extras: extraColumns, dateOrder: order, askDateOrder: detected === "ambiguous", leftOut };
   if (!hasName) return { ...base, missing: "name", rows: [] };
   if (columns.length === 0 && extraColumns.length === 0) return { ...base, missing: "field", rows: [] };
   const index = nameIndex(people);
@@ -230,11 +236,20 @@ export function plan(text: unknown, people: Colleague[], extras: readonly Extra[
     for (const x of extraColumns) {
       const value = cell(row, `x:${x}`);
       if (!value) continue;
+      const field = extras.find(e => e.id === x);
       try {
-        extrasOf[x] = clean(value, limits.fieldValue);
+        if (field?.kind === "date") {
+          const read = readDate(value, order);
+          if (!read) throw new AppError("invalid");
+          extrasOf[x] = read;
+        } else if (field?.kind === "choice") {
+          const found = field.options.find(o => o.toLowerCase() === value.toLowerCase());
+          if (!found) throw new AppError("invalid");
+          extrasOf[x] = found;
+        } else extrasOf[x] = clean(value, limits.fieldValue);
       } catch (error) {
         if (!(error instanceof AppError)) throw error;
-        problems.push("too_long");
+        problems.push(field?.kind === "date" ? "date" : field?.kind === "choice" ? "choice" : "too_long");
       }
     }
     rows.push({ line: i + 2, name, memberId, skip, changes, extras: extrasOf, managerId, problems });

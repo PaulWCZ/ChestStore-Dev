@@ -10,6 +10,7 @@ import { publicOrigin } from "../../../../lib/public-origin.ts";
 import { viewer } from "../../../../lib/session.ts";
 import { can } from "../../../../lib/access.ts";
 import { people } from "../../../../lib/people.ts";
+import { languageNames } from "../../../../lib/i18n/format.ts";
 import { TypeForm } from "../type-form.tsx";
 
 // The hosts an administrator may put in a type's team, with their names
@@ -40,7 +41,7 @@ export default async function EditTypePage({ params }: { params: Promise<{ id: s
     <>
       <a className="back" href="/chest/types"><Back />{t.types.title}</a>
       <PageHeader size="m" title={t.types.form.titleEdit} />
-      <TypeForm team={await teamChoices(v)} id={id} base={base} locale={locale} initial={initial} t={{ types: t.types, kinds: t.kinds, colors: t.colors, minutes: t.minutes, errors: t.errors }} />
+      <TypeForm second={host.second ? { code: host.second, name: (t.languages as Record<string, string>)[host.second] ?? languageNames[host.second] ?? host.second } : null} team={await teamChoices(v)} id={id} base={base} locale={locale} initial={initial} t={{ types: t.types, kinds: t.kinds, colors: t.colors, minutes: t.minutes, errors: t.errors }} />
     </>
   );
 }

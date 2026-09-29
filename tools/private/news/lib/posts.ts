@@ -7,6 +7,7 @@ import { AppError } from "./errors.ts";
 import { isLocale } from "./i18n/index.ts";
 import { excerpt } from "./markdown.ts";
 import { clean, emojiNames, groupIds, id, ids, imageRefs, isCoverType, isEmoji, isKind, isVideoType, limits, memberId, peopleIds, pick, type Emoji, type Kind, type Version } from "./model.ts";
+import { freezeViews } from "./views.ts";
 import { day as readDay, local, nextDay, time as readTime, today, zoned } from "./time.ts";
 
 // Posts and what hangs on them: files, reactions, comments, "I have read
@@ -755,16 +756,7 @@ export async function visit(sql: Sql, actor: Member | null, now = new Date()): P
       marker_at = case when visits.seen_at < ${now}::timestamptz - interval '30 minutes' then visits.seen_at else visits.marker_at end,
       seen_at = greatest(visits.seen_at, ${now})
     returning marker_at`;
-  await touch(sql, who.id, now);
   return row?.marker_at?.toISOString() ?? null;
-}
-
-// touch records that a person opened a page of News (any page, never
-// which): the reach of posts is counted from it. Written at most every
-// five minutes per person.
-export async function touch(sql: Sql, memberId: string, now = new Date()): Promise<void> {
-  await sql`insert into activity (member, at) values (${memberId}, ${now})
-    on conflict (member) do update set at = excluded.at where activity.at < ${now}::timestamptz - interval '5 minutes'`;
 }
 
 // Files: recorded once the Chest confirmed it holds them (the upload route
@@ -844,6 +836,7 @@ export async function draftOf(sql: Sql, actor: Member | null, postId: unknown, o
 // purge removes for good what was deleted 30 days ago, and uploads never
 // used after a day; it answers the Chest objects to remove.
 export async function purge(sql: Sql): Promise<string[]> {
+  await freezeViews(sql);
   return sql.begin(async tx => {
     const objects = await tx<{ object: string }[]>`
       select f.object from files f join posts p on p.id = f.post_id where p.deleted_at < now() - interval '30 days'

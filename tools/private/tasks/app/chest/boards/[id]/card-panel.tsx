@@ -5,16 +5,16 @@ import { localSearch, parseTime, putWithProgress, searchChoices, timeText, type 
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, useTransition, type ReactNode } from "react";
 import Link from "next/link";
-import { Archive, Chat, Check, CheckList, Clip, Clock, Close, Copy, Dots, Download, Fields, File, MoveTo, People, Plus, RepeatIcon, Restore, Tag, Text, Trash } from "../../../../components/icons.tsx";
+import { Archive, Blocked, Chat, Check, CheckList, Clip, Clock, Close, Copy, Dots, Download, Fields, File, MoveTo, People, Plus, RepeatIcon, Restore, Tag, Text, Trash } from "../../../../components/icons.tsx";
 import { Markdown } from "../../../../components/markdown.tsx";
 import type { Column, Field, Label } from "../../../../lib/boards.ts";
-import type { Activity, Attachment, CardDetail, CheckItem, Comment } from "../../../../lib/cards.ts";
-import { format } from "../../../../lib/i18n/format.ts";
+import type { Activity, Attachment, CardDetail, CheckItem, Comment, Link as CardLink } from "../../../../lib/cards.ts";
+import { format, plural } from "../../../../lib/i18n/format.ts";
 import type { Catalogue, Locale } from "../../../../lib/i18n/index.ts";
 import type { Color } from "../../../../lib/model.ts";
 import { repeatKinds, suggest, type Repeat, type RepeatKind } from "../../../../lib/repeat.ts";
 import {
-  addChecklist, addComment, addItem, addLabel, archiveCard, deleteCard, detach, duplicateCard, editComment, moveCard, moveToBoard, removeChecklist, removeComment, removeItem, renameChecklist, restoreComment, setAssignees, setLabel, setRepeat, setValue, updateCard, updateItem,
+  addBlocker, addChecklist, addComment, addItem, addLabel, archiveCard, removeBlocker, deleteCard, detach, duplicateCard, editComment, moveCard, moveToBoard, removeChecklist, removeComment, removeItem, renameChecklist, restoreComment, setAssignees, setLabel, setRepeat, setValue, updateCard, updateItem,
 } from "../../actions.ts";
 
 export type PanelItem = CheckItem & { dueLabel: string | null; late: boolean };
@@ -49,6 +49,8 @@ type Props = {
   labels: Label[];
   fields: Field[];
   targets: Target[];
+  // The other cards of the board it may wait for.
+  linkable: { id: string; title: string }[];
   people: People;
   audience: Person[];
   me: string;
@@ -63,7 +65,7 @@ type Run = (step: () => Promise<{ ok: boolean; error?: keyof Catalogue["errors"]
 
 // A card, in full, beside the board. Each change is saved at once; the
 // page refreshes itself from the server after it.
-export function CardPanel({ card, board, columns, labels, fields, targets, people, audience, me, repeat, locale, t }: Props) {
+export function CardPanel({ card, board, columns, labels, fields, targets, linkable, people, audience, me, repeat, locale, t }: Props) {
   const router = useRouter();
   const path = usePathname();
   const toast = useToast();
@@ -101,11 +103,21 @@ export function CardPanel({ card, board, columns, labels, fields, targets, peopl
   // column that is not.
   const doneColumn = columns.find(c => c.done);
   const openColumn = columns.find(c => !c.done);
-  const markDone = () => {
-    if (!doneColumn) return;
+  // A card that waits for open cards is not done unless the person says
+  // so: the toast says what it waits for, with "Mark done anyway".
+  const toColumn = (columnId: string) => {
+    const target = columns.find(c => c.id === columnId);
+    if (!target) return;
     const from = card.columnId;
-    run(() => moveCard(card.id, doneColumn.id, null, null), () => toast({ id: `move-${card.id}`, text: format(t.card.doneToast, { column: doneColumn.name }), undo: moveBack(from) }));
+    const moved = () => { if (target.done) toast({ id: `move-${card.id}`, text: format(t.card.doneToast, { column: target.name }), undo: moveBack(from) }); };
+    start(async () => {
+      const r = await moveCard(card.id, target.id, null, null);
+      if (r.ok) return moved();
+      if (r.error !== "blocked") return void toast({ text: words(r), tone: "error" });
+      toast({ id: `move-${card.id}`, text: words(r), tone: "error", action: { label: t.card.doneAnyway, run: () => start(async () => { const again = await moveCard(card.id, target.id, null, null, true); if (again.ok) moved(); else toast({ text: words(again), tone: "error" }); }) } });
+    });
   };
+  const markDone = () => { if (doneColumn) toColumn(doneColumn.id); };
 
   return (
     <>
@@ -136,6 +148,7 @@ export function CardPanel({ card, board, columns, labels, fields, targets, peopl
                   {openColumn && <button type="button" className="button quiet small" onClick={() => { const from = card.columnId; run(() => moveCard(card.id, openColumn.id, null, null), () => toast({ id: `move-${card.id}`, text: format(t.card.reopenedToast, { column: openColumn.name }), undo: moveBack(from) })); }}>{t.card.reopen}</button>}
                 </>
               ) : <button type="button" className="button done-button" onClick={markDone}><Check />{t.card.markDone}</button>}
+              {!card.done && card.waiting > 0 && <span className="chip blocked big"><Blocked />{plural(t.card.blockedCount, card.waiting, locale)}</span>}
             </div>
           )}
 
@@ -143,7 +156,7 @@ export function CardPanel({ card, board, columns, labels, fields, targets, peopl
             <div className="fact">
               <label className="label" htmlFor="card-column">{t.card.column}</label>
               {writable ? (
-                <select id="card-column" className="select" value={card.columnId} onChange={e => run(() => moveCard(card.id, e.target.value, null, null))}>
+                <select id="card-column" className="select" value={card.columnId} onChange={e => toColumn(e.target.value)}>
                   {columns.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </select>
               ) : <span>{columns.find(c => c.id === card.columnId)?.name}{card.done && <> · <span className="chip done">{t.card.doneBadge}</span></>}</span>}
@@ -188,6 +201,13 @@ export function CardPanel({ card, board, columns, labels, fields, targets, peopl
           <Section icon={<People />} title={t.card.assignees}>
             <Assignees card={card} choices={choices} people={people} writable={writable} locale={locale} t={t} onSave={ids => run(() => setAssignees(card.id, ids))} />
           </Section>
+
+          {(writable || card.blockers.length > 0 || card.blocking.length > 0) && (
+            <Section icon={<Blocked />} title={t.card.blockedBy}>
+              <Blockers card={card} linkable={linkable} writable={writable} t={t}
+                onAdd={id => run(() => addBlocker(card.id, id))} onRemove={id => run(() => removeBlocker(card.id, id))} />
+            </Section>
+          )}
 
           <Section icon={<Tag />} title={t.card.labels}>
             <Labels card={card} labels={labels} writable={writable} t={t}
@@ -397,6 +417,8 @@ function describe(h: Activity, nameOf: (id: string) => string, columns: Column[]
     step: String(h.data["step"] ?? ""),
     from: String(h.data["from"] ?? ""),
     board: String(h.data["to"] ?? ""),
+    title: String(h.data["title"] ?? ""),
+    count: String(h.data["count"] ?? ""),
   });
 }
 
@@ -757,5 +779,44 @@ function Composer({ people, t, onSubmit }: { people: Person[]; t: Words; onSubmi
       )}
       <div className="row"><button type="submit" className="button small" disabled={!text.trim()}>{t.card.comment}</button></div>
     </form>
+  );
+}
+
+// "Blocked by": the cards this one waits for (each opens; done ones say
+// so), one more chosen from the board's open cards; and the cards that
+// wait for this one.
+function Blockers({ card, linkable, writable, t, onAdd, onRemove }: { card: PanelCard; linkable: { id: string; title: string }[]; writable: boolean; t: Words; onAdd: (id: string) => void; onRemove: (id: string) => void }) {
+  const path = usePathname();
+  const open = (id: string) => `${path}?card=${id}`;
+  const choices = linkable.filter(c => !card.blockers.some(b => b.id === c.id) && !card.blocking.some(b => b.id === c.id));
+  const line = (l: CardLink, remove: boolean) => (
+    <li key={l.id} className={`link-line${l.done || l.archived ? " is-done" : ""}`}>
+      <Link href={open(l.id)} scroll={false}>{l.title}</Link>
+      {(l.done || l.archived) && <span className="chip done"><Check />{t.card.linkDone}</span>}
+      {remove && writable && <button type="button" className="icon-button" onClick={() => onRemove(l.id)}><Close /><span className="visually-hidden">{format(t.card.removeBlocker, { title: l.title })}</span></button>}
+    </li>
+  );
+  return (
+    <div className="stack">
+      {card.blockers.length > 0 ? <p className="hint">{t.card.blockedByHint}</p> : null}
+      {card.blockers.length > 0 && <ul className="links">{card.blockers.map(l => line(l, true))}</ul>}
+      {writable && (
+        choices.length > 0 ? (
+          <div className="row">
+            <label className="visually-hidden" htmlFor="add-blocker">{t.card.addBlocker}</label>
+            <select id="add-blocker" className="select inline" value="" onChange={e => { if (e.target.value) onAdd(e.target.value); }}>
+              <option value="">{t.card.addBlocker}</option>
+              {choices.map(c => <option key={c.id} value={c.id}>{c.title}</option>)}
+            </select>
+          </div>
+        ) : card.blockers.length === 0 && <p className="hint">{t.card.noOtherCards}</p>
+      )}
+      {card.blocking.length > 0 && (
+        <>
+          <h3 className="small">{t.card.blocking}</h3>
+          <ul className="links">{card.blocking.map(l => line(l, false))}</ul>
+        </>
+      )}
+    </div>
   );
 }

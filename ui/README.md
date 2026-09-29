@@ -182,7 +182,13 @@ categories are warm greys (told apart by their label). The sheet's field
 border (`#bfbfb7`, 1.8:1 on white) is below WCAG 1.4.11's 3:1: the theme's
 `--line-strong` is `#8a8a83` (3.5:1). The Suisse fonts are declared, not
 shipped: a Chest that holds a licence serves them (`faces` of the
-choice), otherwise pages use Arial and Georgia.
+choice), otherwise pages use Arial and Georgia. A person whose computer
+is dark sees it light, as the portal is — intended (0.2.3): the page
+says `color-scheme: light` (light scrollbars and fields, never dark ones
+on white) and gives the light ground for the browser's bar; a tool never
+sets `color-scheme` itself nor changes colours in its own
+`prefers-color-scheme: dark` block (tokens/CONTRACT.md, "Light-only
+themes"). Its decoration steps aside (`--decor: 0`).
 
 ## Brands
 
@@ -917,8 +923,8 @@ npm ci
 npm test                # build dist/, compile the tests into build/, run them (node --test)
 npm run check:package   # npm pack, install into a temp project, import every subpath from Node and esbuild, type-check a TS consumer
 npm run gallery         # ui/gallery/index.html and ui/gallery/components.html
-node scripts/gallery/check-page.mjs    # the components page in Chromium: hydration, axe in every look, no network, 390 px, 44 px targets, the phone header
-node scripts/gallery/check-flows.mjs   # its keyboard and mouse flows (toast, dialog, picker, dates, table, menu, tabs)
+node scripts/gallery/check-page.mjs    # the components page in Chromium: hydration, axe in every look, no network, 390 px, 44 px targets, the phone header, section names never broken inside a word, the camera on a phone only, the band's signal
+node scripts/gallery/check-flows.mjs   # its keyboard and mouse flows (toast, dialog, picker, dates and the Leave race, table, filters in the page, menu, tabs)
 npm run fonts           # fetch the catalogue's fonts again (network)
 ```
 

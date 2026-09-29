@@ -4,11 +4,12 @@ import { DateField, EmptyState, useToast } from "@argentic/chest-ui/components";
 import { addDays } from "@argentic/chest-ui/components/logic";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, useTransition, type FormEvent } from "react";
-import { Calendar, Camera, Car, Check, Close, FileIcon, Receipt } from "../../components/icons.tsx";
+import { Alert, Calendar, Camera, Car, Check, Close, FileIcon, Receipt } from "../../components/icons.tsx";
 import { typeOf, upload } from "../../components/upload.ts";
 import { readReceipt } from "../../components/ocr.ts";
 import type { ComposeData, Initial } from "../../lib/compose.ts";
 import type { Catalogue } from "../../lib/i18n/index.ts";
+import { useKeepFocusedAboveBar } from "../../components/keep-above-bar.ts";
 import { format, intl, plural } from "../../lib/i18n/format.ts";
 import { convert, formatMoney, inputAmount, parseAmount, parseRate, rateText, vatInside, vatRates } from "../../lib/money.ts";
 import { limits, receiptTypes } from "../../lib/model.ts";
@@ -165,18 +166,21 @@ function GuestsField({ team, value, onChange, perPerson, t }: { team: ComposeDat
         </ul>
       )}
       <div className="guest-add">
-        <input id="guest" className="field" list="team" value={text} maxLength={limits.guestName} placeholder={t.form.guestsPlaceholder} autoComplete="off" aria-describedby="guest-hint"
+        <input id="guest" className="field" list="team" value={text} maxLength={limits.guestName} placeholder={t.form.guestsPlaceholder} autoComplete="off" aria-describedby={chips.length === 0 && !value.alone ? "guest-hint guest-missing" : "guest-hint"}
           onChange={e => setText(e.target.value)} onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); add(); } }} />
         <button type="button" className="button quiet" onClick={add} disabled={!text.trim()}>{t.form.guestsAdd}</button>
       </div>
       <datalist id="team">{team.map(m => <option key={m.id} value={m.name} />)}</datalist>
       <span id="guest-hint" className="hint">{perPerson ?? t.form.guestsHint}</span>
       {chips.length === 0 && <label className="check"><input type="checkbox" checked={value.alone} onChange={e => onChange({ ...value, alone: e.target.checked })} />{t.form.alone}</label>}
+      {/* The approver's "Guests not named", said here first, before saving. */}
+      {chips.length === 0 && !value.alone && <p id="guest-missing" className="notice"><Alert />{t.form.guestsMissing}</p>}
     </div>
   );
 }
 
 export function ExpenseForm({ data, initial, locale, t }: { data: ComposeData; initial: Initial | null; locale: string; t: ComposeWords }) {
+  useKeepFocusedAboveBar();
   const saved = useSaved(t, locale);
   const [pending, start] = useTransition();
   const [receipt, setReceipt] = useState<string | null | undefined>(undefined);
@@ -359,6 +363,7 @@ export function ExpenseForm({ data, initial, locale, t }: { data: ComposeData; i
 
 // A trip with one's own vehicle: the amount is the scale's, shown live.
 export function TripForm({ data, initial, locale, t }: { data: ComposeData; initial: Initial | null; locale: string; t: ComposeWords }) {
+  useKeepFocusedAboveBar();
   const saved = useSaved(t, locale);
   const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -463,6 +468,7 @@ export function TripForm({ data, initial, locale, t }: { data: ComposeData; init
 // A flat rate: which one, how many days, nights or meals, from which day.
 // The amount is the rate times the number, shown live; no receipt.
 export function AllowanceForm({ data, initial, locale, t }: { data: ComposeData; initial: Initial | null; locale: string; t: ComposeWords }) {
+  useKeepFocusedAboveBar();
   const saved = useSaved(t, locale);
   const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);

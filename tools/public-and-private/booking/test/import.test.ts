@@ -7,6 +7,7 @@ import { AppError } from "../lib/app-error.ts";
 import * as b from "../lib/booking.ts";
 import { importCalendly, readTime } from "../lib/import.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
+import { openHost } from "./support/host.ts";
 import { asMember } from "./support/member.ts";
 import { everyone, ines, nora } from "./support/members.ts";
 
@@ -43,7 +44,7 @@ test("times as Calendly writes them, read in the zone chosen", () => {
 
 test("a Calendly export: meetings to come become bookings (matched to types by name), a taken time is listed, past and cancelled ones skipped, a second import adds nothing", async () => {
   const sql = database.sql;
-  await b.ensureHost(sql, asMember(ines), { title: "Meeting", slug: "meeting" });
+  await openHost(sql, asMember(ines), { title: "Meeting", slug: "meeting" });
   const call = await b.createType(sql, asMember(ines), { title: "Project call", slug: "project-call", description: "", duration: 30, locationKind: "video", location: "https://meet.example.com/ines", bufferBefore: 0, bufferAfter: 0, noticeMinutes: 0, windowDays: 60, color: "sky", active: true });
   const done = await importCalendly(sql, asMember(ines), file, "Europe/Paris", monday);
   assert.equal(done.imported, 2);

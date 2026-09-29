@@ -12,6 +12,7 @@ export const errorCodes = [
   "frozen", "suppressed", "mail_quota", "logo_type", "logo_too_large", "file_missing", "period_invalid", "export_too_large",
   "next_number_invalid", "next_number_backwards", "numbering_started", "link_invalid", "reminder_days_invalid", "account_invalid",
   "import_invalid", "import_empty", "import_too_large", "repeat_invalid",
+  "name_short", "must_agree", "changed", "link_off", "expired", "answered", "too_fast", "too_many_tries", "no_pdf", "import_number_invalid", "import_used",
   "unavailable", "unknown",
 ] as const;
 export type ErrorCode = (typeof errorCodes)[number];

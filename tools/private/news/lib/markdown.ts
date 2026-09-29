@@ -202,3 +202,21 @@ export function excerpt(text: string, max: number): string {
   const space = cut.lastIndexOf(" ");
   return (space > max * 0.6 ? cut.slice(0, space) : cut).replace(/[\s.,;:!?-]+$/u, "") + "…";
 }
+
+// dropCap says whether a text opens with a word a drop cap can carry: its
+// first paragraph starts with a word of 4 letters or more, whole (not cut
+// by an apostrophe or a hyphen: "Let's", "L'équipe", "Porte-parole"), and
+// not with a ligature the big letter would break ("fi", "fl", "ff").
+// Otherwise the big first letter reads as a word of its own ("L et's").
+export function dropCap(text: string): boolean {
+  const first = parse(text)[0];
+  if (!first || first.t !== "p") return false;
+  let node: Inline | undefined = first.c[0];
+  while (node && (node.t === "b" || node.t === "i" || node.t === "a")) node = node.c[0];
+  if (!node || node.t !== "text") return false;
+  const word = /^(\p{L}+)(.?)/u.exec(node.v);
+  if (!word) return false;
+  const [, letters, after] = word;
+  if (letters!.length < 4 || /^['’‘\-‐]$/u.test(after!)) return false;
+  return !/^f[fil]/iu.test(letters!);
+}

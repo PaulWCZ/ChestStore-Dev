@@ -146,7 +146,8 @@ select.field { appearance: none; background-image: linear-gradient(45deg, transp
 .row { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: var(--space-3); padding: var(--space-3) 0; min-height: 64px; }
 .row.selectable { grid-template-columns: auto auto 1fr auto; }
 .row .pick { width: 22px; height: 22px; accent-color: var(--accent); margin: 0; }
-.row a.main { text-decoration: none; display: grid; gap: 2px; min-width: 0; }
+.row .main { display: grid; gap: 2px; min-width: 0; }
+.row a.main { text-decoration: none; }
 .row a.main:hover .what { text-decoration: underline; text-underline-offset: 3px; }
 .row .what { font-weight: var(--weight-strong); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .row .sub { color: var(--ink-2); font-size: var(--text-s); display: flex; gap: var(--space-2); flex-wrap: wrap; align-items: center; }
@@ -314,6 +315,9 @@ details.more .inside { display: grid; gap: var(--space-4); padding-top: var(--sp
 .form-grid { display: grid; gap: var(--space-4); }
 .settings > *, .form-grid > *, .compose > * { min-width: 0; }
 .section-title { display: flex; gap: var(--space-2); align-items: center; }
+/* Company cards */
+.card-hint { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); flex-wrap: wrap; margin-bottom: var(--space-3); }
+.card-person + .card-person { margin-top: var(--space-3); }
 .table-wrap { position: relative; overflow-x: auto; margin: 0 calc(-1 * var(--space-4)); padding: 0 var(--space-4); }
 table.grid { border-collapse: collapse; width: 100%; font-size: var(--text-s); }
 table.grid caption { text-align: left; padding-bottom: 6px; }
@@ -426,3 +430,11 @@ h2.earlier-title { margin-bottom: 0; }
    (not beside the day written under it). */
 .pay-form:has(> .ck-date) { align-items: flex-start; }
 .pay-form:has(> .ck-date) > .button { margin-top: calc(var(--text-s) * var(--leading) + var(--space-1)); min-height: 48px; }
+
+/* A card payment waiting for its receipt: on a phone, its button takes a
+   line of its own under the text (the text keeps its width). */
+@media (max-width: 520px) {
+  .row.needs-receipt .right { grid-column: 2 / -1; grid-template-columns: auto 1fr; display: grid; align-items: center; justify-items: end; }
+  .row.needs-receipt .right .amount { grid-column: 2; grid-row: 1; }
+  .row.needs-receipt .right .button { grid-column: 1; grid-row: 1; justify-self: start; }
+}

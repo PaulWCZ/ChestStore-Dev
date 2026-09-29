@@ -31,15 +31,16 @@ channel where announcements drown.
   The publisher sees *Read by 4 of 7*, who confirmed and when, who has not
   yet; reminds them (once a day at most, bell and email); downloads the
   list (CSV, with the version each person confirmed). Only the click
-  counts: News never records who opened a post (see "On a Chest").
+  counts: News never shows who opened a post (see "Works council").
 - **Versions**: each change of a published post's words keeps the words
   it replaced (*1 earlier version*, for publishers). When an Important
   post's text changes, the publisher may **ask everyone to confirm again**:
   earlier confirmations stop counting (the list says who confirmed an
   earlier version) and everyone is told again.
-- **Reach, counts only**: for publishers, how many of a post's audience
-  opened News since it was published (*5 of 6*), and how many were sent it
-  by email — never who (see "Works council").
+- **Views, a number only**: for publishers, how many different people of
+  a post's audience opened it (*Opened by 12 of the 40 people it is for*),
+  shown from 5 people and counted every hour, next to *Read by* and how many
+  were sent it by email — never who (see "Works council").
 - **Events**: a day or several, time (or all day), place, and **places**
   if they are limited: past them, *Join the waiting list*; a place freed
   goes to the first waiting, who is told. **I'm coming / Not coming**
@@ -215,18 +216,31 @@ Wiki's spaces kept to groups).
   is not changed — a publisher deletes that post if it must go.
 - **Works council (France, Code du travail L.2312-38)**: News records an
   Important post's confirmations — an explicit click — and, per person,
-  the time of their last visit to the front page (for the *New* marks) and
-  the time they last opened any page of News (for reach). It never records
-  who opened which post. **Reach is counts only**, shown to publishers: of
-  a post's audience, how many opened News after it was published — never
-  who. We chose counts over per-post opens because a per-person, per-post
-  record is exactly the monitoring a CSE must be consulted on, and even a
-  pseudonymous one can be matched back in a small company; the last-visit
-  time is one line per person, already needed, and says nothing about a
-  given post. It also records who was **sent** an Important post by email
-  (a delivery, so it is never sent twice). A company of 50 or more should
-  still inform its CSE before using confirmations; this paragraph is
-  written so it can be handed to them.
+  the time of their last visit to the front page (for the *New* marks and
+  the digest). For **views** it keeps a number, never a name:
+  - Each view is stored as a *fingerprint* — a keyed hash (HMAC-SHA-256,
+    cut to 128 bits) of the viewer's member id under a random key of that
+    post alone — so a second visit is not counted twice. The table has no
+    member id, and the key of one post says nothing of another.
+  - Publishers see only the count of different people of the post's
+    audience who opened it (never its author), and **only from 5**: below,
+    it reads "fewer than 5"; a post for fewer than 5 people never shows it.
+    The count is as of the **last full hour**, so it cannot be watched rise
+    while one person opens the post.
+  - **30 days after publication** the count is kept and the post's key and
+    every fingerprint are **deleted**: from then on nothing links anyone to
+    a post. An erasure deletes the person's fingerprints at once.
+  - What it does *not* protect: during those 30 days, someone with direct
+    access to the database and a person's member id could test whether
+    that person opened a given post. The tool never does it and shows it to
+    nobody, admins included.
+
+  We chose this over a per-person record ("Hugo opened it at 10:12"),
+  which is the monitoring a CSE must be consulted on. It also records who
+  was **sent** an Important post by email (a delivery, so it is never sent
+  twice). A company of 50 or more should still inform its CSE before
+  using confirmations and view counts; this paragraph is written so it can
+  be handed to them.
 - No WebSocket: the front page re-reads itself every 60 s, a post every
   30 s, while visible.
 
@@ -293,8 +307,12 @@ cannot hold files).
 Push notifications to a phone (the bell and email only), an app; automatic
 translation (the second language is written by hand: News has no
 network); reading statistics per person (by design: counts only, see
-"Works council"); a digest more often than weekly; polls in a post (the
-store's Polls tool is separate); videos are played as uploaded (no
+"Works council"); a digest more often than weekly; **polls in a post**
+(the store's Polls tool is separate: a post may link to a poll, but shows
+no result card. It needs Polls to publish its result as an event between
+tools — `polls.poll.closed` with the counts it already shows everyone —
+and a way for News to create a poll in Polls, which events do not give:
+left to the SDK report); videos are played as uploaded (no
 thumbnail, no transcoding, 25 MB at most); pictures in the text and the
 gallery have no captions beyond their name; a Slack import takes the
 messages' words, not their files, reactions or thread replies, and

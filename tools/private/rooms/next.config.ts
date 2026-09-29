@@ -13,7 +13,9 @@ const config: NextConfig = {
   poweredByHeader: false,
   reactStrictMode: true,
   typescript: { ignoreBuildErrors: true },
-  experimental: { cpus: 1, webpackBuildWorker: false, webpackMemoryOptimizations: true },
+  // A room calendar's .ics export is sent to a server action: up to 4 MB
+  // (lib/calendar-import.ts importLimits).
+  experimental: { cpus: 1, webpackBuildWorker: false, webpackMemoryOptimizations: true, serverActions: { bodySizeLimit: "5mb" } },
   webpack: webpackConfig => ({ ...webpackConfig, cache: false }),
 };
 

@@ -132,7 +132,7 @@ export default async function ProfilePage({ params }: { params: Promise<{ id: st
           <section className="profile-block">
             <h2>{t.profile.more}</h2>
             <dl className="extras">
-              {extras.map(f => <div key={f.id}><dt>{f.label}</dt><dd>{person.extras[f.id]}</dd></div>)}
+              {extras.map(f => <div key={f.id}><dt>{f.label}</dt><dd>{f.kind === "date" && /^\d{4}-\d{2}-\d{2}$/u.test(person.extras[f.id] ?? "") ? formatDay(person.extras[f.id]!, locale) : person.extras[f.id]}</dd></div>)}
             </dl>
           </section>
         )}

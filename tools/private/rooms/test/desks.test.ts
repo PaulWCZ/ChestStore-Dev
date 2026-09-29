@@ -108,7 +108,7 @@ test("cancel: the holder or an admin; another member cannot; undo brings it back
 test("the usual desk: the one given, else the last one booked", async () => {
   const { sql } = database;
   const b = await desks.bookDesk(sql, asMember(hugo), { deskId: o.desks[2], day: workday(6) }, zone);
-  assert.deepEqual(await desks.usualDesk(sql, asMember(hugo), o.office), { id: o.desks[2], name: "D-03", areaName: "Open space", assigned: false });
+  assert.deepEqual(await desks.usualDesk(sql, asMember(hugo), o.office), { id: o.desks[2], name: "D-03", areaName: "Open space", areaPreset: null, assigned: false });
   await desks.cancelDesk(sql, asMember(hugo), b.id);
   assert.equal(await desks.usualDesk(sql, asMember(nora), o.office), null);
 });

@@ -11,7 +11,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { contrast } from "../src/color.js";
 import { checkPalette, checkTheme, colorTokens, optionalColorTokens, pairs, ratios, staticTokens, validateTheme } from "../src/contract.js";
 import { defineTheme } from "../src/compose.js";
-import { chipRadius, themeCss } from "../src/css.js";
+import { chipRadius, themeColors, themeCss } from "../src/css.js";
 import { deriveTheme, type Brand } from "../src/derive.js";
 import { resolveTheme, themeStyle, type ThemeChoice } from "../src/runtime.js";
 import { inverseSignal } from "../src/signal.js";
@@ -279,4 +279,26 @@ test("hard brands (near-white, neon, near-black, brown, two alike, yellow, grey,
   }
   assert.ok(deriveTheme(hard[0]!).notes.length > 0, "a near-white is adjusted, and says so");
   assert.ok(deriveTheme(hard[7]!).notes.some(n => n.code === "accent_like_danger"), "a red like the danger colour is pointed out");
+});
+
+test("the Chest theme is light only, on purpose: the page says color-scheme: light (light scrollbars and fields on a dark computer), no dark block, a light bar", () => {
+  const sheet = themeOf("chest")!;
+  assert.equal(sheet.modes, "light");
+  const out = themeCss(sheet);
+  assert.match(out, /^:root\{color-scheme:light;/mu);
+  assert.doesNotMatch(out, /prefers-color-scheme/u);
+  assert.deepEqual(themeColors(sheet).map(c => c.color), [sheet.light.bg, sheet.light.bg]);
+  assert.match(themeCss(themeOf("workshop")!), /color-scheme:light dark/u, "a theme with both modes follows the computer");
+});
+
+test("phone navigation: a section's name wraps at its spaces only, never inside a word; a word too wide ends in an ellipsis (critique round 2)", () => {
+  assert.match(css, /\.ck-nav-label \{[^}]*overflow-wrap: normal;[^}]*\}/u);
+  assert.match(css, /\.ck-nav-label \{[^}]*text-overflow: ellipsis;/u);
+  assert.doesNotMatch(css, /overflow-wrap: anywhere|hyphens: auto/u, "no break inside a word, no hyphen");
+  // What check-page measures: every name, every look, both languages, 390 and 320 px, a wide face.
+});
+
+test("FilePicker: no 'drop them here' on a touch screen (critique round 2)", () => {
+  assert.match(css, /@media \(pointer: coarse\) \{[^}]*\}[^}]*\}[^}]*\}[^}]*\}\s*\.ck-drop-hint \{ display: none; \}/u);
+  assert.match(css, /@media \(hover: none\) \{ \.ck-drop-hint \{ display: none; \} \}/u);
 });

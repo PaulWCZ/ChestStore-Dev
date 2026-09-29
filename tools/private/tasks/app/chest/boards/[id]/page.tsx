@@ -1,8 +1,8 @@
 import { notFound } from "next/navigation";
 import { AutoRefresh } from "../../../../components/auto-refresh.tsx";
 import { boardAudience } from "../../../../lib/audience.ts";
-import { board as readBoard, columns as readColumns, fields as readFields, labels as readLabels, listBoards } from "../../../../lib/boards.ts";
-import { grid, monthOf, shift } from "../../../../lib/calendar.ts";
+import { board as readBoard, columnName, columns as readColumns, fields as readFields, labels as readLabels, listBoards } from "../../../../lib/boards.ts";
+import { grid, monthOf, shift, timelineDays, timelineStart, timelineStep } from "../../../../lib/calendar.ts";
 import { boardCards, cardDetail } from "../../../../lib/cards.ts";
 import { db } from "../../../../lib/db.ts";
 import { AppError } from "../../../../lib/errors.ts";
@@ -16,7 +16,7 @@ import { viewer } from "../../../../lib/session.ts";
 import { BoardView } from "./board-view.tsx";
 import { CardPanel, type PanelCard, type RepeatView } from "./card-panel.tsx";
 
-type Search = { card?: string; view?: string; who?: string; label?: string; month?: string };
+type Search = { card?: string; view?: string; who?: string; label?: string; month?: string; from?: string };
 
 // One board: its columns of cards (or a list), and the card asked in the
 // address (?card=…) open in a panel beside it.
@@ -34,7 +34,7 @@ export default async function BoardPage({ params, searchParams }: { params: Prom
     if (error instanceof AppError && error.code === "not_found") notFound();
     throw error;
   }
-  const [cols, labs, own, cards, audience] = await Promise.all([readColumns(sql, b.id), readLabels(sql, b.id), readFields(sql, b.id), boardCards(sql, b.id), boardAudience(b)]);
+  const [cols, labs, own, cards, audience] = await Promise.all([readColumns(sql, b.id, { words: t.templates.columns }), readLabels(sql, b.id), readFields(sql, b.id), boardCards(sql, b.id), boardAudience(b)]);
   let detail: Awaited<ReturnType<typeof cardDetail>> | null = null;
   if (search.card) {
     try {
@@ -69,13 +69,16 @@ export default async function BoardPage({ params, searchParams }: { params: Prom
   // Where the open card may go: the boards the member works on, and their
   // columns.
   const targets = panel && canWrite ? await moveTargets(sql, member, b.id, t) : [];
+  // The cards this one may wait for: the others of the board, not done.
+  const linkable = panel ? cards.filter(c => c.id !== panel.id && !c.done).map(c => ({ id: c.id, title: c.title })) : [];
   // Private: who sees it, said in the header.
   const others = b.people.filter(p => p.memberId !== member.id).length;
   const privacy = b.visibility === "private"
     ? (others === 0 && b.groups.length === 0 ? t.board.privateOnlyYou : [plural(t.board.privatePeople, b.people.length, locale), ...(b.groups.length > 0 ? [plural(t.board.privateGroups, b.groups.length, locale)] : [])].join(" · "))
     : null;
-  const view = search.view === "list" ? "list" : search.view === "calendar" ? "calendar" : "board";
+  const view = search.view === "list" ? "list" : search.view === "calendar" ? "calendar" : search.view === "timeline" ? "timeline" : "board";
   const calendar = view === "calendar" ? calendarOf(monthOf(search.month, day), day, locale) : null;
+  const timeline = view === "timeline" ? timelineOf(timelineStart(search.from, day), day, locale, cards) : null;
   return (
     <div className={`board-page c-${b.color}`}>
       <AutoRefresh seconds={15} />
@@ -92,6 +95,7 @@ export default async function BoardPage({ params, searchParams }: { params: Prom
         locale={locale}
         view={view}
         calendar={calendar}
+        timeline={timeline}
         filter={{ who: search.who ?? "", label: search.label ?? "" }}
         t={{ board: t.board, card: t.card, errors: t.errors, colors: t.colors, dialog: t.dialog }}
       />
@@ -104,6 +108,7 @@ export default async function BoardPage({ params, searchParams }: { params: Prom
           labels={labs}
           fields={own}
           targets={targets}
+          linkable={linkable}
           people={names}
           audience={audience}
           repeat={repeatView(detail!, cols, b.id, day, locale, t)}
@@ -142,9 +147,9 @@ function repeatView(card: { due: string | null; done: boolean; archived: boolean
 async function moveTargets(sql: Sql, member: Member, boardId: string, t: Catalogue): Promise<{ id: string; name: string; columns: { id: string; name: string }[] }[]> {
   const mine = (await listBoards(sql, member)).filter(x => x.access === "write" || x.access === "own");
   if (mine.length === 0) return [];
-  const rows = await sql<{ id: string; board_id: string; name: string }[]>`select id, board_id, name from columns where board_id in ${sql(mine.map(x => x.id))} and archived_at is null order by position, id`;
+  const rows = await sql<{ id: string; board_id: string; name: string; key: string | null }[]>`select id, board_id, name, key from columns where board_id in ${sql(mine.map(x => x.id))} and archived_at is null order by position, id`;
   return mine
-    .map(x => ({ id: x.id, name: x.id === boardId ? format(t.card.thisBoard, { name: x.name }) : x.name, columns: rows.filter(r => String(r.board_id) === x.id).map(r => ({ id: String(r.id), name: r.name })) }))
+    .map(x => ({ id: x.id, name: x.id === boardId ? format(t.card.thisBoard, { name: x.name }) : x.name, columns: rows.filter(r => String(r.board_id) === x.id).map(r => ({ id: String(r.id), name: columnName(r.name, r.key, t.templates.columns) })) }))
     .filter(x => x.columns.length > 0)
     .sort((a, c) => Number(c.id === boardId) - Number(a.id === boardId));
 }
@@ -159,4 +164,32 @@ function calendarOf(month: string, today: string, locale: Locale): CalendarMonth
   const long = f({ weekday: "long", day: "numeric", month: "long" });
   const weeks = grid(month).map(week => week.map(date => ({ date, day: Number(date.slice(8)), inMonth: date.startsWith(month), label: long.format(new Date(date + "T12:00:00Z")) })));
   return { month, title: title.charAt(0).toLocaleUpperCase(intl(locale)) + title.slice(1), weekdays, weeks, prev: shift(month, -1), next: shift(month, 1), today, current: today.slice(0, 7) };
+}
+
+// The timeline's six weeks, written on the server: each day's number,
+// weekday and name, the month where it starts, the neighbouring windows;
+// and the name of every day a card starts or is due on (for the bars'
+// labels).
+export type TimelineWindow = {
+  first: string;
+  title: string;
+  days: { date: string; day: number; weekday: string; month: string | null }[];
+  prev: string;
+  next: string;
+  current: string;
+  today: string;
+  names: Record<string, string>;
+};
+function timelineOf(first: string, today: string, locale: Locale, cards: { start: string | null; due: string | null }[]): TimelineWindow {
+  const f = (options: Intl.DateTimeFormatOptions) => new Intl.DateTimeFormat(intl(locale), { timeZone: "UTC", ...options });
+  const at = (d: string) => new Date(d + "T12:00:00Z");
+  const dates = Array.from({ length: timelineDays }, (_, i) => addDays(first, i));
+  const long = f({ weekday: "long", day: "numeric", month: "long" });
+  const names: Record<string, string> = {};
+  for (const d of [...dates, ...cards.flatMap(c => [c.start, c.due]).filter((x): x is string => !!x)]) names[d] ??= long.format(at(d));
+  const month = f({ month: "short" });
+  const letter = f({ weekday: "narrow" });
+  const days = dates.map((date, i) => ({ date, day: Number(date.slice(8)), weekday: letter.format(at(date)), month: i === 0 || date.endsWith("-01") ? month.format(at(date)) : null }));
+  const range = new Intl.DateTimeFormat(intl(locale), { timeZone: "UTC", day: "numeric", month: "short", year: "numeric" });
+  return { first, title: range.formatRange(at(first), at(dates.at(-1)!)), days, prev: addDays(first, -timelineStep), next: addDays(first, timelineStep), current: timelineStart(undefined, today), today, names };
 }

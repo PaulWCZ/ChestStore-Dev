@@ -17,6 +17,8 @@
     "sales": "Sales",
     "viewer": "Viewer"
   },
+  "public": true,
+  "csp": "tool",
   "capabilities": [
     "database",
     "files",

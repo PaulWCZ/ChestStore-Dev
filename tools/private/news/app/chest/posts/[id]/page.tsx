@@ -5,7 +5,7 @@ import { Back, Calendar, Clip, Clock, Download, Globe, Group, History, Mail, Pin
 import { RichText } from "../../../../components/rich-text.tsx";
 import { calendarPage } from "../../../../lib/agenda.ts";
 import { can } from "../../../../lib/access.ts";
-import { everyone, reach, tally } from "../../../../lib/audience.ts";
+import { audienceSize, everyone, tally } from "../../../../lib/audience.ts";
 import { dates } from "../../../../lib/dates.ts";
 import { db } from "../../../../lib/db.ts";
 import { audienceLabel, groupNames } from "../../../../lib/groups.ts";
@@ -13,9 +13,10 @@ import { AppError } from "../../../../lib/errors.ts";
 import { catalogue, format, isLocale, plural } from "../../../../lib/i18n/index.ts";
 import { emojis, pick, pieces, type Version } from "../../../../lib/model.ts";
 import { nameOf, people } from "../../../../lib/people.ts";
-import { confirmations, post as readPost, revisions, touch, type PostDetail } from "../../../../lib/posts.ts";
+import { confirmations, post as readPost, revisions, type PostDetail } from "../../../../lib/posts.ts";
 import { viewer } from "../../../../lib/session.ts";
 import { learned } from "../../../../lib/state.ts";
+import { floor, recordView, views } from "../../../../lib/views.ts";
 import { Kicker } from "../../story.tsx";
 import { Comments, ConfirmBox, PostTools, Reactions, RemindButton, Rsvp, SendingNotice } from "./parts.tsx";
 
@@ -37,7 +38,7 @@ export default async function PostPage({ params, searchParams }: { params: Promi
     if (error instanceof AppError) notFound();
     throw error;
   }
-  await touch(sql, member.id);
+  await recordView(sql, member, p);
   const now = new Date();
   const d = dates(locale, zone, now);
   const publisher = can(member, "publish");
@@ -70,9 +71,12 @@ export default async function PostPage({ params, searchParams }: { params: Promi
     const pending = counted.pending.map(x => ({ id: x.id, name: x.name, photo: x.photo }));
     return { confirmed: counted.confirmed, pending, earlier: found.earlier.length, complete: list.complete, remindedAt: found.post.remindedAt };
   }
+  // Views: a number only, from 5 people, as of the last full hour
+  // (lib/views.ts); never who.
   async function reachOf(post: PostDetail, list: Awaited<ReturnType<typeof everyone>>) {
-    const rows = await sql<{ member: string; at: Date }[]>`select member, at from activity`;
-    return reach(post, list.people, new Map(rows.map(r => [r.member, r.at])));
+    const total = audienceSize(post, list.people);
+    const { count } = await views(sql, post.id);
+    return { count: count === null ? null : Math.min(count, total), total };
   }
 
   return (
@@ -95,6 +99,22 @@ export default async function PostPage({ params, searchParams }: { params: Promi
             {publisher && !p.sending && <PostTools id={p.id} pinned={p.pinned} t={t.post} errors={t.errors} />}
           </div>
         </header>
+
+        {/* What the post asks of its reader, right under the headline: on a
+            phone the main action of the page is never below the picture. */}
+        {p.important && !p.scheduled && (p.forMe || p.author === member.id) && (
+          <div lang={locale} className="confirm-slot">
+            <ConfirmBox
+              id={p.id}
+              own={p.author === member.id}
+              confirmed={p.confirmed}
+              again={p.confirmedEarlier}
+              when={p.confirmedAt ? format(t.important.confirmed, { date: d.full(p.confirmedAt) }) : null}
+              t={t.important}
+              errors={t.errors}
+            />
+          </div>
+        )}
 
         <div className="notices" lang={locale}>
           {p.sending && p.undoUntil && p.author === member.id && <SendingNotice id={p.id} until={p.undoUntil} t={t.post} errors={t.errors} />}
@@ -151,21 +171,7 @@ export default async function PostPage({ params, searchParams }: { params: Promi
           </section>
         )}
 
-        {p.important && !p.scheduled && (p.forMe || p.author === member.id) && (
-          <div lang={locale}>
-            <ConfirmBox
-              id={p.id}
-              own={p.author === member.id}
-              confirmed={p.confirmed}
-              again={p.confirmedEarlier}
-              when={p.confirmedAt ? format(t.important.confirmed, { date: d.full(p.confirmedAt) }) : null}
-              t={t.important}
-              errors={t.errors}
-            />
-          </div>
-        )}
-
-        <RichText text={shown.body} />
+        <RichText text={shown.body} lead />
 
         {p.gallery.length > 0 && (
           <section className="gallery" aria-label={t.post.gallery} lang={locale}>
@@ -230,7 +236,9 @@ export default async function PostPage({ params, searchParams }: { params: Promi
       {reached && (
         <section className="reach" aria-labelledby="reach-title">
           <h2 id="reach-title">{t.reach.title}</h2>
-          <p className="reach-figure"><strong>{reached.total === 0 ? "—" : `${Math.round((100 * reached.came) / reached.total)} %`}</strong><span>{format(t.reach.came, { came: reached.came, total: reached.total })}</span></p>
+          {reached.total < floor
+            ? <p className="quiet-text">{t.reach.small}</p>
+            : <p className="reach-figure"><strong>{reached.count === null ? "< 5" : reached.count}</strong><span>{reached.count === null ? format(t.reach.few, { total: reached.total }) : format(t.reach.opened, { count: reached.count, total: reached.total })} {t.reach.hourly}</span></p>}
           {p.important && (
             <p className="quiet-text"><Mail />{mail === "off" && p.emailed === 0 ? t.reach.emailOff : plural(t.reach.emailed, p.emailed, locale)}{p.emailShort ? " " + t.reach.emailShort : ""}</p>
           )}

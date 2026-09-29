@@ -1,5 +1,6 @@
 // Safe in the browser: no SDK here.
-// Reading a spreadsheet of clients or of catalogue items — as Axonaut,
+// Reading a spreadsheet of clients, of catalogue items or of the invoices
+// still to collect — as Axonaut,
 // Sellsy, Pennylane, Henrri, Excel or anyone exports it — into rows of the
 // fields this tool knows. Pure: the page shows the columns matched and the
 // first rows before anything is sent; the server reads the file again with
@@ -11,13 +12,16 @@ import { parseAmount, vatRates } from "./money.ts";
 
 export const importLimits = { rows: 5000, bytes: 2 * 1024 * 1024 } as const;
 
-export const importKinds = ["clients", "items"] as const;
+export const importKinds = ["clients", "items", "invoices"] as const;
 export type ImportKind = (typeof importKinds)[number];
 export const isImportKind = (value: unknown): value is ImportKind => typeof value === "string" && (importKinds as readonly string[]).includes(value);
 
 export const fieldsOf = {
   clients: ["name", "kind", "firstName", "lastName", "contact", "email", "phone", "address", "address2", "postcode", "city", "country", "siren", "siret", "vatNumber", "deliveryAddress", "language", "account", "notes"],
   items: ["name", "description", "unit", "unitPrice", "priceInclVat", "vatRate", "kind"],
+  // The invoices the previous tool issued and that are not paid in full:
+  // their number, dates, client, total, and what was paid (or what is left).
+  invoices: ["number", "issueDate", "client", "siren", "email", "title", "dueDate", "gross", "net", "paid", "left"],
 } as const;
 export type Field = (typeof fieldsOf)[ImportKind][number];
 
@@ -60,6 +64,19 @@ const headers: Record<ImportKind, Record<string, Field>> = {
     priceInclVat: ["prixttc", "prixunitairettc", "puttc", "tarifttc", "prixdeventettc", "montantttc", "priceinclvat", "pricewithtax", "priceincludingtax", "grossprice"],
     vatRate: ["tva", "tauxtva", "tauxdetva", "tvaapplicable", "vat", "vatrate", "taxrate", "taxe", "tauxdetaxe", "tax", "codetva"],
     kind: ["goodsorservice", "bienouservice", "type", "typedeproduit", "typedarticle", "nature", "categorie", "kind", "producttype", "biensouservices", "productorservice"],
+  }),
+  invoices: dictionary({
+    number: ["numero", "number", "numerodefacture", "nfacture", "nodefacture", "facture", "numerofacture", "invoicenumber", "invoiceno", "invoice", "reference", "ref", "numerodepiece", "piece", "document", "documentnumber"],
+    issueDate: ["date", "datedefacture", "datefacture", "datedemission", "dateemission", "datedefacturation", "invoicedate", "issuedate", "dateofissue", "datedocument", "datedepiece"],
+    client: ["client", "nomduclient", "clientname", "customer", "customername", "raisonsociale", "denomination", "societe", "entreprise", "company", "companyname", "tiers", "nomdutiers", "name", "nom"],
+    siren: ["siren", "sirenduclient", "numerosiren", "clientsiren"],
+    email: ["email", "mail", "courriel", "emailduclient", "emailclient", "emaildefacturation", "billingemail", "customeremail"],
+    title: ["objet", "sujet", "subject", "title", "titre", "intitule", "libelle", "description", "designation"],
+    dueDate: ["echeance", "datedecheance", "dateecheance", "datelimitedepaiement", "datelimite", "duedate", "paymentdue", "datedereglement", "due"],
+    gross: ["totalttc", "montantttc", "ttc", "totalinclvat", "totalincltax", "amountinclvat", "grossamount", "gross", "total", "montant", "amount", "montanttotal", "totalamount", "netapayer"],
+    net: ["totalht", "montantht", "ht", "totalexclvat", "totalexcltax", "amountexclvat", "netamount", "subtotal", "soustotal"],
+    paid: ["paye", "montantpaye", "dejapaye", "dejaregle", "regle", "montantregle", "encaisse", "montantencaisse", "paid", "amountpaid", "paidamount", "reglements", "paiements"],
+    left: ["resteapayer", "restedu", "resteaencaisser", "soldedu", "solde", "reste", "montantdu", "amountdue", "balance", "balancedue", "outstanding", "left", "lefttopay", "remaining"],
   }),
 };
 
@@ -115,6 +132,7 @@ export function checkMapping(kind: ImportKind, head: string[], mapping: unknown)
 // Whether a mapping names what a row needs: a name (or, for a client, a
 // first or last name).
 export function mappingReady(kind: ImportKind, mapping: Mapping): boolean {
+  if (kind === "invoices") return (["number", "issueDate", "client", "gross"] as const).every(f => mapping.includes(f));
   return kind === "clients" ? mapping.some(f => f === "name" || f === "firstName" || f === "lastName") : mapping.includes("name");
 }
 
@@ -177,6 +195,26 @@ export function vatRateOf(value: string | undefined): number | null {
 export function priceOf(value: string | undefined, currency: string): number | null {
   if (!value) return null;
   return parseAmount(value.replace(/[€$£]|EUR|HT|TTC/giu, "").trim(), currency, { negative: true });
+}
+
+// A day as the sheets write it — "29/09/2026", "29-09-2026", "29.09.2026"
+// (day first, as in France and in English as written in Europe: never
+// month first), "2026-09-29", with a time after it or not — as
+// "YYYY-MM-DD"; null when it is not a real day.
+export function dateOf(value: string | undefined): string | null {
+  const text = (value ?? "").trim().split(/[ T]/u)[0] ?? "";
+  let y: number, m: number, d: number;
+  let match = /^(\d{4})-(\d{1,2})-(\d{1,2})$/u.exec(text);
+  if (match) [y, m, d] = [Number(match[1]), Number(match[2]), Number(match[3])];
+  else {
+    match = /^(\d{1,2})[/.-](\d{1,2})[/.-](\d{4})$/u.exec(text);
+    if (!match) return null;
+    [d, m, y] = [Number(match[1]), Number(match[2]), Number(match[3])];
+  }
+  if (y < 1990 || y > 2100 || m < 1 || m > 12 || d < 1) return null;
+  const days = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  if (d > days) return null;
+  return `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
 }
 
 // A language the documents can be written in, from "fr", "Français",

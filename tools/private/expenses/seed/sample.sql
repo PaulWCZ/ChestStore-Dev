@@ -95,7 +95,7 @@ insert into history (expense_id, actor, kind, detail, at) values
 -- the harness sets no BANK_DETAILS_KEY), journal accounts, guests on meals,
 -- tolls and parking, a trip abroad in pounds, a flat rate, a hotel's nights.
 update expenses set base_cents = amount_cents, base_currency = currency where base_cents is null and currency = 'EUR';
-insert into settings (key, value) values ('setupDone', 'true'), ('payer', '"Atelier Roux SARL"');
+insert into settings (key, value) values ('setupDone', 'true'), ('payer', '"Atelier Roux SARL"'), ('bankLocale', '"fr"');
 insert into bank_accounts (owner, iban, last4, country, bic, holder, updated_by, updated_at) values
   ('company', 'v0.FR1420041010050500013M02606', '2606', 'FR', null, '', 'mbr_camilleaaaaaaaaaaaaaaaaaaa', '2026-09-01 10:00:00+02'),
   ('mbr_hugoaaaaaaaaaaaaaaaaaaaaaa', 'v0.FR7630006000011234567890189', '0189', 'FR', 'AGRIFRPP', '', 'mbr_hugoaaaaaaaaaaaaaaaaaaaaaa', '2026-06-02 10:00:00+02'),
@@ -123,4 +123,23 @@ insert into history (expense_id, actor, kind, detail, at) values
   (25, 'mbr_leaaaaaaaaaaaaaaaaaaaaaaaa', 'created', '', '2026-09-10 19:30:00+02'),
   (25, 'mbr_leaaaaaaaaaaaaaaaaaaaaaaaa', 'submitted', '', '2026-09-11 09:12:00+02'),
   (25, 'mbr_camilleaaaaaaaaaaaaaaaaaaa', 'approved', '', '2026-09-11 16:40:00+02');
+-- After the second critique: September's company card statement, imported
+-- by Camille. The hotel and the flight found their expense; two of Hugo's
+-- payments wait for their receipt (drafts made for them); Tom's parking was
+-- also claimed as paid with his own money (to check).
+insert into expenses (id, member_id, kind, status, spent_on, amount_cents, currency, base_cents, base_currency, category_id, merchant, paid_by, created_at, updated_at) overriding system value values
+  (26, 'mbr_hugoaaaaaaaaaaaaaaaaaaaaaa', 'expense', 'draft', '2026-09-24', 2340, 'EUR', 2340, 'EUR', (select id from categories where key = 'other'), 'UBER *TRIP', 'company', '2026-09-28 09:30:00+02', '2026-09-28 09:30:00+02'),
+  (27, 'mbr_hugoaaaaaaaaaaaaaaaaaaaaaa', 'expense', 'draft', '2026-09-25', 1285, 'EUR', 1285, 'EUR', (select id from categories where key = 'other'), 'MONOPRIX PARIS 11', 'company', '2026-09-28 09:30:00+02', '2026-09-28 09:30:00+02');
+insert into history (expense_id, actor, kind, detail, at) values
+  (26, 'mbr_camilleaaaaaaaaaaaaaaaaaaa', 'created', 'card', '2026-09-28 09:30:00+02'),
+  (27, 'mbr_camilleaaaaaaaaaaaaaaaaaaa', 'created', 'card', '2026-09-28 09:30:00+02');
+insert into card_statements (id, created_by, created_at, file_name) overriding system value values
+  (1, 'mbr_camilleaaaaaaaaaaaaaaaaaaa', '2026-09-28 09:30:00+02', 'releve-cartes-septembre.csv');
+insert into card_lines (statement_id, member_id, spent_on, label, amount_cents, currency, line_key, expense_id, link, created_at) values
+  (1, 'mbr_hugoaaaaaaaaaaaaaaaaaaaaaa', '2026-09-04', 'CB MERCURE LYON PART DIEU 02/09', 12900, 'EUR', '581c4bb163d300a0fefbb4fd3f0f8bec5ab631f2d0bd141d14d167e2f0fac87a', 5, 'matched', '2026-09-28 09:30:00+02'),
+  (1, 'mbr_inesaaaaaaaaaaaaaaaaaaaaaa', '2026-09-22', 'CB AIR FRANCE 22/09', 18760, 'EUR', '10386787e77a92a7f9e55065e2ac6e87026ca8e97b8e6bc52590ff240f31fbe4', 19, 'matched', '2026-09-28 09:30:00+02'),
+  (1, 'mbr_tomaaaaaaaaaaaaaaaaaaaaaaa', '2026-09-09', 'CB INDIGO PARKING 09/09', 1800, 'EUR', 'aecdef99872725172ea6994ea08d2d4375b90bc8f8239d76e443544ee0900d85', 15, 'matched', '2026-09-28 09:30:00+02'),
+  (1, 'mbr_hugoaaaaaaaaaaaaaaaaaaaaaa', '2026-09-24', 'CB UBER *TRIP 24/09', 2340, 'EUR', '74c860f63661b29cd747cf485fb26898163066cb84328f3855f877dbbeef5d56', 26, 'created', '2026-09-28 09:30:00+02'),
+  (1, 'mbr_hugoaaaaaaaaaaaaaaaaaaaaaa', '2026-09-25', 'CB MONOPRIX PARIS 11 25/09', 1285, 'EUR', 'a840f7d8f33847a13acfca457de56c70b9bd4eb44f3f94dba06ea3dc564d5cdd', 27, 'created', '2026-09-28 09:30:00+02');
+select setval(pg_get_serial_sequence('card_statements', 'id'), 10);
 select setval(pg_get_serial_sequence('expenses', 'id'), 100);

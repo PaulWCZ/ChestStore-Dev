@@ -2,7 +2,7 @@ import type { Member } from "@argentic/chest-sdk/member";
 import { can } from "./access.ts";
 import { AppError } from "./app-error.ts";
 import type { Fragment, Query, Sql } from "./db.ts";
-import { clean, equipment as equipmentKeys, features as featureKeys, id, int, keysOf, limits, memberId, nextNames, type Equipment, type Feature } from "./model.ts";
+import { clean, equipment as equipmentKeys, features as featureKeys, id, int, keysOf, limits, memberId, nextNames, placeName, type Equipment, type Feature } from "./model.ts";
 import { dayKeys, enqueue } from "./calendar.ts";
 import { cancelRoomBookings, type RoomBooking } from "./room-bookings.ts";
 
@@ -17,7 +17,8 @@ export type DeskView = { id: string; name: string; features: Feature[]; assigned
 export type AreaView = { id: string; name: string; groupId: string | null; desks: DeskView[] };
 export type RoomView = { id: string; name: string; capacity: number; equipment: Equipment[]; note: string; photo: boolean; groupId: string | null };
 export type FloorView = { id: string; name: string; rooms: RoomView[]; areas: AreaView[] };
-export type OfficeView = { id: string; name: string; address: string; floors: FloorView[] };
+// example: made by "Start with an example" (lib/example.ts).
+export type OfficeView = { id: string; name: string; address: string; example: boolean; floors: FloorView[] };
 
 function reader(actor: Member | null): void {
   if (!can(actor, "book")) throw new AppError("forbidden");
@@ -27,13 +28,14 @@ function admin(actor: Member | null): void {
 }
 
 // Every office with what it holds (archived rooms and desks left out), in
-// the admin's order.
-export async function offices(sql: Query, actor: Member | null): Promise<OfficeView[]> {
+// the admin's order. presets: the reader's words for the names the tool
+// gave (model.ts placeName); without them, the names as stored.
+export async function offices(sql: Query, actor: Member | null, presets?: Readonly<Record<string, string>>): Promise<OfficeView[]> {
   reader(actor);
   const [os, fs, as, rs, ds] = await Promise.all([
-    sql<{ id: string; name: string; address: string }[]>`select id, name, address from offices order by position, id`,
-    sql<{ id: string; office_id: string; name: string }[]>`select id, office_id, name from floors order by position, id`,
-    sql<{ id: string; floor_id: string; name: string; group_id: string | null }[]>`select id, floor_id, name, group_id from areas order by position, id`,
+    sql<{ id: string; name: string; address: string; example: boolean }[]>`select id, name, address, example from offices order by position, id`,
+    sql<{ id: string; office_id: string; name: string; preset: string | null }[]>`select id, office_id, name, preset from floors order by position, id`,
+    sql<{ id: string; floor_id: string; name: string; preset: string | null; group_id: string | null }[]>`select id, floor_id, name, preset, group_id from areas order by position, id`,
     sql<{ id: string; floor_id: string; name: string; capacity: number; equipment: string[]; note: string; photo: string | null; group_id: string | null }[]>`
       select id, floor_id, name, capacity, equipment, note, photo, group_id from rooms where archived_at is null order by position, id`,
     sql<{ id: string; area_id: string; name: string; features: string[]; assigned_to: string | null }[]>`
@@ -42,12 +44,12 @@ export async function offices(sql: Query, actor: Member | null): Promise<OfficeV
   const desksOf = new Map<string, DeskView[]>();
   for (const d of ds) desksOf.set(String(d.area_id), [...(desksOf.get(String(d.area_id)) ?? []), { id: String(d.id), name: d.name, features: d.features.filter((f): f is Feature => (featureKeys as readonly string[]).includes(f)), assignedTo: d.assigned_to }]);
   const areasOf = new Map<string, AreaView[]>();
-  for (const a of as) areasOf.set(String(a.floor_id), [...(areasOf.get(String(a.floor_id)) ?? []), { id: String(a.id), name: a.name, groupId: a.group_id, desks: desksOf.get(String(a.id)) ?? [] }]);
+  for (const a of as) areasOf.set(String(a.floor_id), [...(areasOf.get(String(a.floor_id)) ?? []), { id: String(a.id), name: placeName(a.name, a.preset, presets), groupId: a.group_id, desks: desksOf.get(String(a.id)) ?? [] }]);
   const roomsOf = new Map<string, RoomView[]>();
   for (const r of rs) roomsOf.set(String(r.floor_id), [...(roomsOf.get(String(r.floor_id)) ?? []), { id: String(r.id), name: r.name, capacity: r.capacity, equipment: r.equipment.filter((e): e is Equipment => (equipmentKeys as readonly string[]).includes(e)), note: r.note, photo: r.photo !== null, groupId: r.group_id }]);
   const floorsOf = new Map<string, FloorView[]>();
-  for (const f of fs) floorsOf.set(String(f.office_id), [...(floorsOf.get(String(f.office_id)) ?? []), { id: String(f.id), name: f.name, rooms: roomsOf.get(String(f.id)) ?? [], areas: areasOf.get(String(f.id)) ?? [] }]);
-  return os.map(o => ({ id: String(o.id), name: o.name, address: o.address, floors: floorsOf.get(String(o.id)) ?? [] }));
+  for (const f of fs) floorsOf.set(String(f.office_id), [...(floorsOf.get(String(f.office_id)) ?? []), { id: String(f.id), name: placeName(f.name, f.preset, presets), rooms: roomsOf.get(String(f.id)) ?? [], areas: areasOf.get(String(f.id)) ?? [] }]);
+  return os.map(o => ({ id: String(o.id), name: o.name, address: o.address, example: o.example === true, floors: floorsOf.get(String(o.id)) ?? [] }));
 }
 
 // The office a page shows: the one asked for, else the member's own, else
@@ -122,7 +124,7 @@ export async function addFloor(sql: Sql, actor: Member | null, officeId: unknown
 
 export async function renameFloor(sql: Sql, actor: Member | null, floorId: unknown, name: unknown): Promise<void> {
   admin(actor);
-  const done = await sql`update floors set name = ${clean(name, limits.floorName)} where id = ${id(floorId)}`;
+  const done = await sql`update floors set name = ${clean(name, limits.floorName)}, preset = null where id = ${id(floorId)}`;
   if (done.count === 0) throw new AppError("not_found");
 }
 
@@ -149,7 +151,7 @@ export async function addArea(sql: Sql, actor: Member | null, floorId: unknown, 
 
 export async function renameArea(sql: Sql, actor: Member | null, areaId: unknown, name: unknown): Promise<void> {
   admin(actor);
-  const done = await sql`update areas set name = ${clean(name, limits.areaName)} where id = ${id(areaId)}`;
+  const done = await sql`update areas set name = ${clean(name, limits.areaName)} , preset = null where id = ${id(areaId)}`;
   if (done.count === 0) throw new AppError("not_found");
 }
 

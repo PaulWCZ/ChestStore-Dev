@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { ChestError } from "@argentic/chest-sdk/errors";
 import * as files from "@argentic/chest-sdk/files";
 import type { Member } from "@argentic/chest-sdk/member";
+import { AppError } from "./app-error.ts";
 import { company } from "./company.ts";
 import type { Query } from "./db.ts";
 import { getDocument, type Full } from "./documents.ts";
@@ -61,6 +62,8 @@ export async function pdfOf(sql: Query, actor: Member | null, documentId: unknow
 }
 
 export async function pdfOfFull(sql: Query, full: Full, today: string): Promise<Uint8Array> {
+  // An imported invoice was issued by the previous tool: its PDF is there.
+  if (full.status === "imported") throw new AppError("no_pdf");
   if (frozen(full) && full.pdfObject) {
     try {
       const stored = await files.get(full.pdfObject);

@@ -32,6 +32,7 @@ while (monday.getUTCDay() !== 1) monday = plus(monday, 1);
 async function ask(start, end, options = {}) {
   await page.goto(origin + "/chest/new");
   if (options.kind) await page.locator(".kind-option", { hasText: options.kind }).click();
+  if (options.event) await page.locator("#event").selectOption({ index: 1 });
   await typeDay("#start", start);
   await typeDay("#end", end);
   if (options.half) {
@@ -207,7 +208,7 @@ await step("HR downloads the month's payroll export", async () => {
   const response = await page.request.get(origin + "/chest/people/export?month=" + day(monday).slice(0, 7));
   expect(response.status() === 200, "status " + response.status());
   const text = await response.text();
-  expect(text.includes("Employee number,Person,Kind,First day"), "header: " + text.slice(0, 80));
+  expect(text.includes("Employee number,Person,Kind,Payroll code,First day"), "header: " + text.slice(0, 80));
   writeFileSync(tmp + "/leave-export.csv", text);
 });
 
@@ -318,6 +319,55 @@ await step("someone leaves: their last day is set; HR finds them under Former, w
   expect(await page.locator("tr", { hasText: "Sofia Rossi" }).count() === 1, "Sofia listed");
   const csv = await page.request.get(origin + "/chest/people/balances");
   expect(csv.status() === 200 && (await csv.text()).includes("Sofia Rossi"), "balances CSV");
+});
+
+await step("a family event for Tom (off on Fridays), Monday to Friday, counts only the 4 days he works", async () => {
+  await as(context, origin, "tom");
+  const cost = await ask(day(plus(monday, 56)), day(plus(monday, 60)), { kind: "Family event", event: true });
+  expect(cost === "4 days", "cost: " + cost);
+});
+
+await step("the payroll code: CP in Settings, a column of the month's CSV", async () => {
+  await as(context, origin, "camille");
+  await speak("en");
+  await page.goto(origin + "/chest/settings");
+  const paid = page.locator(".type-editor").filter({ has: page.locator('input[placeholder="Paid leave"]') });
+  expect((await paid.getByLabel("Payroll code").inputValue()) === "CP", "CP by default");
+  await paid.getByLabel("Payroll code").fill("CP1");
+  await paid.getByLabel("Payroll code").blur();
+  await page.waitForSelector(".ck-toast");
+  const month = new Date().toISOString().slice(0, 7);
+  const csv = await (await page.request.get(origin + "/chest/people/export?month=" + month)).text();
+  expect(csv.split("\r\n")[0].includes("Payroll code") && csv.includes(",CP1,"), "code in the CSV: " + csv.split("\r\n").slice(0, 2).join(" / "));
+  const balances = await (await page.request.get(origin + "/chest/people/balances")).text();
+  expect(balances.includes("Paid leave (CP1) left"), "code in the balances CSV");
+  await paid.getByLabel("Payroll code").fill("CP");
+  await paid.getByLabel("Payroll code").blur();
+  await page.waitForTimeout(500);
+});
+
+await step("Inès leaves: her approved leave after the last day is cancelled, the days come back with the reason, HR is told", async () => {
+  await as(context, origin, "camille");
+  await speak("en");
+  await page.goto(origin + "/chest/people/" + id("ines"));
+  const before = await page.locator(".balance", { hasText: "Paid leave" }).locator(".balance-figure strong").innerText();
+  await page.request.post(origin + "/_dev/event", { form: { type: "member.removed", member: id("ines") } });
+  await page.goto(origin + "/chest/people/" + id("ines"));
+  const after = await page.locator(".balance", { hasText: "Paid leave" }).locator(".balance-figure strong").innerText();
+  expect(Number(after) === Number(before) + 0.5, "the half day comes back: " + before + " → " + after);
+  expect(await page.locator(".ledger tr", { hasText: "After their last day" }).count() === 1, "the ledger says why");
+  expect((await page.locator(".requests").innerText()).includes("Cancelled"), "the leave is cancelled");
+});
+
+await step("phone, this week: an absence that starts after the month's end is still listed", async () => {
+  await as(context, origin, "camille");
+  await speak("en");
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(origin + "/chest/calendar");
+  const first = page.locator(".week-group").first();
+  // Léa's seeded Thursday–Friday of this week (past by Friday evening).
+  if (new Date().getUTCDay() >= 1 && new Date().getUTCDay() <= 4) expect((await first.innerText()).includes("Léa Dubois"), "Léa's Thursday–Friday in this week's card: " + (await first.innerText()).slice(0, 200));
+  await page.setViewportSize({ width: 1280, height: 860 });
 });
 
 await step("phone width, in French: the month as a list of days, labelled tabs under the header, no sideways scroll", async () => {

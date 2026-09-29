@@ -1,4 +1,5 @@
 import * as chest from "@argentic/chest-sdk/chest";
+import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { can } from "../../../../lib/access.ts";
 import { clientMissing, listClients } from "../../../../lib/clients.ts";
@@ -11,11 +12,13 @@ import { listItems } from "../../../../lib/items.ts";
 import { formatMoney } from "../../../../lib/money.ts";
 import { sellerOf } from "../../../../lib/parties.ts";
 import { continuedAt } from "../../../../lib/numbering.ts";
+import { answersOf, liveLink } from "../../../../lib/online.ts";
 import { nameOf, people } from "../../../../lib/people.ts";
+import { publicOrigin } from "../../../../lib/public-origin.ts";
 import { firstRepeatDate, repeatOf } from "../../../../lib/repeats.ts";
 import { countryName, kindOf } from "../../../../lib/rows.ts";
 import { viewer } from "../../../../lib/session.ts";
-import type { ClientOption, DocView, Fact, Moment, PaymentView, RelatedView } from "../../../../lib/views.ts";
+import type { AnswerView, ClientOption, DocView, Fact, Moment, OnlineView, PaymentView, RelatedView } from "../../../../lib/views.ts";
 import { DocumentView } from "./document-view.tsx";
 
 export default async function DocumentPage({ params }: { params: Promise<{ id: string }> }) {
@@ -57,6 +60,7 @@ export default async function DocumentPage({ params }: { params: Promise<{ id: s
     repeat: repeating && repeating.repeat.sourceId === full.id && repeating.repeat.active
       ? { id: repeating.repeat.id, every: repeating.repeat.every, next: formatDay(repeating.repeat.nextOn, locale, { day: "numeric", month: "long", year: "numeric" }) } : null,
     madeFrom: repeating && repeating.repeat.sourceId !== full.id ? { id: repeating.repeat.sourceId, number: repeating.sourceNumber ?? "" } : null,
+    imported: full.status === "imported",
   };
 
   // Names and dates, written here.
@@ -71,7 +75,7 @@ export default async function DocumentPage({ params }: { params: Promise<{ id: s
   if (full.readyAt && full.status === "draft") history.push({ text: t.doc.history.ready, when: when(full.readyAt) });
   if (full.finalisedAt) history.push({ text: format(t.doc.history.finalised, { name: name(full.finalisedBy), number: full.number ?? "" }), when: when(full.finalisedAt) });
   if (full.sentAt) history.push({ text: full.emailedTo ? format(t.doc.history.emailed, { to: full.emailedTo, name: name(full.sentBy) }) : format(t.doc.history.sentByHand, { name: name(full.sentBy) }), when: when(full.sentAt) });
-  if (full.decidedAt) history.push({ text: format(full.status === "accepted" ? t.doc.history.accepted : t.doc.history.refused, { name: name(full.decidedBy) }), when: when(full.decidedAt) });
+  if (full.decidedAt && full.decidedBy !== "client") history.push({ text: format(full.status === "accepted" ? t.doc.history.accepted : t.doc.history.refused, { name: name(full.decidedBy) }), when: when(full.decidedAt) });
   if (full.remindedAt) history.push({ text: format(t.doc.history.reminded, { count: full.reminders }), when: when(full.remindedAt) });
   // The first number after the sequence was continued from another tool.
   const [numbered] = await sql<{ year: number | null; seq: number | null }[]>`select year, seq from documents where id = ${full.id}`;
@@ -83,6 +87,34 @@ export default async function DocumentPage({ params }: { params: Promise<{ id: s
   for (const step of await sql<{ step: number; channel: "email" | "bell"; done_at: Date }[]>`select step, channel, done_at from reminder_steps where document_id = ${full.id} and channel <> 'none' order by step`) {
     history.push({ text: format(step.channel === "email" ? t.doc.history.autoEmailed : t.doc.history.autoTold, { step: step.step + 1 }), when: when(step.done_at.toISOString()) });
   }
+  // The answers given online, with their proof.
+  let online: OnlineView | null = null;
+  if (full.type === "quote" && full.status !== "draft") {
+    const answers = await answersOf(sql, member, full.id);
+    const link = await liveLink(sql, full.id);
+    const origin = publicOrigin(await headers());
+    const o = t.doc.online;
+    const views: AnswerView[] = answers.map(a => ({
+      id: a.id,
+      accepted: a.answer === "accepted",
+      title: format(a.answer === "accepted" ? o.acceptedBy : o.refusedBy, { name: a.name }),
+      when: when(a.answeredAt),
+      reason: a.reason,
+      proof: [
+        { label: o.proof.name, value: a.name },
+        { label: o.proof.day, value: day(a.answeredOn) },
+        { label: o.proof.time, value: when(a.answeredAt) },
+        { label: o.proof.amount, value: formatMoney(a.gross, a.currency, locale) },
+        { label: o.proof.visitor, value: a.visitorHash },
+        { label: o.proof.browser, value: a.userAgent || "—" },
+        { label: o.proof.pdf, value: a.pdfSha256 },
+      ],
+      pdf: a.pdfObject ? `/chest/documents/${full.id}/answers/${a.id}` : null,
+    }));
+    for (const a of answers) history.push({ text: a.answer === "accepted" ? format(t.doc.history.acceptedOnline, { name: a.name }) : format(t.doc.history.refusedOnline, { name: a.name }), when: when(a.answeredAt) });
+    online = { url: link && origin ? `${origin}/q/${link.secret}` : null, live: link !== null, until: day(full.validUntil), answers: views };
+  }
+  if (full.status === "imported") history.push({ text: t.doc.history.imported, when: when(full.createdAt) });
   if (repeating && repeating.repeat.sourceId !== full.id) history.push({ text: format(t.doc.history.fromRepeat, { number: repeating.sourceNumber ?? "" }), when: when(full.createdAt) });
 
   const facts: Fact[] = [];
@@ -126,6 +158,7 @@ export default async function DocumentPage({ params }: { params: Promise<{ id: s
       logo={seller.logo ? `/chest/logo?v=${encodeURIComponent(seller.logo)}` : null}
       facts={facts}
       history={history}
+      online={online}
       payments={payments}
       related={related}
       words={Object.fromEntries(locales.map(l => [l, catalogue(l).pdf])) as Record<Locale, Catalogue["pdf"]>}

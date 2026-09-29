@@ -4,7 +4,7 @@ import { AutoRefresh } from "../../components/auto-refresh.tsx";
 import { Grid } from "../../components/icons.tsx";
 import { can } from "../../lib/access.ts";
 import { managerNames, sharingFor } from "../../lib/audience.ts";
-import { listBoards } from "../../lib/boards.ts";
+import { columnName, listBoards } from "../../lib/boards.ts";
 import { mySteps, myTasks } from "../../lib/cards.ts";
 import { db } from "../../lib/db.ts";
 import { format, intl, plural, type Catalogue } from "../../lib/i18n/index.ts";
@@ -31,8 +31,8 @@ export default async function Home() {
   // The tile's number may have gone stale overnight (nothing runs in the
   // background): set it right whenever its owner comes home.
   await refreshBadges(sql, [member.id]);
-  const doneColumns = new Map((await sql<{ board_id: string; id: string; name: string }[]>`
-    select distinct on (board_id) board_id, id, name from columns where done and archived_at is null order by board_id, position`).map(r => [String(r.board_id), { id: String(r.id), name: r.name }]));
+  const doneColumns = new Map((await sql<{ board_id: string; id: string; name: string; key: string | null }[]>`
+    select distinct on (board_id) board_id, id, name, key from columns where done and archived_at is null order by board_id, position`).map(r => [String(r.board_id), { id: String(r.id), name: columnName(r.name, r.key, t.templates.columns) }]));
   const now = chestToday();
   const dayLabel = (due: string | null) => (due ? new Intl.DateTimeFormat(intl(locale), { day: "numeric", month: "short", timeZone: "UTC" }).format(new Date(due + "T00:00:00Z")) : null);
   const rows: TaskRow[] = [
@@ -96,7 +96,7 @@ export default async function Home() {
           {rows.length === 0 ? (
             <EmptyState title={t.home.empty.title} body={t.home.empty.body} action={<Link className="button quiet" href="/chest/boards">{t.home.empty.action}</Link>} />
           ) : (
-            <TaskGroups rows={rows} order={order} t={{ groups: t.home.groups, markDone: t.home.markDone, doneToast: t.home.doneToast, doneRepeatToast: t.home.doneRepeatToast, stepDone: t.home.stepDone, stepOf: t.home.stepOf, repeats: t.card.repeatBadge, errors: t.errors, late: t.card.late, today: t.card.today, progress: t.card.progress }} />
+            <TaskGroups rows={rows} order={order} t={{ groups: t.home.groups, markDone: t.home.markDone, doneAnyway: t.card.doneAnyway, doneToast: t.home.doneToast, doneRepeatToast: t.home.doneRepeatToast, stepDone: t.home.stepDone, stepOf: t.home.stepOf, repeats: t.card.repeatBadge, errors: t.errors, late: t.card.late, today: t.card.today, progress: t.card.progress }} />
           )}
           <section aria-labelledby="your-boards" className="your-boards">
             <div className="section-title">

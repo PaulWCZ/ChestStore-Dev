@@ -8,7 +8,8 @@ import { catalogue, publicLocale } from "./lib/i18n/index.ts";
 // response: Next.js runs inline scripts, which the nonce allows and nothing
 // else. Style attributes are allowed (style-src-attr), style elements only
 // with the nonce. Nothing is loaded from another origin: the tool has no
-// network, its fonts and icons are its own files.
+// network, its fonts and icons are its own files. Framed by nobody: the
+// public part (a client's quote, /q/<secret>) and the members' part alike.
 function policy(nonce: string): string {
   const dev = process.env.NODE_ENV === "development" ? " 'unsafe-eval'" : "";
   return [
@@ -43,7 +44,10 @@ export function proxy(request: NextRequest): NextResponse {
   response.headers.set("Content-Security-Policy", value);
   response.headers.set("Referrer-Policy", "same-origin");
   response.headers.set("X-Content-Type-Options", "nosniff");
-  if (first === "chest") response.headers.set("Cache-Control", "no-store");
+  // The members' pages, and a client's quote behind its secret link, are
+  // never kept by a cache on the way.
+  if (first === "chest" || first === "q") response.headers.set("Cache-Control", "no-store");
+  if (first === "q") response.headers.set("X-Robots-Tag", "noindex");
   return response;
 }
 

@@ -14,10 +14,20 @@ export type TypeValues = {
   title: string; slug: string; description: string; duration: number; interval: number; locationKind: LocationKind; location: string;
   bufferBefore: number; bufferAfter: number; noticeMinutes: number; windowDays: number; dailyLimit: number; questions: Question[]; color: Color; active: boolean;
   videoRooms: boolean; paymentLink: string; pool: string[];
+  // The texts in the host's second language ("title", "description", a
+  // question's id, "<question id>.<n>" for its n-th choice).
+  alt: Record<string, string>;
 };
+// The host's second language, when they gave one (Settings).
+export type Second = { code: string; name: string } | null;
+
+// A choice's texts in the second language, one per line, from the alt keys.
+const altChoices = (alt: Record<string, string>, q: Question) => q.options.map((_, i) => alt[`${q.id}.${i}`] ?? "").join("\n");
 
 type Words = Pick<Catalogue, "types" | "kinds" | "colors" | "minutes" | "errors">;
 const steps = [5, 10, 15, 20, 30, 45, 60, 90, 120];
+// Jitsi's public server (lib/booking.ts defaultRooms).
+const jitsi = "https://meet.jit.si/";
 const buffers = [0, 5, 10, 15, 30, 45, 60];
 const perDay = [0, 1, 2, 3, 4, 5, 6, 8, 10, 15, 20];
 
@@ -25,23 +35,47 @@ const perDay = [0, 1, 2, 3, 4, 5, 6, 8, 10, 15, 20];
 // behind "More options", with sensible defaults.
 // team: the other hosts an administrator may share the type with (null:
 // the viewer cannot choose).
-export function TypeForm({ id, initial, base, locale, team, t }: { id: string | null; initial: TypeValues; base: string; locale: string; team: { id: string; name: string }[] | null; t: Words }) {
+export function TypeForm({ id, initial, base, locale, team, second = null, t }: { id: string | null; initial: TypeValues; base: string; locale: string; team: { id: string; name: string }[] | null; second?: Second; t: Words }) {
   const [v, setV] = useState(initial);
   const [slugTouched, setSlugTouched] = useState(id !== null);
   const [error, setError] = useState<string | null>(null);
   const [asking, setAsking] = useState(false);
+  // "Our own server" chosen for rooms (its address may still be empty).
+  const [ownRooms, setOwnRooms] = useState(initial.videoRooms && initial.location !== "" && initial.location !== jitsi);
   const [pending, start] = useTransition();
   const toast = useToast();
   const router = useRouter();
   const f = t.types.form;
   const set = <K extends keyof TypeValues>(key: K, value: TypeValues[K]) => setV(old => ({ ...old, [key]: value }));
+  const setAlt = (patch: Record<string, string>, drop?: (key: string) => boolean) => setV(old => {
+    const alt = Object.fromEntries(Object.entries(old.alt).filter(([k]) => !drop?.(k)));
+    return { ...old, alt: { ...alt, ...patch } };
+  });
+  const inSecond = (label: string) => second ? format(f.inLanguage, { label, language: second.name }) : label;
   const minutes = (n: number) => plural(t.minutes, n, locale);
   const durationChoices = [...new Set([...durations, v.duration])].sort((a, b) => a - b);
 
   const submit = () => start(async () => {
     // Choices are typed one per line; blank lines are dropped here (the
     // server checks everything again).
-    const input = { ...v, questions: v.questions.map(q => ({ ...q, options: q.kind === "choice" ? q.options.map(o => o.trim()).filter(o => o !== "") : [] })), ...(team === null ? { pool: undefined } : {}) };
+    // Choices lose their blank lines; their second-language texts follow
+    // them (by position), the others are left out.
+    const alt: Record<string, string> = {};
+    if (second) {
+      for (const key of ["title", "description"]) if (v.alt[key]?.trim()) alt[key] = v.alt[key]!;
+      for (const q of v.questions) {
+        if (v.alt[q.id]?.trim()) alt[q.id] = v.alt[q.id]!;
+        if (q.kind !== "choice") continue;
+        let n = 0;
+        q.options.forEach((o, i) => {
+          if (o.trim() === "") return;
+          const text = v.alt[`${q.id}.${i}`]?.trim();
+          if (text) alt[`${q.id}.${n}`] = text;
+          n++;
+        });
+      }
+    }
+    const input = { ...v, alt, questions: v.questions.map(q => ({ ...q, options: q.kind === "choice" ? q.options.map(o => o.trim()).filter(o => o !== "") : [] })), ...(team === null ? { pool: undefined } : {}) };
     const r = id ? await updateType(id, input) : await createType(input);
     if (!r.ok) return setError(format(t.errors[r.error], r.values ?? {}));
     setError(null);
@@ -56,6 +90,13 @@ export function TypeForm({ id, initial, base, locale, team, t }: { id: string | 
         <label className="label" htmlFor="title">{f.name}</label>
         <input id="title" className="field" maxLength={80} required placeholder={f.namePlaceholder} value={v.title} onChange={e => { set("title", e.target.value); if (!slugTouched) set("slug", slugify(e.target.value)); }} autoFocus={id === null} />
       </div>
+      {second && (
+        <div className="second">
+          <label className="label" htmlFor="title-alt">{inSecond(f.name)}</label>
+          <input id="title-alt" className="field" maxLength={80} lang={second.code} value={v.alt["title"] ?? ""} onChange={e => setAlt({ title: e.target.value })} aria-describedby="second-hint" />
+          <p id="second-hint" className="hint">{format(f.secondHint, { language: second.name })}</p>
+        </div>
+      )}
       <fieldset className="stack-s" style={{ border: 0, padding: 0, margin: 0 }}>
         <legend className="label">{f.duration}</legend>
         <div className="pills">
@@ -75,12 +116,30 @@ export function TypeForm({ id, initial, base, locale, team, t }: { id: string | 
         {v.locationKind === "place" && <div><label className="label" htmlFor="location">{f.place}</label><input id="location" className="field" maxLength={300} placeholder={f.placePlaceholder} value={v.location} onChange={e => set("location", e.target.value)} /></div>}
         {v.locationKind === "video" && (
           <>
-            <label className="switch"><input type="checkbox" checked={v.videoRooms} onChange={e => setV(old => ({ ...old, videoRooms: e.target.checked, location: e.target.checked && old.location === "" ? "https://meet.jit.si/" : old.location }))} />{f.videoRooms}</label>
-            <div>
-              <label className="label" htmlFor="location">{v.videoRooms ? f.roomsBase : f.video}</label>
-              <input id="location" className="field" type="url" inputMode="url" maxLength={300} value={v.location} onChange={e => set("location", e.target.value)} aria-describedby="video-hint" />
-              <p id="video-hint" className="hint">{v.videoRooms ? f.videoRoomsHint : v.location ? f.sameLink : f.videoHint}</p>
-            </div>
+            <label className="switch"><input type="checkbox" checked={v.videoRooms} onChange={e => { setOwnRooms(false); setV(old => ({ ...old, videoRooms: e.target.checked, location: "" })); }} />{f.videoRooms}</label>
+            {v.videoRooms ? (
+              // Where rooms are made: the host chooses, told what each asks
+              // (meet.jit.si: whoever opens a room signs in, since 2023).
+              <fieldset className="stack-s rooms" style={{ border: 0, padding: 0, margin: 0 }}>
+                <legend className="label">{f.roomsWhere}</legend>
+                <label className="choice wide"><input type="radio" name="rooms" checked={v.location === jitsi} onChange={() => set("location", jitsi)} />
+                  <span><strong>{f.roomsJitsi}</strong><small>{f.roomsJitsiHint}</small></span></label>
+                <label className="choice wide"><input type="radio" name="rooms" checked={v.location !== jitsi && ownRooms} onChange={() => { setOwnRooms(true); set("location", v.location === jitsi ? "" : v.location); }} />
+                  <span><strong>{f.roomsOwn}</strong><small>{f.roomsOwnHint}</small></span></label>
+                {v.location !== jitsi && ownRooms && (
+                  <div>
+                    <label className="label" htmlFor="location">{f.roomsBase}</label>
+                    <input id="location" className="field" type="url" inputMode="url" maxLength={300} placeholder={f.roomsPlaceholder} value={v.location} onChange={e => set("location", e.target.value)} />
+                  </div>
+                )}
+              </fieldset>
+            ) : (
+              <div>
+                <label className="label" htmlFor="location">{f.video}</label>
+                <input id="location" className="field" type="url" inputMode="url" maxLength={300} value={v.location} onChange={e => set("location", e.target.value)} aria-describedby="video-hint" />
+                <p id="video-hint" className="hint">{v.location ? f.sameLink : f.videoHint}</p>
+              </div>
+            )}
           </>
         )}
         {v.locationKind === "phone" && <p className="hint">{f.phoneHint}</p>}
@@ -90,7 +149,13 @@ export function TypeForm({ id, initial, base, locale, team, t }: { id: string | 
         <label className="label" htmlFor="description">{f.description}</label>
         <textarea id="description" className="field" rows={3} maxLength={1000} placeholder={f.descriptionPlaceholder} value={v.description} onChange={e => set("description", e.target.value)} />
       </div>
-      <Questions questions={v.questions} onChange={q => set("questions", q)} t={t} />
+      {second && (
+        <div className="second">
+          <label className="label" htmlFor="description-alt">{inSecond(f.description)}</label>
+          <textarea id="description-alt" className="field" rows={3} maxLength={1000} lang={second.code} value={v.alt["description"] ?? ""} onChange={e => setAlt({ description: e.target.value })} />
+        </div>
+      )}
+      <Questions questions={v.questions} onChange={q => set("questions", q)} alt={v.alt} setAlt={setAlt} second={second} t={t} />
       <fieldset className="stack-s" style={{ border: 0, padding: 0, margin: 0 }}>
         <legend className="label">{f.color}</legend>
         <div className="swatches">
@@ -164,8 +229,9 @@ export function TypeForm({ id, initial, base, locale, team, t }: { id: string | 
 // The host's own questions: up to five, each a label, the kind of answer,
 // required or not; moved up and down with two buttons. Nothing is saved
 // until the form is.
-function Questions({ questions, onChange, t }: { questions: Question[]; onChange: (q: Question[]) => void; t: Words }) {
+function Questions({ questions, onChange, alt, setAlt, second, t }: { questions: Question[]; onChange: (q: Question[]) => void; alt: Record<string, string>; setAlt: (patch: Record<string, string>, drop?: (key: string) => boolean) => void; second: Second; t: Words }) {
   const f = t.types.form;
+  const inSecond = (label: string) => second ? format(f.inLanguage, { label, language: second.name }) : label;
   const change = (i: number, patch: Partial<Question>) => onChange(questions.map((q, j) => (j === i ? { ...q, ...patch } : q)));
   const swap = (i: number, j: number) => {
     const next = [...questions];
@@ -189,6 +255,12 @@ function Questions({ questions, onChange, t }: { questions: Question[]; onChange
                   <button type="button" className="icon-button" aria-label={format(f.removeQuestion, { n })} onClick={() => onChange(questions.filter((_, j) => j !== i))}><Close /></button>
                 </div>
                 <input id={`q-${q.id}`} className="field" maxLength={questionLimits.label} placeholder={f.questionPlaceholder} value={q.label} onChange={e => change(i, { label: e.target.value })} />
+                {second && (
+                  <div className="second">
+                    <label className="label" htmlFor={`qa-${q.id}`}>{inSecond(format(f.question, { n }))}</label>
+                    <input id={`qa-${q.id}`} className="field" maxLength={questionLimits.label} lang={second.code} value={alt[q.id] ?? ""} onChange={e => setAlt({ [q.id]: e.target.value })} />
+                  </div>
+                )}
                 <div className="question-foot">
                   <div className="inline">
                     <label className="hint" htmlFor={`k-${q.id}`}>{f.answerKind}</label>
@@ -202,6 +274,14 @@ function Questions({ questions, onChange, t }: { questions: Question[]; onChange
                   <div>
                     <label className="label" htmlFor={`o-${q.id}`}>{f.choices}</label>
                     <textarea id={`o-${q.id}`} className="field" rows={3} value={q.options.join("\n")} onChange={e => change(i, { options: e.target.value.split("\n").slice(0, questionLimits.options + 5) })} />
+                  </div>
+                )}
+                {q.kind === "choice" && second && (
+                  <div className="second">
+                    <label className="label" htmlFor={`oa-${q.id}`}>{inSecond(f.choices)}</label>
+                    <textarea id={`oa-${q.id}`} className="field" rows={3} lang={second.code} value={altChoices(alt, q)} aria-describedby={`oa-${q.id}-hint`}
+                      onChange={e => setAlt(Object.fromEntries(e.target.value.split("\n").slice(0, questionLimits.options + 5).map((line, j) => [`${q.id}.${j}`, line])), key => key.startsWith(`${q.id}.`))} />
+                    <p id={`oa-${q.id}-hint`} className="hint">{f.choicesAltHint}</p>
                   </div>
                 )}
               </li>

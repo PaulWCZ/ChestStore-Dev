@@ -4,6 +4,7 @@ import { waitingCounts, totals, type Decision, type Expense, type Total } from "
 import { format, formatDate, plural } from "./i18n/index.ts";
 import { formatMoney } from "./money.ts";
 import { badges, cut, notify, withdraw } from "./notify.ts";
+import { receiptsOwed } from "./cards.ts";
 import { accountants } from "./people.ts";
 
 // What Expenses tells people through the Chest's bell, each in their own
@@ -102,4 +103,22 @@ export async function bankChanged(actor: Member, owner: string, last4: string): 
   }
   const recipients = (await accountants()).filter(a => a !== actor.id);
   await notify(recipients, t => ({ title: format(t.bell.bankOwn, { name: actor.name, last4 }) }), { path: "/chest/pay", key: `bank:${owner}` });
+}
+
+// Company card payments waiting for their receipt: each holder is asked in
+// their bell ("3 card payments need their receipt"), one item per person,
+// replaced at the next statement or reminder and withdrawn once every
+// receipt is there (settleCardReceipts).
+export async function cardReceipts(sql: Query, owners: string[]): Promise<number> {
+  const owed = await receiptsOwed(sql, [...new Set(owners)]);
+  for (const [owner, count] of owed) {
+    await notify([owner], (t, locale) => ({ title: plural(t.bell.cardReceipts, count, locale), body: t.bell.cardReceiptsBody }), { path: "/chest", key: `card:${owner}` });
+  }
+  await refresh(sql, [...owed.keys()]);
+  return owed.size;
+}
+
+export async function settleCardReceipts(sql: Query, owners: string[]): Promise<void> {
+  const owed = await receiptsOwed(sql, owners);
+  for (const owner of new Set(owners)) if (!owed.has(owner)) await withdraw(`card:${owner}`, [owner]);
 }

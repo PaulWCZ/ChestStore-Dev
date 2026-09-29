@@ -5,9 +5,9 @@ import type { FileWords, TableWords } from "@argentic/chest-ui/components/logic"
 import { useRouter } from "next/navigation";
 import { useId, useState, useTransition } from "react";
 import type { ErrorCode } from "../../../lib/app-error.ts";
-import { format, plural } from "../../../lib/i18n/format.ts";
+import { format, formatDay, plural } from "../../../lib/i18n/format.ts";
 import type { Choices, Field, Plan, Target } from "../../../lib/importer.ts";
-import { applyImport, previewImport } from "../actions.ts";
+import { addField, applyImport, previewImport } from "../actions.ts";
 
 type Words = {
   import: {
@@ -17,6 +17,7 @@ type Words = {
     apply: { one: string; other: string }; applying: string; done: { zero?: string; one: string; other: string }; loops: string;
     mapping: string; mappingHint: string; sample: string; targets: Record<"skip" | "name" | "first" | "last" | "email", string>;
     missingName: string; missingField: string; dateQuestion: string; columnsFound: string; extra: string;
+    unread: { one: string; other: string }; keepAsField: string; kept: string;
   };
   errors: Record<ErrorCode, string>;
   files: FileWords;
@@ -31,7 +32,7 @@ const fieldOrder: Field[] = ["title", "team", "manager", "phone", "office", "sta
 // both ways, says how they are written. The file is chosen (or dropped)
 // with the kit's FilePicker: it stays in the browser, its text goes to the
 // server action; the plan is the kit's DataTable.
-export function Importer({ locale, extras, t }: { locale: string; extras: { id: string; label: string }[]; t: Words }) {
+export function Importer({ locale, extras: known, t }: { locale: string; extras: { id: string; label: string; kind: "text" | "date" | "choice" }[]; t: Words }) {
   const router = useRouter();
   const toast = useToast();
   const uid = useId();
@@ -41,6 +42,8 @@ export function Importer({ locale, extras, t }: { locale: string; extras: { id: 
   const [choices, setChoices] = useState<Choices>({});
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
+  // The extra fields, those added here from a column included.
+  const [extras, setExtras] = useState(known);
 
   const preview = (content: string, next: Choices) => start(async () => {
     const r = await previewImport(content, next);
@@ -92,6 +95,29 @@ export function Importer({ locale, extras, t }: { locale: string; extras: { id: 
   const ready = plan?.rows.filter(r => r.memberId && !r.skip) ?? [];
   const left = (plan?.rows.length ?? 0) - ready.length;
   const found = plan ? plan.targets.filter(x => x !== "skip").map(targetWord).join(", ") : "";
+  // A column left out becomes an extra field of its own (filled by HR),
+  // and its values are read at once.
+  const keep = (i: number) => {
+    if (!plan) return;
+    const header = plan.headers[i]!.trim().slice(0, 40);
+    start(async () => {
+      const r = await addField({ label: header, editor: "hr" });
+      if (!r.ok) { toast({ text: format(t.errors[r.error], r.values ?? {}), tone: "error" }); return; }
+      setExtras(x => [...x, { id: r.value.id, label: r.value.label, kind: r.value.kind }]);
+      toast({ id: "import-field", text: format(t.import.kept, { label: r.value.label }) });
+      const next = [...plan.targets];
+      next[i] = `x:${r.value.id}`;
+      const chosen = { ...choices, targets: next };
+      setChoices(chosen);
+      if (text !== null) {
+        const again = await previewImport(text, chosen);
+        if (again.ok) setPlan(again.value);
+      }
+    });
+  };
+  // A day as the reader writes it (the preview is drawn in the browser,
+  // after the file is read: no server text to match).
+  const shown = (value: string) => (/^\d{4}-\d{2}-\d{2}$/u.test(value) ? formatDay(value, locale, { day: "numeric", month: "short", year: "numeric" }) : value);
 
   return (
     <div className="importer">
@@ -100,7 +126,8 @@ export function Importer({ locale, extras, t }: { locale: string; extras: { id: 
       {error && <p className="error" role="alert">{error}</p>}
       {plan && (
         <>
-          <details className="mapping" open={plan.missing !== null || undefined}>
+          {plan.leftOut.length > 0 && <p className="banner warn" role="status">{plural(t.import.unread, plan.leftOut.length, locale, { list: plan.leftOut.join(", ") })}</p>}
+          <details className="mapping" open={plan.missing !== null || plan.leftOut.length > 0 || undefined}>
             <summary>{format(t.import.columnsFound, { list: found || "—" })}</summary>
             <p className="muted small">{t.import.mappingHint}</p>
             <h2 className="visually-hidden">{t.import.mapping}</h2>
@@ -121,6 +148,9 @@ export function Importer({ locale, extras, t }: { locale: string; extras: { id: 
                   }}>
                     {options.map(o => <option key={o} value={o}>{targetWord(o)}</option>)}
                   </select>
+                  {plan.targets[i] === "skip" && header && plan.samples[i]!.length > 0 && (
+                    <button type="button" className="button quiet small" disabled={pending} onClick={() => keep(i)}>{t.import.keepAsField}</button>
+                  )}
                 </li>
               ))}
             </ul>
@@ -151,8 +181,8 @@ export function Importer({ locale, extras, t }: { locale: string; extras: { id: 
                       key: "changes", label: t.import.changes, render: r => r.skip ? <span className="warn-text">{t.import.skip[r.skip]}</span> : (
                         <>
                           <span className="changes">
-                            {(Object.entries(r.changes) as [Field, string][]).map(([f, v]) => <span key={f} className="change"><span className="muted">{t.import.fields[f]}</span> {v}</span>)}
-                            {Object.entries(r.extras).map(([x, v]) => <span key={x} className="change"><span className="muted">{extras.find(e => e.id === x)?.label}</span> {v}</span>)}
+                            {(Object.entries(r.changes) as [Field, string][]).map(([f, v]) => <span key={f} className="change"><span className="muted">{t.import.fields[f]}</span> {f === "startDate" ? shown(v) : v}</span>)}
+                            {Object.entries(r.extras).map(([x, v]) => <span key={x} className="change"><span className="muted">{extras.find(e => e.id === x)?.label}</span> {extras.find(e => e.id === x)?.kind === "date" ? shown(v) : v}</span>)}
                           </span>
                           {r.problems.map(p => <span key={p} className="warn-text">{t.import.problems[p]}</span>)}
                         </>

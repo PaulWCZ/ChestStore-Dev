@@ -54,10 +54,17 @@ export function parseAmount(text: unknown, currency = defaultCurrency): number |
 
 // formatMoney writes minor units in the reader's language: "42,50 €",
 // "€42.50".
+// The short sign ("£", not French's "£GB") unless it is shared by several
+// currencies ("$", "kr", "¥"): then the language's own ("$US", "$CA").
 export function formatMoney(minor: number, currency: string, locale: string): string {
   const digits = minorDigits(currency);
-  return new Intl.NumberFormat(intl(locale), { style: "currency", currency, minimumFractionDigits: digits, maximumFractionDigits: digits }).format(minor / 10 ** digits);
+  const options = { style: "currency", currency, minimumFractionDigits: digits, maximumFractionDigits: digits } as const;
+  const narrow = new Intl.NumberFormat(intl(locale), { ...options, currencyDisplay: "narrowSymbol" });
+  const sign = narrow.formatToParts(0).find(p => p.type === "currency")?.value ?? "";
+  const formatter = sharedSigns.has(sign) ? new Intl.NumberFormat(intl(locale), options) : narrow;
+  return formatter.format(minor / 10 ** digits);
 }
+const sharedSigns = new Set(["$", "kr", "¥", "₩", "Rs"]);
 
 // The amount alone, without the symbol, as a spreadsheet of that language
 // reads it ("42,50" in French, "42.50" in English), no grouping.

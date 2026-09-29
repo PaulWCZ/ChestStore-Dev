@@ -61,9 +61,11 @@ npm ci && npm test && npm run build   # all three must pass
 - **Never render a post's text as HTML.** `components/rich-text.tsx` builds
   React elements from `lib/markdown.ts`; links pass `isSafeHref` (http,
   https, mailto only). Add a mark → a test in `test/text.test.ts`.
-- **Confirmation is an explicit click only.** Do not add view tracking per
-  person or per post (README, "Works council"); reach is counts from the
-  one `activity` time per person.
+- **Confirmation is an explicit click only.** Views are a number only
+  (`lib/views.ts`, README "Works council"): a keyed fingerprint per post and
+  viewer, never a member id; shown from 5 (`floor`), as of the last full
+  hour; frozen and fingerprints deleted after 30 days. Never add a list of
+  who opened a post, a per-person time on a post, or a lower floor.
 - **The text stays text.** The editor may only hold what `lib/markdown.ts`
   reads; a new mark → `lib/editor-doc.ts` both ways, a round-trip case in
   `test/editor.test.ts`.

@@ -75,3 +75,34 @@ export function slots(availability: Availability, rules: Rules, busy: Busy[], ra
 
 // defaultWeek: Monday to Friday, 9:00–12:30 and 14:00–17:30.
 export const defaultWeek: Ranges[] = [[], [[540, 750], [840, 1050]], [[540, 750], [840, 1050]], [[540, 750], [840, 1050]], [[540, 750], [840, 1050]], [[540, 750], [840, 1050]], []];
+
+// A free stretch of one day of the host's calendar: minutes of their clock
+// (end up to 1440), for the agenda ("Free 14:00–17:30": tap it to block it).
+export type Window = { start: number; end: number };
+
+// freeWindows: the host's open hours of one date, minus what keeps them
+// busy (bookings with their buffers, times blocked, other calendars), from
+// now on, on the quarter hour (blocks are made on it), at least `least`
+// minutes long.
+export function freeWindows(availability: Availability, busy: Pick<Busy, "start" | "end">[], date: string, now = Date.now(), least = 15): Window[] {
+  const ranges = availability.overrides[date] ?? availability.weekly[weekdayOf(date)] ?? [];
+  const minuteOf = (t: number) => {
+    const w = wall(t, availability.zone);
+    return w.date === date ? w.minutes : w.date < date ? 0 : 1440;
+  };
+  const out: Window[] = [];
+  for (const [open, close] of ranges) {
+    const from = instantOf(date, open, availability.zone).getTime();
+    const to = close === 1440 ? instantOf(addDays(date, 1), 0, availability.zone).getTime() : instantOf(date, close, availability.zone).getTime();
+    let pieces = [{ start: Math.max(from, now), end: to }];
+    for (const b of busy) {
+      pieces = pieces.flatMap(p => (b.end <= p.start || b.start >= p.end ? [p] : [{ start: p.start, end: b.start }, { start: b.end, end: p.end }].filter(x => x.end > x.start)));
+    }
+    for (const p of pieces) {
+      const start = Math.ceil(minuteOf(p.start) / 15) * 15;
+      const end = Math.floor(minuteOf(p.end) / 15) * 15;
+      if (end - start >= least) out.push({ start, end });
+    }
+  }
+  return out.sort((a, b) => a.start - b.start);
+}

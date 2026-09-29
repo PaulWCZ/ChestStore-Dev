@@ -9,6 +9,7 @@ import type { CardSummary } from "../../../../lib/cards.ts";
 import { intl, plural } from "../../../../lib/i18n/format.ts";
 import type { Catalogue, Locale } from "../../../../lib/i18n/index.ts";
 import { addDays } from "../../../../lib/repeat.ts";
+import { Alert, Blocked } from "../../../../components/icons.tsx";
 import type { People } from "./board-view.tsx";
 
 type Words = { board: Catalogue["board"]; card: Catalogue["card"]; colors: Catalogue["colors"] };
@@ -126,7 +127,7 @@ export function ListView({ columns, cards, labels, fields, people, today, locale
                     <td>{columnOf(card)?.name}</td>
                     <td><AvatarStack people={card.assignees.map(a => ({ id: a, name: nameOf(a) || "?", photo: people[a]?.photo ?? null }))} max={4} size="s" labels={{ more: t.board.othersAssigned }} lang={locale} /></td>
                     <td>{card.start && dateOf(card.start)}</td>
-                    <td>{card.due && <span className={`chip ${state}`}>{dateOf(card.due, true)}{card.dueTime && " · " + card.dueTime}</span>}</td>
+                    <td>{card.due && <Due card={card} state={state} text={dateOf(card.due, true)} t={t} />}</td>
                     <td><span className="row">{card.labels.map(id => labels.find(l => l.id === id)).filter((l): l is Label => !!l).map(l => <span key={l.id} className={`chip label-chip c-${l.color}`}>{l.name || t.colors[l.color]}</span>)}</span></td>
                     {fields.map(f => <td key={f.id} className={f.kind === "number" ? "number" : undefined}>{f.kind === "number" && card.values[f.id] ? new Intl.NumberFormat(intl(locale)).format(Number(card.values[f.id])) : card.values[f.id] ?? ""}</td>)}
                   </tr>
@@ -134,9 +135,33 @@ export function ListView({ columns, cards, labels, fields, people, today, locale
               })}
             </tbody>
           </table>
+          {/* On a phone, the same rows as stacked cards: no sideways scroll. */}
+          <ul className="list-cards">
+            {g.cards.map(card => {
+              const state = !card.due || card.done ? "" : card.due < today ? "due-late" : card.due === today ? "due-today" : "";
+              const cardLabels = card.labels.map(id => labels.find(l => l.id === id)).filter((l): l is Label => !!l);
+              return (
+                <li key={card.id} className={card.done ? "is-done" : undefined}>
+                  <Link href={href(card.id)} scroll={false} className="list-card-title">{card.title}</Link>
+                  <span className="list-card-meta">
+                    <span className="chip">{columnOf(card)?.name}</span>
+                    {card.due && <Due card={card} state={state} text={dateOf(card.due)} t={t} />}
+                    {card.waiting > 0 && !card.done && <span className="chip blocked"><Blocked />{t.card.blockedBadge}</span>}
+                    {cardLabels.map(l => <span key={l.id} className={`chip label-chip c-${l.color}`}>{l.name || t.colors[l.color]}</span>)}
+                    {card.assignees.length > 0 && <span className="push"><AvatarStack people={card.assignees.map(a => ({ id: a, name: nameOf(a) || "?", photo: people[a]?.photo ?? null }))} max={3} size="s" labels={{ more: t.board.othersAssigned }} lang={locale} /></span>}
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
         </section>
       ))}
     </div>
   );
 }
 
+
+// A due date: late says so in a word and a sign, not only by its colour.
+function Due({ card, state, text, t }: { card: CardSummary; state: string; text: string; t: Words }) {
+  return <span className={`chip ${state}`}>{state === "due-late" && <><Alert />{t.card.late} · </>}{text}{card.dueTime && " · " + card.dueTime}</span>;
+}

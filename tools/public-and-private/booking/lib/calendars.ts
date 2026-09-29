@@ -201,6 +201,9 @@ export async function connect(sql: Query, actor: Member, address: unknown, fetch
     insert into calendars (member_id, url, provider) values (${actor.id}, ${url}, ${provider})
     on conflict (member_id, url) do update set error = null returning *`;
   await refresh(sql, String(row!.id), async () => new Response(text, { status: 200 }), now);
+  // A calendar that reads: the host's busy times are known, their page is
+  // public from now on (lib/booking.ts, ready).
+  await sql`update hosts set ready = true where member_id = ${actor.id}`;
   const [again] = await sql<Row[]>`select * from calendars where id = ${row!.id}`;
   return toCalendar(again!, now);
 }

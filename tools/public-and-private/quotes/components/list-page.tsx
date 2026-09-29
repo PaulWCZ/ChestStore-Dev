@@ -13,7 +13,7 @@ import { rowView } from "../lib/rows.ts";
 // of what is shown.
 export type Filter = { key: string; label: string; match: (r: ListRow) => boolean };
 
-export function ListPage({ t, locale, path, title, intro, filters, current, q, rows, create, empty }: {
+export function ListPage({ t, locale, path, title, intro, filters, current, q, rows, create, empty, more, readerEmpty }: {
   t: Catalogue;
   locale: Locale;
   path: string;
@@ -26,6 +26,10 @@ export function ListPage({ t, locale, path, title, intro, filters, current, q, r
   rows: ListRow[];
   create: { type: "quote" | "invoice"; label: string } | null;
   empty: { title: string; body: string; action: string };
+  // A quieter second way in (import the invoices still to collect).
+  more?: { href: string; label: string } | null;
+  // What an empty list says to someone who cannot write here (a viewer).
+  readerEmpty: string;
 }) {
   const [all, ...states] = filters;
   const active = states.find(f => f.key === current) ?? all!;
@@ -36,9 +40,18 @@ export function ListPage({ t, locale, path, title, intro, filters, current, q, r
   const h = t.list.head;
   return (
     <div className="page">
-      <PageHeader size="m" title={title} intro={intro} action={create ? <NewDocument type={create.type} errors={t.errors}><Plus />{create.label}</NewDocument> : undefined} />
+      {/* Empty, the page's one action is the empty state's: no header button. */}
+      <PageHeader size="m" title={title} intro={intro}
+        secondary={more && (rows.length > 0 || q) ? <a className="button quiet" href={more.href}>{more.label}</a> : undefined}
+        action={create && (rows.length > 0 || q) ? <NewDocument type={create.type} errors={t.errors}><Plus />{create.label}</NewDocument> : undefined} />
       {rows.length === 0 && !q ? (
-        <EmptyState icon={<BlankSheet />} title={empty.title} body={empty.body} action={create ? <NewDocument type={create.type} errors={t.errors}><Plus />{empty.action}</NewDocument> : undefined} />
+        <EmptyState icon={<BlankSheet />} title={empty.title} body={create ? empty.body : readerEmpty}
+          action={create ? (
+            <>
+              <NewDocument type={create.type} errors={t.errors}><Plus />{empty.action}</NewDocument>
+              {more && <a className="button quiet" href={more.href}>{more.label}</a>}
+            </>
+          ) : more ? <a className="button quiet" href={more.href}>{more.label}</a> : undefined} />
       ) : (
         <>
           <div className="toolbar">

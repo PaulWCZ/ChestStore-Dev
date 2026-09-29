@@ -3,7 +3,7 @@
 import { StatusBadge, type Tone } from "@argentic/chest-ui/components";
 import { useState } from "react";
 import type { RowView, StampKind } from "../lib/rows.ts";
-import { Alert, Calendar, Car, FileIcon, Receipt } from "./icons.tsx";
+import { Alert, Calendar, Car, FileIcon, NoReceipt, Receipt } from "./icons.tsx";
 
 // Small pieces every list of expenses uses.
 
@@ -12,7 +12,7 @@ import { Alert, Calendar, Car, FileIcon, Receipt } from "./icons.tsx";
 export function Thumb({ row }: { row: Pick<RowView, "thumb" | "icon"> }) {
   const [failed, setFailed] = useState(false);
   if (row.thumb && !failed) return <img className="thumb" src={row.thumb} alt="" loading="lazy" onError={() => setFailed(true)} />;
-  return <span className="thumb" aria-hidden="true">{row.icon === "car" ? <Car /> : row.icon === "flat" ? <Calendar /> : row.icon === "pdf" ? <FileIcon /> : <Receipt />}</span>;
+  return <span className="thumb" aria-hidden="true">{row.icon === "car" ? <Car /> : row.icon === "flat" ? <Calendar /> : row.icon === "pdf" ? <FileIcon /> : row.icon === "none" ? <NoReceipt /> : <Receipt />}</span>;
 }
 
 export function DateBox({ row }: { row: Pick<RowView, "day" | "month"> }) {

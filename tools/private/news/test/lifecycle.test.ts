@@ -3,6 +3,7 @@ import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
 import { POST } from "../app/chest-events/route.ts";
 import * as posts from "../lib/posts.ts";
+import { recordView } from "../lib/views.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, hugo, ines } from "./support/members.ts";
@@ -42,7 +43,7 @@ test("an erasure leaves the company's posts unsigned, removes the person's own r
   await posts.addComment(sql, asMember(hugo), mine.id, "Thanks!");
   await posts.addComment(sql, asMember(ines), mine.id, `Welcome @[${hugo.id}]`);
   const forHugo = await posts.createPost(sql, asMember(camille), { kind: "info", title: "For Hugo", people: [hugo.id, ines.id] }, { zone });
-  await posts.touch(sql, hugo.id);
+  await recordView(sql, asMember(hugo), await posts.post(sql, asMember(camille), forHugo.id, { zone }));
   await posts.react(sql, asMember(hugo), mine.id, "heart", true);
   await posts.confirm(sql, asMember(hugo), mine.id);
   const hisEvent = await posts.createPost(sql, asMember(camille), { kind: "event", title: "Party", event: { day: "2099-06-01" } }, { zone });
@@ -59,7 +60,7 @@ test("an erasure leaves the company's posts unsigned, removes the person's own r
   assert.equal(d.welcome, "erased");
   assert.deepEqual(d.thread.map(c => [c.author, c.body]), [["erased", "Thanks!"], [ines.id, "Welcome @[erased]"]]);
   assert.deepEqual((await posts.post(sql, asMember(ines), forHugo.id, { zone })).people, [ines.id], "nobody knows the post was for him");
-  assert.equal((await sql`select 1 from activity where member = ${hugo.id}`).length, 0);
+  assert.equal((await sql`select 1 from post_views where post_id = ${forHugo.id}`).length, 0, "his views stop counting");
   assert.equal(d.reactionList.find(r => r.emoji === "heart")!.count, 1);
   assert.equal((await sql`select 1 from confirmations where member = ${hugo.id}`).length, 0);
   assert.equal((await sql`select 1 from rsvps where member = ${hugo.id}`).length, 0);

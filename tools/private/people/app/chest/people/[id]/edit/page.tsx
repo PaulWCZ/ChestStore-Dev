@@ -4,7 +4,7 @@ import { Back } from "../../../../../components/icons.tsx";
 import { can } from "../../../../../lib/access.ts";
 import { db } from "../../../../../lib/db.ts";
 import { directory, type Entry } from "../../../../../lib/directory.ts";
-import { format, monthNames } from "../../../../../lib/i18n/index.ts";
+import { format, formatDay, monthNames } from "../../../../../lib/i18n/index.ts";
 import { memberPattern } from "../../../../../lib/model.ts";
 import { choices } from "../../../../../lib/profiles.ts";
 import { listFields } from "../../../../../lib/fields.ts";
@@ -49,7 +49,10 @@ export default async function EditPage({ params }: { params: Promise<{ id: strin
     else if (person.managerLeft) managers.unshift({ id: person.managerId, name: format(t.profile.managerLeft, { name: (await people([person.managerId])).get(person.managerId)?.name || t.people.erased }) });
   }
   // HR's extra fields: the person fills theirs; HR fills any.
-  const extras = (await listFields(sql, member)).map(f => ({ ...f, value: person.extras[f.id] ?? "", editable: hr || (mine && f.editor === "person") }));
+  const extras = (await listFields(sql, member)).map(f => {
+    const value = person.extras[f.id] ?? "";
+    return { ...f, value, shown: f.kind === "date" && /^\d{4}-\d{2}-\d{2}$/u.test(value) ? formatDay(value, locale) : value, editable: hr || (mine && f.editor === "person") };
+  });
   const known = hr ? await choices(sql, member) : { teams: [], offices: [], titles: [] };
   return (
     <div className="page narrow">

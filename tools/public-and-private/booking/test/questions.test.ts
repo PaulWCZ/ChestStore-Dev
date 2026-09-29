@@ -7,6 +7,7 @@ import { email } from "../lib/guests.ts";
 import { answerText, cleanAnswers, cleanQuestions, readQuestions, type Question } from "../lib/questions.ts";
 import * as tell from "../lib/tell.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
+import { openHost } from "./support/host.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, hugo, ines } from "./support/members.ts";
 
@@ -92,7 +93,10 @@ const typeInput = { title: "Project call", slug: "project-call", description: ""
 
 async function ready() {
   const sql = database.sql;
-  const host = await b.ensureHost(sql, asMember(ines), { title: "Meeting", slug: "meeting" });
+  const made = await openHost(sql, asMember(ines), { title: "Meeting", slug: "meeting" });
+  // Inès reads French but writes her page in English.
+  await b.saveHost(sql, asMember(ines), { slug: made.slug, zone: made.zone, welcome: "", listed: true, language: "en" });
+  const host = (await b.hostOf(sql, ines.id))!;
   const type = await b.createType(sql, asMember(ines), { ...typeInput, questions: [budget, room, pro] });
   return { sql, host, type };
 }

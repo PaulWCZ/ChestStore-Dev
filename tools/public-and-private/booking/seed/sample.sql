@@ -97,6 +97,23 @@ begin
   insert into busy (calendar_id, member_id, span) values
     (outlook, hugo, tstzrange(pg_temp.at(1, 480), pg_temp.at(1, 600)));
 
+  -- Every host's page is public (they confirmed their hours), and their
+  -- texts are written in English with a French version: a visitor reads
+  -- the whole page in their language (lib/texts.ts).
+  update hosts set ready = true, language = 'en', second_language = 'fr';
+  update hosts set welcome_alt = 'Je vous aide à choisir des meubles faits pour votre intérieur. Venez au showroom, ou parlons-en en visio.' where member_id = ines;
+  update hosts set welcome_alt = 'Je mesure votre espace avant de fabriquer. Réservez une visite chez vous, à Lyon et alentour.' where member_id = hugo;
+  update types set alt = jsonb_build_object('title', 'Visite du showroom', 'description', 'Touchez les tissus, essayez les canapés, repartez avec un croquis et un prix. Apportez une photo et les dimensions de votre pièce.', 'rooms001', 'Quelles pièces ?') where id = showroom;
+  update types set alt = jsonb_build_object('title', 'Appel projet', 'description', 'Parlez-moi de votre projet : quoi, où, quand, et votre budget.',
+      'project1', 'À quoi est-ce destiné ?', 'project1.0', 'Un logement', 'project1.1', 'Une boutique ou un bureau', 'project1.2', 'Un hôtel ou un restaurant',
+      'budget01', 'Votre budget, à peu près', 'plans001', 'Avez-vous des plans ou des photos à partager ?') where id = call;
+  update types set alt = jsonb_build_object('title', 'Appel rapide') where id = phone;
+  update types set alt = jsonb_build_object('title', 'Visite de mesure à domicile', 'description', 'Je viens avec un télémètre laser et des échantillons. Comptez une heure ; une personne majeure doit être présente.') where id = visit;
+  update types set alt = jsonb_build_object('title', 'Un échange avec la direction') where id = founder;
+  update types set alt = jsonb_build_object('title', 'Appel découverte', 'description', 'Vingt minutes avec l’un de nous pour voir ce que nous pouvons fabriquer pour vous.') where id = discovery;
+  -- A booking keeps the type's name as its guest read it.
+  update bookings b set title = t.alt->>'title' from types t where b.type_id = t.id and b.guest_language = 'fr' and t.alt ? 'title';
+
   update bookings set answers = '[
       {"id": "project1", "label": "What is it for?", "kind": "choice", "answer": "A hotel or a restaurant"},
       {"id": "budget01", "label": "Your budget, roughly", "kind": "short", "answer": "80 000 € for the lobby"},

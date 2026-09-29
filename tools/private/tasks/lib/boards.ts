@@ -5,6 +5,7 @@ import { atLeast, boardAccess, can, roleOf, type BoardAccess } from "./access.ts
 import { chestToday } from "./clock.ts";
 import type { Sql } from "./db.ts";
 import { AppError } from "./errors.ts";
+import { catalogue, locales, type Catalogue } from "./i18n/index.ts";
 import { clean, colors, groupPattern, id, isColor, isFieldKind, isTemplate, limits, memberIds, templates, type Color, type FieldKind, type Template } from "./model.ts";
 import { between, isPosition, sequence } from "./position.ts";
 import { makeNext, takeBack } from "./repeats.ts";
@@ -25,6 +26,12 @@ export type Board = {
   access: BoardAccess;
 };
 export type Column = { id: string; name: string; position: string; done: boolean };
+
+// A column made by a template is named in each reader's language until
+// someone renames it (columns.key); words: the reader's
+// catalogue.templates.columns.
+export type ColumnWords = Readonly<Record<string, string>>;
+export const columnName = (name: string, key: string | null, words?: ColumnWords): string => (key && words?.[key]) || name;
 export type Label = { id: string; name: string; color: Color };
 export type Field = { id: string; name: string; kind: FieldKind; options: string[] };
 
@@ -115,7 +122,7 @@ export async function createBoard(sql: Sql, actor: Member | null, input: { name:
     for (const g of groups) await tx`insert into board_groups (board_id, group_id) values (${key}, ${g})`;
     const steps = templates[template];
     const positions = sequence(steps.length);
-    for (const [i, step] of steps.entries()) await tx`insert into columns (board_id, name, position, done) values (${key}, ${columnNames[step.key] ?? step.key}, ${positions[i]!}, ${step.done})`;
+    for (const [i, step] of steps.entries()) await tx`insert into columns (board_id, name, position, done, key) values (${key}, ${columnNames[step.key] ?? step.key}, ${positions[i]!}, ${step.done}, ${step.key})`;
     return key;
   });
   return board(sql, actor, boardId);
@@ -159,10 +166,10 @@ export async function deleteBoard(sql: Sql, actor: Member | null, boardId: unkno
 }
 
 // Columns.
-export async function columns(sql: Sql, boardId: string, options: { archived?: boolean } = {}): Promise<Column[]> {
-  const rows = await sql<{ id: string; name: string; position: string; done: boolean }[]>`
-    select id, name, position, done from columns where board_id = ${boardId} and ${options.archived ? sql`archived_at is not null` : sql`archived_at is null`} order by position, id`;
-  return rows.map(r => ({ id: String(r.id), name: r.name, position: r.position, done: r.done }));
+export async function columns(sql: Sql, boardId: string, options: { archived?: boolean; words?: ColumnWords } = {}): Promise<Column[]> {
+  const rows = await sql<{ id: string; name: string; key: string | null; position: string; done: boolean }[]>`
+    select id, name, key, position, done from columns where board_id = ${boardId} and ${options.archived ? sql`archived_at is not null` : sql`archived_at is null`} order by position, id`;
+  return rows.map(r => ({ id: String(r.id), name: columnName(r.name, r.key, options.words), position: r.position, done: r.done }));
 }
 
 export async function addColumn(sql: Sql, actor: Member | null, boardId: unknown, name: unknown): Promise<Column> {
@@ -177,20 +184,24 @@ export async function addColumn(sql: Sql, actor: Member | null, boardId: unknown
   return { id: String(row!.id), name: text, position, done: false };
 }
 
-async function column(sql: Sql, actor: Member | null, columnId: unknown, needed: BoardAccess): Promise<{ column: Column & { archived: boolean }; board: Board }> {
+async function column(sql: Sql, actor: Member | null, columnId: unknown, needed: BoardAccess): Promise<{ column: Column & { key: string | null; archived: boolean }; board: Board }> {
   const key = id(columnId);
-  const [row] = await sql<{ id: string; board_id: string; name: string; position: string; done: boolean; archived_at: Date | null }[]>`select id, board_id, name, position, done, archived_at from columns where id = ${key}`;
+  const [row] = await sql<{ id: string; board_id: string; name: string; key: string | null; position: string; done: boolean; archived_at: Date | null }[]>`select id, board_id, name, key, position, done, archived_at from columns where id = ${key}`;
   if (!row) throw new AppError("not_found");
   const b = await board(sql, actor, String(row.board_id), needed);
-  return { column: { id: String(row.id), name: row.name, position: row.position, done: row.done, archived: row.archived_at !== null }, board: b };
+  return { column: { id: String(row.id), name: row.name, key: row.key, position: row.position, done: row.done, archived: row.archived_at !== null }, board: b };
 }
 
 export async function updateColumn(sql: Sql, actor: Member | null, columnId: unknown, input: { name?: unknown; done?: unknown }): Promise<void> {
   const { column: c } = await column(sql, actor, columnId, "write");
   const name = input.name === undefined ? c.name : clean(input.name, limits.columnName);
   const done = typeof input.done === "boolean" ? input.done : c.done;
+  // Renamed, a template's column keeps the name written — unless it is the
+  // template's own word in one of the tool's languages (a rename left as
+  // it was shown).
+  const key = c.key && (name === c.name || locales.some(l => catalogue(l).templates.columns[c.key as keyof Catalogue["templates"]["columns"]] === name)) ? c.key : null;
   await sql.begin(async tx => {
-    await tx`update columns set name = ${name}, done = ${done} where id = ${c.id}`;
+    await tx`update columns set name = ${name}, key = ${key}, done = ${done} where id = ${c.id}`;
     // Cards follow the column: complete in a "done" column, open otherwise.
     if (done !== c.done) await tx`update cards set completed_at = ${done ? tx`now()` : null} where column_id = ${c.id}`;
     // Repeating cards completed with it make their next ones (reopened, take them back).

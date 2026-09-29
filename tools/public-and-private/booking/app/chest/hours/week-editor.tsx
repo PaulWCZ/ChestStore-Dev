@@ -18,7 +18,9 @@ const order = [1, 2, 3, 4, 5, 6, 0];
 
 const maxima = [0, 1, 2, 3, 4, 5, 6, 8, 10, 12, 15, 20];
 
-export function WeekEditor({ weekly, zone: initialZone, dailyMax: initialMax, zones, t }: { weekly: Ranges[]; zone: string; dailyMax: number; zones: ZoneGroup[]; t: Words }) {
+// ready: the page is public already; if not, saving the hours confirms
+// them and makes it public (the button says so).
+export function WeekEditor({ weekly, zone: initialZone, dailyMax: initialMax, ready = true, zones, t }: { weekly: Ranges[]; zone: string; dailyMax: number; ready?: boolean; zones: ZoneGroup[]; t: Words }) {
   const [week, setWeek] = useState<Ranges[]>(weekly.map(d => d.map(r => [r[0], r[1]] as [number, number])));
   const [zone, setZone] = useState(initialZone);
   const [dailyMax, setDailyMax] = useState(initialMax);
@@ -37,7 +39,7 @@ export function WeekEditor({ weekly, zone: initialZone, dailyMax: initialMax, zo
         const r = await saveWeekly(week, zone, dailyMax);
         if (!r.ok) return setError(format(t.errors[r.error], r.values ?? {}));
         setError(null);
-        toast(h.saved);
+        toast(ready ? h.saved : h.savedPublic);
         router.refresh();
       });
     }}>
@@ -87,7 +89,7 @@ export function WeekEditor({ weekly, zone: initialZone, dailyMax: initialMax, zo
         </select>
       </div>
       {error && <p className="error" role="alert"><Alert />{error}</p>}
-      <div><button type="submit" className="button" disabled={pending || !valid}>{h.save}</button></div>
+      <div><button type="submit" className="button" disabled={pending || !valid}>{ready ? h.save : h.saveAndPublish}</button></div>
     </form>
   );
 }

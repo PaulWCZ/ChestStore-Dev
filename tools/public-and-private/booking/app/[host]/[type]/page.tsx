@@ -10,29 +10,32 @@ import { db } from "../../../lib/db.ts";
 import { formToken } from "../../../lib/guard.ts";
 import { format, intl, plural } from "../../../lib/i18n/index.ts";
 import { people } from "../../../lib/people.ts";
-import { publicWords } from "../../../lib/session.ts";
+import { hostWords } from "../../../lib/session.ts";
+import { localizeType } from "../../../lib/texts.ts";
 import { zoneGroups } from "../../../lib/zones.ts";
 
 // Booking one kind of meeting: what it is on the left, when on the right.
 export default async function TypePage({ params }: { params: Promise<{ host: string; type: string }> }) {
   const { host: hostSlug, type: typeSlug } = await params;
-  const { t, locale } = await publicWords();
   const sql = db();
   const found = await publicType(sql, hostSlug, typeSlug);
   const person = found ? (await people([found.host.memberId])).get(found.host.memberId) : undefined;
   if (!found || person?.status !== "member") notFound();
-  const { host, type } = found;
-  const team = await teamOf(sql, host, type);
+  // The page in one language: the host's texts and the tool's words.
+  const { t, locale, languages } = await hostWords(found.host);
+  const host = found.host;
+  const type = localizeType(found.type, host, locale);
+  const team = await teamOf(sql, host, found.type);
   // The hosts' other calendars, read again after this page is sent when
   // the last read is older than a few minutes: the next visitor sees them.
   after(async () => {
     for (const m of team) await refreshDue(db(), { olderThanMinutes: calendarLimits.lazyMinutes, memberId: m, deadline: Date.now() + 20000 }).catch(() => 0);
   });
-  const [s, first] = await Promise.all([settings(sql), firstFree(sql, host, type)]);
+  const [s, first] = await Promise.all([settings(sql), firstFree(sql, host, found.type)]);
   const names = team.length > 1 ? [...(await people(team)).values()].filter(x => x.status === "member").map(x => x.firstName || x.name) : [];
   const Kind = kindIcon[type.locationKind];
   return (
-    <PublicShell company={s.companyName} locale={locale} label={t.public.language} back={`/${host.slug}/${type.slug}`}>
+    <PublicShell company={s.companyName} locale={locale} languages={languages} label={t.public.language} back={`/${host.slug}/${type.slug}`}>
       <a className="back" href={`/${host.slug}`}><Back />{t.public.back}</a>
       <div className="sheet" style={{ "--type": `var(--c-${type.color})` } as React.CSSProperties}>
         <aside className="sheet-about">

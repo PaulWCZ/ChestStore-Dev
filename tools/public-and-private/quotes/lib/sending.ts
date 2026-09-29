@@ -8,10 +8,11 @@ import { pdfOfFull } from "./archive.ts";
 import { company, rememberMail } from "./company.ts";
 import type { Sql } from "./db.ts";
 import { getDocument, recordReminder, recordSent, sendQuote, type Full } from "./documents.ts";
-import { catalogue, format, formatDay } from "./i18n/index.ts";
+import { catalogue, format, formatDay, type Locale } from "./i18n/index.ts";
 import { clean, email, limits, numberPattern } from "./model.ts";
 import { formatMoney } from "./money.ts";
 import { pdfFileName } from "./pdf/document.ts";
+import { ensureLink } from "./online.ts";
 
 // Sending a document to its client: by email with its PDF attached,
 // through the Chest's mail (Proposal (studio): the "mail" capability,
@@ -41,7 +42,7 @@ export function draftMessage(full: Full, kind: Kind, context: { company: string;
     invoice: full.related.find(r => r.id === full.invoiceId)?.number ?? "",
   };
   const subject = kind === "reminder" ? t.reminderSubject : full.type === "quote" ? t.quoteSubject : full.type === "credit" ? t.creditSubject : t.invoiceSubject;
-  const body = kind === "reminder" ? t.reminderBody : full.type === "quote" ? t.quoteBody : full.type === "credit" ? t.creditBody : t.invoiceBody;
+  const body = kind === "reminder" ? (full.status === "imported" ? t.reminderBodyImported : t.reminderBody) : full.type === "quote" ? t.quoteBody : full.type === "credit" ? t.creditBody : t.invoiceBody;
   const payment = (full.type === "invoice" && context.iban ? "\n\n" + format(t.transfer, { iban: context.iban, bic: context.bic ? format(t.bic, { bic: context.bic }) : "" }) : "")
     + (full.type === "invoice" && context.paymentLink ? "\n\n" + format(t.payOnline, { link: context.paymentLink }) : "");
   const text = [
@@ -68,13 +69,15 @@ function checkMessage(input: unknown): Message & { upcoming: string | null } {
 // The PDF goes as an attachment, the company's address as the reply-to;
 // the same message twice within a day is sent once (a double click).
 async function deliver(sql: Sql, full: Full, message: Message, fromName: string, replyTo: string, today: string): Promise<Delivery> {
-  const bytes = await pdfOfFull(sql, full, today);
+  // An invoice imported from the previous tool has no PDF here: its
+  // reminder goes without it (its number and amounts are in the text).
+  const bytes = full.status === "imported" ? null : await pdfOfFull(sql, full, today);
   const key = "doc-" + createHash("sha256").update([full.id, message.to, message.subject, message.text].join("\u0000")).digest("hex").slice(0, 40);
   try {
     await mail.send({
       to: message.to, subject: message.subject, text: message.text, fromName: fromName.slice(0, 100).replace(/[\r\n]/gu, " "),
       ...(replyTo ? { replyTo } : {}),
-      attachments: [{ name: pdfFileName(full), type: "application/pdf", content: bytes }],
+      ...(bytes ? { attachments: [{ name: pdfFileName(full), type: "application/pdf", content: bytes }] } : {}),
       key,
     });
   } catch (error) {
@@ -93,10 +96,22 @@ async function deliver(sql: Sql, full: Full, message: Message, fromName: string,
 
 const senderName = (actor: Member, companyName: string) => (companyName ? `${actor.name} — ${companyName}` : actor.name);
 
+// withAnswerLink puts the link to answer a quote online in its email, in
+// the document's language, before the sign-off (or at the end when the
+// member rewrote it).
+export function withAnswerLink(text: string, language: Locale, url: string): string {
+  const t = catalogue(language).mail;
+  const line = format(t.answerOnline, { link: url });
+  if (text.includes(url)) return text;
+  const at = text.lastIndexOf("\n\n" + t.signoff);
+  return at >= 0 ? text.slice(0, at) + "\n\n" + line + text.slice(at) : text + "\n\n" + line;
+}
+
 // sendDocument emails a quote (numbering a draft first), an invoice or a
 // credit note (finalised). "no_mail": the Chest cannot send email yet —
-// nothing went; a quote stays as it was.
-export async function sendDocument(sql: Sql, actor: Member | null, documentId: unknown, input: unknown, today: string): Promise<{ delivery: Delivery; number: string | null }> {
+// nothing went; a quote stays as it was. A quote's email carries the link
+// to answer it online, when the public address is known (origin).
+export async function sendDocument(sql: Sql, actor: Member | null, documentId: unknown, input: unknown, today: string, options: { origin?: string | null } = {}): Promise<{ delivery: Delivery; number: string | null }> {
   const message = checkMessage(input);
   let full = await getDocument(sql, actor, documentId, today);
   if (!can(actor, full.type === "quote" ? "quotes.write" : "invoices.issue")) throw new AppError("forbidden");
@@ -113,6 +128,10 @@ export async function sendDocument(sql: Sql, actor: Member | null, documentId: u
     if (message.upcoming && full.number && message.upcoming !== full.number) {
       message.subject = message.subject.split(message.upcoming).join(full.number);
       message.text = message.text.split(message.upcoming).join(full.number);
+    }
+    if (options.origin) {
+      const link = await ensureLink(sql, actor, full.id);
+      message.text = withAnswerLink(message.text, full.language, `${options.origin}/q/${link.secret}`);
     }
     const delivery = await deliver(sql, full, message, senderName(actor!, name), c.email, today).catch(async error => {
       await undoSend(sql, full.id, before);
@@ -137,7 +156,11 @@ async function undoSend(sql: Sql, documentId: string, before: string): Promise<v
 // downloaded and attached to their own email, or printed).
 export async function markSent(sql: Sql, actor: Member | null, documentId: unknown, today: string): Promise<{ number: string | null }> {
   const full = await getDocument(sql, actor, documentId, today);
-  if (full.type === "quote") return { number: (await sendQuote(sql, actor, full.id, null, today)).number };
+  if (full.type === "quote") {
+    const sent = await sendQuote(sql, actor, full.id, null, today);
+    await ensureLink(sql, actor, full.id);
+    return { number: sent.number };
+  }
   await recordSent(sql, actor, full.id, null);
   return { number: full.number };
 }
@@ -148,7 +171,7 @@ export async function sendReminder(sql: Sql, actor: Member | null, documentId: u
   if (!can(actor, "payments")) throw new AppError("forbidden");
   const message = checkMessage(input);
   const full = await getDocument(sql, actor, documentId, today);
-  if (full.type !== "invoice" || full.status !== "final") throw new AppError("not_final");
+  if (full.type !== "invoice" || (full.status !== "final" && full.status !== "imported")) throw new AppError("not_final");
   if (full.due <= 0) throw new AppError("nothing_due");
   const c = await company(sql);
   const delivery = await deliver(sql, full, message, senderName(actor!, c.tradeName || c.legalName), c.email, today);
@@ -171,12 +194,12 @@ export async function sendAutomaticReminder(sql: Sql, full: Full, step: number, 
   const to = full.buyer?.email ?? full.client?.email ?? "";
   if (!to) return "no_mail";
   const message = draftMessage(full, "reminder", { company: name, sender: "", iban: c.iban, bic: c.bic, today, paymentLink: c.paymentLink ?? "" });
-  const bytes = await pdfOfFull(sql, full, today);
+  const bytes = full.status === "imported" ? null : await pdfOfFull(sql, full, today);
   try {
     await mail.send({
       to, subject: message.subject, text: message.text, fromName: name.slice(0, 100).replace(/[\r\n]/gu, " "),
       ...(c.email ? { replyTo: c.email } : {}),
-      attachments: [{ name: pdfFileName(full), type: "application/pdf", content: bytes }],
+      ...(bytes ? { attachments: [{ name: pdfFileName(full), type: "application/pdf", content: bytes }] } : {}),
       key: `reminder-${full.id}-${step}`,
     });
   } catch (error) {
@@ -188,6 +211,6 @@ export async function sendAutomaticReminder(sql: Sql, full: Full, step: number, 
     throw error;
   }
   await rememberMail(sql, true);
-  await sql`update documents set reminded_at = now(), reminders = reminders + 1, emailed_to = ${to} where id = ${full.id} and type = 'invoice' and status = 'final'`;
+  await sql`update documents set reminded_at = now(), reminders = reminders + 1, emailed_to = ${to} where id = ${full.id} and type = 'invoice' and status in ('final', 'imported')`;
   return "email";
 }

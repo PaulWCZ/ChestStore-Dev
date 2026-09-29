@@ -38,9 +38,12 @@ minute, in plain words.
 - **Before any service is listed** the page says only "This status page is
   being set up" — never "All systems operational" about nothing (the API
   and the badge say the same).
-- **Two languages**: an editor may tick "Also write it in French" (or
-  English: the Chest's other language) and give each title and text a
-  second version. Visitors, feeds and subscribers' emails get the version
+- **Two languages**: an incident is written in its editor's language, not
+  the Chest's — the form's **Written in** is set to the editor's own
+  language (a French editor on an English Chest writes French, and her
+  text is served, marked and mailed as French) and can be changed. The
+  editor may tick "Also write it in English" (the other language) and give
+  each title and text a second version. Visitors, feeds and subscribers' emails get the version
   in their language when there is one; otherwise the first, marked with
   its language (`lang`) so screen readers read it right. Automatic
   maintenance posts are written in both.
@@ -203,6 +206,12 @@ minute, in plain words.
   watched service's bar, the **measured** uptime (share of checks answered
   in time, since the first result in 90 days) beside the **declared** one
   computed from incidents — each labelled, and explained under the list.
+  **The measured figure appears only once it means something: at least a
+  full day of checks (the first result 24 hours old) and at least 24 of
+  them** (`measuredSample` in `lib/checks.ts`). Before that the page says
+  "Automatic checks since 29 September: the measured uptime appears after
+  a full day of checks" — one failed check out of four is never shown to
+  customers as "25 %".
   On a Chest that cannot run checks, the page says so plainly, the
   addresses stay saved, and everything else works as before.
 
@@ -338,7 +347,13 @@ evening, three subscribers.
 - **Customers are reached by email only** — and only on a Chest that runs
   the `mail` proposal; otherwise the page offers RSS/Atom. No SMS, no
   webhook, Slack or Teams subscriptions: they need the Chest's
-  `webhooks` primitive (above).
+  `webhooks` primitive (above). The seam is ready: every update reaches
+  its subscribers through one function, `announce()` in
+  `lib/incidents.ts`, where webhook subscribers would be queued beside the
+  emails.
+- **A service's state changes only with an incident**: there is no
+  one-click "Degraded" switch as in Statuspage (Services says so: post an
+  incident to show it).
 - **Shares its Chest's fate**: when the Chest's server is down, the page
   is down too — a hosted status page runs elsewhere. Say so to customers
   whose product runs on the same server.
@@ -348,7 +363,10 @@ evening, three subscribers.
   rota or escalation (out of scope: Better Stack's monitoring side).
 - Two languages only (English and French): a third needs its catalogue
   and a choice of the second language per incident.
-- A theme chosen for all tools dresses the public page too (one look for
+- A theme chosen for all tools dresses the public page too (to change with
+  kit 0.2.3: `resolveTheme(…, { surface: "public" })` in `lib/theme.ts`
+  for the public pages, the badge and the banner — the brand, else
+  Status's own look) (one look for
   the whole tool); a company that wants its public page in Status's own
   look, or in its brand, chooses that for Status alone in its Chest.
 - Undoing a deleted service puts it back in its place, but not its

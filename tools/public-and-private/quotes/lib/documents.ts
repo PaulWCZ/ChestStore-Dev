@@ -147,6 +147,10 @@ export function stateOf(d: Pick<Doc, "type" | "status" | "validUntil" | "dueDate
   return money.paid > 0 ? "partly_paid" : "unpaid";
 }
 
+// An invoice whose payments are followed here: issued by this tool, or
+// imported from the previous one.
+export const collectable = (d: Pick<Doc, "type" | "status">): boolean => d.type === "invoice" && (d.status === "final" || d.status === "imported");
+
 // Whether the document's lines carry VAT: not under the VAT exemption of
 // small businesses, not when the buyer accounts for it.
 export const noVat = (d: Pick<Doc, "franchise" | "vatTreatment">): boolean => d.franchise || d.vatTreatment === "reverse_charge";
@@ -194,7 +198,7 @@ export async function listDocuments(sql: Query, actor: Member | null, options: L
   return rows.map(r => {
     const d = toDoc(r);
     const { paid, credited } = m.get(r.id)!;
-    const due = d.type === "invoice" && d.status === "final" ? Math.max(d.gross - credited - paid, 0) : 0;
+    const due = collectable(d) ? Math.max(d.gross - credited - paid, 0) : 0;
     return { ...d, clientName: d.buyer?.name ?? r.client_name ?? "", paid, credited, due, state: stateOf(d, { paid, credited }, today) };
   });
 }
@@ -245,7 +249,7 @@ export async function getDocument(sql: Query, actor: Member | null, documentId: 
       (quote_id = ${docId}) or (invoice_id = ${docId}) or (id = ${d.quoteId ?? 0}) or (id = ${d.invoiceId ?? 0})
       or (${d.quoteId ?? 0}::bigint <> 0 and quote_id = ${d.quoteId ?? 0}))
     order by id`).map(r => ({ id: String(r.id), type: r.type, number: r.number, status: r.status, gross: r.gross, depositPercent: r.deposit_percent, issueDate: r.issue_date }));
-  const due = d.type === "invoice" && d.status === "final" ? d.gross - credited - paid : 0;
+  const due = collectable(d) ? d.gross - credited - paid : 0;
   return { ...d, lines, client, payments, paid, credited, due, state: stateOf(d, { paid, credited }, today), related };
 }
 
@@ -744,7 +748,7 @@ export async function recordSent(sql: Query, actor: Member | null, documentId: u
 
 export async function recordReminder(sql: Query, actor: Member | null, documentId: unknown, emailedTo: string | null): Promise<void> {
   if (!can(actor, "payments")) throw new AppError("forbidden");
-  const rows = await sql`update documents set reminded_at = now(), reminders = reminders + 1, emailed_to = coalesce(${emailedTo}, emailed_to), updated_at = now() where id = ${id(documentId)} and type = 'invoice' and status = 'final' returning id`;
+  const rows = await sql`update documents set reminded_at = now(), reminders = reminders + 1, emailed_to = coalesce(${emailedTo}, emailed_to), updated_at = now() where id = ${id(documentId)} and type = 'invoice' and status in ('final', 'imported') returning id`;
   if (rows.length === 0) throw new AppError("not_final");
 }
 
@@ -753,14 +757,14 @@ export async function recordReminder(sql: Query, actor: Member | null, documentI
 // receivables: the finalised invoices not paid in full, the oldest due first.
 export async function receivables(sql: Query, actor: Member | null, today: string): Promise<ListRow[]> {
   const rows = await listDocuments(sql, actor, { types: ["invoice"] }, today);
-  return rows.filter(r => r.status === "final" && r.due > 0 && r.state !== "credited").sort((a, b) => (a.dueDate ?? "").localeCompare(b.dueDate ?? "") || Number(a.id) - Number(b.id));
+  return rows.filter(r => collectable(r) && r.due > 0 && r.state !== "credited").sort((a, b) => (a.dueDate ?? "").localeCompare(b.dueDate ?? "") || Number(a.id) - Number(b.id));
 }
 
 // Invoices past their due date and not paid in full.
 export async function overdueCount(sql: Query, today: string): Promise<number> {
   const [row] = await sql<{ n: number }[]>`
     select count(*)::int as n from documents d
-    where d.type = 'invoice' and d.status = 'final' and d.due_date < ${today}
+    where d.type = 'invoice' and d.status in ('final', 'imported') and d.due_date < ${today} and d.deleted_at is null
       and d.gross > coalesce((select sum(amount) from payments p where p.document_id = d.id and p.deleted_at is null), 0)
                   + coalesce((select sum(gross) from documents x where x.invoice_id = d.id and x.type = 'credit' and x.status = 'final'), 0)`;
   return row?.n ?? 0;

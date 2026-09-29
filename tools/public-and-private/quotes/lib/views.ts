@@ -52,6 +52,8 @@ export type DocView = {
   // this draft was made by the repeat of an invoice (its number).
   repeat: { id: string; every: "month" | "quarter" | "year"; next: string } | null;
   madeFrom: { id: string; number: string } | null;
+  // Imported from the previous tool (its own number, no PDF here).
+  imported: boolean;
 };
 
 export type Fact = { label: string; value: string; strong?: boolean };
@@ -61,3 +63,9 @@ export type RelatedView = { id: string; text: string; amount: string; state: str
 export type Message = { to: string; subject: string; text: string; upcoming?: string };
 
 export type Rights = { edit: boolean; quote: boolean; draftInvoice: boolean; issue: boolean; pay: boolean; settings: boolean };
+
+// The quote's online answer, as the margin shows it: the link that works
+// now (null when none; its address null when the public address is not
+// known), and the answers given, each with its proof written out.
+export type AnswerView = { id: string; accepted: boolean; title: string; when: string; reason: string; proof: Fact[]; pdf: string | null };
+export type OnlineView = { url: string | null; live: boolean; until: string; answers: AnswerView[] };

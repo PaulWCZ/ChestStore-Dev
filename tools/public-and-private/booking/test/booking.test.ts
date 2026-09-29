@@ -4,6 +4,7 @@ import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
 import * as b from "../lib/booking.ts";
 import { AppError } from "../lib/app-error.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
+import { openHost } from "./support/host.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, hugo, ines, nora } from "./support/members.ts";
 
@@ -32,7 +33,7 @@ async function refuses(step: Promise<unknown>, code: string) {
 
 async function ready() {
   const sql = database.sql;
-  const host = await b.ensureHost(sql, asMember(ines), first);
+  const host = await openHost(sql, asMember(ines), first);
   const [type] = await b.typesOf(sql, ines.id);
   return { sql, host, type: type! };
 }
@@ -127,7 +128,7 @@ test("the guest's link cancels, or moves to another free time, and stops at the 
 
 test("hosts see their bookings, administrators everyone's; a host cancels only their own", async () => {
   const { sql, host, type } = await ready();
-  await b.ensureHost(sql, asMember(hugo), first);
+  await openHost(sql, asMember(hugo), first);
   const { booking } = await b.book(sql, host, type, { ...guest, start: "2026-10-06T07:00:00.000Z" }, monday);
   assert.equal((await b.bookings(sql, asMember(ines), { scope: "upcoming", now: monday })).length, 1);
   assert.equal((await b.bookings(sql, asMember(hugo), { scope: "upcoming", now: monday })).length, 0);
@@ -141,7 +142,7 @@ test("hosts see their bookings, administrators everyone's; a host cancels only t
 
 test("addresses are unique, and never one of the tool's own", async () => {
   const { sql } = await ready();
-  await b.ensureHost(sql, asMember(hugo), first);
+  await openHost(sql, asMember(hugo), first);
   await refuses(b.saveHost(sql, asMember(hugo), { slug: "ines-moreau", zone: "Europe/Paris", welcome: "", listed: true }), "slug_taken");
   await refuses(b.saveHost(sql, asMember(hugo), { slug: "chest", zone: "Europe/Paris", welcome: "", listed: true }), "invalid");
   await refuses(b.saveHost(sql, asMember(hugo), { slug: "hugo", zone: "Mars/Olympus", welcome: "", listed: true }), "invalid");

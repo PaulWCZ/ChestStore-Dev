@@ -19,7 +19,7 @@ export default async function ImportPage() {
     <div className="page narrow">
       <Link className="back" href="/chest"><Back />{t.profile.back}</Link>
       <PageHeader title={t.import.title} intro={<>{t.import.body}<span className="intro-more">{t.import.formats}</span></>} />
-      <Importer locale={locale} extras={(await listFields(db(), member)).map(f => ({ id: f.id, label: f.label }))} t={{ import: t.import, errors: t.errors, files: t.files, tables: t.tables }} />
+      <Importer locale={locale} extras={(await listFields(db(), member)).map(f => ({ id: f.id, label: f.label, kind: f.kind }))} t={{ import: t.import, errors: t.errors, files: t.files, tables: t.tables }} />
       {can(member, "directory.export") && <p className="export-link"><a className="link-button" href="/chest/export" download><Download />{t.import.export}</a></p>}
     </div>
   );

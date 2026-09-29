@@ -669,3 +669,80 @@ The changelog in `ui/README.md` has the whole list; what mattered most:
   Booking, Forms, Status) belong to those tools. The sixteen tools and
   Forms/Quotes must re-vendor (`node scripts/add-ui.mjs <tool>`); the kit
   did not touch `tools/`.
+
+## 18. 0.2.3-studio.1: what the re-vendor and the second critique found (2026-09-29)
+
+The eighteen tools re-vendored 0.2.2 and reported what they still worked
+around; the lead added decisions from the store's second critique. All in
+0.2.3, **backward compatible** (a tool on 0.2.2 re-vendors with no code
+change; a hand-made 0.2.2 theme stays valid). The whole list is the
+changelog in `ui/README.md`; what mattered most:
+
+- **Leave's mixed dates were the kit's.** Tabbing into the last day
+  selects its text; the blur of the first day moves the last day from
+  outside; DateField copied that into its text in an effect, and React's
+  write dropped the selection — what the person typed was added after the
+  new date ("06/01/202708/01/2027"). The text now follows the value in
+  the render (the previous value kept in state), a person's typing is
+  kept until read, and a whole date selected stays selected when it
+  changes. Two browser flows reproduce it — a value changed after an
+  await (the text is checked in the very commit that carries the value),
+  and a range's first day then its last day typed at once — and both
+  fail on 0.2.2's DateField and pass on 0.2.3's (checked both ways, on a
+  copy of the kit with 0.2.2's `date-field.tsx`). Leave's `key` that
+  redrew the field can go.
+- **The camera's input (Expenses)** stayed, unlabelled, in the tab order
+  on a desk (axe "label", critical): hidden with its label now. The
+  gallery shows a picker with `camera`; axe fails on 0.2.2's CSS and
+  passes on 0.2.3's; the phone still gets "Take a photo" (checked with
+  touch emulation — a second page of one browser did not match `pointer:
+  coarse` from its options alone, which the phone checks now ask for).
+- **The signal on a dark band.** Timesheets' lime and Goals' marker were
+  `--highlight`, a dark ground in dark looks: 1.3:1 to 2.6:1 on the band
+  in the catalogue's dark schemes. `--inverse-signal` and
+  `--inverse-signal-ink` are measured on the band (4.5:1) in every theme,
+  mode and brand; Instrument pins its lime in both modes.
+- **Public pages** (lead): `resolveTheme(…, { surface: "public" })` — the
+  brand in brand mode, the tool's own identity otherwise; never a
+  catalogue theme chosen for the team, never the Chest's sheet.
+- **Decoration** (critique): `--decor` is `0` in a brand, the Chest's
+  sheet and High contrast, `1` elsewhere; a tool keys its patterns on it.
+  **High contrast** is AAA: every text pair 7:1 (its category labels
+  were 5.4–6.9:1). **Ten hard brands** (near-white, neons, near-black,
+  brown, two alike, pure yellow, grey, a red like the errors', a pastel,
+  a light yellow) pass every pair and keep the palette's families; the
+  harness has a second sample brand (`brand:port`, Café du Port: a light
+  yellow, navy, sharp, compact).
+- **Phone navigation** (critique): a section's name broke inside a word
+  in a wide face ("Entrepris/es"). It wraps at spaces only; a word too
+  wide ends in "…" (the link's name stays whole). check-page reads every
+  word's lines in every look, both languages, at 390 and 320 px and in a
+  wide face; it fails on 0.2.2's CSS. "Or drop them here" is gone on
+  touch screens.
+- **The Chest theme stays light only** (the owner's sheet): intended and
+  documented — `color-scheme: light` gives light scrollbars and fields on
+  a dark computer, the browser's bar gets the light ground. A tool must
+  not set `color-scheme` or change colours in its own
+  `prefers-color-scheme: dark` block (Equipment, Goals and Forms have
+  such blocks; Goals' can now use `--inverse-signal`).
+- **Components**: `Filters` sections (optgroups), `allLabel`, the
+  in-page mode (`value`/`onChange`), no "Clear filters" beside a lone
+  select's own "All", and colours on a coloured band set from the band's
+  measured pair (axe-checked on the orange slot's band in five looks);
+  `DateRangeField` `keepLength`, `ids`, `below`, `chips`, `length`;
+  `DataTable`'s phone cards no longer label their header; the member
+  chip keeps one line; `FilePicker` `previewSize` and `storedFile()`;
+  `Checkbox`, with the rule — at once: `Switch`; on Save: checkbox.
+  Sales desk's chips are square in the catalogue itself (`radius.chip`
+  3), so CRM can drop its `.ck-badge` override and stay equal to it.
+- **Backward compatibility, checked** — see the list of tools below (each
+  copied once, then checked with the packed 0.2.2 and with the packed
+  0.2.3 on the same copy: `next typegen` + `tsc`, and its tests).
+  `lab/template` re-vendored: 14 tests, build passes. `check:package`
+  passes (the size budget moved from 300 to 350 KB: 308 KB packed).
+- **Tool matters, not the kit's**: Quotes' logo hint repeats the kit's
+  "Accepted: PNG, JPG" line (the kit says the limits; a tool's hint never
+  repeats them); CRM's `.ck-badge { border-radius: var(--radius-s) }`
+  overrides every theme's corners (now unneeded); Leave's `key={endField}`
+  (now unneeded); Timesheets and Goals should move their band's signal to
+  `--inverse-signal`; seed content's language is each tool's.

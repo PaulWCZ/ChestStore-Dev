@@ -4,7 +4,7 @@ import { DndContext, KeyboardSensor, PointerSensor, useDraggable, useDroppable, 
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
-import { Back, Arrow } from "../../../../components/icons.tsx";
+import { Alert, Back, Arrow } from "../../../../components/icons.tsx";
 import type { Label } from "../../../../lib/boards.ts";
 import type { CardSummary } from "../../../../lib/cards.ts";
 import { format, plural } from "../../../../lib/i18n/format.ts";
@@ -114,6 +114,7 @@ function DayCard({ card, labels, late, writable, t }: { card: CardSummary; label
       <Link href={`${path}?${params.toString()}`} scroll={false} {...(writable ? listeners : {})} {...(writable ? attributes : {})} aria-roledescription={undefined}
         className={`cal-card${card.done ? " is-done" : ""}${late ? " late" : ""}${isDragging ? " dragging" : ""}${color ? " c-" + color : ""}`}>
         {color && <span className="bar" aria-hidden="true" />}
+        {late && <Alert />}
         {card.dueTime && <span className="cal-time">{card.dueTime}</span>}
         <span>{card.title}</span>
         {late && <span className="visually-hidden"> — {t.card.late}</span>}

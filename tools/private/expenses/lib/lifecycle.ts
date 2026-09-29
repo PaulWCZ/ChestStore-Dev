@@ -54,6 +54,10 @@ export async function erase(sql: Sql, memberId: string): Promise<void> {
     await tx`update payment_runs set created_by = 'erased' where created_by = ${memberId}`;
     await tx`update payment_runs set cancelled_by = 'erased' where cancelled_by = ${memberId}`;
     await tx`update rates set updated_by = 'erased' where updated_by = ${memberId}`;
+    // Card payments are the company's bank records: kept, without the person.
+    await tx`update card_lines set member_id = 'erased' where member_id = ${memberId}`;
+    await tx`update card_lines set checked_by = 'erased' where checked_by = ${memberId}`;
+    await tx`update card_statements set created_by = 'erased' where created_by = ${memberId}`;
     await forgetInRuns(tx, memberId);
     const uploads = await tx<{ object: string }[]>`delete from uploads where member_id = ${memberId} returning object`;
     return [...[...drafts.map(d => d.receipt_object), ...proofs.map(p => p.proof_object)].filter((o): o is string => o !== null), ...uploads.map(u => u.object)];
