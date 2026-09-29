@@ -15,5 +15,6 @@
   { "name": "read-ask", "path": "/chest/pages/8", "member": "hugo", "locale": "en" },
   { "name": "reads", "path": "/chest/pages/8/reads", "member": "camille", "locale": "en" },
   { "name": "space-settings", "path": "/chest/spaces/2/settings", "member": "ines", "locale": "en" },
-  { "name": "slash", "path": "/chest/pages/4/edit", "member": "sofia", "locale": "en", "actions": [{ "wait": 1500 }, { "click": ".ProseMirror > p" }, { "press": "End" }, { "press": "Enter" }, { "press": "/" }, { "wait": 400 }] }
+  { "name": "slash", "path": "/chest/pages/4/edit", "member": "sofia", "locale": "en", "only": ["desktop"], "actions": [{ "wait": 1500 }, { "click": ".ProseMirror > p" }, { "press": "Control+End" }, { "press": "Enter" }, { "press": "/" }, { "wait": 400 }] },
+  { "name": "slash-fr", "path": "/chest/pages/5/edit", "member": "camille", "locale": "fr", "only": ["phone"], "actions": [{ "wait": 1500 }, { "click": ".ProseMirror > p" }, { "press": "Control+End" }, { "press": "Enter" }, { "press": "/" }, { "wait": 400 }] }
 ]
