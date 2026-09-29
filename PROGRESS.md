@@ -130,15 +130,22 @@ acceptance, in a later round.
   the sentence clears while typing so the Save click after a correction
   is not lost. Vendoring now packs one at a time (parallel packs gave
   incomplete copies; all 18 copies checked complete).
-- **On kit 0.2.5:** 12 tools. Tasks, Wiki, Leave, Timesheets verified on
-  it; News, Polls, Quotes, Support, People, Equipment, Expenses, Goals
-  (0.2.4 date audits + News mention-search migration) queued for the
-  lead's check. **Being moved:** Clients, Booking, Forms (+ Clients
-  receives `forms.contact`), Rooms, Hiring, Status.
-- **Next:** Support receives `forms.request`; the showcase with looks;
-  critique update; PR description.
-- **Then:** re-vendor 0.2.3 everywhere; the showcase with looks; fix what
-  critique round 2 finds.
+- **All 18 tools on kit 0.2.5, verified by the lead** (tests PGlite +
+  PostgreSQL, builds, flows, audits 0, screenshots, lint 0). Every date
+  field saved from state or a button waits while its date is refused;
+  each tool proves it with a flow step. Real bugs found this way: Status
+  and Forms (noValidate forms would have sent the previous date),
+  Expenses (an emptied paid-on sent today), Support (a click lost to a
+  layout shift → kit 0.2.5). Counts: Clients 80, Support 61, News 83,
+  others as above.
+- **Suite links:** Forms → Clients (`forms.contact`) and Forms → Support
+  (`forms.request`), both verified; declared in `chest.proposals.json`.
+- **SDK studio.14** (92 tests): `chest.toolUrl` / `toolLink` (§4.18).
+  Clients and Support adopting it (running).
+- **Showcase:** "Looks, side by side" and a whole-store look switch
+  (committed); the missing brand shots on compared pages being added.
+- **Next:** critique round 3 on all 18 tools; update
+  `reports/05-critique.md`; PR description.
 - **Noted:** News search still matches raw mention tokens in its index
   (needs a migration).
 - **The lead's verify script** now waits for free ports and a live
