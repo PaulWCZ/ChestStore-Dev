@@ -7,10 +7,10 @@
 | dnd-kit | `@dnd-kit/core` 6.3.1, `@dnd-kit/utilities` 3.2.2 | MIT | npm dependency (the board) |
 
 Code copied from the studio's own tools (same licence, same studio):
-`lib/csv.ts`, `lib/public-origin.ts`, `lib/i18n/format.ts`,
-`components/toast.tsx`, `components/dialog.tsx`, `components/avatar.tsx`,
-`components/auto-refresh.tsx`, the board's keyboard and drag patterns
-(Tasks, Support, Booking).
+`lib/csv.ts`, `lib/public-origin.ts`, `lib/i18n/format.ts`, the board's
+keyboard and drag patterns (Tasks, Support, Booking). The studio's UI kit
+`@argentic/chest-ui` (MIT, © 2026 Argentic) is vendored in `vendor/`: the
+theme, the look's runtime and the shared components.
 
 Ideas, no code (reports/02-open-source/hiring.md): stages per job and
 rating on cards (Horilla, LGPL — ideas only), explicit "move to" actions and

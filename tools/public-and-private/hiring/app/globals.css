@@ -201,6 +201,7 @@ fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
 .ck-brand svg, .ck-brand .ck-logo img { width: 32px; height: 32px; }
 .ck-brand .ck-logo img { width: auto; max-width: 140px; object-fit: contain; }
 .ck-bar-end .ck-search { flex: 0 1 290px; }
+.ck-member-name, .ck-member-role { white-space: nowrap; }
 @media (max-width: 760px) {
   .ck-brand .brand-name { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
   .ck-bar-end { flex: 1; min-width: 0; }
@@ -511,7 +512,9 @@ fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
 /* The careers page's brand */
 .wordmark .logo { display: block; max-height: 44px; max-width: 220px; object-fit: contain; }
 /* The company's brand logo (from the Chest) as large as its own upload. */
-.wordmark .ck-logo img { height: 44px; max-width: 220px; object-fit: contain; }
+.wordmark .ck-logo img { height: 44px; max-width: min(220px, 42vw); object-fit: contain; }
+.public-top { flex-wrap: wrap; }
+.wordmark { min-width: 0; }
 /* The magazine's language switch: the current language in ink (the
    inverse pair, measured in every theme). */
 .public-top .ck-language[aria-current="true"] { background: var(--ink); color: var(--bg); }

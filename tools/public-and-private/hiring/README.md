@@ -13,7 +13,7 @@ decides together.
   it *in each language* (the French page never shows the English words),
   up to three photos, its open jobs — an editorial table of contents — in
   the company's colour (six accents, each checked for contrast in light
-  and dark), a link to its website. English/French switch, remembered in a
+  and dark; the company's brand from its Chest wins — see *Looks*), a link to its website. English/French switch, remembered in a
   cookie.
 - **Reach, without calling anyone**: each open job's page carries
   `JobPosting` structured data (JSON-LD, with the page's CSP nonce) that
@@ -110,6 +110,27 @@ decides together.
   sent but never claimed go after a day; a recruiter erases a candidate
   on request, or gives them their data; the form and each job page say
   it. Each job's candidates export as CSV.
+
+## Looks
+
+Hiring wears any look the company chooses in its Chest, with the same
+features: its own identity (*Magazine*: cream paper, cobalt, tomato —
+`lib/theme.ts`), any theme of the store's catalogue (the other tools'
+identities, *Chest*, *High contrast*), or the company's own brand (its
+colours, fonts, corners and logo), for all its tools or for Hiring alone.
+The look is resolved on the server from `chest.theme()` (SDK Proposal
+*theme*) and written as one `<style>` with the page's nonce; nothing runs in
+the browser for it. Every stylesheet names only the UI kit's contract
+tokens, so every text stays readable (WCAG AA) in every look.
+
+The careers page is the company speaking to candidates, so the brand wins
+there: with the company's brand, the page takes its colours and shows its
+logo (with its dark variant); Hiring's own logo and colour settings wait
+(Settings says so). With a catalogue theme, the theme gives the colours
+and the logo uploaded in Hiring stays. With Hiring's own look, the colour
+chosen in Settings (six accents, each a whole theme checked against the
+contract) colours the careers pages only. The photos are content: they
+show in every look.
 
 ## Roles
 

@@ -29,6 +29,8 @@ must not break.
 | `lib/tell.ts`, `lib/notify.ts` | Bell and tile |
 | `lib/share.ts` | `hiring.hired` / `hiring.hire_cancelled` for People (events between tools; README "With the other tools") — never add application data to them |
 | `lib/lifecycle.ts` | Members leaving or erased |
+| `lib/theme.ts`, `app/layout.tsx`, `app/tokens.css` | The identity (*Magazine*, `defineTheme`), the careers accents (`accentThemes`, `accentCss`), the look of a request (`currentLook`: `chest.theme()` else the identity) written by `<ThemeStyle>` with the nonce; Hiring's own tokens, defined from contract tokens |
+| `components/team-shell.tsx`, `components/public-shell.tsx` | The kit's `AppShell` (tabs, search, member, toasts, 30 s refresh); the careers frame (brand logo or Hiring's, accent only in the own look) |
 | `app/page.tsx`, `app/[slug]/…`, `app/api/cv`, `app/public-actions.ts` | The public part (anonymous) |
 | `app/chest/…`, `app/chest/actions.ts` | The team's part |
 | `app/chest-jobs/[name]/route.ts`, `app/chest-events/route.ts` | Deliveries from the Chest (signed) |
@@ -41,6 +43,25 @@ TEST_DATABASE_URL=postgres://… npm test
 ```
 
 ## Rules
+
+- **Looks**: CSS names only contract tokens (`ui/tokens/CONTRACT.md`) and
+  the tool tokens of `app/tokens.css` — never a colour (test/theme.test.ts
+  checks CSS and TSX). A colour belongs in `lib/theme.ts`. Text only on
+  measured pairs (`--accent-ink` on `--accent`, `--cat-3-ink` on
+  `--cat-3-soft`, `--ok-ink` on `--ok-soft`…). Weights from
+  `--display-weight` / `--weight-strong`.
+- **Kit components first** (`@argentic/chest-ui/components`): Toasts
+  (`useToast`: `undo` that resolves true or a sentence; `sent: true` once
+  an email left — the rejection toast turns into "sent" when its Undo is
+  over), Dialog (with `dirty` for typed forms), Confirm (irreversible
+  only), PeoplePicker, DateField, TimeSelect, FilePicker, SearchBox,
+  EmptyState, Avatar, StatusBadge, Segmented, AppShell, PageHeader,
+  NoAccess, BrandMark, LanguageSwitch, useAutoRefresh. Their words come
+  from the catalogues' `toast`, `dialog`, `peoplePicker`, `dates`, `files`
+  sections. Never `window.confirm`/`prompt`, never `type="date"`/`"time"`.
+- **Words**: `node scripts/lint-words.mjs tools/public-and-private/hiring`
+  stays at 0 (store glossary: Undo « Annuler l’action », narrow no-break
+  spaces in French).
 
 - Identity only from `member(request)` (`lib/session.ts`); store `mbr_…`
   ids, names at render (`lib/people.ts`). Candidates are not members:

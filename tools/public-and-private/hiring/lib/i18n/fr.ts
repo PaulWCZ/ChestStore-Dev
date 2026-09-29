@@ -465,6 +465,7 @@ export const fr: Catalogue = {
     deleteTitle: "Supprimer cette offre ?",
     deleteBody: "L’offre, ses étapes et ses intervieweurs disparaissent définitivement. Personne n’y a encore postulé.",
     pickHint: "Tapez un nom, ou choisissez dans la liste.",
+    team: "Votre équipe",
     defaults: {
       new: "Nouveaux",
       screening: "Présélection",

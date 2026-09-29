@@ -469,6 +469,7 @@ export const en = {
     deleteTitle: "Delete this job?",
     deleteBody: "The job, its stages and its interviewers go for good. Nobody applied to it yet.",
     pickHint: "Type a name, or choose from the list.",
+    team: "Your team",
     defaults: {
       new: "New",
       screening: "Screening",

@@ -97,7 +97,7 @@ export function JobSettingsView({ jobId, stages, interviewers, choices, deletabl
               search={search}
               suggestions={team}
               disabled={pending}
-              labels={t.peoplePicker}
+              labels={{ ...t.peoplePicker, recent: w.team }}
               lang={locale}
               onChange={chosen => {
                 const who = chosen[0];
