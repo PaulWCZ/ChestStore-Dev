@@ -147,12 +147,12 @@ export function Importer({ locale, fields, team, me, canAssign, mayCreateFields,
           <h2><ListIcon />{w.csv}</h2>
           <Segmented label={w.kind} hideLabel={false} name="kind" value={kind} onChange={changeKind} options={importKinds.map(k => ({ value: k, label: w.kinds[k] }))} />
           <p className="small-text muted">{kind === "activities" ? w.activitiesHow : w.csvHow}</p>
-          <FilePicker label={w.csv} files={files.csv} onChange={update => choose("csv", update)} maxFiles={1} maxSize={limits.importBytes} accept={[".csv", ".txt", "text/csv"]} labels={t.files} />
+          <FilePicker label={w.csv} files={files.csv} onChange={update => choose("csv", update)} maxFiles={1} maxSize={limits.importBytes} accept={[".csv", ".txt"]} labels={t.files} />
         </section>
         <section className="source panel">
           <h2><Card />{w.vcf}</h2>
           <p className="small-text muted">{w.vcfHow}</p>
-          <FilePicker label={w.vcf} files={files.vcf} onChange={update => choose("vcf", update)} maxFiles={1} maxSize={limits.importBytes} accept={[".vcf", "text/vcard", "text/x-vcard"]} labels={t.files} />
+          <FilePicker label={w.vcf} files={files.vcf} onChange={update => choose("vcf", update)} maxFiles={1} maxSize={limits.importBytes} accept={[".vcf"]} labels={t.files} />
         </section>
       </div>
       {error && <p className="error" role="alert">{error}</p>}
