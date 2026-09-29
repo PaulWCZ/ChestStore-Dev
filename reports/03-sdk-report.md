@@ -11,7 +11,7 @@ tested, faked in `testing`, documented in `sdk/README.md` (sections marked
 Seventeen tools were built for the opening store, each to production
 quality, each in its own folder, by builders who used the SDK as a
 third-party developer would. What they needed and did not find is below,
-proven by code: every proposal is built in `sdk/` (0.3.0-studio.13 —
+proven by code: every proposal is built in `sdk/` (0.3.0-studio.14 —
 typed, tested, faked in `testing`, documented in `sdk/README.md` under
 **Proposal (studio)**) and used by at least one tool.
 
@@ -921,6 +921,96 @@ Harness items raised by the same builders are fixed in the studio:
   who has no member account (needs `mail`), and the Standard Webhooks
   headers as an option. `Retry-After` and the one-a-second pacing are
   designed, not faked.
+
+### 4.18 The address of another tool — `chest.toolUrl` (built)
+
+- **Needed by**: the two receivers of Forms' events. **Clients** (`crm`)
+  turns `forms.contact` into a contact and keeps the answer's path only
+  (`tools/private/crm/lib/from-forms.ts` stores `answer.path` in the
+  activity's JSON): it cannot make it a link, so the member sees "from the
+  form Contact" with nothing to click. **Support** (`helpdesk`) turns
+  `forms.request` into a ticket and links back with `formsLink()`
+  (`tools/public-and-private/helpdesk/lib/forms-in.ts`), which *guesses*
+  Forms' team host from its own after the Chest's naming scheme
+  (`helpdesk-chest.<chest>` → `forms-chest.<chest>`), and gives up — no
+  link — on a local harness or any address that does not follow it. The
+  guess is wrong the day the owner gives Forms a custom domain, when the
+  scheme changes, or when Forms is not installed (a dead link). Every
+  future receiver of a tool event (Leave → Rooms, Hiring → People,
+  Clients → Quotes, §4.4) will want the same link back.
+- **Working copy**: `sdk/client/src/chest.ts` — `toolUrl(name, {surface})`,
+  `toolLink(name, path, {surface})`, `readToolUrls(raw)`,
+  `toolNamePattern`, types `ToolSurface`, `ToolAddresses`;
+  `fakeChest({tools})`, `chest.tools`, `chest.installTool()`,
+  `chest.removeTool()`; `sdk/client/test/tool-urls.test.ts` (8 tests: both
+  surfaces, names that are not a tool's, addresses that are not origins
+  dropped entry by entry, the map's size cap, the tool's own name, the
+  paths a link refuses, a rewritten map, the fake's installs and
+  removals). SDK 0.3.0-studio.14. No tool uses it yet: Support's
+  `formsLink()` becomes `chest.toolLink("forms", path)` and Clients renders
+  its stored path the same way, once they are re-vendored.
+- **API**:
+
+  ```ts
+  type ToolSurface = "team" | "public";
+  toolUrl(name: string, o?: { surface?: ToolSurface }): string | null;          // an origin, or null
+  toolLink(name: string, path: string, o?: { surface?: ToolSurface }): string | null;
+  ```
+
+  null when the tool is not installed, has no such surface (no public
+  part, or the owner has not opened it), outside a Chest, for a name that
+  is not a tool's, or — for `toolLink` — a path that is not `/chest…` on
+  the team host, is under `/chest` on the public host, starts with `//`,
+  or is not in the simple form the Chest's front accepts (no `\`, no dot
+  segment, no encoded `/`, `\` or NUL, printable ASCII, 512 characters).
+- **Transport: an environment variable, `CHEST_TOOL_URLS`** — a JSON map
+  `{"forms": {"team": "https://forms-chest.…", "public": "https://forms.…"}}`
+  of every installed tool, the public origin only while the part is open.
+  Why this and not a signed call (`GET /tools` on `CHEST_API`):
+  - it is how the Chest already gives a tool its own addresses
+    (`CHEST_TEAM_URL`, `CHEST_PUBLIC_URL`, §4.5): nothing new to run, and
+    `CHEST_*` names are refused in a manifest's `env`, so no admin setting
+    can shadow it;
+  - the answer is synchronous — a link is made while rendering a page,
+    often in a server component, where one more await per link and a
+    cache to keep are friction; a call would also cost a request per page
+    (or a cache with its own staleness) on a 1-CPU sandbox;
+  - staleness is harmless both ways: a map older than the latest install
+    lacks the new tool (no link — what every tool does today), and one
+    older than a removal links to a host the Chest's front answers 404.
+    The Chest rewrites the variable when a tool is installed or removed or
+    a public part opens or closes; running tools read it at their next
+    start. **Not required**: restarting every tool at each install — they
+    are rare, admin-made, and the cost of a stale entry is one dead link.
+    A Chest that wants it exact restarts idle tools lazily.
+  - **Trade-offs accepted**: the map grows with the store (≈150 bytes a
+    tool; the SDK ignores one above 64 KiB); a tool learns which tools the
+    company installed — which every member already sees on the portal,
+    and whose team hosts follow a public naming scheme (Support guesses
+    them today), so nothing secret is disclosed. A call would let the
+    Chest scope the answer to tools linked by events; we chose not to,
+    because a link to a tool the member cannot open is answered by that
+    tool's host ("you do not have this tool"), not leaked.
+- **Security**: only origins — https, http for `localhost`/`127.0.0.1` —,
+  with no credentials, path, query or fragment; any other entry is dropped
+  (never the whole map), so a Chest bug cannot make a tool write
+  `javascript:` or a foreign path into its pages. `toolLink` refuses a
+  protocol-relative path and every form the front would refuse, and
+  checks the joined URL keeps the origin. Tools must still store the
+  **name and path** they received, never an absolute URL: the origin
+  changes with a custom domain (§4.15).
+- **Not a capability**: the addresses are what every member sees on the
+  portal; no approval sentence. Access is unchanged: a link opens another
+  tool only for a member who has it.
+- **Elsewhere**: Kubernetes injects `<SERVICE>_SERVICE_HOST`/`_PORT` for
+  every service in the namespace at pod start, stale until restart — the
+  same trade-off ([Kubernetes docs, "Environment variables"](https://kubernetes.io/docs/concepts/services-networking/service/#environment-variables),
+  from memory, not re-read on 2026-09-29); Heroku and Vercel give an app only its own URL, because
+  apps there do not share a tenant. The Chest has one: the company.
+- **Still missing**: a per-member answer ("does this member have Forms?",
+  to hide a link they cannot follow) — `members` answers it only for the
+  tool itself; the tool's title ("Open in Forms" in the member's
+  language), which the portal knows and the map could carry.
 
 ## 5. Public-facing tools
 
