@@ -312,6 +312,7 @@ export const en = {
       form: "Public form",
       email: "Email",
       team: "Written by the team",
+      forms: "Forms",
     },
     reply: "Reply",
     note: "Internal note",
@@ -328,6 +329,12 @@ export const en = {
     viaEmail: "Sent by email",
     viaPage: "On the follow-up page only",
     viaPageHint: "Your Chest cannot send email yet: the customer sees this answer on their follow-up page.",
+    fromForm: "From the form “{form}”",
+    fromFormLink: "Open the answer in Forms",
+    colleague: "A colleague",
+    colleagueHint: "Asked with a team form. Support keeps no address for colleagues: your answers stay here, and they are told in the Chest if they have Support.",
+    viaColleague: "In Support only",
+    sentColleagueToast: "Answer saved. Your colleague is told if they have Support.",
     others: "Other requests from this customer",
     viewing: "{names} is on this ticket too",
     viewingMany: "{names} are on this ticket too",
@@ -556,6 +563,7 @@ export const en = {
     bounced: "An email about ticket {number} did not arrive",
     ratedGood: "{customer} was happy with ticket {number}",
     ratedBad: "{customer} was not happy with ticket {number}",
+    colleagueAnswered: "{name} answered your request {number}",
   },
   errors: {
     forbidden: "Your role does not allow this.",
@@ -582,5 +590,10 @@ export const en = {
     files_unavailable: "Files cannot be added right now. Describe it in words, or try again later.",
     unavailable: "The Chest did not answer. Try again in a moment.",
     unknown: "Something went wrong. Try again.",
+  },
+  // A request from Forms: the other answers, one a line, in the message.
+  forms: {
+    fieldLine: "{label}: {value}",
+    fieldBlock: "{label}:\n{value}",
   },
 } as const;

@@ -24,8 +24,13 @@ export type Ticket = {
   customerEmail: string;
   customerName: string;
   assignee: string | null;
-  channel: "form" | "email" | "team";
+  channel: "form" | "email" | "team" | "forms";
   language: string;
+  // A colleague's request (a team form of Forms): the member who asked
+  // ('erased' once erased); the ticket then has no customer address.
+  requester: string | null;
+  // Opened by an answer to a form of Forms: which form, which answer.
+  source: Source | null;
   priority: Priority;
   // Since when the customer waits for an answer (open tickets), or null.
   waitingSince: string | null;
@@ -38,6 +43,7 @@ export type Ticket = {
   rating: "good" | "bad" | null;
 };
 export type Bounce = { permanent: boolean; reason: string; at: string; recipient: string };
+export type Source = { form: { id: string; title: string }; answer: { id: string; path: string | null } };
 export type Tag = { id: string; name: string };
 // A message: the customer's, the team's reply, a note, or an event (a
 // merge: "merged:1005", said in the reader's words). Received by email: the
@@ -51,9 +57,16 @@ export type Message = {
 };
 export type TicketRow = Ticket & { last: string; lastKind: string; messages: number; tags: Tag[] };
 
-type TicketDb = { id: string; number: number; subject: string; status: Status; customer_email: string; customer_name: string; assignee: string | null; channel: Ticket["channel"]; language: string; priority: Priority; waiting_since: Date | null; created_at: Date; updated_at: Date; merged_number: number | null; bounce: Bounce | null; rating: Ticket["rating"] };
-const toTicket = (r: TicketDb): Ticket => ({ id: String(r.id), number: r.number, subject: r.subject, status: r.status, customerEmail: r.customer_email, customerName: r.customer_name, assignee: r.assignee, channel: r.channel, language: r.language, priority: r.priority, waitingSince: r.status === "open" && r.waiting_since ? r.waiting_since.toISOString() : null, createdAt: r.created_at.toISOString(), updatedAt: r.updated_at.toISOString(), mergedInto: r.merged_number ?? null, bounce: r.bounce ?? null, rating: r.rating ?? null });
-const columns = (sql: Query) => sql`t.id, t.number, t.subject, t.status, t.customer_email, t.customer_name, t.assignee, t.channel, t.language, t.priority, t.waiting_since, t.created_at, t.updated_at, (select x.number from tickets x where x.id = t.merged_into) as merged_number, t.bounce, t.rating`;
+type TicketDb = { id: string; number: number; subject: string; status: Status; customer_email: string; customer_name: string; assignee: string | null; channel: Ticket["channel"]; language: string; priority: Priority; waiting_since: Date | null; created_at: Date; updated_at: Date; merged_number: number | null; bounce: Bounce | null; rating: Ticket["rating"]; requester: string | null; source: unknown };
+const toTicket = (r: TicketDb): Ticket => ({ id: String(r.id), number: r.number, subject: r.subject, status: r.status, customerEmail: r.customer_email, customerName: r.customer_name, assignee: r.assignee, channel: r.channel, language: r.language, requester: r.requester ?? null, source: readSource(r.source), priority: r.priority, waitingSince: r.status === "open" && r.waiting_since ? r.waiting_since.toISOString() : null, createdAt: r.created_at.toISOString(), updatedAt: r.updated_at.toISOString(), mergedInto: r.merged_number ?? null, bounce: r.bounce ?? null, rating: r.rating ?? null });
+const columns = (sql: Query) => sql`t.id, t.number, t.subject, t.status, t.customer_email, t.customer_name, t.assignee, t.channel, t.language, t.priority, t.waiting_since, t.created_at, t.updated_at, (select x.number from tickets x where x.id = t.merged_into) as merged_number, t.bounce, t.rating, t.requester, t.source`;
+// A ticket's source as stored (read defensively: only its known shape).
+function readSource(value: unknown): Source | null {
+  if (!value || typeof value !== "object") return null;
+  const v = value as { form?: { id?: unknown; title?: unknown }; answer?: { id?: unknown; path?: unknown } };
+  if (typeof v.form?.id !== "string" || typeof v.form.title !== "string" || typeof v.answer?.id !== "string") return null;
+  return { form: { id: v.form.id, title: v.form.title }, answer: { id: v.answer.id, path: typeof v.answer.path === "string" ? v.answer.path : null } };
+}
 // The kinds a customer sees on their follow-up page.
 export const publicKinds = ["customer", "reply"] as const;
 // A ticket's tags, as JSON, sorted by name.
@@ -171,11 +184,11 @@ export async function rememberPublicOrigin(sql: Query, origin: string | null): P
 
 // ---- Creating tickets ------------------------------------------------------
 
-async function insertTicket(sql: Query, input: { subject: string; email: string; name: string; channel: Ticket["channel"]; language: string; status?: Status }): Promise<{ id: string; number: number; secret: string }> {
+async function insertTicket(sql: Query, input: { subject: string; email: string; name: string; channel: Ticket["channel"]; language: string; status?: Status; requester?: string | null }): Promise<{ id: string; number: number; secret: string }> {
   const secret = newSecret();
   const [row] = await sql<{ id: string; number: number }[]>`
-    insert into tickets (number, subject, customer_email, customer_name, channel, secret_hash, language, status)
-    values (nextval('ticket_numbers'), ${input.subject}, ${input.email}, ${input.name}, ${input.channel}, ${hashSecret(secret)}, ${input.language}, ${input.status ?? "open"})
+    insert into tickets (number, subject, customer_email, customer_name, channel, secret_hash, language, status, requester)
+    values (nextval('ticket_numbers'), ${input.subject}, ${input.email}, ${input.name}, ${input.channel}, ${hashSecret(secret)}, ${input.language}, ${input.status ?? "open"}, ${input.requester ?? null})
     returning id, number`;
   return { id: String(row!.id), number: row!.number, secret };
 }
@@ -305,6 +318,46 @@ export async function fromTeam(sql: Sql, actor: Member | null, input: { name: un
     await refreshSearch(tx, t.id);
     return t;
   });
+}
+
+// fromForms opens a ticket for an answer to a form of Forms (the event
+// "forms.request", read and bounded by lib/forms-in.ts): from a customer's
+// address (a public form) or from a colleague (a team form: their member
+// id only). The same event delivered again, or another event for the same
+// answer, opens nothing: says the ticket already there (created: false).
+// Otherwise as a request of the public form: the rules on arrival run, and
+// the follow-up link's secret is said once (for the confirmation email).
+export type FormsRequest = { event: string; source: Source; subject: string; body: string; email: string | null; name: string; member: string | null; language: string };
+export type FromForms = { id: string; number: number; created: boolean; secret: string | null; assignee: string | null };
+
+export async function fromForms(sql: Sql, r: FormsRequest): Promise<FromForms> {
+  const known = async (): Promise<FromForms | null> => {
+    const [row] = await sql<{ id: string; number: number }[]>`
+      select id, number from tickets
+      where source_event = ${r.event} or (source is not null and source -> 'form' ->> 'id' = ${r.source.form.id} and source -> 'answer' ->> 'id' = ${r.source.answer.id})
+      limit 1`;
+    return row ? { id: String(row.id), number: row.number, created: false, secret: null, assignee: null } : null;
+  };
+  const already = await known();
+  if (already) return already;
+  if (!r.member && !r.email) throw new AppError("invalid");
+  try {
+    return await sql.begin(async tx => {
+      const t = await insertTicket(tx, { subject: r.subject, email: r.member ? "" : r.email!, name: r.member ? "" : r.name, channel: "forms", language: r.language, requester: r.member });
+      await tx`update tickets set source = ${tx.json(r.source as never)}, source_event = ${r.event} where id = ${t.id}`;
+      await insertMessage(tx, t.id, { kind: "customer", author: null, body: r.body });
+      const assignee = await arrive(tx, t.id, { subject: r.subject, body: r.body, from: r.member ? "" : r.email! });
+      await refreshSearch(tx, t.id);
+      return { id: t.id, number: t.number, created: true, secret: t.secret, assignee };
+    });
+  } catch (error) {
+    // Two deliveries at once: the other one opened it.
+    if ((error as { code?: unknown }).code === "23505") {
+      const other = await known();
+      if (other) return other;
+    }
+    throw error;
+  }
 }
 
 // fromEmail files an email received on the support mailbox (the Chest
@@ -531,7 +584,8 @@ export async function ticket(sql: Sql, actor: Member | null, number: unknown): P
   await sql`insert into viewing (ticket_id, member_id, at) values (${t.id}, ${actor.id}, now()) on conflict (ticket_id, member_id) do update set at = now()`;
   const viewing = (await sql<{ member_id: string }[]>`select member_id from viewing where ticket_id = ${t.id} and member_id <> ${actor.id} and at > now() - interval '40 seconds'`).map(r => r.member_id);
   const others = await sql<{ number: number; subject: string; status: Status; updated_at: Date }[]>`
-    select number, subject, status, updated_at from tickets where lower(customer_email) = lower(${t.customerEmail}) and id <> ${t.id} and merged_into is null order by updated_at desc limit 10`;
+    select number, subject, status, updated_at from tickets
+    where ${t.requester ? sql`requester = ${t.requester} and requester <> 'erased'` : sql`lower(customer_email) = lower(${t.customerEmail})`} and id <> ${t.id} and merged_into is null order by updated_at desc limit 10`;
   const [tagged] = await sql<{ tags: Tag[] }[]>`select ${tagsOf(sql)} as tags from tickets t where t.id = ${t.id}`;
   return { ...t, messages: await messagesOf(sql, t.id, true), others: others.map(o => ({ number: o.number, subject: o.subject, status: o.status, updatedAt: o.updated_at.toISOString() })), viewing, tags: (tagged?.tags ?? []).map(g => ({ ...g, name: shownTag(g.name, readerWords(actor)) })) };
 }
@@ -717,6 +771,8 @@ export async function setCustomer(sql: Sql, actor: Member | null, number: unknow
   const address = email(input.email);
   const name = clean(input.name, limits.name, { optional: true });
   const t = await byNumber(sql, number);
+  // A colleague is named by the Chest: Support keeps no address of theirs.
+  if (t.requester) throw new AppError("forbidden");
   await sql.begin(async tx => {
     await tx`update tickets set customer_email = ${address}, customer_name = ${name}, bounce = case when lower(customer_email) = lower(${address}) then bounce else null end where id = ${t.id}`;
     await refreshSearch(tx, t.id);
@@ -737,7 +793,9 @@ export async function merge(sql: Sql, actor: Member | null, fromNumber: unknown,
   const into = await byNumber(sql, intoNumber);
   if (from.id === into.id) throw new AppError("merge_same");
   if (from.mergedInto !== null || into.mergedInto !== null) throw new AppError("merged", { number: from.mergedInto ?? into.mergedInto ?? 0 });
-  if (from.customerEmail.toLowerCase() !== into.customerEmail.toLowerCase()) throw new AppError("merge_other_customer");
+  // A colleague's request merges only with the same colleague's (never an
+  // erased one's: nobody can tell whose it was).
+  if (from.customerEmail.toLowerCase() !== into.customerEmail.toLowerCase() || from.requester !== into.requester || from.requester === "erased") throw new AppError("merge_other_customer");
   if (from.status === "spam" || into.status === "spam") throw new AppError("forbidden");
   await sql.begin(async tx => {
     await tx`update messages set merged_from = ${from.id}, ticket_id = ${into.id} where ticket_id = ${from.id}`;

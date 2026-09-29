@@ -35,10 +35,20 @@ async function act<T>(step: (actor: NonNullable<Awaited<ReturnType<typeof curren
 // and kept (lib/attachments.ts), deleted if the message is refused.
 const memberFiles = (list: unknown): tickets.Files => ({ take: () => attachments.take("team", list), drop: attachments.remove });
 
-export async function reply(number: number, body: string, close: boolean, files: { ref: string; name: string }[] = []): Promise<Result<{ delivery: "email" | "page" }>> {
+// A colleague's request (a team form of Forms) gets no email — Support
+// keeps no address of theirs —: the answer stays in Support, and the
+// colleague hears of it in the bell when they have Support ("colleague").
+export async function reply(number: number, body: string, close: boolean, files: { ref: string; name: string }[] = []): Promise<Result<{ delivery: "email" | "page" | "colleague" }>> {
   return act(async actor => {
     const sql = db();
     const done = await tickets.reply(sql, actor, number, body, { close }, memberFiles(files));
+    if (done.ticket.requester) {
+      await tickets.delivered(sql, done.messageId, "page");
+      await tell.answered(done.ticket);
+      await tell.colleagueAnswered(done.ticket, actor);
+      await tell.refreshBadges(sql);
+      return { delivery: "colleague" as const };
+    }
     const s = await tickets.settings(sql);
     const sent = await mailer.answer(done.ticket, body.trim(), actor, s.companyName, done.threading, done.messageId, done.files);
     await tickets.delivered(sql, done.messageId, sent.delivery, sent.delivery === "email" ? sent.mail : undefined, sent.delivery === "page" ? sent.refused : undefined);

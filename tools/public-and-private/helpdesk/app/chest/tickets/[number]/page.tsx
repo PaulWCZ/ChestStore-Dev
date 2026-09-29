@@ -1,6 +1,7 @@
 import * as chest from "@argentic/chest-sdk/chest";
 import { notFound, redirect } from "next/navigation";
-import { answerers } from "../../../../lib/tell.ts";
+import { formsLink } from "../../../../lib/forms-in.ts";
+import { answerers, colleagueName } from "../../../../lib/tell.ts";
 import { can } from "../../../../lib/access.ts";
 import { db } from "../../../../lib/db.ts";
 import { AppError } from "../../../../lib/errors.ts";
@@ -33,13 +34,15 @@ export default async function TicketPage({ params }: { params: Promise<{ number:
   if (ticket.mergedInto !== null) redirect(`/chest/tickets/${ticket.mergedInto}`);
   const team = await answerers();
   const authors = ticket.messages.map(m => m.author).filter((a): a is string => !!a && a.startsWith("mbr_"));
-  const who = await people([...team, ...authors, ...ticket.viewing, ...(ticket.assignee ? [ticket.assignee] : [])]);
+  const who = await people([...team, ...authors, ...ticket.viewing, ...(ticket.assignee ? [ticket.assignee] : []), ...(ticket.requester ? [ticket.requester] : [])]);
   const name = (id: string | null) => (id === member.id ? t.people.you : id === "erased" ? t.people.erased : nameOf(id ? who.get(id) : undefined, locale));
   const [replies, tagList, s] = await Promise.all([savedReplies(sql, member), tags(sql, member), settings(sql)]);
   const now = new Date();
   const minutes = ticket.waitingSince ? workMinutes(ticket.waitingSince, now, s.hours, chest.timeZone()) : 0;
   const wait = ticket.waitingSince ? waitedFor(minutes) : null;
-  const customer = ticket.customerName || ticket.customerEmail;
+  // A colleague's request (a team form of Forms) names them as the Chest does.
+  const requester = ticket.requester ? (ticket.requester === "erased" ? t.people.erased : colleagueName(who.get(ticket.requester), t, locale)) : null;
+  const customer = requester ?? (ticket.customerName || ticket.customerEmail);
   return (
     <TicketView
       ticket={{
@@ -49,6 +52,8 @@ export default async function TicketPage({ params }: { params: Promise<{ number:
         channel: ticket.channel,
         customerName: ticket.customerName,
         customerEmail: ticket.customerEmail,
+        requester,
+        source: ticket.source ? { form: ticket.source.form.title, href: formsLink(ticket.source.answer.path) } : null,
         assignee: ticket.assignee,
         created: formatDate(ticket.createdAt, locale, { dateStyle: "long", timeStyle: "short" }),
         priority: ticket.priority,
@@ -81,7 +86,7 @@ export default async function TicketPage({ params }: { params: Promise<{ number:
       others={ticket.others.map(o => ({ ...o, when: relative(o.updatedAt, locale, now) }))}
       viewing={ticket.viewing.map(id => name(id))}
       team={team.map(id => ({ id, name: name(id), photo: who.get(id)?.photo ?? null }))}
-      replies={replies.map(r => ({ ...r, filled: fillReply(r.body, { customer: ticket.customerName.split(" ")[0] || "", agent: member.firstName || member.name }) }))}
+      replies={replies.map(r => ({ ...r, filled: fillReply(r.body, { customer: (requester ? "" : ticket.customerName).split(" ")[0] || "", agent: member.firstName || member.name }) }))}
       me={member.id}
       canAnswer={can(member, "tickets.answer")}
       canManage={can(member, "tickets.manage")}

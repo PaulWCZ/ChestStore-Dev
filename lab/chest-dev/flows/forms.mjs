@@ -439,8 +439,10 @@ await step("an answered date retyped as a date that cannot be read is refused: t
   await p.locator(".runner-actions .form-button").click();
   await p.waitForFunction(() => document.querySelector(".q-title")?.textContent?.startsWith("Your name"));
   await p.locator("input.answer-input").fill("Refused Then Right");
+  await p.waitForTimeout(2200);
   await p.locator(".runner-actions .form-button").click();
-  await p.waitForSelector(".runner-thanks", { timeout: 15000 });
+  await p.waitForSelector(".runner-thanks, .runner-banner", { timeout: 15000 });
+  expect(await p.locator(".runner-thanks").count() === 1, "sent: " + (await p.locator("main").innerText()).slice(0, 300));
   await p.close();
   await as(context, origin, "ines");
   await english();

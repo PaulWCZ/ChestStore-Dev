@@ -1,10 +1,11 @@
 import { ChestError } from "@argentic/chest-sdk/errors";
-import type { Member } from "@argentic/chest-sdk/member";
+import type { Locale, Member } from "@argentic/chest-sdk/member";
 import * as members from "@argentic/chest-sdk/members";
 import { answering } from "./access.ts";
 import type { Sql } from "./db.ts";
-import { format } from "./i18n/index.ts";
+import { format, type Catalogue } from "./i18n/index.ts";
 import { badges, cut, notify, withdraw } from "./notify.ts";
+import { nameOf, people, type Person } from "./people.ts";
 import { waitingCounts, type Ticket } from "./tickets.ts";
 
 // The bell and the tile for the people who answer tickets, each in their
@@ -32,9 +33,21 @@ const path = (t: Pick<Ticket, "number">) => `/chest/tickets/${t.number}`;
 
 // A new ticket nobody has: everyone who answers hears of it, until someone
 // takes it or answers it. One a rule gave to someone: they alone.
-export async function newTicket(t: Pick<Ticket, "id" | "number" | "subject" | "customerName" | "customerEmail">, body: string, assignee: string | null = null): Promise<void> {
-  const people = assignee ? [assignee] : await answerers();
-  await notify(people, tr => ({ title: format(tr.bell.new, { customer: cut(t.customerName || t.customerEmail, 40) }), body: cut(`${t.subject} — ${body}`, 280) }), { path: path(t), key: `ticket:${t.id}:new` });
+// A colleague's request (a team form) names them as the Chest does, in
+// each reader's language ("a colleague" when Support does not know them).
+export async function newTicket(t: Pick<Ticket, "id" | "number" | "subject" | "customerName" | "customerEmail"> & { requester?: string | null }, body: string, assignee: string | null = null): Promise<void> {
+  const recipients = assignee ? [assignee] : await answerers();
+  const colleague = t.requester ? (await people([t.requester])).get(t.requester) : undefined;
+  const customer = (tr: Catalogue, locale: Locale) => (t.requester ? colleagueName(colleague, tr, locale) : t.customerName || t.customerEmail);
+  await notify(recipients, (tr, locale) => ({ title: format(tr.bell.new, { customer: cut(customer(tr, locale), 40) }), body: cut(`${t.subject} — ${body}`, 280) }), { path: path(t), key: `ticket:${t.id}:new` });
+}
+
+// How a colleague who asked is written: their name, or "a colleague" when
+// Support does not know them (they do not have Support), "Former member"
+// once erased.
+export function colleagueName(person: Person | undefined, tr: Catalogue, locale: Locale): string {
+  if (!person || person.status === "unknown") return tr.ticket.colleague;
+  return nameOf(person, locale);
 }
 
 // The customer wrote again: the ticket's agent hears of it (everyone, if
@@ -48,6 +61,13 @@ export async function assigned(actor: Member, t: Pick<Ticket, "id" | "number" | 
   await withdraw(`ticket:${t.id}:new`);
   if (!to || to === actor.id) return;
   await notify([to], tr => ({ title: format(tr.bell.assigned, { name: actor.name, number: t.number }), body: cut(t.subject, 280) }), { path: path(t), key: `ticket:${t.id}:assigned` });
+}
+
+// A colleague's request was answered: they hear of it in the bell, in
+// their language — when they have Support (the Chest tells only those).
+export async function colleagueAnswered(t: Pick<Ticket, "id" | "number" | "subject" | "requester">, actor: Member): Promise<void> {
+  if (!t.requester || t.requester === "erased" || t.requester === actor.id) return;
+  await notify([t.requester], tr => ({ title: format(tr.bell.colleagueAnswered, { name: actor.name, number: t.number }), body: cut(t.subject, 280) }), { path: path(t), key: `ticket:${t.id}:answered` });
 }
 
 // Answered or closed: nothing waits on the team any more.

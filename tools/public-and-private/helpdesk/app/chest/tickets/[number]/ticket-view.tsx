@@ -18,7 +18,7 @@ import { addTag, assign, fileUpload, merge, note, removeTag, reply, setCustomer,
 type Words = { ticket: Catalogue["ticket"]; errors: Catalogue["errors"]; people: Catalogue["people"]; priority: Catalogue["priority"]; files: FileWords & Catalogue["files"]; peoplePicker: PeoplePickerWords };
 type Tag = { id: string; name: string };
 type View = {
-  ticket: { number: number; subject: string; status: Status; channel: "form" | "email" | "team"; customerName: string; customerEmail: string; assignee: string | null; created: string; priority: Priority; tags: Tag[]; waiting: { text: string; late: boolean; lateText: string } | null; bounce: { permanent: boolean; reason: string } | null; rating: "good" | "bad" | null };
+  ticket: { number: number; subject: string; status: Status; channel: "form" | "email" | "team" | "forms"; customerName: string; customerEmail: string; requester: string | null; source: { form: string; href: string | null } | null; assignee: string | null; created: string; priority: Priority; tags: Tag[]; waiting: { text: string; late: boolean; lateText: string } | null; bounce: { permanent: boolean; reason: string } | null; rating: "good" | "bad" | null };
   tagNames: string[];
   messages: {
     id: string; kind: "customer" | "reply" | "note" | "event"; who: string; typedBy: string | null; photo: string | null; body: string; when: string; date: string; delivery: "email" | "page" | null;
@@ -107,7 +107,7 @@ export function TicketView({ ticket, tagNames, messages, others, viewing, team, 
       if (mode === "note") return void toast(w.noteToast);
       // The answer left (by email, or on the customer's page): never an Undo.
       const delivery = (result.value as { delivery?: string } | null)?.delivery;
-      toast({ id: `reply-${ticket.number}`, text: close ? w.sentClosedToast : delivery === "page" ? w.viaPage : w.sentToast, sent: true });
+      toast({ id: `reply-${ticket.number}`, text: delivery === "colleague" ? w.sentColleagueToast : close ? w.sentClosedToast : delivery === "page" ? w.viaPage : w.sentToast, sent: true });
     });
   }
   type Step = () => Promise<{ ok: true } | { ok: false; error: keyof Catalogue["errors"] }>;
@@ -162,6 +162,7 @@ export function TicketView({ ticket, tagNames, messages, others, viewing, team, 
           <Link className="back" href="/chest"><Back />{w.back}</Link>
           <h1>{ticket.subject}</h1>
           <p className="row muted small"><span>#{ticket.number}</span>{statusChip}<PriorityChip priority={priority} label={t.priority[priority]} />{ticket.waiting && <Waiting {...ticket.waiting} />}<span>{w.channel[ticket.channel]}</span><span>{ticket.created}</span></p>
+          {ticket.source && <p className="small muted">{ticket.source.href ? <a href={ticket.source.href} target="_blank" rel="noopener" title={w.fromFormLink}>{format(w.fromForm, { form: ticket.source.form })}</a> : format(w.fromForm, { form: ticket.source.form })}</p>}
           {viewing.length > 0 && <p className="viewing" role="status"><Eye />{format(viewing.length > 1 ? w.viewingMany : w.viewing, { names: viewing.join(", ") })}</p>}
         </div>
         {ticket.bounce && (
@@ -191,7 +192,7 @@ export function TicketView({ ticket, tagNames, messages, others, viewing, team, 
                 {m.dropped.length > 0 && <ul className="dropped small muted">{m.dropped.map(d => <li key={d}>{d}</li>)}</ul>}
                 {m.original && <p className="delivery"><a href={`/chest/messages/${m.id}/original`}><Download />{w.original}</a></p>}
                 {m.kind === "reply" && m.bounce && <p className="delivery bounced"><Alert />{m.bounce}</p>}
-                {m.kind === "reply" && !m.bounce && m.delivery && <p className="delivery">{m.delivery === "email" ? <><Mail />{w.viaEmail}</> : <><Globe /><span title={w.viaPageHint}>{w.viaPage}</span></>}</p>}
+                {m.kind === "reply" && !m.bounce && m.delivery && <p className="delivery">{m.delivery === "email" ? <><Mail />{w.viaEmail}</> : ticket.requester ? <><Check /><span title={w.colleagueHint}>{w.viaColleague}</span></> : <><Globe /><span title={w.viaPageHint}>{w.viaPage}</span></>}</p>}
               </div>
             </li>
           ))}
@@ -226,7 +227,12 @@ export function TicketView({ ticket, tagNames, messages, others, viewing, team, 
       <aside className="side-card" aria-label={w.customer}>
         <div className="fact">
           <p className="label">{w.from}</p>
-          {editing ? (
+          {ticket.requester ? (
+            <>
+              <p className="row"><strong>{ticket.requester}</strong></p>
+              <p className="small muted">{w.colleagueHint}</p>
+            </>
+          ) : editing ? (
             <form className="stack" onSubmit={e => {
               e.preventDefault();
               const d = new FormData(e.currentTarget);

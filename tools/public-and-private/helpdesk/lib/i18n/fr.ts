@@ -310,6 +310,7 @@ export const fr: Catalogue = {
       form: "Formulaire public",
       email: "E-mail",
       team: "Saisie par l’équipe",
+      forms: "Formulaires",
     },
     reply: "Répondre",
     note: "Note interne",
@@ -326,6 +327,12 @@ export const fr: Catalogue = {
     viaEmail: "Envoyée par e-mail",
     viaPage: "Sur la page de suivi uniquement",
     viaPageHint: "Votre Chest ne peut pas encore envoyer d’e-mails : le client voit cette réponse sur sa page de suivi.",
+    fromForm: "Depuis le formulaire « {form} »",
+    fromFormLink: "Ouvrir la réponse dans Formulaires",
+    colleague: "Un membre de l’équipe",
+    colleagueHint: "Demande faite avec un formulaire d’équipe. Support ne garde aucune adresse des membres de l’équipe : vos réponses restent ici, et la personne est prévenue dans le Chest si elle a Support.",
+    viaColleague: "Dans Support uniquement",
+    sentColleagueToast: "Réponse enregistrée. La personne est prévenue si elle a Support.",
     others: "Autres demandes de ce client",
     viewing: "{names} consulte aussi cette demande",
     viewingMany: "{names} consultent aussi cette demande",
@@ -554,6 +561,7 @@ export const fr: Catalogue = {
     bounced: "Un e-mail de la demande {number} n’est pas arrivé",
     ratedGood: "{customer} a été satisfait de la demande {number}",
     ratedBad: "{customer} n’a pas été satisfait de la demande {number}",
+    colleagueAnswered: "{name} a répondu à votre demande {number}",
   },
   errors: {
     forbidden: "Votre rôle ne le permet pas.",
@@ -580,5 +588,10 @@ export const fr: Catalogue = {
     files_unavailable: "Impossible d’ajouter des fichiers pour le moment. Décrivez-le avec des mots, ou réessayez plus tard.",
     unavailable: "Le Chest n’a pas répondu. Réessayez dans un instant.",
     unknown: "Un problème est survenu. Réessayez.",
+  },
+  // A request from Forms: the other answers, one a line, in the message.
+  forms: {
+    fieldLine: "{label} : {value}",
+    fieldBlock: "{label} :\n{value}",
   },
 };
