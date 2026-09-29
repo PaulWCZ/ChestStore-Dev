@@ -188,7 +188,7 @@ await step("changing a booking to a day already gone is refused as typed; the bo
   const held = await day.inputValue();
   await day.fill("1/1/2020");
   await day.press("Tab");
-  const box = dialog.locator(".ck-date", { has: day });
+  const box = dialog.locator(".ck-date", { has: page.locator("#booking-day") });
   await box.locator(".ck-error", { hasText: /^Choose .* or later\.$/u }).waitFor();
   expect(await day.getAttribute("aria-invalid") === "true", "the field says it is refused");
   await dialog.getByRole("button", { name: "Save", exact: true }).click();

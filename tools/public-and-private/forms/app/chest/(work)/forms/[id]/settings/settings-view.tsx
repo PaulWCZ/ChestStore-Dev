@@ -173,12 +173,13 @@ export function SettingsView(p: Props) {
   const saveLabel = save === "saving" ? s.saving : save === "saved" ? s.savedState : s.unsaved;
   // Said beside the status, never under the field: the sentence under it
   // is the kit's, and this line going moves nothing below the field.
+  const said = save === "held" ? s.dayHeld : problem;
   return (
     <form className="panel-page settings" onSubmit={e => { e.preventDefault(); void flush(); }}>
       {!ro && (
         <p className="settings-status">
           <span className={`save-state ${save}`} role="status" aria-live="polite">{saveLabel}</span>
-          {save === "held" ? <span className="settings-problem">{s.dayHeld}</span> : problem && <span className="settings-problem" role="alert">{problem}</span>}
+          {said && <span className="settings-problem" role={save === "held" ? undefined : "alert"}>{said}</span>}
           {save === "error" && <button type="button" className="button link" onClick={() => void flush()}>{b.retry}</button>}
         </p>
       )}

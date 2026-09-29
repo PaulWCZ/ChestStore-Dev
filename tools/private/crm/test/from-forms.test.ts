@@ -64,14 +64,15 @@ test("a new person: a contact of nobody's, at the company of that name (added), 
   assert.deepEqual(history[1]!.data, { form: "Contact us" });
   // The company's page shows the line too.
   assert.ok((await activities.timeline(sql, { companyId: c.company!.id })).some(a => a.kind === "form"));
-  // Camille, the manager, is told in French.
+  // Camille, the manager, is told in French (the Chest writes a bell's
+  // narrow spaces as plain ones).
   const bell = chest.notifications.filter(n => n.key === formKey("5", data.answer.id));
   assert.deepEqual(bell.map(n => [n.member, n.title, n.body, n.path]), [[camille.id, "Nouveau contact : Nina Roux a rempli le formulaire « Contact us »", "Six oak chairs, please.", `/chest/contacts/${id}`]]);
 });
 
 test("the line reads in each reader's language", () => {
   assert.equal(format(catalogue("en").timeline.form, { form: "Contact us" }), "Filled in the form “Contact us”");
-  assert.equal(format(catalogue("fr").timeline.form, { form: "Contact us" }), "A rempli le formulaire « Contact us »");
+  assert.equal(format(catalogue("fr").timeline.form, { form: "Contact us" }), "A rempli le formulaire « Contact us »");
   assert.equal(format(catalogue("en").timeline.createdForm, { form: "Contact us" }), "Added from the form “Contact us”");
 });
 

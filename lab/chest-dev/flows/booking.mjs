@@ -282,13 +282,16 @@ await step("a day before today in \"Block a time\" is refused as typed: nothing 
   expect(await dialog.isVisible(), "the dialog stays open");
   expect(await page.locator("#bl-day").inputValue() === yesterday, "the day stays as typed (held: " + held + ")");
   expect(await page.locator(".ck-toast", { hasText: "Time blocked." }).count() === 0, "not blocked");
-  // Corrected in one move with the click: the button has not moved, and
-  // the day typed is the one blocked.
-  const box = await dialog.getByRole("button", { name: "Block this time" }).boundingBox();
+  // Corrected, then the button clicked in one move: the sentence goes
+  // while typing (kit 0.2.5), so leaving the field moves nothing under the
+  // pointer, and the day typed is the one blocked.
   const later = new Date(Date.now() + 45 * 864e5).toISOString().slice(0, 10);
   await page.locator("#bl-day").fill(later);
-  const moved = await dialog.getByRole("button", { name: "Block this time" }).boundingBox();
-  expect(Math.abs(box.y - moved.y) < 1, `the button did not move (${box.y} → ${moved.y})`);
+  const typed = await dialog.getByRole("button", { name: "Block this time" }).boundingBox();
+  await page.locator("#bl-day").evaluate(el => el.blur());
+  const left = await dialog.getByRole("button", { name: "Block this time" }).boundingBox();
+  expect(Math.abs(typed.y - left.y) < 1, `leaving the field does not move the button (${typed.y} → ${left.y})`);
+  await page.locator("#bl-day").focus();
   await dialog.getByRole("button", { name: "Block this time" }).click();
   await page.waitForSelector(".ck-toast >> text=Time blocked.");
   // On the agenda, then freed again (it was only a test).
