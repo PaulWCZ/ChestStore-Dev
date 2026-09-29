@@ -39,5 +39,7 @@
  {"name": "incident-undone", "path": "/chest/incidents/7", "member": "camille", "locale": "fr", "actions": [{"click": ".danger-zone button"}, {"wait": 800}, {"click": ".ck-toast-undo"}, {"wait": 1500}], "only": ["phone"]},
   {"name": "public-port", "path": "/", "member": "camille", "locale": "fr", "look": {"all": "brand:port"}},
   {"name": "public-theme-all", "path": "/", "member": "camille", "locale": "en", "look": {"all": "catalogue:confetti"}},
-  {"name": "now-port", "path": "/chest", "member": "tom", "locale": "en", "look": {"tool": "brand:port"}}
+  {"name": "now-port", "path": "/chest", "member": "tom", "locale": "en", "look": {"tool": "brand:port"}},
+  {"name": "subscribe-chat", "path": "/subscribe/chat", "member": "tom", "locale": "fr", "actions": [{"click": ".where-hint summary"}, {"wait": 200}]},
+  {"name": "components-second", "path": "/chest/components", "member": "tom", "locale": "en", "actions": [{"click": ".component-line button:has-text('Edit')"}, {"wait": 300}], "only": ["desktop", "phone"]}
 ]

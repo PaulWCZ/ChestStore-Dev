@@ -187,6 +187,13 @@ export function DocumentView(props: DocumentViewProps) {
             <h2>{doc.kindText} {doc.number ?? ""}</h2>
             <p className="hint">{nextVersion ? format(d.versionDraft, { version: doc.version, previous: doc.version - 1 }) : d.explain[doc.state]}</p>
             {doc.crmTitle && <p className="hint from-crm">{format(d.fromCrm, { title: doc.crmTitle })}</p>}
+            {doc.timesheets && (
+              <p className="hint from-crm from-timesheets">
+                {format(d.fromTimesheets, { project: doc.timesheets.project })}
+                {doc.timesheets.link && <> · <a href={doc.timesheets.link}>{d.openTimesheets}</a></>}
+                {!doc.clientId && doc.timesheets.client && <><br /><strong>{format(d.timesheetsClient, { name: doc.timesheets.client })}</strong></>}
+              </p>
+            )}
             {doc.madeFrom && <p className="hint from-crm"><a href={`/chest/documents/${doc.madeFrom.id}`}>{format(d.madeFrom, { number: doc.madeFrom.number })}</a></p>}
             {doc.repeat && <p className="hint repeat-note"><Repeat /> {format(d.repeats, { every: d.every[doc.repeat.every], date: doc.repeat.next })}</p>}
             <dl className="facts">

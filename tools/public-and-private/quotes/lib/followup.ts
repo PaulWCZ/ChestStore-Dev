@@ -5,6 +5,7 @@ import { archiveDue } from "./monthly.ts";
 import { remindLatePayers } from "./reminders.ts";
 import { makeDueDrafts } from "./repeats.ts";
 import { refreshBadges } from "./tell.ts";
+import { publishPending } from "./timesheets.ts";
 
 // The morning's follow-up: the late payers reminded (on the company's
 // rules), the recurring drafts made, billing's count set again. Run by the
@@ -18,6 +19,9 @@ export async function followUp(sql: Sql, today: string): Promise<{ drafts: numbe
   await refreshBadges(sql, today);
   // The monthly archive, if the "archive" schedule missed it.
   await archiveDue(sql, today, archiveLocale());
+  // Invoices of Timesheets' hand-offs issued while the Chest could not
+  // tell it: told now.
+  await publishPending(sql);
   return { drafts, emailed, told };
 }
 
@@ -35,6 +39,7 @@ export async function followUpOnce(sql: Sql, today: string): Promise<void> {
     await remindLatePayers(sql, today);
     await refreshBadges(sql, today);
     await archiveDue(sql, today, archiveLocale());
+    await publishPending(sql);
   } catch (error) {
     // A page never fails for it: the schedule, or tomorrow, runs it again.
     console.error("follow-up failed", error instanceof Error ? error.name : "error");

@@ -73,7 +73,8 @@ export default async function ReadPage({ params, searchParams }: { params: Promi
   let groups: { id: string; name: string }[] = [];
   if (writer) {
     groups = read.asked ? [] : await companyGroups();
-    const writable = (await listSpaces(sql, member)).filter(s => s.access === "write");
+    // A shared page never moves into "My pages" (lib/pages.ts, movePage).
+    const writable = (await listSpaces(sql, member)).filter(s => s.access === "write" && (s.visibility !== "private" || p.space.visibility === "private"));
     const all = await tree(sql, member, writable.map(s => s.id));
     places = { spaces: writable.map(s => ({ id: s.id, name: s.name })), nodes: all.map(n => ({ id: n.id, spaceId: n.spaceId, parentId: n.parentId, title: n.title })) };
   }
@@ -100,12 +101,13 @@ export default async function ReadPage({ params, searchParams }: { params: Promi
                 writer={writer}
                 editHref={`/chest/pages/${p.id}/edit`}
                 t={{ ...newPageWords(t), page: t.page, move: t.move, shell: t.shell, watch: t.watch, review: t.review, reads: t.reads, marks: { tag: t.templates.tag, mark: t.templates.mark, unmark: t.templates.unmark, marked: t.templates.marked, unmarked: t.templates.unmarked }, spaceName: p.space.name, locale }}
-                state={{ watching, template: p.template, review: { months: p.review?.months ?? null, ownerName: owner ? nameOf(who.get(owner), locale) : null, mine: owner === member.id }, readAsked: read.asked !== null, pinned: pin }}
+                state={{ watching, template: p.template, review: { months: p.review?.months ?? null, ownerName: owner ? nameOf(who.get(owner), locale) : null, mine: owner === member.id }, readAsked: read.asked !== null, pinned: pin, private: p.space.visibility === "private" }}
                 groups={groups}
                 {...(places ? { places } : {})}
               />
             </div>
           </header>
+          {p.space.visibility === "private" && <p className="muted small read-only"><Lock />{t.mine.notice}</p>}
           {!writer && can(member, "write") && <p className="muted small read-only"><Lock />{format(t.page.readOnly, { space: p.space.name })}</p>}
           {holder && (
             <p className="notice" role="status"><Lock />{format(holder.idle ? t.page.editingIdle : t.page.editing, { name: nameOf(who.get(holder.memberId), locale), time: moment(holder.since, locale, now) })}</p>

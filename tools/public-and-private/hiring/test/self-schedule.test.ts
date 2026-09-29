@@ -38,7 +38,7 @@ function nextMonday(): string {
   while (new Date(d + "T12:00:00Z").getUTCDay() !== 1) d = addDays(d, 1);
   return d;
 }
-const tokenOf = (link: string) => link.split("/interview/")[1]!;
+const tokenOf = (link: string) => link.split("/interview/")[1]!.split("?")[0]!;
 
 test("a recruiter sends a link; the candidate sees only the times when everyone is free, on weekdays, and chooses one: an interview, an email with its .ics, the calendars", async () => {
   const { sql } = database;
@@ -54,7 +54,8 @@ test("a recruiter sends a link; the candidate sees only the times when everyone 
   await assert.rejects(selfSchedule.send(sql, asMember(camille), c.id, { people: [hugo.id], minutes: 60, firstDay: monday, lastDay: addDays(monday, 40), dayStart: 540, dayEnd: 720 }, isTeam, "https://jobs.test"), { code: "invalid" });
 
   const sent = await selfSchedule.send(sql, asMember(camille), c.id, { people: [hugo.id, camille.id], minutes: 60, firstDay: monday, lastDay: addDays(monday, 6), dayStart: 540, dayEnd: 720, place: "Workshop" }, isTeam, "https://jobs.test");
-  assert.match(sent.link, /^https:\/\/jobs\.test\/interview\/[A-Za-z0-9_-]{43}$/u);
+  // The link carries the language the candidate applied in (French here).
+  assert.match(sent.link, /^https:\/\/jobs\.test\/interview\/[A-Za-z0-9_-]{43}\?lang=fr$/u);
   assert.equal(await outbox.sendNow(sql, sent.message!), "sent");
   const email = chest.outbox.at(-1)!;
   assert.ok(email.text.includes(sent.link), "the email carries the link");

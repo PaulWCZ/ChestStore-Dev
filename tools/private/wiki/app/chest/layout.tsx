@@ -32,11 +32,11 @@ export default async function MembersLayout({ children }: { children: ReactNode 
       <Shell
         brand={brand}
         member={chip}
-        spaces={spaces.map(s => ({ id: s.id, name: s.name, color: s.color, access: s.access === "write" ? "write" : "read" }))}
+        spaces={spaces.map(s => ({ id: s.id, name: s.name, color: s.color, access: s.access === "write" ? "write" : "read", private: s.visibility === "private" }))}
         nodes={nodes.map(n => ({ id: n.id, spaceId: n.spaceId, parentId: n.parentId, title: n.title }))}
         canWrite={role !== null && can(member, "write")}
         noAccess={role === null}
-        t={{ ...newPageWords(t), shell: t.shell, newSpace: t.newSpace, searchBox: t.searchBox }}
+        t={{ ...newPageWords(t), shell: t.shell, newSpace: t.newSpace, mine: t.mine, searchBox: t.searchBox }}
       >
         {role ? children : <NoAccess labels={{ noAccessTitle: t.noAccess.title, noAccessBody: t.noAccess.body }} />}
       </Shell>

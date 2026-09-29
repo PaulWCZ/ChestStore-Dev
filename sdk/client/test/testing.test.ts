@@ -267,3 +267,34 @@ test("public uploads (proposal): a visitor sends to the public host, 10 MiB at m
     await closed.close();
   }
 });
+
+// Proposal (studio.15): Equipment matches Intune's users to members without
+// reading every member's address.
+test("members.matchEmails: addresses → member ids, only for members who have the tool, without members.email", async () => {
+  const lea: Member = { ...zoe, id: id("lea"), firstName: "Léa", name: "Léa Petit", email: "Lea.Petit@Example.test" };
+  const chest = await fakeChest({ members: [camille, lea, emile], former: [{ id: id("dan"), name: "Dan" }], capabilities: ["members"] });
+  try {
+    const found = await members.matchEmails([" camille@EXAMPLE.test", "lea.petit@example.test", "Lea.Petit@example.test", "dan@example.test", "nobody@example.test", "not an address", ""]);
+    // Each address as given; the case and spaces around do not matter.
+    assert.deepEqual(found, { " camille@EXAMPLE.test": camille.id, "lea.petit@example.test": lea.id, "Lea.Petit@example.test": lea.id });
+    // The tool learnt ids, not addresses: members.* still hide them.
+    assert.equal((await members.get(lea.id))?.email, undefined);
+    assert.deepEqual(await members.matchEmails([]), {});
+    // Any number: 200 a call.
+    const many = Array.from({ length: 450 }, (_, n) => `guess${n}@example.test`).concat("camille@example.test");
+    assert.deepEqual(await members.matchEmails(many), { "camille@example.test": camille.id });
+    // 5,000 distinct addresses a day: the same ones again are free, new ones beyond are refused.
+    await members.matchEmails(Array.from({ length: 4546 }, (_, n) => `more${n}@example.test`));
+    assert.deepEqual(await members.matchEmails(["camille@example.test", "guess1@example.test"]), { "camille@example.test": camille.id });
+    await assert.rejects(members.matchEmails(["one-more@example.test"]), QuotaExceeded);
+    await assert.rejects(members.matchEmails([42 as unknown as string]), (e: unknown) => e instanceof ChestError && e.code === "invalid_query");
+  } finally {
+    await chest.close();
+  }
+  const bare = await fakeChest({ capabilities: [] });
+  try {
+    await assert.rejects(members.matchEmails(["a@example.test"]), CapabilityNotGranted);
+  } finally {
+    await bare.close();
+  }
+});

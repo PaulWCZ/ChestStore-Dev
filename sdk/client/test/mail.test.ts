@@ -3,8 +3,9 @@ import { test } from "node:test";
 import { CapabilityNotGranted, ChestError, QuotaExceeded } from "../src/errors.js";
 import * as files from "../src/files.js";
 import * as mail from "../src/mail.js";
-import type { Member } from "../src/member.js";
-import { fakeChest } from "../src/testing.js";
+import { member, type Member } from "../src/member.js";
+import * as members from "../src/members.js";
+import { fakeChest, withMember } from "../src/testing.js";
 
 const camille: Member = { id: "mbr_camilleaaaaaaaaaaaaaaaaaaa", firstName: "Camille", lastName: "Martin", name: "Camille Martin", photo: null, role: "agent", isAdmin: false, isBuilder: false, groups: [], locale: "fr", email: "camille@company.test" };
 const code = (c: string) => (e: unknown) => e instanceof ChestError && e.code === c;
@@ -181,6 +182,38 @@ test("idempotency: a long per-recipient key never loses its recipient; a key reu
     // An address in a key (a guest's) is fine: it is hashed.
     await mail.send({ to: "guest@example.com", subject: "Invite", text: "…", key: "room:981:0:guest@example.com" });
     assert.match(chest.outbox.at(-1)?.key ?? "", /^sha256:/u);
+  } finally {
+    await chest.close();
+  }
+});
+
+// Proposal (studio.15): one email preference per person, in the Chest; the
+// tools read it and mail.send honours it.
+test("email preference: none is skipped, digest waits for the Chest's daily email, transactional always goes", async () => {
+  const hugo: Member = { ...camille, id: "mbr_" + "hugo".padEnd(26, "a"), firstName: "Hugo", name: "Hugo Martin", email: "hugo@company.test", mailPreference: "none" };
+  const nora: Member = { ...camille, id: "mbr_" + "nora".padEnd(26, "a"), firstName: "Nora", name: "Nora Martin", email: "nora@company.test", mailPreference: "digest" };
+  const chest = await fakeChest({ members: [camille, hugo, nora], capabilities: ["mail", "members"] });
+  try {
+    // Read-only, where the tool already reads its members.
+    assert.equal(member(withMember(new Request("http://tool.test/chest"), hugo))?.mailPreference, "none");
+    assert.equal((await members.get(nora.id))?.mailPreference, "digest");
+    assert.equal((await members.get(camille.id))?.mailPreference, undefined, "not said: read it as all");
+    const all = await mail.send({ to: [{ member: camille.id }, { member: hugo.id }, { member: nora.id }], subject: "A task was assigned", text: "…", key: "assigned:1" });
+    assert.deepEqual([all.status, all.skipped, all.digest], ["queued", [hugo.id], [nora.id]]);
+    assert.deepEqual(chest.outbox.map(m => m.to), [["camille@company.test"]]);
+    assert.deepEqual(chest.held.map(h => [h.member, h.reason]), [[hugo.id, "none"], [nora.id, "digest"]]);
+    // A retry answers the same.
+    assert.deepEqual(await mail.send({ to: [{ member: camille.id }, { member: hugo.id }, { member: nora.id }], subject: "A task was assigned", text: "…", key: "assigned:1" }), all);
+    // Nobody receives it now: held, not an error.
+    const held = await mail.send({ to: { member: hugo.id }, subject: "Weekly reminder", text: "…" });
+    assert.deepEqual([held.status, held.skipped], ["held", [hugo.id]]);
+    assert.equal((await mail.status(held.id))?.status, "held");
+    // A member's address given as an address is still that member.
+    assert.equal((await mail.send({ to: "NORA@company.test", subject: "Reminder", text: "…" })).status, "held");
+    // What must go, goes.
+    const payslip = await mail.send({ to: { member: hugo.id }, subject: "Your payslip", text: "…", transactional: true });
+    assert.deepEqual([payslip.status, payslip.skipped, chest.outbox.at(-1)?.to], ["queued", [], ["hugo@company.test"]]);
+    await assert.rejects(mail.send({ to: "a@example.com", subject: "x", text: "", transactional: "yes" as unknown as boolean }), code("invalid_message"));
   } finally {
     await chest.close();
   }

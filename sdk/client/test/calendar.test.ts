@@ -180,3 +180,51 @@ test("without the capability, or on a Chest without the calendar, put says so", 
     await old.close();
   }
 });
+
+// Proposal (studio.15): Tasks' first sync put one event per call against
+// 600 writes a minute; putMany sends 100 a call, each checked first.
+test("putMany: many events in few calls, each checked before anything is sent, answered in order", async () => {
+  const chest = await fakeChest({ members: [camille, hugo], capabilities: ["calendar"] });
+  try {
+    const due = (n: number) => ({ key: `task:${n}`, members: n % 2 ? [camille.id, nora.id] : [hugo.id], title: { en: `Due: card ${n}`, fr: `Échéance : carte ${n}` }, days: { first: "2026-10-12", last: "2026-10-12" }, busy: false });
+    const puts = await calendar.putMany(Array.from({ length: 250 }, (_, n) => due(n)));
+    assert.equal(puts.length, 250);
+    assert.deepEqual(puts[1], { key: "task:1", members: [camille.id], skipped: [nora.id] });
+    assert.equal(puts[249]?.key, "task:249");
+    assert.equal(chest.calendar.size, 250);
+    // Again: replaced, not added; one event more is one sequence more.
+    await calendar.putMany([due(1), due(2)]);
+    assert.equal(chest.calendar.get("task:1")?.sequence, 1);
+    assert.equal(chest.calendar.size, 250);
+    // One wrong event, or a key twice: nothing is sent.
+    await assert.rejects(calendar.putMany([due(300), { ...due(301), days: { first: "2026-10-12", last: "2026-10-01" } }]), code("invalid_event"));
+    await assert.rejects(calendar.putMany([due(302), due(302)]), code("invalid_event"));
+    assert.equal(chest.calendar.has("task:300"), false);
+    assert.deepEqual(await calendar.putMany([]), []);
+  } finally {
+    await chest.close();
+  }
+});
+
+test("putMany: a batch is one write of the minute, and whole or nothing against the 5,000 events", async () => {
+  const chest = await fakeChest({ members: [camille], capabilities: ["calendar"] });
+  try {
+    const one = (n: number) => ({ key: `e:${n}`, members: [camille.id], title: "x", days: { first: "2026-10-12", last: "2026-10-12" } });
+    // 5,000 events in 50 calls: well within 600 writes a minute.
+    for (let i = 0; i < 5000; i += 1000) await calendar.putMany(Array.from({ length: 1000 }, (_, n) => one(i + n)));
+    assert.equal(chest.calendar.size, calendar.limits.events);
+    // A batch whose new keys pass the bound changes nothing, even its known keys.
+    const before = chest.calendar.get("e:0")?.sequence;
+    await assert.rejects(calendar.putMany([one(0), one(5000)]), (e: unknown) => e instanceof ChestError && e.code === "quota_exceeded");
+    assert.equal(chest.calendar.get("e:0")?.sequence, before);
+    // Without the capability, or on a Chest without the calendar.
+    const bare = await fakeChest({ capabilities: [], calendar: false });
+    try {
+      await assert.rejects(calendar.putMany([one(1)]), CapabilityNotGranted);
+    } finally {
+      await bare.close();
+    }
+  } finally {
+    await chest.close();
+  }
+});

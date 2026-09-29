@@ -37,7 +37,10 @@ test("a file that says PDF but is not one is refused and deleted", async () => {
 });
 
 test("the grant's rules: a CV's types, 10 MB, a signed ticket of the right kind", async () => {
-  await assert.rejects(cv.grant("public", "image/png", 100), { code: "cv_invalid" });
+  await assert.rejects(cv.grant("public", "image/gif", 100), { code: "cv_invalid" });
+  await assert.rejects(cv.grant("public", "text/html", 100), { code: "cv_invalid" });
+  // A photo of a CV, as a phone takes it, is a CV.
+  for (const type of ["image/jpeg", "image/png", "image/heic"]) assert.ok((await cv.grant("public", type, 100)).ticket, type);
   await assert.rejects(cv.grant("public", "application/pdf", 11 << 20), { code: "cv_too_large" });
   await assert.rejects(cv.grant("public", "application/pdf", -1), { code: "cv_invalid" });
   const up = await cv.grant("team", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", 100);

@@ -85,6 +85,14 @@ export const en = {
     exportAll: "Download everything",
     pinned: "Pinned pages",
   },
+  mine: {
+    name: "My pages",
+    description: "Only you see these pages: notes, drafts, lists.",
+    new: "New private page",
+    notice: "Only you see this page. To share it, move it to a space.",
+    space: "Only you see these pages. To share one, move it to a space.",
+    readerEmpty: "Meanwhile, you can write pages of your own: only you see them.",
+  },
   space: {
     pages: "Pages",
     empty: "This space has no pages yet.",

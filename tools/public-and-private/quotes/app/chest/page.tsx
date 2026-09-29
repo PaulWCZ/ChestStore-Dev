@@ -52,7 +52,7 @@ export default async function DeskPage() {
   const head = t.list.head;
   const reason = (n: (typeof d.needs)[number]) => {
     const r = n.row;
-    if (n.reason === "ready") return format(t.desk.reasons.ready, { name: nameOf(who.get(r.createdBy), locale) });
+    if (n.reason === "ready") return format(t.desk.reasons.ready, { name: r.createdBy === "tool:timesheets" ? t.doc.history.timesheetsTool : nameOf(who.get(r.createdBy), locale) });
     if (n.reason === "overdue") return format(t.desk.reasons.overdue, { date: formatDay(r.dueDate ?? today, locale), amount: money(r.due) });
     if (n.reason === "accepted") return t.desk.reasons.accepted;
     if (n.reason === "crm") return format(t.desk.reasons.crm, { title: r.crmTitle ?? "" });

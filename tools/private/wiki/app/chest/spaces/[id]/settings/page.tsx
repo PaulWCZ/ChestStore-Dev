@@ -24,6 +24,8 @@ export default async function SettingsPage({ params }: { params: Promise<{ id: s
     if (error instanceof AppError) notFound();
     throw error;
   }
+  // "My pages" has no settings.
+  if (s.visibility === "private") notFound();
   const [known, writers] = await Promise.all([companyGroups(), editorsOfTool()]);
   // A group the space names that the Chest no longer lists stays shown, so
   // saving does not drop it silently; so does a person named among its

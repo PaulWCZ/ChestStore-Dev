@@ -13,7 +13,7 @@ import { askRead, confirmRead, deletePage, setPinned, discardDraft, keepDraft, m
 export type TemplateWords = { tag: string; mark: string; unmark: string; marked: string; unmarked: string };
 type Words = NewPageWords & { page: Catalogue["page"]; move: Catalogue["move"]; shell: Catalogue["shell"]; watch: Catalogue["watch"]; review: Omit<Catalogue["review"], "due">; reads: Catalogue["reads"]; marks: TemplateWords; spaceName: string; locale: string };
 // What the page's reader has set on it: watching, a template, a reminder.
-export type PageState = { watching: boolean; template: boolean; review: { months: number | null; ownerName: string | null; mine: boolean }; readAsked: boolean; pinned: boolean };
+export type PageState = { watching: boolean; template: boolean; review: { months: number | null; ownerName: string | null; mine: boolean }; readAsked: boolean; pinned: boolean; private?: boolean };
 const reviewChoices = [3, 6, 12] as const;
 export type MovePlace = { spaces: { id: string; name: string }[]; nodes: { id: string; spaceId: string; parentId: string | null; title: string }[] };
 
@@ -95,7 +95,8 @@ export function PageActions({ page, writer, editHref, t, places, state, groups =
         ...(writer && places ? [{ label: t.page.move, icon: <Move />, onSelect: () => setMoving(true) }] : []),
         ...(writer ? [{ label: state.pinned ? t.page.unpin : t.page.pin, icon: <Pin />, disabled: pending, onSelect: pin }] : []),
         ...(writer ? [{ label: state.template ? t.marks.unmark : t.marks.mark, icon: <Stamp />, disabled: pending, onSelect: template }] : []),
-        ...(writer ? [state.readAsked ? { label: t.reads.menuSeen, icon: <People />, href: `/chest/pages/${page.id}/reads` } : { label: t.reads.menu, icon: <Seal />, onSelect: () => setAsking(true) }] : []),
+        // Nobody else reads a page of "My pages": nobody to ask.
+        ...(writer && !state.private ? [state.readAsked ? { label: t.reads.menuSeen, icon: <People />, href: `/chest/pages/${page.id}/reads` } : { label: t.reads.menu, icon: <Seal />, onSelect: () => setAsking(true) }] : []),
         ...(writer ? [{ label: state.review.months ? format(t.review.menuSet, { months: state.review.months }) : t.review.menu, icon: <Calendar />, onSelect: () => setReviewing(true) }] : []),
         { label: t.page.history, icon: <Clock />, href: `/chest/pages/${page.id}/history` },
         { label: t.page.print, icon: <Printer />, onSelect: () => window.print() },

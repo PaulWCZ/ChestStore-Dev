@@ -15,6 +15,7 @@ import { continuedAt } from "../../../../lib/numbering.ts";
 import { versioned } from "../../../../lib/model.ts";
 import { answersOf, liveLink } from "../../../../lib/online.ts";
 import { versionsOf } from "../../../../lib/versions.ts";
+import { handoffOf } from "../../../../lib/timesheets.ts";
 import { nameOf, people } from "../../../../lib/people.ts";
 import { publicOrigin } from "../../../../lib/public-origin.ts";
 import { firstRepeatDate, repeatOf } from "../../../../lib/repeats.ts";
@@ -63,6 +64,7 @@ export default async function DocumentPage({ params }: { params: Promise<{ id: s
       ? { id: repeating.repeat.id, every: repeating.repeat.every, next: formatDay(repeating.repeat.nextOn, locale, { day: "numeric", month: "long", year: "numeric" }) } : null,
     madeFrom: repeating && repeating.repeat.sourceId !== full.id ? { id: repeating.repeat.sourceId, number: repeating.sourceNumber ?? "" } : null,
     imported: full.status === "imported",
+    timesheets: full.type === "invoice" ? await handoffOf(sql, full.id) : null,
   };
 
   // Names and dates, written here.
@@ -70,7 +72,7 @@ export default async function DocumentPage({ params }: { params: Promise<{ id: s
   const earlier = full.type === "quote" ? await versionsOf(sql, member, full.id) : [];
   const ids = [full.createdBy, full.sentBy, full.decidedBy, full.finalisedBy, ...full.payments.map(p => p.createdBy), ...earlier.flatMap(v => [v.replacedBy, v.sentBy])].filter((x): x is string => typeof x === "string");
   const who = await people(ids);
-  const name = (id: string | null) => (id === member.id ? t.people.you : id === "tool:crm" ? t.doc.history.crmTool : nameOf(who.get(id ?? ""), locale));
+  const name = (id: string | null) => (id === member.id ? t.people.you : id === "tool:crm" ? t.doc.history.crmTool : id === "tool:timesheets" ? t.doc.history.timesheetsTool : nameOf(who.get(id ?? ""), locale));
   const when = (iso: string) => formatDate(iso, locale, { timeZone: zone, day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
   const day = (d: string | null) => (d ? formatDay(d, locale) : "");
   const money = (minor: number) => formatMoney(minor, full.currency, locale);

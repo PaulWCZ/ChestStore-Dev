@@ -8,12 +8,14 @@ import { pictureOf } from "../app/chest/pages/[id]/edit/paste.ts";
 import { normalize } from "../lib/doc.ts";
 import * as editing from "../lib/editing.ts";
 import { askWhom, whoWrites } from "../lib/groups.ts";
+import { POST as chestEvents } from "../app/chest-events/route.ts";
 import * as pages from "../lib/pages.ts";
+import * as reads from "../lib/reads.ts";
 import { kept, search, segments } from "../lib/search.ts";
 import * as spaces from "../lib/spaces.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
-import { everyone, hugo, lea, tom } from "./support/members.ts";
+import { camille, everyone, hugo, lea, tom } from "./support/members.ts";
 
 // The third severe critique: nothing pasted disappears silently (pictures
 // from the web); search by the stem of a word, French and English, with a
@@ -147,4 +149,43 @@ test("a reader's empty wiki names who can write: the editors, or a space's own",
   } finally {
     process.env["CHEST_API"] = api;
   }
+});
+
+test("“My pages”: everyone's own, readers included; nobody else sees it — not the administrators; a page leaves it to be shared", async () => {
+  const sql = database.sql;
+  const words = { name: "My pages", description: "Only you see these pages." };
+  const mine = await spaces.mySpace(sql, asMember(hugo), words);
+  assert.equal(mine.visibility, "private");
+  assert.equal(mine.access, "write");
+  assert.equal((await spaces.mySpace(sql, asMember(hugo), words)).id, mine.id, "one per member");
+  // Hugo is a reader: he writes here, and only here.
+  const note = await pages.createPage(sql, asMember(hugo), { spaceId: mine.id, title: "PRIVATENOTE salary questions" });
+  await editing.startEditing(sql, asMember(hugo), note.id);
+  await editing.publish(sql, asMember(hugo), note.id, { title: "PRIVATENOTE salary questions", doc: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "Ask about the raise." }] }] }, baseVersion: 1 });
+  await assert.rejects(pages.createPage(sql, asMember(hugo), { spaceId: "1", title: "Not in the Handbook" }), (e: unknown) => e instanceof Error && (e as { code?: string }).code === "forbidden");
+  assert.deepEqual((await search(sql, asMember(hugo), "PRIVATENOTE")).map(h => h.id), [note.id]);
+  // Nobody else: an administrator, an editor, a reader.
+  for (const who of [camille, tom, lea]) {
+    assert.ok(!(await spaces.listSpaces(sql, asMember(who))).some(s => s.id === mine.id), who.firstName);
+    await assert.rejects(pages.page(sql, asMember(who), note.id), (e: unknown) => (e as { code?: string }).code === "not_found", who.firstName);
+    await assert.rejects(spaces.space(sql, asMember(who), mine.id), (e: unknown) => (e as { code?: string }).code === "not_found", who.firstName);
+    assert.deepEqual(await search(sql, asMember(who), "PRIVATENOTE"), [], who.firstName);
+  }
+  // No settings; nobody to ask to confirm.
+  await assert.rejects(spaces.updateSpace(sql, asMember(hugo), mine.id, { name: "Shared?", visibility: "everyone" }), (e: unknown) => (e as { code?: string }).code === "invalid");
+  await assert.rejects(reads.ask(sql, asMember(hugo), note.id), (e: unknown) => (e as { code?: string }).code === "invalid");
+  // Tom's own: a page leaves it for Tech (shared); a Tech page never goes in.
+  const tomsSpace = await spaces.mySpace(sql, asMember(tom), words);
+  const draft = await pages.createPage(sql, asMember(tom), { spaceId: tomsSpace.id, title: "Release checklist" });
+  await pages.movePage(sql, asMember(tom), draft.id, { spaceId: "3", parentId: null });
+  assert.equal((await pages.page(sql, asMember(lea), draft.id)).spaceId, "3", "shared: Léa reads it");
+  await assert.rejects(pages.movePage(sql, asMember(tom), draft.id, { spaceId: tomsSpace.id, parentId: null }), (e: unknown) => (e as { code?: string }).code === "forbidden");
+  // Hugo, a reader, cannot share his: he writes nowhere else.
+  await assert.rejects(pages.movePage(sql, asMember(hugo), note.id, { spaceId: "1", parentId: null }), (e: unknown) => (e as { code?: string }).code === "forbidden");
+  // Losing access keeps it; leaving the company takes it away (nobody else could read it).
+  assert.equal(await chest.emit({ type: "access.revoked", data: { id: hugo.id } }, chestEvents), 204);
+  assert.equal((await pages.page(sql, asMember(hugo), note.id)).id, note.id);
+  assert.equal(await chest.emit({ type: "member.removed", data: { id: hugo.id } }, chestEvents), 204);
+  assert.equal((await sql`select count(*)::int as n from spaces where id = ${mine.id}`)[0]!.n, 0);
+  assert.equal((await sql`select count(*)::int as n from pages where id = ${note.id}`)[0]!.n, 0);
 });

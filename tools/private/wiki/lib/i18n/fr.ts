@@ -85,6 +85,14 @@ export const fr: Catalogue = {
     exportAll: "Tout télécharger",
     pinned: "Pages épinglées",
   },
+  mine: {
+    name: "Mes pages",
+    description: "Personne d’autre ne voit ces pages : notes, brouillons, listes.",
+    new: "Nouvelle page privée",
+    notice: "Personne d’autre ne voit cette page. Pour la partager, déplacez-la dans un espace.",
+    space: "Personne d’autre ne voit ces pages. Pour en partager une, déplacez-la dans un espace.",
+    readerEmpty: "En attendant, vous pouvez écrire vos propres pages : personne d’autre ne les voit.",
+  },
   space: {
     pages: "Pages",
     empty: "Cet espace n’a pas encore de page.",

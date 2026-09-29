@@ -70,11 +70,15 @@ const wordsOf = (actor: Actor) => catalogue(isLocale(actor.locale) ? actor.local
 // Pages. A new page starts blank, from a template of its space, or from a
 // built-in model in the editor's language.
 // On an empty wiki, "Write the first page" makes its space first ("new":
-// a Handbook, in the editor's language).
+// a Handbook, in the editor's language); "mine" is the member's own "My
+// pages" (lib/spaces.ts, mySpace), made the first time.
 export async function createPage(input: { spaceId: string; parentId?: string | null; title: string; start?: string }): Promise<Result<{ id: string }>> {
   return act(async actor => {
     const words = wordsOf(actor);
-    const spaceId = input.spaceId === "new" ? (await spaces.createSpace(db(), actor, { name: words.starter.space, description: words.starter.description })).id : input.spaceId;
+    // "mine": the member's own "My pages", made the first time.
+    const spaceId = input.spaceId === "new" ? (await spaces.createSpace(db(), actor, { name: words.starter.space, description: words.starter.description })).id
+      : input.spaceId === "mine" ? (await spaces.mySpace(db(), actor, { name: words.mine.name, description: words.mine.description })).id
+      : input.spaceId;
     return templates.createFrom(db(), actor, { ...input, spaceId }, words);
   });
 }

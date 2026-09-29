@@ -3,7 +3,7 @@ import { createHmac } from "node:crypto";
 import { IncomingMessage } from "node:http";
 import { Socket } from "node:net";
 import { afterEach, beforeEach, mock, test } from "node:test";
-import { member } from "../src/member.js";
+import { mailPreferenceOf, member } from "../src/member.js";
 
 // An assertion the Chest's front signed (chest/toolfront.Assertion, Go), for
 // the tool "web", at 1790000000, with the instance key 00 01 … 1f: the
@@ -115,4 +115,8 @@ test("locale (proposal): the member's language among the store's, English when a
   // A claim of another type is not the Chest's.
   assert.equal(member(web(sign({ locale: 7 }))), null);
   assert.equal(member(web(sign({ locale: ["fr"] }))), null);
+});
+
+test("mailPreference (Proposal (studio.15)): one of all, digest, none; anything else is not said, and never refuses the member", () => {
+  assert.deepEqual(["all", "digest", "none", "weekly", "", 1, undefined].map(mailPreferenceOf), ["all", "digest", "none", undefined, undefined, undefined, undefined]);
 });

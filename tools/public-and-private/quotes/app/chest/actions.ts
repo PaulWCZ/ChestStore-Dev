@@ -26,6 +26,7 @@ import { settledLate } from "../../lib/reminders.ts";
 import * as registry from "../../lib/registry.ts";
 import * as repeats from "../../lib/repeats.ts";
 import * as terms from "../../lib/terms.ts";
+import * as timesheets from "../../lib/timesheets.ts";
 import * as versions from "../../lib/versions.ts";
 import { versioned } from "../../lib/model.ts";
 import { readyForBilling, refreshBadges, settled } from "../../lib/tell.ts";
@@ -113,6 +114,8 @@ export async function finalise(id: string): Promise<Result<{ number: string }>> 
     const today = chest.today();
     const d = await documents.finalise(sql, actor, id, today);
     await settled(d.id);
+    // Made from time handed over by Timesheets: it hears the invoice is issued.
+    await timesheets.invoicedHandoff(sql, d.id, actor.id);
     if (d.type === "credit" && d.invoiceId) await settledLate(d.invoiceId);
     try {
       const full = await documents.getDocument(sql, actor, d.id, today);

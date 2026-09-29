@@ -30,6 +30,23 @@ if (process.argv.includes("--empty")) {
     expect(await page.locator(".hero .lede").count() === 0, "no invented intro");
     expect(!(await page.locator("main").innerText()).includes("small team that cares"), "no sentence about the company");
   });
+  await step("a new company's first screen: one filled button, and jobs to start from", async () => {
+    await as(context, origin, "camille");
+    await english();
+    await page.goto(origin + "/chest");
+    const filled = await page.locator("main a.button:not(.quiet), main button.button:not(.quiet)").count();
+    expect(filled === 1, "one primary action, not " + filled);
+    expect(await page.getByRole("link", { name: "Write a job" }).isVisible(), "Write a job");
+    const templates = page.locator(".job-templates a");
+    expect(await templates.count() === 3, "three jobs to start from");
+    await templates.filter({ hasText: "Office manager" }).click();
+    await page.waitForURL(/\/chest\/jobs\/new\?template=officeManager$/u);
+    expect(await page.locator("#title").inputValue() === "Office manager", "the title filled");
+    expect((await page.locator(".job-form").innerText()).includes("Welcome visitors and answer the phone"), "a description to adapt");
+    await page.getByRole("button", { name: /Save/u }).first().click();
+    await page.waitForURL(/\/chest\/jobs\/\d+$/u);
+    expect((await page.locator("h1").innerText()).includes("Office manager"), "saved as a draft to publish");
+  });
   await browser.close();
   done(problems);
 }
@@ -287,7 +304,8 @@ await step("invite to an interview: busy times shown, .ics emailed, interviewers
   // The kit's DateField: the day typed in the member's language (ISO is read too).
   await page.locator("#iv-day").fill(day);
   await page.locator("#iv-day").press("Tab");
-  await page.locator("dialog[open] .check", { hasText: "Hugo Bernard" }).click();
+  // The job's interviewers are ticked at first (Hugo is one): he stays on it.
+  await page.locator("dialog[open] .check", { hasText: "Hugo Bernard" }).locator("input").check();
   await page.waitForTimeout(800);
   expect((await page.locator("dialog[open]").innerText()).includes("Hugo Bernard: 16:00–17:00"), "Hugo's other interview is shown");
   await page.locator("#iv-time").selectOption("16:00");
@@ -309,7 +327,7 @@ await step("the candidate chooses her own interview time from a link: free times
   await page.goto(origin + "/chest/candidates/1");
   await page.getByRole("button", { name: "Interview", exact: true }).click();
   const dialog = page.locator("dialog[open]");
-  await dialog.locator(".check", { hasText: "Hugo Bernard" }).click();
+  await dialog.locator(".check", { hasText: "Hugo Bernard" }).locator("input").check();
   await dialog.getByRole("button", { name: "Send the link" }).click();
   await page.waitForSelector(".ck-toast >> text=/Link sent to Lucie Garnier/");
   await page.reload();
@@ -490,6 +508,144 @@ await step("export a job's candidates as CSV", async () => {
 await step("the nightly cleanup runs", async () => {
   const r = await page.request.post(origin + "/_dev/schedule", { form: { name: "cleanup", back: "/_dev" }, maxRedirects: 0 });
   expect(r.status() === 303, "schedule: " + r.status());
+});
+
+
+// ——— Round 3: real calendars, lunch, files, photos, the candidate's language ———
+
+// The next weekday at least two days ahead, as the Chest's zone writes it.
+function weekdayAhead() {
+  for (let n = 2; n < 9; n++) {
+    const d = new Date(Date.now() + n * 86400000);
+    const day = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Paris" }).format(d);
+    const wd = new Date(day + "T12:00:00Z").getUTCDay();
+    if (wd !== 0 && wd !== 6) return day;
+  }
+}
+const parisOffset = day => Number(new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/Paris", timeZoneName: "shortOffset" }).formatToParts(new Date(day + "T12:00:00Z")).find(p => p.type === "timeZoneName").value.replace("GMT", "") || 0);
+const utcMinute = (day, hhmm) => new Date(Date.parse(`${day}T${hhmm}:00Z`) - parisOffset(day) * 3600000).toISOString().slice(0, 16) + "Z";
+
+await step("Booking says Inès is at a showroom visit: Mathis is never offered that hour, nor lunch; the recruiter sees it as Booking's", async () => {
+  await page.setViewportSize({ width: 1280, height: 860 });
+  const day = weekdayAhead();
+  const from = new Date().toISOString().slice(0, 10) + "T00:00Z";
+  const data = { v: 1, member: "mbr_inesaaaaaaaaaaaaaaaaaaaaaa", at: new Date().toISOString(), from, to: new Date(Date.now() + 60 * 86400000).toISOString().slice(0, 10) + "T00:00Z", spans: [[utcMinute(day, "10:00"), utcMinute(day, "11:00")]] };
+  await page.request.post(origin + "/_dev/deliver", { form: { type: "booking.busy", data: JSON.stringify(data) } });
+  await as(context, origin, "camille");
+  await english();
+  await page.goto(origin + "/chest/candidates/2");
+  await page.getByRole("button", { name: "Interview", exact: true }).click();
+  const dialog = page.locator("dialog[open]");
+  // The job's interviewers are ticked, the recruiter is not: the button says who.
+  expect(!(await dialog.locator(".check", { hasText: "Camille Martin" }).locator("input").isChecked()), "the recruiter is not ticked silently");
+  await dialog.locator(".check", { hasText: "Hugo Bernard" }).locator("input").uncheck();
+  expect(await dialog.getByLabel("Not over lunch (12:00–14:00)").isChecked(), "lunch left out by default");
+  // By hand, that day: Inès's visit, marked as Booking's.
+  await dialog.getByText("I choose the time").click();
+  await page.locator("#iv-day").fill(day);
+  await page.locator("#iv-day").press("Tab");
+  await page.waitForSelector("dialog[open] .busy");
+  expect((await dialog.locator(".busy").innerText()).includes("Inès Moreau: 10:00–11:00 (Booking)"), "Booking's busy time shown");
+  await dialog.getByText("Mathis chooses").click();
+  const send = dialog.getByRole("button", { name: "Send the link (Inès)" });
+  expect(await send.isVisible(), "the button names who meets them");
+  await send.click();
+  await page.waitForSelector(".ck-toast >> text=/Link sent to Mathis Laurent/");
+  // One action, one line in the history.
+  await page.reload();
+  const history = await page.locator(".timeline").innerText();
+  expect(history.split("\n").filter(l => /link to choose/u.test(l)).length === 1, "one history line: " + history.slice(0, 300));
+  const link = /https?:\/\/[^\s"<]*\/interview\/[A-Za-z0-9_-]{43}\?lang=fr/u.exec(await dev())?.[0];
+  expect(link, "the link carries Mathis's language");
+  // Mathis, in an English browser: his page speaks French, as his emails.
+  await context.clearCookies();
+  await page.goto(link.replace(/^https?:\/\/[^/]+/u, origin));
+  expect((await page.locator("h1").innerText()).includes("Mathis, choisissez"), "in French");
+  const label = new Intl.DateTimeFormat("fr", { timeZone: "UTC", weekday: "long", day: "numeric", month: "long" }).format(new Date(day + "T12:00:00Z"));
+  const that = page.locator(".pick-day", { hasText: label });
+  const times = (await that.locator(".pick-time").allInnerTexts()).map(x => x.trim());
+  expect(times.includes("09:00") && times.includes("11:00") && times.includes("14:00"), "free times: " + times.join(" "));
+  expect(!["09:30", "10:00", "10:30", "12:00", "12:30", "13:00", "13:30"].some(t => times.includes(t)), "never across the visit or lunch: " + times.join(" "));
+});
+
+await step("on a phone the candidate sees three days first, then « Plus de jours »", async () => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.reload();
+  const visible = await page.locator(".pick-day:visible").count();
+  expect(visible === 3, "three days first, not " + visible);
+  await page.getByRole("button", { name: "Plus de jours" }).click();
+  expect(await page.locator(".pick-day:visible").count() > 3, "then the others");
+  const wide = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1);
+  expect(!wide, "no sideways scroll");
+  await page.setViewportSize({ width: 1280, height: 860 });
+});
+
+await step("an offer letter: a template carries it, the email sends it, the conversation keeps it", async () => {
+  await as(context, origin, "camille");
+  await english();
+  await page.goto(origin + "/chest/settings");
+  await page.getByRole("button", { name: "Add a template" }).click();
+  await page.locator("#tpl-name").fill("Offer with the letter");
+  await page.locator("#tpl-subject").fill("Our offer, {firstName}");
+  await page.locator("#tpl-body").fill("Hello {firstName},\n\nPlease find our offer letter attached.\n\n{sender}");
+  await page.locator(".template-form input[type=file]").setInputFiles({ name: "Offer letter.pdf", mimeType: "application/pdf", buffer: pdf });
+  await page.waitForSelector(".template-form .ck-file-ready, .template-form .ck-file:not(.ck-file-sending)");
+  await page.locator(".template-form").getByRole("button", { name: "Save" }).click();
+  await page.waitForSelector("text=Offer with the letter");
+  expect((await page.locator(".people-list").innerText()).includes("1 file"), "the template says it has a file");
+  await page.goto(origin + "/chest/candidates/3");
+  await page.getByRole("button", { name: "Write" }).click();
+  await page.locator("#write-template").selectOption({ label: "Offer with the letter" });
+  const dialog = page.locator("dialog[open]");
+  expect((await dialog.locator(".ck-file-list").innerText()).includes("Offer letter.pdf"), "the template's file is there");
+  // And one more, added here.
+  await dialog.locator("input[type=file]").setInputFiles({ name: "Contract.pdf", mimeType: "application/pdf", buffer: pdf });
+  await page.waitForFunction(() => document.querySelectorAll("dialog[open] .ck-file-sending").length === 0);
+  await dialog.getByRole("button", { name: "Send" }).click();
+  await page.waitForSelector(".ck-toast >> text=/Sent to Aïcha Benali/");
+  await page.reload();
+  const files = page.locator(".mails .mail-files a");
+  const names = await files.allInnerTexts();
+  expect(names.some(n => n.includes("Offer letter.pdf")) && names.some(n => n.includes("Contract.pdf")), "kept in the conversation: " + names.join(", "));
+  const body = await (await page.request.get(origin + (await files.first().getAttribute("href")))).body();
+  expect(body.subarray(0, 5).toString() === "%PDF-", "the file downloads");
+});
+
+await step("a candidate applies from a phone with a photo of her CV; the team sees it on her page", async () => {
+  await context.clearCookies();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(origin + "/lang/en?back=/senior-furniture-designer/apply");
+  const jpeg = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46, 0x00, 0x01, 0x01, 0x00, 0x00, 0x01, 0x00, 0x01, 0x00, 0x00, 0xff, 0xd9]);
+  await fillApplication("Nadia Photo", "nadia.photo@example.com", { name: "IMG_2041.jpg", mimeType: "image/jpeg", buffer: jpeg });
+  await page.waitForFunction(() => document.querySelectorAll(".ck-file-sending").length === 0);
+  expect(!(await page.locator(".ck-file-problems").innerText()).includes("not accepted"), "a photo is accepted");
+  await page.getByRole("button", { name: "Send my application" }).click();
+  await page.waitForURL(/\/thanks/u);
+  await page.setViewportSize({ width: 1280, height: 860 });
+  await as(context, origin, "camille");
+  await english();
+  await page.goto(origin + "/chest/search?q=Nadia");
+  await page.getByRole("link", { name: /Nadia Photo/u }).first().click();
+  await page.waitForSelector("img.cv-picture");
+  const cv = await page.request.get(origin + (await page.locator("img.cv-picture").getAttribute("src")));
+  expect(cv.status() === 200 && cv.headers()["content-type"] === "image/jpeg", "the photo is served");
+});
+
+await step("French for Camille: « Nous vous préviendrons », the jury, a quiet « Ajouter un candidat »", async () => {
+  await as(context, origin, "camille");
+  await context.addCookies([{ name: "dev_locale", value: "fr", url: origin }]);
+  await page.goto(origin + "/chest/jobs/1");
+  const add = page.getByRole("link", { name: "Ajouter un candidat" });
+  expect((await add.getAttribute("class")).includes("quiet"), "adding by hand is not the page's main button");
+  await page.goto(origin + "/chest/jobs/1/settings");
+  expect((await page.locator("main").innerText()).includes("Jury"), "the jury");
+  await page.goto(origin + "/chest/candidates/3");
+  await page.getByRole("button", { name: "Entretien", exact: true }).click();
+  const dialog = page.locator("dialog[open]");
+  await dialog.getByRole("button", { name: /^Envoyer le lien/u }).click();
+  await page.waitForSelector(".ck-toast");
+  expect((await page.locator(".ck-toast").innerText()).includes("Nous vous préviendrons"), "no « prévenu » said to Camille");
+  await english();
 });
 
 await step("phone width: careers, job, form, board, candidate fit", async () => {

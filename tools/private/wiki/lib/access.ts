@@ -13,7 +13,8 @@ import type { Member } from "@argentic/chest-sdk/member";
 //
 // Who edits a space: every editor who sees it, or only some of them — the
 // groups and people it names, its creator and the Chest's admins. The
-// others read it. A reader never writes, whatever a space names.
+// others read it. A reader never writes, whatever a space names — except
+// in their own "My pages" (visibility 'private'), which only they see.
 export const roles = ["editor", "reader"] as const;
 export type Role = (typeof roles)[number];
 
@@ -36,11 +37,14 @@ export function can(actor: Member | null, ability: Ability): boolean {
 
 // What a member may do in one space.
 export type SpaceAccess = "none" | "read" | "write";
-export type SpaceAudience = { visibility: "everyone" | "groups"; groups: string[]; createdBy: string; editing?: "editors" | "some"; editors?: string[] };
+export type SpaceAudience = { visibility: "everyone" | "groups" | "private"; groups: string[]; createdBy: string; editing?: "editors" | "some"; editors?: string[] };
 
 export function spaceAccess(actor: Member | null, space: SpaceAudience): SpaceAccess {
   const role = roleOf(actor);
   if (!actor || role === null) return "none";
+  // "My pages": its creator's alone, whatever their role — not even the
+  // Chest's administrators see it.
+  if (space.visibility === "private") return space.createdBy === actor.id ? "write" : "none";
   const sees = space.visibility === "everyone" || actor.isAdmin || space.createdBy === actor.id || space.groups.some(g => actor.groups.includes(g));
   if (!sees) return "none";
   if (!can(actor, "write")) return "read";

@@ -428,8 +428,14 @@ async function body(request: IncomingMessage, limit: number): Promise<Buffer | n
 const hostPattern = /^(\*\.)?[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)+$/u;
 const direct = new Set(["localhost", "127.0.0.1", "::1"]);
 
+function checkNetwork(network: Record<string, FakeNetworkHandler>): void {
+  for (const [host, handler] of Object.entries(network)) {
+    if (!hostPattern.test(host)) throw new Error(`fakeChest: network ${JSON.stringify(host)} is not a host name as chest.json "network" declares one (lower case, "*." for every name below)`);
+    if (typeof handler !== "function") throw new Error(`fakeChest: network ${JSON.stringify(host)} needs a handler (request => Response)`);
+  }
+}
+
 function routeNetwork(network: Record<string, FakeNetworkHandler>, log: FakeEgress[]): () => void {
-  for (const host of Object.keys(network)) if (!hostPattern.test(host)) throw new Error(`fakeChest: network ${JSON.stringify(host)} is not a host name as chest.json "network" declares one (lower case, "*." for every name below)`);
   const handlerOf = (host: string): FakeNetworkHandler | undefined => {
     const exact = network[host];
     if (exact && Object.hasOwn(network, host)) return exact;
@@ -485,6 +491,8 @@ export async function fakeChest(options: FakeChestOptions = {}): Promise<FakeChe
   const email = capabilities.has("members.email");
   if (options.tool !== undefined && (!toolNamePattern.test(options.tool) || options.tool.length > 63)) throw new Error(`fakeChest: ${JSON.stringify(options.tool)} is not a tool's name (chest.json "name")`);
   const tool = options.tool ?? (process.env["CHEST_TOOL"] || "tool");
+  // Checked before anything starts: a wrong option leaves nothing running.
+  if (options.network) checkNetwork(options.network);
   const token = randomBytes(32).toString("base64url");
   const files = new Map<string, FakeFile>();
   for (const [name, file] of Object.entries(options.files ?? {})) {

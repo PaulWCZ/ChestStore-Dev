@@ -41,6 +41,8 @@ export async function readState(sql: Query, actor: Member | null, pageId: unknow
 // members of some groups.
 export async function ask(sql: Sql, actor: Member | null, pageId: unknown, input: { groups?: unknown } = {}): Promise<Page> {
   const p = await page(sql, actor, pageId, "write");
+  // Nobody else reads a page of "My pages": nobody to ask.
+  if (p.space.visibility === "private") throw new AppError("invalid");
   // Asked again without saying whom: the same people as before.
   const groups = input.groups === undefined ? (await askOf(sql, p.id))?.groups ?? [] : groupIds(input.groups);
   await sql`update pages set read_asked_at = now(), read_asked_by = ${actor!.id}, read_version = version, read_groups = ${groups}, read_reminded_at = null, read_reminders = 0 where id = ${p.id}`;

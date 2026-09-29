@@ -56,6 +56,9 @@ export type DocView = {
   madeFrom: { id: string; number: string } | null;
   // Imported from the previous tool (its own number, no PDF here).
   imported: boolean;
+  // Made from time handed over by Timesheets: its project, the client's
+  // name Timesheets gave, the link back (null when not reachable).
+  timesheets: { project: string; client: string; link: string | null } | null;
 };
 
 export type Fact = { label: string; value: string; strong?: boolean };

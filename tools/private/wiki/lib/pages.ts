@@ -176,6 +176,9 @@ export async function writeContent(tx: Query, pageId: string, author: string, in
 export async function movePage(sql: Sql, actor: Member | null, pageId: unknown, input: { spaceId: unknown; parentId?: unknown; index?: unknown }): Promise<void> {
   const p = await page(sql, actor, pageId, "write");
   const target = await space(sql, actor, input.spaceId, "write");
+  // A page of a shared space never goes into someone's "My pages" (it
+  // would vanish for everyone else); a private page moves out to share it.
+  if (target.visibility === "private" && p.space.visibility !== "private") throw new AppError("forbidden");
   const parentId = await checkParent(sql, actor, target.id, input.parentId);
   const index = typeof input.index === "number" && Number.isInteger(input.index) ? input.index : null;
   if (parentId !== null) {

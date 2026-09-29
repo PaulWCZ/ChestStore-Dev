@@ -10,7 +10,8 @@ import { format } from "../lib/i18n/format.ts";
 import { Chevron, Plus } from "./icons.tsx";
 import type { PageTarget } from "./new-page.tsx";
 
-export type TreeSpace = { id: string; name: string; color: string; access: "read" | "write" };
+// private: the member's own "My pages" (only they see it).
+export type TreeSpace = { id: string; name: string; color: string; access: "read" | "write"; private?: boolean };
 export type TreeNode = { id: string; spaceId: string; parentId: string | null; title: string };
 export type TreeWords = { shell: Catalogue["shell"]; errors: Catalogue["errors"] };
 

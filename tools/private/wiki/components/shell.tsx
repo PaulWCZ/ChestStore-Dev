@@ -6,7 +6,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState, type ReactNode } from "react";
 import type { Catalogue } from "../lib/i18n/index.ts";
-import { Book, Home, Plus, Search, Trash, Upload } from "./icons.tsx";
+import { Book, Home, Lock, Plus, Search, Trash, Upload } from "./icons.tsx";
 import { NewPageDialog, type NewPageWords, type PageTarget } from "./new-page.tsx";
 import { NewSpaceDialog } from "./new-space.tsx";
 import { PageTree, type TreeNode, type TreeSpace } from "./tree.tsx";
@@ -14,6 +14,7 @@ import { PageTree, type TreeNode, type TreeSpace } from "./tree.tsx";
 export type ShellWords = NewPageWords & {
   shell: Catalogue["shell"];
   newSpace: Catalogue["newSpace"];
+  mine: Catalogue["mine"];
   searchBox: SearchWords;
   dialog: Catalogue["dialog"];
 };
@@ -41,6 +42,9 @@ export function Shell({ brand, member, spaces, nodes, canWrite, noAccess = false
   const [newSpace, setNewSpace] = useState(false);
   const editing = /^\/chest\/pages\/\d+\/edit/u.test(path);
   const contents = path === "/chest/pages";
+  // The member's own "My pages" (a private space): once made, it is in the
+  // tree like any space; until then, the sidebar offers to start it.
+  const hasPrivate = spaces.some(s => s.private);
 
   const nav: NavItem[] = noAccess ? [] : [
     { href: "/chest", label: t.shell.home, icon: <Home />, exact: true },
@@ -48,7 +52,8 @@ export function Shell({ brand, member, spaces, nodes, canWrite, noAccess = false
     // says so there too.
     { href: "/chest/pages", label: t.shell.pages, icon: <Book />, also: ["/chest/spaces"] },
     { href: "/chest/search", label: t.shell.searchShort, icon: <Search /> },
-    ...(canWrite ? [{ href: "/chest/trash", label: t.shell.trash, icon: <Trash /> }] : []),
+    // A reader's trash holds their own private pages.
+    ...(canWrite || hasPrivate ? [{ href: "/chest/trash", label: t.shell.trash, icon: <Trash /> }] : []),
   ];
 
   return (
@@ -69,10 +74,11 @@ export function Shell({ brand, member, spaces, nodes, canWrite, noAccess = false
           <nav id="sidebar" className="sidebar" aria-label={t.shell.tree}>
             {spaces.length > 0 && <h2 className="side-title">{t.shell.spaces}</h2>}
             <PageTree spaces={spaces} nodes={nodes} path={path} t={t} onNewPage={setNewPage} />
-            {canWrite && (
+            {(canWrite || !hasPrivate) && (
               <div className={spaces.length > 0 ? "side-foot" : "side-foot alone"}>
-                <button type="button" className="side-link" onClick={() => setNewSpace(true)}><Plus />{t.shell.newSpace}</button>
-                <Link className="side-link" href="/chest/import" aria-current={path === "/chest/import" ? "page" : undefined}><Upload />{t.shell.import}</Link>
+                {!hasPrivate && <button type="button" className="side-link" onClick={() => setNewPage({ spaceId: "mine", spaceName: t.mine.name, parentId: null, parentTitle: null })}><Lock />{t.mine.new}</button>}
+                {canWrite && <button type="button" className="side-link" onClick={() => setNewSpace(true)}><Plus />{t.shell.newSpace}</button>}
+                {canWrite && <Link className="side-link" href="/chest/import" aria-current={path === "/chest/import" ? "page" : undefined}><Upload />{t.shell.import}</Link>}
               </div>
             )}
           </nav>

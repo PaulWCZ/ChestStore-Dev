@@ -58,6 +58,10 @@ legal defect for the company using it.
   statement matched to open invoices (migration `0008_bank.sql`:
   `payments.bank_line`); `app/chest/bank/`.
 - `lib/revenue.ts` — the desk's revenue card (as the journal counts sales).
+- `lib/timesheets.ts` — Timesheets' hand-offs (`handoffs`, migration
+  `0009_timesheets.sql`): one draft invoice per hand-off, cancel, and
+  `quotes.invoiced` published on finalise (`app/chest/actions.ts`) and
+  retried by the follow-up.
 - `lib/registry.ts` — the public directory of companies, the tool's only
   declared network host (`chest.json` `network`); tests inject a fetcher.
 - `lib/export.ts` — CSV and ZIP for the accountant.

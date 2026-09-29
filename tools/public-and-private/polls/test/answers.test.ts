@@ -85,7 +85,9 @@ test("an anonymous answer names no one: counts and texts only, all rows rewritte
   assert.equal((await sql`select 1 from answers`).length, 0);
   const texts = await sql<{ body: string }[]>`select * from texts where poll_id = ${made.id}`;
   assert.equal(texts.length, 4);
-  for (const row of texts) assert.deepEqual(Object.keys(row).sort(), ["body", "poll_id", "question_id", "shuffle"]);
+  // reply_key: the hash of a key only the author's browser keeps (lib/replies.ts) — none here.
+  for (const row of texts) assert.deepEqual(Object.keys(row).sort(), ["body", "poll_id", "question_id", "reply_key", "shuffle"]);
+  assert.ok(texts.every(row => (row as { reply_key?: string | null }).reply_key === null));
   const tallies = await sql<{ key: string; count: number }[]>`select key, count from tallies where question_id = ${scale} order by key`;
   assert.deepEqual(tallies.map(t => [t.key, t.count]), [["n", 4], ["v2", 1], ["v3", 1], ["v4", 1], ["v5", 1]]);
   // Every row of the poll was written by the last answer's transaction: no

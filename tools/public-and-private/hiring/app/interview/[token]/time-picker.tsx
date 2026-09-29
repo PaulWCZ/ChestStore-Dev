@@ -18,6 +18,7 @@ export function TimePicker({ token, days, zoneNote, t }: { token: string; days: 
   const [chosen, setChosen] = useState<{ day: string; time: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [all, setAll] = useState(false);
+  const folded = !all && days.length - firstDays > 0;
   const [pending, start] = useTransition();
   const label = chosen ? `${days.find(d => d.day === chosen.day)?.label ?? ""}, ${chosen.time}` : "";
   return (
@@ -52,7 +53,7 @@ export function TimePicker({ token, days, zoneNote, t }: { token: string; days: 
           </div>
         </fieldset>
       ))}
-      {days.length > firstDays && !all && <button type="button" className="button quiet pick-more" onClick={() => setAll(true)}>{t.more}</button>}
+      {folded && <button type="button" className="button quiet pick-more" onClick={() => setAll(true)}>{t.more}</button>}
       {error && <p className="error" role="alert">{error}</p>}
       <div className="pick-confirm">
         <button type="submit" className="button" disabled={pending || !chosen}>{pending ? t.confirming : chosen ? format(t.confirm, { when: label }) : t.choose}</button>

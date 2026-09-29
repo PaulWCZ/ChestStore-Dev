@@ -11,6 +11,9 @@ must not break.
 | `chest.proposals.json` | Proposals of the studio's SDK: the `publish` and `digest` schedules, `mail` (send), `calendar`, `groups: read` and `receives: ["group.*"]`, the French tile |
 | `lib/access.ts` | **Who may do what** (`can`): read, react, publish, moderate, confirmations; **audience** (`inAudience`, `seesPost`) |
 | `lib/posts.ts` | Posts, files, reactions, comments, confirmations, event answers, visits, the tile's count, purge — every service `(sql, actor, …)` |
+| `lib/proposals.ts` | **Posts from everyone**: propose (shout-out or news, a picture), mine, waiting (publishers), approve (never one's own: becomes a post by its author, `approved_by`), decline/restore (publisher, or the author taking it back); seen only by its author and publishers |
+| `lib/answer-links.ts`, `lib/answering.ts`, `app/chest/posts/[id]/answer/route.ts` | "I'm coming" from an email: an HMAC token per person, event and button (key in `chest_state`, `answer_key`); the route answers as `member(request)` and redirects to the post (`?answered=`, `AnsweredNotice` with Undo); `answering.answerEvent` is shared with the server action |
+| `app/chest/propose/`, `app/chest/proposals/` | "Share something" (everyone) and "To approve" (publishers) |
 | `lib/tell.ts` | The bell, email and the tile: telling Important posts (paged, resumable past the quota, one email per person and version), welcomes, comments, replies, mentions, reminders, a freed seat; `reconcile` (someone left a group); `pass`/`catchUp` |
 | `lib/mailer.ts` | Email through the Chest (`mail.send` to `{member}`), each in its reader's language; learns whether the Chest sends email |
 | `lib/agenda.ts` | Events in the Chest's calendar (`calendar.put` for those coming) |
@@ -38,7 +41,7 @@ must not break.
 | `app/chest/api/uploads/route.ts`, `app/chest/files/[id]/route.ts` | Files: authorise, record, open |
 | `app/chest/search/page.tsx` | The search page (the topbar's box lands here) |
 | `app/chest-events/route.ts`, `app/chest-jobs/[name]/route.ts` | The Chest's signed calls (`publish`, `digest`) |
-| `migrations/` | Schema. Never edit a shipped file; add `0006_…` |
+| `migrations/` | Schema. Never edit a shipped file; add `0007_…` (`0006` adds shout-outs — the colleague in `posts.welcome` — and `proposals`) |
 | `seed/sample.sql` | A small company's month, for local runs |
 | `test/` | `node:test` with `fakeChest` and PostgreSQL (PGlite or `TEST_DATABASE_URL`) |
 
@@ -77,6 +80,10 @@ npm ci && npm test && npm run build   # all three must pass
   passes never tell at once, the cursor kept when the quota stops it —
   only the post's audience. The digest follows the same rules (key
   `digest`, `digest_runs.after`).
+- **A proposal is not a post.** Nothing that reads posts sees
+  `proposals`; only `lib/proposals.ts` does, for its author and the
+  publishers (`test/round3.test.ts`). A new place that shows proposals
+  goes through it.
 - **Add an ability → a line in `test/access.test.ts`.** Add a service →
   tests with each role and its refusals.
 - **Client components import only** `lib/i18n/format.ts`, `lib/app-error.ts`,

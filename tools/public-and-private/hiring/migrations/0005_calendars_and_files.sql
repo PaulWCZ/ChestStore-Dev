@@ -22,7 +22,9 @@ create table told_spans (
   span tstzrange not null check (not isempty(span)),
   foreign key (source, member_id) references told_busy (source, member_id) on delete cascade
 );
-create index told_spans_member on told_spans using gist (member_id, span);
+-- (No btree_gist here: the member by btree, the span by GiST.)
+create index told_spans_member on told_spans (member_id);
+create index told_spans_span on told_spans using gist (span);
 create index told_spans_owner on told_spans (source, member_id);
 
 -- What Hiring last told the other tools of a member's interviews

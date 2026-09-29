@@ -9,7 +9,7 @@ channel where announcements drown.
 ## What it does
 
 - **The front page**: the lead story large, then the others newest first,
-  **pinned posts on top**; filters *Announcements, Events, Welcome, Info*;
+  **pinned posts on top**; filters *Announcements, Events, Welcome, Shout-outs, Info*;
   *Coming up* (the next events, with my answer); a **New** mark on what came
   since my last visit; 20 posts a page.
 - **A post**: a headline and a text formatted as it will read — a toolbar
@@ -44,12 +44,43 @@ channel where announcements drown.
 - **Events**: a day or several, time (or all day), place, and **places**
   if they are limited: past them, *Join the waiting list*; a place freed
   goes to the first waiting, who is told. **I'm coming / Not coming**
-  until the end of the last day, with who is coming. Whoever comes finds
+  until the end of the last day, with who is coming. **From the email** of
+  an Important event (and its reminders) and from the weekly digest's
+  email, *I'm coming* and *Not coming* are links of their own: one tap
+  opens News through the Chest (so the answer is the person's who opened
+  it), answers, and the post says *You're coming.* with **Undo**. The
+  link carries a token News signs for that person, event and button: a
+  link forwarded to someone else, or forged, changes nothing (*This link
+  was not written for you*). Whoever comes finds
   the event **in their Chest calendar** (Proposal (studio): calendar — the
   one feed a member adds to Google, Outlook or Apple once); the `.ics`
   file stays.
 - **Welcome posts**: pick the new colleague; their photo and name lead the
   post, and they are told in their bell that the team says hello.
+- **Posts from everyone, moderated** (Workvivo's feed): any member with a
+  role clicks **Share something** (the header's button for readers) and
+  proposes a **shout-out** — thanks to a colleague, whose photo and name
+  lead the post — or a **piece of news**, with a picture if they like. It
+  waits for a publisher: publishers see *N posts from colleagues wait for
+  your approval* on the front page and one bell item (replaced, withdrawn
+  when none is left), and on *To approve* (`/chest/proposals`) they
+  **Publish** it as it is (signed by its author; they may edit it after
+  like any post) or **Decline** it with an optional reason (*Undo* puts
+  it back). The author is told either way; the colleague thanked is told
+  once it is published. **Until then only its author and the publishers
+  see it**: it is not a post — never on a front page, in search, the
+  digest, an export or anyone else's bell, and its picture opens for
+  them alone. Nobody approves their own proposal; a reader approves
+  nothing. The author sees their proposals under the form and may take
+  one back (*Undo*). Five may wait per person. Publishers can also write
+  shout-outs themselves (a fifth kind, *Shout-outs* on the front page); **posts from everyone without approval** (a
+company setting to publish them at once: every proposal waits for a
+publisher today), a proposal for some groups only (it is for everyone;
+the publisher may narrow it after publishing), several pictures or a
+video in a proposal, editing a proposal before it is published (the
+publisher edits the post after); answering an event from the **bell
+itself** (see "Needs from the SDK"); making an *older* post Important
+tells people only if it was published in the last 7 days (as before).
 - **Reactions** (👍 ❤️ 🎉 👏 😄), **comments** and one level of
   **replies**; **@mentions** (type @ and a name: the people who see the
   post are proposed) tell the person mentioned. The author of a post hears
@@ -77,7 +108,12 @@ channel where announcements drown.
   finds *Déménagement*), each word by its beginning or by its stem in
   English and French (*move* finds *moving*, *déménager* finds
   *déménagement*), every word needed, in any language of the post; a
-  headline with a typo is still found. The words found are marked; a
+  headline with a typo is still found. **Results are in the reader's
+  language** (headline and passage, as on the front page); when the
+  words are only in the post's other language the result says so
+  (*Found in its French version*), and when nothing is found while some
+  posts exist only in the other language, it suggests trying the word in
+  it (*Some posts are written in English only*). The words found are marked; a
   comment found shows under its post, with its author, its mentions
   written as names. A mention is not a word of its comment: a member id,
   "mbr" or "erased" finds nothing (`migrations/0005_…`).
@@ -108,8 +144,8 @@ channel where announcements drown.
 
 | Role (`chest.json`) | Label | May |
 |---|---|---|
-| `publisher` | Publisher | writes, edits, schedules, pins and deletes posts; marks a post Important and sees who confirmed; removes any comment |
-| `reader` | Reader | reads, reacts, comments, confirms "I have read it", answers events |
+| `publisher` | Publisher | writes, edits, schedules, pins and deletes posts; marks a post Important and sees who confirmed; removes any comment; publishes or declines what others propose (never their own) |
+| `reader` | Reader | reads, reacts, comments, confirms "I have read it", answers events; proposes shout-outs and news (a publisher publishes them) |
 | (none) | — | sees "You can't read News yet" |
 
 The owner, the admins and the tool's builders come in with the first role,
@@ -145,7 +181,9 @@ Wiki's spaces kept to groups).
   comes back ("Your draft is back", or *Start over*); an import from Slack
   → *Undo*; an event answer is changed by clicking the other button (or
   the same one again to take it back); a refused action puts the screen
-  back and says why.
+  back and says why. A reader on an empty front page is told whom to ask
+  (*To publish one, ask Sofia Rossi or Camille Martin*) and may **Share
+  something**; a publisher sees one Slack import link, not two.
 
 ## Routes
 
@@ -156,8 +194,11 @@ Wiki's spaces kept to groups).
 | `/chest/search` (`?q=`) | members with a role | search: the posts and comments they may see |
 | `/chest/new` (`?kind=`), `/chest/posts/<id>/edit` | publishers | the composer |
 | `/chest/posts/<id>/calendar` | who sees the event | the `.ics` file |
+| `/chest/posts/<id>/answer?a=yes\|no&t=` | who sees the event (the token is theirs) | answer from an email in one tap, then the post (`?answered=`, with Undo) |
+| `/chest/propose` | members with a role | share something: a shout-out or news, for a publisher to approve; one's own proposals |
+| `/chest/proposals` | publishers | what waits for approval: Publish, Decline |
 | `/chest/posts/<id>/confirmations` | publishers | who confirmed, as CSV |
-| `/chest/api/uploads` | publishers | authorise (POST) then record (PUT) a picture, a video or a file |
+| `/chest/api/uploads` | publishers (anyone, for a proposal's picture) | authorise (POST) then record (PUT) a picture, a video or a file |
 | `/chest/transfer` | publishers | import a Slack channel; download all posts |
 | `/chest/api/import` | publishers | a Slack export (POST, the ZIP): its channels, or (`?channel=`) one imported |
 | `/chest/transfer/export` | publishers | every post they see, as a ZIP |
@@ -188,7 +229,9 @@ Wiki's spaces kept to groups).
   never knows an address — in their language, keyed so a retry never sends
   twice; the Chest's default quota is 500 a day: past it, the rest of an
   Important post's audience is told in the bell only and the publisher
-  sees *The Chest's email limit for the day stopped the rest*. On a Chest
+  sees *The Chest's email limit for the day stopped the rest*. The links
+  of an event's email are signed with a key News makes once at random and
+  keeps in its database (`chest_state`), never shown. On a Chest
   that cannot send email yet, nothing fails; News remembers it
   (`chest_state`) and the composer then says *Publish and tell 6 people in
   their bell*. (Until News has tried once, it assumes email works.)
@@ -278,7 +321,12 @@ Wiki's spaces kept to groups).
 - **Groups read** (`"groups": "read"`, `receives: ["group.*"]`),
   **mail** (`send`) and the **calendar** — Proposals (studio), in
   `vendor/` (SDK 0.3.0-studio.12), described above.
-- Wanted, not built: **push to a phone** (the bell and email are all a
+- Wanted, not built: **actions on a bell item** (`notify(…, { actions:
+  [{ label, path }] })`: *I'm coming* / *Not coming* in the Chest's bell
+  itself — today the bell opens the post, where the answer is two taps
+  away; the email's links are News's own), **signed one-click links in
+  `mail`** (the Chest could sign an action link the way News does itself);
+  **push to a phone** (the bell and email are all a
   Chest gives); a way to **ask whether email works** before sending (News
   learns it from its last try); a **per-member digest broadcast** and a
   **"notify at least once" quota exemption** so a large company is told
@@ -334,4 +382,11 @@ matches authors by their full name only; import from Workvivo or
 Staffbase; search in attached files; a comment's own edit history; a
 list inside a list (the text has one level); an admin page of every
 publisher's scheduled posts (each publisher sees the ones they may see
-on the front page).
+on the front page); **posts from everyone without approval** (a
+company setting to publish them at once: every proposal waits for a
+publisher today), a proposal for some groups only (it is for everyone;
+the publisher may narrow it after publishing), several pictures or a
+video in a proposal, editing a proposal before it is published (the
+publisher edits the post after); answering an event from the **bell
+itself** (see "Needs from the SDK"); making an *older* post Important
+tells people only if it was published in the last 7 days (as before).

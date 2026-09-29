@@ -16,9 +16,14 @@
       "cron": "30 4 1 * *"
     }
   ],
+  "emits": [
+    "quotes.invoiced"
+  ],
   "receives": [
     "crm.deal.won",
-    "crm.deal.reopened"
+    "crm.deal.reopened",
+    "timesheets.billable",
+    "timesheets.billable_cancelled"
   ],
   "translations": {
     "fr": {

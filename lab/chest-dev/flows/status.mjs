@@ -409,12 +409,14 @@ await step("someone with the tool but no role sees the team's status page, servi
   await page.goto(origin + "/chest");
   expect((await page.locator("h1").innerText()).includes("État de nos services"), "the team's page, in French");
   const main = await page.locator("main").innerText();
-  expect(main.includes("Back office") && main.includes("Équipe seulement"), "the team-only service, marked");
+  // Named in her language (critique 3, N2): the back office's French name.
+  expect(main.includes("Gestion interne") && main.includes("Équipe seulement"), "the team-only service, marked");
   const r = await page.goto(origin + "/chest/subscribers");
   expect((await r.text()).includes("État de nos services") && !(await page.locator("main").innerText()).includes("lucie@example.com"), "no subscribers shown");
   await context.clearCookies();
   await page.goto(origin + "/?fresh=nora");
-  expect(!(await page.locator("main").innerText()).includes("Back office"), "never on the public page");
+  const outside = await page.locator("main").innerText();
+  expect(!outside.includes("Back office") && !outside.includes("Gestion interne"), "never on the public page");
 });
 
 await step("a French editor on this English Chest writes in French: the form says so, the public page marks her text French", async () => {
@@ -450,7 +452,7 @@ await step("services in two languages: an English visitor reads “Payments”, 
   await page.goto(origin + "/lang/fr?back=/");
   const fr = await page.locator(".components").innerText();
   expect(fr.includes("Paiement") && fr.includes("Suivi de livraison") && !fr.includes("Delivery tracking"), "French names");
-  expect(await page.locator(".components h4[lang]").count() === 0, "no name marked as another language");
+  expect(await page.locator(".components h4[lang]", { hasText: "Paiement" }).count() === 0, "a name in the reader's language is not marked as another");
   await as(context, origin, "camille");
   await context.addCookies([{ name: "dev_locale", value: "fr", url: origin }]);
   await page.goto(origin + "/chest");
@@ -514,7 +516,7 @@ await step("a customer's team gets updates in Slack: connected on “Get updates
   // Editors see the subscription (never its secret part).
   await page.goto(origin + "/chest/subscribers");
   const subs = await page.locator("main").innerText();
-  expect(subs.includes("In a chat or at a web address") && subs.includes("hooks.slack.com") && !subs.includes("customerSecret0123456789"), "on Subscribers");
+  expect(/in a chat or at a web address/iu.test(subs) && subs.includes("hooks.slack.com") && !subs.includes("customerSecret0123456789"), "on Subscribers");
   // Stopped from its own page: the Chest forgets it.
   await context.clearCookies();
   await english();

@@ -1,5 +1,5 @@
 import type { Member } from "@argentic/chest-sdk/member";
-import { can, spaceAccess, type SpaceAccess, type SpaceAudience } from "./access.ts";
+import { can, roleOf, spaceAccess, type SpaceAccess, type SpaceAudience } from "./access.ts";
 import type { Fragment, Query, Sql } from "./db.ts";
 import { AppError } from "./errors.ts";
 import { clean, colors, editorIds, groupIds, id, isColor, limits, type Color } from "./model.ts";
@@ -16,7 +16,8 @@ export type Space = {
   description: string;
   color: Color;
   position: string;
-  visibility: "everyone" | "groups";
+  // "private": a member's own "My pages" (createdBy), seen by them alone.
+  visibility: "everyone" | "groups" | "private";
   groups: string[];
   // Who edits it: every editor, or only some (the groups and people named).
   editing: "editors" | "some";
@@ -26,7 +27,7 @@ export type Space = {
   pages: number;
 };
 
-type SpaceRow = { id: string; name: string; description: string; color: string; position: string; visibility: "everyone" | "groups"; editing: "editors" | "some"; created_by: string; pages: number };
+type SpaceRow = { id: string; name: string; description: string; color: string; position: string; visibility: "everyone" | "groups" | "private"; editing: "editors" | "some"; created_by: string; pages: number };
 
 async function rows(sql: Query, where: Fragment): Promise<Space[]> {
   const found = await sql<SpaceRow[]>`
@@ -79,7 +80,8 @@ export async function createSpace(sql: Sql, actor: Member | null, input: SpaceIn
   if (!actor || !can(actor, "write")) throw new AppError("forbidden");
   const name = clean(input.name, limits.spaceName);
   const description = input.description === undefined ? "" : clean(input.description, limits.spaceDescription, { optional: true });
-  const [count] = await sql<{ n: number; last: string | null }[]>`select count(*)::int as n, max(position) as last from spaces`;
+  // Members' own "My pages" do not count among the company's spaces.
+  const [count] = await sql<{ n: number; last: string | null }[]>`select count(*) filter (where visibility <> 'private')::int as n, max(position) as last from spaces`;
   if ((count?.n ?? 0) >= limits.spaces) throw new AppError("too_many", { max: limits.spaces });
   const color: Color = isColor(input.color) ? input.color : colors[(count?.n ?? 0) % colors.length]!;
   const visibility = input.visibility === "groups" ? "groups" : "everyone";
@@ -96,6 +98,8 @@ export async function createSpace(sql: Sql, actor: Member | null, input: SpaceIn
 
 export async function updateSpace(sql: Sql, actor: Member | null, spaceId: unknown, input: SpaceInput): Promise<Space> {
   const s = await space(sql, actor, spaceId, "write");
+  // "My pages" has no settings: it is its owner's, as it is.
+  if (s.visibility === "private") throw new AppError("invalid");
   const name = input.name === undefined ? s.name : clean(input.name, limits.spaceName);
   const description = input.description === undefined ? s.description : clean(input.description, limits.spaceDescription, { optional: true });
   const color = input.color === undefined ? s.color : isColor(input.color) ? input.color : s.color;
@@ -117,6 +121,21 @@ export async function updateSpace(sql: Sql, actor: Member | null, spaceId: unkno
     for (const e of editors) await tx`insert into space_editors (space_id, who) values (${s.id}, ${e})`;
   });
   return space(sql, actor, s.id);
+}
+
+// mySpace is the actor's own "My pages", made the first time (named in
+// their language: only they ever read it). Any role may have one.
+export async function mySpace(sql: Sql, actor: Member | null, words: { name: string; description: string }): Promise<Space> {
+  if (!actor || roleOf(actor) === null) throw new AppError("forbidden");
+  const [found] = await sql<{ id: string }[]>`select id from spaces where visibility = 'private' and created_by = ${actor.id}`;
+  if (found) return space(sql, actor, String(found.id));
+  const [last] = await sql<{ last: string | null }[]>`select max(position) as last from spaces`;
+  await sql`
+    insert into spaces (name, description, color, position, visibility, created_by)
+    values (${clean(words.name, limits.spaceName)}, ${clean(words.description, limits.spaceDescription, { optional: true })}, 'slate', ${between(last?.last ?? null, null)}, 'private', ${actor.id})
+    on conflict (created_by) where visibility = 'private' do nothing`;
+  const [made] = await sql<{ id: string }[]>`select id from spaces where visibility = 'private' and created_by = ${actor.id}`;
+  return space(sql, actor, String(made!.id));
 }
 
 // moveSpace puts a space before another one (or last, with null).

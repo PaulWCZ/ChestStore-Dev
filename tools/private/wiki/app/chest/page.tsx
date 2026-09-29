@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Book, Download, Pen, Pin, Plus, Search, Upload } from "../../components/icons.tsx";
+import { Book, Download, Lock, Pen, Pin, Plus, Search, Upload } from "../../components/icons.tsx";
 import { NewPageButton } from "../../components/new-page.tsx";
 import { NewSpaceButton } from "../../components/new-space.tsx";
 import { can } from "../../lib/access.ts";
@@ -28,6 +28,8 @@ export default async function Home() {
   const who = await people(latest.map(p => p.updatedBy));
   const now = new Date();
   const writer = can(member, "write");
+  // Everyone's own "My pages", made with its first page.
+  const mine = { spaceId: "mine", spaceName: t.mine.name, parentId: null, parentTitle: null };
   if (spaces.length === 0) {
     // A reader cannot start the wiki: it names who can.
     const ask = writer ? null : await askWhom(locale, t.space.anotherEditor);
@@ -37,6 +39,14 @@ export default async function Home() {
           <Book />
           <h1>{writer ? t.home.empty.title : t.home.empty.readerTitle}</h1>
           <p>{writer ? t.home.empty.body : ask ? format(t.home.empty.readerAsk, { names: ask }) : t.home.empty.readerBody}</p>
+          {!writer && (
+            <>
+              <p>{t.mine.readerEmpty}</p>
+              <div className="row-actions">
+                <NewPageButton className="button quiet" target={mine} t={newPageWords(t)}><Lock />{t.mine.new}</NewPageButton>
+              </div>
+            </>
+          )}
           {writer && (
             <div className="welcome-actions">
               <ExampleButton label={t.home.empty.example} hint={t.home.empty.exampleHint} errors={t.errors} />
@@ -140,6 +150,7 @@ export default async function Home() {
             ))}
           </ul>
           <div className="row-actions spaces-foot">
+            {!spaces.some(s => s.visibility === "private") && <NewPageButton className="button quiet small" target={mine} t={newPageWords(t)}><Lock />{t.mine.new}</NewPageButton>}
             {writer && <NewSpaceButton className="button quiet small" t={{ newSpace: t.newSpace, common: t.common, errors: t.errors, dialog: t.dialog }}><Plus />{t.shell.newSpace}</NewSpaceButton>}
             {writer && <a className="button quiet small" href="/chest/export" download><Download />{t.home.exportAll}</a>}
           </div>

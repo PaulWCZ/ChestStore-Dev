@@ -45,12 +45,12 @@ export default async function SpacePage({ params }: { params: Promise<{ id: stri
         <div>
           <p className="kicker">{plural(t.home.pages, s.pages, locale)}{s.visibility === "groups" && <span className="restricted"><Lock />{t.space.restricted}</span>}{s.editing === "some" && <span className="restricted"><Pen />{t.settings.onlySome}</span>}</p>
           <h1>{s.name}</h1>
-          {s.description && <p className="lead">{s.description}</p>}
+          {s.visibility === "private" ? <p className="lead"><Lock /> {t.mine.space}</p> : s.description && <p className="lead">{s.description}</p>}
         </div>
         <div className="actions">
           {writer && <NewPageButton target={{ spaceId: s.id, spaceName: s.name, parentId: null, parentTitle: null }} t={words}><Plus />{t.shell.newPage}</NewPageButton>}
           {(writer || s.pages > 0) && <Menu label={t.space.more} icon={<Dots />} showLabel size="m" link={Link} items={[
-            ...(writer ? [{ label: t.space.settings, icon: <Gear />, href: `/chest/spaces/${s.id}/settings` }, { label: t.space.import, icon: <Upload />, href: `/chest/import?space=${s.id}` }] : []),
+            ...(writer && s.visibility !== "private" ? [{ label: t.space.settings, icon: <Gear />, href: `/chest/spaces/${s.id}/settings` }, { label: t.space.import, icon: <Upload />, href: `/chest/import?space=${s.id}` }] : []),
             ...(s.pages > 0 ? [{ label: t.space.export, icon: <Download />, href: `/chest/spaces/${s.id}/export`, download: true }] : []),
           ]} />}
         </div>

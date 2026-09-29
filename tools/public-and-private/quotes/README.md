@@ -435,8 +435,10 @@ schemas and schematrons).
 - **chest** (studio proposal): `today()`, `timeZone()`, `currency()`,
   `locale()`.
 - **Events between tools** (studio proposal, `chest.proposals.json`
-  `receives`): `crm.deal.won`, `crm.deal.reopened` from Clients — see
-  "With the other tools".
+  `receives`): `crm.deal.won`, `crm.deal.reopened` from Clients,
+  `timesheets.billable`, `timesheets.billable_cancelled` from Timesheets;
+  `emits` `quotes.invoiced` — see "With the other tools". `chest.toolLink`
+  for the link back to Timesheets (SDK 0.3.0-studio.14, vendored).
 - **Sending to the company's PA — not built, needs the SDK.** The
   Factur-X is ready; transmitting it needs a primitive the Chest does not
   have: *declared outbound HTTPS to a partner, with a per-company secret the
@@ -506,6 +508,43 @@ the contact) — the client card then asks for the city before an invoice.
 The country is the card's own default (France), as for a client added by
 hand. Code: `lib/crm.ts`, `app/chest-events/route.ts`;
 tests: `test/crm.test.ts` (`chest.deliver`).
+
+**Timesheets → Quotes → Timesheets** (Proposal (studio): events between
+tools; `chest.proposals.json` `receives` `timesheets.billable`,
+`timesheets.billable_cancelled`, `emits` `quotes.invoiced`). Contract:
+Timesheets' README, "With the other tools" (version 1).
+
+- `timesheets.billable {version: 1, handoff, project, client, period,
+  currency, lines[], source}` — **one draft invoice per `handoff`**, for
+  ever (the `handoffs` table keeps each id: a second delivery, even after
+  the draft was dropped, changes nothing). The client is the one whose name
+  is Timesheets' (accents, case and spaces aside), when exactly one
+  matches; otherwise none, and the invoice's margin says which name
+  Timesheets gave ("choose it on the invoice"). One line per `lines[]`
+  item: its label, `minutes / 60` **hours** (unit "heure"/"hour"), the
+  hourly `rate` as unit price (0 when none, or when the currency is not the
+  Chest's), at the standard 20 % VAT (the company's exemption or the
+  client's reverse charge apply as on any invoice; Timesheets sends no VAT
+  rate). Titled "<project>, du <from> au <to>", created by "Timesheets",
+  **handed to billing** (bell, desk "Ready to finalise — prepared by
+  Timesheets"), and linked back to the project with
+  `chest.toolLink("timesheets", source.path)` ("Open in Timesheets"; no
+  link when Timesheets is not installed or the path is not under `/chest`).
+- `timesheets.billable_cancelled {version: 1, handoff}` — the draft is
+  deleted if it was not issued; an issued invoice is **kept** (a legal
+  record) and billing hear it in the bell ("make a credit note if it
+  should not stand").
+- When billing **finalises** such an invoice, Quotes publishes
+  `quotes.invoiced {handoff, invoice: "F-2026-0008", path:
+  "/chest/documents/<id>", by: "mbr_…"}` with the key
+  `quotes:invoiced:<handoff>`, once; a Chest that cannot publish at that
+  moment is tried again by the daily follow-up.
+- Untrusted data: version 1 only; `handoff` 1–18 digits; names and labels
+  cleaned and bounded; 1 to 300 lines; minutes and rates whole, bounded,
+  never negative; a day `YYYY-MM-DD`; the path a `/chest…` path of 300
+  characters at most. Anything else is accepted and ignored.
+  Code: `lib/timesheets.ts`, `app/chest-events/route.ts`, migration
+  `0009_timesheets.sql`; tests: `test/timesheets.test.ts`.
 
 ## Develop
 

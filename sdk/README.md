@@ -83,6 +83,37 @@ the SDK makes the calls easier, it is not a security boundary. The full
 contract (manifest `chest.json`, capabilities, build from source, catalogue)
 is described in the Chest repository, `docs/architecture.md`.
 
+### `network` — the hosts a tool declares
+
+A tool that must reach a service outside (Microsoft Graph, a public
+registry, a calendar's feed) lists its hosts in `chest.json`
+(`"network": ["graph.microsoft.com", "*.icloud.com"]`, approved like a
+permission) and calls them with **plain `fetch()`** — no SDK call, no proxy
+code. The container keeps no network of its own: the launcher gives the
+tool `HTTP_PROXY`, `HTTPS_PROXY` (and their lowercase forms) =
+`http://127.0.0.1:<port>`, the Chest's egress proxy,
+`NO_PROXY=localhost,127.0.0.1,::1` and **`NODE_USE_ENV_PROXY=1`**, with
+which Node (**24.5 or later**; the Chest's image is Node 24) makes `fetch`
+and `node:http(s)` follow them. So:
+
+- every request but to `localhost`/`127.0.0.1`/`::1` (the Chest's API, the
+  database) goes through the proxy, which lets through the declared hosts
+  only, on ports 443 and 80, never an IP literal; a `*.` entry declares
+  every name below it, not the name itself;
+- a refusal is the proxy's: for `https:`, `fetch()` rejects with a
+  `TypeError` (the tunnel was refused); for `http:`, it answers `403` with
+  `Chest-Egress: refused; reason=undeclared|address|port|ip-literal|limit|dns`
+  (429 for `limit`);
+- `NODE_USE_ENV_PROXY` is read when Node starts: an HTTP client that
+  brings its own dispatcher or agent (undici's `Agent`, `got`, `axios` with
+  an agent) ignores it and reaches nothing — use `fetch`;
+- on an older Node the variable does nothing and every request fails: the
+  image pins a Node that has it.
+
+In a test, `fakeChest({ network: { "graph.microsoft.com": request => … } })`
+answers the declared hosts and refuses the rest the same way, without a
+proxy and without Node 24.5 (see `testing`).
+
 ## `member(request)` — server tool (contract v2)
 
 A v2 tool is an ordinary web server; on its team host, the Chest relays
@@ -157,6 +188,22 @@ const t = catalogue[who?.locale ?? "en"];
 No manifest key: every tool receives it. Adding a language to the store is
 one entry in `locales`.
 
+### `mailPreference` — how the member wants email (Proposal (studio.15))
+
+Each person chooses once, in the Chest, how every tool may email them:
+`"all"`, `"digest"` (one email a day from the Chest gathering the others)
+or `"none"`. The Chest carries it in the optional `mail_pref` claim of the
+assertion and field of `members.*` answers; `member()` and `members.*` read
+it as `mailPreference` — absent when the Chest says nothing (read it as
+`"all"`), and a value this SDK does not know is left out rather than
+refusing the member (`mailPreferenceOf(value)`).
+
+It is **read-only** for tools: `mail.send` applies it (see `mail`), so a
+tool keeps no email switch of its own and never decides for the person; it
+reads it only to say so (“You chose one email a day — change it in your
+Chest settings”). In tests, `fakeChest` members and `withMember` take an
+optional `mailPreference`.
+
 ## `members` — who has the tool
 
 A v2 tool that declares `"capabilities": ["members"]` (approved like a
@@ -172,6 +219,7 @@ const { members: page, next } = await members.list({ q: "cam", limit: 50 }); // 
 const camille = await members.get("mbr_k2qhx4mzc7v3b6nfp5r2t7w4ya");        // Member, or null
 const { members: found, former, unknown } = await members.lookup(ids);      // any number of ids
 const teams = await members.groups.list();                                  // [{id, name, members}]
+const ids = await members.matchEmails(["camille@atelier.fr"]);              // {"camille@atelier.fr": "mbr_…"} (Proposal (studio.15))
 ```
 
 - **Who**: exactly the members who have the tool now — by a grant, a group,
@@ -185,10 +233,13 @@ const teams = await members.groups.list();                                  // [
   —, whatever its case and accents; `role` and `group` keep the members of that
   role or group.
 - **`lookup(ids)`**: each identifier once, in the order given: `members`,
-  `former` (`{id, name, status: "former"}`: someone who left the Chest after
-  having the tool, so a record still reads “Camille Martin (former member)”;
-  `{id, name: null, status: "erased"}` once the owner had their data erased,
-  rendered “Former member”) and `unknown`. The SDK asks 200 at a time and
+  `former` (`{id, name, status: "former", leftAt}`: someone who left the
+  Chest after having the tool, so a record still reads “Camille Martin
+  (former member)”; `{id, name: null, status: "erased", leftAt}` once the
+  owner had their data erased, rendered “Former member”) and `unknown`.
+  **Proposal (studio.15)**: `leftAt` is when they left the Chest (an ISO
+  8601 instant, `null` from a Chest before it) — “left on 30 September” on
+  a final expense claim; kept after an erasure, a date alone naming nobody. The SDK asks 200 at a time and
   keeps each answer a minute in the process (5,000 at most); `forget()`
   empties it, and so does every event of the members' lifecycle
   (`events.handle`).
@@ -218,6 +269,30 @@ const people = await members.lookup(rows.flatMap(r => [r.assignee, r.created_by]
 
 To search tasks by assignee name: `members.list({ q })` first, then
 `where assignee = any($ids)`.
+
+### `matchEmails` — who these addresses are (Proposal (studio.15))
+
+A tool that holds addresses from elsewhere — Intune's devices and their
+user, an imported spreadsheet — learns which member each one is without
+`members.email`: the Chest matches, the tool learns member ids only.
+
+```ts
+const ids = await members.matchEmails(devices.map(d => d.user)); // each address as given → "mbr_…"
+for (const d of devices) d.member = ids[d.user] ?? null;
+```
+
+- Only members who have the tool are matched; an address of nobody, of a
+  former member or of a member without the tool is left out alike — the
+  answer never says whether an address exists in the Chest outside a
+  match, and never gives an address.
+- The whole address, whatever its case, spaces around trimmed; the
+  member's sign-in address only (no alias). What is not an address is
+  never sent.
+- Bounds (`matchLimits`): 200 addresses a call (the SDK sends any number,
+  200 at a time), in the 600 calls a minute of `members` (`RateLimited`),
+  and 5,000 distinct addresses a day per tool (`QuotaExceeded`; the same
+  address again that day is free) — a tool cannot walk a list of guesses.
+- No capability beyond `members`.
 
 ### `groups` — every group of the Chest (Proposal (studio))
 
@@ -480,8 +555,9 @@ export async function POST(request: Request) {
 
 | Export | Gives |
 |---|---|
-| `send(message)` | Queues one message: `to`/`cc` (addresses or `{member}`), `subject`, `text` (+ `html`), `mailbox` (its address and the company's name; the no-reply address otherwise), `fromName`, `replyTo`, `inReplyTo`/`references` (threads), `attachments` (a file of the tool's `files`, or content), `key` (the same key within 24 h sends nothing again). `{id: "msg_…", messageId}` |
-| `status(id)` | `queued`, `sent`, `delivered`, `bounced`, `complained`, `failed` |
+| `send(message)` | Queues one message: `to`/`cc` (addresses or `{member}`), `subject`, `text` (+ `html`), `mailbox` (its address and the company's name; the no-reply address otherwise), `fromName`, `replyTo`, `inReplyTo`/`references` (threads), `attachments` (a file of the tool's `files`, or content), `key` (the same key within 24 h sends nothing again), `transactional` (Proposal (studio.15)). `{id: "msg_…", messageId, status: "queued" \| "held", skipped, digest}` |
+| `status(id)` | `queued`, `held`, `sent`, `delivered`, `bounced`, `complained`, `failed` |
+| `idempotencyKey(key)` | The key the Chest receives for a key the tool gives (studio.15): as given when it is 1–64 of `A-Z a-z 0-9 . _ : -`, otherwise `sha256:` and its digest; null for what is not a key |
 | `mailboxAddress(name)` | The mailbox's address, to show on pages; null until the owner gives it one |
 | `handle(request, handler \| {message, bounce}, {seen?})`, `verify(request)` | A received message: `{kind: "message", id: "rcv_…", mailbox, from {address, name}, to, cc, deliveredTo, thread, subject, text, html (cleaned by the Chest), original (the .eml in the tool's files), messageId, inReplyTo, references, attachments [{file, name, type, size}] already in the tool's files under `mail/`, dropped, receivedAt, spam 0–10, authenticated, auto}`; or a bounce `{kind: "bounce", id: "bnc_…", message, recipient, permanent, reason, at}` |
 | `threadAddress(mailbox, thread)`, `threadTag`, `threadOf` | A conversation's own reply address (`support+t1042-k3q…@…`), whose tag only this tool can make, and the thread read back from an address |
@@ -496,8 +572,39 @@ tool says "Emails will be sent once your Chest can send them"). The Chest
 journals every message (to, subject, size, status; never the body by
 default) and shows the day's count on the tool's page.
 
+**Keys (studio.15).** A `key` is the tool's name for one message, and a
+retry under it sends nothing twice. Build it from what names the message —
+`` `digest:${day}:${member}` `` — and **never cut it**: any text of 1 to 512
+characters without control characters is taken whole, and the SDK sends
+one longer than the Chest keeps (64 of `A-Z a-z 0-9 . _ : -`) as its
+SHA-256 (`idempotencyKey`). Until studio.15 the cap was 64 and tools cut
+`` `${key}:${member}`.slice(0, 64) ``: past 33 characters of their own, the
+cut took the recipient off, two recipients shared one key, and the Chest
+answered the second with the first message — one email dropped, silently.
+Now the Chest refuses a key reused within 24 hours **for other recipients**
+(`ChestError` `key_conflict`, 409, nothing sent): a retry with the same
+recipients answers the first message (its text may differ — a retry
+re-renders); anything else is a bug the tool hears of. Keys that already
+fit are sent unchanged: a tool's keys keep working, and its retries across
+the upgrade are still recognised.
+
+**The person's email preference (Proposal (studio.15)).** Each member
+chooses once, in the Chest, `all`, `digest` or `none` (`member.mailPreference`,
+read-only). `send` applies it to every recipient who is a member — given
+as `{member}` or by their address: `none` is not sent to (`skipped`),
+`digest` waits for the Chest's one email a day (`digest`); the message goes
+to the others, and `status` is `"held"` when it goes to nobody now — not an
+error. `transactional: true` is for what the person must get whatever they
+chose — a password, a booking's confirmation, a payslip, the answer to
+their own request; everything else (reminders, digests, "a task was
+assigned") honours the preference. The Chest journals the flag and shows
+the owner each tool's share: a tool that marks everything transactional is
+seen. Outside addresses have no preference (a customer unsubscribes from
+the tool's own list, or the suppression list stops a complaint).
+
 In tests: `fakeChest({ capabilities: [..., "mail"], mail: { domain, mailboxes, perDay, suppressed } })`;
-`chest.outbox` holds what was sent (addresses resolved, members' included);
+`chest.outbox` holds what was sent (addresses resolved, members' included),
+`chest.held` what members' preferences held back (`{id, member, reason: "none" | "digest", subject, text}`);
 `chest.receive({mailbox, from, subject, text, attachments?}, to)` delivers a
 message to `POST <to>/chest-mail`, attachments stored in the tool's files.
 

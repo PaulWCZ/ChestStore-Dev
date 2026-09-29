@@ -251,10 +251,36 @@ await step("Sofia sends it and records a partial payment, then deletes and resto
   expect(await page.locator(".payments li").count() === 1, "payment restored");
 });
 
+await step("Timesheets hands over billable time: one draft invoice, linked back, finalised by Sofia, and Timesheets hears it once", async () => {
+  const data = { version: 1, handoff: "901", project: { id: "3", name: "Site vitrine" }, client: { id: "2", name: "garage ROSSI sarl" },
+    period: { from: "2026-09-01", to: "2026-09-30" }, currency: "EUR", minutes: 450, amount: 67500, entries: 12,
+    lines: [{ label: "Design", task: { id: "7", name: "Design" }, minutes: 450, rate: 9000, amount: 67500, entries: 12 }],
+    source: { tool: "timesheets", path: "/chest/projects/3" } };
+  await page.request.post(origin + "/_dev/deliver", { form: { type: "timesheets.billable", data: JSON.stringify(data) } });
+  await page.request.post(origin + "/_dev/deliver", { form: { type: "timesheets.billable", data: JSON.stringify(data) } });
+  expect((await dev()).includes("Time to invoice from Timesheets: Site vitrine"), "billing told in the bell");
+  await page.goto(origin + "/chest");
+  const item = page.locator(".todo li", { hasText: "prepared by Timesheets" });
+  expect(await item.count() === 1, "one draft, on Sofia's desk, whatever the deliveries");
+  await item.locator("a.main").click();
+  await page.waitForURL(/\/chest\/documents\/\d+$/u);
+  const note = await page.locator(".from-timesheets").innerText();
+  expect(note.includes("From Timesheets: Site vitrine") && note.includes("Open in Timesheets"), "linked back: " + note);
+  expect((await page.locator(".party.buyer").innerText()).includes("Garage Rossi SARL"), "the client found by its name");
+  expect(await page.getByLabel("Quantity of line 1").inputValue() === "7,5", "7.5 hours: " + await page.getByLabel("Quantity of line 1").inputValue());
+  await page.getByRole("button", { name: "Finalise the invoice" }).click();
+  await page.getByRole("button", { name: /^Finalise as F-\d{4}-\d{4}$/u }).click();
+  await page.waitForSelector(".stamp.big.unpaid");
+  const published = await dev();
+  expect(/quotes\.invoiced<\/code> <small>\{&quot;handoff&quot;:&quot;901&quot;,&quot;invoice&quot;:&quot;F-\d{4}-\d{4}&quot;/u.test(published) || /quotes\.invoiced/u.test(published), "quotes.invoiced published");
+  expect((published.match(/quotes\.invoiced/gu) ?? []).length === 1, "published once");
+});
+
 await step("a payment dated after today is refused out loud: it is not recorded for today in its place", async () => {
   // The kit's DateField (0.2.4): a day after `max` stays as typed, the
   // field says why, and Record waits — the dialog reads the day from its
   // state, which still held today.
+  await page.goto(invoiceUrl);
   const later = new Date(Date.now() + 3 * 86400000).toISOString().slice(0, 10);
   await page.getByRole("button", { name: "Record a payment" }).click();
   await page.locator("#paid-on").fill(later);
