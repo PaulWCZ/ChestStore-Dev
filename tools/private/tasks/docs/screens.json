@@ -9,7 +9,7 @@
   { "name": "card-repeat", "path": "/chest/boards/1?card=17", "member": "ines", "locale": "en" },
   { "name": "card-repeat-fr", "path": "/chest/boards/1?card=17", "member": "ines", "locale": "fr", "only": ["phone"] },
   { "name": "card-dark", "path": "/chest/boards/1?card=1", "member": "hugo", "locale": "en", "dark": true },
-  { "name": "card-undo", "path": "/chest/boards/1?card=1", "member": "hugo", "locale": "fr", "actions": [{ "click": ".done-button" }, { "wait": 900 }], "only": ["desktop"] },
+  { "name": "card-undo", "path": "/chest/boards/1?card=1", "member": "hugo", "locale": "fr", "actions": [{ "click": ".done-bar button.button" }, { "wait": 900 }], "only": ["desktop"] },
   { "name": "list", "path": "/chest/boards/1?view=list", "member": "camille", "locale": "en" },
   { "name": "calendar", "path": "/chest/boards/1?view=calendar", "member": "camille", "locale": "en" },
   { "name": "calendar-fr", "path": "/chest/boards/1?view=calendar", "member": "ines", "locale": "fr", "only": ["phone"] },
