@@ -66,12 +66,12 @@
 .ck-toasts { position: fixed; z-index: 60; left: var(--space-3); right: var(--space-3); bottom: max(var(--space-4), env(safe-area-inset-bottom)); display: grid; justify-items: center; gap: var(--space-2); pointer-events: none; }
 .ck-toast-stack { display: grid; justify-items: center; gap: var(--space-2); }
 .ck-toast {
-  pointer-events: auto; display: flex; flex-wrap: wrap; align-items: center; gap: 0 var(--space-2);
+  pointer-events: auto; display: flex; align-items: center; gap: var(--space-2);
   max-width: min(560px, 100%); padding: var(--space-1) var(--space-1) var(--space-1) var(--space-4);
   border-radius: var(--radius-m); background: var(--ink); color: var(--bg); box-shadow: var(--shadow-2);
   animation: ck-rise var(--slow) var(--ease);
 }
-.ck-toast-text { flex: 1 1 12em; margin: 0; padding: var(--space-2) 0; }
+.ck-toast-text { flex: 1 1 auto; min-width: 0; margin: 0; padding: var(--space-2) 0; }
 .ck-toast .ck-icon { color: inherit; }
 .ck-toast-undo, .ck-toast-action, .ck-toast-close { flex: none; display: inline-flex; align-items: center; gap: var(--space-1); min-height: var(--control-h); border: 0; border-radius: var(--radius-s); background: none; color: inherit; font: inherit; cursor: pointer; }
 .ck-toast-undo, .ck-toast-action { padding: 0 var(--space-3); font-weight: var(--weight-strong); text-decoration: underline; text-underline-offset: 0.2em; }
@@ -156,6 +156,7 @@
 .ck-date-input { padding-right: calc(var(--control-h) + var(--space-1)); font-variant-numeric: tabular-nums; }
 .ck-date-open { position: absolute; right: 0; top: 0; }
 .ck-date-chips { display: flex; gap: var(--space-1); flex-wrap: wrap; }
+.ck-month { min-width: 0; }
 .ck-month-row { display: flex; align-items: center; gap: var(--space-1); }
 .ck-month-select { flex: 0 1 14em; width: auto; min-width: 0; }
 .ck-chip-button { display: inline-flex; align-items: center; justify-content: center; min-height: var(--control-h); padding: 0 var(--space-3); border: var(--border-width) solid var(--line-strong); border-radius: var(--radius-pill); background: var(--surface); color: var(--ink); font: inherit; font-size: var(--text-s); cursor: pointer; }

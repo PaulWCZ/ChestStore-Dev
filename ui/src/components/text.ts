@@ -49,8 +49,10 @@ export function compareText(a: string, b: string): number {
 export function initials(name: string): string {
   const bare = name.replace(/\s*[(（[][^()（）[\]]*[)）\]]\s*$/u, "").trim() || name.trim();
   const words = bare.split(/\s+/u).filter(Boolean);
-  const first = [...(words[0] ?? "")][0] ?? "";
-  const last = words.length > 1 ? [...(words.at(-1) ?? "")][0] ?? "" : "";
+  // A word's first letter or digit ("(bot)" → "B", "«Léa»" → "L").
+  const letter = (w: string | undefined) => [...(w ?? "")].find(ch => /[\p{L}\p{N}]/u.test(ch)) ?? [...(w ?? "")][0] ?? "";
+  const first = letter(words[0]);
+  const last = words.length > 1 ? letter(words.at(-1)) : "";
   return (first + last).toUpperCase() || "·";
 }
 

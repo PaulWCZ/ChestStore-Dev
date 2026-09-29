@@ -90,6 +90,13 @@ The Chest theme is the one exception: its eight slots are warm greys (the
 portal has no colour), so there a category is told by its label only —
 which every tool must show anyway.
 
+`checkPalette(theme)` holds a theme to its families (0.2.1): in each
+mode, a slot's colour, soft ground and label keep a hue within 35° of
+their family's (`categoryFamilies`: 255, 150, 55, 305, 355, 195, 88,
+250), and the colour and label of slots 1 to 7 keep a chroma of 0.03 at
+least — a label in plain black loses the category a tool paints with it
+(Workshop's did, until 0.2.1). Slot 8 is a grey of any tint.
+
 **Why a palette per theme, and not `color-mix()` in the tool.** The two
 were weighed:
 

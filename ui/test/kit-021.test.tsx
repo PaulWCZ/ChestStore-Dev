@@ -288,3 +288,57 @@ test("SearchBox autoFocus; PeoplePicker words for suggestions; the logo's cap; a
   assert.match(css, /\.ck-drop\.ck-disabled \.ck-button \{[^}]*opacity/u);
   assert.match(css, /\.ck-drop\.ck-disabled \.ck-drop-hint \{ display: none; \}/u);
 });
+
+test("PeoplePicker hideLabel: labelled for screen readers only (a table cell)", async () => {
+  const { PeoplePicker } = await import("../src/components/index.js");
+  const { localSearch } = await import("../src/components/people.js");
+  const cell = html(<PeoplePicker label="Replacement" hideLabel search={localSearch([])} value={[]} onChange={noop} labels={en.peoplePicker} />);
+  assert.match(cell, /<label class="ck-vh" for="[^"]+">Replacement<\/label>/u);
+  assert.match(html(<PeoplePicker label="Owner" search={localSearch([])} value={[]} onChange={noop} labels={en.peoplePicker} />), /<label class="ck-label"/u);
+});
+
+test("MonthField: a month in words, the previous and the next one tap away, in the tool's language", async () => {
+  const { MonthField } = await import("../src/components/index.js");
+  const { addYearMonths, isYearMonth, monthsFrom } = await import("../src/components/dates.js");
+  assert.equal(addYearMonths("2026-11", 3), "2027-02");
+  assert.equal(addYearMonths("2026-01", -1), "2025-12");
+  assert.deepEqual(monthsFrom("2026-11", "2027-02"), ["2026-11", "2026-12", "2027-01", "2027-02"]);
+  assert.ok(isYearMonth("2026-09") && !isYearMonth("2026-13") && !isYearMonth("2026-9"));
+  const fr1 = html(<MonthField label="Mois" value="2026-09" onChange={noop} today="2026-09-29" min="2026-01" max="2026-12" labels={fr.date} />);
+  assert.match(fr1, /<option value="2026-09" selected="">Septembre 2026<\/option>/u);
+  assert.equal((fr1.match(/<option /gu) ?? []).length, 12);
+  assert.match(fr1, /Mois précédent/u);
+  const edge = html(<MonthField label="Month" value="2026-01" onChange={noop} today="2026-09-29" min="2026-01" labels={en.date} />);
+  assert.match(edge, /<button type="button" class="ck-icon-button" disabled=""><svg[^]*?Previous month/u, "no month before min");
+  const outside = html(<MonthField label="Month" value="2019-03" onChange={noop} today="2026-09-29" labels={en.date} />);
+  assert.match(outside, /<option value="2019-03" selected="">March 2019<\/option>/u, "a value outside the range is kept and shown");
+  assert.equal(html(<MonthField label="Month" value="2026-09" onChange={noop} today="2026-09-29" labels={en.date} />), html(<MonthField label="Month" value="2026-09" onChange={noop} today="2026-09-29" labels={en.date} />), "no clock: the same on server and browser");
+});
+
+test("initials: a trailing note in brackets is not part of the name", async () => {
+  const { initials } = await import("../src/components/text.js");
+  assert.equal(initials("Léa Dubois (former member)"), "LD");
+  assert.equal(initials("Léa Dubois (ancienne)"), "LD");
+  assert.equal(initials("Hugo Bernard [external]"), "HB");
+  assert.equal(initials("Camille Martin"), "CM");
+  assert.equal(initials("(bot)"), "B", "a name that is only a note keeps its letter");
+  assert.equal(initials("Tom"), "T");
+});
+
+test("DataTable rowProps: a row's class and data- attributes, nothing else", async () => {
+  const { DataTable } = await import("../src/components/index.js");
+  type R = { id: string; past: boolean };
+  const markup = html(<DataTable<R> caption="Bookings" columns={[{ key: "id", label: "#", value: r => r.id, rowHeader: true }]} rows={[{ id: "b1", past: true }, { id: "b2", past: false }]} rowKey={r => r.id}
+    rowProps={r => ({ className: r.past ? "is-past" : undefined, "data-state": r.past ? "past" : "coming", ...({ onClick: noop, style: "color:red" } as object) })} />);
+  assert.match(markup, /<tr data-state="past" class="is-past">/u);
+  assert.match(markup, /<tr data-state="coming">/u);
+  assert.ok(!markup.includes("style=") && !markup.includes("onClick"), "only class and data-");
+});
+
+test("no color-mix in OKLCH in the kit's CSS and docs (a white has no hue: Chrome swings the mix)", () => {
+  for (const file of ["css/components.css", "tokens/CONTRACT.md", "README.md", "AGENTS.md"]) {
+    const text = readFileSync(join(ui, file), "utf8");
+    const uses = [...text.matchAll(/color-mix\(in oklch[^)]*\)/gu)].map(m => m[0]).filter(u => !u.includes("#2b59c3"));
+    assert.deepEqual(uses, [], file);
+  }
+});

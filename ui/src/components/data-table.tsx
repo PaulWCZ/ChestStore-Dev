@@ -54,7 +54,7 @@ export type DataTableProps<R> = {
   readonly rowProps?: (row: R) => RowProps;
 };
 
-export type RowProps = { readonly className?: string } & { readonly [data: `data-${string}`]: string | number | boolean | undefined };
+export type RowProps = { readonly className?: string | undefined } & { readonly [data: `data-${string}`]: string | number | boolean | undefined };
 
 export function DataTable<R>({ caption, showCaption = false, columns, rows, rowKey, rowName, actions, totals, empty, sort, onSort, sortHref, labels = en.table, current, rowProps }: DataTableProps<R>): ReactElement {
   const [localSort, setLocalSort] = useState<Sort | null>(null);

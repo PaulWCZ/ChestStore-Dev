@@ -39,13 +39,13 @@ components).
 |---|---|
 | `@argentic/chest-ui/runtime` | `resolveTheme`, `themeStyle`, `lookCss`, `lookColors`, `lookNotes`, `nonceOf`, types `Look`, `ThemeChoice`: the page's look, on the server |
 | `@argentic/chest-ui/react` | `ThemeStyle`: the same `<style>`, as a React element (a server component in Next.js) |
-| `@argentic/chest-ui/components` | the store's shared React components (client components): `Toasts`/`useToast`, `Dialog`, `Confirm`, `PeoplePicker`, `DateField`, `Calendar`, `DayStrip`, `TimeSelect`, `FilePicker`, `DataTable`, `Menu`, `Filters`, `SearchBox`, `EmptyState`, `Avatar`, `AvatarStack`, `StatusBadge`, `Tabs`, `Segmented`, `AppShell`, `Nav`, `NavLink`, `PageHeader`, `MemberChip`, `NoAccess`, `LanguageSwitch`, `BrandMark`, `AutoRefresh`/`useAutoRefresh` (see "Components") |
+| `@argentic/chest-ui/components` | the store's shared React components (client components): `Toasts`/`useToast`, `Dialog`, `Confirm`, `PeoplePicker`, `DateField`, `Calendar`, `MonthField`, `DayStrip`, `TimeSelect`, `FilePicker`, `DataTable`, `Menu`, `Filters`, `SearchBox`, `EmptyState`, `Avatar`, `AvatarStack`, `StatusBadge`, `Tabs`, `Segmented`, `AppShell`, `Nav`, `NavLink`, `PageHeader`, `MemberChip`, `NoAccess`, `LanguageSwitch`, `BrandMark`, `AutoRefresh`/`useAutoRefresh` (see "Components") |
 | `@argentic/chest-ui/components/logic` | their rules as pure, server-safe functions, and their default words `en`, `fr`, `kitWords`, `wordsFor(locale)`, `storeLanguages` |
 | `@argentic/chest-ui/components.css` | the components' stylesheet (contract tokens only) |
 | `@argentic/chest-ui/themes` | `catalogue`, `themes`, `themeOf(id)`, `identityOf(tool)`, `catalogueFonts` |
 | `@argentic/chest-ui/derive` | `deriveTheme`, `BrandError`, `logoUrlPattern`, types `Brand`, `BrandFont`, `BrandLogo`, `Derived`, `Corners`, `Density` |
 | `@argentic/chest-ui/import` | `importBrand`, `maxImportSize`, types `Imported`, `ImportFormat` |
-| `@argentic/chest-ui/contract` | `colorTokens`, `effectTokens`, `staticTokens`, `allTokens`, `pairs`, `checkTheme`, `ratios`, `validateTheme`, `categories`, `controlHeight`, `themeIdPattern`, types `Theme`, `Scheme`, `Pair`, `Failure`, `Words` |
+| `@argentic/chest-ui/contract` | `colorTokens`, `effectTokens`, `staticTokens`, `allTokens`, `pairs`, `checkTheme`, `checkPalette`, `categoryFamilies`, `paletteLimits`, `ratios`, `validateTheme`, `categories`, `controlHeight`, `themeIdPattern`, types `Theme`, `Scheme`, `Pair`, `Failure`, `Words` |
 | `@argentic/chest-ui/fonts` | `registry`, `font(id)`, `systemFont`, `uploadedFont`, `fontFaces`, `fontFiles`, `closestFont`, patterns, types `FontSpec`, `FontEntry`, `FontSource` |
 | `@argentic/chest-ui/color` | `parseColor`, `hex`, `oklch`, `oklchHex`, `contrast`, `luminance`, `fit`, `mix`, `hueDistance`, `colourWord`… |
 | `@argentic/chest-ui` | all of the above but React, and `defineTheme` (a tool's own identity), `completeScheme`, `category`, `note`, `themeCss`, `staticDeclarations`, `schemeDeclarations`, `themeColors` |
@@ -136,8 +136,9 @@ tool's name (a `<picture>` with its dark variant).
 | `chest` | Chest / Chest | the portal's sheet | "Suisse" (Arial) + "Works" (Georgia); light only |
 | `high-contrast` | High contrast / Contraste élevé | — | Atkinson Hyperlegible |
 
-All 19 pass every pair of the contract in both modes (the tests hold them
-to it). `ui/gallery/index.html` shows them side by side (`npm run
+All 19 pass every pair of the contract in both modes, and all but Chest
+keep each categorical slot in its colour family (`checkPalette`) (the
+tests hold them to it). `ui/gallery/index.html` shows them side by side (`npm run
 gallery`).
 
 **The "Chest" theme** follows the portal's design sheet at the owner's
@@ -306,7 +307,11 @@ once the keyboard leaves it (WCAG 2.2.1); 6 s plain, 10 s with Undo or an
 error; **one toast per `id`** (showing it again replaces it); at most
 three. `sent: true` never offers Undo, even if one was passed, and turns
 an earlier toast of the same id into "sent". **Ctrl+Z / ⌘Z**, outside a
-text field, runs the newest Undo (`aria-keyshortcuts`). Rules in
+text field, runs the newest Undo (`aria-keyshortcuts`). `action: { label,
+run }` (0.2.1) is one more button beside Undo ("Keep 1 min", "Open"):
+`run` is called once and the toast goes (`close: false` keeps it); a
+toast with an action stays 10 s. It never reverses the act — that is
+`undo`. Rules in
 `toast-state.ts` (`toastReducer`, tested without a browser).
 
 ### Dialog and Confirm
@@ -336,7 +341,13 @@ does nothing, Escape cancels. `size`: `s`, `m`, `l`; a bottom sheet under
 ```
 
 The ARIA 1.2 combobox (`aria-activedescendant`, arrows wrap, Enter
-chooses, Escape closes, Backspace removes the last chip). Choices are
+chooses, Escape closes, Backspace removes the last chip). While an answer
+is on its way the list says so (`aria-busy`) and nothing in it is active:
+Enter then chooses nothing, and Enter in the picker never sends the form
+around it while its list is shown (0.2.1). `suggestionsLabel` names the
+suggestions when they are not the person's recent choices
+(`labels.suggested`: "Suggested" / « Suggestions »); `hideLabel` keeps the
+label for screen readers only (a picker in a table cell). Choices are
 `{ kind?: "member" | "group", id, name, detail?, photo?, size? }`: Chest
 groups appear under their own heading with their size. Nothing typed:
 `suggestions` (the person's recent choices first — keep them with
@@ -366,6 +377,23 @@ phone. `TimeSelect`: a 24-hour list every `step` minutes, `end` offers
 24:00; `moveStart` keeps the duration when the start moves (the Rooms
 bug), `moveEnd` never lets the end pass the start.
 
+`MonthField` (0.2.1): a month (`"2026-09"`), the month in words in a list
+with the previous and next month one tap away (`min`/`max`, default a
+year back and two ahead; words from `DateWords`). `TimeSelect` takes
+`empty="No break"` for an optional time: a first choice whose value is
+`""` in a form and `null` for `onChange`. The date words of a tool's own
+catalogue (a JSON file, where `order` is a string and `weekStart` a
+number) go through `dateWords(words)` (from `/components/logic`), which
+checks them and gives `DateWords`. The date in words under a `DateField`
+keeps its line even while empty (0.2.1): it appears on blur, and a line
+appearing then moved the button under the pointer.
+
+**Popovers escape their frame (0.2.1).** The picker's list, the
+calendar and a row's menu inside a `<dialog>`, a table's scrolling frame
+or any box that scrolls are placed over it (fixed to the viewport,
+flipped above the field when there is no room below), never cut at its
+edge; elsewhere the CSS places them as before.
+
 ### FilePicker
 
 ```tsx
@@ -386,7 +414,9 @@ per file (too big, wrong kind, too many); progress per file; remove
 (aborts an upload in flight) and retry. `filesReady(files)` before a
 form submits. Without `upload`, files stay in the browser (an importer
 reads `file`). **Sniffing the bytes on the server stays the tool's job**
-(Hiring's `lib/cv.ts`).
+(Hiring's `lib/cv.ts`). With `maxFiles={1}` it says "or drop it here"
+(`labels.dropOne`, « ou déposez-le ici »); full, only its button fades —
+the limits beside it stay readable (0.2.1).
 
 ### DataTable and Menu
 
@@ -408,7 +438,10 @@ by the tool (`sort` + `onSort`, or `sortHref` for a server sort in the
 address) or, without them, here after a click; a row header per row;
 `hideOnPhone` columns; a `Menu` of rare actions per row (the ARIA menu
 button: arrows, Home/End, a letter, Escape returns focus). `Menu` is also
-usable alone.
+usable alone. `rowProps={r => ({ className, "data-state": … })}` gives a
+row its own class and data- attributes (nothing else) (0.2.1). A sortable
+header's button inherits the header's typography (case, tracking, small
+caps).
 
 ### Filters and SearchBox
 
@@ -420,9 +453,15 @@ usable alone.
 
 Filters are links (`filterHref`: a chip toggles, the search stays, the
 page resets): a filtered list is shareable and Back works, with or without
-script; counts on each chip; "Clear filters" when one is on. `SearchBox`
-is a GET form (`role="search"`), "/" focuses it from anywhere but a field
-(`shortcut`), or `onSearch` for a list filtered in the page.
+script; counts on each chip; "Clear filters" when one is on. A group
+with `multiple: true` holds several values, comma-separated in the
+address (`f=screen,dock`): each chip adds or takes away its own
+(`paramValues` reads them). A group with `required: true` always has one
+value (`value` when the address names none): no "All", no let-go, and
+"Clear filters" leaves it (0.2.1). `SearchBox` is a GET form
+(`role="search"`), "/" focuses it from anywhere but a field
+(`shortcut`), or `onSearch` for a list filtered in the page; `maxLength`
+(200 by default) and `autoFocus` (0.2.1).
 
 ### EmptyState, Avatar, AvatarStack, StatusBadge, Tabs, Segmented
 
@@ -434,10 +473,14 @@ is a GET form (`role="search"`), "/" focuses it from anywhere but a field
   "+2", the names said once.
 - `StatusBadge({ tone: "ok"|"wait"|"danger"|"info"|"neutral", label })`:
   a shape **and** a word; `category={1…8}` for a category chip (its label
-  is what tells it).
+  is what tells it). Faces in a stack never cover each other's initials
+  (no overlap at `s`, 0.2.1); `initials` leaves out a trailing note in
+  brackets ("Léa Dubois (former member)" → "LD").
 - `Tabs({ items: [{ id, label, count, href }], current, label })`: links
   when the items have `href` (the usual case), else a tab list with a
-  roving focus and a panel. `Segmented`: 2 to 4 native radios.
+  roving focus and a panel. `Segmented`: 2 to 4 native radios; `disabled`
+  on it or on one option; the word is the target (the radio is hidden
+  without covering it) (0.2.1).
 
 ### AppShell, Nav, PageHeader — the one navigation rule
 
@@ -452,16 +495,80 @@ Sections are **labelled tabs, never icons alone, never hidden** (no
 hamburger, no "···"): in the header on a wide screen, in a row of their
 own under it under 760 px (icon above the word, five at most). The member
 chip at the right ("Camille Martin · Manager"; on a phone the name is
-read, the avatar shown). `PageHeader({ title, intro, action })`: the
-page's main action at the right of its title, a full-width button under
-it on a phone. `NoAccess` for a role that gives nothing; `LanguageSwitch`
-(public part) with `storeLanguages` (from `/components/logic`); `BrandMark({ logo })` for
-`look.logo`; `NavLink` / `isCurrent` for other links;
+read, the avatar shown). `PageHeader({ title, intro, action, size })`:
+the page's main action at the right of its title, a full-width button
+under it on a phone; `size="m"` for a smaller title (`--text-xl`;
+default `"l"`, `--text-2xl`) (0.2.1). `NoAccess` for a role that gives
+nothing; `LanguageSwitch` (public part) with `storeLanguages` (from
+`/components/logic`); `BrandMark({ logo, ground })` for `look.logo`
+(`ground="inverse"` on a dark header in a light look, and the other way
+round; `"dark"`/`"light"` for a ground that stays so — 0.2.1; the logo is
+scaled whole, at most `--ck-logo-max` wide, 160 px by default, a third of
+a phone's width); `NavLink` / `isCurrent` for other links;
 `useAutoRefresh(router.refresh, 20)` (the Chest has no WebSocket).
+
+**Links (0.2.1).** Every `link` prop (`AppShell`, `Nav`, `NavLink`,
+`Tabs`, `DayStrip`, `Filters`, `LanguageSwitch`) takes Next.js's `Link`
+as it is — `import Link from "next/link"; … link={Link}`, no wrapper, no
+cast: a link component returns a `ReactNode` (`LinkComponent`,
+`LinkProps`). A wrapper written for 0.2.0 still fits. A section stays
+current on other pages with `also` (path prefixes: `{ href: "/chest",
+label: t.bookings, also: ["/chest/new", "/chest/b"] }`), and `match:
+"exact" | "prefix"` says how its own path matches (default `"prefix"`,
+but `"/chest"` is exact unless `match: "prefix"`).
 
 Every component is in `gallery/components.html` (`npm run gallery`), in
 the Chest look, Workshop, Library and a brand, light and dark, English
 and French, working.
+
+## Changelog
+
+### 0.2.1-studio.1 (2026-09-29)
+
+Fixes and gaps reported by the first migrations (Booking, Rooms,
+Timesheets, Hiring, Tasks, Leave). **Backward compatible**: a tool on
+0.2.0 re-vendors with no code change (new props are optional, new words
+optional, types only widened).
+
+- **DateField**: the date in words keeps its line while empty — a click
+  right after typing no longer misses the button under the field.
+- **Links**: Next.js's `Link` fits every `link` prop without a cast
+  (`LinkComponent` returns `ReactNode`); `DayStrip` renders its link as
+  an element (it called it as a function, which a forwardRef component
+  is not).
+- **Nav**: `also` (other path prefixes) and `match` on `NavItem` and
+  `NavLink`; `isCurrent(path, href, rule)` takes the same rule.
+- **AvatarStack**: no overlap at `s`, less at the other sizes — initials
+  are never covered (measured in the browser at every size and look).
+- **Filters**: `multiple` groups (`f=screen,dock`), `required` groups;
+  `paramValues`. **SearchBox**: `maxLength` (200), `autoFocus`.
+- **Palette**: slots keep their colour family in every theme —
+  `checkPalette` (hue within 35° of the family, label and colour not grey
+  for slots 1–7); Workshop's labels are deep inks of their family (they
+  were all black), Control room's slot 5 is a pink (it was a red),
+  Magazine's dark slot 3 ground an orange; `deriveTheme` gives a brand's
+  colour to a family only when it belongs to it. All 19 themes and 1,500
+  random brands pass `checkTheme` and `checkPalette` (Chest's greys
+  excepted by design).
+- **Instrument**: `--highlight` is Timesheets' electric lime `#c6ff3a`
+  (it was a pale `#e4f9b0`); every identity's signature colour is held to
+  its tool's former `tokens.css` by a test.
+- **PageHeader** `size` (`"l"`, `"m"`). **BrandMark** `ground` and a
+  logo scaled whole (`--ck-logo-max`). **Toast** `action`.
+  **Segmented** `disabled`, the word as the target. **DataTable**
+  `rowProps`, sortable headers in the header's typography.
+  **FilePicker** `dropOne`, readable when full. **PeoplePicker**
+  `suggestionsLabel`, `hideLabel`, no choice nor form sent while
+  searching. **TimeSelect** `empty`. **MonthField** (new).
+  `dateWords()` for a catalogue's date words. `initials` leaves out a
+  bracketed note.
+- **Popovers** (picker list, calendar, row menu) escape a dialog's or a
+  table's scrolling frame.
+- **Docs**: decorative mixes are `color-mix(in oklab, …)`, never `in
+  oklch` (a white has no hue; Chrome swings the mix through pink/blue).
+
+For 0.3: a date range on the calendar (`DateRangeField`, Leave uses two
+`DateField`s today).
 
 ## Develop
 

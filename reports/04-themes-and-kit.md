@@ -537,3 +537,60 @@ are almost all a plain space before `:` or inside « » — a mechanical fix
 wording decisions (some English strings are the ones to change: "This
 page … was removed" means deleted). Only People has no spacing error (it
 already uses U+202F).
+
+## 16. 0.2.1-studio.1: what the first migrations found (2026-09-29)
+
+The migrations of Booking, Rooms, Timesheets, Hiring, Tasks and Leave
+reported 30 gaps; 0.2.1 closes 29 of them, each with a test, and stays
+backward compatible (optional props and words, widened types): a tool on
+0.2.0 re-vendors with no code change (`lab/template` re-vendored: its
+tests and build pass). The full list is the kit's README, "Changelog".
+What matters beyond the kit:
+
+- **Layout shift under the pointer.** `DateField` wrote the date in words
+  on blur, one line below the field: pressing a button under it blurred
+  the field, the line appeared, the button moved, the release landed
+  elsewhere and the click was lost. The line is now always reserved.
+  The gallery's flows click a button right after typing, and fail
+  without the fix. The same class of bug is worth looking for in tools'
+  own forms (any text that appears on blur above a button).
+- **The categorical palette lost its families.** Workshop's slot inks
+  were all black (Rooms, which paints "yours" with `--cat-3-ink`, showed
+  black in Workshop); Control room's slot 5 was a red (the danger colour)
+  instead of a pink; Magazine's dark slot 3 ground was a plum.
+  `checkPalette` (contract) now holds every theme and every derived brand
+  to its families; `deriveTheme` lends a brand's colour to a family only
+  when it belongs to it (within 30°). Rooms should still paint a fill
+  with `--cat-3` (3:1), not with the ink.
+- **Signatures kept.** Instrument's `--highlight` is Timesheets' own lime
+  `#c6ff3a` (0.2.0 had a pale `#e4f9b0`). The 17 identities were compared
+  with their tools' `app/tokens.css` before migration (commit `f703465`):
+  the other signatures were kept (accents, markers, the orange, tomato
+  and sunrise moved to slot 3 as section 10 planned); a test now holds
+  21 of them.
+- **Popovers inside dialogs and tables** were clipped by the scrolling
+  box around them. Inside any box that scrolls (a `<dialog>`,
+  `.ck-table-wrap`), the picker's list, the calendar and the row menu are
+  now placed `fixed` against the viewport through the CSSOM (no style
+  attribute: the nonce policy is unchanged), flipped above when there is
+  no room below. Checked in the browser (the bottom of the list is hit
+  by `elementFromPoint` past the dialog's edge).
+- **Next.js's `Link`** is a forwardRef object, not a function: the kit's
+  link types asked for a function returning an element, so Booking had
+  to cast — and `DayStrip` *called* its link, which would have thrown
+  with Next's. Types now take a component returning `ReactNode`, and
+  `npm run check:package` type-checks the real `next/link` (16.3.6) in
+  every link prop.
+- **The bell's narrow no-break spaces (Rooms).** The SDK's fake does not
+  collapse them: `sdk/client/src/testing.ts` (`cleanTitle`, line 237;
+  `cleanText`, line 238) only turns tabs and line breaks into spaces,
+  drops control and reordering characters, and trims the ends —
+  `String.prototype.trim` does remove a U+202F at the very start or end,
+  never inside; `notifications.ts` (line 44) removes the same characters
+  and nothing else; the harness's bell (`lab/chest-dev/page.mjs`, line
+  28) only escapes HTML. The collapse Rooms saw most likely comes from
+  its test's reading of the page: Playwright's text matchers normalise
+  whitespace with `\s`, which matches U+202F. Assert on
+  `textContent` (or a regex with ` `) to check the character.
+- **Not done: a date range.** Leave uses two `DateField`s; a
+  `DateRangeField` (one calendar, two ends) is listed for 0.3.

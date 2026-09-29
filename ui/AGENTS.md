@@ -68,7 +68,10 @@ the list of tokens; this page is the short path and the mistakes to avoid.
 - Reversible act → toast with `undo`; the act already left (email, bell) →
   `sent: true`; irreversible → `Confirm`. Never `window.confirm`.
 - Navigation: `AppShell` + `Nav` (labelled tabs); the page's main action in
-  `PageHeader`.
+  `PageHeader`. Pass Next's `Link` as it is (`link={Link}`, 0.2.1: no
+  wrapper, no cast); a section current on other paths takes `also`.
+- A category's fill is `--cat-N` (3:1) or `--cat-N-soft`; `--cat-N-ink`
+  is for its text. A catalogue's date words go through `dateWords()`.
 
 ## Pitfalls
 

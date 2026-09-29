@@ -202,9 +202,8 @@ assert.equal(await page.evaluate(() => document.activeElement?.getAttribute("rol
 await page.keyboard.press("End"); await page.keyboard.press("Escape");
 assert.equal(await page.evaluate(() => document.activeElement?.getAttribute("aria-haspopup")), "menu");
 step("menu keyboard: opens on arrow, End, Escape gives focus back");
-// The last row's menu is whole, over the table's scrolling frame.
-const lastMenu = en.getByRole("button", { name: /Actions for Q-2026-018/ });
-await lastMenu.scrollIntoViewIfNeeded(); await lastMenu.click();
+// The (only) row's menu is whole, over the table's scrolling frame.
+await menuBtn.click();
 const menuList = en.getByRole("menu");
 const menuBox = await menuList.boundingBox();
 const wrapBox = await en.locator(".ck-table-wrap").boundingBox();
