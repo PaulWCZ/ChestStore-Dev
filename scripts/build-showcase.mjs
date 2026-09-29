@@ -215,6 +215,16 @@ function pickLooks(t) {
   return { page: choice.page, device: choice.device, isPublic: choice.isPublic, cells, main };
 }
 
+// A PNG's size, from its header (so a lazy image holds its place).
+function pngSize(file) {
+  try {
+    const head = readFileSync(resolve(dirname(out), file)).subarray(16, 24);
+    return { width: head.readUInt32BE(0), height: head.readUInt32BE(4) };
+  } catch {
+    return null;
+  }
+}
+
 const gaps = [];
 function lookRow(t) {
   const title = t.manifest.title ?? t.manifest.name;
@@ -235,10 +245,11 @@ function lookRow(t) {
     }
     const s = c.shot;
     const src = s[c.device];
-    const notes = [c.otherPage ? `a different page: “${s.name}”` : null, c.device !== pick.device ? `${c.device} only` : null, ...tags(s)].filter(Boolean);
+    const notes = [c.otherPage ? "a different page" : null, c.device !== pick.device ? `${c.device} only` : null, ...tags(s)].filter(Boolean);
     if (c.otherPage) missing.push({ look: c.look.label, text: `not on “${pick.main?.name ?? pick.page}”, shown on “${s.name}”` });
     const what = [lookWords(s), s.name, c.device, ...tags(s)].join(", ");
-    return `<figure class="cell ${escape(c.device)}" data-look="${c.look.id}"><figcaption>${head}<span>${escape(s.name)}${notes.length ? ` — ${escape(notes.join(", "))}` : ""}</span></figcaption><a href="${escape(src)}"><img loading="lazy" src="${escape(src)}" alt="${escape(title)} in the ${escape(c.look.label)}: ${escape(what)}"></a></figure>`;
+    const size = pngSize(src);
+    return `<figure class="cell ${escape(c.device)}" data-look="${c.look.id}"><figcaption>${head}<span>${escape(s.name)}${notes.length ? ` — ${escape(notes.join(", "))}` : ""}</span></figcaption><a href="${escape(src)}"><img loading="lazy" src="${escape(src)}"${size ? ` width="${size.width}" height="${size.height}"` : ""} alt="${escape(title)} in the ${escape(c.look.label)}: ${escape(what)}"></a></figure>`;
   }).join("");
   if (missing.length) gaps.push({ tool: title, id: t.manifest.name, items: missing });
   return `<article class="look-row" id="looks-${escape(t.manifest.name)}">
@@ -252,7 +263,7 @@ const allTools = groups.flatMap(g => g.tools);
 const count = allTools.length;
 const rows = allTools.map(lookRow).join("\n");
 const gapList = gaps.length
-  ? `<h3 class="gaps-title">What is missing</h3><ul class="gaps">${gaps.map(g => g.items
+  ? `<h3 class="gaps-title">What is missing</h3><p class="none">Every tool has at least one screenshot in each of the four looks. On these, a look was not photographed on the compared page, so another page stands in:</p><ul class="gaps">${gaps.map(g => g.items
     ? `<li><a href="#looks-${escape(g.id)}">${escape(g.tool)}</a>: ${g.items.map(i => `${escape(i.look)} ${escape(i.text)}`).join("; ")}.</li>`
     : `<li>${escape(g.tool)}: ${escape(g.text)}.</li>`).join("")}</ul>`
   : `<p class="none">Every tool has the same page in every look.</p>`;
@@ -285,7 +296,7 @@ const html = `<!doctype html>
 ${faces.join("\n")}
 :root{--bg:#f3f1ec;--ink:#1d1c1a;--muted:#6b675f;--card:#fff;--line:#e2ded5}
 @media (prefers-color-scheme:dark){:root{--bg:#141412;--ink:#eeebe4;--muted:#a19c91;--card:#1d1c1a;--line:#302e2a}}
-*{box-sizing:border-box}html{scroll-padding-top:120px}body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif}
+*{box-sizing:border-box}html{scroll-padding-top:160px}body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif}
 :focus-visible{outline:3px solid var(--ink);outline-offset:2px}
 .top{padding:56px 24px 24px;max-width:1320px;margin:auto}.top-links{display:flex;flex-wrap:wrap;gap:10px;margin-top:12px!important}.top-links a{display:inline-block;padding:8px 16px;border-radius:999px;background:var(--ink);color:var(--bg);text-decoration:none;font-weight:600}.top-links a.quiet{background:var(--card);color:var(--ink);border:1px solid var(--line)}.top h1{font:600 clamp(32px,5vw,56px)/1.05 ui-serif,Georgia,serif;margin:0 0 12px;letter-spacing:-.02em}.top p{color:var(--muted);max-width:60ch;margin:0}
 .bar{position:sticky;top:0;z-index:2;background:color-mix(in srgb,var(--bg) 94%,transparent);backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
@@ -317,7 +328,7 @@ body:has(#look-chest:checked) .tool header,body:has(#look-sample:checked) .tool 
 body:has(#look-chest:checked) .public-note{display:block;margin:0 0 12px}
 ${viewCss}
 .looks .intro code{font-size:14px}
-.look-heads{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin:0 0 16px;position:sticky;top:var(--bar-h,108px);z-index:1}
+.look-heads{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin:0 0 16px}
 .look-heads span{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:8px 12px;font-size:13px;color:var(--muted);display:grid}.look-heads b{color:inherit;font-size:14px}
 .look-row{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:20px;margin:0 0 20px}
 .look-row h3{display:flex;align-items:center;gap:8px;margin:0 0 14px;font-size:20px}.look-row h3 small{font:500 13px ui-sans-serif,system-ui;color:var(--muted)}
