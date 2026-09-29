@@ -1,7 +1,8 @@
 # Themes and the UI kit — one look per company, or one per tool
 
-*Written 2026-09-28. What is verified is marked as such; the rest is design
-or assumption, said so.*
+*Written 2026-09-28; components, glossary and their migration plan added
+2026-09-29 (sections 13–15). What is verified is marked as such; the rest
+is design or assumption, said so.*
 
 ## 1. In short
 
@@ -14,7 +15,9 @@ What now exists:
 
 | Piece | Where | State |
 |---|---|---|
-| The UI kit `@argentic/chest-ui` 0.1.0-studio.1 | `ui/` (working copy, like `sdk/`), vendored by `scripts/add-ui.mjs` | 31 tests pass; package check passes (Node, esbuild, TS bundler + nodenext); 112 KB packed |
+| The UI kit `@argentic/chest-ui` 0.2.0-studio.1 | `ui/` (working copy, like `sdk/`), vendored by `scripts/add-ui.mjs` | 68 tests pass; package check passes (Node, esbuild, TS bundler + nodenext, server rendering of the components); 231 KB packed |
+| **Shared components** (0.2.0) | `ui/src/components/`, `@argentic/chest-ui/components` (+ `/components/logic`, `/components.css`) | 28 components (section 13); 37 of the tests; gallery hydrated in Chromium with no mismatch, axe clean in 4 looks × 2 modes × 2 languages, 14 keyboard/mouse flows pass |
+| **Store glossary + lint** | `lab/GLOSSARY.md`, `scripts/lint-words.mjs` | run on the 18 tools: 1,175 errors, 0 warnings (section 15) |
 | The token contract | `ui/tokens/CONTRACT.md`, typed in `ui/src/contract.ts` | 81 tokens (47 colours and 3 effects per mode, 31 shared); 59 measured pairs per mode (text 4.5:1, non-text 3:1) |
 | The catalogue: 17 tool identities + "Chest" + "High contrast" | `ui/src/themes.ts` | all 19 pass every pair, light and dark (tested) |
 | Brand derivation `deriveTheme(brand)` | `ui/src/derive.ts` | AA guaranteed: 1,500 seeded random brands in the tests (and 3,000 more in a one-off run) with zero failure; notes in English and French |
@@ -23,7 +26,7 @@ What now exists:
 | SDK proposal `chest.theme()` | `sdk/client/src/chest.ts`, SDK 0.3.0-studio.11 | two levels (all tools, per tool), `fakeChest({theme, themeFiles})`; 5 new tests, 65 pass; package check passes |
 | Harness | `lab/chest-dev/` | "/_dev → Look": all tools / this tool; serves the kit's fonts and a sample brand; `screens.mjs` and `audit.mjs` take `"look"` |
 | Gallery | `ui/gallery/index.html` (`npm run gallery`), linked from `showcase/index.html` | 19 themes side by side, light and dark, EN/FR; "Your brand" live demo; opens offline (verified: no request leaves the page) |
-| Pilot | `lab/template` migrated | tests (PGlite and PostgreSQL), build, manifest check, screenshots in 4 looks, axe audit (WCAG 2.1 A/AA) in all looks, light and dark: pass |
+| Pilot | `lab/template` migrated (themes, then components: section 14) | tests (PGlite and PostgreSQL), build, manifest check, screenshots in 4 looks, axe audit (WCAG 2.1 A/AA) in all looks, light and dark: pass |
 
 ## 2. How it works
 
@@ -368,3 +371,169 @@ its design settles, and it migrates like the others.
 6. **Custom tools** (the agent that builds tools for customers): they would
    start from the template and default to the company's brand when one is
    set — to confirm with the owner.
+
+## 13. The shared components (0.2.0-studio.1)
+
+The critique (reports/05-critique/_store.md §3) found every tool had built
+the same pieces again — 18 copies of one toast, 11 of one dialog, four
+kinds of people picker, a native date field in 16 tools. They are now in
+the kit, each rebuilt from the best implementation it named and held to
+the store's behaviour rules (§2). API: `ui/README.md` "Components".
+
+| Component | Started from | What the kit adds (the critique's point) |
+|---|---|---|
+| `Toasts` / `useToast` | the identical `components/toast.tsx` | **Undo that tells the truth**: waits while hovered or focused, ≥ 6 s more once the keyboard leaves (WCAG 2.2.1); one toast per action id; `sent` never offers Undo (and removes it from an earlier toast of that id); Undo runs once and says "Undone." or why not; Ctrl+Z / ⌘Z; errors in an assertive region; French « Annuler l’action » |
+| `Dialog`, `Confirm` | the identical `components/dialog.tsx` (native `<dialog>`, first field focused) | `useId` ids; `dirty` → Escape, close and backdrop ask "Discard your changes?" inside the dialog; `Confirm` = `alertdialog` for irreversible acts (opens on Cancel, backdrop inert); never `window.confirm`; a bottom sheet on phones |
+| `PeoplePicker` | Tasks' card-panel combobox + Equipment's search rule | ARIA 1.2 combobox (`aria-activedescendant`, wrapping arrows, Enter, Escape, Backspace), accent-folding search on any word of the name, Chest groups with their size, recent first, chips, hidden inputs; data from the tool's async `search` |
+| `DateField`, `Calendar` | — (native `type="date"` in 16 tools) | typed in the tool's language (`parseDate`: "29/9", "29 sept", "1er octobre", "demain", ISO), the day in words under the field, Today/Tomorrow chips, WAI-ARIA grid calendar; value ISO; `today` from the server |
+| `DayStrip` | Rooms' `day-strip.tsx` | links or buttons, names from the words (no Intl) |
+| `TimeSelect` + `moveStart`/`moveEnd` | Booking's `time-select.tsx` | step, 24:00 end, odd values kept; the start keeps the duration (the Rooms bug) |
+| `FilePicker` + `putWithProgress` | Helpdesk's `file-picker.tsx` | drag and drop, limits stated first, per-file refusals, progress (XHR), remove aborts, retry; server sniffing stays the tool's |
+| `DataTable`, `Menu` | Quotes' `ledger.tsx` / `list-page.tsx` | sticky header and totals, `aria-sort`, row headers, a keyboard-complete row menu, empty state, server sort by address or local sort after a click |
+| `Filters`, `SearchBox` | Helpdesk's `inbox-filters.tsx`, Quotes' chips, CRM's `slash-search.tsx` | chips as links (`filterHref`: toggles, keeps the search, resets the page), counts, Clear; "/" shortcut |
+| `EmptyState` | Status' "Start with an example" | `action` only for who may act, `note` for the others |
+| `Avatar`, `AvatarStack` | the 232dc1… avatar, People's portrait | sizes by class (no inline style); a stack whose faces all stay readable, names said once |
+| `StatusBadge` | Status' `state.tsx` | a shape per state and a word, never colour alone; category chips on the palette |
+| `Tabs`, `Segmented` | Booking's tabs, CRM's segmented | link tabs with counts or a roving tab list; native radios, 2–4 options |
+| `AppShell`, `Nav`, `NavLink`, `PageHeader`, `MemberChip`, `NoAccess` | the tools' headers | **the one phone rule**: labelled tabs, never icon-only, never hidden; a row of their own under 760 px; the page's main action at the top (full width on a phone) |
+| `LanguageSwitch`, `BrandMark`, `useAutoRefresh`/`AutoRefresh` | the identical `language-switch.tsx`, the template's `brand-mark.tsx`, the identical `auto-refresh.tsx` | framework-free (the tool passes its `Link`, its path, `router.refresh`) |
+
+`mark.tsx` stays in each tool (it is 18 different drawings: it is the
+tool's identity, not a component).
+
+**Decisions.**
+
+| Decision | Why |
+|---|---|
+| A `/components` subpath (client, `"use client"`, named exports) and a server-safe `/components/logic` (pure rules + words) | Next.js turns every export of a client module into a client reference: a server component calling `formatDate` or reading `storeLanguages` from the client barrel would break. `export *` is refused in a client boundary. |
+| No word in the kit's components: `labels` props, with `en` and `fr` given as data | Words stay the tool's (one catalogue file per language); a server component can pass them. |
+| Dates from the words, never `Intl`; "today" from the tool; sorting by a folded code-point order, not `localeCompare` | Node and browsers write dates (and collate) differently: hydration error 418 (lab/BUILDING.md). Verified: rendering under two time zones gives the same markup; the gallery hydrates with no mismatch. |
+| One stylesheet file, classes `ck-…`, contract tokens only; no layer | A file the tool imports: the nonce policy is unchanged, no runtime injection. No `@layer`: a tool's plain element rules (`button {…}`) would otherwise beat every kit rule. Tested: no colour literal, every `var()` a contract token, every class written is styled and vice versa. |
+| No inline styles | The CSP allows style attributes today, but nothing needs them (avatar sizes are classes). |
+| Keyboards as pure reducers (`listKey`, `menuKey`, `tabKey`, `calendarKey`, `toastReducer`) | Tested without a browser; the components only apply them. |
+| Function props (`search`, `upload`, `link`, `onChange`) passed from the tool's own client component | Functions cannot cross from a server component; documented as the one pattern. |
+| Ctrl+Z runs the newest Undo | A keyboard user reaches Undo without hunting for the toast; outside text fields only. |
+
+**Verified** (2026-09-29): `npm test` in `ui/` 68/68; `npm run
+check:package` passes (packs, installs, imports every subpath from Node and
+through esbuild, renders `DateField` inside `Toasts` on the server,
+type-checks a consumer); `ui/gallery/components.html` (built by `npm run
+gallery`, server-rendered then hydrated) in Chromium: no hydration error,
+no console error, no request, axe WCAG 2.1 A/AA clean in Chest, Workshop,
+Library and a derived brand, light and dark, English and French, no
+sideways scroll at 390 px (`ui/scripts/gallery/check-page.mjs`); 14
+keyboard and mouse flows pass (`check-flows.mjs`: Ctrl+Z, hover pause,
+sent, one toast per id, failed Undo and focus, dirty dialog on Escape and
+backdrop, Confirm, combobox, typed and wrong dates, calendar keys, duration
+kept, sort, "/", row menu, tabs). One real bug found by the flows and
+fixed: "Keep editing" could not refocus the field while the body was still
+inert.
+
+**Not done / limits.** No virtualisation in `DataTable` (fine to a few
+hundred rows; beyond, paginate on the server). No CSV export button in
+`DataTable` yet (the critique asked for one; each tool's export route
+differs). `PeoplePicker` has no "create a person" row (CRM's company
+combobox keeps its own). The calendar has no range selection (Leave's
+periods). The gallery shows the phone rule at 390 px only in its
+screenshot, not side by side.
+
+## 14. Migrating the tools to the components
+
+**The pilot, done: `lab/template`.** Kit re-vendored (0.2.0-studio.1);
+`app/chest/layout.tsx` is the kit's `AppShell` with `BrandMark`,
+`MemberChip` and `NoAccess`; the notes view uses `Toasts`/`useToast` (one
+toast per note, Undo that reports a failure), `Avatar`, `EmptyState`; the
+public page `BrandMark` + `LanguageSwitch`; `not-found` `EmptyState`;
+`components/toast.tsx`, `avatar.tsx`, `language-switch.tsx`,
+`brand-mark.tsx` and `lib/initials.ts` deleted, `auto-refresh.tsx` is three
+lines over `useAutoRefresh`; the catalogues gained a `toast` section
+(`ToastWords`) and pass the lint (0 errors); `globals.css` lost its shell,
+avatar, empty and toast rules. **Verified**: `npm test` 14/14, `npm run
+build` (with `tsc`), harness on port 9800 (`--prod --reset`), 14
+screenshots (two new: `notes-undo-desktop.png` — the French toast with
+« Annuler l’action »; `notes-undone-phone.png` — "Action annulée." after
+the Undo), all looked at; `audit.mjs`: no WCAG A/AA rule broken on 9
+screens, desktop and phone, light and dark.
+
+**Common steps per tool** (after the theme migration of section 10, or
+with it): `node scripts/add-ui.mjs <tool>`; import
+`@argentic/chest-ui/components.css` in `app/layout.tsx`; add the kit's
+word sections the tool uses to its catalogues (typed `ToastWords`,
+`DateWords`…) — « Annuler l’action » for Undo; replace the components
+below; delete the tool's copies; `docs/screens.json` entries for a toast
+and a dialog; re-run tests, build, screens, audit; `lint-words.mjs` to 0.
+
+| Tool | Kit component → what it replaces | Notes / effort |
+|---|---|---|
+| Tasks | Toasts (`toast.tsx`), Dialog (`dialog.tsx`), PeoplePicker (`people-picker.tsx`, card-panel assign list + @mention search), DateField (1 `type="date"`), AppShell/Nav (header, icon-only phone nav), Avatar, NavLink, LanguageSwitch, AutoRefresh | the @mention combobox inside the editor stays (text insertion), but uses `searchChoices`; M |
+| Wiki | Toasts, Dialog (+ its own confirm → `Confirm`), Menu (`menu.tsx`), AppShell (`shell.tsx` sidebar + hamburger → labelled tabs on phones), Avatar, SearchBox | the sidebar of spaces may stay on desktop; phone rule applies; M |
+| Leave | Toasts (already « Annuler l’action »), Dialog, DateField (4 `type="date"`), PeoplePicker (approver select in every row), DataTable (People table), AppShell (nav hidden on phones), Avatar | ranges: two DateFields until a range calendar exists; M |
+| News | Toasts, Confirm (2 `confirm(`), DateField, TimeSelect (the composer's schedule), AppShell (nav hidden on phones), SearchBox, Avatar | S–M |
+| People | Toasts, DateField (5), PeoplePicker (arrivals "Choose a person"), DataTable (4 tables), AppShell (icon-only phone nav), Avatar/AvatarStack (portrait stays for the gallery's arches) | M |
+| Clients (crm) | Toasts, Dialog (11 uses), DateField (3), SearchBox (`slash-search.tsx` → its "/" handler), DataTable, Segmented (Board/List), PeoplePicker (owner select), AppShell ("···" nav) | its company Combobox stays (creates companies); M |
+| Expenses | Toasts, Dialog, FilePicker (receipts; `upload.ts` becomes the `upload` function), DateField (2), DataTable, StatusBadge (PAID boxes), AppShell | S–M |
+| Support (helpdesk) | Toasts, FilePicker (its own, the model), Filters (`inbox-filters.tsx`), Confirm (2), Menu (`folder-menu.tsx`), AppShell (sidebar), Avatar, StatusBadge (`badges.tsx`) | M |
+| Rooms | Toasts (the « Annuler » collision), Dialog, DayStrip (its own, the model), DateField, TimeSelect + `moveStart` (the duration bug), PeoplePicker (guest buttons), AvatarStack (cropped initials), Segmented/Tabs (the overflowing desk toolbar), AppShell | 10 Remove/Supprimer lint errors to settle; M |
+| Timesheets | Toasts ("Rétablir" → « Annuler l’action »), DateField (5), DataTable (4), AppShell, Avatar | `work-picker.tsx` (projects) keeps its combobox; M |
+| Booking | Toasts, Confirm (`window.confirm` in `type-form.tsx`), TimeSelect (its own, the model), DateField, Tabs (bookings), AppShell; the public month grid stays | S–M |
+| Hiring | Toasts (**`sent` for the reject email**; the double toast on drop becomes one id), Dialog, PeoplePicker (interviewers `<select>`), FilePicker (CV; `lib/cv.ts` sniffing stays), DateField (2), AppShell, EmptyState | M |
+| Equipment | Toasts, Dialog, PeoplePicker (its own, the rule's source), Filters (four selects → chips), DataTable, StatusBadge (IN USE boxes), Confirm, FilePicker (import), AppShell | M |
+| Polls | Toasts, DateField (date polls), EmptyState, AppShell (almost no nav today), AvatarStack, DataTable (results) | S |
+| Goals | Toasts, Dialog, Confirm (the red Remove of an objective → Delete + Undo), DateField, AppShell, Avatar (`person.tsx`), StatusBadge (on/risk/off) | S–M |
+| Quotes | Toasts, Dialog, DataTable + Filters + SearchBox (`ledger.tsx`, `list-page.tsx`: the models), DateField (its new `date-field.tsx` and 4 `type="date"`), AppShell (`bottom-bar.tsx` check against the phone rule), StatusBadge | its client/item pickers stay (records, not people); M |
+| Status | Toasts, TimeSelect (its own + the hour/minute pair), DateField (3), StatusBadge (`state.tsx`, the model), Confirm, AppShell, EmptyState | the public page keeps its identity; M |
+| Forms | Toasts, Dialog, DateField (2 in the builder; the runner's date question too), FilePicker (the file question), DataTable (answers), AppShell, Avatar | the runner is public: labels from the respondent's language; M |
+
+Estimate (assumption, from the pilot): 2–4 agent-hours per tool (S 2 h,
+M 3–4 h), ≈ 55 h for the 18, best done in the same pass as each tool's
+theme migration (section 10) since both touch the same files and need the
+same verification. Order: Rooms, Hiring, Booking and Timesheets first
+(they carry the four behaviour bugs the kit fixes: the Undo/Cancel
+collision, Undo after an email, `window.confirm`, "Rétablir"), then the
+16 native date fields.
+
+## 15. The glossary and its lint
+
+`lab/GLOSSARY.md`: Remove / Delete / Erase = Retirer / Supprimer /
+Effacer (and when each applies), Undo = « Annuler l’action », Cancel =
+« Annuler », Settings = « Réglages », Assign = « Attribuer » / Give =
+« Donner », Save, Archive, Restore, Send; confirmations (Undo first,
+`Confirm` only for the irreversible, never after an email); date and
+time phrasing (relative for recency, absolute for deadlines, day/month/
+year, 24-hour); French typography (narrow no-break space before `: ; ? !`
+and inside « », guillemets, ’, …). `scripts/lint-words.mjs <tool>` checks
+`lib/i18n/en.ts` and `fr.ts` key by key (report only; `--json`; exit 1 on
+errors). The kit's words and the template pass it.
+
+Run on the 18 tools, 2026-09-29 (tools unchanged; other builders are
+editing them, so these counts move):
+
+| Tool | Errors | of which French spacing | Undo | Remove/Delete/Erase | Settings | Rétablir |
+|---|---|---|---|---|---|---|
+| crm | 71 | 69 | 1 | 1 | 0 | 0 |
+| equipment | 93 | 91 | 1 | 1 | 0 | 0 |
+| expenses | 78 | 71 | 2 | 5 | 0 | 0 |
+| goals | 35 | 30 | 4 | 1 | 0 | 0 |
+| leave | 50 | 50 | 0 | 0 | 0 | 0 |
+| news | 60 | 55 | 4 | 0 | 1 | 0 |
+| people | 6 | 0 | 5 | 1 | 0 | 0 |
+| polls | 51 | 49 | 2 | 0 | 0 | 0 |
+| quotes | 136 | 129 | 1 | 6 | 0 | 0 |
+| rooms | 48 | 37 | 1 | 10 | 0 | 0 |
+| tasks | 75 | 72 | 1 | 2 | 0 | 0 |
+| timesheets | 59 | 56 | 1 | 1 | 0 | 1 |
+| wiki | 66 | 58 | 4 | 2 | 2 | 0 |
+| booking | 75 | 71 | 0 | 2 | 2 | 0 |
+| forms | 58 | 52 | 2 | 4 | 0 | 0 |
+| helpdesk | 43 | 36 | 3 | 4 | 0 | 0 |
+| hiring | 77 | 76 | 1 | 0 | 0 | 0 |
+| status | 94 | 88 | 1 | 5 | 0 | 0 |
+| **All** | **1,175** | **1,090** | **34** | **45** | **5** | **1** |
+
+No warning fired (no straight quotes, `...`, straight apostrophes,
+« Assigner » or "Are you sure" in any tool). The French spacing errors
+are almost all a plain space before `:` or inside « » — a mechanical fix
+(one script per tool, reviewed); the 34 Undo and 45 verb errors are
+wording decisions (some English strings are the ones to change: "This
+page … was removed" means deleted). Only People has no spacing error (it
+already uses U+202F).

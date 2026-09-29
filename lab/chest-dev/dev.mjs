@@ -185,7 +185,10 @@ if (flag("prod")) {
     }
   };
   walk(tool);
-  if (newer.length) console.warn(`! the build is older than ${newer.length} source file(s) (e.g. ${newer.slice(0, 3).join(", ")}): run \`npm run build\` again`);
+  if (newer.length && !flag("stale-ok")) {
+    console.error(`✗ the build is older than ${newer.length} source file(s) (e.g. ${newer.slice(0, 3).join(", ")}): run \`npm run build\` again (or pass --stale-ok)`);
+    process.exit(1);
+  }
 }
 const child = spawn("npm", flag("prod") ? ["start"] : ["run", "dev"], { cwd: tool, env, stdio: ["ignore", "inherit", "inherit"] });
 child.on("exit", code => {

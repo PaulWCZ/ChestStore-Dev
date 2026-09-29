@@ -470,6 +470,8 @@ npm ci
 npm test                # build dist/, compile the tests into build/, run them (node --test)
 npm run check:package   # npm pack, install into a temp project, import every subpath from Node and esbuild, type-check a TS consumer
 npm run gallery         # ui/gallery/index.html and ui/gallery/components.html
+node scripts/gallery/check-page.mjs    # the components page in Chromium: hydration, axe in every look, no network, 390 px
+node scripts/gallery/check-flows.mjs   # its keyboard and mouse flows (toast, dialog, picker, dates, table, menu, tabs)
 npm run fonts           # fetch the catalogue's fonts again (network)
 ```
 

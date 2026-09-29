@@ -42,9 +42,11 @@ look). The axe audit passes on all of them, light and dark.
 
 ## Components
 
-Button (primary, quiet, link), text field, avatar (photo or initials), note
-card (normal, pinned, pending), empty state with one action, toast with
-"Undo". Every control is 44 px tall at least (`--control-h`); focus is a
+The tool's own: button (primary, quiet, link), text field, note card
+(normal, pinned, pending). From the kit (`@argentic/chest-ui/components`,
+styled by the same tokens): the shell and member chip, avatar, empty state
+with "Post an example", toast with Undo (« Annuler l’action ») that waits
+while hovered or focused and says whether the Undo worked. Every control is 44 px tall at least (`--control-h`); focus is a
 3 px ring (`--focus`).
 
 ## Icon

@@ -22,7 +22,8 @@ what must not break.
 | `lib/theme.ts` | The tool's identity (a theme of `@argentic/chest-ui`) and the look of a request (`chest.theme()` → `resolveTheme`) |
 | `app/layout.tsx` | The look as one `<style>` with the page's nonce (`ThemeStyle`) |
 | `app/tokens.css` | The tool's own tokens, defined from contract tokens only |
-| `components/brand-mark.tsx` | The company's logo in brand mode, the tool's mark otherwise |
+| `@argentic/chest-ui/components` | The shared components: `AppShell` + `NoAccess` (app/chest/layout.tsx), `Toasts`/`useToast` with Undo, `Avatar`, `EmptyState`, `BrandMark`, `LanguageSwitch` — use them before writing one (ui/README.md "Components"); their stylesheet is imported in app/layout.tsx |
+| `components/mark.tsx`, `components/auto-refresh.tsx` | The tool's own mark; the page refresh (the kit's `useAutoRefresh` with Next.js's router) |
 | `proxy.ts` | Content-Security-Policy with a nonce; 401 on `/chest` without a member |
 | `migrations/` | The schema, run by the Chest in order |
 | `seed/sample.sql` | Sample data for local runs (never run by the Chest) |

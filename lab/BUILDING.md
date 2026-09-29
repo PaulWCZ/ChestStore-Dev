@@ -32,7 +32,7 @@ wrote: the kit writes the `@font-face` (same file names).
 | Chest glue | `lib/people.ts`, `lib/notify.ts`, `lib/lifecycle.ts` | Names from ids at render (`people()`, `nameOf()`); bell items in each recipient's language (`notify(ids, t => …)`); keyed notifications withdrawn when settled; badges as true counts; lifecycle handlers idempotent |
 | Server actions | `app/chest/actions.ts` | Thin: `act(actor => service(db(), actor, …))` returning `Result`; `revalidatePath("/chest", "layout")` |
 | Pages | `app/chest/**/page.tsx` (server) | `viewer()` gives member, locale, words; resolve names; pass plain data and the catalogue sections a view needs |
-| Views | `*.tsx` with `"use client"` | Optimistic (`useOptimistic`) or local state + action + toast with *Undo*; import only `lib/i18n/format.ts`, `lib/app-error.ts`, `lib/initials.ts`, pure libs and types — **never** the SDK, `lib/db.ts`, `lib/session.ts`, `lib/people.ts` (the build fails on `node:crypto`) |
+| Views | `*.tsx` with `"use client"` | Optimistic (`useOptimistic`) or local state + action + toast with *Undo*; import only `lib/i18n/format.ts`, `lib/app-error.ts`, `@argentic/chest-ui/components` (and `/components/logic`), pure libs and types — **never** the SDK, `lib/db.ts`, `lib/session.ts`, `lib/people.ts` (the build fails on `node:crypto`) |
 | Routes | `app/chest/api/**/route.ts`, downloads | Re-read the member; files: `uploadUrl` → browser PUT → `files.stat` → record; open files through a route that signs a fresh `files.url` |
 | Lifecycle | `app/chest-events/route.ts` | `access.revoked`, `member.removed`, `member.erased` (+ `acknowledgeErasure`) |
 | Schedules (proposal) | `chest.proposals.json`, `app/chest-jobs/[name]/route.ts` | Only if the tool needs work at set times; see `sdk/README.md` "schedules" and Tasks' `lib/morning.ts` |
@@ -56,6 +56,14 @@ icons drawn in `components/icons.tsx` (24-unit strokes), a mark in
 `components/mark.tsx` and `chest/icon.svg` (+ `app/icon.svg`), contrast
 checked with `node scripts/contrast.mjs "#fg on #bg"` (AA 4.5:1). The
 default rule `svg { width: 1.1em }` sizes icons with their text.
+
+Shared components: before writing a toast, dialog, people picker, date or
+time field, file picker, table, filters, search box, empty state, avatar,
+badge, tabs or the app shell, use the kit's (`@argentic/chest-ui/components`,
+ui/README.md "Components"): they carry the store's rules (Undo that tells
+the truth, no backdrop close of a typed form, labelled tabs on phones,
+never the browser's date field). Words: `lab/GLOSSARY.md`, checked by
+`node scripts/lint-words.mjs <tool>`.
 
 The UX bar: one obvious action per screen, plain words, useful empty states
 (one action, or a one-click example), undo instead of confirmations, 44 px

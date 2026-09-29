@@ -1,10 +1,12 @@
 [
-  { "name": "notes", "path": "/chest", "member": "camille", "locale": "en", "preview": true },
-  { "name": "notes-fr", "path": "/chest", "member": "ines", "locale": "fr" },
-  { "name": "notes-dark", "path": "/chest", "member": "hugo", "locale": "en", "dark": true, "only": ["phone"] },
-  { "name": "notes-theme", "path": "/chest", "member": "camille", "locale": "en", "look": { "all": "catalogue:newsprint" } },
-  { "name": "notes-theme-dark", "path": "/chest", "member": "camille", "locale": "en", "dark": true, "look": { "all": "catalogue:newsprint" }, "only": ["phone"] },
-  { "name": "notes-brand", "path": "/chest", "member": "camille", "locale": "fr", "look": { "all": "catalogue:newsprint", "tool": "brand:sample" } },
-  { "name": "notes-brand-dark", "path": "/chest", "member": "hugo", "locale": "en", "dark": true, "look": { "tool": "brand:sample" }, "only": ["phone"] },
-  { "name": "notes-chest", "path": "/chest", "member": "camille", "locale": "en", "look": { "all": "catalogue:chest" }, "only": ["desktop"] }
+  {"name": "notes", "path": "/chest", "member": "camille", "locale": "en", "preview": true},
+  {"name": "notes-fr", "path": "/chest", "member": "ines", "locale": "fr"},
+  {"name": "notes-undo", "path": "/chest", "member": "camille", "locale": "fr", "actions": [{"click": ".note .actions button:last-child"}, {"wait": 600}], "only": ["desktop"]},
+  {"name": "notes-undone", "path": "/chest", "member": "camille", "locale": "fr", "actions": [{"click": ".note .actions button:last-child"}, {"wait": 500}, {"click": ".ck-toast-undo"}, {"wait": 1500}], "only": ["phone"]},
+  {"name": "notes-dark", "path": "/chest", "member": "hugo", "locale": "en", "dark": true, "only": ["phone"]},
+  {"name": "notes-theme", "path": "/chest", "member": "camille", "locale": "en", "look": {"all": "catalogue:newsprint"}},
+  {"name": "notes-theme-dark", "path": "/chest", "member": "camille", "locale": "en", "dark": true, "look": {"all": "catalogue:newsprint"}, "only": ["phone"]},
+  {"name": "notes-brand", "path": "/chest", "member": "camille", "locale": "fr", "look": {"all": "catalogue:newsprint", "tool": "brand:sample"}},
+  {"name": "notes-brand-dark", "path": "/chest", "member": "hugo", "locale": "en", "dark": true, "look": {"tool": "brand:sample"}, "only": ["phone"]},
+  {"name": "notes-chest", "path": "/chest", "member": "camille", "locale": "en", "look": {"all": "catalogue:chest"}, "only": ["desktop"]}
 ]
