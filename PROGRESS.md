@@ -52,32 +52,48 @@ cross-cutting fixes). No tool can be cancelled tomorrow; ~6 categories
 today, 8 partly, 4 public ones not (mail, calendar, custom domains).
 
 **Fix queue (each builder works its critique's Fix plan; lead verifies):**
-- **Done and verified:**
+- **Done and verified (tests on PGlite and PostgreSQL, flows, audit):**
 
-  | Tool | Tests (PGlite and PostgreSQL) |
+  | Tool | Tests |
   |---|---|
   | Polls | 54 |
   | Tasks | 65 |
-  | Forms (tool 18) | 59 |
+  | Forms | 59 |
   | Clients | 58 |
   | Leave | 64 |
   | Quotes | 99 |
+  | Expenses | 70 |
+  | Wiki | 69 |
+  | Goals | 49 |
+  | People | 51 |
+  | Timesheets | 62 |
+  | Booking | 67 |
+  | Support | 46 |
 
-  SDK studio.12 is verified too (78 tests).
-- **Two open points from these tools:**
-  - Leave's French rules are from search summaries: a payroll expert must
-    confirm them.
-  - Quotes' Factur-X is validated locally (Mustang/veraPDF + FR
-    schematron) but not tested against a real PA.
-- **Decision taken:** move Quotes to `tools/public-and-private/` for online
-  quote acceptance (the design is in its README). Do it in a later round.
-- **Running:** Wiki, Expenses, People, Timesheets, Goals, Support (inbound
-  mail), Booking (host calendar and Chest feed), News (groups, email).
-- **Next:** Equipment, Rooms, Hiring, Status, then a critique of Forms.
-- **Then:** the kit's shared components (`_store.md` §3), the migration of
-  all tools to the kit and themes, and the store glossary with its lint.
+- **News:** tests pass (72), but the lead's flow run failed: the reply
+  never appears and there are races after a restart. Sent back to its
+  builder for a root cause and 3 clean runs.
+- **Running:** Equipment, Rooms, Hiring, Status; the Forms critique; the
+  UI kit's shared components, with the glossary and its lint
+  (`lab/GLOSSARY.md`, `scripts/lint-words.mjs`).
+- **Still to confirm:**
+  - Leave, People and Expenses legal or official values (read through
+    search summaries; official sites are blocked here).
+  - Quotes' Factur-X against a real PA; the SEPA file with a real bank.
+- **Decided:** move Quotes to `tools/public-and-private/` for online quote
+  acceptance, in a later round.
+- **SDK report §4.16** lists what the fixes needed and could not build.
+- **Then:** migrate all tools to the kit and themes; fix the Forms
+  critique; re-run the critique on the fixed tools to update the verdict
+  table in `reports/05-critique.md`.
 
-**Harness:** `--empty` starts a tool with no sample data.
+**Harness:**
+- `--empty` starts a tool with no sample data.
+- `--prod` refuses to start without a build and warns when the build is
+  stale.
+- The audit replays screen actions.
+- Screens and the audit accept `upload` actions.
+
 
 **Earlier round, for the record:**
 - Tasks: reminders and recurring cards.
