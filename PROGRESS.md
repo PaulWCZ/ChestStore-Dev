@@ -110,11 +110,18 @@ acceptance, in a later round.
   DataTable row links were adopted where apt.
 - **Leave:** a real bug was fixed. A typed last day could be mixed with a
   late date-field update. Its root cause is in the kit.
-- **Running:**
-  - kit 0.2.3: the DateField render-time value, the FilePicker camera
-    input, a "signal on inverse" token, and the rest of the findings;
-  - the second round of the severe critique, four critics (scratchpad
-    `critique2/`), to update `reports/05-critique.md`.
+- **Done and verified:**
+  - kit 0.2.3 (139 tests): DateField follows its value during render; the
+    FilePicker camera input is hidden on desks; `--inverse-signal`; the
+    public-surface look rule (brand, else the tool's own look); `--decor`;
+    High contrast at 7:1; a second sample brand, Café du Port;
+  - SDK studio.13, webhooks (84 tests).
+- **Severe critique round 2 is done:** `reports/05-critique.md` §Round 2 and
+  `reports/05-critique/round-2/`.
+- **Running:** round-2 fixes on 17 tools with seven builders. Each
+  re-vendors kit 0.2.3 before its final checks (scratchpad
+  `kit023-note.md`). Quotes moves to `tools/public-and-private/` for online
+  quote acceptance.
 - **Then:** re-vendor 0.2.3 everywhere; the showcase with looks; fix what
   critique round 2 finds.
 - **Noted:** News search still matches raw mention tokens in its index
