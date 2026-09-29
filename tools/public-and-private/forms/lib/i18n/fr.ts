@@ -457,6 +457,7 @@ export const fr: Catalogue = {
   settings: {
     savedState: "Tout est enregistré",
     unsaved: "Non enregistré",
+    dayHeld: "Rien n’est enregistré tant que le jour de fermeture n’est pas corrigé.",
     onceHint: "Désactivé : un formulaire de demande, à remplir autant que nécessaire. Chacun voit ce qu’il a envoyé et où en est sa demande.",
     cover: "Image en haut",
     coverAdd: "Choisir une image",

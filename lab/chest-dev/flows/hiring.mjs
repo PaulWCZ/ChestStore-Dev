@@ -207,6 +207,25 @@ await step("a candidate who withdrew is closed, not rejected by email", async ()
 await step("hire someone with a first day: People is told; Undo takes the hire back", async () => {
   await page.goto(origin + "/chest/candidates/5");
   await page.getByRole("button", { name: "Move to Hired" }).click();
+  // Kit 0.2.4: a first day already gone stays as typed, says why, and the
+  // hire waits — never recorded with the day the dialog held before (none),
+  // the bug class where Timesheets saved "today" in place of refusing.
+  const hiredBefore = (await dev()).split("hiring.hired").length;
+  const first = page.locator("#start-date");
+  await first.fill("1/1/2020");
+  await first.press("Tab");
+  await page.locator(".ck-date", { has: first }).locator(".ck-error", { hasText: /^Choose .* or later\.$/u }).waitFor();
+  expect(await first.getAttribute("aria-invalid") === "true", "the first day says it is refused");
+  await page.getByRole("button", { name: "Confirm the hire" }).click();
+  // Even a submit forced past the browser's own check stops on the field.
+  await page.locator("dialog[open] form").evaluate(form => { form.noValidate = true; form.requestSubmit(); });
+  await page.waitForTimeout(1000);
+  expect(await page.locator(".ck-toast").count() === 0, "no hire, no toast");
+  expect(await page.locator("dialog[open]").count() === 1, "the dialog stays open");
+  expect(await first.inputValue() === "1/1/2020", "the text stays as typed");
+  expect(await page.evaluate(() => document.activeElement?.id) === "start-date", "focus back on the first day");
+  expect((await dev()).split("hiring.hired").length === hiredBefore, "nothing published");
+  // Corrected and confirmed in one move (kit 0.2.5): the click is not lost.
   await page.getByLabel(/First day/u).fill("2026-11-02");
   await page.getByRole("button", { name: "Confirm the hire" }).click();
   await page.waitForSelector(".ck-toast");

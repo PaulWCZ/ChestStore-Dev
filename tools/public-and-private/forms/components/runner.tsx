@@ -90,10 +90,37 @@ export function Runner(props: RunnerProps) {
   const storageKey = `forms:${props.slug}:${props.version}`;
   const [raw, setRaw] = useState<Raw>(() => ({ ...props.initial }));
   const [errors, setErrors] = useState<Record<string, AnswerError>>({});
+  // The date questions whose field refuses what was typed (a text it
+  // cannot read): the field says why (kit 0.2.4) and does not call
+  // onChange, so `raw` still holds the answer before. The form is sent
+  // with noValidate, so the browser does not stop it: going on waits here
+  // instead — never the previous day sent as if it were what was typed.
+  // A field that leaves the page forgets its refusal (its text is gone).
+  const refused = useRef<Record<string, true>>({});
+  const refusedProblem = useCallback((id: string) => (problem: string | null) => {
+    if (problem) {
+      refused.current = { ...refused.current, [id]: true };
+      return;
+    }
+    if (!refused.current[id]) return;
+    const { [id]: _was, ...rest } = refused.current;
+    refused.current = rest;
+    setErrors(e => {
+      if (e[id] !== "date") return e;
+      const next = { ...e };
+      delete next[id];
+      return next;
+    });
+  }, []);
   const [stage, setStage] = useState<"start" | "form" | "thanks">(props.layout === "steps" && mode !== "preview" ? "start" : "form");
   const [index, setIndex] = useState(0);
   const [sending, setSending] = useState(false);
   const [formError, setFormError] = useState<ErrorCode | null>(null);
+  // The classic page where "n answers need a look" was said: its line
+  // keeps its height once the answers are fixed, so the Send button under
+  // it never moves up between the press and the release of a click that
+  // also ends a correction (a date read on blur).
+  const [bannerAt, setBannerAt] = useState<number | null>(null);
   const [copy, setCopy] = useState(false);
   const [restored, setRestored] = useState(false);
   // Where the respondent was, one question at a time: a reload goes back there.
@@ -176,10 +203,13 @@ export function Runner(props: RunnerProps) {
 
   const clampIndex = Math.min(index, Math.max(0, (props.layout === "steps" ? sequence.length : path.pages.length) - 1));
 
+  // why: a question's problem, its field's refusal first.
+  const why = (q: Question): AnswerError | null => (refused.current[q.id] ? "date" : problem(q, raw[q.id]));
+
   async function submit() {
     const all: Record<string, AnswerError> = {};
     for (const q of sequence) {
-      const p = problem(q, raw[q.id]);
+      const p = why(q);
       if (p) all[q.id] = p;
     }
     if (uploading) return;
@@ -215,7 +245,11 @@ export function Runner(props: RunnerProps) {
     const first = sequence.find(q => found[q.id]);
     if (!first) return;
     if (props.layout === "steps") setIndex(sequence.indexOf(first));
-    else setIndex(path.pages.findIndex(p => p.questions.includes(first)));
+    else {
+      const at = path.pages.findIndex(p => p.questions.includes(first));
+      setIndex(at);
+      setBannerAt(at);
+    }
     setTimeout(() => document.getElementById(`q-${first.id}`)?.focus(), 30);
   }
 
@@ -223,7 +257,7 @@ export function Runner(props: RunnerProps) {
   function next() {
     const q = sequence[clampIndex];
     if (!q) return;
-    const p = problem(q, raw[q.id]);
+    const p = why(q);
     if (p) {
       setErrors(e => ({ ...e, [q.id]: p }));
       document.getElementById(`q-${q.id}`)?.focus();
@@ -245,11 +279,12 @@ export function Runner(props: RunnerProps) {
     if (!page) return;
     const found: Record<string, AnswerError> = {};
     for (const q of page.questions) {
-      const p = problem(q, raw[q.id]);
+      const p = why(q);
       if (p) found[q.id] = p;
     }
     if (Object.keys(found).length > 0) return showErrors(found);
     if (clampIndex >= path.pages.length - 1) return void submit();
+    setBannerAt(null);
     setIndex(clampIndex + 1);
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
@@ -298,6 +333,7 @@ export function Runner(props: RunnerProps) {
       onFiles={update => setPicked(all => ({ ...all, [q.id]: update(all[q.id] ?? []) }))}
       upload={upload(q)}
       onChange={v => set(q.id, v)}
+      {...(q.kind === "date" ? { onProblem: refusedProblem(q.id), refused: refused.current[q.id] === true } : {})}
       onPicked={props.layout === "steps" ? () => setTimeout(() => setIndex(i => (i === clampIndex && clampIndex < sequence.length - 1 ? i + 1 : i)), 380) : undefined}
       w={w}
       errorsWords={props.errors}
@@ -465,10 +501,11 @@ export function Runner(props: RunnerProps) {
       {page?.page.title && <h2 className="page-heading">{page.page.title}</h2>}
       <form className="classic-page" noValidate onSubmit={e => { e.preventDefault(); nextPage(); }} ref={el => { headingRef.current = el as unknown as HTMLDivElement; }}>
         {page?.questions.map((q, i) => field(q, numbered.get(q.id) ?? null, i === 0 && clampIndex > 0))}
-        {wrong > 0 && <p className="runner-banner soft" role="alert">{plural(w.fixBelow, wrong, props.locale)}</p>}
+        {wrong > 0 ? <p className="runner-banner soft" role="alert">{plural(w.fixBelow, wrong, props.locale)}</p>
+          : bannerAt === clampIndex && <p className="runner-banner soft spent" aria-hidden="true">{plural(w.fixBelow, 1, props.locale)}</p>}
         {banner}
         <div className="classic-actions">
-          {clampIndex > 0 && <button type="button" className="button quiet" onClick={() => { setIndex(clampIndex - 1); window.scrollTo({ top: 0 }); }}><Back /> {w.back}</button>}
+          {clampIndex > 0 && <button type="button" className="button quiet" onClick={() => { setBannerAt(null); setIndex(clampIndex - 1); window.scrollTo({ top: 0 }); }}><Back /> {w.back}</button>}
           <button type="submit" className="button form-button" disabled={sending || uploading}>{lastPage ? (sending ? w.sending : w.submit) : w.continue}</button>
           {path.pages.length > 1 && <span className="step-count">{format(w.progress, { done: clampIndex + 1, total: path.pages.length })}</span>}
         </div>
@@ -489,6 +526,10 @@ type FieldProps = {
   onFiles: (update: (current: readonly PickedFile[]) => PickedFile[]) => void;
   upload: (file: File, options: { onProgress: (fraction: number) => void; signal: AbortSignal }) => Promise<{ ok: true; ref: string } | { ok: false; error: string }>;
   onChange: (v: unknown) => void;
+  // A date question: its field's refusal, told to the runner; whether one
+  // stands (the field then says why itself).
+  onProblem?: (problem: string | null) => void;
+  refused?: boolean;
   onPicked?: () => void;
   w: RunnerWords;
   errorsWords: Catalogue["errors"];
@@ -513,6 +554,11 @@ function QuestionField(p: FieldProps) {
   // A pick with the mouse or a finger moves on by itself (one question at a
   // time); the keyboard's arrows only choose — Enter goes on.
   const pointer = useRef(false);
+  // A date field that leaves the page (another question, another page)
+  // forgets its refusal: its text is gone, the answer before stays shown.
+  const forget = useRef(p.onProblem);
+  useEffect(() => { forget.current = p.onProblem; });
+  useEffect(() => () => forget.current?.(null), []);
   const press = { onPointerDown: () => { pointer.current = true; } };
   const picked = () => {
     if (pointer.current) p.onPicked?.();
@@ -547,7 +593,7 @@ function QuestionField(p: FieldProps) {
     return (
       <div className={`question kind-date${p.error ? " has-error" : ""}`} {...auto}>
         <p className="q-heading" aria-hidden="true">{heading}</p>
-        <DateField id={inputId} hideLabel label={q.title + (q.required ? ` (${w.requiredMark})` : "")} value={value} onChange={d => p.onChange(d ?? undefined)} today={p.today} required={q.required} labels={w.date} {...(q.help ? { hint: q.help } : {})} error={errorText} />
+        <DateField id={inputId} hideLabel label={q.title + (q.required ? ` (${w.requiredMark})` : "")} value={value} onChange={d => p.onChange(d ?? undefined)} onProblem={p.onProblem} today={p.today} required={q.required} labels={w.date} {...(q.help ? { hint: q.help } : {})} error={p.refused ? null : errorText} />
       </div>
     );
   }

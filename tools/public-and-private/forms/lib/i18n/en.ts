@@ -460,6 +460,7 @@ export const en = {
   settings: {
     savedState: "All changes saved",
     unsaved: "Not saved",
+    dayHeld: "Not saved until the closing day is corrected.",
     onceHint: "Off: a request form, answered as often as needed. Each person sees what they sent and where it stands.",
     cover: "Picture at the top",
     coverAdd: "Choose a picture",

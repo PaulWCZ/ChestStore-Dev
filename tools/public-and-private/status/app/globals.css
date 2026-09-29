@@ -243,6 +243,17 @@ code.copy { display: block; padding: var(--space-3); background: var(--surface-2
 .ck-brand .mark { width: 30px; height: 30px; }
 .public-link { display: inline-flex; align-items: center; gap: 6px; min-height: var(--control-h); color: var(--ink); font-size: var(--text-s); font-weight: var(--weight-strong); text-decoration: none; white-space: nowrap; }
 .public-link:hover { text-decoration: underline; }
+/* Phones: the header stays one row above the sections. The link to the
+   public page keeps its words ("Page publique" is the longest); the tool's
+   name gives way instead — a little smaller, over two lines if it must,
+   and a company's logo at most 96 px — so the link never takes a row of
+   its own (round-2 critique, French at 390 px). */
+@media (max-width: 760px) {
+  .ck-bar .ck-brand { flex: 1 1 0; min-width: 0; font-size: var(--text-m); line-height: 1.15; --ck-logo-max: 96px; }
+  .ck-bar .ck-brand a { min-width: 0; }
+  .ck-bar .ck-brand .ck-logo img { max-width: min(96px, 100%); }
+  .ck-bar .ck-bar-end { flex: none; }
+}
 .narrow { max-width: var(--page-width); margin: 0 auto; width: 100%; }
 .wide { max-width: var(--wide-width); margin: 0 auto; width: 100%; }
 main.narrow { padding-left: var(--space-5); padding-right: var(--space-5); }

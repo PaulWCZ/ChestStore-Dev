@@ -341,6 +341,25 @@ await step("an incident of the past: its days typed in the editor's words, its t
   await page.locator("#end-time").selectOption({ label: "15:30" });
   expect((await page.getByLabel("at", { exact: true }).count()) === 2, "each time has its label");
   await page.getByLabel("What do you tell your customers?").fill("Search did not answer for an hour and a half.");
+  // Kit 0.2.4: a day after `max` (tomorrow, for an incident of the past)
+  // stays as typed and says why; the form (noValidate: its own messages)
+  // waits — never adds the incident with the day the field held before
+  // (the bug class where Timesheets saved "today" in place of refusing).
+  const history = async () => (await (await page.request.get(origin + "/chest/history")).text()).split("Search was down").length;
+  const before = await history();
+  const resolved = page.locator("#end-day");
+  await resolved.fill("tomorrow");
+  await resolved.press("Tab");
+  await page.locator(".ck-date", { has: resolved }).locator(".ck-error", { hasText: /^Choose .* or earlier\.$/u }).waitFor();
+  expect(await resolved.getAttribute("aria-invalid") === "true", "the day says it is refused");
+  await page.getByRole("button", { name: "Add to the history" }).click();
+  await page.waitForTimeout(1200);
+  expect(new URL(page.url()).pathname === "/chest/incidents/new", "still on the form: " + page.url());
+  expect(await resolved.inputValue() === "tomorrow", "the text stays as typed");
+  expect(await page.evaluate(() => document.activeElement?.id) === "end-day", "focus back on the refused day");
+  expect((await history()) === before, "nothing added to the history");
+  // Corrected and sent in one move (kit 0.2.5): the click is not lost.
+  await resolved.fill("yesterday");
   await page.getByRole("button", { name: "Add to the history" }).click();
   await page.waitForURL(/\/chest\/incidents\/\d+$/u);
   expect((await page.locator(".chip").first().innerText()).toLowerCase().includes("resolved"), "resolved, in the history");
@@ -443,6 +462,12 @@ await step("French, phone width: the page reads without sideways scroll; the sub
   const post = await page.getByRole("link", { name: "Signaler un incident" }).boundingBox();
   const plan = await page.getByRole("link", { name: "Prévoir une maintenance" }).boundingBox();
   expect(post && plan && post.y < plan.y, "on a phone, the main action comes first");
+  // The header stays one row above the sections: "Page publique" beside
+  // the tool's name, never on a row of its own (round-2 critique).
+  const brand = await page.locator(".ck-bar .ck-brand").boundingBox();
+  const publicPage = await page.locator(".ck-bar .public-link").boundingBox();
+  expect(brand && publicPage && Math.abs(publicPage.y - brand.y) < 8 && publicPage.x > brand.x + brand.width - 1, `the public link beside the name: ${JSON.stringify({ brand, publicPage })}`);
+  expect((await page.locator(".ck-bar .public-link").innerText()).trim() === "Page publique", "its words whole");
 });
 
 await browser.close();

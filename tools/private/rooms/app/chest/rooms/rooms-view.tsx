@@ -1,9 +1,10 @@
 "use client";
 
-import { Avatar, DateField, Dialog, PageHeader, PeoplePicker, TimeSelect, useToast } from "@argentic/chest-ui/components";
+import { Avatar, Dialog, PageHeader, PeoplePicker, TimeSelect, useToast } from "@argentic/chest-ui/components";
 import { localSearch, moveEnd, moveStart } from "@argentic/chest-ui/components/logic";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, useTransition, type ComponentType, type FormEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
+import { useDateProblems, WatchedDateField } from "../../../components/date-problems.tsx";
 import { Accessible, CalendarAdd, Check, Lock, Phone, Plus, Repeat, Screen, Seat, Video, Whiteboard } from "../../../components/icons.tsx";
 import type { Result } from "../../../lib/errors.ts";
 import type { Catalogue } from "../../../lib/i18n/index.ts";
@@ -460,12 +461,20 @@ function BookingForm({ initial, isNew, days, today, rooms, bookable, open, close
   // bounded by the days one may book; a closed day is said at once.
   const lastDay = days.at(-1)?.value ?? d.day;
   const closedDay = d.day !== initial.day && d.day >= today && d.day <= lastDay && !days.some(x => x.value === d.day);
+  // A day the field refused (before today, past the last bookable day,
+  // unreadable) leaves the previous day in the draft: booking waits, on
+  // the field and its sentence, rather than book that day in its place.
+  const dates = useDateProblems();
   // Booking for someone else is rare: a link under the booking itself.
   const [forOpen, setForOpen] = useState(Boolean(initial.for));
   const titleLength = [...d.title].length;
 
   function submit(e: FormEvent) {
     e.preventDefault();
+    if (dates.problem) {
+      document.getElementById("booking-day")?.focus();
+      return;
+    }
     setBusy(true);
     setError(null);
     onSubmit(d, (code, values) => {
@@ -484,7 +493,7 @@ function BookingForm({ initial, isNew, days, today, rooms, bookable, open, close
           </select>
         </label>
         <div className="span-2">
-          <DateField label={t.booking.day} value={d.day} today={today} min={today} max={lastDay} required labels={t.date}
+          <WatchedDateField id="booking-day" label={t.booking.day} value={d.day} onProblem={dates.watch("booking-day")} today={today} min={today} max={lastDay} required labels={t.date}
             {...(closedDay ? { error: t.errors.closed_day } : {})}
             onChange={v => { if (v) setD({ ...d, day: v }); }} />
         </div>

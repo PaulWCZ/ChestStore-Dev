@@ -5,6 +5,7 @@ import type { DateWords } from "@argentic/chest-ui/components/logic";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import type { PickerGroup } from "../../../../components/component-picker.tsx";
+import { useDateProblems } from "../../../../components/date-problems.tsx";
 import { LanguagePick, SecondField, SecondToggle, secondOf, type Languages } from "../../../../components/second-field.tsx";
 import { useRun } from "../../../../components/use-run.ts";
 import type { ErrorCode } from "../../../../lib/app-error.ts";
@@ -28,8 +29,16 @@ export function MaintenanceForm({ groups, start, end, today, zoneNote, languages
   const [titleSecond, setTitleSecond] = useState("");
   const [bodySecond, setBodySecond] = useState("");
   const [missing, setMissing] = useState<string | null>(null);
+  // A day the kit refused leaves the previous one in `value`: planning
+  // waits, on the field and its sentence.
+  const dates = useDateProblems();
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const refused = dates.of("m-start-day") ? "m-start-day" : dates.of("m-end-day") ? "m-end-day" : null;
+    if (refused) {
+      document.getElementById(refused)?.focus();
+      return;
+    }
     const empty = !value.title.trim() ? "m-title" : !body.trim() ? "m-text" : null;
     setMissing(empty);
     if (empty) {
@@ -40,7 +49,7 @@ export function MaintenanceForm({ groups, start, end, today, zoneNote, languages
   };
   return (
     <form className="stack-l form" noValidate onSubmit={submit}>
-      <MaintenanceFields value={value} onChange={setValue} groups={groups} zoneNote={zoneNote} today={today} missing={missing === "m-title" ? t.errors.required : null} t={t} />
+      <MaintenanceFields value={value} onChange={setValue} groups={groups} zoneNote={zoneNote} today={today} missing={missing === "m-title" ? t.errors.required : null} watch={dates.watch} t={t} />
       <div>
         <label className="label" htmlFor="m-text">{w.body}</label>
         <textarea id="m-text" className="field" rows={4} maxLength={5000} lang={language} placeholder={w.bodyPlaceholder} value={body} onChange={e => setBody(e.target.value)} aria-describedby={missing === "m-text" ? "m-text-missing m-hint" : "m-hint"} aria-invalid={missing === "m-text" || undefined} />

@@ -151,7 +151,7 @@ select.field { appearance: auto; }
 .builder-bar { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; position: sticky; top: var(--bar-h); z-index: 10; background: var(--bg); padding: var(--space-2) 0; }
 .save-state { color: var(--ink-2); font-size: var(--text-s); display: inline-flex; align-items: center; gap: 6px; }
 .save-state.saved::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--ok); }
-.save-state.error, .save-state.conflict { color: var(--danger); font-weight: var(--weight-strong); }
+.save-state.error, .save-state.conflict, .save-state.held { color: var(--danger); font-weight: var(--weight-strong); }
 .changes-note { font-size: var(--text-s); color: var(--wait-ink); background: var(--wait-soft); border-radius: var(--radius-m); padding: var(--space-2) var(--space-3); }
 .phone-only { display: none !important; }
 .problems { background: var(--danger-soft); color: var(--danger-ink); border-radius: var(--radius-m); padding: var(--space-3) var(--space-4); }
@@ -346,6 +346,7 @@ select.field { appearance: auto; }
 .form-button:hover { box-shadow: 0 8px 20px -10px var(--form); }
 .runner-banner { background: var(--danger-soft); color: var(--danger-ink); border-radius: var(--radius-m); padding: var(--space-3) var(--space-4); margin-bottom: var(--space-4); }
 .runner-banner.soft { margin: 0; }
+.runner-banner.spent { visibility: hidden; }
 .runner-start { padding: var(--space-6) 0; }
 .runner-notice { padding: var(--space-7) 0; }
 .runner-after { margin-top: var(--space-6); }
@@ -615,10 +616,6 @@ select.field { appearance: auto; }
    together at the end of the line, and wrap as one. */
 .to-answer-end { display: inline-flex; align-items: center; gap: var(--space-2); margin-left: auto; flex-wrap: nowrap; }
 
-/* The kit's file picker says "or drop it here" on a touch screen too
-   (a kit fix is coming): no dropping without a pointer, so not said. */
-@media (hover: none), (pointer: coarse) { .ck-drop-hint { display: none; } }
-
 /* The answers' filters: one "Filter" button on a phone, open on a wider
    screen; "Columns shown" looks like the control it is. */
 .filter-toggle { display: none; }
@@ -640,7 +637,3 @@ select.field { appearance: auto; }
 /* Which question gives each piece of a contact or a ticket. */
 .route-fields { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 13rem), 1fr)); gap: var(--space-3); padding-left: var(--space-4); border-left: 3px solid var(--line-strong); margin: 0 0 var(--space-2); }
 .route-fields .hint { grid-column: 1 / -1; margin: 0; }
-
-/* An answer's card on a phone: a long question wraps beside its answer
-   (the kit's stacked label keeps its width otherwise). */
-.answers-page .ck-table-stack [data-label]::before { flex: 1 1 60%; min-width: 0; }

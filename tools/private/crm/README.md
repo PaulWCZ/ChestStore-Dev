@@ -156,7 +156,7 @@ and every service test.
 | `/chest/export/{companies,contacts,deals,vcf}`, `/chest/export/all` | Lists as files, with the page's filters; the whole book as a ZIP (managers) |
 | `/chest/search?q=` | Search |
 | `/chest/import`, `/chest/settings`, `/chest/settings/fields` | Import (and recent imports, Undo); stages and fields (managers) |
-| `/chest-events` | The Chest's lifecycle events (signed) |
+| `/chest-events` | The Chest's lifecycle events, and `forms.contact` from Forms (signed) |
 | `/chest-jobs/morning` | The weekday morning (proposal *schedules*, signed) |
 | `/` | The public host: says where the tool lives |
 
@@ -212,7 +212,10 @@ them, deleted with them.
 ## With the other tools
 
 Through the studio's proposal **events between tools** (`chest.proposals.json`
-`"emits"`), once an admin of the Chest linked Clients to another tool:
+`"emits"` and `"receives"`), once an admin of the Chest linked Clients to
+another tool.
+
+### What Clients tells
 
 | Event | When | Data |
 |---|---|---|
@@ -227,6 +230,45 @@ sent as `null`, never guessed. Publishing is a
 courtesy (`lib/share.ts`): when the Chest cannot take the event, the deal's
 move still stands. Deals imported already won are not told.
 
+### What Clients receives: `forms.contact` from Forms
+
+When a form of **Forms** maps a contact (its Settings, "Also create a
+contact in Clients") and someone answers it with an email or a phone, Forms
+publishes `forms.contact` (version 1; the contract is Forms' README, "With
+the other tools"). Clients (`lib/from-forms.ts`, on `/chest-events`):
+
+- **Finds the person** by email (whatever its case), then by phone (digits
+  compared, either of the contact's two numbers; "+33 4 78…" is "04 78…").
+- **Otherwise makes a contact**: the name given (else the email, else the
+  phone), the email, the phone, and the company of that name — found
+  accents and case aside, or added. Their history starts with "Added from
+  the form “Contact us”".
+- **Writes one line in their history**: "Filled in the form “Contact us”"
+  (« A rempli le formulaire … » — each reader's language), with the
+  message as written, dated when the form was answered. It shows on the
+  contact's page and their company's. It counts as a contact coming from
+  them (their *last contact*, the prospects' three-year rule).
+- **Keeps what the team wrote**: on a known contact only an empty email,
+  phone or company is filled in; the name, the owner and the rest stay.
+- **Who owns a new contact: nobody** (*unassigned*, like the clients of a
+  teammate who left). An import gives its rows to the person who imports;
+  here nobody acts, so nobody is made owner behind their back. The
+  **managers** are told in the bell ("New contact: Nina Roux filled in the
+  form “Contact us”", the message below); for a known contact, **its
+  owner** is told instead. Anyone of sales may take a contact nobody owns.
+- **Never twice**: the event's id is kept on the line of history (a unique
+  index), and an answer published again under another id finds its line —
+  a replayed or doubled delivery makes no second contact, line or bell
+  item. An event of another shape, or with neither an email nor a phone,
+  is accepted and ignored.
+- The answer's own page in Forms is not linked yet: a tool does not know
+  another tool's address (the answer's `path` is kept in the line's data
+  for when it can).
+
+In the harness, `/_dev` → *Deliver an event of another tool* (`forms.contact`
+and its data as JSON) plays Forms (a new event id each time); `test/from-forms.test.ts` plays it with the SDK's
+`fakeChest().deliver` (a replay by the same id included).
+
 ## Needs from the SDK
 
 - `member.locale` — **Proposal (studio)**, in `vendor/`: the interface and
@@ -236,8 +278,8 @@ move still stands. Deals imported already won are not told.
   overnight, the purge of removed history. On a Chest without it, the tile's
   number is set right whenever its owner opens *My day*, and removed history
   simply stays hidden.
-- `events` between tools — **Proposal (studio)**, `emits` in
-  `chest.proposals.json`: see "With the other tools".
+- `events` between tools — **Proposal (studio)**, `emits` and `receives`
+  (`forms.contact`) in `chest.proposals.json`: see "With the other tools".
 - `files` — the shipped capability (uploads from a member's browser,
   signed links): files on deals, companies and contacts.
 - `calendar` — **Proposal (studio)**, `"calendar": true` in

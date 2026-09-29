@@ -1,9 +1,10 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { Confirm, DateField, Dialog, Segmented, StatusBadge, TimeSelect, useToast } from "@argentic/chest-ui/components";
+import { Confirm, Dialog, Segmented, StatusBadge, TimeSelect, useToast } from "@argentic/chest-ui/components";
 import { addDays as addIsoDays, type DateWords, type DialogWords } from "@argentic/chest-ui/components/logic";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useDateProblems, WatchedDateField } from "../../../../components/date-problems.tsx";
 import { HireDialog } from "../../../../components/hire-dialog.tsx";
 import { Arrow, Ban, Bell, Bin, Calendar, Close, Copy, Dots, Download, Mail, Pencil, People, Send, Star, Undo, Upload } from "../../../../components/icons.tsx";
 import type { Feedback } from "../../../../lib/candidates.ts";
@@ -364,6 +365,10 @@ function InterviewForm({ candidate, interview, t, onDone, onTyped }: { candidate
   // The day, typed or picked in the member's language (the kit's
   // DateField: never the browser's date field), in the next 90 days.
   const last = addIsoDays(interview.today, 89);
+  // A day the field refused (before today, past the 90 days, unreadable)
+  // leaves the previous day in this state: sending waits, on the field and
+  // its sentence, rather than send that day in its place.
+  const dates = useDateProblems();
   const hhmmOf = (minutes: number) => `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
   const chosen = [...people];
   useEffect(() => {
@@ -404,6 +409,11 @@ function InterviewForm({ candidate, interview, t, onDone, onTyped }: { candidate
   return (
     <form className="stack" onSubmit={e => {
       e.preventDefault();
+      const refused = ["iv-from", "iv-to", "iv-day"].find(key => dates.of(key));
+      if (refused) {
+        document.getElementById(refused)?.focus();
+        return;
+      }
       const data = new FormData(e.currentTarget);
       setError(null);
       const place = String(data.get("place") ?? ""), note = String(data.get("note") ?? "");
@@ -445,10 +455,10 @@ function InterviewForm({ candidate, interview, t, onDone, onTyped }: { candidate
           <p className="hint">{w.linkHint}</p>
           <div className="three">
             <div className="field-block iv-day">
-              <DateField id="iv-from" label={w.fromDay} value={firstDay} onChange={d => { setFirstDay(d); if (d && lastDay && lastDay < d) setLastDay(addIsoDays(d, 7)); onTyped(); }} today={interview.today} min={interview.today} max={last} required labels={t.date} />
+              <WatchedDateField id="iv-from" onProblem={dates.watch("iv-from")} label={w.fromDay} value={firstDay} onChange={d => { setFirstDay(d); if (d && lastDay && lastDay < d) setLastDay(addIsoDays(d, 7)); onTyped(); }} today={interview.today} min={interview.today} max={last} required labels={t.date} />
             </div>
             <div className="field-block iv-day">
-              <DateField id="iv-to" label={w.toDay} value={lastDay} onChange={d => { setLastDay(d); onTyped(); }} today={interview.today} min={firstDay ?? interview.today} max={firstDay ? addIsoDays(firstDay, 21) : last} required labels={t.date} />
+              <WatchedDateField id="iv-to" onProblem={dates.watch("iv-to")} label={w.toDay} value={lastDay} onChange={d => { setLastDay(d); onTyped(); }} today={interview.today} min={firstDay ?? interview.today} max={firstDay ? addIsoDays(firstDay, 21) : last} required labels={t.date} />
             </div>
             {lengthField}
           </div>
@@ -466,7 +476,7 @@ function InterviewForm({ candidate, interview, t, onDone, onTyped }: { candidate
       ) : (
         <div className="three">
           <div className="field-block iv-day">
-            <DateField id="iv-day" label={w.day} value={day} onChange={d => { setDay(d); onTyped(); }} today={interview.today} min={interview.today} max={last} required labels={t.date} />
+            <WatchedDateField id="iv-day" onProblem={dates.watch("iv-day")} label={w.day} value={day} onChange={d => { setDay(d); onTyped(); }} today={interview.today} min={interview.today} max={last} required labels={t.date} />
           </div>
           <div className="field-block">
             <label className="label" htmlFor="iv-time">{format(w.time, { zone: interview.zone })}</label>

@@ -254,6 +254,53 @@ await step("a host taps a free stretch of the agenda to block it, frees it again
   await page.waitForSelector(".meeting.blocked >> text=Supplier call");
 });
 
+await step("a day before today in \"Block a time\" is refused as typed: nothing is blocked for the day the field held", async () => {
+  // Kit 0.2.4: a day before `min` stays as typed, says why, and the
+  // dialog's form stops on it — never the day the field held (today) in
+  // its place (the bug class where Timesheets saved "today").
+  await as(context, origin, "ines");
+  await english();
+  await page.goto(origin + "/chest");
+  await page.getByRole("button", { name: "Block a time", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "Block a time" });
+  await dialog.waitFor();
+  const held = await page.locator("#bl-day").inputValue();
+  const yesterday = new Date(Date.now() - 864e5).toISOString().slice(0, 10);
+  await page.locator("#bl-day").fill(yesterday);
+  await page.locator("#bl-day").press("Tab");
+  const field = page.locator(".ck-date", { has: page.locator("#bl-day") });
+  await field.locator(".ck-error", { hasText: /or later\.$/u }).waitFor();
+  expect(await page.locator("#bl-day").getAttribute("aria-invalid") === "true", "the field says it is refused");
+  await page.locator("#bl-note").fill("Refused day");
+  let sent = 0;
+  const count = r => { if (r.method() === "POST" && r.url().startsWith(origin + "/chest")) sent++; };
+  page.on("request", count);
+  await dialog.getByRole("button", { name: "Block this time" }).click();
+  await page.waitForTimeout(800);
+  page.off("request", count);
+  expect(sent === 0, "nothing sent: " + sent);
+  expect(await dialog.isVisible(), "the dialog stays open");
+  expect(await page.locator("#bl-day").inputValue() === yesterday, "the day stays as typed (held: " + held + ")");
+  expect(await page.locator(".ck-toast", { hasText: "Time blocked." }).count() === 0, "not blocked");
+  // Corrected in one move with the click: the button has not moved, and
+  // the day typed is the one blocked.
+  const box = await dialog.getByRole("button", { name: "Block this time" }).boundingBox();
+  const later = new Date(Date.now() + 45 * 864e5).toISOString().slice(0, 10);
+  await page.locator("#bl-day").fill(later);
+  const moved = await dialog.getByRole("button", { name: "Block this time" }).boundingBox();
+  expect(Math.abs(box.y - moved.y) < 1, `the button did not move (${box.y} → ${moved.y})`);
+  await dialog.getByRole("button", { name: "Block this time" }).click();
+  await page.waitForSelector(".ck-toast >> text=Time blocked.");
+  // On the agenda, then freed again (it was only a test).
+  await page.goto(origin + "/chest");
+  const blocked = page.locator(".meeting.blocked", { hasText: "Refused day" });
+  await blocked.waitFor();
+  await blocked.getByRole("button", { name: /^Unblock / }).click();
+  await page.waitForSelector(".meeting.blocked >> text=Refused day", { state: "detached" });
+  await page.reload();
+  expect(await page.locator(".meeting.blocked", { hasText: "Refused day" }).count() === 0, "nothing left blocked");
+});
+
 await step("a host's other calendar: a wrong address is refused plainly, the one connected says when it was read", async () => {
   await as(context, origin, "ines");
   await english();

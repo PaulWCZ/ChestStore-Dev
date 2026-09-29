@@ -151,16 +151,20 @@ respondent wrote, trimmed and bounded; yes/no and *Other* in the language
 the respondent read. `path` is the answer's page on the Chest's team
 address (`chest.teamUrl()` + `path`), for a link back.
 
-**Receivers are not built yet** (Clients and Support will be); this is the
-contract they build to. Version 1 (`v: 1`); a later version adds fields,
-never changes one.
+**Clients receives `forms.contact`** (its README, "What Clients receives":
+the contact found by email then phone, or made; one line "Filled in the
+form …" in its history with the message; never twice for one event or one
+answer). **Support's receiver for `forms.request` is not built yet.** This
+is the contract receivers build to. Version 1 (`v: 1`); a later version
+adds fields, never changes one.
 
 ### `forms.contact` — make or update a contact (Clients)
 
 Sent when the form maps a contact (Settings) **and** the answer gives an
 email or a phone. The receiver matches an existing contact by `email`
 (lower case) or `phone`, else creates one; it keeps `message` in the
-contact's history, with a link to `answer.path`.
+contact's history (Clients keeps `answer.path` with it; it does not link
+to it yet — a tool does not know another tool's address).
 
 ```jsonc
 {

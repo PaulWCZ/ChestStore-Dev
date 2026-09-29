@@ -45,8 +45,12 @@ export function ShareView(p: Props) {
   const [pending, start] = useTransition();
   const [question, setQuestion] = useState(p.questions[0]?.id ?? "");
   const [value, setValue] = useState("");
+  // A day the date field refuses as typed: it says why, `value` still
+  // holds the day before, and no link is offered for that day in place of
+  // what was typed (kit 0.2.4).
+  const [dayRefused, setDayRefused] = useState(false);
   const q = p.questions.find(x => x.id === question);
-  const prefilled = useMemo(() => (p.link && q && value.trim() ? `${p.link}?${new URLSearchParams({ [q.key ?? q.id]: value.trim() }).toString()}` : null), [p.link, q, value]);
+  const prefilled = useMemo(() => (p.link && q && value.trim() && !(q.kind === "date" && dayRefused) ? `${p.link}?${new URLSearchParams({ [q.key ?? q.id]: value.trim() }).toString()}` : null), [p.link, q, value, dayRefused]);
   const say = (code: ErrorCode, values?: Record<string, string | number>) => format(p.t.errors[code] ?? p.t.errors.unknown, values ?? {});
 
   // Taking someone off can be undone: they are given their level back.
@@ -83,7 +87,7 @@ export function ShareView(p: Props) {
           <div className="prefill">
             <label className="mini">
               <span className="mini-label">{s.prefillQuestion}</span>
-              <select className="field" value={question} onChange={e => { setQuestion(e.target.value); setValue(""); }}>
+              <select className="field" value={question} onChange={e => { setQuestion(e.target.value); setValue(""); setDayRefused(false); }}>
                 {p.questions.map(x => <option key={x.id} value={x.id}>{x.title}</option>)}
               </select>
             </label>
@@ -106,7 +110,7 @@ export function ShareView(p: Props) {
             </label>
             {q?.kind === "date" && (
               <div className="mini grow">
-                <DateField label={s.prefillValue} value={value || null} onChange={d => setValue(d ?? "")} today={p.today} labels={p.t.date} />
+                <DateField key={question} label={s.prefillValue} value={value || null} onChange={d => setValue(d ?? "")} onProblem={problem => setDayRefused(problem !== null)} today={p.today} labels={p.t.date} />
               </div>
             )}
           </div>

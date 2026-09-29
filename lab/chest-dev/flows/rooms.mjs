@@ -175,6 +175,39 @@ await step("the organiser cancels, then undoes it", async () => {
   expect(await page.locator(".block", { hasText: "Quarterly numbers" }).count() === 1, "back");
 });
 
+await step("changing a booking to a day already gone is refused as typed; the booking keeps its day", async () => {
+  // Kit 0.2.4: a day before `min` stays as typed, says why, and nothing is
+  // sent — never the day the form held before (the bug class where
+  // Timesheets saved "today" in place of refusing).
+  await page.goto(origin + `/chest/rooms?day=${friday}`);
+  await page.locator(".block", { hasText: "Quarterly numbers" }).click();
+  const dialog = page.locator("dialog[open]");
+  await dialog.getByRole("button", { name: "Change", exact: true }).click();
+  const day = dialog.locator("#booking-day");
+  await day.waitFor();
+  const held = await day.inputValue();
+  await day.fill("1/1/2020");
+  await day.press("Tab");
+  const box = dialog.locator(".ck-date", { has: day });
+  await box.locator(".ck-error", { hasText: /^Choose .* or later\.$/u }).waitFor();
+  expect(await day.getAttribute("aria-invalid") === "true", "the field says it is refused");
+  await dialog.getByRole("button", { name: "Save", exact: true }).click();
+  // Even a submit forced past the browser's own check stops: the form
+  // refuses while the day is refused, and puts the focus back on it.
+  await dialog.locator("form").evaluate(form => { form.noValidate = true; form.requestSubmit(); });
+  await page.waitForTimeout(1000);
+  expect(await page.locator(".ck-toast").count() === 0, "nothing saved, no toast");
+  expect(await page.locator("dialog[open]").count() === 1, "the form stays open");
+  expect(await day.inputValue() === "1/1/2020", "the text stays as typed");
+  expect(await page.evaluate(() => document.activeElement?.id) === "booking-day", "focus back on the day");
+  // Corrected and saved in one move (kit 0.2.5): the click is not lost.
+  await day.fill(held);
+  await dialog.getByRole("button", { name: "Save", exact: true }).click();
+  await page.waitForSelector(".ck-toast");
+  await page.goto(origin + `/chest/rooms?day=${friday}`);
+  expect(await page.locator(".block", { hasText: "Quarterly numbers" }).count() === 1, "still on its day");
+});
+
 await step("a weekly booking: several occurrences at once", async () => {
   await page.goto(origin + `/chest/rooms?day=${thursday}`);
   await page.getByRole("button", { name: "Book a room" }).click();

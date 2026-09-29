@@ -47,7 +47,7 @@ type Props = {
   routeChoices: RouteChoices;
   t: { s: Catalogue["settings"]; errors: Catalogue["errors"]; b: Catalogue["builder"]; date: Catalogue["date"] };
 };
-type SaveState = "saved" | "saving" | "error";
+type SaveState = "saved" | "saving" | "error" | "held";
 
 export function SettingsView(p: Props) {
   const { s, b } = p.t;
@@ -67,12 +67,32 @@ export function SettingsView(p: Props) {
   const waiting = useRef(false);
   const first = useRef(true);
   const lastAudience = useRef(p.initial.audience + p.initial.anonymous);
+  // A closing day the field refuses as typed (unreadable, or before
+  // today): the field says why (kit 0.2.4), its onChange is not called, so
+  // `v` still holds the previous day. Nothing is saved while it stands —
+  // any other change would otherwise go out with that previous day, as if
+  // it were what was typed — and the page says so. Corrected, all that
+  // waited is saved.
+  const refusedDay = useRef(false);
+  const onDayProblem = useCallback((problem: string | null) => {
+    const was = refusedDay.current;
+    refusedDay.current = problem !== null;
+    if (problem !== null) {
+      clearTimeout(timer.current);
+      setSave("held");
+    } else if (was) setV(x => ({ ...x }));
+  }, []);
   const set = <K extends keyof Values>(k: K, value: Values[K]) => setV(x => ({ ...x, [k]: value }));
   const who = v.audience === "public" ? "public" : v.anonymous ? "anonymous" : "team";
   const words = (code: ErrorCode, values?: Record<string, string | number>) => format(p.t.errors[code] ?? p.t.errors.unknown, values ?? {});
 
   const flush = useCallback(async (): Promise<boolean> => {
     clearTimeout(timer.current);
+    if (refusedDay.current) {
+      waiting.current = true;
+      setSave("held");
+      return false;
+    }
     waiting.current = false;
     const now = latest.current;
     setSave("saving");
@@ -104,13 +124,14 @@ export function SettingsView(p: Props) {
       return;
     }
     if (ro) return;
-    setSave("saving");
     waiting.current = true;
+    if (refusedDay.current) return setSave("held");
+    setSave("saving");
     clearTimeout(timer.current);
     timer.current = setTimeout(() => void flush(), 600);
   }, [v, ro, flush]);
 
-  useEffect(() => holdLeaving(async () => (waiting.current || save === "error" ? flush() : true)), [flush, save]);
+  useEffect(() => holdLeaving(async () => (waiting.current || save === "error" || save === "held" ? flush() : true)), [flush, save]);
   useEffect(() => () => {
     // Left by the app's own navigation with a change waiting: it goes now.
     if (waiting.current) void flush();
@@ -150,12 +171,14 @@ export function SettingsView(p: Props) {
   };
 
   const saveLabel = save === "saving" ? s.saving : save === "saved" ? s.savedState : s.unsaved;
+  // Said beside the status, never under the field: the sentence under it
+  // is the kit's, and this line going moves nothing below the field.
   return (
     <form className="panel-page settings" onSubmit={e => { e.preventDefault(); void flush(); }}>
       {!ro && (
         <p className="settings-status">
           <span className={`save-state ${save}`} role="status" aria-live="polite">{saveLabel}</span>
-          {problem && <span className="settings-problem" role="alert">{problem}</span>}
+          {save === "held" ? <span className="settings-problem">{s.dayHeld}</span> : problem && <span className="settings-problem" role="alert">{problem}</span>}
           {save === "error" && <button type="button" className="button link" onClick={() => void flush()}>{b.retry}</button>}
         </p>
       )}
@@ -218,7 +241,7 @@ export function SettingsView(p: Props) {
         <legend>{s.taking}</legend>
         <div className="row-fields">
           <div className="mini closes-day">
-            <DateField label={s.closesOn} value={v.closesDay || null} onChange={d => set("closesDay", d ?? "")} today={p.today} min={v.closesDay && v.closesDay < p.today ? null : p.today} disabled={ro} labels={p.t.date} />
+            <DateField label={s.closesOn} value={v.closesDay || null} onChange={d => set("closesDay", d ?? "")} onProblem={onDayProblem} today={p.today} min={v.closesDay && v.closesDay < p.today ? null : p.today} disabled={ro} labels={p.t.date} />
           </div>
           {v.closesDay && (
             <div className="mini">

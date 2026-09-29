@@ -106,6 +106,77 @@ await step("several next steps on one deal, one with a time", async () => {
   expect((await dev()).includes("<b>Send fabric samples"), "back with Undo");
 });
 
+await step("a closing day that cannot be read is refused as typed: the deal keeps its day, nothing is sent; corrected, it is saved in one move", async () => {
+  // Kit 0.2.4–0.2.5: a refused day stays as typed, says why, and never
+  // passes for the day the field held (the bug class where Timesheets
+  // saved "today" in place of refusing). The deal's dialog is a form: its
+  // submit stops on the field.
+  const day = n => new Date(Date.now() + n * 864e5).toISOString().slice(0, 10);
+  const edit = async () => {
+    await page.goto(dealUrl);
+    await page.locator(".deal-actions .ck-menu button").first().click();
+    await page.getByRole("menuitem", { name: "Edit the deal" }).click();
+    await page.getByRole("dialog", { name: "Edit the deal" }).waitFor();
+  };
+  const shown = async () => (await page.locator("dt", { hasText: "Expected close" }).locator("xpath=following-sibling::dd[1]").innerText()).trim();
+  await edit();
+  await page.locator("#dl-close").fill(day(40));
+  await page.locator("#dl-close").press("Tab");
+  await page.getByRole("dialog", { name: "Edit the deal" }).getByRole("button", { name: "Save", exact: true }).click();
+  await page.waitForSelector(".ck-toast:has-text('Saved.')");
+  await page.reload();
+  const held = await shown();
+  expect(/\d{4}/u.test(held), "a day held: " + held);
+  await edit();
+  await page.locator("#dl-close").fill("31/02/2027");
+  await page.locator("#dl-close").press("Tab");
+  const field = page.locator(".ck-date", { has: page.locator("#dl-close") });
+  await field.locator(".ck-error").waitFor();
+  expect(await page.locator("#dl-close").getAttribute("aria-invalid") === "true", "the field says it is refused");
+  let sent = 0;
+  const count = r => { if (r.method() === "POST" && r.url().startsWith(origin + "/chest")) sent++; };
+  page.on("request", count);
+  await page.getByRole("dialog", { name: "Edit the deal" }).getByRole("button", { name: "Save", exact: true }).click();
+  await page.waitForTimeout(800);
+  page.off("request", count);
+  expect(sent === 0, "nothing sent: " + sent);
+  expect(await page.getByRole("dialog", { name: "Edit the deal" }).isVisible(), "the dialog stays open");
+  expect(await page.locator("#dl-close").inputValue() === "31/02/2027", "the text stays as typed");
+  // Corrected and saved in one move (no blur first): the new day is saved.
+  const box = await page.getByRole("dialog", { name: "Edit the deal" }).getByRole("button", { name: "Save", exact: true }).boundingBox();
+  await page.locator("#dl-close").fill(day(70));
+  const moved = await page.getByRole("dialog", { name: "Edit the deal" }).getByRole("button", { name: "Save", exact: true }).boundingBox();
+  expect(Math.abs(box.y - moved.y) < 1, `Save did not move (${box.y} → ${moved.y})`);
+  await page.getByRole("dialog", { name: "Edit the deal" }).getByRole("button", { name: "Save", exact: true }).click();
+  await page.waitForSelector(".ck-toast:has-text('Saved.')");
+  await page.reload();
+  const now = await shown();
+  expect(now !== held && now.includes(String(new Date(Date.now() + 70 * 864e5).getUTCFullYear())), `the corrected day saved: ${held} → ${now}`);
+});
+
+await step("Forms tells of someone who filled in the contact form: a new contact, unassigned, with one line of history; told again, nothing doubles", async () => {
+  // The harness plays Forms (/_dev → Deliver an event of another tool).
+  const data = { v: 1, form: { id: "5", title: "Contact us" }, answer: { id: "flowanswer000001", at: new Date(Date.now() - 60000).toISOString(), language: "en", path: "/chest/forms/5/answers/flowanswer000001" }, contact: { name: "Nina Roux", email: "Nina.Roux@example.com", phone: "+33 6 12 34 56 78", company: "Roux Menuiserie" }, message: "Six oak chairs, please.", member: null };
+  const deliver = () => page.request.post(origin + "/_dev/deliver", { form: { type: "forms.contact", data: JSON.stringify(data) }, maxRedirects: 0 });
+  await deliver();
+  await page.goto(origin + "/chest/contacts?q=nina.roux");
+  await page.locator(".rows a, table a", { hasText: "Nina Roux" }).first().click();
+  await page.waitForURL(/\/chest\/contacts\/\d+$/u);
+  const line = page.locator(".timeline .event.k-form");
+  await line.waitFor();
+  const text = await line.innerText();
+  expect(text.includes("Filled in the form “Contact us”") && text.includes("Six oak chairs, please."), "the line and the message: " + text);
+  expect((await page.locator(".timeline").innerText()).includes("Added from the form “Contact us”"), "added from the form");
+  const head = await page.locator("main").innerText();
+  expect(head.includes("nina.roux@example.com") && head.includes("Roux Menuiserie"), "email and company");
+  // The same answer published again (another event id): one line still.
+  await deliver();
+  await page.reload();
+  expect(await page.locator(".timeline .event.k-form").count() === 1, "one line");
+  await page.goto(origin + "/chest/contacts?q=nina.roux");
+  expect(await page.locator(".rows a, table a", { hasText: "Nina Roux" }).count() === 1, "one contact");
+});
+
 await step("a new deal from My day: a company found by typing, or added on the spot", async () => {
   await page.goto(origin + "/chest");
   await page.getByRole("button", { name: "New deal" }).click();

@@ -7,7 +7,7 @@ const { browser, context, page, origin, problems } = await open(port, "ines", { 
 const english = async () => context.addCookies([{ name: "dev_locale", value: "en", url: origin }]);
 const dev = async () => (await page.request.get(origin + "/_dev")).text();
 const pdf = Buffer.from("%PDF-1.4\n1 0 obj<</Type/Catalog>>endobj\ntrailer<</Root 1 0 R>>\n%%EOF\n");
-let formUrl = "", link = "", formId = "";
+let formUrl = "", link = "", formId = "", datedLink = "", datedForm = "";
 
 async function add(hint, title) {
   await page.getByRole("button", { name: "Add a question" }).click();
@@ -131,6 +131,44 @@ await step("settings save by themselves (no Save button): a copy by email, the b
   await page.goto(formUrl + "/settings");
   expect((await page.locator("input[placeholder='Thank you!']").inputValue()) === "Thanks, see you Friday", "thank-you title kept");
   expect((await page.locator(".settings-status").innerText()).includes("All changes saved"), "said saved");
+});
+
+await step("a closing day before today is refused as typed: nothing is saved while it stands, not even another setting; corrected, all of it is", async () => {
+  // Kit 0.2.4: the settings save by themselves, from the page's state —
+  // which still holds the day before. Saving waits (the status says why),
+  // so neither the old day nor anything else goes out as if accepted.
+  await page.goto(formUrl + "/settings");
+  const input = page.locator(".closes-day .ck-date-input");
+  const title = page.locator("input[placeholder='Thank you!']");
+  const kept = await title.inputValue();
+  const html = async () => (await page.request.get(formUrl + "/settings")).text();
+  const yesterday = new Date(Date.now() - 864e5).toISOString().slice(0, 10);
+  await input.fill(yesterday);
+  await input.press("Tab");
+  await page.locator(".closes-day .ck-error", { hasText: /or later\.$/u }).waitFor();
+  await page.locator(".save-state.held").waitFor();
+  expect((await page.locator(".settings-status").innerText()).includes("Not saved until the closing day is corrected."), "the status says why");
+  await title.fill("Held back");
+  await page.waitForTimeout(1500);
+  expect(await page.locator(".save-state.held").count() === 1, "still not saved");
+  const before = await html();
+  expect(!before.includes("Held back") && !before.includes("Stop taking answers on") , "nothing saved");
+  // Leaving by a tab waits: the page stays.
+  await page.getByRole("link", { name: "Answers", exact: true }).click();
+  await page.waitForTimeout(800);
+  expect(/\/settings$/u.test(page.url()), "the page stays: " + page.url());
+  // Corrected (a whole date, no blur): the day and the title are saved.
+  const later = new Date(Date.now() + 30 * 864e5).toISOString().slice(0, 10);
+  await input.fill(later);
+  await page.locator(".save-state.saved").waitFor({ timeout: 10000 });
+  const after = await html();
+  expect(after.includes("Held back"), "the title waited and is saved");
+  // Back as it was: no end date, the title before.
+  await page.getByRole("button", { name: "No end date" }).click();
+  await title.fill(kept);
+  await page.waitForTimeout(900);
+  await page.locator(".save-state.saved").waitFor({ timeout: 10000 });
+  expect((await input.inputValue()) === "", "no end date again");
 });
 
 // A visitor on a phone, in French.
@@ -360,6 +398,8 @@ await step("a date question: the kit's date field, typed in words, Enter reads i
   await page.getByRole("button", { name: "Publish" }).click();
   await page.waitForSelector("dialog[open]");
   const dated = (await page.locator("dialog[open] code").innerText()).trim();
+  datedLink = dated;
+  datedForm = page.url().replace(/\/chest\/forms\/(\d+).*$/u, "/chest/forms/$1");
   await page.keyboard.press("Escape");
   const p = await phone.newPage();
   await p.goto(dated);
@@ -374,6 +414,39 @@ await step("a date question: the kit's date field, typed in words, Enter reads i
   await p.getByRole("button", { name: "Previous" }).click();
   expect(/Tomorrow/u.test(await p.locator(".ck-date-read").innerText()), "the day in words under the field");
   await p.close();
+});
+
+await step("an answered date retyped as a date that cannot be read is refused: the form does not go on with the day it had; corrected, the new day is sent", async () => {
+  // The runner's form is sent without the browser's checks (noValidate):
+  // it waits for the field itself (kit 0.2.4 onProblem), never sending the
+  // answer before in place of what was typed.
+  const p = await phone.newPage();
+  await p.goto(datedLink);
+  await p.getByRole("button", { name: "Start", exact: true }).click();
+  await p.locator(".ck-date-input").fill("tomorrow");
+  await p.keyboard.press("Enter");
+  await p.waitForFunction(() => document.querySelector(".q-title")?.textContent?.startsWith("Your name"));
+  await p.getByRole("button", { name: "Previous" }).click();
+  await p.locator(".ck-date-input").fill("31/02/2027");
+  await p.locator(".ck-date-input").blur();
+  await p.waitForSelector(".ck-date .ck-error");
+  await p.locator(".runner-actions .form-button").click();
+  await p.waitForTimeout(600);
+  expect((await p.locator(".q-title").first().innerText()).startsWith("When can you start?"), "stays on the date");
+  expect((await p.locator(".ck-date-input").inputValue()) === "31/02/2027", "the text stays as typed");
+  // Corrected and sent on.
+  await p.locator(".ck-date-input").fill("15/03/2031");
+  await p.locator(".runner-actions .form-button").click();
+  await p.waitForFunction(() => document.querySelector(".q-title")?.textContent?.startsWith("Your name"));
+  await p.locator("input.answer-input").fill("Refused Then Right");
+  await p.locator(".runner-actions .form-button").click();
+  await p.waitForSelector(".runner-thanks", { timeout: 15000 });
+  await p.close();
+  await as(context, origin, "ines");
+  await english();
+  await page.goto(datedForm + "/answers");
+  const text = await page.locator("main").innerText();
+  expect(text.includes("Refused Then Right") && /15 Mar(ch)? 2031|2031-03-15|15\/03\/2031/u.test(text), "the corrected day is the one answered: " + text.slice(0, 400));
 });
 
 await step("a contact form also makes a contact in Clients and opens a ticket in Support: the author maps the questions, each answer is published typed", async () => {

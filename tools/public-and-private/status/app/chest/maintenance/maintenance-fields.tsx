@@ -1,8 +1,9 @@
 "use client";
 
-import { DateField, TimeSelect } from "@argentic/chest-ui/components";
+import { TimeSelect } from "@argentic/chest-ui/components";
 import type { DateWords } from "@argentic/chest-ui/components/logic";
 import { ComponentChecks, type PickerGroup } from "../../../components/component-picker.tsx";
+import { WatchedDateField } from "../../../components/date-problems.tsx";
 import { moveWindow, type WallTime } from "../../../lib/zone.ts";
 
 // The fields of a maintenance window: what, when (in the Chest's time
@@ -10,10 +11,13 @@ import { moveWindow, type WallTime } from "../../../lib/zone.ts";
 // calendar, and a 24-hour TimeSelect — never the browser's own fields,
 // which follow the computer's locale), which components, automatic posts.
 // Moving the start moves the end with it: the window keeps its length.
+// `watch` is the form's useDateProblems().watch: a day the field refused
+// (unreadable, or an end before the start) keeps the previous day in
+// `value`, so the form's Save waits while one stands.
 export type WindowValue = { title: string; start: WallTime; end: WallTime; components: string[]; autoPosts: boolean };
 type Words = { maintenance: Record<string, string>; date: DateWords };
 
-export function MaintenanceFields({ value, onChange, groups, zoneNote, today, missing = null, t }: { value: WindowValue; onChange: (next: WindowValue) => void; groups: PickerGroup[]; zoneNote: string; today: string; missing?: string | null; t: Words }) {
+export function MaintenanceFields({ value, onChange, groups, zoneNote, today, missing = null, watch, t }: { value: WindowValue; onChange: (next: WindowValue) => void; groups: PickerGroup[]; zoneNote: string; today: string; missing?: string | null; watch: (key: string) => (problem: string | null) => void; t: Words }) {
   const w = t.maintenance;
   const set = (patch: Partial<WindowValue>) => onChange({ ...value, ...patch });
   const start = (next: WallTime) => set(moveWindow(value.start, value.end, next));
@@ -26,14 +30,14 @@ export function MaintenanceFields({ value, onChange, groups, zoneNote, today, mi
       </div>
       <fieldset className="when-fields">
         <div className="when-row">
-          <DateField id="m-start-day" label={w.startDay!} value={value.start.day || null} onChange={day => day ? start({ ...value.start, day }) : set({ start: { ...value.start, day: "" } })} today={today} required labels={t.date} />
+          <WatchedDateField id="m-start-day" onProblem={watch("m-start-day")} label={w.startDay!} value={value.start.day || null} onChange={day => day ? start({ ...value.start, day }) : set({ start: { ...value.start, day: "" } })} today={today} required labels={t.date} />
           <div className="time-field">
             <label className="label" htmlFor="m-start-time">{w.startTime}</label>
             <TimeSelect id="m-start-time" step={5} value={value.start.minutes} onChange={minutes => start({ ...value.start, minutes })} />
           </div>
         </div>
         <div className="when-row">
-          <DateField id="m-end-day" label={w.endDay!} value={value.end.day || null} onChange={day => set({ end: { ...value.end, day: day ?? "" } })} today={today} min={value.start.day || null} required labels={t.date} />
+          <WatchedDateField id="m-end-day" onProblem={watch("m-end-day")} label={w.endDay!} value={value.end.day || null} onChange={day => set({ end: { ...value.end, day: day ?? "" } })} today={today} min={value.start.day || null} required labels={t.date} />
           <div className="time-field">
             <label className="label" htmlFor="m-end-time">{w.endTime}</label>
             <TimeSelect id="m-end-time" step={5} value={value.end.minutes} onChange={minutes => set({ end: { ...value.end, minutes } })} />

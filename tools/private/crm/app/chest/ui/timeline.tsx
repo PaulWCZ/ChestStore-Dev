@@ -10,7 +10,7 @@ import type { Catalogue, Locale } from "../../../lib/i18n/index.ts";
 import { editActivity, removeActivity, restoreActivity } from "../actions.ts";
 import type { People } from "./shared.ts";
 
-const icons = { call: Phone, meeting: Meeting, email: Mail, note: Note, step: Check, created: Plus, stage: Pipeline, won: Trophy, lost: Lost, reopened: Flag, owner: Person, unassigned: Person, merged: Plus };
+const icons = { call: Phone, meeting: Meeting, email: Mail, note: Note, step: Check, created: Plus, stage: Pipeline, won: Trophy, lost: Lost, reopened: Flag, owner: Person, unassigned: Person, merged: Plus, form: Mail };
 const logged = new Set(["call", "meeting", "email", "note"]);
 
 // When each thing happened, written by the server ("3 days ago"): the
@@ -43,7 +43,9 @@ export function Timeline({ items, people, stageNames, me, canRemoveAny, canLog, 
   function sentence(a: Activity): string | null {
     const name = who(a.author);
     switch (a.kind) {
-      case "created": return format(a.data["imported"] ? t.timeline.createdImported : t.timeline.created, { name });
+      // Made from a form's answer (lib/from-forms.ts): no teammate did it.
+      case "created": return a.data["form"] !== undefined ? format(t.timeline.createdForm, { form: String(a.data["form"]) }) : format(a.data["imported"] ? t.timeline.createdImported : t.timeline.created, { name });
+      case "form": return format(t.timeline.form, { form: String(a.data["form"] ?? "") });
       case "stage": return format(t.timeline.stage, { name, from: stage(a.data["from"]), to: stage(a.data["to"]) });
       case "won": return format(t.timeline.won, { name });
       case "lost": return format(t.timeline.lost, { name });

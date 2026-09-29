@@ -1,10 +1,11 @@
 "use client";
 
-import { DateField, TimeSelect, useToast } from "@argentic/chest-ui/components";
+import { TimeSelect, useToast } from "@argentic/chest-ui/components";
 import type { DateWords } from "@argentic/chest-ui/components/logic";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { ImpactPicker, type PickerGroup } from "../../../../components/component-picker.tsx";
+import { useDateProblems, WatchedDateField } from "../../../../components/date-problems.tsx";
 import { LanguagePick, SecondField, SecondToggle, secondOf, type Languages } from "../../../../components/second-field.tsx";
 import { useRun } from "../../../../components/use-run.ts";
 import type { ErrorCode } from "../../../../lib/app-error.ts";
@@ -54,6 +55,10 @@ export function IncidentForm({ groups, start = null, templates = [], languages, 
   const [resolutionSecond, setResolutionSecond] = useState("");
   const [template, setTemplate] = useState("");
   const [missing, setMissing] = useState<string | null>(null);
+  // A day the kit's field refused (unreadable, in the future, before the
+  // start) leaves the previous day in this state: posting waits, on the
+  // field and its sentence, rather than send that day in its place.
+  const dates = useDateProblems();
   // An incident of the past: today and yesterday one tap away.
   const recent = [{ label: t.date.today, value: today }, { label: t.date.yesterday, value: addDays(today, -1) }];
   const known = new Set(groups.flatMap(g => g.items.map(i => i.id)));
@@ -90,6 +95,11 @@ export function IncidentForm({ groups, start = null, templates = [], languages, 
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
+    const refused = past ? (dates.of("start-day") ? "start-day" : dates.of("end-day") ? "end-day" : null) : null;
+    if (refused) {
+      document.getElementById(refused)?.focus();
+      return;
+    }
     const empty = !title.trim() ? "title" : !body.trim() ? "body" : past && !resolution.trim() ? "resolution" : null;
     setMissing(empty);
     if (empty) {
@@ -146,14 +156,14 @@ export function IncidentForm({ groups, start = null, templates = [], languages, 
       {past ? (
         <fieldset className="when-fields">
           <div className="when-row">
-            <DateField id="start-day" label={w.startedDay!} value={startDay} onChange={setStartDay} today={today} max={today} chips={recent} required labels={t.date} />
+            <WatchedDateField id="start-day" label={w.startedDay!} value={startDay} onChange={setStartDay} onProblem={dates.watch("start-day")} today={today} max={today} chips={recent} required labels={t.date} />
             <div className="time-field">
               <label className="label" htmlFor="start-time">{w.startedTime}</label>
               <TimeSelect id="start-time" step={5} value={startMin} onChange={setStartMin} />
             </div>
           </div>
           <div className="when-row">
-            <DateField id="end-day" label={w.resolvedDay!} value={endDay} onChange={setEndDay} today={today} min={startDay} max={today} chips={recent} required labels={t.date} />
+            <WatchedDateField id="end-day" label={w.resolvedDay!} value={endDay} onChange={setEndDay} onProblem={dates.watch("end-day")} today={today} min={startDay} max={today} chips={recent} required labels={t.date} />
             <div className="time-field">
               <label className="label" htmlFor="end-time">{w.resolvedTime}</label>
               <TimeSelect id="end-time" step={5} value={endMin} onChange={setEndMin} />

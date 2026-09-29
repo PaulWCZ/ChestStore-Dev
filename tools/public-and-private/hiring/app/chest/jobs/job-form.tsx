@@ -1,9 +1,10 @@
 "use client";
 
-import { DateField, useToast } from "@argentic/chest-ui/components";
+import { useToast } from "@argentic/chest-ui/components";
 import type { DateWords } from "@argentic/chest-ui/components/logic";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
+import { useDateProblems, WatchedDateField } from "../../../components/date-problems.tsx";
 import { DescriptionEditor } from "../../../components/description-editor.tsx";
 import { Bin, Plus } from "../../../components/icons.tsx";
 import { format, languageNames } from "../../../lib/i18n/format.ts";
@@ -27,6 +28,9 @@ export function JobForm({ job, defaultLanguage, defaultCountry, countryNames, to
   const [error, setError] = useState<string | null>(null);
   const [description, setDescription] = useState(job?.description ?? "");
   const [closesOn, setClosesOn] = useState<string | null>(job?.closesOn || null);
+  // A closing day the field could not read leaves the previous one in
+  // `closesOn`: saving waits, on the field and its sentence.
+  const dates = useDateProblems();
   const [questions, setQuestions] = useState<Draft[]>(() => (job?.questions ?? []).map(toDraft));
   const w = t.jobForm;
   const change = (i: number, patch: Partial<Draft>) => setQuestions(list => list.map((q, k) => (k === i ? { ...q, ...patch } : q)));
@@ -64,7 +68,11 @@ export function JobForm({ job, defaultLanguage, defaultCountry, countryNames, to
   }
 
   return (
-    <form className="job-form" onSubmit={e => { e.preventDefault(); submit(new FormData(e.currentTarget)); }}>
+    <form className="job-form" onSubmit={e => {
+      e.preventDefault();
+      if (dates.problem) { document.getElementById("closesOn")?.focus(); return; }
+      submit(new FormData(e.currentTarget));
+    }}>
       <div className="field-block">
         <label className="label" htmlFor="title">{w.title}</label>
         <input id="title" name="title" className="field big-field" required maxLength={limits.title} defaultValue={job?.title ?? ""} placeholder={w.titlePlaceholder} autoFocus={!job} />
@@ -198,7 +206,7 @@ export function JobForm({ job, defaultLanguage, defaultCountry, countryNames, to
       </fieldset>
 
       <div className="field-block">
-        <DateField id="closesOn" label={w.closesOnOptional} value={closesOn} onChange={setClosesOn} today={today} hint={w.closesOnHint} labels={t.date} />
+        <WatchedDateField id="closesOn" label={w.closesOnOptional} value={closesOn} onChange={setClosesOn} onProblem={dates.watch("closesOn")} today={today} hint={w.closesOnHint} labels={t.date} />
       </div>
 
       {error && <p className="error" role="alert">{error}</p>}

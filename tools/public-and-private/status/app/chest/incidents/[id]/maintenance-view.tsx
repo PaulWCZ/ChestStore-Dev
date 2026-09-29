@@ -4,6 +4,7 @@ import { Dialog } from "@argentic/chest-ui/components";
 import type { DateWords } from "@argentic/chest-ui/components/logic";
 import { useState } from "react";
 import type { PickerGroup } from "../../../../components/component-picker.tsx";
+import { useDateProblems } from "../../../../components/date-problems.tsx";
 import { SecondField, SecondToggle } from "../../../../components/second-field.tsx";
 import { useRun } from "../../../../components/use-run.ts";
 import { format } from "../../../../lib/i18n/format.ts";
@@ -34,6 +35,9 @@ export function MaintenanceView({ incident, form, updates, publicLink, languages
   const [body, setBody] = useState("");
   const [ending, setEnding] = useState<{ status: "completed" | "cancelled"; text: string } | null>(null);
   const [value, setValue] = useState<WindowValue>({ title: incident.title, start: form.start, end: form.end, components: form.components, autoPosts: incident.autoPosts });
+  // A day the kit refused leaves the previous one in `value`: the change
+  // waits, on the field and its sentence.
+  const dates = useDateProblems();
   const phaseWord: Record<string, string> = { scheduled: w.phaseScheduled!, in_progress: w.phaseInProgress!, completed: w.phaseCompleted!, cancelled: w.phaseCancelled! };
 
   const ask = (status: "completed" | "cancelled") => {
@@ -75,8 +79,13 @@ export function MaintenanceView({ incident, form, updates, publicLink, languages
       {open && !incident.removed && (
         <details className="card pad">
           <summary className="summary-button">{w.change}</summary>
-          <form className="stack form" onSubmit={e => { e.preventDefault(); void run(() => changeMaintenance(incident.id, value), w.changed); }}>
-            <MaintenanceFields value={value} onChange={setValue} groups={form.groups} zoneNote={form.zoneNote} today={form.today} t={t} />
+          <form className="stack form" onSubmit={e => {
+            e.preventDefault();
+            const refused = dates.of("m-start-day") ? "m-start-day" : dates.of("m-end-day") ? "m-end-day" : null;
+            if (refused) { document.getElementById(refused)?.focus(); return; }
+            void run(() => changeMaintenance(incident.id, value), w.changed);
+          }}>
+            <MaintenanceFields value={value} onChange={setValue} groups={form.groups} zoneNote={form.zoneNote} today={form.today} watch={dates.watch} t={t} />
             <div><button type="submit" className="button" disabled={pending}>{w.saveChange}</button></div>
           </form>
         </details>
