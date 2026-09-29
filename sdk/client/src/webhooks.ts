@@ -110,6 +110,8 @@ export const targetIdPattern = /^whk_[a-z2-7]{26}$/u;
 export const deliveryIdPattern = /^whd_[a-z2-7]{26}$/u;
 export const eventIdPattern = /^whe_[a-z2-7]{26}$/u;
 export const webhookEventPattern = /^[a-z][a-z0-9_.-]{0,63}$/u;
+// The key as the Chest receives it; a tool gives any key of 1 to 512
+// characters and send() makes it this (idempotencyKey, studio.15).
 export const keyPattern = /^[A-Za-z0-9._:-]{1,64}$/u;
 export const secretPattern = /^whsec_[A-Za-z0-9_-]{43}$/u;
 export const limits = {

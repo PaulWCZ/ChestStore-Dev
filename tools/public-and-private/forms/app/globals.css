@@ -640,3 +640,13 @@ select.field { appearance: auto; }
 /* Where an answer went besides Forms (Clients, Support, web addresses). */
 .answer-sent { font-size: var(--text-s); overflow-wrap: anywhere; }
 .answer-sent a { text-decoration: underline; text-underline-offset: 2px; }
+/* Web addresses (Settings): each a quiet card; the form to add one below. */
+.hook-list { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-2); }
+.hook { border: var(--border-width) solid var(--line); border-radius: var(--radius-m); padding: var(--space-3); display: grid; gap: var(--space-1); background: var(--surface-2); }
+.hook-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2); }
+.hook-head p { margin: 0; overflow-wrap: anywhere; }
+.hook-head code { font-size: var(--text-s); }
+.hook-state { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); margin: 0; }
+.hook-add { display: grid; gap: var(--space-3); margin-top: var(--space-3); padding-top: var(--space-3); border-top: var(--border-width) solid var(--line); }
+.hook-add h3 { font-size: var(--text-m); font-weight: var(--weight-strong); margin: 0; }
+.hook-add .mini.block { gap: var(--space-1); }

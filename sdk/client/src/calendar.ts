@@ -78,6 +78,9 @@ export type KeptEvent = { key: string; members: string[]; title: Partial<Record<
 // perMinute counts calls that write: one put, one remove, or one batch of
 // putMany (up to perBatch events).
 export const limits = { events: 5000, members: 1000, title: 120, description: 1000, location: 200, behindDays: 365, aheadDays: 730, feedEvents: 2000, perMinute: 600, perBatch: 100 } as const;
+// A key names the event for as long as it lives (put replaces, remove and
+// list name it back), so it is never hashed nor cut: a longer one is
+// refused (invalid_key) — build it from ids ("task:4812"), not from text.
 export const keyPattern = /^[A-Za-z0-9._:-]{1,64}$/u;
 // Where a member finds their feed: the Chest's front serves it on every
 // tool's team host (and sends the member to the Chest's own page), so a

@@ -61,9 +61,9 @@ test("its members answer as a Chest's: order, pages, search, lookup, groups, add
     assert.deepEqual((await members.list({ group: nord })).members.map(m => m.id), [camille.id]);
     assert.equal(await members.get(id("mallory")), null);
     const found = await members.lookup([id("dan"), zoe.id, id("mallory")]);
-    assert.deepEqual([found.members.map(m => m.id), found.former, found.unknown], [[zoe.id], [{ id: id("dan"), name: "Dan", status: "former" }], [id("mallory")]]);
+    assert.deepEqual([found.members.map(m => m.id), found.former, found.unknown], [[zoe.id], [{ id: id("dan"), name: "Dan", status: "former", leftAt: null }], [id("mallory")]]);
     // Erased, a former member has no name any more.
-    assert.deepEqual((await members.lookup([id("eve")])).former, [{ id: id("eve"), name: null, status: "erased" }]);
+    assert.deepEqual((await members.lookup([id("eve")])).former, [{ id: id("eve"), name: null, status: "erased", leftAt: null }]);
     assert.deepEqual(await members.groups.list(), [{ id: nord, name: "Nord", members: [camille.id] }]);
     await assert.rejects(files.get("a.txt"), CapabilityNotGranted);
   } finally {

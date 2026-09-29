@@ -3,7 +3,7 @@ import { atLeast } from "../../../../../../lib/access.ts";
 import { db } from "../../../../../../lib/db.ts";
 import { team, versionOf } from "../../../../../../lib/forms.ts";
 import { format } from "../../../../../../lib/i18n/index.ts";
-import { allQuestions } from "../../../../../../lib/model.ts";
+import { allQuestions, readIn } from "../../../../../../lib/model.ts";
 import { nameOf, people } from "../../../../../../lib/people.ts";
 import { formOr404 } from "../../../../../../lib/pages.ts";
 import { viewer } from "../../../../../../lib/session.ts";
@@ -35,7 +35,7 @@ export default async function SettingsPage({ params }: { params: Promise<{ id: s
   const published = form.version > 0 ? await versionOf(sql, form.id, form.version) : null;
   const hasFiles = [...allQuestions(form.draft), ...(published ? allQuestions(published) : [])].some(q => q.kind === "file");
   // The questions each piece of a contact or a ticket may come from.
-  const questions = allQuestions(form.draft).map((q, i) => ({ id: q.id, kind: q.kind, title: q.title || format(t.builder.untitledQuestion, { n: i + 1 }) }));
+  const questions = allQuestions(readIn(form.draft, locale)).map((q, i) => ({ id: q.id, kind: q.kind, title: q.title || format(t.builder.untitledQuestion, { n: i + 1 }) }));
   const eligible = (kinds: readonly string[]) => questions.filter(q => kinds.includes(q.kind)).map(({ id, title }) => ({ id, title }));
   const routeChoices = {
     contact: Object.fromEntries(Object.entries(contactSlots).map(([k, kinds]) => [k, eligible(kinds)])),

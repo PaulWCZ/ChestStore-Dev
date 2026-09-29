@@ -76,7 +76,7 @@ test("lookup asks 200 identifiers at a time, each once, and keeps the answers a 
   const found = await members.lookup([id("eve"), camille.id, ...many, camille.id]);
   assert.deepEqual(seen.map(s => (JSON.parse(s.body) as { ids: string[] }).ids.length), [200, 200, 52]);
   assert.deepEqual(found.members, [sdkCamille]);
-  assert.deepEqual(found.former, [{ id: id("eve"), name: "Eve", status: "former" }]);
+  assert.deepEqual(found.former, [{ id: id("eve"), name: "Eve", status: "former", leftAt: null }]);
   assert.equal(found.unknown.length, 450);
   // Kept: asked again within the minute, the Chest is not called.
   seen = [];

@@ -152,7 +152,7 @@ test("a node:http server handles events at /chest-events; what lookup kept is fo
   });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   try {
-    assert.deepEqual((await members.lookup([id("dan")])).former, [{ id: id("dan"), name: "Dan", status: "former" }]);
+    assert.deepEqual((await members.lookup([id("dan")])).former, [{ id: id("dan"), name: "Dan", status: "former", leftAt: null }]);
     // Dan's data is erased: the lookup, kept a minute, is asked again once the event comes.
     chest.members.splice(0);
     const address = "http://127.0.0.1:" + (server.address() as AddressInfo).port;
@@ -196,7 +196,9 @@ test("events between tools (proposal): a tool publishes its own events; another 
   try {
     const sent = await events.publish("tool.approved", { member: camille.id, from: "2026-10-12", to: "2026-10-16" }, { key: "leave:42" });
     assert.equal(sent.receivers, 2);
-    assert.equal((await events.publish("tool.approved", { member: camille.id }, { key: "leave:42" })).id, sent.id);
+    assert.equal((await events.publish("tool.approved", { member: camille.id, from: "2026-10-12", to: "2026-10-16" }, { key: "leave:42" })).id, sent.id);
+    // studio.15: the same key for another event is refused, not answered with the first.
+    await assert.rejects(events.publish("tool.approved", { member: camille.id }, { key: "leave:42" }), (e: unknown) => e instanceof ChestError && e.code === "key_conflict");
     assert.deepEqual(chest.published.map(p => p.type), ["tool.approved"]);
     await assert.rejects(events.publish("other.approved", {}), (e: unknown) => e instanceof ChestError && e.code === "invalid_event");
     await assert.rejects(events.publish("tool.unknown", {}), (e: unknown) => e instanceof ChestError && e.code === "invalid_event");

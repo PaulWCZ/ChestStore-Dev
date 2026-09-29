@@ -38,6 +38,8 @@ export type BadgeWrite = { set: string[]; skipped: string[] };
 
 // The bounds of a Chest.
 const maxMembers = 500, maxTitle = 80, maxBody = 280, maxPath = 512, maxCount = 9999;
+// A key names the items it replaces and withdraw removes: never hashed
+// nor cut (a longer one is refused, invalid_key) — build it from ids.
 const keyPattern = /^[a-z0-9._:-]{1,64}$/u;
 // What the Chest removes from a title before keeping it: control characters
 // and the characters that reorder text.

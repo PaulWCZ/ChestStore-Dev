@@ -7,6 +7,7 @@ import { AppError } from "../../../../../lib/app-error.ts";
 import { db } from "../../../../../lib/db.ts";
 import { open, openState } from "../../../../../lib/forms.ts";
 import { viewer } from "../../../../../lib/session.ts";
+import { readIn } from "../../../../../lib/model.ts";
 import { FormTitle, StatusControl } from "./form-head.tsx";
 import { FormTabs } from "./form-tabs.tsx";
 import { StateBadge } from "../../../../../components/state-badge.tsx";
@@ -36,7 +37,7 @@ export default async function FormLayout({ children, params }: { children: React
       <div className="form-top">
         <GuardedLink className="back-link" href="/chest"><Back />{t.shell.home}</GuardedLink>
         <div className="form-name">
-          <FormTitle initial={form.draft.title} untitled={t.builder.untitled} />
+          <FormTitle initial={readIn(form.draft, v.locale).title} untitled={t.builder.untitled} />
           <StateBadge state={status} label={t.status[status as keyof typeof t.status]} />
           <span className="audience">
             {form.audience === "public" ? (<><Globe />{t.home.public}</>) : form.anonymous ? (<><Mask />{t.home.anonymous}</>) : (<><Users />{t.home.team}</>)}
