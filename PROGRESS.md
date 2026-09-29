@@ -84,12 +84,14 @@ acceptance, in a later round.
   | Hiring | 65 | 77 → 0 |
   | Tasks | 70 | 75 → 0 |
   | Leave | 68 | 50 → 0 |
+  | Wiki | 74 | 66 → 0 |
+  | People | 56 | 6 → 0 |
 
-- **Running:** kit 0.2.1 (about 22 findings from the migrations, incl.
-  signature colours of the identity themes); migrations of Wiki, People,
-  News, Clients, Expenses and Support.
-- **Next:** Equipment, Polls, Goals, Quotes, Status, Forms. Then re-vendor
-  kit 0.2.1 everywhere and remove the tools' workarounds.
+- **Kit 0.2.1 is verified** (93 tests). The findings for 0.2.2 are
+  collected in the scratchpad `kit-next.md`.
+- **Running:** News, Clients, Expenses, Support, Equipment, Polls, Goals.
+- **Next:** Quotes, Status, Forms. Then re-vendor kit 0.2.1 everywhere and
+  remove the tools' workarounds. Then kit 0.2.2.
 
 **Then:**
 - Re-run the critique on the migrated tools and update the verdict table
