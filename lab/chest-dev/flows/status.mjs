@@ -35,10 +35,13 @@ await step("uptime follows Statuspage's rule and says slower days beside it; a F
   await page.goto(origin + "/lang/fr?back=/");
   const main = await page.locator("main").innerText();
   expect(main.includes("Dates de livraison affichées en retard") && main.includes("Un calendrier des jours fériés"), "French text for a French visitor");
-  const marked = await page.locator(".incident [lang=en]").count();
-  expect(marked === 0, "every text of that incident exists in French: nothing marked English");
+  const card = page.locator(".incident", { hasText: "Dates de livraison" });
+  const other = page.locator(".incident", { hasText: "Payment provider upgrade" });
+  const [inFrench, inEnglish] = [await card.locator("[lang=en]").count(), await other.locator("[lang=en]").count()];
   await context.clearCookies();
   await english();
+  expect(inFrench === 0, "every text of that incident exists in French: nothing marked English");
+  expect(inEnglish > 0, "a text only in English is marked English");
 });
 
 await step("the JSON API speaks Statuspage's shape to any site; the badge is a picture; the banner may be framed only by listed sites", async () => {
@@ -63,12 +66,15 @@ await step("the JSON API speaks Statuspage's shape to any site; the badge is a p
 
 await step("with the company's brand in the Chest, the public page wears its logo and colour, with its website and support", async () => {
   await page.request.post(origin + "/_dev/theme", { form: { level: "all", choice: "brand:sample" } });
-  await page.goto(origin + "/?fresh=brand");
-  expect(await page.locator(".public.branded").count() === 1, "brand colours applied");
-  expect((await page.locator(".public-head img").getAttribute("alt")) === "Atelier Martin", "the logo");
-  expect(await page.getByRole("link", { name: "Back to atelier-martin.fr" }).count() === 1, "back to the website");
-  expect(await page.getByRole("link", { name: "Contact support" }).count() === 1, "support");
-  await page.request.post(origin + "/_dev/theme", { form: { level: "all", choice: "own" } });
+  try {
+    await page.goto(origin + "/?fresh=brand");
+    expect(await page.locator(".public.branded").count() === 1, "brand colours applied");
+    expect((await page.locator(".public-head img").getAttribute("alt")) === "Atelier Martin", "the logo");
+    expect(await page.getByRole("link", { name: "Back to atelier-martin.fr" }).count() === 1, "back to the website");
+    expect(await page.getByRole("link", { name: "Contact support" }).count() === 1, "support");
+  } finally {
+    await page.request.post(origin + "/_dev/theme", { form: { level: "all", choice: "own" } });
+  }
 });
 
 await step("a visitor opens an incident's own page, the history, and the feeds", async () => {
@@ -138,7 +144,7 @@ await step("the editor posts an update, then resolves (confirmed in a dialog)", 
   await english();
   await page.goto(incidentUrl);
   await page.locator("#update").getByLabel("Identified").check();
-  await page.getByLabel("What is new?").fill("A bad release. Rolling back.");
+  await page.locator("#update").getByLabel("What is new?").fill("A bad release. Rolling back.");
   await page.getByRole("button", { name: "Post the update" }).click();
   await page.waitForSelector(".toast >> text=Update posted.");
   await page.waitForSelector(".team-timeline >> text=A bad release. Rolling back.");

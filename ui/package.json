@@ -1,7 +1,7 @@
 {
   "name": "@argentic/chest-ui",
-  "version": "0.1.0-studio.1",
-  "description": "The look of Chest tools: a token contract every theme fulfils, a catalogue of themes, a brand theme derived from a company's colours with WCAG AA guaranteed, brand-file import, and the server-side style that applies the look the Chest chose.",
+  "version": "0.2.0-studio.1",
+  "description": "The look of Chest tools: a token contract every theme fulfils, a catalogue of themes, a brand theme derived from a company's colours with WCAG AA guaranteed, brand-file import, the server-side style that applies the look the Chest chose — and the store's shared React components (toast with a truthful Undo, dialog, people picker, date and time fields, file picker, data table, filters, the app shell), styled only by contract tokens.",
   "keywords": [
     "chest",
     "argentic",
@@ -9,7 +9,10 @@
     "theme",
     "design-tokens",
     "oklch",
-    "wcag"
+    "wcag",
+    "react",
+    "components",
+    "accessibility"
   ],
   "license": "MIT",
   "author": "Argentic",
@@ -17,7 +20,9 @@
   "engines": {
     "node": ">=22"
   },
-  "sideEffects": false,
+  "sideEffects": [
+    "*.css"
+  ],
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
@@ -55,11 +60,21 @@
       "types": "./dist/react.d.ts",
       "default": "./dist/react.js"
     },
+    "./components": {
+      "types": "./dist/components/index.d.ts",
+      "default": "./dist/components/index.js"
+    },
+    "./components/logic": {
+      "types": "./dist/components/logic.d.ts",
+      "default": "./dist/components/logic.js"
+    },
+    "./components.css": "./css/components.css",
     "./package.json": "./package.json"
   },
   "files": [
     "dist",
     "src",
+    "css",
     "tokens/CONTRACT.md"
   ],
   "peerDependencies": {
