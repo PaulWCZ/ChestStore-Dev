@@ -94,10 +94,13 @@ acceptance, in a later round.
   | Goals | 54 | 35 → 0 |
   | Polls | 59 | 51 → 0 |
   | Status | 73 | 94 → 0 |
+  | Forms | 88 | 83 → 0 |
+  | Quotes | 105 | 136 → 0 |
 
 - **Kit 0.2.1 is verified** (93 tests). The findings for 0.2.2 are
   collected in the scratchpad `kit-next.md`.
-- **Running:** Quotes and Forms (the last two).
+- **All 18 tools are migrated.** The word lint is 0 everywhere (was 1,258).
+- **Running:** kit 0.2.2 (incl. Forms as the 20th theme); the frame-origin cache and News mention-token fixes.
 - **Then:**
   - kit 0.2.2 (findings in the scratchpad `kit-next.md`), and add the Forms
     identity as the 20th catalogue theme;
