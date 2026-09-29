@@ -26,5 +26,10 @@
   {"name": "occupancy-fr", "path": "/chest/places/export", "member": "camille", "locale": "fr"},
   {"name": "booking-admin", "path": "/chest/rooms", "member": "camille", "locale": "en", "actions": [{"click": "button:has-text('Book a room')"}, {"wait": 400}]},
   {"name": "rooms-port", "path": "/chest/rooms", "member": "ines", "locale": "fr", "look": {"tool": "brand:port"}},
-  {"name": "week-port", "path": "/chest", "member": "hugo", "locale": "en", "look": {"tool": "brand:port"}}
+  {"name": "week-port", "path": "/chest", "member": "hugo", "locale": "en", "look": {"tool": "brand:port"}},
+  {"name": "week-hint", "path": "/chest", "member": "camille", "locale": "fr", "actions": [{"hover": ".meeting-hint"}, {"wait": 300}]},
+  {"name": "visitors", "path": "/chest/visitors", "member": "sofia", "locale": "en"},
+  {"name": "visitors-fr", "path": "/chest/visitors", "member": "hugo", "locale": "fr"},
+  {"name": "visitor-form", "path": "/chest/visitors", "member": "sofia", "locale": "fr", "actions": [{"click": "button:has-text('Annoncer un visiteur')"}, {"wait": 400}]},
+  {"name": "import-outlook", "path": "/chest/places", "member": "camille", "locale": "fr", "actions": [{"upload": ["section:has(#calendar-title) input[type=file]", "test/fixtures/outlook-atlas.ics"]}, {"wait": 1200}, {"hover": ".import-yours"}], "only": ["desktop"]}
 ]

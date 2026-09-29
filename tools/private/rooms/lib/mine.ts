@@ -46,7 +46,7 @@ export async function myCsv(sql: Sql, actor: Member | null, t: Catalogue, locale
   if (!actor || !can(actor, "book")) throw new AppError("forbidden");
   // The names the tool gave (floors, areas) in the reader's language.
   const presets = JSON.stringify(t.presets);
-  const rows = await sql<{ day: string; kind: "desk" | "room" | "presence"; office: string; place: string; start: number | null; end: number | null; title: string; organiser: string; status: string }[]>`
+  const rows = await sql<{ day: string; kind: "desk" | "room" | "presence" | "visit"; office: string; place: string; start: number | null; end: number | null; title: string; organiser: string; status: string }[]>`
     select to_char(b.day, 'YYYY-MM-DD') as day, 'desk' as kind, o.name as office, d.name || ' · ' || coalesce(${presets}::text::jsonb ->> a.preset, a.name) as place,
       (extract(epoch from (lower(b.during) at time zone ${zone}) - b.day::timestamp) / 60)::int as start,
       (extract(epoch from (upper(b.during) at time zone ${zone}) - b.day::timestamp) / 60)::int as "end",
@@ -64,6 +64,11 @@ export async function myCsv(sql: Sql, actor: Member | null, t: Catalogue, locale
     select to_char(p.day, 'YYYY-MM-DD'), 'presence', coalesce(o.name, ''), '', null, null, '', p.member_id, p.status
     from presence p left join offices o on o.id = p.office_id
     where p.member_id = ${actor.id}
+    union all
+    select to_char(v.day, 'YYYY-MM-DD'), 'visit', coalesce(o.name, ''), v.name || case when v.company = '' then '' else ' · ' || v.company end, v.at_minute, null, '', v.created_by,
+      case when v.cancelled_at is null then 'booked' else 'cancelled' end
+    from visits v left join offices o on o.id = v.office_id
+    where v.host = ${actor.id}
     order by 1, 2, 5`;
   const who = await people(rows.map(r => r.organiser));
   const c = t.mine.columns;

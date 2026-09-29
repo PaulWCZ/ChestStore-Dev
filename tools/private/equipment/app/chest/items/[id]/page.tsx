@@ -314,13 +314,9 @@ export default async function ItemPage({ params, searchParams }: { params: Promi
               {detail.history.map(h => (
                 <li key={h.id} className={`tl tl-${h.kind}`}>
                   <span className="tl-text">{historyText(h, names, t, locale)}</span>
-                  {/* The day it happened leads (the order of the history); when it
-                      was said later (a handover recorded late, an import), when
-                      it was written follows. */}
                   <span className="tl-when small muted">
-                    {h.day && h.day !== localDay(h.at) ? (
-                      <>{formatDay(h.day, locale, { day: "numeric", month: "short", year: "numeric" })} · {format(t.history.recorded, { date: formatDate(h.at, locale, { day: "numeric", month: "short", year: "numeric" }, zone) })}</>
-                    ) : formatDate(h.at, locale, { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }, zone)}
+                    <time dateTime={h.at}>{formatDate(h.at, locale, { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }, zone)}</time>
+                    {h.day && h.day !== localDay(h.at) && <> · {format(t.history.on, { date: formatDay(h.day, locale) })}</>}
                   </span>
                   {h.note && h.kind !== "edited" && h.kind !== "photo" && h.kind !== "invoice" && <span className="tl-note">{h.note}</span>}
                   {historyExtra(h, t, locale, currency) && <span className="tl-note">{historyExtra(h, t, locale, currency)}</span>}

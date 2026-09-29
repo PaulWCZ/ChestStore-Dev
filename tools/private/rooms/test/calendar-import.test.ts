@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
 import { importRoomCalendar, undoCalendarImport } from "../lib/calendar-import.ts";
@@ -210,3 +211,19 @@ function splitName(name: string) {
   const [firstName, ...rest] = name.split(" ");
   return { firstName: firstName!, lastName: rest.join(" ") };
 }
+
+// The Outlook export of the docs' screenshot (test/fixtures/outlook-atlas.ics):
+// the weekly series with "Martin, Camille" is hers; the supplier's is the admin's.
+test("the Outlook fixture: “Martin, Camille” organises the weekly board, the supplier's meeting is counted in the admin's name", async () => {
+  const { sql } = database;
+  const o = await office(sql, "Rennes");
+  const text = readFileSync(new URL("./fixtures/outlook-atlas.ics", import.meta.url), "utf8");
+  const preview = await importRoomCalendar(sql, admin, { roomId: o.atlas, text, commit: false }, people.map(p => ({ ...p, ...splitName(p.name) })), zone);
+  const board = preview.items.find(i => i.title === "Comité de direction")!;
+  const supplier = preview.items.find(i => i.title === "Point fournisseur")!;
+  assert.equal(board.organiser, camille.id);
+  assert.equal(board.weekly, true);
+  assert.equal(supplier.organiser, null);
+  assert.equal(preview.yours, supplier.count);
+  assert.deepEqual(preview.unknownGuests, ["hugo@example.test"], "an address alone, without members.email");
+});

@@ -15,7 +15,9 @@ export type DocView = {
   type: DocumentType;
   status: Status;
   state: State;
+  // A quote's number with its version after the first ("D-2026-0007 v2").
   number: string | null;
+  version: number;
   kindText: string;
   clientId: string | null;
   title: string;
@@ -69,3 +71,7 @@ export type Rights = { edit: boolean; quote: boolean; draftInvoice: boolean; iss
 // known), and the answers given, each with its proof written out.
 export type AnswerView = { id: string; accepted: boolean; title: string; when: string; reason: string; proof: Fact[]; pdf: string | null };
 export type OnlineView = { url: string | null; live: boolean; until: string; answers: AnswerView[] };
+
+// An earlier version of a quote, as the margin lists it (its PDF's address,
+// null when it could not be kept).
+export type VersionView = { version: number; text: string; pdf: string | null };

@@ -17,6 +17,14 @@
       "cron": "*/15 * * * *"
     }
   ],
+  "emits": [
+    "booking.busy",
+    "booking.confirmed",
+    "booking.cancelled"
+  ],
+  "receives": [
+    "hiring.busy"
+  ],
   "translations": {
     "fr": {
       "title": "Rendez-vous",

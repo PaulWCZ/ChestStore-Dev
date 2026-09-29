@@ -35,6 +35,9 @@ export const limits = {
   validityDays: 365,
   // The logo: a PNG or JPEG of 1 MiB at most.
   logoSize: 1 << 20,
+  // The terms and conditions of sale (a PDF): 5 MiB, under the size of a
+  // file the Chest sends at once.
+  termsSize: 5 << 20,
   // One export: this many documents (CSV) and PDFs (ZIP).
   exportRows: 20_000,
   exportFiles: 3_000,

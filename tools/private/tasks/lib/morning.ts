@@ -13,6 +13,7 @@ import { today } from "./model.ts";
 import { badges, cut, withdraw } from "./notify.ts";
 import { reminderKey } from "./reminders.ts";
 import { catchUp } from "./repeats.ts";
+import { sync } from "./due-calendar.ts";
 
 // The weekday morning (schedule "morning", in the Chest's time zone):
 //
@@ -28,7 +29,9 @@ import { catchUp } from "./repeats.ts";
 //    The same goes by email to those who did not turn email off (Proposal
 //    (studio) "mail"); steps given to them (subtasks) count as tasks;
 // 3. every tile's number is set right, since dates moved overnight;
-// 4. comments removed yesterday are deleted for good (the Undo is long past).
+// 4. comments removed yesterday are deleted for good (the Undo is long past);
+// 5. the due dates in the members' calendars are checked again, asking the
+//    Chest who sees each private board (lib/due-calendar.ts).
 //
 // Idempotent: a run delivered twice makes no second card and sends the
 // same item again under the same key.
@@ -61,6 +64,7 @@ export async function morning(sql: Sql, run: Run): Promise<void> {
   const holders = (await sql<{ member_id: string }[]>`
     select distinct a.member_id from card_assignees a join cards c on c.id = a.card_id where c.archived_at is null limit 5000`).map(r => r.member_id);
   await badges(await urgentCounts(sql, [...new Set([...holders, ...stale])], day));
+  await sync(sql, { recheck: true, max: 1000 });
 }
 
 // remind sends each person their item; the people reminded.

@@ -121,7 +121,10 @@ await step("a closing day before today is refused out loud: neither Save draft n
   await page.getByRole("button", { name: "Save draft" }).click();
   await page.locator(".closing .ck-error", { hasText: /or later\./u }).waitFor();
   await page.locator(".actions-bar .error", { hasText: /or later\./u }).waitFor();
-  expect(await page.evaluate(() => document.activeElement?.id === "closes-day"), "the day field has the focus");
+  // The focus is state, not a moment: wait for it (a few seconds at most)
+  // rather than reading it once the error shows.
+  const focused = await page.waitForFunction(() => document.activeElement?.id === "closes-day", null, { timeout: 3000 }).then(() => true, () => false);
+  expect(focused, "the day field has the focus");
   await page.getByRole("button", { name: "Send to the team" }).click();
   await page.waitForTimeout(800);
   page.off("request", count);
@@ -163,6 +166,10 @@ await step("a member says yes and if need be; the organiser closes, picks the da
   const ics = await (await page.request.get(dinnerUrl + "/calendar")).text();
   expect(ics.startsWith("BEGIN:VCALENDAR\r\n") && ics.includes("SUMMARY:Team dinner"), "the .ics");
   expect(/Date choisie[ \u00a0\u202f]: Team dinner/u.test(await dev()), "the date told in French");
+  // The chosen date is in each person's Chest calendar (Proposal (studio)), as News does.
+  const dinnerId = dinnerUrl.split("/").pop();
+  expect((await dev()).includes(`poll:${dinnerId}`), "the calendar event, in the harness");
+  expect(await page.getByRole("link", { name: "Dans votre agenda" }).isVisible(), "Léa's link to her Chest calendar");
 });
 
 await step("an anonymous survey: results wait for the close, an answer is final", async () => {
@@ -326,6 +333,7 @@ await step("the organiser reminds those who have not answered, once per 12 hours
   await page.waitForSelector(".ck-toast:has-text('less than 12 hours')");
 });
 
+let pulseUrl = "";
 await step("the team pulse: one tile, sent as it is, every week; the rounds before show over time", async () => {
   await who("camille", "fr");
   await page.goto(origin + "/chest");
@@ -334,6 +342,9 @@ await step("the team pulse: one tile, sent as it is, every week; the rounds befo
   await page.getByRole("button", { name: "Envoyer à l’équipe" }).click();
   await page.waitForURL(/\/chest\/polls\/\d+$/u);
   expect((await page.locator(".poll-head").innerText()).includes("Édition 1 · Chaque semaine"), "round 1, every week");
+  // The sample pulse runs under this name: the new one is told apart.
+  expect(await page.getByRole("heading", { name: "Météo de l’équipe (2)" }).isVisible(), "a second pulse is named “(2)”");
+  pulseUrl = page.url();
   await who("hugo", "en");
   await page.goto(origin + "/chest/polls/3");
   expect((await page.locator(".trend-card").innerText()).includes("Over time"), "the trend of the sample pulse");
@@ -395,6 +406,127 @@ await step("a closed anonymous round per team: groups too small or deducible sta
   const teams = await page.locator(".teams-card").innerText();
   expect(teams.includes("By team") && teams.includes("3 groups are not shown"), "the team card: " + teams);
   expect(!/Sales|Tech|Office/u.test(teams), "no group named with fewer than 5 answers");
+});
+
+// A browser of its own for someone (no cookie shared with the flow's page:
+// a guest, or an author whose keys live in their browser only).
+async function fresh(member = null, locale = "en", viewport = { width: 1280, height: 860 }) {
+  const c = await browser.newContext({ viewport, locale: "en-GB" });
+  if (member) await c.addCookies([{ name: "dev_member", value: "mbr_" + member + "a".repeat(26 - member.length), url: origin }, { name: "dev_locale", value: locale, url: origin }]);
+  const p = await c.newPage();
+  p.on("pageerror", e => problems.push("page: " + e.message));
+  p.on("console", m => { if (m.type() === "error" && !/Failed to load resource/u.test(m.text())) problems.push("console: " + m.text()); });
+  return { c, p };
+}
+
+await step("guests outside the Chest: the organiser turns the link off and on, a guest answers by name, the team sees “Guest”", async () => {
+  await who("sofia", "en");
+  await page.goto(origin + "/chest/polls/11");
+  const old = await page.locator("#guest-url").inputValue();
+  expect(old.endsWith("/p/maisonleroykickoffxyzabcde"), "the sample link: " + old);
+  await page.getByText("Anyone with the link can answer").click();
+  await page.waitForSelector(".ck-toast:has-text('The link no longer works.')");
+  expect((await page.request.get(old)).status() === 404, "the old link opens nothing");
+  await page.getByText("Anyone with the link can answer").click();
+  await page.waitForSelector(".ck-toast:has-text('Guests can answer with the link.')");
+  const link = await page.locator("#guest-url").inputValue();
+  expect(link !== old && /\/p\/[a-z2-7]{26}$/u.test(link), "a new link: " + link);
+  // The guest: no account, no cookie of the Chest.
+  const guest = await fresh(null, "en", { width: 390, height: 844 });
+  await guest.p.goto(link);
+  const text = await guest.p.locator("main").innerText();
+  expect(text.includes("Kick-off with Maison Leroy") && text.includes("Asked by Sofia Rossi"), "the poll's words and its organiser");
+  // (The organiser's own words may name colleagues; the answers never show.)
+  expect(!/Claire|Marc/u.test(text) && !(await guest.p.locator(".grid-table, .results-card, .participation").count()), "no other answer, no results on the public page");
+  await guest.p.getByLabel("Your name").fill("Jean Martin");
+  await guest.p.getByLabel("Your email (optional)").fill("jean@client.example");
+  await guest.p.locator(".date-row").nth(0).locator("label.yes").click();
+  await guest.p.locator(".date-row").nth(1).locator("label.maybe").click();
+  await guest.p.getByRole("button", { name: "Send my answer" }).click();
+  await guest.p.waitForSelector(".thanks:has-text('Thanks, Jean Martin!')");
+  expect((await guest.p.locator(".thanks").innerText()).includes("jean@client.example"), "told the date will come by email");
+  const width = await guest.p.evaluate(() => document.documentElement.scrollWidth);
+  expect(width <= 390, "no horizontal scroll at 390 px: " + width);
+  // Back later from the same browser: their answer, to change.
+  await guest.p.goto(link);
+  await guest.p.getByRole("button", { name: "Change my answer" }).click();
+  await guest.p.locator(".date-row").nth(2).locator("label.yes").click();
+  await guest.p.getByRole("button", { name: "Update my answer" }).click();
+  await guest.p.waitForSelector(".thanks:has-text('Your answer is updated.')");
+  await guest.c.close();
+  // A robot filling the field people never see is refused, and nothing is kept.
+  const robot = await fresh();
+  await robot.p.goto(link);
+  await robot.p.getByLabel("Your name").fill("Bot");
+  await robot.p.locator(".date-row").nth(0).locator("label.yes").click();
+  await robot.p.evaluate(() => { document.getElementById("website").value = "http://spam.example"; });
+  await robot.p.getByRole("button", { name: "Send my answer" }).click();
+  await robot.p.locator(".guest-form .error").waitFor();
+  await robot.c.close();
+  // The team's side: the guest in the grid, marked; counted apart.
+  await page.reload();
+  const grid = await page.locator(".grid-table").innerText();
+  expect(grid.includes("Jean Martin") && grid.includes("Guest") && !grid.includes("Bot"), "the guest in the grid, marked: " + grid.slice(0, 200));
+  expect((await page.locator(".participation").innerText()).includes("and 3 guests"), "counted apart from the members");
+  expect((await page.locator(".guests-card").innerText()).includes("jean@client.example"), "the organiser sees the email the guest gave");
+});
+
+await step("a guest's answer removed after a confirmation; a member sees no guests card", async () => {
+  await who("sofia", "en");
+  await page.goto(origin + "/chest/polls/11");
+  await page.getByRole("button", { name: "Remove Marc Petit’s answer" }).click();
+  await page.locator(".ck-confirm").getByRole("button", { name: "Remove" }).click();
+  await page.waitForSelector(".ck-toast:has-text('Answer removed.')");
+  await page.reload();
+  expect(!(await page.locator(".grid-table").innerText()).includes("Marc Petit"), "gone from the grid");
+  await who("hugo", "en");
+  await page.goto(origin + "/chest/polls/11");
+  expect(!(await page.locator(".guests-card").count()), "no guests card for a member");
+  expect((await page.locator(".grid-table").innerText()).includes("Claire Leroy"), "but the guests' answers, marked, in the results");
+});
+
+await step("anonymous two-way feedback: the organiser replies under a free text; only the author's browser reads it and answers back", async () => {
+  expect(pulseUrl !== "", "the new pulse of the step above");
+  const authors = {};
+  for (const [member, words] of [["hugo", "Too many meetings on Mondays."], ["ines", "Tout va bien."], ["lea", "Plus de formation."], ["tom", "The coffee machine is broken."], ["sofia", "Nice week."]]) {
+    const a = await fresh(member, "en");
+    await a.p.goto(pulseUrl);
+    await a.p.locator(".scale-buttons:not(.eleven) label").nth(3).click();
+    await a.p.locator("textarea").fill(words);
+    await a.p.locator("form.answer-card button[type=submit]").click();
+    await a.p.waitForSelector(".thanks");
+    authors[member] = a;
+  }
+  await who("camille", "fr");
+  await page.goto(pulseUrl);
+  await page.getByRole("button", { name: "Terminer maintenant" }).click();
+  await page.locator(".ck-confirm").getByRole("button", { name: "Clôturer définitivement" }).click();
+  await page.waitForSelector(".ck-toast");
+  await page.reload();
+  const item = page.locator(".quotes li", { hasText: "Too many meetings on Mondays." });
+  await item.getByRole("button", { name: "Répondre" }).click();
+  await item.locator("textarea").fill("Merci — lesquelles pourraient disparaître ?");
+  await item.getByRole("button", { name: "Envoyer" }).click();
+  await page.waitForSelector(".ck-toast:has-text('Réponse envoyée.')");
+  expect((await dev()).includes("Camille Martin replied to an anonymous comment"), "everyone asked hears a reply was written");
+  // Hugo's browser holds the key: the reply is his to read.
+  const hugo = authors.hugo.p;
+  await hugo.goto(pulseUrl);
+  const mine = hugo.locator(".my-replies");
+  await mine.waitFor();
+  expect((await mine.innerText()).includes("lesquelles pourraient disparaître"), "Hugo reads the reply");
+  await mine.getByRole("button", { name: "Answer, still anonymous" }).click();
+  await mine.locator("textarea").fill("The Monday status meeting.");
+  await mine.getByRole("button", { name: "Send" }).click();
+  await hugo.waitForSelector(".ck-toast:has-text('Reply sent.')");
+  // Inès's browser holds no key to it.
+  await authors.ines.p.goto(pulseUrl);
+  await authors.ines.p.waitForTimeout(800);
+  expect(!(await authors.ines.p.locator(".my-replies").count()), "nobody else reads it");
+  for (const a of Object.values(authors)) await a.c.close();
+  await page.reload();
+  const thread = await page.locator(".quotes li", { hasText: "Too many meetings on Mondays." }).innerText();
+  expect(thread.includes("L’auteur (anonyme)") && thread.includes("The Monday status meeting."), "the author's answer, unnamed");
 });
 
 await browser.close();

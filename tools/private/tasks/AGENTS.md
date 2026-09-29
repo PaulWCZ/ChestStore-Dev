@@ -7,7 +7,7 @@ must not break.
 
 | Path | What it is |
 |---|---|
-| `chest.json` | Manifest: roles `manager`, `member`, `viewer`; `database`, `files`, `members`, `notifications`; `receives` (`chest.proposals.json`: `mail`, schedules `morning` and `mail`) |
+| `chest.json` | Manifest: roles `manager`, `member`, `viewer`; `database`, `files`, `members`, `notifications`; `receives` (`chest.proposals.json`: `calendar`, `mail`, schedules `morning` and `mail`) |
 | `lib/access.ts` | **Who may do what**: tool abilities (`can`) and a board's access (`boardAccess`: none, read, comment, write, own) |
 | `lib/boards.ts` | Boards (shared at creation), columns (archived with or after moving their cards), labels, fields, board people and groups |
 | `lib/cards.ts` | Cards, assignees, checklists and steps (subtasks), field values, comments (removed with Undo, purged after 10 min), files, history, moving and copying to another board, My tasks and my steps, search, the tile's count |
@@ -16,7 +16,9 @@ must not break.
 | `lib/calendar.ts` | The calendar view's month grid; the timeline's window (`timelineStart`), bars (`span`) and dragged dates (`shifted`) — pure, tested |
 | `lib/model.ts` | Bounds, colours, templates, dates, text cleaning — pure |
 | `lib/position.ts` | Fractional positions (a key between two others) — pure, tested |
-| `lib/parse-import.ts`, `lib/importers.ts` | Trello JSON / CSV reading (pure, used in the browser too), then writing a board |
+| `lib/parse-import.ts`, `lib/importers.ts` | Trello JSON / CSV reading (pure, used in the browser too): columns of finished work by name (`looksDone`), archived lists kept archived, cards marked complete settled by `arrange()` — the page and the server call it with the columns the person ticked; then writing a board |
+| `lib/due-calendar.ts` | Due dates in each person's Chest calendar (Proposal (studio) `calendar`): `sync()` after every action (`act()`), on *My tasks* and each morning (`recheck`); `calendar_events` remembers what was put (fingerprint from the database, members who see the board) |
+| `app/chest/cards/[id]/page.tsx` | A card's address by id (bell, email, calendar): redirects to the board it is on now |
 | `lib/export.ts`, `lib/csv.ts` | CSV and JSON exports; CSV reading and writing (formula-safe) |
 | `lib/tell.ts`, `lib/notify.ts` | The bell (each recipient's language) and badges; `comment_notices` remembers which comment each item shows (`commentGone` / `commentShown`); each mention its own key `card:<id>:mention:<comment>`; "You can start" (`unblocked`) |
 | `lib/repeat.ts` | Repeat rules and the next due date — pure, used in the browser too, tested alone (month ends, summer time) |
@@ -107,6 +109,14 @@ npm ci && npm test && npm run build   # all three must pass
 - **A new sender of news** (a card or step given, a mention) goes through
   `lib/tell.ts` with the database, which rings the bell and sends the email
   to those who did not turn it off; never `mail.send` directly.
+- **Links to a card from outside a page** (bell, email, calendar) are
+  `/chest/cards/<id>`, never a board's path: a card moves between boards.
+- **What makes a card or step due for someone** (its column done, archived,
+  its board's people) is read by `lib/due-calendar.ts`'s `eligible()` too:
+  a new way to finish or hide a card must be reflected there.
+- **An import settles what is finished with `arrange()`** on both sides
+  (the check shows it; the server does it again with the ticked columns);
+  never mark a column done after writing.
 - **Something that points at a card from elsewhere** (a step's assignee, a
   field value) must be handled where a card moves between boards
   (`carry()` in `lib/cards.ts`) and where a member leaves (`lib/lifecycle.ts`).

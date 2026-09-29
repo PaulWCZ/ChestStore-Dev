@@ -8,6 +8,7 @@ import type { Query, Sql } from "./db.ts";
 import { en } from "./i18n/en.ts";
 import { fr } from "./i18n/fr.ts";
 import { limits, type Confidence, type Kind, type Level } from "./model.ts";
+import { unitLocaleOf } from "./objectives.ts";
 import { everyone } from "./people.ts";
 import { settings, teams as readTeams, type Team } from "./teams.ts";
 
@@ -413,8 +414,8 @@ export async function runImport(sql: Sql, actor: Member | null, input: { text?: 
         const krOwner = idOf(k.owner, owner);
         told.add(krOwner);
         const [kr] = await tx<{ id: string }[]>`
-          insert into key_results (objective_id, title, kind, unit, currency, start_value, target_value, current_value, weight, owner, position, created_by)
-          values (${objectiveId}, ${k.title}, ${k.kind}, ${k.unit}, ${k.kind === "money" ? currency : null}, ${k.start}, ${k.target}, ${k.current}, 1, ${krOwner},
+          insert into key_results (objective_id, title, kind, unit, unit_locale, currency, start_value, target_value, current_value, weight, owner, position, created_by)
+          values (${objectiveId}, ${k.title}, ${k.kind}, ${k.unit}, ${k.unit ? unitLocaleOf(who) : null}, ${k.kind === "money" ? currency : null}, ${k.start}, ${k.target}, ${k.current}, 1, ${krOwner},
             (select coalesce(max(position), 0) + 1 from key_results where objective_id = ${objectiveId}), ${who.id})
           returning id`;
         if (k.confidence) await tx`insert into check_ins (key_result_id, value, confidence, note, author) values (${kr!.id}, ${k.current}, ${k.confidence}, '', ${who.id})`;

@@ -14,7 +14,7 @@ export function Flash({ text }: { text: string | null }) {
     shown.current = true;
     toast({ id: "flash", text });
     const url = new URL(window.location.href);
-    for (const key of ["saved", "over", "restored", "example"]) url.searchParams.delete(key);
+    for (const key of ["saved", "over", "dropped", "restored", "example"]) url.searchParams.delete(key);
     window.history.replaceState(window.history.state, "", url.pathname + url.search + url.hash);
   }, [text, toast]);
   return null;

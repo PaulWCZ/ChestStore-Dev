@@ -346,6 +346,7 @@ table.grid tr.hidden td { opacity: 0.55; }
 .toc a { color: var(--ink-2); text-underline-offset: 3px; min-height: 32px; display: inline-flex; align-items: center; }
 .toc a:hover { color: var(--ink); }
 .people-list li .alone-row { grid-column: 1 / -1; margin: 0; }
+.words-more { margin-bottom: var(--space-3); }
 .word-list { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 0 var(--space-4); }
 .word-list li { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-1) 0; border-bottom: 1px dashed var(--line); min-height: 44px; }
 .word-list li .hint { flex: 1; }
@@ -381,6 +382,7 @@ table.grid tr.hidden td { opacity: 0.55; }
 .iban-input .field { padding-right: 44px; letter-spacing: 0.02em; }
 .iban-input .ok { position: absolute; right: 14px; top: 50%; transform: translateY(-50%); color: var(--ok); display: grid; }
 .bank-line { display: flex; align-items: center; gap: var(--space-2) var(--space-3); flex-wrap: wrap; margin-top: var(--space-2); font-size: var(--text-s); }
+.bank-line .ck-badge { white-space: normal; }
 .bank-line .mono { display: inline-flex; gap: var(--space-2); align-items: center; flex-wrap: wrap; }
 .by-file { display: grid; gap: var(--space-3); border: 1.5px solid var(--ink); }
 .by-file .pay-form .button { flex: 1 1 auto; white-space: normal; text-align: left; }

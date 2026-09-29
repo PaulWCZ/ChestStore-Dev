@@ -1,7 +1,8 @@
-import { exportRows, settings } from "../../../lib/booking.ts";
+import { exportRows, settings, typeNames } from "../../../lib/booking.ts";
 import { toCsv } from "../../../lib/csv.ts";
 import { db } from "../../../lib/db.ts";
 import { AppError } from "../../../lib/errors.ts";
+import { isLocale } from "../../../lib/i18n/index.ts";
 import { nameOf, people } from "../../../lib/people.ts";
 import { answerText } from "../../../lib/questions.ts";
 import { viewer } from "../../../lib/session.ts";
@@ -18,11 +19,14 @@ export async function GET(request: Request): Promise<Response> {
     const rows = await exportRows(sql, v.member, all);
     const zone = (await settings(sql)).defaultZone;
     const who = await people(rows.map(r => r.memberId));
+    // One type, one name (the reader's language); the guest's language in
+    // its own column.
+    const names = await typeNames(sql, rows.map(r => r.typeId), v.locale);
     const stamp = (d: Date) => new Intl.DateTimeFormat("sv-SE", { timeZone: zone, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }).format(d);
     const h = v.t.export.headers;
     const csv = toCsv([
-      [h.start, h.end, h.type, h.host, h.guest, h.email, h.phone, h.status, h.note, h.answers, h.created],
-      ...rows.map(r => [stamp(r.startsAt), stamp(r.endsAt), r.title, nameOf(who.get(r.memberId), v.locale), r.guestName, r.guestEmail, r.guestPhone, v.t.export.statuses[r.status], r.guestNote, r.answers.map(a => `${a.label}: ${answerText(a, v.t.answers)}`).join("\n"), stamp(r.createdAt)]),
+      [h.start, h.end, h.type, h.host, h.guest, h.email, h.phone, h.language, h.status, h.note, h.answers, h.created],
+      ...rows.map(r => [stamp(r.startsAt), stamp(r.endsAt), (r.typeId && names.get(r.typeId)) || r.title, nameOf(who.get(r.memberId), v.locale), r.guestName, r.guestEmail, r.guestPhone, isLocale(r.guestLanguage) ? v.t.languages[r.guestLanguage] : r.guestLanguage, v.t.export.statuses[r.status], r.guestNote, r.answers.map(a => `${a.label}: ${answerText(a, v.t.answers)}`).join("\n"), stamp(r.createdAt)]),
     ]);
     return new Response(csv, { headers: { "Content-Type": "text/csv; charset=utf-8", "Content-Disposition": 'attachment; filename="bookings.csv"', "Cache-Control": "no-store" } });
   } catch (error) {

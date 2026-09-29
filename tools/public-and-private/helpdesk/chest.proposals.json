@@ -12,11 +12,19 @@
     {
       "name": "cleanup",
       "cron": "15 3 * * *"
+    },
+    {
+      "name": "late",
+      "cron": "*/15 * * * *"
     }
   ],
   "receives": [
-    "forms.request"
+    "forms.request",
+    "status.incident"
   ],
+  "webhooks": {
+    "max": 10
+  },
   "translations": {
     "fr": {
       "title": "Support",

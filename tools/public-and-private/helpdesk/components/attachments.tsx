@@ -37,7 +37,7 @@ export function Attachments({ files, setFiles, grant, kind, label, plainTypes, t
   grant: (type: string, size: number) => Promise<Grant>;
   kind: "public" | "team";
   label: string;
-  // The accepted kinds in plain words, for a customer.
+  // The accepted kinds in plain words (not extensions: "WEBP, DOCX").
   plainTypes?: string;
   t: { files: FileWords; errors: Catalogue["errors"] };
 }) {
@@ -58,5 +58,5 @@ export function Attachments({ files, setFiles, grant, kind, label, plainTypes, t
   };
   return <FilePicker label={label} files={files} onChange={setFiles} upload={upload} accept={accept} maxSize={limits.fileSize} maxFiles={limits.filesPerMessage}
     // A customer reads kinds of files, not extensions ("WEBP, DOCX").
-    labels={kind === "public" && plainTypes ? { ...t.files, types: plainTypes } : t.files} />;
+    labels={plainTypes ? { ...t.files, types: plainTypes } : t.files} />;
 }

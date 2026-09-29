@@ -1,0 +1,25 @@
+BEGIN:VCALENDAR
+PRODID:Microsoft Exchange Server 2010
+VERSION:2.0
+X-WR-CALNAME:Atlas
+BEGIN:VEVENT
+UID:040000008200E00074C5B7101A82E0080000000010
+SUMMARY:Comité de direction
+DTSTART;TZID=Romance Standard Time:20260105T090000
+DTEND;TZID=Romance Standard Time:20260105T100000
+RRULE:FREQ=WEEKLY;BYDAY=MO
+ORGANIZER;CN="Martin, Camille":mailto:camille@example.test
+ATTENDEE;ROLE=REQ-PARTICIPANT;CN="Moreau, Inès":mailto:ines@example.test
+ATTENDEE;ROLE=REQ-PARTICIPANT:mailto:hugo@example.test
+END:VEVENT
+BEGIN:VEVENT
+UID:040000008200E00074C5B7101A82E0080000000011
+SUMMARY:Point fournisseur
+DTSTART;TZID=Romance Standard Time:20260107T160000
+DTEND;TZID=Romance Standard Time:20260107T170000
+RRULE:FREQ=WEEKLY;BYDAY=WE
+ORGANIZER;CN="Durand, Paul":mailto:paul.durand@fournisseur.example
+ATTENDEE;CN="Rossi, Sofia (Services généraux)":mailto:s.rossi@example.test
+ATTENDEE;CN="Durand, Paul":mailto:paul.durand@fournisseur.example
+END:VEVENT
+END:VCALENDAR

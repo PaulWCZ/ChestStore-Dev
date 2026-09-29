@@ -7,13 +7,21 @@ import { format } from "../../../lib/i18n/format.ts";
 import type { Catalogue } from "../../../lib/i18n/index.ts";
 import { singularOf, unitOf, unitParts, valueText } from "../../../lib/values.ts";
 
-type Source = "manual" | "crm.won_amount" | "crm.won_count";
-export type KrDraft = { title: string; kind: "number" | "percent" | "money" | "milestone"; start: string; target: string; unit: string; owner: string; weight: string; source: Source };
-export type FieldWords = { form: Catalogue["form"]; kinds: Catalogue["kinds"]; kindHints: Catalogue["kindHints"]; peoplePicker: PeoplePickerWords };
+// Where the value comes from (lib/sources.ts): its owner, or another tool.
+const sources = ["manual", "crm.won_amount", "crm.won_count", "tasks.done", "helpdesk.solved", "hiring.hired"] as const;
+type Source = (typeof sources)[number];
+const sourceWord = (s: Source) => s.replace(".", "_") as keyof Catalogue["form"]["sources"];
+const toolOf = (s: Source) => s.split(".")[0] as keyof Catalogue["tools"];
+const counts = (s: Source) => s === "tasks.done" || s === "helpdesk.solved" || s === "hiring.hired";
+// mine: only what names the key result's owner; scope: a board of Tasks ("" every board).
+export type KrDraft = { title: string; kind: "number" | "percent" | "money" | "milestone"; start: string; target: string; unit: string; owner: string; weight: string; source: Source; mine: boolean; scope: string };
+export type FieldWords = { form: Catalogue["form"]; kinds: Catalogue["kinds"]; kindHints: Catalogue["kindHints"]; tools: Catalogue["tools"]; peoplePicker: PeoplePickerWords };
+// A board of Tasks Goals has heard of (lib/sources.ts, knownBoards).
+export type Board = { id: string; name: string };
 // Someone who may own a key result (everyone who has the tool).
 export type Owner = { id: string; name: string; photo: string | null };
 
-export const emptyDraft = (owner: string): KrDraft => ({ title: "", kind: "number", start: "0", target: "", unit: "", owner, weight: "1", source: "manual" });
+export const emptyDraft = (owner: string): KrDraft => ({ title: "", kind: "number", start: "0", target: "", unit: "", owner, weight: "1", source: "manual", mine: false, scope: "" });
 
 // Whether a draft is still as it was (a dialog asks before closing only
 // when something changed).
@@ -30,13 +38,13 @@ const typed = (text: string): number | null => {
 // who owns it; how much it counts and where its value comes from wait
 // under "More options". Once the target is typed, a sentence says it back
 // ("From 0 to 20 customers") — never before, so no example reads as a value.
-export function KeyResultFields({ draft, onChange, owners, t, locale = "en", currency = null }: { draft: KrDraft; onChange: (d: KrDraft) => void; owners: Owner[]; t: FieldWords; locale?: string; currency?: string | null }) {
+export function KeyResultFields({ draft, onChange, owners, t, locale = "en", currency = null, boards = [] }: { draft: KrDraft; onChange: (d: KrDraft) => void; owners: Owner[]; t: FieldWords; locale?: string; currency?: string | null; boards?: Board[] }) {
   const uid = useId();
   const set = (patch: Partial<KrDraft>) => onChange({ ...draft, ...patch });
   const f = t.form;
   const fed = draft.source !== "manual";
   const start = typed(draft.start) ?? 0, target = typed(draft.target);
-  const measured = { kind: draft.kind === "milestone" ? "number" as const : draft.kind, unit: draft.kind === "number" ? draft.unit.trim() : "", currency };
+  const measured = { kind: draft.kind === "milestone" ? "number" as const : draft.kind, unit: draft.kind === "number" ? draft.unit.trim() : "", currency, unitLocale: locale };
   // "From 0 to 20 customers": the unit once, after the target; a
   // percentage or an amount carries its sign on both.
   const plain = (n: number) => valueText({ kind: "number", unit: "", currency: null }, n, locale);
@@ -50,7 +58,7 @@ export function KeyResultFields({ draft, onChange, owners, t, locale = "en", cur
     set({ unit: unitOf(plural, one) });
   };
   const low = Math.min(start, target ?? start), high = Math.max(start, target ?? start);
-  const mayBeOne = draft.kind === "number" && parts.plural.trim() !== "" && low <= 1 && high >= (locale.startsWith("fr") ? 0 : 1);
+  const mayBeOne = draft.kind === "number" && parts.plural.trim() !== "" && low <= 1 && high >= (new Intl.PluralRules(locale).select(0) === "one" ? 0 : 1);
   const summary = draft.kind !== "milestone" && target !== null && target !== start ? format(f.summary, { start: draft.kind === "number" ? plain(start) : valueText(measured, start, locale), target: valueText(measured, target, locale) }) : null;
   return (
     <>
@@ -110,15 +118,29 @@ export function KeyResultFields({ draft, onChange, owners, t, locale = "en", cur
             <label className="label" htmlFor={`${uid}-source`}>{f.source}</label>
             <select id={`${uid}-source`} className="select" value={draft.source} aria-describedby={`${uid}-source-hint`} onChange={e => {
               const source = e.target.value as Source;
-              set({ source, ...(source === "crm.won_amount" ? { kind: "money" as const } : source === "crm.won_count" ? { kind: "number" as const, unit: draft.unit || "" } : {}) });
+              set({ source, mine: counts(source) && draft.mine, scope: source === "tasks.done" ? draft.scope : "", ...(source === "crm.won_amount" ? { kind: "money" as const } : source !== "manual" ? { kind: "number" as const, unit: draft.unit || "" } : {}) });
             }}>
-              <option value="manual">{f.sources.manual}</option>
-              <option value="crm.won_amount">{f.sources.crm_won_amount}</option>
-              <option value="crm.won_count">{f.sources.crm_won_count}</option>
+              {sources.map(s => <option key={s} value={s}>{f.sources[sourceWord(s)]}</option>)}
             </select>
-            {fed && <p id={`${uid}-source-hint`} className="hint">{f.sourceHint}</p>}
+            {fed && <p id={`${uid}-source-hint`} className="hint">{format(f.sourceHint, { tool: t.tools[toolOf(draft.source)] })}</p>}
           </div>
         </div>
+        {draft.source === "tasks.done" && (
+          <div>
+            <label className="label" htmlFor={`${uid}-board`}>{f.board}</label>
+            <select id={`${uid}-board`} className="select" value={draft.scope} aria-describedby={`${uid}-board-hint`} onChange={e => set({ scope: e.target.value })}>
+              <option value="">{f.everyBoard}</option>
+              {boards.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+            </select>
+            <p id={`${uid}-board-hint`} className="hint">{f.boardHint}</p>
+          </div>
+        )}
+        {counts(draft.source) && (
+          <label className="check">
+            <input type="checkbox" checked={draft.mine} onChange={e => set({ mine: e.target.checked })} />
+            {f.mine[sourceWord(draft.source) as keyof typeof f.mine]}
+          </label>
+        )}
       </details>
     </>
   );
@@ -126,5 +148,5 @@ export function KeyResultFields({ draft, onChange, owners, t, locale = "en", cur
 
 // What a server action receives for a draft.
 export function krInput(d: KrDraft) {
-  return { title: d.title, kind: d.kind, start: d.start, target: d.target, unit: d.unit, owner: d.owner, weight: Number(d.weight), source: d.source };
+  return { title: d.title, kind: d.kind, start: d.start, target: d.target, unit: d.unit, owner: d.owner, weight: Number(d.weight), source: d.source, mine: d.mine, scope: d.scope };
 }

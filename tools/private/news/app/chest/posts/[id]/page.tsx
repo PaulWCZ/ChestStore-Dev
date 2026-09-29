@@ -18,7 +18,7 @@ import { viewer } from "../../../../lib/session.ts";
 import { learned } from "../../../../lib/state.ts";
 import { floor, recordView, views } from "../../../../lib/views.ts";
 import { Kicker } from "../../story.tsx";
-import { Comments, ConfirmBox, PostTools, Reactions, RemindButton, Rsvp, SendingNotice } from "./parts.tsx";
+import { AnsweredNotice, Comments, ConfirmBox, PostTools, Reactions, RemindButton, Rsvp, SendingNotice } from "./parts.tsx";
 
 // One post, as an article: its headline, byline, picture, what it asks
 // (confirm, answer), its text, pictures and files, reactions and comments.
@@ -57,6 +57,10 @@ export default async function PostPage({ params, searchParams }: { params: Promi
   const who = await people(ids);
   const name = (memberId: string) => (memberId === member.id ? t.people.you : nameOf(who.get(memberId), locale));
   const plainName = (memberId: string) => (memberId === member.id ? member.name : nameOf(who.get(memberId), locale));
+  // Answered from an email's link (./answer/route.ts).
+  const answeredValues = ["yes", "no", "wait", "none", "invalid", "closed"] as const;
+  const answered = answeredValues.find(a => a === query["answered"]) ?? null;
+  const was = (["yes", "no", "none"] as const).find(a => a === query["was"]) ?? null;
   const photo = (memberId: string) => (memberId === member.id ? member.photo : who.get(memberId)?.photo ?? null);
   const audience = p.groups.length > 0 || p.people.length > 0 ? audienceLabel(p, await groupNames(), locale) : null;
   const going = p.answers.filter(a => a.answer === "yes");
@@ -132,7 +136,7 @@ export default async function PostPage({ params, searchParams }: { params: Promi
         {p.welcome && (
           <div className="welcome-card" lang={locale}>
             <Avatar name={name(p.welcome)} photo={photo(p.welcome)} size="xl" className="avatar-96" />
-            <p>{format(t.welcome.hello, { name: name(p.welcome) })}</p>
+            <p>{format(p.kind === "shoutout" ? t.welcome.thanks : t.welcome.hello, { name: name(p.welcome) })}</p>
           </div>
         )}
 
@@ -144,6 +148,7 @@ export default async function PostPage({ params, searchParams }: { params: Promi
               {p.event.place && <div><dt><Place /><span className="visually-hidden">{t.event.where}</span></dt><dd>{p.event.place}</dd></div>}
             </dl>
             {p.event.seats !== null && <p className="seats">{format(t.event.places, { taken: going.length, seats: p.event.seats })}{waiting.length > 0 ? " · " + plural(t.event.waitingCount, waiting.length, locale) : ""}</p>}
+            {answered && <AnsweredNotice id={p.id} answered={answered} was={was} t={t.event} errors={t.errors} />}
             <Rsvp id={p.id} answer={p.rsvp} open={p.eventOpen} full={p.event.seats !== null && going.length >= p.event.seats} t={t.event} errors={t.errors} />
             <p className="row">
               {inCalendar && <a className="link" href={calendarPage}><Calendar />{t.event.inCalendar}</a>}

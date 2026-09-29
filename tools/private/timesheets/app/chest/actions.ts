@@ -9,6 +9,7 @@ import * as entries from "../../lib/entries.ts";
 import { AppError, attempt, type Result } from "../../lib/errors.ts";
 import { catalogue, isLocale } from "../../lib/i18n/index.ts";
 import { forgetFormer as forget, planImport, runImport, type ImportOptions, type ImportPlan } from "../../lib/import.ts";
+import * as handoff from "../../lib/handoff.ts";
 import * as invoicing from "../../lib/invoicing.ts";
 import type { DateOrder } from "../../lib/import-formats.ts";
 import * as projects from "../../lib/projects.ts";
@@ -93,7 +94,7 @@ export async function setNote(entryId: string, note: string): Promise<Result<nul
 }
 
 // The week sent for approval, and the managers' answers.
-export async function submitWeek(week: string): Promise<Result<weeks.WeekState>> {
+export async function submitWeek(week: string): Promise<Result<weeks.WeekState & { approvers: number }>> {
   return act(actor => weeks.submitWeek(db(), actor, week));
 }
 export async function withdrawWeek(week: string): Promise<Result<null>> {
@@ -127,6 +128,15 @@ export async function forgetFormer(formerId: string): Promise<Result<null>> {
 export async function markInvoiced(q: ReportQuery): Promise<Result<invoicing.Marked>> {
   return act(actor => invoicing.markInvoiced(db(), actor, q));
 }
+// Billable time to Quotes as a draft invoice (lib/handoff.ts).
+export async function sendToQuotes(input: { projectId: string; from: string; to: string }): Promise<Result<{ handoff: string; entries: number; minutes: number; receivers: number }>> {
+  return act(actor => handoff.sendBillable(db(), actor, input));
+}
+
+export async function takeBackFromQuotes(handoffId: string): Promise<Result<null>> {
+  return act(async actor => { await handoff.cancelHandoff(db(), actor, handoffId); return null; });
+}
+
 export async function unmarkInvoiced(marked: invoicing.Marked): Promise<Result<number>> {
   return act(actor => invoicing.unmarkInvoiced(db(), actor, marked));
 }

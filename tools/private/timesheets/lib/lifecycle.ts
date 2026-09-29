@@ -26,6 +26,8 @@ export async function leave(sql: Sql, memberId: string): Promise<void> {
     await stopForLeaver(tx, memberId);
     await tx`delete from project_people where member_id = ${memberId}`;
     await tx`delete from week_rows where member_id = ${memberId}`;
+    // Their projects go back to every manager.
+    await tx`update projects set lead_id = null where lead_id = ${memberId}`;
   });
 }
 
@@ -43,6 +45,8 @@ export async function erase(sql: Sql, memberId: string): Promise<void> {
     await tx`delete from weeks where member_id = ${memberId}`;
     await tx`update weeks set decided_by = 'erased' where decided_by = ${memberId}`;
     await tx`update settings set locked_by = 'erased' where locked_by = ${memberId}`;
+    await tx`update handoffs set sent_by = 'erased' where sent_by = ${memberId}`;
+    await tx`update handoffs set cancelled_by = 'erased' where cancelled_by = ${memberId}`;
   });
 }
 

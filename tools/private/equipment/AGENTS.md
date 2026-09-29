@@ -12,6 +12,9 @@ what must not break.
 | `migrations/0002_departures.sql` | Departures told by People (member, last day, when told) |
 | `migrations/0004_field_keys_rules_reminders.sql` | Field keys (names in each language), the example rules (`charters.example`), `receipts.reminded_at` |
 | `migrations/0003_receipts_requests_fields.sql` | Receipts, rules (charters), requests, fields per category, supplies (quantity, minimum), inventories, invoice; history gains qty, cost, ref, due and new kinds |
+| `migrations/0005_members_see_history_time.sql` | `categories.members_see` (off for keys and badges, vehicles — existing Chests too); the history's time is `clock_timestamp()` |
+| `migrations/0006_intune.sql` | `intune_devices` (the last read, by folded serial; the member Intune names, as an id) and `intune_reads` (each read's outcome) |
+| `lib/intune.ts` | Microsoft Intune, read only: settings from `env`, token (client credentials), paged `managedDevices`, `refresh` (nightly or asked), `status` / `factsOf` for the pages, `missingAsCsv` for the importer; `useTransport` for tests (a fake Graph) |
 | `lib/access.ts` | **Who may do what** — the only place roles are read |
 | `lib/model.ts` | Pure rules: limits, statuses, tags, money, dates, `clean()` |
 | `lib/items.ts` | Items: list (pages), detail (full / brief), create (one or several), edit, give, take back, status and repairs, seats, supplies (hand out, restock), problems, holdings, invoice, overview; opening and closing receipts |
@@ -30,6 +33,7 @@ what must not break.
 | `lib/i18n/` | Every word: `en.ts` (source), `fr.ts`; `format.ts` for the browser; the UI kit's word sections (`toast`, `dialog`, `peoplePicker`, `date`, `files`, `table`, `filters`, `search`) |
 | `lib/theme.ts` | The identity "Tool crib" (`defineTheme`, equal to the kit's catalogue theme `labels`) and `currentLook()` |
 | `app/tokens.css` | The tool's own tokens, all defined from contract tokens (steel bar, tag, paper) |
+| `components/claim-button.tsx`, `components/fold.tsx` | *Claim the warranty* (to repair with the supplier's details); a long overview section folded to three lines |
 | `components/shell.tsx`, `components/bits.tsx` | The kit's `AppShell` with Next's `Link`; asset tag, status stamps (the kit's `StatusBadge`), item lines |
 | `app/chest/` | Pages (server) and views (`"use client"`); `actions.ts` server actions |
 | `seed/sample.sql` | Sample equipment of the studio's cast |
@@ -41,6 +45,21 @@ what must not break.
 - Every service starts with the actor's rights; a member never sees money,
   suppliers, notes or history (`brief()`); an item they may not see is
   `not_found`.
+- **Privacy for members** lives in `lib/items.ts`: `forMember()` blanks
+  anyone else's serial number, and the holder, place and "since" where the
+  category's `members_see` is off (`holderHidden`: "Given to someone");
+  `where()` gives a member's search and filters the same limits (serials
+  and field values on their own items only, holders and places only where
+  shown). A new way to read items for members goes through both
+  (`test/privacy.test.ts`).
+- The item's history is ordered by `at` (then id), never by id alone: a
+  line's id is when it was inserted, not when it happened.
+- **Intune**: only `login.microsoftonline.com` and `graph.microsoft.com`
+  (`chest.json` `network`); a next page is followed only on Graph; the
+  secret never leaves `lib/intune.ts` (no log, no page, no database);
+  Intune's user is kept only as a matched member id. Nothing is written to
+  Intune. Its shapes come from Microsoft's documentation (sources in
+  `lib/intune.ts`): do not add a field or an MDM from memory.
 - Services return data or throw `AppError(code)`; words live in
   `lib/i18n` only (`test/literals.test.ts`, `test/i18n.test.ts`).
 - **Defaults are keys**: a category, a field or the rules the tool proposes

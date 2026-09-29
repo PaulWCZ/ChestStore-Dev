@@ -10,6 +10,7 @@ import { db } from "../../../lib/db.ts";
 import { formToken } from "../../../lib/guard.ts";
 import { format, intl, plural } from "../../../lib/i18n/index.ts";
 import { people } from "../../../lib/people.ts";
+import { shareBusy } from "../../../lib/share.ts";
 import { hostWords } from "../../../lib/session.ts";
 import { localizeType } from "../../../lib/texts.ts";
 import { zoneGroups } from "../../../lib/zones.ts";
@@ -29,7 +30,9 @@ export default async function TypePage({ params }: { params: Promise<{ host: str
   // The hosts' other calendars, read again after this page is sent when
   // the last read is older than a few minutes: the next visitor sees them.
   after(async () => {
-    for (const m of team) await refreshDue(db(), { olderThanMinutes: calendarLimits.lazyMinutes, memberId: m, deadline: Date.now() + 20000 }).catch(() => 0);
+    let read = 0;
+    for (const m of team) read += await refreshDue(db(), { olderThanMinutes: calendarLimits.lazyMinutes, memberId: m, deadline: Date.now() + 20000 }).catch(() => 0);
+    if (read > 0) await shareBusy(db(), team).catch(() => 0);
   });
   const [s, first] = await Promise.all([settings(sql), firstFree(sql, host, found.type)]);
   const names = team.length > 1 ? [...(await people(team)).values()].filter(x => x.status === "member").map(x => x.firstName || x.name) : [];

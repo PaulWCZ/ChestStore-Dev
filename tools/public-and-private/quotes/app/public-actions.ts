@@ -4,10 +4,14 @@ import * as chest from "@argentic/chest-sdk/chest";
 import { ChestError } from "@argentic/chest-sdk/errors";
 import * as visitors from "@argentic/chest-sdk/visitors";
 import { headers } from "next/headers";
+import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { AppError, type ErrorCode } from "../lib/app-error.ts";
 import { db } from "../lib/db.ts";
-import { answer } from "../lib/online.ts";
+import { format } from "../lib/i18n/index.ts";
+import { formatMoney } from "../lib/money.ts";
+import { answer, openLink } from "../lib/online.ts";
+import { changesSince } from "../lib/versions.ts";
 import { publicWords } from "../lib/session.ts";
 import { answeredOnline } from "../lib/tell.ts";
 
@@ -18,7 +22,10 @@ import { answeredOnline } from "../lib/tell.ts";
 // does), bounds everything, and touches nothing but the quote the secret
 // opens.
 
-export type AnswerState = { error: ErrorCode | null; values: { name: string; reason: string } };
+// `changes`: when the quote changed while the client read it, what is
+// different now, in their words (null when it cannot be told); the page is
+// drawn again with the quote as it is.
+export type AnswerState = { error: ErrorCode | null; values: { name: string; reason: string }; changes?: string[] | null };
 
 const limits = { minimumSeconds: 3, perVisitorHour: 20, perHour: 600 } as const;
 
@@ -40,13 +47,34 @@ export async function answerQuote(secret: string, _: AnswerState, data: FormData
     }
     const { locale } = await publicWords();
     const done = await answer(db(), String(secret), {
-      answer: data.get("answer"), name: values.name, agree: data.get("agree"), reason: values.reason, shown: data.get("shown"),
+      answer: data.get("answer"), name: values.name, agree: data.get("agree"), reason: values.reason, shown: data.get("shown"), terms: data.get("terms") ?? "",
     }, { hash: visitors.visitor(h), userAgent: h.get("user-agent") ?? "", language: locale }, chest.today());
     await answeredOnline(done.full, done.answer);
   } catch (error) {
+    if (error instanceof AppError && error.code === "changed") {
+      revalidatePath(`/q/${secret}`);
+      return { error: error.code, values, changes: await whatChanged(String(secret), data.get("shown")).catch(() => null) };
+    }
     if (error instanceof AppError) return { error: error.code, values };
     console.error("answer not saved", error instanceof Error ? error.name : "error");
     return { error: "unavailable", values };
   }
   redirect(`/q/${secret}?answered=1`);
+}
+
+// whatChanged: the differences between the version the client read (the
+// PDF fingerprint their form carried) and the quote now, as sentences in
+// the visitor's language, amounts in the quote's currency.
+async function whatChanged(secret: string, shown: unknown): Promise<string[] | null> {
+  const sql = db();
+  const opened = await openLink(sql, secret, chest.today());
+  if (!opened || opened.showing !== "open") return null;
+  const found = await changesSince(sql, opened.full, shown);
+  if (!found || found.changes.length === 0) return null;
+  const { t, locale } = await publicWords();
+  const o = t.online;
+  const money = (minor: number) => formatMoney(minor, opened.full.currency, locale);
+  return found.changes.map(c => c.kind === "total" ? format(o.changeTotal, { before: money(c.before), after: money(c.after) })
+    : c.kind === "changed" ? format(o.changeLine, { description: c.description, before: money(c.before), after: money(c.after) })
+    : format(c.kind === "added" ? o.changeAdded : o.changeRemoved, { description: c.description, amount: money(c.amount) }));
 }

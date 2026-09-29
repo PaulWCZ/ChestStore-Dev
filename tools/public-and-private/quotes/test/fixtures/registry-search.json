@@ -1,0 +1,25 @@
+{
+  "results": [
+    {
+      "siren": "385290309",
+      "nom_complet": "AGENCE DE L ENVIRONNEMENT ET DE LA MAITRISE DE L ENERGIE (ADEME)",
+      "nom_raison_sociale": "AGENCE DE L ENVIRONNEMENT ET DE LA MAITRISE DE L ENERGIE",
+      "sigle": "ADEME",
+      "nature_juridique": "4110",
+      "etat_administratif": "A",
+      "siege": {
+        "activite_principale": "84.13Z",
+        "adresse": "20 AVENUE DU GRESILLE 49000 ANGERS",
+        "code_postal": "49000",
+        "libelle_commune": "ANGERS",
+        "date_creation": "2007-04-26",
+        "etat_administratif": "A",
+        "siret": "38529030900454"
+      }
+    }
+  ],
+  "total_results": 1,
+  "page": 1,
+  "per_page": 1,
+  "total_pages": 1
+}

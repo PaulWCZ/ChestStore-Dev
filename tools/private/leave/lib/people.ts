@@ -33,3 +33,11 @@ export function nameOf(person: Person | undefined, locale: Locale): string {
   if (person.status === "former") return person.name ? format(t.former, { name: person.name }) : t.erased;
   return person.name;
 }
+
+// plainName writes a person in a file (payroll's CSVs): the name as it is,
+// even for someone who left — never "(former member)", which payroll
+// software would not match; the file's last-day column says who left.
+export function plainName(person: Person | undefined, locale: Locale): string {
+  if (person && (person.status === "member" || person.status === "former") && person.name) return person.name;
+  return nameOf(person, locale);
+}

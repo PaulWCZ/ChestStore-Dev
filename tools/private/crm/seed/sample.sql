@@ -140,3 +140,29 @@ insert into deals (title, company_id, contact_id, value_cents, stage_id, positio
   ('Clinic reception desk', (select id from companies where name = 'Clinique Vétérinaire des Tilleuls'), (select id from contacts where name = 'Dr Nadia Chérif'), 540000, (select id from stages where key = 'lost'), 'n', 'mbr_inesaaaaaaaaaaaaaaaaaaaaaa', 'Went with a competitor', now() - interval '85 days', 'mbr_inesaaaaaaaaaaaaaaaaaaaaaa', now() - interval '120 days');
 insert into activities (kind, deal_id, company_id, contact_id, author, at, created_at)
   select 'created', d.id, d.company_id, d.contact_id, d.created_by, d.created_at, d.created_at from deals d where d.position = 'n';
+
+-- Two website enquiries that came through Forms (forms.contact), nobody's
+-- yet: the leads at the top of My day. Karim wrote from the law firm's
+-- shared line — Julien Moreau's number, another name — so he is his own
+-- contact, marked as maybe the same person (lib/from-forms.ts).
+insert into companies (name, owner, created_by, created_at) values ('Garnier Paysage', null, 'chest', now() - interval '3 hours');
+insert into contacts (name, email, phone, company_id, owner, created_by, last_contact_at, lead_since, created_at) values
+  ('Sophie Garnier', 'sophie.garnier@orange.fr', '06 71 22 83 90', (select id from companies where name = 'Garnier Paysage'), null, 'chest', now() - interval '3 hours', now() - interval '3 hours', now() - interval '3 hours'),
+  ('Karim Benali', 'k.benali@lefevre-avocats.fr', '01 44 55 21 75', null, null, 'chest', now() - interval '26 hours', now() - interval '26 hours', now() - interval '26 hours');
+update contacts set maybe_same = (select id from contacts where name = 'Julien Moreau') where name = 'Karim Benali';
+insert into activities (kind, body, data, contact_id, company_id, author, at, created_at)
+  select 'created', '', '{"form": "Contact us"}', c.id, c.company_id, 'chest', c.created_at, c.created_at from contacts c where c.lead_since is not null;
+insert into activities (kind, body, data, contact_id, company_id, author, at, created_at) values
+  ('form', E'Hello, we are opening a second garden centre in Caen and need 12 desks and a reception counter. Could you call me back this week?',
+   '{"event": "evt_seedform0000000000000001", "formId": "5", "form": "Contact us", "answer": "seedanswer000001", "path": "/chest/forms/5/answers/seedanswer000001", "who": {"name": "Sophie Garnier", "email": "sophie.garnier@orange.fr", "phone": "06 71 22 83 90", "company": "Garnier Paysage"}}',
+   (select id from contacts where name = 'Sophie Garnier'), (select id from companies where name = 'Garnier Paysage'), 'chest', now() - interval '3 hours', now() - interval '3 hours'),
+  ('form', E'Our partners want standing desks for the new meeting room. What would you suggest?',
+   '{"event": "evt_seedform0000000000000002", "formId": "5", "form": "Contact us", "answer": "seedanswer000002", "path": "/chest/forms/5/answers/seedanswer000002", "who": {"name": "Karim Benali", "email": "k.benali@lefevre-avocats.fr", "phone": "01 44 55 21 75", "company": ""}}',
+   (select id from contacts where name = 'Karim Benali'), null, 'chest', now() - interval '26 hours', now() - interval '26 hours');
+-- A line filed by the round-2 version (no `who`: it did not keep who
+-- filled the form in) on a contact of the team's: the manager's check
+-- (Settings → Form answers) lists it.
+insert into activities (kind, body, data, contact_id, company_id, author, at, created_at) values
+  ('form', E'Is the order of four chairs ready? I can come on Saturday.',
+   '{"event": "evt_seedform0000000000000003", "formId": "5", "form": "Contact us", "answer": "seedanswer000003", "path": "/chest/forms/5/answers/seedanswer000003"}',
+   (select id from contacts where name = 'Pierre Petit'), (select company_id from contacts where name = 'Pierre Petit'), 'chest', now() - interval '5 days', now() - interval '5 days');

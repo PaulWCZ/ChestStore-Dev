@@ -199,8 +199,15 @@ Wiki's spaces kept to groups).
 - **Search** uses PostgreSQL: `migrations/0002_…` creates the `unaccent`
   and `pg_trgm` extensions (both *trusted*: the database's owner may create
   them, PostgreSQL 13+) and a text search configuration `news` (`simple` +
-  `unaccent`: no stemming, the same in English and French), with a
-  generated `tsvector` on posts and comments.
+  `unaccent`: each word as written, by its beginning, the same in English
+  and French), with a generated `tsvector` on posts and comments;
+  `migrations/0003_…` adds `news_en` and `news_fr` (`unaccent` then the
+  English or French stemmer) and a second generated `stems` vector on
+  posts, their other languages and comments, so a word is also found by
+  its stem (*déménager* finds *déménagement*). Results always show the
+  post in the reader's language; when the words are only in its other
+  language, the result says so, and an empty search suggests trying the
+  word in the language some posts are written in only.
 - **Telling everyone** uses `members.list`, 500 people at a time (up to
   10,000), in each person's language. The Chest takes **1,000 recipients an
   hour** per tool: beyond, News stops, keeps where it stopped, and goes on

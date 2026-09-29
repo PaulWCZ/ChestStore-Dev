@@ -14,6 +14,9 @@ let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
   database = await testDatabase();
+  // These tests ask without setting balances first: paid leave may go
+  // below zero here (its default refusal is tested in requests.test.ts).
+  await database.sql`update leave_types set overdraw = true where key = 'paid'`;
   chest = await fakeChest({ members: everyone, groups: fakeGroups, schedules: [{ name: "morning", cron: "30 8 * * 1-5" }] });
 });
 after(async () => {

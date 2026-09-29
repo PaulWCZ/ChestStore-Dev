@@ -21,6 +21,9 @@ export function SendDialog({ t, doc, kind, mailWorks, pdfHref, onClose, onDone }
   const s = t.send;
   const [message, setMessage] = useState<Message | null>(null);
   const [prepared, setPrepared] = useState<Message | null>(null);
+  // A quote's email opens with its answer line: shown here, fixed.
+  const [line, setLine] = useState<string | null>(null);
+  const [terms, setTerms] = useState(false);
   const [byHand, setByHand] = useState(mailWorks === false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -28,7 +31,10 @@ export function SendDialog({ t, doc, kind, mailWorks, pdfHref, onClose, onDone }
     let live = true;
     void messageFor(doc.id, kind).then(r => {
       if (!live) return;
-      if (r.ok) { setMessage(r.value); setPrepared(r.value); }
+      if (r.ok) {
+        const { line: first, terms: withTerms, ...words } = r.value;
+        setMessage(words); setPrepared(words); setLine(first ?? null); setTerms(withTerms === true);
+      }
       else setError(errorText(t, r.error, r.values));
     });
     return () => { live = false; };
@@ -95,8 +101,14 @@ export function SendDialog({ t, doc, kind, mailWorks, pdfHref, onClose, onDone }
           </div>
           <div className="field-row">
             <label htmlFor="text">{s.message}</label>
-            <textarea id="text" className="field" rows={9} value={message.text} maxLength={4000} onChange={e => setMessage({ ...message, text: e.target.value })} />
-            <span className="hint">{format(s.attached, { language: languageNames[doc.language] ?? doc.language })}{doc.type === "quote" && kind === "send" ? " " + s.withLink : ""}</span>
+            {line && (
+              <p className="fixed-line" id="answer-line">
+                <span className="hint">{s.lineLabel}</span>
+                <span className="line-text">{line}</span>
+              </p>
+            )}
+            <textarea id="text" className="field" rows={9} value={message.text} maxLength={4000} onChange={e => setMessage({ ...message, text: e.target.value })} aria-describedby={line ? "answer-line" : undefined} />
+            <span className="hint">{format(terms ? s.attachedTerms : s.attached, { language: languageNames[doc.language] ?? doc.language })}{line ? " " + s.withLink : ""}</span>
           </div>
           {error && <p className="error" role="alert">{error}</p>}
           <div className="dialog-actions">

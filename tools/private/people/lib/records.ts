@@ -246,29 +246,34 @@ export async function updateRecord(sql: Sql, actor: Member | null, recordId: unk
   const key = id(recordId);
   if (!input || typeof input !== "object" || Array.isArray(input)) throw new AppError("invalid");
   const given = read(input as { [key: string]: unknown });
-  const done = await sql.begin(async tx => {
-    const current = await load(tx, key);
-    if (!current) throw new AppError("not_found");
-    const before = toFields(current);
-    const next: Fields = { ...before, ...given };
-    if (given.tutorId && given.tutorId !== before.tutorId && !(await present([given.tutorId])).has(given.tutorId)) throw new AppError("not_member");
-    for (const end of [next.trialEnd, next.contractEnd, next.endDate]) if (end && next.startDate && end < next.startDate) throw new AppError("dates");
-    const changed = fieldNames.filter(f => !same(before[f], next[f]));
-    if (changed.length === 0) return { changed };
-    await tx`
-      update records set legal_name = ${next.legalName}, sex = ${next.sex}, birth_date = ${next.birthDate}, nationality = ${next.nationality}, job = ${next.job},
-        qualification = ${next.qualification}, contract = ${next.contract}, working_time = ${next.workingTime}, hours = ${next.hours},
-        start_date = ${next.startDate}, trial_end = ${next.trialEnd}, contract_end = ${next.contractEnd}, end_date = ${next.endDate},
-        work_permit = ${next.workPermit}, agency = ${next.agency}, tutor_id = ${next.tutorId}, workplace = ${next.workplace},
-        emergency_name = ${next.emergencyName}, emergency_relation = ${next.emergencyRelation}, emergency_phone = ${next.emergencyPhone}, address = ${next.address},
-        employee_number = ${next.employeeNumber}, permit_end = ${next.permitEnd}, work_days = ${next.workDays === null ? null : tx.array(next.workDays)}::smallint[],
-        updated_at = now()
-      where id = ${key}`;
-    await note(tx, who, "changed", { recordId: key, fields: changed });
-    return { changed };
-  }).catch(error => { throw numberTaken(error); });
+  const done = await sql.begin(tx => writeRecord(tx, who, key, given, "changed")).catch(error => { throw numberTaken(error); });
   if (done.changed.length > 0) await tellRecords(sql, [key]);
-  return done;
+  return { changed: done.changed };
+}
+
+// writeRecord writes the fields given (already read) into one record, in
+// the caller's transaction, checks the dates and the tutor, and notes the
+// change in the journal (field names only). Says what changed.
+export async function writeRecord(tx: Query, who: Member, key: string, given: Partial<Fields>, action: "changed" | "imported"): Promise<{ changed: Field[] }> {
+  const current = await load(tx, key);
+  if (!current) throw new AppError("not_found");
+  const before = toFields(current);
+  const next: Fields = { ...before, ...given };
+  if (given.tutorId && given.tutorId !== before.tutorId && !(await present([given.tutorId])).has(given.tutorId)) throw new AppError("not_member");
+  for (const end of [next.trialEnd, next.contractEnd, next.endDate]) if (end && next.startDate && end < next.startDate) throw new AppError("dates");
+  const changed = fieldNames.filter(f => !same(before[f], next[f]));
+  if (changed.length === 0) return { changed };
+  await tx`
+    update records set legal_name = ${next.legalName}, sex = ${next.sex}, birth_date = ${next.birthDate}, nationality = ${next.nationality}, job = ${next.job},
+      qualification = ${next.qualification}, contract = ${next.contract}, working_time = ${next.workingTime}, hours = ${next.hours},
+      start_date = ${next.startDate}, trial_end = ${next.trialEnd}, contract_end = ${next.contractEnd}, end_date = ${next.endDate},
+      work_permit = ${next.workPermit}, agency = ${next.agency}, tutor_id = ${next.tutorId}, workplace = ${next.workplace},
+      emergency_name = ${next.emergencyName}, emergency_relation = ${next.emergencyRelation}, emergency_phone = ${next.emergencyPhone}, address = ${next.address},
+      employee_number = ${next.employeeNumber}, permit_end = ${next.permitEnd}, work_days = ${next.workDays === null ? null : tx.array(next.workDays)}::smallint[],
+      updated_at = now()
+    where id = ${key}`;
+  await note(tx, who, action, { recordId: key, fields: changed });
+  return { changed };
 }
 
 // A unique employee number: another record's is refused in words.

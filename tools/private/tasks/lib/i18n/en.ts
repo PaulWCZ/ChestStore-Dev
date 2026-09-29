@@ -78,6 +78,7 @@ export const en = {
       title: "Start with a board",
       body: "A board holds the work of a team or a project, in columns. Create one, then add the first cards.",
       action: "Create a board",
+      import: "Bring your Trello or Asana boards",
     },
     boards: "Your boards",
     allBoards: "All boards",
@@ -140,6 +141,7 @@ export const en = {
     },
   },
   board: {
+    cardGone: "This card is not here any more: it was deleted, or it is on a board you do not see.",
     // After the names of a card's first people ("Léa, Hugo and 2 others").
     othersAssigned: { one: "and {count} other", other: "and {count} others" },
     back: "All boards",
@@ -221,6 +223,7 @@ export const en = {
     search: "Search cards",
     timelineView: "Timeline",
     timeline: {
+      week: "Week of {date}",
       rows: "Rows",
       byColumn: "By column",
       byPerson: "By person",
@@ -460,7 +463,7 @@ export const en = {
     open: "Open the board",
     again: "Import another",
     tooBig: "This file is too large (10 MB at most).",
-    chooseMany: "Choose one or more files",
+    chooseMany: "Choose files",
     tooBigNamed: "“{file}” is too large (10 MB at most).",
     unreadable: "“{file}”: {reason}",
     failedAt: "“{name}” was not imported: {reason}",
@@ -477,6 +480,20 @@ export const en = {
     doneOnlyYou: "Only you see it for now: share it from its settings.",
     doneEveryone: "Everyone in Tasks sees it.",
     openAll: "Open the boards",
+    finished: "Finished work",
+    finishedHint: "Tick the columns that hold finished work: their cards will not show as late.",
+    ticked: { one: "{count} card marked complete goes to “{column}”.", other: "{count} cards marked complete go to “{column}”." },
+    noFinished: "No column holds finished work: every card will count as open.",
+    archivedColumns: { one: "{count} archived column comes in archived, with its cards:", other: "{count} archived columns come in archived, with their cards:" },
+    privateHidden: { one: "{count} person has cards on this board but will not see them until you share it (or choose “Everyone in Tasks”):", other: "{count} people have cards on this board but will not see them until you share it (or choose “Everyone in Tasks”):" },
+  },
+  // Events of the Chest calendar (lib/due-calendar.ts): a card's due date,
+  // a step's; the link on My tasks.
+  calendar: {
+    card: "Due: {title}",
+    step: "Due: {title} — {card}",
+    description: "Board: {board}. Open it in Tasks to mark it done.",
+    link: "Your due dates in your calendar",
   },
   export: {
     headers: {

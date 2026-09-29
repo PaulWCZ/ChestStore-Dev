@@ -13,14 +13,16 @@ import { clean, limits, memberId, optionalDay } from "./model.ts";
 // count), their last day (null: still here; set when they leave the
 // Chest), the days of the week they work (null: Monday to Friday) and
 // their employee number for payroll.
-export type Staff = { memberId: string; approverId: string | null; startDate: Day | null; endDate: Day | null; workDays: number[] | null; employeeNumber: string | null };
+// fromPeople: People told Leave of their HR record (events between tools):
+// what it holds follows the record; endBy: who set the last day.
+export type Staff = { memberId: string; approverId: string | null; startDate: Day | null; endDate: Day | null; workDays: number[] | null; employeeNumber: string | null; fromPeople?: boolean; endBy?: "hr" | "chest" | "record" | "leaving" | null };
 
-type Row = { member_id: string; approver_id: string | null; start_date: string | null; end_date: string | null; work_days: number[] | null; employee_number: string | null };
+type Row = { member_id: string; approver_id: string | null; start_date: string | null; end_date: string | null; work_days: number[] | null; employee_number: string | null; from_people: boolean; end_by: Staff["endBy"] };
 const toStaff = (r: Row): Staff => ({
   memberId: r.member_id, approverId: r.approver_id, startDate: r.start_date, endDate: r.end_date,
-  workDays: r.work_days ? r.work_days.map(Number).sort((a, b) => a - b) : null, employeeNumber: r.employee_number,
+  workDays: r.work_days ? r.work_days.map(Number).sort((a, b) => a - b) : null, employeeNumber: r.employee_number, fromPeople: r.from_people, endBy: r.end_by,
 });
-const columns = (sql: Query) => sql`member_id, approver_id, to_char(start_date, 'YYYY-MM-DD') as start_date, to_char(end_date, 'YYYY-MM-DD') as end_date, work_days, employee_number`;
+const columns = (sql: Query) => sql`member_id, approver_id, to_char(start_date, 'YYYY-MM-DD') as start_date, to_char(end_date, 'YYYY-MM-DD') as end_date, work_days, employee_number, record_at is not null as from_people, end_by`;
 export const blankStaff = (memberId: string): Staff => ({ memberId, approverId: null, startDate: null, endDate: null, workDays: null, employeeNumber: null });
 
 export async function staffOf(sql: Query, ids: string[]): Promise<Map<string, Staff>> {
@@ -79,8 +81,8 @@ export async function setEndDate(sql: Sql, actor: Member | null, person: unknown
   const end = optionalDay(value);
   return sql.begin(async tx => {
     await tx`
-      insert into staff (member_id, end_date) values (${who}, ${end})
-      on conflict (member_id) do update set end_date = excluded.end_date, updated_at = now()`;
+      insert into staff (member_id, end_date, end_by) values (${who}, ${end}, ${end ? "hr" : null})
+      on conflict (member_id) do update set end_date = excluded.end_date, end_by = excluded.end_by, updated_at = now()`;
     return end ? settleAfterLastDay(tx, who, end, actor!.id) : { cancelled: [], cut: [], days: 0 };
   });
 }

@@ -59,20 +59,7 @@ export function CategoriesView({ categories, t, locale }: { categories: Cat[]; t
                 toast({ id: `category-${c.id}`, text: format(w.removed, { name: label }), undo: undoing(() => undoDropCategory(c.id)) });
                 router.refresh();
               })}><Trash /><span>{w.remove}</span></button>
-              {c.kind !== "consumable" && (
-                <label className="check cat-see">
-                  <input type="checkbox" checked={c.membersSee} disabled={pending} onChange={e => {
-                    const on = e.currentTarget.checked;
-                    start(async () => {
-                      const r = await setMembersSee(c.id, on);
-                      if (!r.ok) return show(r);
-                      toast(format(on ? w.seeOn : w.seeOff, { name: label }));
-                      router.refresh();
-                    });
-                  }} />
-                  <span>{w.membersSee}</span>
-                </label>
-              )}
+              {c.kind !== "consumable" && <SeeToggle id={c.id} label={label} on={c.membersSee} t={t} />}
               <FieldsEditor category={c} label={label} t={t} />
             </li>
           );
@@ -107,6 +94,34 @@ export function CategoriesView({ categories, t, locale }: { categories: Cat[]; t
         <div><button type="submit" className="button" disabled={pending || !adding.name.trim()}><Plus />{w.add}</button></div>
       </form>
     </div>
+  );
+}
+
+// "Members see who holds these": ticked at once, saved, said in a toast;
+// refused, it goes back as it was.
+function SeeToggle({ id, label, on, t }: { id: string; label: string; on: boolean; t: Words }) {
+  const router = useRouter();
+  const toast = useToast();
+  const [pending, start] = useTransition();
+  const [value, setValue] = useState(on);
+  const w = t.settings;
+  return (
+    <label className="check cat-see">
+      <input type="checkbox" checked={value} disabled={pending} onChange={e => {
+        const next = e.currentTarget.checked;
+        setValue(next);
+        start(async () => {
+          const r = await setMembersSee(id, next);
+          if (!r.ok) {
+            setValue(!next);
+            return void toast({ text: format(t.errors[r.error], r.values), tone: "error" });
+          }
+          toast(format(next ? w.seeOn : w.seeOff, { name: label }));
+          router.refresh();
+        });
+      }} />
+      <span>{w.membersSee}</span>
+    </label>
   );
 }
 

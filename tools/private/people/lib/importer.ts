@@ -46,7 +46,7 @@ const aliases: Record<Known | "id", string[]> = {
   startDate: ["start date", "hire date", "original hire date", "date of hire", "start", "joined", "arrival date", "date d arrivee", "date d entree", "date d embauche", "date arrivee", "date entree"],
 };
 
-const headerKey = (text: string) => fold(text.replace(/#/gu, " number ")).replace(/[^a-z0-9]+/gu, " ").trim();
+export const headerKey = (text: string) => fold(text.replace(/#/gu, " number ")).replace(/[^a-z0-9]+/gu, " ").trim();
 
 // readHeader says what each column holds, as far as its header tells; a
 // French "Nom" beside a "Prénom" is the last name. An identifier column
@@ -104,11 +104,11 @@ export function readDate(value: string, order: "dmy" | "mdy"): string | null {
   return day(`${m[3]}-${mo.padStart(2, "0")}-${d.padStart(2, "0")}`, { from: 1900 });
 }
 
-const nameKey = (text: string) => fold(text.replace(/,/gu, " "));
+export const nameKey = (text: string) => fold(text.replace(/,/gu, " "));
 
 // Names of the Chest's members, folded, both ways round; and their
 // addresses.
-function nameIndex(people: Colleague[]): Map<string, string[]> {
+export function nameIndex(people: readonly Pick<Colleague, "id" | "name" | "firstName" | "lastName">[]): Map<string, string[]> {
   const index = new Map<string, string[]>();
   const add = (key: string, id: string) => {
     if (!key) return;

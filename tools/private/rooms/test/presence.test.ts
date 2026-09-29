@@ -4,10 +4,11 @@ import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
 import * as desks from "../lib/desk-bookings.ts";
 import { addDays, today } from "../lib/model.ts";
 import { setMyOffice } from "../lib/places.ts";
-import { atOffice, presenceOf, setPresence } from "../lib/presence.ts";
+import { atOffice, inMeetings, presenceOf, setPresence } from "../lib/presence.ts";
+import * as rooms from "../lib/room-bookings.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
-import { everyone, hugo, ines, lea, nora } from "./support/members.ts";
+import { everyone, hugo, ines, lea, nora, sofia } from "./support/members.ts";
 import { office, workday, zone } from "./support/places.ts";
 
 let database: TestDatabase;
@@ -62,4 +63,20 @@ test("refusals: a past day, too far, a status that does not exist, an unknown of
   await assert.rejects(setPresence(sql, asMember(hugo), { day: workday(1), status: "office", officeId: "9999" }, zone), { code: "not_found" });
   await assert.rejects(setPresence(sql, asMember(nora), { day: workday(1), status: "office" }, zone), { code: "forbidden" });
   await assert.rejects(setMyOffice(sql, asMember(nora), o.office), { code: "forbidden" });
+});
+
+// Presence agrees with meetings: the organiser and the guests of a room
+// booking are at that office that day — unless they said otherwise.
+test("people in a meeting in a room count at its office, unless they said remote or off", async () => {
+  const { sql } = database;
+  const d = workday(3);
+  await rooms.bookRoom(sql, asMember(sofia), { roomId: o.atlas, day: d, start: 600, end: 660, title: "Workshop", attendees: [hugo.id, lea.id] }, zone);
+  assert.deepEqual((await atOffice(sql, o.office, d, d)).get(d), [hugo.id, lea.id, sofia.id].sort());
+  assert.equal((await atOffice(sql, other.office, d, d)).get(d), undefined, "not at another office");
+  await setPresence(sql, asMember(hugo), { day: d, status: "remote" }, zone);
+  assert.deepEqual((await atOffice(sql, o.office, d, d)).get(d), [lea.id, sofia.id].sort(), "Hugo said remote");
+  const meetings = await inMeetings(sql, [hugo.id, lea.id, ines.id], d, d);
+  assert.deepEqual([...(meetings.get(hugo.id) ?? [])], [d]);
+  assert.deepEqual([...(meetings.get(lea.id) ?? [])], [d]);
+  assert.equal(meetings.get(ines.id), undefined);
 });

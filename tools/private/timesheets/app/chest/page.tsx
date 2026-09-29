@@ -28,6 +28,8 @@ export default async function WeekPage({ searchParams }: { searchParams: Promise
     status: w.state.status,
     approvals: s.approvals || w.state.status === "approved",
     canSubmit: monday <= mondayOf(now),
+    // Before Friday of the current week: "Send it early?", not "Done?".
+    early: monday === mondayOf(now) && now < addDays(monday, 4),
     text: w.state.status === "approved" ? format(t.week.approvedBy, { name: decider, date: w.state.decidedAt ? formatDate(w.state.decidedAt, zone(), locale, { day: "numeric", month: "short" }) : "" })
       : w.state.status === "returned" ? format(t.week.returnedBy, { name: decider })
       : null,

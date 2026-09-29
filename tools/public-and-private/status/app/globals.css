@@ -398,3 +398,9 @@ details[open] > .summary-button { margin-bottom: var(--space-4); }
   .overview-head .ck-page-actions { flex-direction: column; }
   .overview-head .ck-page-actions > .button:not(.quiet) { order: -1; }
 }
+
+/* Updates in a chat: where to find the address (a fold), the secret key once. */
+.where-hint { margin-top: var(--space-2); }
+.where-hint summary { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; cursor: pointer; font-size: var(--text-s); font-weight: var(--weight-strong); }
+.where-hint ul { margin: var(--space-2) 0 0; padding-left: var(--space-5); display: grid; gap: var(--space-1); }
+.secret { padding: var(--space-4); border-radius: var(--radius-m); border: 1px dashed var(--line-strong); }

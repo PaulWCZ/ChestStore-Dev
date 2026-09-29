@@ -18,9 +18,10 @@ export default async function NewProjectPage() {
     <div className="page">
       <PageHeader title={t.project.newTitle} />
       <ProjectForm
-        initial={{ id: null, name: "", clientId: null, color: "teal", billable: true, rateCents: null, budget: { kind: "none" }, everyone: true, people: [], archived: false, tasks: [] }}
+        initial={{ id: null, name: "", clientId: null, color: "teal", billable: true, rateCents: null, budget: { kind: "none" }, everyone: true, people: [], archived: false, tasks: [], lead: null }}
         clients={clients.filter(c => !c.archived).map(c => ({ id: c.id, name: c.name }))}
         people={dir.people.map(p => ({ id: p.id, name: p.name }))}
+        managers={dir.people.filter(p => p.role === "manager").map(p => ({ id: p.id, name: p.name }))}
         currency={currency()}
         comma={locale === "fr"}
         defaultTasks={[t.project.defaultTasks.design, t.project.defaultTasks.development, t.project.defaultTasks.meetings]}

@@ -2,9 +2,9 @@ import { allComponents, shownComponents } from "./components.ts";
 import type { Query } from "./db.ts";
 
 // The components a visitor may follow, named with their group: "Online
-// shop — Checkout".
-export async function followOptions(sql: Query): Promise<{ id: string; label: string }[]> {
-  const all = await allComponents(sql);
+// shop — Checkout" — in the visitor's language when written in it.
+export async function followOptions(sql: Query, locale?: string): Promise<{ id: string; label: string }[]> {
+  const all = await allComponents(sql, locale ? { locale } : {});
   const groups = new Map(all.filter(c => c.kind === "group").map(g => [g.id, g]));
   const order = new Map(all.filter(c => c.parentId === null).map(c => [c.id, c.position]));
   return shownComponents(all)

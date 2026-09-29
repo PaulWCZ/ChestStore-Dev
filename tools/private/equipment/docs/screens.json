@@ -396,5 +396,34 @@
     "path": "/chest/settings",
     "member": "hugo",
     "locale": "en"
+  },
+  {
+    "name": "list-member-keys",
+    "path": "/chest/items?category=6",
+    "member": "hugo",
+    "locale": "en"
+  },
+  {
+    "name": "claim",
+    "path": "/chest/items/2",
+    "member": "sofia",
+    "locale": "en",
+    "actions": [
+      {
+        "click": "button:has-text('Claim the warranty')"
+      },
+      {
+        "wait": 400
+      }
+    ]
+  },
+  {
+    "name": "item-intune",
+    "path": "/chest/items/7",
+    "member": "sofia",
+    "locale": "fr",
+    "only": [
+      "desktop"
+    ]
   }
 ]

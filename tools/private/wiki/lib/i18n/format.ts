@@ -50,3 +50,9 @@ export function moment(value: Date | string, locale: Locale, now = new Date()): 
   if (day(date) === day(now)) return time;
   return new Intl.DateTimeFormat(intl(locale), { timeZone, day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }).format(date);
 }
+
+// orList writes "Camille Martin, Tom Walker or Inès Moreau" in that
+// language.
+export function orList(items: string[], locale: Locale): string {
+  return new Intl.ListFormat(intl(locale), { type: "disjunction" }).format(items);
+}

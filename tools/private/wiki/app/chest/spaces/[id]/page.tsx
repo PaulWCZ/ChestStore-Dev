@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { Dots, Download, Gear, Lock, Pen, Plus, Upload } from "../../../../components/icons.tsx";
 import { NewPageButton } from "../../../../components/new-page.tsx";
 import { db } from "../../../../lib/db.ts";
+import { askWhom } from "../../../../lib/groups.ts";
 import { AppError } from "../../../../lib/errors.ts";
 import { format, newPageWords, plural, relative } from "../../../../lib/i18n/index.ts";
 import { recent, tree } from "../../../../lib/pages.ts";
@@ -36,6 +37,8 @@ export default async function SpacePage({ params }: { params: Promise<{ id: stri
   const count = (id: string): number => below(id).reduce((n, c) => n + 1 + count(c.id), 0);
   const now = new Date();
   const words = newPageWords(t);
+  // An empty space names who a reader may ask to write in it.
+  const ask = top.length === 0 && !writer ? await askWhom(locale, t.space.anotherEditor, s) : null;
   return (
     <div className={`page space-home color-${s.color}`}>
       <header className="space-head">
@@ -56,7 +59,7 @@ export default async function SpacePage({ params }: { params: Promise<{ id: stri
         <EmptyState
           title={writer ? t.space.empty : t.space.emptyReader}
           action={writer ? <NewPageButton target={{ spaceId: s.id, spaceName: s.name, parentId: null, parentTitle: null }} t={words}><Plus />{t.space.firstPage}</NewPageButton> : null}
-          note={writer ? null : t.space.emptyNote}
+          note={writer ? null : ask ? format(t.space.emptyAsk, { names: ask }) : t.space.emptyNote}
         />
       ) : (
         <ol className="contents">

@@ -4,6 +4,7 @@ import type { Sql } from "./db.ts";
 import { catalogue, format, isLocale, type Locale } from "./i18n/index.ts";
 import { confirmationsPerHour } from "./mail-in.ts";
 import * as mailer from "./mailer.ts";
+import * as notices from "./notices.ts";
 import { email, limits } from "./model.ts";
 import { publicBase } from "./public-origin.ts";
 import * as tell from "./tell.ts";
@@ -77,23 +78,34 @@ export function readRequest(event: Pick<ToolEvent, "id" | "data">, fallback: Loc
   if (!member && !address) return null;
   const language: Locale = isLocale(answer["language"]) ? answer["language"] : fallback;
   const path = typeof answer["path"] === "string" && pathPattern.test(answer["path"]) ? answer["path"] : null;
-  const subject = line(d["subject"], limits.subject) || cut(title, limits.subject);
-  // The message: the details, then every other answer, one a line, in the
-  // request's language ("Your phone number: +33 6 …"), within a message's
-  // bounds (the last answers give way first).
-  const t = catalogue(language).forms;
-  const parts: string[] = [];
-  const details = text(d["details"], formsLimits.details);
-  if (details) parts.push(details);
-  const fields = Array.isArray(d["fields"]) ? d["fields"].slice(0, formsLimits.fields) : [];
-  const lines: string[] = [];
-  for (const raw of fields) {
+  // The answers, bounded and cleaned; an answer without a label or a value
+  // says nothing.
+  const fields: { label: string; value: string }[] = [];
+  for (const raw of Array.isArray(d["fields"]) ? d["fields"].slice(0, formsLimits.fields) : []) {
     const f = object(raw);
     const label = f ? line(f["label"], formsLimits.label) : "";
     const value = f ? text(f["value"], formsLimits.value) : "";
-    if (!label || !value) continue;
-    lines.push(format(value.includes("\n") ? t.fieldBlock : t.fieldLine, { label, value }));
+    if (label && value) fields.push({ label, value });
   }
+  const details = text(d["details"], formsLimits.details);
+  // The message comes first: the mapped details, else the answer that is
+  // one ("Your message", or the longest free text).
+  const message = details ? null : messageField(fields);
+  // A subject worth reading: the mapped one, unless it is only the form's
+  // title (Forms' default) — then what the request is about ("A quote",
+  // a short answer to "What is it about?") and the start of the message:
+  // "A quote — Hello, I would like a quote for six…". The title when there
+  // is nothing better.
+  const given = line(d["subject"], limits.subject);
+  const subject = given && given !== title ? given : betterSubject(fields, details || message?.value || "") || cut(title, limits.subject);
+  // The message: the details (or the message's answer), then every other
+  // answer, one a line, in the request's language ("Your phone number:
+  // +33 6 …"), within a message's bounds (the last answers give way first).
+  const t = catalogue(language).forms;
+  const parts: string[] = [];
+  const first = details || message?.value || "";
+  if (first) parts.push(first);
+  const lines = fields.filter(f => f !== message).map(f => format(f.value.includes("\n") ? t.fieldBlock : t.fieldLine, f));
   while (lines.length > 0 && [...[...parts, lines.join("\n")].join("\n\n")].length > limits.body) lines.pop();
   if (lines.length > 0) parts.push(lines.join("\n"));
   const body = cut(parts.join("\n\n"), limits.body) || "—";
@@ -107,6 +119,45 @@ export function readRequest(event: Pick<ToolEvent, "id" | "data">, fallback: Loc
     member,
     language,
   };
+}
+
+// What a form's answer is, told from its label (in English or French, as
+// forms are written) and its value: an email address or a phone number is
+// contact, never the subject or the message.
+const messageLabel = /message|d[ée]tail|description|question|comment|pr[ée]cis|besoin|expli|probl[èe]me|request|demande|remarque|note/iu;
+const topicLabel = /sujet|subject|objet|topic|about|motif|raison|reason|type|cat[ée]gor|concern|regarding|th[èe]me/iu;
+const contactValue = (v: string) => /@|^\+?[\d\s().-]{6,}$/u.test(v.trim());
+
+// messageField: the answer that is the request's message — labelled so
+// ("Your message"), else the longest free text (40 characters or more, or
+// several lines). null when there is none.
+function messageField(fields: { label: string; value: string }[]): { label: string; value: string } | null {
+  const free = fields.filter(f => !contactValue(f.value));
+  const named = free.filter(f => messageLabel.test(f.label) && !topicLabel.test(f.label)).sort((a, b) => b.value.length - a.value.length)[0];
+  if (named) return named;
+  const longest = [...free].sort((a, b) => b.value.length - a.value.length)[0];
+  return longest && (longest.value.length >= 40 || longest.value.includes("\n")) ? longest : null;
+}
+
+// betterSubject: what the request is about (a short answer to a question
+// labelled so) and the start of its message, joined by a dash; "" when
+// neither is there.
+export function betterSubject(fields: { label: string; value: string }[], message: string): string {
+  const topic = fields.find(f => topicLabel.test(f.label) && !f.value.includes("\n") && [...f.value].length <= 60 && !contactValue(f.value))?.value ?? "";
+  // Its first line: a greeting and a sentence, rarely more.
+  const words = (message.split("\n").find(l => l.trim()) ?? "").replace(/\s+/gu, " ").trim();
+  const room = limits.subject > 100 ? 100 : limits.subject;
+  const opening = words ? shorten(words, topic ? 60 : 90) : "";
+  return cut([topic, opening].filter(Boolean).join(" — "), room);
+}
+
+// shorten cuts a text at a word before max characters, with an ellipsis.
+function shorten(text: string, max: number): string {
+  const chars = [...text];
+  if (chars.length <= max) return text;
+  const head = chars.slice(0, max - 1).join("");
+  const space = head.lastIndexOf(" ");
+  return (space > max / 2 ? head.slice(0, space) : head).replace(/[\s,;:.!?—-]+$/u, "") + "…";
 }
 
 // received opens the ticket of a delivered request, then does what the
@@ -132,6 +183,7 @@ export async function received(sql: Sql, event: Pick<ToolEvent, "id" | "data">):
   }
   await tell.newTicket({ id: t.id, number: t.number, subject: request.subject, customerName: request.name, customerEmail: request.email ?? "", requester: request.member }, request.body, t.assignee);
   await tell.refreshBadges(sql);
+  await notices.about(sql, "new", t.id, `new:${t.id}`);
 }
 
 // formsLink is the address of the answer in Forms, for the link back on

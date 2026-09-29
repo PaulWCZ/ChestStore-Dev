@@ -10,6 +10,7 @@ import * as attachments from "../../lib/attachments.ts";
 import { db } from "../../lib/db.ts";
 import { AppError, attempt, type ErrorCode, type Result } from "../../lib/errors.ts";
 import * as mailer from "../../lib/mailer.ts";
+import * as notices from "../../lib/notices.ts";
 import { publicOrigin } from "../../lib/public-origin.ts";
 import { currentMember } from "../../lib/session.ts";
 import * as tell from "../../lib/tell.ts";
@@ -245,6 +246,7 @@ export async function writeMine(number: number, body: string, files: { ref: stri
     const t = await tickets.writeMine(sql, actor, number, body, memberFiles(files));
     await tell.customerWrote(t, body.trim());
     await tell.refreshBadges(sql);
+    await notices.about(sql, "replied", t.id, await notices.lastMessageKey(sql, t.id));
     return null;
   });
 }
@@ -261,4 +263,25 @@ export async function rateMine(number: number, value: "good" | "bad"): Promise<R
 export async function mineUpload(number: number, type: string, size: number): Promise<{ ok: true; url: string } | { ok: false; error: ErrorCode; max?: number }> {
   const result = await attempt(async () => attachments.requesterGrant(db(), await currentMember(), number, type, size));
   return result.ok ? { ok: true, url: result.value.url } : { ok: false, error: result.error, ...(typeof result.values?.["max"] === "number" ? { max: result.values["max"] } : {}) };
+}
+
+// ---- Notices to Slack, Teams or another service (administrators) ----------
+
+export async function addNoticeTarget(input: { url: string; kind: string; label: string; events: string[] }): Promise<Result<{ id: string; secret: string | null }>> {
+  return act(async actor => {
+    const added = await notices.addTarget(db(), actor, input);
+    return { id: added.target.id, secret: added.secret };
+  });
+}
+
+export async function setNoticeEvents(id: string, events: string[]): Promise<Result<null>> {
+  return act(async actor => { await notices.setEvents(db(), actor, id, events); return null; });
+}
+
+export async function removeNoticeTarget(id: string): Promise<Result<null>> {
+  return act(async actor => { await notices.removeTarget(db(), actor, id); return null; });
+}
+
+export async function enableNoticeTarget(id: string): Promise<Result<null>> {
+  return act(async actor => { await notices.enableTarget(db(), actor, id); return null; });
 }

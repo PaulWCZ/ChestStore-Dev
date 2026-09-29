@@ -298,7 +298,7 @@ export async function itemDetail(sql: Query, actor: Member | null, itemId: unkno
   const historyRows = await sql<{ id: string; at: Date; day: string | null; actor: string; kind: string; member: string | null; place: string | null; status: string | null; note: string | null; qty: number | null; cost_cents: string | null; ref: string | null; due: string | null }[]>`
     select id, at, to_char(day, 'YYYY-MM-DD') as day, actor, kind, member, place, status, note, qty, cost_cents, ref, to_char(due, 'YYYY-MM-DD') as due
     from history where item_id = ${item.id}
-    order by coalesce(day, (at at time zone ${chest.timeZone()})::date) desc, at desc, id desc limit 200`;
+    order by at desc, id desc limit 200`;
   const history = historyRows.map(({ cost_cents, ...h }) => ({ ...h, id: String(h.id), at: new Date(h.at).toISOString(), costCents: cost_cents === null ? null : Number(cost_cents) }));
   return { full: true, item, seats, problems, history, receipt };
 }

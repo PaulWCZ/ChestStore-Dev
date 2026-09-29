@@ -71,8 +71,8 @@ test("email beside the bell: expenses sent to approve, a card payment's receipt;
   await tell.sent(sql, asMember(hugo), sent);
   const toCamille = chest.outbox.filter(m => m.to[0] === "camille@atelier.test");
   assert.equal(toCamille.length, 1);
-  assert.equal(toCamille[0]!.subject, "Hugo Bernard a envoyé une dépense · 42,50 €");
-  assert.match(toCamille[0]!.text, /Big Mamma · 42,50 €/u);
+  assert.equal(toCamille[0]!.subject.replace(/\s/gu, " "), "Hugo Bernard a envoyé une dépense · 42,50 €");
+  assert.match(toCamille[0]!.text.replace(/\s/gu, " "), /Big Mamma · 42,50 €/u);
   assert.match(toCamille[0]!.text, /\/chest\/approve/u);
   // A company card payment with no expense: its holder is asked by email.
   const team = new Set(everyone.filter(p => p.role).map(p => p.id));

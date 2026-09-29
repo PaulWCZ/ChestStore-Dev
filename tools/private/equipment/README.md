@@ -76,13 +76,23 @@ people. French name: **Matériel**.
 - **Repairs**: going to repair, the repairer's ticket and the day expected
   back (the overview says when it is late); coming back, what it cost; the
   item's details add up its repairs.
+- **Claim the warranty**: a problem reported on an item whose warranty still
+  runs says so — "Under warranty until 23 October 2026 · bought from Apple
+  Store Business" on the item, "Under warranty until 23 Oct: claim it" on
+  the overview. *Claim the warranty* shows what the supplier will ask for
+  (the end of the warranty, the supplier, the day it was bought, the
+  invoice when attached), takes the supplier's claim number and the day it
+  is expected back, and sends the item to repair (taken back from its
+  holder, who is told) with "Warranty claim: …" in its history. The problem
+  stays open until it comes back.
 - **The purchase invoice** (PDF or picture, the Chest's files) on each
   item, for managers only.
 - **Give and take back**: to a member or to a place ("Meeting room Atlas"),
   on a day, with a condition note; take back with its condition (or straight
   to repair); a transfer from one person to another in one step. **The
   history of each item is append-only** (the database refuses to change or
-  delete it). The person is told in the Chest's bell, in their language:
+  delete it). It reads newest first, by the moment each line was
+  written (a handover recorded late adds "on 9 Oct 2023"). The person is told in the Chest's bell, in their language:
   *"Sofia gave you MacBook Pro 16″ M4 EQ-0042"*.
 - **My equipment** (a member's home): what I hold and since when; *Report a
   problem* sends a few words to every equipment manager's bell and into the
@@ -90,8 +100,21 @@ people. French name: **Matériel**.
 - **A person's page** (managers): everything they hold — the checklist of
   the day they leave — with *Take back* per line and **Take everything
   back** in one go (with *Undo*); *Give something* from the stock.
+- **What members see** (privacy): the catalogue, read-only, so that "who
+  has the projector?" has an answer — but **no one else's serial number**
+  (nor IMEI, nor badge number: fields are managers' only), and **who holds
+  a key, a badge or a vehicle stays with the managers**. Each category has
+  a switch in Settings, *Members see who holds these*: off for *Keys and
+  badges* and *Vehicles* (in a new Chest and in one upgraded, migration
+  0005), on for the others (laptops, phones, screens, accessories,
+  licences, supplies, other, and the categories a manager adds). Where it
+  is off, a member reads "Given to someone" — not who, where or since
+  when. A member always sees their own items whole (serial included). The
+  search and the filters follow the same rule: a serial number, a holder's
+  name, a place or a "With" typed in the address find only what the
+  member may read.
 - **The list**: search by tag, serial number, model, supplier, place, a
-  field's value (an IMEI) or the holder's name; filters by category, status
+  field's value (an IMEI) or the holder's name (a member: see above); filters by category, status
   (and *Running low*) and holder (people and places); sort by tag, name,
   newest, warranty/renewal; 100 a page. A tag typed exactly (what a
   barcode scanner types) opens the item. Stock counts per category on the
@@ -100,6 +123,11 @@ people. French name: **Matériel**.
   sticker sheets), printed from the browser, each with the company's name,
   the tag, the item's name and a QR code of the item's page. The QR codes
   are drawn by the tool's own encoder (`lib/qr.ts`), no network.
+- **The overview on a phone**: each long section of "Needs your attention"
+  shows its first three lines and *See 6 more* (the browser's own
+  disclosure: no script); the stock tiles and the page's buttons are
+  compact. The sample company's overview went from about 3,650 px to about
+  3,050 px at 390 px wide, with a new Intune section in it.
 - **Ending soon**: warranties and renewals within 60 days (or ended this
   month) on the overview; every Monday morning the managers find the same
   list in their bell (the *schedules* proposal — the overview works without
@@ -115,6 +143,55 @@ people. French name: **Matériel**.
   are offered as fields, kept by default (untick one to leave it out).
   Importing the same file twice adds nothing. **Export** CSV in the
   reader's language, with a column per field — and it imports back.
+
+## Microsoft Intune (read only)
+
+The first MDM connector. Laptops and phones drift once typed or imported
+once; Intune knows what is enrolled, its serial number, its system and who
+uses it.
+
+- **Connect** (the Chest's administrator, once): an app registration in
+  Microsoft Entra with the *application* permission
+  `DeviceManagementManagedDevices.Read.All` (admin consent), a client
+  secret, then this tool's three settings (`chest.json` `env`):
+  `INTUNE_TENANT_ID` (the tenant's id or domain), `INTUNE_CLIENT_ID`,
+  `INTUNE_CLIENT_SECRET`. The tool reaches only
+  `login.microsoftonline.com` and `graph.microsoft.com` (`chest.json`
+  `network`, each a permission shown at install). The secret is read from
+  the environment when needed, never stored, logged or shown.
+- **Import → From Microsoft Intune** → *Read Intune*: the devices Intune
+  manages that are not here yet (by serial number) go through the
+  importer's own preview — the person Intune names matched by name to the
+  Chest's members, phones and laptops by their system, the operating
+  system and IMEI into the fields of those names — then *Import*. Nothing
+  is added twice; no bell, no receipt (as any import).
+- **Each night** (schedule `intune`, 05:40; or *Read Intune*): what Intune
+  says of each device with a serial number is kept — its name, system and
+  version, last check-in, and the member Intune names (matched by name,
+  kept as a member id, never a name or an address). The item's page shows
+  "Intune: checked in 2 hours ago · Windows 10.0.26100 · DESKTOP-…", and
+  "Intune says Léa Dubois uses it." when that is not who holds it here.
+  The overview's *Intune* section lists the devices not here yet and the
+  items Intune gives to someone else (not those in repair, lost or
+  retired).
+- **A failed read** keeps the last good one; the import page says when and
+  why ("Microsoft refused (the app, its secret, or its permission…)",
+  "Microsoft did not answer"). The nightly run does not retry a refusal
+  before the next night.
+- **Read from Microsoft's documentation** (2026-09-29, from the sources of
+  learn.microsoft.com on GitHub — learn.microsoft.com itself was blocked
+  from the studio): [List managedDevices](https://github.com/microsoftgraph/microsoft-graph-docs-contrib/blob/main/api-reference/v1.0/api/intune-devices-manageddevice-list.md),
+  [managedDevice](https://github.com/microsoftgraph/microsoft-graph-docs-contrib/blob/main/api-reference/v1.0/resources/intune-devices-manageddevice.md),
+  [paging](https://github.com/microsoftgraph/microsoft-graph-docs-contrib/blob/main/concepts/paging.md),
+  [throttling](https://github.com/microsoftgraph/microsoft-graph-docs-contrib/blob/main/concepts/throttling.md),
+  [client credentials](https://github.com/MicrosoftDocs/entra-docs/blob/main/docs/identity-platform/v2-oauth2-client-creds-grant-flow.md).
+  The tests play Graph as these pages show it; the tool has **not** been run
+  against a real tenant (none in the studio).
+- **Not yet**: Jamf Pro, Kandji, Google endpoint management — their API
+  documentation (developer.jamf.com, api-docs.kandji.io, support.jamf.com)
+  was blocked from the studio on 2026-09-29, and a connector is not built
+  on guessed shapes. Nothing is written back to Intune (no retire, no
+  wipe).
 
 ## With the other tools
 
@@ -149,13 +226,16 @@ admin linked the two; `chest.proposals.json` `receives`):
 | Role (`chest.json`) | Label | May |
 |---|---|---|
 | `manager` | Equipment manager | everything: items, give and take back, supplies, labels, import, export, categories and fields, rules, people's pages and sheets, problems, requests, inventories, invoices |
-| `member` | Member | their own equipment: confirm receiving it, report a problem, ask for something, print their handover sheet; browse the catalogue read-only, without prices, suppliers, notes, fields, invoices or history |
+| `member` | Member | their own equipment: confirm receiving it, report a problem, ask for something, print their handover sheet; browse the catalogue read-only, without prices, suppliers, notes, fields, invoices, history, anyone else's serial number, or who holds a key, a badge or a vehicle (a switch per category) |
 | (none) | — | sees "You can't use this tool yet" |
 
-Why members may browse: "who has the projector?" and "whose badge is this?"
-are everyday questions in a small company, and a scanned label must say
-something to whoever scans it. Money, suppliers, notes and history stay
-with managers. The owner, the admins and the tool's builders come in with
+Why members may browse: "who has the projector?" is an everyday question
+in a small company, and a scanned label must say something to whoever
+scans it. But who holds the safe's key or the alarm badge is security
+information, and serial numbers help talk a vendor's support into things
+(critique round 3): keys and badges and vehicles hide their holders from
+members by default, and serial numbers are theirs on their own items only.
+Money, suppliers, notes, fields and history stay with managers. The owner, the admins and the tool's builders come in with
 the first role, `manager`.
 
 ## First minute
@@ -207,6 +287,10 @@ member may not see at all (someone else's item or sheet) is "not found".
 
 ## On a Chest
 
+- `network`: `login.microsoftonline.com`, `graph.microsoft.com` (Intune,
+  read only); `env`: `INTUNE_TENANT_ID`, `INTUNE_CLIENT_ID`,
+  `INTUNE_CLIENT_SECRET` (optional: without them, Intune is "not
+  connected" and nothing reaches Microsoft).
 - `capabilities`: `database`; `files` (photos and invoices, 10 MB each,
   browser → Chest uploads); `members` (names, photos, the people pickers, matching an
   import); `notifications` (the bell; managers' tile = open problems);
@@ -233,9 +317,13 @@ member may not see at all (someone else's item or sheet) is "not found".
 All in `vendor/` (the studio's working copy, `0.3.0-studio.12`):
 
 - `member.locale` — the interface and the bell in each member's language.
-- `schedules` — the Monday "ending soon" word (`chest.proposals.json`,
-  `app/chest-jobs/[name]/route.ts`). Without it, the overview shows the same
-  list at any time.
+- `schedules` — the Monday "ending soon" word, and the nightly Intune read
+  (`chest.proposals.json`, `app/chest-jobs/[name]/route.ts`). Without it,
+  the overview shows the same list at any time, and Intune is read when a
+  manager asks.
+- `network` and `env` (real contract) — Microsoft's two hosts and the
+  three Intune settings. Node's `fetch` follows the Chest's proxy
+  (`NODE_USE_ENV_PROXY=1`, as Booking).
 - `chest` — `today()` and `timeZone()` for "ends within 60 days",
   `currency()` for prices, `company()` on the labels, `teamUrl()` for the QR
   codes' links (without it, the host the request came to).
@@ -287,7 +375,11 @@ npm run build     # types, then the Next.js build, as the Chest does
 
 In the studio: `node lab/chest-dev/dev.mjs tools/private/equipment --reset
 --prod --port 5400` (build first; sample equipment from `seed/sample.sql`),
-`node lab/chest-dev/flows/equipment.mjs 5400` (the browser flows),
+`node lab/chest-dev/flows/equipment.mjs 5400` (the browser flows; start
+the harness with `INTUNE_TENANT_ID`, `INTUNE_CLIENT_ID` and
+`INTUNE_CLIENT_SECRET` set to any well-formed values, and run the flow with
+`INTUNE_CLIENT_ID` set, to walk *Read Intune*'s failure path — the harness
+does not reach Microsoft),
 `node lab/chest-dev/screens.mjs tools/private/equipment --port 5400`,
 `node lab/chest-dev/audit.mjs tools/private/equipment --port 5400`.
 
@@ -305,5 +397,7 @@ equipment (see Rooms); kits; licence keys (secrets); depreciation and the
 fixed-asset register (the accountant's job — the invoice is attached);
 adding "return the laptop" steps to People's leaving checklist (it would
 need a request between tools, not an event); network discovery or MDM
-agents; a bell to the holder when their warranty ends; photos in the
+agents (Intune is read, see above; Jamf, Kandji and Google are not yet
+connected, and nothing is written to an MDM); matching Intune's user by
+e-mail (by name only: `members.email` is not asked for); a bell to the holder when their warranty ends; photos in the
 export (a ZIP). The return sheet looks back 90 days.

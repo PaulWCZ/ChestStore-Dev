@@ -2,7 +2,7 @@ import { ChestError } from "@argentic/chest-sdk/errors";
 import type { Member } from "@argentic/chest-sdk/member";
 import * as members from "@argentic/chest-sdk/members";
 import { atLeast, boardAccess, roleOf, type BoardAccess } from "./access.ts";
-import { board, fields as boardFields, type Board } from "./boards.ts";
+import { board, fields as boardFields, membership as membershipOf, type Board } from "./boards.ts";
 import type { Query, Sql } from "./db.ts";
 import { AppError } from "./errors.ts";
 import { chestToday } from "./clock.ts";
@@ -135,6 +135,13 @@ async function card(sql: Sql, actor: Member | null, cardId: unknown, needed: Boa
   if (!row) throw new AppError("not_found");
   const b = await board(sql, actor, String(row.board_id), needed);
   return { row: { ...row, id: String(row.id), board_id: String(row.board_id), column_id: String(row.column_id) }, board: b };
+}
+
+// whereIs says on which board a card is now, for its address by id (a
+// bell item, an email, a calendar event made before it moved); not_found
+// when it is gone or its board is not the actor's to see.
+export async function whereIs(sql: Sql, actor: Member | null, cardId: unknown): Promise<string> {
+  return (await card(sql, actor, cardId, "read")).board.id;
 }
 
 async function record(sql: Query, cardId: string, actor: string, kind: string, data: Record<string, unknown> = {}): Promise<void> {
@@ -813,18 +820,40 @@ export async function mySteps(sql: Sql, actor: Member | null): Promise<MyStep[]>
 export async function urgentCounts(sql: Sql, memberIdsList: string[], now = chestToday()): Promise<Map<string, number>> {
   const counts = new Map<string, number>(memberIdsList.map(m => [m, 0]));
   if (memberIdsList.length === 0) return counts;
-  const rows = await sql<{ member_id: string; count: number }[]>`
-    select member_id, count(*)::int as count from (
-      select a.member_id
+  const rows = await sql<{ member_id: string; board_id: string; visibility: "team" | "private"; count: number }[]>`
+    select member_id, board_id, visibility, count(*)::int as count from (
+      select a.member_id, c.board_id, b.visibility
       from card_assignees a join cards c on c.id = a.card_id join columns k on k.id = c.column_id join boards b on b.id = c.board_id
       where a.member_id in ${sql(memberIdsList)} and c.archived_at is null and k.archived_at is null and b.archived_at is null and not k.done and c.due_on <= ${now}
       union all
-      select i.assignee as member_id
+      select i.assignee as member_id, c.board_id, b.visibility
       from checklist_items i join cards c on c.id = i.card_id join columns k on k.id = c.column_id join boards b on b.id = c.board_id
       where i.assignee in ${sql(memberIdsList)} and not i.done and c.archived_at is null and k.archived_at is null and b.archived_at is null and not k.done and i.due_on <= ${now}
     ) due
-    group by member_id`;
-  for (const r of rows) counts.set(r.member_id, r.count);
+    group by member_id, board_id, visibility`;
+  // Only cards of boards the person sees count (a private import may name
+  // people it is not shared with): each private board is checked against
+  // who they are (role, groups). Without the Chest's answer, a private
+  // board counts only for its own people.
+  const privateOnes = rows.filter(r => r.visibility === "private");
+  const shapes = await membershipOf(sql, [...new Set(privateOnes.map(r => String(r.board_id)))]);
+  let who = new Map<string, Member>();
+  if (privateOnes.length > 0) {
+    try {
+      who = new Map((await members.lookup([...new Set(privateOnes.map(r => r.member_id))])).members.map(m => [m.id, m]));
+    } catch (error) {
+      if (!(error instanceof ChestError)) throw error;
+    }
+  }
+  for (const r of rows) {
+    if (r.visibility === "private") {
+      const shape = shapes.get(String(r.board_id)) ?? { people: [], groups: [] };
+      const m = who.get(r.member_id);
+      const sees = m ? boardAccess(m, { visibility: "private", ...shape }) !== "none" : shape.people.some(p => p.memberId === r.member_id);
+      if (!sees) continue;
+    }
+    counts.set(r.member_id, (counts.get(r.member_id) ?? 0) + r.count);
+  }
   return counts;
 }
 

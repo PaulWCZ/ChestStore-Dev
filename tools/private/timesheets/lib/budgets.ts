@@ -6,7 +6,8 @@ import { notify } from "./notify.ts";
 import { revenueOf } from "./rates.ts";
 
 // Budget alerts: when a project's time (or its billable amount) crosses 80
-// or 100 % of its budget, the managers find one item in their bell — once
+// or 100 % of its budget, its lead (every manager when it has none, or
+// when its lead is no longer a manager) finds one item in their bell — once
 // per threshold; a project that falls back under (time deleted, budget
 // raised) may warn again later. Checked after each change of time and of a
 // budget: nothing runs in the background. A courtesy: a failure here never
@@ -17,8 +18,8 @@ export async function checkBudgets(sql: Query, projectIds: Iterable<string>): Pr
   const ids = [...new Set(projectIds)];
   if (ids.length === 0) return;
   try {
-    const rows = await sql<{ id: string; name: string; budget_kind: "hours" | "money"; budget_minutes: number | null; budget_cents: string | null; minutes: string; cents: string }[]>`
-      select p.id::text, p.name, p.budget_kind, p.budget_minutes, p.budget_cents::text,
+    const rows = await sql<{ id: string; name: string; lead_id: string | null; budget_kind: "hours" | "money"; budget_minutes: number | null; budget_cents: string | null; minutes: string; cents: string }[]>`
+      select p.id::text, p.name, p.lead_id, p.budget_kind, p.budget_minutes, p.budget_cents::text,
         (select coalesce(sum(e.minutes), 0) from entries e where e.project_id = p.id and e.deleted_at is null)::text as minutes,
         (select ${revenueOf(sql)} from entries e where e.project_id = p.id and e.deleted_at is null) as cents
       from projects p where p.id = any(${ids}::bigint[])`;
@@ -34,7 +35,8 @@ export async function checkBudgets(sql: Query, projectIds: Iterable<string>): Pr
         on conflict do nothing returning level`;
       if (fresh.length === 0) continue;
       const over = share >= 1;
-      await notify(await managerIds(), (t, locale) => ({
+      const managers = await managerIds();
+      await notify(p.lead_id && managers.includes(p.lead_id) ? [p.lead_id] : managers, (t, locale) => ({
         title: format(over ? t.bell.budgetOver : t.bell.budgetNear, { project: p.name, percent: percent(share, locale) }),
       }), { path: `/chest/projects/${p.id}`, key: `budget:${p.id}` });
     }

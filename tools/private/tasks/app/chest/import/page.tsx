@@ -11,7 +11,7 @@ export default async function ImportPage() {
     <div className="narrow">
       <h1>{t.importer.title}</h1>
       <p className="muted intro">{t.importer.intro}</p>
-      {can(member, "import") ? <Importer locale={locale} t={{ importer: t.importer, errors: t.errors }} /> : <p className="notice flat">{t.errors.forbidden}</p>}
+      {can(member, "import") ? <Importer locale={locale} doneName={t.templates.columns.done} t={{ importer: t.importer, errors: t.errors }} /> : <p className="notice flat">{t.errors.forbidden}</p>}
     </div>
   );
 }

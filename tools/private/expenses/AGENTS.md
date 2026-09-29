@@ -7,8 +7,12 @@ what must not break.
 
 | Path | What it is |
 |---|---|
-| `chest.json`, `chest.proposals.json` | Manifest: roles `accountant`, `approver`, `employee`; `database`, `files`, `members`, `notifications`; `receives`. Proposals: schedules `reminder`, `cleanup` |
-| `lib/access.ts` | **Who may do what**: `can(actor, ability)` and `expenseAccess(actor, facts)` (see, own, decide) |
+| `chest.json`, `chest.proposals.json` | Manifest: roles `accountant`, `approver`, `employee`; `database`, `files`, `members`, `notifications`; `receives`. Proposals: schedules `reminder`, `cleanup`; `mail` (send) |
+| `lib/access.ts` | **Who may do what**: `can(actor, ability)` and `expenseAccess(actor, facts)` (see, own, decide — never one's own) |
+| `lib/approvals.ts` | Who approves a member's expenses now (`approversFor`), and the accountants nobody can approve (`alone`) |
+| `lib/search.ts`, `app/chest/search/page.tsx` | Search: what the text asks (`readQuery`: reference, amount, words), among what the reader may see |
+| `lib/card-guess.ts` | A card label's category from the accountant's words (`card_rules`) — pure, tested |
+| `lib/mail.ts` | Email beside the bell (mail proposal): `email(recipients, letter, {path, key})` |
 | `lib/expenses.ts` | Expenses, trips and flat rates, warnings, send, decide (the refusal fingerprint: a refused expense cannot come back unchanged), pay, badges' counts, export rows, kilometres before the tool — every function `(sql, actor, …)` |
 | `lib/settings.ts` | Company settings (currency, reminder, setup done, journal accounts, payer name), categories, flat rates, exchange rates, mileage scales, vehicles and their certificates, approvers, each person's journal account |
 | `lib/bank.ts`, `lib/iban.ts`, `lib/seal.ts` | Bank details: rights (own, accountants), IBAN/BIC checks (mod 97; pure, browser-safe), sealing with `BANK_DETAILS_KEY` |
@@ -35,7 +39,7 @@ what must not break.
 | `app/chest/api/receipts/route.ts`, `app/chest/receipts/[id]/route.ts` | Upload grant; open a receipt through a fresh signed link |
 | `app/chest/export/{csv,zip,journal}/route.ts`, `app/chest/pay/files/[id]/route.ts`, `app/chest/vehicles/[member]/proof/route.ts` | Downloads for accountants (and a certificate for its owner) |
 | `app/chest/settings/page.tsx`, `app/chest/settings/company/page.tsx`, `settings-view.tsx`, `import-view.tsx` | Settings → Me; Settings → Company (accountants) |
-| `migrations/` | Schema and the default categories and scale (`0001`), everything after the critique (`0002`), after the second one: card statements, addresses (`0003`). Never edit a shipped file; add `0004_…` |
+| `migrations/` | Schema and the default categories and scale (`0001`), everything after the critique (`0002`), after the second one: card statements, addresses (`0003`); after the third: card statement words (`0004`). Never edit a shipped file; add `0005_…` |
 | `seed/sample.sql` | A month of sample expenses for local runs |
 | `test/` | `node:test` with `fakeChest` and PostgreSQL (PGlite or `TEST_DATABASE_URL`) |
 
@@ -121,5 +125,9 @@ npm ci && npm test && npm run build   # all three must pass
   company's), never the payee's. An account where `needsAddress(country)`
   goes in a transfer file only with its address and the company's
   (`lib/payments.ts` skips it with a reason otherwise).
+- **Nobody decides on their own expense** (`expenseAccess`): keep it so;
+  `waitingCounts` and `waiting` follow the same rule.
+- **Emails** leave through `lib/mail.ts` only, with a short key (the
+  recipient is appended; 64 characters in all).
 - Imported expenses (`imported_at`) are history: keep them out of pay,
   exports and the journal (`within()`).

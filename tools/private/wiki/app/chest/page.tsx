@@ -5,6 +5,7 @@ import { NewSpaceButton } from "../../components/new-space.tsx";
 import { can } from "../../lib/access.ts";
 import { db } from "../../lib/db.ts";
 import { myDrafts } from "../../lib/editing.ts";
+import { askWhom } from "../../lib/groups.ts";
 import { format, formatDate, newPageWords, plural, relative } from "../../lib/i18n/index.ts";
 import { recent } from "../../lib/pages.ts";
 import { pinned } from "../../lib/pins.ts";
@@ -28,12 +29,14 @@ export default async function Home() {
   const now = new Date();
   const writer = can(member, "write");
   if (spaces.length === 0) {
+    // A reader cannot start the wiki: it names who can.
+    const ask = writer ? null : await askWhom(locale, t.space.anotherEditor);
     return (
       <div className="page narrow">
         <div className="welcome">
           <Book />
           <h1>{writer ? t.home.empty.title : t.home.empty.readerTitle}</h1>
-          <p>{writer ? t.home.empty.body : t.home.empty.readerBody}</p>
+          <p>{writer ? t.home.empty.body : ask ? format(t.home.empty.readerAsk, { names: ask }) : t.home.empty.readerBody}</p>
           {writer && (
             <div className="welcome-actions">
               <ExampleButton label={t.home.empty.example} hint={t.home.empty.exampleHint} errors={t.errors} />

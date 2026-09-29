@@ -13,7 +13,7 @@ import { rowView } from "../lib/rows.ts";
 // of what is shown.
 export type Filter = { key: string; label: string; match: (r: ListRow) => boolean };
 
-export function ListPage({ t, locale, path, title, intro, filters, current, q, rows, create, empty, more, readerEmpty }: {
+export function ListPage({ t, locale, path, title, intro, filters, current, q, rows, create, empty, more, side, readerEmpty }: {
   t: Catalogue;
   locale: Locale;
   path: string;
@@ -26,8 +26,12 @@ export function ListPage({ t, locale, path, title, intro, filters, current, q, r
   rows: ListRow[];
   create: { type: "quote" | "invoice"; label: string } | null;
   empty: { title: string; body: string; action: string };
-  // A quieter second way in (import the invoices still to collect).
+  // A quieter second way in, while the list is empty (import the invoices
+  // still to collect: switching day's; afterwards it waits in "More").
   more?: { href: string; label: string } | null;
+  // The header's quieter action once the list has something (match a bank
+  // statement).
+  side?: { href: string; label: string } | null;
   // What an empty list says to someone who cannot write here (a viewer).
   readerEmpty: string;
 }) {
@@ -42,7 +46,7 @@ export function ListPage({ t, locale, path, title, intro, filters, current, q, r
     <div className="page">
       {/* Empty, the page's one action is the empty state's: no header button. */}
       <PageHeader size="m" title={title} intro={intro}
-        secondary={more && (rows.length > 0 || q) ? <a className="button quiet" href={more.href}>{more.label}</a> : undefined}
+        secondary={side && (rows.length > 0 || q) ? <a className="button quiet" href={side.href}>{side.label}</a> : undefined}
         action={create && (rows.length > 0 || q) ? <NewDocument type={create.type} errors={t.errors}><Plus />{create.label}</NewDocument> : undefined} />
       {rows.length === 0 && !q ? (
         <EmptyState icon={<BlankSheet />} title={empty.title} body={create ? empty.body : readerEmpty}

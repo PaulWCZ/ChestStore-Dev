@@ -9,6 +9,8 @@ import { email } from "./mailer.ts";
 import { pick, type Version } from "./model.ts";
 import { cut, withdraw } from "./notify.ts";
 import { today } from "./time.ts";
+import { answerLines, answerLinker } from "./answer-links.ts";
+import { chestZone } from "./zone.ts";
 
 // The weekly digest (schedule "digest", Monday morning in the Chest's time
 // zone, Proposal (studio)): each person who has News finds one item in
@@ -31,7 +33,7 @@ import { today } from "./time.ts";
 export const digestKey = "digest";
 const week = 7 * 864e5;
 
-type Candidate = { id: string; title: string; body: string; locale: string; versions: Version[]; author: string; important: boolean; publish_at: Date; groups: string[]; people: string[] };
+type Candidate = { id: string; title: string; body: string; locale: string; versions: Version[]; author: string; important: boolean; publish_at: Date; groups: string[]; people: string[]; open_event?: boolean };
 
 // mondayOf is the Monday of the week of an instant, on the Chest's clock.
 export function mondayOf(instant: Date, zone: string): string {
@@ -71,6 +73,7 @@ export async function continueDigest(sql: Sql, now = new Date(), monday?: string
   if (!run) return "none";
   const posts = (await sql<Candidate[]>`
     select p.id, p.title, '' as body, p.locale, p.author, p.important, p.publish_at,
+      (p.kind = 'event' and coalesce(p.event_last_day, p.event_day) >= ${today(chestZone(), now)}) as open_event,
       coalesce((select json_agg(json_build_object('locale', v.locale, 'title', v.title, 'body', '')) from post_versions v where v.post_id = p.id), '[]'::json) as versions,
       array(select g.group_id from post_groups g where g.post_id = p.id) as groups,
       array(select pp.member from post_people pp where pp.post_id = p.id) as people
@@ -151,8 +154,10 @@ async function tellPage(sql: Sql, posts: Candidate[], after: string | null, week
     const off = new Set((await sql<{ member: string }[]>`select member from preferences where member in ${sql(batch.people)} and not digest_email`).map(r => r.member));
     const wanting = batch.people.filter(m => !off.has(m)).map(id => ({ id, locale: batch.locale }));
     if (wanting.length > 0) {
-      await email(sql, wanting, tt => ({
-        letter: { subject: plural(tt.mail.digestSubject, batch.posts.length, batch.locale), lines: batch.posts.map(p => format(tt.mail.digestLine, { title: pick(p, batch.locale).title })) },
+      // An event still open: its two answers, in one tap each.
+      const linker = batch.posts.some(p => p.open_event) ? await answerLinker(sql) : null;
+      await email(sql, wanting, (tt, person) => ({
+        letter: { subject: plural(tt.mail.digestSubject, batch.posts.length, batch.locale), lines: batch.posts.flatMap(p => [format(tt.mail.digestLine, { title: pick(p, batch.locale).title }), ...(p.open_event && linker ? answerLines(tt, linker(p.id, person.id), format).slice(1, 3).map(l => "  " + l) : [])]) },
         path: "/chest",
         why: tt.mail.whyDigest,
       }), person => `digest:${week}:${person.id}`);

@@ -16,7 +16,10 @@ import { settle } from "./reminders.ts";
 // person, read again as they leave), to those who did not turn it off.
 // A comment's items remember which comment they show (comment_notices):
 // deleted, the comment takes them back; edited, they say the new words.
-const cardPath = (boardId: string, cardId: string) => `/chest/boards/${boardId}?card=${cardId}`;
+// A card's address by its id alone (app/chest/cards/[id]): it opens on the
+// board the card is on when it is clicked, so a bell item or an email
+// still leads to it after the card moved to another board.
+const cardPath = (_boardId: string, cardId: string) => `/chest/cards/${cardId}`;
 
 export async function assigned(actor: Member, people: string[], card: { id: string; title: string; boardId: string }, sql?: Sql): Promise<void> {
   const others = people.filter(p => p !== actor.id);

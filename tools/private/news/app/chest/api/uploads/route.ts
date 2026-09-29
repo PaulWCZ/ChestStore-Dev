@@ -9,7 +9,7 @@ import { currentMember } from "../../../../lib/session.ts";
 
 // A picture (cover, gallery, in the text), a video (gallery) or a file for a post, in two steps around the browser's own
 // upload to the Chest: POST authorises one upload into the uploads folder
-// (publishers), PUT records it once the Chest confirms it holds it. The
+// (publishers; anyone, for the picture of a proposal), PUT records it once the Chest confirms it holds it. The
 // file is its uploader's until they save the post (lib/posts.ts).
 const refuse = (error: ErrorCode, status: number) => Response.json({ error }, { status, headers: { "Cache-Control": "no-store" } });
 const folder = "uploads/";
@@ -27,11 +27,14 @@ const roleOf = (value: unknown): UploadRole => {
   return value as UploadRole;
 };
 
+const allowed = (actor: Awaited<ReturnType<typeof currentMember>>, role: UploadRole) => can(actor, "publish") || (role === "cover" && can(actor, "read"));
+
 export async function POST(request: Request): Promise<Response> {
   try {
-    if (!can(await currentMember(), "publish")) throw new AppError("forbidden");
     const body = (await request.json().catch(() => ({}))) as { role?: unknown; size?: unknown };
     const role = roleOf(body.role);
+    // Everyone may add a picture to a proposal; the rest is the publishers'.
+    if (!allowed(await currentMember(), role)) throw new AppError("forbidden");
     // Pictures as the Chest makes thumbnails of them; a gallery also takes
     // videos (played as they are), up to the attachments' size.
     const max = role === "cover" || role === "inline" ? limits.coverSize : limits.attachmentSize;
@@ -47,9 +50,9 @@ export async function POST(request: Request): Promise<Response> {
 export async function PUT(request: Request): Promise<Response> {
   try {
     const actor = await currentMember();
-    if (!can(actor, "publish")) throw new AppError("forbidden");
     const body = (await request.json().catch(() => ({}))) as { name?: unknown; fileName?: unknown; role?: unknown };
     const role = roleOf(body.role);
+    if (!allowed(actor, role)) throw new AppError("forbidden");
     // Only an object of the uploads folder, as the Chest named it.
     if (typeof body.name !== "string" || !/^uploads\/[0-9a-f]{20}\.[a-z0-9]{1,8}$/u.test(body.name)) return refuse("invalid", 400);
     const held = await files.stat(body.name);

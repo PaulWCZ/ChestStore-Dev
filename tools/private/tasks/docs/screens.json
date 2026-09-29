@@ -33,5 +33,9 @@
   { "name": "board-tools", "path": "/chest/boards/1", "member": "hugo", "locale": "fr", "actions": [{ "click": ".tools-toggle" }, { "wait": 300 }], "only": ["phone"] },
   { "name": "board-port", "path": "/chest/boards/1", "member": "camille", "locale": "fr", "look": { "tool": "brand:port" } },
   { "name": "timeline-chest", "path": "/chest/boards/2?view=timeline", "member": "hugo", "locale": "en", "look": { "all": "catalogue:chest" }, "only": ["desktop"] },
-  { "name": "card-undo", "path": "/chest/boards/1?card=1", "member": "hugo", "locale": "fr", "actions": [{ "click": ".done-bar button.button" }, { "wait": 900 }], "only": ["desktop"] }
+  { "name": "card-undo", "path": "/chest/boards/1?card=1", "member": "hugo", "locale": "fr", "actions": [{ "click": ".done-bar button.button" }, { "wait": 900 }], "only": ["desktop"] },
+  { "name": "import-fr", "path": "/chest/import", "member": "camille", "locale": "fr", "only": ["desktop"] },
+  { "name": "import-trello-check", "path": "/chest/import", "member": "hugo", "locale": "en", "actions": [{ "upload": [".source >> nth=0 >> input[type=file]", "test/fixtures/trello-switch-day.json"] }, { "wait": 1200 }] },
+  { "name": "import-trello-check-fr", "path": "/chest/import", "member": "ines", "locale": "fr", "actions": [{ "upload": [".source >> nth=0 >> input[type=file]", "test/fixtures/trello-switch-day.json"] }, { "wait": 1200 }], "only": ["desktop"] },
+  { "name": "timeline-weeks-fr", "path": "/chest/boards/1?view=timeline", "member": "camille", "locale": "fr", "only": ["phone"] }
 ]

@@ -132,6 +132,7 @@ export const fr: Catalogue = {
     declared: "Enregistré",
   },
   home: {
+    email: "M’envoyer aussi tout cela par e-mail : demandes à valider, réponses, annulations",
     hello: "Bonjour {name}",
     summary: "Il vous reste {days} de {type}.",
     summaryWaiting: { one: "{count} jour attend une réponse.", other: "{count} jours attendent une réponse." },
@@ -139,6 +140,7 @@ export const fr: Catalogue = {
     balances: "Mes soldes",
     notSetUp: "Pas encore renseigné",
     notSetUpBody: "Les RH vont saisir votre solde.",
+    setYours: "Saisir votre solde",
     noBalances: "Aucun type de congé ne se décompte ici. Demandez simplement les jours qu’il vous faut.",
     toAnswer: { one: "{count} demande attend votre réponse", other: "{count} demandes attendent votre réponse" },
     answer: "Répondre",
@@ -192,6 +194,8 @@ export const fr: Catalogue = {
     noteRecorded: "Note",
     recordedHint: "Validée tout de suite : personne n’a à répondre.",
     below: "C’est {days} de plus que votre solde. Votre valideur le verra.",
+    advance: "C’est {days} de plus que son solde : enregistré comme une avance que vous accordez.",
+    fixDates: "Corrigez la date ci-dessus : rien n’est décompté d’ici là.",
     holidayIncluded: "Le {day} est férié ({name}) : non décompté.",
     saturdays: "Décompté en jours ouvrables, du lundi au samedi.",
     calendarDays: "Décompté en jours calendaires.",
@@ -284,6 +288,7 @@ export const fr: Catalogue = {
     remote: "Télétravail",
   },
   team: {
+    fromPeople: "Tenus à jour depuis son dossier RH dans Équipe : matricule, premier et dernier jour, jours travaillés. Modifiez-les là-bas.",
     title: "Équipe",
     person: "Personne",
     approver: "Valideur",
@@ -365,6 +370,7 @@ export const fr: Catalogue = {
     balances: "Soldes à une date",
     balancesHint: "Les soldes de chacun, partis compris : congés payés N-1 et N (acquis, pris, solde), congés validés à venir, reste.",
     on: "Au",
+    onHint: "N’importe quel jour jusqu’à la fin du mois prochain. Après aujourd’hui : ce qu’ils seront si rien ne change.",
     download: "Télécharger",
   },
   import: {
@@ -502,7 +508,12 @@ export const fr: Catalogue = {
     saved: "Enregistré.",
     builtIn: "Nom dans chaque langue : laisser vide",
   },
+  mail: {
+    open: "L’ouvrir dans Congés : {link}",
+    why: "Vous recevez cet e-mail parce que vous utilisez Congés dans le Chest de votre entreprise. Pour ne plus les recevoir, désactivez-les sur votre page Congés.",
+  },
   bell: {
+    leavesOn: "{name} part le {date} : les congés après ce jour ne comptent plus",
     asked: "{name} demande un congé",
     recorded: "{name} a saisi une absence pour vous",
     declared: "{name} est en arrêt maladie",
@@ -538,6 +549,7 @@ export const fr: Catalogue = {
     left: "{kind} restants",
     waiting: "{kind} en attente de réponse",
     balancesFile: "soldes-{day}.csv",
+    balancesFileProjected: "soldes-{day}-projection.csv",
     firstDay: "Premier jour",
     firstHalf: "Depuis",
     lastDay: "Dernier jour",

@@ -26,10 +26,12 @@ export default async function MembersLayout({ children }: { children: ReactNode 
       <Shell
         brand={<a href="/chest"><BrandMark logo={look.logo}><Mark /></BrandMark><span>{t.meta.name}</span></a>}
         member={{ name: member.name, role: role ? t.roles[role] : null, photo: member.photo }}
-        words={{ desk: s.desk, quotes: s.quotes, invoices: s.invoices, clients: s.clients, catalogue: s.catalogue, more: s.more, export: s.export, settings: s.settings }}
+        words={{ desk: s.desk, quotes: s.quotes, invoices: s.invoices, clients: s.clients, catalogue: s.catalogue, more: s.more, export: s.export, settings: s.settings, bank: s.bank, importInvoices: s.importInvoices }}
         sections={role !== null}
         overdue={overdue}
         canExport={role !== null && can(member, "export")}
+        canBank={role !== null && can(member, "payments")}
+        canImportInvoices={role !== null && can(member, "invoices.issue")}
         labels={{ skip: s.skip, nav: s.nav }}
       >
         {role ? children : <div className="page narrow"><NoAccess labels={{ noAccessTitle: t.noAccess.title, noAccessBody: t.noAccess.body }} /></div>}

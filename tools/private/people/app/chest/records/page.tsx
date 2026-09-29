@@ -2,7 +2,7 @@ import { Avatar, EmptyState, PageHeader, StatusBadge } from "@argentic/chest-ui/
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AutoRefresh } from "../../../components/auto-refresh.tsx";
-import { Bars, Folder, Shield } from "../../../components/icons.tsx";
+import { Bars, File, Folder, Shield, Upload } from "../../../components/icons.tsx";
 import { can } from "../../../lib/access.ts";
 import { db } from "../../../lib/db.ts";
 import { directory } from "../../../lib/directory.ts";
@@ -63,6 +63,8 @@ export default async function RecordsPage() {
           <>
             <Link className="button quiet small" href="/chest/records/register"><Folder />{t.records.register}</Link>
             <Link className="button quiet small" href="/chest/numbers"><Bars />{t.records.numbers}</Link>
+            <Link className="button quiet small" href="/chest/records/import"><Upload />{t.records.import}</Link>
+            <Link className="button quiet small" href="/chest/records/letters"><File />{t.records.letters}</Link>
           </>
         )}
       />
@@ -72,7 +74,7 @@ export default async function RecordsPage() {
           icon={<Folder />}
           title={t.records.empty.title}
           body={t.records.empty.body}
-          action={<><CreateAll count={without.length} locale={locale} t={addWords} /><AddRecord {...addProps} /></>}
+          action={<><CreateAll count={without.length} locale={locale} t={addWords} /><Link className="button quiet" href="/chest/records/import"><Upload />{t.records.importFile}</Link><AddRecord {...addProps} /></>}
         />
       ) : (
         <>

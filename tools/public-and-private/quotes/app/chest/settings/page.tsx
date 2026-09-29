@@ -31,6 +31,7 @@ export default async function SettingsPage() {
     return { id: ch.id, text, when: formatDate(ch.changedAt, locale, { timeZone: chest.timeZone(), day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }) };
   });
   const canEdit = can(member, "settings");
+  const formatSize = (bytes: number) => new Intl.NumberFormat(locale === "fr" ? "fr-FR" : "en-GB", { style: "unit", unit: bytes >= 1048576 ? "megabyte" : "kilobyte", maximumFractionDigits: 1 }).format(bytes >= 1048576 ? bytes / 1048576 : Math.max(1, bytes / 1024));
   return (
     <SettingsView
       t={t}
@@ -41,6 +42,7 @@ export default async function SettingsPage() {
       currency={chest.currency()}
       sample={documentNumber("X", year, 1)}
       logo={c.logo ? `/chest/logo?v=${encodeURIComponent(c.logo)}` : null}
+      terms={c.terms ? { name: c.terms.name, size: formatSize(c.terms.size) } : null}
       rates={vatRates.filter(r => r > 0).map(r => ({ rate: String(r), text: formatRate(r, locale) }))}
       numbering={
         <NumberingPanel

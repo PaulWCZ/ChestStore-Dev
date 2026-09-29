@@ -1,6 +1,7 @@
 "use client";
 
 import { Confirm, Menu, useToast } from "@argentic/chest-ui/components";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { Download, Merge, Pencil, Shield, Trash } from "../../../../components/icons.tsx";
@@ -72,7 +73,11 @@ export function MaybeSame({ id, name, other, canMerge, canEdit, t }: { id: strin
   if (gone) return null;
   return (
     <div className="notice warn maybe-same" role="status">
-      <span>{format(t.maybeSame.notice, { name: other.name })}</span>
+      <span>{(() => {
+        // The other contact's name opens their page.
+        const [before, after = ""] = t.maybeSame.notice.split("{name}");
+        return <>{before}<Link prefetch={false} href={`/chest/contacts/${other.id}`}>{other.name}</Link>{after}</>;
+      })()}</span>
       <span className="spacer" />
       {canMerge && <button type="button" className="button small" onClick={() => setMerging(true)}><Merge />{t.maybeSame.merge}</button>}
       {canEdit && <button type="button" className="button small quiet" disabled={pending} onClick={() => start(async () => {

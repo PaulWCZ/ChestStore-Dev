@@ -498,6 +498,119 @@ await step("Inès sees Sofia's London expense in euros; Léa gives her kilometre
   await page.waitForSelector("text=Vos trajets de 2026 pas encore validés ont été mis à jour.");
 });
 
+// Round 3 of the critique.
+await step("nobody approves their own: Camille's €250 meal waits for someone else, the page says so; once Inès is named, Inès approves it", async () => {
+  await as(context, origin, "camille");
+  await page.setViewportSize({ width: 1280, height: 860 });
+  await page.goto(origin + "/chest/new");
+  await page.locator("#amount").fill("250");
+  await page.locator("label.chip", { hasText: "Repas" }).click();
+  await page.locator("#merchant").fill("Le Grand Véfour");
+  await page.getByRole("button", { name: "Enregistrer", exact: true }).click();
+  await page.waitForURL(/\/chest$/u);
+  await page.locator(".ck-toast", { hasText: "Envoyer" }).getByRole("button", { name: /Envoyer/u }).click();
+  await page.locator(".ck-toast", { hasText: "Personne ne peut encore la valider" }).waitFor();
+  await page.reload();
+  const home = await page.locator("main").innerText();
+  expect(home.includes("personne d’autre ne peut encore valider les vôtres") && home.includes("En attente : personne ne peut encore la valider"), "the accountant is told nobody can approve hers: " + home.slice(0, 600));
+  await page.goto(origin + "/chest/approve");
+  expect(!(await page.locator("main").innerText()).includes("Le Grand Véfour"), "not in her own To approve");
+  await page.goto(origin + "/chest/settings/company#approvers");
+  expect((await page.locator("#approvers").innerText()).includes("Personne ne peut valider les propres dépenses de Camille Martin"), "Settings names the gap");
+  await page.getByLabel(/Validé par.*Camille Martin/u).selectOption({ label: "Inès Moreau" });
+  await page.waitForSelector("text=Enregistré. Ses dépenses en attente vont à Inès Moreau.");
+  await page.goto(origin + "/chest");
+  expect(!(await page.locator("main").innerText()).includes("personne d’autre ne peut encore valider"), "the notice goes once someone is named");
+  await as(context, origin, "ines");
+  await page.goto(origin + "/chest/approve");
+  const row = page.locator(".row", { hasText: "Le Grand Véfour" });
+  await row.getByRole("button", { name: /^Valider/u }).click();
+  await page.locator(".ck-toast", { hasText: "1 dépense validée." }).waitFor();
+});
+
+await step("a former member's claim: To approve and To pay back say he left; he is kept out of the transfer file", async () => {
+  await as(context, origin, "camille");
+  await page.goto(origin + "/chest/approve");
+  const paul = page.locator("section", { hasText: "Paul Lefèvre (ancien membre)" });
+  expect((await paul.innerText()).includes("A quitté l’entreprise : valider, c’est encore la rembourser"), "warned before approving: " + (await paul.innerText()));
+  await paul.locator(".row", { hasText: "SNCF" }).getByRole("button", { name: /^Valider/u }).click();
+  await page.locator(".ck-toast", { hasText: "1 dépense validée." }).waitFor();
+  await page.goto(origin + "/chest/pay");
+  const owed = page.locator("section", { hasText: "Paul Lefèvre (ancien membre)" });
+  expect((await owed.innerText()).includes("solde de tout compte"), "To pay back says how he is paid: " + (await owed.innerText()));
+});
+
+await step("search: Camille finds by amount, shop, person and reference; Hugo only his own", async () => {
+  await page.goto(origin + "/chest");
+  await page.waitForLoadState("networkidle");
+  await page.locator("main").click({ position: { x: 5, y: 5 } });
+  await page.keyboard.press("/");
+  expect(await page.evaluate(() => document.activeElement?.getAttribute("type") === "search" || document.activeElement?.closest("[role=search]") !== null), "/ focuses the search box");
+  await page.keyboard.type("86,40");
+  await page.keyboard.press("Enter");
+  await page.waitForURL(/\/chest\/search\?q=86%2C40$/u);
+  expect((await page.locator("main").innerText()).includes("Brasserie Georges"), "by amount");
+  await page.goto(origin + "/chest/search?q=mercure");
+  expect((await page.locator("main").innerText()).includes("Hôtel Mercure Lille"), "by shop");
+  await page.goto(origin + "/chest/search?q=L%C3%A9a");
+  const lea = await page.locator("main").innerText();
+  expect(lea.includes("Léa Dubois") && lea.includes("Hôtel Mercure Lille"), "by person");
+  const ref = (await page.locator(".row", { hasText: "Hôtel Mercure Lille" }).first().innerText()).match(/E\d+/u)?.[0];
+  await page.goto(origin + "/chest/search?q=" + ref);
+  expect((await page.locator(".row").count()) === 1, "by reference " + ref);
+  await page.goto(origin + "/chest/search?q=zzzz");
+  expect((await page.locator("main").innerText()).includes("Rien trouvé pour « zzzz »"), "nothing found, said");
+  await as(context, origin, "hugo");
+  await page.goto(origin + "/chest/search?q=mercure");
+  expect(!(await page.locator("main").innerText()).includes("Hôtel Mercure Lille"), "Hugo never finds Léa's");
+});
+
+await step("card lines finish themselves: UBER becomes Travel, a word of the company's own is added; the holder is emailed", async () => {
+  const { writeFileSync } = await import("node:fs");
+  await as(context, origin, "camille");
+  await page.goto(origin + "/chest/settings/company#card-words");
+  await page.locator("#new-card-words").fill("monoprix");
+  await page.locator("#new-card-category").selectOption({ label: "Fournitures" });
+  await page.locator("#card-words").getByRole("button", { name: "Ajouter", exact: true }).click();
+  await page.waitForTimeout(600);
+  await page.reload();
+  await page.locator("#card-words summary").click();
+  expect((await page.locator("#card-words").innerText()).includes("MONOPRIX"), "the word is kept, in capitals");
+  const statement = tmp + "/expenses-cards-2.csv";
+  writeFileSync(statement, "Date;Libellé;Montant\n21/09/2026;UBER *TRIP;-23,40\n18/09/2026;MONOPRIX PARIS 11;-45,90\n");
+  await page.goto(origin + "/chest/cards");
+  await page.locator("input[type=file]").setInputFiles(statement);
+  await page.locator("#card-owner").selectOption({ label: "Hugo Bernard" });
+  await page.getByRole("button", { name: "Importer 2 paiements par carte" }).click();
+  await page.waitForSelector("text=2 attendent leur justificatif");
+  await page.waitForTimeout(800);
+  const dev = await (await page.request.get(origin + "/_dev")).text();
+  expect(dev.includes("3 company card payments need their receipt") || dev.includes("company card payments need their receipt"), "Hugo emailed");
+  expect(dev.includes("UBER *TRIP · 23.40") || dev.includes("UBER *TRIP · €23.40"), "the email names each payment");
+  await as(context, origin, "hugo");
+  await page.goto(origin + "/chest");
+  const uber = await page.locator(".row", { hasText: "UBER *TRIP" }).filter({ hasText: "21 Sept" }).innerText();
+  expect(uber.includes("Train, plane, taxi"), "Uber is travel: " + uber);
+  const monoprix = await page.locator(".row", { hasText: "MONOPRIX PARIS" }).filter({ hasText: "18 Sept" }).innerText();
+  expect(monoprix.includes("Supplies"), "Monoprix is the company's supplies: " + monoprix);
+});
+
+await step("emails: the approver hears of what was sent to her; one date format; no line starts with a dot", async () => {
+  const dev = await (await page.request.get(origin + "/_dev")).text();
+  expect(dev.includes("Hugo Bernard a envoyé"), "Inès emailed in French when Hugo sent");
+  await as(context, origin, "camille");
+  await page.setViewportSize({ width: 390, height: 844 });
+  for (const path of ["/chest/pay", "/chest/approve", "/chest"]) {
+    await page.goto(origin + path);
+    const bad = await page.evaluate(() => [...document.querySelectorAll(".row .sub > span")].filter(s => getComputedStyle(s, "::before").content.includes("·")).length);
+    expect(bad === 0, `${path}: ${bad} parts start with a dot`);
+    const dates = await page.locator(".row .sub .mono").allInnerTexts();
+    expect(dates.every(d => /^\d{1,2} \p{L}+\.?$/u.test(d.trim()) && (d.includes(".") || /mai|juin|août|mars/u.test(d))), `${path}: dates ${dates.join(", ")}`);
+  }
+  const paid = await page.goto(origin + "/chest/pay").then(() => page.locator("section", { hasText: "Remboursées ces 90 derniers jours" }).innerText());
+  expect(!/\d sept(?!\.)/u.test(paid), "the history writes sept. too: " + paid.slice(0, 200));
+});
+
 await step("rights: an employee cannot pay or see another's expense; no role, no tool", async () => {
   await as(context, origin, "tom");
   await page.goto(origin + "/chest/pay");

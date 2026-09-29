@@ -204,7 +204,7 @@ export function Composer({ postId, initial, author, people, groups, languages, m
       pinnedUntil: d.pinned ? d.pinnedUntil : null,
       publishAt: editable && later && d.publishAt ? d.publishAt : null,
       event: d.kind === "event" ? d.event : null,
-      welcome: d.kind === "welcome" ? d.welcome : null,
+      welcome: d.kind === "welcome" || d.kind === "shoutout" ? d.welcome : null,
       groups: audience.groups,
       people: audience.people,
       cover: d.cover?.id ?? null,
@@ -284,9 +284,9 @@ export function Composer({ postId, initial, author, people, groups, languages, m
   // published without its date because the fields were below the text.
   const facts = (
     <>
-          {d.kind === "welcome" && (
+          {(d.kind === "welcome" || d.kind === "shoutout") && (
             <div className="field-group">
-              <PeoplePicker id="welcome" label={w.welcome} hint={w.welcomeHint} search={findAnyone} value={welcomed} onChange={list => update({ welcome: list[0]?.id ?? null })} labels={{ ...t.peoplePicker, placeholder: w.welcomePick }} lang={locale} />
+              <PeoplePicker id="welcome" label={d.kind === "shoutout" ? w.thanks : w.welcome} hint={w.welcomeHint} search={d.kind === "shoutout" ? findColleague : findAnyone} value={welcomed} onChange={list => update({ welcome: list[0]?.id ?? null })} labels={{ ...t.peoplePicker, placeholder: w.welcomePick }} lang={locale} />
             </div>
           )}
 

@@ -4,6 +4,7 @@ import { AppError } from "./app-error.ts";
 import type { Query, Sql } from "./db.ts";
 import { chestLanguage, otherLanguage, writtenIn } from "./languages.ts";
 import { affected, clean, componentIds, id, incidentSteps, isIncidentStep, limits, optionalText, type Impact, type IncidentStep, type Step } from "./model.ts";
+import { queueHooks } from "./hooks.ts";
 import { maintenancePhase, type TimelineIncident } from "./timeline.ts";
 import { instantOf, wall } from "./zone.ts";
 
@@ -183,6 +184,14 @@ export async function publicIncident(sql: Query, value: unknown): Promise<Incide
   return (await load(sql, rows))[0] ?? null;
 }
 
+// One incident as the other tools of the Chest hear of it
+// (lib/tell-tools.ts): public ones only (not only about services for the
+// team), removed ones too — the others must hear it is gone.
+export async function toldIncident(sql: Query, value: unknown): Promise<Incident | null> {
+  const rows = await sql<IncidentRow[]>`select ${columns(sql)} from incidents where id = ${id(value)} and kind = 'incident' and ${isPublic(sql)}`;
+  return (await load(sql, rows))[0] ?? null;
+}
+
 // One incident as editors see it: removed updates and the log included.
 export async function incidentFor(sql: Query, actor: Member | null, value: unknown): Promise<Incident> {
   if (!can(actor, "read")) throw new AppError("forbidden");
@@ -289,14 +298,16 @@ async function lockIncident(sql: Query, value: unknown): Promise<IncidentRow> {
 
 // announce tells the page's subscribers about a new update: every way a
 // customer can follow the page starts here, once per update, inside the
-// update's transaction. Today one way: emails wait in a queue, one per
-// subscriber who follows one of these components (or everything); only for
-// what happens now, never a backfill, and never about services for the team
-// only. The seam for webhook, Slack and Teams subscriptions (the Chest's
-// `webhooks` proposal, README "Needs from the SDK"): they queue here too,
-// with the same rules, and are delivered by the same pass as the emails.
+// update's transaction. Two ways, with the same rules — one message per
+// subscription that follows one of these components (or everything); only
+// for what happens now, never a backfill, never about services for the
+// team only: emails wait in their queue (lib/mailer.ts), deliveries to
+// Slack, Teams or a web address in theirs (the Chest's `webhooks`,
+// lib/hooks.ts). Both go right after the update and by the "updates"
+// schedule.
 async function announce(sql: Query, updateId: string, componentIds: string[]): Promise<void> {
   await queueMail(sql, updateId, componentIds);
+  await queueHooks(sql, updateId, componentIds);
 }
 
 async function queueMail(sql: Query, updateId: string, componentIds: string[]): Promise<void> {

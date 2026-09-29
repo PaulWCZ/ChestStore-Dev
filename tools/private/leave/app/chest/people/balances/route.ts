@@ -7,8 +7,8 @@ import { db } from "../../../../lib/db.ts";
 import { everyoneOrNone } from "../../../../lib/directory.ts";
 import { catalogue, format, isLocale } from "../../../../lib/i18n/index.ts";
 import { isDay } from "../../../../lib/calendar.ts";
-import { today } from "../../../../lib/model.ts";
-import { nameOf, people } from "../../../../lib/people.ts";
+import { lastPayrollDay, today } from "../../../../lib/model.ts";
+import { people, plainName } from "../../../../lib/people.ts";
 import { types } from "../../../../lib/rules.ts";
 import { allStaff, formerIds } from "../../../../lib/staff.ts";
 import { typeName } from "../../../../lib/type-name.ts";
@@ -28,12 +28,16 @@ export async function GET(request: Request): Promise<Response> {
   const text = (code: "forbidden" | "invalid", status: number) => new Response(t.errors[code], { status, headers: { "Content-Type": "text/plain; charset=utf-8" } });
   try {
     if (!can(actor, "export")) throw new AppError("forbidden");
-    const on = new URL(request.url).searchParams.get("on") || today();
-    if (!isDay(on) || on > today()) throw new AppError("invalid");
+    // Any day up to the end of next month: payroll is prepared around the
+    // 20th for the month's end (a projection: earned months added, leave
+    // approved up to that day taken — said in the file's name).
+    const now = today();
+    const on = new URL(request.url).searchParams.get("on") || now;
+    if (!isDay(on) || on > lastPayrollDay(now)) throw new AppError("invalid");
     const sql = db();
     const [dir, staff, all, gone] = await Promise.all([everyoneOrNone(), allStaff(sql), types(sql), formerIds(sql)]);
     const ids = [...new Set([...dir.people.map(p => p.id), ...gone])];
-    const [bal, who] = await Promise.all([balancesOf(sql, ids, on, { takenBy: true }), people(ids)]);
+    const [bal, who] = await Promise.all([balancesOf(sql, ids, on, { takenBy: true, endOfDay: true }), people(ids)]);
     const counted = all.filter(ty => ty.balance);
     const n = (x: number) => new Intl.NumberFormat(locale, { maximumFractionDigits: 2, useGrouping: false }).format(x);
     const header: string[] = [t.export.number, t.export.person, t.export.start, t.export.end];
@@ -45,7 +49,9 @@ export async function GET(request: Request): Promise<Response> {
       header.push(format(t.export.booked, { kind: name }), format(t.export.left, { kind: name }), format(t.export.waiting, { kind: name }));
     }
     const rows = ids
-      .map(id => ({ id, name: nameOf(who.get(id), locale), st: staff.get(id) }))
+      // The name as it is — never "(former member)": payroll matches on it;
+      // the last day says who left.
+      .map(id => ({ id, name: plainName(who.get(id), locale), st: staff.get(id) }))
       .sort((a, b) => a.name.localeCompare(b.name, locale))
       .map(({ id, name, st }) => {
         const line: (string | number)[] = [st?.employeeNumber ?? "", name, st?.startDate ?? "", st?.endDate ?? ""];
@@ -64,7 +70,7 @@ export async function GET(request: Request): Promise<Response> {
     return new Response(csv, {
       headers: {
         "Content-Type": "text/csv; charset=utf-8",
-        "Content-Disposition": `attachment; filename="${format(t.export.balancesFile, { day: on })}"`,
+        "Content-Disposition": `attachment; filename="${format(on > now ? t.export.balancesFileProjected : t.export.balancesFile, { day: on })}"`,
         "Cache-Control": "no-store",
       },
     });

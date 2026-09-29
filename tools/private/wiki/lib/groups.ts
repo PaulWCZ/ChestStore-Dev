@@ -1,6 +1,8 @@
 import { CapabilityNotGranted, ChestError } from "@argentic/chest-sdk/errors";
 import type { Member } from "@argentic/chest-sdk/member";
 import * as members from "@argentic/chest-sdk/members";
+import { spaceAccess, type SpaceAudience } from "./access.ts";
+import { orList } from "./i18n/format.ts";
 
 // The Chest's groups the wiki offers — for a space kept to some of them,
 // edited by some of them, or asked to confirm a page — by name. With the
@@ -59,4 +61,22 @@ export async function membersOfTool(options: { role?: string } = {}): Promise<Me
 // its editors), by name.
 export async function editorsOfTool(): Promise<{ id: string; name: string }[]> {
   return (await membersOfTool({ role: "editor" })).map(m => ({ id: m.id, name: m.name }));
+}
+
+// Who a reader may ask to write: the editors who write the whole wiki, or
+// one space (its editors when it names some), by name — at most three, the
+// Chest's administrators last (they are rarely the ones to ask). Without
+// an answer from the Chest, none (the page says it without names).
+export async function whoWrites(space?: SpaceAudience): Promise<{ names: string[]; more: boolean }> {
+  const writers = (await membersOfTool({ role: "editor" })).filter(m => !space || spaceAccess(m, space) === "write");
+  writers.sort((a, b) => Number(a.isAdmin) - Number(b.isAdmin) || a.name.localeCompare(b.name));
+  return { names: writers.slice(0, 3).map(m => m.name), more: writers.length > 3 };
+}
+
+// askWhom writes those names as a reader reads them ("Camille Martin, Tom
+// Walker or another editor"), or null when the Chest named nobody.
+export async function askWhom(locale: string, another: string, space?: SpaceAudience): Promise<string | null> {
+  const { names, more } = await whoWrites(space);
+  if (names.length === 0) return null;
+  return orList(more ? [...names, another] : names, locale);
 }

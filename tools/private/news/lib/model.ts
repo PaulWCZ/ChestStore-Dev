@@ -35,8 +35,9 @@ export const limits = {
   confirmDays: 90,
 } as const;
 
-// The four kinds of post, in the order the composer offers them.
-export const kinds = ["announcement", "event", "welcome", "info"] as const;
+// The five kinds of post, in the order the composer offers them. A
+// welcome and a shout-out name a colleague (posts.welcome).
+export const kinds = ["announcement", "event", "welcome", "shoutout", "info"] as const;
 export type Kind = (typeof kinds)[number];
 export const isKind = (value: unknown): value is Kind => typeof value === "string" && (kinds as readonly string[]).includes(value);
 

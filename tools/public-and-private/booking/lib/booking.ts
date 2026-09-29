@@ -6,9 +6,9 @@ import { AppError } from "./app-error.ts";
 import type { Query } from "./db.ts";
 import { clean, colors, email, id, isColor, isLocationKind, limits, minutes, phone, slug, slugify, type Color, type LocationKind } from "./model.ts";
 import { cleanAnswers, cleanQuestions, readAnswers, readQuestions, type Answer, type Question } from "./questions.ts";
-import { defaultWeek, freeWindows, slots, validRanges, type Busy, type Ranges, type Slot, type Window } from "./slots.ts";
-import { isLocale, type Locale } from "./i18n/index.ts";
-import { cleanLanguages, cleanTypeTexts, localizeType, pageLanguage, readTypeTexts, type TypeTexts } from "./texts.ts";
+import { defaultWeek, freeWindows, openParts, slots, validRanges, type Busy, type Ranges, type Slot, type Window } from "./slots.ts";
+import { isLocale, locales, type Locale } from "./i18n/index.ts";
+import { cleanLanguages, cleanTypeTexts, localizeType, pageLanguage, readTypeTexts, titleIn, type TypeTexts } from "./texts.ts";
 import { addDays, instantOf, isDate, isZone, wall } from "./zone.ts";
 
 // Booking's services: hosts and their hours, booking types, the free times
@@ -552,6 +552,31 @@ export async function colorsOf(sql: Query, typeIds: (string | null)[]): Promise<
   return new Map(rows.map(r => [r.id, isColor(r.color) ? r.color : "slate"]));
 }
 
+// The name of each type in a reader's language, for the team's screens
+// (agenda, a booking, the bell, the export, the Chest's calendar): a
+// booking keeps the name as its guest read it — their emails need it —
+// but a host reads one type under one name. A removed type: none (the
+// booking's own copy shows).
+export async function typeNames(sql: Query, typeIds: (string | null)[], reader: Locale): Promise<Map<string, string>> {
+  const ids = [...new Set(typeIds.filter((x): x is string => x !== null && /^[1-9][0-9]{0,17}$/u.test(x)))];
+  if (ids.length === 0) return new Map();
+  const rows = await sql<{ id: string; title: string; alt: unknown; language: string | null; second_language: string | null }[]>`
+    select t.id::text as id, t.title, t.alt, h.language, h.second_language from types t join hosts h on h.member_id = t.member_id where t.id in ${sql(ids)}`;
+  return new Map(rows.map(r => {
+    const language = isLocale(r.language) ? r.language : null;
+    const second = language && isLocale(r.second_language) && r.second_language !== language ? r.second_language : null;
+    return [r.id, titleIn({ title: r.title, alt: readTypeTexts(r.alt) }, { language, second }, reader)];
+  }));
+}
+
+// A booking's type name in every language of the store (the bell and
+// calendar write each member's in theirs).
+export async function titlesOf(sql: Query, b: Pick<Booking, "typeId" | "title">): Promise<Record<Locale, string>> {
+  const out = {} as Record<Locale, string>;
+  for (const l of locales) out[l] = (await typeNames(sql, [b.typeId], l)).get(b.typeId ?? "") ?? b.title;
+  return out;
+}
+
 // The other hosts an administrator may add to a type's team.
 export async function otherHosts(sql: Query, actor: Member): Promise<string[]> {
   if (!can(actor, "settings")) return [];
@@ -589,7 +614,8 @@ export async function publicType(sql: Query, hostSlug: string, typeSlug: string)
 // The host's time taken between two instants: their confirmed bookings
 // (buffers included; those of typeId carry their start, for the type's
 // daily limit, and every one for the host's daily maximum), the times they
-// blocked, and the busy times of their other calendars.
+// blocked, the busy times of their other calendars, and those another tool
+// of the Chest told (told_spans: Hiring's interviews, lib/share.ts).
 async function busyOf(sql: Query, memberId: string, typeId: string, from: Date, to: Date, except: string | null): Promise<Busy[]> {
   const range = sql`tstzrange(${from}, ${to})`;
   const rows = await sql<{ lo: Date; hi: Date; starts_at: Date; same: boolean }[]>`
@@ -599,7 +625,9 @@ async function busyOf(sql: Query, memberId: string, typeId: string, from: Date, 
   const other = await sql<{ lo: Date; hi: Date }[]>`
     select lower(span) as lo, upper(span) as hi from blocks where member_id = ${memberId} and span && ${range}
     union all
-    select lower(span), upper(span) from busy where member_id = ${memberId} and span && ${range}`;
+    select lower(span), upper(span) from busy where member_id = ${memberId} and span && ${range}
+    union all
+    select lower(span), upper(span) from told_spans where member_id = ${memberId} and span && ${range}`;
   return [
     ...rows.map(r => ({ start: r.lo.getTime(), end: r.hi.getTime(), own: r.starts_at.getTime(), ...(r.same ? { sameType: r.starts_at.getTime() } : {}) })),
     ...other.map(r => ({ start: r.lo.getTime(), end: r.hi.getTime() })),
@@ -700,6 +728,47 @@ export async function freeStretches(sql: Query, host: Host, days = 7, now = Date
   for (let day = today; day <= last; day = addDays(day, 1)) {
     const found = freeWindows({ weekly: host.weekly, overrides, zone: host.zone }, busy, day, now);
     if (found.length > 0) out.set(day, found);
+  }
+  return out;
+}
+
+// A host's own busy times between two instants — confirmed bookings
+// (buffers included), times blocked, their other calendars — as other
+// tools are told them (lib/share.ts): never what another tool told
+// Booking.
+export async function ownBusy(sql: Query, memberId: string, from: Date, to: Date): Promise<{ start: number; end: number }[]> {
+  const range = sql`tstzrange(${from}, ${to})`;
+  const rows = await sql<{ lo: Date; hi: Date }[]>`
+    select lower(blocked) as lo, upper(blocked) as hi from bookings where member_id = ${memberId} and status = 'confirmed' and blocked && ${range}
+    union all
+    select lower(span), upper(span) from blocks where member_id = ${memberId} and span && ${range}
+    union all
+    select lower(span), upper(span) from busy where member_id = ${memberId} and span && ${range}`;
+  return rows.map(r => ({ start: r.lo.getTime(), end: r.hi.getTime() }));
+}
+
+// Where a host is busy outside Booking in the coming days, within their
+// hours: what their other calendars (by provider: "calendar.google.com")
+// and the other tools ("tool:hiring") say. The agenda shows these as grey
+// rows, so a hole in the free times is never a mystery. Times only.
+export type Elsewhere = { day: string; start: number; end: number; source: string };
+export async function busyElsewhere(sql: Query, host: Host, days = 7, now = Date.now()): Promise<Elsewhere[]> {
+  const today = wall(now, host.zone).date;
+  const last = addDays(today, days - 1);
+  const range = sql`tstzrange(${new Date(now - 86400000)}, ${new Date(Date.parse(last + "T00:00:00Z") + 2 * 86400000)})`;
+  const rows = await sql<{ lo: Date; hi: Date; source: string }[]>`
+    select lower(b.span) as lo, upper(b.span) as hi, c.provider as source from busy b join calendars c on c.id = b.calendar_id
+    where b.member_id = ${host.memberId} and b.span && ${range}
+    union all
+    select lower(span), upper(span), 'tool:' || source from told_spans where member_id = ${host.memberId} and span && ${range}`;
+  const overrides = Object.fromEntries((await overridesOf(sql, host.memberId, today)).map(o => [o.day, o.ranges]));
+  const out: Elsewhere[] = [];
+  const sources = [...new Set(rows.map(r => r.source))].sort();
+  for (let day = today; day <= last; day = addDays(day, 1)) {
+    for (const source of sources) {
+      const spans = rows.filter(r => r.source === source).map(r => ({ start: r.lo.getTime(), end: r.hi.getTime() }));
+      for (const w of openParts({ weekly: host.weekly, overrides, zone: host.zone }, spans, day, now)) out.push({ day, ...w, source });
+    }
   }
   return out;
 }
@@ -912,8 +981,8 @@ export async function cancelByGuest(sql: Query, secret: string, reason: unknown,
 
 // moveTo moves a booking to another free time of its type: the same
 // booking (the same link), a new time — with the same host when they are
-// free then, else with another of the team.
-async function moveTo(sql: Query, booking: Booking, owner: Host, type: BookingType, start: unknown, now: number, notice: "type" | 0): Promise<{ booking: Booking; before: Date }> {
+// free then, else with another of the team (from: its host before).
+async function moveTo(sql: Query, booking: Booking, owner: Host, type: BookingType, start: unknown, now: number, notice: "type" | 0): Promise<{ booking: Booking; before: Date; from: string }> {
   const when = typeof start === "string" ? new Date(start) : null;
   if (!when || Number.isNaN(when.getTime())) throw new AppError("invalid");
   return transaction(sql, async tx => {
@@ -933,7 +1002,7 @@ async function moveTo(sql: Query, booking: Booking, owner: Host, type: BookingTy
             update bookings set member_id = ${who.memberId}, starts_at = ${when}, ends_at = ${end}, duration = ${current.duration}, blocked = ${blockedRange(current, when, end)}::tstzrange, moves = moves + 1, reminded_at = null
             where id = ${booking.id} and status = 'confirmed' returning *`;
           if (!row) throw new AppError("too_late");
-          return { booking: toBooking(row), before: booking.startsAt };
+          return { booking: toBooking(row), before: booking.startsAt, from: booking.memberId };
         });
       } catch (error) {
         if (isOverlap(error) || (error instanceof AppError && error.code === "taken")) continue;
@@ -945,7 +1014,7 @@ async function moveTo(sql: Query, booking: Booking, owner: Host, type: BookingTy
 }
 
 // A guest moves their booking to another free time of the same type.
-export async function moveByGuest(sql: Query, secret: string, start: unknown, now = Date.now()): Promise<{ booking: Booking; before: Date }> {
+export async function moveByGuest(sql: Query, secret: string, start: unknown, now = Date.now()): Promise<{ booking: Booking; before: Date; from: string }> {
   const found = await bySecret(sql, secret);
   if (!found) throw new AppError("not_found");
   const { booking } = found;
@@ -960,7 +1029,7 @@ export async function moveByGuest(sql: Query, secret: string, start: unknown, no
 
 // A host moves a meeting (the guest asked by phone): any free time of its
 // type, the notice aside. The guest is told by the caller.
-export async function moveByHost(sql: Query, actor: Member, bookingId: unknown, start: unknown, now = Date.now()): Promise<{ booking: Booking; before: Date }> {
+export async function moveByHost(sql: Query, actor: Member, bookingId: unknown, start: unknown, now = Date.now()): Promise<{ booking: Booking; before: Date; from: string }> {
   const booking = await bookingFor(sql, actor, bookingId);
   if (booking.status !== "confirmed" || booking.endsAt.getTime() <= now) throw new AppError("too_late");
   const place = await typeForMove(sql, booking);
@@ -1093,11 +1162,12 @@ export async function cleanup(sql: Query, now = Date.now()): Promise<number> {
 }
 
 // eraseGuest deletes every booking of an email address (a guest asked);
-// the ids deleted, to take them out of the hosts' calendars.
-export async function eraseGuest(sql: Query, actor: Member, address: unknown): Promise<string[]> {
+// the bookings deleted (and their hosts), to take them out of the hosts'
+// calendars.
+export async function eraseGuest(sql: Query, actor: Member, address: unknown): Promise<{ id: string; memberId: string }[]> {
   if (!can(actor, "settings")) throw new AppError("forbidden");
-  const rows = await sql<{ id: string }[]>`delete from bookings where lower(guest_email) = ${email(address).toLowerCase()} returning id::text as id`;
-  return rows.map(r => r.id);
+  const rows = await sql<{ id: string; member_id: string }[]>`delete from bookings where lower(guest_email) = ${email(address).toLowerCase()} returning id::text as id, member_id`;
+  return rows.map(r => ({ id: r.id, memberId: r.member_id }));
 }
 
 // The bookings whose reminder is due: starting within the next 26 hours,

@@ -187,3 +187,27 @@ update inventories set seen = (select count(*) from sightings where inventory_id
 insert into inventories (started_by, started_at) values ('mbr_sofiaaaaaaaaaaaaaaaaaaaaaa', now() - interval '1 hour');
 insert into sightings (inventory_id, item_id, seen_by, seen_at)
 select 2, id, 'mbr_sofiaaaaaaaaaaaaaaaaaaaaaa', now() - interval '50 minutes' + (id || ' minutes')::interval from items where tag in ('EQ-0001', 'EQ-0006', 'EQ-0007', 'EQ-0016', 'EQ-0020', 'EQ-0028');
+
+-- ---- After critique round 3 (migration 0006) ----------------------------------
+
+-- Microsoft Intune was read last night (the sample company connected it
+-- once; this harness does not reach Microsoft): most laptops and phones
+-- are there; the spare ThinkPad is, says Intune, used by Léa; two devices
+-- Intune manages are not in Equipment yet.
+insert into intune_devices (serial_key, serial, device_name, manufacturer, model, os, os_version, last_check_in, member_id, read_at)
+select lower(i.serial), i.serial, x.device_name, x.manufacturer, x.model, x.os, x.os_version, now() - x.ago::interval, x.member_id, now() - interval '6 hours'
+from items i join (values
+  ('EQ-0001', 'MBP-CAMILLE', 'Apple', 'Mac15,3', 'macOS', '15.6.1', '3 hours', 'mbr_camilleaaaaaaaaaaaaaaaaaaa'),
+  ('EQ-0002', 'MBA-INES', 'Apple', 'Mac14,2', 'macOS', '14.7', '2 days', 'mbr_inesaaaaaaaaaaaaaaaaaaaaaa'),
+  ('EQ-0003', 'MBA-HUGO', 'Apple', 'Mac14,2', 'macOS', '15.6.1', '5 hours', 'mbr_hugoaaaaaaaaaaaaaaaaaaaaaa'),
+  ('EQ-0004', 'DESKTOP-7XK2JH3', 'Dell Inc.', 'XPS 15 9530', 'Windows', '10.0.26100.4946', '19 days', 'mbr_tomaaaaaaaaaaaaaaaaaaaaaaa'),
+  ('EQ-0005', 'DESKTOP-7XK2JH9', 'Dell Inc.', 'XPS 15 9530', 'Windows', '10.0.26100.4946', '1 day', 'mbr_leaaaaaaaaaaaaaaaaaaaaaaaa'),
+  ('EQ-0006', 'DESKTOP-PF4KQ7Z1', 'LENOVO', '21HD', 'Windows', '10.0.26100.4946', '4 hours', 'mbr_sofiaaaaaaaaaaaaaaaaaaaaaa'),
+  ('EQ-0007', 'DESKTOP-PF4KQ7Z8', 'LENOVO', '21HD', 'Windows', '10.0.26100.4946', '1 day', 'mbr_leaaaaaaaaaaaaaaaaaaaaaaaa'),
+  ('EQ-0010', 'iPhone de Hugo', 'Apple', 'iPhone 15', 'iOS', '18.6.2', '1 hour', 'mbr_hugoaaaaaaaaaaaaaaaaaaaaaa'),
+  ('EQ-0011', 'iPhone d’Inès', 'Apple', 'iPhone 15', 'iOS', '18.6.2', '2 hours', 'mbr_inesaaaaaaaaaaaaaaaaaaaaaa')
+) as x (tag, device_name, manufacturer, model, os, os_version, ago, member_id) on x.tag = i.tag;
+insert into intune_devices (serial_key, serial, device_name, manufacturer, model, os, os_version, last_check_in, member_id, read_at) values
+  ('pf5ab3c9', 'PF5AB3C9', 'DESKTOP-PF5AB3C9', 'LENOVO', '21HD', 'Windows', '10.0.26100.4946', now() - interval '2 days', null, now() - interval '6 hours'),
+  ('r5cx20k7mqa', 'R5CX20K7MQA', 'Galaxy S24', 'samsung', 'SM-S921B', 'Android', '15', now() - interval '3 hours', 'mbr_leaaaaaaaaaaaaaaaaaaaaaaaa', now() - interval '6 hours');
+insert into intune_reads (at, by, outcome, devices, without_serial) values (now() - interval '6 hours', 'schedule', 'ok', 11, 0);

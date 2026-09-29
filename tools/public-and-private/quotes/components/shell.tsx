@@ -4,7 +4,7 @@ import { AppShell, Menu, type MenuItem } from "@argentic/chest-ui/components";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
-import { Box, Desk, Download, Gear, Invoice, People, Quote } from "./icons.tsx";
+import { Box, Coins, Desk, Download, Gear, Invoice, People, Quote, Upload } from "./icons.tsx";
 
 // The members' frame: the kit's AppShell (skip link, header, labelled
 // sections — a row of their own under the header on a phone, never icons
@@ -13,9 +13,9 @@ import { Box, Desk, Download, Gear, Invoice, People, Quote } from "./icons.tsx";
 // (the accountant's export, the settings) wait in a "More" menu at the
 // right of the header. Functions and icons are made here, in a client
 // component: the server layout passes only plain data.
-export type ShellWords = { desk: string; quotes: string; invoices: string; clients: string; catalogue: string; more: string; export: string; settings: string };
+export type ShellWords = { desk: string; quotes: string; invoices: string; clients: string; catalogue: string; more: string; export: string; settings: string; bank: string; importInvoices: string };
 
-export function Shell({ brand, member, words, sections, overdue, canExport, labels, children }: {
+export function Shell({ brand, member, words, sections, overdue, canExport, canBank, canImportInvoices, labels, children }: {
   brand: ReactNode;
   member: { name: string; role: string | null; photo: string | null };
   words: ShellWords;
@@ -24,6 +24,10 @@ export function Shell({ brand, member, words, sections, overdue, canExport, labe
   // Overdue invoices: a true count, on the Invoices tab.
   overdue: number;
   canExport: boolean;
+  // Matching a bank statement (who records payments); importing the
+  // invoices still to collect (who issues them) — switching day's.
+  canBank: boolean;
+  canImportInvoices: boolean;
   labels: { skip: string; nav: string };
   children: ReactNode;
 }) {
@@ -36,7 +40,9 @@ export function Shell({ brand, member, words, sections, overdue, canExport, labe
     { href: "/chest/catalogue", label: words.catalogue, icon: <Box /> },
   ] : [];
   const more: MenuItem[] = [
+    ...(canBank ? [{ label: words.bank, href: "/chest/bank", icon: <Coins /> }] : []),
     ...(canExport ? [{ label: words.export, href: "/chest/export", icon: <Download /> }] : []),
+    ...(canImportInvoices ? [{ label: words.importInvoices, href: "/chest/import?kind=invoices", icon: <Upload /> }] : []),
     { label: words.settings, href: "/chest/settings", icon: <Gear /> },
   ];
   return (

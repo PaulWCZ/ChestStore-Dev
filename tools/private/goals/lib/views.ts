@@ -1,3 +1,4 @@
+import type { Source } from "./sources.ts";
 import type { Member } from "@argentic/chest-sdk/member";
 import { mayCheckIn, mayEdit } from "./access.ts";
 import { format, formatDate, plural, relative, type Catalogue, type Locale } from "./i18n/index.ts";
@@ -39,7 +40,9 @@ export type KeyResultView = {
   targetInput: string;
   unit: string;
   currency: string | null;
-  source: "manual" | "crm.won_amount" | "crm.won_count";
+  source: "manual" | Source;
+  sourceMine: boolean;
+  sourceScope: string | null;
   weight: number;
   percent: number;
   percentText: string;
@@ -71,6 +74,8 @@ export function keyResultView(k: KeyResult, objective: { owner: string }, ctx: {
     unit: k.unit,
     currency: k.currency,
     source: k.source ?? "manual",
+    sourceMine: k.sourceMine,
+    sourceScope: k.sourceScope,
     weight: k.weight,
     percent: percent(k.progress) ?? 0,
     percentText: pctText(t, percent(k.progress)),

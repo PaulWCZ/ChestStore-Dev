@@ -558,6 +558,139 @@ await step("a request sent twice is one ticket; the second sending lands on it",
   expect(second.includes("We had already received this request"), "said");
 });
 
+// ---- Round 3 of the critique ------------------------------------------------
+
+await step("a colleague without a role reads the answer to their IT request in My requests, and nothing else (critique 3, N1)", async () => {
+  await page.setViewportSize({ width: 1280, height: 860 });
+  const deliver = data => page.request.post(origin + "/_dev/deliver", { form: { type: "forms.request", data: JSON.stringify(data) } });
+  await deliver({ v: 1, form: { id: "9", title: "Demande informatique" }, answer: { id: "flowNoraItReq001", at: new Date().toISOString(), language: "fr", path: null },
+    subject: "Écran noir", details: "Mon écran reste noir depuis ce matin.", requester: { name: null, email: null, member: id("nora") }, fields: [] });
+  await deliver({ v: 1, form: { id: "9", title: "Demande informatique" }, answer: { id: "flowLeaItReq0001", at: new Date().toISOString(), language: "fr", path: null },
+    subject: "Clavier cassé", details: "La touche A ne marche plus.", requester: { name: null, email: null, member: id("lea") }, fields: [] });
+  // Inès answers Nora, and leaves a note the colleague must never see.
+  await as(context, origin, "ines");
+  await page.goto(origin + "/chest?q=" + encodeURIComponent("Écran noir"));
+  await page.locator(".tickets a", { hasText: "Écran noir" }).first().click();
+  await page.waitForURL(/\/chest\/tickets\/[0-9]+$/u);
+  const number = page.url().split("/").pop();
+  await page.getByRole("tab", { name: "Note interne" }).click();
+  await page.locator("#answer").fill("Garantie encore valable, voir le fournisseur.");
+  await page.getByRole("button", { name: "Ajouter la note" }).click();
+  await page.waitForSelector(".msg.note");
+  await page.getByRole("tab", { name: "Répondre" }).click();
+  await page.locator("#answer").fill("Nora, le technicien passe demain matin.");
+  await page.getByRole("button", { name: "Envoyer", exact: true }).click();
+  await page.waitForSelector(".msg.team:not(.note) >> text=le technicien passe demain matin");
+  const lea = await page.request.get(origin + "/_dev");
+  const bell = (await lea.text()).match(/Inès Moreau a répondu à votre demande [0-9]+[^<]*<[^>]*>[^<]*/u)?.[0] ?? "";
+  expect(bell.length > 0, "Nora's bell");
+  // Nora has no role: Support opens on her requests; the bell's address is her own view.
+  await as(context, origin, "nora");
+  await page.goto(origin + "/chest");
+  await page.waitForURL(/\/chest\/mine$/u);
+  const list = await page.locator("main, #main").first().innerText();
+  expect(list.includes("Mes demandes") && list.includes("Écran noir"), "her request listed");
+  expect(!list.includes("Clavier cassé") && !list.includes("Missing screws"), "nobody else's");
+  await page.locator(".tickets a", { hasText: "Écran noir" }).click();
+  await page.waitForURL(new RegExp(`/chest/mine/${number}$`, "u"));
+  const thread = await page.locator(".thread").innerText();
+  expect(thread.includes("le technicien passe demain matin"), "she reads the answer");
+  expect(!thread.includes("Garantie"), "never the note");
+  // The address of the team's ticket page leads her to her own view of it.
+  await page.goto(origin + "/chest/tickets/" + number);
+  await page.waitForURL(new RegExp(`/chest/mine/${number}$`, "u"));
+  // She answers; the agent's ticket shows it.
+  await page.locator("#mine-message").fill("Merci, je serai là à partir de 9 h.");
+  await page.getByRole("button", { name: "Envoyer" }).click();
+  await page.waitForSelector(".thread >> text=je serai là à partir de 9 h");
+  // Another colleague's request, the inbox, the settings: never.
+  const leas = await page.request.get(origin + "/chest/mine/" + (Number(number) + 1));
+  expect(leas.status() === 404, "Léa's request is not found for her: " + leas.status());
+  await page.goto(origin + "/chest/settings");
+  await page.waitForURL(/\/chest\/mine$/u);
+  await as(context, origin, "ines");
+  await page.goto(origin + "/chest/tickets/" + number);
+  expect((await page.locator(".thread").innerText()).includes("je serai là à partir de 9 h"), "the team reads her answer");
+});
+
+await step("a ticket from the store's Contact form: a real subject, the message first, call and email in one tap (critique 3, N2, N5)", async () => {
+  await as(context, origin, "hugo");
+  await page.request.post(origin + "/_dev/deliver", { form: { type: "forms.request", data: JSON.stringify({
+    v: 1, form: { id: "101", title: "Contactez-nous" }, answer: { id: "flowNinaContact1", at: new Date().toISOString(), language: "fr", path: "/chest/forms/101/answers/flowNinaContact1" },
+    subject: "Contactez-nous", details: null, requester: { name: "Nina Roux", email: "nina.roux@gmail.com", member: null },
+    fields: [
+      { question: "5jvdruf4", label: "Votre numéro de téléphone", value: "06 12 34 56 78" },
+      { question: "mdxjrkxm", label: "C’est à quel sujet ?", value: "Un devis" },
+      { question: "bfpmf8qf", label: "Votre message", value: "Bonjour, je voudrais un devis pour six chaises en chêne.\nMerci" },
+    ],
+  }) } });
+  await page.goto(origin + "/chest?q=nina.roux@gmail.com");
+  const row = page.locator(".tickets a", { hasText: "Un devis — Bonjour, je voudrais un devis pour six chaises en chêne." });
+  expect(await row.count() === 1, "the subject says what it is about");
+  await row.click();
+  await page.waitForURL(/\/chest\/tickets\/[0-9]+$/u);
+  const body = await page.locator(".thread .msg .body").first().innerText();
+  expect(body.startsWith("Bonjour, je voudrais un devis"), "the message first: " + body.slice(0, 40));
+  expect(await page.locator('.thread a[href="tel:0612345678"]').count() === 1, "the phone number calls");
+  expect(await page.locator('.side-card a[href="mailto:nina.roux@gmail.com"]').count() >= 1, "the address writes");
+});
+
+await step("on a touch phone the file picker says no “drop them here” (kit 0.2.5, pointer: coarse)", async () => {
+  const phone = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, locale: "fr-FR" });
+  const p = await phone.newPage();
+  await p.goto(origin + "/?lang=fr");
+  expect(await p.locator(".ck-drop-hint").count() === 1, "the hint is in the page for desks");
+  expect(!(await p.locator(".ck-drop-hint").isVisible()), "hidden on a touch phone");
+  await phone.close();
+});
+
+await step("an admin sends new requests to a Slack channel; the channel gets the number, the subject and a link — not the message (critique 3, top 3)", async () => {
+  await as(context, origin, "camille");
+  await context.addCookies([{ name: "dev_locale", value: "en", url: origin }]);
+  await page.goto(origin + "/chest/settings#notices");
+  await page.locator("#notice-kind").selectOption("slack");
+  await page.locator("#notice-url").fill("https://hooks.example.com/not-slack");
+  await page.locator("#notice-label").fill("Support channel");
+  await page.getByRole("button", { name: "Add a channel" }).last().click();
+  await page.waitForSelector("text=Paste the address Slack gave you");
+  await page.locator("#notice-url").fill("https://hooks.slack.com/services/T0FLOW/B0FLOW/flowSecretPart0123456789");
+  await page.getByRole("checkbox", { name: "a customer writes again" }).last().check();
+  await page.getByRole("button", { name: "Add a channel" }).last().click();
+  await page.waitForSelector(".notice-target >> text=Support channel");
+  const box = await page.locator("#notices").innerText();
+  expect(!box.includes("flowSecretPart0123456789"), "the address is never shown whole again");
+  await page.request.post(origin + "/_dev/deliver", { form: { type: "forms.request", data: JSON.stringify({
+    v: 1, form: { id: "5", title: "Contact us" }, answer: { id: "flowSlackNotice1", at: new Date().toISOString(), language: "en", path: null },
+    subject: "Wobbly table leg", details: "The left leg of my table is loose. My order is 4417.", requester: { name: "Paul Martin", email: "paul.m@example.com", member: null }, fields: [],
+  }) } });
+  const dev = (await (await page.request.get(origin + "/_dev")).text()).replace(/<[^>]*>/gu, " ");
+  const posted = /ticket\.new → Support channel: delivered[^{]*(\{[^}]*\})/u.exec(dev)?.[1] ?? "";
+  expect(/New request [0-9]+ from Paul Martin: Wobbly table leg\\nhttp:\/\/localhost:[0-9]+\/chest\/tickets\/[0-9]+/u.test(posted), "the channel is told: " + posted);
+  expect(!posted.includes("left leg"), "never the message");
+});
+
+await step("Status says an incident is in progress: a banner above the inbox and a saved reply with the public page; gone once resolved (critique 3, N3)", async () => {
+  await as(context, origin, "hugo");
+  const incident = (action, at) => ({ v: 1, action, incident: { id: "77", title: "Payments unavailable", language: "en", titles: { en: "Payments unavailable", fr: "Paiement indisponible" },
+    status: action === "resolved" ? "resolved" : "investigating", impact: action === "resolved" ? "operational" : "major", started_at: new Date(Date.now() - 600000).toISOString(), resolved_at: null,
+    url: "https://status.atelier-martin.test/incidents/77", services: [{ id: "3", names: { en: "Payments", fr: "Paiement" }, state: "major" }] }, update: { id: "900", status: "investigating", at } });
+  await page.request.post(origin + "/_dev/deliver", { form: { type: "status.incident", data: JSON.stringify(incident("opened", new Date().toISOString())) } });
+  await page.goto(origin + "/chest");
+  const banner = await page.locator(".incidents").innerText();
+  expect(banner.includes("Incident in progress: Payments unavailable") && banner.includes("Affected: Payments"), "the banner: " + banner);
+  expect(await page.locator('.incidents a[href="https://status.atelier-martin.test/incidents/77"]').count() === 1, "the public page");
+  await page.goto(origin + "/chest/tickets/1003");
+  expect((await page.locator(".incidents").innerText()).includes("Payments unavailable"), "on a ticket too");
+  await page.getByRole("button", { name: "Saved replies" }).click();
+  await page.getByRole("menuitem", { name: /Incident: Payments unavailable/u }).click();
+  const reply = await page.locator("#answer").inputValue();
+  expect(reply.includes("https://status.atelier-martin.test/incidents/77"), "the saved reply links the public page: " + reply.slice(0, 80));
+  await page.locator("#answer").fill("");
+  await page.request.post(origin + "/_dev/deliver", { form: { type: "status.incident", data: JSON.stringify(incident("resolved", new Date(Date.now() + 1000).toISOString())) } });
+  await page.goto(origin + "/chest");
+  expect(await page.locator(".incidents").count() === 0, "gone once resolved");
+});
+
 await step("public form on a phone: a wrong address is said under its field; files in plain words", async () => {
   await context.clearCookies();
   await page.setExtraHTTPHeaders({ "x-forwarded-for": "203.0.113.22" });

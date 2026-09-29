@@ -1,4 +1,14 @@
 {
+  "mail": {
+    "send": true
+  },
+  "emits": [
+    "timesheets.billable",
+    "timesheets.billable_cancelled"
+  ],
+  "receives": [
+    "quotes.invoiced"
+  ],
   "schedules": [
     {
       "name": "friday",

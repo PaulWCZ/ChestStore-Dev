@@ -3,8 +3,10 @@ import { EmptyState, PageHeader, SearchBox } from "@argentic/chest-ui/components
 import { headers } from "next/headers";
 import { Inbox, Plus } from "../../components/icons.tsx";
 import { FilterToggle } from "../../components/filter-toggle.tsx";
+import { IncidentBanner } from "../../components/incident-banner.tsx";
 import { InboxFilters } from "../../components/inbox-filters.tsx";
 import { can } from "../../lib/access.ts";
+import { openIncidents } from "../../lib/incidents-in.ts";
 import { answerers, colleagueName } from "../../lib/tell.ts";
 import { db } from "../../lib/db.ts";
 import { workMinutes } from "../../lib/hours.ts";
@@ -35,7 +37,7 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
   const origin = publicOrigin(await headers());
   await rememberPublicOrigin(sql, origin);
   const filters = { priority: search.priority, tag: search.tag, sort: search.sort };
-  const [rows, counts, tagList, s] = await Promise.all([listTickets(sql, member, folder, q || undefined, filters), folderCounts(sql, member), allTags(sql, member), settings(sql)]);
+  const [rows, counts, tagList, s, incidents] = await Promise.all([listTickets(sql, member, folder, q || undefined, filters), folderCounts(sql, member), allTags(sql, member), settings(sql), openIncidents(sql, member, locale)]);
   const filtered = Boolean(search.priority || search.tag);
   const tagName = tagList.find(g => g.id === search.tag)?.name;
   const now = new Date();
@@ -46,6 +48,8 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
   const who = await people([...rows.flatMap(r => [r.assignee, r.requester]).filter((a): a is string => !!a && a.startsWith("mbr_")), ...team]);
   const total = counts.all + counts.spam;
   const address = total === 0 ? await supportAddress() : null;
+  // A company that already has a contact form in Forms is shown the way.
+  const forms = total === 0 ? chest.toolLink("forms", "/chest") : null;
   // The order shown by default is no choice of the view's.
   const current = viewParams({ ...search, sort: search.sort === defaultSort ? undefined : search.sort });
   const shown = (await listViews(sql, member)).find(x => viewHref(x.params) === viewHref(current));
@@ -55,6 +59,7 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
   return (
     <>
       <PageHeader size="m" title={title} action={canCreate ? <a className="ck-button" href="/chest/new"><Plus />{t.shell.new}</a> : undefined} />
+      <IncidentBanner incidents={incidents} t={t.incident} />
       {total > 0 && (
         <div className="inbox-tools">
           <SearchBox action="/chest" id="q" value={q} maxLength={100} labels={{ label: t.shell.search, placeholder: t.shell.search, shortcut: w.searchShortcut, submit: t.shell.searchButton }} />
@@ -78,7 +83,8 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
       {q && <p className="muted results" role="status">{plural(w.results, rows.length, locale, { q })}</p>}
       {total === 0 && !q ? (
         <EmptyState icon={<Inbox />} title={w.firstTitle} body={format(w.firstBody, { email: address ? format(w.firstEmail, { email: address }) : "" })}
-          action={<a className="ck-button" href={origin ?? "/"} target="_blank" rel="noopener">{w.openForm}</a>} />
+          action={<a className="ck-button" href={origin ?? "/"} target="_blank" rel="noopener">{w.openForm}</a>}
+          note={forms && canCreate ? <a href={forms}>{w.formsNote}</a> : undefined} />
       ) : rows.length === 0 && !q ? (
         <EmptyState title={filtered ? w.filtered : w.empty[folder]} />
       ) : (

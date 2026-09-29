@@ -128,7 +128,7 @@ insert into history (expense_id, actor, kind, detail, at) values
 -- payments wait for their receipt (drafts made for them); Tom's parking was
 -- also claimed as paid with his own money (to check).
 insert into expenses (id, member_id, kind, status, spent_on, amount_cents, currency, base_cents, base_currency, category_id, merchant, paid_by, created_at, updated_at) overriding system value values
-  (26, 'mbr_hugoaaaaaaaaaaaaaaaaaaaaaa', 'expense', 'draft', '2026-09-24', 2340, 'EUR', 2340, 'EUR', (select id from categories where key = 'other'), 'UBER *TRIP', 'company', '2026-09-28 09:30:00+02', '2026-09-28 09:30:00+02'),
+  (26, 'mbr_hugoaaaaaaaaaaaaaaaaaaaaaa', 'expense', 'draft', '2026-09-24', 2340, 'EUR', 2340, 'EUR', (select id from categories where key = 'travel'), 'UBER *TRIP', 'company', '2026-09-28 09:30:00+02', '2026-09-28 09:30:00+02'),
   (27, 'mbr_hugoaaaaaaaaaaaaaaaaaaaaaa', 'expense', 'draft', '2026-09-25', 1285, 'EUR', 1285, 'EUR', (select id from categories where key = 'other'), 'MONOPRIX PARIS 11', 'company', '2026-09-28 09:30:00+02', '2026-09-28 09:30:00+02');
 insert into history (expense_id, actor, kind, detail, at) values
   (26, 'mbr_camilleaaaaaaaaaaaaaaaaaaa', 'created', 'card', '2026-09-28 09:30:00+02'),

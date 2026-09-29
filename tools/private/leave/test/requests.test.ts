@@ -5,7 +5,7 @@ import { AppError } from "../lib/app-error.ts";
 import { addDays } from "../lib/calendar.ts";
 import { balances } from "../lib/balances.ts";
 import * as requests from "../lib/requests.ts";
-import { archiveType, types } from "../lib/rules.ts";
+import { archiveType, saveType, types } from "../lib/rules.ts";
 import { setApprover, setStartDate } from "../lib/staff.ts";
 import * as tell from "../lib/tell.ts";
 import { today } from "../lib/model.ts";
@@ -19,6 +19,9 @@ let chest: FakeChest;
 let paid: string, sick: string, unpaid: string;
 before(async () => {
   database = await testDatabase();
+  // These tests ask without setting balances first: paid leave may go
+  // below zero here (its default refusal is tested in requests.test.ts).
+  await database.sql`update leave_types set overdraw = true where key = 'paid'`;
   chest = await fakeChest({ members: everyone, groups: fakeGroups });
   const all = await types(database.sql);
   paid = all.find(t => t.key === "paid")!.id;
@@ -191,4 +194,26 @@ test("the bell: the approver hears of a request in their language, the requester
   assert.equal(toHugo.title, "Your time off is refused");
   assert.match(toHugo.body ?? "", /Inventory\nby Inès Moreau$/u);
   assert.ok(!chest.notifications.some(n => n.member === ines.id && n.key === `req:${r.id}`));
+});
+
+test("paid leave never goes below zero by default (French practice: an advance is the employer's to allow); HR recording it for someone is that advance", async () => {
+  const { sql } = database;
+  // A new company's paid leave (migration 0004 turned it off everywhere).
+  await sql`update leave_types set overdraw = false where key = 'paid'`;
+  try {
+    const kind = (await types(sql)).find(t => t.key === "paid")!;
+    assert.equal(kind.overdraw, false);
+    // Sofia has no balance set: asking a week is refused.
+    const monday = quietMonday(300);
+    await assert.rejects(requests.createRequest(sql, asMember(sofia), { typeId: paid, ...week(monday) }), refused("not_enough"));
+    // HR records it for her: an advance HR decided — allowed, approved.
+    const advance = await requests.createRequest(sql, asMember(camille), { typeId: paid, memberId: sofia.id, ...week(monday) });
+    assert.equal(advance.status, "approved");
+    // HR allows it for everyone: the kind's switch.
+    await saveType(sql, asMember(camille), paid, { overdraw: true });
+    const asked = await requests.createRequest(sql, asMember(sofia), { typeId: paid, ...week(addDays(monday, 14)) });
+    assert.equal(asked.status, "pending");
+  } finally {
+    await sql`update leave_types set overdraw = true where key = 'paid'`;
+  }
 });

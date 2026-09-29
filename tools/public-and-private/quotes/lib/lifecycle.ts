@@ -13,7 +13,8 @@ import type { Sql } from "./db.ts";
 //   17(3)(b)) — but the person's id is replaced by 'erased' wherever the
 //   tool kept it (who created, sent, decided, finalised, recorded a
 //   payment, changed the settings or the numbering, set an invoice to
-//   repeat, made or turned off a quote's link, downloaded an archive). The database's guard of finalised documents lets exactly this
+//   repeat, made or turned off a quote's link, started or sent a quote's version,
+//   downloaded an archive). The database's guard of finalised documents lets exactly this
 //   change through. Then the erasure is acknowledged.
 export async function erase(sql: Sql, memberId: string): Promise<void> {
   await sql.begin(async tx => {
@@ -30,6 +31,8 @@ export async function erase(sql: Sql, memberId: string): Promise<void> {
     await tx`update quote_links set created_by = 'erased' where created_by = ${memberId}`;
     await tx`update quote_links set revoked_by = 'erased' where revoked_by = ${memberId}`;
     await tx`update archives set downloaded_by = 'erased' where downloaded_by = ${memberId}`;
+    await tx`update quote_versions set replaced_by = 'erased' where replaced_by = ${memberId}`;
+    await tx`update quote_versions set sent_by = 'erased' where sent_by = ${memberId}`;
   });
 }
 

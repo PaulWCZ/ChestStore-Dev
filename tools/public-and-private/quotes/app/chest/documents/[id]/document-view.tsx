@@ -8,9 +8,9 @@ import { Stamp } from "../../../../components/stamp.tsx";
 import { format, formatDay } from "../../../../lib/i18n/format.ts";
 import type { Catalogue, Locale } from "../../../../lib/i18n/index.ts";
 import { formatMoney } from "../../../../lib/money.ts";
-import type { ClientOption, DocView, Fact, ItemOption, Moment, OnlineView, PaymentView, RelatedView, Rights } from "../../../../lib/views.ts";
+import type { ClientOption, DocView, Fact, ItemOption, Moment, OnlineView, PaymentView, RelatedView, Rights, VersionView } from "../../../../lib/views.ts";
 import { CopyLink } from "../../../../components/copy-link.tsx";
-import { decide, duplicate, markReady, removeDraft, removePayment, renewLink, restoreDraft, restorePayment, revokeLink, startCreditNote, stopRepeat } from "../../actions.ts";
+import { decide, discardVersion, duplicate, markReady, removeDraft, reviseQuote, removePayment, renewLink, restoreDraft, restorePayment, revokeLink, startCreditNote, stopRepeat } from "../../actions.ts";
 import { FinaliseDialog, InvoiceDialog, PaymentDialog, RepeatDialog, SendDialog } from "./dialogs.tsx";
 import { Paper, type SaveState } from "./paper.tsx";
 
@@ -43,6 +43,8 @@ export type DocumentViewProps = {
   repeatDates: Record<"month" | "quarter" | "year", string> | null;
   // A sent quote's online answer: its link and the answers given.
   online: OnlineView | null;
+  // A quote's earlier versions, the latest first.
+  versions: VersionView[];
 };
 
 type Open = "send" | "reminder" | "finalise" | "invoice" | "payment" | "repeat" | null;
@@ -97,11 +99,13 @@ export function DocumentView(props: DocumentViewProps) {
   // An invoice imported from the previous tool: only collected here.
   const collectable = final || doc.imported;
   const canFinalise = rights.issue && draft && !quote;
+  // The next version of a sent quote, being written.
+  const nextVersion = quote && draft && doc.version > 1;
 
   const primary = (() => {
     if (quote) {
       if (!rights.quote) return null;
-      if (draft) return <button type="button" className="button block" onClick={() => void openDialog("send")}><Send />{d.actions.send}</button>;
+      if (draft) return <button type="button" className="button block" onClick={() => void openDialog("send")}><Send />{nextVersion ? format(d.actions.sendVersion, { version: doc.version }) : d.actions.send}</button>;
       if (doc.state === "sent" || doc.state === "expired") return (
         <>
           <button type="button" className="button block" onClick={() => void run(() => decide(doc.id, "accepted"), () => say(d.toasts.accepted))}><Check />{d.actions.accepted}</button>
@@ -128,6 +132,12 @@ export function DocumentView(props: DocumentViewProps) {
   const secondary: { key: string; node: React.ReactNode }[] = [];
   const add = (key: string, node: React.ReactNode) => secondary.push({ key, node });
   if (!doc.imported) add("pdf", <a className="link-button" href={pdfHref} onClick={e => void downloadPdf(e)}><Download /> {draft ? d.actions.previewPdf : d.actions.downloadPdf}</a>);
+  // A sent quote changes through its next version (the client keeps what
+  // was sent until the new one goes); Undo drops it.
+  if (quote && rights.quote && (doc.state === "sent" || doc.state === "expired")) add("revise", <button type="button" className="link-button" onClick={() => void run(() => reviseQuote(doc.id), v => {
+    say(format(d.toasts.revised, { version: v.version }), { undo: async () => { const back = await discardVersion(doc.id); router.refresh(); return back.ok || errorText(back.error, back.values); } });
+    router.refresh();
+  })}>{d.actions.revise}</button>);
   if (quote && rights.quote && !draft && doc.state !== "refused") add("resend", <button type="button" className="link-button" onClick={() => void openDialog("send")}>{d.actions.sendAgain}</button>);
   if (final && doc.sentAt && rights.issue) add("resend", <button type="button" className="link-button" onClick={() => setOpen("send")}>{d.actions.sendAgain}</button>);
   if (invoice && collectable && doc.due > 0 && rights.pay && ((final && doc.sentAt === null) || doc.state === "overdue")) add("pay", <button type="button" className="link-button" onClick={() => setOpen("payment")}>{d.actions.recordPayment}</button>);
@@ -137,7 +147,9 @@ export function DocumentView(props: DocumentViewProps) {
   if (invoice && final && rights.issue && doc.credited < doc.gross) add("credit", <button type="button" className="link-button" onClick={() => void run(() => startCreditNote(doc.id), v => { say(d.toasts.creditStarted); router.push(`/chest/documents/${v.id}`); })}>{d.actions.creditNote}</button>);
   if (quote && rights.quote && (doc.state === "accepted" || doc.state === "refused")) add("reopen", <button type="button" className="link-button" onClick={() => void run(() => decide(doc.id, "sent"), () => say(d.toasts.reopened))}>{d.actions.reopen}</button>);
   if (!credit && (quote ? rights.quote : rights.draftInvoice)) add("copy", <button type="button" className="link-button" onClick={() => void run(() => duplicate(doc.id), v => { say(d.toasts.copied); router.push(`/chest/documents/${v.id}`); })}><Copy /> {d.actions.duplicate}</button>);
-  if (draft && rights.edit) add("delete", <button type="button" className="link-button danger" onClick={() => void run(async () => removeDraft(doc.id), () => {
+  if (nextVersion && rights.edit) add("discard", <button type="button" className="link-button danger" onClick={() => void run(() => discardVersion(doc.id), () => { say(format(d.toasts.discarded, { version: doc.version })); router.refresh(); })}>
+    <Trash /> {format(d.actions.discardVersion, { version: doc.version })}</button>);
+  if (draft && rights.edit && !nextVersion) add("delete", <button type="button" className="link-button danger" onClick={() => void run(async () => removeDraft(doc.id), () => {
     say(d.toasts.deleted, { undo: async () => { const back = await restoreDraft(doc.id); if (!back.ok) return errorText(back.error, back.values); router.push(`/chest/documents/${doc.id}`); return true; } });
     router.push(listHref);
   })}><Trash /> {d.actions.deleteDraft}</button>);
@@ -152,7 +164,7 @@ export function DocumentView(props: DocumentViewProps) {
         <div>
           {rights.edit && (
             <p className={save === "invalid" || save === "error" ? "save-state error" : "save-state"} role="status" aria-live="polite">
-              {doc.status === "sent" ? d.editingSent + " · " : ""}{saveText}
+              {nextVersion ? format(d.editingSent, { version: doc.version }) + " · " : ""}{saveText}
             </p>
           )}
           {doc.imported ? (
@@ -173,7 +185,7 @@ export function DocumentView(props: DocumentViewProps) {
           <section className="card">
             <Stamp state={doc.state} label={stateLabel} big />
             <h2>{doc.kindText} {doc.number ?? ""}</h2>
-            <p className="hint">{d.explain[doc.state]}</p>
+            <p className="hint">{nextVersion ? format(d.versionDraft, { version: doc.version, previous: doc.version - 1 }) : d.explain[doc.state]}</p>
             {doc.crmTitle && <p className="hint from-crm">{format(d.fromCrm, { title: doc.crmTitle })}</p>}
             {doc.madeFrom && <p className="hint from-crm"><a href={`/chest/documents/${doc.madeFrom.id}`}>{format(d.madeFrom, { number: doc.madeFrom.number })}</a></p>}
             {doc.repeat && <p className="hint repeat-note"><Repeat /> {format(d.repeats, { every: d.every[doc.repeat.every], date: doc.repeat.next })}</p>}
@@ -189,6 +201,19 @@ export function DocumentView(props: DocumentViewProps) {
             {secondary.length > 0 && <div className="more">{secondary.map(s => <span key={s.key}>{s.node}</span>)}</div>}
           </section>
           {props.online && <OnlineCard docId={doc.id} online={props.online} t={t} canWrite={rights.quote} waiting={doc.state === "sent"} onDone={(text: string) => { say(text); router.refresh(); }} onError={fail} />}
+          {props.versions.length > 0 && (
+            <section className="card versions" aria-labelledby="versions-title">
+              <h2 id="versions-title">{d.versions.title}</h2>
+              <ul className="related">
+                {props.versions.map(v => (
+                  <li key={v.version}>
+                    {v.pdf ? <a href={v.pdf}><span>{v.text}</span><span className="num"><Download /><span className="visually-hidden">{format(d.versions.pdf, { version: v.version })}</span></span></a>
+                      : <span><span>{v.text}</span><span className="hint">{d.versions.noPdf}</span></span>}
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
           {props.payments.length > 0 && (
             <section className="card">
               <h2>{d.payments}</h2>

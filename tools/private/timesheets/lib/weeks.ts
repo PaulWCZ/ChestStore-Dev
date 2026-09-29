@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import type { Member } from "@argentic/chest-sdk/member";
 import { can, roles } from "./access.ts";
 import { AppError } from "./app-error.ts";
@@ -6,7 +7,9 @@ import type { Query } from "./db.ts";
 import { addDays, isDay, mondayOf } from "./days.ts";
 import { managerIds } from "./directory.ts";
 import { formatDuration } from "./duration.ts";
-import { format, formatDay } from "./i18n/index.ts";
+import { format, formatDay, type Catalogue } from "./i18n/index.ts";
+import type { Locale } from "@argentic/chest-sdk/member";
+import { email } from "./mail.ts";
 import { clean, memberPattern, numeric } from "./model.ts";
 import { notify, withdraw } from "./notify.ts";
 import { people } from "./people.ts";
@@ -15,8 +18,11 @@ import { transaction } from "./tx.ts";
 
 // The week as a ritual: a person submits their week; a manager approves it
 // (it locks: nobody changes it any more) or sends it back with a word (it
-// opens again). While it waits, the person may take it back. The bell
-// tells the managers of a week to approve, and the person of the answer.
+// opens again). While it waits, the person may take it back. Nobody
+// approves (or sends back) their own week: a manager's week waits for
+// another manager. The bell and an email tell the leads of the projects the
+// week holds (every manager when none has a lead) of a week to approve, and
+// the person of the answer.
 // The company may turn approvals off (Settings): then nobody submits.
 //
 // Beside it, each person's usual week (their capacity, the company's by
@@ -77,7 +83,7 @@ const answerKey = (week: string) => `approval:${week}`;
 
 // submitWeek: the person sends their week (this one or one before). A week
 // running now may be sent too (someone off on Friday).
-export async function submitWeek(sql: Query, actor: Member | null, week: unknown): Promise<WeekState> {
+export async function submitWeek(sql: Query, actor: Member | null, week: unknown): Promise<WeekState & { approvers: number }> {
   if (!actor || !can(actor, "time.own")) throw new AppError("forbidden");
   const w = monday(week);
   if (w > mondayOf(today())) throw new AppError("week_future");
@@ -94,11 +100,23 @@ export async function submitWeek(sql: Query, actor: Member | null, week: unknown
     return toState(row!);
   });
   await withdraw(answerKey(w), [actor.id]);
-  const managers = (await managerIds()).filter(id => id !== actor.id);
-  await notify(managers, (t, locale) => ({
-    title: format(t.bell.submitted, { name: actor.name, date: formatDay(w, locale, { day: "numeric", month: "short" }), hours: formatDuration(state.minutes) }),
-  }), { path: `/chest/team/${actor.id}?week=${w}`, key: approveKey(actor.id, w) });
-  return state;
+  const approvers = await approversOf(sql, actor.id, w);
+  const title = (t: Catalogue, locale: Locale) => format(t.bell.submitted, { name: actor.name, date: formatDay(w, locale, { day: "numeric", month: "short" }), hours: formatDuration(state.minutes) });
+  await notify(approvers, (t, locale) => ({ title: title(t, locale) }), { path: `/chest/team/${actor.id}?week=${w}`, key: approveKey(actor.id, w) });
+  await email(approvers, (t, locale) => ({ subject: title(t, locale), lines: [t.mail.submittedLine] }), { path: `/chest/team/${actor.id}?week=${w}`, key: `week:${createHash("sha256").update(`${actor.id}:${w}:${state.submittedAt}`).digest("hex").slice(0, 20)}` });
+  return { ...state, approvers: approvers.length };
+}
+
+// approversOf: who is asked to approve a person's week — the leads of the
+// projects it holds, when they are managers (never the person); every
+// other manager when the week holds no led project.
+export async function approversOf(sql: Query, memberId: string, week: string): Promise<string[]> {
+  const managers = (await managerIds()).filter(id => id !== memberId);
+  const leads = await sql<{ lead_id: string }[]>`
+    select distinct p.lead_id from entries e join projects p on p.id = e.project_id
+    where e.member_id = ${memberId} and e.day between ${week} and ${addDays(week, 6)} and e.deleted_at is null and p.lead_id is not null`;
+  const led = leads.map(l => l.lead_id).filter(l => managers.includes(l));
+  return led.length > 0 ? led : managers;
 }
 
 // withdrawWeek: the person takes back a week that waits (to change it).
@@ -126,6 +144,8 @@ export async function approveWeek(sql: Query, actor: Member | null, memberId: un
   if (!actor || !can(actor, "approve")) throw new AppError("forbidden");
   const who = person(memberId);
   const w = monday(week);
+  // The time is billed from approved weeks: never one's own.
+  if (who === actor.id) throw new AppError("self_approval");
   if (options.anyway !== true) {
     const [minutes, caps] = await Promise.all([total(sql, who, w), capacities(sql, [who])]);
     const [state] = await sql<{ status: string }[]>`select status from weeks where member_id = ${who} and week = ${w}`;
@@ -136,9 +156,7 @@ export async function approveWeek(sql: Query, actor: Member | null, memberId: un
     where member_id = ${who} and week = ${w} and status = 'submitted' returning ${columns(sql)}`;
   if (!r) throw new AppError("week_state");
   await withdraw(approveKey(who, w));
-  if (who !== actor.id) {
-    await notify([who], (t, locale) => ({ title: format(t.bell.approved, { date: formatDay(w, locale, { day: "numeric", month: "short" }) }) }), { path: `/chest?week=${w}`, key: answerKey(w) });
-  }
+  await notify([who], (t, locale) => ({ title: format(t.bell.approved, { date: formatDay(w, locale, { day: "numeric", month: "short" }) }) }), { path: `/chest?week=${w}`, key: answerKey(w) });
   return toState(r);
 }
 
@@ -148,6 +166,9 @@ export async function returnWeek(sql: Query, actor: Member | null, memberId: unk
   if (!actor || !can(actor, "approve")) throw new AppError("forbidden");
   const who = person(memberId);
   const w = monday(week);
+  // One's own waiting week is taken back (withdrawWeek), not sent back; an
+  // approved one is reopened by another manager.
+  if (who === actor.id) throw new AppError("self_approval");
   const why = clean(reason, 300);
   const [r] = await sql<Row[]>`
     update weeks set status = 'returned', decided_by = ${actor.id}, decided_at = now(), reason = ${why}
@@ -162,18 +183,23 @@ export async function returnWeek(sql: Query, actor: Member | null, memberId: unk
 }
 
 // The weeks waiting for a manager, oldest first.
-export type Waiting = { memberId: string; week: string; minutes: number; billableMinutes: number; submittedAt: string; fullness: Fullness };
+// `mine`: the actor's own week (someone else approves it); `led`: it holds
+// time on a project the actor leads.
+export type Waiting = { memberId: string; week: string; minutes: number; billableMinutes: number; submittedAt: string; fullness: Fullness; mine: boolean; led: boolean };
 
 export async function waiting(sql: Query, actor: Member | null): Promise<Waiting[]> {
   if (!actor || !can(actor, "approve")) throw new AppError("forbidden");
-  const rows = await sql<{ member_id: string; week: string; minutes: string; billable: string; submitted_at: Date }[]>`
+  const rows = await sql<{ member_id: string; week: string; minutes: string; billable: string; submitted_at: Date; led: boolean }[]>`
     select w.member_id, to_char(w.week, 'YYYY-MM-DD') as week, w.submitted_at,
+      exists (select 1 from entries e join projects p on p.id = e.project_id where e.member_id = w.member_id and e.day between w.week and w.week + 6 and e.deleted_at is null and p.lead_id = ${actor.id}) as led,
       coalesce((select sum(e.minutes) from entries e where e.member_id = w.member_id and e.day between w.week and w.week + 6 and e.deleted_at is null), 0)::text as minutes,
       coalesce((select sum(e.minutes) from entries e where e.member_id = w.member_id and e.day between w.week and w.week + 6 and e.deleted_at is null and e.billable), 0)::text as billable
     from weeks w where w.status = 'submitted' order by w.week, w.submitted_at limit 500`;
   const caps = await capacities(sql, [...new Set(rows.map(r => r.member_id))]);
   const now = today();
-  return rows.map(r => ({ memberId: r.member_id, week: r.week, minutes: numeric(r.minutes), billableMinutes: numeric(r.billable), submittedAt: new Date(r.submitted_at).toISOString(), fullness: fullness(r.week, numeric(r.minutes), caps.get(r.member_id) ?? 0, now) }));
+  return rows.map(r => ({ memberId: r.member_id, week: r.week, minutes: numeric(r.minutes), billableMinutes: numeric(r.billable), submittedAt: new Date(r.submitted_at).toISOString(), fullness: fullness(r.week, numeric(r.minutes), caps.get(r.member_id) ?? 0, now), mine: r.member_id === actor.id, led: r.led }))
+    // The weeks the actor leads first, then the others; their own last.
+    .sort((a, b) => Number(a.mine) - Number(b.mine) || Number(b.led) - Number(a.led));
 }
 
 // People's usual weeks.
@@ -267,24 +293,27 @@ export async function teamWeeks(sql: Query, actor: Member | null, memberIds: rea
 
 // remind rings the bell of those, among the people named, whose week is
 // under their usual week and not sent yet — each in their language, one
-// item per week (a second reminder replaces the first). Says how many.
+// item per week (a second reminder replaces the first), and emails them.
+// Never the manager who presses it. Says how many.
 export async function remind(sql: Query, actor: Member | null, memberIds: unknown, week: unknown): Promise<number> {
   if (!actor || !can(actor, "approve")) throw new AppError("forbidden");
   const w = monday(week);
   if (w > mondayOf(today())) throw new AppError("week_future");
   if (!Array.isArray(memberIds) || memberIds.length === 0 || memberIds.length > 2000) throw new AppError("invalid");
-  const ids = [...new Set(memberIds.map(person))];
+  const ids = [...new Set(memberIds.map(person))].filter(id => id !== actor.id);
+  if (ids.length === 0) return 0;
   const rows = await teamWeeks(sql, actor, ids, [w]);
   const short = rows.filter(r => isShort(r.weeks[0]!, r.capacity));
   const found = await people(short.map(r => r.memberId));
   const current = short.filter(r => found.get(r.memberId)?.status === "member");
   for (const r of current) {
     const minutes = r.weeks[0]!.minutes;
-    await notify([r.memberId], (t, locale) => ({
-      title: minutes === 0
-        ? format(t.bell.remindEmpty, { date: formatDay(w, locale, { day: "numeric", month: "short" }) })
-        : format(t.bell.remind, { date: formatDay(w, locale, { day: "numeric", month: "short" }), hours: formatDuration(minutes), usual: formatDuration(r.capacity) }),
-    }), { path: `/chest?week=${w}`, key: `remind:${w}` });
+    const title = (t: Catalogue, locale: Locale) => minutes === 0
+      ? format(t.bell.remindEmpty, { date: formatDay(w, locale, { day: "numeric", month: "short" }) })
+      : format(t.bell.remind, { date: formatDay(w, locale, { day: "numeric", month: "short" }), hours: formatDuration(minutes), usual: formatDuration(r.capacity) });
+    await notify([r.memberId], (t, locale) => ({ title: title(t, locale) }), { path: `/chest?week=${w}`, key: `remind:${w}` });
+    // By email too, once a day at most for the same week.
+    await email([r.memberId], (t, locale) => ({ subject: title(t, locale), lines: [format(t.mail.remindLine, { name: actor.name })] }), { path: `/chest?week=${w}`, key: `remind:${w}:${today()}` });
   }
   return current.length;
 }

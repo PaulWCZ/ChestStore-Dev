@@ -3,10 +3,10 @@ import type { Locale, Member } from "@argentic/chest-sdk/member";
 import * as members from "@argentic/chest-sdk/members";
 import * as notifications from "@argentic/chest-sdk/notifications";
 import { inAudience, type Audience, type Grouped } from "./access.ts";
-import { everyone, page, type Reader, maxPages } from "./audience.ts";
+import { everyone, page, publisherIds, type Reader, maxPages } from "./audience.ts";
 import type { Sql } from "./db.ts";
 import { continueDigest, seenDigest } from "./digest.ts";
-import { catalogue, format } from "./i18n/index.ts";
+import { catalogue, format, plural } from "./i18n/index.ts";
 import { email, type Recipient } from "./mailer.ts";
 import { excerpt, plain } from "./markdown.ts";
 import { limits, pick, withNames, type Version } from "./model.ts";
@@ -14,6 +14,10 @@ import { badges, cut, notify, withdraw } from "./notify.ts";
 import { nameOf, people as lookup } from "./people.ts";
 import { mentionsIn, purge, unconfirmedCounts } from "./posts.ts";
 import { removeObjects } from "./storage.ts";
+import { waitingCount, type Approved, type Declined } from "./proposals.ts";
+import { answerLines, answerLinker, type Links } from "./answer-links.ts";
+import { today } from "./time.ts";
+import { chestZone } from "./zone.ts";
 
 // What News tells people, each in their own language: through the Chest's
 // bell, by email for what matters, and the number on its tile (Important
@@ -56,16 +60,27 @@ function bellItem(post: Pick<Due, "id" | "title" | "body" | "locale" | "versions
 
 // The email of an Important post (or its reminder), in the reader's
 // language: its headline, its whole text, the link to confirm.
-function importantLetter(post: Pick<Due, "id" | "title" | "body" | "locale" | "versions">, authorName: (locale: Locale) => string, reminder = false) {
+// An event still open to answers: "I'm coming" and "Not coming" as links
+// of their own (lib/answer-links.ts).
+function importantLetter(post: Pick<Due, "id" | "title" | "body" | "locale" | "versions">, authorName: (locale: Locale) => string, reminder = false, answers: ((memberId: string) => Links) | null = null) {
   return (t: ReturnType<typeof catalogue>, person: Recipient) => {
     const shown = pick(post, person.locale);
     const text = plain(shown.body).trim();
     return {
-      letter: { subject: format(reminder ? t.mail.reminderSubject : t.mail.importantSubject, { title: shown.title }), lines: [shown.title, "", ...(text ? [text, ""] : []), t.mail.confirm] },
+      letter: { subject: format(reminder ? t.mail.reminderSubject : t.mail.importantSubject, { title: shown.title }), lines: [shown.title, "", ...(text ? [text, ""] : []), ...(answers ? answerLines(t, answers(person.id), format) : []), t.mail.confirm] },
       path: postPath(post.id),
       why: format(t.mail.whyImportant, { name: authorName(person.locale) }),
     };
   };
+}
+
+// The links of an event still open to answers, for each person; null for
+// any other post.
+async function answersFor(sql: Sql, postId: string, now = new Date()): Promise<((memberId: string) => Links) | null> {
+  const [row] = await sql<{ open: boolean }[]>`select kind = 'event' and coalesce(event_last_day, event_day) >= ${today(chestZone(), now)} as open from posts where id = ${postId}`;
+  if (!row?.open) return null;
+  const linker = await answerLinker(sql);
+  return memberId => linker(postId, memberId);
 }
 
 async function authorNames(author: string): Promise<(locale: Locale) => string> {
@@ -76,6 +91,7 @@ async function authorNames(author: string): Promise<(locale: Locale) => string> 
 async function tellEveryone(sql: Sql, post: Due): Promise<Told> {
   let after = post.announce_after;
   const author = await authorNames(post.author);
+  const answers = await answersFor(sql, post.id);
   let emailing = !post.email_short;
   for (let i = 0; i < maxPages; i++) {
     let found;
@@ -99,7 +115,7 @@ async function tellEveryone(sql: Sql, post: Due): Promise<Told> {
     }
     if (emailing && people.length > 0) {
       const already = new Set((await sql<{ member: string }[]>`select member from emails where post_id = ${post.id} and version = ${post.confirm_from} and member in ${sql(people.map(p => p.id))}`).map(r => r.member));
-      const result = await email(sql, people.filter(p => !already.has(p.id)), importantLetter(post, author), p => `news:${post.id}:${post.confirm_from}:${p.id}`);
+      const result = await email(sql, people.filter(p => !already.has(p.id)), importantLetter(post, author, false, answers), p => `news:${post.id}:${post.confirm_from}:${p.id}`);
       if (result.sent.length > 0) await sql`insert into emails ${sql(result.sent.map(member => ({ post_id: post.id, member, version: post.confirm_from })))} on conflict do nothing`;
       if (result.stop === "unavailable") return { done: false, after };
       if (result.stop === "quota") await sql`update posts set email_short = true where id = ${post.id}`;
@@ -127,16 +143,18 @@ async function tellWelcomed(post: Due): Promise<Told> {
     }
     if (!colleague || !inAudience(colleague, post)) return { done: true };
   }
-  await notify([post.welcome], (t, locale) => ({ title: t.bell.welcome, body: pick(post, locale).title }), { path: postPath(post.id), key: `post:${post.id}:welcome` });
+  // A welcome greets them; a shout-out says who thanks them.
+  const author = post.kind === "shoutout" ? await authorNames(post.author) : null;
+  await notify([post.welcome], (t, locale) => ({ title: author ? format(t.bell.thanked, { name: author(locale) }) : t.bell.welcome, body: pick(post, locale).title }), { path: postPath(post.id), key: `post:${post.id}:welcome` });
   return { done: true };
 }
 
-// announce tells what is due: Important posts and welcomes published in the
+// announce tells what is due: Important posts, welcomes and shout-outs published in the
 // last 7 days and not yet told. Two passes never tell the same post at once
 // (a two-minute lease). It stops at the first post the Chest refuses.
 export async function announce(sql: Sql, now = new Date()): Promise<{ told: string[]; waiting: string[] }> {
   const due = await sql<{ id: string }[]>`
-    select id from posts where announced_at is null and deleted_at is null and (important or kind = 'welcome')
+    select id from posts where announced_at is null and deleted_at is null and (important or kind in ('welcome', 'shoutout'))
       and publish_at <= ${now} and publish_at > ${now}::timestamptz - interval '7 days'
     order by publish_at, id limit 10`;
   const told: string[] = [];
@@ -233,7 +251,7 @@ export async function remind(sql: Sql, post: Pick<Due, "id" | "title" | "body" |
       }
     }
   }
-  await email(sql, pending, importantLetter(post, await authorNames(post.author), true), p => `remind:${post.id}:${day}:${p.id}`);
+  await email(sql, pending, importantLetter(post, await authorNames(post.author), true, await answersFor(sql, post.id)), p => `remind:${post.id}:${day}:${p.id}`);
 }
 
 // Confirmed: the item goes from that member's bell.
@@ -324,4 +342,35 @@ export async function catchUp(sql: Sql, now = new Date(), visitor?: string): Pro
     lastPurge = now.getTime();
     await removeObjects(await purge(sql));
   }
+}
+
+// Posts from everyone (lib/proposals.ts). The publishers have one bell
+// item saying how many wait, replaced at each change and withdrawn when
+// none is left; the author is told when their post is published or
+// declined (with the reason, if one was given); the colleague a shout-out
+// thanks is told by announce() once it is published.
+export const proposalsKey = "proposals";
+const proposalKey = (proposalId: string) => `proposal:${proposalId}`;
+
+export async function proposalsWaiting(sql: Sql): Promise<void> {
+  const count = await waitingCount(sql);
+  if (count === 0) return withdraw(proposalsKey);
+  const [latest] = await sql<{ title: string }[]>`select title from proposals where declined_at is null order by created_at desc, id desc limit 1`;
+  await notify(await publisherIds(), (t, locale) => ({ title: plural(t.bell.proposals, count, locale), body: latest?.title ?? "" }), { path: "/chest/proposals", key: proposalsKey });
+}
+
+export async function proposalApproved(sql: Sql, done: Approved): Promise<void> {
+  await notify([done.author], t => ({ title: format(t.bell.approved, { title: cut(done.title, 60) }) }), { path: postPath(done.postId), key: proposalKey(done.proposalId) });
+  await announce(sql);
+  await proposalsWaiting(sql);
+}
+
+export async function proposalDeclined(sql: Sql, done: Declined): Promise<void> {
+  if (!done.byAuthor) await notify([done.author], t => ({ title: format(t.bell.declined, { title: cut(done.title, 50) }), ...(done.reason ? { body: done.reason } : {}) }), { path: "/chest/propose", key: proposalKey(done.proposalId) });
+  await proposalsWaiting(sql);
+}
+
+export async function proposalRestored(sql: Sql, proposalId: string, author: string): Promise<void> {
+  await withdraw(proposalKey(proposalId), [author]);
+  await proposalsWaiting(sql);
 }

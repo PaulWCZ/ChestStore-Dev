@@ -312,10 +312,10 @@ test("email beside the bell: given a card, mentioned, the morning; in each one's
   await assert.rejects(mail.setEmail(sql, asMember(nora), true), refused("forbidden"));
 });
 
-test("a real Trello export: several lists, the closed one left out, link attachments into the description, uploaded files counted", async () => {
+test("a real Trello export: several lists, the closed one archived, link attachments into the description, uploaded files counted", async () => {
   const text = readFileSync(join(import.meta.dirname, "fixtures", "trello-board.json"), "utf8");
   const board = fromTrello(text);
-  assert.deepEqual(board.columns.map(c => c.name), ["À faire", "En cours", "Terminé"]);
+  assert.deepEqual(board.columns.map(c => [c.name, c.done, c.archived]), [["À faire", false, false], ["En cours", false, false], ["Terminé", true, false], ["Vieilles idées", false, true]]);
   const stand = board.columns[0]!.cards[0]!;
   assert.equal(stand.start, "2026-10-01");
   assert.equal(stand.due, "2026-10-15");
@@ -325,7 +325,7 @@ test("a real Trello export: several lists, the closed one left out, link attachm
   const counts = importedCounts(board);
   assert.deepEqual([counts.columns, counts.cards, counts.files], [3, 4, 2]);
   // Before importing: who is found in the Chest, who is not.
-  assert.deepEqual(await previewPeople(asMember(hugo), counts.people), { found: ["Inès Moreau", "Hugo Bernard"], missing: ["Jeanne Prestataire"] });
+  assert.deepEqual(await previewPeople(asMember(hugo), counts.people), { found: ["Inès Moreau", "Hugo Bernard"], missing: ["Jeanne Prestataire"], hidden: ["Inès Moreau"] });
   await assert.rejects(previewPeople(asMember(lea), counts.people), refused("forbidden"));
 });
 

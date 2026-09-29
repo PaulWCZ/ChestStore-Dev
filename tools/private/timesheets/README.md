@@ -25,12 +25,24 @@ the hour and wants to know where its time goes.
   **Each cell has its note** (the note icon, or Shift+Enter): what the
   time was for, as the client's invoice will say it.
 - **Send my week, approval**: a person sends their week; it waits
-  read-only (they may take it back). A manager approves it — it locks: no
-  one changes it any more — or sends it back with a word, which the person
-  reads on their week. The bell tells the managers of a week to approve,
-  and the person of the answer. The company may turn approvals off.
+  read-only (they may take it back). From Friday the week says "Done with
+  this week? Send it to a manager"; before, only "Away at the end of the
+  week? You can send it early" (a quiet button). A manager approves it — it
+  locks: no one changes it any more — or sends it back with a word, which
+  the person reads on their week. **Nobody approves (or sends back) their
+  own week**: a manager's week shows on the Team page with "another
+  manager approves it", no button, and the server refuses (`self_approval`);
+  the only manager is told to give someone the Manager role. The bell and
+  an email ask the **leads of the projects the week holds** (every other
+  manager when none has a lead), and tell the person of the answer. The
+  company may turn approvals off.
+- **Project leads**: each project may have a lead, one of the managers
+  (*Projects → a project → Lead*). The lead gets its budget alerts and is
+  asked for the weeks holding its time, marked "Your project" on the Team
+  page (listed first). Without a lead, every manager, as before.
 - **The day list**: each entry with its project, task, note, time of day
-  (from the timer) and billable mark; add, change, delete with *Undo*. **On a
+  (from the timer) and billable mark; add, *Change*, *Delete* (words beside
+  the icons, on a phone too) with *Undo*. **On a
   phone the day list replaces the grid**, with a strip of the week's days.
 - **Clients and projects** (managers): client, colour, billable by default,
   optional hourly rate, a budget in hours or money with its progress
@@ -51,8 +63,8 @@ the hour and wants to know where its time goes.
   have a rate of their own" (their billable projects of the last 90 days). An entry's rates are written on it for good once it is
   invoiced, imported with the old tool's rates, or its author erased.
 - **Budget alerts**: when a project crosses 80 % and then 100 % of its
-  budget (hours, or billable amount), the managers get one bell item each
-  time (checked when time or a budget changes).
+  budget (hours, or billable amount), its lead (every manager without one)
+  gets one bell item each time (checked when time or a budget changes).
 - **Team** (managers): the weeks to approve — each line says when a week is
   **short or not over** ("week not over · 10:00 of 35:00"); approving such
   a week asks first ("… Approve it as it is? It locks the week" → *Approve
@@ -63,13 +75,27 @@ the hour and wants to know where its time goes.
   bell item in each person's language. Weeks **before a person's start**
   (their first entry, else the first day they opened the tool, never
   before the tool's first project or entry) show "—": never "short", never
-  reminded; an empty tool expects nothing of anyone. A person's week opens read-only with every note.
+  reminded; an empty tool expects nothing of anyone. *Remind N people*
+  never counts the manager who presses it ("Your own week is short too"
+  is said beside it), and reaches each person by bell and by email. A
+  person's week opens read-only with every note.
 - **Reports**: this week, last week, this month, last month or chosen days;
   grouped by project, client, person or task; billable or not, or
   billable and not invoiced yet; for managers the amount, the cost and the
   **margin** (at the rates in force on each day); a warning for billable
   time without a note; a bar per day (per week beyond two months); budgets.
   Hours written 4:05 or 4.08, as the company chooses.
+- **Search the notes** (Reports): words of a note ("Feyssine") narrow the
+  report, list the entries found (the 100 most recent: day, person,
+  project, note, time) and the CSV. A member searches their own.
+- **Draft invoices in Quotes** (managers, when Quotes is installed): in
+  "Billable, not invoiced", each project's billable time of the period is
+  offered as one draft invoice — *Draft invoice in Quotes* — sent through
+  events between tools (the contract below). Sent once: the entries wait
+  for their invoice, locked; Quotes' answer marks them invoiced (rates
+  written on them), with the invoice's number and a link to it; *Take
+  back* frees them before that. On a Chest that cannot tell Quotes, the
+  page says so and nothing changes.
 - **Invoiced time** (managers): in "Billable, not invoiced", *Mark N
   entries as invoiced* once the invoice is out; that time locks and keeps
   its rates; *Undo* puts it back.
@@ -156,7 +182,7 @@ there is a project" (a member reads that a manager opens projects).
 |---|---|
 | `/` | Public host: says the tool lives in the Chest (language switch) |
 | `/chest` | My week (`?week=` a Monday, `?day=` the day listed) |
-| `/chest/reports` | Reports (`preset`, `from`, `to`, `group`, `person`, `kind`: `all`, `billable`, `non`, `uninvoiced`) |
+| `/chest/reports` | Reports (`preset`, `from`, `to`, `group`, `person`, `kind`: `all`, `billable`, `non`, `uninvoiced`; `q`: words of the notes) |
 | `/chest/reports/export` | The report's entries as CSV (the same parameters; `preset` alone works) |
 | `/chest/projects`, `/new`, `/[id]` | Clients and projects, rates by person on a project (managers) |
 | `/chest/team` | Weeks to approve, hours per week against the usual week, Remind (managers; `until` a Monday) |
@@ -171,6 +197,9 @@ there is a project" (a member reads that a manager opens projects).
 
 - `capabilities`: `database`, `members` (names; people for projects and
   imports), `notifications` (the Friday reminder); `receives: ["member.*"]`.
+  Proposals (`chest.proposals.json`): `mail: {send: true}`, `emits:
+  ["timesheets.billable", "timesheets.billable_cancelled"]`, `receives:
+  ["quotes.invoiced"]`, the `friday` schedule.
 - **Someone leaves** (or loses access): their running timer stops and
   becomes an entry when plausible (under 10 hours, in an open day; dropped
   otherwise), they leave the projects they were named on, their grid rows
@@ -195,11 +224,11 @@ there is a project" (a member reads that a manager opens projects).
   day an entry belongs to, "this week"), `currency()` (rates and amounts).
 - `schedules` — **Proposal (studio)**, `chest.proposals.json`: the Friday
   reminder. Without it the tool is complete; the setting says so.
-- **Wished — events between tools, for invoicing**: the hand-off of
-  "Billable, not invoiced" time to the Quotes tool (a draft invoice per
-  client) is a suite link for later: `events.publish("timesheets.billable",
-  {client, lines[]})` and Quotes answering `quotes.invoiced` so the time is
-  marked invoiced by itself. Today a manager marks it by hand.
+- **Events between tools** — **Proposal (studio)**: billable time to Quotes
+  (below). Without it the page says Quotes cannot be told; *Mark invoiced*
+  by hand still works.
+- `mail` — **Proposal (studio)**: Remind, the Friday reminder and a week
+  sent to approve also go by email. Without it, the bell only.
 - **Wished — a start-timer event from Tasks**: Toggl and Clockify users start
   timers from their task tool; with events between tools, Tasks could send
   `tasks.timer.start` (a task's title as the note).
@@ -208,6 +237,47 @@ there is a project" (a member reads that a manager opens projects).
   thousands of rows; today the tool lists everyone once (2,000 people at
   most) and matches itself. A `members.match(names[])` answering
   `{name → id | ambiguous | none}` would keep names out of the tool.
+
+## With the other tools
+
+**Timesheets → Quotes: `timesheets.billable`, version 1.** Published when a
+manager presses *Draft invoice in Quotes*, one per project and period, under
+the key `timesheets:billable:<handoff>` (the same hand-off is never two
+events). `data`:
+
+```jsonc
+{
+  "version": 1,
+  "handoff": "12",                       // Timesheets' id: quote it back
+  "project": { "id": "3", "name": "Site vitrine" },
+  "client": { "id": "2", "name": "Boulangerie Durand" },   // or null
+  "period": { "from": "2026-09-01", "to": "2026-09-30" },
+  "currency": "EUR",
+  "minutes": 1830,
+  "amount": 274500,                      // cents; null when a line has no rate
+  "entries": 42,
+  "lines": [                             // one per task and hourly rate, largest first
+    { "label": "Design", "task": { "id": "7", "name": "Design" }, "minutes": 450,
+      "rate": 9000, "amount": 67500, "entries": 12 }   // rate: cents per hour, or null
+  ],
+  "source": { "tool": "timesheets", "path": "/chest/projects/3" }   // the project, in Timesheets
+}
+```
+
+People are never named (no member id either: an invoice line is per task
+and rate). **What Quotes must do** (its side is built in another round):
+receive `timesheets.billable` (declare it in `receives`), make one **draft
+invoice** per `handoff` (a second delivery of the same `handoff` changes
+nothing) for the client (matched by name, or asked), one line per `lines[]`
+item (label, quantity `minutes / 60` hours, unit price `rate`), link back
+with `chest.toolLink("timesheets", source.path)`; on
+`timesheets.billable_cancelled {version: 1, handoff}` drop that draft if it
+was not issued (else ignore it); and when the invoice is **issued**, publish
+**`quotes.invoiced`** `{ handoff: "12", invoice: "F2026-014", path:
+"/chest/invoices/14", by?: "mbr_…" }` (key `quotes:invoiced:<handoff>`).
+Timesheets receives it (`app/chest-events/route.ts`): the hand-off's
+entries become invoiced, their rates written on them, the report shows
+"Invoiced: F2026-014" with a link; delivered twice, nothing more.
 
 ## Develop
 
@@ -224,20 +294,28 @@ In the studio: `node lab/chest-dev/dev.mjs tools/private/timesheets --prod --res
 
 ## What it does not do (yet)
 
-- **Invoices**: it marks time invoiced, it does not write the invoice; the
-  hand-off to the Quotes tool waits for events between tools (above).
+- **Invoices**: it writes no invoice itself. The hand-off to Quotes is
+  built on Timesheets' side; Quotes' side (the draft invoice, and its
+  `quotes.invoiced` answer) is not built yet, so today the time waits
+  "for its invoice" until a manager takes it back or marks it invoiced.
+  One hand-off per project and period; no grouping of several projects of
+  a client in one invoice, no notes on the invoice lines.
 - **No integrations or browser extension**: no timer started from Jira,
   Asana, Trello or GitHub, no calendar sync. Time is recorded here, on the
   phone or the computer.
 - No calendar/timeline view, no tags, no favourites; one running timer per
   person.
-- Budget alerts go to every manager (there is no "project manager" per
-  project yet) and are checked when time or a budget changes, not when a
+- A project's lead is a manager of the tool: there is no lead with rights
+  limited to their projects (a lead sees every report like any manager).
+  Budget alerts are checked when time or a budget changes, not when a
   person's rate changes.
+- The notes' search is case-insensitive but not accent-insensitive, and
+  searches notes only (not project or task names).
+- Emails: no per-person switch to turn them off yet.
 - Members' reports show a project's whole budget ("251:15 of 230:00 used"),
   not only their share (seen by the critic as harmless; not changed).
-- Approval is weekly and for every person alike (no approval by project
-  manager, no monthly periods).
+- Approval is weekly and by the whole week (a lead is asked first, any
+  other manager may approve; no approval line by line, no monthly periods).
 - No export of the projects and clients themselves (their time exports as
   CSV); no Toggl JSON data export import; no entry edit history;
   punch-in/out for legal working hours is not this tool.

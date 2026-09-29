@@ -4,11 +4,12 @@ import { DndContext, KeyboardSensor, PointerSensor, TouchSensor, useDraggable, u
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, useTransition, type CSSProperties, type KeyboardEvent } from "react";
-import { Arrow, Back, Blocked } from "../../../../components/icons.tsx";
+import { Alert, Arrow, Back, Blocked } from "../../../../components/icons.tsx";
 import type { Column } from "../../../../lib/boards.ts";
 import { daysBetween, shifted, span } from "../../../../lib/calendar.ts";
 import type { CardSummary } from "../../../../lib/cards.ts";
 import { format, plural } from "../../../../lib/i18n/format.ts";
+import { addDays } from "../../../../lib/repeat.ts";
 import type { Catalogue, Locale } from "../../../../lib/i18n/index.ts";
 import { updateCard } from "../../actions.ts";
 import type { People } from "./board-view.tsx";
@@ -27,7 +28,8 @@ const scaleHeight = 48, groupHeight = 36, rowHeight = 44;
 // only), with the mouse, a finger or the keyboard (Space, arrows, Space);
 // Enter or a click opens the card. By column, a line joins a card to the
 // cards it waits for ("Blocked by"), red when it starts before one of them
-// is due.
+// is due. A phone reads the same weeks as a list (weeks with cards, and
+// this week): each card once in every week it runs, with its dates.
 export function TimelineView({ timeline, columns, cards, people, writable, locale, query, onError, t }: {
   timeline: TimelineWindow;
   columns: Column[];
@@ -151,6 +153,41 @@ export function TimelineView({ timeline, columns, cards, people, writable, local
       </div>
       {undated > 0 && <p className="small muted">{plural(w.undated, undated, locale)}</p>}
       {groups.length === 0 ? <p className="muted tl-empty">{w.empty}</p> : (
+        <ol className="tl-weeks">
+          {timeline.weeks.map(week => {
+            const last = addDays(week.first, 6);
+            const running = placed.filter(c => { const d = datesOf(c), a = d.start ?? d.due!, b = d.due ?? d.start!; return (a <= b ? a : b) <= last && (a <= b ? b : a) >= week.first; }).sort(order);
+            const current = timeline.today >= week.first && timeline.today <= last;
+            if (running.length === 0 && !current) return null;
+            return (
+              <li key={week.first} className={`tl-week${current ? " current" : ""}`}>
+                <h3>{week.label}</h3>
+                {running.length === 0 ? <p className="muted small">{w.empty}</p> : (
+                  <ul>
+                    {running.map(c => {
+                      const d = datesOf(c), from = d.start ?? d.due!, to = d.due ?? d.start!;
+                      const late = !c.done && !!d.due && d.due < timeline.today;
+                      const waits = c.waiting > 0 && !c.done;
+                      return (
+                        <li key={c.id} className={`tl-week-card${c.done ? " is-done" : ""}${late ? " late" : ""}`}>
+                          <Link href={cardHref(c.id)} scroll={false}>{c.title}</Link>
+                          <span className="tl-week-dates">
+                            {late && <><Alert /> {t.card.late} · </>}
+                            {waits && <Blocked />}
+                            {from === to ? timeline.short[from] : `${timeline.short[from]} → ${timeline.short[to]}`}
+                            {" · "}{columns.find(k => k.id === c.columnId)?.name ?? ""}
+                          </span>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </li>
+            );
+          })}
+        </ol>
+      )}
+      {groups.length > 0 && (
         <div className="tl-scroll" tabIndex={0} role="region" aria-label={timeline.title}>
           <DndContext sensors={sensors} modifiers={[alongRow]} onDragStart={() => { delta.current = 0; }} onDragMove={e => { delta.current = e.delta.x; }} onDragEnd={onDragEnd} accessibility={{ announcements, screenReaderInstructions: { draggable: w.hint } }}>
             <div className="tl-grid" style={{ "--day": `${day}px`, "--days": timeline.days.length, "--today": todayIndex } as CSSProperties}>

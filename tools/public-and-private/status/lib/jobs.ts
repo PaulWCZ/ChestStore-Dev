@@ -4,6 +4,7 @@ import { autoPost } from "./incidents.ts";
 import { purge } from "./checks.ts";
 import { allComponents } from "./components.ts";
 import { silent } from "./heartbeats.ts";
+import { flushHooks } from "./hooks.ts";
 import { flush } from "./mailer.ts";
 import { heartbeatChanged } from "./tell.ts";
 
@@ -17,6 +18,8 @@ import { heartbeatChanged } from "./tell.ts";
 export async function pass(sql: Sql, now = new Date(), mailLimit = 200): Promise<{ posted: number; sent: number; purged: number; silent: number }> {
   const posted = await autoPost(sql, language => catalogue(isLocale(language) ? language : "en").auto, now);
   const { sent } = await flush(sql, { limit: mailLimit, now });
+  // Deliveries to Slack, Teams and web addresses still waiting (webhooks).
+  await flushHooks(sql, { limit: mailLimit, now });
   // Check results are kept 90 days.
   const purged = await purge(sql, now);
   // Heartbeats whose job missed its deadline: the editors are told once.

@@ -1,11 +1,12 @@
 import type { Member } from "@argentic/chest-sdk/member";
 import type { CancelledDesk } from "./places.ts";
-import { format, formatDay, formatSpan, type Catalogue, type Locale } from "./i18n/index.ts";
+import { format, formatDay, formatSpan, formatTime, type Catalogue, type Locale } from "./i18n/index.ts";
 import { db } from "./db.ts";
 import type { DeskBooking } from "./desk-bookings.ts";
 import { mailGuests } from "./mail.ts";
 import { cut, notify } from "./notify.ts";
 import type { RoomBooking } from "./room-bookings.ts";
+import type { Visit } from "./visits.ts";
 import { zone } from "./zone.ts";
 
 // What Rooms tells people through the Chest's bell, each in their own
@@ -125,6 +126,17 @@ export async function bookedForYou(actor: Member, forWhom: string, what: { room?
   }
 }
 
+// The holder of a given desk comes in on a day it was lent: whoever
+// borrowed it hears it (the booking stays theirs), so they can free it.
+export async function holderBack(actor: Member, day: string, borrowed: readonly { bookingId: string; memberId: string; deskName: string }[]): Promise<void> {
+  for (const b of borrowed) {
+    await notify([b.memberId], (t, locale) => ({
+      title: format(t.bell.holderBack, { name: actor.name, day: formatDay(day, locale, { weekday: "long", day: "numeric", month: "long" }) }),
+      body: format(t.bell.holderBackBody, { desk: b.deskName }),
+    }), { path: `/chest?day=${day}`, key: `desk:${b.bookingId}` });
+  }
+}
+
 // A quarter of an hour before a meeting: its people hear it starts soon
 // (with check-in on, that they tap "I'm here" when they arrive).
 export async function startsSoon(bookings: RoomBooking[], checkIn: boolean): Promise<void> {
@@ -135,4 +147,35 @@ export async function startsSoon(bookings: RoomBooking[], checkIn: boolean): Pro
       body: b.roomName + (checkIn ? " · " + t.bell.checkInHint : ""),
     }), { path: pathOf(b), key: `room:${b.id}` });
   }
+}
+
+// Visitors (lib/visits.ts): the host hears that their visitor is here, and
+// that someone else — the reception — announced or cancelled a visit for
+// them. One item per visit (key visit:<id>), replaced as it changes.
+const visitPath = (v: Visit) => `/chest/visitors?day=${v.day}`;
+const visitWhen = (v: Visit, t: Catalogue, locale: Locale) => format(t.bell.visitWhen, { day: formatDay(v.day, locale, { weekday: "long", day: "numeric", month: "long" }), time: formatTime(v.at, locale) });
+const visitorOf = (v: Visit) => (v.company ? `${v.name} (${v.company})` : v.name);
+
+export async function visitorHere(actor: Member, v: Visit, office: string): Promise<void> {
+  if (v.host === actor.id) return;
+  await notify([v.host], (t, locale) => ({
+    title: format(t.bell.visitorHere, { name: cut(visitorOf(v), 50) }),
+    body: format(t.bell.visitorHereBody, { office, time: formatTime(v.at, locale) }),
+  }), { path: visitPath(v), key: `visit:${v.id}` });
+}
+
+export async function visitAnnounced(actor: Member, v: Visit): Promise<void> {
+  if (v.host === actor.id) return;
+  await notify([v.host], (t, locale) => ({
+    title: format(t.bell.visitorAnnounced, { name: actor.name, visitor: cut(visitorOf(v), 50) }),
+    body: visitWhen(v, t, locale),
+  }), { path: visitPath(v), key: `visit:${v.id}` });
+}
+
+export async function visitCancelled(actor: Member, v: Visit): Promise<void> {
+  if (v.host === actor.id) return;
+  await notify([v.host], (t, locale) => ({
+    title: format(t.bell.visitCancelled, { visitor: cut(visitorOf(v), 50) }),
+    body: visitWhen(v, t, locale),
+  }), { path: visitPath(v), key: `visit:${v.id}` });
 }

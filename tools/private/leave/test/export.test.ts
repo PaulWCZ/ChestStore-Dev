@@ -5,10 +5,11 @@ import { GET } from "../app/chest/people/export/route.ts";
 import * as requests from "../lib/requests.ts";
 import { saveType, types } from "../lib/rules.ts";
 import { AppError } from "../lib/app-error.ts";
-import { setApprover, setEmployeeNumber } from "../lib/staff.ts";
+import { setApprover, setEmployeeNumber, setStartDate } from "../lib/staff.ts";
 import { GET as balancesCsv } from "../app/chest/people/balances/route.ts";
 import * as balances from "../lib/balances.ts";
-import { today } from "../lib/model.ts";
+import { lastPayrollDay, today } from "../lib/model.ts";
+import { addDays, addMonths } from "../lib/calendar.ts";
 import * as tell from "../lib/tell.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { quietMonday, week } from "./support/dates.ts";
@@ -20,6 +21,9 @@ let chest: FakeChest;
 let month: string;
 before(async () => {
   database = await testDatabase();
+  // These tests ask without setting balances first: paid leave may go
+  // below zero here (its default refusal is tested in requests.test.ts).
+  await database.sql`update leave_types set overdraw = true where key = 'paid'`;
   chest = await fakeChest({ members: everyone, groups: fakeGroups });
   const { sql } = database;
   await setApprover(sql, asMember(camille), hugo.id, ines.id);
@@ -110,4 +114,49 @@ test("a payroll code HR changes (or removes) is the one both files carry", async
   const line = (await (await get({ ...camille, locale: "en" }, "?month=" + month)).text()).split("\r\n")[1] ?? "";
   assert.match(line, /^0042,Hugo Bernard,Paid leave,,/u);
   await saveType(sql, asMember(camille), paid.id, { payrollCode: "CP" });
+});
+
+test("the balances file on any day up to next month's end: a projection (named so), the month counted at the end of its last day; later is refused", async () => {
+  const { sql } = database;
+  const call = (query: string) => balancesCsv(withMember(new Request("http://tool.test/chest/people/balances" + query), { ...camille, locale: "en" }));
+  const now = today();
+  const end = lastPayrollDay(now);
+  // The end of next month: fine, named "projected"; the day after: refused.
+  const ok = await call("?on=" + end);
+  assert.equal(ok.status, 200);
+  assert.match(ok.headers.get("content-disposition") ?? "", new RegExp(`balances-${end}-projected\\.csv`, "u"));
+  assert.equal((await call("?on=" + addDays(end, 1))).status, 400);
+  assert.match((await call("?on=" + now)).headers.get("content-disposition") ?? "", new RegExp(`balances-${now}\\.csv`, "u"));
+  // Someone earning from the first of this month: nothing earned on the
+  // month's 1st, one month (25/12 = 2.08) at the end of its last day.
+  const paid = (await types(sql)).find(t => t.key === "paid")!.id;
+  const first = now.slice(0, 8) + "01";
+  await setStartDate(sql, asMember(camille), sofia.id, first);
+  const monthEnd = addDays(addMonths(first, 1), -1);
+  const earnedOn = async (day: string) => (await balances.balancesOf(sql, [sofia.id], day, { takenBy: true, endOfDay: true })).get(sofia.id)!.find(b => b.typeId === paid)!.earnedTotal;
+  assert.equal(await earnedOn(addDays(monthEnd, -1)), 0);
+  assert.equal(await earnedOn(monthEnd), 2.08);
+  // The screen's balance (not at the end of the day) is unchanged.
+  assert.equal((await balances.balancesOf(sql, [sofia.id], monthEnd)).get(sofia.id)!.find(b => b.typeId === paid)!.earnedTotal, 0);
+  await setStartDate(sql, asMember(camille), sofia.id, null);
+});
+
+test("payroll files write a former member's name as it is — never '(former member)'", async () => {
+  const { sql } = database;
+  const paid = (await types(sql)).find(t => t.key === "paid")!.id;
+  const monday = quietMonday(200);
+  await requests.createRequest(sql, asMember(camille), { typeId: paid, memberId: sofia.id, ...week(monday) });
+  // Sofia leaves the Chest: the fake now answers her as "former".
+  chest.members = chest.members.filter(m => m.id !== sofia.id);
+  chest.former.push({ id: sofia.id, name: "Sofia Rossi" });
+  try {
+    const month = (await (await get(camille, "?month=" + monday.slice(0, 7))).text()).split("\r\n");
+    assert.ok(month.some(l => l.split(";")[1] === "Sofia Rossi"), month.join("\n"));
+    const all = await (await balancesCsv(withMember(new Request("http://tool.test/chest/people/balances"), camille))).text();
+    assert.ok(all.split("\r\n").some(l => l.split(";")[1] === "Sofia Rossi"));
+    assert.ok(!/ancien membre|former member/iu.test(all));
+  } finally {
+    chest.former.splice(chest.former.findIndex(f => f.id === sofia.id), 1);
+    chest.members.push(sofia);
+  }
 });

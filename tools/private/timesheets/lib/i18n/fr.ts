@@ -117,6 +117,9 @@ export const fr: Catalogue = {
     },
   },
   week: {
+    sendEarlyHint: "Absent en fin de semaine ? Vous pouvez l’envoyer en avance.",
+    sendEarly: "L’envoyer en avance",
+    sentNobody: "Semaine envoyée. Aucun autre responsable ne peut encore la valider : donnez le rôle Responsable à quelqu’un.",
     title: "Ma semaine",
     weekOf: "Semaine du {date}",
     previous: "Semaine précédente",
@@ -193,6 +196,11 @@ export const fr: Catalogue = {
     invoiced: "Facturé",
   },
   team: {
+    yours: "Votre semaine : un autre responsable la valide.",
+    yoursAlone: "Votre semaine : un autre responsable la valide — vous êtes le seul : donnez le rôle Responsable à quelqu’un.",
+    yourProject: "Votre projet",
+    youShort: "Votre propre semaine est incomplète aussi.",
+    onlyYou: "Tout le monde a rempli la semaine dernière, sauf vous.",
     title: "Équipe",
     people: "Taux et semaines normales",
     toApprove: "Semaines à valider",
@@ -278,6 +286,10 @@ export const fr: Catalogue = {
     cancel: "Annuler",
   },
   project: {
+    lead: "Responsable du projet",
+    noLead: "Pas de responsable : tous les responsables",
+    leadGone: "Quelqu’un qui n’est plus responsable",
+    leadHint: "Le responsable du projet est prévenu pour le budget et sollicité pour valider les semaines qui y ont du temps.",
     newTitle: "Nouveau projet",
     name: "Nom",
     namePlaceholder: "par ex. Refonte du site",
@@ -344,6 +356,9 @@ export const fr: Catalogue = {
     olive: "Olive",
   },
   reports: {
+    found: { zero: "Aucune note ne contient « {q} » sur ces jours", one: "1 entrée dont la note contient « {q} »", other: "{count} entrées dont la note contient « {q} »" },
+    foundMany: "Les {count} entrées les plus récentes dont la note contient « {q} » : le CSV les a toutes",
+    quotes: { title: "Brouillons de facture dans Devis", intro: "Le temps facturable de chaque projet sur ces jours devient un brouillon de facture dans Devis : une ligne par tâche et par taux. Le temps est marqué facturé quand Devis émet la facture.", nothing: "Plus rien à envoyer pour ces jours.", entries: { one: "1 entrée", other: "{count} entrées" }, send: "Brouillon de facture dans Devis", sendLabel: "Brouillon de facture dans Devis : {project}", sent: { one: "1 entrée de {project} envoyée à Devis en brouillon de facture.", other: "{count} entrées de {project} envoyées à Devis en brouillon de facture." }, recent: "Envoyé à Devis", span: "{from} – {to}", waiting: "En attente de sa facture", invoiced: "Facturé", invoicedAs: "Facturé : {invoice}", cancelled: "Repris", open: "Ouvrir dans Devis", takeBack: "Reprendre", takeBackLabel: "Reprendre : {what}", takenBack: "Repris : le temps peut être modifié et renvoyé. Devis a été prévenu." },
     title: "Rapports",
     period: "Période",
     presets: {
@@ -603,6 +618,11 @@ export const fr: Catalogue = {
     scroll: "{caption} (défile sur le côté)",
   },
   errors: {
+    self_approval: "Personne ne valide sa propre semaine : un autre responsable le fait.",
+    lead_invalid: "Le responsable d’un projet doit être responsable dans Temps.",
+    nothing_to_send: "Plus de temps facturable à envoyer pour ce projet sur ces jours.",
+    quotes_unavailable: "Devis ne peut pas encore être prévenu (votre Chest ne relie pas encore les outils, ou Devis n’est pas relié à Temps). Marquez plutôt le temps facturé à la main.",
+    handoff_state: "Ce temps a déjà été facturé ou repris.",
     forbidden: "Votre rôle ne le permet pas.",
     not_found: "Cela n’existe plus. La page est à jour maintenant.",
     invalid: "Vérifiez ce que vous avez écrit.",
@@ -632,4 +652,6 @@ export const fr: Catalogue = {
     unavailable: "Le Chest n’a pas répondu. Réessayez dans un instant.",
     unknown: "Un problème est survenu. Réessayez.",
   },
+  search: { label: "Chercher dans les notes", placeholder: "Mots d’une note…", shortcut: "Appuyez sur / pour chercher", submit: "Chercher" },
+  mail: { open: "Ouvrir : {link}", why: "Vous recevez cet e-mail parce que Temps attend quelque chose de vous. La même chose est dans la cloche du Chest.", submittedLine: "Ouvrez la semaine pour la valider, ou la renvoyer avec un mot.", remindLine: "{name} vous demande de remplir votre semaine.", fridayLine: "Ouvrez Temps pour compléter, puis envoyez votre semaine." },
 };

@@ -1,5 +1,6 @@
 import * as events from "@argentic/chest-sdk/events";
 import type { Sql } from "./db.ts";
+import { sync } from "./due-calendar.ts";
 
 // What Tasks does when a member changes, loses access, leaves or is erased
 // (the Chest posts these to /chest-events, at least once).
@@ -53,10 +54,12 @@ export async function erase(sql: Sql, memberId: string): Promise<void> {
 
 export function handlers(sql: Sql): events.Handlers {
   return {
-    "access.revoked": event => leave(sql, event.data.id),
-    "member.removed": event => leave(sql, event.data.id),
+    // Their cards and steps change hands: the calendars follow.
+    "access.revoked": async event => { await leave(sql, event.data.id); await sync(sql); },
+    "member.removed": async event => { await leave(sql, event.data.id); await sync(sql); },
     "member.erased": async event => {
       await erase(sql, event.data.id);
+      await sync(sql);
       await events.acknowledgeErasure(event.data.erasure);
     },
   };

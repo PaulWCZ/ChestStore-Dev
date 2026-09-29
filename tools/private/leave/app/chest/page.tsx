@@ -16,6 +16,8 @@ import { types } from "../../lib/rules.ts";
 import { viewer } from "../../lib/session.ts";
 import { typeName } from "../../lib/type-name.ts";
 import { MyRequests, type RequestRow } from "./my-requests.tsx";
+import { EmailSwitch } from "./email-switch.tsx";
+import { emailOn } from "../../lib/mail.ts";
 
 // A type's name inside a sentence: "paid leave", but "RTT" stays.
 const inSentence = (name: string): string => (name === name.toUpperCase() ? name : name.charAt(0).toLowerCase() + name.slice(1));
@@ -127,7 +129,9 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ d
                   ) : (
                     <>
                       <span className="balance-figure"><strong className="dim">–</strong></span>
-                      <span className="balance-note">{t.home.notSetUp}. {t.home.notSetUpBody}</span>
+                      {can(member, "people.all") ? (
+                        <span className="balance-note">{t.home.notSetUp}. <Link href={`/chest/people/${member.id}`}>{t.home.setYours}</Link></span>
+                      ) : <span className="balance-note">{t.home.notSetUp}. {t.home.notSetUpBody}</span>}
                     </>
                   )}
                 </li>
@@ -162,6 +166,10 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ d
           <MyRequests rows={rows} t={{ home: t.home, status: t.status, errors: t.errors }} />
         )}
       </section>
+
+      <div className="home-footer">
+        <EmailSwitch on={await emailOn(sql, member)} t={{ label: t.home.email, errors: t.errors }} />
+      </div>
     </div>
   );
 }

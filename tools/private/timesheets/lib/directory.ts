@@ -49,3 +49,15 @@ export async function managerIds(): Promise<string[]> {
   }
   return found;
 }
+
+// isManager: the member has the tool now, as a manager (a project's lead
+// must be one).
+export async function isManager(id: string): Promise<boolean> {
+  try {
+    const m = await members.get(id);
+    return m !== null && m.role === "manager";
+  } catch (error) {
+    if (error instanceof ChestError) return false;
+    throw error;
+  }
+}

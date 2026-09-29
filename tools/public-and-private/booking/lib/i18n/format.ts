@@ -57,10 +57,16 @@ export function clock(value: Date | string, zone: string, locale: Locale): strin
   return new Intl.DateTimeFormat(intl(locale), { timeZone: zone, hour: "2-digit", minute: "2-digit" }).format(typeof value === "string" ? new Date(value) : value);
 }
 
-// A zone as people read it: "Europe/Paris" → "Paris".
-export function zoneName(zone: string): string {
-  return (zone.split("/").at(-1) ?? zone).replace(/_/gu, " ");
+// A zone as people read it: "Europe/Paris" → "Paris"; cities: the
+// catalogue's names of cities ("Europe/Brussels" → "Bruxelles").
+export function zoneName(zone: string, cities: Readonly<Record<string, string>> = {}): string {
+  return cities[zone] ?? (zone.split("/").at(-1) ?? zone).replace(/_/gu, " ");
 }
+
+// Whether a name starts with a vowel: some languages write a word before
+// it otherwise (French "d’Inès", not "de Inès"); the catalogue holds both
+// sentences, the same where the language elides nothing.
+export const startsWithVowel = (name: string) => /^[aeiouyàâäæéèêëîïôöœùûüÿ]/iu.test(name.trim());
 
 // firstUpper writes the first letter of a text as a capital, and nothing
 // else: a date alone on a line ("jeudi 8 octobre" → "Jeudi 8 octobre"),

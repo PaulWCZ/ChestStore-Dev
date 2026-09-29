@@ -64,5 +64,5 @@ export function proxy(request: NextRequest): NextResponse {
 // for any site, lib/api.ts), the badge (a picture) and the widget (its own
 // policy, framed by the sites the editors listed), heartbeats.
 export const config = {
-  matcher: ["/((?!_next/static/|chest-events$|chest-jobs/|chest-checks$|favicon\\.ico$|api/v2/|badge\\.svg$|embed$|heartbeat/).*)"],
+  matcher: ["/((?!_next/static/|chest-events$|chest-jobs/|chest-checks$|chest-webhooks$|favicon\\.ico$|api/v2/|badge\\.svg$|embed$|heartbeat/).*)"],
 };

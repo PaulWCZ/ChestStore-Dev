@@ -140,7 +140,7 @@ export async function saveDraft(pageId: string, input: { title: string; doc: unk
   }, { refresh: false });
 }
 
-export async function publishPage(pageId: string, input: { title: string; doc: unknown; baseVersion: number }): Promise<Result<{ version: number; changed: boolean; replaced: string | null }>> {
+export async function publishPage(pageId: string, input: { title: string; doc: unknown; baseVersion: number }): Promise<Result<{ version: number; changed: boolean; replaced: string | null; dropped: number }>> {
   return act(async actor => {
     const done = await editing.publish(db(), actor, pageId, input);
     if (done.changed) await tell.saved(db(), actor, await pages.page(db(), actor, pageId));

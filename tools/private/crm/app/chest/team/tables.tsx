@@ -43,3 +43,21 @@ export function ResultsTable({ rows, months, words, labels }: { rows: ResultRow[
     </div>
   );
 }
+
+export type ActivityRow = { key: string; name: string; call: number; meeting: number; email: number; note: number; total: number };
+
+// What each person logged in one week, by kind.
+export function ActivityTable({ rows, words, labels }: { rows: ActivityRow[]; words: { caption: string; person: string; calls: string; meetings: string; emails: string; notes: string; logged: string }; labels: TableWords }) {
+  const n = (v: number) => <span className={`num${v === 0 ? " muted" : ""}`}>{v}</span>;
+  return (
+    <DataTable caption={words.caption} labels={labels} rows={rows} rowKey={r => r.key}
+      columns={[
+        { key: "person", label: words.person, rowHeader: true, value: r => r.name, render: r => r.name },
+        { key: "call", label: words.calls, align: "end", value: r => r.call, render: r => n(r.call) },
+        { key: "meeting", label: words.meetings, align: "end", value: r => r.meeting, render: r => n(r.meeting) },
+        { key: "email", label: words.emails, align: "end", value: r => r.email, render: r => n(r.email) },
+        { key: "note", label: words.notes, align: "end", hideOnPhone: true, value: r => r.note, render: r => n(r.note) },
+        { key: "total", label: words.logged, align: "end", value: r => r.total, render: r => <strong className="num">{r.total}</strong> },
+      ]} />
+  );
+}

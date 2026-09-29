@@ -1,14 +1,14 @@
 import type { Member } from "@argentic/chest-sdk/member";
 import * as members from "@argentic/chest-sdk/members";
 import { ChestError } from "@argentic/chest-sdk/errors";
-import { can } from "./access.ts";
+import { boardAccess, can } from "./access.ts";
 import type { Sql } from "./db.ts";
 import { AppError } from "./errors.ts";
 import { colors } from "./model.ts";
-import { type ImportedBoard } from "./parse-import.ts";
+import { arrange, type ImportedBoard } from "./parse-import.ts";
 import { sequence } from "./position.ts";
 
-export { dayOf, fromCsv, fromTrello, importedCounts, type ImportedBoard, type ImportedCard } from "./parse-import.ts";
+export { arrange, dayOf, fromCsv, fromTrello, importedCounts, looksDone, type ImportedBoard, type ImportedCard } from "./parse-import.ts";
 
 // Moving in from another tool: a Trello board (its JSON export), or a CSV
 // of tasks (Asana's project export, Trello's CSV export, or any sheet with
@@ -20,8 +20,12 @@ const fold = (s: string) => s.normalize("NFD").replace(/\p{Mn}/gu, "").toLowerCa
 
 // matchPeople finds the Chest's members by the names the other tool gave.
 export async function matchPeople(names: string[]): Promise<Map<string, string>> {
+  return new Map([...(await findPeople(names))].map(([key, m]) => [key, m.id]));
+}
+
+async function findPeople(names: string[]): Promise<Map<string, Member>> {
   const wanted = new Set(names.map(fold).filter(Boolean));
-  const found = new Map<string, string>();
+  const found = new Map<string, Member>();
   if (wanted.size === 0) return found;
   try {
     let after: string | undefined;
@@ -29,7 +33,7 @@ export async function matchPeople(names: string[]): Promise<Map<string, string>>
       const answer = await members.list({ limit: 500, ...(after ? { after } : {}) });
       for (const m of answer.members) {
         const key = fold(m.name);
-        if (wanted.has(key) && !found.has(key)) found.set(key, m.id);
+        if (wanted.has(key) && !found.has(key)) found.set(key, m);
       }
       if (!answer.next) break;
       after = answer.next;
@@ -45,22 +49,36 @@ export function importedPeople(board: ImportedBoard): string[] {
 }
 
 // previewPeople says, before anything is written, which of the names the
-// other tool gave are found in the Chest and which stay unassigned.
-export async function previewPeople(actor: Member | null, names: unknown): Promise<{ found: string[]; missing: string[] }> {
+// other tool gave are found in the Chest and which stay unassigned — and
+// which of those found would not see the board kept private ("only me"):
+// not the importer, not a manager (who sees every board).
+export async function previewPeople(actor: Member | null, names: unknown): Promise<{ found: string[]; missing: string[]; hidden: string[] }> {
   if (!actor || !can(actor, "import")) throw new AppError("forbidden");
   if (!Array.isArray(names) || names.length > 2000 || !names.every(n => typeof n === "string" && n.length <= 120)) throw new AppError("invalid");
   const list = [...new Set(names as string[])];
-  const matched = await matchPeople(list);
-  return { found: list.filter(n => matched.has(fold(n))), missing: list.filter(n => !matched.has(fold(n))) };
+  const matched = await findPeople(list);
+  const onlyMe = { visibility: "private" as const, people: [{ memberId: actor.id, owner: true }], groups: [] };
+  return {
+    found: list.filter(n => matched.has(fold(n))),
+    missing: list.filter(n => !matched.has(fold(n))),
+    hidden: list.filter(n => { const m = matched.get(fold(n)); return !!m && boardAccess(m, onlyMe) === "none"; }),
+  };
 }
 
 // importBoard writes the board; the importer owns it. It is private (the
 // importer alone sees it) unless they chose "everyone": an imported board
-// may hold what the whole company should not read. Says how many cards
-// came and how many people were matched.
-export async function importBoard(sql: Sql, actor: Member | null, imported: ImportedBoard, doneName: string, options: { visibility?: unknown } = {}): Promise<{ id: string; cards: number; matched: number; people: number }> {
+// may hold what the whole company should not read. What is finished is
+// settled first (arrange): the columns the person marked as finished work
+// (`done`, indexes of the board's columns; by default those named so), and
+// the cards ticked done elsewhere go there — so the first morning nobody
+// finds last year's work "late". Archived columns come archived. Says how
+// many cards came and how many people were matched.
+export async function importBoard(sql: Sql, actor: Member | null, source: ImportedBoard, doneName: string, options: { visibility?: unknown; done?: unknown } = {}): Promise<{ id: string; cards: number; matched: number; people: number }> {
   if (!actor || !can(actor, "import")) throw new AppError("forbidden");
   const visibility = options.visibility === "team" ? "team" : "private";
+  const done = options.done === undefined || options.done === null ? null : options.done;
+  if (done !== null && (!Array.isArray(done) || done.length > 100 || !done.every(i => Number.isInteger(i) && i >= 0 && i < 100))) throw new AppError("invalid");
+  const imported = arrange(source, done as number[] | null);
   const names = importedPeople(imported);
   const matched = await matchPeople(names);
   let count = 0;
@@ -75,7 +93,7 @@ export async function importBoard(sql: Sql, actor: Member | null, imported: Impo
     }
     const columnKeys = sequence(imported.columns.length);
     for (const [i, column] of imported.columns.entries()) {
-      const [k] = await tx<{ id: string }[]>`insert into columns (board_id, name, position, done) values (${boardId}, ${column.done && column.name === "✓" ? doneName : column.name}, ${columnKeys[i]!}, ${column.done}) returning id`;
+      const [k] = await tx<{ id: string }[]>`insert into columns (board_id, name, position, done, archived_at) values (${boardId}, ${column.done && column.name === "✓" ? doneName : column.name}, ${columnKeys[i]!}, ${column.done}, ${column.archived ? tx`now()` : null}) returning id`;
       const columnId = String(k!.id);
       const cardKeys = sequence(column.cards.length);
       for (const [j, c] of column.cards.entries()) {

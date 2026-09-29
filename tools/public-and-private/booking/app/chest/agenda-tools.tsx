@@ -1,9 +1,9 @@
 "use client";
 
-import { DateField, Dialog, TimeSelect, useToast } from "@argentic/chest-ui/components";
+import { DateField, Dialog, Switch, TimeSelect, useToast } from "@argentic/chest-ui/components";
 import { moveEnd, moveStart, timeText } from "@argentic/chest-ui/components/logic";
 import { useRouter } from "next/navigation";
-import { createContext, useContext, useState, useTransition, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useState, useTransition, type ReactNode } from "react";
 import { Alert, CalendarOff, Plus } from "../../components/icons.tsx";
 import { format } from "../../lib/i18n/format.ts";
 import type { Catalogue } from "../../lib/i18n/index.ts";
@@ -113,5 +113,34 @@ export function BlockedTime({ id, day, start, end, note, label, t }: { id: strin
         })}>{b.unblock}</button>
       </span>
     </div>
+  );
+}
+
+// The agenda's days. On a phone, where meetings are the main thing, the
+// free stretches (and the busy times of other calendars beside them) fold
+// away behind "Show free times" — remembered on this device; a computer
+// shows them all (app/globals.css).
+export function AgendaDays({ label, toggle, children }: { label: string; toggle: boolean; children: ReactNode }) {
+  const [show, setShow] = useState(false);
+  useEffect(() => {
+    try {
+      setShow(window.localStorage.getItem("booking.showFree") === "1");
+    } catch {
+      // No storage (a private window): folded, as at first.
+    }
+  }, []);
+  const change = (on: boolean) => {
+    setShow(on);
+    try {
+      window.localStorage.setItem("booking.showFree", on ? "1" : "0");
+    } catch {
+      // Remembered for this visit only.
+    }
+  };
+  return (
+    <>
+      {toggle && <Switch className="free-toggle" label={label} checked={show} onChange={change} />}
+      <div className={`agenda${show ? " show-free" : ""}`}>{children}</div>
+    </>
   );
 }

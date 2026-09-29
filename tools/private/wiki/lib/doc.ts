@@ -79,7 +79,10 @@ export const fileIdOfHref = (href: string): string | null => filePath.exec(href)
 const idPattern = /^[1-9][0-9]{0,17}$/u;
 const str = (value: unknown, max: number): string => (typeof value === "string" ? [...value.replace(/\p{Cc}/gu, " ")].slice(0, max).join("") : "");
 
-type Budget = { nodes: number; text: number };
+// dropped counts what normalize() had to leave out that a person would
+// miss: pictures from outside the wiki (the save says so).
+type Budget = { nodes: number; text: number; dropped?: Dropped };
+export type Dropped = { pictures: number };
 
 function marksOf(value: unknown): Mark[] {
   if (!Array.isArray(value)) return [];
@@ -224,7 +227,10 @@ function block(n: DocNode, budget: Budget, depth: number): DocNode | null {
   const attrs = attrsOf(n.type, n.attrs);
   if (n.type === "image") {
     const src = safeImage(n.attrs?.["src"]);
-    if (!src) return null;
+    if (!src) {
+      if (budget.dropped) budget.dropped.pictures++;
+      return null;
+    }
     const alt = str(n.attrs?.["alt"], 300);
     const title = str(n.attrs?.["title"], 300);
     return { type: "image", attrs: { src, ...(alt ? { alt } : {}), ...(title ? { title } : {}) } };
@@ -247,7 +253,8 @@ function block(n: DocNode, budget: Budget, depth: number): DocNode | null {
 }
 
 // normalize checks a document a person sent and answers the one to store.
-export function normalize(value: unknown): Doc {
+// `dropped`, when given, counts the pictures it left out.
+export function normalize(value: unknown, dropped?: Dropped): Doc {
   let raw = value;
   if (typeof raw === "string") {
     if (raw.length > docLimits.bytes) throw new AppError("too_long", { max: docLimits.text });
@@ -259,7 +266,7 @@ export function normalize(value: unknown): Doc {
   }
   if (!raw || typeof raw !== "object" || (raw as DocNode).type !== "doc") throw new AppError("invalid");
   if (JSON.stringify(raw).length > docLimits.bytes) throw new AppError("too_long", { max: docLimits.text });
-  const content = children((raw as DocNode).content, "block", { nodes: docLimits.nodes, text: docLimits.text }, 0);
+  const content = children((raw as DocNode).content, "block", { nodes: docLimits.nodes, text: docLimits.text, ...(dropped ? { dropped } : {}) }, 0);
   return { type: "doc", content: content.length > 0 ? content : [{ type: "paragraph" }] };
 }
 

@@ -596,7 +596,8 @@ await step("search in French: little words do not count; words that mean the sam
   await as(context, origin, "hugo");
   await page.goto(origin + "/chest/search?q=" + encodeURIComponent("note de frais"));
   const found = await page.locator(".result-title").allInnerTexts();
-  expect(found[0] === "Expense policy" && found.length <= 6, "note de frais: " + found.join(" | "));
+  // The two expense pages first (round 3 added the French "Se faire rembourser ses frais", which holds "note de frais" as typed).
+  expect(found.slice(0, 2).sort().join(" | ") === "Expense policy | Se faire rembourser ses frais" && found.length <= 6, "note de frais: " + found.join(" | "));
   await page.goto(origin + "/chest/search?q=vacances");
   expect((await page.locator(".result-title").first().innerText()) === "Holidays and time off", "vacances finds the holidays");
   await page.goto(origin + "/chest/search?q=tt");
@@ -718,6 +719,69 @@ await step("a comment names Tom with “@”: he is told in the bell, on his own
   await page.getByRole("button", { name: "Comment", exact: true }).click();
   await page.waitForSelector("#comments .comment:has-text('@Tom Walker')");
   expect((await bell()).includes("Hugo Bernard mentioned you on “Wi-Fi and printers”"), "Tom is told");
+});
+
+await step("round 3: a picture pasted from the web becomes a note in its place, said at once; the page keeps the note", async () => {
+  await as(context, origin, "tom");
+  await page.goto(created + "/edit");
+  const body = page.locator(".ProseMirror");
+  await body.waitFor();
+  await body.click();
+  await page.keyboard.press("Control+End");
+  // What Google Docs puts on the clipboard: its styles, and pictures on its servers.
+  const html = `<meta charset="utf-8"><b style="font-weight:normal" id="docs-internal-guid-1"><h2>Décisions</h2><p><span style="font-weight:700">Budget validé</span> pour Q4</p><p><img src="https://lh7-rt.googleusercontent.com/docsz/schema.png" alt="schema" width="400"></p><p>Point suivant</p></b>`;
+  await body.evaluate((el, html) => { const dt = new DataTransfer(); dt.setData("text/html", html); dt.setData("text/plain", "Décisions"); el.dispatchEvent(new ClipboardEvent("paste", { clipboardData: dt, bubbles: true, cancelable: true })); }, html);
+  await page.waitForSelector(".ck-toast:has-text('1 picture from the web could not come')");
+  const note = page.locator(".ProseMirror aside[data-tone=warning]");
+  expect((await note.innerText()).includes("Picture from the web not kept (“schema”): download it, then drop it here."), "the note: " + (await note.innerText()));
+  expect(await page.locator(".ProseMirror img[src^='https://']").count() === 0, "no picture from the web left in the editor");
+  expect((await body.innerText()).includes("Point suivant"), "the rest of the paste came");
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await page.waitForURL(/\/chest\/pages\/\d+(\?saved=\d+)?$/u);
+  await page.waitForSelector(".ck-toast:has-text('Saved.')");
+  const kept = page.locator(".prose aside.callout.warning");
+  expect((await kept.innerText()).includes("Picture from the web not kept"), "the note is in the page");
+  expect((await kept.getByRole("link", { name: "Open the picture" }).getAttribute("href")) === "https://lh7-rt.googleusercontent.com/docsz/schema.png", "it links to the picture");
+});
+
+await step("round 3: a picture the save leaves out is said — never a bare “Saved.”", async () => {
+  await page.goto(created + "/edit");
+  await page.locator(".ProseMirror").waitFor();
+  // A picture that reached the editor another way (not a paste): not one of the wiki's files.
+  await page.evaluate(() => document.querySelector(".ProseMirror").editor.commands.insertContent({ type: "image", attrs: { src: "data:image/gif;base64,R0lGODlhAQABAAAAACw=", alt: "x" } }));
+  await page.waitForSelector(".save-status:has-text('Draft saved')", { timeout: 8000 });
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await page.waitForURL(/\/chest\/pages\/\d+(\?saved=\d+)?/u);
+  await page.waitForSelector(".ck-toast:has-text('Saved — but 1 picture from the web was not kept')");
+  expect(!page.url().includes("dropped="), "the address is clean again: " + page.url());
+});
+
+await step("round 3: search by the stem, French and English; the words as typed first; “Wi-Fi” marked whole", async () => {
+  await as(context, origin, "hugo");
+  for (const [q, first] of [["remboursé", "Se faire rembourser ses frais"], ["rembourser", "Se faire rembourser ses frais"], ["reimbursed", "Expense policy"], ["mutuelle", "Mutuelle et prévoyance"], ["RTT", "Temps de travail et RTT"], ["vpn", "Working from outside: the VPN"], ["horaires", "Règlement intérieur"], ["nouvel arrivant", "Accueillir un nouvel arrivant"]]) {
+    await page.goto(origin + "/chest/search?q=" + encodeURIComponent(q));
+    const titles = await page.locator(".result-title").allInnerTexts();
+    expect(titles[0] === first, `${q} → ${titles.join(" | ")}`);
+    if (q === "horaires") expect(titles[0] !== "Deploying a firmware update" && titles.indexOf("Deploying a firmware update") > 1, "horaires: " + titles.join(" | "));
+    if (q === "nouvel arrivant") expect(!titles.includes("Expense policy"), "no page for a typo's neighbour: " + titles.join(" | "));
+  }
+  await page.goto(origin + "/chest/search?q=wifi");
+  const marks = await page.locator(".results mark").allInnerTexts();
+  expect(marks.includes("Wi-Fi") && !marks.includes("Wi") && !marks.includes("Fi"), "marks: " + marks.slice(0, 8).join(" | "));
+});
+
+await step("round 3: a reader's empty space names who can write in it", async () => {
+  await as(context, origin, "tom");
+  await page.goto(origin + "/chest");
+  await page.locator(".sidebar").getByRole("button", { name: "New space" }).click();
+  await page.getByLabel("Name").fill("Workshop");
+  await page.keyboard.press("Enter");
+  await page.waitForURL(/\/chest\/spaces\/\d+$/u);
+  const space = page.url();
+  await as(context, origin, "hugo");
+  await page.goto(space);
+  const note = await page.locator(".ck-empty").innerText();
+  expect(note.includes("To add pages here, ask") && note.includes("Tom Walker"), "names the editors: " + note);
 });
 
 await browser.close();

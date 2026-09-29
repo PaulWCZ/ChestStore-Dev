@@ -4,7 +4,7 @@ import { headers } from "next/headers";
 import { AutoRefresh } from "../../components/auto-refresh.tsx";
 import { Info, Plus } from "../../components/icons.tsx";
 import { StateLabel } from "../../components/state.tsx";
-import { phaseOf, stepOf } from "../../components/incident-card.tsx";
+import { phaseOf, stepOf, titleIn } from "../../components/incident-card.tsx";
 import { checkError } from "../../lib/check-words.ts";
 import { statuses } from "../../lib/checks.ts";
 import { listHeartbeats } from "../../lib/heartbeats.ts";
@@ -32,7 +32,9 @@ export default async function Overview() {
   await refreshBadge(sql, member.id);
   // Editors see every incident (those about services for the team only
   // too); "What your customers see" is the public page's own view.
-  const [view, customers] = await Promise.all([statusView(sql, zone, now, { team: true }), statusView(sql, zone, now)]);
+  const [view, customers] = await Promise.all([statusView(sql, zone, now, { team: true, locale }), statusView(sql, zone, now, { locale })]);
+  // Titles in the editor's language when the incident has them (N4).
+  const title = (i: Parameters<typeof titleIn>[0]) => { const p = titleIn(i, locale); return <span lang={p.lang === locale ? undefined : p.lang}>{p.text}</span>; };
   const down = [...(await statuses(sql)).values()].filter(s => s.downSince);
   const silent = (await listHeartbeats(sql)).filter(b => b.downSince);
   const componentName = (id: string) => view.entries.flatMap(e => (e.self ? [e.self] : e.children)).find(c => c.id === id)?.name ?? "";
@@ -52,7 +54,7 @@ export default async function Overview() {
       />
 
       {noComponents ? (
-        <SetupEmpty title={t.overview.setup} body={t.overview.setupBody} names={t.components.exampleNames.split("|")} example={t.components.example} setup={t.overview.setupAction} errors={t.errors} />
+        <SetupEmpty title={t.overview.setup} body={t.overview.setupBody} example={t.components.example} setup={t.overview.setupAction} errors={t.errors} />
       ) : (
         <>
           {down.length + silent.length > 0 && (
@@ -90,7 +92,7 @@ export default async function Overview() {
                   return (
                     <li key={i.id} className={`card open-item s-${impact}`}>
                       <div className="open-main">
-                        <a className="open-title" href={`/chest/incidents/${i.id}`}>{i.title}</a>
+                        <a className="open-title" href={`/chest/incidents/${i.id}`}>{title(i)}</a>
                         <p className="muted">
                           <span className={`chip step-${i.status}`}>{t.steps[stepOf(i, now)]}</span>{" "}
                           {touchedNames(i, view.names).join(", ")}
@@ -112,7 +114,7 @@ export default async function Overview() {
                 {upcoming.map(m => (
                   <li key={m.id} className="row-incident s-maintenance">
                     <div className="row-head">
-                      <a href={`/chest/incidents/${m.id}`}>{m.title}</a>
+                      <a href={`/chest/incidents/${m.id}`}>{title(m)}</a>
                       <span className={`chip step-${phaseOf(m, now)}`}>{t.steps[phaseOf(m, now)]}</span>
                     </div>
                     <p className="row-meta">{format(t.time.range, { from: when(m.startedAt), to: m.endsAt ? when(m.endsAt) : "" })} · {touchedNames(m, view.names).join(", ")}</p>
@@ -151,7 +153,7 @@ export default async function Overview() {
                 {view.recent.map(i => (
                   <li key={i.id} className={`row-incident s-${i.kind === "maintenance" ? "maintenance" : impactOf(i, now)}`}>
                     <div className="row-head">
-                      <a href={`/chest/incidents/${i.id}`}>{i.title}</a>
+                      <a href={`/chest/incidents/${i.id}`}>{title(i)}</a>
                       <span className={`chip step-${stepOf(i, now)}`}>{t.steps[stepOf(i, now)]}</span>
                     </div>
                     <p className="row-meta">{when(i.startedAt)}</p>

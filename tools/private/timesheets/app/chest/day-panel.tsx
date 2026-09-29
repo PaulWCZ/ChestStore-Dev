@@ -75,8 +75,9 @@ export function DayPanel({ day, total, items, projects, lock, t }: { day: DayInf
               <div className="entry-actions">
                 {e.locked ? <StatusBadge tone="neutral" size="s" icon={<Lock />} label={t.day.lockedEntry} /> : (
                   <>
-                    <button type="button" className="button icon link" aria-label={format(t.day.editLabel, { name: e.projectName })} title={t.day.edit} onClick={() => setEditing(e.id)}><Pencil /></button>
-                    <button type="button" className="button icon link" aria-label={format(t.day.deleteLabel, { name: e.projectName })} title={t.day.delete} onClick={() => remove(e)}><Trash /></button>
+                    {/* Words beside the icons: a phone has no tooltip. */}
+                    <button type="button" className="button link" aria-label={format(t.day.editLabel, { name: e.projectName })} onClick={() => setEditing(e.id)}><Pencil /><span aria-hidden="true">{t.day.edit}</span></button>
+                    <button type="button" className="button link" aria-label={format(t.day.deleteLabel, { name: e.projectName })} onClick={() => remove(e)}><Trash /><span aria-hidden="true">{t.day.delete}</span></button>
                   </>
                 )}
               </div>

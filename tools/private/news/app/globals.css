@@ -121,6 +121,8 @@ textarea.field { resize: vertical; min-height: 88px; line-height: 1.55; }
 .channels legend { font-size: var(--text-xs); text-transform: uppercase; letter-spacing: 0.12em; font-weight: var(--weight-label); margin-bottom: var(--space-2); }
 .welcome-line { display: flex; align-items: center; gap: var(--space-3); font-weight: var(--weight-bold); }
 .digest-switch { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-7); padding-top: var(--space-3); border-top: 1px solid var(--rule); color: var(--ink-2); font-size: var(--text-s); }
+/* After an empty front page, whose own rule closes it: no second rule (nothing between two lines). */
+.ck-empty + .digest-switch { border-top: 0; margin-top: var(--space-5); padding-top: 0; }
 
 .side-title { font-family: var(--font-body); font-size: var(--text-xs); text-transform: uppercase; letter-spacing: 0.14em; font-weight: var(--weight-label); padding-top: var(--space-2); border-top: 3px solid var(--rule); margin-bottom: var(--space-3); }
 .agenda, .scheduled { list-style: none; margin: 0; padding: 0; display: grid; }
@@ -262,7 +264,7 @@ textarea.field { resize: vertical; min-height: 88px; line-height: 1.55; }
 .composer-main, .composer-side { display: grid; gap: var(--space-5); min-width: 0; }
 .field-group { display: grid; gap: var(--space-1); min-width: 0; }
 .field-group > label, .kinds legend, .when legend { font-size: var(--text-xs); text-transform: uppercase; letter-spacing: 0.12em; font-weight: var(--weight-label); }
-.kinds { border: 0; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--space-2); }
+.kinds { border: 0; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(8.5rem, 1fr)); gap: var(--space-2); }
 .kinds legend { margin-bottom: var(--space-2); padding: 0; }
 .kind-choice { position: relative; display: grid; gap: var(--space-2); padding: var(--space-3); border: 1.5px solid var(--line); background: var(--surface); cursor: pointer; min-height: 44px; }
 .kind-choice input { position: absolute; opacity: 0; inset: 0; cursor: pointer; }
@@ -385,6 +387,30 @@ mark { background: var(--highlight); color: var(--ink); font-weight: var(--weigh
 
 /* ── Narrow screens ────────────────────────────────────── */
 /* The kit's header wraps under 760 px: the search gets a row of its own. */
+/* Posts from everyone: "Share something" (app/chest/propose) and the
+   publishers' "To approve" (app/chest/proposals). */
+.propose h1, .proposals h1 { font-size: var(--text-2xl); font-weight: var(--weight-heavy); }
+.propose .lead, .proposals .lead { margin: var(--space-2) 0 var(--space-5); color: var(--ink-2); max-width: 60ch; }
+.propose-form { display: grid; gap: var(--space-4); padding-bottom: var(--space-6); }
+.kinds.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.cover-preview.small img { max-width: 240px; }
+.proposals-mine ul { list-style: none; margin: 0; padding: 0; display: grid; }
+.proposals-mine li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px var(--space-3); align-items: center; padding: var(--space-3) 0; border-bottom: 1px solid var(--line); }
+.proposals-mine .proposal-title { font-weight: var(--weight-strong); overflow-wrap: anywhere; }
+.proposals-mine .quiet-text { grid-column: 1; }
+.proposals-mine li > .button { grid-column: 2; grid-row: 1 / span 2; }
+.proposal-list { list-style: none; margin: 0; padding: 0; display: grid; }
+.proposal { display: grid; grid-template-columns: 160px minmax(0, 1fr); gap: var(--space-4); padding: var(--space-5) 0; border-top: 3px solid var(--rule); }
+.proposal:not(:has(.proposal-cover)) { grid-template-columns: minmax(0, 1fr); }
+.proposal-cover { width: 100%; aspect-ratio: 1; object-fit: cover; border: 1px solid var(--line); }
+.proposal-text { display: grid; gap: var(--space-2); min-width: 0; }
+.proposal .dek { display: block; -webkit-line-clamp: unset; white-space: pre-line; }
+.proposal .thanks { display: flex; align-items: center; gap: var(--space-2); font-weight: var(--weight-bold); }
+.decline { display: grid; gap: var(--space-2); max-width: 520px; }
+.decline label { font-size: var(--text-s); font-weight: var(--weight-strong); }
+.asks-you.approve { background: var(--surface-2); }
+.found-in { margin-top: var(--space-1); }
+
 @media (max-width: 760px) {
   .ck-bar-inner { padding-top: var(--space-1); }
   .ck-bar-end { display: contents; }
@@ -411,6 +437,8 @@ mark { background: var(--highlight); color: var(--ink); font-weight: var(--weigh
   .asks-you { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: start; }
   .asks-you .button { grid-column: 2; margin-left: 0; justify-self: start; }
   .readers-lists { grid-template-columns: minmax(0, 1fr); }
+  .proposal { grid-template-columns: 96px minmax(0, 1fr); gap: var(--space-3); }
+  .kinds.two { grid-template-columns: minmax(0, 1fr); }
   .event-fields { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
   .event-fields .field-group:first-child { grid-column: 1 / -1; }
   .when-fields { margin-right: 0; flex-basis: 100%; }

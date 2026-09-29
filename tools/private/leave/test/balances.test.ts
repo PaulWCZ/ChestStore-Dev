@@ -19,6 +19,9 @@ let chest: FakeChest;
 let paid: string, rtt: string, sick: string;
 before(async () => {
   database = await testDatabase();
+  // These tests ask without setting balances first: paid leave may go
+  // below zero here (its default refusal is tested in requests.test.ts).
+  await database.sql`update leave_types set overdraw = true where key = 'paid'`;
   chest = await fakeChest({ members: everyone, groups: fakeGroups });
   const all = await types(database.sql);
   paid = all.find(t => t.key === "paid")!.id;

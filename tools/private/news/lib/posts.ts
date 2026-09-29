@@ -363,9 +363,11 @@ async function read(input: PostInput, author: Member, zone: string, now: Date, k
     if (until < today(zone, now)) throw new AppError("bad_date");
     pinnedUntil = zoned(nextDay(until), "00:00", zone);
   }
+  // The colleague a welcome greets or a shout-out thanks (never oneself).
   let welcome: string | null = null;
-  if (kind === "welcome") {
+  if (kind === "welcome" || kind === "shoutout") {
     welcome = memberId(input.welcome);
+    if (kind === "shoutout" && welcome === author.id) throw new AppError("yourself");
     const has = await hasTool(welcome);
     if (has === "unavailable") throw new AppError("unavailable");
     if (!has) throw new AppError("no_person");
@@ -764,7 +766,9 @@ export async function visit(sql: Sql, actor: Member | null, now = new Date()): P
 // uploader's alone.
 export type UploadRole = "cover" | "attachment" | "image" | "inline";
 export async function recordUpload(sql: Sql, actor: Member | null, file: { object: string; fileName: string; type: string; size: number; role: UploadRole }): Promise<FileInfo> {
-  const who = publisher(actor);
+  // Everyone may add a picture to a proposal (lib/proposals.ts); the rest
+  // is the publishers'.
+  const who = file.role === "cover" ? reader(actor) : publisher(actor);
   if ((file.role === "cover" || file.role === "inline") && !isCoverType(file.type)) throw new AppError("not_image");
   if (file.role === "image" && !isCoverType(file.type) && !isVideoType(file.type)) throw new AppError("not_image");
   const [created] = await sql<{ id: string }[]>`
@@ -778,11 +782,14 @@ export async function recordUpload(sql: Sql, actor: Member | null, file: { objec
 // yet in a post.
 export async function fileFor(sql: Sql, actor: Member | null, fileId: unknown): Promise<{ object: string; fileName: string; type: string }> {
   const who = reader(actor);
-  const [f] = await sql<{ object: string; post_id: string | null; added_by: string; file_name: string; type: string }[]>`select object, post_id, added_by, file_name, type from files where id = ${id(fileId)}`;
+  const [f] = await sql<{ object: string; post_id: string | null; added_by: string; file_name: string; type: string; proposal_author: string | null }[]>`
+    select f.object, f.post_id, f.added_by, f.file_name, f.type, q.author as proposal_author from files f left join proposals q on q.id = f.proposal_id where f.id = ${id(fileId)}`;
   if (!f) throw new AppError("not_found");
-  if (f.post_id === null) {
-    if (f.added_by !== who.id) throw new AppError("not_found");
-  } else await visible(sql, who, String(f.post_id));
+  if (f.post_id !== null) await visible(sql, who, String(f.post_id));
+  // A proposal's picture: its author and the publishers (lib/proposals.ts).
+  else if (f.proposal_author !== null) {
+    if (f.proposal_author !== who.id && !can(who, "publish")) throw new AppError("not_found");
+  } else if (f.added_by !== who.id) throw new AppError("not_found");
   return { object: f.object, fileName: f.file_name, type: f.type };
 }
 
@@ -838,11 +845,14 @@ export async function draftOf(sql: Sql, actor: Member | null, postId: unknown, o
 export async function purge(sql: Sql): Promise<string[]> {
   await freezeViews(sql);
   return sql.begin(async tx => {
+    // Proposals declined 30 days ago (lib/proposals.ts): their pictures
+    // become unused uploads, removed just below.
+    await tx`delete from proposals where declined_at < now() - interval '30 days'`;
     const objects = await tx<{ object: string }[]>`
       select f.object from files f join posts p on p.id = f.post_id where p.deleted_at < now() - interval '30 days'
-      union all select object from files where post_id is null and added_at < now() - interval '1 day'`;
+      union all select object from files where post_id is null and proposal_id is null and added_at < now() - interval '1 day'`;
     await tx`delete from posts where deleted_at < now() - interval '30 days'`;
-    await tx`delete from files where post_id is null and added_at < now() - interval '1 day'`;
+    await tx`delete from files where post_id is null and proposal_id is null and added_at < now() - interval '1 day'`;
     await tx`delete from comments where deleted_at < now() - interval '30 days'`;
     return objects.map(o => o.object);
   });

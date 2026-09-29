@@ -11,8 +11,10 @@ import { profilePhrase } from "../../lib/examples.ts";
 import * as fields from "../../lib/fields.ts";
 import * as records from "../../lib/records.ts";
 import * as changes from "../../lib/changes.ts";
+import * as letters from "../../lib/letters.ts";
 import { today } from "../../lib/zone.ts";
 import * as importer from "../../lib/importer.ts";
+import * as recordImport from "../../lib/record-import.ts";
 import * as j from "../../lib/journeys.ts";
 import * as profiles from "../../lib/profiles.ts";
 import * as share from "../../lib/share.ts";
@@ -200,6 +202,15 @@ export async function applyImport(text: string, choices: importer.Choices = {}):
   return act(actor => importer.applyImport(db(), actor, text, choices));
 }
 
+// HR records from a spreadsheet (Lucca, BambooHR, HR's own file).
+export async function previewRecords(text: string, choices: recordImport.Choices = {}): Promise<Result<recordImport.Plan>> {
+  return act(actor => recordImport.previewRecords(db(), actor, text, choices));
+}
+
+export async function applyRecords(text: string, choices: recordImport.Choices = {}): Promise<Result<{ created: number; updated: number; skipped: number }>> {
+  return act(actor => recordImport.applyRecords(db(), actor, text, choices));
+}
+
 // Arrivals written by HR by hand.
 export async function addArrival(input: arrivals.ArrivalInput): Promise<Result<{ id: string }>> {
   return act(async actor => ({ id: (await arrivals.addArrival(db(), actor, input)).id }));
@@ -277,4 +288,17 @@ export async function removeArrival(arrivalId: string): Promise<Result<null>> {
     for (const journey of journeys) await tell.settled(sql, journey.id, journey.assignees);
     return null;
   });
+}
+
+// Letters from templates (HR).
+export async function addLetterExamples(): Promise<Result<string[]>> {
+  return act(actor => letters.addExamples(db(), actor, catalogue(isLocale(actor.locale) ? actor.locale : "en")));
+}
+
+export async function saveLetter(letterId: string | null, input: { name: string; body: string }): Promise<Result<letters.Letter>> {
+  return act(actor => letters.saveLetter(db(), actor, letterId, input));
+}
+
+export async function removeLetter(letterId: string, removed: boolean): Promise<Result<null>> {
+  return act(async actor => { await letters.removeLetter(db(), actor, letterId, removed); return null; });
 }

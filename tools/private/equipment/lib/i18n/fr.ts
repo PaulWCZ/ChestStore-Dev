@@ -391,7 +391,7 @@ export const fr: Catalogue = {
     restored: "{actor} l’a rétabli",
     left: "{who} est parti en l’ayant encore",
     chest: "Le Chest",
-    recorded: "saisi le {date}",
+    on: "le {date}",
     fields: {
       name: "le nom",
       tag: "l’étiquette",
@@ -485,7 +485,7 @@ export const fr: Catalogue = {
     intuneRead: "Lire Intune",
     intuneReading: "Lecture d’Intune…",
     intuneOff: "Non connecté. La personne qui gère votre Chest peut le connecter : une application Microsoft Entra autorisée à lire les appareils d’Intune, et trois réglages de cet outil.",
-    intuneAllHere: { zero: "Intune n’a aucun appareil avec un numéro de série.", one: "L’appareil d’Intune est déjà ici.", other: "Les {count} appareils d’Intune sont déjà ici." },
+    intuneAllHere: { zero: "Intune n’a aucun appareil avec un numéro de série.", one: "Intune a {count} appareil, déjà ici.", other: "Intune a {count} appareils, tous déjà ici." },
     intuneLast: { zero: "Dernière lecture {date} : aucun appareil.", one: "Dernière lecture {date} : {count} appareil.", other: "Dernière lecture {date} : {count} appareils." },
     intuneLastGood: "Dernière lecture réussie {date}.",
     intuneFailed: "La lecture du {date} a échoué : {why}",
@@ -538,8 +538,8 @@ export const fr: Catalogue = {
   },
   settings: {
     membersSee: "Les membres voient qui les détient",
-    seeOn: "Les membres voient désormais qui détient : {name}.".replace(" :", " :"),
-    seeOff: "Seuls les gestionnaires voient désormais qui détient : {name}.".replace(" :", " :"),
+    seeOn: "Les membres voient désormais qui détient : « {name} ».",
+    seeOff: "Seuls les gestionnaires voient désormais qui détient : « {name} ».",
     title: "Catégories",
     intro: "Les types de choses que possède l’entreprise. Renommez-les, changez leur icône, ajoutez les vôtres, et choisissez si les membres voient qui les détient.",
     name: "Nom",
@@ -938,7 +938,7 @@ export const fr: Catalogue = {
   },
   search: {
     label: "Chercher dans le matériel",
-    placeholder: "Étiquette, série, modèle, nom…",
+    placeholder: "Étiquette, série, nom…",
     shortcut: "Appuyez sur / pour rechercher",
     submit: "Rechercher",
   },

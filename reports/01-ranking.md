@@ -85,7 +85,7 @@ clearest saving; each later one leans on the ones before.
 | 11 | Booking | `tools/public-and-private/booking/` | public + private | Calendly | Public booking pages per person and team |
 | 12 | Hiring | `tools/public-and-private/hiring/` | public + private | Welcome to the Jungle, Teamtailor | Job board + pipeline; hires flow into People |
 | 13 | Equipment | `tools/private/equipment/` | private | Snipe-IT, Asset Panda | Offboarding with lifecycle events |
-| 14 | Polls | `tools/private/polls/` | private | Doodle, Polly, Officevibe | Quick, anonymous when it must be |
+| 14 | Polls | `tools/public-and-private/polls/` | public + private | Doodle, Polly, Officevibe | Quick, anonymous when it must be |
 | 15 | Goals | `tools/private/goals/` | private | Lattice Goals, Perdoo | Team OKRs and check-ins |
 | 16 | Quotes | `tools/private/quotes/` | private | Axonaut, Sellsy invoicing | Quotes to invoices, ready for the e-invoicing reform |
 | 17 | Status | `tools/public-and-private/status/` | public + private | Statuspage | Small public page; incidents |

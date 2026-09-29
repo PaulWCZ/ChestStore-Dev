@@ -1,7 +1,8 @@
+import { EmptyState } from "@argentic/chest-ui/components";
 import Link from "next/link";
-import { Download, Upload } from "../../../components/icons.tsx";
+import { Download, Grid, Upload } from "../../../components/icons.tsx";
 import { can } from "../../../lib/access.ts";
-import { sharingFor } from "../../../lib/audience.ts";
+import { askWho, sharingFor } from "../../../lib/audience.ts";
 import { listBoards } from "../../../lib/boards.ts";
 import { db } from "../../../lib/db.ts";
 import { viewer } from "../../../lib/session.ts";
@@ -28,7 +29,10 @@ export default async function Boards({ searchParams }: { searchParams: Promise<{
         </div>
       </div>
       {archived && <Link className="back" href="/chest/boards">{t.boards.back}</Link>}
-      {boards.length === 0 && archived ? <p className="muted">{t.boards.noArchived}</p> : (
+      {boards.length === 0 && archived ? <p className="muted">{t.boards.noArchived}</p> : boards.length === 0 && !creates ? (
+        // Someone who creates no board and sees none: who can share one.
+        <EmptyState icon={<Grid />} title={t.home.nothingShared.title} body={await askWho(t, locale)} />
+      ) : (
         <BoardTiles boards={boards} locale={locale} t={words}>
           {creates && <NewBoardButton t={newBoardWords} label={t.boards.new} sharing={sharing} locale={locale} tile />}
         </BoardTiles>

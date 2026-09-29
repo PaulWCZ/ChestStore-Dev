@@ -2,6 +2,7 @@ import { ChestError } from "@argentic/chest-sdk/errors";
 import * as members from "@argentic/chest-sdk/members";
 import { boardAccess } from "./access.ts";
 import type { Board } from "./boards.ts";
+import { format, intl, type Catalogue, type Locale } from "./i18n/index.ts";
 
 // The people a board's cards may be given to, or who may be mentioned on
 // it: those who see it (a role in Tasks, and the board open to them). For
@@ -51,4 +52,11 @@ export async function managerNames(): Promise<string[]> {
     if (!(error instanceof ChestError)) throw error;
     return [];
   }
+}
+
+// Who to ask for a board, by name when the Chest says who the managers are
+// (the empty home and Boards pages of someone nothing is shared with).
+export async function askWho(t: Catalogue, locale: Locale): Promise<string> {
+  const found = await managerNames();
+  return found.length > 0 ? format(t.home.nothingShared.body, { names: new Intl.ListFormat(intl(locale), { type: "disjunction" }).format(found) }) : t.home.nothingShared.anyone;
 }

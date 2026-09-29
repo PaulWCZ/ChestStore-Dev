@@ -4,6 +4,7 @@ import type { Sql } from "./db.ts";
 import { catalogue, isLocale } from "./i18n/index.ts";
 import * as mailer from "./mailer.ts";
 import { unpublish } from "./publish.ts";
+import { changed, forget } from "./share.ts";
 
 // What Booking does when a member loses access, leaves or is erased (the
 // Chest posts these to /chest-events, at least once).
@@ -17,10 +18,12 @@ import { unpublish } from "./publish.ts";
 //   them); past bookings stay for the company, their host written
 //   "Former member". Then the erasure is acknowledged.
 // Their other calendars' secret addresses are theirs, not the company's:
-// forgotten when they go (they paste them again if they come back).
+// forgotten when they go (they paste them again if they come back), as
+// what other tools told of their busy times.
 export async function leave(sql: Sql, memberId: string): Promise<void> {
   await sql`update hosts set away = true where member_id = ${memberId}`;
   await sql`delete from calendars where member_id = ${memberId}`;
+  await forget(sql, memberId);
 }
 
 export async function erase(sql: Sql, memberId: string, now = Date.now()): Promise<Booking[]> {
@@ -33,11 +36,14 @@ export async function erase(sql: Sql, memberId: string, now = Date.now()): Promi
     await tx`delete from hosts where member_id = ${memberId}`;
     return rows.map(r => String(r.id));
   });
+  await forget(sql, memberId);
   return bookingsByIds(sql, cancelled);
 }
 
 async function tellGuests(sql: Sql, list: Booking[]): Promise<void> {
   for (const b of list) await unpublish(sql, b);
+  // Clients hears each meeting was called off (lib/share.ts).
+  for (const b of list) await changed(sql, "cancelled", b);
   const s = await settings(sql);
   const again = `${s.publicOrigin ?? ""}/`;
   for (const b of list) {

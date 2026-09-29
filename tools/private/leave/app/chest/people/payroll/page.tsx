@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { Back, Download } from "../../../../components/icons.tsx";
 import { can } from "../../../../lib/access.ts";
 import { addMonths } from "../../../../lib/calendar.ts";
-import { today } from "../../../../lib/model.ts";
+import { lastPayrollDay, today } from "../../../../lib/model.ts";
 import { viewer } from "../../../../lib/session.ts";
 import { OnDay, OnMonth } from "./on-day.tsx";
 
@@ -37,7 +37,7 @@ export default async function PayrollPage() {
         <p className="muted small">{t.payroll.balancesHint}</p>
         <form className="form-row" action="/chest/people/balances" method="get">
           <div className="field-group day-field">
-            <OnDay today={now} label={t.payroll.on} labels={t.date} />
+            <OnDay today={now} max={lastPayrollDay(now)} label={t.payroll.on} hint={t.payroll.onHint} labels={t.date} />
           </div>
           <button type="submit" className="button"><Download />{t.payroll.download}</button>
         </form>

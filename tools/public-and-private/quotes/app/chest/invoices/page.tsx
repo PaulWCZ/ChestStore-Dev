@@ -25,6 +25,7 @@ export default async function InvoicesPage({ searchParams }: { searchParams: Pro
   return (
     <ListPage t={t} locale={locale} path="/chest/invoices" title={t.invoices.title} intro={t.invoices.intro} filters={filters} current={typeof params["state"] === "string" ? params["state"] : "all"} q={q} rows={rows}
       create={can(member, "invoices.draft") ? { type: "invoice", label: t.invoices.new } : null} empty={t.invoices.empty} readerEmpty={t.invoices.readerEmpty}
-      more={can(member, "invoices.issue") ? { href: "/chest/import?kind=invoices", label: t.invoices.importOpen } : null} />
+      more={can(member, "invoices.issue") ? { href: "/chest/import?kind=invoices", label: t.invoices.importOpen } : null}
+      side={can(member, "payments") && rows.some(r => r.type === "invoice" && open.has(r.state)) ? { href: "/chest/bank", label: t.shell.bank } : null} />
   );
 }

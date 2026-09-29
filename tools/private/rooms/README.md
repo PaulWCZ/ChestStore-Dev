@@ -19,6 +19,15 @@ in?*
   my usual week, or the one I booked last); saying *Remote* or *Off* frees
   the desk I had that day, with *Undo*. One Tab stop per day: the arrow
   keys move between *Office*, *Remote* and *Off*.
+- **Presence agrees with meetings**: the people in a meeting in one of the
+  office's rooms (its organiser and its guests) count among the people at
+  the office that day — on My week, in *Who's where* and in the occupancy —
+  unless they said *Remote* or *Off*. Someone who said *Remote* or *Off* on
+  a day they have a meeting in a room reads "Meeting in Atlas at 10:00:
+  coming to the office?" on that day, with a one-tap *Office*.
+- **Before any office exists**, people already say *Office*, *Remote* or
+  *Off* ("who is in on Thursday?" needs no floor plan); an admin sees
+  *Set up the office* and *Start with an example* above the week.
 - **My usual week**: for each working day, *Office*, *Remote*, *Off* or
   nothing, and the desk I want on office days. As days enter the booking
   window, Rooms says them for me and books that desk — once per day: a day
@@ -69,8 +78,20 @@ in?*
   days its holder said *Remote* or *Off* (or Leave told Rooms they are
   away), unless the holder keeps it (*My usual week*). The holder sees
   "Your desk D-12 is lent to Léa that day".
-- **For someone else** (admins): book a room or a desk for a person who
-  has Rooms; they are told in the bell.
+- **For someone else** (admins and **office managers**): book a room or a
+  desk for a person who has Rooms; they are told in the bell.
+- **Visitors** (*Visitors* tab): a member announces their visitor — a
+  name, a company, a time; the reception (office managers and admins) sees
+  every visitor of the day, announces one for anyone, and taps *Mark
+  arrived*: the host hears "Paul Durand (Client SA) is here to see you" in
+  the bell. Cancelling a visit and marking an arrival both have *Undo*.
+  My week shows my visitors on their day. Only the host, whoever announced
+  the visit and the reception see a visitor's name; it goes with the past
+  bookings (the rule "how long past bookings are kept").
+- **When a desk's holder comes back** (says *Office* on a day their given
+  desk was lent), whoever booked it that day hears it in the bell ("Sofia
+  Rossi is coming in on Thursday 8 October: D-12 is their desk…"); the
+  booking stays theirs, and the holder reads that they know.
 - **Kept for a team**: a room or a desk area may be kept for one Chest
   group ("Sales only"); only its members and admins book there.
 - **Moving in** (admins, *Places*): rooms from Google Workspace's resources
@@ -81,8 +102,11 @@ in?*
   Outlook) — only what is still to come, up to a year ahead; a weekly
   meeting (every week, same weekday) becomes one weekly booking, other
   repeats their days one by one; the organiser and guests matched by name
-  to the people who have Rooms (else the booking is in the admin's name,
-  and the preview says so). A **preview** says what comes in and, line by
+  to the people who have Rooms by address (the `members.email`
+  permission) and by name in the forms exports write them — Outlook's
+  "Martin, Camille" too, a department in brackets aside (else the booking
+  is in the admin's name: the preview says how many bookings, before
+  anything is imported, and which guests it did not find). A **preview** says what comes in and, line by
   line of the file, what does not: the days already taken in Rooms (the
   database's own conflicts, not a guess), all-day events, times outside
   the rooms' hours, closed days. *Import* does it with **Undo** (the whole
@@ -112,8 +136,9 @@ in?*
 
 | Role (`chest.json`) | Label | May |
 |---|---|---|
-| `admin` | Admin | everything: places, rules, export; sees and cancels any booking; not held to the booking limits |
-| `member` | Member | says where they are; books desks and rooms for themselves; changes and cancels their own bookings |
+| `admin` | Admin | everything: places, rules, export; sees and cancels any booking; not held to the booking limits; the reception |
+| `manager` | Office manager | books desks and rooms for anyone, changes and cancels any booking, not held to the booking limits; the reception (every visitor, arrivals). Not places, rules or exports |
+| `member` | Member | says where they are; books desks and rooms for themselves; changes and cancels their own bookings; announces their own visitors |
 | (none) | — | sees a "you can't use this tool yet" page |
 
 Everyone with a role sees who is at the office and who booked which room:
@@ -124,8 +149,9 @@ tool's builders come in with the first role.
 
 - **What a new user sees:** *My week*: ten day cards, each with three
   buttons *Office / Remote / Off*, the faces of colleagues coming in, and
-  their bookings. Before an admin sets up the office: "No office yet" and,
-  for an admin, *Set up the office*.
+  their bookings. Before an admin sets up the office: "No office yet"
+  above the same week (saying *Office* or *Remote* already works) and, for
+  an admin, *Set up the office* and *Start with an example*.
 - **The first thing they do:** tap *Office* on Thursday. The card offers
   *Book D-04* (their usual desk) — one more tap. Or once, *My usual week*:
   Monday to Thursday *Office*, a desk, *Save* — the coming weeks fill
@@ -165,6 +191,7 @@ in a brand, the Chest's sheet and High contrast it steps aside (kit
 | `/chest/desks` | members | Book a desk (`?day`, `part`, `view=list`, `f=screen,window`, `office`) |
 | `/chest/rooms` | members | The rooms' day (`?day`, `booking=<id>` opens one, `office`) |
 | `/chest/people` | members | Who's where (`?day`, `q`, `team`) |
+| `/chest/visitors` | members | Visitors of a day (`?day`, `office`): my own; the reception, everyone's |
 | `/chest/calendar/room/<id>` | members | One booking as an `.ics` file |
 | `/chest/calendar/mine` | members | All my coming bookings and office days, `.ics` |
 | `/chest/mine` | members | Everything Rooms keeps about me, CSV |
@@ -179,7 +206,10 @@ in a brand, the Chest's sheet and High contrast it steps aside (kit
 ## On a Chest
 
 - `capabilities`: `database`, `files` (room photos), `members` (names,
-  photos, the guest picker, *Who's where*), `notifications` (guests told);
+  photos, the guest picker, *Who's where*), `members.email` (to match the
+  organisers and guests of an imported calendar, and desk holders, by
+  address: read on the server for matching, never shown nor kept),
+  `notifications` (guests told);
   `receives: ["member.*"]`. Proposals in `chest.proposals.json`:
   `calendar`, `groups: "read"`, `mail.send`, `schedules` (`quarter`), and
   `receives` Leave's events.
@@ -255,7 +285,15 @@ All in the SDK working copy packed in `vendor/` (0.3.0-studio.12):
   that expire on their own (5,000 per tool is about 6 weeks of desk days at
   200 people — Rooms takes events back a month after they are over); a
   **free/busy and room-resources connector** for Google Workspace and
-  Microsoft 365 (see below).
+  Microsoft 365 (see below). What the `calendar` proposal would need to
+  add for meeting rooms: (1) **free/busy read** of a company room resource
+  in Google Workspace or Microsoft 365 (`calendar.busy(resource, from,
+  to)` → busy ranges, through the Chest's OAuth), so Rooms shows and
+  refuses what was booked in Outlook; (2) **write-back** (`calendar.book(
+  resource, event)` / `calendar.cancel`) so a Rooms booking holds the room
+  resource and appears in the invitations; (3) a **change notice** (an
+  event such as `calendar.resource.changed`, delivered to `/chest-events`)
+  so a meeting moved in Outlook moves in Rooms without polling.
 
 ## Develop
 
@@ -286,10 +324,15 @@ screenshots in `docs/screens/`.
   Outlook afterwards do not arrive). Robin's and deskbird's own exports
   are not read. A series that repeats every two weeks or monthly comes as
   separate days, not as a series of Rooms.
-- Desk assignments are matched by **name**, not email (email would need
-  the `members.email` permission, not asked for this alone).
-- **Booking for a visitor** (someone without a Chest account); booking for
-  someone else is for admins only (no "office manager" or delegate role).
+- Addresses are matched only when the Chest gives them (`members.email`);
+  otherwise imports match by name (and by an address's `first.last` local
+  part).
+- **Visitors**: no email to the visitor (it would need `mail` and an
+  address the tool does not keep), no badge printing, no sign-in tablet at
+  the door, no NDA; a visit is not linked to a room booking. A visit is
+  "here" but never "left".
+- A borrower is told when the holder of the desk comes back, but there is
+  no one-tap "swap" between them.
 - A **floor-plan image** with desks placed on it (the plan is tiles by area).
 - **Door tablets**, sensors, parking spaces and other resources.
 - Check-in is **15 to 30 minutes** late at worst (the Chest calls the tool

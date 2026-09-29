@@ -7,10 +7,12 @@
   "preview": "chest/preview.png",
   "roles": [
     "admin",
+    "manager",
     "member"
   ],
   "role_labels": {
     "admin": "Admin",
+    "manager": "Office manager",
     "member": "Member"
   },
   "capabilities": [

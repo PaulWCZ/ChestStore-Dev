@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AvatarStack, Dialog, Segmented, useToast } from "@argentic/chest-ui/components";
 import { useEffect, useRef, useState, useTransition, type ComponentType, type KeyboardEvent } from "react";
-import { CalendarAdd, Check, Desk, Door, Download, Laptop, Moon, Plan, Repeat } from "../../components/icons.tsx";
+import { Badge, CalendarAdd, Check, Desk, Door, Download, Laptop, Moon, Plan, Repeat } from "../../components/icons.tsx";
 import type { Catalogue } from "../../lib/i18n/index.ts";
 import { format, formatDay, plural } from "../../lib/i18n/format.ts";
 import type { Result } from "../../lib/errors.ts";
@@ -26,11 +26,15 @@ export type WeekDay = {
   usualFree: boolean;
   // My own desk, lent that day to this person.
   lentTo: string | null;
+  // My visitors that day (I am their host).
+  visitors: { id: string; time: string; name: string; here: boolean }[];
   // My first meeting still to come that day (organiser or guest).
   meeting: { room: string; time: string } | null;
 };
 
 type Words = {
+  visitor: string;
+  visitorHere: string;
   week: Catalogue["week"];
   usual: Catalogue["usual"];
   status: Catalogue["status"];
@@ -193,7 +197,7 @@ export function WeekView({ days, officeId, focus, usual, pattern, weekdays, desk
                       {d.others.some(p => p.team) && <span className="team-count"> · {plural(t.week.team, d.others.filter(p => p.team).length, locale)}</span>}
                     </Link>
                   </div>
-                  {(d.desks.length > 0 || d.rooms.length > 0) && (
+                  {(d.desks.length > 0 || d.rooms.length > 0 || d.visitors.length > 0) && (
                     <ul className="bookings">
                       {d.desks.map(b => (
                         <li key={"d" + b.id} className="booking is-mine">
@@ -214,6 +218,14 @@ export function WeekView({ days, officeId, focus, usual, pattern, weekdays, desk
                             {b.by && <span className="muted"> · {b.by}</span>}
                           </Link>
                           {b.checkable && <button type="button" className="button small" onClick={() => here(b.id)}><Check />{t.checkIn}</button>}
+                        </li>
+                      ))}
+                      {d.visitors.map(v => (
+                        <li key={"v" + v.id} className="booking">
+                          <Badge />
+                          <Link className="booking-text" href={`/chest/visitors?day=${d.day}`}>
+                            {v.here ? <strong>{format(t.visitorHere, { name: v.name })}</strong> : format(t.visitor, { time: v.time, name: v.name })}
+                          </Link>
                         </li>
                       ))}
                     </ul>

@@ -150,10 +150,50 @@ expense part of Spendesk, and the spreadsheet-plus-shoebox of receipts.
   they say *It's done*: categories and accounts, who approves whom, this
   year's mileage scale, the company's bank account — each a link to its
   place.
+- **Nobody approves their own expenses — the accountant included.** An
+  accountant's own claim goes to the approver named for them (*Settings →
+  Company → Who approves whom*), or else to the other accountants; never to
+  themselves, even with nobody else (the server refuses: `self_approval`).
+  When nobody can approve it — the only accountant, nobody named — it
+  waits: the toast says so on sending, *My expenses* says "Waiting: nobody
+  can approve it yet" with a link to name someone, the first-visit
+  checklist asks for it, and *Who approves whom* flags that accountant.
+  **Who approves an accountant's (or the only admin's) claims**: another
+  accountant, or the person named for them — someone with the Approver role
+  (a manager, the owner), which the Chest's admin gives. Claims approved by
+  their own owner before this rule are marked "Approved by its own owner"
+  in *To pay back* and "(own expense)" in the export's *Approved by*.
+- **Someone who left**: their claim still waits in *To approve*, which says
+  they left ("approving still means paying them back — on their final pay
+  slip, not by the transfer file"); in *To pay back* they are **kept out of
+  the transfer file** (a transfer to a former employee's account is what a
+  diversion would ask for) and paid by hand with *Mark paid*.
+- **Search** (the box in the header, or "/"): a shop or a word of the
+  note, a place of a trip, an amount as typed (`187,60`, `187.6`, or `187`
+  for any amount of 187 and cents), a reference (`E123`), a person's name,
+  a category — among the expenses the reader may see: their own (drafts
+  too), those they approve, and for accountants every expense sent. The 100
+  most recent, each with its reference.
+- **Card lines finish themselves**: a card payment that becomes a draft gets
+  the category its bank label suggests (`UBER *TRIP` → Travel, `TOTAL` →
+  Fuel, `INDIGO` → Parking…) from a list of words the accountant edits
+  (*Settings → Company → Card statement words*; about 70 common French
+  labels shipped). Words are matched whole, accents and case aside, the
+  longest match winning (`UBER EATS` → Meals over `UBER`); no match:
+  "Other" (`lib/card-guess.ts`, tested).
+- **Email** (the `mail` proposal): an approver is emailed when expenses are
+  sent to them (each named, with the link to *To approve*); a card holder
+  when card payments wait for their receipt ("Receipt needed: UBER *TRIP ·
+  €23.40"); on the 25th, people with drafts and approvers with expenses
+  waiting. In each person's language, sent by the Chest to their address
+  (the tool never knows it), once per event (a key). On a Chest without
+  mail, nothing is sent and the bell still says it.
 - **The bell**, in each person's language: approvers when something is sent
   to them; employees when approved, refused (with the reason) or paid. The
   tile's number is what waits for you: expenses to decide, plus your refused
   drafts.
+- **One date format**: every list writes a day the same way ("8 Sept",
+  "8 sept."), and a line's parts never wrap with a "·" at the start.
 - **Reminder** (schedule proposal): on the 25th at 09:00, everyone with
   unsent drafts is reminded ("Send your expenses before the end of the
   month", with their count and total). The accountant can turn it off.
@@ -167,10 +207,10 @@ expense part of Spendesk, and the spreadsheet-plus-shoebox of receipts.
 | `employee` | Own expenses, own vehicle and certificate, own bank details |
 
 A draft is its owner's alone until it is sent (nobody else sees it). Nobody
-approves their own expense — except an accountant nobody was named to
-approve (a company with one accountant); the export's *Approved by* column
-then shows it. Without a named approver, the accountants approve. Rights are
-enforced on the server in `lib/access.ts` and tested per role.
+approves their own expense, not even an accountant: theirs go to the
+person named for them, or to the other accountants (see above). Without a
+named approver, the accountants approve. Rights are enforced on the server
+in `lib/access.ts` and tested per role.
 
 ## First minute
 
@@ -210,6 +250,7 @@ enforced on the server in `lib/access.ts` and tested per role.
 | `/chest/new`, `/chest/new?trip=1` | Add an expense / a car trip |
 | `/chest/expenses/[id]`, `…/edit` | One expense with its receipt, history, Approve / Refuse, Edit / Delete |
 | `/chest/approve` | To approve (approvers, accountants) |
+| `/chest/search?q=` | Search the expenses the reader may see (everyone with a role) |
 | `/chest/new?allowance=1` | Add a flat rate |
 | `/chest/pay` | To pay back (accountants): the transfer file, by person, the files made |
 | `/chest/cards` | Company cards (accountants): import a card statement, receipts waiting, to check, statements imported |
@@ -228,7 +269,8 @@ enforced on the server in `lib/access.ts` and tested per role.
 
 - `capabilities`: `database`, `files` (receipts: photo or PDF, 10 MB each,
   uploaded by the browser straight to the Chest), `members` (names; who is
-  accountant or approver), `notifications`; `receives: ["member.*"]`.
+  accountant or approver), `notifications`; `receives: ["member.*"]`;
+  `mail: {send: true}` (proposal, `chest.proposals.json`).
 - **Receipts are kept as sent**: the tool never changes the file, records
   its SHA-256, and a receipt cannot be replaced once the expense is sent.
   Uploads never used go after a day, deleted drafts after a week (nightly
@@ -313,6 +355,9 @@ suggestions to confirm with the company's accountant.
 - `chest.locale()` — **Proposal (studio)** (`@argentic/chest-sdk/chest`): the
   Chest's language, the default of the bank statements' text until the
   accountant picks one (`settings.bankLocale`). Without it, English.
+- `mail` — **Proposal (studio)** (`chest.proposals.json`, `lib/mail.ts`):
+  emails to approvers, card holders and people with drafts. Without it,
+  the bell only.
 - **Scheduled tasks** — **Proposal (studio)** (`chest.proposals.json`):
   `reminder` (25th, 09:00) and `cleanup` (nightly). On a Chest without them,
   nobody is reminded and unused uploads and deleted drafts stay (the tool
@@ -402,6 +447,15 @@ schema with `xmllint`; the schema is not shipped. `npm run build` (and
   account elsewhere are paid by hand.
 - **Importing** receipts files or trips from the previous tool (lines only,
   as history); matching people by email.
+- **Email preferences**: the emails are only those that ask someone to act,
+  and nobody can turn them off yet (Tasks has a per-person switch; not
+  here). The date someone left is not known to the tool (the Chest says
+  "former", not when): *To approve* says they left, not the day.
+- **Search** is plain text (case aside, not accents: "hotel" does not find
+  "Hôtel"), 100 results, no filters of its own; category words are those of
+  the reader's language.
+- **Card statement words** guess from the label only; a supermarket
+  (MONOPRIX, CARREFOUR) stays "Other" unless the accountant adds it.
 - E-invoices received on the company's platform (reform of 2026–2027) as a
   proof type, splitting an expense, re-invoicing to a client, budgets and
   spend requests (Spendesk's core).

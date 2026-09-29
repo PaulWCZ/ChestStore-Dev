@@ -37,7 +37,7 @@ export default async function IncidentPage({ params }: { params: Promise<{ id: s
   const ids = [incident.createdBy, incident.removedBy ?? "", ...incident.updates.flatMap(u => [u.author, u.removedBy ?? "", ...u.log.map(l => l.actor)])];
   const who = await people(ids);
   const nameFor = (id: string | null) => (id === "auto" ? t.people.auto : id === member.id ? t.people.you : nameOf(who.get(id ?? ""), locale));
-  const components = await allComponents(sql);
+  const components = await allComponents(sql, { locale });
   const names = new Map(components.map(c => [c.id, c.name]));
   const second = incident.secondLanguage ?? otherLanguage(incident.language);
   const secondName = (t.languages as Record<string, string>)[second] ?? second;

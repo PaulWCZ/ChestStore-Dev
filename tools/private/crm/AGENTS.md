@@ -9,6 +9,7 @@ no import outside it. Read `README.md` first.
 |---|---|
 | `migrations/0001_crm.sql` | The schema: stages, companies, contacts, deals, activities, steps, `chest_events`; `crm_fold()`, the `crm` text search configuration (unaccent) and trigram indexes |
 | `migrations/0002_deepen.sql` | The team's `fields`, `imports`, `attachments`; `custom` jsonb and `import_id` on records; structured address, SIREN, VAT, email on companies; second phone and URL on contacts; `crm_phone()` digits columns; several open steps with `due_time`, steps of one's own. Never edit a shipped migration: add `0003_…` |
+| `migrations/0003_calendar.sql`, `0004_forms.sql`, `0005_form_leads.sql` | Timed steps in the calendar; form lines; `contacts.maybe_same` and `contacts.lead_since` |
 | `lib/access.ts` | Roles (`manager`, `sales`, `viewer`) and every right; `canEditDeal`, `canDeleteRecord`, `canChangeActivity` |
 | `lib/model.ts` | Pure rules: limits, `clean`, ids, emails, websites, phones, tags, days; stages' names |
 | `lib/amount.ts` | Money as people write it → whole cents (no floats) |
@@ -17,7 +18,8 @@ no import outside it. Read `README.md` first.
 | `lib/custom.ts` (browser-safe), `lib/fields.ts` | The team's own fields: kinds, values checked, the list filter (`cf`, `cv`, `cmin`, `cmax`) |
 | `lib/bulk.ts`, `lib/merge.ts` | Many records at once (each checked as alone); merging duplicates |
 | `lib/attachments.ts` | Files on records (the Chest's `files`); `app/chest/api/files` authorises and records uploads, `app/chest/files/[id]` signs a link |
-| `lib/reports.ts` | The Team page's numbers; a viewer's home |
+| `lib/reports.ts` | The Team page's numbers (`weekActivities`, `stageConversion`: the Monday numbers); a viewer's home |
+| `lib/from-forms.ts`, `lib/leads.ts` | Forms' `forms.contact`: the matching rule (email; phone only with the same name — `sameName`; else a new contact with `maybe_same`), the submitted identity on the line (`data.who`); leads (`lead_since`: take, give, not a lead), "maybe the same person" (`keepApart`), the manager's check of form lines (`formLinesToCheck`, `markChecked`, `moveLine`). `app/chest/leads-box.tsx` (My day), `app/chest/settings/forms/` (the check) |
 | `lib/countries.ts`, `lib/zip.ts` | Country codes and names (Intl); a stored ZIP for the whole-book export |
 | `lib/parse-import.ts` (browser-safe), `lib/importers.ts` | CSV mapping (HubSpot, Pipedrive, French headers; unknown columns → notes, `custom:<id>`, `new`) and import of records and history; owners not in the team; fill empty; `undoImport`; vCard import |
 | `lib/vcard.ts` | vCard parser (2.1/3.0/4.0) and 4.0 writer |
@@ -93,6 +95,10 @@ TEST_DATABASE_URL=postgres://postgres:postgres@127.0.0.1:5432/postgres npm test
   `lib/session.ts` or `lib/people.ts`; dates with month names are formatted
   on the server (a browser's calendar data differs from Node's).
 - Money stays integer cents; format with `money()`.
+- **A form answer is filed on a contact only when surely theirs** (same
+  email, or same phone and same name): never loosen `match()` in
+  `lib/from-forms.ts` — one person's words in another's file is a GDPR
+  breach. Keep `data.who` on every form line.
 - Contacts are personal data: anything new that stores text about a person
   must be deleted by `forget()` (lib/contacts.ts: delete, bulk delete,
   undoing an import) and included in `exportContact`.

@@ -3,18 +3,19 @@ import { headers } from "next/headers";
 import Link from "next/link";
 import { CopyButton } from "../../components/copy-button.tsx";
 import { Link as ClientLink } from "../../components/link.tsx";
-import { Alert, Download, kindIcon, Moved, Plus } from "../../components/icons.tsx";
+import { Alert, CalendarOff, Download, kindIcon, Moved, Plus } from "../../components/icons.tsx";
 import { can } from "../../lib/access.ts";
 import * as b from "../../lib/booking.ts";
 import * as calendars from "../../lib/calendars.ts";
 import { db } from "../../lib/db.ts";
-import { clock, endClock, format, intl, plural, relative } from "../../lib/i18n/index.ts";
+import { timeText } from "@argentic/chest-ui/components/logic";
+import { clock, endClock, format, intl, isLocale, plural, relative } from "../../lib/i18n/index.ts";
 import { myPage } from "../../lib/my-page.ts";
 import { nameOf, people } from "../../lib/people.ts";
 import { publicOrigin } from "../../lib/public-origin.ts";
 import { viewer } from "../../lib/session.ts";
 import { addDays, instantOf, wall } from "../../lib/zone.ts";
-import { BlockButton, BlockedTime, BlockProvider, FreeStretch } from "./agenda-tools.tsx";
+import { AgendaDays, BlockButton, BlockedTime, BlockProvider, FreeStretch } from "./agenda-tools.tsx";
 import { FirstRun } from "./first-run.tsx";
 
 // Bookings: the meetings ahead (or past, or cancelled), day by day, in the
@@ -34,6 +35,9 @@ export default async function BookingsPage({ searchParams }: { searchParams: Pro
   const zone = host?.zone ?? s.defaultZone;
   const list = await b.bookings(sql, member, { scope, all });
   const colors = await b.colorsOf(sql, list.map(x => x.typeId));
+  // One type, one name: each type in the reader's language, whatever
+  // language its guests booked in (their language is a small tag).
+  const names = await b.typeNames(sql, list.map(x => x.typeId), locale);
   const who = all ? await people(list.map(x => x.memberId)) : new Map();
   const origin = publicOrigin(await headers());
   await b.rememberPublicOrigin(sql, origin);
@@ -45,11 +49,25 @@ export default async function BookingsPage({ searchParams }: { searchParams: Pro
   const blocks = own ? await b.blocksOf(sql, member.id) : [];
   // The coming week's free stretches: tap one to block it.
   const free = own && host ? await b.freeStretches(sql, host) : new Map<string, { start: number; end: number }[]>();
+  // What keeps the host busy elsewhere in those days (their other
+  // calendars, another tool): grey rows, so a hole is never a mystery.
+  const elsewhere = own && host ? await b.busyElsewhere(sql, host) : [];
   const stale = host ? (await calendars.calendarsOf(sql, member.id)).find(c => c.stale) : undefined;
   const today = wall(Date.now(), zone).date;
-  type Item = { kind: "booking"; at: Date; booking: b.Booking } | { kind: "block"; at: Date; block: b.Block } | { kind: "free"; at: Date; day: string; start: number; end: number };
+  type Item = { kind: "booking"; at: Date; booking: b.Booking } | { kind: "block"; at: Date; block: b.Block } | { kind: "free"; at: Date; day: string; start: number; end: number } | { kind: "busy"; at: Date; day: string; start: number; end: number; source: string };
   const freeItems: Item[] = [...free].flatMap(([day, windows]) => windows.map(w => ({ kind: "free" as const, at: instantOf(day, w.start, zone), day, start: w.start, end: w.end })));
-  const items: Item[] = [...list.map(x => ({ kind: "booking" as const, at: x.startsAt, booking: x })), ...blocks.map(x => ({ kind: "block" as const, at: x.start, block: x })), ...freeItems];
+  const busyItems: Item[] = elsewhere.map(e => ({ kind: "busy" as const, at: instantOf(e.day, e.start, zone), ...e }));
+  const items: Item[] = [...list.map(x => ({ kind: "booking" as const, at: x.startsAt, booking: x })), ...blocks.map(x => ({ kind: "block" as const, at: x.start, block: x })), ...freeItems, ...busyItems];
+  const quiet = (x: Item) => x.kind === "free" || x.kind === "busy";
+  // Where a busy time comes from, in words.
+  const whereBusy = (source: string) => {
+    const w = t.bookings.busyWhere;
+    if (source === "calendar.google.com") return w.google;
+    if (source.startsWith("outlook.")) return w.outlook;
+    if (source.endsWith("icloud.com")) return w.apple;
+    if (source === "tool:hiring") return w.hiring;
+    return source.startsWith("tool:") ? w.tool : w.other;
+  };
   // A block in the host's clock: its day, from, to (24:00 when it ends at
   // midnight or later).
   const clockOf = (k: b.Block) => {
@@ -111,9 +129,9 @@ export default async function BookingsPage({ searchParams }: { searchParams: Pro
       {items.length === 0 ? (
         <EmptyState title={t.bookings.empty[scope]} body={scope === "upcoming" && host && host.ready && !host.away && !all ? t.bookings.emptyHint : undefined} />
       ) : (
-        <div className="agenda">
+        <AgendaDays label={t.bookings.showFree} toggle={freeItems.length + busyItems.length > 0}>
           {[...groups].map(([day, items]) => (
-            <section key={day} className="day" aria-labelledby={`d-${day}`}>
+            <section key={day} className={`day${items.every(quiet) ? " only-free" : ""}`} aria-labelledby={`d-${day}`}>
               <h2 id={`d-${day}`}>
                 {dayTitle(day)}
                 {day === today && <span className="tag today">{t.bookings.today}</span>}
@@ -131,7 +149,21 @@ export default async function BookingsPage({ searchParams }: { searchParams: Pro
                     );
                   }
                   if (item.kind === "free") {
-                    return <li key={`free-${item.day}-${item.start}`}><FreeStretch day={item.day} start={item.start} end={item.end} t={{ bookings: t.bookings }} /></li>;
+                    return <li key={`free-${item.day}-${item.start}`} className="free-row"><FreeStretch day={item.day} start={item.start} end={item.end} t={{ bookings: t.bookings }} /></li>;
+                  }
+                  if (item.kind === "busy") {
+                    const where = whereBusy(item.source);
+                    return (
+                      <li key={`busy-${item.day}-${item.start}-${item.source}`} className="free-row">
+                        <div className="meeting elsewhere" role="group" aria-label={format(t.bookings.busyLabel, { range: `${timeText(item.start)}–${timeText(item.end)}`, where })}>
+                          <span className="time num">{timeText(item.start)}<small>{timeText(item.end)}</small></span>
+                          <span>
+                            <span className="who-line">{t.bookings.busy}</span>
+                            <span className="what"><CalendarOff />{where}</span>
+                          </span>
+                        </div>
+                      </li>
+                    );
                   }
                   const x = item.booking;
                   const Kind = kindIcon[x.locationKind];
@@ -142,7 +174,9 @@ export default async function BookingsPage({ searchParams }: { searchParams: Pro
                         <span className="time num">{clock(x.startsAt, zone, locale)}<small>{plural(t.minutes, x.duration, locale)}</small></span>
                         <span>
                           <span className="who-line">{x.guestName}</span>
-                          <span className="what"><Kind />{x.title}{all && <> · {nameOf(who.get(x.memberId), locale)}</>}</span>
+                          <span className="what"><Kind />{(x.typeId && names.get(x.typeId)) || x.title}{all && <> · {nameOf(who.get(x.memberId), locale)}</>}
+                            {isLocale(x.guestLanguage) && x.guestLanguage !== locale && <span className="tag lang"><span aria-hidden="true">{x.guestLanguage.toUpperCase()}</span><span className="visually-hidden">{format(t.bookings.guestLanguage, { language: t.languages[x.guestLanguage] })}</span></span>}
+                          </span>
                         </span>
                         <span className="row">
                           {x.moves > 0 && x.status === "confirmed" && <span className="tag"><Moved />{t.bookings.moved}</span>}
@@ -155,7 +189,7 @@ export default async function BookingsPage({ searchParams }: { searchParams: Pro
               </ul>
             </section>
           ))}
-        </div>
+        </AgendaDays>
       )}
       {/* A rare act: at the foot of the list, never above it. */}
       {(hosting || seesAll) && <p className="agenda-foot"><a className="link-button" href={`/chest/export${all ? "?who=all" : ""}`}><Download />{t.bookings.export}</a></p>}

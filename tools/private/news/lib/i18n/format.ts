@@ -40,3 +40,9 @@ export function relative(value: Date | string, locale: Locale, now = new Date())
   }
   return rtf.format(Math.round(amount), "year");
 }
+
+// orList writes "Sofia Rossi, Camille Martin or another publisher" in that
+// language.
+export function orList(items: string[], locale: Locale): string {
+  return new Intl.ListFormat(intl(locale), { type: "disjunction" }).format(items);
+}

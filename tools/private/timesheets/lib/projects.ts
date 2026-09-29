@@ -4,7 +4,8 @@ import { AppError } from "./app-error.ts";
 import type { Query } from "./db.ts";
 import { checkBudgets } from "./budgets.ts";
 import { today } from "./clock.ts";
-import { bool, cents, clean, colors, day as checkDay, id, isColor, limits, memberIds, numeric, optionalId, type Color } from "./model.ts";
+import { isManager } from "./directory.ts";
+import { bool, cents, clean, colors, day as checkDay, id, isColor, limits, memberIds, memberPattern, numeric, optionalId, type Color } from "./model.ts";
 import { mirror, origin, revenueOf } from "./rates.ts";
 import { isLocked, settings } from "./settings.ts";
 import { transaction } from "./tx.ts";
@@ -27,6 +28,8 @@ export type Project = {
   budget: Budget;
   everyone: boolean;
   people: string[];
+  // The manager who leads it: budget alerts, weeks holding its time.
+  lead: string | null;
   archived: boolean;
   tasks: Task[];
   used: Usage;
@@ -37,7 +40,7 @@ export type Offered = { id: string; name: string; clientName: string | null; col
 
 type ProjectRow = {
   id: string; name: string; client_id: string | null; client_name: string | null; color: string; billable: boolean; rate_cents: string | null;
-  budget_kind: "none" | "hours" | "money"; budget_minutes: number | null; budget_cents: string | null; everyone: boolean; archived_at: Date | null;
+  budget_kind: "none" | "hours" | "money"; budget_minutes: number | null; budget_cents: string | null; everyone: boolean; archived_at: Date | null; lead_id: string | null;
 };
 
 // budgetShare: how much of the budget is used, 0.64 for 64 %; null without
@@ -52,7 +55,7 @@ async function load(sql: Query, where: { archived?: boolean; ids?: string[] }): 
   const rows = await sql<ProjectRow[]>`
     select p.id::text, p.name, p.client_id::text, c.name as client_name, p.color, p.billable,
       (select r.rate_cents from rates r where r.kind = 'bill' and r.project_id = p.id and r.member_id is null and r.from_day <= ${today()} order by r.from_day desc limit 1)::text as rate_cents,
-      p.budget_kind, p.budget_minutes, p.budget_cents::text, p.everyone, p.archived_at
+      p.budget_kind, p.budget_minutes, p.budget_cents::text, p.everyone, p.archived_at, p.lead_id
     from projects p left join clients c on c.id = p.client_id
     where ${where.ids ? sql`p.id = any(${where.ids}::bigint[])` : where.archived === undefined ? sql`true` : where.archived ? sql`p.archived_at is not null` : sql`p.archived_at is null`}
     order by lower(coalesce(c.name, '')), lower(p.name)
@@ -83,6 +86,7 @@ async function load(sql: Query, where: { archived?: boolean; ids?: string[] }): 
       budget,
       everyone: r.everyone,
       people: people.filter(p => p.project_id === r.id).map(p => p.member_id),
+      lead: r.lead_id,
       archived: r.archived_at !== null,
       tasks: tasks.filter(t => t.project_id === r.id).map(t => ({ id: t.id, name: t.name, archived: t.archived_at !== null })),
       used: { minutes: numeric(u?.minutes), billableMinutes, cents: Math.round(numeric(u?.cents)) },
@@ -202,10 +206,12 @@ export type ProjectInput = {
   budget?: unknown;
   everyone?: unknown;
   people?: unknown;
+  // A manager's member id, or null: every manager.
+  lead?: unknown;
   tasks?: unknown;
 };
 
-type Clean = { name: string; clientId: string | null; newClient: string | null; color: Color; billable: boolean; rateCents: number | null; budget: Budget; everyone: boolean; people: string[] };
+type Clean = { name: string; clientId: string | null; newClient: string | null; color: Color; billable: boolean; rateCents: number | null; budget: Budget; everyone: boolean; people: string[]; lead: string | null };
 
 function readBudget(value: unknown): Budget {
   if (value === undefined || value === null) return { kind: "none" };
@@ -239,7 +245,18 @@ function readProject(input: ProjectInput): Clean {
     budget: readBudget(input.budget),
     everyone: input.everyone === undefined ? true : bool(input.everyone),
     people: input.people === undefined ? [] : memberIds(input.people, limits.projectPeople),
+    lead: input.lead === undefined || input.lead === null || input.lead === "" ? null : readLead(input.lead),
   };
+}
+
+function readLead(value: unknown): string {
+  if (typeof value !== "string" || !memberPattern.test(value)) throw new AppError("lead_invalid");
+  return value;
+}
+
+// A lead must be a manager now.
+async function checkLead(lead: string | null): Promise<void> {
+  if (lead !== null && !(await isManager(lead))) throw new AppError("lead_invalid");
 }
 
 function taskNames(value: unknown): string[] {
@@ -269,6 +286,7 @@ export async function createProject(sql: Query, actor: Member | null, input: Pro
   if (!can(actor, "projects.manage")) throw new AppError("forbidden");
   const p = readProject(input);
   const tasks = taskNames(input.tasks);
+  await checkLead(p.lead);
   const newId = await transaction(sql, async tx => {
     const count = (await tx<{ count: number }[]>`select count(*)::int as count from projects`)[0]!.count;
     if (count >= limits.projects) throw new AppError("too_many", { max: limits.projects });
@@ -276,9 +294,9 @@ export async function createProject(sql: Query, actor: Member | null, input: Pro
     await checkClient(tx, clientId);
     if (await nameTaken(tx, clientId, p.name, null)) throw new AppError("duplicate");
     const [row] = await tx<{ id: string }[]>`
-      insert into projects (client_id, name, color, billable, rate_cents, budget_kind, budget_minutes, budget_cents, everyone)
+      insert into projects (client_id, name, color, billable, rate_cents, budget_kind, budget_minutes, budget_cents, everyone, lead_id)
       values (${clientId}, ${p.name}, ${p.color}, ${p.billable}, ${p.rateCents}, ${p.budget.kind},
-        ${p.budget.kind === "hours" ? p.budget.minutes : null}, ${p.budget.kind === "money" ? p.budget.cents : null}, ${p.everyone})
+        ${p.budget.kind === "hours" ? p.budget.minutes : null}, ${p.budget.kind === "money" ? p.budget.cents : null}, ${p.everyone}, ${p.lead})
       returning id::text`;
     if (p.rateCents !== null) await tx`insert into rates (kind, project_id, from_day, rate_cents, set_by) values ('bill', ${row!.id}, ${origin}, ${p.rateCents}, ${actor!.id})`;
     for (const name of tasks) await tx`insert into tasks (project_id, name) values (${row!.id}, ${name})`;
@@ -292,6 +310,9 @@ export async function updateProject(sql: Query, actor: Member | null, projectId:
   if (!can(actor, "projects.manage")) throw new AppError("forbidden");
   const pid = id(projectId);
   const p = readProject(input);
+  // An update that does not name a lead keeps the one it has.
+  const keepLead = input.lead === undefined;
+  if (!keepLead) await checkLead(p.lead);
   await transaction(sql, async tx => {
     const [current] = await tx`select 1 from projects where id = ${pid} for update`;
     if (!current) throw new AppError("not_found");
@@ -302,7 +323,7 @@ export async function updateProject(sql: Query, actor: Member | null, projectId:
     await tx`
       update projects set client_id = ${clientId}, name = ${p.name}, color = ${p.color}, billable = ${p.billable},
         budget_kind = ${p.budget.kind}, budget_minutes = ${p.budget.kind === "hours" ? p.budget.minutes : null}, budget_cents = ${p.budget.kind === "money" ? p.budget.cents : null},
-        everyone = ${p.everyone}
+        everyone = ${p.everyone}${keepLead ? tx`` : tx`, lead_id = ${p.lead}`}
       where id = ${pid}`;
     await tx`delete from project_people where project_id = ${pid} and member_id <> all(${p.people}::text[])`;
     for (const person of p.people) await tx`insert into project_people (project_id, member_id) values (${pid}, ${person}) on conflict do nothing`;

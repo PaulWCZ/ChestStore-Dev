@@ -511,3 +511,48 @@ select.ink { appearance: none; cursor: pointer; padding-right: 18px; background-
 .archives { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-2); }
 .archives li { display: flex; justify-content: space-between; align-items: center; gap: var(--space-3); padding: var(--space-2) 0; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
 .archives .sub { display: block; color: var(--ink-2); font-size: var(--text-s); }
+
+/* ── Versions of a sent quote; the email's fixed first line ── */
+.fixed-line { display: grid; gap: 2px; margin: 0 0 var(--space-2); padding: var(--space-2) var(--space-3); border: 1px dashed var(--line-strong); border-radius: var(--radius-s); background: var(--surface-2); font-size: var(--text-s); overflow-wrap: anywhere; }
+.fixed-line .hint { font-size: var(--text-xs); }
+.answer-changes { display: grid; gap: var(--space-2); padding: var(--space-3) var(--space-4); border: 1px solid var(--line-strong); border-left: 3px solid var(--accent-line); border-radius: var(--radius-s); background: var(--surface); }
+.answer-changes h3 { margin: 0; font-size: var(--text-m); }
+.answer-changes ul { margin: 0; padding-left: 1.2em; display: grid; gap: 4px; }
+.answer-changes li { overflow-wrap: anywhere; }
+.replaces { font-size: var(--text-s); color: var(--ink-2); text-align: center; max-width: 60ch; }
+.replaces a { color: var(--accent-text); }
+.earlier { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; justify-content: center; gap: var(--space-2) var(--space-4); font-size: var(--text-s); }
+.earlier a { color: var(--accent-text); display: inline-flex; gap: 6px; align-items: center; min-height: 44px; }
+
+/* ── Revenue on the desk ── */
+.revenue-grid { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr) minmax(0, 1fr); gap: var(--space-4); }
+.figure.plain { border-top-color: var(--accent-line); }
+.figure .sub.strong { color: var(--ink); font-weight: var(--weight-strong); margin-top: var(--space-1); }
+.ranking { padding: var(--space-4) var(--space-5); background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-s); }
+.ranking h3 { margin: 0 0 var(--space-2); font-size: var(--text-s); color: var(--ink-2); font-weight: var(--weight-strong); }
+.ranking ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.ranking li { display: flex; justify-content: space-between; gap: var(--space-3); padding: 4px 0; border-bottom: 1px solid var(--line); font-size: var(--text-s); }
+.ranking li:last-child { border-bottom: 0; }
+.ranking li span:first-child { overflow-wrap: anywhere; }
+.revenue > .hint { margin-top: var(--space-2); font-size: var(--text-xs); color: var(--ink-2); }
+@media (max-width: 900px) { .revenue-grid { grid-template-columns: 1fr; } .figure.plain { grid-template-columns: 1fr; } }
+.terms-file { margin: 0; }
+.terms-file a { color: var(--accent-text); overflow-wrap: anywhere; }
+/* On a phone the page's main action comes first; the quieter one after it. */
+@media (max-width: 640px) { .ck-page-actions > .button.quiet { order: 2; } }
+
+/* ── A bank statement matched to the invoices ── */
+.bank-lines { list-style: none; margin: var(--space-3) 0; padding: 0; display: grid; gap: var(--space-2); }
+.bank-line { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--space-3) var(--space-4); padding: var(--space-3) var(--space-4); border: 1px solid var(--line); border-radius: var(--radius-s); background: var(--surface); }
+.bank-line.done { border-color: var(--line-strong); background: var(--surface-2); }
+.bank-line p { margin: 0; }
+.bank-what .num { font-size: var(--text-m); }
+.bank-what .when { color: var(--ink-2); font-size: var(--text-s); }
+.bank-words { font-size: var(--text-s); overflow-wrap: anywhere; }
+.bank-match { display: grid; gap: var(--space-1); align-content: start; }
+.bank-match .row-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; margin-top: var(--space-1); }
+.bank-match select { max-width: 100%; }
+.ok-line { display: flex; gap: 6px; align-items: center; color: var(--ok); font-weight: var(--weight-strong); }
+@media (max-width: 640px) { .bank-line { grid-template-columns: 1fr; } }
+.siren-fill { display: flex; gap: var(--space-2); flex-wrap: wrap; }
+.siren-fill .field { flex: 1 1 12ch; min-width: 0; }

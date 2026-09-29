@@ -1,15 +1,17 @@
 import { EmptyState } from "@argentic/chest-ui/components";
 import { AutoRefresh } from "../../components/auto-refresh.tsx";
-import { Alarm, Clock, Pen } from "../../components/icons.tsx";
+import { Alarm, Clock, Pen, Star } from "../../components/icons.tsx";
 import { can } from "../../lib/access.ts";
+import { whoPublishes } from "../../lib/audience.ts";
 import { dates } from "../../lib/dates.ts";
 import { db } from "../../lib/db.ts";
 import { audienceLabel, groupNames } from "../../lib/groups.ts";
-import { format, plural } from "../../lib/i18n/index.ts";
+import { format, orList, plural } from "../../lib/i18n/index.ts";
 import { kinds } from "../../lib/model.ts";
 import { nameOf, people } from "../../lib/people.ts";
 import { digestEmail } from "../../lib/preferences.ts";
 import { front, visit } from "../../lib/posts.ts";
+import { waitingCount } from "../../lib/proposals.ts";
 import { viewer } from "../../lib/session.ts";
 import { catchUp, refreshBadges } from "../../lib/tell.ts";
 import { DigestSwitch } from "./digest-switch.tsx";
@@ -53,7 +55,17 @@ export default async function FrontPage({ searchParams }: { searchParams: Promis
   // publisher, the first post.
   const seeAll = <a className="button quiet" href="/chest">{t.front.seeAll}</a>;
   const writeFirst = <a className="button" href="/chest/new"><Pen />{t.front.empty.action}</a>;
-  const emptyAction = kind ? seeAll : publisher ? writeFirst : null;
+  // A reader of an empty front page may still share something (a publisher approves it).
+  const emptyAction = kind ? seeAll : publisher ? writeFirst : <a className="button quiet" href="/chest/propose"><Pen />{t.shell.propose}</a>;
+  // A reader of an empty front page is told whom to ask.
+  let ask: string | null = null;
+  if (!lead && !kind && !publisher) {
+    const { names, more } = await whoPublishes();
+    if (names.length > 0) ask = orList(more ? [...names, t.front.empty.anotherPublisher] : names, locale);
+  }
+  const empty = !lead && !kind;
+  // Posts from colleagues waiting for a publisher (lib/proposals.ts).
+  const toApprove = publisher ? await waitingCount(sql) : 0;
   return (
     <div className="front">
       <AutoRefresh seconds={60} />
@@ -75,10 +87,18 @@ export default async function FrontPage({ searchParams }: { searchParams: Promis
         </p>
       )}
 
+      {toApprove > 0 && (
+        <p className="asks-you approve" role="status">
+          <Star />
+          <span>{plural(t.front.approve, toApprove, locale)}</span>
+          <a className="button small" href="/chest/proposals">{t.front.approveAction}</a>
+        </p>
+      )}
+
       {!lead ? (
         <EmptyState
           title={kind ? t.front.emptySection[kind as keyof typeof t.front.emptySection] : t.front.empty.title}
-          body={kind ? null : publisher ? t.front.empty.body : t.front.empty.reader}
+          body={kind ? null : publisher ? t.front.empty.body : ask ? format(t.front.empty.readerAsk, { names: ask }) : t.front.empty.reader}
           action={emptyAction}
           example={!kind && publisher ? { label: t.front.empty.welcome, href: "/chest/new?kind=welcome" } : null}
           note={!kind && publisher ? <a href="/chest/transfer">{t.front.empty.moving}</a> : null}
@@ -135,7 +155,8 @@ export default async function FrontPage({ searchParams }: { searchParams: Promis
         </nav>
       )}
       <DigestSwitch on={digestOn} t={t.front} errors={t.errors} />
-      {publisher && <p className="foot-link"><a href="/chest/transfer">{t.transfer.link}</a></p>}
+      {/* On an empty front page, the empty state already offers the import. */}
+      {publisher && !empty && <p className="foot-link"><a href="/chest/transfer">{t.transfer.link}</a></p>}
     </div>
   );
 }

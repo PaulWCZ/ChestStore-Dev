@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { AppError, type ErrorCode } from "../lib/app-error.ts";
 import { db } from "../lib/db.ts";
 import { admit, checkForm } from "../lib/guard.ts";
+import { chooseHook, retryHook, subscribeHook, unsubscribeHook } from "../lib/hooks.ts";
 import { welcome } from "../lib/mailer.ts";
 import { publicOrigin } from "../lib/public-origin.ts";
 import { publicWords } from "../lib/session.ts";
@@ -83,6 +84,67 @@ export async function unsubscribeAction(data: FormData): Promise<void> {
     await unsubscribe(db(), token);
   } catch (error) {
     if (failed(error) !== "not_found") target = `/s/${token}?error=unavailable`;
+  }
+  redirect(target);
+}
+
+// ---- Updates in a chat (Proposal (studio): webhooks) ------------------------
+
+// subscribeHookAction connects a Slack or Teams channel, or a web address:
+// the same guard as the email form; the Chest checks the address before
+// anything is kept. The subscription's page follows (its link is its key).
+export async function subscribeHookAction(data: FormData): Promise<void> {
+  const kind = String(data.get("kind") ?? "");
+  let target: string;
+  try {
+    if (String(data.get("website") ?? "") !== "") throw new AppError("invalid");
+    checkForm(data.get("started"));
+    const sql = db();
+    const h = await headers();
+    await admit(sql, new Headers(h));
+    const { locale } = await publicWords();
+    await rememberPublicOrigin(sql, publicOrigin(h) || null);
+    const components = data.get("scope") === "some" ? data.getAll("component").map(String) : "all";
+    const hook = await subscribeHook(sql, { kind, url: String(data.get("url") ?? ""), language: locale, components });
+    target = `/w/${hook.token}?new=1`;
+  } catch (error) {
+    target = `/subscribe/chat?error=${failed(error)}${/^(slack|teams|generic)$/u.test(kind) ? `&kind=${kind}` : ""}`;
+  }
+  redirect(target);
+}
+
+export async function chooseHookAction(data: FormData): Promise<void> {
+  const token = tokenOf(data);
+  let target = `/w/${token}?done=saved`;
+  try {
+    const components = data.get("scope") === "some" ? data.getAll("component").map(String) : "all";
+    await chooseHook(db(), token, components);
+  } catch (error) {
+    const code = failed(error);
+    target = code === "not_found" ? "/w/unknown" : `/w/${token}?error=${code}`;
+  }
+  redirect(target);
+}
+
+export async function retryHookAction(data: FormData): Promise<void> {
+  const token = tokenOf(data);
+  let target = `/w/${token}?done=retried`;
+  try {
+    await retryHook(db(), token);
+  } catch (error) {
+    const code = failed(error);
+    target = code === "not_found" ? "/w/unknown" : `/w/${token}?error=${code}`;
+  }
+  redirect(target);
+}
+
+export async function stopHookAction(data: FormData): Promise<void> {
+  const token = tokenOf(data);
+  let target = "/w/gone?done=gone";
+  try {
+    await unsubscribeHook(db(), token);
+  } catch (error) {
+    if (failed(error) !== "not_found") target = `/w/${token}?error=unavailable`;
   }
   redirect(target);
 }

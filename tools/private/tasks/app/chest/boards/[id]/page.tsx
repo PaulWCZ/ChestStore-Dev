@@ -1,4 +1,4 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { AutoRefresh } from "../../../../components/auto-refresh.tsx";
 import { boardAudience } from "../../../../lib/audience.ts";
 import { board as readBoard, columnName, columns as readColumns, fields as readFields, labels as readLabels, listBoards } from "../../../../lib/boards.ts";
@@ -36,13 +36,17 @@ export default async function BoardPage({ params, searchParams }: { params: Prom
   }
   const [cols, labs, own, cards, audience] = await Promise.all([readColumns(sql, b.id, { words: t.templates.columns }), readLabels(sql, b.id), readFields(sql, b.id), boardCards(sql, b.id), boardAudience(b)]);
   let detail: Awaited<ReturnType<typeof cardDetail>> | null = null;
+  let cardGone = false;
   if (search.card) {
     try {
       detail = await cardDetail(sql, member, search.card);
-      if (detail.boardId !== b.id) detail = null;
     } catch (error) {
       if (!(error instanceof AppError)) throw error;
+      cardGone = true;
     }
+    // The card moved to another board since this address was made (an
+    // older bell item or email): open it where it is now.
+    if (detail && detail.boardId !== b.id) redirect(`/chest/boards/${detail.boardId}?card=${encodeURIComponent(detail.id)}`);
   }
   const ids = [...cards.flatMap(c => c.assignees), ...(detail ? [...detail.assignees, detail.createdBy, ...detail.thread.map(c => c.author), ...detail.history.map(h => h.actor), ...detail.history.map(h => String(h.data["member"] ?? "")), ...detail.files.map(f => f.addedBy), ...detail.items.flatMap(i => (i.assignee ? [i.assignee] : []))] : [])];
   const who = await people(ids);
@@ -78,10 +82,11 @@ export default async function BoardPage({ params, searchParams }: { params: Prom
     : null;
   const view = search.view === "list" ? "list" : search.view === "calendar" ? "calendar" : search.view === "timeline" ? "timeline" : "board";
   const calendar = view === "calendar" ? calendarOf(monthOf(search.month, day), day, locale) : null;
-  const timeline = view === "timeline" ? timelineOf(timelineStart(search.from, day), day, locale, cards) : null;
+  const timeline = view === "timeline" ? timelineOf(timelineStart(search.from, day), day, locale, cards, t.board.timeline.week) : null;
   return (
     <div className={`board-page c-${b.color}`}>
       <AutoRefresh seconds={15} />
+      {cardGone && <p className="notice card-gone" role="status">{t.board.cardGone}</p>}
       <BoardView
         board={{ id: b.id, name: b.name, color: b.color, access: b.access, archived: b.archived, privacy }}
         columns={cols}
@@ -179,8 +184,11 @@ export type TimelineWindow = {
   current: string;
   today: string;
   names: Record<string, string>;
+  // For a phone: the window's weeks ("Week of 5 Oct") and each date short.
+  weeks: { first: string; label: string }[];
+  short: Record<string, string>;
 };
-function timelineOf(first: string, today: string, locale: Locale, cards: { start: string | null; due: string | null }[]): TimelineWindow {
+function timelineOf(first: string, today: string, locale: Locale, cards: { start: string | null; due: string | null }[], weekWords: string): TimelineWindow {
   const f = (options: Intl.DateTimeFormatOptions) => new Intl.DateTimeFormat(intl(locale), { timeZone: "UTC", ...options });
   const at = (d: string) => new Date(d + "T12:00:00Z");
   const dates = Array.from({ length: timelineDays }, (_, i) => addDays(first, i));
@@ -191,5 +199,9 @@ function timelineOf(first: string, today: string, locale: Locale, cards: { start
   const letter = f({ weekday: "narrow" });
   const days = dates.map((date, i) => ({ date, day: Number(date.slice(8)), weekday: letter.format(at(date)), month: i === 0 || date.endsWith("-01") ? month.format(at(date)) : null }));
   const range = new Intl.DateTimeFormat(intl(locale), { timeZone: "UTC", day: "numeric", month: "short", year: "numeric" });
-  return { first, title: range.formatRange(at(first), at(dates.at(-1)!)), days, prev: addDays(first, -timelineStep), next: addDays(first, timelineStep), current: timelineStart(undefined, today), today, names };
+  const brief = f({ day: "numeric", month: "short" });
+  const short: Record<string, string> = {};
+  for (const d of Object.keys(names)) short[d] = brief.format(at(d));
+  const weeks = Array.from({ length: Math.ceil(timelineDays / 7) }, (_, i) => addDays(first, i * 7)).map(d => ({ first: d, label: format(weekWords, { date: brief.format(at(d)) }) }));
+  return { first, title: range.formatRange(at(first), at(dates.at(-1)!)), days, prev: addDays(first, -timelineStep), next: addDays(first, timelineStep), current: timelineStart(undefined, today), today, names, weeks, short };
 }

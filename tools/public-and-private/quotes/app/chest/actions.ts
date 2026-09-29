@@ -6,12 +6,13 @@ import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { can } from "../../lib/access.ts";
 import { keep, draw } from "../../lib/archive.ts";
+import * as bank from "../../lib/bank.ts";
 import * as clients from "../../lib/clients.ts";
 import * as company from "../../lib/company.ts";
 import { db } from "../../lib/db.ts";
 import * as documents from "../../lib/documents.ts";
 import { attempt, AppError, type Result } from "../../lib/errors.ts";
-import { isLocale, type Locale } from "../../lib/i18n/index.ts";
+import { catalogue, isLocale, type Locale } from "../../lib/i18n/index.ts";
 import * as importers from "../../lib/importers.ts";
 import * as items from "../../lib/items.ts";
 import { checkLogo } from "../../lib/logo.ts";
@@ -22,7 +23,11 @@ import * as numbering from "../../lib/numbering.ts";
 import * as online from "../../lib/online.ts";
 import { publicOrigin } from "../../lib/public-origin.ts";
 import { settledLate } from "../../lib/reminders.ts";
+import * as registry from "../../lib/registry.ts";
 import * as repeats from "../../lib/repeats.ts";
+import * as terms from "../../lib/terms.ts";
+import * as versions from "../../lib/versions.ts";
+import { versioned } from "../../lib/model.ts";
 import { readyForBilling, refreshBadges, settled } from "../../lib/tell.ts";
 
 // The server actions of the members' part. Each is an endpoint anyone can
@@ -145,8 +150,10 @@ export async function renewLink(id: string): Promise<Result<{ url: string | null
 }
 
 // The message the send (or reminder) dialog starts from, written for the
-// document as it is now, in its client's language.
-export async function messageFor(id: string, kind: sending.Kind): Promise<Result<sending.Message & { upcoming?: string }>> {
+// document as it is now, in its client's language. A quote's email opens
+// with its answer line (`line`, shown fixed in the dialog): its link when
+// the quote has one, else the words saying it is made when the email goes.
+export async function messageFor(id: string, kind: sending.Kind): Promise<Result<sending.Message & { upcoming?: string; line?: string; terms?: boolean }>> {
   return attempt(async () => {
     const actor = await currentMember();
     const sql = db();
@@ -154,9 +161,31 @@ export async function messageFor(id: string, kind: sending.Kind): Promise<Result
     const full = await documents.getDocument(sql, actor, id, today);
     const c = await company.company(sql);
     const upcoming = full.number === null ? await documents.upcomingNumber(sql, full.type, today) : undefined;
-    const message = sending.draftMessage(full, kind, { company: c.tradeName || c.legalName, sender: actor?.name ?? "", iban: c.iban, bic: c.bic, today, paymentLink: c.paymentLink ?? "", ...(upcoming ? { upcoming } : {}) });
-    return { ...message, ...(upcoming ? { upcoming } : {}) };
+    const before = full.type === "quote" && full.version > 1 ? (await versions.versionsOf(sql, actor, full.id))[0] ?? null : null;
+    const message = sending.draftMessage(full, kind, { company: c.tradeName || c.legalName, sender: actor?.name ?? "", iban: c.iban, bic: c.bic, today, paymentLink: c.paymentLink ?? "", replaces: before?.issueDate ?? null, ...(upcoming ? { upcoming } : {}) });
+    let line: string | undefined;
+    if (full.type === "quote" && kind === "send") {
+      const link = await online.liveLink(sql, full.id);
+      const origin = publicOrigin(await headers());
+      const number = versioned(full.number, full.version) ?? upcoming ?? "";
+      line = sending.answerLine(full.language, number, link && origin ? `${origin}/q/${link.secret}` : catalogue(full.language).mail.linkToCome);
+    }
+    // A quote carries the terms and conditions of sale, when there are some.
+    return { ...message, ...(upcoming ? { upcoming } : {}), ...(line ? { line } : {}), ...(line && c.terms ? { terms: true } : {}) };
   });
+}
+
+// --- Versions of a sent quote ------------------------------------------------------
+
+// A sent quote is changed through its next version: the version sent is
+// kept; the quote is a draft again under its number (lib/versions.ts).
+export async function reviseQuote(id: string): Promise<Result<{ version: number }>> {
+  return act(async actor => ({ version: (await versions.reviseQuote(db(), actor, id, chest.today())).version }));
+}
+
+// The next version not sent yet, dropped: the quote is the version sent.
+export async function discardVersion(id: string): Promise<Result<{ version: number }>> {
+  return act(async actor => ({ version: (await versions.discardVersion(db(), actor, id)).version }));
 }
 
 export async function markSent(id: string): Promise<Result<{ number: string | null }>> {
@@ -190,7 +219,31 @@ export async function restorePayment(paymentId: string): Promise<Result> {
   return act(async actor => { await payments.restorePayment(db(), actor, paymentId); await refreshBadges(db(), chest.today()); return null; });
 }
 
+// --- A bank statement ---------------------------------------------------------------
+
+// readBank reads the statement's text (the columns chosen) against the
+// invoices still to collect: each payment received with its match.
+export async function readBank(text: string, mapping: string[]): Promise<Result<bank.Reading>> {
+  return attempt(async () => bank.readBank(db(), await currentMember(), text, mapping, chest.today(), chest.currency()));
+}
+
+// recordBank records a line of the statement as the payment of an invoice.
+export async function recordBank(input: bank.BankPaymentInput): Promise<Result<{ id: string; due: number }>> {
+  return act(async actor => {
+    const done = await bank.recordBankLine(db(), actor, input, chest.today());
+    if (done.due <= 0) await settledLate(String(input.invoiceId));
+    await refreshBadges(db(), chest.today());
+    return done;
+  });
+}
+
 // --- Clients and the catalogue ------------------------------------------------------
+
+// A company's details from its SIREN, through the public directory
+// (lib/registry.ts: the tool's one declared network host).
+export async function lookupCompany(siren: string): Promise<Result<registry.Registered>> {
+  return attempt(async () => registry.lookupSiren(await currentMember(), siren));
+}
 
 export async function addClient(input: clients.ClientInput): Promise<Result<clients.Client>> {
   return act(async actor => clients.addClient(db(), actor, input));
@@ -269,6 +322,16 @@ export async function saveLogo(object: string): Promise<Result> {
     await company.setLogo(db(), actor, logo.object, logo.type);
     return null;
   });
+}
+
+// The terms and conditions of sale: the PDF that arrived is checked and
+// kept; removed, quotes go without them.
+export async function saveTerms(object: string, name: string): Promise<Result> {
+  return act(async actor => { await terms.saveTerms(db(), actor, object, name); return null; });
+}
+
+export async function removeTerms(): Promise<Result> {
+  return act(async actor => { await terms.removeTerms(db(), actor); return null; });
 }
 
 export async function removeLogo(): Promise<Result> {

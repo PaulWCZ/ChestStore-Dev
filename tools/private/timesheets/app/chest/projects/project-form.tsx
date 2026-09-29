@@ -16,13 +16,15 @@ import { rateDayProblem, type RateLock } from "../../../components/rate-day.ts";
 type Words = { project: Catalogue["project"]; colors: Catalogue["colors"]; errors: Catalogue["errors"]; date: Catalogue["date"] };
 export type FormProject = {
   id: string | null; name: string; clientId: string | null; color: string; billable: boolean; rateCents: number | null; budget: Budget;
-  everyone: boolean; people: string[]; archived: boolean; tasks: Task[];
+  everyone: boolean; people: string[]; archived: boolean; tasks: Task[]; lead: string | null;
 };
 
 // A project: its name and client, colour, billable default and rate, its
 // budget, its tasks, who records time on it. One form; Save once.
-export function ProjectForm({ initial, clients, people, currency, comma, defaultTasks, rates, t }: {
+export function ProjectForm({ initial, clients, people, managers, currency, comma, defaultTasks, rates, t }: {
   initial: FormProject; clients: { id: string; name: string }[]; people: { id: string; name: string }[]; currency: string; comma: boolean; defaultTasks: string[];
+  // Who may lead a project: the managers.
+  managers: { id: string; name: string }[];
   // An existing project with time: a changed rate applies from a day, and
   // its history shows.
   rates?: { hasTime: boolean; today: string; lock: RateLock; history: string | null };
@@ -42,6 +44,7 @@ export function ProjectForm({ initial, clients, people, currency, comma, default
   const [budget, setBudget] = useState(initial.budget.kind === "hours" ? hoursText(initial.budget.minutes, comma) : initial.budget.kind === "money" ? amountText(initial.budget.cents, comma) : "");
   const [everyone, setEveryone] = useState(initial.everyone);
   const [chosen, setChosen] = useState<string[]>(initial.people);
+  const [lead, setLead] = useState(initial.lead ?? "");
   const [tasks, setTasks] = useState<string[]>(initial.id ? [] : defaultTasks);
   const [taskDraft, setTaskDraft] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -76,6 +79,8 @@ export function ProjectForm({ initial, clients, people, currency, comma, default
     setError(null);
     const input = {
       name, color, billable, rateCents, budget: b, everyone, people: everyone ? [] : chosen,
+      // The lead is sent when changed (one who is no longer a manager stays until then).
+      ...(!initial.id || lead !== (initial.lead ?? "") ? { lead: lead || null } : {}),
       ...(askFrom && rateFrom ? { rateFrom } : {}),
       ...(client === "new" ? { newClient } : { clientId: client || null }),
       ...(initial.id ? {} : { tasks }),
@@ -201,6 +206,16 @@ export function ProjectForm({ initial, clients, people, currency, comma, default
             </div>
           </fieldset>
         )}
+        <div className="field-block">
+          <label className="label" htmlFor="p-lead">{w.lead}</label>
+          <select id="p-lead" className="field" value={lead} onChange={e => setLead(e.target.value)} aria-describedby="p-lead-hint">
+            <option value="">{w.noLead}</option>
+            {/* A lead no longer a manager still shows, to be changed. */}
+            {initial.lead && !managers.some(m => m.id === initial.lead) && <option value={initial.lead}>{w.leadGone}</option>}
+            {managers.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+          </select>
+          <p id="p-lead-hint" className="hint">{w.leadHint}</p>
+        </div>
         <div className="field-block wide">
           <Segmented hideLabel={false} label={w.who} name="who" value={everyone ? "everyone" : "chosen"} options={[{ value: "everyone", label: w.whoEveryone }, { value: "chosen", label: w.whoChosen }]} onChange={v => setEveryone(v === "everyone")} />
           {!everyone && (

@@ -69,3 +69,4 @@ export const Radar = () => <Icon><circle cx="12" cy="12" r="8.5" /><circle cx="1
 export const Gear = () => <Icon><circle cx="12" cy="12" r="3" /><path d="M12 3v2.5M12 18.5V21M3 12h2.5M18.5 12H21M5.6 5.6l1.8 1.8M16.6 16.6l1.8 1.8M5.6 18.4l1.8-1.8M16.6 7.4l1.8-1.8" /></Icon>;
 // A padlock: for the team only.
 export const Lock = () => <Icon><rect x="5" y="11" width="14" height="9" rx="2" /><path d="M8 11V8a4 4 0 0 1 8 0v3" /></Icon>;
+export const Chat = () => <Icon><path d="M4 5.5h16v10H9l-5 4z" /><path d="M8 9.5h8M8 12.5h5" /></Icon>;

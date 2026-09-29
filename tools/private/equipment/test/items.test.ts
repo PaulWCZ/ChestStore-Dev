@@ -169,7 +169,11 @@ test("a member sees the short view: no money, no supplier, no history; and their
 
 test("search finds a tag, a serial, a model, a holder by name; filters and sorts", async () => {
   const { sql } = database;
-  assert.deepEqual((await items.listItems(sql, H, { q: "c02xk" })).map(i => i.tag), ["EQ-0001"]);
+  // A serial number finds an item for a manager and for its holder, never
+  // for another member (privacy, round 3).
+  assert.deepEqual((await items.listItems(sql, M, { q: "c02xk" })).map(i => i.tag), ["EQ-0001"]);
+  assert.deepEqual((await items.listItems(sql, I, { q: "c02xk" })).map(i => i.tag), ["EQ-0001"]);
+  assert.deepEqual((await items.listItems(sql, H, { q: "c02xk" })).map(i => i.tag), []);
   assert.deepEqual((await items.listItems(sql, H, { q: "eq-0002" })).map(i => i.tag), ["EQ-0002"]);
   assert.deepEqual((await items.listItems(sql, H, { q: "Inès" })).map(i => i.tag), ["EQ-0001"]);
   assert.deepEqual((await items.listItems(sql, H, { q: "moreau" })).map(i => i.tag), ["EQ-0001"]);

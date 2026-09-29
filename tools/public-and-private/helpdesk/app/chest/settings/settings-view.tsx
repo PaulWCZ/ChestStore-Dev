@@ -168,6 +168,6 @@ export function SettingsView({ settings, tags, locale, publicAddress, emailAddre
   );
 }
 
-export function Box({ title, icon, children }: { title: string; icon: ReactNode; children: ReactNode }) {
-  return <section className="box"><h2 className="row">{icon}{title}</h2>{children}</section>;
+export function Box({ title, icon, children, id }: { title: string; icon: ReactNode; children: ReactNode; id?: string }) {
+  return <section className="box" id={id}><h2 className="row">{icon}{title}</h2>{children}</section>;
 }

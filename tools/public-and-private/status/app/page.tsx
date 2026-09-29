@@ -22,8 +22,8 @@ export async function generateMetadata(): Promise<Metadata> {
 // ahead and the past week. Rendered on the server, readable without
 // JavaScript, kept 30 seconds by caches (proxy.ts).
 export default async function StatusPage() {
-  const { t, locale, sql, now, zone, company, offerMail } = await publicContext();
-  const view = await statusView(sql, zone, now);
+  const { t, locale, sql, now, zone, company, offerUpdates } = await publicContext();
+  const view = await statusView(sql, zone, now, { locale });
   const titles = new Map([...view.incidents.values()].map(i => [i.id, titleIn(i, locale).text]));
   const words = { public: t.public, steps: t.steps, states: t.states, time: t.time, maintenance: t.maintenance };
   const current = [...view.open, ...view.maintenanceNow];
@@ -47,7 +47,7 @@ export default async function StatusPage() {
     );
   }
   return (
-    <PublicShell company={company} locale={locale} zone={zone} t={t} path="/" offerMail={offerMail}>
+    <PublicShell company={company} locale={locale} zone={zone} t={t} path="/" offerMail={offerUpdates}>
       <section className={`banner s-${view.overall}`} aria-labelledby="overall">
         <StateIcon state={view.overall} />
         <div>
@@ -73,19 +73,19 @@ export default async function StatusPage() {
               {e.kind === "group" ? (
                 <>
                   <div className="entry-head group-head">
-                    <h3>{e.name}</h3>
+                    <h3 lang={e.lang === locale ? undefined : e.lang}>{e.name}</h3>
                     <StateLabel state={e.state} word={t.states[e.state]} />
                   </div>
-                  {e.description && <p className="entry-desc">{e.description}</p>}
+                  {e.description && <p className="entry-desc" lang={e.lang === locale ? undefined : e.lang}>{e.description}</p>}
                   <ul className="children">
                     {e.children.map(c => (
                       <li key={c.id} className="child">
                         <div className="entry-head">
-                          <h4>{c.name}</h4>
+                          <h4 lang={c.lang === locale ? undefined : c.lang}>{c.name}</h4>
                           <StateLabel state={c.state} word={t.states[c.state]} />
                         </div>
-                        {c.description && <p className="entry-desc">{c.description}</p>}
-                        <HistoryBar id={c.id} name={c.name} days={c.days} uptime={c.uptime} measured={measuredText(c.measured)} titles={titles} locale={locale} t={{ public: t.public, states: t.states }} />
+                        {c.description && <p className="entry-desc" lang={c.lang === locale ? undefined : c.lang}>{c.description}</p>}
+                        <HistoryBar id={c.id} name={c.name} days={c.days} uptime={c.uptime} since={c.since} measured={measuredText(c.measured)} titles={titles} locale={locale} t={{ public: t.public, states: t.states }} />
                       </li>
                     ))}
                   </ul>
@@ -93,11 +93,11 @@ export default async function StatusPage() {
               ) : e.self && (
                 <>
                   <div className="entry-head">
-                    <h3>{e.name}</h3>
+                    <h3 lang={e.lang === locale ? undefined : e.lang}>{e.name}</h3>
                     <StateLabel state={e.state} word={t.states[e.state]} />
                   </div>
-                  {e.description && <p className="entry-desc">{e.description}</p>}
-                  <HistoryBar id={e.id} name={e.name} days={e.self.days} uptime={e.self.uptime} measured={measuredText(e.self.measured)} titles={titles} locale={locale} t={{ public: t.public, states: t.states }} />
+                  {e.description && <p className="entry-desc" lang={e.lang === locale ? undefined : e.lang}>{e.description}</p>}
+                  <HistoryBar id={e.id} name={e.name} days={e.self.days} uptime={e.self.uptime} since={e.self.since} measured={measuredText(e.self.measured)} titles={titles} locale={locale} t={{ public: t.public, states: t.states }} />
                 </>
               )}
             </li>

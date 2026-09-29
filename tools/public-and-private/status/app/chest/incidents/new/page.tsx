@@ -15,7 +15,7 @@ export default async function NewIncident({ searchParams }: { searchParams: Prom
   if (!v) return null;
   const { t, member } = v;
   const zone = chest.timeZone();
-  const all = await allComponents(db());
+  const all = await allComponents(db(), { locale: v.locale });
   const groups = pickerGroups(all);
   // From an automatic check that failed: the service, a major outage and
   // words to start from — an editor still reads and posts them.

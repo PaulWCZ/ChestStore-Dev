@@ -6,6 +6,7 @@ import { catalogue, format, isLocale, stamp, type Catalogue } from "./i18n/index
 import type { Step } from "./model.ts";
 import { company, publicOrigin, setMailState } from "./settings.ts";
 import type { Subscriber } from "./subscribers.ts";
+import { allComponents, inLocale } from "./components.ts";
 import { chestLanguage } from "./languages.ts";
 import { pick } from "./texts.ts";
 
@@ -101,7 +102,9 @@ export async function flush(sql: Sql, options: { limit?: number; now?: Date } = 
   if (batch.length === 0) return { sent: 0, stopped: null };
   const origin = await publicOrigin(sql);
   const zone = chest.timeZone();
-  const names = new Map((await sql<{ id: string; name: string }[]>`select id, name from components`).map(c => [String(c.id), c.name]));
+  // Services named in each subscriber's language when written in it.
+  const services = new Map((await allComponents(sql)).map(c => [c.id, c]));
+  const nameIn = (id: string, language: string) => { const c = services.get(id); return c ? inLocale(c, language).name : undefined; };
   const incidentIds = [...new Set(batch.map(b => String(b.incident_id)))];
   const touched = await sql<{ incident_id: string; component_id: string }[]>`
     select u.incident_id, s.component_id from update_states s join updates u on u.id = s.update_id
@@ -109,7 +112,7 @@ export async function flush(sql: Sql, options: { limit?: number; now?: Date } = 
     union select incident_id, component_id from maintenance_components where incident_id = any(${incidentIds}::bigint[])`;
   let sent = 0;
   for (const q of batch) {
-    const components = [...new Set(touched.filter(r => String(r.incident_id) === String(q.incident_id)).map(r => names.get(String(r.component_id))).filter((n): n is string => Boolean(n)))];
+    const components = [...new Set(touched.filter(r => String(r.incident_id) === String(q.incident_id)).map(r => nameIn(String(r.component_id), q.language)).filter((n): n is string => Boolean(n)))];
     const { subject, text } = updateEmail(q, components, origin, zone);
     let outcome: Outcome;
     try {

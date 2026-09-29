@@ -136,6 +136,7 @@ export const en = {
     declared: "Recorded",
   },
   home: {
+    email: "Also send me these by email: requests to answer, answers, cancellations",
     hello: "Hello {name}",
     summary: "{days} of {type} left.",
     summaryWaiting: { one: "{count} day waits for an answer.", other: "{count} days wait for an answer." },
@@ -143,6 +144,7 @@ export const en = {
     balances: "My balances",
     notSetUp: "Not set up yet",
     notSetUpBody: "HR will enter your balance.",
+    setYours: "Set your balance",
     noBalances: "No leave type here counts days. Just ask for the days you need.",
     toAnswer: { one: "{count} request waits for your answer", other: "{count} requests wait for your answer" },
     answer: "Answer",
@@ -196,6 +198,8 @@ export const en = {
     noteRecorded: "Note",
     recordedHint: "Approved at once: nobody needs to answer.",
     below: "That is {days} more than you have. Your approver will see it.",
+    advance: "That is {days} more than they have: recorded as an advance you allow.",
+    fixDates: "Fix the date above: nothing is counted until then.",
     holidayIncluded: "{day} is a public holiday ({name}): not counted.",
     saturdays: "Counted in working days Monday to Saturday (jours ouvrables).",
     calendarDays: "Counted in calendar days.",
@@ -288,6 +292,7 @@ export const en = {
     remote: "Remote work",
   },
   team: {
+    fromPeople: "Kept up to date from their HR record in People: employee number, first and last day, days worked. Change them there.",
     title: "People",
     person: "Person",
     approver: "Approver",
@@ -369,6 +374,7 @@ export const en = {
     balances: "Balances on a day",
     balancesHint: "Everyone’s balances, those who left included: paid leave N-1 and N (earned, taken, left), leave approved for later, what is left.",
     on: "On",
+    onHint: "Any day up to the end of next month. After today, what it will be if nothing changes.",
     download: "Download",
   },
   import: {
@@ -506,7 +512,12 @@ export const en = {
     saved: "Saved.",
     builtIn: "Name in each language: leave empty",
   },
+  mail: {
+    open: "Open it in Leave: {link}",
+    why: "You get this email because you use Leave in your company’s Chest. To stop these emails, turn them off on your Leave page.",
+  },
   bell: {
+    leavesOn: "{name} leaves on {date}: leave after that day no longer counts",
     asked: "{name} asks for time off",
     recorded: "{name} recorded leave for you",
     declared: "{name} is off sick",
@@ -542,6 +553,7 @@ export const en = {
     left: "{kind} left",
     waiting: "{kind} waiting for an answer",
     balancesFile: "balances-{day}.csv",
+    balancesFileProjected: "balances-{day}-projected.csv",
     firstDay: "First day",
     firstHalf: "From",
     lastDay: "Last day",

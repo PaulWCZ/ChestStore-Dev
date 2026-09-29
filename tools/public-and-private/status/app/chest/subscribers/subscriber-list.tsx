@@ -5,7 +5,7 @@ import { useState } from "react";
 import { useRun } from "../../../components/use-run.ts";
 import type { ErrorCode } from "../../../lib/app-error.ts";
 import { format } from "../../../lib/i18n/format.ts";
-import { removeSubscriber } from "../actions.ts";
+import { removeHook, removeSubscriber } from "../actions.ts";
 
 // The subscribers, for the rare erasure someone asks for by phone or email
 // (they can always unsubscribe themselves from any email). An address is
@@ -38,6 +38,44 @@ export function SubscriberList({ rows, t }: { rows: SubscriberRow[]; t: { subscr
         busy={pending}
         onCancel={() => setErasing(null)}
         onConfirm={() => { const r = erasing; if (r) void run(() => removeSubscriber(r.id), w.removed).then(() => setErasing(null)); }}
+      />
+    </>
+  );
+}
+
+// Subscriptions in a chat or at a web address (Proposal (studio):
+// webhooks): where, in which language, what they follow, whether the
+// Chest delivers. Removing one makes the Chest forget the address — for
+// good: the Confirm asks first.
+export type HookRow = { id: string; shown: string; line: string; state: string; stopped: boolean };
+
+export function HookList({ rows, t }: { rows: HookRow[]; t: { subscribers: Record<string, string>; errors: Record<ErrorCode, string> } }) {
+  const w = t.subscribers;
+  const { run, pending } = useRun(t.errors);
+  const [removing, setRemoving] = useState<HookRow | null>(null);
+  return (
+    <>
+      <ul className="rows card subscribers">
+        {rows.map(r => (
+          <li key={r.id} className="subscriber">
+            <div>
+              <strong className="email">{r.shown}</strong>
+              <p className="muted small">{r.line}</p>
+              <p className={`small${r.stopped ? " error" : " muted"}`}>{r.state}</p>
+            </div>
+            <button type="button" className="button small quiet" disabled={pending} aria-label={format(w.hookRemoveLabel!, { address: r.shown })} onClick={() => setRemoving(r)}>{w.hookRemove}</button>
+          </li>
+        ))}
+      </ul>
+      <Confirm
+        open={removing !== null}
+        title={format(w.hookRemoveLabel!, { address: removing?.shown ?? "" })}
+        body={w.hookRemoved!}
+        confirmLabel={w.hookRemove!}
+        cancelLabel={w.cancel!}
+        busy={pending}
+        onCancel={() => setRemoving(null)}
+        onConfirm={() => { const r = removing; if (r) void run(() => removeHook(r.id), w.hookRemoved).then(() => setRemoving(null)); }}
       />
     </>
   );

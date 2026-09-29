@@ -1,7 +1,7 @@
 import { Avatar, StatusBadge } from "@argentic/chest-ui/components";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Back, Plus } from "../../../../components/icons.tsx";
+import { Back, Info, Plus } from "../../../../components/icons.tsx";
 import { can, canBeApprover } from "../../../../lib/access.ts";
 import { AppError } from "../../../../lib/app-error.ts";
 import * as balances from "../../../../lib/balances.ts";
@@ -81,6 +81,7 @@ export default async function PersonPage({ params, searchParams }: { params: Pro
           <WorkWeek memberId={id} value={st.workDays ?? [...fullWeek]} days={days} t={words} />
         </div>
       )}
+      {hr && st.fromPeople && <p className="muted small from-people"><Info /> {t.team.fromPeople}</p>}
       {!hr && st.workDays && <p className="muted">{format(t.team.worksOn, { days: days.filter(d => st.workDays!.includes(d.value)).map(d => d.name).join(", ") })}</p>}
 
       <h2 className="section-title">{t.team.balances}</h2>

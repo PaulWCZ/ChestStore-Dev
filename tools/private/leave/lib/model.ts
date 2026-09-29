@@ -91,3 +91,12 @@ export function today(now = new Date(), timeZone = "Europe/Paris"): Day {
 
 // numeric reads a PostgreSQL numeric (a string for the driver) as a number.
 export const numeric = (value: unknown): number => (value === null || value === undefined ? 0 : Number(value));
+
+// The last day payroll's balances file may be asked for: the end of next
+// month (payroll is prepared before the month ends; a later day is a
+// guess, not a projection).
+export function lastPayrollDay(today: Day): Day {
+  const [y, m] = today.split("-").map(Number) as [number, number];
+  const next = m === 12 ? [y + 1, 1] : [y, m + 1];
+  return new Date(Date.UTC(next[0]!, next[1]!, 0)).toISOString().slice(0, 10);
+}

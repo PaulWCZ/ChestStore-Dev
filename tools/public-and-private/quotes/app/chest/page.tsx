@@ -11,6 +11,8 @@ import { followUpOnce } from "../../lib/followup.ts";
 import { waitingArchives } from "../../lib/monthly.ts";
 import { format, formatDay, plural } from "../../lib/i18n/index.ts";
 import { formatMoney } from "../../lib/money.ts";
+import { change, revenue } from "../../lib/revenue.ts";
+import { versioned } from "../../lib/model.ts";
 import { nameOf, people } from "../../lib/people.ts";
 import { kindOf, rowView } from "../../lib/rows.ts";
 import { viewer } from "../../lib/session.ts";
@@ -32,7 +34,15 @@ export default async function DeskPage() {
   const gaps = missing(c);
   const currency = d.currency ?? chest.currency();
   const money = (minor: number) => formatMoney(minor, currency, locale);
-  const who = await people(d.needs.map(n => n.row.createdBy));
+  // Revenue, for whoever reads the books (lib/revenue.ts).
+  const sales = d.empty ? null : await revenue(sql, member, today, chest.currency());
+  const who = await people([...d.needs.map(n => n.row.createdBy), ...(sales?.bySeller.map(s => s.id) ?? [])]);
+  const monthName = (key: string) => formatDay(key + "-01", locale, { month: "long", year: "numeric" });
+  const versus = (before: number, key: string, now: number) => {
+    const pct = change(before, now);
+    const text = format(t.desk.revenue.compared, { month: monthName(key), amount: money(before) });
+    return pct === null || pct === 0 ? text : `${text} · ${format(pct > 0 ? t.desk.revenue.changeUp : t.desk.revenue.changeDown, { percent: Math.abs(pct) })}`;
+  };
   const canQuote = can(member, "quotes.write");
   const isAdmin = can(member, "settings");
   // While the legal details are missing, filling them is an administrator's
@@ -120,6 +130,34 @@ export default async function DeskPage() {
             </a>
           </div>
 
+          {sales && (
+            <section className="section revenue" aria-labelledby="revenue">
+              <h2 id="revenue">{t.desk.revenue.title}</h2>
+              <div className="revenue-grid">
+                <div className="figure plain">
+                  <span className="label">{format(t.desk.revenue.thisMonth, { month: monthName(sales.month) })}</span>
+                  <span className="value">{money(sales.thisMonth)}</span>
+                  <span className="sub">{versus(sales.lastMonth, sales.lastMonthKey, sales.thisMonth)}</span>
+                  <span className="sub">{versus(sales.lastYear, sales.lastYearKey, sales.thisMonth)}</span>
+                  <span className="sub strong">{format(t.desk.revenue.yearToDate, { amount: money(sales.yearToDate) })}</span>
+                </div>
+                <div className="ranking">
+                  <h3>{t.desk.revenue.byClient}</h3>
+                  {sales.byClient.length === 0 ? <p className="muted">{t.desk.revenue.nothing}</p> : (
+                    <ol>{sales.byClient.map(c => <li key={c.name}><span>{c.name || t.list.noClient}</span><span className="num">{money(c.net)}</span></li>)}</ol>
+                  )}
+                </div>
+                <div className="ranking">
+                  <h3>{t.desk.revenue.bySeller}</h3>
+                  {sales.bySeller.length === 0 ? <p className="muted">{t.desk.revenue.nothing}</p> : (
+                    <ol>{sales.bySeller.map(p => <li key={p.id}><span>{p.id === "tool:crm" ? t.doc.history.crmTool : nameOf(who.get(p.id), locale)}</span><span className="num">{money(p.net)}</span></li>)}</ol>
+                  )}
+                </div>
+              </div>
+              <p className="hint">{t.desk.revenue.note}</p>
+            </section>
+          )}
+
           <section className="section" aria-labelledby="needs">
             <h2 id="needs">{t.desk.needs}</h2>
             {d.needs.length === 0 ? (
@@ -131,8 +169,8 @@ export default async function DeskPage() {
                     {/* Red is for money that is late, and only that; work waiting for someone is plain. */}
                     <span className={n.reason === "overdue" ? "dot alert" : n.reason === "accepted" || n.reason === "crm" ? "dot ok" : "dot"} aria-hidden="true" />
                     <span>
-                      <a className="main" href={`/chest/documents/${n.row.id}`}><span className="visually-hidden">{kindOf(n.row, t)} {n.row.number ?? ""}</span></a>
-                      <strong>{kindOf(n.row, t)} {n.row.number ?? ""} · {n.row.clientName || t.list.noClient}</strong>
+                      <a className="main" href={`/chest/documents/${n.row.id}`}><span className="visually-hidden">{kindOf(n.row, t)} {(n.row.type === "quote" ? versioned(n.row.number, n.row.version) : n.row.number) ?? ""}</span></a>
+                      <strong>{kindOf(n.row, t)} {(n.row.type === "quote" ? versioned(n.row.number, n.row.version) : n.row.number) ?? ""} · {n.row.clientName || t.list.noClient}</strong>
                       <span className="sub">{reason(n)}</span>
                     </span>
                     <span className="num">{money(n.reason === "overdue" ? n.row.due : n.row.gross)}</span>

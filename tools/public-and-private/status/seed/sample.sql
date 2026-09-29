@@ -135,4 +135,11 @@ begin
   insert into settings (key, value) values ('page', '{"website": "https://www.atelier-martin.fr/", "support": "mailto:support@atelier-martin.fr", "embedSites": ["https://www.atelier-martin.fr"]}');
   insert into heartbeats (component_id, token_hash, every, grace, last_seen, created_at)
     select id, encode(sha256('seed-backup-token'::bytea), 'hex'), 1440, 5, least(pg_temp.at(0, 180), now() - interval '1 hour'), now() - interval '30 days' from components where name = 'Back office';
+  -- The services in English, with their French names and descriptions.
+  update components c set language = 'en', name_second = v.name, description_second = nullif(v.description, '')
+    from (values ('Website', 'Site web', 'atelier-martin.fr, fiches produit et blog'), ('Online shop', 'Boutique en ligne', ''),
+      ('Catalogue', 'Catalogue', 'Parcourir et rechercher les produits'), ('Checkout', 'Commande', 'Panier et passage de commande'),
+      ('Payments', 'Paiement', 'Paiement par carte et PayPal'), ('Delivery tracking', 'Suivi de livraison', 'Où est mon colis ?'),
+      ('Customer support', 'Service client', 'Chat, e-mail et téléphone'), ('Back office', 'Gestion interne', 'Stock et commandes, pour l’équipe')) as v(original, name, description)
+    where c.name = v.original;
 end $$;

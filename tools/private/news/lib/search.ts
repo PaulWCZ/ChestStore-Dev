@@ -2,7 +2,7 @@ import type { Member } from "@argentic/chest-sdk/member";
 import { can } from "./access.ts";
 import type { Sql } from "./db.ts";
 import { AppError } from "./errors.ts";
-import { hasHit, highlight, snippet, terms, type Segment } from "./highlight.ts";
+import { fold, hasHit, highlight, snippet, terms, type Segment } from "./highlight.ts";
 import { isLocale } from "./i18n/index.ts";
 import { plain } from "./markdown.ts";
 import { limits, mentionToken, pick, withNames, type Kind, type Version } from "./model.ts";
@@ -15,7 +15,9 @@ import { seen } from "./posts.ts";
 // aside, each by its beginning or by its stem in English and French
 // ("move" finds "moving", "déménager" finds "déménagement"); a headline
 // with a typo is still found (trigrams). A post is found by any of its
-// languages and shown in the reader's, or in the one that matched. A post appears once, with the passage of its text and the
+// languages and always shown in the reader's, as on the front page (when
+// the words are only in another language, the result says which:
+// foundIn). A post appears once, with the passage of its text and the
 // comments that matched, the words found marked. A comment's mentions
 // (stored @[mbr_…]) read "@Name" in the reader's language, names from the
 // Chest ("@former member" for someone it no longer knows), before the
@@ -30,10 +32,12 @@ export type Hit = {
   publishAt: string;
   scheduled: boolean;
   comments: CommentHit[];
+  // The words are in this other language of the post, not the reader's.
+  foundIn: string | null;
 };
 
 type PostRow = { id: string; kind: Kind; title: string; body: string; locale: string; versions: Version[]; author: string; publish_at: Date; rank: number };
-type CommentRow = { id: string; post_id: string; author: string; body: string; created_at: Date; kind: Kind; title: string; post_author: string; publish_at: Date; rank: number };
+type CommentRow = { id: string; post_id: string; author: string; body: string; created_at: Date; kind: Kind; title: string; post_body: string; locale: string; versions: Version[]; post_author: string; publish_at: Date; rank: number };
 
 export async function search(sql: Sql, actor: Member | null, query: unknown, now = new Date()): Promise<Hit[]> {
   if (!actor || !can(actor, "read")) throw new AppError("forbidden");
@@ -54,30 +58,38 @@ export async function search(sql: Sql, actor: Member | null, query: unknown, now
     limit ${limits.results}`;
   const comments = await sql<CommentRow[]>`
     with q as (select to_tsquery('news', ${tsquery}) as query, plainto_tsquery('news_en', ${whole}) as en, plainto_tsquery('news_fr', ${whole}) as fr)
-    select c.id, c.post_id, c.author, c.body, c.created_at, p.kind, p.title, p.author as post_author, p.publish_at,
+    select c.id, c.post_id, c.author, c.body, c.created_at, p.kind, p.title, p.body as post_body, p.locale, p.author as post_author, p.publish_at,
+      coalesce((select json_agg(json_build_object('locale', v.locale, 'title', v.title, 'body', v.body)) from post_versions v where v.post_id = p.id), '[]'::json) as versions,
       (ts_rank(c.search, q.query) / 2)::float8 as rank
     from comments c join posts p on p.id = c.post_id, q
     where c.deleted_at is null and ${seen(sql, actor)} and (c.search @@ q.query or c.stems @@ q.en or c.stems @@ q.fr)
     order by rank desc, c.created_at desc
     limit ${limits.results}`;
 
+  // The words to mark: as typed, by their beginning, and their stems
+  // ("déménager" marks "déménageons" by "demenag").
+  const [stemmed] = await sql<{ stems: string[] }[]>`select tsvector_to_array(to_tsvector('news_en', ${whole}) || to_tsvector('news_fr', ${whole})) as stems`;
+  const marks = [...new Set([...words, ...(stemmed?.stems ?? []).map(fold).filter(w => w.length >= 4)])];
   const found = new Map<string, Hit & { rank: number }>();
   for (const p of posts) {
-    // The reader's version, unless the words are only in another one.
-    const versions = [pick(p, actor.locale), { locale: p.locale, title: p.title, body: p.body }, ...p.versions];
-    const shown = versions.find(v => hasHit(highlight(v.title, words)) || hasHit(snippet(plain(v.body), words))) ?? versions[0]!;
+    // The reader's version, as everywhere; when the words are only in
+    // another language of the post, the result says which.
+    const shown = pick(p, actor.locale);
+    const all = [{ locale: p.locale, title: p.title, body: p.body }, ...p.versions].filter(v => v.locale !== shown.locale);
+    const matches = (v: Version) => hasHit(highlight(v.title, marks)) || hasHit(snippet(plain(v.body), marks));
+    const other = matches(shown) ? undefined : all.find(matches);
     const body = plain(shown.body);
-    const text = snippet(body, words);
     found.set(String(p.id), {
       id: String(p.id),
       kind: p.kind,
-      title: highlight(shown.title, words),
-      // Found by a stem ("moving" for "move"): the start of the text.
-      text: body ? text : null,
+      title: highlight(shown.title, marks),
+      // Found by a stem or in another language: the start of the text.
+      text: body ? snippet(body, marks) : null,
       author: p.author,
       publishAt: p.publish_at.toISOString(),
       scheduled: p.publish_at.getTime() > now.getTime(),
       comments: [],
+      foundIn: other?.locale ?? null,
       rank: p.rank,
     });
   }
@@ -87,16 +99,31 @@ export async function search(sql: Sql, actor: Member | null, query: unknown, now
   const readable = (body: string) => withNames(body, id => mentionOf(who.get(id), locale));
   for (const c of comments) {
     const key = String(c.post_id);
+    // Found by a comment only: the post's headline in the reader's language.
     const hit = found.get(key) ?? {
-      id: key, kind: c.kind, title: highlight(c.title, words), text: null, author: c.post_author,
-      publishAt: c.publish_at.toISOString(), scheduled: c.publish_at.getTime() > now.getTime(), comments: [], rank: 0,
+      id: key, kind: c.kind, title: highlight(pick({ locale: c.locale, title: c.title, body: c.post_body, versions: c.versions }, actor.locale).title, marks), text: null, author: c.post_author,
+      publishAt: c.publish_at.toISOString(), scheduled: c.publish_at.getTime() > now.getTime(), comments: [], foundIn: null, rank: 0,
     };
     hit.rank = Math.max(hit.rank, c.rank);
-    if (hit.comments.length < 3) hit.comments.push({ id: String(c.id), author: c.author, at: c.created_at.toISOString(), text: snippet(readable(c.body), words, 160) });
+    if (hit.comments.length < 3) hit.comments.push({ id: String(c.id), author: c.author, at: c.created_at.toISOString(), text: snippet(readable(c.body), marks, 160) });
     found.set(key, hit);
   }
   return [...found.values()]
     .sort((a, b) => b.rank - a.rank || b.publishAt.localeCompare(a.publishAt) || Number(b.id) - Number(a.id))
     .slice(0, limits.results)
     .map(({ rank: _rank, ...hit }) => hit);
+}
+
+// otherLanguage: when some posts the actor sees are written only in
+// another language than theirs, that language — an empty search then
+// suggests trying the word in it ("first aid" for "secourisme"). News has
+// no translation (no network).
+export async function otherLanguage(sql: Sql, actor: Member | null): Promise<string | null> {
+  if (!actor || !can(actor, "read")) throw new AppError("forbidden");
+  const [row] = await sql<{ locale: string }[]>`
+    select p.locale from posts p
+    where ${seen(sql, actor)} and p.locale <> ${actor.locale}
+      and not exists (select 1 from post_versions v where v.post_id = p.id and v.locale = ${actor.locale})
+    group by p.locale order by count(*) desc limit 1`;
+  return row?.locale ?? null;
 }

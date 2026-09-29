@@ -1,7 +1,7 @@
 import { Avatar } from "@argentic/chest-ui/components";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Back, File, Lock, Shield } from "../../../../components/icons.tsx";
+import { Back, File, Lock, Printer, Shield } from "../../../../components/icons.tsx";
 import { AppError } from "../../../../lib/app-error.ts";
 import { db } from "../../../../lib/db.ts";
 import { directory } from "../../../../lib/directory.ts";
@@ -16,6 +16,7 @@ import { Documents } from "./documents.tsx";
 import { RecordForm } from "./record-form.tsx";
 import { AnswerChange, AskChange } from "./change-request.tsx";
 import { waitingChange } from "../../../../lib/changes.ts";
+import { listLetters, shown } from "../../../../lib/letters.ts";
 
 // One employee record. HR edits it (every visit and change is noted); the
 // person it is about reads it; anyone else is told it does not exist.
@@ -38,6 +39,7 @@ export default async function RecordPage({ params }: { params: Promise<{ id: str
   const asked = await waitingChange(sql, member, r.id);
   const waiting = asked ? { id: asked.id, changes: asked.changes, note: asked.note, asked: formatDate(asked.createdAt, locale, { day: "numeric", month: "long" }) } : null;
   const askableNow = { address: r.address, emergencyName: r.emergencyName, emergencyRelation: r.emergencyRelation, emergencyPhone: r.emergencyPhone };
+  const letterList = edit ? (await listLetters(sql, member)).map(l => ({ id: l.id, name: shown(l, t).name })) : [];
   const changeWords = { change: t.change, fields: t.record.fields, emergency: t.record.emergency, errors: t.errors, dialog: t.dialog };
   const history = edit ? await ofRecord(sql, r.id, 30) : [];
   const names = await people([r.memberId ?? "", r.tutorId ?? "", ...r.documents.map(d => d.addedBy), ...history.map(h => h.actor)]);
@@ -84,6 +86,17 @@ export default async function RecordPage({ params }: { params: Promise<{ id: str
           <ReadOnly r={r} day={day} tutor={r.tutorId ? plainName(names.get(r.tutorId), locale) : ""} locale={locale} t={t.record} />
           {!r.erased && <div className="section"><AskChange recordId={r.id} current={askableNow} waiting={waiting} t={changeWords} /></div>}
         </>
+      )}
+
+      {edit && (
+        <section className="card-block section no-print" aria-labelledby="letters-title">
+          <h2 id="letters-title" className="legend"><Printer /> {t.letters.printFor}</h2>
+          {letterList.length === 0 ? <p className="muted">{t.letters.none} <Link href="/chest/records/letters">{t.letters.write}</Link></p> : (
+            <div className="letter-links">
+              {letterList.map(l => <Link key={l.id} className="button quiet small" href={`/chest/records/${r.id}/letters/${l.id}`}>{l.name}</Link>)}
+            </div>
+          )}
+        </section>
       )}
 
       <section className="card-block section" aria-labelledby="docs-title">

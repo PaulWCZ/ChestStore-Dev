@@ -51,7 +51,7 @@ export default async function SubscriberPage({ params, searchParams }: { params:
           <p>{format(w.confirmedBody, { email: s.email })}</p>
           <form action={chooseAction} className="stack">
             <input type="hidden" name="token" value={s.token} />
-            <ChoiceFields options={await followOptions(sql)} chosen={s.components} t={t.subscribe} />
+            <ChoiceFields options={await followOptions(sql, locale)} chosen={s.components} t={t.subscribe} />
             <div><button type="submit" className="button">{w.save}</button></div>
           </form>
           <form action={unsubscribeAction} className="unsubscribe">

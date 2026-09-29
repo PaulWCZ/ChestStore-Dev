@@ -4,6 +4,7 @@ import { today } from "./model.ts";
 import { withdraw } from "./notify.ts";
 import { settleAfterLastDay } from "./last-day.ts";
 import { afterLastDay, refreshBadges } from "./tell.ts";
+import { fromLeaving, fromRecord } from "./from-people.ts";
 
 // What Leave does when a member loses access, leaves or is erased (the
 // Chest posts these to /chest-events, at least once; each handler may run
@@ -26,8 +27,9 @@ export async function leave(sql: Sql, memberId: string): Promise<void> {
     for (const r of rows) await tx`insert into request_events (request_id, actor, kind) values (${r.id}, 'chest', 'left')`;
     await tx`update staff set approver_id = null, updated_at = now() where approver_id = ${memberId}`;
     const [row] = await tx<{ end_date: string }[]>`
-      insert into staff (member_id, end_date) values (${memberId}, ${today()})
-      on conflict (member_id) do update set end_date = coalesce(staff.end_date, excluded.end_date), updated_at = now()
+      insert into staff (member_id, end_date, end_by) values (${memberId}, ${today()}, 'chest')
+      on conflict (member_id) do update set end_date = coalesce(staff.end_date, excluded.end_date),
+        end_by = case when staff.end_date is null then 'chest' else staff.end_by end, updated_at = now()
       returning to_char(end_date, 'YYYY-MM-DD') as end_date`;
     // Approved leave after the last day no longer counts (lib/last-day.ts).
     const settled = await settleAfterLastDay(tx, memberId, row!.end_date, "chest");
@@ -51,6 +53,16 @@ export async function erase(sql: Sql, memberId: string): Promise<void> {
     await tx`delete from staff where member_id = ${memberId}`;
     await tx`update settings set updated_by = null where updated_by = ${memberId}`;
   });
+}
+
+// What other tools tell Leave (events between tools): People's records and
+// departures (lib/from-people.ts).
+export function tools(sql: Sql): events.ToolHandlers {
+  return {
+    "people.record": async e => { await fromRecord(sql, e.data, new Date(e.occurredAt)); },
+    "people.leaving": async e => { await fromLeaving(sql, e.data, new Date(e.occurredAt), false); },
+    "people.leaving_cancelled": async e => { await fromLeaving(sql, e.data, new Date(e.occurredAt), true); },
+  };
 }
 
 export function handlers(sql: Sql): events.Handlers {

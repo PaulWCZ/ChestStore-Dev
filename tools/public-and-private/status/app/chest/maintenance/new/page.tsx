@@ -14,7 +14,7 @@ export default async function NewMaintenance() {
   if (!v) return null;
   const { t } = v;
   const zone = chest.timeZone();
-  const groups = pickerGroups(await allComponents(db()));
+  const groups = pickerGroups(await allComponents(db(), { locale: v.locale }));
   const tomorrow = addDays(chest.today(), 1);
   return (
     <div className="narrow stack-l">

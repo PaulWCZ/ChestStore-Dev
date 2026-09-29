@@ -3,7 +3,8 @@ import { roles } from "./access.ts";
 import type { Sql } from "./db.ts";
 import { addDays, mondayOf, todayIn } from "./days.ts";
 import { everyone } from "./directory.ts";
-import { format } from "./i18n/index.ts";
+import { format, type Catalogue } from "./i18n/index.ts";
+import { email } from "./mail.ts";
 import { intl } from "./i18n/format.ts";
 import { numeric } from "./model.ts";
 import { notify } from "./notify.ts";
@@ -16,8 +17,8 @@ import { capacities } from "./weeks.ts";
 // finds one item in their bell, in their own language — "Your week has 22 h —
 // fill in the rest?" — replacing last week's. Off in the settings, it sends
 // nothing. Idempotent: a run delivered twice sends the same item again
-// under the same key. Without schedules (a Chest that does not run them),
-// nothing else in the tool depends on it.
+// under the same key; the email goes once (its key). Without schedules (a
+// Chest that does not run them), nothing else in the tool depends on it.
 export async function friday(sql: Sql, run: Run): Promise<number> {
   const s = await settings(sql);
   if (!s.reminder.enabled) return 0;
@@ -41,9 +42,10 @@ export async function friday(sql: Sql, run: Run): Promise<number> {
   }
   let told = 0;
   for (const [total, ids] of byTotal) {
-    await notify(ids, (t, locale) => ({
-      title: total === 0 ? t.bell.emptyWeek : format(t.bell.shortWeek, { hours: new Intl.NumberFormat(intl(locale), { maximumFractionDigits: 1 }).format(total / 60) }),
-    }), { path: "/chest", key: "week" });
+    const title = (t: Catalogue, locale: string) => total === 0 ? t.bell.emptyWeek : format(t.bell.shortWeek, { hours: new Intl.NumberFormat(intl(locale), { maximumFractionDigits: 1 }).format(total / 60) });
+    await notify(ids, (t, locale) => ({ title: title(t, locale) }), { path: "/chest", key: "week" });
+    // By email too (the mail proposal), once for this week whatever the retries.
+    await email(ids, (t, locale) => ({ subject: title(t, locale), lines: [t.mail.fridayLine] }), { path: "/chest", key: `friday:${monday}` });
     told += ids.length;
   }
   return told;

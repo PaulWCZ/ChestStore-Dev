@@ -77,6 +77,7 @@ export const fr: Catalogue = {
       title: "Commencez par un tableau",
       body: "Un tableau rassemble le travail d’une équipe ou d’un projet, en colonnes. Créez-en un, puis ajoutez les premières cartes.",
       action: "Créer un tableau",
+      import: "Apporter vos tableaux Trello ou Asana",
     },
     boards: "Vos tableaux",
     allBoards: "Tous les tableaux",
@@ -139,6 +140,7 @@ export const fr: Catalogue = {
     },
   },
   board: {
+    cardGone: "Cette carte n’est plus ici : elle a été supprimée, ou elle est sur un tableau que vous ne voyez pas.",
     othersAssigned: { one: "et {count} autre", other: "et {count} autres" },
     back: "Tous les tableaux",
     views: "Affichage",
@@ -217,6 +219,7 @@ export const fr: Catalogue = {
     search: "Rechercher des cartes",
     timelineView: "Chronologie",
     timeline: {
+      week: "Semaine du {date}",
       rows: "Lignes",
       byColumn: "Par colonne",
       byPerson: "Par personne",
@@ -456,7 +459,7 @@ export const fr: Catalogue = {
     open: "Ouvrir le tableau",
     again: "En importer un autre",
     tooBig: "Ce fichier est trop gros (10 Mo au plus).",
-    chooseMany: "Choisir un ou plusieurs fichiers",
+    chooseMany: "Choisir les fichiers",
     tooBigNamed: "« {file} » est trop lourd (10 Mo au plus).",
     unreadable: "« {file} » : {reason}",
     failedAt: "« {name} » n’a pas été importé : {reason}",
@@ -473,6 +476,18 @@ export const fr: Catalogue = {
     doneOnlyYou: "Vous seul le voyez pour l’instant : partagez-le depuis ses réglages.",
     doneEveryone: "Tout le monde dans Tâches le voit.",
     openAll: "Ouvrir les tableaux",
+    finished: "Travail terminé",
+    finishedHint: "Cochez les colonnes du travail terminé : leurs cartes ne seront pas « en retard ».",
+    ticked: { one: "{count} carte marquée terminée va dans « {column} ».", other: "{count} cartes marquées terminées vont dans « {column} »." },
+    noFinished: "Aucune colonne de travail terminé : toutes les cartes compteront comme en cours.",
+    archivedColumns: { one: "{count} colonne archivée arrive archivée, avec ses cartes :", other: "{count} colonnes archivées arrivent archivées, avec leurs cartes :" },
+    privateHidden: { one: "{count} personne a des cartes sur ce tableau mais ne les verra pas tant que vous ne le partagez pas (ou choisissez « Tout le monde dans Tâches ») :", other: "{count} personnes ont des cartes sur ce tableau mais ne les verront pas tant que vous ne le partagez pas (ou choisissez « Tout le monde dans Tâches ») :" },
+  },
+  calendar: {
+    card: "Échéance : {title}",
+    step: "Échéance : {title} — {card}",
+    description: "Tableau : {board}. À cocher dans Tâches une fois fait.",
+    link: "Vos échéances dans votre agenda",
   },
   export: {
     headers: {

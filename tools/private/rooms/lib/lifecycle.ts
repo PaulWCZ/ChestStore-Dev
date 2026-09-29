@@ -14,7 +14,8 @@ import { zone } from "./zone.ts";
 // - Losing access or leaving: their coming bookings are cancelled — the
 //   rooms are free again and the people they invited are told —, they leave
 //   the meetings they were invited to, the desk given to them is free, and
-//   what they said about coming days goes. The past stays, for the export.
+//   what they said about coming days goes, and so do the visitors coming
+//   to see them. The past stays, for the export.
 // - Erasure: the same, then every trace of their id goes: past bookings
 //   read "Former member" ('erased'), their presence and preferences are
 //   deleted. Then the erasure is acknowledged.
@@ -32,6 +33,8 @@ export async function leave(sql: Sql, memberId: string, tz = zone()): Promise<Ro
     await tx`delete from usual_week where member_id = ${memberId}`;
     await tx`delete from usual_applied where member_id = ${memberId}`;
     await tx`update member_prefs set usual_desk = null where member_id = ${memberId}`;
+    // Their coming visitors: nobody is there to see them.
+    await tx`update visits set cancelled_at = now() where host = ${memberId} and day >= (now() at time zone ${tz})::date and cancelled_at is null`;
     return gone;
   });
   await cancelled(null, rooms, "left");
@@ -51,6 +54,9 @@ export async function erase(sql: Sql, memberId: string, tz = zone()): Promise<vo
     await enqueue(tx, attended.map(r => roomKey(String(r.booking_id))));
     await tx`delete from presence where member_id = ${memberId}`;
     await tx`delete from member_prefs where member_id = ${memberId}`;
+    await tx`update visits set host = 'erased' where host = ${memberId}`;
+    await tx`update visits set created_by = 'erased' where created_by = ${memberId}`;
+    await tx`update visits set arrived_by = 'erased' where arrived_by = ${memberId}`;
     // Their past room bookings stay in their guests' calendars, without
     // them; their own days leave the calendars (the Chest drops the feed of
     // an erased person anyway), and their id leaves the tool's queue.

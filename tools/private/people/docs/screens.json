@@ -329,5 +329,35 @@
     "only": [
       "desktop"
     ]
+  },
+  {
+    "name": "record-change-asked",
+    "path": "/chest/records/3",
+    "member": "camille",
+    "locale": "en"
+  },
+  {
+    "name": "record-import",
+    "path": "/chest/records/import",
+    "member": "camille",
+    "locale": "en"
+  },
+  {
+    "name": "letters-fr",
+    "path": "/chest/records/letters",
+    "member": "camille",
+    "locale": "fr"
+  },
+  {
+    "name": "letter-fr",
+    "path": "/chest/records/9/letters/1",
+    "member": "camille",
+    "locale": "fr"
+  },
+  {
+    "name": "record-aminata",
+    "path": "/chest/records/5",
+    "member": "sofia",
+    "locale": "en"
   }
 ]

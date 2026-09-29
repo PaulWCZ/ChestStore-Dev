@@ -4,7 +4,7 @@ import type { Query, Sql } from "./db.ts";
 import { format } from "./i18n/index.ts";
 import { fold } from "./fold.ts";
 import { email as checkEmail, limits, phone as checkPhone, phoneDigits } from "./model.ts";
-import { notify } from "./notify.ts";
+import { cut as bounded, notify } from "./notify.ts";
 import { managers } from "./team.ts";
 
 // What Forms tells Clients (Proposal (studio): events between tools, once
@@ -205,8 +205,11 @@ export async function receiveFormContact(sql: Sql, event: Pick<ToolEvent, "id" |
 export const formKey = (formId: string, answerId: string) => "form:" + createHash("sha256").update(formId + ":" + answerId).digest("hex").slice(0, 40);
 async function tell(received: Received, c: FormContact): Promise<void> {
   const to = received.contact.owner?.startsWith("mbr_") ? [received.contact.owner] : await managers();
-  await notify(to, t => ({
-    title: format(received.maybe ? t.bell.formMaybe : received.created ? t.bell.formNew : t.bell.formKnown, { name: received.contact.name, form: c.form.title, other: received.maybe?.name ?? "" }),
-    ...(c.message ? { body: c.message } : {}),
-  }), { path: `/chest/contacts/${received.contact.id}`, key: formKey(c.form.id, c.answer.id) });
+  await notify(to, t => {
+    const body = [received.maybe ? format(t.bell.formMaybe, { other: received.maybe.name }) : "", c.message].filter(Boolean).join(" ");
+    return {
+      title: format(received.created ? t.bell.formNew : t.bell.formKnown, { name: received.contact.name, form: c.form.title }),
+      ...(body ? { body: bounded(body, 280) } : {}),
+    };
+  }, { path: `/chest/contacts/${received.contact.id}`, key: formKey(c.form.id, c.answer.id) });
 }

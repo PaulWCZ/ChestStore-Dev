@@ -4,7 +4,7 @@ import { Avatar, Menu, PeoplePicker, Tabs, useToast } from "@argentic/chest-ui/c
 import { localSearch, type FileWords, type PeoplePickerWords } from "@argentic/chest-ui/components/logic";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useOptimistic, useRef, useState, useTransition } from "react";
+import { useEffect, useOptimistic, useRef, useState, useTransition, type ReactNode } from "react";
 import { Attachments, filesPending, type PickedFile } from "../../../../components/attachments.tsx";
 import { PriorityChip, StateBadge, Waiting } from "../../../../components/badges.tsx";
 import { Body } from "../../../../components/body.tsx";
@@ -15,7 +15,7 @@ import type { Catalogue } from "../../../../lib/i18n/index.ts";
 import { limits, priorities, type Priority, type Status } from "../../../../lib/model.ts";
 import { addTag, assign, fileUpload, merge, note, removeTag, reply, setCustomer, setPriority, setStatus, unmerge } from "../../actions.ts";
 
-type Words = { ticket: Catalogue["ticket"]; errors: Catalogue["errors"]; people: Catalogue["people"]; priority: Catalogue["priority"]; files: FileWords & Catalogue["files"]; peoplePicker: PeoplePickerWords };
+type Words = { ticket: Catalogue["ticket"]; errors: Catalogue["errors"]; people: Catalogue["people"]; priority: Catalogue["priority"]; files: FileWords & Catalogue["files"]; peoplePicker: PeoplePickerWords; typesPlain: string };
 type Tag = { id: string; name: string };
 type View = {
   ticket: { number: number; subject: string; status: Status; channel: "form" | "email" | "team" | "forms"; customerName: string; customerEmail: string; requester: string | null; source: { form: string; href: string | null } | null; assignee: string | null; created: string; priority: Priority; tags: Tag[]; waiting: { text: string; late: boolean; lateText: string } | null; bounce: { permanent: boolean; reason: string } | null; rating: "good" | "bad" | null };
@@ -29,6 +29,7 @@ type View = {
   viewing: string[];
   team: { id: string; name: string; photo: string | null }[];
   replies: { id: string; title: string; filled: string }[];
+  banner?: ReactNode;
   me: string;
   canAnswer: boolean;
   canManage: boolean;
@@ -39,7 +40,7 @@ type View = {
 // A ticket: read the conversation, answer (or leave a note for the team),
 // and move it along. Sending clears the box at once; a refusal gives the
 // text back.
-export function TicketView({ ticket, tagNames, messages, others, viewing, team, replies, me, canAnswer, canManage, locale, t }: View) {
+export function TicketView({ ticket, tagNames, messages, others, viewing, team, replies, banner, me, canAnswer, canManage, locale, t }: View) {
   const w = t.ticket;
   const toast = useToast();
   const [, start] = useTransition();
@@ -170,6 +171,7 @@ export function TicketView({ ticket, tagNames, messages, others, viewing, team, 
           {ticket.source && <p className="small muted">{ticket.source.href ? <a href={ticket.source.href} target="_blank" rel="noopener" title={w.fromFormLink}>{format(w.fromForm, { form: ticket.source.form })}</a> : format(w.fromForm, { form: ticket.source.form })}</p>}
           {viewing.length > 0 && <p className="viewing" role="status"><Eye />{format(viewing.length > 1 ? w.viewingMany : w.viewing, { names: viewing.join(", ") })}</p>}
         </div>
+        {banner}
         {ticket.bounce && (
           <div className="notice danger" role="alert"><Alert /><div className="stack tight"><strong>{format(w.bounceBanner, { email: ticket.customerEmail })}</strong>{ticket.bounce.reason && <span className="small muted">{ticket.bounce.reason}</span>}<span className="small">{w.bounceHint}</span></div></div>
         )}
@@ -209,7 +211,7 @@ export function TicketView({ ticket, tagNames, messages, others, viewing, team, 
               <textarea id="answer" ref={field} value={text} maxLength={20000} placeholder={mode === "reply" ? w.replyPlaceholder : w.notePlaceholder}
                 onChange={e => setText(e.target.value)}
                 onKeyDown={e => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); send(false); } }} />
-              <div className="attach"><Attachments files={files} setFiles={setFiles} grant={fileUpload} kind="team" label={w.files} t={{ files: t.files, errors: t.errors }} /></div>
+              <div className="attach"><Attachments files={files} setFiles={setFiles} grant={fileUpload} kind="team" label={w.files} plainTypes={t.typesPlain} t={{ files: t.files, errors: t.errors }} /></div>
               <div className="actions">
                 {mode === "reply" ? (
                   <>
@@ -254,7 +256,7 @@ export function TicketView({ ticket, tagNames, messages, others, viewing, team, 
             </form>
           ) : (
             <>
-              <p className="row"><strong>{ticket.customerName || ticket.customerEmail}</strong>{canManage && <button type="button" className="link-button" onClick={() => setEditing(true)}>{w.editCustomer}</button>}</p>
+              <p className="row"><strong>{ticket.customerName || <a href={`mailto:${ticket.customerEmail}`}>{ticket.customerEmail}</a>}</strong>{canManage && <button type="button" className="link-button" onClick={() => setEditing(true)}>{w.editCustomer}</button>}</p>
               {ticket.customerName && <p className="small"><a href={`mailto:${ticket.customerEmail}`}>{ticket.customerEmail}</a></p>}
             </>
           )}
@@ -349,7 +351,7 @@ function MessageBody({ text, html, email, t }: { text: string; html: string | nu
   const [formatted, setFormatted] = useState(false);
   return (
     <>
-      {formatted && html ? <div className="body html" dangerouslySetInnerHTML={{ __html: html }} /> : <Body text={text} {...(email ? { quotedLabel: t.quoted } : {})} />}
+      {formatted && html ? <div className="body html" dangerouslySetInnerHTML={{ __html: html }} /> : <Body text={text} contacts {...(email ? { quotedLabel: t.quoted } : {})} />}
       {html && <button type="button" className="link-button small" aria-pressed={formatted} onClick={() => setFormatted(f => !f)}>{formatted ? t.plain : t.formatted}</button>}
     </>
   );

@@ -1,6 +1,7 @@
 import type { ListRow, State } from "./documents.ts";
 import { format, formatDay, type Catalogue, type Locale } from "./i18n/index.ts";
 import { formatMoney } from "./money.ts";
+import { versioned } from "./model.ts";
 
 // What a list shows of a document, as plain data in the reader's words:
 // views (client components) get these, never the services' rows. Dates
@@ -39,7 +40,7 @@ export function rowView(r: ListRow, t: Catalogue, locale: Locale, dates: "due" |
   return {
     id: r.id,
     href: `/chest/documents/${r.id}`,
-    number: r.number,
+    number: r.type === "quote" ? versioned(r.number, r.version) : r.number,
     kind: kindOf(r, t),
     who: r.clientName || t.list.noClient,
     what: r.status === "imported" ? (r.title ? `${r.title} · ${t.list.imported}` : t.list.imported) : r.title || kindOf(r, t),

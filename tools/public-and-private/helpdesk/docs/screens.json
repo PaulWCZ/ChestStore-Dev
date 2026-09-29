@@ -30,5 +30,9 @@
   {"name": "reports-fr", "path": "/chest/reports", "member": "camille", "locale": "fr", "only": ["phone"], "full": true},
   {"name": "inbox-filters", "path": "/chest", "member": "ines", "locale": "en", "only": ["phone"], "actions": [{"click": "button.filter-toggle"}, {"wait": 300}]},
   {"name": "contact-form-port", "path": "/", "member": "hugo", "locale": "fr", "look": {"all": "catalogue:library", "tool": "brand:port"}},
-  {"name": "inbox-port", "path": "/chest", "member": "hugo", "locale": "en", "look": {"tool": "brand:port"}}
+  {"name": "inbox-port", "path": "/chest", "member": "hugo", "locale": "en", "look": {"tool": "brand:port"}},
+  {"name": "mine", "path": "/chest/mine", "member": "nora", "locale": "fr"},
+  {"name": "mine-request", "path": "/chest/mine/1008", "member": "nora", "locale": "fr"},
+  {"name": "mine-request-en", "path": "/chest/mine/1008", "member": "nora", "locale": "en", "dark": true, "only": ["phone"]},
+  {"name": "settings-notices", "path": "/chest/settings", "member": "camille", "locale": "en", "actions": [{"click": "#notice-label"}, {"wait": 300}], "only": ["desktop", "phone"]}
 ]

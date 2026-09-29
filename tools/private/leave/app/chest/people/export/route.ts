@@ -4,7 +4,7 @@ import { toCsv } from "../../../../lib/csv.ts";
 import { db } from "../../../../lib/db.ts";
 import { catalogue, format, isLocale } from "../../../../lib/i18n/index.ts";
 import { payroll } from "../../../../lib/payroll.ts";
-import { nameOf, people } from "../../../../lib/people.ts";
+import { people, plainName } from "../../../../lib/people.ts";
 import { types } from "../../../../lib/rules.ts";
 import { typeName } from "../../../../lib/type-name.ts";
 
@@ -24,7 +24,7 @@ export async function GET(request: Request): Promise<Response> {
     const typeOf = new Map(all.map(ty => [ty.id, ty]));
     const numberOf = (n: number) => new Intl.NumberFormat(locale, { maximumFractionDigits: 2, useGrouping: false }).format(n);
     const lines = rows
-      .map(r => ({ ...r, name: r.memberId === "erased" ? t.people.erased : nameOf(who.get(r.memberId), locale) }))
+      .map(r => ({ ...r, name: r.memberId === "erased" ? t.people.erased : plainName(who.get(r.memberId), locale) }))
       .sort((a, b) => a.name.localeCompare(b.name, locale) || a.start.localeCompare(b.start));
     const csv = toCsv([
       [t.export.number, t.export.person, t.export.type, t.export.code, t.export.firstDay, t.export.firstHalf, t.export.lastDay, t.export.lastHalf, t.export.daysInMonth, t.export.days],

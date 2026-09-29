@@ -1,0 +1,598 @@
+{
+ "id": "6a0c11d2e3f4a5b6c7d8e9f0",
+ "name": "Marketing 2026",
+ "desc": "",
+ "descData": null,
+ "closed": false,
+ "idOrganization": "6a0c11d2e3f4a5b6c7d8ffff",
+ "pinned": false,
+ "url": "https://trello.com/b/MkTg2026/marketing-2026",
+ "shortUrl": "https://trello.com/b/MkTg2026",
+ "prefs": {
+  "permissionLevel": "org",
+  "voting": "disabled",
+  "comments": "members",
+  "background": "green",
+  "cardCovers": true
+ },
+ "labelNames": {
+  "green": "",
+  "yellow": "",
+  "orange": "",
+  "red": "Urgent",
+  "purple": "Salon",
+  "blue": ""
+ },
+ "dateLastActivity": "2026-09-24T14:12:08.201Z",
+ "labels": [
+  {
+   "id": "6a0c11d2e3f4a5b6c7d8000a",
+   "idBoard": "6a0c11d2e3f4a5b6c7d8e9f0",
+   "name": "Salon",
+   "color": "purple",
+   "uses": 3
+  },
+  {
+   "id": "6a0c11d2e3f4a5b6c7d8000b",
+   "idBoard": "6a0c11d2e3f4a5b6c7d8e9f0",
+   "name": "Urgent",
+   "color": "red",
+   "uses": 1
+  }
+ ],
+ "lists": [
+  {
+   "id": "6a0c11d2e3f4a5b6c7d80014",
+   "name": "À faire",
+   "closed": false,
+   "idBoard": "6a0c11d2e3f4a5b6c7d8e9f0",
+   "pos": 16384,
+   "subscribed": false,
+   "softLimit": null,
+   "color": null
+  },
+  {
+   "id": "6a0c11d2e3f4a5b6c7d80015",
+   "name": "En cours",
+   "closed": false,
+   "idBoard": "6a0c11d2e3f4a5b6c7d8e9f0",
+   "pos": 32768,
+   "subscribed": false,
+   "softLimit": null,
+   "color": null
+  },
+  {
+   "id": "6a0c11d2e3f4a5b6c7d80016",
+   "name": "Fait",
+   "closed": false,
+   "idBoard": "6a0c11d2e3f4a5b6c7d8e9f0",
+   "pos": 49152,
+   "subscribed": false,
+   "softLimit": null,
+   "color": null
+  },
+  {
+   "id": "6a0c11d2e3f4a5b6c7d80017",
+   "name": "Sprint de mars",
+   "closed": true,
+   "idBoard": "6a0c11d2e3f4a5b6c7d8e9f0",
+   "pos": 65536,
+   "subscribed": false,
+   "softLimit": null,
+   "color": null
+  }
+ ],
+ "members": [
+  {
+   "id": "6a0c11d2e3f4a5b6c7d80001",
+   "fullName": "Hugo Bernard",
+   "username": "hugobernard",
+   "initials": "HB",
+   "avatarUrl": null
+  },
+  {
+   "id": "6a0c11d2e3f4a5b6c7d80002",
+   "fullName": "Inès Moreau",
+   "username": "inesmoreau",
+   "initials": "IM",
+   "avatarUrl": null
+  },
+  {
+   "id": "6a0c11d2e3f4a5b6c7d80003",
+   "fullName": "Camille Martin",
+   "username": "camillemartin",
+   "initials": "CM",
+   "avatarUrl": null
+  },
+  {
+   "id": "6a0c11d2e3f4a5b6c7d80004",
+   "fullName": "Paul Graphiste",
+   "username": "paulgraphiste",
+   "initials": "PG",
+   "avatarUrl": null
+  }
+ ],
+ "cards": [
+  {
+   "id": "6a0c11d2e3f4a5b6c7d80065",
+   "idShort": 1,
+   "shortLink": "Ab0001Cd",
+   "name": "Écrire la newsletter d’octobre",
+   "desc": "Trois sujets : salon, recrutement, nouveautés.",
+   "idBoard": "6a0c11d2e3f4a5b6c7d8e9f0",
+   "idList": "6a0c11d2e3f4a5b6c7d80014",
+   "pos": 16384,
+   "closed": false,
+   "due": "2026-10-20T08:00:00.000Z",
+   "dueComplete": false,
+   "dueReminder": 1440,
+   "start": null,
+   "idMembers": [
+    "6a0c11d2e3f4a5b6c7d80002"
+   ],
+   "idLabels": [],
+   "labels": [],
+   "idChecklists": [],
+   "subscribed": false,
+   "dateLastActivity": "2026-09-20T09:12:44.118Z",
+   "url": "https://trello.com/c/Ab0001Cd/1",
+   "shortUrl": "https://trello.com/c/Ab0001Cd",
+   "attachments": [],
+   "badges": {
+    "attachments": 0,
+    "checkItems": 0,
+    "checkItemsChecked": 0,
+    "comments": 0,
+    "description": true,
+    "due": "2026-10-20T08:00:00.000Z",
+    "dueComplete": false,
+    "start": null
+   },
+   "cover": {
+    "idAttachment": null,
+    "color": null,
+    "size": "normal",
+    "brightness": "light"
+   }
+  },
+  {
+   "id": "6a0c11d2e3f4a5b6c7d80066",
+   "idShort": 2,
+   "shortLink": "Ab0002Cd",
+   "name": "Publier l’offre de stage",
+   "desc": "",
+   "idBoard": "6a0c11d2e3f4a5b6c7d8e9f0",
+   "idList": "6a0c11d2e3f4a5b6c7d80014",
+   "pos": 32768,
+   "closed": false,
+   "due": "2026-09-01T08:00:00.000Z",
+   "dueComplete": true,
+   "dueReminder": 1440,
+   "start": null,
+   "idMembers": [
+    "6a0c11d2e3f4a5b6c7d80001"
+   ],
+   "idLabels": [],
+   "labels": [],
+   "idChecklists": [],
+   "subscribed": false,
+   "dateLastActivity": "2026-09-20T09:12:44.118Z",
+   "url": "https://trello.com/c/Ab0002Cd/2",
+   "shortUrl": "https://trello.com/c/Ab0002Cd",
+   "attachments": [],
+   "badges": {
+    "attachments": 0,
+    "checkItems": 0,
+    "checkItemsChecked": 0,
+    "comments": 0,
+    "description": false,
+    "due": "2026-09-01T08:00:00.000Z",
+    "dueComplete": true,
+    "start": null
+   },
+   "cover": {
+    "idAttachment": null,
+    "color": null,
+    "size": "normal",
+    "brightness": "light"
+   }
+  },
+  {
+   "id": "6a0c11d2e3f4a5b6c7d80067",
+   "idShort": 3,
+   "shortLink": "Ab0003Cd",
+   "name": "Préparer le stand du salon",
+   "desc": "",
+   "idBoard": "6a0c11d2e3f4a5b6c7d8e9f0",
+   "idList": "6a0c11d2e3f4a5b6c7d80015",
+   "pos": 16384,
+   "closed": false,
+   "due": "2026-10-12T16:00:00.000Z",
+   "dueComplete": false,
+   "dueReminder": 1440,
+   "start": "2026-10-01T00:00:00.000Z",
+   "idMembers": [
+    "6a0c11d2e3f4a5b6c7d80001",
+    "6a0c11d2e3f4a5b6c7d80003"
+   ],
+   "idLabels": [
+    "6a0c11d2e3f4a5b6c7d8000a",
+    "6a0c11d2e3f4a5b6c7d8000b"
+   ],
+   "labels": [
+    {
+     "id": "6a0c11d2e3f4a5b6c7d8000a",
+     "idBoard": "6a0c11d2e3f4a5b6c7d8e9f0",
+     "name": "Salon",
+     "color": "purple",
+     "uses": 3
+    },
+    {
+     "id": "6a0c11d2e3f4a5b6c7d8000b",
+     "idBoard": "6a0c11d2e3f4a5b6c7d8e9f0",
+     "name": "Urgent",
+     "color": "red",
+     "uses": 1
+    }
+   ],
+   "idChecklists": [],
+   "subscribed": false,
+   "dateLastActivity": "2026-09-20T09:12:44.118Z",
+   "url": "https://trello.com/c/Ab0003Cd/3",
+   "shortUrl": "https://trello.com/c/Ab0003Cd",
+   "attachments": [],
+   "badges": {
+    "attachments": 0,
+    "checkItems": 0,
+    "checkItemsChecked": 0,
+    "comments": 0,
+    "description": false,
+    "due": "2026-10-12T16:00:00.000Z",
+    "dueComplete": false,
+    "start": "2026-10-01T00:00:00.000Z"
+   },
+   "cover": {
+    "idAttachment": null,
+    "color": null,
+    "size": "normal",
+    "brightness": "light"
+   }
+  },
+  {
+   "id": "6a0c11d2e3f4a5b6c7d80068",
+   "idShort": 4,
+   "shortLink": "Ab0004Cd",
+   "name": "Relancer l’imprimeur",
+   "desc": "",
+   "idBoard": "6a0c11d2e3f4a5b6c7d8e9f0",
+   "idList": "6a0c11d2e3f4a5b6c7d80015",
+   "pos": 32768,
+   "closed": false,
+   "due": "2026-08-28T10:00:00.000Z",
+   "dueComplete": true,
+   "dueReminder": 1440,
+   "start": null,
+   "idMembers": [
+    "6a0c11d2e3f4a5b6c7d80002"
+   ],
+   "idLabels": [],
+   "labels": [],
+   "idChecklists": [],
+   "subscribed": false,
+   "dateLastActivity": "2026-09-20T09:12:44.118Z",
+   "url": "https://trello.com/c/Ab0004Cd/4",
+   "shortUrl": "https://trello.com/c/Ab0004Cd",
+   "attachments": [],
+   "badges": {
+    "attachments": 0,
+    "checkItems": 0,
+    "checkItemsChecked": 0,
+    "comments": 0,
+    "description": false,
+    "due": "2026-08-28T10:00:00.000Z",
+    "dueComplete": true,
+    "start": null
+   },
+   "cover": {
+    "idAttachment": null,
+    "color": null,
+    "size": "normal",
+    "brightness": "light"
+   }
+  },
+  {
+   "id": "6a0c11d2e3f4a5b6c7d80069",
+   "idShort": 5,
+   "shortLink": "Ab0005Cd",
+   "name": "Lancer la campagne de printemps",
+   "desc": "",
+   "idBoard": "6a0c11d2e3f4a5b6c7d8e9f0",
+   "idList": "6a0c11d2e3f4a5b6c7d80016",
+   "pos": 16384,
+   "closed": false,
+   "due": "2026-04-01T08:00:00.000Z",
+   "dueComplete": true,
+   "dueReminder": 1440,
+   "start": null,
+   "idMembers": [
+    "6a0c11d2e3f4a5b6c7d80001"
+   ],
+   "idLabels": [
+    "6a0c11d2e3f4a5b6c7d8000a"
+   ],
+   "labels": [
+    {
+     "id": "6a0c11d2e3f4a5b6c7d8000a",
+     "idBoard": "6a0c11d2e3f4a5b6c7d8e9f0",
+     "name": "Salon",
+     "color": "purple",
+     "uses": 3
+    }
+   ],
+   "idChecklists": [],
+   "subscribed": false,
+   "dateLastActivity": "2026-09-20T09:12:44.118Z",
+   "url": "https://trello.com/c/Ab0005Cd/5",
+   "shortUrl": "https://trello.com/c/Ab0005Cd",
+   "attachments": [],
+   "badges": {
+    "attachments": 0,
+    "checkItems": 0,
+    "checkItemsChecked": 0,
+    "comments": 0,
+    "description": false,
+    "due": "2026-04-01T08:00:00.000Z",
+    "dueComplete": true,
+    "start": null
+   },
+   "cover": {
+    "idAttachment": null,
+    "color": null,
+    "size": "normal",
+    "brightness": "light"
+   }
+  },
+  {
+   "id": "6a0c11d2e3f4a5b6c7d8006a",
+   "idShort": 6,
+   "shortLink": "Ab0006Cd",
+   "name": "Refaire la page Tarifs",
+   "desc": "",
+   "idBoard": "6a0c11d2e3f4a5b6c7d8e9f0",
+   "idList": "6a0c11d2e3f4a5b6c7d80016",
+   "pos": 32768,
+   "closed": false,
+   "due": "2026-05-15T08:00:00.000Z",
+   "dueComplete": false,
+   "dueReminder": 1440,
+   "start": null,
+   "idMembers": [
+    "6a0c11d2e3f4a5b6c7d80002",
+    "6a0c11d2e3f4a5b6c7d80004"
+   ],
+   "idLabels": [],
+   "labels": [],
+   "idChecklists": [],
+   "subscribed": false,
+   "dateLastActivity": "2026-09-20T09:12:44.118Z",
+   "url": "https://trello.com/c/Ab0006Cd/6",
+   "shortUrl": "https://trello.com/c/Ab0006Cd",
+   "attachments": [],
+   "badges": {
+    "attachments": 0,
+    "checkItems": 0,
+    "checkItemsChecked": 0,
+    "comments": 0,
+    "description": false,
+    "due": "2026-05-15T08:00:00.000Z",
+    "dueComplete": false,
+    "start": null
+   },
+   "cover": {
+    "idAttachment": null,
+    "color": null,
+    "size": "normal",
+    "brightness": "light"
+   }
+  },
+  {
+   "id": "6a0c11d2e3f4a5b6c7d8006b",
+   "idShort": 7,
+   "shortLink": "Ab0007Cd",
+   "name": "Choisir l’agence photo",
+   "desc": "",
+   "idBoard": "6a0c11d2e3f4a5b6c7d8e9f0",
+   "idList": "6a0c11d2e3f4a5b6c7d80016",
+   "pos": 49152,
+   "closed": false,
+   "due": null,
+   "dueComplete": false,
+   "dueReminder": null,
+   "start": null,
+   "idMembers": [
+    "6a0c11d2e3f4a5b6c7d80003"
+   ],
+   "idLabels": [],
+   "labels": [],
+   "idChecklists": [],
+   "subscribed": false,
+   "dateLastActivity": "2026-09-20T09:12:44.118Z",
+   "url": "https://trello.com/c/Ab0007Cd/7",
+   "shortUrl": "https://trello.com/c/Ab0007Cd",
+   "attachments": [],
+   "badges": {
+    "attachments": 0,
+    "checkItems": 0,
+    "checkItemsChecked": 0,
+    "comments": 0,
+    "description": false,
+    "due": null,
+    "dueComplete": false,
+    "start": null
+   },
+   "cover": {
+    "idAttachment": null,
+    "color": null,
+    "size": "normal",
+    "brightness": "light"
+   }
+  },
+  {
+   "id": "6a0c11d2e3f4a5b6c7d8006c",
+   "idShort": 8,
+   "shortLink": "Ab0008Cd",
+   "name": "Vieux brief vidéo",
+   "desc": "",
+   "idBoard": "6a0c11d2e3f4a5b6c7d8e9f0",
+   "idList": "6a0c11d2e3f4a5b6c7d80014",
+   "pos": 65536,
+   "closed": true,
+   "due": "2026-03-01T08:00:00.000Z",
+   "dueComplete": false,
+   "dueReminder": 1440,
+   "start": null,
+   "idMembers": [
+    "6a0c11d2e3f4a5b6c7d80001"
+   ],
+   "idLabels": [],
+   "labels": [],
+   "idChecklists": [],
+   "subscribed": false,
+   "dateLastActivity": "2026-09-20T09:12:44.118Z",
+   "url": "https://trello.com/c/Ab0008Cd/8",
+   "shortUrl": "https://trello.com/c/Ab0008Cd",
+   "attachments": [],
+   "badges": {
+    "attachments": 0,
+    "checkItems": 0,
+    "checkItemsChecked": 0,
+    "comments": 0,
+    "description": false,
+    "due": "2026-03-01T08:00:00.000Z",
+    "dueComplete": false,
+    "start": null
+   },
+   "cover": {
+    "idAttachment": null,
+    "color": null,
+    "size": "normal",
+    "brightness": "light"
+   }
+  },
+  {
+   "id": "6a0c11d2e3f4a5b6c7d8006d",
+   "idShort": 9,
+   "shortLink": "Ab0009Cd",
+   "name": "Maquettes du salon v1",
+   "desc": "",
+   "idBoard": "6a0c11d2e3f4a5b6c7d8e9f0",
+   "idList": "6a0c11d2e3f4a5b6c7d80017",
+   "pos": 16384,
+   "closed": false,
+   "due": "2026-03-20T08:00:00.000Z",
+   "dueComplete": false,
+   "dueReminder": 1440,
+   "start": null,
+   "idMembers": [
+    "6a0c11d2e3f4a5b6c7d80004"
+   ],
+   "idLabels": [],
+   "labels": [],
+   "idChecklists": [],
+   "subscribed": false,
+   "dateLastActivity": "2026-09-20T09:12:44.118Z",
+   "url": "https://trello.com/c/Ab0009Cd/9",
+   "shortUrl": "https://trello.com/c/Ab0009Cd",
+   "attachments": [],
+   "badges": {
+    "attachments": 0,
+    "checkItems": 0,
+    "checkItemsChecked": 0,
+    "comments": 0,
+    "description": false,
+    "due": "2026-03-20T08:00:00.000Z",
+    "dueComplete": false,
+    "start": null
+   },
+   "cover": {
+    "idAttachment": null,
+    "color": null,
+    "size": "normal",
+    "brightness": "light"
+   }
+  },
+  {
+   "id": "6a0c11d2e3f4a5b6c7d8006e",
+   "idShort": 10,
+   "shortLink": "Ab0010Cd",
+   "name": "Réunion de lancement",
+   "desc": "",
+   "idBoard": "6a0c11d2e3f4a5b6c7d8e9f0",
+   "idList": "6a0c11d2e3f4a5b6c7d80017",
+   "pos": 32768,
+   "closed": false,
+   "due": "2026-03-05T08:00:00.000Z",
+   "dueComplete": true,
+   "dueReminder": 1440,
+   "start": null,
+   "idMembers": [
+    "6a0c11d2e3f4a5b6c7d80003"
+   ],
+   "idLabels": [],
+   "labels": [],
+   "idChecklists": [],
+   "subscribed": false,
+   "dateLastActivity": "2026-09-20T09:12:44.118Z",
+   "url": "https://trello.com/c/Ab0010Cd/10",
+   "shortUrl": "https://trello.com/c/Ab0010Cd",
+   "attachments": [],
+   "badges": {
+    "attachments": 0,
+    "checkItems": 0,
+    "checkItemsChecked": 0,
+    "comments": 0,
+    "description": false,
+    "due": "2026-03-05T08:00:00.000Z",
+    "dueComplete": true,
+    "start": null
+   },
+   "cover": {
+    "idAttachment": null,
+    "color": null,
+    "size": "normal",
+    "brightness": "light"
+   }
+  }
+ ],
+ "checklists": [],
+ "actions": [
+  {
+   "id": "6a0c11d2e3f4a5b6c7d801f4",
+   "idMemberCreator": "6a0c11d2e3f4a5b6c7d80002",
+   "type": "commentCard",
+   "date": "2026-09-22T10:02:00.000Z",
+   "data": {
+    "text": "Le devis de l’imprimeur est validé.",
+    "card": {
+     "id": "6a0c11d2e3f4a5b6c7d80067",
+     "name": "Préparer le stand du salon",
+     "idShort": 3,
+     "shortLink": "Ab0003Cd"
+    },
+    "board": {
+     "id": "6a0c11d2e3f4a5b6c7d8e9f0",
+     "name": "Marketing 2026"
+    },
+    "list": {
+     "id": "6a0c11d2e3f4a5b6c7d80015",
+     "name": "En cours"
+    }
+   },
+   "memberCreator": {
+    "id": "6a0c11d2e3f4a5b6c7d80002",
+    "fullName": "Inès Moreau",
+    "username": "inesmoreau"
+   }
+  }
+ ]
+}

@@ -33,7 +33,11 @@ export function allowedHost(host: string): boolean {
 }
 
 // calendarAddress reads what a host pastes: "webcal://" is https; only the
-// declared hosts, no password in it, 2,000 characters at most.
+// declared hosts, no password in it, 2,000 characters at most. An address
+// of a calendar's page rather than its feed is recognised before anything
+// is read, and said as such (errors calendar_google_page, …): Google's
+// app or its embed code, Outlook's app or the HTML link it shows beside
+// the ICS one, iCloud's website.
 export function calendarAddress(input: unknown): { url: string; provider: string } {
   if (typeof input !== "string") throw new AppError("invalid");
   let text = input.trim();
@@ -46,8 +50,27 @@ export function calendarAddress(input: unknown): { url: string; provider: string
     throw new AppError("calendar_not_allowed");
   }
   if (url.protocol !== "https:" || url.username || url.password || url.port || !allowedHost(url.hostname) || text.length > 2000) throw new AppError("calendar_not_allowed");
+  const shape = pageShape(url);
+  if (shape) throw new AppError(shape);
   url.hash = "";
   return { url: url.toString(), provider: url.hostname.toLowerCase() };
+}
+
+// pageShape: an address of a declared host that is a page, not a feed.
+// Google's feeds are /calendar/ical/<calendar>/<private-…|public>/basic.ics;
+// Outlook publishes …/calendar.html and …/calendar.ics side by side; an
+// iCloud feed lives on pNN-caldav.icloud.com (or pNN-calendarws), its
+// website on www.icloud.com.
+function pageShape(url: URL): ErrorCode | null {
+  const host = url.hostname.toLowerCase().replace(/\.$/u, "");
+  const path = url.pathname.toLowerCase();
+  if (host === "calendar.google.com") return path.startsWith("/calendar/ical/") ? null : "calendar_google_page";
+  if (host === "outlook.office365.com" || host === "outlook.live.com") {
+    if (path.endsWith(".html") || path.endsWith(".htm")) return "calendar_outlook_html";
+    return path.endsWith(".ics") ? null : "calendar_outlook_page";
+  }
+  if (host === "icloud.com" || host === "www.icloud.com") return "calendar_apple_page";
+  return null;
 }
 
 // The address as the host sees it again: its host and the end of its

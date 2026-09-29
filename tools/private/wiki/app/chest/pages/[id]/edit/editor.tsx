@@ -2,6 +2,7 @@
 
 import { Dialog, useToast } from "@argentic/chest-ui/components";
 import { matches } from "@argentic/chest-ui/components/logic";
+import { NodeSelection } from "@tiptap/pm/state";
 import { EditorContent, useEditor, useEditorState, type Editor as TiptapEditor } from "@tiptap/react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -9,10 +10,11 @@ import { useCallback, useEffect, useMemo, useRef, useState, useTransition, type 
 import * as I from "../../../../../components/icons.tsx";
 import { safeHref, type Doc } from "../../../../../lib/doc.ts";
 import type { Catalogue } from "../../../../../lib/i18n/index.ts";
-import { format, moment } from "../../../../../lib/i18n/format.ts";
+import { format, moment, plural } from "../../../../../lib/i18n/format.ts";
 import { draftEverySeconds, heartbeatSeconds } from "../../../../../lib/model.ts";
 import { keepEditing, openEditor, publishPage, saveDraft, stopEditing, type Holder } from "../../../actions.ts";
 import { extensions } from "./extensions.ts";
+import { pastedPictures } from "./paste.ts";
 import { matching, SlashMenu, slashItems, type Slash, type SlashItem } from "./slash.tsx";
 
 type Words = { editor: Catalogue["editor"]; errors: Catalogue["errors"]; common: Catalogue["common"]; dialog: Catalogue["dialog"]; missing: string };
@@ -92,6 +94,16 @@ function Writing({ page, start, pages, fresh, locale, t }: { page: PageInfo; sta
   const editorRef = useRef<TiptapEditor | null>(null);
   const changedRef = useRef<() => void>(() => {});
   const uploadRef = useRef<(file: File) => Promise<void>>(async () => {});
+  // Pictures in pasted or dropped HTML (paste.ts): the web's become notes
+  // in their place (said in a toast), the clipboard's own are uploaded.
+  const picturesRef = useRef<(html: string) => string>(html => html);
+  picturesRef.current = (html: string) => {
+    const words = { note: (alt: string) => (alt ? format(t.editor.webPictureNamed, { alt }) : t.editor.webPicture), open: t.editor.webPictureOpen, name: t.editor.pastedPicture };
+    const done = pastedPictures(html, window.location.origin, words);
+    if (done.web > 0) toast({ id: "web-pictures", text: plural(t.editor.webPictures, done.web, locale) });
+    for (const f of done.files) void uploadRef.current(f);
+    return done.html;
+  };
   // The "/" menu (slash.tsx): open while the text from its "/" to the
   // cursor is one word.
   const [slash, setSlashState] = useState<Slash | null>(null);
@@ -171,6 +183,7 @@ function Writing({ page, start, pages, fresh, locale, t }: { page: PageInfo; sta
         }
         return false;
       },
+      transformPastedHTML: html => picturesRef.current(html),
       handlePaste: (_view, event) => {
         const files = [...(event.clipboardData?.files ?? [])];
         if (files.length === 0) return false;
@@ -273,7 +286,7 @@ function Writing({ page, start, pages, fresh, locale, t }: { page: PageInfo; sta
       }
       dirty.current = false;
       closing.current = true;
-      router.push(`/chest/pages/${page.id}?saved=${result.value.version}${result.value.replaced ? `&over=${result.value.replaced}` : ""}`);
+      router.push(`/chest/pages/${page.id}?saved=${result.value.version}${result.value.replaced ? `&over=${result.value.replaced}` : ""}${result.value.dropped > 0 ? `&dropped=${result.value.dropped}` : ""}`);
     });
   }
 
@@ -322,6 +335,9 @@ function Writing({ page, start, pages, fresh, locale, t }: { page: PageInfo; sta
       const kept = await fetch(`/chest/api/pages/${page.id}/upload`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name, fileName: file.name }) });
       if (!kept.ok) await refuse(kept);
       const saved = (await kept.json()) as { id: string; image: boolean; fileName: string };
+      // A picture or block chosen (a paste leaves the last one selected):
+      // the new file goes after it, never in its place.
+      if (editor.state.selection instanceof NodeSelection) editor.commands.setTextSelection(editor.state.selection.to);
       if (saved.image) editor.chain().focus().setImage({ src: `/chest/files/${saved.id}`, alt: saved.fileName.replace(/\.[a-z0-9]+$/iu, "") }).run();
       else editor.chain().focus().insertContent([{ type: "text", text: saved.fileName, marks: [{ type: "link", attrs: { href: `/chest/files/${saved.id}?download` } }] }, { type: "text", text: " " }]).run();
       toast({ text: format(t.editor.uploaded, { name: saved.fileName }) });

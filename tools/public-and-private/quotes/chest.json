@@ -28,6 +28,9 @@
   "receives": [
     "member.*"
   ],
+  "network": [
+    "recherche-entreprises.api.gouv.fr"
+  ],
   "build": {
     "runtime": "node",
     "install": "npm ci",

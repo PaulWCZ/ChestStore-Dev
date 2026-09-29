@@ -8,6 +8,7 @@ import { grant } from "../lib/receipts.ts";
 import * as settings from "../lib/settings.ts";
 import * as tell from "../lib/tell.ts";
 import * as approvals from "../lib/approvals.ts";
+import { search } from "../lib/search.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, hugo, ines, lea, nora, tom } from "./support/members.ts";
@@ -463,4 +464,37 @@ test("an edited scale changes the trips not yet approved", async () => {
   assert.equal(after.amount, 700);
   assert.equal(after.trip?.scaleYear, 2026);
   await sql`delete from mileage_scales where year = 2026`;
+});
+
+test("search: shop, note, amount, reference, person, category — only among what the reader may see", async () => {
+  const { sql } = database;
+  await settings.setApprover(sql, asMember(camille), hugo.id, ines.id, yes);
+  const hugoLunch = (await expenses.saveExpense(sql, asMember(hugo), null, lunch({ merchant: "Big Mamma", amount: "187,60", note: "Client Acme" }))).expense;
+  const hugoDraft = (await expenses.saveExpense(sql, asMember(hugo), null, lunch({ merchant: "Big Mamma", amount: "12" }))).expense;
+  const leaSent = (await expenses.saveExpense(sql, asMember(lea), null, lunch({ merchant: "Big Mamma Lille", amount: "54" }))).expense;
+  const leaDraft = (await expenses.saveExpense(sql, asMember(lea), null, lunch({ merchant: "Big Mamma Nord", amount: "9" }))).expense;
+  await expenses.submit(sql, asMember(hugo), [hugoLunch.id], yes);
+  await expenses.submit(sql, asMember(lea), [leaSent.id], yes);
+  const ids = (list: expenses.Expense[]) => list.map(e => e.id).sort();
+  // Hugo: his own, drafts too; never Léa's.
+  assert.deepEqual(ids(await search(sql, asMember(hugo), "big mamma")), [hugoLunch.id, hugoDraft.id].sort());
+  // Inès approves Hugo: his sent one, not his draft, not Léa's.
+  assert.deepEqual(ids(await search(sql, asMember(ines), "Mamma")), [hugoLunch.id]);
+  // Camille (accountant): everything sent, no one else's draft.
+  assert.deepEqual(ids(await search(sql, asMember(camille), "mamma")), [hugoLunch.id, leaSent.id].sort());
+  assert.ok(!ids(await search(sql, asMember(camille), "mamma")).includes(leaDraft.id));
+  // By amount, as typed in either language; by the whole number.
+  assert.deepEqual(ids(await search(sql, asMember(camille), "187,60")), [hugoLunch.id]);
+  assert.deepEqual(ids(await search(sql, asMember(camille), "187.6")), [hugoLunch.id]);
+  assert.deepEqual(ids(await search(sql, asMember(camille), "187")), [hugoLunch.id]);
+  // By reference, a word of the note, a person (the page turns names into ids).
+  assert.deepEqual(ids(await search(sql, asMember(camille), `E${leaSent.id}`)), [leaSent.id]);
+  assert.deepEqual(ids(await search(sql, asMember(camille), "acme")), [hugoLunch.id]);
+  assert.deepEqual(ids(await search(sql, asMember(camille), "Léa", { people: [lea.id] })), [leaSent.id]);
+  assert.deepEqual(ids(await search(sql, asMember(hugo), "Léa", { people: [lea.id] })), []);
+  assert.deepEqual(ids(await search(sql, asMember(hugo), "Repas", { categories: [cat["meals"]!] })), [hugoLunch.id, hugoDraft.id].sort());
+  // "%" is a character, not a wildcard; one letter asks nothing; no role, nothing.
+  assert.deepEqual(await search(sql, asMember(camille), "%%"), []);
+  assert.deepEqual(await search(sql, asMember(camille), "b"), []);
+  await assert.rejects(search(sql, asMember(nora), "mamma"), refuses("forbidden"));
 });

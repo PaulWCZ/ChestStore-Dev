@@ -12,7 +12,9 @@ import { listItems } from "../../../../lib/items.ts";
 import { formatMoney } from "../../../../lib/money.ts";
 import { sellerOf } from "../../../../lib/parties.ts";
 import { continuedAt } from "../../../../lib/numbering.ts";
+import { versioned } from "../../../../lib/model.ts";
 import { answersOf, liveLink } from "../../../../lib/online.ts";
+import { versionsOf } from "../../../../lib/versions.ts";
 import { nameOf, people } from "../../../../lib/people.ts";
 import { publicOrigin } from "../../../../lib/public-origin.ts";
 import { firstRepeatDate, repeatOf } from "../../../../lib/repeats.ts";
@@ -48,14 +50,14 @@ export default async function DocumentPage({ params }: { params: Promise<{ id: s
   const buyer = full.buyer ?? full.client;
   const ref = full.related.find(r => (full.type === "credit" ? r.id === full.invoiceId : r.id === full.quoteId));
   const doc: DocView = {
-    id: full.id, type: full.type, status: full.status, state: full.state, number: full.number, kindText: kindOf(full, t), clientId: full.clientId, title: full.title,
+    id: full.id, type: full.type, status: full.status, state: full.state, number: full.type === "quote" ? versioned(full.number, full.version) : full.number, version: full.version, kindText: kindOf(full, t), clientId: full.clientId, title: full.title,
     language: full.language, currency: full.currency, issueDate: full.issueDate, deliveryDate: full.deliveryDate, validUntil: full.validUntil, dueDate: full.dueDate,
     paymentDays: full.paymentDays, vatTreatment: full.vatTreatment, franchise: full.franchise, notes: full.notes, depositPercent: full.depositPercent, lines: full.lines,
     net: full.net, vat: full.vat, gross: full.gross, rates: full.rates, paid: full.paid, credited: full.credited, due: full.due, seller,
     buyer: buyer ? { kind: buyer.kind, name: buyer.name, contact: buyer.contact, email: buyer.email, address: buyer.address, postcode: buyer.postcode, city: buyer.city, country: buyer.country, deliveryAddress: buyer.deliveryAddress, siren: buyer.siren, vatNumber: buyer.vatNumber, countryName: countryName(buyer.country, full.language) } : null,
     readyAt: full.readyAt, sentAt: full.sentAt, emailedTo: full.emailedTo, reminders: full.reminders,
     crmTitle: full.crmTitle,
-    reference: ref && ref.number ? { id: ref.id, number: ref.number, date: ref.issueDate ?? "" } : null,
+    reference: ref && ref.number ? { id: ref.id, number: versioned(ref.number, ref.version) ?? ref.number, date: ref.issueDate ?? "" } : null,
     facturx: full.type !== "quote" && full.status === "final" && full.pdfFormat !== "pdf",
     repeat: repeating && repeating.repeat.sourceId === full.id && repeating.repeat.active
       ? { id: repeating.repeat.id, every: repeating.repeat.every, next: formatDay(repeating.repeat.nextOn, locale, { day: "numeric", month: "long", year: "numeric" }) } : null,
@@ -64,7 +66,9 @@ export default async function DocumentPage({ params }: { params: Promise<{ id: s
   };
 
   // Names and dates, written here.
-  const ids = [full.createdBy, full.sentBy, full.decidedBy, full.finalisedBy, ...full.payments.map(p => p.createdBy)].filter((x): x is string => typeof x === "string");
+  // A quote's earlier versions (lib/versions.ts), the latest first.
+  const earlier = full.type === "quote" ? await versionsOf(sql, member, full.id) : [];
+  const ids = [full.createdBy, full.sentBy, full.decidedBy, full.finalisedBy, ...full.payments.map(p => p.createdBy), ...earlier.flatMap(v => [v.replacedBy, v.sentBy])].filter((x): x is string => typeof x === "string");
   const who = await people(ids);
   const name = (id: string | null) => (id === member.id ? t.people.you : id === "tool:crm" ? t.doc.history.crmTool : nameOf(who.get(id ?? ""), locale));
   const when = (iso: string) => formatDate(iso, locale, { timeZone: zone, day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
@@ -74,6 +78,10 @@ export default async function DocumentPage({ params }: { params: Promise<{ id: s
   if (full.crmReopenedAt) history.push({ text: t.doc.history.crmReopened, when: when(full.crmReopenedAt) });
   if (full.readyAt && full.status === "draft") history.push({ text: t.doc.history.ready, when: when(full.readyAt) });
   if (full.finalisedAt) history.push({ text: format(t.doc.history.finalised, { name: name(full.finalisedBy), number: full.number ?? "" }), when: when(full.finalisedAt) });
+  for (const v of [...earlier].reverse()) {
+    if (v.sentAt) history.push({ text: format(t.doc.history.versionSent, { version: v.version }), when: when(v.sentAt) });
+    history.push({ text: format(t.doc.history.revised, { version: v.version + 1, name: name(v.replacedBy) }), when: when(v.replacedAt) });
+  }
   if (full.sentAt) history.push({ text: full.emailedTo ? format(t.doc.history.emailed, { to: full.emailedTo, name: name(full.sentBy) }) : format(t.doc.history.sentByHand, { name: name(full.sentBy) }), when: when(full.sentAt) });
   if (full.decidedAt && full.decidedBy !== "client") history.push({ text: format(full.status === "accepted" ? t.doc.history.accepted : t.doc.history.refused, { name: name(full.decidedBy) }), when: when(full.decidedAt) });
   if (full.remindedAt) history.push({ text: format(t.doc.history.reminded, { count: full.reminders }), when: when(full.remindedAt) });
@@ -89,7 +97,7 @@ export default async function DocumentPage({ params }: { params: Promise<{ id: s
   }
   // The answers given online, with their proof.
   let online: OnlineView | null = null;
-  if (full.type === "quote" && full.status !== "draft") {
+  if (full.type === "quote" && (full.status !== "draft" || full.version > 1)) {
     const answers = await answersOf(sql, member, full.id);
     const link = await liveLink(sql, full.id);
     const origin = publicOrigin(await headers());
@@ -104,10 +112,12 @@ export default async function DocumentPage({ params }: { params: Promise<{ id: s
         { label: o.proof.name, value: a.name },
         { label: o.proof.day, value: day(a.answeredOn) },
         { label: o.proof.time, value: when(a.answeredAt) },
+        { label: o.proof.version, value: versioned(a.number, a.version) ?? String(a.version) },
         { label: o.proof.amount, value: formatMoney(a.gross, a.currency, locale) },
         { label: o.proof.visitor, value: a.visitorHash },
         { label: o.proof.browser, value: a.userAgent || "—" },
         { label: o.proof.pdf, value: a.pdfSha256 },
+        ...(a.termsSha256 ? [{ label: o.proof.terms, value: a.termsSha256 }] : []),
       ],
       pdf: a.pdfObject ? `/chest/documents/${full.id}/answers/${a.id}` : null,
     }));
@@ -118,7 +128,7 @@ export default async function DocumentPage({ params }: { params: Promise<{ id: s
   if (repeating && repeating.repeat.sourceId !== full.id) history.push({ text: format(t.doc.history.fromRepeat, { number: repeating.sourceNumber ?? "" }), when: when(full.createdAt) });
 
   const facts: Fact[] = [];
-  if (full.number) facts.push({ label: t.doc.facts.number, value: full.number });
+  if (full.number) facts.push({ label: t.doc.facts.number, value: full.type === "quote" ? versioned(full.number, full.version) ?? full.number : full.number });
   facts.push({ label: t.doc.facts.total, value: money(full.gross), strong: true });
   if (full.type === "quote" && full.validUntil) facts.push({ label: t.doc.facts.validUntil, value: day(full.validUntil) });
   if (full.type === "invoice" && full.status === "final") {
@@ -145,7 +155,7 @@ export default async function DocumentPage({ params }: { params: Promise<{ id: s
 
   return (
     <DocumentView
-      key={full.id + full.status + (full.number ?? "")}
+      key={full.id + full.status + (full.number ?? "") + full.version}
       doc={doc}
       t={t}
       locale={locale}
@@ -159,6 +169,12 @@ export default async function DocumentPage({ params }: { params: Promise<{ id: s
       facts={facts}
       history={history}
       online={online}
+      versions={earlier.map(v => ({
+        version: v.version,
+        text: v.issueDate ? format(t.doc.versions.sent, { version: v.version, date: day(v.issueDate), amount: formatMoney(v.gross, v.currency, locale) })
+          : format(t.doc.versions.notSent, { version: v.version, amount: formatMoney(v.gross, v.currency, locale) }),
+        pdf: v.hasPdf ? `/chest/documents/${full.id}/versions/${v.version}` : null,
+      }))}
       payments={payments}
       related={related}
       words={Object.fromEntries(locales.map(l => [l, catalogue(l).pdf])) as Record<Locale, Catalogue["pdf"]>}

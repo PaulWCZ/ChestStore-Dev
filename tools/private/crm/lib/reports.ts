@@ -101,3 +101,70 @@ export async function teamPipeline(sql: Sql, actor: Member | null): Promise<{ st
     recentWins: wins.map(w => ({ id: String(w.id), title: w.title, company: w.company, value: Number(w.value_cents), owner: w.owner, closedAt: w.closed_at.toISOString() })),
   };
 }
+
+// The Monday numbers (Pipedrive's "activities per salesperson per week"
+// and stage conversion), from what is already recorded.
+
+// The Monday of the week `back` weeks before the one of `now` (a day,
+// "YYYY-MM-DD"), as a day.
+export function weekStart(now: string, back = 0): string {
+  const d = new Date(now + "T00:00:00Z");
+  d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7) - 7 * back);
+  return d.toISOString().slice(0, 10);
+}
+
+export type ActivityLine = { author: string; call: number; meeting: number; email: number; note: number; total: number };
+
+// What each person logged in one week (Monday to Sunday, the Chest's time
+// zone): calls, meetings, emails, notes — the most first.
+export async function weekActivities(sql: Sql, actor: Member | null, now = today(), back = 0): Promise<{ from: string; to: string; lines: ActivityLine[] }> {
+  if (!can(actor, "read")) throw new AppError("forbidden");
+  const from = weekStart(now, back);
+  const to = weekStart(now, back - 1);
+  const rows = await sql<{ author: string; kind: "call" | "meeting" | "email" | "note"; n: number }[]>`
+    select author, kind, count(*)::int as n from activities
+    where kind in ('call', 'meeting', 'email', 'note') and author like 'mbr\_%'
+      and (at at time zone 'Europe/Paris')::date >= ${from} and (at at time zone 'Europe/Paris')::date < ${to}
+    group by author, kind`;
+  const by = new Map<string, ActivityLine>();
+  for (const r of rows) {
+    const line = by.get(r.author) ?? { author: r.author, call: 0, meeting: 0, email: 0, note: 0, total: 0 };
+    line[r.kind] += r.n;
+    line.total += r.n;
+    by.set(r.author, line);
+  }
+  return { from, to, lines: [...by.values()].sort((a, b) => b.total - a.total || a.author.localeCompare(b.author)) };
+}
+
+export type Conversion = { stages: { stageId: string; reached: number }[]; won: number; lost: number; deals: number };
+
+// From stage to stage: of the deals added in the last 12 months, how many
+// reached each open stage (or one after it: a deal moved from the first to
+// the third went through the second), and how many were won. A won deal
+// went through every stage; a deal's stages are its current one and those
+// its history names.
+export async function stageConversion(sql: Sql, actor: Member | null): Promise<Conversion> {
+  if (!can(actor, "read")) throw new AppError("forbidden");
+  const open = (await sql<{ id: string }[]>`select id from stages where kind = 'open' and archived_at is null order by position, id`).map(s => String(s.id));
+  const index = new Map(open.map((id, i) => [id, i]));
+  const rows = await sql<{ kind: "open" | "won" | "lost"; stage_id: string; touched: string[] }[]>`
+    select s.kind, d.stage_id,
+      coalesce((select array_agg(v) from activities a cross join lateral (values (a.data->>'from'), (a.data->>'to')) x(v)
+                where a.deal_id = d.id and a.kind in ('stage', 'won', 'lost', 'reopened') and v is not null), '{}') as touched
+    from deals d join stages s on s.id = d.stage_id
+    where d.created_at > now() - interval '12 months'`;
+  const reached = open.map(() => 0);
+  let won = 0, lost = 0;
+  for (const r of rows) {
+    let top = -1;
+    if (r.kind === "won") {
+      top = open.length - 1;
+      won++;
+    } else {
+      if (r.kind === "lost") lost++;
+      for (const s of [String(r.stage_id), ...r.touched]) top = Math.max(top, index.get(s) ?? -1);
+    }
+    for (let i = 0; i <= top; i++) reached[i]!++;
+  }
+  return { stages: open.map((stageId, i) => ({ stageId, reached: reached[i]! })), won, lost, deals: rows.length };
+}

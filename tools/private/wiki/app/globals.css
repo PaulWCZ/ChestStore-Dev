@@ -152,6 +152,7 @@ fieldset.plain { border: 0; padding: 0; margin: 0; min-width: 0; }
 .add:hover { background: var(--surface); color: var(--ink); }
 .side-empty { padding: var(--space-1) var(--space-2) var(--space-2) 26px; color: var(--ink-2); font-style: italic; font-family: var(--font-read); }
 .side-foot { margin-top: var(--space-5); padding-top: var(--space-3); border-top: var(--border-width) solid var(--line); display: grid; gap: 2px; }
+.side-foot.alone { margin-top: 0; padding-top: 0; border-top: 0; }
 
 /* "Pages": the same tree, on a page of its own. */
 .contents-page h1 { margin-bottom: var(--space-5); }

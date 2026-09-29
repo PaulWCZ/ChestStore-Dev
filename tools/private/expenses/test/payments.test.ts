@@ -261,6 +261,29 @@ test("transfer files are in euros; an erased person's account leaves the batches
   await assert.rejects(payments.createRun(sql, asMember(camille), { executionDate: today() }), refuses("sepa_currency"));
 });
 
+test("someone who left is never in a transfer file: paid on their final pay slip, by hand", async () => {
+  const { sql } = database;
+  await company();
+  // Paul had the tool, gave his bank details, had an expense approved, then
+  // left the company (the Chest answers "former" for him).
+  const paul = { ...hugo, id: "mbr_paulaaaaaaaaaaaaaaaaaaaaaa", firstName: "Paul", lastName: "Lefèvre", name: "Paul Lefèvre" };
+  chest.former.push({ id: paul.id, name: paul.name });
+  try {
+    await bank.setBankDetails(sql, asMember(paul), paul.id, { iban: hugoIban });
+    const p = await approved(paul, "25");
+    await assert.rejects(payments.createRun(sql, asMember(camille), { executionDate: today() }), refuses("nothing_to_pay"));
+    // With someone still here, the file is made without him.
+    await bank.setBankDetails(sql, asMember(lea), lea.id, { iban: ibanOf("FR", "20041010050500013M02606") });
+    await approved(lea, "8");
+    const made = await payments.createRun(sql, asMember(camille), { executionDate: today() });
+    assert.deepEqual(made.skipped, [{ member: paul.id, reason: "left" }]);
+    // Paid by hand ("Mark paid") once his final pay slip did it.
+    await expenses.markPaid(sql, asMember(camille), [p], today());
+  } finally {
+    chest.former.splice(chest.former.findIndex(f => f.id === paul.id), 1);
+  }
+});
+
 test("SEPA texts: basic Latin only, accents taken off, 70 or 140 characters; amounts with a dot", () => {
   assert.equal(sepaText("Léa Dubois-Øster & Fils — «frais»", 70), "Lea Dubois-Oster + Fils frais");
   assert.equal(sepaText("//Zoë//Straße/", 70), "Zoe/Strasse");

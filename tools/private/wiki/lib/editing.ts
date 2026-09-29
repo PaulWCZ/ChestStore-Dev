@@ -123,11 +123,14 @@ export async function keepDraft(sql: Sql, actor: Member | null, pageId: unknown,
 // active. Saving nothing new writes no version. When someone saved since
 // the actor started (after taking over an idle lock), their version stays
 // in the history: `replaced` says whose.
-export async function publish(sql: Sql, actor: Member | null, pageId: unknown, input: { title: unknown; doc: unknown; baseVersion: unknown }): Promise<{ version: number; changed: boolean; replaced: string | null }> {
+export async function publish(sql: Sql, actor: Member | null, pageId: unknown, input: { title: unknown; doc: unknown; baseVersion: unknown }): Promise<{ version: number; changed: boolean; replaced: string | null; dropped: number }> {
   const p = await page(sql, actor, pageId, "write");
   const me = actor!.id;
   const title = clean(input.title, limits.title);
-  const doc = normalize(input.doc);
+  // Pictures from outside the wiki are left out: the answer says how many,
+  // so "Saved." never hides them (the editor turns pasted ones into notes).
+  const dropped = { pictures: 0 };
+  const doc = normalize(input.doc, dropped);
   const base = Number.isInteger(input.baseVersion) ? Number(input.baseVersion) : p.version;
   return sql.begin(async tx => {
     const [lock] = await tx<{ member_id: string; idle: boolean }[]>`
@@ -141,7 +144,7 @@ export async function publish(sql: Sql, actor: Member | null, pageId: unknown, i
     const replaced = changed && current!.version > base && current!.updated_by !== me ? current!.updated_by : null;
     await tx`delete from drafts where page_id = ${p.id} and member_id = ${me}`;
     await tx`delete from page_locks where page_id = ${p.id} and member_id = ${me}`;
-    return { version, changed, replaced };
+    return { version, changed, replaced, dropped: dropped.pictures };
   });
 }
 

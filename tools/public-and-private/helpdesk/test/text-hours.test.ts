@@ -48,6 +48,13 @@ test("an email's quoted history folds away; web addresses become links; subjects
   assert.deepEqual(splitQuoted("A line\nwith > inside\nand text"), { main: "A line\nwith > inside\nand text", quoted: "" });
   assert.deepEqual(linkify("See https://atelier.fr/faq, or (https://x.fr/a_(b)). Bye"), [{ text: "See " }, { text: "https://atelier.fr/faq", url: "https://atelier.fr/faq" }, { text: ", or (" }, { text: "https://x.fr/a_(b)", url: "https://x.fr/a_(b)" }, { text: "). Bye" }]);
   assert.deepEqual(linkify("javascript:alert(1) and http://"), [{ text: "javascript:alert(1) and http://" }]);
+  // The team's side: email addresses and phone numbers as mailto: and tel: links; order numbers and dates stay text.
+  assert.deepEqual(linkify("Votre numéro de téléphone\u202f: 06 12 34 56 78", { contacts: true }), [{ text: "Votre numéro de téléphone\u202f: " }, { text: "06 12 34 56 78", url: "tel:0612345678" }]);
+  assert.deepEqual(linkify("Call +33 6 12 34 56 78 or nina.roux@gmail.com.", { contacts: true }), [{ text: "Call " }, { text: "+33 6 12 34 56 78", url: "tel:+33612345678" }, { text: " or " }, { text: "nina.roux@gmail.com", url: "mailto:nina.roux@gmail.com" }, { text: "." }]);
+  assert.deepEqual(linkify("+1 (415) 555-0100, 0612345678", { contacts: true }).filter(p => p.url).map(p => p.url), ["tel:+14155550100", "tel:0612345678"]);
+  assert.deepEqual(linkify("Order 123456789 on 2026-09-29, n°00012345678, 02.10.2026", { contacts: true }), [{ text: "Order 123456789 on 2026-09-29, n°00012345678, 02.10.2026" }]);
+  assert.deepEqual(linkify("https://a.fr/x?mail=a@b.fr", { contacts: true }), [{ text: "https://a.fr/x?mail=a@b.fr", url: "https://a.fr/x?mail=a@b.fr" }]);
+  assert.deepEqual(linkify("Call 06 12 34 56 78"), [{ text: "Call 06 12 34 56 78" }], "only on the team's side");
   assert.equal(baseSubject("RE: TR : Fwd: Broken  lamp [#1042]"), "broken lamp");
   assert.equal(baseSubject("Re: Broken lamp"), baseSubject("broken lamp"));
   assert.ok(robotAddress("no-reply@shop.fr") && robotAddress("MAILER-DAEMON@x.org") && robotAddress("noreply+123@x.org"));

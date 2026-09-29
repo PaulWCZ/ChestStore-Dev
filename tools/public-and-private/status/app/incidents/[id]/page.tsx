@@ -21,13 +21,13 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 // status.example.com/incidents/12"), with its whole timeline.
 export default async function IncidentPage({ params }: Props) {
   const { id } = await params;
-  const { t, locale, sql, now, zone, company, offerMail } = await publicContext();
+  const { t, locale, sql, now, zone, company, offerUpdates } = await publicContext();
   const incident = await publicIncident(sql, id);
   if (!incident || (incident.kind === "maintenance" && incident.updates.length === 0)) notFound();
-  const view = await statusView(sql, zone, now);
+  const view = await statusView(sql, zone, now, { locale });
   const words = { public: t.public, steps: t.steps, states: t.states, time: t.time, maintenance: t.maintenance };
   return (
-    <PublicShell company={company} locale={locale} zone={zone} t={t} path={`/incidents/${incident.id}`} offerMail={offerMail}>
+    <PublicShell company={company} locale={locale} zone={zone} t={t} path={`/incidents/${incident.id}`} offerMail={offerUpdates}>
       <p className="crumb"><a href="/"><Back />{t.public.back}</a></p>
       <IncidentCard incident={incident} impact={impactOf(incident, now)} affected={touchedNames(incident, view.names)} zone={zone} locale={locale} t={words} now={now} heading="h1" link={false} />
       <Postmortem incident={incident} zone={zone} locale={locale} t={words} now={now} />

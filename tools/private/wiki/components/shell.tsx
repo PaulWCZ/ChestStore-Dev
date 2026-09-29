@@ -63,12 +63,14 @@ export function Shell({ brand, member, spaces, nodes, canWrite, noAccess = false
       width="full"
     >
       {noAccess ? <div className="page narrow">{children}</div> : <div className={`frame${editing ? " editing" : ""}`}>
-        {!editing && !contents && (
+        {/* No space to list and none to make (a reader of an empty wiki):
+            no sidebar, the page takes the width. */}
+        {!editing && !contents && (spaces.length > 0 || canWrite) && (
           <nav id="sidebar" className="sidebar" aria-label={t.shell.tree}>
             {spaces.length > 0 && <h2 className="side-title">{t.shell.spaces}</h2>}
             <PageTree spaces={spaces} nodes={nodes} path={path} t={t} onNewPage={setNewPage} />
             {canWrite && (
-              <div className="side-foot">
+              <div className={spaces.length > 0 ? "side-foot" : "side-foot alone"}>
                 <button type="button" className="side-link" onClick={() => setNewSpace(true)}><Plus />{t.shell.newSpace}</button>
                 <Link className="side-link" href="/chest/import" aria-current={path === "/chest/import" ? "page" : undefined}><Upload />{t.shell.import}</Link>
               </div>

@@ -15,6 +15,7 @@ import * as share from "../../lib/share.ts";
 import { currentMember } from "../../lib/session.ts";
 import * as staff from "../../lib/staff.ts";
 import * as tell from "../../lib/tell.ts";
+import * as mail from "../../lib/mail.ts";
 
 // The server actions of the members' part. Each is an endpoint anyone can
 // call: each reads the member from the Chest's assertion again; the
@@ -202,4 +203,9 @@ export async function saveType(typeId: string | null, input: rules.TypeInput): P
 
 export async function archiveType(typeId: string, archived: boolean): Promise<Result<null>> {
   return act(async actor => { await rules.archiveType(db(), actor, typeId, archived); return null; });
+}
+
+// Emails beside the bell: the person's own switch.
+export async function setEmail(on: boolean): Promise<Result<null>> {
+  return act(async actor => { await mail.setEmail(db(), actor, on); return null; });
 }

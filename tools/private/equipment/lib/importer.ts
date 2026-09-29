@@ -291,7 +291,10 @@ export type Options = { keep?: string[] };
 
 export function plan(text: unknown, source: Source, context: Context, options: Options = {}): Plan {
   if (typeof text !== "string" || text.length > limits.importBytes) throw new AppError("import_invalid");
-  const table = parseCsv(text, limits.importRows + 1);
+  // A cell a spreadsheet would run as a formula was written behind a quote
+  // (this tool's export, lib/csv.ts, and spreadsheets' own habit): the
+  // value is what follows the quote.
+  const table = parseCsv(text, limits.importRows + 1).map(row => row.map(c => (/^'[=+\-@\t\r]/u.test(c) ? c.slice(1) : c)));
   if (table.length < 2 || table.length > limits.importRows + 1) throw new AppError("import_invalid");
   const { found, ignored: skippedColumns, custom } = readHeader(table[0]!, source);
   // Other columns: one named as an existing field is always read; the rest

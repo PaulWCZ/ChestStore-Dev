@@ -7,7 +7,11 @@ import * as checks from "../../lib/checks.ts";
 import * as components from "../../lib/components.ts";
 import { db } from "../../lib/db.ts";
 import { AppError, attempt, type Result } from "../../lib/errors.ts";
+import { catalogue } from "../../lib/i18n/index.ts";
+import { otherLanguage, writerLanguage } from "../../lib/languages.ts";
 import * as incidents from "../../lib/incidents.ts";
+import * as hooks from "../../lib/hooks.ts";
+import { flushHooks } from "../../lib/hooks.ts";
 import { flush } from "../../lib/mailer.ts";
 import { moment, worst, type Impact } from "../../lib/model.ts";
 import { currentMember } from "../../lib/session.ts";
@@ -19,6 +23,7 @@ import { publicOrigin } from "../../lib/public-origin.ts";
 import * as subscribers from "../../lib/subscribers.ts";
 import * as templates from "../../lib/templates.ts";
 import * as tell from "../../lib/tell.ts";
+import { tellTools } from "../../lib/tell-tools.ts";
 
 // The server actions of the members' part. Each is an endpoint anyone can
 // call: each reads the member from the Chest's assertion again; the
@@ -43,6 +48,11 @@ async function sendSoon(): Promise<void> {
   } catch (error) {
     console.error("emails not sent yet", error instanceof Error ? error.name : "error");
   }
+  try {
+    await flushHooks(db(), { limit: 50 });
+  } catch (error) {
+    console.error("chat updates not sent yet", error instanceof Error ? error.name : "error");
+  }
 }
 
 async function namesOf(ids: string[]): Promise<string[]> {
@@ -65,6 +75,7 @@ export async function postIncident(input: { title: string; status: string; body:
     await tell.incidentOpened({ id: incidentId, title: input.title.trim() }, worst(impacts), await namesOf(Object.keys(input.states)));
     await tell.refreshBadges(sql);
     await sendSoon();
+    await tellTools(sql, incidentId, "opened");
     return { id: incidentId };
   });
 }
@@ -93,12 +104,13 @@ export async function postUpdate(incidentId: string, input: { status: string; bo
     }
     await tell.refreshBadges(sql);
     await sendSoon();
+    await tellTools(sql, incidentId, done.reopened ? "opened" : undefined);
     return { resolved: done.resolved };
   });
 }
 
 export async function renameIncident(incidentId: string, title: string, titleSecond?: string): Promise<Result> {
-  return act(async actor => { await incidents.renameIncident(db(), actor, incidentId, title, titleSecond); return null; });
+  return act(async actor => { await incidents.renameIncident(db(), actor, incidentId, title, titleSecond); await tellTools(db(), incidentId); return null; });
 }
 
 // Corrects an update's text and, when given, its second version: each
@@ -117,8 +129,9 @@ export async function writePostmortem(incidentId: string, input: { body: string;
 
 export async function removeUpdate(updateId: string): Promise<Result> {
   return act(async actor => {
-    await incidents.removeUpdate(db(), actor, updateId);
+    const { incidentId } = await incidents.removeUpdate(db(), actor, updateId);
     await tell.refreshBadges(db());
+    await tellTools(db(), incidentId);
     return null;
   });
 }
@@ -127,6 +140,8 @@ export async function restoreUpdate(updateId: string): Promise<Result> {
   return act(async actor => {
     await incidents.restoreUpdate(db(), actor, updateId);
     await tell.refreshBadges(db());
+    const [row] = await db()<{ incident_id: string }[]>`select incident_id from updates where id = ${/^[1-9][0-9]{0,17}$/u.test(updateId) ? updateId : "0"}`;
+    if (row) await tellTools(db(), String(row.incident_id));
     return null;
   });
 }
@@ -136,6 +151,7 @@ export async function removeIncident(incidentId: string): Promise<Result> {
     await incidents.removeIncident(db(), actor, incidentId);
     await tell.incidentRemoved(incidentId);
     await tell.refreshBadges(db());
+    await tellTools(db(), incidentId);
     return null;
   });
 }
@@ -144,6 +160,7 @@ export async function restoreIncident(incidentId: string): Promise<Result> {
   return act(async actor => {
     await incidents.restoreIncident(db(), actor, incidentId);
     await tell.refreshBadges(db());
+    await tellTools(db(), incidentId, "opened");
     return null;
   });
 }
@@ -181,21 +198,26 @@ export async function postMaintenanceUpdate(incidentId: string, input: { status:
 
 // ---- Components ------------------------------------------------------------
 
-export async function addComponent(input: { name: string; description?: string; parentId?: string | null; kind?: string; teamOnly?: boolean }): Promise<Result<{ id: string }>> {
+export async function addComponent(input: { name: string; description?: string; parentId?: string | null; kind?: string; teamOnly?: boolean; language?: string; second?: { name?: string; description?: string } }): Promise<Result<{ id: string }>> {
   return act(async actor => ({ id: (await components.addComponent(db(), actor, input)).id }));
 }
 
-// A first page in one click: the example names, in the editor's language.
-export async function addExample(names: string[]): Promise<Result> {
+// A first page in one click: the usual services, written in the editor's
+// language with their names in the other one — a bilingual company's
+// visitors read them in theirs from the first day.
+export async function addExample(): Promise<Result> {
   return act(async actor => {
     const sql = db();
     if ((await components.allComponents(sql)).length > 0) return null;
-    for (const name of (Array.isArray(names) ? names : []).slice(0, 8)) await components.addComponent(sql, actor, { name });
+    const language = writerLanguage(actor);
+    const names = catalogue(language).components.exampleNames.split("|");
+    const seconds = catalogue(otherLanguage(language)).components.exampleNames.split("|");
+    for (const [k, name] of names.slice(0, 8).entries()) await components.addComponent(sql, actor, { name, language, second: { name: seconds[k] } });
     return null;
   });
 }
 
-export async function updateComponent(componentId: string, input: { name?: string; description?: string; parentId?: string | null; hidden?: boolean; teamOnly?: boolean }): Promise<Result> {
+export async function updateComponent(componentId: string, input: { name?: string; description?: string; parentId?: string | null; hidden?: boolean; teamOnly?: boolean; second?: { name?: string; description?: string } }): Promise<Result> {
   return act(async actor => { await components.updateComponent(db(), actor, componentId, input); return null; });
 }
 
@@ -236,6 +258,11 @@ export async function saveChecks(list: checks.WatchInput[]): Promise<Result<{ ru
 
 export async function removeSubscriber(subscriberId: string): Promise<Result> {
   return act(async actor => { await subscribers.removeSubscriber(db(), actor, subscriberId); return null; });
+}
+
+// A chat or web address subscription: the Chest forgets the address.
+export async function removeHook(hookId: string): Promise<Result> {
+  return act(async actor => { await hooks.removeHook(db(), actor, hookId); return null; });
 }
 
 // ---- Templates -------------------------------------------------------------

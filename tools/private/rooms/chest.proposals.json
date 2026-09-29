@@ -20,6 +20,7 @@
       "description": "Réservez un poste ou une salle de réunion, et voyez qui est au bureau chaque jour.",
       "role_labels": {
         "admin": "Admin",
+        "manager": "Responsable du site",
         "member": "Membre"
       }
     }

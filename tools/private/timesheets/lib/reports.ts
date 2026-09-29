@@ -19,7 +19,9 @@ export const isGroup = (value: unknown): value is GroupBy => typeof value === "s
 export const billableFilters = ["all", "billable", "non", "uninvoiced"] as const;
 export type BillableFilter = (typeof billableFilters)[number];
 
-export type ReportQuery = { from: unknown; to: unknown; group?: unknown; person?: unknown; projectId?: unknown; clientId?: unknown; billable?: unknown };
+// `q`: words the entries' notes hold ("Repérage au parc"), case aside,
+// 2 to 100 characters.
+export type ReportQuery = { from: unknown; to: unknown; group?: unknown; person?: unknown; projectId?: unknown; clientId?: unknown; billable?: unknown; q?: unknown };
 export type Line = {
   key: string;
   projectId: string | null;
@@ -56,7 +58,15 @@ export type Report = {
   uninvoiced: number;
 };
 
-export type Scope = { from: string; to: string; group: GroupBy; person: string | null; projectId: string | null; clientId: string | null; billable: BillableFilter };
+export type Scope = { from: string; to: string; group: GroupBy; person: string | null; projectId: string | null; clientId: string | null; billable: BillableFilter; q: string | null };
+
+// The words searched in the notes, or null (fewer than 2 characters).
+export function searchWords(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const text = value.replace(/\s+/gu, " ").trim().slice(0, 100);
+  return text.length >= 2 ? text : null;
+}
+const like = (text: string) => "%" + text.replace(/[\\%_]/gu, m => "\\" + m) + "%";
 
 export function scope(actor: Member | null, q: ReportQuery): Scope {
   if (!actor || !can(actor, "time.own")) throw new AppError("forbidden");
@@ -66,7 +76,7 @@ export function scope(actor: Member | null, q: ReportQuery): Scope {
   else if (typeof q.person === "string" && (memberPattern.test(q.person) || q.person === "erased" || /^imp_[1-9][0-9]{0,17}$/u.test(q.person))) person = q.person;
   else if (q.person !== undefined && q.person !== null && q.person !== "") throw new AppError("invalid");
   const billable = (billableFilters as readonly unknown[]).includes(q.billable) ? q.billable as BillableFilter : "all";
-  return { from: q.from, to: q.to, group: isGroup(q.group) ? q.group : "project", person, projectId: optionalId(q.projectId), clientId: optionalId(q.clientId), billable };
+  return { from: q.from, to: q.to, group: isGroup(q.group) ? q.group : "project", person, projectId: optionalId(q.projectId), clientId: optionalId(q.clientId), billable, q: searchWords(q.q) };
 }
 
 export function where(sql: Query, s: Scope) {
@@ -75,6 +85,7 @@ export function where(sql: Query, s: Scope) {
     ${s.person ? sql`and e.member_id = ${s.person}` : sql``}
     ${s.projectId ? sql`and e.project_id = ${s.projectId}` : sql``}
     ${s.clientId ? sql`and p.client_id = ${s.clientId}` : sql``}
+    ${s.q ? sql`and e.note ilike ${like(s.q)}` : sql``}
     ${s.billable === "billable" ? sql`and e.billable` : s.billable === "non" ? sql`and not e.billable` : s.billable === "uninvoiced" ? sql`and e.billable and e.invoiced_at is null` : sql``}`;
 }
 
@@ -194,4 +205,19 @@ export async function exportRows(sql: Query, actor: Member | null, q: ReportQuer
 export async function reportPeople(sql: Query, actor: Member | null): Promise<string[]> {
   if (!can(actor, "reports.all")) return actor ? [actor.id] : [];
   return (await sql<{ member_id: string }[]>`select distinct member_id from entries where deleted_at is null order by member_id limit 2000`).map(r => r.member_id);
+}
+
+// The entries a search of the notes found (the report shows them, newest
+// first, 100 at most; the CSV has them all).
+export type Found = { id: string; day: string; memberId: string; projectName: string; clientName: string | null; taskName: string | null; color: Color | null; note: string; minutes: number };
+export const foundLimit = 100;
+
+export async function foundEntries(sql: Query, actor: Member | null, q: ReportQuery): Promise<Found[]> {
+  const s = scope(actor, q);
+  if (!s.q) return [];
+  const rows = await sql<{ id: string; day: string; member_id: string; project_name: string; client_name: string | null; task_name: string | null; color: string; note: string; minutes: number }[]>`
+    select e.id::text, to_char(e.day, 'YYYY-MM-DD') as day, e.member_id, p.name as project_name, c.name as client_name, t.name as task_name, p.color, e.note, e.minutes
+    from entries e join projects p on p.id = e.project_id left join clients c on c.id = p.client_id left join tasks t on t.id = e.task_id
+    where ${where(sql, s)} order by e.day desc, e.id desc limit ${foundLimit}`;
+  return rows.map(r => ({ id: r.id, day: r.day, memberId: r.member_id, projectName: r.project_name, clientName: r.client_name, taskName: r.task_name, color: isColor(r.color) ? r.color : null, note: r.note, minutes: r.minutes }));
 }

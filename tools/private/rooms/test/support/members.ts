@@ -15,4 +15,6 @@ export const hugo = person("hugo", "Hugo", "Bernard", "member", { groups: [group
 export const lea = person("lea", "Léa", "Dubois", "member", { locale: "fr", groups: [groups.office] });
 export const sofia = person("sofia", "Sofia", "Rossi", "member", { groups: [groups.office] });
 export const nora = person("nora", "Nora", "Petit", null);
-export const everyone = [camille, ines, hugo, lea, sofia, nora];
+// The office manager: books for others, runs the reception; no Places.
+export const tom = person("tom", "Tom", "Walker", "manager");
+export const everyone = [camille, ines, hugo, lea, sofia, nora, tom];

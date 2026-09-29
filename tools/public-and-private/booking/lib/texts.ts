@@ -97,6 +97,14 @@ export function localizeType<T extends Localizable>(type: T, host: HostLanguages
   };
 }
 
+// titleIn: a type's name as a reader reads it — theirs when the host
+// wrote it, otherwise the host's first language (the team's screens: one
+// type, one name, whatever language each guest booked in).
+export function titleIn(type: { title: string; alt: TypeTexts }, host: HostLanguages, reader: Locale): string {
+  const language = pageLanguage(host, reader);
+  return host.second && language === host.second && host.second !== host.language ? type.alt["title"] || type.title : type.title;
+}
+
 export function localizeWelcome(host: HostLanguages & { welcome: string; welcomeAlt: string }, language: Locale): string {
   if (host.second && language === host.second && host.welcomeAlt) return host.welcomeAlt;
   return host.welcome;

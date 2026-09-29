@@ -15,6 +15,7 @@ import { zone } from "../../lib/zone.ts";
 import { flush } from "../../lib/calendar.ts";
 import { checkIn as checkInto } from "../../lib/check-in.ts";
 import * as usual from "../../lib/usual.ts";
+import * as visits from "../../lib/visits.ts";
 import { matchable } from "../../lib/directory.ts";
 import * as imports from "../../lib/import.ts";
 import * as example from "../../lib/example.ts";
@@ -42,7 +43,11 @@ async function act<T>(step: (actor: Member) => Promise<T>): Promise<Result<T>> {
 // ---------- Presence ----------
 
 export async function setPresence(day: string, status: string | null, officeId?: string | null): Promise<Result<{ previous: { status: string; officeId: string | null } | null; freed: string[] }>> {
-  return act(actor => savePresence(db(), actor, { day, status, ...(officeId ? { officeId } : {}) }, zone()));
+  return act(async actor => {
+    const { previous, freed, borrowed } = await savePresence(db(), actor, { day, status, ...(officeId ? { officeId } : {}) }, zone());
+    await tell.holderBack(actor, day, borrowed);
+    return { previous, freed };
+  });
 }
 
 export async function setUsualWeek(input: { days: Record<string, string | null>; deskId: string | null; lendDesk: boolean }): Promise<Result<{ applied: number }>> {
@@ -259,4 +264,41 @@ export async function setRules(input: Record<string, unknown>): Promise<Result<n
 async function dropFile(name: string): Promise<void> {
   const files = await import("@argentic/chest-sdk/files");
   await files.delete(name).catch(() => false);
+}
+
+// ---------- Visitors ----------
+
+export async function announceVisit(input: { officeId: string; day: string; at: number; name: string; company: string; host?: string | null }): Promise<Result<{ id: string; name: string; day: string; at: number }>> {
+  return act(async actor => {
+    const v = await visits.announce(db(), actor, input, zone());
+    await tell.visitAnnounced(actor, v);
+    return { id: v.id, name: v.name, day: v.day, at: v.at };
+  });
+}
+export async function visitorArrived(visitId: string): Promise<Result<{ first: boolean }>> {
+  return act(async actor => {
+    const { visit, first } = await visits.arrive(db(), actor, visitId, zone());
+    if (first) {
+      const [office] = visit.officeId ? await db()<{ name: string }[]>`select name from offices where id = ${visit.officeId}` : [];
+      await tell.visitorHere(actor, visit, office?.name ?? "");
+    }
+    return { first };
+  });
+}
+export async function visitorNotArrived(visitId: string): Promise<Result<null>> {
+  return act(async actor => { await visits.unarrive(db(), actor, visitId); return null; });
+}
+export async function cancelVisit(visitId: string): Promise<Result<null>> {
+  return act(async actor => {
+    const v = await visits.cancelVisit(db(), actor, visitId, zone());
+    await tell.visitCancelled(actor, v);
+    return null;
+  });
+}
+export async function restoreVisit(visitId: string): Promise<Result<null>> {
+  return act(async actor => {
+    const v = await visits.restoreVisit(db(), actor, visitId);
+    await tell.visitAnnounced(actor, v);
+    return null;
+  });
 }

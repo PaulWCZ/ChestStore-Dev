@@ -117,6 +117,9 @@ export const en = {
     },
   },
   week: {
+    sendEarlyHint: "Away at the end of the week? You can send it early.",
+    sendEarly: "Send it early",
+    sentNobody: "Week sent. No other manager can approve it yet: give someone the Manager role.",
     title: "My week",
     weekOf: "Week of {date}",
     previous: "Previous week",
@@ -193,6 +196,11 @@ export const en = {
     invoiced: "Invoiced",
   },
   team: {
+    yours: "Your week: another manager approves it.",
+    yoursAlone: "Your week: another manager approves it — you are the only one: give someone the Manager role.",
+    yourProject: "Your project",
+    youShort: "Your own week is short too.",
+    onlyYou: "Everyone filled last week, except you.",
     title: "Team",
     people: "Rates and usual weeks",
     toApprove: "Weeks to approve",
@@ -278,6 +286,10 @@ export const en = {
     cancel: "Cancel",
   },
   project: {
+    lead: "Lead",
+    noLead: "No lead: every manager",
+    leadGone: "Someone who is no longer a manager",
+    leadHint: "The lead hears of the budget and is asked to approve the weeks holding time on it.",
     newTitle: "New project",
     name: "Name",
     namePlaceholder: "e.g. Website redesign",
@@ -344,6 +356,9 @@ export const en = {
     olive: "Olive",
   },
   reports: {
+    found: { zero: "No note holds “{q}” in these days", one: "1 entry whose note holds “{q}”", other: "{count} entries whose note holds “{q}”" },
+    foundMany: "The {count} most recent entries whose note holds “{q}”: the CSV has them all",
+    quotes: { title: "Draft invoices in Quotes", intro: "Each project’s billable time of these days becomes a draft invoice in Quotes: one line per task and rate. The time is marked invoiced when Quotes issues the invoice.", nothing: "Nothing left to send for these days.", entries: { one: "1 entry", other: "{count} entries" }, send: "Draft invoice in Quotes", sendLabel: "Draft invoice in Quotes: {project}", sent: { one: "1 entry of {project} sent to Quotes as a draft invoice.", other: "{count} entries of {project} sent to Quotes as a draft invoice." }, recent: "Sent to Quotes", span: "{from} – {to}", waiting: "Waiting for its invoice", invoiced: "Invoiced", invoicedAs: "Invoiced: {invoice}", cancelled: "Taken back", open: "Open in Quotes", takeBack: "Take back", takeBackLabel: "Take back: {what}", takenBack: "Taken back: the time can be changed and sent again. Quotes was told." },
     title: "Reports",
     period: "Period",
     presets: {
@@ -604,6 +619,11 @@ export const en = {
     scroll: "{caption} (scrolls sideways)",
   },
   errors: {
+    self_approval: "Nobody approves their own week: another manager does.",
+    lead_invalid: "A project’s lead must be a manager of Timesheets.",
+    nothing_to_send: "No billable time left to send for this project and these days.",
+    quotes_unavailable: "Quotes can’t be told yet (your Chest does not link tools yet, or Quotes is not linked to Timesheets). Mark the time invoiced by hand instead.",
+    handoff_state: "This time was already invoiced or taken back.",
     forbidden: "Your role does not allow this.",
     not_found: "This no longer exists. The page is up to date now.",
     invalid: "Check what you wrote.",
@@ -633,4 +653,6 @@ export const en = {
     unavailable: "The Chest did not answer. Try again in a moment.",
     unknown: "Something went wrong. Try again.",
   },
+  search: { label: "Search the notes", placeholder: "Words of a note…", shortcut: "Press / to search", submit: "Search" },
+  mail: { open: "Open it: {link}", why: "You get this email because Timesheets needs something from you. The same is in the Chest’s bell.", submittedLine: "Open the week to approve it, or send it back with a word.", remindLine: "{name} asks you to fill in your week.", fridayLine: "Open Timesheets to fill in the rest, then send your week." },
 } as const;

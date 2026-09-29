@@ -46,6 +46,9 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
   const value = policy(nonce, framed ? await frameOrigins() : []);
   const forwarded = new Headers(request.headers);
   forwarded.set("Content-Security-Policy", value);
+  // The path, for the team's layout (always set here, whatever the
+  // browser sent): a member without a role sees only their own requests.
+  forwarded.set("X-Support-Path", request.nextUrl.pathname);
   const response = NextResponse.next({ request: { headers: forwarded } });
   response.headers.set("Content-Security-Policy", value);
   response.headers.set("Referrer-Policy", "same-origin");

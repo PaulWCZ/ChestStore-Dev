@@ -15,7 +15,7 @@ let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
   database = await testDatabase();
-  chest = await fakeChest({ members: everyone, schedules: [{ name: "friday", cron: "30 15 * * 5" }], timeZone: "Europe/Paris" });
+  chest = await fakeChest({ members: everyone.map(p => ({ ...p, email: p.firstName.toLowerCase().normalize("NFD").replace(/\p{Mn}/gu, "") + "@atelier.test" })), capabilities: ["members", "notifications", "mail"], mail: { domain: "atelier.test" }, schedules: [{ name: "friday", cron: "30 15 * * 5" }], timeZone: "Europe/Paris" });
 });
 after(async () => {
   await chest.close();
@@ -38,8 +38,15 @@ test("on Friday, whoever has a short week gets one item, in their language; deli
     [ines.id, "Votre semaine compte 21,5 h — compléter le reste ?", "week"],
     [tom.id, "Your week is empty — fill it in?", "week"],
   ].sort());
+  // By email too (the mail proposal), once whatever the retries.
+  assert.deepEqual(chest.outbox.map(m => [m.to[0], m.subject.replace(/\s/gu, " ")]).sort(), [
+    ["hugo@atelier.test", "Your week is empty — fill it in?"],
+    ["ines@atelier.test", "Votre semaine compte 21,5 h — compléter le reste ?"],
+    ["tom@atelier.test", "Your week is empty — fill it in?"],
+  ]);
   assert.equal(await chest.run("friday", POST, { scheduledAt }), 204);
   assert.equal(chest.notifications.length, 3);
+  assert.equal(chest.outbox.length, 3);
 });
 
 test("turned off, or a higher bar, as the manager sets it", async () => {

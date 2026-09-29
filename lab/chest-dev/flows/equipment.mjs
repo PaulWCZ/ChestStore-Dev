@@ -507,6 +507,156 @@ await step("the fields the tool proposed and its example rules read in French fo
   await english();
 });
 
+await step("privacy, as a member (Hugo): no one else's serial number, no holder of a key or badge; his own badge and serials whole", async () => {
+  await as(context, origin, "hugo");
+  await english();
+  await page.goto(origin + "/chest/items?category=6");
+  const keys = await page.locator(".lines").innerText();
+  expect(keys.includes("Access badge 015") && keys.includes("Given to someone"), "a badge is 'Given to someone'");
+  expect(!keys.includes("Inès Moreau") && !keys.includes("Léa Dubois") && !keys.includes("Sofia Rossi"), "no holder of a key or badge: " + keys.slice(0, 300));
+  expect(!keys.includes("B-015") && keys.includes("B-014"), "only his own badge's number");
+  const own = page.locator(".line", { hasText: "Access badge 014" });
+  expect((await own.innerText()).includes("You"), "his own badge says You");
+  await page.goto(origin + "/chest/items?category=1");
+  const laptops = await page.locator(".lines").innerText();
+  expect(laptops.includes("Inès Moreau"), "a laptop still says who has it (the category shows holders)");
+  expect(!laptops.includes("FVFHJ3KLQ6L4") && laptops.includes("FVFHJ3KLQ6M2"), "serials: only his own");
+  // Searching cannot find them either.
+  await page.goto(origin + "/chest/items?q=FVFHJ3KLQ6L4");
+  expect(await page.locator(".line").count() === 0, "someone else's serial finds nothing");
+  await page.goto(origin + "/chest/items?q=Moreau&category=6");
+  expect(await page.locator(".line").count() === 0, "a holder's name finds no badge");
+  const holder = new URLSearchParams({ holder: id("ines"), category: "6" });
+  await page.goto(origin + "/chest/items?" + holder);
+  expect(await page.locator(".line").count() === 0, "the With filter typed in the address finds no badge");
+  // A badge's page (what a found badge's label opens): given, to whom it does not say.
+  await page.goto(origin + "/chest/items?q=EQ-0037");
+  await page.waitForURL(/\/chest\/items\/\d+$/u);
+  const body = await page.locator("main").innerText();
+  expect(body.includes("Given to someone") && body.includes("only the equipment managers see") && !body.includes("Inès") && !body.includes("B-015"), "badge page: " + body.slice(0, 300));
+  await page.goto(origin + "/chest/items/2");
+  expect(!(await page.locator("main").innerText()).includes("FVFHJ3KLQ6L4"), "no serial on someone else's laptop");
+  await page.goto(origin + "/chest/items/3");
+  expect((await page.locator("main").innerText()).includes("FVFHJ3KLQ6M2"), "his own laptop's serial");
+});
+
+await step("a manager lets members see who holds keys and badges (off by default), then hides them again", async () => {
+  await as(context, origin, "sofia");
+  await english();
+  await page.goto(origin + "/chest/settings");
+  const row = page.locator(".cat-row", { has: page.locator("input[value='Keys and badges']") });
+  const box = row.getByRole("checkbox", { name: "Members see who holds these" });
+  expect(!(await box.isChecked()), "off by default for keys and badges");
+  const car = page.locator(".cat-row", { has: page.locator("input[value='Voitures de service']") }).getByRole("checkbox", { name: "Members see who holds these" });
+  expect(!(await car.isChecked()), "off by default for vehicles");
+  const laptop = page.locator(".cat-row", { has: page.locator("input[value='Laptops']") }).getByRole("checkbox", { name: "Members see who holds these" });
+  expect(await laptop.isChecked(), "on for laptops");
+  await box.check();
+  await page.getByText("Members now see who holds Keys and badges.").waitFor();
+  await as(context, origin, "hugo");
+  await english();
+  await page.goto(origin + "/chest/items?q=EQ-0037");
+  await page.waitForURL(/\/chest\/items\/\d+$/u);
+  expect((await page.locator("main").innerText()).includes("Inès Moreau"), "shown once allowed");
+  expect(!(await page.locator("main").innerText()).includes("B-015"), "the badge number stays hidden");
+  await as(context, origin, "sofia");
+  await english();
+  await page.goto(origin + "/chest/settings");
+  await page.locator(".cat-row", { has: page.locator("input[value='Keys and badges']") }).getByRole("checkbox", { name: "Members see who holds these" }).uncheck();
+  await page.getByText("Only managers now see who holds Keys and badges.").waitFor();
+});
+
+await step("an item's history reads newest first, strictly by time", async () => {
+  await page.goto(origin + "/chest/items/2");
+  const whens = await page.locator(".timeline .tl-when time").evaluateAll(list => list.map(t => t.getAttribute("datetime")));
+  const times = whens.map(w => Date.parse(w));
+  expect(times.length >= 4 && times.every(t => Number.isFinite(t)), "times read: " + whens.join(" | "));
+  expect(times.every((t, k) => k === 0 || t <= times[k - 1]), "newest first: " + whens.join(" | "));
+});
+
+await step("a problem under warranty: the overview says so; Claim the warranty sends it to repair with the supplier's details", async () => {
+  await page.goto(origin + "/chest");
+  const problem = page.locator(".problem", { hasText: "La batterie ne tient plus" });
+  const link = problem.getByRole("link", { name: /Under warranty until .*: claim it/u });
+  expect(await link.isVisible(), "overview says it is under warranty");
+  await link.click();
+  await page.waitForURL(/\/chest\/items\/2#problems$/u);
+  const line = await page.locator("#problems").locator("..").innerText();
+  expect(line.includes("Under warranty until") && line.includes("bought from Apple Store Business"), "on the problem: " + line.slice(0, 200));
+  await page.getByRole("button", { name: "Claim the warranty" }).click();
+  const dialog = page.locator("dialog[open]");
+  const facts = await dialog.locator(".claim-facts").innerText();
+  expect(facts.includes("Apple Store Business") && facts.includes("5 October 2023"), "supplier details: " + facts);
+  expect((await dialog.innerText()).includes("Inès Moreau holds it"), "says it comes back from Inès");
+  expect((await dialog.getByLabel("What the supplier is told").inputValue()).startsWith("Warranty claim: La batterie"), "the claim's words");
+  await dialog.getByLabel(/^Supplier’s claim number/u).fill("APPLE-CASE-7781");
+  await dialog.getByRole("button", { name: "Send to repair" }).click();
+  await page.getByText("MacBook Air 13″ M2 is in repair under warranty.").waitFor();
+  await page.waitForTimeout(800);
+  await page.reload();
+  expect((await page.locator(".holder-panel").innerText()).includes("ticket APPLE-CASE-7781"), "repair with the claim number");
+  expect((await page.locator(".timeline").innerText()).includes("Warranty claim: La batterie"), "the claim in the history");
+  expect(await page.getByRole("button", { name: "Claim the warranty" }).count() === 0, "no second claim while away");
+});
+
+await step("Intune: the overview's news, the item's facts, and the import page (a harness with Intune's settings but no way to Microsoft)", async () => {
+  await page.goto(origin + "/chest");
+  const panel = page.locator("#intune");
+  const text = await panel.innerText();
+  expect(text.includes("2 devices in Intune are not here yet") && text.includes("Lenovo ThinkPad T14 Gen 4") && text.includes("Intune: Léa Dubois"), "overview: " + text);
+  await page.goto(origin + "/chest/items/7");
+  const main = await page.locator("main").innerText();
+  expect(main.includes("Intune says Léa Dubois uses it.") && main.includes("Windows 10.0.26100.4946") && main.includes("DESKTOP-PF4KQ7Z8"), "item facts: " + main.slice(0, 500));
+  await page.goto(origin + "/chest/import");
+  const intune = page.locator("#intune");
+  if (process.env.INTUNE_CLIENT_ID) {
+    await intune.getByRole("button", { name: "Read Intune" }).click();
+    await page.locator(".error[role=alert]").waitFor({ timeout: 60000 });
+    const said = await page.locator(".error[role=alert]").innerText();
+    expect(/Microsoft did not answer|Microsoft refused/u.test(said), "the reason, in words: " + said);
+    await page.reload();
+    expect((await page.locator("#intune").innerText()).includes("failed"), "the failed read is said on the page");
+  } else {
+    expect((await intune.innerText()).includes("Not connected."), "not connected");
+  }
+});
+
+await step("phone, French, a manager: long sections fold to three lines; the search box's words fit", async () => {
+  const phone = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: "fr-FR" });
+  await phone.addCookies([{ name: "dev_member", value: id("sofia"), url: origin }, { name: "dev_locale", value: "fr", url: origin }]);
+  const p = await phone.newPage();
+  p.on("pageerror", e => problems.push("phone: " + e.message));
+  await p.goto(origin + "/chest");
+  const ending = p.locator("#ending");
+  const visible = await ending.locator("li:visible").count();
+  expect(visible === 3, "three warranty lines shown: " + visible);
+  const more = ending.locator("summary");
+  expect(/^Voir \d+ de plus$/u.test((await more.innerText()).trim()), "See N more: " + (await more.innerText()));
+  await more.click();
+  expect(await ending.locator("li:visible").count() > 3, "the rest, one tap away");
+  expect((await more.innerText()).trim() === "Voir moins", "Show fewer");
+  await more.click();
+  const height = await p.evaluate(() => document.documentElement.scrollHeight);
+  console.log("    phone overview height: " + height + " px (round 3: 3,650)");
+  expect(height < 3400, "shorter overview: " + height);
+  // No section of "Needs your attention" shows more than four lines folded.
+  const longest = await p.evaluate(() => Math.max(...[...document.querySelectorAll(".attention .panel")].map(panel =>
+    [...panel.querySelectorAll(":scope > ul.plain > li")].filter(li => li.offsetParent !== null).length)));
+  expect(longest <= 4, "at most four lines per section: " + longest);
+  expect(!(await p.evaluate(() => document.documentElement.scrollWidth > window.innerWidth)), "no horizontal scroll");
+  // The placeholder fits the box: measured with the box's own font.
+  const fits = await p.evaluate(() => {
+    const input = document.querySelector("header .ck-search input");
+    const style = getComputedStyle(input);
+    const ctx = document.createElement("canvas").getContext("2d");
+    ctx.font = `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
+    const room = input.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
+    return { text: input.placeholder, width: ctx.measureText(input.placeholder).width, room };
+  });
+  expect(fits.width <= fits.room, `placeholder “${fits.text}” ${Math.round(fits.width)} px in ${Math.round(fits.room)} px`);
+  await phone.close();
+});
+
 await step("a dialog never loses what was typed: Escape asks first; Keep editing, then Discard", async () => {
   await as(context, origin, "sofia");
   await english();

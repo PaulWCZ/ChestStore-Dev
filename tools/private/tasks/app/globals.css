@@ -338,9 +338,25 @@ table.cards th[aria-sort] button.sort .arrow { color: var(--ink); }
 .tl-links { position: absolute; top: 0; left: var(--name); pointer-events: none; z-index: 1; overflow: visible; }
 .tl-links path { fill: none; stroke: var(--ink-2); stroke-width: 1.5; }
 .tl-links path.conflict { stroke: var(--danger); stroke-width: 2; stroke-dasharray: 5 3; }
+/* A phone reads the timeline as a list of weeks (the grid shows 8 days). */
+.tl-weeks { display: none; }
 @media (max-width: 760px) {
   .timeline { padding: var(--space-3); }
-  .tl-grid { --name: 128px; }
+  .tl-scroll, .timeline .calendar-head label { display: none; }
+  .tl-weeks { display: grid; gap: var(--space-3); }
+  .tl-week { border: var(--border-width) solid var(--line-strong); border-radius: var(--radius-l); background: var(--surface); overflow: hidden; }
+  .tl-week h3 { padding: var(--space-2) var(--space-3); background: var(--surface-2); border-bottom: 1px solid var(--line); font-size: var(--text-s); }
+  .tl-week.current h3 { background: var(--accent-soft); }
+  .tl-week > p { padding: var(--space-2) var(--space-3); }
+  .tl-week-card { display: grid; gap: 2px; padding: var(--space-2) var(--space-3); min-height: 44px; }
+  .tl-week-card + .tl-week-card { border-top: 1px solid var(--line); }
+  .tl-week-card a { color: var(--ink); font-weight: var(--weight-strong); overflow-wrap: anywhere; }
+  .tl-week-card.is-done a { text-decoration: line-through; color: var(--ink-2); }
+  .tl-week-dates { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px; font-size: var(--text-xs); color: var(--ink-2); }
+  .tl-week-dates svg { width: 14px; height: 14px; }
+  .tl-week-card.late { box-shadow: inset 4px 0 0 var(--danger); }
+  .tl-week-card.late .tl-week-dates { color: var(--ink); font-weight: var(--weight-strong); }
+  .tl-week-card.late .tl-week-dates svg { color: var(--danger); }
 }
 /* "Blocked by" in the card. */
 .links { display: grid; gap: var(--space-1); }
@@ -522,16 +538,23 @@ table.cards th[aria-sort] button.sort .arrow { color: var(--ink); }
 .back svg { width: 16px; height: 16px; }
 .page-title { margin-bottom: var(--space-5); }
 .intro { margin: var(--space-2) 0 var(--space-5); }
-.sources { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: var(--space-3); }
-.source { display: grid; gap: var(--space-2); align-content: start; padding: var(--space-4); border: var(--border-width) solid var(--line-strong); border-radius: var(--radius-l); background: var(--surface); box-shadow: var(--shadow-1); }
+.sources { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr)); gap: var(--space-3); }
+/* A card never grows past its track: its button wraps instead of covering
+   the words above it or the next card (a long French label). */
+.source { min-width: 0; grid-template-rows: auto 1fr auto; display: grid; gap: var(--space-2); align-content: start; padding: var(--space-4); border: var(--border-width) solid var(--line-strong); border-radius: var(--radius-l); background: var(--surface); box-shadow: var(--shadow-1); }
 .source h2 { font-size: var(--text-l); }
 .source p { font-size: var(--text-s); color: var(--ink-2); }
-.file-input { position: relative; width: fit-content; }
+.file-input { position: relative; width: fit-content; max-width: 100%; white-space: normal; text-align: start; height: auto; }
 .file-input input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
 .file-input:has(input:focus-visible) { outline: 3px solid var(--focus); outline-offset: 2px; }
 .summary-box { display: grid; gap: var(--space-2); padding: var(--space-4); border: var(--border-width) solid var(--line-strong); border-radius: var(--radius-l); background: var(--surface-2); }
 .import-boards > li + li { padding-top: var(--space-3); border-top: 1px solid var(--line); }
 .import { gap: var(--space-5); }
+.finished .row { flex-wrap: wrap; }
+.chip.pick { cursor: pointer; white-space: normal; }
+.chip.pick input { width: 18px; height: 18px; margin: 0; accent-color: var(--ink); flex: none; }
+.chip.pick:has(input:checked) { background: var(--cat-2-soft); color: var(--cat-2-ink); }
+.chip.pick:has(input:focus-visible) { outline: 3px solid var(--focus); outline-offset: 2px; }
 .warn { font-weight: var(--weight-strong); }
 .warn::before { content: "! "; color: var(--danger); font-weight: var(--weight-strong); }
 .search-form { margin: var(--space-4) 0; }

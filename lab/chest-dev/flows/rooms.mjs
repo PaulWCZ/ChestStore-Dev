@@ -9,17 +9,35 @@ const empty = process.argv.includes("--empty");
 const { browser, context, page, origin, problems } = await open(port, empty ? "camille" : "hugo");
 
 if (empty) {
+  await step("before any office exists, a member already says where they will be (Office, Remote); the week counts them", async () => {
+    await as(context, origin, "hugo");
+    await context.addCookies([{ name: "dev_locale", value: "en", url: origin }]);
+    await page.goto(origin + "/chest");
+    const main = await page.locator("main").innerText();
+    expect(main.includes("No office yet") && main.includes("You can already say where you will be each day"), "said so: " + main.slice(0, 300));
+    expect(!main.includes("Set up the office"), "a member is not offered to set it up");
+    const card = page.locator(".day-card:not(.is-past)").first();
+    const cardId = await card.getAttribute("id");
+    await card.getByRole("radio", { name: "Office" }).click();
+    await page.waitForTimeout(1200);
+    await page.reload();
+    const again = page.locator("#" + cardId);
+    expect(await again.getByRole("radio", { name: "Office" }).getAttribute("aria-checked") === "true", "office saved without an office");
+    expect((await again.innerText()).includes("1 person at the office"), "counted: " + (await again.innerText()));
+    expect(!(await again.innerText()).includes("Choose a desk"), "no desk offered: there are none");
+    await as(context, origin, "camille");
+  });
   await step("a new company: the admin starts with an example office in one click, Undo or “Delete the example” takes it back", async () => {
     await context.addCookies([{ name: "dev_locale", value: "en", url: origin }]);
     await page.goto(origin + "/chest");
-    expect((await page.locator("h1").innerText()) === "No office yet", "empty");
+    expect(await page.getByRole("heading", { name: "No office yet" }).count() === 1, "empty");
     await page.getByRole("button", { name: "Start with an example" }).click();
     await page.waitForSelector(".ck-toast >> text=An example office is ready");
     // Undo: the example goes whole.
     await page.locator(".ck-toast", { hasText: "An example office" }).getByRole("button", { name: "Undo" }).click();
     await page.waitForSelector(".ck-toast >> text=Undone.");
     await page.reload();
-    expect((await page.locator("h1").innerText()) === "No office yet", "empty again after Undo");
+    expect(await page.getByRole("heading", { name: "No office yet" }).count() === 1, "empty again after Undo");
     await page.getByRole("button", { name: "Start with an example" }).click();
     await page.waitForSelector(".ck-toast >> text=An example office is ready");
     await page.goto(origin + "/chest/places");
@@ -94,6 +112,31 @@ await step("saying 'remote' frees the desk, with an undo", async () => {
   await page.waitForTimeout(1800);
   await page.reload();
   expect((await page.locator("#day-" + friday).innerText()).includes("Desk D-06"), "desk back");
+});
+
+const nextTuesday = iso(new Date(monday.getTime() + 8 * 864e5));
+await step("presence agrees with meetings: a guest who said nothing counts at the office; Remote while invited shows a hint, and one tap says Office", async () => {
+  // Next Tuesday: Hugo said nothing, and he is a guest of the client workshop in Atlas at 10:00.
+  await as(context, origin, "camille");
+  await page.goto(origin + "/chest");
+  expect((await page.locator("#day-" + nextTuesday + " .present").innerHTML()).includes("Hugo Bernard"), "the guest counts at the office");
+  await as(context, origin, "hugo");
+  await page.goto(origin + "/chest");
+  const card = page.locator("#day-" + nextTuesday);
+  await card.getByRole("radio", { name: "Remote" }).click();
+  await card.locator(".meeting-hint").waitFor();
+  expect(/Meeting in Atlas at 10:00: coming to the office\?/u.test(await card.locator(".meeting-hint").innerText()), "hint: " + (await card.innerText()));
+  await as(context, origin, "camille");
+  await page.goto(origin + "/chest");
+  expect(!(await page.locator("#day-" + nextTuesday + " .present").innerHTML()).includes("Hugo Bernard"), "Remote: no longer counted");
+  await as(context, origin, "hugo");
+  await page.goto(origin + "/chest");
+  await page.locator("#day-" + nextTuesday + " .meeting-hint").getByRole("button", { name: "Office" }).click();
+  await page.waitForTimeout(1200);
+  await page.reload();
+  const after = page.locator("#day-" + nextTuesday);
+  expect(await after.getByRole("radio", { name: "Office" }).getAttribute("aria-checked") === "true", "one tap: Office");
+  expect(await after.locator(".meeting-hint").count() === 0, "the hint goes");
 });
 
 await step("book a room with a title and a guest; Inès hears it in French", async () => {
@@ -242,7 +285,7 @@ await step("a member has no Places; an admin adds desks, saves the rules, export
   expect(text.includes("Rez-de-chaussée") && text.includes("Zone calme") && !text.includes("Quiet zone"), "seeded names in French");
   const area = page.locator(".area-admin", { hasText: "Zone calme" });
   const before = await area.locator(".tile").count();
-  await area.getByRole("button", { name: "Ajouter des bureaux" }).click();
+  await area.getByRole("button", { name: "Ajouter des postes" }).click();
   await page.waitForTimeout(1500);
   expect(await page.locator(".area-admin", { hasText: "Zone calme" }).locator(".tile").count() === before + 4, "4 desks added");
   const names = await page.locator(".area-admin", { hasText: "Zone calme" }).locator(".tile-name").allInnerTexts();
@@ -280,6 +323,51 @@ await step("phone width, in French: free slots per room; one tap opens the form"
   expect(w2 <= 392, "week fits: " + w2);
 });
 
+
+await step("phone: a tap on a free stretch starts at 09:00 like “Find a free room”, not at 07:00; the equipment chips wrap, none cut", async () => {
+  await as(context, origin, "hugo");
+  await context.addCookies([{ name: "dev_locale", value: "en", url: origin }]);
+  for (const width of [390, 461]) {
+    await page.setViewportSize({ width, height: 844 });
+    await page.goto(origin + `/chest/rooms?day=${friday}`);
+    const right = await page.locator(".finder .chip").evaluateAll(els => els.map(e => e.getBoundingClientRect().right));
+    expect(right.length >= 3 && right.every(r => r <= width - 8), `every chip inside ${width} px: ` + right.map(Math.round).join(","));
+  }
+  const chip = page.locator(".room-card", { hasText: "Bora" }).locator(".slot-chip").first();
+  expect((await chip.innerText()).startsWith("07:00"), "a stretch from 07:00: " + (await chip.innerText()));
+  await chip.click();
+  const dialog = page.locator("dialog[open]");
+  await dialog.waitFor();
+  expect(await field(dialog, "From").inputValue() === "540" && await field(dialog, "To").inputValue() === "600", "09:00–10:00, not 07:00: " + await field(dialog, "From").inputValue());
+  await page.keyboard.press("Escape");
+  await page.waitForTimeout(200);
+  // "Find a free room" at 14:00: a tap on a stretch holding 14:00 starts there.
+  await field(page.locator(".finder"), "At").selectOption({ label: "14:00" });
+  await page.locator(".room-card", { hasText: "Bora" }).locator(".slot-chip").first().click();
+  await dialog.waitFor();
+  expect(await field(dialog, "From").inputValue() === "840", "the time the finder asks for: " + await field(dialog, "From").inputValue());
+  await page.keyboard.press("Escape");
+  await page.setViewportSize({ width: 1280, height: 860 });
+});
+
+await step("keyboard: “Go to the desks” comes before the day strip and the filters; the next Tab is a desk", async () => {
+  await page.goto(origin + `/chest/desks?day=${friday}`);
+  let stops = 0;
+  let desk = false;
+  for (; stops < 12; stops++) {
+    await page.keyboard.press("Tab");
+    const text = await page.evaluate(() => document.activeElement?.textContent?.trim() ?? "");
+    if (text === "Go to the desks") {
+      await page.keyboard.press("Enter");
+      await page.keyboard.press("Tab");
+      desk = await page.evaluate(() => Boolean(document.activeElement?.closest(".tile")));
+      break;
+    }
+  }
+  expect(desk && stops < 10, `the skip link at stop ${stops + 1}, then a desk: ${desk}`);
+  // Back to each member's own language for the steps that follow.
+  await context.clearCookies({ name: "dev_locale" });
+});
 
 await step("a day beyond the booking window: desks shown as not open yet, with the day it opens", async () => {
   await as(context, origin, "hugo");
@@ -468,6 +556,106 @@ await step("an admin books a room: room and time first, the day in a date field,
   expect(await dialog.getByRole("combobox", { name: "For" }).count() === 1, "the picker, when asked");
   await page.keyboard.press("Escape");
   await dialog.getByRole("button", { name: "Discard" }).click().catch(() => {});
+});
+
+await step("an Outlook export: “Martin, Camille” and a bare address find the people; the preview says how many bookings stay in the admin's name", async () => {
+  await as(context, origin, "camille");
+  await context.addCookies([{ name: "dev_locale", value: "en", url: origin }]);
+  await page.setViewportSize({ width: 1280, height: 860 });
+  await page.goto(origin + "/chest/places");
+  const stamp = (d, t) => d.replaceAll("-", "") + "T" + t + "00";
+  const nextFriday = iso(new Date(monday.getTime() + 11 * 864e5));
+  const ics = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:Microsoft Exchange Server 2010", "X-WR-CALNAME:Cabin",
+    "BEGIN:VEVENT", `DTSTART;TZID=Romance Standard Time:${stamp(nextFriday, "0800")}`, `DTEND;TZID=Romance Standard Time:${stamp(nextFriday, "0830")}`, "UID:ex-1", "SUMMARY:Board prep",
+    'ORGANIZER;CN="Martin, Camille":mailto:camille.martin@atelier.example', 'ATTENDEE;CN="Rossi, Sofia (Office)":mailto:s.rossi@atelier.example', "ATTENDEE:mailto:hugo@example.test", "END:VEVENT",
+    "BEGIN:VEVENT", `DTSTART;TZID=Romance Standard Time:${stamp(nextFriday, "0900")}`, `DTEND;TZID=Romance Standard Time:${stamp(nextFriday, "0930")}`, "UID:ex-2", "SUMMARY:Supplier",
+    "ORGANIZER:mailto:ines@example.test", "END:VEVENT",
+    "BEGIN:VEVENT", `DTSTART;TZID=Romance Standard Time:${stamp(nextFriday, "1000")}`, `DTEND;TZID=Romance Standard Time:${stamp(nextFriday, "1030")}`, "UID:ex-3", "SUMMARY:Auditor",
+    'ORGANIZER;CN="Durand, Paul":mailto:paul@auditor.example', "END:VEVENT",
+    "END:VCALENDAR"].join("\r\n");
+  const panel = page.locator("section", { has: page.locator("#calendar-title") });
+  await panel.locator("input[type=file]").setInputFiles({ name: "Cabin.ics", mimeType: "text/calendar", buffer: Buffer.from(ics) });
+  const report = panel.locator(".import-report");
+  await report.waitFor();
+  const text = await report.innerText();
+  expect(/3 bookings to add to Cabin/u.test(text), "preview: " + text);
+  expect(/1 of them will be in your name: its organiser is not found in Rooms\./u.test(text), "the count before import: " + text);
+  expect(/Auditor.*in your name: Durand, Paul/u.test(text), "the line says whom: " + text);
+  expect(!/Board prep[^\n]*in your name/u.test(text) && !/Supplier[^\n]*in your name/u.test(text), "“Martin, Camille” and ines@ matched: " + text);
+  await report.getByRole("button", { name: "Import 3 bookings" }).click();
+  await page.waitForSelector(".ck-toast >> text=3 bookings imported into Cabin.");
+  await page.goto(origin + `/chest/rooms?day=${nextFriday}`);
+  await page.locator(".block", { hasText: "Supplier" }).click();
+  expect((await page.locator("dialog[open]").innerText()).includes("Inès Moreau"), "Inès organises it (matched by address)");
+  await page.keyboard.press("Escape");
+});
+
+await step("visitors: Hugo announces his visitor, nobody else but the reception sees it; the office manager marks the arrival and Hugo hears it", async () => {
+  await as(context, origin, "hugo");
+  await context.addCookies([{ name: "dev_locale", value: "en", url: origin }]);
+  await page.goto(origin + "/chest/visitors");
+  expect((await page.locator("main").innerText()).includes("Nicolas Girard"), "his visitor of the sample");
+  await page.getByRole("button", { name: "Announce a visitor" }).click();
+  const dialog = page.locator("dialog[open]");
+  await dialog.getByLabel("Their name").fill("Paul Durand");
+  await dialog.getByLabel("Company (optional)").fill("Client SA");
+  expect(await dialog.getByRole("combobox", { name: "Coming to see" }).count() === 0, "a member is the host: no picker");
+  await dialog.getByRole("button", { name: "Announce", exact: true }).click();
+  await page.waitForSelector(".ck-toast >> text=Visit of Paul Durand announced");
+  expect(await page.locator(".visit-row", { hasText: "Paul Durand" }).count() === 1, "listed");
+  await as(context, origin, "lea");
+  await page.goto(origin + "/chest/visitors");
+  const lea = await page.locator("main").innerText();
+  expect(!lea.includes("Paul Durand") && !lea.includes("Nicolas Girard"), "another member sees no one else's visitors");
+  // Sofia is the office manager: every visitor, no Places.
+  await as(context, origin, "sofia");
+  await page.goto(origin + "/chest/visitors");
+  expect(await page.getByRole("link", { name: "Places" }).count() === 0, "no Places for the office manager");
+  const all = await page.locator("main").innerText();
+  expect(all.includes("Paul Durand") && all.includes("Emma Schmitt") && all.includes("Nicolas Girard"), "the reception sees everyone's: " + all.slice(0, 300));
+  await page.locator(".visit-row", { hasText: "Paul Durand" }).getByRole("button", { name: "Mark arrived" }).click();
+  await page.waitForSelector(".ck-toast >> text=Paul Durand is here: message sent to Hugo Bernard.");
+  await page.waitForTimeout(600);
+  expect(/Here since \d\d:\d\d/iu.test(await page.locator(".visit-row", { hasText: "Paul Durand" }).innerText()), "marked");
+  const dev = await (await page.request.get(origin + "/_dev")).text();
+  expect(dev.includes("Paul Durand (Client SA) is here to see you"), "Hugo told in the bell");
+  // The office manager books for someone else, like an admin.
+  await page.goto(origin + `/chest/rooms?day=${thursday}`);
+  await page.getByRole("button", { name: "Book a room" }).click();
+  expect(await page.locator("dialog[open]").getByRole("button", { name: "Book it for someone else" }).count() === 1, "book for someone else");
+  await page.keyboard.press("Escape");
+});
+
+await step("a desk's holder comes back on a day it was lent: whoever borrowed it hears it, and the holder is told they know", async () => {
+  const nextWednesday = iso(new Date(monday.getTime() + 9 * 864e5));
+  await as(context, origin, "sofia");
+  await page.goto(origin + "/chest");
+  await page.locator("#day-" + nextWednesday).getByRole("radio", { name: "Remote" }).click();
+  await page.waitForTimeout(1200);
+  await as(context, origin, "ines");
+  await page.goto(origin + `/chest/desks?day=${nextWednesday}`);
+  await page.getByRole("button", { name: /^D-12, Sofia Rossi’s desk, free that day\. Book it\./u }).click();
+  await page.waitForSelector(".ck-toast");
+  await as(context, origin, "sofia");
+  await page.goto(origin + "/chest");
+  await page.locator("#day-" + nextWednesday).getByRole("radio", { name: "Office" }).click();
+  await page.waitForTimeout(1500);
+  await page.reload();
+  expect((await page.locator("#day-" + nextWednesday).innerText()).includes("Inès Moreau knows you are coming"), "Sofia: " + (await page.locator("#day-" + nextWednesday).innerText()));
+  const dev = await (await page.request.get(origin + "/_dev")).text();
+  expect(dev.includes("Sofia Rossi vient au bureau le"), "Inès told, in French");
+});
+
+await step("French words: a desk is a « poste » everywhere, the office stays « au bureau »", async () => {
+  await as(context, origin, "camille");
+  await context.addCookies([{ name: "dev_locale", value: "fr", url: origin }]);
+  await page.goto(origin + "/chest");
+  const week = await page.locator("main").innerText();
+  expect(/Poste D-01/u.test(week) && !/Bureau D-\d/u.test(week), "Poste D-01 on My week");
+  expect(await page.getByRole("link", { name: "Postes" }).count() === 1, "the Desks tab reads Postes");
+  await page.goto(origin + "/chest/rooms");
+  expect((await page.locator("h1").innerText()) === "Salles de réunion", "the title is not the button's words");
+  await context.addCookies([{ name: "dev_locale", value: "en", url: origin }]);
 });
 
 await step("a phone says to tap, not to drag", async () => {

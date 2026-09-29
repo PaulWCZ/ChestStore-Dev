@@ -54,6 +54,26 @@ await step("a member cannot reach HR's pages nor edit others", async () => {
   expect(edit.status() === 404, "edit " + edit.status());
 });
 
+await step("HR's date field (Medical visit) is HR's and the person's only: a colleague never sees it, not even through the search", async () => {
+  // Hugo, a member, on Nora's profile: no Medical visit.
+  await page.goto(origin + "/chest/people/" + id("nora"));
+  expect(!(await page.locator("main").innerText()).includes("Medical visit"), "a colleague sees Nora's medical visit");
+  // Its value (a day twenty days ahead) finds nobody for him.
+  const visit = new Date(Date.now() + 20 * 864e5).toISOString().slice(0, 10);
+  await page.goto(origin + "/chest");
+  await page.getByPlaceholder("A name, a job, a topic…").fill(visit);
+  expect((await cards()).length === 0, "the search leaks it: " + (await cards()).join("|"));
+  // Nora sees her own, marked as HR's and hers only; HR sees it.
+  await as(context, origin, "nora");
+  await page.goto(origin + "/chest/people/" + id("nora"));
+  const mine = page.locator(".extras div", { hasText: "Medical visit" });
+  expect(await mine.count() === 1 && (await mine.locator(".seen-lock").count()) === 1, "Nora reads her own, marked private");
+  await as(context, origin, "camille");
+  await page.goto(origin + "/chest/people/" + id("nora"));
+  expect((await page.locator("main").innerText()).includes("Medical visit"), "HR reads it");
+  await as(context, origin, "hugo");
+});
+
 await step("the newcomer fills in her profile: phone, topics, birthday", async () => {
   await as(context, origin, "nora");
   await page.goto(origin + "/chest/people/" + id("nora") + "/edit");
@@ -323,6 +343,25 @@ await step("HR edits as a table: a cell saves on leaving it, Undo puts it back; 
   expect(extras.includes("T-shirt") && extras.includes("15 December 2026") && extras.includes("L"), "shown on the profile: " + extras);
 });
 
+await step("a new date field is HR's and the person's by default; HR opens one to everyone from the table", async () => {
+  await page.goto(origin + "/chest/table");
+  expect((await page.getByLabel("Who sees Badge expires").inputValue()) === "private", "a date field starts private");
+  expect((await page.getByLabel("Who sees T-shirt").inputValue()) === "everyone", "a text field starts seen by everyone");
+  await as(context, origin, "hugo");
+  await page.goto(origin + "/chest/people/" + id("tom"));
+  let extras = await page.locator("main").innerText();
+  expect(!extras.includes("Badge expires") && extras.includes("T-shirt"), "Hugo sees the T-shirt, not the badge: " + extras.slice(0, 200));
+  await as(context, origin, "camille");
+  await page.goto(origin + "/chest/table");
+  await page.getByLabel("Who sees Badge expires").selectOption("everyone");
+  await page.locator(".ck-toast", { hasText: "Saved." }).last().waitFor();
+  await as(context, origin, "hugo");
+  await page.goto(origin + "/chest/people/" + id("tom"));
+  extras = await page.locator("main").innerText();
+  expect(extras.includes("Badge expires") && extras.includes("15 December 2026"), "opened to everyone");
+  await as(context, origin, "camille");
+});
+
 await step("the register never leaves anyone out silently: Hugo, without a record, is named on screen, in print and in the CSV; Numbers count the same people", async () => {
   await page.goto(origin + "/chest/records/register");
   const banner = await page.locator(".banner.warn", { hasText: "missing from this register" }).innerText();
@@ -383,13 +422,129 @@ await step("a record is its person's to read, and nobody else's (not even their 
   await page.getByRole("link", { name: "My HR record" }).click();
   await page.waitForURL(/\/chest\/records\/\d+$/u);
   const text = await page.locator("main").innerText();
-  expect(text.includes("Only HR can change it") && text.includes("Française et italienne") && await page.locator("form").count() === 0, "read-only");
+  expect(text.includes("Only HR changes it") && text.includes("Française et italienne") && await page.locator("form").count() === 0, "read-only");
   await as(context, origin, "ines");
   const manager = await page.goto(noraRecord);
   expect(manager.status() === 404, "manager sees nothing: " + manager.status());
   const list = await page.goto(origin + "/chest/records");
   expect(list.status() === 404, "list is HR's");
   await as(context, origin, "camille");
+});
+
+await step("a record keeps the employee number, the work permit's end and the days worked; the permit is 'coming up' 60 days ahead", async () => {
+  await page.goto(origin + "/chest/records");
+  const soon = page.locator(".moment-list li", { hasText: "DIALLO Aminata" }).filter({ hasText: "Work permit" });
+  expect(await soon.count() === 1 && (await soon.innerText()).includes("Work permit runs out"), "permit coming up: " + (await page.locator("main").innerText()).slice(0, 300));
+  await soon.getByRole("link").click();
+  await page.waitForURL(/\/chest\/records\/\d+$/u);
+  expect((await page.getByLabel("Employee number").inputValue()) === "0017", "matricule");
+  expect((await page.getByLabel("Work permit valid until").inputValue()) !== "", "permit end");
+  const days = page.locator(".week-days");
+  expect(await days.getByLabel("Mon").isChecked() && await days.getByLabel("Wed").isChecked() && !(await days.getByLabel("Thu").isChecked()), "Mon–Wed worked");
+  // Two records never share a number.
+  await page.getByLabel("Employee number").fill("0019");
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  expect((await page.locator(".error[role=alert]").innerText()).includes("already has this employee number"), "number taken said");
+});
+
+await step("People tells Leave what a record says of Tom: his number, first day and days worked (events between tools)", async () => {
+  await page.goto(origin + "/chest/people/" + id("tom"));
+  await page.getByRole("link", { name: "HR record" }).click();
+  await page.waitForURL(/\/chest\/records\/\d+$/u);
+  await page.getByLabel("Employee number").fill("T-0019");
+  await page.locator(".week-days").getByLabel("Fri").check();
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await page.locator(".ck-toast", { hasText: "Record saved." }).waitFor();
+  await page.goto(origin + "/_dev");
+  const told = await page.locator("li", { has: page.locator("code", { hasText: "people.record" }) }).allInnerTexts();
+  expect(told.some(x => x.includes(id("tom")) && x.includes("T-0019") && x.includes("[1,2,3,4,5]")), "people.record told: " + told.join(" | "));
+});
+
+await step("HR imports HR records from Lucca's export: the plan, a column left out named, a new record for someone without the Chest", async () => {
+  const file = tmp + "/lucca-records.csv";
+  writeFileSync(file, "Matricule;Nom;Prénom;Date d'entrée;Type de contrat;Nationalité;Mutuelle\n0031;GARNIER;Lucie;02/11/2026;CDI;Française;Harmonie\n0024;Petit;Nora;;;Française et italienne;\n");
+  await page.goto(origin + "/chest/records");
+  await page.getByRole("link", { name: "Import", exact: true }).click();
+  await page.waitForURL(/\/chest\/records\/import$/u);
+  await page.locator("input[type=file]").setInputFiles(file);
+  await page.waitForSelector(".plan table");
+  const plan = await page.locator(".plan table").innerText();
+  expect(plan.includes("New record · not in the Chest") && plan.includes("GARNIER Lucie") && plan.includes("Updates their record"), "plan: " + plan);
+  expect((await page.locator(".banner.warn", { hasText: "left out" }).innerText()).includes("Mutuelle"), "Mutuelle named");
+  await page.getByRole("button", { name: "Import 2 records" }).click();
+  await page.waitForURL(/\/chest\/records$/u);
+  expect((await page.locator(".journey-card", { hasText: "GARNIER Lucie" }).innerText()).includes("Not in the Chest"), "Lucie's record, not in the Chest");
+});
+
+await step("a letter from a template: HR prints Nora's certificate of employment; what the record lacks is said; the journal notes it", async () => {
+  await page.goto(noraRecord);
+  await page.locator("section", { hasText: "Print a letter" }).getByRole("link", { name: "Certificate of employment" }).click();
+  await page.waitForURL(/\/letters\/\d+$/u);
+  const sheet = await page.locator(".letter-sheet").innerText();
+  expect(sheet.startsWith("CERTIFICATE OF EMPLOYMENT") && sheet.includes("PETIT Nora") && sheet.includes("Camille Martin"), "filled: " + sheet.slice(0, 200));
+  expect((await page.locator(".banner.warn").innerText()).includes("Last day"), "her last day is missing, and said");
+  expect(await page.getByRole("button", { name: "Print or save as PDF" }).isVisible(), "print");
+  await page.emulateMedia({ media: "print" });
+  expect(!(await page.locator(".banner.warn").isVisible()), "the missing note is not printed");
+  await page.emulateMedia({ media: "screen" });
+  await page.goto(noraRecord);
+  expect((await page.locator(".journal").innerText()).includes("Printed a letter (Certificate of employment)"), "journal");
+});
+
+await step("HR rewords a letter once (the company's address); deleting one has Undo", async () => {
+  await page.goto(origin + "/chest/records/letters");
+  await page.getByRole("button", { name: "Edit Certificate of employment" }).click();
+  const body = page.getByLabel("Text", { exact: true });
+  await body.fill((await body.inputValue()).replace("[Company address]", "12 rue des Tanneurs, 69007 Lyon"));
+  await page.getByRole("button", { name: "Save" }).click();
+  await page.locator(".ck-toast", { hasText: "Letter saved." }).waitFor();
+  await page.getByRole("button", { name: "Delete Employment letter" }).click();
+  await page.locator(".ck-toast", { hasText: "Letter deleted." }).locator(".ck-toast-undo").click();
+  await page.locator(".ck-toast", { hasText: "Undone." }).waitFor();
+  await page.reload();
+  expect(await page.locator(".letter-card", { hasText: "Employment letter" }).count() === 1, "back");
+  await page.goto(noraRecord);
+  await page.locator("section", { hasText: "Print a letter" }).getByRole("link", { name: "Certificate of employment" }).click();
+  expect((await page.locator(".letter-sheet").innerText()).includes("12 rue des Tanneurs, 69007 Lyon"), "the address is in every letter now");
+});
+
+await step("Nora asks HR to change her address from her record; HR accepts it; Inès's asked change is declined with a word", async () => {
+  await as(context, origin, "nora");
+  await page.goto(noraRecord);
+  await page.getByRole("button", { name: "Request a change" }).click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByLabel("Home address").fill("8 quai Rambaud\n69002 Lyon");
+  await dialog.getByLabel("A word for HR (optional)").fill("I moved on the 1st.");
+  await dialog.getByRole("button", { name: "Send to HR" }).click();
+  await page.locator(".ck-toast", { hasText: "Sent to HR." }).waitFor();
+  expect((await page.locator(".change-waiting").innerText()).includes("8 quai Rambaud"), "waiting, with what was asked");
+  await as(context, origin, "camille");
+  await page.goto(origin + "/chest/records");
+  const asked = page.locator("section", { hasText: "Changes asked" });
+  expect((await asked.innerText()).includes("Nora Petit") && (await asked.innerText()).includes("Inès Moreau"), "HR sees both: " + (await asked.innerText()));
+  await asked.getByRole("link", { name: /Nora Petit/u }).click();
+  await page.waitForURL(/\/chest\/records\/\d+$/u);
+  await page.getByRole("button", { name: "Accept and update the record" }).click();
+  await page.locator(".ck-toast", { hasText: "Record updated." }).waitFor();
+  await page.reload();
+  expect((await page.getByLabel("Home address").inputValue()).startsWith("8 quai Rambaud"), "the record changed");
+  expect((await page.locator(".journal").innerText()).includes("Made the change asked: Home address"), "journal names the field");
+  await page.goto(origin + "/chest/records");
+  await page.locator("section", { hasText: "Changes asked" }).getByRole("link", { name: /Inès Moreau/u }).click();
+  await page.getByLabel("A word if you decline (optional)").fill("Envoyez-moi le nouveau numéro par écrit.");
+  await page.getByRole("button", { name: "Decline", exact: true }).click();
+  await page.locator(".ck-toast", { hasText: "Declined." }).waitFor();
+  await page.reload();
+  expect(await page.locator(".change-asked").count() === 0, "answered");
+  await as(context, origin, "nora");
+  await page.goto(noraRecord);
+  expect(await page.locator(".change-waiting").count() === 0 && (await page.locator("main").innerText()).includes("8 quai Rambaud"), "Nora reads her new address");
+  await as(context, origin, "camille");
+});
+
+await step("Numbers: interns are left out of the turnover, and the page says so", async () => {
+  await page.goto(origin + "/chest/numbers");
+  expect((await page.locator("main").innerText()).includes("Interns are left out"), "said");
 });
 
 async function deliver(type, data) {
@@ -489,7 +644,7 @@ await step("a manager leaves: her report keeps his place under her card, marked;
 
 await step("phone width: no sideways scroll; the org chart is a list", async () => {
   await page.setViewportSize({ width: 390, height: 844 });
-  for (const path of ["/chest", "/chest/chart", "/chest/todo", "/chest/checklists", "/chest/people/" + id("ines"), "/chest/records", "/chest/records/register", "/chest/numbers", noraRecord.replace(origin, "")]) {
+  for (const path of ["/chest", "/chest/chart", "/chest/todo", "/chest/checklists", "/chest/people/" + id("ines"), "/chest/records", "/chest/records/register", "/chest/numbers", noraRecord.replace(origin, ""), "/chest/records/import", "/chest/records/letters", noraRecord.replace(origin, "") + "/letters/1"]) {
     await page.goto(origin + path);
     const width = await page.evaluate(() => document.documentElement.scrollWidth);
     expect(width <= 392, path + " overflows: " + width);

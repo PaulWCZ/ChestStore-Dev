@@ -23,7 +23,7 @@ export default async function MembersLayout({ children }: { children: ReactNode 
         brand={<a href="/chest"><BrandMark logo={look.logo}><Mark /></BrandMark><span>{t.meta.name}</span></a>}
         member={{ name: member.name, role: role ? t.roles[role] : null, photo: member.photo }}
         search={role ? t.searchBox : null}
-        write={can(member, "publish") ? t.shell.write : null}
+        write={can(member, "publish") ? { label: t.shell.write, href: "/chest/new" } : role ? { label: t.shell.propose, href: "/chest/propose" } : null}
         labels={{ skip: t.shell.skip, nav: t.shell.sections }}
       >
         {role ? children : <div className="narrow"><NoAccess labels={{ noAccessTitle: t.noAccess.title, noAccessBody: t.noAccess.body }} /></div>}

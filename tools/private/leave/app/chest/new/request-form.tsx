@@ -73,7 +73,12 @@ export function RequestForm(props: {
   const holidaysIn = valid && type && counting !== "calendar" ? [...daysOffFor(rules, span.start, span.end)].filter(([d]) => works(d, { daysOff: new Set(), workDays: props.workDays }) || (weekday(d) === 6 && counting === "ouvrables")) : [];
   // What is left after, counting the other requests still waiting.
   const after = type?.left ? leftIfApproved(type.left) - days : null;
-  const blocked = after !== null && after < 0 && days > 0 && !type!.overdraw;
+  // Below zero: refused for a kind that may not go there — unless HR (or
+  // the approver) records it for someone: an advance they decided.
+  const blocked = after !== null && after < 0 && days > 0 && !type!.overdraw && !forSomeone;
+  // A date the field refused is not what the cost would count: nothing is
+  // counted until it is fixed (the field says why).
+  const counted = valid && !refused;
   const legal = props.events.find(e => e.key === event);
   const needsEvent = type?.key === "family";
 
@@ -175,13 +180,14 @@ export function RequestForm(props: {
 
       <div className="quote" aria-live="polite">
         <span className="quote-label">{t.form.costs}</span>
-        <strong className="quote-days">{valid ? plural(t.units.days, days, locale) : "–"}</strong>
-        {after !== null && valid && days > 0 && <span className="quote-after">{format(type!.left!.pending > 0 ? t.form.afterWaiting : t.form.after, { left: formatDays(after, locale) })}</span>}
-        {after !== null && after < 0 && days > 0 && <p className="quote-warn">{format(blocked ? t.form.notEnough : t.form.below, { days: formatDays(-after, locale) })}</p>}
-        {legal && valid && legal.days < days && <p className="quote-warn">{plural(t.form.eventMore, legal.days, locale)}</p>}
-        {valid && days === 0 && <p className="quote-warn">{t.errors.no_days}</p>}
-        {!valid && <p className="quote-warn">{t.errors.bad_dates}</p>}
-        {holidaysIn.map(([d, key]) => (
+        <strong className="quote-days">{counted ? plural(t.units.days, days, locale) : "–"}</strong>
+        {after !== null && counted && days > 0 && <span className="quote-after">{format(type!.left!.pending > 0 ? t.form.afterWaiting : t.form.after, { left: formatDays(after, locale) })}</span>}
+        {counted && after !== null && after < 0 && days > 0 && <p className="quote-warn">{format(blocked ? t.form.notEnough : !type!.overdraw && forSomeone ? t.form.advance : t.form.below, { days: formatDays(-after, locale) })}</p>}
+        {legal && counted && legal.days < days && <p className="quote-warn">{plural(t.form.eventMore, legal.days, locale)}</p>}
+        {counted && days === 0 && <p className="quote-warn">{t.errors.no_days}</p>}
+        {refused && <p className="quote-warn">{t.form.fixDates}</p>}
+        {!refused && !valid && <p className="quote-warn">{t.errors.bad_dates}</p>}
+        {counted && holidaysIn.map(([d, key]) => (
           <p key={d} className="quote-hint">{format(t.form.holidayIncluded, { day: formatDay(d, locale), name: t.holidays[key] })}</p>
         ))}
         {counting === "calendar" ? <p className="quote-hint">{t.form.calendarDays}</p> : counting === "worked" ? <p className="quote-hint">{t.form.workedDays}</p> : rules.counting === "ouvrables" ? <p className="quote-hint">{t.form.saturdays}</p> : null}

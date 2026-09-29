@@ -7,7 +7,7 @@ what must not break.
 
 | Path | What it is |
 |---|---|
-| `chest.json`, `chest.proposals.json` | Manifest (roles `admin`, `host`; public part) and the proposals it uses (`mail`, `schedules`) |
+| `chest.json`, `chest.proposals.json` | Manifest (roles `admin`, `host`; public part) and the proposals it uses (`mail`, `schedules`, `calendar`, `emits`, `receives`) |
 | `lib/access.ts` | Who may do what |
 | `lib/model.ts` | Bounds, slugs, email and phone checks, colours, kinds — pure |
 | `lib/zone.ts` | Wall-clock time in a time zone and back (DST gaps and overlaps) — pure, tested |
@@ -19,9 +19,10 @@ what must not break.
 | `lib/ical.ts`, `lib/windows-zones.ts` | Reading a calendar for its busy times only (RRULE, EXDATE, RECURRENCE-ID, whole days, TZID, VTIMEZONE) — pure, tested |
 | `lib/calendars.ts` | The hosts' other calendars: allowed hosts (= `chest.json` `network`), fetching with limits, keeping busy spans, schedule and lazy refresh |
 | `lib/publish.ts` | Each booking in the host's Chest calendar (Proposal `calendar`) |
+| `lib/share.ts`, `lib/busy-snapshot.ts` | Events between tools (README "With the other tools"): `booking.busy` (a host's own busy times, only when changed: `shared_busy`), `booking.confirmed` / `booking.cancelled` for Clients (`changed`), `hiring.busy` heard (`takeBusy` → `told_busy`, `told_spans`); the snapshot's shape, pure and the same file in Hiring |
 | `lib/import.ts` | Calendly's scheduled-events CSV |
 | `lib/embed.ts` | The public pages' `frame-ancestors` from the websites an administrator allowed |
-| `lib/zones.ts`, `components/zone-select.tsx` | The time-zone list (cities, offsets, regions), written on the server |
+| `lib/zones.ts`, `components/zone-select.tsx` | The time-zone list (cities in the reader's language from the catalogue's `zones.cities`, offsets, regions), written on the server |
 | `lib/mailer.ts`, `lib/guests.ts` | Emails to guests through the Chest's mail, falling back to the page |
 | `lib/tell.ts` | The host's bell |
 | `lib/lifecycle.ts` | Members leaving or erased |
@@ -68,9 +69,20 @@ npm ci && npm test && npm run build   # all three must pass
   the guarantee; the slot check before it is for a kind answer. Any new
   way to make or move a booking must write `blocked` (buffers included)
   and turn the database's refusal (`23P01`) into `taken`.
-- **Busy time** comes from four places — confirmed bookings (the
-  constraint), `blocks`, `busy` (other calendars) and the day's limits —
-  all read by `busyOf`; a new source goes there, never into the page.
+- **Busy time** comes from five places — confirmed bookings (the
+  constraint), `blocks`, `busy` (other calendars), `told_spans` (another
+  tool: Hiring's interviews) and the day's limits — all read by `busyOf`;
+  a new source goes there, never into the page. The agenda's grey rows
+  (`busyElsewhere`) show `busy` and `told_spans` within the hours.
+- **Events between tools**: every new way to make, move or cancel a
+  booking, block a time or read a calendar calls `share.changed` or
+  `share.shareBusy` after it. `booking.busy` carries times only and only
+  the host's own (`ownBusy`): never what another tool told Booking (no
+  echo). `booking.confirmed` never carries the note, the answers or the
+  guest's link. Change a payload only with a new `v`.
+- **One type, one name on the team's screens**: show a booking's type
+  with `typeNames` / `titlesOf` (the reader's language); `booking.title`
+  is what the guest read, for their emails only.
 - **Other calendars**: never store a title or anything but spans; never
   fetch a host outside `calendarHosts` (a test keeps it equal to
   `chest.json` `network`); never show a calendar's address again.

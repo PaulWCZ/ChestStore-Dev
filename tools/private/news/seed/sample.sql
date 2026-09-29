@@ -130,3 +130,16 @@ insert into post_views (post_id, fingerprint, hour)
   select p.id, md5(random()::text), date_trunc('hour', p.publish_at) + interval '1 hour'
   from posts p cross join generate_series(1, 6) n
   where p.id <= 6 and n <= case p.id when 6 then 3 when 5 then 5 else 6 end;
+
+-- Posts from everyone (migrations/0006): Hugo's shout-out to Léa, which
+-- Sofia approved; a piece of news Léa proposed, waiting for a publisher.
+insert into posts (kind, title, body, locale, author, publish_at, created_at, announced_at, welcome, approved_by) values
+  ('shoutout', 'Thank you, Léa!',
+   E'Léa stayed late on Friday to finish the plans for the Villeurbanne site, so the client had them on Monday morning. Thank you!',
+   'en', 'mbr_hugoaaaaaaaaaaaaaaaaaaaaaa', pg_temp.at(2, '12:10'), pg_temp.at(2, '11:40'), pg_temp.at(2, '12:10'), 'mbr_leaaaaaaaaaaaaaaaaaaaaaaaa', 'mbr_sofiaaaaaaaaaaaaaaaaaaaaaa');
+insert into reactions (post_id, member, emoji, at)
+  select id, 'mbr_inesaaaaaaaaaaaaaaaaaaaaaa', 'clap', pg_temp.at(2, '13:00') from posts where kind = 'shoutout';
+insert into proposals (kind, title, body, locale, author, created_at) values
+  ('info', 'Le chantier de Villeurbanne est livré',
+   E'Les derniers luminaires sont posés depuis ce matin. Le client organise une visite jeudi : qui veut venir ?',
+   'fr', 'mbr_leaaaaaaaaaaaaaaaaaaaaaaaa', now() - interval '3 hours');

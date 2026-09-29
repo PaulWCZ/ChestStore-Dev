@@ -1,6 +1,6 @@
 import { BrandMark, NoAccess, Toasts } from "@argentic/chest-ui/components";
 import type { ReactNode } from "react";
-import { Building, Desk, Door, People, Week } from "../../components/icons.tsx";
+import { Badge, Building, Desk, Door, People, Week } from "../../components/icons.tsx";
 import { Mark } from "../../components/mark.tsx";
 import { Shell } from "../../components/shell.tsx";
 import { can, roleOf } from "../../lib/access.ts";
@@ -23,6 +23,7 @@ export default async function MembersLayout({ children }: { children: ReactNode 
         { href: "/chest/desks", label: t.shell.desks, icon: <Desk /> },
         { href: "/chest/rooms", label: t.shell.rooms, icon: <Door /> },
         { href: "/chest/people", label: t.shell.people, icon: <People /> },
+        { href: "/chest/visitors", label: t.shell.visitors, icon: <Badge /> },
         ...(can(member, "places.manage") ? [{ href: "/chest/places", label: t.shell.places, icon: <Building /> }] : []),
       ]
     : [];

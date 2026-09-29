@@ -1,13 +1,15 @@
 import { EmptyState } from "@argentic/chest-ui/components";
 import Link from "next/link";
+import { after } from "next/server";
 import { AutoRefresh } from "../../components/auto-refresh.tsx";
-import { Grid } from "../../components/icons.tsx";
+import { Calendar, Grid } from "../../components/icons.tsx";
 import { can } from "../../lib/access.ts";
-import { managerNames, sharingFor } from "../../lib/audience.ts";
+import { askWho, sharingFor } from "../../lib/audience.ts";
 import { columnName, listBoards } from "../../lib/boards.ts";
 import { mySteps, myTasks } from "../../lib/cards.ts";
 import { db } from "../../lib/db.ts";
-import { format, intl, plural, type Catalogue } from "../../lib/i18n/index.ts";
+import { calendarPage, calendarWorks, sync as syncCalendar } from "../../lib/due-calendar.ts";
+import { intl, plural } from "../../lib/i18n/index.ts";
 import { emailOn } from "../../lib/mail.ts";
 import { chestToday } from "../../lib/clock.ts";
 import { dueState, type DueState } from "../../lib/model.ts";
@@ -27,10 +29,13 @@ export default async function Home() {
   const { member, locale, t } = v;
   const sql = db();
   const creates = can(member, "boards.create");
-  const [boards, tasks, steps, reminder, emails, sharing] = await Promise.all([listBoards(sql, member), myTasks(sql, member), mySteps(sql, member), reminderOn(sql, member), emailOn(sql, member), creates ? sharingFor(member.id) : Promise.resolve({ people: [], groups: [] })]);
+  const [boards, tasks, steps, reminder, emails, sharing, feed] = await Promise.all([listBoards(sql, member), myTasks(sql, member), mySteps(sql, member), reminderOn(sql, member), emailOn(sql, member), creates ? sharingFor(member.id) : Promise.resolve({ people: [], groups: [] }), calendarWorks(sql)]);
   // The tile's number may have gone stale overnight (nothing runs in the
   // background): set it right whenever its owner comes home.
   await refreshBadges(sql, [member.id]);
+  // Likewise the calendars, once the page is sent (a Chest just updated,
+  // a board brought in by the seed): only what changed is put.
+  after(() => syncCalendar(db()).then(() => undefined));
   const doneColumns = new Map((await sql<{ board_id: string; id: string; name: string; key: string | null }[]>`
     select distinct on (board_id) board_id, id, name, key from columns where done and archived_at is null order by board_id, position`).map(r => [String(r.board_id), { id: String(r.id), name: columnName(r.name, r.key, t.templates.columns) }]));
   const now = chestToday();
@@ -87,7 +92,8 @@ export default async function Home() {
       {boards.length === 0 ? (
         creates ? (
           <EmptyState icon={<Grid />} title={t.home.firstTime.title} body={t.home.firstTime.body}
-            action={<NewBoardButton t={newBoardWords} label={t.home.firstTime.action} sharing={sharing} locale={locale} primary />} />
+            action={<NewBoardButton t={newBoardWords} label={t.home.firstTime.action} sharing={sharing} locale={locale} primary />}
+            example={can(member, "import") ? { label: t.home.firstTime.import, href: "/chest/import" } : null} />
         ) : (
           <EmptyState icon={<Grid />} title={t.home.nothingShared.title} body={await askWho(t, locale)} />
         )
@@ -111,14 +117,12 @@ export default async function Home() {
             <ReminderSwitch on={reminder} t={{ label: t.home.reminder, errors: t.errors }} />
             <EmailSwitch on={emails} t={{ label: t.home.email, errors: t.errors }} />
           </div>
+          {/* The Chest's calendar holds my due dates (lib/due-calendar.ts):
+              said only once the Chest took one. */}
+          {feed === true && <p><a className="link-button" href={calendarPage}><Calendar /> {t.calendar.link}</a></p>}
         </>
       )}
     </div>
   );
 }
 
-// Who to ask for a board, by name when the Chest says who the managers are.
-async function askWho(t: Catalogue, locale: string): Promise<string> {
-  const names = await managerNames();
-  return names.length > 0 ? format(t.home.nothingShared.body, { names: new Intl.ListFormat(intl(locale), { type: "disjunction" }).format(names) }) : t.home.nothingShared.anyone;
-}

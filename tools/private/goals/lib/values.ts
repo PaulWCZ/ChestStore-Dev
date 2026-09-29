@@ -4,7 +4,10 @@
 // page writes "Done" or "Not yet" from its catalogue.
 import { intl } from "./i18n/format.ts";
 
-export type Measured = { kind: "number" | "percent" | "money" | "milestone"; unit: string; currency: string | null };
+// unitLocale: the language the unit is written in (its writer's), whose
+// rule picks the form for one; null when unknown (written before Goals
+// kept it).
+export type Measured = { kind: "number" | "percent" | "money" | "milestone"; unit: string; currency: string | null; unitLocale?: string | null };
 
 export function valueText(k: Measured, value: number, locale: string): string {
   if (k.kind === "percent") return new Intl.NumberFormat(intl(locale), { style: "percent", maximumFractionDigits: 1 }).format(value / 100);
@@ -17,7 +20,7 @@ export function valueText(k: Measured, value: number, locale: string): string {
     }
   }
   const n = new Intl.NumberFormat(intl(locale), { maximumFractionDigits: 2 }).format(value);
-  const unit = unitFor(k.unit, value, locale);
+  const unit = unitFor(k.unit, value, k.unitLocale ?? null);
   return unit ? `${n} ${unit}` : n;
 }
 
@@ -83,10 +86,17 @@ export function unitOf(plural: string, one: string): string {
   return unitForms(combined) ? combined : p;
 }
 
-export function unitFor(unit: string, value: number, locale: string): string {
+// unitFor: the unit's form for this value, by the rule of the unit's own
+// language — "0 customers" (English) and "0 client" (French), whoever
+// reads it: the words are the writer's, so is their grammar. A unit whose
+// language is unknown takes the form for one at 1 only, the rule both
+// languages share (never "0 customer").
+export function unitFor(unit: string, value: number, unitLocale: string | null): string {
   const forms = unitForms(unit);
   if (!forms) return unit;
-  return Number.isInteger(value) && new Intl.PluralRules(intl(locale)).select(value) === "one" ? forms.one : forms.other;
+  if (!Number.isInteger(value)) return forms.other;
+  if (!unitLocale) return Math.abs(value) === 1 ? forms.one : forms.other;
+  return new Intl.PluralRules(intl(unitLocale)).select(value) === "one" ? forms.one : forms.other;
 }
 
 // The number alone, as typed back in a field ("12,5" in French).

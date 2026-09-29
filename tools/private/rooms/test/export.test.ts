@@ -45,6 +45,10 @@ test("occupancy per day: counts only, per office", async () => {
   const csv = await occupancyCsv(sql, asMember(camille), d, d, catalogue("en"));
   const lines = csv.replace(/^﻿/u, "").trim().split("\r\n");
   assert.equal(lines[0], "Date,Office,People at the office,Desks booked,Desks,Desk occupancy (%),Room hours booked");
-  assert.equal(lines[1], `${d},Paris,2,1,4,25,1`);
+  assert.equal(lines[1], `${d},Paris,3,1,4,25,1`, "Camille said so, Hugo holds a desk, Inès has a meeting in Atlas");
+  // Inès says she works from home that day: her meeting no longer counts her.
+  await setPresence(sql, asMember(ines), { day: d, status: "remote" }, zone);
+  const after = (await occupancyCsv(sql, asMember(camille), d, d, catalogue("en"))).replace(/^﻿/u, "").trim().split("\r\n");
+  assert.equal(after[1], `${d},Paris,2,1,4,25,1`);
   await assert.rejects(occupancyCsv(sql, asMember(ines), d, d, catalogue("en")), { code: "forbidden" });
 });

@@ -18,9 +18,11 @@ first; this page is the map and the rules.
 | `lib/weeks.ts` | Send / take back / approve / send back a week (`weekLock`), the team's weeks, usual weeks (`capacities`), *Remind*, a person's week for a manager |
 | `lib/budgets.ts` | Budget alerts at 80 and 100 %, once per threshold (`budget_alerts`) |
 | `lib/invoicing.ts` | Mark a report's billable time invoiced (locks it, fixes its rates), and undo |
+| `lib/handoff.ts`, `app/chest/reports/quotes-panel.tsx` | Billable time to Quotes: `sendBillable` (event `timesheets.billable` v1), `cancelHandoff` (`timesheets.billable_cancelled`), `invoiced` (Quotes' `quotes.invoiced`, from `app/chest-events/route.ts`), `sendable`, `recentHandoffs` |
+| `lib/mail.ts` | Email beside the bell (mail proposal): Remind, the Friday reminder, a week sent to approve |
 | `lib/tx.ts` | `transaction()` (one transaction, or the caller's) |
 | `lib/timer.ts` | The running timer; forgotten timers; the leaver's timer |
-| `lib/reports.ts` | Reports and export rows, scoped to the actor in SQL |
+| `lib/reports.ts` | Reports and export rows, scoped to the actor in SQL; the notes' search (`q`, `foundEntries`) |
 | `lib/settings.ts` | Locked period, usual week and reminder, approvals on/off, hours style |
 | `lib/import-formats.ts`, `lib/import.ts` | Toggl/Clockify/Harvest CSV → plan → import (idempotent by fingerprint); former people (`imp_…` authors, `former_people`); locked rows only when asked; the old tool's rates |
 | `lib/reminder.ts`, `app/chest-jobs/` | The Friday reminder (schedules proposal) |
@@ -51,6 +53,23 @@ first; this page is the map and the rules.
 - **The signal on the panel** is `--panel-signal` (the kit's
   `--inverse-signal`, 0.2.3), never `--signal`; decoration (the grid's
   ruler) is keyed on `--decor`.
+
+## Rules added after the third critique (2026-09-29)
+
+- **Nobody approves or sends back their own week** (`self_approval` in
+  `approveWeek`/`returnWeek`); `waiting()` marks it `mine`, the bulk action
+  and the Team page leave it out. Remind never includes the actor.
+- **A project's lead** (`projects.lead_id`) must be a manager when named
+  (`isManager`, `lead_invalid`); an update without `lead` keeps it. Budget
+  alerts go to the lead (else every manager); a week sent goes to the leads
+  of the projects it holds (`approversOf`), else every other manager.
+  Leaving clears the lead.
+- **A hand-off locks its entries** like an invoice (`handoff_id` counts as
+  invoiced in `lib/entries.ts`) until Quotes answers or a manager takes it
+  back. The event's contract is in README "With the other tools": change it
+  only with a new `version`.
+- **Emails** leave through `lib/mail.ts` with a short key (the recipient is
+  appended; 64 characters in all).
 
 ## Commands
 

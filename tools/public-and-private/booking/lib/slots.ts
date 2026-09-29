@@ -106,3 +106,32 @@ export function freeWindows(availability: Availability, busy: Pick<Busy, "start"
   }
   return out.sort((a, b) => a.start - b.start);
 }
+
+// openParts: the parts of some busy spans that fall within the host's open
+// hours of one date, from now on, as minutes of their clock, merged — what
+// keeps a stretch of the agenda from being free when Booking itself has
+// nothing there (another calendar, another tool).
+export function openParts(availability: Availability, busy: Pick<Busy, "start" | "end">[], date: string, now = Date.now()): Window[] {
+  const ranges = availability.overrides[date] ?? availability.weekly[weekdayOf(date)] ?? [];
+  const minuteOf = (t: number) => {
+    const w = wall(t, availability.zone);
+    return w.date === date ? w.minutes : w.date < date ? 0 : 1440;
+  };
+  const parts: Window[] = [];
+  for (const [open, close] of ranges) {
+    const from = Math.max(instantOf(date, open, availability.zone).getTime(), now);
+    const to = close === 1440 ? instantOf(addDays(date, 1), 0, availability.zone).getTime() : instantOf(date, close, availability.zone).getTime();
+    for (const b of busy) {
+      const start = Math.max(b.start, from), end = Math.min(b.end, to);
+      if (end > start) parts.push({ start: minuteOf(start), end: minuteOf(end) });
+    }
+  }
+  parts.sort((a, b) => a.start - b.start);
+  const merged: Window[] = [];
+  for (const p of parts) {
+    const last = merged.at(-1);
+    if (last && p.start <= last.end) last.end = Math.max(last.end, p.end);
+    else if (p.end > p.start) merged.push({ ...p });
+  }
+  return merged;
+}

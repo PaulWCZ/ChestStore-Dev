@@ -1,4 +1,5 @@
 {
+  "calendar": true,
   "mail": {
     "send": true
   },

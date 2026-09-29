@@ -33,14 +33,19 @@ const renamed: Record<string, string> = {
 };
 export const modernZone = (zone: string) => renamed[zone] ?? zone;
 
-// The zones offered first: the Chest's customers' and their partners'.
-export const commonZones = ["Europe/Paris", "Europe/London", "Europe/Brussels", "Europe/Berlin", "Europe/Madrid", "Europe/Rome", "Europe/Zurich", "Europe/Lisbon", "America/New_York", "America/Toronto", "America/Chicago", "America/Los_Angeles", "America/Sao_Paulo", "Africa/Casablanca", "Africa/Dakar", "Asia/Dubai", "Asia/Kolkata", "Asia/Singapore", "Asia/Tokyo", "Australia/Sydney", "Pacific/Noumea", "Indian/Reunion", "America/Martinique"];
+// The zones offered first: the Chest's customers' and their partners' —
+// France's overseas departments and territories among them.
+export const commonZones = ["Europe/Paris", "Europe/London", "Europe/Brussels", "Europe/Berlin", "Europe/Madrid", "Europe/Rome", "Europe/Zurich", "Europe/Lisbon", "America/New_York", "America/Toronto", "America/Chicago", "America/Los_Angeles", "America/Sao_Paulo", "Africa/Casablanca", "Africa/Dakar", "Asia/Dubai", "Asia/Kolkata", "Asia/Singapore", "Asia/Tokyo", "Australia/Sydney", "America/Martinique", "America/Guadeloupe", "America/Cayenne", "Indian/Reunion", "Indian/Mayotte", "Pacific/Noumea", "Pacific/Tahiti"];
 
 export const regions = ["Europe", "America", "Africa", "Asia", "Australia", "Pacific", "Atlantic", "Indian", "Antarctica", "Arctic"] as const;
 export type Region = (typeof regions)[number];
 
-// The city of a zone: "America/Argentina/Buenos_Aires" → "Buenos Aires".
-export const cityOf = (zone: string) => (modernZone(zone).split("/").at(-1) ?? zone).replace(/_/gu, " ");
+// The city of a zone in the reader's language: the catalogue's name when
+// it has one ("Europe/Brussels" → "Bruxelles"; "America/Toronto" →
+// "Toronto, Montréal", the city people there look for), otherwise the
+// zone's own ("America/Argentina/Buenos_Aires" → "Buenos Aires").
+export type Cities = Readonly<Record<string, string>>;
+export const cityOf = (zone: string, cities: Cities = {}) => cities[modernZone(zone)] ?? (modernZone(zone).split("/").at(-1) ?? zone).replace(/_/gu, " ");
 
 export function utcOffset(zone: string, now: number): string {
   const minutes = offset(now, zone);
@@ -50,20 +55,20 @@ export function utcOffset(zone: string, now: number): string {
   return `UTC${sign}${Math.floor(abs / 60)}${abs % 60 ? ":" + String(abs % 60).padStart(2, "0") : ""}`;
 }
 
-export function zoneLabel(zone: string, now: number): string {
-  return `${cityOf(zone)} (${utcOffset(zone, now)})`;
+export function zoneLabel(zone: string, now: number, cities: Cities = {}): string {
+  return `${cityOf(zone, cities)} (${utcOffset(zone, now)})`;
 }
 
 // zoneGroups: "Common" first, then each region. names: the words of the
-// groups in the reader's language; extra: zones to offer whatever the list
-// (the one saved, the visitor's).
-export function zoneGroups(names: { common: string } & Record<Region, string>, now: number, extra: string[] = [], all: string[] = typeof Intl.supportedValuesOf === "function" ? Intl.supportedValuesOf("timeZone") : []): ZoneGroup[] {
+// groups and the cities in the reader's language; extra: zones to offer
+// whatever the list (the one saved, the visitor's).
+export function zoneGroups(names: { common: string; cities?: Cities } & Record<Region, string>, now: number, extra: string[] = [], all: string[] = typeof Intl.supportedValuesOf === "function" ? Intl.supportedValuesOf("timeZone") : []): ZoneGroup[] {
   const known = new Set<string>();
   for (const z of [...all, ...extra]) {
     const m = modernZone(z);
     if (m.includes("/") && regions.includes(m.split("/")[0] as Region)) known.add(m);
   }
-  const option = (z: string): ZoneOption => ({ value: z, label: zoneLabel(z, now) });
+  const option = (z: string): ZoneOption => ({ value: z, label: zoneLabel(z, now, names.cities) });
   const byCity = (a: ZoneOption, b: ZoneOption) => a.label.localeCompare(b.label, "en");
   const groups: ZoneGroup[] = [{ region: names.common, zones: commonZones.filter(z => known.has(z)).map(option) }];
   for (const region of regions) {

@@ -11,6 +11,12 @@
       "cron": "*/15 * * * *"
     }
   ],
+  "emits": [
+    "status.incident"
+  ],
+  "webhooks": {
+    "max": 200
+  },
   "translations": {
     "fr": {
       "title": "État des services",

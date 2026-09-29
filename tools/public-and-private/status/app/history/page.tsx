@@ -16,11 +16,11 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function HistoryPage({ searchParams }: { searchParams: Promise<{ page?: string }> }) {
   const raw = (await searchParams).page;
   const page = raw && /^\d{1,4}$/u.test(raw) ? Number(raw) : 0;
-  const { t, locale, sql, now, zone, company, offerMail } = await publicContext();
+  const { t, locale, sql, now, zone, company, offerUpdates } = await publicContext();
   const { months, older } = await historyPage(sql, page, zone, now);
   const words = { public: t.public, steps: t.steps, states: t.states, time: t.time, maintenance: t.maintenance };
   return (
-    <PublicShell company={company} locale={locale} zone={zone} t={t} path={page ? `/history?page=${page}` : "/history"} offerMail={offerMail}>
+    <PublicShell company={company} locale={locale} zone={zone} t={t} path={page ? `/history?page=${page}` : "/history"} offerMail={offerUpdates}>
       <p className="crumb"><a href="/"><Back />{t.public.back}</a></p>
       <h1 className="page-title">{t.history.title}</h1>
       {months.map(m => (

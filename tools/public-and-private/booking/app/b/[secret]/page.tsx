@@ -6,7 +6,7 @@ import { PublicShell } from "../../../components/public-shell.tsx";
 import { CopyButton } from "../../../components/copy-button.tsx";
 import { bySecret, firstFree, isPublicJitsi, meetingPlace, settings, typeForMove } from "../../../lib/booking.ts";
 import { db } from "../../../lib/db.ts";
-import { format, meetingTime, plural, zoneName } from "../../../lib/i18n/index.ts";
+import { format, meetingTime, plural, startsWithVowel, zoneName } from "../../../lib/i18n/index.ts";
 import { nameOf, people } from "../../../lib/people.ts";
 import { publicOrigin } from "../../../lib/public-origin.ts";
 import { publicWords } from "../../../lib/session.ts";
@@ -60,12 +60,12 @@ export default async function GuestBookingPage({ params, searchParams }: { param
         <section className="card">
           <dl className="facts">
             <dt><CalendarCheck />{t.public.when}</dt>
-            <dd><span className="big-time">{meetingTime(b.startsAt, b.guestZone, locale)}</span><div className="hint">{plural(t.minutes, b.duration, locale)} · {zoneName(b.guestZone)}</div></dd>
+            <dd><span className="big-time">{meetingTime(b.startsAt, b.guestZone, locale)}</span><div className="hint">{plural(t.minutes, b.duration, locale)} · {zoneName(b.guestZone, t.zones.cities)}</div></dd>
             <dt><Person />{b.title}</dt>
             <dd className="row"><Avatar name={hostName} photo={null} size="s" />{format(t.public.with, { name: hostName })}</dd>
             <dt><Kind />{t.public.where}</dt>
             <dd>{t.kinds[b.locationKind]}{where && <><br />{b.locationKind === "video" && room ? <a href={room} target="_blank" rel="noopener noreferrer">{room}</a> : where}</>}
-              {live && b.locationKind === "video" && isPublicJitsi(room) && <div className="hint">{format(t.public.jitsiGuest, { name: shortName })}</div>}</dd>
+              {live && b.locationKind === "video" && isPublicJitsi(room) && <div className="hint">{format(startsWithVowel(shortName) ? t.public.jitsiGuestVowel : t.public.jitsiGuest, { name: shortName })}</div>}</dd>
           </dl>
           {live && b.paymentLink && (
             <div className="pay">

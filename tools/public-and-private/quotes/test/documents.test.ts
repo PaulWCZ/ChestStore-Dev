@@ -55,8 +55,9 @@ test("a quote: drafted by sales, numbered when sent, accepted by the client", as
   assert.equal(sent.issueDate, today);
   assert.equal(sent.seller?.legalName, "Atelier Martin SARL");
   assert.equal(sent.buyer?.name, "Boulangerie Dupain SAS");
-  // Still correctable once sent (a quote is not an invoice).
-  await saveDraft(sql, asMember(ines), d.id, { title: "Refonte du site" });
+  // Never changed in place once sent: through its next version
+  // (test/versions.test.ts).
+  await assert.rejects(saveDraft(sql, asMember(ines), d.id, { title: "Refonte du site" }), refused("wrong_status"));
   const accepted = await decideQuote(sql, asMember(ines), d.id, "accepted");
   assert.equal(accepted.status, "accepted");
   await assert.rejects(saveDraft(sql, asMember(ines), d.id, { title: "x" }), refused("wrong_status"));

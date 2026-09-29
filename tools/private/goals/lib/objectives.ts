@@ -4,7 +4,8 @@ import * as members from "@argentic/chest-sdk/members";
 import * as chest from "@argentic/chest-sdk/chest";
 import { can, mayCreate, mayEdit, readerOf } from "./access.ts";
 import { AppError } from "./app-error.ts";
-import { isSource, refreshFed, type Source } from "./crm.ts";
+import { isLocale } from "./i18n/index.ts";
+import { isSource, mayBeMine, refreshFed, refPattern, sourceKind, type Source } from "./sources.ts";
 import { openCycle, readCycle } from "./cycles.ts";
 import type { Query, Sql } from "./db.ts";
 import { clean, id, isLevel, isVisibility, limits, measure, memberId, optionalId, score as readScore, type Level, type Measure, type Visibility } from "./model.ts";
@@ -69,8 +70,22 @@ async function teamFor(sql: Query, level: Level, teamId: unknown) {
   return found;
 }
 
-export type KeyResultInput = { title?: unknown; kind?: unknown; unit?: unknown; start?: unknown; target?: unknown; owner?: unknown; weight?: unknown; source?: unknown };
-export type CheckedKeyResult = Measure & { title: string; owner: string; weight: number; currency: string | null; source: Source | null };
+export type KeyResultInput = { title?: unknown; kind?: unknown; unit?: unknown; start?: unknown; target?: unknown; owner?: unknown; weight?: unknown; source?: unknown; mine?: unknown; scope?: unknown };
+export type CheckedKeyResult = Measure & { title: string; owner: string; weight: number; currency: string | null; source: Source | null; mine: boolean; scope: string | null };
+
+// A fed key result's options (lib/sources.ts): "only theirs" where the
+// source names people; a board of Tasks, or every board.
+export function checkFeed(source: Source | null, mine: unknown, scope: unknown): { mine: boolean; scope: string | null } {
+  if (mine !== undefined && mine !== null && typeof mine !== "boolean") throw new AppError("invalid");
+  if (scope !== undefined && scope !== null && scope !== "" && (typeof scope !== "string" || !refPattern.test(scope))) throw new AppError("invalid");
+  return {
+    mine: source !== null && mayBeMine(source) && mine === true,
+    scope: source === "tasks.done" && typeof scope === "string" && scope !== "" ? scope : null,
+  };
+}
+
+// The language a unit is written in: its writer's (lib/values.ts, unitFor).
+export const unitLocaleOf = (actor: Pick<Member, "locale">): string | null => (isLocale(actor.locale) ? actor.locale : null);
 
 export function checkSource(value: unknown): Source | null {
   if (value === undefined || value === null || value === "" || value === "manual") return null;
@@ -81,18 +96,18 @@ export function checkSource(value: unknown): Source | null {
 export async function checkKeyResult(input: KeyResultInput, fallbackOwner: string): Promise<CheckedKeyResult> {
   const title = clean(input.title, limits.title);
   const source = checkSource(input.source);
-  // Fed by the CRM: an amount of money, or a number of deals.
-  const m = measure(source === "crm.won_amount" ? { ...input, kind: "money" } : source === "crm.won_count" ? { ...input, kind: "number" } : input);
+  // Fed by another tool: an amount of money (the CRM's), or a count.
+  const m = measure(source ? { ...input, kind: sourceKind(source) } : input);
   const owner = input.owner === undefined || input.owner === "" || input.owner === null ? fallbackOwner : await activeMember(input.owner);
   const weight = input.weight === undefined ? 1 : Number(input.weight);
   if (![1, 2, 3].includes(weight)) throw new AppError("invalid");
-  return { ...m, title, owner, weight, currency: m.kind === "money" ? chest.currency() : null, source };
+  return { ...m, title, owner, weight, currency: m.kind === "money" ? chest.currency() : null, source, ...checkFeed(source, input.mine, input.scope) };
 }
 
 export async function insertKeyResult(sql: Query, actor: Member, objectiveId: string, k: CheckedKeyResult): Promise<string> {
   const [row] = await sql<{ id: string }[]>`
-    insert into key_results (objective_id, title, kind, unit, currency, start_value, target_value, current_value, weight, owner, source, position, created_by)
-    values (${objectiveId}, ${k.title}, ${k.kind}, ${k.unit}, ${k.currency}, ${k.start}, ${k.target}, ${k.start}, ${k.weight}, ${k.owner}, ${k.source},
+    insert into key_results (objective_id, title, kind, unit, unit_locale, currency, start_value, target_value, current_value, weight, owner, source, source_mine, source_scope, position, created_by)
+    values (${objectiveId}, ${k.title}, ${k.kind}, ${k.unit}, ${k.unit ? unitLocaleOf(actor) : null}, ${k.currency}, ${k.start}, ${k.target}, ${k.start}, ${k.weight}, ${k.owner}, ${k.source}, ${k.mine}, ${k.scope},
       (select coalesce(max(position), 0) + 1 from key_results where objective_id = ${objectiveId}), ${actor.id})
     returning id`;
   if (k.source) await refreshFed(sql, [String(row!.id)]);
@@ -247,10 +262,10 @@ export async function carryOver(sql: Sql, actor: Member | null, objectiveId: unk
     const next = String(row!.id);
     await tx`insert into objective_viewers (objective_id, member_id) select ${next}, member_id from objective_viewers where objective_id = ${o.id}`;
     await tx`
-      insert into key_results (objective_id, title, kind, unit, currency, start_value, target_value, current_value, weight, owner, source, position, created_by)
-      select ${next}, title, kind, unit, currency,
+      insert into key_results (objective_id, title, kind, unit, unit_locale, currency, start_value, target_value, current_value, weight, owner, source, source_mine, source_scope, position, created_by)
+      select ${next}, title, kind, unit, unit_locale, currency,
         case when kind = 'milestone' or source is not null then 0 else current_value end, target_value,
-        case when kind = 'milestone' or source is not null then 0 else current_value end, weight, owner, source, position, ${actor!.id}
+        case when kind = 'milestone' or source is not null then 0 else current_value end, weight, owner, source, source_mine, source_scope, position, ${actor!.id}
       from key_results
       where objective_id = ${o.id} and archived_at is null
         and not (case when target_value > start_value then current_value >= target_value else current_value <= target_value end)`;

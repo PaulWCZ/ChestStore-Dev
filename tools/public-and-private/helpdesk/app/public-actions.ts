@@ -7,6 +7,7 @@ import * as attachments from "../lib/attachments.ts";
 import { db } from "../lib/db.ts";
 import { check } from "../lib/form-token.ts";
 import * as mailer from "../lib/mailer.ts";
+import * as notices from "../lib/notices.ts";
 import { publicOrigin, visitorKey } from "../lib/public-origin.ts";
 import { publicWords } from "../lib/session.ts";
 import * as tell from "../lib/tell.ts";
@@ -54,6 +55,7 @@ export async function sendRequest(_: FormState, data: FormData): Promise<FormSta
     if (sent.delivery === "email") await tickets.confirmed(sql, t.id, sent.mail);
     await tell.newTicket({ id: t.id, number: t.number, subject: ticket.subject, customerName: ticket.customerName, customerEmail: ticket.customerEmail }, values["message"]!, t.assignee);
     await tell.refreshBadges(sql);
+    await notices.about(sql, "new", t.id, `new:${t.id}`);
   } catch (error) {
     if (error instanceof Resent) redirect(`/t/${secret}?new=1&again=1${data.get("embed") === "1" ? "&embed=1" : ""}`);
     if (error instanceof AppError) return { error: error.code, values, ...(typeof error.values["max"] === "number" ? { max: error.values["max"] } : {}) };
@@ -75,6 +77,7 @@ export async function writeAgain(secret: string, _: ReplyState, data: FormData):
     const t = await tickets.customerReply(sql, secret, body, visitorFiles(data));
     await tell.customerWrote(t, body);
     await tell.refreshBadges(sql);
+    await notices.about(sql, "replied", t.id, await notices.lastMessageKey(sql, t.id));
     return { error: null, sent: true };
   } catch (error) {
     if (error instanceof AppError) return { error: error.code, sent: false, ...(typeof error.values["max"] === "number" ? { max: error.values["max"] } : {}) };

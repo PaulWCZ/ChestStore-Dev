@@ -46,7 +46,9 @@ export async function everyone(): Promise<{ people: Reader[]; complete: boolean 
 // colleague who does). Unavailable when the Chest cannot be asked.
 export async function hasTool(memberId: string): Promise<boolean | "unavailable"> {
   try {
-    return (await members.get(memberId)) !== null;
+    // A role gives News; without one, the Chest lists them but they cannot read it.
+    const person = await members.get(memberId);
+    return person !== null && person.role !== null;
   } catch (error) {
     if (error instanceof CapabilityNotGranted || error instanceof ChestError) return "unavailable";
     throw error;
@@ -83,4 +85,36 @@ export function tally<C extends { member: string }>(post: Audience & { author: s
 // "Read by" and views are counted against.
 export function audienceSize(post: Audience & { author: string }, people: Reader[]): number {
   return people.filter(p => p.id !== post.author && inAudience(p, post)).length;
+}
+
+// Who a reader may ask to publish: the publishers, by name — at most
+// three, the Chest's administrators last (they are rarely the ones to
+// ask). Without an answer from the Chest, none.
+export async function whoPublishes(): Promise<{ names: string[]; more: boolean }> {
+  try {
+    const answer = await members.list({ limit: 500, role: "publisher" });
+    const list = [...answer.members].sort((a, b) => Number(a.isAdmin) - Number(b.isAdmin) || a.name.localeCompare(b.name));
+    return { names: list.slice(0, 3).map(m => m.name), more: list.length > 3 || answer.next !== null };
+  } catch (error) {
+    if (!(error instanceof ChestError)) throw error;
+    return { names: [], more: false };
+  }
+}
+
+// The publishers' ids (up to 10,000): who approves the posts proposed by
+// everyone. None when the Chest cannot be asked.
+export async function publisherIds(): Promise<string[]> {
+  const ids: string[] = [];
+  let after: string | null = null;
+  try {
+    for (let i = 0; i < maxPages; i++) {
+      const answer = await members.list({ limit: pageSize, role: "publisher", ...(after ? { after } : {}) });
+      ids.push(...answer.members.map(m => m.id));
+      if (!answer.next) break;
+      after = answer.next;
+    }
+  } catch (error) {
+    if (!(error instanceof ChestError)) throw error;
+  }
+  return ids;
 }

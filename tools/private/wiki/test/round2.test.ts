@@ -60,7 +60,9 @@ const titles = async (q: string) => (await search(database.sql, asMember(hugo), 
 
 test("French search: little words never count; 'note de frais' puts the Expense policy first", async () => {
   const found = await titles("note de frais");
-  assert.equal(found[0], "Expense policy", found.join(", "));
+  // Round 3 added the French "Se faire rembourser ses frais" to the sample,
+  // which holds "note de frais" as typed: the two expense pages come first.
+  assert.deepEqual(found.slice(0, 2).sort(), ["Expense policy", "Se faire rembourser ses frais"], found.join(", "));
   // Not every page holding "de".
   assert.ok(!found.includes("Préparer un rendez-vous client"), found.join(", "));
   assert.ok(found.length <= 6, found.join(", "));
@@ -76,8 +78,8 @@ test("French search: little words never count; 'note de frais' puts the Expense 
 test("words that mean the same: vacances → congés/holidays, tt → télétravail, remboursement → notes de frais", async () => {
   assert.equal((await titles("vacances"))[0], "Holidays and time off");
   assert.equal((await titles("tt"))[0], "Charte télétravail");
-  assert.equal((await titles("remboursement"))[0], "Expense policy");
-  assert.equal((await titles("frais"))[0], "Expense policy");
+  // The two expense pages first (the French one holds the word as typed).
+  for (const q of ["remboursement", "frais"]) assert.deepEqual((await titles(q)).slice(0, 2).sort(), ["Expense policy", "Se faire rembourser ses frais"], q);
   // Several words of one term are one word of the query ("notes de frais").
   const terms = await synonymTerms(database.sql);
   const u = units(words("notes de frais wifi"), terms);

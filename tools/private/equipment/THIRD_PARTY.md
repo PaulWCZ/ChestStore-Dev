@@ -33,5 +33,14 @@ licences with seats, its CSV sample's header), Shelf.nu (AGPL-3.0: QR labels,
 custody, "report" from a scanned label), GLPI (GPL-3.0: what not to become).
 See `reports/02-open-source/equipment.md` in the studio.
 
+Microsoft Intune (read only, `lib/intune.ts`): the request and answer
+shapes follow Microsoft's documentation (Microsoft Graph v1.0
+`managedDevices`, paging, throttling; the Microsoft identity platform's
+client-credentials grant), read on 2026-09-29 from its sources on GitHub
+(microsoftgraph/microsoft-graph-docs-contrib, whose LICENSE is CC BY 4.0;
+MicrosoftDocs/entra-docs, whose LICENSE is MIT; no text or code copied,
+only the documented names of fields and endpoints). The test's fake Graph
+answers in the documented shapes.
+
 Dependencies (`next`, `react`, `postgres`, `@argentic/chest-sdk`, `@argentic/chest-ui` — the studio's UI kit, MIT, © 2026 Argentic, vendored in `vendor/`) are
 installed from npm under their own licences.

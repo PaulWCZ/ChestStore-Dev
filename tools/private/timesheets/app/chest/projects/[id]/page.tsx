@@ -49,9 +49,10 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
       </header>
       <ProjectForm
         key={p.id + String(p.archived)}
-        initial={{ id: p.id, name: p.name, clientId: p.clientId, color: p.color, billable: p.billable, rateCents: p.rateCents, budget: p.budget, everyone: p.everyone, people: p.people, archived: p.archived, tasks: p.tasks }}
+        initial={{ id: p.id, name: p.name, clientId: p.clientId, color: p.color, billable: p.billable, rateCents: p.rateCents, budget: p.budget, everyone: p.everyone, people: p.people, archived: p.archived, tasks: p.tasks, lead: p.lead }}
         clients={clients.filter(c => !c.archived || c.id === p.clientId).map(c => ({ id: c.id, name: c.name }))}
         people={everyoneNamed}
+        managers={dir.people.filter(x => x.role === "manager").map(x => ({ id: x.id, name: x.name }))}
         rates={{ hasTime: p.used.minutes > 0, today: now, lock: rateLock(s.lockedUntil, locale, t), history: rates.project.length > 1 ? rates.project.map(step).join(" · ") : null }}
         currency={code}
         comma={locale === "fr"}

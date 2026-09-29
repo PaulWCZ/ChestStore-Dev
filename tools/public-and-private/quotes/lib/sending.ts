@@ -9,10 +9,11 @@ import { company, rememberMail } from "./company.ts";
 import type { Sql } from "./db.ts";
 import { getDocument, recordReminder, recordSent, sendQuote, type Full } from "./documents.ts";
 import { catalogue, format, formatDay, type Locale } from "./i18n/index.ts";
-import { clean, email, limits, numberPattern } from "./model.ts";
+import { clean, email, limits, numberPattern, versioned } from "./model.ts";
 import { formatMoney } from "./money.ts";
 import { pdfFileName } from "./pdf/document.ts";
 import { ensureLink } from "./online.ts";
+import { termsFile, termsFileName } from "./terms.ts";
 
 // Sending a document to its client: by email with its PDF attached,
 // through the Chest's mail (Proposal (studio): the "mail" capability,
@@ -26,13 +27,19 @@ export type Message = { to: string; subject: string; text: string };
 export type Kind = "send" | "reminder";
 
 // The message the send dialog starts from.
-export function draftMessage(full: Full, kind: Kind, context: { company: string; sender: string; iban: string; bic: string; today: string; upcoming?: string; paymentLink?: string }): Message {
+// A quote's later version says so, and which one it replaces (`replaces`:
+// the day the version before was sent).
+export function draftMessage(full: Full, kind: Kind, context: { company: string; sender: string; iban: string; bic: string; today: string; upcoming?: string; paymentLink?: string; replaces?: string | null }): Message {
   const t = catalogue(full.language).mail;
   const money = (minor: number) => formatMoney(minor, full.currency, full.language);
   const day = (d: string | null) => (d ? formatDay(d, full.language, { day: "numeric", month: "long", year: "numeric" }) : "");
   const buyer = full.buyer ?? full.client;
+  const later = full.type === "quote" && full.version > 1;
   const values = {
     number: full.number ?? context.upcoming ?? "",
+    versioned: versioned(full.number, full.version) ?? context.upcoming ?? "",
+    version: full.version,
+    replaces: day(context.replaces ?? null),
     company: context.company,
     title: full.title ? format(t.about, { title: full.title }) : "",
     amount: money(full.gross),
@@ -42,7 +49,9 @@ export function draftMessage(full: Full, kind: Kind, context: { company: string;
     invoice: full.related.find(r => r.id === full.invoiceId)?.number ?? "",
   };
   const subject = kind === "reminder" ? t.reminderSubject : full.type === "quote" ? t.quoteSubject : full.type === "credit" ? t.creditSubject : t.invoiceSubject;
-  const body = kind === "reminder" ? (full.status === "imported" ? t.reminderBodyImported : t.reminderBody) : full.type === "quote" ? t.quoteBody : full.type === "credit" ? t.creditBody : t.invoiceBody;
+  const body = kind === "reminder" ? (full.status === "imported" ? t.reminderBodyImported : t.reminderBody)
+    : full.type === "quote" ? (later ? (context.replaces ? t.quoteBodyVersion : t.quoteBodyVersionNoDate) : t.quoteBody)
+    : full.type === "credit" ? t.creditBody : t.invoiceBody;
   const payment = (full.type === "invoice" && context.iban ? "\n\n" + format(t.transfer, { iban: context.iban, bic: context.bic ? format(t.bic, { bic: context.bic }) : "" }) : "")
     + (full.type === "invoice" && context.paymentLink ? "\n\n" + format(t.payOnline, { link: context.paymentLink }) : "");
   const text = [
@@ -54,7 +63,7 @@ export function draftMessage(full: Full, kind: Kind, context: { company: string;
     ...(context.sender ? [context.sender] : []),
     context.company,
   ].join("\n");
-  return { to: buyer?.email ?? "", subject: format(subject, values), text };
+  return { to: buyer?.email ?? "", subject: format(subject, { ...values, number: values.versioned }), text };
 }
 
 function checkMessage(input: unknown): Message & { upcoming: string | null } {
@@ -72,12 +81,15 @@ async function deliver(sql: Sql, full: Full, message: Message, fromName: string,
   // An invoice imported from the previous tool has no PDF here: its
   // reminder goes without it (its number and amounts are in the text).
   const bytes = full.status === "imported" ? null : await pdfOfFull(sql, full, today);
+  // A quote carries the company's terms and conditions of sale, when it
+  // has them (lib/terms.ts).
+  const terms = full.type === "quote" ? await termsFile(sql) : null;
   const key = "doc-" + createHash("sha256").update([full.id, message.to, message.subject, message.text].join("\u0000")).digest("hex").slice(0, 40);
   try {
     await mail.send({
       to: message.to, subject: message.subject, text: message.text, fromName: fromName.slice(0, 100).replace(/[\r\n]/gu, " "),
       ...(replyTo ? { replyTo } : {}),
-      ...(bytes ? { attachments: [{ name: pdfFileName(full), type: "application/pdf", content: bytes }] } : {}),
+      ...(bytes ? { attachments: [{ name: pdfFileName(full), type: "application/pdf", content: bytes }, ...(terms ? [{ name: termsFileName(full.language), type: "application/pdf", content: terms.bytes }] : [])] } : {}),
       key,
     });
   } catch (error) {
@@ -96,15 +108,17 @@ async function deliver(sql: Sql, full: Full, message: Message, fromName: string,
 
 const senderName = (actor: Member, companyName: string) => (companyName ? `${actor.name} — ${companyName}` : actor.name);
 
-// withAnswerLink puts the link to answer a quote online in its email, in
-// the document's language, before the sign-off (or at the end when the
-// member rewrote it).
-export function withAnswerLink(text: string, language: Locale, url: string): string {
-  const t = catalogue(language).mail;
-  const line = format(t.answerOnline, { link: url });
+// answerLine: the first line of a quote's email, in the document's
+// language — where the client reads the quote and accepts it online. The
+// send dialog shows it, fixed, above the words the member may change.
+export function answerLine(language: Locale, number: string, url: string): string {
+  return format(catalogue(language).mail.answerOnline, { number, link: url });
+}
+
+// withAnswerLink opens a quote's email with its answer line (once).
+export function withAnswerLink(text: string, language: Locale, url: string, number: string): string {
   if (text.includes(url)) return text;
-  const at = text.lastIndexOf("\n\n" + t.signoff);
-  return at >= 0 ? text.slice(0, at) + "\n\n" + line + text.slice(at) : text + "\n\n" + line;
+  return answerLine(language, number, url) + "\n\n" + text;
 }
 
 // sendDocument emails a quote (numbering a draft first), an invoice or a
@@ -131,7 +145,7 @@ export async function sendDocument(sql: Sql, actor: Member | null, documentId: u
     }
     if (options.origin) {
       const link = await ensureLink(sql, actor, full.id);
-      message.text = withAnswerLink(message.text, full.language, `${options.origin}/q/${link.secret}`);
+      message.text = withAnswerLink(message.text, full.language, `${options.origin}/q/${link.secret}`, versioned(full.number, full.version) ?? "");
     }
     const delivery = await deliver(sql, full, message, senderName(actor!, name), c.email, today).catch(async error => {
       await undoSend(sql, full.id, before);

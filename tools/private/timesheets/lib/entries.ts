@@ -48,13 +48,13 @@ export type GridRow = {
 };
 export type Week = { monday: string; days: string[]; rows: GridRow[]; totals: number[]; total: number; lockedUntil: string | null; state: WeekState };
 
-type Row = { id: string; project_id: string; task_id: string | null; day: string; minutes: number; note: string; billable: boolean; started_at: Date | null; ended_at: Date | null; source: Entry["source"]; invoiced_at: Date | null };
+type Row = { id: string; project_id: string; task_id: string | null; day: string; minutes: number; note: string; billable: boolean; started_at: Date | null; ended_at: Date | null; source: Entry["source"]; invoiced_at: Date | null; handoff_id: string | null };
 const toEntry = (r: Row): Entry => ({
   id: r.id, projectId: r.project_id, taskId: r.task_id, day: r.day, minutes: r.minutes, note: r.note, billable: r.billable,
   startedAt: r.started_at ? new Date(r.started_at).toISOString() : null, endedAt: r.ended_at ? new Date(r.ended_at).toISOString() : null, source: r.source,
   invoiced: r.invoiced_at !== null,
 });
-const columns = (sql: Query) => sql`id::text, project_id::text, task_id::text, to_char(day, 'YYYY-MM-DD') as day, minutes, note, billable, started_at, ended_at, source, invoiced_at`;
+const columns = (sql: Query) => sql`id::text, project_id::text, task_id::text, to_char(day, 'YYYY-MM-DD') as day, minutes, note, billable, started_at, ended_at, source, invoiced_at, handoff_id::text`;
 
 function own(actor: Member | null): Member {
   if (!actor || !can(actor, "time.own")) throw new AppError("forbidden");
@@ -90,12 +90,12 @@ export async function dayEntries(sql: Query, actor: Member | null, day: unknown)
   if (!isDay(day)) throw new AppError("invalid");
   const [s, closed] = await Promise.all([settings(sql), closedWeeks(sql, me.id, day, day)]);
   const rows = await sql<(Row & { project_name: string; client_name: string | null; color: string; task_name: string | null })[]>`
-    select e.id::text, e.project_id::text, e.task_id::text, to_char(e.day, 'YYYY-MM-DD') as day, e.minutes, e.note, e.billable, e.started_at, e.ended_at, e.source, e.invoiced_at,
+    select e.id::text, e.project_id::text, e.task_id::text, to_char(e.day, 'YYYY-MM-DD') as day, e.minutes, e.note, e.billable, e.started_at, e.ended_at, e.source, e.invoiced_at, e.handoff_id::text,
       p.name as project_name, c.name as client_name, p.color, t.name as task_name
     from entries e join projects p on p.id = e.project_id left join clients c on c.id = p.client_id left join tasks t on t.id = e.task_id
     where e.member_id = ${me.id} and e.day = ${day} and e.deleted_at is null
     order by e.started_at nulls last, e.id`;
-  return rows.map(r => ({ ...toEntry(r), projectName: r.project_name, clientName: r.client_name, color: isColor(r.color) ? r.color : "teal", taskName: r.task_name, locked: isLocked(s, r.day) || closed.has(mondayOf(r.day)) || r.invoiced_at !== null }));
+  return rows.map(r => ({ ...toEntry(r), projectName: r.project_name, clientName: r.client_name, color: isColor(r.color) ? r.color : "teal", taskName: r.task_name, locked: isLocked(s, r.day) || closed.has(mondayOf(r.day)) || r.invoiced_at !== null || r.handoff_id !== null }));
 }
 
 // The person's week: a row per project and task they recorded time on or
@@ -111,7 +111,7 @@ export async function week(sql: Query, actor: Member | null, monday: unknown): P
     settings(sql),
     sql<{ project_id: string; task_id: string | null; day: string; minutes: string; count: number; entry_id: string; note: string; invoiced: boolean }[]>`
       select project_id::text, task_id::text, to_char(day, 'YYYY-MM-DD') as day, sum(minutes)::text as minutes, count(*)::int as count, min(id)::text as entry_id,
-        min(note) as note, bool_or(invoiced_at is not null) as invoiced
+        min(note) as note, bool_or(invoiced_at is not null or handoff_id is not null) as invoiced
       from entries where member_id = ${me.id} and day between ${start} and ${end} and deleted_at is null
       group by project_id, task_id, day`,
     sql<{ project_id: string; task_id: string }[]>`select project_id::text, task_id::text from week_rows where member_id = ${me.id} and week = ${start}`,
@@ -164,7 +164,7 @@ export async function saveCell(sql: Query, actor: Member | null, input: { projec
     await checkOpen(tx, me.id, when);
     const w = await writable(tx, me, input.projectId, input.taskId);
     const found = await tx<{ id: string; note: string; invoiced: boolean }[]>`
-      select id::text, note, invoiced_at is not null as invoiced from entries
+      select id::text, note, (invoiced_at is not null or handoff_id is not null) as invoiced from entries
       where member_id = ${me.id} and project_id = ${w.projectId} and task_id is not distinct from ${w.taskId}::bigint and day = ${when} and deleted_at is null`;
     if (found.length > 1) throw new AppError("several");
     if (found[0]?.invoiced) throw new AppError("invoiced");
@@ -233,7 +233,8 @@ export async function updateEntry(sql: Query, actor: Member | null, entryId: unk
     await lockPerson(tx, me.id);
     const [current] = await tx<Row[]>`select ${columns(tx)} from entries where id = ${eid} and member_id = ${me.id} and deleted_at is null`;
     if (!current) throw new AppError("not_found");
-    if (current.invoiced_at) throw new AppError("invoiced");
+    // Invoiced, or waiting for its invoice in Quotes (lib/handoff.ts).
+    if (current.invoiced_at || current.handoff_id) throw new AppError("invoiced");
     await checkOpen(tx, me.id, current.day);
     await checkOpen(tx, me.id, when);
     const sameWork = String(input.projectId) === current.project_id && (optionalId(input.taskId) ?? null) === (current.task_id ?? null);
@@ -266,7 +267,7 @@ export async function deleteEntry(sql: Query, actor: Member | null, entryId: unk
   const projectId = await transaction(sql, async tx => {
     await lockPerson(tx, me.id);
     const [current] = await tx<{ day: string; project_id: string; invoiced: boolean }[]>`
-      select to_char(day, 'YYYY-MM-DD') as day, project_id::text, invoiced_at is not null as invoiced from entries where id = ${eid} and member_id = ${me.id} and deleted_at is null`;
+      select to_char(day, 'YYYY-MM-DD') as day, project_id::text, (invoiced_at is not null or handoff_id is not null) as invoiced from entries where id = ${eid} and member_id = ${me.id} and deleted_at is null`;
     if (!current) throw new AppError("not_found");
     if (current.invoiced) throw new AppError("invoiced");
     await checkOpen(tx, me.id, current.day);
@@ -284,7 +285,7 @@ export async function setNote(sql: Query, actor: Member | null, entryId: unknown
   await transaction(sql, async tx => {
     await lockPerson(tx, me.id);
     const [current] = await tx<{ day: string; invoiced: boolean }[]>`
-      select to_char(day, 'YYYY-MM-DD') as day, invoiced_at is not null as invoiced from entries where id = ${eid} and member_id = ${me.id} and deleted_at is null`;
+      select to_char(day, 'YYYY-MM-DD') as day, (invoiced_at is not null or handoff_id is not null) as invoiced from entries where id = ${eid} and member_id = ${me.id} and deleted_at is null`;
     if (!current) throw new AppError("not_found");
     if (current.invoiced) throw new AppError("invoiced");
     await checkOpen(tx, me.id, current.day);
@@ -336,7 +337,7 @@ export async function removeRow(sql: Query, actor: Member | null, input: { week:
   const ids = await transaction(sql, async tx => {
     await lockPerson(tx, me.id);
     const found = await tx<{ id: string; day: string; invoiced: boolean }[]>`
-      select id::text, to_char(day, 'YYYY-MM-DD') as day, invoiced_at is not null as invoiced from entries
+      select id::text, to_char(day, 'YYYY-MM-DD') as day, (invoiced_at is not null or handoff_id is not null) as invoiced from entries
       where member_id = ${me.id} and project_id = ${pid} and task_id is not distinct from ${tid}::bigint and day between ${monday} and ${addDays(monday, 6)} and deleted_at is null`;
     await weekLock(tx, me.id, monday);
     const s = await settings(tx);

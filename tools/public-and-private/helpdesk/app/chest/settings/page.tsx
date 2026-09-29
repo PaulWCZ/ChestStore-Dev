@@ -12,6 +12,8 @@ import { viewer } from "../../../lib/session.ts";
 import { answerers } from "../../../lib/tell.ts";
 import { erasures, savedReplies, settings, tags } from "../../../lib/tickets.ts";
 import { EmbedBox } from "./embed-box.tsx";
+import { NoticesBox } from "./notices-box.tsx";
+import { targets as noticeTargets } from "../../../lib/notices.ts";
 import { HoursBox } from "./hours-box.tsx";
 import { RulesBox } from "./rules-box.tsx";
 import { SettingsView } from "./settings-view.tsx";
@@ -26,6 +28,8 @@ export default async function SettingsPage() {
     settings(sql), savedReplies(sql, member), supportAddress(), tags(sql, member), listRules(sql, member), answerers(),
     can(member, "customers.erase") ? erasures(sql, member) : Promise.resolve([]),
   ]);
+  // Slack and Teams: the administrators' (the addresses are theirs to see).
+  const notices = canSettings ? await noticeTargets(sql, member) : null;
   const who = await people([...team, ...rules.map(r => r.assignee).filter((a): a is string => !!a), ...erased.map(e => e.by)]);
   const name = (id: string) => (id === "erased" ? t.people.erased : nameOf(who.get(id), locale));
   const origin = publicOrigin(await headers()) ?? "/";
@@ -51,6 +55,7 @@ export default async function SettingsPage() {
           <>
             <HoursBox hours={s.hours} lateHours={s.lateHours} year={Number(chest.today().slice(0, 4))} today={chest.today()} canSettings={canSettings} locale={locale} t={{ settings: t.settings, errors: t.errors, dates: t.dates }} />
             <RulesBox rules={rules.map(r => ({ ...r, assigneeName: r.assignee ? name(r.assignee) : null }))} team={team.map(id => ({ id, name: name(id) }))} tags={tagList.map(g => g.name)} canSettings={canSettings} t={{ settings: t.settings, errors: t.errors, priority: t.priority, peoplePicker: t.peoplePicker }} />
+            {notices && <NoticesBox available={notices.available} targets={notices.targets} canSettings={canSettings} t={{ settings: t.settings, errors: t.errors, dialog: t.dialog }} />}
             <EmbedBox origins={s.frameOrigins} publicAddress={origin} canSettings={canSettings} t={{ settings: t.settings, errors: t.errors, embedTitle: t.public.embedTitle }} />
           </>
         }

@@ -31,7 +31,7 @@ test("a fresh tool: jours ouvrés, 1 June, seven kinds of leave, paid leave earn
   const paid = all[0]!;
   assert.equal(paid.perYear, 25);
   assert.ok(paid.balance && paid.approval && paid.halfDays);
-  assert.deepEqual([paid.period, paid.periodMonth, paid.unused, paid.overdraw, paid.away], ["acquired", null, "carry", true, true]);
+  assert.deepEqual([paid.period, paid.periodMonth, paid.unused, paid.overdraw, paid.away], ["acquired", null, "carry", false, true]);
   // RTT: the days of a calendar year, counted on the days the person works.
   const rtt = all[1]!;
   assert.deepEqual([rtt.period, rtt.periodMonth, rtt.counting], ["yearly", 1, "worked"]);
@@ -106,6 +106,8 @@ test("the payroll export: approved absences of a month, the days inside it, HR o
   const { sql } = database;
   await setApprover(sql, asMember(camille), hugo.id, ines.id);
   const paid = (await types(sql)).find(t => t.key === "paid")!.id;
+  // Asked without a balance set: paid leave may go below zero here.
+  await saveType(sql, asMember(camille), paid, { overdraw: true });
   // Two approved leaves around the turn of a month, one refused, one waiting.
   const month = addDays(new Date().toISOString().slice(0, 8) + "01", 62).slice(0, 7);
   const first = month + "-01";

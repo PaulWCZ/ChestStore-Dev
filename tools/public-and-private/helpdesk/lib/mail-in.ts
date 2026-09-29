@@ -2,6 +2,7 @@ import * as chest from "@argentic/chest-sdk/chest";
 import type { Bounce, Received } from "@argentic/chest-sdk/mail";
 import type { Sql } from "./db.ts";
 import * as mailer from "./mailer.ts";
+import * as notices from "./notices.ts";
 import { publicBase } from "./public-origin.ts";
 import * as tell from "./tell.ts";
 import * as tickets from "./tickets.ts";
@@ -33,6 +34,7 @@ export async function received(sql: Sql, message: Received): Promise<void> {
     await tell.newTicket(t, message.text, filed.assignee);
   } else await tell.customerWrote(t, message.text);
   await tell.refreshBadges(sql);
+  await notices.about(sql, filed.created ? "new" : "replied", filed.id, filed.created ? `new:${filed.id}` : await notices.lastMessageKey(sql, filed.id));
 }
 
 // bounced marks the email that did not arrive, and tells whoever wrote it

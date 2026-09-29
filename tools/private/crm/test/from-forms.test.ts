@@ -5,12 +5,13 @@ import { POST } from "../app/chest-events/route.ts";
 import * as activities from "../lib/activities.ts";
 import * as companies from "../lib/companies.ts";
 import * as contacts from "../lib/contacts.ts";
-import { formKey, readFormContact } from "../lib/from-forms.ts";
+import { formKey, readFormContact, sameName } from "../lib/from-forms.ts";
+import { dismissLead, formLinesToCheck, keepApart, leads, markChecked, maybeSame, moveLine, restoreLead, takeLead } from "../lib/leads.ts";
 import { catalogue, format } from "../lib/i18n/index.ts";
 import { answerLink, withWhen } from "../lib/page-data.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
-import { camille, everyone, hugo } from "./support/members.ts";
+import { camille, everyone, hugo, ines, lea, nora } from "./support/members.ts";
 
 // Forms → Clients: `forms.contact` (v1, Forms' README "With the other
 // tools") finds or makes the contact and writes one line of its history,
@@ -45,14 +46,14 @@ const formLines = async (contactId: string) => (await activities.timeline(databa
 
 test("a new person: a contact of nobody's, at the company of that name (added), one line of history with the message; the managers are told", async () => {
   const { sql } = database;
-  const data = contact({ contact: { name: "Nina Roux", email: "Nina.Roux@Example.com", phone: "+33 6 12 34 56 78", company: "Roux SARL" } });
+  const data = contact({ contact: { name: "Nina Roux", email: "Nina.Roux@Example.com", phone: "+33 6 98 76 54 32", company: "Roux SARL" } });
   assert.equal(await told(data), 204);
   const [id] = await byEmail("nina.roux@example.com");
   assert.ok(id);
   const c = await contacts.contact(sql, asMember(camille), id);
   assert.equal(c.name, "Nina Roux");
   assert.equal(c.email, "nina.roux@example.com");
-  assert.equal(c.phone, "+33 6 12 34 56 78");
+  assert.equal(c.phone, "+33 6 98 76 54 32");
   assert.equal(c.owner, null, "unassigned: nobody imported it");
   assert.equal(c.company?.name, "Roux SARL");
   assert.equal(c.lastContact, "2026-09-29T10:00:00.000Z", "in touch the day of the answer");
@@ -61,7 +62,7 @@ test("a new person: a contact of nobody's, at the company of that name (added), 
   assert.deepEqual(history.map(a => a.kind), ["form", "created"]);
   assert.equal(history[0]!.body, "Six oak chairs, please.");
   assert.equal(history[0]!.at, "2026-09-29T10:00:00.000Z");
-  assert.deepEqual(history[0]!.data, { event: history[0]!.data["event"], formId: "5", form: "Contact us", answer: data.answer.id, path: data.answer.path });
+  assert.deepEqual(history[0]!.data, { event: history[0]!.data["event"], formId: "5", form: "Contact us", answer: data.answer.id, path: data.answer.path, who: { name: "Nina Roux", email: "nina.roux@example.com", phone: "+33 6 98 76 54 32", company: "Roux SARL" } });
   assert.deepEqual(history[1]!.data, { form: "Contact us" });
   // The company's page shows the line too.
   assert.ok((await activities.timeline(sql, { companyId: c.company!.id })).some(a => a.kind === "form"));
@@ -115,11 +116,11 @@ test("a known person, by email whatever its case: their contact, their owner tol
   assert.deepEqual(bell.map(n => [n.member, n.title]), [[hugo.id, "Julie Blanc (owner) filled in the form “Contact us”"]]);
 });
 
-test("a known person by phone, spaced or international; a company found by name, accents and case aside", async () => {
+test("a known person by phone and the same name (accents, case and word order aside), spaced or international; a company found by name, accents and case aside", async () => {
   const { sql } = database;
   const co = await companies.addCompany(sql, asMember(hugo), { name: "Boulangerie Durand" });
   const known = await contacts.addContact(sql, asMember(hugo), { name: "Paul Durand", phone: "04 78 42 16 90" });
-  assert.equal(await told(contact({ contact: { name: "P. Durand", email: null, phone: "+33 4 78 42 16 90", company: "BOULANGERIE DURAND" } })), 204);
+  assert.equal(await told(contact({ contact: { name: "DURAND Paul", email: null, phone: "+33 4 78 42 16 90", company: "BOULANGERIE DURAND" } })), 204);
   const c = await contacts.contact(sql, asMember(camille), known.id);
   assert.equal((await formLines(known.id)).length, 1);
   assert.equal(c.phone, "04 78 42 16 90", "the phone as the team wrote it");
@@ -129,6 +130,80 @@ test("a known person by phone, spaced or international; a company found by name,
   const [anne] = await byEmail("anne@durand.test");
   assert.equal((await contacts.contact(sql, asMember(camille), anne!)).company?.id, co.id);
   assert.equal((await sql`select 1 from companies where crm_fold(name) = crm_fold('Boulangerie Durand')`).length, 1);
+});
+
+test("names compare as people write them", () => {
+  assert.ok(sameName("Nina Roux", "nina roux"));
+  assert.ok(sameName("Hélène Lefèvre", "HELENE LEFEVRE"));
+  assert.ok(sameName("Roux, Nina", "Nina Roux"));
+  assert.ok(!sameName("Nina Roux", "Claire Durand"));
+  assert.ok(!sameName("P. Durand", "Paul Durand"), "an initial is not a name: a person checks");
+  assert.ok(!sameName("", ""), "no name is nobody's");
+});
+
+// Round 3's blocker (critique of 2026-09-29), with Forms' real event: a
+// visitor whose phone is a client's (a switchboard, a shared shop line, a
+// mistyped digit) was filed in that client's history.
+test("privacy: Nina Roux's answer, whose phone is Claire Durand's, is never filed on Claire — a new contact, marked as maybe the same person, and her own second answer finds her", async () => {
+  const { sql } = database;
+  const claire = await contacts.addContact(sql, asMember(hugo), { name: "Claire Durand", email: "claire.durand@atelier-durand.fr", phone: "06 12 34 56 78" });
+  const nina = {
+    v: 1,
+    form: { id: "101", title: "Contactez-nous" },
+    answer: { id: "s54tfe3tahshinv1", at: "2026-09-29T20:45:27.301Z", language: "fr", path: "/chest/forms/101/answers/s54tfe3tahshinv1" },
+    contact: { name: "Nina Roux", email: "nina.roux@gmail.com", phone: "06 12 34 56 78", company: null },
+    message: "Bonjour, je voudrais un devis pour six chaises en chêne.\nMerci",
+    member: null,
+  };
+  assert.equal(await told(nina), 204);
+  assert.equal((await formLines(claire.id)).length, 0, "nothing of Nina's in Claire's file");
+  const [ninaId] = await byEmail("nina.roux@gmail.com");
+  assert.ok(ninaId, "Nina is a contact of her own");
+  const made = await contacts.contact(sql, asMember(camille), ninaId!);
+  assert.equal(made.name, "Nina Roux");
+  assert.equal(made.phone, "06 12 34 56 78");
+  assert.equal(made.owner, null);
+  assert.deepEqual(await maybeSame(sql, ninaId!), { id: claire.id, name: "Claire Durand", phone: "06 12 34 56 78" });
+  const [line] = await formLines(ninaId!);
+  assert.equal(line!.body, "Bonjour, je voudrais un devis pour six chaises en chêne.\nMerci");
+  assert.deepEqual(line!.data["who"], { name: "Nina Roux", email: "nina.roux@gmail.com", phone: "06 12 34 56 78", company: "" });
+  // Claire's owner is not told; the managers are, of a new contact that
+  // may be Claire.
+  const bell = chest.notifications.filter(n => n.key === formKey("101", "s54tfe3tahshinv1"));
+  assert.deepEqual(bell.map(n => [n.member, n.title, n.body]), [[camille.id, "Nouveau contact : Nina Roux a rempli le formulaire « Contactez-nous »", "Peut-être la même personne que Claire Durand (même téléphone) : vérifiez avant d’appeler. Bonjour, je voudrais un devis pour six chaises en chêne. Merci"]], "(the bell writes a message on one line)");
+  // She is a lead in My day.
+  assert.ok((await leads(sql, asMember(hugo))).rows.some(l => l.id === ninaId && l.maybe?.name === "Claire Durand"));
+
+  // Her second answer, from her work address and her company, same phone:
+  // the same name at that number — Nina, never Claire.
+  const second = { ...nina, answer: { ...nina.answer, id: "second0000000002", at: "2026-10-01T08:00:00.000Z", path: "/chest/forms/101/answers/second0000000002" }, contact: { ...nina.contact, email: "n.roux@roux-menuiserie.fr", company: "Roux Menuiserie" }, message: "Finalement 8 chaises, livraison avant Noël ?" };
+  assert.equal(await told(second), 204);
+  assert.equal((await formLines(claire.id)).length, 0);
+  assert.equal((await formLines(ninaId!)).length, 2);
+  assert.equal((await contacts.contact(sql, asMember(camille), ninaId!)).email, "nina.roux@gmail.com", "the address the team has stays");
+  // The other address is on the line, and a manager is asked to check it.
+  const check = await formLinesToCheck(sql, asMember(camille));
+  const listed = check.rows.find(r => r.contact.id === ninaId);
+  assert.equal(listed?.why, "email");
+  assert.equal(listed?.who?.email, "n.roux@roux-menuiserie.fr");
+  await assert.rejects(formLinesToCheck(sql, asMember(hugo)), /forbidden/u, "a salesperson does not check");
+
+  // Nobody's data leaks by erasure: deleting Claire leaves Nina's words.
+  await contacts.deleteContact(sql, asMember(camille), claire.id);
+  assert.equal((await formLines(ninaId!)).length, 2);
+  assert.equal(await maybeSame(sql, ninaId!), null, "the mark goes with Claire");
+});
+
+test("the same phone, no name given: a new contact marked as maybe the other, never filed on them", async () => {
+  const { sql } = database;
+  const shop = await contacts.addContact(sql, asMember(hugo), { name: "Standard Menuiserie Blanc", phone: "01 45 00 00 00" });
+  assert.equal(await told(contact({ contact: { name: null, email: null, phone: "01 45 00 00 00" }, message: "Rappelez-moi" })), 204);
+  assert.equal((await formLines(shop.id)).length, 0);
+  const [row] = await sql<{ id: string; maybe_same: string | null }[]>`select id, maybe_same from contacts where phone = '01 45 00 00 00' and id <> ${shop.id}`;
+  assert.equal(String(row!.maybe_same), shop.id);
+  // "Not the same person": the mark goes.
+  await keepApart(sql, asMember(hugo), row!.id);
+  assert.equal(await maybeSame(sql, String(row!.id)), null);
 });
 
 test("a phone only: a contact named by it when no name was given; no message, no body", async () => {
@@ -212,4 +287,83 @@ test("the line links to the answer in Forms, made when the page is shown from th
   }
   // Removed from the Chest: no link again.
   assert.equal(answerLink(line!), null);
+});
+
+test("leads: a contact a form made waits in My day until taken, given or set aside; each role's rights", async () => {
+  const { sql } = database;
+  assert.equal(await told(contact({ contact: { name: "Lead One", email: "lead.one@example.com", company: "Lead Co" } })), 204);
+  assert.equal(await told(contact({ contact: { name: "Lead Two", email: "lead.two@example.com" } })), 204);
+  const [one] = await byEmail("lead.one@example.com");
+  const [two] = await byEmail("lead.two@example.com");
+  const inbox = await leads(sql, asMember(hugo));
+  assert.ok(inbox.rows.some(l => l.id === one && l.company === "Lead Co" && l.form === "Contact us" && l.message === "Six oak chairs, please."));
+  // A viewer reads, never takes; a member without a role reads nothing.
+  await assert.rejects(takeLead(sql, asMember(lea), one), /forbidden/u);
+  await assert.rejects(leads(sql, asMember(nora)), /forbidden/u);
+  // Hugo takes it: his, with the company the form made; off the list.
+  const taken = await takeLead(sql, asMember(hugo), one);
+  assert.equal(taken.owner, hugo.id);
+  const c = await contacts.contact(sql, asMember(camille), one!);
+  assert.equal(c.owner, hugo.id);
+  assert.equal((await companies.company(sql, asMember(camille), c.company!.id)).owner, hugo.id, "the company the form made goes with it");
+  assert.ok(!(await leads(sql, asMember(hugo))).rows.some(l => l.id === one));
+  assert.deepEqual((await activities.timeline(sql, { contactId: one! })).filter(a => a.kind === "owner").map(a => a.data), [{ from: null, to: hugo.id }]);
+  // Taken already: Inès cannot take it too.
+  await assert.rejects(takeLead(sql, asMember(ines), one), /not_found/u);
+  // "Not a lead", then Undo.
+  await dismissLead(sql, asMember(ines), two);
+  assert.ok(!(await leads(sql, asMember(hugo))).rows.some(l => l.id === two));
+  await restoreLead(sql, asMember(ines), two);
+  assert.ok((await leads(sql, asMember(hugo))).rows.some(l => l.id === two));
+  // Camille gives it to Inès: Inès is told.
+  await takeLead(sql, asMember(camille), two, ines.id);
+  assert.equal((await contacts.contact(sql, asMember(camille), two!)).owner, ines.id);
+  // Someone who is not of the team cannot be given it.
+  assert.equal(await told(contact({ contact: { name: "Lead Three", email: "lead.three@example.com" } })), 204);
+  const [three] = await byEmail("lead.three@example.com");
+  await assert.rejects(takeLead(sql, asMember(camille), three, lea.id), /invalid/u);
+  // A contact given an owner any other way leaves the list too.
+  await contacts.updateContact(sql, asMember(camille), three, { owner: hugo.id });
+  assert.ok(!(await leads(sql, asMember(hugo))).rows.some(l => l.id === three));
+});
+
+test("the check: lines filed before Clients kept who filled the form in, on a contact the form did not make, are listed; a manager says 'right person' or moves the line", async () => {
+  const { sql } = database;
+  // A line of the previous version (no `who`) on a contact of the team's:
+  // it may be a mis-filing of the old phone rule.
+  const old = await contacts.addContact(sql, asMember(hugo), { name: "Old Client", phone: "05 55 55 55 55" });
+  const [oldLine] = await sql<{ id: string }[]>`insert into activities (kind, body, data, contact_id, author) values ('form', 'Old words', ${sql.json({ event: "evt_old", formId: "5", form: "Contact us", answer: "oldanswer1", path: "/chest/forms/5/answers/oldanswer1" })}, ${old.id}, 'chest') returning id`;
+  // A line of the previous version that made its contact: surely right.
+  const [made] = await sql<{ id: string }[]>`insert into contacts (name, email, owner, created_by) values ('Made By Form', 'made@example.com', null, 'chest') returning id`;
+  await sql`insert into activities (kind, body, data, contact_id, author) values ('form', '', ${sql.json({ event: "evt_old2", formId: "5", form: "Contact us", answer: "oldanswer2", path: "" })}, ${made!.id}, 'chest')`;
+  const list = await formLinesToCheck(sql, asMember(camille));
+  const mine = list.rows.filter(r => r.contact.id === old.id || r.contact.id === String(made!.id));
+  assert.deepEqual(mine.map(r => [r.id, r.why]), [[String(oldLine!.id), "before"]]);
+  // "Right person", then Undo.
+  await markChecked(sql, asMember(camille), oldLine!.id);
+  assert.ok(!(await formLinesToCheck(sql, asMember(camille))).rows.some(r => r.id === String(oldLine!.id)));
+  await markChecked(sql, asMember(camille), oldLine!.id, false);
+  assert.ok((await formLinesToCheck(sql, asMember(camille))).rows.some(r => r.id === String(oldLine!.id)));
+  await assert.rejects(markChecked(sql, asMember(hugo), oldLine!.id), /forbidden/u);
+  // Moved to the contact it belongs to: gone from the check and from Old Client's file.
+  const right = await contacts.addContact(sql, asMember(hugo), { name: "Right Person" });
+  await assert.rejects(moveLine(sql, asMember(camille), oldLine!.id, old.id), /same_record/u);
+  await assert.rejects(moveLine(sql, asMember(camille), oldLine!.id, "new"), /invalid/u, "an old line holds nothing to make a contact from");
+  await moveLine(sql, asMember(camille), oldLine!.id, right.id);
+  assert.equal((await formLines(old.id)).length, 0);
+  assert.equal((await formLines(right.id))[0]?.body, "Old words");
+  assert.ok(!(await formLinesToCheck(sql, asMember(camille))).rows.some(r => r.id === String(oldLine!.id)));
+
+  // A new line with another address: moved to a new contact made of what the form gave.
+  const julie = await contacts.addContact(sql, asMember(hugo), { name: "Julie Martin", email: "julie@martin.test", phone: "03 33 33 33 33" });
+  assert.equal(await told(contact({ contact: { name: "julie martin", email: "jm@other.test", phone: "03 33 33 33 33" }, message: "Hello" })), 204);
+  const [line] = await formLines(julie.id);
+  assert.ok(line, "same phone, same name: Julie");
+  const listed = (await formLinesToCheck(sql, asMember(camille))).rows.find(r => r.id === line!.id);
+  assert.equal(listed?.why, "email");
+  const moved = await moveLine(sql, asMember(camille), line!.id, "new");
+  const fresh = await contacts.contact(sql, asMember(camille), moved.contact);
+  assert.deepEqual([fresh.name, fresh.email, fresh.phone, fresh.owner], ["julie martin", "jm@other.test", "03 33 33 33 33", null]);
+  assert.ok((await leads(sql, asMember(hugo))).rows.some(l => l.id === moved.contact), "a lead to take");
+  assert.equal((await formLines(julie.id)).length, 0);
 });

@@ -1,3 +1,4 @@
+import type { Source } from "./sources.ts";
 import type { Query } from "./db.ts";
 import { cycleName } from "./cycle-names.ts";
 import type { Locale } from "./i18n/index.ts";
@@ -24,8 +25,13 @@ export type KeyResult = {
   current: number;
   weight: number;
   owner: string;
-  // Fed by the CRM (lib/crm.ts), or null: checked in by its owner.
-  source: "crm.won_amount" | "crm.won_count" | null;
+  // Fed by another tool (lib/sources.ts), or null: updated by its owner.
+  source: Source | null;
+  // Fed: only what names its owner; a board of Tasks (or null: all).
+  sourceMine: boolean;
+  sourceScope: string | null;
+  // The language its unit is written in (lib/values.ts), or null.
+  unitLocale: string | null;
   createdAt: string;
   progress: number;
   done: boolean;
@@ -91,7 +97,7 @@ type ObjectiveRow = {
 };
 type KeyResultRow = {
   id: string; objective_id: string; cycle_id: string; title: string; kind: Kind; unit: string; currency: string | null; start_value: string; target_value: string; current_value: string;
-  weight: number; owner: string; source: KeyResult["source"]; created_at: Date; confidence: Confidence | null; last_at: Date | null; closed: boolean;
+  weight: number; owner: string; source: KeyResult["source"]; source_mine: boolean; source_scope: string | null; unit_locale: string | null; created_at: Date; confidence: Confidence | null; last_at: Date | null; closed: boolean;
 };
 
 const objectiveColumns = "o.id, o.cycle_id, o.level, o.team_id, o.parent_id, o.carried_from, o.owner, o.title, o.why, o.visibility, o.score, o.learned, o.retro_by, o.retro_at, o.created_by, o.created_at";
@@ -114,6 +120,9 @@ function toKeyResult(r: KeyResultRow, now: Date, weekStart: Date): KeyResult {
     weight: Number(r.weight),
     owner: r.owner,
     source: r.source,
+    sourceMine: r.source_mine,
+    sourceScope: r.source_scope,
+    unitLocale: r.unit_locale,
     createdAt: r.created_at.toISOString(),
     progress: p,
     done: p >= 1,
@@ -153,7 +162,7 @@ async function keyResultsOf(sql: Query, objectiveIds: string[], now: Date, weekS
   const found = new Map<string, KeyResult[]>();
   if (objectiveIds.length === 0) return found;
   const rows = await sql<KeyResultRow[]>`
-    select k.id, k.objective_id, o.cycle_id, k.title, k.kind, k.unit, k.currency, k.start_value, k.target_value, k.current_value, k.weight, k.owner, k.source, k.created_at,
+    select k.id, k.objective_id, o.cycle_id, k.title, k.kind, k.unit, k.currency, k.start_value, k.target_value, k.current_value, k.weight, k.owner, k.source, k.source_mine, k.source_scope, k.unit_locale, k.created_at,
       c.confidence, c.created_at as last_at, (y.closed_at is not null) as closed
     from key_results k
     join objectives o on o.id = k.objective_id

@@ -6,9 +6,9 @@ import type { Catalogue } from "../../../../lib/i18n/index.ts";
 
 // The day of the balances file, in the kit's date field (typed in the
 // reader's language, or chosen on a calendar); the form sends it as "on".
-export function OnDay({ today, label, labels }: { today: string; label: string; labels: Catalogue["date"] }) {
+export function OnDay({ today, max, label, hint, labels }: { today: string; max: string; label: string; hint: string; labels: Catalogue["date"] }) {
   const [on, setOn] = useState<string | null>(today);
-  return <DateField id="on" name="on" label={label} value={on} onChange={setOn} today={today} max={today} required labels={labels} />;
+  return <DateField id="on" name="on" label={label} hint={hint} value={on} onChange={setOn} today={today} max={max} required labels={labels} />;
 }
 
 // The month of the absences file, in the kit's month field: the month in

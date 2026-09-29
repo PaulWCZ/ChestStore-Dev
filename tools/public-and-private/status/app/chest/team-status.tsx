@@ -14,7 +14,7 @@ import { impactOf, statusView, touchedNames } from "../../lib/status-view.ts";
 export async function TeamStatus({ locale, t }: { locale: Locale; t: Catalogue }) {
   const now = new Date();
   const zone = chest.timeZone();
-  const view = await statusView(db(), zone, now, { team: true });
+  const view = await statusView(db(), zone, now, { team: true, locale });
   const words = { public: t.public, steps: t.steps, states: t.states, time: t.time, maintenance: t.maintenance };
   const current = [...view.open, ...view.maintenanceNow, ...view.maintenanceAhead];
   return (

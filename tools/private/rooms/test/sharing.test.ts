@@ -5,6 +5,7 @@ import * as desks from "../lib/desk-bookings.ts";
 import * as places from "../lib/places.ts";
 import { setPresence } from "../lib/presence.ts";
 import * as rooms from "../lib/room-bookings.ts";
+import * as tell from "../lib/tell.ts";
 import { setUsualWeek } from "../lib/usual.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
@@ -87,4 +88,27 @@ test("desks added to an area come after the ones already there, whatever their n
   const area = (await places.offices(sql, asMember(camille)))[0]!.floors.flatMap(f => f.areas).find(a => a.id === o.area)!;
   assert.deepEqual(area.desks.slice(-2).map(d => d.id), ids);
   assert.deepEqual(area.desks.map(d => d.name), ["D-01", "D-02", "D-03", "D-04", "D-05", "D-06"]);
+});
+
+// The holder comes back on a day their desk was lent: the booking stays the
+// borrower's, and the borrower hears the holder is coming (in their
+// language), so they can free it.
+test("when a desk's holder says office again, whoever borrowed it that day is told", async () => {
+  const { sql } = database;
+  const d = workday(9);
+  await places.updateDesk(sql, asMember(camille), o.desks[2], { name: "D-03", assignedTo: sofia.id });
+  await setUsualWeek(sql, asMember(sofia), { days: {}, lendDesk: true }, zone);
+  await setPresence(sql, asMember(sofia), { day: d, status: "remote" }, zone);
+  const lent = await desks.bookDesk(sql, asMember(lea), { deskId: o.desks[2], day: d }, zone);
+  const back = await setPresence(sql, asMember(sofia), { day: d, status: "office" }, zone);
+  assert.deepEqual(back.borrowed, [{ bookingId: lent.id, memberId: lea.id, deskName: "D-03" }]);
+  assert.equal((await setPresence(sql, asMember(sofia), { day: d, status: "office" }, zone)).borrowed.length, 0, "said again: nobody told twice");
+  chest.notifications.length = 0;
+  await tell.holderBack(asMember(sofia), d, back.borrowed);
+  assert.equal(chest.notifications.length, 1);
+  assert.equal(chest.notifications[0]!.member, lea.id);
+  assert.match(chest.notifications[0]!.title, /^Sofia Rossi vient au bureau le /u);
+  assert.match(chest.notifications[0]!.body ?? "", /^D-03 est son poste/u);
+  assert.equal((await desks.deskDay(sql, asMember(lea), o.office, d)).filter(b => b.id === lent.id).length, 1, "the booking stays Léa's");
+  await places.updateDesk(sql, asMember(camille), o.desks[2], { name: "D-03", assignedTo: null });
 });

@@ -1,4 +1,4 @@
-import { EmptyState, PageHeader } from "@argentic/chest-ui/components";
+import { EmptyState, PageHeader, SearchBox } from "@argentic/chest-ui/components";
 import { AutoSubmit } from "../../../components/auto-submit.tsx";
 import { Download, Note } from "../../../components/icons.tsx";
 import { can } from "../../../lib/access.ts";
@@ -8,13 +8,16 @@ import { formatDuration, hours as decimalHours } from "../../../lib/duration.ts"
 import { decimal, format, formatDay, money, percent, plural } from "../../../lib/i18n/index.ts";
 import { nameFor, people } from "../../../lib/people.ts";
 import { period, presets } from "../../../lib/periods.ts";
-import { billableFilters, groups, isGroup, report, reportPeople, type Line } from "../../../lib/reports.ts";
+import { toolUrl } from "@argentic/chest-sdk/chest";
+import { recentHandoffs, sendable } from "../../../lib/handoff.ts";
+import { billableFilters, foundEntries, foundLimit, groups, isGroup, report, reportPeople, searchWords, type Line } from "../../../lib/reports.ts";
 import { viewer } from "../../../lib/session.ts";
 import { settings } from "../../../lib/settings.ts";
 import { MarkInvoiced } from "./mark-invoiced.tsx";
+import { QuotesPanel } from "./quotes-panel.tsx";
 import { GroupChoice, LinesTable, RangeFields, type LineRow } from "./report-views.tsx";
 
-type Query = { preset?: string; from?: string; to?: string; group?: string; person?: string; kind?: string };
+type Query = { preset?: string; from?: string; to?: string; group?: string; person?: string; kind?: string; q?: string };
 
 // Where the time went: a period, totals, a bar per day, a line per project
 // (client, person, task), and the CSV. A member sees their own time only;
@@ -31,19 +34,27 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
   const kinds = billableFilters.filter(k => all || k !== "uninvoiced");
   const kind = (kinds as readonly string[]).includes(q.kind ?? "") ? q.kind! : "all";
   const person = all && q.person ? q.person : "";
+  // Words searched in the notes: the report, the CSV and the list of the
+  // entries found all follow them.
+  const words = searchWords(q.q) ?? "";
   const sql = db();
-  const [r, candidates, s] = await Promise.all([
-    report(sql, member, { from: p.from, to: p.to, group, person: person || undefined, billable: kind }),
+  // Billable time to Quotes: when Quotes is installed beside Timesheets.
+  const quotes = all && kind === "uninvoiced" && toolUrl("quotes") !== null;
+  const [r, candidates, s, found, toSend, handed] = await Promise.all([
+    report(sql, member, { from: p.from, to: p.to, group, person: person || undefined, billable: kind, q: words }),
     all ? reportPeople(sql, member) : Promise.resolve([]),
     settings(sql),
+    foundEntries(sql, member, { from: p.from, to: p.to, person: person || undefined, billable: kind, q: words }),
+    quotes ? sendable(sql, member, p.from, p.to) : Promise.resolve([]),
+    quotes ? recentHandoffs(sql, member) : Promise.resolve([]),
   ]);
   const h = (minutes: number) => (s.hoursStyle === "decimal" ? decimal(decimalHours(minutes), locale) : formatDuration(minutes));
-  const who = await people([...candidates, ...r.lines.flatMap(l => (l.memberId ? [l.memberId] : []))]);
+  const who = await people([...candidates, ...r.lines.flatMap(l => (l.memberId ? [l.memberId] : [])), ...found.map(f => f.memberId)]);
   const code = currency();
   const showMoney = all && r.priced;
   const showCost = all && r.costed;
   const margin = (cents: number, cost: number) => (cents ? format(t.reports.marginOf, { amount: money(cents - cost, code, locale), percent: percent((cents - cost) / cents, locale) }) : money(cents - cost, code, locale));
-  const params = new URLSearchParams({ preset: p.preset, from: p.from, to: p.to, group, kind, ...(person ? { person } : {}) });
+  const params = new URLSearchParams({ preset: p.preset, from: p.from, to: p.to, group, kind, ...(person ? { person } : {}), ...(words ? { q: words } : {}) });
   const max = Math.max(1, ...r.bars.map(b => b.billable + b.other));
   const personOptions = candidates.map(id => ({ id, name: nameFor(id, who, locale) })).sort((a, b) => a.name.localeCompare(b.name, locale));
   const lineName = (l: Line) => {
@@ -122,6 +133,8 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
         </div>
       </form>
 
+      <SearchBox action="/chest/reports" value={words} keep={{ preset: p.preset, from: p.from, to: p.to, group, kind, person }} labels={t.search} maxLength={100} className="note-search" />
+
       <p className="range-label">{format(t.reports.range, { from: formatDay(r.from, locale, { day: "numeric", month: "long", year: "numeric" }), to: formatDay(r.to, locale, { day: "numeric", month: "long", year: "numeric" }) })}</p>
 
       <section className="tiles" aria-label={t.reports.total}>
@@ -137,8 +150,46 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
       {all && kind !== "uninvoiced" && r.uninvoiced > 0 && (
         <p className="small"><a href={`/chest/reports?${new URLSearchParams({ preset: p.preset, from: p.from, to: p.to, group, kind: "uninvoiced", ...(person ? { person } : {}) })}`}>{plural(t.reports.uninvoicedLink, r.uninvoiced, locale)}</a></p>
       )}
-      {all && kind === "uninvoiced" && r.minutes > 0 && (
+      {all && kind === "uninvoiced" && r.minutes > 0 && !words && (
         <MarkInvoiced query={{ from: p.from, to: p.to, ...(person ? { person } : {}) }} label={plural(t.reports.markInvoiced, r.uninvoiced, locale)} locale={locale} t={{ reports: t.reports, errors: t.errors }} />
+      )}
+
+      {quotes && !words && (
+        <QuotesPanel
+          rows={toSend.map(x => ({ projectId: x.projectId, name: x.projectName, client: x.clientName ?? t.reports.noClient, color: x.color, hours: h(x.minutes), amount: x.cents ? money(x.cents, code, locale) : null, entries: x.entries }))}
+          handoffs={handed.map(x => ({
+            id: x.id,
+            title: x.clientName ? `${x.projectName} · ${x.clientName}` : x.projectName,
+            sub: [format(t.reports.quotes.span, { from: formatDay(x.from, locale, { day: "numeric", month: "short" }), to: formatDay(x.to, locale, { day: "numeric", month: "short", year: "numeric" }) }), h(x.minutes), ...(x.cents !== null ? [money(x.cents, code, locale)] : [])].join(" · "),
+            state: x.cancelled ? "cancelled" : x.invoiced ? "invoiced" : "waiting",
+            invoice: x.invoiceRef || null,
+            link: x.invoiceLink,
+          }))}
+          from={p.from}
+          to={p.to}
+          locale={locale}
+          t={{ reports: t.reports, errors: t.errors }}
+        />
+      )}
+
+      {words && (
+        <section className="panel found" aria-labelledby="found-title">
+          <h2 id="found-title">{found.length >= foundLimit ? format(t.reports.foundMany, { count: foundLimit, q: words }) : plural(t.reports.found, found.length, locale, { q: words })}</h2>
+          {found.length > 0 && (
+            <ul className="found-list">
+              {found.map(f => (
+                <li key={f.id}>
+                  <span className={`swatch c-${f.color ?? "teal"}`} aria-hidden="true" />
+                  <span className="found-what">
+                    <span className="small muted">{[formatDay(f.day, locale, { weekday: "short", day: "numeric", month: "short", year: "numeric" }), ...(all ? [nameFor(f.memberId, who, locale)] : []), f.taskName ? `${f.projectName} · ${f.taskName}` : f.projectName].join(" · ")}</span>
+                    <span>{f.note}</span>
+                  </span>
+                  <span className="num">{h(f.minutes)}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
       )}
 
       {r.minutes === 0 ? (

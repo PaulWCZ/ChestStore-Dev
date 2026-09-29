@@ -50,7 +50,7 @@ export async function setRules(sql: Sql, actor: Member | null, input: Record<str
   return next;
 }
 
-// What is older than the rules keep goes: past bookings and presence, and
+// What is older than the rules keep goes: past bookings, visits and presence, and
 // cancelled bookings a day after (their undo is long over). Nothing runs in
 // the background: this runs when a page of the week is read.
 export async function purge(sql: Sql, zone: string): Promise<void> {
@@ -59,5 +59,6 @@ export async function purge(sql: Sql, zone: string): Promise<void> {
   await sql`delete from presence where day < ${cutoff}`;
   await sql`delete from desk_bookings where day < ${cutoff} or cancelled_at < now() - interval '1 day'`;
   await sql`delete from room_bookings where day < ${cutoff} or cancelled_at < now() - interval '1 day'`;
+  await sql`delete from visits where day < ${cutoff} or cancelled_at < now() - interval '1 day'`;
   await sql`delete from usual_applied where day < (now() at time zone ${zone})::date`;
 }

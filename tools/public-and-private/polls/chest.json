@@ -1,0 +1,36 @@
+{
+  "version": 2,
+  "name": "polls",
+  "title": "Polls",
+  "description": "Ask the team a quick question, find a date that suits everyone, or run a short anonymous survey.",
+  "icon": "chest/icon.svg",
+  "preview": "chest/preview.png",
+  "roles": [
+    "organiser",
+    "member"
+  ],
+  "role_labels": {
+    "organiser": "Organiser",
+    "member": "Member"
+  },
+  "public": true,
+  "csp": "tool",
+  "capabilities": [
+    "database",
+    "members",
+    "notifications"
+  ],
+  "receives": [
+    "member.*"
+  ],
+  "build": {
+    "runtime": "node",
+    "install": "npm ci",
+    "command": "npm run build",
+    "start": "npm start",
+    "port": 3000,
+    "static": [
+      "/_next/static/"
+    ]
+  }
+}

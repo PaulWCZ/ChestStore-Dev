@@ -107,7 +107,30 @@ for the work of a small company's teams — the 80 % they use every day.
   are not** (their cards stay unassigned), and how many attached files stay
   behind in Trello (link attachments come into the description). An
   imported board is **private to the importer** unless *Everyone in Tasks*
-  is chosen.
+  is chosen; the page then names the people on its cards who will not see
+  them until it is shared.
+- **Switch day without "late" noise**: a list or status named *Done,
+  Fait, Terminé, Clôturé, Closed, Livré…* holds finished work (ticked in
+  the check, which the person may change column by column); a Trello card
+  *marked complete* on its due date (`dueComplete`) and an Asana task with
+  *Completed At* go to that column (or to a *Done* column of their own).
+  So nothing finished last spring rings the bell, the morning email or the
+  tile's number the first morning. **Archived Trello lists come archived**,
+  with their cards (the check says which, and how many). A sheet's
+  statuses are put in a workflow's order (*À faire → En cours → À valider
+  → Fait*), whatever order its rows come in.
+- **My due dates in my calendar** (Proposal (studio) `calendar`): each
+  open card given to someone, with a due date, is in their Chest calendar
+  feed (the one Google Calendar, Outlook or Apple Calendar subscribes to),
+  and each step in its person's — all day, or 30 minutes at the due time,
+  shown free, private on a private board, opening the card. Done,
+  archived, deleted or taken from them, it leaves their calendar. Only
+  people who see the board get it. *My tasks* links to the Chest's page
+  for adding the calendar once the Chest has taken the first event.
+- **Links that follow the card**: bell items, emails and calendar events
+  open `/chest/cards/<id>`, which finds the card's board when clicked; an
+  older link to the previous board opens the card where it is now, and a
+  card that is gone says so.
 - **Export** a board as CSV (in the reader's language) or JSON
   (everything); managers download **all boards at once** (one JSON file,
   archived and private boards included).
@@ -130,14 +153,16 @@ the tool's builders come in with the first role, `manager`.
 ## First minute
 
 - **What a new user sees:** *My tasks*. On an empty Chest: "Start with a
-  board" and one button, *Create a board*.
+  board", *Create a board*, and *Bring your Trello or Asana boards* (the
+  import).
 - **The first thing they do:** name a board, keep the suggested columns,
   press *Create the board*, then *Add a card* and type.
 - **Clicks for the main job:** giving a task to Inès is 3 clicks from the
   board (open the card, *Give to…*, Inès); ticking my task done is 1 (from
   *My tasks*, or *Mark done* in the card).
 - **A viewer on an empty Chest** reads "No board is shared with you yet —
-  Ask Camille Martin to add you to a board" (the managers' names).
+  Ask Camille Martin to add you to a board" (the managers' names), on
+  *My tasks* and on *Boards*.
 - **A mistake:** a card moved to the wrong column is dragged back; ticked
   by mistake → *Undo* (a repeating card also takes back the next one it
   made, if nobody touched it yet); archived by mistake → *Undo*, or restore it from the
@@ -149,6 +174,7 @@ the tool's builders come in with the first role, `manager`.
 |---|---|---|
 | `/chest` | members | My tasks and my boards |
 | `/chest/boards` (`?archived=1`) | members | all boards I see |
+| `/chest/cards/<id>` | members who see the card's board | opens the card on the board it is on now (bell, email and calendar links) |
 | `/chest/boards/<id>` (`?card=`, `?view=list\|calendar\|timeline`, `?month=YYYY-MM`, `?from=YYYY-MM-DD`, `?who=`, `?label=`) | members who see the board | the board, its list, calendar or timeline, a card open beside it |
 | `/chest/boards/<id>/settings` | idem (changes: owners, managers) | settings, archive, export |
 | `/chest/boards/<id>/export?format=csv\|json` | idem | a download |
@@ -168,7 +194,8 @@ the tool's builders come in with the first role, `manager`.
   browser → Chest uploads); `members` (names, photos, who sees a board);
   `notifications` (the bell and the tile's number); `receives: ["member.*"]`;
   and, Proposal (studio) in `chest.proposals.json`, `mail: {send: true}`
-  (email to members, by their id).
+  (email to members, by their id) and `calendar: true` (each person's due
+  dates in their Chest calendar feed).
 - **Someone leaves** (or loses access): their open cards and steps are
   unassigned (the history says so), they leave the boards' people; done
   cards keep them. A board whose last owner left is managed by the
@@ -179,7 +206,8 @@ the tool's builders come in with the first role, `manager`.
   weekdays at 07:30 in the Chest's time zone, called at
   `POST /chest-jobs/morning`. It makes any missing next card of a repeating
   card, sends the reminders (and takes back those no longer true), and sets
-  every tile's number, since dates moved overnight. A run delivered twice
+  every tile's number, since dates moved overnight, and checks every due
+  date in the members' calendars again. A run delivered twice
   makes no second card and no second item. Nothing else runs in the
   background: deleted-for-good is a click; the tile's number is also
   recomputed whenever something changes and when its owner opens *My tasks*.
@@ -213,6 +241,12 @@ one already late. Archiving a repeating card stops its series; choosing
   `after()`) and by a `mail` schedule every 15 minutes; with no schedule
   and nobody using the tool, a waiting email leaves at the next visit. On a Chest without mail,
   `CapabilityNotGranted`: nothing is sent, nothing fails, the bell says it.
+- `calendar` — **Proposal (studio)**: `calendar.put` / `remove` of each
+  person's due dates (keys `card:<id>`, `step:<id>`; `lib/due-calendar.ts`),
+  after each change (Next's `after()`), at each visit of *My tasks* and
+  each morning (who sees a private board asked again). On a Chest without
+  it, `CapabilityNotGranted`: remembered (`tool_state`), nothing fails, the
+  link on *My tasks* is not shown.
 - Without schedules on a real Chest today, recurring cards still work (the
   next card is made at the moment one is done); the reminder does not come
   and the tile's number is refreshed by use only.
@@ -258,7 +292,9 @@ In the studio: `node lab/chest-dev/dev.mjs tools/private/tasks --reset`
   button). A comment deleted more than a minute after it was posted may
   already have left by email: the hold covers the minute of grouping and
   any comment deleted before its email left.
-- **Timeline**: one board at a time; no zoom (six weeks of days); no
+- **Timeline**: one board at a time; no zoom (six weeks of days; on a
+  phone, a list of those weeks, read only — dates move on a wider screen or
+  in the card); no
   lines between bars in the rows *by person* (a card with two people is on
   two rows); a drag never moves the cards that wait for it (no automatic
   rescheduling); no critical path, no baseline, no milestones.
@@ -278,12 +314,22 @@ In the studio: `node lab/chest-dev/dev.mjs tools/private/tasks --reset`
 - **Fields**: text, number and one choice only (no date, person, several
   choices, formula or currency fields); no field is required.
 - **Calendar** shows due dates only (a start date does not draw a span),
-  one board at a time (no calendar across boards, no calendar feed to
-  subscribe to).
+  one board at a time inside Tasks (no calendar view across boards; across
+  boards, a person's due dates are in their Chest calendar feed, which
+  needs the `calendar` proposal on the Chest). Calendar apps fetch a feed
+  every few hours (Google: 6 to 24): a date changed now shows there later.
+  A card with a due date but nobody on it is in no one's calendar.
 - **List view**: no inline editing (a title opens the card); sort and
   grouping are not remembered.
 - **Import**: attachments uploaded to Trello are not brought (they are
-  counted, and stay in Trello); no Monday import (Monday exports to Excel:
+  counted, and stay in Trello); a column of finished work is recognised by
+  its name (English and French words) — a list named otherwise ("Shipped
+  to client ✓✓") must be ticked in the check; the columns' order cannot be
+  changed in the check (Trello's order is kept; a sheet's known statuses
+  are ordered, others keep their order); a private import names the people
+  who will not see their cards but does not share it with them in one
+  click (its settings do); a very large Trello board (thousands of
+  archived cards) comes whole, with no paging per column; no Monday import (Monday exports to Excel:
   save it as CSV with a "Name" column); Asana's subtasks become checklist
   steps without their people.
 - **Export**: files are listed by name, not included (one JSON file, not a

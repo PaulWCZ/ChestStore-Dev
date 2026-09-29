@@ -135,15 +135,20 @@ await step("a note in a grid cell: Shift+Enter, write, Enter", async () => {
   expect((await page.locator("[data-cell='0:2']").getAttribute("aria-label"))?.includes("Checkout page, second pass"), "the note is read with the cell");
 });
 
-await step("send my week: it becomes read-only, and can be taken back", async () => {
-  await page.getByRole("button", { name: "Send my week" }).click();
+// Before Friday, the week is not over: "Send it early", never "Done?".
+const early = new Date().getDay() >= 1 && new Date().getDay() <= 4;
+const sendName = early ? "Send it early" : "Send my week";
+await step("send my week: it becomes read-only, and can be taken back; before Friday it is offered early, not as done", async () => {
+  const standing = await page.locator(".standing").innerText();
+  expect(early ? standing.includes("Away at the end of the week? You can send it early.") && !standing.includes("Done with this week") : standing.includes("Done with this week"), "the wording follows the day: " + standing);
+  await page.getByRole("button", { name: sendName }).click();
   await toast("Week sent.");
   await page.locator(".standing.submitted").waitFor();
   expect(await page.locator(".grid .cell-input").count() === 0, "no cell can be typed in");
   await page.getByRole("button", { name: "Take it back" }).first().click();
   await toast("Week taken back");
   await page.locator(".grid .cell-input").first().waitFor();
-  await page.getByRole("button", { name: "Send my week" }).click();
+  await page.getByRole("button", { name: sendName }).click();
   await toast("Week sent.");
 });
 
@@ -350,6 +355,87 @@ await step("Hugo reads why his week came back and sends it again", async () => {
   await toast("Week sent.");
 });
 
+// Round 3 of the critique.
+await step("a project lead: Camille names Sofia lead of Site vitrine; Sofia sees Hugo's week as her project's", async () => {
+  await as(context, origin, "camille");
+  await context.addCookies([{ name: "dev_locale", value: "fr", url: origin }]);
+  await page.goto(origin + "/chest/projects");
+  await page.getByRole("link", { name: "Site vitrine" }).first().click();
+  await page.locator("#p-lead").selectOption({ label: "Sofia Rossi" });
+  await page.getByRole("button", { name: "Enregistrer", exact: true }).click();
+  await page.waitForURL(/\/chest\/projects$/u);
+  await as(context, origin, "sofia");
+  await context.addCookies([{ name: "dev_locale", value: "en", url: origin }]);
+  await page.goto(origin + "/chest/team");
+  const row = page.locator(".waiting-row", { hasText: "Hugo Bernard" }).first();
+  expect((await row.innerText()).includes("Your project"), "Hugo's week holds Sofia's project: " + (await row.innerText()));
+});
+
+await step("nobody approves their own week: Sofia sends hers, her own line has no Approve; Camille approves it", async () => {
+  await page.goto(origin + "/chest");
+  await page.getByRole("button", { name: sendName }).click();
+  await toast("Week sent.");
+  await page.goto(origin + "/chest/team");
+  const mine = page.locator(".waiting-row", { hasText: "Sofia Rossi" });
+  expect((await mine.innerText()).includes("Your week: another manager approves it."), "said on her line: " + (await mine.innerText()));
+  expect(await mine.getByRole("button", { name: /^Approve/u }).count() === 0, "no Approve on one's own week");
+  await as(context, origin, "camille");
+  await context.addCookies([{ name: "dev_locale", value: "fr", url: origin }]);
+  await page.goto(origin + "/chest/team");
+  const hers = page.locator(".waiting-row", { hasText: "Sofia Rossi" });
+  await hers.getByRole("button", { name: "Valider", exact: true }).click();
+  const ask = page.getByRole("button", { name: "Valider quand même" });
+  if (await ask.isVisible().catch(() => false)) await ask.click();
+  await page.locator(".ck-toast", { hasText: "La semaine de Sofia Rossi est validée." }).waitFor();
+});
+
+await step("Remind never counts the manager who presses it; Camille's own short week is said apart; the email leaves", async () => {
+  await page.goto(origin + "/chest/team");
+  const bar = await page.locator(".remind-bar").innerText();
+  const button = page.getByRole("button", { name: /^Rappeler/u });
+  if (await button.count()) {
+    const n = Number((await button.innerText()).match(/\d+/u)?.[0] ?? "1");
+    await button.click();
+    await page.locator(".ck-toast", { hasText: new RegExp(`${n}`, "u") }).waitFor();
+    const dev = await (await page.request.get(origin + "/_dev")).text();
+    expect(/Votre semaine du|Your week of/u.test(dev), "the reminder is emailed too");
+  }
+  const cell = await page.locator("tr", { hasText: "Camille Martin" }).locator(".week-cell").last().innerText();
+  expect(!/incompl/u.test(cell) || /Votre propre semaine est incomplète aussi|sauf vous/u.test(bar), "Camille's own short week is said apart: " + bar);
+});
+
+await step("search the notes: the report and the entries found follow the words", async () => {
+  await page.goto(origin + "/chest/reports?preset=month");
+  await page.getByRole("searchbox").fill("Feyssine");
+  await page.keyboard.press("Enter");
+  await page.waitForURL(/q=Feyssine/u);
+  const found = await page.locator(".found").innerText();
+  expect(/entrées? dont la note contient « Feyssine »/u.test(found) && found.includes("Repérage au parc de la Feyssine") && found.includes("Hugo Bernard"), "found: " + found.slice(0, 300));
+  expect((await page.locator(".found-list li").count()) >= 1, "entries listed");
+  const csv = await page.request.get(origin + "/chest/reports/export?" + new URL(page.url()).searchParams.toString());
+  const text = await csv.text();
+  expect(text.includes("Feyssine") && !text.includes("Formulaire de commande"), "the CSV follows the words");
+});
+
+await step("billable time to Quotes: a draft invoice per project, sent once; Quotes' answer marks it invoiced", async () => {
+  await page.goto(origin + "/chest/reports?preset=month&kind=uninvoiced");
+  const panel = page.locator(".quotes");
+  const line = panel.locator("li", { hasText: "Identité visuelle" });
+  await line.getByRole("button", { name: /^Brouillon de facture dans Devis/u }).click();
+  await page.locator(".ck-toast", { hasText: /envoyées? à Devis en brouillon de facture/u }).waitFor();
+  await page.reload();
+  expect(await panel.locator("li", { hasText: "Identité visuelle" }).getByRole("button").count() === 0 || !(await panel.locator("ul.quotes-list").first().innerText()).includes("Identité visuelle"), "not offered twice");
+  const recent = await panel.locator(".recent").innerText();
+  expect(recent.includes("Identité visuelle") && recent.includes("En attente de sa facture"), "waiting for its invoice: " + recent);
+  const dev = await (await page.request.get(origin + "/_dev")).text();
+  const handoff = dev.match(/timesheets\.billable<\/code> <small>\{&quot;version&quot;:1,&quot;handoff&quot;:&quot;(\d+)&quot;/u)?.[1];
+  expect(handoff, "published timesheets.billable version 1");
+  await page.request.post(origin + "/_dev/deliver", { form: { type: "quotes.invoiced", data: JSON.stringify({ handoff, invoice: "F2026-014", path: "/chest/invoices/14" }) } });
+  await page.reload();
+  const after = await panel.locator(".recent").innerText();
+  expect(after.includes("Facturé : F2026-014"), "invoiced by Quotes' answer: " + after);
+});
+
 await step("on a phone, in French: the day replaces the grid; add time there", async () => {
   await as(context, origin, "ines");
   await context.addCookies([{ name: "dev_locale", value: "fr", url: origin }]);
@@ -362,6 +448,9 @@ await step("on a phone, in French: the day replaces the grid; add time there", a
   await page.locator("#new-duration").fill("2,5");
   await page.getByRole("button", { name: "Enregistrer" }).click();
   await page.locator(".ck-toast", { hasText: "2:30 ajoutées." }).waitFor();
+  // Change and delete say so in words on a phone, not only with an icon.
+  const entry = page.locator(".entry", { hasText: "Site vitrine" }).last();
+  expect(await entry.getByRole("button", { name: /^Modifier/u }).isVisible() && (await entry.locator(".entry-actions").innerText()).includes("Modifier") && (await entry.locator(".entry-actions").innerText()).includes("Supprimer"), "labelled buttons");
   const width = await page.evaluate(() => document.documentElement.scrollWidth);
   expect(width <= 390, "no horizontal scroll: " + width);
 });

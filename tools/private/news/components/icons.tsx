@@ -46,4 +46,7 @@ export const History = () => <Icon><path d="M4 12a8 8 0 1 0 2.4-5.7L4 8.5" /><pa
 export const Reply = () => <Icon><path d="M10 8L4 13l6 5" /><path d="M4 13h10a6 6 0 0 1 6 6" /></Icon>;
 export const Globe = () => <Icon><circle cx="12" cy="12" r="9" /><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18" /></Icon>;
 
-export const kindIcons = { announcement: Megaphone, event: Calendar, welcome: Wave, info: Info } as const;
+// A shout-out: a star, the rosette of a job well done.
+export const Star = () => <Icon><path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z" /></Icon>;
+
+export const kindIcons = { announcement: Megaphone, event: Calendar, welcome: Wave, shoutout: Star, info: Info } as const;

@@ -23,7 +23,7 @@ const tokenPattern = /^[A-Za-z0-9_-]{32}$/u;
 const newToken = () => randomBytes(24).toString("base64url");
 
 // A visitor's choice of components: "all", or some of those shown.
-async function choice(sql: Query, value: unknown): Promise<string[] | null> {
+export async function choice(sql: Query, value: unknown): Promise<string[] | null> {
   if (value === "all" || value === null || value === undefined) return null;
   const ids = componentIds(value);
   const found = await sql<{ id: string }[]>`select id from components where id = any(${ids}::bigint[]) and kind = 'component' and not hidden`;

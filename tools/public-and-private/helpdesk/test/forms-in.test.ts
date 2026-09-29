@@ -188,6 +188,33 @@ test("untrusted data: nobody to answer, another shape, or nonsense opens nothing
   assert.equal(plain.messages[0]!.body, "—");
 });
 
+test("the store's Contact form with Forms' default mapping: a real subject, the message first", () => {
+  const read = (data: Record<string, unknown>) => readRequest({ id: "evt_x", data }, "en")!;
+  // As Forms sent it in round 3 (the subject is the form's title, no details).
+  const contact = request({
+    form: { id: "101", title: "Contactez-nous" }, subject: "Contactez-nous", details: null,
+    answer: { id: "s54tfe3tahshinv1", at: "2026-09-29T20:45:27.301Z", language: "fr", path: "/chest/forms/101/answers/s54tfe3tahshinv1" },
+    fields: [
+      { question: "5jvdruf4", label: "Votre numéro de téléphone", value: "06 12 34 56 78" },
+      { question: "mdxjrkxm", label: "C’est à quel sujet ?", value: "Un devis" },
+      { question: "bfpmf8qf", label: "Votre message", value: "Bonjour, je voudrais un devis pour six chaises en chêne.\nMerci" },
+    ],
+  });
+  const r = read(contact);
+  assert.equal(r.subject, "Un devis — Bonjour, je voudrais un devis pour six chaises en chêne.");
+  assert.equal(r.body, "Bonjour, je voudrais un devis pour six chaises en chêne.\nMerci\n\nVotre numéro de téléphone\u202f: 06 12 34 56 78\nC’est à quel sujet ?\u202f: Un devis");
+  // A long message is cut at a word; without a topic, the message alone.
+  const long = read(request({ subject: "Contact us", details: null, fields: [{ question: "q", label: "Message", value: "My order 4417 arrived yesterday but two of the six chairs have a broken leg and one is the wrong colour." }] }));
+  assert.equal(long.subject, "My order 4417 arrived yesterday but two of the six chairs have a broken leg and one is…");
+  assert.ok(long.body.startsWith("My order 4417"));
+  // The longest free text is the message when none is labelled so; contact answers never are.
+  const free = read(request({ subject: "Contact us", details: null, fields: [{ question: "a", label: "Email", value: "x@example.com" }, { question: "b", label: "Anything else?", value: "The invoice for September lists the delivery twice." }] }));
+  assert.equal(free.subject, "The invoice for September lists the delivery twice.");
+  // A mapped subject stays; nothing to say: the form's title.
+  assert.equal(read(request({ subject: "A quote" })).subject, "A quote");
+  assert.equal(read(request({ subject: "Contact us", details: null, fields: [{ question: "p", label: "Phone", value: "06 12 34 56 78" }] })).subject, "Contact us");
+});
+
 test("readRequest: a team form's member wins over an address; paths of the Chest only", () => {
   const read = (data: Record<string, unknown>) => readRequest({ id: "evt_x", data }, "en");
   const team = read(request({ requester: { name: "Inès", email: "ines@company.test", member: ines.id } }))!;

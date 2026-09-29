@@ -4,7 +4,7 @@ import { Back, Calendar, Chat, Check, Clock, kindIcon, Link, Mail, Person, Phone
 import { AppError } from "../../../../lib/app-error.ts";
 import * as b from "../../../../lib/booking.ts";
 import { db } from "../../../../lib/db.ts";
-import { format, meetingTime, plural, relative, zoneName } from "../../../../lib/i18n/index.ts";
+import { format, isLocale, meetingTime, plural, relative, zoneName } from "../../../../lib/i18n/index.ts";
 import { nameOf, people } from "../../../../lib/people.ts";
 import { answerText } from "../../../../lib/questions.ts";
 import { viewer } from "../../../../lib/session.ts";
@@ -38,16 +38,20 @@ export default async function BookingPage({ params }: { params: Promise<{ id: st
   const upcoming = upcomingOf(x);
   const words = { booking: t.booking, public: t.public, days: t.days, errors: t.errors, answers: t.answers };
   const where = x.locationKind === "phone" ? x.guestPhone : b.meetingPlace(x);
+  // The type in the reader's language; the guest's own language said when
+  // it is another (their emails are in it).
+  const typeName = (x.typeId && (await b.typeNames(sql, [x.typeId], locale)).get(x.typeId)) || x.title;
+  const theirs = isLocale(x.guestLanguage) && x.guestLanguage !== locale ? format(t.bookings.guestLanguage, { language: t.languages[x.guestLanguage] }) : "";
   return (
     <>
       <a className="back" href="/chest"><Back />{t.booking.back}</a>
-      <PageHeader size="m" title={x.guestName} intro={`${x.title} · ${plural(t.minutes, x.duration, locale)}`} secondary={x.status === "cancelled" && x.cancelledBy ? <StatusBadge tone="danger" label={t.booking.cancelledBy[x.cancelledBy]} /> : null} />
+      <PageHeader size="m" title={x.guestName} intro={[typeName, plural(t.minutes, x.duration, locale), theirs].filter(Boolean).join(" · ")} secondary={x.status === "cancelled" && x.cancelledBy ? <StatusBadge tone="danger" label={t.booking.cancelledBy[x.cancelledBy]} /> : null} />
       <section className="card">
         <dl className="facts">
           <dt><Calendar />{t.booking.when}</dt>
           <dd>
             <span className="big-time">{meetingTime(x.startsAt, zone, locale)}</span>
-            {x.guestZone !== zone && <div className="hint">{format(t.booking.theirTime, { time: `${meetingTime(x.startsAt, x.guestZone, locale)} (${zoneName(x.guestZone)})` })}</div>}
+            {x.guestZone !== zone && <div className="hint">{format(t.booking.theirTime, { time: `${meetingTime(x.startsAt, x.guestZone, locale)} (${zoneName(x.guestZone, t.zones.cities)})` })}</div>}
           </dd>
           <dt><Kind />{t.booking.where}</dt>
           <dd>{t.kinds[x.locationKind]}{where ? " — " : ""}{x.locationKind === "video" && where ? <a href={where} target="_blank" rel="noopener noreferrer">{where}</a> : where}

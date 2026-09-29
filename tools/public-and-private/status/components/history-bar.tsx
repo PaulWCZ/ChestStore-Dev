@@ -9,15 +9,19 @@ import { Pulse, StateIcon } from "./icons.tsx";
 // sentence and a table instead of 90 ticks; a phone shows the last 30.
 type Words = { public: Catalogue["public"]; states: Catalogue["states"] };
 
-export function HistoryBar({ id, name, days, uptime, measured = null, titles, locale, t }: { id: string; name: string; days: Day[]; uptime: number | null; measured?: string | null; titles: Map<string, string>; locale: string; t: Words }) {
+// since: the first day of a service younger than the bar — the days before
+// it are empty ("no data"), and its uptime is said "since" that day, never
+// as if it covered 90 days.
+export function HistoryBar({ id, name, days, uptime, since = null, measured = null, titles, locale, t }: { id: string; name: string; days: Day[]; uptime: number | null; since?: string | null; measured?: string | null; titles: Map<string, string>; locale: string; t: Words }) {
   const w = t.public;
   const bad = days.filter(d => d.incidents.length > 0 || (d.state !== "operational" && d.state !== "none"));
-  const uptimeText = uptime === null ? w.noUptime : format(measured ? w.uptimeDeclared : w.uptime, { percent: percent(uptime, locale) });
+  const date = since ? day(since, locale, { day: "numeric", month: "long" }) : "";
+  const uptimeText = uptime === null ? w.noUptime : format(since ? (measured ? w.uptimeDeclaredSince : w.uptimeSince) : measured ? w.uptimeDeclared : w.uptime, { percent: percent(uptime, locale), date });
   // Slower days do not lower the uptime (Statuspage's rule): they are said
   // beside it, so "100 %" never stands alone next to yellow ticks.
   const slower = days.filter(d => d.state === "degraded").length;
   const slowerText = slower > 0 ? plural(w.slowerDays, slower, locale) : null;
-  const summary = `${format(w.historyLabel, { component: name, uptime: uptimeText })}${slowerText ? ` ${slowerText}.` : ""} ${plural(w.daysWithIncidents, bad.length, locale)}`;
+  const summary = `${format(since ? w.historySince : w.historyLabel, { component: name, uptime: uptimeText, date })}${slowerText ? ` ${slowerText}.` : ""} ${since && bad.length === 0 ? format(w.noIncidentSince, { date }) : plural(w.daysWithIncidents, bad.length, locale)}`;
   return (
     <div className="history">
       <p className="visually-hidden">{summary}</p>
@@ -51,7 +55,7 @@ export function HistoryBar({ id, name, days, uptime, measured = null, titles, lo
       {measured && <p className="measured"><Pulse />{measured}</p>}
       <details className="history-table">
         <summary>{w.tableShow}</summary>
-        {bad.length === 0 ? <p>{w.noIncidentDays}</p> : (
+        {bad.length === 0 ? <p>{since ? format(w.noIncidentSince, { date }) : w.noIncidentDays}</p> : (
           <table id={`days-${id}`}>
             <caption>{format(w.tableCaption, { component: name })}</caption>
             <thead><tr><th scope="col">{w.tableDay}</th><th scope="col">{w.tableState}</th><th scope="col">{w.tableIncidents}</th></tr></thead>

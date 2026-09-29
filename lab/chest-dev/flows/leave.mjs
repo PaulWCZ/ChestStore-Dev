@@ -54,6 +54,16 @@ async function ask(start, end, options = {}) {
   return last;
 }
 
+// The fake Chest's outbox (mail proposal), as the harness's /_dev shows it:
+// the latest first, "subject … → address".
+async function outbox() {
+  const back = page.url();
+  await page.goto(origin + "/_dev");
+  const mails = await page.locator("section", { hasText: "Mail (proposal)" }).locator("ul > li").allInnerTexts();
+  if (back.startsWith(origin + "/chest")) await page.goto(back);
+  return mails;
+}
+
 async function send(label = "Send the request") {
   await page.getByRole("button", { name: label }).click();
   await page.waitForURL(/\/chest\?done=/u);
@@ -71,6 +81,12 @@ await step("an employee asks for a week of paid leave: the cost shows as he pick
   await send();
   expect(await page.locator(".notice.ok").isVisible(), "sent notice");
   expect((await page.locator(".request", { hasText: "Waiting" }).allInnerTexts()).some(t => t.includes("5 days")), "listed as waiting");
+});
+
+await step("the approver is emailed too (the mail proposal), in her language, with the link to answer", async () => {
+  const mails = await outbox();
+  const toInes = mails.find(m => m.includes("ines@example.test"));
+  expect(toInes && toInes.startsWith("Hugo Bernard demande un congé") && /\/chest\/requests\/\d+/u.test(toInes), "email to Inès: " + mails.join(" | "));
 });
 
 await step("a half day costs half a day; a week-end costs nothing and cannot be sent", async () => {
@@ -165,6 +181,25 @@ await step("she refuses another with a word; he reads it", async () => {
   const refused = page.locator(".request", { hasText: "Refused" }).first();
   expect((await refused.innerText()).includes("Inventaire ce jour-là"), "reason shown");
   expect(await page.locator(".request", { hasText: "5 days" }).filter({ hasText: "Approved" }).count() >= 1, "the week approved");
+});
+
+await step("the requester is emailed the answers too", async () => {
+  const mails = (await outbox()).filter(m => m.includes("hugo@example.test"));
+  expect(mails.some(m => m.startsWith("Your time off is approved")) && mails.some(m => m.startsWith("Your time off is refused") && m.includes("Inventaire ce jour-là")), "emails to Hugo: " + mails.join(" | "));
+});
+
+await step("a last day before the first day: the field refuses it, and the form shows no day and counts nothing until it is fixed", async () => {
+  await page.goto(origin + "/chest/new");
+  const first = day(plus(monday, 9));
+  await typeDay("#start", first);
+  await page.locator("#end").fill(day(plus(monday, 2)));
+  await page.locator("#end").press("Tab");
+  const field = page.locator(".ck-date", { has: page.locator("#end") });
+  await field.locator(".ck-error").waitFor();
+  await page.waitForFunction(() => document.querySelector(".quote-days")?.textContent === "–");
+  expect((await page.locator(".quote").innerText()).includes("Fix the date above"), "the cost waits: " + (await page.locator(".quote").innerText()));
+  expect(!(await field.locator(".ck-date-read").isVisible()), "no other day shown in words under the refused one");
+  expect(await page.getByRole("button", { name: "Send the request" }).isDisabled(), "cannot be sent");
 });
 
 await step("he asks to cancel the approved week; she confirms; the days come back", async () => {
@@ -335,6 +370,33 @@ await step("a four-day week: Tom, off on Fridays, away Monday to Thursday is cha
   expect(cost === "5 days", "cost: " + cost);
 });
 
+await step("paid leave never goes below zero by default: Tom asking far more than he has is told so and cannot send", async () => {
+  const cost = await ask(day(plus(monday, 100)), day(plus(monday, 158)));
+  expect(Number(cost.replace(/[^\d.]/gu, "")) > 20, "a long leave: " + cost);
+  expect((await page.locator(".quote").innerText()).includes("cannot go below zero"), "said: " + (await page.locator(".quote").innerText()));
+  expect(await page.getByRole("button", { name: "Send the request" }).isDisabled(), "cannot be sent");
+});
+
+await step("Tom turns his emails off: the next answer reaches his bell only", async () => {
+  await page.goto(origin + "/chest");
+  await flip(page, "Also send me these by email: requests to answer, answers, cancellations", false);
+  await page.reload();
+  expect(!(await page.getByRole("switch", { name: "Also send me these by email: requests to answer, answers, cancellations" }).isChecked()), "saved");
+  const tuesday = day(plus(monday, 50));
+  await ask(tuesday, tuesday);
+  await send();
+  const before = (await outbox()).filter(m => m.includes("tom@example.test")).length;
+  await as(context, origin, "lea");
+  await speak("en");
+  await page.goto(origin + "/chest/approvals");
+  await page.locator(".card", { hasText: "Tom Walker" }).first().getByRole("button", { name: "Approve" }).click();
+  await page.waitForTimeout(1500);
+  expect((await outbox()).filter(m => m.includes("tom@example.test")).length === before, "no email to Tom");
+  await as(context, origin, "tom");
+  await page.goto(origin + "/chest");
+  await flip(page, "Also send me these by email: requests to answer, answers, cancellations", true);
+});
+
 await step("HR changes a kind in place: saved at once, nothing to forget", async () => {
   await as(context, origin, "camille");
   await page.goto(origin + "/chest/settings");
@@ -352,7 +414,40 @@ await step("someone leaves: their last day is set; HR finds them under Former, w
   await page.waitForURL(/show=former/u);
   expect(await page.locator("tr", { hasText: "Sofia Rossi" }).count() === 1, "Sofia listed");
   const csv = await page.request.get(origin + "/chest/people/balances");
-  expect(csv.status() === 200 && (await csv.text()).includes("Sofia Rossi"), "balances CSV");
+  const text = await csv.text();
+  expect(csv.status() === 200 && text.split("\r\n").some(l => l.split(",")[1] === "Sofia Rossi"), "balances CSV: her name as it is");
+  expect(!/former member|ancien membre/iu.test(text), "never '(former member)' in a payroll file");
+});
+
+await step("payroll's balances file on the last day of next month: a projection, named so; later is refused", async () => {
+  const now = new Date();
+  const end = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 2, 0));
+  const ok = await page.request.get(origin + "/chest/people/balances?on=" + day(end));
+  expect(ok.status() === 200 && (ok.headers()["content-disposition"] ?? "").includes("-projected.csv"), "projected: " + ok.status() + " " + ok.headers()["content-disposition"]);
+  const late = await page.request.get(origin + "/chest/people/balances?on=" + day(plus(end, 1)));
+  expect(late.status() === 400, "the day after is refused: " + late.status());
+  await page.goto(origin + "/chest/people/payroll");
+  await page.locator("#on").fill(day(end));
+  await page.locator("#on").press("Tab");
+  expect(await page.locator(".ck-date", { has: page.locator("#on") }).locator(".ck-error").count() === 0, "the field takes it");
+});
+
+await step("People tells Leave of Tom's record: his number and working week follow it, and HR sees where they come from", async () => {
+  await deliver("people.record", { member: id("tom"), employeeNumber: "T-0019", startDate: "2025-11-03", lastDay: null, workDays: [1, 2, 3, 4, 5], weeklyHours: 35 });
+  await page.goto(origin + "/chest/people/" + id("tom"));
+  expect((await page.locator("main").innerText()).includes("Kept up to date from their HR record in People"), "said where it comes from");
+  expect((await page.getByLabel("Employee number").inputValue()) === "T-0019", "number from People");
+});
+
+await step("People tells Leave that Hugo leaves: his last day is set, the leave after it cancelled, HR told; stopped in People, the day goes", async () => {
+  const last = day(plus(monday, 30));
+  await deliver("people.leaving", { member: id("hugo"), lastDay: last });
+  await page.goto(origin + "/chest/people/" + id("hugo"));
+  expect((await page.locator("main").innerText()).includes("Last day:"), "last day shown");
+  expect(await page.locator(".ledger tr", { hasText: "After their last day" }).count() >= 1, "the leave after it came back");
+  await deliver("people.leaving_cancelled", { member: id("hugo") });
+  await page.goto(origin + "/chest/people/" + id("hugo"));
+  expect(!(await page.locator("main").innerText()).includes("Last day:"), "cleared");
 });
 
 await step("a family event for Tom (off on Fridays), Monday to Friday, counts only the 4 days he works", async () => {
@@ -426,6 +521,15 @@ await step("phone width, in French: the month as a list of days, labelled tabs u
   const labels = await page.locator(".ck-nav .ck-nav-label").evaluateAll(els => els.filter(e => e.getBoundingClientRect().height > 0).map(e => e.textContent));
   expect(labels.includes("Mes congés") && labels.includes("Qui est absent") && labels.includes("À valider"), "labelled tabs: " + labels.join(", "));
 });
+
+async function deliver(type, data) {
+  await page.goto(origin + "/_dev");
+  const form = page.locator('form[action="/_dev/deliver"]');
+  await form.locator("select[name=type]").selectOption(type);
+  await form.locator("textarea[name=data]").fill(JSON.stringify(data));
+  await form.getByRole("button", { name: "Deliver" }).click();
+  await page.waitForLoadState("load");
+}
 
 await db.end();
 await browser.close();

@@ -113,6 +113,27 @@ export function Picker({ hostSlug = "", typeSlug = "", hostName, hostZone, first
   const dayLabel = (d: string) => monthWords(d, { weekday: "long", day: "numeric", month: "long" });
   const state = slots[from];
   const times = day ? byDay.get(day) ?? [] : [];
+  // The month grid is one Tab stop: the chosen day (or the first open one)
+  // takes the focus, the arrows move among the open days (left, right; up
+  // and down a week; Home, End), Enter or Space picks — the grid pattern.
+  const grid = useRef<HTMLTableElement>(null);
+  const [cursor, setCursor] = useState<string | null>(null);
+  const openDays = cells.filter(d => byDay.has(d));
+  const roving = cursor && byDay.has(cursor) ? cursor : day && byDay.has(day) ? day : openDays[0] ?? null;
+  function moveInGrid(e: React.KeyboardEvent) {
+    if (!roving) return;
+    const at = cells.indexOf(roving);
+    const find = (step: number) => {
+      for (let j = at + step; j >= 0 && j < cells.length; j += step) if (byDay.has(cells[j]!)) return cells[j]!;
+      return null;
+    };
+    const target = e.key === "ArrowRight" ? find(1) : e.key === "ArrowLeft" ? find(-1) : e.key === "ArrowDown" ? find(7) ?? find(1) : e.key === "ArrowUp" ? find(-7) ?? find(-1) : e.key === "Home" ? openDays[0] ?? null : e.key === "End" ? openDays.at(-1) ?? null : undefined;
+    if (target === undefined) return;
+    e.preventDefault();
+    if (!target) return;
+    setCursor(target);
+    grid.current?.querySelector<HTMLButtonElement>(`button[data-day="${target}"]`)?.focus();
+  }
   const noneHere = Array.isArray(state) && byDay.size === 0;
   const retake = useCallback((code: ErrorCode | null) => {
     if (code === "taken") {
@@ -151,7 +172,7 @@ export function Picker({ hostSlug = "", typeSlug = "", hostName, hostZone, first
               <strong aria-live="polite">{heading}</strong>
               <button type="button" className="icon-button" aria-label={p.nextMonth} onClick={() => shift(1)}><Next /></button>
             </div>
-            <table className="calendar" role="grid" aria-label={p.pickDay}>
+            <table className="calendar" role="grid" aria-label={p.pickDay} ref={grid} onKeyDown={moveInGrid}>
               <thead><tr>{shortDays.map((d, i) => <th key={i} scope="col" abbr={longDays[i]}>{d}</th>)}</tr></thead>
               <tbody>
                 {weeks.map((week, w) => (
@@ -161,7 +182,7 @@ export function Picker({ hostSlug = "", typeSlug = "", hostName, hostZone, first
                       const newMonth = d.endsWith("-01");
                       return (
                         <td key={d}>
-                          <button type="button" className={`${open ? "open" : ""}${d === today ? " today" : ""}${d < today ? " past" : ""}`} disabled={!open} aria-pressed={d === day} aria-label={dayLabel(d)} onClick={() => { setDay(d); setTime(null); setNotice(null); }}>
+                          <button type="button" className={`${open ? "open" : ""}${d === today ? " today" : ""}${d < today ? " past" : ""}`} disabled={!open} aria-pressed={d === day} aria-label={dayLabel(d)} data-day={d} tabIndex={d === roving ? 0 : -1} onClick={() => { setDay(d); setCursor(d); setTime(null); setNotice(null); }}>
                             {newMonth ? <span className="month-start">{monthWords(d, { month: "short" })}</span> : null}
                             {Number(d.slice(8))}
                           </button>

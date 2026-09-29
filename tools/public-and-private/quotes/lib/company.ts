@@ -27,7 +27,12 @@ export type Company = Seller & {
   mailWorks: boolean | null;
   updatedBy: string | null;
   updatedAt: string | null;
+  // The terms and conditions of sale (CGV), a PDF in the Chest's files
+  // (lib/terms.ts), or null.
+  terms: Terms | null;
 };
+
+export type Terms = { object: string; name: string; sha256: string; size: number };
 
 type Row = {
   legal_name: string; trade_name: string; legal_form: string; capital: number | null; address: string; postcode: string; city: string; country: string;
@@ -35,6 +40,7 @@ type Row = {
   bank: string; iban: string; bic: string; logo_object: string | null; logo_type: string | null; payment_days: number; validity_days: number; penalty_rate: number | null;
   early_discount: string; quote_prefix: string; invoice_prefix: string; credit_prefix: string; footer: string; mail_works: boolean | null; updated_by: string | null; updated_at: Date | null;
   number_format: NumberFormat; payment_link: string; reminders_on: boolean; reminder_days: number[]; reminders_email: boolean; accounts: Partial<Accounts> | null;
+  terms_object?: string | null; terms_name?: string | null; terms_sha256?: string | null; terms_size?: number | null;
 };
 
 const accountsOf = (value: Partial<Accounts> | null): Accounts => ({ ...defaultAccounts, ...(value ?? {}), vat: { ...defaultAccounts.vat, ...(value?.vat ?? {}) } });
@@ -49,6 +55,7 @@ const toCompany = (r: Row): Company => ({
   reminders: { on: r.reminders_on ?? false, days: [...(r.reminder_days ?? [7, 15, 30])].sort((a, b) => a - b), email: r.reminders_email ?? true },
   accounts: accountsOf(r.accounts ?? null),
   mailWorks: r.mail_works, updatedBy: r.updated_by, updatedAt: r.updated_at ? r.updated_at.toISOString() : null,
+  terms: r.terms_object && r.terms_sha256 ? { object: r.terms_object, name: r.terms_name ?? "", sha256: r.terms_sha256, size: r.terms_size ?? 0 } : null,
 });
 
 export async function company(sql: Query): Promise<Company> {

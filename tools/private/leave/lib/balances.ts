@@ -75,7 +75,9 @@ const later = (a: Day, b: Day): Day => (a > b ? a : b);
 // order written), their start and last days and the rules. Pure.
 // takenBy: for payroll's files, leave that starts after this day is not
 // taken yet: it is counted apart ("booked"), not in the years.
-export function compute(type: Kind, lines: readonly In[], staff: Pick<Staff, "startDate"> & Partial<Pick<Staff, "endDate">>, s: Pick<Settings, "periodStartMonth">, on: Day, pending = 0, options: { takenBy?: Day } = {}): Balance {
+// endOfDay: the balance at the end of `on` (payroll's files): a month
+// whose last day it is counts as earned, as it does on a last day.
+export function compute(type: Kind, lines: readonly In[], staff: Pick<Staff, "startDate"> & Partial<Pick<Staff, "endDate">>, s: Pick<Settings, "periodStartMonth">, on: Day, pending = 0, options: { takenBy?: Day; endOfDay?: boolean } = {}): Balance {
   const mode: Period = type.period ?? "running";
   const month = type.periodMonth ?? s.periodStartMonth;
   const lose = mode !== "running" && type.unused === "lose";
@@ -105,7 +107,8 @@ export function compute(type: Kind, lines: readonly In[], staff: Pick<Staff, "st
   // completed on a year's first day was worked in the year before).
   const since = opening && staff.startDate ? later(staff.startDate, opening) : opening ?? staff.startDate;
   const until = staff.endDate ? addDays(staff.endDate, 1) : null;
-  const to = until && until < on ? until : on;
+  const reach = options.endOfDay ? addDays(on, 1) : on;
+  const to = until && until < reach ? until : reach;
   const months = type.perYear > 0 && since ? completedMonths(since, to) : 0;
   const cur = yearOf(on);
   let earnedThisPeriod = 0;
@@ -213,8 +216,10 @@ export function compute(type: Kind, lines: readonly In[], staff: Pick<Staff, "st
 // No rights here: callers check them (lib/balances' own readers below).
 // on: a day before today gives the balances as they were then — lines
 // written after it left out, leave after it not taken yet (payroll's
-// "balances on" file).
-export async function balancesOf(sql: Query, ids: string[], on = today(), options: { takenBy?: boolean } = {}): Promise<Map<string, Balance[]>> {
+// "balances on" file); a day after today, as they will be if nothing
+// changes (earned months added, approved leave up to it taken).
+// endOfDay: at the end of that day (payroll's file).
+export async function balancesOf(sql: Query, ids: string[], on = today(), options: { takenBy?: boolean; endOfDay?: boolean } = {}): Promise<Map<string, Balance[]>> {
   const found = new Map<string, Balance[]>(ids.map(i => [i, []]));
   if (ids.length === 0) return found;
   const [s, all, staff] = await Promise.all([settings(sql), types(sql), staffOf(sql, ids)]);
@@ -228,7 +233,7 @@ export async function balancesOf(sql: Query, ids: string[], on = today(), option
     select member_id, type_id, sum(days) as days from requests where member_id in ${sql(ids)} and status = 'pending' group by member_id, type_id`;
   for (const who of ids) {
     const mine = lines.filter(l => l.member_id === who).map(toLine);
-    found.set(who, counted.map(t => compute(t, mine.filter(l => l.typeId === t.id), staff.get(who)!, s, on, numeric(pending.find(p => p.member_id === who && String(p.type_id) === t.id)?.days), past || options.takenBy ? { takenBy: on } : {})));
+    found.set(who, counted.map(t => compute(t, mine.filter(l => l.typeId === t.id), staff.get(who)!, s, on, numeric(pending.find(p => p.member_id === who && String(p.type_id) === t.id)?.days), { ...(past || options.takenBy ? { takenBy: on } : {}), ...(options.endOfDay ? { endOfDay: true } : {}) })));
   }
   return found;
 }

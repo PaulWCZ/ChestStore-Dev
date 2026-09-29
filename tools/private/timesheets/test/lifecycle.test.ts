@@ -42,6 +42,7 @@ test("someone who leaves: their timer stops into an entry, they leave the projec
   clock.now = () => new Date(Date.now() - 30 * 60_000);
   await startTimer(sql, asMember(hugo), { projectId: secret.id, note: "Running" });
   clock.now = () => new Date();
+  await sql`update projects set lead_id = ${hugo.id} where id = ${secret.id}`;
   assert.equal(await chest.emit(event("member.removed", hugo.id, "b"), POST), 204);
   assert.equal(await chest.emit(event("member.removed", hugo.id, "b"), POST), 204);
   assert.equal(await timer(sql, asMember(hugo)), null);
@@ -50,6 +51,8 @@ test("someone who leaves: their timer stops into an entry, they leave the projec
   assert.ok((await dayEntries(sql, asMember(hugo), day)).some(e => e.note === "Kept"));
   assert.ok((await dayEntries(sql, asMember(hugo), startDay)).some(e => e.note === "Running" && e.source === "timer"));
   assert.equal((await projects.project(sql, asMember(camille), secret.id)).people.includes(hugo.id), false);
+  // The project they led goes back to every manager.
+  assert.equal((await projects.project(sql, asMember(camille), secret.id)).lead, null);
   // Their grid rows went; their time is in the reports.
   assert.ok((await week(sql, asMember(hugo), mondayOf(day))).rows.every(r => r.cells.some(c => c.minutes > 0)));
   const r = await report(sql, asMember(camille), { from: day, to: day, group: "person" });

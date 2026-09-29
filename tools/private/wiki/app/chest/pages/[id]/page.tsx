@@ -9,7 +9,7 @@ import { db } from "../../../../lib/db.ts";
 import { lockOf } from "../../../../lib/editing.ts";
 import { AppError } from "../../../../lib/errors.ts";
 import { comments as commentsOf } from "../../../../lib/comments.ts";
-import { format, moment, newPageWords, relative } from "../../../../lib/i18n/index.ts";
+import { format, moment, newPageWords, plural, relative } from "../../../../lib/i18n/index.ts";
 import { ancestors, backlinks, page, titles, tree, type Page } from "../../../../lib/pages.ts";
 import { nameOf, people } from "../../../../lib/people.ts";
 import { render } from "../../../../lib/render.ts";
@@ -58,7 +58,10 @@ export default async function ReadPage({ params, searchParams }: { params: Promi
   const children = nodes.filter(n => n.parentId === p.id);
   const holder = lock && lock.memberId !== member.id ? lock : null;
   const empty = html.replace(/<p><\/p>/gu, "").trim() === "";
-  const flash = query["saved"] !== undefined ? (query["over"] ? format(t.page.savedOver, { name: nameOf((await people([query["over"]])).get(query["over"]), locale) }) : t.page.saved)
+  // Pictures the save left out are said, never hidden behind "Saved.".
+  const dropped = Math.min(Math.max(Number.parseInt(String(query["dropped"] ?? "0"), 10) || 0, 0), 999);
+  const flash = query["saved"] !== undefined && dropped > 0 ? plural(t.page.savedDropped, dropped, locale)
+    : query["saved"] !== undefined ? (query["over"] ? format(t.page.savedOver, { name: nameOf((await people([query["over"]])).get(query["over"]), locale) }) : t.page.saved)
     : query["restored"] ? format(t.history.restoredToast, { number: query["restored"] })
     : query["example"] ? t.home.exampleAdded : null;
   const toc = headings.filter(h => h.level <= 2);

@@ -35,9 +35,13 @@
   {"name": "hours-saved-toast", "path": "/chest/hours", "member": "ines", "locale": "en", "actions": [{"click": "text=Save the hours"}, {"wait": 700}], "only": ["phone"]},
   {"name": "first-run", "path": "/chest", "member": "sofia", "locale": "en"},
   {"name": "first-run-fr", "path": "/chest", "member": "lea", "locale": "fr", "only": ["phone"]},
-  {"name": "block-from-agenda", "path": "/chest", "member": "ines", "locale": "en", "actions": [{"click": "button.meeting.free >> nth=0"}, {"wait": 500}]},
+  {"name": "block-from-agenda", "path": "/chest", "member": "ines", "locale": "en", "only": ["desktop"], "actions": [{"click": "button.meeting.free >> nth=0"}, {"wait": 500}]},
+  {"name": "block-from-agenda-phone", "path": "/chest", "member": "ines", "locale": "en", "only": ["phone"], "actions": [{"click": ".free-toggle label"}, {"wait": 200}, {"click": "button.meeting.free >> nth=0"}, {"wait": 500}]},
   {"name": "questions-form-fr", "path": "/ines-moreau/project-call", "member": "ines", "locale": "fr", "only": ["phone"], "actions": [{"click": ".time-button >> nth=0"}, {"wait": 400}]},
   {"name": "settings-languages", "path": "/chest/settings", "member": "ines", "locale": "fr", "only": ["phone"]},
   {"name": "type-rooms", "path": "/chest/types/2", "member": "ines", "locale": "en", "only": ["desktop"], "actions": [{"hover": ".rooms"}, {"wait": 200}]},
-  {"name": "bookings-port", "path": "/chest", "member": "ines", "locale": "en", "look": {"tool": "brand:port"}}
+  {"name": "bookings-port", "path": "/chest", "member": "ines", "locale": "en", "look": {"tool": "brand:port"}},
+  {"name": "bookings-fr", "path": "/chest", "member": "ines", "locale": "fr", "only": ["desktop"]},
+  {"name": "bookings-free-fr", "path": "/chest", "member": "ines", "locale": "fr", "only": ["phone"], "actions": [{"click": ".free-toggle label"}, {"wait": 300}]},
+  {"name": "calendar-address-error", "path": "/chest/hours", "member": "hugo", "locale": "en", "actions": [{"fill": ["#cal-address", "https://outlook.office365.com/owa/calendar/0f3a9c@atelier-martin.fr/b7d2e4/calendar.html"]}, {"click": "#calendars button[type=submit]"}, {"wait": 800}, {"hover": "#calendars .error"}]}
 ]

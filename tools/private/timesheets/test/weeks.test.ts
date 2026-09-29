@@ -4,6 +4,7 @@ import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
 import { today } from "../lib/clock.ts";
 import { addDays, mondayOf } from "../lib/days.ts";
 import * as entries from "../lib/entries.ts";
+import * as handoff from "../lib/handoff.ts";
 import * as projects from "../lib/projects.ts";
 import { saveChoices } from "../lib/settings.ts";
 import { startTimer } from "../lib/timer.ts";
@@ -207,4 +208,59 @@ test("an empty tool: no start, no week expected of anyone", async () => {
   } finally {
     await fresh.close();
   }
+});
+
+test("nobody approves their own week; a project's lead is asked for the weeks on it; Remind never counts who presses it", async () => {
+  const { sql } = database;
+  const old = addDays(thisWeek, -70);
+  // Camille, the only manager, sends her own week: nobody else may approve it.
+  for (let d = 0; d < 5; d++) await entries.addEntry(sql, asMember(camille), { projectId: site.id, day: addDays(old, d), minutes: 420 });
+  const sent = await weeks.submitWeek(sql, asMember(camille), old);
+  assert.equal(sent.approvers, 0);
+  await assert.rejects(weeks.approveWeek(sql, asMember(camille), camille.id, old, { anyway: true }), refused("self_approval"));
+  await assert.rejects(weeks.returnWeek(sql, asMember(camille), camille.id, old, "no"), refused("self_approval"));
+  assert.equal((await weeks.waiting(sql, asMember(camille))).find(w => w.memberId === camille.id)?.mine, true);
+  // A second manager, Sofia, leads a project.
+  const sofia = { id: "mbr_sofiaaaaaaaaaaaaaaaaaaaaaa", firstName: "Sofia", lastName: "Rossi", name: "Sofia Rossi", photo: null, role: "manager", isAdmin: false, isBuilder: false, groups: [], locale: "en" as const };
+  chest.members.push(sofia);
+  try {
+    await assert.rejects(projects.createProject(sql, asMember(camille), { name: "Brand", lead: hugo.id }), refused("lead_invalid"));
+    await assert.rejects(projects.createProject(sql, asMember(camille), { name: "Brand", lead: "robert" }), refused("lead_invalid"));
+    const brand = await projects.createProject(sql, asMember(camille), { name: "Brand", lead: sofia.id, budget: { kind: "hours", minutes: 60 } });
+    assert.equal(brand.lead, sofia.id);
+    // Camille's week goes to Sofia now; Sofia approves it.
+    await weeks.approveWeek(sql, asMember(sofia), camille.id, old);
+    // Hugo's week on Brand: Sofia is asked, not Camille; the budget too.
+    chest.notifications.length = 0;
+    await entries.addEntry(sql, asMember(hugo), { projectId: brand.id, day: addDays(old, -7), minutes: 70 });
+    assert.deepEqual(chest.notifications.map(n => [n.member, n.key]), [[sofia.id, `budget:${brand.id}`]]);
+    chest.notifications.length = 0;
+    const hugoWeek = await weeks.submitWeek(sql, asMember(hugo), addDays(old, -7));
+    assert.equal(hugoWeek.approvers, 1);
+    assert.deepEqual(chest.notifications.map(n => n.member), [sofia.id]);
+    assert.equal((await weeks.waiting(sql, asMember(sofia))).find(w => w.memberId === hugo.id)?.led, true);
+    assert.equal((await weeks.waiting(sql, asMember(camille))).find(w => w.memberId === hugo.id)?.led, false);
+    // A project whose lead is changed keeps it when an update does not name one.
+    await projects.updateProject(sql, asMember(camille), brand.id, { name: "Brand book" });
+    assert.equal((await projects.project(sql, asMember(camille), brand.id)).lead, sofia.id);
+    await projects.updateProject(sql, asMember(camille), brand.id, { name: "Brand book", lead: null });
+    assert.equal((await projects.project(sql, asMember(camille), brand.id)).lead, null);
+    // Remind: Camille's own short week is never counted when she presses it.
+    const empty = lastWeek;
+    chest.notifications.length = 0;
+    assert.equal(await weeks.remind(sql, asMember(camille), [camille.id, tom.id], empty), 1);
+    assert.deepEqual(chest.notifications.map(n => n.member), [tom.id]);
+    assert.equal(await weeks.remind(sql, asMember(camille), [camille.id], empty), 0);
+  } finally {
+    chest.members.splice(chest.members.findIndex(m => m.id === sofia.id), 1);
+  }
+});
+
+test("billable time to Quotes on a Chest that cannot tell other tools: refused, nothing kept, the time stays free", async () => {
+  const { sql } = database;
+  const day = addDays(thisWeek, -100);
+  const e = await entries.addEntry(sql, asMember(tom), { projectId: site.id, day, minutes: 60, note: "Call" });
+  await assert.rejects(handoff.sendBillable(sql, asMember(camille), { projectId: site.id, from: day, to: day }), refused("quotes_unavailable"));
+  assert.equal((await sql`select 1 from handoffs`).length, 0);
+  await entries.updateEntry(sql, asMember(tom), e.id, { projectId: site.id, day, minutes: 90, note: "Call" });
 });

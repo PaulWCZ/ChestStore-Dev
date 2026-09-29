@@ -2,7 +2,9 @@ import type { Member } from "@argentic/chest-sdk/member";
 import { can } from "./access.ts";
 import { AppError } from "./app-error.ts";
 import type { Query, Sql } from "./db.ts";
-import { clean, id, limits } from "./model.ts";
+import { chestLanguage, otherLanguage, writtenIn } from "./languages.ts";
+import { clean, id, limits, optionalText } from "./model.ts";
+import { pick } from "./texts.ts";
 
 // Components and groups: what the status page lists, in the editors' order.
 export type Component = {
@@ -16,16 +18,40 @@ export type Component = {
   // For the team only: on the members' status page, never on the public one.
   teamOnly: boolean;
   createdAt: Date;
+  // Name and description are written in `language`; nameSecond and
+  // descriptionSecond (optional) in the tool's other language. `lang` is
+  // the language of name and description as given (the reader's when
+  // allComponents was asked for one and a version in it exists).
+  language: string;
+  nameSecond: string | null;
+  descriptionSecond: string | null;
+  lang: string;
 };
 
-type Row = { id: string; kind: "component" | "group"; parent_id: string | null; name: string; description: string; position: number; hidden: boolean; team_only: boolean; created_at: Date };
-const shape = (r: Row): Component => ({ id: String(r.id), kind: r.kind, parentId: r.parent_id === null ? null : String(r.parent_id), name: r.name, description: r.description, position: r.position, hidden: r.hidden, teamOnly: r.team_only, createdAt: new Date(r.created_at) });
-const fields = "id, kind, parent_id, name, description, position, hidden, team_only, created_at";
+type Row = { id: string; kind: "component" | "group"; parent_id: string | null; name: string; description: string; position: number; hidden: boolean; team_only: boolean; created_at: Date; language: string | null; name_second: string | null; description_second: string | null };
+const shape = (r: Row): Component => {
+  const language = r.language ?? chestLanguage();
+  return { id: String(r.id), kind: r.kind, parentId: r.parent_id === null ? null : String(r.parent_id), name: r.name, description: r.description, position: r.position, hidden: r.hidden, teamOnly: r.team_only, createdAt: new Date(r.created_at), language, nameSecond: r.name_second, descriptionSecond: r.description_second, lang: language };
+};
+const fields = "id, kind, parent_id, name, description, position, hidden, team_only, created_at, language, name_second, description_second";
 
-// Every component and group, groups before their components, in order.
-export async function allComponents(sql: Query): Promise<Component[]> {
+// The languages of a service's texts, for pick().
+const languagesOf = (c: Pick<Component, "language" | "nameSecond" | "descriptionSecond">) => ({ language: c.language, secondLanguage: c.nameSecond || c.descriptionSecond ? otherLanguage(c.language) : null });
+
+// inLocale gives a service's name and description in a reader's language
+// when it has them, else as written (marked with their language).
+export function inLocale<T extends Component>(c: T, locale: string): T {
+  const name = pick(c.name, c.nameSecond, languagesOf(c), locale);
+  const description = pick(c.description, c.descriptionSecond, languagesOf(c), locale).text;
+  return { ...c, name: name.text, description, lang: name.lang };
+}
+
+// Every component and group, groups before their components, in order —
+// as written, or in a reader's language (`locale`).
+export async function allComponents(sql: Query, options: { locale?: string } = {}): Promise<Component[]> {
   const rows = await sql<Row[]>`select ${sql.unsafe(fields)} from components order by position, id`;
-  return rows.map(shape);
+  const list = rows.map(shape);
+  return options.locale ? list.map(c => inLocale(c, options.locale!)) : list;
 }
 
 // A tree as pages show it: top-level entries in order, each group with its
@@ -65,27 +91,35 @@ async function groupOf(sql: Query, value: unknown): Promise<string | null> {
   return parent.id;
 }
 
-export type ComponentInput = { name: unknown; description?: unknown; parentId?: unknown; kind?: unknown; teamOnly?: unknown };
+// language: the "Written in" of the form (the editor's own when not
+// given); second: the name and description in the other language.
+export type Second = { name?: unknown; description?: unknown } | null | undefined;
+export type ComponentInput = { name: unknown; description?: unknown; parentId?: unknown; kind?: unknown; teamOnly?: unknown; language?: unknown; second?: Second };
 
 export async function addComponent(sql: Sql, actor: Member | null, input: ComponentInput): Promise<Component> {
   check(actor);
   const kind = input.kind === "group" ? "group" : "component";
   const name = clean(input.name, limits.componentName);
   const description = clean(input.description ?? "", limits.componentDescription, { optional: true });
+  const language = writtenIn(input.language, actor);
+  const nameSecond = optionalText(input.second?.name, limits.componentName);
+  const descriptionSecond = optionalText(input.second?.description, limits.componentDescription);
   return sql.begin(async tx => {
     const parentId = kind === "group" ? null : await groupOf(tx, input.parentId);
     const [{ count }] = (await tx<{ count: number }[]>`select count(*)::int as count from components`) as unknown as [{ count: number }];
     if (count >= limits.components) throw new AppError("too_many", { max: limits.components });
     const [{ next }] = (await tx<{ next: number }[]>`select coalesce(max(position), -1)::int + 1 as next from components where parent_id is not distinct from ${parentId}`) as unknown as [{ next: number }];
     const [row] = await tx<Row[]>`
-      insert into components (kind, parent_id, name, description, position, team_only)
-      values (${kind}, ${parentId}, ${name}, ${description}, ${next}, ${kind === "component" && input.teamOnly === true})
+      insert into components (kind, parent_id, name, description, position, team_only, language, name_second, description_second)
+      values (${kind}, ${parentId}, ${name}, ${description}, ${next}, ${kind === "component" && input.teamOnly === true}, ${language}, ${nameSecond}, ${descriptionSecond})
       returning ${tx.unsafe(fields)}`;
     return shape(row!);
   });
 }
 
-export async function updateComponent(sql: Sql, actor: Member | null, componentId: unknown, input: { name?: unknown; description?: unknown; parentId?: unknown; hidden?: unknown; teamOnly?: unknown }): Promise<Component> {
+// second: the other language's name and description (an empty one removes
+// it); left out, they stay.
+export async function updateComponent(sql: Sql, actor: Member | null, componentId: unknown, input: { name?: unknown; description?: unknown; parentId?: unknown; hidden?: unknown; teamOnly?: unknown; second?: Second }): Promise<Component> {
   check(actor);
   const key = id(componentId);
   return sql.begin(async tx => {
@@ -93,6 +127,8 @@ export async function updateComponent(sql: Sql, actor: Member | null, componentI
     const name = input.name === undefined ? c.name : clean(input.name, limits.componentName);
     const description = input.description === undefined ? c.description : clean(input.description, limits.componentDescription, { optional: true });
     const hidden = input.hidden === undefined ? c.hidden : input.hidden === true;
+    const nameSecond = input.second?.name === undefined ? c.nameSecond : optionalText(input.second.name, limits.componentName);
+    const descriptionSecond = input.second?.description === undefined ? c.descriptionSecond : optionalText(input.second.description, limits.componentDescription);
     // Only a service is for the team only; a group follows its services.
     const teamOnly = c.kind === "component" && (input.teamOnly === undefined ? c.teamOnly : input.teamOnly === true);
     let parentId = c.parentId;
@@ -105,7 +141,8 @@ export async function updateComponent(sql: Sql, actor: Member | null, componentI
       }
     }
     const [row] = await tx<Row[]>`
-      update components set name = ${name}, description = ${description}, hidden = ${hidden}, team_only = ${teamOnly}, parent_id = ${parentId}, position = ${position}
+      update components set name = ${name}, description = ${description}, hidden = ${hidden}, team_only = ${teamOnly}, parent_id = ${parentId}, position = ${position},
+        language = ${c.language}, name_second = ${nameSecond}, description_second = ${descriptionSecond}
       where id = ${key} returning ${tx.unsafe(fields)}`;
     return shape(row!);
   });
@@ -153,12 +190,15 @@ export async function removeComponent(sql: Sql, actor: Member | null, componentI
 // id: nothing referred to the old one but subscribers' choices, which do
 // not come back — they follow everything or their other choices). Checked
 // like addComponent: an editor could add it by hand.
-export type Snapshot = { kind?: unknown; name: unknown; description?: unknown; parentId?: unknown; position?: unknown; hidden?: unknown; teamOnly?: unknown };
+export type Snapshot = { kind?: unknown; name: unknown; description?: unknown; parentId?: unknown; position?: unknown; hidden?: unknown; teamOnly?: unknown; language?: unknown; nameSecond?: unknown; descriptionSecond?: unknown };
 export async function putBack(sql: Sql, actor: Member | null, snapshot: Snapshot): Promise<Component> {
   check(actor);
   const kind = snapshot.kind === "group" ? "group" : "component";
   const name = clean(snapshot.name, limits.componentName);
   const description = clean(snapshot.description ?? "", limits.componentDescription, { optional: true });
+  const language = writtenIn(snapshot.language, actor);
+  const nameSecond = optionalText(snapshot.nameSecond, limits.componentName);
+  const descriptionSecond = optionalText(snapshot.descriptionSecond, limits.componentDescription);
   const position = typeof snapshot.position === "number" && Number.isInteger(snapshot.position) && snapshot.position >= 0 && snapshot.position < 100000 ? snapshot.position : null;
   return sql.begin(async tx => {
     const parentId = kind === "group" ? null : await groupOf(tx, snapshot.parentId);
@@ -166,8 +206,8 @@ export async function putBack(sql: Sql, actor: Member | null, snapshot: Snapshot
     if (count >= limits.components) throw new AppError("too_many", { max: limits.components });
     const [{ next }] = (await tx<{ next: number }[]>`select coalesce(max(position), -1)::int + 1 as next from components where parent_id is not distinct from ${parentId}`) as unknown as [{ next: number }];
     const [row] = await tx<Row[]>`
-      insert into components (kind, parent_id, name, description, position, hidden, team_only)
-      values (${kind}, ${parentId}, ${name}, ${description}, ${position ?? next}, ${snapshot.hidden === true}, ${kind === "component" && snapshot.teamOnly === true})
+      insert into components (kind, parent_id, name, description, position, hidden, team_only, language, name_second, description_second)
+      values (${kind}, ${parentId}, ${name}, ${description}, ${position ?? next}, ${snapshot.hidden === true}, ${kind === "component" && snapshot.teamOnly === true}, ${language}, ${nameSecond}, ${descriptionSecond})
       returning ${tx.unsafe(fields)}`;
     return shape(row!);
   });

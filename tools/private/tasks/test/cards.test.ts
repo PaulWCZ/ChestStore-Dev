@@ -75,7 +75,7 @@ test("a card is given only to people who see the board; they are told in their l
   assert.deepEqual(change.added.sort(), [hugo.id, ines.id].sort());
   await tell.assigned(asMember(hugo), change.added, { id: c.id, title: change.title, boardId: b.id });
   // Inès reads French: her bell says it in French; Hugo gave it to himself.
-  assert.deepEqual(chest.notifications.map(n => [n.member, n.title, n.path]), [[ines.id, "Hugo Bernard vous a confié une tâche", `/chest/boards/${b.id}?card=${c.id}`]]);
+  assert.deepEqual(chest.notifications.map(n => [n.member, n.title, n.path]), [[ines.id, "Hugo Bernard vous a confié une tâche", `/chest/cards/${c.id}`]]);
   await tell.refreshBadges(sql, [ines.id, hugo.id]);
   assert.equal(chest.badges.get(ines.id), 1);
   const mine = await cards.myTasks(sql, asMember(ines));

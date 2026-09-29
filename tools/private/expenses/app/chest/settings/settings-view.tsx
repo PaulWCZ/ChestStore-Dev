@@ -98,7 +98,7 @@ export function CompanyView({ locale, company, t, errors, cancel }: { locale: st
       <CompanyForm company={company} t={t} errors={errors} />
       <CompanyBank company={company} t={t} errors={errors} cancel={cancel} />
       <Categories company={company} t={t} errors={errors} />
-      <CardWords company={company} t={t} errors={errors} />
+      <CardWords company={company} locale={locale} t={t} errors={errors} />
       <Approvers company={company} t={t} errors={errors} />
       <Allowances company={company} t={t} errors={errors} />
       <Rates company={company} locale={locale} t={t} errors={errors} />
@@ -379,7 +379,7 @@ function Approvers({ company, t, errors }: { company: Company; t: Words; errors:
 
 // Card statement words: which words of a bank label give a card payment
 // its category (lib/card-guess.ts). A list, one line added at a time.
-function CardWords({ company, t, errors }: { company: Company; t: Words; errors: Errors }) {
+function CardWords({ company, locale, t, errors }: { company: Company; locale: string; t: Words; errors: Errors }) {
   const { run, pending } = useRun(errors);
   const [words, setWords] = useState("");
   const [category, setCategory] = useState(company.cardCategories[0]?.value ?? "");
@@ -389,8 +389,11 @@ function CardWords({ company, t, errors }: { company: Company; t: Words; errors:
       <h2 id="card-words-title">{t.cardWords.title}</h2>
       <p className="hint">{t.cardWords.intro}</p>
       <hr className="rule" />
+      {/* A long list: folded, the add form stays in view. */}
       {company.cardRules.length === 0 ? <p className="hint">{t.cardWords.none}</p> : (
-        <ul className="word-list">
+        <details className="more words-more">
+          <summary>{plural(t.cardWords.show, company.cardRules.length, locale)}</summary>
+          <ul className="word-list">
           {company.cardRules.map(r => (
             <li key={r.id}>
               <span className="mono">{r.words}</span>
@@ -398,7 +401,8 @@ function CardWords({ company, t, errors }: { company: Company; t: Words; errors:
               <button type="button" className="link-button danger" disabled={pending} onClick={() => run(() => removeCardRule(r.id), () => t.company.saved)}>{t.cardWords.remove}<span className="visually-hidden"> {r.words}</span></button>
             </li>
           ))}
-        </ul>
+          </ul>
+        </details>
       )}
       <form className="pay-form add-row" onSubmit={e => { e.preventDefault(); if (words.trim() && category) run(() => addCardRule(words, category), () => { setWords(""); return t.company.saved; }); }}>
         <div className="field-row grow-row">

@@ -15,6 +15,11 @@ that needs the 80 % they use every day. Research:
   *Done* logs it in the history and — when it was the deal's or the
   person's last open step — asks *What's next?* in its place (with Undo).
   *A step for me* plans a to-do about no client ("prepare the trade show").
+  **New from your forms** (sales and managers): the contacts a website
+  form made that nobody has yet, each with its message — *I'll take it*
+  (then *What's next?* plans the call), *Give to…* someone, or *Not a
+  lead* (with Undo). A manager also sees "3 form answers to check" when
+  some may sit in the wrong file (see "With the other tools").
   Beside it: my open deals by stage (value, count, weighted value) and what
   was won this month. A **viewer** (who owns no steps) sees instead the
   team's open pipeline by stage and the latest wins.
@@ -70,7 +75,11 @@ that needs the 80 % they use every day. Research:
   specification), sent by the browser straight to the Chest's files, 25 MB
   each, 30 per record; removed by who added them or a manager.
 - **Team** (everyone who reads): open deals by person (value, weighted, deals
-  without a next step, late steps), won and lost per person month by month
+  without a next step, late steps); **the Monday numbers** — what each
+  person logged this week or one of the three before (calls, meetings,
+  emails, notes) and, from stage to stage, how many of the last 12 months'
+  deals reached each stage and what share went on (a won deal went
+  through every stage); won and lost per person month by month
   with a win rate, what should close by expected month, why deals are lost.
 - **Log in one tap**: *Log a call*, *Log a meeting*, *Log an email*, *Add a
   note* are four buttons (never a second "Call" beside the one that dials); a call,
@@ -237,12 +246,28 @@ contact in Clients") and someone answers it with an email or a phone, Forms
 publishes `forms.contact` (version 1; the contract is Forms' README, "With
 the other tools"). Clients (`lib/from-forms.ts`, on `/chest-events`):
 
-- **Finds the person** by email (whatever its case), then by phone (digits
-  compared, either of the contact's two numbers; "+33 4 78…" is "04 78…").
+- **Finds the person — a privacy rule.** The same email (whatever its
+  case) is the same person. The same phone (digits compared, either of the
+  contact's two numbers; "+33 4 78…" is "04 78…") is the same person
+  **only when the name is the same too** (accents, case, punctuation and
+  word order aside: "DURAND Paul" = "Paul Durand"; "P. Durand" is not). A
+  company's switchboard, a shop's shared line or a mistyped digit is
+  shared by several people: one visitor's message must never land in
+  another client's file, where their right of access cannot find it and
+  erasing the other would delete it (round 3 found Nina Roux's quote
+  request filed on Claire Durand, whose mobile it was).
 - **Otherwise makes a contact**: the name given (else the email, else the
   phone), the email, the phone, and the company of that name — found
   accents and case aside, or added. Their history starts with "Added from
-  the form “Contact us”".
+  the form “Contact us”". When its phone is another contact's under
+  another name, it is marked **"Maybe the same person as Claire Durand"**:
+  its page offers *Merge them* (the merge dialog, Claire preselected) or
+  *Not the same person*; the bell says it too. A person decides, never
+  the tool.
+- **Shows who filled it in**: the line carries what the form gave — name,
+  email (a `mailto:` link), phone (a `tel:` link), company — under
+  "Filled in the form …", even when it matches the contact. A new address
+  the form gave is never written over the team's, but it stays visible.
 - **Writes one line in their history**: "Filled in the form “Contact us”"
   (« A rempli le formulaire … » — each reader's language), with the
   message as written, dated when the form was answered. It shows on the
@@ -255,7 +280,21 @@ the other tools"). Clients (`lib/from-forms.ts`, on `/chest-events`):
   here nobody acts, so nobody is made owner behind their back. The
   **managers** are told in the bell ("New contact: Nina Roux filled in the
   form “Contact us”", the message below); for a known contact, **its
-  owner** is told instead. Anyone of sales may take a contact nobody owns.
+  owner** is told instead. The new contact is a **lead**: it waits at the
+  top of everyone's *My day* (sales and managers) until someone takes it,
+  is given it (they are told in the bell) or says *Not a lead*; the
+  company the form made goes to whoever takes it.
+- **A manager's check (repair)**: *Settings → Form answers* lists the
+  lines that may sit in the wrong person's file — the form gave another
+  email than the contact's, or the line was filed **before this version**
+  (no identity kept) on a contact the form did not make. The previous
+  version matched a phone whatever the name, and no migration can tell
+  afterwards which of those lines were right: so none is moved
+  automatically; each is listed for a manager, with *Open the answer*
+  (in Forms, to read who wrote it), *Right person* (with Undo) or
+  *Move…* to the right contact (or to a new contact made from what the
+  form gave). A manager whose Chest ran the round-2 version should open
+  this page once.
 - **Never twice**: the event's id is kept on the line of history (a unique
   index), and an answer published again under another id finds its line —
   a replayed or doubled delivery makes no second contact, line or bell
@@ -362,8 +401,19 @@ In the studio: `node lab/chest-dev/dev.mjs tools/private/crm --reset --port 4800
 - Fields: four kinds (text, number, date, one choice) — no multi-choice,
   no formula, no required field; 30 per kind of record. Search (`/`) does
   not look inside them (the list filter does).
-- Reports: the *Team* page's fixed views — no report builder, no stage
-  conversion funnel.
+- Reports: the *Team* page's fixed views (pipeline by person, what each
+  person logged week by week, stage-to-stage conversion of the last 12
+  months, won/lost by month, closing months, lost reasons) — no report
+  builder, no date range of one's own, no activity goals.
+- Form leads: a form answer makes a contact, never a deal (a later
+  version of `forms.contact` could carry a "deal" hint); a lead has no
+  automatic round-robin owner. The "same person?" rule compares whole
+  names: "P. Durand" and "Paul Durand" at one number make two contacts,
+  marked, for a person to merge. The check lists old lines it cannot
+  judge; it cannot know which were right.
+- *Use this address*: a different email a form gave is shown on the line
+  and in the check, not offered as a one-click replacement (edit the
+  contact).
 - Bulk actions: up to 500 at once; deals may only be given to someone in
   bulk (not moved or deleted).
 - Undoing an import takes back what it added, for 24 hours; the empty

@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
 import { ChoiceFields } from "../../components/choice-fields.tsx";
-import { Back, Mail, Rss } from "../../components/icons.tsx";
+import { Back, Chat, Mail, Rss } from "../../components/icons.tsx";
 import { PublicShell } from "../../components/public-shell.tsx";
 import { errorCodes, type ErrorCode } from "../../lib/app-error.ts";
 import { formToken } from "../../lib/guard.ts";
+import { hooksState } from "../../lib/hooks.ts";
 import { format } from "../../lib/i18n/index.ts";
 import { followOptions } from "../../lib/options.ts";
 import { publicContext } from "../../lib/public-page.ts";
@@ -26,6 +27,9 @@ export default async function SubscribePage({ searchParams }: { searchParams: Pr
   const origin = publicOrigin(await headers()) ?? "";
   const w = t.subscribe;
   const noMail = !offerMail || error === "no_mail";
+  // Slack, Teams or a web address, beside email — unless the Chest said it
+  // cannot deliver them.
+  const chat = (await hooksState(sql)) !== "none" ? <p className="links"><a href="/subscribe/chat"><Chat />{t.hooks.chatLink}</a></p> : null;
   return (
     <PublicShell company={company} locale={locale} zone={zone} t={t} path="/subscribe" offerMail={false}>
       <p className="crumb"><a href="/"><Back />{w.backToStatus}</a></p>
@@ -42,6 +46,7 @@ export default async function SubscribePage({ searchParams }: { searchParams: Pr
           <p className="label">{w.feedHelp}</p>
           <p><code className="copy">{origin}/feed.rss</code></p>
           <p className="links"><a href="/feed.rss"><Rss />{t.public.rss}</a><a href="/feed.atom"><Rss />{t.public.atom}</a></p>
+          {chat}
         </section>
       ) : (
         <section className="card narrow">
@@ -57,11 +62,12 @@ export default async function SubscribePage({ searchParams }: { searchParams: Pr
               <label className="label" htmlFor="email">{w.email}</label>
               <input id="email" name="email" type="email" className="field" autoComplete="email" required maxLength={254} aria-invalid={error === "invalid_email" || undefined} aria-describedby={error ? "form-error" : undefined} />
             </div>
-            <ChoiceFields options={await followOptions(sql)} chosen={null} t={w} />
+            <ChoiceFields options={await followOptions(sql, locale)} chosen={null} t={w} />
             {error && <p id="form-error" className="error" role="alert">{format(t.errors[error], { max: 5 })}</p>}
             <div><button type="submit" className="button">{w.submit}</button></div>
             <p className="fine">{w.privacy}</p>
           </form>
+          {chat}
         </section>
       )}
     </PublicShell>

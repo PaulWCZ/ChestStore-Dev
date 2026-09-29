@@ -3,10 +3,10 @@ import { Speech } from "../../../components/icons.tsx";
 import { Highlighted } from "../../../components/highlighted.tsx";
 import { dates } from "../../../lib/dates.ts";
 import { db } from "../../../lib/db.ts";
-import { format, plural } from "../../../lib/i18n/index.ts";
+import { format, isLocale, plural } from "../../../lib/i18n/index.ts";
 import { limits } from "../../../lib/model.ts";
 import { nameOf, people } from "../../../lib/people.ts";
-import { search } from "../../../lib/search.ts";
+import { otherLanguage, search } from "../../../lib/search.ts";
 import { viewer } from "../../../lib/session.ts";
 
 // Search: one box, then the posts found — their headline and the passage
@@ -19,6 +19,9 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
   const raw = (await searchParams)["q"];
   const query = (typeof raw === "string" ? raw : "").slice(0, limits.query).trim();
   const hits = query ? await search(db(), member, query) : [];
+  // Nothing found: posts written only in another language may hold the word in it.
+  const other = query && hits.length === 0 ? await otherLanguage(db(), member) : null;
+  const language = (code: string) => (isLocale(code) ? t.languageNames[code] : code);
   const who = await people(hits.flatMap(h => h.comments.map(c => c.author)));
   const name = (id: string) => (id === member.id ? t.people.you : nameOf(who.get(id), locale));
   const d = dates(locale, zone);
@@ -30,7 +33,7 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
       </div>
       {!query ? <p className="quiet-text">{t.search.start}</p> : hits.length === 0 ? (
         <div role="status">
-          <EmptyState title={format(t.search.none, { query })} body={t.search.noneHint} />
+          <EmptyState title={format(t.search.none, { query })} body={other ? format(t.search.otherLanguage, { language: language(other) }) : t.search.noneHint} />
         </div>
       ) : (
         <>
@@ -45,6 +48,7 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
                 </p>
                 <h2 className="headline"><a href={`/chest/posts/${h.id}`}><Highlighted segments={h.title} /></a></h2>
                 {h.text && <p className="dek"><Highlighted segments={h.text} /></p>}
+                {h.foundIn && <p className="quiet-text found-in">{format(t.search.foundIn, { language: language(h.foundIn) })}</p>}
                 {h.comments.length > 0 && (
                   <div className="result-comments">
                     <h3><Speech />{t.search.inComments}</h3>

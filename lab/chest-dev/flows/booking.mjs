@@ -520,5 +520,165 @@ await step("a host who writes in one language only: every visitor reads the page
   await page.goto(origin + "/lang/en?back=/");
 });
 
+// ——— Round 3: the host's truth, the visitor's language, the suite ———
+
+// A time of Inès's clock (Paris) as the UTC minute an event carries.
+const parisOffset = day => Number(new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/Paris", timeZoneName: "shortOffset" }).formatToParts(new Date(day + "T12:00:00Z")).find(p => p.type === "timeZoneName").value.replace("GMT", "") || 0);
+const utcMinute = (day, minutes) => new Date(Date.parse(day + "T00:00:00Z") + (minutes - parisOffset(day) * 60) * 60000).toISOString().slice(0, 16) + "Z";
+const minutesOf = text => Number(text.slice(0, 2)) * 60 + Number(text.slice(3, 5));
+const hhmm = m => `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
+const devText = async () => (await page.request.get(origin + "/_dev")).text();
+
+await step("one type, one name: Inès (French) reads « Visite du showroom » for every guest, an English guest tagged EN — agenda and CSV", async () => {
+  await page.setViewportSize({ width: 1280, height: 860 });
+  await as(context, origin, "ines");
+  await context.addCookies([{ name: "dev_locale", value: "fr", url: origin }]);
+  await page.goto(origin + "/chest");
+  const marie = page.locator(".meeting", { hasText: "Marie Leroy" });
+  const lucas = page.locator(".meeting", { hasText: "Lucas Garnier" });
+  expect((await marie.innerText()).includes("Visite du showroom"), "Marie's booking (made in English) in Inès's French");
+  expect((await lucas.innerText()).includes("Visite du showroom"), "Lucas's booking (made in French)");
+  expect((await marie.locator(".tag.lang [aria-hidden=true]").innerText()).trim() === "EN" && (await marie.locator(".tag.lang .visually-hidden").innerText()).includes("Réservé en anglais"), "the guest's language, small");
+  expect(await lucas.locator(".tag.lang").count() === 0, "no tag when it is the reader's language");
+  const agenda = await page.locator(".agenda").innerText();
+  expect(!agenda.includes("Showroom visit") && !agenda.includes("Project call"), "never the English name beside the French one");
+  const csv = await (await page.request.get(origin + "/chest/export")).text();
+  expect(csv.includes("Visite du showroom") && !csv.includes("Showroom visit") && csv.includes("Langue de l’invité") && csv.includes("anglais"), "the CSV says the same");
+  await marie.click();
+  await page.waitForURL(/\/chest\/bookings\/\d+$/u);
+  const detail = await page.locator("body").innerText();
+  expect(detail.includes("Visite du showroom") && detail.includes("Réservé en anglais") && !detail.includes("Showroom visit"), "the booking's page too");
+});
+
+await step("a stretch busy in Inès's Google calendar reads « Occupé · Dans votre agenda Google », not a hole", async () => {
+  await page.goto(origin + "/chest");
+  const busy = page.locator(".meeting.elsewhere", { hasText: "Dans votre agenda Google" });
+  expect(await busy.count() > 0, "a grey row for her Google calendar");
+  const text = await busy.first().innerText();
+  expect(text.includes("Occupé") && /\d\d:\d\d/u.test(text), "busy, with its times: " + text);
+  expect(!(await busy.first().getAttribute("href")), "nothing to tap");
+});
+
+await step("Hiring tells Booking Inès has an interview: that hour is not offered, and her agenda says why", async () => {
+  await page.goto(origin + "/chest");
+  const section = page.locator(".day", { has: page.locator(".meeting.free") }).first();
+  const day = (await section.getAttribute("aria-labelledby")).slice(2);
+  const [startText, endText] = (await section.locator(".meeting.free .time").first().innerText()).split("\n").map(x => x.trim());
+  const start = minutesOf(startText), end = Math.min(minutesOf(endText), start + 60);
+  const data = { v: 1, member: "mbr_inesaaaaaaaaaaaaaaaaaaaaaa", at: new Date().toISOString(), from: new Date().toISOString().slice(0, 10) + "T00:00Z", to: new Date(Date.now() + 60 * 86400000).toISOString().slice(0, 10) + "T00:00Z", spans: [[utcMinute(day, start), utcMinute(day, end)]] };
+  await page.request.post(origin + "/_dev/deliver", { form: { type: "hiring.busy", data: JSON.stringify(data) } });
+  await page.goto(origin + "/chest");
+  const interview = page.locator(`.day[aria-labelledby="d-${day}"] .meeting.elsewhere`, { hasText: "Un entretien dans Recrutement" });
+  expect((await interview.innerText()).includes(hhmm(start)), "the interview's hour on her agenda");
+  const slots = await (await page.request.get(origin + `/api/slots?host=ines-moreau&type=project-call&from=${day}&to=${day}`)).json();
+  const from = Date.parse(data.spans[0][0]), to = Date.parse(data.spans[0][1]);
+  expect(!slots.slots.some(s => Date.parse(s) < to && Date.parse(s) + 30 * 60000 > from), "no time offered across the interview");
+  // Booking never tells Hiring back what Hiring told it.
+  const dev = await devText();
+  expect(!dev.includes(`"${data.spans[0][0]}"`), "no echo in what Booking publishes");
+});
+
+await step("a visitor's booking is told to Clients (who, which type, when; never the note) and the host's busy times to Hiring", async () => {
+  await context.clearCookies();
+  await page.goto(origin + "/lang/en?back=/hugo-bernard/measurement");
+  await pickFirstTime();
+  await page.getByLabel("Your name").fill("Nadia Benali");
+  await page.getByLabel("Your email address").fill("nadia@example.com");
+  await page.getByLabel("Anything to prepare? (optional)").fill("Private: code 1234");
+  await page.getByRole("button", { name: "Confirm the booking" }).click();
+  await page.waitForURL(/\/b\/[A-Za-z0-9_-]{32}\?new=1/u);
+  const dev = await devText();
+  const confirmed = dev.split("<li>").find(li => li.includes("booking.confirmed") && li.includes("Nadia Benali"));
+  expect(confirmed, "booking.confirmed published");
+  expect(confirmed.includes("nadia@example.com") && confirmed.includes("&quot;company&quot;:null") && confirmed.includes("Measurement visit at your home") && !confirmed.includes("code 1234"), "the contact and the type, never the note");
+  expect(dev.split("<li>").some(li => li.includes("booking.busy") && li.includes("mbr_hugo")), "Hugo's busy times told");
+});
+
+await step("four wrong calendar addresses, four plain answers; webcal:// is taken as the address it is", async () => {
+  await as(context, origin, "ines");
+  await english();
+  await page.goto(origin + "/chest/hours");
+  const others = page.locator("#calendars");
+  await others.locator(":scope > summary").click();
+  const answer = async address => {
+    await page.getByLabel("Secret address (iCal)").fill(address);
+    await page.getByRole("button", { name: "Connect", exact: true }).click();
+    await page.waitForFunction(() => document.querySelector("#calendars .error") !== null && !document.querySelector("#calendars button[type=submit]")?.disabled);
+    return page.locator("#calendars .error").innerText();
+  };
+  expect((await answer("https://calendar.google.com/calendar/u/0/r")).includes("This is the address of a Google Calendar page"), "Google's page");
+  expect((await answer("https://calendar.google.com/calendar/embed?src=ines%40atelier-martin.fr&ctz=Europe%2FParis")).includes("Secret address in iCal format"), "Google's embed code");
+  expect((await answer("https://outlook.office365.com/owa/calendar/0f3a9c@atelier-martin.fr/b7d2e4/calendar.html")).includes("This is Outlook’s HTML link"), "Outlook's HTML link");
+  // webcal:// is read as https://: the address is accepted and read (the
+  // studio has no network, so reading it is refused here — on a Chest it connects).
+  const apple = await answer("webcal://p52-caldav.icloud.com/published/2/MTIzNDU2Nzg5MDEyMzQ1Njc4OTAxMjM0NTY3ODkw");
+  expect(!apple.includes("Paste the secret iCal address") && !apple.includes("This is the address") && !apple.includes("HTML link"), "webcal accepted as an address: " + apple);
+});
+
+await step("a French visitor in Montréal reads French cities, « Toronto, Montréal » chosen, and « à l’arrivée d’Inès »", async () => {
+  const montreal = await browser.newContext({ locale: "fr-CA", timezoneId: "America/Toronto", viewport: { width: 390, height: 844 } });
+  const visitor = await montreal.newPage();
+  visitor.on("pageerror", e => problems.push("page: " + e.message));
+  await visitor.goto(origin + "/lang/fr?back=/ines-moreau/project-call");
+  await visitor.waitForSelector(".calendar button.open");
+  const zone = visitor.locator("select#zone");
+  expect((await zone.locator("option:checked").innerText()).startsWith("Toronto, Montréal"), "Montréal named");
+  const options = await zone.innerText();
+  for (const city of ["Bruxelles", "Nouméa", "La Réunion", "São Paulo", "Londres"]) expect(options.includes(city), city);
+  expect(!/Brussels|Noumea|Reunion \(|Sao Paulo/u.test(options), "no English city name");
+  await visitor.locator(".time-button").first().click();
+  await visitor.getByLabel("Votre nom").fill("Gabrielle Tremblay");
+  await visitor.getByLabel("Votre adresse e-mail").fill("gabrielle@example.ca");
+  await visitor.locator("fieldset", { hasText: "À quoi est-ce destiné" }).locator(".choice").first().click();
+  await visitor.getByRole("button", { name: "Confirmer le rendez-vous" }).click();
+  await visitor.waitForURL(/\/b\/[A-Za-z0-9_-]{32}\?new=1/u);
+  const text = await visitor.locator("main").innerText();
+  expect(text.includes("à l’arrivée d’Inès") && !text.includes("de Inès"), "elided: " + text.slice(0, 300));
+  expect(text.includes("Toronto, Montréal"), "her zone named as she knows it");
+  await montreal.close();
+});
+
+await step("the month grid is one Tab stop: the arrows move among the open days, Enter picks one", async () => {
+  await page.setViewportSize({ width: 1280, height: 860 });
+  await context.clearCookies();
+  await page.goto(origin + "/lang/en?back=/ines-moreau/project-call");
+  await page.waitForSelector(".calendar button.open");
+  await page.getByRole("button", { name: "Later dates" }).focus();
+  await page.keyboard.press("Tab");
+  const first = await page.evaluate(() => document.activeElement?.getAttribute("data-day"));
+  expect(first, "Tab lands on a day");
+  await page.keyboard.press("Tab");
+  expect(await page.evaluate(() => document.activeElement?.id) === "zone", "the next Tab leaves the grid for the time zone");
+  await page.keyboard.press("Shift+Tab");
+  await page.keyboard.press("ArrowRight");
+  const second = await page.evaluate(() => document.activeElement?.getAttribute("data-day"));
+  expect(second && second > first, "the right arrow goes to the next open day");
+  await page.keyboard.press("Enter");
+  expect(await page.locator(`.calendar button[data-day="${second}"]`).getAttribute("aria-pressed") === "true", "Enter picks it");
+  await page.waitForSelector(".times .time-button");
+  const tabbable = await page.locator(".calendar button[tabindex='0']").count();
+  expect(tabbable === 1, "one Tab stop in the grid, not " + tabbable);
+});
+
+await step("on a phone Inès's agenda shows her meetings; « Afficher les créneaux libres » brings the free and busy rows back", async () => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await as(context, origin, "ines");
+  await context.addCookies([{ name: "dev_locale", value: "fr", url: origin }]);
+  await page.goto(origin + "/chest");
+  const toggle = page.getByRole("switch", { name: "Afficher les créneaux libres" });
+  expect(await toggle.isVisible(), "the toggle, on a phone");
+  expect(!(await page.locator(".meeting.free").first().isVisible()), "free rows folded");
+  expect(await page.locator("a.meeting").first().isVisible(), "meetings shown");
+  await page.locator(".free-toggle label").click();
+  expect(await page.locator(".meeting.free").first().isVisible(), "free rows back");
+  await page.reload();
+  expect(await page.locator(".meeting.free").first().isVisible(), "remembered on this phone");
+  await page.locator(".free-toggle label").click();
+  const wide = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1);
+  expect(!wide, "no sideways scroll");
+  await page.setViewportSize({ width: 1280, height: 860 });
+  expect(!(await page.locator(".free-toggle").isVisible()) && await page.locator(".meeting.free").first().isVisible(), "a computer shows them all");
+});
+
 await browser.close();
 done(problems);

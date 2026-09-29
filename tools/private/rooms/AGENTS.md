@@ -7,7 +7,7 @@ must not break.
 
 | Path | What it is |
 |---|---|
-| `chest.json` | Manifest: roles `admin`, `member`; `database`, `files`, `members`, `notifications`; `receives` |
+| `chest.json` | Manifest: roles `admin`, `manager` (office manager), `member`; `database`, `files`, `members`, `members.email`, `notifications`; `receives` |
 | `migrations/0003_…`, `0004_check_in.sql` | Calendar queue, usual week, lent desks, groups, check-in |
 | `migrations/0001_rooms.sql` | Schema. **The exclusion constraints** (`desk_taken`, `desk_already`, `room_taken`) are what prevents double booking; `btree_gist` is required. Never edit a shipped file; add `0002_…` |
 | `lib/access.ts` | **Who may do what**: abilities (`can`) and `mayChange` (the booker or an admin) |
@@ -16,7 +16,9 @@ must not break.
 | `lib/settings.ts` | The rules (one row) and the purge of old data |
 | `lib/places.ts` | Offices, floors, areas, rooms, desks; removing cancels coming bookings |
 | `lib/desk-bookings.ts`, `lib/room-bookings.ts` | Booking, changing, cancelling, undoing; the day views |
-| `lib/presence.ts` | Office / remote / off per day; who is at an office |
+| `lib/presence.ts` | Office / remote / off per day; who is at an office (said so, a desk, or a meeting in one of its rooms, unless they said otherwise; `null`: no office yet); `inMeetings`; `borrowed` when a desk's holder comes back |
+| `lib/visits.ts`, `app/chest/visitors/`, `migrations/0006_visits.sql` | Visitors: announced by their host or the reception (`visitors.all`), arrival → host's bell (`tell.visitorHere`); seen only by host, announcer, reception; purged with past bookings; lifecycle cancels/anonymises |
+| `lib/match.ts` | Matching a file's person (organiser, guest, desk holder) by address (`members.email`), then name in any export form ("Martin, Camille"); ambiguous → nobody |
 | `lib/tell.ts`, `lib/notify.ts` | The bell, in each recipient's language (no badge, on purpose) |
 | `lib/lifecycle.ts` | Leaving and erasure (calendar keys naming the person go too) |
 | `lib/calendar.ts` | The members' calendar feeds (Proposal: calendar): `enqueue` keys in the transaction that changes them, `flush` puts/removes from the database's state, `icsFile` for downloads |
@@ -61,6 +63,11 @@ TEST_DATABASE_URL=postgres://… npm test   # also plays two people booking the 
 - **Decoration steps aside** (`--decor`, kit 0.2.3): the drafting paper is
   keyed on it; the rooms' hour lines are information and stay.
 
+- **Visitors are third parties**: never show a visit to a member who is not
+  its host or announcer, unless `can(actor, "visitors.all")`; keep only a
+  name and a company.
+- **Addresses** (`members.email`) are read by `matchable()` for importers
+  only; never pass them to a client component (`directory()` has none).
 - **Identity only from `member()`** (`lib/session.ts`); store `mbr_…` ids.
 - **Never check availability in code and then insert**: insert, and let the
   constraint refuse (`conflict()` turns SQLSTATE 23P01 into `taken` /

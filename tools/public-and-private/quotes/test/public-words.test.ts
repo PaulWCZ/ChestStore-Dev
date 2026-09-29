@@ -21,7 +21,6 @@ const publicFiles: Record<string, Record<string, string[]>> = {
   "app/not-found.tsx": { t: [""] },
   "app/q/[secret]/page.tsx": { t: [""], o: ["online"], pdfWords: ["pdf"] },
   "app/q/[secret]/answer-form.tsx": { t: ["online", "errors"] },
-  "app/q/[secret]/changes.tsx": { t: ["online"] },
   "components/quote-sheet.tsx": { words: ["pdf"] },
   "components/public-shell.tsx": {},
 };
@@ -37,8 +36,12 @@ function valueAt(tree: unknown, path: string): unknown {
   return at;
 }
 
+// The words a use shows: a string, or a plural's forms. A whole section
+// (`t.online` given to a name) is not shown as it is.
 const strings = (value: unknown): string[] =>
-  typeof value === "string" ? [value] : value && typeof value === "object" ? Object.values(value).flatMap(strings) : [];
+  typeof value === "string" ? [value]
+    : value && typeof value === "object" && Object.keys(value).every(k => ["zero", "one", "other"].includes(k)) ? Object.values(value).filter((v): v is string => typeof v === "string")
+    : [];
 
 // The calls an index sits inside, the innermost first (a rough reading of
 // the source: parentheses counted, identifiers before each open one).

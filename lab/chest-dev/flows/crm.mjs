@@ -184,15 +184,105 @@ await step("Forms tells of someone who filled in the contact form: a new contact
   expect(await page.locator(".timeline .event.k-form").count() === 1, "one line");
   await page.goto(origin + "/chest/contacts?q=nina.roux");
   expect(await page.locator("a.row-link", { hasText: "Nina Roux" }).count() === 1, "one contact");
-  // A phone only, written the international way: the sample's Claire
-  // Durand (06 12 34 56 78) — her contact, not a new one.
+  // A phone only, written the international way, and her name (word order
+  // aside): the sample's Claire Durand (06 12 34 56 78) — her contact, not
+  // a new one. (Round 3: a phone alone no longer decides; the name must
+  // agree — see the next step.)
   await page.goto(origin + "/chest/contacts?q=Claire");
   const claires = await page.locator("a.row-link").count();
-  await deliver(answer("flowanswer000002", { name: "Claire", email: null, phone: "+33 6 12 34 56 78", company: null }, "Is the order ready?"));
+  await deliver(answer("flowanswer000002", { name: "DURAND Claire", email: null, phone: "+33 6 12 34 56 78", company: null }, "Is the order ready?"));
   await page.reload();
   expect(await page.locator("a.row-link").count() === claires, "no new contact");
   await page.locator("a.row-link", { hasText: "Claire Durand" }).first().click();
   await page.locator(".timeline .event.k-form", { hasText: "Is the order ready?" }).waitFor();
+});
+
+await step("privacy (round 3 blocker): Forms' real event for Nina Roux, whose phone is Claire Durand's, makes Nina a contact of her own marked 'maybe the same person'; her second answer finds her; nothing lands in Claire's file", async () => {
+  const deliver = data => page.request.post(origin + "/_dev/deliver", { form: { type: "forms.contact", data: JSON.stringify(data) }, maxRedirects: 0 });
+  // The event Forms published in the critic's run (critique3/sfch/published1.json).
+  const real = { v: 1, form: { id: "101", title: "Contactez-nous" }, answer: { id: "s54tfe3tahshinv1", at: new Date(Date.now() - 120000).toISOString(), language: "fr", path: "/chest/forms/101/answers/s54tfe3tahshinv1" }, contact: { name: "Nina Roux", email: "nina.roux@gmail.com", phone: "06 12 34 56 78", company: null }, message: "Bonjour, je voudrais un devis pour six chaises en chêne.\nMerci", member: null };
+  await deliver(real);
+  const second = { ...real, answer: { ...real.answer, id: "second0000000002", at: new Date(Date.now() - 60000).toISOString(), path: "/chest/forms/101/answers/second0000000002" }, contact: { ...real.contact, email: "n.roux@roux-menuiserie.fr", company: "Roux Menuiserie" }, message: "Finalement 8 chaises, livraison avant Noël ?" };
+  await deliver(second);
+  await page.goto(origin + "/chest/contacts?q=Claire");
+  await page.locator("a.row-link", { hasText: "Claire Durand" }).first().click();
+  await page.waitForURL(/\/chest\/contacts\/\d+$/u);
+  const claire = await page.locator(".timeline").innerText();
+  expect(!claire.includes("six chaises") && !claire.includes("8 chaises"), "nothing of Nina's in Claire's file");
+  await page.goto(origin + "/chest/contacts?q=nina.roux%40gmail.com");
+  await page.locator("a.row-link", { hasText: "Nina Roux" }).first().click();
+  await page.waitForURL(/\/chest\/contacts\/\d+$/u);
+  const notice = await page.locator(".maybe-same").innerText();
+  expect(notice.includes("Maybe the same person as Claire Durand"), "marked: " + notice);
+  const lines = page.locator(".timeline .event.k-form");
+  expect(await lines.count() === 2, "both her answers on her own file");
+  const who = await lines.first().locator(".event-who").innerText();
+  expect(who.includes("Nina Roux") && who.includes("n.roux@roux-menuiserie.fr") && who.includes("06 12 34 56 78"), "the line shows who filled it in: " + who);
+  expect(await lines.first().locator(".event-who a[href^='tel:']").count() === 1 && await lines.first().locator(".event-who a[href^='mailto:']").count() === 1, "tap to call or write");
+});
+
+await step("My day: new contacts from the forms wait in the leads inbox; Hugo takes one and plans what's next", async () => {
+  await page.goto(origin + "/chest");
+  const box = page.locator(".leads");
+  await box.waitFor();
+  const text = await box.innerText();
+  expect(/new from your forms/iu.test(text) && text.includes("Nina Roux") && text.includes("Maybe the same person as Claire Durand"), "inbox: " + text.slice(0, 600));
+  const row = box.locator(".lead-row", { hasText: "nina.roux@gmail.com" });
+  await row.getByRole("button", { name: "Take Nina Roux" }).click();
+  await page.waitForSelector("text=What’s next?");
+  await page.getByLabel("What", { exact: true }).fill("Call Nina about the chairs");
+  await page.getByRole("button", { name: "Plan it" }).click();
+  await page.waitForSelector(".step-text:has-text('Call Nina about the chairs')");
+  expect(await page.locator(".lead-row", { hasText: "nina.roux@gmail.com" }).count() === 0, "off the inbox");
+  await page.goto(origin + "/chest/contacts?q=nina.roux%40gmail.com");
+  await page.locator("a.row-link", { hasText: "Nina Roux" }).first().click();
+  expect((await page.locator(".owner-line").innerText()).includes("Hugo Bernard"), "Hugo's now");
+});
+
+await step("the manager: 'not a lead' with Undo, 'give to' someone who is told; 'not the same person'; the form answers to check", async () => {
+  await as(context, origin, "camille");
+  await context.addCookies([{ name: "dev_locale", value: "en", url: origin }]);
+  const deliver = data => page.request.post(origin + "/_dev/deliver", { form: { type: "forms.contact", data: JSON.stringify(data) }, maxRedirects: 0 });
+  const lead = (id, name, email) => ({ v: 1, form: { id: "5", title: "Contact us" }, answer: { id, at: new Date(Date.now() - 30000).toISOString(), language: "en", path: "/chest/forms/5/answers/" + id }, contact: { name, email, phone: null, company: null }, message: "Hello", member: null });
+  await deliver(lead("flowlead00000001", "Spam Bot", "spam@example.com"));
+  await deliver(lead("flowlead00000002", "Paul Lemaire", "paul.lemaire@example.com"));
+  await page.goto(origin + "/chest");
+  await page.locator(".lead-row", { hasText: "Spam Bot" }).getByRole("button", { name: "Spam Bot is not a lead" }).click();
+  await page.waitForSelector(".ck-toast:has-text('Spam Bot is off the list.')");
+  await page.locator(".ck-toast-undo").click();
+  await page.waitForSelector(".ck-toast:has-text('Undone.')");
+  await page.reload();
+  expect(await page.locator(".lead-row", { hasText: "Spam Bot" }).count() === 1, "back after Undo");
+  await page.locator(".lead-row", { hasText: "Paul Lemaire" }).getByRole("button", { name: "Give to…" }).click();
+  await page.locator("#lead-give").fill("Inès");
+  await page.locator(".ck-option", { hasText: "Inès Moreau" }).click();
+  await page.getByRole("button", { name: "Give", exact: true }).click();
+  await page.waitForSelector(".ck-toast:has-text('Paul Lemaire given to Inès Moreau.')");
+  await page.waitForTimeout(800);
+  expect((await dev()).includes("Camille Martin vous a confié un nouveau contact venu d’un formulaire"), "Inès told in French");
+  // Nina's first contact (example.com, the step before) is a lead with no
+  // mark; Nina of gmail is marked: Camille keeps them apart.
+  await page.goto(origin + "/chest/contacts?q=nina.roux%40gmail.com");
+  await page.locator("a.row-link", { hasText: "Nina Roux" }).first().click();
+  await page.getByRole("button", { name: "Not the same person" }).click();
+  await page.waitForSelector(".ck-toast:has-text('Kept apart.')");
+  await page.reload();
+  expect(await page.locator(".maybe-same").count() === 0, "the mark is gone");
+  // My day tells the manager there are answers to check; the check lists
+  // Nina's second answer (another email than her contact's).
+  await page.goto(origin + "/chest");
+  await page.getByRole("link", { name: /form answers? to check/u }).click();
+  await page.waitForURL(/\/chest\/settings\/forms$/u);
+  const row = page.locator(".check-row", { hasText: "n.roux@roux-menuiserie.fr" });
+  expect((await row.innerText()).includes("The form gave another email than this contact’s."), "why");
+  expect(await row.getByRole("link", { name: "Open the answer" }).getAttribute("href") === "https://forms-chest.chest.test/chest/forms/101/answers/second0000000002", "the answer in Forms");
+  await row.getByRole("button", { name: "Right person" }).click();
+  await page.waitForSelector(".ck-toast:has-text('Kept on Nina Roux.')");
+  await page.reload();
+  expect(await page.locator(".check-row", { hasText: "n.roux@roux-menuiserie.fr" }).count() === 0, "checked");
+  // Back to Hugo, in his own language, for the steps that follow.
+  await context.clearCookies({ name: "dev_locale" });
+  await as(context, origin, "hugo");
 });
 
 await step("a new deal from My day: a company found by typing, or added on the spot", async () => {
@@ -477,6 +567,27 @@ await step("the Team page: pipeline by person, won and lost by month", async () 
   await page.goto(origin + "/chest/team");
   const text = (await page.locator("main").innerText()).toLowerCase();
   expect(text.includes("open deals by person") && text.includes("hugo bernard") && text.includes("win rate"), "report: " + text.slice(0, 200));
+});
+
+await step("the Team page's Monday numbers: what each person logged this week, last week; stage to stage", async () => {
+  // A call logged now counts in this week's line of its author.
+  await as(context, origin, "hugo");
+  await page.goto(dealUrl);
+  await page.getByRole("button", { name: "Log a call", exact: true }).click();
+  await page.waitForSelector(".ck-toast:has-text('Call logged')");
+  await as(context, origin, "camille");
+  await context.addCookies([{ name: "dev_locale", value: "en", url: origin }]);
+  await page.goto(origin + "/chest/team");
+  const week = page.locator("section", { has: page.locator("#r-week") });
+  const text = await week.innerText();
+  expect(/logged, week by week/iu.test(text) && /calls/iu.test(text) && /meetings/iu.test(text), "the week's table: " + text.slice(0, 300));
+  const hugoRow = await week.locator("tr", { hasText: "Hugo Bernard" }).innerText();
+  expect(/\b[1-9]\d*\b/u.test(hugoRow), "Hugo's calls this week: " + hugoRow);
+  await week.getByRole("link", { name: "Last week" }).click();
+  await page.waitForURL(/week=1$/u);
+  expect((await page.locator("#r-week").count()) === 1, "last week shown");
+  const conv = await page.locator("section", { has: page.locator("#r-conversion") }).innerText();
+  expect(/from stage to stage/iu.test(conv) && /reached it/u.test(conv) && /went on/u.test(conv), "conversion: " + conv.slice(0, 300));
 });
 
 await step("the manager exports the whole client book as one ZIP", async () => {

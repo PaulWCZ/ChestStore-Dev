@@ -59,6 +59,9 @@ export async function restorePayment(sql: Sql, actor: Member | null, paymentId: 
     const [sums] = await tx<{ paid: number; credited: number }[]>`
       select coalesce((select sum(amount) from payments where document_id = ${p.document_id} and deleted_at is null), 0)::bigint as paid,
              coalesce((select sum(gross) from documents where invoice_id = ${p.document_id} and type = 'credit' and status = 'final'), 0)::bigint as credited`;
+    // A line of a bank statement recorded again meanwhile (lib/bank.ts).
+    const [taken] = await tx`select 1 from payments x where x.bank_line = (select bank_line from payments where id = ${pid}) and x.deleted_at is null`;
+    if (taken) throw new AppError("bank_line_used");
     if (p.amount > (doc?.gross ?? 0) - (sums?.paid ?? 0) - (sums?.credited ?? 0)) throw new AppError("payment_too_large");
     await tx`update payments set deleted_at = null where id = ${pid}`;
   });

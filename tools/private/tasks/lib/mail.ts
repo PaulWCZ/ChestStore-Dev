@@ -150,7 +150,10 @@ export async function flushMail(sql: Sql, now: Date = new Date()): Promise<numbe
   return sent;
 }
 
-const cardPath = (boardId: string, cardId: string) => `/chest/boards/${boardId}?card=${cardId}`;
+// A card's address by its id alone (app/chest/cards/[id]): it opens on the
+// board the card is on when it is clicked, so a bell item or an email
+// still leads to it after the card moved to another board.
+const cardPath = (_boardId: string, cardId: string) => `/chest/cards/${cardId}`;
 
 // letterOf writes one person's email: one thing as it always was, several
 // as one letter — who, how many of each, then each with its link.

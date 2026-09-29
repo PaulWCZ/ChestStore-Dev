@@ -37,9 +37,9 @@ export type Link = { id: string; documentId: string; secret: string; createdAt: 
 type LinkRow = { id: number; document_id: number; secret: string; created_at: Date; created_by: string; revoked_at: Date | null; pdf_object: string | null; pdf_sha256: string | null; pdf_of: Date | null };
 const toLink = (r: LinkRow): Link => ({ id: String(r.id), documentId: String(r.document_id), secret: r.secret, createdAt: r.created_at.toISOString(), createdBy: r.created_by, revokedAt: r.revoked_at ? r.revoked_at.toISOString() : null, pdfSha256: r.pdf_sha256 });
 
-export type Answer = { id: string; answer: "accepted" | "refused"; name: string; reason: string; answeredOn: string; answeredAt: string; visitorHash: string; userAgent: string; number: string | null; gross: number; currency: string; pdfSha256: string; pdfObject: string | null };
-type AnswerRow = { id: number; answer: "accepted" | "refused"; name: string; reason: string; answered_on: string; answered_at: Date; visitor_hash: string; user_agent: string; number: string | null; gross: number; currency: string; pdf_sha256: string; pdf_object: string | null };
-const toAnswer = (r: AnswerRow): Answer => ({ id: String(r.id), answer: r.answer, name: r.name, reason: r.reason, answeredOn: r.answered_on, answeredAt: r.answered_at.toISOString(), visitorHash: r.visitor_hash, userAgent: r.user_agent, number: r.number, gross: r.gross, currency: r.currency, pdfSha256: r.pdf_sha256, pdfObject: r.pdf_object });
+export type Answer = { id: string; answer: "accepted" | "refused"; name: string; reason: string; answeredOn: string; answeredAt: string; visitorHash: string; userAgent: string; number: string | null; version: number; gross: number; currency: string; pdfSha256: string; pdfObject: string | null; termsSha256: string | null };
+type AnswerRow = { id: number; answer: "accepted" | "refused"; name: string; reason: string; answered_on: string; answered_at: Date; visitor_hash: string; user_agent: string; number: string | null; version: number; gross: number; currency: string; pdf_sha256: string; pdf_object: string | null; terms_sha256?: string | null };
+const toAnswer = (r: AnswerRow): Answer => ({ id: String(r.id), answer: r.answer, name: r.name, reason: r.reason, answeredOn: r.answered_on, answeredAt: r.answered_at.toISOString(), visitorHash: r.visitor_hash, userAgent: r.user_agent, number: r.number, version: r.version ?? 1, gross: r.gross, currency: r.currency, pdfSha256: r.pdf_sha256, pdfObject: r.pdf_object, termsSha256: r.terms_sha256 ?? null });
 
 async function quoteRow(tx: Query, docId: string): Promise<{ type: string; status: string; deleted_at: Date | null }> {
   const [d] = await tx<{ type: string; status: string; deleted_at: Date | null }[]>`select type, status, deleted_at from documents where id = ${docId} for update`;
@@ -110,9 +110,10 @@ export async function answerPdf(sql: Query, actor: Member | null, answerId: unkn
 // --- The public side ---------------------------------------------------------
 
 // What the link's page shows: open (the client may answer), expired, the
-// answer already given (online or recorded by the company), or off (turned
-// off, withdrawn, taken back to a draft).
-export type Showing = "open" | "expired" | "accepted" | "refused" | "off";
+// answer already given (online or recorded by the company), revising (the
+// company is writing the quote's next version: no answer until it is
+// sent), or off (turned off, withdrawn, taken back to a draft).
+export type Showing = "open" | "expired" | "accepted" | "refused" | "revising" | "off";
 export type Opened = { link: Link; full: Full; showing: Showing; answer: Answer | null };
 
 export async function openLink(sql: Query, secret: unknown, today: string): Promise<Opened | null> {
@@ -129,7 +130,9 @@ export async function openLink(sql: Query, secret: unknown, today: string): Prom
   const [last] = await sql<AnswerRow[]>`select * from quote_answers where document_id = ${row.document_id} order by answered_at desc, id desc limit 1`;
   const answer = last ? toAnswer(last) : null;
   const link = toLink(row);
-  const showing: Showing = link.revokedAt || full.status === "draft" ? "off"
+  const showing: Showing = link.revokedAt ? "off"
+    : full.status === "draft" && full.version > 1 ? "revising"
+    : full.status === "draft" ? "off"
     : full.status === "accepted" ? "accepted"
     : full.status === "refused" ? "refused"
     : full.state === "expired" ? "expired"
@@ -160,15 +163,18 @@ export async function shownPdf(sql: Query, opened: Pick<Opened, "link" | "full">
     if (!(error instanceof ChestError)) throw error;
   }
   await sql`update quote_links set pdf_object = ${kept}, pdf_sha256 = ${sha256}, pdf_of = ${new Date(full.updatedAt)} where id = ${link.id}`;
-  // The version it replaces goes, unless someone answered on it.
+  // The PDF it replaces goes, unless someone answered on it or it is an
+  // earlier version's (lib/versions.ts).
   if (row?.pdf_object && row.pdf_object !== kept) {
-    const [used] = await sql`select 1 from quote_answers where pdf_object = ${row.pdf_object} limit 1`;
+    const [used] = await sql`select 1 from quote_answers where pdf_object = ${row.pdf_object} union all select 1 from quote_versions where pdf_object = ${row.pdf_object} limit 1`;
     if (!used) await files.delete(row.pdf_object).catch(error => { if (!(error instanceof ChestError)) throw error; });
   }
   return { bytes, sha256 };
 }
 
-export type AnswerInput = { answer?: unknown; name?: unknown; agree?: unknown; reason?: unknown; shown?: unknown };
+// `terms`: the fingerprint of the terms and conditions of sale the page
+// offered ("" when none).
+export type AnswerInput = { answer?: unknown; name?: unknown; agree?: unknown; reason?: unknown; shown?: unknown; terms?: unknown };
 export type Visitor = { hash: string; userAgent: string; language: Locale };
 
 // answer records the client's answer: the quote becomes accepted or
@@ -186,6 +192,9 @@ export async function answer(sql: Sql, secret: unknown, input: AnswerInput, visi
   const reason = choice === "refused" ? clean(input.reason ?? "", 1000, { optional: true, multiline: true }) : "";
   if (typeof input.shown !== "string" || !/^[0-9a-f]{64}$/u.test(input.shown)) throw new AppError("changed");
   if (opened.showing === "off") throw new AppError("link_off");
+  // A new version is being written: what the client read is no longer
+  // offered.
+  if (opened.showing === "revising") throw new AppError("changed");
   if (opened.showing === "expired") throw new AppError("expired");
   if (opened.showing !== "open") throw new AppError("answered");
   // The PDF of this very version, kept (drawn now if it was not yet).
@@ -193,17 +202,21 @@ export async function answer(sql: Sql, secret: unknown, input: AnswerInput, visi
   if (shown.sha256 !== input.shown) throw new AppError("changed");
   const docId = opened.full.id;
   const done = await sql.begin(async tx => {
-    const [d] = await tx<{ status: string; updated_at: Date; valid_until: string | null; deleted_at: Date | null; number: string | null; gross: number; currency: string }[]>`
-      select status, updated_at, valid_until, deleted_at, number, gross, currency from documents where id = ${docId} for update`;
+    const [d] = await tx<{ status: string; updated_at: Date; valid_until: string | null; deleted_at: Date | null; number: string | null; version: number; gross: number; currency: string }[]>`
+      select status, updated_at, valid_until, deleted_at, number, version, gross, currency from documents where id = ${docId} for update`;
     const [l] = await tx<LinkRow[]>`select * from quote_links where id = ${opened.link.id} for update`;
     if (!d || d.deleted_at || !l || l.revoked_at) throw new AppError("link_off");
+    if (d.status === "draft") throw new AppError("changed");
+    // The terms and conditions of sale the client was offered, if any.
+    const [terms] = await tx<{ terms_sha256: string | null }[]>`select terms_sha256 from company where id = 1`;
+    if ((terms?.terms_sha256 ?? "") !== (typeof input.terms === "string" ? input.terms : "")) throw new AppError("changed");
     if (d.status !== "sent") throw new AppError("answered");
     if (d.valid_until !== null && d.valid_until < today) throw new AppError("expired");
-    if (d.updated_at.toISOString() !== opened.full.updatedAt || l.pdf_sha256 !== shown.sha256) throw new AppError("changed");
+    if (d.updated_at.toISOString() !== opened.full.updatedAt || d.version !== opened.full.version || l.pdf_sha256 !== shown.sha256) throw new AppError("changed");
     const [row] = await tx<AnswerRow[]>`
-      insert into quote_answers (document_id, link_id, answer, name, reason, answered_on, visitor_hash, user_agent, language, number, gross, currency, pdf_object, pdf_sha256)
+      insert into quote_answers (document_id, link_id, answer, name, reason, answered_on, visitor_hash, user_agent, language, number, version, gross, currency, pdf_object, pdf_sha256, terms_sha256)
       values (${docId}, ${l.id}, ${choice}, ${name}, ${reason}, ${today}, ${visitor.hash.slice(0, 64)}, ${visitor.userAgent.replace(/\p{Cc}/gu, "").slice(0, 300)},
-              ${isLocale(visitor.language) ? visitor.language : "en"}, ${d.number}, ${d.gross}, ${d.currency}, ${l.pdf_object}, ${shown.sha256})
+              ${isLocale(visitor.language) ? visitor.language : "en"}, ${d.number}, ${d.version}, ${d.gross}, ${d.currency}, ${l.pdf_object}, ${shown.sha256}, ${terms?.terms_sha256 ?? null})
       returning *`;
     await tx`update documents set status = ${choice}, decided_at = now(), decided_by = 'client', updated_at = now() where id = ${docId}`;
     return toAnswer(row!);

@@ -12,6 +12,7 @@ import { email } from "../../lib/guests.ts";
 import { publicOrigin } from "../../lib/public-origin.ts";
 import { currentMember } from "../../lib/session.ts";
 import * as publish from "../../lib/publish.ts";
+import * as share from "../../lib/share.ts";
 import * as tell from "../../lib/tell.ts";
 
 // The team's actions. Each is an endpoint anyone can call: each reads the
@@ -34,6 +35,7 @@ export async function cancelBooking(id: string, reason: string): Promise<Result<
     await tell.quiet(done);
     await publish.unpublish(sql, done);
     await tell.hostCopy(sql, "cancelled", done);
+    await share.changed(sql, "cancelled", done);
     const origin = publicOrigin(await headers());
     await b.rememberPublicOrigin(sql, origin);
     return { delivery: await email(sql, "cancelled", done, origin) };
@@ -132,7 +134,9 @@ export async function eraseGuest(address: string): Promise<Result<number>> {
   return act(async actor => {
     const sql = db();
     const gone = await b.eraseGuest(sql, actor, address);
-    for (const id of gone) await publish.unpublish(sql, { id });
+    for (const { id } of gone) await publish.unpublish(sql, { id });
+    // Their meetings no longer keep their hosts busy.
+    await share.shareBusy(sql, gone.map(x => x.memberId));
     return gone.length;
   });
 }
@@ -154,7 +158,12 @@ export async function savePrefs(input: { dailyMax: number; emailMe: boolean }): 
 // ——— Times blocked, other calendars ———
 
 export async function blockTime(day: string, from: number, to: number, note: string): Promise<Result<string>> {
-  return act(async actor => (await b.blockTime(db(), actor, { day, from, to, note })).id);
+  return act(async actor => {
+    const sql = db();
+    const block = await b.blockTime(sql, actor, { day, from, to, note });
+    await share.shareBusy(sql, [actor.id]);
+    return block.id;
+  });
 }
 
 // No calendar to connect: the host says their hours are right; their page
@@ -168,27 +177,38 @@ export async function confirmHours(): Promise<Result<null>> {
 
 export async function unblock(id: string): Promise<Result<null>> {
   return act(async actor => {
-    await b.unblock(db(), actor, id);
+    const sql = db();
+    await b.unblock(sql, actor, id);
+    await share.shareBusy(sql, [actor.id]);
     return null;
   });
 }
 
 export async function connectCalendar(address: string): Promise<Result<null>> {
   return act(async actor => {
-    await calendars.connect(db(), actor, address);
+    const sql = db();
+    await calendars.connect(sql, actor, address);
+    await share.shareBusy(sql, [actor.id]);
     return null;
   });
 }
 
 export async function disconnectCalendar(id: string): Promise<Result<null>> {
   return act(async actor => {
-    await calendars.disconnect(db(), actor, id);
+    const sql = db();
+    await calendars.disconnect(sql, actor, id);
+    await share.shareBusy(sql, [actor.id]);
     return null;
   });
 }
 
 export async function readCalendars(): Promise<Result<number>> {
-  return act(actor => calendars.refreshMine(db(), actor));
+  return act(async actor => {
+    const sql = db();
+    const failed = await calendars.refreshMine(sql, actor);
+    await share.shareBusy(sql, [actor.id]);
+    return failed;
+  });
 }
 
 // ——— A host books or moves for a guest ———
@@ -206,8 +226,9 @@ export async function bookForGuest(typeId: string, input: ForGuest): Promise<Res
     const delivery = await email(sql, "confirmed", made.booking, origin);
     await publish.publish(sql, made.booking);
     // Another host of the team took it: they hear of it.
-    if (made.booking.memberId !== actor.id) await tell.booked(made.booking, (await b.hostOf(sql, made.booking.memberId))?.zone ?? input.zone);
+    if (made.booking.memberId !== actor.id) await tell.booked(made.booking, (await b.hostOf(sql, made.booking.memberId))?.zone ?? input.zone, await b.titlesOf(sql, made.booking));
     await tell.hostCopy(sql, "booked", made.booking);
+    await share.changed(sql, "booked", made.booking);
     return { id: made.booking.id, delivery };
   });
 }
@@ -215,12 +236,13 @@ export async function bookForGuest(typeId: string, input: ForGuest): Promise<Res
 export async function moveMeeting(id: string, start: string): Promise<Result<{ delivery: "email" | "page" }>> {
   return act(async actor => {
     const sql = db();
-    const { booking } = await b.moveByHost(sql, actor, id, start);
+    const { booking, from } = await b.moveByHost(sql, actor, id, start);
     const origin = publicOrigin(await headers());
     await b.rememberPublicOrigin(sql, origin);
     const delivery = await email(sql, "moved", booking, origin);
     await publish.publish(sql, booking);
     await tell.hostCopy(sql, "moved", booking);
+    await share.changed(sql, "moved", booking, { previousHost: from });
     return { delivery };
   });
 }
@@ -239,6 +261,8 @@ export async function importCalendly(text: string, zone: string): Promise<Result
     const sql = db();
     const { bookings, ...result } = await importFile(sql, actor, text, zone);
     for (const booking of bookings) await publish.publish(sql, booking);
+    // Past meetings, told to nobody; the time they take is.
+    await share.shareBusy(sql, [actor.id]);
     return result;
   });
 }

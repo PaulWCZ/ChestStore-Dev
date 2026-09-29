@@ -390,3 +390,32 @@ export function RemindButton({ id, t, errors, locale }: { id: string; t: Catalog
     })}>{t.remind}</button>
   );
 }
+
+// Answered from an email's link (app/chest/posts/[id]/answer): the answer
+// is said once, with Undo back to the one before; a link that was not the
+// person's, or an event already over, says so. Then the address is clean
+// again, so a reload says nothing.
+type Answered = "yes" | "no" | "wait" | "none" | "invalid" | "closed";
+export function AnsweredNotice({ id, answered, was, t, errors }: { id: string; answered: Answered; was: "yes" | "no" | "none" | null; t: Catalogue["event"]; errors: Errors }) {
+  const toast = useToast();
+  const router = useRouter();
+  const shown = useRef(false);
+  useEffect(() => {
+    if (shown.current) return;
+    shown.current = true;
+    const url = new URL(window.location.href);
+    url.searchParams.delete("answered");
+    url.searchParams.delete("was");
+    window.history.replaceState(window.history.state, "", url.pathname + url.search + url.hash);
+    if (answered === "invalid" || answered === "closed") return void toast({ id: `rsvp-${id}`, text: answered === "closed" ? t.closed : t.linkNotYours, tone: "error" });
+    const text = answered === "yes" ? t.youCome : answered === "wait" ? t.youWait : answered === "no" ? t.youDont : t.noAnswer;
+    const undo = was === null || answered === "none" ? undefined : async () => {
+      const r = await answerEvent(id, was === "none" ? null : was);
+      if (!r.ok) return say(errors, r.error, r.values);
+      router.refresh();
+      return true;
+    };
+    toast({ id: `rsvp-${id}`, text, ...(undo ? { undo } : {}) });
+  }, [id, answered, was, t, errors, toast, router]);
+  return null;
+}

@@ -2,7 +2,7 @@ import { NoAccess } from "@argentic/chest-ui/components";
 import { can } from "../../../lib/access.ts";
 import { cardOverview, type CardLineView } from "../../../lib/cards.ts";
 import { db } from "../../../lib/db.ts";
-import { formatDate, plural, relative, shortDate } from "../../../lib/i18n/index.ts";
+import { plural, relative, shortDate } from "../../../lib/i18n/index.ts";
 import { formatMoney } from "../../../lib/money.ts";
 import { holders, nameOf, people } from "../../../lib/people.ts";
 import { viewer } from "../../../lib/session.ts";

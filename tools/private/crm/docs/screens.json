@@ -29,5 +29,9 @@
   {"name": "companies-filters", "path": "/chest/companies", "member": "hugo", "locale": "en", "only": ["phone"], "actions": [{"click": "button.filter-toggle"}, {"wait": 300}]},
   {"name": "deal-fr", "path": "/chest/deals/1", "member": "ines", "locale": "fr"},
   {"name": "step-calendar", "path": "/chest/deals/1", "member": "ines", "locale": "en", "only": ["desktop"], "actions": [{"click": ".step-item >> nth=0 >> button:has-text('Change')"}, {"wait": 400}]},
+  {"name": "day-leads-fr", "path": "/chest", "member": "camille", "locale": "fr"},
+  {"name": "contact-maybe", "path": "/chest/contacts/17", "member": "hugo", "locale": "en", "only": ["desktop"]},
+  {"name": "form-check", "path": "/chest/settings/forms", "member": "camille", "locale": "en", "only": ["desktop"]},
+  {"name": "team-monday-fr", "path": "/chest/team", "member": "camille", "locale": "fr", "only": ["phone"]},
   {"name": "board-port", "path": "/chest/deals", "member": "camille", "locale": "fr", "look": {"tool": "brand:port"}}
 ]

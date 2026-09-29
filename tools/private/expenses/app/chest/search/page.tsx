@@ -36,7 +36,10 @@ export default async function Search({ searchParams }: { searchParams: Promise<{
     });
     const [who, warned, flat] = await Promise.all([people(found.map(e => e.owner)), warnings(sql, found), allowances(sql, { archived: true })]);
     const ctx = { t, locale, allowances: new Map(flat.map(a => [a.id, a])), categories: new Map(cats.map(c => [c.id, c])), warnings: warned, currency: company.currency };
-    rows = found.map(e => ({ ...rowView(e, { ...ctx, ...(e.owner === member.id ? {} : { who: nameOf(who.get(e.owner), locale) }) }), sub: [e.owner === member.id ? "" : nameOf(who.get(e.owner), locale), rowView(e, ctx).sub, "E" + e.id].filter(Boolean).join(" · ") }));
+    rows = found.map(e => {
+      const row = rowView(e, { ...ctx, ...(e.owner === member.id ? {} : { who: nameOf(who.get(e.owner), locale) }) });
+      return { ...row, sub: [row.sub, "E" + e.id].filter(Boolean).join(dot) };
+    });
   }
   return (
     <div className="page">

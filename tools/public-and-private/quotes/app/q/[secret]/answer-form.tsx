@@ -14,13 +14,30 @@ import { answerQuote, type AnswerState } from "../../public-actions.ts";
 // it again.
 export type AnswerWords = Catalogue["online"] & { errors: Catalogue["errors"] };
 
-export function AnswerForm({ secret, shown, started, today, amount, t }: { secret: string; shown: string; started: string; today: string; amount: string; t: AnswerWords }) {
+// `terms`: the fingerprint of the terms and conditions of sale offered
+// with the quote ("" when the company has none).
+export function AnswerForm({ secret, shown, terms, started, today, amount, t }: { secret: string; shown: string; terms: string; started: string; today: string; amount: string; t: AnswerWords }) {
   const [mode, setMode] = useState<"accept" | "decline">("accept");
   const [state, action, pending] = useActionState<AnswerState, FormData>(answerQuote.bind(null, secret), { error: null, values: { name: "", reason: "" } });
-  const error = state.error ? format(t.errors[state.error] ?? t.errors.unknown, { max: 120 }) : null;
+  // The quote changed while it was read: the page now shows it as it is,
+  // and says what is different (the answer must be given again).
+  const changed = state.error === "changed";
+  const error = state.error && !changed ? format(t.errors[state.error] ?? t.errors.unknown, { max: 120 }) : null;
+  const changes = changed ? (
+    <div className="answer-changes" role="alert">
+      <h3>{t.changedTitle}</h3>
+      {state.changes && state.changes.length > 0 ? (
+        <>
+          <p>{t.changedLead}</p>
+          <ul>{state.changes.map(c => <li key={c}>{c}</li>)}</ul>
+        </>
+      ) : <p>{t.changedPlain}</p>}
+    </div>
+  ) : null;
   const hidden = (
     <>
       <input type="hidden" name="shown" value={shown} />
+      <input type="hidden" name="terms" value={terms} />
       <input type="hidden" name="started" value={started} />
       <div className="trap" aria-hidden="true"><label>{t.trap}<input type="text" name="website" tabIndex={-1} autoComplete="off" /></label></div>
     </>
@@ -29,6 +46,7 @@ export function AnswerForm({ secret, shown, started, today, amount, t }: { secre
     return (
       <form action={action} className="answer-form" aria-labelledby="decline-title">
         <h2 id="decline-title">{t.declineTitle}</h2>
+        {changes}
         {hidden}
         <input type="hidden" name="answer" value="refused" />
         <div>
@@ -50,6 +68,7 @@ export function AnswerForm({ secret, shown, started, today, amount, t }: { secre
   return (
     <form action={action} className="answer-form" aria-labelledby="accept-title">
       <h2 id="accept-title">{t.acceptTitle}</h2>
+      {changes}
       <p className="hint">{format(t.acceptLead, { amount })}</p>
       {hidden}
       <input type="hidden" name="answer" value="accepted" />
@@ -59,7 +78,7 @@ export function AnswerForm({ secret, shown, started, today, amount, t }: { secre
       </div>
       <label className="agree">
         <input type="checkbox" name="agree" value="yes" required aria-invalid={state.error === "must_agree" ? true : undefined} />
-        <span><strong>{t.goodForAgreement}</strong><br /><span className="hint">{t.agreeHint}</span></span>
+        <span><strong>{t.goodForAgreement}</strong><br /><span className="hint">{terms ? t.agreeHintTerms : t.agreeHint}</span></span>
       </label>
       <p className="answer-date"><span className="hint">{t.date}</span> {today}</p>
       {error && <p className="error" id="answer-error" role="alert"><Alert />{error}</p>}

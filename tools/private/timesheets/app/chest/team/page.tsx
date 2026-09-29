@@ -33,13 +33,19 @@ export default async function TeamPage({ searchParams }: { searchParams: Promise
   const team = withRole(dir.people).sort((a, b) => a.name.localeCompare(b.name, locale));
   const ids = [...new Set([...team.map(p => p.id), ...list.map(w => w.memberId)])];
   const [rows, last, who] = await Promise.all([teamWeeks(sql, member, team.map(p => p.id), mondays), teamWeeks(sql, member, team.map(p => p.id), [lastWeek]), people(ids)]);
-  const short = last.filter(r => isShort(r.weeks[0]!, r.capacity)).map(r => r.memberId);
+  // Remind never counts the manager who presses it (their own week is said apart).
+  const shortAll = last.filter(r => isShort(r.weeks[0]!, r.capacity)).map(r => r.memberId);
+  const short = shortAll.filter(id => id !== member.id);
+  const selfShort = shortAll.includes(member.id);
+  // Nobody approves their own week: another manager does.
+  const otherManagers = team.filter(p => p.role === "manager" && p.id !== member.id).length;
   const expected = last.some(r => !r.weeks[0]!.before);
   // A week waiting: said short or not over on its line; the bulk action
   // takes the complete ones only, and names those it leaves.
   const fullText = (f: Fullness) => [f.over ? "" : t.team.notOver, format(t.team.ofUsualShort, { hours: formatDuration(f.minutes), usual: formatDuration(f.capacity) })].filter(Boolean).join(" · ");
-  const complete = list.filter(w => !needsLook(w.fullness));
-  const leftOut = list.filter(w => needsLook(w.fullness));
+  const others = list.filter(w => !w.mine);
+  const complete = others.filter(w => !needsLook(w.fullness));
+  const leftOut = others.filter(w => needsLook(w.fullness));
   const weekLabel = (w: string) => formatDay(w, locale, { day: "numeric", month: "short" });
   const photo = (id: string) => who.get(id)?.photo ?? null;
   const tableRows: TeamRow[] = rows.map(r => {
@@ -67,7 +73,7 @@ export default async function TeamPage({ searchParams }: { searchParams: Promise
         <section className="panel" aria-labelledby="waiting-title">
           <div className="panel-head">
             <h2 id="waiting-title"><Send />{t.team.toApprove}{list.length > 0 && <span className="count num">{list.length}</span>}</h2>
-            {complete.length > 0 && list.length > 1 && <ApproveAll weeks={complete.map(w => ({ memberId: w.memberId, week: w.week }))} label={leftOut.length ? plural(t.team.approveComplete, complete.length, locale) : plural(t.team.approveAll, complete.length, locale)} locale={locale} t={{ team: t.team, errors: t.errors }} />}
+            {complete.length > 0 && others.length > 1 && <ApproveAll weeks={complete.map(w => ({ memberId: w.memberId, week: w.week }))} label={leftOut.length ? plural(t.team.approveComplete, complete.length, locale) : plural(t.team.approveAll, complete.length, locale)} locale={locale} t={{ team: t.team, errors: t.errors }} />}
           </div>
           {list.length === 0 ? <p className="muted">{t.team.nothingToApprove}</p> : (
             <ul className="waiting">
@@ -81,12 +87,14 @@ export default async function TeamPage({ searchParams }: { searchParams: Promise
                   label={format(t.team.weekOf, { date: weekLabel(w.week) })}
                   hours={format(t.team.hours, { total: formatDuration(w.minutes), billable: formatDuration(w.billableMinutes) })}
                   look={needsLook(w.fullness) ? fullText(w.fullness) : null}
+                  led={w.led}
+                  mine={w.mine ? (otherManagers > 0 ? t.team.yours : t.team.yoursAlone) : null}
                   t={{ team: t.team, errors: t.errors }}
                 />
               ))}
             </ul>
           )}
-          {list.length > 1 && complete.length > 0 && leftOut.length > 0 && (
+          {others.length > 1 && complete.length > 0 && leftOut.length > 0 && (
             <p className="small muted left-out">{plural(t.team.leftOut, leftOut.length, locale, { list: leftOut.map(w => `${nameFor(w.memberId, who, locale)} (${fullText(w.fullness)})`).join(", ") })}</p>
           )}
         </section>
@@ -105,7 +113,7 @@ export default async function TeamPage({ searchParams }: { searchParams: Promise
           <div className="team-weeks"><TeamTable rows={tableRows} heads={mondays.map(w => (w === now ? t.team.thisWeek : weekLabel(w)))} t={{ team: t.team, errors: t.errors }} labels={t.table} /></div>
         )}
         <div className="remind-bar">
-          <p>{short.length ? plural(t.team.shortLast, short.length, locale) : expected ? t.team.allFilled : t.team.notStarted}</p>
+          <p>{short.length ? plural(t.team.shortLast, short.length, locale) : expected ? (selfShort ? t.team.onlyYou : t.team.allFilled) : t.team.notStarted}{short.length > 0 && selfShort ? " " + t.team.youShort : ""}</p>
           {short.length > 0 && <RemindButton memberIds={short} week={lastWeek} label={plural(t.team.remind, short.length, locale)} locale={locale} t={{ team: t.team, errors: t.errors }} />}
         </div>
       </section>

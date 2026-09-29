@@ -7,6 +7,7 @@ import * as cards from "../../lib/cards.ts";
 import { db } from "../../lib/db.ts";
 import { attempt, AppError, type Result } from "../../lib/errors.ts";
 import { catalogue, isLocale } from "../../lib/i18n/index.ts";
+import * as dueCalendar from "../../lib/due-calendar.ts";
 import * as mail from "../../lib/mail.ts";
 import * as reminders from "../../lib/reminders.ts";
 import { currentMember } from "../../lib/session.ts";
@@ -24,8 +25,10 @@ async function act<T>(step: (actor: NonNullable<Awaited<ReturnType<typeof curren
     return step(actor);
   });
   revalidatePath("/chest", "layout");
-  // Emails that waited long enough leave once the answer is sent.
+  // Emails that waited long enough leave once the answer is sent; the
+  // members' calendars follow what changed (due dates, people, done).
   after(() => mail.flushMail(db()).then(() => undefined, error => console.error("mail queue", error instanceof Error ? error.name : "error")));
+  after(() => dueCalendar.sync(db()).then(() => undefined));
   return result;
 }
 
@@ -305,20 +308,20 @@ export async function detach(attachmentId: string): Promise<Result<null>> {
 // of the people named are found in the Chest; the server reads the file
 // again (never trusting the page's reading) and writes the board, private
 // unless "everyone" was chosen.
-export async function previewImport(names: string[]): Promise<Result<{ found: string[]; missing: string[] }>> {
+export async function previewImport(names: string[]): Promise<Result<{ found: string[]; missing: string[]; hidden: string[] }>> {
   return act(async actor => {
     const { previewPeople } = await import("../../lib/importers.ts");
     return previewPeople(actor, names);
   });
 }
 
-export async function importBoard(kind: "trello" | "csv", text: string, name: string, visibility: "team" | "private" = "private"): Promise<Result<{ id: string; cards: number; matched: number; people: number }>> {
+export async function importBoard(kind: "trello" | "csv", text: string, name: string, visibility: "team" | "private" = "private", done: number[] | null = null): Promise<Result<{ id: string; cards: number; matched: number; people: number }>> {
   return act(async actor => {
     const { fromCsv, fromTrello, importBoard: write } = await import("../../lib/importers.ts");
     if (typeof text !== "string" || text.length > 10 << 20) throw new AppError("import_invalid");
     const board = kind === "trello" ? fromTrello(text) : fromCsv(text, name);
     if (kind === "trello" && typeof name === "string" && name.trim()) board.name = name.trim().slice(0, 80);
     const t = catalogue(isLocale(actor.locale) ? actor.locale : "en");
-    return write(db(), actor, board, t.templates.columns.done, { visibility });
+    return write(db(), actor, board, t.templates.columns.done, { visibility, done });
   });
 }

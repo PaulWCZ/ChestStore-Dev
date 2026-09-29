@@ -2,7 +2,7 @@ import { ChestError } from "@argentic/chest-sdk/errors";
 import type { Member } from "@argentic/chest-sdk/member";
 import type { Query } from "./db.ts";
 import { everyone, hrIds, type DirectoryPerson } from "./directory.ts";
-import { format, plural, spanText } from "./i18n/index.ts";
+import { format, formatDay, plural, spanText } from "./i18n/index.ts";
 import { badges, notify, withdraw } from "./notify.ts";
 import { nameOf, people } from "./people.ts";
 import { openRequests, type LeaveRequest } from "./requests.ts";
@@ -11,6 +11,8 @@ import { leaveType } from "./rules.ts";
 import { staffRow } from "./staff.ts";
 import { typeName } from "./type-name.ts";
 import { canBeApprover } from "./access.ts";
+import { email } from "./mail.ts";
+import type { Catalogue, Locale } from "./i18n/index.ts";
 
 // What Leave tells people through the Chest's bell, each in their own
 // language, and the number on approvers' tiles (requests waiting for them).
@@ -28,6 +30,17 @@ async function directory(): Promise<Directory | null> {
     if (!(error instanceof ChestError)) throw error;
     return null;
   }
+}
+
+// tellBoth: the bell item, and the same words by email (the mail
+// proposal) to those who have not turned emails off. The email's key
+// carries the moment: the same step done again later is a new email.
+async function tellBoth(sql: Query, to: string[], words: (t: Catalogue, locale: Locale) => { title: string; body?: string }, options: { path: string; key: string }): Promise<void> {
+  await notify(to, words, options);
+  await email(sql, to, (t, locale) => {
+    const w = words(t, locale);
+    return { subject: w.title, lines: w.body ? w.body.split("\n") : [] };
+  }, { path: options.path, key: `${options.key}:${Date.now().toString(36)}` });
 }
 
 async function describe(sql: Query, r: LeaveRequest) {
@@ -48,7 +61,7 @@ export async function asked(sql: Query, actor: Member, r: LeaveRequest): Promise
   const body = await describe(sql, r);
   const to = (await answerersOf(sql, r, dir)).filter(a => a !== actor.id);
   const declared = r.status === "approved";
-  await notify(to, (t, locale) => ({ title: format(declared ? (type.key === "sick" ? t.bell.declared : t.bell.declaredOther) : t.bell.asked, { name: actor.name }), body: body(t, locale) }), { path: path(r), key: key(r) });
+  await tellBoth(sql, to, (t, locale) => ({ title: format(declared ? (type.key === "sick" ? t.bell.declared : t.bell.declaredOther) : t.bell.asked, { name: actor.name }), body: body(t, locale) }), { path: path(r), key: key(r) });
   await refreshBadges(sql, dir);
 }
 
@@ -56,7 +69,7 @@ export async function asked(sql: Query, actor: Member, r: LeaveRequest): Promise
 // in their language.
 export async function recorded(sql: Query, actor: Member, r: LeaveRequest): Promise<void> {
   const body = await describe(sql, r);
-  await notify([r.memberId], (t, locale) => ({ title: format(t.bell.recorded, { name: actor.name }), body: body(t, locale) }), { path: path(r), key: key(r) + ":answer" });
+  await tellBoth(sql, [r.memberId], (t, locale) => ({ title: format(t.bell.recorded, { name: actor.name }), body: body(t, locale) }), { path: path(r), key: key(r) + ":answer" });
   await refreshBadges(sql);
 }
 
@@ -65,7 +78,7 @@ export async function answered(sql: Query, actor: Member, r: LeaveRequest): Prom
   await withdraw(key(r));
   const body = await describe(sql, r);
   if (r.memberId !== actor.id) {
-    await notify([r.memberId], (t, locale) => ({
+    await tellBoth(sql, [r.memberId], (t, locale) => ({
       title: r.status === "approved" ? t.bell.approved : t.bell.refused,
       body: body(t, locale) + (r.reason ? "\n" + r.reason : "") + "\n" + format(t.bell.by, { name: actor.name }),
     }), { path: path(r), key: key(r) + ":answer" });
@@ -94,7 +107,7 @@ export async function cancelAsked(sql: Query, actor: Member, r: LeaveRequest): P
   const dir = await directory();
   if (!dir) return;
   const body = await describe(sql, r);
-  await notify((await answerersOf(sql, r, dir)).filter(a => a !== actor.id), (t, locale) => ({ title: format(t.bell.cancelAsked, { name: actor.name }), body: body(t, locale) }), { path: path(r), key: key(r) });
+  await tellBoth(sql, (await answerersOf(sql, r, dir)).filter(a => a !== actor.id), (t, locale) => ({ title: format(t.bell.cancelAsked, { name: actor.name }), body: body(t, locale) }), { path: path(r), key: key(r) });
   await refreshBadges(sql, dir);
 }
 
@@ -102,7 +115,7 @@ export async function cancelSettled(sql: Query, actor: Member, r: LeaveRequest):
   await withdraw(key(r));
   const body = await describe(sql, r);
   if (r.memberId !== actor.id) {
-    await notify([r.memberId], (t, locale) => ({
+    await tellBoth(sql, [r.memberId], (t, locale) => ({
       title: r.status === "cancelled" ? t.bell.cancelled : t.bell.kept,
       body: body(t, locale) + (r.reason ? "\n" + r.reason : "") + "\n" + format(t.bell.by, { name: actor.name }),
     }), { path: path(r), key: key(r) + ":answer" });
@@ -113,7 +126,9 @@ export async function cancelSettled(sql: Query, actor: Member, r: LeaveRequest):
 // A last day set by the Chest (someone left): the leave recorded after it
 // was cancelled or cut, and its days came back. HR is told, in each HR
 // person's language, to check the final balance.
-export async function afterLastDay(memberId: string, settled: { cancelled: string[]; cut: string[]; days: number }): Promise<void> {
+// leavesOn: a last day People told, still to come ("Hugo Bernard leaves
+// on 12 October").
+export async function afterLastDay(memberId: string, settled: { cancelled: string[]; cut: string[]; days: number }, leavesOn?: string): Promise<void> {
   let hr: string[];
   try {
     hr = await hrIds();
@@ -123,7 +138,9 @@ export async function afterLastDay(memberId: string, settled: { cancelled: strin
   }
   const name = (await people([memberId])).get(memberId);
   await notify(hr, (t, locale) => ({
-    title: format(t.bell.afterLastDay, { name: name ? nameOf(name, locale) : t.people.unknown }),
+    title: leavesOn
+      ? format(t.bell.leavesOn, { name: name ? nameOf(name, locale) : t.people.unknown, date: formatDay(leavesOn, locale, { day: "numeric", month: "long" }) })
+      : format(t.bell.afterLastDay, { name: name ? nameOf(name, locale) : t.people.unknown }),
     body: plural(t.bell.afterLastDayBody, settled.cancelled.length + settled.cut.length, locale, { days: new Intl.NumberFormat(locale, { maximumFractionDigits: 2 }).format(settled.days) }),
   }), { path: `/chest/people/${memberId}`, key: `last:${memberId}` });
 }

@@ -21,6 +21,7 @@ export const errorCodes = [
   "import_invalid",
   "import_too_big",
   "rate_locked", "rate_day_missing", "week_short",
+  "self_approval", "lead_invalid", "nothing_to_send", "quotes_unavailable", "handoff_state",
   "week_submitted",
   "week_approved",
   "invoiced",

@@ -2,7 +2,7 @@
 
 import { useToast } from "@argentic/chest-ui/components";
 import { useEffect, useState } from "react";
-import { addClient, updateClient } from "../app/chest/actions.ts";
+import { addClient, lookupCompany, updateClient } from "../app/chest/actions.ts";
 import { format, languageNames } from "../lib/i18n/format.ts";
 import type { Catalogue, Locale } from "../lib/i18n/index.ts";
 import type { Client } from "../lib/clients.ts";
@@ -28,6 +28,33 @@ export function ClientForm({ t, initial, id, onSaved, onCancel, onDirty, compact
   const set = (patch: Partial<ClientFields>) => setF(v => ({ ...v, ...patch }));
   const invalid = (field: keyof ClientFields) => (error?.field === field ? true : undefined);
   const eu = f.country !== "FR" && f.vatNumber !== "";
+  // The public directory of companies fills what is still empty.
+  const [looking, setLooking] = useState(false);
+  const [found, setFound] = useState<{ text: string; closed: boolean } | null>(null);
+  const sirenReady = /^\d{9}$/u.test(f.siren.replace(/[\s.-]/gu, ""));
+  async function fill() {
+    setLooking(true);
+    setFound(null);
+    const result = await lookupCompany(f.siren);
+    setLooking(false);
+    if (!result.ok) {
+      setError({ field: result.error === "siren_invalid" || result.error === "registry_not_found" ? "siren" : null, text: format(t.errors[result.error], result.values ?? {}) });
+      return;
+    }
+    const r = result.value;
+    setError(null);
+    setF(v => ({
+      ...v,
+      siren: r.siren,
+      name: v.name || r.name,
+      address: v.address || r.address,
+      postcode: v.postcode || r.postcode,
+      city: v.city || r.city,
+      country: v.address || v.city ? v.country : r.country,
+      vatNumber: v.vatNumber || r.vatNumber,
+    }));
+    setFound({ text: w.filled, closed: r.closed });
+  }
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
@@ -50,6 +77,17 @@ export function ClientForm({ t, initial, id, onSaved, onCancel, onDirty, compact
           <label className="option"><input type="radio" name="kind" checked={f.kind === "person"} onChange={() => set({ kind: "person" })} /><span>{w.person}</span><span className="sub">{w.personHint}</span></label>
         </div>
       </fieldset>
+      {f.kind === "company" && (
+        <div className="field-row siren-row">
+          <label htmlFor="c-siren">{w.siren}</label>
+          <div className="siren-fill">
+            <input id="c-siren" className="field" inputMode="numeric" value={f.siren} maxLength={14} readOnly={readOnly} aria-invalid={invalid("siren")} aria-describedby="c-siren-hint" onChange={e => { set({ siren: e.target.value }); setFound(null); }} />
+            {!readOnly && <button type="button" className="button quiet" disabled={!sirenReady || looking} onClick={() => void fill()}>{looking ? w.filling : w.fill}</button>}
+          </div>
+          <span className="hint" id="c-siren-hint">{readOnly ? w.sirenHint : `${w.sirenHint} ${w.fillHint}`}</span>
+          {found && <p className="hint filled" role="status">{found.text}{found.closed ? <strong> {w.closed}</strong> : null}</p>}
+        </div>
+      )}
       <div className="field-row two-thirds">
         <label htmlFor="c-name">{f.kind === "company" ? w.companyName : w.personName}</label>
         <input id="c-name" className="field" value={f.name} maxLength={160} required readOnly={readOnly} aria-invalid={invalid("name")} onChange={e => set({ name: e.target.value })} autoFocus={!id && !readOnly} />
@@ -90,11 +128,6 @@ export function ClientForm({ t, initial, id, onSaved, onCancel, onDirty, compact
       </div>
       {f.kind === "company" && (
         <>
-          <div className="field-row half">
-            <label htmlFor="c-siren">{w.siren}</label>
-            <input id="c-siren" className="field" inputMode="numeric" value={f.siren} maxLength={14} readOnly={readOnly} aria-invalid={invalid("siren")} aria-describedby="c-siren-hint" onChange={e => set({ siren: e.target.value })} />
-            <span className="hint" id="c-siren-hint">{w.sirenHint}</span>
-          </div>
           <div className="field-row half">
             <label htmlFor="c-vat">{w.vatNumber}</label>
             <input id="c-vat" className="field" value={f.vatNumber} maxLength={20} readOnly={readOnly} aria-invalid={invalid("vatNumber")} onChange={e => set({ vatNumber: e.target.value })} />

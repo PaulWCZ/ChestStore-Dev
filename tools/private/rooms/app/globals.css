@@ -465,3 +465,14 @@ a.booking-text:hover { text-decoration: underline; }
   .finder .chip { min-height: 40px; }
   .ck-daystrip nav { -webkit-mask-image: linear-gradient(to right, var(--ink) calc(100% - 28px), transparent); mask-image: linear-gradient(to right, var(--ink) calc(100% - 28px), transparent); }
 }
+/* Visitors: the time first, in the plan's figures; one arrival button. */
+.visit-time { flex: none; min-width: 3.2em; font-weight: var(--weight-strong); }
+.visit-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: var(--space-2); }
+.visit-row.is-here .visit-time { color: var(--ink-2); }
+@media (max-width: 560px) {
+  .visit-row { flex-wrap: wrap; }
+  .visit-row .grow { flex: 1 1 60%; }
+  .visit-actions { flex: 1 1 100%; justify-content: flex-start; }
+}
+.meeting-hint .hint { flex: 1 1 14em; }
+#desk-places:focus { outline: none; }

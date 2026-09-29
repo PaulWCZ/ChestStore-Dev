@@ -49,7 +49,24 @@ confirmation; nobody is ever booked twice.
   the next read (at most about 15 minutes; Google itself may take a
   few minutes to publish a change in its secret address). A calendar that
   cannot be read is flagged on the host's agenda ("We could not read your
-  calendar … since …") and on Hours.
+  calendar … since …") and on Hours. **A wrong address is named for what
+  it is**, before anything is read: Google Calendar's page or its embed
+  code ("the address of a Google Calendar page, not its secret address:
+  ⚙ Settings → your calendar → …"), Outlook's HTML link ("copy the ICS
+  one, it ends in .ics") or its app's page, iCloud's website; a
+  `webcal://` address is read as `https://`.
+- **The host's truth on the agenda**: each booking shows its type **in the
+  reader's language** — one type, one name, whatever language the guest
+  booked in ("Visite du showroom" for Inès, who reads French, for an
+  English and a French guest alike), the guest's language as a small tag
+  ("EN") when it is not the reader's; the same on a booking's page, in the
+  bell, the Chest's calendar, the host's email copy and the CSV (a *Guest's
+  language* column). The coming week's **busy times from elsewhere** show
+  as grey rows within the host's hours — "Busy · In your Google calendar
+  16:00–17:00", "An interview in Hiring" — times only, so a hole in the
+  free times is never a mystery. On a phone, free stretches and busy rows
+  fold behind **Show free times** (remembered on that phone): the meetings
+  come first.
 - **Block a time, from the agenda**: the coming week's **free stretches**
   show between the meetings ("Free 14:00–17:30 · + Block"): tap one and
   pick the hours (the quarter hour, up to 24:00), or *Block a time* beside
@@ -100,9 +117,13 @@ confirmation; nobody is ever booked twice.
   connected or one fails) and days off (one day or a holiday) or other
   hours for one day. About 2,300 px on a 390 px phone (4,764 before).
 - **Picking a time**: five weeks from the week of the first free day
-  (never a month of greyed past days), the day's times **in the visitor's
-  time zone** (detected, changeable in a list of cities with their offset,
-  "Paris (UTC+2)", common zones first then by region), then
+  (never a month of greyed past days) — **one Tab stop**: the arrows move
+  among the open days (up and down a week, Home, End), Enter picks — the
+  day's times **in the visitor's time zone** (detected, changeable in a
+  list of cities with their offset, "Paris (UTC+2)", common zones first —
+  France's overseas departments among them — then by region; **city names
+  in the reader's language**: "Bruxelles", "Nouméa", "La Réunion", and
+  "Toronto, Montréal" for the zone Montréal's browsers give), then
   three fields (name, email, an optional note; the phone number for a
   phone call) and the host's own questions, if any. A time is checked again when booking, and the database
   refuses two confirmed bookings of a host that overlap (buffers
@@ -202,12 +223,88 @@ the server (`lib/theme.ts`, `lib/look.ts`, `chest.theme()`), written in one `<st
 text stays readable (WCAG AA) in every look. Screens:
 `docs/screens/*-chest-*`, `*-theme-*`, `*-brand-*`.
 
+## With the other tools
+
+Through the *events between tools* proposal (`chest.proposals.json`
+`"emits"` and `"receives"`), once an admin of the Chest linked Booking to
+another tool — the Chest's decision, never the tool's. Publishing is a
+courtesy: when the Chest cannot take an event (not linked, not granted,
+its hourly quota), the booking stands and nothing is said. Every event
+carries `v: 1`; a receiver ignores a version it does not know.
+
+**What Booking publishes**
+
+| Event | When | Key (the Chest's 24-hour de-duplication) |
+|---|---|---|
+| `booking.busy` | A host's busy times changed: a booking made, moved, cancelled or erased, a time blocked or freed, a calendar connected, disconnected or read (schedule `calendars`, every 15 minutes: only what changed), and once a day as the window moves on | `busy:<member>:<ms>:<hash>` |
+| `booking.confirmed` | A booking made (by a visitor or a host for them) or moved (the same booking, told again) | `booking:<id>:confirmed:<moves>` |
+| `booking.cancelled` | A booking cancelled by its guest or host, or because its host was erased | `booking:<id>:cancelled` |
+
+`booking.busy` — for Hiring (its candidates never pick a time a host
+already gave away); the same shape as Hiring's `hiring.busy`
+(`lib/busy-snapshot.ts`):
+
+```json
+{ "v": 1, "member": "mbr_…", "at": "2026-09-29T21:04:12.345Z",
+  "from": "2026-09-29T00:00Z", "to": "2026-12-28T00:00Z",
+  "spans": [["2026-09-30T08:00Z", "2026-09-30T09:00Z"]] }
+```
+
+Times only — never a guest, a type, a title or a place. A snapshot of the
+host's own busy times (confirmed bookings with their buffers, times
+blocked, their Google/Outlook/Apple calendars) from the start of today
+(UTC) to 90 days later, merged, on the minute; at most 300 spans (past
+them, `to` stops where the first one left out starts: nothing unknown is
+claimed free). It replaces whatever the receiver holds from Booking for
+that member between `from` and `to`; `at` orders snapshots (delivery is
+at least once, in no set order: keep one only if newer). Booking never
+tells again what another tool told it.
+
+`booking.confirmed` and `booking.cancelled` — for Clients (the CRM: a
+booked prospect becomes a contact with the meeting on their timeline):
+
+```json
+{ "v": 1, "booking": "42", "status": "confirmed", "at": "2026-09-29T21:04:12.345Z",
+  "host": "mbr_…", "start": "2026-10-06T08:00:00.000Z", "end": "2026-10-06T09:00:00.000Z",
+  "type": { "id": "3", "name": { "en": "Project call", "fr": "Appel projet" } }, "kind": "video",
+  "contact": { "name": "Sarah Klein", "email": "sarah@example.com", "phone": null, "company": null, "language": "en" },
+  "source": "page", "moves": 0, "path": "/chest/bookings/42" }
+```
+
+`booking.cancelled` is the same with `"status": "cancelled"` and
+`"cancelledBy": "guest" | "host"`; `host` is null once the host was
+erased. `kind`: `place`, `phone`, `video` or `ask`; `source`: `page` (a
+visitor), `host` (a host for them), `import`. `company` is null: the form
+does not ask it (a host may ask it as one of their questions; answers are
+not sent). Never the guest's note, their answers or their link. `path`
+opens the booking for a member who may see it:
+`chest.toolLink("booking", path)`.
+
+What a receiver (Clients) does: declare `"receives": ["booking.confirmed",
+"booking.cancelled"]`; on each, find or create the contact by
+`contact.email` (lower-cased) and keep one meeting per `booking` id —
+created on the first `confirmed`, its time replaced by a later
+`confirmed` (more `moves`), marked cancelled by `cancelled`, which is
+final (a cancelled booking never comes back; a `confirmed` arriving after
+it is ignored). Idempotent: the same event may come twice. The contact is
+personal data brought into the CRM by the link the admin made; erasing a
+guest in Booking does not erase them in Clients (the CRM's own erasure
+does).
+
+**What Booking hears**
+
+| Event | From | Does |
+|---|---|---|
+| `hiring.busy` | Hiring: the interviews a member is on (the `booking.busy` shape) | Those times are not offered (`busyOf`), and show on the host's agenda as "An interview in Hiring". Kept per tool and member, the latest snapshot only (`told_busy`, `told_spans`); forgotten when the member leaves or is erased |
+
 ## On a Chest
 
 - `public: true`, `csp: "tool"`; `capabilities`: `database`, `members`
   (names, roles), `notifications`; `receives: ["member.*"]`; `network`:
   the four calendar hosts (the owner approves "Can reach
-  calendar.google.com", …). Nothing else leaves the tool.
+  calendar.google.com", …). Nothing else leaves the tool. Proposals:
+  `emits` (`booking.busy`, `booking.confirmed`, `booking.cancelled`) and
+  `receives` (`hiring.busy`), README "With the other tools".
 - **Other calendars' addresses are secrets**: kept to read them, shown
   again only as their host and file name, deleted when the host
   disconnects one, loses access, leaves or is erased.
@@ -262,6 +359,10 @@ text stays readable (WCAG AA) in every look. Screens:
 - **Free/busy by OAuth** (Google, Microsoft): the secret iCal address is
   a first step; a connector held by the Chest would read free/busy in
   seconds without a secret address (SDK report).
+- **Events between tools** — **Proposal (studio)** (`emits`,
+  `receives`): without them, Hiring does not see the hosts' busy times,
+  Clients hears of no booking, and Booking does not see Hiring's
+  interviews; bookings work the same.
 
 ## Develop
 
@@ -284,6 +385,14 @@ In the studio: `node lab/chest-dev/dev.mjs tools/public-and-private/booking --re
   no CalDAV account, no calendar shared with the host by someone else
   unless it has its own address. Declined invitations still read as busy
   (an iCal feed does not say who "you" are).
+- **Other tools' busy times**: Hiring's interviews only (the one tool
+  that tells them today). Rooms' meetings and Leave's days off are not
+  told to Booking yet (Leave tells Rooms; a host marks a day off in
+  Hours).
+- **Clients** (the CRM) receives `booking.confirmed` only once its own
+  receiver is built (its tool, not this one): the contract is above.
+  Bookings imported from Calendly are not told to Clients (they are
+  history); their changes are.
 - **Collective meetings** (two hosts who must both be free) and team
   types across several owners' pages: a team type lives on its owner's
   page. Team members' daily limit of the type counts per host.
@@ -307,3 +416,9 @@ In the studio: `node lab/chest-dev/dev.mjs tools/public-and-private/booking --re
 - The first screen reads a calendar only by its secret iCal address (no
   OAuth yet); a host with none confirms their hours instead. Unpublishing
   a public page again is done by turning its types off.
+- On a studio harness (no outbound network), a correct `webcal://` or
+  `https://` address is accepted as an address and then refused by the
+  studio's proxy ("This calendar refused us"): on a Chest it is read.
+- Cities are named in French and English for the zones where the two
+  differ (and Montréal beside Toronto); the other zones keep the IANA
+  city name.

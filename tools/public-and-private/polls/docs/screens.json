@@ -1,0 +1,333 @@
+[
+ {
+  "name": "home",
+  "path": "/chest",
+  "member": "hugo",
+  "locale": "en",
+  "preview": true
+ },
+ {
+  "name": "home-fr",
+  "path": "/chest",
+  "member": "ines",
+  "locale": "fr"
+ },
+ {
+  "name": "asked-by-you",
+  "path": "/chest",
+  "member": "sofia",
+  "locale": "en"
+ },
+ {
+  "name": "home-admin-fr",
+  "path": "/chest",
+  "member": "camille",
+  "locale": "fr",
+  "full": true,
+  "only": [
+   "desktop"
+  ]
+ },
+ {
+  "name": "answer",
+  "path": "/chest/polls/1",
+  "member": "hugo",
+  "locale": "en"
+ },
+ {
+  "name": "date-grid",
+  "path": "/chest/polls/2",
+  "member": "camille",
+  "locale": "en"
+ },
+ {
+  "name": "pulse-fr",
+  "path": "/chest/polls/9",
+  "member": "lea",
+  "locale": "fr"
+ },
+ {
+  "name": "plants",
+  "path": "/chest/polls/4",
+  "member": "sofia",
+  "locale": "en"
+ },
+ {
+  "name": "new-date",
+  "path": "/chest/new?kind=date",
+  "member": "sofia",
+  "locale": "en",
+  "actions": [
+   {
+    "fill": [
+     "#title",
+     "Team dinner"
+    ]
+   },
+   {
+    "click": ".cal .ck-calendar-head button >> nth=1"
+   },
+   {
+    "click": ".cal .ck-day:not(.ck-day-out) >> text=/^15$/"
+   },
+   {
+    "click": ".cal .ck-day:not(.ck-day-out) >> text=/^16$/"
+   },
+   {
+    "click": ".chosen-day >> nth=1 >> text=Add a time"
+   },
+   {
+    "click": "text=On a date"
+   },
+   {
+    "wait": 200
+   }
+  ],
+  "full": true
+ },
+ {
+  "name": "pulse-open",
+  "path": "/chest/polls/3",
+  "member": "hugo",
+  "locale": "en"
+ },
+ {
+  "name": "signup-fr",
+  "path": "/chest/polls/10",
+  "member": "lea",
+  "locale": "fr"
+ },
+ {
+  "name": "comments",
+  "path": "/chest/polls/1",
+  "member": "camille",
+  "locale": "en"
+ },
+ {
+  "name": "new-pulse",
+  "path": "/chest/new?kind=survey&preset=pulse",
+  "member": "sofia",
+  "locale": "en"
+ },
+ {
+  "name": "pulse-dark",
+  "path": "/chest/polls/9",
+  "member": "camille",
+  "locale": "en",
+  "dark": true
+ },
+ {
+  "name": "home-dark",
+  "path": "/chest",
+  "member": "tom",
+  "locale": "en",
+  "dark": true
+ },
+ {
+  "name": "home-theme",
+  "path": "/chest",
+  "member": "hugo",
+  "locale": "en",
+  "look": {
+   "all": "catalogue:workshop"
+  }
+ },
+ {
+  "name": "home-theme-dark",
+  "path": "/chest",
+  "member": "hugo",
+  "locale": "en",
+  "dark": true,
+  "look": {
+   "all": "catalogue:workshop"
+  },
+  "only": [
+   "phone"
+  ]
+ },
+ {
+  "name": "home-brand",
+  "path": "/chest",
+  "member": "ines",
+  "locale": "fr",
+  "look": {
+   "all": "catalogue:workshop",
+   "tool": "brand:sample"
+  }
+ },
+ {
+  "name": "home-brand-dark",
+  "path": "/chest",
+  "member": "tom",
+  "locale": "en",
+  "dark": true,
+  "look": {
+   "tool": "brand:sample"
+  },
+  "only": [
+   "phone"
+  ]
+ },
+ {
+  "name": "home-chest",
+  "path": "/chest",
+  "member": "hugo",
+  "locale": "en",
+  "look": {
+   "all": "catalogue:chest"
+  }
+ },
+ {
+  "name": "date-grid-theme",
+  "path": "/chest/polls/2",
+  "member": "camille",
+  "locale": "fr",
+  "look": {
+   "all": "catalogue:library"
+  }
+ },
+ {
+  "name": "date-grid-chest",
+  "path": "/chest/polls/2",
+  "member": "camille",
+  "locale": "en",
+  "look": {
+   "all": "catalogue:chest"
+  },
+  "only": [
+   "phone"
+  ]
+ },
+ {
+  "name": "pulse-brand",
+  "path": "/chest/polls/9",
+  "member": "lea",
+  "locale": "fr",
+  "look": {
+   "tool": "brand:sample"
+  },
+  "only": [
+   "desktop"
+  ]
+ },
+ {
+  "name": "closed-undone",
+  "path": "/chest/polls/4",
+  "member": "sofia",
+  "locale": "fr",
+  "actions": [
+   {
+    "click": "text=Terminer maintenant"
+   },
+   {
+    "wait": 600
+   },
+   {
+    "click": ".ck-toast-undo"
+   },
+   {
+    "wait": 1500
+   }
+  ],
+  "only": [
+   "desktop"
+  ]
+ },
+ {
+  "name": "close-confirm",
+  "path": "/chest/polls/3",
+  "member": "camille",
+  "locale": "en",
+  "actions": [
+   {
+    "click": "text=Close now"
+   },
+   {
+    "wait": 400
+   }
+  ],
+  "only": [
+   "phone"
+  ]
+ },
+ {
+  "name": "new-people",
+  "path": "/chest/new?kind=choice",
+  "member": "sofia",
+  "locale": "fr",
+  "actions": [
+   {
+    "click": "text=Des groupes ou des personnes"
+   },
+   {
+    "fill": [
+     "#find-people",
+     "Lé"
+    ]
+   },
+   {
+    "wait": 700
+   }
+  ],
+  "only": [
+   "desktop"
+  ]
+ },
+ {
+  "name": "home-port",
+  "path": "/chest",
+  "member": "sofia",
+  "locale": "fr",
+  "look": {
+   "tool": "brand:port"
+  }
+ },
+ {
+  "name": "pulse-port-dark",
+  "path": "/chest/polls/9",
+  "member": "lea",
+  "locale": "fr",
+  "dark": true,
+  "look": {
+   "tool": "brand:port"
+  },
+  "only": [
+   "phone"
+  ]
+ },
+ {
+  "name": "guest-page",
+  "path": "/p/maisonleroykickoffxyzabcde",
+  "member": "hugo",
+  "locale": "en"
+ },
+ {
+  "name": "guest-page-brand-fr",
+  "path": "/p/maisonleroykickoffxyzabcde",
+  "member": "hugo",
+  "locale": "fr",
+  "look": {
+   "all": "catalogue:newsprint",
+   "tool": "brand:sample"
+  },
+  "only": [
+   "phone"
+  ]
+ },
+ {
+  "name": "guests-organiser",
+  "path": "/chest/polls/11",
+  "member": "sofia",
+  "locale": "en"
+ },
+ {
+  "name": "reply-anonymous-fr",
+  "path": "/chest/polls/9",
+  "member": "camille",
+  "locale": "fr",
+  "full": true,
+  "only": [
+   "desktop"
+  ]
+ }
+]

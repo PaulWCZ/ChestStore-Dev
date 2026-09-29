@@ -10,9 +10,9 @@ export async function generateMetadata(): Promise<Metadata> {
 
 // After unsubscribing: the address is gone, and the page says so.
 export default async function Unsubscribed() {
-  const { t, locale, zone, company, offerMail } = await publicContext();
+  const { t, locale, zone, company, offerUpdates } = await publicContext();
   return (
-    <PublicShell company={company} locale={locale} zone={zone} t={t} path="/unsubscribed" offerMail={offerMail}>
+    <PublicShell company={company} locale={locale} zone={zone} t={t} path="/unsubscribed" offerMail={offerUpdates}>
       <p className="crumb"><a href="/"><Back />{t.subscribe.backToStatus}</a></p>
       <section className="card narrow">
         <h1>{t.subscriber.goneTitle}</h1>

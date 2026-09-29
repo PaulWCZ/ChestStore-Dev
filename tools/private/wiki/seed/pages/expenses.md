@@ -6,7 +6,7 @@ author: camille
 created: 110
 updated: 14
 ---
-We pay back what you spend for work, within a month. The rules are few, and the same for everyone.
+We reimburse what you spend for work, within a month. The rules are few, and the same for everyone.
 
 ## The rules
 

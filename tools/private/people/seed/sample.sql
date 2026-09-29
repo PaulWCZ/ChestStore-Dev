@@ -140,3 +140,14 @@ insert into journal (at, actor, action, record_id, fields) values
   (now() - interval '6 days', 'mbr_camilleaaaaaaaaaaaaaaaaaaa', 'created', 9, '{}'),
   (now() - interval '6 days', 'mbr_camilleaaaaaaaaaaaaaaaaaaa', 'changed', 9, '{birthDate,nationality,qualification,trialEnd}'),
   (now() - interval '2 days', 'mbr_sofiaaaaaaaaaaaaaaaaaaaaaa', 'viewed', 9, '{}');
+
+-- Inès asked HR to change her emergency contact's phone (waiting).
+insert into record_requests (record_id, member_id, changes, note, created_at)
+  select id, member_id, '{"emergencyPhone": "+33 6 55 44 33 11"}'::jsonb, 'Mon père a changé de numéro.', now() - interval '1 day'
+  from records where member_id = 'mbr_inesaaaaaaaaaaaaaaaaaaaaaa';
+
+-- The two example letters (each reader sees them in their language until
+-- HR rewords them).
+insert into letters (name, body, phrase, position, created_by) values
+  ('Certificate of employment', E'CERTIFICATE OF EMPLOYMENT\n\n{company}\n[Company address]\n\nI, the undersigned, {signer}, on behalf of {company}, certify that {name}, born on {birthDate}, was employed by the company from {firstDay} to {lastDay}, as {job} ({qualification}).\n\n{name} may keep the company’s health and welfare cover free of charge, under the conditions of article L911-8 of the French Social Security Code.\n\nIssued in [town], on {today}.\n\n{signer}', 'certificate', 1, 'mbr_camilleaaaaaaaaaaaaaaaaaaa'),
+  ('Employment letter', E'EMPLOYMENT LETTER\n\n{company}\n[Company address]\n\nI, the undersigned, {signer}, on behalf of {company}, confirm that {name} has been employed by the company since {firstDay} as {job}. Contract: {contract}, {workingTime}.\n\nThis letter is issued at their request, for whatever purpose it may serve.\n\nIssued in [town], on {today}.\n\n{signer}', 'attestation', 2, 'mbr_camilleaaaaaaaaaaaaaaaaaaa');

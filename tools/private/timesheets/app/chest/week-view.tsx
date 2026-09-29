@@ -20,7 +20,9 @@ export type DayItem = DayEntry & { span: string | null };
 export type WeekWords = { week: Catalogue["week"]; day: Catalogue["day"]; work: Catalogue["work"]; errors: Catalogue["errors"]; timer: Catalogue["timer"] };
 // Where the week stands in the approval: its status, and the sentence that
 // says it ("Approved by Camille on 3 Oct", "Sent back by Camille: …").
-export type WeekStanding = { status: WeekStatus; text: string | null; reason: string | null; canSubmit: boolean; approvals: boolean };
+// `early`: this week, before its Friday — sending it is possible (someone
+// off at the end of the week), not suggested.
+export type WeekStanding = { status: WeekStatus; text: string | null; reason: string | null; canSubmit: boolean; approvals: boolean; early: boolean };
 
 const rowName = (r: GridRow) => (r.taskName ? `${r.projectName} · ${r.taskName}` : r.projectName);
 const link = (week: string, day?: string) => `/chest?week=${week}${day ? `&day=${day}` : ""}`;
@@ -132,7 +134,8 @@ export function WeekView(props: {
       // Undo takes the week back (the managers' bell item goes with it).
       toast({
         id: "week",
-        text: t.week.sent,
+        // Nobody else may approve it (the only manager's week): said.
+        text: r.value.approvers === 0 ? t.week.sentNobody : t.week.sent,
         undo: async () => {
           const u = await withdrawWeek(monday);
           if (!u.ok) return format(t.errors[u.error], u.values);
@@ -175,12 +178,17 @@ export function WeekView(props: {
 
       {standing.approvals && (standing.status !== "open" || (standing.canSubmit && total > 0)) && (
         <div className={`standing ${standing.status}`} role="status">
-          {standing.status === "open" && (
+          {standing.status === "open" && (standing.early ? (
+            <>
+              <span>{t.week.sendEarlyHint}</span>
+              <button type="button" className="button quiet" disabled={pending} onClick={send}><Send />{t.week.sendEarly}</button>
+            </>
+          ) : (
             <>
               <span>{t.week.sendHint}</span>
               <button type="button" className="button" disabled={pending} onClick={send}><Send />{t.week.send}</button>
             </>
-          )}
+          ))}
           {standing.status === "submitted" && (
             <>
               <span className="state"><Send /><span>{t.week.submitted}</span></span>

@@ -16,6 +16,7 @@ import { atOffice, presenceOf } from "../../lib/presence.ts";
 import { myRoomBookings } from "../../lib/room-bookings.ts";
 import { purge } from "../../lib/settings.ts";
 import { usualWeek } from "../../lib/usual.ts";
+import { myVisitors } from "../../lib/visits.ts";
 import { WeekView, type WeekDay } from "./week-view.tsx";
 
 // Home, "My week": for each working day of this week and the next, where I
@@ -40,7 +41,7 @@ export default async function MyWeek({ searchParams }: { searchParams: Promise<R
   const days = twoWeeks(c.today, c.rules.weekdays);
   const from = mondayOf(c.today);
   const to = addDays(from, 13);
-  const [said, present, myDesks, myRooms, usual, pattern, how] = await Promise.all([
+  const [said, present, myDesks, myRooms, usual, pattern, how, visitors] = await Promise.all([
     presenceOf(sql, [member.id], from, to),
     atOffice(sql, office?.id ?? null, from, to),
     deskBookingsOf(sql, [member.id], from, to),
@@ -48,6 +49,7 @@ export default async function MyWeek({ searchParams }: { searchParams: Promise<R
     office ? usualDesk(sql, member, office.id) : null,
     usualWeek(sql, member),
     told(sql),
+    myVisitors(sql, member, from, to),
   ]);
   const onUsual = usual ? await deskBookingsOn(sql, usual.id, from, to) : [];
   // My own desk, lent to someone on a day I am away.
@@ -82,6 +84,7 @@ export default async function MyWeek({ searchParams }: { searchParams: Promise<R
       })),
       usualFree: usual !== null && !usual.assigned && !onUsual.some(b => b.day === d && overlaps(b.part, "day")),
       lentTo: lent ? nameOf(who.get(lent.memberId), locale) : null,
+      visitors: visitors.filter(v => v.day === d).map(v => ({ id: v.id, time: formatTime(v.at, locale), name: v.company ? `${v.name} (${v.company})` : v.name, here: v.arrivedAt !== null })),
       // The first meeting still to come that day, for "at the office?"
       // when I said Remote or Off.
       meeting: (() => {
@@ -112,7 +115,7 @@ export default async function MyWeek({ searchParams }: { searchParams: Promise<R
         calendarPage={how.calendarOn ? feedPage : null}
         self={{ name: member.name, photo: member.photo }}
         locale={locale}
-        t={{ week: t.week, usual: t.usual, status: t.status, parts: t.parts, days: t.days, errors: t.errors, dialog: t.dialog, you: t.people.you, checkIn: t.booking.checkIn, checkedIn: t.booking.checkedInToast }}
+        t={{ visitor: t.visitors.mine, visitorHere: t.visitors.mineHere, week: t.week, usual: t.usual, status: t.status, parts: t.parts, days: t.days, errors: t.errors, dialog: t.dialog, you: t.people.you, checkIn: t.booking.checkIn, checkedIn: t.booking.checkedInToast }}
       />
     </div>
   );

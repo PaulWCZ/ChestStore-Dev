@@ -4,12 +4,14 @@ import { ChestError } from "@argentic/chest-sdk/errors";
 import * as members from "@argentic/chest-sdk/members";
 import { revalidatePath } from "next/cache";
 import { syncEvent } from "../../lib/agenda.ts";
+import * as answering from "../../lib/answering.ts";
 import { inAudience } from "../../lib/access.ts";
 import { everyone, tally } from "../../lib/audience.ts";
 import { db } from "../../lib/db.ts";
 import { attempt, AppError, type Result } from "../../lib/errors.ts";
 import { setDigestEmail } from "../../lib/preferences.ts";
 import * as posts from "../../lib/posts.ts";
+import * as proposals from "../../lib/proposals.ts";
 import { currentMember } from "../../lib/session.ts";
 import { removeObjects } from "../../lib/storage.ts";
 import * as tell from "../../lib/tell.ts";
@@ -54,7 +56,7 @@ export async function savePost(postId: string | null, input: posts.PostInput): P
       await tell.refreshEveryone(sql);
     }
     if (changed?.reconfirm) await tell.refreshEveryone(sql);
-    if (saved.published && saved.undoUntil === null && (saved.important || saved.kind === "welcome")) await tell.announce(sql);
+    if (saved.published && saved.undoUntil === null && (saved.important || saved.kind === "welcome" || saved.kind === "shoutout")) await tell.announce(sql);
     if (saved.kind === "event" || changed?.wasEvent) await syncEvent(sql, saved.id);
     return { id: saved.id, published: saved.published, undoUntil: saved.undoUntil };
   });
@@ -164,16 +166,7 @@ export async function confirmRead(postId: string): Promise<Result<null>> {
 // Coming or not: the calendar follows (Proposal (studio)); a seat freed
 // goes to the first waiting, who is told.
 export async function answerEvent(postId: string, answer: "yes" | "no" | null): Promise<Result<{ answer: "yes" | "no" | "wait" | null }>> {
-  return act(async actor => {
-    const sql = db();
-    const done = await posts.answer(sql, actor, postId, answer, { zone: chestZone() });
-    if (done.promoted) {
-      const [row] = await sql<{ title: string }[]>`select title from posts where id = ${postId}`;
-      await tell.promoted(done.promoted, { id: postId, title: row?.title ?? "" });
-    }
-    await syncEvent(sql, postId);
-    return { answer: done.answer };
-  });
+  return act(async actor => ({ answer: (await answering.answerEvent(db(), actor, postId, answer)).answer }));
 }
 
 // A reminder to those who have not confirmed an Important post (once a
@@ -197,4 +190,41 @@ export async function digestByEmail(on: boolean): Promise<Result<null>> {
 // An import from Slack taken back (lib/transfer.ts).
 export async function undoSlackImport(batch: string): Promise<Result<{ count: number }>> {
   return act(async actor => ({ count: await undoImport(db(), actor, batch) }));
+}
+
+// Posts from everyone (lib/proposals.ts): propose, take back (and Undo);
+// a publisher publishes or declines (and Undo). Who is told: lib/tell.ts.
+export async function proposePost(input: proposals.ProposalInput): Promise<Result<{ id: string }>> {
+  return act(async actor => {
+    const sql = db();
+    const made = await proposals.propose(sql, actor, input);
+    await tell.proposalsWaiting(sql);
+    return made;
+  });
+}
+
+export async function approveProposal(proposalId: string): Promise<Result<{ postId: string }>> {
+  return act(async actor => {
+    const sql = db();
+    const done = await proposals.approve(sql, actor, proposalId);
+    await tell.proposalApproved(sql, done);
+    return { postId: done.postId };
+  });
+}
+
+export async function declineProposal(proposalId: string, reason: string | null): Promise<Result<null>> {
+  return act(async actor => {
+    const sql = db();
+    await tell.proposalDeclined(sql, await proposals.decline(sql, actor, proposalId, reason));
+    return null;
+  });
+}
+
+export async function restoreProposal(proposalId: string): Promise<Result<null>> {
+  return act(async actor => {
+    const sql = db();
+    const back = await proposals.restore(sql, actor, proposalId);
+    await tell.proposalRestored(sql, proposalId, back.author);
+    return null;
+  });
 }

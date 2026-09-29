@@ -1,7 +1,15 @@
 {
+  "mail": {
+    "send": true
+  },
   "emits": [
     "leave.approved",
     "leave.cancelled"
+  ],
+  "receives": [
+    "people.leaving",
+    "people.leaving_cancelled",
+    "people.record"
   ],
   "schedules": [
     {

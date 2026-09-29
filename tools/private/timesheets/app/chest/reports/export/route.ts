@@ -23,7 +23,7 @@ export async function GET(request: Request): Promise<Response> {
   const q = new URL(request.url).searchParams;
   const p = period(q.get("preset"), today(), q.get("from"), q.get("to"));
   try {
-    const rows = await exportRows(db(), actor, { from: p.from, to: p.to, group: q.get("group"), person: q.get("person") || undefined, billable: q.get("kind") });
+    const rows = await exportRows(db(), actor, { from: p.from, to: p.to, group: q.get("group"), person: q.get("person") || undefined, billable: q.get("kind"), q: q.get("q") });
     const who = await people(rows.map(r => r.memberId));
     const z = zone();
     const money = can(actor, "reports.all");

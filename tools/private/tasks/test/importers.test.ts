@@ -5,7 +5,7 @@ import * as boards from "../lib/boards.ts";
 import * as cards from "../lib/cards.ts";
 import { parseCsv, toCsv } from "../lib/csv.ts";
 import { AppError } from "../lib/errors.ts";
-import { dayOf, fromCsv, fromTrello, importBoard } from "../lib/importers.ts";
+import { arrange, dayOf, fromCsv, fromTrello, importBoard } from "../lib/importers.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
 import { everyone, hugo, ines, lea } from "./support/members.ts";
@@ -39,7 +39,8 @@ const trello = JSON.stringify({
 test("a Trello export reads into columns, cards, labels, checklists and comments", () => {
   const board = fromTrello(trello);
   assert.equal(board.name, "Website redesign");
-  assert.deepEqual(board.columns.map(c => c.name), ["Backlog", "Doing"]);
+  // The archived list comes, archived (nothing left behind silently).
+  assert.deepEqual(board.columns.map(c => [c.name, c.archived]), [["Backlog", false], ["Doing", false], ["Old", true]]);
   assert.deepEqual(board.columns[0]!.cards.map(c => c.title), ["Pick a font", "Homepage mockup"]);
   const mockup = board.columns[0]!.cards[1]!;
   assert.equal(mockup.due, "2026-10-20");
@@ -59,7 +60,7 @@ test("an Asana CSV reads sections, assignees, tags, completion and subtasks", ()
     "2,2026-09-01,2026-09-03,2026-09-03,Send invoices,To do,,,,,,,Launch,",
     "3,2026-09-01,,2026-09-02,Draft outline,To do,,,,,,,Launch,Write the brief",
   ].join("\n");
-  const board = fromCsv(csv, "Launch");
+  const board = arrange(fromCsv(csv, "Launch"));
   assert.deepEqual(board.columns.map(c => [c.name, c.done, c.cards.map(k => k.title)]), [["To do", false, ["Write the brief"]], ["✓", true, ["Send invoices"]]]);
   const brief = board.columns[0]!.cards[0]!;
   assert.deepEqual(brief.labels, ["Urgent", "Client"]);

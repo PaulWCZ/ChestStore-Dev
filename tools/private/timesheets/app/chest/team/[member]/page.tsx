@@ -64,7 +64,8 @@ export default async function PersonWeekPage({ params, searchParams }: { params:
 
       <div className={`standing ${state.status}`}>
         <span className="state">{statusText}</span>
-        {(state.status === "submitted" || state.status === "approved") && <Decision memberId={memberId} week={week} name={name} approved={state.status === "approved"} t={{ team: t.team, errors: t.errors }} />}
+        {memberId === member.id && (state.status === "submitted" || state.status === "approved") && <span className="small muted">{t.team.yours}</span>}
+        {memberId !== member.id && (state.status === "submitted" || state.status === "approved") && <Decision memberId={memberId} week={week} name={name} approved={state.status === "approved"} t={{ team: t.team, errors: t.errors }} />}
       </div>
 
       {entries.length === 0 ? <EmptyState title={t.team.emptyWeek} /> : (

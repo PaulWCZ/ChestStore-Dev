@@ -14,16 +14,20 @@ type Words = { team: Catalogue["team"]; errors: Catalogue["errors"] };
 // A week waiting for a manager: approve it, or send it back with a word.
 // `look`: the week is short or not over (said on the line; approving it
 // asks first).
-export function WaitingRow({ memberId, week, name, photo, label, hours, look, t }: { memberId: string; week: string; name: string; photo: string | null; label: string; hours: string; look: string | null; t: Words }) {
+// `led`: the week holds time on a project the reader leads; `mine`: the
+// reader's own week, which another manager approves (said instead of the
+// buttons).
+export function WaitingRow({ memberId, week, name, photo, label, hours, look, led = false, mine = null, t }: { memberId: string; week: string; name: string; photo: string | null; label: string; hours: string; look: string | null; led?: boolean; mine?: string | null; t: Words }) {
   return (
     <li className="waiting-row">
       <Avatar name={name} photo={photo} />
       <span className="waiting-who">
         <Link href={`/chest/team/${memberId}?week=${week}`}><strong>{name}</strong></Link>
         <span className="small muted">{label} · {hours}</span>
+        {led && <StatusBadge tone="info" size="s" label={t.team.yourProject} />}
         {look && <StatusBadge tone="wait" size="s" label={look} />}
       </span>
-      <Decision memberId={memberId} week={week} name={name} look={look} t={t} />
+      {mine ? <span className="small muted mine-note">{mine}</span> : <Decision memberId={memberId} week={week} name={name} look={look} t={t} />}
     </li>
   );
 }

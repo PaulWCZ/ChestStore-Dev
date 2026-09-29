@@ -11,10 +11,10 @@ import { waitingCounts, type Ticket } from "./tickets.ts";
 // The bell and the tile for the people who answer tickets, each in their
 // own language. Keyed by the ticket, so a new item replaces the old one.
 
-export async function answerers(): Promise<string[]> {
+export async function answerers(roles: readonly string[] = answering): Promise<string[]> {
   const found: string[] = [];
   try {
-    for (const role of answering) {
+    for (const role of roles) {
       let after: string | undefined;
       for (let page = 0; page < 4; page++) {
         const answer = await members.list({ role, limit: 500, ...(after ? { after } : {}) });
@@ -100,4 +100,10 @@ export async function rated(t: Pick<Ticket, "id" | "number" | "assignee" | "cust
 export async function refreshBadges(sql: Sql): Promise<void> {
   const people = await answerers();
   if (people.length > 0) await badges(await waitingCounts(sql, people));
+}
+
+// The Chest stopped the notices to a channel (Settings, "Slack and
+// Teams"): the administrators hear of it, to fix the address.
+export async function noticeStopped(target: { id: string; label: string }): Promise<void> {
+  await notify(await answerers(["admin"]), tr => ({ title: format(tr.bell.noticeStopped, { label: cut(target.label, 40) }) }), { path: "/chest/settings#notices", key: `notices:stopped:${target.id}` });
 }

@@ -1,24 +1,29 @@
-import { EmptyState } from "@argentic/chest-ui/components";
+import { EmptyState, Segmented } from "@argentic/chest-ui/components";
+import { Link } from "../../../components/link.tsx";
 import { db } from "../../../lib/db.ts";
 import { format, formatDay, money, plural } from "../../../lib/i18n/index.ts";
 import { today } from "../../../lib/model.ts";
 import { directory } from "../../../lib/people.ts";
-import { teamReport } from "../../../lib/reports.ts";
+import { stageConversion, teamReport, weekActivities } from "../../../lib/reports.ts";
+import { stageWords } from "../../../lib/page-data.ts";
 import { viewer } from "../../../lib/session.ts";
-import { PipelineTable, ResultsTable } from "./tables.tsx";
+import { ActivityTable, PipelineTable, ResultsTable } from "./tables.tsx";
 
 // The team's numbers, for the manager's weekly look: each person's open
 // pipeline and the next steps that slip; won and lost, month by month;
 // what should close, by expected month; why deals are lost. Plain tables
 // with a bar beside the figure — nothing to configure.
-export default async function Team() {
+export default async function Team({ searchParams }: { searchParams: Promise<{ week?: string }> }) {
   const v = await viewer();
   if (!v) return null;
   const { member, locale, t } = v;
   const sql = db();
   const now = today();
-  const r = await teamReport(sql, member, now);
-  const ids = [...new Set([...r.owners.map(o => o.owner), ...r.results.map(x => x.owner)])];
+  // The Monday numbers: what each person logged in a week (this one or one
+  // of the three before), and how deals go from stage to stage.
+  const back = Math.min(3, Math.max(0, Number.parseInt((await searchParams).week ?? "0", 10) || 0));
+  const [r, week, conversion, { names: stageNames }] = await Promise.all([teamReport(sql, member, now), weekActivities(sql, member, now, back), stageConversion(sql, member), stageWords(sql, t)]);
+  const ids = [...new Set([...r.owners.map(o => o.owner), ...r.results.map(x => x.owner), ...week.lines.map(l => l.author)])];
   const names = await directory(ids, locale);
   const who = (id: string | null) => (id === null ? t.common.unassigned : names[id]?.name ?? t.people.unknown);
   const month = (m: string) => formatDay(m + "-01", locale, { month: "short", year: "2-digit" });
@@ -53,6 +58,43 @@ export default async function Team() {
               rows={r.owners.map(o => ({ key: o.owner ?? "none", href: `/chest/deals?view=list&owner=${o.owner ?? "none"}`, name: who(o.owner), open: o.open, value: o.value, valueText: money(o.value, locale), share: Math.round((o.value / maxValue) * 100), weightedText: money(o.weighted, locale), noStep: o.noStep, late: o.late }))}
               totals={{ open: String(totals.open), value: money(totals.value, locale), weighted: money(totals.weighted, locale), noStep: String(totals.noStep), late: String(totals.late) }}
             />
+          </section>
+
+          <section className="panel" aria-labelledby="r-week">
+            <h2 id="r-week" className="label-mono">{w.week}</h2>
+            <div className="week-pick">
+              <Segmented label={w.weeks} value={String(back)} link={Link}
+                options={[0, 1, 2, 3].map(n => ({ value: String(n), label: n === 0 ? w.thisWeek : n === 1 ? w.lastWeek : format(w.weeksAgo, { count: n }), href: n === 0 ? "/chest/team" : `/chest/team?week=${n}` }))} />
+            </div>
+            <p className="muted small-text">{format(w.weekOf, { day: formatDay(week.from, locale, { weekday: "long", day: "numeric", month: "long" }) })}</p>
+            {week.lines.length === 0 ? <p className="muted">{w.noActivity}</p> : (
+              <ActivityTable
+                labels={t.table}
+                words={{ caption: w.week, person: w.person, calls: w.calls, meetings: w.meetings, emails: w.emails, notes: w.notes, logged: w.logged }}
+                rows={week.lines.map(l => ({ key: l.author, name: who(l.author), call: l.call, meeting: l.meeting, email: l.email, note: l.note, total: l.total }))}
+              />
+            )}
+          </section>
+
+          <section className="panel" aria-labelledby="r-conversion">
+            <h2 id="r-conversion" className="label-mono">{w.conversion}</h2>
+            {conversion.deals === 0 ? <p className="muted">{w.conversionEmpty}</p> : (
+              <ul className="bars">
+                {[...conversion.stages.map(s => ({ key: s.stageId, name: stageNames[s.stageId] ?? "", reached: s.reached })), { key: "won", name: w.won, reached: conversion.won }].map((s, i, all) => {
+                  const next = all[i + 1];
+                  const rate = next && s.reached > 0 ? `${Math.round((next.reached / s.reached) * 100)} %` : null;
+                  return (
+                    <li key={s.key}>
+                      <span className="bar-row">
+                        <span className="bar-label">{s.name}</span>
+                        <span className="bar-track" aria-hidden="true"><span className={`bar-fill${s.key === "won" ? " won" : ""}`} style={{ width: `${Math.round((s.reached / Math.max(1, conversion.deals)) * 100)}%` }} /></span>
+                        <span className="bar-value num">{s.key === "won" ? plural(w.deals, s.reached, locale) : plural(w.reached, s.reached, locale)}{rate ? ` · ${format(w.wentOn, { rate })}` : ""}</span>
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
           </section>
 
           <section className="panel" aria-labelledby="r-results">

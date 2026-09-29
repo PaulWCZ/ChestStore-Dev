@@ -32,5 +32,7 @@
   {"name": "quote-online-fr", "path": "/chest/documents/6", "member": "ines", "locale": "fr", "only": ["desktop"]},
   {"name": "import-invoices", "path": "/chest/import?kind=invoices", "member": "sofia", "locale": "en"},
   {"name": "desk-port", "path": "/chest", "member": "sofia", "locale": "en", "look": {"tool": "brand:port"}},
-  {"name": "quote-editor-port", "path": "/chest/documents/7", "member": "hugo", "locale": "en", "look": {"tool": "brand:port"}}
+  {"name": "quote-editor-port", "path": "/chest/documents/7", "member": "hugo", "locale": "en", "look": {"tool": "brand:port"}},
+  {"name": "bank-fr", "path": "/chest/bank", "member": "camille", "locale": "fr", "actions": [{"upload": ["input[type=file]", "docs/bank-sample.csv"]}, {"wait": 1500}]},
+  {"name": "client-siren", "path": "/chest/clients", "member": "hugo", "locale": "en", "actions": [{"click": "button:has-text('New client')"}, {"wait": 400}], "only": ["phone"]}
 ]

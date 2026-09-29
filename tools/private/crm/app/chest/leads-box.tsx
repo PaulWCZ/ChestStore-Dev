@@ -64,7 +64,7 @@ export function LeadsBox({ rows, total, team, me, canAssign, today, calendar, t 
         <>
           <div className="panel-head">
             <h2 id="leads-title" className="label-mono">{w.title} <span className="count num">{total - (rows.length - shown.length)}</span></h2>
-            {total > rows.length && <Link prefetch={false} className="link-button" href="/chest/contacts?owner=none">{format(w.more, { count: total })}</Link>}
+            {rows.length < total ? <Link prefetch={false} className="link-button" href="/chest/contacts?owner=none">{format(w.more, { count: total })}</Link> : null}
           </div>
           <p className="muted small-text">{w.lede}</p>
           <ul className="lead-list">

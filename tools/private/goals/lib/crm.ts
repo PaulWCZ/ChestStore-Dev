@@ -1,8 +1,6 @@
 import type { ToolEvent } from "@argentic/chest-sdk/events";
-import type { Query, Sql } from "./db.ts";
-import { addDays } from "./model.ts";
-import { zone } from "./time.ts";
-import { instantOf } from "./zone.ts";
+import type { Sql } from "./db.ts";
+import { refreshFed } from "./sources.ts";
 
 // Key results fed by Clients, the CRM (Proposal (studio): events between
 // tools, once an admin linked the two in the Chest). Clients tells each
@@ -20,11 +18,8 @@ import { instantOf } from "./zone.ts";
 // Data, as Clients publishes it (tools/private/crm/lib/share.ts):
 //   crm.deal.won      { deal, title, amount: cents | null, currency, company, contact, owner }
 //   crm.deal.reopened { deal }
-// Anything of another shape is accepted and ignored.
-
-export const sources = ["crm.won_amount", "crm.won_count"] as const;
-export type Source = (typeof sources)[number];
-export const isSource = (value: unknown): value is Source => typeof value === "string" && (sources as readonly string[]).includes(value);
+// Anything of another shape is accepted and ignored. The other tools'
+// sources, and the one refresh of every fed value, are lib/sources.ts.
 
 const refPattern = /^[A-Za-z0-9._:-]{1,64}$/u;
 
@@ -45,24 +40,4 @@ export async function dealReopened(sql: Sql, event: ToolEvent): Promise<void> {
   if (typeof deal !== "string" || !refPattern.test(deal)) return;
   await sql`update crm_deals set won_at = null, updated_at = now() where deal = ${deal}`;
   await refreshFed(sql);
-}
-
-// Every fed key result of the cycles not closed, set to what the CRM says
-// (or only those given).
-export async function refreshFed(sql: Query, keyResultIds?: string[]): Promise<number> {
-  const rows = await sql<{ id: string; source: Source; currency: string | null; starts_on: string; ends_on: string }[]>`
-    select k.id, k.source, k.currency, to_char(y.starts_on, 'YYYY-MM-DD') as starts_on, to_char(y.ends_on, 'YYYY-MM-DD') as ends_on
-    from key_results k join objectives o on o.id = k.objective_id join cycles y on y.id = o.cycle_id
-    where k.source is not null and k.archived_at is null and o.archived_at is null and y.closed_at is null
-      ${keyResultIds ? sql`and k.id in ${sql(keyResultIds.length ? keyResultIds : ["0"])}` : sql``}`;
-  const z = zone();
-  for (const r of rows) {
-    const from = instantOf(r.starts_on, 0, z), to = instantOf(addDays(r.ends_on, 1), 0, z);
-    const [{ total, n }] = (await sql<{ total: string | null; n: string }[]>`
-      select sum(amount_cents) filter (where currency = ${r.currency ?? ""}) as total, count(*) as n
-      from crm_deals where won_at >= ${from} and won_at < ${to}`) as unknown as [{ total: string | null; n: string }];
-    const value = r.source === "crm.won_amount" ? Math.round(Number(total ?? 0)) / 100 : Number(n);
-    await sql`update key_results set current_value = ${value} where id = ${r.id} and current_value <> ${value}`;
-  }
-  return rows.length;
 }

@@ -2,7 +2,7 @@ import * as events from "@argentic/chest-sdk/events";
 import { syncEvent } from "./agenda.ts";
 import type { Sql } from "./db.ts";
 import { forgetGroups } from "./groups.ts";
-import { promoted, reconcile } from "./tell.ts";
+import { promoted, proposalsWaiting, reconcile } from "./tell.ts";
 import { today } from "./time.ts";
 import { forgetViewer } from "./views.ts";
 import { chestZone } from "./zone.ts";
@@ -12,14 +12,15 @@ import { chestZone } from "./zone.ts";
 //
 // - Losing access or leaving: their answers to events still to come are
 //   removed (nobody counts on them; the seat goes to the first waiting),
-//   their last visit, weekly digest and choices are forgotten. What they wrote and confirmed stays: it is the company's
+//   their last visit, weekly digest and choices are forgotten, their
+//   posts still waiting for a publisher go. What they wrote and confirmed stays: it is the company's
 //   record, and their name reads "(former member)".
 // - Erasure: what they wrote stays for the company, unsigned ('erased'):
 //   posts, comments, reactions (still counted), files they added; a welcome
 //   post about them names nobody, a mention of them in a comment names
 //   nobody. Their confirmations, answers, visits, the fingerprints of the posts
 //   they opened (lib/views.ts), choices, the record of
-//   the emails sent to them and of posts kept to them are deleted. Then the erasure is
+//   the emails sent to them, of posts kept to them and their proposals are deleted. Then the erasure is
 //   acknowledged. The words others wrote about them (a welcome text, a
 //   photo) are not changed: a publisher deletes the post if it must go
 //   (README, "On a Chest").
@@ -29,9 +30,13 @@ export async function leave(sql: Sql, memberId: string, day = today(chestZone())
     await tx`delete from visits where member = ${memberId}`;
     await tx`delete from preferences where member = ${memberId}`;
     await tx`delete from digests where member = ${memberId}`;
-    return [...new Set(gone.map(g => String(g.post_id)))];
+    // Their posts still waiting for a publisher go: nobody could tell them
+    // (a picture becomes an unused upload, purged).
+    const proposed = await tx`delete from proposals where author = ${memberId} and declined_at is null returning id`;
+    return { events: [...new Set(gone.map(g => String(g.post_id)))], proposed: proposed.length > 0 };
   });
-  await freed(sql, events);
+  await freed(sql, events.events);
+  if (events.proposed) await proposalsWaiting(sql);
 }
 
 // freed gives the seats of these events to the first waiting, and puts the
@@ -66,9 +71,16 @@ export async function erase(sql: Sql, memberId: string): Promise<void> {
     await tx`delete from digests where member = ${memberId}`;
     await tx`delete from emails where member = ${memberId}`;
     await tx`delete from post_people where member = ${memberId}`;
+    // Their proposals go (waiting or declined); one thanking them names
+    // nobody.
+    await tx`delete from proposals where author = ${memberId}`;
+    await tx`update proposals set colleague = 'erased' where colleague = ${memberId}`;
+    await tx`update proposals set declined_by = 'erased' where declined_by = ${memberId}`;
+    await tx`update posts set approved_by = 'erased' where approved_by = ${memberId}`;
     return [...new Set(gone.map(g => String(g.post_id)))];
   });
   await freed(sql, events);
+  await proposalsWaiting(sql);
 }
 
 export function handlers(sql: Sql): events.Handlers {

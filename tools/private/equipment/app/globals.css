@@ -521,8 +521,12 @@ li.mini > .mini-link { flex: 1 1 240px; }
 /* On a phone the one action comes first, full width; the quiet ones follow
    under it, each with its words (never an icon alone: the store's rule). */
 @media (max-width: 600px) {
-  .page-head .actions, .ck-page-actions { flex-direction: column-reverse; align-items: stretch; width: 100%; }
-  .page-head .actions > *, .ck-page-actions > * { width: 100%; justify-content: center; }
+  /* The one action first, full width; the quiet ones share the rows under
+     it (two or three to a row, each with its words). */
+  .page-head .actions, .ck-page-actions { flex-direction: row; flex-wrap: wrap; align-items: stretch; width: 100%; }
+  .page-head .actions > *, .ck-page-actions > * { flex: 1 1 auto; width: auto; justify-content: center; }
+  .page-head .actions > .button:not(.quiet), .ck-page-actions > .button:not(.quiet) { order: -1; flex-basis: 100%; }
+  .ck-page-actions > .button.quiet { font-size: var(--text-s); padding-inline: var(--space-3); gap: 6px; }
   .bins { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-2); }
   /* The stock on a phone: the icon beside the name, the counts under
      both — shorter tiles, so "Needs your attention" comes sooner. */

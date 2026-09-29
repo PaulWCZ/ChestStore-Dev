@@ -14,7 +14,12 @@ export const presenceHorizon = 90;
 
 export type Said = { status: Status; officeId: string | null };
 
-export async function setPresence(sql: Sql, actor: Member | null, input: { day?: unknown; status?: unknown; officeId?: unknown }, zone: string): Promise<{ previous: Said | null; freed: string[] }> {
+// Lent: when the holder of a given desk comes back ("office" on a day they
+// had said remote or off), the people who borrowed that desk that day
+// (their bookings stay theirs: the caller tells them the holder is in).
+export type Borrowed = { bookingId: string; memberId: string; deskName: string };
+
+export async function setPresence(sql: Sql, actor: Member | null, input: { day?: unknown; status?: unknown; officeId?: unknown }, zone: string): Promise<{ previous: Said | null; freed: string[]; borrowed: Borrowed[] }> {
   if (!actor || !can(actor, "book")) throw new AppError("forbidden");
   const d = day(input.day);
   if (input.status !== null && !isStatus(input.status)) throw new AppError("invalid");
@@ -26,6 +31,7 @@ export async function setPresence(sql: Sql, actor: Member | null, input: { day?:
     const [before] = await tx<{ status: Status; office_id: string | null }[]>`select status, office_id from presence where member_id = ${actor.id} and day = ${d} for update`;
     const previous: Said | null = before ? { status: before.status, officeId: before.office_id === null ? null : String(before.office_id) } : null;
     let freed: string[] = [];
+    let borrowed: Borrowed[] = [];
     // The person said it: their usual week never changes this day again.
     await tx`insert into usual_applied (member_id, day) values (${actor.id}, ${d}) on conflict do nothing`;
     await enqueue(tx, [dayKey(actor.id, d)]);
@@ -49,8 +55,14 @@ export async function setPresence(sql: Sql, actor: Member | null, input: { day?:
       await tx`
         insert into presence (member_id, day, status, office_id) values (${actor.id}, ${d}, ${status}, ${office})
         on conflict (member_id, day) do update set status = excluded.status, office_id = excluded.office_id, leave_ref = null, usual = false`;
+      if (status === "office" && (previous?.status === "remote" || previous?.status === "off")) {
+        borrowed = (await tx<{ id: string; member_id: string; name: string }[]>`
+          select b.id, b.member_id, d.name from desk_bookings b join desks d on d.id = b.desk_id
+          where d.assigned_to = ${actor.id} and b.day = ${d} and b.member_id <> ${actor.id} and b.member_id <> 'erased' and b.cancelled_at is null`)
+          .map(r => ({ bookingId: String(r.id), memberId: r.member_id, deskName: r.name }));
+      }
     }
-    return { previous, freed };
+    return { previous, freed, borrowed };
   });
 }
 

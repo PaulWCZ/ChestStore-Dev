@@ -41,20 +41,22 @@ const timeoutMs = 20_000;
 const longestWait = 10;
 
 type Settings = { tenant: string; clientId: string; secret: string };
+// The environment the three settings are read from (the process's own).
+type Env = Readonly<Record<string, string | undefined>>;
 
 const guid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;
 // A tenant is its id (a GUID) or one of its domains (contoso.onmicrosoft.com).
 const tenantPattern = /^(?:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+)$/iu;
 
 // The three variables, when all are set and look right.
-export function settings(env: NodeJS.ProcessEnv = process.env): Settings | null {
+export function settings(env: Env = process.env): Settings | null {
   const tenant = env["INTUNE_TENANT_ID"]?.trim() ?? "";
   const clientId = env["INTUNE_CLIENT_ID"]?.trim() ?? "";
   const secret = env["INTUNE_CLIENT_SECRET"] ?? "";
   if (!tenantPattern.test(tenant) || tenant.length > 253 || !guid.test(clientId) || secret.length === 0 || secret.length > 1024) return null;
   return { tenant, clientId, secret };
 }
-export const connected = (env: NodeJS.ProcessEnv = process.env): boolean => settings(env) !== null;
+export const connected = (env: Env = process.env): boolean => settings(env) !== null;
 
 // What the tool keeps of a device (the rest of managedDevice is ignored).
 export type Device = {
@@ -139,7 +141,7 @@ async function token(s: Settings): Promise<string> {
 
 // Every device Intune manages, page after page. The next page's address
 // must stay on Microsoft Graph (it is Graph's own link).
-export async function readDevices(env: NodeJS.ProcessEnv = process.env): Promise<Device[]> {
+export async function readDevices(env: Env = process.env): Promise<Device[]> {
   const s = settings(env);
   if (!s) throw new AppError("intune_not_connected");
   const bearer = await token(s);
@@ -178,7 +180,7 @@ const outcomes: Partial<Record<ErrorCode, string>> = {
 // the same name, when there is exactly one. A manager asks ("Read Intune
 // now"), or the nightly schedule (`by` "schedule"). A failed read keeps the
 // last one and says why.
-export async function refresh(sql: Sql, actor: Member | "schedule", env: NodeJS.ProcessEnv = process.env): Promise<{ devices: number; withoutSerial: number; list: Device[] }> {
+export async function refresh(sql: Sql, actor: Member | null | "schedule", env: Env = process.env): Promise<{ devices: number; withoutSerial: number; list: Device[] }> {
   const by = actor === "schedule" ? "schedule" : manager(actor).id;
   let devices: Device[];
   try {
@@ -188,8 +190,11 @@ export async function refresh(sql: Sql, actor: Member | "schedule", env: NodeJS.
     if (outcome) await sql`insert into intune_reads (by, outcome) values (${by}, ${outcome})`;
     throw error;
   }
+  // Without the Chest's list of members, every match would be lost: the
+  // last read stays, and the step says the Chest did not answer.
   const listed = await everyone();
-  const personOf = personByName(listed.ok ? listed.people : []);
+  if (!listed.ok) throw new AppError("unavailable");
+  const personOf = personByName(listed.people);
   const now = new Date();
   // One line per serial number: a device enrolled twice keeps its latest
   // check-in.
@@ -235,11 +240,12 @@ export type IntuneStatus = {
   lastGood: string | null;
   // Devices of the last read no item has the serial number of.
   missing: number;
-  // Items whose holder is not the person Intune names (both known).
+  // Items whose holder is not the person Intune names (both known; an
+  // item away for repair, lost or retired is not asked).
   differ: { itemId: string; name: string; tag: string; holder: string | null; place: string | null; intune: string }[];
 };
 
-export async function status(sql: Query, actor: Member | null, env: NodeJS.ProcessEnv = process.env): Promise<IntuneStatus> {
+export async function status(sql: Query, actor: Member | null, env: Env = process.env): Promise<IntuneStatus> {
   manager(actor);
   const [last] = await sql<{ at: Date; outcome: string; devices: number | null; without_serial: number | null }[]>`
     select at, outcome, devices, without_serial from intune_reads order by id desc limit 1`;
@@ -251,7 +257,7 @@ export async function status(sql: Query, actor: Member | null, env: NodeJS.Proce
     select i.id, i.name, i.tag, i.holder, i.place, d.member_id from intune_devices d
     join items i on i.deleted_at is null and i.serial is not null and lower(trim(i.serial)) = d.serial_key
     join categories c on c.id = i.category_id and c.kind = 'asset'
-    where d.member_id is not null and d.member_id <> 'erased' and i.status not in ('retired', 'lost') and (i.holder is null or i.holder <> d.member_id)
+    where d.member_id is not null and d.member_id <> 'erased' and i.status not in ('retired', 'lost', 'in_repair') and (i.holder is null or i.holder <> d.member_id)
     order by i.tag limit 100`;
   return {
     connected: connected(env),

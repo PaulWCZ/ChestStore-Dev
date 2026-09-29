@@ -10,6 +10,7 @@ import { email } from "../lib/guests.ts";
 import { publicOrigin } from "../lib/public-origin.ts";
 import { publicWords } from "../lib/session.ts";
 import * as publish from "../lib/publish.ts";
+import * as share from "../lib/share.ts";
 import * as tell from "../lib/tell.ts";
 
 // The public part's actions: anyone on the Internet may call them. They
@@ -46,9 +47,10 @@ export async function bookTime(hostSlug: string, typeSlug: string, _: BookState,
     mailed = (await email(sql, "confirmed", made.booking, origin)) === "email";
     // A team type may have gone to another of its hosts.
     const host = made.booking.memberId === place.host.memberId ? place.host : await b.hostOf(sql, made.booking.memberId);
-    await tell.booked(made.booking, host?.zone ?? place.host.zone);
+    await tell.booked(made.booking, host?.zone ?? place.host.zone, await b.titlesOf(sql, made.booking));
     await publish.publish(sql, made.booking);
     await tell.hostCopy(sql, "booked", made.booking);
+    await share.changed(sql, "booked", made.booking);
   } catch (error) {
     if (error instanceof AppError) return { error: error.code, detail: error.values, values };
     console.error("booking not saved", error instanceof Error ? error.name : "error");
@@ -67,9 +69,10 @@ export async function cancelMine(secret: string, _: GuestState, data: FormData):
     const done = await b.cancelByGuest(sql, String(secret), String(data.get("reason") ?? ""));
     const host = await b.hostOf(sql, done.memberId);
     await email(sql, "cancelled", done, publicOrigin(h));
-    await tell.cancelled(done, host?.zone ?? done.guestZone);
+    await tell.cancelled(done, host?.zone ?? done.guestZone, await b.titlesOf(sql, done));
     await publish.unpublish(sql, done);
     await tell.hostCopy(sql, "cancelled", done);
+    await share.changed(sql, "cancelled", done);
     return { error: null, done: true };
   } catch (error) {
     if (error instanceof AppError) return { error: error.code, done: false };
@@ -82,12 +85,13 @@ export async function moveMine(secret: string, start: string): Promise<{ error: 
     const sql = db();
     const h = await headers();
     await admit(sql, h, "change");
-    const { booking } = await b.moveByGuest(sql, String(secret), String(start));
+    const { booking, from } = await b.moveByGuest(sql, String(secret), String(start));
     const host = await b.hostOf(sql, booking.memberId);
     await email(sql, "moved", booking, publicOrigin(h));
-    await tell.moved(booking, host?.zone ?? booking.guestZone);
+    await tell.moved(booking, host?.zone ?? booking.guestZone, await b.titlesOf(sql, booking));
     await publish.publish(sql, booking);
     await tell.hostCopy(sql, "moved", booking);
+    await share.changed(sql, "moved", booking, { previousHost: from });
     return { error: null };
   } catch (error) {
     if (error instanceof AppError) return { error: error.code };

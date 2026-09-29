@@ -10,7 +10,7 @@ import { format } from "../../../lib/i18n/format.ts";
 import type { Catalogue, Locale } from "../../../lib/i18n/index.ts";
 import { limits } from "../../../lib/model.ts";
 import { inputAmount, inputPercent } from "../../../lib/money.ts";
-import { removeLogo, saveLogo, updateCompany } from "../actions.ts";
+import { removeLogo, removeTerms, saveLogo, saveTerms, updateCompany } from "../actions.ts";
 
 type Fields = Record<"legalName" | "tradeName" | "legalForm" | "capital" | "address" | "postcode" | "city" | "country" | "siren" | "siret" | "rcsCity" | "vatNumber" | "email" | "phone" | "website" | "bank" | "iban" | "bic" | "paymentDays" | "validityDays" | "penaltyRate" | "earlyDiscount" | "footer" | "quotePrefix" | "invoicePrefix" | "creditPrefix" | "paymentLink" | "reminderDays", string>
   & { franchise: boolean; vatOnDebits: boolean; remindersOn: boolean; remindersEmail: boolean; accounts: Accounts };
@@ -22,7 +22,7 @@ const fieldOf: Record<string, keyof Fields> = {
 };
 const forms = ["SARL", "SAS", "SASU", "EURL", "EI", "SA", "SCOP", "SNC", "SCI"];
 
-export function SettingsView({ t, locale, company: c, missing, canEdit, currency, sample, logo, rates, numbering }: { t: Catalogue; locale: Locale; company: Company; missing: string[]; canEdit: boolean; currency: string; sample: string; logo: string | null; rates: { rate: string; text: string }[]; numbering: ReactNode }) {
+export function SettingsView({ t, locale, company: c, missing, canEdit, currency, sample, logo, terms, rates, numbering }: { t: Catalogue; locale: Locale; company: Company; missing: string[]; canEdit: boolean; currency: string; sample: string; logo: string | null; terms: { name: string; size: string } | null; rates: { rate: string; text: string }[]; numbering: ReactNode }) {
   const s = t.settings;
   const r = s.reminderRules;
   const router = useRouter();
@@ -39,6 +39,7 @@ export function SettingsView({ t, locale, company: c, missing, canEdit, currency
   const [error, setError] = useState<{ field: keyof Fields | null; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [logoFiles, setLogoFiles] = useState<readonly PickedFile[]>([]);
+  const [termsFiles, setTermsFiles] = useState<readonly PickedFile[]>([]);
   const set = (patch: Partial<Fields>) => setF(v => ({ ...v, ...patch }));
   const bad = (k: keyof Fields) => (error?.field === k ? true : undefined);
   // The VAT number is not needed under the exemption, even before saving.
@@ -82,6 +83,24 @@ export function SettingsView({ t, locale, company: c, missing, canEdit, currency
     toast({ id: "logo", text: s.logoSaved });
     router.refresh();
   }, [logoFiles, toast, router, s.logoSaved]);
+
+  // The terms and conditions of sale: the same way, a PDF.
+  const uploadTerms: Upload = async (chosen, { onProgress, signal }) => {
+    const grant = await fetch("/chest/api/terms", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ type: chosen.type, size: chosen.size }), signal });
+    const answer = (await grant.json().catch(() => ({}))) as { url?: string; object?: string; error?: string };
+    if (!grant.ok || !answer.url || !answer.object) return { ok: false, error: t.errors[(answer.error ?? "unknown") as keyof Catalogue["errors"]] ?? t.errors.unknown };
+    const put = await putWithProgress(answer.url, chosen, { headers: { "Content-Type": chosen.type }, onProgress, signal });
+    if (put.status >= 300) return { ok: false, error: put.status === 413 ? t.errors.terms_too_large : put.status === 415 ? t.errors.terms_type : t.errors.file_missing };
+    const saved = await saveTerms(answer.object, chosen.name);
+    if (!saved.ok) return { ok: false, error: t.errors[saved.error] };
+    return { ok: true, ref: answer.object };
+  };
+  useEffect(() => {
+    if (!termsFiles.some(x => x.status === "ready")) return;
+    setTermsFiles([]);
+    toast({ id: "terms", text: s.termsSaved });
+    router.refresh();
+  }, [termsFiles, toast, router, s.termsSaved]);
 
   const text = (k: keyof Fields, label: string, options: { hint?: string; className?: string; max?: number; placeholder?: string; list?: string; inputMode?: "numeric" | "decimal" | "email" | "tel" | "url"; required?: boolean } = {}) => (
     <div className={`field-row ${options.className ?? ""}`}>
@@ -164,6 +183,20 @@ export function SettingsView({ t, locale, company: c, missing, canEdit, currency
                   )}
                   <span className="hint">{s.hints.logo}</span>
                 </div>
+              </div>
+            </div>
+            <div className="field-row terms-row">
+              <span className="field-label">{s.termsLabel}</span>
+              <div className="logo-actions">
+                <p className="terms-file">{terms ? <a href="/chest/terms"><span>{terms.name}</span> <span className="hint">{terms.size}</span></a> : <span className="muted">{s.termsNone}</span>}</p>
+                {canEdit && (
+                  <>
+                    <FilePicker label={s.termsLabel} files={termsFiles} onChange={update => setTermsFiles(update)} upload={uploadTerms} maxFiles={1} maxSize={limits.termsSize}
+                      accept={["application/pdf"]} labels={{ ...t.files, addOne: terms ? s.changeTerms : s.addTerms }} />
+                    {terms && <button type="button" className="button ghost small" onClick={() => void removeTerms().then(r => { if (r.ok) { toast({ id: "terms", text: s.termsRemoved }); router.refresh(); } else toast({ text: t.errors[r.error], tone: "error" }); })}><Trash />{s.removeLogo}</button>}
+                  </>
+                )}
+                <span className="hint">{s.termsHint}</span>
               </div>
             </div>
             {text("email", s.fields.email, { className: "third", inputMode: "email", max: 254, hint: s.hints.email })}

@@ -5,6 +5,7 @@ import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
 import { decideQuote, getDocument, saveDraft } from "../lib/documents.ts";
 import { AppError } from "../lib/errors.ts";
 import { erase } from "../lib/lifecycle.ts";
+import { reviseQuote } from "../lib/versions.ts";
 import { answer, answerPdf, answersOf, ensureLink, liveLink, openLink, renewLink, revokeLink, shownPdf } from "../lib/online.ts";
 import { draftMessage, markSent, sendDocument, withAnswerLink } from "../lib/sending.ts";
 import { answeredOnline } from "../lib/tell.ts";
@@ -49,14 +50,18 @@ test("a quote's email carries its answer link, before the sign-off, in the clien
   const { sql } = database;
   const { id, secret, mail } = await sentQuote();
   assert.match(secret, /^[A-Za-z0-9_-]{32}$/u);
-  assert.ok(mail.text.includes("Vous pouvez aussi le lire et l’accepter ou le refuser en ligne\u202f: https://quotes.atelier.argentic.work/q/" + secret));
-  assert.ok(mail.text.indexOf("/q/") < mail.text.indexOf("Bien cordialement"));
+  // The link is the email's first line, not an afterthought; nobody is
+  // asked to reply to accept (round 3: replies reach a mailbox the tool
+  // never reads).
+  const number = (await getDocument(sql, asMember(ines), id, today)).number!;
+  assert.ok(mail.text.startsWith(`Lisez le devis ${number} et acceptez-le en ligne\u202f: https://quotes.atelier.argentic.work/q/` + secret + "\n\nBonjour"), mail.text.slice(0, 200));
+  assert.ok(!/répondre à cet e-mail|reply to this email/u.test(mail.text));
   const link = await liveLink(sql, id);
   assert.equal(link?.secret, secret);
   // The same link on every send; never twice in one text.
   assert.equal((await ensureLink(sql, asMember(ines), id)).secret, secret);
   const url = "https://x.test/q/" + secret;
-  assert.equal(withAnswerLink(withAnswerLink("Bonjour,\n\nCordialement,\nInès", "fr", url), "fr", url).split(url).length, 2);
+  assert.equal(withAnswerLink(withAnswerLink("Bonjour,\n\nCordialement,\nInès", "fr", url, "D-2026-0001"), "fr", url, "D-2026-0001").split(url).length, 2);
   // The secret is stored hashed for lookups.
   const [row] = await sql<{ secret_hash: string }[]>`select secret_hash from quote_links where document_id = ${id}`;
   assert.equal(row!.secret_hash, createHash("sha256").update(secret).digest("hex"));
@@ -140,11 +145,17 @@ test("a quote changed after the client opened it must be read again", async () =
   const { sql } = database;
   const { id, secret } = await sentQuote(ines);
   const { sha256 } = await shownPdf(sql, (await openLink(sql, secret, today))!, today);
+  // A sent quote changes through its next version (test/versions.test.ts).
+  await reviseQuote(sql, asMember(ines), id, today);
   await saveDraft(sql, asMember(ines), id, { lines: [line("Refonte du site", 1000, 260000)] });
+  assert.equal((await openLink(sql, secret, today))!.showing, "revising");
+  await assert.rejects(answer(sql, secret, { answer: "accepted", name: "Marie Dupain", agree: "yes", shown: sha256 }, visitor, today), refused("changed"));
+  await markSent(sql, asMember(ines), id, today);
   await assert.rejects(answer(sql, secret, { answer: "accepted", name: "Marie Dupain", agree: "yes", shown: sha256 }, visitor, today), refused("changed"));
   const fresh = await shownPdf(sql, (await openLink(sql, secret, today))!, today);
   assert.notEqual(fresh.sha256, sha256);
-  await answer(sql, secret, { answer: "accepted", name: "Marie Dupain", agree: "yes", shown: fresh.sha256 }, visitor, today);
+  const done = await answer(sql, secret, { answer: "accepted", name: "Marie Dupain", agree: "yes", shown: fresh.sha256 }, visitor, today);
+  assert.equal(done.answer.version, 2);
   assert.equal((await getDocument(sql, asMember(lea), id, today)).state, "accepted");
 });
 

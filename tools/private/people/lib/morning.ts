@@ -2,6 +2,7 @@ import type { Run } from "@argentic/chest-sdk/schedules";
 import type { Sql } from "./db.ts";
 import { stepText } from "./examples.ts";
 import { dueDates, purgeFields } from "./fields.ts";
+import { purgeLetters } from "./letters.ts";
 import { format, formatDay, plural } from "./i18n/index.ts";
 import { purgeJournal } from "./journal.ts";
 import { today } from "./model.ts";
@@ -42,6 +43,7 @@ export async function morning(sql: Sql, run: Run): Promise<void> {
   await purgeAway(sql, day);
   await purgeRecords(sql, day);
   await purgeFields(sql);
+  await purgeLetters(sql);
   await purgeJournal(sql);
 }
 

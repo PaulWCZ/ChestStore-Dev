@@ -393,7 +393,7 @@ export const en = {
     restored: "{actor} brought it back",
     left: "{who} left while holding it",
     chest: "The Chest",
-    recorded: "recorded {date}",
+    on: "on {date}",
     fields: {
       name: "the name",
       tag: "the asset tag",
@@ -487,7 +487,7 @@ export const en = {
     intuneRead: "Read Intune",
     intuneReading: "Reading Intune…",
     intuneOff: "Not connected. Whoever runs your Chest can connect it: an app in Microsoft Entra allowed to read Intune’s devices, and three settings of this tool.",
-    intuneAllHere: { zero: "Intune has no device with a serial number.", one: "Intune’s {count} device is already here.", other: "Intune’s {count} devices are already here." },
+    intuneAllHere: { zero: "Intune has no device with a serial number.", one: "Intune has {count} device, already here.", other: "Intune has {count} devices, all already here." },
     intuneLast: { zero: "Last read {date}: no device.", one: "Last read {date}: {count} device.", other: "Last read {date}: {count} devices." },
     intuneLastGood: "Last good read {date}.",
     intuneFailed: "Read on {date} failed: {why}",
@@ -940,7 +940,7 @@ export const en = {
   },
   search: {
     label: "Search the equipment",
-    placeholder: "Tag, serial, model, person…",
+    placeholder: "Tag, serial, name…",
     shortcut: "Press / to search",
     submit: "Search",
   },

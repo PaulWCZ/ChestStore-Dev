@@ -103,6 +103,21 @@ from made join plan p on p.title = made.title join rooms r on r.id = made.room_i
 select setval('room_series', 1);
 update room_bookings set series = 1 where title = 'Team stand-up';
 
+-- Visitors: the client workshop's guests on Tuesdays, a candidate for the
+-- Thursday interview, and two visitors today (one already here).
+insert into visits (office_id, day, at_minute, name, company, host, created_by, arrived_at, arrived_by)
+select (select id from offices limit 1), v.day, v.at, v.name, v.company, 'mbr_' || rpad(v.host, 26, 'a'), 'mbr_' || rpad(v.by, 26, 'a'),
+  case when v.here then now() - interval '20 minutes' end, case when v.here then 'mbr_' || rpad('sofia', 26, 'a') end
+from (values
+  (date_trunc('week', current_date)::date + 1, 600, 'Claire Lenoir', 'Maison Lenoir', 'ines', 'ines', false),
+  (date_trunc('week', current_date)::date + 1, 600, 'Marc Aubert', 'Maison Lenoir', 'ines', 'sofia', false),
+  (date_trunc('week', current_date)::date + 3, 870, 'Julie Fontaine', '', 'camille', 'camille', false),
+  (date_trunc('week', current_date)::date + 8, 600, 'Claire Lenoir', 'Maison Lenoir', 'ines', 'ines', false),
+  (current_date, 570, 'Nicolas Girard', 'Cabinet Girard', 'hugo', 'sofia', true),
+  (current_date, 900, 'Emma Schmitt', 'Atelier Schmitt', 'camille', 'camille', false)
+) as v(day, at, name, company, host, by, here)
+where v.day >= current_date - 7;
+
 -- Tom is in on Mondays to Thursdays, at D-03: his usual week (the tool
 -- says the coming days for him when a page is read).
 insert into usual_week (member_id, weekday, status)

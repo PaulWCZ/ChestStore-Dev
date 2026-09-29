@@ -333,6 +333,24 @@ await step("move a card to another board; it arrives with its comments, in the c
   expect((await page.locator(".history").innerText()).includes("moved it here from the board “Trade show”"), "history says where from");
 });
 
+await step("after the move, Inès's bell item, an old email link and the card's own address all open it on its new board", async () => {
+  const moved = new URL(page.url()).searchParams.get("card");
+  await as(context, origin, "ines");
+  const dev = await (await page.request.get(origin + "/_dev")).text();
+  expect(dev.includes(`/chest/cards/${moved}`), "the bell item points at the card by its id");
+  // An address made before the move (the old board): it follows the card.
+  await page.goto(`${boardUrl}?card=${moved}`);
+  await page.waitForURL(new RegExp(`/chest/boards/1\\?card=${moved}$`, "u"));
+  expect((await page.locator("#card-title").inputValue()) === "Book the stand", "the card opens");
+  await page.goto(`${origin}/chest/cards/${moved}`);
+  await page.waitForURL(new RegExp(`/chest/boards/1\\?card=${moved}$`, "u"));
+  await page.locator(".panel").waitFor();
+  // A card that is gone says so, instead of an empty board.
+  await page.goto(`${origin}/chest/boards/1?card=999999`);
+  expect((await page.locator(".card-gone").innerText()).includes("n’est plus ici"), "a card gone says so");
+  await as(context, origin, "hugo");
+});
+
 await step("fields: add a choice field in settings, set it on a card; the list view shows it, sorts and groups", async () => {
   await page.goto(origin + "/chest/boards/1/settings");
   await page.getByPlaceholder("Budget, Client, Priority…").fill("Supplier");
@@ -435,6 +453,62 @@ await step("a Trello export: the check says who is found and what stays behind; 
   await page.locator(".privacy", { hasText: "Only you" }).waitFor();
 });
 
+await step("switch day: a real Trello board's Done list and its cards marked complete come in finished, the archived list archived", async () => {
+  await page.setViewportSize({ width: 1280, height: 860 });
+  await page.goto(origin + "/chest/import");
+  await page.locator(".source", { hasText: "Trello" }).locator("input[type=file]").setInputFiles(new URL("../../../tools/private/tasks/test/fixtures/trello-switch-day.json", import.meta.url).pathname);
+  await page.getByText("Finished work", { exact: true }).waitFor();
+  const box = page.locator(".summary-box");
+  expect(await box.getByRole("checkbox", { name: /^Fait/u }).isChecked(), "the Fait list is finished work");
+  expect(!(await box.getByRole("checkbox", { name: /^À faire/u }).isChecked()), "À faire is not");
+  const check = await box.innerText();
+  expect(check.includes("2 cards marked complete go to “Fait”"), "cards ticked in Trello: " + check);
+  expect(check.includes("1 archived column comes in archived") && check.includes("Sprint de mars · 2"), "the archived list is said");
+  const warning = page.locator(".warn", { hasText: "1 person has cards on this board but will not see them" });
+  await warning.waitFor();
+  expect((await warning.innerText()).includes("Inès Moreau"), "who will not see it (Camille is a manager: she sees it)");
+  await page.getByText("Everyone in Tasks", { exact: true }).click();
+  expect(await page.getByText("will not see them").count() === 0, "shared with everyone: no warning");
+  await page.getByRole("button", { name: "Import the board" }).click();
+  await page.getByRole("link", { name: "Open the board" }).click();
+  await page.waitForURL(/\/chest\/boards\/\d+$/u);
+  const lanes = (await page.locator(".lane h2").allTextContents()).join("|");
+  expect(lanes.includes("Fait") && !lanes.includes("Sprint de mars"), "lanes: " + lanes);
+  const fait = await page.locator(".lane", { hasText: "Fait" }).last().locator(".card-title").allTextContents();
+  expect(fait.includes("Publier l’offre de stage") && fait.includes("Lancer la campagne de printemps"), "done cards: " + fait.join("|"));
+  expect(await page.locator(".card", { hasText: "Lancer la campagne de printemps" }).locator(".chip.due-late").count() === 0, "not late on the board");
+  await page.goto(origin + "/chest");
+  const mine = await page.locator("main").innerText();
+  expect(!mine.includes("Publier l’offre de stage") && !mine.includes("Lancer la campagne"), "finished work is not in My tasks");
+  expect(mine.includes("Préparer le stand du salon"), "open work is");
+});
+
+await step("the French import page: each button stays inside its card, under its words", async () => {
+  await as(context, origin, "camille");
+  await page.goto(origin + "/chest/import");
+  for (const source of await page.locator(".source").all()) {
+    const card = await source.boundingBox(), button = await source.locator(".file-input").boundingBox(), words = await source.locator("p").boundingBox();
+    expect(button.x + button.width <= card.x + card.width + 0.5, `button inside the card: ${Math.round(button.x + button.width)} > ${Math.round(card.x + card.width)}`);
+    expect(button.y >= words.y + words.height - 0.5, "the button is below the words");
+  }
+  await as(context, origin, "hugo");
+});
+
+await step("the calendar: my due dates are in my Chest calendar feed; My tasks says so", async () => {
+  await page.goto(origin + "/chest");
+  await page.waitForTimeout(1500);
+  await page.reload();
+  const link = page.getByRole("link", { name: "Your due dates in your calendar" });
+  expect(await link.getAttribute("href") === "/_chest/calendar", "the link to the Chest's calendar page");
+  const dev = await (await page.request.get(origin + "/_dev")).text();
+  const feed = /\/_chest\/calendar\/[A-Za-z0-9_-]+\.ics/u.exec(dev)?.[0];
+  expect(feed, "the harness shows Hugo's feed address");
+  const ics = await (await page.request.get(origin + feed)).text();
+  expect(/SUMMARY:Due: Préparer le stand du salon/u.test(ics), "the stand's due date is in Hugo's feed");
+  expect(!/Publier l’offre de stage/u.test(ics), "finished work is not");
+  expect(/URL:http:\/\/[^\r\n]*\/chest\/cards\/\d+/u.test(ics), "the event opens the card by its id");
+});
+
 await step("the Chest look: late says so in a word, labels show their names", async () => {
   await page.setViewportSize({ width: 1280, height: 860 });
   await page.request.post(origin + "/_dev/theme", { form: { level: "all", choice: "catalogue:chest" } });
@@ -525,6 +599,20 @@ await step("phone: the first card is near the top; view and filters behind one b
   expect(await page.locator(".list-cards li").first().isVisible(), "stacked cards");
   const width = await page.evaluate(() => document.documentElement.scrollWidth);
   expect(width <= 400, "no sideways scroll: " + width);
+});
+
+await step("phone: the timeline is a list of weeks, each card with its dates", async () => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(origin + "/chest/boards/1?view=timeline");
+  await page.locator(".tl-week").first().waitFor();
+  expect(!(await page.locator(".tl-scroll").isVisible()), "no narrow grid of 8 days");
+  const weeks = await page.locator(".tl-week h3").allTextContents();
+  expect(weeks.length >= 2 && weeks.every(w => w.startsWith("Week of")), "weeks: " + weeks.join("|"));
+  expect(await page.locator(".tl-week-card", { hasText: "Order 40 archive boxes" }).count() >= 1, "a card with its dates");
+  const width = await page.evaluate(() => document.documentElement.scrollWidth);
+  expect(width <= 400, "no sideways scroll: " + width);
+  await page.locator(".tl-week-card a").first().click();
+  await page.waitForURL(/card=/u);
 });
 
 await step("phone width: the board scrolls sideways, the card panel fills the screen", async () => {

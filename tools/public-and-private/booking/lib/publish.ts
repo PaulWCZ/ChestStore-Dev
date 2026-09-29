@@ -1,6 +1,6 @@
 import * as calendar from "@argentic/chest-sdk/calendar";
 import { ChestError } from "@argentic/chest-sdk/errors";
-import { meetingPlace, rememberCalendar, type Booking } from "./booking.ts";
+import { meetingPlace, rememberCalendar, titlesOf, type Booking } from "./booking.ts";
 import type { Query } from "./db.ts";
 import { catalogue, format, locales } from "./i18n/index.ts";
 
@@ -15,9 +15,9 @@ import { catalogue, format, locales } from "./i18n/index.ts";
 const key = (b: Pick<Booking, "id">) => `booking:${b.id}`;
 
 // Titles in every language of the store: the Chest writes each member's
-// feed in theirs.
-function words(b: Booking): { title: Record<string, string>; location: string } {
-  const title = Object.fromEntries(locales.map(l => [l, format(catalogue(l).calendar.title, { title: b.title, guest: b.guestName }).slice(0, 120)]));
+// feed in theirs — the type's name in theirs too (booking.titlesOf).
+function words(b: Booking, names: Record<string, string>): { title: Record<string, string>; location: string } {
+  const title = Object.fromEntries(locales.map(l => [l, format(catalogue(l).calendar.title, { title: names[l] ?? b.title, guest: b.guestName }).slice(0, 120)]));
   const where = b.locationKind === "phone" ? b.guestPhone : meetingPlace(b);
   return { title, location: where.slice(0, 200) };
 }
@@ -25,7 +25,7 @@ function words(b: Booking): { title: Record<string, string>; location: string } 
 export async function publish(sql: Query, b: Booking): Promise<void> {
   if (b.status !== "confirmed" || b.memberId === "erased") return unpublish(sql, b);
   try {
-    const { title, location } = words(b);
+    const { title, location } = words(b, await titlesOf(sql, b));
     await calendar.put({ key: key(b), members: [b.memberId], title, start: b.startsAt, end: b.endsAt, ...(location ? { location } : {}), path: `/chest/bookings/${b.id}` });
     await rememberCalendar(sql, true);
   } catch (error) {

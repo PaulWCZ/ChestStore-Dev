@@ -20,7 +20,7 @@ export default async function ChecksPage() {
   const sql = db();
   const zone = chest.timeZone();
   const now = new Date();
-  const [components, watches, states, state, beats] = await Promise.all([allComponents(sql), listWatches(sql), statuses(sql), checksState(sql), listHeartbeats(sql)]);
+  const [components, watches, states, state, beats] = await Promise.all([allComponents(sql, { locale }), listWatches(sql), statuses(sql), checksState(sql), listHeartbeats(sql)]);
   const everyLabel = (m: number) => (t.heartbeats as Record<string, string>)[`e${m}`] ?? String(m);
   const groups = new Map(components.filter(c => c.kind === "group").map(g => [g.id, g.name]));
   const order = new Map(components.filter(c => c.parentId === null).map(c => [c.id, c.position]));
