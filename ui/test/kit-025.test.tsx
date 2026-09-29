@@ -109,10 +109,12 @@ test("DateRangeField: both ends are DateFields and take the fix (a corrected end
   assert.equal(formatDate(addDays(from, 5), en.date), "25/11/2026");
 });
 
-test("the kit says its version: 0.2.5-studio.1", () => {
+test("the kit says its version: 0.2.5-studio.1 or later", () => {
+  // 0.2.6 bumped it (test/kit-026.test.tsx checks the exact version).
+  const later = /^0\.2\.([5-9]|\d{2,})-studio\.\d+$/u;
   const pkg = JSON.parse(readFileSync(join(ui, "package.json"), "utf8")) as { version: string };
-  assert.equal(pkg.version, "0.2.5-studio.1");
+  assert.match(pkg.version, later);
   const lock = JSON.parse(readFileSync(join(ui, "package-lock.json"), "utf8")) as { version: string; packages: Record<string, { version?: string }> };
-  assert.equal(lock.version, "0.2.5-studio.1");
-  assert.equal(lock.packages[""]?.version, "0.2.5-studio.1");
+  assert.equal(lock.version, pkg.version);
+  assert.equal(lock.packages[""]?.version, pkg.version);
 });

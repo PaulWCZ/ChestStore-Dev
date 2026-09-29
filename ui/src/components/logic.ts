@@ -8,7 +8,7 @@ export { compareText, cx, fill, fold, initials, isEditable, plural } from "./tex
 export { addDays, addMonths, addYearMonths, calendarKey, clampDate, daysBetween, daysInMonth, formatDate, isIsoDate, isoOf, isYearMonth, monthGrid, monthsFrom, moveRangeEnd, moveRangeStart, parseDate, partsOf, rangeDays, readTypedDate, relativeDay, startOfWeek, typedDateComplete, weekday, weekdayHeads, type CalendarDay, type DateRange, type IsoDate, type TypedDate, type YearMonth } from "./dates.js";
 export { endOfDay, moveEnd, moveStart, parseTime, timeOptions, timeText, type TimeOptions } from "./time.js";
 export { localSearch, matches, rememberRecent, searchChoices, type Choice, type SearchOptions } from "./people.js";
-export { listKey, menuKey, tabKey, type ListMove } from "./keys.js";
+export { listKey, menuKey, stripKey, tabKey, type ListMove } from "./keys.js";
 export { durations, expired, latestUndo, settleUndo, toastReducer, type ToastAction, type ToastActionButton, type ToastInput, type ToastPhase, type ToastState, type UndoResult } from "./toast-state.js";
 export { acceptText, accepts, checkFiles, fileSize, putWithProgress, refusalText, storedFile, type FileLike, type FileRules, type Progress, type Refusal } from "./files.js";
 export { activeFilters, ariaSort, clearHref, clearValues, compareValues, filterHref, filterValues, isCurrent, nextSort, paramEntries, paramOf, paramValues, sortRows, type CurrentRule, type Sort, type SortDir, type SortValue } from "./lists.js";

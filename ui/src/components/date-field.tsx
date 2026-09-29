@@ -195,8 +195,15 @@ export function DateField(props: DateFieldProps): ReactElement {
   const quick = chips === false || (compact && chips === undefined) ? [] : (chips ?? [{ label: labels.today, value: today }, { label: labels.tomorrow, value: addDays(today, 1) }]).filter(c => (!min || c.value >= min) && (!max || c.value <= max));
   const shownError = error ?? (quiet ? null : problem);
   const reading = value ? relativeDay(value, today, labels) : null;
-  const read = value ? (reading ? `${reading} · ` : "") + formatDate(value, labels, "long") : "";
-  const described = [readId, hint ? hintId : null, shownError ? errorId : null, describedBy ?? null].filter(Boolean).join(" ");
+  // While a problem stands (a refused text), the day in words is not the
+  // answer: it was the last accepted day, shown under a text that says
+  // another (0.2.6; Leave hid it with a rule of its own). The sentence
+  // takes its place; while the sentence is quiet (a text that reads well
+  // but is not whole yet, "29/10") the line stays, empty, so leaving the
+  // field moves nothing below it.
+  const read = value && problem === null ? (reading ? `${reading} · ` : "") + formatDate(value, labels, "long") : "";
+  const readShown = problem === null || quiet;
+  const described = [readShown ? readId : null, hint ? hintId : null, shownError ? errorId : null, describedBy ?? null].filter(Boolean).join(" ");
   const labelId = auto + "-label";
 
   return (
@@ -242,7 +249,7 @@ export function DateField(props: DateFieldProps): ReactElement {
           </div>
         )}
       </div>
-      <p id={readId} className={compact ? "ck-vh" : "ck-hint ck-date-read"}>{read}</p>
+      {readShown && <p id={readId} className={compact ? "ck-vh" : "ck-hint ck-date-read"}>{read}</p>}
       {hint && <p id={hintId} className="ck-hint">{hint}</p>}
       {shownError && <p id={errorId} className="ck-error">{shownError}</p>}
       {open && (

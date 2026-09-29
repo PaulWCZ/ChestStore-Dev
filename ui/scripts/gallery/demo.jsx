@@ -27,7 +27,7 @@ export const demoWords = {
     people: "People picker", peopleIntro: "Type “lé” or “sal”. Arrows, Enter, Escape; Backspace takes a chip away.",
     owner: "Owner", guests: "Guests", formSent: "Form sent ({n}).", sendForm: "Send the form", guestsHint: "People or a whole group.",
     dates: "Dates and times", datesIntro: "Type “29/10”, “3 oct” or “tomorrow”, or open the calendar (arrows, Page Up/Down). Moving the start keeps the meeting’s length.",
-    due: "Due", start: "Starts", end: "Ends", day: "Day", month: "Month", saveDue: "Save the date", dueSaved: "Saved: {date}.",
+    due: "Due", start: "Starts", end: "Ends", day: "Day", deskDay: "Desks for the day", deskShown: "Desks shown: {date}.", month: "Month", saveDue: "Save the date", dueSaved: "Saved: {date}.",
     files: "Files", filesIntro: "Several files, limits stated first, progress while they go, each one removable. (The upload is simulated here.)",
     receipts: "Receipts",
     table: "Table, filters and search", tableIntro: "Sort by a column, filter by one state or several (the address would keep them), search with “/”.",
@@ -39,7 +39,7 @@ export const demoWords = {
     addRoom: "Add a room", emptyNote: "Only an admin adds rooms.", booking: "Bookings", upcoming: "Upcoming", past: "Past", cancelled: "Cancelled",
     view: "View", layout: "Layout (locked)", board: "Board", list: "List", morning: "Morning", afternoon: "Afternoon", allDay: "All day", when: "When",
     shell: "App shell and navigation", shellIntro: "Labelled tabs, never icons alone: in the header on a wide screen, in a row of their own on a phone. The page’s main action sits at the top.",
-    home: "Home", myTasks: "My tasks", boards: "Boards", companies: "Companies", settings: "Settings", manager: "Manager", newTask: "New task", tasksIntro: "What waits for you today.", language: "Language",
+    more: "More", exportAll: "Export everything", home: "Home", myTasks: "My tasks", boards: "Boards", companies: "Companies", settings: "Settings", manager: "Manager", newTask: "New task", tasksIntro: "What waits for you today.", language: "Language",
     noAccess: "When the role gives nothing",
     removeTemplate: "Delete the template", removeTemplateTitle: "Delete the “Sprint” template?", removeTemplateBody: "Boards made from it keep their columns.", templateRemoved: "Template deleted.",
     daysOff: "Days off", daysOffIntro: "Choose several days.", category: "Category", categories: ["Hardware", "Software", "Travel", "Training", "Office", "Other"],
@@ -64,7 +64,7 @@ export const demoWords = {
     people: "Choix de personnes", peopleIntro: "Tapez « lé » ou « com ». Flèches, Entrée, Échap ; Retour arrière retire une pastille.",
     owner: "Responsable", guests: "Invités", formSent: "Formulaire envoyé ({n}).", sendForm: "Envoyer le formulaire", guestsHint: "Des personnes ou tout un groupe.",
     dates: "Dates et heures", datesIntro: "Tapez « 29/10 », « 3 oct » ou « demain », ou ouvrez le calendrier (flèches, Page préc./suiv.). Déplacer le début garde la durée de la réunion.",
-    due: "Échéance", start: "Début", end: "Fin", day: "Jour", month: "Mois", saveDue: "Enregistrer la date", dueSaved: "Enregistré\u202f: {date}.",
+    due: "Échéance", start: "Début", end: "Fin", day: "Jour", deskDay: "Postes du jour", deskShown: "Postes affichés\u202f: {date}.", month: "Mois", saveDue: "Enregistrer la date", dueSaved: "Enregistré\u202f: {date}.",
     files: "Fichiers", filesIntro: "Plusieurs fichiers, les limites dites d’abord, la progression pendant l’envoi, chacun peut être retiré. (L’envoi est simulé ici.)",
     receipts: "Justificatifs",
     table: "Tableau, filtres et recherche", tableIntro: "Triez par colonne, filtrez par un état ou plusieurs (l’adresse les garderait), cherchez avec « / ».",
@@ -76,7 +76,7 @@ export const demoWords = {
     addRoom: "Ajouter une salle", emptyNote: "Seul un administrateur ajoute des salles.", booking: "Réservations", upcoming: "À venir", past: "Passées", cancelled: "Annulées",
     view: "Affichage", layout: "Mise en page (verrouillée)", board: "Tableau", list: "Liste", morning: "Matin", afternoon: "Après-midi", allDay: "Journée", when: "Quand",
     shell: "Cadre et navigation", shellIntro: "Des onglets avec leurs mots, jamais des icônes seules : dans l’en-tête sur grand écran, sur une ligne à eux sur téléphone. L’action principale de la page est en haut.",
-    home: "Accueil", myTasks: "Mes tâches", boards: "Tableaux", companies: "Entreprises", settings: "Réglages", manager: "Responsable", newTask: "Nouvelle tâche", tasksIntro: "Ce qui vous attend aujourd’hui.", language: "Langue",
+    more: "Plus", exportAll: "Tout exporter", home: "Accueil", myTasks: "Mes tâches", boards: "Tableaux", companies: "Entreprises", settings: "Réglages", manager: "Responsable", newTask: "Nouvelle tâche", tasksIntro: "Ce qui vous attend aujourd’hui.", language: "Langue",
     noAccess: "Quand le rôle ne donne rien",
     removeTemplate: "Supprimer le modèle", removeTemplateTitle: "Supprimer le modèle « Sprint » ?", removeTemplateBody: "Les tableaux créés avec lui gardent leurs colonnes.", templateRemoved: "Modèle supprimé.",
     daysOff: "Jours de congé", daysOffIntro: "Choisissez plusieurs jours.", category: "Catégorie", categories: ["Matériel", "Logiciel", "Déplacement", "Formation", "Bureau", "Autre"],
@@ -230,10 +230,26 @@ function DatesDemo({ d, w, today, lang }) {
         <span className="ck-label" aria-hidden="true">{d.day}</span>
         <DayStrip days={days} current={day} today={today} onPick={setDay} labels={w.date} label={d.day} />
       </div>
+      <DayLinksDemo d={d} w={w} today={today} days={days} lang={lang} />
       <div>
         <p className="ck-label" id={`${lang}-days-off`}>{d.daysOff}</p>
         <Calendar value={null} today={today} multiple inline selected={off} labelledBy={`${lang}-days-off`} labels={w.date} onPick={iso => setOff(o => (o.includes(iso) ? o.filter(x => x !== iso) : [...o, iso]))} />
       </div>
+    </div>
+  );
+}
+
+// A strip of links (Rooms: each day is its page): one Tab stop, the
+// arrows move, Enter or Space follows the link (0.2.6). The links here
+// only change the state (a tool's are pages).
+function DayLinksDemo({ d, w, today, days, lang }) {
+  const [shown, setShown] = useState(addDays(today, 1));
+  const link = ({ href, children, ...rest }) => <a href={href} {...rest} onClick={e => { e.preventDefault(); setShown(href.slice(href.lastIndexOf("-on-") + 4)); }}>{children}</a>;
+  return (
+    <div className="demo-wide demo-stack-s" data-probe="day-links">
+      <span className="ck-label" aria-hidden="true">{d.deskDay}</span>
+      <DayStrip days={days} current={shown} today={today} href={day => `#${lang}-on-${day}`} link={link} labels={w.date} label={d.deskDay} />
+      <p className="demo-note" role="status">{fill(d.deskShown, { date: formatDate(shown, w.date, "long") })}</p>
     </div>
   );
 }
@@ -432,6 +448,7 @@ function ShellDemo({ d, w, lang }) {
       <div className="demo-frame">
         <AppShell brand={<a href="/chest" onClick={e => { e.preventDefault(); setPath("/chest"); }}><span className="demo-mark" aria-hidden="true" />Tasks</a>} path={path} link={link} labels={w.shell}
           member={{ name: "Camille Martin", role: d.manager, photo: null }}
+          tools={<Menu label={d.more} showLabel items={[{ label: d.exportAll, onSelect: () => {} }, { label: d.settings, onSelect: () => setPath("/chest/settings") }]} />}
           nav={[
             { href: "/chest", label: d.home, icon: icon(<path d="M4 11l8-7 8 7v9H4z" />) },
             { href: "/chest/mine", label: d.myTasks, count: 4, icon: icon(<path d="M5 12l4 4 10-10" />) },

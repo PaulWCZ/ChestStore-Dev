@@ -353,7 +353,10 @@ const sources: ThemeSource[] = [
     modes: "light",
     // The portal's plain sheet: no pattern, no sunset (--decor: 0, 0.2.3).
     decor: false,
-    type: { xs: 0.6875, s: 0.8125, m: 0.9375, l: 1.0625, xl: 1.625, xxl: 2.25, leading: 1.45 },
+    // Headings a step up (0.2.6): a page's title on a phone (--text-l for
+    // PageHeader size "m") was 17 px over a 15 px body, and read as a
+    // plain spreadsheet (Quotes' desk). Now 20 / 28 / 40 px.
+    type: { xs: 0.6875, s: 0.8125, m: 0.9375, l: 1.25, xl: 1.75, xxl: 2.5, leading: 1.45 },
     radius: { s: 0, m: 0, l: 0 },
     motion: { ease: "cubic-bezier(0.4, 0, 0.2, 1)", fast: 150, slow: 150 },
     light: {

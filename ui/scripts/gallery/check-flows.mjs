@@ -1,5 +1,7 @@
 // Drives gallery/components.html with the keyboard and the mouse: the toast's
-// Undo (Ctrl+Z, hover pause, sent, one per id, failure), the dialog's dirty
+// Undo (Ctrl+Z, hover pause, sent, one per id, failure; 0.2.6: gone by
+// itself after a click or a tap, above a phone's bottom bar), the day
+// strip's one Tab stop (0.2.6), the dialog's dirty
 // guard, Confirm, the people picker, the date field and calendar, times,
 // table sort, '/' search, the row menu, tabs. Fails on the first broken step.
 //   npm run gallery && node scripts/gallery/check-flows.mjs
@@ -58,6 +60,75 @@ const focusedClose = await page.evaluate(() => document.activeElement?.className
 assert.equal(focusedClose, "ck-toast-close");
 step("a failed Undo says why, and focus lands on the toast's close button");
 await page.mouse.move(0, 0);
+
+// A toast goes by itself (0.2.6; Quotes' flow had to close one): it waited
+// for ever when it appeared under a pointer that did not move (the bar's
+// button just clicked), when a click on its Undo left the focus in it,
+// and after a tap on a phone (a tap is not a hover).
+{
+  const desk = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+  desk.on("pageerror", e => errors.push(e.message));
+  await desk.goto(page.url());
+  const bench = desk.locator("#bench-en");
+  const gone = async (locator, ms, what) => {
+    const t0 = Date.now();
+    await locator.waitFor({ state: "detached", timeout: ms }).catch(() => {});
+    assert.equal(await locator.count(), 0, `${what}: still there after ${ms} ms`);
+    return Date.now() - t0;
+  };
+  // Under a still pointer: the toast is shown by the keyboard with the mouse resting where it appears.
+  await bench.getByRole("button", { name: "Send the invitation" }).focus();
+  await desk.mouse.move(640, 900 - 16 - 26);
+  await desk.keyboard.press("Enter");
+  const under = bench.locator(".ck-toast", { hasText: "Invitation sent" });
+  await under.waitFor();
+  const box = await under.boundingBox();
+  assert.ok(box.y <= 900 - 16 - 26 && box.y + box.height >= 900 - 16 - 26, "the pointer rests on the toast");
+  await gone(under, 6000 + 2500, "a toast under a still pointer");
+  // A click on Undo: "Undone." goes in its 4 s, the focus left where the click put it.
+  await bench.getByRole("button", { name: "Move a card" }).click();
+  await bench.locator(".ck-toast", { hasText: "Card moved" }).locator(".ck-toast-undo").click();
+  const undone = bench.locator(".ck-toast", { hasText: "Undone." });
+  await undone.waitFor();
+  await desk.mouse.move(5, 5);
+  assert.notEqual(await desk.evaluate(() => document.activeElement?.className), "ck-toast-close", "a click does not put the focus in the toast");
+  await gone(undone, 4000 + 2500, "Undone. after a click on Undo");
+  // A mouse that moves onto it still holds it (WCAG 2.2.1), and lets it go when it leaves.
+  await bench.getByRole("button", { name: "Move a card" }).click();
+  const held = bench.locator(".ck-toast", { hasText: "Card moved" });
+  await held.hover();
+  await desk.waitForTimeout(11000);
+  assert.equal(await held.count(), 1, "a pointed toast waits beyond its 10 s");
+  await desk.mouse.move(5, 5);
+  await gone(held, 10000 + 2500, "a toast the pointer left (its time left, 10 s at most)");
+  await desk.close();
+  // A phone: tap Undo, then nothing — "Undone." goes by itself.
+  const phoneCtx = await browser.newContext({ viewport: { width: 390, height: 800 }, isMobile: true, hasTouch: true });
+  const phone = await phoneCtx.newPage();
+  phone.on("pageerror", e => errors.push(e.message));
+  await phone.goto(page.url());
+  const pbench = phone.locator("#bench-en");
+  await pbench.getByRole("button", { name: "Move a card" }).tap();
+  await pbench.locator(".ck-toast", { hasText: "Card moved" }).locator(".ck-toast-undo").tap();
+  const tapped = pbench.locator(".ck-toast", { hasText: "Undone." });
+  await tapped.waitFor();
+  await gone(tapped, 4000 + 2500, "Undone. after a tap on Undo");
+  // Above a phone's bottom bar (Quotes' "Send" bar): a bar marked
+  // data-ck-bottom-bar lifts the toasts by its height; without it, as before.
+  await pbench.getByRole("button", { name: "Move a card" }).tap();
+  const plain = await pbench.locator(".ck-toast").last().boundingBox();
+  assert.ok(plain.y + plain.height >= 800 - 16 - 20, `without a bar the toast sits at the bottom (${plain.y + plain.height})`);
+  await pbench.locator(".ck-toast-close").last().tap();
+  await phone.evaluate(() => { const bar = document.createElement("div"); bar.setAttribute("data-ck-bottom-bar", ""); bar.style.cssText = "position:fixed;left:0;right:0;bottom:0;height:72px;z-index:50;background:var(--surface)"; bar.innerHTML = "<button type='button' style='width:100%;height:72px'>Send</button>"; document.body.append(bar); });
+  await pbench.getByRole("button", { name: "Move a card" }).tap();
+  const lifted = pbench.locator(".ck-toast", { hasText: "Card moved" });
+  await lifted.waitFor(); await phone.waitForTimeout(400);
+  const t = await lifted.boundingBox();
+  assert.ok(t.y + t.height <= 800 - 72, `the toast is above the bar (its bottom at ${t.y + t.height}, the bar's top at ${800 - 72})`);
+  assert.equal(await phone.evaluate(() => document.elementFromPoint(195, 800 - 36)?.textContent), "Send", "the bar's button is not covered");
+  await phoneCtx.close();
+}
+step("toasts go by themselves (a still pointer, a click or a tap on Undo), wait for a moving pointer, and sit above a phone's bottom bar (0.2.6)");
 
 // Dialog dirty guard
 await en.getByRole("button", { name: "New board" }).click();
@@ -248,6 +319,8 @@ const dmy = iso => `${iso.slice(8)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}`;
 const savedAs = iso => `Saved: ${formatDate(iso, kitEn.date, "long")}.`;
 const tooEarly = en.getByText(/^Choose .+ or later\.$/u);
 const refuse = async () => { await due.fill("01/01/2020"); await due.press("Tab"); await tooEarly.waitFor({ timeout: 2000 }); };
+const dueBox = en.locator(".ck-date").filter({ has: page.getByRole("textbox", { name: "Due", exact: true }) });
+const dueRead = () => dueBox.locator(".ck-date-read");
 await due.fill(""); await due.press("Tab");
 const restGap = await gapBelow();
 const later = addDays(today, 40);
@@ -265,7 +338,8 @@ await refuse();
 await due.fill(dmy(today).slice(0, 5));
 await page.waitForTimeout(100);
 assert.equal(await tooEarly.count(), 0, "an accepted text clears the sentence while it is typed");
-assert.match(await en.locator(".ck-date-read").first().textContent(), new RegExp(formatDate(later, kitEn.date, "long")), "not committed while it could still grow");
+// (0.2.6: while the problem stands the day in words is not shown: the line is kept, empty.)
+assert.equal(await dueRead().textContent(), "", "not committed while it could still grow: no day in words yet");
 await saveDue.click();
 await page.waitForTimeout(200);
 assert.equal(await savedNote.textContent(), savedAs(today), "committed on the press's blur, the click kept");
@@ -275,9 +349,27 @@ await refuse();
 await due.fill("1/1/2");
 await page.waitForTimeout(100);
 assert.equal(await tooEarly.count(), 1, "a half-typed text keeps the sentence (no new problem, no flicker)");
-assert.match(await en.locator(".ck-date-read").first().textContent(), /^Today · /u, "the value untouched");
 await due.fill(dmy(later)); await due.press("Tab");
+assert.match(await dueRead().textContent(), new RegExp(formatDate(later, kitEn.date, "long")), "the corrected day");
 step("date: a corrected date and Save in one move — the sentence goes while typing, the click lands (0.2.5)");
+
+// A refused text never shows the last accepted day in words under it
+// (0.2.6; Leave hid the line with a rule of its own): the sentence takes
+// the line's place — so saying it on blur moves nothing below — and a
+// text that reads well but is not whole yet leaves the line empty.
+await due.fill(dmy(today)); await due.press("Tab");
+assert.match(await dueRead().textContent(), /^Today · /u);
+await refuse();
+assert.equal(await dueBox.locator(".ck-date-read").count(), 0, "no day in words under a refused text");
+assert.ok(Math.abs(await gapBelow() - restGap) <= 1, `the sentence took the words' line: the Save below did not move (${await gapBelow()} vs ${restGap})`);
+await due.fill(dmy(later).slice(0, 5));
+await page.waitForTimeout(100);
+assert.equal(await tooEarly.count(), 0);
+assert.equal(await dueRead().textContent(), "", "a text not whole yet: the line kept, empty — not the last accepted day");
+assert.ok(Math.abs(await gapBelow() - restGap) <= 1, "and nothing moved");
+await due.fill(dmy(later)); await due.press("Tab");
+assert.match(await dueRead().textContent(), new RegExp(`^${formatDate(later, kitEn.date, "long")}$|· ${formatDate(later, kitEn.date, "long")}$`), "the new day, in words");
+step("date: a refused text shows no day in words; its sentence takes that line (0.2.6)");
 
 // MonthField: the next month by its button, a month by the list.
 const month = en.getByRole("combobox", { name: "Month" });
@@ -439,6 +531,71 @@ const periodTo = await period.getByRole("textbox", { name: "To" }).inputValue();
 await period.getByRole("textbox", { name: "From" }).fill("01/01/2026"); await period.getByRole("textbox", { name: "From" }).press("Enter");
 assert.equal(await period.getByRole("textbox", { name: "To" }).inputValue(), periodTo, "the end stays");
 step("date: an outside change is the text at once; typing right after it is kept (the Leave race)");
+// DayStrip, one Tab stop (0.2.6; Rooms had 27 Tab stops before its first
+// desk): the chosen day is the strip's only Tab stop, Left/Right move a
+// day, Home/End the ends, Enter or Space chooses; Tab leaves the strip.
+// Buttons are a listbox of options; links stay links (Rooms' pages).
+{
+  const strip = en.getByRole("listbox", { name: "Day" });
+  const options = strip.getByRole("option");
+  const n = await options.count();
+  assert.ok(n >= 10, `ten days (${n})`);
+  assert.equal(await strip.locator('[tabindex="0"]').count(), 1, "one Tab stop");
+  assert.equal(await strip.locator('[tabindex="-1"]').count(), n - 1, "the other days are reached by the arrows");
+  const chosen = strip.locator('[aria-selected="true"]');
+  assert.equal(await chosen.getAttribute("tabindex"), "0", "the Tab stop is the chosen day");
+  const focusedIndex = () => page.evaluate(() => { const all = [...document.querySelectorAll('#bench-en [role=listbox][aria-label="Day"] [role=option]')]; return all.indexOf(document.activeElement); });
+  // Reached by Tab from the control before it.
+  await chosen.focus(); await page.keyboard.press("Shift+Tab"); await page.keyboard.press("Tab");
+  assert.equal(await focusedIndex(), 0, "Tab lands on the chosen day (today)");
+  await page.keyboard.press("ArrowRight"); await page.keyboard.press("ArrowRight");
+  assert.equal(await focusedIndex(), 2, "Right: a day later, twice");
+  assert.equal(await options.nth(2).getAttribute("aria-selected"), "false", "moving is not choosing");
+  await page.keyboard.press("Enter");
+  assert.equal(await options.nth(2).getAttribute("aria-selected"), "true", "Enter chooses");
+  await page.keyboard.press("End");
+  assert.equal(await focusedIndex(), n - 1, "End: the last day");
+  await page.keyboard.press("ArrowRight");
+  assert.equal(await focusedIndex(), n - 1, "no wrapping past the last day");
+  await page.keyboard.press("Home");
+  assert.equal(await focusedIndex(), 0, "Home: the first day");
+  await page.keyboard.press("ArrowLeft");
+  assert.equal(await focusedIndex(), 0);
+  await page.keyboard.press("ArrowRight"); await page.keyboard.press(" ");
+  assert.equal(await options.nth(1).getAttribute("aria-selected"), "true", "Space chooses");
+  assert.equal(await options.nth(1).getAttribute("tabindex"), "0", "the Tab stop follows");
+  await page.keyboard.press("Tab");
+  assert.equal(await page.evaluate(() => document.activeElement?.closest("[role=listbox][aria-label=Day]") === null), true, "one Tab leaves the strip");
+  await page.keyboard.press("Shift+Tab");
+  assert.equal(await focusedIndex(), 1, "Shift+Tab comes back to the chosen day");
+  // Links (Rooms): the same keys, Enter or Space follows the link.
+  const links = en.locator('[data-probe="day-links"]');
+  const nav = links.getByRole("navigation", { name: "Desks for the day" });
+  const tiles = nav.getByRole("link");
+  const m = await tiles.count();
+  assert.equal(await nav.locator('[tabindex="0"]').count(), 1, "links: one Tab stop");
+  const current = nav.locator('[aria-current="date"]');
+  assert.equal(await current.getAttribute("tabindex"), "0", "the current day's link");
+  const linkIndex = () => page.evaluate(() => { const all = [...document.querySelectorAll('#bench-en [data-probe="day-links"] .ck-daytile')]; return all.indexOf(document.activeElement); });
+  await current.focus();
+  const start = await linkIndex();
+  await page.keyboard.press("ArrowRight");
+  assert.equal(await linkIndex(), start + 1);
+  const status = links.getByRole("status");
+  const before = await status.textContent();
+  await page.keyboard.press("Enter");
+  assert.notEqual(await status.textContent(), before, "Enter follows the link");
+  assert.equal(await nav.locator('[aria-current="date"]').getAttribute("tabindex"), "0", "the new current day is the Tab stop");
+  await page.keyboard.press("End");
+  assert.equal(await linkIndex(), m - 1);
+  await page.keyboard.press(" ");
+  assert.match(await status.textContent(), new RegExp(formatDate(addDays(today, m - 1), kitEn.date, "long")), "Space follows the link");
+  assert.equal(page.url().includes("#"), false, "the tool's link did the navigating");
+  await page.keyboard.press("Tab");
+  assert.equal(await page.evaluate(() => document.activeElement?.closest('[data-probe="day-links"]') === null), true, "one Tab leaves the strip");
+}
+step("day strip: one Tab stop, arrows, Home/End, Enter or Space — buttons (a listbox) and links (0.2.6)");
+
 // Filters kept in the page, on a coloured band (0.2.3).
 const band = en.locator(".demo-cat-band");
 const kind = band.getByRole("combobox", { name: "Item" });

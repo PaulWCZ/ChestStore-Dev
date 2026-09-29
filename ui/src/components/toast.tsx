@@ -10,10 +10,10 @@
 //   toast({ id: `invite-${id}`, text: t.invitationSent, sent: true });   // never an Undo
 //
 // Ctrl+Z (⌘Z on a Mac), outside a text field, runs the newest Undo.
-import { createContext, useCallback, useContext, useEffect, useMemo, useReducer, useRef, type ReactElement, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useReducer, useRef, type ReactElement, type ReactNode } from "react";
 import { CloseIcon, SentIcon, UndoIcon } from "./icons.js";
 import { isEditable } from "./text.js";
-import { expired, latestUndo, settleUndo, toastReducer, type ToastInput, type ToastState } from "./toast-state.js";
+import { bottomBarLift, bottomBarProperty, byKeyboard, expired, latestUndo, settleUndo, toastReducer, type ToastInput, type ToastState } from "./toast-state.js";
 import { en, type ToastWords } from "./words.js";
 
 export type ShowToast = (input: ToastInput | string) => string;
@@ -58,10 +58,12 @@ export function Toasts({ labels = en.toast, children }: { labels?: ToastWords; c
       settled = { ok: false, note: null };
     }
     // The Undo button goes: whoever used it from the keyboard lands on the
-    // toast's close button, not at the top of the page.
+    // toast's close button, not at the top of the page. A click or a tap
+    // leaves the focus where it was (0.2.6): moved into the toast, it held
+    // the toast there (paused) until the person clicked elsewhere.
     const active = typeof document === "undefined" ? null : document.activeElement;
     const box = active?.closest?.(".ck-toast");
-    if (box && box.getAttribute("data-toast-id") === id) box.querySelector<HTMLElement>(".ck-toast-close")?.focus();
+    if (box && box.getAttribute("data-toast-id") === id && active && byKeyboard(active)) box.querySelector<HTMLElement>(".ck-toast-close")?.focus();
     dispatch({ type: "undoEnd", id, ok: settled.ok, note: settled.note, now: Date.now() });
   }, []);
 
@@ -88,13 +90,52 @@ export function Toasts({ labels = en.toast, children }: { labels?: ToastWords; c
     }
   }, [toasts]);
 
+  // A pointer held on a toast that then moves anywhere else lets it go
+  // (0.2.6): a toast that changed under a still pointer (a line shorter,
+  // a button gone) is not always told the pointer left.
+  const hovered = toasts.filter(t => t.hover).map(t => t.id).join("\n");
+  useEffect(() => {
+    if (hovered === "") return;
+    const ids = hovered.split("\n");
+    const onMove = (e: PointerEvent) => {
+      if (e.pointerType !== "mouse") return;
+      const on = (e.target as Element | null)?.closest?.(".ck-toast")?.getAttribute("data-toast-id") ?? null;
+      for (const id of ids) if (id !== on) dispatch({ type: "hover", id, on: false, now: Date.now() });
+    };
+    document.addEventListener("pointermove", onMove, { passive: true });
+    return () => document.removeEventListener("pointermove", onMove);
+  }, [hovered]);
+
+  // Above a phone's bottom bar (0.2.6): a toast never covers the bar of a
+  // tool's main actions (Quotes had to close its toast to reach "Send").
+  // A bar the tool marks as its bottom bar (the attribute is in
+  // bottomBarLift, toast-state.ts) that touches the bottom of the screen
+  // lifts the toasts by its height (a custom property on the region); a
+  // tool may also set that property itself, on an ancestor.
+  const region = useRef<HTMLElement>(null);
+  const showing = toasts.length > 0;
+  useLayoutEffect(() => {
+    if (!showing) return;
+    const place = () => {
+      const el = region.current;
+      if (!el) return;
+      const lift = bottomBarLift(document, window.innerHeight);
+      if (lift > 0) el.style.setProperty(bottomBarProperty, `${lift}px`);
+      else el.style.removeProperty(bottomBarProperty);
+    };
+    place();
+    window.addEventListener("resize", place);
+    window.addEventListener("scroll", place, { passive: true });
+    return () => { window.removeEventListener("resize", place); window.removeEventListener("scroll", place); };
+  }, [showing, toasts]);
+
   const value = useMemo(() => ({ show, dismiss }), [show, dismiss]);
   const polite = toasts.filter(t => t.tone !== "error");
   const urgent = toasts.filter(t => t.tone === "error");
   return (
     <Context.Provider value={value}>
       {children}
-      <section className="ck-toasts" aria-label={labels.region}>
+      <section className="ck-toasts" aria-label={labels.region} ref={region}>
         {/* Both live regions exist from the first render, so screen readers announce what is added. */}
         <div role="status" aria-live="polite" className="ck-toast-stack">
           {polite.map(t => <Toast key={t.id} toast={t} labels={labels} dispatch={dispatch} runUndo={runUndo} />)}
@@ -120,10 +161,16 @@ function Toast({ toast, labels, dispatch, runUndo }: { toast: ToastState; labels
       className={`ck-toast${toast.tone === "error" || toast.phase === "failed" ? " ck-toast-error" : ""}${toast.sent ? " ck-toast-sent" : ""}`}
       data-phase={toast.phase}
       data-toast-id={id}
-      onMouseEnter={() => dispatch({ type: "hover", id, on: true, now: Date.now() })}
-      onMouseLeave={() => dispatch({ type: "hover", id, on: false, now: Date.now() })}
-      onFocus={() => dispatch({ type: "focus", id, on: true, now: Date.now() })}
-      onBlur={e => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) dispatch({ type: "focus", id, on: false, now: Date.now() }); }}
+      // It waits while a mouse rests on it — once the mouse has moved over
+      // it: a toast that appears under a still pointer (the button just
+      // clicked, a phone's bar under the finger) is not being read, and
+      // waited there for ever (0.2.6, Quotes). A touch is not a hover.
+      onPointerMove={e => { if (e.pointerType === "mouse" && !toast.hover) dispatch({ type: "hover", id, on: true, now: Date.now() }); }}
+      onPointerLeave={() => { if (toast.hover) dispatch({ type: "hover", id, on: false, now: Date.now() }); }}
+      // And while the keyboard is in it; focus a click or a tap left on one
+      // of its buttons does not hold it (0.2.6).
+      onFocus={e => { if (byKeyboard(e.target)) dispatch({ type: "focus", id, on: true, now: Date.now() }); }}
+      onBlur={e => { if (toast.focus && !e.currentTarget.contains(e.relatedTarget as Node | null)) dispatch({ type: "focus", id, on: false, now: Date.now() }); }}
     >
       {toast.sent && <SentIcon />}
       <p className="ck-toast-text">{text}</p>

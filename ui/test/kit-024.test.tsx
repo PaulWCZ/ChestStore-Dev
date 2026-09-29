@@ -83,7 +83,9 @@ test("DateField: an error is read with the field (aria-invalid, aria-describedby
 // ---------- 2. Phone navigation: whole names, counts beside their icons (Expenses) ----------
 
 test("phone navigation: a tab takes what its longest word needs, the face a little smaller, before any '…' (Expenses: 'À rembour…')", () => {
-  assert.match(phone, /\.ck-nav ul \{[^}]*grid-auto-columns: minmax\(min-content, 1fr\);/u, "equal tabs while every word fits; a long word widens its tab");
+  // 0.2.6: the tabs share the row by their names' widths (flex), so five
+  // French names fit on one line in a brand's face (test/kit-026.test.tsx).
+  assert.match(phone, /\.ck-nav li \{[^}]*flex: 1 1 auto;/u, "a long word widens its tab");
   assert.match(phone, /\.ck-nav-link \{[^}]*max-width: 40vw;/u, "one word never takes more than 40% of the row");
   assert.match(phone, /\.ck-nav-link \{[^}]*padding: var\(--space-1\) 2px;/u);
   assert.match(phone, /\.ck-nav-link \{[^}]*font-size: min\(var\(--text-xs\), 0\.75rem\);/u, "at most 12 px on a phone");

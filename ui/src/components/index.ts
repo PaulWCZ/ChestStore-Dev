@@ -17,7 +17,7 @@ export { Avatar, AvatarStack, type AvatarSize, type Face } from "./avatar.js";
 export { DateField, Calendar, type CalendarProps, type DateFieldProps } from "./date-field.js";
 export { DateRangeField, type DateRangeFieldProps } from "./date-range.js";
 export { MonthField, type MonthFieldProps } from "./month-field.js";
-export { DayStrip, type DayStripProps } from "./day-strip.js";
+export { DayStrip, type DayStripLinkProps, type DayStripProps } from "./day-strip.js";
 export { TimeSelect, type TimeSelectProps } from "./time-select.js";
 export { FilePicker, filesReady, storedFile, type FilePickerProps, type PickedFile, type Upload } from "./file-picker.js";
 export { DataTable, type Column, type RowProps, type DataTableProps } from "./data-table.js";

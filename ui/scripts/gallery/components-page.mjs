@@ -27,14 +27,19 @@ const both = (en, fr) => `data-en="${escape(en)}" data-fr="${escape(fr)}"`;
 // An element whose words switch with the language (English in the file).
 const said = (tag, en, fr, attrs = "") => `<${tag}${attrs ? " " + attrs : ""} ${both(en, fr)}>${escape(en)}</${tag}>`;
 
-// The looks: the portal's sheet, two identities, a brand.
-const brand = deriveTheme({ name: "Atelier Martin", primary: "#e4572e", secondary: "#17bebb", display: { id: "young-serif" }, body: { id: "work-sans" }, corners: "round" }).theme;
+// The looks: the portal's sheet, three identities, two brands.
+// The two brands of the harness (lab/chest-dev/brand/sample.mjs), as a
+// company would give them: Atelier Martin, and Café du Port — a yellow too
+// light to carry white text, sharp and compact (0.2.6: its phone tabs).
+const brand = deriveTheme({ name: "Atelier Martin", primary: "#0e7c66", secondary: "#f2b134", neutral: "#5e6b68", corners: "round", density: "comfortable", display: { id: "young-serif" }, body: { id: "work-sans" } }).theme;
+const port = deriveTheme({ name: "Café du Port", primary: "#ffd23f", secondary: "#1b2a4a", neutral: "#6b6f76", corners: "sharp", density: "compact", display: { id: "fraunces" }, body: { id: "inter" } }).theme;
 const looks = [
   { id: "chest", theme: themeOf("chest"), name: ["Chest", "Chest"] },
   { id: "workshop", theme: themeOf("workshop"), name: ["Workshop (Tasks)", "Atelier (Tâches)"] },
   { id: "library", theme: themeOf("library"), name: ["Library (Wiki)", "Bibliothèque (Wiki)"] },
   { id: "instrument", theme: themeOf("instrument"), name: ["Instrument (Timesheets)", "Instrument (Temps)"] },
   { id: "brand", theme: { ...brand, id: "brand" }, name: ["A brand: Atelier Martin", "Une marque : Atelier Martin"] },
+  { id: "port", theme: { ...port, id: "port" }, name: ["A brand: Café du Port", "Une marque : Café du Port"] },
 ];
 const lightOnly = t => t.modes === "light";
 const themeStyles = looks.map(l => themeCss(l.theme, { selector: `.th-${l.id}-l`, mode: "light", faces: false }) + "\n" + themeCss(l.theme, { selector: `.th-${l.id}-d`, mode: lightOnly(l.theme) ? "light" : "dark", faces: false })).join("\n");

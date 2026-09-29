@@ -65,7 +65,9 @@ textarea.ck-field { padding-block: var(--space-2); line-height: var(--leading); 
 }
 
 /* ---------- Toasts ---------- */
-.ck-toasts { position: fixed; z-index: 60; left: var(--space-3); right: var(--space-3); bottom: max(var(--space-4), env(safe-area-inset-bottom)); display: grid; justify-items: center; gap: var(--space-2); pointer-events: none; }
+/* Above a phone's bottom bar (0.2.6): --ck-bottom-bar is the height of a
+   bar marked data-ck-bottom-bar (measured by <Toasts>), or what a tool sets. */
+.ck-toasts { position: fixed; z-index: 60; left: var(--space-3); right: var(--space-3); bottom: calc(max(var(--space-4), env(safe-area-inset-bottom)) + var(--ck-bottom-bar, 0px)); display: grid; justify-items: center; gap: var(--space-2); pointer-events: none; }
 .ck-toast-stack { display: grid; justify-items: center; gap: var(--space-2); }
 .ck-toast {
   pointer-events: auto; display: flex; align-items: center; gap: var(--space-2);
@@ -172,6 +174,9 @@ textarea.ck-field { padding-block: var(--space-2); line-height: var(--leading); 
    after typing missed its button). */
 .ck-date-read, .ck-date-read:empty { display: block; min-height: calc(var(--text-s) * var(--leading)); line-height: var(--leading); }
 .ck-date-read:not(:empty)::first-letter { text-transform: uppercase; }
+/* A refused text's sentence takes the words' line (0.2.6): same measure,
+   so saying it on blur moves nothing below the field. */
+.ck-date > .ck-error { line-height: var(--leading); }
 .ck-calendar { position: absolute; z-index: 30; top: 100%; left: 0; margin-top: var(--space-1); width: min(340px, calc(100vw - 2 * var(--space-3))); padding: var(--space-3); border: var(--border-width) solid var(--line-strong); border-radius: var(--radius-l); background: var(--surface); color: var(--ink); box-shadow: var(--shadow-2); }
 .ck-calendar-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); }
 .ck-calendar-title { margin: 0; font: var(--display-weight) var(--text-m)/1.2 var(--font-display); letter-spacing: var(--display-tracking); }
@@ -203,7 +208,7 @@ textarea.ck-field { padding-block: var(--space-2); line-height: var(--leading); 
 .ck-date-compact .ck-date-box { flex: 1 1 auto; min-width: 9.5em; }
 
 .ck-daystrip { display: flex; align-items: center; gap: var(--space-2); min-width: 0; }
-.ck-daystrip nav { min-width: 0; overflow-x: auto; scrollbar-width: thin; padding: 3px; }
+.ck-daystrip nav, .ck-daystrip-row { min-width: 0; overflow-x: auto; scrollbar-width: thin; padding: 3px; }
 .ck-daystrip ul { display: flex; gap: var(--space-1); list-style: none; margin: 0; padding: 0; }
 .ck-daytile { display: grid; justify-items: center; gap: 1px; min-width: 60px; min-height: 64px; padding: var(--space-1) var(--space-2); border: var(--border-width) solid var(--line); border-radius: var(--radius-m); background: var(--surface); color: var(--ink); text-decoration: none; font: inherit; cursor: pointer; }
 .ck-daytile:hover { background: var(--surface-2); }
@@ -212,8 +217,8 @@ textarea.ck-field { padding-block: var(--space-2); line-height: var(--leading); 
 .ck-daytile .ck-mon { font-size: var(--text-xs); color: var(--ink-2); }
 .ck-daytile .ck-dow::first-letter { text-transform: uppercase; }
 .ck-daytile.ck-is-today .ck-dow { color: var(--accent-text); font-weight: var(--weight-strong); }
-.ck-daytile[aria-current="date"], .ck-daytile[aria-pressed="true"] { background: var(--accent); border-color: var(--accent-line); color: var(--accent-ink); }
-.ck-daytile[aria-current="date"] .ck-dow, .ck-daytile[aria-current="date"] .ck-mon, .ck-daytile[aria-pressed="true"] .ck-dow, .ck-daytile[aria-pressed="true"] .ck-mon { color: var(--accent-ink); }
+.ck-daytile[aria-current="date"], .ck-daytile[aria-pressed="true"], .ck-daytile[aria-selected="true"] { background: var(--accent); border-color: var(--accent-line); color: var(--accent-ink); }
+.ck-daytile:is([aria-current="date"], [aria-pressed="true"], [aria-selected="true"]) :is(.ck-dow, .ck-mon) { color: var(--accent-ink); }
 .ck-day-note { font-size: var(--text-xs); }
 .ck-daystrip-more { flex: none; }
 
@@ -329,6 +334,11 @@ textarea.ck-field { padding-block: var(--space-2); line-height: var(--leading); 
 /* ---------- Menus ---------- */
 .ck-menu { position: relative; display: inline-block; }
 .ck-menu-list { position: absolute; z-index: 40; top: 100%; min-width: 12em; margin: var(--space-1) 0 0; padding: var(--space-1); list-style: none; border: var(--border-width) solid var(--line-strong); border-radius: var(--radius-m); background: var(--surface); box-shadow: var(--shadow-2); text-align: left; }
+/* In the header a menu's shown label is a word beside the sections, not a
+   box (0.2.6: "More" read as a heavy bordered box in the Chest look,
+   square and grey-edged): no edge, no ground until pointed at or open. */
+.ck-bar .ck-menu > .ck-button-quiet { border-color: transparent; background: none; color: var(--ink-2); }
+.ck-bar .ck-menu > .ck-button-quiet:hover, .ck-bar .ck-menu > .ck-button-quiet[aria-expanded="true"] { background: var(--surface-2); color: var(--ink); }
 .ck-menu-end { right: 0; }
 .ck-menu-start { left: 0; }
 .ck-menu-item { display: flex; align-items: center; gap: var(--space-2); width: 100%; min-height: var(--control-h); padding: 0 var(--space-3); border: 0; border-radius: var(--radius-s); background: none; color: var(--ink); font: inherit; text-align: left; text-decoration: none; white-space: nowrap; cursor: pointer; }
@@ -521,14 +531,16 @@ div.ck-page-intro > :last-child { margin-bottom: 0; }
   .ck-bar-inner { padding: 0 var(--space-3); gap: 0 var(--space-2); min-height: 52px; }
   .ck-bar-nav { order: 3; flex-basis: 100%; margin: 0 calc(-1 * var(--space-3)); border-top: var(--border-width) solid var(--line); }
   .ck-nav { width: 100%; }
-  /* The tabs share the width equally while every word fits; a tab whose
-     longest word is wider than its share takes what that word needs from
-     the others (min-content), so "À rembourser" wraps at its space onto
-     two lines and "Entreprises" stays whole at 390 px (0.2.4: they ended
-     in "…"). A tab never claims more than 40% of the row for one word. */
-  .ck-nav ul { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(min-content, 1fr); width: 100%; gap: 0; overflow-x: auto; scrollbar-width: none; }
-  .ck-nav li { display: block; min-width: 48px; }
-  .ck-nav-link { flex-direction: column; justify-content: center; gap: 2px; min-height: 56px; min-width: 0; max-width: 40vw; margin-inline: auto; padding: var(--space-1) 2px; font-size: min(var(--text-xs), 0.75rem); white-space: normal; text-align: center; line-height: 1.15; hyphens: manual; }
+  /* The tabs share the row by their names: each takes its name's width on
+     one line, and what is left is shared equally (0.2.6: equal slices
+     wrapped "Ma semaine" in a brand's face, Timesheets, at 390 px). When
+     the names do not fit on one line, a tab gives way down to its longest
+     word, wrapping at its spaces ("À rembourser" on two lines), never
+     under it (0.2.4: "À rembour…"). A tab never claims more than 40% of
+     the row for one word. */
+  .ck-nav ul { display: flex; width: 100%; gap: 0; overflow-x: auto; scrollbar-width: none; }
+  .ck-nav li { display: block; flex: 1 1 auto; }
+  .ck-nav-link { flex-direction: column; justify-content: center; gap: 2px; min-height: 56px; min-width: 48px; max-width: 40vw; margin-inline: auto; padding: var(--space-1) 2px; font-size: min(var(--text-xs), 0.75rem); white-space: normal; text-align: center; line-height: 1.15; hyphens: manual; }
   /* A count sits beside its icon at the top right, never over it (0.2.4:
      it covered the icon's right edge with five tabs, Expenses). */
   .ck-nav-link { position: relative; }

@@ -109,7 +109,8 @@ test("DayStrip: tiles named in the tool's language, the current day marked, toda
   assert.match(markup, /aria-label="Aujourd’hui, mardi 29 septembre 2026"/u);
   assert.match(markup, /<span class="ck-dow">jeu\.<\/span>/u);
   const buttons = html(<DayStrip days={["2026-09-29"]} current={null} today="2026-09-29" onPick={noop} labels={en.date} />);
-  assert.match(buttons, /<button type="button" class="ck-daytile ck-is-today" aria-pressed="false"/u);
+  // 0.2.6: buttons are a listbox's options, one Tab stop (test/kit-026.test.tsx).
+  assert.match(buttons, /<button type="button" role="option" class="ck-daytile ck-is-today" aria-selected="false"/u);
 });
 
 test("TimeSelect: 24-hour options, 24:00 for an end, an odd value kept", () => {

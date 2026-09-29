@@ -161,8 +161,12 @@ export function toastReducer(state: readonly ToastState[], action: ToastAction):
       return state.map(t => {
         if (t.id !== action.id || t.phase !== "undoing") return t;
         const length = action.ok ? durations.afterUndo : durations.error;
-        const next: ToastState = { ...t, phase: action.ok ? "undone" : "failed", undo: null, action: null, note: action.note, deadline: action.now + length, remaining: length };
-        return next.hover || next.focus ? pause(next, action.now) : next;
+        // The pointer that pressed Undo no longer holds it (0.2.6): the
+        // button is gone and the toast shrinks, often from under a pointer
+        // that then leaves without the toast being told — it waited for
+        // ever. A pointer that moves on it again holds it again.
+        const next: ToastState = { ...t, phase: action.ok ? "undone" : "failed", undo: null, action: null, note: action.note, deadline: action.now + length, remaining: length, hover: false };
+        return next.focus ? pause(next, action.now) : next;
       });
     }
     default:
@@ -193,4 +197,45 @@ export function settleUndo(result: UndoResult): { ok: boolean; note: string | nu
   if (result === false) return { ok: false, note: null };
   if (typeof result === "string") return { ok: false, note: result };
   return { ok: true, note: null };
+}
+
+// byKeyboard: is this element's focus the keyboard's (0.2.6)? A toast
+// waits while the keyboard is in it, not while a click or a tap left the
+// focus on one of its buttons (Chromium focuses a clicked button): that
+// held a toast on screen until the person clicked elsewhere. The browser
+// knows (`:focus-visible`); one that cannot tell counts it as keyboard,
+// the safe side for whoever reads with it.
+export function byKeyboard(target: unknown): boolean {
+  const el = target as { matches?: (selector: string) => boolean } | null;
+  if (!el || typeof el.matches !== "function") return false;
+  try {
+    return el.matches(":focus-visible");
+  } catch {
+    return true;
+  }
+}
+
+// The custom property that lifts the toasts (css/components.css reads it
+// on .ck-toasts); <Toasts> sets it to bottomBarLift's answer, a tool may
+// set it on an ancestor itself.
+export const bottomBarProperty = "--ck-bottom-bar";
+
+// What bottomBarLift reads of the page: the marked bars' boxes.
+type BarBox = { top: number; bottom: number; width: number; height: number };
+type BarPage = { querySelectorAll: (selector: string) => ArrayLike<{ getBoundingClientRect: () => BarBox }> };
+
+// bottomBarLift: how far toasts rise to clear a phone's bottom bar (0.2.6)
+// — the height, from the screen's bottom edge, of the highest bar marked
+// `data-ck-bottom-bar` that is shown and touches that edge (a bar that
+// has scrolled away, or is hidden on a desk, lifts nothing). Whole pixels.
+export function bottomBarLift(page: BarPage, viewportHeight: number): number {
+  let lift = 0;
+  const bars = page.querySelectorAll("[data-ck-bottom-bar]");
+  for (let i = 0; i < bars.length; i++) {
+    const r = bars[i]!.getBoundingClientRect();
+    if (r.width === 0 || r.height === 0) continue;
+    if (r.bottom < viewportHeight - 2 || r.top >= viewportHeight) continue;
+    lift = Math.max(lift, viewportHeight - r.top);
+  }
+  return Math.ceil(lift);
 }

@@ -69,3 +69,16 @@ export function tabKey(active: number, count: number, key: string, vertical = fa
   if (key === "End") return count - 1;
   return null;
 }
+
+// stripKey: a row of days with one Tab stop (DayStrip, 0.2.6): Left/Right
+// move a day and stop at the ends (days do not wrap around: after the
+// last day shown comes a later day, not the first), Home/End go to the
+// ends. null: the key is not the strip's.
+export function stripKey(active: number, count: number, key: string): number | null {
+  if (count === 0) return null;
+  if (key === "ArrowRight") return Math.min(count - 1, active + 1);
+  if (key === "ArrowLeft") return Math.max(0, active - 1);
+  if (key === "Home") return 0;
+  if (key === "End") return count - 1;
+  return null;
+}
