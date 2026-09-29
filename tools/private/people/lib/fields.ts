@@ -13,11 +13,19 @@ import { present } from "./people.ts";
 // HR some days before ("Medical visit", "Badge expires"); or a choice from
 // HR's list ("T-shirt size": S, M, L). A field's kind never changes (its
 // values would no longer fit); its list and reminder may.
+//
+// Who sees it: everyone who has the tool, or only HR and the person it is
+// about ("private": a medical visit, a badge's end — HR's follow-ups).
+// Dates are private unless HR says otherwise. A private value never leaves
+// the server for anyone else: not on the profile, not in the search.
 export type FieldKind = "text" | "date" | "choice";
 export const fieldKinds: readonly FieldKind[] = ["text", "date", "choice"];
-export type Extra = { id: string; label: string; editor: "person" | "hr"; kind: FieldKind; options: string[]; alertDays: number | null };
-type FieldRow = { id: string; label: string; editor: "person" | "hr"; kind: FieldKind; options: string[]; alert_days: number | null };
-const toExtra = (r: FieldRow): Extra => ({ id: String(r.id), label: r.label, editor: r.editor, kind: r.kind, options: r.options, alertDays: r.alert_days });
+export type Seen = "everyone" | "private";
+export type Extra = { id: string; label: string; editor: "person" | "hr"; seen: Seen; kind: FieldKind; options: string[]; alertDays: number | null };
+type FieldRow = { id: string; label: string; editor: "person" | "hr"; seen: Seen; kind: FieldKind; options: string[]; alert_days: number | null };
+const toExtra = (r: FieldRow): Extra => ({ id: String(r.id), label: r.label, editor: r.editor, seen: r.seen, kind: r.kind, options: r.options, alertDays: r.alert_days });
+// A field's visibility as given, else the default of its kind.
+const seenOf = (value: unknown, kind: FieldKind): Seen => (value === "everyone" || value === "private" ? value : kind === "date" ? "private" : "everyone");
 
 // A choice list: one option per entry (or per line), cleaned, no repeats.
 function optionsOf(value: unknown): string[] {
@@ -65,22 +73,26 @@ function hr(actor: Member | null): Member {
 
 export async function listFields(sql: Query, actor: Member | null): Promise<Extra[]> {
   if (!actor || !can(actor, "directory.read")) throw new AppError("forbidden");
-  const rows = await sql<FieldRow[]>`select id, label, editor, kind, options, alert_days from fields where removed_at is null order by position, id`;
+  const rows = await sql<FieldRow[]>`select id, label, editor, seen, kind, options, alert_days from fields where removed_at is null order by position, id`;
   return rows.map(toExtra);
 }
 
-// The values of these people: member → field → value.
-export async function valuesOf(sql: Query, ids: string[]): Promise<Map<string, Record<string, string>>> {
+// The values of these people this actor may see: member → field → value.
+// HR sees every value; anyone else the fields seen by everyone, and their
+// own private ones.
+export async function valuesOf(sql: Query, actor: Member, ids: string[]): Promise<Map<string, Record<string, string>>> {
   const found = new Map<string, Record<string, string>>();
   if (ids.length === 0) return found;
+  const all = can(actor, "profile.job");
   const rows = await sql<{ member_id: string; field_id: string; value: string }[]>`
     select v.member_id, v.field_id, v.value from field_values v join fields f on f.id = v.field_id
-    where f.removed_at is null and v.member_id = any(${ids}::text[])`;
+    where f.removed_at is null and v.member_id = any(${ids}::text[])
+      and (${all} or f.seen = 'everyone' or v.member_id = ${actor.id})`;
   for (const r of rows) found.set(r.member_id, { ...(found.get(r.member_id) ?? {}), [String(r.field_id)]: r.value });
   return found;
 }
 
-export async function addField(sql: Sql, actor: Member | null, input: { label?: unknown; editor?: unknown; kind?: unknown; options?: unknown; alertDays?: unknown }): Promise<Extra> {
+export async function addField(sql: Sql, actor: Member | null, input: { label?: unknown; editor?: unknown; seen?: unknown; kind?: unknown; options?: unknown; alertDays?: unknown }): Promise<Extra> {
   hr(actor);
   const label = clean(input?.label, limits.fieldLabel);
   const editor = input?.editor === "hr" ? "hr" : "person";
@@ -88,26 +100,30 @@ export async function addField(sql: Sql, actor: Member | null, input: { label?: 
   const kind: FieldKind = (input?.kind as FieldKind | undefined) ?? "text";
   const options = kind === "choice" ? optionsOf(input?.options) : [];
   const alertDays = kind === "date" ? alertOf(input?.alertDays) : null;
+  const seen = seenOf(input?.seen, kind);
   return sql.begin(async tx => {
     await tx`select pg_advisory_xact_lock(hashtext('people.fields'))`;
     const [c] = await tx<{ n: number; last: number }[]>`select count(*)::int as n, coalesce(max(position), 0)::int as last from fields where removed_at is null`;
     if (c!.n >= limits.fields) throw new AppError("too_many", { max: limits.fields });
-    const [row] = await tx<{ id: string }[]>`insert into fields (label, editor, position, kind, options, alert_days) values (${label}, ${editor}, ${c!.last + 1}, ${kind}, ${options}, ${alertDays}) returning id`;
-    return { id: String(row!.id), label, editor, kind, options, alertDays };
+    const [row] = await tx<{ id: string }[]>`insert into fields (label, editor, seen, position, kind, options, alert_days) values (${label}, ${editor}, ${seen}, ${c!.last + 1}, ${kind}, ${options}, ${alertDays}) returning id`;
+    return { id: String(row!.id), label, editor, seen, kind, options, alertDays };
   });
 }
 
-// updateField: its name, who fills it; a choice's list (a value no longer
-// in it stays until changed); a date's reminder.
-export async function updateField(sql: Sql, actor: Member | null, fieldId: unknown, input: { label?: unknown; editor?: unknown; options?: unknown; alertDays?: unknown }): Promise<void> {
+// updateField: its name, who fills it, who sees it (kept when not given);
+// a choice's list (a value no longer in it stays until changed); a date's
+// reminder.
+export async function updateField(sql: Sql, actor: Member | null, fieldId: unknown, input: { label?: unknown; editor?: unknown; seen?: unknown; options?: unknown; alertDays?: unknown }): Promise<void> {
   hr(actor);
   const label = clean(input?.label, limits.fieldLabel);
   const editor = input?.editor === "hr" ? "hr" : "person";
-  const [field] = await sql<FieldRow[]>`select id, label, editor, kind, options, alert_days from fields where id = ${id(fieldId)} and removed_at is null`;
+  const [field] = await sql<FieldRow[]>`select id, label, editor, seen, kind, options, alert_days from fields where id = ${id(fieldId)} and removed_at is null`;
   if (!field) throw new AppError("not_found");
+  if (input?.seen !== undefined && input.seen !== "everyone" && input.seen !== "private") throw new AppError("invalid");
+  const seen = (input?.seen as Seen | undefined) ?? field.seen;
   const options = field.kind === "choice" && input?.options !== undefined ? optionsOf(input.options) : field.options;
   const alertDays = field.kind === "date" && input?.alertDays !== undefined ? alertOf(input.alertDays) : field.alert_days;
-  await sql`update fields set label = ${label}, editor = ${editor}, options = ${options}, alert_days = ${alertDays} where id = ${field.id}`;
+  await sql`update fields set label = ${label}, editor = ${editor}, seen = ${seen}, options = ${options}, alert_days = ${alertDays} where id = ${field.id}`;
 }
 
 export async function removeField(sql: Sql, actor: Member | null, fieldId: unknown, removed: boolean): Promise<void> {

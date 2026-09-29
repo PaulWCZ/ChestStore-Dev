@@ -19,7 +19,7 @@ export async function directory(sql: Sql, actor: Member | null): Promise<{ ok: b
   const ids = listed.people.map(p => p.id);
   if (listed.ok) await reconcile(sql, ids, today());
   const known = await profiles(sql, actor, ids);
-  const extras = await valuesOf(sql, ids);
+  const extras = await valuesOf(sql, actor, ids);
   return {
     ok: listed.ok,
     entries: listed.people.map(p => ({ ...known.get(p.id)!, id: p.id, name: p.name, firstName: p.firstName, lastName: p.lastName, photo: p.photo, email: p.email, extras: extras.get(p.id) ?? {} })),

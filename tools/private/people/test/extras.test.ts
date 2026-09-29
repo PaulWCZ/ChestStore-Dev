@@ -47,13 +47,13 @@ test("extra fields: HR adds them; each person fills theirs, HR any; HR-only ones
   // The work address comes from the Chest (members.email).
   assert.equal(entries.find(e => e.id === hugo.id)?.email, "hugo@example.test");
   await setValue(sql, asMember(hugo), hugo.id, shirt.id, "");
-  assert.deepEqual((await valuesOf(sql, [hugo.id])).get(hugo.id), { [desk.id]: "B12" });
+  assert.deepEqual((await valuesOf(sql, hr, [hugo.id])).get(hugo.id), { [desk.id]: "B12" });
   await updateField(sql, hr, desk.id, { label: "Office desk", editor: "hr" });
   await removeField(sql, hr, desk.id, true);
   assert.deepEqual((await listFields(sql, hr)).map(f => f.label), ["T-shirt"]);
-  assert.equal((await valuesOf(sql, [hugo.id])).get(hugo.id), undefined);
+  assert.equal((await valuesOf(sql, hr, [hugo.id])).get(hugo.id), undefined);
   await removeField(sql, hr, desk.id, false);
-  assert.deepEqual((await valuesOf(sql, [hugo.id])).get(hugo.id), { [desk.id]: "B12" });
+  assert.deepEqual((await valuesOf(sql, hr, [hugo.id])).get(hugo.id), { [desk.id]: "B12" });
   assert.equal(await purgeFields(sql), 0);
 });
 
@@ -71,7 +71,7 @@ test("date and choice fields: values checked, a date reminds HR in the bell, the
   await setValue(sql, asMember(hugo), hugo.id, size.id, "l");
   await setValue(sql, hr, hugo.id, visit.id, "2026-10-20");
   await setValue(sql, hr, nora.id, visit.id, "2027-03-01");
-  assert.deepEqual([(await valuesOf(sql, [hugo.id])).get(hugo.id)?.[size.id], (await valuesOf(sql, [hugo.id])).get(hugo.id)?.[visit.id]], ["L", "2026-10-20"]);
+  assert.deepEqual([(await valuesOf(sql, hr, [hugo.id])).get(hugo.id)?.[size.id], (await valuesOf(sql, hr, [hugo.id])).get(hugo.id)?.[visit.id]], ["L", "2026-10-20"]);
   // The list changes; the kind does not; the reminder may go.
   await updateField(sql, hr, size.id, { label: "Size", editor: "person", options: "S\nM\nL\nXL" });
   assert.deepEqual((await listFields(sql, hr)).find(f => f.id === size.id)?.options, ["S", "M", "L", "XL"]);
@@ -91,6 +91,45 @@ test("date and choice fields: values checked, a date reminds HR in the bell, the
   assert.deepEqual(p.rows.map(r => [r.extras, r.problems]), [[{ [visit.id]: "2026-10-21", [size.id]: "XL" }, []], [{}, ["date", "choice"]]]);
   await removeField(sql, hr, visit.id, true);
   await removeField(sql, hr, size.id, true);
+});
+
+test("who sees an extra field: a date is HR's and the person's only by default; a private value never reaches a colleague, not even through the search", async () => {
+  const { sql } = database;
+  const visit = await addField(sql, hr, { label: "Medical visit", editor: "hr", kind: "date" });
+  const langs = await addField(sql, hr, { label: "Languages", kind: "text" });
+  const badge = await addField(sql, hr, { label: "Badge", kind: "text", seen: "private" });
+  assert.deepEqual([visit.seen, langs.seen, badge.seen], ["private", "everyone", "private"]);
+  await setValue(sql, hr, nora.id, visit.id, "2026-10-19");
+  await setValue(sql, hr, nora.id, badge.id, "B-77");
+  await setValue(sql, asMember(nora), nora.id, langs.id, "French, Vietnamese");
+  const as = async (who: typeof hugo) => (await directory(sql, asMember(who))).entries.find(e => e.id === nora.id)?.extras;
+  // A colleague sees the languages only; Nora and HR see everything.
+  assert.deepEqual(await as(hugo), { [langs.id]: "French, Vietnamese" });
+  assert.deepEqual(await as(nora), { [visit.id]: "2026-10-19", [langs.id]: "French, Vietnamese", [badge.id]: "B-77" });
+  assert.deepEqual((await directory(sql, hr)).entries.find(e => e.id === nora.id)?.extras, { [visit.id]: "2026-10-19", [langs.id]: "French, Vietnamese", [badge.id]: "B-77" });
+  // HR opens one to everyone, and back; a wrong visibility is refused.
+  await updateField(sql, hr, badge.id, { label: "Badge", editor: "hr", seen: "everyone" });
+  assert.equal((await as(hugo))?.[badge.id], "B-77");
+  await updateField(sql, hr, badge.id, { label: "Badge", editor: "hr" });
+  assert.equal((await as(hugo))?.[badge.id], "B-77");
+  await assert.rejects(updateField(sql, hr, badge.id, { label: "Badge", editor: "hr", seen: "team" }), refused("invalid"));
+  for (const f of [visit, langs, badge]) await removeField(sql, hr, f.id, true);
+});
+
+test("the migration made every existing date field private (the sample's Medical visit included)", async () => {
+  const { sql } = database;
+  const { readFileSync } = await import("node:fs");
+  const run = (file: string) => readFileSync(new URL(`../migrations/${file}`, import.meta.url), "utf8");
+  // The schema as it was before 0006, in a schema of its own, rolled back.
+  await sql.begin(async tx => {
+    await tx.unsafe("create schema before6; set local search_path to before6, public");
+    for (const f of ["0001_people.sql", "0002_arrivals.sql", "0003_away.sql", "0004_records.sql", "0005_field_kinds_and_names.sql"]) await tx.unsafe(run(f)).simple();
+    await tx.unsafe("insert into fields (label, editor, position, kind, alert_days) values ('Medical visit', 'hr', 1, 'date', 30), ('Languages', 'person', 2, 'text', null)");
+    await tx.unsafe(run("0006_privacy_permits_requests_letters.sql")).simple();
+    const rows = await tx.unsafe<{ label: string; seen: string }[]>("select label, seen from fields order by position");
+    assert.deepEqual(rows.map(r => [r.label, r.seen]), [["Medical visit", "private"], ["Languages", "everyone"]]);
+    throw new Error("rollback");
+  }).catch((error: unknown) => { if (!(error instanceof Error) || error.message !== "rollback") throw error; });
 });
 
 test("the import shows the columns it leaves out", () => {
