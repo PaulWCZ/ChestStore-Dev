@@ -52,15 +52,28 @@ cross-cutting fixes). No tool can be cancelled tomorrow; ~6 categories
 today, 8 partly, 4 public ones not (mail, calendar, custom domains).
 
 **Fix queue (each builder works its critique's Fix plan; lead verifies):**
-- **Done and verified:** Polls (54 tests), Tasks (65 tests), and Forms,
-  tool 18 (59 tests; screenshots looked at).
-- **SDK studio.12 verified** (78 tests): calendar, groups read, inbound
-  mail.
-- **Running:** Clients, Quotes, Wiki, Expenses, Leave, People,
-  Timesheets, Goals.
-- **Next:** Equipment, News, Support, Booking, Rooms, Hiring, Status. They
-  adopt calendar, groups and inbound mail where they apply. Then a
-  critique of Forms. Forms nit: "press Enter" is shown on phones.
+- **Done and verified:**
+
+  | Tool | Tests (PGlite and PostgreSQL) |
+  |---|---|
+  | Polls | 54 |
+  | Tasks | 65 |
+  | Forms (tool 18) | 59 |
+  | Clients | 58 |
+  | Leave | 64 |
+  | Quotes | 99 |
+
+  SDK studio.12 is verified too (78 tests).
+- **Two open points from these tools:**
+  - Leave's French rules are from search summaries: a payroll expert must
+    confirm them.
+  - Quotes' Factur-X is validated locally (Mustang/veraPDF + FR
+    schematron) but not tested against a real PA.
+- **Decision taken:** move Quotes to `tools/public-and-private/` for online
+  quote acceptance (the design is in its README). Do it in a later round.
+- **Running:** Wiki, Expenses, People, Timesheets, Goals, Support (inbound
+  mail), Booking (host calendar and Chest feed), News (groups, email).
+- **Next:** Equipment, Rooms, Hiring, Status, then a critique of Forms.
 - **Then:** the kit's shared components (`_store.md` §3), the migration of
   all tools to the kit and themes, and the store glossary with its lint.
 
