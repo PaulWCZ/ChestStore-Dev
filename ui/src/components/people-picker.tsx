@@ -29,6 +29,11 @@ export type PeoplePickerProps<T extends Choice> = {
   readonly value: readonly T[];
   readonly onChange: (value: T[]) => void;
   readonly multiple?: boolean;
+  // A single choice that may be left empty: a visible button takes the
+  // chosen person away (onChange([])) (0.2.2). Erasing the name did it too,
+  // unseen. Several choices always have their chips' buttons.
+  readonly clearable?: boolean;
+  readonly className?: string;
   // Offered when nothing is typed (the person's recent choices, "You").
   readonly suggestions?: readonly T[];
   // The heading over them: the words' `recent` by default; "Suggested",
@@ -48,7 +53,7 @@ export type PeoplePickerProps<T extends Choice> = {
   readonly delay?: number;
 };
 
-export function PeoplePicker<T extends Choice>({ label, hideLabel = false, search, value, onChange, multiple = false, suggestions = [], suggestionsLabel, name, id, hint, error, disabled = false, required = false, labels = en.peoplePicker, lang = "en", delay = 150 }: PeoplePickerProps<T>): ReactElement {
+export function PeoplePicker<T extends Choice>({ label, hideLabel = false, search, value, onChange, multiple = false, clearable = false, className, suggestions = [], suggestionsLabel, name, id, hint, error, disabled = false, required = false, labels = en.peoplePicker, lang = "en", delay = 150 }: PeoplePickerProps<T>): ReactElement {
   const auto = useId();
   const fieldId = id ?? auto + "-field";
   const listId = auto + "-list";
@@ -179,7 +184,7 @@ export function PeoplePicker<T extends Choice>({ label, hideLabel = false, searc
   };
 
   return (
-    <div className={`ck-picker${error ? " ck-invalid" : ""}`}>
+    <div className={`ck-picker${error ? " ck-invalid" : ""}${className ? " " + className : ""}`}>
       <label className={hideLabel ? "ck-vh" : "ck-label"} htmlFor={fieldId}>{label}</label>
       <div ref={box} className={`ck-picker-box${disabled ? " ck-disabled" : ""}`} onMouseDown={e => { if (e.target === e.currentTarget) { e.preventDefault(); input.current?.focus(); } }}>
         {multiple && value.length > 0 && (
@@ -226,6 +231,11 @@ export function PeoplePicker<T extends Choice>({ label, hideLabel = false, searc
           onBlur={() => { setOpen(false); if (!multiple) setText(single?.name ?? ""); else setText(""); }}
           onKeyDown={onKey}
         />
+        {clearable && !multiple && single && !disabled && (
+          <button type="button" className="ck-icon-button ck-picker-clear" onClick={() => { onChange([]); setText(""); setOpen(false); input.current?.focus(); }}>
+            <CloseIcon /><span className="ck-vh">{fill(labels.remove, { name: single.name })}</span>
+          </button>
+        )}
       </div>
       <ul ref={list} id={listId} role="listbox" aria-label={label} aria-multiselectable={multiple || undefined} aria-busy={state === "busy" || undefined} className="ck-listbox" hidden={!listShown}>
         {recent && ordered.length > 0 && <li role="presentation" className="ck-list-head">{suggestionsLabel ?? labels.recent}</li>}

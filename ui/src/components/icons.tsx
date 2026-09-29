@@ -21,6 +21,7 @@ export const SearchIcon = () => <Icon><circle cx="11" cy="11" r="6.5" /><path d=
 export const MoreIcon = () => <Icon><circle cx="5" cy="12" r="1.2" fill="currentColor" /><circle cx="12" cy="12" r="1.2" fill="currentColor" /><circle cx="19" cy="12" r="1.2" fill="currentColor" /></Icon>;
 export const FileIcon = () => <Icon><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" /><path d="M14 3v5h5" /></Icon>;
 export const UploadIcon = () => <Icon><path d="M12 16V4M7 9l5-5 5 5" /><path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3" /></Icon>;
+export const CameraIcon = () => <Icon><path d="M3.5 8.5a2 2 0 0 1 2-2h2.2l1.6-2.5h5.4l1.6 2.5h2.2a2 2 0 0 1 2 2V18a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z" /><circle cx="12" cy="13" r="3.5" /></Icon>;
 export const UndoIcon = () => <Icon><path d="M9 14L4 9l5-5" /><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11" /></Icon>;
 export const SentIcon = () => <Icon><path d="M21 3L10 14" /><path d="M21 3l-7 18-4-7-7-4z" /></Icon>;
 export const AlertIcon = () => <Icon><path d="M12 3l10 18H2z" /><path d="M12 10v5M12 18v.01" /></Icon>;

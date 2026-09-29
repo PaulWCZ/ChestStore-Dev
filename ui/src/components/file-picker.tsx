@@ -11,9 +11,9 @@
 // reader's language. Without `upload`, the files stay in the browser and
 // the tool reads them (an importer). Checking the bytes on the server
 // (sniffing the real type) remains the tool's job.
-import { useEffect, useId, useRef, useState, type DragEvent, type ReactElement } from "react";
+import { useEffect, useId, useRef, useState, type DragEvent, type ReactElement, type ReactNode } from "react";
 import { acceptText, checkFiles, fileSize, refusalText, type FileRules, type Progress } from "./files.js";
-import { CloseIcon, FileIcon, UploadIcon } from "./icons.js";
+import { CameraIcon, CloseIcon, FileIcon, UploadIcon } from "./icons.js";
 import { fill } from "./text.js";
 import { en, type FileWords } from "./words.js";
 
@@ -39,11 +39,27 @@ export type FilePickerProps = FileRules & {
   readonly files: readonly PickedFile[];
   readonly onChange: (update: (current: readonly PickedFile[]) => PickedFile[]) => void;
   readonly upload?: Upload;
-  // On a phone: open the camera ("environment" for a receipt).
+  // On a phone: open the camera ("environment" for a receipt) — the only
+  // way offered. `camera` offers both instead (0.2.2).
   readonly capture?: "user" | "environment";
+  // On a phone (a touch screen): "Take a photo" (the camera, the back one
+  // unless "user") beside "Choose a file" (the phone's files and photos).
+  // Elsewhere the one button. Photos are images: `accept` should allow them.
+  readonly camera?: boolean | "user" | "environment";
+  // Something of the tool's own in each file's row, before its name: a
+  // thumbnail of a photo once the tool can show it (an <img> of its own
+  // address — a blob: address is refused by the studio's image policy)
+  // (0.2.2).
+  readonly preview?: (file: PickedFile) => ReactNode;
+  // Show the label above the drop zone (it is read by screen readers in
+  // any case, after the button's words) (0.2.2).
+  readonly showLabel?: boolean;
+  // The file input's id (a <label for> or an error link of the tool's own) (0.2.2).
+  readonly id?: string;
   readonly name?: string;
   readonly disabled?: boolean;
   readonly labels?: FileWords;
+  readonly className?: string;
 };
 
 let counter = 0;
@@ -52,9 +68,11 @@ const nextKey = () => `f${++counter}-${Date.now().toString(36)}`;
 // filesReady: every file sent (a form waits for it before submitting).
 export const filesReady = (files: readonly PickedFile[]) => files.every(f => f.status === "ready");
 
-export function FilePicker({ label, files, onChange, upload, accept, maxSize, maxFiles, capture, name, disabled = false, labels = en.files }: FilePickerProps): ReactElement {
-  const id = useId();
+export function FilePicker({ label, files, onChange, upload, accept, maxSize, maxFiles, capture, camera = false, preview, showLabel = false, id: givenId, name, disabled = false, labels = en.files, className }: FilePickerProps): ReactElement {
+  const auto = useId();
+  const id = givenId ?? auto;
   const input = useRef<HTMLInputElement>(null);
+  const sep = labels.separator ?? en.files.separator!;
   const [problems, setProblems] = useState<string[]>([]);
   const [over, setOver] = useState(false);
   const controllers = useRef(new Map<string, AbortController>());
@@ -115,17 +133,31 @@ export function FilePicker({ label, files, onChange, upload, accept, maxSize, ma
   const limits = [
     maxFiles !== undefined && maxFiles > 1 && maxSize !== undefined ? fill(labels.limits, { count: String(maxFiles), size: fileSize(maxSize, labels) }) : null,
     maxFiles === 1 && maxSize !== undefined ? fill(labels.limitsOne, { size: fileSize(maxSize, labels) }) : null,
-    accept && accept.length > 0 ? fill(labels.types, { types: acceptText(accept) }) : null,
+    accept && accept.length > 0 ? fill(labels.types, { types: acceptText(accept, labels) }) : null,
   ].filter(Boolean).join(" ");
 
+  const off = disabled || full;
+  const onPicked = (e: { currentTarget: HTMLInputElement }) => { const el = e.currentTarget; add(el.files); el.value = ""; };
+  const described = limits ? id + "-limits" : undefined;
   return (
-    <div className="ck-files">
+    <div className={`ck-files${className ? " " + className : ""}`} {...(showLabel ? { role: "group", "aria-labelledby": id + "-label" } : {})}>
+      {showLabel && <span id={id + "-label"} className="ck-label">{label}</span>}
       <div
-        className={`ck-drop${over ? " ck-over" : ""}${disabled || full ? " ck-disabled" : ""}`}
-        onDragOver={e => { if (disabled || full) return; e.preventDefault(); setOver(true); }}
+        className={`ck-drop${over ? " ck-over" : ""}${off ? " ck-disabled" : ""}`}
+        onDragOver={e => { if (off) return; e.preventDefault(); setOver(true); }}
         onDragLeave={() => setOver(false)}
         onDrop={onDrop}
       >
+        {camera && (
+          <>
+            <input id={id + "-camera"} type="file" className="ck-vh ck-file-input" accept="image/*" capture={camera === "user" ? "user" : "environment"} disabled={off} aria-describedby={described} onChange={onPicked} />
+            <label htmlFor={id + "-camera"} className="ck-button ck-button-quiet ck-file-camera">
+              <CameraIcon />
+              <span>{labels.takePhoto ?? en.files.takePhoto}</span>
+              <span className="ck-vh">{sep + label}</span>
+            </label>
+          </>
+        )}
         <input
           ref={input}
           id={id}
@@ -133,24 +165,26 @@ export function FilePicker({ label, files, onChange, upload, accept, maxSize, ma
           className="ck-vh ck-file-input"
           multiple={multiple}
           accept={accept?.join(",")}
-          capture={capture}
-          disabled={disabled || full}
-          aria-describedby={limits ? id + "-limits" : undefined}
-          onChange={e => { const el = e.currentTarget; add(el.files); el.value = ""; }}
+          capture={camera ? undefined : capture}
+          disabled={off}
+          aria-describedby={described}
+          onChange={onPicked}
         />
         <label htmlFor={id} className="ck-button ck-button-quiet">
           <UploadIcon />
-          <span>{multiple ? labels.add : labels.addOne}</span>
-          <span className="ck-vh">{": " + label}</span>
+          {camera
+            ? <><span className="ck-file-choose">{labels.chooseFile ?? en.files.chooseFile}</span><span className="ck-file-add">{multiple ? labels.add : labels.addOne}</span></>
+            : <span>{multiple ? labels.add : labels.addOne}</span>}
+          <span className="ck-vh">{sep + label}</span>
         </label>
         <span className="ck-drop-hint" aria-hidden="true">{multiple ? labels.drop : labels.dropOne ?? labels.drop}</span>
         {limits && <p id={id + "-limits"} className="ck-hint">{limits}</p>}
       </div>
       {files.length > 0 && (
-        <ul className="ck-file-list" aria-label={`${label}: ${labels.list}`}>
+        <ul className="ck-file-list" aria-label={`${label}${sep}${labels.list}`}>
           {files.map(f => (
-            <li key={f.key} className={`ck-file ck-file-${f.status}`}>
-              <FileIcon />
+            <li key={f.key} className={`ck-file ck-file-${f.status}${preview ? " ck-file-with-preview" : ""}`}>
+              {preview ? <span className="ck-file-preview">{preview(f) ?? <FileIcon />}</span> : <FileIcon />}
               <span className="ck-file-name">{f.name}</span>
               <span className="ck-file-meta">
                 {f.status === "sending" ? fill(labels.sending, { percent: String(Math.round(f.progress * 100)) }) : f.status === "failed" ? f.error ?? labels.failed : fileSize(f.size, labels)}

@@ -24,6 +24,8 @@ const list = [
   ["barlow-semi-condensed", "@fontsource/barlow-semi-condensed", "condensed", "'Arial Narrow', system-ui, sans-serif", ["400", "600"]],
   ["bricolage-grotesque", "@fontsource-variable/bricolage-grotesque", "sans", "system-ui, -apple-system, 'Segoe UI', sans-serif"],
   ["dm-mono", "@fontsource/dm-mono", "mono", "ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace", ["400", "500"]],
+  ["dm-sans", "@fontsource-variable/dm-sans", "sans", "system-ui, -apple-system, 'Segoe UI', sans-serif"],
+  ["dm-serif-display", "@fontsource/dm-serif-display", "serif", "Georgia, 'Times New Roman', serif", ["400"], true],
   ["figtree", "@fontsource-variable/figtree", "sans", "system-ui, -apple-system, 'Segoe UI', sans-serif"],
   ["fraunces", "@fontsource-variable/fraunces", "serif", "Georgia, 'Times New Roman', serif", null, true],
   ["fredoka", "@fontsource-variable/fredoka", "rounded", "ui-rounded, 'Arial Rounded MT Bold', system-ui, sans-serif"],

@@ -3,7 +3,7 @@
 // progress. Checking here is for the person (a clear message at once);
 // the server checks again and sniffs the bytes — that is the tool's job.
 import { fill } from "./text.js";
-import type { FileWords } from "./words.js";
+import { en, type FileWords } from "./words.js";
 
 export type FileLike = { readonly name: string; readonly size: number; readonly type: string };
 
@@ -61,15 +61,61 @@ export function fileSize(bytes: number, words: Pick<FileWords, "units" | "decima
   return `${text.replace(".", words.decimal)} ${words.units[unit]}`;
 }
 
-// acceptText: the accepted kinds as a person reads them ("PDF, JPG, PNG").
-export function acceptText(accept: readonly string[] | undefined): string {
+// The name people know a type by — its usual extension — for MIME types
+// (0.2.2: vCard's three MIME spellings are one VCF, OpenDocument's are
+// ODT/ODS/ODP, JPEG is JPG).
+const mimeNames: Readonly<Record<string, string>> = {
+  "image/jpeg": "jpg", "image/pjpeg": "jpg", "image/svg+xml": "svg", "image/tiff": "tif", "image/heif": "heic",
+  "text/plain": "txt", "text/vcard": "vcf", "text/x-vcard": "vcf", "text/directory": "vcf", "text/calendar": "ics", "text/markdown": "md", "text/csv": "csv", "text/html": "html",
+  "application/msword": "doc", "application/vnd.ms-excel": "xls", "application/vnd.ms-powerpoint": "ppt",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "docx",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": "xlsx",
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation": "pptx",
+  "application/vnd.oasis.opendocument.text": "odt", "application/vnd.oasis.opendocument.spreadsheet": "ods", "application/vnd.oasis.opendocument.presentation": "odp",
+  "application/zip": "zip", "application/x-zip-compressed": "zip", "application/json": "json", "application/rtf": "rtf", "message/rfc822": "eml",
+  "audio/mpeg": "mp3", "audio/mp4": "m4a", "audio/x-wav": "wav", "video/quicktime": "mov", "video/x-msvideo": "avi",
+};
+// Extensions written two ways: one name.
+const sameAs: Readonly<Record<string, string>> = { jpeg: "jpg", jpe: "jpg", tiff: "tif", heif: "heic", vcard: "vcf", htm: "html", markdown: "md", mpeg: "mpg" };
+// The extensions a family ("image/*") already says.
+const familyOf: Readonly<Record<string, readonly string[]>> = {
+  image: ["jpg", "png", "gif", "webp", "heic", "avif", "bmp", "tif", "svg"],
+  audio: ["mp3", "wav", "ogg", "oga", "m4a", "aac", "flac", "opus"],
+  video: ["mp4", "mov", "webm", "mkv", "avi", "m4v", "mpg"],
+  text: ["txt", "csv", "md", "html", "ics", "vcf"],
+};
+
+const extensionOf = (rule: string): string | null => {
+  const r = rule.trim().toLowerCase();
+  if (r.startsWith(".")) return sameAs[r.slice(1)] ?? r.slice(1);
+  if (r.endsWith("/*")) return null;
+  if (mimeNames[r]) return mimeNames[r]!;
+  // Another MIME type: its last word, without x- or vnd. and a trailing
+  // "-compressed" ("application/x-7z-compressed" → 7Z).
+  const sub = (r.split("/")[1] ?? r).replace(/^(x-|vnd\.)/u, "").split(/[.+]/u).filter(Boolean);
+  const last = sub[sub.length - 1] ?? r;
+  return sameAs[last] ?? last.replace(/-compressed$/u, "");
+};
+
+// acceptText: the accepted kinds as a person reads them ("images, PDF",
+// « images, PDF ») — families in words (the words' `kinds`, the kit's
+// English by default), MIME types by their usual extension, each name once
+// (JPG and JPEG are one), and nothing a family already says (".png" beside
+// "image/*").
+export function acceptText(accept: readonly string[] | undefined, words: Pick<FileWords, "kinds"> = en.files): string {
   if (!accept || accept.length === 0) return "";
-  const names = accept.map(a => {
+  const kinds = words.kinds ?? en.files.kinds!;
+  const families = new Set(accept.map(a => a.trim().toLowerCase()).filter(r => r.endsWith("/*")).map(r => r.slice(0, -2)));
+  const covered = new Set([...families].flatMap(f => familyOf[f] ?? []));
+  const names = accept.flatMap(a => {
     const r = a.trim().toLowerCase();
-    if (r.startsWith(".")) return r.slice(1).toUpperCase();
-    if (r.endsWith("/*")) return r.slice(0, -2);
-    const sub = r.split("/")[1] ?? r;
-    return ({ jpeg: "JPG", "svg+xml": "SVG", plain: "TXT", "vnd.openxmlformats-officedocument.wordprocessingml.document": "DOCX", "vnd.openxmlformats-officedocument.spreadsheetml.sheet": "XLSX", msword: "DOC" } as Record<string, string>)[sub] ?? sub.toUpperCase();
+    if (r.endsWith("/*")) {
+      const family = r.slice(0, -2);
+      return [family in kinds ? kinds[family as keyof typeof kinds] : family];
+    }
+    const ext = extensionOf(r);
+    if (!ext || covered.has(ext)) return [];
+    return [ext.toUpperCase()];
   });
   return [...new Set(names)].join(", ");
 }

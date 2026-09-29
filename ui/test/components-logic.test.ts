@@ -335,7 +335,8 @@ test("files: kinds, sizes, counts, and sizes in the reader's language", () => {
   assert.equal(fileSize(1.44 * 1024 * 1024, fr.files), "1,4 Mo");
   assert.equal(fileSize(10 * 1024 * 1024, fr.files), "10 Mo");
   assert.equal(fileSize(12, fr.files), "12 o");
-  assert.equal(acceptText(["image/jpeg", "application/pdf", ".docx", "image/*"]), "JPG, PDF, DOCX, image");
+  // 0.2.2: a family in words (images), what it already says left out (JPG).
+  assert.equal(acceptText(["image/jpeg", "application/pdf", ".docx", "image/*"]), "PDF, DOCX, images");
   assert.equal(refusalText(refused[0]!, fr.files, rules), "video.mp4 est trop lourd : 10 Mo au plus.");
 });
 

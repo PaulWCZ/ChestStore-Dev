@@ -9,6 +9,6 @@ export { addDays, addMonths, addYearMonths, calendarKey, clampDate, daysBetween,
 export { endOfDay, moveEnd, moveStart, parseTime, timeOptions, timeText, type TimeOptions } from "./time.js";
 export { localSearch, matches, rememberRecent, searchChoices, type Choice, type SearchOptions } from "./people.js";
 export { listKey, menuKey, tabKey, type ListMove } from "./keys.js";
-export { durations, latestUndo, settleUndo, toastReducer, type ToastAction, type ToastActionButton, type ToastInput, type ToastPhase, type ToastState, type UndoResult } from "./toast-state.js";
+export { durations, expired, latestUndo, settleUndo, toastReducer, type ToastAction, type ToastActionButton, type ToastInput, type ToastPhase, type ToastState, type UndoResult } from "./toast-state.js";
 export { acceptText, accepts, checkFiles, fileSize, putWithProgress, refusalText, type FileLike, type FileRules, type Progress, type Refusal } from "./files.js";
-export { activeFilters, ariaSort, clearHref, compareValues, filterHref, isCurrent, nextSort, paramOf, paramValues, sortRows, type CurrentRule, type Sort, type SortDir, type SortValue } from "./lists.js";
+export { activeFilters, ariaSort, clearHref, compareValues, filterHref, isCurrent, nextSort, paramEntries, paramOf, paramValues, sortRows, type CurrentRule, type Sort, type SortDir, type SortValue } from "./lists.js";

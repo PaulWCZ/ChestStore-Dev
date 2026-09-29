@@ -7,6 +7,11 @@
 import { validateTheme, type Scheme, type Theme } from "./contract.js";
 import { fontFaces } from "./fonts.js";
 
+// chipRadius: the corners of badges, chips and counters — the theme's own
+// (radius.chip), else a pill in a theme with rounded corners and its small
+// radius in a square one (the Chest's 0: no pill in a sheet of rectangles).
+export const chipRadius = (theme: Pick<Theme, "radius">): number => theme.radius.chip ?? (theme.radius.m <= 4 ? theme.radius.s : 999);
+
 const rem = (v: number) => `${Math.round(v * 10000) / 10000}rem`;
 
 // staticDeclarations: the tokens that do not change with the mode.
@@ -17,15 +22,17 @@ export function staticDeclarations(theme: Theme): string {
     ["font-body", theme.fonts.body.stack],
     ["font-mono", theme.fonts.mono.stack],
     ["font-accent", theme.fonts.accent.stack],
+    ["font-read", (theme.fonts.read ?? theme.fonts.body).stack],
     ["display-weight", String(theme.display.weight)],
     ["display-tracking", theme.display.tracking],
     ["weight-strong", String(theme.strong)],
     ["text-xs", rem(t.xs)], ["text-s", rem(t.s)], ["text-m", rem(t.m)], ["text-l", rem(t.l)], ["text-xl", rem(t.xl)], ["text-2xl", rem(t.xxl)],
     ["leading", String(t.leading)],
     ...theme.space.map((v, i): [string, string] => [`space-${i + 1}`, `${v}px`]),
-    ["radius-s", `${theme.radius.s}px`], ["radius-m", `${theme.radius.m}px`], ["radius-l", `${theme.radius.l}px`], ["radius-pill", "999px"],
+    ["radius-s", `${theme.radius.s}px`], ["radius-m", `${theme.radius.m}px`], ["radius-l", `${theme.radius.l}px`], ["radius-pill", "999px"], ["radius-chip", `${chipRadius(theme)}px`],
     ["border-width", `${theme.border}px`],
     ["control-h", "44px"],
+    ["field-pad-x", `${theme.fieldPad ?? theme.space[2]}px`],
     ["ease", theme.motion.ease], ["fast", `${theme.motion.fast}ms`], ["slow", `${theme.motion.slow}ms`],
   ];
   return decl.map(([k, v]) => `--${k}:${v}`).join(";");
@@ -62,7 +69,7 @@ export function themeCss(theme: Theme, options: CssOptions = {}): string {
   const colorScheme = lightOnly || mode === "light" ? "light" : mode === "dark" ? "dark" : "light dark";
   const parts: string[] = [];
   if (options.faces !== false) {
-    const faces = fontFaces([theme.fonts.display, theme.fonts.body, theme.fonts.mono, theme.fonts.accent], options.fontBase ?? "/fonts");
+    const faces = fontFaces([theme.fonts.display, theme.fonts.body, theme.fonts.mono, theme.fonts.accent, ...(theme.fonts.read ? [theme.fonts.read] : [])], options.fontBase ?? "/fonts");
     if (faces) parts.push(faces);
   }
   parts.push(`${selector}{color-scheme:${colorScheme};${staticDeclarations(theme)};${schemeDeclarations(scheme)}${theme.synthesis ? "" : ";font-synthesis:none"}}`);

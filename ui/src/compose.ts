@@ -31,7 +31,8 @@ export type ThemeSource = {
   name: Words;
   description: Words;
   tool?: string;
-  fonts: { display: string | FontSpec; body: string | FontSpec; mono?: string | FontSpec; accent?: string | FontSpec };
+  // read: the face for long text (the body's unless said) (0.2.2).
+  fonts: { display: string | FontSpec; body: string | FontSpec; mono?: string | FontSpec; accent?: string | FontSpec; read?: string | FontSpec };
   display?: Partial<Theme["display"]>;
   strong?: number;
   synthesis?: boolean;
@@ -40,6 +41,7 @@ export type ThemeSource = {
   space?: Theme["space"];
   radius: Theme["radius"];
   border?: number;
+  fieldPad?: number;
   motion?: Partial<Theme["motion"]>;
   light: SchemeSource;
   // Omitted for a light-only theme (modes: "light").
@@ -100,6 +102,26 @@ export function completeScheme(source: SchemeSource, mode: "light" | "dark", pal
     s[`${state}-ink`] ??= contrast(s[state]!, s[`${state}-soft`]!) >= 4.5 ? s[state]! : must(fit(oklchHex({ l: light ? 0.4 : 0.88, c: Math.min(own.c, 0.12), h: own.h }), [s[`${state}-soft`]!], 4.5, light ? "darker" : "lighter"), `${state}-ink`);
   }
   s.focus ??= s["accent-text"]!;
+  // The region of its own colour (0.2.2): by default the ink as a ground in
+  // light mode (the inverse pair), and a band darker than the page in dark
+  // mode (the page's text on it) — it stays dark in both, as a steel bar or
+  // an instrument panel does. A theme sets its own (Tool crib's steel).
+  if (!s.inverse) {
+    if (light) s.inverse = ink;
+    else {
+      const g = oklch(bg)!;
+      s.inverse = g.l > 0.16 ? oklchHex({ l: g.l - 0.06, c: g.c, h: g.h }) : mix(bg, ink, 0.9);
+    }
+  }
+  const onInverse = s.inverse!;
+  const away = luminance(onInverse) > 0.18 ? "darker" : "lighter";
+  s["inverse-ink"] ??= must(fit(light ? bg : ink, [onInverse], 4.5, away), "inverse-ink");
+  s["inverse-ink-2"] ??= must(fit(mix(s["inverse-ink"]!, onInverse, 0.72), [onInverse], 4.5, away), "inverse-ink-2");
+  if (!s["inverse-line"]) {
+    let line = mix(onInverse, s["inverse-ink"]!, 0.86);
+    for (let p = 0.88; contrast(s["inverse-ink"]!, line) < 4.5 && p <= 1; p += 0.02) line = mix(onInverse, s["inverse-ink"]!, p);
+    s["inverse-line"] = line;
+  }
   s.highlight ??= must(fit(oklchHex({ l: light ? 0.93 : 0.36, c: light ? 0.08 : 0.06, h: 95 }), [ink], 4.5, light ? "lighter" : "darker"), "highlight");
   for (let slot = 1; slot <= categories; slot++) {
     const got = category(slot, mode, { bg, surface }, palette, { ...(source[`cat-${slot}` as ColorToken] ? { solid: source[`cat-${slot}` as ColorToken]! } : {}), ...(source[`cat-${slot}-soft` as ColorToken] ? { soft: source[`cat-${slot}-soft` as ColorToken]! } : {}), ...(source[`cat-${slot}-ink` as ColorToken] ? { ink: source[`cat-${slot}-ink` as ColorToken]! } : {}), ...palette[mode]?.[slot] });
@@ -123,6 +145,7 @@ const fontOf = (value: string | FontSpec | undefined, fallback: FontSpec): FontS
 export function defineTheme(source: ThemeSource): Theme {
   const body = fontOf(source.fonts.body, systemFont("sans"));
   const display = fontOf(source.fonts.display, body);
+  const read = fontOf(source.fonts.read, body);
   const modes = source.modes ?? "both";
   if ((modes === "both") !== (source.dark !== undefined)) throw new RangeError(`theme ${source.id}: a dark scheme exactly when modes is "both"`);
   const light = completeScheme(source.light, "light", source.palette);
@@ -131,7 +154,7 @@ export function defineTheme(source: ThemeSource): Theme {
     name: source.name,
     description: source.description,
     ...(source.tool ? { tool: source.tool } : {}),
-    fonts: { display, body, mono: fontOf(source.fonts.mono, systemFont("mono")), accent: fontOf(source.fonts.accent, display) },
+    fonts: { display, body, mono: fontOf(source.fonts.mono, systemFont("mono")), accent: fontOf(source.fonts.accent, display), read },
     display: { weight: 700, tracking: "0em", ...source.display },
     strong: source.strong ?? 600,
     synthesis: source.synthesis ?? true,
@@ -140,6 +163,7 @@ export function defineTheme(source: ThemeSource): Theme {
     space: source.space ?? defaultSpace,
     radius: source.radius,
     border: source.border ?? 1,
+    ...(source.fieldPad !== undefined ? { fieldPad: source.fieldPad } : {}),
     motion: { ...defaultMotion, ...source.motion },
     light,
     dark: source.dark ? completeScheme(source.dark, "dark", source.palette) : light,

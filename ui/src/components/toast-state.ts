@@ -31,6 +31,13 @@ export type ToastInput = {
   readonly action?: ToastActionButton;
   // Milliseconds; the default depends on the kind (below).
   readonly duration?: number;
+  // Called once when the toast goes and what it tells still stands: its
+  // time is up, it was dismissed, replaced by a toast of the same id or
+  // pushed out by newer ones, or its Undo did not work — never after an
+  // Undo that worked (0.2.2). For an act done late (a delete sent to the
+  // server only once its Undo can no longer be used). A page left before
+  // (the tab closed) never calls it: such an act must be safe to lose.
+  readonly onExpire?: () => void;
 };
 
 export type ToastActionButton = { readonly label: string; readonly run: () => void | Promise<void>; readonly close?: boolean };
@@ -45,6 +52,8 @@ export type ToastState = {
   readonly undo: (() => UndoResult | Promise<UndoResult>) | null;
   // The other button, while the toast is open.
   readonly action?: ToastActionButton | null;
+  // What to call when it goes and its act stands (ToastInput.onExpire).
+  readonly onExpire?: (() => void) | null;
   readonly phase: ToastPhase;
   // The message shown after an Undo (failed: the tool's words or the kit's).
   readonly note: string | null;
@@ -112,6 +121,7 @@ export function toastReducer(state: readonly ToastState[], action: ToastAction):
         sent,
         undo,
         action: button,
+        onExpire: input.onExpire ?? null,
         phase: "open",
         note: null,
         deadline: now + length,
@@ -168,6 +178,14 @@ export function latestUndo(state: readonly ToastState[]): ToastState | null {
     if (t.undo && t.phase === "open") return t;
   }
   return null;
+}
+
+// expired: the toasts of `before` gone from `after` whose act still
+// stands (none undone): their onExpire is due. A toast replaced by another
+// of the same id counts as gone (the newer one has another seq).
+export function expired(before: readonly ToastState[], after: readonly ToastState[]): ToastState[] {
+  const still = new Set(after.map(t => `${t.id}#${t.seq}`));
+  return before.filter(t => !still.has(`${t.id}#${t.seq}`) && t.onExpire && t.phase !== "undone" && t.phase !== "undoing");
 }
 
 // settle turns what an undo function gave into ok + note.

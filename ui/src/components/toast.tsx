@@ -13,7 +13,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useReducer, useRef, type ReactElement, type ReactNode } from "react";
 import { CloseIcon, SentIcon, UndoIcon } from "./icons.js";
 import { isEditable } from "./text.js";
-import { latestUndo, settleUndo, toastReducer, type ToastInput, type ToastState } from "./toast-state.js";
+import { expired, latestUndo, settleUndo, toastReducer, type ToastInput, type ToastState } from "./toast-state.js";
 import { en, type ToastWords } from "./words.js";
 
 export type ShowToast = (input: ToastInput | string) => string;
@@ -77,6 +77,16 @@ export function Toasts({ labels = en.toast, children }: { labels?: ToastWords; c
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
   }, [runUndo]);
+
+  // A toast gone while its act stands: its onExpire, once (0.2.2).
+  const gone = useRef<readonly ToastState[]>([]);
+  useEffect(() => {
+    const due = expired(gone.current, toasts);
+    gone.current = toasts;
+    for (const t of due) {
+      try { t.onExpire?.(); } catch (error) { console.error(error); }
+    }
+  }, [toasts]);
 
   const value = useMemo(() => ({ show, dismiss }), [show, dismiss]);
   const polite = toasts.filter(t => t.tone !== "error");

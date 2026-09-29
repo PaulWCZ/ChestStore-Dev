@@ -182,7 +182,7 @@ test("FilePicker: stated limits, a real file input behind a visible button, remo
   ];
   const markup = html(<FilePicker label="Justificatifs" files={files} onChange={noop} maxFiles={2} maxSize={5 * 1024 * 1024} accept={["image/*", ".pdf"]} capture="environment" name="receipts" labels={fr.files} />);
   assert.match(markup, /<input[^>]*type="file"[^>]*multiple=""[^>]*accept="image\/\*,\.pdf"[^>]*capture="environment"[^>]*disabled=""/u, "full: no more files");
-  assert.match(markup, /Jusqu’à 2 fichiers, 5 Mo chacun\. Acceptés : image, PDF\./u);
+  assert.match(markup, /Jusqu’à 2 fichiers, 5 Mo chacun\. Acceptés : images, PDF\./u);
   assert.match(markup, /Envoi… 42 %/u);
   assert.match(markup, /<progress class="ck-progress" max="1" value="0.42"/u);
   assert.match(markup, /Retirer devis\.pdf/u);
@@ -255,9 +255,9 @@ test("every class the components write is styled, and the stylesheet styles no c
   const written = new Set([...source.matchAll(/\bck-[a-z0-9-]+/gu)].map(m => m[0]).filter(c => !c.endsWith("-")));
   const styled = new Set([...cssNoComments.matchAll(/\.(ck-[a-z0-9-]+)/gu)].map(m => m[1]!));
   // Classes built from a value (ck-avatar-${size}, ck-tone-${tone}…) are listed here.
-  const built = ["ck-avatar-s", "ck-avatar-m", "ck-avatar-l", "ck-avatar-xl", "ck-stack-s", "ck-stack-l", "ck-stack-xl", "ck-tone-ok", "ck-tone-wait", "ck-tone-danger", "ck-tone-info", "ck-tone-neutral", "ck-badge-s", "ck-dialog-s", "ck-dialog-l", "ck-main-narrow", "ck-main-normal", "ck-main-wide", "ck-align-end", "ck-align-center", "ck-col-narrow", "ck-col-wide", "ck-menu-end", "ck-menu-start", "ck-sort-asc", "ck-sort-desc", "ck-sort-none", "ck-file-failed", ...[1, 2, 3, 4, 5, 6, 7, 8].map(n => `ck-cat-${n}`)];
+  const built = ["ck-avatar-s", "ck-avatar-m", "ck-avatar-l", "ck-avatar-xl", "ck-stack-s", "ck-stack-l", "ck-stack-xl", "ck-tone-ok", "ck-tone-wait", "ck-tone-danger", "ck-tone-info", "ck-tone-neutral", "ck-badge-s", "ck-dialog-s", "ck-dialog-l", "ck-main-narrow", "ck-main-normal", "ck-main-wide", "ck-align-end", "ck-align-center", "ck-col-narrow", "ck-col-wide", "ck-menu-end", "ck-menu-start", "ck-sort-asc", "ck-sort-desc", "ck-sort-none", "ck-file-failed", "ck-shell-full", ...[1, 2, 3, 4, 5, 6, 7, 8].map(n => `ck-cat-${n}`)];
   for (const c of built) written.add(c);
-  const unstyled = [...written].filter(c => !styled.has(c) && !["ck-shell", "ck-tabs-block", "ck-nav-label", "ck-file-sending", "ck-file-ready", "ck-files", "ck-state-icon", "ck-confirm-body", "ck-badge-m", "ck-avatar-m", "ck-dialog-m", "ck-stack-m", "ck-main-full", "ck-nav-1", "ck-nav-2", "ck-nav-3", "ck-nav-4", "ck-nav-5"].includes(c));
+  const unstyled = [...written].filter(c => !styled.has(c) && !["ck-shell", "ck-tabs-block", "ck-nav-label", "ck-file-sending", "ck-file-ready", "ck-files", "ck-state-icon", "ck-confirm-body", "ck-badge-m", "ck-avatar-m", "ck-dialog-m", "ck-stack-m", "ck-main-full", "ck-shell-narrow", "ck-shell-normal", "ck-shell-wide", "ck-nav-1", "ck-nav-2", "ck-nav-3", "ck-nav-4", "ck-nav-5"].includes(c));
   assert.deepEqual(unstyled, [], "classes written but never styled");
   const unused = [...styled].filter(c => !written.has(c));
   assert.deepEqual(unused, [], "classes styled but never written");

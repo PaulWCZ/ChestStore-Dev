@@ -63,7 +63,7 @@ export function resolveTheme(choice: ThemeChoice | null | undefined, own: Theme,
       const files = faces.filter(f => f.family === spec.family).map((f): FontSource => ({ url: f.url, weight: f.weight, style: f.style }));
       return files.length > 0 ? { ...spec, files } : spec;
     };
-    const theme = faces.length === 0 ? found : { ...found, fonts: { display: withFaces(found.fonts.display), body: withFaces(found.fonts.body), mono: withFaces(found.fonts.mono), accent: withFaces(found.fonts.accent) } };
+    const theme = faces.length === 0 ? found : { ...found, fonts: { display: withFaces(found.fonts.display), body: withFaces(found.fonts.body), mono: withFaces(found.fonts.mono), accent: withFaces(found.fonts.accent), ...(found.fonts.read ? { read: withFaces(found.fonts.read) } : {}) } };
     return { theme, source: "catalogue", fontBase: base, logo: null, notes: [], problem: null };
   }
   if (choice.mode === "brand") {

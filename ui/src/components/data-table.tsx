@@ -13,6 +13,7 @@ import { useState, type ReactElement, type ReactNode } from "react";
 import { SortIcon } from "./icons.js";
 import { ariaSort, nextSort, sortRows, type Sort, type SortValue } from "./lists.js";
 import { Menu, type MenuItem } from "./menu.js";
+import type { LinkComponent } from "./shell.js";
 import { fill } from "./text.js";
 import { en, type TableWords } from "./words.js";
 
@@ -29,6 +30,12 @@ export type Column<R> = {
   // Hidden under this width, as a CSS class: "ck-hide-phone".
   readonly hideOnPhone?: boolean;
   readonly width?: "narrow" | "wide";
+  // What the header shows instead of `label` (an icon with its word, a
+  // line break); `label` stays its name (the phone's stacked rows, the
+  // sort's announcement) (0.2.2).
+  readonly header?: ReactNode;
+  // A class of the tool's own on the column's cells (0.2.2).
+  readonly className?: string;
 };
 
 export type DataTableProps<R> = {
@@ -52,11 +59,25 @@ export type DataTableProps<R> = {
   // A row's own class and data- attributes (a past booking, a late
   // invoice), for the tool's CSS; its meaning is also said in a cell (0.2.1).
   readonly rowProps?: (row: R) => RowProps;
+  // The whole row opens this address: its header cell becomes the link
+  // and a click anywhere in the row follows it; a row's own buttons and
+  // links keep working (0.2.2).
+  readonly rowHref?: (row: R) => string;
+  // Next.js's Link for rowHref (a component: a server component may pass it).
+  readonly link?: LinkComponent;
+  // The first column stays in view while the table scrolls sideways (0.2.2).
+  readonly stickyFirst?: boolean;
+  // On a phone (under 640 px): "scroll" (default) keeps the table, which
+  // scrolls sideways; "stack" shows each row as a card of labelled lines (0.2.2).
+  readonly phone?: "scroll" | "stack";
+  readonly className?: string;
+  // The table's id (an anchor, a skip link) (0.2.2).
+  readonly id?: string;
 };
 
 export type RowProps = { readonly className?: string | undefined } & { readonly [data: `data-${string}`]: string | number | boolean | undefined };
 
-export function DataTable<R>({ caption, showCaption = false, columns, rows, rowKey, rowName, actions, totals, empty, sort, onSort, sortHref, labels = en.table, current, rowProps }: DataTableProps<R>): ReactElement {
+export function DataTable<R>({ caption, showCaption = false, columns, rows, rowKey, rowName, actions, totals, empty, sort, onSort, sortHref, labels = en.table, current, rowProps, rowHref, link, stickyFirst = false, phone = "scroll", className, id }: DataTableProps<R>): ReactElement {
   const [localSort, setLocalSort] = useState<Sort | null>(null);
   const controlled = sort !== undefined || onSort !== undefined || sortHref !== undefined;
   const active = controlled ? sort ?? null : localSort;
@@ -64,11 +85,15 @@ export function DataTable<R>({ caption, showCaption = false, columns, rows, rowK
 
   if (rows.length === 0 && empty) return <>{empty}</>;
   const align = (c: Column<R>) => (c.align && c.align !== "start" ? ` ck-align-${c.align}` : "");
-  const hide = (c: Column<R>) => (c.hideOnPhone ? " ck-hide-phone" : "") + (c.width ? " ck-col-" + c.width : "");
+  const hide = (c: Column<R>) => (c.hideOnPhone ? " ck-hide-phone" : "") + (c.width ? " ck-col-" + c.width : "") + (c.className ? " " + c.className : "");
+  // The row's link sits in its header cell (the first column without one).
+  const linkAt = rowHref ? Math.max(0, columns.findIndex(c => c.rowHeader)) : -1;
+  const A: LinkComponent = link ?? (p => <a {...p} />);
+  const tableClass = `ck-table${stickyFirst ? " ck-table-sticky" : ""}${phone === "stack" ? " ck-table-stack" : ""}${rowHref ? " ck-table-linked" : ""}`;
 
   return (
-    <div className="ck-table-wrap" role="region" aria-label={fill(labels.scroll, { caption })} tabIndex={0}>
-      <table className="ck-table">
+    <div className={`ck-table-wrap${className ? " " + className : ""}`} role="region" aria-label={fill(labels.scroll, { caption })} tabIndex={0}>
+      <table className={tableClass} {...(id ? { id } : {})}>
         <caption className={showCaption ? "ck-caption" : "ck-vh"}>{caption}</caption>
         <thead>
           <tr>
@@ -76,10 +101,11 @@ export function DataTable<R>({ caption, showCaption = false, columns, rows, rowK
               const sortable = c.value !== undefined;
               const state = ariaSort(active, c.key);
               const next = nextSort(active, c.key);
-              const inner = <>{c.label}<SortIcon dir={state === "ascending" ? "asc" : state === "descending" ? "desc" : "none"} /></>;
+              const shown = c.header ?? c.label;
+              const inner = <>{shown}<SortIcon dir={state === "ascending" ? "asc" : state === "descending" ? "desc" : "none"} /></>;
               return (
                 <th key={c.key} scope="col" aria-sort={sortable && state !== "none" ? state : undefined} className={`${align(c)}${hide(c)}`.trim() || undefined}>
-                  {!sortable ? c.label : sortHref ? (
+                  {!sortable ? shown : sortHref ? (
                     <a className="ck-sort" href={sortHref(next)}>{inner}</a>
                   ) : (
                     <button type="button" className="ck-sort" onClick={() => (onSort ? onSort(next) : setLocalSort(next))}>{inner}</button>
@@ -98,10 +124,13 @@ export function DataTable<R>({ caption, showCaption = false, columns, rows, rowK
             const own = Object.fromEntries(Object.entries(extra).filter(([k, v]) => k.startsWith("data-") && v !== undefined));
             return (
               <tr key={key} {...own} {...(extra.className ? { className: extra.className } : {})} aria-current={current === key ? "true" : undefined}>
-                {columns.map(c => {
-                  const content = c.render ? c.render(row) : String(c.value?.(row) ?? "");
+                {columns.map((c, i) => {
+                  const raw = c.render ? c.render(row) : String(c.value?.(row) ?? "");
+                  const content = i === linkAt ? <A href={rowHref!(row)} className="ck-row-link">{raw}</A> : raw;
                   const cls = `${align(c)}${hide(c)}`.trim() || undefined;
-                  return c.rowHeader ? <th key={c.key} scope="row" className={cls}>{content}</th> : <td key={c.key} className={cls}>{content}</td>;
+                  // The stacked phone layout names each line by its column.
+                  const named = phone === "stack" ? { "data-label": c.label } : {};
+                  return c.rowHeader ? <th key={c.key} scope="row" className={cls} {...named}>{content}</th> : <td key={c.key} className={cls} {...named}>{content}</td>;
                 })}
                 {actions && (
                   <td className="ck-col-actions">
@@ -121,7 +150,8 @@ export function DataTable<R>({ caption, showCaption = false, columns, rows, rowK
               {columns.map((c, i) => {
                 const cls = `${align(c)}${hide(c)}`.trim() || undefined;
                 const content = totals[c.key] ?? (i === 0 ? labels.total : null);
-                return i === 0 ? <th key={c.key} scope="row" className={cls}>{content}</th> : <td key={c.key} className={cls}>{content}</td>;
+                const named = phone === "stack" && i > 0 ? { "data-label": c.label } : {};
+                return i === 0 ? <th key={c.key} scope="row" className={cls}>{content}</th> : <td key={c.key} className={`${cls ?? ""}${content === null || content === undefined ? " ck-empty-cell" : ""}`.trim() || undefined} {...named}>{content}</td>;
               })}
               {actions && <td />}
             </tr>

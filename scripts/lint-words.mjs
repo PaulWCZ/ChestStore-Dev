@@ -18,11 +18,20 @@ if (!folder || !existsSync(join(folder, "lib", "i18n", "en.ts")) || !existsSync(
   process.exit(2);
 }
 
+// A catalogue, and the other products' interface words it quotes: an
+// explicit escape (lab/GLOSSARY.md, "Quoting another product"). A tool that
+// tells people where to click in Google or Microsoft writes their words as
+// those products show them — « Paramètres », not « Réglages » — and lists
+// them once, beside its catalogue:
+//   export const quotedUi = ["Paramètres", "Supprimer le calendrier"];
+// Inside guillemets (or “…” in English), a listed text is not held to the
+// glossary's words; the typography rules still apply to it.
 async function catalogue(lang) {
   const mod = await import(pathToFileURL(resolve(folder, "lib", "i18n", `${lang}.ts`)).href);
-  const value = mod[lang] ?? mod.default ?? Object.values(mod).find(v => v && typeof v === "object");
+  const value = mod[lang] ?? mod.default ?? Object.values(mod).find(v => v && typeof v === "object" && !Array.isArray(v));
   if (!value || typeof value !== "object") throw new Error(`no catalogue exported by ${lang}.ts`);
-  return value;
+  const quoted = Array.isArray(mod.quotedUi) ? mod.quotedUi.filter(q => typeof q === "string" && q.trim() !== "") : [];
+  return { value, quoted };
 }
 
 function leaves(value, path = "") {
@@ -32,10 +41,22 @@ function leaves(value, path = "") {
   return [];
 }
 
-const en = new Map(leaves(await catalogue("en")));
-const fr = new Map(leaves(await catalogue("fr")));
+const enCat = await catalogue("en");
+const frCat = await catalogue("fr");
+const en = new Map(leaves(enCat.value));
+const fr = new Map(leaves(frCat.value));
 const found = [];
 const add = (level, rule, key, message, text) => found.push({ level, rule, key, message, text });
+
+// The quoted interface words of another product, masked for the word rules.
+const quoted = new Set([...enCat.quoted, ...frCat.quoted].map(q => q.trim()));
+const used = new Set();
+const mask = text => text.replace(/«[\u00a0\u202f ]?([^«»]+?)[\u00a0\u202f ]?»|“([^“”]+)”/gu, (whole, inFr, inEn) => {
+  const inner = (inFr ?? inEn).trim();
+  if (!quoted.has(inner)) return whole;
+  used.add(inner);
+  return whole.startsWith("«") ? "«\u202f…\u202f»" : "“…”";
+});
 
 // The three verbs and their families (word starts, accents as written).
 const families = [
@@ -46,8 +67,10 @@ const families = [
 const undoFr = /^annuler l[’']action\b/iu;
 const bare = s => s.trim().replace(/[.!…]+$/u, "").trim();
 
-for (const [key, e] of en) {
-  const f = fr.get(key);
+for (const [key, eRaw] of en) {
+  const e = mask(eRaw);
+  const fRaw = fr.get(key);
+  const f = typeof fRaw === "string" ? mask(fRaw) : fRaw;
   // English-only rules.
   if (/\b\d{1,2}(:\d{2})?\s?(AM|PM|am|pm)\b/u.test(e) || /\b(mm\/dd|MM\/DD)\b/u.test(e)) add("error", "clock", key, "24-hour clock and day/month/year (never AM/PM, never mm/dd)", e);
   if (/\bare you sure\b/iu.test(e)) add("warning", "are-you-sure", key, "act and offer Undo instead of asking", e);
@@ -67,9 +90,10 @@ for (const [key, e] of en) {
 }
 
 for (const [key, f] of fr) {
-  if (/\bParamètres\b/u.test(f)) add("error", "settings", key, "Settings is « Réglages »", f);
-  if (/\bassign(er|é|ée|és|ées|ez|ons)\b/iu.test(f)) add("warning", "assign", key, "prefer « Attribuer » (« assigner » is to summon)", f);
-  if (/\bêtes[- ]vous (sûr|certain)/iu.test(f)) add("warning", "are-you-sure", key, "act and offer « Annuler l’action » instead of asking", f);
+  const words = mask(f);
+  if (/\bParamètres\b/u.test(words)) add("error", "settings", key, "Settings is « Réglages » (another product's « Paramètres »: list it in quotedUi)", f);
+  if (/\bassign(er|é|ée|és|ées|ez|ons)\b/iu.test(words)) add("warning", "assign", key, "prefer « Attribuer » (« assigner » is to summon)", f);
+  if (/\bêtes[- ]vous (sûr|certain)/iu.test(words)) add("warning", "are-you-sure", key, "act and offer « Annuler l’action » instead of asking", f);
   if (/"/u.test(f)) add("warning", "quotes", key, "guillemets « » in French", f);
   if (/\.\.\./u.test(f)) add("warning", "ellipsis", key, "use … (one character)", f);
   if (/\p{L}'\p{L}/u.test(f)) add("warning", "apostrophe", key, "typographic apostrophe ’", f);
@@ -89,6 +113,8 @@ for (const [key, f] of fr) {
   }
   if (/«(?![  ])/u.test(f) || /(?<![  ])»/u.test(f)) add("error", "fr-space", key, "« guillemets » take a narrow no-break space inside", f);
 }
+
+for (const q of quoted) if (!used.has(q)) add("warning", "quoted-ui", "quotedUi", `« ${q} » is listed as another product's words but never quoted in guillemets: remove it from quotedUi`, q);
 
 const errors = found.filter(x => x.level === "error");
 const warnings = found.filter(x => x.level === "warning");

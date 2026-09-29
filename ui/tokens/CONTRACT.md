@@ -69,6 +69,32 @@ so it needs no token of its own.
 | `--focus` | the keyboard focus ring (`outline: 3px solid var(--focus)`) | 3:1 on `--bg`, `--surface` |
 | `--highlight` | the marker pen: a search hit, what asks for you | `--ink` 4.5:1 on it |
 
+### A region of its own colour (0.2.2)
+
+A band that keeps its colour whatever the page does — Equipment's steel
+header bar, Timesheets' instrument panel, Goals' dark map margin. Before
+0.2.2 such a region used the inverse pair (`--ink` ground, `--bg` text),
+which turns light on a dark page and becomes plain black in a theme whose
+ink is black (the steel bar "collapsed to ink" in Chest and Blueprint).
+Now each theme says what its region is:
+
+| Token | What it is for | Must reach |
+|---|---|---|
+| `--inverse` | the region's ground | — |
+| `--inverse-ink` | text and icons in it; its focus ring (`outline-color: var(--inverse-ink)`) | 4.5:1 on `--inverse` and `--inverse-line` |
+| `--inverse-ink-2` | secondary text in it (a role, a count) | 4.5:1 on `--inverse` |
+| `--inverse-line` | a quiet fill or hairline in it: a hover, the current item, a field's well | — (text on it is `--inverse-ink`, measured) |
+
+When a theme does not set them, `defineTheme` derives them: in light mode
+the ink as a ground (the old inverse pair), in dark mode a band a little
+darker than the page, with the page's text — dark in both modes. Tool
+crib (steel), Instrument (ink-green panel) and Trail map (forest margin)
+set their own; a brand's is its main colour's deep shade. Nothing else of
+the page goes on `--inverse`: a main button there keeps `--accent` and
+`--accent-ink` (their edge, `--accent-line`, is measured on `--bg` and
+`--surface` only — give it a `--inverse-ink` outline if the accent is
+close to the band's colour).
+
 ### The categorical palette: `--cat-N`, `--cat-N-soft`, `--cat-N-ink` (N = 1 to 8)
 
 Labels, leave kinds, booking types, project colours, pipeline stages,
@@ -129,6 +155,7 @@ decoration that carries no text and no meaning (below).
 | `--font-body` | everything else |
 | `--font-mono` | code, and figures that must line up |
 | `--font-accent` | a wordmark or an italic accent (the display font unless the theme says) |
+| `--font-read` | long text a person reads through — an article, a wiki page, a long description (0.2.2; the body font unless the theme says: Library reads in Newsreader, Letterpress in Libre Caslon Text). Never a display face: Barlow Semi Condensed, Fredoka or Young Serif make headings, not pages |
 | `--display-weight` | headings' weight (400 in a theme whose hierarchy is size alone) |
 | `--display-tracking` | headings' letter spacing (em) |
 | `--weight-strong` | the weight of emphasis: `strong`, a selected tab, a total |
@@ -136,9 +163,11 @@ decoration that carries no text and no meaning (below).
 | `--leading` | the body's line height |
 | `--space-1` `--space-2` `--space-3` `--space-4` `--space-5` `--space-6` `--space-7` `--space-8` | the spacing scale (px): 4, 8, 12, 16, 24, 32, 48, 72 by default |
 | `--radius-s` `--radius-m` `--radius-l` | corners: small controls, cards, big panels |
-| `--radius-pill` | 999 px: pills, avatars, counters |
+| `--radius-pill` | 999 px: pills, avatars |
+| `--radius-chip` | badges, chips, counters, filter chips (0.2.2): a pill in a theme with rounded corners, the small radius in a square one (Chest: 0; a "sharp" brand: 2 px); a theme may set it (`radius.chip`) |
 | `--border-width` | the width of lines (1 px, 2 px in Workshop and High contrast) |
 | `--control-h` | 44 px: the smallest target — **no theme changes it** |
+| `--field-pad-x` | the space between a field's edge and its text (0.2.2; `--space-3` unless the theme says, `fieldPad`): a tool's own fields and the kit's line up |
 | `--ease` `--fast` `--slow` | motion; both durations are 0 ms when the person asks for reduced motion |
 
 The stylesheet (`themeCss`) also sets `color-scheme`, `font-synthesis:
@@ -187,10 +216,33 @@ Rules:
 3. **Never a literal colour** in a tool's CSS: it would not follow the
    theme. A tool's own identity is a theme (`defineTheme`), not a
    stylesheet.
-4. A tool that needs a region in the "other" mode (Timesheets' panel is
-   dark in light mode) uses the inverse pair (`--ink` ground, `--bg`
-   text): in dark mode that panel becomes light — accepted, it is the
-   theme's call.
+4. A region of its own colour (a header bar, a panel) is `--inverse` with
+   `--inverse-ink` (0.2.2), not the inverse pair: it stays dark in both
+   modes and each theme picks its colour. The inverse pair (`--ink`
+   ground, `--bg` text) is still measured and right for a toast.
+5. **Recolouring a region: never from itself.** A tool that gives one
+   region another action colour redefines `--accent` there — from a
+   *contract* token, never from a tool token that is already
+   `var(--accent)`:
+
+   ```css
+   /* loops: --brand-accent is var(--accent), so --accent is var(--accent) — the
+      browser drops both (a cycle is "invalid at computed-value time") */
+   :root { --brand-accent: var(--accent); }
+   .form-page { --accent: var(--brand-accent); }
+
+   /* safe: a region takes a slot of the palette, whose pairs are measured
+      (--cat-3-ink reads at 4.5:1 on --surface, so --surface reads on it) */
+   .form-page[data-colour="3"] { --accent: var(--cat-3-ink); --accent-ink: var(--surface); --accent-text: var(--cat-3-ink); --accent-soft: var(--cat-3-soft); --accent-line: var(--cat-3); }
+   ```
+
+   Custom properties resolve where they are used, so a token defined from
+   `--accent` and then assigned back to `--accent` refers to itself. Keep
+   the region's source in a token that never names `--accent` (a palette
+   slot, or the tool's own value stored under another name), and use its
+   measured pairs: `--cat-N` is 3:1 (a fill, a dot, an edge), `--cat-N-ink`
+   4.5:1 on `--surface` and `--cat-N-soft` (words, or a filled button with
+   `--surface` words).
 
 ## What a theme may change, and what it may not
 

@@ -78,6 +78,27 @@ follow it and are tested against it.
 - Title case is English only: "Nouvelle réservation", not "Nouvelle
   Réservation".
 
+## Quoting another product
+
+A tool sometimes tells people where to click in *another* product ("In
+Google Calendar, open « Paramètres »"). Those words are the other
+product's, as it shows them: they are quoted as they are, in guillemets
+(“…” in English), and never "corrected" to the glossary. The escape is
+explicit, beside the catalogue — the words are listed once in
+`lib/i18n/fr.ts` (or `en.ts`):
+
+```ts
+// Another product's interface, quoted as it shows it (lab/GLOSSARY.md).
+export const quotedUi = ["Paramètres", "Supprimer l’agenda"];
+export const fr = { … help: "Dans Google Agenda, ouvrez « Paramètres » puis « Supprimer l’agenda ». …" };
+```
+
+The lint then leaves a listed text alone **inside guillemets only**: the
+same word elsewhere (the tool's own "Paramètres") is still an error, the
+typography rules still apply to the quote (narrow spaces inside « »), and
+a listed text that is never quoted is a warning (`quoted-ui`). The tool's
+own words for the same idea stay the glossary's (« Réglages »).
+
 ## What the lint checks
 
 | Rule | Level | What |
@@ -94,3 +115,8 @@ follow it and are tested against it.
 | `quotes` | warning | straight double quotes in French |
 | `ellipsis` | warning | `...` instead of `…` |
 | `apostrophe` | warning | a straight apostrophe `'` in French |
+| `quoted-ui` | warning | a `quotedUi` entry never quoted in guillemets (a stale escape) |
+
+The word rules (`undo`, `verb`, `settings`, `assign`, `are-you-sure`…)
+skip another product's words quoted in guillemets when the catalogue
+lists them in `quotedUi` (above).

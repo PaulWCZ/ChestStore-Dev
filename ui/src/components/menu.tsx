@@ -10,16 +10,43 @@ import { MoreIcon } from "./icons.js";
 import { menuKey } from "./keys.js";
 
 export type MenuItem = {
+  // A stable key when two items may share a label (two people named alike)
+  // (0.2.2; the label otherwise, with its place).
+  readonly id?: string;
   readonly label: string;
+  // A second line under the label, quieter ("Due Tuesday", "3 open") (0.2.2).
+  readonly note?: string;
   readonly onSelect?: () => void;
   // A link instead of an action.
   readonly href?: string;
+  // A link that downloads (true, or the file's name) — a plain <a>, never
+  // the tool's link component (0.2.2).
+  readonly download?: boolean | string;
   readonly tone?: "danger";
   readonly disabled?: boolean;
   readonly icon?: ReactNode;
 };
 
-export function Menu({ label, items, icon, showLabel = false, align = "end" }: { label: string; items: readonly MenuItem[]; icon?: ReactNode; showLabel?: boolean; align?: "start" | "end" }): ReactElement {
+// What a Menu gives its link component (Next.js's Link fits as it is).
+export type MenuLinkProps = { href: string; className?: string; role: "menuitem"; tabIndex: number; onClick: () => void; children: ReactNode };
+export type MenuLinkComponent = (props: MenuLinkProps) => ReactNode;
+
+export type MenuProps = {
+  readonly label: string;
+  readonly items: readonly MenuItem[];
+  readonly icon?: ReactNode;
+  // The label shown on the button (a quiet button), not only read.
+  readonly showLabel?: boolean;
+  // A shown label's button: "s" (default, smaller words) or "m" — both
+  // keep the 44 px target (0.2.2).
+  readonly size?: "s" | "m";
+  readonly align?: "start" | "end";
+  // Next.js's <Link> for href items (client navigation) (0.2.2).
+  readonly link?: MenuLinkComponent;
+  readonly className?: string;
+};
+
+export function Menu({ label, items, icon, showLabel = false, size = "s", align = "end", link, className }: MenuProps): ReactElement {
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(0);
   const button = useRef<HTMLButtonElement>(null);
@@ -52,12 +79,12 @@ export function Menu({ label, items, icon, showLabel = false, align = "end" }: {
   };
 
   return (
-    <div className="ck-menu" ref={wrap}>
+    <div className={`ck-menu${className ? " " + className : ""}`} ref={wrap}>
       <button
         ref={button}
         type="button"
         id={id + "-button"}
-        className={showLabel ? "ck-button ck-button-quiet ck-button-small" : "ck-icon-button"}
+        className={showLabel ? `ck-button ck-button-quiet${size === "s" ? " ck-button-small" : ""}` : "ck-icon-button"}
         aria-haspopup="menu"
         aria-expanded={open}
         aria-controls={open ? id + "-menu" : undefined}
@@ -88,15 +115,29 @@ export function Menu({ label, items, icon, showLabel = false, align = "end" }: {
             else setActive(move.active);
           }}
         >
-          {items.map((item, i) => (
-            <li key={item.label} role="none">
-              {item.href && !item.disabled ? (
-                <a role="menuitem" href={item.href} tabIndex={i === active ? 0 : -1} className={`ck-menu-item${item.tone === "danger" ? " ck-danger" : ""}`} onClick={() => setOpen(false)}>{item.icon}{item.label}</a>
-              ) : (
-                <button type="button" role="menuitem" tabIndex={i === active ? 0 : -1} aria-disabled={item.disabled || undefined} className={`ck-menu-item${item.tone === "danger" ? " ck-danger" : ""}`} onClick={() => run(item)}>{item.icon}{item.label}</button>
-              )}
-            </li>
-          ))}
+          {items.map((item, i) => {
+            const cls = `ck-menu-item${item.tone === "danger" ? " ck-danger" : ""}${item.note ? " ck-menu-item-2" : ""}`;
+            const content = item.note
+              ? <>{item.icon}<span className="ck-menu-item-text"><span>{item.label}</span><span className="ck-menu-item-note">{item.note}</span></span></>
+              : <>{item.icon}{item.label}</>;
+            const tabIndex = i === active ? 0 : -1;
+            const L = link;
+            return (
+              <li key={item.id ?? `${i}-${item.label}`} role="none">
+                {item.href && !item.disabled ? (
+                  item.download !== undefined && item.download !== false ? (
+                    <a role="menuitem" href={item.href} download={item.download === true ? "" : item.download} tabIndex={tabIndex} className={cls} onClick={() => setOpen(false)}>{content}</a>
+                  ) : L ? (
+                    <L href={item.href} role="menuitem" tabIndex={tabIndex} className={cls} onClick={() => setOpen(false)}>{content}</L>
+                  ) : (
+                    <a role="menuitem" href={item.href} tabIndex={tabIndex} className={cls} onClick={() => setOpen(false)}>{content}</a>
+                  )
+                ) : (
+                  <button type="button" role="menuitem" tabIndex={tabIndex} aria-disabled={item.disabled || undefined} className={cls} onClick={() => run(item)}>{content}</button>
+                )}
+              </li>
+            );
+          })}
         </ul>
       )}
     </div>

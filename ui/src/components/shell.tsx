@@ -38,6 +38,8 @@ export type NavItem = {
   // Other path prefixes where this section is current too, e.g. a
   // "Bookings" tab on ["/chest/new", "/chest/b"] (0.2.1).
   readonly also?: readonly string[];
+  // A class of the tool's own on this section's link (0.2.2).
+  readonly className?: string;
 };
 
 const ruleOf = ({ exact, match, also }: { exact?: boolean | undefined; match?: "exact" | "prefix" | undefined; also?: readonly string[] | undefined }): CurrentRule => ({ ...(exact !== undefined ? { exact } : {}), ...(match ? { match } : {}), ...(also ? { also } : {}) });
@@ -56,7 +58,7 @@ export function Nav({ items, path, label, link }: { items: readonly NavItem[]; p
       <ul>
         {items.map(i => (
           <li key={i.href}>
-            <NavLink href={i.href} path={path} {...ruleOf(i)} className="ck-nav-link" {...(link ? { link } : {})}>
+            <NavLink href={i.href} path={path} {...ruleOf(i)} className={i.className ? `ck-nav-link ${i.className}` : "ck-nav-link"} {...(link ? { link } : {})}>
               {i.icon ? <span className="ck-nav-icon" aria-hidden="true">{i.icon}</span> : null}
               <span className="ck-nav-label">{i.label}</span>
               {i.count ? <span className="ck-count">{i.count}</span> : null}
@@ -87,22 +89,29 @@ export type AppShellProps = {
   // Things at the right of the header before the member (a search box on
   // a wide screen, a bell count).
   readonly tools?: ReactNode;
+  // Where `tools` show (0.2.2): "all" (default), "wide" (hidden under
+  // 760 px, where the sections take their row), "phone" (only there). For
+  // one tool of several, the classes ck-wide-only and ck-phone-only.
+  readonly toolsOn?: "all" | "wide" | "phone";
   readonly labels?: Pick<ShellWords, "skip" | "nav">;
   readonly link?: LinkComponent;
+  // The page's width; "full" takes the header's content to the edges too (0.2.2).
   readonly width?: "narrow" | "normal" | "wide" | "full";
+  readonly className?: string;
   readonly children?: ReactNode;
 };
 
-export function AppShell({ brand, nav = [], path = "", member, tools, labels = en.shell, link, width = "normal", children }: AppShellProps): ReactElement {
+export function AppShell({ brand, nav = [], path = "", member, tools, toolsOn = "all", labels = en.shell, link, width = "normal", className, children }: AppShellProps): ReactElement {
+  const toolsClass = toolsOn === "wide" ? " ck-wide-only" : toolsOn === "phone" ? " ck-phone-only" : "";
   return (
-    <div className="ck-shell">
+    <div className={`ck-shell ck-shell-${width}${className ? " " + className : ""}`}>
       <a className="ck-skip" href="#main">{labels.skip}</a>
       <header className="ck-bar">
         <div className="ck-bar-inner">
           <div className="ck-brand">{brand}</div>
           {nav.length > 0 && <div className="ck-bar-nav"><Nav items={nav} path={path} label={labels.nav} {...(link ? { link } : {})} /></div>}
           <div className="ck-bar-end">
-            {tools}
+            {tools ? (toolsClass ? <div className={`ck-bar-tools${toolsClass}`}>{tools}</div> : tools) : null}
             {member ? <MemberChip name={member.name} role={member.role ?? null} photo={member.photo ?? null} /> : null}
           </div>
         </div>
@@ -115,13 +124,16 @@ export function AppShell({ brand, nav = [], path = "", member, tools, labels = e
 // PageHeader: the page's title, a line under it, and its main action.
 // `size`: "l" (default, --text-2xl) for a section's page, "m" (--text-xl)
 // for a denser page — a form, a record, a tool whose pages are many (0.2.1).
-export function PageHeader({ title, intro, action, secondary, headingLevel = 1, size = "l" }: { title: ReactNode; intro?: ReactNode; action?: ReactNode; secondary?: ReactNode; headingLevel?: 1 | 2; size?: "l" | "m" }): ReactElement {
+// `intro`: a sentence is a <p>; anything else (a line with a badge, two
+// paragraphs) a <div> of the same look (0.2.2).
+export function PageHeader({ title, intro, action, secondary, headingLevel = 1, size = "l", className }: { title: ReactNode; intro?: ReactNode; action?: ReactNode; secondary?: ReactNode; headingLevel?: 1 | 2; size?: "l" | "m"; className?: string }): ReactElement {
   const H = headingLevel === 1 ? "h1" : "h2";
+  const plain = typeof intro === "string" || typeof intro === "number";
   return (
-    <div className={size === "m" ? "ck-page-head ck-page-head-m" : "ck-page-head"}>
+    <div className={`${size === "m" ? "ck-page-head ck-page-head-m" : "ck-page-head"}${className ? " " + className : ""}`}>
       <div className="ck-page-title">
         <H>{title}</H>
-        {intro ? <p className="ck-page-intro">{intro}</p> : null}
+        {intro ? (plain ? <p className="ck-page-intro">{intro}</p> : <div className="ck-page-intro">{intro}</div>) : null}
       </div>
       {(action || secondary) && <div className="ck-page-actions">{secondary}{action}</div>}
     </div>
@@ -143,12 +155,14 @@ export function NoAccess({ labels = en.shell, title, body, action }: { labels?: 
 // LanguageSwitch: the public part's visible switch (the members' part
 // follows member.locale and has none). Each language is named in itself,
 // never translated. Links to `href(code)` — by default /lang/<code>?back=…,
-// a route of the tool that remembers the choice in a cookie.
-export function LanguageSwitch({ languages, current, label, back = "/", href, link }: { languages: readonly Language[]; current: string; label: string; back?: string; href?: (code: string) => string; link?: LinkComponent }): ReactElement {
+// a route of the tool that remembers the choice in a cookie. `href` may be
+// a pattern with {code} ("/p/{code}/pricing"): plain data, so a server
+// component passes it (a function it cannot) (0.2.2).
+export function LanguageSwitch({ languages, current, label, back = "/", href, link, className }: { languages: readonly Language[]; current: string; label: string; back?: string; href?: string | ((code: string) => string); link?: LinkComponent; className?: string }): ReactElement {
   const A = link ?? PlainLink;
-  const to = href ?? ((code: string) => `/lang/${code}?back=${encodeURIComponent(back)}`);
+  const to = typeof href === "function" ? href : typeof href === "string" ? (code: string) => href.replaceAll("{code}", encodeURIComponent(code)) : (code: string) => `/lang/${code}?back=${encodeURIComponent(back)}`;
   return (
-    <nav className="ck-languages" aria-label={label}>
+    <nav className={`ck-languages${className ? " " + className : ""}`} aria-label={label}>
       {languages.map(l => (
         <A key={l.code} href={to(l.code)} hrefLang={l.code} lang={l.code} className="ck-language" {...(l.code === current ? { "aria-current": "true" as const } : {})}>{l.name}</A>
       ))}

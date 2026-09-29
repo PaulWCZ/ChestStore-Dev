@@ -55,6 +55,12 @@ function paramsOf(params: ParamsLike): URLSearchParams {
   return p;
 }
 
+// paramEntries: the address's parameters as [key, value] pairs, without
+// `drop` (a select filter's form keeps the others in hidden fields).
+export function paramEntries(params: ParamsLike, drop: readonly string[] = []): [string, string][] {
+  return [...paramsOf(params).entries()].filter(([k, v]) => !drop.includes(k) && v !== "");
+}
+
 function hrefOf(path: string, p: URLSearchParams): string {
   const q = p.toString();
   return q ? `${path}?${q}` : path;

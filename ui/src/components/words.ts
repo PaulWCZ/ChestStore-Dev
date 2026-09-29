@@ -92,6 +92,15 @@ export type FileWords = {
   readonly tooMany: string;
   readonly units: readonly [string, string, string, string];
   readonly decimal: string;
+  // 0.2.2 (optional: the kit's English when absent) —
+  // `camera`'s two buttons on a phone:
+  readonly takePhoto?: string;
+  readonly chooseFile?: string;
+  // what a family of types is called in "Accepted: …" (image/* → images):
+  readonly kinds?: { readonly image: string; readonly audio: string; readonly video: string; readonly text: string };
+  // between a button's words and the field's name, for screen readers
+  // ("Add files: Receipts"; French « Ajouter des fichiers : Justificatifs »):
+  readonly separator?: string;
 };
 
 export type TableWords = {
@@ -105,6 +114,8 @@ export type FilterWords = {
   readonly label: string;
   readonly clear: string;
   readonly all: string;
+  // A select filter's button where no script runs ("Show") (0.2.2).
+  readonly apply?: string;
 };
 
 export type SearchWords = {
@@ -215,6 +226,10 @@ export const en: KitWords = {
     tooMany: "{count} files at most.",
     units: ["B", "KB", "MB", "GB"],
     decimal: ".",
+    takePhoto: "Take a photo",
+    chooseFile: "Choose a file",
+    kinds: { image: "images", audio: "sound files", video: "videos", text: "text files" },
+    separator: ": ",
   },
   table: {
     rowActions: "Actions",
@@ -226,6 +241,7 @@ export const en: KitWords = {
     label: "Filters",
     clear: "Clear filters",
     all: "All",
+    apply: "Show",
   },
   search: {
     label: "Search",
@@ -320,6 +336,10 @@ export const fr: KitWords = {
     tooMany: "{count} fichiers au plus.",
     units: ["o", "Ko", "Mo", "Go"],
     decimal: ",",
+    takePhoto: "Prendre une photo",
+    chooseFile: "Choisir un fichier",
+    kinds: { image: "images", audio: "fichiers audio", video: "vidéos", text: "fichiers texte" },
+    separator: `${nnbsp}: `,
   },
   table: {
     rowActions: "Actions",
@@ -331,6 +351,7 @@ export const fr: KitWords = {
     label: "Filtres",
     clear: "Retirer les filtres",
     all: "Tout",
+    apply: "Afficher",
   },
   search: {
     label: "Rechercher",

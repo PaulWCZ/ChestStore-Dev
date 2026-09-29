@@ -7,11 +7,11 @@ import { fontFiles, registry } from "../src/fonts.js";
 import { catalogue, catalogueFonts, identityOf, themeOf } from "../src/themes.js";
 
 const root = join(import.meta.dirname, "..", "..");
-const tools = ["tasks", "wiki", "leave", "news", "people", "crm", "expenses", "helpdesk", "rooms", "timesheets", "booking", "hiring", "equipment", "polls", "goals", "quotes", "status"];
+const tools = ["tasks", "wiki", "leave", "news", "people", "crm", "expenses", "helpdesk", "rooms", "timesheets", "booking", "hiring", "equipment", "polls", "goals", "quotes", "status", "forms"];
 
-test("the catalogue holds the seventeen identities, the Chest's look and high contrast", () => {
-  assert.equal(catalogue.length, 19);
-  assert.equal(new Set(catalogue.map(t => t.id)).size, 19);
+test("the catalogue holds the eighteen identities, the Chest's look and high contrast", () => {
+  assert.equal(catalogue.length, 20);
+  assert.equal(new Set(catalogue.map(t => t.id)).size, 20);
   for (const tool of tools) assert.ok(identityOf(tool), `an identity for ${tool}`);
   assert.ok(themeOf("chest") && themeOf("high-contrast"));
   assert.equal(themeOf("plain"), undefined);

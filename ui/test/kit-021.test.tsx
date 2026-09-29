@@ -172,6 +172,11 @@ test("each identity keeps its tool's signature colour (the tools' tokens.css bef
     ["trail", "light", "highlight", "#f6dfcd", "Goals' sunrise soft"],
     ["letterpress", "light", "accent", "#8a1f30", "Quotes' oxblood"],
     ["control-room", "light", "accent", "#0f1419", "Status' ink"],
+    ["forms", "light", "accent", "#b0124f", "Forms' berry (0.2.2)"],
+    ["forms", "light", "highlight", "#f6c945", "Forms' marigold (0.2.2)"],
+    ["labels", "light", "inverse", "#2e3d48", "Equipment's steel bar (0.2.2)"],
+    ["instrument", "light", "inverse", "#0c231b", "Timesheets' instrument panel (0.2.2)"],
+    ["trail", "light", "inverse", "#17302a", "Goals' dark map margin (0.2.2)"],
   ];
   for (const [id, mode, token, value, what] of signatures) assert.equal((themeOf(id)!)[mode][token as "accent"], value, `${id} ${mode} --${token}: ${what}`);
 });

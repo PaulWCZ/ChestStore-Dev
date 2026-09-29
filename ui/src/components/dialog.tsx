@@ -76,8 +76,11 @@ export function Dialog({ open, title, onClose, children, description, footer, di
       aria-labelledby={titleId}
       aria-describedby={description ? descriptionId : undefined}
       // Escape: the browser's "cancel". Refused while dirty (asks instead).
-      onCancel={e => { e.preventDefault(); if (asking) { back.current = true; setAsking(false); } else request(); }}
-      onClose={() => { if (open) onClose(); }}
+      // React passes a nested dialog's cancel and close events up to this
+      // one (a Confirm opened from inside it): only this dialog's own count,
+      // or closing the inner one closed this one too (0.2.2).
+      onCancel={e => { if (e.target !== e.currentTarget) return; e.preventDefault(); if (asking) { back.current = true; setAsking(false); } else request(); }}
+      onClose={e => { if (e.target === e.currentTarget && open) onClose(); }}
       onClick={e => { if (e.target === ref.current) request(); }}
     >
       <div className="ck-dialog-panel">
@@ -139,8 +142,8 @@ export function Confirm({ open, title, body, confirmLabel, cancelLabel, onConfir
   }, [open]);
   return (
     <dialog ref={ref} role="alertdialog" className="ck-dialog ck-dialog-s ck-confirm" aria-labelledby={titleId} aria-describedby={bodyId}
-      onCancel={e => { e.preventDefault(); if (!busy) onCancel(); }}
-      onClose={() => { if (open) onCancel(); }}>
+      onCancel={e => { if (e.target !== e.currentTarget) return; e.preventDefault(); if (!busy) onCancel(); }}
+      onClose={e => { if (e.target === e.currentTarget && open) onCancel(); }}>
       <div className="ck-dialog-panel">
         <header className="ck-dialog-head">
           <h2 id={titleId}>{tone === "danger" && <AlertIcon />}{title}</h2>

@@ -16,8 +16,10 @@ export type FontEntry = { id: string; family: string; category: FontCategory | s
 
 // A face a theme declares from files it names itself (a company's upload):
 // url is a path on the tool's own origin (the Chest serves it), never
-// another site.
-export type FontSource = { url: string; weight: string; style: "normal" | "italic" };
+// another site. range: the characters the file holds (a CSS unicode-range,
+// "U+0000-00FF,U+0131"), when a face is split into subset files — without
+// it, two files of one face hide each other (0.2.2).
+export type FontSource = { url: string; weight: string; style: "normal" | "italic"; range?: string };
 
 // What a theme says of one of its three fonts. id: a registered font;
 // files: a company's own font; neither: a system stack only.
@@ -44,6 +46,8 @@ export const fontUrlPattern = /^\/[A-Za-z0-9._~\-/]{1,200}\.(woff2|woff|ttf|otf)
 // The base path fonts are served under (the tool's /fonts, or the Chest's
 // /_chest/theme/fonts).
 export const fontBasePattern = /^\/[A-Za-z0-9._~\-/]{0,120}$/u;
+// A unicode-range: U+ code points or ranges (with ? wildcards), comma-separated.
+export const unicodeRangePattern = /^U\+[0-9A-Fa-f?]{1,6}(-[0-9A-Fa-f]{1,6})?(, ?U\+[0-9A-Fa-f?]{1,6}(-[0-9A-Fa-f]{1,6})?){0,120}$/u;
 
 // font is the spec of a registered font, with its own fallback stack.
 export function font(id: string): FontSpec {
@@ -92,7 +96,8 @@ export function fontFaces(specs: FontSpec[], base: string): string {
         if (!fontUrlPattern.test(f.url) || f.url.includes("..")) continue;
         const format = f.url.endsWith(".woff2") ? "woff2" : f.url.endsWith(".woff") ? "woff" : f.url.endsWith(".otf") ? "opentype" : "truetype";
         const weight = /^\d{3}( \d{3})?$/u.test(f.weight) ? f.weight : "400";
-        rules.push(`@font-face{font-family:${quote(spec.family)};font-style:${f.style === "italic" ? "italic" : "normal"};font-display:swap;font-weight:${weight};src:url(${f.url}) format('${format}')}`);
+        const range = typeof f.range === "string" && unicodeRangePattern.test(f.range) ? `;unicode-range:${f.range}` : "";
+        rules.push(`@font-face{font-family:${quote(spec.family)};font-style:${f.style === "italic" ? "italic" : "normal"};font-display:swap;font-weight:${weight};src:url(${f.url}) format('${format}')${range}}`);
       }
     }
   }

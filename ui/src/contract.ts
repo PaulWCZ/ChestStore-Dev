@@ -30,6 +30,10 @@ export const colorTokens = [
   "danger", "danger-soft", "danger-ink",
   // Keyboard focus, and the marker pen (search hits, what asks for you)
   "focus", "highlight",
+  // A region that keeps its own colour in both modes (a steel header bar,
+  // an instrument panel): its ground, its text, its secondary text, and a
+  // quiet fill or hairline in it (hover, the current item) (0.2.2)
+  "inverse", "inverse-ink", "inverse-ink-2", "inverse-line",
   // The categorical palette: labels, kinds, stages, charts
   "cat-1", "cat-2", "cat-3", "cat-4", "cat-5", "cat-6", "cat-7", "cat-8",
   "cat-1-soft", "cat-2-soft", "cat-3-soft", "cat-4-soft", "cat-5-soft", "cat-6-soft", "cat-7-soft", "cat-8-soft",
@@ -46,10 +50,10 @@ export type Scheme = Record<ColorToken | EffectToken, string>;
 
 // The rest of the contract: the same in both modes.
 export const staticTokens = [
-  "font-display", "font-body", "font-mono", "font-accent", "display-weight", "display-tracking", "weight-strong",
+  "font-display", "font-body", "font-mono", "font-accent", "font-read", "display-weight", "display-tracking", "weight-strong",
   "text-xs", "text-s", "text-m", "text-l", "text-xl", "text-2xl", "leading",
   "space-1", "space-2", "space-3", "space-4", "space-5", "space-6", "space-7", "space-8",
-  "radius-s", "radius-m", "radius-l", "radius-pill", "border-width", "control-h",
+  "radius-s", "radius-m", "radius-l", "radius-pill", "radius-chip", "border-width", "control-h", "field-pad-x",
   "ease", "fast", "slow",
 ] as const;
 export type StaticToken = (typeof staticTokens)[number];
@@ -66,8 +70,10 @@ export type Theme = {
   // The tool whose identity it is (a catalogue theme), if any.
   tool?: string;
   // display: headings; body: everything else; mono: code and figures;
-  // accent: a wordmark or an italic accent (the display font unless said).
-  fonts: { display: FontSpec; body: FontSpec; mono: FontSpec; accent: FontSpec };
+  // accent: a wordmark or an italic accent (the display font unless said);
+  // read: long text a person reads through — an article, a page of a wiki,
+  // a long description (the body font unless said) (0.2.2; absent: body).
+  fonts: { display: FontSpec; body: FontSpec; mono: FontSpec; accent: FontSpec; read?: FontSpec };
   // Headings' weight and tracking; strong: the weight of emphasis (<strong>,
   // a selected tab) — 400 in a theme whose hierarchy is size alone.
   display: { weight: number; tracking: string };
@@ -83,9 +89,14 @@ export type Theme = {
   type: { xs: number; s: number; m: number; l: number; xl: number; xxl: number; leading: number };
   // px, space-1 to space-8.
   space: readonly [number, number, number, number, number, number, number, number];
-  // px corner radii (pill is always 999px), and the width of lines.
-  radius: { s: number; m: number; l: number };
+  // px corner radii (pill is always 999px), and the width of lines. chip:
+  // the corners of badges, chips and counters (0.2.2): absent, a pill in a
+  // theme with rounded corners and radius.s in a square one (the Chest).
+  radius: { s: number; m: number; l: number; chip?: number };
   border: number;
+  // px: the space between a field's edge and its text (0.2.2; absent:
+  // space-3). Tools' own fields use var(--field-pad-x) to line up.
+  fieldPad?: number;
   motion: { ease: string; fast: number; slow: number };
   light: Scheme;
   dark: Scheme;
@@ -113,6 +124,8 @@ export const pairs: readonly Pair[] = [
   { fg: "wait-ink", on: ["wait-soft"], min: 4.5, why: "text on a warning banner" },
   { fg: "danger", on: ["bg", "surface"], min: 4.5, why: "error text and icons (and surface text on a danger fill)" },
   { fg: "danger-ink", on: ["danger-soft"], min: 4.5, why: "text on an error banner" },
+  { fg: "inverse-ink", on: ["inverse", "inverse-line"], min: 4.5, why: "text in a region of its own colour (a steel bar), and on its hover fill" },
+  { fg: "inverse-ink-2", on: ["inverse"], min: 4.5, why: "secondary text in a region of its own colour" },
   ...Array.from({ length: categories }, (_, i): Pair[] => [
     { fg: `cat-${i + 1}` as ColorToken, on: ["surface", "bg"], min: 3, why: "a category's colour (dot, bar, spine)" },
     { fg: `cat-${i + 1}-ink` as ColorToken, on: [`cat-${i + 1}-soft` as ColorToken, "surface"], min: 4.5, why: "a category's label" },
@@ -203,8 +216,9 @@ export function validateTheme(theme: Theme): string[] {
     const w = t[key];
     if (!w || typeof w.en !== "string" || typeof w.fr !== "string" || !w.en.trim() || !w.fr.trim() || w.en.length > 160 || w.fr.length > 160) problems.push(`${key}: English and French, 160 characters at most`);
   }
-  for (const which of ["display", "body", "mono", "accent"] as const) {
+  for (const which of ["display", "body", "mono", "accent", "read"] as const) {
     const f = t.fonts?.[which];
+    if (which === "read" && f === undefined) continue;
     if (!f || typeof f.stack !== "string" || !stackPattern.test(f.stack)) problems.push(`fonts.${which}: a stack of family names`);
     else if (f.family && !familyPattern.test(f.family)) problems.push(`fonts.${which}.family: letters, digits, spaces`);
   }
@@ -217,6 +231,8 @@ export function validateTheme(theme: Theme): string[] {
   if (!ty || !["xs", "s", "m", "l", "xl", "xxl"].every(k => { const v = (ty as Record<string, number>)[k]; return typeof v === "number" && v >= 0.6 && v <= 6; }) || !(ty.leading >= 1.2 && ty.leading <= 2) || ty.m < 0.9375 || ty.xs < 0.6875) problems.push("type: rem sizes (body at least 0.9375rem, the smallest at least 0.6875rem) and a leading of 1.2 to 2");
   if (!Array.isArray(t.space) || t.space.length !== 8 || !t.space.every((v, i, a) => Number.isFinite(v) && v >= 0 && v <= 160 && (i === 0 || v >= a[i - 1]!))) problems.push("space: eight growing px values");
   if (!t.radius || !["s", "m", "l"].every(k => { const v = (t.radius as Record<string, number>)[k]; return v !== undefined && Number.isFinite(v) && v >= 0 && v <= 48; })) problems.push("radius: s, m, l in px (0 to 48)");
+  else if (t.radius.chip !== undefined && !(Number.isFinite(t.radius.chip) && (t.radius.chip === 999 || (t.radius.chip >= 0 && t.radius.chip <= 48)))) problems.push("radius.chip: 0 to 48 px, or 999 (a pill)");
+  if (t.fieldPad !== undefined && !(Number.isFinite(t.fieldPad) && t.fieldPad >= 4 && t.fieldPad <= 24)) problems.push("fieldPad: 4 to 24 px");
   if (!Number.isFinite(t.border) || t.border! < 1 || t.border! > 4) problems.push("border: 1 to 4 px");
   const mo = t.motion;
   if (!mo || !easePattern.test(mo.ease) || !Number.isInteger(mo.fast) || !Number.isInteger(mo.slow) || mo.fast < 0 || mo.slow < mo.fast || mo.slow > 1000) problems.push("motion: a cubic-bezier and two durations in ms (fast ≤ slow ≤ 1000)");

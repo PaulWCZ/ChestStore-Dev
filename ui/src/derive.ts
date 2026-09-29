@@ -186,6 +186,11 @@ function derive(brand: Brand): Derived {
     if (slot !== null) palette.hues![slot] = s.h;
     notes.push(note("secondary_used", { colour: secondaryHex }));
   }
+  // A region of its own colour (a header band): the brand's deep shade, in
+  // both modes (its text and hover fill are derived and measured).
+  light.inverse = at(p, 0.3, Math.min(p.c, 0.07));
+  dark.inverse = at(p, 0.13, Math.min(p.c, 0.04));
+
   if (p.c >= 0.08 && hueDistance(p.h, 27) < 22) notes.push(note("accent_like_danger", { colour: primaryHex }));
   else if (p.c >= 0.08 && hueDistance(p.h, 150) < 22) notes.push(note("accent_like_ok", { colour: primaryHex }));
 
@@ -196,7 +201,7 @@ function derive(brand: Brand): Derived {
     id: "brand",
     name: { en: name || "Your brand", fr: name || "Votre marque" },
     description: { en: `Made from ${name || "your brand"}’s colours: ${[inputs.primary, inputs.secondary].filter(Boolean).join(", ")}.`, fr: `Fait des couleurs de ${name || "votre marque"}${" "}: ${[inputs.primary, inputs.secondary].filter(Boolean).join(", ")}.` },
-    fonts: { display, body, mono: { family: "", stack: "ui-monospace, 'SFMono-Regular', Menlo, Consolas, 'Liberation Mono', monospace" }, accent: display },
+    fonts: { display, body, mono: { family: "", stack: "ui-monospace, 'SFMono-Regular', Menlo, Consolas, 'Liberation Mono', monospace" }, accent: display, read: body },
     display: { weight: display.id === "young-serif" || display.id === "libre-caslon-text" ? 400 : 700, tracking: corners === "sharp" ? "-0.02em" : "-0.01em" },
     strong: 600,
     synthesis: true,
