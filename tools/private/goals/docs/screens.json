@@ -1,12 +1,17 @@
 [
-  { "name": "company", "path": "/chest/company", "member": "camille", "locale": "en", "preview": true },
-  { "name": "my-goals", "path": "/chest", "member": "hugo", "locale": "en" },
-  { "name": "objective", "path": "/chest/objectives/4", "member": "camille", "locale": "en" },
-  { "name": "my-goals-fr", "path": "/chest", "member": "ines", "locale": "fr" },
-  { "name": "company-fr", "path": "/chest/company", "member": "ines", "locale": "fr", "only": ["phone"] },
-  { "name": "team", "path": "/chest/teams/1", "member": "sofia", "locale": "en", "only": ["desktop"] },
-  { "name": "review", "path": "/chest/cycles/1", "member": "camille", "locale": "en", "only": ["desktop"] },
-  { "name": "settings", "path": "/chest/settings", "member": "camille", "locale": "en", "only": ["desktop"] },
-  { "name": "new-objective", "path": "/chest/objectives/new", "member": "hugo", "locale": "en" },
-  { "name": "objective-dark", "path": "/chest/objectives/5", "member": "tom", "locale": "en", "dark": true }
+  {"name": "company", "path": "/chest/company", "member": "camille", "locale": "en", "preview": true},
+  {"name": "my-goals", "path": "/chest", "member": "hugo", "locale": "en"},
+  {"name": "objective", "path": "/chest/objectives/4", "member": "camille", "locale": "en"},
+  {"name": "my-goals-fr", "path": "/chest", "member": "ines", "locale": "fr"},
+  {"name": "company-fr", "path": "/chest/company", "member": "ines", "locale": "fr", "only": ["phone"]},
+  {"name": "team", "path": "/chest/teams/1", "member": "sofia", "locale": "en", "only": ["desktop"]},
+  {"name": "review", "path": "/chest/cycles/1", "member": "camille", "locale": "en", "only": ["desktop"]},
+  {"name": "settings", "path": "/chest/settings", "member": "camille", "locale": "en", "only": ["desktop"]},
+  {"name": "new-objective", "path": "/chest/objectives/new", "member": "hugo", "locale": "en"},
+  {"name": "objective-dark", "path": "/chest/objectives/5", "member": "tom", "locale": "en", "dark": true},
+  {"name": "company-chase", "path": "/chest/company", "member": "camille", "locale": "en", "actions": [{"click": ".chase summary"}, {"wait": 300}]},
+  {"name": "company-filtered", "path": "/chest/company?status=at_risk", "member": "sofia", "locale": "fr"},
+  {"name": "new-objective-more", "path": "/chest/objectives/new", "member": "camille", "locale": "en", "only": ["desktop"], "actions": [{"fill": ["input[inputmode=decimal] >> nth=1", "20"]}, {"click": ".kr-row details.more summary"}, {"click": "form > details.more summary"}, {"click": "input[value=people]"}, {"wait": 300}]},
+  {"name": "confidential", "path": "/chest/objectives/11", "member": "tom", "locale": "en", "only": ["desktop"]},
+  {"name": "import", "path": "/chest/import", "member": "camille", "locale": "fr"}
 ]

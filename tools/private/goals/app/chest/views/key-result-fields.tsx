@@ -29,7 +29,10 @@ export function KeyResultFields({ draft, onChange, owners, t, autoFocus = false,
   const fed = draft.source !== "manual";
   const start = typed(draft.start) ?? 0, target = typed(draft.target);
   const measured = { kind: draft.kind === "milestone" ? "number" as const : draft.kind, unit: draft.kind === "number" ? draft.unit.trim() : "", currency };
-  const summary = draft.kind !== "milestone" && target !== null && target !== start ? format(f.summary, { start: valueText(measured, start, locale), target: valueText(measured, target, locale) }) : null;
+  // "From 0 to 20 customers": the unit once, after the target; a
+  // percentage or an amount carries its sign on both.
+  const plain = (n: number) => valueText({ kind: "number", unit: "", currency: null }, n, locale);
+  const summary = draft.kind !== "milestone" && target !== null && target !== start ? format(f.summary, { start: draft.kind === "number" ? plain(start) : valueText(measured, start, locale), target: valueText(measured, target, locale) }) : null;
   return (
     <>
       <div>

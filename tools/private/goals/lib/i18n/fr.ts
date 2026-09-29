@@ -606,5 +606,6 @@ export const fr: Catalogue = {
       team_archived: "son équipe est archivée",
     },
     undo: "Annuler",
+    problem: "{row} : {what}",
   },
 };

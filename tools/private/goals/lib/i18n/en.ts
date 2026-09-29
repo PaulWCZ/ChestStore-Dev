@@ -606,5 +606,6 @@ export const en = {
       team_archived: "its team is archived",
     },
     undo: "Undo",
+    problem: "{row}: {what}",
   },
 } as const;

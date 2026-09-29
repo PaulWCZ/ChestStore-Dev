@@ -7,14 +7,17 @@ what must not break.
 
 | Path | What it is |
 |---|---|
-| `chest.json`, `chest.proposals.json` | The manifest; the proposed `schedules` (studio) |
+| `chest.json`, `chest.proposals.json` | The manifest; the proposals (studio): `schedules`, `mail.send`, `receives` of Clients' deal events |
 | `lib/access.ts` | **Who may do what** — roles, `mayCreate`, `mayEdit`, `mayCheckIn`: the only place rights are decided |
 | `lib/model.ts` | Pure rules: bounds, values ("12,5"), measures, progress, confidence, cycles' time, scores |
-| `lib/read.ts` | Read models: cycles, objectives with key results, progress, stale, "this week", waiting counts, check-ins |
+| `lib/read.ts` | Read models: cycles, objectives with key results, progress, stale, "this week", waiting counts and list, check-ins, key results' changes; `visibleTo(reader)`: **the one filter of confidential objectives** — every read of objectives for a person goes through it |
 | `lib/cycles.ts`, `lib/teams.ts`, `lib/objectives.ts`, `lib/key-results.ts`, `lib/comments.ts`, `lib/orphans.ts` | Services `(sql, actor, …input)`: rights first, bounds, parameterised SQL, codes |
 | `lib/tell.ts`, `lib/notify.ts` | The bell (each recipient's language), badges, the Friday reminder, admins told of orphans |
 | `lib/lifecycle.ts` | Leaving, losing access, erasure |
-| `lib/export.ts`, `lib/csv.ts` | A cycle as CSV in the reader's language |
+| `lib/export.ts`, `lib/csv.ts` | A cycle as CSV, and every check-in, in the reader's language |
+| `lib/import.ts` | CSV import: headers guessed (Goals' export, Lattice, spreadsheets), mapping, owners by name, plan (dry run), run in one transaction, undo |
+| `lib/remind.ts`, `lib/mail.ts` | Who waits for a check-in (admins: all; an objective's owner: its key results), *Remind* once a day; email beside the bell with a per-person switch |
+| `lib/crm.ts` | Key results fed by Clients' `crm.deal.won` / `crm.deal.reopened` events |
 | `lib/views.ts`, `lib/page-data.ts`, `lib/form-data.ts` | What pages hand to views: words, names, dates and values already written |
 | `lib/time.ts`, `lib/zone.ts` | The Chest's today and this week (its time zone) |
 | `lib/values.ts`, `lib/i18n/format.ts` | Browser-safe formatting |
@@ -36,6 +39,9 @@ npm ci && npm test && npm run build   # all three must pass
 
 - **Identity comes only from `member()`** (`lib/session.ts`). Store `mbr_…`
   ids, never names or emails; `'erased'` stands for an erased person.
+- **Confidential objectives**: any new query that lists objectives for a
+  person adds `visibleTo(sql, readerOf(actor))` (lib/read.ts); a test in
+  `test/chase.test.ts` shows each place.
 - **Rights live in `lib/access.ts`**; every service checks before acting; a
   test in `test/access.test.ts` or `test/goals.test.ts` for each new right.
 - **A closed cycle is frozen** (`openCycle()`): only retrospectives and
@@ -49,5 +55,6 @@ npm ci && npm test && npm run build   # all three must pass
   `lib/people.ts`, `lib/db.ts` or services.
 - **Schema changes are new migration files.** Never edit one that shipped.
 - **No network, no disk, no background work** outside the Chest's signed
-  schedules; the tool must stay useful without them.
+  schedules and events; the tool must stay useful without them (and
+  without mail).
 - **Keep the CSP** in `proxy.ts`.

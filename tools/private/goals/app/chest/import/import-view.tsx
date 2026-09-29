@@ -12,7 +12,7 @@ import { previewImport, runImport, undoImport } from "../actions.ts";
 // The fields a column may hold, in the order the page asks (the same as
 // lib/import.ts `fields`; a view never imports the service).
 const fields: Field[] = ["objective", "keyResult", "rowKind", "owner", "krOwner", "level", "team", "parent", "why", "kind", "start", "target", "current", "unit", "confidence"];
-const maxBytes = 2 * 1024 * 1024;
+const maxBytes = 3 * 1024 * 1024;
 
 type Words = { import: Catalogue["import"]; errors: Catalogue["errors"]; levels: Catalogue["levels"]; objective: Catalogue["objective"]; kinds: Catalogue["kinds"] };
 
@@ -153,7 +153,7 @@ export function ImportView({ cycles, cycleId, people, locale, t }: { cycles: { i
             {plan.problems.length > 0 && (
               <details className="left-out">
                 <summary>{plural(w.leftOut, plan.problems.filter(p => p.code !== "parent_not_found").length, locale)}</summary>
-                <ul>{plan.problems.map((p, i) => <li key={i}>{format(w.row, { row: p.row })}: {w.problems[p.code]}</li>)}</ul>
+                <ul>{plan.problems.map((p, i) => <li key={i}>{format(w.problem, { row: format(w.row, { row: p.row }), what: w.problems[p.code] })}</li>)}</ul>
               </details>
             )}
             <div className="form-actions">

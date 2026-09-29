@@ -7,13 +7,15 @@ import type { NextConfig } from "next";
 // - no build cache left in the image;
 // - nothing written at run time (read-only disk): no image optimiser, every
 //   page rendered per request (app/layout.tsx);
-// - the server's own name kept out of the answers.
+// - the server's own name kept out of the answers;
+// - a spreadsheet to import (1,000,000 characters at most, lib/import.ts)
+//   fits in a server action's body.
 const config: NextConfig = {
   images: { unoptimized: true },
   poweredByHeader: false,
   reactStrictMode: true,
   typescript: { ignoreBuildErrors: true },
-  experimental: { cpus: 1, webpackBuildWorker: false, webpackMemoryOptimizations: true },
+  experimental: { cpus: 1, webpackBuildWorker: false, webpackMemoryOptimizations: true, serverActions: { bodySizeLimit: "4mb" } },
   webpack: webpackConfig => ({ ...webpackConfig, cache: false }),
 };
 

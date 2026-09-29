@@ -26,29 +26,40 @@ insert into objectives (id, cycle_id, level, team_id, parent_id, owner, title, w
   (7, 2, 'team', 1, 4, 'mbr_inesaaaaaaaaaaaaaaaaaaaaaa', 'Open 12 shops in Lyon and Grenoble', 'Shops sell our furniture every day, without us.', 1, null, '', null, null, 'mbr_camilleaaaaaaaaaaaaaaaaaaa', now() - interval '40 days'),
   (8, 2, 'team', 1, null, 'mbr_hugoaaaaaaaaaaaaaaaaaaaaaa', 'Keep every customer we have', 'Winning a customer back costs five times more than keeping one.', 2, null, '', null, null, 'mbr_camilleaaaaaaaaaaaaaaaaaaa', now() - interval '40 days'),
   (9, 2, 'team', 2, 5, 'mbr_tomaaaaaaaaaaaaaaaaaaaaaaa', 'Ship orders within 5 days', '', 1, null, '', null, null, 'mbr_camilleaaaaaaaaaaaaaaaaaaa', now() - interval '40 days'),
-  (10, 2, 'team', 3, 6, 'mbr_sofiaaaaaaaaaaaaaaaaaaaaaa', 'Pay every supplier on time', 'Our suppliers give us their best prices because we pay on time.', 1, null, '', null, null, 'mbr_camilleaaaaaaaaaaaaaaaaaaa', now() - interval '40 days');
-select setval(pg_get_serial_sequence('objectives', 'id'), 10);
+  (10, 2, 'team', 3, 6, 'mbr_sofiaaaaaaaaaaaaaaaaaaaaaa', 'Pay every supplier on time', 'Our suppliers give us their best prices because we pay on time.', 1, null, '', null, null, 'mbr_camilleaaaaaaaaaaaaaaaaaaa', now() - interval '40 days'),
+  (11, 2, 'company', null, null, 'mbr_camilleaaaaaaaaaaaaaaaaaaa', 'Keep payroll within the new budget', 'The bank loan for the cutting machine assumes payroll stays under budget until March.', 4, null, '', null, null, 'mbr_camilleaaaaaaaaaaaaaaaaaaa', now() - interval '30 days');
+select setval(pg_get_serial_sequence('objectives', 'id'), 11);
+
+-- The payroll objective is confidential: Camille (its owner), Tom (chosen)
+-- and the admins see it.
+update objectives set visibility = 'people' where id = 11;
+insert into objective_viewers (objective_id, member_id) values (11, 'mbr_tomaaaaaaaaaaaaaaaaaaaaaaa');
 
 insert into key_results (id, objective_id, title, kind, unit, currency, start_value, target_value, current_value, weight, owner, position, created_by, created_at) overriding system value values
   (1, 1, 'Catalogue printed and sent', 'milestone', '', null, 0, 1, 1, 1, 'mbr_camilleaaaaaaaaaaaaaaaaaaa', 1, 'mbr_camilleaaaaaaaaaaaaaaaaaaa', now() - interval '138 days'),
-  (2, 1, 'Shops that received it', 'number', 'shops', null, 0, 40, 34, 1, 'mbr_inesaaaaaaaaaaaaaaaaaaaaaa', 2, 'mbr_camilleaaaaaaaaaaaaaaaaaaa', now() - interval '138 days'),
-  (3, 2, 'Technicians hired', 'number', 'people', null, 0, 2, 1, 1, 'mbr_tomaaaaaaaaaaaaaaaaaaaaaaa', 1, 'mbr_camilleaaaaaaaaaaaaaaaaaaa', now() - interval '138 days'),
-  (4, 3, 'Lapsed customers ordering again', 'number', 'customers', null, 0, 10, 6, 1, 'mbr_inesaaaaaaaaaaaaaaaaaaaaaa', 1, 'mbr_camilleaaaaaaaaaaaaaaaaaaa', now() - interval '138 days'),
-  (5, 4, 'New customers signed', 'number', 'customers', null, 0, 20, 9, 2, 'mbr_inesaaaaaaaaaaaaaaaaaaaaaa', 1, 'mbr_camilleaaaaaaaaaaaaaaaaaaa', now() - interval '38 days'),
-  (6, 4, 'Quotes sent', 'number', 'quotes', null, 0, 60, 33, 1, 'mbr_hugoaaaaaaaaaaaaaaaaaaaaaa', 2, 'mbr_camilleaaaaaaaaaaaaaaaaaaa', now() - interval '38 days'),
+  (2, 1, 'Shops that received it', 'number', 'shop/shops', null, 0, 40, 34, 1, 'mbr_inesaaaaaaaaaaaaaaaaaaaaaa', 2, 'mbr_camilleaaaaaaaaaaaaaaaaaaa', now() - interval '138 days'),
+  (3, 2, 'Technicians hired', 'number', 'person/people', null, 0, 2, 1, 1, 'mbr_tomaaaaaaaaaaaaaaaaaaaaaaa', 1, 'mbr_camilleaaaaaaaaaaaaaaaaaaa', now() - interval '138 days'),
+  (4, 3, 'Lapsed customers ordering again', 'number', 'customer/customers', null, 0, 10, 6, 1, 'mbr_inesaaaaaaaaaaaaaaaaaaaaaa', 1, 'mbr_camilleaaaaaaaaaaaaaaaaaaa', now() - interval '138 days'),
+  (5, 4, 'New customers signed', 'number', 'customer/customers', null, 0, 20, 9, 2, 'mbr_inesaaaaaaaaaaaaaaaaaaaaaa', 1, 'mbr_camilleaaaaaaaaaaaaaaaaaaa', now() - interval '38 days'),
+  (6, 4, 'Quotes sent', 'number', 'quote/quotes', null, 0, 60, 33, 1, 'mbr_hugoaaaaaaaaaaaaaaaaaaaaaa', 2, 'mbr_camilleaaaaaaaaaaaaaaaaaaa', now() - interval '38 days'),
   (7, 4, 'Revenue from new customers', 'money', '', 'EUR', 0, 50000, 18000, 1, 'mbr_camilleaaaaaaaaaaaaaaaaaaa', 3, 'mbr_camilleaaaaaaaaaaaaaaaaaaa', now() - interval '38 days'),
   (8, 5, 'Orders delivered on time', 'percent', '', null, 82, 98, 90, 2, 'mbr_tomaaaaaaaaaaaaaaaaaaaaaaa', 1, 'mbr_camilleaaaaaaaaaaaaaaaaaaa', now() - interval '38 days'),
   (9, 5, 'Customer returns', 'percent', '', null, 6, 2, 5, 1, 'mbr_paulaaaaaaaaaaaaaaaaaaaaaa', 2, 'mbr_camilleaaaaaaaaaaaaaaaaaaa', now() - interval '38 days'),
   (10, 5, 'New cutting machine running', 'milestone', '', null, 0, 1, 0, 1, 'mbr_leaaaaaaaaaaaaaaaaaaaaaaaa', 3, 'mbr_camilleaaaaaaaaaaaaaaaaaaa', now() - interval '38 days'),
-  (11, 6, 'Hours a week on invoicing', 'number', 'hours', null, 12, 6, 8.5, 1, 'mbr_sofiaaaaaaaaaaaaaaaaaaaaaa', 1, 'mbr_camilleaaaaaaaaaaaaaaaaaaa', now() - interval '38 days'),
+  (11, 6, 'Hours a week on invoicing', 'number', 'hour/hours', null, 12, 6, 8.5, 1, 'mbr_sofiaaaaaaaaaaaaaaaaaaaaaa', 1, 'mbr_camilleaaaaaaaaaaaaaaaaaaa', now() - interval '38 days'),
   (12, 6, 'Leave requests handled in the Chest', 'milestone', '', null, 0, 1, 1, 1, 'mbr_camilleaaaaaaaaaaaaaaaaaaa', 2, 'mbr_camilleaaaaaaaaaaaaaaaaaaa', now() - interval '38 days'),
-  (13, 7, 'Shops signed', 'number', 'shops', null, 0, 12, 5, 2, 'mbr_hugoaaaaaaaaaaaaaaaaaaaaaa', 1, 'mbr_camilleaaaaaaaaaaaaaaaaaaa', now() - interval '38 days'),
-  (14, 7, 'Demo days held', 'number', 'days', null, 0, 6, 3, 1, 'mbr_inesaaaaaaaaaaaaaaaaaaaaaa', 2, 'mbr_camilleaaaaaaaaaaaaaaaaaaa', now() - interval '38 days'),
-  (15, 8, 'Customers lost', 'number', 'customers', null, 3, 0, 1, 1, 'mbr_hugoaaaaaaaaaaaaaaaaaaaaaa', 1, 'mbr_camilleaaaaaaaaaaaaaaaaaaa', now() - interval '38 days'),
-  (16, 9, 'Average days to ship', 'number', 'days', null, 8, 5, 6.2, 1, 'mbr_tomaaaaaaaaaaaaaaaaaaaaaaa', 1, 'mbr_camilleaaaaaaaaaaaaaaaaaaa', now() - interval '38 days'),
+  (13, 7, 'Shops signed', 'number', 'shop/shops', null, 0, 12, 5, 2, 'mbr_hugoaaaaaaaaaaaaaaaaaaaaaa', 1, 'mbr_camilleaaaaaaaaaaaaaaaaaaa', now() - interval '38 days'),
+  (14, 7, 'Demo days held', 'number', 'day/days', null, 0, 6, 3, 1, 'mbr_inesaaaaaaaaaaaaaaaaaaaaaa', 2, 'mbr_camilleaaaaaaaaaaaaaaaaaaa', now() - interval '38 days'),
+  (15, 8, 'Customers lost', 'number', 'customer/customers', null, 3, 0, 1, 1, 'mbr_hugoaaaaaaaaaaaaaaaaaaaaaa', 1, 'mbr_camilleaaaaaaaaaaaaaaaaaaa', now() - interval '38 days'),
+  (16, 9, 'Average days to ship', 'number', 'day/days', null, 8, 5, 6.2, 1, 'mbr_tomaaaaaaaaaaaaaaaaaaaaaaa', 1, 'mbr_camilleaaaaaaaaaaaaaaaaaaa', now() - interval '38 days'),
   (17, 9, 'Second shift trained', 'milestone', '', null, 0, 1, 0, 1, 'mbr_leaaaaaaaaaaaaaaaaaaaaaaaa', 2, 'mbr_camilleaaaaaaaaaaaaaaaaaaa', now() - interval '38 days'),
-  (18, 10, 'Invoices paid late (a month)', 'number', 'invoices', null, 14, 2, 6, 1, 'mbr_sofiaaaaaaaaaaaaaaaaaaaaaa', 1, 'mbr_camilleaaaaaaaaaaaaaaaaaaa', now() - interval '38 days');
-select setval(pg_get_serial_sequence('key_results', 'id'), 18);
+  (18, 10, 'Invoices paid late (a month)', 'number', 'invoice/invoices', null, 14, 2, 6, 1, 'mbr_sofiaaaaaaaaaaaaaaaaaaaaaa', 1, 'mbr_camilleaaaaaaaaaaaaaaaaaaa', now() - interval '38 days'),
+  (19, 11, 'Monthly payroll', 'money', '', 'EUR', 96000, 92000, 94500, 1, 'mbr_camilleaaaaaaaaaaaaaaaaaaa', 1, 'mbr_camilleaaaaaaaaaaaaaaaaaaa', now() - interval '30 days');
+select setval(pg_get_serial_sequence('key_results', 'id'), 19);
+
+-- The target of "New customers signed" was lowered in week 3: kept, with who did it.
+insert into key_result_changes (key_result_id, field, before, after, author, created_at) values
+  (5, 'target', '25', '20', 'mbr_camilleaaaaaaaaaaaaaaaaaaa', now() - interval '20 days');
 
 insert into check_ins (key_result_id, value, confidence, note, author, created_at) values
   (1, 0, 'on_track', '', 'mbr_camilleaaaaaaaaaaaaaaaaaaa', now() - interval '2400 hours'),
@@ -115,7 +126,9 @@ insert into check_ins (key_result_id, value, confidence, note, author, created_a
   (18, 12, 'on_track', '', 'mbr_sofiaaaaaaaaaaaaaaaaaaaaaa', now() - interval '744 hours'),
   (18, 9, 'on_track', '', 'mbr_sofiaaaaaaaaaaaaaaaaaaaaaa', now() - interval '576 hours'),
   (18, 7, 'on_track', '', 'mbr_sofiaaaaaaaaaaaaaaaaaaaaaa', now() - interval '408 hours'),
-  (18, 6, 'on_track', '', 'mbr_sofiaaaaaaaaaaaaaaaaaaaaaa', now() - interval '72 hours');
+  (18, 6, 'on_track', '', 'mbr_sofiaaaaaaaaaaaaaaaaaaaaaa', now() - interval '72 hours'),
+  (19, 95200, 'on_track', '', 'mbr_camilleaaaaaaaaaaaaaaaaaaa', now() - interval '360 hours'),
+  (19, 94500, 'on_track', 'Two contracts renegotiated.', 'mbr_camilleaaaaaaaaaaaaaaaaaaa', now() - interval '48 hours');
 
 insert into comments (objective_id, author, body, created_at) values
   (4, 'mbr_hugoaaaaaaaaaaaaaaaaaaaaaa', 'The Lyon trade show brought eleven good leads. I will send quotes to all of them this week.', now() - interval '4 days'),

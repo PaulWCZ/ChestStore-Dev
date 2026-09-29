@@ -18,7 +18,7 @@ interface parts).
 | `--ink` | `#17302a` deep forest | `#efe8d8` | text — 12.2:1 on sand; 14.9:1 dark |
 | `--ink-2` | `#4c5f58` | `#a7b3ac` | secondary text — 5.9:1 / 7.6:1 |
 | `--accent` / `--accent-ink` | `#1f4a3f` / `#f7f3e8` | `#e6dcc4` / `#16211e` | the main button — 9.0:1 / 12.1:1 |
-| `--sunrise` | `#bf4f1d` | `#f08a4b` | progress bars, the check-in button, focus — 4.6:1 on surface; white on it 4.8:1; 6.7:1 dark |
+| `--sunrise` | `#bf4f1d` | `#f08a4b` | the check-in button, the chart's line, the reminder list's edge, focus — 4.6:1 on surface; white on it 4.8:1; 6.7:1 dark |
 | `--on` / `--on-soft` | `#2e6b45` / `#e0eee3` | `#6fc48e` / `#183124` | on track — 5.3:1 / 6.6:1 |
 | `--risk` / `--risk-soft` | `#8a5a00` / `#f6e8c8` | `#e2b04a` / `#33290f` | at risk — 4.9:1 / 7.2:1 |
 | `--off` / `--off-soft` | `#a8321f` / `#f7ddd6` | `#f0806a` / `#3a1c16` | off track, danger — 5.2:1 / 5.9:1 |
@@ -28,7 +28,10 @@ interface parts).
 **Confidence is never a colour alone**: a filled circle (on track), a
 triangle (at risk), a square (off track), a dashed ring (no check-in yet),
 always with its word; the chart's points take the same shapes. **Progress is
-always written** as a percentage next to its bar.
+always written** as a percentage next to its bar. A bar takes its
+confidence's colour (on track, at risk, off track; neutral ink without a
+check-in, and for the company's overall bar), so a tree "all orange" no
+longer hides what is at risk; the chip beside it keeps the word and shape.
 
 **Type**: *Barlow Semi Condensed* 600 (display: titles, big numbers, small
 uppercase map labels) — the lettering of trail signs — and *Work Sans*

@@ -210,7 +210,7 @@ export default async function ObjectivePage({ params, searchParams }: { params: 
             <div><dt>{o.level === "team" ? t.objective.team : t.objective.level}</dt><dd>{o.level === "team" && o.teamId ? <Link href={`/chest/teams/${o.teamId}?cycle=${cycle.id}`}>{levelLine}</Link> : levelLine}</dd></div>
             {parent && <div><dt>{t.objective.supports}</dt><dd><Link href={`/chest/objectives/${parent.id}`}>{parent.title}</Link></dd></div>}
             <div><dt>{t.cycle.label}</dt><dd>{cycle.name}{closed ? ` · ${t.cycle.closed}` : ""}</dd></div>
-            <div><dt>{t.objective.visibility}</dt><dd>{o.visibility === "everyone" ? t.objective.everyone : <><Lock />{" "}{o.visibility === "team" ? format(t.objective.seenByTeam, { team: levelLine }) : viewers.length > 0 ? format(t.objective.seenByPeople, { names: viewers.map(id => personView(who, id, locale).name).join(", ") }) : t.objective.seenByOwners}</>}</dd></div>
+            <div><dt>{t.objective.visibility}</dt><dd>{o.visibility === "everyone" ? t.objective.everyone : <>{o.visibility === "team" ? format(t.objective.seenByTeam, { team: levelLine }) : viewers.length > 0 ? format(t.objective.seenByPeople, { names: viewers.map(id => personView(who, id, locale).name).join(", ") }) : t.objective.seenByOwners}</>}</dd></div>
           </dl>
           {(editable || carryTarget) && (
             <ObjectiveActions

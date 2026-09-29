@@ -41,6 +41,7 @@ export default async function CycleReview({ params }: { params: Promise<{ id: st
         </div>
         <div className="actions">
           <a className="button quiet" href={`/chest/cycles/${cycle.id}/export`} download><Download />{t.cycles.download}</a>
+          <a className="button quiet" href={`/chest/cycles/${cycle.id}/export?what=check-ins`} download><Download />{t.export.checkIns}</a>
           {can(member, "cycles.manage") && !cycle.closed && <CloseCycle cycleId={cycle.id} name={cycle.name} t={{ cycles: t.cycles, errors: t.errors, checkIn: t.checkIn }} />}
         </div>
       </div>
