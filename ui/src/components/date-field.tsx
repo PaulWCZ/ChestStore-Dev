@@ -11,7 +11,7 @@
 // kit never guesses the day from the machine's clock, so server and browser
 // render the same page.
 import { useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactElement, type ReactNode, type Ref } from "react";
-import { addDays, addMonths, calendarKey, clampDate, formatDate, isIsoDate, monthGrid, partsOf, readTypedDate, relativeDay, weekdayHeads, type IsoDate } from "./dates.js";
+import { addDays, addMonths, calendarKey, clampDate, formatDate, isIsoDate, monthGrid, partsOf, readTypedDate, relativeDay, typedDateComplete, weekdayHeads, type IsoDate } from "./dates.js";
 import { useFloat } from "./float.js";
 import { CalendarIcon, ChevronLeft, ChevronRight } from "./icons.js";
 import { en, type DateWords } from "./words.js";
@@ -81,6 +81,12 @@ export function DateField(props: DateFieldProps): ReactElement {
   const shown = value ? formatDate(value, labels) : "";
   const [text, setText] = useState(shown);
   const [problem, setProblem] = useState<string | null>(null);
+  // quiet (0.2.5): the problem still stands (the field is invalid, the
+  // hidden input empty, the tool told) but its sentence is gone, because
+  // what is being typed now reads as an accepted date that is not whole
+  // yet ("29/10": a year may follow) — it is read on blur, and leaving
+  // the field then moves nothing.
+  const [quiet, setQuiet] = useState(false);
   const [typing, setTyping] = useState(false);
   const [seen, setSeen] = useState({ value, shown });
   const field = useRef<HTMLInputElement>(null);
@@ -92,6 +98,7 @@ export function DateField(props: DateFieldProps): ReactElement {
       reselect.current = el !== null && typeof document !== "undefined" && document.activeElement === el && el.value !== "" && el.selectionStart === 0 && el.selectionEnd === el.value.length ? shown : null;
       setText(shown);
       setProblem(null);
+      setQuiet(false);
     }
   }
   useLayoutEffect(() => {
@@ -117,9 +124,11 @@ export function DateField(props: DateFieldProps): ReactElement {
 
   // The field's own problem, told to the browser (setCustomValidity: a
   // form sent natively stops on it) and to the tool (onProblem), once per
-  // change (0.2.4).
+  // change (0.2.4). In a layout effect (0.2.5): in the very commit of the
+  // event that changed it — the blur of a press on Save is followed by
+  // its click, which must find the field valid and the tool told.
   const told = useRef<string | null>(null);
-  useEffect(() => {
+  useLayoutEffect(() => {
     field.current?.setCustomValidity(problem ?? "");
     if (told.current !== problem) { told.current = problem; onProblem?.(problem); }
   }, [problem]); // eslint-disable-line react-hooks/exhaustive-deps -- told once per change of the problem, not per render
@@ -136,6 +145,7 @@ export function DateField(props: DateFieldProps): ReactElement {
   // saves from its own state.
   function commit(raw: string): IsoDate | null | undefined {
     setTyping(false);
+    setQuiet(false);
     const read = readTypedDate(raw, labels, today, { min, max });
     if (!read.ok) {
       setProblem(read.problem);
@@ -147,9 +157,35 @@ export function DateField(props: DateFieldProps): ReactElement {
     return read.value;
   }
 
+  // typed re-reads the text on every input (0.2.5). A new problem is
+  // said only on blur (never while the person is typing); but a problem
+  // already said goes as soon as the text reads as a date it accepts, so
+  // the sentence under the field does not vanish on the blur of a press
+  // on the Save below it — the page moved up between press and release
+  // and the click was lost (Support's day off, Quotes' payment). A whole
+  // date (typedDateComplete: "1/1/2026", not "1/1/2" nor "29/10") is
+  // sent at once, onChange and onProblem(null), so the hidden input and
+  // the tool's state are right; a text that could still grow into
+  // another day only hides the sentence (quiet) and is read on blur.
+  // Without a problem, nothing is read before blur (an auto-saving field
+  // is not sent every day typed on the way).
+  function typed(raw: string) {
+    setText(raw);
+    setTyping(true);
+    if (problem === null) return;
+    const read = readTypedDate(raw, labels, today, { min, max });
+    if (!read.ok) return;
+    if (read.value !== null && typedDateComplete(raw, labels)) {
+      setProblem(null);
+      setQuiet(false);
+      if (read.value !== value) onChange(read.value);
+    } else setQuiet(true);
+  }
+
   function pick(iso: IsoDate) {
     setTyping(false);
     setProblem(null);
+    setQuiet(false);
     setText(formatDate(iso, labels));
     setOpen(false);
     if (iso !== value) onChange(iso);
@@ -157,7 +193,7 @@ export function DateField(props: DateFieldProps): ReactElement {
   }
 
   const quick = chips === false || (compact && chips === undefined) ? [] : (chips ?? [{ label: labels.today, value: today }, { label: labels.tomorrow, value: addDays(today, 1) }]).filter(c => (!min || c.value >= min) && (!max || c.value <= max));
-  const shownError = error ?? problem;
+  const shownError = error ?? (quiet ? null : problem);
   const reading = value ? relativeDay(value, today, labels) : null;
   const read = value ? (reading ? `${reading} · ` : "") + formatDate(value, labels, "long") : "";
   const described = [readId, hint ? hintId : null, shownError ? errorId : null, describedBy ?? null].filter(Boolean).join(" ");
@@ -181,7 +217,7 @@ export function DateField(props: DateFieldProps): ReactElement {
             required={required}
             aria-invalid={shownError ? true : undefined}
             aria-describedby={described}
-            onChange={e => { setText(e.target.value); setTyping(true); }}
+            onChange={e => typed(e.target.value)}
             onBlur={e => commit(e.target.value)}
             onKeyDown={e => {
               if (e.key === "Enter") {
@@ -199,7 +235,7 @@ export function DateField(props: DateFieldProps): ReactElement {
         {quick.length > 0 && (
           <div className="ck-date-chips">
             {quick.map(c => (
-              <button key={c.value} type="button" className="ck-chip-button" aria-pressed={value === c.value} disabled={disabled} onClick={() => { setTyping(false); setProblem(null); setText(formatDate(c.value, labels)); if (c.value !== value) onChange(c.value); }}>
+              <button key={c.value} type="button" className="ck-chip-button" aria-pressed={value === c.value} disabled={disabled} onClick={() => { setTyping(false); setProblem(null); setQuiet(false); setText(formatDate(c.value, labels)); if (c.value !== value) onChange(c.value); }}>
                 {c.label}
               </button>
             ))}

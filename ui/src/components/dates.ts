@@ -296,3 +296,25 @@ export function readTypedDate(raw: string, words: DateWords, today: IsoDate, { m
   if (max && iso > max) return { ok: false, reason: "too_late", problem: fill(words.tooLate, { date: formatDate(max, words, "long") }) };
   return { ok: true, value: iso };
 }
+
+// typedDateComplete: whether a text being typed is a whole date that more
+// typing could not turn into another day (0.2.5) — a DateField that says
+// a problem clears it, and sends the date, as soon as the corrected text
+// is one, so that leaving the field moves nothing under the pointer.
+// Whole: an ISO date, eight digits, a date ending in a four-digit year
+// ("1/1/2026", "29 sept 2026", "Oct 5, 2026"; in ymd order, a four-digit
+// year first and a two-digit day last), or the word for today, tomorrow
+// or yesterday. Not whole: "29/10" (a year may follow), "1/1/2" or
+// "1/1/20" (half a year: never year 2, nor 2020), "2026-09-3". A text
+// that is not whole is read on blur, as before.
+export function typedDateComplete(raw: string, words: DateWords): boolean {
+  const text = raw.trim();
+  if (text === "") return false;
+  if (isIsoDate(text) || /^\d{8}$/u.test(text)) return true;
+  const folded = fold(text);
+  if ([words.today, words.tomorrow, words.yesterday, "today", "tomorrow", "yesterday"].some(w => fold(w) === folded)) return true;
+  const yearLast = /\D\d{4}$/u.test(folded);
+  if (/\p{L}/u.test(folded)) return yearLast; // a month's name: its year ends it
+  if (words.order === "ymd") return /^\d{4}[\s/.\-]+\d{1,2}[\s/.\-]+\d{2}$/u.test(folded);
+  return yearLast;
+}

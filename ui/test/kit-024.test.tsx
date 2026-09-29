@@ -138,9 +138,10 @@ test("DataTable phone=stack: a line's label wraps beside its value (at most 60%)
 
 // ---------- 5. The package ----------
 
-test("the kit says its version: 0.2.4-studio.1", () => {
+test("the kit says its version: 0.2.4-studio.1 or later", () => {
   const pkg = JSON.parse(readFileSync(join(ui, "package.json"), "utf8")) as { version: string };
-  assert.equal(pkg.version, "0.2.4-studio.1");
+  // 0.2.5 bumped it (test/kit-025.test.tsx checks the exact version).
+  assert.match(pkg.version, /^0\.2\.([4-9]|\d{2,})-studio\.\d+$/u);
   assert.ok(!fr.date.tooEarly.includes(" :") && !fr.files.separator?.startsWith(" "), "French words keep their narrow spaces");
   assert.equal(fr.files.separator, `${nnbsp}: `);
 });

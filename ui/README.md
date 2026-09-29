@@ -499,6 +499,21 @@ auto-saving field (a card's due date) would store as "no date". The rule
 is `readTypedDate(text, words, today, { min, max })` in
 `/components/logic`.
 
+**0.2.5.** Correcting a refused date never moves the page under the
+pointer. The text is re-read on every input: a new problem is still said
+only on blur (never while typing), but a problem already said goes as
+soon as the text reads as a date the field accepts — so a person who
+corrects the date and clicks the Save below it in one move is not robbed
+of the click (0.2.4 cleared the sentence on the press's blur, everything
+below moved up before the release: Support's day off, Quotes' payment).
+A whole date (`typedDateComplete(text, words)` in `/components/logic`:
+"1/1/2026", "29 sept 2026", ISO, "tomorrow") is sent at once —
+`onChange`, `onProblem(null)`, the hidden input; a text that could still
+grow into another day ("29/10", and never "1/1/2" as year 2 nor
+"1/1/20" as 2020) only hides the sentence and is read on blur, the
+field staying invalid until then. Without a problem, nothing is sent
+before blur, as before. `DateRangeField`'s two ends do the same.
+
 ```tsx
 <DateRangeField label={t.leave} value={range} onChange={setRange} today={today} min={today}
   names={{ from: "from", to: "to" }} labels={kitWords[locale].date} lang={locale} />
@@ -787,6 +802,28 @@ never over its edge.
 
 ## Changelog
 
+### 0.2.5-studio.1 (2026-09-29)
+
+One bug, reported by Support and Quotes on 0.2.4. **Backward
+compatible**: no prop, word or token changed; a tool on 0.2.4
+re-vendors with no code change.
+
+- **Bug — DateField layout shift lost clicks (Support, Quotes)**: a
+  refused date's sentence went only on blur; a person who corrected the
+  date and clicked the Save below the field in one move blurred it with
+  the press, the sentence went, the button moved up before the release,
+  and the click was lost. The text is now re-read on every input: an
+  existing problem goes as soon as the text reads as an accepted date,
+  and a whole one (`typedDateComplete`, new in `/components/logic`) is
+  sent at once with `onProblem(null)`; half-typed text ("1/1/2",
+  "1/1/20", "29/10") is never sent while typing — it only hides the
+  sentence and is read on blur. A new problem is still said only on
+  blur. The field's validity and `onProblem` are set in a layout effect
+  (the commit of the event itself). `DateRangeField` inherits it.
+  check-flows plays it with `page.click` (refuse, blur, type a good date,
+  click Save: the new date is saved, the button did not move) and fails
+  on 0.2.4 (the previous day stayed saved).
+
 ### 0.2.4-studio.1 (2026-09-29)
 
 What the tools reported on 0.2.3. **Backward compatible**: new props are
@@ -985,7 +1022,7 @@ npm test                # build dist/, compile the tests into build/, run them (
 npm run check:package   # npm pack, install into a temp project, import every subpath from Node and esbuild, type-check a TS consumer
 npm run gallery         # ui/gallery/index.html and ui/gallery/components.html
 node scripts/gallery/check-page.mjs    # the components page in Chromium: hydration, axe in every look, no network, 390 px, 44 px targets, the phone header, section names never broken inside a word nor cut (0.2.4), counts beside their icons, a stacked table's long labels, the camera on a phone only, the band's signal
-node scripts/gallery/check-flows.mjs   # its keyboard and mouse flows (toast, dialog, picker, dates, the Leave race and a day before min, table, filters in the page, menu, tabs)
+node scripts/gallery/check-flows.mjs   # its keyboard and mouse flows (toast, dialog, picker, dates, the Leave race, a day before min and a corrected date saved in one click, table, filters in the page, menu, tabs)
 npm run fonts           # fetch the catalogue's fonts again (network)
 ```
 

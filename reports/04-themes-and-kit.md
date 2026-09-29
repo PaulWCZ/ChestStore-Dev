@@ -822,3 +822,43 @@ re-vendors with no code change). The whole list is the changelog in
 - **Checks:** 148 node tests (139 before, 9 in `test/kit-024.test.tsx`),
   check-page and check-flows pass, `check:package` passes. The tools
   are not re-vendored in this step (the lead does it).
+
+## 20. 0.2.5-studio.1: a corrected date and Save in one move (2026-09-29)
+
+- **The bug (Support's "day off" form, Quotes' payment dialog).** 0.2.4
+  said a refused date in a sentence under the field and read the typed
+  text only on blur. A person who corrected the date and clicked the
+  Save below the field blurred it with the press: the sentence went,
+  everything below moved up by its height before the release, and the
+  click landed on nothing. Nothing was saved and nothing said so.
+- **The fix.** The DateField re-reads its text on every input with the
+  same rule (`readTypedDate`). A new problem is still said only on blur.
+  A problem already said goes as soon as the text reads as an accepted
+  date; when that text is a whole date — `typedDateComplete` (new, pure,
+  in `/components/logic`): a four-digit year at its end, ISO, eight
+  digits, ymd with a two-digit day, or today/tomorrow/yesterday — the
+  date is sent at once (`onChange`, `onProblem(null)`, the hidden
+  input). A text that could still grow into another day ("29/10";
+  "1/1/20", which the parser reads as 2020) only hides the sentence and
+  is read on blur, the field staying invalid (validity, empty hidden
+  input, `onProblem` not yet null) until then; "1/1/2" never reads. The
+  validity and `onProblem` moved to a layout effect so the click that
+  follows a blur finds them already set. Without a problem nothing is
+  read before blur (an auto-saving field is not sent each day on the
+  way). `DateRangeField` uses two DateFields and inherits it.
+- **Verified.** check-flows, in Chromium with `page.click`: refuse
+  "01/01/2020" (blur, sentence shown), fill a date 40 days ahead, click
+  Save — the new date is saved and the button is where it was. Run on
+  0.2.4 first: it failed (the previous day stayed saved). It also plays
+  "29/10"-style text (sentence gone, value not sent, saved on the
+  click's blur), "1/1/2" (sentence stays, value untouched), and a
+  range's end corrected after a refusal (sentence gone and length
+  counted before any blur). `test/kit-025.test.tsx` types a dozen dates
+  a character at a time in three orders and checks no prefix is ever
+  sent as another day. 153 node tests (148 before, 5 new; kit-024's
+  exact version check became "0.2.4 or later"), check-flows, check-page
+  and `check:package` pass; dist and gallery rebuilt.
+- **Assumed, not checked.** A tool that shows its own error from
+  `onProblem` (in place of the kit's sentence) still loses the kit's
+  help for a date typed without its year: its line goes on blur. The
+  tools are not re-vendored in this step.

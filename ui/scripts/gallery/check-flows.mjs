@@ -236,6 +236,49 @@ await saveDue.click();
 await en.getByText(/^Saved: \w+day \d+ \w+ \d{4}\.$/u).waitFor({ timeout: 2000 });
 step("date: a day before min keeps its text, says why, is invalid, and its form never sends the previous day");
 
+// A corrected date, then Save in one move (0.2.5; Support's "day off",
+// Quotes' payment dialog): the refused date's sentence stood under the
+// field; 0.2.4 read the corrected text only on the press's blur, the
+// sentence went, the Save button moved up between press and release, and
+// the click was lost. Now the sentence goes as the good date is typed:
+// leaving the field moves nothing, the click lands, the new date is saved.
+const { formatDate, addDays, en: kitEn } = await import(new URL("../../dist/components/logic.js", import.meta.url).href);
+const today = await page.evaluate(() => document.body.dataset.today);
+const dmy = iso => `${iso.slice(8)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}`;
+const savedAs = iso => `Saved: ${formatDate(iso, kitEn.date, "long")}.`;
+const tooEarly = en.getByText(/^Choose .+ or later\.$/u);
+const refuse = async () => { await due.fill("01/01/2020"); await due.press("Tab"); await tooEarly.waitFor({ timeout: 2000 }); };
+await due.fill(""); await due.press("Tab");
+const restGap = await gapBelow();
+const later = addDays(today, 40);
+await refuse();
+await due.fill(dmy(later));
+await saveDue.click();
+await page.waitForTimeout(200);
+assert.equal(await savedNote.textContent(), savedAs(later), "the click right after correcting the date saved the new date");
+assert.equal(await tooEarly.count(), 0);
+assert.equal(await gapBelow(), restGap, "the Save button is where it was before the refusal");
+assert.equal(await due.inputValue(), dmy(later));
+// A date without its year ("29/10") is read on blur: while it is typed the
+// sentence goes, the value waits (more digits could make it another day).
+await refuse();
+await due.fill(dmy(today).slice(0, 5));
+await page.waitForTimeout(100);
+assert.equal(await tooEarly.count(), 0, "an accepted text clears the sentence while it is typed");
+assert.match(await en.locator(".ck-date-read").first().textContent(), new RegExp(formatDate(later, kitEn.date, "long")), "not committed while it could still grow");
+await saveDue.click();
+await page.waitForTimeout(200);
+assert.equal(await savedNote.textContent(), savedAs(today), "committed on the press's blur, the click kept");
+// Half a year is never a date: "1/1/2" is not year 2, nor "1/1/20" 2020
+// accepted; the sentence stays until the text reads as an accepted date.
+await refuse();
+await due.fill("1/1/2");
+await page.waitForTimeout(100);
+assert.equal(await tooEarly.count(), 1, "a half-typed text keeps the sentence (no new problem, no flicker)");
+assert.match(await en.locator(".ck-date-read").first().textContent(), /^Today · /u, "the value untouched");
+await due.fill(dmy(later)); await due.press("Tab");
+step("date: a corrected date and Save in one move — the sentence goes while typing, the click lands (0.2.5)");
+
 // MonthField: the next month by its button, a month by the list.
 const month = en.getByRole("combobox", { name: "Month" });
 const thisMonth = await month.inputValue();
@@ -352,7 +395,11 @@ assert.equal(await tripTo.inputValue(), "22/11/2026", "three days stay three day
 assert.equal(await trip.locator(".ck-range-length").textContent(), "3 days");
 await tripTo.fill("18/11/2026"); await tripTo.press("Enter");
 assert.match(await trip.locator(".ck-error").first().textContent(), /Choose .* or later/u, "an end before the start is refused, in words");
-await tripTo.fill("25/11/2026"); await tripTo.press("Enter");
+await tripTo.fill("25/11/2026");
+// (0.2.5: the corrected end clears the sentence and counts as it is typed.)
+assert.equal(await trip.locator(".ck-error").count(), 0, "the sentence goes as the good end is typed, before any blur");
+assert.equal(await trip.locator(".ck-range-length").textContent(), "6 days", "the range holds the typed end at once");
+await tripTo.press("Enter");
 assert.equal(await trip.locator(".ck-range-length").textContent(), "6 days");
 step("date range: the length kept, the end never before the start");
 // The Leave race (0.2.3): a value changed from outside reaches the field's
