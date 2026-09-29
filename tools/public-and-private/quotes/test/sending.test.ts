@@ -10,7 +10,7 @@ import { draftMessage, markReminded, markSent, sendDocument, sendReminder } from
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { client, company, draft, line, today } from "./support/fixtures.ts";
 import { asMember } from "./support/member.ts";
-import { everyone, hugo, ines, lea, sofia } from "./support/members.ts";
+import { everyone, hugo, ines, lea, nora, sofia } from "./support/members.ts";
 import { pdfText } from "./support/pdf.ts";
 
 let database: TestDatabase;
@@ -53,6 +53,26 @@ test("a quote goes by email in the client's language, its PDF attached, and is n
   // The same message twice (a double click) goes once.
   await sendDocument(sql, asMember(ines), q.id, { ...message, subject: "Notre devis" }, today);
   assert.equal(chest.outbox.length, 1);
+});
+
+test("a document sent by hand is transactional: it reaches an addressee who chose no email from the tools", async () => {
+  const { sql } = database;
+  // The client's contact is also a member of this Chest who said "none".
+  const member = chest.members.find(m => m.id === nora.id)!;
+  member.mailPreference = "none";
+  chest.clearCaches();
+  try {
+    const c = await client(sql, { name: "Petit Conseil", email: nora.email! });
+    const q = await draft(sql, "quote", c.id, [line("Audit", 1000, 90000)], ines);
+    const message = draftMessage(await getDocument(sql, asMember(ines), q.id, today), "send", context);
+    const held = chest.held.length;
+    assert.equal((await sendDocument(sql, asMember(ines), q.id, message, today)).delivery, "email");
+    assert.deepEqual(chest.outbox.at(-1)?.to, [nora.email]);
+    assert.equal(chest.held.length, held, "nothing held back");
+  } finally {
+    delete member.mailPreference;
+    chest.clearCaches();
+  }
 });
 
 test("an English client gets an English email; a message is checked", async () => {

@@ -6,7 +6,7 @@ import * as rooms from "../lib/room-bookings.ts";
 import * as tell from "../lib/tell.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
-import { camille, everyone, hugo, ines, lea } from "./support/members.ts";
+import { camille, everyone, hugo, ines, lea, nora, sofia, tom } from "./support/members.ts";
 import { office, workday, zone } from "./support/places.ts";
 
 // The guests of a room booking by email (Proposal (studio): mail), with
@@ -45,6 +45,25 @@ test("guests get an invitation in their language with the .ics; a change and a c
   await tell.cancelled(asMember(hugo), gone, "none");
   assert.equal(chest.outbox.filter(m => /^(Annulée|Cancelled)/u.test(m.subject)).length, 2);
   assert.equal((await sql`select mail from settings`)[0]!.mail, "on");
+});
+
+test("every guest gets their email, however long the booking's key: a key past 64 characters is sent whole (the SDK hashes it), never refused for one guest and then the others skipped", async () => {
+  const { sql } = database;
+  // A Chest that has booked rooms for years: an 18-digit booking id and a
+  // booking changed many times make "room:<id>:<revision>:<guest>" 65
+  // characters and more.
+  await sql`alter table room_bookings alter column id restart with 900000000000000001`;
+  const before = chest.outbox.length;
+  const guests = [ines.id, lea.id, sofia.id, nora.id, camille.id, tom.id];
+  const { bookings } = await rooms.bookRoom(sql, asMember(hugo), { roomId: o.atlas, day: workday(3), start: 600, end: 660, title: "Board", attendees: guests }, zone);
+  await sql`update room_bookings set revision = 2000000000 where id = ${bookings[0]!.id}`;
+  assert.ok(`room:${bookings[0]!.id}:2000000000:${ines.id}`.length > 64);
+  await tell.invited(asMember(hugo), bookings[0]!.attendees, bookings);
+  const sent = chest.outbox.slice(before);
+  assert.deepEqual(sent.map(m => m.to).flat().sort(), guests.map(g => withMail.find(p => p.id === g)!.email).sort(), "one email per guest");
+  // Retried: the same whole keys, nothing twice.
+  await tell.invited(asMember(hugo), bookings[0]!.attendees, bookings);
+  assert.equal(chest.outbox.length, before + guests.length);
 });
 
 test("the office, day by day: the average since the first day anyone came, counts only; admins only", async () => {

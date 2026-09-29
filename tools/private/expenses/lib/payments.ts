@@ -29,7 +29,8 @@ type FileBody = { payer: { iban: string; bic: string | null; name: string; addre
 // to a former employee's account is exactly what a diversion would ask
 // for). Paid by hand, or once the details are there.
 export type SkipReason = "no_bank" | "address" | "company_address" | "left";
-export type Skipped = { member: string; reason: SkipReason };
+// leftAt: for "left", when they left the Chest (null when it does not say).
+export type Skipped = { member: string; reason: SkipReason; leftAt?: string | null };
 
 export type Run = { id: string; messageId: string; executionDate: string; count: number; total: number; currency: string; createdAt: string; createdBy: string; cancelled: boolean };
 type RunRow = { id: string; message_id: string; execution_date: string; count: number; total_cents: string; currency: string; created_at: Date; created_by: string; cancelled_at: Date | null; file: FileBody };
@@ -91,7 +92,7 @@ export async function createRun(sql: Sql, actor: Member | null, input: { members
     const skipped: Skipped[] = [];
     for (const [member, line] of byMember) {
       if (gone(member)) {
-        skipped.push({ member, reason: "left" });
+        skipped.push({ member, reason: "left", leftAt: who.get(member)?.leftAt ?? null });
         continue;
       }
       const account = accounts.get(member);

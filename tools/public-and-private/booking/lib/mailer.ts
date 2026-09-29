@@ -13,6 +13,11 @@ export type Delivery = "email" | "page";
 
 type Context = { hostName: string; company: string; link: string; bookAgain: string };
 
+// The guest's confirmation, a move and a cancellation are transactional
+// (mail.send's studio.15 flag): the person must get them whatever email
+// they chose in a Chest — a guest who is also a member of it included. A
+// reminder and the host's own notice honour the member's choice (the host
+// also has "Email me" in their settings).
 const wordsFor = (language: string) => catalogue(isLocale(language) ? language : "en");
 
 async function send(message: mail.Message): Promise<Delivery> {
@@ -81,20 +86,20 @@ function answersBlock(b: Booking): string {
 export async function confirmed(b: Booking, c: Context): Promise<Delivery> {
   const t = wordsFor(b.guestLanguage).mail;
   const v = { ...values(b, c), answers: answersBlock(b) + (b.paymentLink && !b.paid ? "\n\n" + format(t.payLine, { link: b.paymentLink }) : "") };
-  return send({ to: b.guestEmail, subject: format(t.confirmedSubject, v), text: format(t.confirmedBody, v), fromName: from(c), attachments: [attachment(b, c)], key: `booked:${b.id}` });
+  return send({ to: b.guestEmail, subject: format(t.confirmedSubject, v), text: format(t.confirmedBody, v), fromName: from(c), attachments: [attachment(b, c)], key: `booked:${b.id}`, transactional: true });
 }
 
 export async function moved(b: Booking, c: Context): Promise<Delivery> {
   const t = wordsFor(b.guestLanguage).mail;
   const v = values(b, c);
-  return send({ to: b.guestEmail, subject: format(t.movedSubject, v), text: format(t.movedBody, v), fromName: from(c), attachments: [attachment(b, c)], key: `moved:${b.id}:${b.moves}` });
+  return send({ to: b.guestEmail, subject: format(t.movedSubject, v), text: format(t.movedBody, v), fromName: from(c), attachments: [attachment(b, c)], key: `moved:${b.id}:${b.moves}`, transactional: true });
 }
 
 export async function cancelled(b: Booking, c: Context): Promise<Delivery> {
   const t = wordsFor(b.guestLanguage).mail;
   const v = { ...values(b, c), link: c.bookAgain, reason: b.cancelReason ? format(t.reasonLine, { reason: b.cancelReason }) : "" };
   const body = b.cancelledBy === "host" ? t.cancelledByHost : t.cancelledByGuest;
-  return send({ to: b.guestEmail, subject: format(t.cancelledSubject, v), text: format(body, v), fromName: from(c), attachments: [attachment(b, c, true)], key: `cancelled:${b.id}` });
+  return send({ to: b.guestEmail, subject: format(t.cancelledSubject, v), text: format(body, v), fromName: from(c), attachments: [attachment(b, c, true)], key: `cancelled:${b.id}`, transactional: true });
 }
 
 export async function reminder(b: Booking, c: Context): Promise<Delivery> {
@@ -115,5 +120,5 @@ export async function toHost(kind: "booked" | "moved" | "cancelled", b: Booking,
     [{ uid: `booking-${b.id}@chest`, sequence: b.moves + (kind === "cancelled" ? 1 : 0), start: b.startsAt, end: b.endsAt, summary: format(words.calendar.title, { title: b.title, guest: b.guestName }), description: c.link, ...(meetingPlace(b) && b.locationKind !== "phone" ? { location: meetingPlace(b) } : {}), url: c.link, cancelled: kind === "cancelled" }],
     { method: kind === "cancelled" ? "CANCEL" : "PUBLISH", name: words.meta.name },
   );
-  return send({ to: { member: b.memberId }, subject, text: format(t.hostBody, v), attachments: [{ name: t.fileName, type: "text/calendar; charset=utf-8", content: file }], key: `host:${kind}:${b.id}:${b.moves}` });
+  return send({ to: { member: b.memberId }, subject, text: format(t.hostBody, v), attachments: [{ name: t.fileName, type: "text/calendar; charset=utf-8", content: file }], key: `host:${kind}:${b.id}:${b.moves}:${b.memberId}` });
 }

@@ -14,7 +14,7 @@ what must not break.
 | `migrations/0003_receipts_requests_fields.sql` | Receipts, rules (charters), requests, fields per category, supplies (quantity, minimum), inventories, invoice; history gains qty, cost, ref, due and new kinds |
 | `migrations/0005_members_see_history_time.sql` | `categories.members_see` (off for keys and badges, vehicles — existing Chests too); the history's time is `clock_timestamp()` |
 | `migrations/0006_intune.sql` | `intune_devices` (the last read, by folded serial; the member Intune names, as an id) and `intune_reads` (each read's outcome) |
-| `lib/intune.ts` | Microsoft Intune, read only: settings from `env`, token (client credentials), paged `managedDevices`, `refresh` (nightly or asked), `status` / `factsOf` for the pages, `missingAsCsv` for the importer; `useTransport` for tests (a fake Graph) |
+| `lib/intune.ts` | Microsoft Intune, read only: settings from `env`, token (client credentials), paged `managedDevices`, `refresh` (nightly or asked), `status` / `factsOf` for the pages, `missingAsCsv` for the importer; plain `fetch`, answered in tests by `fakeChest({ network })`; users matched with `members.matchEmails` (names only on a Chest without it) |
 | `lib/access.ts` | **Who may do what** — the only place roles are read |
 | `lib/model.ts` | Pure rules: limits, statuses, tags, money, dates, `clean()` |
 | `lib/items.ts` | Items: list (pages), detail (full / brief), create (one or several), edit, give, take back, status and repairs, seats, supplies (hand out, restock), problems, holdings, invoice, overview; opening and closing receipts |

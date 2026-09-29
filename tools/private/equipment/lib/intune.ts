@@ -1,9 +1,11 @@
+import { ChestError } from "@argentic/chest-sdk/errors";
 import type { Member } from "@argentic/chest-sdk/member";
+import * as members from "@argentic/chest-sdk/members";
 import { can } from "./access.ts";
 import { AppError, type ErrorCode } from "./app-error.ts";
 import { toCsv } from "./csv.ts";
 import type { Query, Sql } from "./db.ts";
-import { everyone } from "./people.ts";
+import { everyone, people, plainName } from "./people.ts";
 import { personByName } from "./importer.ts";
 
 // Microsoft Intune, read only — the first MDM connector (critique round 3).
@@ -26,7 +28,8 @@ import { personByName } from "./importer.ts";
 // - too many requests: 429 with Retry-After (concepts/throttling.md).
 //
 // The Chest lets the tool reach exactly these two hosts (chest.json
-// `network`); the company's administrator sets the three variables of
+// `network`) with the platform's plain fetch(), through its egress proxy
+// (tests answer them with fakeChest({network})); the company's administrator sets the three variables of
 // chest.json `env` (an app registration of their tenant). The secret is
 // read from the environment when needed, never stored, logged or sent to a
 // browser. Nothing is written to Intune.
@@ -58,10 +61,12 @@ export function settings(env: Env = process.env): Settings | null {
 }
 export const connected = (env: Env = process.env): boolean => settings(env) !== null;
 
-// What the tool keeps of a device (the rest of managedDevice is ignored).
+// What the tool reads of a device (the rest of managedDevice is ignored).
+// `addresses` (its user's mail address and principal name) are only asked
+// of the Chest to learn which member it is, never stored.
 export type Device = {
   id: string; serial: string | null; deviceName: string | null; manufacturer: string | null; model: string | null;
-  os: string | null; osVersion: string | null; imei: string | null; user: string | null; lastCheckIn: string | null;
+  os: string | null; osVersion: string | null; imei: string | null; user: string | null; addresses: string[]; lastCheckIn: string | null;
 };
 
 const text = (value: unknown, max = 120): string | null => {
@@ -92,25 +97,18 @@ export function readDevice(raw: unknown): Device | null {
     osVersion: text(d["osVersion"]),
     imei: text(d["imei"], 40),
     user: text(d["userDisplayName"]),
+    addresses: [...new Set([text(d["emailAddress"], 254), text(d["userPrincipalName"], 254)].filter((a): a is string => a !== null && a.includes("@")))],
     lastCheckIn: moment(d["lastSyncDateTime"]),
   };
 }
 
 export const serialKey = (serial: string): string => serial.trim().toLowerCase();
 
-type Fetch = typeof fetch;
-// Tests give their own fetch (a fake Graph); the tool uses the platform's,
-// which goes through the Chest's proxy to the declared hosts.
-let transport: Fetch = (...args) => fetch(...args);
-export function useTransport(f: Fetch | null): void {
-  transport = f ?? ((...args) => fetch(...args));
-}
-
 async function call(url: string, init: RequestInit): Promise<Response> {
   for (let attempt = 0; ; attempt++) {
     let response: Response;
     try {
-      response = await transport(url, { ...init, signal: AbortSignal.timeout(timeoutMs), redirect: "error" });
+      response = await fetch(url, { ...init, signal: AbortSignal.timeout(timeoutMs), redirect: "error" });
     } catch {
       throw new AppError("intune_unreachable");
     }
@@ -175,12 +173,35 @@ const outcomes: Partial<Record<ErrorCode, string>> = {
   intune_not_connected: "not_connected", intune_denied: "denied", intune_unreachable: "unreachable", intune_busy: "busy", intune_invalid: "invalid",
 };
 
+// Which member each device's user is: the Chest matches the addresses
+// Intune gives (members.matchEmails, studio.15), and the tool learns member
+// ids only — never an address, and never a guess between two people of the
+// same name. A Chest without that call yet (it answers 404) falls back to
+// the member of the same name, when exactly one has it.
+async function membersOf(devices: Device[]): Promise<Map<Device, string | null>> {
+  const out = new Map<Device, string | null>();
+  try {
+    const ids = await members.matchEmails(devices.flatMap(d => d.addresses));
+    for (const d of devices) out.set(d, d.addresses.map(a => ids[a]).find(Boolean) ?? null);
+    return out;
+  } catch (error) {
+    if (!(error instanceof ChestError)) throw error;
+    // Without the Chest, every match would be lost: the last read stays,
+    // and the step says the Chest did not answer.
+    if (error.status !== 404) throw new AppError("unavailable");
+  }
+  const listed = await everyone();
+  if (!listed.ok) throw new AppError("unavailable");
+  const personOf = personByName(listed.people);
+  for (const d of devices) out.set(d, d.user ? personOf(d.user) : null);
+  return out;
+}
+
 // Reads Intune and keeps what it says of each device with a serial number
-// (replacing the last read); the person it names is kept as the member of
-// the same name, when there is exactly one. A manager asks ("Read Intune
-// now"), or the nightly schedule (`by` "schedule"). A failed read keeps the
-// last one and says why.
-export async function refresh(sql: Sql, actor: Member | null | "schedule", env: Env = process.env): Promise<{ devices: number; withoutSerial: number; list: Device[] }> {
+// (replacing the last read), with the member it names (above). A manager
+// asks ("Read Intune now"), or the nightly schedule (`by` "schedule"). A
+// failed read keeps the last one and says why.
+export async function refresh(sql: Sql, actor: Member | null | "schedule", env: Env = process.env): Promise<{ devices: number; withoutSerial: number; list: (Device & { member: string | null })[] }> {
   const by = actor === "schedule" ? "schedule" : manager(actor).id;
   let devices: Device[];
   try {
@@ -190,11 +211,7 @@ export async function refresh(sql: Sql, actor: Member | null | "schedule", env: 
     if (outcome) await sql`insert into intune_reads (by, outcome) values (${by}, ${outcome})`;
     throw error;
   }
-  // Without the Chest's list of members, every match would be lost: the
-  // last read stays, and the step says the Chest did not answer.
-  const listed = await everyone();
-  if (!listed.ok) throw new AppError("unavailable");
-  const personOf = personByName(listed.people);
+  const memberOf = await membersOf(devices);
   const now = new Date();
   // One line per serial number: a device enrolled twice keeps its latest
   // check-in.
@@ -210,11 +227,11 @@ export async function refresh(sql: Sql, actor: Member | null | "schedule", env: 
     await tx`delete from intune_devices`;
     for (const [key, d] of bySerial) {
       await tx`insert into intune_devices (serial_key, serial, device_name, manufacturer, model, os, os_version, last_check_in, member_id, read_at)
-        values (${key}, ${d.serial}, ${d.deviceName}, ${d.manufacturer}, ${d.model}, ${d.os}, ${d.osVersion}, ${d.lastCheckIn}, ${d.user ? personOf(d.user) : null}, ${now})`;
+        values (${key}, ${d.serial}, ${d.deviceName}, ${d.manufacturer}, ${d.model}, ${d.os}, ${d.osVersion}, ${d.lastCheckIn}, ${memberOf.get(d) ?? null}, ${now})`;
     }
     await tx`insert into intune_reads (by, outcome, devices, without_serial) values (${by}, 'ok', ${bySerial.size}, ${withoutSerial})`;
   });
-  return { devices: bySerial.size, withoutSerial, list: devices };
+  return { devices: bySerial.size, withoutSerial, list: devices.map(d => ({ ...d, member: memberOf.get(d) ?? null })) };
 }
 
 // ---- What the pages read -----------------------------------------------------
@@ -272,11 +289,15 @@ export async function status(sql: Query, actor: Member | null, env: Env = proces
 
 // The devices of Intune (just read) no item has the serial number of, as a
 // spreadsheet the importer reads (its preview, then its import: the same
-// checks, people matched by name, nothing added twice). Columns in
+// checks, nothing added twice). "Assigned to" is the name, today, of the
+// member the device's address matched; a device no member matched keeps
+// the name Intune gives, which the preview shows the manager as found or
+// not before anything is imported. Columns in
 // English, which the importer knows; the operating system and the IMEI go
 // to the fields of those names.
-export async function missingAsCsv(sql: Query, actor: Member | null, devices: Device[]): Promise<{ text: string; count: number }> {
+export async function missingAsCsv(sql: Query, actor: Member | null, devices: (Device & { member?: string | null })[]): Promise<{ text: string; count: number }> {
   manager(actor);
+  const who = await people(devices.flatMap(d => d.member ? [d.member] : []));
   const known = new Set((await sql<{ serial: string }[]>`select serial from items where deleted_at is null and serial is not null`).map(r => serialKey(r.serial)));
   const seen = new Set<string>();
   const rows: string[][] = [];
@@ -286,7 +307,9 @@ export async function missingAsCsv(sql: Query, actor: Member | null, devices: De
     if (known.has(key) || seen.has(key)) continue;
     seen.add(key);
     const name = [d.manufacturer, d.model].filter(Boolean).join(" ") || d.deviceName || d.serial;
-    rows.push([name, kindOf(d.os), d.serial, d.user ?? "", [d.os, d.osVersion].filter(Boolean).join(" "), d.imei ?? ""]);
+    const matched = d.member ? who.get(d.member) : undefined;
+    const holder = matched?.status === "member" ? plainName(matched, "en") : d.user ?? "";
+    rows.push([name, kindOf(d.os), d.serial, holder, [d.os, d.osVersion].filter(Boolean).join(" "), d.imei ?? ""]);
   }
   return { text: toCsv([["Name", "Category", "Serial number", "Assigned to", "Operating system", "IMEI"], ...rows]), count: rows.length };
 }

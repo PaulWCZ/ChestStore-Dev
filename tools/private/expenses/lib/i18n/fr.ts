@@ -320,6 +320,7 @@ export const fr: Catalogue = {
     recent: "Validées ces 60 derniers jours",
     sentOn: "Envoyée {when}",
     left: "A quitté l’entreprise : valider, c’est encore la rembourser — sur son solde de tout compte, pas par le fichier de virement.",
+    leftOn: "A quitté l’entreprise le {date} : valider, c’est encore la rembourser — sur son solde de tout compte, pas par le fichier de virement.",
   },
   pay: {
     title: "À rembourser",
@@ -332,6 +333,7 @@ export const fr: Catalogue = {
     paidOn: "Payé le",
     markPaid: "Marquer remboursé",
     left: "A quitté l’entreprise : à régler sur le solde de tout compte, puis « Marquer remboursé » (hors fichier de virement)",
+    leftOn: "A quitté l’entreprise le {date} : à régler sur le solde de tout compte, puis « Marquer remboursé » (hors fichier de virement)",
     marked: "Marqué remboursé : {total} à {name}.",
     recent: "Remboursées ces 90 derniers jours",
     companyCard: "Les dépenses payées par carte société ne sont jamais remboursées : il leur faut seulement un justificatif.",

@@ -34,5 +34,7 @@
   {"name": "page-port", "path": "/chest/pages/2", "member": "camille", "locale": "fr", "look": {"tool": "brand:port"}},
   {"name": "page-brand", "path": "/chest/pages/2", "member": "camille", "locale": "en", "look": {"tool": "brand:sample"}},
   {"name": "search-stem-fr", "path": "/chest/search?q=rembours%C3%A9", "member": "lea", "locale": "fr"},
-  {"name": "search-wifi", "path": "/chest/search?q=wifi", "member": "hugo", "locale": "en", "only": ["desktop"]}
+  {"name": "search-wifi", "path": "/chest/search?q=wifi", "member": "hugo", "locale": "en", "only": ["desktop"]},
+  {"name": "home-draft-brand", "path": "/chest/pages/6/edit", "member": "camille", "locale": "fr", "look": {"tool": "brand:sample"}, "actions": [{"wait": 1500}, {"fill": [".title-input", "Gestionnaire de mots de passe — à relire"]}, {"wait": 3500}, {"click": "a[href='/chest']:has(.brand-name)"}, {"wait": 2000}]},
+  {"name": "home-draft-brand-dark", "path": "/chest/pages/6/edit", "member": "camille", "locale": "en", "dark": true, "look": {"tool": "brand:sample"}, "actions": [{"wait": 1500}, {"fill": [".title-input", "Password manager — to check"]}, {"wait": 3500}, {"click": "a[href='/chest']:has(.brand-name)"}, {"wait": 2000}]}
 ]

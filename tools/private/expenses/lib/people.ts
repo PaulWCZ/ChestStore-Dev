@@ -1,14 +1,15 @@
 import { ChestError } from "@argentic/chest-sdk/errors";
 import type { Locale } from "@argentic/chest-sdk/member";
 import * as members from "@argentic/chest-sdk/members";
-import { catalogue, format } from "./i18n/index.ts";
+import { catalogue, format, formatDate } from "./i18n/index.ts";
 
 // The people a page shows, from the member ids the tool stores: names and
 // photos come from the Chest when rendering, never from the tool's data.
 // "former" left the Chest (their name kept), "erased" had their data erased,
 // "unknown" is an id the Chest does not know here (or the Chest could not be
-// asked: the page still renders).
-export type Person = { id: string; name: string; photo: string | null; status: "member" | "former" | "erased" | "unknown"; locale: Locale };
+// asked: the page still renders). leftAt: when a former or erased member
+// left the Chest (studio.15), null when the Chest does not say.
+export type Person = { id: string; name: string; photo: string | null; status: "member" | "former" | "erased" | "unknown"; locale: Locale; leftAt: string | null };
 
 export async function people(ids: Iterable<string>): Promise<Map<string, Person>> {
   const wanted = [...new Set(ids)].filter(id => typeof id === "string" && id.startsWith("mbr_"));
@@ -16,13 +17,24 @@ export async function people(ids: Iterable<string>): Promise<Map<string, Person>
   if (wanted.length === 0) return found;
   try {
     const answer = await members.lookup(wanted);
-    for (const m of answer.members) found.set(m.id, { id: m.id, name: m.name, photo: m.photo, status: "member", locale: m.locale });
-    for (const f of answer.former) found.set(f.id, { id: f.id, name: f.name ?? "", photo: null, status: f.status, locale: "en" });
+    for (const m of answer.members) found.set(m.id, { id: m.id, name: m.name, photo: m.photo, status: "member", locale: m.locale, leftAt: null });
+    for (const f of answer.former) found.set(f.id, { id: f.id, name: f.name ?? "", photo: null, status: f.status, locale: "en", leftAt: f.leftAt ?? null });
   } catch (error) {
     if (!(error instanceof ChestError)) throw error;
   }
-  for (const id of wanted) if (!found.has(id)) found.set(id, { id, name: "", photo: null, status: "unknown", locale: "en" });
+  for (const id of wanted) if (!found.has(id)) found.set(id, { id, name: "", photo: null, status: "unknown", locale: "en", leftAt: null });
   return found;
+}
+
+// leftNote says that someone left, and when when the Chest says it ("Left
+// the company on 30 September: …"); null for a member. `words` are a
+// catalogue's two sentences: without the day, and with {date}.
+export function leftNote(person: Person | undefined, locale: Locale, words: { left: string; leftOn: string }, now = new Date()): string | null {
+  if (person?.status !== "former" && person?.status !== "erased") return null;
+  if (!person.leftAt || !Number.isFinite(Date.parse(person.leftAt))) return words.left;
+  const at = new Date(person.leftAt);
+  const sameYear = formatDate(at, locale, { year: "numeric" }) === formatDate(now, locale, { year: "numeric" });
+  return format(words.leftOn, { date: formatDate(at, locale, sameYear ? { day: "numeric", month: "long" } : { day: "numeric", month: "long", year: "numeric" }) });
 }
 
 // nameOf is how a page writes a person, in the reader's language.

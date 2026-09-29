@@ -12,6 +12,7 @@ import { publicOrigin, visitorKey } from "../lib/public-origin.ts";
 import { publicWords } from "../lib/session.ts";
 import * as tell from "../lib/tell.ts";
 import * as tickets from "../lib/tickets.ts";
+import { tellLinkedTools } from "../lib/ticket-events.ts";
 
 // The public part's actions: anyone on the Internet may call them. They
 // hold no member; they check the form's guard, bound everything, and never
@@ -78,6 +79,8 @@ export async function writeAgain(secret: string, _: ReplyState, data: FormData):
     await tell.customerWrote(t, body);
     await tell.refreshBadges(sql);
     await notices.about(sql, "replied", t.id, await notices.lastMessageKey(sql, t.id));
+    // Writing again on a solved request reopens it: the linked tools told.
+    await tellLinkedTools(sql);
     return { error: null, sent: true };
   } catch (error) {
     if (error instanceof AppError) return { error: error.code, sent: false, ...(typeof error.values["max"] === "number" ? { max: error.values["max"] } : {}) };

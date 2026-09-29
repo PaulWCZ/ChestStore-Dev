@@ -11,8 +11,9 @@ import { frenchVatNumber, siren as checkSiren } from "./model.ts";
 //
 // The tool reaches it through the Chest's declared network egress
 // (chest.json "network": the one host below — a permission the owner or an
-// admin approves; nothing else is reachable). Node's fetch follows the
-// Chest's proxy (NODE_USE_ENV_PROXY). The fields read are the ones of the
+// admin approves; nothing else is reachable) with plain fetch(), which
+// Node sends through the Chest's egress proxy (NODE_USE_ENV_PROXY); tests
+// answer the host with the SDK's fakeChest({ network }). The fields read are the ones of the
 // API's answers as its own site's tests hold them (README, "Filling a
 // client from its SIREN": sources and what could not be verified): per
 // result `siren`, `nom_raison_sociale`, `nom_complet`, `etat_administratif`
@@ -28,7 +29,6 @@ import { frenchVatNumber, siren as checkSiren } from "./model.ts";
 export const registryHost = "recherche-entreprises.api.gouv.fr";
 export const registryLimits = { timeoutMs: 6000, bytes: 1 << 20 } as const;
 
-export type Fetcher = (url: string, init: RequestInit) => Promise<Response>;
 export type Registered = { siren: string; name: string; address: string; postcode: string; city: string; country: "FR"; vatNumber: string; closed: boolean };
 
 type Result = { siren?: unknown; nom_raison_sociale?: unknown; nom_complet?: unknown; etat_administratif?: unknown; siege?: { adresse?: unknown; code_postal?: unknown; libelle_commune?: unknown } | null };
@@ -64,12 +64,12 @@ export function registered(body: unknown, siren: string): Registered | null {
 
 // lookupSiren asks the directory for a company by its SIREN (checked first:
 // nine digits and their key). Who may add clients may ask.
-export async function lookupSiren(actor: Member | null, input: unknown, fetcher: Fetcher = fetch): Promise<Registered> {
+export async function lookupSiren(actor: Member | null, input: unknown): Promise<Registered> {
   if (!can(actor, "clients.write")) throw new AppError("forbidden");
   const siren = checkSiren(input, false);
   let response: Response;
   try {
-    response = await fetcher(`https://${registryHost}/search?q=${siren}&page=1&per_page=1`, {
+    response = await fetch(`https://${registryHost}/search?q=${siren}&page=1&per_page=1`, {
       method: "GET", redirect: "error", signal: AbortSignal.timeout(registryLimits.timeoutMs), headers: { Accept: "application/json" },
     });
   } catch {

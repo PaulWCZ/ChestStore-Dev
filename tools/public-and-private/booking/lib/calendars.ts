@@ -23,9 +23,10 @@ export const calendarLimits = { perHost: 3, bytes: 5 * 1024 * 1024, timeoutMs: 1
 
 export type CalendarError = "unreachable" | "refused" | "not_found" | "not_calendar" | "too_large";
 export type HostCalendar = { id: string; provider: string; hint: string; addedAt: Date; readAt: Date | null; triedAt: Date | null; error: CalendarError | null; events: number; stale: boolean };
-// How the tool reaches the network: fetch (through the Chest's proxy, which
-// Node's fetch follows with NODE_USE_ENV_PROXY); tests give their own.
-export type Fetcher = (url: string, init: RequestInit) => Promise<Response>;
+// How the tool reaches the network: plain fetch, through the Chest's egress
+// proxy (the launcher sets HTTPS_PROXY and NODE_USE_ENV_PROXY; chest.json
+// "network" declares the hosts). Tests answer the hosts with
+// fakeChest({ network }) (SDK studio.15), which routes this same fetch.
 
 export function allowedHost(host: string): boolean {
   const name = host.toLowerCase().replace(/\.$/u, "");
@@ -87,12 +88,12 @@ function hint(url: string): string {
 
 // read fetches a calendar: redirects followed only to declared hosts, a
 // time limit, a size limit. Its errors are CalendarError codes.
-export async function read(url: string, fetcher: Fetcher = fetch): Promise<string> {
+export async function read(url: string): Promise<string> {
   let current = url;
   for (let hop = 0; hop <= calendarLimits.redirects; hop++) {
     let response: Response;
     try {
-      response = await fetcher(current, { redirect: "manual", signal: AbortSignal.timeout(calendarLimits.timeoutMs), headers: { Accept: "text/calendar, text/plain;q=0.8, */*;q=0.1" } });
+      response = await fetch(current, { redirect: "manual", signal: AbortSignal.timeout(calendarLimits.timeoutMs), headers: { Accept: "text/calendar, text/plain;q=0.8, */*;q=0.1" } });
     } catch {
       throw new ReadError("unreachable");
     }
@@ -176,14 +177,19 @@ export async function calendarsOf(sql: Query, memberId: string, now = Date.now()
 // refresh reads one calendar again and keeps its busy times from a day
 // back to 400 days ahead (the longest booking window), in one transaction;
 // on failure the busy times already known stay, and the error is kept.
-export async function refresh(sql: Query, calendarId: string, fetcher: Fetcher = fetch, now = Date.now()): Promise<CalendarError | null> {
+export async function refresh(sql: Query, calendarId: string, now = Date.now()): Promise<CalendarError | null> {
+  return keep(sql, calendarId, url => read(url), now);
+}
+
+// keep stores what a calendar's text says (read now, or just read by
+// connect: one request, not two).
+async function keep(sql: Query, calendarId: string, text: (url: string) => Promise<string>, now: number): Promise<CalendarError | null> {
   const [row] = await sql<(Row & { zone: string })[]>`select c.*, h.zone from calendars c join hosts h on h.member_id = c.member_id where c.id = ${calendarId}`;
   if (!row) return "not_found";
   let spans: { start: number; end: number }[];
   let events: number;
   try {
-    const text = await read(row.url, fetcher);
-    const found = busyTimes(text, { from: now - 86400000, to: now + calendarLimits.aheadDays * 86400000, zone: row.zone });
+    const found = busyTimes(await text(row.url), { from: now - 86400000, to: now + calendarLimits.aheadDays * 86400000, zone: row.zone });
     spans = found.spans;
     events = found.events;
   } catch (error) {
@@ -205,7 +211,7 @@ export async function refresh(sql: Query, calendarId: string, fetcher: Fetcher =
 
 // connect adds a calendar: read at once, so a wrong address is said now,
 // not in 15 minutes.
-export async function connect(sql: Query, actor: Member, address: unknown, fetcher: Fetcher = fetch, now = Date.now()): Promise<HostCalendar> {
+export async function connect(sql: Query, actor: Member, address: unknown, now = Date.now()): Promise<HostCalendar> {
   if (!can(actor, "host")) throw new AppError("forbidden");
   const { url, provider } = calendarAddress(address);
   const [host] = await sql<{ zone: string }[]>`select zone from hosts where member_id = ${actor.id}`;
@@ -214,7 +220,7 @@ export async function connect(sql: Query, actor: Member, address: unknown, fetch
   if ((count?.n ?? 0) >= calendarLimits.perHost) throw new AppError("too_many_calendars", { max: calendarLimits.perHost });
   let text: string;
   try {
-    text = await read(url, fetcher);
+    text = await read(url);
     busyTimes(text, { from: now, to: now + 86400000, zone: host.zone });
   } catch (error) {
     const code: CalendarError = error instanceof ReadError ? error.code : error instanceof NotACalendar ? "not_calendar" : "unreachable";
@@ -223,7 +229,7 @@ export async function connect(sql: Query, actor: Member, address: unknown, fetch
   const [row] = await sql<Row[]>`
     insert into calendars (member_id, url, provider) values (${actor.id}, ${url}, ${provider})
     on conflict (member_id, url) do update set error = null returning *`;
-  await refresh(sql, String(row!.id), async () => new Response(text, { status: 200 }), now);
+  await keep(sql, String(row!.id), async () => text, now);
   // A calendar that reads: the host's busy times are known, their page is
   // public from now on (lib/booking.ts, ready).
   await sql`update hosts set ready = true where member_id = ${actor.id}`;
@@ -239,17 +245,17 @@ export async function disconnect(sql: Query, actor: Member, calendarId: unknown)
 }
 
 // The host asks: read their calendars again now.
-export async function refreshMine(sql: Query, actor: Member, fetcher: Fetcher = fetch, now = Date.now()): Promise<number> {
+export async function refreshMine(sql: Query, actor: Member, now = Date.now()): Promise<number> {
   if (!can(actor, "host")) throw new AppError("forbidden");
   const rows = await sql<{ id: string }[]>`select id::text as id from calendars where member_id = ${actor.id}`;
   let failed = 0;
-  for (const r of rows) if (await refresh(sql, r.id, fetcher, now)) failed++;
+  for (const r of rows) if (await refresh(sql, r.id, now)) failed++;
   return failed;
 }
 
 // refreshDue: the schedule's run, and a visitor's page — the calendars not
 // tried for minutes, the oldest first, one at a time, until the deadline.
-export async function refreshDue(sql: Query, options: { olderThanMinutes: number; memberId?: string; deadline?: number; fetcher?: Fetcher; now?: number }): Promise<number> {
+export async function refreshDue(sql: Query, options: { olderThanMinutes: number; memberId?: string; deadline?: number; now?: number }): Promise<number> {
   const now = options.now ?? Date.now();
   const rows = await sql<{ id: string }[]>`
     select id::text as id from calendars
@@ -259,7 +265,7 @@ export async function refreshDue(sql: Query, options: { olderThanMinutes: number
   let done = 0;
   for (const r of rows) {
     if (options.deadline !== undefined && Date.now() > options.deadline) break;
-    await refresh(sql, r.id, options.fetcher ?? fetch, now);
+    await refresh(sql, r.id, now);
     done++;
   }
   return done;

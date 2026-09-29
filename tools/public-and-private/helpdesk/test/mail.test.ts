@@ -201,3 +201,24 @@ test("a merged ticket's email goes to the ticket it was merged into; erasing a c
   assert.equal((await tickets.erasures(database.sql, asMember(camille)))[0]!.by, camille.id);
   await assert.rejects(tickets.erasures(database.sql, asMember(hugo)));
 });
+
+test("a customer's confirmation and the answers to them are transactional: they arrive even when the address is a member's who chose no email", async () => {
+  const { sql } = database;
+  // Camille (a member, camille@company.test) writes to support as a customer.
+  const member = chest.members.find(m => m.id === camille.id)!;
+  member.mailPreference = "none";
+  chest.clearCaches();
+  try {
+    const t = await tickets.fromForm(sql, { name: "Camille Martin", email: camille.email!, subject: "Order 12", message: "Where is it?", language: "en" });
+    const ticket = (await tickets.byLink(sql, t.secret))!;
+    const held = chest.held.length;
+    assert.equal((await mailer.confirm(ticket, `https://support.atelier.test/t/${t.secret}`, "Atelier Martin")).delivery, "email");
+    const done = await tickets.reply(sql, asMember(hugo), t.number, "On its way.", {});
+    assert.equal((await mailer.answer(done.ticket, "On its way.", asMember(hugo), "Atelier Martin", done.threading, done.messageId)).delivery, "email");
+    assert.deepEqual(chest.outbox.slice(-2).map(m => m.to), [[camille.email], [camille.email]]);
+    assert.equal(chest.held.length, held, "nothing held back");
+  } finally {
+    delete member.mailPreference;
+    chest.clearCaches();
+  }
+});

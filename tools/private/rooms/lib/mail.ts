@@ -15,7 +15,10 @@ import { people } from "./people.ts";
 // remembers it (settings.mail = 'off') so the booking form says so.
 //
 // Once per booking and version: the key (the booking, its revision and the
-// guest) makes a retry send nothing twice.
+// guest) makes a retry send nothing twice. It is passed whole, however long:
+// the SDK sends one past the Chest's 64 characters as its SHA-256 (studio.15).
+// One guest the Chest refuses never costs the others their email: the
+// refusal is logged (its code, never who) and the next guest is tried.
 
 export type Mailed = "invited" | "changed" | "cancelled";
 
@@ -54,16 +57,18 @@ export async function mailGuests(sql: Sql, actor: Member | null, kind: Mailed, b
         subject: format(t.mail[kind].subject, { title, when: whenOf(first.start, first.end, locale, zone) }),
         text: lines.join("\n"),
         attachments: [{ name: t.mail.file + ".ics", type: "text/calendar", content: icsFile(kind === "cancelled" ? events.map(e => ({ ...e, cancelled: true })) : events, locale, { domain, origin, method: kind === "cancelled" ? "CANCEL" : "PUBLISH" }) }],
-        key: `room:${first.key.slice(5)}:${first.sequence}:${guest}`,
+        key: `${first.key}:${first.sequence}:${guest}`,
       });
       sent = true;
     } catch (error) {
       if (error instanceof CapabilityNotGranted) return void (await sql`update settings set mail = 'off', mail_tried = now()`);
       if (!(error instanceof ChestError)) throw error;
-      // An address that bounced before: the next guest. The Chest not
-      // answering: the bell and the calendar still tell them.
+      // An address that bounced before: the next guest, silently. Anything
+      // else the Chest refused for this guest is logged without personal
+      // data; the bell and the calendar still tell them, and the others
+      // still get theirs.
       if (error.code === "suppressed" || error.code === "invalid_address") continue;
-      break;
+      console.error(`rooms: a guest's email about booking ${first.key} was not sent (${error.code})`);
     }
   }
   if (sent && s.mail !== "on") await sql`update settings set mail = 'on', mail_tried = now()`;

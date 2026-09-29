@@ -346,10 +346,21 @@ does).
 - **Schedule `calendars`** (every 15 minutes) reads the hosts' other
   calendars; without schedules, they are read when a visitor opens a
   booking page (10 minutes at most between reads) and on demand.
-- **Declared network** (real contract, `network`): Node's `fetch` follows
-  the Chest's proxy through `NODE_USE_ENV_PROXY=1` (Node ≥ 24.5 in the
-  Chest's image; the tool's `engines` allow Node 22 for local work, where
-  fetch goes out directly).
+- **Declared network** (real contract, `network`): the calendars are read
+  with plain `fetch`, which follows the Chest's proxy through
+  `NODE_USE_ENV_PROXY=1` (Node ≥ 24.5 in the Chest's image; the tool's
+  `engines` allow Node 22 for local work, where fetch goes out directly).
+  Tests answer the declared hosts with `fakeChest({ network })` (SDK
+  studio.15: a read, a 404, a redirect between declared hosts, a refused
+  host). The local harness runs the tool in its own process and does not
+  route its `fetch`, so a successful read is shown by the tests
+  (`test/busy.test.ts`, `test/jobs.test.ts`), not by the flow.
+- **Members' email choice** — **Proposal (studio.15)**: `mail.send`
+  applies each member's choice (all, a daily digest, none). The guest's
+  confirmation, a move and a cancellation are marked `transactional` (a
+  guest who is a member of the Chest gets them whatever they chose); the
+  reminder and the host's own notice honour the choice, beside the
+  host's "Email me" setting.
 - **Being shown in another website**: the Chest's front adds
   `frame-ancestors 'none'` to every public response, even with `csp:
   "tool"` (contract, "Public host", `FloorCSP`), and two policies combine,

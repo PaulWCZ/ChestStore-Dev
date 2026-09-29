@@ -5,7 +5,7 @@ import { db } from "../../../lib/db.ts";
 import { decided, totals, waiting, warnings, type Expense } from "../../../lib/expenses.ts";
 import { plural, relative } from "../../../lib/i18n/index.ts";
 import { formatMoney } from "../../../lib/money.ts";
-import { nameOf, people } from "../../../lib/people.ts";
+import { leftNote, nameOf, people } from "../../../lib/people.ts";
 import { rowView } from "../../../lib/rows.ts";
 import { viewer } from "../../../lib/session.ts";
 import { allowances, categories, settings } from "../../../lib/settings.ts";
@@ -35,9 +35,9 @@ export default async function Approve() {
     photo: who.get(owner)?.photo ?? null,
     summary: plural(t.approve.summary, l.length, locale, { total: money(l) }),
     sent: l[0]?.submittedAt ? relative(l[0].submittedAt, locale, now) : "",
-    // Someone who left: approving still means paying them (on their last
-    // pay slip, never by the transfer file).
-    left: who.get(owner)?.status === "former" || who.get(owner)?.status === "erased",
+    // Someone who left, and when: approving still means paying them (on
+    // their last pay slip, never by the transfer file).
+    left: leftNote(who.get(owner), locale, t.approve, now),
     rows: l.map(e => rowView(e, ctx)),
   }));
   return (

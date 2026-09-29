@@ -52,8 +52,6 @@ button, input, textarea, select { font: inherit; color: inherit; }
   .top-add { display: none; }
   .page { padding: var(--space-4) var(--space-3) calc(var(--space-7) + 80px); }
   h1 { font-size: 1.5rem; }
-  /* Above the dock, the toasts. */
-  .ck-toasts { bottom: calc(var(--space-4) + var(--dock-h)); }
   /* The one action of the tool, under the thumb. */
   .dock { display: flex; position: fixed; inset: auto 0 0 0; z-index: 12; padding: var(--space-3) var(--space-3) calc(var(--space-3) + env(safe-area-inset-bottom)); background: linear-gradient(transparent, var(--bg) 35%); gap: var(--space-2); }
   .dock .button { flex: 1; min-height: 52px; font-size: 1.05rem; box-shadow: var(--shadow-2); }

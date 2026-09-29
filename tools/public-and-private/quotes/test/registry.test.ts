@@ -1,23 +1,39 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { test } from "node:test";
+import { after, before, test } from "node:test";
+import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
 import { AppError } from "../lib/errors.ts";
-import { lookupSiren, registered, registryHost, streetOf, type Fetcher } from "../lib/registry.ts";
+import { lookupSiren, registered, registryHost, streetOf } from "../lib/registry.ts";
 import { asMember } from "./support/member.ts";
-import { hugo, lea } from "./support/members.ts";
+import { everyone, hugo, lea } from "./support/members.ts";
 
 // A new client filled from its SIREN through France's public directory of
 // companies — the tool's one declared network host — and an honest "could
-// not be reached" when it cannot be. The directory's answer is the shape
-// its own site's tests hold (fixtures/registry-*.json; README).
+// not be reached" when it cannot be. The tool calls it with plain fetch();
+// the SDK's fake Chest answers the declared host as the Chest's egress
+// proxy would (fakeChest({ network })), with the shape the directory's own
+// site's tests hold (fixtures/registry-*.json; README).
 
 const refused = (code: string) => (error: unknown) => error instanceof AppError && error.code === code;
 const answer = JSON.parse(readFileSync(join(import.meta.dirname, "fixtures", "registry-search.json"), "utf8"));
 
-function directory(respond: (url: string) => Response | Promise<Response>): { fetcher: Fetcher; asked: string[] } {
-  const asked: string[] = [];
-  return { asked, fetcher: async url => { asked.push(url); return respond(url); } };
+// What the directory answers next; the requests it received.
+let respond: (request: Request) => Response | Promise<Response> = () => Response.json(answer);
+const asked: string[] = [];
+let chest: FakeChest;
+
+before(async () => {
+  chest = await fakeChest({
+    members: everyone,
+    network: { [registryHost]: request => { asked.push(request.url); return respond(request); } },
+  });
+});
+after(async () => { await chest.close(); });
+
+function directory(answer: (request: Request) => Response | Promise<Response>): void {
+  respond = answer;
+  asked.length = 0;
 }
 
 test("the manifest declares the directory, and only it", () => {
@@ -25,10 +41,14 @@ test("the manifest declares the directory, and only it", () => {
   assert.deepEqual(manifest.network, [registryHost]);
 });
 
-test("a SIREN fills the name, the head office's address and the VAT number", async () => {
-  const { fetcher, asked } = directory(() => Response.json(answer));
-  const found = await lookupSiren(asMember(hugo), "385 290 309", fetcher);
+test("a SIREN fills the name, the head office's address and the VAT number, through the Chest's egress", async () => {
+  directory(() => Response.json(answer));
+  const before = chest.egress.length;
+  const found = await lookupSiren(asMember(hugo), "385 290 309");
   assert.deepEqual(asked, ["https://recherche-entreprises.api.gouv.fr/search?q=385290309&page=1&per_page=1"]);
+  assert.deepEqual(chest.egress.slice(before).map(e => ({ method: e.method, url: e.url, status: e.status, refused: e.refused ?? null })), [
+    { method: "GET", url: "https://recherche-entreprises.api.gouv.fr/search?q=385290309&page=1&per_page=1", status: 200, refused: null },
+  ]);
   assert.deepEqual(found, {
     siren: "385290309", name: "AGENCE DE L ENVIRONNEMENT ET DE LA MAITRISE DE L ENERGIE", address: "20 AVENUE DU GRESILLE", postcode: "49000", city: "ANGERS",
     country: "FR", vatNumber: "FR24385290309", closed: false,
@@ -36,14 +56,14 @@ test("a SIREN fills the name, the head office's address and the VAT number", asy
 });
 
 test("refused before asking: a wrong SIREN, a role that adds no client", async () => {
-  const { fetcher, asked } = directory(() => Response.json(answer));
-  await assert.rejects(lookupSiren(asMember(hugo), "385290308", fetcher), refused("siren_invalid"));
-  await assert.rejects(lookupSiren(asMember(lea), "385290309", fetcher), refused("forbidden"));
+  directory(() => Response.json(answer));
+  await assert.rejects(lookupSiren(asMember(hugo), "385290308"), refused("siren_invalid"));
+  await assert.rejects(lookupSiren(asMember(lea), "385290309"), refused("forbidden"));
   assert.deepEqual(asked, []);
 });
 
 test("honest failures: unreachable, refused, slow, not JSON — and a SIREN it does not know", async () => {
-  const fail = (respond: () => Response | Promise<Response>) => lookupSiren(asMember(hugo), "385290309", directory(respond).fetcher);
+  const fail = (answer: () => Response | Promise<Response>) => { directory(answer); return lookupSiren(asMember(hugo), "385290309"); };
   await assert.rejects(fail(() => { throw new TypeError("fetch failed"); }), refused("registry_unreachable"));
   await assert.rejects(fail(() => new Response("", { status: 403, headers: { "Chest-Egress": "refused; reason=undeclared" } })), refused("registry_unreachable"));
   await assert.rejects(fail(() => new Response("too many", { status: 429 })), refused("registry_unreachable"));
@@ -51,6 +71,14 @@ test("honest failures: unreachable, refused, slow, not JSON — and a SIREN it d
   await assert.rejects(fail(() => new Response("<html>")), refused("registry_unreachable"));
   await assert.rejects(fail(() => Response.json({ nothing: true })), refused("registry_unreachable"));
   await assert.rejects(fail(() => Response.json({ results: [], total_results: 0 })), refused("registry_not_found"));
+});
+
+test("a Chest whose egress does not let the directory through: said, never invented", async () => {
+  await chest.close();
+  chest = await fakeChest({ members: everyone, network: { "example.org": () => new Response("") } });
+  await assert.rejects(lookupSiren(asMember(hugo), "385290309"), refused("registry_unreachable"));
+  assert.equal(chest.egress.at(-1)?.url.startsWith(`https://${registryHost}/`), true);
+  assert.ok(chest.egress.at(-1)?.refused);
 });
 
 test("a ceased company is said; the street is read without the town", () => {

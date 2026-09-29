@@ -248,6 +248,37 @@ states from a closed list); kept by the incident's id; an event published
 earlier (the Chest's `occurredAt`) never replaces a later one — they may
 arrive out of order. What the team sees of it: above.
 
+Support **publishes `helpdesk.ticket.solved` and `helpdesk.ticket.reopened`**
+(declared in `chest.proposals.json` `"emits"`), which **Goals** counts for
+a key result "Tickets solved" (only the owner's, by `assignee`). The
+contract is Goals' (its README, "With the other tools"):
+
+| Event | Data | Key | When |
+|---|---|---|---|
+| `helpdesk.ticket.solved` | `{ticket, assignee: "mbr_…" \| null}` | `helpdesk:<ticket>:solved:<time>` | an open or waiting ticket is closed |
+| `helpdesk.ticket.reopened` | `{ticket}` | `helpdesk:<ticket>:reopened:<time>` | a solved ticket leaves "closed" |
+
+- `ticket` is the ticket's number as text (`"1042"`, the one people say);
+  `assignee` the ticket's agent when it was closed — the one who answered
+  and closed it, or the one it was given to —, `null` when nobody had it;
+  `<time>` when it happened (milliseconds): solved again, it is published
+  again, and Goals keeps the latest.
+- **Every path**: a reply sent with *Close*, the status menu, a bulk close
+  and its Undo, the customer writing again on the follow-up page or by
+  email, a solved ticket marked as spam (taken back). A duplicate closed
+  by a merge is not solved; closing spam solves nothing.
+- **Never lost, never twice**: a trigger (`0007_ticket_events.sql`)
+  writes each change in the same transaction as the ticket;
+  `lib/ticket-events.ts` publishes it after the action, and the `late`
+  schedule (every 15 minutes) again while the Chest refuses (not linked
+  yet, quota): the action itself never fails for it. The same key twice is
+  one event. What the Chest refused for a week is forgotten by the nightly
+  cleanup, and what was told, after a day. An erased agent's id is removed
+  from what waits.
+- The event's time (`occurredAt`) is when the Chest took it: one published
+  late by the schedule is dated then, not when the ticket was closed (the
+  SDK's `publish` takes no time of its own; its key keeps the real one).
+
 ## Roles
 
 | Role (`chest.json`) | Label | May |
@@ -337,6 +368,9 @@ browser for it. Outside a Chest that offers looks, Support wears its own.
   `.eml`, `authenticated`, `auto`, `dropped`. Without mail the tool is
   fully usable through the form: replies are on the customer's follow-up
   page, marked *On the follow-up page only*, and Settings says so.
+  The customer's confirmation and the team's answers are
+  `transactional` (studio.15): the answer to their own request arrives
+  even when the address is a member's who chose no email from the tools.
   **On a real Chest today there is no mail**: until the Chest ships it,
   sell Support as "a contact form and a shared inbox", not as a Zendesk
   replacement for email.
@@ -365,8 +399,10 @@ browser for it. Outside a Chest that offers looks, Support wears its own.
   `X-Forwarded-For`, assumed set by the Chest's front.
 
 - **Events between tools** — **Proposal (studio)**: `forms.request` from
-  Forms, `status.incident` from Status (above). Without it, Forms' answers
-  stay in Forms and the inbox shows no incident.
+  Forms, `status.incident` from Status (above); `emits`
+  `helpdesk.ticket.solved` and `helpdesk.ticket.reopened` for Goals.
+  Without it, Forms' answers stay in Forms, the inbox shows no incident,
+  and Goals counts no ticket.
 - **`webhooks`** — **Proposal (studio)** (SDK report §4.17,
   `chest.proposals.json` `"webhooks": {"max": 10}`): the Slack, Teams and
   web-address notices (Settings). Without it, Settings says the Chest

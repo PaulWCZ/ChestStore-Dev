@@ -18,9 +18,20 @@ import { camille, everyone, hugo, ines, nora } from "./support/members.ts";
 
 let database: TestDatabase;
 let chest: FakeChest;
+// What each calendar address answers in the test at hand (reset before each).
+let routes: Record<string, (request: Request) => Response | Promise<Response>> = {};
+const asked: string[] = [];
+const declared = (JSON.parse(readFileSync(join(import.meta.dirname, "..", "chest.json"), "utf8")) as { network: string[] }).network;
+async function answer(request: Request): Promise<Response> {
+  asked.push(request.url);
+  const route = routes[request.url];
+  return route ? route(request) : new Response("no", { status: 404 });
+}
 before(async () => {
   database = await testDatabase();
-  chest = await fakeChest({ members: everyone, capabilities: ["members", "notifications", "calendar", "mail"], calendar: { domain: "atelier.test", toolTitle: "Booking", company: "Atelier" } });
+  // The hosts chest.json declares, answered as through the Chest's egress
+  // proxy (SDK studio.15): the tool's own plain fetch() reaches them.
+  chest = await fakeChest({ tool: "booking", members: everyone, capabilities: ["members", "notifications", "calendar", "mail"], calendar: { domain: "atelier.test", toolTitle: "Booking", company: "Atelier" }, network: Object.fromEntries(declared.map(host => [host, answer])) });
 });
 after(async () => {
   await chest.close();
@@ -29,6 +40,9 @@ after(async () => {
 beforeEach(async () => {
   await database.sql`truncate hosts, bookings, settings, form_counts cascade`;
   chest.calendar.clear();
+  routes = {};
+  asked.length = 0;
+  chest.egress.length = 0;
 });
 
 async function refuses(step: Promise<unknown>, code: string) {
@@ -73,25 +87,15 @@ const google = ["BEGIN:VCALENDAR", "PRODID:-//Google Inc//Google Calendar 70.905
   "END:VCALENDAR"].join("\r\n");
 const secret = "https://calendar.google.com/calendar/ical/ines%40atelier.test/private-0123456789abcdef/basic.ics";
 
-function server(routes: Record<string, () => Response>): { fetcher: calendars.Fetcher; asked: string[] } {
-  const asked: string[] = [];
-  return {
-    asked,
-    fetcher: async url => {
-      asked.push(url);
-      const route = routes[url];
-      if (!route) return new Response("no", { status: 404 });
-      return route();
-    },
-  };
-}
 
 test("the host's Google calendar: busy times are kept (never titles) and not offered; its address is checked, read again, disconnected", async () => {
   const { sql, host, type } = await ready();
   let body = google;
-  const { fetcher, asked } = server({ [secret]: () => new Response(body, { headers: { "content-type": "text/calendar" } }) });
-  const linked = await calendars.connect(sql, asMember(ines), secret.replace("https://", "webcal://"), fetcher, monday);
-  assert.equal(asked[0], secret);
+  routes = { [secret]: () => new Response(body, { headers: { "content-type": "text/calendar" } }) };
+  const linked = await calendars.connect(sql, asMember(ines), secret.replace("https://", "webcal://"), monday);
+  // One request, through the Chest's egress to a declared host: read once.
+  assert.deepEqual(asked, [secret]);
+  assert.deepEqual(chest.egress, [{ method: "GET", url: secret, status: 200 }]);
   assert.equal(linked.provider, "calendar.google.com");
   assert.ok(!linked.hint.includes("private-0123456789abcdef"), "the secret part is never shown again");
   assert.equal(linked.error, null);
@@ -103,13 +107,13 @@ test("the host's Google calendar: busy times are kept (never titles) and not off
   assert.ok(!starts(await b.freeTimes(sql, host, type, "2026-10-07", "2026-10-07", monday)).includes("12:00"));
   // The meeting is cancelled there: the next read frees the time.
   body = google.replace("RRULE:FREQ=WEEKLY;BYDAY=TU", "RRULE:FREQ=WEEKLY;BYDAY=TU;UNTIL=20261001T000000Z");
-  assert.equal(await calendars.refreshDue(sql, { olderThanMinutes: 10, fetcher, now: monday + 11 * 60000 }), 1);
+  assert.equal(await calendars.refreshDue(sql, { olderThanMinutes: 10, now: monday + 11 * 60000 }), 1);
   assert.ok(starts(await b.freeTimes(sql, host, type, "2026-10-06", "2026-10-06", monday)).includes("08:00"));
   // Read a minute ago: not again.
-  assert.equal(await calendars.refreshDue(sql, { olderThanMinutes: 10, fetcher, now: monday + 12 * 60000 }), 0);
+  assert.equal(await calendars.refreshDue(sql, { olderThanMinutes: 10, now: monday + 12 * 60000 }), 0);
   // The address stops working: the busy times known stay, the error shows.
   body = "<!doctype html><title>Sign in</title>";
-  assert.equal(await calendars.refresh(sql, linked.id, fetcher, monday + 30 * 60000), "not_calendar");
+  assert.equal(await calendars.refresh(sql, linked.id, monday + 30 * 60000), "not_calendar");
   const [after] = await calendars.calendarsOf(sql, ines.id, monday + 30 * 60000);
   assert.equal(after!.error, "not_calendar");
   assert.equal(after!.stale, true);
@@ -126,7 +130,7 @@ test("only the declared calendar hosts, over https; errors say what went wrong; 
     await refuses(calendars.connect(sql, asMember(ines), bad), "calendar_not_allowed");
   }
   assert.ok(calendars.allowedHost("p42-caldav.icloud.com") && calendars.allowedHost("outlook.office365.com") && !calendars.allowedHost("icloud.com"));
-  const { fetcher } = server({
+  routes = {
     "https://outlook.office365.com/owa/calendar/gone/calendar.ics": () => new Response("", { status: 404 }),
     "https://outlook.live.com/owa/calendar/refused/calendar.ics": () => new Response("", { status: 403, headers: { "chest-egress": "refused; reason=undeclared" } }),
     "https://p01-caldav.icloud.com/published/2/redirect": () => new Response(null, { status: 302, headers: { location: "https://evil.example/steal" } }),
@@ -135,15 +139,30 @@ test("only the declared calendar hosts, over https; errors say what went wrong; 
     "https://p03-caldav.icloud.com/published/2/ok": () => new Response(google),
     "https://p04-caldav.icloud.com/published/2/ok": () => new Response(google),
     "https://p05-caldav.icloud.com/published/2/ok": () => new Response(google),
-  });
-  await refuses(calendars.connect(sql, asMember(ines), "https://outlook.office365.com/owa/calendar/gone/calendar.ics", fetcher, monday), "calendar_not_found");
-  await refuses(calendars.connect(sql, asMember(ines), "https://outlook.live.com/owa/calendar/refused/calendar.ics", fetcher, monday), "calendar_refused");
-  await refuses(calendars.connect(sql, asMember(ines), "https://p01-caldav.icloud.com/published/2/redirect", fetcher, monday), "calendar_refused");
-  await refuses(calendars.connect(sql, asMember(ines), "https://p01-caldav.icloud.com/published/2/large", fetcher, monday), "calendar_too_large");
-  await refuses(calendars.connect(sql, asMember(ines), "https://p01-caldav.icloud.com/published/2/unreachable", async () => { throw new TypeError("fetch failed"); }, monday), "calendar_unreachable");
-  for (const n of [2, 3, 4]) await calendars.connect(sql, asMember(ines), `https://p0${n}-caldav.icloud.com/published/2/ok`, fetcher, monday);
-  await refuses(calendars.connect(sql, asMember(ines), "https://p05-caldav.icloud.com/published/2/ok", fetcher, monday), "too_many_calendars");
-  await refuses(calendars.connect(sql, asMember(nora), "https://p05-caldav.icloud.com/published/2/ok", fetcher, monday), "forbidden");
+    "https://p01-caldav.icloud.com/published/2/unreachable": () => { throw new TypeError("fetch failed"); },
+  };
+  await refuses(calendars.connect(sql, asMember(ines), "https://outlook.office365.com/owa/calendar/gone/calendar.ics", monday), "calendar_not_found");
+  await refuses(calendars.connect(sql, asMember(ines), "https://outlook.live.com/owa/calendar/refused/calendar.ics", monday), "calendar_refused");
+  await refuses(calendars.connect(sql, asMember(ines), "https://p01-caldav.icloud.com/published/2/redirect", monday), "calendar_refused");
+  await refuses(calendars.connect(sql, asMember(ines), "https://p01-caldav.icloud.com/published/2/large", monday), "calendar_too_large");
+  await refuses(calendars.connect(sql, asMember(ines), "https://p01-caldav.icloud.com/published/2/unreachable", monday), "calendar_unreachable");
+  for (const n of [2, 3, 4]) await calendars.connect(sql, asMember(ines), `https://p0${n}-caldav.icloud.com/published/2/ok`, monday);
+  await refuses(calendars.connect(sql, asMember(ines), "https://p05-caldav.icloud.com/published/2/ok", monday), "too_many_calendars");
+  await refuses(calendars.connect(sql, asMember(nora), "https://p05-caldav.icloud.com/published/2/ok", monday), "forbidden");
+});
+
+test("through the Chest's egress: a redirect between declared hosts is followed; a host the Chest does not let through is said as unreachable", async () => {
+  const { sql } = await ready();
+  const moved = "https://outlook.live.com/owa/calendar/moved/calendar.ics";
+  const there = "https://outlook.office365.com/owa/calendar/new/calendar.ics";
+  routes = { [moved]: () => new Response(null, { status: 301, headers: { location: there } }), [there]: () => new Response(google) };
+  const linked = await calendars.connect(sql, asMember(ines), moved, monday);
+  assert.equal(linked.error, null);
+  assert.deepEqual(chest.egress.map(e => [e.url, e.status]), [[moved, 301], [there, 200]]);
+  // The proxy refuses what the owner did not approve: had the manifest
+  // lost a host, its calendars would read as unreachable, never hang.
+  await assert.rejects(fetch("https://calendar.example.org/x.ics"), TypeError);
+  assert.equal(chest.egress.at(-1)?.refused, "undeclared");
 });
 
 test("the calendar hosts the tool checks are the ones chest.json declares to the Chest", () => {

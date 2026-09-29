@@ -139,3 +139,17 @@ test("on a Chest without webhooks, Settings says so and adding is refused in wor
     await plain.close();
   }
 });
+
+test("a long key goes whole (the SDK hashes it): two events sharing their first 64 characters are two notices, the same one twice is one", async () => {
+  const { sql } = database;
+  const target = await notices.addTarget(sql, asMember(camille), { url: "https://hooks.slack.com/services/T0009/B0009/zyxwvutsrqponmlkjihgfedc", kind: "slack", label: "Long keys", events: ["new"] });
+  await chest.deliver({ type: "forms.request", data: request("Long keys") }, events);
+  const t = await lastNumber();
+  const ticket = { id: t.id, number: t.number, subject: "Long keys", customerName: "Nina Roux", customerEmail: "nina@example.com", requester: null, channel: "form" as const, priority: "normal" as const, status: "open" as const };
+  const common = "new:" + "x".repeat(70);
+  const before = deliveriesTo(target.target.id).length;
+  assert.equal(await notices.notice(sql, "new", ticket, `${common}:a`), 1);
+  assert.equal(await notices.notice(sql, "new", ticket, `${common}:b`), 1, "not the first one's answer");
+  await notices.notice(sql, "new", ticket, `${common}:a`);
+  assert.equal(deliveriesTo(target.target.id).length - before, 2);
+});

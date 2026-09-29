@@ -85,7 +85,13 @@ npm ci && npm test && npm run build   # all three must pass
   is what the guest read, for their emails only.
 - **Other calendars**: never store a title or anything but spans; never
   fetch a host outside `calendarHosts` (a test keeps it equal to
-  `chest.json` `network`); never show a calendar's address again.
+  `chest.json` `network`); never show a calendar's address again. Read
+  them with plain `fetch` (no injected fetcher): tests answer the hosts
+  with `fakeChest({ network })`.
+- **Email keys are whole** (studio.15: never cut; the SDK hashes a long
+  one) and name the recipient when it can change; the same key for other
+  recipients is a `key_conflict`. Only the guest's confirmation, move and
+  cancellation are `transactional`.
 - **Every change to a booking tells the Chest's calendar** (`publish` /
   `unpublish`) and, when the host wants it, emails them (`tell.hostCopy`).
 - **The daily limit** has no constraint of its own: it holds because

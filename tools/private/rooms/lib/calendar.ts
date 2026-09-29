@@ -145,7 +145,7 @@ export async function eventOf(sql: Query, key: string, zone: string, now = new D
 }
 
 // flush sends the queued keys to the Chest, the oldest first, at most
-// limit of them. Never throws for the Chest: a courtesy to the member, the
+// limit of them: the events to put in one putMany, then the removals. Never throws for the Chest: a courtesy to the member, the
 // tool's pages stay the truth.
 export async function flush(sql: Sql, zone: string, limit = 40): Promise<void> {
   const [s] = await sql<{ calendar: State; waiting: boolean }[]>`
@@ -159,16 +159,30 @@ export async function flush(sql: Sql, zone: string, limit = 40): Promise<void> {
     select key, (extract(epoch from queued_at) * 1000000)::bigint::text as stamp from calendar_queue order by queued_at, key limit ${limit}`;
   if (queued.length === 0) return;
   let worked = false;
+  // Queued again meanwhile: it stays for the next flush.
+  const done = (q: { key: string; stamp: string }) => sql`delete from calendar_queue where key = ${q.key} and (extract(epoch from queued_at) * 1000000)::bigint <= ${q.stamp}::bigint`;
+  const sent = (key: string, lastDay: string) => sql`insert into calendar_sent (key, last_day) values (${key}, ${lastDay}) on conflict (key) do update set last_day = excluded.last_day`;
+  // Refused for good (too far ahead, long past): nothing to retry.
+  const refusedForGood = (error: unknown) => error instanceof ChestError && (error.code === "invalid_event" || error.code === "invalid_key" || error.code === "invalid_id");
+  const puts: { q: { key: string; stamp: string }; event: calendar.CalendarEvent; lastDay: string }[] = [];
+  const removals: { key: string; stamp: string }[] = [];
   for (const q of queued) {
+    const e = await eventOf(sql, q.key, zone);
+    if (e) {
+      const { stamp: _stamp, sequence: _sequence, lastDay, ...event } = e;
+      puts.push({ q, event, lastDay });
+    } else removals.push(q);
+  }
+  // The events to put go together (calendar.putMany, studio.15: one write
+  // of the minute for up to 100). One the Chest refuses refuses the whole
+  // batch: then they go one by one, and only that one is dropped.
+  let stop = false;
+  if (puts.length > 0) {
     try {
-      const e = await eventOf(sql, q.key, zone);
-      if (e) {
-        const { stamp: _stamp, sequence: _sequence, lastDay, ...event } = e;
-        await calendar.put(event);
-        await sql`insert into calendar_sent (key, last_day) values (${q.key}, ${lastDay}) on conflict (key) do update set last_day = excluded.last_day`;
-      } else {
-        await calendar.remove(q.key);
-        await sql`delete from calendar_sent where key = ${q.key}`;
+      await calendar.putMany(puts.map(p => p.event));
+      for (const p of puts) {
+        await sent(p.q.key, p.lastDay);
+        await done(p.q);
       }
       worked = true;
     } catch (error) {
@@ -176,17 +190,42 @@ export async function flush(sql: Sql, zone: string, limit = 40): Promise<void> {
         await sql`update settings set calendar = 'off', calendar_tried = now()`;
         return;
       }
-      // Refused for good (too far ahead, long past): nothing to retry.
-      const refused = error instanceof ChestError && (error.code === "invalid_event" || error.code === "invalid_key" || error.code === "invalid_id");
-      if (!refused) {
-        // Full: the others may still be removals; they go on.
-        if (error instanceof ChestError && error.code === "quota_exceeded") continue;
+      if (!(error instanceof ChestError)) throw error;
+      if (refusedForGood(error)) {
+        for (const p of puts) {
+          try {
+            await calendar.put(p.event);
+            await sent(p.q.key, p.lastDay);
+            worked = true;
+          } catch (one) {
+            if (!refusedForGood(one)) {
+              if (one instanceof ChestError && one.code === "quota_exceeded") continue;
+              if (one instanceof ChestError) { stop = true; break; }
+              throw one;
+            }
+          }
+          await done(p.q);
+        }
+      } else if (error.code !== "quota_exceeded") stop = true; // unreachable, rate limited: later
+      // Full: the puts wait; the removals below still go.
+    }
+  }
+  for (const q of stop ? [] : removals) {
+    try {
+      await calendar.remove(q.key);
+      await sql`delete from calendar_sent where key = ${q.key}`;
+      worked = true;
+    } catch (error) {
+      if (error instanceof CapabilityNotGranted) {
+        await sql`update settings set calendar = 'off', calendar_tried = now()`;
+        return;
+      }
+      if (!refusedForGood(error)) {
         if (error instanceof ChestError) break; // unreachable, rate limited: later
         throw error;
       }
     }
-    // Queued again meanwhile: it stays for the next flush.
-    await sql`delete from calendar_queue where key = ${q.key} and (extract(epoch from queued_at) * 1000000)::bigint <= ${q.stamp}::bigint`;
+    await done(q);
   }
   if (worked && s.calendar !== "on") await sql`update settings set calendar = 'on', calendar_tried = now()`;
 }

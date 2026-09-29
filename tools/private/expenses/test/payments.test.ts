@@ -10,9 +10,11 @@ import { AppError, type ErrorCode } from "../lib/app-error.ts";
 import * as bank from "../lib/bank.ts";
 import * as expenses from "../lib/expenses.ts";
 import { checkBic, checkIban, groupIban, mod97 } from "../lib/iban.ts";
+import { catalogue } from "../lib/i18n/index.ts";
 import { erase } from "../lib/lifecycle.ts";
 import { today } from "../lib/model.ts";
 import * as payments from "../lib/payments.ts";
+import { leftNote, people } from "../lib/people.ts";
 import { seal, sealing, unseal } from "../lib/seal.ts";
 import { pain001, sepaAmount, sepaText } from "../lib/sepa.ts";
 import * as settings from "../lib/settings.ts";
@@ -267,7 +269,7 @@ test("someone who left is never in a transfer file: paid on their final pay slip
   // Paul had the tool, gave his bank details, had an expense approved, then
   // left the company (the Chest answers "former" for him).
   const paul = { ...hugo, id: "mbr_paulaaaaaaaaaaaaaaaaaaaaaa", firstName: "Paul", lastName: "Lefèvre", name: "Paul Lefèvre" };
-  chest.former.push({ id: paul.id, name: paul.name });
+  chest.former.push({ id: paul.id, name: paul.name, leftAt: "2026-09-30T16:00:00Z" });
   try {
     await bank.setBankDetails(sql, asMember(paul), paul.id, { iban: hugoIban });
     const p = await approved(paul, "25");
@@ -276,7 +278,17 @@ test("someone who left is never in a transfer file: paid on their final pay slip
     await bank.setBankDetails(sql, asMember(lea), lea.id, { iban: ibanOf("FR", "20041010050500013M02606") });
     await approved(lea, "8");
     const made = await payments.createRun(sql, asMember(camille), { executionDate: today() });
-    assert.deepEqual(made.skipped, [{ member: paul.id, reason: "left" }]);
+    assert.deepEqual(made.skipped, [{ member: paul.id, reason: "left", leftAt: "2026-09-30T16:00:00.000Z" }]);
+    // The pages say since when (studio.15, FormerMember.leftAt), in each
+    // reader's language; the year only when it is not this one.
+    const who = await people([paul.id]);
+    const en = catalogue("en"), fr = catalogue("fr");
+    assert.equal(leftNote(who.get(paul.id), "en", en.pay, new Date("2026-10-02T09:00:00Z")), "Left the company on 30 September: pay on their final pay slip, then “Mark paid” (not in the transfer file)");
+    assert.match(leftNote(who.get(paul.id), "fr", fr.approve, new Date("2026-10-02T09:00:00Z"))!, /^A quitté l’entreprise le 30 septembre\s:/u);
+    assert.match(leftNote(who.get(paul.id), "en", en.approve, new Date("2027-01-05T09:00:00Z"))!, /^Left the company on 30 September 2026:/u);
+    // A Chest that does not say when: the sentence without the day.
+    assert.equal(leftNote({ ...who.get(paul.id)!, leftAt: null }, "en", en.pay), en.pay.left);
+    assert.equal(leftNote((await people([lea.id])).get(lea.id), "en", en.pay), null);
     // Paid by hand ("Mark paid") once his final pay slip did it.
     await expenses.markPaid(sql, asMember(camille), [p], today());
   } finally {

@@ -9,7 +9,7 @@ import { dot, format, formatDate, languageNames, plural, relative, shortDate } f
 import { today } from "../../../lib/model.ts";
 import { formatMoney } from "../../../lib/money.ts";
 import { readiness, remittance, runs } from "../../../lib/payments.ts";
-import { nameOf, people } from "../../../lib/people.ts";
+import { leftNote, nameOf, people } from "../../../lib/people.ts";
 import { rowView } from "../../../lib/rows.ts";
 import { viewer } from "../../../lib/session.ts";
 import { allowances, categories, settings } from "../../../lib/settings.ts";
@@ -43,13 +43,14 @@ export default async function Pay() {
   // and the company's; without them, it waits (and says why).
   const addressProblem = (b: BankView | undefined): string | null =>
     !b || !b.sepa || !b.needsAddress ? null : !b.address ? t.pay.addressMissing : !companyBank?.address ? t.pay.companyAddressMissing : null;
-  // Someone who left is paid on their final pay slip, never by the file.
-  const left = (owner: string) => who.get(owner)?.status === "former" || who.get(owner)?.status === "erased";
+  // Someone who left is paid on their final pay slip, never by the file:
+  // the page says since when.
+  const left = (owner: string) => leftNote(who.get(owner), locale, t.pay) !== null;
   const groups: PayGroup[] = [...byOwner].map(([owner, l]) => {
     const bank = banks.get(owner);
     return {
       owner,
-      left: left(owner),
+      left: leftNote(who.get(owner), locale, t.pay),
       name: nameOf(who.get(owner), locale),
       photo: who.get(owner)?.photo ?? null,
       total: money(l),

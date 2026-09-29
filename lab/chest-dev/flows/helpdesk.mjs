@@ -187,6 +187,14 @@ await step("close with undo", async () => {
   await page.waitForTimeout(1200);
   await page.reload();
   expect((await page.locator(".side-card").innerText()).includes("Waiting for the customer"), "status back");
+  // Goals' key-result feed: solved (for Hugo, who has it), then taken back
+  // by the Undo — each published once (the harness's Events panel).
+  const published = (await (await page.request.get(origin + "/_dev")).text()).replaceAll("&quot;", '"');
+  const solved = `<code>helpdesk.ticket.solved</code> <small>{"ticket":"${lucie}","assignee":"${id("hugo")}"}</small>`;
+  const reopened = `<code>helpdesk.ticket.reopened</code> <small>{"ticket":"${lucie}"}</small>`;
+  expect(published.split(solved).length === 2, "helpdesk.ticket.solved published once, with the ticket and its agent");
+  expect(published.split(reopened).length === 2, "helpdesk.ticket.reopened published once by the Undo");
+  expect(published.indexOf(reopened) < published.indexOf(solved), "reopened after solved (the panel lists the latest first)");
 });
 
 await step("an email to the support mailbox opens a ticket, confirmed by email", async () => {

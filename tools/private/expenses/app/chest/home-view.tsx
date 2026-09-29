@@ -65,7 +65,7 @@ export function HomeView({ locale, empty, figures, drafts, waiting, approved, hi
   }
 
   const dock = (
-    <div className="dock">
+    <div className="dock" data-ck-bottom-bar>
       <a className="button" href="/chest/new"><Plus />{t.home.add}</a>
       <a className="button quiet" href="/chest/new?trip=1" aria-label={t.home.addTrip} title={t.home.addTrip}><Car /></a>
     </div>

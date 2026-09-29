@@ -37,7 +37,7 @@ export async function email(recipients: Iterable<string>, letter: (t: Catalogue,
     const written = letter(t, person.locale);
     if (!written) continue;
     try {
-      await mail.send({ to: { member: person.id }, subject: written.subject.replace(/[\r\n]+/gu, " ").slice(0, 200), text: letterText(t, written, options.path, base), key: `${options.key}:${person.id}`.slice(0, 64) });
+      await mail.send({ to: { member: person.id }, subject: written.subject.replace(/[\r\n]+/gu, " ").slice(0, 200), text: letterText(t, written, options.path, base), key: `${options.key}:${person.id}` });
       sent++;
     } catch (error) {
       // Not granted (a Chest without mail yet): nothing more can leave.

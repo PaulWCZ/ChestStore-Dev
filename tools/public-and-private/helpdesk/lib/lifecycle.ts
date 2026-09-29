@@ -17,6 +17,7 @@ export async function leave(sql: Sql, memberId: string): Promise<void> {
 export async function erase(sql: Sql, memberId: string): Promise<void> {
   await sql.begin(async tx => {
     await tx`update tickets set assignee = null where assignee = ${memberId}`;
+    await tx`update ticket_events set assignee = null where assignee = ${memberId}`;
     // A colleague's requests (team forms) stay for the team, no longer theirs.
     await tx`update tickets set requester = 'erased' where requester = ${memberId}`;
     await tx`update messages set author = 'erased' where author = ${memberId}`;

@@ -161,14 +161,19 @@ uses it.
   the environment when needed, never stored, logged or shown.
 - **Import → From Microsoft Intune** → *Read Intune*: the devices Intune
   manages that are not here yet (by serial number) go through the
-  importer's own preview — the person Intune names matched by name to the
-  Chest's members, phones and laptops by their system, the operating
+  importer's own preview — "Assigned to" the member whose sign-in address
+  is the device user's (else the name Intune gives, which the preview shows
+  as found or not before anything is imported), phones and laptops by their system, the operating
   system and IMEI into the fields of those names — then *Import*. Nothing
   is added twice; no bell, no receipt (as any import).
 - **Each night** (schedule `intune`, 05:40; or *Read Intune*): what Intune
   says of each device with a serial number is kept — its name, system and
-  version, last check-in, and the member Intune names (matched by name,
-  kept as a member id, never a name or an address). The item's page shows
+  version, last check-in, and its user's member: the Chest matches the
+  address Intune gives (mail address or principal name) to the member who
+  signs in with it (`members.matchEmails`), and the tool keeps the member
+  id only — never a name or an address, never a guess between two people
+  of the same name. A Chest without that call yet (it answers 404) falls
+  back to the member of the same name, when exactly one has it. The item's page shows
   "Intune: checked in 2 hours ago · Windows 10.0.26100 · DESKTOP-…", and
   "Intune says Léa Dubois uses it." when that is not who holds it here.
   The overview's *Intune* section lists the devices not here yet and the
@@ -314,7 +319,7 @@ member may not see at all (someone else's item or sheet) is "not found".
 
 ## Needs from the SDK
 
-All in `vendor/` (the studio's working copy, `0.3.0-studio.12`):
+All in `vendor/` (the studio's working copy, `0.3.0-studio.15`):
 
 - `member.locale` — the interface and the bell in each member's language.
 - `schedules` — the Monday "ending soon" word, and the nightly Intune read
@@ -322,8 +327,13 @@ All in `vendor/` (the studio's working copy, `0.3.0-studio.12`):
   the overview shows the same list at any time, and Intune is read when a
   manager asks.
 - `network` and `env` (real contract) — Microsoft's two hosts and the
-  three Intune settings. Node's `fetch` follows the Chest's proxy
-  (`NODE_USE_ENV_PROXY=1`, as Booking).
+  three Intune settings. Plain `fetch` follows the Chest's proxy
+  (`NODE_USE_ENV_PROXY=1`, as Booking); the tests answer Microsoft with
+  `fakeChest({ network })` (studio.15). The local harness cannot yet: its
+  tool runs in another process, so a successful read is shown by the tests
+  only (`test/intune.test.ts`).
+- `members.matchEmails` (studio.15) — which member each Intune device's
+  address is, without `members.email`.
 - `chest` — `today()` and `timeZone()` for "ends within 60 days",
   `currency()` for prices, `company()` on the labels, `teamUrl()` for the QR
   codes' links (without it, the host the request came to).

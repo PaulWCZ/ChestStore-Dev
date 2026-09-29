@@ -16,9 +16,12 @@ import { camille, everyone, hugo, ines } from "./support/members.ts";
 
 let database: TestDatabase;
 let chest: FakeChest;
+// Google's host as the Chest's egress reaches it (fakeChest network, SDK
+// studio.15): a test says what it answers.
+let google: () => Response = () => new Response("no", { status: 404 });
 before(async () => {
   database = await testDatabase();
-  chest = await fakeChest({ members: everyone });
+  chest = await fakeChest({ members: everyone, network: { "calendar.google.com": () => google() } });
 });
 after(async () => {
   await chest.close();
@@ -62,10 +65,12 @@ test("saving the week's hours confirms them; connecting a calendar that reads do
 
   await b.ensureHost(sql, asMember(ines), first);
   const address = "https://calendar.google.com/calendar/ical/ines%40example.test/private-0123456789abcdef/basic.ics";
-  await refuses(calendars.connect(sql, asMember(ines), address, async () => new Response("no", { status: 404 }), monday), "calendar_not_found");
+  google = () => new Response("no", { status: 404 });
+  await refuses(calendars.connect(sql, asMember(ines), address, monday), "calendar_not_found");
   assert.equal((await b.hostOf(sql, ines.id))?.ready, false);
   const empty = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:test\r\nEND:VCALENDAR\r\n";
-  await calendars.connect(sql, asMember(ines), address, async () => new Response(empty, { headers: { "content-type": "text/calendar" } }), monday);
+  google = () => new Response(empty, { headers: { "content-type": "text/calendar" } });
+  await calendars.connect(sql, asMember(ines), address, monday);
   assert.equal((await b.hostOf(sql, ines.id))?.ready, true);
   assert.ok(await b.publicType(sql, "ines-moreau", "meeting"));
 });

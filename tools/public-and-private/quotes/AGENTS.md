@@ -63,7 +63,8 @@ legal defect for the company using it.
   `quotes.invoiced` published on finalise (`app/chest/actions.ts`) and
   retried by the follow-up.
 - `lib/registry.ts` — the public directory of companies, the tool's only
-  declared network host (`chest.json` `network`); tests inject a fetcher.
+  declared network host (`chest.json` `network`), plain `fetch`; tests
+  answer it with `fakeChest({ network })`.
 - `lib/export.ts` — CSV and ZIP for the accountant.
 - `lib/lifecycle.ts`, `lib/tell.ts`, `lib/notify.ts`, `lib/people.ts` — the Chest glue.
 - `migrations/0001_quotes.sql` — the schema **and the freezing triggers**;

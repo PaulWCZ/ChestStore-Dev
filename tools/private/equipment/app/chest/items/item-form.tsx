@@ -181,7 +181,7 @@ export function ItemForm({ mode, id, initial, categories, fields, nextTag, suppl
         </div>
       </div>
       {error && <p className="error" role="alert">{error}</p>}
-      <div className="row end form-actions">
+      <div className="row end form-actions" data-ck-bottom-bar>
         <Link className="button quiet" href={mode === "edit" ? `/chest/items/${id}` : "/chest/items"}>{t.form.cancel}</Link>
         {mode === "new" && kind === "asset" && many === 1 && (
           <button type="button" className="button quiet" disabled={pending || !v.name.trim() || !v.categoryId || dates.problem !== null} onClick={() => submit(true)}><Give />{t.form.addAndGive}</button>

@@ -114,7 +114,7 @@ TEST_DATABASE_URL=postgres://… npm test   # also plays two people booking the 
   flushes run when pages are read and after each action.
 - **Anything that changes a booking or a day enqueues its calendar keys**
   (`enqueue(tx, …)` with `roomKey`/`dayKey`) in the same transaction; never
-  call `calendar.put` directly.
+  call `calendar.put`/`putMany` directly (`flush` does, in one batch).
 - **A day the member set themselves is never touched by the usual week**:
   write `usual_applied` when a person says a day, `usual = false` on their
   own presence and desk rows.

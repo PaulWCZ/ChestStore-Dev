@@ -15,8 +15,11 @@ import { catalogue, format, isLocale, type Catalogue } from "./i18n/index.ts";
 
 export type Letter = { subject: string; lines: string[] };
 export type Recipient = { id: string; locale: Locale | string };
-// sent: the people it went to; stop: why the rest was not sent — the day's
-// quota, a Chest without email, or a Chest that did not answer.
+// sent: the people it went to (now, or in their daily digest from the
+// Chest — not those who turned Chest email off: mail.send applies each
+// person's choice, these letters are never transactional); stop: why the
+// rest was not sent — the day's quota, a Chest without email, or a Chest
+// that did not answer.
 export type Mailed = { sent: string[]; stop: "quota" | "off" | "unavailable" | null };
 
 // letterText writes the body: the letter, the link to open the page (when
@@ -28,7 +31,9 @@ export function letterText(t: Catalogue, letter: Letter, path: string, why: stri
 }
 
 // email sends each recipient their letter; key(person) makes a retry send
-// nothing twice (the Chest keeps a key 24 hours).
+// nothing twice (the Chest keeps a key 24 hours). The key is passed whole:
+// the SDK hashes one longer than the Chest keeps (studio.15), so two people
+// never share one.
 export async function email(people: Recipient[], write: (t: Catalogue) => { letter: Letter; path: string; why: string }, key: (person: Recipient) => string): Promise<Mailed> {
   const sent: string[] = [];
   for (const person of people) {
@@ -36,8 +41,8 @@ export async function email(people: Recipient[], write: (t: Catalogue) => { lett
     const t = catalogue(isLocale(person.locale) ? person.locale : "en");
     const { letter, path, why } = write(t);
     try {
-      await mail.send({ to: { member: person.id }, subject: letter.subject.replace(/[\r\n]+/gu, " ").slice(0, 200), text: letterText(t, letter, path, why), key: key(person).slice(0, 64) });
-      sent.push(person.id);
+      const done = await mail.send({ to: { member: person.id }, subject: letter.subject.replace(/[\r\n]+/gu, " ").slice(0, 200), text: letterText(t, letter, path, why), key: key(person) });
+      if (!done.skipped.includes(person.id)) sent.push(person.id);
     } catch (error) {
       if (error instanceof CapabilityNotGranted) return { sent, stop: "off" };
       if (error instanceof QuotaExceeded) return { sent, stop: "quota" };

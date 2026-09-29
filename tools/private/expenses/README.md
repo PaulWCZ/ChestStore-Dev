@@ -164,8 +164,10 @@ expense part of Spendesk, and the spreadsheet-plus-shoebox of receipts.
   their own owner before this rule are marked "Approved by its own owner"
   in *To pay back* and "(own expense)" in the export's *Approved by*.
 - **Someone who left**: their claim still waits in *To approve*, which says
-  they left ("approving still means paying them back — on their final pay
-  slip, not by the transfer file"); in *To pay back* they are **kept out of
+  they left and when ("Left the company on 30 September: approving still
+  means paying them back — on their final pay slip, not by the transfer
+  file"; the day from the Chest, `FormerMember.leftAt`, studio.15 — without
+  it, the sentence without the day); in *To pay back* they are **kept out of
   the transfer file** (a transfer to a former employee's account is what a
   diversion would ask for) and paid by hand with *Mark paid*.
 - **Search** (the box in the header, or "/"): a shop or a word of the
@@ -357,7 +359,11 @@ suggestions to confirm with the company's accountant.
   accountant picks one (`settings.bankLocale`). Without it, English.
 - `mail` — **Proposal (studio)** (`chest.proposals.json`, `lib/mail.ts`):
   emails to approvers, card holders and people with drafts. Without it,
-  the bell only.
+  the bell only. Keys are passed whole (studio.15 hashes a long one), and
+  each person's email preference in the Chest applies: none of these is
+  transactional.
+- `members.lookup`'s `leftAt` — **Proposal (studio.15)**: the day a former
+  member left, in *To approve* and *To pay back*.
 - **Scheduled tasks** — **Proposal (studio)** (`chest.proposals.json`):
   `reminder` (25th, 09:00) and `cleanup` (nightly). On a Chest without them,
   nobody is reminded and unused uploads and deleted drafts stay (the tool
@@ -378,7 +384,7 @@ suggestions to confirm with the company's accountant.
   - `members.email` for importers (matching an Expensify export's
     submitter by email rather than by name);
   - a **time zone and currency of the Chest** used by the tool (the
-    vendored SDK, studio.12, has `chest`; the tool still assumes
+    vendored SDK, studio.15, has `chest`; the tool still assumes
     Europe/Paris), and **thumbnails of HEIC photos** (iPhone).
 
 ## Looks

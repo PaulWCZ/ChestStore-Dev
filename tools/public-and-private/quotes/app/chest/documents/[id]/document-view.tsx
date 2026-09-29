@@ -256,7 +256,7 @@ export function DocumentView(props: DocumentViewProps) {
       </div>
 
       {primary && (
-        <div className="phone-action">
+        <div className="phone-action" data-ck-bottom-bar>
           <span className="phone-total"><span className="hint">{t.doc.facts.total}</span><b className="num" suppressHydrationWarning>{formatMoney(gross, doc.currency, locale)}</b></span>
           <div className="actions">{primary}</div>
         </div>

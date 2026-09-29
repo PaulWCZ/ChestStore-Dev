@@ -11,11 +11,12 @@ import * as items from "../lib/items.ts";
 import { erase } from "../lib/lifecycle.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
-import { camille, everyone, hugo, ines, lea, sofia } from "./support/members.ts";
+import { camille, everyone, hugo, ines, lea, nora, sofia } from "./support/members.ts";
 
-// Microsoft Intune, read only. Graph is played by a fake transport that
-// answers as Microsoft's documentation shows (lib/intune.ts, sources), and
-// records what the tool asked.
+// Microsoft Intune, read only. The tool calls Microsoft with plain fetch();
+// the fake Chest's network (studio.15) answers the two declared hosts as
+// Microsoft's documentation shows (lib/intune.ts, sources) and refuses any
+// other, as the Chest's egress proxy does; the test records what was asked.
 
 let database: TestDatabase;
 let chest: FakeChest;
@@ -23,16 +24,28 @@ const M = asMember(camille), H = asMember(hugo);
 const env = { INTUNE_TENANT_ID: "contoso.onmicrosoft.com", INTUNE_CLIENT_ID: "00001111-aaaa-2222-bbbb-3333cccc4444", INTUNE_CLIENT_SECRET: "s3cret~value" };
 const saved = { ...process.env };
 
+// Each member's sign-in address, as the Chest knows it (never given to the
+// tool: it only asks which member an address is).
+const withMail = everyone.map(p => ({ ...p, email: p.id.slice(4).replace(/a+$/u, "") + "@contoso.com" }));
+const address = (who: { id: string }) => withMail.find(p => p.id === who.id)!.email;
+// What Microsoft answers, set by each test.
+let microsoft: (request: Request) => Promise<Response> = async () => new Response(null, { status: 500 });
+
 before(async () => {
   database = await testDatabase();
-  chest = await fakeChest({ members: everyone, schedules: [{ name: "intune", cron: "40 5 * * *" }] });
+  chest = await fakeChest({
+    tool: "equipment",
+    members: withMail,
+    schedules: [{ name: "intune", cron: "40 5 * * *" }],
+    network: { "login.microsoftonline.com": request => microsoft(request), "graph.microsoft.com": request => microsoft(request) },
+  });
 });
 after(async () => {
   await chest.close();
   await database.close();
 });
 afterEach(() => {
-  intune.useTransport(null);
+  microsoft = async () => new Response(null, { status: 500 });
   for (const k of Object.keys(env)) delete process.env[k];
   Object.assign(process.env, saved);
 });
@@ -44,16 +57,16 @@ const json = (value: unknown, status = 200, headers: Record<string, string> = {}
 // A Graph with these devices, two per page.
 function graph(devices: Record<string, unknown>[], options: { token?: Response; page?: (n: number) => Response | null } = {}) {
   const calls: Call[] = [];
-  intune.useTransport(async (input, init) => {
-    const url = String(input);
-    calls.push({ url, method: init?.method ?? "GET", headers: new Headers(init?.headers), body: init?.body ? String(init.body) : "" });
+  microsoft = async request => {
+    const url = request.url;
+    calls.push({ url, method: request.method, headers: new Headers(request.headers), body: await request.text() });
     if (url.startsWith("https://login.microsoftonline.com/")) return options.token ?? json({ token_type: "Bearer", expires_in: 3599, access_token: "eyJ.fake" });
     const skip = Number(new URL(url).searchParams.get("$skiptoken") ?? 0);
     const special = options.page?.(skip);
     if (special) return special;
     const next = skip + 2 < devices.length ? `https://graph.microsoft.com/v1.0/deviceManagement/managedDevices?$skiptoken=${skip + 2}` : undefined;
     return json({ value: devices.slice(skip, skip + 2), ...(next ? { "@odata.nextLink": next } : {}) });
-  });
+  };
   return calls;
 }
 
@@ -88,9 +101,12 @@ test("reads every page with a client-credentials token, as Microsoft documents i
   assert.equal(pages.length, 2);
   assert.equal(pages[0]!.url, "https://graph.microsoft.com/v1.0/deviceManagement/managedDevices");
   assert.ok(pages.every(p => p.headers.get("authorization") === "Bearer eyJ.fake" && !p.url.includes("s3cret") && !JSON.stringify([...p.headers]).includes("s3cret")));
-  // Only what the tool keeps: no address, no principal name.
-  assert.deepEqual(Object.keys(devices[0]!).sort(), ["deviceName", "id", "imei", "lastCheckIn", "manufacturer", "model", "os", "osVersion", "serial", "user"]);
+  // What the tool reads; the addresses are only to ask the Chest who it is.
+  assert.deepEqual(Object.keys(devices[0]!).sort(), ["addresses", "deviceName", "id", "imei", "lastCheckIn", "manufacturer", "model", "os", "osVersion", "serial", "user"]);
+  assert.deepEqual(devices[0]!.addresses, ["someone@contoso.com"]);
   assert.equal(devices[0]!.imei, null);
+  // Only through the Chest's egress, only to the two declared hosts.
+  assert.ok(chest.egress.length >= 3 && chest.egress.every(e => /^https:\/\/(login\.microsoftonline|graph\.microsoft)\.com\//u.test(e.url) && !e.refused));
 });
 
 test("a next page anywhere but Microsoft Graph is not followed; odd devices are skipped", async () => {
@@ -109,7 +125,7 @@ test("Microsoft's refusals and silences, each in words", async () => {
   await refused(intune.readDevices(env), "intune_denied");
   graph([], { page: () => json({ nothing: true }) });
   await refused(intune.readDevices(env), "intune_invalid");
-  intune.useTransport(async () => { throw new TypeError("fetch failed"); });
+  microsoft = async () => { throw new TypeError("fetch failed"); };
   await refused(intune.readDevices(env), "intune_unreachable");
   // Too many requests: tried again once after Retry-After, then "busy".
   let tries = 0;
@@ -119,33 +135,62 @@ test("Microsoft's refusals and silences, each in words", async () => {
   await refused(intune.readDevices(env), "intune_busy");
 });
 
-test("a read keeps each device's facts by serial number and the member Intune names, never a name or an address", async () => {
+test("a read keeps each device's facts by serial number and the member its address is, never a name or an address", async () => {
   const { sql } = database;
   Object.assign(process.env, env);
   await refused(intune.refresh(sql, H), "forbidden");
   graph([
-    device("1", "SER-1", { userDisplayName: "Inès Moreau" }),
-    device("2", "ser-1", { userDisplayName: "Inès Moreau", lastSyncDateTime: "2026-09-01T08:00:00Z" }),
-    device("3", "SER-3", { userDisplayName: "Someone Unknown", operatingSystem: "iOS", osVersion: "18.6", imei: "356938035643809" }),
+    device("1", "SER-1", { userDisplayName: "Inès Moreau", emailAddress: address(ines), userPrincipalName: address(ines) }),
+    device("2", "ser-1", { userDisplayName: "Inès Moreau", emailAddress: address(ines), userPrincipalName: address(ines), lastSyncDateTime: "2026-09-01T08:00:00Z" }),
+    device("3", "SER-3", { userDisplayName: "Someone Unknown", operatingSystem: "iOS", osVersion: "18.6", imei: "356938035643809", emailAddress: "someone@contoso.com", userPrincipalName: "someone@contoso.com" }),
     device("4", null),
+    // Hugo's name, someone else's address: never matched by the name.
+    device("5", "SER-5", { userDisplayName: "Hugo Bernard", emailAddress: "hugo.bernard@elsewhere.example", userPrincipalName: "hb@elsewhere.example" }),
+    // Léa's mail address is an alias the Chest does not know; her
+    // principal name is her sign-in address, in capitals.
+    device("6", "SER-6", { userDisplayName: "", emailAddress: "l.dubois@contoso.com", userPrincipalName: " " + address(lea).toUpperCase() + " " }),
   ]);
   const read = await intune.refresh(sql, M);
-  assert.deepEqual([read.devices, read.withoutSerial], [2, 1]);
+  assert.deepEqual([read.devices, read.withoutSerial], [4, 1]);
   const rows = await sql<{ serial_key: string; member_id: string | null; last_check_in: Date }[]>`select serial_key, member_id, last_check_in from intune_devices order by serial_key`;
-  assert.deepEqual(rows.map(r => [r.serial_key, r.member_id]), [["ser-1", ines.id], ["ser-3", null]]);
+  assert.deepEqual(rows.map(r => [r.serial_key, r.member_id]), [["ser-1", ines.id], ["ser-3", null], ["ser-5", null], ["ser-6", lea.id]]);
   // The device enrolled twice keeps its latest check-in.
   assert.equal(rows[0]!.last_check_in.toISOString(), "2026-09-27T08:15:00.000Z");
   const stored = JSON.stringify(await sql`select * from intune_devices`);
-  assert.equal(stored.includes("Inès") || stored.includes("@contoso"), false);
+  assert.equal(stored.includes("Inès") || stored.includes("@"), false);
   // A failed read keeps the last one and says why.
   graph([], { token: json({}, 401) });
   await refused(intune.refresh(sql, M), "intune_denied");
-  assert.equal((await sql`select 1 from intune_devices`).length, 2);
+  assert.equal((await sql`select 1 from intune_devices`).length, 4);
   const status = await intune.status(sql, M);
   assert.equal(status.connected, true);
   assert.equal(status.last?.outcome, "denied");
   assert.ok(status.lastGood);
   await refused(intune.status(sql, H), "forbidden");
+});
+
+test("a Chest without matchEmails yet (404): the member of the same name, when exactly one has it; a Chest that does not answer keeps the last read", async () => {
+  const { sql } = database;
+  Object.assign(process.env, env);
+  const before = await sql`select serial_key, member_id from intune_devices order by serial_key`;
+  const real = globalThis.fetch;
+  let answer = 404;
+  globalThis.fetch = (async (input: Parameters<typeof fetch>[0], init?: RequestInit) => {
+    const url = new URL(typeof input === "string" ? input : input instanceof URL ? input.href : input.url);
+    if (url.pathname.endsWith("/members/match")) return json({ error: answer === 404 ? "not_found" : "unavailable" }, answer);
+    return real(input, init);
+  }) as typeof fetch;
+  try {
+    graph([device("1", "SER-1", { userDisplayName: "Inès Moreau", emailAddress: "nobody@elsewhere.example" }), device("3", "SER-3", { userDisplayName: "Someone Unknown" })]);
+    answer = 503;
+    await refused(intune.refresh(sql, M), "unavailable");
+    assert.deepEqual(await sql`select serial_key, member_id from intune_devices order by serial_key`, before);
+    answer = 404;
+    await intune.refresh(sql, M);
+    assert.deepEqual((await sql<{ serial_key: string; member_id: string | null }[]>`select serial_key, member_id from intune_devices order by serial_key`).map(r => [r.serial_key, r.member_id]), [["ser-1", ines.id], ["ser-3", null]]);
+  } finally {
+    globalThis.fetch = real;
+  }
 });
 
 test("the overview's news: devices not here yet, and items Intune gives to someone else", async () => {
@@ -200,6 +245,10 @@ test("what Intune knows and Equipment does not goes through the importer: its pr
   assert.ok(detail.full && detail.history.some(h => h.kind === "imported" && h.note === "Intune"));
   // No bell for an import.
   assert.equal(chest.notifications.some(n => n.member === hugo.id), false);
+  // A device its address matched goes to that member's name today,
+  // whatever name Intune gives.
+  const matched = { ...intune.readDevice(device("8", "TAB-8", { userDisplayName: "Nora P." }))!, member: nora.id };
+  assert.match((await intune.missingAsCsv(sql, M, [matched])).text, /TAB-8,Nora Petit,/u);
   // Again: nothing left to add.
   assert.equal((await intune.missingAsCsv(sql, M, devices.map(d => intune.readDevice(d)!))).count, 0);
 });
@@ -214,7 +263,7 @@ test("an erasure forgets the member Intune named; the nightly read does nothing 
   // Connected: it reads; a refusal is kept, and the run still ends well
   // (tried again the next night, not every few minutes).
   Object.assign(process.env, env);
-  graph([device("1", "SER-1", { userDisplayName: "Sofia Rossi" })]);
+  graph([device("1", "SER-1", { userDisplayName: "Sofia Rossi", emailAddress: address(sofia) })]);
   assert.equal(await chest.run("intune", request => POST(request), { scheduledAt: "2026-09-30T03:40:00Z" }), 204);
   assert.deepEqual((await sql<{ member_id: string }[]>`select member_id from intune_devices`).map(r => r.member_id), [sofia.id]);
   graph([], { token: json({}, 401) });

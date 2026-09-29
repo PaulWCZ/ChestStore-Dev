@@ -218,7 +218,8 @@ export async function notice(sql: Query, event: NoticeEvent, t: NoticeTicket, ke
       event: `ticket.${event}`,
       text,
       data: { ticket: { number: t.number, subject: t.subject, channel: t.channel, priority: t.priority, status: t.status, url }, customer: { name: customer }, ...(extra.hours ? { waited_hours: extra.hours } : {}) },
-      key: key.slice(0, 64),
+      // Whole: the SDK sends a long key as its SHA-256 (studio.15).
+      key,
     });
     for (const s of sent.skipped) {
       if (s.reason === "not_found") await sql`delete from notice_targets where id = ${s.target}`;

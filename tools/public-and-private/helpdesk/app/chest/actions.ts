@@ -17,6 +17,7 @@ import * as tell from "../../lib/tell.ts";
 import { isLocale } from "../../lib/i18n/index.ts";
 import * as rules from "../../lib/rules.ts";
 import * as tickets from "../../lib/tickets.ts";
+import { tellLinkedTools } from "../../lib/ticket-events.ts";
 import * as views from "../../lib/views.ts";
 
 // The team's actions. Each is an endpoint anyone can call: each reads the
@@ -28,6 +29,8 @@ async function act<T>(step: (actor: NonNullable<Awaited<ReturnType<typeof curren
     if (!actor) throw new AppError("forbidden");
     return step(actor);
   });
+  // A ticket solved or reopened by the action: the linked tools told.
+  if (result.ok) await tellLinkedTools(db());
   revalidatePath("/chest", "layout");
   return result;
 }

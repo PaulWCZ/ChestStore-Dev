@@ -358,7 +358,7 @@ export function ExpenseForm({ data, initial, locale, t }: { data: ComposeData; i
       </details>
 
       {error && <p className="error" role="alert">{error}</p>}
-      <div className="save-bar">
+      <div className="save-bar" data-ck-bottom-bar>
         <button type="submit" className="button" disabled={pending || busy || dates.problem !== null}>{pending ? t.form.saving : t.form.save}</button>
         <a className="button quiet" href={initial ? `/chest/expenses/${initial.id}` : "/chest"}>{t.form.cancel}</a>
       </div>
@@ -466,7 +466,7 @@ export function TripForm({ data, initial, locale, t }: { data: ComposeData; init
         </div>
       </details>
       {error && <p className="error" role="alert">{error}</p>}
-      <div className="save-bar">
+      <div className="save-bar" data-ck-bottom-bar>
         <button type="submit" className="button" disabled={pending || dates.problem !== null}>{pending ? t.form.saving : t.form.save}</button>
         <a className="button quiet" href={initial ? `/chest/expenses/${initial.id}` : "/chest"}>{t.form.cancel}</a>
       </div>
@@ -537,7 +537,7 @@ export function AllowanceForm({ data, initial, locale, t }: { data: ComposeData;
         <textarea id="note" name="note" className="field" maxLength={limits.note} placeholder={t.form.notePlaceholder} defaultValue={initial?.note ?? ""} />
       </div>
       {error && <p className="error" role="alert">{error}</p>}
-      <div className="save-bar">
+      <div className="save-bar" data-ck-bottom-bar>
         <button type="submit" className="button" disabled={pending || !chosen || count === 0 || dates.problem !== null}>{pending ? t.form.saving : t.form.save}</button>
         <a className="button quiet" href={initial ? `/chest/expenses/${initial.id}` : "/chest"}>{t.form.cancel}</a>
       </div>

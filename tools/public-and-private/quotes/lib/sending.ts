@@ -91,6 +91,11 @@ async function deliver(sql: Sql, full: Full, message: Message, fromName: string,
       ...(replyTo ? { replyTo } : {}),
       ...(bytes ? { attachments: [{ name: pdfFileName(full), type: "application/pdf", content: bytes }, ...(terms ? [{ name: termsFileName(full.language), type: "application/pdf", content: terms.bytes }] : [])] } : {}),
       key,
+      // The quote the client asked for, the invoice of what they bought:
+      // sent by a person, it must arrive whatever an addressee who is a
+      // member of this Chest chose for email (the automatic reminders
+      // below honour that choice).
+      transactional: true,
     });
   } catch (error) {
     if (error instanceof CapabilityNotGranted) {

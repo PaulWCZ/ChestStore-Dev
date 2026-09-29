@@ -10,7 +10,7 @@ import { format, plural } from "../../../lib/i18n/format.ts";
 import type { RowView } from "../../../lib/rows.ts";
 import { decideExpenses } from "../actions.ts";
 
-export type PersonGroup = { owner: string; name: string; photo: string | null; summary: string; sent: string; left: boolean; rows: RowView[] };
+export type PersonGroup = { owner: string; name: string; photo: string | null; summary: string; sent: string; left: string | null; rows: RowView[] };
 type Words = Pick<Catalogue, "approve" | "detail" | "form" | "errors" | "dialog"> & { companyCard: string };
 
 // What "Approve all" may approve at once: the lines without a warning.
@@ -67,7 +67,7 @@ export function ApproveView({ groups, recent, locale, t }: { groups: PersonGroup
             )}
           </div>
           {g.rows.length > 1 && clean(g).length < g.rows.length && <p className="hint">{plural(t.approve.lookFirst, g.rows.length - clean(g).length, locale)}</p>}
-          {g.left && <p className="notice left">{t.approve.left}</p>}
+          {g.left && <p className="notice left">{g.left}</p>}
           <hr className="rule" />
           <ul className="rows">
             {g.rows.map(r => (

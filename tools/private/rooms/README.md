@@ -269,12 +269,19 @@ is lent to others on those days (`lib/away.ts`).
 
 ## Needs from the SDK
 
-All in the SDK working copy packed in `vendor/` (0.3.0-studio.12):
+All in the SDK working copy packed in `vendor/` (0.3.0-studio.15):
 
 - `member.locale`, `schedules.timeZone()` / `chest.teamUrl()` — **Proposal (studio)**.
-- `calendar` (`put`, `remove`, `ics`, `uidOf`, `page`) — **Proposal (studio)**:
-  the members' calendar feeds, the `.ics` files.
-- `mail.send` to `{member}` with attachments — **Proposal (studio)**: guests' emails.
+- `calendar` (`putMany`, `put`, `remove`, `ics`, `uidOf`, `page`) — **Proposal (studio)**:
+  the members' calendar feeds, the `.ics` files. What changed goes in one
+  `putMany` (studio.15: up to 100 events, one write of the minute); when
+  the Chest refuses the batch for one event, each goes alone and only that
+  one is dropped.
+- `mail.send` to `{member}` with attachments — **Proposal (studio)**: guests' emails,
+  keyed by booking, revision and guest, passed whole (studio.15 hashes a key
+  past 64 characters; before, one refused key stopped every later guest's
+  email). Each guest's email preference in the Chest applies (none are
+  marked transactional: an invitation is not the answer to their request).
 - `members.groups.all`, all of `member.groups` — **Proposal (studio)** (`"groups": "read"`).
 - `schedules` — **Proposal (studio)**: the quarter-hour reminders and check-in.
 - Events between tools — **Proposal (studio)**: Leave's `leave.approved` / `leave.cancelled`.

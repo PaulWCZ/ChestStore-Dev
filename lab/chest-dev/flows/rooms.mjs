@@ -369,6 +369,21 @@ await step("keyboard: “Go to the desks” comes before the day strip and the f
   await context.clearCookies({ name: "dev_locale" });
 });
 
+await step("keyboard: the day strip is one Tab stop (kit 0.2.6) — the next Tab leaves it; the arrows move along it", async () => {
+  await page.goto(origin + `/chest/desks?day=${friday}`);
+  await page.locator(".ck-skip", { hasText: "Go to the desks" }).focus();
+  await page.keyboard.press("Tab");
+  const first = await page.evaluate(() => ({ inStrip: Boolean(document.activeElement?.closest(".ck-daystrip nav")), label: (document.activeElement?.getAttribute("aria-label") || document.activeElement?.textContent || "").trim() }));
+  expect(first.inStrip, "the strip is the stop after the skip link: " + first.label);
+  await page.keyboard.press("Tab");
+  const next = await page.evaluate(() => Boolean(document.activeElement?.closest(".ck-daystrip nav")));
+  expect(!next, "one Tab leaves the strip (it was one stop per day before 0.2.6)");
+  await page.keyboard.press("Shift+Tab");
+  await page.keyboard.press("ArrowRight");
+  const moved = await page.evaluate(() => (document.activeElement?.getAttribute("aria-label") || document.activeElement?.textContent || "").trim());
+  expect(moved !== first.label, `the arrow moves to the next day: ${first.label} → ${moved}`);
+});
+
 await step("a day beyond the booking window: desks shown as not open yet, with the day it opens", async () => {
   await as(context, origin, "hugo");
   await page.setViewportSize({ width: 1280, height: 860 });
@@ -432,6 +447,27 @@ await step("a booking goes into the organiser's and the guest's calendars, and d
   const hugoFeed = await (await page.request.get(feed)).text();
   expect(hugoFeed.includes("SUMMARY:Calendar check"), "in Hugo's feed");
   expect(dev.includes("Invitation") || dev.includes("Calendar check"), "Léa emailed");
+});
+
+await step("a meeting with four guests: each guest gets their own invitation email (one refused guest no longer stops the others)", async () => {
+  await as(context, origin, "hugo");
+  await page.goto(origin + `/chest/rooms?day=${friday}`);
+  await page.getByRole("button", { name: "Book a room" }).click();
+  const dialog = page.locator("dialog[open]");
+  await field(dialog, "Room").selectOption({ label: "Atlas · 8 seats" });
+  await field(dialog, "From").selectOption({ label: "18:00" });
+  await field(dialog, "To").selectOption({ label: "19:00" });
+  await dialog.getByLabel("What for (optional)").fill("Four guests");
+  for (const name of ["Inès", "Léa", "Sofia", "Tom"]) {
+    await dialog.getByRole("combobox", { name: "Invite people (optional)" }).fill(name.slice(0, 3).toLowerCase());
+    await dialog.getByRole("option", { name: new RegExp(name, "u") }).click();
+  }
+  await dialog.getByRole("button", { name: "Book", exact: true }).click();
+  await page.waitForSelector(".ck-toast");
+  await page.waitForTimeout(800);
+  const dev = await (await page.request.get(origin + "/_dev")).text();
+  const mails = [...dev.matchAll(/<li><b>([^<]*Four guests[^<]*)<\/b>.*?→ ([^<]+)<\/small>/gsu)].map(m => m[2].trim());
+  expect(mails.length === 4 && new Set(mails).size === 4, "four invitations, one per guest: " + mails.join(" | "));
 });
 
 await step("my usual week: say it once; coming days are filled; a tap outside the form keeps it", async () => {

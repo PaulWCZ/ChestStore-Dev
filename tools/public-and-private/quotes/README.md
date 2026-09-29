@@ -428,7 +428,11 @@ schemas and schematrons).
   quote, invoice, credit note or reminder with its PDF attached. Call site:
   `lib/sending.ts` only. On a Chest without mail (`CapabilityNotGranted`)
   nothing is sent, the tool remembers it (`company.mail_works`) and offers
-  "Download the PDF" + "Mark as sent".
+  "Download the PDF" + "Mark as sent". A quote or an invoice a member
+  sends by hand is `transactional` (studio.15): it arrives even when the
+  addressee is a member who chose no email from the tools; the automatic
+  reminders honour that choice (`member.mailPreference`, applied by
+  `mail.send`).
 - **schedules** (studio proposal): `badges` and `followup`, daily. Without
   them, badges are set after each change, and the follow-up runs at the
   first desk visit of the day.
@@ -438,7 +442,10 @@ schemas and schematrons).
   `receives`): `crm.deal.won`, `crm.deal.reopened` from Clients,
   `timesheets.billable`, `timesheets.billable_cancelled` from Timesheets;
   `emits` `quotes.invoiced` — see "With the other tools". `chest.toolLink`
-  for the link back to Timesheets (SDK 0.3.0-studio.14, vendored).
+  for the link back to Timesheets (SDK 0.3.0-studio.15, vendored). A
+  `quotes.invoiced` the Chest refuses when the invoice is issued is
+  published by the next morning's follow-up, once (its key
+  `quotes:invoiced:<handoff>`).
 - **Sending to the company's PA — not built, needs the SDK.** The
   Factur-X is ready; transmitting it needs a primitive the Chest does not
   have: *declared outbound HTTPS to a partner, with a per-company secret the
@@ -466,11 +473,14 @@ schemas and schematrons).
   otherwise). Without **mail** on a real Chest, the member copies the
   link from the quote's margin into their own email.
 - **Declared network** (`chest.json` `network`, in the Chest today, not a
-  proposal): the public directory of companies, through the Chest's
-  egress proxy (`lib/registry.ts`, Node's fetch with `NODE_USE_ENV_PROXY`).
-  The studio's harness has no egress: the SDK's `fakeChest` could offer a
-  fake egress (declared hosts answered by the test) so a flow can see the
-  success in a browser — see the report.
+  proposal): the public directory of companies, called with plain
+  `fetch()` through the Chest's egress proxy (`lib/registry.ts`; Node
+  follows it with `NODE_USE_ENV_PROXY`). The tests answer the host with the
+  SDK's `fakeChest({ network })` (studio.15): a successful lookup, a
+  refusal by the egress, every honest failure (`test/registry.test.ts`).
+  The studio's harness runs the tool in its own process, which the fake
+  egress does not reach: in the flow the lookup says "could not be
+  reached" (nothing invented), and the success is shown by the tests only.
 - **Guest accounts** (for the external accountant): not in the Chest;
   until then the accountant gets the period's ZIP.
 

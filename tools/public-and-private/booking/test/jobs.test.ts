@@ -10,9 +10,12 @@ import { everyone, ines } from "./support/members.ts";
 
 let database: TestDatabase;
 let chest: FakeChest;
+// The declared calendar hosts, as the Chest's egress proxy reaches them
+// (fakeChest network, SDK studio.15): what each address answers here.
+let calendarsAnswer: (request: Request) => Response = () => new Response("", { status: 404 });
 before(async () => {
   database = await testDatabase();
-  chest = await fakeChest({ members: everyone, capabilities: ["database", "members", "notifications", "mail"], mail: {}, schedules: [{ name: "reminders", cron: "5 * * * *" }, { name: "cleanup", cron: "40 3 * * *" }, { name: "calendars", cron: "*/15 * * * *" }] });
+  chest = await fakeChest({ members: everyone, capabilities: ["database", "members", "notifications", "mail"], mail: {}, schedules: [{ name: "reminders", cron: "5 * * * *" }, { name: "cleanup", cron: "40 3 * * *" }, { name: "calendars", cron: "*/15 * * * *" }], network: { "calendar.google.com": request => calendarsAnswer(request) } });
 });
 after(async () => {
   await chest.close();
@@ -47,16 +50,22 @@ test("the nightly run is accepted, and a run not signed by the Chest is refused"
 test("every 15 minutes the hosts' other calendars are read again; one that cannot be read keeps its error", async () => {
   const { sql } = database;
   await openHost(sql, asMember(ines), { title: "Meeting", slug: "meeting" });
-  // An address of a declared host that answers nothing here (no network in
-  // tests): the run still succeeds, the calendar says why.
+  // An address of a declared host that answers 404 through the Chest's
+  // egress: the run still succeeds, the calendar says why.
   await sql`insert into calendars (member_id, url, provider, tried_at) values (${ines.id}, 'https://calendar.google.com/calendar/ical/x/private-y/basic.ics', 'calendar.google.com', now() - interval '1 hour')`;
-  const realFetch = globalThis.fetch;
-  globalThis.fetch = async () => new Response("", { status: 404 });
-  try {
-    assert.equal(await chest.run("calendars", POST), 204);
-  } finally {
-    globalThis.fetch = realFetch;
-  }
+  calendarsAnswer = () => new Response("", { status: 404 });
+  assert.equal(await chest.run("calendars", POST), 204);
   const [row] = await sql<{ error: string | null }[]>`select error from calendars`;
   assert.equal(row!.error, "not_found");
+  // The calendar answers again: the next run reads it through the same
+  // plain fetch, keeps its busy times, and the error goes.
+  const soon = new Date(Date.now() + 2 * 86400000).toISOString().slice(0, 10).replaceAll("-", "");
+  calendarsAnswer = () => new Response(["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Google Inc//Google Calendar 70.9054//EN", "BEGIN:VEVENT", `DTSTART:${soon}T090000Z`, `DTEND:${soon}T100000Z`, "UID:a@google.com", "SUMMARY:Dentist", "END:VEVENT", "END:VCALENDAR"].join("\r\n"), { headers: { "content-type": "text/calendar" } });
+  await sql`update calendars set tried_at = now() - interval '1 hour'`;
+  assert.equal(await chest.run("calendars", POST), 204);
+  const [again] = await sql<{ error: string | null; events: number }[]>`select error, events from calendars`;
+  assert.equal(again!.error, null);
+  assert.equal(again!.events, 1);
+  assert.equal((await sql`select 1 from busy where member_id = ${ines.id}`).length, 1);
+  assert.deepEqual(chest.egress.map(e => e.status), [404, 200]);
 });

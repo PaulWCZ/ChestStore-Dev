@@ -59,6 +59,11 @@ await step("phone: Hugo snaps the receipt, types the amount, picks Meals, saves"
   await page.getByRole("button", { name: "Save", exact: true }).click();
   await page.waitForURL(/\/chest$/u);
   await page.waitForSelector(".ck-toast");
+  // The toast sits above the phone's dock (kit 0.2.6, data-ck-bottom-bar),
+  // never over "Add an expense".
+  await page.waitForTimeout(400);
+  const [toastBottom, dockTop] = await page.evaluate(() => [document.querySelector(".ck-toast").getBoundingClientRect().bottom, document.querySelector(".dock[data-ck-bottom-bar]").getBoundingClientRect().top]);
+  expect(toastBottom <= dockTop + 1, `the toast (bottom ${toastBottom}) is above the dock (top ${dockTop})`);
   const text = await page.locator("main").innerText();
   expect(text.includes("Café Kitsuné") && text.includes("€41.00"), "in the drafts");
   const thumb = page.locator(".row", { hasText: "Café Kitsuné" }).locator("img.thumb");

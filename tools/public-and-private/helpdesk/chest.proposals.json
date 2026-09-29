@@ -18,6 +18,10 @@
       "cron": "*/15 * * * *"
     }
   ],
+  "emits": [
+    "helpdesk.ticket.solved",
+    "helpdesk.ticket.reopened"
+  ],
   "receives": [
     "forms.request",
     "status.incident"

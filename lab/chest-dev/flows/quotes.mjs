@@ -178,8 +178,16 @@ await step("round 3: a sent quote changes only through its version 2; the client
   await other2.close();
   await page.getByLabel("Unit price excluding VAT of line 1").fill("120");
   await saved();
-  // The toast (with its Undo) sits over the phone's action bar: closed.
-  await page.locator(".ck-toast-close").first().click();
+  // The toast (with its Undo) sits above the phone's action bar (kit
+  // 0.2.6, data-ck-bottom-bar), never over it, and goes by itself: nobody
+  // closes it.
+  const bar = page.locator(".phone-action[data-ck-bottom-bar]");
+  expect(await bar.count() === 1, "the phone's action bar is marked for the toasts");
+  const shown = page.locator(".ck-toast").first();
+  if (await shown.isVisible()) {
+    const [toastBox, barBox] = [await shown.boundingBox(), await bar.boundingBox()];
+    expect(!toastBox || (barBox && toastBox.y + toastBox.height <= barBox.y + 1), `the toast above the bar: ${JSON.stringify({ toastBox, barBox })}`);
+  }
   await page.locator(".ck-toast").waitFor({ state: "detached", timeout: 20000 });
   await page.getByRole("button", { name: "Send version 2" }).first().click();
   await page.waitForSelector("#subject");
@@ -597,8 +605,10 @@ await step("round 3: a new client from its SIREN — the public directory, or an
   await page.getByRole("button", { name: "New client" }).first().click();
   await page.getByLabel("SIREN").fill("385 290 309");
   await page.getByRole("button", { name: "Fill in from the SIREN" }).click();
-  // The studio's harness has no route to the directory: the tool says so
-  // and fills nothing (on a Chest it goes through the declared egress).
+  // The studio's harness has no route to the directory (the SDK's fake
+  // egress, fakeChest({ network }), replaces fetch in the harness's own
+  // process, not in the tool's): the tool says so and fills nothing. The
+  // successful lookup through the fake egress is test/registry.test.ts.
   const said = page.locator("form p.error[role=alert], form .filled");
   await said.first().waitFor();
   const text = await said.first().innerText();

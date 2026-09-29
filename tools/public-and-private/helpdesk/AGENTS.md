@@ -32,7 +32,8 @@ what must not break.
 | `components/attachments.tsx` | The kit's `FilePicker` wired to the tool's grants (public claims, members' object names) |
 | `components/badges.tsx`, `components/inbox-filters.tsx`, `components/report-table.tsx` | State and priority on the kit's `StatusBadge`, "waiting since"; the kit's `Filters` with Next's `Link`; the reports' `DataTable` |
 | `lib/form-token.ts` | The form's signed "shown at" time |
-| `lib/mailer.ts` | Confirmation and replies through the Chest's mail, falling back to the page |
+| `lib/mailer.ts` | Confirmation and replies through the Chest's mail (`transactional`), falling back to the page |
+| `lib/ticket-events.ts`, `migrations/0007_ticket_events.sql` | `helpdesk.ticket.solved`/`reopened` for Goals: written by a trigger with the ticket, published after each action and by the `late` schedule |
 | `lib/tell.ts` | Bell and tile for those who answer |
 | `lib/lifecycle.ts` | Members leaving or erased |
 | `lib/public-origin.ts` | The public host's address; the visitor's key |

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
 import { POST } from "../app/chest-events/route.ts";
+import { POST as JOB } from "../app/chest-jobs/[name]/route.ts";
 import { finalise, getDocument } from "../lib/documents.ts";
 import { handoffOf, invoicedHandoff, publishPending, readBillable } from "../lib/timesheets.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
@@ -16,9 +17,15 @@ import { camille, everyone, lea, sofia } from "./support/members.ts";
 
 let database: TestDatabase;
 let chest: FakeChest;
+// The Chest this tool runs on; `emits: []` plays one that refuses the
+// event (not approved yet, or down), as the SDK's publish then throws.
+const chestWith = (emits: string[]) => fakeChest({
+  tool: "quotes", members: everyone, emits, tools: { timesheets: true }, settings: { company: "Atelier Martin", currency: "EUR", locale: "fr" },
+  schedules: [{ name: "followup", cron: "10 7 * * *" }],
+});
 before(async () => {
   database = await testDatabase();
-  chest = await fakeChest({ tool: "quotes", members: everyone, emits: ["quotes.invoiced"], tools: { timesheets: true }, settings: { company: "Atelier Martin", currency: "EUR", locale: "fr" } });
+  chest = await chestWith(["quotes.invoiced"]);
   await company(database.sql);
   await client(database.sql, { name: "Boulangerie Dupain SAS" });
 });
@@ -125,4 +132,34 @@ test("issued: Timesheets hears quotes.invoiced once; taken back after, the invoi
   assert.equal((await getDocument(sql, asMember(lea), id, today)).status, "final", "an issued invoice is kept");
   const bell = chest.notifications.slice(before);
   assert.ok(bell.some(n => n.member === sofia.id && n.title.includes(issued.number!) && n.path === `/chest/documents/${id}`), "billing told");
+});
+
+test("the Chest refuses quotes.invoiced when the invoice is issued: the next morning's follow-up tells Timesheets, once", async () => {
+  const { sql } = database;
+  await told("timesheets.billable", billable("50"));
+  const id = String(await draftOf("50"));
+  await chest.close();
+  chest = await chestWith([]);
+  const issued = await finalise(sql, asMember(sofia), id, today);
+  assert.equal(await invoicedHandoff(sql, id, sofia.id), false, "refused: not told yet");
+  assert.equal(chest.published.length, 0);
+  const [waiting] = await sql<{ published_at: Date | null }[]>`select published_at from handoffs where handoff = '50'`;
+  assert.equal(waiting!.published_at, null, "kept to tell later");
+  // The invoice is issued all the same.
+  assert.equal((await getDocument(sql, asMember(lea), id, today)).status, "final");
+
+  // The next morning, on a Chest that takes it: the "followup" schedule.
+  await chest.close();
+  chest = await chestWith(["quotes.invoiced"]);
+  assert.equal(await chest.run("followup", JOB), 204);
+  const sent = chest.published.filter(e => e.type === "quotes.invoiced");
+  assert.equal(sent.length, 1);
+  assert.deepEqual(sent[0]!.data, { handoff: "50", invoice: issued.number, path: `/chest/documents/${id}`, by: sofia.id }, "who issued it, from the invoice");
+  assert.equal(sent[0]!.key, "quotes:invoiced:50");
+  const [done] = await sql<{ published_at: Date | null }[]>`select published_at from handoffs where handoff = '50'`;
+  assert.ok(done!.published_at, "marked told");
+  // The follow-up again (or the first visit of the day): nothing more.
+  assert.equal(await chest.run("followup", JOB), 204);
+  assert.equal(await publishPending(sql), 0);
+  assert.equal(chest.published.filter(e => e.type === "quotes.invoiced").length, 1, "published once");
 });

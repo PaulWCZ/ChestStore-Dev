@@ -25,10 +25,14 @@ import { camille, everyone, hugo, ines } from "./support/members.ts";
 
 let database: TestDatabase;
 let chest: FakeChest;
+// The declared calendar hosts, as the Chest's egress reaches them (fakeChest
+// network, SDK studio.15); a test says what they answer.
+let calendarAnswer: (request: Request) => Response = () => new Response("no", { status: 404 });
+const network = { "*.icloud.com": (request: Request) => calendarAnswer(request) };
 before(async () => {
   database = await testDatabase();
   process.env["CHEST_TOOL"] = "booking";
-  chest = await fakeChest({ members: everyone, capabilities: ["members", "notifications"], emits: ["booking.busy", "booking.confirmed", "booking.cancelled"], receivers: 2 });
+  chest = await fakeChest({ members: everyone, capabilities: ["members", "notifications"], emits: ["booking.busy", "booking.confirmed", "booking.cancelled"], receivers: 2, network });
 });
 after(async () => {
   await chest.close();
@@ -152,7 +156,7 @@ test("without events between tools, bookings stand and nothing breaks", async ()
   assert.equal(await share.shareBusy(sql, [ines.id], monday), 0);
   assert.equal(chest.published.length, 0);
   await chest.close();
-  chest = await fakeChest({ members: everyone, capabilities: ["members", "notifications"], emits: ["booking.busy", "booking.confirmed", "booking.cancelled"], receivers: 2 });
+  chest = await fakeChest({ members: everyone, capabilities: ["members", "notifications"], emits: ["booking.busy", "booking.confirmed", "booking.cancelled"], receivers: 2, network });
 });
 
 test("one type, one name: the team reads it in their language, whatever language the guest booked in", async () => {
@@ -222,7 +226,8 @@ test("a wrong calendar address is named for what it is, before anything is read;
   // A webcal address connects (read over https).
   const seen: string[] = [];
   const ics = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nUID:a\r\nDTSTART:20261006T100000Z\r\nDTEND:20261006T110000Z\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n";
-  const connected = await calendars.connect(sql, asMember(ines), "webcal://p52-caldav.icloud.com/published/2/abc", async url => (seen.push(url), new Response(ics, { status: 200 })), monday);
+  calendarAnswer = request => (seen.push(request.url), new Response(ics, { status: 200 }));
+  const connected = await calendars.connect(sql, asMember(ines), "webcal://p52-caldav.icloud.com/published/2/abc", monday);
   assert.deepEqual([seen, connected.provider, connected.events], [["https://p52-caldav.icloud.com/published/2/abc"], "p52-caldav.icloud.com", 1]);
 });
 

@@ -320,6 +320,7 @@ export const en = {
     recent: "Approved in the last 60 days",
     sentOn: "Sent {when}",
     left: "Has left the company: approving still means paying them back — on their final pay slip, not by the transfer file.",
+    leftOn: "Left the company on {date}: approving still means paying them back — on their final pay slip, not by the transfer file.",
   },
   pay: {
     title: "To pay back",
@@ -332,6 +333,7 @@ export const en = {
     paidOn: "Paid on",
     markPaid: "Mark paid",
     left: "Left the company: pay on their final pay slip, then “Mark paid” (not in the transfer file)",
+    leftOn: "Left the company on {date}: pay on their final pay slip, then “Mark paid” (not in the transfer file)",
     marked: "Marked paid: {total} to {name}.",
     recent: "Paid in the last 90 days",
     companyCard: "Company card expenses are never paid back: they only need their receipt.",

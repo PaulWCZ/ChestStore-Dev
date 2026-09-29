@@ -168,3 +168,37 @@ test("a leave approved in Leave takes the office day out of the calendar; cancel
   await chest.deliver({ type: "leave.cancelled", source: "leave", data: { member: lea.id, request: "77" } }, POST);
   assert.equal((await sql`select count(*)::int as n from usual_applied where member_id = ${lea.id} and day = ${d}`)[0]!.n, 0);
 });
+
+test("what changed goes to the calendars in one write (putMany); an event the Chest refuses for good is dropped alone, the others still go", async () => {
+  const { sql } = database;
+  await cal.flush(sql, zone, 200);
+  const writes: string[] = [];
+  const real = globalThis.fetch;
+  globalThis.fetch = (async (input: Parameters<typeof fetch>[0], init?: RequestInit) => {
+    const url = new URL(typeof input === "string" ? input : input instanceof URL ? input.href : input.url);
+    if (url.pathname.startsWith("/calendar/events")) writes.push(`${init?.method ?? "GET"} ${url.pathname}`);
+    return real(input, init);
+  }) as typeof fetch;
+  try {
+    // Five office days of Sofia's: five events, one call.
+    const days = [8, 9, 10, 11, 12].map(workday);
+    for (const d of days) await sql`insert into presence (member_id, day, status, office_id) values (${sofia.id}, ${d}, 'office', ${o.office}) on conflict do nothing`;
+    await cal.enqueue(sql, days.map(d => cal.dayKey(sofia.id, d)));
+    await cal.flush(sql, zone);
+    assert.deepEqual(writes, ["PUT /calendar/events"]);
+    for (const d of days) assert.ok(chest.calendar.has(cal.dayKey(sofia.id, d)));
+
+    // A day three years ahead (the Chest keeps two years) queued with one
+    // it takes: the batch is refused, each goes alone, the far one dropped.
+    writes.length = 0;
+    const far = addDays(today(zone), 3 * 366), near = workday(13);
+    for (const d of [far, near]) await sql`insert into presence (member_id, day, status, office_id) values (${sofia.id}, ${d}, 'office', ${o.office}) on conflict do nothing`;
+    await cal.enqueue(sql, [cal.dayKey(sofia.id, far), cal.dayKey(sofia.id, near)]);
+    await cal.flush(sql, zone);
+    assert.ok(chest.calendar.has(cal.dayKey(sofia.id, near)));
+    assert.equal(chest.calendar.has(cal.dayKey(sofia.id, far)), false);
+    assert.equal((await sql`select count(*)::int as n from calendar_queue`)[0]!.n, 0, "the refused one is not retried for ever");
+  } finally {
+    globalThis.fetch = real;
+  }
+});
