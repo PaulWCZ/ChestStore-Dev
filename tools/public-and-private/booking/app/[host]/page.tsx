@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { Avatar } from "../../components/avatar.tsx";
+import { Avatar, EmptyState } from "@argentic/chest-ui/components";
 import { Arrow, Back, Clock, kindIcon } from "../../components/icons.tsx";
 import { PublicShell } from "../../components/public-shell.tsx";
 import { publicHost, settings } from "../../lib/booking.ts";
@@ -22,12 +22,12 @@ export default async function HostPage({ params }: { params: Promise<{ host: str
     <PublicShell company={s.companyName} locale={locale} label={t.public.language} back={`/${host.slug}`}>
       {host.listed && <a className="back" href="/"><Back />{t.public.back}</a>}
       <section className="host-head">
-        <Avatar name={person.name} photo={null} size={84} />
+        <Avatar name={person.name} photo={null} size="xl" className="host-portrait" />
         <h1>{person.name}</h1>
         {host.welcome && <p className="welcome">{host.welcome}</p>}
         {types.length > 0 && <p className="muted">{t.public.pickType}</p>}
       </section>
-      {types.length === 0 ? <p className="empty">{format(t.public.noTypes, { name: person.firstName || person.name })}</p> : (
+      {types.length === 0 ? <EmptyState title={format(t.public.noTypes, { name: person.firstName || person.name })} /> : (
         <ul className="offers">
           {types.map(ty => {
             const Kind = kindIcon[ty.locationKind];

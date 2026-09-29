@@ -1,3 +1,4 @@
+import { EmptyState, PageHeader } from "@argentic/chest-ui/components";
 import { headers } from "next/headers";
 import { Back } from "../../../../components/icons.tsx";
 import { myPage } from "../../../../lib/my-page.ts";
@@ -23,12 +24,12 @@ export default async function NewTypePage() {
   if (!v) return null;
   const { t, locale } = v;
   const host = await myPage(v);
-  if (!host) return <div className="empty"><p>{t.bookings.cannotHost}</p></div>;
+  if (!host) return <EmptyState headingLevel={1} title={t.bookings.cannotHostTitle} body={t.bookings.cannotHost} />;
   const base = `${publicOrigin(await headers()) ?? ""}/${host.slug}`;
   return (
     <>
       <a className="back" href="/chest/types"><Back />{t.types.title}</a>
-      <div className="page-head"><h1>{t.types.form.titleNew}</h1></div>
+      <PageHeader title={t.types.form.titleNew} />
       <TypeForm team={await teamChoices(v)} id={null} base={base} locale={locale} t={{ types: t.types, kinds: t.kinds, colors: t.colors, minutes: t.minutes, errors: t.errors }}
         initial={{ title: "", slug: "", description: "", duration: 30, interval: 30, locationKind: "video", location: "", bufferBefore: 0, bufferAfter: 0, noticeMinutes: 240, windowDays: 45, dailyLimit: 0, questions: [], color: "sky", active: true, videoRooms: false, paymentLink: "", pool: [] }} />
     </>

@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { Avatar } from "../../../../components/avatar.tsx";
+import { Avatar, PageHeader, StatusBadge } from "@argentic/chest-ui/components";
 import { Back, Calendar, Chat, Check, Clock, kindIcon, Link, Mail, Person, Phone } from "../../../../components/icons.tsx";
 import { AppError } from "../../../../lib/app-error.ts";
 import * as b from "../../../../lib/booking.ts";
@@ -41,13 +41,7 @@ export default async function BookingPage({ params }: { params: Promise<{ id: st
   return (
     <>
       <a className="back" href="/chest"><Back />{t.booking.back}</a>
-      <div className="page-head">
-        <div>
-          <h1>{x.guestName}</h1>
-          <p className="muted">{x.title} · {plural(t.minutes, x.duration, locale)}</p>
-        </div>
-        {x.status === "cancelled" && x.cancelledBy && <span className="tag danger">{t.booking.cancelledBy[x.cancelledBy]}</span>}
-      </div>
+      <PageHeader title={x.guestName} intro={`${x.title} · ${plural(t.minutes, x.duration, locale)}`} secondary={x.status === "cancelled" && x.cancelledBy ? <StatusBadge tone="danger" label={t.booking.cancelledBy[x.cancelledBy]} /> : null} />
       <section className="card">
         <dl className="facts">
           <dt><Calendar />{t.booking.when}</dt>
@@ -58,7 +52,7 @@ export default async function BookingPage({ params }: { params: Promise<{ id: st
           <dt><Kind />{t.booking.where}</dt>
           <dd>{t.kinds[x.locationKind]}{where ? " — " : ""}{x.locationKind === "video" && where ? <a href={where} target="_blank" rel="noopener noreferrer">{where}</a> : where}</dd>
           <dt><Person />{t.booking.host}</dt>
-          <dd className="row"><Avatar name={nameOf(person, locale)} photo={person?.photo ?? null} size={24} />{person?.id === member.id ? t.people.you : nameOf(person, locale)}</dd>
+          <dd className="row"><Avatar name={nameOf(person, locale)} photo={person?.photo ?? null} size="s" />{person?.id === member.id ? t.people.you : nameOf(person, locale)}</dd>
           <dt><Mail />{t.booking.email}</dt>
           <dd><a href={`mailto:${x.guestEmail}`}>{x.guestEmail}</a></dd>
           {x.guestPhone && <><dt><Phone />{t.booking.phone}</dt><dd><a href={`tel:${x.guestPhone.replace(/[^\d+]/gu, "")}`}>{x.guestPhone}</a></dd></>}
@@ -72,13 +66,13 @@ export default async function BookingPage({ params }: { params: Promise<{ id: st
         </dl>
         {x.guestNote && (
           <div className="stack-s" style={{ marginTop: "var(--space-5)" }}>
-            <h2 className="row" style={{ fontSize: "var(--text-m)", fontFamily: "var(--font-body)", fontWeight: 650 }}><Chat />{t.booking.note}</h2>
+            <h2 className="row sub"><Chat />{t.booking.note}</h2>
             <p className="quote">{x.guestNote}</p>
           </div>
         )}
         {x.answers.length > 0 && (
           <div className="stack-s" style={{ marginTop: "var(--space-5)" }}>
-            <h2 className="row" style={{ fontSize: "var(--text-m)", fontFamily: "var(--font-body)", fontWeight: 650 }}><Check />{t.booking.answers}</h2>
+            <h2 className="row sub"><Check />{t.booking.answers}</h2>
             <dl className="answers">
               {x.answers.map(a => (
                 <div key={a.id}>

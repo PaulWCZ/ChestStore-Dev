@@ -1,9 +1,9 @@
 "use client";
 
+import { Confirm, useToast } from "@argentic/chest-ui/components";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { Alert, Bin, Close, Down, kindIcon, Plus, Up } from "../../../components/icons.tsx";
-import { useToast } from "../../../components/toast.tsx";
 import { format, plural } from "../../../lib/i18n/format.ts";
 import type { Catalogue } from "../../../lib/i18n/index.ts";
 import { colors, durations, locationKinds, slugify, type Color, type LocationKind } from "../../../lib/model.ts";
@@ -29,6 +29,7 @@ export function TypeForm({ id, initial, base, locale, team, t }: { id: string | 
   const [v, setV] = useState(initial);
   const [slugTouched, setSlugTouched] = useState(id !== null);
   const [error, setError] = useState<string | null>(null);
+  const [asking, setAsking] = useState(false);
   const [pending, start] = useTransition();
   const toast = useToast();
   const router = useRouter();
@@ -139,17 +140,23 @@ export function TypeForm({ id, initial, base, locale, team, t }: { id: string | 
       <div className="spread">
         <button type="submit" className="button" disabled={pending}>{id ? f.save : f.create}</button>
         {id && (
-          <button type="button" className="link-button danger" disabled={pending} onClick={() => {
-            if (!window.confirm(f.removeConfirm)) return;
-            start(async () => {
-              const r = await removeType(id);
-              if (!r.ok) return setError(format(t.errors[r.error], r.values ?? {}));
-              router.push("/chest/types");
-              router.refresh();
-            });
-          }}><Bin />{f.remove}</button>
+          <button type="button" className="link-button danger" disabled={pending} onClick={() => setAsking(true)}><Bin />{f.remove}</button>
         )}
       </div>
+      {id && (
+        // Deleting a type cannot be undone (its page goes; its past
+        // bookings stay): the kit's Confirm, never the browser's box.
+        <Confirm open={asking} title={f.removeTitle} body={f.removeConfirm} confirmLabel={f.removeButton} cancelLabel={f.keepType} busy={pending}
+          onCancel={() => setAsking(false)}
+          onConfirm={() => start(async () => {
+            const r = await removeType(id);
+            setAsking(false);
+            if (!r.ok) return setError(format(t.errors[r.error], r.values ?? {}));
+            toast(format(f.removed, { name: v.title }));
+            router.push("/chest/types");
+            router.refresh();
+          })} />
+      )}
     </form>
   );
 }

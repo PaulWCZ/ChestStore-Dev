@@ -1,3 +1,4 @@
+import { EmptyState, PageHeader } from "@argentic/chest-ui/components";
 import * as b from "../../../lib/booking.ts";
 import * as calendars from "../../../lib/calendars.ts";
 import { db } from "../../../lib/db.ts";
@@ -19,7 +20,7 @@ export default async function HoursPage() {
   if (!v) return null;
   const { t, locale } = v;
   const host = await myPage(v);
-  if (!host) return <div className="empty"><p>{t.bookings.cannotHost}</p></div>;
+  if (!host) return <EmptyState headingLevel={1} title={t.bookings.cannotHostTitle} body={t.bookings.cannotHost} />;
   const sql = db();
   const now = Date.now();
   const today = wall(now, host.zone).date;
@@ -28,15 +29,10 @@ export default async function HoursPage() {
   const dayOf = new Intl.DateTimeFormat(intl(locale), { timeZone: host.zone, weekday: "long", day: "numeric", month: "long" });
   const blocks = (await b.blocksOf(sql, v.member.id, new Date(now))).map(x => ({ id: x.id, note: x.note, label: `${firstUpper(dayOf.format(x.start), locale)}, ${clock(x.start, host.zone, locale)}–${endClock(x.start, x.end, host.zone, locale)}` }));
   const others = (await calendars.calendarsOf(sql, v.member.id, now)).map(c => ({ id: c.id, provider: c.provider, hint: c.hint, events: c.events, error: c.error, stale: c.stale, read: c.readAt ? relative(c.readAt, locale) : null, tried: c.triedAt ? relative(c.triedAt, locale) : null }));
-  const catalogue = { hours: t.hours, days: t.days, errors: t.errors };
+  const catalogue = { hours: t.hours, days: t.days, errors: t.errors, date: t.date };
   return (
     <>
-      <div className="page-head">
-        <div>
-          <h1>{t.hours.title}</h1>
-          <p className="muted">{t.hours.intro}</p>
-        </div>
-      </div>
+      <PageHeader title={t.hours.title} intro={t.hours.intro} />
       <WeekEditor weekly={host.weekly} zone={host.zone} dailyMax={host.dailyMax} zones={zoneGroups(t.zones, now, [host.zone])} t={catalogue} />
       <OtherCalendars list={others} locale={locale} t={{ others: t.others, errors: t.errors }} />
       <Blocks list={blocks} today={today} t={catalogue} />

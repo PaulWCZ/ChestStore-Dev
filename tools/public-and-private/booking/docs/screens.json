@@ -18,5 +18,19 @@
   {"name": "settings", "path": "/chest/settings", "member": "camille", "locale": "en", "only": ["desktop"], "actions": [{"hover": "#frame-code"}, {"wait": 200}]},
   {"name": "stale-calendar", "path": "/chest", "member": "hugo", "locale": "en", "only": ["phone"]},
   {"name": "team-type", "path": "/camille-martin/discovery", "member": "ines", "locale": "en"},
-  {"name": "hours-fr-dark", "path": "/chest/hours", "member": "ines", "locale": "fr", "dark": true, "only": ["phone"], "actions": [{"hover": "#others"}, {"wait": 200}]}
+  {"name": "hours-fr-dark", "path": "/chest/hours", "member": "ines", "locale": "fr", "dark": true, "only": ["phone"], "actions": [{"hover": "#others"}, {"wait": 200}]},
+  {"name": "bookings-chest", "path": "/chest", "member": "ines", "locale": "en", "look": {"all": "catalogue:chest"}},
+  {"name": "pick-a-time-chest", "path": "/ines-moreau/project-call", "member": "ines", "locale": "en", "look": {"all": "catalogue:chest"}, "only": ["desktop"]},
+  {"name": "bookings-theme", "path": "/chest", "member": "ines", "locale": "en", "look": {"all": "catalogue:workshop"}},
+  {"name": "bookings-theme-dark", "path": "/chest", "member": "ines", "locale": "fr", "dark": true, "look": {"all": "catalogue:workshop"}, "only": ["phone"]},
+  {"name": "pick-a-time-theme", "path": "/ines-moreau/project-call", "member": "ines", "locale": "en", "look": {"all": "catalogue:library"}},
+  {"name": "bookings-brand", "path": "/chest", "member": "ines", "locale": "fr", "look": {"all": "catalogue:newsprint", "tool": "brand:sample"}},
+  {"name": "bookings-brand-dark", "path": "/chest", "member": "ines", "locale": "en", "dark": true, "look": {"tool": "brand:sample"}, "only": ["phone"]},
+  {"name": "company-page-brand", "path": "/", "member": "ines", "locale": "fr", "look": {"tool": "brand:sample"}},
+  {"name": "pick-a-time-brand", "path": "/ines-moreau/project-call", "member": "ines", "locale": "fr", "look": {"tool": "brand:sample"}},
+  {"name": "pick-a-time-brand-dark", "path": "/ines-moreau/project-call", "member": "ines", "locale": "en", "dark": true, "look": {"tool": "brand:sample"}, "only": ["phone"]},
+  {"name": "guest-booking-brand", "path": "/b/demoGuestLinkForTheScreens000000", "member": "ines", "locale": "fr", "look": {"tool": "brand:sample"}, "only": ["desktop"]},
+  {"name": "delete-type-confirm", "path": "/chest/types/2", "member": "ines", "locale": "fr", "actions": [{"click": "button.link-button.danger"}, {"wait": 400}]},
+  {"name": "hours-date-field", "path": "/chest/hours", "member": "ines", "locale": "fr", "actions": [{"click": "#off-from"}, {"click": ".ck-date-open >> nth=1"}, {"wait": 400}], "only": ["desktop"]},
+  {"name": "hours-saved-toast", "path": "/chest/hours", "member": "ines", "locale": "en", "actions": [{"click": "text=Save the hours"}, {"wait": 700}], "only": ["phone"]}
 ]

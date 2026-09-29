@@ -8,24 +8,32 @@ Polite and quick — a visitor books in three clicks and three fields.
 
 ## Tokens
 
-All in `app/tokens.css` (light, and dark by the system's choice). Ratios
-computed with `scripts/contrast.mjs` (WCAG 2; AA is 4.5:1 for text).
+The identity is a **theme of the UI kit** (`@argentic/chest-ui`):
+`defineTheme` in `lib/theme.ts`, identical to the catalogue's
+"Appointment card" (`appointment`; `test/theme.test.ts` holds them equal
+and checks every contrast pair of the kit's contract, light and dark).
+Every colour lives there; the CSS names only contract tokens, so the
+company may give Booking any other look (see README, "Looks").
 
-| Token | Light | Dark | Use |
+| Contract token | Light | Dark | Use in Booking |
 |---|---|---|---|
 | `--bg` | `#fbf7f1` paper | `#17121b` | page |
 | `--surface` | `#ffffff` | `#211a27` | cards, the booking sheet |
-| `--ink` | `#24172e` plum ink | `#f4eef8` | text — 15.9:1 on paper; 16.2:1 dark |
-| `--ink-2` | `#5f5268` | `#bcaec6` | secondary — 6.8:1 on paper, 6.3:1 on `--surface-2`; 8.1:1 / 7.2:1 dark |
-| `--accent` | `#5b2a86` plum | `#cfaef2` | the main action, the page's ticket — white on plum 9.9:1; dark 9.2:1 |
-| `--accent-soft` | `#f0e7f8` | `#37284a` | current tab, soft buttons — accent on it 8.3:1; 7.0:1 |
-| `--free` | `#0b6e55` mint ink | `#7fdcbc` | free days and times — 6.2:1 on white; on `--free-soft` 5.3:1; dark 7.6:1 |
-| `--today` | `#974503` apricot | `#f5b271` | today's mark and tag — 5.6:1 on its tint; 6.9:1 dark |
-| `--danger` | `#b3261e` | `#ff8a80` | cancel — 5.4:1 on its tint; 6.2:1 dark |
-| `--c-sky` … `--c-slate` | eight colours | lighter in dark | a booking type's edge and swatch (never text) |
-| `--font-display` | Young Serif | | titles, times in the agenda, the month |
-| `--font-body` | Figtree | | everything else |
-| `--radius-*` | 8 / 14 / 22 px, pills | | soft cards, round days, pill buttons |
+| `--ink` / `--ink-2` | `#24172e` plum ink / `#5f5268` | `#f4eef8` / `#bcaec6` | text, secondary text |
+| `--accent` | `#5b2a86` plum | `#cfaef2` | the main action, the page's ticket |
+| `--accent-soft` | `#f0e7f8` | `#37284a` | soft buttons, chosen choices |
+| `--ok` (+ `-soft`, `-ink`) | `#0b6e55` mint ink | `#7fdcbc` | what is free: days, times, a calendar read well |
+| `--wait` (+ `-soft`, `-ink`) | `#974503` apricot | `#f5b271` | today's mark and tag, notices |
+| `--danger` (+ `-soft`, `-ink`) | `#b3261e` | `#ff8a80` | cancelling, erasing |
+| `--cat-1` … `--cat-8` | sky, leaf, tomato, grape, berry, sea, sun, slate | lighter in dark | a booking type's edge and swatch (never text) |
+| `--line-strong` | derived by the kit (3:1) | | field borders (the old `#cbbdae` was under 3:1) |
+| `--font-display` / `--font-body` | Young Serif / Figtree | | titles, times, the month / everything else |
+| `--radius-s/m/l` | 8 / 14 / 22 px, pills | | soft cards, round days, pill buttons |
+
+Booking's own tokens (`app/tokens.css`) are aliases of those: `--free*` →
+`--ok*`, `--today*` → `--wait*`, `--c-<colour>` → `--cat-N` (a type keeps
+its family in every look), `--edge` (1.5 px, or the theme's thicker line)
+and the mark's mint (a `color-mix`, decoration only).
 
 ## Components
 
@@ -43,12 +51,18 @@ computed with `scripts/contrast.mjs` (WCAG 2; AA is 4.5:1 for text).
   sand card (number, up, down, remove), its answer kind a plain select;
   guests answer choices and yes/no with the same outlined pills as the
   form's other choices.
-- Buttons are pills; a destructive action is a red link that asks for a
-  word first; toasts at the bottom confirm.
+- Buttons are pills; cancelling a meeting is a red link that asks for a
+  word first; deleting a type or erasing a guest asks in the kit's
+  `Confirm` (never the browser's box); the kit's toasts at the bottom
+  confirm (and never offer Undo once a guest was emailed).
+- The shell, tabs, date fields, time lists, file picker, empty states,
+  avatars and badges are the kit's components, restyled lightly by
+  `app/globals.css` ("The kit's components, fitted to Booking's pages").
 
 ## Icon
 
-`chest/icon.svg`: a plum calendar card with two rings and a mint tick in a
+`components/mark.tsx` draws the card in the look's colours (accent card,
+ink rings, a mint tick). `chest/icon.svg`: a plum calendar card with two rings and a mint tick in a
 circle. `app/icon.svg` is the same, smaller.
 
 ## Why

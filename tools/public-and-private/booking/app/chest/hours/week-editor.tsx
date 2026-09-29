@@ -1,12 +1,11 @@
 "use client";
 
+import { TimeSelect, useToast } from "@argentic/chest-ui/components";
+import { moveEnd, moveStart, timeText } from "@argentic/chest-ui/components/logic";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { Alert, Close, Copy, Globe, Plus } from "../../../components/icons.tsx";
-import { useToast } from "../../../components/toast.tsx";
-import { TimeSelect } from "../../../components/time-select.tsx";
 import { ZoneSelect } from "../../../components/zone-select.tsx";
-import { toTime } from "../../../lib/clock.ts";
 import { format } from "../../../lib/i18n/format.ts";
 import type { Catalogue } from "../../../lib/i18n/index.ts";
 import { validRanges, type Ranges } from "../../../lib/slots.ts";
@@ -56,11 +55,11 @@ export function WeekEditor({ weekly, zone: initialZone, dailyMax: initialMax, zo
                   {ranges.map((r, i) => (
                     <div className="range" key={i}>
                       <label className="visually-hidden" htmlFor={`f-${day}-${i}`}>{`${name} ${h.from}`}</label>
-                      <TimeSelect id={`f-${day}-${i}`} value={r[0]} onChange={m => setDay(day, ranges.map((x, j) => (j === i ? [m, x[1]] : x)))} />
+                      <TimeSelect id={`f-${day}-${i}`} value={r[0]} onChange={m => setDay(day, ranges.map((x, j) => { if (j !== i) return x; const s = moveStart({ start: x[0], end: x[1] }, m); return [s.start, s.end]; }))} />
                       <span aria-hidden="true">–</span>
                       <label className="visually-hidden" htmlFor={`t-${day}-${i}`}>{`${name} ${h.to}`}</label>
-                      <TimeSelect id={`t-${day}-${i}`} value={r[1]} end onChange={m => setDay(day, ranges.map((x, j) => (j === i ? [x[0], m] : x)))} />
-                      <button type="button" className="icon-button" aria-label={`${h.remove} ${toTime(r[0])}–${toTime(r[1])}`} onClick={() => setDay(day, ranges.filter((_, j) => j !== i))}><Close /></button>
+                      <TimeSelect id={`t-${day}-${i}`} value={r[1]} end onChange={m => setDay(day, ranges.map((x, j) => { if (j !== i) return x; const s = moveEnd({ start: x[0], end: x[1] }, m); return [s.start, s.end]; }))} />
+                      <button type="button" className="icon-button" aria-label={`${h.remove} ${timeText(r[0])}–${timeText(r[1])}`} onClick={() => setDay(day, ranges.filter((_, j) => j !== i))}><Close /></button>
                     </div>
                   ))}
                   {ranges.length < 6 && (

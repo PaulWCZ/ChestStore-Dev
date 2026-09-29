@@ -1,9 +1,9 @@
 "use client";
 
+import { useToast } from "@argentic/chest-ui/components";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { CalendarOff } from "../../../../components/icons.tsx";
-import { useToast } from "../../../../components/toast.tsx";
 import { format } from "../../../../lib/i18n/format.ts";
 import type { Catalogue } from "../../../../lib/i18n/index.ts";
 import { cancelBooking } from "../../actions.ts";
@@ -22,8 +22,9 @@ export function CancelMeeting({ id, guest, t }: { id: string; guest: string; t: 
       e.preventDefault();
       start(async () => {
         const r = await cancelBooking(id, reason);
-        if (!r.ok) return toast(format(t.errors[r.error], r.values ?? {}));
-        toast(format(r.value.delivery === "email" ? t.booking.cancelledToast : t.booking.cancelledToastPage, { name: guest }));
+        if (!r.ok) return void toast({ text: format(t.errors[r.error], r.values ?? {}), tone: "error" });
+        // The guest is told at once (an email, or their page): never an Undo.
+        toast({ id: `cancel-${id}`, text: format(r.value.delivery === "email" ? t.booking.cancelledToast : t.booking.cancelledToastPage, { name: guest }), sent: true });
         router.refresh();
       });
     }}>

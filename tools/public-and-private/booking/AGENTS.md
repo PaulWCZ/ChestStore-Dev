@@ -28,6 +28,8 @@ what must not break.
 | `app/page.tsx`, `app/[host]/…`, `app/b/[secret]/…`, `app/api/slots`, `app/feed/[token]`, `app/public-actions.ts`, `components/picker.tsx` | The public part (anonymous) |
 | `app/chest/…`, `app/chest/actions.ts` | The team's part (`new/`: a host books for a guest; `api/slots`: the free times a host sees; `hours/blocks.tsx`, `hours/other-calendars.tsx`) |
 | `app/chest-jobs/[name]/route.ts`, `app/chest-events/route.ts` | Deliveries from the Chest (signed) |
+| `lib/theme.ts`, `app/tokens.css`, `app/globals.css` | The identity as a kit theme and the page's look; the tool's own tokens (aliases of contract tokens); styles (contract tokens only) |
+| `components/shell.tsx`, `components/links.tsx`, `components/public-shell.tsx`, `lib/i18n/kit.ts` | The kit's AppShell, Tabs, BrandMark and LanguageSwitch wired to Next.js; the kit's date words from the catalogue |
 
 ## Commands
 
@@ -36,6 +38,24 @@ npm ci && npm test && npm run build   # all three must pass
 ```
 
 ## Rules
+
+- **The UI kit first** (`@argentic/chest-ui/components`, vendored in
+  `vendor/`): `AppShell`, `PageHeader`, `NoAccess`, `Tabs`, `EmptyState`,
+  `Avatar`, `StatusBadge`, `Toasts`/`useToast`, `Confirm`, `DateField`,
+  `TimeSelect` (+ `moveStart`/`moveEnd`), `FilePicker`, `BrandMark`,
+  `LanguageSwitch`. Their words come from the catalogues (`toast`, `date`,
+  `files` sections). Kept on purpose: the public month grid and time
+  buttons (`components/picker.tsx`: a calendar of free days, not a date
+  field), the time-zone select, the "Mine / Everyone" links (the choice in
+  the address), the copy button.
+- **Never a colour in CSS or TSX**: contract tokens only, the tool's
+  tokens aliased to them (`test/theme.test.ts`). Text only on measured
+  pairs (`--ok-ink` on `--ok-soft`, `--accent-text` on `--accent-soft`…).
+- **Never `window.confirm`**: irreversible acts (delete a type, erase a
+  guest) use the kit's `Confirm`; an email already sent is a `sent: true`
+  toast (no Undo).
+- **Never `<input type="date">` / `type="time"`**: `DateField` (with `today`
+  from the server) and `TimeSelect`.
 
 - **No double booking**: the exclusion constraint `no_double_booking` is
   the guarantee; the slot check before it is for a kind answer. Any new

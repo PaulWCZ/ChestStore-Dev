@@ -1,10 +1,10 @@
 "use client";
 
+import { useToast } from "@argentic/chest-ui/components";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { Alert, Check, Clock, Moved } from "../../../../components/icons.tsx";
 import { Picker } from "../../../../components/picker.tsx";
-import { useToast } from "../../../../components/toast.tsx";
 import { format } from "../../../../lib/i18n/format.ts";
 import type { Catalogue } from "../../../../lib/i18n/index.ts";
 import type { ZoneGroup } from "../../../../lib/zones.ts";
@@ -36,7 +36,7 @@ export function MoveMeeting({ id, guest, zone, locale, zones, t }: { id: string;
                   return setError(format(t.errors[r.error], r.values ?? {}));
                 }
                 setOpen(false);
-                toast(format(r.value.delivery === "email" ? t.booking.movedToast : t.booking.movedToastPage, { name: guest }));
+                toast({ id: `move-${id}`, text: format(r.value.delivery === "email" ? t.booking.movedToast : t.booking.movedToastPage, { name: guest }), sent: true });
                 router.refresh();
               })}><Check />{t.booking.moveConfirm}</button>
               <button type="button" className="button quiet" onClick={() => setOpen(false)}>{t.booking.keepTime}</button>

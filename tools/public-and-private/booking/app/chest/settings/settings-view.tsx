@@ -1,18 +1,18 @@
 "use client";
 
+import { Confirm, FilePicker, useToast, type PickedFile } from "@argentic/chest-ui/components";
 import { useRouter } from "next/navigation";
 import { useState, useTransition, type ReactNode } from "react";
 import { CopyButton } from "../../../components/copy-button.tsx";
 import { Alert, Arrow, Calendar, Download, Gear, Globe, Link, Moved, Person } from "../../../components/icons.tsx";
 import { ZoneSelect } from "../../../components/zone-select.tsx";
-import { useToast } from "../../../components/toast.tsx";
 import { format, intl, plural } from "../../../lib/i18n/format.ts";
 import type { Catalogue } from "../../../lib/i18n/index.ts";
 import type { Result } from "../../../lib/errors.ts";
 import type { ZoneGroup } from "../../../lib/zones.ts";
 import { eraseGuest, importCalendly, saveSites, newFeed, savePage, savePrefs, saveSettings, stopFeed } from "../actions.ts";
 
-type Words = { settings: Catalogue["settings"]; errors: Catalogue["errors"] };
+type Words = { settings: Catalogue["settings"]; errors: Catalogue["errors"]; files: Catalogue["files"] };
 
 function useRun(t: Words) {
   const [pending, start] = useTransition();
@@ -103,21 +103,28 @@ export function ImportCalendly({ zone, zones, locale, t }: { zone: string; zones
   const s = t.settings;
   const { pending, error, run } = useRun(t);
   const [conflicts, setConflicts] = useState<string | null>(null);
+  // The file stays in the browser (no upload): its text is sent to the
+  // import, which reads it on the server.
+  const [files, setFiles] = useState<readonly PickedFile[]>([]);
+  const [missing, setMissing] = useState(false);
   return (
     <Box title={s.importTitle} icon={<Moved />}>
       <p className="hint">{s.importHint}</p>
       <form className="stack-s" onSubmit={e => {
         e.preventDefault();
         const d = new FormData(e.currentTarget);
-        const file = d.get("file");
+        const file = files.find(f => f.file)?.file;
         const fileZone = String(d.get("zone") ?? zone);
-        if (!(file instanceof File)) return;
+        if (!file) return setMissing(true);
+        setMissing(false);
         void file.text().then(text => run(() => importCalendly(text, fileZone), r => {
           setConflicts(r.conflicts.length > 0 ? format(s.importConflicts, { list: r.conflicts.map(c => `${c.name} (${new Intl.DateTimeFormat(intl(locale), { timeZone: fileZone, dateStyle: "medium", timeStyle: "short" }).format(new Date(c.start))})`).join(", ") }) : null);
+          setFiles([]);
           return plural(s.importDone, r.imported, locale);
         }));
       }}>
-        <div><label className="label" htmlFor="import-file">{s.importFile}</label><input id="import-file" name="file" type="file" accept=".csv,text/csv" className="field" required /></div>
+        <FilePicker label={s.importFile} files={files} onChange={list => { setFiles(list); setMissing(false); }} maxFiles={1} maxSize={1 << 20} accept={[".csv", "text/csv"]} labels={t.files} />
+        {missing && <p className="error" role="alert"><Alert />{s.importMissing}</p>}
         <div><label className="label" htmlFor="import-zone">{s.importZone}</label><ZoneSelect id="import-zone" name="zone" className="field wide-select" value={zone} groups={zones} /></div>
         <div><button type="submit" className="button soft" disabled={pending}>{s.importButton}</button></div>
       </form>
@@ -131,11 +138,15 @@ export function ImportCalendly({ zone, zones, locale, t }: { zone: string; zones
 // lets them be framed), or a plain button that opens them.
 const quoted = (text: string) => `"${text.replace(/&/gu, "&amp;").replace(/"/gu, "&quot;").replace(/</gu, "&lt;")}"`;
 const frameCode = (url: string, title: string) => `<iframe src=${quoted(url)} title=${quoted(title)} style="width:100%;min-height:760px;border:0" loading="lazy"></iframe>`;
-const buttonCode = (url: string, text: string) => `<a href=${quoted(url)} target="_blank" rel="noopener" style="display:inline-block;padding:12px 20px;border-radius:999px;background:#5b3cc4;color:#fff;font:600 16px sans-serif;text-decoration:none">${text.replace(/&/gu, "&amp;").replace(/</gu, "&lt;")}</a>`;
+// The button wears the page's look (the company's brand, when it gave one):
+// its main colour and the text colour measured on it.
+const buttonCode = (url: string, text: string, colors: { accent: string; ink: string }) => `<a href=${quoted(url)} target="_blank" rel="noopener" style="display:inline-block;padding:12px 20px;border-radius:999px;background:${colors.accent};color:${colors.ink};font:600 16px sans-serif;text-decoration:none">${text.replace(/&/gu, "&amp;").replace(/</gu, "&lt;")}</a>`;
 
 export function CompanySettings({ admin, settings, zones, locale, t }: { admin: boolean; settings: { companyName: string; retentionMonths: number; defaultZone: string }; zones: ZoneGroup[]; locale: string; t: Words }) {
   const s = t.settings;
   const { pending, error, run } = useRun(t);
+  // Erasing a guest's data is for good (GDPR): asked first, in the page.
+  const [erasing, setErasing] = useState<{ address: string; form: HTMLFormElement } | null>(null);
   return (
     <Box title={s.company} icon={<Gear />}>
       {!admin && <p className="hint">{s.readOnly}</p>}
@@ -160,8 +171,8 @@ export function CompanySettings({ admin, settings, zones, locale, t }: { admin: 
           <form className="stack-s" onSubmit={e => {
             e.preventDefault();
             const form = e.currentTarget;
-            const address = String(new FormData(form).get("email") ?? "");
-            run(() => eraseGuest(address), n => { form.reset(); return plural(s.erased, n, locale); });
+            const address = String(new FormData(form).get("email") ?? "").trim();
+            if (address) setErasing({ address, form });
           }}>
             <h3>{s.erase}</h3>
             <p className="hint">{s.eraseHint}</p>
@@ -171,6 +182,14 @@ export function CompanySettings({ admin, settings, zones, locale, t }: { admin: 
               <button type="submit" className="button quiet" disabled={pending}>{s.eraseButton}</button>
             </div>
           </form>
+          <Confirm open={erasing !== null} title={s.eraseTitle} body={format(s.eraseConfirm, { email: erasing?.address ?? "" })} confirmLabel={s.eraseButton} cancelLabel={s.cancel} busy={pending}
+            onCancel={() => setErasing(null)}
+            onConfirm={() => {
+              if (!erasing) return;
+              const { address, form } = erasing;
+              setErasing(null);
+              run(() => eraseGuest(address), n => { form.reset(); return plural(s.erased, n, locale); });
+            }} />
           <div><a className="button quiet" href="/chest/export?who=all"><Download />{s.export}</a></div>
         </>
       )}
@@ -181,7 +200,7 @@ export function CompanySettings({ admin, settings, zones, locale, t }: { admin: 
 
 // The company's website: which sites may show the booking pages, and the
 // code to paste there.
-export function EmbedSettings({ sites, origin, t }: { sites: string[]; origin: string; t: Words }) {
+export function EmbedSettings({ sites, origin, colors, t }: { sites: string[]; origin: string; colors: { accent: string; ink: string }; t: Words }) {
   const s = t.settings;
   const { pending, error, run } = useRun(t);
   return (
@@ -202,8 +221,8 @@ export function EmbedSettings({ sites, origin, t }: { sites: string[]; origin: s
         <textarea id="frame-code" className="field embed-code" readOnly value={frameCode(`${origin}/`, s.buttonText)} />
         <div><CopyButton text={frameCode(`${origin}/`, s.buttonText)} label={s.embedCopy} done={s.embedCopied} /></div>
         <label className="label" htmlFor="button-code">{s.embedButtonCode}</label>
-        <textarea id="button-code" className="field embed-code" readOnly value={buttonCode(`${origin}/`, s.buttonText)} />
-        <div><CopyButton text={buttonCode(`${origin}/`, s.buttonText)} label={s.embedCopy} done={s.embedCopied} /></div>
+        <textarea id="button-code" className="field embed-code" readOnly value={buttonCode(`${origin}/`, s.buttonText, colors)} />
+        <div><CopyButton text={buttonCode(`${origin}/`, s.buttonText, colors)} label={s.embedCopy} done={s.embedCopied} /></div>
         <p className="hint">{s.embedNote}</p>
       </div>
     </Box>

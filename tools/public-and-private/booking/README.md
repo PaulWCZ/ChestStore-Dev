@@ -141,6 +141,20 @@ company's time zone, weekday hours (9:00–12:30, 14:00–17:30) and one
 | `/chest/api/slots` | The free times a host sees (booking for a guest, moving a meeting) |
 | `/chest-events`, `/chest-jobs/<name>` | Deliveries from the Chest (signed) |
 
+## Looks
+
+Booking wears **any look the company chooses in its Chest**, with the same
+features: its own identity ("Appointment card": paper, plum ink, mint for
+what is free), any theme of the store's catalogue (the 17 identities,
+"Chest", "High contrast"), or **the company's brand** (its colours, fonts,
+corners and logo) — for all its tools or for Booking alone. In brand mode
+the public pages show the company's logo instead of its name, and the
+"button" code for its website takes its colours: the booking page reads as
+the company's own. The look is resolved on the server (`lib/theme.ts`,
+`chest.theme()`), written in one `<style>` with the page's nonce; every
+text stays readable (WCAG AA) in every look. Screens:
+`docs/screens/*-chest-*`, `*-theme-*`, `*-brand-*`.
+
 ## On a Chest
 
 - `public: true`, `csp: "tool"`; `capabilities`: `database`, `members`

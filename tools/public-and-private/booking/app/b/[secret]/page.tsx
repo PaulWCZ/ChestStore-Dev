@@ -1,5 +1,5 @@
 import { headers } from "next/headers";
-import { Avatar } from "../../../components/avatar.tsx";
+import { Avatar } from "@argentic/chest-ui/components";
 import { CalendarCheck, CalendarOff, Check, Clock, Download, kindIcon, Person } from "../../../components/icons.tsx";
 import { Picker } from "../../../components/picker.tsx";
 import { PublicShell } from "../../../components/public-shell.tsx";
@@ -62,7 +62,7 @@ export default async function GuestBookingPage({ params, searchParams }: { param
             <dt><CalendarCheck />{t.public.when}</dt>
             <dd><span className="big-time">{meetingTime(b.startsAt, b.guestZone, locale)}</span><div className="hint">{plural(t.minutes, b.duration, locale)} · {zoneName(b.guestZone)}</div></dd>
             <dt><Person />{b.title}</dt>
-            <dd className="row"><Avatar name={hostName} photo={null} size={24} />{format(t.public.with, { name: hostName })}</dd>
+            <dd className="row"><Avatar name={hostName} photo={null} size="s" />{format(t.public.with, { name: hostName })}</dd>
             <dt><Kind />{t.public.where}</dt>
             <dd>{t.kinds[b.locationKind]}{where && <><br />{b.locationKind === "video" && room ? <a href={room} target="_blank" rel="noopener noreferrer">{room}</a> : where}</>}</dd>
           </dl>

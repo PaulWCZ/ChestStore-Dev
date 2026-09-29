@@ -1,6 +1,8 @@
+import { EmptyState, PageHeader, StatusBadge } from "@argentic/chest-ui/components";
 import { headers } from "next/headers";
 import Link from "next/link";
 import { CopyButton } from "../../components/copy-button.tsx";
+import { LinkTabs } from "../../components/links.tsx";
 import { Alert, CalendarOff, Download, kindIcon, Moved, Plus } from "../../components/icons.tsx";
 import { can } from "../../lib/access.ts";
 import * as b from "../../lib/booking.ts";
@@ -59,7 +61,7 @@ export default async function BookingsPage({ searchParams }: { searchParams: Pro
         <section className="ticket" aria-labelledby="page-title">
           <div>
             <h2 id="page-title">{t.bookings.yourPage}</h2>
-            {host.away ? <p>{t.bookings.away}</p> : <><p className="address">{link}</p><p className="hint" style={{ color: "inherit", opacity: 0.85 }}>{t.bookings.pageHint}</p></>}
+            {host.away ? <p>{t.bookings.away}</p> : <><p className="address">{link}</p><p className="ticket-hint">{t.bookings.pageHint}</p></>}
           </div>
           {!host.away && (
             <div className="row">
@@ -69,21 +71,23 @@ export default async function BookingsPage({ searchParams }: { searchParams: Pro
           )}
         </section>
       )}
-      <div className="page-head">
-        <h1>{t.bookings.title}</h1>
-        <div className="row">
+      <PageHeader
+        title={t.bookings.title}
+        secondary={<>
           {seesAll && hosting && (
-            <nav className="segmented" aria-label={t.bookings.title}>
+            // Mine or everyone's: two links (the choice is in the address,
+            // shareable, Back works), not the kit's Segmented radios.
+            <nav className="segmented" aria-label={t.bookings.whose}>
               <a href={whoLink(false)} aria-current={!all ? "true" : undefined}>{t.bookings.mine}</a>
               <a href={whoLink(true)} aria-current={all ? "true" : undefined}>{t.bookings.everyone}</a>
             </nav>
           )}
           <a className="button quiet small" href={`/chest/export${all ? "?who=all" : ""}`}><Download />{t.bookings.export}</a>
-          {host && !host.away && <a className="button small" href="/chest/new"><Plus />{t.bookings.newBooking}</a>}
-        </div>
-      </div>
+        </>}
+        action={host && !host.away ? <a className="button small" href="/chest/new"><Plus />{t.bookings.newBooking}</a> : null}
+      />
       {stale && (
-        <p className="notice" role="status" style={{ marginBottom: "var(--space-5)" }}>
+        <p className="notice spaced" role="status">
           <Alert />
           <span>
             {stale.readAt ? format(t.bookings.staleCalendar, { calendar: stale.provider, when: relative(stale.readAt, locale) }) : format(t.bookings.unreadCalendar, { calendar: stale.provider })}
@@ -91,12 +95,10 @@ export default async function BookingsPage({ searchParams }: { searchParams: Pro
           </span>
         </p>
       )}
-      {!hosting && <p className="notice calm" style={{ marginBottom: "var(--space-5)" }}>{t.bookings.cannotHost}</p>}
-      <nav className="tabs" aria-label={t.bookings.title}>
-        {(["upcoming", "past", "cancelled"] as const).map(x => <Link key={x} href={tab(x)} aria-current={x === scope ? "page" : undefined}>{t.bookings.scopes[x]}</Link>)}
-      </nav>
+      {!hosting && <p className="notice calm spaced">{t.bookings.cannotHost}</p>}
+      <LinkTabs label={t.bookings.show} current={scope} items={(["upcoming", "past", "cancelled"] as const).map(x => ({ id: x, label: t.bookings.scopes[x], href: tab(x) }))} />
       {items.length === 0 ? (
-        <div className="empty"><p>{t.bookings.empty[scope]}</p></div>
+        <EmptyState title={t.bookings.empty[scope]} body={scope === "upcoming" && host && !host.away && !all ? t.bookings.emptyHint : undefined} />
       ) : (
         <div className="agenda">
           {[...groups].map(([day, items]) => (
@@ -136,7 +138,7 @@ export default async function BookingsPage({ searchParams }: { searchParams: Pro
                         </span>
                         <span className="row">
                           {x.moves > 0 && x.status === "confirmed" && <span className="tag"><Moved />{t.bookings.moved}</span>}
-                          {x.status === "cancelled" && x.cancelledBy && <span className="tag danger">{t.booking.cancelledBy[x.cancelledBy]}</span>}
+                          {x.status === "cancelled" && x.cancelledBy && <StatusBadge tone="danger" size="s" label={t.booking.cancelledBy[x.cancelledBy]} />}
                         </span>
                       </Link>
                     </li>

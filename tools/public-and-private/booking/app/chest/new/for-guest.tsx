@@ -1,10 +1,10 @@
 "use client";
 
+import { useToast } from "@argentic/chest-ui/components";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { Alert, Check, Clock } from "../../../components/icons.tsx";
 import { Picker } from "../../../components/picker.tsx";
-import { useToast } from "../../../components/toast.tsx";
 import { ZoneSelect } from "../../../components/zone-select.tsx";
 import { format, languageNames } from "../../../lib/i18n/format.ts";
 import type { Catalogue } from "../../../lib/i18n/index.ts";
@@ -53,7 +53,7 @@ function Who({ typeId, phone, start, when, zone: initialZone, locale, zones, t, 
           if (r.error === "taken") onTaken();
           return setError(format(t.errors[r.error], r.values ?? {}));
         }
-        toast(format(r.value.delivery === "email" ? f.done : f.donePage, { name }));
+        toast({ text: format(r.value.delivery === "email" ? f.done : f.donePage, { name }), sent: true });
         router.push(`/chest/bookings/${r.value.id}`);
       });
     }}>

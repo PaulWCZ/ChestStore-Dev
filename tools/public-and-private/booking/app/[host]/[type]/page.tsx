@@ -1,6 +1,6 @@
 import { after } from "next/server";
 import { notFound } from "next/navigation";
-import { Avatar } from "../../../components/avatar.tsx";
+import { Avatar } from "@argentic/chest-ui/components";
 import { Back, Clock, kindIcon } from "../../../components/icons.tsx";
 import { Picker } from "../../../components/picker.tsx";
 import { PublicShell } from "../../../components/public-shell.tsx";
@@ -36,7 +36,7 @@ export default async function TypePage({ params }: { params: Promise<{ host: str
       <a className="back" href={`/${host.slug}`}><Back />{t.public.back}</a>
       <div className="sheet" style={{ "--type": `var(--c-${type.color})` } as React.CSSProperties}>
         <aside className="sheet-about">
-          <span className="by"><Avatar name={person.name} photo={null} size={36} />{names.length > 1 ? format(t.public.withTeam, { names: new Intl.ListFormat(intl(locale), { type: "disjunction" }).format(names) }) : person.name}</span>
+          <span className="by"><Avatar name={person.name} photo={null} size="m" />{names.length > 1 ? format(t.public.withTeam, { names: new Intl.ListFormat(intl(locale), { type: "disjunction" }).format(names) }) : person.name}</span>
           <h1>{type.title}</h1>
           <div className="meta">
             <span><Clock />{plural(t.minutes, type.duration, locale)}</span>

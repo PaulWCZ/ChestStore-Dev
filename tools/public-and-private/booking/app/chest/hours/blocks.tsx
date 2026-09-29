@@ -1,15 +1,16 @@
 "use client";
 
+import { DateField, TimeSelect, useToast } from "@argentic/chest-ui/components";
+import { moveEnd, moveStart } from "@argentic/chest-ui/components/logic";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { Alert, CalendarOff } from "../../../components/icons.tsx";
-import { TimeSelect } from "../../../components/time-select.tsx";
-import { useToast } from "../../../components/toast.tsx";
 import { format } from "../../../lib/i18n/format.ts";
 import type { Catalogue } from "../../../lib/i18n/index.ts";
+import { dateWords } from "../../../lib/i18n/kit.ts";
 import { blockTime, unblock } from "../actions.ts";
 
-type Words = { hours: Catalogue["hours"]; errors: Catalogue["errors"] };
+type Words = { hours: Catalogue["hours"]; errors: Catalogue["errors"]; date: Catalogue["date"] };
 // label: the day and hours in words, written by the server.
 type Block = { id: string; label: string; note: string };
 
@@ -19,6 +20,8 @@ export function Blocks({ list, today, t }: { list: Block[]; today: string; t: Wo
   const h = t.hours;
   const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [day, setDay] = useState<string | null>(today);
+  const [slot, setSlot] = useState({ start: 600, end: 660 });
   const toast = useToast();
   const router = useRouter();
   return (
@@ -48,8 +51,9 @@ export function Blocks({ list, today, t }: { list: Block[]; today: string; t: Wo
         e.preventDefault();
         const form = e.currentTarget;
         const d = new FormData(form);
+        if (!day) return setError(t.errors.invalid);
         start(async () => {
-          const r = await blockTime(String(d.get("day") ?? ""), Number(d.get("from")), Number(d.get("to")), String(d.get("note") ?? ""));
+          const r = await blockTime(day, slot.start, slot.end, String(d.get("note") ?? ""));
           if (!r.ok) return setError(format(t.errors[r.error], r.values ?? {}));
           setError(null);
           toast(h.blockedToast);
@@ -57,9 +61,9 @@ export function Blocks({ list, today, t }: { list: Block[]; today: string; t: Wo
           router.refresh();
         });
       }}>
-        <div><label className="label" htmlFor="bl-day">{h.day}</label><input id="bl-day" name="day" type="date" className="field" min={today} defaultValue={today} required /></div>
-        <div><label className="label" htmlFor="bl-from">{h.from}</label><TimeSelect id="bl-from" name="from" value={600} /></div>
-        <div><label className="label" htmlFor="bl-to">{h.to}</label><TimeSelect id="bl-to" name="to" value={660} end /></div>
+        <DateField id="bl-day" label={h.day} value={day} onChange={setDay} today={today} min={today} required labels={dateWords(t)} />
+        <div><label className="label" htmlFor="bl-from">{h.from}</label><TimeSelect id="bl-from" value={slot.start} onChange={s => setSlot(moveStart(slot, s))} /></div>
+        <div><label className="label" htmlFor="bl-to">{h.to}</label><TimeSelect id="bl-to" value={slot.end} onChange={e => setSlot(moveEnd(slot, e))} end /></div>
         <div className="grow"><label className="label" htmlFor="bl-note">{h.note}</label><input id="bl-note" name="note" className="field" maxLength={80} /></div>
         <div><button type="submit" className="button soft" disabled={pending}>{h.blockButton}</button></div>
       </form>

@@ -1,16 +1,16 @@
 "use client";
 
+import { DateField, TimeSelect, useToast } from "@argentic/chest-ui/components";
+import { moveEnd, moveStart, timeText } from "@argentic/chest-ui/components/logic";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { Alert, CalendarOff, Clock } from "../../../components/icons.tsx";
-import { useToast } from "../../../components/toast.tsx";
-import { TimeSelect } from "../../../components/time-select.tsx";
-import { toTime } from "../../../lib/clock.ts";
 import { format, plural } from "../../../lib/i18n/format.ts";
 import type { Catalogue } from "../../../lib/i18n/index.ts";
+import { dateWords } from "../../../lib/i18n/kit.ts";
 import { addDaysOff, addSpecialDay, removeException } from "../actions.ts";
 
-type Words = { hours: Catalogue["hours"]; days: Catalogue["days"]; errors: Catalogue["errors"] };
+type Words = { hours: Catalogue["hours"]; days: Catalogue["days"]; errors: Catalogue["errors"]; date: Catalogue["date"] };
 // label: the date in words, written by the server (the browser's Intl may
 // write it differently and break hydration).
 type Exception = { day: string; label: string; ranges: [number, number][]; note: string };
@@ -21,9 +21,15 @@ export function Exceptions({ list, today, locale, t }: { list: Exception[]; toda
   const h = t.hours;
   const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  // The days off (first, last) and the day of other hours, as ISO dates.
+  const [first, setFirst] = useState<string | null>(null);
+  const [last, setLast] = useState<string | null>(null);
+  const [special, setSpecial] = useState<string | null>(null);
+  const [slot, setSlot] = useState({ start: 600, end: 960 });
+  const words = dateWords(t);
   const toast = useToast();
   const router = useRouter();
-  const run = (step: () => Promise<{ ok: true; value: unknown } | { ok: false; error: keyof Catalogue["errors"]; values?: Record<string, string | number> }>, done: (value: unknown) => string | null, form?: HTMLFormElement) =>
+  const run = (step: () => Promise<{ ok: true; value: unknown } | { ok: false; error: keyof Catalogue["errors"]; values?: Record<string, string | number> }>, done: (value: unknown) => string | null, form?: HTMLFormElement, clear?: () => void) =>
     start(async () => {
       const r = await step();
       if (!r.ok) return setError(format(t.errors[r.error], r.values ?? {}));
@@ -31,6 +37,7 @@ export function Exceptions({ list, today, locale, t }: { list: Exception[]; toda
       const text = done(r.value);
       if (text) toast(text);
       form?.reset();
+      clear?.();
       router.refresh();
     });
   return (
@@ -44,7 +51,7 @@ export function Exceptions({ list, today, locale, t }: { list: Exception[]; toda
           {list.map(x => (
             <li key={x.day}>
               <span className="row">
-                {x.ranges.length === 0 ? <span className="tag danger"><CalendarOff />{h.dayOff}</span> : <span className="tag free"><Clock />{x.ranges.map(r => `${toTime(r[0])}–${toTime(r[1])}`).join(", ")}</span>}
+                {x.ranges.length === 0 ? <span className="tag danger"><CalendarOff />{h.dayOff}</span> : <span className="tag free"><Clock />{x.ranges.map(r => `${timeText(r[0])}–${timeText(r[1])}`).join(", ")}</span>}
                 <strong>{x.label}</strong>
                 {x.note && <span className="muted">{x.note}</span>}
               </span>
@@ -58,13 +65,13 @@ export function Exceptions({ list, today, locale, t }: { list: Exception[]; toda
           e.preventDefault();
           const form = e.currentTarget;
           const d = new FormData(form);
-          const from = String(d.get("from") ?? "");
-          run(() => addDaysOff(from, String(d.get("to") || from), String(d.get("note") ?? "")), n => plural(h.addedOff, Number(n), locale), form);
+          if (!first) return setError(t.errors.invalid);
+          run(() => addDaysOff(first, last ?? first, String(d.get("note") ?? "")), n => plural(h.addedOff, Number(n), locale), form, () => { setFirst(null); setLast(null); });
         }}>
           <h3>{h.holiday}</h3>
           <div className="inline">
-            <div><label className="label" htmlFor="off-from">{h.first}</label><input id="off-from" name="from" type="date" className="field" min={today} required /></div>
-            <div><label className="label" htmlFor="off-to">{h.last}</label><input id="off-to" name="to" type="date" className="field" min={today} /></div>
+            <DateField id="off-from" label={h.first} value={first} onChange={d => { setFirst(d); if (d && last && last < d) setLast(null); }} today={today} min={today} required labels={words} />
+            <DateField id="off-to" label={h.last} value={last} onChange={setLast} today={today} min={first ?? today} chips={false} labels={words} />
           </div>
           <div><label className="label" htmlFor="off-note">{h.note}</label><input id="off-note" name="note" className="field" maxLength={80} /></div>
           <div><button type="submit" className="button soft" disabled={pending}>{h.addOff}</button></div>
@@ -73,15 +80,14 @@ export function Exceptions({ list, today, locale, t }: { list: Exception[]; toda
           e.preventDefault();
           const form = e.currentTarget;
           const d = new FormData(form);
-          const s = Number(d.get("start")), en = Number(d.get("end"));
-          if (!Number.isInteger(s) || !Number.isInteger(en) || s >= en) return setError(t.errors.invalid);
-          run(() => addSpecialDay(String(d.get("day") ?? ""), [[s, en]], String(d.get("note") ?? "")), () => null, form);
+          if (!special || slot.start >= slot.end) return setError(t.errors.invalid);
+          run(() => addSpecialDay(special, [[slot.start, slot.end]], String(d.get("note") ?? "")), () => null, form, () => setSpecial(null));
         }}>
           <h3>{h.special}</h3>
-          <div><label className="label" htmlFor="sp-day">{h.day}</label><input id="sp-day" name="day" type="date" className="field" min={today} required /></div>
+          <DateField id="sp-day" label={h.day} value={special} onChange={setSpecial} today={today} min={today} required labels={words} />
           <div className="inline">
-            <div><label className="label" htmlFor="sp-start">{h.from}</label><TimeSelect id="sp-start" name="start" value={600} /></div>
-            <div><label className="label" htmlFor="sp-end">{h.to}</label><TimeSelect id="sp-end" name="end" value={960} end /></div>
+            <div><label className="label" htmlFor="sp-start">{h.from}</label><TimeSelect id="sp-start" value={slot.start} onChange={s => setSlot(moveStart(slot, s))} /></div>
+            <div><label className="label" htmlFor="sp-end">{h.to}</label><TimeSelect id="sp-end" value={slot.end} onChange={e => setSlot(moveEnd(slot, e))} end /></div>
           </div>
           <div><label className="label" htmlFor="sp-note">{h.note}</label><input id="sp-note" name="note" className="field" maxLength={80} /></div>
           <div><button type="submit" className="button soft" disabled={pending}>{h.addSpecial}</button></div>

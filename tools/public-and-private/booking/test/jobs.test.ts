@@ -33,7 +33,7 @@ test("the hourly run emails tomorrow's guests once, in the language they booked 
   assert.equal(await chest.run("reminders", POST), 204);
   const sent = chest.outbox.filter(m => m.to.includes("alex@example.com"));
   assert.equal(sent.length, 1);
-  assert.match(sent[0]!.subject, /^Demain : Meeting avec Inès Moreau/u);
+  assert.match(sent[0]!.subject, /^Demain\u202f: Meeting avec Inès Moreau/u);
   assert.ok(sent[0]!.text.includes(`/b/${secret}`));
 });
 

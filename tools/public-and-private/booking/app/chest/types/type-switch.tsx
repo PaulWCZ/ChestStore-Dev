@@ -1,8 +1,8 @@
 "use client";
 
+import { useToast } from "@argentic/chest-ui/components";
 import { useRouter } from "next/navigation";
 import { useTransition } from "react";
-import { useToast } from "../../../components/toast.tsx";
 import { format } from "../../../lib/i18n/format.ts";
 import type { Catalogue } from "../../../lib/i18n/index.ts";
 import { setTypeActive } from "../actions.ts";
@@ -18,7 +18,7 @@ export function TypeSwitch({ id, active, label, name, errors }: { id: string; ac
         const on = e.target.checked;
         start(async () => {
           const r = await setTypeActive(id, on);
-          if (!r.ok) toast(format(errors[r.error], r.values ?? {}));
+          if (!r.ok) toast({ text: format(errors[r.error], r.values ?? {}), tone: "error" });
           router.refresh();
         });
       }} />

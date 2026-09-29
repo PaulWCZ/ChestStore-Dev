@@ -27,5 +27,5 @@ host's own questions on the form and a daily limit per type
 (Calendly; Cal.com, AGPL — ideas only; Easy!Appointments, GPL — ideas
 only). The calendar file writer (`lib/ics.ts`) follows RFC 5545 and is
 our own. Dependencies from npm under their own licences: `next`, `react`,
-`react-dom` (MIT), `postgres` (Unlicense), `@argentic/chest-sdk` (MIT, the
+`react-dom` (MIT), `postgres` (Unlicense), `@argentic/chest-ui` (MIT, the studio's UI kit, vendored in `vendor/`), `@argentic/chest-sdk` (MIT, the
 studio's working copy in `vendor/`). Icons drawn for this tool.

@@ -94,8 +94,9 @@ await step("the host cancels it with a word: the guest is emailed, the page says
   await page.getByRole("button", { name: "Cancel this meeting" }).click();
   await page.getByLabel("A word for Lucie Garnier (sent with the cancellation)").fill("I am ill, sorry. Book again next week?");
   await page.getByRole("button", { name: "Cancel the meeting" }).click();
-  await page.waitForSelector(".toast");
-  expect((await page.locator(".toast").innerText()).includes("Lucie Garnier has been told"), "toast");
+  await page.waitForSelector(".ck-toast");
+  expect((await page.locator(".ck-toast").innerText()).includes("Lucie Garnier has been told"), "toast");
+  expect((await page.locator(".ck-toast-undo").count()) === 0, "no Undo once the guest was emailed");
   const dev = await (await page.request.get(origin + "/_dev")).text();
   expect(dev.includes("Cancelled: Project call with Inès Moreau"), "cancel email");
   await context.clearCookies();
@@ -117,6 +118,31 @@ await step("a host creates a phone-call type; its page asks for the visitor's nu
   await page.goto(origin + "/ines-moreau/delivery-question");
   await pickFirstTime();
   expect(await page.getByLabel("Your phone number").isVisible(), "phone asked");
+});
+
+await step("deleting a type asks first, in the page (never the browser's box); Cancel keeps it", async () => {
+  await as(context, origin, "ines");
+  await english();
+  let dialogs = 0;
+  page.on("dialog", d => { dialogs += 1; void d.dismiss(); });
+  await page.goto(origin + "/chest/types");
+  await page.locator(".type", { hasText: "Delivery question" }).getByRole("link", { name: "Edit" }).click();
+  await page.waitForURL(/\/chest\/types\/\d+/u);
+  await page.getByRole("button", { name: "Delete this type" }).click();
+  const confirm = page.getByRole("alertdialog", { name: "Delete this type?" });
+  await confirm.waitFor();
+  expect((await confirm.innerText()).includes("Its past bookings are kept"), "says what stays");
+  await confirm.getByRole("button", { name: "Cancel" }).click();
+  await confirm.waitFor({ state: "hidden" });
+  expect(page.url().includes("/chest/types/"), "still on the type");
+  await page.getByRole("button", { name: "Delete this type" }).click();
+  await confirm.getByRole("button", { name: "Delete", exact: true }).click();
+  await page.waitForURL(origin + "/chest/types");
+  await page.waitForSelector(".ck-toast >> text=deleted");
+  expect(!(await page.locator("main").innerText()).includes("Delivery question"), "gone from the list");
+  expect(dialogs === 0, "no window.confirm");
+  const gone = await page.request.get(origin + "/ines-moreau/delivery-question");
+  expect(gone.status() === 404, "its page is gone");
 });
 
 await step("a host asks their own questions, reorders them, and limits a type to one booking a day", async () => {
@@ -188,7 +214,7 @@ await step("a host blocks a whole day: visitors are no longer offered it", async
   await page.locator("#bl-to").selectOption("1440");
   await page.locator("#bl-note").fill("Trade fair set-up");
   await page.getByRole("button", { name: "Block this time" }).click();
-  await page.waitForSelector(".toast >> text=Time blocked.");
+  await page.waitForSelector(".ck-toast >> text=Time blocked.");
   await page.waitForSelector(".blocked-list >> text=Trade fair set-up");
   const listed = await page.locator("section", { has: page.locator("#blocks") }).innerText();
   expect(listed.includes("Trade fair set-up") && listed.includes("00:00–24:00"), "listed: " + listed.slice(0, 120));
@@ -239,7 +265,7 @@ await step("a host books for a customer on the phone, then moves the meeting; th
   await days.nth((await days.count()) - 1).click();
   await pickFirstTime();
   await page.getByRole("button", { name: "Move it to this time" }).click();
-  await page.waitForSelector(".toast >> text=Meeting moved.");
+  await page.waitForSelector(".ck-toast >> text=Meeting moved.");
   dev = await (await page.request.get(origin + "/_dev")).text();
   expect(dev.includes("New time: Showroom visit with Inès Moreau"), "new time emailed");
 });
@@ -257,7 +283,7 @@ await step("an administrator lets the company's website show the booking pages",
   await page.goto(origin + "/chest/settings");
   await page.getByLabel("Websites allowed").fill("https://www.atelier-martin.fr");
   await page.locator("form", { has: page.getByLabel("Websites allowed") }).getByRole("button", { name: "Save" }).click();
-  await page.waitForSelector(".toast >> text=Saved.");
+  await page.waitForSelector(".ck-toast >> text=Saved.");
   expect((await page.locator("#frame-code").inputValue()).startsWith("<iframe src="), "code to paste");
   await page.waitForTimeout(31000);
   const policy = (await page.request.get(origin + "/ines-moreau")).headers()["content-security-policy"] ?? "";
@@ -272,8 +298,8 @@ await step("a host imports the meetings booked in Calendly", async () => {
   await page.goto(origin + "/chest/settings");
   await page.getByLabel("The exported file (.csv)").setInputFiles(new URL("../../../tools/public-and-private/booking/test/fixtures/calendly-scheduled-events.csv", import.meta.url).pathname);
   await page.getByRole("button", { name: "Import" }).click();
-  await page.waitForSelector(".toast");
-  expect(/bookings? imported/u.test(await page.locator(".toast").innerText()), "imported: " + await page.locator(".toast").innerText());
+  await page.waitForSelector(".ck-toast");
+  expect(/bookings? imported/u.test(await page.locator(".ck-toast").innerText()), "imported: " + await page.locator(".ck-toast").innerText());
   await page.goto(origin + "/chest");
   expect((await page.locator(".agenda").innerText()).includes("Marie Leroy"), "on the agenda");
 });
@@ -291,11 +317,11 @@ await step("a host sets a day off and changes Friday's hours", async () => {
   await page.goto(origin + "/chest/hours");
   await page.getByLabel("First day").fill(new Date(Date.now() + 20 * 864e5).toISOString().slice(0, 10));
   await page.getByRole("button", { name: "Add the days off" }).click();
-  await page.waitForSelector(".toast");
+  await page.waitForSelector(".ck-toast");
   expect((await page.locator(".exceptions").innerText()).includes("Day off"), "day off listed");
   await page.getByLabel("friday To").last().selectOption("960");
   await page.getByRole("button", { name: "Save the hours" }).click();
-  await page.waitForSelector(".toast >> text=Hours saved.");
+  await page.waitForSelector(".ck-toast >> text=Hours saved.");
 });
 
 await step("an administrator sees everyone's bookings; a host does not", async () => {

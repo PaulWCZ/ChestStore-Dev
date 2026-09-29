@@ -1,105 +1,38 @@
-/* Booking's design tokens, defined once (DESIGN.md explains them): an
-   appointment card — warm paper, plum ink, mint for what is free, apricot
-   for today. Light first; dark follows the system. Contrast ratios are
-   checked in DESIGN.md (scripts/contrast.mjs). */
+/* Booking's own tokens. The contract's (colours, fonts, sizes, spacing,
+   corners, motion: @argentic/chest-ui, tokens/CONTRACT.md) are set by the
+   look of the page — the tool's identity in lib/theme.ts ("Appointment
+   card"), or the theme or brand the company chose — in a <style> of
+   app/layout.tsx. Here only what is this tool's alone, always defined from
+   contract tokens, never from a colour, so it follows every look. */
 :root {
-  color-scheme: light dark;
-  --font-body: "Figtree Variable", system-ui, -apple-system, "Segoe UI", sans-serif;
-  --font-display: "Young Serif", Georgia, "Times New Roman", serif;
+  /* What is free (a day, a time, a calendar read well): the "ok" state,
+     measured with the theme. Text on --free-soft is --free-ink. */
+  --free: var(--ok);
+  --free-soft: var(--ok-soft);
+  --free-ink: var(--ok-ink);
+  /* Today: the "wait" state's apricot in the identity. */
+  --today: var(--wait);
+  --today-soft: var(--wait-soft);
+  --today-ink: var(--wait-ink);
 
-  --bg: #fbf7f1;
-  --surface: #ffffff;
-  --surface-2: #f4ede3;
-  --ink: #24172e;
-  --ink-2: #5f5268;
-  --line: #e4d9cc;
-  --line-strong: #cbbdae;
-  --accent: #5b2a86;
-  --accent-ink: #ffffff;
-  --accent-soft: #f0e7f8;
-  --free: #0b6e55;
-  --free-soft: #ddf2ea;
-  --free-line: #9fd6c3;
-  --today: #974503;
-  --today-soft: #fde9d6;
-  --danger: #b3261e;
-  --danger-soft: #fbe4e2;
-  --ok: #0b6e55;
-  --focus: #5b2a86;
+  /* The booking types' colours (lib/model.ts `colors`), in the contract's
+     categorical slots — the same family in every theme: a sky type stays
+     bluish. A swatch, a card's edge, a spine: 3:1 on the surfaces. */
+  --c-sky: var(--cat-1);
+  --c-leaf: var(--cat-2);
+  --c-tomato: var(--cat-3);
+  --c-grape: var(--cat-4);
+  --c-berry: var(--cat-5);
+  --c-sea: var(--cat-6);
+  --c-sun: var(--cat-7);
+  --c-slate: var(--cat-8);
 
-  /* Booking types' colours: a swatch and a tint. */
-  --c-sky: #2f6fd0; --c-sky-soft: #e2ecfb;
-  --c-sea: #0f7c8c; --c-sea-soft: #dcf1f3;
-  --c-leaf: #3b7d23; --c-leaf-soft: #e4f2dc;
-  --c-sun: #a86a00; --c-sun-soft: #fbefd2;
-  --c-tomato: #c23b22; --c-tomato-soft: #fbe3dd;
-  --c-berry: #b0296a; --c-berry-soft: #f9e0ec;
-  --c-grape: #6b3fb5; --c-grape-soft: #ece4f8;
-  --c-slate: #4d5b6a; --c-slate-soft: #e6eaee;
-
-  --space-1: 4px;
-  --space-2: 8px;
-  --space-3: 12px;
-  --space-4: 16px;
-  --space-5: 24px;
-  --space-6: 32px;
-  --space-7: 48px;
-
-  --radius-s: 8px;
-  --radius-m: 14px;
-  --radius-l: 22px;
-  --radius-pill: 999px;
-  --shadow-1: 0 1px 2px rgb(36 23 46 / 0.06), 0 2px 6px rgb(36 23 46 / 0.04);
-  --shadow-2: 0 12px 32px rgb(36 23 46 / 0.14);
-
-  --text-s: 0.875rem;
-  --text-m: 1rem;
-  --text-l: 1.25rem;
-  --text-xl: 1.75rem;
-  --text-xxl: 2.4rem;
-
-  --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
-  --fast: 120ms;
-  --slow: 240ms;
+  /* A control's edge: the identity's 1.5 px, or the theme's own width when
+     it is thicker (Workshop, High contrast). */
+  --edge: max(1.5px, var(--border-width));
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #17121b;
-    --surface: #211a27;
-    --surface-2: #2b2332;
-    --ink: #f4eef8;
-    --ink-2: #bcaec6;
-    --line: #3b3144;
-    --line-strong: #54475f;
-    --accent: #cfaef2;
-    --accent-ink: #22122f;
-    --accent-soft: #37284a;
-    --free: #7fdcbc;
-    --free-soft: #173a30;
-    --free-line: #2f6e5a;
-    --today: #f5b271;
-    --today-soft: #43301c;
-    --danger: #ff8a80;
-    --danger-soft: #45201e;
-    --ok: #7fdcbc;
-    --focus: #cfaef2;
-    --c-sky: #8db6f5; --c-sky-soft: #1f2d44;
-    --c-sea: #6fd0dc; --c-sea-soft: #173539;
-    --c-leaf: #9bd87f; --c-leaf-soft: #22341b;
-    --c-sun: #f0c15c; --c-sun-soft: #3a2f14;
-    --c-tomato: #ff9a85; --c-tomato-soft: #45231c;
-    --c-berry: #f58cbd; --c-berry-soft: #43202f;
-    --c-grape: #c3a4f5; --c-grape-soft: #312546;
-    --c-slate: #b3c0cd; --c-slate-soft: #2a3038;
-    --shadow-1: none;
-    --shadow-2: 0 12px 32px rgb(0 0 0 / 0.5);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  :root {
-    --fast: 0ms;
-    --slow: 0ms;
-  }
+:root {
+  /* The mark's mint circle: decoration only (no text on it). */
+  --mark-free: color-mix(in oklch, var(--ok) 50%, var(--bg));
 }

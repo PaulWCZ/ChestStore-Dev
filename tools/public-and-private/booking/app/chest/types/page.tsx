@@ -1,3 +1,4 @@
+import { EmptyState, PageHeader } from "@argentic/chest-ui/components";
 import { headers } from "next/headers";
 import { CopyButton } from "../../../components/copy-button.tsx";
 import { CalendarCheck, Chat, Clock, kindIcon, Pencil, Person, Plus } from "../../../components/icons.tsx";
@@ -15,20 +16,14 @@ export default async function TypesPage() {
   if (!v) return null;
   const { t, locale } = v;
   const host = await myPage(v);
-  if (!host) return <div className="empty"><p>{t.bookings.cannotHost}</p></div>;
+  if (!host) return <EmptyState headingLevel={1} title={t.bookings.cannotHostTitle} body={t.bookings.cannotHost} />;
   const types = await b.typesOf(db(), v.member.id);
   const origin = publicOrigin(await headers()) ?? "";
   return (
     <>
-      <div className="page-head">
-        <div>
-          <h1>{t.types.title}</h1>
-          <p className="muted">{t.types.intro}</p>
-        </div>
-        <a className="button" href="/chest/types/new"><Plus />{t.types.new}</a>
-      </div>
+      <PageHeader title={t.types.title} intro={t.types.intro} action={<a className="button" href="/chest/types/new"><Plus />{t.types.new}</a>} />
       {types.length === 0 ? (
-        <div className="empty"><p>{t.types.empty}</p></div>
+        <EmptyState title={t.types.empty} body={t.types.emptyHint} />
       ) : (
         <ul className="types">
           {types.map(ty => {

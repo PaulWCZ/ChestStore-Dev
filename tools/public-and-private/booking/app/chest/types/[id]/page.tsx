@@ -1,3 +1,4 @@
+import { EmptyState, PageHeader } from "@argentic/chest-ui/components";
 import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { Back } from "../../../../components/icons.tsx";
@@ -25,7 +26,7 @@ export default async function EditTypePage({ params }: { params: Promise<{ id: s
   if (!v) return null;
   const { t, locale } = v;
   const host = await myPage(v);
-  if (!host) return <div className="empty"><p>{t.bookings.cannotHost}</p></div>;
+  if (!host) return <EmptyState headingLevel={1} title={t.bookings.cannotHostTitle} body={t.bookings.cannotHost} />;
   let ty: BookingType;
   try {
     ty = await typeOf(db(), v.member, (await params).id);
@@ -38,7 +39,7 @@ export default async function EditTypePage({ params }: { params: Promise<{ id: s
   return (
     <>
       <a className="back" href="/chest/types"><Back />{t.types.title}</a>
-      <div className="page-head"><h1>{t.types.form.titleEdit}</h1></div>
+      <PageHeader title={t.types.form.titleEdit} />
       <TypeForm team={await teamChoices(v)} id={id} base={base} locale={locale} initial={initial} t={{ types: t.types, kinds: t.kinds, colors: t.colors, minutes: t.minutes, errors: t.errors }} />
     </>
   );
