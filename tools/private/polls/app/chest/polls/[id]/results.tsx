@@ -1,4 +1,4 @@
-import { Avatar } from "../../../../components/avatar.tsx";
+import { Avatar } from "@argentic/chest-ui/components";
 import { Check, Cross, Maybe, Star } from "../../../../components/icons.tsx";
 import type { Catalogue } from "../../../../lib/i18n/index.ts";
 import { format, plural } from "../../../../lib/i18n/index.ts";
@@ -120,7 +120,7 @@ export function Results({ results, single, names, dateLabels, finalOption, signu
                         const person = names.get(row.member);
                         return (
                           <tr key={i}>
-                            <th scope="row"><span className="person"><Avatar name={person?.name ?? ""} photo={person?.photo ?? null} size={28} /><span className="name">{person?.name ?? t.people.unknown}</span></span></th>
+                            <th scope="row"><span className="person"><Avatar name={person?.name ?? ""} photo={person?.photo ?? null} size="s" /><span className="name">{person?.name ?? t.people.unknown}</span></span></th>
                             {q.options.map(o => {
                               const value = row.values[o.id];
                               const word = value === 2 ? t.poll.yes : value === 1 ? t.poll.maybe : t.poll.no;

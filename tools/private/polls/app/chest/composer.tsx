@@ -1,9 +1,10 @@
 "use client";
 
+import { DateField, PeoplePicker, TimeSelect, useToast } from "@argentic/chest-ui/components";
+import { endOfDay, moveEnd, moveStart, timeText } from "@argentic/chest-ui/components/logic";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Back, Cross, Down, KindIcon, Mask, Next, Plus, Repeat as RepeatIcon, Send, Trash, Up } from "../../components/icons.tsx";
-import { useToast } from "../../components/toast.tsx";
 import { format, plural } from "../../lib/i18n/format.ts";
 import type { Catalogue } from "../../lib/i18n/index.ts";
 import { editPoll, savePoll, searchPeople } from "./actions.ts";
@@ -16,12 +17,26 @@ import type { ComposerValue, Slot, SurveyQuestion } from "../../lib/composer-val
 type QKind = "choice" | "scale" | "text" | "enps";
 type Question = SurveyQuestion & { key: number };
 
-type Words = Pick<Catalogue, "composer" | "kinds" | "errors" | "repeat">;
+type Words = Pick<Catalogue, "composer" | "kinds" | "errors" | "repeat" | "date" | "peoplePicker">;
 
-const times = Array.from({ length: 48 }, (_, i) => `${String(Math.floor(i / 2)).padStart(2, "0")}:${i % 2 ? "30" : "00"}`);
 const storageKey = "polls:new";
-// The half hours, and a time kept from before that is not one of them.
-const timesWith = (value: string) => (value && !times.includes(value) ? [...times, value].sort() : times);
+// Times are chosen every half hour (the kit's TimeSelect keeps a time from
+// before that is not one of them); the poll keeps them as "HH:MM".
+const step = 30;
+const minutesOf = (text: string) => Number(text.slice(0, 2)) * 60 + Number(text.slice(3, 5));
+// A slot's start moved: its end follows, so the length stays (the kit's
+// rule); an end that would pass 23:30 is dropped — a slot ends by then.
+function moveSlotStart(slot: Slot, start: number): Slot {
+  if (!slot.end) return { start: timeText(start), end: "" };
+  const moved = moveStart({ start: minutesOf(slot.start), end: minutesOf(slot.end) }, start, { step });
+  return { start: timeText(moved.start), end: moved.end < endOfDay ? timeText(moved.end) : "" };
+}
+// A slot's end moved: an end at or before the start pulls the start back.
+function moveSlotEnd(slot: Slot, end: number | null): Slot {
+  if (end === null) return { start: slot.start, end: "" };
+  const moved = moveEnd({ start: minutesOf(slot.start), end }, end, { step });
+  return { start: timeText(moved.start), end: timeText(moved.end) };
+}
 
 function monthGrid(year: number, month: number): (string | null)[] {
   const first = new Date(Date.UTC(year, month, 1));
@@ -102,23 +117,12 @@ export function Composer({ mode, pollId, initial, groups, today, monthNames, wee
     if (from) set({ days: value.days.map(d => ({ ...d, slots: from.slots.map(x => ({ ...x })) })) });
   };
 
-  // People picked by name: the Chest finds them as one types.
-  const [query, setQuery] = useState("");
-  const [found, setFound] = useState<{ id: string; name: string }[] | null>(null);
-  useEffect(() => {
-    const q = query.trim();
-    if (q.length < 1) { setFound(null); return; }
-    let live = true;
-    const timer = window.setTimeout(async () => {
-      const result = await searchPeople(q);
-      if (live) setFound(result.ok ? result.value : []);
-    }, 250);
-    return () => { live = false; window.clearTimeout(timer); };
-  }, [query]);
-  const addPerson = (p: { id: string; name: string }) => {
-    if (!value.people.some(x => x.id === p.id)) set({ people: [...value.people, p] });
-    setQuery("");
-    setFound(null);
+  // People picked by name: the Chest finds them as one types (the kit's
+  // picker: arrows, Enter, chips). A search the Chest could not answer says so.
+  const findPeople = async (q: string) => {
+    const result = await searchPeople(q);
+    if (!result.ok) throw new Error(result.error);
+    return result.value;
   };
   const hasGroups = groups !== null && groups.length > 0;
 
@@ -150,7 +154,7 @@ export function Composer({ mode, pollId, initial, groups, today, monthNames, wee
     if (!result.ok) {
       const message = format(t.errors[result.error], result.values ?? {});
       setError(message);
-      toast(message);
+      toast({ text: message, tone: "error" });
       return;
     }
     if (mode === "new") {
@@ -158,13 +162,13 @@ export function Composer({ mode, pollId, initial, groups, today, monthNames, wee
     }
     const id = result.value.id;
     if (locked) {
-      toast(c.saved);
+      toast({ text: c.saved });
       router.push(`/chest/polls/${id}`);
     } else if (open) {
-      toast(c.sent);
+      toast({ id: `sent-${id}`, text: c.sent, sent: true });
       router.push(`/chest/polls/${id}`);
     } else {
-      toast(c.draftSaved);
+      toast({ text: c.draftSaved });
       if (mode === "new") router.replace(`/chest/polls/${id}/edit`);
       else router.refresh();
     }
@@ -261,14 +265,9 @@ export function Composer({ mode, pollId, initial, groups, today, monthNames, wee
                   <div className="slots">
                     {d.slots.map((s, i) => (
                       <div key={i} className="slot">
-                        <select className="field" aria-label={c.from} value={s.start} onChange={e => setSlots(d.day, d.slots.map((x, j) => (j === i ? { ...x, start: e.target.value } : x)))}>
-                          {timesWith(s.start).map(time => <option key={time} value={time}>{time}</option>)}
-                        </select>
+                        <TimeSelect label={c.from} step={step} value={minutesOf(s.start)} onChange={m => setSlots(d.day, d.slots.map((x, j) => (j === i ? moveSlotStart(x, m) : x)))} />
                         <span className="sep" aria-hidden="true">–</span>
-                        <select className="field" aria-label={c.to} value={s.end} onChange={e => setSlots(d.day, d.slots.map((x, j) => (j === i ? { ...x, end: e.target.value } : x)))}>
-                          <option value="">{c.noEnd}</option>
-                          {timesWith(s.end).map(time => <option key={time} value={time}>{time}</option>)}
-                        </select>
+                        <TimeSelect label={c.to} step={step} empty={c.noEnd} value={s.end ? minutesOf(s.end) : null} onChange={m => setSlots(d.day, d.slots.map((x, j) => (j === i ? moveSlotEnd(x, m) : x)))} />
                         <button type="button" className="icon-button" onClick={() => setSlots(d.day, d.slots.filter((_, j) => j !== i))}><Cross /><span className="visually-hidden">{c.removeTime}</span></button>
                       </div>
                     ))}
@@ -375,30 +374,16 @@ export function Composer({ mode, pollId, initial, groups, today, monthNames, wee
                     ))}
                   </div>
                 ) : <p className="hint">{c.noGroups}</p>}
-                <div className="people-pick">
-                  <label className="label" htmlFor="find-people">{c.peopleLabel}</label>
-                  {value.people.length > 0 && (
-                    <ul className="picked">
-                      {value.people.map(p => (
-                        <li key={p.id} className="chip">
-                          {p.name}
-                          <button type="button" className="chip-x" onClick={() => set({ people: value.people.filter(x => x.id !== p.id) })}><Cross /><span className="visually-hidden">{format(c.removePerson, { name: p.name })}</span></button>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                  <input id="find-people" className="field" type="search" autoComplete="off" value={query} placeholder={c.findPeople} onChange={e => setQuery(e.target.value)}
-                    onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); const first = found?.find(p => !value.people.some(x => x.id === p.id)); if (first) addPerson(first); } }} />
-                  {found !== null && (
-                    found.length === 0 ? <p className="hint" role="status">{c.noMatch}</p> : (
-                      <ul className="found" aria-label={c.findPeople}>
-                        {found.filter(p => !value.people.some(x => x.id === p.id)).map(p => (
-                          <li key={p.id}><button type="button" className="button small" onClick={() => addPerson(p)}><Plus />{p.name}</button></li>
-                        ))}
-                      </ul>
-                    )
-                  )}
-                </div>
+                <PeoplePicker
+                  id="find-people"
+                  label={c.peopleLabel}
+                  multiple
+                  value={value.people}
+                  onChange={people => set({ people: people.map(p => ({ id: p.id, name: p.name })) })}
+                  search={findPeople}
+                  labels={t.peoplePicker}
+                  lang={locale}
+                />
               </div>
             )}
           </fieldset>
@@ -426,10 +411,11 @@ export function Composer({ mode, pollId, initial, groups, today, monthNames, wee
           <label className="radio-line"><input type="radio" name="closes" checked={value.closes !== null} onChange={() => set({ closes: value.closes ?? { day: nextDay(today, 3), time: "18:00" } })} />{c.onDate}</label>
           {value.closes && (
             <div className="closing">
-              <input className="field" type="date" aria-label={c.day} min={today} value={value.closes.day} onChange={e => set({ closes: { ...value.closes!, day: e.target.value } })} />
-              <select className="field" aria-label={c.time} value={value.closes.time} onChange={e => set({ closes: { ...value.closes!, time: e.target.value } })}>
-                {timesWith(value.closes.time).map(time => <option key={time} value={time}>{time}</option>)}
-              </select>
+              <DateField id="closes-day" label={c.day} value={value.closes.day || null} onChange={day => set({ closes: { ...value.closes!, day: day ?? "" } })} today={today} min={today} labels={t.date} />
+              <div>
+                <label className="ck-label" htmlFor="closes-time">{c.time}</label>
+                <TimeSelect id="closes-time" step={step} value={minutesOf(value.closes.time)} onChange={m => set({ closes: { ...value.closes!, time: timeText(m) } })} />
+              </div>
             </div>
           )}
         </fieldset>

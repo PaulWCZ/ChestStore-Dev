@@ -9,44 +9,59 @@ deep navy ink, a coral that asks to be tapped, mint for "yes", sunflower for
 down when tapped, like real buttons. Lively, never childish: one obvious
 action per screen, big answers, plain words.
 
-## Tokens (`app/tokens.css`)
+## Tokens — the identity is a theme (`lib/theme.ts`)
 
-| Token | Light | Dark | Use, contrast (scripts/contrast.mjs) |
+Confetti is a theme of the store's UI kit (`defineTheme` in `lib/theme.ts`,
+the same, value for value, as the catalogue's `confetti`: a test holds
+them equal). Every colour of the tool is there, light and dark, checked
+against every contrast pair of the kit's contract (`checkTheme`, WCAG AA).
+The company may give Polls another look (a catalogue theme, its brand): the
+CSS names only the contract's tokens and Polls' own, defined from them in
+`app/tokens.css` — never a colour (a test reads every stylesheet).
+
+| Polls before | Now | Light | Dark |
 |---|---|---|---|
-| `--bg` | `#fff7ef` warm paper | `#111829` | page |
-| `--surface` | `#ffffff` | `#1a2338` | cards |
-| `--ink` | `#1b2440` deep navy | `#f4eee8` | text — 14.4:1 / 15.4:1 |
-| `--ink-2` | `#4a5270` | `#b7bcd0` | quiet text — 7.3:1 / 9.4:1 |
-| `--coral` | `#ff7a63` | `#ff8a76` | the main action, navy text on it — 6.0:1 / 7.7:1 |
-| `--coral-text` | `#b8321f` | `#ff8a76` | coral as text — 6.0:1 on white |
-| `--mint` | `#34d1a0` | `#4fe0b1` | yes, the meter — navy on it 7.9:1 |
-| `--sun` | `#ffc940` | `#ffd366` | if need be, the scale — navy on it 10.0:1 |
-| `--no` / `--no-ink` | `#ece8e2` / `#595e70` | `#2a3450` / `#c3c8da` | no — 5.3:1 / 7.4:1 |
-| `--focus` | `#2f55e0` | `#9db4ff` | 3 px focus ring — 5.7:1 / 8.8:1 |
+| paper, white, navy ink, quiet ink | `--bg`, `--surface`, `--ink`, `--ink-2` | `#fff7ef`, `#ffffff`, `#1b2440`, `#4a5270` | `#111829`, `#1a2338`, `#f4eee8`, `#b7bcd0` |
+| coral (the main action), its ledge, coral text, coral tint | `--accent`, `--accent-line`, `--accent-text`, `--accent-soft` | `#ff7a63`, `#d9533d`, `#b8321f`, `#ffe2da` | `#ff8a76`, … |
+| mint (yes), mint tint and ink | `--yes*` → the ok state (`--ok`, `--ok-soft`, `--ok-ink`) | `#0b6b4f`, `#d8f7ec` | `#7ff0c9`, `#173a36` |
+| sunflower (if need be), its tint and ink | `--maybe*` → the wait state | `#7a5300`, `#fff1c7` | `#ffd98a`, `#3a3222` |
+| sunflower (the chosen number, the average) | `--highlight` with `--ink` | `#f8e8ab` | `#473d13` |
+| grey (no) | `--no-soft`, `--no-ink` → `--surface-2`, `--ink-2` | | |
+| kinds: question, date, survey | `--kind-*` → slots 3 (orange), 6 (teal, tuned to mint's hue), 7 (ochre) | | |
+| charts: meter and fans, top column and neutrals, trend line and critics | `--mark-yes` (slot 6), `--mark-sun` (slot 7), `--mark-coral` (`--accent-line`) | | |
+| confetti | `--confetti-1…5`: accent, slots 6, 7, 1, ink | | |
 
-Soft tints (`--coral-soft`, `--mint-soft`, `--sun-soft`) carry their own
-dark ink (`--mint-ink` 5.7:1, `--sun-ink` 6.1:1). The axe audit
-(`lab/chest-dev/audit.mjs`) passes in light and dark.
+What changed on the way: field borders are `--line-strong` (the navy, 3:1
+and more; they were the pale `--line`, 1.2:1); a chosen "yes" is mint's
+soft tint with its dark ink and a green edge (text on the vivid mint was
+not a measured pair); bars grow in `2 × --slow` (640 ms, 0 under reduced
+motion); lines are `--edge` = the theme's line width + 1 px (2 px here, 3 px
+in Workshop and High contrast).
 
 - **Type**: *Fredoka* (rounded display, OFL-1.1) for titles, numbers and
   chunky labels; *Plus Jakarta Sans* (OFL-1.1) for text. Both self-hosted
-  in `public/fonts/`. Sizes 13–40 px, fluid page title.
+  in `public/fonts/`; the kit writes their `@font-face`.
 - **Spacing**: 4, 8, 12, 16, 24, 32, 48 px. **Radii**: 10, 16, 24 px and
-  pills. **Ledge**: 4 px of `--line-strong` (or the colour's darker edge)
-  under every chunky control; tapping presses it down.
-- **Motion**: bars grow (700 ms), columns rise, toasts bounce in, confetti
-  bursts once when an answer is sent. `prefers-reduced-motion` turns all of
-  it off.
+  pills. **Ledge**: 4 px of `--line-strong` (or `--accent-line`) under
+  every chunky control; tapping presses it down.
+- **Motion**: bars grow, columns rise, confetti bursts once when an answer
+  is sent. `prefers-reduced-motion` turns all of it off (the burst is not
+  drawn at all).
 
 ## Components (`app/globals.css`)
 
-- **Buttons**: pill, 2 px border, a ledge; *primary* coral, *go* mint,
-  default white; *link* for quiet actions; 44–56 px tall.
+- **The shell** is the kit's `AppShell` (a paper bar, the mark or the
+  company's logo, the member chip); "New poll" is the home page's main
+  action, at the right of its title (full width on a phone).
+- **Buttons**: pill, a thick border, a ledge; *primary* coral on its darker
+  edge, default white; *link* for quiet actions; 44–56 px tall.
 - **Answer cards** (`.pick-option`): a whole row to tap, a round (single) or
   square (several) mark that fills coral.
 - **Yes / If need be / No** (`.tri`): three chunky keys per date — mint,
-  sunflower, grey — each with an icon *and* a word.
-- **Scale**: five round keys, sunflower when chosen, words at both ends.
+  sunflower, grey tints with their inks and edges — each with an icon
+  *and* a word.
+- **Scale**: five round keys, the marker's sunflower when chosen, words at
+  both ends.
 - **Day badge**: a small calendar page (month, day, weekday) beside each
   date, in the answer form and in the grid.
 - **Results**: bars (top answer coral with a *Best* tag), the date grid
@@ -71,7 +86,13 @@ dark ink (`--mint-ink` 5.7:1, `--sun-ink` 6.1:1). The axe audit
 - **Empty states**: "Nothing to answer. You're all caught up!"; the
   anonymous threshold (a closed poll under five answers) shows five dots;
   an open anonymous poll says its results come at the close, in mint.
-- **Toasts**: a navy pill at the bottom, with *Undo*.
+- **Toasts** are the kit's (an Undo that says whether it worked, « Annuler
+  l’action » in French; "sent" once a bell item left). Closing an
+  anonymous poll for good asks first in the kit's `Confirm`.
+- **The composer** uses the kit's `PeoplePicker`, `DateField` (the closing
+  day) and `TimeSelect` (half hours; a slot keeps its length when its start
+  moves). The days to propose stay Polls' own month grid: several days are
+  tapped at once, which the kit's one-day calendar does not do.
 
 ## Icon
 

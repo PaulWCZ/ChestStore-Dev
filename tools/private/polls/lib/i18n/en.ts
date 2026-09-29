@@ -2,6 +2,8 @@
 // tool shows is here, and in every other catalogue with the same keys
 // (test/i18n.test.ts). {name} marks a value filled by format(); an entry
 // with one/other is a plural (plural()).
+import type { DateWords, PeoplePickerWords, ToastWords } from "@argentic/chest-ui/components/logic";
+
 export const en = {
   meta: {
     lang: "en",
@@ -27,6 +29,7 @@ export const en = {
   },
   shell: {
     skip: "Skip to content",
+    nav: "Main",
     newPoll: "New poll",
     home: "All polls",
   },
@@ -146,9 +149,6 @@ export const en = {
     chosen: "Chosen groups or people",
     groupsLabel: "Groups",
     peopleLabel: "People",
-    findPeople: "Add someone by name",
-    noMatch: "Nobody by that name has Polls.",
-    removePerson: "Remove {name}",
     groupSize: { one: "{count} person", other: "{count} people" },
     noGroups: "No group gives Polls here: add people by name.",
     anonymous: "Anonymous",
@@ -274,12 +274,12 @@ export const en = {
     edit: "Edit",
     delete: "Delete",
     deleted: "Poll deleted.",
-    undo: "Undo",
     export: "Download answers (CSV)",
     send: "Send to the team",
     sent: "Sent! Everyone asked will see it in their bell.",
     nudge: "Remind those who haven’t answered",
     nudged: "Reminder sent to those who haven’t answered.",
+    closeForGoodTitle: "Close this anonymous poll for good?",
     closeForGood: "Close for good",
     closeForGoodHint: "An anonymous poll can’t be reopened: once closed, its results show to everyone.",
     keepOpen: "Keep it open",
@@ -298,7 +298,6 @@ export const en = {
     remove: "Delete",
     removeLabel: "Delete this comment",
     removed: "Comment deleted.",
-    undo: "Undo",
   },
   final: {
     title: "Pick the date",
@@ -384,4 +383,54 @@ export const en = {
     unavailable: "The Chest did not answer. Try again in a moment.",
     unknown: "Something went wrong. Try again.",
   },
+  // The words of the kit's components (@argentic/chest-ui/components),
+  // typed by the kit: the toasts, the people picker (its placeholder and
+  // "no match" in Polls' words) and the dates.
+  toast: {
+    region: "Notifications",
+    undo: "Undo",
+    undoing: "Undoing…",
+    undone: "Undone.",
+    undoFailed: "It could not be undone. Try again from the page.",
+    dismiss: "Dismiss",
+  } satisfies ToastWords,
+  peoplePicker: {
+    placeholder: "Add someone by name",
+    noMatch: "Nobody by that name has Polls.",
+    searching: "Searching…",
+    failed: "The search did not answer. Try again.",
+    recent: "Recent",
+    suggested: "Suggested",
+    people: "People",
+    groups: "Groups",
+    remove: "Remove {name}",
+    results: { zero: "No results", one: "{count} result", other: "{count} results" },
+    groupSize: { one: "{count} person", other: "{count} people" },
+    chosen: "Chosen",
+  } satisfies PeoplePickerWords,
+  date: {
+    order: "dmy",
+    separator: "/",
+    placeholder: "dd/mm/yyyy",
+    months: ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"],
+    monthsShort: ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"],
+    weekdays: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
+    weekdaysShort: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
+    weekStart: 1,
+    long: "{weekday} {day} {month} {year}",
+    short: "{weekday} {day} {month}",
+    monthYear: "{month} {year}",
+    today: "Today",
+    tomorrow: "Tomorrow",
+    yesterday: "Yesterday",
+    openCalendar: "Choose on a calendar",
+    closeCalendar: "Close the calendar",
+    previousMonth: "Previous month",
+    nextMonth: "Next month",
+    invalid: "Type a date like {example}.",
+    tooEarly: "Choose {date} or later.",
+    tooLate: "Choose {date} or earlier.",
+    otherDay: "Another day…",
+    pickDay: "Choose a day",
+  } satisfies DateWords,
 } as const;

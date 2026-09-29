@@ -1,9 +1,9 @@
 "use client";
 
+import { useToast } from "@argentic/chest-ui/components";
 import { useRouter } from "next/navigation";
 import { useMemo, useState, type FormEvent } from "react";
 import { Check, Cross, Maybe, Mask, Party } from "../../../../components/icons.tsx";
-import { useToast } from "../../../../components/toast.tsx";
 import { format, plural } from "../../../../lib/i18n/format.ts";
 import type { en } from "../../../../lib/i18n/en.ts";
 import { answerPoll } from "../../actions.ts";
@@ -78,7 +78,7 @@ export function AnswerArea({ pollId, questions, single, anonymous, answered, min
     if (!result.ok) {
       const message = format(t.errors[result.error], result.values ?? {});
       setError(message);
-      toast(message);
+      toast({ text: message, tone: "error" });
       return;
     }
     setEditing(false);
@@ -230,18 +230,16 @@ export function AnswerArea({ pollId, questions, single, anonymous, answered, min
 }
 
 // Confetti, once, when an answer is sent (none with reduced motion: CSS).
+// Each piece's colour is the theme's (globals.css, .burst i:nth-child).
 function Burst() {
-  const pieces = useMemo(() => {
-    const colours = ["var(--coral)", "var(--mint)", "var(--sun)", "var(--sky)", "var(--ink)"];
-    return Array.from({ length: 26 }, (_, i) => {
-      const angle = (i / 26) * Math.PI * 2;
-      const distance = 90 + (i % 5) * 28;
-      return { x: Math.round(Math.cos(angle) * distance * 1.6), y: Math.round(Math.sin(angle) * distance - 40), r: (i * 47) % 360, c: colours[i % colours.length]!, d: (i % 4) * 40 };
-    });
-  }, []);
+  const pieces = useMemo(() => Array.from({ length: 26 }, (_, i) => {
+    const angle = (i / 26) * Math.PI * 2;
+    const distance = 90 + (i % 5) * 28;
+    return { x: Math.round(Math.cos(angle) * distance * 1.6), y: Math.round(Math.sin(angle) * distance - 40), r: (i * 47) % 360, d: (i % 4) * 40 };
+  }), []);
   return (
     <span className="burst" aria-hidden="true">
-      {pieces.map((p, i) => <i key={i} style={{ background: p.c, animationDelay: p.d + "ms", ["--x" as string]: p.x + "px", ["--y" as string]: p.y + "px", ["--r" as string]: p.r + "deg" }} />)}
+      {pieces.map((p, i) => <i key={i} style={{ animationDelay: p.d + "ms", ["--x" as string]: p.x + "px", ["--y" as string]: p.y + "px", ["--r" as string]: p.r + "deg" }} />)}
     </span>
   );
 }

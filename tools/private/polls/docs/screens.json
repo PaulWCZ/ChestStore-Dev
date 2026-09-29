@@ -61,9 +61,13 @@
     "click": ".chosen-day >> nth=1 >> text=Add a time"
    },
    {
+    "click": "text=On a date"
+   },
+   {
     "wait": 200
    }
-  ]
+  ],
+  "full": true
  },
  {
   "name": "pulse-open",
@@ -102,5 +106,155 @@
   "member": "tom",
   "locale": "en",
   "dark": true
+ },
+ {
+  "name": "home-theme",
+  "path": "/chest",
+  "member": "hugo",
+  "locale": "en",
+  "look": {
+   "all": "catalogue:workshop"
+  }
+ },
+ {
+  "name": "home-theme-dark",
+  "path": "/chest",
+  "member": "hugo",
+  "locale": "en",
+  "dark": true,
+  "look": {
+   "all": "catalogue:workshop"
+  },
+  "only": [
+   "phone"
+  ]
+ },
+ {
+  "name": "home-brand",
+  "path": "/chest",
+  "member": "ines",
+  "locale": "fr",
+  "look": {
+   "all": "catalogue:workshop",
+   "tool": "brand:sample"
+  }
+ },
+ {
+  "name": "home-brand-dark",
+  "path": "/chest",
+  "member": "tom",
+  "locale": "en",
+  "dark": true,
+  "look": {
+   "tool": "brand:sample"
+  },
+  "only": [
+   "phone"
+  ]
+ },
+ {
+  "name": "home-chest",
+  "path": "/chest",
+  "member": "hugo",
+  "locale": "en",
+  "look": {
+   "all": "catalogue:chest"
+  }
+ },
+ {
+  "name": "date-grid-theme",
+  "path": "/chest/polls/2",
+  "member": "camille",
+  "locale": "fr",
+  "look": {
+   "all": "catalogue:library"
+  }
+ },
+ {
+  "name": "date-grid-chest",
+  "path": "/chest/polls/2",
+  "member": "camille",
+  "locale": "en",
+  "look": {
+   "all": "catalogue:chest"
+  },
+  "only": [
+   "phone"
+  ]
+ },
+ {
+  "name": "pulse-brand",
+  "path": "/chest/polls/9",
+  "member": "lea",
+  "locale": "fr",
+  "look": {
+   "tool": "brand:sample"
+  },
+  "only": [
+   "desktop"
+  ]
+ },
+ {
+  "name": "closed-undone",
+  "path": "/chest/polls/4",
+  "member": "sofia",
+  "locale": "fr",
+  "actions": [
+   {
+    "click": "text=Terminer maintenant"
+   },
+   {
+    "wait": 600
+   },
+   {
+    "click": ".ck-toast-undo"
+   },
+   {
+    "wait": 1500
+   }
+  ],
+  "only": [
+   "desktop"
+  ]
+ },
+ {
+  "name": "close-confirm",
+  "path": "/chest/polls/3",
+  "member": "camille",
+  "locale": "en",
+  "actions": [
+   {
+    "click": "text=Close now"
+   },
+   {
+    "wait": 400
+   }
+  ],
+  "only": [
+   "phone"
+  ]
+ },
+ {
+  "name": "new-people",
+  "path": "/chest/new?kind=choice",
+  "member": "sofia",
+  "locale": "fr",
+  "actions": [
+   {
+    "click": "text=Des groupes ou des personnes"
+   },
+   {
+    "fill": [
+     "#find-people",
+     "Lé"
+    ]
+   },
+   {
+    "wait": 700
+   }
+  ],
+  "only": [
+   "desktop"
+  ]
  }
 ]

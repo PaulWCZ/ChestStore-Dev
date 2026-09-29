@@ -1,6 +1,6 @@
+import { Avatar, StatusBadge } from "@argentic/chest-ui/components";
 import { notFound, redirect } from "next/navigation";
 import { AutoRefresh } from "../../../../components/auto-refresh.tsx";
-import { Avatar } from "../../../../components/avatar.tsx";
 import { Back, CalendarPlus, Clock, Eye, Info, KindIcon, Mask, Pencil, People, Repeat } from "../../../../components/icons.tsx";
 import { all, groups as chestGroups } from "../../../../lib/audience.ts";
 import { AppError } from "../../../../lib/app-error.ts";
@@ -108,7 +108,7 @@ export default async function PollPage({ params }: { params: Promise<{ id: strin
       <header className="poll-head">
         <div className="row">
           <span className={"chip " + poll.kind}><KindIcon kind={poll.kind} />{t.kinds[poll.kind].chip}</span>
-          {poll.anonymous && <span className="chip quiet"><Mask />{t.home.anonymous}</span>}
+          {poll.anonymous && <StatusBadge tone="neutral" size="s" icon={<Mask />} label={t.home.anonymous} />}
         </div>
         <h1>{poll.title}</h1>
         {poll.details && <p className="details">{poll.details}</p>}
@@ -190,7 +190,7 @@ export default async function PollPage({ params }: { params: Promise<{ id: strin
               <>
                 <p className="label">{t.results.notYet}</p>
                 <ul className="people-list">
-                  {missing.slice(0, 40).map(p => <li key={p.id}><Avatar name={p.name} photo={found.get(p.id)?.photo ?? null} size={24} />{p.id === member.id ? t.people.you : p.name}</li>)}
+                  {missing.slice(0, 40).map(p => <li key={p.id}><Avatar name={p.name} photo={found.get(p.id)?.photo ?? null} size="s" />{p.id === member.id ? t.people.you : p.name}</li>)}
                   {missing.length > 40 && <li>{plural(t.people.more, missing.length - 40, locale)}</li>}
                 </ul>
               </>

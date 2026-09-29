@@ -1,10 +1,9 @@
 "use client";
 
+import { Avatar, useToast } from "@argentic/chest-ui/components";
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
-import { Avatar } from "../../../../components/avatar.tsx";
 import { Chat, Trash } from "../../../../components/icons.tsx";
-import { useToast } from "../../../../components/toast.tsx";
 import { format } from "../../../../lib/i18n/format.ts";
 import type { en } from "../../../../lib/i18n/en.ts";
 import { deleteComment, postComment, restoreComment } from "../../actions.ts";
@@ -27,7 +26,7 @@ export function Comments({ pollId, comments, canWrite, t }: { pollId: string; co
     setBusy(true);
     const result = await postComment(pollId, body);
     setBusy(false);
-    if (!result.ok) return toast(format(t.errors[result.error], result.values ?? {}));
+    if (!result.ok) return toast({ text: format(t.errors[result.error], result.values ?? {}), tone: "error" });
     setBody("");
     router.refresh();
   }
@@ -37,15 +36,18 @@ export function Comments({ pollId, comments, canWrite, t }: { pollId: string; co
     const result = await deleteComment(id);
     if (!result.ok) {
       setHidden(h => h.filter(x => x !== id));
-      return toast(format(t.errors[result.error], result.values ?? {}));
+      return toast({ text: format(t.errors[result.error], result.values ?? {}), tone: "error" });
     }
-    toast(t.comments.removed, {
-      label: t.comments.undo,
-      run: async () => {
+    // One toast per comment; its Undo says whether the comment came back.
+    toast({
+      id: `comment-${id}`,
+      text: t.comments.removed,
+      undo: async () => {
         const back = await restoreComment(id);
-        if (!back.ok) toast(format(t.errors[back.error], back.values ?? {}));
+        if (!back.ok) return format(t.errors[back.error], back.values ?? {});
         setHidden(h => h.filter(x => x !== id));
         router.refresh();
+        return true;
       },
     });
     router.refresh();
@@ -59,7 +61,7 @@ export function Comments({ pollId, comments, canWrite, t }: { pollId: string; co
         <ul className="comments">
           {shown.map(c => (
             <li key={c.id}>
-              <Avatar name={c.name} photo={c.photo} size={32} />
+              <Avatar name={c.name} photo={c.photo} size="m" />
               <div className="comment-body">
                 <p className="comment-meta"><strong>{c.name}</strong> <span>{c.when}</span></p>
                 <p className="comment-text">{c.body}</p>

@@ -1,9 +1,9 @@
 "use client";
 
+import { Confirm, useToast } from "@argentic/chest-ui/components";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Bell, CalendarPlus, Download, Pencil, Repeat, Send, Star, Trash } from "../../../../components/icons.tsx";
-import { useToast } from "../../../../components/toast.tsx";
 import { format } from "../../../../lib/i18n/format.ts";
 import type { en } from "../../../../lib/i18n/en.ts";
 import { closeNow, nudgePoll, pickFinal, remove, reopen, repeatPoll, restore, sendPoll } from "../../actions.ts";
@@ -17,10 +17,11 @@ type Words = {
 type Failure = { ok: false; error: keyof typeof en.errors; values?: Record<string, string | number> };
 
 // The organiser's panel: remind those who have not answered, close now
-// (undo: reopen — an anonymous poll is closed for good, after a second
-// tap), reopen, edit, delete (undo: restore), download the answers, stop
-// or restart a pulse survey's rounds; for a closed date poll, pick the date
-// and tell everyone.
+// (undo: reopen — an anonymous poll is closed for good, so it asks first,
+// in the kit's Confirm), reopen, edit, delete (undo: restore), download the
+// answers, stop or restart a pulse survey's rounds; for a closed date poll,
+// pick the date and tell everyone. What left for people's bells (a poll
+// sent, a reminder, the date told) says "sent" and offers no Undo.
 export function Manage({ pollId, status, anonymous, canEdit, canExport, canReopen, canNudge, series, t }: {
   pollId: string;
   status: "draft" | "open" | "closed";
@@ -36,44 +37,50 @@ export function Manage({ pollId, status, anonymous, canEdit, canExport, canReope
   const toast = useToast();
   const [busy, setBusy] = useState(false);
   const [confirming, setConfirming] = useState(false);
-  const fail = (r: Failure) => toast(format(t.errors[r.error], r.values ?? {}));
+  const fail = (r: Failure) => toast({ text: format(t.errors[r.error], r.values ?? {}), tone: "error" });
 
-  async function run(step: () => Promise<{ ok: true } | Failure>, done: string, undo?: () => Promise<{ ok: true } | Failure>, after?: () => void) {
+  // A step, then its toast: with Undo when `undo` reverses it (the kit's
+  // toast says whether the Undo worked), "sent" when it told people.
+  async function run(id: string, step: () => Promise<{ ok: true } | Failure>, done: string, { undo, sent = false, after }: { undo?: () => Promise<{ ok: true } | Failure>; sent?: boolean; after?: () => void } = {}) {
     setBusy(true);
     const result = await step();
     setBusy(false);
     if (!result.ok) return fail(result);
-    toast(done, undo ? { label: t.manage.undo, run: async () => { const back = await undo(); if (!back.ok) fail(back); router.refresh(); } } : undefined);
+    toast({
+      id: `${id}-${pollId}`,
+      text: done,
+      ...(sent ? { sent: true } : {}),
+      ...(undo ? { undo: async () => {
+        const back = await undo();
+        router.refresh();
+        return back.ok ? true : format(t.errors[back.error], back.values ?? {});
+      } } : {}),
+    });
     if (after) after();
     else router.refresh();
   }
 
-  if (confirming) {
-    return (
-      <div className="confirm" role="group" aria-labelledby="close-for-good">
-        <p id="close-for-good" className="hint">{t.manage.closeForGoodHint}</p>
-        <div className="row">
-          <button type="button" className="button primary" disabled={busy} onClick={() => { setConfirming(false); void run(() => closeNow(pollId), t.manage.closed); }}>{t.manage.closeForGood}</button>
-          <button type="button" className="button link" onClick={() => setConfirming(false)}>{t.manage.keepOpen}</button>
-        </div>
-      </div>
-    );
-  }
+  const closeForGood = () => {
+    setConfirming(false);
+    void run("close", () => closeNow(pollId), t.manage.closed);
+  };
 
   return (
     <div className="row">
-      {status === "draft" && <button type="button" className="button primary" disabled={busy} onClick={() => run(() => sendPoll(pollId), t.manage.sent)}><Send />{t.manage.send}</button>}
-      {status === "open" && canNudge && <button type="button" className="button" disabled={busy} onClick={() => run(() => nudgePoll(pollId), t.manage.nudged)}><Bell />{t.manage.nudge}</button>}
+      {status === "draft" && <button type="button" className="button primary" disabled={busy} onClick={() => run("send", () => sendPoll(pollId), t.manage.sent, { sent: true })}><Send />{t.manage.send}</button>}
+      {status === "open" && canNudge && <button type="button" className="button" disabled={busy} onClick={() => run("nudge", () => nudgePoll(pollId), t.manage.nudged, { sent: true })}><Bell />{t.manage.nudge}</button>}
       {status === "open" && (anonymous
         ? <button type="button" className="button" disabled={busy} onClick={() => setConfirming(true)}>{t.manage.close}</button>
-        : <button type="button" className="button" disabled={busy} onClick={() => run(() => closeNow(pollId), t.manage.closed, () => reopen(pollId))}>{t.manage.close}</button>)}
-      {status === "closed" && canReopen && <button type="button" className="button small" disabled={busy} onClick={() => run(() => reopen(pollId), t.manage.reopened, () => closeNow(pollId))}>{t.manage.reopen}</button>}
+        : <button type="button" className="button" disabled={busy} onClick={() => run("close", () => closeNow(pollId), t.manage.closed, { undo: () => reopen(pollId) })}>{t.manage.close}</button>)}
+      {status === "closed" && canReopen && <button type="button" className="button small" disabled={busy} onClick={() => run("close", () => reopen(pollId), t.manage.reopened, { undo: () => closeNow(pollId) })}>{t.manage.reopen}</button>}
       {canEdit && <a className="button small" href={`/chest/polls/${pollId}/edit`}><Pencil />{t.manage.edit}</a>}
       {series && (series.stopped
-        ? <button type="button" className="button small" disabled={busy} onClick={() => run(() => repeatPoll(pollId, true), t.manage.resumed, () => repeatPoll(pollId, false))}><Repeat />{t.manage.resume}</button>
-        : <button type="button" className="button small" disabled={busy} onClick={() => run(() => repeatPoll(pollId, false), t.manage.stopped, () => repeatPoll(pollId, true))}><Repeat />{t.manage.stop}</button>)}
+        ? <button type="button" className="button small" disabled={busy} onClick={() => run("repeat", () => repeatPoll(pollId, true), t.manage.resumed, { undo: () => repeatPoll(pollId, false) })}><Repeat />{t.manage.resume}</button>
+        : <button type="button" className="button small" disabled={busy} onClick={() => run("repeat", () => repeatPoll(pollId, false), t.manage.stopped, { undo: () => repeatPoll(pollId, true) })}><Repeat />{t.manage.stop}</button>)}
       {canExport && <a className="button small" href={`/chest/polls/${pollId}/export`} download><Download />{t.manage.export}</a>}
-      <button type="button" className="button link danger" disabled={busy} onClick={() => run(() => remove(pollId), t.manage.deleted, async () => { const r = await restore(pollId); if (r.ok) router.push(`/chest/polls/${pollId}`); return r; }, () => router.push("/chest"))}><Trash />{t.manage.delete}</button>
+      <button type="button" className="button link danger" disabled={busy} onClick={() => run("delete", () => remove(pollId), t.manage.deleted, { undo: async () => { const r = await restore(pollId); if (r.ok) router.push(`/chest/polls/${pollId}`); return r; }, after: () => router.push("/chest") })}><Trash />{t.manage.delete}</button>
+      {/* An anonymous poll closed cannot be reopened (lib/polls.ts): it asks first. */}
+      <Confirm open={confirming} title={t.manage.closeForGoodTitle} body={t.manage.closeForGoodHint} confirmLabel={t.manage.closeForGood} cancelLabel={t.manage.keepOpen} tone="accent" busy={busy} onConfirm={closeForGood} onCancel={() => setConfirming(false)} />
     </div>
   );
 }
@@ -92,8 +99,9 @@ export function FinalPicker({ pollId, options, chosen, t, tally }: { pollId: str
     setBusy(true);
     const result = await pickFinal(pollId, value);
     setBusy(false);
-    if (!result.ok) return toast(format(t.errors[result.error], result.values ?? {}));
-    toast(t.final.told);
+    if (!result.ok) return toast({ text: format(t.errors[result.error], result.values ?? {}), tone: "error" });
+    // The bell items left at once: "sent", never an Undo.
+    toast({ id: `told-${pollId}`, text: t.final.told, sent: true });
     setOpen(false);
     router.refresh();
   }

@@ -131,7 +131,7 @@ test("the organiser reminds those who have not answered — bell and email, at m
     const mails = chest.outbox.filter(m => m.subject.includes("Lunch?"));
     assert.equal(mails.length, 2);
     assert.ok(mails.every(m => m.to.length === 1), "one message each: nobody sees who else is reminded");
-    assert.ok(mails.some(m => m.subject === "Rappel : Lunch?"), "Léa's in French");
+    assert.ok(mails.some(m => m.subject === "Rappel\u202f: Lunch?"), "Léa's in French");
     assert.ok(mails.some(m => m.subject === "Reminder: Lunch?" && m.text.includes(`/chest/polls/${made.id}`) && m.text.includes("Sofia Rossi")));
     const bell = chest.notifications.filter(n => n.key === tell.askKey(made.id) && n.member === tom.id).at(-1)!;
     assert.equal(bell.title, "Reminder: Lunch?");

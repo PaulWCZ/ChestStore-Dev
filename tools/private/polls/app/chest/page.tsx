@@ -1,5 +1,6 @@
+import { EmptyState, PageHeader, StatusBadge } from "@argentic/chest-ui/components";
 import { AutoRefresh } from "../../components/auto-refresh.tsx";
-import { Check, Clock, KindIcon, Mask, People, Pulse, Repeat } from "../../components/icons.tsx";
+import { Check, Clock, KindIcon, Mask, People, Plus, Pulse, Repeat } from "../../components/icons.tsx";
 import { can, settles } from "../../lib/access.ts";
 import { everyone, inAudience } from "../../lib/audience.ts";
 import { dates, optionText } from "../../lib/dates.ts";
@@ -31,6 +32,8 @@ export default async function Home() {
   const team = mineOpen.length > 0 ? (await everyone()).people : [];
   const total = (c: Card) => team.filter(p => inAudience(p, c)).length;
   const rules = await policy(sql);
+  // Whoever may start a poll: "New poll" at the top of the page (the
+  // store's rule: the page's main action at the right of its title).
   const organiser = can(member, "create", rules);
   const nothing = data.toAnswer.length + data.mine.length + data.answered.length + data.closed.length === 0;
 
@@ -43,9 +46,9 @@ export default async function Home() {
       <article key={c.id} className={"poll-card" + (variant === "ask" ? " ask" : "")}>
         <div className="top">
           <span className={"chip " + c.kind}><KindIcon kind={c.kind} />{t.kinds[c.kind].chip}</span>
-          {c.status === "draft" && <span className="chip draft">{t.home.draft}</span>}
-          {c.anonymous && <span className="chip quiet"><Mask />{t.home.anonymous}</span>}
-          {c.repeat && <span className="chip quiet"><Repeat />{c.round ? format(t.home.round, { round: c.round }) : t.repeat[c.repeat]}</span>}
+          {c.status === "draft" && <StatusBadge tone="neutral" size="s" label={t.home.draft} />}
+          {c.anonymous && <StatusBadge tone="neutral" size="s" icon={<Mask />} label={t.home.anonymous} />}
+          {c.repeat && <StatusBadge tone="neutral" size="s" icon={<Repeat />} label={c.round ? format(t.home.round, { round: c.round }) : t.repeat[c.repeat]} />}
         </div>
         <h3><a href={href}>{c.title}</a></h3>
         <div className="meta">
@@ -69,14 +72,11 @@ export default async function Home() {
     <>
       <AutoRefresh seconds={30} />
       <div className="hello confetti-band">
-        <h1>{t.home.title}</h1>
+        <PageHeader title={t.home.title} action={organiser ? <a className="button primary" href="/chest/new"><Plus />{t.shell.newPoll}</a> : undefined} />
       </div>
 
       {nothing && !organiser ? (
-        <div className="empty">
-          <h2>{t.home.emptyTitle}</h2>
-          <p>{t.home.emptyBody}</p>
-        </div>
+        <EmptyState title={t.home.emptyTitle} body={t.home.emptyBody} />
       ) : (
         <section className="section" aria-labelledby="to-answer">
           <div className="section-head">

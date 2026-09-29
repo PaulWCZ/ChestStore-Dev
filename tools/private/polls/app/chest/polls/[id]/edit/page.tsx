@@ -67,7 +67,7 @@ export default async function EditPoll({ params }: { params: Promise<{ id: strin
         weekdayNames={d.weekdayNames()}
         locale={locale}
         round={poll.seriesId !== null}
-        t={{ composer: t.composer, kinds: t.kinds, errors: t.errors, repeat: t.repeat }}
+        t={{ composer: t.composer, kinds: t.kinds, errors: t.errors, repeat: t.repeat, date: t.date, peoplePicker: t.peoplePicker }}
       />
     </div>
   );

@@ -1,40 +1,32 @@
+import { AppShell, BrandMark, NoAccess, Toasts } from "@argentic/chest-ui/components";
 import type { ReactNode } from "react";
-import { Avatar } from "../../components/avatar.tsx";
-import { Plus } from "../../components/icons.tsx";
 import { Mark } from "../../components/mark.tsx";
-import { Toasts } from "../../components/toast.tsx";
-import { can, roleOf } from "../../lib/access.ts";
-import { db } from "../../lib/db.ts";
-import { policy } from "../../lib/polls.ts";
+import { roleOf } from "../../lib/access.ts";
 import { viewer } from "../../lib/session.ts";
+import { currentLook } from "../../lib/theme.ts";
 
-// The members' part. proxy.ts already refused a request without the Chest's
-// assertion; a member whose role gives nothing sees why, not an error.
+// The members' part, in the kit's shell (skip link, header, member chip)
+// and its toasts. Polls has one place — the home page lists every poll —
+// so the header holds no sections; each page's main action sits at the top
+// of the page ("New poll" on the home page). proxy.ts already refused a
+// request without the Chest's assertion; a member whose role gives nothing
+// sees why, not an error. In brand mode the company's logo stands where
+// the Polls mark is.
 export default async function MembersLayout({ children }: { children: ReactNode }) {
-  const v = await viewer();
+  const [v, look] = await Promise.all([viewer(), currentLook()]);
   if (!v) return null;
   const { member, t } = v;
   const role = roleOf(member);
-  const mayCreate = can(member, "create", await policy(db()));
   return (
-    <Toasts>
-      <a className="skip" href="#main">{t.shell.skip}</a>
-      <header className="topbar">
-        <a className="brand" href="/chest"><Mark /><span>{t.meta.name}</span></a>
-        <span className="me">
-          {mayCreate && <a className="button primary small" href="/chest/new"><Plus /><span>{t.shell.newPoll}</span></a>}
-          <span className="who">{member.firstName || member.name}{role ? " · " + t.roles[role] : ""}</span>
-          <Avatar name={member.name} photo={member.photo} />
-        </span>
-      </header>
-      <main id="main" className="page">
-        {role ? children : (
-          <div className="empty">
-            <h1>{t.noAccess.title}</h1>
-            <p>{t.noAccess.body}</p>
-          </div>
-        )}
-      </main>
+    <Toasts labels={t.toast}>
+      <AppShell
+        brand={<a href="/chest"><BrandMark logo={look.logo}><Mark /></BrandMark><span>{t.meta.name}</span></a>}
+        member={{ name: member.name, role: role ? t.roles[role] : null, photo: member.photo }}
+        labels={{ skip: t.shell.skip, nav: t.shell.nav }}
+        width="normal"
+      >
+        {role ? children : <NoAccess labels={{ noAccessTitle: t.noAccess.title, noAccessBody: t.noAccess.body }} />}
+      </AppShell>
     </Toasts>
   );
 }

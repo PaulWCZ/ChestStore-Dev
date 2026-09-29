@@ -1,7 +1,7 @@
 "use client";
 
+import { useToast } from "@argentic/chest-ui/components";
 import { useState } from "react";
-import { useToast } from "../../components/toast.tsx";
 import { format } from "../../lib/i18n/format.ts";
 import type { en } from "../../lib/i18n/en.ts";
 import { setMembersCreate } from "./actions.ts";
@@ -21,9 +21,9 @@ export function PolicySwitch({ on, t }: { on: boolean; t: Words }) {
     setBusy(false);
     if (!result.ok) {
       setValue(!next);
-      return toast(format(t.errors[result.error], result.values ?? {}));
+      return toast({ text: format(t.errors[result.error], result.values ?? {}), tone: "error" });
     }
-    toast(t.settings.saved);
+    toast({ id: "policy", text: t.settings.saved });
   }
   return (
     <label className="switch">

@@ -24,6 +24,8 @@ must not break.
 | `lib/time.ts`, `lib/zone.ts`, `lib/dates.ts` | Days and times on the Chest's clock, in the reader's words |
 | `lib/composer-value.ts` | The composer's data shape (browser-safe) |
 | `lib/lifecycle.ts` | Leaving and erasure |
+| `lib/theme.ts` | The identity "Confetti" as a kit theme (`defineTheme`, equal to the catalogue's) and `currentLook()` (the Chest's choice, else the identity) |
+| `app/tokens.css`, `app/globals.css` | Polls' own tokens, defined from the contract's; its components. Contract tokens only, never a colour (`test/theme.test.ts`) |
 | `lib/i18n/` | Every word: `en.ts` (source), `fr.ts`; `format.ts` for the browser |
 | `app/chest/actions.ts` | Server actions: thin; each re-reads the member; answer `Result` codes |
 | `app/chest/page.tsx` | Home (server); `policy-switch.tsx` the admin's setting |
@@ -40,6 +42,26 @@ npm ci && npm test && npm run build   # all three must pass
 ```
 
 ## Rules
+
+- **The look is the Chest's choice.** `app/layout.tsx` writes it
+  (`<ThemeStyle>` with the page's nonce); CSS names only contract tokens
+  (`ui/tokens/CONTRACT.md` in the studio) and `app/tokens.css`'s. Text only
+  on measured pairs (`--accent-ink` on `--accent`, `--cat-N-ink` on
+  `--cat-N-soft`, a state's `-ink` on its `-soft`, `--ink` on
+  `--highlight`); field borders `--line-strong`; `color-mix(in oklab, …)`
+  for decoration only. A kind or an answer always has its icon and word.
+- **Kit components first** (`@argentic/chest-ui/components`): `AppShell`,
+  `BrandMark`, `NoAccess`, `Toasts`/`useToast`, `Confirm`, `PeoplePicker`,
+  `DateField`, `TimeSelect`, `Avatar`, `StatusBadge`, `EmptyState`,
+  `PageHeader`, `LanguageSwitch`, `useAutoRefresh`. Their words are the
+  `toast`, `peoplePicker` and `date` sections of the catalogues. A reversible
+  act → a toast with `undo`; a bell item that left → `sent: true`; the
+  irreversible (closing an anonymous poll) → `Confirm`. Never
+  `window.confirm`, never `<input type="date">`.
+- Kept on purpose: the multi-day month grid of the composer (the kit's
+  calendar picks one day), the date grid of results (a people × dates
+  matrix with its best column lit — `DataTable` is a list of records), the
+  kind chips with their icons, the chunky answer controls.
 
 - **Identity only from `member()`** (`lib/session.ts`); answers bind to it.
   Never accept a member id from a form (see Rallly's vote IDOR).

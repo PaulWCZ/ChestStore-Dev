@@ -29,7 +29,7 @@ await step("an organiser asks a question from the home page; the team hears of i
   expect(await page.getByRole("heading", { name: "Coffee or tea at the offsite?" }).isVisible(), "the poll page");
   const text = await dev();
   expect(text.includes("Sofia Rossi asks: Coffee or tea at the offsite?"), "English bell for Hugo");
-  expect(text.includes("Sofia Rossi demande : Coffee or tea at the offsite?"), "French bell for Inès");
+  expect(/Sofia Rossi demande[ \u00a0\u202f]: Coffee or tea at the offsite\?/u.test(text), "French bell for Inès");
 });
 const coffeeUrl = page.url();
 
@@ -71,9 +71,9 @@ await step("the organiser sees who answered, downloads the answers, closes and u
   const csv = await (await page.request.get(coffeeUrl + "/export")).text();
   expect(csv.includes("Hugo Bernard,Tea") && csv.includes("Other: Un jus d’orange"), "the CSV");
   await page.getByRole("button", { name: "Close now" }).click();
-  await page.waitForSelector(".toast:has-text('Poll closed.')");
-  await page.locator(".toast").getByRole("button", { name: "Undo" }).click();
-  await page.waitForTimeout(1200);
+  await page.waitForSelector(".ck-toast:has-text('Poll closed.')");
+  await page.locator(".ck-toast-undo").click();
+  await page.waitForSelector(".ck-toast:has-text('Undone.')");
   await page.reload();
   expect(await page.getByRole("button", { name: "Close now" }).isVisible(), "reopened by undo");
 });
@@ -85,9 +85,20 @@ await step("find a date: tap days, add a time, send", async () => {
   await page.locator(".cal-day", { hasText: /^12$/u }).click();
   await page.locator(".cal-day", { hasText: /^13$/u }).click();
   await page.locator(".chosen-day").first().getByRole("button", { name: "Add a time" }).click();
+  // The start moves: the end follows, the slot keeps its two hours (12:00–14:00 → 18:00–20:00).
+  await page.getByLabel("From", { exact: true }).first().selectOption({ label: "18:00" });
+  expect(await page.getByLabel("To", { exact: true }).first().evaluate(e => e.selectedOptions[0].textContent) === "20:00", "the end follows the start");
+  await page.getByLabel("From", { exact: true }).first().selectOption({ label: "12:00" });
+  // It closes on a date typed in words of the page's language (the kit's DateField, no browser date field).
+  expect(!(await page.locator("input[type=date]").count()), "no browser date field");
+  await page.getByText("On a date").click();
+  const soon = new Date(Date.now() + 40 * 86400000);
+  await page.locator("#closes-day").fill(`${soon.getUTCDate()}/${soon.getUTCMonth() + 1}/${soon.getUTCFullYear()}`);
+  await page.locator("#closes-day").press("Tab");
   await page.getByRole("button", { name: "Send to the team" }).click();
   await page.waitForURL(/\/chest\/polls\/\d+$/u);
   expect((await page.locator(".date-row").count()) === 2, "two dates to answer");
+  expect((await page.locator(".poll-head").innerText()).includes("Closes "), "the closing date said");
 });
 const dinnerUrl = page.url();
 
@@ -103,7 +114,7 @@ await step("a member says yes and if need be; the organiser closes, picks the da
   expect(await page.locator(".grid-table").isVisible(), "the grid of people and dates");
   expect((await page.locator(".best-line").innerText()).includes("Best date"), "the best date in words");
   await page.getByRole("button", { name: "Close now" }).click();
-  await page.waitForSelector(".toast:has-text('Poll closed.')");
+  await page.waitForSelector(".ck-toast:has-text('Poll closed.')");
   await page.reload();
   await page.getByRole("button", { name: "Tell everyone" }).click();
   await page.waitForSelector(".final-card");
@@ -112,7 +123,7 @@ await step("a member says yes and if need be; the organiser closes, picks the da
   expect((await page.locator(".final-card").innerText()).includes("12:00"), "the date shows");
   const ics = await (await page.request.get(dinnerUrl + "/calendar")).text();
   expect(ics.startsWith("BEGIN:VCALENDAR\r\n") && ics.includes("SUMMARY:Team dinner"), "the .ics");
-  expect((await dev()).includes("Date choisie : Team dinner"), "the date told in French");
+  expect(/Date choisie[ \u00a0\u202f]: Team dinner/u.test(await dev()), "the date told in French");
 });
 
 await step("an anonymous survey: results wait for the close, an answer is final", async () => {
@@ -139,7 +150,7 @@ await step("deleting a poll can be undone", async () => {
   await page.goto(coffeeUrl);
   await page.getByRole("button", { name: "Delete" }).click();
   await page.waitForURL(origin + "/chest");
-  await page.locator(".toast").getByRole("button", { name: "Undo" }).click();
+  await page.locator(".ck-toast-undo").click();
   await page.waitForURL(coffeeUrl);
   expect(await page.getByRole("heading", { name: "Coffee or tea at the offsite?" }).isVisible(), "restored");
 });
@@ -163,18 +174,18 @@ await step("a plain member asks the team too, to people picked by name; an admin
   await page.getByLabel("Answer 2").fill("Sushi");
   await page.getByText("Chosen groups or people").click();
   await page.getByPlaceholder("Add someone by name").fill("Lé");
-  await page.locator(".found").getByRole("button", { name: /Léa Dubois/u }).click();
-  expect(await page.locator(".picked", { hasText: "Léa Dubois" }).isVisible(), "Léa picked");
+  await page.getByRole("option", { name: /Léa Dubois/u }).click();
+  expect(await page.locator(".ck-chip", { hasText: "Léa Dubois" }).isVisible(), "Léa picked");
   await page.getByRole("button", { name: "Send to the team" }).click();
   await page.waitForURL(/\/chest\/polls\/\d+$/u);
   const pizzaUrl = page.url();
-  expect((await dev()).includes("Hugo Bernard demande : Pizza or sushi tonight?"), "Léa told");
+  expect(/Hugo Bernard demande[ \u00a0\u202f]: Pizza or sushi tonight\?/u.test(await dev()), "Léa told");
   await who("tom", "en");
   expect((await page.request.get(pizzaUrl)).status() === 404, "not put to Tom: not even seen");
   await who("camille", "en");
   await page.goto(origin + "/chest");
   await page.getByText("Everyone can start a poll").click();
-  await page.waitForSelector(".toast:has-text('Saved.')");
+  await page.waitForSelector(".ck-toast:has-text('Saved.')");
   await who("hugo", "en");
   await page.goto(origin + "/chest");
   expect(!(await page.getByRole("link", { name: "New poll" }).count()), "restricted: no New poll for a member");
@@ -182,7 +193,7 @@ await step("a plain member asks the team too, to people picked by name; an admin
   await who("camille", "en");
   await page.goto(origin + "/chest");
   await page.getByText("Everyone can start a poll").click();
-  await page.waitForSelector(".toast:has-text('Saved.')");
+  await page.waitForSelector(".ck-toast:has-text('Saved.')");
 });
 
 await step("on a phone, the date grid scrolls inside its frame: the page stays 390 px", async () => {
@@ -226,8 +237,13 @@ await step("an anonymous survey shows nothing while open — not to its organise
   await who("sofia", "en");
   await page.goto(url);
   await page.getByRole("button", { name: "Close now" }).click();
-  await page.getByRole("button", { name: "Close for good" }).click();
-  await page.waitForSelector(".toast:has-text('Poll closed.')");
+  // Irreversible: the kit's Confirm asks first, and Cancel keeps it open.
+  await page.getByRole("alertdialog").getByRole("button", { name: "Keep it open" }).click();
+  expect(await page.getByRole("button", { name: "Close now" }).isVisible(), "still open after Keep it open");
+  await page.getByRole("button", { name: "Close now" }).click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "Close for good" }).click();
+  await page.waitForSelector(".ck-toast:has-text('Poll closed.')");
+  expect(!(await page.locator(".ck-toast-undo").count()), "no Undo for an anonymous poll closed for good");
   await page.reload();
   expect((await page.locator(".results-card").innerText()).includes("/ 5"), "results once closed");
   expect(!(await page.getByRole("button", { name: "Reopen" }).count()), "never reopened");
@@ -241,8 +257,8 @@ await step("comments on a date poll; the organiser hears of them", async () => {
   await page.waitForSelector(".comments li:has-text('only after 8 pm')");
   expect((await dev()).includes("Hugo Bernard commented: Team dinner"), "Sofia's bell");
   await page.getByRole("button", { name: "Delete this comment" }).click();
-  await page.locator(".toast").getByRole("button", { name: "Undo" }).click();
-  await page.waitForTimeout(800);
+  await page.locator(".ck-toast-undo").click();
+  await page.waitForSelector(".ck-toast:has-text('Undone.')");
   await page.reload();
   expect(await page.locator(".comments li:has-text('only after 8 pm')").isVisible(), "undone");
 });
@@ -262,12 +278,13 @@ await step("the organiser reminds those who have not answered, once per 12 hours
   await who("sofia", "en");
   await page.goto(origin + "/chest/polls/4");
   await page.getByRole("button", { name: "Remind those who haven’t answered" }).click();
-  await page.waitForSelector(".toast:has-text('Reminder sent')");
+  await page.waitForSelector(".ck-toast:has-text('Reminder sent')");
+  expect(!(await page.locator(".ck-toast-undo").count()), "a reminder that left offers no Undo");
   const told = await dev();
   expect(told.includes("Reminder: Which plants for the office?"), "the reminder in the bell");
   expect(told.includes("→ tom@example.test"), "and by email to Tom, who has not answered");
   await page.getByRole("button", { name: "Remind those who haven’t answered" }).click();
-  await page.waitForSelector(".toast:has-text('less than 12 hours')");
+  await page.waitForSelector(".ck-toast:has-text('less than 12 hours')");
 });
 
 await step("the team pulse: one tile, sent as it is, every week; the rounds before show over time", async () => {

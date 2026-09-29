@@ -11,7 +11,9 @@
 
 Dependencies installed from npm under their own licences: `next`, `react`,
 `react-dom` (MIT), `postgres` (Unlicense), `@argentic/chest-sdk` (MIT, the
-studio's working copy in `vendor/`). Icons are drawn for this tool
+studio's working copy in `vendor/`), `@argentic/chest-ui` (MIT, the
+studio's UI kit: themes, the shell, toasts, dialogs, people picker, date
+and time fields — packed in `vendor/`). Icons are drawn for this tool
 (`components/icons.tsx`). The time helpers (`lib/time.ts`, `lib/zone.ts`),
 CSV writer (`lib/csv.ts`) and i18n helpers come from the studio's own tools
 (MIT, same authors).

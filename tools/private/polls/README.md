@@ -125,6 +125,27 @@ What anonymity here does **not** protect against, honestly:
 - Anonymous polls **must not be used to evaluate individuals** (in France,
   Code du travail L.1222-3 would require prior information on the method).
 
+## Looks
+
+Polls wears the look the company chooses in its Chest, with the same
+features: its own identity, **Confetti** (coral, deep navy and mint on warm
+paper, chunky rounded shapes — `lib/theme.ts`), any theme of the store's
+catalogue (the 17 tools' identities, "Chest", "High contrast"), or the
+company's own brand (its colours, fonts, corners and logo — the logo then
+stands where the Polls mark is). The choice may be for all tools or for
+Polls alone; the page reads it on the server (`chest.theme()`), no script.
+Every look keeps every text readable (WCAG AA): the kinds of poll and the
+charts use the theme's categorical palette, "yes" and "if need be" its ok
+and wait states — each always with its icon and its word. The screens of
+`docs/screens/` show Workshop, Library, Chest and a sample brand beside the
+tool's own look.
+
+Its shared pieces come from the store's UI kit (`@argentic/chest-ui`,
+`vendor/`): the app shell, toasts with an Undo that tells the truth, the
+Confirm before closing an anonymous poll for good, the people picker, the
+date field and time lists of the composer, avatars, badges and empty
+states.
+
 ## Roles
 
 | Role | Can |
@@ -269,5 +290,6 @@ In the studio: `node lab/chest-dev/dev.mjs tools/private/polls --prod --reset
   importing for short-lived polls.)
 - **An export of every poll at once** for an admin: one CSV per poll.
 - Participants adding options; ranking questions; a date picker showing
-  more than one month; calendar conflict hints on dates; time zones other
+  more than one month (the days to propose are Polls' own month grid: the
+  kit's calendar picks one day, not several); calendar conflict hints on dates; time zones other
   than the Chest's for date options; push reminders.
