@@ -155,6 +155,11 @@ export function TicketView({ ticket, tagNames, messages, others, viewing, team, 
   }
 
   const statusChip = <StateBadge status={ticket.status} label={w.statuses[ticket.status]} />;
+  // An answer not emailed: on the customer's follow-up page, or — a
+  // colleague's request — kept in Support (they hear of it in the bell).
+  const onPage = ticket.requester
+    ? <><Check /><span title={w.colleagueHint}>{w.viaColleague}</span></>
+    : <><Globe /><span title={w.viaPageHint}>{w.viaPage}</span></>;
   return (
     <div className="ticket">
       <div>
@@ -192,7 +197,7 @@ export function TicketView({ ticket, tagNames, messages, others, viewing, team, 
                 {m.dropped.length > 0 && <ul className="dropped small muted">{m.dropped.map(d => <li key={d}>{d}</li>)}</ul>}
                 {m.original && <p className="delivery"><a href={`/chest/messages/${m.id}/original`}><Download />{w.original}</a></p>}
                 {m.kind === "reply" && m.bounce && <p className="delivery bounced"><Alert />{m.bounce}</p>}
-                {m.kind === "reply" && !m.bounce && m.delivery && <p className="delivery">{m.delivery === "email" ? <><Mail />{w.viaEmail}</> : ticket.requester ? <><Check /><span title={w.colleagueHint}>{w.viaColleague}</span></> : <><Globe /><span title={w.viaPageHint}>{w.viaPage}</span></>}</p>}
+                {m.kind === "reply" && !m.bounce && m.delivery && <p className="delivery">{m.delivery === "email" ? <><Mail />{w.viaEmail}</> : onPage}</p>}
               </div>
             </li>
           ))}

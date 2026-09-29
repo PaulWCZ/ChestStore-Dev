@@ -5,7 +5,7 @@ import { Inbox, Plus } from "../../components/icons.tsx";
 import { FilterToggle } from "../../components/filter-toggle.tsx";
 import { InboxFilters } from "../../components/inbox-filters.tsx";
 import { can } from "../../lib/access.ts";
-import { answerers } from "../../lib/tell.ts";
+import { answerers, colleagueName } from "../../lib/tell.ts";
 import { db } from "../../lib/db.ts";
 import { workMinutes } from "../../lib/hours.ts";
 import { format, plural, relative } from "../../lib/i18n/index.ts";
@@ -43,7 +43,7 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
   const canManage = can(member, "tickets.manage");
   const canCreate = can(member, "tickets.answer");
   const team = canManage ? await answerers() : [];
-  const who = await people([...rows.map(r => r.assignee).filter((a): a is string => !!a), ...team]);
+  const who = await people([...rows.flatMap(r => [r.assignee, r.requester]).filter((a): a is string => !!a && a.startsWith("mbr_")), ...team]);
   const total = counts.all + counts.spam;
   const address = total === 0 ? await supportAddress() : null;
   // The order shown by default is no choice of the view's.
@@ -88,7 +88,7 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
             const wt = waitedFor(minutes);
             return {
               number: r.number, subject: r.subject, status: r.status, priority: r.priority, tags: r.tags,
-              customer: r.customerName || r.customerEmail, last: r.last, lastKind: r.lastKind,
+              customer: r.requester ? (r.requester === "erased" ? t.people.erased : colleagueName(who.get(r.requester), t, locale)) : r.customerName || r.customerEmail, last: r.last, lastKind: r.lastKind,
               assignee: r.assignee ? nameOf(who.get(r.assignee), locale).split(" ")[0]! : null,
               when: r.waitingSince ? null : relative(r.updatedAt, locale, now), updatedAt: r.updatedAt,
               waiting: r.waitingSince ? { text: plural(t.waiting[wt.unit], wt.count, locale), late: lateAfter(minutes, s.lateHours), lateText: format(t.waiting.late, { hours: s.lateHours }) } : null,

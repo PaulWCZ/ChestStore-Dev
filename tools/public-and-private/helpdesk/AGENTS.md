@@ -11,6 +11,7 @@ what must not break.
 | `lib/access.ts` | Who may do what |
 | `lib/model.ts` | Bounds, statuses, folders, priorities, sorts, file types and limits, "waiting since" and the threshold, email check, `[#number]` in subjects — pure |
 | `lib/tickets.ts` | The service: public form, follow-up link (and its files, following merges), email filing (`fromEmail`: thread, headers, then same vouched-for sender), bounces, inbox (filters, sorts), answers, notes, assignment, priority, tags, merge/unmerge, bulk/unbulk, customer's address, rating, saved replies, settings (per-language sentence, hours, frame origins, help URL), erasure (and its log), cleanup, `exportAll` |
+| `lib/forms-in.ts` | What `forms.request` from Forms does (`/chest-events`, `tools`): `readRequest` reads the untrusted event (bounds, address, member id, path), `received` opens the ticket (`tickets.fromForms`) then confirms and tells as the public form does; `formsLink`, the link back |
 | `lib/mail-in.ts` | What `/chest-mail` does: file an email, confirm a new one (never to robots, three an hour per address), tell the team; mark a bounce and tell its author |
 | `lib/hours.ts` | Working hours (pure): the week, days off, `workMinutes`, time zones with Intl, France's public holidays, local timestamps |
 | `lib/text.ts` | Pure text: an email's quoted history (`splitQuoted`), links (`linkify`), `baseSubject`, robots' addresses |
@@ -57,6 +58,16 @@ npm ci && npm test && npm run build   # all three must pass
   (tabs or one choice), report tables `phone="stack"`.
 - Public pages wear `publicLook()` (brand, else the identity; kit 0.2.3).
 
+## Added: requests from Forms
+
+- `migrations/0005_forms_requests.sql`: `tickets.requester` (a colleague's
+  member id, `'erased'`; the ticket then has `customer_email = ''`),
+  channel `forms`, `source` (form and answer, the path back) and
+  `source_event` — both unique: one ticket per event and per answer.
+- `test/forms-in.test.ts`: public vs team form, replays, rules, untrusted
+  input, the link back. Flow step in `lab/chest-dev/flows/helpdesk.mjs`
+  (`/_dev/deliver`).
+
 ## Rules
 
 - **The public part never shows a note, another customer's request, or a
@@ -64,6 +75,14 @@ npm ci && npm test && npm run build   # all three must pass
   agents' first names. Public actions hold no member: keep them so.
 - **The follow-up secret is shown once** (the redirect after the form, the
   confirmation email) and only its SHA-256 is stored. Never log it.
+- **A colleague's request stores their member id only** — never the name
+  or address an event carries; no email to them; never merged with
+  another person's request; *Change* (the address) is refused on it.
+  `lib/lifecycle.ts` marks it `'erased'` on erasure.
+- **An event from another tool is untrusted**: bound and clean it in
+  `readRequest`; a handler that cannot use it returns (204), it never
+  throws (the Chest would deliver it again for 72 hours); never log its
+  content.
 - **Customers are data subjects**: anything new you store about them must
   be deleted by `eraseCustomer` and by `cleanup`.
 - **A visitor's file is theirs only**: public uploads come back as claims,

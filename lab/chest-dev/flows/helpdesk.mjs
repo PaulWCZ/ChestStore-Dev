@@ -1,6 +1,6 @@
 // Support, as customers and the team use it, in a real browser:
 //   node lab/chest-dev/flows/helpdesk.mjs [port]   (harness with --reset)
-import { as, done, expect, open, step } from "./lib.mjs";
+import { as, done, expect, id, open, step } from "./lib.mjs";
 
 const port = Number(process.argv[2] ?? 4000);
 const { browser, context, page, origin, problems } = await open(port, "hugo", { allow404: /\/chest\/tickets\/9999$/u });
@@ -202,6 +202,38 @@ await step("search by customer email and by number", async () => {
   expect((await page.locator(".tickets").innerText()).includes("Missing screws"), "by email");
   await page.goto(origin + "/chest?q=1003");
   expect((await page.locator(".tickets").innerText()).includes("table"), "by number");
+});
+
+await step("Forms sends a request (forms.request): a ticket from the form, once; a colleague's request names them", async () => {
+  const request = (answer, requester, subject) => ({
+    v: 1, form: { id: "5", title: "Contact us" },
+    answer: { id: answer, at: new Date().toISOString(), language: "en", path: `/chest/forms/5/answers/${answer}` },
+    subject, details: "Six oak chairs, delivered in October.", requester,
+    fields: [{ question: "q1dxyz", label: "Your phone number", value: "+33 6 12 34 56 78" }],
+  });
+  const deliver = data => page.request.post(origin + "/_dev/deliver", { form: { type: "forms.request", data: JSON.stringify(data) } });
+  const nina = request("flowNinaAnswer01", { name: "Nina Roux", email: "nina.roux@example.com", member: null }, "Quote for oak chairs");
+  await deliver(nina);
+  // Forms (or the Chest) delivers the same answer again: nothing more.
+  await deliver(nina);
+  await page.goto(origin + "/chest?q=nina.roux@example.com");
+  const list = await page.locator(".tickets").innerText();
+  expect(list.includes("Quote for oak chairs") && list.includes("Nina Roux"), "the ticket, from the customer");
+  expect((await page.locator(".tickets li").count()) === 1, "one ticket for one answer");
+  await page.locator(".tickets a", { hasText: "Quote for oak chairs" }).first().click();
+  await page.waitForURL(/\/chest\/tickets\/[0-9]+$/u);
+  const text = await page.locator("main, #main").first().innerText();
+  expect(text.includes("From the form “Contact us”"), "the source, in the reader's language");
+  expect(text.includes("Your phone number: +33 6 12 34 56 78"), "the other answers in the message");
+  const dev = await (await page.request.get(origin + "/_dev")).text();
+  expect(dev.includes("We received your request: Quote for oak chairs"), "confirmed by email with the follow-up link");
+  await deliver(request("flowInesAnswer01", { name: null, email: null, member: id("ines") }, "New laptop charger"));
+  await page.goto(origin + "/chest?q=laptop");
+  await page.locator(".tickets a", { hasText: "New laptop charger" }).first().click();
+  await page.waitForURL(/\/chest\/tickets\/[0-9]+$/u);
+  const colleague = await page.locator("main, #main").first().innerText();
+  expect(colleague.includes("Inès Moreau") && colleague.includes("Asked with a team form"), "the colleague, named by the Chest");
+  expect((await page.getByRole("button", { name: "Change" }).count()) === 0, "no address to correct");
 });
 
 await step("a viewer reads but cannot answer; French for Camille", async () => {

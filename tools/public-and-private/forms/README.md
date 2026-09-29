@@ -154,7 +154,8 @@ address (`chest.teamUrl()` + `path`), for a link back.
 **Clients receives `forms.contact`** (its README, "What Clients receives":
 the contact found by email then phone, or made; one line "Filled in the
 form …" in its history with the message; never twice for one event or one
-answer). **Support's receiver for `forms.request` is not built yet.** This
+answer). **Support receives `forms.request`** (its README, "With the other
+tools": a ticket, once per event and per answer). This
 is the contract receivers build to. Version 1 (`v: 1`); a later version
 adds fields, never changes one.
 

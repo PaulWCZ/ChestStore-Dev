@@ -5,6 +5,7 @@ import type { Sql } from "./db.ts";
 import { stamp } from "./hours.ts";
 import { format, type Catalogue, type Locale } from "./i18n/index.ts";
 import { nameOf, people } from "./people.ts";
+import { colleagueName } from "./tell.ts";
 import { readMerged } from "./model.ts";
 import { exportAll, type ExportTicket } from "./tickets.ts";
 import { zip } from "./zip.ts";
@@ -21,19 +22,21 @@ import { zip } from "./zip.ts";
 export async function exportZip(sql: Sql, actor: Member | null, t: Catalogue, locale: Locale, now = new Date()): Promise<Uint8Array> {
   const all = await exportAll(sql, actor);
   const zone = chest.timeZone();
-  const ids = all.flatMap(x => [x.assignee, ...x.messages.map(m => m.author)]).filter((a): a is string => !!a && a.startsWith("mbr_"));
+  const ids = all.flatMap(x => [x.assignee, x.requester, ...x.messages.map(m => m.author)]).filter((a): a is string => !!a && a.startsWith("mbr_"));
   const who = await people(ids);
   const person = (id: string | null) => (id === null ? "" : id === "erased" ? t.people.erased : nameOf(who.get(id), locale));
   const local = (iso: string | null) => (iso ? stamp(iso, zone) : "");
   const h = t.export.headers;
   const kind = (k: ExportTicket["messages"][number]["kind"]) => t.export.kinds[k];
+  // A colleague's request (a team form of Forms): named as the Chest does.
+  const colleague = (x: ExportTicket) => (x.requester === "erased" ? t.people.erased : x.requester ? colleagueName(who.get(x.requester), t, locale) : "");
   const author = (x: ExportTicket, m: ExportTicket["messages"][number]) =>
-    m.kind === "customer" ? (m.mailFrom && m.mailFrom.toLowerCase() !== x.customerEmail.toLowerCase() ? m.mailFrom : x.customerName ? `${x.customerName} <${x.customerEmail}>` : x.customerEmail)
+    x.requester && m.kind === "customer" ? colleague(x) : m.kind === "customer" ? (m.mailFrom && m.mailFrom.toLowerCase() !== x.customerEmail.toLowerCase() ? m.mailFrom : x.customerName ? `${x.customerName} <${x.customerEmail}>` : x.customerEmail)
       : person(m.author);
   const body = (m: ExportTicket["messages"][number]) => (m.kind === "event" && readMerged(m.body) ? format(t.ticket.mergedEvent, { number: readMerged(m.body)!.number }) : m.body);
   const ticketsCsv = toCsv([
     [h.number, h.subject, h.status, h.priority, h.tags, h.email, h.name, h.assignee, h.channel, h.created, h.updated, h.closed, h.messages, h.rating, h.mergedInto],
-    ...all.map(x => [x.number, x.subject, t.ticket.statuses[x.status], t.priority[x.priority], x.tags.join(", "), x.customerEmail, x.customerName, person(x.assignee), t.ticket.channel[x.channel], local(x.createdAt), local(x.updatedAt), local(x.closedAt), x.messages.filter(m => m.kind !== "event").length, x.rating ? t.export.ratings[x.rating] : "", x.mergedInto ?? ""]),
+    ...all.map(x => [x.number, x.subject, t.ticket.statuses[x.status], t.priority[x.priority], x.tags.join(", "), x.customerEmail, x.requester ? colleague(x) : x.customerName, person(x.assignee), t.ticket.channel[x.channel], local(x.createdAt), local(x.updatedAt), local(x.closedAt), x.messages.filter(m => m.kind !== "event").length, x.rating ? t.export.ratings[x.rating] : "", x.mergedInto ?? ""]),
   ]);
   const messagesCsv = toCsv([
     [h.number, h.subject, h.date, h.kind, h.author, h.body, h.files],
@@ -44,7 +47,8 @@ export async function exportZip(sql: Sql, actor: Member | null, t: Catalogue, lo
     timeZone: zone,
     tickets: all.map(x => ({
       number: x.number, subject: x.subject, status: x.status, priority: x.priority, tags: x.tags, channel: x.channel, language: x.language,
-      customer: { email: x.customerEmail, name: x.customerName }, assignee: x.assignee ? person(x.assignee) : null,
+      customer: x.requester ? { email: null, name: colleague(x), member: x.requester } : { email: x.customerEmail, name: x.customerName },
+      source: x.source ?? undefined, assignee: x.assignee ? person(x.assignee) : null,
       createdAt: x.createdAt, updatedAt: x.updatedAt, closedAt: x.closedAt, mergedInto: x.mergedInto, rating: x.rating, ratedAt: x.ratedAt,
       messages: x.messages.map(m => ({
         kind: m.kind, at: m.at, author: author(x, m), body: body(m), automatic: m.auto || undefined,

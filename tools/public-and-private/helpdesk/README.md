@@ -149,6 +149,46 @@ Intercom): there is no chat bubble.
   plus open ones given to you.
 
 
+## With the other tools
+
+Support **receives `forms.request`** (version 1) from **Forms** — events
+between tools, Proposal (studio), `sdk/README.md`; declared in
+`chest.proposals.json` `"receives"`, and an administrator links the two in
+the Chest. The contract is Forms' (its README, "With the other tools"). An
+answer to a form its author mapped to a ticket opens one here, on the path
+of the public form:
+
+- **Who asked**: a public form's respondent by the address in the event
+  (checked, kept lower case) and their name; a team form's respondent by
+  their member id only (`requester`), never a name or an address, even if
+  the event carries them. The team sees them by name when they have
+  Support, "A colleague" otherwise, "Former member" once erased.
+- **The ticket**: the event's subject (else the form's title), its details,
+  then every other answer, one a line ("Your phone number: …", in the
+  answer's language); channel *Forms*; under the title, **From the form
+  “Contact us”**, linked to the answer in Forms when Support can tell
+  Forms' address (below).
+- **As a request of the public form**: the rules on arrival, the bell for
+  those who answer (or the one a rule gave it to), the tiles; to a
+  customer, the confirmation email with the follow-up link when the Chest
+  can send email (never to a robot's address, three an hour to one address
+  at most). A colleague gets no email — Support keeps no address of
+  theirs —: answers to them stay in Support (*In Support only*), and they
+  hear of each one in the Chest's bell when they have Support.
+- **Once**: the same event delivered again, or another event for the same
+  answer, opens nothing and tells no one (the event's id and the form and
+  answer ids are unique in `tickets`).
+- **Untrusted**: every text is bounded (subject 200, name 120, details
+  8,000, 100 answers of 1,000, a message 20,000) and cleaned (no control or
+  direction characters); the link back is only a `/chest/…` path. An event
+  of another shape, or with nobody to answer, is accepted and ignored — the
+  log says so without a word of its content.
+- **The link back**: the Chest does not give a tool another tool's address
+  yet. Support makes Forms' from its own team address and the Chest's host
+  scheme (`<tool>-chest.<chest>` → `forms-chest.<chest>`); when its address
+  does not follow it (the studio's harness), the form is named without a
+  link.
+
 ## Roles
 
 | Role (`chest.json`) | Label | May |
@@ -184,7 +224,7 @@ Intercom): there is no chat bubble.
 | `/chest/reports` (`?weeks=`) | admins | reports |
 | `/chest/messages/<id>/original` | members with a role | a received email's original `.eml` (a download) |
 | `/chest/files/<id>` (`?thumbnail=1`) | idem | an attachment (a fresh 15-minute link), or a photo's thumbnail |
-| `/chest-events` | the Chest only (signed) | members' lifecycle |
+| `/chest-events` | the Chest only (signed) | members' lifecycle; `forms.request` from Forms (proposal) |
 | `/chest-mail` | the Chest only (signed) — proposal | received email and bounces |
 | `/chest-jobs/cleanup` | the Chest only (signed) — proposal | nightly retention |
 
@@ -208,13 +248,15 @@ browser for it. Outside a Chest that offers looks, Support wears its own.
 - `capabilities`: `database`; `files` (attachments: the form's, the
   team's, received emails');
   `members` (names, and who answers: roles `admin`, `agent`);
-  `notifications`; `receives: ["member.*"]`.
+  `notifications`; `receives: ["member.*"]` (and `forms.request` in
+  `chest.proposals.json`: Proposal (studio)).
 - **Customers are not members**: their email and name are kept to answer
   them, erased on request (Settings), and closed tickets are deleted after
   the retention (24 months by default; 0 keeps them). The CNIL's guidance
   on customer data applies: say it in your privacy notice.
 - **A member leaves**: their tickets go back to *Unassigned*. **Erasure**:
-  their answers stay (customers received them), signed "Former member".
+  their answers stay (customers received them), signed "Former member";
+  what they asked with a team form stays, asked by "Former member".
 - No WebSocket: the inbox and a ticket re-read themselves every 20 s (the kit's `useAutoRefresh`).
 
 ## Needs from the SDK
@@ -255,6 +297,11 @@ browser for it. Outside a Chest that offers looks, Support wears its own.
   on the public host (and keep refusing frames on the team host).
 - **The visitor's address** for the form's counters is read from
   `X-Forwarded-For`, assumed set by the Chest's front.
+
+- **Events between tools** — **Proposal (studio)**: `forms.request` from
+  Forms (above). Without it, Forms' answers stay in Forms. **Another tool's
+  address** is not given by the Chest: the link back to an answer is made
+  after the host scheme; the SDK should give `chest.toolUrl(name)`.
 
 ## Develop
 
