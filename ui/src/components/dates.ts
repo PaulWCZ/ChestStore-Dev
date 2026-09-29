@@ -285,8 +285,8 @@ export function rangeDays(range: DateRange): number | null {
 // — "" is no date; a date it reads within min…max is that date;
 // anything else is refused with the sentence shown under the field (in
 // the words' language): a text it cannot read, a day before `min`, a day
-// after `max`. A refused text never leaves the old date in place: the
-// field keeps the text, says the problem and its value becomes null.
+// after `max`. A refused text never passes for the old date: the
+// field keeps the text, says the problem, and is invalid until corrected.
 export type TypedDate = { readonly ok: true; readonly value: IsoDate | null } | { readonly ok: false; readonly problem: string; readonly reason: "invalid" | "too_early" | "too_late" };
 export function readTypedDate(raw: string, words: DateWords, today: IsoDate, { min = null, max = null }: { min?: IsoDate | null; max?: IsoDate | null } = {}): TypedDate {
   if (raw.trim() === "") return { ok: true, value: null };

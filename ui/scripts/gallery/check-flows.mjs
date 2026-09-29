@@ -211,6 +211,31 @@ await page.keyboard.press("Enter");
 assert.equal(await due.inputValue(), "23/11/2026");
 step("calendar: opens on the day, arrows and Page Down, Enter picks");
 
+// A date before `min` (0.2.4, Timesheets saved "today" in place of
+// refusing): the typed text stays, the field says why and is invalid,
+// onChange is not called, and the form's submit stops on the field (its
+// Save would have sent the previous day, 23 November).
+const savedNote = en.getByText(/^Saved: /u).first();
+const savedBefore = await savedNote.textContent();
+await due.fill("01/01/2020"); await due.press("Tab");
+await en.getByText(/^Choose .+ or later\.$/u).waitFor({ timeout: 2000 });
+assert.equal(await due.inputValue(), "01/01/2020", "the typed text is kept");
+assert.equal(await due.getAttribute("aria-invalid"), "true");
+const errorId = await en.locator(".ck-date .ck-error").first().getAttribute("id");
+assert.ok((await due.getAttribute("aria-describedby")).split(" ").includes(errorId), "the problem is read with the field");
+assert.match(await due.evaluate(e => e.validationMessage), /^Choose .+ or later\.$/u, "the browser knows the field is refused");
+await saveDue.click();
+await page.waitForTimeout(200);
+assert.equal(await savedNote.textContent(), savedBefore, "the submit stopped: the previous day was not saved");
+assert.equal(await due.evaluate(e => document.activeElement === e), true, "the browser points at the field");
+assert.equal(await due.inputValue(), "01/01/2020");
+await due.fill("tomorrow"); await due.press("Tab");
+assert.equal(await due.getAttribute("aria-invalid"), null);
+assert.equal(await due.evaluate(e => e.validity.valid), true);
+await saveDue.click();
+await en.getByText(/^Saved: \w+day \d+ \w+ \d{4}\.$/u).waitFor({ timeout: 2000 });
+step("date: a day before min keeps its text, says why, is invalid, and its form never sends the previous day");
+
 // MonthField: the next month by its button, a month by the list.
 const month = en.getByRole("combobox", { name: "Month" });
 const thisMonth = await month.inputValue();

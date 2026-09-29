@@ -483,6 +483,22 @@ typing replaces it. A tool no longer needs to redraw the field (Leave's
 `key={endField}` can go). Words passed as a new object each render no
 longer reset what is being typed.
 
+**0.2.4.** A day before `min` or after `max` (or a text it cannot read)
+is refused out loud, and never passes for the previous date (0.2.3 said
+the problem but left the old date as the only thing a Save could send:
+Timesheets saved "today" in place of refusing). The text stays as
+typed; the sentence under the field says why ("Choose Tuesday 29
+September 2026 or later." / « Choisissez le mardi 29 septembre 2026 ou
+après. »); the field is `aria-invalid` and reads it (`aria-describedby`);
+the input carries it as its custom validity, so **a form's submit stops
+on the field** (the browser points at it); the hidden input of `name` is
+empty; and `onProblem(problem | null)` tells a tool that saves from its
+own state (a button's `onClick`, not a form's submit) to wait.
+`onChange` is not called — neither the old date nor a `null` that an
+auto-saving field (a card's due date) would store as "no date". The rule
+is `readTypedDate(text, words, today, { min, max })` in
+`/components/logic`.
+
 ```tsx
 <DateRangeField label={t.leave} value={range} onChange={setRange} today={today} min={today}
   names={{ from: "from", to: "to" }} labels={kitWords[locale].date} lang={locale} />
@@ -557,6 +573,12 @@ uploaded again:
 const [files, setFiles] = useState(() => expense.receipts.map(r => storedFile({ ref: r.name, name: r.filename, size: r.size })));
 ```
 
+**0.2.4.** "Or drop it here" is said only where a file can be dropped
+(not under `pointer: coarse` nor `hover: none`: a tool's own rule for it
+can go). "Accepted:" names the rest of OpenDocument (ODG, ODF…), Office's
+macro files (XLSM, DOCM, PPTM), ICO, EPUB and GZ, and never a format's
+suffix or version number as a kind ("+zip", "12").
+
 ### DataTable and Menu
 
 ```tsx
@@ -599,6 +621,10 @@ and `className`.
 **0.2.3.** `phone="stack"`: the row's header heads its card
 ("F-2026-014"), it is no longer a labelled line of it ("Number
 F-2026-014").
+
+**0.2.4.** `phone="stack"`: a long label (a form's question) wraps beside
+its value, at most 60% of the line, never clipped (Forms' own rule can
+go).
 
 ### Filters and SearchBox
 
@@ -751,7 +777,42 @@ popover in a dialog or a table's frame is placed over it as the kit's are.
 one line each (`white-space: nowrap`, the chip does not shrink): a full
 header gives way elsewhere (Hiring).
 
+**0.2.4.** On a phone a section's name is whole before anything else:
+the tabs share the row equally while every word fits, and a tab whose
+longest word is wider takes what it needs from the others; names wrap
+at their spaces onto two lines, in a face of at most 12 px; "…" only
+ends a single word wider than 40% of the row ("À rembourser" at 390 px
+was "À rembour…", Expenses). A section's count sits beside its icon,
+never over its edge.
+
 ## Changelog
+
+### 0.2.4-studio.1 (2026-09-29)
+
+What the tools reported on 0.2.3. **Backward compatible**: new props are
+optional, no type narrowed, no token renamed; a tool on 0.2.3
+re-vendors with no code change.
+
+- **Bug — DateField (Timesheets)**: a day typed before `min` (or after
+  `max`, or unreadable) showed its problem but left the previous date as
+  what a Save would send. The text stays, the field is invalid and says
+  why, a form's submit stops on it (`setCustomValidity`), the hidden
+  input of `name` is empty, and `onProblem` tells a tool that saves from
+  its own state; `onChange` is not called (no stale date, no `null` an
+  auto-saving field would store). `readTypedDate` is the rule.
+  check-flows plays it (a day before `min`, then Save: the previous day
+  is not saved) and fails without the fix.
+- **Phone navigation (Expenses)**: whole names first — tabs sized by
+  their longest word when it does not fit its share, two lines at a
+  space, at most 12 px, "…" only for one word wider than 40% of the row;
+  counts beside their icons. check-page puts Expenses' five French
+  sections in every look at 390 px and fails on any "…", and on a count
+  that touches its icon.
+- **DataTable `phone="stack"` (Forms)**: labels wrap beside their value
+  (at most 60%); check-page gives four lines a long question and fails
+  on a clipped or pushed value.
+- **FilePicker**: "Accepted:" names more kinds by their usual extension
+  (ODG, XLSM, ICO, EPUB, GZ…) and never a "+suffix" or a version number.
 
 ### 0.2.3-studio.1 (2026-09-29)
 
@@ -923,8 +984,8 @@ npm ci
 npm test                # build dist/, compile the tests into build/, run them (node --test)
 npm run check:package   # npm pack, install into a temp project, import every subpath from Node and esbuild, type-check a TS consumer
 npm run gallery         # ui/gallery/index.html and ui/gallery/components.html
-node scripts/gallery/check-page.mjs    # the components page in Chromium: hydration, axe in every look, no network, 390 px, 44 px targets, the phone header, section names never broken inside a word, the camera on a phone only, the band's signal
-node scripts/gallery/check-flows.mjs   # its keyboard and mouse flows (toast, dialog, picker, dates and the Leave race, table, filters in the page, menu, tabs)
+node scripts/gallery/check-page.mjs    # the components page in Chromium: hydration, axe in every look, no network, 390 px, 44 px targets, the phone header, section names never broken inside a word nor cut (0.2.4), counts beside their icons, a stacked table's long labels, the camera on a phone only, the band's signal
+node scripts/gallery/check-flows.mjs   # its keyboard and mouse flows (toast, dialog, picker, dates, the Leave race and a day before min, table, filters in the page, menu, tabs)
 npm run fonts           # fetch the catalogue's fonts again (network)
 ```
 

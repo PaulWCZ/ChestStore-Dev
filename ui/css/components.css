@@ -316,7 +316,7 @@ textarea.ck-field { padding-block: var(--space-2); line-height: var(--leading); 
   /* A line's label wraps beside its value, never clipped nor pushing it
      out: at most 60% of the line, broken at its spaces (0.2.4: a long
      question kept its width, Forms). */
-  .ck-table-stack [data-label]::before { content: attr(data-label); flex: none; color: var(--ink-2); font-size: var(--text-s); font-weight: normal; text-align: left; }
+  .ck-table-stack [data-label]::before { content: attr(data-label); flex: 0 1 auto; min-width: 0; max-width: 60%; overflow-wrap: break-word; color: var(--ink-2); font-size: var(--text-s); font-weight: normal; text-align: left; }
   .ck-table-stack .ck-col-actions { position: absolute; top: var(--space-1); right: var(--space-1); padding: 0 !important; }
   .ck-table-stack tfoot > tr > * { position: static; background: none; }
   .ck-table-stack tfoot { position: sticky; bottom: 0; z-index: 3; background: var(--surface-2); border-top: var(--border-width) solid var(--line-strong); }
@@ -532,7 +532,7 @@ div.ck-page-intro > :last-child { margin-bottom: 0; }
   /* A count sits beside its icon at the top right, never over it (0.2.4:
      it covered the icon's right edge with five tabs, Expenses). */
   .ck-nav-link { position: relative; }
-  .ck-nav-link .ck-count { position: absolute; top: 2px; left: calc(50% + 6px); transform: none; }
+  .ck-nav-link .ck-count { position: absolute; top: 2px; left: calc(50% + 12px); transform: none; }
   .ck-nav-link:not(:has(.ck-nav-icon)) .ck-count { position: static; }
   /* A label wraps at its spaces only, never inside a word ("Entrepris/es"
      in a wide brand face); only a single word wider than 40% of the row

@@ -131,6 +131,8 @@ the list of tokens; this page is the short path and the mistakes to avoid.
 | A region's colours vanish (transparent, or the page's) | Its CSS redefines `--accent` (or another token) from a tool token that is itself `var(--accent)`: a cycle, which the browser drops. Take the region's colour from a contract token that never names it (tokens/CONTRACT.md, "A tool's own tokens", rule 5). |
 | Two subset files of a font of the tool's own hide each other | Give each file its `range` (unicode-range) in the `FontSpec` (0.2.2), or use a registered font id. |
 | `Functions cannot be passed directly to Client Components … link: function` | `next/link` passed from a server component: import `Link` from a `"use client"` re-export instead (above). |
+| A Save sends the old date after a day before `min` was typed | Kit 0.2.3: re-vendor 0.2.4 — a form's submit then stops on the field. A Save that is a button's `onClick` (not a form's submit) listens to `onProblem` and waits while it is not `null`. |
+| A section's name ends in "…" on a phone ("À rembour…") | Kit 0.2.3: re-vendor 0.2.4 (whole names first). A tool's own rule for the nav's labels, a stacked table's labels or the drop hint on touch screens can go. |
 | A date typed right after another field moved it shows both texts | Kit 0.2.2's DateField: re-vendor 0.2.3 (the text follows the value in the render); a `key` that redraws the field is no longer needed. |
 | The current tab's rule or a Start button vanishes on a dark band in a dark look | It uses `--highlight` (a dark ground in dark looks): use `--inverse-signal` / `--inverse-signal-ink` (0.2.3). |
 | A public page wears a catalogue theme (or the Chest's sheet) | Its look is resolved without `{ surface: "public" }` (0.2.3). |

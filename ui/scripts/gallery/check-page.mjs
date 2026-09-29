@@ -123,6 +123,19 @@ for (const theme of ["chest", "workshop", "library", "instrument", "brand"]) {
   if (cut.length) problems.push(`a section's name is cut on a phone (${theme}): ${cut.join(", ")}`);
 }
 await phone.click('[data-theme="library"]');
+// A stacked table's long label (a form's question) wraps beside its value
+// on a phone — never clipped, never pushing the value past the card
+// (0.2.4; Forms had a rule of its own).
+const clipped = await phone.evaluate(() => {
+  const cells = [...document.querySelectorAll("#stage .ck-table-stack tbody td[data-label]")].filter(c => c.offsetParent !== null).slice(0, 4);
+  const before = cells.map(c => c.dataset.label);
+  for (const c of cells) c.dataset.label = "How did you hear about the spring open day at the workshop?";
+  const out = cells.filter(c => c.scrollWidth > c.clientWidth + 0.5 || c.getBoundingClientRect().right > c.closest("tr").getBoundingClientRect().right + 0.5).map(c => c.textContent);
+  cells.forEach((c, i) => { c.dataset.label = before[i]; });
+  return { n: cells.length, out };
+});
+if (!clipped.n) problems.push("no stacked table on the phone page");
+if (clipped.out.length) problems.push("a stacked table's long label clips or pushes its value: " + clipped.out.join(", "));
 // Every control is a 44 px target (brief/05; 0.2.2): its box, or an
 // invisible margin that answers the pointer 22 px around its centre.
 for (const [label, p] of [["desk", page], ["phone", phone]]) {

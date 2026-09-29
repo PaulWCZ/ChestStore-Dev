@@ -73,6 +73,11 @@ const mimeNames: Readonly<Record<string, string>> = {
   "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": "xlsx",
   "application/vnd.openxmlformats-officedocument.presentationml.presentation": "pptx",
   "application/vnd.oasis.opendocument.text": "odt", "application/vnd.oasis.opendocument.spreadsheet": "ods", "application/vnd.oasis.opendocument.presentation": "odp",
+  // 0.2.4: the rest of OpenDocument, Office's macro files, an icon, an e-book, gzip.
+  "application/vnd.oasis.opendocument.graphics": "odg", "application/vnd.oasis.opendocument.formula": "odf", "application/vnd.oasis.opendocument.chart": "odc", "application/vnd.oasis.opendocument.database": "odb",
+  "application/vnd.oasis.opendocument.text-template": "ott", "application/vnd.oasis.opendocument.spreadsheet-template": "ots", "application/vnd.oasis.opendocument.presentation-template": "otp",
+  "application/vnd.ms-excel.sheet.macroenabled.12": "xlsm", "application/vnd.ms-word.document.macroenabled.12": "docm", "application/vnd.ms-powerpoint.presentation.macroenabled.12": "pptm",
+  "image/x-icon": "ico", "image/vnd.microsoft.icon": "ico", "application/epub+zip": "epub", "application/gzip": "gz", "application/x-gzip": "gz",
   "application/zip": "zip", "application/x-zip-compressed": "zip", "application/json": "json", "application/rtf": "rtf", "message/rfc822": "eml",
   "audio/mpeg": "mp3", "audio/mp4": "m4a", "audio/x-wav": "wav", "video/quicktime": "mov", "video/x-msvideo": "avi",
 };
@@ -91,9 +96,10 @@ const extensionOf = (rule: string): string | null => {
   if (r.startsWith(".")) return sameAs[r.slice(1)] ?? r.slice(1);
   if (r.endsWith("/*")) return null;
   if (mimeNames[r]) return mimeNames[r]!;
-  // Another MIME type: its last word, without x- or vnd. and a trailing
-  // "-compressed" ("application/x-7z-compressed" → 7Z).
-  const sub = (r.split("/")[1] ?? r).replace(/^(x-|vnd\.)/u, "").split(/[.+]/u).filter(Boolean);
+  // Another MIME type: its last word, without x- or vnd., a "+suffix"
+  // (the format it is written in: "+xml", "+zip") or a version number,
+  // and a trailing "-compressed" ("application/x-7z-compressed" → 7Z).
+  const sub = (r.split("/")[1] ?? r).replace(/^(x-|vnd\.)/u, "").split("+")[0]!.split(".").filter(w => w !== "" && !/^\d+$/u.test(w));
   const last = sub[sub.length - 1] ?? r;
   return sameAs[last] ?? last.replace(/-compressed$/u, "");
 };

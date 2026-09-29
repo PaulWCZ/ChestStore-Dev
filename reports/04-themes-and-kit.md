@@ -755,3 +755,70 @@ changelog in `ui/README.md`; what mattered most:
   overrides every theme's corners (now unneeded); Leave's `key={endField}`
   (now unneeded); Timesheets and Goals should move their band's signal to
   `--inverse-signal`; seed content's language is each tool's.
+
+## 19. 0.2.4-studio.1: what the tools found on 0.2.3 (2026-09-29)
+
+Four reports from the tools on 0.2.3, and a check of every item still
+open in the lead's list. All in 0.2.4, **backward compatible** (new
+props optional, no type narrowed, no token renamed: a tool on 0.2.3
+re-vendors with no code change). The whole list is the changelog in
+`ui/README.md`; what mattered most:
+
+- **A refused date left the old one to be saved (Timesheets).** DateField
+  already said "Choose … or later." under a day typed before `min`, but
+  the tool's state and the hidden input still held the previous date, so
+  Save sent "today" in place of refusing. Now the typed text stays, the
+  field is `aria-invalid` and reads the sentence (`aria-describedby`),
+  the input carries it as its custom validity — **a form's submit stops
+  on the field** and the browser points at it — the hidden input of
+  `name` is empty, and `onProblem` tells a tool whose Save is a button's
+  `onClick` to wait. The same holds after `max` and for a text it cannot
+  read. The rule is a pure function, `readTypedDate` (in
+  `/components/logic`, tested in both languages); check-flows plays the
+  case (a day before `min`, then Save: the previous day is not saved;
+  then a good day: saved) and fails with the validity line taken out.
+  **Decision: `onChange` is not called on a refused text.** Sending
+  `null` was built first and dropped: of the tools' 43 files with a
+  `DateField`, Tasks saves a card's start or due date on every
+  `onChange` (`updateCard(card.id, { due })`), so a typo would have
+  erased the date on the server. A Save that is a button's `onClick`
+  rather than a form's submit needs `onProblem` to refuse; which tools'
+  Saves are such was not checked field by field.
+- **"À rembour…" (Expenses).** 0.2.3's rule (wrap at spaces, "…" for a
+  word too wide) held, but the tabs were equal slices of the row
+  (`minmax(64px, 1fr)`), so a word wider than its slice — "rembourser",
+  "Entreprises" — ended in "…" while "Accueil" had room to spare. The
+  row is now `minmax(min-content, 1fr)`: equal while every word fits, a
+  tab widened by its longest word otherwise; padding 2 px, a face of at
+  most 12 px (13 px in Library, Seaside, Portrait gallery, Counter,
+  Magazine, Confetti, Trail and High contrast); "…" only for one word
+  wider than 40% of the row. Measured in the gallery's frame (338 px
+  inside a 390 px phone): no name cut in any of the five looks; before,
+  "À rembourser" and "Entreprises" were cut in four. At 320 px the five
+  French names need a little more than the row and it scrolls sideways
+  a few pixels (it did in 0.2.3 too, with names cut). Counts moved 6 px
+  right (`50% + 12px`): they touched the icon's right edge before.
+  check-page fails on either, and does on 0.2.3's CSS (checked both:
+  four looks with both names cut; two counts on their icons).
+- **Stacked tables clipped long labels (Forms).** A line's label was
+  `flex: none`: a form's question kept its full width and pushed its
+  answer past the card. It wraps now, at most 60% of the line. check-page
+  gives four lines a long question on a phone and fails on 0.2.3's CSS
+  (the label overflowed its cell by about 160 px), passes on 0.2.4's.
+- **Already done, checked in the code and tests:** "Or drop it here" on
+  touch screens (0.2.3: hidden under `pointer: coarse` and `hover: none`
+  — Forms, now on 0.2.3, keeps a local rule written before it); the row header's `data-label` (0.2.3);
+  `acceptText`'s JPG once, VCF, ODT/ODS/ODP and "images" in words
+  (0.2.2); Menu item `id`, `ck-button-small` at 44 px, `PeoplePicker
+  clearable`, Filters optgroups (0.2.2–0.2.3). `acceptText` now also
+  names ODG, ODF, XLSM, DOCM, PPTM, ICO, EPUB and GZ, and never a
+  "+suffix" or a version number ("GRAPHICS", "12" before).
+- **Not the kit's:** Wiki's save status cut off on phones is Wiki's own
+  `.save-status` (`white-space: nowrap` + ellipsis in its
+  `globals.css`), no kit component; News' raw `@[mbr_…]` in search
+  snippets and the frame-origin cache in Support/Booking/Forms/Status
+  stay tool bugs. After re-vendoring, Forms can drop two local rules
+  (`.ck-drop-hint`, the stacked label's `flex`).
+- **Checks:** 148 node tests (139 before, 9 in `test/kit-024.test.tsx`),
+  check-page and check-flows pass, `check:package` passes. The tools
+  are not re-vendored in this step (the lead does it).

@@ -126,18 +126,19 @@ export function DateField(props: DateFieldProps): ReactElement {
 
   // commit reads what was typed: the date (null for nothing), or
   // undefined when it is refused — it cannot be read, or it is before
-  // `min` or after `max`. A refused text stays as typed, the problem is
-  // said under it, and the value is no longer the old date (0.2.4: a date
-  // before `min` kept the previous value, and Timesheets saved "today"
-  // in place of refusing): onChange(null), once, which the tool reads
-  // as "no date yet"; the text and the problem stay (the field already
-  // counts null as seen, so the null coming back does not redraw it).
+  // `min` or after `max`. A refused text stays as typed and the problem
+  // is said under it; onChange is not called (0.2.4: never the old date
+  // as if it were the answer, nor a null that an auto-saving tool would
+  // store as "no date"). What would have sent the old date stops
+  // instead: the input carries the problem as its custom validity (a
+  // form's submit stops on it, the browser points at the field), the
+  // hidden input of `name` is empty, and onProblem tells a tool that
+  // saves from its own state.
   function commit(raw: string): IsoDate | null | undefined {
     setTyping(false);
     const read = readTypedDate(raw, labels, today, { min, max });
     if (!read.ok) {
       setProblem(read.problem);
-      if (value !== null) { setSeen({ value: null, shown: "" }); onChange(null); }
       return undefined;
     }
     setProblem(null);
@@ -221,7 +222,7 @@ export function DateField(props: DateFieldProps): ReactElement {
           onClose={() => { setOpen(false); button.current?.focus(); }}
         />
       )}
-      {name && <input type="hidden" name={name} value={value ?? ""} />}
+      {name && <input type="hidden" name={name} value={problem ? "" : value ?? ""} />}
     </div>
   );
 }

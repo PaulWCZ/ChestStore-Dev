@@ -208,15 +208,16 @@ function DatesDemo({ d, w, today, lang }) {
   const days = Array.from({ length: 10 }, (_, i) => addDays(today, i));
   // A button right under the field: typing a date then clicking it at once
   // must hit it (the date in words appears on blur; its line is reserved).
+  // A form, as a tool's: a day before min stops its submit (0.2.4).
   return (
     <div className="demo-grid">
-      <div className="demo-stack-s">
+      <form className="demo-stack-s" onSubmit={e => { e.preventDefault(); setSaved(due); }}>
         <DateField label={d.due} value={due} onChange={setDue} today={today} min={today} labels={w.date} />
         <div className="demo-row">
-          <button type="button" className="ck-button ck-button-quiet" onClick={() => setSaved(due)}>{d.saveDue}</button>
+          <button type="submit" className="ck-button ck-button-quiet">{d.saveDue}</button>
           <p className="demo-note" role="status">{saved ? fill(d.dueSaved, { date: formatDate(saved, w.date, "long") }) : ""}</p>
         </div>
-      </div>
+      </form>
       <MonthField label={d.month} value={month} onChange={setMonth} today={today} labels={w.date} />
       <DateRangeField label={d.trip} value={trip} onChange={setTrip} today={today} min={today} labels={w.date} lang={lang} />
       <BackDemo d={d} w={w} today={today} />
