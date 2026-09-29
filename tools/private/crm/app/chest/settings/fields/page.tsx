@@ -10,7 +10,7 @@ export default async function FieldsSettings() {
   const v = await viewer();
   if (!v) return null;
   const { member, t } = v;
-  const fields = await fieldsByObject(db());
+  const fields = await fieldsByObject(db(), t);
   return (
     <div className="page narrow">
       <div className="page-head">

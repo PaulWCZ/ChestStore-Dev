@@ -21,7 +21,13 @@ export const en = {
     viewer: "Viewer",
     none: "No role",
   },
+  // The tags a new desk starts with (the sample's), shown in each reader's
+  // language until renamed (lib/seed-words.ts).
+  seed: {
+    tags: { damaged: "Damaged", delivery: "Delivery", invoice: "Invoice", orderChange: "Order change" },
+  },
   shell: {
+    otherList: "Search or filter",
     skip: "Skip to content",
     nav: "Support",
     inbox: "Inbox",
@@ -58,6 +64,8 @@ export const en = {
     you: "You",
   },
   public: {
+    typesPlain: "Accepted: photos, PDF, Word, Excel and text files.",
+    alreadyHad: "We had already received this request: it is the same one, nothing was sent twice.",
     language: "Language",
     title: "Contact us",
     titleWith: "Contact {company}",
@@ -108,6 +116,7 @@ export const en = {
     attach: "Photos or documents",
   },
   inbox: {
+    filterButton: "Filter",
     title: "Inbox",
     folders: {
       unassigned: "Unassigned",
@@ -286,7 +295,7 @@ export const en = {
     back: "Inbox",
     from: "From",
     assignee: "Assigned to",
-    nobody: "Nobody",
+    nobody: "Unassigned",
     takeIt: "Take it",
     status: "Status",
     statuses: {

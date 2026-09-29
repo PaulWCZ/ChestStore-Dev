@@ -86,6 +86,7 @@ export const en = {
     dates: "{start} – {end}",
     timeGone: "Time gone: {percent}",
     quarterName: "Q{quarter} {year}",
+    periodName: "{start} – {end}",
   },
   progress: {
     label: "Progress",
@@ -118,6 +119,7 @@ export const en = {
     orphansAction: "Choose who takes over",
     keyResultsOf: "Key results I own in “{objective}”",
     startCurrent: "Or start {name} now ({left})",
+    startImport: "Start {name} and import a spreadsheet",
     lateInQuarter: "{name} is nearly over ({left}): plan the next quarter.",
     email: "Also email me the Friday reminder and reminders from others",
     emailOn: "Reminders will also come by email.",
@@ -266,8 +268,9 @@ export const en = {
     kind: "Measured as",
     start: "From",
     target: "To",
-    unit: "Unit",
-    unitPlaceholder: "customer/customers",
+    unit: "Counted in",
+    unitPlaceholder: "customers",
+    unitOne: "For 1, write",
     krOwner: "Owner",
     weight: "How much it counts",
     weights: {
@@ -291,7 +294,6 @@ export const en = {
     krName: "What we’ll count",
     more: "More options",
     summary: "From {start} to {target}",
-    unitHint: "Write both forms, like customer/customers, to read “1 customer”.",
     source: "Its value",
     sources: {
       manual: "Checked in by its owner",
@@ -316,6 +318,7 @@ export const en = {
     notAligned: "Team objectives not linked to a company objective",
     personalAlone: "Personal objectives not linked",
     export: "Download as a spreadsheet",
+    spreadsheet: "Spreadsheet",
     expand: "Show what supports “{title}”",
     collapse: "Hide what supports “{title}”",
     expandAll: "Open all",

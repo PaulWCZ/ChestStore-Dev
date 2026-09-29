@@ -1,6 +1,8 @@
 import { member, type Member } from "@argentic/chest-sdk/member";
 import { cookies, headers } from "next/headers";
+import type { Look } from "@argentic/chest-ui/runtime";
 import { catalogue, isLocale, publicLocale, type Catalogue, type Locale } from "./i18n/index.ts";
+import { currentLook, publicLook } from "./theme.ts";
 
 // Who is making this request, as the Chest asserts it (the Chest-Member
 // header on the team host): null on the public host, or for anything that
@@ -28,6 +30,12 @@ export async function viewer(): Promise<Viewer | null> {
 export async function publicWords(given?: unknown, own?: unknown): Promise<{ locale: Locale; t: Catalogue }> {
   const locale = isLocale(given) ? given : isLocale(own) ? own : publicLocale((await cookies()).get("lang")?.value, (await headers()).get("accept-language"));
   return { locale, t: catalogue(locale) };
+}
+
+// The look of whatever page is being rendered: the team's on /chest, the
+// public one elsewhere.
+export async function pageLook(): Promise<Look> {
+  return (await currentMember()) ? currentLook() : publicLook();
 }
 
 // The language of whatever page is being rendered: the member's on /chest,

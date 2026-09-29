@@ -1,7 +1,7 @@
 import * as chest from "@argentic/chest-sdk/chest";
 import { EmptyState, Filters, SearchBox } from "@argentic/chest-ui/components";
 import { AutoRefresh } from "../../../../../../components/auto-refresh.tsx";
-import { Download, Zip } from "../../../../../../components/icons.tsx";
+import { Down, Download, Zip } from "../../../../../../components/icons.tsx";
 import { anonymousTexts, followStates, listAnswers } from "../../../../../../lib/answers.ts";
 import { AppError } from "../../../../../../lib/app-error.ts";
 import { db } from "../../../../../../lib/db.ts";
@@ -17,6 +17,7 @@ import { zonedParts } from "../../../../../../lib/zone.ts";
 import { AnswersSwitch } from "../answers-switch.tsx";
 import { AnswersTable, FilterDates, type AnswerRow } from "./answers-table.tsx";
 import { AutoFilter } from "./auto-filter.tsx";
+import { FilterFold } from "./filter-fold.tsx";
 
 type Props = { params: Promise<{ id: string }>; searchParams: Promise<Record<string, string | string[] | undefined>> };
 const one = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v);
@@ -134,6 +135,7 @@ export default async function AnswersPage({ params, searchParams }: Props) {
       {data.total > 0 && (
         <div className="answers-filters">
           <SearchBox action={`${base}/answers`} value={q} maxLength={100} keep={Object.fromEntries([...keep].filter(([k]) => k !== "q"))} labels={{ ...t.search, label: t.answers.search, placeholder: t.answers.search }} />
+          <FilterFold active={[where, status, from, to].filter(Boolean).length} label={t.answers.filterButton}>
           <Filters path={`${base}/answers`} params={keep} labels={t.filters}
             groups={[{ key: "status", label: t.follow.label, all: true, options: followStates.map(s => ({ value: s, label: t.follow.states[s], count: data.counts[s] })) }]} />
           <AutoFilter action={`${base}/answers`} className="answers-filter" label={t.answers.filterLabel}>
@@ -155,6 +157,7 @@ export default async function AnswersPage({ params, searchParams }: Props) {
             )}
             <FilterDates from={from} to={to} today={today} t={{ from: t.answers.from, to: t.answers.to, date: t.date }} />
           </AutoFilter>
+          </FilterFold>
           {filters && <a className="button link" href={`${base}/answers${chosen.length ? `?cols=${chosen.join(",")}` : ""}`}>{t.filters.clear}</a>}
         </div>
       )}
@@ -167,7 +170,8 @@ export default async function AnswersPage({ params, searchParams }: Props) {
         <>
           {every.length > 4 && (
             <details className="columns-pick">
-              <summary>{t.answers.columns}</summary>
+              {/* A control that says it opens: a button's look, a chevron. */}
+              <summary><span>{t.answers.columns}</span><span className="chevron" aria-hidden="true"><Down /></span></summary>
               <AutoFilter action={`${base}/answers`} className="columns-form" label={t.answers.columns}>
                 {[...keep.entries()].filter(([k]) => k !== "cols").map(([k, val]) => <input key={k} type="hidden" name={k} value={val} />)}
                 {every.map(c => (

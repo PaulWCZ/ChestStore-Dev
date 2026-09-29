@@ -46,8 +46,11 @@ ul.plain { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--sp
 
 /* ---- Shell: the kit's AppShell as the steel bar, safety tape under it ----- */
 .ck-bar { background: var(--steel); color: var(--steel-ink); border-bottom: 0; }
-/* The strip of safety tape: decoration. */
-.ck-bar::after { content: ""; display: block; height: 6px; background: repeating-linear-gradient(-45deg, var(--tag) 0 12px, var(--steel) 12px 24px); }
+/* The strip of safety tape: decoration, drawn only where the look keeps
+   the tool's own decoration (--decor 0: a company's brand, the Chest's
+   sheet, High contrast). Colours come from the theme alone, in every mode
+   (the Chest theme is light only: no dark block changes a colour here). */
+.ck-bar::after { content: ""; display: block; height: calc(6px * var(--decor, 1)); opacity: var(--decor, 1); background: repeating-linear-gradient(-45deg, var(--tag) 0 12px, var(--steel) 12px 24px); }
 .ck-bar :focus-visible { outline-color: var(--steel-ink); }
 .ck-brand { font-size: 1.05rem; font-weight: var(--weight-strong); letter-spacing: 0.01em; font-family: var(--font-body); }
 .ck-brand a { color: var(--steel-ink); }
@@ -177,7 +180,6 @@ select.field { padding-right: var(--space-6); }
 .bin-name { font-weight: var(--weight-strong); line-height: 1.25; }
 .bin-count { font-weight: var(--weight-strong); font-size: 1.05rem; color: var(--ink); }
 .bin-sub { font-size: var(--text-s); color: var(--ink-2); }
-@media (prefers-color-scheme: dark) { .bin::before { background: var(--tag); } }
 .all-clear { padding: var(--space-4); background: var(--ok-soft); color: var(--ok-ink); border-radius: var(--radius-m); font-weight: 500; }
 .panels { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: var(--space-4); align-items: start; }
 @media (max-width: 400px) { .panels { grid-template-columns: 1fr; } }
@@ -196,6 +198,9 @@ select.field { padding-right: var(--space-6); }
 .mini-link:hover .strong { text-decoration: underline; }
 .mini-icon { color: var(--ink-2); display: inline-flex; }
 .mini-what { flex: 1 1 180px; min-width: 0; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+li.mini:has(> .button, > .reminded) { display: flex; align-items: center; gap: var(--space-2) var(--space-3); flex-wrap: wrap; }
+li.mini > .mini-link { flex: 1 1 240px; }
+.reminded { padding: 0 var(--space-2); }
 
 /* ---- Empty states: the kit's, with the tool's drawings ------------------- */
 .ck-empty { background: var(--surface); }
@@ -500,12 +505,11 @@ select.field { padding-right: var(--space-6); }
 .public .brand svg { width: 32px; height: 32px; }
 .page { max-width: 760px; margin: 0 auto; padding: var(--space-7) var(--space-4); }
 
-/* On a phone the one action comes first; the quiet ones keep only their icon
-   (their words stay for screen readers). */
+/* On a phone the one action comes first, full width; the quiet ones follow
+   under it, each with its words (never an icon alone: the store's rule). */
 @media (max-width: 600px) {
-  .page-head .actions, .ck-page-actions { flex-direction: row-reverse; justify-content: flex-end; width: 100%; }
-  .page-head .actions .button.quiet:not(.keep-label) span, .ck-page-actions .button.quiet:not(.keep-label) span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-  .page-head .actions .button.quiet:not(.keep-label), .ck-page-actions .button.quiet:not(.keep-label) { flex: 0 0 44px; width: 44px; padding: 0; }
+  .page-head .actions, .ck-page-actions { flex-direction: column-reverse; align-items: stretch; width: 100%; }
+  .page-head .actions > *, .ck-page-actions > * { width: 100%; justify-content: center; }
   .bins { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-2); }
   .bin { grid-template-columns: 1fr; padding: var(--space-3); }
   .bin-icon { grid-row: auto; width: 36px; height: 36px; margin-bottom: var(--space-2); }

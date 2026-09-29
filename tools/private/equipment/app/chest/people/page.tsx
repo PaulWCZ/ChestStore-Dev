@@ -1,6 +1,6 @@
 import { PageHeader } from "@argentic/chest-ui/components";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { forbidden } from "next/navigation";
 import { can } from "../../../lib/access.ts";
 import { db } from "../../../lib/db.ts";
 import { leavingList } from "../../../lib/departures.ts";
@@ -16,7 +16,7 @@ export default async function PeoplePage() {
   const v = await viewer();
   if (!v) return null;
   const { member, locale, t } = v;
-  if (!can(member, "items.manage")) notFound();
+  if (!can(member, "items.manage")) forbidden();
   const sql = db();
   const [counts, placeList, team, departing] = await Promise.all([holderCounts(sql, member), placeCounts(sql, member), everyone(), leavingList(sql, member)]);
   // Their last day, when People told it.

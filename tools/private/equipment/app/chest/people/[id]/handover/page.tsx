@@ -6,9 +6,10 @@ import { AppError } from "../../../../../lib/app-error.ts";
 import { db } from "../../../../../lib/db.ts";
 import { format, formatDate, formatDay } from "../../../../../lib/i18n/index.ts";
 import { memberPattern } from "../../../../../lib/model.ts";
-import { nameOf, people } from "../../../../../lib/people.ts";
-import { handoverSheet } from "../../../../../lib/receipts.ts";
+import { people, plainName } from "../../../../../lib/people.ts";
+import { handoverSheet, leftOnOf } from "../../../../../lib/receipts.ts";
 import { viewer } from "../../../../../lib/session.ts";
+import { charterText, fieldName } from "../../../../../lib/words.ts";
 
 // The handover sheet ("fiche de remise de matériel"): what a person holds —
 // or the items named (?items=) — with when and by whom each was given, its
@@ -28,14 +29,16 @@ export default async function Handover({ params, searchParams }: { params: Promi
     throw error;
   });
   const names = await people([id, ...sheet.lines.flatMap(l => (l.givenBy ? [l.givenBy] : []))]);
-  const person = nameOf(names.get(id), locale);
+  // A sheet is kept as proof: the name alone, the day they left apart.
+  const person = plainName(names.get(id), locale);
+  const gone = await leftOnOf(db(), member, id);
   const zone = chest.timeZone();
   const day = (d: string | null) => (d ? formatDay(d, locale, { day: "numeric", month: "short", year: "numeric" }) : t.common.none);
   const s = t.sheet;
   const back = can(member, "items.manage") && member.id !== id ? `/chest/people/${id}` : "/chest/mine";
   return (
     <SheetPage title={s.handoverTitle} back={back} backLabel={s.back} t={s}>
-      <SheetHead title={s.handoverTitle} company={chest.company()} person={person} printed={format(s.printed, { date: formatDate(new Date(), locale, { day: "numeric", month: "long", year: "numeric" }, zone) })} t={s} />
+      <SheetHead title={s.handoverTitle} company={chest.company()} person={person} leftOn={gone ? formatDate(gone, locale, { day: "numeric", month: "long", year: "numeric" }, zone) : null} printed={formatDate(new Date(), locale, { day: "numeric", month: "long", year: "numeric" }, zone)} t={s} />
       {sheet.lines.length === 0 && sheet.licences.length === 0 ? <p>{s.nothing}</p> : (
         <table className="paper-table">
           <thead>
@@ -48,9 +51,9 @@ export default async function Handover({ params, searchParams }: { params: Promi
                 <td>{l.item.name}</td>
                 <td>
                   {l.item.serial && <span className="mono block">{l.item.serial}</span>}
-                  {l.fields.map(f => <span key={f.name} className="block small">{format(s.field, { name: f.name, value: f.value })}</span>)}
+                  {l.fields.map(f => <span key={f.name} className="block small">{format(s.field, { name: fieldName(f, t), value: f.value })}</span>)}
                 </td>
-                <td>{day(l.givenOn)}{l.givenBy && l.givenBy.startsWith("mbr_") && <span className="block small muted">{nameOf(names.get(l.givenBy), locale)}</span>}</td>
+                <td>{day(l.givenOn)}{l.givenBy && l.givenBy.startsWith("mbr_") && <span className="block small muted">{plainName(names.get(l.givenBy), locale)}</span>}</td>
                 <td>{l.condition ?? t.common.none}</td>
                 <td>
                   {l.confirmedAt ? format(s.confirmedOn, { date: formatDate(l.confirmedAt, locale, { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }, zone) }) : s.notConfirmed}
@@ -65,7 +68,7 @@ export default async function Handover({ params, searchParams }: { params: Promi
       {sheet.charter && (
         <section className="paper-rules" aria-labelledby="sheet-rules">
           <h3 id="sheet-rules">{s.rules}</h3>
-          <p>{sheet.charter.body}</p>
+          <p>{charterText(sheet.charter, t)}</p>
         </section>
       )}
       <p className="paper-statement">{s.statementHandover}</p>

@@ -1,7 +1,7 @@
 import { EmptyState, PageHeader, StatusBadge } from "@argentic/chest-ui/components";
 import { AutoRefresh } from "../../components/auto-refresh.tsx";
 import { Check, Clock, KindIcon, Mask, People, Plus, Pulse, Repeat } from "../../components/icons.tsx";
-import { can, settles, surveys } from "../../lib/access.ts";
+import { asked, can, settles, surveys } from "../../lib/access.ts";
 import { everyone, inAudience } from "../../lib/audience.ts";
 import { dates, optionText } from "../../lib/dates.ts";
 import { db } from "../../lib/db.ts";
@@ -27,9 +27,9 @@ export default async function Home() {
   await refreshOne(sql, member);
   const who = await people([...data.toAnswer, ...data.mine, ...data.answered, ...data.closed].map(c => c.organiser));
   const d = dates(locale, zone);
-  // How many each of my open polls asks: the Chest's members, read once.
-  const mineOpen = data.mine.filter(c => c.status === "open");
-  const team = mineOpen.length > 0 ? (await everyone()).people : [];
+  // How many each poll I asked asks: the Chest's members, read once.
+  const mineSent = data.mine.filter(c => c.status !== "draft");
+  const team = mineSent.length > 0 ? (await everyone()).people : [];
   const total = (c: Card) => team.filter(p => inAudience(p, c)).length;
   const rules = await policy(sql);
   // Whoever may start a poll: "New poll" at the top of the page (the
@@ -37,7 +37,7 @@ export default async function Home() {
   const organiser = can(member, "create", rules);
   const nothing = data.toAnswer.length + data.mine.length + data.answered.length + data.closed.length === 0;
 
-  function card(c: Card, variant: "ask" | "mine" | "answered" | "closed") {
+  function card(c: Card, variant: "ask" | "answered" | "closed") {
     const href = c.status === "draft" ? `/chest/polls/${c.id}/edit` : `/chest/polls/${c.id}`;
     const by = nameOf(who.get(c.organiser), locale);
     const when = c.status === "closed" ? format(t.home.closedOn, { date: d.at(c.closedAt!) }) : c.closesAt ? format(t.home.closes, { date: d.at(c.closesAt) }) : t.home.noClose;
@@ -59,12 +59,42 @@ export default async function Home() {
         {c.final && <div className="meta"><span><Check />{format(t.home.final, { date: optionText(c.final, locale, zone, { range: t.dates.range, dayAndTime: t.dates.dayAndTime }) })}</span></div>}
         <div className="foot">
           <span className="meta">
-            {c.status === "open" && variant === "mine" ? <span><People />{format(t.home.of, { count: c.answers, total: Math.max(total(c), c.answers) })}</span>
-              : c.status !== "draft" ? <span><People />{plural(t.home.answers, c.answers, locale)}</span> : null}
+            {c.status !== "draft" ? <span><People />{plural(t.home.answers, c.answers, locale)}</span> : null}
           </span>
           <a className={"button small" + (variant === "ask" ? " primary" : "")} href={href} tabIndex={-1} aria-hidden="true">{action}</a>
         </div>
       </article>
+    );
+  }
+
+  // What I asked, as a list (Doodle's dashboard): its state, how many of
+  // those asked answered, and when it closes.
+  function row(c: Card) {
+    const href = c.status === "draft" ? `/chest/polls/${c.id}/edit` : `/chest/polls/${c.id}`;
+    const of = Math.max(total(c), c.answers);
+    const toAnswer = c.status === "open" && !c.answered && asked(member, c);
+    return (
+      <li key={c.id} className={"asked-row " + c.status}>
+        <span className={"chip " + c.kind} aria-hidden="true"><KindIcon kind={c.kind} /></span>
+        <div className="asked-main">
+          <a className="asked-title" href={href}>{c.title}</a>
+          <span className="meta">
+            {c.status === "open" && <StatusBadge tone="ok" size="s" label={t.home.open} />}
+            {c.status === "closed" && <StatusBadge tone="neutral" size="s" label={t.home.closedState} />}
+            {c.status === "draft" && <StatusBadge tone="neutral" size="s" label={t.home.draft} />}
+            {c.repeat && <span><Repeat />{c.round ? format(t.home.round, { round: c.round }) : t.repeat[c.repeat]}</span>}
+            {c.status !== "draft" && <span><Clock />{c.status === "closed" ? format(t.home.closedOn, { date: d.at(c.closedAt!) }) : c.closesAt ? format(t.home.closes, { date: d.at(c.closesAt) }) : t.home.noClose}</span>}
+            {c.status === "draft" && <span>{t.home.notSent}</span>}
+          </span>
+        </div>
+        {c.status !== "draft" && (
+          <span className="asked-count">
+            <span>{format(t.home.of, { count: c.answers, total: of })}</span>
+            <span className="meter" aria-hidden="true"><i style={{ ["--w" as string]: (of > 0 ? Math.round((100 * c.answers) / of) : 0) + "%" }} /></span>
+          </span>
+        )}
+        <a className="button small" href={href} tabIndex={-1} aria-hidden="true">{toAnswer ? t.home.answer : c.status === "draft" ? t.home.edit : t.home.see}</a>
+      </li>
     );
   }
 
@@ -84,6 +114,13 @@ export default async function Home() {
             {data.toAnswer.length > 0 && <span className="count-bubble">{data.toAnswer.length}</span>}
           </div>
           {data.toAnswer.length > 0 ? <div className="cards">{data.toAnswer.map(c => card(c, "ask"))}</div> : <p className="caught-up"><Check />{t.home.nothingToAnswer}</p>}
+        </section>
+      )}
+
+      {data.mine.length > 0 && (
+        <section className="section" aria-labelledby="mine">
+          <div className="section-head"><h2 id="mine">{t.home.mine}</h2><span className="count-bubble quiet">{data.mine.length}</span></div>
+          <ul className="asked-list">{data.mine.map(row)}</ul>
         </section>
       )}
 
@@ -109,13 +146,6 @@ export default async function Home() {
               </a>
             )}
           </div>
-        </section>
-      )}
-
-      {data.mine.length > 0 && (
-        <section className="section" aria-labelledby="mine">
-          <div className="section-head"><h2 id="mine">{t.home.mine}</h2><span className="count-bubble quiet">{data.mine.length}</span></div>
-          <div className="cards">{data.mine.map(c => card(c, "mine"))}</div>
         </section>
       )}
 

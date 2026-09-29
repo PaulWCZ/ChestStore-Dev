@@ -1,4 +1,5 @@
 import { Avatar } from "@argentic/chest-ui/components";
+import { listName } from "../../../../lib/examples.ts";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Back, Cake, Door, Folder, Mail, Moon, Pencil, Phone, Pin, Wave } from "../../../../components/icons.tsx";
@@ -169,7 +170,7 @@ export default async function ProfilePage({ params }: { params: Promise<{ id: st
                 <li key={c.id}>
                   <Link className="journey-row" href={`/chest/checklists/${c.id}`}>
                     <KindBadge kind={c.kind} label={t.checklists.kinds[c.kind]} />
-                    <span className="journey-name">{c.name}</span>
+                    <span className="journey-name">{listName(c, t)}</span>
                     <span className="meter" aria-hidden="true"><span style={{ width: `${c.total ? Math.round((c.done / c.total) * 100) : 0}%` }} /></span>
                     <span className="muted">{format(t.checklists.progress, { done: c.done, total: c.total })}</span>
                   </Link>

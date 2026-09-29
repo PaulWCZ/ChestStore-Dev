@@ -38,7 +38,7 @@ export default async function ReadsPage({ params }: { params: Promise<{ id: stri
       <p className="muted small">{format(t.reads.askedBy, { when: relative(ask.at, locale, now), name: ask.by === member.id ? t.people.you : nameOf(ask.by ? who.get(ask.by) : undefined, locale), version: ask.version })}</p>
       <div className="row-actions">
         <a className="button quiet" href={`/chest/pages/${page.id}/reads/csv`} download><Download />{t.reads.download}</a>
-        <ReadsActions pageId={page.id} stale={ask.version < page.version} t={{ again: t.reads.again, againDone: t.reads.againDone, stop: t.reads.stop, stopped: t.reads.stopped, errors: t.errors }} />
+        <ReadsActions pageId={page.id} stale={ask.version < page.version} waiting={rows.length - done} locale={locale} t={{ again: t.reads.again, againDone: t.reads.againDone, stop: t.reads.stop, stopped: t.reads.stopped, remind: t.reads.remind, reminded: t.reads.reminded, errors: t.errors }} />
       </div>
       <table className="reads-table">
         <thead>

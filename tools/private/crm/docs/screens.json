@@ -24,5 +24,10 @@
   {"name": "board-brand-dark", "path": "/chest/deals", "member": "hugo", "locale": "en", "dark": true, "look": {"tool": "brand:sample"}, "only": ["phone"]},
   {"name": "day-theme", "path": "/chest", "member": "ines", "locale": "fr", "look": {"all": "catalogue:workshop"}, "only": ["desktop"]},
   {"name": "team-brand", "path": "/chest/team", "member": "camille", "locale": "en", "look": {"tool": "brand:sample"}, "only": ["desktop"]},
-  {"name": "deal-undo-fr", "path": "/chest/deals/4", "member": "hugo", "locale": "fr", "actions": [{"click": "button:has-text('Noter un appel')"}, {"wait": 800}], "only": ["desktop"]}
+  {"name": "deal-undo-fr", "path": "/chest/deals/4", "member": "hugo", "locale": "fr", "actions": [{"click": "button:has-text('Noter un appel')"}, {"wait": 800}], "only": ["desktop"]},
+  {"name": "companies-fr", "path": "/chest/companies", "member": "camille", "locale": "fr", "only": ["phone"]},
+  {"name": "companies-filters", "path": "/chest/companies", "member": "hugo", "locale": "en", "only": ["phone"], "actions": [{"click": "button.filter-toggle"}, {"wait": 300}]},
+  {"name": "deal-fr", "path": "/chest/deals/1", "member": "ines", "locale": "fr"},
+  {"name": "step-calendar", "path": "/chest/deals/1", "member": "ines", "locale": "en", "only": ["desktop"], "actions": [{"click": ".step-item >> nth=0 >> button:has-text('Change')"}, {"wait": 400}]},
+  {"name": "board-port", "path": "/chest/deals", "member": "camille", "locale": "fr", "look": {"tool": "brand:port"}}
 ]

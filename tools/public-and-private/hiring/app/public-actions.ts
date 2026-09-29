@@ -14,6 +14,11 @@ import * as outbox from "../lib/outbox.ts";
 import { publicOrigin } from "../lib/public-origin.ts";
 import { publicWords } from "../lib/session.ts";
 import * as tell from "../lib/tell.ts";
+import * as interviews from "../lib/interviews.ts";
+import { meetingTime } from "../lib/i18n/format.ts";
+import { people as peopleOf } from "../lib/people.ts";
+import * as selfSchedule from "../lib/self-schedule.ts";
+import * as chest from "@argentic/chest-sdk/chest";
 
 // The careers page's action: anyone on the Internet may call it. It holds
 // no member; it checks the form's guard, bounds everything, and reveals
@@ -66,4 +71,27 @@ export async function sendApplication(_: FormState, data: FormData): Promise<For
     return { error: "unavailable" };
   }
   redirect(`/${slug}/thanks${mailed ? "?mailed=1" : ""}`);
+}
+
+// A candidate chooses their interview time, from the link they received
+// (/interview/<token>): the token is the only key. Says ok, or a code the
+// page puts in words ("taken": the times are read again).
+export async function chooseInterviewTime(token: string, day: string, time: string): Promise<{ ok: true } | { ok: false; error: ErrorCode }> {
+  try {
+    const sql = db();
+    await admit(sql, await headers(), "apply");
+    const done = await selfSchedule.choose(sql, token, { day, time }, async id => {
+      const person = (await peopleOf([id])).get(id);
+      return person && person.status === "member" ? { name: person.name, firstName: person.name.split(/\s+/u)[0] ?? person.name } : { name: "" };
+    });
+    await outbox.sendNow(sql, done.message);
+    await interviews.flushCalendars(sql);
+    const zone = chest.timeZone();
+    await tell.chosen([...new Set([...done.request.people, done.request.createdBy])].filter(id => id.startsWith("mbr_")), done.candidate, done.interview, (start, locale) => meetingTime(start, zone, locale === "fr" ? "fr" : "en"));
+    return { ok: true };
+  } catch (error) {
+    if (error instanceof AppError) return { ok: false, error: error.code };
+    console.error("interview time not saved", error instanceof Error ? error.name + ": " + error.message : "error");
+    return { ok: false, error: "unavailable" };
+  }
 }

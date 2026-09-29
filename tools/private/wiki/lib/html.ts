@@ -320,7 +320,35 @@ function trimEdges(nodes: DocNode[]): DocNode[] {
 // A Confluence page of a space export: its title (without the space's
 // name before it), its content, the page above it by the breadcrumbs, and
 // its attachments (file, name).
-export type ConfluencePage = { title: string; content: El; crumbs: string[]; attachments: { href: string; name: string }[] };
+export type ConfluencePage = { title: string; content: El; crumbs: string[]; attachments: { href: string; name: string }[]; updated: Date | null };
+
+// The date a Confluence page was last changed, as its export writes it
+// under the title ("Created by Camille Martin, last modified on Sep 02,
+// 2026" — or in French, "modifié le 02 sept. 2026", or 2026-09-02): the
+// last date of that line. Null when there is none, or it is in the future.
+const monthNames: Record<string, number> = {
+  jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, sept: 9, oct: 10, nov: 11, dec: 12,
+  janv: 1, fevr: 2, fev: 2, mars: 3, avr: 4, mai: 5, juin: 6, juil: 7, aout: 8, dece: 12,
+};
+export function confluenceDate(line: string, now = new Date()): Date | null {
+  const text = line.normalize("NFD").replace(/\p{Mn}/gu, "").toLowerCase();
+  const found: Date[] = [];
+  const at = (y: number, m: number, d: number) => {
+    const date = new Date(Date.UTC(y, m - 1, d, 12));
+    if (y >= 1990 && date.getUTCMonth() === m - 1 && date.getUTCDate() === d) found.push(date);
+  };
+  for (const x of text.matchAll(/\b(\d{4})-(\d{2})-(\d{2})\b/gu)) at(Number(x[1]), Number(x[2]), Number(x[3]));
+  for (const x of text.matchAll(/\b([a-z]{3,9})\.?\s+(\d{1,2}),?\s+(\d{4})\b/gu)) {
+    const m = monthNames[x[1]!.slice(0, 4)] ?? monthNames[x[1]!.slice(0, 3)];
+    if (m) at(Number(x[3]), m, Number(x[2]));
+  }
+  for (const x of text.matchAll(/\b(\d{1,2})\s+([a-z]{3,9})\.?\s+(\d{4})\b/gu)) {
+    const m = monthNames[x[2]!.slice(0, 4)] ?? monthNames[x[2]!.slice(0, 3)];
+    if (m) at(Number(x[3]), m, Number(x[1]));
+  }
+  const kept = found.filter(d => d.getTime() <= now.getTime());
+  return kept.length > 0 ? kept.sort((a, b) => a.getTime() - b.getTime()).at(-1)! : null;
+}
 
 export function confluencePage(root: El): ConfluencePage | null {
   const content = byId(root, "main-content");
@@ -338,7 +366,8 @@ export function confluencePage(root: El): ConfluencePage | null {
     const href = a.attribs["href"] ?? "";
     if (/(^|\/)attachments\//u.test(href)) attachments.push({ href, name: squash(textOf(a)) || href.split("/").at(-1)! });
   }
-  return { title, content, crumbs, attachments };
+  const meta = find(root, e => hasClass(e, "page-metadata"));
+  return { title, content, crumbs, attachments, updated: meta ? confluenceDate(squash(textOf(meta))) : null };
 }
 
 // The page tree of a Confluence export's index.html ("Available Pages"):

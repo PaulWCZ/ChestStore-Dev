@@ -97,16 +97,21 @@ for (const p of order) {
 out.push(...linkRows, "");
 
 type Conversation = {
-  comments: { page: number; by: string; days: number; text: string; edited?: boolean }[];
+  // reply: the comment (1-based, in this list) it answers; quote: the
+  // passage of the page it is about; resolvedBy: who resolved it.
+  comments: { page: number; by: string; days: number; text: string; edited?: boolean; reply?: number; quote?: string; resolvedBy?: string }[];
   watchers: { page: number; by: string }[];
   reviews: { page: number; months: number; owner: string; days: number }[];
   reads: { page: number; by: string; days: number; confirmed: { by: string; days: number }[] }[];
   pins: { page: number; days: number }[];
 };
 const talk = JSON.parse(readFileSync(join(here, "conversation.json"), "utf8")) as Conversation;
-for (const c of talk.comments) {
-  out.push(`insert into page_comments (page_id, author, body, created_at, edited_at) values (${c.page}, ${q(member(c.by))}, ${q(c.text)}, now() - interval '${c.days} days' + interval '${(c.text.length * 13) % 400} minutes', ${c.edited ? `now() - interval '${c.days} days' + interval '${(c.text.length * 13) % 400 + 30} minutes'` : "null"});`);
+for (const [i, c] of talk.comments.entries()) {
+  out.push(`insert into page_comments (id, page_id, author, body, created_at, edited_at, parent_id, quote) overriding system value values (${i + 1}, ${c.page}, ${q(member(c.by))}, ${q(c.text)}, now() - interval '${c.days} days' + interval '${(c.text.length * 13) % 400} minutes', ${c.edited ? `now() - interval '${c.days} days' + interval '${(c.text.length * 13) % 400 + 30} minutes'` : "null"}, ${c.reply ?? "null"}, ${c.quote ? q(c.quote) : "null"});`);
 }
+// Resolved conversations: their first comment says who and when.
+for (const [i, c] of talk.comments.entries()) if (c.resolvedBy) out.push(`update page_comments set resolved_at = now() - interval '${c.days} days' + interval '1 hour', resolved_by = ${q(member(c.resolvedBy))} where id = ${c.reply ?? i + 1};`);
+out.push("select setval(pg_get_serial_sequence('page_comments', 'id'), (select max(id) from page_comments));");
 for (const w of talk.watchers) out.push(`insert into page_watchers (page_id, member_id) values (${w.page}, ${q(member(w.by))});`);
 for (const r of talk.reviews) out.push(`update pages set review_months = ${r.months}, review_owner = ${q(member(r.owner))}, reviewed_at = now() - interval '${r.days} days' where id = ${r.page};`);
 // Pages whose readers were asked to confirm they read them, and who did.

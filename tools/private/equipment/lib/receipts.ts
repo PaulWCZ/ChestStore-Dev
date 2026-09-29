@@ -5,6 +5,7 @@ import { AppError } from "./app-error.ts";
 import type { Query, Sql } from "./db.ts";
 import { allFields, valuesOf, type Field } from "./fields.ts";
 import { browser, load, manager, record, receiptShape, type Item, type Receipt } from "./items.ts";
+import { catalogue, locales } from "./i18n/index.ts";
 import { addDays, clean, id, limits, memberId, optional } from "./model.ts";
 import * as tell from "./tell.ts";
 import { withdraw } from "./notify.ts";
@@ -19,18 +20,22 @@ import { withdraw } from "./notify.ts";
 
 // ---- The rules (charter) ---------------------------------------------------
 
-export type Charter = { id: string; body: string; createdAt: string; createdBy: string };
+// example: the tool's example rules, written in each reader's language
+// (charterText, lib/words.ts) — body keeps the English words.
+export type Charter = { id: string; body: string; example: boolean; createdAt: string; createdBy: string };
+type CharterRow = { id: string; body: string; example: boolean; created_at: Date; created_by: string };
+const toCharter = (row: CharterRow): Charter => ({ id: String(row.id), body: row.body, example: row.example, createdAt: new Date(row.created_at).toISOString(), createdBy: row.created_by });
 
 // The rules in force: the newest version, unless it is empty (no rules).
 export async function currentCharter(sql: Query): Promise<Charter | null> {
-  const [row] = await sql<{ id: string; body: string; created_at: Date; created_by: string }[]>`select id, body, created_at, created_by from charters order by id desc limit 1`;
+  const [row] = await sql<CharterRow[]>`select id, body, example, created_at, created_by from charters order by id desc limit 1`;
   if (!row || row.body.trim() === "") return null;
-  return { id: String(row.id), body: row.body, createdAt: new Date(row.created_at).toISOString(), createdBy: row.created_by };
+  return toCharter(row);
 }
 
 export async function charterById(sql: Query, charterId: string): Promise<Charter | null> {
-  const [row] = await sql<{ id: string; body: string; created_at: Date; created_by: string }[]>`select id, body, created_at, created_by from charters where id = ${charterId}`;
-  return row ? { id: String(row.id), body: row.body, createdAt: new Date(row.created_at).toISOString(), createdBy: row.created_by } : null;
+  const [row] = await sql<CharterRow[]>`select id, body, example, created_at, created_by from charters where id = ${charterId}`;
+  return row ? toCharter(row) : null;
 }
 
 // A manager writes the rules (or clears them): a new version, the old ones
@@ -39,8 +44,11 @@ export async function setCharter(sql: Sql, actor: Member | null, bodyValue: unkn
   const who = manager(actor);
   const body = clean(bodyValue, limits.charter, { multiline: true, optional: true });
   const current = await currentCharter(sql);
-  if ((current?.body ?? "") === body) return current;
-  await sql`insert into charters (body, created_by) values (${body}, ${who.id})`;
+  // The example's words, in any language: the example (each reader reads
+  // it in theirs); unchanged, no new version.
+  const example = locales.some(l => catalogue(l).settings.rulesExample === body);
+  if ((current?.body ?? "") === body || (example && current?.example)) return current;
+  await sql`insert into charters (body, example, created_by) values (${example ? catalogue("en").settings.rulesExample : body}, ${example}, ${who.id})`;
   return currentCharter(sql);
 }
 
@@ -87,7 +95,7 @@ export async function confirm(sql: Sql, actor: Member | null, itemId: unknown, i
 
 export type SheetLine = {
   item: Pick<Item, "id" | "tag" | "name" | "serial" | "category">;
-  fields: { name: string; value: string }[];
+  fields: { name: string; key: string | null; value: string }[];
   givenOn: string | null;
   givenBy: string | null;
   condition: string | null;
@@ -102,7 +110,7 @@ function mayRead(actor: Member | null, member: string): Member {
   return who;
 }
 
-const fieldsFor = (all: Field[], item: Item) => valuesOf(all.filter(f => f.categoryId === item.category.id), item.extra).map(v => ({ name: v.field.name, value: v.value }));
+const fieldsFor = (all: Field[], item: Item) => valuesOf(all.filter(f => f.categoryId === item.category.id), item.extra).map(v => ({ name: v.field.name, key: v.field.key, value: v.value }));
 
 // The handover sheet: what a person holds (or only the items named), each
 // with when and by whom it was given, its condition, and their receipt;
@@ -134,6 +142,15 @@ export async function handoverSheet(sql: Query, actor: Member | null, holder: un
   return { lines, licences, charter: charter && charter.body.trim() ? charter : null };
 }
 
+// When a person left the Chest (the first "left" line of their items'
+// history, kept even after the items came back), for the sheets.
+export async function leftOnOf(sql: Query, actor: Member | null, holder: unknown): Promise<Date | null> {
+  const h = memberId(holder);
+  mayRead(actor, h);
+  const [row] = await sql<{ at: Date | null }[]>`select min(at) as at from history where kind = 'left' and member = ${h}`;
+  return row?.at ? new Date(row.at) : null;
+}
+
 // The return sheet: what came back from a person in the last days (90 by
 // default), with its condition, and what they still hold — "not returned".
 export async function returnSheet(sql: Query, actor: Member | null, holder: unknown, days = 90): Promise<{ returned: ReturnLine[]; kept: SheetLine[] }> {
@@ -160,6 +177,23 @@ export async function returnSheet(sql: Query, actor: Member | null, holder: unkn
   returned.sort((a, b) => (a.returnedOn ?? "").localeCompare(b.returnedOn ?? "") || a.item.tag.localeCompare(b.item.tag));
   const kept = (await handoverSheet(sql, actor, h)).lines;
   return { returned, kept };
+}
+
+// remind: a manager reminds the holder of a receipt still waiting ("Remind
+// them" on the overview) — once a day at most. Says whom, what and since
+// when, for the bell and the email (lib/tell.ts).
+export async function remind(sql: Sql, actor: Member | null, itemId: unknown): Promise<{ holder: string; item: Item; givenOn: string; givenBy: string }> {
+  manager(actor);
+  return sql.begin(async tx => {
+    const item = await load(tx, itemId, { lock: true });
+    const [r] = await tx<{ id: string; member_id: string; given_on: string; given_by: string; reminded_at: Date | null }[]>`
+      select id, member_id, to_char(given_on, 'YYYY-MM-DD') as given_on, given_by, reminded_at from receipts
+      where item_id = ${item.id} and member_id = ${item.holder} and closed_at is null and confirmed_at is null order by id desc limit 1 for update`;
+    if (!r) throw new AppError("already_confirmed");
+    if (r.reminded_at && Date.now() - new Date(r.reminded_at).getTime() < 20 * 3600e3) throw new AppError("reminded_today");
+    await tx`update receipts set reminded_at = now() where id = ${r.id}`;
+    return { holder: r.member_id, item, givenOn: r.given_on, givenBy: r.given_by };
+  });
 }
 
 // The receipts still waiting, for the managers (a person's page, the item).

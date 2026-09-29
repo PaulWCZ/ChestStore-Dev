@@ -59,6 +59,10 @@ export function BoardView({ stages, cards, manage, locale, today, t }: { stages:
   const [places, setPlaces] = useState<Places>(() => placesOf(active));
   const [dragging, setDragging] = useState<string | null>(null);
   const [showRejected, setShowRejected] = useState(false);
+  // On a phone, one stage at a time (the tabs choose it): the first with
+  // someone in it.
+  const [phoneStage, setPhoneStage] = useState<string | null>(null);
+  const shownStage = phoneStage ?? stages.find(st => active.some(c => places[c.id] === st.id))?.id ?? stages[0]?.id ?? null;
   useEffect(() => {
     if (!dragging) setPlaces(placesOf(active));
   }, [active, dragging]);
@@ -197,20 +201,22 @@ export function BoardView({ stages, cards, manage, locale, today, t }: { stages:
           )}
         </div>
       )}
-      {/* On a phone, one stage at a time: tabs with their counts. */}
+      {/* On a phone, one stage at a time: tabs with their counts, on as
+          many rows as they need (never cut at the screen's edge), and
+          only the chosen stage below — no sideways scroll. */}
       <nav className="stage-tabs" aria-label={t.board.stagesNav}>
         {stages.map(stage => (
-          <a key={stage.id} href={`#lane-${stage.id}`} onClick={e => { e.preventDefault(); document.getElementById(`lane-${stage.id}`)?.closest(".lane")?.scrollIntoView({ inline: "start", block: "nearest" }); }}>
+          <button key={stage.id} type="button" aria-pressed={stage.id === shownStage} onClick={() => setPhoneStage(stage.id)}>
             {stage.label} <span className="lane-count">{active.filter(c => places[c.id] === stage.id).length}</span>
-          </a>
+          </button>
         ))}
       </nav>
       <DndContext sensors={sensors} collisionDetection={collision} onDragStart={onDragStart} onDragEnd={onDragEnd} onDragCancel={() => setDragging(null)} accessibility={{ announcements, screenReaderInstructions: { draggable: t.board.moveHint } }}>
-        <div className="lanes">
+        <div className="lanes one-on-phone">
           {stages.map(stage => {
             const here = active.filter(c => places[c.id] === stage.id);
             return (
-              <LaneView key={stage.id} stage={stage} count={here.length} manage={manage && !selecting} locale={locale} t={t}>
+              <LaneView key={stage.id} stage={stage} count={here.length} current={stage.id === shownStage} manage={manage && !selecting} locale={locale} t={t}>
                 {here.map(c => (selecting
                   ? (<li key={c.id}><label className={`cand pick${chosen.has(c.id) ? " chosen" : ""}`}><input type="checkbox" checked={chosen.has(c.id)} onChange={() => toggle(c.id)} /><CardBody card={c} locale={locale} t={t} /></label></li>)
                   : manage
@@ -341,10 +347,10 @@ export function ReasonPicker({ reason, onChange, t }: { reason: RejectReason | n
   );
 }
 
-function LaneView({ stage, count, manage, locale, t, children }: { stage: Lane; count: number; manage: boolean; locale: Locale; t: Words; children: ReactNode }) {
+function LaneView({ stage, count, current, manage, locale, t, children }: { stage: Lane; count: number; current: boolean; manage: boolean; locale: Locale; t: Words; children: ReactNode }) {
   const { setNodeRef, isOver } = useDroppable({ id: laneKey(stage.id), disabled: !manage });
   return (
-    <section className={`lane${stage.hired ? " hired" : ""}${isOver ? " over" : ""}`} aria-labelledby={`lane-${stage.id}`}>
+    <section className={`lane${stage.hired ? " hired" : ""}${isOver ? " over" : ""}${current ? " current" : ""}`} aria-labelledby={`lane-${stage.id}`}>
       <div className="lane-head">
         <h2 id={`lane-${stage.id}`}>{stage.label}</h2>
         <span className="lane-count" aria-label={plural(t.board.count, count, locale)}>{count}</span>

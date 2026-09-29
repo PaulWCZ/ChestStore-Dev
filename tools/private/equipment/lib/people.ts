@@ -34,6 +34,16 @@ export function nameOf(person: Person | undefined, locale: Locale): string {
   return person.name;
 }
 
+// plainName is how a document kept as proof writes a person (the handover
+// and return sheets): their name only, never the app's "(former member)";
+// an erased person is written as such.
+export function plainName(person: Person | undefined, locale: Locale): string {
+  const t = catalogue(locale).people;
+  if (!person || person.status === "unknown") return t.unknown;
+  if (person.status === "erased" || !person.name) return t.erased;
+  return person.name;
+}
+
 // Everyone who has the tool now, as the Chest lists them (by name, accents
 // aside): the directory's truth. Asked 500 at a time, up to 5,000 people.
 // When the Chest cannot be asked, the page says so (ok: false) instead of

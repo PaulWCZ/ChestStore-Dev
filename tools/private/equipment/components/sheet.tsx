@@ -25,7 +25,10 @@ export function SheetPage({ title, back, backLabel, t, children }: { title: stri
   );
 }
 
-export function SheetHead({ title, company, person, printed, t }: { title: string; company: string; person: string; printed: string; t: Catalogue["sheet"] }) {
+// The person is written by their name only (a sheet is kept as proof: never
+// the app's "(former member)"); someone who left has their day on a line of
+// its own. Each line is a term and its value, read as such.
+export function SheetHead({ title, company, person, leftOn, printed, t }: { title: string; company: string; person: string; leftOn?: string | null; printed: string; t: Catalogue["sheet"] }) {
   return (
     <header className="paper-head">
       <div>
@@ -34,7 +37,8 @@ export function SheetHead({ title, company, person, printed, t }: { title: strin
       </div>
       <dl className="paper-who">
         <div><dt>{t.employee}</dt><dd>{person}</dd></div>
-        <div><dt className="visually-hidden">{t.printed}</dt><dd className="muted">{printed}</dd></div>
+        {leftOn && <div><dt>{t.leftOn}</dt><dd>{leftOn}</dd></div>}
+        <div className="muted"><dt>{t.printedOn}</dt><dd>{printed}</dd></div>
       </dl>
     </header>
   );

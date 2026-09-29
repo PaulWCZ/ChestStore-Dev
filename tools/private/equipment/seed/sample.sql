@@ -106,12 +106,14 @@ from (select (now() at time zone 'Europe/Paris')::date + 12 as d) x;
 
 -- Fields of their own: phones' IMEI, laptops' memory and system, vehicles'
 -- plate and next inspection.
-insert into fields (category_id, name, type, position) values
-  (2, 'IMEI', 'text', 1),
-  (1, 'RAM (GB)', 'number', 1),
-  (1, 'Operating system', 'text', 2),
-  (7, 'Licence plate', 'text', 1),
-  (7, 'Next inspection', 'date', 2);
+-- The fields the tool proposes carry a key: their names are the
+-- catalogue's, in each reader's language, until a manager renames them.
+insert into fields (category_id, name, key, type, position) values
+  (2, 'IMEI', 'imei', 'text', 1),
+  (1, 'RAM (GB)', 'ram', 'number', 1),
+  (1, 'Operating system', 'os', 'text', 2),
+  (7, 'Licence plate', 'plate', 'text', 1),
+  (7, 'Next inspection', 'inspection', 'date', 2);
 update items i set extra = x.extra from (values
   ('EQ-0001', jsonb_build_object((select id::text from fields where name = 'RAM (GB)'), '18', (select id::text from fields where name = 'Operating system'), 'macOS 15')),
   ('EQ-0002', jsonb_build_object((select id::text from fields where name = 'RAM (GB)'), '8', (select id::text from fields where name = 'Operating system'), 'macOS 14')),
@@ -142,11 +144,12 @@ insert into history (item_id, at, actor, kind, member, note, day)
 select id, now() - interval '2 days', 'mbr_sofiaaaaaaaaaaaaaaaaaaaaaa', 'given', holder, 'Box opened once, like new', current_date - 2 from items where tag = 'EQ-0027';
 
 -- The rules people accept when they confirm they received something.
-insert into charters (body, created_by, created_at) values
+-- The tool's example rules (read in each reader's language).
+insert into charters (body, example, created_by, created_at) values
   ('The equipment remains the company’s property and is for your work.
 Keep it with you or locked away; never leave a laptop in a car.
 Report any loss, theft or damage the same day, from “My equipment”.
-Return everything, with its chargers and accessories, on your last day.', 'mbr_camilleaaaaaaaaaaaaaaaaaaa', '2025-01-02 09:00+01');
+Return everything, with its chargers and accessories, on your last day.', true, 'mbr_camilleaaaaaaaaaaaaaaaaaaa', '2025-01-02 09:00+01');
 
 -- Receipts: most things held were confirmed the day after; Hugo has the
 -- keyboard to confirm, and Léa never confirmed her badge.

@@ -1,6 +1,6 @@
 "use client";
 
-import { Calendar, DateField, PeoplePicker, TimeSelect, useToast } from "@argentic/chest-ui/components";
+import { Calendar, Checkbox, DateField, PeoplePicker, TimeSelect, useToast } from "@argentic/chest-ui/components";
 import { endOfDay, moveEnd, moveStart, timeText } from "@argentic/chest-ui/components/logic";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type FormEvent } from "react";
@@ -218,8 +218,8 @@ export function Composer({ mode, pollId, initial, groups, today, monthNames, wee
             ))}
           </div>
           {value.options.length < 20 && <button type="button" className="button small add-line" onClick={() => set({ options: [...value.options, ""] })}><Plus />{c.addChoice}</button>}
-          <label className="switch"><input type="checkbox" checked={value.multiple} onChange={e => set({ multiple: e.target.checked })} /><span className="switch-text"><strong>{c.multiple}</strong></span></label>
-          <label className="switch"><input type="checkbox" checked={value.other} onChange={e => set({ other: e.target.checked })} /><span className="switch-text"><strong>{c.other}</strong></span></label>
+          <Checkbox label={<strong>{c.multiple}</strong>} checked={value.multiple} onChange={on => set({ multiple: on })} />
+          <Checkbox label={<strong>{c.other}</strong>} checked={value.other} onChange={on => set({ other: on })} />
         </section>
       )}
 
@@ -263,10 +263,7 @@ export function Composer({ mode, pollId, initial, groups, today, monthNames, wee
 
       {!locked && value.kind !== "survey" && !value.anonymous && (
         <section className="card" aria-labelledby="slots-title">
-          <label className="switch">
-            <input type="checkbox" checked={value.slots !== null} onChange={e => set({ slots: e.target.checked ? 3 : null })} />
-            <span className="switch-text"><strong id="slots-title">{c.slots}</strong><span className="hint">{value.kind === "date" ? c.slotsDateHint : c.slotsHint}</span></span>
-          </label>
+          <Checkbox label={<strong id="slots-title">{c.slots}</strong>} hint={value.kind === "date" ? c.slotsDateHint : c.slotsHint} checked={value.slots !== null} onChange={on => set({ slots: on ? 3 : null })} />
           {value.slots !== null && (
             <div className="slots-count">
               <label className="label" htmlFor="slots">{c.slotsCount}</label>
@@ -311,7 +308,7 @@ export function Composer({ mode, pollId, initial, groups, today, monthNames, wee
                     ))}
                   </div>
                   {q.options.length < 12 && <button type="button" className="button small add-line" onClick={() => setQuestion(q.key, { options: [...q.options, ""] })}><Plus />{c.addChoice}</button>}
-                  <label className="switch"><input type="checkbox" checked={q.multiple} onChange={e => setQuestion(q.key, { multiple: e.target.checked })} /><span className="switch-text"><strong>{c.multiple}</strong></span></label>
+                  <Checkbox label={<strong>{c.multiple}</strong>} checked={q.multiple} onChange={on => setQuestion(q.key, { multiple: on })} />
                 </>
               )}
               {q.kind === "scale" && (
@@ -367,10 +364,7 @@ export function Composer({ mode, pollId, initial, groups, today, monthNames, wee
           </fieldset>
         )}
         {!locked && (value.kind === "survey" || value.slots === null) && (
-          <label className="switch">
-            <input type="checkbox" checked={value.anonymous} onChange={e => set({ anonymous: e.target.checked, ...(e.target.checked ? { results: "closed" as const } : {}) })} />
-            <span className="switch-text"><strong>{c.anonymous}</strong><span className="hint">{c.anonymousHint}</span></span>
-          </label>
+          <Checkbox label={<strong>{c.anonymous}</strong>} hint={c.anonymousHint} checked={value.anonymous} onChange={on => set({ anonymous: on, ...(on ? { results: "closed" as const } : {}) })} />
         )}
         {!locked && (value.anonymous ? (
           <p className="note anon"><Mask />{c.anonymousResults}</p>

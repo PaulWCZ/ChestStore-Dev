@@ -25,9 +25,10 @@ insert into profiles (member_id, title, team, office, manager_id, phone, pronoun
    'Backend and data. Based in Bristol, in Paris one week a month.',
    array['Databases', 'Reports', 'English'], date '2024-03-04', null);
 
-insert into templates (kind, name, created_by, created_at) values
-  ('onboarding', 'Office newcomer', 'mbr_camilleaaaaaaaaaaaaaaaaaaa', now() - interval '60 days'),
-  ('offboarding', 'Leaving', 'mbr_camilleaaaaaaaaaaaaaaaaaaa', now() - interval '60 days');
+-- The two examples: their names (phrase) and steps speak each reader's language.
+insert into templates (kind, name, phrase, created_by, created_at) values
+  ('onboarding', 'Office newcomer', 'onboarding', 'mbr_camilleaaaaaaaaaaaaaaaaaaa', now() - interval '60 days'),
+  ('offboarding', 'Leaving', 'offboarding', 'mbr_camilleaaaaaaaaaaaaaaaaaaa', now() - interval '60 days');
 
 insert into template_items (template_id, position, text, role, member_id, offset_days) values
   (1, 1, 'Order the laptop and accessories', 'hr', null, -14),
@@ -46,8 +47,8 @@ insert into template_items (template_id, position, text, role, member_id, offset
   (2, 4, 'Close their accounts and access', 'hr', null, 0),
   (2, 5, 'Send the final documents (certificate, pay slip)', 'hr', null, 0);
 
-insert into journeys (kind, person_id, template_id, name, anchor, created_by, created_at) values
-  ('onboarding', 'mbr_noraaaaaaaaaaaaaaaaaaaaaaa', 1, 'Office newcomer', current_date - 6, 'mbr_camilleaaaaaaaaaaaaaaaaaaa', now() - interval '21 days');
+insert into journeys (kind, person_id, template_id, name, phrase, anchor, created_by, created_at) values
+  ('onboarding', 'mbr_noraaaaaaaaaaaaaaaaaaaaaaa', 1, 'Office newcomer', 'onboarding', current_date - 6, 'mbr_camilleaaaaaaaaaaaaaaaaaaa', now() - interval '21 days');
 
 insert into journey_items (journey_id, position, text, role, assignee, due_on, done_at, done_by) values
   (1, 1, 'Order the laptop and accessories', 'hr', 'mbr_camilleaaaaaaaaaaaaaaaaaaa', current_date - 20, now() - interval '19 days', 'mbr_camilleaaaaaaaaaaaaaaaaaaa'),
@@ -90,10 +91,14 @@ insert into arrivals (source, ref, name, job, team, place, start_date, hired_by,
 
 -- An extra field HR added; people fill it in.
 insert into fields (label, editor, position) values ('Languages', 'person', 1);
+-- A date HR follows, with a reminder a month before (the morning bell).
+insert into fields (label, editor, position, kind, alert_days) values ('Medical visit', 'hr', 2, 'date', 30);
 insert into field_values (member_id, field_id, value) values
   ('mbr_sofiaaaaaaaaaaaaaaaaaaaaaa', 1, 'Italian, English, French'),
   ('mbr_tomaaaaaaaaaaaaaaaaaaaaaaa', 1, 'English, French'),
-  ('mbr_inesaaaaaaaaaaaaaaaaaaaaaa', 1, 'French, Spanish');
+  ('mbr_inesaaaaaaaaaaaaaaaaaaaaaa', 1, 'French, Spanish'),
+  ('mbr_noraaaaaaaaaaaaaaaaaaaaaaa', 2, to_char(current_date + 20, 'YYYY-MM-DD')),
+  ('mbr_hugoaaaaaaaaaaaaaaaaaaaaaa', 2, to_char(current_date + 400, 'YYYY-MM-DD'));
 
 -- HR records: the staff register in hiring order, an intern, someone
 -- without the Chest (the warehouse), someone who left; Nora's trial period

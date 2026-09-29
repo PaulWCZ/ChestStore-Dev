@@ -23,7 +23,7 @@ export default async function Teams({ searchParams }: { searchParams: Promise<{ 
   const sql = db();
   const ctx = await context(sql, member);
   const asked = (await searchParams).cycle;
-  const cycle = ctx.cycles.find(c => c.id === asked) ?? (await defaultCycle(sql));
+  const cycle = ctx.cycles.find(c => c.id === asked) ?? (await defaultCycle(sql, member.locale));
   const objectives = cycle ? await cycleObjectives(sql, cycle.id, ctx.clock, readerOf(member)) : [];
   const active = ctx.teamList.filter(x => !x.archived);
   return (

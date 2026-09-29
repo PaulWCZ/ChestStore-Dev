@@ -37,10 +37,13 @@ export async function unassigned(people: string[], cardId: string): Promise<void
 }
 
 type CardRef = { id: string; title: string; boardId: string };
+const mentionKey = (cardId: string, commentId?: string) => (commentId ? `card:${cardId}:mention:${commentId}` : `card:${cardId}:mention`);
 
 export async function mentioned(actor: Member, people: string[], card: CardRef, body: string, sql?: Sql, commentId?: string): Promise<void> {
   if (people.length === 0) return;
-  await notify(people, t => ({ title: format(t.bell.mentioned, { name: actor.name, card: cut(card.title, 40) }), body: cut(body, 280) }), { path: cardPath(card.boardId, card.id), key: `card:${card.id}:mention` });
+  // Each mention is an item of its own (a question asked of someone must
+  // not be replaced by the next one).
+  await notify(people, t => ({ title: format(t.bell.mentioned, { name: actor.name, card: cut(card.title, 40) }), body: cut(body, 280) }), { path: cardPath(card.boardId, card.id), key: mentionKey(card.id, commentId) });
   if (sql && commentId) {
     await remember(sql, card.id, people, "mention", commentId);
     await queue(sql, people, { kind: "mention", actor: actor.id, cardId: card.id, commentId });
@@ -53,12 +56,15 @@ export async function commented(actor: Member, people: string[], card: CardRef, 
   if (sql && commentId) await remember(sql, card.id, people, "comment", commentId);
 }
 
-// Each person's comment (or mention) item of a card now shows this comment.
+// Whom this comment was shown to in the bell: a mention's own item, or
+// (reason "comment") the card's one item, which now shows this comment.
 async function remember(sql: Sql, cardId: string, members: string[], reason: "comment" | "mention", commentId: string): Promise<void> {
   const ids = members.filter(m => m.startsWith("mbr_"));
   if (ids.length === 0) return;
-  await sql`insert into comment_notices ${sql(ids.map(member_id => ({ card_id: cardId, member_id, reason, comment_id: commentId })), "card_id", "member_id", "reason", "comment_id")}
-    on conflict (card_id, member_id, reason) do update set comment_id = excluded.comment_id`;
+  await sql.begin(async tx => {
+    if (reason === "comment") await tx`delete from comment_notices where card_id = ${cardId} and reason = 'comment' and member_id in ${tx(ids)}`;
+    await tx`insert into comment_notices ${tx(ids.map(member_id => ({ card_id: cardId, member_id, reason, comment_id: commentId })), "card_id", "member_id", "reason", "comment_id")} on conflict do nothing`;
+  });
 }
 
 async function noticesOf(sql: Sql, commentId: string): Promise<{ mention: string[]; comment: string[] }> {
@@ -71,7 +77,7 @@ async function noticesOf(sql: Sql, commentId: string): Promise<{ mention: string
 // is held while the Undo lasts and never leaves after (lib/mail.ts).
 export async function commentGone(sql: Sql, ref: CommentRef): Promise<void> {
   const told = await noticesOf(sql, ref.id);
-  if (told.mention.length > 0) await withdraw(`card:${ref.card.id}:mention`, told.mention);
+  if (told.mention.length > 0) await withdraw(mentionKey(ref.card.id, ref.id), told.mention);
   if (told.comment.length > 0) await withdraw(`card:${ref.card.id}:comment`, told.comment);
 }
 
@@ -83,7 +89,7 @@ export async function commentShown(sql: Sql, ref: CommentRef): Promise<void> {
   const author = (await people([ref.author])).get(ref.author);
   const name = author?.status === "member" ? author.name : "";
   const path = cardPath(ref.card.boardId, ref.card.id);
-  if (told.mention.length > 0) await notify(told.mention, t => ({ title: format(t.bell.mentioned, { name: name || t.people.unknown, card: cut(ref.card.title, 40) }), body: cut(ref.body, 280) }), { path, key: `card:${ref.card.id}:mention` });
+  if (told.mention.length > 0) await notify(told.mention, t => ({ title: format(t.bell.mentioned, { name: name || t.people.unknown, card: cut(ref.card.title, 40) }), body: cut(ref.body, 280) }), { path, key: mentionKey(ref.card.id, ref.id) });
   if (told.comment.length > 0) await notify(told.comment, t => ({ title: format(t.bell.commented, { name: name || t.people.unknown, card: cut(ref.card.title, 40) }), body: cut(ref.body, 280) }), { path, key: `card:${ref.card.id}:comment` });
 }
 
@@ -105,9 +111,13 @@ export async function stepSettled(cardId: string, itemId: string): Promise<void>
   await withdraw(`card:${cardId}:step:${itemId}`);
 }
 
-// A card that is done or archived no longer asks anything of anyone.
-export async function settled(cardId: string): Promise<void> {
+// A card that is done or archived no longer asks anything of anyone: its
+// items go, each mention's too.
+export async function settled(cardId: string, sql?: Sql): Promise<void> {
   for (const reason of ["assigned", "mention", "comment", "unblocked"]) await withdraw(`card:${cardId}:${reason}`);
+  if (!sql) return;
+  const mentions = await sql<{ comment_id: string }[]>`select distinct comment_id from comment_notices where card_id = ${cardId} and reason = 'mention'`;
+  for (const m of mentions) await withdraw(mentionKey(cardId, String(m.comment_id)));
 }
 
 // refreshBadges sets the tile's number of these members: their late or

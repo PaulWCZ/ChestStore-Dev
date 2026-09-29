@@ -21,6 +21,7 @@ export const limits = {
   importHtml: 8 << 20,
   versionsShown: 200,
   comment: 5000,
+  quote: 300,
   commentsPerPage: 1000,
   watchedPerMember: 2000,
   templatesShown: 30,

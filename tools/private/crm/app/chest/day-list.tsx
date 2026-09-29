@@ -13,11 +13,11 @@ import type { Teammate } from "./ui/shared.ts";
 import { StepForm } from "./ui/step-box.tsx";
 
 export type DayRow = DayStep & { state: DueState; dueLabel: string; valueLabel: string | null; canPlan?: boolean };
-type Props = { rows: DayRow[]; team: Teammate[]; me: string; canAssign: boolean; today: string; locale: Locale; t: Catalogue };
+type Props = { rows: DayRow[]; team: Teammate[]; me: string; canAssign: boolean; today: string; locale: Locale; calendar?: boolean; t: Catalogue };
 
 // My next steps by when they are due. "Done" takes one off at once (with
 // Undo) and asks, in its place, what comes next.
-export function DayList({ rows, team, me, canAssign, today, t }: Props) {
+export function DayList({ rows, team, me, canAssign, today, calendar = false, t }: Props) {
   const [shown, remove] = useOptimistic(rows, (list: DayRow[], id: string) => list.filter(r => r.id !== id));
   const [asking, setAsking] = useState<DayRow | null>(null);
   const [, start] = useTransition();
@@ -47,7 +47,7 @@ export function DayList({ rows, team, me, canAssign, today, t }: Props) {
         <section className="step-box editing ask" aria-labelledby="ask-title">
           <h2 id="ask-title" className="label-mono">{t.step.whatNext}</h2>
           <p className="ask-on"><Link prefetch={false} href={`/chest/${asking.on.kind === "deal" ? "deals" : "contacts"}/${asking.on.id}`}>{asking.on.title}</Link>{asking.on.company ? ` · ${asking.on.company}` : ""}</p>
-          <StepForm key={asking.id} initial={null} on={asking.on.kind === "deal" ? { deal: asking.on.id } : { contact: asking.on.id }} team={team} me={me} canAssign={canAssign} today={today} onDone={() => setAsking(null)} onSkip={() => setAsking(null)} t={t} />
+          <StepForm key={asking.id} initial={null} on={asking.on.kind === "deal" ? { deal: asking.on.id } : { contact: asking.on.id }} team={team} me={me} canAssign={canAssign} today={today} calendar={calendar} onDone={() => setAsking(null)} onSkip={() => setAsking(null)} t={t} />
         </section>
       )}
       {groups.map(state => {
@@ -91,14 +91,14 @@ export function DayList({ rows, team, me, canAssign, today, t }: Props) {
 
 // "A step for me": a to-do that is about no client ("prepare the trade
 // show"), planned from My day.
-export function SelfStepButton({ team, me, canAssign, today, t }: { team: Teammate[]; me: string; canAssign: boolean; today: string; t: Catalogue }) {
+export function SelfStepButton({ team, me, canAssign, today, calendar = false, t }: { team: Teammate[]; me: string; canAssign: boolean; today: string; calendar?: boolean; t: Catalogue }) {
   const [open, setOpen] = useState(false);
   if (!open) return <button type="button" className="link-button self-step" onClick={() => setOpen(true)}><Plus />{t.home.addStep}</button>;
   return (
     <section className="step-box editing" aria-labelledby="self-title">
       <h2 id="self-title" className="label-mono"><Flag />{t.step.selfTitle}</h2>
       <p className="muted small-text">{t.step.selfHint}</p>
-      <StepForm initial={null} on={null} team={team} me={me} canAssign={canAssign} today={today} onDone={() => setOpen(false)} onSkip={null} t={t} />
+      <StepForm initial={null} on={null} team={team} me={me} canAssign={canAssign} today={today} calendar={calendar} onDone={() => setOpen(false)} onSkip={null} t={t} />
     </section>
   );
 }

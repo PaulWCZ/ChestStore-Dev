@@ -21,5 +21,9 @@
   {"name": "week-brand", "path": "/chest", "member": "ines", "locale": "fr", "look": {"all": "catalogue:library", "tool": "brand:sample"}},
   {"name": "week-brand-dark", "path": "/chest", "member": "hugo", "locale": "en", "dark": true, "look": {"tool": "brand:sample"}, "only": ["phone"]},
   {"name": "rooms-theme", "path": "/chest/rooms", "member": "camille", "locale": "en", "look": {"all": "catalogue:workshop"}},
-  {"name": "desks-brand-dark", "path": "/chest/desks", "member": "tom", "locale": "en", "dark": true, "look": {"tool": "brand:sample"}}
+  {"name": "desks-brand-dark", "path": "/chest/desks", "member": "tom", "locale": "en", "dark": true, "look": {"tool": "brand:sample"}},
+  {"name": "places-fr", "path": "/chest/places", "member": "camille", "locale": "fr"},
+  {"name": "occupancy-fr", "path": "/chest/places/export", "member": "camille", "locale": "fr"},
+  {"name": "booking-admin", "path": "/chest/rooms", "member": "camille", "locale": "en", "actions": [{"click": "button:has-text('Book a room')"}, {"wait": 400}]},
+  {"name": "rooms-port", "path": "/chest/rooms", "member": "ines", "locale": "fr", "look": {"tool": "brand:port"}}
 ]

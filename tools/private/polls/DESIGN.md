@@ -94,9 +94,9 @@ in Workshop and High contrast).
   moves). The days to propose are the kit's `Calendar` in its multiple
   mode, inline (several days tapped one after another; arrows, Page
   Up/Down, Enter or Space), dressed in Polls' dashed today and chosen days
-  on their ledge. The admin's "Everyone can start a poll" is the kit's
-  `Switch` (it takes effect at once); the composer's on/off choices wait
-  for Send, so they stay Polls' own chunky checkboxes. Chips, counters and
+  on their ledge. The admin's two settings are the kit's `Switch` (they take
+  effect at once); the composer's on/off choices wait for Send, so they
+  are the kit's `Checkbox` (0.2.3). Chips, counters and
   tags take `--radius-chip` (square in a square theme); fields the
   contract's `--field-pad-x`, so they line up with the kit's.
 

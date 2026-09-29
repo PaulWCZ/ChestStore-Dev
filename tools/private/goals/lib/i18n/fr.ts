@@ -65,7 +65,7 @@ export const fr: Catalogue = {
   confidence: {
     on_track: "En bonne voie",
     at_risk: "À risque",
-    off_track: "En retard",
+    off_track: "Hors trajectoire",
     none: "Pas encore de point",
   },
   confidenceHelp: {
@@ -84,6 +84,7 @@ export const fr: Catalogue = {
     dates: "{start} – {end}",
     timeGone: "Temps écoulé : {percent}",
     quarterName: "T{quarter} {year}",
+    periodName: "{start} – {end}",
   },
   progress: {
     label: "Avancement",
@@ -116,6 +117,7 @@ export const fr: Catalogue = {
     orphansAction: "Choisir qui reprend",
     keyResultsOf: "Mes résultats clés dans « {objective} »",
     startCurrent: "Ou lancer le {name} tout de suite ({left})",
+    startImport: "Lancer le {name} et importer un tableur",
     lateInQuarter: "Le {name} touche à sa fin ({left}) : préparez le trimestre suivant.",
     email: "M’envoyer aussi par e-mail le rappel du vendredi et les relances",
     emailOn: "Les rappels arriveront aussi par e-mail.",
@@ -264,8 +266,9 @@ export const fr: Catalogue = {
     kind: "Mesuré par",
     start: "De",
     target: "À",
-    unit: "Unité",
-    unitPlaceholder: "client/clients",
+    unit: "Compté en",
+    unitPlaceholder: "clients",
+    unitOne: "Pour 1, écrire",
     krOwner: "Responsable",
     weight: "Combien il compte",
     weights: {
@@ -289,7 +292,6 @@ export const fr: Catalogue = {
     krName: "Ce que l’on compte",
     more: "Plus d’options",
     summary: "De {start} à {target}",
-    unitHint: "Écrivez les deux formes, comme client/clients, pour lire « 1 client ».",
     source: "Sa valeur",
     sources: {
       manual: "Donnée par son responsable",
@@ -314,6 +316,7 @@ export const fr: Catalogue = {
     notAligned: "Objectifs d’équipe sans lien avec un objectif d’entreprise",
     personalAlone: "Objectifs personnels sans lien",
     export: "Télécharger en tableur",
+    spreadsheet: "Tableur",
     expand: "Montrer ce qui contribue à « {title} »",
     collapse: "Masquer ce qui contribue à « {title} »",
     expandAll: "Tout ouvrir",

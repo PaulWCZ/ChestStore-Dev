@@ -4,6 +4,7 @@ import { db } from "../../../lib/db.ts";
 import { format, plural, relative } from "../../../lib/i18n/index.ts";
 import { search, type Segment } from "../../../lib/search.ts";
 import { viewer } from "../../../lib/session.ts";
+import { can } from "../../../lib/access.ts";
 import { listSpaces } from "../../../lib/spaces.ts";
 
 // Search results: the title and the passage that matched, the matched
@@ -44,6 +45,8 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
           </ol>
         </>
       )}
+      {/* Editors keep the words that mean the same ("vacances" = "congés"). */}
+      {can(member, "write") && <p className="muted small center"><Link href="/chest/search/synonyms">{t.search.synonyms}</Link></p>}
     </div>
   );
 }

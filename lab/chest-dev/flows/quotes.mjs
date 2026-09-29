@@ -8,7 +8,11 @@
 // accountant. Léa (viewer, French) reads; Nora has no role. Then what
 // switching from another tool needs: the Factur-X, the reminder first on a
 // late invoice, a repeating invoice, the clients imported from an Axonaut
-// export, the numbering continued, the reminders by themselves.
+// export, the numbering continued, the reminders by themselves. The client
+// answers online (the public part, /q/<secret>): accepts one quote with
+// "Bon pour accord"; a link turned off stops working. Sofia imports the
+// invoices still to collect from the previous tool, and keeps a copy of the
+// monthly archive.
 import { as, done, expect, open, step } from "./lib.mjs";
 
 const port = Number(process.argv[2] ?? 5700);
@@ -19,6 +23,15 @@ const dev = async () => (await page.request.get(origin + "/_dev")).text();
 const saved = () => page.waitForSelector("text=All changes saved", { timeout: 8000 });
 let quoteUrl = "";
 let invoiceUrl = "";
+let answerPath = "";
+// A visitor of the public host: no member, their own phone.
+async function visitor(locale = "fr-FR") {
+  const other = await browser.newContext({ viewport: { width: 390, height: 844 }, locale, hasTouch: true });
+  const p = await other.newPage();
+  p.on("pageerror", e => problems.push("visitor page: " + e.message));
+  p.on("console", m => { if (m.type() === "error" && !/Failed to load resource/u.test(m.text())) problems.push("visitor console: " + m.text()); });
+  return { other, p };
+}
 
 await step("phone: Hugo starts a quote from the desk, picks the client and two lines", async () => {
   await page.goto(origin + "/chest");
@@ -62,11 +75,44 @@ await step("Hugo sends it: numbered, emailed in French with the PDF", async () =
   await page.waitForSelector("text=Sent to compta@garage-rossi.test, with the PDF.");
   await page.waitForSelector(".stamp.big.sent");
   expect((await dev()).includes(subject.replace("—", "&mdash;")) || (await dev()).includes(subject), "in the outbox");
+  // The email carries the link to answer online, in the client's French.
+  const found = /en ligne\s:\s\S*?(\/q\/[A-Za-z0-9_-]{32})/u.exec(await dev());
+  expect(found, "the answer link in the email");
+  answerPath = found[1];
+  expect((await page.locator(".card.online").innerText()).includes("Copy the link"), "the margin gives the link to copy");
 });
 
-await step("the client accepts; Hugo invoices a 30 % deposit and hands it to billing", async () => {
-  await page.getByRole("button", { name: "The client accepted" }).click();
+await step("the client, on their phone: reads the quote, opens the PDF, accepts it with Bon pour accord", async () => {
+  const { other, p } = await visitor();
+  await p.goto(origin + answerPath);
+  expect((await p.locator("h1").innerText()).startsWith("Devis D-"), "the quote's page, in the visitor's French");
+  const sheet = await p.locator(".sheet").innerText();
+  expect(sheet.includes("Photos de l’atelier") && sheet.includes("Garage Rossi SARL"), "the quote as a page");
+  const pdf = await p.request.get(origin + answerPath + "/pdf");
+  expect(pdf.status() === 200 && Buffer.from(await pdf.body()).subarray(0, 5).toString() === "%PDF-", "its PDF");
+  expect(await p.evaluate(() => document.documentElement.scrollWidth - window.innerWidth) <= 0, "no sideways scroll on the phone");
+  expect((await p.locator(".public-foot").innerText()).includes("pas une signature électronique certifiée (eIDAS)"), "says it is not an eIDAS signature");
+  await p.getByLabel("Vos prénom et nom").fill("Luca Rossi");
+  await p.getByText("Bon pour accord", { exact: true }).click();
+  await p.waitForTimeout(3200);
+  await p.getByRole("button", { name: "Accepter le devis" }).click();
+  await p.waitForSelector(".answer-state.accepted");
+  expect((await p.locator(".answer-state").innerText()).includes("Accepté par Luca Rossi le"), "the page says who accepted, when");
+  // A second answer is not offered.
+  expect(await p.getByRole("button", { name: /Refuser/u }).count() === 0, "answered once");
+  await other.close();
+});
+
+await step("Hugo hears it in the bell; the quote is accepted, with the proof; he invoices a 30 % deposit and hands it to billing", async () => {
+  expect((await dev()).includes("Luca Rossi accepted quote D-"), "Hugo told in the bell (English)");
+  await page.goto(quoteUrl);
   await page.waitForSelector(".stamp.big.accepted");
+  expect((await page.locator(".timeline").innerText()).includes("Accepted online by Luca Rossi"), "history");
+  await page.locator(".proof summary").click();
+  const proof = await page.locator(".proof").innerText();
+  expect(proof.includes("PDF fingerprint (SHA-256)") && /[0-9a-f]{64}/u.test(proof), "the proof: " + proof.slice(0, 200));
+  const kept = await page.request.get(origin + (await page.locator(".proof a").getAttribute("href")));
+  expect(kept.status() === 200 && Buffer.from(await kept.body()).subarray(0, 5).toString() === "%PDF-", "the PDF they accepted");
   await page.getByRole("button", { name: "Make the invoice" }).click();
   await page.getByText("A deposit", { exact: true }).click();
   await page.locator("#percent").fill("30");
@@ -241,6 +287,71 @@ await step("Sofia makes a paid invoice repeat every quarter, then stops it", asy
   await page.waitForSelector("text=It no longer repeats.");
 });
 
+await step("a link turned off stops working; a new one works", async () => {
+  await as(context, origin, "ines");
+  await english();
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto(origin + "/chest/quotes?state=sent");
+  await page.locator(".ck-table tbody tr", { hasText: "Jeanne Roux" }).locator(".doc-link").click();
+  await page.waitForSelector(".card.online");
+  const { other, p } = await visitor("en-GB");
+  const secretPath = "/q/SampleAnswerLinkQuoteD0006Roux01";
+  await p.goto(origin + secretPath);
+  expect((await p.locator("h1").innerText()).startsWith("Quote D-"), "open, in English");
+  await page.getByRole("button", { name: "Turn the link off" }).click();
+  await page.locator(".ck-toast", { hasText: "The link no longer works." }).waitFor();
+  await p.reload();
+  expect((await p.locator("h1").innerText()) === "This link no longer works", "the visitor is told");
+  expect(await p.locator(".sheet").count() === 0, "and shown nothing of the quote");
+  await page.getByRole("button", { name: "Make a new link" }).click();
+  await page.locator(".ck-toast", { hasText: "New link made" }).waitFor();
+  const url = await page.locator(".copy-link input").inputValue();
+  await p.goto(origin + new URL(url).pathname);
+  expect((await p.locator("h1").innerText()).startsWith("Quote D-"), "the new link works");
+  const bad = await p.goto(origin + "/q/" + "x".repeat(32));
+  expect(bad.status() === 200 && (await p.locator("h1").innerText()) === "This link does not work", "a wrong link says so");
+  await other.close();
+});
+
+await step("Sofia imports the invoices still to collect: numbers kept, paid ones left out, undo, again", async () => {
+  await as(context, origin, "sofia");
+  await english();
+  await page.goto(origin + "/chest/invoices");
+  await page.getByRole("link", { name: "Import invoices to collect" }).click();
+  await page.waitForURL(/\/chest\/import\?kind=invoices$/u);
+  const file = new URL("../../../tools/public-and-private/quotes/test/fixtures/open-invoices.csv", import.meta.url).pathname;
+  await page.locator('input[type=file]').setInputFiles(file);
+  await page.waitForSelector(".mapping table");
+  expect(await page.getByLabel("Where column Total TTC goes").inputValue() === "gross", "Total TTC recognised");
+  await page.getByRole("button", { name: /^Import 6 rows$/u }).click();
+  await page.waitForSelector("text=3 invoices to collect imported.");
+  const report = await page.locator(".report").innerText();
+  expect(report.includes("1 invoice was already paid in full") && report.includes("Line 6: This date is not valid."), "said: " + report);
+  await page.getByRole("button", { name: "Undo this import" }).click();
+  await page.waitForSelector("text=Import undone: 3 invoices removed.");
+  await page.getByRole("button", { name: "Import another file" }).click();
+  await page.getByText("Invoices to collect", { exact: true }).click();
+  await page.locator('input[type=file]').setInputFiles(file);
+  await page.getByRole("button", { name: /^Import 6 rows$/u }).click();
+  await page.waitForSelector("text=3 invoices to collect imported.");
+  await page.getByRole("link", { name: "See the invoices to collect" }).click();
+  await page.locator(".ck-table tbody tr", { hasText: "F-2026-0344" }).locator(".doc-link").click();
+  await page.waitForSelector(".imported-note");
+  expect((await page.locator(".imported-note").innerText()).includes("from your previous tool"), "said imported");
+  expect(await page.locator(".wide-actions").getByRole("button", { name: "Send a reminder" }).count() === 1, "late: the reminder first");
+  expect(await page.getByRole("link", { name: /PDF/u }).count() === 0, "no PDF of ours for it");
+});
+
+await step("the monthly archive: the desk asks for a copy, the export page lists it", async () => {
+  await page.goto(origin + "/chest");
+  const note = page.locator(".callout", { hasText: "is ready" });
+  expect(/The archive of \w+ \d{4} is ready/u.test(await note.innerText()), "the desk asks");
+  const zip = await page.request.get(origin + (await note.getByRole("link", { name: "Download it" }).getAttribute("href")));
+  expect(zip.status() === 200 && Buffer.from(await zip.body()).subarray(0, 2).toString() === "PK", "a ZIP");
+  await page.goto(origin + "/chest/export");
+  expect((await page.locator(".archives").innerText()).includes("a copy was downloaded"), "the export page lists it");
+});
+
 await step("Hugo brings his clients from Axonaut: columns matched, first rows shown, bad rows said", async () => {
   await as(context, origin, "hugo");
   await english();
@@ -300,7 +411,7 @@ await step("phone: every place with its words — five labelled tabs, the rest i
 await step("phone width: no page scrolls sideways", async () => {
   await as(context, origin, "camille");
   await page.setViewportSize({ width: 390, height: 844 });
-  for (const path of ["/chest", "/chest/quotes", "/chest/invoices", "/chest/clients", "/chest/clients/1", "/chest/catalogue", "/chest/export", "/chest/settings", "/chest/import", "/chest/documents/7", "/chest/documents/11", new URL(invoiceUrl).pathname]) {
+  for (const path of ["/chest", "/chest/quotes", "/chest/invoices", "/chest/clients", "/chest/clients/1", "/chest/catalogue", "/chest/export", "/chest/settings", "/chest/import", "/chest/import?kind=invoices", "/chest/documents/7", "/chest/documents/11", new URL(invoiceUrl).pathname, new URL(quoteUrl).pathname, answerPath, "/q/SampleAnswerLinkQuoteD0006Roux01", "/"]) {
     await page.goto(origin + path);
     const wide = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
     expect(wide <= 0, `${path} scrolls sideways by ${wide}px`);

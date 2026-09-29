@@ -303,5 +303,60 @@ await step("the team pulse: one tile, sent as it is, every week; the rounds befo
   await page.waitForSelector(".thanks");
 });
 
+await step("a pulse or eNPS is for organisers unless an admin opens it; the sample pulse is in its asker's language", async () => {
+  await who("hugo", "en");
+  await page.setViewportSize({ width: 1280, height: 860 });
+  await page.goto(origin + "/chest");
+  expect(!(await page.getByRole("link", { name: /A team pulse/u }).count()), "no pulse tile for a member");
+  await page.goto(origin + "/chest/new?kind=survey&preset=pulse");
+  expect(await page.getByLabel("Name of the survey").inputValue() === "", "the pulse is not prefilled for a member");
+  expect(!(await page.locator("option[value=enps]").count()), "no eNPS question for a member");
+  expect(!(await page.locator("fieldset.repeat").count()), "no repeat for a member");
+  await who("camille", "en");
+  await page.goto(origin + "/chest");
+  await page.getByText("Everyone can start a team pulse or eNPS").click();
+  await page.waitForSelector(".ck-toast:has-text('Saved.')");
+  await who("hugo", "en");
+  await page.goto(origin + "/chest");
+  expect(await page.getByRole("link", { name: /A team pulse/u }).count() === 1, "opened by the admin: the tile shows");
+  await who("camille", "en");
+  await page.goto(origin + "/chest");
+  await page.getByText("Everyone can start a team pulse or eNPS").click();
+  await page.waitForSelector(".ck-toast:has-text('Saved.')");
+  await who("lea", "fr");
+  await page.goto(origin + "/chest/polls/3");
+  expect(await page.getByRole("heading", { name: "Météo de l’équipe" }).isVisible(), "Camille's pulse, in French");
+});
+
+await step("the organiser's list: what she asked, its state and who answered — not mixed into To answer", async () => {
+  await who("sofia", "en");
+  await page.goto(origin + "/chest");
+  const list = await page.locator(".asked-list").innerText();
+  expect(list.includes("Where shall we have lunch on Friday?") && list.includes("Open") && /\d+ of \d+ answered/u.test(list), "asked by her: " + list.slice(0, 120));
+  const toAnswer = await page.locator("section[aria-labelledby=to-answer]").innerText();
+  expect(!toAnswer.includes("Where shall we have lunch on Friday?"), "her own poll is not in To answer");
+});
+
+await step("a sign-up sheet says places taken, and a phone says there are more dates to the side", async () => {
+  await who("lea", "fr");
+  await page.goto(origin + "/chest/polls/10");
+  const foot = await page.locator(".grid-table tfoot").innerText();
+  expect(foot.includes("Places prises") && foot.includes("2/2") && foot.includes("Complet") && !foot.includes("Disponibles"), "honest footer: " + foot);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.reload();
+  expect(await page.locator(".grid-more").isVisible(), "the swipe hint on a phone");
+  await page.setViewportSize({ width: 1280, height: 860 });
+  await page.reload();
+  expect(!(await page.locator(".grid-more").isVisible()), "no hint where every date shows");
+});
+
+await step("a closed anonymous round per team: groups too small or deducible stay hidden, and it says so", async () => {
+  await who("hugo", "en");
+  await page.goto(origin + "/chest/polls/9");
+  const teams = await page.locator(".teams-card").innerText();
+  expect(teams.includes("By team") && teams.includes("3 groups are not shown"), "the team card: " + teams);
+  expect(!/Sales|Tech|Office/u.test(teams), "no group named with fewer than 5 answers");
+});
+
 await browser.close();
 done(problems);

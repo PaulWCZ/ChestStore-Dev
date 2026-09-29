@@ -1,4 +1,5 @@
 import { Avatar, EmptyState, PageHeader } from "@argentic/chest-ui/components";
+import { listName } from "../../../lib/examples.ts";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AutoRefresh } from "../../../components/auto-refresh.tsx";
@@ -59,7 +60,7 @@ export default async function ChecklistsPage() {
           <span className="journey-main">
             <strong>{person.name}{j.arrivalId && <span className="source">{t.arrivals.group}</span>}</strong>
             <span className="muted">
-              <KindBadge kind={j.kind} label={t.checklists.kinds[j.kind]} /> {j.name} · {format(j.kind === "onboarding" ? t.checklists.firstDay : t.checklists.lastDay, { date: formatDay(j.anchor, locale, { day: "numeric", month: "short" }) })}
+              <KindBadge kind={j.kind} label={t.checklists.kinds[j.kind]} /> {listName(j, t)} · {format(j.kind === "onboarding" ? t.checklists.firstDay : t.checklists.lastDay, { date: formatDay(j.anchor, locale, { day: "numeric", month: "short" }) })}
             </span>
           </span>
           <span className="journey-progress">
@@ -121,7 +122,7 @@ export default async function ChecklistsPage() {
                 <li key={x.id}>
                   <Link href={`/chest/checklists/templates/${x.id}`} className="template-row">
                     <KindBadge kind={x.kind} label={t.checklists.kinds[x.kind]} />
-                    <strong>{x.name}</strong>
+                    <strong>{listName(x, t)}</strong>
                     <span className="muted small">{plural(t.checklists.steps, x.items.length, locale)}</span>
                   </Link>
                 </li>
@@ -136,7 +137,7 @@ export default async function ChecklistsPage() {
                     <li key={x.id}>
                       <Link href={`/chest/checklists/templates/${x.id}`} className="template-row">
                         <KindBadge kind={x.kind} label={t.checklists.kinds[x.kind]} />
-                        <strong>{x.name}</strong>
+                        <strong>{listName(x, t)}</strong>
                       </Link>
                     </li>
                   ))}

@@ -12,6 +12,7 @@ what must not break.
 | `lib/model.ts` | Bounds, slugs, email and phone checks, colours, kinds — pure |
 | `lib/zone.ts` | Wall-clock time in a time zone and back (DST gaps and overlaps) — pure, tested |
 | `lib/slots.ts` | Free times from hours, overrides, bookings and rules (buffers, notice, window, daily limit) — pure, tested |
+| `lib/texts.ts` | A host's texts in two languages: the page's language (`pageLanguage`), the type's second-language texts (`cleanTypeTexts`, `localizeType`) — pure, browser-safe, tested |
 | `lib/questions.ts` | The host's own questions and the guest's answers: bounds, checks, reading — pure, browser-safe, tested |
 | `lib/booking.ts` | The service: hosts, hours, types, free times, booking, moving, cancelling, feed, guard, cleanup, erasure |
 | `lib/ics.ts` | Calendar files (RFC 5545) |
@@ -26,9 +27,9 @@ what must not break.
 | `lib/lifecycle.ts` | Members leaving or erased |
 | `lib/form-token.ts`, `lib/public-origin.ts` | The form's signed "shown at" time; the public host's address; the visitor's key |
 | `app/page.tsx`, `app/[host]/…`, `app/b/[secret]/…`, `app/api/slots`, `app/feed/[token]`, `app/public-actions.ts`, `components/picker.tsx` | The public part (anonymous) |
-| `app/chest/…`, `app/chest/actions.ts` | The team's part (`new/`: a host books for a guest; `api/slots`: the free times a host sees; `hours/blocks.tsx`, `hours/other-calendars.tsx`) |
+| `app/chest/…`, `app/chest/actions.ts` | The team's part (`first-run.tsx`: a new host's first screen; `agenda-tools.tsx`: blocking from the agenda's free stretches, unblocking with Undo; `new/`: a host books for a guest; `api/slots`: the free times a host sees; `hours/other-calendars.tsx`, `hours/exceptions.tsx` inside `components/fold.tsx`) |
 | `app/chest-jobs/[name]/route.ts`, `app/chest-events/route.ts` | Deliveries from the Chest (signed) |
-| `lib/theme.ts`, `app/tokens.css`, `app/globals.css` | The identity as a kit theme and the page's look; the tool's own tokens (aliases of contract tokens); styles (contract tokens only) |
+| `lib/theme.ts`, `lib/look.ts`, `app/tokens.css`, `app/globals.css` | The identity as a kit theme and the looks of the team's and the public surfaces (`teamLook`, `publicLook`; `currentLook` picks by the member assertion); the tool's own tokens (aliases of contract tokens); styles (contract tokens only) |
 | `components/shell.tsx`, `components/link.tsx`, `components/public-shell.tsx`, `lib/i18n/kit.ts` | The kit's AppShell, BrandMark and LanguageSwitch wired to Next.js; Next's `Link` re-exported for server pages; the kit's date words from the catalogue |
 
 ## Commands
@@ -80,6 +81,18 @@ npm ci && npm test && npm run build   # all three must pass
   and check the time again inside that transaction; the host's daily
   maximum across types holds the same way (`lockHost`). Any new way to make or
   move a booking must do the same (test/limits.test.ts races them).
+- **Nobody is public by opening the tool**: `hosts.ready` is false until
+  a calendar connects (`calendars.connect`) or the hours are confirmed
+  (`confirmHours`, `saveWeekly`). Every public lookup (`publicHost`,
+  `publicType`, `listedHosts`, a team's hosts in `hostsOf`, `bySecret`'s
+  links) filters on it; a new public path must too.
+- **One language per public page**: a host page's words and texts come
+  from `hostWords(host)` and `localizeType`/`localizeWelcome`; `book()`
+  stores the title and answers in the language the guest read
+  (`pageLanguage`). Never render a host's text without localizing it.
+- **Video rooms have no silent default**: `videoRooms` needs an address
+  (`rooms_address`); meet.jit.si asks the host to sign in (say so where a
+  link is shown: `isPublicJitsi`).
 - **Answers are checked on the server** against the type's questions as
   they are at booking time (`cleanAnswers`); never trust the form's fields.
 - **Times are instants** (`timestamptz`, ISO strings); hours are minutes

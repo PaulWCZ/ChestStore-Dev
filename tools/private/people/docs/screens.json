@@ -1,35 +1,333 @@
 [
-  {"name": "directory", "path": "/chest", "member": "hugo", "locale": "en", "preview": true},
-  {"name": "profile", "path": "/chest/people/mbr_inesaaaaaaaaaaaaaaaaaaaaaa", "member": "hugo", "locale": "en"},
-  {"name": "chart", "path": "/chest/chart", "member": "tom", "locale": "en"},
-  {"name": "todo", "path": "/chest/todo", "member": "nora", "locale": "en"},
-  {"name": "checklist", "path": "/chest/checklists/1", "member": "camille", "locale": "en"},
-  {"name": "arrivals", "path": "/chest/checklists", "member": "sofia", "locale": "en"},
-  {"name": "checklists-fr", "path": "/chest/checklists", "member": "camille", "locale": "fr"},
-  {"name": "away-fr", "path": "/chest?team=Sales", "member": "lea", "locale": "fr"},
-  {"name": "directory-fr", "path": "/chest", "member": "lea", "locale": "fr"},
-  {"name": "edit-fr", "path": "/chest/people/mbr_leaaaaaaaaaaaaaaaaaaaaaaaa/edit", "member": "lea", "locale": "fr", "only": ["desktop"]},
-  {"name": "template", "path": "/chest/checklists/templates/1", "member": "camille", "locale": "en", "only": ["desktop"]},
-  {"name": "directory-dark", "path": "/chest", "member": "tom", "locale": "en", "dark": true},
-  {"name": "chart-dark", "path": "/chest/chart", "member": "sofia", "locale": "en", "dark": true, "only": ["phone"]},
-  {"name": "records", "path": "/chest/records", "member": "camille", "locale": "en"},
-  {"name": "record", "path": "/chest/records/9", "member": "camille", "locale": "en"},
-  {"name": "register-fr", "path": "/chest/records/register", "member": "camille", "locale": "fr", "only": ["desktop"]},
-  {"name": "my-record-fr", "path": "/chest/records/9", "member": "nora", "locale": "fr"},
-  {"name": "numbers", "path": "/chest/numbers", "member": "sofia", "locale": "en"},
-  {"name": "table", "path": "/chest/table", "member": "sofia", "locale": "en", "only": ["desktop"]},
-  {"name": "records-dark", "path": "/chest/records", "member": "sofia", "locale": "en", "dark": true, "only": ["phone"]},
-  {"name": "directory-chest", "path": "/chest", "member": "hugo", "locale": "en", "look": {"all": "catalogue:chest"}},
-  {"name": "directory-theme", "path": "/chest", "member": "hugo", "locale": "en", "look": {"all": "catalogue:instrument"}},
-  {"name": "directory-theme-dark", "path": "/chest", "member": "lea", "locale": "fr", "dark": true, "look": {"all": "catalogue:instrument"}, "only": ["phone"]},
-  {"name": "directory-brand", "path": "/chest", "member": "ines", "locale": "fr", "look": {"all": "catalogue:workshop", "tool": "brand:sample"}},
-  {"name": "directory-brand-dark", "path": "/chest", "member": "hugo", "locale": "en", "dark": true, "look": {"tool": "brand:sample"}, "only": ["phone"]},
-  {"name": "profile-chest", "path": "/chest/people/mbr_inesaaaaaaaaaaaaaaaaaaaaaa", "member": "hugo", "locale": "fr", "look": {"all": "catalogue:chest"}, "only": ["phone"]},
-  {"name": "chart-theme", "path": "/chest/chart", "member": "tom", "locale": "en", "look": {"all": "catalogue:library"}, "only": ["desktop"]},
-  {"name": "records-brand", "path": "/chest/records", "member": "camille", "locale": "fr", "look": {"tool": "brand:sample"}, "only": ["desktop"]},
-  {"name": "start-fr", "path": "/chest/checklists/new", "member": "camille", "locale": "fr", "only": ["desktop"]},
-  {"name": "todo-undo", "path": "/chest/todo", "member": "nora", "locale": "fr", "actions": [{"click": ".steps .step label.tick"}, {"wait": 800}], "only": ["desktop"]},
-  {"name": "record-delete", "path": "/chest/records/9", "member": "camille", "locale": "en", "actions": [{"click": ".record-admin .button.danger"}, {"wait": 400}], "only": ["phone"]},
-  {"name": "checklist-edit", "path": "/chest/checklists/1", "member": "camille", "locale": "en", "actions": [{"click": ".step .icon-button"}, {"wait": 300}], "full": true, "only": ["desktop"]},
-  {"name": "edit-hr", "path": "/chest/people/mbr_tomaaaaaaaaaaaaaaaaaaaaaaa/edit", "member": "camille", "locale": "en", "full": true}
+  {
+    "name": "directory",
+    "path": "/chest",
+    "member": "hugo",
+    "locale": "en",
+    "preview": true
+  },
+  {
+    "name": "profile",
+    "path": "/chest/people/mbr_inesaaaaaaaaaaaaaaaaaaaaaa",
+    "member": "hugo",
+    "locale": "en"
+  },
+  {
+    "name": "chart",
+    "path": "/chest/chart",
+    "member": "tom",
+    "locale": "en"
+  },
+  {
+    "name": "todo",
+    "path": "/chest/todo",
+    "member": "nora",
+    "locale": "en"
+  },
+  {
+    "name": "checklist",
+    "path": "/chest/checklists/1",
+    "member": "camille",
+    "locale": "en"
+  },
+  {
+    "name": "arrivals",
+    "path": "/chest/checklists",
+    "member": "sofia",
+    "locale": "en"
+  },
+  {
+    "name": "checklists-fr",
+    "path": "/chest/checklists",
+    "member": "camille",
+    "locale": "fr"
+  },
+  {
+    "name": "away-fr",
+    "path": "/chest?team=Sales",
+    "member": "lea",
+    "locale": "fr"
+  },
+  {
+    "name": "directory-fr",
+    "path": "/chest",
+    "member": "lea",
+    "locale": "fr"
+  },
+  {
+    "name": "edit-fr",
+    "path": "/chest/people/mbr_leaaaaaaaaaaaaaaaaaaaaaaaa/edit",
+    "member": "lea",
+    "locale": "fr",
+    "only": [
+      "desktop"
+    ]
+  },
+  {
+    "name": "template",
+    "path": "/chest/checklists/templates/1",
+    "member": "camille",
+    "locale": "en",
+    "only": [
+      "desktop"
+    ]
+  },
+  {
+    "name": "directory-dark",
+    "path": "/chest",
+    "member": "tom",
+    "locale": "en",
+    "dark": true
+  },
+  {
+    "name": "chart-dark",
+    "path": "/chest/chart",
+    "member": "sofia",
+    "locale": "en",
+    "dark": true,
+    "only": [
+      "phone"
+    ]
+  },
+  {
+    "name": "records",
+    "path": "/chest/records",
+    "member": "camille",
+    "locale": "en"
+  },
+  {
+    "name": "record",
+    "path": "/chest/records/9",
+    "member": "camille",
+    "locale": "en"
+  },
+  {
+    "name": "register-fr",
+    "path": "/chest/records/register",
+    "member": "camille",
+    "locale": "fr",
+    "only": [
+      "desktop"
+    ]
+  },
+  {
+    "name": "my-record-fr",
+    "path": "/chest/records/9",
+    "member": "nora",
+    "locale": "fr"
+  },
+  {
+    "name": "numbers",
+    "path": "/chest/numbers",
+    "member": "sofia",
+    "locale": "en"
+  },
+  {
+    "name": "table",
+    "path": "/chest/table",
+    "member": "sofia",
+    "locale": "en",
+    "only": [
+      "desktop"
+    ]
+  },
+  {
+    "name": "records-dark",
+    "path": "/chest/records",
+    "member": "sofia",
+    "locale": "en",
+    "dark": true,
+    "only": [
+      "phone"
+    ]
+  },
+  {
+    "name": "directory-chest",
+    "path": "/chest",
+    "member": "hugo",
+    "locale": "en",
+    "look": {
+      "all": "catalogue:chest"
+    }
+  },
+  {
+    "name": "directory-theme",
+    "path": "/chest",
+    "member": "hugo",
+    "locale": "en",
+    "look": {
+      "all": "catalogue:instrument"
+    }
+  },
+  {
+    "name": "directory-theme-dark",
+    "path": "/chest",
+    "member": "lea",
+    "locale": "fr",
+    "dark": true,
+    "look": {
+      "all": "catalogue:instrument"
+    },
+    "only": [
+      "phone"
+    ]
+  },
+  {
+    "name": "directory-brand",
+    "path": "/chest",
+    "member": "ines",
+    "locale": "fr",
+    "look": {
+      "all": "catalogue:workshop",
+      "tool": "brand:sample"
+    }
+  },
+  {
+    "name": "directory-brand-dark",
+    "path": "/chest",
+    "member": "hugo",
+    "locale": "en",
+    "dark": true,
+    "look": {
+      "tool": "brand:sample"
+    },
+    "only": [
+      "phone"
+    ]
+  },
+  {
+    "name": "profile-chest",
+    "path": "/chest/people/mbr_inesaaaaaaaaaaaaaaaaaaaaaa",
+    "member": "hugo",
+    "locale": "fr",
+    "look": {
+      "all": "catalogue:chest"
+    },
+    "only": [
+      "phone"
+    ]
+  },
+  {
+    "name": "chart-theme",
+    "path": "/chest/chart",
+    "member": "tom",
+    "locale": "en",
+    "look": {
+      "all": "catalogue:library"
+    },
+    "only": [
+      "desktop"
+    ]
+  },
+  {
+    "name": "records-brand",
+    "path": "/chest/records",
+    "member": "camille",
+    "locale": "fr",
+    "look": {
+      "tool": "brand:sample"
+    },
+    "only": [
+      "desktop"
+    ]
+  },
+  {
+    "name": "start-fr",
+    "path": "/chest/checklists/new",
+    "member": "camille",
+    "locale": "fr",
+    "only": [
+      "desktop"
+    ]
+  },
+  {
+    "name": "todo-undo",
+    "path": "/chest/todo",
+    "member": "nora",
+    "locale": "fr",
+    "actions": [
+      {
+        "click": ".steps .step label.tick"
+      },
+      {
+        "wait": 800
+      }
+    ],
+    "only": [
+      "desktop"
+    ]
+  },
+  {
+    "name": "record-delete",
+    "path": "/chest/records/9",
+    "member": "camille",
+    "locale": "en",
+    "actions": [
+      {
+        "click": ".record-admin .button.danger"
+      },
+      {
+        "wait": 400
+      }
+    ],
+    "only": [
+      "phone"
+    ]
+  },
+  {
+    "name": "checklist-edit",
+    "path": "/chest/checklists/1",
+    "member": "camille",
+    "locale": "en",
+    "actions": [
+      {
+        "click": ".step .icon-button"
+      },
+      {
+        "wait": 300
+      }
+    ],
+    "full": true,
+    "only": [
+      "desktop"
+    ]
+  },
+  {
+    "name": "edit-hr",
+    "path": "/chest/people/mbr_tomaaaaaaaaaaaaaaaaaaaaaaa/edit",
+    "member": "camille",
+    "locale": "en",
+    "full": true
+  },
+  {
+    "name": "register",
+    "path": "/chest/records/register",
+    "member": "camille",
+    "locale": "en",
+    "full": true,
+    "only": [
+      "desktop"
+    ]
+  },
+  {
+    "name": "numbers-port",
+    "path": "/chest/numbers",
+    "member": "camille",
+    "locale": "fr",
+    "look": {
+      "tool": "brand:port"
+    }
+  },
+  {
+    "name": "directory-port",
+    "path": "/chest",
+    "member": "hugo",
+    "locale": "en",
+    "look": {
+      "tool": "brand:port"
+    },
+    "only": [
+      "desktop"
+    ]
+  }
 ]

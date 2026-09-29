@@ -376,6 +376,86 @@ await step("a date question: the kit's date field, typed in words, Enter reads i
   await p.close();
 });
 
+await step("a contact form also makes a contact in Clients and opens a ticket in Support: the author maps the questions, each answer is published typed", async () => {
+  await as(context, origin, "ines");
+  await english();
+  await page.setViewportSize({ width: 1280, height: 860 });
+  await page.goto(origin + "/chest/forms/5/settings");
+  await page.locator("label.ck-switch-label", { hasText: "Also create a contact in Clients" }).click();
+  // The only email question and the only phone question are guessed.
+  const contact = page.locator(".route-fields").first();
+  await contact.waitFor();
+  expect((await contact.getByLabel("Their email").locator("option:checked").innerText()) === "Your email address", "email guessed");
+  expect((await contact.getByLabel("Their phone").locator("option:checked").innerText()) === "Your phone number", "phone guessed");
+  await contact.getByLabel("Their message").selectOption({ label: "Your message" });
+  await page.locator("label.ck-switch-label", { hasText: "Also open a ticket in Support" }).click();
+  const ticket = page.locator(".route-fields").nth(1);
+  await ticket.getByLabel("Subject").selectOption({ label: "What is it about?" });
+  await ticket.getByLabel("Details").selectOption({ label: "Your message" });
+  await page.waitForSelector(".save-state.saved", { timeout: 10000 });
+  await page.goto(origin + "/chest/forms/5/settings");
+  expect((await page.locator(".route-fields").nth(1).getByLabel("Subject").locator("option:checked").innerText()) === "What is it about?", "the mapping is kept");
+  // Published, then answered by a visitor.
+  await page.goto(origin + "/chest/forms/5");
+  await page.getByRole("button", { name: "Publish" }).click();
+  await page.waitForSelector("dialog[open]");
+  const contactLink = (await page.locator("dialog[open] code").innerText()).trim();
+  await page.keyboard.press("Escape");
+  const v = await browser.newPage();
+  await v.goto(contactLink);
+  await v.getByLabel("Your name").fill("Nina Roux");
+  await v.getByLabel("Your email address").fill("nina.roux@example.com");
+  await v.locator("label", { hasText: "A quote" }).first().click();
+  await v.getByLabel("Your message").fill("Six oak chairs, please.");
+  await v.waitForTimeout(2200);
+  await v.getByRole("button", { name: "Send" }).click();
+  await v.waitForSelector(".runner-thanks", { timeout: 15000 });
+  await v.close();
+  const board = await dev();
+  expect(board.includes("<code>forms.contact</code>") && board.includes("nina.roux@example.com"), "a contact for Clients");
+  expect(board.includes("<code>forms.request</code>") && board.includes("A quote"), "a ticket for Support, its subject the answer");
+});
+
+await step("answers on a phone are cards; the filters wait behind one button; the columns control looks like one", async () => {
+  await as(context, origin, "ines");
+  await english();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(origin + "/chest/forms/1/answers");
+  const toggle = page.getByRole("button", { name: "Filter", exact: true });
+  expect(await toggle.isVisible(), "one Filter button");
+  expect(!(await page.locator(".answers-filters .ck-filters, .answers-filter").first().isVisible()), "filters folded");
+  await toggle.click();
+  expect(await page.locator(".answers-filter").first().isVisible(), "filters shown");
+  const wide = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1);
+  expect(!wide, "no sideways scroll");
+  const card = page.locator("table.ck-table-stack tbody tr").first();
+  // Each line of the card is named by its question (the kit's stacked rows).
+  const named = await card.locator("[data-label]").evaluateAll(cells => cells.filter(c => getComputedStyle(c).display !== "none").map(c => c.getAttribute("data-label")));
+  expect(named.filter(l => /How would you rate|How likely|What did you like|What should we do better|May we contact|Your email/u.test(l ?? "")).length === 3, "the first three answers on the card: " + named.join(" | "));
+  expect(named.some(l => /Where it stands|Follow/u.test(l ?? "")) || named.length >= 5, "its state too: " + named.join(" | "));
+  const box = await card.boundingBox();
+  expect(box.width <= 390, "a card within the screen");
+  await page.setViewportSize({ width: 1280, height: 860 });
+  await page.goto(origin + "/chest/forms/1/answers");
+  expect(!(await page.getByRole("button", { name: "Filter", exact: true }).isVisible()), "no Filter button on a wide screen");
+  const summary = page.locator(".columns-pick > summary");
+  if (await summary.count()) {
+    const style = await summary.evaluate(el => getComputedStyle(el).borderTopStyle);
+    expect(style !== "none", "Columns shown has a button's edge");
+    expect(await summary.locator(".chevron").count() === 1, "and a chevron");
+  }
+});
+
+await step("the builder's preview says 'Preview' in the member's language; the form keeps its own", async () => {
+  await as(context, origin, "ines");
+  await context.addCookies([{ name: "dev_locale", value: "fr", url: origin }]);
+  await page.goto(origin + "/chest/forms/1");
+  await page.waitForSelector(".preview-tag", { state: "attached" });
+  const tag = (await page.locator(".preview-tag").textContent()) ?? "";
+  expect(tag.startsWith("Aperçu"), "the member's language: " + tag);
+  await english();
+});
+
 await phone.close();
 await browser.close();
 done(problems);

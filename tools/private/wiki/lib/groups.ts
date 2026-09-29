@@ -1,17 +1,41 @@
-import { ChestError } from "@argentic/chest-sdk/errors";
+import { CapabilityNotGranted, ChestError } from "@argentic/chest-sdk/errors";
 import type { Member } from "@argentic/chest-sdk/member";
 import * as members from "@argentic/chest-sdk/members";
 
-// The groups that give the wiki (for a space kept to some of them, or
-// edited by some of them), by
-// name. Without an answer from the Chest, none: the page still works.
-export async function groupsOfTool(): Promise<{ id: string; name: string }[]> {
+// The Chest's groups the wiki offers — for a space kept to some of them,
+// edited by some of them, or asked to confirm a page — by name. With the
+// "groups" permission (Proposal (studio): "groups": "read", as News) the
+// wiki sees every group of the Chest (Sales, Tech, the warehouse) even
+// when it is open to everyone; without it, only the groups that give the
+// wiki (the usual wiki, open to all, then has none). Without an answer
+// from the Chest, none: the page still works. Kept a minute (the SDK's
+// advice), per Chest API (the tests start many).
+export type Group = { id: string; name: string };
+let cached: { at: number; api: string | undefined; groups: Group[] } | null = null;
+
+export async function companyGroups(): Promise<Group[]> {
+  if (cached && cached.api === process.env["CHEST_API"] && Date.now() - cached.at < 60_000) return cached.groups;
+  let groups: Group[];
   try {
-    return (await members.groups.list()).map(g => ({ id: g.id, name: g.name })).sort((a, b) => a.name.localeCompare(b.name));
+    groups = (await members.groups.all()).map(g => ({ id: g.id, name: g.name }));
   } catch (error) {
     if (!(error instanceof ChestError)) throw error;
-    return [];
+    if (!(error instanceof CapabilityNotGranted)) return [];
+    try {
+      groups = (await members.groups.list()).map(g => ({ id: g.id, name: g.name }));
+    } catch (inner) {
+      if (!(inner instanceof ChestError)) throw inner;
+      return [];
+    }
   }
+  groups.sort((a, b) => a.name.localeCompare(b.name));
+  cached = { at: Date.now(), api: process.env["CHEST_API"], groups };
+  return groups;
+}
+
+// A group changed or was removed (events): read them again.
+export function forgetGroups(): void {
+  cached = null;
 }
 
 // The members who have the wiki (with a role, or none), by name: all of

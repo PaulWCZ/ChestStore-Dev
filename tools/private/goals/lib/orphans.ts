@@ -4,6 +4,8 @@ import * as members from "@argentic/chest-sdk/members";
 import { can } from "./access.ts";
 import { AppError } from "./app-error.ts";
 import type { Query, Sql } from "./db.ts";
+import { cycleName } from "./cycle-names.ts";
+import type { Locale } from "./i18n/index.ts";
 import { memberId } from "./model.ts";
 import { activeMember } from "./objectives.ts";
 
@@ -14,13 +16,14 @@ import { activeMember } from "./objectives.ts";
 
 export type Orphan = { kind: "objective" | "key_result"; id: string; title: string; owner: string; objectiveId: string; objectiveTitle: string; cycle: string };
 
-export async function orphans(sql: Query): Promise<Orphan[]> {
-  const rows = await sql<{ kind: "objective" | "key_result"; id: string; title: string; owner: string; objective_id: string; objective_title: string; cycle: string }[]>`
-    select 'objective' as kind, o.id, o.title, o.owner, o.id as objective_id, o.title as objective_title, y.name as cycle
+// locale: the reader's language, for the names of cycles the tool wrote.
+export async function orphans(sql: Query, locale: Locale | null = null): Promise<Orphan[]> {
+  const rows = await sql<{ kind: "objective" | "key_result"; id: string; title: string; owner: string; objective_id: string; objective_title: string; cycle: string; generated: boolean; starts_on: string; ends_on: string }[]>`
+    select 'objective' as kind, o.id, o.title, o.owner, o.id as objective_id, o.title as objective_title, y.name as cycle, y.generated, to_char(y.starts_on, 'YYYY-MM-DD') as starts_on, to_char(y.ends_on, 'YYYY-MM-DD') as ends_on
     from objectives o join cycles y on y.id = o.cycle_id
     where o.archived_at is null and y.closed_at is null
     union all
-    select 'key_result' as kind, k.id, k.title, k.owner, o.id as objective_id, o.title as objective_title, y.name as cycle
+    select 'key_result' as kind, k.id, k.title, k.owner, o.id as objective_id, o.title as objective_title, y.name as cycle, y.generated, to_char(y.starts_on, 'YYYY-MM-DD') as starts_on, to_char(y.ends_on, 'YYYY-MM-DD') as ends_on
     from key_results k join objectives o on o.id = k.objective_id join cycles y on y.id = o.cycle_id
     where k.archived_at is null and o.archived_at is null and y.closed_at is null
     order by cycle, objective_id, kind desc, id`;
@@ -44,7 +47,7 @@ export async function orphans(sql: Query): Promise<Orphan[]> {
   const back = [...departed].filter(d => here.has(d));
   if (back.length > 0) await sql`delete from departed where member_id in ${sql(back)}`;
   const orphaned = (owner: string) => owner === "erased" || (asked ? gone.has(owner) : departed.has(owner));
-  return rows.filter(r => orphaned(r.owner)).map(r => ({ kind: r.kind, id: String(r.id), title: r.title, owner: r.owner, objectiveId: String(r.objective_id), objectiveTitle: r.objective_title, cycle: r.cycle }));
+  return rows.filter(r => orphaned(r.owner)).map(r => ({ kind: r.kind, id: String(r.id), title: r.title, owner: r.owner, objectiveId: String(r.objective_id), objectiveTitle: r.objective_title, cycle: locale ? cycleName({ name: r.cycle, generated: r.generated, startsOn: r.starts_on, endsOn: r.ends_on }, locale) : r.cycle }));
 }
 
 // An admin gives one thing, or everything a person owned in open cycles,

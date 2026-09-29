@@ -10,7 +10,7 @@ import { accents, introFor, settings } from "../../../lib/jobs.ts";
 import { templates } from "../../../lib/messages.ts";
 import { publicOrigin } from "../../../lib/public-origin.ts";
 import { nonceOf, viewer } from "../../../lib/session.ts";
-import { accentCss, currentLook } from "../../../lib/theme.ts";
+import { accentCss, lookOf } from "../../../lib/theme.ts";
 import { SettingsView } from "./settings-view.tsx";
 
 // The careers page's settings: its name, its words in each language, its
@@ -24,7 +24,8 @@ export default async function Settings() {
   const s = await settings(sql);
   const h = await headers();
   const origin = publicOrigin(h) ?? "";
-  const look = await currentLook();
+  // The careers page's look (its public surface): the brand, or Hiring's own.
+  const look = await lookOf("public");
   const url = (image: { object: string; version: string }) => files.publicUrl(image.object, { version: image.version });
   const own = await templates(sql, member);
   return (
@@ -41,7 +42,7 @@ export default async function Settings() {
         photos={s.photos.map(p => ({ object: p.object, url: url(p) }))}
         templates={own.map(x => ({ id: x.id, name: x.name, language: x.language, subject: x.subject, body: x.body }))}
         countryNames={countryNames(locale)}
-        look={look.source}
+        look={look.source === "brand" ? "brand" : "own"}
         t={{ settings: t.settings, retention: t.retention, errors: t.errors, common: t.common, careers: t.careers, templatesWords: t.templates }}
       />
     </div>

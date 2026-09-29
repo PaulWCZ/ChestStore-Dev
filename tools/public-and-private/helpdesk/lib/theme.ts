@@ -37,3 +37,9 @@ export const currentLook = cache(async (): Promise<Look> => {
   if (look.problem) console.warn(`theme: ${look.problem}; the tool's own look is used`);
   return look;
 });
+
+// The look of a public page (the contact form, a request's follow-up): the
+// company's brand when it has one, else the tool's own identity — never a
+// catalogue theme chosen for the team, never the Chest's sheet (kit 0.2.3,
+// surface "public").
+export const publicLook = cache(async (): Promise<Look> => resolveTheme(await chest.theme(), identity, { surface: "public" }));

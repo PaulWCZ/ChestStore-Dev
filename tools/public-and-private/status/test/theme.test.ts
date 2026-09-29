@@ -9,7 +9,7 @@ import { fontFiles } from "@argentic/chest-ui/fonts";
 import { themeStyle } from "@argentic/chest-ui/runtime";
 import { badge, brandLabel, labelColour } from "../lib/badge.ts";
 import { moveWindow } from "../lib/zone.ts";
-import { currentLook, identity } from "../lib/theme.ts";
+import { identity, lookOf } from "../lib/theme.ts";
 
 const root = join(import.meta.dirname, "..");
 const brand = { name: "Atelier Martin", primary: "#0e7c66", secondary: "#f2b134", corners: "round" as const, display: { id: "young-serif" }, logo: { url: "/_chest/theme/brand/logo.svg", alt: "Atelier Martin", dark: "/_chest/theme/brand/logo-dark.svg" } };
@@ -35,16 +35,22 @@ test("its fonts are the tool's own files, served at /fonts", () => {
   assert.match(themeStyle(identity), /url\(\/fonts\/red-hat-mono-latin-wght-normal\.woff2\)/u);
 });
 
-test("the look follows the Chest — one mechanism for the team's and the public pages: the company's choice for all tools, this tool's override, the identity otherwise", async () => {
+test("the look follows the Chest: the company's choice for all tools, this tool's override, the identity otherwise — and the public pages wear only the brand or the identity", async () => {
   const chest = await fakeChest({ theme: { all: { mode: "catalogue", theme: "newsprint" } } });
   try {
-    let look = await currentLook();
+    let look = await lookOf("team");
     assert.equal(look.source, "catalogue");
     assert.equal(look.theme.id, "newsprint");
     assert.equal(look.fontBase, "/_chest/theme/fonts");
     assert.equal(brandLabel(look), null, "a catalogue theme leaves the badge as it is");
+    // The public pages never wear a catalogue theme chosen for the team's
+    // tools: Status's own look (kit 0.2.3, surface "public").
+    assert.equal((await lookOf("public")).theme, identity, "a catalogue theme stays on the team's pages");
+    chest.theme.tools[chest.tool] = { mode: "catalogue", theme: "newsprint" };
+    assert.equal((await lookOf("public")).theme, identity, "even one chosen for this tool alone");
     chest.theme.tools[chest.tool] = { mode: "brand", brand };
-    look = await currentLook();
+    assert.equal((await lookOf("public")).source, "brand", "the company's brand dresses the public pages");
+    look = await lookOf("team");
     assert.equal(look.source, "brand");
     assert.deepEqual(look.logo, brand.logo);
     assert.deepEqual(checkTheme(look.theme), []);
@@ -53,16 +59,16 @@ test("the look follows the Chest — one mechanism for the team's and the public
     assert.equal(ground, look.theme.light.accent);
     assert.ok(badge("status", "All systems operational", "operational", "t", ground ?? labelColour).includes(`fill="${ground}"`));
     chest.theme.tools[chest.tool] = { mode: "brand", brand: { ...brand, primary: "#ffe600" } };
-    assert.equal(brandLabel(await currentLook()), null, "a light brand colour: the badge keeps its dark label");
+    assert.equal(brandLabel(await lookOf("team")), null, "a light brand colour: the badge keeps its dark label");
     chest.theme.tools[chest.tool] = { mode: "own" };
-    assert.equal((await currentLook()).theme, identity);
+    assert.equal((await lookOf("team")).theme, identity);
     chest.theme.tools[chest.tool] = { mode: "catalogue", theme: "no-such-theme" };
-    assert.equal((await currentLook()).theme, identity, "a theme the kit does not know is the identity");
+    assert.equal((await lookOf("team")).theme, identity, "a theme the kit does not know is the identity");
   } finally {
     await chest.close();
   }
   forgetTheme();
-  assert.equal((await currentLook()).theme, identity, "outside a Chest: the identity");
+  assert.equal((await lookOf("team")).theme, identity, "outside a Chest: the identity");
 });
 
 test("a badge never carries a label ground it was not meant to (only #rrggbb)", () => {

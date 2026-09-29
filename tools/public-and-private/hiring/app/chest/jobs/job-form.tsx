@@ -1,11 +1,11 @@
 "use client";
 
-import { DateField, Segmented, useToast } from "@argentic/chest-ui/components";
+import { DateField, useToast } from "@argentic/chest-ui/components";
 import type { DateWords } from "@argentic/chest-ui/components/logic";
 import { useRouter } from "next/navigation";
-import { useRef, useState, useTransition } from "react";
-import { Bin, Bold, Heading, List, Plus } from "../../../components/icons.tsx";
-import { RichText } from "../../../components/rich-text.tsx";
+import { useState, useTransition } from "react";
+import { DescriptionEditor } from "../../../components/description-editor.tsx";
+import { Bin, Plus } from "../../../components/icons.tsx";
 import { format, languageNames } from "../../../lib/i18n/format.ts";
 import type { Catalogue } from "../../../lib/i18n/index.ts";
 import type { Job } from "../../../lib/jobs.ts";
@@ -18,7 +18,7 @@ type Draft = { id: string; kind: QuestionKind; label: string; options: string; r
 const toDraft = (q: Question): Draft => ({ id: q.id, kind: q.kind, label: q.label, options: q.options.join("\n"), required: q.required });
 
 // Writing a job: the facts a candidate looks for first, the description
-// (a few marks anyone can type, a preview), the salary. A new job is saved
+// (a real editor: headings, bold, lists as they will look), the salary. A new job is saved
 // as a draft: nothing is public until "Publish" on its board.
 export function JobForm({ job, defaultLanguage, defaultCountry, countryNames, today, t }: { job: Job | null; defaultLanguage: string; defaultCountry: string; countryNames: [string, string][]; today: string; t: Words }) {
   const router = useRouter();
@@ -26,37 +26,10 @@ export function JobForm({ job, defaultLanguage, defaultCountry, countryNames, to
   const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [description, setDescription] = useState(job?.description ?? "");
-  const [tab, setTab] = useState<"write" | "preview">("write");
   const [closesOn, setClosesOn] = useState<string | null>(job?.closesOn || null);
-  const area = useRef<HTMLTextAreaElement>(null);
   const [questions, setQuestions] = useState<Draft[]>(() => (job?.questions ?? []).map(toDraft));
   const w = t.jobForm;
   const change = (i: number, patch: Partial<Draft>) => setQuestions(list => list.map((q, k) => (k === i ? { ...q, ...patch } : q)));
-
-  // The toolbar writes the marks around the selection, as one would type them.
-  function mark(kind: "bold" | "list" | "heading") {
-    const el = area.current;
-    if (!el) return;
-    const { selectionStart: a, selectionEnd: b, value } = el;
-    let next: string, from: number, to: number;
-    if (kind === "bold") {
-      const inner = value.slice(a, b) || w.bold;
-      next = value.slice(0, a) + "**" + inner + "**" + value.slice(b);
-      [from, to] = [a + 2, a + 2 + inner.length];
-    } else {
-      const start = value.lastIndexOf("\n", a - 1) + 1;
-      const end = b > a && value[b - 1] === "\n" ? b - 1 : b;
-      const prefix = kind === "list" ? "- " : "## ";
-      const block = value.slice(start, end).split("\n").map(line => (line.startsWith(prefix) ? line : prefix + line.replace(/^(#{1,3}\s+|[-*•]\s+)/u, ""))).join("\n");
-      next = value.slice(0, start) + block + value.slice(end);
-      [from, to] = [start, start + block.length];
-    }
-    setDescription(next);
-    requestAnimationFrame(() => {
-      el.focus();
-      el.setSelectionRange(from, to);
-    });
-  }
 
   function submit(data: FormData) {
     setError(null);
@@ -155,22 +128,9 @@ export function JobForm({ job, defaultLanguage, defaultCountry, countryNames, to
       </fieldset>
 
       <div className="field-block">
-        <div className="editor-head">
-          <label className="label" htmlFor="description">{w.description}</label>
-          <Segmented label={w.description} name="description-view" value={tab} onChange={setTab} options={[{ value: "write", label: w.write }, { value: "preview", label: w.preview }]} />
-        </div>
-        {tab === "write" ? (
-          <div className="editor">
-            <div className="toolbar">
-              <button type="button" className="icon-button" onClick={() => mark("heading")} title={w.heading}><Heading /><span className="visually-hidden">{w.heading}</span></button>
-              <button type="button" className="icon-button" onClick={() => mark("bold")} title={w.bold}><Bold /><span className="visually-hidden">{w.bold}</span></button>
-              <button type="button" className="icon-button" onClick={() => mark("list")} title={w.list}><List /><span className="visually-hidden">{w.list}</span></button>
-            </div>
-            <textarea ref={area} id="description" className="field editor-area" rows={14} maxLength={limits.description} value={description} onChange={e => setDescription(e.target.value)} placeholder={w.descriptionPlaceholder} aria-describedby="description-hint" />
-          </div>
-        ) : (
-          <div className="editor-preview">{description.trim() ? <RichText source={description} /> : <p className="muted">{w.previewEmpty}</p>}</div>
-        )}
+        <span className="label" id="description-label">{w.description}</span>
+        <DescriptionEditor id="description" labelledBy="description-label" describedBy="description-hint" value={description} max={limits.description} onChange={setDescription}
+          t={{ heading: w.heading, bold: w.bold, list: w.list, placeholder: w.descriptionPlaceholder, tooLong: format(t.errors.too_long, { max: limits.description }) }} />
         <p className="hint" id="description-hint">{w.descriptionHint}</p>
       </div>
 
@@ -190,7 +150,7 @@ export function JobForm({ job, defaultLanguage, defaultCountry, countryNames, to
                   {questionKinds.map(k => <option key={k} value={k}>{w.kinds[k]}</option>)}
                 </select>
               </div>
-              <button type="button" className="icon-button" onClick={() => setQuestions(list => list.filter((_, k) => k !== i))} title={w.removeQuestion}><Bin /><span className="visually-hidden">{w.removeQuestion} {i + 1}</span></button>
+              <button type="button" className="button link small" onClick={() => setQuestions(list => list.filter((_, k) => k !== i))} aria-label={`${w.removeQuestion} ${i + 1}`}><Bin />{w.removeQuestion}</button>
             </div>
             {q.kind === "choice" && (
               <div className="field-block">

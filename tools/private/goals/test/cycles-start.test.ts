@@ -38,3 +38,32 @@ test("around a quarter's end, the Chest's time zone decides which quarter is off
   assert.deepEqual(inZone("America/Montreal", () => [firstCycleChoices(today(eve)).main.which, firstCycleChoices(today(eve)).other?.quarter.name]), ["next", "Q4 2026"]);
   void w;
 });
+
+test("a cycle the tool named reads in each reader's language; one an admin named keeps its words", async () => {
+  const { createCycle, readCycle, updateCycle, deleteCycle } = await import("../lib/cycles.ts");
+  const { periodName, generatedName } = await import("../lib/cycle-names.ts");
+  const { asMember } = await import("./support/member.ts");
+  const { camille, hugo } = await import("./support/members.ts");
+  const { sql } = w.database;
+  assert.equal(periodName("2027-01-01", "2027-03-31", "en"), "Q1 2027");
+  assert.equal(periodName("2027-01-01", "2027-03-31", "fr"), "T1 2027");
+  assert.equal(periodName("2026-08-22", "2026-11-20", "en"), "Aug – Nov 2026");
+  assert.equal(periodName("2026-08-22", "2026-11-20", "fr"), "août – nov. 2026");
+  assert.equal(periodName("2026-11-02", "2027-02-26", "en"), "Nov 2026 – Feb 2027");
+  assert.equal(generatedName("T1 2027", "2027-01-01", "2027-03-31"), true);
+  assert.equal(generatedName("Winter push", "2027-01-01", "2027-03-31"), false);
+  // Camille (French) keeps the suggestion "T1 2027": Hugo reads "Q1 2027".
+  const admin = { ...asMember(camille), locale: "fr" as const };
+  const made = await createCycle(sql, admin, { name: "T1 2027", startsOn: "2027-01-01", endsOn: "2027-03-31" });
+  assert.equal(made.generated, true);
+  assert.equal((await readCycle(sql, asMember(hugo), made.id)).name, "Q1 2027");
+  assert.equal((await readCycle(sql, admin, made.id)).name, "T1 2027");
+  // Its dates change, its name not typed again: still the tool's, for the new dates.
+  await updateCycle(sql, admin, made.id, { name: "T1 2027", endsOn: "2027-04-30" });
+  assert.equal((await readCycle(sql, asMember(hugo), made.id)).name, "Jan – Apr 2027");
+  // Renamed: the admin's words, for everyone.
+  await updateCycle(sql, admin, made.id, { name: "Poussée d’hiver" });
+  const renamed = await readCycle(sql, asMember(hugo), made.id);
+  assert.deepEqual([renamed.name, renamed.generated], ["Poussée d’hiver", false]);
+  await deleteCycle(sql, admin, made.id);
+});

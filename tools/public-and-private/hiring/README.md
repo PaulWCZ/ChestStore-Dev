@@ -10,7 +10,9 @@ decides together.
 ## What it does
 
 - **A careers page** (`/`): the company's name or logo, a few words about
-  it *in each language* (the French page never shows the English words),
+  it *in each language* (the French page never shows the English words;
+  **no words until the company writes them** — an empty page never speaks
+  for it),
   up to three photos, its open jobs — an editorial table of contents — in
   the company's colour (six accents, each checked for contrast in light
   and dark; the company's brand from its Chest wins — see *Looks*), a link to its website. English/French switch, remembered in a
@@ -29,8 +31,11 @@ decides together.
   `THIRD_PARTY.md`.
 - **A page per job** (`/<job>`): what, where, how much (the salary range is
   shown by default — EU pay transparency), a description with headings,
-  lists and bold (marks anyone can type, rendered as text, never HTML), and
-  one action: *Apply*.
+  lists and bold, and one action: *Apply*. Recruiters write it in **a real
+  editor** (*Heading*, *Bold*, *List*, Ctrl/⌘+B; what they see is what
+  candidates read — nobody types a mark); it is stored as a few plain
+  marks and rendered as React elements, never as HTML, and a paste brings
+  its text only (`components/description-editor.tsx`, `lib/rich-text.ts`).
 - **The application form** (`/<job>/apply`): name, email, phone and a
   LinkedIn or portfolio link (optional), **the CV** (PDF or Word, 10 MB at
   most), a few words, **the job's screening questions** (0 to 5: a few
@@ -69,7 +74,18 @@ decides together.
   with the candidate's own thread address as Reply-To, so **their answer
   lands back in their conversation** (the thread, else In-Reply-To /
   References, else their address when the sender's domain is verified;
-  anything else waits in *Emails to file*). **Invite to an interview**:
+  anything else waits in *Emails to file*). **The candidate chooses the
+  interview time** (the default of *Interview*): who meets them, how long,
+  between which days and hours; the candidate gets a link
+  (`/interview/<secret>`, never indexed; one open link per candidate, a new
+  one replaces it; the secret is stored only as its SHA-256) and picks a
+  time when **everyone chosen is free, by their interviews in Hiring**
+  (weekdays, at least 12 hours ahead). The time chosen is checked again
+  under a lock (two candidates on the last free hour: the second is told
+  it was just taken and sees what is left), becomes an interview, the
+  confirmation email with its `.ics` leaves, the interviewers' Chest
+  calendars get it and they hear it in the bell. On a Chest without email
+  the recruiter gets the link to send. Or **the recruiter chooses**:
   a day, a time in the Chest's zone, a length, who meets them (with the
   times they are already in an interview that day, and a warning on a
   clash), a place or video link, a note; the candidate gets an email with
@@ -123,14 +139,19 @@ The look is resolved on the server from `chest.theme()` (SDK Proposal
 the browser for it. Every stylesheet names only the UI kit's contract
 tokens, so every text stays readable (WCAG AA) in every look.
 
-The careers page is the company speaking to candidates, so the brand wins
-there: with the company's brand, the page takes its colours and shows its
-logo (with its dark variant); Hiring's own logo and colour settings wait
-(Settings says so). With a catalogue theme, the theme gives the colours
-and the logo uploaded in Hiring stays. With Hiring's own look, the colour
+**The public pages (careers, a job, the form, a candidate's link) wear the
+company's brand, or Hiring's own look — never a catalogue theme** chosen
+for the team's tools (kit 0.2.3, `lookOf("public")` in `lib/theme.ts`): a
+company that likes *Confetti* for its team does not get a confetti
+careers site. **One place for the careers brand**: when the company has a
+brand in its Chest, the page takes its colours and its logo (with its
+dark variant), and Settings hides Hiring's own *Colour* and *Logo* and
+says where the brand comes from (the Chest). Without a brand, the colour
 chosen in Settings (six accents, each a whole theme checked against the
-contract) colours the careers pages only. The photos are content: they
-show in every look.
+contract) and the logo uploaded in Hiring dress the careers pages. The
+photos are content: they show in every look. The arch of the identity is
+decoration: it steps aside in a brand, the Chest's sheet and High
+contrast (`--decor`).
 
 ## Roles
 
@@ -150,8 +171,9 @@ A member with no role sees why, not an error.
   *Publish*: the job is on the careers page, its link one click away.
 - **How many clicks for the main job?** Moving a candidate on: one drag, or
   one click on *Move to Interview* on their page. Writing to them: *Write*,
-  a template, *Send* (three clicks). Inviting: *Interview*, a day, a time,
-  *Send the invitation*. Giving feedback: one rating, one recommendation,
+  a template, *Send* (three clicks). Inviting: *Interview*, *Send the link* (two
+  clicks; the candidate picks the time), or *I choose the time*, a day, a
+  time, *Send the invitation*. Giving feedback: one rating, one recommendation,
   *Send* (three clicks). Applying: fill the form, one file, one click.
 - **What happens on a mistake?** A move, a rejection (its email waits for
   the Undo), publishing or closing a job, an import: a toast with *Undo*. A candidate who typed something wrong keeps
@@ -165,6 +187,7 @@ A member with no role sees why, not an error.
 | `/`, `/<job>`, `/<job>/apply`, `/<job>/thanks` | anyone | The careers page |
 | `POST /api/cv` | anyone (form token, counters) | Authorise one CV upload (public) |
 | `/lang/<code>` | anyone | The language switch |
+| `/interview/<secret>` | the candidate who got the link | Choose an interview time (never indexed, `no-store`) |
 | `/jobs.xml`, `/feed.xml`, `/sitemap.xml`, `/robots.txt` | anyone | Indeed's feed, RSS, sitemap, robots |
 | `/chest` | members | Jobs, what waits for me, my next interviews |
 | `/chest/search?q=` | members | Search candidates |
@@ -287,10 +310,17 @@ upload one.
   outbound network). Whether Google indexes a given careers page, and
   whether a real Chest's public host adds its own `X-Robots-Tag`, was not
   verified (no crawler reaches the studio).
-- **Interview times are not self-scheduled** by the candidate (no booking
-  link) and busy times come from Hiring's own interviews only, not from
-  the interviewers' agendas. The `.ics` is a PUBLISH file ("add to my
-  calendar"), not an iTIP invitation with Accept/Decline buttons.
+- **Free times come from Hiring's own interviews only**, not from the
+  interviewers' agendas (Outlook, Google): a meeting elsewhere is not
+  seen. A free/busy connector is the `calendar` proposal's next step
+  (Needs from the SDK). The candidate cannot move a time they chose (they
+  answer the email; the recruiter moves it), and the recruiter cannot
+  offer hand-picked times. The `.ics` is a PUBLISH file ("add to my
+  calendar", same UID for every version), not an iTIP invitation with
+  Accept/Decline buttons.
+- **The board on a phone** shows one stage at a time (tabs); moving a
+  card is done from the candidate's page there (no drag across hidden
+  stages).
 - **Templates are plain text**; no attachments when writing (an offer
   letter is pasted or sent from one's mailbox).
 - **Emails to file** are filed one by one; an attachment a candidate sends

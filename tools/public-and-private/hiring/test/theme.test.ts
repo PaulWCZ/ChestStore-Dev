@@ -8,7 +8,7 @@ import { checkTheme, defineTheme, identityOf, themeOf, validateTheme } from "@ar
 import { fontFiles } from "@argentic/chest-ui/fonts";
 import { themeStyle } from "@argentic/chest-ui/runtime";
 import { accents } from "../lib/jobs.ts";
-import { accentCss, accentThemes, currentLook, identity, source } from "../lib/theme.ts";
+import { accentCss, accentThemes, identity, lookOf, source } from "../lib/theme.ts";
 
 const root = join(import.meta.dirname, "..");
 
@@ -43,27 +43,30 @@ test("its fonts are the tool's own files, served at /fonts", () => {
   assert.match(themeStyle(identity), /url\(\/fonts\/bricolage-grotesque-latin-wght-normal\.woff2\)/u);
 });
 
-test("the look follows the Chest: the company's choice for all tools, this tool's override, the identity otherwise", async () => {
+test("the look follows the Chest: the company's choice for all tools, this tool's override, the identity otherwise — the public pages only the brand or the identity", async () => {
   const chest = await fakeChest({ theme: { all: { mode: "catalogue", theme: "newsprint" } } });
   try {
-    let look = await currentLook();
+    let look = await lookOf("team");
     assert.equal(look.source, "catalogue");
     assert.equal(look.theme.id, "newsprint");
     assert.equal(look.fontBase, "/_chest/theme/fonts");
+    // The careers page never wears a theme chosen for the team's tools.
+    assert.equal((await lookOf("public")).theme, identity, "public pages: Hiring's own look");
     chest.theme.tools[chest.tool] = { mode: "brand", brand: { name: "Atelier Martin", primary: "#0e7c66", secondary: "#f2b134", corners: "round", display: { id: "young-serif" }, logo: { url: "/_chest/theme/brand/logo.svg", alt: "Atelier Martin", dark: "/_chest/theme/brand/logo-dark.svg" } } };
-    look = await currentLook();
+    look = await lookOf("team");
     assert.equal(look.source, "brand");
     assert.deepEqual(look.logo, { url: "/_chest/theme/brand/logo.svg", alt: "Atelier Martin", dark: "/_chest/theme/brand/logo-dark.svg" });
     assert.deepEqual(checkTheme(look.theme), []);
+    assert.equal((await lookOf("public")).source, "brand", "public pages: the company's brand");
     chest.theme.tools[chest.tool] = { mode: "own" };
-    assert.equal((await currentLook()).theme, identity);
+    assert.equal((await lookOf("team")).theme, identity);
     chest.theme.tools[chest.tool] = { mode: "catalogue", theme: "no-such-theme" };
-    assert.equal((await currentLook()).theme, identity, "a theme the kit does not know is the identity");
+    assert.equal((await lookOf("team")).theme, identity, "a theme the kit does not know is the identity");
   } finally {
     await chest.close();
   }
   forgetTheme();
-  assert.equal((await currentLook()).theme, identity, "outside a Chest: the identity");
+  assert.equal((await lookOf("team")).theme, identity, "outside a Chest: the identity");
 });
 
 // A colour written in the tool's CSS (or in its drawings) would not

@@ -1,6 +1,6 @@
 "use client";
 
-import { PeoplePicker, useToast } from "@argentic/chest-ui/components";
+import { Checkbox, PeoplePicker, useToast } from "@argentic/chest-ui/components";
 import { localSearch, type Choice, type PeoplePickerWords } from "@argentic/chest-ui/components/logic";
 import { useRouter } from "next/navigation";
 import { useId, useMemo, useState, useTransition, type FormEvent } from "react";
@@ -70,10 +70,7 @@ export function AddRecord({ people, lang, t }: { people: { id: string; name: str
         </div>
       )}
       {people.length > 0 && (
-        <label className="check">
-          <input type="checkbox" checked={outside} onChange={e => setOutside(e.target.checked)} />
-          <span>{t.records.addSomeoneElse}</span>
-        </label>
+        <Checkbox label={t.records.addSomeoneElse} checked={outside} onChange={setOutside} />
       )}
       {outside && (
         <div className="field-group">

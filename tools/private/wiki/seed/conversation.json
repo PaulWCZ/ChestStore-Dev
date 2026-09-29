@@ -4,13 +4,15 @@
       "page": 2,
       "by": "hugo",
       "days": 5,
-      "text": "Do the two days between Christmas and New Year count against our 25?"
+      "text": "Do the two days between Christmas and New Year count against our 25?",
+      "quote": "2 extra days between Christmas and New Year"
     },
     {
       "page": 2,
       "by": "ines",
       "days": 4,
-      "text": "No, they come on top. I added a line to the page to make it clearer."
+      "text": "No, they come on top. I added a line to the page to make it clearer.",
+      "reply": 1
     },
     {
       "page": 2,
@@ -35,7 +37,9 @@
       "page": 9,
       "by": "camille",
       "days": 6,
-      "text": "Oui, tant que l’équipe est prévenue la veille. Je l’ajoute à la charte."
+      "text": "Oui, tant que l’équipe est prévenue la veille. Je l’ajoute à la charte.",
+      "reply": 5,
+      "resolvedBy": "lea"
     }
   ],
   "watchers": [

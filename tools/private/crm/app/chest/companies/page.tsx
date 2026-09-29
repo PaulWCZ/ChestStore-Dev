@@ -1,3 +1,4 @@
+import { shownName } from "../../../lib/seed-words.ts";
 import { Avatar, EmptyState } from "@argentic/chest-ui/components";
 import Link from "next/link";
 import { Download } from "../../../components/icons.tsx";
@@ -34,7 +35,7 @@ export default async function Companies({ searchParams }: { searchParams: Search
     listCompanies(sql, member, filter, { page: get("page"), sort: get("sort") }),
     tagsInUse(sql, "companies"),
     teamOf(),
-    listFields(sql, "companies"),
+    listFields(sql, "companies", t),
   ]);
   const owners = await directory(rows.map(r => r.owner), locale);
   const kept: Record<string, string> = Object.fromEntries(["q", "owner", "tag", "sort", "cf", "cv", "cmin", "cmax"].map(k => [k, get(k)] as [string, string]).filter(([, x]) => x !== ""));
@@ -51,12 +52,17 @@ export default async function Companies({ searchParams }: { searchParams: Search
         </div>
         {writes && <NewCompanyButton label={t.companies.new} initial={emptyCompany(member.id)} fields={fields} team={team} me={member.id} canAssign={can(member, "assign")} today={today()} locale={locale} t={t} />}
       </div>
-      <ListFilters label={t.companies.filter} tags={tags} team={team} me={member.id} fields={fields} today={today()} sorts={[{ value: "name", label: t.companies.sorts.name }, { value: "recent", label: t.companies.sorts.recent }, { value: "created", label: t.companies.sorts.created }]} t={t} />
+      {/* An empty book has nothing to filter, sort or export. */}
+      {(total > 0 || filtered) && (
+        <ListFilters label={t.companies.filter} tags={tags} team={team} me={member.id} fields={fields} today={today()} sorts={[{ value: "name", label: t.companies.sorts.name }, { value: "recent", label: t.companies.sorts.recent }, { value: "created", label: t.companies.sorts.created }]}
+          exports={total > 0 ? <a className="link-button" href={`/chest/export/companies${query ? "?" + query : ""}`} download><Download />{t.common.exportCsv}</a> : undefined} t={t} />
+      )}
       <BulkProvider>
-        <div className="list-summary">
-          {writes ? <PageCheck ids={rows.map(r => r.id)} total={total} table="companies" filter={filter} locale={locale} t={t} /> : <span />}
-          <a className="link-button" href={`/chest/export/companies${query ? "?" + query : ""}`} download><Download />{t.common.exportCsv}</a>
-        </div>
+        {writes && rows.length > 0 && (
+          <div className="list-summary">
+            <PageCheck ids={rows.map(r => r.id)} total={total} table="companies" filter={filter} locale={locale} t={t} />
+          </div>
+        )}
         {writes && <BulkBar table="companies" team={team} me={member.id} canAssign={can(member, "assign")} canDelete locale={locale} t={t} />}
         {rows.length === 0 ? (
           <EmptyState
@@ -72,11 +78,11 @@ export default async function Companies({ searchParams }: { searchParams: Search
                 <Link prefetch={false} className="row-link" href={`/chest/companies/${c.id}`}>
                   <span className="row-main">
                     <span className="row-title">{c.name}</span>
-                    <span className="row-sub">{[c.industry, c.city, c.website].filter(Boolean).join(" · ")}{c.tags.length > 0 && c.tags.map(tag => <span key={tag} className="tag">{tag}</span>)}</span>
+                    <span className="row-sub">{[c.industry ? shownName("industries", c.industry, t) : "", c.city, c.website].filter(Boolean).join(" · ")}{c.tags.length > 0 && c.tags.map(tag => <span key={tag} className="tag">{shownName("tags", tag, t)}</span>)}</span>
                   </span>
                   <span className="row-figures">
-                    <span className="num">{plural(t.companies.contacts, c.contacts, locale)}</span>
-                    <span className="num">{c.openDeals > 0 ? `${plural(t.companies.openDeals, c.openDeals, locale)} · ${money(c.openValue, locale)}` : plural(t.companies.openDeals, 0, locale)}</span>
+                    <span className="figure">{plural(t.companies.contacts, c.contacts, locale)}</span>
+                    <span className="figure">{c.openDeals > 0 ? `${plural(t.companies.openDeals, c.openDeals, locale)} · ${money(c.openValue, locale)}` : plural(t.companies.openDeals, 0, locale)}</span>
                   </span>
                   <span className="row-when muted" title={t.companies.lastActivity}>{c.lastActivity ? relative(c.lastActivity, locale) : t.companies.never}</span>
                   <span className="row-owner">{c.owner ? <Avatar name={owners[c.owner]?.name ?? "?"} photo={owners[c.owner]?.photo ?? null} size="s" label={owners[c.owner]?.name ?? t.people.unknown} /> : <Avatar name="?" size="s" className="avatar-none" label={t.common.unassigned} />}</span>

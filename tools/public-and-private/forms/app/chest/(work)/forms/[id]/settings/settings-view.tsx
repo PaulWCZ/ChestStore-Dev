@@ -9,6 +9,7 @@ import type { Catalogue } from "../../../../../../lib/i18n/index.ts";
 import { format, plural } from "../../../../../../lib/i18n/format.ts";
 import { holdLeaving } from "../../../../../../lib/leave-guard.ts";
 import { accents, retentions, type Accent, type Audience, type Layout } from "../../../../../../lib/model.ts";
+import type { ContactRoute, RequestRoute, Routes } from "../../../../../../lib/routes.ts";
 import { uploadImage } from "../../../../../../lib/upload-client.ts";
 import { deleteForm, duplicateForm, saveSettings, setCover } from "../../../../actions.ts";
 
@@ -20,7 +21,13 @@ type Values = {
   audience: Audience; anonymous: boolean; once: boolean; tellTeam: boolean; layout: Layout; accent: Accent;
   closesDay: string; closesHour: number; maxAnswers: string; thanksTitle: string; thanksBody: string; redirectUrl: string;
   sendCopy: boolean; retentionMonths: string; watchers: string[]; notifyEmail: boolean; shareEvents: boolean;
+  routes: Routes;
 };
+// The questions that may give each piece of a contact or a ticket
+// (lib/routes.ts contactSlots, requestSlots), written by the server.
+export type RouteChoices = { contact: Record<keyof ContactRoute, { id: string; title: string }[]>; request: Record<keyof RequestRoute, { id: string; title: string }[]> };
+const emptyContact: ContactRoute = { name: null, email: null, phone: null, company: null, message: null };
+const emptyRequest: RequestRoute = { subject: null, details: null, email: null, name: null };
 type Props = {
   formId: string;
   canEdit: boolean;
@@ -37,6 +44,7 @@ type Props = {
   today: string;
   // Whether the page wears Forms' own look (the default colour's name).
   own: boolean;
+  routeChoices: RouteChoices;
   t: { s: Catalogue["settings"]; errors: Catalogue["errors"]; b: Catalogue["builder"]; date: Catalogue["date"] };
 };
 type SaveState = "saved" | "saving" | "error";
@@ -134,7 +142,7 @@ export function SettingsView(p: Props) {
     const lockedOut = (p.anonymityLocked && (value === "anonymous") !== p.initial.anonymous) || (value === "anonymous" && p.hasFiles);
     return (
       <label className={`choice-card${who === value ? " on" : ""}${lockedOut ? " off" : ""}`}>
-        <input type="radio" name="who" checked={who === value} disabled={ro || lockedOut} onChange={() => setV(x => ({ ...x, audience: value === "public" ? "public" : "team", anonymous: value === "anonymous", sendCopy: value === "anonymous" ? false : x.sendCopy, shareEvents: value === "anonymous" ? false : x.shareEvents, once: value === "anonymous" ? true : x.once }))} />
+        <input type="radio" name="who" checked={who === value} disabled={ro || lockedOut} onChange={() => setV(x => ({ ...x, audience: value === "public" ? "public" : "team", anonymous: value === "anonymous", sendCopy: value === "anonymous" ? false : x.sendCopy, shareEvents: value === "anonymous" ? false : x.shareEvents, routes: value === "anonymous" ? { contact: null, request: null } : x.routes, once: value === "anonymous" ? true : x.once }))} />
         <span className="choice-icon" aria-hidden="true">{icon}</span>
         <span className="choice-text"><strong>{title}</strong><small>{hint}</small></span>
       </label>
@@ -265,7 +273,26 @@ export function SettingsView(p: Props) {
       <fieldset className="panel" disabled={ro}>
         <legend>{s.tools}</legend>
         {v.anonymous ? <p className="hint">{s.toolsAnonymous}</p> : (
-          <Switch label={s.toolsSwitch} hint={s.toolsHint} checked={v.shareEvents} onChange={on => set("shareEvents", on)} />
+          <>
+            {/* A contact in Clients: the form's author says which question
+                gives what (lib/routes.ts, README "With the other tools"). */}
+            <Switch label={s.contactSwitch} hint={s.contactHint} checked={v.routes.contact !== null}
+              onChange={on => set("routes", { ...v.routes, contact: on ? { ...emptyContact, ...guess(p.routeChoices.contact) } : null })} />
+            {v.routes.contact && (
+              <RouteFields slots={["name", "email", "phone", "company", "message"] as const} route={v.routes.contact} choices={p.routeChoices.contact} s={s}
+                onChange={contact => set("routes", { ...v.routes, contact })} />
+            )}
+            {v.routes.contact && p.routeChoices.contact.email.length + p.routeChoices.contact.phone.length === 0 && <p className="notice">{s.noQuestions}</p>}
+            <Switch label={s.requestSwitch} hint={s.requestHint} checked={v.routes.request !== null}
+              onChange={on => set("routes", { ...v.routes, request: on ? { ...emptyRequest, ...guess(p.routeChoices.request) } : null })} />
+            {v.routes.request && (
+              <RouteFields slots={v.audience === "team" ? (["subject", "details"] as const) : (["subject", "details", "email", "name"] as const)} route={v.routes.request} choices={p.routeChoices.request} s={s}
+                special={{ subject: s.routeTitle }} member={v.audience === "team" ? s.routeMember : null}
+                onChange={request => set("routes", { ...v.routes, request })} />
+            )}
+            {(v.routes.contact || v.routes.request) && <p className="hint">{s.routeLinked}</p>}
+            <Switch label={s.toolsSwitch} hint={s.toolsHint} checked={v.shareEvents} onChange={on => set("shareEvents", on)} />
+          </>
         )}
         <p className="hint">{s.webhooksNote}</p>
       </fieldset>
@@ -299,4 +326,50 @@ export function SettingsView(p: Props) {
     if (r.ok) router.push(`/chest?deleted=${p.formId}`);
     return r;
   }
+}
+
+// A first guess when a route is turned on: each piece from the only
+// question that can give it (one email question → "Their email").
+function guess<K extends string>(choices: Record<K, { id: string }[]>): Partial<Record<K, string>> {
+  const out: Partial<Record<K, string>> = {};
+  const used = new Set<string>();
+  for (const key of Object.keys(choices) as K[]) {
+    const free = choices[key].filter(q => !used.has(q.id));
+    if (free.length === 1) {
+      out[key] = free[0]!.id;
+      used.add(free[0]!.id);
+    }
+  }
+  return out;
+}
+
+// Which question gives each piece: one select per piece, its questions
+// only (an email from an email question…). special: a choice that is not a
+// question ("The form's title" for a ticket's subject); member: who asks
+// on a team form (said, not chosen).
+function RouteFields<K extends string>({ slots, route, choices, s, special = {}, member = null, onChange }: {
+  slots: readonly K[];
+  route: Record<K, string | null>;
+  choices: Record<K, { id: string; title: string }[]>;
+  s: Catalogue["settings"];
+  special?: Partial<Record<K, string>>;
+  member?: string | null;
+  onChange: (route: Record<K, string | null>) => void;
+}) {
+  const base = useId();
+  const words = s.routeSlots as Record<string, string>;
+  return (
+    <div className="route-fields">
+      {slots.map(key => (
+        <label key={key} className="mini" htmlFor={`${base}-${key}`}>
+          <span className="mini-label">{words[key]}</span>
+          <select id={`${base}-${key}`} className="field" value={route[key] ?? ""} onChange={e => onChange({ ...route, [key]: e.target.value || null })}>
+            <option value="">{special[key] ?? s.routeNone}</option>
+            {choices[key].map(q => <option key={q.id} value={q.id}>{q.title}</option>)}
+          </select>
+        </label>
+      ))}
+      {member && <p className="hint route-member">{words["email"]}{" — "}{member}</p>}
+    </div>
+  );
 }

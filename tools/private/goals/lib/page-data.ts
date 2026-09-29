@@ -12,7 +12,7 @@ import { zone } from "./time.ts";
 // Chest's zone), the cycles, the teams' names, and a way to name people.
 export async function context(sql: Query, actor: Member) {
   const clock = clockAt(new Date());
-  const [cycleList, teamList] = await Promise.all([allCycles(sql), teams(sql, { archived: true })]);
+  const [cycleList, teamList] = await Promise.all([allCycles(sql, actor.locale), teams(sql, { archived: true })]);
   return {
     clock,
     zone: zone(),

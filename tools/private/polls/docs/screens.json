@@ -13,6 +13,22 @@
   "locale": "fr"
  },
  {
+  "name": "asked-by-you",
+  "path": "/chest",
+  "member": "sofia",
+  "locale": "en"
+ },
+ {
+  "name": "home-admin-fr",
+  "path": "/chest",
+  "member": "camille",
+  "locale": "fr",
+  "full": true,
+  "only": [
+   "desktop"
+  ]
+ },
+ {
   "name": "answer",
   "path": "/chest/polls/1",
   "member": "hugo",
@@ -90,7 +106,7 @@
  {
   "name": "new-pulse",
   "path": "/chest/new?kind=survey&preset=pulse",
-  "member": "hugo",
+  "member": "sofia",
   "locale": "en"
  },
  {
@@ -255,6 +271,28 @@
   ],
   "only": [
    "desktop"
+  ]
+ },
+ {
+  "name": "home-port",
+  "path": "/chest",
+  "member": "sofia",
+  "locale": "fr",
+  "look": {
+   "tool": "brand:port"
+  }
+ },
+ {
+  "name": "pulse-port-dark",
+  "path": "/chest/polls/9",
+  "member": "lea",
+  "locale": "fr",
+  "dark": true,
+  "look": {
+   "tool": "brand:port"
+  },
+  "only": [
+   "phone"
   ]
  }
 ]

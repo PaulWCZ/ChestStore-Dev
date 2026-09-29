@@ -1,3 +1,4 @@
+import { keptKeys } from "./seed-words.ts";
 import type { Member } from "@argentic/chest-sdk/member";
 import { can, canDeleteRecord } from "./access.ts";
 import { record, timeline, type Activity } from "./activities.ts";
@@ -177,7 +178,8 @@ export async function updateContact(sql: Sql, actor: Member | null, contactId: u
     url: f.url ?? current.url,
     title: f.title ?? current.title,
     notes: f.notes ?? current.notes,
-    tags: f.tags ?? current.tags,
+    // Seeded tags the form showed in the reader's language keep their keys.
+    tags: keptKeys("tags", current.tags, f.tags ?? current.tags),
     companyId: f.companyId === undefined ? current.company?.id ?? null : f.companyId,
   };
   await sql`

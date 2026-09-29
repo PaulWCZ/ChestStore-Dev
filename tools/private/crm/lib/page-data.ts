@@ -4,7 +4,7 @@ import type { Attachment } from "./attachments.ts";
 import type { Activity } from "./activities.ts";
 import type { Custom, FieldDef, FieldObject } from "./custom.ts";
 import type { Sql } from "./db.ts";
-import { fieldsByObject } from "./fields.ts";
+import { fieldsByObject, optionLabel } from "./fields.ts";
 import { formatDate, formatDay, intl, plural, relative, type Catalogue, type Locale } from "./i18n/index.ts";
 import { stageName, today, type Stage } from "./model.ts";
 import { listStages } from "./stages.ts";
@@ -20,7 +20,7 @@ export async function stageWords(sql: Sql, t: Catalogue): Promise<{ stages: Stag
 }
 
 export async function formChoices(sql: Sql, actor: Member, t: Catalogue) {
-  const [people, { stages, names }, fields] = await Promise.all([team(), stageWords(sql, t), fieldsByObject(sql)]);
+  const [people, { stages, names }, fields] = await Promise.all([team(), stageWords(sql, t), fieldsByObject(sql, t)]);
   return {
     team: people.map(p => ({ id: p.id, name: p.name, photo: p.photo })),
     stageChoices: stages.map(s => ({ id: s.id, name: names[s.id]! })),
@@ -51,6 +51,7 @@ export function shownFields(fields: Record<FieldObject, FieldDef[]>, object: Fie
     const v = custom[f.id]!;
     const value = f.kind === "number" && typeof v === "number" ? new Intl.NumberFormat(intl(locale), { maximumFractionDigits: 6 }).format(v)
       : f.kind === "date" && typeof v === "string" ? formatDay(v, locale, { day: "numeric", month: "long", year: "numeric" })
+      : f.kind === "choice" ? optionLabel(f, String(v))
       : String(v);
     return { label: f.label, value };
   });

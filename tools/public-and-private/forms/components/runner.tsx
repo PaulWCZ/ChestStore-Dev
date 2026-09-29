@@ -57,6 +57,9 @@ export type RunnerProps = {
   cover?: string | null;
   // Today on the Chest's clock (a date question's "Today" and "Tomorrow").
   today: string;
+  // The preview's own label, in the member's language (the respondent's
+  // words follow the form's), and that language.
+  previewTag?: { text: string; lang: string };
 };
 
 const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
@@ -315,7 +318,7 @@ export function Runner(props: RunnerProps) {
           <span style={{ width: `${Math.round(progress * 100)}%` }} />
         </div>
       )}
-      {mode === "preview" && <p className="preview-tag">{w.preview}</p>}
+      {mode === "preview" && <p className="preview-tag" lang={props.previewTag?.lang}>{props.previewTag?.text ?? w.preview}</p>}
       {children}
       {props.after}
     </div>
@@ -803,7 +806,9 @@ function QuestionField(p: FieldProps) {
       ) : (
         <>
           <FilePicker label={q.title} files={p.files} onChange={p.onFiles} upload={p.upload} accept={typesFor(q.accept ?? "any")} maxSize={limits.fileSize} maxFiles={max} disabled={p.preview} labels={w.files} />
-          <p className="q-help">{p.preview ? w.file.notInPreview : q.accept === "images" ? w.file.images : q.accept === "documents" ? w.file.documents : w.file.any}</p>
+          {/* The kit's picker says the limits and the kinds accepted:
+              said once (store critique, round 2). */}
+          {p.preview && <p className="q-help">{w.file.notInPreview}</p>}
         </>
       )}
       {error}

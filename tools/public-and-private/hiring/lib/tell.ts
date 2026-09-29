@@ -89,3 +89,9 @@ export async function interviewsToday(list: { id: string; candidateId: string; c
     await notify(i.people, t => ({ title: format(t.bell.interviewToday, { name: cut(i.candidateName, 40), time: time(i.start) }), body: i.jobTitle }), { path: path(i.candidateId), key: `interview:${i.id}:today` });
   }
 }
+
+// A candidate chose their interview time: the interviewers and whoever
+// sent the link hear of it.
+export async function chosen(people: string[], c: { id: string; name: string }, i: { id: string; start: string }, time: (start: string, locale: string) => string): Promise<void> {
+  await notify(people, (t, locale) => ({ title: format(t.bell.chosen, { name: cut(c.name, 40), time: time(i.start, locale) }) }), { path: path(c.id), key: `interview:${i.id}:chosen` });
+}

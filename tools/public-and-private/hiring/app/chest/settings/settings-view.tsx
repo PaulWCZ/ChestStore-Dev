@@ -18,7 +18,7 @@ const accents = ["cobalt", "forest", "plum", "tomato", "ocean", "graphite"] as c
 
 export function SettingsView({ settings, fallbackName, address, feeds, logo, photos, templates, countryNames, look, t }: {
   settings: Settings; fallbackName: string; address: string; feeds: { indeed: string; rss: string; sitemap: string };
-  look: "own" | "catalogue" | "brand"; logo: string | null; photos: { object: string; url: string }[]; templates: Template[]; countryNames: [string, string][]; t: Words;
+  look: "own" | "brand"; logo: string | null; photos: { object: string; url: string }[]; templates: Template[]; countryNames: [string, string][]; t: Words;
 }) {
   const toast = useToast();
   const [pending, start] = useTransition();
@@ -78,19 +78,24 @@ export function SettingsView({ settings, fallbackName, address, feeds, logo, pho
             </div>
           ))}
         </fieldset>
+        {/* One place for the careers page's brand: when the company has a
+            brand in its Chest, the page wears it (logo, colours, fonts) and
+            Hiring's own colour and logo step aside — said here, not hidden
+            silently (critique round 2, N1). */}
+        {look === "brand" ? <p className="notice">{w.brandFromChest}</p> : (
         <fieldset className="choices">
-          <legend className="label">{w.accent}</legend>
-          {look !== "own" && <p className="hint tight-top">{w.lookNote}</p>}
-          <div className="swatches">
-            {accents.map(a => (
-              <label key={a} className={`swatch${accent === a ? " on" : ""}`}>
-                <input type="radio" name="accent" value={a} checked={accent === a} onChange={() => setAccent(a)} />
-                <span className={`swatch-dot swatch-${a}`} aria-hidden="true" />
-                <span>{w.accents[a]}</span>
-              </label>
-            ))}
-          </div>
-        </fieldset>
+            <legend className="label">{w.accent}</legend>
+            <div className="swatches">
+              {accents.map(a => (
+                <label key={a} className={`swatch${accent === a ? " on" : ""}`}>
+                  <input type="radio" name="accent" value={a} checked={accent === a} onChange={() => setAccent(a)} />
+                  <span className={`swatch-dot swatch-${a}`} aria-hidden="true" />
+                  <span>{w.accents[a]}</span>
+                </label>
+              ))}
+            </div>
+          </fieldset>
+        )}
         <div className="two">
           <div className="field-block">
             <label className="label" htmlFor="country">{w.country}</label>
@@ -159,15 +164,14 @@ function Images({ logo, photos, brandLogo, t }: { logo: string | null; photos: {
     <section className="panel" aria-labelledby="images">
       <h2 id="images">{w.images}</h2>
       <p className="hint tight-top">{w.imagesHint}</p>
-      {brandLogo && <p className="notice">{w.logoBrand}</p>}
-      <div className="image-row">
+      {!brandLogo && <div className="image-row">
         <span className="label">{w.logo}</span>
         {logo ? <img className="logo-preview" src={logo} alt={w.logo} /> : <span className="muted small">{w.noLogo}</span>}
         <span className="panel-actions">
           <button type="button" className="button quiet small" disabled={pending} onClick={() => logoInput.current?.click()}><Upload />{logo ? w.replace : w.add}</button>
           {logo && <button type="button" className="button link small" disabled={pending} onClick={() => start(async () => { const r = await setBrandImage("logo", null); if (!r.ok) toast({ text: t.errors[r.error], tone: "error" }); })}>{t.common.remove}</button>}
         </span>
-      </div>
+      </div>}
       <div className="image-row">
         <span className="label">{w.photos}</span>
         <ul className="photo-list">
@@ -206,8 +210,8 @@ function Templates({ templates, t }: { templates: Template[]; t: Words }) {
           <li key={x.id}>
             <span className="person-name">{x.name}</span>
             <span className="muted small">{languageNames[x.language]}</span>
-            <button type="button" className="icon-button" onClick={() => setEditing(x)} title={t.common.edit}><Pencil /><span className="visually-hidden">{t.common.edit} · {x.name}</span></button>
-            <button type="button" className="icon-button" disabled={pending} onClick={() => start(async () => {
+            <button type="button" className="button link small" onClick={() => setEditing(x)} aria-label={`${t.common.edit} · ${x.name}`}><Pencil />{t.common.edit}</button>
+            <button type="button" className="button link small" disabled={pending} aria-label={`${t.common.delete} · ${x.name}`} onClick={() => start(async () => {
               const r = await removeTemplate(x.id);
               if (!r.ok) return void toast({ text: t.errors[r.error], tone: "error" });
               // Undo writes it again, word for word.
@@ -219,7 +223,7 @@ function Templates({ templates, t }: { templates: Template[]; t: Words }) {
                   return back.ok || format(t.errors[back.error], back.values ?? {});
                 },
               });
-            })} title={t.common.delete}><Bin /><span className="visually-hidden">{t.common.delete} · {x.name}</span></button>
+            })}><Bin />{t.common.delete}</button>
           </li>
         ))}
       </ul>

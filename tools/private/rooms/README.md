@@ -76,16 +76,38 @@ in?*
 - **Moving in** (admins, *Places*): rooms from Google Workspace's resources
   CSV (floors made, seats and equipment read), and who has which desk from
   any sheet (desk, person's name, optional area); both only add what is
-  missing and say line by line what they left out. **My data**: a member
-  downloads everything Rooms keeps about them (CSV).
+  missing and say line by line what they left out. **Bookings already
+  made**: the `.ics` export of a room's calendar (Google Calendar,
+  Outlook) — only what is still to come, up to a year ahead; a weekly
+  meeting (every week, same weekday) becomes one weekly booking, other
+  repeats their days one by one; the organiser and guests matched by name
+  to the people who have Rooms (else the booking is in the admin's name,
+  and the preview says so). A **preview** says what comes in and, line by
+  line of the file, what does not: the days already taken in Rooms (the
+  database's own conflicts, not a guess), all-day events, times outside
+  the rooms' hours, closed days. *Import* does it with **Undo** (the whole
+  import goes); the same file again adds nothing. The room is guessed from
+  the calendar's name. **My data**: a member downloads everything Rooms
+  keeps about them (CSV).
+- **Start with an example** (admins, the empty tool): an office in one
+  click — two floors, three rooms, twelve desks — marked as an example on
+  *Places*, with Undo and "Delete the example" (whole, while nobody booked
+  in it).
+- **Names the tool gives are keys**: the floors and areas of the sample and
+  of the example ("Ground floor", "Quiet zone") read in each person's
+  language ("Rez-de-chaussée", "Zone calme") until an admin renames them;
+  CSV exports too. The name stored beside the key is in the Chest's
+  language (a calendar event's location).
 - **Places** (admins): offices (name, address), floors, meeting rooms
   (seats, equipment, a note, a photo), desk areas and desks (added by the
   dozen, numbered on: D-07, D-08…), a desk given to someone. **Rules**: how
   many days ahead (14), desk days per person and week (no limit), how long a
   weekly booking lasts (12 weeks), the rooms' hours, the working days, how
   long past bookings are kept (12 months), check-in. **Export**: how full
-  the office is on each working day (the last eight weeks' average, a bar
-  per day, counts only), every booking of a period, and the occupancy per
+  the office is on each working day (a bar per day, counts only: the
+  average **since the first day someone came**, eight weeks at most — the
+  weeks before anyone used Rooms are no data, not zeros; the chart says
+  "since 28 September", and a weekday not yet seen says so), every booking of a period, and the occupancy per
   day (counts only), as CSV.
 
 | Role (`chest.json`) | Label | May |
@@ -130,7 +152,10 @@ colours, fonts, corners and logo), for all its tools or for Rooms alone.
 Every look has the same pages, words and features, and passes the same
 contrast checks, light and dark. Screens: `docs/screens/week-chest-*`
 (Chest), `week-theme-*` (Library), `rooms-theme-*` (Workshop),
-`week-brand-*` and `desks-brand-dark-*` (a sample brand).
+`week-brand-*` and `desks-brand-dark-*` (a sample brand), `rooms-port-*`
+(a second sample brand, Café du Port). The drafting paper is decoration:
+in a brand, the Chest's sheet and High contrast it steps aside (kit
+0.2.3 `--decor`), and the page is the company's.
 
 ## Routes
 
@@ -256,8 +281,11 @@ screenshots in `docs/screens/`.
   connector** (OAuth held by the Chest, declared network, Google Calendar
   API / Microsoft Graph): later, on the Chest's side. Until then, a company
   that keeps booking rooms in its calendar keeps two places to book.
-- **Importing future bookings** (the Monday stand-up for the next 12
-  weeks) from Google Calendar or Robin: re-create them as weekly bookings.
+- **Importing future bookings** reads a calendar's `.ics` export, once:
+  it is a switching-day tool, not a sync (bookings made in Google or
+  Outlook afterwards do not arrive). Robin's and deskbird's own exports
+  are not read. A series that repeats every two weeks or monthly comes as
+  separate days, not as a series of Rooms.
 - Desk assignments are matched by **name**, not email (email would need
   the `members.email` permission, not asked for this alone).
 - **Booking for a visitor** (someone without a Chest account); booking for

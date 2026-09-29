@@ -30,6 +30,10 @@ export const errorCodes = [
   // Settings.
   "anonymous_locked",
   "anonymous_files",
+  // A contact needs an email or a phone question; a public form's ticket
+  // needs the email question (lib/routes.ts).
+  "route_contact",
+  "route_request",
   "invalid_url",
   "too_few",
   "limit",

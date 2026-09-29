@@ -1,4 +1,5 @@
 import { EmptyState } from "@argentic/chest-ui/components";
+import { listName } from "../../../../lib/examples.ts";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Back } from "../../../../components/icons.tsx";
@@ -39,7 +40,7 @@ export default async function NewChecklistPage({ searchParams }: { searchParams:
         <StartForm
           people={entries.map(e => ({ id: e.id, name: e.name, startDate: e.startDate }))}
           arrivals={arrivals.map(a => ({ id: "arrival:" + a.id, name: a.name, startDate: a.startDate, managerId: a.managerId }))}
-          templates={templates.map(x => ({ id: x.id, name: x.name, kind: x.kind, steps: x.items.length }))}
+          templates={templates.map(x => ({ id: x.id, name: listName(x, t), kind: x.kind, steps: x.items.length }))}
           initial={{ person, kind, template }}
           today={today()}
           weekdays={weekdays}

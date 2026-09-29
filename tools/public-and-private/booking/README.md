@@ -11,6 +11,28 @@ confirmation; nobody is ever booked twice.
 - **A page per host**: `/<their-name>` — their name, a welcome sentence,
   the kinds of meeting they offer. A company page (`/`) lists the hosts
   who chose to be shown.
+- **Nobody is published by opening the tool.** A new host's page is **not
+  public** — not on the company page, no page of its own, not bookable,
+  not taken as part of a team — until they **connect a calendar** (one
+  that reads) or **confirm their hours** (*My hours are right: make my
+  page public*, or saving the hours). Their first screen asks for the
+  calendar first; the link to share appears only once the page is public.
+  Hosts made before this version stay public if they did anything with
+  their page (a calendar, a booking, a block, a day off, a welcome, hours
+  of their own); a host who had only opened the tool once is unpublished
+  until they confirm (migration `0004`).
+- **The host's texts in two languages**: a host says which language they
+  write in (Settings; it starts as their Chest language) and may add a
+  second version — the welcome sentence in Settings, and in each booking
+  type its name, description, questions and choices ("— in French" fields
+  under each). A visitor reads a host's page **in one language**: theirs
+  when the host wrote it, otherwise the host's — the page's own words
+  follow, and the language switch offers only the languages the host
+  wrote (none when there is one). A French visitor never sees English
+  questions with « Oui / Non ». A text left empty in the second language
+  shows the first. The booking keeps the type's name, questions and
+  answers **as the guest read them**, and their emails are in that
+  language.
 - **The host's real calendar**: a host pastes the secret iCal address of
   their Google, Outlook or Apple calendar (up to three); the times they are
   busy there are never offered. Booking reads it through the Chest's
@@ -28,14 +50,29 @@ confirmation; nobody is ever booked twice.
   few minutes to publish a change in its secret address). A calendar that
   cannot be read is flagged on the host's agenda ("We could not read your
   calendar … since …") and on Hours.
-- **Block a time**: one day, from–to by the quarter hour (up to 24:00),
-  with a note only the host sees; blocked times show on the agenda.
+- **Block a time, from the agenda**: the coming week's **free stretches**
+  show between the meetings ("Free 14:00–17:30 · + Block"): tap one and
+  pick the hours (the quarter hour, up to 24:00), or *Block a time* beside
+  *New booking*; a note only the host sees. A blocked time is freed with
+  one tap (*Unblock*), with Undo.
 - **Booking types**: a name, a duration, where (in person at an address,
   a phone call — the visitor gives their number —, a video call, or to
   agree), a colour. A video call is either **a new room for each
-  meeting** (on Jitsi Meet by default — free, no account —, or under the
-  host's own address, `{room}` marking where the room's name goes) or one
-  fixed link (the form then warns that every guest gets the same link).
+  meeting** — the host **chooses where rooms are made**: Jitsi Meet's free
+  server (meet.jit.si), whose rooms the host opens by signing in with
+  Google, GitHub or Facebook (guests need no account and wait until the
+  host arrives; the type form, the booking's page and the guest's page say
+  so), or their company's own server, `{room}` marking where the room's
+  name goes; there is no silent default — or one fixed link (the form then
+  warns that every guest gets the same link). *Checked 2026-09-29*: Jitsi
+  announced that from 24 August 2023 meet.jit.si no longer lets anyone
+  create a room anonymously and asks the moderator to sign in (Google,
+  GitHub, Facebook), guests joining without an account
+  (https://jitsi.org/blog/authentication-on-meet-jit-si/, read through a
+  web search summary — the page itself and meet.jit.si are blocked from
+  the studio; https://github.com/jitsi/jitsi-meet/issues/13753, 2023-08-26,
+  users reporting "Waiting for a moderator… please log-in"). Nothing found
+  says it was lifted since; not tried live from here.
   An optional **payment link** (Stripe, PayPal…) is shown to the guest
   once booked; the host marks the booking paid.
 - **Round robin**: an administrator can let other hosts take one of their
@@ -58,7 +95,10 @@ confirmation; nobody is ever booked twice.
   for the last place of a day cannot both get it (tested on PostgreSQL).
 - **Hours**: every week (several ranges a day, *Copy Monday to every
   weekday*), the host's time zone, **at most N meetings a day across all
-  their types**, days off (one day or a holiday), other hours for one day.
+  their types**; folded below, each saying what it holds ("1 calendar
+  connected", "2 days planned"): the other calendars (open while none is
+  connected or one fails) and days off (one day or a holiday) or other
+  hours for one day. About 2,300 px on a 390 px phone (4,764 before).
 - **Picking a time**: five weeks from the week of the first free day
   (never a month of greyed past days), the day's times **in the visitor's
   time zone** (detected, changeable in a list of cities with their offset,
@@ -94,7 +134,7 @@ confirmation; nobody is ever booked twice.
 - **The anti-robot check never refuses a person**: a form sent within 3
   seconds of showing it waits the seconds left instead of being refused.
 - **For the team**: the agenda (upcoming, past, cancelled; *Everyone* for
-  administrators), a booking's page (the guest's note, answers, email and
+  administrators; the CSV download at its foot), a booking's page (the guest's note, answers, email and
   phone, their time if their zone differs), cancelling with a word sent to
   the guest, a CSV download (answers included), and a **private calendar address** a host adds to
   Google, Outlook or Apple Calendar (created on demand, shown once, can be
@@ -116,16 +156,20 @@ confirmation; nobody is ever booked twice.
 A member without a role sees a page saying so. The first time a host
 opens the tool, their page is made: an address from their name, the
 company's time zone, weekday hours (9:00–12:30, 14:00–17:30) and one
-30-minute type to start from.
+30-minute type to start from — not public until they connect a calendar
+or confirm their hours.
 
 ## First minute
 
-1. Open **Booking**: your page is already there — the purple ticket on top
-   has its link. *Copy the link* and send it to a customer.
-2. **Hours**: untick the days you do not meet people, change the times,
-   and paste your Google, Outlook or Apple calendar's secret address:
-   your meetings there are no longer offered.
-3. **Booking types**: *New type* — a name, a duration, where. Done.
+1. Open **Booking**: "Your page is not public yet". Paste your Google,
+   Outlook or Apple calendar's secret address (*Where to find it* says
+   how) and *Connect*: your meetings there are never offered, and your
+   page is public. No calendar? *Check my hours*, then *My hours are
+   right: make my page public*.
+2. The purple ticket now has your page's link: *Copy the link* and send
+   it to a customer.
+3. **Booking types**: *New type* — a name, a duration, where. Done. A
+   free stretch of your agenda: tap it to block it.
 
 ## Routes
 
@@ -150,8 +194,11 @@ what is free), any theme of the store's catalogue (the 18 identities,
 corners and logo) — for all its tools or for Booking alone. In brand mode
 the public pages show the company's logo instead of its name, and the
 "button" code for its website takes its colours: the booking page reads as
-the company's own. The look is resolved on the server (`lib/theme.ts`,
-`chest.theme()`), written in one `<style>` with the page's nonce; every
+the company's own. **The public pages** (a host's page, a guest's booking,
+that button) wear the company's brand when it has one and Booking's own
+identity otherwise — never a catalogue theme chosen for the team, never
+the Chest's sheet (kit 0.2.3, `surface: "public"`). The look is resolved on
+the server (`lib/theme.ts`, `lib/look.ts`, `chest.theme()`), written in one `<style>` with the page's nonce; every
 text stays readable (WCAG AA) in every look. Screens:
 `docs/screens/*-chest-*`, `*-theme-*`, `*-brand-*`.
 
@@ -252,5 +299,11 @@ In the studio: `node lab/chest-dev/dev.mjs tools/public-and-private/booking --re
   give (search results, 2026-09-29), not a file checked from a real
   account.
 - Answers are not shown back on the guest's own page (they are in their
-  confirmation email). Host questions are written in one language (the
-  guest's yes/no is shown to the host in the host's language).
+  confirmation email). A host's texts have two versions at most (the
+  store speaks English and French); a second version's choices follow the
+  first's by position (reordering the choices needs the second list
+  reordered too). A booking made by a host for a guest keeps the language
+  the host chose for the guest's emails, even if the host wrote only one.
+- The first screen reads a calendar only by its secret iCal address (no
+  OAuth yet); a host with none confirms their hours instead. Unpublishing
+  a public page again is done by turning its types off.

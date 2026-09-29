@@ -1,11 +1,11 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { Confirm, DateField, Dialog, StatusBadge, TimeSelect, useToast } from "@argentic/chest-ui/components";
+import { Confirm, DateField, Dialog, Segmented, StatusBadge, TimeSelect, useToast } from "@argentic/chest-ui/components";
 import { addDays as addIsoDays, type DateWords, type DialogWords } from "@argentic/chest-ui/components/logic";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { HireDialog } from "../../../../components/hire-dialog.tsx";
-import { Arrow, Ban, Bell, Bin, Calendar, Close, Dots, Download, Mail, Pencil, People, Send, Star, Undo, Upload } from "../../../../components/icons.tsx";
+import { Arrow, Ban, Bell, Bin, Calendar, Close, Copy, Dots, Download, Mail, Pencil, People, Send, Star, Undo, Upload } from "../../../../components/icons.tsx";
 import type { Feedback } from "../../../../lib/candidates.ts";
 import { fileSize, format, intl, languageNames, plural } from "../../../../lib/i18n/format.ts";
 import type { Catalogue } from "../../../../lib/i18n/index.ts";
@@ -17,7 +17,7 @@ import { durations, startTimes } from "../../../../lib/time.ts";
 const toMinutes = (hhmm: string) => Number(hhmm.slice(0, 2)) * 60 + Number(hhmm.slice(3, 5));
 const firstStart = toMinutes(startTimes[0]!), lastStart = toMinutes(startTimes.at(-1)!);
 import { cvAccept, uploadCv } from "../../../../lib/upload.ts";
-import { addNote, askFeedback, busyTimes, cancelAsk, cancelInterview, considerFor, editCandidate, eraseCandidate, giveFeedback, moveCandidate, rejectCandidate, rejectionsLeft, removeNote, restoreCandidate, scheduleInterview, setCv, setPool, undoReject, writeTo, writtenOutside } from "../../actions.ts";
+import { addNote, askFeedback, busyTimes, cancelAsk, cancelInterview, considerFor, editCandidate, eraseCandidate, giveFeedback, moveCandidate, rejectCandidate, rejectionsLeft, removeNote, restoreCandidate, scheduleInterview, sendInterviewLink, cancelInterviewLink, setCv, setPool, undoReject, writeTo, writtenOutside } from "../../actions.ts";
 import { ReasonPicker } from "../../jobs/[id]/board-view.tsx";
 
 type Errors = Catalogue["errors"];
@@ -334,13 +334,17 @@ function WriteForm({ candidate, write, t, onDone, onTyped }: { candidate: { id: 
   );
 }
 
-// Inviting to an interview: a day, a time (in the Chest's zone), how
-// long, who meets them — with the times they are already in an interview
-// that day —, where, a word for the candidate. The candidate gets an
-// email with an .ics; the interviewers see it in their Chest calendar.
+// Inviting to an interview, two ways. "They choose" (the default): who
+// meets them, how long, between which days and hours — the candidate gets
+// a link and picks a time when everyone is free (lib/self-schedule.ts).
+// "I choose": a day, a time (in the Chest's zone), with the times the
+// people are already in an interview that day. Either way the candidate
+// gets an email with an .ics; the interviewers see it in their Chest
+// calendar.
 function InterviewForm({ candidate, interview, t, onDone, onTyped }: { candidate: { id: string; name: string }; onTyped: () => void; interview: { people: { id: string; name: string }[]; preselected: string[]; today: string; zone: string; zoneId: string }; t: ActionWords; onDone: () => void }) {
   const toast = useToast();
   const [pending, start] = useTransition();
+  const [mode, setMode] = useState<"link" | "time">("link");
   const [day, setDay] = useState<string | null>(null);
   const [time, setTime] = useState(600);
   const [minutes, setMinutes] = useState(60);
@@ -348,6 +352,13 @@ function InterviewForm({ candidate, interview, t, onDone, onTyped }: { candidate
   const [busy, setBusy] = useState<{ member: string; start: string; end: string }[]>([]);
   const [tell, setTell] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // The link's days (tomorrow to a week later) and hours (09:00–18:00).
+  const [firstDay, setFirstDay] = useState<string | null>(addIsoDays(interview.today, 1));
+  const [lastDay, setLastDay] = useState<string | null>(addIsoDays(interview.today, 8));
+  const [dayStart, setDayStart] = useState(9 * 60);
+  const [dayEnd, setDayEnd] = useState(18 * 60);
+  // A Chest without email: the link, for the recruiter to send.
+  const [link, setLink] = useState<string | null>(null);
   const w = t.interview;
   const names = new Map(interview.people.map(p => [p.id, p.name]));
   // The day, typed or picked in the member's language (the kit's
@@ -356,7 +367,7 @@ function InterviewForm({ candidate, interview, t, onDone, onTyped }: { candidate
   const hhmmOf = (minutes: number) => `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
   const chosen = [...people];
   useEffect(() => {
-    if (!day || chosen.length === 0) {
+    if (mode !== "time" || !day || chosen.length === 0) {
       setBusy([]);
       return;
     }
@@ -364,41 +375,58 @@ function InterviewForm({ candidate, interview, t, onDone, onTyped }: { candidate
     void busyTimes(chosen, day).then(r => { if (live && r.ok) setBusy(r.value); });
     return () => { live = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [day, chosen.join(",")]);
+  }, [mode, day, chosen.join(",")]);
   // Times as the Chest's zone reads them, from the server's answer.
   const hhmm = (iso: string) => new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit", hourCycle: "h23", timeZone: interview.zoneId }).format(new Date(iso));
   const startMin = time, endMin = startMin + minutes;
   const toMin = (iso: string) => { const [a, b] = hhmm(iso).split(":").map(Number) as [number, number]; return a * 60 + b; };
   const clash = busy.filter(b => toMin(b.start) < endMin && toMin(b.end) > startMin);
+  const lengthField = (
+    <div className="field-block">
+      <label className="label" htmlFor="iv-length">{w.length}</label>
+      <select id="iv-length" className="field" value={minutes} onChange={e => setMinutes(Number(e.target.value))}>
+        {durations.map(d => <option key={d} value={d}>{d < 60 ? format(w.minutes, { n: d }) : d % 60 === 0 ? format(w.hoursOnly, { h: d / 60 }) : format(w.hoursMinutes, { h: Math.floor(d / 60), m: d % 60 })}</option>)}
+      </select>
+    </div>
+  );
+  if (link) {
+    return (
+      <div className="stack" role="status">
+        <p>{format(w.linkNoMail, { name: candidate.name })}</p>
+        <div className="link-row">
+          <input className="field" readOnly value={link} aria-label={w.linkLabel} onFocus={e => e.currentTarget.select()} />
+          <button type="button" className="button quiet" onClick={() => { void navigator.clipboard?.writeText(link).then(() => toast(w.linkCopied), () => toast(w.linkCopied)); }}><Copy />{w.linkCopy}</button>
+        </div>
+        <div className="form-actions"><button type="button" className="button" onClick={onDone}>{w.linkDone}</button></div>
+      </div>
+    );
+  }
   return (
     <form className="stack" onSubmit={e => {
       e.preventDefault();
       const data = new FormData(e.currentTarget);
       setError(null);
+      const place = String(data.get("place") ?? ""), note = String(data.get("note") ?? "");
       start(async () => {
+        if (mode === "link") {
+          if (!firstDay || !lastDay) return;
+          const r = await sendInterviewLink(candidate.id, { people: chosen, minutes, firstDay, lastDay, dayStart, dayEnd, place, note });
+          if (!r.ok) return setError(failed(t.errors, r));
+          if (r.value.status === "sent") {
+            onDone();
+            toast({ id: `interview-${candidate.id}`, text: format(w.linkSent, { name: candidate.name }), sent: true });
+          } else setLink(r.value.link);
+          return;
+        }
         if (!day) return;
-        const r = await scheduleInterview(candidate.id, { day, time: hhmmOf(time), minutes, people: chosen, place: String(data.get("place") ?? ""), note: String(data.get("note") ?? ""), tell });
+        const r = await scheduleInterview(candidate.id, { day, time: hhmmOf(time), minutes, people: chosen, place, note, tell });
         if (!r.ok) return setError(failed(t.errors, r));
         onDone();
         if (r.value.status === "sent") toast({ id: `interview-${candidate.id}`, text: format(w.invited, { name: candidate.name }), sent: true });
         else toast(r.value.status === "none" ? w.noMail : w.saved);
       });
     }} onInput={onTyped}>
-      <div className="three">
-        <div className="field-block iv-day">
-          <DateField id="iv-day" label={w.day} value={day} onChange={d => { setDay(d); onTyped(); }} today={interview.today} min={interview.today} max={last} required labels={t.date} />
-        </div>
-        <div className="field-block">
-          <label className="label" htmlFor="iv-time">{format(w.time, { zone: interview.zone })}</label>
-          <TimeSelect id="iv-time" value={time} onChange={setTime} step={15} min={firstStart} max={lastStart + 15} />
-        </div>
-        <div className="field-block">
-          <label className="label" htmlFor="iv-length">{w.length}</label>
-          <select id="iv-length" className="field" value={minutes} onChange={e => setMinutes(Number(e.target.value))}>
-            {durations.map(d => <option key={d} value={d}>{d < 60 ? format(w.minutes, { n: d }) : d % 60 === 0 ? format(w.hoursOnly, { h: d / 60 }) : format(w.hoursMinutes, { h: Math.floor(d / 60), m: d % 60 })}</option>)}
-          </select>
-        </div>
-      </div>
+      <Segmented label={w.how} options={[{ value: "link", label: format(w.theyChoose, { name: candidate.name.split(/\s+/u)[0] ?? candidate.name }) }, { value: "time", label: w.iChoose }]} value={mode} onChange={v => { setMode(v); setError(null); }} />
       <fieldset className="choices">
         <legend className="label">{w.people}</legend>
         <ul className="pick-list">
@@ -412,7 +440,42 @@ function InterviewForm({ candidate, interview, t, onDone, onTyped }: { candidate
           ))}
         </ul>
       </fieldset>
-      {day && busy.length > 0 && (
+      {mode === "link" ? (
+        <>
+          <p className="hint">{w.linkHint}</p>
+          <div className="three">
+            <div className="field-block iv-day">
+              <DateField id="iv-from" label={w.fromDay} value={firstDay} onChange={d => { setFirstDay(d); if (d && lastDay && lastDay < d) setLastDay(addIsoDays(d, 7)); onTyped(); }} today={interview.today} min={interview.today} max={last} required labels={t.date} />
+            </div>
+            <div className="field-block iv-day">
+              <DateField id="iv-to" label={w.toDay} value={lastDay} onChange={d => { setLastDay(d); onTyped(); }} today={interview.today} min={firstDay ?? interview.today} max={firstDay ? addIsoDays(firstDay, 21) : last} required labels={t.date} />
+            </div>
+            {lengthField}
+          </div>
+          <div className="three">
+            <div className="field-block">
+              <label className="label" htmlFor="iv-hours-from">{format(w.hoursFrom, { zone: interview.zone })}</label>
+              <TimeSelect id="iv-hours-from" value={dayStart} onChange={v => { setDayStart(v); if (dayEnd <= v) setDayEnd(Math.min(24 * 60, v + 60)); }} step={30} min={6 * 60} max={21 * 60} />
+            </div>
+            <div className="field-block">
+              <label className="label" htmlFor="iv-hours-to">{w.hoursTo}</label>
+              <TimeSelect id="iv-hours-to" value={dayEnd} onChange={setDayEnd} step={30} min={dayStart + 30} max={22 * 60} end />
+            </div>
+          </div>
+        </>
+      ) : (
+        <div className="three">
+          <div className="field-block iv-day">
+            <DateField id="iv-day" label={w.day} value={day} onChange={d => { setDay(d); onTyped(); }} today={interview.today} min={interview.today} max={last} required labels={t.date} />
+          </div>
+          <div className="field-block">
+            <label className="label" htmlFor="iv-time">{format(w.time, { zone: interview.zone })}</label>
+            <TimeSelect id="iv-time" value={time} onChange={setTime} step={15} min={firstStart} max={lastStart + 15} />
+          </div>
+          {lengthField}
+        </div>
+      )}
+      {mode === "time" && day && busy.length > 0 && (
         <div className={`busy${clash.length ? " clash" : ""}`} role="status">
           <p className="label">{clash.length ? w.clash : w.busy}</p>
           <ul className="plain-list">
@@ -420,7 +483,7 @@ function InterviewForm({ candidate, interview, t, onDone, onTyped }: { candidate
           </ul>
         </div>
       )}
-      {day && busy.length === 0 && chosen.length > 0 && <p className="hint">{w.free}</p>}
+      {mode === "time" && day && busy.length === 0 && chosen.length > 0 && <p className="hint">{w.free}</p>}
       <div className="field-block">
         <label className="label" htmlFor="iv-place">{w.place} <span className="optional">{t.apply.optional}</span></label>
         <input id="iv-place" name="place" className="field" maxLength={limits.interviewPlace} placeholder={w.placePlaceholder} />
@@ -429,13 +492,17 @@ function InterviewForm({ candidate, interview, t, onDone, onTyped }: { candidate
         <label className="label" htmlFor="iv-note">{w.note} <span className="optional">{t.apply.optional}</span></label>
         <textarea id="iv-note" name="note" className="field" rows={3} maxLength={limits.interviewNote} placeholder={w.notePlaceholder} />
       </div>
-      <label className="check">
-        <input type="checkbox" checked={tell} onChange={e => setTell(e.target.checked)} />
-        <span>{format(w.tell, { name: candidate.name })}</span>
-      </label>
+      {mode === "time" && (
+        <label className="check">
+          <input type="checkbox" checked={tell} onChange={e => setTell(e.target.checked)} />
+          <span>{format(w.tell, { name: candidate.name })}</span>
+        </label>
+      )}
       {error && <p className="error" role="alert">{error}</p>}
       <div className="form-actions">
-        <button type="submit" className="button" disabled={pending || !day || chosen.length === 0}><Calendar />{tell ? w.send : w.save}</button>
+        {mode === "link"
+          ? <button type="submit" className="button" disabled={pending || !firstDay || !lastDay || chosen.length === 0}><Send />{w.sendLink}</button>
+          : <button type="submit" className="button" disabled={pending || !day || chosen.length === 0}><Calendar />{tell ? w.send : w.save}</button>}
         <button type="button" className="button quiet" onClick={onDone}>{t.common.cancel}</button>
       </div>
     </form>
@@ -520,15 +587,36 @@ export function Conversation({ messages, candidate, locale, t }: { messages: Sho
 
 // ---- Interviews -------------------------------------------------------------
 
-export function Interviews({ list, manage, t }: { list: { id: string; when: string; past: boolean; place: string; people: string; cancelled: boolean; ics: boolean }[]; manage: boolean; t: { interview: Catalogue["interview"]; errors: Errors; common: Catalogue["common"] } }) {
+export function Interviews({ list, links = [], manage, t }: { list: { id: string; when: string; past: boolean; place: string; people: string; cancelled: boolean; ics: boolean }[]; links?: { id: string; from: string; to: string; people: string }[]; manage: boolean; t: { interview: Catalogue["interview"]; errors: Errors; common: Catalogue["common"] } }) {
   const toast = useToast();
+  const router = useRouter();
   const [pending, start] = useTransition();
   const [cancelling, setCancelling] = useState<string | null>(null);
   const [tell, setTell] = useState(true);
   const w = t.interview;
-  if (list.length === 0) return <p className="muted">{w.none}</p>;
+  if (list.length === 0 && links.length === 0) return <p className="muted">{w.none}</p>;
   return (
     <>
+      {links.length > 0 && (
+        <ul className="meetings">
+          {links.map(l => (
+            <li key={l.id} className="waiting-link">
+              <span className="meet-when">{format(w.waiting, { from: l.from, to: l.to })}</span>
+              {l.people && <span className="muted small">{l.people}</span>}
+              {manage && (
+                <span className="meet-actions">
+                  <button type="button" className="button link small" disabled={pending} onClick={() => start(async () => {
+                    const r = await cancelInterviewLink(l.id);
+                    if (!r.ok) return void toast({ text: failed(t.errors, r), tone: "error" });
+                    toast(w.linkStopped);
+                    router.refresh();
+                  })}><Close />{w.stopLink}</button>
+                </span>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
       <ul className="meetings">
         {list.map(i => (
           <li key={i.id} className={i.cancelled ? "cancelled" : i.past ? "past" : undefined}>
@@ -751,7 +839,7 @@ export function Notes({ candidateId, notes, canWrite, t }: { candidateId: string
           {notes.map(n => (
             <li key={n.id}>
               <div className="note-head"><strong>{n.authorName}</strong><span className="muted small">{n.when}</span>
-                {n.mine && canWrite && <button type="button" className="icon-button small" title={w.removeNote} onClick={() => start(async () => { const r = await removeNote(n.id); if (!r.ok) toast({ text: failed(t.errors, r), tone: "error" }); })}><Bin /><span className="visually-hidden">{w.removeNote}</span></button>}
+                {n.mine && canWrite && <button type="button" className="button link small" onClick={() => start(async () => { const r = await removeNote(n.id); if (!r.ok) toast({ text: failed(t.errors, r), tone: "error" }); })}><Bin />{w.removeNote}</button>}
               </div>
               <p className="pre">{n.body}</p>
             </li>

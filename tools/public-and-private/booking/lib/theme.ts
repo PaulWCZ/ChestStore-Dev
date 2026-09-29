@@ -27,12 +27,18 @@ export const identity = defineTheme({
   },
 });
 
-// The look of this request: the company's choice as the Chest tells it
-// (for all its tools, or for this one), else the identity above. Never
-// throws: the Chest unreachable, or a choice the kit cannot honour, is the
-// identity. Asked once per request, however many components need it.
-export const currentLook = cache(async (): Promise<Look> => {
-  const look = resolveTheme(await chest.theme(), identity);
+// The look of a surface: the company's choice as the Chest tells it (for
+// all its tools, or for this one), else the identity above. The public
+// pages (a host's page, a guest's booking, the button a website pastes)
+// wear the company's brand when it has one, else Booking's own identity —
+// never a catalogue theme chosen for the team, never the Chest's sheet
+// (kit 0.2.3, surface "public"). Never throws: the Chest unreachable, or a
+// choice the kit cannot honour, is the identity.
+async function lookOf(surface: "team" | "public"): Promise<Look> {
+  const look = resolveTheme(await chest.theme(), identity, { surface });
   if (look.problem) console.warn(`theme: ${look.problem}; the tool's own look is used`);
   return look;
-});
+}
+export const publicLook = cache(() => lookOf("public"));
+export const teamLook = cache(() => lookOf("team"));
+

@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import { Mark } from "../../../components/mark.tsx";
 import { roleOf } from "../../../lib/access.ts";
 import { viewer } from "../../../lib/session.ts";
-import { currentLook } from "../../../lib/theme.ts";
+import { currentLook } from "../../../lib/look.ts";
 
 // The work pages in the kit's shell: the mark (home) — the company's logo
 // beside the name when the Chest gives its brand —, who you are. Forms has

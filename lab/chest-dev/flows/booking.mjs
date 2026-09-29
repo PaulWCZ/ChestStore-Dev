@@ -109,7 +109,7 @@ await step("a host creates a phone-call type; its page asks for the visitor's nu
   await as(context, origin, "ines");
   await english();
   await page.goto(origin + "/chest/types/new");
-  await page.getByLabel("Name").fill("Delivery question");
+  await page.getByLabel("Name", { exact: true }).fill("Delivery question");
   await page.locator(".pills label", { hasText: /^15 min$/u }).click();
   await page.locator(".choices label", { hasText: "Phone call" }).click();
   await page.getByRole("button", { name: "Create" }).click();
@@ -149,7 +149,7 @@ await step("a host asks their own questions, reorders them, and limits a type to
   await as(context, origin, "ines");
   await english();
   await page.goto(origin + "/chest/types/new");
-  await page.getByLabel("Name").fill("Kitchen visit");
+  await page.getByLabel("Name", { exact: true }).fill("Kitchen visit");
   await page.getByRole("button", { name: "Add a question" }).click();
   await page.getByLabel("Question 1", { exact: true }).fill("Is the kitchen empty?");
   await page.locator(".question").nth(0).getByLabel("Answer").selectOption("yesno");
@@ -206,7 +206,7 @@ await step("a host blocks a whole day from the agenda: visitors are no longer of
   await english();
   // "Block a time" sits beside "New booking" on the agenda.
   await page.goto(origin + "/chest");
-  await page.getByRole("button", { name: "Block a time" }).click();
+  await page.getByRole("button", { name: "Block a time", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "Block a time" });
   await dialog.waitFor();
   // The day, as the date field wants it.
@@ -260,8 +260,8 @@ await step("a host's other calendar: a wrong address is refused plainly, the one
   await page.goto(origin + "/chest/hours");
   const others = page.locator("#calendars");
   // Folded: its line says what it holds; one tap opens it.
-  expect((await others.locator("summary").innerText()).includes("1 calendar connected"), "folded with its count");
-  await others.locator("summary").click();
+  expect((await others.locator(":scope > summary").innerText()).includes("1 calendar connected"), "folded with its count");
+  await others.locator(":scope > summary").click();
   expect((await others.innerText()).includes("calendar.google.com") && /Read .* · 38 events/u.test(await others.innerText()), "connected calendar shown");
   expect(!(await others.innerText()).includes("private-5f1c"), "its secret part is never shown");
   await page.getByLabel("Secret address (iCal)").fill("https://example.com/my-calendar.ics");

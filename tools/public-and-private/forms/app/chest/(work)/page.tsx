@@ -68,7 +68,8 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
       {typeof deleted === "string" && /^[1-9][0-9]{0,17}$/u.test(deleted) && <DeletedToast formId={deleted} text={t.builder.deletedForm} errors={t.errors} />}
       <div className="home-head">
         <h1>{t.home.title}</h1>
-        {creator && <a className="button" href="/chest/new"><Plus />{t.home.new}</a>}
+        {/* A company's first visit has one action: the empty page's own. */}
+        {creator && (all.length > 0 || search) && <a className="button" href="/chest/new"><Plus />{t.home.new}</a>}
       </div>
 
       {toAnswer.length > 0 && (
@@ -78,10 +79,13 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
             {toAnswer.map(f => (
               <li key={f.slug} className={f.answered ? "done" : ""}>
                 <span className="to-answer-title">{f.title}</span>
-                {f.anonymous && <span className="tag"><Mask />{t.home.anonymous}</span>}
-                {f.answered && f.once ? <span className="tag ok">{t.home.answered}</span> : (
-                  <a className="button small form-go" href={`/chest/f/${f.slug}`}>{f.answered ? t.home.answerAgain : t.home.answer}</a>
-                )}
+                {/* Its marks stay together (never one of them alone on a line). */}
+                <span className="to-answer-end">
+                  {f.anonymous && <span className="tag"><Mask />{t.home.anonymous}</span>}
+                  {f.answered && f.once ? <span className="tag ok">{t.home.answered}</span> : (
+                    <a className="button small form-go" href={`/chest/f/${f.slug}`}>{f.answered ? t.home.answerAgain : t.home.answer}</a>
+                  )}
+                </span>
               </li>
             ))}
           </ul>

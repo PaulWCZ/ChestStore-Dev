@@ -1,5 +1,6 @@
 import * as chest from "@argentic/chest-sdk/chest";
 import Link from "next/link";
+import { RemindButton } from "../../components/remind-button.tsx";
 import { Avatar, EmptyState, PageHeader } from "@argentic/chest-ui/components";
 import { AssetTag, StatusStamp } from "../../components/bits.tsx";
 import { Alert, CategoryIcon, Check, Chevron, Clipboard, Clock, Plus, Print, Sliders, TakeBack, Upload, Wrench } from "../../components/icons.tsx";
@@ -239,6 +240,7 @@ export default async function Home() {
                         <Avatar name={name} photo={names.get(u.member)?.photo ?? null} size="m" />
                         <span className="mini-what"><span className="strong">{u.item.name}</span> <AssetTag tag={u.item.tag} /> <span className="muted">{name} · {format(t.overview.givenOn, { date: formatDay(u.givenOn, locale, { day: "numeric", month: "short" }) })}</span></span>
                       </Link>
+                      {u.member.startsWith("mbr_") && <RemindButton id={u.item.id} name={name} item={u.item.name} done={u.remindedToday} t={{ overview: t.overview, errors: t.errors }} />}
                     </li>
                   );
                 })}

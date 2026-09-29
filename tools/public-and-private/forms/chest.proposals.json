@@ -6,7 +6,11 @@
     "publicUploads": true,
     "publicFiles": true
   },
-  "emits": ["forms.answered"],
+  "emits": [
+    "forms.answered",
+    "forms.contact",
+    "forms.request"
+  ],
   "schedules": [
     {
       "name": "bell",

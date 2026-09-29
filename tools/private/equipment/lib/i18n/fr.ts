@@ -16,6 +16,11 @@ export const fr: Catalogue = {
     body: "Ouvrez-le depuis l’accueil de votre Chest, connecté avec votre compte professionnel.",
     language: "Langue",
   },
+  managersOnly: {
+    title: "Cette page est réservée aux gestionnaires",
+    body: "Votre rôle ne l’ouvre pas. Ce que vous avez, et ce que vous pouvez demander, est dans Mon matériel.",
+    back: "Aller à Mon matériel",
+  },
   notFound: {
     title: "Rien ici",
     body: "Cette page n’existe pas, ou l’objet a été supprimé.",
@@ -56,6 +61,7 @@ export const fr: Catalogue = {
     lost: "Perdu",
     retired: "Réformé",
   },
+  fieldNames: { imei: "IMEI", ram: "Mémoire vive (Go)", os: "Système d’exploitation", plate: "Plaque d’immatriculation", inspection: "Prochain contrôle technique" },
   categories: {
     laptop: "Ordinateurs portables",
     phone: "Téléphones",
@@ -142,6 +148,11 @@ export const fr: Catalogue = {
     late: "en retard",
     unconfirmed: "Réception non confirmée",
     unconfirmedHint: "Remis il y a plus d’une semaine ; la personne n’a pas confirmé l’avoir reçu.",
+    remind: "Le lui rappeler",
+    remindLabel: "Rappeler {item} à {name}",
+    reminded: "Rappel envoyé dans sa cloche.",
+    remindedMail: "Rappel envoyé dans sa cloche et par e-mail.",
+    remindedToday: "Rappel envoyé aujourd’hui",
     givenOn: "remis le {date}",
     units: { zero: "plus rien en stock", one: "{count} en stock", other: "{count} en stock" },
     lowCount: { one: "{count} bientôt épuisé", other: "{count} bientôt épuisés" },
@@ -536,6 +547,8 @@ export const fr: Catalogue = {
     rulesPlaceholder: "ex. : Le matériel reste la propriété de l’entreprise. Toute perte ou tout vol est signalé le jour même. Tout est rendu le dernier jour.",
     rulesSave: "Enregistrer les règles",
     rulesSaved: "Enregistré. Chacun accepte ces règles à partir de maintenant.",
+    rulesExample: "Le matériel reste la propriété de l’entreprise et sert à votre travail.\nGardez-le avec vous ou sous clé ; ne laissez jamais un ordinateur dans une voiture.\nSignalez toute perte, tout vol ou toute casse le jour même, depuis « Mon matériel ».\nRendez tout, avec les chargeurs et les accessoires, le dernier jour.",
+    rulesStart: "Commencer avec un exemple",
   },
   export: {
     filename: "materiel",
@@ -603,7 +616,13 @@ export const fr: Catalogue = {
     no_inventory: "Aucun inventaire n’est en cours.",
     no_such_tag: "Aucun élément n’a l’étiquette {tag}.",
     field_taken: "Il y a déjà un champ nommé {name}.",
+    reminded_today: "Déjà rappelé aujourd’hui : une fois par jour suffit.",
     charter_changed: "Les règles viennent de changer. Relisez-les, puis confirmez.",
+  },
+  mail: {
+    remindSubject: "Avez-vous reçu {item} ?",
+    remindText: "{name} vous a remis {item} ({tag}) le {date}.\nOuvrez Matériel dans votre Chest, puis « Mon matériel », et confirmez l’avoir reçu — ou signalez ce qui ne va pas.",
+    why: "Vous recevez cet e-mail parce qu’un gestionnaire du matériel de votre entreprise a demandé à Matériel de vous le rappeler.",
   },
   bell: {
     given: "{name} vous a remis {item} {tag}",
@@ -620,6 +639,7 @@ export const fr: Catalogue = {
     low: { zero: "{item} : plus rien", one: "{item} : plus que {count}", other: "{item} : plus que {count}" },
     lowBody: "Le stock est au minimum ou en dessous. Il est temps d’en commander.",
     remark: "{name} a reçu {item} {tag}, avec une remarque",
+    remind: "{name} vous demande : avez-vous reçu {item} {tag} ?",
     requested: "{name} demande du matériel",
     answer: {
       approved: "{name} a accepté votre demande : {what}",
@@ -698,7 +718,8 @@ export const fr: Catalogue = {
     handoverTitle: "Fiche de remise de matériel",
     returnTitle: "Fiche de restitution de matériel",
     employee: "Salarié",
-    printed: "Imprimé le {date}",
+    printedOn: "Imprimé le",
+    leftOn: "Date de sortie",
     tag: "Étiquette",
     item: "Matériel",
     serial: "Numéro de série et détails",

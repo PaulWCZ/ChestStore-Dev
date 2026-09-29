@@ -1,3 +1,4 @@
+import { keptKeys } from "./seed-words.ts";
 import type { Member } from "@argentic/chest-sdk/member";
 import { can, canDeleteRecord } from "./access.ts";
 import { record } from "./activities.ts";
@@ -214,6 +215,9 @@ export async function updateCompany(sql: Sql, actor: Member | null, companyId: u
     }
   }
   const next = { ...current, ...f };
+  // Seeded names the form showed in the reader's language keep their keys.
+  next.industry = keptKeys("industries", [current.industry], [next.industry])[0]!;
+  next.tags = keptKeys("tags", current.tags, next.tags);
   await sql`
     update companies set name = ${next.name}, website = ${next.website}, phone = ${next.phone}, email = ${next.email}, address = ${next.address}, postcode = ${next.postcode},
       city = ${next.city}, country = ${next.country}, siren = ${next.siren}, vat = ${next.vat}, industry = ${next.industry},

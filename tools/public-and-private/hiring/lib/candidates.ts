@@ -72,7 +72,7 @@ type CandidateDb = {
 // A date column as "YYYY-MM-DD", whatever the driver gives (a Date at UTC
 // midnight, or the text).
 const dateText = (d: Date | string | null): string | null => (d === null ? null : typeof d === "string" ? d.slice(0, 10) : d.toISOString().slice(0, 10));
-const toCandidate = (r: CandidateDb): Candidate => ({
+export const toCandidate = (r: CandidateDb): Candidate => ({
   id: String(r.id), jobId: String(r.job_id), stageId: String(r.stage_id), status: r.status, name: r.name, email: r.email, phone: r.phone, link: r.link, coverLetter: r.cover_letter,
   source: r.source, addedBy: r.added_by, language: r.language, consentAt: r.consent_at ? r.consent_at.toISOString() : null,
   poolAt: r.pool_at ? r.pool_at.toISOString() : null, answers: Array.isArray(r.answers) ? r.answers : [], origin: r.origin ?? "",

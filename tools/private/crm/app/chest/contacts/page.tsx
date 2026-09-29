@@ -37,7 +37,7 @@ export default async function Contacts({ searchParams }: { searchParams: Search 
     listContacts(sql, member, filter, { page: get("page"), sort: get("sort") }),
     tagsInUse(sql, "contacts"),
     teamOf(),
-    listFields(sql, "contacts"),
+    listFields(sql, "contacts", t),
   ]);
   const owners = await directory(rows.map(r => r.owner), locale);
   const now = today();
@@ -55,16 +55,23 @@ export default async function Contacts({ searchParams }: { searchParams: Search 
         </div>
         {writes && <NewContactButton label={t.contacts.new} initial={emptyContact(member.id)} fields={fields} team={team} me={member.id} canAssign={can(member, "assign")} canCreate={writes} today={today()} t={t} />}
       </div>
-      <ListFilters label={t.contacts.filter} tags={tags} team={team} me={member.id} stale fields={fields} today={today()} sorts={[{ value: "name", label: t.contacts.sorts.name }, { value: "last", label: t.contacts.sorts.last }, { value: "created", label: t.contacts.sorts.created }]} t={t} />
+      {/* An empty book has nothing to filter, sort or export. */}
+      {(total > 0 || filtered) && (
+        <ListFilters label={t.contacts.filter} tags={tags} team={team} me={member.id} stale fields={fields} today={today()} sorts={[{ value: "name", label: t.contacts.sorts.name }, { value: "last", label: t.contacts.sorts.last }, { value: "created", label: t.contacts.sorts.created }]}
+          exports={total > 0 ? (
+            <>
+              <a className="link-button" href={`/chest/export/contacts${query ? "?" + query : ""}`} download><Download />{t.common.exportCsv}</a>
+              <a className="link-button" href={`/chest/export/vcf${query ? "?" + query : ""}`} download><Card />{t.contacts.exportVcf}</a>
+            </>
+          ) : undefined} t={t} />
+      )}
       {filter.stale && <p className="notice">{t.contacts.staleHint}</p>}
       <BulkProvider>
-        <div className="list-summary">
-          {writes ? <PageCheck ids={rows.map(r => r.id)} total={total} table="contacts" filter={filter} locale={locale} t={t} /> : <span />}
-          <span className="row">
-            <a className="link-button" href={`/chest/export/contacts${query ? "?" + query : ""}`} download><Download />{t.common.exportCsv}</a>
-            <a className="link-button" href={`/chest/export/vcf${query ? "?" + query : ""}`} download><Card />{t.contacts.exportVcf}</a>
-          </span>
-        </div>
+        {writes && rows.length > 0 && (
+          <div className="list-summary">
+            <PageCheck ids={rows.map(r => r.id)} total={total} table="contacts" filter={filter} locale={locale} t={t} />
+          </div>
+        )}
         {writes && <BulkBar table="contacts" team={team} me={member.id} canAssign={can(member, "assign")} canDelete locale={locale} t={t} />}
         {rows.length === 0 ? (
           <EmptyState

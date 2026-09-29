@@ -22,10 +22,14 @@ export type FormState = { error: ErrorCode | null; values: Record<string, string
 // once each (lib/attachments.ts), deleted again if the message is refused.
 const visitorFiles = (data: FormData): tickets.Files => ({ take: () => attachments.take("public", data.get("files")), drop: attachments.remove });
 
+// A request already received (sent twice): leaves the form's steps early.
+class Resent extends Error {}
+
 export async function sendRequest(_: FormState, data: FormData): Promise<FormState> {
   const values = Object.fromEntries(["name", "email", "subject", "message"].map(k => [k, String(data.get(k) ?? "").slice(0, 12000)]));
-  let secret: string;
+  let secret = "";
   let mailed = false;
+  let repeated = false;
   try {
     // A field people never see: only robots fill it.
     if (String(data.get("website") ?? "") !== "") throw new AppError("invalid");
@@ -40,6 +44,9 @@ export async function sendRequest(_: FormState, data: FormData): Promise<FormSta
     secret = t.secret;
     const origin = publicOrigin(h);
     await tickets.rememberPublicOrigin(sql, origin);
+    // Sent twice: the team is not told twice, the customer not emailed twice.
+    repeated = t.repeated === true;
+    if (repeated) throw new Resent();
     const s = await tickets.settings(sql);
     const ticket = { number: t.number, subject: values["subject"]!.trim(), customerEmail: values["email"]!.trim(), customerName: values["name"]!.trim(), language: locale };
     const sent = await mailer.confirm(ticket, `${origin ?? ""}/t/${secret}`, s.companyName);
@@ -48,10 +55,12 @@ export async function sendRequest(_: FormState, data: FormData): Promise<FormSta
     await tell.newTicket({ id: t.id, number: t.number, subject: ticket.subject, customerName: ticket.customerName, customerEmail: ticket.customerEmail }, values["message"]!, t.assignee);
     await tell.refreshBadges(sql);
   } catch (error) {
+    if (error instanceof Resent) redirect(`/t/${secret}?new=1&again=1${data.get("embed") === "1" ? "&embed=1" : ""}`);
     if (error instanceof AppError) return { error: error.code, values, ...(typeof error.values["max"] === "number" ? { max: error.values["max"] } : {}) };
     console.error("request not saved", error instanceof Error ? error.name : "error");
     return { error: "unavailable", values };
   }
+  void repeated;
   redirect(`/t/${secret}?new=1${mailed ? "&mailed=1" : ""}${data.get("embed") === "1" ? "&embed=1" : ""}`);
 }
 

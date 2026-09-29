@@ -1,11 +1,15 @@
 import type { Query } from "./db.ts";
+import { cycleName } from "./cycle-names.ts";
+import type { Locale } from "./i18n/index.ts";
 import { isStale, objectiveProgress, progress, worst, type Confidence, type Kind, type Level, type Visibility } from "./model.ts";
 
 // What the pages and the services read: cycles, objectives with their key
 // results, progress and confidence computed here, once. Member ids only;
 // names are resolved when rendering (lib/people.ts).
 
-export type Cycle = { id: string; name: string; startsOn: string; endsOn: string; current: boolean; closed: boolean; closedAt: string | null };
+// name: as the reader sees it when read with their language (a name the
+// tool generated follows it: lib/cycle-names.ts); as stored otherwise.
+export type Cycle = { id: string; name: string; generated: boolean; startsOn: string; endsOn: string; current: boolean; closed: boolean; closedAt: string | null };
 
 export type KeyResult = {
   id: string;
@@ -55,25 +59,30 @@ export type Objective = {
   stale: boolean;
 };
 
-type CycleRow = { id: string; name: string; starts_on: string; ends_on: string; current: boolean; closed_at: Date | null };
-const toCycle = (r: CycleRow): Cycle => ({ id: String(r.id), name: r.name, startsOn: r.starts_on, endsOn: r.ends_on, current: r.current, closed: r.closed_at !== null, closedAt: r.closed_at?.toISOString() ?? null });
-const cycleColumns = "id, name, to_char(starts_on, 'YYYY-MM-DD') as starts_on, to_char(ends_on, 'YYYY-MM-DD') as ends_on, current, closed_at";
+type CycleRow = { id: string; name: string; generated: boolean; starts_on: string; ends_on: string; current: boolean; closed_at: Date | null };
+const toCycle = (r: CycleRow, locale: Locale | null): Cycle => {
+  const c = { id: String(r.id), name: r.name, generated: r.generated, startsOn: r.starts_on, endsOn: r.ends_on, current: r.current, closed: r.closed_at !== null, closedAt: r.closed_at?.toISOString() ?? null };
+  return locale ? { ...c, name: cycleName(c, locale) } : c;
+};
+const cycleColumns = "id, name, generated, to_char(starts_on, 'YYYY-MM-DD') as starts_on, to_char(ends_on, 'YYYY-MM-DD') as ends_on, current, closed_at";
 
-export async function cycles(sql: Query): Promise<Cycle[]> {
+// locale: the reader's language (the names the tool generated in it);
+// none: the names as stored.
+export async function cycles(sql: Query, locale: Locale | null = null): Promise<Cycle[]> {
   const rows = await sql.unsafe<CycleRow[]>(`select ${cycleColumns} from cycles order by starts_on desc, id desc limit 200`);
-  return rows.map(toCycle);
+  return rows.map(r => toCycle(r, locale));
 }
 
-export async function cycleById(sql: Query, cycleId: string): Promise<Cycle | null> {
+export async function cycleById(sql: Query, cycleId: string, locale: Locale | null = null): Promise<Cycle | null> {
   const [row] = await sql.unsafe<CycleRow[]>(`select ${cycleColumns} from cycles where id = $1`, [cycleId]);
-  return row ? toCycle(row) : null;
+  return row ? toCycle(row, locale) : null;
 }
 
 // The current cycle, or else the latest that is not closed, or else the
 // latest: what "Company" opens on.
-export async function defaultCycle(sql: Query): Promise<Cycle | null> {
+export async function defaultCycle(sql: Query, locale: Locale | null = null): Promise<Cycle | null> {
   const [row] = await sql.unsafe<CycleRow[]>(`select ${cycleColumns} from cycles order by current desc, (closed_at is null) desc, starts_on desc, id desc limit 1`);
-  return row ? toCycle(row) : null;
+  return row ? toCycle(row, locale) : null;
 }
 
 type ObjectiveRow = {

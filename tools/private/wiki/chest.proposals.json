@@ -5,12 +5,19 @@
       "cron": "40 7 * * 1-5"
     }
   ],
+  "mail": {
+    "send": true
+  },
+  "groups": "read",
+  "receives": [
+    "group.*"
+  ],
   "translations": {
     "fr": {
       "title": "Wiki",
       "description": "Écrivez comment l’entreprise fonctionne — livret d’accueil, règles, modes d’emploi — et trouvez chaque réponse en quelques secondes.",
       "role_labels": {
-        "editor": "Éditeur",
+        "editor": "Rédacteur",
         "reader": "Lecteur"
       }
     }

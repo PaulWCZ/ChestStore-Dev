@@ -19,7 +19,7 @@ export const metadata: Metadata = { robots: { index: false, follow: false }, ref
 // the team's notes), its state, and a box to write again.
 // It speaks the request's language (the customer wrote in it), unless the
 // visitor switches.
-export default async function FollowUp({ params, searchParams }: { params: Promise<{ secret: string }>; searchParams: Promise<{ new?: string; mailed?: string; lang?: string; embed?: string }> }) {
+export default async function FollowUp({ params, searchParams }: { params: Promise<{ secret: string }>; searchParams: Promise<{ new?: string; again?: string; mailed?: string; lang?: string; embed?: string }> }) {
   const { secret } = await params;
   const search = await searchParams;
   const sql = db();
@@ -51,6 +51,7 @@ export default async function FollowUp({ params, searchParams }: { params: Promi
         <section className="success" aria-labelledby="thanks">
           <h2 id="thanks">{t.public.thanksTitle}</h2>
           <p>{format(t.public.thanksNumber, { number: ticket.number })}</p>
+          {search.again && <p className="muted">{t.public.alreadyHad}</p>}
           <p>{t.public.keepLink}</p>
           {search.mailed && <p className="muted">{format(t.public.emailed, { email: ticket.customerEmail })}</p>}
           <CopyLink label={t.public.copy} done={t.public.copied} />
@@ -64,7 +65,7 @@ export default async function FollowUp({ params, searchParams }: { params: Promi
       <ol className="thread" aria-label={t.public.followTitle.replace("{number}", String(ticket.number))}>
         {ticket.messages.map(m => (
           <li key={m.id} className={`msg ${m.kind === "customer" ? "" : "team"}`}>
-            <span className="avatar" aria-hidden="true">{m.kind === "customer" ? "·" : company.slice(0, 1).toUpperCase()}</span>
+            <span className="avatar" aria-hidden="true">{m.kind === "customer" ? initials(ticket.customerName || ticket.customerEmail) : company.slice(0, 1).toUpperCase()}</span>
             <div className="bubble">
               <div className="who">{m.kind === "customer" ? t.public.you : teamName(m.author)} <time dateTime={m.at}>{formatDate(m.at, locale, { dateStyle: "medium", timeStyle: "short" })}</time></div>
               <Body text={m.body} />
@@ -85,4 +86,10 @@ export default async function FollowUp({ params, searchParams }: { params: Promi
       </section>
     </PublicShell>
   );
+}
+
+// The customer's own mark: the initials of their name (or of their address).
+function initials(name: string): string {
+  const parts = name.split(/[\s@._-]+/u).filter(Boolean);
+  return ((parts[0]?.[0] ?? "") + (parts.length > 1 ? parts[1]![0] ?? "" : "")).toUpperCase() || "?";
 }

@@ -18,6 +18,7 @@ import { labelOf, stageLabel } from "../../../../lib/stages.ts";
 import * as tell from "../../../../lib/tell.ts";
 import { teammates } from "../../../../lib/team.ts";
 import { dayOf } from "../../../../lib/time.ts";
+import { ofCandidate as linksOf } from "../../../../lib/self-schedule.ts";
 import { CandidateActions, Conversation, FeedbackForm, FeedbackList, Interviews, Notes } from "./candidate-view.tsx";
 
 const day = (value: string, locale: Locale) => formatDate(value, locale, { day: "numeric", month: "long", year: "numeric" });
@@ -47,15 +48,18 @@ export default async function CandidatePage({ params }: { params: Promise<{ id: 
   }
   const s = await settings(sql);
   const onJob = await interviewersOf(sql, c.jobId);
-  const [mails, meetings, own] = await Promise.all([
+  const [mails, meetings, own, requests] = await Promise.all([
     manage ? conversation(sql, member, c.id) : Promise.resolve([]),
     ofCandidate(sql, member, c.id),
     manage ? companyTemplates(sql, member) : Promise.resolve([]),
+    manage ? linksOf(sql, member, c.id) : Promise.resolve([]),
   ]);
+  // The links waiting for the candidate to choose a time.
+  const waiting = requests.filter(r => r.status === "open");
   const ids = [
     ...d.notes.map(n => n.author), ...d.others.map(f => f.author), ...d.asked, ...onJob, ...(c.addedBy ? [c.addedBy] : []),
     ...d.activity.flatMap(a => [a.actor ?? "", ...(Array.isArray(a.data["members"]) ? (a.data["members"] as string[]) : []), ...(Array.isArray(a.data["people"]) ? (a.data["people"] as string[]) : [])]),
-    ...mails.map(m => m.author ?? ""), ...meetings.flatMap(m => m.people),
+    ...mails.map(m => m.author ?? ""), ...meetings.flatMap(m => m.people), ...waiting.flatMap(r => r.people),
   ];
   const who = await people(ids);
   const name = (id: string | null) => (id === member.id ? member.name : nameOf(who.get(id ?? ""), locale));
@@ -83,6 +87,7 @@ export default async function CandidatePage({ params }: { params: Promise<{ id: 
     return (["availability", "followUp", "offer", "reject"] as const).map(k => ({ id: `${k}:${l}`, name: w[k].name, language: l, subject: w[k].subject, body: w[k].body }));
   });
   const zone = chest.timeZone();
+  const shortDay = (d: string) => new Intl.DateTimeFormat(locale === "fr" ? "fr" : "en-GB", { timeZone: "UTC", weekday: "short", day: "numeric", month: "short" }).format(new Date(d + "T12:00:00Z"));
   const today = dayOf(new Date(), zone);
   // Jobs this person could be proposed for: open or draft, not this one.
   const otherJobs = manage ? await sql<{ id: string; title: string }[]>`select id, title from jobs where state != 'closed' and id != ${c.jobId} order by title limit 200` : [];
@@ -202,11 +207,12 @@ export default async function CandidatePage({ params }: { params: Promise<{ id: 
         </div>
 
         <aside className="cand-side">
-          {(meetings.length > 0 || manage) && (
+          {(meetings.length > 0 || waiting.length > 0 || manage) && (
             <section className="panel" aria-labelledby="interviews">
               <h2 id="interviews">{t.interview.title}</h2>
               <Interviews
                 list={meetings.map(m => ({ id: m.id, when: meetingTime(m.start, zone, locale), past: new Date(m.end).getTime() < Date.now(), place: m.place, people: m.people.map(p => name(p)).join(", "), cancelled: m.cancelled, ics: m.calendar === "off" }))}
+                links={waiting.map(r => ({ id: r.id, from: shortDay(r.firstDay), to: shortDay(r.lastDay), people: r.people.map(p => name(p)).join(", ") }))}
                 manage={manage}
                 t={{ interview: t.interview, errors: t.errors, common: t.common }}
               />
@@ -225,7 +231,6 @@ export default async function CandidatePage({ params }: { params: Promise<{ id: 
               <div><dt>{t.export.headers.source}</dt><dd>{tc.source[c.source]}{c.origin ? ` · ${c.origin}` : ""}</dd></div>
             </dl>
             {c.poolAt && <p className="muted small">{format(tc.poolSince, { date: day(c.poolAt, locale) })}</p>}
-            {c.consentAt && <p className="muted small">{format(tc.consent, { date: day(c.consentAt, locale) })}</p>}
             <p className="muted small">{format(tc.keptUntil, { date: day(kept.toISOString(), locale) })}</p>
           </section>
 
@@ -277,10 +282,13 @@ function line(a: Activity, t: Catalogue, name: (id: string | null) => string, zo
     case "feedback": return format(w.feedback, { actor });
     case "asked": return format(w.asked, { actor, names: list("members") });
     case "emailed": return d["kind"] === "rejection" ? format(w.emailedRejection, { actor }) : w.emailedConfirmation;
-    case "wrote": return d["kind"] === "interview" ? format(w.invited, { actor }) : d["kind"] === "interview_cancelled" ? format(w.toldCancelled, { actor }) : format(w.wrote, { actor });
+    case "wrote": return d["kind"] === "interview_request" ? format(w.linkEmailed, { actor }) : d["kind"] === "interview" ? format(w.invited, { actor }) : d["kind"] === "interview_cancelled" ? format(w.toldCancelled, { actor }) : format(w.wrote, { actor });
     case "written_outside": return format(w.writtenOutside, { actor });
     case "replied": return d["filed"] ? format(w.filed, { actor }) : d["auto"] ? w.autoReply : w.replied;
     case "interview": return format(w.interview, { actor, when: meetingTime(String(d["at"] ?? ""), zone, locale), names: list("people") });
+    case "interview_link": return format(w.interviewLink, { actor, names: list("people") });
+    case "interview_link_cancelled": return format(w.interviewLinkCancelled, { actor });
+    case "interview_chosen": return format(w.interviewChosen, { when: meetingTime(String(d["at"] ?? ""), zone, locale), names: list("people") });
     case "interview_cancelled": return format(w.interviewCancelled, { actor, when: meetingTime(String(d["at"] ?? ""), zone, locale) });
     case "considered": return d["to"] ? format(w.proposed, { actor, job: String(d["job"] ?? "") }) : format(w.considered, { actor });
     case "imported": return format(w.imported, { actor, origin: String(d["origin"] || t.candidate.anotherTool) });

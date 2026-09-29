@@ -8,7 +8,7 @@ export const errorCodes = [
   "no_seats", "has_seat", "seats_below_used", "not_member", "category_in_use",
   "file_missing", "file_too_large", "import_invalid", "unavailable", "unknown",
   "invalid_field", "invalid_quantity", "tag_series", "not_enough", "is_consumable", "not_consumable",
-  "not_yours", "already_confirmed", "not_open", "inventory_open", "no_inventory", "no_such_tag", "field_taken", "charter_changed",
+  "not_yours", "already_confirmed", "not_open", "inventory_open", "no_inventory", "no_such_tag", "field_taken", "charter_changed", "reminded_today",
 ] as const;
 export type ErrorCode = (typeof errorCodes)[number];
 

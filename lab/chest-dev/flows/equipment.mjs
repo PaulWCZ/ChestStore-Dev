@@ -5,7 +5,7 @@ import { writeFileSync } from "node:fs";
 import { as, done, expect, id, open, step } from "./lib.mjs";
 
 const port = Number(process.argv[2] ?? 5400);
-const { browser, context, page, origin, problems } = await open(port, "sofia", { allow404: /\/chest\/people$/u });
+const { browser, context, page, origin, problems } = await open(port, "sofia");
 const tmp = process.env.FLOW_TMP ?? process.env.TMPDIR ?? "/tmp";
 const english = () => context.addCookies([{ name: "dev_locale", value: "en", url: origin }]);
 const dev = async () => (await page.request.get(origin + "/_dev")).text();
@@ -118,8 +118,15 @@ await step("a member (Hugo) sees his equipment and reports a problem; managers a
   await page.goto(itemUrl.replace(/\/\d+$/u, "/2"));
   expect(!(await page.locator("body").innerText()).includes("€"), "no price for a member");
   expect(await page.getByRole("button", { name: "Take back" }).count() === 0, "no take back");
-  const people = await page.goto(origin + "/chest/people");
-  expect(people.status() === 404, "people page closed to members");
+  // One refusal on every managers' page: 403 and the kit's NoAccess words.
+  for (const path of ["/chest/people", "/chest/items/new", "/chest/import", "/chest/settings", "/chest/inventory", "/chest/labels", "/chest/people/" + id("ines"), "/chest/people/" + id("ines") + "/return"]) {
+    const answer = await page.goto(origin + path);
+    expect(answer.status() === 403, path + " answers " + answer.status());
+    expect(await page.getByRole("heading", { name: "This page is for managers" }).isVisible(), path + ": the managers' words");
+  }
+  expect((await page.request.get(origin + "/chest/export")).status() === 403, "export 403");
+  await page.getByRole("link", { name: "Go to My equipment" }).click();
+  await page.waitForURL(/\/chest\/mine$/u);
 });
 
 await step("the manager solves the problem from the overview", async () => {
@@ -241,6 +248,23 @@ await step("the manager sees the receipt on the item and prints Hugo's handover 
   await page.goto(origin + "/chest/people/" + id("hugo") + "/return");
   const back = await page.locator(".paper").innerText();
   expect(back.includes("Equipment return form") && back.includes("Not returned"), "return sheet");
+  // Read to screen readers as a term and its value, never a raw "{date}".
+  expect(!(await page.locator(".paper").evaluate(el => el.textContent)).includes("{"), "no placeholder in the sheet");
+  expect(await page.locator(".paper-who dt", { hasText: "Printed on" }).count() === 1, "Printed on, a term of its own");
+});
+
+await step("the overview: remind the holder of a receipt nobody confirmed (bell, email where the Chest sends it); once a day", async () => {
+  await as(context, origin, "sofia");
+  await english();
+  await page.goto(origin + "/chest");
+  const row = page.locator("#unconfirmed li").first();
+  const who = await row.innerText();
+  await row.getByRole("button", { name: /^Remind .+ about .+/u }).click();
+  await page.locator(".ck-toast", { hasText: /Reminded in their bell/u }).waitFor();
+  expect(await page.locator(".ck-toast", { hasText: /Reminded/u }).getByRole("button", { name: "Undo" }).count() === 0, "sent: no Undo");
+  await page.reload();
+  expect((await page.locator("#unconfirmed li").first().innerText()).includes("Reminded today"), "once a day: " + who.slice(0, 80));
+  expect(/asks: did you receive|vous demande[\u202f\u00a0 ]?: avez-vous reçu/u.test(await dev()), "the holder's bell, in their language");
 });
 
 await step("Hugo asks for a privacy filter; Sofia gives one from the stock from the overview; Inès's request is refused with a reason", async () => {
@@ -402,6 +426,10 @@ await step("the initials of someone who left are theirs: TW for “Tom Walker (f
   await page.goto(origin + "/chest/people/" + id("tom"));
   expect((await page.locator(".person-head h1").innerText()).includes("(former member)"), "former");
   expect((await page.locator(".person-head .ck-avatar").innerText()).trim() === "TW", "initials");
+  // A sheet kept as proof: his name alone, the day he left on its own line.
+  await page.goto(origin + "/chest/people/" + id("tom") + "/return");
+  const head = await page.locator(".paper-who").innerText();
+  expect(head.includes("Tom Walker") && !head.includes("former member") && head.includes("Left on"), "return sheet head: " + head);
 });
 
 await step("phone, French: Inès reports a problem from her list; no horizontal scroll", async () => {
@@ -419,11 +447,29 @@ await step("phone, French: Inès reports a problem from her list; no horizontal 
   await p.getByLabel(/^Qu’est-ce qui ne va pas\u202f\?$/u).fill("L’écran est fissuré");
   await p.getByRole("button", { name: "Envoyer aux gestionnaires" }).click();
   await p.getByText("Envoyé. Les gestionnaires du matériel sont prévenus.").waitFor();
+  // Her handover sheet's button says what it is, on the phone too.
+  const sheetLink = p.getByRole("link", { name: "Ma fiche de remise" });
+  expect(await sheetLink.isVisible() && (await sheetLink.innerText()).includes("Ma fiche de remise"), "labelled, not an icon alone");
+  // "You confirmed it on…" only while it is news, not under every old item.
+  expect(!(await p.locator("main").innerText()).includes("Vous avez confirmé l’avoir reçu le 3 janvier 2025"), "no old confirmation lines");
   for (const path of ["/chest/items", "/chest/items/2", "/chest/people/" + id("ines") + "/handover"]) {
     await p.goto(origin + path);
     expect(!(await p.evaluate(() => document.documentElement.scrollWidth > window.innerWidth)), "no scroll on " + path);
   }
   await phone.close();
+});
+
+await step("the fields the tool proposed and its example rules read in French for Camille", async () => {
+  await as(context, origin, "camille");
+  await context.addCookies([{ name: "dev_locale", value: "fr", url: origin }]);
+  await page.goto(origin + "/chest/settings");
+  const text = await page.locator("main").innerText();
+  expect(text.includes("Mémoire vive (Go)") && text.includes("Système d’exploitation"), "field names in French");
+  expect((await page.locator("#rules-body").inputValue()).startsWith("Le matériel reste la propriété de l’entreprise"), "example rules in French");
+  await page.goto(origin + "/chest/people/" + id("hugo") + "/handover");
+  const sheet = await page.locator(".paper").innerText();
+  expect(sheet.includes("Le matériel reste la propriété") && !sheet.includes("RAM (GB)"), "sheet in French");
+  await english();
 });
 
 await step("a dialog never loses what was typed: Escape asks first; Keep editing, then Discard", async () => {

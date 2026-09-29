@@ -51,6 +51,11 @@ minute, in plain words.
   happened and what we changed" section, shown under its timeline on the
   public page (and linked from the history). Corrections are logged like
   any update; nobody is emailed.
+- **Public pages wear the company's brand or Status's own look** (kit
+  0.2.3, `resolveTheme(…, { surface: "public" })` in `lib/theme.ts`): a
+  catalogue theme the company chose for its team's tools (for all of
+  them, or for Status) dresses only the team's pages — customers never see
+  "Confetti" because the team likes it.
 - **Looks** (Proposal `chest.theme()`, the UI kit `@argentic/chest-ui`):
   the tool wears any look the company chooses in its Chest — its own
   identity ("Control room"), any theme of the catalogue ("Chest", "High
@@ -363,12 +368,7 @@ evening, three subscribers.
   rota or escalation (out of scope: Better Stack's monitoring side).
 - Two languages only (English and French): a third needs its catalogue
   and a choice of the second language per incident.
-- A theme chosen for all tools dresses the public page too (to change with
-  kit 0.2.3: `resolveTheme(…, { surface: "public" })` in `lib/theme.ts`
-  for the public pages, the badge and the banner — the brand, else
-  Status's own look) (one look for
-  the whole tool); a company that wants its public page in Status's own
-  look, or in its brand, chooses that for Status alone in its Chest.
+
 - Undoing a deleted service puts it back in its place, but not its
   automatic check nor the subscribers who followed only it.
 - No audience-specific pages (one per big client) and no password on the

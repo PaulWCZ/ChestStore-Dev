@@ -2,6 +2,7 @@
 
 import { DataTable, DateField } from "@argentic/chest-ui/components";
 import type { DateWords, TableWords } from "@argentic/chest-ui/components/logic";
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { FollowBadge } from "../../../../../../components/state-badge.tsx";
 
@@ -21,9 +22,9 @@ export type AnswerRow = {
 
 // The answers as the kit's table: the header stays while the list
 // scrolls, "When" sorts newest or oldest first (kept in the address, done
-// by the server), who answered is each row's header, the first question's
-// answer stays on a phone and the others show on a wider screen; each row
-// opens its answer.
+// by the server), who answered is each row's header; the whole row opens
+// its answer. On a phone each answer is a card: who, when, the first three
+// answers, where it stands (the kit's stacked layout).
 export function AnswersTable({ rows, columns, sort, sortBase, t }: {
   rows: AnswerRow[];
   columns: { id: string; title: string }[];
@@ -38,14 +39,19 @@ export function AnswersTable({ rows, columns, sort, sortBase, t }: {
       rows={rows}
       rowKey={r => r.id}
       rowName={r => r.who}
+      phone="stack"
+      rowHref={r => r.href}
+      link={Link}
       sort={{ key: "when", dir: sort === "oldest" ? "asc" : "desc" }}
       sortHref={s => `${sortBase}${sortBase.includes("?") ? "&" : "?"}${s.dir === "asc" ? "sort=oldest" : ""}`.replace(/[?&]$/u, "")}
       columns={[
         { key: "when", label: t.when, value: r => r.at, render: r => <span className="nowrap">{r.when}</span>, width: "narrow" },
-        { key: "who", label: t.who, rowHeader: true, render: r => (r.email ? <a href={`mailto:${r.email}`}>{r.email}</a> : r.who) },
-        ...columns.map((c, i) => ({ key: `q-${c.id}`, label: c.title, hideOnPhone: i > 0, render: (r: AnswerRow) => r.cells[c.id] || <span className="dim">—</span> })),
+        // The row's header is the link to the answer: the address as text
+        // (a link inside a link is not HTML; the answer's page has "Write").
+        { key: "who", label: t.who, rowHeader: true, render: r => r.email ?? r.who },
+        ...columns.map((c, i) => ({ key: `q-${c.id}`, label: c.title, hideOnPhone: i > 2, render: (r: AnswerRow) => r.cells[c.id] || <span className="dim">—</span> })),
         { key: "status", label: t.status, render: r => <FollowBadge state={r.status} label={r.statusLabel} /> },
-        { key: "open", label: t.open, render: r => <a className="button small quiet" href={r.href} aria-label={r.openLabel}>{t.open}</a>, align: "end" },
+        { key: "open", label: t.open, hideOnPhone: true, render: r => <a className="button small quiet" href={r.href} aria-label={r.openLabel}>{t.open}</a>, align: "end" },
       ]}
       labels={t.table}
     />

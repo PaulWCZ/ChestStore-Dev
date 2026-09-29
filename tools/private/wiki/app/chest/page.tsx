@@ -23,7 +23,7 @@ export default async function Home() {
   if (!v) return null;
   const { member, locale, t } = v;
   const sql = db();
-  const [spaces, latest, drafts, checks, reading, pins] = await Promise.all([listSpaces(sql, member), recent(sql, member, { limit: 8 }), myDrafts(sql, member), myReviews(sql, member), toRead(sql, member), pinned(sql, member)]);
+  const [spaces, latest, drafts, checks, reading, pins] = await Promise.all([listSpaces(sql, member), recent(sql, member, { limit: 8, withoutImports: true }), myDrafts(sql, member), myReviews(sql, member), toRead(sql, member), pinned(sql, member)]);
   const who = await people(latest.map(p => p.updatedBy));
   const now = new Date();
   const writer = can(member, "write");

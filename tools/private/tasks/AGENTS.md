@@ -7,18 +7,18 @@ must not break.
 
 | Path | What it is |
 |---|---|
-| `chest.json` | Manifest: roles `manager`, `member`, `viewer`; `database`, `files`, `members`, `notifications`; `receives` |
+| `chest.json` | Manifest: roles `manager`, `member`, `viewer`; `database`, `files`, `members`, `notifications`; `receives` (`chest.proposals.json`: `mail`, schedules `morning` and `mail`) |
 | `lib/access.ts` | **Who may do what**: tool abilities (`can`) and a board's access (`boardAccess`: none, read, comment, write, own) |
 | `lib/boards.ts` | Boards (shared at creation), columns (archived with or after moving their cards), labels, fields, board people and groups |
 | `lib/cards.ts` | Cards, assignees, checklists and steps (subtasks), field values, comments (removed with Undo, purged after 10 min), files, history, moving and copying to another board, My tasks and my steps, search, the tile's count |
-| `lib/mail.ts` | Email beside the bell (Proposal (studio) `mail`): the per-person switch, `email()` in each one's language |
+| `lib/mail.ts` | Email beside the bell (Proposal (studio) `mail`): the per-person switch, `email()` now (the morning), `queue()` + `flushMail()` (a quiet minute, ten at most, one email per person, read again as it leaves; a deleted comment's mention held, then gone) |
 | `lib/markdown.ts`, `components/markdown.tsx` | The description's small Markdown: a tree (pure, tested), drawn with React — never HTML |
-| `lib/calendar.ts` | The calendar view's month grid — pure, tested |
+| `lib/calendar.ts` | The calendar view's month grid; the timeline's window (`timelineStart`), bars (`span`) and dragged dates (`shifted`) — pure, tested |
 | `lib/model.ts` | Bounds, colours, templates, dates, text cleaning — pure |
 | `lib/position.ts` | Fractional positions (a key between two others) — pure, tested |
 | `lib/parse-import.ts`, `lib/importers.ts` | Trello JSON / CSV reading (pure, used in the browser too), then writing a board |
 | `lib/export.ts`, `lib/csv.ts` | CSV and JSON exports; CSV reading and writing (formula-safe) |
-| `lib/tell.ts`, `lib/notify.ts` | The bell (each recipient's language) and badges |
+| `lib/tell.ts`, `lib/notify.ts` | The bell (each recipient's language) and badges; `comment_notices` remembers which comment each item shows (`commentGone` / `commentShown`); each mention its own key `card:<id>:mention:<comment>`; "You can start" (`unblocked`) |
 | `lib/repeat.ts` | Repeat rules and the next due date — pure, used in the browser too, tested alone (month ends, summer time) |
 | `lib/repeats.ts` | A repeating card's series: `makeNext` (once, row locked), `takeBack` (on reopen, if untouched), `catchUp` (the morning) |
 | `lib/morning.ts`, `lib/reminders.ts`, `app/chest-jobs/[name]/route.ts` | The weekday morning (schedule `morning`): reminders, catch-up, badges; the per-person switch and taking an item back |
@@ -29,8 +29,9 @@ must not break.
 | `app/chest/actions.ts` | Server actions: thin; each re-reads the member; answer `Result` codes |
 | `app/chest/**/page.tsx` | Pages (server): read, resolve names, hand words to views |
 | `app/chest/boards/[id]/board-view.tsx` | The board (client): dnd-kit (Enter opens, Space picks up), keyboard moves, filters, the archive-column dialog |
-| `app/chest/boards/[id]/list-view.tsx`, `calendar-view.tsx` | The list (sort, group, done hidden) and the calendar (drag a card to a day) |
-| `app/chest/boards/[id]/card-panel.tsx` | A card (client): Mark done, dates, fields, checklists, Move or copy |
+| `app/chest/boards/[id]/list-view.tsx`, `calendar-view.tsx` | The list (sort, group, done hidden; stacked cards on a phone) and the calendar (drag a card to a day) |
+| `app/chest/boards/[id]/timeline-view.tsx` | The timeline: bars start → due by column or person, lines to blockers (sizes shared with `globals.css`: scale 48, group 36, row 44), drag / keyboard moves both dates or the due date |
+| `app/chest/boards/[id]/card-panel.tsx` | A card (client): Mark done (refused while blocked, "Mark done anyway"), dates, "Blocked by", fields, checklists, Move or copy |
 | `lib/theme.ts`, `app/tokens.css`, `app/globals.css` | The identity "Workshop" (the catalogue's `workshop` theme, `identityOf("tasks")`) and the page's look (`currentLook`: the company's choice, else the identity); the tool's own tokens (column width, board and label colours → palette slots); its components' CSS, contract tokens only |
 | `components/shell.tsx`, `app/chest/layout.tsx` | The kit's `AppShell` (sections, card search, member chip), `BrandMark`, `NoAccess`, `Toasts` |
 | `app/chest/export/route.ts` | Every board in one JSON file (managers) |
@@ -47,6 +48,17 @@ npm ci && npm test && npm run build   # all three must pass
 
 ## Rules
 
+- **"Blocked by"**: `cards.moveCard` refuses `blocked` (values `count`,
+  `title`) when a card goes into a done column with open blockers, unless
+  `{ force: true }`; every caller that marks done offers the toast action
+  "Mark done anyway". Links join cards of one board (`addBlocker` checks
+  the board and loops).
+- **Emails of people to people go through `queue()`**, never `email()`
+  directly: the hold and the grouping depend on it. A new kind of email →
+  a `mail_queue.kind`, its liveness rule in `flushMail`, its line in
+  `letterOf`.
+- **Column names**: read columns with `{ words: t.templates.columns }` (a
+  template's column has a `key`, named in the reader's language).
 - **Identity only from `member()`** (`lib/session.ts`); store `mbr_…` ids.
 - **Every service function takes `(sql, actor, …)`**, checks access through
   `board()`/`card()` (a board the actor cannot see is `not_found`, never

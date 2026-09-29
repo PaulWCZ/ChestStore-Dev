@@ -87,10 +87,23 @@ await step("several next steps on one deal, one with a time", async () => {
   await page.getByLabel("What", { exact: true }).fill("Send fabric samples");
   await page.getByRole("button", { name: "Tomorrow" }).click();
   await page.locator("select[id^=step-time]").selectOption({ label: "14:30" });
+  // With a time, the form says where it goes (the Chest's calendar works in the harness).
+  expect((await page.locator(".step-form").innerText()).includes("it goes into your Chest calendar"), "the calendar promised");
   await page.getByRole("button", { name: "Plan it" }).click();
   await page.waitForSelector(".step-item:has-text('Send fabric samples')");
   expect(await page.locator(".step-item").count() === 2, "two open steps");
   expect((await page.locator(".step-item", { hasText: "Send fabric samples" }).innerText()).includes("14:30"), "its time");
+  // In Hugo's Chest calendar, titled with the deal; done, it leaves it.
+  const events = await dev();
+  expect(/<b>Send fabric samples · [^<]+<\/b> <code>step:\d+<\/code>/u.test(events), "in the calendar");
+  await page.locator(".step-item", { hasText: "Send fabric samples" }).getByRole("button", { name: "Done" }).click();
+  await page.waitForSelector(".ck-toast:has-text('Done and logged.')");
+  await page.waitForTimeout(500);
+  expect(!(await dev()).includes("<b>Send fabric samples"), "out of the calendar once done");
+  await page.locator(".ck-toast-undo").click();
+  await page.waitForSelector(".step-item:has-text('Send fabric samples')");
+  await page.waitForTimeout(500);
+  expect((await dev()).includes("<b>Send fabric samples"), "back with Undo");
 });
 
 await step("a new deal from My day: a company found by typing, or added on the spot", async () => {
@@ -441,6 +454,64 @@ await step("phone width: My day first, labelled sections under the header, nothi
   expect((await page.locator(".deal-actions button", { hasText: "Won" }).getAttribute("class")).includes("quiet"), "Won is quiet at Lead");
   await page.goto(companyUrl);
   expect(await page.locator(".record-bar .danger-text").count() === 0, "no red Delete under the name");
+});
+
+await step("phone: the filters wait behind one button; the first company is near the top", async () => {
+  await as(context, origin, "hugo");
+  await context.addCookies([{ name: "dev_locale", value: "en", url: origin }]);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(origin + "/chest/companies");
+  expect(!(await page.locator("#f-owner").isVisible()), "owner filter tucked away");
+  expect(!(await page.getByRole("link", { name: "Export CSV" }).isVisible()), "export tucked away");
+  const first = await page.locator(".rows li").first().boundingBox();
+  expect(first && first.y < 480, "first company at " + first?.y);
+  await page.getByRole("button", { name: "Filters", exact: true }).click();
+  await page.locator("#f-owner").selectOption("me");
+  await page.waitForURL(/owner=me/u);
+  expect(await page.getByRole("button", { name: "Filters (1)" }).isVisible(), "the button counts what is on");
+});
+
+await step("phone: back from a call, the page asks to log it", async () => {
+  await page.goto(origin + "/chest/contacts?q=Claire");
+  await page.locator(".rows a", { hasText: "Claire Durand" }).first().click();
+  await page.waitForURL(/\/chest\/contacts\/\d+$/u);
+  // The dialler opens outside the browser; here the tap is remembered, and
+  // the prompt comes when the page is seen again.
+  await page.evaluate(() => { document.querySelector("a[href^='tel:']")?.addEventListener("click", e => e.preventDefault(), { once: true }); });
+  await page.locator("a[href^='tel:']").first().click();
+  expect(await page.locator(".call-prompt").count() === 0, "not at once");
+  await page.waitForTimeout(5300);
+  await page.reload();
+  await page.waitForSelector(".call-prompt");
+  expect((await page.locator(".call-prompt").innerText()).includes("You called Claire Durand. Log the call?"), "asked");
+  await page.getByPlaceholder("What was said? (optional)").fill("Agreed to see the 3D plan on Thursday");
+  await page.getByRole("button", { name: "Log the call" }).click();
+  await page.waitForSelector(".ck-toast:has-text('logged')");
+  await page.reload();
+  expect(await page.locator(".call-prompt").count() === 0, "asked once");
+  expect((await page.locator(".timeline, main").first().innerText()).includes("Agreed to see the 3D plan on Thursday"), "in the history");
+  // "Not now" forgets it.
+  await page.evaluate(() => { document.querySelector("a[href^='tel:']")?.addEventListener("click", e => e.preventDefault(), { once: true }); });
+  await page.locator("a[href^='tel:']").first().click();
+  await page.waitForTimeout(5300);
+  await page.reload();
+  await page.getByRole("button", { name: "Not now" }).click();
+  await page.reload();
+  expect(await page.locator(".call-prompt").count() === 0, "dismissed for good");
+});
+
+await step("seeded names in the reader's language: the sample's fields, tags and industries read in French", async () => {
+  await as(context, origin, "ines");
+  await context.addCookies([{ name: "dev_locale", value: "fr", url: origin }]);
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto(origin + "/chest/companies?q=Durand");
+  const row = await page.locator(".rows li", { hasText: "Boulangeries Durand" }).innerText();
+  expect(row.includes("Commerce alimentaire") && row.includes("grand compte"), "industry and tags in French: " + row);
+  await page.goto(origin + "/chest/deals?view=list&status=any");
+  await page.locator("table a", { hasText: "Head office fit-out" }).click();
+  await page.waitForURL(/\/chest\/deals\/\d+$/u);
+  await page.locator("dt", { hasText: "Concurrent" }).waitFor({ timeout: 8000 });
+  expect(await page.locator("dt", { hasText: "Livraison souhaitée le" }).count() === 1, "own fields in French");
 });
 
 await browser.close();

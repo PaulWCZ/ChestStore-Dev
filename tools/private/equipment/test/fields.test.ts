@@ -7,6 +7,7 @@ import { toCsv, parseCsv } from "../lib/csv.ts";
 import { exportRows } from "../lib/export.ts";
 import { addField, allFields, readExtra, removeField, renameField, restoreField } from "../lib/fields.ts";
 import { catalogue } from "../lib/i18n/index.ts";
+import { fieldName } from "../lib/words.ts";
 import { plan, type Context } from "../lib/importer.ts";
 import * as items from "../lib/items.ts";
 import { fieldValue } from "../lib/model.ts";
@@ -107,4 +108,35 @@ test("the export has a column per field, and reads back into the same fields", a
   assert.deepEqual(van.extra, { [plate.id]: "GH-123-JK", [inspection.id]: "2027-05-10" });
   assert.deepEqual(p.newFields, []);
   assert.deepEqual(p.offered, []);
+});
+
+test("a field the tool proposed speaks each reader's language until renamed; an import in French finds it", async () => {
+  const { sql } = database;
+  const screens = (await listCategories(sql, M)).find(c => c.key === "screen")!.id;
+  const [row] = await sql<{ id: string }[]>`insert into fields (category_id, name, key, type, position) values (${screens}, 'Operating system', 'os', 'text', 9) returning id`;
+  const os = (await allFields(sql)).find(f => f.id === String(row!.id))!;
+  assert.equal(os.key, "os");
+  assert.equal(fieldName(os, catalogue("fr")), "Système d’exploitation");
+  assert.equal(fieldName(os, catalogue("en")), "Operating system");
+  // The French name is taken already (it is the same field).
+  await refused(addField(sql, M, { categoryId: screens, name: "système d’exploitation", type: "text" }), "field_taken");
+  // A French file's column goes into it.
+  const cats = await listCategories(sql, M);
+  const context: Context = { people: [], tags: new Set(), serials: new Set(), categories: cats.map(c => ({ id: c.id, key: c.key, name: c.name, kind: c.kind })), fields: await allFields(sql) };
+  const p = plan("Nom;Catégorie;Système d’exploitation\nDell 27;Écran;Android 15\n", "csv", context);
+  assert.deepEqual([p.rows[0]?.extra[os.id], p.offered], ["Android 15", []]);
+  // Saved under its French name: still the key; renamed: the manager's words.
+  assert.equal((await renameField(sql, M, os.id, "Système d’exploitation")).key, "os");
+  const renamed = await renameField(sql, M, os.id, "Système");
+  assert.deepEqual([renamed.key, fieldName(renamed, catalogue("en"))], [null, "Système"]);
+  await removeField(sql, M, os.id);
+});
+
+test("the French export writes the key's French name, and reads back", async () => {
+  const { sql } = database;
+  await sql`insert into fields (category_id, name, key, type, position) values (${phones}, 'IMEI', 'imei', 'text', 8)`;
+  const fields = await allFields(sql);
+  const header = parseCsv(toCsv(exportRows(await items.listItems(sql, M), catalogue("fr"), "EUR", () => "", fields)))[0]!;
+  assert.ok(header.includes("Plaque d’immatriculation") || !fields.some(f => f.key === "plate"));
+  assert.ok(header.includes("IMEI"));
 });

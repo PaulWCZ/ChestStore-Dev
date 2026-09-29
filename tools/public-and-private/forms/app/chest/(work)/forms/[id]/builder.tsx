@@ -360,6 +360,7 @@ export function Builder(props: Props) {
           pictures={pictures}
           cover={props.cover}
           today={props.today}
+          previewTag={{ text: b.previewTag, lang: props.locale }}
         />
       </div>
     </aside>

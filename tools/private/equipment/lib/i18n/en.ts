@@ -16,6 +16,12 @@ export const en = {
     body: "Open it from your Chest’s home page, signed in with your work account.",
     language: "Language",
   },
+  // A managers' page opened by someone else (403), in the kit's NoAccess.
+  managersOnly: {
+    title: "This page is for managers",
+    body: "Your role does not open it. What you hold, and what you can ask for, is in My equipment.",
+    back: "Go to My equipment",
+  },
   notFound: {
     title: "Nothing here",
     body: "This page does not exist, or the item was deleted.",
@@ -56,6 +62,8 @@ export const en = {
     lost: "Lost",
     retired: "Retired",
   },
+  // The fields the tool proposes (their key), until a manager renames them.
+  fieldNames: { imei: "IMEI", ram: "RAM (GB)", os: "Operating system", plate: "Licence plate", inspection: "Next inspection" },
   categories: {
     laptop: "Laptops",
     phone: "Phones",
@@ -142,6 +150,11 @@ export const en = {
     late: "late",
     unconfirmed: "Receipt not confirmed",
     unconfirmedHint: "Given more than a week ago; the person has not said they received it.",
+    remind: "Remind them",
+    remindLabel: "Remind {name} about {item}",
+    reminded: "Reminded in their bell.",
+    remindedMail: "Reminded in their bell and by email.",
+    remindedToday: "Reminded today",
     givenOn: "given {date}",
     units: { zero: "none in stock", one: "{count} in stock", other: "{count} in stock" },
     lowCount: { one: "{count} running low", other: "{count} running low" },
@@ -536,6 +549,8 @@ export const en = {
     rulesPlaceholder: "e.g. The equipment remains the company’s property. Report any loss or theft the same day. Return everything on your last day.",
     rulesSave: "Save the rules",
     rulesSaved: "Saved. People accept these rules from now on.",
+    rulesExample: "The equipment remains the company’s property and is for your work.\nKeep it with you or locked away; never leave a laptop in a car.\nReport any loss, theft or damage the same day, from “My equipment”.\nReturn everything, with its chargers and accessories, on your last day.",
+    rulesStart: "Start with an example",
   },
   export: {
     filename: "equipment",
@@ -603,7 +618,13 @@ export const en = {
     no_inventory: "No inventory is under way.",
     no_such_tag: "No item has the tag {tag}.",
     field_taken: "There is already a field called {name}.",
+    reminded_today: "Already reminded today: once a day is enough.",
     charter_changed: "The rules just changed. Read them again, then confirm.",
+  },
+  mail: {
+    remindSubject: "Did you receive {item}?",
+    remindText: "{name} gave you {item} ({tag}) on {date}.\nOpen Equipment in your Chest, then “My equipment”, and confirm you received it — or report what is wrong with it.",
+    why: "You get this email because a manager of your company’s equipment asked Equipment to remind you.",
   },
   bell: {
     given: "{name} gave you {item} {tag}",
@@ -620,6 +641,7 @@ export const en = {
     low: { zero: "{item}: none left", one: "{item}: {count} left", other: "{item}: {count} left" },
     lowBody: "It’s at or under its minimum. Time to order more.",
     remark: "{name} received {item} {tag}, with a note",
+    remind: "{name} asks: did you receive {item} {tag}?",
     requested: "{name} asks for equipment",
     answer: {
       approved: "{name} approved your request: {what}",
@@ -698,7 +720,8 @@ export const en = {
     handoverTitle: "Equipment handover form",
     returnTitle: "Equipment return form",
     employee: "Employee",
-    printed: "Printed on {date}",
+    printedOn: "Printed on",
+    leftOn: "Left on",
     tag: "Asset tag",
     item: "Item",
     serial: "Serial number and details",

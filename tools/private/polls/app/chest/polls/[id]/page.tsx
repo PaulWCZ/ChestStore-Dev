@@ -11,6 +11,7 @@ import { format, plural } from "../../../../lib/i18n/index.ts";
 import { nameOf, people } from "../../../../lib/people.ts";
 import { view, type PollView } from "../../../../lib/polls.ts";
 import { seriesState, trend } from "../../../../lib/series.ts";
+import { teamResults } from "../../../../lib/teams.ts";
 import { viewer } from "../../../../lib/session.ts";
 import { local } from "../../../../lib/time.ts";
 import { catchUp } from "../../../../lib/tell.ts";
@@ -18,6 +19,7 @@ import { AnswerArea, type AnswerQuestion } from "./answer-area.tsx";
 import { Comments } from "./comments.tsx";
 import { FinalPicker, Manage } from "./manage.tsx";
 import { Results, type DateLabel, type Named } from "./results.tsx";
+import { TeamsCard } from "./teams.tsx";
 import { TrendCard } from "./trend.tsx";
 
 // A poll: what it asks, the answer form, the results when they show, and
@@ -53,6 +55,8 @@ export default async function PollPage({ params }: { params: Promise<{ id: strin
   const notes = poll.anonymous ? [] : await listComments(sql, member, poll.id);
   const series = await seriesState(sql, poll.seriesId);
   const lines = poll.seriesId ? await trend(sql, member, poll) : [];
+  // An anonymous survey per team, once its results show (lib/teams.ts).
+  const byTeam = poll.anonymous && poll.kind === "survey" && pv.state === "shown" ? await teamResults(sql, member, poll.id) : null;
   const roundLabels = new Map<string, string>();
   for (const line of lines) for (const p of line.points) { const day = local(p.openedAt, zone).day; roundLabels.set(p.pollId, d.dayNumber(day) + " " + d.month(day)); }
 
@@ -154,7 +158,7 @@ export default async function PollPage({ params }: { params: Promise<{ id: strin
           <section className="card results-card" aria-labelledby="results">
             <h2 id="results">{t.results.title}</h2>
             {pv.state === "shown" && pv.results ? (
-              <Results results={pv.results} single={single} names={pv.names ? names : null} dateLabels={dateLabels} finalOption={poll.finalOption} signup={poll.slots !== null} locale={locale} t={t} />
+              <Results results={pv.results} single={single} names={pv.names ? names : null} dateLabels={dateLabels} finalOption={poll.finalOption} slots={poll.slots} locale={locale} t={t} />
             ) : pv.state === "threshold" ? (
               <div className="threshold">
                 <Mask />
@@ -168,6 +172,8 @@ export default async function PollPage({ params }: { params: Promise<{ id: strin
               <p className="note"><Clock />{t.poll.resultsAfter}</p>
             )}
           </section>
+
+          {byTeam && <TeamsCard teams={byTeam.teams} hidden={byTeam.hidden} locale={locale} t={t} />}
 
           {lines.length > 0 && <TrendCard trend={lines} labels={roundLabels} locale={locale} t={t} />}
 

@@ -1,5 +1,5 @@
 import * as chest from "@argentic/chest-sdk/chest";
-import { notFound } from "next/navigation";
+import { forbidden, notFound } from "next/navigation";
 import { AppError } from "../../../../../lib/app-error.ts";
 import { can } from "../../../../../lib/access.ts";
 import { listCategories } from "../../../../../lib/categories.ts";
@@ -8,7 +8,7 @@ import { format } from "../../../../../lib/i18n/index.ts";
 import { allFields } from "../../../../../lib/fields.ts";
 import { formHints, itemDetail } from "../../../../../lib/items.ts";
 import { viewer } from "../../../../../lib/session.ts";
-import { categoryName } from "../../../../../lib/words.ts";
+import { categoryName, fieldName } from "../../../../../lib/words.ts";
 import { ItemForm } from "../../item-form.tsx";
 
 const amount = (cents: number | null) => (cents === null ? "" : (cents / 100).toFixed(2));
@@ -17,7 +17,7 @@ export default async function EditItem({ params }: { params: Promise<{ id: strin
   const v = await viewer();
   if (!v) return null;
   const { member, t } = v;
-  if (!can(member, "items.manage")) notFound();
+  if (!can(member, "items.manage")) forbidden();
   const sql = db();
   const detail = await itemDetail(sql, member, (await params).id).catch(error => {
     if (error instanceof AppError) notFound();
@@ -39,7 +39,7 @@ export default async function EditItem({ params }: { params: Promise<{ id: strin
           extra: item.extra, count: "1", serials: "",
         }}
         categories={categories.map(c => ({ id: c.id, name: categoryName(c, t), icon: c.icon, kind: c.kind }))}
-        fields={fields}
+        fields={fields.map(f => ({ ...f, name: fieldName(f, t) }))}
         nextTag={hints.nextTag}
         suppliers={hints.suppliers}
         currency={chest.currency()}

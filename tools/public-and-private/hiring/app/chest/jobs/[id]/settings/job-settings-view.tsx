@@ -55,10 +55,10 @@ export function JobSettingsView({ jobId, stages, interviewers, choices, deletabl
                     {s.hired && <span className="muted small">{w.hired}</span>}
                     <span className="stage-count">{s.count}</span>
                     <span className="row-actions">
-                      <button type="button" className="icon-button" onClick={() => setEditing(s.id)} title={w.rename}><Pencil /><span className="visually-hidden">{w.rename} · {s.name}</span></button>
+                      <button type="button" className="button link small" onClick={() => setEditing(s.id)} aria-label={`${w.rename} · ${s.name}`}><Pencil />{w.rename}</button>
                       {!s.hired && <button type="button" className="icon-button" disabled={pending || i === 0} onClick={() => run(() => moveStage(s.id, "up"))} title={w.up}><Up /><span className="visually-hidden">{w.up} · {s.name}</span></button>}
                       {!s.hired && <button type="button" className="icon-button" disabled={pending || i === movable.length - 1} onClick={() => run(() => moveStage(s.id, "down"))} title={w.down}><Down /><span className="visually-hidden">{w.down} · {s.name}</span></button>}
-                      {!s.hired && <button type="button" className="icon-button" disabled={pending} onClick={() => run(() => removeStage(s.id))} title={t.common.remove}><Bin /><span className="visually-hidden">{t.common.remove} · {s.name}</span></button>}
+                      {!s.hired && <button type="button" className="button link small" disabled={pending} onClick={() => run(() => removeStage(s.id))} aria-label={`${t.common.remove} · ${s.name}`}><Bin />{t.common.remove}</button>}
                     </span>
                   </>
                 )}

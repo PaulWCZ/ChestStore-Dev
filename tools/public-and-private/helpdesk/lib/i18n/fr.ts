@@ -21,7 +21,11 @@ export const fr: Catalogue = {
     viewer: "Lecteur",
     none: "Aucun rôle",
   },
+  seed: {
+    tags: { damaged: "Abîmé", delivery: "Livraison", invoice: "Facture", orderChange: "Modification de commande" },
+  },
   shell: {
+    otherList: "Recherche ou filtre",
     skip: "Aller au contenu",
     nav: "Support",
     inbox: "Boîte de réception",
@@ -58,6 +62,8 @@ export const fr: Catalogue = {
     you: "Vous",
   },
   public: {
+    typesPlain: "Acceptés : photos, PDF, Word, Excel et fichiers texte.",
+    alreadyHad: "Nous avions déjà reçu cette demande : c’est la même, rien n’a été envoyé deux fois.",
     language: "Langue",
     title: "Contactez-nous",
     titleWith: "Contacter {company}",
@@ -108,6 +114,7 @@ export const fr: Catalogue = {
     attach: "Photos ou documents",
   },
   inbox: {
+    filterButton: "Filtrer",
     title: "Boîte de réception",
     folders: {
       unassigned: "À attribuer",
@@ -286,7 +293,7 @@ export const fr: Catalogue = {
     back: "Boîte de réception",
     from: "De",
     assignee: "Attribuée à",
-    nobody: "Personne",
+    nobody: "Non attribuée",
     takeIt: "Je la prends",
     status: "État",
     statuses: {

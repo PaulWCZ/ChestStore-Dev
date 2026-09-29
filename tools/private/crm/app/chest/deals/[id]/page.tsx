@@ -1,3 +1,4 @@
+import { calendarWorks } from "../../../../lib/step-calendar.ts";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { StageBadge } from "../../../../components/stage-badge.tsx";
@@ -70,7 +71,7 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
       {!editable && <p className="notice">{can(member, "deals.create") ? format(t.deal.readOnly, { name: ownerName }) : t.deal.readOnlyViewer}</p>}
       <div className="record-grid">
         <div className="record-main">
-          <StepBox steps={steps.map(s => ({ ...s, label: dueLabel(s, now, locale, t) }))} on={{ deal: d.id }} team={choices.team} people={people} me={member.id} canEdit={editable} canAssign={choices.canAssign} today={now} t={t} />
+          <StepBox steps={steps.map(s => ({ ...s, label: dueLabel(s, now, locale, t) }))} on={{ deal: d.id }} team={choices.team} people={people} me={member.id} canEdit={editable} canAssign={choices.canAssign} today={now} calendar={(await calendarWorks(sql)) === true} t={t} />
           {can(member, "activities.log") ? <Composer on={{ deal: d.id }} t={t} /> : <p className="muted">{t.log.readOnly}</p>}
           <h2 className="label-mono section-gap">{t.timeline.title}</h2>
           <Timeline items={withWhen(items, locale)} people={people} stageNames={choices.stageNames} me={member.id} canRemoveAny={can(member, "deals.all")} canLog={can(member, "activities.log")} context="deal" locale={locale} t={t} />

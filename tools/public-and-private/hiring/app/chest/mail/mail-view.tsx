@@ -47,11 +47,11 @@ function Item({ m, candidates, t }: { m: Row; candidates: { id: string; label: s
           <optgroup label={w.everyone}>{candidates.filter(c => c.email !== m.address).map(c => <option key={c.id} value={c.id}>{c.label}</option>)}</optgroup>
         </select>
         <button type="submit" className="button small" disabled={pending || !chosen}>{w.file}</button>
-        <button type="button" className="icon-button" disabled={pending} title={w.remove} onClick={() => start(async () => {
+        <button type="button" className="button link small" disabled={pending} onClick={() => start(async () => {
           const r = await removeMessage(m.id);
           if (!r.ok) return void toast({ text: format(t.errors[r.error], r.values ?? {}), tone: "error" });
           toast(w.removed);
-        })}><Bin /><span className="visually-hidden">{w.remove}</span></button>
+        })}><Bin />{w.remove}</button>
       </form>
     </li>
   );

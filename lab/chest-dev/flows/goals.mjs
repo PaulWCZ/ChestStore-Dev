@@ -38,6 +38,7 @@ if (process.argv.includes("--empty")) {
     await page.goto(origin + "/chest");
     const start = page.getByRole("button", { name: new RegExp(`^Start ${main} \\(`, "u") });
     expect(await start.isVisible(), "main button with its dates");
+    expect(await page.getByRole("button", { name: `Start ${main} and import a spreadsheet` }).isVisible(), "a company leaving its OKR sheet can import from the first screen");
     if (late) expect(await page.getByRole("button", { name: new RegExp(`^Or start Q${q + 1} ${y} now`, "u") }).isVisible(), "the current quarter as a second choice");
     await start.click();
     await page.waitForURL(/\/chest\/company/u);
@@ -102,7 +103,9 @@ await step("Hugo writes a Sales objective with two key results, supporting a com
   const rows = page.locator(".kr-row");
   await rows.nth(0).getByLabel("What we’ll count", { exact: true }).fill("Showroom visits a month");
   await rows.nth(0).getByLabel("To", { exact: true }).fill("80");
-  await rows.nth(0).getByLabel("Unit").fill("visit/visits");
+  // The unit in the plural only; the form for one is guessed, to correct.
+  await rows.nth(0).getByLabel("Counted in").fill("visits");
+  expect(await rows.nth(0).getByLabel("For 1, write").inputValue() === "visit", "the singular guessed");
   expect((await rows.nth(0).locator(".summary-line").innerText()).includes("From 0 to 80 visits"), "the sentence says the measure back");
   await page.getByRole("button", { name: "Add a key result" }).click();
   await rows.nth(1).getByLabel("What we’ll count", { exact: true }).fill("New showroom signage installed");
@@ -177,7 +180,7 @@ await step("Camille writes the retrospective of a closed cycle's objective, and 
   await page.getByLabel("Ce que nous avons appris").fill("Une annonce plus précise sur nos machines.");
   await page.getByRole("button", { name: "Enregistrer" }).click();
   await page.waitForSelector("text=Rétrospective enregistrée.");
-  await page.getByRole("button", { name: /Reporter sur Autumn 2026/u }).click();
+  await page.getByRole("button", { name: /Reporter sur \S+ – \S+ \d{4}/u }).click();
   await page.waitForSelector(".ck-toast >> text=Reporté");
   await page.goto(origin + "/chest/cycles/1");
   expect((await page.locator("main").innerText()).includes("Une annonce plus précise"), "review shows the learning");
@@ -324,7 +327,7 @@ await step("the tree shows at risk and off track together; the cycle is always o
   const text = await page.locator("main").innerText();
   expect(text.includes("Deliver every order on time"), "an at-risk objective");
   expect(!text.includes("Halve the time we spend on paperwork"), "on-track objective hidden");
-  expect(await page.locator(".ck-filter-chip[aria-current=true]", { hasText: "Autumn 2026" }).count() === 1, "the cycle shown is a chosen chip");
+  expect(await page.locator(".ck-filter-chip[aria-current=true]", { hasText: / – .* \d{4}/u }).count() === 1, "the cycle shown is a chosen chip");
 });
 
 await step("a key result's dialog never loses what was typed: Escape asks first", async () => {
@@ -349,6 +352,41 @@ await step("phone width: My goals, the tree and an objective fit the screen", as
     const width = await page.evaluate(() => document.documentElement.scrollWidth);
     expect(width <= 392, `${path} overflows: ${width}`);
   }
+});
+
+await step("a cycle the tool named reads in each reader's language; the phone Company page shows the tree first", async () => {
+  await english("hugo");
+  await page.goto(origin + "/chest/company");
+  const en = await page.locator(".cycle-chip strong").first().innerText();
+  await french("lea");
+  await page.goto(origin + "/chest/company");
+  const fr = await page.locator(".cycle-chip strong").first().innerText();
+  expect(en !== fr && / – /u.test(en) && / – /u.test(fr) && !/Autumn/u.test(fr), `cycle names per language: ${en} / ${fr}`);
+  expect(!(await page.locator("main").innerText()).includes("En retard"), "off track is not Tasks' “late” in French");
+  await page.setViewportSize({ width: 390, height: 844 });
+  await french("camille");
+  await page.goto(origin + "/chest/company");
+  expect(await page.getByRole("button", { name: "Tableur" }).isVisible(), "import and download in one menu");
+  expect(!(await page.getByRole("link", { name: "Importer depuis un tableur" }).isVisible()), "no import button on the page");
+  const tree = await page.locator(".tree").first().boundingBox();
+  const chase = (await page.locator(".chase").count()) ? await page.locator(".chase").boundingBox() : null;
+  expect(!chase || tree.y < chase.y, "the tree before the waiting list");
+  await page.setViewportSize({ width: 1280, height: 860 });
+});
+
+await step("the dark map band is the Trail map's own: another look gets the kit's normal header", async () => {
+  await english("hugo");
+  const band = async () => page.locator(".ck-bar").evaluate(e => { const [r, g, b] = getComputedStyle(e).backgroundColor.match(/\d+/gu).map(Number); return (r + g + b) / 3; });
+  await page.goto(origin + "/chest");
+  expect(await page.locator("html[data-look=own]").count() === 1 && (await band()) < 90, "own look: the dark band");
+  const set = async choice => page.request.post(origin + "/_dev/theme", { form: { level: "all", choice }, maxRedirects: 0 });
+  await set("catalogue:chest");
+  await page.goto(origin + "/chest");
+  expect((await band()) > 200, "the Chest's look: a light header like Tasks and Wiki");
+  await set("brand:sample");
+  await page.goto(origin + "/chest");
+  expect((await band()) > 150, "a brand: the kit's header");
+  await set("own");
 });
 
 await browser.close();

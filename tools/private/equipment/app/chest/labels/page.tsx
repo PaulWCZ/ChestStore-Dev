@@ -2,7 +2,7 @@ import * as chest from "@argentic/chest-sdk/chest";
 import { headers } from "next/headers";
 import { EmptyState } from "@argentic/chest-ui/components";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { forbidden } from "next/navigation";
 import { Back } from "../../../components/icons.tsx";
 import { LabelFace } from "../../../components/label-face.tsx";
 import { PrintButton } from "../../../components/print-button.tsx";
@@ -24,7 +24,7 @@ export default async function Labels({ searchParams }: { searchParams: Promise<R
   const v = await viewer();
   if (!v) return null;
   const { member, locale, t } = v;
-  if (!can(member, "items.manage")) notFound();
+  if (!can(member, "items.manage")) forbidden();
   const params = await searchParams;
   const one = (k: string) => (typeof params[k] === "string" ? (params[k] as string) : "");
   const ids = one("ids") ? one("ids").split(",").filter(x => /^[1-9][0-9]{0,17}$/u.test(x)) : undefined;

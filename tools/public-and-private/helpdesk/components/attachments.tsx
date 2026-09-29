@@ -31,12 +31,14 @@ export const readyFiles = (items: readonly PickedFile[]) => JSON.stringify(items
 // A file still on its way (or failed and not removed): the message waits.
 export const filesPending = (items: readonly PickedFile[]) => items.some(i => i.status !== "ready");
 
-export function Attachments({ files, setFiles, grant, kind, label, t }: {
+export function Attachments({ files, setFiles, grant, kind, label, plainTypes, t }: {
   files: readonly PickedFile[];
   setFiles: (update: (current: readonly PickedFile[]) => PickedFile[]) => void;
   grant: (type: string, size: number) => Promise<Grant>;
   kind: "public" | "team";
   label: string;
+  // The accepted kinds in plain words, for a customer.
+  plainTypes?: string;
   t: { files: FileWords; errors: Catalogue["errors"] };
 }) {
   const say = (code: ErrorCode, max?: number) => format(t.errors[code], { max: max ?? limits.fileSize >> 20 });
@@ -54,5 +56,7 @@ export function Attachments({ files, setFiles, grant, kind, label, t }: {
       return { ok: false, error: say("files_unavailable") };
     }
   };
-  return <FilePicker label={label} files={files} onChange={setFiles} upload={upload} accept={accept} maxSize={limits.fileSize} maxFiles={limits.filesPerMessage} labels={t.files} />;
+  return <FilePicker label={label} files={files} onChange={setFiles} upload={upload} accept={accept} maxSize={limits.fileSize} maxFiles={limits.filesPerMessage}
+    // A customer reads kinds of files, not extensions ("WEBP, DOCX").
+    labels={kind === "public" && plainTypes ? { ...t.files, types: plainTypes } : t.files} />;
 }

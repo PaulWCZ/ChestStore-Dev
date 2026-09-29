@@ -1,6 +1,6 @@
 import * as chest from "@argentic/chest-sdk/chest";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { forbidden, notFound } from "next/navigation";
 import { ItemLine } from "../../../../components/bits.tsx";
 import { Back } from "../../../../components/icons.tsx";
 import { PrintButton } from "../../../../components/print-button.tsx";
@@ -19,7 +19,7 @@ export default async function InventoryReport({ params }: { params: Promise<{ id
   const v = await viewer();
   if (!v) return null;
   const { member, locale, t } = v;
-  if (!can(member, "items.manage")) notFound();
+  if (!can(member, "items.manage")) forbidden();
   const found = await report(db(), member, (await params).id).catch(error => {
     if (error instanceof AppError) notFound();
     throw error;

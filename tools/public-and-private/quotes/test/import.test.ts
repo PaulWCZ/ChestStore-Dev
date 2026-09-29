@@ -125,7 +125,9 @@ test("a mapping is checked again on the server, and a file that is not a table i
   await assert.rejects(importTable(database.sql, asMember(hugo), "items", text, ["name", "name", "", "", "", ""], options), refused("import_invalid"));
   await assert.rejects(importTable(database.sql, asMember(hugo), "items", text, ["", "description", "", "", "", ""], options), refused("import_invalid"));
   await assert.rejects(importTable(database.sql, asMember(hugo), "items", "Nom\n", ["name"], options), refused("import_empty"));
-  await assert.rejects(importTable(database.sql, asMember(hugo), "invoices", text, [], options), refused("import_invalid"));
+  await assert.rejects(importTable(database.sql, asMember(hugo), "payments", text, [], options), refused("import_invalid"));
+  // Invoices to collect are billing's to bring.
+  await assert.rejects(importTable(database.sql, asMember(hugo), "invoices", text, [], options), refused("forbidden"));
   await assert.rejects(importTable(database.sql, asMember(hugo), "items", "x".repeat(3 * 1024 * 1024), ["name"], options), refused("import_too_large"));
 });
 

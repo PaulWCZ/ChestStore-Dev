@@ -1,29 +1,319 @@
 [
-  {"name": "home", "path": "/chest", "member": "hugo", "locale": "en"},
-  {"name": "calendar", "path": "/chest/calendar", "member": "camille", "locale": "en", "preview": true},
-  {"name": "ask", "path": "/chest/new", "member": "hugo", "locale": "en"},
-  {"name": "approvals", "path": "/chest/approvals", "member": "camille", "locale": "en"},
-  {"name": "request", "path": "/chest/requests/13", "member": "ines", "locale": "en", "only": ["phone"]},
-  {"name": "home-fr", "path": "/chest", "member": "ines", "locale": "fr"},
-  {"name": "calendar-fr", "path": "/chest/calendar", "member": "lea", "locale": "fr"},
-  {"name": "people", "path": "/chest/people", "member": "camille", "locale": "en", "only": ["desktop"]},
-  {"name": "person", "path": "/chest/people/mbr_tomaaaaaaaaaaaaaaaaaaaaaaa", "member": "camille", "locale": "fr", "only": ["desktop"]},
-  {"name": "settings", "path": "/chest/settings", "member": "camille", "locale": "en", "only": ["desktop"]},
-  {"name": "home-dark", "path": "/chest", "member": "tom", "locale": "en", "dark": true},
-  {"name": "record", "path": "/chest/new?for=mbr_noraaaaaaaaaaaaaaaaaaaaaaa", "member": "camille", "locale": "en"},
-  {"name": "import-lucca", "path": "/chest/people/import", "member": "camille", "locale": "fr", "only": ["desktop"], "actions": [{"fill": ["#csv", "Matricule;Nom;Prénom;Date d'entrée;CP N-1;CP N;RTT;Établissement\n0007;MOREAU;Inès;06/09/2021;12,5;8,33;4;Paris\n0012;Dubois;Léa;01/04/2022;9;8,33;2,5;Paris\n0019;Walker;Tom;03/11/2025;0;18,75;6;Lyon\n0023;Durand;Paul;02/02/2024;5;8,33;1;Lyon"]}, {"click": "text=Vérifier"}, {"wait": 800}]},
-  {"name": "import-mapping", "path": "/chest/people/import", "member": "camille", "locale": "en", "only": ["desktop"], "actions": [{"fill": ["#csv", "Employee;Holiday allowance;Seniority\nInès Moreau;7,5;5\nHugo Bernard;3;2"]}, {"click": "text=Check"}, {"wait": 800}]},
-  {"name": "import-leave", "path": "/chest/people/import?what=leave", "member": "camille", "locale": "en", "only": ["desktop"], "actions": [{"fill": ["#csv", "legalEntity,employeeNumber,lastName,firstName,accountId,startDate,flagStartDate,endDate,flagEndDate,isApproved\nArgentic SAS,0007,Moreau,Inès,Congés payés 2025-2026,21/12/2026,AM,31/12/2026,PM,true\nArgentic SAS,0012,Dubois,Léa,RTT 2026,15/12/2026,PM,15/12/2026,PM,true\nArgentic SAS,0019,Walker,Tom,104,05/01/2027,AM,08/01/2027,AM,true\nArgentic SAS,0019,Walker,Tom,Congés payés 2025-2026,22/02/2027,AM,26/02/2027,PM,false"]}, {"click": "text=Check"}, {"wait": 800}]},
-  {"name": "payroll", "path": "/chest/people/payroll", "member": "camille", "locale": "fr", "only": ["desktop"]},
-  {"name": "home-theme", "path": "/chest", "member": "hugo", "locale": "en", "look": {"all": "catalogue:workshop"}},
-  {"name": "home-theme-dark", "path": "/chest", "member": "hugo", "locale": "en", "dark": true, "look": {"all": "catalogue:workshop"}, "only": ["phone"]},
-  {"name": "calendar-theme", "path": "/chest/calendar", "member": "camille", "locale": "en", "look": {"all": "catalogue:library"}, "only": ["desktop"]},
-  {"name": "home-brand", "path": "/chest", "member": "ines", "locale": "fr", "look": {"all": "catalogue:workshop", "tool": "brand:sample"}},
-  {"name": "home-brand-dark", "path": "/chest", "member": "tom", "locale": "en", "dark": true, "look": {"tool": "brand:sample"}, "only": ["phone"]},
-  {"name": "approvals-brand", "path": "/chest/approvals", "member": "camille", "locale": "fr", "look": {"tool": "brand:sample"}, "only": ["desktop"]},
-  {"name": "home-chest", "path": "/chest", "member": "hugo", "locale": "en", "look": {"all": "catalogue:chest"}},
-  {"name": "calendar-chest", "path": "/chest/calendar", "member": "camille", "locale": "fr", "look": {"all": "catalogue:chest"}, "only": ["desktop"]},
-  {"name": "ask-fr", "path": "/chest/new", "member": "lea", "locale": "fr", "actions": [{"click": ".date-field .ck-date-open"}, {"wait": 300}]},
-  {"name": "give", "path": "/chest/people", "member": "camille", "locale": "fr", "actions": [{"click": "text=Donner des jours à tous"}, {"fill": ["#give-days", "1"]}, {"wait": 300}], "only": ["desktop"]},
-  {"name": "approved-undo", "path": "/chest/approvals", "member": "camille", "locale": "fr", "actions": [{"click": ".card .button >> nth=0"}, {"wait": 700}], "only": ["phone"]}
+  {
+    "name": "home",
+    "path": "/chest",
+    "member": "hugo",
+    "locale": "en"
+  },
+  {
+    "name": "calendar",
+    "path": "/chest/calendar",
+    "member": "camille",
+    "locale": "en",
+    "preview": true
+  },
+  {
+    "name": "ask",
+    "path": "/chest/new",
+    "member": "hugo",
+    "locale": "en"
+  },
+  {
+    "name": "approvals",
+    "path": "/chest/approvals",
+    "member": "camille",
+    "locale": "en"
+  },
+  {
+    "name": "request",
+    "path": "/chest/requests/13",
+    "member": "ines",
+    "locale": "en",
+    "only": [
+      "phone"
+    ]
+  },
+  {
+    "name": "home-fr",
+    "path": "/chest",
+    "member": "ines",
+    "locale": "fr"
+  },
+  {
+    "name": "calendar-fr",
+    "path": "/chest/calendar",
+    "member": "lea",
+    "locale": "fr"
+  },
+  {
+    "name": "people",
+    "path": "/chest/people",
+    "member": "camille",
+    "locale": "en",
+    "only": [
+      "desktop"
+    ]
+  },
+  {
+    "name": "person",
+    "path": "/chest/people/mbr_tomaaaaaaaaaaaaaaaaaaaaaaa",
+    "member": "camille",
+    "locale": "fr",
+    "only": [
+      "desktop"
+    ]
+  },
+  {
+    "name": "settings",
+    "path": "/chest/settings",
+    "member": "camille",
+    "locale": "en",
+    "only": [
+      "desktop"
+    ]
+  },
+  {
+    "name": "home-dark",
+    "path": "/chest",
+    "member": "tom",
+    "locale": "en",
+    "dark": true
+  },
+  {
+    "name": "record",
+    "path": "/chest/new?for=mbr_noraaaaaaaaaaaaaaaaaaaaaaa",
+    "member": "camille",
+    "locale": "en"
+  },
+  {
+    "name": "import-lucca",
+    "path": "/chest/people/import",
+    "member": "camille",
+    "locale": "fr",
+    "only": [
+      "desktop"
+    ],
+    "actions": [
+      {
+        "fill": [
+          "#csv",
+          "Matricule;Nom;Prénom;Date d'entrée;CP N-1;CP N;RTT;Établissement\n0007;MOREAU;Inès;06/09/2021;12,5;8,33;4;Paris\n0012;Dubois;Léa;01/04/2022;9;8,33;2,5;Paris\n0019;Walker;Tom;03/11/2025;0;18,75;6;Lyon\n0023;Durand;Paul;02/02/2024;5;8,33;1;Lyon"
+        ]
+      },
+      {
+        "click": "text=Vérifier"
+      },
+      {
+        "wait": 800
+      }
+    ]
+  },
+  {
+    "name": "import-mapping",
+    "path": "/chest/people/import",
+    "member": "camille",
+    "locale": "en",
+    "only": [
+      "desktop"
+    ],
+    "actions": [
+      {
+        "fill": [
+          "#csv",
+          "Employee;Holiday allowance;Seniority\nInès Moreau;7,5;5\nHugo Bernard;3;2"
+        ]
+      },
+      {
+        "click": "text=Check"
+      },
+      {
+        "wait": 800
+      }
+    ]
+  },
+  {
+    "name": "import-leave",
+    "path": "/chest/people/import?what=leave",
+    "member": "camille",
+    "locale": "en",
+    "only": [
+      "desktop"
+    ],
+    "actions": [
+      {
+        "fill": [
+          "#csv",
+          "legalEntity,employeeNumber,lastName,firstName,accountId,startDate,flagStartDate,endDate,flagEndDate,isApproved\nArgentic SAS,0007,Moreau,Inès,Congés payés 2025-2026,21/12/2026,AM,31/12/2026,PM,true\nArgentic SAS,0012,Dubois,Léa,RTT 2026,15/12/2026,PM,15/12/2026,PM,true\nArgentic SAS,0019,Walker,Tom,104,05/01/2027,AM,08/01/2027,AM,true\nArgentic SAS,0019,Walker,Tom,Congés payés 2025-2026,22/02/2027,AM,26/02/2027,PM,false"
+        ]
+      },
+      {
+        "click": "text=Check"
+      },
+      {
+        "wait": 800
+      }
+    ]
+  },
+  {
+    "name": "payroll",
+    "path": "/chest/people/payroll",
+    "member": "camille",
+    "locale": "fr",
+    "only": [
+      "desktop"
+    ]
+  },
+  {
+    "name": "home-theme",
+    "path": "/chest",
+    "member": "hugo",
+    "locale": "en",
+    "look": {
+      "all": "catalogue:workshop"
+    }
+  },
+  {
+    "name": "home-theme-dark",
+    "path": "/chest",
+    "member": "hugo",
+    "locale": "en",
+    "dark": true,
+    "look": {
+      "all": "catalogue:workshop"
+    },
+    "only": [
+      "phone"
+    ]
+  },
+  {
+    "name": "calendar-theme",
+    "path": "/chest/calendar",
+    "member": "camille",
+    "locale": "en",
+    "look": {
+      "all": "catalogue:library"
+    },
+    "only": [
+      "desktop"
+    ]
+  },
+  {
+    "name": "home-brand",
+    "path": "/chest",
+    "member": "ines",
+    "locale": "fr",
+    "look": {
+      "all": "catalogue:workshop",
+      "tool": "brand:sample"
+    }
+  },
+  {
+    "name": "home-brand-dark",
+    "path": "/chest",
+    "member": "tom",
+    "locale": "en",
+    "dark": true,
+    "look": {
+      "tool": "brand:sample"
+    },
+    "only": [
+      "phone"
+    ]
+  },
+  {
+    "name": "approvals-brand",
+    "path": "/chest/approvals",
+    "member": "camille",
+    "locale": "fr",
+    "look": {
+      "tool": "brand:sample"
+    },
+    "only": [
+      "desktop"
+    ]
+  },
+  {
+    "name": "home-chest",
+    "path": "/chest",
+    "member": "hugo",
+    "locale": "en",
+    "look": {
+      "all": "catalogue:chest"
+    }
+  },
+  {
+    "name": "calendar-chest",
+    "path": "/chest/calendar",
+    "member": "camille",
+    "locale": "fr",
+    "look": {
+      "all": "catalogue:chest"
+    },
+    "only": [
+      "desktop"
+    ]
+  },
+  {
+    "name": "ask-fr",
+    "path": "/chest/new",
+    "member": "lea",
+    "locale": "fr",
+    "actions": [
+      {
+        "click": ".date-field .ck-date-open"
+      },
+      {
+        "wait": 300
+      }
+    ]
+  },
+  {
+    "name": "give",
+    "path": "/chest/people",
+    "member": "camille",
+    "locale": "fr",
+    "actions": [
+      {
+        "click": "text=Donner des jours à tous"
+      },
+      {
+        "fill": [
+          "#give-days",
+          "1"
+        ]
+      },
+      {
+        "wait": 300
+      }
+    ],
+    "only": [
+      "desktop"
+    ]
+  },
+  {
+    "name": "approved-undo",
+    "path": "/chest/approvals",
+    "member": "camille",
+    "locale": "fr",
+    "actions": [
+      {
+        "click": ".card .button >> nth=0"
+      },
+      {
+        "wait": 700
+      }
+    ],
+    "only": [
+      "phone"
+    ]
+  },
+  {
+    "name": "home-port",
+    "path": "/chest",
+    "member": "camille",
+    "locale": "fr",
+    "look": {
+      "tool": "brand:port"
+    }
+  }
 ]

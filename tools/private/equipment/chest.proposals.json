@@ -1,4 +1,7 @@
 {
+  "mail": {
+    "send": true
+  },
   "receives": [
     "people.leaving",
     "people.leaving_cancelled"

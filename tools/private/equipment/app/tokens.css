@@ -37,9 +37,3 @@
   --paper-ink-2: color-mix(in oklab, CanvasText 70%, Canvas);
 }
 
-/* In a dark look the drawings are quieter still. */
-@media (prefers-color-scheme: dark) {
-  :root {
-    --crib-icon: var(--ink-2);
-  }
-}

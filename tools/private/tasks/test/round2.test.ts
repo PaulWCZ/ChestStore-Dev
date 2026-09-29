@@ -89,6 +89,17 @@ test("an older item is left alone: deleting a comment another one replaced withd
   assert.deepEqual(chest.notifications.filter(n => n.member === ines.id).map(n => n.body), ["@Inès Moreau second"]);
 });
 
+test("each mention is an item of its own; a card done takes them all back", async () => {
+  const { sql } = database;
+  const { b, todo } = await setup();
+  const c = await cards.addCard(sql, asMember(hugo), b.id, todo.id, "Chairs");
+  await comment(hugo, c.id, "@Inès Moreau how many?", [ines.id]);
+  await comment(hugo, c.id, "@Inès Moreau which colour?", [ines.id]);
+  assert.equal(chest.notifications.filter(n => n.member === ines.id).length, 2);
+  await tell.settled(c.id, sql);
+  assert.equal(chest.notifications.filter(n => n.member === ines.id).length, 0);
+});
+
 test("an edited comment: the bell says its new words", async () => {
   const { sql } = database;
   const { b, todo } = await setup();

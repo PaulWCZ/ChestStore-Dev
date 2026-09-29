@@ -2,6 +2,7 @@ import * as chest from "@argentic/chest-sdk/chest";
 import { EmptyState, PageHeader, SearchBox } from "@argentic/chest-ui/components";
 import { headers } from "next/headers";
 import { Inbox, Plus } from "../../components/icons.tsx";
+import { FilterToggle } from "../../components/filter-toggle.tsx";
 import { InboxFilters } from "../../components/inbox-filters.tsx";
 import { can } from "../../lib/access.ts";
 import { answerers } from "../../lib/tell.ts";
@@ -57,6 +58,7 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
       {total > 0 && (
         <div className="inbox-tools">
           <SearchBox action="/chest" id="q" value={q} maxLength={100} labels={{ label: t.shell.search, placeholder: t.shell.search, shortcut: w.searchShortcut, submit: t.shell.searchButton }} />
+          <FilterToggle label={w.filterButton} count={[search.priority, search.tag, search.sort && search.sort !== defaultSort ? search.sort : ""].filter(Boolean).length}>
           <div className="filters-line">
             <InboxFilters
               params={search}
@@ -70,6 +72,7 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
             {savable && canCreate && <SaveView params={current} t={{ inbox: w, dialog: t.dialog, errors: t.errors }} />}
             {shown && (shown.createdBy === member.id || can(member, "settings")) && <RemoveView id={shown.id} t={w} />}
           </div>
+          </FilterToggle>
         </div>
       )}
       {q && <p className="muted results" role="status">{plural(w.results, rows.length, locale, { q })}</p>}

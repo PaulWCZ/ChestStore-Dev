@@ -1,4 +1,5 @@
 import { Avatar } from "@argentic/chest-ui/components";
+import { listName } from "../../../../lib/examples.ts";
 import { stepText } from "../../../../lib/examples.ts";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -69,7 +70,7 @@ export default async function JourneyPage({ params }: { params: Promise<{ id: st
             {journey.arrivalId && <span className="source">{t.arrivals.fromHiring}</span>}
           </span>
           <h1>{format(journey.kind === "onboarding" ? t.journey.onboarding : t.journey.offboarding, { name: personName })}</h1>
-          <p className="muted">{journey.name} · {format(journey.kind === "onboarding" ? t.journey.firstDay : t.journey.lastDay, { date: formatDay(journey.anchor, locale, { weekday: "long", day: "numeric", month: "long" }) })}</p>
+          <p className="muted">{listName(journey, t)} · {format(journey.kind === "onboarding" ? t.journey.firstDay : t.journey.lastDay, { date: formatDay(journey.anchor, locale, { weekday: "long", day: "numeric", month: "long" }) })}</p>
           <div className="progress-line">
             <span className="meter big" aria-hidden="true"><span style={{ width: `${steps.length ? Math.round((done / steps.length) * 100) : 0}%` }} /></span>
             <span>{format(t.journey.progress, { done, total: steps.length })}</span>

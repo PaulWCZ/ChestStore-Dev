@@ -59,3 +59,4 @@ export function CategoryIcon({ name }: { name: IconName }) {
 
 export const Inbox = () => <Icon><path d="M3.5 13.5l2.5-8h12l2.5 8v6h-17z" /><path d="M3.5 13.5h5l1.5 2.5h4l1.5-2.5h5" /></Icon>;
 export const Clipboard = () => <Icon><rect x="5" y="4.5" width="14" height="17" rx="2" /><path d="M9 4.5V3h6v1.5M8.5 11l2 2 4-4M8.5 17h7" /></Icon>;
+export const Bell = () => <Icon><path d="M6 16.5V11a6 6 0 0112 0v5.5l1.5 2h-15z" /><path d="M10 20.5a2 2 0 004 0" /></Icon>;

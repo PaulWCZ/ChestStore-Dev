@@ -8,7 +8,7 @@ import { catalogue, checkPalette, checkTheme, contrast, deriveTheme, validateThe
 import { themeStyle } from "@argentic/chest-ui/runtime";
 import { identityOf } from "@argentic/chest-ui/themes";
 import { accents, formSlots } from "../lib/model.ts";
-import { currentLook, identity, ownLook } from "../lib/theme.ts";
+import { identity, ownLook, publicLook, teamLook } from "../lib/theme.ts";
 
 const root = join(import.meta.dirname, "..");
 
@@ -54,27 +54,31 @@ test("its fonts are the tool's own files, served at /fonts, and the look's style
 test("the look follows the Chest: the company's choice for all tools, this tool's override, the identity otherwise", async () => {
   const chest = await fakeChest({ theme: { all: { mode: "catalogue", theme: "newsprint" } } });
   try {
-    let look = await currentLook();
+    let look = await teamLook();
     assert.equal(look.source, "catalogue");
     assert.equal(look.theme.id, "newsprint");
     assert.equal(ownLook(look), false);
     assert.equal(look.fontBase, "/_chest/theme/fonts");
+    // A public form never wears a catalogue theme chosen for the team.
+    assert.equal((await publicLook()).theme, identity);
     chest.theme.tools[chest.tool] = { mode: "brand", brand: { name: "Atelier Martin", primary: "#0e7c66", secondary: "#f2b134", corners: "round", display: { id: "young-serif" }, logo: { url: "/_chest/theme/brand/logo.svg", alt: "Atelier Martin", dark: "/_chest/theme/brand/logo-dark.svg" } } };
-    look = await currentLook();
+    look = await teamLook();
     assert.equal(look.source, "brand");
     assert.deepEqual(look.logo, { url: "/_chest/theme/brand/logo.svg", alt: "Atelier Martin", dark: "/_chest/theme/brand/logo-dark.svg" });
     assert.deepEqual(checkTheme(look.theme), []);
+    // A brand dresses the public forms too: they are the company's own.
+    assert.equal((await publicLook()).source, "brand");
     chest.theme.tools[chest.tool] = { mode: "own" };
-    look = await currentLook();
+    look = await teamLook();
     assert.equal(look.theme, identity);
     assert.equal(ownLook(look), true);
     chest.theme.tools[chest.tool] = { mode: "catalogue", theme: "no-such-theme" };
-    assert.equal((await currentLook()).theme, identity, "a theme the kit does not know is the identity");
+    assert.equal((await teamLook()).theme, identity, "a theme the kit does not know is the identity");
   } finally {
     await chest.close();
   }
   forgetTheme();
-  assert.equal((await currentLook()).theme, identity, "outside a Chest: the identity");
+  assert.equal((await teamLook()).theme, identity, "outside a Chest: the identity");
 });
 
 // A form's page (app/tokens.css): the colour chosen is a slot of the

@@ -1,4 +1,4 @@
-import { stepText } from "../../../../../lib/examples.ts";
+import { listName, stepText } from "../../../../../lib/examples.ts";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Back } from "../../../../../components/icons.tsx";
@@ -34,7 +34,7 @@ export default async function TemplatePage({ params }: { params: Promise<{ id: s
   return (
     <div className="page narrow">
       <Link className="back" href="/chest/checklists"><Back />{t.template.back}</Link>
-      <TemplateEditor template={{ ...template, items: template.items.map(i => ({ ...i, text: stepText(i, t) })) }} people={choices} locale={locale} t={{ template: t.template, kinds: t.checklists.kinds, errors: t.errors }} />
+      <TemplateEditor template={{ ...template, name: listName(template, t), items: template.items.map(i => ({ ...i, text: stepText(i, t) })) }} people={choices} locale={locale} t={{ template: t.template, kinds: t.checklists.kinds, errors: t.errors }} />
     </div>
   );
 }

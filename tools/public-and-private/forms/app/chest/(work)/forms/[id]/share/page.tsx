@@ -10,7 +10,7 @@ import { formOr404 } from "../../../../../../lib/pages.ts";
 import { viewer } from "../../../../../../lib/session.ts";
 import { zonedParts } from "../../../../../../lib/zone.ts";
 import { formSlots } from "../../../../../../lib/model.ts";
-import { currentLook, ownLook } from "../../../../../../lib/theme.ts";
+import { ownLook, publicLook } from "../../../../../../lib/theme.ts";
 import { ShareView } from "./share-view.tsx";
 
 // Share: the link (and a prefilled one), and the people who may open the
@@ -28,7 +28,7 @@ export default async function SharePage({ params }: { params: Promise<{ id: stri
   // A manager opens and changes every form, whatever it was shared as.
   const managerOf = (id: string) => who.get(id)?.role === "manager";
   // The website's button: the form's colour as its page shows it (light).
-  const look = await currentLook();
+  const look = await publicLook();
   const light = look.theme.light;
   const byLook = form.accent === "berry" && !ownLook(look);
   const slot = formSlots[form.accent] as 1 | 2 | 3 | 5 | 6 | 8;

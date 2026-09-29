@@ -46,5 +46,5 @@ export const Alert = () => <Icon><path d="M12 4l9 16H3z" /><path d="M12 10v4M12 
 export const Blocked = () => <Icon><circle cx="12" cy="12" r="8.5" /><path d="M6 6l12 12" /></Icon>;
 // The timeline view: bars across days.
 export const Timeline = () => <Icon><path d="M4 4v16" /><rect x="7" y="5.5" width="9" height="3.5" rx="1.2" /><rect x="10" y="10.5" width="10" height="3.5" rx="1.2" /><rect x="7" y="15.5" width="6" height="3.5" rx="1.2" /></Icon>;
-// On a phone: the button that shows the view and the filters.
-export const Sliders = () => <Icon><path d="M4 7h9M17 7h3M4 17h3M11 17h9" /><circle cx="15" cy="7" r="2" /><circle cx="9" cy="17" r="2" /></Icon>;
+// On a phone: the button that shows the view and the filters (a funnel).
+export const Sliders = () => <Icon><path d="M4 5h16l-6 7.5V19l-4-2v-4.5z" /></Icon>;

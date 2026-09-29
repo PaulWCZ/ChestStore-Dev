@@ -12,7 +12,8 @@ type Words = { settings: Catalogue["settings"]; errors: Catalogue["errors"]; com
 
 // The rules for company equipment (optional): shown when someone confirms
 // they received something, printed on the handover sheet. Each save is a
-// new version; the receipts keep the one accepted.
+// new version; the receipts keep the one accepted. Empty, an example in
+// the manager's language is one click away (read by each person in theirs).
 export function RulesView({ body, t }: { body: string; t: Words }) {
   const [text, setText] = useState(body);
   const [error, setError] = useState<string | null>(null);
@@ -36,7 +37,10 @@ export function RulesView({ body, t }: { body: string; t: Words }) {
       <label className="visually-hidden" htmlFor="rules-body">{w.rules}</label>
       <textarea id="rules-body" className="field" rows={6} value={text} onChange={e => setText(e.target.value)} maxLength={limits.charter} placeholder={w.rulesPlaceholder} aria-describedby="rules-intro" />
       {error && <p className="error" role="alert">{error}</p>}
-      <div><button type="submit" className="button" disabled={pending || text.trim() === body.trim()}>{w.rulesSave}</button></div>
+      <div className="row">
+        <button type="submit" className="button" disabled={pending || text.trim() === body.trim()}>{w.rulesSave}</button>
+        {text.trim() === "" && <button type="button" className="button quiet" onClick={() => setText(w.rulesExample)}>{w.rulesStart}</button>}
+      </div>
     </form>
   );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { DateField, FilePicker, useToast, type PickedFile } from "@argentic/chest-ui/components";
+import { Checkbox, DateField, FilePicker, type PickedFile, useToast } from "@argentic/chest-ui/components";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
 import type { ErrorCode } from "../../../../lib/app-error.ts";
@@ -180,10 +180,7 @@ export function Importer({ what, example, today, fields, kinds, t }: {
                   </div>
                 </div>
               ) : (
-                <label className="check">
-                  <input type="checkbox" checked={counted} onChange={e => setCounted(e.target.checked)} />
-                  <span>{t.import.counted}</span>
-                </label>
+                <Checkbox label={t.import.counted} checked={counted} onChange={setCounted} />
               )}
               <button type="submit" className="button" disabled={pending}>{plural(what === "leave" ? t.import.applyLeave : t.import.applyPeople, ready.length, locale)}</button>
             </form>

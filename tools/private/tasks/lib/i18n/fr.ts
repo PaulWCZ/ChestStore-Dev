@@ -613,10 +613,11 @@ export const fr: Catalogue = {
     decimal: ",",
   },
   searchBox: {
-    label: "Chercher des cartes",
-    placeholder: "Chercher des cartes",
-    shortcut: "Appuyez sur / pour chercher",
-    submit: "Chercher",
+    label: "Rechercher des cartes",
+    // Short: it fits the header's box at every width.
+    placeholder: "Rechercher",
+    shortcut: "Appuyez sur / pour rechercher",
+    submit: "Rechercher",
   },
   errors: {
     forbidden: "Votre rôle ne le permet pas.",

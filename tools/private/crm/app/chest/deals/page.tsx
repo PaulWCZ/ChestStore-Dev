@@ -51,6 +51,9 @@ export default async function Deals({ searchParams }: { searchParams: Search }) 
     return p.size ? "?" + p.toString() : "";
   };
 
+  // An empty board (nothing filtered) has one way in: its own "New deal".
+  const boardDealsList = view === "board" ? await boardDeals(sql, member, { owner }) : [];
+  const emptyBoard = view === "board" && owner === "" && boardDealsList.length === 0;
   const head = (
     <div className="page-head">
       <div>
@@ -63,18 +66,18 @@ export default async function Deals({ searchParams }: { searchParams: Search }) 
           { value: "board", label: t.deals.board, icon: <Pipeline />, href: `/chest/deals${query({ view: "", status: "", stage: "", closing: "", cf: "", cv: "", cmin: "", cmax: "" })}` },
           { value: "list", label: t.deals.list, icon: <ListIcon />, href: `/chest/deals${query({ view: "list" })}` },
         ]} />
-      {can(member, "deals.create") && <NewDealButton label={t.deals.new} initial={newDeal} {...dealProps} />}
+      {can(member, "deals.create") && !emptyBoard && <NewDealButton label={t.deals.new} initial={newDeal} {...dealProps} />}
     </div>
   );
 
   if (view === "board") {
-    const deals = await boardDeals(sql, member, { owner });
+    const deals = boardDealsList;
     const people = await directory(deals.map(d => d.owner), locale);
     return (
       <div className="page wide">
         <AutoRefresh seconds={30} />
         {head}
-        <Filters view="board" owner={owner} stage="" closing="" status="" team={choices.team} me={member.id} stages={choices.stageChoices} fields={[]} today={now} t={t} />
+        {!emptyBoard && <Filters view="board" owner={owner} stage="" closing="" status="" team={choices.team} me={member.id} stages={choices.stageChoices} fields={[]} today={now} t={t} />}
         {!can(member, "deals.create") && <p className="notice">{t.deals.readOnly}</p>}
         {deals.length === 0 ? (
           <EmptyState

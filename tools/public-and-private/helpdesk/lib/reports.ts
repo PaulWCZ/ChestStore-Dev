@@ -1,3 +1,4 @@
+import { readerWords, shownTag } from "./seed-words.ts";
 import type { Member } from "@argentic/chest-sdk/member";
 import { can } from "./access.ts";
 import { AppError } from "./app-error.ts";
@@ -87,7 +88,7 @@ export async function report(sql: Sql, actor: Member | null, options: { weeks: n
     weeks: weekList.map(start => ({ start, created: byWeek.get(start)!.created, closed: byWeek.get(start)!.closed, medianFirst: median(byWeek.get(start)!.first) })),
     total: { created: total.created, closed: total.closed, open: total.open, medianFirst: median(total.first), withinTarget: target > 0 && total.first.length > 0 ? Math.round((100 * total.first.filter(m => m <= target).length) / total.first.length) : null, good: total.good, bad: total.bad },
     agents: [...agents].map(([id, a]) => ({ id, replies: a.replies, closed: a.closed, medianFirst: median(a.first) })).sort((a, b) => b.replies - a.replies || b.closed - a.closed),
-    tags: [...tags].map(([name, g]) => ({ name, ...g })).sort((a, b) => b.created - a.created || a.name.localeCompare(b.name)).slice(0, 20),
+    tags: [...tags].map(([name, g]) => ({ name: shownTag(name, readerWords(actor)), ...g })).sort((a, b) => b.created - a.created || a.name.localeCompare(b.name)).slice(0, 20),
     channels: [...channels].map(([channel, created]) => ({ channel, created })).sort((a, b) => b.created - a.created),
   };
 }

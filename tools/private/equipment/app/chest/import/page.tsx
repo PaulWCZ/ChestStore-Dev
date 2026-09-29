@@ -1,4 +1,4 @@
-import { notFound } from "next/navigation";
+import { forbidden } from "next/navigation";
 import { can } from "../../../lib/access.ts";
 import { viewer } from "../../../lib/session.ts";
 import { Importer } from "./importer.tsx";
@@ -7,7 +7,7 @@ export default async function ImportPage() {
   const v = await viewer();
   if (!v) return null;
   const { member, locale, t } = v;
-  if (!can(member, "items.manage")) notFound();
+  if (!can(member, "items.manage")) forbidden();
   return (
     <div className="narrow">
       <h1 className="page-title">{t.importer.title}</h1>

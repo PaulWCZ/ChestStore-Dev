@@ -113,7 +113,7 @@ function readPeople(value: unknown): string[] {
   return [...new Set(value as string[])];
 }
 
-async function read(sql: Query, interviewId: string): Promise<Interview | null> {
+export async function read(sql: Query, interviewId: string): Promise<Interview | null> {
   const [row] = await sql<InterviewDb[]>`${select(sql)} where i.id = ${interviewId}`;
   return row ? toInterview(row) : null;
 }
@@ -187,7 +187,9 @@ export function icsFor(interview: Interview & { sequence?: number }, words: { ti
 
 // invite queues the email that invites the candidate (or tells them it is
 // called off), in their language, with its .ics.
-async function invite(tx: Query, actor: Member, c: Candidate, interview: Interview, kind: "interview" | "interview_cancelled"): Promise<string> {
+// actor: who sends it (their first name signs it) — a member, or, for a
+// time a candidate chose, the recruiter who sent the link.
+export async function invite(tx: Query, actor: Pick<Member, "id" | "name"> & { firstName?: string }, c: Candidate, interview: Interview, kind: "interview" | "interview_cancelled"): Promise<string> {
   const t = catalogue(c.language).mail;
   const [job] = await tx<{ title: string }[]>`select title from jobs where id = ${c.jobId}`;
   const s = await settings(tx);

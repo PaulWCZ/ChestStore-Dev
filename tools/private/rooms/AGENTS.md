@@ -25,6 +25,9 @@ must not break.
 | `lib/mail.ts` | Guests' emails with the `.ics` (Proposal: mail) |
 | `lib/groups.ts` | The Chest's groups (teams in Who's where, rooms/areas kept for a group) |
 | `lib/import.ts` | Moving in: Google Workspace resources CSV, desk owners CSV (tolerant headers) |
+| `lib/calendar-import.ts`, `lib/ical.ts`, `lib/wall-clock.ts`, `lib/windows-zones.ts` | Bookings already made: a room calendar's `.ics` read (the reader copied from Booking, THIRD_PARTY), weekly series kept, conflicts from the exclusion constraint itself; the preview is the same work rolled back; `source` (UID + start) makes a second import add nothing; `import_batch` is its Undo |
+| `lib/example.ts`, `components/example-office.tsx` | "Start with an example": an office marked `example`, deleted whole while unused |
+| `migrations/0005_presets_example_import.sql` | `floors.preset`, `areas.preset` (names the tool gave, read in each reader's language: `model.ts placeName`, `offices(sql, actor, t.presets)`, CSV exports through `::text::jsonb`), `offices.example`, `room_bookings.source`/`import_batch` |
 | `lib/mine.ts`, `app/chest/calendar/**`, `app/chest/mine/route.ts` | A member's `.ics` files and their own data (CSV) |
 | `lib/export.ts`, `lib/csv.ts` | CSV downloads (formula-safe) |
 | `lib/context.ts`, `lib/zone.ts` | What every page starts from; the Chest's time zone |
@@ -50,6 +53,13 @@ TEST_DATABASE_URL=postgres://… npm test   # also plays two people booking the 
 ```
 
 ## Rules
+
+- **Names the tool creates are keys** (`floors.preset`, `areas.preset`):
+  never seed or create a floor or area name without its preset; render it
+  with `placeName(name, preset, t.presets)` (or `offices(…, t.presets)`);
+  a rename clears the preset.
+- **Decoration steps aside** (`--decor`, kit 0.2.3): the drafting paper is
+  keyed on it; the rooms' hour lines are information and stay.
 
 - **Identity only from `member()`** (`lib/session.ts`); store `mbr_…` ids.
 - **Never check availability in code and then insert**: insert, and let the

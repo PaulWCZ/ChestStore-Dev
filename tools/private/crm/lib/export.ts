@@ -1,16 +1,18 @@
+import { shownName } from "./seed-words.ts";
 import type { Member } from "@argentic/chest-sdk/member";
 import { can } from "./access.ts";
 import { AppError } from "./errors.ts";
 import { listCompanies, type CompanyFilter } from "./companies.ts";
 import { exportContact, listContacts, type ContactFilter } from "./contacts.ts";
 import { countryName } from "./countries.ts";
-import { listFields } from "./fields.ts";
+import { listFields, optionLabel } from "./fields.ts";
+import type { FieldDef } from "./custom.ts";
 import { zip } from "./zip.ts";
 import { toCsv } from "./csv.ts";
 import type { Sql } from "./db.ts";
 import { listDeals, type DealFilter } from "./deals.ts";
 import { amountInput } from "./amount.ts";
-import type { Catalogue, Locale } from "./i18n/index.ts";
+import { catalogue, isLocale, type Catalogue, type Locale } from "./i18n/index.ts";
 import { stageName } from "./model.ts";
 import { nameOf, people } from "./people.ts";
 import { listStages } from "./stages.ts";
@@ -29,33 +31,33 @@ async function owners(ids: (string | null)[], locale: Locale, t: Catalogue): Pro
 }
 
 // A value of one of the team's fields, as a spreadsheet reads it.
-const cellOf = (value: string | number | undefined) => (value === undefined ? "" : typeof value === "number" ? String(value) : value);
+const cellOf = (value: string | number | undefined, f?: FieldDef) => (value === undefined ? "" : typeof value === "number" ? String(value) : f && f.kind === "choice" ? optionLabel(f, value) : value);
 
 export async function companiesCsv(sql: Sql, actor: Member | null, filter: CompanyFilter, t: Catalogue, locale: Locale): Promise<string> {
   const { rows } = await listCompanies(sql, actor, filter, { limit: all });
-  const fields = await listFields(sql, "companies");
+  const fields = await listFields(sql, "companies", t);
   const owner = await owners(rows.map(r => r.owner), locale, t);
   const h = t.export.companies;
   return toCsv([
     [h.name, h.website, h.phone, h.email, h.address, h.postcode, h.city, h.country, h.siren, h.vat, h.industry, h.tags, h.owner, h.contacts, h.openDeals, h.openValue, h.notes, ...fields.map(f => f.label)],
-    ...rows.map(r => [r.name, r.website, r.phone, r.email, r.address, r.postcode, r.city, countryName(r.country, locale), r.siren, r.vat, r.industry, r.tags.join(", "), owner(r.owner), r.contacts, r.openDeals, amountInput(r.openValue), r.notes, ...fields.map(f => cellOf(r.custom[f.id]))]),
+    ...rows.map(r => [r.name, r.website, r.phone, r.email, r.address, r.postcode, r.city, countryName(r.country, locale), r.siren, r.vat, shownName("industries", r.industry, t), r.tags.map(x => shownName("tags", x, t)).join(", "), owner(r.owner), r.contacts, r.openDeals, amountInput(r.openValue), r.notes, ...fields.map(f => cellOf(r.custom[f.id], f))]),
   ]);
 }
 
 export async function contactsCsv(sql: Sql, actor: Member | null, filter: ContactFilter, t: Catalogue, locale: Locale): Promise<string> {
   const { rows } = await listContacts(sql, actor, filter, { limit: all });
-  const fields = await listFields(sql, "contacts");
+  const fields = await listFields(sql, "contacts", t);
   const owner = await owners(rows.map(r => r.owner), locale, t);
   const h = t.export.contacts;
   return toCsv([
     [h.name, h.email, h.phone, h.phone2, h.url, h.title, h.company, h.tags, h.owner, h.lastContact, h.nextStep, h.nextStepDate, h.notes, ...fields.map(f => f.label)],
-    ...rows.map(r => [r.name, r.email, r.phone, r.phone2, r.url, r.title, r.company?.name ?? "", r.tags.join(", "), owner(r.owner), r.lastContact?.slice(0, 10) ?? "", r.step?.text ?? "", r.step?.due ?? "", r.notes, ...fields.map(f => cellOf(r.custom[f.id]))]),
+    ...rows.map(r => [r.name, r.email, r.phone, r.phone2, r.url, r.title, r.company?.name ?? "", r.tags.map(x => shownName("tags", x, t)).join(", "), owner(r.owner), r.lastContact?.slice(0, 10) ?? "", r.step?.text ?? "", r.step?.due ?? "", r.notes, ...fields.map(f => cellOf(r.custom[f.id], f))]),
   ]);
 }
 
 export async function dealsCsv(sql: Sql, actor: Member | null, filter: DealFilter, t: Catalogue, locale: Locale): Promise<string> {
   const { rows } = await listDeals(sql, actor, filter, all);
-  const fields = await listFields(sql, "deals");
+  const fields = await listFields(sql, "deals", t);
   const stages = new Map((await listStages(sql)).map(s => [s.id, s]));
   const owner = await owners(rows.map(r => r.owner), locale, t);
   const h = t.export.deals;
@@ -63,7 +65,7 @@ export async function dealsCsv(sql: Sql, actor: Member | null, filter: DealFilte
     [h.title, h.company, h.contact, h.value, h.currency, h.stage, h.probability, h.closeDate, h.owner, h.status, h.reason, h.nextStep, h.nextStepDate, h.created, ...fields.map(f => f.label)],
     ...rows.map(r => {
       const s = stages.get(r.stageId);
-      return [r.title, r.company?.name ?? "", r.contact?.name ?? "", amountInput(r.value), r.currency, s ? stageName(s, t.stages) : "", s?.probability ?? "", r.expectedClose ?? "", owner(r.owner), s ? t.export.status[s.kind] : "", r.reason, r.step?.text ?? "", r.step?.due ?? "", r.createdAt.slice(0, 10), ...fields.map(f => cellOf(r.custom[f.id]))];
+      return [r.title, r.company?.name ?? "", r.contact?.name ?? "", amountInput(r.value), r.currency, s ? stageName(s, t.stages) : "", s?.probability ?? "", r.expectedClose ?? "", owner(r.owner), s ? t.export.status[s.kind] : "", r.reason, r.step?.text ?? "", r.step?.due ?? "", r.createdAt.slice(0, 10), ...fields.map(f => cellOf(r.custom[f.id], f))];
     }),
   ]);
 }
@@ -71,7 +73,8 @@ export async function dealsCsv(sql: Sql, actor: Member | null, filter: DealFilte
 // Contacts as one .vcf file (vCard 4.0).
 export async function contactsVcf(sql: Sql, actor: Member | null, filter: ContactFilter = {}): Promise<string> {
   const { rows } = await listContacts(sql, actor, filter, { limit: all });
-  return rows.map(r => toVcard({ name: r.name, email: r.email, phone: r.phone, title: r.title, company: r.company?.name ?? "", notes: r.notes, tags: r.tags, revised: r.updatedAt })).join("");
+  const t = catalogue(isLocale(actor?.locale) ? actor!.locale as Locale : "en");
+  return rows.map(r => toVcard({ name: r.name, email: r.email, phone: r.phone, title: r.title, company: r.company?.name ?? "", notes: r.notes, tags: r.tags.map(x => shownName("tags", x, t)), revised: r.updatedAt })).join("");
 }
 
 // One person's whole file, for their right of access: what the company
@@ -126,11 +129,11 @@ export async function everything(sql: Sql, actor: Member | null, locale: Locale,
   const files = [
     { name: "companies.csv", rows: [
       ["id", "name", "website", "phone", "email", "address", "postcode", "city", "country", "siren", "vat", "industry", "tags", "notes", "owner", "owner_id", "created_at", ...of("companies").map(f => f.label)],
-      ...companies.map(r => [r["id"], r["name"], r["website"], r["phone"], r["email"], r["address"], r["postcode"], r["city"], r["country"], r["siren"], r["vat"], r["industry"], (r["tags"] as string[]).join(", "), r["notes"], who(r["owner"]), r["owner"] ?? "", day(r["created_at"]), ...custom(r, "companies")]),
+      ...companies.map(r => [r["id"], r["name"], r["website"], r["phone"], r["email"], r["address"], r["postcode"], r["city"], r["country"], r["siren"], r["vat"], shownName("industries", String(r["industry"] ?? ""), t), (r["tags"] as string[]).map(x => shownName("tags", x, t)).join(", "), r["notes"], who(r["owner"]), r["owner"] ?? "", day(r["created_at"]), ...custom(r, "companies")]),
     ] },
     { name: "contacts.csv", rows: [
       ["id", "name", "email", "phone", "other_phone", "web", "title", "company_id", "company", "tags", "notes", "owner", "owner_id", "last_contact_at", "created_at", ...of("contacts").map(f => f.label)],
-      ...contacts.map(r => [r["id"], r["name"], r["email"], r["phone"], r["phone2"], r["url"], r["title"], r["company_id"] ?? "", r["company_name"] ?? "", (r["tags"] as string[]).join(", "), r["notes"], who(r["owner"]), r["owner"] ?? "", day(r["last_contact_at"]), day(r["created_at"]), ...custom(r, "contacts")]),
+      ...contacts.map(r => [r["id"], r["name"], r["email"], r["phone"], r["phone2"], r["url"], r["title"], r["company_id"] ?? "", r["company_name"] ?? "", (r["tags"] as string[]).map(x => shownName("tags", x, t)).join(", "), r["notes"], who(r["owner"]), r["owner"] ?? "", day(r["last_contact_at"]), day(r["created_at"]), ...custom(r, "contacts")]),
     ] },
     { name: "deals.csv", rows: [
       ["id", "title", "company_id", "company", "contact_id", "contact", "value", "currency", "stage", "status", "probability", "expected_close", "reason", "closed_at", "owner", "owner_id", "created_at", ...of("deals").map(f => f.label)],

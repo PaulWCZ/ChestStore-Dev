@@ -382,8 +382,9 @@ export type Card = {
 export type Home = { toAnswer: Card[]; mine: Card[]; answered: Card[]; closed: Card[] };
 
 // home: the polls waiting for the actor's answer (closing soonest first),
-// the polls they organise (drafts and open), the open ones they answered,
-// and those closed in the last limits.recentDays.
+// the polls they asked (open, drafts, and closed in the last
+// limits.recentDays), the open ones they answered, and the others closed
+// in the last limits.recentDays.
 export async function home(sql: Sql, actor: Member | null, now = new Date()): Promise<Home> {
   if (!actor || !can(actor, "answer")) throw new AppError("forbidden");
   await closeDue(sql, now);
@@ -417,11 +418,16 @@ export async function home(sql: Sql, actor: Member | null, now = new Date()): Pr
     if (!had || (c.round ?? 0) > (had.round ?? 0)) latest.set(c.seriesId, c);
   }
   const shown = cards.filter(c => c.seriesId === null || latest.get(c.seriesId) === c);
+  // What the actor asked is in one list of its own (open first, closing
+  // soonest; drafts; then those closed lately), not mixed into "To answer".
+  const order = (c: Card) => (c.status === "open" ? 0 : c.status === "draft" ? 1 : 2);
+  const cmp = (x: string | null, y: string | null) => { const a = x ?? "\uffff"; const b = y ?? "\uffff"; return a < b ? -1 : a > b ? 1 : 0; };
   return {
-    toAnswer: shown.filter(c => c.status === "open" && isAsked(c) && !c.answered),
-    mine: shown.filter(c => c.mine && c.status !== "closed").sort((a, b) => (a.status === b.status ? b.updatedAt.localeCompare(a.updatedAt) : a.status === "draft" ? 1 : -1)),
+    toAnswer: shown.filter(c => c.status === "open" && isAsked(c) && !c.answered && !c.mine),
+    mine: shown.filter(c => c.mine).sort((a, b) => order(a) - order(b)
+      || (a.status === "open" ? cmp(a.closesAt, b.closesAt) : a.status === "closed" ? cmp(b.closedAt, a.closedAt) : cmp(b.updatedAt, a.updatedAt))),
     answered: shown.filter(c => c.status === "open" && !c.mine && c.answered),
-    closed: shown.filter(c => c.status === "closed").sort((a, b) => (b.closedAt ?? "").localeCompare(a.closedAt ?? "")),
+    closed: shown.filter(c => c.status === "closed" && !c.mine).sort((a, b) => (b.closedAt ?? "").localeCompare(a.closedAt ?? "")),
   };
 }
 

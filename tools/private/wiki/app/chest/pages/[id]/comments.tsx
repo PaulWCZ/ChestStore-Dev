@@ -3,11 +3,12 @@
 import { Avatar, useToast } from "@argentic/chest-ui/components";
 import { searchChoices } from "@argentic/chest-ui/components/logic";
 import { useEffect, useRef, useState, useTransition } from "react";
+import { createPortal } from "react-dom";
 import { Chat } from "../../../../components/icons.tsx";
 import type { Catalogue } from "../../../../lib/i18n/index.ts";
 import { format, moment, plural } from "../../../../lib/i18n/format.ts";
 import { limits, linkParts } from "../../../../lib/model.ts";
-import { addComment, editComment, removeComment, restoreComment, type CommentView } from "../../actions.ts";
+import { addComment, editComment, removeComment, resolveComment, restoreComment, type CommentView } from "../../actions.ts";
 
 type Words = { comments: Catalogue["comments"]; errors: Catalogue["errors"]; locale: string };
 
@@ -16,6 +17,12 @@ type Words = { comments: Catalogue["comments"]; errors: Catalogue["errors"]; loc
 // editors may remove any (with Undo). Web addresses become links; nothing
 // else is interpreted. Typing "@" and the start of a name offers the people
 // who read the page; the one picked is written "@Name" and told in the bell.
+//
+// A conversation: a comment at the top and its replies (one level; "Reply"
+// under any of them). Resolved, it folds to one line ("Resolved by …",
+// Show, Reopen). A comment may be about a passage: select words in the
+// page, "Comment on this passage"; the comment quotes them, and a click on
+// the quote selects them in the page again.
 export function Comments({ pageId, initial, me, moderator, people = [], t }: { pageId: string; initial: CommentView[]; me: string; moderator: boolean; people?: { id: string; name: string }[]; t: Words }) {
   const toast = useToast();
   const [list, setList] = useState(initial);
@@ -24,6 +31,30 @@ export function Comments({ pageId, initial, me, moderator, people = [], t }: { p
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
   const words = t.comments;
+  // The passage chosen in the page, and where to offer it.
+  const [quote, setQuote] = useState<string | null>(null);
+  const [offer, setOffer] = useState<{ text: string; top: number; left: number } | null>(null);
+  const [replying, setReplying] = useState<string | null>(null);
+  const [opened, setOpened] = useState<string[]>([]);
+  useEffect(() => {
+    const prose = document.querySelector(".prose");
+    if (!prose) return;
+    const onSelect = () => {
+      const sel = window.getSelection();
+      const text = sel && !sel.isCollapsed ? sel.toString().replace(/\s+/gu, " ").trim() : "";
+      if (!sel || !text || sel.rangeCount === 0 || !prose.contains(sel.anchorNode) || !prose.contains(sel.focusNode)) return setOffer(null);
+      const box = sel.getRangeAt(0).getBoundingClientRect();
+      setOffer({ text: [...text].slice(0, limits.quote).join(""), top: box.bottom + window.scrollY + 6, left: Math.max(8, Math.min(box.left + window.scrollX, document.documentElement.clientWidth - 260)) });
+    };
+    document.addEventListener("selectionchange", onSelect);
+    return () => document.removeEventListener("selectionchange", onSelect);
+  }, []);
+  function about(text: string) {
+    setQuote(text);
+    setOffer(null);
+    field.current?.focus();
+    field.current?.scrollIntoView({ block: "center", behavior: "smooth" });
+  }
   // "@" mentions: who was picked, and the list offered while typing a name.
   const [named, setNamed] = useState<{ id: string; name: string }[]>([]);
   const [asking, setAsking] = useState<{ query: string; at: number; index: number } | null>(null);
@@ -53,7 +84,7 @@ export function Comments({ pageId, initial, me, moderator, people = [], t }: { p
   }
   // The page re-reads itself now and then (others comment too): take the
   // server's thread when it changed, unless a comment is being edited.
-  const signature = initial.map(c => `${c.id}:${c.edited ? c.body : ""}`).join(",");
+  const signature = initial.map(c => `${c.id}:${c.edited ? c.body : ""}:${c.resolved ? 1 : 0}`).join(",");
   useEffect(() => {
     if (editing === null) setList(initial);
   }, [signature]);
@@ -64,11 +95,12 @@ export function Comments({ pageId, initial, me, moderator, people = [], t }: { p
     if (!body) return;
     setError(null);
     start(async () => {
-      const result = await addComment(pageId, body, named.filter(p => body.includes("@" + p.name)).map(p => p.id));
+      const result = await addComment(pageId, body, named.filter(p => body.includes("@" + p.name)).map(p => p.id), { quote });
       if (!result.ok) return setError(fail(result));
       setList(l => [...l, result.value]);
       setText("");
       setNamed([]);
+      setQuote(null);
     });
   }
 
@@ -103,46 +135,116 @@ export function Comments({ pageId, initial, me, moderator, people = [], t }: { p
     });
   }
 
+  function reply(topId: string, body: string): Promise<boolean> {
+    return new Promise(done => start(async () => {
+      const result = await addComment(pageId, body, [], { parentId: topId });
+      if (!result.ok) {
+        toast({ text: fail(result), tone: "error" });
+        return done(false);
+      }
+      setList(l => [...l.map(c => (c.id === topId ? { ...c, resolved: false } : c)), result.value]);
+      setReplying(null);
+      done(true);
+    }));
+  }
+
+  function resolve(top: CommentView, resolved: boolean) {
+    start(async () => {
+      const result = await resolveComment(top.id, resolved);
+      if (!result.ok) return void toast({ text: fail(result), tone: "error" });
+      setList(l => l.map(c => (c.id === top.id ? { ...result.value, when: c.when } : c)));
+      setOpened(o => o.filter(x => x !== top.id));
+    });
+  }
+
+  // One comment: who, when, the passage it is about, its words, its actions.
+  function one(c: CommentView, top: boolean) {
+    return (
+      <div id={`comment-${c.id}`} className={`comment${top ? "" : " reply"}`}>
+        <Avatar name={c.name} photo={c.photo} />
+        <div className="bubble">
+          <p className="comment-who">
+            <strong>{c.author === me ? words.you : c.name}</strong>
+            <time dateTime={c.at}>{c.when || moment(c.at, t.locale)}</time>
+            {c.edited && <span>· {words.edited}</span>}
+          </p>
+          {c.quote && (
+            <blockquote className="comment-quote">
+              <button type="button" className="quote-link" title={words.findQuote} onClick={() => { if (!findInPage(c.quote!)) toast({ text: words.quoteGone }); }}>{c.quote}</button>
+            </blockquote>
+          )}
+          {editing === c.id ? (
+            <form className="stack" onSubmit={e => { e.preventDefault(); save(c.id, String(new FormData(e.currentTarget).get("body") ?? "")); }}>
+              <label className="visually-hidden" htmlFor={`edit-${c.id}`}>{words.label}</label>
+              <textarea id={`edit-${c.id}`} name="body" className="field" rows={3} maxLength={limits.comment} defaultValue={c.body} autoFocus required />
+              <div className="row-actions">
+                <button type="submit" className="button small" disabled={pending}>{words.save}</button>
+                <button type="button" className="button small quiet" onClick={() => setEditing(null)}>{words.cancel}</button>
+              </div>
+            </form>
+          ) : (
+            <p className="comment-body">{linkParts(c.body).map((part, i) => (part.href ? <a key={i} href={part.href} rel="noopener noreferrer nofollow">{part.text}</a> : part.text))}</p>
+          )}
+          {editing !== c.id && (c.author === me || moderator) && (
+            <div className="comment-actions" role="group" aria-label={format(words.actions, { name: c.author === me ? words.you : c.name })}>
+              {c.author === me && <button type="button" className="link-button" onClick={() => setEditing(c.id)}>{words.edit}</button>}
+              <button type="button" className="link-button danger" onClick={() => remove(c)}>{words.remove}</button>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <section className="comments" id="comments" aria-labelledby="comments-title">
       <h2 id="comments-title" className="kicker"><Chat />{plural(words.count, list.length, t.locale)}</h2>
       {list.length > 0 ? (
         <ol className="thread">
-          {list.map(c => (
-            <li key={c.id} id={`comment-${c.id}`} className="comment">
-              <Avatar name={c.name} photo={c.photo} />
-              <div className="bubble">
-                <p className="comment-who">
-                  <strong>{c.author === me ? words.you : c.name}</strong>
-                  <time dateTime={c.at}>{c.when || moment(c.at, t.locale)}</time>
-                  {c.edited && <span>· {words.edited}</span>}
-                </p>
-                {editing === c.id ? (
-                  <form className="stack" onSubmit={e => { e.preventDefault(); save(c.id, String(new FormData(e.currentTarget).get("body") ?? "")); }}>
-                    <label className="visually-hidden" htmlFor={`edit-${c.id}`}>{words.label}</label>
-                    <textarea id={`edit-${c.id}`} name="body" className="field" rows={3} maxLength={limits.comment} defaultValue={c.body} autoFocus required />
-                    <div className="row-actions">
-                      <button type="submit" className="button small" disabled={pending}>{words.save}</button>
-                      <button type="button" className="button small quiet" onClick={() => setEditing(null)}>{words.cancel}</button>
-                    </div>
-                  </form>
+          {list.filter(c => !c.parentId).map(top => {
+            const replies = list.filter(r => r.parentId === top.id);
+            const folded = top.resolved && !opened.includes(top.id);
+            return (
+              <li key={top.id} className={`conversation${top.resolved ? " resolved" : ""}`}>
+                {folded ? (
+                  <p className="resolved-line">
+                    <span className="resolved-start">{[...top.body].slice(0, 70).join("")}{[...top.body].length > 70 ? "…" : ""}</span>
+                    <span>{format(words.resolvedBy, { name: top.resolvedBy ?? words.you })} · {plural(words.replies, replies.length + 1, t.locale)}</span>
+                    <button type="button" className="link-button" onClick={() => setOpened(o => [...o, top.id])}>{words.show}</button>
+                    {(top.author === me || moderator) && <button type="button" className="link-button" onClick={() => resolve(top, false)}>{words.reopen}</button>}
+                  </p>
                 ) : (
-                  <p className="comment-body">{linkParts(c.body).map((part, i) => (part.href ? <a key={i} href={part.href} rel="noopener noreferrer nofollow">{part.text}</a> : part.text))}</p>
+                  <>
+                    {one(top, true)}
+                    {replies.length > 0 && <ol className="replies">{replies.map(r => <li key={r.id}>{one(r, false)}</li>)}</ol>}
+                    <div className="conversation-actions">
+                      <button type="button" className="link-button" aria-expanded={replying === top.id} onClick={() => setReplying(replying === top.id ? null : top.id)}>{words.reply}</button>
+                      {(top.author === me || moderator) && <button type="button" className="link-button" onClick={() => resolve(top, !top.resolved)}>{top.resolved ? words.reopen : words.resolve}</button>}
+                    </div>
+                    {replying === top.id && <ReplyBox topId={top.id} onSend={reply} pending={pending} words={words} />}
+                  </>
                 )}
-                {editing !== c.id && (c.author === me || moderator) && (
-                  <div className="comment-actions" role="group" aria-label={format(words.actions, { name: c.author === me ? words.you : c.name })}>
-                    {c.author === me && <button type="button" className="link-button" onClick={() => setEditing(c.id)}>{words.edit}</button>}
-                    <button type="button" className="link-button danger" onClick={() => remove(c)}>{words.remove}</button>
-                  </div>
-                )}
-              </div>
-            </li>
-          ))}
+              </li>
+            );
+          })}
         </ol>
       ) : (
         <p className="muted">{words.empty}</p>
       )}
+      {offer && createPortal(
+        <button type="button" className="button small quote-offer" style={{ top: offer.top, left: offer.left }} onMouseDown={e => e.preventDefault()} onClick={() => about(offer.text)}>
+          <Chat />{words.quoteButton}
+        </button>,
+        document.body,
+      )}
       <form className="composer" onSubmit={e => { e.preventDefault(); send(); }}>
+        {quote && (
+          <div className="quote-chosen">
+            <span className="small muted">{words.quoteLabel}</span>
+            <blockquote className="comment-quote">{quote}</blockquote>
+            <button type="button" className="link-button" onClick={() => setQuote(null)}>{words.removeQuote}</button>
+          </div>
+        )}
         <label className="visually-hidden" htmlFor="comment-new">{words.label}</label>
         <textarea ref={field} id="comment-new" className="field" rows={2} maxLength={limits.comment} value={text} placeholder={words.placeholder}
           aria-describedby={error ? "comment-error" : undefined}
@@ -176,3 +278,53 @@ export function Comments({ pageId, initial, me, moderator, people = [], t }: { p
   );
 }
 
+
+// A reply's own small field, under its conversation.
+function ReplyBox({ topId, onSend, pending, words }: { topId: string; onSend: (topId: string, body: string) => Promise<boolean>; pending: boolean; words: Catalogue["comments"] }) {
+  const [text, setText] = useState("");
+  return (
+    <form className="reply-box" onSubmit={e => { e.preventDefault(); const body = text.trim(); if (body) void onSend(topId, body).then(ok => { if (ok) setText(""); }); }}>
+      <label className="visually-hidden" htmlFor={`reply-${topId}`}>{words.replyLabel}</label>
+      <textarea id={`reply-${topId}`} className="field" rows={2} maxLength={limits.comment} value={text} autoFocus placeholder={words.replyPlaceholder} onChange={e => setText(e.target.value)} />
+      <div className="row-actions"><button type="submit" className="button small" disabled={pending || !text.trim()}>{words.replySend}</button></div>
+    </form>
+  );
+}
+
+// findInPage selects a quoted passage in the page's text and brings it
+// into view; false when the page no longer holds it.
+function findInPage(quote: string): boolean {
+  const prose = document.querySelector(".prose");
+  if (!prose) return false;
+  const walker = document.createTreeWalker(prose, NodeFilter.SHOW_TEXT);
+  const nodes: { node: Text; start: number }[] = [];
+  let all = "";
+  for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+    nodes.push({ node: n as Text, start: all.length });
+    all += (n as Text).data;
+  }
+  // Spaces as the quote has them: runs of white space are one space.
+  const flat: number[] = [];
+  let text = "";
+  for (let i = 0; i < all.length; i++) {
+    if (/\s/u.test(all[i]!) && (text.endsWith(" ") || text === "")) continue;
+    text += /\s/u.test(all[i]!) ? " " : all[i];
+    flat.push(i);
+  }
+  const at = text.indexOf(quote);
+  if (at < 0) return false;
+  const from = flat[at]!, to = flat[at + quote.length - 1]! + 1;
+  const place = (offset: number) => {
+    const hit = [...nodes].reverse().find(x => x.start <= offset)!;
+    return { node: hit.node, offset: Math.min(offset - hit.start, hit.node.data.length) };
+  };
+  const a = place(from), b = place(to);
+  const range = document.createRange();
+  range.setStart(a.node, a.offset);
+  range.setEnd(b.node, b.offset);
+  const sel = window.getSelection();
+  sel?.removeAllRanges();
+  sel?.addRange(range);
+  a.node.parentElement?.scrollIntoView({ block: "center", behavior: "smooth" });
+  return true;
+}

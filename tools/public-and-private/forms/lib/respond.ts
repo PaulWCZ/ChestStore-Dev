@@ -6,7 +6,7 @@ import type { Sql } from "./db.ts";
 import { attempt } from "./errors.ts";
 import type { Form } from "./forms.ts";
 import type { AnswerError } from "./logic.ts";
-import { answered } from "./answered.ts";
+import { answered, routed } from "./answered.ts";
 import { sendCopy } from "./mailer.ts";
 import { isLanguage, localize } from "./model.ts";
 import { afterAnswer } from "./tell.ts";
@@ -56,6 +56,8 @@ export async function take(sql: Sql, form: Form, payload: { version: unknown; an
     }
     // Other tools of the Chest (Proposal (studio): events between tools).
     await answered(form, definition, answer);
+    // A contact in Clients, a ticket in Support, when the form says so.
+    await routed(form, definition, answer);
     await afterAnswer(sql, form.id).catch(() => false);
     return copy;
   });

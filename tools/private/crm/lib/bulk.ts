@@ -1,3 +1,4 @@
+import { keptKeys } from "./seed-words.ts";
 import type { Member } from "@argentic/chest-sdk/member";
 import { can, canDeleteRecord, canEditDeal } from "./access.ts";
 import { record } from "./activities.ts";
@@ -65,8 +66,11 @@ export async function bulk(sql: Sql, actor: Member | null, table: "companies" | 
     const rows = await sql<{ id: string; tags: string[] }[]>`select id, tags from ${sql(table)} where id in ${sql(list)}`;
     await sql.begin(async tx => {
       for (const r of rows) {
-        const has = r.tags.some(t => t.toLocaleLowerCase("en") === tag.toLocaleLowerCase("en"));
-        const next = action.kind === "tag" ? (has ? r.tags : [...r.tags, tag]) : r.tags.filter(t => t.toLocaleLowerCase("en") !== tag.toLocaleLowerCase("en"));
+        // A seeded tag named in any language is that record's tag.
+        const [own] = keptKeys("tags", r.tags, [tag]);
+        const same = (t: string) => t.toLocaleLowerCase("en") === own!.toLocaleLowerCase("en");
+        const has = r.tags.some(same);
+        const next = action.kind === "tag" ? (has ? r.tags : [...r.tags, tag]) : r.tags.filter(t => !same(t));
         if (next.length > limits.tags) { result.skipped++; continue; }
         if (next !== r.tags) await tx`update ${tx(table)} set tags = ${next}, updated_at = now() where id = ${r.id}`;
         result.done++;

@@ -20,6 +20,8 @@ must not break.
 | `lib/messages.ts` | The conversation (out and in), the queue (a rejection waits `undoSeconds`), templates, emails to file |
 | `lib/outbox.ts` | Sends what is due (claimed, keyed `message:<id>`), then the calendars; called by the team layout, actions and the `outbox` schedule |
 | `lib/mail-in.ts`, `app/chest-mail/route.ts` | Received emails: matched by thread, references, then an authenticated address; bounces |
+| `lib/self-schedule.ts`, `app/interview/[token]/`, `migrations/0004_self_scheduling.sql` | The candidate chooses the interview time: a link (secret stored as SHA-256), free times by the people's Hiring interviews, `choose` under `lock table interview_requests` then the same invitation as `interviews.ts` |
+| `components/description-editor.tsx`, `lib/rich-text.ts` (`toHtml`, `fromEditor`) | The job editor: contentEditable in, the plain marks out (never HTML stored or rendered) |
 | `lib/interviews.ts`, `lib/time.ts` | Interviews, busy times, the `.ics`, the interviewers' Chest calendars (`flushCalendars`), times in the Chest's zone |
 | `lib/reach.ts`, `lib/public-feed.ts`, `app/jobs.xml`, `app/feed.xml`, `app/sitemap.xml`, `app/robots.txt` | JobPosting JSON-LD, Indeed XML, RSS, sitemap — pure writers and their routes |
 | `lib/import-map.ts`, `lib/import.ts`, `lib/unzip.ts` | Reading another tool's CSV (guessing columns), importing rows, CVs from a ZIP in the browser |
@@ -44,6 +46,9 @@ TEST_DATABASE_URL=postgres://… npm test
 
 ## Rules
 
+- **Public pages** resolve their look with `lookOf("public")` (brand or
+  identity, never a catalogue theme); decoration is keyed on `--decor`.
+  With a Chest brand, Settings hides Hiring's own colour and logo.
 - **Looks**: CSS names only contract tokens (`ui/tokens/CONTRACT.md`) and
   the tool tokens of `app/tokens.css` — never a colour (test/theme.test.ts
   checks CSS and TSX). A colour belongs in `lib/theme.ts`. Text only on

@@ -1,7 +1,7 @@
 import * as chest from "@argentic/chest-sdk/chest";
 import { Avatar } from "@argentic/chest-ui/components";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { forbidden, notFound } from "next/navigation";
 import { Back } from "../../../../components/icons.tsx";
 import { can } from "../../../../lib/access.ts";
 import { AppError } from "../../../../lib/app-error.ts";
@@ -22,7 +22,7 @@ export default async function PersonPage({ params }: { params: Promise<{ id: str
   const v = await viewer();
   if (!v) return null;
   const { member, locale, t } = v;
-  if (!can(member, "items.manage")) notFound();
+  if (!can(member, "items.manage")) forbidden();
   const id = (await params).id;
   if (id !== "erased" && !memberPattern.test(id)) notFound();
   const sql = db();

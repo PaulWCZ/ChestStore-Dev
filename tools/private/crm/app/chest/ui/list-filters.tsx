@@ -2,8 +2,11 @@
 
 import { DateField, SearchBox } from "@argentic/chest-ui/components";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState, type ReactNode } from "react";
+import { Sliders } from "../../../components/icons.tsx";
+import { format } from "../../../lib/i18n/format.ts";
 import type { FieldDef } from "../../../lib/custom.ts";
+import { shownName } from "../../../lib/seed-words.ts";
 import type { Catalogue } from "../../../lib/i18n/index.ts";
 import type { Teammate } from "./shared.ts";
 
@@ -25,11 +28,16 @@ export function useListAddress() {
 }
 
 // The filters of a list of companies or contacts: words, owner, tag, one of
-// the team's own fields (and for contacts, "no contact for 3 years"), and
-// its order.
-export function ListFilters({ label, tags, team, me, stale, sorts, fields, today, t }: { label: string; tags: string[]; team: Teammate[]; me: string; stale?: boolean; sorts: { value: string; label: string }[]; fields: FieldDef[]; today: string; t: Catalogue }) {
+// the team's own fields (and for contacts, "no contact for 3 years"), its
+// order, and its exports. On a phone only the search shows, and one
+// "Filters (n)" button opens the rest: the first row of the list stays near
+// the top of the screen.
+export function ListFilters({ label, tags, team, me, stale, sorts, fields, today, exports, t }: { label: string; tags: string[]; team: Teammate[]; me: string; stale?: boolean; sorts: { value: string; label: string }[]; fields: FieldDef[]; today: string; exports?: ReactNode; t: Catalogue }) {
   const { params, set } = useListAddress();
   const [q, setQ] = useState(params.get("q") ?? "");
+  const [open, setOpen] = useState(false);
+  const panel = useId();
+  const active = ["owner", "tag", "stale", "cf"].filter(k => (params.get(k) ?? "") !== "").length + ((params.get("sort") ?? "") !== "" ? 1 : 0);
   useEffect(() => {
     if (q === (params.get("q") ?? "")) return;
     const timer = setTimeout(() => set({ q: q.trim() }), 300);
@@ -43,6 +51,10 @@ export function ListFilters({ label, tags, team, me, stale, sorts, fields, today
       <span className="filter-search">
         <SearchBox id="f-q" action="" value={q} shortcut={false} maxLength={100} placeholder={label} labels={{ ...t.searchBox, label }} onSearch={setQ} />
       </span>
+      <button type="button" className="button quiet small filter-toggle" aria-expanded={open} aria-controls={panel} onClick={() => setOpen(!open)}>
+        <Sliders />{active > 0 ? format(t.common.filtersOn, { count: active }) : t.common.filters}
+      </button>
+      <div id={panel} className={open ? "filter-more open" : "filter-more"}>
       <label className="visually-hidden" htmlFor="f-owner">{t.common.owner}</label>
       <select id="f-owner" className="field compact" value={params.get("owner") ?? ""} onChange={e => set({ owner: e.target.value })}>
         <option value="">{t.common.everyone}</option>
@@ -55,7 +67,7 @@ export function ListFilters({ label, tags, team, me, stale, sorts, fields, today
           <label className="visually-hidden" htmlFor="f-tag">{t.common.tags}</label>
           <select id="f-tag" className="field compact" value={params.get("tag") ?? ""} onChange={e => set({ tag: e.target.value })}>
             <option value="">{t.common.anyTag}</option>
-            {tags.map(tag => <option key={tag} value={tag}>{tag}</option>)}
+            {tags.map(tag => <option key={tag} value={tag}>{shownName("tags", tag, t)}</option>)}
           </select>
         </>
       )}
@@ -72,6 +84,8 @@ export function ListFilters({ label, tags, team, me, stale, sorts, fields, today
           {sorts.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
         </select>
       </span>
+      {exports && <span className="exports">{exports}</span>}
+      </div>
     </div>
   );
 }
@@ -102,7 +116,7 @@ export function FieldFilter({ fields, today, t }: { fields: FieldDef[]; today: s
           <label className="visually-hidden" htmlFor="f-cv">{w.value}</label>
           <select id="f-cv" className="field compact" value={params.get("cv") ?? ""} onChange={e => set({ cv: e.target.value })}>
             <option value="">{w.filled}</option>
-            {chosen.options.map(o => <option key={o} value={o}>{o}</option>)}
+            {chosen.options.map((o, i) => <option key={o} value={o}>{chosen.optionLabels?.[i] ?? o}</option>)}
           </select>
         </>
       )}

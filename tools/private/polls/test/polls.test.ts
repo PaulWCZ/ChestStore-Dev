@@ -149,7 +149,7 @@ test("deleting puts a poll aside for its organiser or an admin, restoring brings
   assert.equal(await polls.purge(sql, new Date(now.getTime() + 31 * 864e5)), 1);
 });
 
-test("home: what waits for me first (soonest closing), my polls, what I answered, what closed lately", async () => {
+test("home: what waits for me first (soonest closing), what I asked in one list, what I answered, what closed lately", async () => {
   const { sql } = database;
   const a = await polls.createPoll(sql, asMember(sofia), { ...lunch, title: "A", closes: { day: "2026-10-09", time: "12:00" } }, ctx);
   await polls.createPoll(sql, asMember(sofia), { ...lunch, title: "B", closes: { day: "2026-10-07", time: "12:00" } }, ctx);
@@ -165,10 +165,13 @@ test("home: what waits for me first (soonest closing), my polls, what I answered
   assert.deepEqual(hugoHome.closed.map(p => p.title), ["A"]);
   assert.deepEqual(hugoHome.mine, []);
   const sofiaHome = await polls.home(sql, asMember(sofia), now);
-  assert.deepEqual(sofiaHome.mine.map(p => p.title).slice(0, 2).sort(), ["B", "C"]);
+  // Asked by her: open first (closing soonest, no closing date last), her
+  // draft, then the closed one; none of them in "To answer" or "Closed".
+  assert.deepEqual(sofiaHome.mine.map(p => p.title), ["B", "C", "D", "A"]);
   assert.ok(sofiaHome.mine.every(p => p.mine));
-  assert.equal(sofiaHome.mine.at(-1)!.id, draft.id, "drafts last");
-  assert.equal(sofiaHome.toAnswer.length, 2, "an organiser is asked too");
+  assert.equal(sofiaHome.mine[2]!.id, draft.id, "drafts after the open ones");
+  assert.deepEqual(sofiaHome.toAnswer.map(p => p.title), [], "her own polls are not mixed into To answer");
+  assert.deepEqual(sofiaHome.closed.map(p => p.title), []);
   assert.equal(sofiaHome.mine.find(p => p.id === c.id)!.answers, 1);
   // Only Tech is asked the tech poll; Camille (admin) organises it.
   assert.ok((await polls.home(sql, asMember(tom), now)).toAnswer.some(p => p.id === tech.id));

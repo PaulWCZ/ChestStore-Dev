@@ -156,13 +156,16 @@ async function derive(tx: Query, pageId: string, doc: Doc): Promise<{ body: stri
 
 // writeContent stores a new version of a page (a save, a restore, an
 // import) and the links it holds. The caller checked the rights.
-export async function writeContent(tx: Query, pageId: string, author: string, input: { title: string; doc: Doc; kind: "edited" | "restored" | "imported"; restoredFrom?: number }): Promise<number> {
+// at: when this content was written (an import keeps the date the page
+// had where it came from); now otherwise.
+export async function writeContent(tx: Query, pageId: string, author: string, input: { title: string; doc: Doc; kind: "edited" | "restored" | "imported"; restoredFrom?: number; at?: Date }): Promise<number> {
   const { body, targets } = await derive(tx, pageId, input.doc);
+  const at = input.at ?? null;
   const [row] = await tx<{ version: number }[]>`
-    update pages set title = ${input.title}, doc = ${tx.json(json(input.doc))}, body = ${body}, version = version + 1, updated_by = ${author}, updated_at = now()
+    update pages set title = ${input.title}, doc = ${tx.json(json(input.doc))}, body = ${body}, version = version + 1, updated_by = ${author}, updated_at = coalesce(${at}::timestamptz, now())
     where id = ${pageId} returning version`;
   const version = row!.version;
-  await tx`insert into page_versions (page_id, number, title, doc, body, author, kind, restored_from) values (${pageId}, ${version}, ${input.title}, ${tx.json(json(input.doc))}, ${body}, ${author}, ${input.kind}, ${input.restoredFrom ?? null})`;
+  await tx`insert into page_versions (page_id, number, title, doc, body, author, kind, restored_from, created_at) values (${pageId}, ${version}, ${input.title}, ${tx.json(json(input.doc))}, ${body}, ${author}, ${input.kind}, ${input.restoredFrom ?? null}, coalesce(${at}::timestamptz, now()))`;
   await tx`delete from page_links where from_page = ${pageId}`;
   for (const t of targets) await tx`insert into page_links (from_page, to_page) values (${pageId}, ${t}) on conflict do nothing`;
   return version;
@@ -242,8 +245,11 @@ export function excerpt(body: string, max = 220): string {
 
 export type Listed = { id: string; title: string; spaceId: string; spaceName: string; updatedBy: string; updatedAt: Date; excerpt: string };
 
-// The pages most recently changed, in the spaces the actor sees.
-export async function recent(sql: Query, actor: Member | null, options: { spaceId?: string; limit?: number } = {}): Promise<Listed[]> {
+// The pages most recently changed, in the spaces the actor sees; for the
+// home's "Recently updated", withoutImports leaves out those only imported
+// since (a migration of 300 pages would hide the real changes for weeks):
+// a page shows there once someone saves it here.
+export async function recent(sql: Query, actor: Member | null, options: { spaceId?: string; limit?: number; withoutImports?: boolean } = {}): Promise<Listed[]> {
   const spaces = await listSpaces(sql, actor);
   const ids = options.spaceId ? spaces.filter(s => s.id === options.spaceId).map(s => s.id) : spaces.map(s => s.id);
   if (ids.length === 0) return [];
@@ -251,6 +257,7 @@ export async function recent(sql: Query, actor: Member | null, options: { spaceI
   const found = await sql<{ id: string; title: string; space_id: string; updated_by: string; updated_at: Date; excerpt: string }[]>`
     select id, title, space_id, updated_by, updated_at, left(body, 1500) as excerpt from pages
     where deleted_at is null and space_id in ${sql(ids)}
+      and ${options.withoutImports ? sql`not exists (select 1 from page_versions v where v.page_id = pages.id and v.number = pages.version and v.kind = 'imported')` : sql`true`}
     order by updated_at desc, id desc limit ${Math.min(options.limit ?? 12, 50)}`;
   return found.map(r => ({ id: String(r.id), title: r.title, spaceId: String(r.space_id), spaceName: names.get(String(r.space_id)) ?? "", updatedBy: r.updated_by, updatedAt: r.updated_at, excerpt: excerpt(r.excerpt) }));
 }

@@ -17,6 +17,7 @@ import { search, type Lookalike } from "../../lib/search.ts";
 import { currentMember } from "../../lib/session.ts";
 import * as share from "../../lib/share.ts";
 import * as stages from "../../lib/stages.ts";
+import { publishStep, reconcile } from "../../lib/step-calendar.ts";
 import * as steps from "../../lib/steps.ts";
 import * as tell from "../../lib/tell.ts";
 
@@ -47,6 +48,8 @@ async function settle(gone: { steps: { id: string; owner: string | null }[]; obj
   for (const s of gone.steps) await tell.stepSettled(s.id);
   await tell.refreshBadges(db(), gone.steps.map(s => s.owner));
   await forgetObjects(gone.objects);
+  // Steps gone with what they were about leave the calendars too.
+  await reconcile(db());
 }
 
 // Companies.
@@ -65,7 +68,7 @@ export async function addContact(input: ContactInput): Promise<Result<{ id: stri
   return act(actor => contacts.addContact(db(), actor, input));
 }
 export async function updateContact(id: string, input: ContactInput): Promise<Result<null>> {
-  return act(async actor => { await contacts.updateContact(db(), actor, id, input); return null; });
+  return act(async actor => { await contacts.updateContact(db(), actor, id, input); await reconcile(db()); return null; });
 }
 export async function deleteContact(id: string): Promise<Result<null>> {
   return act(async actor => { await settle(await contacts.deleteContact(db(), actor, id)); return null; });
@@ -85,7 +88,11 @@ export async function matchingIds(table: "companies" | "contacts", filter: { q?:
   return act(actor => (table === "companies" ? companies.companyIds(db(), actor, filter) : contacts.contactIds(db(), actor, filter)), false);
 }
 export async function merge(table: "companies" | "contacts", from: string, into: string): Promise<Result<{ id: string }>> {
-  return act(actor => (table === "companies" ? mergeCompanies(db(), actor, from, into) : mergeContacts(db(), actor, from, into)));
+  return act(async actor => {
+    const done = await (table === "companies" ? mergeCompanies(db(), actor, from, into) : mergeContacts(db(), actor, from, into));
+    await reconcile(db());
+    return done;
+  });
 }
 
 // Duplicates: asked while a person types (no refresh).
@@ -113,7 +120,7 @@ export async function addDeal(input: DealInput): Promise<Result<{ id: string }>>
   });
 }
 export async function updateDeal(id: string, input: DealInput): Promise<Result<null>> {
-  return act(async actor => { await deals.updateDeal(db(), actor, id, input); return null; });
+  return act(async actor => { await deals.updateDeal(db(), actor, id, input); await reconcile(db()); return null; });
 }
 export async function moveDeal(id: string, stageId: string, after: string | null, before: string | null, reason?: string): Promise<Result<null>> {
   return act(async actor => {
@@ -126,6 +133,7 @@ export async function moveDeal(id: string, stageId: string, after: string | null
 export async function setDealOwner(id: string, owner: string | null): Promise<Result<null>> {
   return act(async actor => {
     const done = await deals.setOwner(db(), actor, id, owner);
+    await reconcile(db());
     await tell.dealSettled(id);
     await tell.dealGiven(actor, done.given, { id, title: done.deal.title, value: done.deal.value });
     return null;
@@ -165,6 +173,7 @@ export async function addStep(on: { deal?: string; contact?: string } | null, in
   return act(async actor => {
     const sql = db();
     const done = await steps.addStep(sql, actor, on, input);
+    await publishStep(sql, done.step.id);
     if (done.given) await tell.stepGiven(actor, done.given, done.step, await titleOf(actor, done.step));
     await tell.refreshBadges(sql, [done.step.owner]);
     return done.step;
@@ -174,6 +183,7 @@ export async function updateStep(id: string, input: StepInput): Promise<Result<s
   return act(async actor => {
     const sql = db();
     const done = await steps.updateStep(sql, actor, id, input);
+    await publishStep(sql, done.step.id);
     if (done.previousOwner && done.previousOwner !== done.step.owner) await tell.stepSettled(done.step.id, [done.previousOwner]);
     if (done.given) await tell.stepGiven(actor, done.given, done.step, await titleOf(actor, done.step));
     await tell.refreshBadges(sql, [done.previousOwner, done.step.owner]);
@@ -184,6 +194,7 @@ export async function completeStep(id: string): Promise<Result<{ last: boolean }
   return act(async actor => {
     const sql = db();
     const done = await steps.completeStep(sql, actor, id);
+    await publishStep(sql, done.step.id);
     await tell.stepSettled(done.step.id);
     await tell.refreshBadges(sql, [done.step.owner]);
     return { last: done.last };
@@ -193,6 +204,7 @@ export async function reopenStep(id: string): Promise<Result<null>> {
   return act(async actor => {
     const sql = db();
     const s = await steps.reopenStep(sql, actor, id);
+    await publishStep(sql, s.id);
     await tell.refreshBadges(sql, [s.owner]);
     return null;
   });
@@ -201,6 +213,7 @@ export async function clearStep(id: string): Promise<Result<null>> {
   return act(async actor => {
     const sql = db();
     const s = await steps.clearStep(sql, actor, id);
+    await publishStep(sql, s.id);
     await tell.stepSettled(s.id);
     await tell.refreshBadges(sql, [s.owner]);
     return null;
@@ -247,7 +260,9 @@ export async function importTable(kind: string, text: string, mapping: string[],
   return act(async actor => {
     const { importTable: run } = await import("../../lib/importers.ts");
     const t = catalogue(isLocale(actor.locale) ? actor.locale : "en");
-    return run(db(), actor, kind, text, mapping, t.stages, options);
+    const report = await run(db(), actor, kind, text, mapping, t.stages, options);
+    await reconcile(db());
+    return report;
   });
 }
 export async function importVcards(text: string, options: ImportOptions = {}): Promise<Result<ImportReport>> {

@@ -121,12 +121,17 @@ Wiki's spaces kept to groups).
 - **What a new user sees:** the front page with today's date and the lead
   story. If an Important post waits for them, a yellow strip says so first:
   *One post asks you to confirm you have read it* — **Read it**. On an empty
-  Chest, a publisher sees *Nothing published yet* and **Write the first
-  post**.
+  Chest, a publisher sees *Nothing published yet*, **Write the first
+  post**, *Welcome a new colleague*, and *Moving from Slack? Import a
+  channel* (no empty section tabs). On a post, *I have read it* sits right
+  under the headline, above the picture, on a phone too.
 - **The first thing they do:** a reader opens the strip's post and clicks
   **I have read it**; a publisher clicks **Write a post**, keeps
   *Announcement*, types a headline and a text (the toolbar for bold or a
-  list), **Publish**.
+  list), **Publish**. For an event, its day, time, place and places come
+  right under the headline, before the text. The Publish bar stays in
+  reach under the text column only (never over the right column) and, on
+  a phone, follows the form.
 - **Clicks for the main job:** confirming an Important post is 2 clicks from
   the front page; answering an event is 2; publishing is 1 after typing —
   and the button says who will be told and how (*Publish and tell 6 people

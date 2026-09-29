@@ -12,6 +12,9 @@ import * as jobs from "../../lib/jobs.ts";
 import * as brand from "../../lib/brand.ts";
 import { importRows, undoImport as undoImportRows } from "../../lib/import.ts";
 import * as interviews from "../../lib/interviews.ts";
+import * as selfSchedule from "../../lib/self-schedule.ts";
+import { publicOrigin } from "../../lib/public-origin.ts";
+import { headers } from "next/headers";
 import * as mailer from "../../lib/mailer.ts";
 import * as messages from "../../lib/messages.ts";
 import { clean, isCandidateReason, limits } from "../../lib/model.ts";
@@ -397,6 +400,22 @@ export async function cancelInterview(interviewId: string, tellThem: boolean): P
     await interviews.flushCalendars(sql);
     return { status };
   });
+}
+
+// sendInterviewLink: the candidate chooses the time (lib/self-schedule.ts).
+// Says what became of the email, and the link (for a Chest without email:
+// the recruiter sends it themselves).
+export async function sendInterviewLink(candidateId: string, input: selfSchedule.RequestInput): Promise<Result<{ status: "sent" | "none" | "waiting" | "skipped"; link: string }>> {
+  return act(async actor => {
+    const sql = db();
+    const done = await selfSchedule.send(sql, actor, candidateId, input, isTeam, publicOrigin(await headers()));
+    const status = done.message ? await outbox.sendNow(sql, done.message) : "skipped";
+    return { status, link: done.link };
+  });
+}
+
+export async function cancelInterviewLink(requestId: string): Promise<Result<null>> {
+  return act(async actor => { await selfSchedule.cancel(db(), actor, requestId); return null; });
 }
 
 // busyTimes: when these people already have interviews on a day.

@@ -15,9 +15,10 @@ import { Keys, type KeyWords } from "./keys.tsx";
 //
 // Beside the page, the inbox's folders and the team's saved views: a
 // column on a wide screen (as in every shared inbox: they are where the
-// work is), on a phone a row of labelled chips that scrolls sideways,
-// above the inbox only — never hidden behind a menu, and never pushing a
-// ticket's answer box down. They are the inbox's filters, not sections:
+// work is), on a narrow window a row of labelled chips that scrolls
+// sideways, and on a phone one choice ("Unassigned (3) ▾") above the
+// inbox — the first ticket stays near the top, and a ticket's answer box
+// is never pushed down. They are the inbox's filters, not sections:
 // the one navigation rule's five tabs stay the sections.
 export type Folder = { key: string; href: string; label: string; count: number | null; icon: ReactNode };
 export type SavedView = { id: string; href: string; name: string };
@@ -28,7 +29,7 @@ export function TeamShell({ brand, nav, member, folders, views, labels, toast, k
   member: { name: string; role: string | null; photo: string | null };
   folders: Folder[];
   views: SavedView[];
-  labels: { skip: string; nav: string; folders: string; views: string };
+  labels: { skip: string; nav: string; folders: string; views: string; otherList: string };
   toast: ToastWords;
   keys: KeyWords;
   canCreate: boolean;
@@ -46,6 +47,10 @@ export function TeamShell({ brand, nav, member, folders, views, labels, toast, k
   const same = (a: URLSearchParams, b: URLSearchParams) => [...a.keys(), ...b.keys()].every(k => a.get(k) === b.get(k));
   const folderShown = (key: string) => inbox && !params.get("q") && !params.get("tag") && !params.get("priority") && (params.get("folder") ?? "unassigned") === key;
   const viewShown = (href: string) => inbox && same(params, new URLSearchParams(href.split("?")[1] ?? ""));
+  // The folder or view the inbox shows, for the phone's choice ("" for a
+  // search or a filter of one's own).
+  const viewNow = views.find(v => viewShown(v.href));
+  const listShown = folders.find(f => folderShown(f.key))?.key ?? (viewNow ? "view:" + viewNow.id : "");
   // On a phone the folders slide sideways: the one shown is brought into view.
   const shown = `${path}?${params.toString()}`;
   useEffect(() => {
@@ -79,7 +84,22 @@ export function TeamShell({ brand, nav, member, folders, views, labels, toast, k
               )}
             </nav>
           )}
-          <div className="desk-main">{children}</div>
+          <div className="desk-main">
+            {/* On a phone the folders are one choice above the inbox, not a
+                row of chips that runs off the screen. */}
+            {inbox && folders.length > 0 && (
+              <div className="folder-select">
+                <label className="visually-hidden" htmlFor="folder-select">{labels.folders}</label>
+                <select id="folder-select" className="field" value={listShown}
+                  onChange={e => { const to = folders.find(f => f.key === e.target.value)?.href ?? views.find(v => "view:" + v.id === e.target.value)?.href; if (to) router.push(to); }}>
+                  {listShown === "" && <option value="">{labels.otherList}</option>}
+                  {folders.map(f => <option key={f.key} value={f.key}>{f.count !== null ? `${f.label} (${f.count})` : f.label}</option>)}
+                  {views.length > 0 && <optgroup label={labels.views}>{views.map(v => <option key={v.id} value={"view:" + v.id}>{v.name}</option>)}</optgroup>}
+                </select>
+              </div>
+            )}
+            {children}
+          </div>
         </div>
       </AppShell>
     </Toasts>

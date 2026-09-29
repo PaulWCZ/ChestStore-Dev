@@ -33,7 +33,32 @@ for the work of a small company's teams — the 80 % they use every day.
   options, per board, set on each card, shown in the list and exported.
 - **List view**: sort by any heading (title, column, people, start, due),
   group by column, person or due date; done cards hidden unless asked;
-  every title a link that opens the card.
+  every title a link that opens the card. On a phone, stacked cards
+  (title, column, date, people) instead of a wide table.
+- **On a phone**, the board's view switch, filters and search fold behind
+  one **View and filters** button: the first card shows near the top of
+  the screen (about 280 px down at 390 × 844, it was 454).
+- **"Late" never by colour alone**: a late date says *Late* with a warning
+  sign, and **labels show their names** on the card face — in the Chest's
+  grey look too, the words tell them apart.
+- **"Blocked by"**: a card waits for other cards of its board (*It waits
+  for…* in the card; a loop — A waits for B, B for A — is refused). The
+  card face says **Blocked** while one of them is open, the card lists
+  them and the cards that wait for it. *Mark done* (the button, the
+  column, a drag, the tick in *My tasks*) is refused while it waits:
+  "Blocked: “Book the truck” is not done yet." with **Mark done anyway**
+  (the history then says it was done while waiting). When its last
+  blocker is done, the card's people find "You can start …" in their
+  bell. Moved to another board, a card leaves its links behind.
+- **Timeline view** (Asana's timeline, Monday's Gantt): six weeks of bars
+  from each card's start date to its due date (one date: that day), in
+  rows **by column** or **by person**; weekends shaded, today marked. A
+  line joins a card to the cards it waits for, **red and dashed when it
+  starts before one of them is due**. Drag a bar to move both dates, its
+  end to move only the due date — with the mouse, a finger, or the
+  keyboard (Space picks the bar up, the arrows move it a day, up and down
+  a week, Space drops it; Enter opens the card). Earlier / Later move the
+  window four weeks; cards without dates are counted above it.
 - **Calendar view**: the month of the board's due dates; a card dragged to
   another day (mouse, finger or keyboard) takes that date. On a phone, the
   days that hold cards, as a list.
@@ -65,7 +90,16 @@ for the work of a small company's teams — the 80 % they use every day.
   mentioned, and the morning reminder also come by email, in each person's
   language, with the link to the card; the Chest sends it to their address
   (the tool never knows it). One switch at the bottom of *My tasks* turns
-  email off for oneself.
+  email off for oneself. **What one person does in one go leaves as one
+  email**: the emails wait until the person has had nothing new for a
+  minute (ten at most), then "Hugo Bernard: 1 task given to you, 1 step
+  and 1 mention", each with its link. What an email names is read again
+  as it leaves (a card taken back, a step ticked are left out).
+- **A deleted comment leaves nothing behind**: its items in colleagues'
+  bells go at once (each mention is an item of its own; the card's comment
+  item shows it only if it was the last), and its mention email, still
+  waiting, is held while the *Undo* lasts and never sent after. *Undo*
+  brings the items back; an edited comment's items show its new words.
 - **Import**: Trello boards (JSON export; several at once), an Asana
   project (CSV export) or any spreadsheet (CSV with a title column; French
   sheets with `;` work). Before anything is written, the page shows each
@@ -115,7 +149,7 @@ the tool's builders come in with the first role, `manager`.
 |---|---|---|
 | `/chest` | members | My tasks and my boards |
 | `/chest/boards` (`?archived=1`) | members | all boards I see |
-| `/chest/boards/<id>` (`?card=`, `?view=list\|calendar`, `?month=YYYY-MM`, `?who=`, `?label=`) | members who see the board | the board, its list or its calendar, a card open beside it |
+| `/chest/boards/<id>` (`?card=`, `?view=list\|calendar\|timeline`, `?month=YYYY-MM`, `?from=YYYY-MM-DD`, `?who=`, `?label=`) | members who see the board | the board, its list, calendar or timeline, a card open beside it |
 | `/chest/boards/<id>/settings` | idem (changes: owners, managers) | settings, archive, export |
 | `/chest/boards/<id>/export?format=csv\|json` | idem | a download |
 | `/chest/search?q=` (`&archived=1`) | members | search |
@@ -125,6 +159,7 @@ the tool's builders come in with the first role, `manager`.
 | `/chest/files/<id>` (`?download`) | who sees the card | a 15-minute link to the file, signed by the Chest |
 | `/chest-events` | the Chest only (signed) | members' lifecycle |
 | `/chest-jobs/morning` | the Chest only (signed, Proposal (studio)) | the weekday morning |
+| `/chest-jobs/mail` | the Chest only (signed, Proposal (studio)) | every 15 minutes: the emails that waited (also sent after each action and page) |
 | `/` | anyone | "Tasks lives in your Chest" |
 
 ## On a Chest
@@ -173,7 +208,10 @@ one already late. Archiving a repeating card stops its series; choosing
 - `chest` — **Proposal (studio)**: the Chest's time zone, for "today";
   its address (`teamUrl`), for the link in an email.
 - `mail` — **Proposal (studio)**: `mail.send({to: {member}})` for the
-  emails of assignment, mention and the morning. On a Chest without mail,
+  emails of assignment, mention and the morning. The grouping and the
+  hold are the tool's own (`mail_queue`), sent after each request (Next's
+  `after()`) and by a `mail` schedule every 15 minutes; with no schedule
+  and nobody using the tool, a waiting email leaves at the next visit. On a Chest without mail,
   `CapabilityNotGranted`: nothing is sent, nothing fails, the bell says it.
 - Without schedules on a real Chest today, recurring cards still work (the
   next card is made at the moment one is done); the reminder does not come
@@ -189,9 +227,15 @@ alone, with the same features. The look arrives with the page (one
 `<style>` with the page's nonce, no script); in brand mode the company's
 logo stands beside the name. Board and label colours follow the theme's
 palette (a "sky" board stays bluish everywhere; in the "Chest" theme,
-colours are greys and the names tell them apart). Screens:
+colours are greys and the names tell them apart — label names are on the
+card faces, and late dates say *Late* with a sign; the flow checks it in
+the Chest look). Screens:
 `docs/screens/*-chest-*`, `*-theme-*` (Library), `*-brand-*` (the sample
-brand).
+brand), `board-port-*` (the second sample brand, Café du Port).
+
+Columns made by a template (*To do / Doing / Done*…) are named in each
+reader's language — the sample board reads "À faire / En cours / Fait"
+to Inès and "To do / Doing / Done" to Hugo — until someone renames one.
 
 ## Develop
 
@@ -210,10 +254,24 @@ In the studio: `node lab/chest-dev/dev.mjs tools/private/tasks --reset`
 - **Email** needs the `mail` proposal on the Chest: until then the bell
   alone tells people. No push to a phone (the Chest has none), no email at
   a time each person chooses (07:30 on weekdays), no email for plain
-  comments on one's cards (the bell only).
-- **Timeline / Gantt**, **dependencies** ("blocked by"), **automations**
-  (Monday's "when status changes, notify…", Trello's Butler), **time
-  tracking** (see Timesheets), workload views, dashboards and charts.
+  comments on one's cards (the bell only). The emails are plain text (no
+  button). A comment deleted more than a minute after it was posted may
+  already have left by email: the hold covers the minute of grouping and
+  any comment deleted before its email left.
+- **Timeline**: one board at a time; no zoom (six weeks of days); no
+  lines between bars in the rows *by person* (a card with two people is on
+  two rows); a drag never moves the cards that wait for it (no automatic
+  rescheduling); no critical path, no baseline, no milestones.
+- **"Blocked by"** links cards of one board only (not across boards);
+  archiving a column, or making a whole column "done", does not ask about
+  the cards waiting inside it; a card moved to a done column of another
+  board leaves its links and is not checked.
+- **Automations** (Monday's "when status changes, notify…", Trello's
+  Butler), **time tracking** (see Timesheets), workload views, dashboards
+  and charts.
+- **Seeded content** (card titles, board and field names of the sample)
+  stays as written; only the columns of a template follow the reader's
+  language.
 - **Subtasks are checklist steps**: a step has a person and a date and
   shows in their *My tasks*, but it has no description, comments or files
   of its own, and no steps under it.

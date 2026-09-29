@@ -70,6 +70,14 @@ The exact header lists could not be verified: the test files in
 `test/fixtures/` are reconstructions in those tools' style, and the
 importer shows every column for the person to match.
 
+The invoices "to collect" (`test/fixtures/open-invoices.csv`): no
+documented export format of unpaid invoices from Axonaut, Sellsy or
+Pennylane could be read from the studio (2026-09-29), so the fixture is a
+reconstruction with the columns such exports usually carry (number, date,
+client, SIREN, subject, due date, totals excluding and including VAT,
+amount paid) and the importer matches French and English headers and lets
+the person match any other column. Not verified against a real export.
+
 Ideas only (their licences do not allow copying code; see
 `reports/02-open-source/quotes.md` of the studio): Dolibarr (GPL-3.0 — draft
 without a number, number given at validation, correction only by a credit

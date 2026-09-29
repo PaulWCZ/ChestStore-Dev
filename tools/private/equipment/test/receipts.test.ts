@@ -6,7 +6,13 @@ import { AppError } from "../lib/app-error.ts";
 import { listCategories } from "../lib/categories.ts";
 import * as items from "../lib/items.ts";
 import { erase } from "../lib/lifecycle.ts";
-import { confirm, currentCharter, handoverSheet, returnSheet, setCharter } from "../lib/receipts.ts";
+import { confirm, currentCharter, handoverSheet, leftOnOf, remind, returnSheet, setCharter } from "../lib/receipts.ts";
+import { remindReceipt } from "../lib/tell.ts";
+import { unconfirmedReceipts } from "../lib/items.ts";
+import { catalogue } from "../lib/i18n/index.ts";
+import { charterText } from "../lib/words.ts";
+import { plainName } from "../lib/people.ts";
+import { POST } from "../app/chest-events/route.ts";
 import { addField } from "../lib/fields.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
@@ -126,7 +132,7 @@ test("the handover sheet: items, serials and fields, given on and by, condition,
   const sheet = await handoverSheet(sql, M, hugo.id);
   const line = sheet.lines.find(l => l.item.id === phone.id)!;
   assert.equal(line.item.serial, "PX-1");
-  assert.deepEqual(line.fields, [{ name: "IMEI", value: "356938035643809" }]);
+  assert.deepEqual(line.fields, [{ name: "IMEI", key: null, value: "356938035643809" }]);
   assert.equal(line.condition, "With its case");
   assert.equal(line.givenBy, camille.id);
   assert.equal(line.confirmedAt, null);
@@ -142,6 +148,52 @@ test("the handover sheet: items, serials and fields, given on and by, condition,
   assert.equal(back.condition, "With its case");
   assert.ok(ret.kept.every(l => l.item.id !== phone.id));
   assert.ok(ret.kept.length > 0, "what Hugo still holds is listed as not returned");
+});
+
+test("the example rules speak each reader's language; saved unchanged in French they stay the example; reworded, a new version", async () => {
+  const { sql } = database;
+  const en = catalogue("en"), fr = catalogue("fr");
+  const example = await setCharter(sql, M, fr.settings.rulesExample);
+  assert.ok(example?.example);
+  assert.equal(example!.body, en.settings.rulesExample);
+  assert.deepEqual([charterText(example!, fr), charterText(example!, en)], [fr.settings.rulesExample, en.settings.rulesExample]);
+  assert.equal((await setCharter(sql, M, en.settings.rulesExample))!.id, example!.id);
+  const own = await setCharter(sql, M, "Nos règles : prenez-en soin.");
+  assert.deepEqual([own!.example, charterText(own!, en)], [false, "Nos règles : prenez-en soin."]);
+  await setCharter(sql, M, "");
+});
+
+test("remind them: the holder hears it in the bell, and by email where the Chest sends it; once a day; managers only", async () => {
+  const { sql } = database;
+  const phone = await items.createItem(sql, M, { categoryId: phones, name: "Pixel 7" });
+  await items.give(sql, M, phone.id, { to: { member: hugo.id } });
+  await refused(remind(sql, H, phone.id), "forbidden");
+  chest.notifications.length = 0;
+  const r = await remind(sql, M, phone.id);
+  assert.deepEqual([r.holder, r.item.id], [hugo.id, phone.id]);
+  const mailed = await remindReceipt(M!, r.holder, r.item, r.givenOn);
+  const bell = chest.notifications.find(n => n.member === hugo.id);
+  assert.equal(bell?.title, `${camille.firstName} asks: did you receive Pixel 7 ${phone.tag}?`);
+  assert.equal(bell?.path, "/chest/mine");
+  // Mail is a proposal: sent where the Chest grants it, the bell alone otherwise.
+  assert.equal(mailed, chest.outbox.some(m => m.subject === "Did you receive Pixel 7?"));
+  await refused(remind(sql, M, phone.id), "reminded_today");
+  assert.equal((await unconfirmedReceipts(sql, M, "2999-01-01")).find(u => u.item.id === phone.id)?.remindedToday, true);
+  await confirm(sql, H, phone.id);
+  await sql`update receipts set reminded_at = null where item_id = ${phone.id}`;
+  await refused(remind(sql, M, phone.id), "already_confirmed");
+});
+
+test("a sheet writes a person who left by their name, with the day they left apart", async () => {
+  const { sql } = database;
+  const key = await items.createItem(sql, M, { categoryId: laptops, name: "Spare laptop" });
+  await items.give(sql, M, key.id, { to: { member: sofia.id } });
+  assert.equal(await leftOnOf(sql, M, sofia.id), null);
+  assert.equal(await chest.emit({ type: "member.removed", data: { id: sofia.id } }, POST), 204);
+  const left = await leftOnOf(sql, M, sofia.id);
+  assert.ok(left instanceof Date);
+  await refused(leftOnOf(sql, H, sofia.id), "not_found");
+  assert.equal(plainName({ id: sofia.id, name: "Sofia Rossi", photo: null, status: "former", locale: "en" }, "fr"), "Sofia Rossi");
 });
 
 test("an erasure keeps the receipts, without the person", async () => {

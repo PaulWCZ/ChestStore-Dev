@@ -2,6 +2,7 @@ import { ChestError } from "@argentic/chest-sdk/errors";
 import type { Locale } from "@argentic/chest-sdk/member";
 import * as members from "@argentic/chest-sdk/members";
 import { asked } from "./access.ts";
+import { chestGroups } from "./groups.ts";
 
 // Who a poll is put to: the members who have Polls with a role — all of
 // them, or those of the poll's groups. Read from the Chest when needed,
@@ -80,13 +81,9 @@ export async function havePolls(ids: string[]): Promise<string[] | null> {
   }
 }
 
-// The groups that give Polls (the Chest shows a tool only these), by name:
-// the choices of "who is asked". Null when the Chest cannot say.
+// The groups a poll may ask, by name: every group of the Chest with the
+// "groups" permission (Proposal (studio)), else those that give Polls
+// (lib/groups.ts). Null when the Chest cannot say.
 export async function groups(): Promise<{ id: string; name: string; size: number }[] | null> {
-  try {
-    return (await members.groups.list()).map(g => ({ id: g.id, name: g.name, size: g.members.length })).sort((a, b) => a.name.localeCompare(b.name));
-  } catch (error) {
-    if (error instanceof ChestError) return null;
-    throw error;
-  }
+  return chestGroups();
 }

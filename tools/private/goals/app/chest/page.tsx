@@ -47,7 +47,7 @@ export default async function MyGoals() {
             return (
               <div className="stack-s start-cycle">
                 {choices.other && <p className="hint">{format(t.home.lateInQuarter, { name: quarterName(t, choices.other.quarter), left: plural(t.cycle.daysLeft, daysBetween(clock.today, choices.other.quarter.endsOn), locale) })}</p>}
-                <StartCycle main={{ which: choices.main.which, label: label(choices.main, t.home.startCycle) }} other={choices.other ? { which: choices.other.which, label: label(choices.other, t.home.startCurrent) } : null} errors={t.errors} />
+                <StartCycle main={{ which: choices.main.which, label: label(choices.main, t.home.startCycle) }} other={choices.other ? { which: choices.other.which, label: label(choices.other, t.home.startCurrent) } : null} importLabel={format(t.home.startImport, { name: quarterName(t, choices.main.quarter) })} errors={t.errors} />
               </div>
             );
           })() : null}

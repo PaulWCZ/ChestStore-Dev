@@ -15,6 +15,7 @@ what must not break.
 | `lib/tell.ts`, `lib/notify.ts` | The bell (each recipient's language), badges, the Friday reminder, admins told of orphans |
 | `lib/lifecycle.ts` | Leaving, losing access, erasure |
 | `lib/export.ts`, `lib/csv.ts` | A cycle as CSV, and every check-in, in the reader's language |
+| `lib/cycle-names.ts` | A cycle's name when the tool wrote it (`periodName`: "Q1 2027"/"T1 2027", or its months), in the reader's language; `generated` in `cycles` says so (`migrations/0003_names_and_words.sql`). Read cycles with the reader's locale (`cycles(sql, locale)`, `readCycle` uses the actor's) |
 | `lib/import.ts` | CSV import: headers guessed (Goals' export, Lattice, spreadsheets), mapping, owners by name, plan (dry run), run in one transaction, undo |
 | `lib/remind.ts`, `lib/mail.ts` | Who waits for a check-in (admins: all; an objective's owner: its key results), *Remind* once a day; email beside the bell with a per-person switch |
 | `lib/crm.ts` | Key results fed by Clients' `crm.deal.won` / `crm.deal.reopened` events |
@@ -72,8 +73,12 @@ npm ci && npm test && npm run build   # all three must pass
   `DataTable`, `EmptyState`, `Avatar`, `StatusBadge`, `AppShell`. Their
   words are the catalogues' `toast`, `dialog`, `peoplePicker`, `date`,
   `files`, `filters`, `tables` sections; `node scripts/lint-words.mjs`
-  (studio) must report 0 errors. Kit 0.2.2 (re-vendored 2026-09-29): the
-  header is `--inverse` (no dark-mode override of our own; it stays the
-  map's dark margin in every look); server pages pass Next's `Link` to
+  (studio) must report 0 errors. Kit 0.2.3 (re-vendored 2026-09-29): the
+  header is the map's dark margin (`--inverse`, its tab mark
+  `--inverse-signal`) **in the Trail map only** (`<html data-look="own">`,
+  `app/tokens.css`); every other look (a catalogue theme, the Chest's
+  sheet, a brand) gets the kit's normal header, like Tasks and Wiki. No
+  colour changes in a `prefers-color-scheme: dark` block; the contour lines
+  are decoration, drawn at `opacity: var(--decor)`. Server pages pass Next's `Link` to
   `Filters` through `components/link.tsx` (a `"use client"` re-export),
   so the `LinkFilters` wrapper is gone.

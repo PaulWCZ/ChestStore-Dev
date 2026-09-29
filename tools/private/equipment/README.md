@@ -18,7 +18,10 @@ people. French name: **Matériel**.
   an IMEI for phones, RAM and OS for laptops, a licence plate and the next
   inspection for vehicles, an MDM ID — as text, a number or a date. They
   show on the item, are searched, printed on the handover sheet, exported
-  (one column each) and imported.
+  (one column each) and imported. The fields the tool proposes (IMEI, RAM,
+  operating system, licence plate, next inspection) are written in each
+  reader's language ("Mémoire vive (Go)") until a manager renames them; a
+  French file's "Système d'exploitation" column goes into the same field.
 - **Several at once**: "How many? 10" on the form, the serial numbers
   pasted one per line from the delivery note; each item gets its own tag
   (the next numbers, or a series from the tag typed: `LAP-009`,
@@ -37,13 +40,25 @@ people. French name: **Matériel**.
   hear) and, if a manager wrote **rules for company equipment**, having
   read that exact version. Who, when, the note and the rules accepted are
   kept (receipt and history). Receipts not confirmed after a week show on
-  the managers' overview.
+  the managers' overview, each with **Remind them**: the person hears it
+  again in the bell and — where the Chest sends email (the `mail`
+  proposal) — by email, in their language; once a day at most ("Reminded
+  today"), never an Undo (it has left). "You confirmed receiving it on …"
+  shows under an item for a month, then goes (not under every item
+  imported years ago).
+- **The rules for company equipment**: optional, written by a manager;
+  empty, *Start with an example* fills them with the tool's example, which
+  each person then reads in their own language (until a manager rewords
+  it: then the manager's words, a new version).
 - **Handover sheet and return sheet** (printable A4, or "Save as PDF" from
   the print window): the company, the person, each item with its tag,
   serial number and fields (IMEI…), when and by whom it was given, its
   condition, whether and when the person confirmed it in the tool, the
   rules, a statement and two signature boxes — the *fiche de remise de
-  matériel* a French company keeps. The return sheet lists what came back
+  matériel* a French company keeps. A sheet is kept as proof: the person
+  is written by their name alone (never the app's "(former member)"), with
+  "Left on …" on a line of its own; "Printed on" and the date are a term
+  and its value (read as such by screen readers). The return sheet lists what came back
   in the last 90 days (day, to whom, condition) and what is *not returned*
   on the day it is printed. A member prints their own handover sheet.
 - **Requests**: *Ask for something* on My equipment (a few words, the kind
@@ -181,6 +196,11 @@ the first role, `manager`.
 | `/chest/labels` (`?ids=` or the list's filters) | managers | printable A4 sheets |
 | `/chest/import`, `/chest/export` | managers | CSV in and out |
 | `/chest/settings` | managers | categories, their fields, the rules for company equipment |
+
+Every managers' page asked by a member answers **403** with the kit's
+*NoAccess* — "This page is for managers", and a link to My equipment —
+the same on each (`test/refusals.test.ts`, the browser flow); something a
+member may not see at all (someone else's item or sheet) is "not found".
 | `/chest-events` | the Chest only (signed) | members' lifecycle |
 | `/chest-jobs/weekly` | the Chest only (signed, proposal) | Monday's word to managers |
 | `/` | anyone | "This tool lives in your Chest" |
@@ -225,6 +245,10 @@ All in `vendor/` (the studio's working copy, `0.3.0-studio.12`):
   departures are seen only when the person leaves the Chest.
 
 - `files` — besides photos, each item's purchase invoice (PDF or picture).
+- `mail` (**Proposal (studio)**, `chest.proposals.json`) — *Remind them*
+  also emails the holder, through the Chest, to their address the tool
+  never knows. On a Chest without mail the bell alone reminds them, and
+  nothing fails (`lib/tell.ts`, `remindReceipt`).
 
 Not in the SDK, and not faked here: a **signature** a person draws or a
 qualified electronic signature (the receipt is a confirmation in the

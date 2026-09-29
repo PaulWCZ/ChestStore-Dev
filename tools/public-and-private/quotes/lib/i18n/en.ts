@@ -933,7 +933,7 @@ export const en = {
   },
   importer: {
     title: "Import from your previous tool",
-    intro: "Your clients or your catalogue, from a spreadsheet: Axonaut, Sellsy, Pennylane, Excel…",
+    intro: "Your clients, your catalogue or the invoices still to collect, from a spreadsheet: Axonaut, Sellsy, Pennylane, Excel…",
     what: "What does the file hold?",
     kinds: { clients: "Clients", items: "Catalogue items", invoices: "Invoices to collect" },
     kindHints: { clients: "Companies and people you invoice", items: "What you sell, with its price and VAT", invoices: "Invoices of your previous tool not paid in full yet" },

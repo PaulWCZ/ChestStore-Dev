@@ -1,4 +1,7 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
+import { Lock } from "../../../../../components/icons.tsx";
+import { format } from "../../../../../lib/i18n/index.ts";
 import { db } from "../../../../../lib/db.ts";
 import { AppError } from "../../../../../lib/errors.ts";
 import { page, tree, type Page } from "../../../../../lib/pages.ts";
@@ -20,8 +23,17 @@ export default async function EditPage({ params, searchParams }: { params: Promi
   try {
     p = await page(sql, member, id, "write");
   } catch (error) {
-    if (error instanceof AppError) notFound();
-    throw error;
+    if (!(error instanceof AppError)) throw error;
+    // A shared link to the editor, opened by someone who only reads the
+    // page: say so, rather than "Nothing here".
+    const readable = error.code === "forbidden" ? await page(sql, member, id).catch(() => null) : null;
+    if (!readable) notFound();
+    return (
+      <div className="page narrow">
+        <p className="notice" role="status"><Lock />{format(t.page.cannotEdit, { space: readable.space.name })}</p>
+        <p><Link className="button quiet" href={`/chest/pages/${readable.id}`}>{t.page.backToPage}</Link></p>
+      </div>
+    );
   }
   const spaces = await listSpaces(sql, member);
   const names = new Map(spaces.map(s => [s.id, s.name]));

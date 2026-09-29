@@ -292,3 +292,31 @@ kbd { display: inline-block; min-width: 28px; padding: 2px var(--space-2); borde
 .public.embed { min-height: 0; }
 .public.embed .public-top { padding: var(--space-2) var(--space-4); justify-content: flex-end; }
 .public.embed .public-main { padding-top: 0; }
+
+/* ---------- Phones: the inbox's first ticket near the top ---------- */
+/* The folder as one choice, the filters behind one button, "select all"
+   only once something is ticked; the reports' period as one choice, two
+   figures a row, tables as cards (report-table.tsx). */
+.folder-select, .period-select { display: none; }
+.filter-toggle { display: none; }
+.filter-toggle .n { font-size: var(--text-xs); background: var(--accent); color: var(--accent-ink); border-radius: var(--radius-pill); padding: 0 var(--space-2); min-width: 20px; text-align: center; }
+.filter-more { display: contents; }
+@media (max-width: 560px) {
+  .desk.on-inbox > .folders { display: none; }
+  .folder-select { display: block; margin-bottom: var(--space-3); }
+  .folder-select .field { width: 100%; font-weight: var(--weight-strong); }
+  .inbox-tools { grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: var(--space-2); }
+  .inbox-tools .ck-search { max-width: none; }
+  .filter-toggle { display: inline-flex; min-height: 44px; }
+  .filter-more { display: none; }
+  .filter-more.open { display: block; grid-column: 1 / -1; padding: var(--space-3); border: var(--border-width) solid var(--line); border-radius: var(--radius-m); background: var(--surface); }
+  .bulk-line:not(:has(.bulk-bar)) { display: none; }
+}
+@media (max-width: 640px) {
+  .period-tabs { display: none; }
+  .period-select { display: block; width: 100%; }
+  .period-select .field { width: 100%; }
+  .figures { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .figures dd { font-size: var(--text-l); overflow-wrap: anywhere; }
+  .box { padding: var(--space-4); }
+}

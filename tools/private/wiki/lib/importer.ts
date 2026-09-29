@@ -95,7 +95,10 @@ function resolve(from: string, href: string): string | null {
 // the one a Confluence export names); `order` keeps an export's order
 // among siblings (else by title); `attachments` are files the page lists
 // without showing them (Confluence), linked at its end.
-type Planned = { key: string; path: string | null; title: string; parent: string | null; doc: Doc | null; order: number; attachments?: { href: string; name: string }[]; id?: string };
+// `at`: when the page was last changed where it comes from (Confluence
+// says it): its version keeps that date, so "Recently updated" is not
+// flooded with a migration.
+type Planned = { key: string; path: string | null; title: string; parent: string | null; doc: Doc | null; order: number; attachments?: { href: string; name: string }[]; id?: string; at?: Date };
 
 // The pages of HTML files: a Confluence space export (its pages, its tree
 // from index.html or the breadcrumbs), or web pages of their own (a Google
@@ -147,7 +150,7 @@ function htmlPages(entries: ZipEntry[], skipped: string[]): Planned[] {
       const crumb = [...page.crumbs].reverse().map(c => resolve(name, c)).find(c => c !== null && c !== name && confluence.get(c));
       const above = placed ? placed.parent : crumb ?? null;
       const parent = above && confluence.get(above) ? keyOf(above) : null;
-      out.push({ key: keyOf(name), path: name, title: page.title || titleOf(name), parent, doc: htmlToDoc(page.content, { pageFile: relative }), order: placed?.order ?? Number.MAX_SAFE_INTEGER, attachments: page.attachments });
+      out.push({ key: keyOf(name), path: name, title: page.title || titleOf(name), parent, doc: htmlToDoc(page.content, { pageFile: relative }), order: placed?.order ?? Number.MAX_SAFE_INTEGER, attachments: page.attachments, ...(page.updated ? { at: page.updated } : {}) });
       continue;
     }
     const body = find(d.root, e => e.name === "body") ?? d.root;
@@ -351,7 +354,7 @@ export async function importFiles(sql: Sql, actor: Member | null, input: { space
         };
         for (const n of source.content) await visit(n);
         const doc = normalize(mapDoc(source, n => (rewrites.has(n) ? rewrites.get(n)! : n)));
-        await writeContent(tx, p.id!, actor!.id, { title: p.title, doc, kind: "imported" });
+        await writeContent(tx, p.id!, actor!.id, { title: p.title, doc, kind: "imported", ...(p.at ? { at: p.at } : {}) });
       }
       return { spaceId: s.id, firstPageId: order.find(p => p.parent === null)?.id ?? null, pages: order.length };
     });

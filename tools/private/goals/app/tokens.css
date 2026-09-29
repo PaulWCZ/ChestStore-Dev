@@ -13,30 +13,35 @@
   --sunrise-soft: var(--cat-3-soft);
   --sunrise-ink: var(--cat-3-ink);
 
-  /* The header is the map's dark margin: the contract's region of its own
-     colour (--inverse, kit 0.2.2) — the Trail map's forest, dark in both
-     modes; a catalogue theme's own band, a brand's deep shade — with its
-     measured text. The current tab is underlined with the marker pen
-     (--highlight: 9:1 or more on --inverse in every catalogue theme's and
-     3,000 random brands' light scheme, measured 2026-09-29). */
-  --top-bg: var(--inverse);
-  --top-ink: var(--inverse-ink);
-  --top-mark: var(--highlight);
+  /* The header. In the Trail map (the tool's own look) it is the map's
+     dark margin — below. In any other look (a catalogue theme, the
+     Chest's sheet, a company's brand) it is the kit's normal header, as in
+     every other tool: "same features, the company's look". */
+  --top-bg: var(--surface);
+  --top-ink: var(--ink);
+  --top-mark: var(--accent-line);
+  --top-rule: var(--line);
+  --top-contour: var(--contour);
 
-  /* The map's contour lines: decoration only (nothing is read from them). */
+  /* The map's contour lines: decoration only (nothing is read from them),
+     drawn only where the look keeps the tool's decoration (--decor). */
   --contour: color-mix(in oklab, var(--line) 75%, var(--surface));
-  --top-contour: color-mix(in oklab, var(--inverse-ink) 13%, var(--inverse));
-  --top-rule: var(--inverse-line);
 
   /* Page widths. */
   --page-width: 1180px;
   --narrow-width: 820px;
 }
 
-/* In dark mode the marker pen is a dark ground (under 3:1 on the band):
-   the current tab is underlined in the band's own text colour. */
-@media (prefers-color-scheme: dark) {
-  :root {
-    --top-mark: var(--inverse-ink);
-  }
+/* The Trail map's own header: the contract's region of its own colour
+   (--inverse) — the forest, dark in both modes — with its measured text,
+   and the current tab underlined with the tool's signal on it
+   (--inverse-signal, kit 0.2.3: the marker pen, measured on the band in
+   every theme and mode). No colour is changed for dark mode here: the
+   theme's tokens carry it. */
+:root[data-look="own"] {
+  --top-bg: var(--inverse);
+  --top-ink: var(--inverse-ink);
+  --top-mark: var(--inverse-signal);
+  --top-rule: var(--inverse-line);
+  --top-contour: color-mix(in oklab, var(--inverse-ink) 13%, var(--inverse));
 }

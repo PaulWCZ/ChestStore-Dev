@@ -8,7 +8,8 @@ import { addField, removeField, renameField, restoreField } from "../../lib/fiel
 import { applyImport, previewImport, type Plan } from "../../lib/importer.ts";
 import * as inventory from "../../lib/inventory.ts";
 import * as items from "../../lib/items.ts";
-import { confirm, setCharter } from "../../lib/receipts.ts";
+import { confirm, remind, setCharter } from "../../lib/receipts.ts";
+import { remindReceipt } from "../../lib/tell.ts";
 import * as requests from "../../lib/requests.ts";
 import { currentMember } from "../../lib/session.ts";
 
@@ -66,6 +67,15 @@ export async function restock(id: string, input: { qty: string; note?: string })
 // "I received it".
 export async function confirmReceipt(id: string, input: { remark?: string; charterId?: string }): Promise<Result> {
   return act(async actor => { await confirm(db(), actor, id, input); return null; });
+}
+
+// "Remind them": the bell, and email where the Chest sends it. Says
+// whether the email left (the toast says how they were reminded).
+export async function remindHolder(id: string): Promise<Result<{ mailed: boolean }>> {
+  return act(async actor => {
+    const r = await remind(db(), actor, id);
+    return { mailed: await remindReceipt(actor!, r.holder, r.item, r.givenOn) };
+  });
 }
 
 export async function saveCharter(body: string): Promise<Result> {

@@ -25,6 +25,8 @@ export const errorCodes = [
   "import_invalid",
   "no_mailbox",
   "already_there",
+  "taken",
+  "gone",
   "too_large_image",
   "unavailable",
   "unknown",

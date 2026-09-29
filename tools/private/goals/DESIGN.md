@@ -24,8 +24,8 @@ own few, defined from them:
 | the main button | `#1f4a3f` / `#e6dcc4` | `--accent`, `--accent-ink`, `--accent-line` |
 | on track · at risk · off track | `#2e6b45` · `#8a5a00` · `#a8321f` | the states `--ok` · `--wait` · `--danger` (+ `-soft`, `-ink`) |
 | the sunrise (check-in, the waiting list's edge) | `#bf4f1d` / `#f08a4b` | `--sunrise` = `--cat-3` (the palette's orange slot), `--sunrise-soft`/`-ink` its soft ground and label |
-| the header, the map's dark margin | forest `#17302a` / `#0b1210` | `--top-bg`, `--top-ink`: the contract's region of its own colour, `--inverse` / `--inverse-ink` (kit 0.2.2): dark in both modes, each theme's own band, a brand's deep shade |
-| the current tab's mark | peach / the band's text | `--top-mark` = `--highlight` (9:1 or more on `--inverse` in every catalogue theme and brand, light) / `--inverse-ink` in dark mode |
+| the header, the map's dark margin (the Trail map only) | forest `#17302a` / `#0b1210` | `--top-bg`, `--top-ink` = `--inverse` / `--inverse-ink` under `[data-look="own"]`; in any other look the kit's normal header (`--surface`, `--ink`) |
+| the current tab's mark | the marker pen | `--top-mark` = `--inverse-signal` on the band (kit 0.2.3, measured in every theme and mode); `--accent-line` on the kit's header |
 | contour lines | — | `--contour`, `--top-contour`: `color-mix(in oklab, …)`, decoration only |
 | the chart's line | — | `--accent-line` (3:1 on every ground) |
 
@@ -36,7 +36,9 @@ were the hairline `#d6ccb8`, 1.4:1).
 theme of the catalogue (Workshop, Magazine, Chest, High contrast…) or its
 own brand (colours, fonts, corners, logo) — for all tools or Goals alone.
 Every feature stays the same, and every text stays readable: states and
-categories come from the theme, the header is its `--inverse` band, and in
+categories come from the theme, the header is the kit's normal header (the
+dark map band is the Trail map's own), the contour lines step aside where
+the look asks (`--decor`: a brand, the Chest's sheet, High contrast), and in
 brand mode the company's logo stands where Goals' mark is. The mark itself
 is drawn with the look's tokens (sand = `--bg`, forest = `--ink`, the sun
 = the palette's orange); in the Trail map it is the tile's drawing exactly.

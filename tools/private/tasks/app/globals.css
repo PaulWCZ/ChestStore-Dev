@@ -312,11 +312,11 @@ table.cards th[aria-sort] button.sort .arrow { color: var(--ink); }
 .tl-track { position: relative; flex: none; width: calc(var(--days) * var(--day)); display: flex;
   /* Weekends: the windows always start on a Monday. */
   background: repeating-linear-gradient(to right, transparent 0 calc(5 * var(--day)), var(--surface-2) calc(5 * var(--day)) calc(7 * var(--day))); }
-.tl-day { flex: none; width: var(--day); display: grid; justify-items: center; align-content: end; padding-bottom: 4px; font-size: var(--text-xs); line-height: 1.2; position: relative; }
+.tl-day { flex: none; width: var(--day); display: grid; grid-template-rows: 14px auto auto; justify-items: center; align-content: end; padding-bottom: 4px; font-size: var(--text-xs); line-height: 1.2; }
 .tl-day .tl-letter { color: var(--ink-2); }
 .tl-day .tl-num { font-weight: var(--weight-strong); }
 .tl-day.today .tl-num { background: var(--accent); color: var(--accent-ink); border-radius: var(--radius-pill); padding: 0 4px; }
-.tl-month { position: absolute; top: 3px; left: 3px; font-weight: var(--weight-strong); text-transform: uppercase; letter-spacing: 0.04em; white-space: nowrap; }
+.tl-month { justify-self: start; padding-left: 3px; font-size: 0.85em; font-weight: var(--weight-strong); text-transform: uppercase; letter-spacing: 0.04em; white-space: nowrap; }
 .tl-group-title { display: flex; align-items: center; gap: var(--space-2); height: 36px; box-sizing: border-box; padding: 0 var(--space-3); border-top: var(--border-width) solid var(--line-strong); font-size: var(--text-s); text-transform: uppercase; letter-spacing: 0.05em; background: var(--bg); position: sticky; left: 0; width: max-content; min-width: 100%; }
 .tl-today { position: absolute; top: 48px; bottom: 0; left: calc(var(--name) + var(--today) * var(--day) + var(--day) / 2); width: 2px; background: var(--accent-text); pointer-events: none; z-index: 1; }
 .tl-bar { position: absolute; top: 7px; height: 30px; left: calc(var(--from) * var(--day) + 2px); width: calc(var(--len) * var(--day) - 4px + var(--grow, 0px)); min-width: 24px; display: flex; z-index: 2;
@@ -331,6 +331,8 @@ table.cards th[aria-sort] button.sort .arrow { color: var(--ink); }
 .tl-handle { flex: 1; min-width: 0; display: flex; align-items: center; gap: 4px; padding: 0 6px; cursor: grab; font-size: var(--text-xs); font-weight: var(--weight-strong); touch-action: manipulation; border-radius: inherit; }
 .tl-handle svg { width: 14px; height: 14px; color: var(--danger); }
 .tl-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* A bar of a day or two: its title follows it, on the page. */
+.tl-bar.short .tl-title { position: absolute; left: calc(100% + 6px); max-width: 14em; color: var(--ink); pointer-events: none; }
 .tl-end { flex: none; width: 10px; cursor: ew-resize; border-left: 1.5px solid currentColor; opacity: 0.6; border-radius: 0 var(--radius-s) var(--radius-s) 0; touch-action: none; }
 .tl-end:hover, .tl-end:focus-visible { opacity: 1; background: var(--surface); }
 .tl-links { position: absolute; top: 0; left: var(--name); pointer-events: none; z-index: 1; overflow: visible; }

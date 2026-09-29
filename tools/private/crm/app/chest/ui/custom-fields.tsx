@@ -25,7 +25,7 @@ export function CustomInputs({ fields, values, onChange, prefix, today, t }: { f
               <select id={id} className="field" value={value} onChange={e => set(f.id, e.target.value)}>
                 <option value="">{t.common.noValue}</option>
                 {!f.options.includes(value) && value !== "" && <option value={value}>{value}</option>}
-                {f.options.map(o => <option key={o} value={o}>{o}</option>)}
+                {f.options.map((o, i) => <option key={o} value={o}>{f.optionLabels?.[i] ?? o}</option>)}
               </select>
             ) : f.kind === "number" ? (
               <input id={id} className="field num" inputMode="decimal" value={value} maxLength={24} onChange={e => set(f.id, e.target.value)} />

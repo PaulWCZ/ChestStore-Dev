@@ -6,33 +6,33 @@
 -- screens always look current.
 
 insert into companies (name, website, phone, address, industry, tags, owner, notes, created_by, created_at) values
-  ('Boulangeries Durand', 'durand-boulangeries.fr', '04 78 42 16 90', E'12 rue de la République\n69002 Lyon', 'Food retail', '{"retail","key account"}', 'mbr_inesaaaaaaaaaaaaaaaaaaaaaa', 'Twelve shops around Lyon. Head office moving in spring.', 'mbr_inesaaaaaaaaaaaaaaaaaaaaaa', now() - interval '120 days'),
-  ('Cabinet Lefèvre Avocats', 'lefevre-avocats.fr', '01 44 55 21 70', E'48 boulevard Haussmann\n75009 Paris', 'Law firm', '{"services"}', 'mbr_hugoaaaaaaaaaaaaaaaaaaaaaa', '', 'mbr_hugoaaaaaaaaaaaaaaaaaaaaaa', now() - interval '111 days'),
-  ('Garage Petit & Fils', 'garage-petit.fr', '02 40 12 88 31', E'7 route de Vannes\n44100 Nantes', 'Car repair', '{}', 'mbr_hugoaaaaaaaaaaaaaaaaaaaaaa', '', 'mbr_hugoaaaaaaaaaaaaaaaaaaaaaa', now() - interval '102 days'),
-  ('Imprimerie Roux', 'imprimerie-roux.fr', '05 56 31 44 02', E'3 quai de Bacalan\n33300 Bordeaux', 'Printing', '{}', 'mbr_sofiaaaaaaaaaaaaaaaaaaaaaa', 'Family business, prefers email.', 'mbr_sofiaaaaaaaaaaaaaaaaaaaaaa', now() - interval '93 days'),
-  ('Clinique Vétérinaire des Tilleuls', 'vet-tilleuls.fr', '03 88 22 10 45', E'21 allée des Tilleuls\n67000 Strasbourg', 'Veterinary', '{"health"}', 'mbr_inesaaaaaaaaaaaaaaaaaaaaaa', '', 'mbr_inesaaaaaaaaaaaaaaaaaaaaaa', now() - interval '84 days'),
-  ('Nouvelle Boulangerie', 'nouvelle-boulangerie.fr', '04 72 10 33 58', E'5 place Bellecour\n69002 Lyon', 'Food retail', '{"retail"}', 'mbr_inesaaaaaaaaaaaaaaaaaaaaaa', '', 'mbr_inesaaaaaaaaaaaaaaaaaaaaaa', now() - interval '75 days'),
-  ('Studio Blanc Architecture', 'studio-blanc.fr', '01 42 71 09 16', E'19 rue Charlot\n75003 Paris', 'Architecture', '{"partner"}', 'mbr_camilleaaaaaaaaaaaaaaaaaaa', 'Sends us fit-out projects.', 'mbr_camilleaaaaaaaaaaaaaaaaaaa', now() - interval '66 days'),
-  ('Hôtel Le Méridien Sud', 'hotel-meridien-sud.fr', '04 91 54 20 00', E'60 La Canebière\n13001 Marseille', 'Hospitality', '{"key account"}', 'mbr_hugoaaaaaaaaaaaaaaaaaaaaaa', '', 'mbr_hugoaaaaaaaaaaaaaaaaaaaaaa', now() - interval '57 days'),
-  ('Coopérative Agricole du Val', 'coop-du-val.fr', '02 47 58 61 12', E'Zone artisanale des Granges\n37400 Amboise', 'Agriculture', '{}', 'mbr_sofiaaaaaaaaaaaaaaaaaaaaaa', '', 'mbr_sofiaaaaaaaaaaaaaaaaaaaaaa', now() - interval '48 days'),
-  ('Mairie de Saint-Aubin', 'saint-aubin.fr', '02 99 45 11 20', E'Place de la Mairie\n35250 Saint-Aubin', 'Public sector', '{"public tender"}', 'mbr_camilleaaaaaaaaaaaaaaaaaaa', 'Public tender rules apply: quotes through their platform.', 'mbr_camilleaaaaaaaaaaaaaaaaaaa', now() - interval '39 days');
+  ('Boulangeries Durand', 'durand-boulangeries.fr', '04 78 42 16 90', E'12 rue de la République\n69002 Lyon', '@foodRetail', '{"@retail","@keyAccount"}', 'mbr_inesaaaaaaaaaaaaaaaaaaaaaa', 'Twelve shops around Lyon. Head office moving in spring.', 'mbr_inesaaaaaaaaaaaaaaaaaaaaaa', now() - interval '120 days'),
+  ('Cabinet Lefèvre Avocats', 'lefevre-avocats.fr', '01 44 55 21 70', E'48 boulevard Haussmann\n75009 Paris', '@lawFirm', '{"@services"}', 'mbr_hugoaaaaaaaaaaaaaaaaaaaaaa', '', 'mbr_hugoaaaaaaaaaaaaaaaaaaaaaa', now() - interval '111 days'),
+  ('Garage Petit & Fils', 'garage-petit.fr', '02 40 12 88 31', E'7 route de Vannes\n44100 Nantes', '@carRepair', '{}', 'mbr_hugoaaaaaaaaaaaaaaaaaaaaaa', '', 'mbr_hugoaaaaaaaaaaaaaaaaaaaaaa', now() - interval '102 days'),
+  ('Imprimerie Roux', 'imprimerie-roux.fr', '05 56 31 44 02', E'3 quai de Bacalan\n33300 Bordeaux', '@printing', '{}', 'mbr_sofiaaaaaaaaaaaaaaaaaaaaaa', 'Family business, prefers email.', 'mbr_sofiaaaaaaaaaaaaaaaaaaaaaa', now() - interval '93 days'),
+  ('Clinique Vétérinaire des Tilleuls', 'vet-tilleuls.fr', '03 88 22 10 45', E'21 allée des Tilleuls\n67000 Strasbourg', '@veterinary', '{"@health"}', 'mbr_inesaaaaaaaaaaaaaaaaaaaaaa', '', 'mbr_inesaaaaaaaaaaaaaaaaaaaaaa', now() - interval '84 days'),
+  ('Nouvelle Boulangerie', 'nouvelle-boulangerie.fr', '04 72 10 33 58', E'5 place Bellecour\n69002 Lyon', '@foodRetail', '{"@retail"}', 'mbr_inesaaaaaaaaaaaaaaaaaaaaaa', '', 'mbr_inesaaaaaaaaaaaaaaaaaaaaaa', now() - interval '75 days'),
+  ('Studio Blanc Architecture', 'studio-blanc.fr', '01 42 71 09 16', E'19 rue Charlot\n75003 Paris', '@architecture', '{"@partner"}', 'mbr_camilleaaaaaaaaaaaaaaaaaaa', 'Sends us fit-out projects.', 'mbr_camilleaaaaaaaaaaaaaaaaaaa', now() - interval '66 days'),
+  ('Hôtel Le Méridien Sud', 'hotel-meridien-sud.fr', '04 91 54 20 00', E'60 La Canebière\n13001 Marseille', '@hospitality', '{"@keyAccount"}', 'mbr_hugoaaaaaaaaaaaaaaaaaaaaaa', '', 'mbr_hugoaaaaaaaaaaaaaaaaaaaaaa', now() - interval '57 days'),
+  ('Coopérative Agricole du Val', 'coop-du-val.fr', '02 47 58 61 12', E'Zone artisanale des Granges\n37400 Amboise', '@agriculture', '{}', 'mbr_sofiaaaaaaaaaaaaaaaaaaaaaa', '', 'mbr_sofiaaaaaaaaaaaaaaaaaaaaaa', now() - interval '48 days'),
+  ('Mairie de Saint-Aubin', 'saint-aubin.fr', '02 99 45 11 20', E'Place de la Mairie\n35250 Saint-Aubin', '@publicSector', '{"@publicTender"}', 'mbr_camilleaaaaaaaaaaaaaaaaaaa', 'Public tender rules apply: quotes through their platform.', 'mbr_camilleaaaaaaaaaaaaaaaaaaa', now() - interval '39 days');
 
 insert into contacts (name, email, phone, title, company_id, owner, last_contact_at, tags, created_by, created_at) values
-  ('Claire Durand', 'claire.durand@durand-boulangeries.fr', '06 12 34 56 78', 'Purchasing manager', (select id from companies where name = 'Boulangeries Durand'), 'mbr_inesaaaaaaaaaaaaaaaaaaaaaa', now() - interval '2 days', '{"decision maker"}', 'mbr_inesaaaaaaaaaaaaaaaaaaaaaa', now() - interval '110 days'),
+  ('Claire Durand', 'claire.durand@durand-boulangeries.fr', '06 12 34 56 78', 'Purchasing manager', (select id from companies where name = 'Boulangeries Durand'), 'mbr_inesaaaaaaaaaaaaaaaaaaaaaa', now() - interval '2 days', '{"@decisionMaker"}', 'mbr_inesaaaaaaaaaaaaaaaaaaaaaa', now() - interval '110 days'),
   ('Marc Durand', 'marc.durand@durand-boulangeries.fr', '06 22 41 90 13', 'Managing director', (select id from companies where name = 'Boulangeries Durand'), 'mbr_inesaaaaaaaaaaaaaaaaaaaaaa', now() - interval '20 days', '{}', 'mbr_inesaaaaaaaaaaaaaaaaaaaaaa', now() - interval '105 days'),
-  ('Élodie Lefèvre', 'e.lefevre@lefevre-avocats.fr', '01 44 55 21 72', 'Partner', (select id from companies where name = 'Cabinet Lefèvre Avocats'), 'mbr_hugoaaaaaaaaaaaaaaaaaaaaaa', now() - interval '5 days', '{"decision maker"}', 'mbr_hugoaaaaaaaaaaaaaaaaaaaaaa', now() - interval '100 days'),
+  ('Élodie Lefèvre', 'e.lefevre@lefevre-avocats.fr', '01 44 55 21 72', 'Partner', (select id from companies where name = 'Cabinet Lefèvre Avocats'), 'mbr_hugoaaaaaaaaaaaaaaaaaaaaaa', now() - interval '5 days', '{"@decisionMaker"}', 'mbr_hugoaaaaaaaaaaaaaaaaaaaaaa', now() - interval '100 days'),
   ('Julien Moreau', 'j.moreau@lefevre-avocats.fr', '01 44 55 21 75', 'Office manager', (select id from companies where name = 'Cabinet Lefèvre Avocats'), 'mbr_hugoaaaaaaaaaaaaaaaaaaaaaa', now() - interval '9 days', '{}', 'mbr_hugoaaaaaaaaaaaaaaaaaaaaaa', now() - interval '95 days'),
   ('Pierre Petit', 'pierre@garage-petit.fr', '06 71 08 33 20', 'Owner', (select id from companies where name = 'Garage Petit & Fils'), 'mbr_hugoaaaaaaaaaaaaaaaaaaaaaa', now() - interval '1 days', '{}', 'mbr_hugoaaaaaaaaaaaaaaaaaaaaaa', now() - interval '90 days'),
   ('Hélène Roux', 'helene@imprimerie-roux.fr', '05 56 31 44 00', 'Director', (select id from companies where name = 'Imprimerie Roux'), 'mbr_sofiaaaaaaaaaaaaaaaaaaaaaa', now() - interval '12 days', '{}', 'mbr_sofiaaaaaaaaaaaaaaaaaaaaaa', now() - interval '85 days'),
   ('Dr Nadia Chérif', 'n.cherif@vet-tilleuls.fr', '03 88 22 10 40', 'Head vet', (select id from companies where name = 'Clinique Vétérinaire des Tilleuls'), 'mbr_inesaaaaaaaaaaaaaaaaaaaaaa', now() - interval '3 days', '{}', 'mbr_inesaaaaaaaaaaaaaaaaaaaaaa', now() - interval '80 days'),
   ('Thomas Girard', 'thomas.girard@vet-tilleuls.fr', '', 'Practice manager', (select id from companies where name = 'Clinique Vétérinaire des Tilleuls'), 'mbr_inesaaaaaaaaaaaaaaaaaaaaaa', null, '{}', 'mbr_inesaaaaaaaaaaaaaaaaaaaaaa', now() - interval '75 days'),
   ('Lucie Martin', 'lucie@nouvelle-boulangerie.fr', '06 55 10 22 87', 'Founder', (select id from companies where name = 'Nouvelle Boulangerie'), 'mbr_inesaaaaaaaaaaaaaaaaaaaaaa', now() - interval '40 days', '{}', 'mbr_inesaaaaaaaaaaaaaaaaaaaaaa', now() - interval '70 days'),
-  ('Sophie Blanc', 'sophie@studio-blanc.fr', '06 44 91 20 36', 'Architect, founder', (select id from companies where name = 'Studio Blanc Architecture'), 'mbr_camilleaaaaaaaaaaaaaaaaaaa', now() - interval '7 days', '{"partner"}', 'mbr_camilleaaaaaaaaaaaaaaaaaaa', now() - interval '65 days'),
-  ('Antoine Vidal', 'a.vidal@hotel-meridien-sud.fr', '04 91 54 20 12', 'General manager', (select id from companies where name = 'Hôtel Le Méridien Sud'), 'mbr_hugoaaaaaaaaaaaaaaaaaaaaaa', now() - interval '15 days', '{"decision maker"}', 'mbr_hugoaaaaaaaaaaaaaaaaaaaaaa', now() - interval '60 days'),
+  ('Sophie Blanc', 'sophie@studio-blanc.fr', '06 44 91 20 36', 'Architect, founder', (select id from companies where name = 'Studio Blanc Architecture'), 'mbr_camilleaaaaaaaaaaaaaaaaaaa', now() - interval '7 days', '{"@partner"}', 'mbr_camilleaaaaaaaaaaaaaaaaaaa', now() - interval '65 days'),
+  ('Antoine Vidal', 'a.vidal@hotel-meridien-sud.fr', '04 91 54 20 12', 'General manager', (select id from companies where name = 'Hôtel Le Méridien Sud'), 'mbr_hugoaaaaaaaaaaaaaaaaaaaaaa', now() - interval '15 days', '{"@decisionMaker"}', 'mbr_hugoaaaaaaaaaaaaaaaaaaaaaa', now() - interval '60 days'),
   ('Camille Rey', 'c.rey@hotel-meridien-sud.fr', '04 91 54 20 15', 'Operations', (select id from companies where name = 'Hôtel Le Méridien Sud'), 'mbr_hugoaaaaaaaaaaaaaaaaaaaaaa', now() - interval '4 days', '{}', 'mbr_hugoaaaaaaaaaaaaaaaaaaaaaa', now() - interval '55 days'),
   ('Bernard Fabre', 'b.fabre@coop-du-val.fr', '02 47 58 61 10', 'Chairman', (select id from companies where name = 'Coopérative Agricole du Val'), 'mbr_sofiaaaaaaaaaaaaaaaaaaaaaa', now() - interval '60 days', '{}', 'mbr_sofiaaaaaaaaaaaaaaaaaaaaaa', now() - interval '50 days'),
   ('Isabelle Noël', 'dgs@saint-aubin.fr', '02 99 45 11 22', 'Director general of services', (select id from companies where name = 'Mairie de Saint-Aubin'), 'mbr_camilleaaaaaaaaaaaaaaaaaaa', now() - interval '25 days', '{}', 'mbr_camilleaaaaaaaaaaaaaaaaaaa', now() - interval '45 days'),
-  ('Paul Garnier', 'paul.garnier@gmail.com', '06 98 12 45 70', 'Freelance facility consultant', null, 'mbr_sofiaaaaaaaaaaaaaaaaaaaaaa', now() - interval '1300 days', '{"prospect"}', 'mbr_sofiaaaaaaaaaaaaaaaaaaaaaa', now() - interval '1400 days');
+  ('Paul Garnier', 'paul.garnier@gmail.com', '06 98 12 45 70', 'Freelance facility consultant', null, 'mbr_sofiaaaaaaaaaaaaaaaaaaaaaa', now() - interval '1300 days', '{"@prospect"}', 'mbr_sofiaaaaaaaaaaaaaaaaaaaaaa', now() - interval '1400 days');
 
 insert into deals (title, company_id, contact_id, value_cents, stage_id, position, expected_close, owner, reason, closed_at, created_by, created_at) values
   ('Head office fit-out, 40 desks', (select id from companies where name = 'Boulangeries Durand'), (select id from contacts where name = 'Claire Durand'), 4850000, (select id from stages where key = 'proposal'), 'm', (now() at time zone 'Europe/Paris')::date + 24, 'mbr_inesaaaaaaaaaaaaaaaaaaaaaa', '', null, 'mbr_inesaaaaaaaaaaaaaaaaaaaaaa', now() - interval '80 days'),
@@ -109,12 +109,14 @@ update companies set siren = '530530419', vat = 'FR40530530419' where name = 'Ca
 update companies set siren = '749008934', vat = 'FR86749008934' where name = 'Hôtel Le Méridien Sud';
 update companies set siren = '353246119' where name = 'Studio Blanc Architecture';
 
-insert into fields (object, label, kind, options, position) values
-  ('companies', 'Segment', 'choice', '{"Small business","Mid-market","Key account"}', 0),
-  ('companies', 'Employees', 'number', '{}', 1),
-  ('contacts', 'Lead source', 'choice', '{"Referral","Trade fair","Website","Cold call"}', 0),
-  ('deals', 'Competitor', 'text', '{}', 0),
-  ('deals', 'Delivery wanted by', 'date', '{}', 1);
+-- The sample's own fields carry the catalogue's names (label_key,
+-- option_keys): each reader sees them in their language until renamed.
+insert into fields (object, label, kind, options, position, label_key, option_keys) values
+  ('companies', 'Segment', 'choice', '{"Small business","Mid-market","Key account"}', 0, 'segment', '{"smallBusiness","midMarket","keyAccount"}'),
+  ('companies', 'Employees', 'number', '{}', 1, 'employees', '{}'),
+  ('contacts', 'Lead source', 'choice', '{"Referral","Trade fair","Website","Cold call"}', 0, 'leadSource', '{"referral","tradeFair","website","coldCall"}'),
+  ('deals', 'Competitor', 'text', '{}', 0, 'competitor', '{}'),
+  ('deals', 'Delivery wanted by', 'date', '{}', 1, 'deliveryWantedBy', '{}');
 update companies set custom = jsonb_build_object((select id::text from fields where label = 'Segment'), 'Key account', (select id::text from fields where label = 'Employees'), 140) where name in ('Boulangeries Durand', 'Hôtel Le Méridien Sud');
 update companies set custom = jsonb_build_object((select id::text from fields where label = 'Segment'), 'Small business', (select id::text from fields where label = 'Employees'), 12) where name in ('Garage Petit & Fils', 'Imprimerie Roux', 'Nouvelle Boulangerie');
 update companies set custom = jsonb_build_object((select id::text from fields where label = 'Segment'), 'Mid-market', (select id::text from fields where label = 'Employees'), 35) where name in ('Cabinet Lefèvre Avocats', 'Clinique Vétérinaire des Tilleuls', 'Studio Blanc Architecture');

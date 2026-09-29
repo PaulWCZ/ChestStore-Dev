@@ -65,7 +65,7 @@ export function Shell({ brand, member, spaces, nodes, canWrite, noAccess = false
       {noAccess ? <div className="page narrow">{children}</div> : <div className={`frame${editing ? " editing" : ""}`}>
         {!editing && !contents && (
           <nav id="sidebar" className="sidebar" aria-label={t.shell.tree}>
-            <h2 className="side-title">{t.shell.spaces}</h2>
+            {spaces.length > 0 && <h2 className="side-title">{t.shell.spaces}</h2>}
             <PageTree spaces={spaces} nodes={nodes} path={path} t={t} onNewPage={setNewPage} />
             {canWrite && (
               <div className="side-foot">

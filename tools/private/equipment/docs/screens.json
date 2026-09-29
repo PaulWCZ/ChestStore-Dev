@@ -1,36 +1,400 @@
 [
-  {"name": "overview", "path": "/chest", "member": "sofia", "locale": "en", "preview": true},
-  {"name": "list", "path": "/chest/items", "member": "sofia", "locale": "en"},
-  {"name": "item", "path": "/chest/items/2", "member": "sofia", "locale": "en"},
-  {"name": "licence", "path": "/chest/items/39", "member": "sofia", "locale": "en", "only": ["desktop"]},
-  {"name": "supplies", "path": "/chest/items/42", "member": "sofia", "locale": "en", "only": ["desktop"]},
-  {"name": "mine-fr", "path": "/chest", "member": "ines", "locale": "fr"},
-  {"name": "mine-confirm", "path": "/chest", "member": "hugo", "locale": "en"},
-  {"name": "receive", "path": "/chest", "member": "hugo", "locale": "en", "actions": [{"click": ".label-card.to-confirm button:has-text('I received it')"}, {"wait": 400}]},
-  {"name": "ask", "path": "/chest", "member": "hugo", "locale": "en", "only": ["desktop"], "actions": [{"click": "button:has-text('Ask for something')"}, {"wait": 400}]},
-  {"name": "handover", "path": "/chest/people/mbr_hugoaaaaaaaaaaaaaaaaaaaaaa/handover", "member": "sofia", "locale": "en"},
-  {"name": "handover-fr", "path": "/chest/people/mbr_inesaaaaaaaaaaaaaaaaaaaaaa/handover", "member": "camille", "locale": "fr", "only": ["desktop"]},
-  {"name": "return-sheet", "path": "/chest/people/mbr_tomaaaaaaaaaaaaaaaaaaaaaaa/return", "member": "sofia", "locale": "en", "only": ["desktop"]},
-  {"name": "person-leaving", "path": "/chest/people/mbr_leaaaaaaaaaaaaaaaaaaaaaaaa", "member": "sofia", "locale": "en"},
-  {"name": "person-fr", "path": "/chest/people/mbr_tomaaaaaaaaaaaaaaaaaaaaaaa", "member": "camille", "locale": "fr"},
-  {"name": "overview-fr", "path": "/chest", "member": "camille", "locale": "fr", "only": ["phone"]},
-  {"name": "new-many", "path": "/chest/items/new", "member": "sofia", "locale": "en", "only": ["desktop"], "actions": [{"fill": ["#f-count", "3"]}, {"fill": ["#f-serials", "PF5AA001\nPF5AA002\nPF5AA003"]}, {"wait": 300}]},
-  {"name": "inventory", "path": "/chest/inventory", "member": "sofia", "locale": "en", "actions": [{"fill": ["#scan-box", "EQ-0002"]}, {"wait": 200}]},
-  {"name": "inventory-report", "path": "/chest/inventory/1", "member": "sofia", "locale": "en", "only": ["desktop"]},
-  {"name": "settings", "path": "/chest/settings", "member": "sofia", "locale": "en", "only": ["desktop"], "actions": [{"click": ".cat-row >> nth=1 >> .fields-editor summary"}, {"wait": 300}]},
-  {"name": "labels", "path": "/chest/labels?category=1", "member": "sofia", "locale": "en", "only": ["desktop"]},
-  {"name": "import", "path": "/chest/import", "member": "sofia", "locale": "en", "only": ["desktop"]},
-  {"name": "list-dark", "path": "/chest/items", "member": "tom", "locale": "en", "dark": true},
-  {"name": "overview-dark", "path": "/chest", "member": "sofia", "locale": "en", "dark": true, "only": ["phone"]},
-  {"name": "overview-chest", "path": "/chest", "member": "sofia", "locale": "en", "look": {"all": "catalogue:chest"}, "only": ["desktop"]},
-  {"name": "overview-theme", "path": "/chest", "member": "sofia", "locale": "en", "look": {"all": "catalogue:blueprint"}},
-  {"name": "overview-theme-dark", "path": "/chest", "member": "sofia", "locale": "en", "dark": true, "look": {"all": "catalogue:blueprint"}, "only": ["phone"]},
-  {"name": "overview-brand", "path": "/chest", "member": "camille", "locale": "fr", "look": {"tool": "brand:sample"}},
-  {"name": "overview-brand-dark", "path": "/chest", "member": "sofia", "locale": "en", "dark": true, "look": {"tool": "brand:sample"}, "only": ["phone"]},
-  {"name": "list-theme", "path": "/chest/items", "member": "sofia", "locale": "fr", "look": {"all": "catalogue:library"}, "only": ["desktop"]},
-  {"name": "item-brand-dark", "path": "/chest/items/2", "member": "sofia", "locale": "en", "dark": true, "look": {"tool": "brand:sample"}, "only": ["desktop"]},
-  {"name": "seat-dialog", "path": "/chest/items/39", "member": "sofia", "locale": "en", "actions": [{"click": "button:has-text('Give a seat')"}, {"wait": 500}]},
-  {"name": "undo-fr", "path": "/chest/people/mbr_tomaaaaaaaaaaaaaaaaaaaaaaa", "member": "camille", "locale": "fr", "actions": [{"click": "button:has-text('Tout reprendre')"}, {"wait": 800}, {"click": ".ck-toast-undo"}, {"wait": 1500}], "only": ["desktop"]},
-  {"name": "handover-theme-dark", "path": "/chest/people/mbr_hugoaaaaaaaaaaaaaaaaaaaaaa/handover", "member": "sofia", "locale": "fr", "dark": true, "look": {"all": "catalogue:control-room"}, "only": ["desktop"]},
-  {"name": "labels-brand-dark", "path": "/chest/labels?category=1", "member": "sofia", "locale": "en", "dark": true, "look": {"tool": "brand:sample"}, "only": ["desktop"]}
+  {
+    "name": "overview",
+    "path": "/chest",
+    "member": "sofia",
+    "locale": "en",
+    "preview": true
+  },
+  {
+    "name": "list",
+    "path": "/chest/items",
+    "member": "sofia",
+    "locale": "en"
+  },
+  {
+    "name": "item",
+    "path": "/chest/items/2",
+    "member": "sofia",
+    "locale": "en"
+  },
+  {
+    "name": "licence",
+    "path": "/chest/items/39",
+    "member": "sofia",
+    "locale": "en",
+    "only": [
+      "desktop"
+    ]
+  },
+  {
+    "name": "supplies",
+    "path": "/chest/items/42",
+    "member": "sofia",
+    "locale": "en",
+    "only": [
+      "desktop"
+    ]
+  },
+  {
+    "name": "mine-fr",
+    "path": "/chest",
+    "member": "ines",
+    "locale": "fr"
+  },
+  {
+    "name": "mine-confirm",
+    "path": "/chest",
+    "member": "hugo",
+    "locale": "en"
+  },
+  {
+    "name": "receive",
+    "path": "/chest",
+    "member": "hugo",
+    "locale": "en",
+    "actions": [
+      {
+        "click": ".label-card.to-confirm button:has-text('I received it')"
+      },
+      {
+        "wait": 400
+      }
+    ]
+  },
+  {
+    "name": "ask",
+    "path": "/chest",
+    "member": "hugo",
+    "locale": "en",
+    "only": [
+      "desktop"
+    ],
+    "actions": [
+      {
+        "click": "button:has-text('Ask for something')"
+      },
+      {
+        "wait": 400
+      }
+    ]
+  },
+  {
+    "name": "handover",
+    "path": "/chest/people/mbr_hugoaaaaaaaaaaaaaaaaaaaaaa/handover",
+    "member": "sofia",
+    "locale": "en"
+  },
+  {
+    "name": "handover-fr",
+    "path": "/chest/people/mbr_inesaaaaaaaaaaaaaaaaaaaaaa/handover",
+    "member": "camille",
+    "locale": "fr",
+    "only": [
+      "desktop"
+    ]
+  },
+  {
+    "name": "return-sheet",
+    "path": "/chest/people/mbr_tomaaaaaaaaaaaaaaaaaaaaaaa/return",
+    "member": "sofia",
+    "locale": "en",
+    "only": [
+      "desktop"
+    ]
+  },
+  {
+    "name": "person-leaving",
+    "path": "/chest/people/mbr_leaaaaaaaaaaaaaaaaaaaaaaaa",
+    "member": "sofia",
+    "locale": "en"
+  },
+  {
+    "name": "person-fr",
+    "path": "/chest/people/mbr_tomaaaaaaaaaaaaaaaaaaaaaaa",
+    "member": "camille",
+    "locale": "fr"
+  },
+  {
+    "name": "overview-fr",
+    "path": "/chest",
+    "member": "camille",
+    "locale": "fr",
+    "only": [
+      "phone"
+    ]
+  },
+  {
+    "name": "new-many",
+    "path": "/chest/items/new",
+    "member": "sofia",
+    "locale": "en",
+    "only": [
+      "desktop"
+    ],
+    "actions": [
+      {
+        "fill": [
+          "#f-count",
+          "3"
+        ]
+      },
+      {
+        "fill": [
+          "#f-serials",
+          "PF5AA001\nPF5AA002\nPF5AA003"
+        ]
+      },
+      {
+        "wait": 300
+      }
+    ]
+  },
+  {
+    "name": "inventory",
+    "path": "/chest/inventory",
+    "member": "sofia",
+    "locale": "en",
+    "actions": [
+      {
+        "fill": [
+          "#scan-box",
+          "EQ-0002"
+        ]
+      },
+      {
+        "wait": 200
+      }
+    ]
+  },
+  {
+    "name": "inventory-report",
+    "path": "/chest/inventory/1",
+    "member": "sofia",
+    "locale": "en",
+    "only": [
+      "desktop"
+    ]
+  },
+  {
+    "name": "settings",
+    "path": "/chest/settings",
+    "member": "sofia",
+    "locale": "en",
+    "only": [
+      "desktop"
+    ],
+    "actions": [
+      {
+        "click": ".cat-row >> nth=1 >> .fields-editor summary"
+      },
+      {
+        "wait": 300
+      }
+    ]
+  },
+  {
+    "name": "labels",
+    "path": "/chest/labels?category=1",
+    "member": "sofia",
+    "locale": "en",
+    "only": [
+      "desktop"
+    ]
+  },
+  {
+    "name": "import",
+    "path": "/chest/import",
+    "member": "sofia",
+    "locale": "en",
+    "only": [
+      "desktop"
+    ]
+  },
+  {
+    "name": "list-dark",
+    "path": "/chest/items",
+    "member": "tom",
+    "locale": "en",
+    "dark": true
+  },
+  {
+    "name": "overview-dark",
+    "path": "/chest",
+    "member": "sofia",
+    "locale": "en",
+    "dark": true,
+    "only": [
+      "phone"
+    ]
+  },
+  {
+    "name": "overview-chest",
+    "path": "/chest",
+    "member": "sofia",
+    "locale": "en",
+    "look": {
+      "all": "catalogue:chest"
+    },
+    "only": [
+      "desktop"
+    ]
+  },
+  {
+    "name": "overview-theme",
+    "path": "/chest",
+    "member": "sofia",
+    "locale": "en",
+    "look": {
+      "all": "catalogue:blueprint"
+    }
+  },
+  {
+    "name": "overview-theme-dark",
+    "path": "/chest",
+    "member": "sofia",
+    "locale": "en",
+    "dark": true,
+    "look": {
+      "all": "catalogue:blueprint"
+    },
+    "only": [
+      "phone"
+    ]
+  },
+  {
+    "name": "overview-brand",
+    "path": "/chest",
+    "member": "camille",
+    "locale": "fr",
+    "look": {
+      "tool": "brand:sample"
+    }
+  },
+  {
+    "name": "overview-brand-dark",
+    "path": "/chest",
+    "member": "sofia",
+    "locale": "en",
+    "dark": true,
+    "look": {
+      "tool": "brand:sample"
+    },
+    "only": [
+      "phone"
+    ]
+  },
+  {
+    "name": "list-theme",
+    "path": "/chest/items",
+    "member": "sofia",
+    "locale": "fr",
+    "look": {
+      "all": "catalogue:library"
+    },
+    "only": [
+      "desktop"
+    ]
+  },
+  {
+    "name": "item-brand-dark",
+    "path": "/chest/items/2",
+    "member": "sofia",
+    "locale": "en",
+    "dark": true,
+    "look": {
+      "tool": "brand:sample"
+    },
+    "only": [
+      "desktop"
+    ]
+  },
+  {
+    "name": "seat-dialog",
+    "path": "/chest/items/39",
+    "member": "sofia",
+    "locale": "en",
+    "actions": [
+      {
+        "click": "button:has-text('Give a seat')"
+      },
+      {
+        "wait": 500
+      }
+    ]
+  },
+  {
+    "name": "undo-fr",
+    "path": "/chest/people/mbr_tomaaaaaaaaaaaaaaaaaaaaaaa",
+    "member": "camille",
+    "locale": "fr",
+    "actions": [
+      {
+        "click": "button:has-text('Tout reprendre')"
+      },
+      {
+        "wait": 800
+      },
+      {
+        "click": ".ck-toast-undo"
+      },
+      {
+        "wait": 1500
+      }
+    ],
+    "only": [
+      "desktop"
+    ]
+  },
+  {
+    "name": "handover-theme-dark",
+    "path": "/chest/people/mbr_hugoaaaaaaaaaaaaaaaaaaaaaa/handover",
+    "member": "sofia",
+    "locale": "fr",
+    "dark": true,
+    "look": {
+      "all": "catalogue:control-room"
+    },
+    "only": [
+      "desktop"
+    ]
+  },
+  {
+    "name": "labels-brand-dark",
+    "path": "/chest/labels?category=1",
+    "member": "sofia",
+    "locale": "en",
+    "dark": true,
+    "look": {
+      "tool": "brand:sample"
+    },
+    "only": [
+      "desktop"
+    ]
+  },
+  {
+    "name": "overview-port",
+    "path": "/chest",
+    "member": "camille",
+    "locale": "fr",
+    "look": {
+      "tool": "brand:port"
+    }
+  },
+  {
+    "name": "settings-fr",
+    "path": "/chest/settings",
+    "member": "camille",
+    "locale": "fr",
+    "only": [
+      "desktop"
+    ],
+    "full": true
+  },
+  {
+    "name": "refused",
+    "path": "/chest/settings",
+    "member": "hugo",
+    "locale": "en"
+  }
 ]

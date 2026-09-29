@@ -2,7 +2,7 @@ import * as chest from "@argentic/chest-sdk/chest";
 import { RespondFrame, RespondNotice } from "../components/respond-frame.tsx";
 import { format } from "../lib/i18n/index.ts";
 import { publicWords } from "../lib/session.ts";
-import { currentLook } from "../lib/theme.ts";
+import { currentLook } from "../lib/look.ts";
 
 // The public host's root. Forms are reached by their own link only (a form
 // is never listed for strangers): whoever lands here is told so, in their

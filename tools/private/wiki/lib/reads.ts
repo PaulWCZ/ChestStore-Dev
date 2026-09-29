@@ -43,7 +43,7 @@ export async function ask(sql: Sql, actor: Member | null, pageId: unknown, input
   const p = await page(sql, actor, pageId, "write");
   // Asked again without saying whom: the same people as before.
   const groups = input.groups === undefined ? (await askOf(sql, p.id))?.groups ?? [] : groupIds(input.groups);
-  await sql`update pages set read_asked_at = now(), read_asked_by = ${actor!.id}, read_version = version, read_groups = ${groups} where id = ${p.id}`;
+  await sql`update pages set read_asked_at = now(), read_asked_by = ${actor!.id}, read_version = version, read_groups = ${groups}, read_reminded_at = null, read_reminders = 0 where id = ${p.id}`;
   return p;
 }
 
@@ -84,6 +84,14 @@ export async function report(sql: Query, actor: Member | null, pageId: unknown):
   });
   const rank = (r: ReadRow) => (r.version === null ? 0 : r.current ? 2 : 1);
   return { page: p, ask: a, rows: rows.map((r, i) => ({ r, i })).sort((x, y) => rank(x.r) - rank(y.r) || x.i - y.i).map(x => x.r) };
+}
+
+// pending: of these people asked, those who have not confirmed the
+// version asked about.
+export async function pending(sql: Query, pageId: string, ask: ReadAsk, ids: string[]): Promise<string[]> {
+  if (ids.length === 0) return [];
+  const done = new Set((await sql<{ member_id: string }[]>`select member_id from page_reads where page_id = ${pageId} and version >= ${ask.version} and member_id in ${sql(ids)}`).map(r => r.member_id));
+  return ids.filter(id => !done.has(id));
 }
 
 // A cell of a CSV file: quoted, and never read as a formula by a

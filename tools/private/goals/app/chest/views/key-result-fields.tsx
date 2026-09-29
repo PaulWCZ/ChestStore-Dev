@@ -5,7 +5,7 @@ import { localSearch, type PeoplePickerWords } from "@argentic/chest-ui/componen
 import { useId } from "react";
 import { format } from "../../../lib/i18n/format.ts";
 import type { Catalogue } from "../../../lib/i18n/index.ts";
-import { valueText } from "../../../lib/values.ts";
+import { singularOf, unitOf, unitParts, valueText } from "../../../lib/values.ts";
 
 type Source = "manual" | "crm.won_amount" | "crm.won_count";
 export type KrDraft = { title: string; kind: "number" | "percent" | "money" | "milestone"; start: string; target: string; unit: string; owner: string; weight: string; source: Source };
@@ -40,6 +40,17 @@ export function KeyResultFields({ draft, onChange, owners, t, locale = "en", cur
   // "From 0 to 20 customers": the unit once, after the target; a
   // percentage or an amount carries its sign on both.
   const plain = (n: number) => valueText({ kind: "number", unit: "", currency: null }, n, locale);
+  // The unit: asked in the plural ("customers"); the form for one is
+  // guessed ("customer") and shown to correct only when the value may be 1
+  // (in French, 0 too). Stored as "customer/customers".
+  const parts = unitParts(draft.unit);
+  const setPlural = (plural: string) => {
+    const guessedBefore = singularOf(parts.plural, locale) ?? "";
+    const one = parts.one === "" || parts.one === guessedBefore ? singularOf(plural, locale) ?? "" : parts.one;
+    set({ unit: unitOf(plural, one) });
+  };
+  const low = Math.min(start, target ?? start), high = Math.max(start, target ?? start);
+  const mayBeOne = draft.kind === "number" && parts.plural.trim() !== "" && low <= 1 && high >= (locale.startsWith("fr") ? 0 : 1);
   const summary = draft.kind !== "milestone" && target !== null && target !== start ? format(f.summary, { start: draft.kind === "number" ? plain(start) : valueText(measured, start, locale), target: valueText(measured, target, locale) }) : null;
   return (
     <>
@@ -73,11 +84,16 @@ export function KeyResultFields({ draft, onChange, owners, t, locale = "en", cur
             {draft.kind === "number" && (
               <div className="unit">
                 <label className="label" htmlFor={`${uid}-unit`}>{f.unit}</label>
-                <input id={`${uid}-unit`} className="field" maxLength={41} value={draft.unit} placeholder={f.unitPlaceholder} onChange={e => set({ unit: e.target.value })} aria-describedby={`${uid}-unit-hint`} />
+                <input id={`${uid}-unit`} className="field" maxLength={20} value={parts.plural} placeholder={f.unitPlaceholder} onChange={e => setPlural(e.target.value)} />
               </div>
             )}
           </div>
-          {draft.kind === "number" && <p id={`${uid}-unit-hint`} className="hint">{f.unitHint}</p>}
+          {mayBeOne && (
+            <div className="unit-one">
+              <label className="label" htmlFor={`${uid}-unit-one`}>{f.unitOne}</label>
+              <input id={`${uid}-unit-one`} className="field" maxLength={20} value={parts.one} placeholder={parts.plural} onChange={e => set({ unit: unitOf(parts.plural, e.target.value) })} />
+            </div>
+          )}
           <p id={`${uid}-summary`} className="summary-line" aria-live="polite">{summary}</p>
         </div>
       )}

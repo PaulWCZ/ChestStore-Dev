@@ -2,14 +2,14 @@ import { BrandMark, LanguageSwitch } from "@argentic/chest-ui/components";
 import type { ReactNode } from "react";
 import { languageNames } from "../lib/i18n/format.ts";
 import { locales, type Locale } from "../lib/i18n/index.ts";
-import { currentLook } from "../lib/theme.ts";
+import { publicLook } from "../lib/theme.ts";
 
 // The frame of the public pages: the company — its logo when the Chest
 // gives its brand, else its name — and the language switch (each language
 // named in itself). Never the Chest's name: the client talks to the
 // company.
 export async function PublicShell({ company, locale, label, back, children, foot }: { company: string; locale: Locale; label: string; back: string; children: ReactNode; foot?: ReactNode }) {
-  const look = await currentLook();
+  const look = await publicLook();
   return (
     <div className="public-frame">
       <header className="public-top">

@@ -10,6 +10,7 @@ what must not break.
 | `chest.json`, `chest.proposals.json` | The manifest; the SDK proposals it uses (weekly schedule, French tile) |
 | `migrations/0001_equipment.sql` | Categories, items, seats, problems, history (append-only trigger), chest_events |
 | `migrations/0002_departures.sql` | Departures told by People (member, last day, when told) |
+| `migrations/0004_field_keys_rules_reminders.sql` | Field keys (names in each language), the example rules (`charters.example`), `receipts.reminded_at` |
 | `migrations/0003_receipts_requests_fields.sql` | Receipts, rules (charters), requests, fields per category, supplies (quantity, minimum), inventories, invoice; history gains qty, cost, ref, due and new kinds |
 | `lib/access.ts` | **Who may do what** — the only place roles are read |
 | `lib/model.ts` | Pure rules: limits, statuses, tags, money, dates, `clean()` |
@@ -25,7 +26,7 @@ what must not break.
 | `lib/tell.ts`, `lib/notify.ts` | Bell items (keyed, withdrawn when settled), managers' badges |
 | `lib/departures.ts` | Departures told by People (events between tools): read and check each event, ordering by `occurredAt`, the "To take back" list, purge |
 | `lib/lifecycle.ts`, `lib/weekly.ts` | Members leaving / erased (they also forget a departure); Monday's run |
-| `lib/view.ts`, `lib/words.ts` | Items as rows in words for the views |
+| `lib/view.ts`, `lib/words.ts` | Items as rows in words for the views; `categoryName`, `fieldName`, `charterText`: the tool's own names and example rules in the reader's language |
 | `lib/i18n/` | Every word: `en.ts` (source), `fr.ts`; `format.ts` for the browser; the UI kit's word sections (`toast`, `dialog`, `peoplePicker`, `date`, `files`, `table`, `filters`, `search`) |
 | `lib/theme.ts` | The identity "Tool crib" (`defineTheme`, equal to the kit's catalogue theme `labels`) and `currentLook()` |
 | `app/tokens.css` | The tool's own tokens, all defined from contract tokens (steel bar, tag, paper) |
@@ -42,6 +43,15 @@ what must not break.
   `not_found`.
 - Services return data or throw `AppError(code)`; words live in
   `lib/i18n` only (`test/literals.test.ts`, `test/i18n.test.ts`).
+- **Defaults are keys**: a category, a field or the rules the tool proposes
+  is shown in the reader's language (`categoryName`, `fieldName`,
+  `charterText`) until a manager changes it; never seed an English name
+  without its key.
+- **One refusal for managers' pages**: `if (!can(member, "items.manage"))
+  forbidden();` first thing (403, `app/chest/forbidden.tsx`, the kit's
+  NoAccess); add a new managers' page to `test/refusals.test.ts`.
+- **Printed sheets are proof**: people by `plainName` (never "(former
+  member)"), no placeholder left in any text, hidden or not.
 - The history is append-only: add a `kind` (migration + catalogue
   `history.*`) rather than editing rows. A shipped migration is never
   edited.

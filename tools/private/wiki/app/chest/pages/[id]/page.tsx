@@ -16,7 +16,7 @@ import { render } from "../../../../lib/render.ts";
 import { viewer } from "../../../../lib/session.ts";
 import { listSpaces } from "../../../../lib/spaces.ts";
 import { isWatching } from "../../../../lib/watching.ts";
-import { groupsOfTool, membersOfTool } from "../../../../lib/groups.ts";
+import { companyGroups, membersOfTool } from "../../../../lib/groups.ts";
 import { isPinned } from "../../../../lib/pins.ts";
 import { readState } from "../../../../lib/reads.ts";
 import { Comments } from "./comments.tsx";
@@ -52,7 +52,7 @@ export default async function ReadPage({ params, searchParams }: { params: Promi
     isPinned(sql, p.id),
   ]);
   const { html, headings } = render(p.doc, { title: i => known.get(i), missing: t.page.missing });
-  const who = await people([p.updatedBy, ...(lock ? [lock.memberId] : []), ...thread.map(c => c.author), ...(p.review?.owner ? [p.review.owner] : [])]);
+  const who = await people([p.updatedBy, ...(lock ? [lock.memberId] : []), ...thread.flatMap(c => (c.resolvedBy ? [c.author, c.resolvedBy] : [c.author])), ...(p.review?.owner ? [p.review.owner] : [])]);
   const now = new Date();
   const writer = p.space.access === "write";
   const children = nodes.filter(n => n.parentId === p.id);
@@ -69,7 +69,7 @@ export default async function ReadPage({ params, searchParams }: { params: Promi
   let places: MovePlace | undefined;
   let groups: { id: string; name: string }[] = [];
   if (writer) {
-    groups = read.asked ? [] : await groupsOfTool();
+    groups = read.asked ? [] : await companyGroups();
     const writable = (await listSpaces(sql, member)).filter(s => s.access === "write");
     const all = await tree(sql, member, writable.map(s => s.id));
     places = { spaces: writable.map(s => ({ id: s.id, name: s.name })), nodes: all.map(n => ({ id: n.id, spaceId: n.spaceId, parentId: n.parentId, title: n.title })) };
@@ -150,7 +150,7 @@ export default async function ReadPage({ params, searchParams }: { params: Promi
             moderator={writer}
             initial={thread.map(c => {
               const person = who.get(c.author);
-              return { id: c.id, author: c.author, name: nameOf(person, locale), photo: person?.photo ?? null, body: c.body, at: c.createdAt.toISOString(), when: moment(c.createdAt, locale, now), edited: c.editedAt !== null };
+              return { id: c.id, author: c.author, name: nameOf(person, locale), photo: person?.photo ?? null, body: c.body, at: c.createdAt.toISOString(), when: moment(c.createdAt, locale, now), edited: c.editedAt !== null, parentId: c.parentId, quote: c.quote, resolved: c.resolvedAt !== null, resolvedBy: c.resolvedBy ? (c.resolvedBy === member.id ? t.comments.you : nameOf(who.get(c.resolvedBy), locale)) : null };
             })}
             people={mentionable}
             t={{ comments: t.comments, errors: t.errors, locale }}

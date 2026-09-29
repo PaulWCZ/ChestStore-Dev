@@ -17,6 +17,7 @@ import * as pins from "../../lib/pins.ts";
 import * as reads from "../../lib/reads.ts";
 import * as reviews from "../../lib/reviews.ts";
 import * as tell from "../../lib/tell.ts";
+import * as synonyms from "../../lib/synonyms.ts";
 import * as templates from "../../lib/templates.ts";
 import * as watching from "../../lib/watching.ts";
 
@@ -183,35 +184,53 @@ export async function restoreVersion(pageId: string, number: number): Promise<Re
 
 // Comments. Each answers what the thread shows; a new one is told to the
 // page's author, earlier commenters and watchers who may read it.
-export type CommentView = { id: string; author: string; name: string; photo: string | null; body: string; at: string; when: string; edited: boolean };
+export type CommentView = { id: string; author: string; name: string; photo: string | null; body: string; at: string; when: string; edited: boolean; parentId: string | null; quote: string | null; resolved: boolean; resolvedBy: string | null };
 
 async function view(c: comments.Comment, actor: Actor): Promise<CommentView> {
   const locale = isLocale(actor.locale) ? actor.locale : "en";
-  const person = (await people([c.author])).get(c.author);
-  return { id: c.id, author: c.author, name: nameOf(person, locale), photo: person?.photo ?? null, body: c.body, at: c.createdAt.toISOString(), when: "", edited: c.editedAt !== null };
+  const who = await people([c.author, ...(c.resolvedBy ? [c.resolvedBy] : [])]);
+  const person = who.get(c.author);
+  return { id: c.id, author: c.author, name: nameOf(person, locale), photo: person?.photo ?? null, body: c.body, at: c.createdAt.toISOString(), when: "", edited: c.editedAt !== null, parentId: c.parentId, quote: c.quote, resolved: c.resolvedAt !== null, resolvedBy: c.resolvedBy ? nameOf(who.get(c.resolvedBy), locale) : null };
 }
 
 // People named with "@" in it (picked from the list the page offers) are
 // told on their own, if they may read the page.
-export async function addComment(pageId: string, body: string, mentioned: string[] = []): Promise<Result<CommentView>> {
+export async function addComment(pageId: string, body: string, mentioned: string[] = [], options: { parentId?: string | null; quote?: string | null } = {}): Promise<Result<CommentView>> {
   return act(async actor => {
-    const { comment, page } = await comments.addComment(db(), actor, pageId, body);
+    const { comment, page } = await comments.addComment(db(), actor, pageId, body, { parentId: options.parentId ?? null, quote: options.quote ?? null });
     const named = Array.isArray(mentioned) ? [...new Set(mentioned.filter(m => typeof m === "string" && memberPattern.test(m)))].slice(0, 20) : [];
     await tell.commented(db(), actor, page, comment, named);
     return view(comment, actor);
   }, { refresh: false });
 }
 
+// Edited, deleted, brought back: what the bell shows of it follows (a
+// deleted comment's words leave everyone's bell at once).
 export async function editComment(commentId: string, body: string): Promise<Result<CommentView>> {
-  return act(async actor => view(await comments.editComment(db(), actor, commentId, body), actor), { refresh: false });
+  return act(async actor => {
+    const c = await comments.editComment(db(), actor, commentId, body);
+    const found = await comments.commentOf(db(), c.id);
+    if (found) await tell.commentShown(db(), c.id, await pages.page(db(), actor, found.pageId));
+    return view(c, actor);
+  }, { refresh: false });
 }
 
 export async function removeComment(commentId: string): Promise<Result<null>> {
-  return act(async actor => { await comments.removeComment(db(), actor, commentId); return null; }, { refresh: false });
+  return act(async actor => { const gone = await comments.removeComment(db(), actor, commentId); await tell.commentGone(db(), gone.id); return null; }, { refresh: false });
 }
 
 export async function restoreComment(commentId: string): Promise<Result<null>> {
-  return act(async actor => { await comments.restoreComment(db(), actor, commentId); return null; }, { refresh: false });
+  return act(async actor => {
+    const c = await comments.restoreComment(db(), actor, commentId);
+    const found = await comments.commentOf(db(), c.id);
+    if (found) await tell.commentShown(db(), c.id, await pages.page(db(), actor, found.pageId));
+    return null;
+  }, { refresh: false });
+}
+
+// A conversation resolved (folded) or opened again.
+export async function resolveComment(commentId: string, resolved: boolean): Promise<Result<CommentView>> {
+  return act(async actor => view(await comments.resolveComment(db(), actor, commentId, resolved === true), actor), { refresh: false });
 }
 
 // Watching a page.
@@ -244,6 +263,25 @@ export async function askRead(pageId: string, groups?: string[]): Promise<Result
     const state = await reads.readState(db(), actor, p.id);
     return { asked: state.asked ? await tell.readAsked(actor, p, state.asked) : 0 };
   });
+}
+
+// "Remind those who have not confirmed": the bell again, and an email.
+export async function remindRead(pageId: string): Promise<Result<{ reminded: number }>> {
+  return act(async actor => {
+    const p = await pages.page(db(), actor, pageId, "write");
+    const state = await reads.readState(db(), actor, p.id);
+    if (!state.asked) throw new AppError("invalid");
+    return { reminded: await tell.remindReaders(db(), p, state.asked, new Date().toISOString().slice(0, 10)) };
+  });
+}
+
+// Words that mean the same, for search (editors).
+export async function saveSynonyms(groupId: string | null, words: string): Promise<Result<synonyms.SynonymGroup>> {
+  return act(actor => synonyms.saveSynonyms(db(), actor, groupId, words));
+}
+
+export async function deleteSynonyms(groupId: string): Promise<Result<string[]>> {
+  return act(actor => synonyms.deleteSynonyms(db(), actor, groupId));
 }
 
 export async function stopAskRead(pageId: string): Promise<Result<null>> {

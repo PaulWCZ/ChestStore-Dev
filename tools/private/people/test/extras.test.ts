@@ -4,7 +4,7 @@ import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
 import { addArrival, linkArrival, listArrivals, removeArrival, suggestions, updateArrival } from "../lib/arrivals.ts";
 import { directory } from "../lib/directory.ts";
 import { AppError } from "../lib/errors.ts";
-import { examples, samePhrase, stepText } from "../lib/examples.ts";
+import { examples, listName, samePhrase, stepText } from "../lib/examples.ts";
 import { addField, listFields, purgeFields, removeField, setValue, updateField, valuesOf } from "../lib/fields.ts";
 import { catalogue } from "../lib/i18n/index.ts";
 import { plan } from "../lib/importer.ts";
@@ -151,10 +151,19 @@ test("example steps speak each reader's language until reworded; the newcomer's 
   assert.deepEqual([same.phrase, same.text], ["onboarding.laptop", "Order the laptop and accessories"]);
   const reworded = await j.updateTemplateItem(sql, hr, laptop.id, { text: "Commander le Mac", role: "hr", offset: -14 });
   assert.deepEqual([reworded.phrase, stepText(reworded, en)], [null, "Commander le Mac"]);
+  // The example's name too: « Nouvel arrivant au bureau » for a French
+  // reader, kept when saved unchanged in French, HR's once renamed; a
+  // checklist started from it keeps the phrase.
+  assert.deepEqual([onboarding.phrase, listName(onboarding, fr)], ["onboarding", fr.checklists.examples.onboarding.name]);
+  await j.renameTemplate(sql, hr, onboarding.id, fr.checklists.examples.onboarding.name);
+  assert.equal((await j.template(sql, hr, onboarding.id)).phrase, "onboarding");
 
   // Nora's welcome: her "fill in your profile" ticks itself once she does.
   await updateJob(sql, hr, nora.id, { managerId: ines.id });
   const started = await j.startJourney(sql, hr, { personId: nora.id, templateId: onboarding.id, anchor: today() });
+  assert.equal(listName(await j.journey(sql, hr, started.id), en), "Office newcomer");
+  await j.renameTemplate(sql, hr, onboarding.id, "Bienvenue à l’atelier");
+  assert.deepEqual([(await j.template(sql, hr, onboarding.id)).phrase, listName(await j.template(sql, hr, onboarding.id), en)], [null, "Bienvenue à l’atelier"]);
   const step = (await j.journey(sql, hr, started.id)).items.find(i => i.phrase === "onboarding.profile")!;
   assert.equal(step.assignee, nora.id);
   // An empty profile does not count; a bio does (the action then ticks).

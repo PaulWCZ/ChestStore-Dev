@@ -22,7 +22,7 @@ export default async function TeamLayout({ children }: { children: ReactNode }) 
   const role = roleOf(member);
   const brand = <a href="/chest"><BrandMark logo={look.logo}><Mark /></BrandMark><span className="brand-name">{t.meta.name}</span></a>;
   const person = { name: member.name, role: role ? t.roles[role] : null, photo: member.photo };
-  const shell = { skip: t.shell.skip, nav: t.shell.nav, folders: t.shell.folders, views: t.shell.views };
+  const shell = { skip: t.shell.skip, nav: t.shell.nav, folders: t.shell.folders, views: t.shell.views, otherList: t.shell.otherList };
   const keys = { keys: t.shell.keys, keysClose: t.shell.keysClose, keyList: t.shell.keyList, dialog: t.dialog };
   if (!role) {
     return (

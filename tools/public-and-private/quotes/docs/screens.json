@@ -24,5 +24,12 @@
   {"name": "quote-editor-chest", "path": "/chest/documents/7", "member": "hugo", "locale": "en", "look": {"all": "catalogue:chest"}, "only": ["desktop"]},
   {"name": "quote-editor-theme-fr", "path": "/chest/documents/7", "member": "camille", "locale": "fr", "look": {"all": "catalogue:library"}},
   {"name": "quote-editor-brand", "path": "/chest/documents/7", "member": "hugo", "locale": "en", "look": {"tool": "brand:sample"}},
-  {"name": "desk-brand-dark", "path": "/chest", "member": "camille", "locale": "fr", "dark": true, "look": {"tool": "brand:sample"}, "only": ["desktop"]}
+  {"name": "desk-brand-dark", "path": "/chest", "member": "camille", "locale": "fr", "dark": true, "look": {"tool": "brand:sample"}, "only": ["desktop"]},
+  {"name": "answer-online-fr", "path": "/q/SampleAnswerLinkQuoteD0006Roux01", "member": "camille", "locale": "fr", "full": true},
+  {"name": "answer-online-dark", "path": "/q/SampleAnswerLinkQuoteD0006Roux01", "member": "camille", "locale": "en", "dark": true, "only": ["phone"]},
+  {"name": "answer-online-theme", "path": "/q/SampleAnswerLinkQuoteD0006Roux01", "member": "camille", "locale": "en", "look": {"all": "catalogue:workshop"}, "only": ["desktop"]},
+  {"name": "answer-online-port", "path": "/q/SampleAnswerLinkQuoteD0006Roux01", "member": "camille", "locale": "fr", "look": {"all": "catalogue:workshop", "tool": "brand:port"}},
+  {"name": "quote-online-fr", "path": "/chest/documents/6", "member": "ines", "locale": "fr", "only": ["desktop"]},
+  {"name": "import-invoices", "path": "/chest/import?kind=invoices", "member": "sofia", "locale": "en"},
+  {"name": "desk-port", "path": "/chest", "member": "sofia", "locale": "en", "look": {"tool": "brand:port"}}
 ]

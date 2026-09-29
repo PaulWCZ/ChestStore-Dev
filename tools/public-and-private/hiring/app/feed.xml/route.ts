@@ -9,6 +9,8 @@ import { publicWords } from "../../lib/session.ts";
 export async function GET(): Promise<Response> {
   const { t, locale } = await publicWords();
   const { jobs, company, origin, settings } = await feedData(db());
+  // The channel needs a description: the company's words, else a plain
+  // "Our open positions." (never words the company did not write about itself).
   const channel = { title: format(t.careers.title, { company: company.name }), description: introFor(settings, locale) || t.careers.intro, language: locale };
   const facts = (j: (typeof jobs)[number]) => [j.team, j.place, t.facts.contract[j.contract], t.facts.remote[j.remote]].filter(Boolean).join(" · ");
   return xml(rssFeed(jobs, channel, origin, facts), "application/rss+xml");

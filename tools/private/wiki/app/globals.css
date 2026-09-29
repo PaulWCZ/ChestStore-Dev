@@ -441,6 +441,31 @@ mark { background: var(--highlight); color: var(--ink); padding: 0 0.1em; border
 .link-button { min-height: 36px; padding: 0; border: 0; background: none; color: var(--ink-2); font-size: var(--text-s); text-decoration: underline; cursor: pointer; }
 .link-button:hover { color: var(--ink); }
 .link-button.danger { color: var(--danger); }
+/* Conversations: a comment, its replies a step in; resolved ones fold. */
+.conversation { display: grid; gap: var(--space-2); }
+.replies { list-style: none; margin: 0 0 0 calc(var(--space-6) + 8px); padding: 0 0 0 var(--space-3); border-left: 2px solid var(--line); display: grid; gap: var(--space-2); }
+.conversation-actions { display: flex; gap: var(--space-4); margin-left: calc(var(--space-6) + 8px); }
+.resolved-line { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); margin: 0; padding: var(--space-2) var(--space-3); border: var(--border-width) dashed var(--line); border-radius: var(--radius-m); color: var(--ink-2); font-size: var(--text-s); }
+.resolved-start { flex: 1 1 100%; color: var(--ink); overflow-wrap: anywhere; }
+.reply-box { display: grid; gap: var(--space-2); margin-left: calc(var(--space-6) + 8px); }
+.reply-box .row-actions { justify-content: flex-end; }
+/* The passage a comment is about: quoted; a click selects it in the page. */
+.comment-quote { margin: 0 0 var(--space-2); padding: var(--space-1) var(--space-3); border-left: 3px solid var(--accent-line); background: var(--surface-2); border-radius: 0 var(--radius-s) var(--radius-s) 0; font-style: italic; color: var(--ink-2); overflow-wrap: anywhere; }
+.quote-link { display: block; width: 100%; min-height: 32px; padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.quote-link:hover { color: var(--ink); text-decoration: underline; }
+.quote-chosen { display: grid; gap: var(--space-1); }
+.quote-chosen .link-button { justify-self: start; }
+.quote-offer { position: absolute; z-index: 40; box-shadow: var(--shadow-2); }
+/* Words that mean the same (search). */
+.synonym-lines { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-2); }
+.synonym-line { display: flex; gap: var(--space-2); align-items: center; }
+.synonym-line .field { flex: 1; min-width: 0; }
+.synonym-line.new { display: grid; }
+.synonym-line.new .row-actions { display: flex; gap: var(--space-2); }
+@media (max-width: 760px) {
+  .replies, .conversation-actions, .reply-box { margin-left: var(--space-3); }
+  .synonym-line { flex-wrap: wrap; }
+}
 .composer { display: grid; gap: var(--space-2); }
 .composer .row-actions { justify-content: flex-end; }
 .starts { max-height: 40vh; overflow-y: auto; }

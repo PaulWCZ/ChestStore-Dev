@@ -2,6 +2,43 @@ import type { Member } from "@argentic/chest-sdk/member";
 import type { Fragment, Query } from "./db.ts";
 import { limits } from "./model.ts";
 import { listSpaces } from "./spaces.ts";
+import { fold, phrase, synonymTerms, type Term } from "./synonyms.ts";
+
+// The little words that never count alone, French and English (folded:
+// lower case, no accents).
+export const stopWords = new Set([
+  "a", "au", "aux", "avec", "ce", "ces", "cette", "comment", "d", "dans", "de", "des", "du", "en", "est", "et", "il", "je", "l", "la", "le", "les", "leur", "ma", "mes", "mon", "ne", "nos", "notre", "on", "ou", "par", "pas", "pour", "qu", "que", "qui", "quoi", "sa", "se", "ses", "son", "sur", "ta", "te", "un", "une", "vos", "votre", "y",
+  "an", "and", "are", "at", "be", "by", "can", "do", "for", "from", "how", "i", "if", "in", "is", "it", "its", "my", "of", "or", "our", "the", "to", "what", "when", "where", "who", "with", "your",
+]);
+
+// units cuts what was typed into the query's words: a run of words that
+// is one of the synonyms' terms is one unit (all its terms, as phrases);
+// the other words are units of their own, little words left out (unless
+// nothing else is left).
+export type Unit = { parts: string[] } | { synonyms: Term[] };
+export function units(typed: string[][], terms: Term[][]): Unit[] {
+  const tokens = typed.map(p => fold(p.join("")));
+  const out: Unit[] = [];
+  const plain = tokens.some(t => !stopWords.has(t));
+  for (let i = 0; i < tokens.length; ) {
+    let best: { length: number; group: number } | null = null;
+    for (const [group, list] of terms.entries()) {
+      for (const term of list) {
+        const length = term.tokens.length;
+        if (length === 0 || (best && length <= best.length)) continue;
+        if (term.tokens.every((w, k) => tokens[i + k] === w)) best = { length, group };
+      }
+    }
+    if (best) {
+      out.push({ synonyms: terms[best.group]! });
+      i += best.length;
+      continue;
+    }
+    if (!plain || !stopWords.has(tokens[i]!)) out.push({ parts: typed[i]! });
+    i++;
+  }
+  return out;
+}
 
 // Search over titles and words, in any language, accents and case aside
 // ("conges" finds "Congés"), each word by its beginning ("vac" finds
@@ -11,6 +48,13 @@ import { listSpaces } from "./spaces.ts";
 // those holding more first. A word with a typo is matched to the nearest
 // word the wiki holds (trigrams), and so is a title. Results come with the
 // passage that matched, the matched words marked.
+//
+// The little words of French and English ("de", "la", "the", "of"…) do not
+// count as words of the query (unless it has no other): "note de frais" is
+// never matched on "de". Words that mean the same (lib/synonyms.ts, one
+// list per wiki, editable by editors) are one word of the query: "note de
+// frais" also finds "expenses", "tt" finds "télétravail", "vacances"
+// finds "congés" and "holidays".
 
 export type Segment = { text: string; hit: boolean };
 export type Hit = { id: string; title: Segment[]; snippet: Segment[]; spaceId: string; spaceName: string; updatedAt: Date; updatedBy: string; complete: boolean };
@@ -78,16 +122,29 @@ export async function search(sql: Query, actor: Member | null, query: unknown): 
   // hyphenated ("wifi" → also "wi-fi", for the marked passage), or with a
   // typo when it is found nowhere ("pasword" → also "password").
   const queries: string[] = [];
-  for (const parts of typed) {
+  // A word as the wiki may write it with a hyphen ("wifi" → "wi-fi").
+  const spell = async (parts: string[]): Promise<string> => {
     let text = wordQuery(parts);
     const joined = parts.join("");
-    const [present] = await sql<{ any: boolean }[]>`
-      select exists (select 1 from pages where deleted_at is null and space_id in ${sql(visible)} and search @@ to_tsquery('wiki', ${text})) as any`;
     if (joined.length >= 3) {
       const spelled = await sql<{ word: string }[]>`
         select word from search_words where word like ${"%-%"} and replace(word, '-', '') like ${joined.replace(/[\\%_]/gu, "") + "%"} order by char_length(word) limit 3`;
       for (const s of spelled) if (/^[\p{L}\p{N}]+(-[\p{L}\p{N}]+)+$/u.test(s.word)) text += ` | (${s.word.split("-").join(" <-> ")})`;
     }
+    return text;
+  };
+  for (const unit of units(typed, await synonymTerms(sql))) {
+    if ("synonyms" in unit) {
+      // Each term: one word as it may be spelled, several as a phrase.
+      const each = await Promise.all(unit.synonyms.map(term => (term.words.length === 1 && term.words[0]!.length >= 3 ? spell(term.words) : Promise.resolve(phrase(term.words)))));
+      queries.push(each.filter(Boolean).join(" | "));
+      continue;
+    }
+    const parts = unit.parts;
+    const joined = parts.join("");
+    const [present] = await sql<{ any: boolean }[]>`
+      select exists (select 1 from pages where deleted_at is null and space_id in ${sql(visible)} and search @@ to_tsquery('wiki', ${wordQuery(parts)})) as any`;
+    let text = await spell(parts);
     if (!present?.any && joined.length >= 4) {
       const near = await sql<{ word: string }[]>`
         select word from search_words where word % ${joined} and similarity(word, ${joined}) >= 0.4

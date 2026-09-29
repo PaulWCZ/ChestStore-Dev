@@ -60,6 +60,11 @@ insert into candidates (id, job_id, stage_id, status, name, email, phone, link, 
   (13, 3, 13, 'active', 'Hélène Vasseur', 'helene.vasseur@example.com', '+33 6 10 20 30 40', 'https://www.linkedin.com/in/helenevasseur', '', 'careers', null, 'fr', now() - interval '7 days', now() - interval '2 days', null, null, now() - interval '7 days', now() - interval '1 day'),
   (14, 4, 18, 'active', 'Paul Durand', 'paul.durand@example.com', '', '', '', 'careers', null, 'fr', now() - interval '110 days', now() - interval '75 days', null, null, now() - interval '110 days', now() - interval '75 days'),
   (15, 4, 17, 'rejected', 'Lina Ferreira', 'lina.ferreira@example.com', '', '', '', 'careers', null, 'en', now() - interval '100 days', now() - interval '90 days', 'filled', now() - interval '74 days', now() - interval '100 days', now() - interval '74 days');
+-- Applications no longer ask for consent (the legal basis is the
+-- employer's legitimate interest, README "Personal data"): no sample
+-- candidate carries a consent date, so no page shows a stale "agreed to
+-- be kept" line.
+update candidates set consent_at = null;
 
 -- Who opened what: Camille has seen all but the newest; Sofia, the sales job's.
 insert into candidate_seen (candidate_id, member_id)

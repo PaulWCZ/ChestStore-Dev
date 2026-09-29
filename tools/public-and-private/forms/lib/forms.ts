@@ -23,6 +23,7 @@ import {
   type Settings,
   type Status,
 } from "./model.ts";
+import { cleanRoutes, readRoutes, type Routes } from "./routes.ts";
 
 // The forms, as the pages see them. Every function takes the database and
 // the member acting, checks their rights (lib/access.ts) and throws
@@ -52,6 +53,8 @@ export type Form = {
   answerCount: number;
   notifyEmail: boolean;
   shareEvents: boolean;
+  // Also a contact in Clients, a ticket in Support (lib/routes.ts).
+  routes: Routes;
   cover: Image | null;
   createdAt: string;
   updatedAt: string;
@@ -82,6 +85,7 @@ type Row = {
   answer_count: number;
   notify_email: boolean;
   share_events: boolean;
+  routes: unknown;
   cover: Image | null;
   created_at: Date;
   updated_at: Date;
@@ -112,13 +116,14 @@ export const toForm = (r: Row): Form => ({
   answerCount: r.answer_count,
   notifyEmail: r.notify_email,
   shareEvents: r.share_events,
+  routes: readRoutes(r.routes),
   cover: r.cover ?? null,
   createdAt: r.created_at.toISOString(),
   updatedAt: r.updated_at.toISOString(),
   publishedAt: r.published_at ? r.published_at.toISOString() : null,
 });
 
-export const columns = "id, slug, owner, status, audience, anonymous, once, tell_team, layout, accent, draft, revision, version, closes_at, max_answers, thanks_title, thanks_body, redirect_url, send_copy, retention_months, answer_count, notify_email, share_events, cover, created_at, updated_at, published_at";
+export const columns = "id, slug, owner, status, audience, anonymous, once, tell_team, layout, accent, draft, revision, version, closes_at, max_answers, thanks_title, thanks_body, redirect_url, send_copy, retention_months, answer_count, notify_email, share_events, routes, cover, created_at, updated_at, published_at";
 
 // Whether a form takes answers now, and if not, why.
 export type OpenState = { open: boolean; reason: "draft" | "closed" | "date" | "full" | null };
@@ -351,6 +356,8 @@ export async function saveSettings(sql: Sql, actor: Member | null, formId: unkno
     const { form } = await open(tx, actor, formId, "editor");
     await tx`select 1 from forms where id = ${form.id} for update`;
     const s = readSettings(raw, closesAt ? closesAt.toISOString() : null);
+    // Also a contact, a ticket: checked against the form's questions.
+    const routes = cleanRoutes((raw as Record<string, unknown>)["routes"], form.draft, s);
     if (s.anonymous !== form.anonymous) {
       const { taken } = (await tx<{ taken: boolean }[]>`select exists (select 1 from answers where form_id = ${form.id}) or exists (select 1 from participants where form_id = ${form.id}) as taken`)[0]!;
       if (taken) throw new AppError("anonymous_locked");
@@ -360,7 +367,7 @@ export async function saveSettings(sql: Sql, actor: Member | null, formId: unkno
       update forms set audience = ${s.audience}, anonymous = ${s.anonymous}, once = ${s.once}, tell_team = ${s.tellTeam}, layout = ${s.layout}, accent = ${s.accent},
         closes_at = ${s.closesAt}, max_answers = ${s.maxAnswers}, thanks_title = ${s.thanksTitle}, thanks_body = ${s.thanksBody},
         redirect_url = ${s.redirectUrl}, send_copy = ${s.sendCopy}, retention_months = ${s.retentionMonths},
-        notify_email = ${s.notifyEmail}, share_events = ${s.shareEvents}, updated_at = now()
+        notify_email = ${s.notifyEmail}, share_events = ${s.shareEvents}, routes = ${tx.json(routes as never)}, updated_at = now()
       where id = ${form.id} returning ${tx.unsafe(columns)}`;
     // Only people who may open the form can be told of its answers.
     const { owner, shared } = await team(tx, form.id);

@@ -5,7 +5,7 @@ import type { Query, Sql } from "./db.ts";
 import { addDays, clean, day, id, isItemRole, isKind, limits, memberId, offset, type ItemRole, type Kind } from "./model.ts";
 import { today } from "./zone.ts";
 import { present } from "./people.ts";
-import { samePhrase } from "./examples.ts";
+import { sameName, samePhrase } from "./examples.ts";
 
 // Checklists: templates HR writes once ("Office newcomer", "Leaving"), and
 // the onboardings and offboardings started from them for one person — a
@@ -16,7 +16,7 @@ import { samePhrase } from "./examples.ts";
 // phrase: the key of an example step's words (lib/examples.ts), shown in
 // each reader's language until HR rewords it.
 export type TemplateItem = { id: string; text: string; phrase: string | null; role: ItemRole; memberId: string | null; offset: number };
-export type Template = { id: string; kind: Kind; name: string; archived: boolean; items: TemplateItem[] };
+export type Template = { id: string; kind: Kind; name: string; phrase: Kind | null; archived: boolean; items: TemplateItem[] };
 
 // first is the one row a count or an aggregate always answers.
 function first<T>(rows: readonly T[]): T {
@@ -28,14 +28,14 @@ function manager(actor: Member | null): Member {
   return actor;
 }
 
-type TemplateRow = { id: string; kind: Kind; name: string; archived_at: Date | null };
+type TemplateRow = { id: string; kind: Kind; name: string; phrase: Kind | null; archived_at: Date | null };
 type TemplateItemRow = { id: string; template_id: string; text: string; phrase: string | null; role: ItemRole; member_id: string | null; offset_days: number };
 const toItem = (r: TemplateItemRow): TemplateItem => ({ id: String(r.id), text: r.text, phrase: r.phrase, role: r.role, memberId: r.member_id, offset: r.offset_days });
 
 export async function listTemplates(sql: Query, actor: Member | null, options: { archived?: boolean } = {}): Promise<Template[]> {
   manager(actor);
   const rows = await sql<TemplateRow[]>`
-    select id, kind, name, archived_at from templates
+    select id, kind, name, phrase, archived_at from templates
     where (archived_at is null) = ${!options.archived}
     order by kind, lower(name), id`;
   if (rows.length === 0) return [];
@@ -43,17 +43,17 @@ export async function listTemplates(sql: Query, actor: Member | null, options: {
     select id, template_id, text, phrase, role, member_id, offset_days from template_items
     where template_id in ${sql(rows.map(r => r.id))} order by offset_days, position, id`;
   return rows.map(r => ({
-    id: String(r.id), kind: r.kind, name: r.name, archived: r.archived_at !== null,
+    id: String(r.id), kind: r.kind, name: r.name, phrase: r.phrase, archived: r.archived_at !== null,
     items: items.filter(i => String(i.template_id) === String(r.id)).map(toItem),
   }));
 }
 
 export async function template(sql: Query, actor: Member | null, templateId: unknown): Promise<Template> {
   manager(actor);
-  const [row] = await sql<TemplateRow[]>`select id, kind, name, archived_at from templates where id = ${id(templateId)}`;
+  const [row] = await sql<TemplateRow[]>`select id, kind, name, phrase, archived_at from templates where id = ${id(templateId)}`;
   if (!row) throw new AppError("not_found");
   const items = await sql<TemplateItemRow[]>`select id, template_id, text, phrase, role, member_id, offset_days from template_items where template_id = ${row.id} order by offset_days, position, id`;
-  return { id: String(row.id), kind: row.kind, name: row.name, archived: row.archived_at !== null, items: items.map(toItem) };
+  return { id: String(row.id), kind: row.kind, name: row.name, phrase: row.phrase, archived: row.archived_at !== null, items: items.map(toItem) };
 }
 
 export async function createTemplate(sql: Sql, actor: Member | null, input: { kind?: unknown; name?: unknown }): Promise<{ id: string }> {
@@ -69,7 +69,12 @@ export async function createTemplate(sql: Sql, actor: Member | null, input: { ki
 export async function renameTemplate(sql: Sql, actor: Member | null, templateId: unknown, name: unknown): Promise<void> {
   manager(actor);
   const text = clean(name, limits.templateName);
-  const done = await sql`update templates set name = ${text} where id = ${id(templateId)}`;
+  // Saved as an example's own name (in any language): it keeps speaking
+  // each reader's language; reworded, it is HR's.
+  const [row] = await sql<{ kind: Kind; phrase: Kind | null }[]>`select kind, phrase from templates where id = ${id(templateId)}`;
+  if (!row) throw new AppError("not_found");
+  const phrase = row.phrase && sameName(row.kind, text) ? row.phrase : null;
+  const done = await sql`update templates set name = ${text}, phrase = ${phrase} where id = ${id(templateId)}`;
   if (done.count === 0) throw new AppError("not_found");
 }
 
@@ -144,7 +149,7 @@ export async function addExamples(sql: Sql, actor: Member | null, examples: Exam
     const ids: string[] = [];
     for (const kind of ["onboarding", "offboarding"] as const) {
       const e = examples[kind];
-      const [row] = await tx<{ id: string }[]>`insert into templates (kind, name, created_by) values (${kind}, ${e.name}, ${who.id}) returning id`;
+      const [row] = await tx<{ id: string }[]>`insert into templates (kind, name, phrase, created_by) values (${kind}, ${e.name}, ${kind}, ${who.id}) returning id`;
       let position = 0;
       for (const item of e.items) {
         await tx`insert into template_items (template_id, position, text, phrase, role, offset_days) values (${row!.id}, ${++position}, ${item.text}, ${item.phrase}, ${item.role}, ${item.offset})`;
@@ -162,19 +167,19 @@ export type Journey = {
   // The member it is about; null while it is about an arrival told by
   // another tool (arrivalId, arrivalName) not linked to a member yet.
   personId: string | null; arrivalId: string | null; arrivalName: string | null;
-  name: string; anchor: string; createdBy: string; createdAt: string;
+  name: string; phrase: Kind | null; anchor: string; createdBy: string; createdAt: string;
   stopped: boolean; completedAt: string | null; managerId: string | null; items: JourneyItem[];
 };
 export type JourneySummary = Omit<Journey, "items"> & { total: number; done: number; next: string | null; late: number };
 
-type JourneyRow = { id: string; kind: Kind; person_id: string | null; arrival_id: string | null; arrival_name: string | null; name: string; anchor: string; created_by: string; created_at: Date; stopped_at: Date | null; completed_at: Date | null; manager_id: string | null };
+type JourneyRow = { id: string; kind: Kind; person_id: string | null; arrival_id: string | null; arrival_name: string | null; name: string; phrase: Kind | null; anchor: string; created_by: string; created_at: Date; stopped_at: Date | null; completed_at: Date | null; manager_id: string | null };
 type ItemRow = { id: string; journey_id: string; text: string; phrase: string | null; role: ItemRole; assignee: string | null; due_on: string; done_at: Date | null; done_by: string | null };
 // A checklist's manager is the person's (or, for an arrival, the one HR
 // chose when starting it).
-const journeyColumns = "j.id, j.kind, j.person_id, j.arrival_id, a.name as arrival_name, j.name, to_char(j.anchor, 'YYYY-MM-DD') as anchor, j.created_by, j.created_at, j.stopped_at, j.completed_at, coalesce(p.manager_id, a.manager_id) as manager_id";
+const journeyColumns = "j.id, j.kind, j.person_id, j.arrival_id, a.name as arrival_name, j.name, j.phrase, to_char(j.anchor, 'YYYY-MM-DD') as anchor, j.created_by, j.created_at, j.stopped_at, j.completed_at, coalesce(p.manager_id, a.manager_id) as manager_id";
 const journeyFrom = "journeys j left join profiles p on p.member_id = j.person_id left join arrivals a on a.id = j.arrival_id";
 const toJourney = (r: JourneyRow) => ({
-  id: String(r.id), kind: r.kind, personId: r.person_id, arrivalId: r.arrival_id === null ? null : String(r.arrival_id), arrivalName: r.arrival_name, name: r.name, anchor: r.anchor, createdBy: r.created_by, createdAt: r.created_at.toISOString(),
+  id: String(r.id), kind: r.kind, personId: r.person_id, arrivalId: r.arrival_id === null ? null : String(r.arrival_id), arrivalName: r.arrival_name, name: r.name, phrase: r.phrase, anchor: r.anchor, createdBy: r.created_by, createdAt: r.created_at.toISOString(),
   stopped: r.stopped_at !== null, completedAt: r.completed_at?.toISOString() ?? null, managerId: r.manager_id,
 });
 const toJourneyItem = (r: ItemRow): JourneyItem => ({ id: String(r.id), text: r.text, phrase: r.phrase, role: r.role, assignee: r.assignee, due: r.due_on, done: r.done_at !== null, doneAt: r.done_at?.toISOString() ?? null, doneBy: r.done_by });
@@ -225,8 +230,8 @@ export async function startJourney(sql: Sql, actor: Member | null, input: { pers
   return sql.begin(async tx => {
     if (arrival) await tx`update arrivals set manager_id = ${managerId} where id = ${arrival}`;
     const [row] = await tx<{ id: string }[]>`
-      insert into journeys (kind, person_id, arrival_id, template_id, name, anchor, created_by)
-      values (${t.kind}, ${person}, ${arrival}, ${t.id}, ${t.name}, ${anchor}, ${who.id}) returning id`;
+      insert into journeys (kind, person_id, arrival_id, template_id, name, phrase, anchor, created_by)
+      values (${t.kind}, ${person}, ${arrival}, ${t.id}, ${t.name}, ${t.phrase}, ${anchor}, ${who.id}) returning id`;
     const journeyId = String(row!.id);
     const assignees = new Map<string, string[]>();
     let position = 0;

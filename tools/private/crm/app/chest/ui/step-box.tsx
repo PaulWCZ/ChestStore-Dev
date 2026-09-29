@@ -23,6 +23,8 @@ type Props = {
   canEdit: boolean;
   canAssign: boolean;
   today: string;
+  // Whether a timed step goes into the Chest's calendar (it works there).
+  calendar?: boolean;
   t: Catalogue;
 };
 
@@ -30,7 +32,7 @@ type Props = {
 // who — soonest first; several may be open ("call Tuesday 14:30", "send
 // samples Thursday"). "Done" logs one; when it was the last, the box asks
 // what comes next, at once.
-export function StepBox({ steps, on, team, people, me, canEdit, canAssign, today, t }: Props) {
+export function StepBox({ steps, on, team, people, me, canEdit, canAssign, today, calendar = false, t }: Props) {
   const [mode, setMode] = useState<{ kind: "view" } | { kind: "edit"; step: Step | null } | { kind: "next" }>({ kind: "view" });
   const [pending, start] = useTransition();
   const toast = useToast();
@@ -59,7 +61,7 @@ export function StepBox({ steps, on, team, people, me, canEdit, canAssign, today
     return (
       <section className="step-box editing" aria-labelledby="step-title">
         <h2 id="step-title" className="label-mono"><Flag />{mode.kind === "next" ? t.step.whatNext : t.step.title}</h2>
-        <StepForm initial={mode.kind === "edit" ? mode.step : null} on={on} team={team} me={me} canAssign={canAssign} today={today} onDone={() => setMode({ kind: "view" })} onSkip={mode.kind === "next" ? () => setMode({ kind: "view" }) : null} t={t} />
+        <StepForm initial={mode.kind === "edit" ? mode.step : null} on={on} team={team} me={me} canAssign={canAssign} today={today} calendar={calendar} onDone={() => setMode({ kind: "view" })} onSkip={mode.kind === "next" ? () => setMode({ kind: "view" }) : null} t={t} />
       </section>
     );
   }
@@ -111,7 +113,7 @@ export function StepBox({ steps, on, team, people, me, canEdit, canAssign, today
 // Plan a step, or change one: what, when (today, tomorrow, in a week, or a
 // day typed or picked on a calendar — the kit's DateField; a time if it
 // matters), who. `on` null: a step of one's own.
-export function StepForm({ initial, on, team, me, canAssign, today, onDone, onSkip, t }: { initial: Step | null; on: On | null; team: Teammate[]; me: string; canAssign: boolean; today: string; onDone: () => void; onSkip: (() => void) | null; t: Catalogue }) {
+export function StepForm({ initial, on, team, me, canAssign, today, calendar = false, onDone, onSkip, t }: { initial: Step | null; on: On | null; team: Teammate[]; me: string; canAssign: boolean; today: string; calendar?: boolean; onDone: () => void; onSkip: (() => void) | null; t: Catalogue }) {
   const [text, setText] = useState(initial?.text ?? "");
   const [due, setDue] = useState<string | null>(initial?.due ?? nextWorkday(today));
   const [time, setTime] = useState<number | null>(minutesOf(initial?.time ?? null));
@@ -149,6 +151,8 @@ export function StepForm({ initial, on, team, me, canAssign, today, onDone, onSk
           <TimeSelect id={`step-time-${key}`} className="field" value={time} onChange={setTime} empty={t.step.noTime} step={30} min={7 * 60} max={21 * 60} />
         </div>
       </div>
+      {/* Where the Chest has a calendar, a step with a time goes into it. */}
+      {calendar && time !== null && <p className="hint" role="status">{owner === me ? t.step.inCalendar : t.step.inTheirCalendar}</p>}
       <OwnerPicker id={`step-who-${key}`} label={t.step.who} value={owner} team={team} me={me} canAssign={canAssign} allowNobody={false} onChange={setOwner} t={t} />
       {error && <p className="error" role="alert">{error}</p>}
       <div className="form-actions">

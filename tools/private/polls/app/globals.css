@@ -79,12 +79,6 @@ select.field { appearance: none; padding-right: var(--space-6); background-image
 .error { color: var(--danger); font-size: var(--text-s); font-weight: var(--weight-strong); }
 
 /* A switch: a checkbox drawn as a chunky pill; on, it is the ok colour. */
-.switch { display: flex; align-items: flex-start; gap: var(--space-3); cursor: pointer; padding: var(--space-2) 0; }
-.switch input { appearance: none; flex: none; width: 52px; height: 32px; margin: 0; border-radius: var(--radius-pill); border: var(--edge) solid var(--line-strong); background: var(--no-soft); position: relative; cursor: pointer; transition: background var(--fast); }
-.switch input::after { content: ""; position: absolute; top: 3px; left: 3px; width: 22px; height: 22px; border-radius: var(--radius-pill); background: var(--surface); border: var(--edge) solid var(--line-strong); transition: transform var(--fast) var(--bounce); }
-.switch input:checked { background: var(--yes); }
-.switch input:checked::after { transform: translateX(20px); }
-.switch .switch-text { display: grid; gap: 2px; padding-top: 4px; }
 
 /* Choice cards: a radio or a checkbox as a big tappable row. */
 .pick { display: grid; gap: var(--space-2); }
@@ -127,10 +121,10 @@ select.field { appearance: none; padding-right: var(--space-6); background-image
 
 /* ——— Home ——— */
 .hello { position: relative; }
-.hello .ck-page-head { position: relative; padding-top: var(--space-4); margin-bottom: 0; }
+.hello .ck-page-head { position: relative; z-index: 1; padding-top: var(--space-4); margin-bottom: 0; }
 .confetti-band { position: relative; }
 .confetti-band::before {
-  content: ""; position: absolute; inset: -8px -12px auto auto; width: min(340px, 60%); height: 120px; pointer-events: none; opacity: 0.9;
+  content: ""; position: absolute; inset: -8px -12px auto auto; width: min(340px, 60%); height: 120px; pointer-events: none; opacity: calc(0.9 * var(--decor, 1)); z-index: 0;
   background:
     radial-gradient(circle at 8% 30%, var(--confetti-1) 0 5px, transparent 6px),
     radial-gradient(circle at 22% 70%, var(--confetti-2) 0 4px, transparent 5px),
@@ -270,6 +264,24 @@ select.field { appearance: none; padding-right: var(--space-6); background-image
 .meter i { display: block; height: 100%; width: var(--w); background: var(--mark-yes); border-right: var(--edge) solid var(--line-strong); animation: grow var(--grow) var(--ease) both; }
 .meter i[style*="--w: 0%"], .meter i[style*="--w:0%"] { border-right: 0; }
 .bars { display: grid; gap: var(--space-4); }
+/* Asked by you: one line per poll — its state, who answered, when it closes. */
+.asked-list { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-2); }
+.asked-row { position: relative; display: grid; grid-template-columns: auto minmax(0, 1fr) minmax(120px, 180px) auto; align-items: center; gap: var(--space-3); padding: var(--space-3) var(--space-4); background: var(--surface); border: var(--edge) solid var(--line); border-radius: var(--radius-l); }
+.asked-row .chip { padding: 6px; }
+.asked-main { display: grid; gap: 4px; min-width: 0; }
+.asked-title { font-weight: var(--weight-strong); color: var(--ink); text-decoration: none; overflow-wrap: anywhere; }
+.asked-title::after { content: ""; position: absolute; inset: 0; border-radius: var(--radius-l); }
+.asked-title:hover { text-decoration: underline; }
+.asked-row .meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px var(--space-3); color: var(--ink-2); font-size: var(--text-s); }
+.asked-row .meta span { display: inline-flex; align-items: center; gap: 6px; }
+.asked-count { display: grid; gap: 4px; font-size: var(--text-s); font-variant-numeric: tabular-nums; }
+.asked-count .meter { height: 10px; }
+.asked-row .button { position: relative; }
+@media (max-width: 640px) {
+  .asked-row { grid-template-columns: auto minmax(0, 1fr); }
+  .asked-count { grid-column: 2; }
+  .asked-row .button { display: none; }
+}
 .bar-row { display: grid; gap: 6px; }
 .bar-label { display: flex; justify-content: space-between; gap: var(--space-3); align-items: baseline; }
 .bar-label .what { font-weight: var(--weight-strong); overflow-wrap: anywhere; display: inline-flex; gap: var(--space-2); align-items: center; }
@@ -304,6 +316,8 @@ select.field { appearance: none; padding-right: var(--space-6); background-image
 
 /* The date grid: people across options, the best column lit. It scrolls
    sideways inside its own frame; the names column stays (sticky). */
+.grid-more { display: none; margin-top: var(--space-2); font-size: var(--text-s); color: var(--ink-2); text-align: right; }
+@media (max-width: 640px) { .grid-more { display: block; } }
 .grid-wrap { position: relative; overflow-x: auto; border: var(--edge) solid var(--line); border-radius: var(--radius-m); background: var(--surface); }
 .grid-table { border-collapse: separate; border-spacing: 0; width: 100%; font-size: var(--text-s); }
 .grid-table th, .grid-table td { padding: var(--space-2); text-align: center; border-bottom: 1px solid var(--line); white-space: nowrap; }
@@ -409,7 +423,9 @@ select.field { appearance: none; padding-right: var(--space-6); background-image
   .actions-bar .button.big { min-height: 52px; }
   .actions-bar .error { position: absolute; bottom: 100%; right: 0; left: 0; }
   .hello .ck-page-head { padding-top: var(--space-2); }
-  .confetti-band::before { height: 80px; }
+  /* On a phone the main button takes the row under the title: the dots
+     stay beside the title, never over the button. */
+  .confetti-band::before { height: 44px; width: 42%; inset: 0 0 auto auto; }
   .closing { padding-left: 0; }
   .results-card { padding: var(--space-4) var(--space-3); }
   .grid-table th[scope="row"], .grid-table thead th:first-child, .grid-table tfoot th { max-width: 112px; }
@@ -479,6 +495,14 @@ select.field { appearance: none; padding-right: var(--space-6); background-image
 .trend-chart .dot { fill: var(--surface); stroke: var(--mark-coral); stroke-width: 2; }
 .trend-chart .dot.current { fill: var(--accent); stroke: var(--line-strong); }
 .trend-chart .dot.empty { fill: var(--no-soft); stroke: var(--no-ink); stroke-width: 1; }
+.teams-card h2 { display: flex; align-items: center; gap: var(--space-2); margin-bottom: var(--space-4); font-size: var(--text-l); }
+.teams-card .table-frame { overflow-x: auto; margin-bottom: var(--space-3); }
+.teams-table { width: 100%; border-collapse: collapse; font-size: var(--text-s); font-variant-numeric: tabular-nums; }
+.teams-table th, .teams-table td { text-align: left; padding: var(--space-2); border-bottom: 1px solid var(--line); vertical-align: top; }
+.teams-table thead th { font-weight: var(--weight-strong); }
+.teams-table thead th small { display: block; color: var(--ink-2); font-weight: 400; }
+.teams-table .num { text-align: right; white-space: nowrap; }
+.teams-table tbody td.num { font-weight: var(--weight-strong); font-size: var(--text-m); }
 .trend-table summary { cursor: pointer; font-weight: var(--weight-strong); font-size: var(--text-s); color: var(--accent-text); min-height: 44px; display: flex; align-items: center; }
 .trend-table table { width: 100%; border-collapse: collapse; font-size: var(--text-s); font-variant-numeric: tabular-nums; margin-bottom: var(--space-2); }
 .trend-table th, .trend-table td { text-align: left; padding: var(--space-2); border-bottom: 1px solid var(--line); }

@@ -1,7 +1,8 @@
 # Quotes & invoices — a proper quote, then the invoice
 
 *Devis et factures.* A store tool for a Chest: a small French company writes
-a quote from its catalogue, sends it, turns it into an invoice when the
+a quote from its catalogue, sends it — **the client reads it and accepts it
+online ("Bon pour accord")** —, turns it into an invoice when the
 client says yes, finalises the invoice with the next legal number — as a
 **Factur-X** —, sends it, records the payments, reminds the late payers (by
 itself if asked), repeats the monthly invoices, and hands its accountant a
@@ -10,11 +11,13 @@ Axonaut, Sellsy, Henrri, Tiime or Pennylane's invoicing module — **but not
 their approved platform (PA)**: keep your PA to transmit the e-invoices
 (see "Legal").
 
-**Switching from another tool** takes an afternoon: import the clients and
-the catalogue from a spreadsheet (the importer recognises the usual French
-and English headers, shows the first rows, says which rows could not come
-and why), and continue the invoice numbering from the previous tool's last
-number (Settings → Numbering).
+**Switching from another tool** takes an afternoon: import the clients, the
+catalogue **and the invoices still to collect** from a spreadsheet (the
+importer recognises the usual French and English headers, shows the first
+rows, says which rows could not come and why), and continue the invoice
+numbering from the previous tool's last number (Settings → Numbering). The
+old subscription can end on switching day: its unpaid invoices are
+collected here.
 
 ## What it does
 
@@ -85,6 +88,25 @@ number (Settings → Numbering).
   words changeable, through the Chest's mail (a studio proposal). Where the
   Chest cannot send email, the tool says so: download the PDF, send it
   yourself, mark it as sent.
+- **The client answers online** (the tool's public part): a sent quote
+  gets a secret link (32 random characters; the email carries it, the
+  quote's margin shows it to copy when sending by hand). The client opens
+  `/q/<secret>` on any device: the quote as a page (in the document's
+  language) and its PDF, then **accepts** — their name typed, the box
+  "Bon pour accord" ticked, the day written — or **declines**, with a
+  reason if they wish. The answer is kept with its proof: the server's
+  time, a hash of the visitor's address (never the address), the browser,
+  and the **SHA-256 of the exact PDF they were shown** (the file itself is
+  kept in the Chest's files, and downloadable from the quote's margin).
+  The quote becomes accepted or refused, its author (and whoever sent it)
+  hears it in the bell, the history says "Accepted online by …". If the
+  quote was changed while the client was reading, the answer is refused
+  and the page asks to read it again. The link works while the quote waits
+  and is valid, then says the quote expired; an answered quote shows its
+  answer; the person who sent it may turn the link off (the page then
+  shows nothing of the quote) and make a new one. **This is a record of
+  agreement given online, not a qualified or certified electronic
+  signature (eIDAS)**: the page and the proof say so.
 - **Payments**: date, amount, method, reference; partial payments; states
   *unpaid*, *partly paid*, *paid*, *overdue* (by the Chest's today),
   *cancelled* (credited in full). On a late invoice, "Send a reminder" is
@@ -97,6 +119,20 @@ number (Settings → Numbering).
   year; on each date a **draft** of it is made and handed to billing (told
   in the bell), who check the period in the subject and finalise it.
   Nothing is finalised by itself.
+- **Invoices still to collect, from the previous tool** (billing and
+  administrators, `/chest/import?kind=invoices`): number, date, client
+  (found by SIREN, else by name, else added), subject, due date (else the
+  company's terms), totals, and what was paid or what is left. They keep
+  their numbers **in a series of their own**, outside this tool's
+  gap-free sequences: never renumbered, never counted when the numbering
+  is continued, never numbered again; an own number equal to an imported
+  one never collides. They are only *collected* here — payments,
+  reminders (by hand or automatic, without a PDF: theirs stays in the
+  previous tool), on the desk and the tile — never finalised, drawn,
+  credited or exported as this tool's sales (the previous tool's
+  accountant's files already hold them). Rows already paid in full are
+  left out and counted; the same number never comes twice; an import is
+  undone in one click while nothing was recorded on its invoices.
 - **Import** (`/chest/import`): clients and catalogue items from a CSV —
   Axonaut, Sellsy, Pennylane, Excel — with the columns matched from their
   names (changeable), a preview, every value checked (SIREN/SIRET and VAT
@@ -114,6 +150,14 @@ number (Settings → Numbering).
   and a ZIP of everything (the Factur-X PDFs of record, the summary, the
   entries, `clients.csv`, `catalogue.csv`). The clients and the catalogue
   also download alone, in the importer's columns (what leaves comes back).
+- **The monthly archive**: on the 1st of each month (schedule `archive`;
+  caught up by the daily follow-up, or the first desk visit of a day), the
+  month before goes into one ZIP — its PDFs of record, the summary, the
+  accounting entries, the clients and the catalogue — kept in the Chest's
+  files with its SHA-256 (cut into parts under 14 MiB when a month is
+  big). The export page lists the archives; the desk of whoever exports
+  asks to **keep a copy outside the Chest** until one of them downloaded
+  it (removing the tool deletes its files too).
 
 ## Roles
 
@@ -135,9 +179,13 @@ and that person is rarely the one who manages the company's legal settings.
 - **What a new user sees first**: the *Desk* — three figures (quotes waiting
   for an answer, money to collect, overdue), what needs them (a draft handed
   to them, an overdue invoice, a quote about to expire, an accepted quote to
-  invoice), the latest documents. Empty, it says what the tool is for and
-  offers "Write a quote". If the company's legal details are missing, a
-  callout says so first (with a button for the admin).
+  invoice), the latest documents. Empty, it speaks to the person's
+  role: who writes gets "Write a quote" and "Import from your previous
+  tool" (the note about continuing the numbering only for an
+  administrator, who owns Settings); a viewer is told the team's
+  documents will show here, with no action. If the company's legal
+  details are missing, a callout says so first (not to a viewer) — for an
+  administrator its "Fill them in" is then the only filled button.
 - **The first thing they do**: "New quote" → the paper opens; "Choose the
   client" (or add one without leaving); "From the catalogue" adds a line;
   the totals follow each keystroke; it saves by itself.
@@ -160,21 +208,27 @@ and that person is rarely the one who manages the company's legal settings.
 
 | Route | What |
 |---|---|
-| `/` | Public host: "this tool lives in your Chest" (no public part) |
+| `/` | Public host: "open the link from your email" (nothing is listed or linked there) |
+| `/q/:secret` | Public: the client's page of a quote — read it, accept ("Bon pour accord") or decline |
+| `/q/:secret/pdf` | Public: that quote's PDF (the one answered on, once answered) |
+| `/lang/:code` | Public: the visitor's language switch (a cookie) |
 | `/chest` | The desk |
 | `/chest/quotes`, `/chest/invoices` | Lists with state filters and search (`?state=`, `?q=`) |
 | `/chest/documents/:id` | The paper (editable while a draft, or a sent quote) and its margin |
 | `/chest/documents/:id/pdf` | The PDF (`?download` to save it) |
+| `/chest/documents/:id/answers/:answer` | The exact PDF a client answered on (the proof) |
 | `/chest/clients`, `/chest/clients/:id` | Clients; one client's card and documents |
 | `/chest/catalogue` | The catalogue |
 | `/chest/export`, `/chest/export/csv`, `/chest/export/journal`, `/chest/export/zip` | The accountant's export (`?from=&to=`): summary, accounting entries, everything |
 | `/chest/export/lists/clients`, `/chest/export/lists/items` | The clients, the catalogue (CSV, the importer's columns) |
-| `/chest/import?kind=clients\|items` | Import a spreadsheet |
+| `/chest/import?kind=clients\|items\|invoices` | Import a spreadsheet |
+| `/chest/export/archives/:period` | A month's archive (`?part=`) |
 | `/chest/settings` | The company's details (admin; read only for others) |
 | `/chest/api/logo`, `/chest/logo` | Authorise a logo upload; the logo through a fresh signed link |
 | `/chest-events` | Members' lifecycle (Chest only) |
 | `/chest-jobs/badges` | The morning badge refresh (proposal, Chest only) |
-| `/chest-jobs/followup` | The morning follow-up: recurring drafts, automatic reminders (proposal, Chest only) |
+| `/chest-jobs/followup` | The morning follow-up: recurring drafts, automatic reminders, a missed monthly archive (proposal, Chest only) |
+| `/chest-jobs/archive` | The monthly archive, on the 1st (proposal, Chest only) |
 
 ## Looks
 
@@ -188,6 +242,10 @@ written as one `<style>` with the page's nonce: no script, no flash. In
 brand mode the company's logo stands where the tool's mark does. Every
 look keeps every text readable (WCAG AA, light and dark: the kit checks
 each theme; `lab/chest-dev/audit.mjs` checks the pages).
+
+**The client's page wears the company's brand, or the tool's own look** —
+never a catalogue theme chosen for the team, never the Chest's sheet (kit
+0.2.3, `publicLook()`, surface "public").
 
 **The PDF does not change with the look.** A quote or an invoice is a
 legal document: the PDF (PDF/A-3, Factur-X, its own writer and embedded
@@ -204,14 +262,19 @@ empty states and state badges (drawn as the tool's rubber stamps).
 
 ## On a Chest
 
-`chest.json`: capabilities `database`, `files` (the logo, the PDFs kept),
+`chest.json`: `"public": true` with `"csp": "tool"` (the client's pages;
+the tool sends its own nonce policy from `proxy.ts`, framed by nobody,
+`Referrer-Policy: same-origin`, `no-store` and `noindex` on `/q/`);
+capabilities `database`, `files` (the logo, the PDFs kept, the PDFs
+answered on, the monthly archives),
 `members` (names of who did what), `notifications` (billing told of drafts
 handed to them; a badge counting those drafts and the overdue invoices);
 receives `member.*`. `chest.proposals.json`: `mail.send`, the schedule
 `badges` (06:50 every day, sets the badge again — an invoice becomes overdue
-by the date alone) and `followup` (07:10 every day: the recurring invoices'
+by the date alone), `followup` (07:10 every day: the recurring invoices'
 drafts, and the reminders if an administrator turned them on — the only
-emails a schedule sends), French title and role labels. Without schedules,
+emails a schedule sends — and a monthly archive missed) and `archive`
+(04:30 on the 1st), French title and role labels. Without schedules,
 the first visit of the desk each day runs the follow-up (`followed_up_on`).
 
 Lifecycle: losing access or leaving changes nothing (documents are the
@@ -241,8 +304,16 @@ documents without a client is the Chest's (`chest.locale()`).
   SDK").
 - **Retention.** Invoices must be kept 10 years (Code de commerce L123-22).
   Finalised invoices and credit notes are never deleted by the tool — but
-  **removing the tool from the Chest deletes its database and files**. The
-  export page and the settings say so: export each period and keep the ZIP.
+  **removing the tool from the Chest deletes its database and files**,
+  the monthly archives included. The desk, the export page and the
+  settings say so: download each month's archive and keep it with the
+  accounts.
+- **Accepting a quote online** records a consent (name typed, "Bon pour
+  accord", the date, the time, a hash of the connection, the exact PDF's
+  SHA-256) — enough in most B2B practice to show a quote was accepted, but
+  **not an electronic signature in the eIDAS sense** (no identity
+  verified, no certificate). A company that needs a qualified signature
+  uses a signing service. Studio's reading, not a lawyer's.
 - **Not a cash register.** Payments are recorded for follow-up. For invoices
   to individuals the payment dialog says it is informational: the tool is
   not a certified cash system (art. 286 I 3° bis CGI) — this reading is the
@@ -322,20 +393,15 @@ schemas and schematrons).
   side would be one module (`lib/transmit.ts`) called after finalising,
   plus a status on the invoice page. Not built as a fake: until then,
   "keep your PA".
-- **Public part / online acceptance of quotes — designed, not built.** The
-  tool is private (`tools/private/`, no `"public"` in `chest.json`). A
-  client accepting a quote online needs the public host: `"public": true`
-  (and so, by the studio's layout, a move to `tools/public-and-private/`,
-  which is the lead's call). Design: on sending, a secret per quote
-  (32 random bytes, stored hashed, `quotes_links`), the email carries
-  `<publicUrl>/q/<secret>`; the page shows the quote (its PDF, the total,
-  the validity), and "Accept" (name + a tick "Bon pour accord" + date; IP
-  and user agent recorded, hashed after 12 months) or "Decline"; the quote
-  becomes accepted/refused (`decided_by = 'client'`), the author is told in
-  the bell, the history says "Accepted online by <name>". An expired or
-  answered quote says so; the link dies with the quote. Not a qualified
-  e-signature (eIDAS), and the page says so. Needs: `chest.publicUrl()`
-  (exists), the `visitors` proposal for rate-limiting (exists).
+- **visitors** (studio proposal) for the public answer form: the signed
+  "shown at" token (`formToken`/`checkForm`: a form sent within 3 s is
+  refused as a robot's), the Chest's counting (`count`, 20 answers an hour
+  per visitor; a Chest that cannot count yet is tolerated — each link
+  answers once), and `visitor()` (the hash of the address kept as proof).
+  Call site: `app/public-actions.ts`. And `chest.publicUrl()` for the
+  link's address (`lib/public-origin.ts` derives it from the request
+  otherwise). Without **mail** on a real Chest, the member copies the
+  link from the quote's margin into their own email.
 - **Guest accounts** (for the external accountant): not in the Chest;
   until then the accountant gets the period's ZIP.
 
@@ -386,7 +452,9 @@ node ../../../lab/chest-dev/dev.mjs . --prod --reset --port 5700   # from the st
 
 `seed/sample.sql` fills "Atelier Martin SARL", a Lyon design studio: 6
 clients, 12 items, 8 quotes in every state, 7 invoices (paid, partly paid,
-overdue, unpaid, a draft handed to billing), 1 credit note.
+overdue, unpaid, a draft handed to billing), 1 credit note. Quote D-…-0006 has a client's
+answer link with a fixed secret (`/q/SampleAnswerLinkQuoteD0006Roux01`)
+for the screenshots and the flows.
 `test/fixtures/` holds clients and catalogue exports in the style of
 Axonaut, Sellsy and Pennylane (see THIRD_PARTY.md for what could be
 verified of their formats).
@@ -396,12 +464,16 @@ verified of their formats).
 - **Transmit e-invoices to a PA, or receive supplier invoices** (needs the
   SDK "partners" primitive above): keep your PA. No UBL output (Factur-X
   only).
-- **Online acceptance of a quote, and payment in the tool** (needs the
-  public part; designed above). A static payment link is printed instead.
-- **Import of open invoices** ("to collect" from the previous tool) and of
-  past invoices: only clients and catalogue items are imported; the
-  previous tool's unpaid invoices are collected there, or retyped as new
-  invoices here only if they were never issued.
+- **Payment in the tool** (card, SEPA): a static payment link is printed
+  instead.
+- **An electronic signature** (eIDAS): the online acceptance is a record
+  of agreement, not a signature; the client gets no email of their answer
+  (the page offers the PDF they accepted).
+- **Past paid invoices** are not imported (only those still to collect);
+  an imported invoice has no PDF here (it stays in the previous tool). The
+  export formats of Axonaut, Sellsy and Pennylane for unpaid invoices could
+  not be verified (THIRD_PARTY.md): the importer matches usual headers and
+  lets the person match the rest.
 - The link with the Clients tool is one way (a won deal makes a quote);
   a client's card edited in Clients does not update here.
 - Reminder emails use the standard text (in the client's language); their
@@ -414,5 +486,7 @@ verified of their formats).
   situation invoices and retention money (*factures de situation*,
   *retenue de garantie*): **not for construction firms billing by
   progress**.
-- An automatic monthly archive to the Chest's files: export each period
-  (the ZIP holds everything).
+- An archive **outside** the Chest: the monthly archive is kept in the
+  tool's own files, deleted with the tool — someone must download it (the
+  desk asks). Its scheduled delivery by email to the accountant needs
+  `mail` + a guest seat (not built).

@@ -12,7 +12,8 @@ import { currentLook } from "../../lib/theme.ts";
 // the sections as labelled tabs, member chip) and its toasts. proxy.ts
 // already refused a request without the Chest's assertion; a member whose
 // role gives nothing sees why, not an error. In brand mode the company's
-// logo stands where Goals' mark is (on the header, dark in both modes).
+// logo stands where Goals' mark is, on the kit's normal header (the dark
+// band is the Trail map's own: app/tokens.css).
 export default async function MembersLayout({ children }: { children: ReactNode }) {
   const [v, look] = await Promise.all([viewer(), currentLook()]);
   if (!v) return null;
@@ -31,7 +32,7 @@ export default async function MembersLayout({ children }: { children: ReactNode 
   return (
     <Toasts labels={t.toast}>
       <Shell
-        brand={<><Contours /><a href="/chest"><BrandMark logo={look.logo} ground="dark"><Mark /></BrandMark><span className="brand-name">{t.meta.name}</span></a></>}
+        brand={<><Contours /><a href="/chest"><BrandMark logo={look.logo} ground={look.source === "own" ? "dark" : "light"}><Mark /></BrandMark><span className="brand-name">{t.meta.name}</span></a></>}
         nav={nav}
         member={{ name: member.name, role: role ? t.roles[role] : null, photo: member.photo }}
         labels={{ skip: t.shell.skip, nav: t.shell.nav }}

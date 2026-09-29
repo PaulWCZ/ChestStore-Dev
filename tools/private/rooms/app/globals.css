@@ -9,13 +9,17 @@ body {
   color: var(--ink);
   font: var(--text-m)/var(--leading) var(--font-body);
   -webkit-font-smoothing: antialiased;
-  /* Drafting paper: a fine grid every 24 px, a stronger line every 120 px. */
+  /* Drafting paper: a fine grid every 24 px, a stronger line every 120 px.
+     Decoration: it steps aside (--decor: 0, kit 0.2.3) in the company's
+     brand, the Chest's sheet and High contrast — the page is theirs. */
+  --paper-major: color-mix(in oklab, var(--grid-major) calc(var(--decor, 1) * 100%), transparent);
+  --paper-minor: color-mix(in oklab, var(--grid) calc(var(--decor, 1) * 100%), transparent);
   background-color: var(--bg);
   background-image:
-    linear-gradient(var(--grid-major) 1px, transparent 1px),
-    linear-gradient(90deg, var(--grid-major) 1px, transparent 1px),
-    linear-gradient(var(--grid) 1px, transparent 1px),
-    linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+    linear-gradient(var(--paper-major) 1px, transparent 1px),
+    linear-gradient(90deg, var(--paper-major) 1px, transparent 1px),
+    linear-gradient(var(--paper-minor) 1px, transparent 1px),
+    linear-gradient(90deg, var(--paper-minor) 1px, transparent 1px);
   background-size: 120px 120px, 120px 120px, 24px 24px, 24px 24px;
   background-position: -1px -1px;
 }

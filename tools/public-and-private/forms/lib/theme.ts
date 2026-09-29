@@ -27,15 +27,21 @@ const own = identityOf("forms");
 if (!own) throw new Error("the UI kit's catalogue has no identity for forms");
 export const identity: Theme = own;
 
-// The look of this request: the company's choice as the Chest tells it
-// (for all its tools, or for this one), else the identity above. Never
-// throws: the Chest unreachable, or a choice the kit cannot honour, is the
-// identity. Asked once per request, however many components need it.
-export const currentLook = cache(async (): Promise<Look> => {
-  const look = resolveTheme(await chest.theme(), identity);
+// The look of a surface: the company's choice as the Chest tells it (for
+// all its tools, or for this one), else the identity above. The public
+// pages (a public form, the button a website pastes) wear the company's
+// brand when it has one, else Forms' own identity — never a catalogue
+// theme chosen for the team, never the Chest's sheet (kit 0.2.3, surface
+// "public"). A team form in the Chest is the team's surface. Never throws:
+// the Chest unreachable, or a choice the kit cannot honour, is the
+// identity. Asked once per request (lib/look.ts picks by the member).
+async function lookOf(surface: "team" | "public"): Promise<Look> {
+  const look = resolveTheme(await chest.theme(), identity, { surface });
   if (look.problem) console.warn(`theme: ${look.problem}; the tool's own look is used`);
   return look;
-});
+}
+export const publicLook = cache(() => lookOf("public"));
+export const teamLook = cache(() => lookOf("team"));
 
 // Whether the page wears Forms' own identity (its own look, or Invitation
 // chosen from the catalogue: one and the same): a form's default colour is then its berry;

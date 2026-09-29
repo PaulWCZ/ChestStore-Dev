@@ -55,6 +55,16 @@ export const fr: Catalogue = {
     unassigned: "Sans responsable",
     chest: "Clients",
   },
+  calendar: {
+    titleOn: "{text} · {on}",
+    description: "Une prochaine étape dans Clients.",
+  },
+  seed: {
+    fields: { segment: "Segment", employees: "Effectif", leadSource: "Origine du contact", competitor: "Concurrent", deliveryWantedBy: "Livraison souhaitée le" },
+    options: { smallBusiness: "Petite entreprise", midMarket: "ETI", keyAccount: "Grand compte", referral: "Recommandation", tradeFair: "Salon", website: "Site web", coldCall: "Prospection téléphonique" },
+    industries: { foodRetail: "Commerce alimentaire", lawFirm: "Cabinet d’avocats", carRepair: "Garage automobile", printing: "Imprimerie", veterinary: "Clinique vétérinaire", architecture: "Architecture", hospitality: "Hôtellerie", agriculture: "Agriculture", publicSector: "Secteur public" },
+    tags: { retail: "commerce", keyAccount: "grand compte", services: "services", health: "santé", partner: "partenaire", publicTender: "marché public", decisionMaker: "décideur", prospect: "prospect" },
+  },
   stages: {
     lead: "Piste",
     qualified: "Qualifiée",
@@ -64,6 +74,7 @@ export const fr: Catalogue = {
     lost: "Perdue",
   },
   common: {
+    filtersOn: "Filtres ({count})",
     merge: {
       action: "Fusionner avec un doublon",
       titleCompany: "Fusionner {name} dans une autre entreprise",
@@ -388,6 +399,8 @@ export const fr: Catalogue = {
     staleWarning: "Aucun contact depuis plus de 3 ans. S’il s’agit d’un prospect, pensez à effacer ses données.",
   },
   step: {
+    inCalendar: "Avec une heure, elle va dans votre agenda du Chest.",
+    inTheirCalendar: "Avec une heure, elle va dans son agenda du Chest.",
     time: "Heure",
     noTime: "Sans heure",
     another: "Prévoir une autre étape",
@@ -420,6 +433,10 @@ export const fr: Catalogue = {
     for: "pour {name}",
   },
   log: {
+    callPrompt: "Vous avez appelé {name}. Noter l’appel ?",
+    callPromptPlaceholder: "Qu’est-ce qui s’est dit ? (facultatif)",
+    callPromptLog: "Noter l’appel",
+    callPromptSkip: "Pas maintenant",
     title: "Noter ce qui s’est passé",
     what: "Ce qui s’est dit",
     as: "Le noter comme",

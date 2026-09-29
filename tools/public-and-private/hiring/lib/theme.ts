@@ -64,8 +64,21 @@ export function accentCss(accent: Accent, selector: string): string {
 // (for all its tools, or for this one), else the identity above. Never
 // throws: the Chest unreachable, or a choice the kit cannot honour, is the
 // identity. Asked once per request, however many components need it.
-export const currentLook = cache(async (): Promise<Look> => {
-  const look = resolveTheme(await chest.theme(), identity);
+// The look of a surface: the team's pages wear what the company chose
+// (for all its tools, or for Hiring), else the identity; the public pages
+// (the careers page, a job, the form, a candidate's link) wear the
+// company's brand when it has one, else Hiring's own look — never a
+// catalogue theme chosen for the team's tools (kit 0.2.3, surface
+// "public"; critique round 2, N7).
+export async function lookOf(surface: "team" | "public"): Promise<Look> {
+  const look = resolveTheme(await chest.theme(), identity, { surface });
   if (look.problem) console.warn(`theme: ${look.problem}; the tool's own look is used`);
   return look;
+}
+
+// The look of this request: a member is asserted on the team's pages only.
+// (session.ts is loaded here: it needs a request; the tests read lookOf.)
+export const currentLook = cache(async (): Promise<Look> => {
+  const { currentMember } = await import("./session.ts");
+  return lookOf((await currentMember()) ? "team" : "public");
 });

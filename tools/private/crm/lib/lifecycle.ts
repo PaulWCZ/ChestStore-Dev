@@ -1,5 +1,6 @@
 import * as events from "@argentic/chest-sdk/events";
 import type { Sql } from "./db.ts";
+import { reconcile } from "./step-calendar.ts";
 import { managers } from "./team.ts";
 import { left } from "./tell.ts";
 
@@ -58,6 +59,8 @@ async function nameOf(memberId: string): Promise<string> {
 export function handlers(sql: Sql): events.Handlers {
   const gone = async (memberId: string) => {
     const counts = await leave(sql, memberId);
+    // Their steps now belong to nobody: out of their calendar.
+    await reconcile(sql);
     await tellManagers(memberId, await nameOf(memberId), counts);
   };
   return {
@@ -66,6 +69,7 @@ export function handlers(sql: Sql): events.Handlers {
     "member.erased": async event => {
       const counts = await leave(sql, event.data.id);
       await erase(sql, event.data.id);
+      await reconcile(sql);
       await tellManagers(event.data.id, "", counts);
       await events.acknowledgeErasure(event.data.erasure);
     },

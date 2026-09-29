@@ -1,3 +1,5 @@
+import { shownName } from "../../../../lib/seed-words.ts";
+import { calendarWorks } from "../../../../lib/step-calendar.ts";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { StageBadge } from "../../../../components/stage-badge.tsx";
@@ -16,6 +18,7 @@ import { dealFormProps, dueLabel, formChoices, shownFields, shownFiles, withWhen
 import { directory } from "../../../../lib/people.ts";
 import { viewer } from "../../../../lib/session.ts";
 import { openSteps } from "../../../../lib/steps.ts";
+import { CallPrompt } from "../../ui/call-prompt.tsx";
 import { Composer } from "../../ui/composer.tsx";
 import { NewDealButton } from "../../ui/deal-form.tsx";
 import { FilesBox } from "../../ui/files-box.tsx";
@@ -67,11 +70,11 @@ export default async function ContactPage({ params }: { params: Promise<{ id: st
           {c.email && <a className="button quiet" href={`mailto:${c.email}`}><Mail />{t.common.write}<span className="reach-detail">{c.email}</span></a>}
           <a className="button quiet" href={`/chest/contacts/${c.id}/vcard`} download><Card />{t.contact.vcard}</a>
         </div>
-        {c.tags.length > 0 && <p className="tags">{c.tags.map(tag => <Link prefetch={false} key={tag} className="tag" href={`/chest/contacts?tag=${encodeURIComponent(tag)}`}>{tag}</Link>)}</p>}
+        {c.tags.length > 0 && <p className="tags">{c.tags.map(tag => <Link prefetch={false} key={tag} className="tag" href={`/chest/contacts?tag=${encodeURIComponent(tag)}`}>{shownName("tags", tag, t)}</Link>)}</p>}
       </div>
       {stale && <p className="notice warn">{t.contact.staleWarning}</p>}
       <ContactControls
-        contact={{ id: c.id, name: c.name, email: c.email, phone: c.phone, phone2: c.phone2, url: c.url, title: c.title, company: c.company, notes: c.notes, tags: c.tags.join(", "), owner: c.owner, custom: customForm(c.custom) }}
+        contact={{ id: c.id, name: c.name, email: c.email, phone: c.phone, phone2: c.phone2, url: c.url, title: c.title, company: c.company, notes: c.notes, tags: c.tags.map(tag => shownName("tags", tag, t)).join(", "), owner: c.owner, custom: customForm(c.custom) }}
         ownerName={names[c.owner ?? ""]?.name ?? t.common.unassigned}
         canEdit={can(member, "records.write")}
         canMerge={canDeleteRecord(member, c)}
@@ -84,7 +87,8 @@ export default async function ContactPage({ params }: { params: Promise<{ id: st
       />
       <div className="record-grid">
         <div className="record-main">
-          <StepBox steps={steps.map(s => ({ ...s, label: dueLabel(s, day, locale, t) }))} on={{ contact: c.id }} team={choices.team} people={names} me={member.id} canEdit={can(member, "records.write")} canAssign={choices.canAssign} today={day} t={t} />
+          {can(member, "activities.log") && (c.phone || c.phone2) && <CallPrompt on={{ contact: c.id }} name={c.name} t={t} />}
+          <StepBox steps={steps.map(s => ({ ...s, label: dueLabel(s, day, locale, t) }))} on={{ contact: c.id }} team={choices.team} people={names} me={member.id} canEdit={can(member, "records.write")} canAssign={choices.canAssign} today={day} calendar={(await calendarWorks(sql)) === true} t={t} />
           {can(member, "activities.log") ? <Composer on={{ contact: c.id }} t={t} /> : <p className="muted">{t.log.readOnly}</p>}
           <h2 className="label-mono section-gap">{t.timeline.title}</h2>
           <Timeline items={withWhen(items, locale)} people={names} stageNames={choices.stageNames} me={member.id} canRemoveAny={can(member, "deals.all")} canLog={can(member, "activities.log")} context="contact" locale={locale} t={t} />

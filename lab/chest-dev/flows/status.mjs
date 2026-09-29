@@ -77,6 +77,22 @@ await step("with the company's brand in the Chest, the public page wears its log
   }
 });
 
+await step("a theme the company chose for its team's tools never dresses the public page; the team's pages wear it", async () => {
+  await page.request.post(origin + "/_dev/theme", { form: { level: "all", choice: "catalogue:confetti" } });
+  try {
+    await page.goto(origin + "/?fresh=theme");
+    expect((await page.locator("html").getAttribute("data-look")) === "own", "customers see Status's own look");
+    await as(context, origin, "tom");
+    await english();
+    await page.goto(origin + "/chest");
+    expect((await page.locator("html").getAttribute("data-look")) === "catalogue", "the team sees the company's choice");
+  } finally {
+    await page.request.post(origin + "/_dev/theme", { form: { level: "all", choice: "own" } });
+    await context.clearCookies();
+    await english();
+  }
+});
+
 await step("a visitor opens an incident's own page, the history, and the feeds", async () => {
   await page.locator(".tick a").first().click();
   await page.waitForURL(/\/incidents\/\d+$/u);

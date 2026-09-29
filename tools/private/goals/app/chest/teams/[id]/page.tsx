@@ -28,7 +28,7 @@ export default async function TeamPage({ params, searchParams }: { params: Promi
   if (!team) notFound();
   const ctx = await context(sql, member);
   const asked = (await searchParams).cycle;
-  const cycle = ctx.cycles.find(c => c.id === asked) ?? (await defaultCycle(sql));
+  const cycle = ctx.cycles.find(c => c.id === asked) ?? (await defaultCycle(sql, member.locale));
   const all = cycle ? await cycleObjectives(sql, cycle.id, ctx.clock, readerOf(member)) : [];
   const ours = all.filter(o => o.level === "team" && o.teamId === team.id);
   const ourIds = new Set(ours.map(o => o.id));

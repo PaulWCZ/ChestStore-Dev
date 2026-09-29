@@ -8,6 +8,10 @@
   "mail": {
     "send": true
   },
+  "groups": "read",
+  "receives": [
+    "group.*"
+  ],
   "translations": {
     "fr": {
       "title": "Sondages",

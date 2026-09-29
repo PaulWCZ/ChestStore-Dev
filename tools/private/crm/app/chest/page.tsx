@@ -1,3 +1,4 @@
+import { calendarWorks, reconcile } from "../../lib/step-calendar.ts";
 import { EmptyState } from "@argentic/chest-ui/components";
 import Link from "next/link";
 import { AutoRefresh } from "../../components/auto-refresh.tsx";
@@ -27,6 +28,10 @@ export default async function MyDay() {
   if (!v) return null;
   const { member, locale, t } = v;
   const sql = db();
+  // Whether timed steps reach the Chest's calendar: found out once, at the
+  // first visit, by publishing them (the morning schedule keeps it up).
+  if ((await calendarWorks(sql)) === null) await reconcile(sql);
+  const inCalendar = (await calendarWorks(sql)) === true;
   const now = today();
   const [choices, counted] = await Promise.all([
     formChoices(sql, member, t),
@@ -89,7 +94,7 @@ export default async function MyDay() {
                 <li key={s.stage.id}>
                   <Link prefetch={false} href={`/chest/deals?view=list&stage=${s.stage.id}`}>
                     <span className="bar-label">{choices.stageNames[s.stage.id]}</span>
-                    <span className="bar-track" aria-hidden="true"><span className="bar-fill" style={{ width: `${Math.round((s.value / max) * 100)}%` }} /></span>
+                    <span className="bar-track" aria-hidden="true">{s.value > 0 && <span className="bar-fill" style={{ width: `${Math.round((s.value / max) * 100)}%` }} />}</span>
                     <span className="bar-value num">{s.count > 0 ? `${s.count} · ${money(s.value, locale, { compact: true })}` : "—"}</span>
                   </Link>
                 </li>
@@ -158,9 +163,9 @@ export default async function MyDay() {
               <EmptyState headingLevel={3} title={t.home.nothing} body={t.home.nothingBody} action={<Link prefetch={false} className="button quiet" href="/chest/deals">{t.shell.deals}</Link>} />
             </div>
           ) : (
-            <DayList rows={rows} team={choices.team} me={member.id} canAssign={choices.canAssign} today={now} locale={locale} t={t} />
+            <DayList rows={rows} team={choices.team} me={member.id} canAssign={choices.canAssign} today={now} locale={locale} calendar={inCalendar} t={t} />
           )}
-          {logs && <SelfStepButton team={choices.team} me={member.id} canAssign={choices.canAssign} today={now} t={t} />}
+          {logs && <SelfStepButton team={choices.team} me={member.id} canAssign={choices.canAssign} today={now} calendar={inCalendar} t={t} />}
         </section>
         <aside className="day-side">
           <section className="panel" aria-labelledby="pipe-title">
@@ -177,7 +182,7 @@ export default async function MyDay() {
                     <li key={s.stage.id}>
                       <Link prefetch={false} href={`/chest/deals?view=list&owner=me&stage=${s.stage.id}`}>
                         <span className="bar-label">{choices.stageNames[s.stage.id]}</span>
-                        <span className="bar-track" aria-hidden="true"><span className="bar-fill" style={{ width: `${Math.round((s.value / max) * 100)}%` }} /></span>
+                        <span className="bar-track" aria-hidden="true">{s.value > 0 && <span className="bar-fill" style={{ width: `${Math.round((s.value / max) * 100)}%` }} />}</span>
                         <span className="bar-value num">{s.count > 0 ? `${s.count} · ${money(s.value, locale, { compact: true })}` : "—"}</span>
                       </Link>
                     </li>

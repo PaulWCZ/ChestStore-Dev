@@ -21,6 +21,19 @@ async function fillApplication(name, email, file) {
   await page.waitForTimeout(3200);
 }
 
+// With --empty (a harness run with --empty: a new company), only the
+// first visit: the careers page speaks for nobody.
+if (process.argv.includes("--empty")) {
+  await step("a new company's careers page says only its name and that nothing is open — never an intro it did not write", async () => {
+    await context.clearCookies();
+    await page.goto(origin + "/");
+    expect(await page.locator(".hero .lede").count() === 0, "no invented intro");
+    expect(!(await page.locator("main").innerText()).includes("small team that cares"), "no sentence about the company");
+  });
+  await browser.close();
+  done(problems);
+}
+
 await step("the careers page lists the open jobs, in English and in French", async () => {
   await context.clearCookies();
   await page.goto(origin + "/");
@@ -248,6 +261,9 @@ await step("write to a candidate from a template; her answer lands on her page",
 await step("invite to an interview: busy times shown, .ics emailed, interviewers' calendars have it", async () => {
   await page.goto(origin + "/chest/candidates/7");
   await page.getByRole("button", { name: "Interview", exact: true }).click();
+  // The candidate chooses by default; the recruiter may choose the time.
+  expect(await page.locator("dialog[open]").getByLabel(/Emma chooses/u).isChecked(), "they choose, by default");
+  await page.locator("dialog[open]").getByText("I choose the time").click();
   const day = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Paris" }).format(new Date(Date.now() + 2 * 86400000));
   // The kit's DateField: the day typed in the member's language (ISO is read too).
   await page.locator("#iv-day").fill(day);
@@ -266,6 +282,72 @@ await step("invite to an interview: busy times shown, .ics emailed, interviewers
   expect(log.includes("Interview: Emma Lefort"), "in the calendars");
   await page.reload();
   expect((await page.locator(".meetings").innerText()).includes("10:00"), "on her page");
+});
+
+await step("the candidate chooses her own interview time from a link: free times only, one tap, confirmed by email with an .ics; the team hears it", async () => {
+  await as(context, origin, "camille");
+  await english();
+  await page.goto(origin + "/chest/candidates/1");
+  await page.getByRole("button", { name: "Interview", exact: true }).click();
+  const dialog = page.locator("dialog[open]");
+  await dialog.locator(".check", { hasText: "Hugo Bernard" }).click();
+  await dialog.getByRole("button", { name: "Send the link" }).click();
+  await page.waitForSelector(".ck-toast >> text=/Link sent to Lucie Garnier/");
+  await page.reload();
+  expect((await page.locator(".meetings").first().innerText()).includes("Waiting for them to choose"), "the link waits on her page");
+  const link = /https?:\/\/[^\s"<]*\/interview\/[A-Za-z0-9_-]{43}/u.exec(await dev())?.[0];
+  expect(link, "the link is in the email");
+  // The candidate, not signed in, in her browser.
+  await context.clearCookies();
+  await english();
+  await page.goto(link.replace(/^https?:\/\/[^/]+/u, origin));
+  expect((await page.locator("h1").innerText()).includes("Lucie, choose a time"), "her page");
+  const times = page.locator(".pick-time");
+  expect(await times.count() > 3, "free times offered");
+  await times.nth(1).click();
+  const confirm = page.getByRole("button", { name: /^Confirm /u });
+  const said = await confirm.innerText();
+  await confirm.click();
+  await page.waitForSelector("h1 >> text=Your interview is booked");
+  expect((await page.locator(".lede").innerText()).includes("Senior furniture designer"), "booked, said with the job");
+  const log = await dev();
+  expect(log.includes("Interview on ") && log.includes("chose their interview"), "the confirmation email and the team's bell");
+  await page.goto(link.replace(/^https?:\/\/[^/]+/u, origin));
+  expect((await page.locator("h1").innerText()).includes("booked"), "the link now says it is booked: " + said);
+  await as(context, origin, "camille");
+  await english();
+  await page.goto(origin + "/chest/candidates/1");
+  const history = await page.locator("main").innerText();
+  expect(history.includes("Chose the interview time"), "in her history");
+  expect(!history.includes("Waiting for them to choose"), "no longer waiting");
+});
+
+await step("one place for the careers brand: with the Chest's brand, Hiring's colour and logo step aside and Settings says where it comes from; a team theme never dresses the careers page", async () => {
+  await as(context, origin, "camille");
+  await english();
+  await page.request.post(origin + "/_dev/theme", { form: { level: "all", choice: "brand:sample" } });
+  try {
+    await page.goto(origin + "/chest/settings");
+    const text = await page.locator("main").innerText();
+    expect(text.includes("wears your company’s brand") && !text.includes("Colour"), "the brand's place said; no colour picker");
+    expect(await page.getByRole("button", { name: /Add|Replace/u }).filter({ hasText: /logo/iu }).count() === 0, "no logo of Hiring's own");
+  } finally {
+    await page.request.post(origin + "/_dev/theme", { form: { level: "all", choice: "catalogue:confetti" } });
+  }
+  try {
+    await context.clearCookies();
+    await page.goto(origin + "/?fresh=theme");
+    expect((await page.locator("html").getAttribute("data-look")) === "own", "candidates see Hiring's own look");
+    await as(context, origin, "camille");
+    await english();
+    await page.goto(origin + "/chest/settings");
+    expect((await page.locator("html").getAttribute("data-look")) === "catalogue", "the team wears the company's theme");
+    expect((await page.locator("main").innerText()).includes("Colour"), "without a brand, Hiring's colour is the careers page's");
+  } finally {
+    await page.request.post(origin + "/_dev/theme", { form: { level: "all", choice: "own" } });
+    await as(context, origin, "camille");
+    await english();
+  }
 });
 
 await step("search finds Hélène without the accent; the talent pool lists who agreed", async () => {
@@ -334,7 +416,18 @@ await step("write a job, publish it: it is on the careers page", async () => {
   await page.getByLabel("Job title").fill("Wood finisher");
   await page.getByLabel("Team").fill("Workshop");
   await page.getByLabel("Place", { exact: true }).fill("Lyon");
-  await page.locator("#description").fill("Oil, wax and varnish.\n- Two years in a workshop");
+  // A real editor: nobody types a mark; the buttons have their words.
+  expect(!(await page.locator("main").innerText()).includes("##"), "no raw marks on the page");
+  const editor = page.getByRole("textbox", { name: "Description" });
+  await editor.click();
+  await page.getByRole("button", { name: "Heading", exact: true }).click();
+  await page.keyboard.type("What you will do");
+  await page.keyboard.press("Enter");
+  await page.keyboard.type("Oil, wax and varnish.");
+  await page.keyboard.press("Enter");
+  await page.getByRole("button", { name: "List", exact: true }).click();
+  await page.keyboard.type("Two years in a workshop");
+  expect(await editor.locator("h3").count() === 1 && await editor.locator("li").count() === 1, "a heading and a list, as they will look");
   await page.getByRole("button", { name: "Save the draft" }).click();
   await page.waitForURL(/\/chest\/jobs\/\d+$/u);
   await page.getByRole("button", { name: "Publish" }).click();
@@ -342,6 +435,8 @@ await step("write a job, publish it: it is on the careers page", async () => {
   await page.waitForTimeout(800);
   const careers = await (await page.request.get(origin + "/")).text();
   expect(careers.includes("Wood finisher"), "published");
+  const jobPage = await (await page.request.get(origin + "/wood-finisher")).text();
+  expect(/<h2[^>]*>(<span>)?What you will do/u.test(jobPage) && /<li[^>]*>(<span>)?Two years in a workshop(<\/span>)?<\/li>/u.test(jobPage) && /<p[^>]*>(<span>)*Oil, wax and varnish\./u.test(jobPage), "the job page shows the heading, the paragraph and the list");
 });
 
 await step("add a referral by hand with a CV", async () => {
@@ -385,6 +480,15 @@ await step("phone width: careers, job, form, board, candidate fit", async () => 
     const width = await page.evaluate(() => document.documentElement.scrollWidth);
     expect(width <= 392, `${path} overflows: ${width}`);
   }
+  // The board: one stage at a time under its tabs, which are never cut.
+  await page.goto(origin + "/chest/jobs/1");
+  expect(await page.locator(".lane:visible").count() === 1, "one stage shown");
+  const lanes = await page.evaluate(() => { const l = document.querySelector(".lanes"); return l ? l.scrollWidth - l.clientWidth : -1; });
+  expect(lanes <= 1, "no sideways scroll in the board: " + lanes);
+  const tabs = await page.locator(".stage-tabs button").evaluateAll(els => els.every(e => e.getBoundingClientRect().right <= window.innerWidth + 1));
+  expect(tabs, "every stage tab fits the screen");
+  await page.locator(".stage-tabs button", { hasText: "Interview" }).click();
+  expect((await page.locator(".lane:visible h2").innerText()).includes("Interview"), "the tab shows its stage");
 });
 
 await browser.close();

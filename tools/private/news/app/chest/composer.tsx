@@ -1,6 +1,6 @@
 "use client";
 
-import { DateField, PeoplePicker, Tabs, TimeSelect, useToast } from "@argentic/chest-ui/components";
+import { Checkbox, DateField, PeoplePicker, Tabs, TimeSelect, useToast } from "@argentic/chest-ui/components";
 import { localSearch, type DateWords, type PeoplePickerWords } from "@argentic/chest-ui/components/logic";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -416,20 +416,12 @@ export function Composer({ postId, initial, author, people, groups, languages, m
 
           <section className="side-card">
             <h2>{w.options}</h2>
-            <label className="check">
-              <input type="checkbox" checked={d.important} onChange={e => update({ important: e.target.checked })} />
-              <span><strong>{w.important}</strong><small>{mail === "off" ? w.importantHintBell : w.importantHint}</small></span>
-            </label>
+            {/* On/off choices that wait for Publish: the kit's Checkbox. */}
+            <Checkbox label={<strong>{w.important}</strong>} hint={mail === "off" ? w.importantHintBell : w.importantHint} checked={d.important} onChange={on => update({ important: on })} />
             {postId !== null && initial.important && d.important && textChanged && !initial.scheduled && (
-              <label className="check indent">
-                <input type="checkbox" checked={reconfirm} onChange={e => setReconfirm(e.target.checked)} />
-                <span><strong>{w.reconfirm}</strong><small>{w.reconfirmHint}</small></span>
-              </label>
+              <Checkbox className="indent" label={<strong>{w.reconfirm}</strong>} hint={w.reconfirmHint} checked={reconfirm} onChange={setReconfirm} />
             )}
-            <label className="check">
-              <input type="checkbox" checked={d.pinned} onChange={e => update({ pinned: e.target.checked })} />
-              <span><strong>{w.pinned}</strong><small>{w.pinnedHint}</small></span>
-            </label>
+            <Checkbox label={<strong>{w.pinned}</strong>} hint={w.pinnedHint} checked={d.pinned} onChange={on => update({ pinned: on })} />
             {d.pinned && (
               <div className="field-group indent">
                 <DateField id="pinned-until" label={w.pinnedUntil} value={d.pinnedUntil} min={defaults.today} chips={false} onChange={day => update({ pinnedUntil: day })} today={defaults.today} labels={t.date} />

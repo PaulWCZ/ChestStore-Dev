@@ -55,6 +55,20 @@ export const en = {
     unassigned: "Unassigned",
     chest: "Clients",
   },
+  // The Chest calendar's events of timed next steps (lib/step-calendar.ts).
+  calendar: {
+    titleOn: "{text} · {on}",
+    description: "A next step in Clients.",
+  },
+  // Names the tool wrote into a new company's book (the sample's own
+  // fields, their choices, industries, tags), shown in each reader's
+  // language until someone renames them (lib/seed-words.ts, lib/fields.ts).
+  seed: {
+    fields: { segment: "Segment", employees: "Employees", leadSource: "Lead source", competitor: "Competitor", deliveryWantedBy: "Delivery wanted by" },
+    options: { smallBusiness: "Small business", midMarket: "Mid-market", keyAccount: "Key account", referral: "Referral", tradeFair: "Trade fair", website: "Website", coldCall: "Cold call" },
+    industries: { foodRetail: "Food retail", lawFirm: "Law firm", carRepair: "Car repair", printing: "Printing", veterinary: "Veterinary", architecture: "Architecture", hospitality: "Hospitality", agriculture: "Agriculture", publicSector: "Public sector" },
+    tags: { retail: "retail", keyAccount: "key account", services: "services", health: "health", partner: "partner", publicTender: "public tender", decisionMaker: "decision maker", prospect: "prospect" },
+  },
   stages: {
     lead: "Lead",
     qualified: "Qualified",
@@ -64,6 +78,7 @@ export const en = {
     lost: "Lost",
   },
   common: {
+    filtersOn: "Filters ({count})",
     merge: {
       action: "Merge with a duplicate",
       titleCompany: "Merge {name} into another company",
@@ -388,6 +403,8 @@ export const en = {
     staleWarning: "No contact for more than 3 years. If this is a prospect, consider erasing their data.",
   },
   step: {
+    inCalendar: "With a time, it goes into your Chest calendar.",
+    inTheirCalendar: "With a time, it goes into their Chest calendar.",
     time: "Time",
     noTime: "Any time",
     another: "Plan another step",
@@ -420,6 +437,10 @@ export const en = {
     for: "for {name}",
   },
   log: {
+    callPrompt: "You called {name}. Log the call?",
+    callPromptPlaceholder: "What was said? (optional)",
+    callPromptLog: "Log the call",
+    callPromptSkip: "Not now",
     title: "Log what happened",
     what: "What was said",
     as: "Log it as",

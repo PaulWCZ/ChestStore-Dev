@@ -5,9 +5,12 @@
 -- what the team learned. Member ids are those of the studio's harness
 -- (lab/chest-dev/cast.mjs); Paul Lefèvre has left the company.
 
-insert into cycles (id, name, starts_on, ends_on, current, closed_at, closed_by, created_by, created_at) overriding system value values
-  (1, 'Summer 2026', current_date - 129, current_date - 39, false, now() - interval '36 days', 'mbr_camilleaaaaaaaaaaaaaaaaaaa', 'mbr_camilleaaaaaaaaaaaaaaaaaaa', now() - interval '140 days'),
-  (2, 'Autumn 2026', current_date - 38, current_date + 52, true, null, null, 'mbr_camilleaaaaaaaaaaaaaaaaaaa', now() - interval '45 days');
+-- Both cycles were named by the tool (generated): each reader reads their
+-- months in their language ("Jun – Aug 2026" / "juin – août 2026"; a
+-- calendar quarter would read "Q3 2026" / "T3 2026"). `name` is only kept.
+insert into cycles (id, name, generated, starts_on, ends_on, current, closed_at, closed_by, created_by, created_at) overriding system value values
+  (1, 'Summer 2026', true, current_date - 129, current_date - 39, false, now() - interval '36 days', 'mbr_camilleaaaaaaaaaaaaaaaaaaa', 'mbr_camilleaaaaaaaaaaaaaaaaaaa', now() - interval '140 days'),
+  (2, 'Autumn 2026', true, current_date - 38, current_date + 52, true, null, null, 'mbr_camilleaaaaaaaaaaaaaaaaaaa', now() - interval '45 days');
 select setval(pg_get_serial_sequence('cycles', 'id'), 2);
 
 insert into teams (id, name, group_id) overriding system value values

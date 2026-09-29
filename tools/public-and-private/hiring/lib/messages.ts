@@ -11,7 +11,7 @@ import { clean, id, isLanguage, limits, type Language } from "./model.ts";
 // outbox's (lib/outbox.ts); receiving is lib/mail-in.ts. Codes, never
 // sentences.
 
-export type MessageKind = "message" | "rejection" | "interview" | "interview_cancelled" | "confirmation";
+export type MessageKind = "message" | "rejection" | "interview" | "interview_cancelled" | "confirmation" | "interview_request";
 export type MessageStatus = "waiting" | "sent" | "none" | "failed" | "cancelled" | "received" | "bounced";
 export type Attachment = { file: string; name: string; type: string; size: number };
 
@@ -60,7 +60,7 @@ export async function conversation(sql: Sql, actor: Member | null, candidateId: 
 // queue puts an email to a candidate in the outbox: now, or after a delay
 // (a rejection waits for its Undo). calendar: the .ics of an invitation.
 // Says the message's id; the caller asks the outbox to send what is due.
-export async function queue(sql: Query, actor: Member, candidateId: string, input: { kind: MessageKind; subject: unknown; text: unknown; delaySeconds?: number; calendar?: string }): Promise<string> {
+export async function queue(sql: Query, actor: Pick<Member, "id">, candidateId: string, input: { kind: MessageKind; subject: unknown; text: unknown; delaySeconds?: number; calendar?: string }): Promise<string> {
   const subject = clean(input.subject, limits.subject);
   const text = clean(input.text, limits.emailText, { multiline: true });
   const after = new Date(Date.now() + (input.delaySeconds ?? 0) * 1000);

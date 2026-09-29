@@ -59,7 +59,8 @@ export default async function DeskPage() {
         action={canQuote && !d.empty ? <NewDocument type="quote" className={fillFirst ? "button quiet" : undefined} errors={t.errors}><Plus />{t.desk.newQuote}</NewDocument> : undefined}
       />
 
-      {gaps.length > 0 && (
+      {/* Only for who writes documents: a reader has nothing to send. */}
+      {gaps.length > 0 && canQuote && (
         <div className="callout" role="note">
           <Alert />
           <div>

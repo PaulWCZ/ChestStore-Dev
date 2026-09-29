@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { Back } from "../../../../../components/icons.tsx";
 import { db } from "../../../../../lib/db.ts";
 import { AppError } from "../../../../../lib/errors.ts";
-import { editorsOfTool, groupsOfTool } from "../../../../../lib/groups.ts";
+import { editorsOfTool, companyGroups } from "../../../../../lib/groups.ts";
 import { colors } from "../../../../../lib/model.ts";
 import { nameOf, people } from "../../../../../lib/people.ts";
 import { viewer } from "../../../../../lib/session.ts";
@@ -24,7 +24,7 @@ export default async function SettingsPage({ params }: { params: Promise<{ id: s
     if (error instanceof AppError) notFound();
     throw error;
   }
-  const [known, writers] = await Promise.all([groupsOfTool(), editorsOfTool()]);
+  const [known, writers] = await Promise.all([companyGroups(), editorsOfTool()]);
   // A group the space names that the Chest no longer lists stays shown, so
   // saving does not drop it silently; so does a person named among its
   // editors who no longer has the editor role (they read only, meanwhile).

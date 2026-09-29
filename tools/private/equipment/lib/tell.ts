@@ -1,8 +1,11 @@
+import { ChestError } from "@argentic/chest-sdk/errors";
+import * as mail from "@argentic/chest-sdk/mail";
 import type { Member } from "@argentic/chest-sdk/member";
 import type { Query } from "./db.ts";
 import { format, formatDay, plural } from "./i18n/index.ts";
 import { badges, cut, notify, withdraw } from "./notify.ts";
-import { managers } from "./people.ts";
+import { managers, people } from "./people.ts";
+import { catalogue } from "./i18n/index.ts";
 
 // What Equipment tells people through the Chest's bell, each in their own
 // language, and the number on the managers' tile (open problems). Every
@@ -146,4 +149,30 @@ export async function answered(sql: Query, actor: Member, request: { id: string;
     title: format(t.bell.answer[status], { name: actor.firstName || actor.name, what: cut(request.body, 40), item: request.item ? cut(request.item.name, 40) : "" }),
     ...(request.answer ? { body: cut(request.answer, 280) } : {}),
   }), { path: status === "done" && request.item ? itemPath(request.item.id) : "/chest", key: `request:${request.id}:answer` });
+}
+
+// "Remind them": the holder of a receipt still waiting hears it again, in
+// the bell (the same item as when it was given, rung again) and — where
+// the Chest sends email (the "mail" proposal, chest.proposals.json) — by
+// email to their address, which the tool never knows. Says whether the
+// email left: on a Chest without mail, the bell alone, and nothing fails.
+export async function remindReceipt(actor: Member, holder: string, item: Named, givenOn: string): Promise<boolean> {
+  const by = actor.firstName || actor.name;
+  await notify([holder], t => ({ title: format(t.bell.remind, { name: by, item: cut(item.name, 40), tag: item.tag }), body: t.bell.givenBody }), { path: "/chest/mine", key: `item:${item.id}:given` });
+  const person = (await people([holder])).get(holder);
+  if (!person || person.status !== "member") return false;
+  const t = catalogue(person.locale);
+  const date = formatDay(givenOn, person.locale, { day: "numeric", month: "long", year: "numeric" });
+  try {
+    await mail.send({
+      to: { member: holder },
+      subject: cut(format(t.mail.remindSubject, { item: item.name }), 120),
+      text: [format(t.mail.remindText, { name: actor.name, item: item.name, tag: item.tag, date }), "", "—", t.mail.why].join("\n"),
+      key: `remind:${item.id}:${givenOn}:${new Date().toISOString().slice(0, 10)}`,
+    });
+    return true;
+  } catch (error) {
+    if (error instanceof ChestError) return false;
+    throw error;
+  }
 }

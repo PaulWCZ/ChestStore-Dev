@@ -103,7 +103,10 @@ npm ci && npm test && npm run build   # all three must pass
   is the kit's (`AppShell width="full"`), not a CSS override. The
   composer's pickers could become `FilePicker` with `preview` and stored
   files as `ready` entries — not done: it would change the three-step
-  upload and the draft's state for no gain a reader sees.
+  upload and the draft's state for no gain a reader sees. Kit 0.2.3
+  (re-vendored 2026-09-29): the composer's on/off options (Important, ask
+  again, pin) wait for Publish, so they are the kit's `Checkbox`; the
+  audience's group list stays plain checkboxes (a choice in a list).
 - **Only contract tokens in CSS** (`ui/tokens/CONTRACT.md`); a tool token
   is defined from them in `app/tokens.css`; never a colour; weights from the
   theme's tokens, 400 aside (`test/theme.test.ts`).

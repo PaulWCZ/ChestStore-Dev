@@ -32,7 +32,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
   // on the request): the theme's <style> carries it.
   const [locale, look, nonce] = await Promise.all([pageLocale(), currentLook(), headers().then(h => nonceOf(h.get("content-security-policy")))]);
   return (
-    <html lang={locale}>
+    <html lang={locale} data-look={look.source}>
       <head>
         <ThemeStyle look={look} nonce={nonce} />
       </head>

@@ -3,7 +3,9 @@ import { can } from "./access.ts";
 import { likePattern, phoneQuery, words } from "./companies.ts";
 import type { Sql } from "./db.ts";
 import { AppError } from "./errors.ts";
+import { catalogue, isLocale } from "./i18n/index.ts";
 import { clean, domainOf, freeMail, limits, optionalId } from "./model.ts";
+import { shownName } from "./seed-words.ts";
 
 // One search box for companies, contacts and deals: the words of their
 // names (and of an address, a phone, a website), accents and case aside,
@@ -26,8 +28,9 @@ export async function search(sql: Sql, actor: Member | null, query: unknown): Pr
   const phoneMatch = (alias: string) => (digits ? sql`or ${sql(alias + ".phone_digits")} like ${"%" + digits + "%"}` : sql``);
   const match = (alias: string) => sql`(${tsq ? sql`${sql(alias + ".search")} @@ to_tsquery('crm', ${tsq}) or` : sql``} ${sql(alias + ".folded")} like '%' || crm_fold(${plain}) || '%' or word_similarity(crm_fold(${plain}), ${sql(alias + ".folded")}) > 0.5)`;
   const rank = (alias: string) => sql`(${tsq ? sql`ts_rank(${sql(alias + ".search")}, to_tsquery('crm', ${tsq})) +` : sql``} word_similarity(crm_fold(${plain}), ${sql(alias + ".folded")}))`;
-  const companies = await sql<{ id: string; name: string; detail: string }[]>`
-    select o.id, o.name, concat_ws(' · ', nullif(o.industry, ''), nullif(o.website, '')) as detail from companies o
+  const t = catalogue(isLocale(actor!.locale) ? actor!.locale : "en");
+  const companies = await sql<{ id: string; name: string; industry: string; website: string }[]>`
+    select o.id, o.name, o.industry, o.website from companies o
     where ${match("o")} or o.website ilike ${like} or o.phone ilike ${like} ${phoneMatch("o")}
     order by ${rank("o")} desc, o.folded limit 20`;
   const contacts = await sql<{ id: string; name: string; detail: string }[]>`
@@ -39,7 +42,7 @@ export async function search(sql: Sql, actor: Member | null, query: unknown): Pr
     where ${match("d")}
     order by ${rank("d")} desc, d.updated_at desc limit 20`;
   return {
-    companies: companies.map(r => ({ id: String(r.id), name: r.name, detail: r.detail })),
+    companies: companies.map(r => ({ id: String(r.id), name: r.name, detail: [r.industry ? shownName("industries", r.industry, t) : "", r.website].filter(Boolean).join(" · ") })),
     contacts: contacts.map(r => ({ id: String(r.id), name: r.name, detail: r.detail })),
     deals: deals.map(r => ({ id: String(r.id), name: r.name, detail: r.detail, value: Number(r.value_cents), stageId: String(r.stage_id) })),
   };

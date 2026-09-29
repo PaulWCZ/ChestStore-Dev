@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { RespondFrame, RespondNotice } from "../../components/respond-frame.tsx";
 import { Runner } from "../../components/runner.tsx";
 import { db } from "../../lib/db.ts";
-import { currentLook } from "../../lib/theme.ts";
+import { currentLook } from "../../lib/look.ts";
 import { zonedParts } from "../../lib/zone.ts";
 import { bySlug, openState } from "../../lib/forms.ts";
 import { formToken } from "../../lib/guard.ts";

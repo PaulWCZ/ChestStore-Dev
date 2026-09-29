@@ -12,10 +12,10 @@ declare
   delivery bigint;
   invoice bigint;
 begin
-  insert into tags (name) values ('Damaged') returning id into damaged;
-  insert into tags (name) values ('Delivery') returning id into delivery;
-  insert into tags (name) values ('Invoice') returning id into invoice;
-  insert into tags (name) values ('Order change');
+  insert into tags (name) values ('@damaged') returning id into damaged;
+  insert into tags (name) values ('@delivery') returning id into delivery;
+  insert into tags (name) values ('@invoice') returning id into invoice;
+  insert into tags (name) values ('@orderChange');
 
   insert into settings (key, value) values ('company_name', '"Atelier Martin"'),
     ('intros', '{"en": "Questions about an order, a delivery or an invoice? Write to us: we answer within one working day.", "fr": "Une question sur une commande, une livraison ou une facture ? Écrivez-nous : nous répondons sous un jour ouvré."}'),
@@ -41,7 +41,7 @@ begin
 
   insert into tickets (number, subject, status, customer_email, customer_name, channel, secret_hash, language, assignee, created_at, updated_at, priority, waiting_since)
   values (nextval('ticket_numbers'), 'Can I change the fabric of my sofa?', 'open', 'paul.b@example.com', 'Paul Bernard', 'team', encode(sha256(convert_to(gen_random_uuid()::text, 'UTF8')), 'hex'), 'fr', hugo, now() - interval '5 hours', now() - interval '5 hours', 'low', now() - interval '5 hours') returning id into t;
-  insert into ticket_tags (ticket_id, tag_id) select t, id from tags where name = 'Order change';
+  insert into ticket_tags (ticket_id, tag_id) select t, id from tags where name = '@orderChange';
   insert into messages (ticket_id, kind, author, body, created_at) values (t, 'customer', hugo, 'Appel de M. Bernard : il voudrait passer du velours vert au lin naturel sur la commande 4502. À vérifier avec l''atelier.', now() - interval '5 hours');
 
   insert into tickets (number, subject, status, customer_email, customer_name, channel, secret_hash, language, assignee, created_at, updated_at, closed_at)

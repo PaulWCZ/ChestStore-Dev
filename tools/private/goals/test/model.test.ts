@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { AppError } from "../lib/app-error.ts";
 import { checkValue, clean, cycleDates, cycleTime, firstCycleChoices, isStale, measure, mondayOf, nextQuarter, objectiveProgress, parseValue, progress, quarterOf, score, worst } from "../lib/model.ts";
-import { unitFor, valueText } from "../lib/values.ts";
+import { singularOf, unitFor, unitOf, unitParts, valueText } from "../lib/values.ts";
 
 const refused = (code: string) => (error: unknown) => error instanceof AppError && error.code === code;
 
@@ -116,6 +116,30 @@ test("a first cycle near a quarter's end is the next quarter, with this one as a
   assert.deepEqual(pick("2027-01-01"), ["current", "Q1 2027", null]);
   assert.deepEqual(pick("2028-02-20"), ["current", "Q1 2028", null]);
   assert.deepEqual(firstCycleChoices("2026-09-29").main.quarter, { name: "Q4 2026", quarter: 4, year: 2026, startsOn: "2026-10-01", endsOn: "2026-12-31" });
+});
+
+test("the unit is asked in the plural; the form for one is guessed, and may be corrected", () => {
+  assert.equal(singularOf("customers", "en"), "customer");
+  assert.equal(singularOf("new customers", "en"), "new customer");
+  assert.equal(singularOf("people", "en"), "person");
+  assert.equal(singularOf("deliveries", "en"), "delivery");
+  assert.equal(singularOf("boxes", "en"), "box");
+  assert.equal(singularOf("sales calls", "en"), "sales call");
+  assert.equal(singularOf("hours", "en"), "hour");
+  assert.equal(singularOf("km/h", "en"), null);
+  assert.equal(singularOf("staff", "en"), null);
+  assert.equal(singularOf("clients", "fr"), "client");
+  assert.equal(singularOf("clients signés", "fr"), "client signé");
+  assert.equal(singularOf("journaux", "fr"), "journal");
+  assert.equal(singularOf("bureaux", "fr"), "bureau");
+  assert.equal(singularOf("formations", "fr"), "formation");
+  assert.deepEqual(unitParts("customer/customers"), { plural: "customers", one: "customer" });
+  assert.deepEqual(unitParts("km/h"), { plural: "km/h", one: "" });
+  assert.equal(unitOf("customers", "customer"), "customer/customers");
+  assert.equal(unitOf("customers", ""), "customers");
+  assert.equal(unitOf("km/h", ""), "km/h");
+  assert.equal(unitOf("", "customer"), "");
+  assert.equal(unitOf("clients", "client"), "client/clients");
 });
 
 test("units with two forms: 1 customer, 2 customers (0 client in French); km/h stays a unit", () => {

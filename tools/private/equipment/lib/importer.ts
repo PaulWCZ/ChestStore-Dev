@@ -6,7 +6,7 @@ import { parseCsv } from "./csv.ts";
 import type { Query, Sql } from "./db.ts";
 import { catalogue, locales } from "./i18n/index.ts";
 import { addMonths, clean, day, fieldValue, fold, limits, makeTag, money, statuses, tag as readTag, type CategoryKey, type FieldType, type Kind, type Status } from "./model.ts";
-import { allFields, type Field as CategoryField } from "./fields.ts";
+import { allFields, namesOf, type Field as CategoryField } from "./fields.ts";
 import { everyone, type Colleague } from "./people.ts";
 
 // Import from Snipe-IT's CSV (its Custom Asset Report, its assets list's
@@ -286,7 +286,7 @@ export function plan(text: unknown, source: Source, context: Context, options: O
   // when kept (all by default).
   const keepAll = options.keep === undefined;
   const keep = new Set((options.keep ?? []).map(k => fold(k)));
-  const matches = (c: { name: string }) => context.fields.some(f => fold(f.name) === fold(c.name));
+  const matches = (c: { name: string }) => context.fields.some(f => namesOf(f).some(n => fold(n) === fold(c.name)));
   const read = custom.filter(c => matches(c) || keepAll || keep.has(fold(c.name)));
   const ignored = [...skippedColumns, ...custom.filter(c => !read.includes(c)).map(c => c.name)];
   if (found.name === undefined && found.model === undefined && found.tag === undefined) throw new AppError("import_invalid");
@@ -408,7 +408,7 @@ export function plan(text: unknown, source: Source, context: Context, options: O
     for (const c of read) {
       const value = (row[c.index] ?? "").trim();
       if (!value) continue;
-      const field = own.find(f => fold(f.name) === fold(c.name));
+      const field = own.find(f => namesOf(f).some(n => fold(n) === fold(c.name)));
       if (field) {
         const v = safe(() => fieldValue(field.type, value), "bad_field", null);
         if (v !== null) extra[field.id] = v;

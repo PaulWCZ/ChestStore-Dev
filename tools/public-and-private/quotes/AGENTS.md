@@ -31,11 +31,29 @@ legal defect for the company using it.
 - `lib/reminders.ts`, `lib/repeats.ts`, `lib/followup.ts` — what runs each
   morning (schedule `followup`, or the first desk visit of the day).
 - `lib/archive.ts` — the PDF of record, kept in the Chest's files.
+- `lib/online.ts` — **the public part's core**: a sent quote's secret
+  link (`quote_links`), the PDF the client is shown (kept, with its
+  SHA-256), the client's answer with its proof (`quote_answers`); nothing
+  opens without the secret. `app/q/[secret]/` (the client's page, its
+  answer form, its PDF route), `app/public-actions.ts` (the only public
+  action: the form guard and counting of the `visitors` proposal),
+  `components/quote-sheet.tsx` (the quote as a page, read only),
+  `components/public-shell.tsx`, `lib/public-origin.ts`.
+- `lib/monthly.ts` — the monthly archive ZIP in the Chest's files (schedule
+  `archive`, caught up by the follow-up), parts under 14 MiB, the desk's
+  "keep a copy" until one is downloaded.
+- Imported invoices (`status = 'imported'`, migration `0005_switching.sql`):
+  `lib/importers.ts` (`importInvoice`, `undoImport`), `collectable()` in
+  `lib/documents.ts`.
 - `lib/sending.ts` — the only call site of the mail proposal.
 - `lib/export.ts` — CSV and ZIP for the accountant.
 - `lib/lifecycle.ts`, `lib/tell.ts`, `lib/notify.ts`, `lib/people.ts` — the Chest glue.
 - `migrations/0001_quotes.sql` — the schema **and the freezing triggers**;
-  `0003_continue.sql` redefines `frozen_document()` (adds `pdf_format`).
+  `0003_continue.sql` redefines `frozen_document()` (adds `pdf_format`);
+  `0004_online.sql` the answer links and answers; `0005_switching.sql`
+  the imported series (its own unique index, no year nor seq) and
+  `frozen_document()` again (an imported invoice is frozen too), the
+  archives.
 - `app/chest/actions.ts` — thin server actions; `app/chest/**` pages and
   views; `app/chest/documents/[id]/paper.tsx` — the paper editor.
 - `lib/i18n/en.ts`, `fr.ts` — every word, including the PDF's and emails',
@@ -88,6 +106,17 @@ anything touching numbering), `npm run build`, the studio's
   StatusBadge, AppShell) before writing one; never `window.confirm`, never
   `<input type="date">`; a reversible act is a toast with `undo`, what
   already left (an email, a bell item) is `sent: true`.
+- **The public part** (`/`, `/q/<secret>`) shows nothing without the
+  secret, and nothing but the quote the secret opens; it never reads a
+  member; its look is `publicLook()` (brand, else the tool's own — never a
+  catalogue theme). An answer is refused unless the quote is still `sent`,
+  valid, its link live, and the PDF fingerprint the form carries is the
+  one kept for this version (`changed`). Never call it a signature: it is
+  a record of agreement, not eIDAS.
+- **Imported invoices** keep the previous tool's numbers in their own
+  series: never give them a year or a `seq`, never number, finalise, draw
+  a PDF of, credit or export them as this tool's sales; only payments and
+  reminders.
 - **The PDF never follows the look**: nothing in `lib/pdf/`,
   `lib/archive.ts` or `lib/einvoice.ts` reads the theme (tested). Legal
   documents keep their neutral print design.

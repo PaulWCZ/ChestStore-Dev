@@ -116,7 +116,9 @@ textarea.field { resize: vertical; padding: var(--space-3) var(--space-4); }
 
 /* ---------- Home ---------- */
 .hero { position: relative; overflow: hidden; padding: var(--space-6); min-height: 200px; border-radius: var(--radius-xl); background: linear-gradient(115deg, var(--accent-soft) 0%, var(--accent-soft) 50%, var(--cat-3-soft) 100%); }
-.hero-art { position: absolute; right: 0; bottom: 0; width: 320px; height: 100%; pointer-events: none; }
+/* The sunset is Leave's decoration: it steps aside where the look says so
+   (--decor 0: a company's brand, the Chest's sheet, High contrast). */
+.hero-art { position: absolute; right: 0; bottom: 0; width: 320px; height: 100%; pointer-events: none; opacity: var(--decor, 1); }
 .hero-sun { fill: var(--cat-3); opacity: 0.85; }
 .hero-sea { fill: var(--accent); opacity: 0.9; }
 .hero-wave { fill: none; stroke: var(--cat-1-soft); stroke-width: 4; stroke-linecap: round; opacity: 0.8; }

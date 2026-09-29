@@ -15,6 +15,8 @@ export async function leave(sql: Sql, memberId: string): Promise<void> {
     await tx`delete from job_interviewers where member_id = ${memberId}`;
     await tx`delete from feedback_requests where member_id = ${memberId}`;
     await tx`delete from candidate_seen where member_id = ${memberId}`;
+    // A link a candidate has not used yet no longer offers them.
+    await tx`delete from interview_request_people p using interview_requests r where r.id = p.request_id and p.member_id = ${memberId} and r.booked_at is null`;
   });
 }
 
@@ -38,13 +40,15 @@ export async function erase(sql: Sql, memberId: string): Promise<void> {
     await tx`update interviews set calendar = 'pending', updated_at = now() where calendar = 'done' and id in (select interview_id from interview_people where member_id = ${memberId})`;
     await tx`delete from interview_people where member_id = ${memberId}`;
     await tx`update interviews set created_by = 'erased' where created_by = ${memberId}`;
+    await tx`delete from interview_request_people where member_id = ${memberId}`;
+    await tx`update interview_requests set created_by = 'erased' where created_by = ${memberId}`;
     await tx`update messages set author = 'erased' where author = ${memberId}`;
     await tx`update templates set created_by = 'erased' where created_by = ${memberId}`;
     await tx`
       update activity set data = jsonb_set(data, '{people}', (
         select coalesce(jsonb_agg(case when m = to_jsonb(${memberId}::text) then to_jsonb('erased'::text) else m end), '[]'::jsonb)
         from jsonb_array_elements(data->'people') as m))
-      where kind = 'interview' and data->'people' @> to_jsonb(array[${memberId}::text])`;
+      where kind in ('interview', 'interview_chosen', 'interview_link') and data->'people' @> to_jsonb(array[${memberId}::text])`;
     await tx`update jobs set created_by = 'erased' where created_by = ${memberId}`;
   });
 }

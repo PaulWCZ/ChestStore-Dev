@@ -1,6 +1,6 @@
 "use client";
 
-import { DateField, PeoplePicker, useToast } from "@argentic/chest-ui/components";
+import { Checkbox, DateField, PeoplePicker, useToast } from "@argentic/chest-ui/components";
 import { localSearch, type Choice, type DateWords, type PeoplePickerWords } from "@argentic/chest-ui/components/logic";
 import { useRouter } from "next/navigation";
 import { useId, useMemo, useState, useTransition, type FormEvent, type KeyboardEvent } from "react";
@@ -127,11 +127,7 @@ export function ProfileForm({ person, own, job, jobView, managers, known, extras
             <input id={uid + "pronouns"} name="pronouns" className="field short" defaultValue={own.pronouns} maxLength={limits.pronouns} placeholder={t.edit.pronounsHint} />
           </div>
           <div className="field-group">
-            <label className="switch">
-              <input type="checkbox" checked={showBirthday} onChange={e => setShowBirthday(e.target.checked)} aria-describedby={uid + "bd-hint"} />
-              <span>{t.edit.birthday}</span>
-            </label>
-            <p id={uid + "bd-hint"} className="hint">{t.edit.birthdayHint}</p>
+            <Checkbox label={t.edit.birthday} checked={showBirthday} onChange={setShowBirthday} hint={t.edit.birthdayHint} />
             {showBirthday && (
               <div className="row birthday">
                 <div className="field-group">

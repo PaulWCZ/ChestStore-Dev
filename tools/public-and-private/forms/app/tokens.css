@@ -24,10 +24,11 @@
   --bar-h: 61px;
 
   /* The marigold dot of the mark, the stars of a summary, the edge of
-     "For you to answer": decoration only, never text. The marker in a
-     light scheme; in a dark one the marker is dark (it carries light
-     text), so the ochre slot, seen at 3:1 on dark grounds. */
-  --marigold: var(--highlight);
+     "For you to answer": decoration only, never text. The palette's ochre
+     slot, which every look defines for light and dark (seen at 3:1 on its
+     grounds) — never a colour changed in a dark block of our own: a
+     light-only look, like the Chest's, would turn half dark (kit 0.2.3). */
+  --marigold: var(--cat-7);
 
   /* The kinds of questions in the builder, each on its family's slot:
      text (blue), contact (teal), numbers and dates (orange), choices
@@ -48,9 +49,6 @@
 }
 @media (max-width: 760px) {
   :root { --bar-h: 53px; }
-}
-@media (prefers-color-scheme: dark) {
-  :root { --marigold: var(--cat-7); }
 }
 
 /* A form's colour (Settings → How it looks): its respondents' page, its

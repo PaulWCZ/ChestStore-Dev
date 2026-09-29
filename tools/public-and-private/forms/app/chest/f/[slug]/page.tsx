@@ -6,7 +6,7 @@ import { Back } from "../../../../components/icons.tsx";
 import { Runner } from "../../../../components/runner.tsx";
 import { can } from "../../../../lib/access.ts";
 import { db } from "../../../../lib/db.ts";
-import { currentLook } from "../../../../lib/theme.ts";
+import { currentLook } from "../../../../lib/look.ts";
 import { zonedParts } from "../../../../lib/zone.ts";
 import { bySlug, openState } from "../../../../lib/forms.ts";
 

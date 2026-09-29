@@ -1,4 +1,4 @@
-import { Filters } from "@argentic/chest-ui/components";
+import { Filters, Menu } from "@argentic/chest-ui/components";
 import { Link } from "../../../components/link.tsx";
 import type { FilterGroup } from "@argentic/chest-ui/components";
 import { paramValues } from "@argentic/chest-ui/components/logic";
@@ -34,7 +34,7 @@ export default async function Company({ searchParams }: { searchParams: Promise<
   const ctx = await context(sql, member);
   const q = await searchParams;
   const asked = q.cycle;
-  const cycle = asked && /^[1-9][0-9]{0,17}$/u.test(asked) ? ctx.cycles.find(c => c.id === asked) : await defaultCycle(sql);
+  const cycle = asked && /^[1-9][0-9]{0,17}$/u.test(asked) ? ctx.cycles.find(c => c.id === asked) : await defaultCycle(sql, member.locale);
   if (asked && !cycle) notFound();
   if (!cycle) {
     return (
@@ -119,9 +119,12 @@ export default async function Company({ searchParams }: { searchParams: Promise<
 
       <div className="tree-tools">
         <Filters link={Link} path="/chest/company" params={params} groups={[cycleGroup(ctx.cycles, cycle.id, t)]} labels={t.filters} />
+        {/* Rare actions, in one menu: the tree comes first on a phone. */}
         <div className="end">
-          {can(member, "any.write") && open && <Link className="button quiet small" href={`/chest/import?cycle=${cycle.id}`}><Upload />{t.company.import}</Link>}
-          <a className="button quiet small" href={`/chest/cycles/${cycle.id}/export`} download><Download />{t.company.export}</a>
+          <Menu label={t.company.spreadsheet} showLabel items={[
+            ...(can(member, "any.write") && open ? [{ label: t.company.import, href: `/chest/import?cycle=${cycle.id}`, icon: <Upload /> }] : []),
+            { label: t.company.export, href: `/chest/cycles/${cycle.id}/export`, download: true, icon: <Download /> },
+          ]} />
         </div>
       </div>
 
@@ -154,7 +157,6 @@ export default async function Company({ searchParams }: { searchParams: Promise<
               </ul>
             </div>
           </div>
-          {chase.length > 0 && <ChaseList people={chase} all={can(member, "any.write")} locale={locale} t={{ chase: t.chase, errors: t.errors, objective: t.objective }} />}
           <div className="filters">
             <Filters link={Link} path="/chest/company" params={params} groups={groups} labels={t.filters} />
             {!chosenOwner && <OwnerFilter path="/chest/company" params={params} owners={ownerChoices} label={t.company.owner} labels={t.peoplePicker} lang={locale} />}
@@ -179,6 +181,8 @@ export default async function Company({ searchParams }: { searchParams: Promise<
             </section>
           )}
           </>}
+          {/* Who has not checked in: after the tree (the page is the tree). */}
+          {chase.length > 0 && <ChaseList people={chase} all={can(member, "any.write")} locale={locale} t={{ chase: t.chase, errors: t.errors, objective: t.objective }} />}
         </>
       )}
     </div>

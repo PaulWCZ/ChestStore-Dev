@@ -22,18 +22,20 @@ create index card_blockers_blocker on card_blockers (blocker_id);
 -- it (then the key goes and the name written stays).
 alter table columns add column key text check (key is null or key ~ '^[a-zA-Z]{1,16}$');
 
--- Which comment each person's comment or mention item in the bell shows
--- (one item per card and reason: a new comment replaces it). A comment
--- deleted takes its items back; one brought back with Undo sends them
--- again.
+-- Which comments the bell items of a card show, per person: each mention
+-- has its own item; the comments seen by the card's people share one item
+-- per card (a new comment replaces it: one row per card and person). A
+-- comment deleted takes its items back; one brought back with Undo, or
+-- edited, shows again with its words as they are.
 create table comment_notices (
   card_id bigint not null references cards (id) on delete cascade,
   member_id text not null check (member_id ~ '^mbr_[a-z2-7]{26}$'),
   reason text not null check (reason in ('comment', 'mention')),
   comment_id bigint not null references comments (id) on delete cascade,
-  primary key (card_id, member_id, reason)
+  primary key (comment_id, member_id, reason)
 );
-create index comment_notices_comment on comment_notices (comment_id);
+create unique index comment_notices_latest on comment_notices (card_id, member_id) where reason = 'comment';
+create index comment_notices_card on comment_notices (card_id, reason);
 
 -- Emails wait here a minute (lib/mail.ts): what one person did in one go —
 -- a card given, a step, a mention — leaves as one email, and a comment

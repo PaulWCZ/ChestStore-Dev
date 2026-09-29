@@ -928,7 +928,7 @@ export const fr: Catalogue = {
   },
   importer: {
     title: "Importer depuis votre ancien outil",
-    intro: "Vos clients ou votre catalogue, depuis un tableur : Axonaut, Sellsy, Pennylane, Excel…",
+    intro: "Vos clients, votre catalogue ou les factures qui restent à encaisser, depuis un tableur : Axonaut, Sellsy, Pennylane, Excel…",
     what: "Que contient le fichier ?",
     kinds: { clients: "Des clients", items: "Des articles du catalogue", invoices: "Des factures à encaisser" },
     kindHints: { clients: "Les entreprises et personnes que vous facturez", items: "Ce que vous vendez, avec son prix et sa TVA", invoices: "Les factures de votre ancien outil pas encore entièrement réglées" },

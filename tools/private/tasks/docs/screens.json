@@ -9,7 +9,6 @@
   { "name": "card-repeat", "path": "/chest/boards/1?card=17", "member": "ines", "locale": "en" },
   { "name": "card-repeat-fr", "path": "/chest/boards/1?card=17", "member": "ines", "locale": "fr", "only": ["phone"] },
   { "name": "card-dark", "path": "/chest/boards/1?card=1", "member": "hugo", "locale": "en", "dark": true },
-  { "name": "card-undo", "path": "/chest/boards/1?card=1", "member": "hugo", "locale": "fr", "actions": [{ "click": ".done-bar button.button" }, { "wait": 900 }], "only": ["desktop"] },
   { "name": "list", "path": "/chest/boards/1?view=list", "member": "camille", "locale": "en" },
   { "name": "calendar", "path": "/chest/boards/1?view=calendar", "member": "camille", "locale": "en" },
   { "name": "calendar-fr", "path": "/chest/boards/1?view=calendar", "member": "ines", "locale": "fr", "only": ["phone"] },
@@ -27,5 +26,12 @@
   { "name": "card-theme", "path": "/chest/boards/1?card=1", "member": "hugo", "locale": "fr", "look": { "all": "catalogue:library" }, "only": ["desktop"] },
   { "name": "board-brand", "path": "/chest/boards/1", "member": "camille", "locale": "fr", "look": { "all": "catalogue:library", "tool": "brand:sample" } },
   { "name": "board-brand-dark", "path": "/chest/boards/1", "member": "tom", "locale": "en", "dark": true, "look": { "tool": "brand:sample" }, "only": ["phone"] },
-  { "name": "my-tasks-brand", "path": "/chest", "member": "ines", "locale": "fr", "look": { "tool": "brand:sample" }, "only": ["desktop"] }
+  { "name": "my-tasks-brand", "path": "/chest", "member": "ines", "locale": "fr", "look": { "tool": "brand:sample" }, "only": ["desktop"] },
+  { "name": "timeline", "path": "/chest/boards/1?view=timeline", "member": "camille", "locale": "en" },
+  { "name": "timeline-fr", "path": "/chest/boards/2?view=timeline", "member": "lea", "locale": "fr", "only": ["desktop"] },
+  { "name": "card-blocked", "path": "/chest/boards/1?card=3", "member": "hugo", "locale": "en" },
+  { "name": "board-tools", "path": "/chest/boards/1", "member": "hugo", "locale": "fr", "actions": [{ "click": ".tools-toggle" }, { "wait": 300 }], "only": ["phone"] },
+  { "name": "board-port", "path": "/chest/boards/1", "member": "camille", "locale": "fr", "look": { "tool": "brand:port" } },
+  { "name": "timeline-chest", "path": "/chest/boards/2?view=timeline", "member": "hugo", "locale": "en", "look": { "all": "catalogue:chest" }, "only": ["desktop"] },
+  { "name": "card-undo", "path": "/chest/boards/1?card=1", "member": "hugo", "locale": "fr", "actions": [{ "click": ".done-bar button.button" }, { "wait": 900 }], "only": ["desktop"] }
 ]

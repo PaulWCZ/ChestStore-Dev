@@ -121,9 +121,11 @@ fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
 
 .hero { display: grid; gap: var(--space-5); padding: clamp(var(--space-7), 8vw, 120px) 0 clamp(var(--space-6), 6vw, var(--space-8)); position: relative; }
 .hero .display { max-width: 14ch; }
-/* The doorway of the mark, large: a cobalt arch, someone stepping in. */
-.hero::before { content: ""; position: absolute; right: 0; top: clamp(var(--space-7), 8vw, 120px); width: clamp(72px, 13vw, 170px); aspect-ratio: 3 / 4; border-radius: 999px 999px 0 0; background: var(--accent); }
-.hero::after { content: ""; position: absolute; right: calc(clamp(72px, 13vw, 170px) * 0.28); top: calc(clamp(var(--space-7), 8vw, 120px) + clamp(72px, 13vw, 170px) * 0.62); width: calc(clamp(72px, 13vw, 170px) * 0.44); aspect-ratio: 1; border-radius: 50%; background: var(--tomato); }
+/* The doorway of the mark, large: a cobalt arch, someone stepping in.
+   Decoration: it steps aside (--decor: 0, kit 0.2.3) in the company's
+   brand, the Chest's sheet and High contrast. */
+.hero::before { content: ""; position: absolute; right: 0; top: clamp(var(--space-7), 8vw, 120px); width: clamp(72px, 13vw, 170px); aspect-ratio: 3 / 4; border-radius: 999px 999px 0 0; background: var(--accent); opacity: var(--decor, 1); }
+.hero::after { content: ""; position: absolute; right: calc(clamp(72px, 13vw, 170px) * 0.28); top: calc(clamp(var(--space-7), 8vw, 120px) + clamp(72px, 13vw, 170px) * 0.62); width: calc(clamp(72px, 13vw, 170px) * 0.44); aspect-ratio: 1; border-radius: 50%; background: var(--tomato); opacity: var(--decor, 1); }
 @media (max-width: 640px) { .hero::before, .hero::after { display: none; } }
 
 .openings-head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-4); padding-bottom: var(--space-3); border-bottom: var(--rule) solid var(--ink); }
@@ -138,7 +140,8 @@ fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
 .job-row-main { display: grid; gap: var(--space-2); min-width: 0; }
 .job-row-title { font-family: var(--font-display); font-size: clamp(1.5rem, 1.1rem + 1.6vw, 2.3rem); font-weight: var(--display-weight); letter-spacing: -0.02em; line-height: 1.08; overflow-wrap: anywhere; }
 .job-row-facts { display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-3); color: var(--ink-2); font-weight: var(--weight-strong); }
-.job-row-facts span + span::before { content: "·"; margin-right: var(--space-3); }
+/* The dot follows a fact (a wrapped line never starts with "· On site"). */
+.job-row-facts span:not(:last-child)::after { content: "·"; margin-left: var(--space-3); }
 .job-row-go svg { width: 32px; height: 32px; transition: transform var(--fast) var(--ease); }
 .job-row:hover .job-row-go svg { transform: translateX(4px); }
 @media (max-width: 640px) {
@@ -276,7 +279,8 @@ fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
 .cand:hover, .cand-link:hover { border-color: var(--accent); }
 .cand.dragging { opacity: 0.35; }
 .cand.overlay { box-shadow: var(--shadow-2); transform: rotate(-1.5deg); cursor: grabbing; border-color: var(--accent); }
-.cand-top { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); }
+/* The name on its own line; "not opened yet" under it (never squeezing it). */
+.cand-top { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; }
 .cand-name { font-weight: calc(var(--weight-strong) + 100); overflow-wrap: anywhere; }
 .cand-meta { display: flex; align-items: center; gap: var(--space-3); color: var(--ink-2); font-size: var(--text-xs); font-weight: var(--weight-strong); }
 .cand-meta > span { display: inline-flex; align-items: center; gap: 3px; }
@@ -291,14 +295,21 @@ fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
 
 /* Forms of the team */
 .job-form { display: grid; gap: var(--space-5); }
-.editor-head { display: flex; align-items: flex-end; justify-content: space-between; gap: var(--space-3); margin-bottom: var(--space-2); }
-.editor-head .label { margin: 0; }
 .editor { border: var(--line-bold) solid var(--line-strong); border-radius: var(--radius-m); background: var(--surface); overflow: hidden; }
 .editor:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
 .toolbar { display: flex; gap: var(--space-1); padding: var(--space-1); border-bottom: var(--border-width) solid var(--line); }
 .editor-area { border: 0; border-radius: 0; min-height: 320px; font-size: 0.9375rem; }
 .editor-area:focus { box-shadow: none; }
-.editor-preview { min-height: 360px; padding: var(--space-5); border: var(--line-bold) solid var(--line); border-radius: var(--radius-m); background: var(--surface); }
+/* The description as it will read (the careers page's .prose, smaller). */
+.toolbar .tool { display: inline-flex; align-items: center; gap: var(--space-1); min-height: 44px; padding: 0 var(--space-3); border: 0; border-radius: var(--radius-s); background: transparent; color: var(--ink); font: inherit; font-weight: var(--weight-strong); cursor: pointer; }
+.toolbar .tool:hover { background: var(--surface-2); }
+.editor-area.rich { padding: var(--space-4) var(--space-5); outline: none; font-family: var(--font-read); font-size: 1rem; line-height: 1.6; overflow-wrap: anywhere; }
+.editor-area.rich > * + * { margin-top: var(--space-3); }
+.editor-area.rich > :first-child { margin-top: 0; }
+.editor-area.rich h3 { font-family: var(--font-display); font-size: var(--text-l); }
+.editor-area.rich ul, .editor-area.rich ol { padding-left: 1.4em; }
+.editor-area.rich.is-empty::before { content: attr(data-placeholder); color: var(--ink-2); pointer-events: none; }
+.editor .error { margin: 0; padding: var(--space-2) var(--space-4); }
 .salary { display: grid; gap: var(--space-3); padding: var(--space-4) var(--space-5); border: var(--border-width) solid var(--line); border-radius: var(--radius-l); background: var(--surface); }
 .salary legend { float: left; margin-bottom: var(--space-1); }
 .salary-row { clear: both; display: grid; grid-template-columns: 1fr 1fr 110px 130px; gap: var(--space-3); }
@@ -407,8 +418,13 @@ fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
 .board-tools { display: flex; justify-content: flex-end; margin: calc(-1 * var(--space-2)) 0 var(--space-3); }
 .stage-tabs { display: none; }
 @media (max-width: 640px) {
-  .stage-tabs { display: flex; gap: var(--space-2); overflow-x: auto; margin: 0 calc(-1 * var(--space-3)) var(--space-3); padding: 0 var(--space-3) var(--space-1); scrollbar-width: none; }
-  .stage-tabs a { flex: none; display: inline-flex; align-items: center; gap: var(--space-2); min-height: 40px; padding: 0 var(--space-3); border-radius: var(--radius-round); background: var(--surface-2); color: var(--ink); text-decoration: none; font-weight: var(--weight-strong); font-size: var(--text-s); white-space: nowrap; }
+  .stage-tabs { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-bottom: var(--space-3); }
+  .stage-tabs button { flex: none; display: inline-flex; align-items: center; gap: var(--space-2); min-height: 44px; padding: 0 var(--space-3); border: var(--border-width) solid transparent; border-radius: var(--radius-round); background: var(--surface-2); color: var(--ink); font: inherit; font-weight: var(--weight-strong); font-size: var(--text-s); white-space: nowrap; cursor: pointer; }
+  .stage-tabs button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); }
+  .stage-tabs button[aria-pressed="true"] .lane-count { background: var(--accent-ink); color: var(--accent); }
+  /* One stage at a time, the whole width: no sideways scroll. */
+  .lanes.one-on-phone { display: block; overflow: visible; margin: 0; padding: 0 0 var(--space-3); }
+  .lanes.one-on-phone .lane:not(.current) { display: none; }
 }
 .cand.pick { grid-template-columns: auto 1fr; align-items: start; column-gap: var(--space-3); cursor: pointer; }
 .cand.pick > input { width: 22px; height: 22px; margin: 2px 0 0; accent-color: var(--accent); grid-row: span 2; }
@@ -529,3 +545,19 @@ fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
 .questions { display: grid; gap: var(--space-4); padding: var(--space-4); border: var(--border-width) solid var(--line); border-radius: var(--radius-m); }
 .questions > legend { float: left; margin-bottom: var(--space-1); }
 .questions > .field-block { clear: both; }
+
+/* The candidate chooses a time (/interview/<token>): a row of times per
+   day, 44 px targets, the chosen one filled; the confirm button stays in
+   reach at the bottom of the screen. */
+.pick { padding: var(--space-6) 0; max-width: 760px; }
+.pick-note { white-space: pre-line; color: var(--ink-2); }
+.pick-day { border: 0; margin: 0; padding: 0; display: grid; gap: var(--space-2); }
+.pick-day .label { text-transform: capitalize; }
+.pick-times { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.pick-time { position: relative; display: inline-flex; align-items: center; justify-content: center; min-width: 76px; min-height: 44px; padding: 0 var(--space-3); border: var(--border-width) solid var(--line-strong); border-radius: var(--radius-m); background: var(--surface); font-variant-numeric: tabular-nums; font-weight: var(--weight-strong); cursor: pointer; }
+.pick-time input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
+.pick-time:has(input:focus-visible) { outline: 2px solid var(--focus); outline-offset: 2px; }
+.pick-time.on { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.pick-confirm { position: sticky; bottom: 0; padding: var(--space-3) 0; background: var(--bg); }
+.link-row { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.link-row .field { flex: 1 1 16rem; min-width: 0; }

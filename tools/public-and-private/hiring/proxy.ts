@@ -52,7 +52,8 @@ export function proxy(request: NextRequest): NextResponse {
   response.headers.set("Content-Security-Policy", value);
   response.headers.set("Referrer-Policy", "same-origin");
   response.headers.set("X-Content-Type-Options", "nosniff");
-  if (first === "chest") {
+  // A candidate's link to choose their interview time: theirs alone.
+  if (first === "chest" || first === "interview") {
     response.headers.set("Cache-Control", "no-store");
     response.headers.set("X-Robots-Tag", "noindex, nofollow");
   }

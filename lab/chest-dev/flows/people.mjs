@@ -198,9 +198,17 @@ await step("HR imports BambooHR's report: 'Employee #' left out, columns shown, 
   expect(await order.getByLabel("Dates read as month/day/year.").isChecked(), "US guess for BambooHR");
   expect((await page.locator(".plan table").innerText()).includes("3 Oct 2023") || (await page.locator(".plan table").innerText()).includes("2023-10-03"), "Hugo's date month-first");
   await order.getByText("Dates read as day/month/year.").click();
-  await page.waitForFunction(() => document.querySelector(".plan table")?.textContent?.includes("2023-03-10"));
+  // Dates in the reader's words, never ISO.
+  await page.waitForFunction(() => document.querySelector(".plan table")?.textContent?.includes("10 Mar 2023"));
+  // Nothing dropped without a word: the columns left out are named, the
+  // mapping step is open, and one becomes a field of HR's own.
+  const unread = await page.locator(".banner.warn", { hasText: "left out" }).innerText();
+  expect(unread.includes("Division") && unread.includes("Employment Status"), "columns left out named: " + unread);
+  expect(await page.locator(".mapping").evaluate(d => d.open), "mapping open");
+  await page.locator(".mapping-list li", { hasText: "Employment Status" }).getByRole("button", { name: "Keep as a new field" }).click();
+  await page.locator(".ck-toast", { hasText: "Employment Status" }).waitFor();
+  await page.waitForFunction(() => document.querySelector(".plan table")?.textContent?.includes("Full-Time"));
   // The mapping step: the mobile phone instead of the work phone.
-  await page.locator(".mapping summary").click();
   await page.getByLabel(/^Work Phone/u).selectOption("skip");
   await page.getByLabel(/^Mobile Phone/u).selectOption("phone");
   await page.waitForFunction(() => document.querySelector(".plan table")?.textContent?.includes("+33 6 98 76 54 32"));
@@ -258,8 +266,47 @@ await step("HR edits as a table: a cell saves on leaving it, Undo puts it back; 
   await page.getByLabel("T-shirt of Tom Walker").fill("M");
   await page.getByLabel("T-shirt of Tom Walker").press("Enter");
   await page.locator(".ck-toast", { hasText: "Saved." }).waitFor();
+  // A date field that reminds HR, and a choice field.
+  await page.getByRole("button", { name: "Add a field" }).click();
+  await page.getByLabel("Name of the field").fill("Badge expires");
+  await page.locator("label.ck-segment", { hasText: "Date" }).click();
+  await page.getByLabel("Remind HR this many days before (optional)").fill("30");
+  await page.getByRole("button", { name: "Add", exact: true }).click();
+  await page.getByLabel("Badge expires of Tom Walker").waitFor();
+  await page.getByLabel("Badge expires of Tom Walker").fill("15/12/2026");
+  await page.getByLabel("Badge expires of Tom Walker").press("Enter");
+  await page.locator('.ck-toast[data-toast-id^="cell-mbr_tom"]').nth(1).waitFor();
+  await page.getByRole("button", { name: "Add a field" }).click();
+  await page.getByLabel("Name of the field").fill("Size");
+  await page.locator("label.ck-segment", { hasText: "Choice from a list" }).click();
+  await page.getByLabel("The choices, one per line").fill("S\nM\nL");
+  await page.getByRole("button", { name: "Add", exact: true }).click();
+  await page.getByLabel("Size of Tom Walker").selectOption("L");
+  await page.locator('.ck-toast[data-toast-id^="cell-mbr_tom"]').nth(2).waitFor();
   await page.goto(origin + "/chest/people/" + id("tom"));
-  expect((await page.locator(".extras").innerText()).includes("T-shirt"), "shown on the profile");
+  const extras = await page.locator(".extras").innerText();
+  expect(extras.includes("T-shirt") && extras.includes("15 December 2026") && extras.includes("L"), "shown on the profile: " + extras);
+});
+
+await step("the register never leaves anyone out silently: Hugo, without a record, is named on screen, in print and in the CSV; Numbers count the same people", async () => {
+  await page.goto(origin + "/chest/records/register");
+  const banner = await page.locator(".banner.warn", { hasText: "missing from this register" }).innerText();
+  expect(banner.startsWith("1 person"), "banner: " + banner);
+  const gaps = page.locator(".register-gaps");
+  expect((await gaps.innerText()).includes("Hugo Bernard") && (await gaps.innerText()).includes("No HR record"), "Hugo named");
+  expect(await gaps.getByRole("button", { name: "Create the record" }).isVisible(), "offered to create it");
+  await page.emulateMedia({ media: "print" });
+  expect(await gaps.isVisible(), "printed too");
+  expect(!(await gaps.getByRole("button", { name: "Create the record" }).isVisible()), "without its button on paper");
+  await page.emulateMedia({ media: "screen" });
+  // The intern's tutor is written as a name, never "(former member)".
+  expect(!(await page.locator("main").innerText()).includes("(former member)"), "no app suffix on the register");
+  const csv = await (await page.request.get(origin + "/chest/records/register/csv")).text();
+  expect(csv.includes("Not in this register") && /Hugo Bernard,No HR record/u.test(csv), "CSV names him");
+  await page.goto(origin + "/chest/numbers");
+  const head = Number((await page.locator(".stat-value").first().innerText()).replace(/\D/gu, ""));
+  const sums = await page.locator(".card-block").evaluateAll(blocks => blocks.filter(b => b.querySelector(".bars")).map(b => [...b.querySelectorAll(".bar-value")].reduce((x, v) => x + Number(v.textContent.replace(/\D/gu, "")), 0)));
+  expect(sums.length === 3 && sums.every(n => n === head), "one population: headcount " + head + ", by team/office/contract " + sums.join("/"));
 });
 
 await step("HR records: everyone without one in a click; a record changed and noted; a document added; the register", async () => {

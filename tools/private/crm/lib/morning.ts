@@ -3,6 +3,7 @@ import type { Sql } from "./db.ts";
 import { plural } from "./i18n/index.ts";
 import { today } from "./model.ts";
 import { badges, cut, notify } from "./notify.ts";
+import { reconcile } from "./step-calendar.ts";
 import { urgentCounts } from "./steps.ts";
 
 // The weekday morning (schedule "morning", chest.proposals.json): everyone
@@ -24,4 +25,6 @@ export async function morning(sql: Sql, run: Run): Promise<void> {
   const holders = (await sql<{ owner: string }[]>`select distinct owner from steps where done_at is null and owner like 'mbr_%' limit 5000`).map(r => r.owner);
   await badges(await urgentCounts(sql, holders, day));
   await sql`delete from activities where removed_at < now() - interval '1 day'`;
+  // The calendars caught up with anything a change did not publish.
+  await reconcile(sql);
 }

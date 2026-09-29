@@ -16,7 +16,7 @@ export default async function Settings() {
   if (!can(member, "settings.manage")) notFound();
   const sql = db();
   const groups = await chestGroups();
-  const [s, list, lost, owners] = await Promise.all([settings(sql), teams(sql, { archived: true, groups }), orphans(sql), everyone()]);
+  const [s, list, lost, owners] = await Promise.all([settings(sql), teams(sql, { archived: true, groups }), orphans(sql, locale), everyone()]);
   const taken = new Set(list.filter(x => x.groupId && !x.archived).map(x => x.groupId));
   const who = await people(lost.map(o => o.owner));
   const byOwner = new Map<string, { owner: string; name: string; items: typeof lost }>();

@@ -37,3 +37,4 @@ export const Down = () => <Icon><path d="M6 9l6 6 6-6" /></Icon>;
 export const Star = () => <Icon><path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z" /></Icon>;
 export const Chart = () => <Icon><path d="M4 20V4M4 20h16" /><path d="M8 16v-4M12 16V8M16 16v-6" /></Icon>;
 export const Merge = () => <Icon><path d="M6 4v5a5 5 0 005 5h7" /><path d="M15 11l3 3-3 3" /><path d="M6 20v-4" /></Icon>;
+export const Sliders = () => <Icon><path d="M4 7h9M17 7h3M4 17h3M11 17h9" /><circle cx="15" cy="7" r="2" /><circle cx="9" cy="17" r="2" /></Icon>;

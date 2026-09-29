@@ -686,14 +686,14 @@ export async function mine(sql: Query, actor: Member | null): Promise<Holdings &
 
 // Receipts still waiting after a while (given on or before that day), for
 // the managers: the person has not said they received it.
-export async function unconfirmedReceipts(sql: Query, actor: Member | null, before: string): Promise<{ item: Item; member: string; givenOn: string }[]> {
+export async function unconfirmedReceipts(sql: Query, actor: Member | null, before: string): Promise<{ item: Item; member: string; givenOn: string; remindedToday: boolean }[]> {
   manager(actor);
-  const rows = await sql<{ item_id: string; member_id: string; given_on: string }[]>`
-    select r.item_id, r.member_id, to_char(r.given_on, 'YYYY-MM-DD') as given_on from receipts r join items i on i.id = r.item_id
+  const rows = await sql<{ item_id: string; member_id: string; given_on: string; reminded: boolean }[]>`
+    select r.item_id, r.member_id, to_char(r.given_on, 'YYYY-MM-DD') as given_on, coalesce(r.reminded_at > now() - interval '20 hours', false) as reminded from receipts r join items i on i.id = r.item_id
     where r.confirmed_at is null and r.closed_at is null and r.given_on <= ${before} and i.holder = r.member_id and i.deleted_at is null
     order by r.given_on, r.id limit 50`;
-  const out: { item: Item; member: string; givenOn: string }[] = [];
-  for (const r of rows) out.push({ item: await load(sql, r.item_id), member: r.member_id, givenOn: r.given_on });
+  const out: { item: Item; member: string; givenOn: string; remindedToday: boolean }[] = [];
+  for (const r of rows) out.push({ item: await load(sql, r.item_id), member: r.member_id, givenOn: r.given_on, remindedToday: r.reminded });
   return out;
 }
 

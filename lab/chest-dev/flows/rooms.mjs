@@ -3,7 +3,43 @@
 import { as, done, expect, open, step } from "./lib.mjs";
 
 const port = Number(process.argv[2] ?? 5000);
-const { browser, context, page, origin, problems } = await open(port, "hugo");
+// With --empty (a harness run with --empty: a new company, no office), only
+// the first visit is played: "Start with an example", then its Undo.
+const empty = process.argv.includes("--empty");
+const { browser, context, page, origin, problems } = await open(port, empty ? "camille" : "hugo");
+
+if (empty) {
+  await step("a new company: the admin starts with an example office in one click, Undo or “Delete the example” takes it back", async () => {
+    await context.addCookies([{ name: "dev_locale", value: "en", url: origin }]);
+    await page.goto(origin + "/chest");
+    expect((await page.locator("h1").innerText()) === "No office yet", "empty");
+    await page.getByRole("button", { name: "Start with an example" }).click();
+    await page.waitForSelector(".ck-toast >> text=An example office is ready");
+    // Undo: the example goes whole.
+    await page.locator(".ck-toast", { hasText: "An example office" }).getByRole("button", { name: "Undo" }).click();
+    await page.waitForSelector(".ck-toast >> text=Undone.");
+    await page.reload();
+    expect((await page.locator("h1").innerText()) === "No office yet", "empty again after Undo");
+    await page.getByRole("button", { name: "Start with an example" }).click();
+    await page.waitForSelector(".ck-toast >> text=An example office is ready");
+    await page.goto(origin + "/chest/places");
+    const main = await page.locator("main").innerText();
+    expect(main.includes("This is an example") && main.includes("Ground floor") && main.includes("Quiet zone"), "an example, said so: " + main.slice(0, 300));
+    expect(await page.locator(".tile").count() === 12, "twelve desks");
+    // French reader: the floors in French.
+    await context.addCookies([{ name: "dev_locale", value: "fr", url: origin }]);
+    await page.reload();
+    const fr = await page.locator("main").innerText();
+    expect(fr.includes("Rez-de-chaussée") && fr.includes("Zone calme"), "keys in the reader's language");
+    await page.getByRole("button", { name: "Supprimer l’exemple" }).click();
+    await page.getByRole("alertdialog").getByRole("button", { name: "Supprimer l’exemple" }).click();
+    await page.waitForURL(/\/chest\/places$/u);
+    await page.waitForSelector("text=Ajoutez votre site").catch(() => {});
+    expect((await page.locator("main").innerText()).includes("Commencer avec un exemple"), "back to the empty state, with the example offered");
+  });
+  await browser.close();
+  done(problems);
+}
 
 // Next week's Friday (Hugo said nothing for it in the sample).
 const iso = d => d.toISOString().slice(0, 10);
@@ -168,12 +204,15 @@ await step("a member has no Places; an admin adds desks, saves the rules, export
   await as(context, origin, "camille");
   await page.goto(origin + "/chest/places");
   expect((await page.locator("h1").innerText()) === "Lieux", "French admin");
-  const area = page.locator(".area-admin", { hasText: "Quiet zone" });
+  // The sample's floors and areas are keys: Camille reads them in French.
+  const text = await page.locator("main").innerText();
+  expect(text.includes("Rez-de-chaussée") && text.includes("Zone calme") && !text.includes("Quiet zone"), "seeded names in French");
+  const area = page.locator(".area-admin", { hasText: "Zone calme" });
   const before = await area.locator(".tile").count();
   await area.getByRole("button", { name: "Ajouter des bureaux" }).click();
   await page.waitForTimeout(1500);
-  expect(await page.locator(".area-admin", { hasText: "Quiet zone" }).locator(".tile").count() === before + 4, "4 desks added");
-  const names = await page.locator(".area-admin", { hasText: "Quiet zone" }).locator(".tile-name").allInnerTexts();
+  expect(await page.locator(".area-admin", { hasText: "Zone calme" }).locator(".tile").count() === before + 4, "4 desks added");
+  const names = await page.locator(".area-admin", { hasText: "Zone calme" }).locator(".tile-name").allInnerTexts();
   expect(names.slice(-4).join(",") === "D-13,D-14,D-15,D-16", "new desks come last: " + names.join(","));
   await page.goto(origin + "/chest/places/rules");
   await page.getByLabel("Combien de jours à l’avance on peut réserver").fill("21");
@@ -327,6 +366,75 @@ await step("an admin moves in: rooms from Google Workspace's CSV; the office's w
   expect(/1 salle ajoutée/u.test(report) && /Ligne 3/u.test(report), "report: " + report);
   await page.goto(origin + "/chest/places/export");
   expect(await page.locator("table.load tbody tr").count() >= 5, "a row per working day");
+  // Averaged only since the first day someone came, and French plurals.
+  const load = await page.locator("#load-title").locator("..").innerText();
+  expect(/Moyenne depuis le/u.test(load), "since when: " + load);
+  expect(!/0,5 personnes|1,5 personnes/u.test(load), "French plural below 2: " + load);
+  expect(/[1-9][0-9]*(,[0-9])? personnes?/u.test(load), "people counted this week: " + load);
+});
+
+await step("an admin brings a room calendar's .ics: preview with conflicts line by line, weekly kept weekly, import, Undo", async () => {
+  await as(context, origin, "camille");
+  await page.setViewportSize({ width: 1280, height: 860 });
+  await page.goto(origin + "/chest/places");
+  const stamp = (d, t) => d.replaceAll("-", "") + "T" + t + "00";
+  const wednesday = iso(new Date(monday.getTime() + 9 * 864e5));
+  // Bora is Hugo's every Thursday 17:00–17:30 for three weeks (step above):
+  // a weekly 17:00–18:00 from that Thursday meets it three times.
+  const ics = ["BEGIN:VCALENDAR", "VERSION:2.0", "X-WR-CALNAME:Paris-0-Bora (4)",
+    "BEGIN:VEVENT", `DTSTART;TZID=Europe/Paris:${stamp(thursday, "1700")}`, `DTEND;TZID=Europe/Paris:${stamp(thursday, "1800")}`, "RRULE:FREQ=WEEKLY;COUNT=5", "UID:weekly-bora", "SUMMARY:Design review", "ORGANIZER;CN=Tom Walker:mailto:tom@example.com", "END:VEVENT",
+    "BEGIN:VEVENT", `DTSTART;TZID=Europe/Paris:${stamp(wednesday, "1000")}`, `DTEND;TZID=Europe/Paris:${stamp(wednesday, "1100")}`, "UID:once-bora", "SUMMARY:Supplier call", "END:VEVENT",
+    "BEGIN:VEVENT", `DTSTART;VALUE=DATE:${wednesday.replaceAll("-", "")}`, "UID:allday-bora", "SUMMARY:Painting", "END:VEVENT",
+    "END:VCALENDAR"].join("\r\n");
+  const panel = page.locator("section", { has: page.locator("#calendar-title") });
+  await panel.locator("input[type=file]").setInputFiles({ name: "Paris-0-Bora (4).ics", mimeType: "text/calendar", buffer: Buffer.from(ics) });
+  const report = panel.locator(".import-report");
+  await report.waitFor();
+  expect((await panel.getByLabel("Dans la salle").locator("option:checked").innerText()) === "Bora", "the room guessed from the calendar's name");
+  const text = await report.innerText();
+  expect(/3 réservations à ajouter à Bora/u.test(text), "preview: " + text);
+  expect(/Ligne 4 · Design review · chaque jeudi/u.test(text) && /\(2 semaines\)/u.test(text), "weekly kept weekly: " + text);
+  expect(/sauf le/u.test(text), "the Thursdays taken in Rooms, said: " + text);
+  expect(/Painting.*toute la journée/u.test(text), "the all-day event, left out with its line: " + text);
+  await report.getByRole("button", { name: "Importer 3 réservations" }).click();
+  await page.waitForSelector(".ck-toast >> text=3 réservations importées dans Bora.");
+  // Undo takes the whole import back.
+  await page.locator(".ck-toast", { hasText: "importées" }).getByRole("button", { name: "Annuler l’action" }).click();
+  await page.waitForSelector(".ck-toast >> text=Action annulée.");
+  await page.goto(origin + `/chest/rooms?day=${wednesday}`);
+  expect(await page.locator(".block", { hasText: "Supplier call" }).count() === 0, "gone after Undo");
+  // Imported again, for good.
+  await page.goto(origin + "/chest/places");
+  await panel.locator("input[type=file]").setInputFiles({ name: "Paris-0-Bora (4).ics", mimeType: "text/calendar", buffer: Buffer.from(ics) });
+  await report.getByRole("button", { name: "Importer 3 réservations" }).click();
+  await page.waitForSelector(".ck-toast >> text=3 réservations importées dans Bora.");
+  await page.goto(origin + `/chest/rooms?day=${wednesday}`);
+  expect(await page.locator(".block", { hasText: "Supplier call" }).count() === 1, "on the grid");
+  await page.goto(origin + "/chest/places");
+  await panel.locator("input[type=file]").setInputFiles({ name: "Paris-0-Bora (4).ics", mimeType: "text/calendar", buffer: Buffer.from(ics) });
+  await report.waitFor();
+  expect(/Rien de nouveau/u.test(await report.innerText()), "the same file again adds nothing");
+  await report.getByRole("button", { name: "Annuler", exact: true }).click();
+  expect(await report.count() === 0, "Cancel closes the preview");
+});
+
+await step("an admin books a room: room and time first, the day in a date field, 09:00 on a coming day; for someone else is a link", async () => {
+  await as(context, origin, "camille");
+  await context.addCookies([{ name: "dev_locale", value: "en", url: origin }]);
+  await page.goto(origin + `/chest/rooms?day=${far}`);
+  await page.getByRole("button", { name: "Book a room" }).click();
+  const dialog = page.locator("dialog[open]");
+  const all = await dialog.innerText();
+  const at = w => all.indexOf(w);
+  expect(at("Room") >= 0 && at("Room") < at("Day") && at("Day") < at("From") && at("From") < at("Book it for someone else"), "room and time first: " + all.slice(0, 200));
+  expect(!/\bFor\b\s*\n/u.test(all.slice(0, at("Book it for someone else"))), "no people picker before the booking");
+  expect(await dialog.getByLabel("Day").count() > 0, "a date field");
+  expect(await dialog.locator("select").filter({ hasText: /October|November/u }).count() === 0, "no long list of days");
+  expect(await field(dialog, "From").inputValue() === "540", "09:00 on a coming day");
+  await dialog.getByRole("button", { name: "Book it for someone else" }).click();
+  expect(await dialog.getByRole("combobox", { name: "For" }).count() === 1, "the picker, when asked");
+  await page.keyboard.press("Escape");
+  await dialog.getByRole("button", { name: "Discard" }).click().catch(() => {});
 });
 
 await step("a phone says to tap, not to drag", async () => {

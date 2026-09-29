@@ -74,21 +74,14 @@ export function RequestForm(props: {
   // The kit's range rules (endAfterStart, tested in test/calendar.test.ts):
   // a new first day keeps the leave's length, never past the last day one
   // may ask for; a last day is never before the first.
-  // When the first day moves the last one, the last day's field is drawn
-  // anew (endField): the kit's DateField copies a new value into its text
-  // in an effect that can land after the person started typing the last
-  // day, and React's write to the input then drops their selection — what
-  // they typed was added to the old date ("25/01/20272027-01-28").
-  const [endField, setEndField] = useState(0);
+  // The kit's DateField (0.2.3) follows a value changed from outside during
+  // render: the last day moved by the first one shows at once.
   function changeStart(value: string | null) {
     const day = value ?? "";
     setStart(day);
     if (!isDay(day)) return;
     const moved = endAfterStart(start, end, day, props.latest);
-    if (moved !== end) {
-      setEnd(moved);
-      setEndField(n => n + 1);
-    }
+    if (moved !== end) setEnd(moved);
   }
 
   function changeEnd(value: string | null) {
@@ -161,7 +154,7 @@ export function RequestForm(props: {
           )}
         </div>
         <div className="date-field">
-          <DateField key={endField} id="end" label={t.form.lastDay} value={isDay(end) ? end : null} onChange={changeEnd} today={props.today} min={isDay(start) ? start : props.earliest} max={props.latest} chips={false} required labels={t.date} />
+          <DateField id="end" label={t.form.lastDay} value={isDay(end) ? end : null} onChange={changeEnd} today={props.today} min={isDay(start) ? start : props.earliest} max={props.latest} chips={false} required labels={t.date} />
           {type?.halfDays && !single && (
             <Segmented label={t.form.lastDay} value={endHalf} onChange={setEndHalf} options={[{ value: "pm", label: t.form.whole }, { value: "am", label: t.form.morningOnly }]} />
           )}

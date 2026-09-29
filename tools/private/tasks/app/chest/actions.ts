@@ -129,7 +129,7 @@ export async function moveToBoard(cardId: string, boardId: string, columnId: str
     const sql = db();
     const moved = await cards.moveToBoard(sql, actor, cardId, boardId, columnId);
     if (moved.dropped.length > 0) await tell.unassigned(moved.dropped, cardId);
-    if (moved.completed) await tell.settled(cardId);
+    if (moved.completed) await tell.settled(cardId, sql);
     await tell.refreshBadges(sql, [...moved.dropped, ...moved.stayed]);
     return { boardId: moved.to, dropped: moved.dropped.length };
   });
@@ -173,7 +173,7 @@ export async function moveCard(cardId: string, columnId: string, afterId: string
     if (moved.completed !== null) {
       const detail = await cards.cardDetail(sql, actor, cardId);
       if (moved.completed) {
-        await tell.settled(cardId);
+        await tell.settled(cardId, sql);
         await tell.unblocked({ title: detail.title }, await cards.freed(sql, cardId));
       } else await tell.blockedAgain(await cards.waitingOn(sql, cardId));
       await tell.refreshBadges(sql, detail.assignees);
@@ -277,7 +277,7 @@ export async function archiveCard(cardId: string, archived: boolean): Promise<Re
   return act(async actor => {
     const sql = db();
     const done = await cards.archiveCard(sql, actor, cardId, archived);
-    if (archived) await tell.settled(cardId);
+    if (archived) await tell.settled(cardId, sql);
     await tell.refreshBadges(sql, done.assignees);
     return null;
   });

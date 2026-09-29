@@ -4,8 +4,7 @@ import type { Metadata, Viewport } from "next";
 import { headers } from "next/headers";
 import type { ReactNode } from "react";
 import { catalogue } from "../lib/i18n/index.ts";
-import { pageLocale } from "../lib/session.ts";
-import { currentLook } from "../lib/theme.ts";
+import { pageLocale, pageLook } from "../lib/session.ts";
 // The kit's components first, so the tool's own CSS can restyle them.
 import "@argentic/chest-ui/components.css";
 import "./tokens.css";
@@ -22,7 +21,7 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export async function generateViewport(): Promise<Viewport> {
-  return { width: "device-width", initialScale: 1, themeColor: lookColors(await currentLook()) };
+  return { width: "device-width", initialScale: 1, themeColor: lookColors(await pageLook()) };
 }
 
 // The look (lib/theme.ts) is one <style> in the head, with the page's
@@ -30,7 +29,7 @@ export async function generateViewport(): Promise<Viewport> {
 export default async function RootLayout({ children }: { children: ReactNode }) {
   // The nonce of this response's Content-Security-Policy (proxy.ts sets it
   // on the request): the theme's <style> carries it.
-  const [locale, look, nonce] = await Promise.all([pageLocale(), currentLook(), headers().then(h => nonceOf(h.get("content-security-policy")))]);
+  const [locale, look, nonce] = await Promise.all([pageLocale(), pageLook(), headers().then(h => nonceOf(h.get("content-security-policy")))]);
   return (
     <html lang={locale}>
       <head>

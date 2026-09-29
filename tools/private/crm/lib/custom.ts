@@ -15,7 +15,11 @@ export const fieldKinds = ["text", "number", "date", "choice"] as const;
 export type FieldKind = (typeof fieldKinds)[number];
 export const isFieldKind = (value: unknown): value is FieldKind => typeof value === "string" && (fieldKinds as readonly string[]).includes(value);
 
-export type FieldDef = { id: string; object: FieldObject; label: string; kind: FieldKind; options: string[] };
+// labelKey/optionKeys: a field the tool offered under names of its
+// catalogue (the sample's), shown in the reader's language until renamed
+// (lib/fields.ts localized()); optionLabels are the choices as shown, in
+// the order of options (the values kept on records).
+export type FieldDef = { id: string; object: FieldObject; label: string; kind: FieldKind; options: string[]; optionLabels?: string[]; labelKey?: string | null; optionKeys?: string[] };
 export type Custom = Record<string, string | number>;
 
 export const fieldLimits = { label: 60, text: 500, option: 60, options: 50, perObject: 30 } as const;

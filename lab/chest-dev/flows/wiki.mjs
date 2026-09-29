@@ -160,8 +160,11 @@ await step("a reader searches (accents aside), reads, downloads; cannot edit", a
   expect(md.startsWith("# Expense policy"), "markdown export");
   const html = await (await page.request.get(origin + "/chest/pages/3/export?format=html")).text();
   expect(html.includes("<title>Expense policy</title>"), "html export");
-  const edit = await page.request.get(origin + "/chest/pages/3/edit");
-  expect(edit.status() === 404, "edit refused: " + edit.status());
+  // A shared link to the editor: the reader is told they can read it, not change it.
+  await page.goto(origin + "/chest/pages/3/edit");
+  await page.locator(".notice", { hasText: "You can read this page, not change it." }).waitFor();
+  expect(await page.locator(".ProseMirror").count() === 0, "no editor for a reader");
+  await page.goto(origin + "/chest/pages/3");
   const hidden = await page.request.get(origin + "/chest/pages/16");
   expect(hidden.status() === 404, "a page kept to the office group");
 });
@@ -296,7 +299,7 @@ await step("a reader comments under a page (a link works); its author is told in
   expect((await page.locator("#comments .comment").count()) === 1, "the sample comment");
   await page.getByLabel("Your comment").fill("Is the 40 € per person or per meal? See https://example.com/rules");
   await page.getByRole("button", { name: "Comment", exact: true }).click();
-  await page.waitForSelector("#comments .comment:nth-child(2)");
+  await page.locator("#comments .comment").nth(1).waitFor();
   const mine = page.locator("#comments .comment").nth(1);
   expect((await mine.locator("a").getAttribute("href")) === "https://example.com/rules", "link");
   expect((await mine.locator(".comment-who").innerText()).startsWith("You"), "signed You");
@@ -305,14 +308,14 @@ await step("a reader comments under a page (a link works); its author is told in
   await mine.getByRole("button", { name: "Edit" }).click();
   await mine.locator("textarea").fill("Is the 40 € per person? See https://example.com/rules");
   await mine.getByRole("button", { name: "Save" }).click();
-  await page.waitForSelector("#comments .comment:nth-child(2) :text('edited')");
+  await mine.locator(":text('edited')").waitFor();
   // Hugo cannot remove Tom's comment, only his own.
   expect((await page.locator("#comments .comment").first().getByRole("button", { name: "Delete" }).count()) === 0, "no delete on others' comments");
   await mine.getByRole("button", { name: "Delete" }).click();
   await page.waitForSelector(".ck-toast:has-text('Comment deleted')");
   expect((await page.locator("#comments .comment").count()) === 1, "removed");
   await page.locator(".ck-toast").getByRole("button", { name: "Undo" }).click();
-  await page.waitForSelector("#comments .comment:nth-child(2)");
+  await page.locator("#comments .comment").nth(1).waitFor();
   await page.reload();
   expect((await page.locator("#comments .comment").count()) === 2, "back after a reload");
 });
@@ -536,7 +539,8 @@ await step("per-space edit rights: Sales is edited by the sales group; Tom (tech
   await page.goto(origin + "/chest/pages/10");
   expect(await page.getByRole("link", { name: "Edit" }).count() === 0, "no Edit for Tom");
   await page.waitForSelector(".read-only:has-text('Only some people edit')");
-  expect((await page.request.get(origin + "/chest/pages/10/edit")).status() === 404, "the editor refused");
+  const refused = await (await page.request.get(origin + "/chest/pages/10/edit")).text();
+  expect(refused.includes("You can read this page, not change it.") && !refused.includes("ProseMirror"), "the editor refused, and says why");
   await as(context, origin, "ines");
   await page.goto(origin + "/chest/pages/10");
   await page.getByRole("link", { name: "Modifier" }).waitFor();
@@ -577,6 +581,81 @@ await step("read and acknowledged: Hugo is asked, confirms in one click; Camille
   await page.getByRole("button", { name: "Ask", exact: true }).click();
   await page.waitForSelector(".ck-toast:has-text('people asked')");
   expect((await bell()).includes("Tom Walker vous demande de lire"), "Léa is told, in French");
+  // By email too (the "mail" proposal): one letter each, in their language.
+  const dev = await bell();
+  expect(dev.includes("<li><b>Tom Walker vous demande de lire « Onboarding for engineers »</b>"), "Léa's email, in French");
+  expect(dev.includes("<li><b>Tom Walker asks you to read “Onboarding for engineers”</b>"), "Hugo's email, in English");
+  // Those who have not confirmed are reminded, in the bell and by email.
+  await page.goto(origin + "/chest/pages/13/reads");
+  await page.getByRole("button", { name: "Remind those who have not confirmed" }).click();
+  await page.waitForSelector(".ck-toast:has-text('reminded, in the bell and by email')");
+  expect((await bell()).includes("Rappel : merci de lire « Onboarding for engineers »"), "the reminder, in French");
+});
+
+await step("search in French: little words do not count; words that mean the same find each other; editors keep them", async () => {
+  await as(context, origin, "hugo");
+  await page.goto(origin + "/chest/search?q=" + encodeURIComponent("note de frais"));
+  const found = await page.locator(".result-title").allInnerTexts();
+  expect(found[0] === "Expense policy" && found.length <= 6, "note de frais: " + found.join(" | "));
+  await page.goto(origin + "/chest/search?q=vacances");
+  expect((await page.locator(".result-title").first().innerText()) === "Holidays and time off", "vacances finds the holidays");
+  await page.goto(origin + "/chest/search?q=tt");
+  expect((await page.locator(".result-title").first().innerText()) === "Charte télétravail", "tt finds télétravail");
+  expect(await page.getByRole("link", { name: "Words that mean the same" }).count() === 0, "not for readers");
+  await as(context, origin, "tom");
+  await page.goto(origin + "/chest/search?q=tt");
+  await page.getByRole("link", { name: "Words that mean the same" }).click();
+  await page.waitForURL(/\/chest\/search\/synonyms$/u);
+  await page.getByLabel("New line").fill("forklift, chariot élévateur");
+  await page.getByRole("button", { name: "Add a line" }).click();
+  await page.waitForSelector(".ck-toast:has-text('Saved.')");
+  await page.reload();
+  expect((await page.locator(".synonym-lines input").last().inputValue()) === "forklift, chariot élévateur", "kept");
+});
+
+await step("a comment on a passage; a reply; resolved, it folds; reopened", async () => {
+  await as(context, origin, "tom");
+  await page.goto(origin + "/chest/pages/2");
+  // Select words of the page: "Comment on this passage" offers itself.
+  await page.evaluate(() => {
+    const p = document.querySelector(".prose p");
+    const range = document.createRange();
+    range.selectNodeContents(p);
+    window.getSelection().removeAllRanges();
+    window.getSelection().addRange(range);
+  });
+  await page.getByRole("button", { name: "Comment on this passage" }).click();
+  expect(await page.locator(".quote-chosen blockquote").count() === 1, "the passage is quoted");
+  await page.getByLabel("Your comment").fill("Does this include part-timers?");
+  await page.getByRole("button", { name: "Comment", exact: true }).click();
+  const talk = page.locator(".conversation", { hasText: "Does this include part-timers?" });
+  await talk.waitFor();
+  expect(await talk.locator(".comment-quote").count() === 1, "the comment quotes it");
+  await talk.getByRole("button", { name: "Reply" }).click();
+  await talk.getByLabel("Your reply").fill("Yes, pro rata.");
+  await talk.getByRole("button", { name: "Reply" }).last().click();
+  await talk.locator(".replies .comment", { hasText: "Yes, pro rata." }).waitFor();
+  await talk.getByRole("button", { name: "Resolve" }).click();
+  await talk.locator(".resolved-line", { hasText: "Resolved by" }).waitFor();
+  await talk.getByRole("button", { name: "Reopen" }).click();
+  await talk.getByRole("button", { name: "Resolve" }).waitFor();
+});
+
+await step("SECRETX: a comment deleted leaves nobody's bell", async () => {
+  await as(context, origin, "hugo");
+  await page.goto(origin + "/chest/pages/5");
+  await page.locator("#comment-new").click();
+  await page.keyboard.type("Door code 4321 SECRETX @To");
+  await page.waitForSelector(".mentions [role=option]:has-text('Tom Walker')");
+  await page.keyboard.press("Enter");
+  await page.getByRole("button", { name: "Comment", exact: true }).click();
+  const mine = page.locator("#comments .comment", { hasText: "SECRETX" });
+  await mine.waitFor();
+  expect((await bell()).includes("SECRETX"), "told first");
+  await mine.getByRole("button", { name: "Delete" }).click();
+  await page.waitForSelector(".ck-toast:has-text('Comment deleted')");
+  await page.waitForTimeout(800);
+  expect(!(await bell()).includes("SECRETX"), "gone from every bell");
 });
 
 await step("pinned pages on the home page; everything downloads as one zip", async () => {
@@ -603,6 +682,11 @@ await step("import a Confluence space export (HTML zip): its tree comes along", 
   expect((await page.locator("h1").innerText()) === "Handbook home", "the space's home page");
   expect(await page.locator(".prose aside.callout").count() === 1 && await page.locator(".prose img").count() === 1, "note box and image");
   expect((await page.locator(".related").first().innerText()).includes("IT setup"), "its pages inside");
+  // Each page keeps the date it had in Confluence; the import does not
+  // flood "Recently updated".
+  expect(!(await page.locator(".byline").first().innerText()).includes("now"), "not updated now: " + await page.locator(".byline").first().innerText());
+  await page.goto(origin + "/chest");
+  expect(!(await page.locator(".recent").innerText()).includes("Handbook home"), "the import stays out of Recently updated");
 });
 
 await step("phone: every editing tool in sight, “Stop editing” and “Watching” keep their words", async () => {

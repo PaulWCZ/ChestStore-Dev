@@ -50,7 +50,7 @@ underline for the current one), the "asks you" strip (highlight, red edge),
 stories (lead: picture 21:9 then a 56 px headline; others: 2 columns, small
 picture beside on a phone), kickers and flags (kind in red, *Pinned*,
 *Important* red block, *Read* green, *New* ink block), the agenda (date
-blocks), article head (kicker, headline, byline row with tools), drop cap,
+blocks), article head (kicker, headline, byline row with tools), drop cap (only on a whole first word of 4 letters or more — never "L et’s": lib/markdown.ts, dropCap),
 event box, confirm box, welcome card, reaction pills, readers panel with a
 meter, comments, the composer (kind choice cards, headline field in serif,
 a text editor that shows formatting as typed under a sticky icon toolbar —

@@ -25,9 +25,14 @@ see "What it does not do yet".
   on their profile with a *Write* button beside *Call*; in the export; used
   by the import to match people.
 - **Extra fields** HR adds for everyone ("Languages", "T-shirt size",
-  "LinkedIn"; 20 at most): each filled by the person (and HR) or by HR
-  only, shown on the profile, found by the search, in the export and the
-  import. Deleting one has *Undo* (kept 30 days).
+  "LinkedIn"; 20 at most), of three kinds: **text**, a **date** (the
+  kit's date field; "Medical visit", "Badge expires" — it may **remind HR
+  in the bell each morning** from a number of days before), or a
+  **choice** from HR's list ("Size": S, M, L; any case accepted, stored as
+  HR wrote it). Each filled by the person (and HR) or by HR only, shown on
+  the profile, found by the search, in the export and the import (dates
+  in the file's order, choices checked). Deleting one has *Undo* (kept 30
+  days).
 - **A profile page** per person: how to reach them (one tap to call), what
   to ask them, whom they report to and who reports to them, how long they
   have been here, their checklists (for those allowed to see them).
@@ -68,7 +73,11 @@ see "What it does not do yet".
   Name", "Last Name", "Reporting to", "Supervisor", "Hire Date", "Work
   Email"; Lucca's "Matricule", "Nom", "Prénom", "Date d'entrée" — and a
   **mapping step** where HR says what any column holds (or leaves it out,
-  or sends it to an extra field). People are matched by work email when
+  or sends it to an extra field). **A column left out is never dropped
+  silently**: "2 columns are left out: Division, T-Shirt Size" opens the
+  mapping step, and *Keep as a new field* turns one into an extra field
+  whose values are imported. Dates in the preview are written as the reader
+  writes them. People are matched by work email when
   the file has one, otherwise by full name (accents, case, commas and "Last
   First" order aside). When the dates could be day/month or month/day,
   **HR is asked** (BambooHR's guess is month-first). A preview says what
@@ -123,16 +132,28 @@ The part of BambooHR / Lucca Core HR a French SME is required to have.
   exit, work permit, and the mentions *CDD*, *salarié temporaire* with the
   agency, *mis à disposition* with the employer, *temps partiel*,
   *apprenti*, *contrat de professionnalisation*), interns in their own part
-  (dates, tutor, place). Rows missing what the law asks are marked. **Print
+  (dates, tutor, place; the tutor's name as it is, never "(former
+  member)" — and "the tutor has left: name a new tutor" on screen). Rows
+  missing what the law asks are marked. **The register never leaves
+  someone out silently**: everyone working here without a record (with
+  *Create the record*), a record without a first day, someone who left the
+  Chest without an exit date written, are named in a part "Not in this
+  register" — on screen (with a warning at the top), **on paper** and at
+  the end of the CSV. **Print
   or save as PDF** (a print layout, A4 landscape) or **download as CSV**.
   A record stays five years after the person's last day, then goes with
   its documents; a record of someone who worked here cannot be deleted
   (only one made by mistake).
-- **Numbers**: headcount, by team, office and contract; arrivals and
-  departures for each of the last twelve months; turnover over twelve
-  months (half of arrivals plus departures, divided by the headcount a year
-  ago — the usual French *taux de rotation*), each figure written next to
-  its bar.
+- **Numbers**, all on **one population, said on the page**: the people
+  working here — the HR records of people here today (interns and
+  seconded staff included, people without the Chest too) and directory
+  members without a record yet ("No HR record yet" under *By contract*).
+  Headcount, by team, office and contract (each adds up to the headcount);
+  arrivals and departures for each of the last twelve months; turnover
+  over twelve months (half of arrivals plus departures, divided by the
+  headcount a year ago — the usual French *taux de rotation*), each figure
+  written next to its bar. Someone who left the Chest without an exit date
+  in their record is not counted, and the page says to write it.
 - **Salary is not kept here — a decision.** In France the pay slip and the
   DSN are made by payroll software or the accountant, which already hold
   salary and its history; a second copy in a directory tool would be one
@@ -245,9 +266,11 @@ records: see "On a Chest").
   clicks. Tick a to-do: 1 click from *My to-dos* (the bell links there).
   HR starting an arrival: *Start a checklist* → person, template, date →
   *Start* (4 clicks; the first day is pre-filled from the start date).
-  HR setting up a new company: *Import* (a BambooHR or Lucca file) or
-  *Edit as a table*; then *Records* → *Create their N records* (1 click)
-  → complete each; the staff register is then written.
+  HR setting up a new company: the directory shows **"Set up People: 3
+  steps"** (import, the table, the records), each ticked when done:
+  *Import* (a BambooHR or Lucca file) or *Edit as a table*; then *Records*
+  → *Create their N records* (1 click) → complete each; the staff register
+  is then written.
 - **A mistake:** ticking has *Undo*; deleting a step or stopping a checklist
   has *Undo*; a cell of the table has *Undo*; deleting a document or an
   extra field has *Undo* (an Undo that comes too late says so); deleting a
@@ -381,5 +404,9 @@ from other sources than Leave (a calendar); public holidays in the "back
 on" day; teams as Chest groups; drag-and-drop in the org chart; reminders
 by email; emailing the newcomer before day 1; ticking "return the laptop"
 when Equipment has everything back (needs an Equipment event); an export
-of checklists and their history; custom fields of other kinds than text
-(a date, a choice).
+of checklists and their history; changing a choice field's list or a date
+field's reminder after it was added (remove it and add it again: Undo
+keeps its values meanwhile); a field's kind never changes. The sample
+company's job titles, teams and fields are the company's own words (the
+example checklists' names and steps are the tool's, and speak each
+reader's language until HR rewords them).

@@ -16,8 +16,9 @@ type Props = {
   names: Named | null;
   dateLabels: Map<string, DateLabel>;
   finalOption: string | null;
-  // A sign-up sheet has no "best" date: each slot fills up on its own.
-  signup?: boolean;
+  // A sign-up sheet (places per answer) has no "best" date: each slot
+  // fills up on its own, and its grid says places taken, not "can make it".
+  slots?: number | null;
   locale: string;
   t: Pick<Catalogue, "results" | "poll" | "people">;
 };
@@ -41,7 +42,10 @@ export function DayBadge({ label }: { label: DateLabel }) {
   );
 }
 
-export function Results({ results, single, names, dateLabels, finalOption, signup = false, locale, t }: Props) {
+export function Results({ results, single, names, dateLabels, finalOption, slots = null, locale, t }: Props) {
+  const signup = slots !== null;
+  // A sign-up slot: "2/2 · Full", "1/2 · 1 place left".
+  const places = (yes: number) => ({ taken: format(t.results.placesOf, { taken: yes, slots: slots ?? 0 }), left: yes >= (slots ?? 0) ? t.results.full : plural(t.results.placesLeft, (slots ?? 0) - yes, locale) });
   return (
     <>
       {results.map(q => {
@@ -132,16 +136,19 @@ export function Results({ results, single, names, dateLabels, finalOption, signu
                     </tbody>
                     <tfoot>
                       <tr>
-                        <th scope="row">{t.results.total}</th>
+                        <th scope="row">{signup ? t.results.placesTaken : t.results.total}</th>
                         {q.options.map(o => (
-                          <td key={o.id} className={lit(o.id).trim()}>
-                            <span className="tally"><strong>{o.yes + o.maybe}</strong><small>{format(t.results.yesMaybe, { yes: o.yes, maybe: o.maybe })}</small></span>
+                          <td key={o.id} className={lit(o.id).trim() + (signup && o.yes >= slots! ? " full" : "")}>
+                            {signup
+                              ? <span className="tally"><strong>{places(o.yes).taken}</strong><small>{places(o.yes).left}</small></span>
+                              : <span className="tally"><strong>{o.yes + o.maybe}</strong><small>{format(t.results.yesMaybe, { yes: o.yes, maybe: o.maybe })}</small></span>}
                           </td>
                         ))}
                       </tr>
                     </tfoot>
                   </table>
                 </div>
+                {q.options.length > 2 && <p className="grid-more" aria-hidden="true">{format(t.results.swipe, { count: q.options.length })}</p>}
               </section>
             );
           }
@@ -157,7 +164,7 @@ export function Results({ results, single, names, dateLabels, finalOption, signu
                     <div key={o.id} className={"bar-row" + (o.id === bestId ? " top" : "")}>
                       <div className="bar-label">
                         <span className="what">{label.text}{label.hours ? " · " + label.hours : ""}{o.id === bestId && <span className="best-tag"><Star />{t.results.best}</span>}</span>
-                        <span className="num"><strong>{o.yes + o.maybe}</strong> · {format(t.results.yesMaybe, { yes: o.yes, maybe: o.maybe })}</span>
+                        <span className="num">{signup ? <><strong>{places(o.yes).taken}</strong> · {places(o.yes).left}</> : <><strong>{o.yes + o.maybe}</strong> · {format(t.results.yesMaybe, { yes: o.yes, maybe: o.maybe })}</>}</span>
                       </div>
                       <div className="bar" role="img" aria-label={format(t.results.percent, { value: pct })}><i style={{ ["--w" as string]: Math.round(((o.yes + o.maybe) * 100) / most) + "%" }} /></div>
                     </div>

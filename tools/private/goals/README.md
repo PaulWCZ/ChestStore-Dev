@@ -8,15 +8,21 @@ Weekdone, 15Five OKRs — or the OKR spreadsheet** — for a company of 10 to
 
 ## What it does
 
-- **Cycles** (a quarter, usually: "Q4 2026", with its dates). Admins create
+- **Cycles** (a quarter, usually: "Q4 2026", with its dates). A name the
+  tool suggested and the admin kept is the tool's own: each reader reads it
+  in their language ("Q1 2027" / "T1 2027"; another period by its months,
+  "Aug – Nov 2026" / "août – nov. 2026"), and it follows the dates when they
+  change. A cycle the admin renamed keeps its words. Admins create
   them, pick the current one, close one when it ends and may reopen it. A
   closed cycle is frozen but stays readable, with its **review**: every
   objective's final progress, its score and what the team learned.
 - **Objectives** at three levels: **company** (admins), **team**, and
   **personal** (off by default, see below). Each has an owner, a title, why
   it matters, and may **support** a bigger one: company → team → personal.
-- **Key results**: a number from a start to a target with a unit (written
-  with its two forms, "customer/customers", it reads "1 customer"), a
+- **Key results**: a number from a start to a target, *counted in* a unit
+  typed in the plural ("customers"); when the value may be 1, the form
+  for one is guessed ("customer", "client", "person") in a small field to
+  correct, so it reads "1 customer" (stored as "customer/customers"), a
   percentage, an amount of money (in the Chest's currency), or done / not
   done — or **fed by Clients, the CRM**: the amount won, or the number of
   deals won, in the cycle's dates, set by the deals the CRM reports (see
@@ -133,10 +139,14 @@ owner, the admins and the tool's builders come in with the first role.
   quarter's dates, *Start Q4 2026 (1 Oct – 31 Dec)*: the current calendar
   quarter, or — in the last 14 days of a quarter, on the Chest's calendar
   and in its time zone — the **next** one, with the current one as a quiet
-  second choice ("Or start Q3 2026 now (1 day left)"). Its name follows the
-  admin's language ("T4 2026" in French). Then *Company* offers *Write the
-  first objective*, *Add an example* (a complete objective with three key
-  results, to change) or *Import from a spreadsheet*.
+  second choice ("Or start Q3 2026 now (1 day left)"), and *Start Q4 2026
+  and import a spreadsheet* for a company leaving Perdoo or its OKR sheet.
+  Its name follows each reader's language ("T4 2026" in French). Then
+  *Company* offers *Write the first objective*, *Add an example* (a
+  complete objective with three key results, to change) or *Import from a
+  spreadsheet*. On *Company*, import and download are in one *Spreadsheet*
+  menu; the tree comes right after the progress, the waiting list after
+  it.
 - **The first thing they do:** check in — change the number, tap a
   confidence, *Check in*. Writing an objective is one page: its title, why,
   what it supports, and its key results in the same form.

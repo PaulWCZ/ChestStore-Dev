@@ -7,7 +7,7 @@
   {"name": "jobs", "path": "/chest", "member": "camille", "locale": "en"},
   {"name": "jobs-fr", "path": "/chest", "member": "camille", "locale": "fr", "only": ["desktop"]},
   {"name": "board", "path": "/chest/jobs/1", "member": "camille", "locale": "en", "preview": true},
-  {"name": "board-select", "path": "/chest/jobs/1", "member": "camille", "locale": "en", "actions": [{"click": ".board-tools button"}, {"click": ".cand.pick >> nth=0"}, {"click": ".cand.pick >> nth=1"}, {"wait": 300}]},
+  {"name": "board-select", "path": "/chest/jobs/1", "member": "camille", "locale": "en", "only": ["desktop"], "actions": [{"click": ".board-tools button"}, {"click": ".cand.pick >> nth=0"}, {"click": ".cand.pick >> nth=1"}, {"wait": 300}]},
   {"name": "candidate", "path": "/chest/candidates/1", "member": "camille", "locale": "en"},
   {"name": "write", "path": "/chest/candidates/1", "member": "camille", "locale": "en", "actions": [{"click": ".cand-actions button:has-text('Write')"}, {"wait": 300}]},
   {"name": "interview", "path": "/chest/candidates/7", "member": "camille", "locale": "fr", "actions": [{"click": ".cand-actions button:has-text('Entretien')"}, {"wait": 300}]},
@@ -34,5 +34,10 @@
   {"name": "jobs-brand", "path": "/chest", "member": "camille", "locale": "en", "look": {"tool": "brand:sample"}, "only": ["desktop"]},
   {"name": "careers-brand", "path": "/", "locale": "fr", "look": {"tool": "brand:sample"}},
   {"name": "careers-chest", "path": "/", "locale": "en", "look": {"all": "catalogue:chest"}, "only": ["desktop"]},
-  {"name": "job-theme-dark", "path": "/senior-furniture-designer", "locale": "en", "dark": true, "look": {"all": "catalogue:control-room"}, "only": ["phone"]}
+  {"name": "job-theme-dark", "path": "/senior-furniture-designer", "locale": "en", "dark": true, "look": {"all": "catalogue:control-room"}, "only": ["phone"]},
+  {"name": "careers-port", "path": "/", "locale": "fr", "look": {"all": "brand:port"}},
+  {"name": "careers-theme-all", "path": "/", "locale": "en", "look": {"all": "catalogue:confetti"}},
+  {"name": "settings-brand", "path": "/chest/settings", "member": "camille", "locale": "fr", "look": {"all": "brand:sample"}},
+  {"name": "interview-link", "path": "/chest/candidates/1", "member": "camille", "locale": "en", "actions": [{"click": "button:has-text('Interview')"}, {"wait": 400}]},
+  {"name": "new-job", "path": "/chest/jobs/new", "member": "camille", "locale": "fr"}
 ]

@@ -40,6 +40,8 @@ follow it and are tested against it.
 | Skip to content | Aller au contenu | |
 | You can’t use this tool yet | Vous ne pouvez pas encore utiliser cet outil | the no-access page |
 | (former member) | (ancien membre) | a departed person's name |
+| Late (past its date) | En retard | a task, a request past its due date — only this |
+| On track / At risk / Off track (a goal's confidence) | En bonne voie / À risque / Hors trajectoire | never « En retard » for Off track: a goal off track is not late |
 
 ## Confirmations
 

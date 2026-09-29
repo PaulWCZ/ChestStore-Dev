@@ -33,7 +33,9 @@ export default async function Careers() {
       <section className="hero">
         <p className="kicker">{t.careers.kicker}</p>
         <h1 className="display">{s.companyName ? format(t.careers.title, { company: s.companyName }) : t.careers.titlePlain}</h1>
-        <p className="lede">{introFor(s, locale) || t.careers.intro}</p>
+        {/* Only what the company wrote: an empty careers page never speaks
+            for it (critique round 2, N2). */}
+        {introFor(s, locale) && <p className="lede">{introFor(s, locale)}</p>}
       </section>
       {brand.photos.length > 0 && (
         <div className={`photos n${brand.photos.length}`}>

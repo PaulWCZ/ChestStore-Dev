@@ -159,7 +159,7 @@ export function TimelineView({ timeline, columns, cards, people, writable, local
                 <div className="tl-track">
                   {timeline.days.map(d => (
                     <span key={d.date} className={`tl-day${d.date === timeline.today ? " today" : ""}`}>
-                      {d.month && <span className="tl-month">{d.month}</span>}
+                      <span className="tl-month">{d.month}</span>
                       <span className="tl-letter">{d.weekday}</span>
                       <span className="tl-num">{d.day}</span>
                     </span>
@@ -183,7 +183,7 @@ export function TimelineView({ timeline, columns, cards, people, writable, local
               ))}
               {todayIndex >= 0 && todayIndex < timeline.days.length && <span className="tl-today" aria-hidden="true" />}
               {links.length > 0 && (
-                <svg className="tl-links" width={width} height={height} viewBox={`0 0 ${width} ${height}`} aria-hidden="true" focusable="false">
+                <svg className="tl-links" width={width} height={height} style={{ width, height }} viewBox={`0 0 ${width} ${height}`} aria-hidden="true" focusable="false">
                   {links.map(l => {
                     const bend = Math.max(l.x1 + 8, Math.min(l.x2 - 8, l.x1 + 12));
                     return <path key={l.key} className={l.conflict ? "conflict" : undefined} d={`M${l.x1} ${l.y1} H${bend} V${l.y2} H${l.x2}`} />;
@@ -229,7 +229,7 @@ function Bar({ card, dates, first, writable, nameOfDay, conflict, blockerTitles,
   } as CSSProperties;
   return (
     <div ref={bar.setNodeRef} style={style}
-      className={`tl-bar${card.done ? " is-done" : ""}${waiting ? " is-blocked" : ""}${conflict ? " conflict" : ""}${place.cutStart ? " cut-start" : ""}${place.cutEnd ? " cut-end" : ""}${drag ? " moving" : ""}`}>
+      className={`tl-bar${place.to - place.from < 2 ? " short" : ""}${card.done ? " is-done" : ""}${waiting ? " is-blocked" : ""}${conflict ? " conflict" : ""}${place.cutStart ? " cut-start" : ""}${place.cutEnd ? " cut-end" : ""}${drag ? " moving" : ""}`}>
       <div {...(writable ? bar.listeners : {})} {...bar.attributes} aria-roledescription={undefined} aria-label={label} className="tl-handle"
         onClick={open}
         onKeyDown={(e: KeyboardEvent<HTMLDivElement>) => {

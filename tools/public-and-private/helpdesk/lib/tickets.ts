@@ -10,6 +10,7 @@ import { clean, defaultLateHours, defaultSort, email, mergedEvent, readMerged, f
 import { isLocale } from "./i18n/index.ts";
 import { allRules, decide } from "./rules.ts";
 import { baseSubject } from "./text.ts";
+import { readerWords, shownTag, storedTag } from "./seed-words.ts";
 
 // Tickets and their messages. Team functions take (sql, actor, …) and check
 // the rights first; public functions take what an anonymous visitor may
@@ -259,13 +260,26 @@ const noFiles: Files = { drop: async () => {} };
 // fromForm opens a ticket from the public form, with the files the visitor
 // sent; says its number and the follow-up link's secret (shown once, never
 // stored).
-export async function fromForm(sql: Sql, input: PublicInput, files: Files = noFiles): Promise<{ id: string; number: number; secret: string; files: number; assignee: string | null }> {
+export async function fromForm(sql: Sql, input: PublicInput, files: Files = noFiles): Promise<{ id: string; number: number; secret: string; files: number; assignee: string | null; repeated?: boolean }> {
   const s = await settings(sql);
   if (!s.formOpen) throw new AppError("closed_form");
   const name = clean(input.name, limits.name, { optional: true });
   const address = email(input.email);
   const subject = clean(input.subject, limits.subject);
   const body = clean(input.message, limits.publicBody, { multiline: true });
+  // The same request again within ten minutes (a double tap, Back then
+  // Send): the ticket already there, with a link of its own; nothing twice.
+  const [again] = await sql<{ id: string; number: number; assignee: string | null }[]>`
+    select t.id, t.number, t.assignee from tickets t
+    where t.channel = 'form' and lower(t.customer_email) = lower(${address}) and t.subject = ${subject} and t.created_at > now() - interval '10 minutes'
+      and t.status <> 'spam' and (select m.body from messages m where m.ticket_id = t.id order by m.created_at, m.id limit 1) = ${body}
+    order by t.id desc limit 1`;
+  if (again) {
+    const secret = newSecret();
+    await sql`insert into ticket_links (secret_hash, ticket_id) values (${hashSecret(secret)}, ${again.id})`;
+    // Files sent the second time are not taken: the first sending has them.
+    return { id: String(again.id), number: again.number, secret, files: 0, assignee: again.assignee, repeated: true };
+  }
   return withFiles(files.take, stored => sql.begin(async tx => {
     const t = await insertTicket(tx, { subject, email: address, name, channel: "form", language: input.language });
     await insertMessage(tx, t.id, { kind: "customer", author: null, body, files: stored });
@@ -482,7 +496,8 @@ export async function listTickets(sql: Sql, actor: Member | null, folder: unknow
       ${tag ? sql`and exists (select 1 from ticket_tags x where x.ticket_id = t.id and x.tag_id = ${tag})` : sql``}
     order by ${order}, t.id
     limit ${limits.page}`;
-  return rows.map(r => ({ ...toTicket(r), last: (r.last ?? "").slice(0, 200), lastKind: r.last_kind, messages: r.messages, tags: r.tags ?? [] }));
+  const reader = readerWords(actor);
+  return rows.map(r => ({ ...toTicket(r), last: (r.last ?? "").slice(0, 200), lastKind: r.last_kind, messages: r.messages, tags: (r.tags ?? []).map(g => ({ ...g, name: shownTag(g.name, reader) })) }));
 }
 
 async function byNumber(sql: Query, number: unknown): Promise<Ticket> {
@@ -518,7 +533,7 @@ export async function ticket(sql: Sql, actor: Member | null, number: unknown): P
   const others = await sql<{ number: number; subject: string; status: Status; updated_at: Date }[]>`
     select number, subject, status, updated_at from tickets where lower(customer_email) = lower(${t.customerEmail}) and id <> ${t.id} and merged_into is null order by updated_at desc limit 10`;
   const [tagged] = await sql<{ tags: Tag[] }[]>`select ${tagsOf(sql)} as tags from tickets t where t.id = ${t.id}`;
-  return { ...t, messages: await messagesOf(sql, t.id, true), others: others.map(o => ({ number: o.number, subject: o.subject, status: o.status, updatedAt: o.updated_at.toISOString() })), viewing, tags: tagged?.tags ?? [] };
+  return { ...t, messages: await messagesOf(sql, t.id, true), others: others.map(o => ({ number: o.number, subject: o.subject, status: o.status, updatedAt: o.updated_at.toISOString() })), viewing, tags: (tagged?.tags ?? []).map(g => ({ ...g, name: shownTag(g.name, readerWords(actor)) })) };
 }
 
 // ---- Answering -------------------------------------------------------------
@@ -596,11 +611,19 @@ export async function tags(sql: Sql, actor: Member | null): Promise<(Tag & { tic
   const rows = await sql<{ id: string; name: string; tickets: number }[]>`
     select g.id, g.name, (select count(*)::int from ticket_tags x join tickets t on t.id = x.ticket_id where x.tag_id = g.id and t.status <> 'spam') as tickets
     from tags g order by lower(g.name)`;
-  return rows.map(r => ({ id: String(r.id), name: r.name, tickets: r.tickets }));
+  const words = readerWords(actor);
+  return rows.map(r => ({ id: String(r.id), name: shownTag(r.name, words), tickets: r.tickets }));
 }
 
 // tagFor finds a tag by its name, whatever its case, or creates it.
 async function tagFor(sql: Query, name: string): Promise<Tag> {
+  // A seeded tag this desk has, named in any language ("Abîmé",
+  // "Damaged"), is that tag; a new tag is the words typed.
+  const seeded = storedTag(name);
+  if (seeded !== name) {
+    const [kept] = await sql<{ id: string; name: string }[]>`select id, name from tags where name = ${seeded}`;
+    if (kept) return { id: String(kept.id), name: kept.name };
+  }
   const [found] = await sql<{ id: string; name: string }[]>`select id, name from tags where lower(name) = lower(${name})`;
   if (found) return { id: String(found.id), name: found.name };
   const [count] = await sql<{ n: number }[]>`select count(*)::int as n from tags`;
@@ -620,7 +643,7 @@ export async function addTag(sql: Sql, actor: Member | null, number: unknown, na
     const [count] = await tx<{ n: number }[]>`select count(*)::int as n from ticket_tags where ticket_id = ${t.id} and tag_id <> ${tag.id}`;
     if ((count?.n ?? 0) >= limits.tagsPerTicket) throw new AppError("too_many", { max: limits.tagsPerTicket });
     await tx`insert into ticket_tags (ticket_id, tag_id) values (${t.id}, ${tag.id}) on conflict do nothing`;
-    return tag;
+    return { ...tag, name: shownTag(tag.name, readerWords(actor)) };
   });
 }
 
@@ -672,7 +695,7 @@ export async function restoreTag(sql: Sql, actor: Member | null, input: { name: 
   return sql.begin(async tx => {
     const tag = await tagFor(tx, text);
     for (let i = 0; i < ids.length; i += 1000) await tx`insert into ticket_tags (ticket_id, tag_id) select id, ${tag.id} from tickets where id in ${tx(ids.slice(i, i + 1000))} on conflict do nothing`;
-    return tag;
+    return { ...tag, name: shownTag(tag.name, readerWords(actor)) };
   });
 }
 
@@ -817,7 +840,8 @@ export async function unbulk(sql: Sql, actor: Member | null, before: unknown, ta
 // was merged into (the same customer's: merging never crosses customers).
 async function linked(sql: Query, secret: unknown): Promise<TicketDb | null> {
   if (typeof secret !== "string" || !secretPattern.test(secret)) return null;
-  const [row] = await sql<(TicketDb & { merged_into: string | null })[]>`select ${columns(sql)}, t.merged_into from tickets t where secret_hash = ${hashSecret(secret)} and status <> 'spam'`;
+  const [row] = await sql<(TicketDb & { merged_into: string | null })[]>`select ${columns(sql)}, t.merged_into from tickets t
+    where (t.secret_hash = ${hashSecret(secret)} or t.id = (select ticket_id from ticket_links where secret_hash = ${hashSecret(secret)})) and status <> 'spam'`;
   if (!row) return null;
   const into = await followMerges(sql, row.merged_into ? { id: String(row.id), number: row.number } : undefined);
   if (!into || into.id === String(row.id)) return row;
@@ -969,6 +993,6 @@ export async function exportAll(sql: Sql, actor: Member | null): Promise<ExportT
   if (!can(actor, "export")) throw new AppError("forbidden");
   const rows = await sql<(TicketDb & { tags: Tag[]; closed_at: Date | null; rated_at: Date | null })[]>`select ${columns(sql)}, ${tagsOf(sql)} as tags, t.closed_at, t.rated_at from tickets t order by number`;
   const out: ExportTicket[] = [];
-  for (const r of rows) out.push({ ...toTicket(r), tags: (r.tags ?? []).map(g => g.name), closedAt: r.closed_at?.toISOString() ?? null, ratedAt: r.rated_at?.toISOString() ?? null, messages: await messagesOf(sql, String(r.id), true) });
+  for (const r of rows) out.push({ ...toTicket(r), tags: (r.tags ?? []).map(g => shownTag(g.name, readerWords(actor))), closedAt: r.closed_at?.toISOString() ?? null, ratedAt: r.rated_at?.toISOString() ?? null, messages: await messagesOf(sql, String(r.id), true) });
   return out;
 }

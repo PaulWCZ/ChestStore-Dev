@@ -23,6 +23,9 @@ export function ContactForm({ started: shown, locale, embed, t }: { started: str
   const error = state.error ? format(t.errors[state.error], { max: state.max ?? (state.error === "too_long" ? limits.message : 0) }) : null;
   const waiting = filesPending(files);
   const invalid = (field: string) => (state.error === "invalid_email" && field === "email") || (state.error === "empty" && field === "message");
+  // A wrong address is said under its field (on a phone, where the eye is),
+  // the field marked; any other trouble above the button.
+  const atEmail = state.error === "invalid_email";
   return (
     <form action={action} className="stack" noValidate={false}>
       <input type="hidden" name="started" value={started} />
@@ -39,7 +42,8 @@ export function ContactForm({ started: shown, locale, embed, t }: { started: str
         </div>
         <div>
           <label className="label" htmlFor="email">{w.email}</label>
-          <input id="email" name="email" type="email" className="field" autoComplete="email" required maxLength={limits.email} defaultValue={v["email"] ?? ""} aria-invalid={invalid("email") || undefined} aria-describedby="email-hint" />
+          <input id="email" name="email" type="email" className="field" autoComplete="email" required maxLength={limits.email} defaultValue={v["email"] ?? ""} aria-invalid={invalid("email") || undefined} aria-describedby={atEmail ? "email-error email-hint" : "email-hint"} autoFocus={atEmail || undefined} />
+          {atEmail && error && <p className="error" id="email-error" role="alert">{error}</p>}
         </div>
       </div>
       <p id="email-hint" className="hint email-hint">{w.emailHint}</p>
@@ -52,8 +56,8 @@ export function ContactForm({ started: shown, locale, embed, t }: { started: str
         <textarea id="message" name="message" className="field" required rows={7} maxLength={limits.message} placeholder={w.messagePlaceholder} defaultValue={v["message"] ?? ""} aria-invalid={invalid("message") || undefined} />
       </div>
       <input type="hidden" name="files" value={readyFiles(files)} />
-      <Attachments files={files} setFiles={setFiles} grant={fileUpload.bind(null, { started })} kind="public" label={t.public.attach} t={{ files: t.files, errors: t.errors }} />
-      {error && <p className="error" role="alert">{error}</p>}
+      <Attachments files={files} setFiles={setFiles} grant={fileUpload.bind(null, { started })} kind="public" label={t.public.attach} plainTypes={t.public.typesPlain} t={{ files: t.files, errors: t.errors }} />
+      {error && !atEmail && <p className="error" role="alert">{error}</p>}
       <div><button type="submit" className="button" disabled={pending || waiting} title={waiting ? t.files.wait : undefined}>{pending ? w.sending : w.send}</button></div>
     </form>
   );

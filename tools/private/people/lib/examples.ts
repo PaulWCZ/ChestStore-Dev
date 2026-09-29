@@ -56,6 +56,17 @@ export function stepText(item: { text: string; phrase: string | null }, t: Catal
   return phraseIn(t, item.phrase) ?? item.text;
 }
 
+// How a reader sees an example template's (or its checklist's) name: the
+// example's name in their language while HR has not renamed it.
+export function listName(x: { name: string; phrase: string | null }, t: Catalogue): string {
+  return x.phrase === "onboarding" || x.phrase === "offboarding" ? t.checklists.examples[x.phrase].name : x.name;
+}
+
+// Whether a name is still the example's own words in one of the languages.
+export function sameName(kind: string, text: string): boolean {
+  return (kind === "onboarding" || kind === "offboarding") && locales.some(l => catalogue(l).checklists.examples[kind].name === text);
+}
+
 // Whether a text is still the phrase's own words in one of the languages
 // (HR saved a step without rewording it): then the phrase is kept.
 export function samePhrase(phrase: string | null, text: string): boolean {

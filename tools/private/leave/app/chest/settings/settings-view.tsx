@@ -1,6 +1,6 @@
 "use client";
 
-import { StatusBadge, Switch, useToast } from "@argentic/chest-ui/components";
+import { Checkbox, StatusBadge, Switch, useToast } from "@argentic/chest-ui/components";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { Plus } from "../../../components/icons.tsx";
@@ -141,12 +141,9 @@ function TypeEditor({ row, colors, months, companyMonth, t, onDone }: { row: Typ
     if (!fresh && (v.name !== row.name || v.perYear !== row.perYear || v.payrollCode !== row.payrollCode)) run(() => saveType(row.id, input(v)));
   };
   // A saved kind changes at once: a switch. A new one waits for its Add
-  // button: a checkbox (the kit's rule for Switch).
+  // button: the kit's Checkbox (the kit's rule for Switch).
   const flag = (key: "balance" | "halfDays" | "approval" | "notes" | "overdraw" | "away", label: string) => fresh ? (
-    <label className="check small">
-      <input type="checkbox" checked={v[key]} disabled={pending} onChange={e => change({ [key]: e.target.checked })} />
-      <span>{label}</span>
-    </label>
+    <Checkbox className="small" label={label} checked={v[key]} disabled={pending} onChange={on => change({ [key]: on })} />
   ) : (
     <Switch className="small" label={label} checked={v[key]} disabled={pending} onChange={on => change({ [key]: on })} />
   );

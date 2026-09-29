@@ -7,7 +7,7 @@ import { db } from "../../../lib/db.ts";
 import { myPage } from "../../../lib/my-page.ts";
 import { publicOrigin } from "../../../lib/public-origin.ts";
 import { viewer } from "../../../lib/session.ts";
-import { currentLook } from "../../../lib/theme.ts";
+import { publicLook } from "../../../lib/theme.ts";
 import { zoneGroups } from "../../../lib/zones.ts";
 import { CompanySettings, EmbedSettings, ImportCalendly, PageSettings } from "./settings-view.tsx";
 
@@ -18,7 +18,8 @@ export default async function SettingsPage() {
   if (!v) return null;
   const { member, t, locale } = v;
   const host = await myPage(v);
-  const look = await currentLook();
+  // The button a website pastes wears the public pages' look.
+  const look = await publicLook();
   const s = await b.settings(db());
   const origin = publicOrigin(await headers()) ?? "";
   const admin = can(member, "settings");

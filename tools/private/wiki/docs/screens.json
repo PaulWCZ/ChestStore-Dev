@@ -26,5 +26,10 @@
   {"name": "page-theme-dark", "path": "/chest/pages/3", "member": "tom", "locale": "en", "dark": true, "look": {"all": "catalogue:newsprint"}},
   {"name": "home-brand", "path": "/chest", "member": "camille", "locale": "fr", "look": {"all": "catalogue:newsprint", "tool": "brand:sample"}},
   {"name": "page-brand-dark", "path": "/chest/pages/9", "member": "lea", "locale": "fr", "dark": true, "look": {"tool": "brand:sample"}},
-  {"name": "edit-theme", "path": "/chest/pages/1/edit", "member": "tom", "locale": "en", "look": {"all": "catalogue:seaside"}, "actions": [{"wait": 1500}], "only": ["desktop"]}
+  {"name": "edit-theme", "path": "/chest/pages/1/edit", "member": "tom", "locale": "en", "look": {"all": "catalogue:seaside"}, "actions": [{"wait": 1500}], "only": ["desktop"]},
+  {"name": "synonyms", "path": "/chest/search/synonyms", "member": "tom", "locale": "en"},
+  {"name": "search-frais-fr", "path": "/chest/search?q=note%20de%20frais", "member": "lea", "locale": "fr"},
+  {"name": "edit-reader", "path": "/chest/pages/3/edit", "member": "hugo", "locale": "en", "only": ["desktop"]},
+  {"name": "comments-passage", "path": "/chest/pages/2", "member": "tom", "locale": "en", "actions": [{"click": ".comment-quote .quote-link"}, {"wait": 700}], "only": ["desktop"]},
+  {"name": "page-port", "path": "/chest/pages/2", "member": "camille", "locale": "fr", "look": {"tool": "brand:port"}}
 ]

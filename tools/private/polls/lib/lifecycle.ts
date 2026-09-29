@@ -1,4 +1,5 @@
 import * as events from "@argentic/chest-sdk/events";
+import { forgetGroups } from "./groups.ts";
 import type { Sql } from "./db.ts";
 
 // What Polls does when a member loses access, leaves or is erased (the
@@ -37,6 +38,14 @@ export async function erase(sql: Sql, memberId: string): Promise<void> {
 export function handlers(sql: Sql): events.Handlers {
   return {
     "member.removed": event => leave(sql, event.data.id),
+    // Groups (Proposal (studio), "groups": "read"): their names and who is
+    // in them are read again (the composer's choices, results per team).
+    "group.changed": async () => {
+      forgetGroups();
+    },
+    "group.removed": async () => {
+      forgetGroups();
+    },
     "member.erased": async event => {
       await erase(sql, event.data.id);
       await events.acknowledgeErasure(event.data.erasure);

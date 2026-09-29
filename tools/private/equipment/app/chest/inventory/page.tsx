@@ -1,7 +1,7 @@
 import * as chest from "@argentic/chest-sdk/chest";
 import { PageHeader } from "@argentic/chest-ui/components";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { forbidden } from "next/navigation";
 import { can } from "../../../lib/access.ts";
 import { db } from "../../../lib/db.ts";
 import { format, formatDate } from "../../../lib/i18n/index.ts";
@@ -18,7 +18,7 @@ export default async function InventoryPage() {
   const v = await viewer();
   if (!v) return null;
   const { member, locale, t } = v;
-  if (!can(member, "items.manage")) notFound();
+  if (!can(member, "items.manage")) forbidden();
   const sql = db();
   const [now, past] = await Promise.all([progress(sql, member), pastInventories(sql, member)]);
   const zone = chest.timeZone();

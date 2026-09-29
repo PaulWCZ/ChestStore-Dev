@@ -20,18 +20,36 @@ them to everyone, organiser included, only once it closes.
     words for both ends), free text, and **eNPS** (0–10, "How likely are
     you to recommend working here to a friend?"; the score — share of 9–10
     minus share of 0–6 — is shown with its meaning in plain words).
-  - **A team pulse** (fourth tile) — a survey ready to send: anonymous,
-    every week, three questions (how the week was, eNPS, anything to say).
+  - **A team pulse** (fourth tile, organisers) — a survey ready to send:
+    anonymous, every week, three questions (how the week was, eNPS, anything
+    to say), written in the language of whoever asks it.
 - **Anyone asks.** Every member of the tool can start a poll (as in Slack
   or Teams); an admin can keep that to organisers (*Settings* on the home
   page). A member's own poll is theirs to edit, close and delete.
+- **Company surveys are for organisers.** A survey that **repeats** (a
+  pulse) or asks **eNPS** is started by organisers only, unless an admin
+  turns on *Everyone can start a team pulse or eNPS*: a weekly opinion
+  survey of the whole staff rings everyone's bell every week, and in
+  France it is a matter for the works council (see "Works council").
+  One-off questions, date polls and plain surveys stay open to everyone.
+- **Asked by you**: the organiser's list of what they asked — open ones
+  first (closing soonest), drafts, then those closed lately — each with its
+  state (*Open*, *Draft*, *Closed*), how many of those asked answered
+  ("4 of 7 answered", with a bar) and when it closes. Your own polls are
+  not mixed into *To answer*.
 - **Repeating surveys**: *Repeat — every week / every month*. Each round is
   a poll of its own, opened by itself at the same time for the same people,
   and open until the next one starts. The poll page shows **Over time**: the
   average of each 1–5 question and the eNPS score, round after round, with
   the change since the last round and the numbers in a table. *Stop
   repeating* (undo: *Repeat again*).
-- **Who is asked**: everyone who has Polls, or chosen Chest groups and/or
+- **By team** (anonymous surveys): once closed, the results also per group
+  of the Chest — each 1–5 question's average, eNPS, a choice's most given
+  answer — for the groups with **5 answers or more**. A group that could
+  be worked out by subtraction is hidden too (see "Anonymous polls").
+  Free texts are never split by team.
+- **Who is asked**: everyone who has Polls, or chosen Chest groups (any
+  group of the Chest, with the `groups` proposal) and/or
   **people picked by name**. Those asked get **one item in the Chest's
   bell**, in their own language, and a **number on the Polls tile** until
   they answer.
@@ -39,7 +57,9 @@ them to everyone, organiser included, only once it closes.
   poll ("2 people per stand slot", "3 seats per car"). Each answer shows
   "2 places left" or "Full"; a full answer cannot be taken (the last place
   goes to one person only); on dates, a *Yes* takes a place and *If need
-  be* is not offered. Named polls only.
+  be* is not offered; the results grid ends with **Places taken 2/2 ·
+  Full**. Named polls only. On a phone, a date grid wider than the screen
+  says so ("4 dates: swipe sideways to see them all →").
 - **Comments** on a named poll ("I can do the 17th, but only after 8 pm"),
   by those asked and those who manage it; the organiser hears of them in the
   bell; deleting one is undone from the toast. Anonymous polls take none.
@@ -105,6 +125,18 @@ The organiser ticks *Anonymous* when writing the poll. Then:
   name people).
 - **A repeating pulse** compares rounds, never answers: each round is its
   own anonymous poll, shown once closed and from 5 answers.
+- **Per team** (`lib/teams.ts`): an anonymous survey also keeps its counts
+  per group of the Chest the answerer belongs to — only groups of **5
+  members or more**, never a free text, with no name and no time, rewritten
+  with the poll's other anonymous rows in one shuffled transaction. Once
+  the survey is closed (and only if its whole results show), a group shows
+  from **5 answers**; and never when it could be worked out from what else
+  shows: a group inside another shown group (or inside the whole company)
+  with 1 to 4 answers less is hidden, and so is the smallest of groups
+  apart from each other that together leave 1 to 4 answers out. Who is in
+  which group is read from the Chest at that moment; when it cannot say,
+  every pair is treated as nested (the safe side). The page says how many
+  groups are not shown, and why.
 - **An anonymous answer cannot be changed**: nothing says which one is yours.
   The form says so before you send it.
 
@@ -115,7 +147,13 @@ What anonymity here does **not** protect against, honestly:
   never move while the poll is open.
 - **Small groups and free text.** Five answers is a floor, not a guarantee:
   a free text can give its author away by what it says; in a team of six,
-  a unanimous result says what everyone answered.
+  a unanimous result says what everyone answered. The same holds per team.
+- **Per-team counts in the database.** While a survey is open, its counts
+  per group sit in the database: someone with direct access to it who also
+  reads who has answered (`participants`) could, in a group where only one
+  person has answered so far, read that person's answer. Nobody can do it
+  through Polls, its pages or exports. Groups of fewer than 5 members are
+  never counted.
 - **The server's administrator.** Someone with direct access to the
   database server (not through the Chest) could keep copies of the database
   between two answers and compare them, or read old row versions on disk
@@ -150,13 +188,13 @@ states.
 
 | Role | Can |
 |---|---|
-| `organiser` | Everything a member can, and always create polls — even when an admin keeps that to organisers |
-| `member` | Answer the polls put to them; see results when the organiser allows it; comment on named polls; **create polls** (unless an admin turned *Everyone can start a poll* off), and for their own polls: see the results at any time (an anonymous poll's only once closed), edit the words and closing time, remind, close, reopen, delete, restore, pick a date poll's final date, stop a pulse's rounds, download the answers |
+| `organiser` | Everything a member can, and always create polls — even when an admin keeps that to organisers — including company surveys (a repeating pulse, eNPS) |
+| `member` | Answer the polls put to them; see results when the organiser allows it; comment on named polls; **create polls** (unless an admin turned *Everyone can start a poll* off) — but not a repeating survey or an eNPS question unless an admin turned *Everyone can start a team pulse or eNPS* on — and for their own polls: see the results at any time (an anonymous poll's only once closed), edit the words and closing time, remind, close, reopen, delete, restore, pick a date poll's final date, stop a pulse's rounds, download the answers |
 
 Admins of the Chest (who arrive as organisers) also manage every poll that is
 not a draft: see its results (an anonymous poll's only once closed, like
 everyone), close, reopen, delete, download, delete comments; and they choose
-whether every member may start a poll. Nobody — admin
+whether every member may start a poll, and a company survey. Nobody — admin
 or organiser — sees who answered what in an anonymous poll. A poll someone may
 not see answers *not found*: a draft is its organiser's alone; an open or
 closed poll is seen by those asked, its organiser and admins.
@@ -165,9 +203,10 @@ closed poll is seen by those asked, its organiser and admins.
 
 - **What a new person sees first**: the home page. *To answer* comes first,
   with each poll's closing time and a big *Answer* button; then *Ask the
-  team* with four tiles — a question, find a date, a short survey, a team
-  pulse — each one line (for everyone, unless an admin keeps it to
-  organisers). With nothing to
+  team* with the tiles — a question, find a date, a short survey, and for
+  organisers a team pulse — each one line (for everyone, unless an admin
+  keeps it to organisers). An organiser finds what they asked in *Asked by
+  you*, with how many answered. With nothing to
   answer: "Nothing to answer. You're all caught up!"
 - **The first thing they do**: tap the bell item or the card, tap an answer,
   *Send my answer*. **Two taps** for a question, one tap per date plus
@@ -188,8 +227,8 @@ closed poll is seen by those asked, its organiser and admins.
 | Route | What |
 |---|---|
 | `/` | Public host: "Polls lives in your Chest", with a language switch |
-| `/chest` | Home: to answer, ask the team, your polls, answered and still open, closed recently (a pulse once: its latest round); for admins, *Settings* |
-| `/chest/new?kind=choice\|date\|survey` | Composer (whoever may start a poll); `&preset=pulse`: the team pulse |
+| `/chest` | Home: to answer, asked by you, ask the team, answered and still open, closed recently (a pulse once: its latest round); for admins, *Settings* |
+| `/chest/new?kind=choice\|date\|survey` | Composer (whoever may start a poll); `&preset=pulse`: the team pulse (who may start a company survey) |
 | `/chest/polls/[id]` | A poll: answer, results, participation, organise |
 | `/chest/polls/[id]/edit` | A draft to finish, or an open poll's words and closing time |
 | `/chest/polls/[id]/export` | CSV of the answers (those who manage the poll) |
@@ -204,7 +243,9 @@ closed poll is seen by those asked, its organiser and admins.
   number); `receives: ["member.*"]`. Proposal (studio), in
   `chest.proposals.json`: `mail: {send: true}` — reminders by email, one
   per person, sent to `{member}` (Polls never sees an address); without it,
-  reminders are bell items only.
+  reminders are bell items only. `groups: "read"` with `receives:
+  ["group.*"]` — every group of the Chest as an audience, and results per
+  team; without it, only the groups that give Polls.
 - **Telling those asked** uses one `notifications.broadcast` per poll
   (Proposal (studio): each member's item in their language, 30 an hour,
   outside the recipients quota). Where the Chest has no broadcast, and for
@@ -218,9 +259,17 @@ closed poll is seen by those asked, its organiser and admins.
   purge) runs at most once a minute when someone opens a page. With the
   `pass` schedule (every 15 minutes) it runs on time. A round missed while
   nobody came is skipped, never opened in a burst.
-- **Groups**: the Chest shows a tool only the groups that *give* it access.
-  If Polls is open to everyone through no group, the composer offers people
-  by name ("No group gives Polls here: add people by name").
+- **Groups**: with the `groups` proposal Polls sees every group of the
+  Chest (Sales, Tech…) even when it is open to everyone; without it, the
+  Chest shows a tool only the groups that *give* it access, and if none
+  does, the composer offers people by name ("No group gives Polls here:
+  add people by name").
+- **Works council (France, Code du travail L.2312-38)**: a survey of the
+  staff's opinion that comes back every week, or an eNPS, is the kind of
+  tool a company of 50 or more informs its CSE about. That is why it is for
+  organisers by default, and why an admin who opens it to everyone reads
+  so under the switch. Results are counts only, from 5 answers, per team
+  from 5 answers (above); nobody sees who answered what.
 - **Someone loses access**: nothing changes; they are no longer asked or
   counted. **Someone leaves**: their open polls stay open (organiser shown
   "(former member)"; an admin can close them), their answers and comments
@@ -243,6 +292,9 @@ closed poll is seen by those asked, its organiser and admins.
 - `chest.timeZone()` / `today()` — **Proposal (studio)**: dates and closing
   times on the Chest's clock.
 - `mail` — **Proposal (studio)**: reminders by email (`send` to `{member}`).
+- `groups: "read"` — **Proposal (studio)**, in `vendor/` (`members.groups.all`,
+  `members.groups.members`, `group.*` events): any group of the Chest as an
+  audience; results per team (`lib/groups.ts`, adapted from News).
 - Wanted, not built:
   - **A public part for guests without a Chest account** — Doodle's main
     outside use (a client meeting, a candidate's interview slot). Polls is
@@ -252,9 +304,6 @@ closed poll is seen by those asked, its organiser and admins.
     public-part and `visitors` proposals give the pieces; turning a private
     tool into a public-and-private one (a second host, its own CSP, a
     public page per poll) is a structure change for the studio to decide.
-  - **`members.groups.list({ all: true })`** — all of the Chest's groups
-    (not only those that give the tool) so a tool open to everyone can
-    still ask "Sales only"; until then, people picked by name.
   - A **broadcast to members by id** (`to: { members: [ids] }`) and one
     that **excludes members** (`except: [ids]`), so a poll put to people by
     name, a reminder or a poll's first telling need not page through
@@ -281,9 +330,10 @@ In the studio: `node lab/chest-dev/dev.mjs tools/private/polls --prod --reset
 - **Guests outside the Chest**: no public answering link (see *Needs from
   the SDK*). A meeting with a client or a candidate still needs Doodle or an
   email thread.
-- **Pulse breakdowns per team or manager** (Officevibe's heat map): only the
-  whole audience's results. A per-group breakdown with its own five-answer
-  floor is possible, not built.
+- **Per manager** (Officevibe's heat map by manager): results are per Chest
+  group only — the Chest has no manager relation. Named polls have no team
+  view (their names are shown already). A question bank and a driver model
+  (recognition, workload…) are not there: the pulse has three questions.
 - **Importing past Officevibe or Doodle data**: none. A pulse's history
   starts with its first round in Polls; the old one stays in Officevibe's
   export. (Doodle exports only an Excel file, on paid plans — nothing worth

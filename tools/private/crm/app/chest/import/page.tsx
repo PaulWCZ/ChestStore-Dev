@@ -24,7 +24,7 @@ export default async function ImportPage() {
     );
   }
   const sql = db();
-  const [fields, people, recent] = await Promise.all([fieldsByObject(sql), teamOf(), recentImports(sql, member)]);
+  const [fields, people, recent] = await Promise.all([fieldsByObject(sql, t), teamOf(), recentImports(sql, member)]);
   const names = await directory([...recent.map(r => r.author), ...people.map(p => p.id)], locale);
   return (
     <div className="page narrow">

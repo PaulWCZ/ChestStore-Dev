@@ -4,7 +4,7 @@ import { Mark } from "../../components/mark.tsx";
 import { Shell } from "../../components/shell.tsx";
 import { can, roleOf } from "../../lib/access.ts";
 import { viewer } from "../../lib/session.ts";
-import { currentLook } from "../../lib/theme.ts";
+import { currentLook } from "../../lib/look.ts";
 
 // The members' part, in the kit's shell (skip link, header, labelled tabs,
 // member chip). In brand mode the company's logo stands where the tool's

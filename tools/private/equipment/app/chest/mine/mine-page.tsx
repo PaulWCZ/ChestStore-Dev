@@ -16,6 +16,7 @@ import { myRequests } from "../../../lib/requests.ts";
 import { viewer } from "../../../lib/session.ts";
 import { categoryName } from "../../../lib/words.ts";
 import { MyRequests } from "./my-requests.tsx";
+import { charterText } from "../../../lib/words.ts";
 
 // "My equipment": what the company lent me, since when. What was just given
 // to me waits for my "I received it" (with the company's rules, if any); a
@@ -43,6 +44,9 @@ export async function MinePage() {
     return by ? format(t.receive.given, { name: by, date }) : format(t.receive.givenOn, { date });
   };
   const kindName = new Map(categories.map(c => [c.id, categoryName(c, t)]));
+  // "You confirmed receiving it on …" only while it is news (a month): the
+  // same line under every item imported years ago was noise.
+  const recentDays = 30;
 
   function Card({ item, since, receipt }: { item: Item; since: string; receipt?: { r: Receipt | undefined } }) {
     const r = receipt?.r;
@@ -60,14 +64,14 @@ export async function MinePage() {
           <span className="label-text">
             <span className="label-name">{item.name}</span>
             <span className="small muted">{since}</span>
-            {r?.confirmedAt && <span className="small muted">{format(t.item.receiptYours, { date: formatDate(r.confirmedAt, locale, { day: "numeric", month: "long", year: "numeric" }, zone) })}</span>}
+            {r?.confirmedAt && now.getTime() - Date.parse(r.confirmedAt) < recentDays * 864e5 && <span className="small muted">{format(t.item.receiptYours, { date: formatDate(r.confirmedAt, locale, { day: "numeric", month: "long", year: "numeric" }, zone) })}</span>}
           </span>
         </Link>
         {problemsOf(item.id).map((p: Problem) => <p key={p.id} className="sent small">{format(t.mine.reported, { when: relative(p.createdAt, locale, now), text: p.body.length > 80 ? p.body.slice(0, 79) + "…" : p.body })}</p>)}
         <div className="label-actions row">
           {unconfirmed && (
             <ReceiveButton id={item.id} name={item.name} label={t.item.received} primary={toConfirm} given={givenText(item, r)} condition={r?.condition ?? null}
-              charter={charter ? { id: charter.id, body: charter.body } : null} t={{ receive: t.receive, errors: t.errors, common: t.common, dialog: t.dialog }} />
+              charter={charter ? { id: charter.id, body: charterText(charter, t) } : null} t={{ receive: t.receive, errors: t.errors, common: t.common, dialog: t.dialog }} />
           )}
           <ReportButton id={item.id} name={item.name} label={t.mine.report} t={words} />
         </div>

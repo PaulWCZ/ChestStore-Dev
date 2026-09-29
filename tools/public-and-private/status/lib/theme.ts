@@ -32,19 +32,24 @@ export const identity = defineTheme({
     dark: { 1: { solid: "#5b9cf0", soft: "#111f33", ink: "#8bbaf6" }, 2: { solid: "#3fbf8a", soft: "#10261d", ink: "#5fd3a2" }, 3: { solid: "#f08a3c", soft: "#2d1b0f", ink: "#f6a769" }, 7: { solid: "#e0b33a", soft: "#2a2210", ink: "#eac767" } },
   },});
 
-// The look of this request, for every page of the tool — the team's and
-// the public ones: the company's choice as the Chest tells it (for all its
-// tools, or for this one), else the identity above. Never throws: the
-// Chest unreachable, or a choice the kit cannot honour, is the identity.
-// Asked once per request, however many components need it.
-//
-// To do with kit 0.2.3: the public pages (the status page, /embed, the
-// badge) will call resolveTheme(await chest.theme(), identity, { surface:
-// "public" }) — the brand, else this identity, never a catalogue theme the
-// company chose for all its team tools (critique round 2, N5). The team's
-// pages keep the call as it is. Until then both resolve alike.
-export const currentLook = cache(async (): Promise<Look> => {
-  const look = resolveTheme(await chest.theme(), identity);
+// The look of this request, for every page of the tool. The team's pages
+// (a member is asserted): the company's choice as the Chest tells it (for
+// all its tools, or for this one), else the identity above. The public
+// pages (the status page, its incidents and history, /embed, the badge):
+// the company's brand when it has one, else Status's own look — never a
+// catalogue theme chosen for the team's tools, never the Chest's sheet
+// (kit 0.2.3, `surface: "public"`; critique round 2, N5). Never throws:
+// the Chest unreachable, or a choice the kit cannot honour, is the
+// identity. Asked once per request, however many components need it.
+export async function lookOf(surface: "team" | "public"): Promise<Look> {
+  const look = resolveTheme(await chest.theme(), identity, { surface });
   if (look.problem) console.warn(`theme: ${look.problem}; the tool's own look is used`);
   return look;
+}
+
+// (session.ts is loaded here, not at the top: it needs a request, and the
+// tests read lookOf without one.)
+export const currentLook = cache(async (): Promise<Look> => {
+  const { currentMember } = await import("./session.ts");
+  return lookOf((await currentMember()) ? "team" : "public");
 });

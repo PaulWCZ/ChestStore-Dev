@@ -1,5 +1,7 @@
 import * as events from "@argentic/chest-sdk/events";
 import type { Sql } from "./db.ts";
+import { forgetGroups } from "./groups.ts";
+import { reconcileReads } from "./tell.ts";
 
 // What the wiki does when a member loses access, leaves or is erased (the
 // Chest posts these to /chest-events, at least once).
@@ -48,6 +50,21 @@ export function handlers(sql: Sql): events.Handlers {
   return {
     "access.revoked": event => leave(sql, event.data.id),
     "member.removed": event => leave(sql, event.data.id),
+    // Someone moved between groups: the pages to confirm that no longer
+    // concern them leave their bell.
+    "member.updated": async event => {
+      if (event.data.changed.includes("groups")) await reconcileReads(sql, { member: event.data.id });
+    },
+    // Groups (Proposal (studio), "groups": "read"): read again; a group
+    // changed or gone takes its pages to confirm from whoever left it.
+    "group.changed": async event => {
+      forgetGroups();
+      if (event.data.changed.includes("members")) await reconcileReads(sql, { group: event.data.id });
+    },
+    "group.removed": async event => {
+      forgetGroups();
+      await reconcileReads(sql, { group: event.data.id });
+    },
     "member.erased": async event => {
       await erase(sql, event.data.id);
       await events.acknowledgeErasure(event.data.erasure);

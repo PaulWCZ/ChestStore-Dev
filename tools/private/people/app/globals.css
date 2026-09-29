@@ -45,7 +45,10 @@ img { max-width: 100%; }
 /* The sections: rounded tabs, the current one in plum (the inverse pair). */
 @media (min-width: 761px) {
   .ck-bar-nav { align-items: center; }
-  .ck-nav-link { border: 0; border-radius: var(--radius-pill); padding: 0 var(--space-4); color: var(--ink); font-weight: var(--weight-medium); transition: background var(--fast) var(--ease); }
+  .ck-nav-link { border: 0; border-radius: var(--radius-pill); padding: 0 var(--space-4); color: var(--ink); font-weight: var(--weight-medium); }
+  /* Only hovering fades: the current tab is plum at once (a fade from the
+     hover tint read as a pale, "disabled" pill on arrival). */
+  .ck-nav-link:not([aria-current="page"]) { transition: background var(--fast) var(--ease); }
   .ck-nav-link:hover { background: var(--surface-2); }
   .ck-nav-link[aria-current="page"] { background: var(--chosen); color: var(--chosen-ink); }
   .ck-nav-icon svg { width: 19px; height: 19px; }

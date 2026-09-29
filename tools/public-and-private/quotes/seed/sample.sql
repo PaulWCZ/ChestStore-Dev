@@ -156,4 +156,9 @@ insert into documents (type, status, client_id, title, language, currency, payme
 insert into lines (document_id, position, kind, item_id, description, quantity, unit, unit_price, discount, vat_rate, goods, net) values (doc, 1, 'line', null, 'Acompte sur la création des faire-part', 1000, '', 20000, 0, 2000, false, 20000);
 update documents set net = 20000, vat = 4000, gross = 24000, rates = '[{"rate":2000,"base":20000,"vat":4000}]'::jsonb, ready_at = now() - interval '2 hours' where id = doc;
 insert into counters (type, year, last) values ('quote', to_char(current_date, 'YYYY')::int, 6), ('invoice', to_char(current_date, 'YYYY')::int, 6), ('credit', to_char(current_date, 'YYYY')::int, 1);
+-- The client's answer link of quote D-…-0006 (its page, /q/<secret>): a
+-- fixed secret, so the screenshots and the flows can open it.
+insert into quote_links (document_id, secret, secret_hash, created_by, created_at)
+  select id, 'SampleAnswerLinkQuoteD0006Roux01', encode(sha256(convert_to('SampleAnswerLinkQuoteD0006Roux01', 'UTF8')), 'hex'), 'mbr_inesaaaaaaaaaaaaaaaaaaaaaa', sent_at
+  from documents where type = 'quote' and seq = 6;
 end $$;

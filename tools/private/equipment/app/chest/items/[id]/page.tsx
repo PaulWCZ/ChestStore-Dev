@@ -22,7 +22,7 @@ import { everyone, nameOf, people, type Person } from "../../../../lib/people.ts
 import { teamOrigin } from "../../../../lib/origin.ts";
 import { viewer } from "../../../../lib/session.ts";
 import { endingOf, holderOf } from "../../../../lib/view.ts";
-import { categoryName, moneyText } from "../../../../lib/words.ts";
+import { categoryName, charterText, fieldName, moneyText } from "../../../../lib/words.ts";
 import { ItemControls } from "./item-controls.tsx";
 import { InvoiceControl } from "./invoice-control.tsx";
 import { PhotoControl } from "./photo-control.tsx";
@@ -155,7 +155,7 @@ export default async function ItemPage({ params, searchParams }: { params: Promi
               <p className="muted">{t.item.mineHint}</p>
               <div className="row">
                 {holder.kind === "member" && !detail.receipt?.confirmedAt && (
-                  <ReceiveButton id={item.id} name={item.name} label={t.item.received} charter={charter ? { id: charter.id, body: charter.body } : null}
+                  <ReceiveButton id={item.id} name={item.name} label={t.item.received} charter={charter ? { id: charter.id, body: charterText(charter, t) } : null}
                     given={givenText(detail.receipt)} condition={detail.receipt?.condition ?? null} t={{ receive: t.receive, errors: t.errors, common: t.common, dialog: t.dialog }} />
                 )}
                 <ReportButton id={item.id} name={item.name} label={t.item.report} t={words} primary={holder.kind !== "member" || Boolean(detail.receipt?.confirmedAt)} />
@@ -211,7 +211,7 @@ export default async function ItemPage({ params, searchParams }: { params: Promi
       ...(costs.count > 0 ? [[t.item.repairs, plural(t.item.repairsTotal, costs.count, locale, { amount: moneyText(costs.cents, currency, locale) })] as [string, string]] : []),
       ...(full.category.kind === "asset" && (seenText || inventory) ? [[t.item.lastSeen, seenText ?? t.item.neverSeen] as [string, string]] : []),
     ];
-  for (const { field, value } of valuesOf(ownFields, full.extra)) details.push([field.name, field.type === "date" ? day(value) : value]);
+  for (const { field, value } of valuesOf(ownFields, full.extra)) details.push([fieldName(field, t), field.type === "date" ? day(value) : value]);
 
   return (
     <div className="wide item-page">

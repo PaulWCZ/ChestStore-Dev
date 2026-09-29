@@ -1,3 +1,4 @@
+import { shownName } from "../../../../lib/seed-words.ts";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { StageBadge } from "../../../../components/stage-badge.tsx";
@@ -17,6 +18,7 @@ import { phoneHref, today, websiteHref } from "../../../../lib/model.ts";
 import { dealFormProps, formChoices, shownFields, shownFiles, withWhen } from "../../../../lib/page-data.ts";
 import { directory } from "../../../../lib/people.ts";
 import { viewer } from "../../../../lib/session.ts";
+import { CallPrompt } from "../../ui/call-prompt.tsx";
 import { Composer } from "../../ui/composer.tsx";
 import { NewContactButton } from "../../ui/contact-form.tsx";
 import { NewDealButton } from "../../ui/deal-form.tsx";
@@ -56,7 +58,7 @@ export default async function CompanyPage({ params }: { params: Promise<{ id: st
       <AutoRefresh seconds={45} />
       <nav className="crumbs"><Link prefetch={false} href="/chest/companies"><Back />{t.shell.companies}</Link></nav>
       <div className="record-head">
-        {c.industry && <p className="label-mono">{c.industry}</p>}
+        {c.industry && <p className="label-mono">{shownName("industries", c.industry, t)}</p>}
         <h1>{c.name}</h1>
         <p className="record-links">
           {c.website && <a href={websiteHref(c.website)} target="_blank" rel="noopener noreferrer nofollow"><Globe />{c.website.replace(/^https?:\/\//u, "")}</a>}
@@ -64,10 +66,10 @@ export default async function CompanyPage({ params }: { params: Promise<{ id: st
           {c.email && <a href={`mailto:${c.email}`}><Mail />{c.email}</a>}
           {place && <span><Pin />{place}</span>}
         </p>
-        {c.tags.length > 0 && <p className="tags">{c.tags.map(tag => <Link prefetch={false} key={tag} className="tag" href={`/chest/companies?tag=${encodeURIComponent(tag)}`}>{tag}</Link>)}</p>}
+        {c.tags.length > 0 && <p className="tags">{c.tags.map(tag => <Link prefetch={false} key={tag} className="tag" href={`/chest/companies?tag=${encodeURIComponent(tag)}`}>{shownName("tags", tag, t)}</Link>)}</p>}
       </div>
       <CompanyControls
-        company={{ id: c.id, name: c.name, website: c.website, phone: c.phone, email: c.email, address: c.address, postcode: c.postcode, city: c.city, country: c.country, siren: c.siren, vat: c.vat, industry: c.industry, notes: c.notes, tags: c.tags.join(", "), owner: c.owner, custom: customForm(c.custom) }}
+        company={{ id: c.id, name: c.name, website: c.website, phone: c.phone, email: c.email, address: c.address, postcode: c.postcode, city: c.city, country: c.country, siren: c.siren, vat: c.vat, industry: shownName("industries", c.industry, t), notes: c.notes, tags: c.tags.map(tag => shownName("tags", tag, t)).join(", "), owner: c.owner, custom: customForm(c.custom) }}
         ownerName={names[c.owner ?? ""]?.name ?? t.common.unassigned}
         canEdit={can(member, "records.write")}
         canDelete={canDeleteRecord(member, c)}
@@ -81,6 +83,7 @@ export default async function CompanyPage({ params }: { params: Promise<{ id: st
       />
       <div className="record-grid">
         <div className="record-main">
+          {can(member, "activities.log") && c.phone && <CallPrompt on={{ company: c.id }} name={c.name} t={t} />}
           {can(member, "activities.log") ? <Composer on={{ company: c.id }} t={t} /> : <p className="muted">{t.log.readOnly}</p>}
           <h2 className="label-mono section-gap">{t.timeline.title}</h2>
           <Timeline items={withWhen(items, locale)} people={names} stageNames={choices.stageNames} me={member.id} canRemoveAny={can(member, "deals.all")} canLog={can(member, "activities.log")} context="company" locale={locale} t={t} />
