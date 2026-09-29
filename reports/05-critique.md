@@ -22,7 +22,7 @@ builders.
   `reports/05-critique/<tool>.md`, and the store as a whole in
   `reports/05-critique/_store.md`. Screenshot paths in those files point to
   the critics' working folder, which is not kept in the repository.
-- **Not reviewed.** Forms (tool 18) was still being built.
+- **Forms (tool 18)** was reviewed afterwards by a fifth critic (`reports/05-critique/forms.md`).
 
 ## Verdict
 
@@ -62,6 +62,7 @@ feed the calendars people already live in.
 | Rooms | Robin, deskbird | 5 | 7 | Desks nearly; rooms no | Nothing reaches Google or Outlook calendars |
 | Hiring | WTTJ, Teamtailor | 4 | 7 | No | No reach (job boards, Google for Jobs); can't write to candidates |
 | Status | Statuspage, Instatus | 5 | 8 | Not yet | No custom domain; no notifications without mail |
+| Forms | Typeform, Tally | 6 | 7 | Not yet (beats the beta clearly) | No email to the owner, no embedding, no integrations; titles on the card border; the builder can lose edits |
 
 Scores are out of 10 and are the critics'. The UX scores are high because
 the core flows are simple and consistent. The completeness scores are low
