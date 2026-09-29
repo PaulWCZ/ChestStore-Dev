@@ -16,6 +16,7 @@ export const limits = {
   keyResultsPerObjective: 10,
   objectivesPerCycle: 500,
   teams: 100,
+  viewers: 50,
   cycleDays: 400,
   // Values are stored with 4 decimals, within ±1,000,000,000,000.
   value: 1e12,
@@ -33,6 +34,12 @@ export const isLevel = (value: unknown): value is Level => typeof value === "str
 export const kinds = ["number", "percent", "money", "milestone"] as const;
 export type Kind = (typeof kinds)[number];
 export const isKind = (value: unknown): value is Kind => typeof value === "string" && (kinds as readonly string[]).includes(value);
+
+// Who sees an objective: everyone, its team (a group of the Chest), or
+// some people — always its owner, its key results' owners and the admins.
+export const visibilities = ["everyone", "team", "people"] as const;
+export type Visibility = (typeof visibilities)[number];
+export const isVisibility = (value: unknown): value is Visibility => typeof value === "string" && (visibilities as readonly string[]).includes(value);
 
 // Confidence, from best to worst.
 export const confidences = ["on_track", "at_risk", "off_track"] as const;

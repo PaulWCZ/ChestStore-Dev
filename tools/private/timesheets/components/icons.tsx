@@ -26,3 +26,8 @@ export const Upload = () => <Icon><path d="M12 16V5M7 9.5l5-5 5 5M4.5 19.5h15" /
 export const Check = () => <Icon><path d="M5 12.5l4.5 4.5L19 7.5" /></Icon>;
 export const Coin = () => <Icon><circle cx="12" cy="12" r="8" /><path d="M14.5 9.2a2.8 2.8 0 00-2.5-1.2c-1.5 0-2.7.8-2.7 2 0 2.7 5.6 1.3 5.6 4 0 1.2-1.3 2-2.9 2a3 3 0 01-2.6-1.3M12 6.5v1.5M12 16v1.5" /></Icon>;
 export const Stopwatch = () => <Icon><circle cx="12" cy="13.5" r="7" /><path d="M10 3.5h4M12 3.5v3M12 13.5V9.5M18 7.5l1.5-1.5" /></Icon>;
+export const Note = () => <Icon><path d="M5.5 4.5h13v10l-5 5h-8z" /><path d="M13.5 19.5v-5h5M8.5 9h7M8.5 12.5h4" /></Icon>;
+export const Send = () => <Icon><path d="M4 12l16-7.5-5 15.5-3.5-6.5z" /><path d="M11.5 13.5l8.5-9" /></Icon>;
+export const Bell = () => <Icon><path d="M6 16.5V11a6 6 0 0112 0v5.5l1.5 2h-15z" /><path d="M10 20.5h4" /></Icon>;
+export const People = () => <Icon><circle cx="9" cy="8.5" r="3.5" /><path d="M3 19.5c.5-3.5 3-5.5 6-5.5s5.5 2 6 5.5" /><path d="M15.5 5.2a3.5 3.5 0 010 6.6M17.5 14.3c1.8.8 3 2.6 3.5 5.2" /></Icon>;
+export const Receipt = () => <Icon><path d="M6 3.5h12v17l-2-1.5-2 1.5-2-1.5-2 1.5-2-1.5-2 1.5z" /><path d="M9 8.5h6M9 12h6M9 15.5h3" /></Icon>;

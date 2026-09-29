@@ -5,7 +5,7 @@ import { CycleChip } from "../../../../components/cycle-chip.tsx";
 import { Back, Download } from "../../../../components/icons.tsx";
 import { PersonLine } from "../../../../components/person.tsx";
 import { Confidence, Progress } from "../../../../components/progress.tsx";
-import { can } from "../../../../lib/access.ts";
+import { can, readerOf } from "../../../../lib/access.ts";
 import { db } from "../../../../lib/db.ts";
 import { format } from "../../../../lib/i18n/index.ts";
 import { percent } from "../../../../lib/model.ts";
@@ -26,7 +26,7 @@ export default async function CycleReview({ params }: { params: Promise<{ id: st
   const { id } = await params;
   const cycle = ctx.cycles.find(c => c.id === id);
   if (!cycle) notFound();
-  const objectives = await cycleObjectives(sql, cycle.id, ctx.clock);
+  const objectives = await cycleObjectives(sql, cycle.id, ctx.clock, readerOf(member));
   const who = await ctx.people(idsOf(objectives));
   const views = objectives.map(o => objectiveView(o, { actor: member, people: who, locale, t, zone: ctx.zone, now: ctx.clock.now, closed: cycle.closed, teams: ctx.teams }));
   const cw = cycleWords(cycle, ctx.clock.today, t, locale);
@@ -56,7 +56,7 @@ export default async function CycleReview({ params }: { params: Promise<{ id: st
                 <span className="meta"><PersonLine person={o.owner} size={20} /><Confidence value={o.confidence} words={t.confidence} />{o.score !== null && <strong>{format(t.retro.scoreValue, { percent: pctText(t, percent(o.score)) })}</strong>}</span>
                 {o.learned ? <blockquote className="learned">{o.learned}</blockquote> : null}
               </div>
-              <div className="row-progress"><Progress percent={o.percent} text={o.percentText} label={`${o.title}: ${o.percentText}`} /></div>
+              <div className="row-progress"><Progress percent={o.percent} text={o.percentText} label={`${o.title}: ${o.percentText}`} confidence={o.confidence} /></div>
             </li>
           ))}
         </ul>

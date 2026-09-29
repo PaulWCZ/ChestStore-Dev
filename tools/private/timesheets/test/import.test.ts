@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
-import { planImport, runImport } from "../lib/import.ts";
+import { forgetFormer, formerPeople, planImport, runImport } from "../lib/import.ts";
+import { nameFor, people as lookup } from "../lib/people.ts";
 import { dateOrder, detect, fold, parseExport, readDate, readDuration, readTime } from "../lib/import-formats.ts";
 import * as projects from "../lib/projects.ts";
 import { report } from "../lib/reports.ts";
@@ -156,4 +157,60 @@ test("locked days and full days are left out; the date order can be chosen; only
   await assert.rejects(runImport(sql, asMember(hugo), file, options), refused("forbidden"));
   await assert.rejects(planImport(sql, m, 42, options), refused("import_invalid"));
   await assert.rejects(planImport(sql, m, "x".repeat(6 << 20), options), refused("import_too_big"));
+});
+
+// Harvest's detailed time export with its money columns (Billable Rate,
+// Billable Amount, Cost Rate, Cost Amount, Currency, Invoiced?, Approved?),
+// as Harvest's help centre lists them (support.getharvest.com, "Detailed
+// time and detailed expense reports", read 2026-09-29).
+const harvestMoney = [
+  "Date,Client,Project,Project Code,Task,Notes,Hours,Hours Rounded,Billable?,Invoiced?,Approved?,First Name,Last Name,Roles,Employee?,Billable Rate,Billable Amount,Cost Rate,Cost Amount,Currency,External Reference URL",
+  "2025-01-13,Garage Leroy,Brochure,GL-01,Design,Cover and inside pages,3.5,3.5,Yes,Yes,Yes,Hugo,Bernard,Designer,Yes,95.00,332.50,45.00,157.50,Euro - EUR,",
+  "2025-01-14,Garage Leroy,Brochure,GL-01,Design,Print files,2,2,Yes,No,Yes,Julien,Roux,Designer,No,110.00,220.00,50.00,100.00,Euro - EUR,",
+  "2025-01-15,Garage Leroy,Brochure,GL-01,Meetings,Kick-off,1,1,No,No,Yes,Julien,Roux,Designer,No,0,0,50.00,50.00,Euro - EUR,",
+  "2025-02-03,Garage Leroy,Brochure,GL-01,Design,Reprint,1.5,1.5,Yes,No,No,Hugo,Bernard,Designer,Yes,95.00,142.50,45.00,67.50,Euro - EUR,",
+].join("\n");
+
+test("people who left before the Chest come in as former people; locked rows come only when asked; the old rates and invoices are kept", async () => {
+  const { sql } = database;
+  const m = asMember(camille);
+  const parsed = parseExport(harvestMoney);
+  assert.equal(parsed.currency, "EUR");
+  assert.deepEqual(parsed.rows.map(r => [r.rateCents, r.costCents, r.invoiced]), [[9500, 4500, true], [11000, 5000, false], [null, 5000, false], [9500, 4500, false]]);
+  await lock(sql, m, "2025-01-31");
+  const plan = await planImport(sql, m, harvestMoney, options);
+  // Julien Roux left before the Chest: kept, read-only, under his name.
+  assert.deepEqual(plan.people.map(p => [p.name, p.memberId, p.former, p.rows]), [["Julien Roux", null, true, 2], ["Hugo Bernard", hugo.id, false, 2]]);
+  // Three rows are before the lock: the plan asks, and leaves them out until told.
+  assert.deepEqual(plan.locked, { rows: 3, until: "2025-01-31" });
+  assert.equal(plan.skipped.locked, 3);
+  assert.equal(plan.ready, 1);
+  const history = await planImport(sql, m, harvestMoney, { ...options, locked: "import" });
+  assert.deepEqual([history.ready, history.skipped.locked, history.rates.kept, history.invoiced], [4, 0, 4, 1]);
+  assert.equal((await runImport(sql, m, harvestMoney, { ...options, locked: "import" })).imported, 4);
+  const r = await report(sql, m, { from: "2025-01-01", to: "2025-02-28", group: "person" });
+  // Amounts as Harvest invoiced them: 3.5 × 95 + 2 × 110 + 1.5 × 95; costs as it counted them.
+  assert.equal(r.cents, 33250 + 22000 + 14250);
+  assert.equal(r.costCents, 15750 + 10000 + 5000 + 6750);
+  const julien = r.lines.find(l => l.memberId?.startsWith("imp_"))!;
+  assert.equal(julien.minutes, 180);
+  const found = await lookup([julien.memberId!]);
+  assert.equal(nameFor(julien.memberId!, found, "en"), "Julien Roux (former member)");
+  // Harvest's invoiced row came in invoiced: it no longer changes.
+  const invoiced = await sql<{ invoiced: boolean }[]>`select invoiced_at is not null as invoiced from entries where note = 'Cover and inside pages'`;
+  assert.deepEqual(invoiced.map(i => i.invoiced), [true]);
+  // Again: nothing more, even for the former person.
+  assert.equal((await planImport(sql, m, harvestMoney, { ...options, locked: "import" })).skipped.duplicate, 4);
+  // A file in another currency keeps no rate.
+  const usd = harvestMoney.replaceAll("Euro - EUR", "US Dollar - USD").replaceAll("2025-0", "2024-0");
+  const other = await planImport(sql, m, usd, { ...options, locked: "import" });
+  assert.deepEqual(other.rates, { kept: 0, currency: "USD", ignored: true });
+  // The manager may forget a former person: the time stays, anonymous.
+  const list = await formerPeople(sql, m);
+  assert.deepEqual(list.map(f => [f.name, f.minutes]), [["Julien Roux", 180]]);
+  await assert.rejects(formerPeople(sql, asMember(hugo)), refused("forbidden"));
+  await assert.rejects(forgetFormer(sql, asMember(hugo), list[0]!.id), refused("forbidden"));
+  await forgetFormer(sql, m, list[0]!.id);
+  assert.equal((await report(sql, m, { from: "2025-01-01", to: "2025-02-28", person: "erased" })).minutes, 180);
+  await lock(sql, m, null);
 });

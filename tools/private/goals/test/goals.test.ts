@@ -94,7 +94,7 @@ test("objectives: company ones by admins; team ones by the team (anyone for a na
   await assert.rejects(createObjective(sql, inesM, { cycleId: cycle.id, level: "boss", title: "x" }), refused("invalid"));
   await assert.rejects(createObjective(sql, inesM, { cycleId: "'; drop table cycles; --", level: "team", title: "x" }), refused("not_found"));
   await assert.rejects(createObjective(sql, noraM, { cycleId: cycle.id, level: "team", teamId: workshop.id, title: "x" }), refused("forbidden"));
-  const all = await cycleObjectives(sql, cycle.id, clockAt());
+  const all = await cycleObjectives(sql, cycle.id, clockAt(), null);
   assert.deepEqual(all.map(o => o.level), ["company", "team", "team", "personal"]);
   await archiveTeam(sql, admin, workshop.id, true);
   await assert.rejects(createObjective(sql, sofiaM, { cycleId: cycle.id, level: "team", teamId: workshop.id, title: "x" }), refused("team_archived"));
@@ -103,13 +103,13 @@ test("objectives: company ones by admins; team ones by the team (anyone for a na
 test("an objective is changed by its owner or an admin; removed with undo", async () => {
   const { sql } = w.database;
   const [cycle] = (await cycles(sql)).filter(c => c.current);
-  const all = await cycleObjectives(sql, cycle!.id, clockAt());
+  const all = await cycleObjectives(sql, cycle!.id, clockAt(), null);
   const salesGoal = all.find(o => o.title === "Sign 12 shops in Lyon")!;
   await assert.rejects(updateObjective(sql, hugoM, salesGoal.id, { title: "Mine now" }), refused("forbidden"));
   const done = await updateObjective(sql, inesM, salesGoal.id, { title: "Sign 12 shops in Lyon and Grenoble", owner: hugo.id });
   assert.deepEqual([done.previousOwner, done.owner], [ines.id, hugo.id]);
   await updateObjective(sql, admin, salesGoal.id, { owner: ines.id, parentId: null });
-  assert.equal((await objectiveById(sql, salesGoal.id, clockAt()))!.parentId, null);
+  assert.equal((await objectiveById(sql, salesGoal.id, clockAt(), null))!.parentId, null);
   await archiveObjective(sql, inesM, salesGoal.id);
   await assert.rejects(readObjective(sql, inesM, salesGoal.id), refused("not_found"));
   await assert.rejects(restoreObjective(sql, hugoM, salesGoal.id), refused("forbidden"));
@@ -120,7 +120,7 @@ test("an objective is changed by its owner or an admin; removed with undo", asyn
 test("key results: added by the objective's owner, bounded; the kind is fixed once checked in", async () => {
   const { sql } = w.database;
   const [cycle] = (await cycles(sql)).filter(c => c.current);
-  const salesGoal = (await cycleObjectives(sql, cycle!.id, clockAt())).find(o => o.title.startsWith("Sign 12"))!;
+  const salesGoal = (await cycleObjectives(sql, cycle!.id, clockAt(), null)).find(o => o.title.startsWith("Sign 12"))!;
   await assert.rejects(addKeyResult(sql, hugoM, salesGoal.id, { title: "x", kind: "number", target: "3" }), refused("forbidden"));
   await assert.rejects(addKeyResult(sql, inesM, salesGoal.id, { title: "Shops", kind: "number", start: "3", target: "3" }), refused("same_values"));
   await assert.rejects(addKeyResult(sql, inesM, salesGoal.id, { title: "Shops", kind: "number", target: "lots" }), refused("invalid_number"));
@@ -128,21 +128,21 @@ test("key results: added by the objective's owner, bounded; the kind is fixed on
   const shops = await addKeyResult(sql, inesM, salesGoal.id, { title: "Shops signed", kind: "number", unit: "shops", start: "0", target: "12", owner: hugo.id, weight: 2 });
   const returns = await addKeyResult(sql, inesM, salesGoal.id, { title: "Returns", kind: "percent", start: "8", target: "3" });
   const revenue = await addKeyResult(sql, inesM, salesGoal.id, { title: "Revenue", kind: "money", start: "0", target: "40000" });
-  const o = (await objectiveById(sql, salesGoal.id, clockAt()))!;
+  const o = (await objectiveById(sql, salesGoal.id, clockAt(), null))!;
   assert.deepEqual(o.keyResults.map(k => [k.title, k.owner, k.current, k.weight]), [["Shops signed", hugo.id, 0, 2], ["Returns", ines.id, 8, 1], ["Revenue", ines.id, 0, 1]]);
   assert.equal(o.keyResults[2]!.currency, "EUR");
   assert.equal(o.progress, 0);
   await checkIn(sql, inesM, returns.id, { value: "5,5", confidence: "at_risk", note: "Better packaging" });
   await assert.rejects(updateKeyResult(sql, inesM, returns.id, { kind: "number" }), refused("invalid"));
   await updateKeyResult(sql, inesM, returns.id, { target: "2" });
-  const kr = (await objectiveById(sql, salesGoal.id, clockAt()))!.keyResults.find(k => k.id === returns.id)!;
+  const kr = (await objectiveById(sql, salesGoal.id, clockAt(), null))!.keyResults.find(k => k.id === returns.id)!;
   assert.deepEqual([kr.start, kr.target, kr.current], [8, 2, 5.5]);
   await updateKeyResult(sql, inesM, revenue.id, { title: "Revenue from shops", kind: "number", unit: "orders", target: "50" });
-  const changed = (await objectiveById(sql, salesGoal.id, clockAt()))!.keyResults.find(k => k.id === revenue.id)!;
+  const changed = (await objectiveById(sql, salesGoal.id, clockAt(), null))!.keyResults.find(k => k.id === revenue.id)!;
   assert.deepEqual([changed.kind, changed.unit, changed.currency, changed.current], ["number", "orders", null, 0]);
   await archiveKeyResult(sql, inesM, revenue.id, true);
   await assert.rejects(archiveKeyResult(sql, hugoM, shops.id, true), refused("forbidden"));
-  assert.equal((await objectiveById(sql, salesGoal.id, clockAt()))!.keyResults.length, 2);
+  assert.equal((await objectiveById(sql, salesGoal.id, clockAt(), null))!.keyResults.length, 2);
   await archiveKeyResult(sql, inesM, revenue.id, false);
   await archiveKeyResult(sql, inesM, revenue.id, true);
 });
@@ -150,7 +150,7 @@ test("key results: added by the objective's owner, bounded; the kind is fixed on
 test("check-ins: by the key result's owner (or an admin), a value and a confidence; progress follows; the latest can be taken back", async () => {
   const { sql } = w.database;
   const [cycle] = (await cycles(sql)).filter(c => c.current);
-  const salesGoal = (await cycleObjectives(sql, cycle!.id, clockAt())).find(o => o.title.startsWith("Sign 12"))!;
+  const salesGoal = (await cycleObjectives(sql, cycle!.id, clockAt(), null)).find(o => o.title.startsWith("Sign 12"))!;
   const shops = salesGoal.keyResults.find(k => k.title === "Shops signed")!;
   await assert.rejects(checkIn(sql, inesM, shops.id, { value: "3", confidence: "on_track" }), refused("forbidden"));
   await assert.rejects(checkIn(sql, hugoM, shops.id, { value: "3" }), refused("invalid"));
@@ -162,15 +162,15 @@ test("check-ins: by the key result's owner (or an admin), a value and a confiden
   await assert.rejects(undoCheckIn(sql, hugoM, first.id), refused("too_late"));
   await assert.rejects(undoCheckIn(sql, inesM, second.id), refused("forbidden"));
   await undoCheckIn(sql, hugoM, second.id);
-  let kr = (await objectiveById(sql, salesGoal.id, clockAt()))!.keyResults.find(k => k.id === shops.id)!;
+  let kr = (await objectiveById(sql, salesGoal.id, clockAt(), null))!.keyResults.find(k => k.id === shops.id)!;
   assert.deepEqual([kr.current, kr.confidence, kr.thisWeek], [3, "on_track", true]);
   await sql`update check_ins set created_at = now() - interval '2 hours' where id = ${first.id}`;
   await assert.rejects(undoCheckIn(sql, hugoM, first.id), refused("too_late"));
   await undoCheckIn(sql, admin, first.id);
-  kr = (await objectiveById(sql, salesGoal.id, clockAt()))!.keyResults.find(k => k.id === shops.id)!;
+  kr = (await objectiveById(sql, salesGoal.id, clockAt(), null))!.keyResults.find(k => k.id === shops.id)!;
   assert.deepEqual([kr.current, kr.confidence], [0, null]);
   await checkIn(sql, admin, shops.id, { value: 4, confidence: "on_track" });
-  const website = (await cycleObjectives(sql, cycle!.id, clockAt())).find(o => o.level === "company")!.keyResults.find(k => k.kind === "milestone")!;
+  const website = (await cycleObjectives(sql, cycle!.id, clockAt(), null)).find(o => o.level === "company")!.keyResults.find(k => k.kind === "milestone")!;
   await assert.rejects(checkIn(sql, hugoM, website.id, { value: "0.5", confidence: "on_track" }), refused("invalid"));
   const launched = await checkIn(sql, hugoM, website.id, { value: "1", confidence: "on_track" });
   assert.equal(launched.progress, 1);
@@ -179,14 +179,14 @@ test("check-ins: by the key result's owner (or an admin), a value and a confiden
 test("the objective's progress is the weighted mean of its key results; confidence is the worst; quiet key results are stale", async () => {
   const { sql } = w.database;
   const [cycle] = (await cycles(sql)).filter(c => c.current);
-  const salesGoal = (await cycleObjectives(sql, cycle!.id, clockAt())).find(o => o.title.startsWith("Sign 12"))!;
+  const salesGoal = (await cycleObjectives(sql, cycle!.id, clockAt(), null)).find(o => o.title.startsWith("Sign 12"))!;
   // Shops 4/12 (weight 2) and Returns 8 → 5.5 of 2 (weight 1).
   const expected = ((4 / 12) * 2 + (2.5 / 6)) / 3;
   assert.ok(Math.abs(salesGoal.progress! - expected) < 1e-9);
   assert.equal(salesGoal.confidence, "at_risk");
   const returns = salesGoal.keyResults.find(k => k.title === "Returns")!;
   await sql`update check_ins set created_at = now() - interval '20 days' where key_result_id = ${returns.id}`;
-  const later = (await objectiveById(sql, salesGoal.id, clockAt()))!;
+  const later = (await objectiveById(sql, salesGoal.id, clockAt(), null))!;
   assert.equal(later.keyResults.find(k => k.id === returns.id)!.stale, true);
   assert.equal(later.stale, true);
 });
@@ -206,7 +206,7 @@ test("what waits for my check-in this week: mine, running, not reached, older th
 test("a closed cycle is frozen: no objective, key result or check-in; the retrospective and comments stay open; reopening undoes it", async () => {
   const { sql } = w.database;
   const [cycle] = (await cycles(sql)).filter(c => c.current);
-  const company = (await cycleObjectives(sql, cycle!.id, clockAt())).find(o => o.level === "company")!;
+  const company = (await cycleObjectives(sql, cycle!.id, clockAt(), null)).find(o => o.level === "company")!;
   const kr = company.keyResults[0]!;
   await assert.rejects(closeCycle(sql, hugoM, cycle!.id), refused("forbidden"));
   await assert.rejects(saveRetro(sql, inesM, company.id, { score: "70" }, today()), refused("forbidden"));
@@ -220,7 +220,7 @@ test("a closed cycle is frozen: no objective, key result or check-in; the retros
   await assert.rejects(saveRetro(sql, admin, company.id, { score: "140" }, today()), refused("invalid_score"));
   await assert.rejects(saveRetro(sql, hugoM, company.id, { score: "70" }, today()), refused("forbidden"));
   await saveRetro(sql, admin, company.id, { score: "70 %", learned: "Start the trade shows earlier." }, today());
-  const again = (await objectiveById(sql, company.id, clockAt()))!;
+  const again = (await objectiveById(sql, company.id, clockAt(), null))!;
   assert.deepEqual([again.score, again.learned, again.retroBy], [0.7, "Start the trade shows earlier.", camille.id]);
   await addComment(sql, hugoM, company.id, "Well done all.");
   await reopenCycle(sql, admin, cycle!.id);
@@ -231,16 +231,16 @@ test("carried over: the objective again in another open cycle, its unfinished ke
   const { sql } = w.database;
   const [cycle] = (await cycles(sql)).filter(c => c.current);
   const next = await createCycle(sql, admin, nextQuarter(cycle!.endsOn));
-  const salesGoal = (await cycleObjectives(sql, cycle!.id, clockAt())).find(o => o.title.startsWith("Sign 12"))!;
+  const salesGoal = (await cycleObjectives(sql, cycle!.id, clockAt(), null)).find(o => o.title.startsWith("Sign 12"))!;
   await assert.rejects(carryOver(sql, hugoM, salesGoal.id, next.id), refused("forbidden"));
   await assert.rejects(carryOver(sql, inesM, salesGoal.id, cycle!.id), refused("invalid"));
   const copy = await carryOver(sql, inesM, salesGoal.id, next.id);
   assert.equal(await carryOver(sql, inesM, salesGoal.id, next.id), copy);
-  const carried = (await objectiveById(sql, copy, clockAt()))!;
+  const carried = (await objectiveById(sql, copy, clockAt(), null))!;
   assert.equal(carried.carriedFrom, salesGoal.id);
   assert.deepEqual(carried.keyResults.map(k => [k.title, k.start, k.current, k.target]), [["Shops signed", 4, 4, 12], ["Returns", 5.5, 5.5, 2]]);
-  const company = (await cycleObjectives(sql, cycle!.id, clockAt())).find(o => o.level === "company")!;
-  const companyCopy = (await objectiveById(sql, await carryOver(sql, admin, company.id, next.id), clockAt()))!;
+  const company = (await cycleObjectives(sql, cycle!.id, clockAt(), null)).find(o => o.level === "company")!;
+  const companyCopy = (await objectiveById(sql, await carryOver(sql, admin, company.id, next.id), clockAt(), null))!;
   // The website was launched: only the customers carry over.
   assert.deepEqual(companyCopy.keyResults.map(k => k.title), ["Customers signed"]);
   await closeCycle(sql, admin, next.id);
@@ -250,7 +250,7 @@ test("carried over: the objective again in another open cycle, its unfinished ke
 test("comments: everyone with a role writes; authors edit theirs; authors and admins delete, with undo", async () => {
   const { sql } = w.database;
   const [cycle] = (await cycles(sql)).filter(c => c.current);
-  const company = (await cycleObjectives(sql, cycle!.id, clockAt())).find(o => o.level === "company")!;
+  const company = (await cycleObjectives(sql, cycle!.id, clockAt(), null)).find(o => o.level === "company")!;
   await assert.rejects(addComment(sql, noraM, company.id, "Hello"), refused("forbidden"));
   await assert.rejects(addComment(sql, hugoM, company.id, "  "), refused("empty"));
   await assert.rejects(addComment(sql, hugoM, company.id, "x".repeat(2001)), refused("too_long"));

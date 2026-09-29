@@ -46,3 +46,9 @@ export const Clipboard = () => <Icon><rect x="5" y="4.5" width="14" height="16" 
 export const Door = () => <Icon><path d="M4 20h16M6 20V4h9v16M15 6h3v14" /><circle cx="12" cy="12" r=".8" /></Icon>;
 export const Moon = () => <Icon><path d="M19.5 14.5A7.5 7.5 0 019.5 4.5a7.5 7.5 0 1010 10z" /></Icon>;
 export const Sparkle = () => <Icon><path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5L18 18M6 18l2.5-2.5M15.5 8.5L18 6" /></Icon>;
+export const Folder = () => <Icon><path d="M3.5 6.5A1.5 1.5 0 015 5h4l2 2.5h8a1.5 1.5 0 011.5 1.5v9a1.5 1.5 0 01-1.5 1.5H5A1.5 1.5 0 013.5 18z" /></Icon>;
+export const Bars = () => <Icon><path d="M5 20v-8M12 20V5M19 20v-12M3 20h18" /></Icon>;
+export const Mail = () => <Icon><rect x="3.5" y="5.5" width="17" height="13" rx="2" /><path d="M4 7l8 6 8-6" /></Icon>;
+export const Table = () => <Icon><rect x="3.5" y="4.5" width="17" height="15" rx="2" /><path d="M3.5 9.5h17M3.5 14.5h17M9.5 9.5v10" /></Icon>;
+export const Printer = () => <Icon><path d="M7 9V4h10v5M7 17H5a1.5 1.5 0 01-1.5-1.5v-5A1.5 1.5 0 015 9h14a1.5 1.5 0 011.5 1.5v5A1.5 1.5 0 0119 17h-2" /><rect x="7" y="14" width="10" height="6" rx="1" /></Icon>;
+export const Shield = () => <Icon><path d="M12 3.5l7 2.5v5.5c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z" /></Icon>;

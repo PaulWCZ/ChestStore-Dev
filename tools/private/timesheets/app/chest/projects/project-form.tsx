@@ -20,8 +20,12 @@ export type FormProject = {
 
 // A project: its name and client, colour, billable default and rate, its
 // budget, its tasks, who records time on it. One form; Save once.
-export function ProjectForm({ initial, clients, people, currency, comma, defaultTasks, t }: {
-  initial: FormProject; clients: { id: string; name: string }[]; people: { id: string; name: string }[]; currency: string; comma: boolean; defaultTasks: string[]; t: Words;
+export function ProjectForm({ initial, clients, people, currency, comma, defaultTasks, rates, t }: {
+  initial: FormProject; clients: { id: string; name: string }[]; people: { id: string; name: string }[]; currency: string; comma: boolean; defaultTasks: string[];
+  // An existing project with time: a changed rate applies from a day, and
+  // its history shows.
+  rates?: { hasTime: boolean; today: string; lockedUntil: string | null; history: string | null };
+  t: Words;
 }) {
   const w = t.project;
   const router = useRouter();
@@ -40,6 +44,9 @@ export function ProjectForm({ initial, clients, people, currency, comma, default
   const [tasks, setTasks] = useState<string[]>(initial.id ? [] : defaultTasks);
   const [taskDraft, setTaskDraft] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [rateFrom, setRateFrom] = useState(rates?.today ?? "");
+  const rateChanged = (rate.trim() === "" ? null : parseAmount(rate)) !== initial.rateCents;
+  const askFrom = Boolean(initial.id && rates?.hasTime && rateChanged);
 
   function save() {
     const rateCents = rate.trim() === "" ? null : parseAmount(rate);
@@ -57,6 +64,7 @@ export function ProjectForm({ initial, clients, people, currency, comma, default
     setError(null);
     const input = {
       name, color, billable, rateCents, budget: b, everyone, people: everyone ? [] : chosen,
+      ...(askFrom ? { rateFrom } : {}),
       ...(client === "new" ? { newClient } : { clientId: client || null }),
       ...(initial.id ? {} : { tasks }),
     };
@@ -130,6 +138,14 @@ export function ProjectForm({ initial, clients, people, currency, comma, default
             <label className="label" htmlFor="p-rate">{format(w.rate, { currency })}</label>
             <input id="p-rate" className="field num short" inputMode="decimal" value={rate} onChange={e => setRate(e.target.value)} autoComplete="off" />
             <p className="hint">{w.rateHint}</p>
+            {rates?.history && <p className="hint">{rates.history}</p>}
+            {askFrom && (
+              <>
+                <label className="label" htmlFor="p-rate-from">{w.rateFrom}</label>
+                <input id="p-rate-from" type="date" className="field short" value={rateFrom} min={rates?.lockedUntil ?? undefined} onChange={e => setRateFrom(e.target.value)} />
+                <p className="hint">{w.rateFromHint}</p>
+              </>
+            )}
           </div>
         )}
         <fieldset className="field-block">

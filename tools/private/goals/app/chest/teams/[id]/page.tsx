@@ -4,7 +4,7 @@ import { AutoRefresh } from "../../../../components/auto-refresh.tsx";
 import { Contours } from "../../../../components/contours.tsx";
 import { Back, Plus } from "../../../../components/icons.tsx";
 import { ObjectiveCard } from "../../../../components/objective-card.tsx";
-import { mayCreate } from "../../../../lib/access.ts";
+import { mayCreate, readerOf } from "../../../../lib/access.ts";
 import { db } from "../../../../lib/db.ts";
 import { format, plural } from "../../../../lib/i18n/index.ts";
 import { context } from "../../../../lib/page-data.ts";
@@ -28,7 +28,7 @@ export default async function TeamPage({ params, searchParams }: { params: Promi
   const ctx = await context(sql, member);
   const asked = (await searchParams).cycle;
   const cycle = ctx.cycles.find(c => c.id === asked) ?? (await defaultCycle(sql));
-  const all = cycle ? await cycleObjectives(sql, cycle.id, ctx.clock) : [];
+  const all = cycle ? await cycleObjectives(sql, cycle.id, ctx.clock, readerOf(member)) : [];
   const ours = all.filter(o => o.level === "team" && o.teamId === team.id);
   const ourIds = new Set(ours.map(o => o.id));
   const personal = all.filter(o => o.level === "personal" && o.parentId && ourIds.has(o.parentId));

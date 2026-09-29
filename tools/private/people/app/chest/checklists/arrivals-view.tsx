@@ -9,31 +9,33 @@ import { useToast } from "../../../components/toast.tsx";
 import type { ErrorCode } from "../../../lib/app-error.ts";
 import { format, plural } from "../../../lib/i18n/format.ts";
 import { linkArrival, removeArrival } from "../actions.ts";
+import { ArrivalForm, type ArrivalDraft } from "./arrival-form.tsx";
 
-// The arrivals another tool told of (Hiring): who is coming, when, as what;
-// HR starts their arrival checklist, links them to the member they became,
-// or removes them.
+// The arrivals: written by HR by hand, or told by another tool (Hiring) —
+// who is coming, when, as what; HR starts their arrival checklist, links
+// them to the member they became, corrects its own, or removes them.
 export type ArrivalView = {
   id: string; name: string; details: string; when: string; cancelled: boolean; checklists: number;
-  suggested: string | null;
+  suggested: string | null; source: "hiring" | "manual"; draft: ArrivalDraft | null;
 };
 type Words = {
   arrivals: {
-    fromHiring: string; cancelled: string; start: string; started: { one: string; other: string }; link: string; choose: string;
+    fromHiring: string; manual: string; cancelled: string; start: string; started: { one: string; other: string }; link: string; choose: string;
     linkButton: string; linked: string; remove: string; removed: string; suggestion: string; suggestionAction: string;
-  };
+  } & Parameters<typeof ArrivalForm>[0]["t"]["arrivals"];
   errors: Record<ErrorCode, string>;
 };
+type Shared = { people: { id: string; name: string }[]; known: { teams: string[]; offices: string[]; titles: string[] }; weekdays: string[]; locale: string; t: Words };
 
-export function ArrivalList({ arrivals, people, locale, t }: { arrivals: ArrivalView[]; people: { id: string; name: string }[]; locale: string; t: Words }) {
+export function ArrivalList({ arrivals, ...shared }: { arrivals: ArrivalView[] } & Shared) {
   return (
     <ul className="arrival-list">
-      {arrivals.map(a => <ArrivalRow key={a.id} arrival={a} people={people} locale={locale} t={t} />)}
+      {arrivals.map(a => <ArrivalRow key={a.id} arrival={a} {...shared} />)}
     </ul>
   );
 }
 
-function ArrivalRow({ arrival: a, people, locale, t }: { arrival: ArrivalView; people: { id: string; name: string }[]; locale: string; t: Words }) {
+function ArrivalRow({ arrival: a, people, known, weekdays, locale, t }: { arrival: ArrivalView } & Shared) {
   const router = useRouter();
   const toast = useToast();
   const uid = useId();
@@ -55,7 +57,7 @@ function ArrivalRow({ arrival: a, people, locale, t }: { arrival: ArrivalView; p
           <strong>{a.name}</strong>
           <span className="muted">{a.details}</span>
           <span className="row tags">
-            <span className="source">{t.arrivals.fromHiring}</span>
+            <span className="source">{a.source === "manual" ? t.arrivals.manual : t.arrivals.fromHiring}</span>
             {a.cancelled ? <span className="due late">{t.arrivals.cancelled}</span> : <span className="small">{a.when}</span>}
             {a.checklists !== 0 && <span className="muted small">{plural(t.arrivals.started, a.checklists, locale)}</span>}
           </span>
@@ -77,6 +79,7 @@ function ArrivalRow({ arrival: a, people, locale, t }: { arrival: ArrivalView; p
             </div>
           </>
         )}
+        {a.draft && !a.cancelled && <ArrivalForm draft={a.draft} people={people} known={known} weekdays={weekdays} t={t} />}
         {(a.cancelled || a.checklists === 0) && (
           <button type="button" className="button quiet small danger" disabled={pending} onClick={() => run(() => removeArrival(a.id), t.arrivals.removed)}><Trash />{t.arrivals.remove}</button>
         )}

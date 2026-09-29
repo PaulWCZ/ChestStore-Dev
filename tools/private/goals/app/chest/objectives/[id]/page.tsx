@@ -1,10 +1,11 @@
+import * as chest from "@argentic/chest-sdk/chest";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AutoRefresh } from "../../../../components/auto-refresh.tsx";
 import { Chevron, Lock } from "../../../../components/icons.tsx";
 import { PersonLine } from "../../../../components/person.tsx";
 import { Confidence, Progress } from "../../../../components/progress.tsx";
-import { can, mayEdit } from "../../../../lib/access.ts";
+import { can, mayEdit, readerOf } from "../../../../lib/access.ts";
 import { AppError } from "../../../../lib/app-error.ts";
 import { comments as readComments } from "../../../../lib/comments.ts";
 import { db } from "../../../../lib/db.ts";
@@ -13,13 +14,13 @@ import { addDays, cycleTime, percent, undoMinutes } from "../../../../lib/model.
 import { readObjective } from "../../../../lib/objectives.ts";
 import { context } from "../../../../lib/page-data.ts";
 import { everyone } from "../../../../lib/people.ts";
-import { checkIns, cycleObjectives, objectiveById } from "../../../../lib/read.ts";
+import { checkIns, cycleObjectives, keyResultChanges, objectiveById, viewersOf } from "../../../../lib/read.ts";
 import { viewer } from "../../../../lib/session.ts";
 import { valueText } from "../../../../lib/values.ts";
 import { objectiveView, pctText, personView } from "../../../../lib/views.ts";
 import { instantOf } from "../../../../lib/zone.ts";
 import { Comments } from "./comments.tsx";
-import { KeyResultCard, type HistoryEntry } from "./key-result-card.tsx";
+import { KeyResultCard, type ChangeEntry, type HistoryEntry } from "./key-result-card.tsx";
 import { AddKeyResult } from "./key-result-dialog.tsx";
 import { ObjectiveActions } from "./objective-actions.tsx";
 import { Retro } from "./retro.tsx";
@@ -46,17 +47,20 @@ export default async function ObjectivePage({ params, searchParams }: { params: 
   const closed = cycle.closed;
   const time = cycleTime(cycle, ctx.clock.today);
   const ended = closed || time.phase === "after";
-  const [siblings, history, notes] = await Promise.all([
-    cycleObjectives(sql, cycle.id, ctx.clock),
+  const [siblings, history, notes, changes, viewers] = await Promise.all([
+    cycleObjectives(sql, cycle.id, ctx.clock, readerOf(member)),
     checkIns(sql, o.keyResults.map(k => k.id)),
     readComments(sql, o.id),
+    keyResultChanges(sql, o.keyResults.map(k => k.id)),
+    o.visibility === "people" ? viewersOf(sql, o.id) : Promise.resolve([] as string[]),
   ]);
   const parent = o.parentId ? siblings.find(s => s.id === o.parentId) ?? null : null;
   const grandParent = parent?.parentId ? siblings.find(s => s.id === parent.parentId) ?? null : null;
   const children = siblings.filter(s => s.parentId === o.id);
-  const carriedFrom = o.carriedFrom ? await objectiveById(sql, o.carriedFrom, ctx.clock, { archived: true }) : null;
+  const carriedFrom = o.carriedFrom ? await objectiveById(sql, o.carriedFrom, ctx.clock, readerOf(member), { archived: true }) : null;
   const carriedCycle = carriedFrom ? ctx.cycles.find(c => c.id === carriedFrom.cycleId) ?? null : null;
-  const ids = [o.owner, o.retroBy ?? "", ...o.keyResults.map(k => k.owner), ...[...history.values()].flat().map(c => c.author), ...notes.map(c => c.author), ...children.map(c => c.owner)];
+  const changeList = [...changes.values()].flat();
+  const ids = [o.owner, o.retroBy ?? "", ...o.keyResults.map(k => k.owner), ...[...history.values()].flat().map(c => c.author), ...notes.map(c => c.author), ...children.map(c => c.owner), ...viewers, ...changeList.flatMap(c => [c.author, ...(c.field === "owner" ? [c.before, c.after] : [])])];
   const who = await ctx.people(ids.filter(Boolean));
   const view = objectiveView(o, { actor: member, people: who, locale, t, zone: ctx.zone, now: ctx.clock.now, closed, teams: ctx.teams });
   const childViews = children.map(c => objectiveView(c, { actor: member, people: who, locale, t, zone: ctx.zone, now: ctx.clock.now, closed, teams: ctx.teams }));
@@ -80,10 +84,10 @@ export default async function ObjectivePage({ params, searchParams }: { params: 
       <div className="objective-page">
         <div className="stack">
           <section className="card summary" aria-labelledby="title">
-            <span className="eyebrow">{levelLine}</span>
+            <span className="eyebrow">{levelLine}{o.visibility !== "everyone" && <span className="tag confidential"><Lock />{t.objective.confidential}</span>}</span>
             <h1 id="title">{o.title}</h1>
             {o.why ? <p className="why">{o.why}</p> : <p className="muted">{t.objective.noWhy}</p>}
-            <Progress percent={view.percent} text={view.percentText} label={`${t.progress.label}: ${view.percentText}`} big />
+            <Progress percent={view.percent} text={view.percentText} label={`${t.progress.label}: ${view.percentText}`} confidence={view.confidence} big />
             <div className="meta">
               <Confidence value={view.confidence} words={t.confidence} />
               <span>{view.keyResultsText}</span>
@@ -108,18 +112,31 @@ export default async function ObjectivePage({ params, searchParams }: { params: 
           <section aria-labelledby="krs" className="stack">
             <div className="section-title flush">
               <h2 id="krs">{t.objective.keyResults}</h2>
-              {editable && <span className="end"><AddKeyResult objectiveId={o.id} owners={owners} defaultOwner={o.owner} t={cardWords} /></span>}
+              {editable && <span className="end"><AddKeyResult objectiveId={o.id} owners={owners} defaultOwner={o.owner} locale={locale} currency={chest.currency()} t={cardWords} /></span>}
             </div>
             {view.keyResults.length === 0 ? (
               <div className="empty">
                 <h2>{t.objective.noKeyResults}</h2>
                 <p>{t.objective.noKeyResultsBody}</p>
-                {editable && <AddKeyResult objectiveId={o.id} owners={owners} defaultOwner={o.owner} t={cardWords} primary />}
+                {editable && <AddKeyResult objectiveId={o.id} owners={owners} defaultOwner={o.owner} locale={locale} currency={chest.currency()} t={cardWords} primary />}
               </div>
             ) : view.keyResults.map(k => {
               const raw = o.keyResults.find(x => x.id === k.id)!;
               const list = history.get(k.id) ?? [];
               const text = (value: number) => (raw.kind === "milestone" ? (value >= 1 ? t.checkIn.markDone : t.checkIn.notYet) : valueText(raw, value, locale));
+              const said = (field: string, value: string) => {
+                if (field === "start" || field === "target") return text(Number(value));
+                if (field === "weight") return t.form.weights[value as "1" | "2" | "3"] ?? value;
+                if (field === "owner") return personView(who, value, locale).name;
+                if (field === "kind") return t.kinds[value as "number"] ?? value;
+                return value;
+              };
+              const changed: ChangeEntry[] = (changes.get(k.id) ?? []).map(c => ({
+                id: c.id,
+                text: format(t.objective.changedBy, { what: format(t.objective.changed[c.field], { before: said(c.field, c.before), after: said(c.field, c.after) }), name: personView(who, c.author, locale).name }),
+                when: relative(c.at, locale, ctx.clock.now),
+                date: formatDate(c.at, locale, ctx.zone, { dateStyle: "medium", timeStyle: "short" }),
+              }));
               const entries: HistoryEntry[] = list.map((c, i) => ({
                 id: c.id,
                 when: relative(c.at, locale, ctx.clock.now),
@@ -135,6 +152,7 @@ export default async function ObjectivePage({ params, searchParams }: { params: 
                   key={k.id}
                   kr={k}
                   history={entries}
+                  changes={changed}
                   chart={{
                     points: list.map(c => ({ at: Date.parse(c.at), value: c.value, confidence: c.confidence })),
                     start: raw.start,
@@ -170,7 +188,7 @@ export default async function ObjectivePage({ params, searchParams }: { params: 
                       <Link href={`/chest/objectives/${c.id}`}>{c.title}</Link>
                       <span className="meta"><PersonLine person={c.owner} size={20} /><Confidence value={c.confidence} words={t.confidence} /></span>
                     </div>
-                    <div className="row-progress"><Progress percent={c.percent} text={c.percentText} label={`${c.title}: ${c.percentText}`} /></div>
+                    <div className="row-progress"><Progress percent={c.percent} text={c.percentText} label={`${c.title}: ${c.percentText}`} confidence={c.confidence} /></div>
                   </li>
                 ))}
               </ul>
@@ -192,6 +210,7 @@ export default async function ObjectivePage({ params, searchParams }: { params: 
             <div><dt>{o.level === "team" ? t.objective.team : t.objective.level}</dt><dd>{o.level === "team" && o.teamId ? <Link href={`/chest/teams/${o.teamId}?cycle=${cycle.id}`}>{levelLine}</Link> : levelLine}</dd></div>
             {parent && <div><dt>{t.objective.supports}</dt><dd><Link href={`/chest/objectives/${parent.id}`}>{parent.title}</Link></dd></div>}
             <div><dt>{t.cycle.label}</dt><dd>{cycle.name}{closed ? ` · ${t.cycle.closed}` : ""}</dd></div>
+            <div><dt>{t.objective.visibility}</dt><dd>{o.visibility === "everyone" ? t.objective.everyone : <><Lock />{" "}{o.visibility === "team" ? format(t.objective.seenByTeam, { team: levelLine }) : viewers.length > 0 ? format(t.objective.seenByPeople, { names: viewers.map(id => personView(who, id, locale).name).join(", ") }) : t.objective.seenByOwners}</>}</dd></div>
           </dl>
           {(editable || carryTarget) && (
             <ObjectiveActions

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { Chevron, Clock } from "../../../components/icons.tsx";
+import { Chevron, Clock, Lock } from "../../../components/icons.tsx";
 import { PersonLine } from "../../../components/person.tsx";
 import { Confidence, Progress } from "../../../components/progress.tsx";
 import { format } from "../../../lib/i18n/format.ts";
@@ -42,11 +42,12 @@ function Node({ n, t, closed, toggle }: { n: TreeNode; t: Words; closed: string[
           <span className="meta">
             <PersonLine person={o.owner} size={20} />
             {o.owner.gone && <span className="tag gone">{t.objective.ownerLeft}</span>}
+            {o.visibility !== "everyone" && <span className="tag confidential"><Lock />{t.objective.confidential}</span>}
             <span>{o.keyResultsText}</span>
           </span>
         </div>
         <div className="side">
-          <Progress percent={o.percent} text={o.percentText} label={`${o.title}: ${o.percentText}`} />
+          <Progress percent={o.percent} text={o.percentText} label={`${o.title}: ${o.percentText}`} confidence={o.confidence} />
           <span className="badges">
             <Confidence value={o.confidence} words={t.confidence} />
             {o.stale && <span className="tag stale"><Clock />{t.progress.staleShort}</span>}

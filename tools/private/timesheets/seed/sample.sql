@@ -93,4 +93,60 @@ from projects p join tasks t on t.project_id = p.id and t.name = 'Réunions' whe
 -- Last month is invoiced: locked by Camille.
 update settings set locked_until = date_trunc('month', current_date)::date - 1, locked_by = 'mbr_camilleaaaaaaaaaaaaaaaaaaa', locked_at = date_trunc('month', current_date) + interval '2 days 10 hours';
 
+-- Rates with their history: each project's rate since the start (the
+-- signage's went up on the first of this month), Inès billed more on the
+-- visual identity, Hugo's usual rate, and what an hour of each person
+-- costs the agency.
+insert into rates (kind, project_id, from_day, rate_cents, set_by)
+select 'bill', id, date '2000-01-01', case when name = 'Signalétique' then 7000 else rate_cents end, 'mbr_camilleaaaaaaaaaaaaaaaaaaa' from projects where rate_cents is not null;
+insert into rates (kind, project_id, from_day, rate_cents, set_by)
+select 'bill', id, date_trunc('month', current_date)::date, 7500, 'mbr_camilleaaaaaaaaaaaaaaaaaaa' from projects where name = 'Signalétique';
+insert into rates (kind, project_id, member_id, from_day, rate_cents, set_by)
+select 'bill', id, 'mbr_inesaaaaaaaaaaaaaaaaaaaaaa', date '2000-01-01', 11000, 'mbr_camilleaaaaaaaaaaaaaaaaaaa' from projects where name = 'Identité visuelle';
+insert into rates (kind, member_id, from_day, rate_cents, set_by) values
+  ('bill', 'mbr_hugoaaaaaaaaaaaaaaaaaaaaaa', date '2000-01-01', 7000, 'mbr_camilleaaaaaaaaaaaaaaaaaaa'),
+  ('cost', 'mbr_camilleaaaaaaaaaaaaaaaaaaa', date '2000-01-01', 5500, 'mbr_camilleaaaaaaaaaaaaaaaaaaa'),
+  ('cost', 'mbr_inesaaaaaaaaaaaaaaaaaaaaaa', date '2000-01-01', 4800, 'mbr_camilleaaaaaaaaaaaaaaaaaaa'),
+  ('cost', 'mbr_hugoaaaaaaaaaaaaaaaaaaaaaa', date '2000-01-01', 4000, 'mbr_camilleaaaaaaaaaaaaaaaaaaa'),
+  ('cost', 'mbr_leaaaaaaaaaaaaaaaaaaaaaaaa', date '2000-01-01', 4200, 'mbr_camilleaaaaaaaaaaaaaaaaaaa'),
+  ('cost', 'mbr_tomaaaaaaaaaaaaaaaaaaaaaaa', date '2000-01-01', 3800, 'mbr_camilleaaaaaaaaaaaaaaaaaaa'),
+  ('cost', 'mbr_sofiaaaaaaaaaaaaaaaaaaaaaa', date '2000-01-01', 3500, 'mbr_camilleaaaaaaaaaaaaaaaaaaa');
+update projects set rate_cents = 7500 where name = 'Signalétique';
+
+-- Tom works four days a week.
+insert into people (member_id, week_minutes) values ('mbr_tomaaaaaaaaaaaaaaaaaaaaaaa', 1680);
+
+-- Julien Roux left before the Chest; his time came with the Harvest import.
+insert into former_people (name) values ('Julien Roux');
+insert into entries (member_id, project_id, task_id, day, minutes, note, billable, source, created_at)
+select 'imp_' || (select id from former_people where name = 'Julien Roux'), p.id, t.id, day::date, 240, 'Maquettes (Harvest)', true, 'import', day
+from projects p join tasks t on t.project_id = p.id and t.name = 'Design',
+  generate_series(date_trunc('week', current_date) - interval '42 days', date_trunc('week', current_date) - interval '31 days', interval '1 day') as day
+where p.name = 'Site vitrine' and extract(isodow from day) < 6;
+
+-- Last month was invoiced: its billable time keeps its rates for good.
+update entries e set invoiced_at = date_trunc('month', current_date) + interval '2 days 10 hours', invoiced_by = 'mbr_camilleaaaaaaaaaaaaaaaaaaa',
+  rates_fixed = true, bill_rate_cents = bill_rate(e.member_id, e.project_id, e.day), cost_rate_cents = cost_rate(e.member_id, e.day)
+where e.billable and e.day < date_trunc('month', current_date);
+
+-- The weeks sent for approval: two weeks ago all approved but Tom's; last
+-- week Inès's approved, Hugo's waiting, Léa's sent back with a word.
+insert into weeks (member_id, week, status, minutes, submitted_at, decided_by, decided_at, reason)
+select m, date_trunc('week', current_date)::date - 14, 'approved',
+  (select coalesce(sum(minutes), 0) from entries where member_id = m and day between date_trunc('week', current_date)::date - 14 and date_trunc('week', current_date)::date - 8),
+  date_trunc('week', current_date) - interval '9 days 7 hours', 'mbr_camilleaaaaaaaaaaaaaaaaaaa', date_trunc('week', current_date) - interval '7 days 15 hours', ''
+from unnest(array['mbr_camilleaaaaaaaaaaaaaaaaaaa', 'mbr_inesaaaaaaaaaaaaaaaaaaaaaa', 'mbr_hugoaaaaaaaaaaaaaaaaaaaaaa', 'mbr_leaaaaaaaaaaaaaaaaaaaaaaaa', 'mbr_sofiaaaaaaaaaaaaaaaaaaaaaa']) as m;
+insert into weeks (member_id, week, status, minutes, submitted_at, decided_by, decided_at, reason)
+select m, date_trunc('week', current_date)::date - 7, st,
+  (select coalesce(sum(minutes), 0) from entries where member_id = m and day between date_trunc('week', current_date)::date - 7 and date_trunc('week', current_date)::date - 1),
+  date_trunc('week', current_date) - interval '2 days 7 hours', by, case when by is null then null else date_trunc('week', current_date) + interval '9 hours' end, why
+from (values
+  ('mbr_inesaaaaaaaaaaaaaaaaaaaaaa', 'approved', 'mbr_camilleaaaaaaaaaaaaaaaaaaa', ''),
+  ('mbr_hugoaaaaaaaaaaaaaaaaaaaaaa', 'submitted', null, ''),
+  ('mbr_leaaaaaaaaaaaaaaaaaaaaaaaa', 'returned', 'mbr_camilleaaaaaaaaaaaaaaaaaaa', 'Il manque la formation de vendredi.')
+) as w(m, st, by, why);
+
+-- The website crossed 80 % of its budget: its managers heard of it.
+insert into budget_alerts (project_id, level) select id, 80 from projects where name = 'Site vitrine';
+
 drop table plan;

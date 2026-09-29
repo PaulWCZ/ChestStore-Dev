@@ -21,10 +21,12 @@ export async function viewer(): Promise<Viewer | null> {
   return { member: who, locale, t: catalogue(locale) };
 }
 
-// The language of a public page: the visitor's switch (cookie "lang"), the
-// browser's languages, English.
-export async function publicWords(): Promise<{ locale: Locale; t: Catalogue }> {
-  const locale = publicLocale((await cookies()).get("lang")?.value, (await headers()).get("accept-language"));
+// The language of a public page: the one its address names (?lang=, which
+// a frame in the company's website keeps when cookies are blocked), or the
+// page's own (a request's follow-up page speaks the request's language),
+// the visitor's switch (cookie "lang"), the browser's languages, English.
+export async function publicWords(given?: unknown, own?: unknown): Promise<{ locale: Locale; t: Catalogue }> {
+  const locale = isLocale(given) ? given : isLocale(own) ? own : publicLocale((await cookies()).get("lang")?.value, (await headers()).get("accept-language"));
   return { locale, t: catalogue(locale) };
 }
 

@@ -13,19 +13,20 @@ import { saveProfile } from "../../../actions.ts";
 type Own = { phone: string; pronouns: string; bio: string; skills: string[]; birthday: string | null };
 type Job = { title: string; team: string; office: string; managerId: string | null; startDate: string | null; phone: string };
 type Words = {
-  edit: Record<"aboutYou" | "aboutThem" | "phone" | "phoneHint" | "pronouns" | "pronounsHint" | "bio" | "bioHint" | "skills" | "skillsHint" | "skillPlaceholder" | "addSkill" | "removeSkill" | "birthday" | "birthdayHint" | "day" | "month" | "job" | "jobHint" | "title" | "team" | "office" | "manager" | "noManager" | "startDate" | "save" | "saving" | "saved" | "cancel", string>;
+  edit: Record<"more" | "moreHint" | "aboutYou" | "aboutThem" | "phone" | "phoneHint" | "pronouns" | "pronounsHint" | "bio" | "bioHint" | "skills" | "skillsHint" | "skillPlaceholder" | "addSkill" | "removeSkill" | "birthday" | "birthdayHint" | "day" | "month" | "job" | "jobHint" | "title" | "team" | "office" | "manager" | "noManager" | "startDate" | "save" | "saving" | "saved" | "cancel", string>;
   errors: Record<ErrorCode, string>;
 };
 
 // The profile form: "About you" for oneself, "Job" for HR. Saved in one
 // click; a refusal says why and keeps what was typed.
-export function ProfileForm({ person, own, job, jobView, managers, known, months, t }: {
+export function ProfileForm({ person, own, job, jobView, managers, known, extras, months, t }: {
   person: { id: string; name: string; photo: string | null; team: string };
   own: Own | null;
   job: Job | null;
   jobView: { title: string; team: string; office: string };
   managers: { id: string; name: string }[];
   known: { teams: string[]; offices: string[]; titles: string[] };
+  extras: { id: string; label: string; value: string; editable: boolean }[];
   months: string[];
   t: Words;
 }) {
@@ -62,9 +63,10 @@ export function ProfileForm({ person, own, job, jobView, managers, known, months
     const allSkills = pendingSkill && !skills.includes(pendingSkill) ? [...skills, pendingSkill] : skills;
     const ownInput = own ? { phone: text("phone"), pronouns: text("pronouns"), bio: text("bio"), skills: allSkills, birthday: showBirthday ? { month, day: Math.min(day, longest) } : null } : null;
     const jobInput = job ? { title: text("title"), team: text("team"), office: text("office"), managerId: text("managerId") || null, startDate: text("startDate") || null, ...(own ? {} : { phone: text("phone") }) } : null;
+    const extraInput = Object.fromEntries(extras.filter(x => x.editable).map(x => [x.id, text("x-" + x.id)]));
     setError(null);
     start(async () => {
-      const result = await saveProfile(person.id, ownInput, jobInput);
+      const result = await saveProfile(person.id, ownInput, jobInput, extraInput);
       if (!result.ok) {
         setError(format(t.errors[result.error], result.values ?? {}));
         return;
@@ -188,6 +190,23 @@ export function ProfileForm({ person, own, job, jobView, managers, known, months
           </dl>
           <p className="hint">{t.edit.jobHint}</p>
         </div>
+      )}
+
+      {extras.length > 0 && (
+        <fieldset className="card-block">
+          <legend>{t.edit.more}</legend>
+          <div className="grid-2">
+            {extras.map(x => x.editable ? (
+              <div key={x.id} className="field-group">
+                <label htmlFor={uid + "x" + x.id} className="label">{x.label}</label>
+                <input id={uid + "x" + x.id} name={"x-" + x.id} className="field" defaultValue={x.value} maxLength={limits.fieldValue} />
+              </div>
+            ) : x.value ? (
+              <div key={x.id} className="field-group readonly-field"><span className="label">{x.label}</span><span>{x.value}</span></div>
+            ) : null)}
+          </div>
+          <p className="hint">{t.edit.moreHint}</p>
+        </fieldset>
       )}
 
       {error && <p className="error" role="alert">{error}</p>}

@@ -1,0 +1,7 @@
+"Employee #","First Name","Last Name","Preferred Name","Job Title","Department","Division","Location","Reporting to","Hire Date","Work Email","Work Phone","Mobile Phone","Employment Status"
+"1","Camille","Martin","","Office Manager","Operations","France","Lyon","","01/07/2019","camille@example.test","+33 4 72 00 00 01","","Full-Time"
+"2","Inès","Moreau","","Head of Sales","Sales","France","Lyon","Martin, Camille","03/01/2021","ines@example.test","+33 4 72 00 00 02","+33 6 11 22 33 44","Full-Time"
+"3","Hugo","Bernard","","Account Manager","Sales","France","Lyon","Moreau, Inès","10/03/2023","hugo@example.test","","+33 6 98 76 54 32","Full-Time"
+"4","Lea","Dubois","Léa","Lead Developer","Engineering","France","Remote","Martin, Camille","02/06/2022","lea@example.test","","","Full-Time"
+"5","Tom","Walker","","Developer","Engineering","France","Remote","Dubois, Lea","09/05/2024","tom@example.test","","","Part-Time"
+"6","Jean","Inconnu","","Warehouse","Operations","France","Lyon","Martin, Camille","04/04/2020","jean@elsewhere.test","","","Full-Time"

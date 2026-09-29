@@ -2,12 +2,12 @@ import { today, zone } from "../../lib/clock.ts";
 import { db } from "../../lib/db.ts";
 import { addDays, isDay, mondayOf } from "../../lib/days.ts";
 import { dayEntries, week } from "../../lib/entries.ts";
-import { clock, format, formatDay } from "../../lib/i18n/index.ts";
+import { clock, format, formatDate, formatDay } from "../../lib/i18n/index.ts";
 import { nameFor, people } from "../../lib/people.ts";
 import { offeredProjects } from "../../lib/projects.ts";
 import { viewer } from "../../lib/session.ts";
 import { isLocked, settings } from "../../lib/settings.ts";
-import { WeekView, type DayInfo, type DayItem } from "./week-view.tsx";
+import { WeekView, type DayInfo, type DayItem, type WeekStanding } from "./week-view.tsx";
 
 // My week: the grid of the week (projects and tasks × days) and the list of
 // the chosen day. On a phone, the list of the day replaces the grid.
@@ -21,7 +21,17 @@ export default async function WeekPage({ searchParams }: { searchParams: Promise
   const selected = isDay(query.day) && mondayOf(query.day) === monday ? query.day : mondayOf(now) === monday ? now : monday;
   const sql = db();
   const [w, list, projects, s] = await Promise.all([week(sql, member, monday), dayEntries(sql, member, selected), offeredProjects(sql, member), settings(sql)]);
-  const who = s.lockedBy ? await people([s.lockedBy]) : new Map();
+  const who = await people([...(s.lockedBy ? [s.lockedBy] : []), ...(w.state.decidedBy ? [w.state.decidedBy] : [])]);
+  const decider = w.state.decidedBy ? nameFor(w.state.decidedBy, who, locale) : t.people.unknown;
+  const standing: WeekStanding = {
+    status: w.state.status,
+    approvals: s.approvals || w.state.status === "approved",
+    canSubmit: monday <= mondayOf(now),
+    text: w.state.status === "approved" ? format(t.week.approvedBy, { name: decider, date: w.state.decidedAt ? formatDate(w.state.decidedAt, zone(), locale, { day: "numeric", month: "short" }) : "" })
+      : w.state.status === "returned" ? format(t.week.returnedBy, { name: decider })
+      : null,
+    reason: w.state.status === "returned" ? w.state.reason : null,
+  };
   const z = zone();
   const days: DayInfo[] = w.days.map(d => ({
     day: d,
@@ -50,6 +60,7 @@ export default async function WeekPage({ searchParams }: { searchParams: Promise
         items={items}
         projects={projects}
         locale={locale}
+        standing={standing}
         lock={s.lockedUntil ? { text: format(t.week.lockedUntil, { date: formatDay(s.lockedUntil, locale, { day: "numeric", month: "long", year: "numeric" }), name: s.lockedBy ? nameFor(s.lockedBy, who, locale) : t.people.unknown }), short: format(t.week.lockedShort, { date: formatDay(s.lockedUntil, locale, { day: "numeric", month: "short" }) }) } : null}
         t={{ week: t.week, day: t.day, work: t.work, errors: t.errors, timer: t.timer }}
       />

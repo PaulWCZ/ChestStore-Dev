@@ -2,6 +2,7 @@ import type { Member } from "@argentic/chest-sdk/member";
 import { can, offered } from "./access.ts";
 import { AppError } from "./app-error.ts";
 import type { Query } from "./db.ts";
+import { checkBudgets } from "./budgets.ts";
 import { today } from "./clock.ts";
 import { bool, cents, clean, colors, day as checkDay, id, isColor, limits, memberIds, numeric, optionalId, type Color } from "./model.ts";
 import { mirror, origin, revenueOf } from "./rates.ts";
@@ -306,6 +307,8 @@ export async function updateProject(sql: Query, actor: Member | null, projectId:
     await tx`delete from project_people where project_id = ${pid} and member_id <> all(${p.people}::text[])`;
     for (const person of p.people) await tx`insert into project_people (project_id, member_id) values (${pid}, ${person}) on conflict do nothing`;
   });
+  // A new budget (or rate) may cross a threshold, or fall back under one.
+  await checkBudgets(sql, [pid]);
   return project(sql, actor, pid);
 }
 

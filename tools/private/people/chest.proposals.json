@@ -18,7 +18,7 @@
   "translations": {
     "fr": {
       "title": "Équipe",
-      "description": "L’annuaire et l’organigramme de l’équipe : qui fait quoi, comment les joindre, et des check-lists pour accueillir les nouveaux et accompagner les départs.",
+      "description": "L’annuaire et l’organigramme, les dossiers RH avec le registre du personnel, et des check-lists pour accueillir les nouveaux et accompagner les départs.",
       "role_labels": {
         "hr": "RH",
         "member": "Membre"

@@ -32,6 +32,12 @@ export function can(actor: Member | null, ability: Ability): boolean {
   return role !== null && grants[role].includes(ability);
 }
 
+// What a reader may see of confidential objectives (lib/read.ts,
+// visibleTo): their id, whether they see everything, their groups.
+export function readerOf(actor: Member): { id: string; admin: boolean; groups: readonly string[] } {
+  return { id: actor.id, admin: can(actor, "any.write"), groups: actor.groups };
+}
+
 export type TeamRef = { groupId: string | null; archived: boolean };
 
 // A member writes for a team they are in: a Chest group's members; anyone

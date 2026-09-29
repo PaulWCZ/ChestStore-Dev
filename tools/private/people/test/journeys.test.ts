@@ -133,7 +133,8 @@ test("a checklist is stopped (undo) and deleted; the bell and tiles follow; the 
   const started = await j.startJourney(sql, hr, { personId: lea.id, templateId: t.id, anchor: today() });
   await tell.todo(sql, hr, started, started.assignees.keys());
   // No manager for Léa: that step waits for HR to give it.
-  assert.equal((await j.journey(sql, hr, started.id)).items.find(i => i.role === "manager")?.assignee, null);
+  // Nora has no manager: the manager's step goes to HR (whoever started it), never to nobody.
+  assert.equal((await j.journey(sql, hr, started.id)).items.find(i => i.role === "manager")?.assignee, camille.id);
   assert.ok(chest.badges.get(lea.id)! >= 1);
   await assert.rejects(j.deleteJourney(sql, hr, started.id), refused("not_found"));
   const stopped = await j.stopJourney(sql, hr, started.id, true);

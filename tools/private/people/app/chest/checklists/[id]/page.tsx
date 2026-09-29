@@ -1,3 +1,4 @@
+import { stepText } from "../../../../lib/examples.ts";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AutoRefresh } from "../../../../components/auto-refresh.tsx";
@@ -39,7 +40,7 @@ export default async function JourneyPage({ params }: { params: Promise<{ id: st
   const roleWord = (role: string) => role === "person" ? t.journey.roles.person[journey.kind] : role === "manager" ? t.journey.roles.manager : role === "hr" ? t.journey.roles.hr : "";
   const steps: StepView[] = journey.items.map(i => ({
     id: i.id,
-    text: i.text,
+    text: stepText(i, t),
     done: i.done,
     due: i.due,
     dueLabel: formatDay(i.due, locale, { weekday: "short", day: "numeric", month: "short" }),

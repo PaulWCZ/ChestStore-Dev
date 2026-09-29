@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { AutoRefresh } from "../../components/auto-refresh.tsx";
 import { Avatar } from "../../components/avatar.tsx";
-import { Bars, Folder, Gear, Grid } from "../../components/icons.tsx";
+import { Bars, Folder, Gear, Grid, People } from "../../components/icons.tsx";
 import { Mark } from "../../components/mark.tsx";
 import { NavLink } from "../../components/nav-link.tsx";
 import { Toasts } from "../../components/toast.tsx";
@@ -81,6 +81,7 @@ export default async function MembersLayout({ children }: { children: ReactNode 
         <nav className="tabs" aria-label={t.shell.nav}>
           <NavLink href="/chest" exact><Grid /><span className="tab-label">{t.shell.week}</span></NavLink>
           <NavLink href="/chest/reports"><Bars /><span className="tab-label">{t.shell.reports}</span></NavLink>
+          {can(member, "approve") && <NavLink href="/chest/team"><People /><span className="tab-label">{t.shell.team}</span></NavLink>}
           {can(member, "projects.manage") && <NavLink href="/chest/projects"><Folder /><span className="tab-label">{t.shell.projects}</span></NavLink>}
           {can(member, "settings") && <NavLink href="/chest/settings"><Gear /><span className="tab-label">{t.shell.settings}</span></NavLink>}
         </nav>

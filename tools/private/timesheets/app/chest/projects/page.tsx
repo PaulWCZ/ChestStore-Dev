@@ -1,3 +1,4 @@
+import { forbidden } from "next/navigation";
 import Link from "next/link";
 import { Plus, Upload } from "../../../components/icons.tsx";
 import { can } from "../../../lib/access.ts";
@@ -7,7 +8,6 @@ import { formatDuration } from "../../../lib/duration.ts";
 import { format, money, plural } from "../../../lib/i18n/index.ts";
 import { budgetShare, listClients, listProjects, type Project } from "../../../lib/projects.ts";
 import { viewer } from "../../../lib/session.ts";
-import { Forbidden } from "../forbidden.tsx";
 import { ClientsView, ExampleButton } from "./projects-view.tsx";
 
 // Clients and their projects, for managers: what each costs so far against
@@ -16,7 +16,7 @@ export default async function ProjectsPage({ searchParams }: { searchParams: Pro
   const v = await viewer();
   if (!v) return null;
   const { member, locale, t } = v;
-  if (!can(member, "projects.manage")) return <Forbidden t={t} />;
+  if (!can(member, "projects.manage")) forbidden();
   const archived = (await searchParams).archived === "1";
   const sql = db();
   const [list, clients] = await Promise.all([listProjects(sql, member, { archived }), listClients(sql, member)]);
@@ -42,7 +42,7 @@ export default async function ProjectsPage({ searchParams }: { searchParams: Pro
     <main className="page wide">
       <header className="page-head">
         <h1>{archived ? t.projects.archived : t.projects.title}</h1>
-        <Link className="button" href="/chest/projects/new"><Plus />{t.projects.new}</Link>
+        {(list.length > 0 || archived) && <Link className="button" href="/chest/projects/new"><Plus />{t.projects.new}</Link>}
       </header>
       {list.length === 0 && !archived ? (
         <div className="empty">

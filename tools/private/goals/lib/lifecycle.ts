@@ -10,7 +10,9 @@ import { tellAdminsOfOrphans } from "./tell.ts";
 //   the owner reads "(former member)" and what they owned in cycles still
 //   open waits for a new owner — the admins hear of it in the bell.
 // - Erasure: their id is replaced by 'erased' everywhere (owner, author,
-//   who wrote a retrospective…). Check-ins and comments stay, signed
+//   who wrote a retrospective, who changed a key result…); their email
+//   choice, the reminders they got and the confidential objectives
+//   opened to them are forgotten. Check-ins and comments stay, signed
 //   "Former member". Then the erasure is acknowledged.
 export async function leave(sql: Sql, memberId: string): Promise<void> {
   await sql`insert into departed (member_id) values (${memberId}) on conflict do nothing`;
@@ -28,6 +30,13 @@ export async function erase(sql: Sql, memberId: string): Promise<void> {
     await tx`update cycles set created_by = 'erased' where created_by = ${memberId}`;
     await tx`update cycles set closed_by = 'erased' where closed_by = ${memberId}`;
     await tx`update settings set updated_by = 'erased' where updated_by = ${memberId}`;
+    await tx`update key_result_changes set author = 'erased' where author = ${memberId}`;
+    await tx`update key_result_changes set before = 'erased' where field = 'owner' and before = ${memberId}`;
+    await tx`update key_result_changes set after = 'erased' where field = 'owner' and after = ${memberId}`;
+    await tx`delete from objective_viewers where member_id = ${memberId}`;
+    await tx`delete from preferences where member_id = ${memberId}`;
+    await tx`delete from nudges where member_id = ${memberId}`;
+    await tx`update nudges set sent_by = 'erased' where sent_by = ${memberId}`;
     await tx`delete from departed where member_id = ${memberId}`;
   });
 }

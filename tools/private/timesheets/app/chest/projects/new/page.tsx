@@ -1,17 +1,17 @@
+import { forbidden } from "next/navigation";
 import { can } from "../../../../lib/access.ts";
 import { currency } from "../../../../lib/clock.ts";
 import { db } from "../../../../lib/db.ts";
 import { everyoneOrNone } from "../../../../lib/directory.ts";
 import { listClients } from "../../../../lib/projects.ts";
 import { viewer } from "../../../../lib/session.ts";
-import { Forbidden } from "../../forbidden.tsx";
 import { ProjectForm } from "../project-form.tsx";
 
 export default async function NewProjectPage() {
   const v = await viewer();
   if (!v) return null;
   const { member, locale, t } = v;
-  if (!can(member, "projects.manage")) return <Forbidden t={t} />;
+  if (!can(member, "projects.manage")) forbidden();
   const [clients, dir] = await Promise.all([listClients(db(), member), everyoneOrNone()]);
   return (
     <main className="page">

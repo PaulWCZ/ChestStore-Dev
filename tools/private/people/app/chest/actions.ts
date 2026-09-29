@@ -42,7 +42,7 @@ export async function saveProfile(id: string, own: unknown, job: unknown, extras
     if (own !== null && own !== undefined) {
       if (id !== actor.id) throw new AppError("forbidden");
       const saved = await profiles.updateOwn(sql, actor, own);
-      if (saved.phone || saved.bio || saved.skills.length > 0) {
+      if (profiles.filled(saved)) {
         for (const ticked of await j.autoTick(sql, actor.id, profilePhrase)) await afterTick(actor, ticked);
       }
     }

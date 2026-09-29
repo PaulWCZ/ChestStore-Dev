@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState, useTransition, type KeyboardEvent } from "react";
-import { Back, Close, Copy, Lock, Next, Plus } from "../../components/icons.tsx";
+import { useEffect, useRef, useState, useTransition, type KeyboardEvent } from "react";
+import { Back, Check, Close, Copy, Lock, Next, Note, Plus, Send } from "../../components/icons.tsx";
 import { useToast } from "../../components/toast.tsx";
 import { WorkPicker, type PickerProject } from "../../components/work-picker.tsx";
 import { readWork } from "../../lib/work.ts";
@@ -11,31 +11,42 @@ import { formatDuration, parseDuration } from "../../lib/duration.ts";
 import type { DayEntry, GridRow } from "../../lib/entries.ts";
 import type { Catalogue } from "../../lib/i18n/index.ts";
 import { format, plural } from "../../lib/i18n/format.ts";
-import { addRow, copyLastWeek, removeRow, restoreEntries, saveCell } from "./actions.ts";
+import type { WeekStatus } from "../../lib/weeks.ts";
+import { addRow, copyLastWeek, removeRow, restoreEntries, saveCell, setNote, submitWeek, withdrawWeek } from "./actions.ts";
 import { DayPanel } from "./day-panel.tsx";
 
 export type DayInfo = { day: string; weekday: string; date: string; long: string; today: boolean; locked: boolean };
 export type DayItem = DayEntry & { span: string | null };
 export type WeekWords = { week: Catalogue["week"]; day: Catalogue["day"]; work: Catalogue["work"]; errors: Catalogue["errors"]; timer: Catalogue["timer"] };
+// Where the week stands in the approval: its status, and the sentence that
+// says it ("Approved by Camille on 3 Oct", "Sent back by Camille: …").
+export type WeekStanding = { status: WeekStatus; text: string | null; reason: string | null; canSubmit: boolean; approvals: boolean };
 
 const rowName = (r: GridRow) => (r.taskName ? `${r.projectName} · ${r.taskName}` : r.projectName);
 const link = (week: string, day?: string) => `/chest?week=${week}${day ? `&day=${day}` : ""}`;
 
 export function WeekView(props: {
   monday: string; previous: string; next: string; thisWeek: boolean; title: string; days: DayInfo[]; rows: GridRow[]; selected: string; items: DayItem[];
-  projects: PickerProject[]; lock: { text: string; short: string } | null; locale: string; t: WeekWords;
+  projects: PickerProject[]; lock: { text: string; short: string } | null; standing: WeekStanding; locale: string; t: WeekWords;
 }) {
-  const { t, days, monday } = props;
+  const { t, days, monday, standing } = props;
   const router = useRouter();
   const toast = useToast();
   const [rows, setRows] = useState(props.rows);
-  const [, start] = useTransition();
+  const [pending, start] = useTransition();
   const [adding, setAdding] = useState(false);
+  const [noting, setNoting] = useState<{ ri: number; ci: number } | null>(null);
   useEffect(() => setRows(props.rows), [props.rows]);
+  // A week sent for approval, or approved, is read-only for its person.
+  const closed = standing.status === "submitted" || standing.status === "approved";
 
   const totals = days.map((_, i) => rows.reduce((n, r) => n + r.cells[i]!.minutes, 0));
   const total = totals.reduce((a, b) => a + b, 0);
   const fail = (code: keyof Catalogue["errors"], values?: Record<string, string | number>) => toast(format(t.errors[code], values));
+
+  function put(ri: number, ci: number, cell: GridRow["cells"][number]) {
+    setRows(list => list.map((r, i) => (i === ri ? { ...r, cells: r.cells.map((c, j) => (j === ci ? cell : c)) } : r)));
+  }
 
   function commit(ri: number, ci: number, text: string): boolean {
     const minutes = parseDuration(text);
@@ -47,16 +58,38 @@ export function WeekView(props: {
     if (!row) return true;
     const before = row.cells[ci]!;
     if (minutes === before.minutes) return true;
-    const put = (cell: GridRow["cells"][number]) => setRows(list => list.map((r, i) => (i === ri ? { ...r, cells: r.cells.map((c, j) => (j === ci ? cell : c)) } : r)));
-    put({ ...before, minutes, count: minutes ? 1 : 0, note: minutes ? before.note : "" });
+    put(ri, ci, { ...before, minutes, count: minutes ? 1 : 0, note: minutes ? before.note : "" });
     start(async () => {
       const r = await saveCell({ projectId: row.projectId, taskId: row.taskId, day: days[ci]!.day, minutes });
       if (!r.ok) {
-        put(before);
-        fail(r.error, r.values);
+        put(ri, ci, before);
+        return fail(r.error, r.values);
       }
+      put(ri, ci, r.value);
     });
     return true;
+  }
+
+  function note(ri: number, ci: number, text: string) {
+    const cell = rows[ri]?.cells[ci];
+    if (!cell?.entryId) return;
+    const before = cell;
+    put(ri, ci, { ...cell, note: text });
+    setNoting(null);
+    start(async () => {
+      const r = await setNote(cell.entryId!, text);
+      if (!r.ok) {
+        put(ri, ci, before);
+        return fail(r.error, r.values);
+      }
+      toast(t.week.noteSaved);
+      router.refresh();
+    });
+  }
+
+  function openNote(ri: number, ci: number) {
+    if (!rows[ri]?.cells[ci]?.entryId) return toast(t.week.noteFirst);
+    setNoting({ ri, ci });
   }
 
   function remove(row: GridRow) {
@@ -81,17 +114,36 @@ export function WeekView(props: {
     });
   }
 
+  function send() {
+    start(async () => {
+      const r = await submitWeek(monday);
+      if (!r.ok) return fail(r.error, r.values);
+      toast(t.week.sent, { label: t.week.takeBack, run: () => takeBack() });
+      router.refresh();
+    });
+  }
+
+  function takeBack() {
+    start(async () => {
+      const r = await withdrawWeek(monday);
+      if (!r.ok) return fail(r.error, r.values);
+      toast(t.week.takenBack);
+      router.refresh();
+    });
+  }
+
   const selectedDay = days.find(d => d.day === props.selected) ?? days[0]!;
   const selectedIndex = days.indexOf(selectedDay);
+  const noProjects = props.projects.length === 0;
   return (
     <div className="week">
       <header className="week-head">
         <div className="week-title">
           <h1>{props.title}</h1>
           <nav className="week-nav" aria-label={t.week.title}>
-            <Link className="button icon quiet" href={link(props.previous)} aria-label={t.week.previous} title={t.week.previous}><Back /></Link>
+            <Link className="button icon quiet step" href={link(props.previous)} aria-label={t.week.previous} title={t.week.previous}><Back /></Link>
             {!props.thisWeek && <Link className="button quiet small" href="/chest">{t.week.thisWeek}</Link>}
-            <Link className="button icon quiet" href={link(props.next)} aria-label={t.week.next} title={t.week.next}><Next /></Link>
+            <Link className="button icon quiet step" href={link(props.next)} aria-label={t.week.next} title={t.week.next}><Next /></Link>
           </nav>
         </div>
         <div className="week-total">
@@ -99,6 +151,30 @@ export function WeekView(props: {
           <span className="num big">{formatDuration(total)}</span>
         </div>
       </header>
+
+      {standing.approvals && (
+        <div className={`standing ${standing.status}`} role="status">
+          {standing.status === "open" && standing.canSubmit && (
+            <>
+              <span>{t.week.sendHint}</span>
+              <button type="button" className="button" disabled={pending} onClick={send}><Send />{t.week.send}</button>
+            </>
+          )}
+          {standing.status === "submitted" && (
+            <>
+              <span className="state"><Send />{t.week.submitted}</span>
+              <button type="button" className="button link" disabled={pending} onClick={takeBack}>{t.week.takeBack}</button>
+            </>
+          )}
+          {standing.status === "approved" && <span className="state"><Check />{standing.text}</span>}
+          {standing.status === "returned" && (
+            <>
+              <span className="state">{standing.text}{standing.reason && <q className="reason">{standing.reason}</q>}</span>
+              <button type="button" className="button" disabled={pending} onClick={send}><Send />{t.week.sendAgain}</button>
+            </>
+          )}
+        </div>
+      )}
 
       {props.lock && days.some(d => d.locked) && <p className="notice"><Lock /><span>{props.lock.text}</span></p>}
 
@@ -140,14 +216,33 @@ export function WeekView(props: {
                         if (c.count > 1) {
                           return <td key={d.day} className={classes}><Link className="several num" href={link(monday, d.day)} aria-label={`${label}: ${formatDuration(c.minutes)}. ${format(t.week.several, { count: c.count })}`} title={format(t.week.several, { count: c.count })}>{formatDuration(c.minutes)}<span className="dots" aria-hidden="true">··</span></Link></td>;
                         }
-                        if (!r.writable || d.locked) {
-                          return <td key={d.day} className={classes + " ro"}><span className="num" aria-label={`${label}: ${formatDuration(c.minutes)}`}>{c.minutes ? formatDuration(c.minutes) : ""}</span></td>;
+                        if (!r.writable || d.locked || closed || c.invoiced) {
+                          const why = c.invoiced ? ` (${t.week.invoiced})` : "";
+                          return (
+                            <td key={d.day} className={classes + " ro"}>
+                              <span className="num" aria-label={`${label}: ${formatDuration(c.minutes)}${why}${c.note ? `. ${c.note}` : ""}`} title={c.note || undefined}>{c.minutes ? formatDuration(c.minutes) : ""}</span>
+                              {c.note && <span className="note-dot static" aria-hidden="true" />}
+                            </td>
+                          );
                         }
-                        return <td key={d.day} className={classes}><CellInput minutes={c.minutes} label={label} ri={ri} ci={ci} commit={commit} /></td>;
+                        return (
+                          <td key={d.day} className={classes + (c.note ? " noted" : "")}>
+                            <CellInput minutes={c.minutes} label={label} note={c.note} ri={ri} ci={ci} commit={commit} onNote={openNote} />
+                            {c.entryId && (
+                              <button type="button" className={`note-button${c.note ? " has" : ""}`} tabIndex={-1} title={c.note || t.week.addNote} aria-label={format(t.week.noteFor, { cell: label })} onClick={() => openNote(ri, ci)}><Note /></button>
+                            )}
+                            {noting && noting.ri === ri && noting.ci === ci && (
+                              <NotePopover label={format(t.week.noteFor, { cell: label })} initial={c.note} t={t} onSave={text => note(ri, ci, text)} onClose={() => {
+                                setNoting(null);
+                                (document.querySelector(`[data-cell="${ri}:${ci}"]`) as HTMLInputElement | null)?.focus();
+                              }} />
+                            )}
+                          </td>
+                        );
                       })}
                       <td className="sum num">{formatDuration(rowTotal)}</td>
                       <td className="row-end">
-                        {r.writable && !r.cells.some((c, i) => c.minutes > 0 && days[i]!.locked) && (
+                        {r.writable && !closed && !r.cells.some((c, i) => (c.minutes > 0 && days[i]!.locked) || c.invoiced) && (
                           <button type="button" className="button icon link" aria-label={format(t.week.removeRow, { name: rowName(r) })} title={format(t.week.removeRow, { name: rowName(r) })} onClick={() => remove(r)}><Close /></button>
                         )}
                       </td>
@@ -168,26 +263,28 @@ export function WeekView(props: {
         ) : (
           <div className="empty grid-empty">
             <h2>{t.week.empty.title}</h2>
-            <p>{t.week.empty.body}</p>
+            <p>{noProjects ? t.week.empty.noProjects : t.week.empty.body}</p>
           </div>
         )}
-        <div className="grid-actions">
-          {adding ? (
-            <AddRow projects={props.projects} t={t} onCancel={() => setAdding(false)} onAdd={w => {
-              start(async () => {
-                const r = await addRow({ week: monday, ...w });
-                if (!r.ok) return fail(r.error, r.values);
-                setAdding(false);
-              });
-            }} />
-          ) : (
-            <>
-              {props.projects.length > 0 && <button type="button" className="button quiet" onClick={() => setAdding(true)}><Plus />{t.week.addRow}</button>}
-              <button type="button" className="button quiet" onClick={copy}><Copy />{t.week.copy}</button>
-              {rows.length > 0 && <p className="hint">{t.week.hint}</p>}
-            </>
-          )}
-        </div>
+        {!closed && !noProjects && (
+          <div className="grid-actions">
+            {adding ? (
+              <AddRow projects={props.projects} t={t} onCancel={() => setAdding(false)} onAdd={w => {
+                start(async () => {
+                  const r = await addRow({ week: monday, ...w });
+                  if (!r.ok) return fail(r.error, r.values);
+                  setAdding(false);
+                });
+              }} />
+            ) : (
+              <>
+                <button type="button" className="button quiet" onClick={() => setAdding(true)}><Plus />{t.week.addRow}</button>
+                <button type="button" className="button quiet" onClick={copy}><Copy />{t.week.copy}</button>
+                {rows.length > 0 && <p className="hint">{t.week.hint}</p>}
+              </>
+            )}
+          </div>
+        )}
       </div>
 
       <nav className="day-strip" aria-label={t.week.days}>
@@ -202,14 +299,15 @@ export function WeekView(props: {
         <Link className="strip-step" href={link(props.next)} aria-label={t.week.next}><Next /></Link>
       </nav>
 
-      <DayPanel key={props.selected} day={selectedDay} total={totals[selectedIndex] ?? 0} items={props.items} projects={props.projects} lock={props.lock} t={t} />
+      <DayPanel key={props.selected} day={{ ...selectedDay, locked: selectedDay.locked || closed }} total={totals[selectedIndex] ?? 0} items={props.items} projects={props.projects} lock={closed ? null : props.lock} t={t} />
     </div>
   );
 }
 
 // A cell: what is typed is read when leaving it (Tab, Enter, a click
-// elsewhere). Enter and the arrows go down and up the column.
-function CellInput({ minutes, label, ri, ci, commit }: { minutes: number; label: string; ri: number; ci: number; commit: (ri: number, ci: number, text: string) => boolean }) {
+// elsewhere). Enter and the arrows go down and up the column; Shift+Enter
+// opens the cell's note.
+function CellInput({ minutes, label, note, ri, ci, commit, onNote }: { minutes: number; label: string; note: string; ri: number; ci: number; commit: (ri: number, ci: number, text: string) => boolean; onNote: (ri: number, ci: number) => void }) {
   const [draft, setDraft] = useState<string | null>(null);
   const [invalid, setInvalid] = useState(false);
   const shown = minutes ? formatDuration(minutes) : "";
@@ -221,7 +319,11 @@ function CellInput({ minutes, label, ri, ci, commit }: { minutes: number; label:
     setDraft(null);
   }
   function key(e: KeyboardEvent<HTMLInputElement>) {
-    if (e.key === "Enter" || e.key === "ArrowDown") {
+    if (e.key === "Enter" && e.shiftKey) {
+      e.preventDefault();
+      leave();
+      onNote(ri, ci);
+    } else if (e.key === "Enter" || e.key === "ArrowDown") {
       e.preventDefault();
       leave();
       move(ri + 1);
@@ -238,7 +340,7 @@ function CellInput({ minutes, label, ri, ci, commit }: { minutes: number; label:
     <input
       className={`cell-input num${invalid ? " invalid" : ""}`}
       data-cell={`${ri}:${ci}`}
-      aria-label={label}
+      aria-label={note ? `${label}. ${note}` : label}
       aria-invalid={invalid || undefined}
       value={draft ?? shown}
       placeholder="–"
@@ -250,6 +352,26 @@ function CellInput({ minutes, label, ri, ci, commit }: { minutes: number; label:
       onBlur={leave}
       onKeyDown={key}
     />
+  );
+}
+
+// The note of a cell: what the time was for, as the client's invoice will
+// say it. Enter saves (Shift+Enter a new line), Escape closes.
+function NotePopover({ label, initial, t, onSave, onClose }: { label: string; initial: string; t: WeekWords; onSave: (text: string) => void; onClose: () => void }) {
+  const [text, setText] = useState(initial);
+  const area = useRef<HTMLTextAreaElement>(null);
+  useEffect(() => { area.current?.focus(); area.current?.select(); }, []);
+  return (
+    <div className="note-popover" role="dialog" aria-label={label} onKeyDown={e => { if (e.key === "Escape") { e.stopPropagation(); onClose(); } }}>
+      <label className="label" htmlFor="cell-note">{t.week.note}</label>
+      <textarea id="cell-note" ref={area} className="field" rows={3} maxLength={500} value={text} placeholder={t.day.notePlaceholder}
+        onChange={e => setText(e.target.value)}
+        onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); onSave(text); } }} />
+      <div className="row">
+        <button type="button" className="button small" onClick={() => onSave(text)}>{t.day.save}</button>
+        <button type="button" className="button link small" onClick={onClose}>{t.day.cancel}</button>
+      </div>
+    </div>
   );
 }
 

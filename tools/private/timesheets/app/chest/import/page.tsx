@@ -1,6 +1,6 @@
+import { forbidden } from "next/navigation";
 import { can } from "../../../lib/access.ts";
 import { viewer } from "../../../lib/session.ts";
-import { Forbidden } from "../forbidden.tsx";
 import { Importer } from "./importer.tsx";
 
 // Moving in from Toggl Track, Clockify or Harvest (managers).
@@ -8,7 +8,7 @@ export default async function ImportPage() {
   const v = await viewer();
   if (!v) return null;
   const { member, locale, t } = v;
-  if (!can(member, "import")) return <Forbidden t={t} />;
+  if (!can(member, "import")) forbidden();
   return (
     <main className="page">
       <h1>{t.importer.title}</h1>

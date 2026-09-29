@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { Catalogue } from "../lib/i18n/index.ts";
 import type { KeyResultView, ObjectiveView } from "../lib/views.ts";
-import { Clock } from "./icons.tsx";
+import { Clock, Lock } from "./icons.tsx";
 import { PersonLine } from "./person.tsx";
 import { Confidence, Progress } from "./progress.tsx";
 
@@ -21,10 +21,11 @@ export function ObjectiveCard({ o, t, mine }: { o: ObjectiveView; t: CardWords; 
             {o.owner.gone && <span className="tag gone">{t.objective.ownerLeft}</span>}
             <Confidence value={o.confidence} words={t.confidence} />
             {o.stale && <span className="tag stale"><Clock />{t.progress.staleShort}</span>}
+            {o.visibility !== "everyone" && <span className="tag confidential"><Lock />{t.objective.confidential}</span>}
           </div>
         </div>
       </div>
-      <Progress percent={o.percent} text={o.percentText} label={`${t.progress.label}: ${o.percentText}`} big />
+      <Progress percent={o.percent} text={o.percentText} label={`${t.progress.label}: ${o.percentText}`} confidence={o.confidence} big />
       {o.keyResults.length > 0 && (
         <ul className="krs">
           {o.keyResults.map(k => <KeyResultRow key={k.id} k={k} t={t} mine={mine} />)}
@@ -47,7 +48,7 @@ export function KeyResultRow({ k, t, mine }: { k: KeyResultView; t: CardWords; m
         </span>
       </div>
       <div className="kr-value">
-        <Progress percent={k.percent} text={k.percentText} label={`${k.title}: ${k.percentText}`} />
+        <Progress percent={k.percent} text={k.percentText} label={`${k.title}: ${k.percentText}`} confidence={k.confidence} />
         <span className="value">{k.kind === "milestone" ? <strong>{k.current}</strong> : <><strong>{k.current}</strong> / {k.target}</>}</span>
       </div>
     </li>

@@ -7,6 +7,8 @@ import { directory, type Entry } from "../../../../../lib/directory.ts";
 import { format, monthNames } from "../../../../../lib/i18n/index.ts";
 import { memberPattern } from "../../../../../lib/model.ts";
 import { choices } from "../../../../../lib/profiles.ts";
+import { listFields } from "../../../../../lib/fields.ts";
+import { nameOf, people } from "../../../../../lib/people.ts";
 import { viewer } from "../../../../../lib/session.ts";
 import { orgChart, type OrgNode } from "../../../../../lib/tree.ts";
 import { ProfileForm } from "./profile-form.tsx";
@@ -42,7 +44,11 @@ export default async function EditPage({ params }: { params: Promise<{ id: strin
   if (person.managerId && !managers.some(m => m.id === person.managerId)) {
     const current = entries.find(e => e.id === person.managerId);
     if (current) managers.push({ id: current.id, name: current.name });
+    // A manager who left stays chosen (marked) until HR picks someone else.
+    else if (person.managerLeft) managers.unshift({ id: person.managerId, name: format(t.profile.managerLeft, { name: nameOf((await people([person.managerId])).get(person.managerId), locale) }) });
   }
+  // HR's extra fields: the person fills theirs; HR fills any.
+  const extras = (await listFields(sql, member)).map(f => ({ ...f, value: person.extras[f.id] ?? "", editable: hr || (mine && f.editor === "person") }));
   const known = hr ? await choices(sql, member) : { teams: [], offices: [], titles: [] };
   return (
     <main className="page narrow">
@@ -55,6 +61,7 @@ export default async function EditPage({ params }: { params: Promise<{ id: strin
         jobView={{ title: person.title, team: person.team, office: person.office }}
         managers={managers}
         known={known}
+        extras={extras}
         months={monthNames(locale)}
         t={{ edit: t.edit, errors: t.errors }}
       />

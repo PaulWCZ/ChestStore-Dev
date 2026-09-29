@@ -23,6 +23,7 @@ export function RichText({ text, className = "prose" }: { text: string; classNam
         if (b.t === "p") return <p key={i}>{inline(b.c)}</p>;
         if (b.t === "h") return <h2 key={i}>{inline(b.c)}</h2>;
         if (b.t === "quote") return <blockquote key={i}>{inline(b.c)}</blockquote>;
+        if (b.t === "img") return <figure key={i} className="inline-picture"><img src={`/chest/files/${b.id}?size=1024`} alt={b.alt} loading="lazy" /></figure>;
         if (b.t === "ul") return <ul key={i}>{b.items.map((item, j) => <li key={j}>{inline(item)}</li>)}</ul>;
         return <ol key={i} start={b.start}>{b.items.map((item, j) => <li key={j}>{inline(item)}</li>)}</ol>;
       })}

@@ -1,6 +1,6 @@
 import { ChestError } from "@argentic/chest-sdk/errors";
 import * as mail from "@argentic/chest-sdk/mail";
-import type { Booking } from "./booking.ts";
+import { meetingPlace, type Booking } from "./booking.ts";
 import { calendar } from "./ics.ts";
 import { catalogue, format, isLocale, meetingTime } from "./i18n/index.ts";
 import { answerText } from "./questions.ts";
@@ -27,8 +27,9 @@ async function send(message: mail.Message): Promise<Delivery> {
 
 function where(b: Booking, hostName: string, t: ReturnType<typeof wordsFor>["mail"]): string {
   if (b.locationKind === "phone") return format(t.wherePhone, { host: hostName, phone: b.guestPhone });
-  if (b.location === "") return b.locationKind === "video" ? format(t.whereLater, { host: hostName }) : "";
-  return format(t.where, { where: b.location });
+  const place = meetingPlace(b);
+  if (place === "") return b.locationKind === "video" ? format(t.whereLater, { host: hostName }) : "";
+  return format(t.where, { where: place });
 }
 
 // The calendar file of a booking, as the guest's calendar reads it. The
@@ -44,7 +45,7 @@ export function invitation(b: Booking, c: Pick<Context, "hostName" | "link">, ca
         end: b.endsAt,
         summary: `${b.title} — ${c.hostName}`,
         description: `${c.link}`,
-        ...(b.locationKind === "place" || b.locationKind === "video" ? (b.location ? { location: b.location } : {}) : {}),
+        ...(b.locationKind === "place" || b.locationKind === "video" ? (meetingPlace(b) ? { location: meetingPlace(b) } : {}) : {}),
         url: c.link,
         cancelled,
       },
@@ -79,7 +80,7 @@ function answersBlock(b: Booking): string {
 
 export async function confirmed(b: Booking, c: Context): Promise<Delivery> {
   const t = wordsFor(b.guestLanguage).mail;
-  const v = { ...values(b, c), answers: answersBlock(b) };
+  const v = { ...values(b, c), answers: answersBlock(b) + (b.paymentLink && !b.paid ? "\n\n" + format(t.payLine, { link: b.paymentLink }) : "") };
   return send({ to: b.guestEmail, subject: format(t.confirmedSubject, v), text: format(t.confirmedBody, v), fromName: from(c), attachments: [attachment(b, c)], key: `booked:${b.id}` });
 }
 
@@ -100,4 +101,19 @@ export async function reminder(b: Booking, c: Context): Promise<Delivery> {
   const t = wordsFor(b.guestLanguage).mail;
   const v = values(b, c);
   return send({ to: b.guestEmail, subject: format(t.reminderSubject, v), text: format(t.reminderBody, v), fromName: from(c), key: `reminder:${b.id}:${b.moves}` });
+}
+
+// The host's copy: an email with the booking's calendar file, which their
+// calendar app adds at once (the Chest's calendar feed is read by
+// calendar apps hours later). In the host's language and time zone.
+export async function toHost(kind: "booked" | "moved" | "cancelled", b: Booking, c: { locale: string; zone: string; link: string }): Promise<Delivery> {
+  const words = wordsFor(c.locale);
+  const t = words.mail;
+  const v = { guest: b.guestName, title: b.title, when: meetingTime(b.startsAt, c.zone, c.locale), where: where(b, "", t), link: c.link };
+  const subject = format(kind === "booked" ? t.hostBookedSubject : kind === "moved" ? t.hostMovedSubject : t.hostCancelledSubject, v);
+  const file = calendar(
+    [{ uid: `booking-${b.id}@chest`, sequence: b.moves + (kind === "cancelled" ? 1 : 0), start: b.startsAt, end: b.endsAt, summary: format(words.calendar.title, { title: b.title, guest: b.guestName }), description: c.link, ...(meetingPlace(b) && b.locationKind !== "phone" ? { location: meetingPlace(b) } : {}), url: c.link, cancelled: kind === "cancelled" }],
+    { method: kind === "cancelled" ? "CANCEL" : "PUBLISH", name: words.meta.name },
+  );
+  return send({ to: { member: b.memberId }, subject, text: format(t.hostBody, v), attachments: [{ name: t.fileName, type: "text/calendar; charset=utf-8", content: file }], key: `host:${kind}:${b.id}:${b.moves}` });
 }

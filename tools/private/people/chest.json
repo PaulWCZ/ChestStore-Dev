@@ -2,7 +2,7 @@
   "version": 2,
   "name": "people",
   "title": "People",
-  "description": "The team's directory and org chart: who does what, how to reach them, and checklists to welcome newcomers and see off those who leave.",
+  "description": "The team's directory and org chart, HR records with the staff register, and checklists to welcome newcomers and see off those who leave.",
   "icon": "chest/icon.svg",
   "preview": "chest/preview.png",
   "roles": [
@@ -15,7 +15,9 @@
   },
   "capabilities": [
     "database",
+    "files",
     "members",
+    "members.email",
     "notifications"
   ],
   "receives": [

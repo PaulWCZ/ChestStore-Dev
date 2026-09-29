@@ -10,13 +10,15 @@ import { isKind, memberPattern } from "../../../../lib/model.ts";
 import { today } from "../../../../lib/zone.ts";
 import { viewer } from "../../../../lib/session.ts";
 import { StartForm } from "./start-form.tsx";
+import { formatDay } from "../../../../lib/i18n/index.ts";
 
 // Starting a checklist: for whom, from which template, from which day. The
 // person's start date is offered for an arrival.
 export default async function NewChecklistPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const v = await viewer();
   if (!v) return null;
-  const { member, t } = v;
+  const { member, locale, t } = v;
+  const weekdays = Array.from({ length: 7 }, (_, i) => formatDay(`2024-01-${String(7 + i).padStart(2, "0")}`, locale, { weekday: "long" }));
   if (!can(member, "checklists.manage")) notFound();
   const sql = db();
   const [{ entries }, templates, told] = await Promise.all([directory(sql, member), listTemplates(sql, member), listArrivals(sql, member)]);
@@ -42,6 +44,7 @@ export default async function NewChecklistPage({ searchParams }: { searchParams:
           templates={templates.map(x => ({ id: x.id, name: x.name, kind: x.kind, steps: x.items.length }))}
           initial={{ person, kind, template }}
           today={today()}
+          weekdays={weekdays}
           t={{ start: t.start, kinds: t.checklists.kinds, group: t.arrivals.group, errors: t.errors }}
         />
       )}

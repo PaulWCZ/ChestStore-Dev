@@ -1,6 +1,7 @@
 import type { Member } from "@argentic/chest-sdk/member";
 import { can } from "./access.ts";
 import { AppError } from "./app-error.ts";
+import { checkBudgets } from "./budgets.ts";
 import { today } from "./clock.ts";
 import type { Query } from "./db.ts";
 import { cents, day as checkDay, id, limits, memberPattern } from "./model.ts";
@@ -74,7 +75,7 @@ export async function setRate(sql: Query, actor: Member | null, input: { kind?: 
   const t = target(input);
   const value = cents(input.cents, limits.rateCents);
   const from = input.from === origin ? origin : checkDay(input.from, today());
-  return transaction(sql, async tx => {
+  const steps = await transaction(sql, async tx => {
     if (t.projectId !== null) {
       const [p] = await tx`select 1 from projects where id = ${t.projectId} for update`;
       if (!p) throw new AppError("not_found");
@@ -92,6 +93,9 @@ export async function setRate(sql: Query, actor: Member | null, input: { kind?: 
     if (t.kind === "bill" && t.projectId !== null && t.memberId === null) await mirror(tx, t.projectId);
     return history(tx, t);
   });
+  // A money budget follows the project's amounts.
+  if (t.kind === "bill" && t.projectId !== null) await checkBudgets(sql, [t.projectId]);
+  return steps;
 }
 
 // mirror keeps projects.rate_cents at the project's rate in force today.

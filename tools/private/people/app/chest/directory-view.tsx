@@ -14,6 +14,8 @@ import { fold } from "../../lib/model.ts";
 export type Card = { id: string; name: string; photo: string | null; title: string; team: string; office: string; skills: string[]; isNew: boolean; me: boolean;
   // "Away · back on Mon 12 Oct", written on the server (Leave told People).
   away: string | null;
+  // More words the search finds (work address, extra fields).
+  also: string;
 };
 
 type Words = {
@@ -31,7 +33,7 @@ export function DirectoryView({ cards, locale, initial, welcome, t }: { cards: C
   const sorter = useMemo(() => new Intl.Collator(locale, { sensitivity: "base" }), [locale]);
   const teams = useMemo(() => [...new Set(cards.map(c => c.team).filter(Boolean))].sort(sorter.compare), [cards, sorter]);
   const offices = useMemo(() => [...new Set(cards.map(c => c.office).filter(Boolean))].sort(sorter.compare), [cards, sorter]);
-  const haystacks = useMemo(() => new Map(cards.map(c => [c.id, fold([c.name, c.title, c.team, c.office, ...c.skills].join(" "))])), [cards]);
+  const haystacks = useMemo(() => new Map(cards.map(c => [c.id, fold([c.name, c.title, c.team, c.office, ...c.skills, c.also].join(" "))])), [cards]);
   const words = fold(q).split(" ").filter(Boolean);
   const shown = cards.filter(c => (!team || c.team === team) && (!office || c.office === office) && words.every(w => haystacks.get(c.id)!.includes(w)));
   const filtered = q !== "" || team !== "" || office !== "";

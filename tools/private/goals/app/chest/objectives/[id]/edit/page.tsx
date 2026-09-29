@@ -1,3 +1,4 @@
+import * as chest from "@argentic/chest-sdk/chest";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Back } from "../../../../../components/icons.tsx";
@@ -6,6 +7,7 @@ import { AppError } from "../../../../../lib/app-error.ts";
 import { db } from "../../../../../lib/db.ts";
 import { formChoices } from "../../../../../lib/form-data.ts";
 import { readObjective } from "../../../../../lib/objectives.ts";
+import { viewersOf } from "../../../../../lib/read.ts";
 import { context } from "../../../../../lib/page-data.ts";
 import { everyone } from "../../../../../lib/people.ts";
 import { viewer } from "../../../../../lib/session.ts";
@@ -43,9 +45,11 @@ export default async function EditObjective({ params }: { params: Promise<{ id: 
         parents={choices.parents.filter(p => p.id !== o.id)}
         owners={owners}
         me={member.id}
-        initial={{ level: o.level, teamId: o.teamId ?? "", parentId: o.parentId ?? "", owner: o.owner, title: o.title, why: o.why }}
+        initial={{ level: o.level, teamId: o.teamId ?? "", parentId: o.parentId ?? "", owner: o.owner, title: o.title, why: o.why, visibility: o.visibility, viewers: await viewersOf(sql, o.id) }}
+        locale={v.locale}
+        currency={chest.currency()}
         personalNote={false}
-        t={{ form: t.form, kinds: t.kinds, kindHints: t.kindHints, levels: t.levels, errors: t.errors }}
+        t={{ form: t.form, kinds: t.kinds, kindHints: t.kindHints, levels: t.levels, errors: t.errors, visibility: t.visibility }}
       />
     </div>
   );

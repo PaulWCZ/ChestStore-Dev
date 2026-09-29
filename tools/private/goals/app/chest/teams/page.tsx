@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Contours } from "../../../components/contours.tsx";
 import { People } from "../../../components/icons.tsx";
 import { Confidence, Progress } from "../../../components/progress.tsx";
-import { can } from "../../../lib/access.ts";
+import { can, readerOf } from "../../../lib/access.ts";
 import { db } from "../../../lib/db.ts";
 import { plural } from "../../../lib/i18n/index.ts";
 import { objectiveProgress, percent, worst } from "../../../lib/model.ts";
@@ -22,7 +22,7 @@ export default async function Teams({ searchParams }: { searchParams: Promise<{ 
   const ctx = await context(sql, member);
   const asked = (await searchParams).cycle;
   const cycle = ctx.cycles.find(c => c.id === asked) ?? (await defaultCycle(sql));
-  const objectives = cycle ? await cycleObjectives(sql, cycle.id, ctx.clock) : [];
+  const objectives = cycle ? await cycleObjectives(sql, cycle.id, ctx.clock, readerOf(member)) : [];
   const active = ctx.teamList.filter(x => !x.archived);
   return (
     <div className="page">
@@ -49,7 +49,7 @@ export default async function Teams({ searchParams }: { searchParams: Promise<{ 
                   <Contours variant="small" />
                   <span className="eyebrow">{team.groupId ? t.teams.fromChest : t.levels.team}</span>
                   <h2>{team.name}</h2>
-                  <Progress percent={p} text={pctText(t, p)} label={`${team.name}: ${pctText(t, p)}`} />
+                  <Progress percent={p} text={pctText(t, p)} label={`${team.name}: ${pctText(t, p)}`} confidence={worst(mine.map(o => o.confidence))} />
                   <span className="meta">
                     <span>{plural(t.teams.objectives, mine.length, locale)}</span>
                     {team.members && <span>· {plural(t.teams.members, team.members.length, locale)}</span>}

@@ -5,11 +5,11 @@ import { useId, useState, useTransition, type FormEvent } from "react";
 import { useToast } from "../../../../components/toast.tsx";
 import type { ErrorCode } from "../../../../lib/app-error.ts";
 import { format } from "../../../../lib/i18n/format.ts";
-import type { Kind } from "../../../../lib/model.ts";
+import { isWeekend, type Kind } from "../../../../lib/model.ts";
 import { startChecklist } from "../../actions.ts";
 
 type Words = {
-  start: { person: string; choosePerson: string; template: string; chooseTemplate: string; firstDay: string; lastDay: string; submit: string; starting: string; told: string; manager: string; noManager: string };
+  start: { person: string; choosePerson: string; template: string; chooseTemplate: string; firstDay: string; lastDay: string; submit: string; starting: string; told: string; manager: string; noManager: string; weekend: string };
   group: string;
   kinds: Record<Kind, string>;
   errors: Record<ErrorCode, string>;
@@ -17,12 +17,14 @@ type Words = {
 
 // An arrival told by Hiring is "arrival:<id>" in the person picker: not a
 // member yet, so HR names their manager-to-be here.
-export function StartForm({ people, arrivals, templates, initial, today, t }: {
+export function StartForm({ people, arrivals, templates, initial, today, weekdays, t }: {
   people: { id: string; name: string; startDate: string | null }[];
   arrivals: { id: string; name: string; startDate: string | null; managerId: string | null }[];
   templates: { id: string; name: string; kind: Kind; steps: number }[];
   initial: { person: string; kind: Kind; template: string };
   today: string;
+  // The names of the days, Sunday first, in the reader's language.
+  weekdays: string[];
   t: Words;
 }) {
   const router = useRouter();
@@ -40,6 +42,7 @@ export function StartForm({ people, arrivals, templates, initial, today, t }: {
   const startDate = everyone.find(p => p.id === person)?.startDate ?? null;
   const [anchor, setAnchor] = useState(chosen.kind === "onboarding" && startDate ? startDate : today);
   const [touched, setTouched] = useState(false);
+  const weekend = /^\d{4}-\d{2}-\d{2}$/u.test(anchor) && isWeekend(anchor) ? weekdays[new Date(anchor + "T00:00:00Z").getUTCDay()]! : null;
   const suggest = (p: string, tid: string) => {
     if (touched) return;
     const k = templates.find(x => x.id === tid)?.kind;
@@ -92,7 +95,8 @@ export function StartForm({ people, arrivals, templates, initial, today, t }: {
       </fieldset>
       <div className="field-group">
         <label htmlFor={uid + "anchor"} className="label">{chosen.kind === "onboarding" ? t.start.firstDay : t.start.lastDay}</label>
-        <input id={uid + "anchor"} className="field short" type="date" value={anchor} required min="2000-01-01" max="2100-12-31" onChange={e => { setAnchor(e.target.value); setTouched(true); }} />
+        <input id={uid + "anchor"} className="field short" type="date" value={anchor} required min="2000-01-01" max="2100-12-31" onChange={e => { setAnchor(e.target.value); setTouched(true); }} aria-describedby={weekend ? uid + "weekend" : undefined} />
+        {weekend && <p id={uid + "weekend"} className="hint warn-hint" role="status">{format(t.start.weekend, { day: weekend })}</p>}
       </div>
       <p className="hint">{t.start.told}</p>
       {error && <p className="error" role="alert">{error}</p>}

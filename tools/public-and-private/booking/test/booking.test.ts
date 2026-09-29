@@ -188,7 +188,7 @@ test("bookings over for longer than kept are deleted; a guest's data can be eras
   await b.book(sql, host, type, { ...guest, email: "Sam@Example.com", start: "2026-10-06T08:00:00.000Z" }, monday);
   assert.equal(await b.cleanup(sql, Date.parse("2027-10-07T00:00:00Z")), 0);
   await refuses(b.eraseGuest(sql, asMember(ines), "sam@example.com"), "forbidden");
-  assert.equal(await b.eraseGuest(sql, asMember(camille), "sam@example.com"), 1);
+  assert.equal((await b.eraseGuest(sql, asMember(camille), "sam@example.com")).length, 1);
   assert.equal(await b.cleanup(sql, Date.parse("2028-11-01T00:00:00Z")), 1);
 });
 
@@ -202,8 +202,16 @@ test("the form's guard stops a visitor after a few bookings an hour", async () =
 test("the public forms' guard: the Chest counts when it can, the tool's own counters otherwise", async () => {
   const { admit, checkForm, formToken } = await import("../lib/guard.ts");
   const { sql } = await ready();
-  assert.throws(() => checkForm(formToken()), (e: unknown) => e instanceof AppError && e.code === "too_fast");
-  assert.throws(() => checkForm("nonsense"), (e: unknown) => e instanceof AppError && e.code === "invalid");
+  // A form sent within 3 seconds is not refused: the answer waits the rest
+  // (a clock that moves as it sleeps).
+  let clock = Date.now();
+  const slept: number[] = [];
+  await checkForm(formToken(clock - 1000), () => clock, async ms => { slept.push(ms); clock += ms; });
+  assert.ok(slept.length === 1 && slept[0]! >= 2000 && slept[0]! <= 2100, `waited ${slept[0]}`);
+  // In time: no wait at all.
+  await checkForm(formToken(clock - 5000), () => clock, async ms => { slept.push(ms); });
+  assert.equal(slept.length, 1);
+  await assert.rejects(checkForm("nonsense"), (e: unknown) => e instanceof AppError && e.code === "invalid");
   const h = new Headers({ "x-forwarded-for": "203.0.113.50" });
   for (let i = 0; i < b.formLimits.perVisitorHour; i++) await admit(sql, h, "book");
   await refuses(admit(sql, h, "book"), "too_many");

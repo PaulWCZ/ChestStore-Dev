@@ -56,7 +56,7 @@ export function WaitingList({ items, t }: { items: WaitingItem[]; t: Words }) {
           <div className="stack-s">
             <p className="where"><Link href={`/chest/objectives/${item.objectiveId}`}>{item.objectiveTitle}</Link></p>
             <h3>{item.title}</h3>
-            <Progress percent={item.percent} text={item.percentText} label={`${t.progress.label}: ${item.percentText}`} />
+            <Progress percent={item.percent} text={item.percentText} label={`${t.progress.label}: ${item.percentText}`} confidence={item.confidence} />
             <p className="hint">
               {format(t.checkIn.now, { value: item.current })} · {item.lastCheckIn ? format(t.objective.lastCheckIn, { when: item.lastCheckIn }) : t.objective.never}
               {item.stale && <> · <span className="tag stale">{t.progress.staleShort}</span></>}

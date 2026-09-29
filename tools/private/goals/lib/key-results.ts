@@ -5,7 +5,8 @@ import { AppError } from "./app-error.ts";
 import { openCycle } from "./cycles.ts";
 import type { Query, Sql } from "./db.ts";
 import { checkValue, clean, id, isConfidence, limits, measure, progress, undoMinutes, type Confidence, type Kind } from "./model.ts";
-import { activeMember, checkKeyResult, insertKeyResult, type KeyResultInput } from "./objectives.ts";
+import { refreshFed } from "./crm.ts";
+import { activeMember, checkKeyResult, checkSource, insertKeyResult, type KeyResultInput } from "./objectives.ts";
 
 // Key results and their weekly check-ins. A key result is added and
 // changed by its objective's owner (or an admin); its owner (or an admin)
@@ -45,10 +46,13 @@ export async function updateKeyResult(sql: Sql, actor: Member | null, keyResultI
   const owner = input.owner === undefined || input.owner === k.owner ? k.owner : await activeMember(input.owner);
   const weight = input.weight === undefined ? undefined : Number(input.weight);
   if (weight !== undefined && ![1, 2, 3].includes(weight)) throw new AppError("invalid");
+  const source = input.source === undefined ? k.source : checkSource(input.source);
   let m: { kind: Kind; unit: string; start: number; target: number } | undefined;
+  if (source === "crm.won_amount") input = { ...input, kind: "money" };
+  if (source === "crm.won_count") input = { ...input, kind: "number" };
   if (input.kind !== undefined || input.start !== undefined || input.target !== undefined || input.unit !== undefined) {
     const kind = input.kind ?? k.kind;
-    m = measure({ kind, unit: input.unit, start: input.start ?? k.start_value, target: input.target ?? k.target_value });
+    m = measure({ kind, unit: input.unit ?? k.unit, start: input.start ?? k.start_value, target: input.target ?? k.target_value });
     if (m.kind !== k.kind) {
       const [some] = await sql`select 1 from check_ins where key_result_id = ${k.id} limit 1`;
       if (some) throw new AppError("invalid");
@@ -81,8 +85,10 @@ export async function updateKeyResult(sql: Sql, actor: Member | null, keyResultI
           currency = case when ${m.kind} = 'money' then coalesce(currency, ${chest.currency()}) else null end
         where id = ${k.id}`;
     }
+    if (source !== k.source) await tx`update key_results set source = ${source} where id = ${k.id}`;
     for (const c of changes) await tx`insert into key_result_changes (key_result_id, field, before, after, author) values (${k.id}, ${c.field}, ${c.before}, ${c.after}, ${actor!.id})`;
   });
+  if (source) await refreshFed(sql, [String(k.id)]);
   return { previousOwner: k.owner, owner, title, objectiveId: String(k.objective_id), objectiveTitle: k.objective_title };
 }
 
@@ -105,7 +111,9 @@ export async function checkIn(sql: Sql, actor: Member | null, keyResultId: unkno
   const k = await load(sql, keyResultId);
   if (!mayCheckIn(actor, k)) throw new AppError("forbidden");
   await openCycle(sql, String(k.cycle_id));
-  const value = checkValue(k.kind, input.value);
+  // A value fed by the CRM is the CRM's: the check-in keeps it, and says
+  // how sure its owner is.
+  const value = k.source ? Number(k.current_value) : checkValue(k.kind, input.value);
   if (!isConfidence(input.confidence)) throw new AppError("invalid");
   const note = clean(input.note ?? "", limits.note, { multiline: true, optional: true });
   const made = await sql.begin(async tx => {

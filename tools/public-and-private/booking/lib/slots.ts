@@ -13,10 +13,14 @@ export type Ranges = [number, number][];
 export type Availability = { weekly: Ranges[]; overrides: Record<string, Ranges>; zone: string };
 // dailyLimit: at most this many bookings of the type on a day of the
 // host's calendar (0: no limit).
-export type Rules = { duration: number; interval: number; bufferBefore: number; bufferAfter: number; noticeMinutes: number; windowDays: number; dailyLimit: number };
-// The time a confirmed booking takes (buffers included); sameType: the
-// start of a booking of this very type, which counts for the daily limit.
-export type Busy = { start: number; end: number; sameType?: number };
+// hostDailyMax: at most this many meetings a day for the host, all types
+// together (0 or absent: no limit).
+export type Rules = { duration: number; interval: number; bufferBefore: number; bufferAfter: number; noticeMinutes: number; windowDays: number; dailyLimit: number; hostDailyMax?: number };
+// A time the host is not free: a confirmed booking (buffers included), a
+// time they blocked, a meeting of their own calendar. sameType: the start
+// of a booking of this very type, which counts for the daily limit; own:
+// the start of any booking of the host, for the host's daily maximum.
+export type Busy = { start: number; end: number; sameType?: number; own?: number };
 export type Slot = { start: string; end: string };
 
 export function validRanges(value: unknown): value is Ranges {
@@ -38,14 +42,21 @@ export function slots(availability: Availability, rules: Rules, busy: Busy[], ra
   const blocked = busy.map(b => ({ start: b.start - rules.bufferAfter * 60000, end: b.end + rules.bufferBefore * 60000 })).sort((a, b) => a.start - b.start);
   // The type's bookings per day of the host's calendar.
   const perDay = new Map<string, number>();
+  const allTypes = new Map<string, number>();
   for (const b of busy) {
+    if (b.own !== undefined) {
+      const day = wall(b.own, availability.zone).date;
+      allTypes.set(day, (allTypes.get(day) ?? 0) + 1);
+    }
     if (b.sameType === undefined) continue;
     const day = wall(b.sameType, availability.zone).date;
     perDay.set(day, (perDay.get(day) ?? 0) + 1);
   }
+  const hostMax = rules.hostDailyMax ?? 0;
   const found: Slot[] = [];
   for (let date = from; date <= to && found.length < 3000; date = addDays(date, 1)) {
     if (rules.dailyLimit > 0 && (perDay.get(date) ?? 0) >= rules.dailyLimit) continue;
+    if (hostMax > 0 && (allTypes.get(date) ?? 0) >= hostMax) continue;
     const ranges = availability.overrides[date] ?? availability.weekly[weekdayOf(date)] ?? [];
     for (const [open, close] of ranges) {
       for (let minute = open; minute + rules.duration <= close; minute += rules.interval) {

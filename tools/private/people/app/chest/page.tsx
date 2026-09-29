@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { AutoRefresh } from "../../components/auto-refresh.tsx";
-import { Cake, CheckList, Download, Star, Upload, Wave } from "../../components/icons.tsx";
+import { Cake, CheckList, Download, Star, Table, Upload, Wave } from "../../components/icons.tsx";
 import { Portrait } from "../../components/portrait.tsx";
 import { can } from "../../lib/access.ts";
 import { arriving, newcomers, thisMonth } from "../../lib/calendar.ts";
@@ -48,6 +48,8 @@ export default async function DirectoryPage({ searchParams }: { searchParams: Pr
   };
   const cards: Card[] = entries.map(e => ({
     id: e.id, name: e.name, photo: e.photo, title: e.title, team: e.team, office: e.office, skills: e.skills, isNew: freshIds.has(e.id), me: e.id === member.id, away: awayWords(e.id),
+    // Found by the search too: the work address and HR's extra fields.
+    also: [e.email, ...Object.values(e.extras)].filter(Boolean).join(" "),
   }));
   const welcome = (
     <>
@@ -101,6 +103,7 @@ export default async function DirectoryPage({ searchParams }: { searchParams: Pr
         </div>
         {(can(member, "directory.import") || can(member, "directory.export")) && (
           <div className="row">
+            {can(member, "profile.job") && <Link className="button quiet small" href="/chest/table"><Table />{t.directory.table}</Link>}
             {can(member, "directory.import") && <Link className="button quiet small" href="/chest/import"><Upload />{t.directory.import}</Link>}
             {can(member, "directory.export") && <a className="button quiet small" href="/chest/export" download><Download />{t.directory.export}</a>}
           </div>
@@ -155,7 +158,7 @@ export default async function DirectoryPage({ searchParams }: { searchParams: Pr
                     <Link href="/chest/checklists#arrivals">
                       <Portrait name={a.name} photo={null} size={40} />
                       <span className="moment-text">
-                        <strong>{a.name}<span className="source">{t.arrivals.fromHiring}</span></strong>
+                        <strong>{a.name}<span className="source">{a.source === "manual" ? t.arrivals.manual : t.arrivals.fromHiring}</span></strong>
                         <span className="muted">{[a.job, a.team].filter(Boolean).join(" · ")}</span>
                       </span>
                       <span className="moment-date">{a.startDate ? format(t.directory.startsOn, { date: formatDay(a.startDate, locale, { day: "numeric", month: "short" }) }) : t.arrivals.noDate}</span>

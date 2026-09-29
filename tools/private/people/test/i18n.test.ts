@@ -42,3 +42,10 @@ test("plurals and placeholders follow the language", () => {
   assert.equal(plural(catalogue("fr").directory.count, 1200, "fr"), "1\u202f200 personnes");
   assert.equal(format("{a} and {b}", { a: 1 }), "1 and {b}");
 });
+
+test("French typography: a narrow no-break space before : ; ? ! and inside « »", () => {
+  for (const [key, text] of leaves(catalogue("fr"))) {
+    assert.doesNotMatch(text, / [:;?!»]/u, `fr: ${key}`);
+    assert.doesNotMatch(text, /« /u, `fr: ${key}`);
+  }
+});

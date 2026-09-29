@@ -14,8 +14,16 @@ export const limits = {
   coverSize: 15 << 20,
   commentsPerPost: 1000,
   page: 20,
-  // The groups a post may be kept to.
+  // The groups and the people a post may be kept to.
   groupsPerPost: 16,
+  peoplePerPost: 500,
+  // Pictures of a post's gallery, and inside its text.
+  imagesPerPost: 20,
+  inlinePerPost: 20,
+  // Seats of an event.
+  seats: 10000,
+  // Days an event may last.
+  eventDays: 31,
   // A search: its length, its words, its results.
   query: 200,
   queryWords: 8,
@@ -90,4 +98,53 @@ export function groupIds(value: unknown): string[] {
   const list = [...new Set(value as string[])].sort();
   if (list.length > limits.groupsPerPost) throw new AppError("too_many", { max: limits.groupsPerPost });
   return list;
+}
+
+// peopleIds reads the people a post is kept to: member ids, each once,
+// sorted, at most limits.peoplePerPost.
+export function peopleIds(value: unknown): string[] {
+  if (!Array.isArray(value)) throw new AppError("invalid");
+  if (value.some(v => typeof v !== "string" || !memberPattern.test(v))) throw new AppError("no_person");
+  const list = [...new Set(value as string[])].sort();
+  if (list.length > limits.peoplePerPost) throw new AppError("too_many", { max: limits.peoplePerPost });
+  return list;
+}
+
+// Audience. A post is for everyone (no groups, no people), or for the
+// members of some of the Chest's groups and some people picked by hand:
+// either lets a person in. Pure: the composer counts with it too.
+export type Audience = { groups: readonly string[]; people: readonly string[] };
+export type Grouped = { id: string; groups: readonly string[] };
+
+export function inAudience(person: Grouped, post: Audience): boolean {
+  if (post.groups.length === 0 && post.people.length === 0) return true;
+  return post.people.includes(person.id) || post.groups.some(g => person.groups.includes(g));
+}
+
+export const isEveryone = (post: Audience): boolean => post.groups.length === 0 && post.people.length === 0;
+
+// Languages of a post: its own words (in the language it was written in)
+// and versions in other languages. Each reader sees their language's
+// version, or the post's own.
+export type Version = { locale: string; title: string; body: string };
+export function pick(post: { locale: string; title: string; body: string; versions: readonly Version[] }, locale: string): Version {
+  if (post.locale === locale) return { locale, title: post.title, body: post.body };
+  return post.versions.find(v => v.locale === locale) ?? { locale: post.locale, title: post.title, body: post.body };
+}
+
+// The pictures a text shows (![words](image:<id>)): their file ids, once.
+const imageRef = /!\[[^\]\n]{0,200}\]\(image:([1-9][0-9]{0,17})\)/gu;
+export function imageRefs(...texts: string[]): string[] {
+  return [...new Set(texts.flatMap(t => [...t.matchAll(imageRef)].map(m => m[1]!)))];
+}
+
+// Picture and video types a gallery shows (videos are played as they are:
+// no thumbnail, no transcoding).
+export const videoTypes = ["video/mp4", "video/webm"] as const;
+export const isVideoType = (type: string): boolean => (videoTypes as readonly string[]).includes(type);
+
+// Mentions: a comment names a person as @[mbr_…]; people read their name.
+export const mentionToken = /@\[(mbr_[a-z2-7]{26}|erased)\]/gu;
+export function withNames(text: string, name: (id: string) => string): string {
+  return text.replace(mentionToken, (_whole, who: string) => "@" + name(who));
 }

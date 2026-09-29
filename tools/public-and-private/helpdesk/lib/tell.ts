@@ -31,9 +31,9 @@ export async function answerers(): Promise<string[]> {
 const path = (t: Pick<Ticket, "number">) => `/chest/tickets/${t.number}`;
 
 // A new ticket nobody has: everyone who answers hears of it, until someone
-// takes it or answers it.
-export async function newTicket(t: Pick<Ticket, "id" | "number" | "subject" | "customerName" | "customerEmail">, body: string): Promise<void> {
-  const people = await answerers();
+// takes it or answers it. One a rule gave to someone: they alone.
+export async function newTicket(t: Pick<Ticket, "id" | "number" | "subject" | "customerName" | "customerEmail">, body: string, assignee: string | null = null): Promise<void> {
+  const people = assignee ? [assignee] : await answerers();
   await notify(people, tr => ({ title: format(tr.bell.new, { customer: cut(t.customerName || t.customerEmail, 40) }), body: cut(`${t.subject} — ${body}`, 280) }), { path: path(t), key: `ticket:${t.id}:new` });
 }
 
@@ -53,6 +53,18 @@ export async function assigned(actor: Member, t: Pick<Ticket, "id" | "number" | 
 // Answered or closed: nothing waits on the team any more.
 export async function answered(t: Pick<Ticket, "id">): Promise<void> {
   for (const reason of ["new", "reply", "assigned"]) await withdraw(`ticket:${t.id}:${reason}`);
+}
+
+// An email about a ticket will never arrive (the address does not exist):
+// whoever wrote it hears of it, to call the customer or fix the address.
+export async function bounced(t: Pick<Ticket, "id" | "number">, to: string, recipient: string): Promise<void> {
+  await notify([to], tr => ({ title: format(tr.bell.bounced, { number: t.number }), body: cut(recipient, 280) }), { path: path(t), key: `ticket:${t.id}:bounced` });
+}
+
+// The customer rated a closed request: its agent hears of it.
+export async function rated(t: Pick<Ticket, "id" | "number" | "assignee" | "customerName" | "customerEmail">, rating: "good" | "bad"): Promise<void> {
+  if (!t.assignee) return;
+  await notify([t.assignee], tr => ({ title: format(rating === "good" ? tr.bell.ratedGood : tr.bell.ratedBad, { customer: cut(t.customerName || t.customerEmail, 40), number: t.number }) }), { path: path(t), key: `ticket:${t.id}:rated` });
 }
 
 export async function refreshBadges(sql: Sql): Promise<void> {

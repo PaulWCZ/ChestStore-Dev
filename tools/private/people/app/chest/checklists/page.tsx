@@ -12,6 +12,8 @@ import { viewer } from "../../../lib/session.ts";
 import { listArrivals, suggestions } from "../../../lib/arrivals.ts";
 import { directory } from "../../../lib/directory.ts";
 import { ArrivalList, type ArrivalView } from "./arrivals-view.tsx";
+import { ArrivalForm } from "./arrival-form.tsx";
+import { choices } from "../../../lib/profiles.ts";
 import { ExamplesButton, NewTemplate } from "./template-buttons.tsx";
 
 // HR's page: the arrivals and departures in progress, with their progress,
@@ -25,6 +27,10 @@ export default async function ChecklistsPage() {
   const sql = db();
   const [journeys, templates, archived, expected, { entries }] = await Promise.all([listJourneys(sql, member), listTemplates(sql, member), listTemplates(sql, member, { archived: true }), listArrivals(sql, member), directory(sql, member)]);
   const suggested = suggestions(expected, entries);
+  const known = await choices(sql, member);
+  const weekdays = Array.from({ length: 7 }, (_, i) => formatDay(`2024-01-${String(7 + i).padStart(2, "0")}`, locale, { weekday: "long" }));
+  const peopleList = entries.map(e => ({ id: e.id, name: e.name }));
+  const formWords = { arrivals: t.arrivals, errors: t.errors };
   const arrivalViews: ArrivalView[] = expected.map(a => ({
     id: a.id,
     name: a.name,
@@ -33,6 +39,8 @@ export default async function ChecklistsPage() {
     cancelled: a.status === "cancelled",
     checklists: a.checklists,
     suggested: suggested.get(a.id)?.length === 1 ? suggested.get(a.id)![0]!.id : null,
+    source: a.source,
+    draft: a.source === "manual" ? { id: a.id, name: a.name, job: a.job, team: a.team, place: a.place, startDate: a.startDate, managerId: a.managerId, workEmail: a.workEmail } : null,
   }));
   const who = await people(journeys.flatMap(j => (j.personId ? [j.personId] : [])));
   const running = journeys.filter(j => !j.stopped && !j.completedAt);
@@ -47,7 +55,7 @@ export default async function ChecklistsPage() {
         <Link className="journey-card" href={`/chest/checklists/${j.id}`}>
           <Portrait name={person.name} photo={person.photo} size={52} />
           <span className="journey-main">
-            <strong>{person.name}{j.arrivalId && <span className="source">{t.arrivals.fromHiring}</span>}</strong>
+            <strong>{person.name}{j.arrivalId && <span className="source">{t.arrivals.group}</span>}</strong>
             <span className="muted">
               <span className={`kind ${j.kind}`}>{t.checklists.kinds[j.kind]}</span> {j.name} · {format(j.kind === "onboarding" ? t.checklists.firstDay : t.checklists.lastDay, { date: formatDay(j.anchor, locale, { day: "numeric", month: "short" }) })}
             </span>
@@ -75,15 +83,15 @@ export default async function ChecklistsPage() {
           <p>{t.checklists.empty.body}</p>
           <ExamplesButton t={buttonWords} />
           <NewTemplate t={buttonWords} quiet label={t.checklists.empty.scratch} />
+          <ArrivalForm people={peopleList} known={known} weekdays={weekdays} t={formWords} />
         </div>
       ) : (
         <>
-          {arrivalViews.length > 0 && (
-            <section id="arrivals" aria-labelledby="arrivals-title" className="section">
-              <h2 id="arrivals-title" className="eyebrow">{t.arrivals.title}</h2>
-              <ArrivalList arrivals={arrivalViews} people={entries.map(e => ({ id: e.id, name: e.name }))} locale={locale} t={{ arrivals: t.arrivals, errors: t.errors }} />
-            </section>
-          )}
+          <section id="arrivals" aria-labelledby="arrivals-title" className="section">
+            <h2 id="arrivals-title" className="eyebrow">{t.arrivals.title}</h2>
+            {arrivalViews.length > 0 && <ArrivalList arrivals={arrivalViews} people={peopleList} known={known} weekdays={weekdays} locale={locale} t={{ arrivals: t.arrivals, errors: t.errors }} />}
+            <div className="section-actions"><ArrivalForm people={peopleList} known={known} weekdays={weekdays} t={formWords} /></div>
+          </section>
           <section aria-labelledby="running-title" className="section">
             <h2 id="running-title" className="eyebrow">{t.checklists.running}</h2>
             {running.length === 0 ? <p className="muted">{t.checklists.noneRunning}</p> : <ul className="journey-cards">{running.map(row)}</ul>}

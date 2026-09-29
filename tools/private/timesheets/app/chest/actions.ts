@@ -8,12 +8,16 @@ import { everyone } from "../../lib/directory.ts";
 import * as entries from "../../lib/entries.ts";
 import { AppError, attempt, type Result } from "../../lib/errors.ts";
 import { catalogue, isLocale } from "../../lib/i18n/index.ts";
-import { planImport, runImport, type ImportPlan } from "../../lib/import.ts";
+import { forgetFormer as forget, planImport, runImport, type ImportOptions, type ImportPlan } from "../../lib/import.ts";
+import * as invoicing from "../../lib/invoicing.ts";
 import type { DateOrder } from "../../lib/import-formats.ts";
 import * as projects from "../../lib/projects.ts";
+import * as rates from "../../lib/rates.ts";
+import type { ReportQuery } from "../../lib/reports.ts";
 import { currentMember } from "../../lib/session.ts";
 import * as settings from "../../lib/settings.ts";
 import * as timer from "../../lib/timer.ts";
+import * as weeks from "../../lib/weeks.ts";
 
 // The server actions of the members' part. Each is an endpoint anyone can
 // call: each reads the member from the Chest's assertion again; the
@@ -39,7 +43,7 @@ export async function startTimer(input: { projectId: string; taskId: string | nu
 export async function updateTimer(input: { projectId?: string; taskId?: string | null; note?: string }): Promise<Result<null>> {
   return act(async actor => { await timer.updateTimer(db(), actor, input); return null; });
 }
-export async function stopTimer(at?: string): Promise<Result<{ entry: entries.Entry | null }>> {
+export async function stopTimer(at?: string): Promise<Result<{ entry: entries.Entry | null; day: string }>> {
   return act(actor => timer.stopTimer(db(), actor, at));
 }
 export async function discardTimer(): Promise<Result<timer.Discarded>> {
@@ -84,6 +88,48 @@ export async function updateEntry(entryId: string, input: entries.EntryInput): P
 export async function deleteEntry(entryId: string): Promise<Result<null>> {
   return act(async actor => { await entries.deleteEntry(db(), actor, entryId); return null; });
 }
+export async function setNote(entryId: string, note: string): Promise<Result<null>> {
+  return act(async actor => { await entries.setNote(db(), actor, entryId, note); return null; });
+}
+
+// The week sent for approval, and the managers' answers.
+export async function submitWeek(week: string): Promise<Result<weeks.WeekState>> {
+  return act(actor => weeks.submitWeek(db(), actor, week));
+}
+export async function withdrawWeek(week: string): Promise<Result<null>> {
+  return act(async actor => { await weeks.withdrawWeek(db(), actor, week); return null; });
+}
+export async function approveWeek(memberId: string, week: string): Promise<Result<null>> {
+  return act(async actor => { await weeks.approveWeek(db(), actor, memberId, week); return null; });
+}
+export async function returnWeek(memberId: string, week: string, reason: string): Promise<Result<null>> {
+  return act(async actor => { await weeks.returnWeek(db(), actor, memberId, week, reason); return null; });
+}
+export async function remind(memberIds: string[], week: string): Promise<Result<number>> {
+  return act(actor => weeks.remind(db(), actor, memberIds, week));
+}
+
+// People: rates, usual weeks, former people (managers).
+export async function setRate(input: { kind: "bill" | "cost"; projectId?: string | null; memberId?: string | null; cents: number | null; from: string }): Promise<Result<rates.RateStep[]>> {
+  return act(actor => rates.setRate(db(), actor, input));
+}
+export async function removeRateStep(input: { kind: "bill" | "cost"; projectId?: string | null; memberId?: string | null; from: string }): Promise<Result<rates.RateStep[]>> {
+  return act(actor => rates.removeStep(db(), actor, input));
+}
+export async function setCapacity(memberId: string, minutes: number | null): Promise<Result<null>> {
+  return act(async actor => { await weeks.setCapacity(db(), actor, memberId, minutes); return null; });
+}
+export async function forgetFormer(formerId: string): Promise<Result<null>> {
+  return act(async actor => { await forget(db(), actor, formerId); return null; });
+}
+
+// Invoiced time (managers).
+export async function markInvoiced(q: ReportQuery): Promise<Result<invoicing.Marked>> {
+  return act(actor => invoicing.markInvoiced(db(), actor, q));
+}
+export async function unmarkInvoiced(marked: invoicing.Marked): Promise<Result<number>> {
+  return act(actor => invoicing.unmarkInvoiced(db(), actor, marked));
+}
 
 // Clients, projects, tasks (managers).
 export async function createProject(input: projects.ProjectInput): Promise<Result<{ id: string }>> {
@@ -124,20 +170,24 @@ export async function lockUntil(day: string | null): Promise<Result<null>> {
 export async function saveReminder(input: { enabled: boolean; minutes: number }): Promise<Result<null>> {
   return act(async actor => { await settings.saveReminder(db(), actor, input); return null; });
 }
+export async function saveChoices(input: { approvals?: boolean; hoursStyle?: settings.HoursStyle }): Promise<Result<null>> {
+  return act(async actor => { await settings.saveChoices(db(), actor, input); return null; });
+}
 
 // Import (managers). The people of the Chest are read here, once per call.
-async function importOptions(actor: Member, order: DateOrder | null) {
+export type ImportChoices = { order: DateOrder | null; former: "keep" | "skip"; locked: "import" | "skip" };
+async function importOptions(actor: Member, choices: ImportChoices): Promise<ImportOptions> {
   if (!can(actor, "import")) throw new AppError("forbidden");
   const people = (await everyone()).map(p => ({ id: p.id, name: p.name }));
-  return { people, noProject: wordsOf(actor).importer.noProject, ...(order ? { order } : {}) };
+  return { people, noProject: wordsOf(actor).importer.noProject, former: choices.former === "skip" ? "skip" : "keep", locked: choices.locked === "import" ? "import" : "skip", ...(choices.order ? { order: choices.order } : {}) };
 }
-export async function previewImport(text: string, order: DateOrder | null): Promise<Result<ImportPlan>> {
+export async function previewImport(text: string, choices: ImportChoices): Promise<Result<ImportPlan>> {
   return attempt(async () => {
     const actor = await currentMember();
     if (!actor) throw new AppError("forbidden");
-    return planImport(db(), actor, text, await importOptions(actor, order));
+    return planImport(db(), actor, text, await importOptions(actor, choices));
   });
 }
-export async function importTime(text: string, order: DateOrder | null): Promise<Result<{ imported: number }>> {
-  return act(async actor => ({ imported: (await runImport(db(), actor, text, await importOptions(actor, order))).imported }));
+export async function importTime(text: string, choices: ImportChoices): Promise<Result<{ imported: number }>> {
+  return act(async actor => ({ imported: (await runImport(db(), actor, text, await importOptions(actor, choices))).imported }));
 }

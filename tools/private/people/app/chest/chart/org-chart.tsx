@@ -9,10 +9,12 @@ import { format, plural } from "../../../lib/i18n/format.ts";
 // The trees themselves: nested lists (a screen reader reads who reports to
 // whom), each manager's team folding open and shut with a button. A large
 // company starts folded below the second level.
-export type ChartNode = { id: string; name: string; photo: string | null; title: string; team: string; size: number; reports: ChartNode[] };
-type Words = { reports: { one: string; other: string }; hide: string; show: string };
+// left: a manager who left, kept above their reports until HR names
+// someone else (no profile to open).
+export type ChartNode = { id: string; name: string; photo: string | null; title: string; team: string; size: number; left: boolean; reports: ChartNode[] };
+type Words = { reports: { one: string; other: string }; hide: string; show: string; left: string; leftHr: string };
 
-export function OrgChart({ roots, me, locale, t }: { roots: ChartNode[]; me: string; locale: string; t: Words }) {
+export function OrgChart({ roots, me, hr, locale, t }: { roots: ChartNode[]; me: string; hr: boolean; locale: string; t: Words }) {
   const total = roots.reduce((n, r) => n + r.size, 0);
   const [closed, setClosed] = useState<Set<string>>(() => {
     const start = new Set<string>();
@@ -35,12 +37,21 @@ export function OrgChart({ roots, me, locale, t }: { roots: ChartNode[]; me: str
     const open = !closed.has(n.id);
     return (
       <li key={n.id} className="node">
-        <div className={n.id === me ? "node-card me" : "node-card"}>
-          <Link href={`/chest/people/${n.id}`} className="node-link">
-            <Portrait name={n.name} photo={n.photo} size={56} team={n.team} arch />
-            <span className="node-name">{n.name}</span>
-            {n.title && <span className="node-title">{n.title}</span>}
-          </Link>
+        <div className={n.left ? "node-card left" : n.id === me ? "node-card me" : "node-card"}>
+          {n.left ? (
+            <div className="node-link">
+              <Portrait name={n.name} photo={null} size={56} arch />
+              <span className="node-name">{n.name}</span>
+              <span className="node-title left-tag">{t.left}</span>
+              {hr && <Link className="node-fix" href={`/chest/table`}>{t.leftHr}</Link>}
+            </div>
+          ) : (
+            <Link href={`/chest/people/${n.id}`} className="node-link">
+              <Portrait name={n.name} photo={n.photo} size={56} team={n.team} arch />
+              <span className="node-name">{n.name}</span>
+              {n.title && <span className="node-title">{n.title}</span>}
+            </Link>
+          )}
           {n.reports.length > 0 && (
             <button type="button" className="node-toggle" aria-expanded={open} aria-controls={"team-" + n.id} onClick={() => toggle(n.id)} aria-label={format(open ? t.hide : t.show, { name: n.name })}>
               <span aria-hidden="true">{plural(t.reports, n.size - 1, locale)}</span>

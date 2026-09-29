@@ -57,7 +57,6 @@ create table crm_deals (
   deal text primary key check (char_length(deal) between 1 and 64),
   amount_cents bigint,
   currency text check (currency ~ '^[A-Z]{3}$'),
-  owner text,
   won_at timestamptz,          -- null once reopened
   updated_at timestamptz not null default now()
 );

@@ -68,6 +68,7 @@ export function DayPanel({ day, total, items, projects, lock, t }: { day: DayInf
                 <span className="num entry-time">{formatDuration(e.minutes)}</span>
                 {e.span && <span className="entry-span num" title={t.day.fromTimer}>{e.span}</span>}
                 {!e.billable && <span className="tag">{t.day.notBillable}</span>}
+                {e.invoiced && <span className="tag">{t.day.invoiced}</span>}
               </div>
               <div className="entry-actions">
                 {e.locked ? <span className="tag"><Lock />{t.day.lockedEntry}</span> : (

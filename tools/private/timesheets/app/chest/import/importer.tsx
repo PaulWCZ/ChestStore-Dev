@@ -8,23 +8,27 @@ import type { Catalogue } from "../../../lib/i18n/index.ts";
 import { format, formatDay, plural } from "../../../lib/i18n/format.ts";
 import type { ImportPlan } from "../../../lib/import.ts";
 import { maxBytes, type DateOrder } from "../../../lib/import-formats.ts";
-import { importTime, previewImport } from "../actions.ts";
+import { importTime, previewImport, type ImportChoices } from "../actions.ts";
 
 type Words = { importer: Catalogue["importer"]; errors: Catalogue["errors"] };
 
-// Choose the file, check what will come (people found or not, what will
-// be created, what is left out and why), import. Nothing is saved before
-// the last button.
+// Choose the file, check what will come (people found or kept as former
+// members, what will be created, what is left out and why), import.
+// Nothing is saved before the last button; rows before the lock date come
+// only if the manager says so (the page asks).
 export function Importer({ locale, t }: { locale: string; t: Words }) {
   const w = t.importer;
   const [file, setFile] = useState<{ name: string; text: string } | null>(null);
   const [plan, setPlan] = useState<ImportPlan | null>(null);
   const [order, setOrder] = useState<DateOrder | null>(null);
+  const [former, setFormer] = useState<"keep" | "skip">("keep");
+  const [locked, setLocked] = useState<"import" | "skip" | null>(null);
+  const choices = (over: Partial<ImportChoices> = {}): ImportChoices => ({ order, former, locked: locked ?? "skip", ...over });
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<{ count: number; from: string | null; to: string | null } | null>(null);
   const [pending, start] = useTransition();
 
-  function preview(text: string, chosen: DateOrder | null) {
+  function preview(text: string, chosen: ImportChoices) {
     start(async () => {
       const r = await previewImport(text, chosen);
       if (!r.ok) {
@@ -39,15 +43,17 @@ export function Importer({ locale, t }: { locale: string; t: Words }) {
     setDone(null);
     setPlan(null);
     setOrder(null);
+    setFormer("keep");
+    setLocked(null);
     if (f.size > maxBytes) return setError(format(t.errors.import_too_big, { max: 5 }));
     const text = await f.text();
     setFile({ name: f.name, text });
-    preview(text, null);
+    preview(text, { order: null, former: "keep", locked: "skip" });
   }
   function submit() {
     if (!file) return;
     start(async () => {
-      const r = await importTime(file.text, order);
+      const r = await importTime(file.text, choices());
       if (!r.ok) return setError(format(t.errors[r.error], r.values));
       setDone({ count: r.value.imported, from: plan?.from ?? null, to: plan?.to ?? null });
       setPlan(null);
@@ -95,7 +101,7 @@ export function Importer({ locale, t }: { locale: string; t: Words }) {
               <div className="segmented">
                 {(["dmy", "mdy"] as const).map(o => (
                   <label key={o} className="seg">
-                    <input type="radio" name="order" checked={(order ?? plan.dates.order) === o} onChange={() => { setOrder(o); if (file) preview(file.text, o); }} />
+                    <input type="radio" name="order" checked={(order ?? plan.dates.order) === o} onChange={() => { setOrder(o); if (file) preview(file.text, choices({ order: o })); }} />
                     <span>{o === "dmy" ? w.dayFirst : w.monthFirst}</span>
                   </label>
                 ))}
@@ -108,12 +114,34 @@ export function Importer({ locale, t }: { locale: string; t: Words }) {
           <p className="hint">{w.peopleHint}</p>
           <ul className="import-people">
             {plan.people.map(p => (
-              <li key={p.name} className={p.memberId ? "found" : "missing"}>
+              <li key={p.name} className={p.memberId ? "found" : p.former ? "former" : "missing"}>
                 <span>{p.name}</span>
-                <span className="muted small">{plural(w.rows, p.rows, locale)} · {p.memberId ? w.matched : w.unmatched}</span>
+                <span className="muted small">{plural(w.rows, p.rows, locale)} · {p.memberId ? w.matched : p.former ? w.former : w.unmatched}</span>
               </li>
             ))}
           </ul>
+          {plan.people.some(p => !p.memberId) && (
+            <label className="check">
+              <input type="checkbox" checked={former === "keep"} onChange={e => { const next = e.target.checked ? "keep" : "skip"; setFormer(next); if (file) preview(file.text, choices({ former: next })); }} />
+              <span>{w.keepFormer}</span>
+            </label>
+          )}
+          {plan.locked.rows > 0 && (
+            <fieldset className="field-block ask">
+              <legend className="label">{plan.locked.until ? format(plural(w.lockedAsk, plan.locked.rows, locale), { date: formatDay(plan.locked.until, locale, { day: "numeric", month: "long", year: "numeric" }) }) : plural(w.closedAsk, plan.locked.rows, locale)}</legend>
+              <div className="segmented">
+                {(["import", "skip"] as const).map(o => (
+                  <label key={o} className="seg">
+                    <input type="radio" name="locked" checked={locked === o} onChange={() => { setLocked(o); if (file) preview(file.text, choices({ locked: o })); }} />
+                    <span>{o === "import" ? w.lockedImport : w.lockedSkip}</span>
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+          )}
+          {plan.rates.kept > 0 && <p className="small">{format(w.ratesKept, { source: w.sources[plan.source] })}</p>}
+          {plan.rates.ignored && <p className="small muted">{format(w.ratesIgnored, { currency: plan.rates.currency ?? "" })}</p>}
+          {plan.invoiced > 0 && <p className="small">{plural(w.invoicedRows, plan.invoiced, locale)}</p>}
           <h3 className="label">{w.created}</h3>
           {plan.newClients.length + plan.newProjects.length + plan.newTasks === 0 ? <p className="muted">{w.nothingNew}</p> : (
             <p>
@@ -127,7 +155,8 @@ export function Importer({ locale, t }: { locale: string; t: Words }) {
               <ul className="skipped">{skipped.map(([k, n]) => <li key={k}>{plural(w.skipped[k], n, locale)}</li>)}</ul>
             </>
           )}
-          {plan.ready > 0 && <button type="button" className="button" disabled={pending} onClick={submit}>{pending ? w.importing : plural(w.submit, plan.ready, locale)}</button>}
+          {plan.ready > 0 && <button type="button" className="button" disabled={pending || (plan.locked.rows > 0 && locked === null)} onClick={submit}>{pending ? w.importing : plural(w.submit, plan.ready, locale)}</button>}
+          {plan.locked.rows > 0 && locked === null && <p className="hint">{w.lockedFirst}</p>}
         </section>
       )}
     </div>

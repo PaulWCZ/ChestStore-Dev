@@ -13,7 +13,8 @@ const config: NextConfig = {
   poweredByHeader: false,
   reactStrictMode: true,
   typescript: { ignoreBuildErrors: true },
-  experimental: { cpus: 1, webpackBuildWorker: false, webpackMemoryOptimizations: true },
+  // forbidden() answers 403 with app/chest/forbidden.tsx (pages for managers).
+  experimental: { cpus: 1, webpackBuildWorker: false, webpackMemoryOptimizations: true, authInterrupts: true },
   webpack: webpackConfig => ({ ...webpackConfig, cache: false }),
 };
 

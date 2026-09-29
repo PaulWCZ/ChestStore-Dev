@@ -38,6 +38,8 @@ export type KeyResultView = {
   startInput: string;
   targetInput: string;
   unit: string;
+  currency: string | null;
+  source: "manual" | "crm.won_amount" | "crm.won_count";
   weight: number;
   percent: number;
   percentText: string;
@@ -67,6 +69,8 @@ export function keyResultView(k: KeyResult, objective: { owner: string }, ctx: {
     startInput: plainNumber(k.start, locale),
     targetInput: plainNumber(k.target, locale),
     unit: k.unit,
+    currency: k.currency,
+    source: k.source ?? "manual",
     weight: k.weight,
     percent: percent(k.progress) ?? 0,
     percentText: pctText(t, percent(k.progress)),
@@ -85,6 +89,7 @@ export type ObjectiveView = {
   id: string;
   title: string;
   why: string;
+  visibility: "everyone" | "team" | "people";
   level: Level;
   levelText: string;
   teamId: string | null;
@@ -109,6 +114,7 @@ export function objectiveView(o: Objective, ctx: { actor: Member; people: Map<st
     id: o.id,
     title: o.title,
     why: o.why,
+    visibility: o.visibility,
     level: o.level,
     levelText: t.levels[o.level],
     teamId: o.teamId,

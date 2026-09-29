@@ -5,7 +5,8 @@ import { inAudience, type Audience } from "./access.ts";
 
 // Everyone who has News with a role: the readers of the company's front
 // page. The Chest answers 500 at a time; News reads up to 10,000 people.
-// groups: the groups that give them News (a post's audience).
+// groups: their groups (all of them with the "groups" permission; those
+// that give News without it) — a post's audience.
 export type Reader = { id: string; name: string; photo: string | null; locale: Locale; role: string | null; groups: string[] };
 
 export const pageSize = 500;
@@ -52,6 +53,18 @@ export async function hasTool(memberId: string): Promise<boolean | "unavailable"
   }
 }
 
+// haveTool says which of these members have News now (a post kept to
+// people names only colleagues who do). Unavailable when the Chest cannot
+// be asked.
+export async function haveTool(ids: string[]): Promise<Set<string> | "unavailable"> {
+  try {
+    return new Set((await members.lookup(ids)).members.map(m => m.id));
+  } catch (error) {
+    if (error instanceof ChestError) return "unavailable";
+    throw error;
+  }
+}
+
 // tally is who confirmed an Important post and who has not yet, counted on
 // its audience only: a confirmation left by someone it is no longer for
 // (its groups changed, or theirs) is not counted; someone who left the
@@ -64,4 +77,13 @@ export function tally<C extends { member: string }>(post: Audience & { author: s
   });
   const done = new Set(counted.map(c => c.member));
   return { confirmed: counted, pending: people.filter(p => p.id !== post.author && inAudience(p, post) && !done.has(p.id)) };
+}
+
+// reach counts, among a post's audience (not its author), how many came to
+// News after it was published — any page, never which (lib/posts.ts,
+// touch). Counts only: never who (README, "Works council").
+export function reach(post: Audience & { author: string; publishAt: string }, people: Reader[], activity: Map<string, Date>): { came: number; total: number } {
+  const audience = people.filter(p => p.id !== post.author && inAudience(p, post));
+  const since = new Date(post.publishAt).getTime();
+  return { came: audience.filter(p => (activity.get(p.id)?.getTime() ?? 0) >= since).length, total: audience.length };
 }

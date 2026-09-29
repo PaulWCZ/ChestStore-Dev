@@ -12,8 +12,18 @@ import { visitorKey } from "./public-origin.ts";
 
 export const formToken = () => visitors.formToken();
 
-export function checkForm(token: unknown): void {
-  const verdict = visitors.checkForm(token, { minimumSeconds: formLimits.minimumSeconds });
+// checkForm refuses a form that is not ours; one sent faster than a person
+// types (a browser that fills the fields itself, a quick returning guest)
+// is not refused: the answer waits the few seconds left — a person sees a
+// slower "Booking…", a robot gains nothing.
+export async function checkForm(token: unknown, now = Date.now, sleep = (ms: number) => new Promise(r => setTimeout(r, ms))): Promise<void> {
+  const minimumSeconds = formLimits.minimumSeconds;
+  let verdict = visitors.checkForm(token, { minimumSeconds, now: now() });
+  if (verdict === "too_fast") {
+    const shown = Number(String(token).split(".")[0]);
+    await sleep(Math.max(0, Math.min(minimumSeconds * 1000, shown + minimumSeconds * 1000 - now())) + 20);
+    verdict = visitors.checkForm(token, { minimumSeconds, now: now() });
+  }
   if (verdict === "too_fast") throw new AppError("too_fast");
   if (verdict === "invalid") throw new AppError("invalid");
 }

@@ -1,20 +1,22 @@
 import { createHash, randomBytes } from "node:crypto";
 import * as chest from "@argentic/chest-sdk/chest";
-import type { Member } from "@argentic/chest-sdk/member";
+import { memberIdPattern, type Member } from "@argentic/chest-sdk/member";
 import { can } from "./access.ts";
 import { AppError } from "./app-error.ts";
 import type { Query } from "./db.ts";
 import { clean, colors, email, id, isColor, isLocationKind, limits, minutes, phone, slug, slugify, type Color, type LocationKind } from "./model.ts";
 import { cleanAnswers, cleanQuestions, readAnswers, readQuestions, type Answer, type Question } from "./questions.ts";
 import { defaultWeek, slots, validRanges, type Busy, type Ranges, type Slot } from "./slots.ts";
-import { addDays, isDate, isZone, wall } from "./zone.ts";
+import { addDays, instantOf, isDate, isZone, wall } from "./zone.ts";
 
 // Booking's services: hosts and their hours, booking types, the free times
 // a visitor sees and the bookings they make. Every function takes the
 // database (or a transaction) and, on the team side, who acts; it checks
 // the right itself and throws an AppError code when it refuses.
 
-export type Host = { memberId: string; slug: string; zone: string; weekly: Ranges[]; listed: boolean; away: boolean; welcome: string; hasFeed: boolean };
+// dailyMax: at most this many meetings a day, all types (0: no limit);
+// emailMe: an email with each booking's calendar file.
+export type Host = { memberId: string; slug: string; zone: string; weekly: Ranges[]; listed: boolean; away: boolean; welcome: string; hasFeed: boolean; dailyMax: number; emailMe: boolean };
 export type BookingType = {
   id: string;
   memberId: string;
@@ -35,6 +37,12 @@ export type BookingType = {
   questions: Question[];
   color: Color;
   active: boolean;
+  // A room of its own for each booking, made under location.
+  videoRooms: boolean;
+  // Shown to the guest once booked (https).
+  paymentLink: string;
+  // Other hosts who take this type too: the first of them free takes it.
+  pool: string[];
 };
 export type Override = { day: string; ranges: Ranges; note: string };
 export type Booking = {
@@ -63,10 +71,21 @@ export type Booking = {
   moves: number;
   // The guest's link: for their emails only, never shown to the team.
   secret: string;
+  // The booking's own video room ("" : the type's link, in location).
+  videoLink: string;
+  // Made by the guest on the page, by a host for them, or imported.
+  source: "page" | "host" | "import";
+  bookedBy: string | null;
+  paymentLink: string;
+  paid: boolean;
 };
+// Where to meet: the booking's own room, or the type's link or address.
+export const meetingPlace = (b: Pick<Booking, "videoLink" | "location">) => b.videoLink || b.location;
 // mailWorks: whether the last email the tool tried went out (null: none
 // tried yet) — the pages say when guests get no email.
-export type Settings = { companyName: string; retentionMonths: number; defaultZone: string; publicOrigin: string | null; mailWorks: boolean | null };
+// embedOrigins: the websites that may show the public pages in a frame;
+// calendarWorks: whether the last put in the Chest's calendar went through.
+export type Settings = { companyName: string; retentionMonths: number; defaultZone: string; publicOrigin: string | null; mailWorks: boolean | null; embedOrigins: string[]; calendarWorks: boolean | null };
 
 export const hashSecret = (secret: string) => createHash("sha256").update(secret).digest("hex");
 const newSecret = () => randomBytes(24).toString("base64url");
@@ -79,13 +98,15 @@ const newSecret = () => randomBytes(24).toString("base64url");
 // for a Chest that does not give it yet.
 export async function settings(sql: Query): Promise<Settings> {
   const rows = await sql<{ key: string; value: unknown }[]>`select key, value from settings`;
-  const s: Settings = { companyName: chest.company(), retentionMonths: 24, defaultZone: chest.timeZone(), publicOrigin: chest.publicUrl(), mailWorks: null };
+  const s: Settings = { companyName: chest.company(), retentionMonths: 24, defaultZone: chest.timeZone(), publicOrigin: chest.publicUrl(), mailWorks: null, embedOrigins: [], calendarWorks: null };
   for (const { key, value } of rows) {
     if (key === "company_name" && typeof value === "string" && value !== "") s.companyName = value;
     if (key === "retention_months" && typeof value === "number") s.retentionMonths = value;
     if (key === "default_zone" && isZone(value)) s.defaultZone = value;
     if (key === "public_origin" && typeof value === "string" && !chest.publicUrl()) s.publicOrigin = value;
     if (key === "mail_works" && typeof value === "boolean") s.mailWorks = value;
+    if (key === "calendar_works" && typeof value === "boolean") s.calendarWorks = value;
+    if (key === "embed_origins" && Array.isArray(value)) s.embedOrigins = value.filter((o): o is string => typeof o === "string" && isOrigin(o));
   }
   return s;
 }
@@ -94,14 +115,43 @@ async function put(sql: Query, key: string, value: unknown): Promise<void> {
   await sql`insert into settings (key, value) values (${key}, ${sql.json(value as never)}) on conflict (key) do update set value = excluded.value`;
 }
 
-export async function saveSettings(sql: Query, actor: Member, input: { companyName: unknown; retentionMonths: unknown; defaultZone: unknown }): Promise<void> {
+export async function saveSettings(sql: Query, actor: Member, input: { companyName: unknown; retentionMonths: unknown; defaultZone: unknown; embedOrigins?: unknown }): Promise<void> {
   if (!can(actor, "settings")) throw new AppError("forbidden");
   const name = clean(input.companyName, limits.name, { optional: true });
   const months = minutes(input.retentionMonths, 0, 120);
   if (!isZone(input.defaultZone)) throw new AppError("invalid");
+  const origins = input.embedOrigins === undefined ? undefined : embedOrigins(input.embedOrigins);
   await put(sql, "company_name", name);
   await put(sql, "retention_months", months);
   await put(sql, "default_zone", input.defaultZone);
+  if (origins !== undefined) await put(sql, "embed_origins", origins);
+}
+
+// The websites allowed to show the booking pages in a frame (the
+// company's own): one per line, https, the address of the site only
+// ("https://www.atelier-martin.fr"), ten at most.
+export function embedOrigins(value: unknown): string[] {
+  const lines = Array.isArray(value) ? value : typeof value === "string" ? value.split(/[\s,]+/u) : null;
+  if (!lines) throw new AppError("invalid");
+  const out: string[] = [];
+  for (const raw of lines) {
+    if (typeof raw !== "string" || raw.trim() === "") continue;
+    let url: URL;
+    try {
+      url = new URL(raw.trim());
+    } catch {
+      throw new AppError("invalid_site", { site: raw.trim().slice(0, 60) });
+    }
+    if (url.protocol !== "https:" || url.username || url.password || !isOrigin(url.origin)) throw new AppError("invalid_site", { site: raw.trim().slice(0, 60) });
+    if (!out.includes(url.origin)) out.push(url.origin);
+  }
+  if (out.length > 10) throw new AppError("too_many_sites", { max: 10 });
+  return out;
+}
+const isOrigin = (o: string) => /^https:\/\/[a-z0-9.-]{1,253}(:\d{1,5})?$/u.test(o);
+
+export async function rememberCalendar(sql: Query, works: boolean): Promise<void> {
+  await sql`insert into settings (key, value) values ('calendar_works', ${sql.json(works)}) on conflict (key) do update set value = excluded.value where settings.value <> excluded.value`;
 }
 
 // The public host's address, remembered from requests: emails written
@@ -118,8 +168,8 @@ export async function rememberDelivery(sql: Query, delivery: "email" | "page"): 
 
 // ——— Hosts ———
 
-type HostRow = { member_id: string; slug: string; zone: string; weekly: Ranges[]; listed: boolean; away: boolean; welcome: string; feed_hash: string | null };
-const toHost = (r: HostRow): Host => ({ memberId: r.member_id, slug: r.slug, zone: r.zone, weekly: r.weekly, listed: r.listed, away: r.away, welcome: r.welcome, hasFeed: r.feed_hash !== null });
+type HostRow = { member_id: string; slug: string; zone: string; weekly: Ranges[]; listed: boolean; away: boolean; welcome: string; feed_hash: string | null; daily_max: number; email_me: boolean };
+const toHost = (r: HostRow): Host => ({ memberId: r.member_id, slug: r.slug, zone: r.zone, weekly: r.weekly, listed: r.listed, away: r.away, welcome: r.welcome, hasFeed: r.feed_hash !== null, dailyMax: r.daily_max ?? 0, emailMe: r.email_me ?? true });
 
 export async function hostOf(sql: Query, memberId: string): Promise<Host | null> {
   const [row] = await sql<HostRow[]>`select * from hosts where member_id = ${memberId}`;
@@ -167,6 +217,15 @@ export async function saveHost(sql: Query, actor: Member, input: { slug: unknown
     if (isUnique(error)) throw new AppError("slug_taken");
     throw error;
   }
+}
+
+// The host's own limits and wishes: at most N meetings a day, all types;
+// an email with each booking.
+export async function saveHostPrefs(sql: Query, actor: Member, input: { dailyMax: unknown; emailMe: unknown }): Promise<void> {
+  if (!can(actor, "host")) throw new AppError("forbidden");
+  const max = minutes(input.dailyMax, 0, 50);
+  const done = await sql`update hosts set daily_max = ${max}, email_me = ${input.emailMe !== false} where member_id = ${actor.id}`;
+  if (done.count === 0) throw new AppError("not_host");
 }
 
 export async function saveWeekly(sql: Query, actor: Member, weekly: unknown): Promise<void> {
@@ -260,6 +319,9 @@ type TypeRow = {
   questions: unknown;
   color: string;
   active: boolean;
+  video_rooms: boolean;
+  payment_link: string;
+  pool: unknown;
 };
 const toType = (r: TypeRow): BookingType => ({
   id: String(r.id),
@@ -279,6 +341,9 @@ const toType = (r: TypeRow): BookingType => ({
   questions: readQuestions(r.questions),
   color: isColor(r.color) ? r.color : "sky",
   active: r.active,
+  videoRooms: r.video_rooms ?? false,
+  paymentLink: r.payment_link ?? "",
+  pool: Array.isArray(r.pool) ? r.pool.filter((m): m is string => typeof m === "string" && memberIdPattern.test(m)) : [],
 });
 
 export async function typesOf(sql: Query, memberId: string, options: { activeOnly?: boolean } = {}): Promise<BookingType[]> {
@@ -304,15 +369,24 @@ export type TypeInput = {
   questions?: unknown;
   color: unknown;
   active: unknown;
+  videoRooms?: unknown;
+  paymentLink?: unknown;
+  // Administrators only: other hosts who take the type too.
+  pool?: unknown;
 };
 
 function typeValues(input: TypeInput) {
   const title = clean(input.title, limits.title);
   const duration = minutes(input.duration, 5, 480);
   if (!isLocationKind(input.locationKind)) throw new AppError("invalid");
-  const location = clean(input.location, limits.location, { optional: true });
+  const videoRooms = input.locationKind === "video" && input.videoRooms === true;
+  // A room per booking: under Jitsi's free rooms unless the host gives
+  // their own address.
+  const location = clean(input.location, limits.location, { optional: true }) || (videoRooms ? defaultRooms : "");
   // A video link is a web address the guest opens: only https.
-  if (input.locationKind === "video" && location !== "" && !/^https:\/\/[^\s<>"]+$/u.test(location)) throw new AppError("invalid_link");
+  if (input.locationKind === "video" && location !== "" && !isLink(location)) throw new AppError("invalid_link");
+  const paymentLink = clean(input.paymentLink ?? "", limits.location, { optional: true });
+  if (paymentLink !== "" && !isLink(paymentLink)) throw new AppError("invalid_link");
   return {
     title,
     slug: slug(input.slug === "" || input.slug === undefined ? slugify(title) : input.slug),
@@ -329,18 +403,46 @@ function typeValues(input: TypeInput) {
     questions: cleanQuestions(input.questions),
     color: isColor(input.color) ? input.color : colors[0],
     active: input.active !== false,
+    video_rooms: videoRooms,
+    payment_link: paymentLink,
   };
+}
+
+const isLink = (text: string) => /^https:\/\/[^\s<>"]+$/u.test(text);
+export const defaultRooms = "https://meet.jit.si/";
+
+// roomLink makes a booking's own video room: the type's address with a
+// room name nobody can guess ("{room}" in it is replaced; otherwise the
+// name is added at its end).
+export function roomLink(base: string, company: string): string {
+  const room = `${slugify(company || "meeting").slice(0, 24)}-${randomBytes(9).toString("base64url").toLowerCase().replace(/[^a-z0-9]/gu, "x")}`;
+  if (base.includes("{room}")) return base.replace("{room}", room);
+  return base.endsWith("/") ? base + room : `${base}/${room}`;
+}
+
+// cleanPool reads the other hosts of a team type: member ids of hosts who
+// have a page here, not the owner, ten at most.
+async function cleanPool(sql: Query, actor: Member, value: unknown): Promise<string[] | undefined> {
+  if (value === undefined) return undefined;
+  if (!Array.isArray(value) || value.length > 10) throw new AppError("invalid");
+  const ids = [...new Set(value.filter((m): m is string => typeof m === "string" && memberIdPattern.test(m) && m !== actor.id))];
+  if (ids.length > 0 && !can(actor, "settings")) throw new AppError("forbidden");
+  if (ids.length === 0) return [];
+  const rows = await sql<{ member_id: string }[]>`select member_id from hosts where member_id in ${sql(ids)} and not away`;
+  const found = new Set(rows.map(r => r.member_id));
+  return ids.filter(m => found.has(m));
 }
 
 export async function createType(sql: Query, actor: Member, input: TypeInput): Promise<BookingType> {
   if (!can(actor, "host")) throw new AppError("forbidden");
   const v = typeValues(input);
   if (!(await hostOf(sql, actor.id))) throw new AppError("not_host");
+  const pool = (await cleanPool(sql, actor, input.pool)) ?? [];
   const [row] = await sql<{ n: number }[]>`select count(*)::int as n from types where member_id = ${actor.id}`;
   const n = row?.n ?? 0;
   if (n >= limits.typesPerHost) throw new AppError("too_many_types", { max: limits.typesPerHost });
   try {
-    const [row] = await sql<TypeRow[]>`insert into types ${sql({ ...v, questions: sql.json(v.questions as never), member_id: actor.id, position: n })} returning *`;
+    const [row] = await sql<TypeRow[]>`insert into types ${sql({ ...v, questions: sql.json(v.questions as never), pool: sql.json(pool as never), member_id: actor.id, position: n })} returning *`;
     return toType(row!);
   } catch (error) {
     if (isUnique(error)) throw new AppError("slug_taken");
@@ -351,8 +453,10 @@ export async function createType(sql: Query, actor: Member, input: TypeInput): P
 export async function updateType(sql: Query, actor: Member, typeId: unknown, input: TypeInput): Promise<BookingType> {
   if (!can(actor, "host")) throw new AppError("forbidden");
   const v = typeValues(input);
+  // A host who is not an administrator keeps the type's team as it is.
+  const pool = can(actor, "settings") ? await cleanPool(sql, actor, input.pool) : undefined;
   try {
-    const [row] = await sql<TypeRow[]>`update types set ${sql({ ...v, questions: sql.json(v.questions as never) })} where id = ${id(typeId)} and member_id = ${actor.id} returning *`;
+    const [row] = await sql<TypeRow[]>`update types set ${sql({ ...v, questions: sql.json(v.questions as never), ...(pool !== undefined ? { pool: sql.json(pool as never) } : {}) })} where id = ${id(typeId)} and member_id = ${actor.id} returning *`;
     if (!row) throw new AppError("not_found");
     return toType(row);
   } catch (error) {
@@ -416,24 +520,55 @@ export async function publicType(sql: Query, hostSlug: string, typeSlug: string)
   return { host: toHost(row), type: toType({ ...row.type, id: String(row.type.id) }) };
 }
 
-// The host's confirmed bookings between two instants (buffers included);
-// those of typeId carry their start, for the type's daily limit.
+// The host's time taken between two instants: their confirmed bookings
+// (buffers included; those of typeId carry their start, for the type's
+// daily limit, and every one for the host's daily maximum), the times they
+// blocked, and the busy times of their other calendars.
 async function busyOf(sql: Query, memberId: string, typeId: string, from: Date, to: Date, except: string | null): Promise<Busy[]> {
+  const range = sql`tstzrange(${from}, ${to})`;
   const rows = await sql<{ lo: Date; hi: Date; starts_at: Date; same: boolean }[]>`
     select lower(blocked) as lo, upper(blocked) as hi, starts_at, coalesce(type_id = ${typeId}, false) as same from bookings
-    where member_id = ${memberId} and status = 'confirmed' and blocked && tstzrange(${from}, ${to})
+    where member_id = ${memberId} and status = 'confirmed' and blocked && ${range}
     ${except ? sql`and id <> ${except}` : sql``}`;
-  return rows.map(r => ({ start: r.lo.getTime(), end: r.hi.getTime(), ...(r.same ? { sameType: r.starts_at.getTime() } : {}) }));
+  const other = await sql<{ lo: Date; hi: Date }[]>`
+    select lower(span) as lo, upper(span) as hi from blocks where member_id = ${memberId} and span && ${range}
+    union all
+    select lower(span), upper(span) from busy where member_id = ${memberId} and span && ${range}`;
+  return [
+    ...rows.map(r => ({ start: r.lo.getTime(), end: r.hi.getTime(), own: r.starts_at.getTime(), ...(r.same ? { sameType: r.starts_at.getTime() } : {}) })),
+    ...other.map(r => ({ start: r.lo.getTime(), end: r.hi.getTime() })),
+  ];
 }
 
-// freeTimes: the starts a visitor can pick between two dates of the host's
-// calendar (a week at most at a time).
-export async function freeTimes(sql: Query, host: Host, type: BookingType, from: string, to: string, now = Date.now(), except: string | null = null): Promise<Slot[]> {
-  if (!isDate(from) || !isDate(to) || to < from || addDays(from, 42) < to) throw new AppError("invalid");
+// The hosts of a type: its owner, then its team (round robin), those who
+// still have a page.
+async function hostsOf(sql: Query, owner: Host, type: BookingType): Promise<Host[]> {
+  if (type.pool.length === 0) return [owner];
+  const rows = await sql<HostRow[]>`select * from hosts where member_id in ${sql(type.pool)} and not away`;
+  const byId = new Map(rows.map(r => [r.member_id, toHost(r)]));
+  return [owner, ...type.pool.flatMap(m => byId.get(m) ?? [])];
+}
+
+// A host's free starts for a type (notice: the minimum notice, the type's
+// unless a host books for a guest).
+async function hostFree(sql: Query, host: Host, type: BookingType, from: string, to: string, now: number, except: string | null, notice: number): Promise<Slot[]> {
   const overrides = Object.fromEntries((await overridesOf(sql, host.memberId, addDays(from, -1))).map(o => [o.day, o.ranges]));
   // Wide enough for any zone: a day before, a day after.
   const busy = await busyOf(sql, host.memberId, type.id, new Date(Date.parse(from + "T00:00:00Z") - 2 * 86400000), new Date(Date.parse(to + "T00:00:00Z") + 3 * 86400000), except);
-  return slots({ weekly: host.weekly, overrides, zone: host.zone }, rulesOf(type), busy, { from, to }, now);
+  return slots({ weekly: host.weekly, overrides, zone: host.zone }, { ...rulesOf(type), noticeMinutes: notice, hostDailyMax: host.dailyMax }, busy, { from, to }, now);
+}
+
+// freeTimes: the starts a visitor can pick between two dates of the host's
+// calendar (six weeks at most at a time). A team type is free when any of
+// its hosts is.
+export async function freeTimes(sql: Query, host: Host, type: BookingType, from: string, to: string, now = Date.now(), except: string | null = null, options: { notice?: number } = {}): Promise<Slot[]> {
+  if (!isDate(from) || !isDate(to) || to < from || addDays(from, 42) < to) throw new AppError("invalid");
+  const notice = options.notice ?? type.noticeMinutes;
+  const team = await hostsOf(sql, host, type);
+  if (team.length === 1) return hostFree(sql, host, type, from, to, now, except, notice);
+  const all = new Map<string, Slot>();
+  for (const member of team) for (const s of await hostFree(sql, member, type, from, to, now, except, notice)) all.set(s.start, s);
+  return [...all.values()].sort((a, b) => a.start.localeCompare(b.start));
 }
 
 const rulesOf = (t: BookingType) => ({ duration: t.duration, interval: t.interval, bufferBefore: t.bufferBefore, bufferAfter: t.bufferAfter, noticeMinutes: t.noticeMinutes, windowDays: t.windowDays, dailyLimit: t.dailyLimit });
@@ -449,6 +584,45 @@ export async function firstFree(sql: Query, host: Host, type: BookingType, now =
     from = addDays(to, 1);
   }
   return null;
+}
+
+// ——— Times a host blocks ———
+
+export type Block = { id: string; start: Date; end: Date; note: string };
+
+// blockTime keeps a time of one day free of bookings: from and to are
+// minutes of the host's clock that day (to up to 24:00).
+export async function blockTime(sql: Query, actor: Member, input: { day: unknown; from: unknown; to: unknown; note: unknown }, now = Date.now()): Promise<Block> {
+  if (!can(actor, "host")) throw new AppError("forbidden");
+  const host = await hostOf(sql, actor.id);
+  if (!host) throw new AppError("not_host");
+  if (!isDate(input.day)) throw new AppError("invalid");
+  const from = minutes(input.from, 0, 1439), to = minutes(input.to, 1, 1440);
+  if (to <= from) throw new AppError("invalid_range");
+  const note = clean(input.note, 80, { optional: true });
+  const start = instantOf(input.day, from, host.zone);
+  const end = to === 1440 ? instantOf(addDays(input.day, 1), 0, host.zone) : instantOf(input.day, to, host.zone);
+  if (end.getTime() <= now) throw new AppError("too_late");
+  const [count] = await sql<{ n: number }[]>`select count(*)::int as n from blocks where member_id = ${actor.id} and upper(span) > ${new Date(now)}`;
+  if ((count?.n ?? 0) >= 500) throw new AppError("too_many");
+  const [row] = await sql<{ id: string; lo: Date; hi: Date; note: string }[]>`
+    insert into blocks (member_id, span, note) values (${actor.id}, tstzrange(${start}, ${end}), ${note})
+    returning id::text as id, lower(span) as lo, upper(span) as hi, note`;
+  return { id: row!.id, start: row!.lo, end: row!.hi, note: row!.note };
+}
+
+export async function unblock(sql: Query, actor: Member, blockId: unknown): Promise<void> {
+  if (!can(actor, "host")) throw new AppError("forbidden");
+  const done = await sql`delete from blocks where id = ${id(blockId)} and member_id = ${actor.id}`;
+  if (done.count === 0) throw new AppError("not_found");
+}
+
+// The host's blocks still to come (or ending after from), in order.
+export async function blocksOf(sql: Query, memberId: string, from = new Date()): Promise<Block[]> {
+  const rows = await sql<{ id: string; lo: Date; hi: Date; note: string }[]>`
+    select id::text as id, lower(span) as lo, upper(span) as hi, note from blocks
+    where member_id = ${memberId} and upper(span) > ${from} order by lower(span) limit 500`;
+  return rows.map(r => ({ id: r.id, start: r.lo, end: r.hi, note: r.note }));
 }
 
 // ——— Bookings ———
@@ -477,6 +651,11 @@ type BookingRow = {
   cancelled_at: Date | null;
   moves: number;
   secret: string;
+  video_link: string;
+  source: "page" | "host" | "import";
+  booked_by: string | null;
+  payment_link: string;
+  paid: boolean;
 };
 const toBooking = (r: BookingRow): Booking => ({
   id: String(r.id),
@@ -502,16 +681,15 @@ const toBooking = (r: BookingRow): Booking => ({
   cancelledAt: r.cancelled_at,
   moves: r.moves,
   secret: r.secret,
+  videoLink: r.video_link ?? "",
+  source: r.source ?? "page",
+  bookedBy: r.booked_by ?? null,
+  paymentLink: r.payment_link ?? "",
+  paid: r.paid ?? false,
 });
 
 const isUnique = (error: unknown) => (error as { code?: string } | null)?.code === "23505";
 const isOverlap = (error: unknown) => (error as { code?: string } | null)?.code === "23P01";
-
-async function isFree(sql: Query, host: Host, type: BookingType, start: Date, now: number, except: string | null): Promise<boolean> {
-  const day = wall(start, host.zone).date;
-  const found = await freeTimes(sql, host, type, day, day, now, except);
-  return found.some(s => Date.parse(s.start) === start.getTime());
-}
 
 function blockedRange(type: Pick<BookingType, "bufferBefore" | "bufferAfter">, start: Date, end: Date): string {
   return `[${new Date(start.getTime() - type.bufferBefore * 60000).toISOString()},${new Date(end.getTime() + type.bufferAfter * 60000).toISOString()})`;
@@ -519,6 +697,9 @@ function blockedRange(type: Pick<BookingType, "bufferBefore" | "bufferAfter">, s
 
 // answers: the form's answers to the host's questions, by question id.
 export type GuestInput = { start: unknown; name: unknown; email: unknown; phone?: unknown; note: unknown; answers?: Record<string, unknown>; zone: unknown; language: string };
+// Who books: the guest on the page (the default), or a host for them — the
+// notice does not hold and the host's questions are not required.
+export type BookOptions = { bookedBy?: string; company?: string };
 
 // A transaction, or a savepoint inside the caller's.
 function transaction<T>(sql: Query, step: (tx: Query) => Promise<T>): Promise<T> {
@@ -535,38 +716,76 @@ async function lockType(tx: Query, type: BookingType): Promise<BookingType> {
   return toType(row);
 }
 
-// book takes a free time for a visitor. In one transaction, the type
-// locked, the time is checked again (the page may be old; the day may have
-// filled up), and the database refuses two confirmed bookings of a host
-// that overlap: two visitors on the same time, one gets "taken".
-export async function book(sql: Query, host: Host, type: BookingType, input: GuestInput, now = Date.now()): Promise<{ booking: Booking; secret: string }> {
+// lockHost does the same for a host (their daily maximum, all types).
+async function lockHost(tx: Query, memberId: string): Promise<void> {
+  await tx`select 1 from hosts where member_id = ${memberId} for update`;
+}
+
+// candidates: the hosts of the type free at that start, in the order they
+// are offered it: the one with the fewest bookings of the type to come
+// first (round robin), the owner first among equals.
+async function candidates(tx: Query, owner: Host, type: BookingType, start: Date, now: number, except: string | null, notice: number): Promise<Host[]> {
+  const team = await hostsOf(tx, owner, type);
+  const free: Host[] = [];
+  for (const h of team) {
+    const day = wall(start, h.zone).date;
+    const found = await hostFree(tx, h, type, day, day, now, except, notice);
+    if (found.some(s => Date.parse(s.start) === start.getTime())) free.push(h);
+  }
+  if (free.length < 2) return free;
+  const counts = await tx<{ member_id: string; n: number }[]>`
+    select member_id, count(*)::int as n from bookings where type_id = ${type.id} and status = 'confirmed' and ends_at > ${new Date(now)} and member_id in ${tx(free.map(h => h.memberId))} group by member_id`;
+  const n = new Map(counts.map(c => [c.member_id, c.n]));
+  return free.map((h, i) => ({ h, i })).sort((a, b) => (n.get(a.h.memberId) ?? 0) - (n.get(b.h.memberId) ?? 0) || a.i - b.i).map(x => x.h);
+}
+
+// book takes a free time for a visitor (or a host books it for them). In
+// one transaction, the type locked, the time is checked again (the page
+// may be old; the day may have filled up), and the database refuses two
+// confirmed bookings of a host that overlap: two visitors on the same
+// time, one gets "taken". A team type goes to the first of its hosts free.
+export async function book(sql: Query, host: Host, type: BookingType, input: GuestInput, now = Date.now(), options: BookOptions = {}): Promise<{ booking: Booking; secret: string }> {
   if (host.away || !type.active) throw new AppError("not_found");
   const start = typeof input.start === "string" ? new Date(input.start) : null;
   if (!start || Number.isNaN(start.getTime())) throw new AppError("invalid");
   const name = clean(input.name, limits.name);
   const address = email(input.email);
-  const phoneNumber = type.locationKind === "phone" ? phone(input.phone) : "";
+  const byHost = options.bookedBy !== undefined;
+  const phoneNumber = type.locationKind === "phone" ? (byHost && (input.phone === "" || input.phone === undefined) ? "" : phone(input.phone)) : "";
   const note = clean(input.note, limits.note, { optional: true, multiline: true });
   const zone = isZone(input.zone) ? input.zone : host.zone;
   const secret = newSecret();
-  try {
-    return await transaction(sql, async tx => {
-      const current = await lockType(tx, type);
-      // Answered against the questions as they are now.
-      const answers = cleanAnswers(current.questions, input.answers ?? {});
-      if (!(await isFree(tx, host, current, start, now, null))) throw new AppError("taken");
-      const end = new Date(start.getTime() + current.duration * 60000);
-      const [row] = await tx<BookingRow[]>`
-        insert into bookings (type_id, member_id, title, duration, location_kind, location, starts_at, ends_at, blocked, guest_name, guest_email, guest_phone, guest_note, answers, guest_zone, guest_language, secret_hash, secret)
-        values (${current.id}, ${host.memberId}, ${current.title}, ${current.duration}, ${current.locationKind}, ${current.location}, ${start}, ${end}, ${blockedRange(current, start, end)}::tstzrange,
-          ${name}, ${address}, ${phoneNumber}, ${note}, ${tx.json(answers as never)}, ${zone}, ${input.language}, ${hashSecret(secret)}, ${secret})
-        returning *`;
-      return { booking: toBooking(row!), secret };
-    });
-  } catch (error) {
-    if (isOverlap(error)) throw new AppError("taken");
-    throw error;
-  }
+  return transaction(sql, async tx => {
+    const current = await lockType(tx, type);
+    // Answered against the questions as they are now; a host booking for
+    // someone may leave them.
+    const answers = cleanAnswers(byHost ? current.questions.map(q => ({ ...q, required: false })) : current.questions, input.answers ?? {});
+    const notice = byHost ? 0 : current.noticeMinutes;
+    const end = new Date(start.getTime() + current.duration * 60000);
+    const videoLink = current.locationKind === "video" && current.videoRooms ? roomLink(current.location || defaultRooms, options.company ?? "") : "";
+    for (const who of await candidates(tx, host, current, start, now, null, notice)) {
+      try {
+        return await transaction(tx, async step => {
+          await lockHost(step, who.memberId);
+          // Checked again once the host is ours (their daily maximum).
+          const day = wall(start, who.zone).date;
+          if (!(await hostFree(step, who, current, day, day, now, null, notice)).some(s => Date.parse(s.start) === start.getTime())) throw new AppError("taken");
+          const [row] = await step<BookingRow[]>`
+            insert into bookings (type_id, member_id, title, duration, location_kind, location, starts_at, ends_at, blocked, guest_name, guest_email, guest_phone, guest_note, answers, guest_zone, guest_language, secret_hash, secret, video_link, source, booked_by, payment_link)
+            values (${current.id}, ${who.memberId}, ${current.title}, ${current.duration}, ${current.locationKind}, ${current.location}, ${start}, ${end}, ${blockedRange(current, start, end)}::tstzrange,
+              ${name}, ${address}, ${phoneNumber}, ${note}, ${step.json(answers as never)}, ${zone}, ${input.language}, ${hashSecret(secret)}, ${secret},
+              ${videoLink}, ${byHost ? "host" : "page"}, ${options.bookedBy ?? null}, ${current.paymentLink})
+            returning *`;
+          return { booking: toBooking(row!), secret };
+        });
+      } catch (error) {
+        // This host was just taken: the next one of the team, if any.
+        if (isOverlap(error) || (error instanceof AppError && error.code === "taken")) continue;
+        throw error;
+      }
+    }
+    throw new AppError("taken");
+  });
 }
 
 export async function bookingsByIds(sql: Query, ids: string[]): Promise<Booking[]> {
@@ -579,10 +798,10 @@ export async function bySecret(sql: Query, secret: string): Promise<{ booking: B
   if (!/^[A-Za-z0-9_-]{32}$/u.test(secret)) return null;
   const [row] = await sql<(BookingRow & { host_slug: string | null; type_slug: string | null })[]>`
     select b.*, h.slug as host_slug, t.slug as type_slug from bookings b
-    left join hosts h on h.member_id = b.member_id and not h.away
     left join types t on t.id = b.type_id and t.active
+    left join hosts h on h.member_id = t.member_id and not h.away
     where b.secret_hash = ${hashSecret(secret)}`;
-  return row ? { booking: toBooking(row), hostSlug: row.host_slug, typeSlug: row.type_slug } : null;
+  return row ? { booking: toBooking(row), hostSlug: row.type_slug ? row.host_slug : null, typeSlug: row.host_slug ? row.type_slug : null } : null;
 }
 
 export async function cancelByGuest(sql: Query, secret: string, reason: unknown, now = Date.now()): Promise<Booking> {
@@ -597,8 +816,41 @@ export async function cancelByGuest(sql: Query, secret: string, reason: unknown,
   return toBooking(row);
 }
 
-// A guest moves their booking to another free time of the same type: the
-// same booking (the same link), a new time.
+// moveTo moves a booking to another free time of its type: the same
+// booking (the same link), a new time — with the same host when they are
+// free then, else with another of the team.
+async function moveTo(sql: Query, booking: Booking, owner: Host, type: BookingType, start: unknown, now: number, notice: "type" | 0): Promise<{ booking: Booking; before: Date }> {
+  const when = typeof start === "string" ? new Date(start) : null;
+  if (!when || Number.isNaN(when.getTime())) throw new AppError("invalid");
+  return transaction(sql, async tx => {
+    // As for a new booking: one at a time per type, checked again.
+    const current = await lockType(tx, type);
+    const wait = notice === 0 ? 0 : current.noticeMinutes;
+    const free = await candidates(tx, owner, current, when, now, booking.id, wait);
+    const order = [...free.filter(h => h.memberId === booking.memberId), ...free.filter(h => h.memberId !== booking.memberId)];
+    const end = new Date(when.getTime() + current.duration * 60000);
+    for (const who of order) {
+      try {
+        return await transaction(tx, async step => {
+          await lockHost(step, who.memberId);
+          const day = wall(when, who.zone).date;
+          if (!(await hostFree(step, who, current, day, day, now, booking.id, wait)).some(s => Date.parse(s.start) === when.getTime())) throw new AppError("taken");
+          const [row] = await step<BookingRow[]>`
+            update bookings set member_id = ${who.memberId}, starts_at = ${when}, ends_at = ${end}, duration = ${current.duration}, blocked = ${blockedRange(current, when, end)}::tstzrange, moves = moves + 1, reminded_at = null
+            where id = ${booking.id} and status = 'confirmed' returning *`;
+          if (!row) throw new AppError("too_late");
+          return { booking: toBooking(row), before: booking.startsAt };
+        });
+      } catch (error) {
+        if (isOverlap(error) || (error instanceof AppError && error.code === "taken")) continue;
+        throw error;
+      }
+    }
+    throw new AppError("taken");
+  });
+}
+
+// A guest moves their booking to another free time of the same type.
 export async function moveByGuest(sql: Query, secret: string, start: unknown, now = Date.now()): Promise<{ booking: Booking; before: Date }> {
   const found = await bySecret(sql, secret);
   if (!found) throw new AppError("not_found");
@@ -608,24 +860,64 @@ export async function moveByGuest(sql: Query, secret: string, start: unknown, no
   if (!found.hostSlug || !found.typeSlug) throw new AppError("not_found");
   const place = await publicType(sql, found.hostSlug, found.typeSlug);
   if (!place) throw new AppError("not_found");
-  const when = typeof start === "string" ? new Date(start) : null;
-  if (!when || Number.isNaN(when.getTime())) throw new AppError("invalid");
-  try {
-    return await transaction(sql, async tx => {
-      // As for a new booking: one at a time per type, checked again.
-      const type = await lockType(tx, place.type);
-      if (!(await isFree(tx, place.host, type, when, now, booking.id))) throw new AppError("taken");
-      const end = new Date(when.getTime() + type.duration * 60000);
-      const [row] = await tx<BookingRow[]>`
-        update bookings set starts_at = ${when}, ends_at = ${end}, duration = ${type.duration}, blocked = ${blockedRange(type, when, end)}::tstzrange, moves = moves + 1, reminded_at = null
-        where id = ${booking.id} and status = 'confirmed' returning *`;
-      if (!row) throw new AppError("too_late");
-      return { booking: toBooking(row), before: booking.startsAt };
-    });
-  } catch (error) {
-    if (isOverlap(error)) throw new AppError("taken");
-    throw error;
+  return moveTo(sql, booking, place.host, place.type, start, now, "type");
+}
+
+// A host moves a meeting (the guest asked by phone): any free time of its
+// type, the notice aside. The guest is told by the caller.
+export async function moveByHost(sql: Query, actor: Member, bookingId: unknown, start: unknown, now = Date.now()): Promise<{ booking: Booking; before: Date }> {
+  const booking = await bookingFor(sql, actor, bookingId);
+  if (booking.status !== "confirmed" || booking.endsAt.getTime() <= now) throw new AppError("too_late");
+  const place = await typeForMove(sql, booking);
+  if (!place) throw new AppError("not_found");
+  return moveTo(sql, booking, place.host, place.type, start, now, 0);
+}
+
+// The type a booking can move within, and its owner: null when the type
+// was removed or turned off, or its owner left.
+export async function typeForMove(sql: Query, booking: Pick<Booking, "typeId">): Promise<{ host: Host; type: BookingType } | null> {
+  if (!booking.typeId) return null;
+  const [row] = await sql<(HostRow & { type: TypeRow })[]>`
+    select h.*, to_jsonb(t) as type from types t join hosts h on h.member_id = t.member_id
+    where t.id = ${booking.typeId} and t.active and not h.away`;
+  if (!row) return null;
+  return { host: toHost(row), type: toType({ ...row.type, id: String(row.type.id) }) };
+}
+
+// A host books for a guest (a call, a visit to the shop): one of their
+// own types, any free time (the notice aside); the guest gets their link.
+export async function bookForGuest(sql: Query, actor: Member, typeId: unknown, input: GuestInput, now = Date.now(), company = ""): Promise<{ booking: Booking; secret: string }> {
+  if (!can(actor, "host")) throw new AppError("forbidden");
+  const type = await typeOf(sql, actor, typeId);
+  const host = await hostOf(sql, actor.id);
+  if (!host || host.away) throw new AppError("not_host");
+  if (!type.active) throw new AppError("not_found");
+  return book(sql, host, type, input, now, { bookedBy: actor.id, company });
+}
+
+// The free times a host sees for one of their types (booking for a guest,
+// moving a meeting): the notice aside.
+export async function hostTimes(sql: Query, actor: Member, typeId: unknown, from: string, to: string, except: unknown = null, now = Date.now()): Promise<Slot[]> {
+  if (!can(actor, "host") && !can(actor, "bookings.all")) throw new AppError("forbidden");
+  let exceptId: string | null = null;
+  let place: { host: Host; type: BookingType } | null;
+  if (except !== null && except !== undefined && except !== "") {
+    const booking = await bookingFor(sql, actor, except);
+    exceptId = booking.id;
+    place = await typeForMove(sql, booking);
+  } else {
+    const type = await typeOf(sql, actor, typeId);
+    const host = await hostOf(sql, actor.id);
+    place = host ? { host, type } : null;
   }
+  if (!place) throw new AppError("not_found");
+  return freeTimes(sql, place.host, place.type, from, to, now, exceptId, { notice: 0 });
+}
+
+// The guest paid (the type asks for a payment): the host marks it.
+export async function markPaid(sql: Query, actor: Member, bookingId: unknown, paid: boolean): Promise<void> {
+  const booking = await bookingFor(sql, actor, bookingId);
+  await sql`update bookings set paid = ${paid} where id = ${booking.id}`;
 }
 
 export type Scope = "upcoming" | "past" | "cancelled";
@@ -705,11 +997,12 @@ export async function cleanup(sql: Query, now = Date.now()): Promise<number> {
   return done.count;
 }
 
-// eraseGuest deletes every booking of an email address (a guest asked).
-export async function eraseGuest(sql: Query, actor: Member, address: unknown): Promise<number> {
+// eraseGuest deletes every booking of an email address (a guest asked);
+// the ids deleted, to take them out of the hosts' calendars.
+export async function eraseGuest(sql: Query, actor: Member, address: unknown): Promise<string[]> {
   if (!can(actor, "settings")) throw new AppError("forbidden");
-  const done = await sql`delete from bookings where lower(guest_email) = ${email(address).toLowerCase()}`;
-  return done.count;
+  const rows = await sql<{ id: string }[]>`delete from bookings where lower(guest_email) = ${email(address).toLowerCase()} returning id::text as id`;
+  return rows.map(r => r.id);
 }
 
 // The bookings whose reminder is due: starting within the next 26 hours,

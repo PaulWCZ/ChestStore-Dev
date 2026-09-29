@@ -29,6 +29,10 @@ export const Chat = () => <Icon><path d="M4 5h16v11H9l-5 4z" /></Icon>;
 export const Lock = () => <Icon><rect x="5" y="10.5" width="14" height="10" rx="2" /><path d="M8 10.5V7.5a4 4 0 018 0v3" /></Icon>;
 export const Restore = () => <Icon><path d="M4 12a8 8 0 108-8 8.5 8.5 0 00-6 2.5L4 8.5M4 4v4.5h4.5" /></Icon>;
 export const Carry = () => <Icon><path d="M4 12h12M12 6l6 6-6 6" /><path d="M20 5v14" /></Icon>;
+export const Mail = () => <Icon><rect x="3" y="5.5" width="18" height="13" rx="2" /><path d="M3.5 7l8.5 6.5L20.5 7" /></Icon>;
+export const Bell = () => <Icon><path d="M6 16V11a6 6 0 0112 0v5l1.5 2h-15z" /><path d="M10 20.5a2 2 0 004 0" /></Icon>;
+export const Upload = () => <Icon><path d="M12 16V4M7 9l5-5 5 5M4 20h16" /></Icon>;
+export const Eye = () => <Icon><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z" /><circle cx="12" cy="12" r="3" /></Icon>;
 export const Person = () => <Icon><circle cx="12" cy="8" r="4" /><path d="M4 21a8 8 0 0116 0" /></Icon>;
 
 // Confidence shapes: a filled circle (on track), triangle (at risk),

@@ -81,6 +81,7 @@ export async function createObjective(input: objectives.NewObjective): Promise<R
     const made = await objectives.createObjective(sql, actor, input);
     const title = typeof input.title === "string" ? input.title.trim() : "";
     await tell.objectiveGiven(actor, made.owner, { id: made.id, title });
+    await tell.shared(actor, made.viewers, { id: made.id, title });
     for (const k of made.keyResults) if (k.owner !== made.owner) await tell.keyResultGiven(actor, k.owner, { title: k.title, objectiveId: made.id });
     await tell.refreshBadges(sql, made.keyResults.map(k => k.owner));
     return { id: made.id };
@@ -107,9 +108,10 @@ export async function addExample(cycleId: string): Promise<Result<{ id: string }
   });
 }
 
-export async function updateObjective(objectiveId: string, input: { title?: string; why?: string; owner?: string; parentId?: string | null; teamId?: string }): Promise<Result<null>> {
+export async function updateObjective(objectiveId: string, input: { title?: string; why?: string; owner?: string; parentId?: string | null; teamId?: string; visibility?: string; viewers?: string[] }): Promise<Result<null>> {
   return act(async actor => {
     const done = await objectives.updateObjective(db(), actor, objectiveId, input);
+    await tell.shared(actor, done.newViewers, { id: objectiveId, title: done.title });
     if (done.owner !== done.previousOwner) {
       await tell.objectiveGiven(actor, done.owner, { id: objectiveId, title: done.title });
       await tell.tellAdminsOfOrphans(db());

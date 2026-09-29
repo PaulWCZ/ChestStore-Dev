@@ -1,3 +1,4 @@
+import { stepText } from "../../../lib/examples.ts";
 import { AutoRefresh } from "../../../components/auto-refresh.tsx";
 import { CheckList } from "../../../components/icons.tsx";
 import { db } from "../../../lib/db.ts";
@@ -33,7 +34,7 @@ export default async function TodoPage() {
       title: mine ? (g.journey.kind === "onboarding" ? t.todo.yoursOnboarding : t.todo.yoursOffboarding) : format(g.journey.kind === "onboarding" ? t.todo.onboarding : t.todo.offboarding, { name }),
       person: { name, photo: person.photo },
       items: g.items.map(i => ({
-        id: i.id, text: i.text, done: i.done,
+        id: i.id, text: stepText(i, t), done: i.done,
         due: formatDay(i.due, locale, { weekday: "short", day: "numeric", month: "short" }),
         state: dueState(i.due, now),
       })),

@@ -1,5 +1,5 @@
 import type { Query } from "./db.ts";
-import { isStale, objectiveProgress, progress, worst, type Confidence, type Kind, type Level } from "./model.ts";
+import { isStale, objectiveProgress, progress, worst, type Confidence, type Kind, type Level, type Visibility } from "./model.ts";
 
 // What the pages and the services read: cycles, objectives with their key
 // results, progress and confidence computed here, once. Member ids only;
@@ -20,6 +20,8 @@ export type KeyResult = {
   current: number;
   weight: number;
   owner: string;
+  // Fed by the CRM (lib/crm.ts), or null: checked in by its owner.
+  source: "crm.won_amount" | "crm.won_count" | null;
   createdAt: string;
   progress: number;
   done: boolean;
@@ -40,6 +42,7 @@ export type Objective = {
   owner: string;
   title: string;
   why: string;
+  visibility: Visibility;
   score: number | null;
   learned: string;
   retroBy: string | null;
@@ -74,15 +77,15 @@ export async function defaultCycle(sql: Query): Promise<Cycle | null> {
 }
 
 type ObjectiveRow = {
-  id: string; cycle_id: string; level: Level; team_id: string | null; parent_id: string | null; carried_from: string | null; owner: string; title: string; why: string;
+  id: string; cycle_id: string; level: Level; team_id: string | null; parent_id: string | null; carried_from: string | null; owner: string; title: string; why: string; visibility: Visibility;
   score: string | null; learned: string; retro_by: string | null; retro_at: Date | null; created_by: string; created_at: Date;
 };
 type KeyResultRow = {
   id: string; objective_id: string; cycle_id: string; title: string; kind: Kind; unit: string; currency: string | null; start_value: string; target_value: string; current_value: string;
-  weight: number; owner: string; created_at: Date; confidence: Confidence | null; last_at: Date | null; closed: boolean;
+  weight: number; owner: string; source: KeyResult["source"]; created_at: Date; confidence: Confidence | null; last_at: Date | null; closed: boolean;
 };
 
-const objectiveColumns = "o.id, o.cycle_id, o.level, o.team_id, o.parent_id, o.carried_from, o.owner, o.title, o.why, o.score, o.learned, o.retro_by, o.retro_at, o.created_by, o.created_at";
+const objectiveColumns = "o.id, o.cycle_id, o.level, o.team_id, o.parent_id, o.carried_from, o.owner, o.title, o.why, o.visibility, o.score, o.learned, o.retro_by, o.retro_at, o.created_by, o.created_at";
 
 function toKeyResult(r: KeyResultRow, now: Date, weekStart: Date): KeyResult {
   const start = Number(r.start_value), target = Number(r.target_value), current = Number(r.current_value);
@@ -101,6 +104,7 @@ function toKeyResult(r: KeyResultRow, now: Date, weekStart: Date): KeyResult {
     current,
     weight: Number(r.weight),
     owner: r.owner,
+    source: r.source,
     createdAt: r.created_at.toISOString(),
     progress: p,
     done: p >= 1,
@@ -122,6 +126,7 @@ function toObjective(r: ObjectiveRow, keyResults: KeyResult[]): Objective {
     owner: r.owner,
     title: r.title,
     why: r.why,
+    visibility: r.visibility,
     score: r.score === null ? null : Number(r.score),
     learned: r.learned,
     retroBy: r.retro_by,
@@ -139,7 +144,7 @@ async function keyResultsOf(sql: Query, objectiveIds: string[], now: Date, weekS
   const found = new Map<string, KeyResult[]>();
   if (objectiveIds.length === 0) return found;
   const rows = await sql<KeyResultRow[]>`
-    select k.id, k.objective_id, o.cycle_id, k.title, k.kind, k.unit, k.currency, k.start_value, k.target_value, k.current_value, k.weight, k.owner, k.created_at,
+    select k.id, k.objective_id, o.cycle_id, k.title, k.kind, k.unit, k.currency, k.start_value, k.target_value, k.current_value, k.weight, k.owner, k.source, k.created_at,
       c.confidence, c.created_at as last_at, (y.closed_at is not null) as closed
     from key_results k
     join objectives o on o.id = k.objective_id
@@ -161,16 +166,38 @@ async function withKeyResults(sql: Query, rows: ObjectiveRow[], now: Date, weekS
 
 export type Clock = { now: Date; weekStart: Date };
 
-// Every objective of a cycle (not archived), in their order.
-export async function cycleObjectives(sql: Query, cycleId: string, clock: Clock): Promise<Objective[]> {
-  const rows = await sql.unsafe<ObjectiveRow[]>(`select ${objectiveColumns} from objectives o where o.cycle_id = $1 and o.archived_at is null order by array_position(array['company','team','personal'], o.level), o.position, o.id limit 1000`, [cycleId]);
+// Who reads: what confidential objectives they may see (lib/access.ts,
+// `seesObjective`, says the same in words). null: the tool itself (a
+// schedule, an export for the Chest) — everything.
+export type Reader = { id: string; admin: boolean; groups: readonly string[] } | null;
+
+// The objectives a reader sees: those for everyone, and a confidential one
+// when they own it or one of its key results, are among its people, are in
+// its team (a group of the Chest), or are an admin.
+export function visibleTo(sql: Query, reader: Reader) {
+  if (reader === null || reader.admin) return sql``;
+  return sql`and (o.visibility = 'everyone' or o.owner = ${reader.id}
+    or exists (select 1 from key_results kv where kv.objective_id = o.id and kv.archived_at is null and kv.owner = ${reader.id})
+    or (o.visibility = 'people' and exists (select 1 from objective_viewers v where v.objective_id = o.id and v.member_id = ${reader.id}))
+    ${reader.groups.length > 0 ? sql`or (o.visibility = 'team' and exists (select 1 from teams tv where tv.id = o.team_id and tv.group_id in ${sql([...reader.groups])}))` : sql``})`;
+}
+
+// Every objective of a cycle (not archived) this reader sees, in order.
+export async function cycleObjectives(sql: Query, cycleId: string, clock: Clock, reader: Reader): Promise<Objective[]> {
+  const rows = await sql<ObjectiveRow[]>`select ${sql.unsafe(objectiveColumns)} from objectives o where o.cycle_id = ${cycleId} and o.archived_at is null ${visibleTo(sql, reader)}
+    order by array_position(array['company','team','personal'], o.level), o.position, o.id limit 1000`;
   return withKeyResults(sql, rows, clock.now, clock.weekStart);
 }
 
-export async function objectiveById(sql: Query, objectiveId: string, clock: Clock, options: { archived?: boolean } = {}): Promise<Objective | null> {
-  const rows = await sql.unsafe<ObjectiveRow[]>(`select ${objectiveColumns} from objectives o where o.id = $1 ${options.archived ? "" : "and o.archived_at is null"}`, [objectiveId]);
+export async function objectiveById(sql: Query, objectiveId: string, clock: Clock, reader: Reader, options: { archived?: boolean } = {}): Promise<Objective | null> {
+  const rows = await sql<ObjectiveRow[]>`select ${sql.unsafe(objectiveColumns)} from objectives o where o.id = ${objectiveId} ${options.archived ? sql`` : sql`and o.archived_at is null`} ${visibleTo(sql, reader)}`;
   const [found] = await withKeyResults(sql, rows, clock.now, clock.weekStart);
   return found ?? null;
+}
+
+// Who, besides its owners and the admins, sees a confidential objective.
+export async function viewersOf(sql: Query, objectiveId: string): Promise<string[]> {
+  return (await sql<{ member_id: string }[]>`select member_id from objective_viewers where objective_id = ${objectiveId} order by member_id`).map(r => r.member_id);
 }
 
 // What a member owns in the cycles that are not closed: their objectives,

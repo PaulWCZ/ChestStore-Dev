@@ -1,11 +1,12 @@
 import Link from "next/link";
 import { Contours } from "../../../components/contours.tsx";
 import { Progress } from "../../../components/progress.tsx";
-import { can } from "../../../lib/access.ts";
+import { can, readerOf } from "../../../lib/access.ts";
 import { db } from "../../../lib/db.ts";
 import { format, plural } from "../../../lib/i18n/index.ts";
 import { firstCycleChoices, nextQuarter, objectiveProgress, percent } from "../../../lib/model.ts";
 import { context, cycleWords, quarterName } from "../../../lib/page-data.ts";
+import { visibleTo } from "../../../lib/read.ts";
 import { viewer } from "../../../lib/session.ts";
 import { pctText } from "../../../lib/views.ts";
 import { CycleAdmin, NewCycle } from "../views/cycle-admin.tsx";
@@ -20,10 +21,10 @@ export default async function Cycles() {
   const ctx = await context(sql, member);
   const admin = can(member, "cycles.manage");
   const stats = new Map((await sql<{ cycle_id: string; n: string; retro: string }[]>`
-    select cycle_id, count(*) as n, count(*) filter (where score is not null or learned <> '') as retro from objectives where archived_at is null group by cycle_id`).map(r => [String(r.cycle_id), { n: Number(r.n), retro: Number(r.retro) }]));
+    select o.cycle_id, count(*) as n, count(*) filter (where o.score is not null or o.learned <> '') as retro from objectives o where o.archived_at is null ${visibleTo(sql, readerOf(member))} group by o.cycle_id`).map(r => [String(r.cycle_id), { n: Number(r.n), retro: Number(r.retro) }]));
   const progressRows = await sql<{ cycle_id: string; start_value: string; target_value: string; current_value: string; weight: number; objective_id: string }[]>`
     select o.cycle_id, o.id as objective_id, k.start_value, k.target_value, k.current_value, k.weight from key_results k join objectives o on o.id = k.objective_id
-    where k.archived_at is null and o.archived_at is null and o.level = 'company'`;
+    where k.archived_at is null and o.archived_at is null and o.level = 'company' ${visibleTo(sql, readerOf(member))}`;
   const progressOf = (cycleId: string) => {
     const byObjective = new Map<string, { progress: number; weight: number }[]>();
     for (const r of progressRows.filter(r => String(r.cycle_id) === cycleId)) {

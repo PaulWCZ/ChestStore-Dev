@@ -8,12 +8,14 @@ import { can } from "../../lib/access.ts";
 import { db } from "../../lib/db.ts";
 import { format, formatDay, plural } from "../../lib/i18n/index.ts";
 import { daysBetween, firstCycleChoices, runsOn, type Suggestion } from "../../lib/model.ts";
+import { emailOn } from "../../lib/mail.ts";
 import { orphans } from "../../lib/orphans.ts";
 import { context, cycleWords, quarterName } from "../../lib/page-data.ts";
 import { ownedBy } from "../../lib/read.ts";
 import { viewer } from "../../lib/session.ts";
 import { refreshBadges } from "../../lib/tell.ts";
 import { idsOf, objectiveView, pctText } from "../../lib/views.ts";
+import { EmailSwitch } from "./views/email-switch.tsx";
 import { StartCycle } from "./views/start-cycle.tsx";
 import { WaitingList, type WaitingItem } from "./views/waiting-list.tsx";
 
@@ -131,6 +133,8 @@ export default async function MyGoals() {
           </div>
         )}
       </section>
+
+      {ownsAnyKr && <EmailSwitch on={await emailOn(sql, member)} t={{ label: t.home.email, on: t.home.emailOn, off: t.home.emailOff, errors: t.errors }} />}
     </div>
   );
 }

@@ -1,3 +1,4 @@
+import * as chest from "@argentic/chest-sdk/chest";
 import Link from "next/link";
 import { Contours } from "../../../../components/contours.tsx";
 import { Back, Lock } from "../../../../components/icons.tsx";
@@ -58,9 +59,11 @@ export default async function NewObjective({ searchParams }: { searchParams: Pro
         parents={choices.parents}
         owners={owners}
         me={member.id}
-        initial={{ level, teamId: team?.id ?? "", parentId: parent ? parent.id : "", owner: member.id, title: "", why: "" }}
+        initial={{ level, teamId: team?.id ?? "", parentId: parent ? parent.id : "", owner: member.id, title: "", why: "", visibility: "everyone", viewers: [] }}
+        locale={v.locale}
+        currency={chest.currency()}
         personalNote
-        t={{ form: t.form, kinds: t.kinds, kindHints: t.kindHints, levels: t.levels, errors: t.errors }}
+        t={{ form: t.form, kinds: t.kinds, kindHints: t.kindHints, levels: t.levels, errors: t.errors, visibility: t.visibility }}
       />
     </div>
   );

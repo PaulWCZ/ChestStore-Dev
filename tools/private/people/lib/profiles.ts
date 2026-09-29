@@ -91,6 +91,10 @@ export async function purgeLeft(sql: Query): Promise<number> {
   return gone.length;
 }
 
+// Whether a person has said something about themselves: what ticks the
+// newcomer's "fill in your profile" step.
+export const filled = (p: Profile): boolean => p.phone !== "" || p.bio !== "" || p.skills.length > 0;
+
 // What a person writes about themselves. Only the keys given change; the
 // work phone may also be set by HR (updateJob).
 export type OwnInput = { phone?: unknown; pronouns?: unknown; bio?: unknown; skills?: unknown; birthday?: unknown };

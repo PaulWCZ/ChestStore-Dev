@@ -44,7 +44,12 @@ export function Chart({ points, start, target, from, to, today, label, startText
       <line className="grid" x1={left} x2={W - right} y1={y(start)} y2={y(start)} />
       <line className="target" x1={left} x2={W - right} y1={y(target)} y2={y(target)} />
       <text x={W - right} y={y(target) - 6} textAnchor="end">{targetWord} · {targetText}</text>
-      <text x={left} y={y(start) + (target > start ? 16 : -6)}>{startText}</text>
+      {/* The start's value sits above its line: at the right end when the
+          target is higher (the dates are at the bottom left), at the left
+          when it is lower (the line starts from it, at the top). */}
+      {start < target
+        ? <text x={W - right} y={y(start) - 6} textAnchor="end">{startText}</text>
+        : <text x={left} y={y(start) - 6}>{startText}</text>}
       {inCycle && <line className="today" x1={x(today)} x2={x(today)} y1={top - 8} y2={H - bottom} />}
       <path className="area" d={area} />
       <path className="line" d={d} />

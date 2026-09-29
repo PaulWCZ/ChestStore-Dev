@@ -13,7 +13,8 @@ export const limits = {
   page: 50,
   fileName: 200,
   attachmentSize: 20 << 20,
-  attachmentsPerMessage: 10,
+  // A received email: the Chest keeps 20 attachments at most.
+  attachmentsPerMessage: 20,
   // Files a customer adds to the form or to a message (the Chest takes 10
   // MiB at most from a visitor), and those an agent adds to an answer (the
   // Chest's mail carries 10 MiB a message).
@@ -68,25 +69,32 @@ export const priorities = ["low", "normal", "high", "urgent"] as const;
 export type Priority = (typeof priorities)[number];
 export const isPriority = (value: unknown): value is Priority => typeof value === "string" && (priorities as readonly string[]).includes(value);
 
-// How the inbox is sorted: who has waited longest (the default), the most
-// urgent first, or the latest activity first.
-export const sorts = ["waiting", "priority", "recent"] as const;
+// How the inbox is sorted: the most urgent first (the default; among
+// equals, who has waited longest), who has waited longest, or the latest
+// activity first.
+export const sorts = ["priority", "waiting", "recent"] as const;
+export const defaultSort = "priority";
 export type Sort = (typeof sorts)[number];
 export const isSort = (value: unknown): value is Sort => typeof value === "string" && (sorts as readonly string[]).includes(value);
 
 // "Waiting since": how long a customer has waited for an answer, in the
 // largest whole unit, and whether it is past the team's threshold (hours;
-// 0: never highlighted). Hours of the clock, nights and weekends included.
+// 0: never highlighted). The minutes are those of the working hours
+// (lib/hours.ts), or of the clock when the team counts every hour.
 export const lateChoices = [0, 1, 2, 4, 8, 24, 48, 72] as const;
 export const defaultLateHours = 24;
+export function waitedFor(minutes: number): { unit: "minute" | "hour" | "day"; count: number } {
+  const m = Math.max(0, Math.floor(minutes));
+  if (m < 60) return { unit: "minute", count: Math.max(1, m) };
+  if (m < 48 * 60) return { unit: "hour", count: Math.floor(m / 60) };
+  return { unit: "day", count: Math.floor(m / 1440) };
+}
+export const lateAfter = (minutes: number, lateHours: number) => lateHours > 0 && minutes >= lateHours * 60;
 export function waited(since: Date | string, now = new Date()): { unit: "minute" | "hour" | "day"; count: number } {
-  const minutes = Math.max(0, Math.floor((now.getTime() - new Date(since).getTime()) / 60000));
-  if (minutes < 60) return { unit: "minute", count: Math.max(1, minutes) };
-  if (minutes < 48 * 60) return { unit: "hour", count: Math.floor(minutes / 60) };
-  return { unit: "day", count: Math.floor(minutes / 1440) };
+  return waitedFor((now.getTime() - new Date(since).getTime()) / 60000);
 }
 export function isLate(since: Date | string | null, lateHours: number, now = new Date()): boolean {
-  return since !== null && lateHours > 0 && now.getTime() - new Date(since).getTime() >= lateHours * 3600000;
+  return since !== null && lateAfter((now.getTime() - new Date(since).getTime()) / 60000, lateHours);
 }
 
 // A tag's name: one line, 30 characters at most.

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import type { Catalogue } from "../lib/i18n/index.ts";
-import { priorities, sorts } from "../lib/model.ts";
+import { defaultSort, priorities, sorts } from "../lib/model.ts";
 
 // The inbox's filters: a priority, a tag, the order. Each choice shows at
 // once (the address keeps it, so Back and a shared link work).
@@ -38,7 +38,7 @@ export function InboxFilters({ tags, t }: { tags: { id: string; name: string }[]
         </label>
       )}
       <label className="filter"><span className="visually-hidden">{w.sortBy}</span>
-        <select className="select" value={params.get("sort") ?? "waiting"} onChange={e => set("sort", e.target.value === "waiting" ? "" : e.target.value)}>
+        <select className="select" value={params.get("sort") ?? defaultSort} onChange={e => set("sort", e.target.value === defaultSort ? "" : e.target.value)}>
           {sorts.map(s => <option key={s} value={s}>{w.sorts[s]}</option>)}
         </select>
       </label>

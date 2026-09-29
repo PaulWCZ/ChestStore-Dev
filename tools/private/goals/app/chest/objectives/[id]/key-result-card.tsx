@@ -14,13 +14,14 @@ import { archiveKeyResult, undoCheckIn } from "../../actions.ts";
 import { CheckInForm } from "../../views/check-in-form.tsx";
 import { EditKeyResult, type KrWords } from "./key-result-dialog.tsx";
 
+export type ChangeEntry = { id: string; text: string; when: string; date: string };
 export type HistoryEntry = { id: string; when: string; date: string; value: string; confidence: "on_track" | "at_risk" | "off_track"; note: string; by: string; undoable: boolean };
 type ChartProps = { points: ChartPoint[]; start: number; target: number; from: number; to: number; today: number; label: string; startText: string; targetText: string; fromText: string; toText: string; targetWord: string };
 
 // A key result on its objective's page: its numbers, a chart of its
 // check-ins (and the same as a table), the latest notes, and — for its
 // owner — the check-in form.
-export function KeyResultCard({ kr, history, chart, openCheckIn, owners, locale, me, t }: { kr: KeyResultView; me: string; history: HistoryEntry[]; chart: ChartProps; openCheckIn: boolean; owners: { id: string; name: string }[]; locale: string; t: KrWords }) {
+export function KeyResultCard({ kr, history, changes, chart, openCheckIn, owners, locale, me, t }: { kr: KeyResultView; me: string; history: HistoryEntry[]; changes: ChangeEntry[]; chart: ChartProps; openCheckIn: boolean; owners: { id: string; name: string }[]; locale: string; t: KrWords }) {
   const [checking, setChecking] = useState(openCheckIn && kr.canCheckIn);
   const [editing, setEditing] = useState(false);
   const [, start] = useTransition();
@@ -70,8 +71,9 @@ export function KeyResultCard({ kr, history, chart, openCheckIn, owners, locale,
         <Confidence value={kr.confidence} words={t.confidence} />
         {kr.stale && <span className="tag stale"><Clock />{t.progress.stale}</span>}
         {kr.weight > 1 && <span className="tag">{plural(t.objective.weight, kr.weight, locale)}</span>}
+        {kr.source !== "manual" && <span className="tag fed">{t.objective.fed}</span>}
       </div>
-      <Progress percent={kr.percent} text={kr.percentText} label={`${kr.title}: ${kr.percentText}`} big />
+      <Progress percent={kr.percent} text={kr.percentText} label={`${kr.title}: ${kr.percentText}`} confidence={kr.confidence} big />
       <div className="kr-numbers">
         {kr.kind === "milestone" ? (
           <span><strong>{kr.current}</strong></span>
@@ -114,6 +116,11 @@ export function KeyResultCard({ kr, history, chart, openCheckIn, owners, locale,
           ))}
         </ul>
       )}
+      {changes.length > 0 && (
+        <ul className="changes" aria-label={t.objective.changes}>
+          {changes.map(c => <li key={c.id}><Pencil /><span>{c.text} · <span className="when" title={c.date}>{c.when}</span></span></li>)}
+        </ul>
+      )}
       {history.length > 0 && (
         <details className="table-alt">
           <summary>{t.objective.showTable}</summary>
@@ -127,7 +134,7 @@ export function KeyResultCard({ kr, history, chart, openCheckIn, owners, locale,
           </div>
         </details>
       )}
-      {editing && <EditKeyResult kr={kr} owners={owners} t={t} onClose={() => setEditing(false)} />}
+      {editing && <EditKeyResult kr={kr} owners={owners} locale={locale} t={t} onClose={() => setEditing(false)} />}
     </article>
   );
 }

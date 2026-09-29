@@ -1,7 +1,11 @@
-import type { Booking } from "./booking.ts";
+import * as chest from "@argentic/chest-sdk/chest";
+import { hostOf, type Booking } from "./booking.ts";
+import type { Query } from "./db.ts";
 import { format, meetingTime } from "./i18n/index.ts";
 import { cut, notify, withdraw } from "./notify.ts";
 import { answerText } from "./questions.ts";
+import { toHost } from "./mailer.ts";
+import { people } from "./people.ts";
 
 // The bell for hosts, in their language and time zone: a booking made,
 // moved or cancelled by a guest. Keyed by the booking, so the latest news
@@ -28,4 +32,14 @@ export async function cancelled(b: Booking, hostZone: string): Promise<void> {
 // A host who cancels needs no bell of their own.
 export async function quiet(b: Pick<Booking, "id">): Promise<void> {
   await withdraw(`booking:${b.id}`);
+}
+
+// The host's email copy with the calendar file, when they want it
+// (Settings; on by default). Never fails the action: no mail, no copy.
+export async function hostCopy(sql: Query, kind: "booked" | "moved" | "cancelled", b: Booking): Promise<void> {
+  const host = await hostOf(sql, b.memberId);
+  if (!host || !host.emailMe) return;
+  const person = (await people([b.memberId])).get(b.memberId);
+  if (person?.status !== "member") return;
+  await toHost(kind, b, { locale: person.locale, zone: host.zone, link: `${chest.teamUrl() ?? ""}${path(b)}` });
 }

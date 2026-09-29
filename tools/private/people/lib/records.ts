@@ -36,8 +36,8 @@ export const fieldNames: Field[] = [
 ];
 
 export type Document = { id: string; kind: DocumentKind; name: string; type: string; size: number; addedBy: string; addedAt: string };
-export type Record = Fields & { id: string; memberId: string | null; erased: boolean; updatedAt: string; documents: Document[] };
-export type Summary = Pick<Record, "id" | "memberId" | "legalName" | "job" | "contract" | "workingTime" | "startDate" | "trialEnd" | "contractEnd" | "endDate" | "erased"> & { missing: Field[] };
+export type HrRecord = Fields & { id: string; memberId: string | null; erased: boolean; updatedAt: string; documents: Document[] };
+export type Summary = Pick<HrRecord, "id" | "memberId" | "legalName" | "job" | "contract" | "workingTime" | "startDate" | "trialEnd" | "contractEnd" | "endDate" | "erased"> & { missing: Field[] };
 
 type Row = {
   id: string; member_id: string | null; legal_name: string; sex: Sex | null; birth_date: string | null; nationality: string; job: string; qualification: string;
@@ -94,13 +94,13 @@ async function load(sql: Query, key: string): Promise<(Row & { documents: Docume
   return { ...row, documents: docs.map(x => ({ id: String(x.id), kind: x.kind, name: x.name, type: x.type, size: Number(x.size), addedBy: x.added_by, addedAt: x.added_at.toISOString() })) };
 }
 
-const toRecord = (r: Row & { documents: Document[] }): Record => ({
+const toRecord = (r: Row & { documents: Document[] }): HrRecord => ({
   ...toFields(r), id: String(r.id), memberId: r.member_id, erased: r.erased_at !== null, updatedAt: r.updated_at.toISOString(), documents: r.documents,
 });
 
 // One record, for HR or its person; opening it by anyone else than its
 // person is written in the journal.
-export async function record(sql: Query, actor: Member | null, recordId: unknown): Promise<{ record: Record; access: "edit" | "read" }> {
+export async function record(sql: Query, actor: Member | null, recordId: unknown): Promise<{ record: HrRecord; access: "edit" | "read" }> {
   const found = await load(sql, id(recordId));
   const access = found ? recordAccess(actor, { memberId: found.member_id }) : null;
   if (!found || !access) throw new AppError("not_found");
@@ -136,7 +136,7 @@ export async function createRecord(sql: Sql, actor: Member | null, input: { memb
     const person = listed.people.find(p => p.id === member);
     if (!person) throw new AppError("not_member");
     const [done] = await createFor(sql, who, [{ id: member, name: person.name }]);
-    return { id: done! };
+    return { id: done!.id };
   }
   const name = clean(input?.legalName, limits.name);
   const [row] = await sql<{ id: string }[]>`insert into records (legal_name, created_by) values (${name}, ${who.id}) returning id`;
@@ -150,17 +150,17 @@ export async function createForEveryone(sql: Sql, actor: Member | null): Promise
   const who = hr(actor);
   const listed = await everyone();
   if (!listed.ok) throw new AppError("unavailable");
-  return (await createFor(sql, who, listed.people.map(p => ({ id: p.id, name: p.name })))).length;
+  return (await createFor(sql, who, listed.people.map(p => ({ id: p.id, name: p.name })))).filter(r => r.created).length;
 }
 
-async function createFor(sql: Sql, actor: Member, people: { id: string; name: string }[]): Promise<string[]> {
+async function createFor(sql: Sql, actor: Member, people: { id: string; name: string }[]): Promise<{ id: string; created: boolean }[]> {
   if (people.length === 0) return [];
   return sql.begin(async tx => {
-    const made: string[] = [];
+    const made: { id: string; created: boolean }[] = [];
     for (const p of people) {
       const [existing] = await tx<{ id: string }[]>`select id from records where member_id = ${p.id}`;
       if (existing) {
-        made.push(String(existing.id));
+        made.push({ id: String(existing.id), created: false });
         continue;
       }
       const [profile] = await tx<{ title: string; start_date: string | null }[]>`select title, to_char(start_date, 'YYYY-MM-DD') as start_date from profiles where member_id = ${p.id}`;
@@ -169,7 +169,7 @@ async function createFor(sql: Sql, actor: Member, people: { id: string; name: st
         values (${p.id}, ${[...p.name].slice(0, limits.name).join("") || "?"}, ${profile?.title ?? ""}, ${profile?.start_date ?? null}, ${actor.id})
         on conflict (member_id) do nothing returning id`;
       if (!row) continue;
-      made.push(String(row.id));
+      made.push({ id: String(row.id), created: true });
       await note(tx, actor, "created", { recordId: String(row.id) });
     }
     return made;

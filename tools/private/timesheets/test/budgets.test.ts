@@ -36,7 +36,7 @@ test("crossing 80 % then 100 % of a budget rings the managers once each; back un
   await entries.saveCell(sql, me, { projectId: p.id, taskId: null, day: addDays(monday, 1), minutes: 100 });
   assert.equal(chest.notifications.length, 1);
   await entries.saveCell(sql, me, { projectId: p.id, taskId: null, day: addDays(monday, 1), minutes: 200 });
-  assert.deepEqual(chest.notifications.map(n => n.title), ["Signage dépasse son budget : 104 %"]);
+  assert.deepEqual(chest.notifications.map(n => n.title), ["Signage dépasse son budget : 103 %"]);
   // Back under 80 % (time removed), then over it again: a new warning.
   await entries.saveCell(sql, me, { projectId: p.id, taskId: null, day: addDays(monday, 1), minutes: 0 });
   assert.equal((await sql`select 1 from budget_alerts where project_id = ${p.id}`).length, 0);

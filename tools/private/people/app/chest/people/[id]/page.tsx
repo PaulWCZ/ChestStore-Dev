@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Back, Cake, Door, Moon, Pencil, Phone, Pin, Wave } from "../../../../components/icons.tsx";
+import { Back, Cake, Door, Folder, Mail, Moon, Pencil, Phone, Pin, Wave } from "../../../../components/icons.tsx";
 import { Portrait } from "../../../../components/portrait.tsx";
 import { can } from "../../../../lib/access.ts";
 import { tenure } from "../../../../lib/calendar.ts";
@@ -13,6 +13,12 @@ import { awayOf, awayText } from "../../../../lib/away.ts";
 import { LinkSuggestion } from "../../checklists/arrivals-view.tsx";
 import { memberPattern } from "../../../../lib/model.ts";
 import { today } from "../../../../lib/zone.ts";
+import { listFields } from "../../../../lib/fields.ts";
+import { formatDate } from "../../../../lib/i18n/index.ts";
+import { ofMember } from "../../../../lib/journal.ts";
+import { nameOf, people } from "../../../../lib/people.ts";
+import { recordIdOf } from "../../../../lib/records.ts";
+import { CreateRecord } from "../../records/create-record.tsx";
 import { viewer } from "../../../../lib/session.ts";
 
 // A person's page: who they are, how to reach them, what to ask them,
@@ -29,6 +35,8 @@ export default async function ProfilePage({ params }: { params: Promise<{ id: st
   const person = entries.find(e => e.id === id);
   if (!person) notFound();
   const manager = person.managerId ? entries.find(e => e.id === person.managerId) : undefined;
+  // A manager who left keeps their place, marked, until HR names someone.
+  const formerManager = person.managerLeft && person.managerId && !manager ? nameOf((await people([person.managerId])).get(person.managerId), locale) : null;
   const reports = entries.filter(e => e.managerId === person.id);
   const mine = person.id === member.id;
   const hr = can(member, "profile.job");
@@ -39,6 +47,15 @@ export default async function ProfilePage({ params }: { params: Promise<{ id: st
   const away = gone ? awayText(gone, now, t.away, d => formatDay(d, locale, { weekday: "long", day: "numeric", month: "long" }), format) : null;
   // HR: is this newcomer someone Hiring told of? Offer to link them.
   const match = can(member, "checklists.manage") ? [...suggestions((await listArrivals(sql, member)).filter(a => a.status === "expected"), [person])][0] : undefined;
+  const extras = (await listFields(sql, member)).filter(f => person.extras[f.id]);
+  // The HR record: HR sees a link (or creates it); the person, their own.
+  const recordId = await recordIdOf(sql, member, person.id);
+  const hrRecords = can(member, "records.manage");
+  // What HR changed of their job details, and who (HR only).
+  const history = hr ? await ofMember(sql, person.id, 5) : [];
+  const historyNames = await people(history.map(h => h.actor));
+  const jobWords: Record<string, string> = { title: t.edit.title, team: t.edit.team, office: t.edit.office, managerId: t.edit.manager, startDate: t.edit.startDate, phone: t.edit.phone };
+  const jobWord = (f: string) => jobWords[f] ?? f;
   const empty = !person.title && !person.phone && !person.bio && person.skills.length === 0 && !person.team;
   let since = "";
   if (person.startDate) {
@@ -76,6 +93,7 @@ export default async function ProfilePage({ params }: { params: Promise<{ id: st
             )}
             <div className="row actions">
               {person.phone && <a className="button" href={`tel:${person.phone.replace(/[^\d+]/gu, "")}`} aria-label={format(t.profile.call, { name: person.name })}><Phone />{person.phone}</a>}
+              {person.email && !mine && <a className={person.phone ? "button quiet" : "button"} href={`mailto:${person.email}`} aria-label={format(t.profile.write, { name: person.name })}><Mail />{person.email}</a>}
               {mine && <Link className="button quiet" href={`/chest/people/${person.id}/edit`}><Pencil />{t.profile.editMine}</Link>}
               {!mine && hr && <Link className="button quiet" href={`/chest/people/${person.id}/edit`}><Pencil />{t.profile.edit}</Link>}
             </div>
@@ -108,12 +126,28 @@ export default async function ProfilePage({ params }: { params: Promise<{ id: st
           </ul>
         )}
 
-        {(manager || reports.length > 0) && (
+        {extras.length > 0 && (
+          <section className="profile-block">
+            <h2>{t.profile.more}</h2>
+            <dl className="extras">
+              {extras.map(f => <div key={f.id}><dt>{f.label}</dt><dd>{person.extras[f.id]}</dd></div>)}
+            </dl>
+          </section>
+        )}
+
+        {(manager || formerManager !== null || reports.length > 0) && (
           <section className="profile-block lines">
             {manager && (
               <div>
                 <h2>{t.profile.managedBy}</h2>
                 {mini(manager)}
+              </div>
+            )}
+            {formerManager !== null && (
+              <div>
+                <h2>{t.profile.managedBy}</h2>
+                <p className="manager-left">{formerManager ? format(t.profile.managerLeft, { name: formerManager }) : t.profile.managerLeftNobody}</p>
+                {hr && <Link className="link-button" href={`/chest/people/${person.id}/edit`}>{t.profile.managerLeftHr}</Link>}
               </div>
             )}
             {reports.length > 0 && (
@@ -141,6 +175,27 @@ export default async function ProfilePage({ params }: { params: Promise<{ id: st
               ))}
             </ul>
           </section>
+        )}
+
+        {history.length > 0 && (
+          <section className="profile-block">
+            <h2>{t.profile.history}</h2>
+            <ul className="journal">
+              {history.map(h => (
+                <li key={h.id}>
+                  <span>{format(t.record.actions[h.action], { fields: h.fields.map(jobWord).join(", ") })}</span>
+                  <span className="muted small">{nameOf(historyNames.get(h.actor), locale)} · {formatDate(h.at, locale, { day: "numeric", month: "short", year: "numeric" })}</span>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+
+        {(recordId || hrRecords) && (
+          <div className="row">
+            {recordId && <Link className="button quiet small" href={`/chest/records/${recordId}`}><Folder />{mine ? t.profile.myRecord : t.profile.record}</Link>}
+            {!recordId && hrRecords && <CreateRecord memberId={person.id} label={t.profile.createRecord} errors={t.errors} />}
+          </div>
         )}
 
         {hr && (

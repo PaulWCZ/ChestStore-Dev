@@ -9,7 +9,7 @@ import type { Catalogue } from "../../../lib/i18n/index.ts";
 import { checkIn } from "../actions.ts";
 
 export type CheckInWords = { checkIn: Catalogue["checkIn"]; confidence: Catalogue["confidence"]; confidenceHelp: Catalogue["confidenceHelp"]; errors: Catalogue["errors"] };
-export type CheckInTarget = { id: string; title: string; kind: "number" | "percent" | "money" | "milestone"; currentInput: string; current: string; target: string; unit: string; confidence: "on_track" | "at_risk" | "off_track" | null; done: boolean };
+export type CheckInTarget = { id: string; title: string; kind: "number" | "percent" | "money" | "milestone"; currentInput: string; current: string; target: string; unit: string; confidence: "on_track" | "at_risk" | "off_track" | null; done: boolean; source: "manual" | "crm.won_amount" | "crm.won_count" };
 export type CheckedIn = { checkInId: string; keyResultId: string };
 
 const levels = ["on_track", "at_risk", "off_track"] as const;
@@ -25,6 +25,18 @@ export function CheckInForm({ kr, t, onDone, onCancel, inline = false }: { kr: C
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
   const words = (code: ErrorCode, values: Record<string, string | number> = {}) => format(t.errors[code], values);
+
+  // A quiet week: the same value and confidence, in one click.
+  function same() {
+    if (!kr.confidence) return;
+    const keep = kr.confidence;
+    setError(null);
+    start(async () => {
+      const result = await checkIn(kr.id, { value: kr.kind === "milestone" ? (kr.done ? "1" : "0") : kr.currentInput, confidence: keep, note: "" });
+      if (!result.ok) return setError(words(result.error, result.values));
+      onDone({ checkInId: result.value.id, keyResultId: kr.id });
+    });
+  }
 
   function submit() {
     if (!confidence) {
@@ -42,7 +54,9 @@ export function CheckInForm({ kr, t, onDone, onCancel, inline = false }: { kr: C
 
   return (
     <form className={`checkin-form${inline ? " inline" : ""}`} onSubmit={e => { e.preventDefault(); submit(); }} aria-label={format(t.checkIn.title, { title: kr.title })}>
-      {kr.kind === "milestone" ? (
+      {kr.source !== "manual" ? (
+        <p className="fed-value"><strong>{format(t.checkIn.fromCrm, { value: kr.current })}</strong> <span className="hint">{format(t.checkIn.target, { value: kr.target })}</span></p>
+      ) : kr.kind === "milestone" ? (
         <fieldset className="segments">
           <legend>{t.checkIn.newValue}</legend>
           {[["1", t.checkIn.markDone], ["0", t.checkIn.notYet]].map(([v, label]) => (
@@ -78,6 +92,7 @@ export function CheckInForm({ kr, t, onDone, onCancel, inline = false }: { kr: C
       {error && <p className="error" role="alert"><Alert />{error}</p>}
       <div className="actions">
         <button type="submit" className="button go" disabled={pending}><Check />{pending ? t.checkIn.saving : t.checkIn.save}</button>
+        {kr.confidence && <button type="button" className="button quiet" disabled={pending} onClick={same} aria-label={format(t.checkIn.sameLabel, { title: kr.title, value: kr.current, confidence: t.confidence[kr.confidence] })}>{t.checkIn.same}</button>}
         {onCancel && <button type="button" className="button quiet" onClick={onCancel}>{t.checkIn.cancel}</button>}
       </div>
     </form>

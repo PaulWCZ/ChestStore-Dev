@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { Clipboard, CheckList, People, Tree } from "../../components/icons.tsx";
+import { Clipboard, CheckList, Folder, People, Tree } from "../../components/icons.tsx";
 import { Mark } from "../../components/mark.tsx";
 import { NavLink } from "../../components/nav-link.tsx";
 import { Portrait } from "../../components/portrait.tsx";
@@ -25,10 +25,11 @@ export default async function MembersLayout({ children }: { children: ReactNode 
         <a className="brand" href="/chest"><Mark /><span>{t.meta.name}</span></a>
         {role && (
           <nav className="tabs" aria-label={t.shell.nav}>
-            <NavLink href="/chest" exact also={["/chest/people", "/chest/import"]}><People /><span className="label">{t.shell.directory}</span></NavLink>
+            <NavLink href="/chest" exact also={["/chest/people", "/chest/import", "/chest/table"]}><People /><span className="label">{t.shell.directory}</span></NavLink>
             <NavLink href="/chest/chart"><Tree /><span className="label">{t.shell.chart}</span></NavLink>
             <NavLink href="/chest/todo"><CheckList /><span className="label">{t.shell.todo}</span>{todo > 0 && <span className="count">{todo}</span>}</NavLink>
             {can(member, "checklists.manage") && <NavLink href="/chest/checklists"><Clipboard /><span className="label">{t.shell.checklists}</span></NavLink>}
+            {can(member, "records.manage") && <NavLink href="/chest/records" also={["/chest/numbers"]}><Folder /><span className="label">{t.shell.records}</span></NavLink>}
           </nav>
         )}
         {role ? (

@@ -1,12 +1,16 @@
-import type { Catalogue } from "../../lib/i18n/index.ts";
+import { viewer } from "../../lib/session.ts";
 
-// What a page for managers shows to someone else: why, not an error.
-export function Forbidden({ t }: { t: Catalogue }) {
+// A page for managers, asked by someone else (forbidden(), HTTP 403): what
+// the page is and where their own time is — the tool itself is theirs.
+export default async function Forbidden() {
+  const v = await viewer();
+  if (!v) return null;
+  const { t } = v;
   return (
     <main className="page narrow">
       <div className="empty">
-        <h1>{t.noAccess.title}</h1>
-        <p>{t.errors.forbidden}</p>
+        <h1>{t.managersOnly.title}</h1>
+        <p>{t.managersOnly.body}</p>
         <a className="button quiet" href="/chest">{t.notFound.back}</a>
       </div>
     </main>

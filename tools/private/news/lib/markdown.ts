@@ -8,6 +8,7 @@
 //   ## A subheading
 //   **bold**, *italic* or _italic_, [a link](https://…), https://bare.link
 //   - a list item          1. a numbered item          > a quote
+//   ![words](image:12)     a picture of the post, alone on its line
 //
 // A blank line starts a new paragraph; a single line break is kept.
 
@@ -23,12 +24,14 @@ export type Block =
   | { t: "h"; c: Inline[] }
   | { t: "quote"; c: Inline[] }
   | { t: "ul"; items: Inline[][] }
-  | { t: "ol"; start: number; items: Inline[][] };
+  | { t: "ol"; start: number; items: Inline[][] }
+  | { t: "img"; id: string; alt: string };
 
 const bullet = /^\s{0,3}[-*•]\s+(.*)$/u;
 const numbered = /^\s{0,3}(\d{1,6})[.)]\s+(.*)$/u;
 const heading = /^\s{0,3}#{1,3}\s+(.*)$/u;
 const quote = /^\s{0,3}>\s?(.*)$/u;
+const picture = /^\s{0,3}!\[([^\]\n]{0,200})\]\(image:([1-9][0-9]{0,17})\)\s*$/u;
 
 // A link goes to the web or to an address; nothing else is ever a link
 // (no javascript:, data:, relative paths).
@@ -57,7 +60,10 @@ export function parse(text: string): Block[] {
       continue;
     }
     let m: RegExpExecArray | null;
-    if ((m = heading.exec(line))) {
+    if ((m = picture.exec(line))) {
+      flush();
+      blocks.push({ t: "img", id: m[2]!, alt: m[1]!.replace(/\\(.)/gu, "$1").trim() });
+    } else if ((m = heading.exec(line))) {
       flush();
       blocks.push({ t: "h", c: inline(m[1]!.trim()) });
     } else if ((m = bullet.exec(line))) {
@@ -105,7 +111,7 @@ export function inline(text: string, depth = 0): Inline[] {
     const c = text[i]!;
     const rest = text.slice(i);
     // An escaped mark is itself.
-    if (c === "\\" && i + 1 < text.length && /[\\*_[\]()#>-]/u.test(text[i + 1]!)) {
+    if (c === "\\" && i + 1 < text.length && /[\\*_[\]()#>.!•-]/u.test(text[i + 1]!)) {
       plain += text[i + 1];
       i += 2;
       continue;
@@ -178,7 +184,8 @@ export function plainInline(nodes: Inline[]): string {
 
 export function plain(text: string): string {
   return parse(text)
-    .map(b => (b.t === "ul" ? b.items.map(i => "• " + plainInline(i)).join("\n") : b.t === "ol" ? b.items.map((item, k) => `${b.start + k}. ${plainInline(item)}`).join("\n") : plainInline(b.c)))
+    .filter(b => b.t !== "img")
+    .map(b => (b.t === "img" ? "" : b.t === "ul" ? b.items.map(i => "• " + plainInline(i)).join("\n") : b.t === "ol" ? b.items.map((item, k) => `${b.start + k}. ${plainInline(item)}`).join("\n") : plainInline(b.c)))
     .join("\n\n");
 }
 

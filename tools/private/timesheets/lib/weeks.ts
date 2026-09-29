@@ -233,3 +233,26 @@ export async function remind(sql: Query, actor: Member | null, memberIds: unknow
 export function withRole<T extends { role: string | null }>(list: T[]): T[] {
   return list.filter(p => p.role !== null && (roles as readonly string[]).includes(p.role));
 }
+
+// A person's week as a manager reads it before approving: every entry of
+// the week, with its project, task, note and whether it is billable.
+export type ReadEntry = { id: string; day: string; minutes: number; note: string; billable: boolean; invoiced: boolean; projectId: string; projectName: string; clientName: string | null; color: string; taskName: string | null };
+
+export async function personWeek(sql: Query, actor: Member | null, memberId: unknown, week: unknown): Promise<{ state: WeekState; entries: ReadEntry[] }> {
+  if (!actor || !can(actor, "approve")) throw new AppError("forbidden");
+  const who = person(memberId);
+  const w = monday(week);
+  const [state, rows] = await Promise.all([
+    weekState(sql, who, w),
+    sql<{ id: string; day: string; minutes: number; note: string; billable: boolean; invoiced: boolean; project_id: string; project_name: string; client_name: string | null; color: string; task_name: string | null }[]>`
+      select e.id::text, to_char(e.day, 'YYYY-MM-DD') as day, e.minutes, e.note, e.billable, e.invoiced_at is not null as invoiced,
+        p.id::text as project_id, p.name as project_name, c.name as client_name, p.color, t.name as task_name
+      from entries e join projects p on p.id = e.project_id left join clients c on c.id = p.client_id left join tasks t on t.id = e.task_id
+      where e.member_id = ${who} and e.day between ${w} and ${addDays(w, 6)} and e.deleted_at is null
+      order by e.day, e.started_at nulls last, e.id`,
+  ]);
+  return {
+    state,
+    entries: rows.map(r => ({ id: r.id, day: r.day, minutes: r.minutes, note: r.note, billable: r.billable, invoiced: r.invoiced, projectId: r.project_id, projectName: r.project_name, clientName: r.client_name, color: r.color, taskName: r.task_name })),
+  };
+}

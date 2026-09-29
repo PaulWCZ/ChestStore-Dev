@@ -3,7 +3,7 @@ import { Tree, Upload } from "../../../components/icons.tsx";
 import { Portrait } from "../../../components/portrait.tsx";
 import { can } from "../../../lib/access.ts";
 import { db } from "../../../lib/db.ts";
-import { directory } from "../../../lib/directory.ts";
+import { departedManagers, directory } from "../../../lib/directory.ts";
 import { viewer } from "../../../lib/session.ts";
 import { orgChart, type OrgNode } from "../../../lib/tree.ts";
 import { OrgChart, type ChartNode } from "./org-chart.tsx";
@@ -15,10 +15,18 @@ export default async function ChartPage() {
   const v = await viewer();
   if (!v) return null;
   const { member, locale, t } = v;
-  const { entries } = await directory(db(), member);
-  const { roots, alone } = orgChart(entries);
-  const shape = (n: OrgNode<(typeof entries)[number]>): ChartNode => ({
-    id: n.person.id, name: n.person.name, photo: n.person.photo, title: n.person.title, team: n.person.team, size: n.size, reports: n.reports.map(shape),
+  const sql = db();
+  const { entries } = await directory(sql, member);
+  // Managers who left keep their place above their reports, marked, until
+  // HR names someone else.
+  type Place = { id: string; name: string; photo: string | null; title: string; team: string; managerId: string | null; left: boolean };
+  const places: Place[] = [
+    ...entries.map(e => ({ id: e.id, name: e.name, photo: e.photo, title: e.title, team: e.team, managerId: e.managerId, left: false })),
+    ...(await departedManagers(sql, entries)).map(d => ({ id: d.id, name: d.name || t.people.erased, photo: null, title: "", team: "", managerId: d.managerId, left: true })),
+  ];
+  const { roots, alone } = orgChart(places);
+  const shape = (n: OrgNode<Place>): ChartNode => ({
+    id: n.person.id, name: n.person.name, photo: n.person.photo, title: n.person.title, team: n.person.team, size: n.size, left: n.person.left, reports: n.reports.map(shape),
   });
   const hr = can(member, "profile.job");
   return (
@@ -34,7 +42,7 @@ export default async function ChartPage() {
           {can(member, "directory.import") && <Link className="button" href="/chest/import"><Upload />{t.chart.empty.action}</Link>}
         </div>
       ) : (
-        <OrgChart roots={roots.map(shape)} me={member.id} locale={locale} t={t.chart} />
+        <OrgChart roots={roots.map(shape)} me={member.id} hr={hr} locale={locale} t={t.chart} />
       )}
       {roots.length > 0 && alone.length > 0 && (
         <section className="alone" aria-labelledby="alone-title">

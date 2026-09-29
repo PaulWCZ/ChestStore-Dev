@@ -1,44 +1,82 @@
 import { CapabilityNotGranted, ChestError, QuotaExceeded, RateLimited } from "@argentic/chest-sdk/errors";
 import type { Locale, Member } from "@argentic/chest-sdk/member";
 import * as members from "@argentic/chest-sdk/members";
-import { inAudience, type Grouped } from "./access.ts";
 import * as notifications from "@argentic/chest-sdk/notifications";
-import { page, type Reader, maxPages } from "./audience.ts";
+import { inAudience, type Audience, type Grouped } from "./access.ts";
+import { everyone, page, type Reader, maxPages } from "./audience.ts";
 import type { Sql } from "./db.ts";
-import { catalogue, format } from "./i18n/index.ts";
-import { excerpt } from "./markdown.ts";
 import { continueDigest, seenDigest } from "./digest.ts";
+import { catalogue, format } from "./i18n/index.ts";
+import { email, type Recipient } from "./mailer.ts";
+import { excerpt, plain } from "./markdown.ts";
+import { limits, pick, withNames, type Version } from "./model.ts";
 import { badges, cut, notify, withdraw } from "./notify.ts";
-import { purge, unconfirmedCounts } from "./posts.ts";
+import { nameOf, people as lookup } from "./people.ts";
+import { mentionsIn, purge, unconfirmedCounts } from "./posts.ts";
 import { removeObjects } from "./storage.ts";
 
-// What News tells people through the Chest's bell, each in their own
-// language, and the number on its tile (Important posts not yet confirmed).
+// What News tells people, each in their own language: through the Chest's
+// bell, by email for what matters, and the number on its tile (Important
+// posts not yet confirmed).
 //
 // An Important post, once published, is told to its audience (everyone who
-// has News, or the members of its groups), a page of 500 members at a time. The Chest takes 1,000 recipients an hour
-// per tool: beyond, it refuses (QuotaExceeded) and News keeps where it
-// stopped (announce_after) and goes on at the next pass — a pass runs on
-// the "publish" schedule (every 15 minutes, Proposal (studio)) and whenever
-// someone opens the front page. The item has one key per post: telling
-// again replaces it, never doubles it.
+// has News, or the members of its groups and the people picked), a page of
+// 500 members at a time: in the bell, and by email to each person (lib/
+// mailer.ts). The Chest takes 1,000 bell recipients an hour per tool:
+// beyond, it refuses (QuotaExceeded) and News keeps where it stopped
+// (announce_after) and goes on at the next pass — a pass runs on the
+// "publish" schedule (every 15 minutes, Proposal (studio)) and whenever
+// someone opens the front page. The bell item has one key per post:
+// telling again replaces it, never doubles it; an email is sent once per
+// person and request to confirm (the emails table).
 export const postPath = (postId: string) => `/chest/posts/${postId}`;
-const importantKey = (postId: string) => `post:${postId}:important`;
+export const importantKey = (postId: string) => `post:${postId}:important`;
 
-type Due = { id: string; title: string; body: string; author: string; important: boolean; kind: string; welcome: string | null; announce_after: string | null; groups: string[] };
+type Due = Audience & {
+  id: string; title: string; body: string; locale: string; versions: Version[]; author: string; important: boolean; kind: string;
+  welcome: string | null; announce_after: string | null; confirm_from: number; email_short: boolean;
+};
 
 // A result of telling one post: done, or stopped (quota, Chest unreachable)
 // at a cursor to go on from.
 type Told = { done: true } | { done: false; after: string | null };
 
-function byLocale(people: Reader[]): Map<Locale, string[]> {
-  const groups = new Map<Locale, string[]>();
-  for (const p of people) groups.set(p.locale, [...(groups.get(p.locale) ?? []), p.id]);
+function byLocale<P extends { id: string; locale: Locale }>(people: P[]): Map<Locale, P[]> {
+  const groups = new Map<Locale, P[]>();
+  for (const p of people) groups.set(p.locale, [...(groups.get(p.locale) ?? []), p]);
   return groups;
+}
+
+// The bell item of an Important post (or its reminder), in one language.
+function bellItem(post: Pick<Due, "id" | "title" | "body" | "locale" | "versions">, locale: Locale, reminder = false) {
+  const t = catalogue(locale);
+  const shown = pick(post, locale);
+  return { title: cut(format(reminder ? t.bell.reminder : t.bell.important, { title: shown.title }), 80), body: cut(excerpt(shown.body, 270) || t.bell.importantBody, 280), path: postPath(post.id), key: importantKey(post.id) };
+}
+
+// The email of an Important post (or its reminder), in the reader's
+// language: its headline, its whole text, the link to confirm.
+function importantLetter(post: Pick<Due, "id" | "title" | "body" | "locale" | "versions">, authorName: (locale: Locale) => string, reminder = false) {
+  return (t: ReturnType<typeof catalogue>, person: Recipient) => {
+    const shown = pick(post, person.locale);
+    const text = plain(shown.body).trim();
+    return {
+      letter: { subject: format(reminder ? t.mail.reminderSubject : t.mail.importantSubject, { title: shown.title }), lines: [shown.title, "", ...(text ? [text, ""] : []), t.mail.confirm] },
+      path: postPath(post.id),
+      why: format(t.mail.whyImportant, { name: authorName(person.locale) }),
+    };
+  };
+}
+
+async function authorNames(author: string): Promise<(locale: Locale) => string> {
+  const who = (await lookup([author])).get(author);
+  return locale => nameOf(who, locale);
 }
 
 async function tellEveryone(sql: Sql, post: Due): Promise<Told> {
   let after = post.announce_after;
+  const author = await authorNames(post.author);
+  let emailing = !post.email_short;
   for (let i = 0; i < maxPages; i++) {
     let found;
     try {
@@ -48,17 +86,24 @@ async function tellEveryone(sql: Sql, post: Due): Promise<Told> {
       if (error instanceof ChestError) return { done: false, after };
       throw error;
     }
-    const confirmed = new Set((await sql<{ member: string }[]>`select member from confirmations where post_id = ${post.id}`).map(r => r.member));
+    const confirmed = new Set((await sql<{ member: string }[]>`select member from confirmations where post_id = ${post.id} and version >= ${post.confirm_from}`).map(r => r.member));
     const people = found.people.filter(p => p.id !== post.author && inAudience(p, post) && !confirmed.has(p.id));
     for (const [locale, group] of byLocale(people)) {
-      const t = catalogue(locale);
       try {
-        await notifications.notify(group, { title: cut(format(t.bell.important, { title: post.title }), 80), body: cut(excerpt(post.body, 270) || t.bell.importantBody, 280), path: postPath(post.id), key: importantKey(post.id) });
+        await notifications.notify(group.map(p => p.id), bellItem(post, locale));
       } catch (error) {
-        if (error instanceof CapabilityNotGranted) return { done: true };
+        if (error instanceof CapabilityNotGranted) break;
         if (error instanceof QuotaExceeded || error instanceof RateLimited || error instanceof ChestError) return { done: false, after };
         throw error;
       }
+    }
+    if (emailing && people.length > 0) {
+      const already = new Set((await sql<{ member: string }[]>`select member from emails where post_id = ${post.id} and version = ${post.confirm_from} and member in ${sql(people.map(p => p.id))}`).map(r => r.member));
+      const result = await email(sql, people.filter(p => !already.has(p.id)), importantLetter(post, author), p => `news:${post.id}:${post.confirm_from}:${p.id}`);
+      if (result.sent.length > 0) await sql`insert into emails ${sql(result.sent.map(member => ({ post_id: post.id, member, version: post.confirm_from })))} on conflict do nothing`;
+      if (result.stop === "unavailable") return { done: false, after };
+      if (result.stop === "quota") await sql`update posts set email_short = true where id = ${post.id}`;
+      if (result.stop !== null) emailing = false;
     }
     await badges(await unconfirmedCounts(sql, people));
     if (!found.next) return { done: true };
@@ -71,7 +116,7 @@ async function tellEveryone(sql: Sql, post: Due): Promise<Told> {
 // The new colleague is told only when the post is for them.
 async function tellWelcomed(post: Due): Promise<Told> {
   if (!post.welcome || post.welcome === "erased") return { done: true };
-  if (post.groups.length > 0) {
+  if (post.groups.length > 0 || post.people.length > 0) {
     let colleague;
     try {
       colleague = await members.get(post.welcome);
@@ -82,7 +127,7 @@ async function tellWelcomed(post: Due): Promise<Told> {
     }
     if (!colleague || !inAudience(colleague, post)) return { done: true };
   }
-  await notify([post.welcome], t => ({ title: t.bell.welcome, body: post.title }), { path: postPath(post.id), key: `post:${post.id}:welcome` });
+  await notify([post.welcome], (t, locale) => ({ title: t.bell.welcome, body: pick(post, locale).title }), { path: postPath(post.id), key: `post:${post.id}:welcome` });
   return { done: true };
 }
 
@@ -99,8 +144,10 @@ export async function announce(sql: Sql, now = new Date()): Promise<{ told: stri
   for (const { id } of due) {
     const [post] = await sql<Due[]>`
       update posts set announce_lease = ${now} where id = ${id} and announced_at is null and (announce_lease is null or announce_lease < ${now}::timestamptz - interval '2 minutes')
-      returning id, title, body, author, important, kind, welcome, announce_after,
-        array(select g.group_id from post_groups g where g.post_id = posts.id) as groups`;
+      returning id, title, body, locale, author, important, kind, welcome, announce_after, confirm_from, email_short,
+        coalesce((select json_agg(json_build_object('locale', v.locale, 'title', v.title, 'body', v.body)) from post_versions v where v.post_id = posts.id), '[]'::json) as versions,
+        array(select g.group_id from post_groups g where g.post_id = posts.id) as groups,
+        array(select pp.member from post_people pp where pp.post_id = posts.id) as people`;
     if (!post) continue;
     const key = String(post.id);
     const result = post.important ? await tellEveryone(sql, { ...post, id: key }) : await tellWelcomed({ ...post, id: key });
@@ -126,24 +173,67 @@ export async function pass(sql: Sql, now = new Date()): Promise<{ told: string[]
   return result;
 }
 
-// A new comment: the post's author hears of it (not of their own).
-export async function commented(actor: Member, post: { id: string; title: string; author: string }, body: string): Promise<void> {
-  if (post.author === actor.id || post.author === "erased") return;
-  await notify([post.author], t => ({ title: format(t.bell.commented, { name: actor.name, title: cut(post.title, 40) }), body: cut(body, 280) }), { path: postPath(post.id) + "#comments", key: `post:${post.id}:comments` });
+// A new comment: the post's author hears of it (not of their own); a reply,
+// the author of the comment it answers; a mention, the person mentioned
+// when they can see the post. Each hears once, of the most specific.
+export async function commented(actor: Member, done: { comment: { id: string; body: string }; post: Audience & { id: string; title: string; author: string }; parentAuthor: string | null; mentioned: string[] }): Promise<void> {
+  const { post, comment } = done;
+  const told = new Set<string>([actor.id, "erased"]);
+  const path = postPath(post.id) + "#comment-" + comment.id;
+  const text = cut(await readable(comment.body), 280);
+  await mentionedIn(actor, post, done.mentioned, comment.body, path, told);
+  if (done.parentAuthor && !told.has(done.parentAuthor)) {
+    told.add(done.parentAuthor);
+    await notify([done.parentAuthor], t => ({ title: format(t.bell.replied, { name: actor.name, title: cut(post.title, 40) }), body: text }), { path, key: `post:${post.id}:replies` });
+  }
+  if (!told.has(post.author)) {
+    await notify([post.author], t => ({ title: format(t.bell.commented, { name: actor.name, title: cut(post.title, 40) }), body: text }), { path: postPath(post.id) + "#comments", key: `post:${post.id}:comments` });
+  }
 }
 
-// A reminder to those who have not confirmed: the same item, again unread.
-export async function remind(post: { id: string; title: string; body: string }, pending: Reader[]): Promise<void> {
+// mentionedIn tells the people mentioned in a comment who can see the post
+// (its audience, its author, the admins); the others are not told.
+export async function mentionedIn(actor: Member, post: Audience & { id: string; title: string; author: string }, mentioned: string[], body: string, path: string, told = new Set<string>([actor.id])): Promise<void> {
+  const wanted = mentioned.filter(m => !told.has(m));
+  if (wanted.length === 0) return;
+  let found: Awaited<ReturnType<typeof members.lookup>>["members"] = [];
+  try {
+    found = (await members.lookup(wanted)).members;
+  } catch (error) {
+    if (!(error instanceof ChestError)) throw error;
+  }
+  const allowed = found.filter(m => m.role !== null && (m.isAdmin || m.id === post.author || inAudience(m, post))).map(m => m.id);
+  for (const m of allowed) told.add(m);
+  const text = cut(await readable(body), 280);
+  await notify(allowed, t => ({ title: format(t.bell.mentioned, { name: actor.name, title: cut(post.title, 40) }), body: text }), { path, key: `post:${post.id}:mention` });
+}
+
+// readable writes a comment's mentions as names, for the bell.
+async function readable(body: string): Promise<string> {
+  const ids = mentionsIn(body);
+  if (ids.length === 0) return body;
+  const who = await lookup(ids);
+  return withNames(body, id => nameOf(who.get(id), "en"));
+}
+
+// A seat freed for someone who was waiting.
+export async function promoted(memberId: string, post: { id: string; title: string }): Promise<void> {
+  await notify([memberId], t => ({ title: format(t.bell.seat, { title: cut(post.title, 50) }) }), { path: postPath(post.id), key: `post:${post.id}:seat` });
+}
+
+// A reminder to those who have not confirmed: the same item, again unread,
+// and an email.
+export async function remind(sql: Sql, post: Pick<Due, "id" | "title" | "body" | "locale" | "versions" | "author">, pending: Reader[], day: string): Promise<void> {
   for (const [locale, group] of byLocale(pending)) {
-    const t = catalogue(locale);
     for (let i = 0; i < group.length; i += 500) {
       try {
-        await notifications.notify(group.slice(i, i + 500), { title: cut(format(t.bell.reminder, { title: post.title }), 80), body: cut(excerpt(post.body, 270) || t.bell.importantBody, 280), path: postPath(post.id), key: importantKey(post.id) });
+        await notifications.notify(group.slice(i, i + 500).map(p => p.id), bellItem(post, locale, true));
       } catch (error) {
         if (!(error instanceof ChestError)) throw error;
       }
     }
   }
+  await email(sql, pending, importantLetter(post, await authorNames(post.author), true), p => `remind:${post.id}:${day}:${p.id}`);
 }
 
 // Confirmed: the item goes from that member's bell.
@@ -155,6 +245,44 @@ export async function confirmed(sql: Sql, person: Grouped, postId: string): Prom
 // A post deleted, or no longer Important: its items go from every bell.
 export async function settled(postId: string): Promise<void> {
   await withdraw(importantKey(postId));
+}
+
+// reconcile withdraws the bell item of open Important posts from whoever
+// they are no longer for (someone left a group, a group was removed), and
+// sets everyone's number again. only: the posts of that group, or that
+// person alone (all posts, everyone otherwise).
+export async function reconcile(sql: Sql, only?: { group?: string; member?: string }): Promise<void> {
+  const open = await sql<(Audience & { id: string; author: string })[]>`
+    select p.id, p.author, array(select g.group_id from post_groups g where g.post_id = p.id) as groups,
+      array(select pp.member from post_people pp where pp.post_id = p.id) as people
+    from posts p where p.important and p.deleted_at is null and p.publish_at <= now() and p.publish_at > now() - make_interval(days => ${limits.confirmDays})
+      and (exists (select 1 from post_groups g where g.post_id = p.id) or exists (select 1 from post_people pp where pp.post_id = p.id))
+      ${only?.group ? sql`and exists (select 1 from post_groups g where g.post_id = p.id and g.group_id = ${only.group})` : sql``}`;
+  if (open.length === 0) return;
+  let people: Reader[];
+  if (only?.member) {
+    let one;
+    try {
+      one = await members.get(only.member);
+    } catch (error) {
+      if (error instanceof ChestError) return;
+      throw error;
+    }
+    if (!one) {
+      for (const p of open) await withdraw(importantKey(String(p.id)), [only.member]);
+      return;
+    }
+    people = [{ id: one.id, name: one.name, photo: one.photo, locale: one.locale, role: one.role, groups: one.groups }];
+  } else {
+    const all = await everyone();
+    if (!all.complete && all.people.length === 0) return;
+    people = all.people;
+  }
+  for (const p of open) {
+    const out = people.filter(x => !inAudience(x, p)).map(x => x.id);
+    for (let i = 0; i < out.length; i += 500) await withdraw(importantKey(String(p.id)), out.slice(i, i + 500));
+  }
+  await badges(await unconfirmedCounts(sql, people));
 }
 
 // refreshBadges sets these members' numbers; refreshEveryone, everyone's
@@ -183,10 +311,11 @@ export async function refreshEveryone(sql: Sql): Promise<void> {
 }
 
 // catchUp is the pass a visit runs, so News works on a Chest without
-// schedules: what is due is told when someone opens the front page; the
-// purge runs at most every 10 minutes per server. The visitor's weekly
-// digest leaves their bell: they are here. (The digest itself needs the
-// schedule: a visit never sends one.)
+// schedules: what is due is told when someone opens the front page (or
+// when the "Undo" seconds of a post end, lib/posts.ts); the purge runs at
+// most every 10 minutes per server. The visitor's weekly digest leaves
+// their bell: they are here. (The digest itself needs the schedule: a
+// visit never sends one.)
 let lastPurge = 0;
 export async function catchUp(sql: Sql, now = new Date(), visitor?: string): Promise<void> {
   await announce(sql, now);

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { Play, Plus, Stop } from "../../components/icons.tsx";
 import { useToast } from "../../components/toast.tsx";
@@ -10,7 +10,7 @@ import { readWork, workValue } from "../../lib/work.ts";
 import { formatClock, formatDuration } from "../../lib/duration.ts";
 import type { Catalogue } from "../../lib/i18n/index.ts";
 import { format } from "../../lib/i18n/format.ts";
-import { discardTimer, restoreTimer, startTimer, stopTimer, updateTimer } from "./actions.ts";
+import { addEntry, discardTimer, restoreTimer, startTimer, stopTimer, updateTimer } from "./actions.ts";
 
 // The one-line timer on top of every page: "What are you working on?", a
 // project, Start. Running, the same line shows the clock and Stop. The
@@ -22,6 +22,7 @@ type Words = { timer: Catalogue["timer"]; work: Catalogue["work"]; errors: Catal
 export function TimerBar(props: { running: RunningView | null; forgotten: Forgotten | null; projects: PickerProject[]; last: string; canManage: boolean; serverNow: number; t: Words }) {
   const { t } = props;
   const router = useRouter();
+  const path = usePathname();
   const toast = useToast();
   const [pending, start] = useTransition();
   // What the person sees, ahead of the server: running since…, or idle.
@@ -86,6 +87,7 @@ export function TimerBar(props: { running: RunningView | null; forgotten: Forgot
   function end() {
     if (!running) return;
     const before = running;
+    const said = note;
     setRunning(null);
     start(async () => {
       const r = await stopTimer();
@@ -94,7 +96,17 @@ export function TimerBar(props: { running: RunningView | null; forgotten: Forgot
         return fail(r.error, r.values);
       }
       setNote("");
-      toast(r.value.entry ? format(t.timer.recorded, { duration: formatDuration(r.value.entry.minutes), project: before.projectName }) : t.timer.tooShort);
+      if (r.value.entry) toast(format(t.timer.recorded, { duration: formatDuration(r.value.entry.minutes), project: before.projectName }));
+      else {
+        // Under a minute: nothing recorded, unless the person keeps a minute.
+        const day = r.value.day;
+        toast(t.timer.tooShort, { label: t.timer.keepMinute, run: () => start(async () => {
+          const k = await addEntry({ projectId: before.projectId, taskId: before.taskId, day, minutes: 1, note: said });
+          if (!k.ok) return fail(k.error, k.values);
+          toast(format(t.timer.recorded, { duration: formatDuration(1), project: before.projectName }));
+          router.refresh();
+        }) });
+      }
       router.refresh();
     });
   }
@@ -125,7 +137,8 @@ export function TimerBar(props: { running: RunningView | null; forgotten: Forgot
     return (
       <section className="timer idle empty-timer" aria-label={t.timer.region}>
         <p>{props.canManage ? t.timer.noProjectsManager : t.timer.noProjects}</p>
-        {props.canManage && <Link className="button signal" href="/chest/projects/new"><Plus />{t.timer.addProject}</Link>}
+        {/* On the Projects pages, their own button is the one to press. */}
+        {props.canManage && !path.startsWith("/chest/projects") && <Link className="button signal" href="/chest/projects/new"><Plus />{t.timer.addProject}</Link>}
       </section>
     );
   }

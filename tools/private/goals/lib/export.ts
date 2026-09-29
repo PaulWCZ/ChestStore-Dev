@@ -1,11 +1,12 @@
 import type { Member } from "@argentic/chest-sdk/member";
+import { readerOf } from "./access.ts";
 import { toCsv } from "./csv.ts";
 import { readCycle } from "./cycles.ts";
 import type { Sql } from "./db.ts";
 import { formatDate, intl, type Catalogue, type Locale } from "./i18n/index.ts";
 import { percent } from "./model.ts";
 import { nameOf, people } from "./people.ts";
-import { cycleObjectives, type KeyResult } from "./read.ts";
+import { checkIns, cycleObjectives, type KeyResult } from "./read.ts";
 import { teams } from "./teams.ts";
 
 // A cycle as a spreadsheet: one row per key result (an objective without
@@ -13,7 +14,7 @@ import { teams } from "./teams.ts";
 // language. Values are plain numbers a spreadsheet can add up.
 export async function cycleCsv(sql: Sql, actor: Member | null, cycleId: unknown, t: Catalogue, locale: Locale, zone: string, now: Date = new Date()): Promise<{ name: string; csv: string }> {
   const cycle = await readCycle(sql, actor, cycleId);
-  const objectives = await cycleObjectives(sql, cycle.id, { now, weekStart: now });
+  const objectives = await cycleObjectives(sql, cycle.id, { now, weekStart: now }, readerOf(actor!));
   const teamNames = new Map((await teams(sql, { archived: true })).map(x => [x.id, x.name]));
   const who = await people(objectives.flatMap(o => [o.owner, ...o.keyResults.map(k => k.owner)]));
   const byId = new Map(objectives.map(o => [o.id, o]));
@@ -52,6 +53,33 @@ export async function cycleCsv(sql: Sql, actor: Member | null, cycleId: unknown,
     for (const k of o.keyResults) rows.push([...head, ...line(k), ...tail]);
   }
   return { name: cycle.name, csv: toCsv(rows, t.export.separator) };
+}
+
+// Every check-in of a cycle, one row each, oldest first: the trend a
+// company keeps when it leaves (the cycle's CSV has only the values now).
+export async function checkInsCsv(sql: Sql, actor: Member | null, cycleId: unknown, t: Catalogue, locale: Locale, zone: string, now: Date = new Date()): Promise<{ name: string; csv: string }> {
+  const cycle = await readCycle(sql, actor, cycleId);
+  const objectives = await cycleObjectives(sql, cycle.id, { now, weekStart: now }, readerOf(actor!));
+  const krs = objectives.flatMap(o => o.keyResults.map(k => ({ o, k })));
+  const history = await checkIns(sql, krs.map(x => x.k.id), 1000);
+  const who = await people([...history.values()].flat().map(c => c.author));
+  const h = t.export.checkInHeaders;
+  const rows: unknown[][] = [[h.date, h.objective, h.keyResult, h.value, h.unit, h.confidence, h.note, h.by]];
+  const numbers = new Intl.NumberFormat(intl(locale), { useGrouping: false, maximumFractionDigits: 4 });
+  const all = krs.flatMap(({ o, k }) => (history.get(k.id) ?? []).map(c => ({ o, k, c }))).sort((a, b) => a.c.at.localeCompare(b.c.at) || Number(a.c.id) - Number(b.c.id));
+  for (const { o, k, c } of all) {
+    rows.push([
+      formatDate(c.at, locale, zone, { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }),
+      o.title,
+      k.title,
+      k.kind === "milestone" ? (c.value >= 1 ? t.export.done : t.export.notDone) : numbers.format(c.value),
+      k.kind === "money" ? k.currency ?? "" : k.kind === "percent" ? "%" : k.unit,
+      t.confidence[c.confidence],
+      c.note,
+      nameOf(who.get(c.author), locale),
+    ]);
+  }
+  return { name: `${cycle.name} ${t.export.checkInsFile}`, csv: toCsv(rows, t.export.separator) };
 }
 
 // fileName makes a cycle's name safe in a download.

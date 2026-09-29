@@ -86,7 +86,7 @@ test("an admin imports a spreadsheet into the cycle: rows left out are said, unk
   const done = await runImport(sql, admin, { text, mapping: preview.mapping, cycleId: cycle.id, owners: { [unknown.key]: sofia.id } });
   assert.equal(done.objectives.length, 3);
   assert.equal(done.keyResults, 4);
-  const all = await cycleObjectives(sql, cycle.id, clockAt());
+  const all = await cycleObjectives(sql, cycle.id, clockAt(), null);
   const keep = all.find(o => o.title === "Keep every customer we have")!;
   assert.equal(keep.level, "team");
   assert.deepEqual(keep.keyResults.map(k => [k.title, k.kind, k.unit, k.current, k.owner]), [
@@ -101,7 +101,7 @@ test("an admin imports a spreadsheet into the cycle: rows left out are said, unk
   await assert.rejects(runImport(sql, admin, { text, mapping: again.mapping, cycleId: cycle.id }), refused("import_nothing"));
   // Undo takes the import back.
   assert.equal(await undoImport(sql, admin, done.objectives), 3);
-  assert.equal((await cycleObjectives(sql, cycle.id, clockAt())).length, 0);
+  assert.equal((await cycleObjectives(sql, cycle.id, clockAt(), null)).length, 0);
   await sql`delete from cycles`;
   await sql`delete from teams`;
 });
@@ -114,7 +114,7 @@ test("Goals' own French export comes back: levels, teams, what it supports, valu
   assert.deepEqual(preview.plan.newTeams, ["Atelier"]);
   assert.deepEqual(preview.plan.owners.filter(o => o.match === null).map(o => o.written).sort(), ["Léa Garnier", "Tom Walker"]);
   const done = await runImport(sql, admin, { text, mapping: preview.mapping, cycleId: cycle.id });
-  const all = await cycleObjectives(sql, cycle.id, clockAt());
+  const all = await cycleObjectives(sql, cycle.id, clockAt(), null);
   const company = all.find(o => o.level === "company")!;
   const team = all.find(o => o.level === "team")!;
   assert.equal(team.parentId, company.id);

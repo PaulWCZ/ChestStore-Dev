@@ -147,7 +147,7 @@ test("answers leave with the guest: erased on request, and deleted with the book
   const { sql, host, type } = await ready();
   await b.book(sql, host, type, { ...guest, start: "2026-10-06T07:00:00.000Z", answers: { room0001: "Kitchen", pro00001: "yes", budget01: "Secret budget" } }, monday);
   await b.book(sql, host, type, { ...guest, email: "sam@example.com", start: "2026-10-06T08:00:00.000Z", answers: { room0001: "Bedroom", pro00001: "no" } }, monday);
-  assert.equal(await b.eraseGuest(sql, asMember(camille), "alex@example.com"), 1);
+  assert.equal((await b.eraseGuest(sql, asMember(camille), "alex@example.com")).length, 1);
   const left = await sql<{ answers: unknown }[]>`select answers from bookings`;
   assert.equal(left.length, 1);
   assert.ok(!JSON.stringify(left).includes("Secret budget"));

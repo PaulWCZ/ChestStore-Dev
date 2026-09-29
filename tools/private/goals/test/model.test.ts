@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { AppError } from "../lib/app-error.ts";
-import { checkValue, clean, cycleDates, cycleTime, isStale, measure, mondayOf, nextQuarter, objectiveProgress, parseValue, progress, quarterOf, score, worst } from "../lib/model.ts";
-import { valueText } from "../lib/values.ts";
+import { checkValue, clean, cycleDates, cycleTime, firstCycleChoices, isStale, measure, mondayOf, nextQuarter, objectiveProgress, parseValue, progress, quarterOf, score, worst } from "../lib/model.ts";
+import { unitFor, valueText } from "../lib/values.ts";
 
 const refused = (code: string) => (error: unknown) => error instanceof AppError && error.code === code;
 
@@ -59,8 +59,8 @@ test("cycles: dates in order and bounded; quarters; where a day stands in a cycl
   assert.throws(() => cycleDates("2026-12-31", "2026-10-01"), refused("dates_order"));
   assert.throws(() => cycleDates("2026-02-30", "2026-10-01"), refused("invalid_date"));
   assert.throws(() => cycleDates("2026-01-01", "2027-06-01"), refused("too_long_cycle"));
-  assert.deepEqual(quarterOf("2026-09-28"), { name: "Q3 2026", startsOn: "2026-07-01", endsOn: "2026-09-30" });
-  assert.deepEqual(nextQuarter("2026-12-31"), { name: "Q1 2027", startsOn: "2027-01-01", endsOn: "2027-03-31" });
+  assert.deepEqual(quarterOf("2026-09-28"), { name: "Q3 2026", quarter: 3, year: 2026, startsOn: "2026-07-01", endsOn: "2026-09-30" });
+  assert.deepEqual(nextQuarter("2026-12-31"), { name: "Q1 2027", quarter: 1, year: 2027, startsOn: "2027-01-01", endsOn: "2027-03-31" });
   const q4 = { startsOn: "2026-10-01", endsOn: "2026-12-31" };
   assert.equal(cycleTime(q4, "2026-09-28").phase, "before");
   const during = cycleTime(q4, "2026-10-08");
@@ -97,4 +97,37 @@ test("values are written in the reader's language", () => {
   assert.equal(valueText({ kind: "percent", unit: "", currency: null }, 35, "en"), "35%");
   assert.equal(valueText({ kind: "money", unit: "", currency: "EUR" }, 12000, "fr"), "12 000 €");
   assert.equal(valueText({ kind: "money", unit: "", currency: "EUR" }, 12000, "en"), "€12,000");
+});
+
+test("a first cycle near a quarter's end is the next quarter, with this one as a second choice", () => {
+  const pick = (day: string) => {
+    const c = firstCycleChoices(day);
+    return [c.main.which, c.main.quarter.name, c.other?.quarter.name ?? null];
+  };
+  // 29 September: 1 day left in Q3 — Q4 is offered first.
+  assert.deepEqual(pick("2026-09-29"), ["next", "Q4 2026", "Q3 2026"]);
+  assert.deepEqual(pick("2026-09-30"), ["next", "Q4 2026", "Q3 2026"]);
+  // The last 14 days only: 17 September has 13 left, 16 September 14.
+  assert.deepEqual(pick("2026-09-17"), ["next", "Q4 2026", "Q3 2026"]);
+  assert.deepEqual(pick("2026-09-16"), ["current", "Q3 2026", null]);
+  // The first day of a quarter is that quarter; the year turns over.
+  assert.deepEqual(pick("2026-10-01"), ["current", "Q4 2026", null]);
+  assert.deepEqual(pick("2026-12-20"), ["next", "Q1 2027", "Q4 2026"]);
+  assert.deepEqual(pick("2027-01-01"), ["current", "Q1 2027", null]);
+  assert.deepEqual(pick("2028-02-20"), ["current", "Q1 2028", null]);
+  assert.deepEqual(firstCycleChoices("2026-09-29").main.quarter, { name: "Q4 2026", quarter: 4, year: 2026, startsOn: "2026-10-01", endsOn: "2026-12-31" });
+});
+
+test("units with two forms: 1 customer, 2 customers (0 client in French); km/h stays a unit", () => {
+  assert.equal(unitFor("customer/customers", 1, "en"), "customer");
+  assert.equal(unitFor("customer/customers", 0, "en"), "customers");
+  assert.equal(unitFor("customer/customers", 2.5, "en"), "customers");
+  assert.equal(unitFor("client/clients", 0, "fr"), "client");
+  assert.equal(unitFor("person/people", 1, "en"), "person");
+  assert.equal(unitFor("km/h", 1, "en"), "km/h");
+  assert.equal(unitFor("visits/month", 1, "en"), "visits/month");
+  assert.equal(unitFor("customers", 1, "en"), "customers");
+  assert.equal(valueText({ kind: "number", unit: "customer/customers", currency: null }, 1, "en"), "1 customer");
+  assert.equal(valueText({ kind: "number", unit: "customer/customers", currency: null }, 12, "en"), "12 customers");
+  assert.equal(measure({ kind: "number", unit: " customer / customers ", start: "0", target: "20" }).unit, "customer/customers");
 });

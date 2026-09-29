@@ -70,6 +70,13 @@ export async function objectiveGiven(actor: Member, owner: string, objective: { 
   await notify([owner], t => ({ title: format(t.bell.objectiveGiven, { name: actor.name }), body: objective.title }), { path: objectivePath(objective.id), key: `obj:${objective.id}:given` });
 }
 
+// Someone chosen to see a confidential objective hears of it.
+export async function shared(actor: Member, viewers: string[], objective: { id: string; title: string }): Promise<void> {
+  const others = viewers.filter(v => v !== actor.id);
+  if (others.length === 0) return;
+  await notify(others, t => ({ title: format(t.bell.shared, { name: actor.name }), body: objective.title }), { path: objectivePath(objective.id), key: `obj:${objective.id}:shared` });
+}
+
 export async function commented(actor: Member, recipients: string[], objective: { id: string; title: string }, body: string): Promise<void> {
   const others = [...new Set(recipients)].filter(r => r !== actor.id && r.startsWith("mbr_"));
   if (others.length === 0) return;
