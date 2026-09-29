@@ -52,7 +52,12 @@ the rest as links. **Ledger** lists (number, client, subject, date,
 amount, stamp; cards on phones). **Figures** on the desk (a ruled top, a
 Caslon amount). Buttons (ink, quiet, ghost, danger), fields, option cards,
 filter pills, dialogs, pickers with search, toasts with *Undo*, callouts,
-empty states with a blank sheet and a seal.
+empty states with a blank sheet and a seal. **On phones**: a bottom bar
+at the thumb (Desk, Quotes, Invoices, More — words under each icon), the
+paper first and its one next action in a sticky bar with the total; dates
+on the paper written as the document writes them (28/10/2026), the
+calendar opening on tap. **PDFs** are set in Liberation Serif and Sans
+(the widths of Times and Helvetica), embedded.
 
 ## Icon
 

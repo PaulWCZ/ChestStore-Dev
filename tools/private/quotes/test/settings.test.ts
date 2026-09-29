@@ -101,3 +101,12 @@ test("the catalogue: prices excluding VAT, the French rates, archived rather tha
   assert.deepEqual((await listItems(sql, asMember(lea))).map(i => i.name), ["Journée de développement"]);
   await assert.rejects(updateItem(sql, asMember(hugo), "999", { name: "x" }, "EUR"), refused("not_found"));
 });
+
+test("the company's row comes back empty if it was ever missing, and the payment link is https only", async () => {
+  const { sql } = database;
+  const { company: read, updateCompany: update } = await import("../lib/company.ts");
+  await assert.rejects(update(sql, asMember(camille), { paymentLink: "http://pay.test" }), (e: unknown) => (e as { code?: string }).code === "link_invalid");
+  assert.equal((await update(sql, asMember(camille), { paymentLink: "https://pay.test/x" })).paymentLink, "https://pay.test/x");
+  await sql`delete from company`;
+  assert.equal((await read(sql)).legalName, "");
+});

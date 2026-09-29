@@ -2,10 +2,19 @@
 
 *Devis et factures.* A store tool for a Chest: a small French company writes
 a quote from its catalogue, sends it, turns it into an invoice when the
-client says yes, finalises the invoice with the next legal number, sends it,
-records the payments, reminds the late payers, and hands its accountant a
-clean export. It replaces the invoicing part of Axonaut, Sellsy, Henrri,
-Tiime or Pennylane's invoicing module.
+client says yes, finalises the invoice with the next legal number — as a
+**Factur-X** —, sends it, records the payments, reminds the late payers (by
+itself if asked), repeats the monthly invoices, and hands its accountant a
+clean export with the accounting entries. It replaces the invoicing part of
+Axonaut, Sellsy, Henrri, Tiime or Pennylane's invoicing module — **but not
+their approved platform (PA)**: keep your PA to transmit the e-invoices
+(see "Legal").
+
+**Switching from another tool** takes an afternoon: import the clients and
+the catalogue from a spreadsheet (the importer recognises the usual French
+and English headers, shows the first rows, says which rows could not come
+and why), and continue the invoice numbering from the previous tool's last
+number (Settings → Numbering).
 
 ## What it does
 
@@ -43,6 +52,14 @@ Tiime or Pennylane's invoicing module.
 - **Credit notes** (*avoirs*): the only correction of a finalised invoice,
   full or partial (its lines, reduced), with their own sequence
   (`A-2026-0001`), never more than what remains of the invoice.
+- **Numbering**: with the year (`F-2026-0001`, from 0001 each year) or
+  without (`F-0001`, never restarting). An administrator may set the next
+  number of a sequence **forward only, and only before this tool numbered
+  anything in it** — to go on from the previous tool's last number
+  (`F-2026-0347` there → `F-2026-0348` here). Every change is kept and
+  shown (Settings, and the history of the first document numbered after
+  it). The format may change; each format has its own counters, so no
+  number can ever come twice.
 - **Totals**, in integer cents: each line rounded once (half away from
   zero), summed per VAT rate, VAT computed once per rate, totals added —
   the rule is written and tested in `lib/totals.ts` (it is also what the
@@ -57,19 +74,46 @@ Tiime or Pennylane's invoicing module.
   delivery address, kind of operation, VAT on debits). A finalised
   document's PDF is made once and kept in the Chest's files with its
   SHA-256: the copy of record, the one the export holds. Drafts print a
-  "Draft" mark on every page.
+  "Draft" mark on every page. Every PDF is a **PDF/A-3** (fonts embedded —
+  Liberation, with the widths of Helvetica and Times —, sRGB output intent,
+  XMP metadata), and every issued **invoice, deposit invoice and credit
+  note is a Factur-X**: it carries `factur-x.xml`, its data as UN/CEFACT CII
+  in the **EN 16931** profile (see "Factur-X"). Units read in the plural
+  when the quantity says so ("10 exemplaires"). An optional online payment
+  link is printed on invoices and in their emails.
 - **Sending** by email with the PDF attached, in the client's language, the
   words changeable, through the Chest's mail (a studio proposal). Where the
   Chest cannot send email, the tool says so: download the PDF, send it
   yourself, mark it as sent.
 - **Payments**: date, amount, method, reference; partial payments; states
   *unpaid*, *partly paid*, *paid*, *overdue* (by the Chest's today),
-  *cancelled* (credited in full). Reminders are a button (email with the
-  PDF, or recorded by hand) — nothing is sent automatically.
+  *cancelled* (credited in full). On a late invoice, "Send a reminder" is
+  the first action. **Automatic reminders** (Settings, off by default): each
+  morning, an invoice late by one of the company's steps (7, 15, 30 days by
+  default) is reminded once per step — by email to the client with the PDF
+  (when chosen and the Chest can send email), and the person who issued it
+  is told in the bell (or only told, when chosen).
+- **Recurring invoices**: an issued invoice repeats every month, quarter or
+  year; on each date a **draft** of it is made and handed to billing (told
+  in the bell), who check the period in the subject and finalise it.
+  Nothing is finalised by itself.
+- **Import** (`/chest/import`): clients and catalogue items from a CSV —
+  Axonaut, Sellsy, Pennylane, Excel — with the columns matched from their
+  names (changeable), a preview, every value checked (SIREN/SIRET and VAT
+  keys, emails, countries in words, Pennylane's `FR_200` VAT codes, prices
+  with a decimal comma or including VAT), duplicates skipped (same SIREN,
+  else same name), refused rows listed with their line and reason.
 - **Export for the accountant**: the invoices and credit notes of a period as
-  a CSV (in French: ";" and decimal commas; journal, date, number, client,
-  excl. VAT and VAT for each rate, totals, due date, corrected invoice,
-  state) and a ZIP of their PDFs with the same CSV.
+  a summary CSV (in French: ";" and decimal commas; journal, date, number,
+  client, excl. VAT and VAT for each rate, totals, due date, corrected
+  invoice, state); the **accounting entries** (a sales journal in the 18
+  columns of the French FEC: client account 411 with each client's
+  auxiliary account, sales of services 706 / goods 707, deposits 4191, VAT
+  collected per rate — every account set in Settings; each entry balanced;
+  credit notes reversed; the lines that take back a deposit clear 4191);
+  and a ZIP of everything (the Factur-X PDFs of record, the summary, the
+  entries, `clients.csv`, `catalogue.csv`). The clients and the catalogue
+  also download alone, in the importer's columns (what leaves comes back).
 
 ## Roles
 
@@ -119,11 +163,14 @@ and that person is rarely the one who manages the company's legal settings.
 | `/chest/documents/:id/pdf` | The PDF (`?download` to save it) |
 | `/chest/clients`, `/chest/clients/:id` | Clients; one client's card and documents |
 | `/chest/catalogue` | The catalogue |
-| `/chest/export`, `/chest/export/csv`, `/chest/export/zip` | The accountant's export (`?from=&to=`) |
+| `/chest/export`, `/chest/export/csv`, `/chest/export/journal`, `/chest/export/zip` | The accountant's export (`?from=&to=`): summary, accounting entries, everything |
+| `/chest/export/lists/clients`, `/chest/export/lists/items` | The clients, the catalogue (CSV, the importer's columns) |
+| `/chest/import?kind=clients\|items` | Import a spreadsheet |
 | `/chest/settings` | The company's details (admin; read only for others) |
 | `/chest/api/logo`, `/chest/logo` | Authorise a logo upload; the logo through a fresh signed link |
 | `/chest-events` | Members' lifecycle (Chest only) |
 | `/chest-jobs/badges` | The morning badge refresh (proposal, Chest only) |
+| `/chest-jobs/followup` | The morning follow-up: recurring drafts, automatic reminders (proposal, Chest only) |
 
 ## On a Chest
 
@@ -132,8 +179,10 @@ and that person is rarely the one who manages the company's legal settings.
 handed to them; a badge counting those drafts and the overdue invoices);
 receives `member.*`. `chest.proposals.json`: `mail.send`, the schedule
 `badges` (06:50 every day, sets the badge again — an invoice becomes overdue
-by the date alone; nothing is emailed by a schedule), French title and
-role labels.
+by the date alone) and `followup` (07:10 every day: the recurring invoices'
+drafts, and the reminders if an administrator turned them on — the only
+emails a schedule sends), French title and role labels. Without schedules,
+the first visit of the desk each day runs the follow-up (`followed_up_on`).
 
 Lifecycle: losing access or leaving changes nothing (documents are the
 company's records; pages name the author "Name (former member)"). An
@@ -153,11 +202,13 @@ documents without a client is the Chest's (`chest.locale()`).
   invoices must be structured e-invoices (Factur-X, UBL or CII) transmitted
   through the company's approved platform (*plateforme agréée*, PA); every
   company must be able to receive them from 1 September 2026. **This tool is
-  not a PA** and never presents itself as one: it produces the invoice, its
-  PDF and its data; it transmits nothing. It does **not** produce Factur-X
-  yet: after its issuing date, a company must issue its B2B invoices on its
-  PA (the settings page says so). A PDF from this tool remains a valid
-  invoice until then, and for sales outside the reform's scope.
+  not a PA** and never presents itself as one: it produces the invoice as a
+  Factur-X; **it transmits nothing, and receives nothing. Keep your PA**
+  (the tile, the settings page and this README say so): give it the
+  Factur-X PDFs from here (download, or the period's ZIP), it transmits
+  them, reports their statuses, and receives your suppliers' invoices.
+  Sending to the PA from here needs an SDK primitive (see "Needs from the
+  SDK").
 - **Retention.** Invoices must be kept 10 years (Code de commerce L123-22).
   Finalised invoices and credit notes are never deleted by the tool — but
   **removing the tool from the Chest deletes its database and files**. The
@@ -175,6 +226,40 @@ documents without a client is the Chest's (`chest.locale()`).
   design). The fictitious SIREN/VAT numbers of the sample data are valid by
   their keys only.
 
+## Factur-X
+
+Every issued invoice (380), deposit invoice (386) and credit note (381) is
+a Factur-X 1.0, conformance level **EN 16931**: a PDF/A-3B (fonts embedded,
+sRGB output intent, XMP with the Factur-X extension schema) carrying
+`factur-x.xml` (CII D16B, `AFRelationship /Alternative`). It is the PDF of
+record, stored once with its SHA-256 (`documents.pdf_format = 'factur-x'`);
+documents issued before this version keep their plain PDF of record.
+`lib/einvoice.ts` says what goes where: the French mandatory notes (PMT,
+PMD, AAB), the billing framework BT-23 (B1/S1/M1, B4/S4/M4 after
+deposits), SIREN (0002), SIRET (0009), the directory addresses (0225,
+the SIREN), VAT categories S / E (0 %, franchise `VATEX-FR-FRANCHISE`) /
+AE (`VATEX-EU-AE`, `VATEX-FR-AE`), negative prices as negative quantities,
+discounts as price allowances, VAT on debits as due-date code 5.
+
+**Verified** (2026-09-29, studio machine): sample invoices, deposit
+invoices, credit notes, reverse charge (EU and France), franchise and
+individual buyers, and the harness's own issued invoices were validated by
+Mustang-CLI 2.26.0: **PDF/A-3b compliant (veraPDF, 0 failed of 3,200–4,000
+checks)**, **valid against the Factur-X 1.09.2 EN 16931 XSD and
+schematron**, and **no error from the French CTC schematron "BR-FR Flux 2"
+V1.3.0**. The only remarks were German XRechnung notices (not applicable)
+and, for an individual buyer (B2C, outside the e-invoicing flow), the
+French warnings "PMT missing" and "BT-49 missing" — the €40 indemnity does
+not apply to consumers and they have no directory address. The XSD check
+runs in the tests when `FACTURX_XSD` points to the schema.
+**Not verified**: acceptance by a real PA (none reachable from the
+studio); the choice of E for a 0 % line in the standard regime (the tool
+does not ask which exemption applies: ask the accountant); SIREN as the
+tax registration (FC) of a franchise company without a VAT number (EN
+16931 BR-E-02 requires one); the Factur-X specification's own text
+(fnfe-mpe.org could not be reached; its rules were read from the official
+schemas and schematrons).
+
 ## Needs from the SDK
 
 - **mail** (studio proposal, `chest.proposals.json` `mail.send`): send the
@@ -182,18 +267,47 @@ documents without a client is the Chest's (`chest.locale()`).
   `lib/sending.ts` only. On a Chest without mail (`CapabilityNotGranted`)
   nothing is sent, the tool remembers it (`company.mail_works`) and offers
   "Download the PDF" + "Mark as sent".
-- **schedules** (studio proposal): `badges`, daily. Without it, badges are
-  set after each change and are only stale for invoices that became overdue
-  overnight.
+- **schedules** (studio proposal): `badges` and `followup`, daily. Without
+  them, badges are set after each change, and the follow-up runs at the
+  first desk visit of the day.
 - **chest** (studio proposal): `today()`, `timeZone()`, `currency()`,
   `locale()`.
 - **Events between tools** (studio proposal, `chest.proposals.json`
   `receives`): `crm.deal.won`, `crm.deal.reopened` from Clients — see
   "With the other tools".
-- **Structured e-invoices** are the tool's own work to come (Factur-X
-  EN 16931 from the same data), not the SDK's; sending them to a PA would
-  need an SDK primitive for declared outbound network with per-company
-  credentials (AFNOR XP Z12-013 API) — see the studio's SDK report.
+- **Sending to the company's PA — not built, needs the SDK.** The
+  Factur-X is ready; transmitting it needs a primitive the Chest does not
+  have: *declared outbound HTTPS to a partner, with a per-company secret the
+  tool never reads*. Proposed shape (for the SDK report):
+  `chest.json` `"partners": [{"name": "pa", "kinds": ["einvoicing"]}]`
+  (the owner picks which PA and pastes its credentials in the Chest; the
+  approval sentence "Sends your invoices to your approved platform and
+  reads their statuses"); `import * as partners from
+  "@argentic/chest-sdk/partners"`: `partners.send("pa", { kind:
+  "einvoice.submit", file: {name, type, content}, key })` → `{id, status}`
+  (AFNOR XP Z12-013 "flux 1/2" under the hood, done by the Chest's
+  connector), `partners.status("pa", id)`, and status events delivered to
+  `POST /chest-events` (`partner.einvoice.status`: déposée, rejetée,
+  refusée, encaissée…); `CapabilityNotGranted` until configured. The tool
+  side would be one module (`lib/transmit.ts`) called after finalising,
+  plus a status on the invoice page. Not built as a fake: until then,
+  "keep your PA".
+- **Public part / online acceptance of quotes — designed, not built.** The
+  tool is private (`tools/private/`, no `"public"` in `chest.json`). A
+  client accepting a quote online needs the public host: `"public": true`
+  (and so, by the studio's layout, a move to `tools/public-and-private/`,
+  which is the lead's call). Design: on sending, a secret per quote
+  (32 random bytes, stored hashed, `quotes_links`), the email carries
+  `<publicUrl>/q/<secret>`; the page shows the quote (its PDF, the total,
+  the validity), and "Accept" (name + a tick "Bon pour accord" + date; IP
+  and user agent recorded, hashed after 12 months) or "Decline"; the quote
+  becomes accepted/refused (`decided_by = 'client'`), the author is told in
+  the bell, the history says "Accepted online by <name>". An expired or
+  answered quote says so; the link dies with the quote. Not a qualified
+  e-signature (eIDAS), and the page says so. Needs: `chest.publicUrl()`
+  (exists), the `visitors` proposal for rate-limiting (exists).
+- **Guest accounts** (for the external accountant): not in the Chest;
+  until then the accountant gets the period's ZIP.
 
 ## With the other tools
 
@@ -243,12 +357,32 @@ node ../../../lab/chest-dev/dev.mjs . --prod --reset --port 5700   # from the st
 `seed/sample.sql` fills "Atelier Martin SARL", a Lyon design studio: 6
 clients, 12 items, 8 quotes in every state, 7 invoices (paid, partly paid,
 overdue, unpaid, a draft handed to billing), 1 credit note.
+`test/fixtures/` holds clients and catalogue exports in the style of
+Axonaut, Sellsy and Pennylane (see THIRD_PARTY.md for what could be
+verified of their formats).
 
 ## What it does not do (yet)
 
-Factur-X / UBL / CII files and sending to a PA; recurring invoices;
-automatic reminders; online payment; the client accepting a quote online;
-multi-currency within one company; purchase invoices; bookkeeping, FEC,
-bank reconciliation; other VAT rates than 20/10/5.5/2.1/0 % (Corsica,
-overseas); situation invoices (*factures de situation*); import from
-Axonaut/Sellsy CSV.
+- **Transmit e-invoices to a PA, or receive supplier invoices** (needs the
+  SDK "partners" primitive above): keep your PA. No UBL output (Factur-X
+  only).
+- **Online acceptance of a quote, and payment in the tool** (needs the
+  public part; designed above). A static payment link is printed instead.
+- **Import of open invoices** ("to collect" from the previous tool) and of
+  past invoices: only clients and catalogue items are imported; the
+  previous tool's unpaid invoices are collected there, or retyped as new
+  invoices here only if they were never issued.
+- The link with the Clients tool is one way (a won deal makes a quote);
+  a client's card edited in Clients does not update here.
+- Reminder emails use the standard text (in the client's language); their
+  words are not editable per company.
+- A 0 % line is sent in the Factur-X as "exempt" (E) without the precise
+  exemption; debits/disbursements outside the scope of VAT are not handled.
+- Multi-currency within one company; purchase invoices; full bookkeeping
+  and bank reconciliation (the entries are a sales journal, not a whole
+  FEC); other VAT rates than 20/10/5.5/2.1/0 % (Corsica, overseas);
+  situation invoices and retention money (*factures de situation*,
+  *retenue de garantie*): **not for construction firms billing by
+  progress**.
+- An automatic monthly archive to the Chest's files: export each period
+  (the ZIP holds everything).

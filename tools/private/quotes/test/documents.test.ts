@@ -323,3 +323,15 @@ test("a new document without a client speaks its author's language; with one, th
   const c = await client(sql, { name: "English Ltd", language: "en", siren: "", vatNumber: "" });
   assert.equal((await createDocument(sql, asMember(ines), "quote", c.id, defaults)).language, "en");
 });
+
+test("the reverse charge is the client card's, not a box on each paper", async () => {
+  const { sql } = database;
+  const eu = await client(sql, { name: "Verbeke BV", country: "BE", siren: "", vatNumber: "BE0765432146", reverseCharge: true, language: "en" });
+  const d = await createDocument(sql, asMember(ines), "quote", eu.id, defaults);
+  assert.equal(d.vatTreatment, "reverse_charge");
+  // The paper cannot turn it off while the card says so.
+  assert.equal((await saveDraft(sql, asMember(ines), d.id, { vatTreatment: "standard" })).vatTreatment, "reverse_charge");
+  // Without a client, the paper decides.
+  const blank = await createDocument(sql, asMember(ines), "quote", null, defaults);
+  assert.equal((await saveDraft(sql, asMember(ines), blank.id, { vatTreatment: "reverse_charge" })).vatTreatment, "reverse_charge");
+});

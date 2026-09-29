@@ -14,13 +14,28 @@ legal defect for the company using it.
 - `lib/documents.ts` — quotes, invoices, credit notes: drafts, numbering
   (`nextNumber`, counter row lock), `finalise`, deposits and balances,
   states. `lib/payments.ts`, `lib/clients.ts`, `lib/items.ts`, `lib/company.ts`.
-- `lib/pdf/` — `writer.ts` (the PDF writer), `document.ts` (the layout and
-  mandatory mentions), `image.ts` (logo), `metrics.ts` (font widths, generated).
+- `lib/pdf/` — `writer.ts` (the PDF/A-3 writer: embedded fonts, sRGB
+  output intent, XMP, the attached factur-x.xml), `document.ts` (the layout
+  and mandatory mentions), `truetype.ts` (TrueType reader and subsetter),
+  `fonts.ts` + `fonts/` (the Liberation fonts, OFL), `icc.ts` (the sRGB
+  profile), `image.ts` (logo), `metrics.ts` (font names, WinAnsi).
+- `lib/einvoice.ts` — the Factur-X data (CII, EN 16931). Any change: run
+  the tests with `FACTURX_XSD`, and validate a PDF with Mustang-CLI
+  (`--action validate`): PDF/A, EN 16931 and BR-FR schematrons.
+- `lib/numbering.ts` — the numbering format and continuing a sequence
+  (forward only, before the first number, logged).
+- `lib/units.ts` — units in the plural; UN/ECE codes.
+- `lib/parse-import.ts` (browser-safe: headers, values) and
+  `lib/importers.ts` (server: checks, savepoints) — the CSV import.
+- `lib/journal.ts` — the accounting entries (FEC columns).
+- `lib/reminders.ts`, `lib/repeats.ts`, `lib/followup.ts` — what runs each
+  morning (schedule `followup`, or the first desk visit of the day).
 - `lib/archive.ts` — the PDF of record, kept in the Chest's files.
 - `lib/sending.ts` — the only call site of the mail proposal.
 - `lib/export.ts` — CSV and ZIP for the accountant.
 - `lib/lifecycle.ts`, `lib/tell.ts`, `lib/notify.ts`, `lib/people.ts` — the Chest glue.
-- `migrations/0001_quotes.sql` — the schema **and the freezing triggers**.
+- `migrations/0001_quotes.sql` — the schema **and the freezing triggers**;
+  `0003_continue.sql` redefines `frozen_document()` (adds `pdf_format`).
 - `app/chest/actions.ts` — thin server actions; `app/chest/**` pages and
   views; `app/chest/documents/[id]/paper.tsx` — the paper editor.
 - `lib/i18n/en.ts`, `fr.ts` — every word, including the PDF's and emails'.
@@ -40,6 +55,10 @@ anything touching numbering), `npm run build`, the studio's
 - Numbers are only given by `nextNumber` inside the transaction that
   numbers the document, with the document's row locked first. Never compute
   a number outside it, never let the user choose the date of an invoice.
+  A counter is only ever moved by `continueSequence` (forward, before the
+  sequence's first number, logged).
+- An issued invoice's PDF is its Factur-X: never drop the attachment or
+  the PDF/A parts; a font used in a PDF must be embedded.
 - Money is integers of cents. Use `lib/totals.ts`; never round twice.
 - A new mandatory mention goes into `lib/pdf/document.ts` **and** the paper
   (`paper.tsx`), with its words in both catalogues and a test in
