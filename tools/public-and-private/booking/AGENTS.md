@@ -15,12 +15,18 @@ what must not break.
 | `lib/questions.ts` | The host's own questions and the guest's answers: bounds, checks, reading — pure, browser-safe, tested |
 | `lib/booking.ts` | The service: hosts, hours, types, free times, booking, moving, cancelling, feed, guard, cleanup, erasure |
 | `lib/ics.ts` | Calendar files (RFC 5545) |
+| `lib/ical.ts`, `lib/windows-zones.ts` | Reading a calendar for its busy times only (RRULE, EXDATE, RECURRENCE-ID, whole days, TZID, VTIMEZONE) — pure, tested |
+| `lib/calendars.ts` | The hosts' other calendars: allowed hosts (= `chest.json` `network`), fetching with limits, keeping busy spans, schedule and lazy refresh |
+| `lib/publish.ts` | Each booking in the host's Chest calendar (Proposal `calendar`) |
+| `lib/import.ts` | Calendly's scheduled-events CSV |
+| `lib/embed.ts` | The public pages' `frame-ancestors` from the websites an administrator allowed |
+| `lib/zones.ts`, `components/zone-select.tsx` | The time-zone list (cities, offsets, regions), written on the server |
 | `lib/mailer.ts`, `lib/guests.ts` | Emails to guests through the Chest's mail, falling back to the page |
 | `lib/tell.ts` | The host's bell |
 | `lib/lifecycle.ts` | Members leaving or erased |
 | `lib/form-token.ts`, `lib/public-origin.ts` | The form's signed "shown at" time; the public host's address; the visitor's key |
 | `app/page.tsx`, `app/[host]/…`, `app/b/[secret]/…`, `app/api/slots`, `app/feed/[token]`, `app/public-actions.ts`, `components/picker.tsx` | The public part (anonymous) |
-| `app/chest/…`, `app/chest/actions.ts` | The team's part |
+| `app/chest/…`, `app/chest/actions.ts` | The team's part (`new/`: a host books for a guest; `api/slots`: the free times a host sees; `hours/blocks.tsx`, `hours/other-calendars.tsx`) |
 | `app/chest-jobs/[name]/route.ts`, `app/chest-events/route.ts` | Deliveries from the Chest (signed) |
 
 ## Commands
@@ -35,9 +41,18 @@ npm ci && npm test && npm run build   # all three must pass
   the guarantee; the slot check before it is for a kind answer. Any new
   way to make or move a booking must write `blocked` (buffers included)
   and turn the database's refusal (`23P01`) into `taken`.
+- **Busy time** comes from four places — confirmed bookings (the
+  constraint), `blocks`, `busy` (other calendars) and the day's limits —
+  all read by `busyOf`; a new source goes there, never into the page.
+- **Other calendars**: never store a title or anything but spans; never
+  fetch a host outside `calendarHosts` (a test keeps it equal to
+  `chest.json` `network`); never show a calendar's address again.
+- **Every change to a booking tells the Chest's calendar** (`publish` /
+  `unpublish`) and, when the host wants it, emails them (`tell.hostCopy`).
 - **The daily limit** has no constraint of its own: it holds because
   `book` and `moveByGuest` lock the type's row (`lockType`, `for update`)
-  and check the time again inside that transaction. Any new way to make or
+  and check the time again inside that transaction; the host's daily
+  maximum across types holds the same way (`lockHost`). Any new way to make or
   move a booking must do the same (test/limits.test.ts races them).
 - **Answers are checked on the server** against the type's questions as
   they are at booking time (`cleanAnswers`); never trust the form's fields.

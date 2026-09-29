@@ -11,7 +11,7 @@ let database: TestDatabase;
 let chest: FakeChest;
 before(async () => {
   database = await testDatabase();
-  chest = await fakeChest({ members: everyone, capabilities: ["database", "members", "notifications", "mail"], mail: {}, schedules: [{ name: "reminders", cron: "5 * * * *" }, { name: "cleanup", cron: "40 3 * * *" }] });
+  chest = await fakeChest({ members: everyone, capabilities: ["database", "members", "notifications", "mail"], mail: {}, schedules: [{ name: "reminders", cron: "5 * * * *" }, { name: "cleanup", cron: "40 3 * * *" }, { name: "calendars", cron: "*/15 * * * *" }] });
 });
 after(async () => {
   await chest.close();
@@ -41,4 +41,21 @@ test("the nightly run is accepted, and a run not signed by the Chest is refused"
   assert.equal(await chest.run("cleanup", POST), 204);
   const response = await POST(new Request("http://tool.test/chest-jobs/cleanup", { method: "POST" }));
   assert.equal(response.status, 401);
+});
+
+test("every 15 minutes the hosts' other calendars are read again; one that cannot be read keeps its error", async () => {
+  const { sql } = database;
+  await b.ensureHost(sql, asMember(ines), { title: "Meeting", slug: "meeting" });
+  // An address of a declared host that answers nothing here (no network in
+  // tests): the run still succeeds, the calendar says why.
+  await sql`insert into calendars (member_id, url, provider, tried_at) values (${ines.id}, 'https://calendar.google.com/calendar/ical/x/private-y/basic.ics', 'calendar.google.com', now() - interval '1 hour')`;
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async () => new Response("", { status: 404 });
+  try {
+    assert.equal(await chest.run("calendars", POST), 204);
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+  const [row] = await sql<{ error: string | null }[]>`select error from calendars`;
+  assert.equal(row!.error, "not_found");
 });

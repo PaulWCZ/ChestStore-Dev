@@ -2,12 +2,23 @@ import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { Back } from "../../../../components/icons.tsx";
 import { AppError } from "../../../../lib/app-error.ts";
-import { typeOf, type BookingType } from "../../../../lib/booking.ts";
+import { otherHosts, typeOf, type BookingType } from "../../../../lib/booking.ts";
 import { db } from "../../../../lib/db.ts";
 import { myPage } from "../../../../lib/my-page.ts";
 import { publicOrigin } from "../../../../lib/public-origin.ts";
 import { viewer } from "../../../../lib/session.ts";
+import { can } from "../../../../lib/access.ts";
+import { people } from "../../../../lib/people.ts";
 import { TypeForm } from "../type-form.tsx";
+
+// The hosts an administrator may put in a type's team, with their names
+// (null: the viewer cannot choose).
+async function teamChoices(v: NonNullable<Awaited<ReturnType<typeof viewer>>>): Promise<{ id: string; name: string }[] | null> {
+  if (!can(v.member, "settings")) return null;
+  const ids = await otherHosts(db(), v.member);
+  const names = await people(ids);
+  return ids.flatMap(id => { const p = names.get(id); return p?.status === "member" ? [{ id, name: p.name }] : []; });
+}
 
 export default async function EditTypePage({ params }: { params: Promise<{ id: string }> }) {
   const v = await viewer();
@@ -28,7 +39,7 @@ export default async function EditTypePage({ params }: { params: Promise<{ id: s
     <>
       <a className="back" href="/chest/types"><Back />{t.types.title}</a>
       <div className="page-head"><h1>{t.types.form.titleEdit}</h1></div>
-      <TypeForm id={id} base={base} locale={locale} initial={initial} t={{ types: t.types, kinds: t.kinds, colors: t.colors, minutes: t.minutes, errors: t.errors }} />
+      <TypeForm team={await teamChoices(v)} id={id} base={base} locale={locale} initial={initial} t={{ types: t.types, kinds: t.kinds, colors: t.colors, minutes: t.minutes, errors: t.errors }} />
     </>
   );
 }

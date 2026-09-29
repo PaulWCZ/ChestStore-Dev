@@ -2,6 +2,7 @@
   "mail": {
     "send": true
   },
+  "calendar": true,
   "schedules": [
     {
       "name": "reminders",
@@ -10,6 +11,10 @@
     {
       "name": "cleanup",
       "cron": "40 3 * * *"
+    },
+    {
+      "name": "calendars",
+      "cron": "*/15 * * * *"
     }
   ],
   "translations": {

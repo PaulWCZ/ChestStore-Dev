@@ -1,6 +1,6 @@
 import { headers } from "next/headers";
 import { CopyButton } from "../../../components/copy-button.tsx";
-import { CalendarCheck, Chat, Clock, kindIcon, Pencil, Plus } from "../../../components/icons.tsx";
+import { CalendarCheck, Chat, Clock, kindIcon, Pencil, Person, Plus } from "../../../components/icons.tsx";
 import * as b from "../../../lib/booking.ts";
 import { db } from "../../../lib/db.ts";
 import { plural } from "../../../lib/i18n/index.ts";
@@ -45,6 +45,7 @@ export default async function TypesPage() {
                   <span><Kind />{t.kinds[ty.locationKind]}</span>
                   {ty.questions.length > 0 && <span><Chat />{plural(t.types.questionCount, ty.questions.length, locale)}</span>}
                   {ty.dailyLimit > 0 && <span><CalendarCheck />{plural(t.types.atMost, ty.dailyLimit, locale)}</span>}
+                  {ty.pool.length > 0 && <span><Person />{plural(t.types.team, ty.pool.length, locale)}</span>}
                 </div>
                 {!ty.active && <p className="hint">{t.types.off_hint}</p>}
                 <div className="actions">

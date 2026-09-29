@@ -5,6 +5,7 @@ import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import * as b from "../../lib/booking.ts";
 import * as calendars from "../../lib/calendars.ts";
+import { importCalendly as importFile, type ImportResult } from "../../lib/import.ts";
 import { db } from "../../lib/db.ts";
 import { AppError, attempt, type Result } from "../../lib/errors.ts";
 import { email } from "../../lib/guests.ts";
@@ -64,7 +65,7 @@ export async function removeType(id: string): Promise<Result<null>> {
   });
 }
 
-export async function saveWeekly(weekly: unknown, zone: string): Promise<Result<null>> {
+export async function saveWeekly(weekly: unknown, zone: string, dailyMax: number): Promise<Result<null>> {
   return act(async actor => {
     const sql = db();
     const host = await b.hostOf(sql, actor.id);
@@ -72,6 +73,7 @@ export async function saveWeekly(weekly: unknown, zone: string): Promise<Result<
     await sql.begin(async tx => {
       await b.saveWeekly(tx, actor, weekly);
       await b.saveHost(tx, actor, { slug: host.slug, zone, welcome: host.welcome, listed: host.listed });
+      await b.saveHostPrefs(tx, actor, { dailyMax, emailMe: host.emailMe });
     });
     return null;
   });
@@ -119,7 +121,7 @@ export async function stopFeed(): Promise<Result<null>> {
   });
 }
 
-export async function saveSettings(input: { companyName: string; retentionMonths: number; defaultZone: string; embedOrigins?: string }): Promise<Result<null>> {
+export async function saveSettings(input: { companyName: string; retentionMonths: number; defaultZone: string }): Promise<Result<null>> {
   return act(async actor => {
     await b.saveSettings(db(), actor, input);
     return null;
@@ -132,6 +134,13 @@ export async function eraseGuest(address: string): Promise<Result<number>> {
     const gone = await b.eraseGuest(sql, actor, address);
     for (const id of gone) await publish.unpublish(sql, { id });
     return gone.length;
+  });
+}
+
+export async function saveSites(sites: string): Promise<Result<null>> {
+  return act(async actor => {
+    await b.saveEmbed(db(), actor, sites);
+    return null;
   });
 }
 
@@ -214,5 +223,16 @@ export async function markPaid(id: string, paid: boolean): Promise<Result<null>>
   return act(async actor => {
     await b.markPaid(db(), actor, id, paid);
     return null;
+  });
+}
+
+// Meetings already booked in Calendly (its CSV export); each goes into the
+// host's Chest calendar too.
+export async function importCalendly(text: string, zone: string): Promise<Result<ImportResult>> {
+  return act(async actor => {
+    const sql = db();
+    const { bookings, ...result } = await importFile(sql, actor, text, zone);
+    for (const booking of bookings) await publish.publish(sql, booking);
+    return result;
   });
 }

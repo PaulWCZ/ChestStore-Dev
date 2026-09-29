@@ -10,7 +10,7 @@ import { visitorKey } from "./public-origin.ts";
 // does — per visitor, for everyone, and across the Chest's tools. On a
 // Chest without it, the tool counts in its own database (form_counts).
 
-export const formToken = () => visitors.formToken();
+export const formToken = (now?: number) => visitors.formToken(now);
 
 // checkForm refuses a form that is not ours; one sent faster than a person
 // types (a browser that fills the fields itself, a quick returning guest)

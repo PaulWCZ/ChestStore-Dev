@@ -61,3 +61,17 @@ export function clock(value: Date | string, zone: string, locale: Locale): strin
 export function zoneName(zone: string): string {
   return (zone.split("/").at(-1) ?? zone).replace(/_/gu, " ");
 }
+
+// firstUpper writes the first letter of a text as a capital, and nothing
+// else: a date alone on a line ("jeudi 8 octobre" → "Jeudi 8 octobre"),
+// never every word (French writes days and months in lower case).
+export function firstUpper(text: string, locale: Locale): string {
+  return text.charAt(0).toLocaleUpperCase(intl(locale)) + text.slice(1);
+}
+
+// The end of a time range on its day: "24:00" for the midnight that ends
+// it (a whole day blocked), not the next day's "00:00".
+export function endClock(start: Date, end: Date, zone: string, locale: Locale): string {
+  const text = clock(end, zone, locale);
+  return text === clock(new Date(0), "UTC", locale) && end.getTime() > start.getTime() && end.getTime() - start.getTime() <= 86400000 ? "24:00" : text;
+}

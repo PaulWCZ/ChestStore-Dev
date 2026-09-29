@@ -45,7 +45,7 @@ export function Exceptions({ list, today, locale, t }: { list: Exception[]; toda
             <li key={x.day}>
               <span className="row">
                 {x.ranges.length === 0 ? <span className="tag danger"><CalendarOff />{h.dayOff}</span> : <span className="tag free"><Clock />{x.ranges.map(r => `${toTime(r[0])}–${toTime(r[1])}`).join(", ")}</span>}
-                <strong style={{ textTransform: "capitalize" }}>{x.label}</strong>
+                <strong>{x.label}</strong>
                 {x.note && <span className="muted">{x.note}</span>}
               </span>
               <button type="button" className="link-button" disabled={pending} onClick={() => run(() => removeException(x.day), () => null)}>{h.undo}</button>

@@ -1,133 +1,137 @@
 "use client";
 
-import { useZones } from "./use-zones.ts";
-import { useActionState, useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useActionState, useCallback, useEffect, useMemo, useRef, useState, useTransition, type ReactNode } from "react";
 import { bookTime, moveMine, type BookState } from "../app/public-actions.ts";
 import type { ErrorCode } from "../lib/app-error.ts";
-import { format, intl } from "../lib/i18n/format.ts";
+import { firstUpper, format, intl } from "../lib/i18n/format.ts";
 import type { Catalogue } from "../lib/i18n/index.ts";
 import { questionLimits, type Question } from "../lib/questions.ts";
-import { addDays, isZone, wall } from "../lib/zone.ts";
+import { addDays, isZone, wall, weekdayOf } from "../lib/zone.ts";
+import type { ZoneGroup } from "../lib/zones.ts";
 import { Alert, Back, Check, Clock, Globe, Next } from "./icons.tsx";
+import { ZoneSelect } from "./zone-select.tsx";
 
 type Words = { public: Catalogue["public"]; days: Catalogue["days"]; errors: Catalogue["errors"]; answers: Catalogue["answers"] };
 
 type Props = {
-  hostSlug: string;
-  typeSlug: string;
   hostName: string;
   hostZone: string;
   // The first date (host's calendar) with a free time; null: nothing soon.
   first: string | null;
   locale: string;
-  phone: boolean;
-  company: string;
-  started: string;
+  // The time zones offered, written by the server.
+  zones: ZoneGroup[];
+  t: Words;
+  // A visitor booking a type of a host's page.
+  hostSlug?: string;
+  typeSlug?: string;
+  phone?: boolean;
+  company?: string;
+  started?: string;
   // The host's own questions on the form.
   questions?: Question[];
-  t: Words;
   // Moving a booking: the guest's secret instead of the form.
   move?: { secret: string; zone: string };
+  // The team's pages: where the free times come from (…?type=3), and what
+  // to show once a time is chosen.
+  source?: string;
+  chosen?: (start: string, when: string, zone: string, reset: () => void) => ReactNode;
 };
 
-const monthOf = (date: string) => date.slice(0, 7);
-const firstOfMonth = (month: string) => month + "-01";
-function shiftMonth(month: string, n: number): string {
-  const [y, m] = month.split("-").map(Number) as [number, number];
-  const d = new Date(Date.UTC(y, m - 1 + n, 1));
-  return d.toISOString().slice(0, 7);
-}
-function daysIn(month: string): number {
-  const [y, m] = month.split("-").map(Number) as [number, number];
-  return new Date(Date.UTC(y, m, 0)).getUTCDate();
-}
+// Five weeks at a time, from the week of the first free day: the end of a
+// month never hides the next one.
+const span = 35;
+const mondayOf = (date: string) => addDays(date, -((weekdayOf(date) + 6) % 7));
 
-// Picking a time: a month with the days that have free times, the day's
-// times in the visitor's time zone (they can change it), then the few
+// Picking a time: the coming weeks with the days that have free times, the
+// day's times in the visitor's time zone (they can change it), then the few
 // fields of the booking — or, when moving a booking, one button.
-export function Picker({ hostSlug, typeSlug, hostName, hostZone, first, locale, phone, company, started, questions = [], t, move }: Props) {
+export function Picker({ hostSlug = "", typeSlug = "", hostName, hostZone, first, locale, zones, phone = false, company = "", started = "", questions = [], t, move, source, chosen }: Props) {
   const p = t.public;
   const [zone, setZone] = useState(move?.zone ?? hostZone);
   useEffect(() => {
-    if (move) return;
+    if (move || source) return;
     const mine = Intl.DateTimeFormat().resolvedOptions().timeZone;
     if (isZone(mine)) setZone(mine);
-  }, [move]);
-  const [month, setMonth] = useState(monthOf(first ?? wall(Date.now(), hostZone).date));
+  }, [move, source]);
+  const today = wall(Date.now(), zone).date;
+  const firstWeek = mondayOf(today);
+  const [from, setFrom] = useState(mondayOf(first ?? wall(Date.now(), hostZone).date));
   const [slots, setSlots] = useState<Record<string, string[] | "loading" | "failed">>({});
   const [day, setDay] = useState<string | null>(null);
   const [time, setTime] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
   const asked = useRef(new Set<string>());
-  const load = useCallback(async (m: string, force = false) => {
-    if (!force && asked.current.has(m)) return;
-    asked.current.add(m);
-    setSlots(s => ({ ...s, [m]: "loading" }));
+  const load = useCallback(async (start: string, force = false) => {
+    if (!force && asked.current.has(start)) return;
+    asked.current.add(start);
+    setSlots(s => ({ ...s, [start]: "loading" }));
     try {
-      const from = addDays(firstOfMonth(m), -1), to = addDays(firstOfMonth(m), daysIn(m));
-      const response = await fetch(`/api/slots?host=${encodeURIComponent(hostSlug)}&type=${encodeURIComponent(typeSlug)}&from=${from}&to=${to}`, { cache: "no-store" });
+      const range = `from=${addDays(start, -1)}&to=${addDays(start, span)}`;
+      const url = source ? `${source}&${range}` : `/api/slots?host=${encodeURIComponent(hostSlug)}&type=${encodeURIComponent(typeSlug)}&${range}`;
+      const response = await fetch(url, { cache: "no-store" });
       const answer = (await response.json()) as { slots?: string[] };
-      setSlots(s => ({ ...s, [m]: answer.slots ?? [] }));
+      setSlots(s => ({ ...s, [start]: answer.slots ?? [] }));
     } catch {
-      asked.current.delete(m);
-      setSlots(s => ({ ...s, [m]: "failed" }));
+      asked.current.delete(start);
+      setSlots(s => ({ ...s, [start]: "failed" }));
     }
-  }, [hostSlug, typeSlug]);
-  useEffect(() => { void load(month); }, [month, load]);
+  }, [hostSlug, typeSlug, source]);
+  useEffect(() => { void load(from); }, [from, load]);
 
-  // The month's free times, by the visitor's day.
+  const last = addDays(from, span - 1);
+  // The weeks' free times, by the visitor's day.
   const byDay = useMemo(() => {
     const found = new Map<string, string[]>();
-    const list = slots[month];
+    const list = slots[from];
     if (!Array.isArray(list)) return found;
     for (const start of list) {
       const d = wall(Date.parse(start), zone).date;
-      if (monthOf(d) !== month) continue;
+      if (d < from || d > last) continue;
       found.set(d, [...(found.get(d) ?? []), start]);
     }
     return found;
-  }, [slots, month, zone]);
+  }, [slots, from, last, zone]);
 
   // Open on the first day with times, once they are known.
   useEffect(() => {
-    if (day && monthOf(day) === month) return;
+    if (day && day >= from && day <= last) return;
     const firstOpen = [...byDay.keys()].sort()[0];
     if (firstOpen) setDay(firstOpen);
-  }, [byDay, day, month]);
+  }, [byDay, day, from, last]);
 
-  const today = wall(Date.now(), zone).date;
-  const monthName = new Intl.DateTimeFormat(intl(locale), { timeZone: "UTC", month: "long", year: "numeric" }).format(new Date(firstOfMonth(month) + "T12:00:00Z"));
-  const lead = (new Date(firstOfMonth(month) + "T12:00:00Z").getUTCDay() + 6) % 7;
-  const cells: (string | null)[] = [...Array.from({ length: lead }, () => null), ...Array.from({ length: daysIn(month) }, (_, i) => `${month}-${String(i + 1).padStart(2, "0")}`)];
-  while (cells.length % 7) cells.push(null);
-  const weeks = Array.from({ length: cells.length / 7 }, (_, i) => cells.slice(i * 7, i * 7 + 7));
+  const monthWords = (d: string, options: Intl.DateTimeFormatOptions) => new Intl.DateTimeFormat(intl(locale), { timeZone: "UTC", ...options }).format(new Date(d + "T12:00:00Z"));
+  const heading = firstUpper(from.slice(0, 7) === last.slice(0, 7)
+    ? monthWords(from, { month: "long", year: "numeric" })
+    : from.slice(0, 4) === last.slice(0, 4) ? `${monthWords(from, { month: "long" })} – ${monthWords(last, { month: "long", year: "numeric" })}` : `${monthWords(from, { month: "long", year: "numeric" })} – ${monthWords(last, { month: "long", year: "numeric" })}`, locale);
+  const cells = Array.from({ length: span }, (_, i) => addDays(from, i));
+  const weeks = Array.from({ length: span / 7 }, (_, i) => cells.slice(i * 7, i * 7 + 7));
   const shortDays = [1, 2, 3, 4, 5, 6, 0].map(i => t.days.short[i] ?? "");
   const longDays = [1, 2, 3, 4, 5, 6, 0].map(i => t.days.long[i] ?? "");
   const clock = (start: string) => new Intl.DateTimeFormat(intl(locale), { timeZone: zone, hour: "2-digit", minute: "2-digit" }).format(new Date(start));
-  const dayLabel = (d: string) => new Intl.DateTimeFormat(intl(locale), { timeZone: "UTC", weekday: "long", day: "numeric", month: "long" }).format(new Date(d + "T12:00:00Z"));
-  const zones = useZones(zone);
-  const state = slots[month];
+  const dayLabel = (d: string) => monthWords(d, { weekday: "long", day: "numeric", month: "long" });
+  const state = slots[from];
   const times = day ? byDay.get(day) ?? [] : [];
-  const noneThisMonth = Array.isArray(state) && byDay.size === 0;
+  const noneHere = Array.isArray(state) && byDay.size === 0;
   const retake = useCallback((code: ErrorCode | null) => {
     if (code === "taken") {
       setTime(null);
       setNotice(p.taken);
-      void load(month, true);
+      void load(from, true);
     }
-  }, [load, month, p.taken]);
+  }, [load, from, p.taken]);
 
   // What the right column shows: loading, a failure, nothing free, or the
   // chosen day's times.
   function timesPane() {
     if (state === "loading" || state === undefined) return <p className="loading">{p.loading}</p>;
     if (state === "failed") return <p className="error"><Alert />{t.errors.unavailable}</p>;
-    if (noneThisMonth) return <p className="muted">{first === null ? p.nothingSoon : p.noTimes}</p>;
+    if (noneHere) return <p className="muted">{first === null ? p.nothingSoon : p.noTimes}</p>;
     if (!day) return <p className="muted">{p.pickDay}</p>;
     return (
       <>
-        <h3>{dayLabel(day)}</h3>
+        <h3>{firstUpper(dayLabel(day), locale)}</h3>
         {times.length === 0 ? <p className="muted">{p.noTimes}</p> : times.map(start => (
           <button key={start} type="button" className="time-button" aria-pressed={start === time} onClick={() => { setTime(start); setNotice(null); }}>{clock(start)}</button>
         ))}
@@ -135,27 +139,30 @@ export function Picker({ hostSlug, typeSlug, hostName, hostZone, first, locale, 
     );
   }
 
+  const when = time ? `${dayLabel(wall(Date.parse(time), zone).date)}, ${clock(time)}` : "";
+  const shift = (n: number) => { setFrom(addDays(from, n * span)); setTime(null); };
   return (
     <div className="stack">
-      {!time || move ? (
+      {!time || move || chosen ? (
         <div className="picker">
           <div>
             <div className="month-head">
-              <button type="button" className="icon-button" aria-label={p.previousMonth} disabled={month <= monthOf(today)} onClick={() => { setMonth(shiftMonth(month, -1)); setTime(null); }}><Back /></button>
-              <strong aria-live="polite">{monthName}</strong>
-              <button type="button" className="icon-button" aria-label={p.nextMonth} onClick={() => { setMonth(shiftMonth(month, 1)); setTime(null); }}><Next /></button>
+              <button type="button" className="icon-button" aria-label={p.previousMonth} disabled={from <= firstWeek} onClick={() => shift(-1)}><Back /></button>
+              <strong aria-live="polite">{heading}</strong>
+              <button type="button" className="icon-button" aria-label={p.nextMonth} onClick={() => shift(1)}><Next /></button>
             </div>
             <table className="calendar" role="grid" aria-label={p.pickDay}>
               <thead><tr>{shortDays.map((d, i) => <th key={i} scope="col" abbr={longDays[i]}>{d}</th>)}</tr></thead>
               <tbody>
                 {weeks.map((week, w) => (
                   <tr key={w}>
-                    {week.map((d, i) => {
-                      if (!d) return <td key={i} />;
+                    {week.map(d => {
                       const open = byDay.has(d);
+                      const newMonth = d.endsWith("-01");
                       return (
-                        <td key={i}>
-                          <button type="button" className={`${open ? "open" : ""}${d === today ? " today" : ""}`} disabled={!open} aria-pressed={d === day} aria-label={dayLabel(d)} onClick={() => { setDay(d); setTime(null); setNotice(null); }}>
+                        <td key={d}>
+                          <button type="button" className={`${open ? "open" : ""}${d === today ? " today" : ""}${d < today ? " past" : ""}`} disabled={!open} aria-pressed={d === day} aria-label={dayLabel(d)} onClick={() => { setDay(d); setTime(null); setNotice(null); }}>
+                            {newMonth ? <span className="month-start">{monthWords(d, { month: "short" })}</span> : null}
                             {Number(d.slice(8))}
                           </button>
                         </td>
@@ -168,9 +175,7 @@ export function Picker({ hostSlug, typeSlug, hostName, hostZone, first, locale, 
             <div className="zone">
               <Globe />
               <label htmlFor="zone">{p.timesIn}</label>
-              <select id="zone" className="field" value={zone} onChange={e => { setZone(e.target.value); setTime(null); }}>
-                {zones.map(z => <option key={z} value={z}>{z.replace(/_/gu, " ")}</option>)}
-              </select>
+              <ZoneSelect id="zone" value={zone} groups={zones} onChange={z => { setZone(z); setTime(null); }} />
             </div>
           </div>
           <div className="times" aria-live="polite">
@@ -179,8 +184,9 @@ export function Picker({ hostSlug, typeSlug, hostName, hostZone, first, locale, 
         </div>
       ) : null}
       {notice && <p className="error" role="alert"><Alert />{notice}</p>}
-      {time && !move && <GuestForm hostSlug={hostSlug} typeSlug={typeSlug} start={time} zone={zone} when={`${dayLabel(wall(Date.parse(time), zone).date)}, ${clock(time)}`} hostName={hostName} phone={phone} company={company} started={started} questions={questions} t={t} onChange={() => setTime(null)} onError={retake} />}
-      {time && move && <MoveButton secret={move.secret} start={time} when={`${dayLabel(wall(Date.parse(time), zone).date)}, ${clock(time)}`} t={t} onError={retake} />}
+      {time && chosen && chosen(time, when, zone, () => { setTime(null); void load(from, true); })}
+      {time && !move && !chosen && <GuestForm hostSlug={hostSlug} typeSlug={typeSlug} start={time} zone={zone} when={when} hostName={hostName} phone={phone} company={company} started={started} questions={questions} t={t} onChange={() => setTime(null)} onError={retake} />}
+      {time && move && <MoveButton secret={move.secret} start={time} when={when} t={t} onError={retake} />}
     </div>
   );
 }

@@ -1,11 +1,12 @@
 import { headers } from "next/headers";
 import Link from "next/link";
 import { CopyButton } from "../../components/copy-button.tsx";
-import { Download, kindIcon, Moved } from "../../components/icons.tsx";
+import { Alert, CalendarOff, Download, kindIcon, Moved, Plus } from "../../components/icons.tsx";
 import { can } from "../../lib/access.ts";
 import * as b from "../../lib/booking.ts";
+import * as calendars from "../../lib/calendars.ts";
 import { db } from "../../lib/db.ts";
-import { clock, intl, plural } from "../../lib/i18n/index.ts";
+import { clock, endClock, format, intl, plural, relative } from "../../lib/i18n/index.ts";
 import { myPage } from "../../lib/my-page.ts";
 import { nameOf, people } from "../../lib/people.ts";
 import { publicOrigin } from "../../lib/public-origin.ts";
@@ -34,10 +35,18 @@ export default async function BookingsPage({ searchParams }: { searchParams: Pro
   await b.rememberPublicOrigin(sql, origin);
   const link = host ? `${origin ?? ""}/${host.slug}` : "";
 
+  // The host's own view of what is to come also shows the times they
+  // blocked, and warns when one of their calendars cannot be read.
+  const own = host !== null && !all && scope === "upcoming";
+  const blocks = own ? await b.blocksOf(sql, member.id) : [];
+  const stale = host ? (await calendars.calendarsOf(sql, member.id)).find(c => c.stale) : undefined;
   const today = wall(Date.now(), zone).date;
-  const groups = new Map<string, b.Booking[]>();
-  for (const x of list) {
-    const day = wall(x.startsAt, zone).date;
+  type Item = { kind: "booking"; at: Date; booking: b.Booking } | { kind: "block"; at: Date; block: b.Block };
+  const items: Item[] = [...list.map(x => ({ kind: "booking" as const, at: x.startsAt, booking: x })), ...blocks.map(x => ({ kind: "block" as const, at: x.start, block: x }))];
+  if (scope === "upcoming") items.sort((p, q) => p.at.getTime() - q.at.getTime());
+  const groups = new Map<string, Item[]>();
+  for (const x of items) {
+    const day = wall(x.at, zone).date;
     groups.set(day, [...(groups.get(day) ?? []), x]);
   }
   const dayTitle = (day: string) => new Intl.DateTimeFormat(intl(locale), { timeZone: "UTC", weekday: "long", day: "numeric", month: "long", ...(day.slice(0, 4) !== today.slice(0, 4) ? { year: "numeric" } : {}) }).format(new Date(day + "T12:00:00Z"));
@@ -70,13 +79,23 @@ export default async function BookingsPage({ searchParams }: { searchParams: Pro
             </nav>
           )}
           <a className="button quiet small" href={`/chest/export${all ? "?who=all" : ""}`}><Download />{t.bookings.export}</a>
+          {host && !host.away && <a className="button small" href="/chest/new"><Plus />{t.bookings.newBooking}</a>}
         </div>
       </div>
+      {stale && (
+        <p className="notice" role="status" style={{ marginBottom: "var(--space-5)" }}>
+          <Alert />
+          <span>
+            {stale.readAt ? format(t.bookings.staleCalendar, { calendar: stale.provider, when: relative(stale.readAt, locale) }) : format(t.bookings.unreadCalendar, { calendar: stale.provider })}
+            {" "}<a href="/chest/hours#calendars">{t.bookings.checkCalendar}</a>
+          </span>
+        </p>
+      )}
       {!hosting && <p className="notice calm" style={{ marginBottom: "var(--space-5)" }}>{t.bookings.cannotHost}</p>}
       <nav className="tabs" aria-label={t.bookings.title}>
         {(["upcoming", "past", "cancelled"] as const).map(x => <Link key={x} href={tab(x)} aria-current={x === scope ? "page" : undefined}>{t.bookings.scopes[x]}</Link>)}
       </nav>
-      {list.length === 0 ? (
+      {items.length === 0 ? (
         <div className="empty"><p>{t.bookings.empty[scope]}</p></div>
       ) : (
         <div className="agenda">
@@ -88,7 +107,23 @@ export default async function BookingsPage({ searchParams }: { searchParams: Pro
                 {day === addDays(today, 1) && <span className="tag">{t.bookings.tomorrow}</span>}
               </h2>
               <ul className="meetings">
-                {items.map(x => {
+                {items.map(item => {
+                  if (item.kind === "block") {
+                    const k = item.block;
+                    return (
+                      <li key={"block-" + k.id}>
+                        <Link className="meeting blocked" href="/chest/hours#blocks">
+                          <span className="time num">{clock(k.start, zone, locale)}<small>{endClock(k.start, k.end, zone, locale)}</small></span>
+                          <span>
+                            <span className="who-line">{t.bookings.blocked}</span>
+                            {k.note && <span className="what">{k.note}</span>}
+                          </span>
+                          <span className="row"><CalendarOff /></span>
+                        </Link>
+                      </li>
+                    );
+                  }
+                  const x = item.booking;
                   const Kind = kindIcon[x.locationKind];
                   const color = (x.typeId && colors.get(x.typeId)) || "slate";
                   return (

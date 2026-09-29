@@ -1,0 +1,7 @@
+Invitee Name,Invitee First Name,Invitee Last Name,Invitee Email,Text Reminder Number,Event Type Name,Start Date & Time,End Date & Time,Invitee Time Zone,Location,Canceled,Cancellation reason,Question 1,Response 1,UTM Source
+Marie Leroy,Marie,Leroy,marie.leroy@example.com,,Project call,2026-10-06 10:00 am,2026-10-06 10:30 am,Europe/Paris,https://meet.example.com/atelier-ines,false,,What is it for?,A home,
+"Garnier, Lucas",Lucas,Garnier,lucas.garnier@example.com,,Showroom visit,2026-10-07 02:00 pm,2026-10-07 03:00 pm,Europe/Paris,"14 rue des Arts, Lyon",false,,,,newsletter
+Sarah Klein,Sarah,Klein,sarah.klein@lumiere-hotels.example,,Project call,2026-10-06 10:00 am,2026-10-06 10:30 am,America/Toronto,,false,,,,
+Tom Leclerc,Tom,Leclerc,tom.leclerc@example.com,,Project call,2026-10-08 09:00 am,2026-10-08 09:30 am,Europe/Paris,,true,Found another way,,,
+Anna Schmidt,Anna,Schmidt,anna@designstudio.example,,Partnership,2026-09-01 11:00 am,2026-09-01 11:45 am,Europe/Berlin,,false,,,,
+Not an address,,,not-an-email,,Project call,2026-10-09 09:00 am,2026-10-09 09:30 am,,,false,,,,

@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { Avatar } from "../../../../components/avatar.tsx";
-import { Back, Calendar, Chat, Check, Clock, kindIcon, Mail, Person, Phone } from "../../../../components/icons.tsx";
+import { Back, Calendar, Chat, Check, Clock, kindIcon, Link, Mail, Person, Phone } from "../../../../components/icons.tsx";
 import { AppError } from "../../../../lib/app-error.ts";
 import * as b from "../../../../lib/booking.ts";
 import { db } from "../../../../lib/db.ts";
@@ -8,10 +8,14 @@ import { format, meetingTime, plural, relative, zoneName } from "../../../../lib
 import { nameOf, people } from "../../../../lib/people.ts";
 import { answerText } from "../../../../lib/questions.ts";
 import { viewer } from "../../../../lib/session.ts";
+import { zoneGroups } from "../../../../lib/zones.ts";
 import { CancelMeeting } from "./cancel-meeting.tsx";
+import { MoveMeeting, PaidSwitch } from "./move-meeting.tsx";
 
 // One booking: who, when (in the host's zone, and the guest's when it
 // differs), where, their note and answers; cancelling tells the guest.
+const upcomingOf = (x: b.Booking) => x.status === "confirmed" && x.endsAt.getTime() > Date.now();
+
 export default async function BookingPage({ params }: { params: Promise<{ id: string }> }) {
   const v = await viewer();
   if (!v) return null;
@@ -27,10 +31,13 @@ export default async function BookingPage({ params }: { params: Promise<{ id: st
   const host = await b.hostOf(sql, x.memberId);
   const s = await b.settings(sql);
   const zone = host?.zone ?? s.defaultZone;
-  const person = (await people([x.memberId])).get(x.memberId);
+  const who = await people([x.memberId, ...(x.bookedBy ? [x.bookedBy] : [])]);
+  const person = who.get(x.memberId);
+  const movable = upcomingOf(x) && (await b.typeForMove(sql, x)) !== null;
   const Kind = kindIcon[x.locationKind];
-  const upcoming = x.status === "confirmed" && x.endsAt.getTime() > Date.now();
-  const where = x.locationKind === "phone" ? x.guestPhone : x.location;
+  const upcoming = upcomingOf(x);
+  const words = { booking: t.booking, public: t.public, days: t.days, errors: t.errors, answers: t.answers };
+  const where = x.locationKind === "phone" ? x.guestPhone : b.meetingPlace(x);
   return (
     <>
       <a className="back" href="/chest"><Back />{t.booking.back}</a>
@@ -56,7 +63,12 @@ export default async function BookingPage({ params }: { params: Promise<{ id: st
           <dd><a href={`mailto:${x.guestEmail}`}>{x.guestEmail}</a></dd>
           {x.guestPhone && <><dt><Phone />{t.booking.phone}</dt><dd><a href={`tel:${x.guestPhone.replace(/[^\d+]/gu, "")}`}>{x.guestPhone}</a></dd></>}
           <dt><Clock />{t.booking.bookedLabel}</dt>
-          <dd>{relative(x.createdAt, locale)}{x.moves > 0 && <> · {plural(t.booking.movedTimes, x.moves, locale)}</>}</dd>
+          <dd>
+            {relative(x.createdAt, locale)}{x.moves > 0 && <> · {plural(t.booking.movedTimes, x.moves, locale)}</>}
+            {x.source === "host" && x.bookedBy && <> · {format(t.booking.bookedBy, { name: x.bookedBy === member.id ? t.people.you : nameOf(who.get(x.bookedBy), locale) })}</>}
+            {x.source === "import" && <> · {t.booking.imported}</>}
+          </dd>
+          {x.paymentLink && <><dt><Link />{t.booking.payment}</dt><dd><PaidSwitch id={x.id} paid={x.paid} t={words} /></dd></>}
         </dl>
         {x.guestNote && (
           <div className="stack-s" style={{ marginTop: "var(--space-5)" }}>
@@ -79,6 +91,11 @@ export default async function BookingPage({ params }: { params: Promise<{ id: st
         )}
         {x.status === "cancelled" && x.cancelReason && <p className="quote" style={{ marginTop: "var(--space-4)" }}>{format(t.booking.reason, { reason: x.cancelReason })}</p>}
       </section>
+      {upcoming && (
+        <section className="card">
+          {movable ? <MoveMeeting id={x.id} guest={x.guestName} zone={zone} locale={locale} zones={zoneGroups(t.zones, Date.now(), [zone])} t={words} /> : <p className="hint">{t.booking.cannotMove}</p>}
+        </section>
+      )}
       {upcoming && (
         <section className="card">
           <CancelMeeting id={x.id} guest={x.guestName} t={{ booking: t.booking, errors: t.errors }} />

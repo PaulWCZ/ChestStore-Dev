@@ -12,7 +12,7 @@ declare
   ines text := 'mbr_inesaaaaaaaaaaaaaaaaaaaaaa';
   hugo text := 'mbr_hugoaaaaaaaaaaaaaaaaaaaaaa';
   week jsonb := '[[], [[540, 750], [840, 1080]], [[540, 750], [840, 1080]], [[540, 750], [840, 1080]], [[540, 750], [840, 1080]], [[540, 750], [840, 1020]], []]';
-  showroom bigint; call bigint; phone bigint; visit bigint; founder bigint;
+  showroom bigint; call bigint; phone bigint; visit bigint; founder bigint; discovery bigint; google bigint; outlook bigint;
 begin
   insert into settings (key, value) values ('company_name', '"Atelier Martin"'), ('default_zone', '"Europe/Paris"');
 
@@ -24,13 +24,20 @@ begin
   insert into types (member_id, slug, title, description, duration, interval, location_kind, location, buffer_before, buffer_after, notice_minutes, window_days, color, position)
     values (ines, 'showroom', 'Showroom visit', 'Touch the fabrics, try the sofas, leave with a sketch and a price. Bring a photo and the size of your room.', 60, 30, 'place', '14 rue des Arts, 69002 Lyon', 0, 15, 1440, 45, 'sun', 0) returning id into showroom;
   insert into types (member_id, slug, title, description, duration, interval, location_kind, location, notice_minutes, color, position)
-    values (ines, 'project-call', 'Project call', 'Tell me about your project: what, where, when, and your budget.', 30, 30, 'video', 'https://meet.example.com/atelier-ines', 240, 'sky', 1) returning id into call;
+    values (ines, 'project-call', 'Project call', 'Tell me about your project: what, where, when, and your budget.', 30, 30, 'video', 'https://meet.jit.si/', 240, 'sky', 1) returning id into call;
+  update types set video_rooms = true where id = call;
   insert into types (member_id, slug, title, duration, interval, location_kind, notice_minutes, color, position)
     values (ines, 'quick-call', 'Quick phone call', 15, 15, 'phone', 120, 'leaf', 2) returning id into phone;
   insert into types (member_id, slug, title, description, duration, interval, location_kind, location, buffer_before, buffer_after, notice_minutes, window_days, color, position)
     values (hugo, 'measurement', 'Measurement visit at your home', 'I come with a laser meter and samples. Allow an hour; someone of age must be there.', 60, 60, 'place', 'At your home (Lyon and around, 30 km)', 30, 30, 2880, 60, 'tomato', 0) returning id into visit;
   insert into types (member_id, slug, title, duration, interval, location_kind, location, notice_minutes, color, active, position)
     values (camille, 'founder', 'Meet the founder', 45, 45, 'video', 'https://meet.example.com/camille', 1440, 'grape', true, 0) returning id into founder;
+
+  -- A paid visit (a deposit, taken off the order), and a team type: the
+  -- first of Camille, Inès and Hugo who is free.
+  update types set payment_link = 'https://buy.stripe.com/test_atelier_measure' where id = visit;
+  insert into types (member_id, slug, title, description, duration, interval, location_kind, location, video_rooms, notice_minutes, color, position, pool)
+    values (camille, 'discovery', 'Discovery call', 'Twenty minutes with one of us to see what we can make for you.', 20, 20, 'video', 'https://meet.jit.si/', true, 120, 'berry', 1, jsonb_build_array(ines, hugo)) returning id into discovery;
 
   -- The host's own questions, and a daily limit on the showroom visits.
   update types set questions = '[
@@ -69,6 +76,27 @@ begin
   insert into bookings (type_id, member_id, title, duration, location_kind, location, starts_at, ends_at, blocked, guest_name, guest_email, guest_note, guest_zone, guest_language, secret_hash, secret, status, cancelled_by, cancel_reason, cancelled_at, created_at)
   values (call, ines, 'Project call', 30, 'video', 'https://meet.example.com/atelier-ines', pg_temp.at(2, 600), pg_temp.at(2, 630), tstzrange(pg_temp.at(2, 600), pg_temp.at(2, 630)),
     'Tom Leclerc', 'tom.leclerc@example.com', '', 'Europe/Paris', 'fr', encode(sha256(convert_to(gen_random_uuid()::text, 'UTF8')), 'hex'), gen_random_uuid()::text, 'cancelled', 'guest', 'Finalement nous avons trouvé.', now() - interval '1 day', now() - interval '4 days');
+  update bookings set location = 'https://meet.jit.si/', video_link = 'https://meet.jit.si/atelier-martin-' || substr(md5(guest_email), 1, 12) where type_id = call;
+  update bookings set payment_link = 'https://buy.stripe.com/test_atelier_measure', paid = true where type_id = visit;
+
+  -- Times Inès blocked, and her Google calendar (read four minutes ago:
+  -- only when she is busy, never what); Hugo's Outlook calendar stopped
+  -- answering this morning.
+  insert into blocks (member_id, span, note) values
+    (ines, tstzrange(pg_temp.at(2, 540), pg_temp.at(2, 600)), 'Team meeting'),
+    (ines, tstzrange(pg_temp.at(4, 600), pg_temp.at(4, 690)), 'Supplier visit');
+  insert into calendars (member_id, url, provider, added_at, tried_at, read_at, events)
+    values (ines, 'https://calendar.google.com/calendar/ical/ines%40atelier-martin.test/private-5f1c0d8e7a6b4c3d2e1f/basic.ics', 'calendar.google.com', now() - interval '20 days', now() - interval '4 minutes', now() - interval '4 minutes', 38) returning id into google;
+  insert into busy (calendar_id, member_id, span) values
+    (google, ines, tstzrange(pg_temp.at(1, 960), pg_temp.at(1, 1020))),
+    (google, ines, tstzrange(pg_temp.at(2, 660), pg_temp.at(2, 750))),
+    (google, ines, tstzrange(pg_temp.at(3, 840), pg_temp.at(3, 930))),
+    (google, ines, tstzrange(pg_temp.at(8, 0), pg_temp.at(9, 0)));
+  insert into calendars (member_id, url, provider, added_at, tried_at, read_at, error, events)
+    values (hugo, 'https://outlook.office365.com/owa/calendar/0f3a9c/b7d2e4/calendar.ics', 'outlook.office365.com', now() - interval '30 days', now() - interval '5 minutes', now() - interval '3 hours', 'refused', 12) returning id into outlook;
+  insert into busy (calendar_id, member_id, span) values
+    (outlook, hugo, tstzrange(pg_temp.at(1, 480), pg_temp.at(1, 600)));
+
   update bookings set answers = '[
       {"id": "project1", "label": "What is it for?", "kind": "choice", "answer": "A hotel or a restaurant"},
       {"id": "budget01", "label": "Your budget, roughly", "kind": "short", "answer": "80 000 € for the lobby"},

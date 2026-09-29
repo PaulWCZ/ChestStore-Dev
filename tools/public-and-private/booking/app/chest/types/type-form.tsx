@@ -13,6 +13,7 @@ import { createType, removeType, updateType } from "../actions.ts";
 export type TypeValues = {
   title: string; slug: string; description: string; duration: number; interval: number; locationKind: LocationKind; location: string;
   bufferBefore: number; bufferAfter: number; noticeMinutes: number; windowDays: number; dailyLimit: number; questions: Question[]; color: Color; active: boolean;
+  videoRooms: boolean; paymentLink: string; pool: string[];
 };
 
 type Words = Pick<Catalogue, "types" | "kinds" | "colors" | "minutes" | "errors">;
@@ -22,7 +23,9 @@ const perDay = [0, 1, 2, 3, 4, 5, 6, 8, 10, 15, 20];
 
 // Creating or editing a booking type: the name, how long, where — the rest
 // behind "More options", with sensible defaults.
-export function TypeForm({ id, initial, base, locale, t }: { id: string | null; initial: TypeValues; base: string; locale: string; t: Words }) {
+// team: the other hosts an administrator may share the type with (null:
+// the viewer cannot choose).
+export function TypeForm({ id, initial, base, locale, team, t }: { id: string | null; initial: TypeValues; base: string; locale: string; team: { id: string; name: string }[] | null; t: Words }) {
   const [v, setV] = useState(initial);
   const [slugTouched, setSlugTouched] = useState(id !== null);
   const [error, setError] = useState<string | null>(null);
@@ -37,7 +40,7 @@ export function TypeForm({ id, initial, base, locale, t }: { id: string | null; 
   const submit = () => start(async () => {
     // Choices are typed one per line; blank lines are dropped here (the
     // server checks everything again).
-    const input = { ...v, questions: v.questions.map(q => ({ ...q, options: q.kind === "choice" ? q.options.map(o => o.trim()).filter(o => o !== "") : [] })) };
+    const input = { ...v, questions: v.questions.map(q => ({ ...q, options: q.kind === "choice" ? q.options.map(o => o.trim()).filter(o => o !== "") : [] })), ...(team === null ? { pool: undefined } : {}) };
     const r = id ? await updateType(id, input) : await createType(input);
     if (!r.ok) return setError(format(t.errors[r.error], r.values ?? {}));
     setError(null);
@@ -69,7 +72,16 @@ export function TypeForm({ id, initial, base, locale, t }: { id: string | null; 
           })}
         </div>
         {v.locationKind === "place" && <div><label className="label" htmlFor="location">{f.place}</label><input id="location" className="field" maxLength={300} placeholder={f.placePlaceholder} value={v.location} onChange={e => set("location", e.target.value)} /></div>}
-        {v.locationKind === "video" && <div><label className="label" htmlFor="location">{f.video}</label><input id="location" className="field" type="url" inputMode="url" maxLength={300} value={v.location} onChange={e => set("location", e.target.value)} aria-describedby="video-hint" /><p id="video-hint" className="hint">{f.videoHint}</p></div>}
+        {v.locationKind === "video" && (
+          <>
+            <label className="switch"><input type="checkbox" checked={v.videoRooms} onChange={e => setV(old => ({ ...old, videoRooms: e.target.checked, location: e.target.checked && old.location === "" ? "https://meet.jit.si/" : old.location }))} />{f.videoRooms}</label>
+            <div>
+              <label className="label" htmlFor="location">{v.videoRooms ? f.roomsBase : f.video}</label>
+              <input id="location" className="field" type="url" inputMode="url" maxLength={300} value={v.location} onChange={e => set("location", e.target.value)} aria-describedby="video-hint" />
+              <p id="video-hint" className="hint">{v.videoRooms ? f.videoRoomsHint : v.location ? f.sameLink : f.videoHint}</p>
+            </div>
+          </>
+        )}
         {v.locationKind === "phone" && <p className="hint">{f.phoneHint}</p>}
         {v.locationKind === "other" && <div><label className="label" htmlFor="location">{f.other}</label><input id="location" className="field" maxLength={300} value={v.location} onChange={e => set("location", e.target.value)} /></div>}
       </fieldset>
@@ -105,6 +117,21 @@ export function TypeForm({ id, initial, base, locale, t }: { id: string | null; 
               <div className="inline"><input id="window" className="field short" type="number" min={1} max={365} value={v.windowDays} onChange={e => set("windowDays", Math.max(1, Math.min(365, Number(e.target.value) || 1)))} /><span className="muted">{f.windowUnit}</span></div>
             </div>
           </div>
+          <div>
+            <label className="label" htmlFor="payment">{f.payment}</label>
+            <input id="payment" className="field" type="url" inputMode="url" maxLength={300} placeholder={f.paymentPlaceholder} value={v.paymentLink} onChange={e => set("paymentLink", e.target.value)} aria-describedby="payment-hint" />
+            <p id="payment-hint" className="hint">{f.paymentHint}</p>
+          </div>
+          {team !== null && team.length > 0 && (
+            <fieldset className="stack-s" style={{ border: 0, padding: 0, margin: 0 }}>
+              <legend className="label">{f.team}</legend>
+              <p className="hint">{f.teamHint}</p>
+              <div className="choices">
+                {team.map(m => <label key={m.id} className="choice"><input type="checkbox" checked={v.pool.includes(m.id)} onChange={e => set("pool", e.target.checked ? [...v.pool, m.id] : v.pool.filter(x => x !== m.id))} /><span>{m.name}</span></label>)}
+              </div>
+            </fieldset>
+          )}
+          {team === null && v.pool.length > 0 && <p className="hint">{f.teamAdmins}</p>}
           <label className="switch"><input type="checkbox" checked={v.active} onChange={e => set("active", e.target.checked)} />{f.active}</label>
         </div>
       </details>

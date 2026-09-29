@@ -1,15 +1,16 @@
 "use client";
 
-import { useZones } from "../../../components/use-zones.ts";
 import { useRouter } from "next/navigation";
 import { useState, useTransition, type ReactNode } from "react";
 import { CopyButton } from "../../../components/copy-button.tsx";
-import { Alert, Calendar, Download, Gear, Link, Person } from "../../../components/icons.tsx";
+import { Alert, Arrow, Calendar, Download, Gear, Globe, Link, Moved, Person } from "../../../components/icons.tsx";
+import { ZoneSelect } from "../../../components/zone-select.tsx";
 import { useToast } from "../../../components/toast.tsx";
-import { format, plural } from "../../../lib/i18n/format.ts";
+import { format, intl, plural } from "../../../lib/i18n/format.ts";
 import type { Catalogue } from "../../../lib/i18n/index.ts";
 import type { Result } from "../../../lib/errors.ts";
-import { eraseGuest, newFeed, savePage, saveSettings, stopFeed } from "../actions.ts";
+import type { ZoneGroup } from "../../../lib/zones.ts";
+import { eraseGuest, importCalendly, saveSites, newFeed, savePage, savePrefs, saveSettings, stopFeed } from "../actions.ts";
 
 type Words = { settings: Catalogue["settings"]; errors: Catalogue["errors"] };
 
@@ -34,10 +35,28 @@ function Box({ title, icon, children }: { title: string; icon: ReactNode; childr
   return <section className="card stack"><h2>{icon}{title}</h2>{children}</section>;
 }
 
-export function PageSettings({ host, origin, t }: { host: { slug: string; welcome: string; listed: boolean; hasFeed: boolean }; origin: string; t: Words }) {
+// chestCalendar: the Chest's page of the member's calendar feed, where
+// every booking goes (null: this Chest has no calendar bridge yet — the
+// tool's own feed is then the way).
+export function PageSettings({ host, chestCalendar, origin, t }: { host: { slug: string; welcome: string; listed: boolean; hasFeed: boolean; emailMe: boolean; dailyMax: number }; chestCalendar: string | null; origin: string; t: Words }) {
   const s = t.settings;
   const { pending, error, run } = useRun(t);
   const [feed, setFeed] = useState<string | null>(null);
+  const own = (
+    <>
+      {feed ? (
+        <div className="stack-s">
+          <p className="notice calm"><Link />{s.feedShown}</p>
+          <code>{feed}</code>
+          <div><CopyButton text={feed} label={s.feedCopy} done={s.feedCopied} /></div>
+        </div>
+      ) : host.hasFeed ? <p className="tag free" style={{ alignSelf: "flex-start" }}>{s.feedOn}</p> : null}
+      <div className="row">
+        <button type="button" className="button soft" disabled={pending} onClick={() => run(() => newFeed(), url => { setFeed(url); return null; })}>{host.hasFeed || feed ? s.feedAgain : s.feedNew}</button>
+        {(host.hasFeed || feed) && <button type="button" className="link-button danger" disabled={pending} onClick={() => run(() => stopFeed(), () => { setFeed(null); return null; })}>{s.feedStop}</button>}
+      </div>
+    </>
+  );
   return (
     <>
       <Box title={s.page} icon={<Person />}>
@@ -57,27 +76,66 @@ export function PageSettings({ host, origin, t }: { host: { slug: string; welcom
         </form>
       </Box>
       <Box title={s.feed} icon={<Calendar />}>
-        <p className="hint">{s.feedHint}</p>
-        {feed ? (
-          <div className="stack-s">
-            <p className="notice calm"><Link />{s.feedShown}</p>
-            <code>{feed}</code>
-            <div><CopyButton text={feed} label={s.feedCopy} done={s.feedCopied} /></div>
-          </div>
-        ) : host.hasFeed ? <p className="tag free" style={{ alignSelf: "flex-start" }}>{s.feedOn}</p> : null}
-        <div className="row">
-          <button type="button" className="button soft" disabled={pending} onClick={() => run(() => newFeed(), url => { setFeed(url); return null; })}>{host.hasFeed || feed ? s.feedAgain : s.feedNew}</button>
-          {(host.hasFeed || feed) && <button type="button" className="link-button danger" disabled={pending} onClick={() => run(() => stopFeed(), () => { setFeed(null); return null; })}>{s.feedStop}</button>}
-        </div>
+        {chestCalendar ? (
+          <>
+            <p>{s.chestCalendar}</p>
+            <div><a className="button soft" href={chestCalendar}><Arrow />{s.chestCalendarOpen}</a></div>
+          </>
+        ) : <p className="hint">{s.feedHint}</p>}
+        <label className="switch"><input type="checkbox" defaultChecked={host.emailMe} disabled={pending} onChange={e => { const on = e.target.checked; run(() => savePrefs({ dailyMax: host.dailyMax, emailMe: on }), () => s.saved); }} />{s.emailMe}</label>
+        <p className="hint">{s.calendarDelay}</p>
+        {chestCalendar ? (
+          <details className="more">
+            <summary>{s.feedOwn}</summary>
+            <div className="stack">
+              <p className="hint">{s.feedHint}</p>
+              {own}
+            </div>
+          </details>
+        ) : own}
       </Box>
     </>
   );
 }
 
-export function CompanySettings({ admin, settings, locale, t }: { admin: boolean; settings: { companyName: string; retentionMonths: number; defaultZone: string }; locale: string; t: Words }) {
+// Moving from Calendly: its "Scheduled events" export.
+export function ImportCalendly({ zone, zones, locale, t }: { zone: string; zones: ZoneGroup[]; locale: string; t: Words }) {
   const s = t.settings;
   const { pending, error, run } = useRun(t);
-  const zones = useZones(settings.defaultZone);
+  const [conflicts, setConflicts] = useState<string | null>(null);
+  return (
+    <Box title={s.importTitle} icon={<Moved />}>
+      <p className="hint">{s.importHint}</p>
+      <form className="stack-s" onSubmit={e => {
+        e.preventDefault();
+        const d = new FormData(e.currentTarget);
+        const file = d.get("file");
+        const fileZone = String(d.get("zone") ?? zone);
+        if (!(file instanceof File)) return;
+        void file.text().then(text => run(() => importCalendly(text, fileZone), r => {
+          setConflicts(r.conflicts.length > 0 ? format(s.importConflicts, { list: r.conflicts.map(c => `${c.name} (${new Intl.DateTimeFormat(intl(locale), { timeZone: fileZone, dateStyle: "medium", timeStyle: "short" }).format(new Date(c.start))})`).join(", ") }) : null);
+          return plural(s.importDone, r.imported, locale);
+        }));
+      }}>
+        <div><label className="label" htmlFor="import-file">{s.importFile}</label><input id="import-file" name="file" type="file" accept=".csv,text/csv" className="field" required /></div>
+        <div><label className="label" htmlFor="import-zone">{s.importZone}</label><ZoneSelect id="import-zone" name="zone" className="field wide-select" value={zone} groups={zones} /></div>
+        <div><button type="submit" className="button soft" disabled={pending}>{s.importButton}</button></div>
+      </form>
+      {conflicts && <p className="notice" role="status"><Alert />{conflicts}</p>}
+      {error && <p className="error" role="alert"><Alert />{error}</p>}
+    </Box>
+  );
+}
+
+// The code a website pastes: the booking pages in a frame (once the Chest
+// lets them be framed), or a plain button that opens them.
+const quoted = (text: string) => `"${text.replace(/&/gu, "&amp;").replace(/"/gu, "&quot;").replace(/</gu, "&lt;")}"`;
+const frameCode = (url: string, title: string) => `<iframe src=${quoted(url)} title=${quoted(title)} style="width:100%;min-height:760px;border:0" loading="lazy"></iframe>`;
+const buttonCode = (url: string, text: string) => `<a href=${quoted(url)} target="_blank" rel="noopener" style="display:inline-block;padding:12px 20px;border-radius:999px;background:#5b3cc4;color:#fff;font:600 16px sans-serif;text-decoration:none">${text.replace(/&/gu, "&amp;").replace(/</gu, "&lt;")}</a>`;
+
+export function CompanySettings({ admin, settings, zones, locale, t }: { admin: boolean; settings: { companyName: string; retentionMonths: number; defaultZone: string }; zones: ZoneGroup[]; locale: string; t: Words }) {
+  const s = t.settings;
+  const { pending, error, run } = useRun(t);
   return (
     <Box title={s.company} icon={<Gear />}>
       {!admin && <p className="hint">{s.readOnly}</p>}
@@ -90,11 +148,10 @@ export function CompanySettings({ admin, settings, locale, t }: { admin: boolean
           <div><label className="label" htmlFor="company">{s.companyName}</label><input id="company" name="company" className="field" maxLength={120} defaultValue={settings.companyName} /></div>
           <div>
             <label className="label" htmlFor="zone">{s.defaultZone}</label>
-            <select id="zone" name="zone" className="field" style={{ maxWidth: 360 }} defaultValue={settings.defaultZone}>
-              {zones.map(z => <option key={z} value={z}>{z.replace(/_/gu, " ")}</option>)}
-            </select>
+            <ZoneSelect id="zone" name="zone" className="field wide-select" value={settings.defaultZone} groups={zones} />
           </div>
           <div><label className="label" htmlFor="retention">{s.retention}</label><input id="retention" name="retention" type="number" min={0} max={120} className="field short" defaultValue={settings.retentionMonths} /></div>
+
           {admin && <div><button type="submit" className="button" disabled={pending}>{s.save}</button></div>}
         </fieldset>
       </form>
@@ -118,6 +175,37 @@ export function CompanySettings({ admin, settings, locale, t }: { admin: boolean
         </>
       )}
       {error && <p className="error" role="alert"><Alert />{error}</p>}
+    </Box>
+  );
+}
+
+// The company's website: which sites may show the booking pages, and the
+// code to paste there.
+export function EmbedSettings({ sites, origin, t }: { sites: string[]; origin: string; t: Words }) {
+  const s = t.settings;
+  const { pending, error, run } = useRun(t);
+  return (
+    <Box title={s.embed} icon={<Globe />}>
+      <p className="hint">{s.embedHint}</p>
+      <form className="stack-s" onSubmit={e => {
+        e.preventDefault();
+        const value = String(new FormData(e.currentTarget).get("sites") ?? "");
+        run(() => saveSites(value), () => s.saved);
+      }}>
+        <label className="label" htmlFor="sites">{s.embedSites}</label>
+        <textarea id="sites" name="sites" className="field" rows={2} placeholder={s.embedPlaceholder} defaultValue={sites.join("\n")} />
+        <div><button type="submit" className="button" disabled={pending}>{s.save}</button></div>
+      </form>
+      {error && <p className="error" role="alert"><Alert />{error}</p>}
+      <div className="stack-s">
+        <label className="label" htmlFor="frame-code">{s.embedCode}</label>
+        <textarea id="frame-code" className="field embed-code" readOnly value={frameCode(`${origin}/`, s.buttonText)} />
+        <div><CopyButton text={frameCode(`${origin}/`, s.buttonText)} label={s.embedCopy} done={s.embedCopied} /></div>
+        <label className="label" htmlFor="button-code">{s.embedButtonCode}</label>
+        <textarea id="button-code" className="field embed-code" readOnly value={buttonCode(`${origin}/`, s.buttonText)} />
+        <div><CopyButton text={buttonCode(`${origin}/`, s.buttonText)} label={s.embedCopy} done={s.embedCopied} /></div>
+        <p className="hint">{s.embedNote}</p>
+      </div>
     </Box>
   );
 }

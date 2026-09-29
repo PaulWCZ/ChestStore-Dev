@@ -11,6 +11,7 @@
   "csp": "tool",
   "capabilities": ["database", "members", "notifications"],
   "receives": ["member.*"],
+  "network": ["calendar.google.com", "outlook.office365.com", "outlook.live.com", "*.icloud.com"],
   "build": {
     "runtime": "node",
     "install": "npm ci",

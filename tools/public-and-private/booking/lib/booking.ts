@@ -127,6 +127,11 @@ export async function saveSettings(sql: Query, actor: Member, input: { companyNa
   if (origins !== undefined) await put(sql, "embed_origins", origins);
 }
 
+export async function saveEmbed(sql: Query, actor: Member, sites: unknown): Promise<void> {
+  if (!can(actor, "settings")) throw new AppError("forbidden");
+  await put(sql, "embed_origins", embedOrigins(sites));
+}
+
 // The websites allowed to show the booking pages in a frame (the
 // company's own): one per line, https, the address of the site only
 // ("https://www.atelier-martin.fr"), ten at most.
@@ -493,6 +498,13 @@ export async function colorsOf(sql: Query, typeIds: (string | null)[]): Promise<
   return new Map(rows.map(r => [r.id, isColor(r.color) ? r.color : "slate"]));
 }
 
+// The other hosts an administrator may add to a type's team.
+export async function otherHosts(sql: Query, actor: Member): Promise<string[]> {
+  if (!can(actor, "settings")) return [];
+  const rows = await sql<{ member_id: string }[]>`select member_id from hosts where member_id <> ${actor.id} and not away order by created_at limit 200`;
+  return rows.map(r => r.member_id);
+}
+
 // ——— What visitors see ———
 
 // The hosts on the company's booking page: listed, here, with at least one
@@ -547,6 +559,11 @@ async function hostsOf(sql: Query, owner: Host, type: BookingType): Promise<Host
   const rows = await sql<HostRow[]>`select * from hosts where member_id in ${sql(type.pool)} and not away`;
   const byId = new Map(rows.map(r => [r.member_id, toHost(r)]));
   return [owner, ...type.pool.flatMap(m => byId.get(m) ?? [])];
+}
+
+// The member ids who take a type: its owner, then its team.
+export async function teamOf(sql: Query, owner: Host, type: BookingType): Promise<string[]> {
+  return (await hostsOf(sql, owner, type)).map(h => h.memberId);
 }
 
 // A host's free starts for a type (notice: the minimum notice, the type's

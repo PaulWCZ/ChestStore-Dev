@@ -168,14 +168,15 @@ export async function refresh(sql: Query, calendarId: string, fetcher: Fetcher =
     await sql`update calendars set tried_at = ${new Date(now)}, error = ${code} where id = ${calendarId}`;
     return code;
   }
-  await sql.begin(async tx => {
+  const step = async (tx: Query) => {
     await tx`delete from busy where calendar_id = ${calendarId}`;
     for (let i = 0; i < spans.length; i += 500) {
       const part = spans.slice(i, i + 500).map(s => ({ calendar_id: calendarId, member_id: row.member_id, span: `[${new Date(s.start).toISOString()},${new Date(s.end).toISOString()})` }));
       await tx`insert into busy ${tx(part, "calendar_id", "member_id", "span")}`;
     }
     await tx`update calendars set tried_at = ${new Date(now)}, read_at = ${new Date(now)}, error = null, events = ${events} where id = ${calendarId}`;
-  });
+  };
+  await ("begin" in sql ? sql.begin(step) : sql.savepoint(step));
   return null;
 }
 
