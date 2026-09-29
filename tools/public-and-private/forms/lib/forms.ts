@@ -22,8 +22,9 @@ import {
   type Layout,
   type Settings,
   type Status,
+  readIn,
 } from "./model.ts";
-import { cleanRoutes, readRoutes, type Routes } from "./routes.ts";
+import { cleanRoutes, noRoutes, readRoutes, type Routes } from "./routes.ts";
 
 // The forms, as the pages see them. Every function takes the database and
 // the member acting, checks their rights (lib/access.ts) and throws
@@ -201,10 +202,11 @@ export async function list(sql: Sql, actor: Member | null, search = ""): Promise
     order by f.updated_at desc
     limit ${limits.forms}`;
   const plain = (text: string) => text.normalize("NFKD").replace(/[\u0300-\u036f]/gu, "").toLowerCase();
-  return rows.filter(r => words.every(w => plain(r.draft.title ?? "").includes(w))).map(r => {
+  return rows.filter(r => words.every(w => plain(`${r.draft.title ?? ""} ${r.draft.alt?.texts["title"] ?? ""}`).includes(w))).map(r => {
     const form = toForm(r);
     return {
-      id: form.id, slug: form.slug, title: form.draft.title, status: form.status, audience: form.audience, anonymous: form.anonymous, owner: form.owner,
+      // In the reader's language when the form has a version in it.
+      id: form.id, slug: form.slug, title: readIn(form.draft, actor.locale ?? "en").title, status: form.status, audience: form.audience, anonymous: form.anonymous, owner: form.owner,
       level: levelOn(actor, form, r.shared) ?? "viewer", answers: r.live, unseen: r.unseen ?? 0, updatedAt: form.updatedAt, open: openState(form), closesAt: form.closesAt, maxAnswers: form.maxAnswers,
     };
   });
@@ -217,7 +219,7 @@ export type TeamForm = { slug: string; title: string; anonymous: boolean; answer
 export async function teamForms(sql: Sql, actor: Member | null): Promise<TeamForm[]> {
   if (!actor || !can(actor, "forms.answer")) return [];
   const rows = await sql<(Row & { answered: boolean; title: string })[]>`
-    select ${sql.unsafe(columns.split(", ").map(c => "f." + c).join(", "))}, v.definition->>'title' as title,
+    select ${sql.unsafe(columns.split(", ").map(c => "f." + c).join(", "))}, coalesce(case when v.definition->'alt'->>'language' = ${actor.locale ?? "en"} then nullif(v.definition->'alt'->'texts'->>'title', '') end, v.definition->>'title') as title,
       case when f.anonymous then exists (select 1 from participants p where p.form_id = f.id and p.member = ${actor.id})
            else exists (select 1 from answers x where x.form_id = f.id and x.respondent = ${actor.id} and x.deleted_at is null) end as answered
     from forms f join versions v on v.form_id = f.id and v.version = f.version
@@ -234,7 +236,10 @@ export function newSlug(): string {
   return Array.from({ length: 8 }, () => slugAlphabet[randomInt(slugAlphabet.length)]).join("");
 }
 
-export type Start = { definition: Definition; settings?: Partial<Pick<Settings, "audience" | "once" | "layout" | "accent" | "sendCopy" | "anonymous">> };
+// routes: the links to other tools it starts with (lib/routes.ts);
+// notifyEmail: the owner's alerts by email (on for a public form where the
+// Chest's mail is not known to be missing — createForm decides).
+export type Start = { definition: Definition; settings?: Partial<Pick<Settings, "audience" | "once" | "layout" | "accent" | "sendCopy" | "anonymous" | "notifyEmail">>; routes?: Routes };
 
 export async function create(sql: Sql, actor: Member | null, start: Start): Promise<Form> {
   if (!actor || !can(actor, "forms.create")) throw new AppError("forbidden");
@@ -245,8 +250,9 @@ export async function create(sql: Sql, actor: Member | null, start: Start): Prom
   if (count >= limits.forms) throw new AppError("limit", { max: limits.forms });
   for (let attempt = 0; attempt < 5; attempt++) {
     const [row] = await sql<Row[]>`
-      insert into forms (slug, owner, draft, audience, anonymous, once, layout, accent, send_copy)
-      values (${newSlug()}, ${actor.id}, ${sql.json(def as never)}, ${s.audience ?? "public"}, ${anonymous}, ${anonymous || (s.once ?? true)}, ${s.layout ?? "steps"}, ${s.accent ?? "berry"}, ${!anonymous && s.sendCopy === true})
+      insert into forms (slug, owner, draft, audience, anonymous, once, layout, accent, send_copy, notify_email, routes)
+      values (${newSlug()}, ${actor.id}, ${sql.json(def as never)}, ${s.audience ?? "public"}, ${anonymous}, ${anonymous || (s.once ?? true)}, ${s.layout ?? "steps"}, ${s.accent ?? "berry"}, ${!anonymous && s.sendCopy === true}, ${s.notifyEmail === true},
+        ${sql.json((anonymous ? noRoutes : cleanRoutes(start.routes ?? null, def, { anonymous, audience: s.audience ?? "public" })) as never)})
       on conflict (slug) do nothing
       returning ${sql.unsafe(columns)}`;
     if (row) {

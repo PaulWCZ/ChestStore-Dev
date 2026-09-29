@@ -1,6 +1,6 @@
 // The studio's `chest dev`: runs one tool as a Chest would, on this machine.
 //
-//   node lab/chest-dev/dev.mjs tools/private/<name> [--port 4000] [--prod] [--seed] [--reset] [--empty]
+//   node lab/chest-dev/dev.mjs tools/private/<name> [--port 4000] [--prod] [--seed] [--reset] [--empty] [--tools crm,helpdesk]
 //
 // - a fake Chest (the SDK working copy's fakeChest: members, groups, files,
 //   notifications, events, and every proposal it fakes), with a cast of
@@ -19,7 +19,9 @@
 //   the bell, badges, files, and buttons that play the Chest (member
 //   lifecycle events, proposals such as scheduled tasks, the outbox and
 //   received mail, the calendar feeds, the Chest's groups, webhooks);
-// - the tools whose events it receives, installed beside it (CHEST_TOOL_URLS).
+// - the tools whose events it receives, installed beside it (CHEST_TOOL_URLS),
+//   and those named by --tools (a sender that checks its receivers are
+//   installed: Forms asks for Clients and Support).
 //
 // Environment: DEV_DATABASE_URL (a PostgreSQL superuser URL, default
 // postgres://postgres:postgres@127.0.0.1:5432/postgres).
@@ -151,7 +153,7 @@ const chest = await testing.fakeChest({
   // ("forms.request" → forms), at the fake's team host
   // https://<name>-chest.chest.test — never reached, but a link back to
   // them shows as on a Chest. This tool is always there, at the origin.
-  tools: Object.fromEntries((proposals.receives ?? []).map(type => String(type).split(".")[0]).filter(name => /^[a-z0-9]+(-[a-z0-9]+)*$/u.test(name) && name.length <= 63 && name !== manifest.name && !["member", "group"].includes(name)).map(name => [name, true])),
+  tools: Object.fromEntries([...(proposals.receives ?? []).map(type => String(type).split(".")[0]), ...option("tools", "").split(",").filter(Boolean)].filter(name => /^[a-z0-9]+(-[a-z0-9]+)*$/u.test(name) && name.length <= 63 && name !== manifest.name && !["member", "group"].includes(name)).map(name => [name, true])),
   origin,
   schedules: proposals.schedules ?? [],
   ...(proposals.checks ? { checks: proposals.checks } : {}),

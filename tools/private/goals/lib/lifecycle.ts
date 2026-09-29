@@ -1,5 +1,6 @@
 import * as events from "@argentic/chest-sdk/events";
 import type { Sql } from "./db.ts";
+import { forgetGroups } from "./teams.ts";
 import { tellAdminsOfOrphans } from "./tell.ts";
 
 // What Goals does when a member loses access, leaves or is erased (the
@@ -38,6 +39,7 @@ export async function erase(sql: Sql, memberId: string): Promise<void> {
     await tx`delete from nudges where member_id = ${memberId}`;
     await tx`update nudges set sent_by = 'erased' where sent_by = ${memberId}`;
     await tx`delete from departed where member_id = ${memberId}`;
+    await tx`update fed_events set members = array_replace(members, ${memberId}, 'erased') where ${memberId} = any(members)`;
   });
 }
 
@@ -51,6 +53,10 @@ export function handlers(sql: Sql): events.Handlers {
       await leave(sql, event.data.id);
       await tellAdminsOfOrphans(sql);
     },
+    // The Chest's groups changed (Proposal (studio): "groups": "read"):
+    // their names and members are read again.
+    "group.changed": async () => { forgetGroups(); },
+    "group.removed": async () => { forgetGroups(); },
     "member.erased": async event => {
       await erase(sql, event.data.id);
       await events.acknowledgeErasure(event.data.erasure);

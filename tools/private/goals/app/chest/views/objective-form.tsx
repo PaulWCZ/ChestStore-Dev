@@ -8,10 +8,10 @@ import { Alert, Plus, Trash } from "../../../components/icons.tsx";
 import { format } from "../../../lib/i18n/format.ts";
 import type { Catalogue } from "../../../lib/i18n/index.ts";
 import { createObjective, updateObjective } from "../actions.ts";
-import { emptyDraft, KeyResultFields, krInput, type KrDraft, type Owner } from "./key-result-fields.tsx";
+import { emptyDraft, KeyResultFields, krInput, type Board, type KrDraft, type Owner } from "./key-result-fields.tsx";
 
 type Level = "company" | "team" | "personal";
-export type FormWords = { form: Catalogue["form"]; kinds: Catalogue["kinds"]; kindHints: Catalogue["kindHints"]; levels: Catalogue["levels"]; errors: Catalogue["errors"]; visibility: Catalogue["visibility"]; peoplePicker: PeoplePickerWords };
+export type FormWords = { form: Catalogue["form"]; tools: Catalogue["tools"]; kinds: Catalogue["kinds"]; kindHints: Catalogue["kindHints"]; levels: Catalogue["levels"]; errors: Catalogue["errors"]; visibility: Catalogue["visibility"]; peoplePicker: PeoplePickerWords };
 type Visibility = "everyone" | "team" | "people";
 export type Choice = { id: string; name: string };
 export type ParentChoice = { id: string; title: string; level: Level; team: string | null };
@@ -35,7 +35,7 @@ type Props = {
 // A new objective (with its first key results), or an objective's own
 // fields when editing. Levels, teams and what it may support are only
 // those the person may choose.
-export function ObjectiveForm({ mode, objectiveId, cycleId, levels, teams, parents, owners, me, initial, personalNote, locale, currency, t }: Props) {
+export function ObjectiveForm({ mode, objectiveId, cycleId, levels, teams, parents, owners, me, initial, personalNote, locale, currency, t, boards = [] }: Props & { boards?: Board[] }) {
   const uid = useId();
   const f = t.form;
   const [level, setLevel] = useState<Level>(initial.level);
@@ -168,7 +168,7 @@ export function ObjectiveForm({ mode, objectiveId, cycleId, levels, teams, paren
                   <span className="eyebrow">{f.krTitle} {i + 1}</span>
                   {krs.length > 1 && <button type="button" className="icon-button" onClick={() => setKrs(list => list.filter((_, j) => j !== i))}><Trash /><span className="visually-hidden">{f.removeRow}</span></button>}
                 </div>
-                <KeyResultFields draft={k} onChange={d => setKrs(list => list.map((x, j) => (j === i ? d : x)))} owners={owners} t={t} locale={locale} currency={currency} />
+                <KeyResultFields draft={k} onChange={d => setKrs(list => list.map((x, j) => (j === i ? d : x)))} owners={owners} t={t} locale={locale} currency={currency} boards={boards} />
               </li>
             ))}
           </ol>

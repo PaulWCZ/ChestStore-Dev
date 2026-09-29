@@ -2,8 +2,10 @@
 // (the harness runs the tool with --reset: the sample month is there —
 // posts 1 to 10; 3 is the team dinner, 4 the Important office move (in
 // English and French), 7 is scheduled, 8 for Sales, 9 the first-aid
-// training with 3 places, 10 for three people).
+// training with 3 places, 10 for three people, 11 Hugo's shout-out to Léa;
+// one proposal by Léa waits for a publisher).
 import { writeFileSync } from "node:fs";
+import postgres from "postgres";
 import { as, done, expect, open, step } from "./lib.mjs";
 
 const port = Number(process.argv[2] ?? 4500);
@@ -527,6 +529,125 @@ await step("views are a number only, from 5; events ask when and where under the
   const bar = await page.locator(".composer-bar").boundingBox();
   const side = await page.locator(".composer-side").boundingBox();
   expect(bar.x + bar.width <= side.x, "the bar stops before the right column");
+});
+
+await step("round 3: search in the reader's language; an empty search suggests the other language", async () => {
+  await as(context, origin, "camille");
+  await speak("fr");
+  await page.goto(origin + "/chest/search?q=" + encodeURIComponent("déménager"));
+  const first = await page.locator(".result .headline").first().innerText();
+  expect(first === "Nous déménageons le 2 novembre", "the French headline for a French reader: " + first);
+  expect((await page.locator(".result .headline mark").allTextContents()).includes("déménageons"), "the stem is marked");
+  await page.goto(origin + "/chest/search?q=secourisme");
+  const empty = await page.locator("main").innerText();
+  expect(has(empty, `Certaines publications ne sont écrites qu’en anglais${sp}: essayez aussi le mot en anglais`), "suggests English: " + empty);
+  await page.goto(origin + "/chest/search?q=" + encodeURIComponent("first aid"));
+  expect((await page.locator(".result .headline").first().innerText()).includes("First-aid training"), "and the English word finds it");
+});
+
+await step("round 3: a reader shares a shout-out with a picture; only publishers see it until one publishes it; the author and the colleague are told", async () => {
+  const photo = tmp + "/news-site.png";
+  await picture(photo, 30);
+  await as(context, origin, "hugo");
+  await speak("en");
+  await page.goto(origin + "/chest");
+  await page.getByRole("link", { name: "Share something" }).first().click();
+  await page.waitForURL(/\/chest\/propose$/u);
+  expect(await page.getByLabel("Thank a colleague").isChecked(), "a shout-out first");
+  await page.locator("#colleague-search").fill("Nor");
+  await page.getByRole("option", { name: /Nora Petit/u }).click();
+  expect((await page.getByLabel("Headline").inputValue()) === "Thank you, Nora!", "the headline follows the colleague");
+  await page.getByLabel("A few words").fill("SITEPHOTO Nora redrew the whole wayfinding in one night.");
+  await page.locator(".propose-form input[type=file]").setInputFiles(photo);
+  await page.waitForSelector(".cover-preview img", { timeout: 8000 });
+  await saved(() => page.getByRole("button", { name: "Send to the publishers" }).click());
+  await page.waitForSelector(".ck-toast:has-text('A publisher will check it')");
+  expect((await page.locator(".proposals-mine").innerText()).includes("Waiting for a publisher"), "listed as waiting");
+  // Before a publisher: not a post — nobody's front page or search; Léa cannot open the list or the picture.
+  const picture1 = await page.locator(".cover-preview img").count() === 0;
+  expect(picture1, "the form is empty again");
+  await as(context, origin, "lea");
+  expect((await page.request.get(origin + "/chest/proposals")).status() === 404, "the list is the publishers'");
+  await page.goto(origin + "/chest/search?q=SITEPHOTO");
+  expect((await page.locator("main").innerText()).includes("Rien trouvé"), "not found before approval");
+  await as(context, origin, "sofia");
+  await page.goto(origin + "/chest/search?q=SITEPHOTO");
+  expect((await page.locator("main").innerText()).includes("Nothing found"), "not a post for publishers either");
+  await page.goto(origin + "/chest");
+  const strip = await page.locator(".asks-you.approve").innerText();
+  expect(strip.includes("2 posts from colleagues wait for your approval"), strip);
+  await page.locator(".asks-you.approve").getByRole("link", { name: "Review" }).click();
+  await page.waitForURL(/\/chest\/proposals$/u);
+  const card = page.locator(".proposal", { hasText: "Thank you, Nora!" });
+  expect((await card.innerText()).includes("Thanks Nora Petit") && (await card.innerText()).includes("Proposed by Hugo Bernard"), "who and for whom");
+  const cover = await card.locator(".proposal-cover").getAttribute("src");
+  await as(context, origin, "lea");
+  expect((await page.request.get(origin + cover)).status() === 404, "Léa cannot open the picture");
+  await as(context, origin, "sofia");
+  await saved(() => card.getByRole("button", { name: "Publish" }).click());
+  await page.waitForSelector(".ck-toast:has-text('Published. Its author is told.')");
+  await page.goto(origin + "/chest?kind=shoutout");
+  expect((await page.locator(".story .headline").allTextContents()).includes("Thank you, Nora!"), "on the front page, under Shout-outs");
+  const panel = await dev();
+  expect(panel.includes("Your post is on News: “Thank you, Nora!”"), "Hugo is told");
+  expect(panel.includes("Hugo Bernard vous remercie dans les Actualités"), "Nora is told, in French");
+  // Léa's news is declined with a reason; she is told; Undo puts it back.
+  await page.goto(origin + "/chest/proposals");
+  const lea = page.locator(".proposal", { hasText: "Le chantier de Villeurbanne est livré" });
+  await lea.getByRole("button", { name: "Decline" }).click();
+  await page.getByLabel(/Why\? \(optional, Léa Dubois reads it\)/u).fill("Déjà dans la lettre de lundi.");
+  await saved(() => lea.getByRole("button", { name: "Decline" }).click());
+  await page.waitForSelector(".ck-toast:has-text('Declined. Its author is told.')");
+  expect(has(await dev(), `Votre publication n’a pas été publiée${sp}:`), "Léa is told");
+  await saved(() => page.locator(".ck-toast", { hasText: "Declined" }).locator(".ck-toast-undo").click());
+  await page.waitForSelector(".proposal:has-text('Le chantier de Villeurbanne est livré')");
+});
+
+await step("round 3: “I’m coming” in one tap from the email of an Important event — for that person only, with Undo", async () => {
+  await as(context, origin, "camille");
+  await speak("en");
+  await page.goto(origin + "/chest/posts/3/edit");
+  await page.waitForSelector(".composer[data-ready]", { state: "attached" });
+  await page.getByLabel("Important").check();
+  await page.getByRole("button", { name: /^Save and tell \d+ people/u }).click();
+  await page.waitForURL(/\/chest\/posts\/3$/u);
+  const panel = await dev();
+  const letter = panel.split("<li>").find(li => li.includes("Important: Team dinner at Le Petit Zinc") && li.includes("hugo@example.test")) ?? "";
+  const link = /I’m coming: (\S+?)(?:\s|&lt;|<)/u.exec(letter)?.[1]?.replaceAll("&amp;", "&") ?? "";
+  expect(/\/chest\/posts\/3\/answer\?a=yes&t=[A-Za-z0-9_-]{32}$/u.test(link), "the email carries the link: " + link);
+  expect(letter.includes("Not coming: "), "and the other answer");
+  const path = new URL(link).pathname + new URL(link).search;
+  await as(context, origin, "hugo");
+  await page.goto(origin + path);
+  await page.waitForURL(/\/chest\/posts\/3$/u);
+  await page.waitForSelector(".ck-toast:has-text('You’re coming.')");
+  expect(await page.locator(".rsvp button[aria-pressed=true]", { hasText: "I’m coming" }).isVisible(), "answered");
+  await saved(() => page.locator(".ck-toast", { hasText: "You’re coming." }).locator(".ck-toast-undo").click());
+  await page.reload();
+  expect(!(await page.locator(".rsvp button[aria-pressed=true]").count()), "Undo took the answer back");
+  // Léa opens Hugo's link: nothing changes for anyone.
+  await as(context, origin, "lea");
+  await speak("fr");
+  await page.goto(origin + path);
+  await page.waitForSelector(".ck-toast:has-text('Ce lien n’a pas été écrit pour vous')");
+  expect(!(await page.locator(".rsvp button[aria-pressed=true]", { hasText: "Je viens" }).count()), "Léa is not answered for");
+});
+
+await step("round 3: an empty front page: no empty band, one import link; a reader is told whom to ask and may share something", async () => {
+  const sql = postgres("postgres://t_news:dev@127.0.0.1:5432/t_news", { max: 1, onnotice: () => {} });
+  await sql`update posts set deleted_at = now()`;
+  await sql.end();
+  await as(context, origin, "hugo");
+  await speak("en");
+  await page.goto(origin + "/chest");
+  const body = await page.locator(".ck-empty").innerText();
+  expect(body.includes("To publish one, ask Sofia Rossi or Camille Martin."), "names the publishers: " + body);
+  expect(await page.locator(".ck-empty").getByRole("link", { name: "Share something" }).isVisible(), "and offers to share");
+  const rule = await page.locator(".digest-switch").evaluate(el => getComputedStyle(el).borderTopStyle);
+  expect(rule === "none", "no second rule under the empty state: " + rule);
+  await as(context, origin, "sofia");
+  await page.goto(origin + "/chest");
+  expect(await page.getByRole("link", { name: /Import/u }).count() === 1, "one Slack import link");
 });
 
 await browser.close();

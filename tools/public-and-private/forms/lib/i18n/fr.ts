@@ -860,6 +860,7 @@ export const fr: Catalogue = {
       name_: "Votre nom",
       email: "Votre adresse e-mail",
       phone: "Votre numéro de téléphone",
+      company: "Votre entreprise (s’il y a lieu)",
       topic: "C’est à quel sujet ?",
       topicQuestion: "Une question",
       topicQuote: "Un devis",

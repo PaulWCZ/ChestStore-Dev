@@ -71,6 +71,28 @@ export function cleanRoutes(value: unknown, def: Definition, form: { anonymous: 
   return { contact, request };
 }
 
+// guessRoutes: where each piece most likely comes from, by the kinds of
+// the questions and their order — what a switch fills in when it is turned
+// on, and what a template starts with. The author changes any of it.
+// Words are never read (a form may be in any language):
+// - a contact's name: the first short text; its company: the second one;
+//   email and phone: the first question of that kind; its message: the
+//   first long text;
+// - a ticket's subject: the first choice or list ("What is it about?"),
+//   else the form's title; its details: the first long text; the email and
+//   the name as for a contact.
+export function guessRoutes(def: Definition): { contact: ContactRoute; request: RequestRoute } {
+  const qs = allQuestions(def);
+  const first = (kinds: readonly Kind[], skip = 0) => qs.filter(q => kinds.includes(q.kind))[skip]?.id ?? null;
+  const name = first(["short"]);
+  const email = first(["email"]);
+  const long = first(["long"]);
+  return {
+    contact: { name, email, phone: first(["phone"]), company: first(["short"], 1), message: long },
+    request: { subject: first(["choice", "dropdown"]), details: long, email, name },
+  };
+}
+
 // ---- The events (contract, version 1) -----------------------------------------
 
 // Every event says which form and which answer it comes from; `path` is

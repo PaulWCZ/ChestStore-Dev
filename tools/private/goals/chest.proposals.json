@@ -2,9 +2,17 @@
   "mail": {
     "send": true
   },
+  "groups": "read",
   "receives": [
+    "group.*",
     "crm.deal.won",
-    "crm.deal.reopened"
+    "crm.deal.reopened",
+    "tasks.card.done",
+    "tasks.card.reopened",
+    "helpdesk.ticket.solved",
+    "helpdesk.ticket.reopened",
+    "hiring.hired",
+    "hiring.hire_cancelled"
   ],
   "schedules": [
     {

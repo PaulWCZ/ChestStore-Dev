@@ -345,6 +345,8 @@ export const fr: Catalogue = {
     team: "Équipe",
     owner: "Responsable",
     matches: { zero: "Aucun objectif ne correspond", one: "{count} objectif correspond", other: "{count} objectifs correspondent" },
+    filtersButton: "Filtres",
+    filtersOn: { one: "{count} filtre actif", other: "{count} filtres actifs" },
   },
   example: {
     title: "Gagner 20 nouveaux clients",

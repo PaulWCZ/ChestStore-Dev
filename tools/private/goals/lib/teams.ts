@@ -1,4 +1,4 @@
-import { ChestError } from "@argentic/chest-sdk/errors";
+import { CapabilityNotGranted, ChestError } from "@argentic/chest-sdk/errors";
 import type { Member } from "@argentic/chest-sdk/member";
 import * as members from "@argentic/chest-sdk/members";
 import { can } from "./access.ts";
@@ -14,14 +14,48 @@ import { clean, groupPattern, id, limits } from "./model.ts";
 export type Team = { id: string; name: string; groupId: string | null; archived: boolean; members: string[] | null };
 export type Group = { id: string; name: string; members: string[] };
 
-// The Chest's groups that give the tool; [] when the Chest cannot say.
+// The Chest's groups, each with its members who have the tool. With the
+// "groups" permission (Proposal (studio): "groups": "read", as News, Wiki
+// and Polls) every group of the Chest — Sales, Tech, the warehouse — even
+// when Goals is open to everyone; without it, only the groups that give
+// Goals (a company that gives it to everyone then has none). [] when the
+// Chest cannot say. Kept a minute (the SDK's advice), per Chest API.
+let cached: { at: number; api: string | undefined; groups: Group[] } | null = null;
+
 export async function chestGroups(): Promise<Group[]> {
+  if (cached && cached.api === process.env["CHEST_API"] && Date.now() - cached.at < 60_000) return cached.groups;
+  let groups: Group[];
   try {
-    return (await members.groups.list()).map(g => ({ id: g.id, name: g.name, members: [...g.members] }));
+    const all = await members.groups.all();
+    groups = [];
+    for (const g of all.slice(0, limits.teams)) {
+      const who: string[] = [];
+      let after: string | undefined;
+      do {
+        const page = await members.groups.members(g.id, { limit: 1000, ...(after ? { after } : {}) });
+        if (!page) break;
+        who.push(...page.members);
+        after = page.next ?? undefined;
+      } while (after && who.length < 10_000);
+      groups.push({ id: g.id, name: g.name, members: who });
+    }
   } catch (error) {
-    if (error instanceof ChestError) return [];
-    throw error;
+    if (!(error instanceof ChestError)) throw error;
+    if (!(error instanceof CapabilityNotGranted)) return [];
+    try {
+      groups = (await members.groups.list()).map(g => ({ id: g.id, name: g.name, members: [...g.members] }));
+    } catch (inner) {
+      if (inner instanceof ChestError) return [];
+      throw inner;
+    }
   }
+  cached = { at: Date.now(), api: process.env["CHEST_API"], groups };
+  return groups;
+}
+
+// A group changed or was removed (events): read them again.
+export function forgetGroups(): void {
+  cached = null;
 }
 
 export async function teams(sql: Query, options: { archived?: boolean; groups?: Group[] } = {}): Promise<Team[]> {

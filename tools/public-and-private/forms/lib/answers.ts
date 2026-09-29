@@ -293,7 +293,7 @@ export type Sent = { id: string; formTitle: string; slug: string; createdAt: str
 export async function sent(sql: Sql, actor: Member | null, limit = 50): Promise<Sent[]> {
   if (!actor || !can(actor, "forms.answer")) return [];
   const found = await sql<{ id: string; title: string; slug: string; created_at: Date; status: FollowState; note: string }[]>`
-    select a.id, coalesce(v.definition->>'title', f.draft->>'title') as title, f.slug, a.created_at, a.status, a.note
+    select a.id, coalesce(case when v.definition->'alt'->>'language' = ${actor.locale ?? "en"} then nullif(v.definition->'alt'->'texts'->>'title', '') end, v.definition->>'title', f.draft->>'title') as title, f.slug, a.created_at, a.status, a.note
     from answers a join forms f on f.id = a.form_id left join versions v on v.form_id = a.form_id and v.version = a.version
     where a.respondent = ${actor.id} and a.deleted_at is null and f.deleted_at is null and not f.anonymous
     order by a.created_at desc limit ${limit}`;

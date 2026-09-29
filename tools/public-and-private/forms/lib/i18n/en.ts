@@ -863,6 +863,7 @@ export const en = {
       name_: "Your name",
       email: "Your email address",
       phone: "Your phone number",
+      company: "Your company (if any)",
       topic: "What is it about?",
       topicQuestion: "A question",
       topicQuote: "A quote",

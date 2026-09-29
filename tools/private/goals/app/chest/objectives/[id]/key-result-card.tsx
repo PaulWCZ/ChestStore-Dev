@@ -13,6 +13,7 @@ import { archiveKeyResult, undoCheckIn } from "../../actions.ts";
 import { CheckInForm } from "../../views/check-in-form.tsx";
 import type { Owner } from "../../views/key-result-fields.tsx";
 import { EditKeyResult, type KrWords } from "./key-result-dialog.tsx";
+import type { Board } from "../../views/key-result-fields.tsx";
 
 export type ChangeEntry = { id: string; text: string; when: string; date: string };
 export type HistoryEntry = { id: string; when: string; date: string; value: string; confidence: "on_track" | "at_risk" | "off_track"; note: string; by: string; undoable: boolean };
@@ -21,7 +22,7 @@ type ChartProps = { points: ChartPoint[]; start: number; target: number; from: n
 // A key result on its objective's page: its numbers, a chart of its
 // check-ins (and the same as a table), the latest notes, and — for its
 // owner — the check-in form.
-export function KeyResultCard({ kr, history, changes, chart, openCheckIn, owners, locale, me, t }: { kr: KeyResultView; me: string; history: HistoryEntry[]; changes: ChangeEntry[]; chart: ChartProps; openCheckIn: boolean; owners: Owner[]; locale: string; t: KrWords }) {
+export function KeyResultCard({ kr, history, changes, chart, openCheckIn, owners, locale, me, t, boards = [] }: { boards?: Board[]; kr: KeyResultView; me: string; history: HistoryEntry[]; changes: ChangeEntry[]; chart: ChartProps; openCheckIn: boolean; owners: Owner[]; locale: string; t: KrWords }) {
   const [checking, setChecking] = useState(openCheckIn && kr.canCheckIn);
   const [editing, setEditing] = useState(false);
   const [, start] = useTransition();
@@ -88,7 +89,7 @@ export function KeyResultCard({ kr, history, changes, chart, openCheckIn, owners
         <Confidence value={kr.confidence} words={t.confidence} />
         {kr.stale && <span className="tag stale"><Clock />{t.progress.stale}</span>}
         {kr.weight > 1 && <span className="tag">{plural(t.objective.weight, kr.weight, locale)}</span>}
-        {kr.source !== "manual" && <span className="tag fed">{t.objective.fed}</span>}
+        {kr.source !== "manual" && <span className="tag fed">{format(t.objective.fed, { tool: t.tools[kr.source.split(".")[0] as keyof typeof t.tools] })}</span>}
       </div>
       <Progress percent={kr.percent} text={kr.percentText} label={`${kr.title}: ${kr.percentText}`} confidence={kr.confidence} big />
       <div className="kr-numbers">
@@ -157,7 +158,7 @@ export function KeyResultCard({ kr, history, changes, chart, openCheckIn, owners
           />
         </details>
       )}
-      {editing && <EditKeyResult kr={kr} owners={owners} locale={locale} t={t} onClose={() => setEditing(false)} />}
+      {editing && <EditKeyResult kr={kr} owners={owners} boards={boards} locale={locale} t={t} onClose={() => setEditing(false)} />}
     </article>
   );
 }

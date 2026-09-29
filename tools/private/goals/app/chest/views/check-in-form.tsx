@@ -8,8 +8,8 @@ import { format } from "../../../lib/i18n/format.ts";
 import type { Catalogue } from "../../../lib/i18n/index.ts";
 import { checkIn } from "../actions.ts";
 
-export type CheckInWords = { checkIn: Catalogue["checkIn"]; confidence: Catalogue["confidence"]; confidenceHelp: Catalogue["confidenceHelp"]; errors: Catalogue["errors"] };
-export type CheckInTarget = { id: string; title: string; kind: "number" | "percent" | "money" | "milestone"; currentInput: string; current: string; target: string; unit: string; confidence: "on_track" | "at_risk" | "off_track" | null; done: boolean; source: "manual" | "crm.won_amount" | "crm.won_count" };
+export type CheckInWords = { checkIn: Catalogue["checkIn"]; tools: Catalogue["tools"]; confidence: Catalogue["confidence"]; confidenceHelp: Catalogue["confidenceHelp"]; errors: Catalogue["errors"] };
+export type CheckInTarget = { id: string; title: string; kind: "number" | "percent" | "money" | "milestone"; currentInput: string; current: string; target: string; unit: string; confidence: "on_track" | "at_risk" | "off_track" | null; done: boolean; source: "manual" | "crm.won_amount" | "crm.won_count" | "tasks.done" | "helpdesk.solved" | "hiring.hired" };
 export type CheckedIn = { checkInId: string; keyResultId: string };
 
 const levels = ["on_track", "at_risk", "off_track"] as const;
@@ -55,7 +55,7 @@ export function CheckInForm({ kr, t, onDone, onCancel, inline = false }: { kr: C
   return (
     <form className={`checkin-form${inline ? " inline" : ""}`} onSubmit={e => { e.preventDefault(); submit(); }} aria-label={format(t.checkIn.title, { title: kr.title })}>
       {kr.source !== "manual" ? (
-        <p className="fed-value"><strong>{format(t.checkIn.fromCrm, { value: kr.current })}</strong> <span className="hint">{format(t.checkIn.target, { value: kr.target })}</span></p>
+        <p className="fed-value"><strong>{format(t.checkIn.fromCrm, { tool: t.tools[kr.source.split(".")[0] as keyof typeof t.tools], value: kr.current })}</strong> <span className="hint">{format(t.checkIn.target, { value: kr.target })}</span></p>
       ) : kr.kind === "milestone" ? (
         <fieldset className="segments">
           <legend>{t.checkIn.newValue}</legend>

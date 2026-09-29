@@ -1,3 +1,4 @@
+import { knownBoards } from "../../../../lib/sources.ts";
 import { Filters } from "@argentic/chest-ui/components";
 import { Link } from "../../../../components/link.tsx";
 import * as chest from "@argentic/chest-sdk/chest";
@@ -44,6 +45,8 @@ export default async function NewObjective({ searchParams }: { searchParams: Pro
   const level = isLevel(q.level) && choices.levels.includes(q.level) ? q.level : choices.levels.includes("team") ? "team" : choices.levels[0]!;
   const team = choices.teams.find(x => x.id === q.team && x.writable) ?? (choices.teams.filter(x => x.writable).length === 1 ? choices.teams.find(x => x.writable) : undefined);
   const parent = choices.parents.find(p => p.id === q.parent);
+  // Tasks' boards Goals has heard of, for "Cards done on …" (lib/sources.ts).
+  const boards = await knownBoards(sql);
   const owners = await everyone();
   return (
     <div className="narrow">
@@ -63,8 +66,9 @@ export default async function NewObjective({ searchParams }: { searchParams: Pro
         initial={{ level, teamId: team?.id ?? "", parentId: parent ? parent.id : "", owner: member.id, title: "", why: "", visibility: "everyone", viewers: [] }}
         locale={v.locale}
         currency={chest.currency()}
+        boards={boards}
         personalNote
-        t={{ form: t.form, kinds: t.kinds, kindHints: t.kindHints, levels: t.levels, errors: t.errors, visibility: t.visibility, peoplePicker: t.peoplePicker }}
+        t={{ form: t.form, tools: t.tools, kinds: t.kinds, kindHints: t.kindHints, levels: t.levels, errors: t.errors, visibility: t.visibility, peoplePicker: t.peoplePicker }}
       />
     </div>
   );

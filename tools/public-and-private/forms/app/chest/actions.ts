@@ -15,6 +15,7 @@ import { readPayload, take, type Taken } from "../../lib/respond.ts";
 import { currentMember } from "../../lib/session.ts";
 import * as tell from "../../lib/tell.ts";
 import { isTemplate, template } from "../../lib/templates.ts";
+import { startOf } from "../../lib/linked.ts";
 import * as uploads from "../../lib/uploads.ts";
 import { zonedInstant } from "../../lib/zone.ts";
 import * as chest from "@argentic/chest-sdk/chest";
@@ -37,7 +38,7 @@ export async function createForm(key: string): Promise<Result> {
     if (!isTemplate(key)) throw new AppError("invalid");
     const locale = actor && isLocale(actor.locale) ? actor.locale : "en";
     const t = template(key, catalogue(locale));
-    return forms.create(db(), actor, t);
+    return forms.create(db(), actor, await startOf(db(), t));
   });
   if (!result.ok) return result;
   done();

@@ -347,6 +347,8 @@ export const en = {
     team: "Team",
     owner: "Owner",
     matches: { zero: "No objective matches", one: "{count} objective matches", other: "{count} objectives match" },
+    filtersButton: "Filters",
+    filtersOn: { one: "{count} filter on", other: "{count} filters on" },
   },
   example: {
     title: "Win 20 new customers",

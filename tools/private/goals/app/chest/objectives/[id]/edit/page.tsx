@@ -1,3 +1,4 @@
+import { knownBoards } from "../../../../../lib/sources.ts";
 import * as chest from "@argentic/chest-sdk/chest";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -31,6 +32,8 @@ export default async function EditObjective({ params }: { params: Promise<{ id: 
   if (!cycle || cycle.closed || !mayEdit(member, o)) notFound();
   const choices = await formChoices(sql, member, cycle.id, ctx.teamList, ctx.clock);
   const teams = choices.teams.map(x => ({ ...x, writable: x.writable || x.id === o.teamId }));
+  // Tasks' boards Goals has heard of, for "Cards done on …" (lib/sources.ts).
+  const boards = await knownBoards(sql);
   const owners = await everyone();
   return (
     <div className="narrow">
@@ -48,8 +51,9 @@ export default async function EditObjective({ params }: { params: Promise<{ id: 
         initial={{ level: o.level, teamId: o.teamId ?? "", parentId: o.parentId ?? "", owner: o.owner, title: o.title, why: o.why, visibility: o.visibility, viewers: await viewersOf(sql, o.id) }}
         locale={v.locale}
         currency={chest.currency()}
+        boards={boards}
         personalNote={false}
-        t={{ form: t.form, kinds: t.kinds, kindHints: t.kindHints, levels: t.levels, errors: t.errors, visibility: t.visibility, peoplePicker: t.peoplePicker }}
+        t={{ form: t.form, tools: t.tools, kinds: t.kinds, kindHints: t.kindHints, levels: t.levels, errors: t.errors, visibility: t.visibility, peoplePicker: t.peoplePicker }}
       />
     </div>
   );

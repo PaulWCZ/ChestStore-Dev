@@ -1,3 +1,4 @@
+import { knownBoards } from "../../../../lib/sources.ts";
 import * as chest from "@argentic/chest-sdk/chest";
 import { EmptyState } from "@argentic/chest-ui/components";
 import Link from "next/link";
@@ -66,12 +67,14 @@ export default async function ObjectivePage({ params, searchParams }: { params: 
   const view = objectiveView(o, { actor: member, people: who, locale, t, zone: ctx.zone, now: ctx.clock.now, closed, teams: ctx.teams });
   const childViews = children.map(c => objectiveView(c, { actor: member, people: who, locale, t, zone: ctx.zone, now: ctx.clock.now, closed, teams: ctx.teams }));
   const editable = !closed && mayEdit(member, o);
+  // Tasks' boards Goals has heard of, for "Cards done on …" (lib/sources.ts).
+  const boards = await knownBoards(sql);
   const owners = editable ? await everyone() : [];
   const from = instantOf(cycle.startsOn, 0, ctx.zone).getTime();
   const to = instantOf(addDays(cycle.endsOn, 1), 0, ctx.zone).getTime() - 1;
   const next = ctx.cycles.filter(c => !c.closed && c.id !== cycle.id).sort((a, b) => (a.startsOn < b.startsOn ? -1 : 1));
   const carryTarget = ended && mayEdit(member, o) ? next.find(c => c.startsOn > cycle.endsOn) ?? next[0] ?? null : null;
-  const cardWords = { checkIn: t.checkIn, confidence: t.confidence, confidenceHelp: t.confidenceHelp, errors: t.errors, objective: t.objective, progress: t.progress, form: t.form, kinds: t.kinds, kindHints: t.kindHints, peoplePicker: t.peoplePicker, dialog: t.dialog, tables: t.tables };
+  const cardWords = { checkIn: t.checkIn, tools: t.tools, confidence: t.confidence, confidenceHelp: t.confidenceHelp, errors: t.errors, objective: t.objective, progress: t.progress, form: t.form, kinds: t.kinds, kindHints: t.kindHints, peoplePicker: t.peoplePicker, dialog: t.dialog, tables: t.tables };
   const levelLine = o.level === "team" ? view.teamName ?? t.levels.team : t.levels[o.level];
 
   return (
@@ -113,10 +116,10 @@ export default async function ObjectivePage({ params, searchParams }: { params: 
           <section aria-labelledby="krs" className="stack">
             <div className="section-title flush">
               <h2 id="krs">{t.objective.keyResults}</h2>
-              {editable && <span className="end"><AddKeyResult objectiveId={o.id} owners={owners} defaultOwner={o.owner} locale={locale} currency={chest.currency()} t={cardWords} /></span>}
+              {editable && <span className="end"><AddKeyResult objectiveId={o.id} owners={owners} boards={boards} defaultOwner={o.owner} locale={locale} currency={chest.currency()} t={cardWords} /></span>}
             </div>
             {view.keyResults.length === 0 ? (
-              <EmptyState title={t.objective.noKeyResults} body={t.objective.noKeyResultsBody} action={editable ? <AddKeyResult objectiveId={o.id} owners={owners} defaultOwner={o.owner} locale={locale} currency={chest.currency()} t={cardWords} primary /> : null} />
+              <EmptyState title={t.objective.noKeyResults} body={t.objective.noKeyResultsBody} action={editable ? <AddKeyResult objectiveId={o.id} owners={owners} boards={boards} defaultOwner={o.owner} locale={locale} currency={chest.currency()} t={cardWords} primary /> : null} />
             ) : view.keyResults.map(k => {
               const raw = o.keyResults.find(x => x.id === k.id)!;
               const list = history.get(k.id) ?? [];
@@ -147,6 +150,7 @@ export default async function ObjectivePage({ params, searchParams }: { params: 
               return (
                 <KeyResultCard
                   key={k.id}
+                  boards={boards}
                   kr={k}
                   history={entries}
                   changes={changed}

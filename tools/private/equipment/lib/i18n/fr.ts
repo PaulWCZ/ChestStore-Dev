@@ -497,7 +497,7 @@ export const fr: Catalogue = {
       invalid: "la réponse de Microsoft n’a pas pu être lue.",
     },
     title: "Importer du matériel",
-    intro: "Depuis Snipe-IT ou n’importe quel tableur enregistré en CSV. Vous voyez ce qui va arriver avant que rien ne soit ajouté.",
+    intro: "Depuis Snipe-IT, n’importe quel tableur enregistré en CSV, ou Microsoft Intune. Vous voyez ce qui va arriver avant que rien ne soit ajouté.",
     snipe: "Depuis Snipe-IT",
     snipeHow: "Dans Snipe-IT : Reports → Custom Asset Report, cochez les colonnes et vos champs personnalisés, Download. L’export CSV de la liste Assets et le fichier que vous y aviez importé fonctionnent aussi.",
     csv: "Depuis un tableur",

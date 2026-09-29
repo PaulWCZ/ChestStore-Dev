@@ -1,3 +1,4 @@
+import { noCycleWords } from "../../../lib/people.ts";
 import Link from "next/link";
 import { MapEmpty } from "../../../components/map-empty.tsx";
 import { Progress } from "../../../components/progress.tsx";
@@ -45,7 +46,7 @@ export default async function Cycles() {
         {admin && <div className="actions"><NewCycle suggestion={suggestion} first={ctx.cycles.length === 0} today={ctx.clock.today} t={{ cycles: t.cycles, errors: t.errors, date: t.date, dialog: t.dialog }} /></div>}
       </div>
       {ctx.cycles.length === 0 ? (
-        <MapEmpty title={t.cycles.noCycles} body={admin ? t.home.noCycleBody : t.home.noCycleMember} />
+        <MapEmpty title={t.cycles.noCycles} body={admin ? t.home.noCycleBody : await noCycleWords(locale)} />
       ) : (
         <ul className="card rows">
           {ctx.cycles.map(c => {

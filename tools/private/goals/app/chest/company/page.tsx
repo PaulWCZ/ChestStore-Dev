@@ -1,3 +1,4 @@
+import { noCycleWords } from "../../../lib/people.ts";
 import { Filters, Menu } from "@argentic/chest-ui/components";
 import { Link } from "../../../components/link.tsx";
 import type { FilterGroup } from "@argentic/chest-ui/components";
@@ -6,6 +7,7 @@ import { notFound } from "next/navigation";
 import { AutoRefresh } from "../../../components/auto-refresh.tsx";
 import { CycleChip } from "../../../components/cycle-chip.tsx";
 import { Download, Mountain, Plus, Shape, Upload } from "../../../components/icons.tsx";
+import { FoldArea, FoldButton } from "../../../components/fold.tsx";
 import { MapEmpty } from "../../../components/map-empty.tsx";
 import { Progress } from "../../../components/progress.tsx";
 import { can, readerOf } from "../../../lib/access.ts";
@@ -40,7 +42,7 @@ export default async function Company({ searchParams }: { searchParams: Promise<
     return (
       <div className="page">
         <div className="head"><div className="titles"><h1>{t.company.title}</h1></div></div>
-        <MapEmpty title={t.home.noCycle} body={can(member, "cycles.manage") ? t.home.noCycleBody : t.home.noCycleMember} action={can(member, "cycles.manage") ? <Link className="button" href="/chest/cycles">{t.cycles.new}</Link> : null} />
+        <MapEmpty title={t.home.noCycle} body={can(member, "cycles.manage") ? t.home.noCycleBody : await noCycleWords(locale)} action={can(member, "cycles.manage") ? <Link className="button" href="/chest/cycles">{t.cycles.new}</Link> : null} />
       </div>
     );
   }
@@ -70,6 +72,7 @@ export default async function Company({ searchParams }: { searchParams: Promise<
     owner: q.owner && /^mbr_[a-z2-7]{26}$/u.test(q.owner) ? q.owner : "",
   };
   const filtering = filters.status.length > 0 || filters.team !== "" || filters.owner !== "";
+  const onCount = filters.status.length + Number(filters.team !== "") + Number(filters.owner !== "");
   const isStatus = (o: ObjectiveView, st: Status) => (st === "quiet" ? o.stale : o.confidence === st);
   const byOwner = (o: ObjectiveView) => filters.owner === "" || o.owner.id === filters.owner || o.keyResults.some(k => k.owner.id === filters.owner);
   const matches = (o: ObjectiveView, ignore: "status" | "team" | null = null) =>
@@ -117,8 +120,11 @@ export default async function Company({ searchParams }: { searchParams: Promise<
         )}
       </div>
 
+      <FoldArea>
       <div className="tree-tools">
-        <Filters link={Link} path="/chest/company" params={params} groups={[cycleGroup(ctx.cycles, cycle.id, t)]} labels={t.filters} />
+        {/* On a phone the choices fold behind one button (components/fold.tsx). */}
+        {views.length > 0 && <FoldButton label={t.company.filtersButton} on={onCount} onLabel={plural(t.company.filtersOn, onCount, locale)} />}
+        <div className={views.length > 0 ? "foldable" : ""}><Filters link={Link} path="/chest/company" params={params} groups={[cycleGroup(ctx.cycles, cycle.id, t)]} labels={t.filters} /></div>
         {/* Rare actions, in one menu: the tree comes first on a phone. */}
         <div className="end">
           <Menu label={t.company.spreadsheet} showLabel items={[
@@ -148,6 +154,10 @@ export default async function Company({ searchParams }: { searchParams: Promise<
               <span className="eyebrow">{t.company.overall}</span>
               <Progress percent={overall} text={pctText(t, overall)} label={`${t.company.overall}: ${pctText(t, overall)}`} big />
               <p className="hint">{plural(t.company.summary, views.length, locale)}</p>
+              {/* On a phone, the confidence in one line under the progress. */}
+              <ul className="tally compact phone-only" aria-label={t.company.counts}>
+                {(["on_track", "at_risk", "off_track"] as const).map(c => <li key={c} className={`shape-${c}`}><Shape confidence={c} /><strong>{tally(c)}</strong><span>{t.confidence[c]}</span></li>)}
+              </ul>
             </div>
             <div className="card">
               <span className="eyebrow">{t.company.counts}</span>
@@ -157,7 +167,7 @@ export default async function Company({ searchParams }: { searchParams: Promise<
               </ul>
             </div>
           </div>
-          <div className="filters">
+          <div className="filters foldable">
             <Filters link={Link} path="/chest/company" params={params} groups={groups} labels={t.filters} />
             {!chosenOwner && <OwnerFilter path="/chest/company" params={params} owners={ownerChoices} label={t.company.owner} labels={t.peoplePicker} lang={locale} />}
           </div>
@@ -185,6 +195,7 @@ export default async function Company({ searchParams }: { searchParams: Promise<
           {chase.length > 0 && <ChaseList people={chase} all={can(member, "any.write")} locale={locale} t={{ chase: t.chase, errors: t.errors, objective: t.objective }} />}
         </>
       )}
+      </FoldArea>
     </div>
   );
 }

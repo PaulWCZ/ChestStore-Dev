@@ -499,7 +499,7 @@ export const en = {
       invalid: "Microsoft’s answer could not be read.",
     },
     title: "Import equipment",
-    intro: "From Snipe-IT or any spreadsheet saved as CSV. You see what will come before anything is added.",
+    intro: "From Snipe-IT, any spreadsheet saved as CSV, or Microsoft Intune. You see what will come before anything is added.",
     snipe: "From Snipe-IT",
     snipeHow: "In Snipe-IT: Reports → Custom Asset Report, tick the columns and your custom fields, Download. The Assets list’s Export → CSV and the file you imported into it work too.",
     csv: "From a spreadsheet",

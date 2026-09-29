@@ -1,3 +1,4 @@
+import { noCycleWords } from "../../lib/people.ts";
 import Link from "next/link";
 import { AutoRefresh } from "../../components/auto-refresh.tsx";
 import { CycleChip } from "../../components/cycle-chip.tsx";
@@ -40,7 +41,7 @@ export default async function MyGoals() {
         <MapEmpty
           icon={<Mountain />}
           title={t.home.noCycle}
-          body={can(member, "cycles.manage") ? t.home.noCycleBody : t.home.noCycleMember}
+          body={can(member, "cycles.manage") ? t.home.noCycleBody : await noCycleWords(locale)}
           action={can(member, "cycles.manage") ? (() => {
             const choices = firstCycleChoices(clock.today);
             const label = (s: Suggestion, words: string) => format(words, { name: quarterName(t, s.quarter), dates: format(t.cycle.dates, { start: formatDay(s.quarter.startsOn, locale, { day: "numeric", month: "short" }), end: formatDay(s.quarter.endsOn, locale, { day: "numeric", month: "short" }) }), left: plural(t.cycle.daysLeft, daysBetween(clock.today, s.quarter.endsOn), locale) });
@@ -103,7 +104,7 @@ export default async function MyGoals() {
           {waiting.length > 0 && <span className="count">{plural(t.home.waitingCount, waiting.length, locale)}</span>}
         </div>
         {ownsAnyKr || waiting.length > 0 ? (
-          <WaitingList items={waiting} t={{ checkIn: t.checkIn, confidence: t.confidence, confidenceHelp: t.confidenceHelp, errors: t.errors, home: t.home, objective: t.objective, progress: t.progress }} />
+          <WaitingList items={waiting} t={{ checkIn: t.checkIn, tools: t.tools, confidence: t.confidence, confidenceHelp: t.confidenceHelp, errors: t.errors, home: t.home, objective: t.objective, progress: t.progress }} />
         ) : (
           <MapEmpty title={t.home.nothingToCheck} body={t.home.nothingToCheckBody} />
         )}

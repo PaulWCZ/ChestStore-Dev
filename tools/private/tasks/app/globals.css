@@ -569,3 +569,5 @@ table.cards th[aria-sort] button.sort .arrow { color: var(--ink); }
 .choice.small-choice { padding: var(--space-2) var(--space-3); }
 .row > .field.grow { min-width: 140px; width: auto; }
 .select.inline { width: auto; }
+/* The link under an empty Boards page keeps its distance. */
+.ck-empty + .row { margin-top: var(--space-3); }

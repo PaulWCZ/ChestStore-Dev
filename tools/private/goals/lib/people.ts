@@ -1,6 +1,7 @@
 import { ChestError } from "@argentic/chest-sdk/errors";
 import type { Locale } from "@argentic/chest-sdk/member";
 import * as members from "@argentic/chest-sdk/members";
+import { intl } from "./i18n/format.ts";
 import { catalogue, format } from "./i18n/index.ts";
 
 // The people a page shows, from the member ids the tool stores: names and
@@ -49,4 +50,33 @@ export async function everyone(): Promise<{ id: string; name: string; photo: str
     if (!(error instanceof ChestError)) throw error;
   }
   return found;
+}
+
+// whoStarts: the names of those who may start a cycle (the tool's admins —
+// the first role — the Chest's own admins last: they are rarely the ones
+// to ask), at most three, written as the reader reads a choice ("Camille
+// Martin or Sofia Rossi"); null when the Chest names nobody. A member's
+// empty page then says whom to ask.
+export async function whoStarts(locale: Locale): Promise<string | null> {
+  const found: { name: string; isAdmin: boolean }[] = [];
+  try {
+    let after: string | undefined;
+    do {
+      const page = await members.list({ role: "admin", limit: 500, ...(after ? { after } : {}) });
+      for (const m of page.members) found.push({ name: m.name, isAdmin: m.isAdmin });
+      after = page.next ?? undefined;
+    } while (after && found.length < 2000);
+  } catch (error) {
+    if (!(error instanceof ChestError)) throw error;
+  }
+  if (found.length === 0) return null;
+  found.sort((a, b) => Number(a.isAdmin) - Number(b.isAdmin) || a.name.localeCompare(b.name));
+  return new Intl.ListFormat(intl(locale), { type: "disjunction" }).format(found.slice(0, 3).map(p => p.name));
+}
+
+// The member's empty page before the first cycle: whom to ask, by name.
+export async function noCycleWords(locale: Locale): Promise<string> {
+  const t = catalogue(locale).home;
+  const names = await whoStarts(locale);
+  return names ? format(t.noCycleAsk, { names }) : t.noCycleMember;
 }
