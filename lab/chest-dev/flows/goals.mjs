@@ -198,10 +198,11 @@ await step("Camille starts the next cycle", async () => {
 await step("an end before the cycle's start is refused: said under the field, Save waits, the old end kept; a good end saved (kit 0.2.4)", async () => {
   // The dialog saves from its own state: before 0.2.4 the previous end
   // would have gone in place of the refused one.
-  const row = () => page.locator("ul.rows > li", { hasText: "T1 2027" });
+  // The coming cycle (the tool names it from its dates: its name follows its end).
+  const row = () => page.locator("ul.rows > li", { hasText: "À VENIR" });
   const edit = async () => {
     await page.goto(origin + "/chest/cycles");
-    await row().getByRole("button", { name: "Plus pour T1 2027" }).click();
+    await row().getByRole("button", { name: /^Plus pour/u }).click();
     await page.getByRole("menuitem", { name: "Modifier" }).click();
     return page.locator("dialog[open]").getByLabel("Fin", { exact: true });
   };
