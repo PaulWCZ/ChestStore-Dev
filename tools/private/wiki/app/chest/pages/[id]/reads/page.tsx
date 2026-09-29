@@ -1,3 +1,4 @@
+import { StatusBadge } from "@argentic/chest-ui/components";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Back, Download } from "../../../../../components/icons.tsx";
@@ -30,7 +31,7 @@ export default async function ReadsPage({ params }: { params: Promise<{ id: stri
   const now = new Date();
   const done = rows.filter(r => r.current).length;
   return (
-    <main className="page narrow reads">
+    <div className="page narrow reads">
       <Link className="back" href={`/chest/pages/${page.id}`}><Back />{t.reads.back}</Link>
       <h1>{format(t.reads.reportTitle, { title: page.title })}</h1>
       <p className="lead">{format(t.reads.summary, { done, total: rows.length })}</p>
@@ -46,13 +47,13 @@ export default async function ReadsPage({ params }: { params: Promise<{ id: stri
         <tbody>
           {rows.map(r => (
             <tr key={r.memberId} className={r.current ? "done" : r.version === null ? "not-yet" : "older"}>
-              <td>{nameOf(who.get(r.memberId), locale)}</td>
-              <td><span className="read-status">{r.version === null ? t.reads.notYet : r.current ? t.reads.done : format(t.reads.older, { version: r.version })}</span></td>
+              <th scope="row">{nameOf(who.get(r.memberId), locale)}</th>
+              <td><StatusBadge size="s" {...(r.version === null ? { tone: "wait", label: t.reads.notYet } : r.current ? { tone: "ok", label: t.reads.done } : { tone: "neutral", label: format(t.reads.older, { version: r.version }) })} /></td>
               <td>{r.at ? formatDate(r.at, locale, { day: "numeric", month: "short", year: "numeric" }) : "—"}</td>
             </tr>
           ))}
         </tbody>
       </table>
-    </main>
+    </div>
   );
 }

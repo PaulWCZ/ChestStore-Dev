@@ -102,10 +102,10 @@ await step("unsaved changes come back after the tab is closed", async () => {
   await page.goto(origin + "/chest");
   expect((await page.locator(".drafts").innerText()).includes("Expense policy"), "draft on the home page");
   await page.locator(".drafts").getByRole("link", { name: "Continue" }).click();
-  await page.waitForSelector(".toast:has-text('are back')");
+  await page.waitForSelector(".ck-toast:has-text('are back')");
   expect((await page.locator(".ProseMirror").innerText()).includes("Bring the receipt within a week."), "draft text");
   await page.getByRole("button", { name: "Stop editing" }).click();
-  await page.waitForSelector(".toast:has-text('Changes discarded')");
+  await page.waitForSelector(".ck-toast:has-text('Changes discarded')");
   // The read view, not the editor, before reading the page.
   await page.waitForURL(url => !url.pathname.endsWith("/edit"));
   await page.locator(".prose").first().waitFor();
@@ -118,30 +118,31 @@ await step("history: the changes in words, and restoring the version before", as
   await page.locator(".versions a").nth(1).click();
   await page.waitForURL(/v=\d/u);
   expect(await page.locator(".rows ins").count() > 0, "added words shown");
-  await page.getByRole("tab", { name: "As it was" }).click();
+  await page.getByRole("link", { name: "As it was" }).click();
   await page.waitForSelector(".past .prose");
   await page.getByRole("button", { name: "Restore this version" }).click();
   await page.waitForURL(/restored=/u);
-  await page.waitForSelector(".toast:has-text('restored')");
+  await page.waitForSelector(".ck-toast:has-text('restored')");
   expect(await page.locator(".prose img").count() === 0, "the image version is gone again");
 });
 
 await step("move a page inside another with the dialog, then delete it and undo", async () => {
   await page.goto(created);
   await page.getByRole("button", { name: "More" }).click();
-  await page.getByRole("button", { name: "Move" }).click();
+  await page.getByRole("menuitem", { name: "Move" }).click();
   await page.getByLabel("Inside “Who to ask”").check();
   await page.getByRole("button", { name: "Move here" }).click();
-  await page.waitForSelector(".toast:has-text('Page moved')");
+  await page.waitForSelector(".ck-toast:has-text('Page moved')");
   await page.reload();
   expect((await page.locator(".crumbs").innerText()).includes("Who to ask"), "breadcrumb");
   await page.getByRole("button", { name: "More" }).click();
-  await page.getByRole("button", { name: "Delete" }).click();
+  await page.getByRole("menuitem", { name: "Delete" }).click();
   await page.waitForURL(/\/chest\/pages\/7$/u);
-  await page.locator(".toast").getByRole("button", { name: "Undo" }).click();
+  // The kit's toast: its Undo takes the page out of the trash and says so.
+  await page.locator(".ck-toast").getByRole("button", { name: "Undo" }).click();
   await page.waitForURL(created);
   await page.waitForSelector("h1:has-text('Parking and bikes')");
-  await page.waitForSelector(".toast:has-text('Page restored')");
+  await page.waitForSelector(".ck-toast:has-text('Undone')");
 });
 
 await step("a reader searches (accents aside), reads, downloads; cannot edit", async () => {
@@ -170,7 +171,7 @@ await step("import Markdown files into a new space", async () => {
   const file = tmp + "/Accueil client.md";
   writeFileSync(file, "# Accueil client\n\nOffrir un café, toujours.\n\n- [ ] Préparer la salle\n- [x] Imprimer l’ordre du jour\n");
   await page.goto(origin + "/chest/import");
-  await page.locator(".dropzone input[type=file]").setInputFiles(file);
+  await page.locator(".ck-files input[type=file]").setInputFiles(file);
   await page.getByLabel("Nom du nouvel espace").fill("Accueil");
   await page.getByRole("button", { name: "Importer" }).click();
   await page.waitForSelector("text=1 page importée.");
@@ -180,7 +181,7 @@ await step("import Markdown files into a new space", async () => {
   expect(await page.locator(".prose ul.tasks input[checked]").count() === 1, "checklist");
 });
 
-await step("French for a French reader; phone width: no sideways scroll, the pages in a drawer", async () => {
+await step("French for a French reader; phone width: no sideways scroll, the sections as labelled tabs, the pages one tab away", async () => {
   await as(context, origin, "lea");
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(origin + "/chest");
@@ -191,12 +192,17 @@ await step("French for a French reader; phone width: no sideways scroll, the pag
     expect(width <= 392, `${path} overflows: ${width}`);
   }
   await page.goto(origin + "/chest/pages/2");
-  await page.getByRole("button", { name: "Pages" }).click();
-  await page.locator(".sidebar").getByRole("link", { name: "Charte télétravail" }).click();
+  // The store's phone rule: every section a visible, labelled tab (no hamburger, no drawer).
+  const tabs = page.getByRole("navigation", { name: "Principal" }).getByRole("link");
+  expect((await tabs.allInnerTexts()).map(t => t.trim()).join("|") === "Accueil|Pages|Chercher", "tabs: " + (await tabs.allInnerTexts()).join("|"));
+  for (const tab of await tabs.all()) expect(await tab.isVisible(), "a tab is hidden");
+  expect((await page.getByRole("navigation", { name: "Principal" }).getByRole("link", { name: "Pages" }).getAttribute("aria-current")) === "page", "reading a page: the Pages tab is current");
+  expect(!(await page.locator(".sidebar").isVisible()), "no sidebar on a phone");
+  await page.getByRole("navigation", { name: "Principal" }).getByRole("link", { name: "Pages" }).click();
+  await page.waitForURL(/\/chest\/pages$/u);
+  await page.locator(".contents-tree").getByRole("link", { name: "Charte télétravail" }).click();
   await page.waitForURL(/\/chest\/pages\/9$/u);
   await page.waitForSelector("h1:has-text('Charte télétravail')");
-  await page.waitForTimeout(400);
-  expect(!(await page.locator(".sidebar").isVisible()), "drawer closed after choosing");
 });
 
 await step("the trash in the editor's language; an unknown page is not found", async () => {
@@ -206,6 +212,46 @@ await step("the trash in the editor's language; an unknown page is not found", a
   expect((await page.locator("h1").innerText()) === "Corbeille", "trash in French");
   const r = await page.request.get(origin + "/chest/pages/999");
   expect(r.status() === 404, "unknown page");
+});
+
+await step("a typed title survives a stray Escape; deleting for good asks first, in the page", async () => {
+  await as(context, origin, "tom");
+  await context.addCookies([{ name: "dev_locale", value: "en", url: origin }]);
+  await page.goto(origin + "/chest/spaces/1");
+  await page.locator(".space-head").getByRole("button", { name: "New page" }).click();
+  await page.waitForFunction(() => document.activeElement?.id === "new-page-title");
+  await page.keyboard.type("Old notes");
+  // The kit's dialog: Escape with something typed asks, inside the dialog.
+  await page.keyboard.press("Escape");
+  await page.getByText("Discard your changes?").waitFor();
+  await page.getByRole("button", { name: "Keep editing" }).click();
+  await page.waitForFunction(() => document.activeElement?.id === "new-page-title");
+  expect((await page.locator("#new-page-title").inputValue()) === "Old notes", "the title is kept");
+  await page.keyboard.press("Enter");
+  await page.waitForURL(/\/chest\/pages\/\d+\/edit\?new=1$/u);
+  const old = page.url().replace(/\/edit\?new=1$/u, "");
+  await page.locator(".ProseMirror").waitFor();
+  await page.getByRole("button", { name: "Stop editing" }).click();
+  await page.waitForURL(old);
+  await page.getByRole("button", { name: "More" }).click();
+  await page.getByRole("menuitem", { name: "Delete" }).click();
+  await page.waitForURL(/\/chest\/spaces\/1$/u);
+  await page.goto(origin + "/chest/trash");
+  const row = page.locator(".trash-row", { hasText: "Old notes" });
+  await row.getByRole("button", { name: "Delete for good" }).click();
+  // An alertdialog in the page (never the browser's confirm), opened on Cancel.
+  const ask = page.getByRole("alertdialog", { name: "Delete “Old notes” for good?" });
+  await ask.waitFor();
+  expect(await page.evaluate(() => document.activeElement?.textContent) === "Cancel", "opens on Cancel");
+  await page.keyboard.press("Escape");
+  await ask.waitFor({ state: "hidden" });
+  expect(await row.count() === 1, "still in the trash after Cancel");
+  await row.getByRole("button", { name: "Delete for good" }).click();
+  await ask.getByRole("button", { name: "Delete for good" }).click();
+  await page.waitForSelector(".ck-toast:has-text('Deleted for good')");
+  await row.waitFor({ state: "detached" });
+  expect((await page.request.get(old)).status() === 404, "gone for good");
+  await context.addCookies([{ name: "dev_locale", value: "", url: origin }]);
 });
 
 await step("idle for 15 minutes, a lock can be taken over; the first editor keeps their draft", async () => {
@@ -231,17 +277,18 @@ await step("an editor drags a page in the sidebar to put it inside another", asy
   const moving = page.locator(".sidebar .row", { hasText: "When something breaks" });
   const target = page.locator(".sidebar .row", { hasText: "Onboarding for engineers" });
   await moving.dragTo(target, { targetPosition: { x: 60, y: 17 } });
-  await page.waitForSelector(".toast:has-text('Page moved')");
+  await page.waitForSelector(".ck-toast:has-text('Page moved')");
   await page.reload();
   expect((await page.locator(".crumbs").innerText()).includes("Onboarding for engineers"), "moved inside");
-  await page.locator(".toast").first().waitFor({ state: "detached" }).catch(() => {});
+  await page.locator(".ck-toast").first().waitFor({ state: "detached" }).catch(() => {});
 });
 
 // The bell of the harness (the fake Chest's notifications), as text.
-const bell = async () => (await (await page.request.get(origin + "/_dev")).text()).replace(/&[a-z#0-9]+;/gu, m => ({ "&amp;": "&", "&quot;": "\"", "&#39;": "'", "&lt;": "<", "&gt;": ">" })[m] ?? m);
+// French typography (narrow no-break spaces inside « » and before : ? !) is read as plain spaces.
+const bell = async () => (await (await page.request.get(origin + "/_dev")).text()).replace(/&[a-z#0-9]+;/gu, m => ({ "&amp;": "&", "&quot;": "\"", "&#39;": "'", "&lt;": "<", "&gt;": ">", "&#x202F;": " ", "&#8239;": " ", "&nbsp;": " " })[m] ?? m).replace(/[\u202f\u00a0]/gu, " ");
 const count = (text, part) => text.split(part).length - 1;
 
-await step("a reader comments under a page (a link works); its author is told in the bell; edit, remove and undo", async () => {
+await step("a reader comments under a page (a link works); its author is told in the bell; edit, delete and undo", async () => {
   await as(context, origin, "hugo");
   await context.addCookies([{ name: "dev_locale", value: "en", url: origin }]);
   await page.goto(origin + "/chest/pages/3");
@@ -260,11 +307,11 @@ await step("a reader comments under a page (a link works); its author is told in
   await mine.getByRole("button", { name: "Save" }).click();
   await page.waitForSelector("#comments .comment:nth-child(2) :text('edited')");
   // Hugo cannot remove Tom's comment, only his own.
-  expect((await page.locator("#comments .comment").first().getByRole("button", { name: "Remove" }).count()) === 0, "no remove on others' comments");
-  await mine.getByRole("button", { name: "Remove" }).click();
-  await page.waitForSelector(".toast:has-text('Comment removed')");
+  expect((await page.locator("#comments .comment").first().getByRole("button", { name: "Delete" }).count()) === 0, "no delete on others' comments");
+  await mine.getByRole("button", { name: "Delete" }).click();
+  await page.waitForSelector(".ck-toast:has-text('Comment deleted')");
   expect((await page.locator("#comments .comment").count()) === 1, "removed");
-  await page.locator(".toast").getByRole("button", { name: "Undo" }).click();
+  await page.locator(".ck-toast").getByRole("button", { name: "Undo" }).click();
   await page.waitForSelector("#comments .comment:nth-child(2)");
   await page.reload();
   expect((await page.locator("#comments .comment").count()) === 2, "back after a reload");
@@ -276,7 +323,7 @@ await step("a reader watches a page; when an editor saves it, they are told once
   const watch = page.getByRole("button", { name: "Watch" });
   expect((await watch.getAttribute("aria-pressed")) === "false", "not watching");
   await watch.click();
-  await page.waitForSelector(".toast:has-text('You will be told')");
+  await page.waitForSelector(".ck-toast:has-text('You will be told')");
   expect((await page.locator(".watch").getAttribute("aria-pressed")) === "true", "watching");
   await page.reload();
   expect((await page.locator(".watch").getAttribute("aria-pressed")) === "true", "still watching after a reload");
@@ -322,8 +369,8 @@ await step("an editor makes a page a template of its space; it is offered next t
   await as(context, origin, "sofia");
   await page.goto(origin + "/chest/pages/5");
   await page.getByRole("button", { name: "More" }).click();
-  await page.getByRole("button", { name: "Use as a template" }).click();
-  await page.waitForSelector(".toast:has-text('is now offered')");
+  await page.getByRole("menuitem", { name: "Use as a template" }).click();
+  await page.waitForSelector(".ck-toast:has-text('is now offered')");
   await page.waitForSelector(".template-tag");
   await page.goto(origin + "/chest/spaces/1");
   await page.locator(".space-head").getByRole("button", { name: "New page" }).click();
@@ -331,8 +378,8 @@ await step("an editor makes a page a template of its space; it is offered next t
   await page.keyboard.press("Escape");
   await page.goto(origin + "/chest/pages/5");
   await page.getByRole("button", { name: "More" }).click();
-  await page.getByRole("button", { name: "Stop using as a template" }).click();
-  await page.waitForSelector(".toast:has-text('no longer a template')");
+  await page.getByRole("menuitem", { name: "Stop using as a template" }).click();
+  await page.waitForSelector(".ck-toast:has-text('no longer a template')");
 });
 
 await step("review reminders: the owner of a page due is told by the morning run; “Still correct” settles it", async () => {
@@ -346,7 +393,7 @@ await step("review reminders: the owner of a page due is told by the morning run
   expect(told.includes("Time to check “Wi-Fi and printers”"), "Tom is told too");
   await page.goto(origin + "/chest/pages/7");
   await page.getByRole("button", { name: "Still correct" }).click();
-  await page.waitForSelector(".toast:has-text('Next check in 6 months')");
+  await page.waitForSelector(".ck-toast:has-text('Next check in 6 months')");
   await page.waitForSelector(".ask-review", { state: "detached" });
   // A reader sees no question.
   await as(context, origin, "hugo");
@@ -356,12 +403,12 @@ await step("review reminders: the owner of a page due is told by the morning run
   await as(context, origin, "tom");
   await page.goto(origin + "/chest/pages/13");
   await page.getByRole("button", { name: "More" }).click();
-  await page.getByRole("button", { name: "Review reminder" }).click();
+  await page.getByRole("menuitem", { name: "Review reminder" }).click();
   await page.getByLabel("Every 6 months").check();
   await page.getByRole("button", { name: "Save", exact: true }).click();
-  await page.waitForSelector(".toast:has-text('every 6 months')");
+  await page.waitForSelector(".ck-toast:has-text('every 6 months')");
   await page.getByRole("button", { name: "More" }).click();
-  await page.getByRole("button", { name: "Review every 6 months" }).waitFor();
+  await page.getByRole("menuitem", { name: "Review every 6 months" }).waitFor();
   await page.keyboard.press("Escape");
 });
 
@@ -436,8 +483,8 @@ await step("leaving the editor without a word frees the page at once: another ed
   await as(context, origin, "tom");
   await page.goto(origin + "/chest/pages/3");
   await page.getByRole("button", { name: "Discard them" }).click();
-  await page.waitForSelector(".toast:has-text('Unsaved changes discarded')");
-  await page.locator(".toast").getByRole("button", { name: "Undo" }).click();
+  await page.waitForSelector(".ck-toast:has-text('Unsaved changes discarded')");
+  await page.locator(".ck-toast").getByRole("button", { name: "Undo" }).click();
   await page.waitForSelector(".notice.mine:has-text('unsaved changes')");
   await page.getByRole("button", { name: "Discard them" }).click();
   await page.waitForSelector(".notice.mine", { state: "detached" });
@@ -512,12 +559,12 @@ await step("read and acknowledged: Hugo is asked, confirms in one click; Camille
   expect((await page.locator(".to-read").innerText()).includes("Règlement intérieur"), "Pages to read on his home page");
   await page.goto(origin + "/chest/pages/8");
   await page.getByRole("button", { name: "I have read it" }).click();
-  await page.waitForSelector(".toast:has-text('your reading is recorded')");
+  await page.waitForSelector(".ck-toast:has-text('your reading is recorded')");
   await page.waitForSelector(".ask-read", { state: "detached" });
   await as(context, origin, "camille");
   await page.goto(origin + "/chest/pages/8");
   await page.getByRole("button", { name: "Plus" }).click();
-  await page.getByRole("link", { name: "Qui l’a lue" }).click();
+  await page.getByRole("menuitem", { name: "Qui l’a lue" }).click();
   await page.waitForURL(/\/reads$/u);
   expect((await page.locator(".lead").innerText()).startsWith("4 sur"), "4 confirmed: " + await page.locator(".lead").innerText());
   const csv = await (await page.request.get(origin + "/chest/pages/8/reads/csv")).text();
@@ -526,9 +573,9 @@ await step("read and acknowledged: Hugo is asked, confirms in one click; Camille
   await as(context, origin, "tom");
   await page.goto(origin + "/chest/pages/13");
   await page.getByRole("button", { name: "More" }).click();
-  await page.getByRole("button", { name: "Ask readers to confirm" }).click();
+  await page.getByRole("menuitem", { name: "Ask readers to confirm" }).click();
   await page.getByRole("button", { name: "Ask", exact: true }).click();
-  await page.waitForSelector(".toast:has-text('people asked')");
+  await page.waitForSelector(".ck-toast:has-text('people asked')");
   expect((await bell()).includes("Tom Walker vous demande de lire"), "Léa is told, in French");
 });
 
@@ -547,7 +594,7 @@ await step("import a Confluence space export (HTML zip): its tree comes along", 
   const zip = tmp + "/Confluence-space-export-HB.html.zip";
   execFileSync("zip", ["-qr", zip, "HB"], { cwd: new URL("../../../tools/private/wiki/test/fixtures/confluence/", import.meta.url).pathname });
   await page.goto(origin + "/chest/import");
-  await page.locator(".dropzone input[type=file]").setInputFiles(zip);
+  await page.locator(".ck-files input[type=file]").setInputFiles(zip);
   await page.getByLabel("Name of the new space").fill("Handbook (Confluence)");
   await page.getByRole("button", { name: "Import" }).click();
   await page.waitForSelector("text=Imported 5 pages.");

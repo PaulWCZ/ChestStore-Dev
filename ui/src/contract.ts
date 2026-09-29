@@ -5,7 +5,7 @@
 // readable in all of them, because each theme is checked against the pairs
 // below. tokens/CONTRACT.md explains each one; this file is the list the
 // code checks.
-import { contrast, parseColor } from "./color.js";
+import { contrast, hueDistance, oklch, parseColor } from "./color.js";
 import { familyPattern, stackPattern, type FontSpec } from "./fonts.js";
 
 // Words a person reads, in the tool's languages: English first (the source
@@ -131,6 +131,48 @@ export function checkTheme(theme: Pick<Theme, "light" | "dark">): Failure[] {
       for (const on of pair.on) {
         const ratio = contrast(scheme[pair.fg], scheme[on]);
         if (ratio < pair.min) failures.push({ mode, fg: pair.fg, on, ratio: Math.round(ratio * 100) / 100, min: pair.min, why: pair.why });
+      }
+    }
+  }
+  return failures;
+}
+
+// The categorical palette's families, in their fixed order: the OKLCH hue
+// each slot is centred on (1 blue, 2 green, 3 orange, 4 violet, 5 pink,
+// 6 teal, 7 ochre, 8 slate). A theme tunes the hue within its family.
+export const categoryFamilies: readonly { readonly slot: number; readonly family: string; readonly hue: number }[] = [
+  { slot: 1, family: "blue", hue: 255 }, { slot: 2, family: "green", hue: 150 }, { slot: 3, family: "orange", hue: 55 }, { slot: 4, family: "violet", hue: 305 },
+  { slot: 5, family: "pink", hue: 355 }, { slot: 6, family: "teal", hue: 195 }, { slot: 7, family: "ochre", hue: 88 }, { slot: 8, family: "slate", hue: 250 },
+];
+// How far (OKLCH degrees) a slot's hue may turn from its family's centre,
+// the least chroma a coloured slot's colour and label keep (below it they
+// read grey or black), and the most chroma the slate slot may take.
+export const paletteLimits = { hue: 35, chroma: 0.03, slate: 0.06 } as const;
+
+export type PaletteFailure = { mode: "light" | "dark"; token: ColorToken; family: string; hue: number; chroma: number; why: string };
+
+// checkPalette holds the categorical palette to its families: in each mode,
+// each slot's colour, soft ground and label keep a hue of their family, and
+// the colour and the label of slots 1 to 7 keep enough chroma to be seen as
+// that family (a label in plain black loses the category a tool paints with
+// it). Slot 8 (slate) is a grey of any tint. None: the palette keeps its
+// families. The "Chest" theme is the one exception by design (its slots are
+// warm greys; a category there is told by its label only).
+export function checkPalette(theme: Pick<Theme, "light" | "dark">): PaletteFailure[] {
+  const failures: PaletteFailure[] = [];
+  for (const mode of ["light", "dark"] as const) {
+    for (const { slot, family, hue } of categoryFamilies) {
+      for (const part of ["", "-soft", "-ink"] as const) {
+        const token = `cat-${slot}${part}` as ColorToken;
+        const c = oklch(theme[mode][token]);
+        if (!c) continue;
+        const at = { mode, token, family, hue: Math.round(c.h), chroma: Math.round(c.c * 1000) / 1000 };
+        if (slot === categories) {
+          if (c.c > paletteLimits.slate) failures.push({ ...at, why: "slate is a grey: too much colour" });
+          continue;
+        }
+        if (part !== "-soft" && c.c < paletteLimits.chroma) failures.push({ ...at, why: `reads grey or black, not ${family}` });
+        else if (c.c >= 0.02 && hueDistance(c.h, hue) > paletteLimits.hue) failures.push({ ...at, why: `hue out of the ${family} family` });
       }
     }
   }

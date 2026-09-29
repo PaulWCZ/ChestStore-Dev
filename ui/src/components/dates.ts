@@ -230,3 +230,25 @@ export function relativeDay(iso: IsoDate, today: IsoDate, words: DateWords): str
   const n = daysBetween(today, iso);
   return n === 0 ? words.today : n === 1 ? words.tomorrow : n === -1 ? words.yesterday : null;
 }
+
+// Months as "YYYY-MM" (MonthField, 0.2.1).
+export type YearMonth = string;
+
+export function isYearMonth(value: unknown): value is YearMonth {
+  if (typeof value !== "string" || !/^\d{4}-\d{2}$/u.test(value)) return false;
+  const month = Number(value.slice(5));
+  return month >= 1 && month <= 12;
+}
+
+// addYearMonths: "2026-11" + 3 → "2027-02".
+export function addYearMonths(ym: YearMonth, n: number): YearMonth {
+  const total = Number(ym.slice(0, 4)) * 12 + Number(ym.slice(5)) - 1 + n;
+  return `${String(Math.floor(total / 12)).padStart(4, "0")}-${String((total % 12) + 1).padStart(2, "0")}`;
+}
+
+// monthsFrom: every month from `first` to `last`, both included (at most 600).
+export function monthsFrom(first: YearMonth, last: YearMonth): YearMonth[] {
+  const out: YearMonth[] = [];
+  for (let m = first; m <= last && out.length < 600; m = addYearMonths(m, 1)) out.push(m);
+  return out;
+}

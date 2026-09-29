@@ -1,9 +1,11 @@
 "use client";
 
+import { PeoplePicker, useToast } from "@argentic/chest-ui/components";
+import { localSearch, type Choice, type PeoplePickerWords } from "@argentic/chest-ui/components/logic";
 import { useRouter } from "next/navigation";
-import { useId, useState, useTransition, type FormEvent } from "react";
+import { useId, useMemo, useState, useTransition, type FormEvent } from "react";
 import { Folder, Plus } from "../../../components/icons.tsx";
-import { useToast } from "../../../components/toast.tsx";
+import { offered } from "../../../lib/choices.ts";
 import type { ErrorCode } from "../../../lib/app-error.ts";
 import { format, plural } from "../../../lib/i18n/format.ts";
 import { limits } from "../../../lib/model.ts";
@@ -15,6 +17,7 @@ type Words = {
     createAll: { one: string; other: string }; createdAll: { zero?: string; one: string; other: string };
   };
   errors: Record<ErrorCode, string>;
+  peoplePicker?: PeoplePickerWords;
 };
 
 // "Create their 12 records": one per person in the directory who has none,
@@ -26,7 +29,7 @@ export function CreateAll({ count, locale, t }: { count: number; locale: string;
   return (
     <button type="button" className="button" disabled={pending} onClick={() => start(async () => {
       const r = await createAllRecords();
-      if (!r.ok) toast(format(t.errors[r.error], r.values ?? {}));
+      if (!r.ok) toast({ text: format(t.errors[r.error], r.values ?? {}), tone: "error" });
       else {
         toast(plural(t.records.createdAll, r.value, locale));
         router.refresh();
@@ -35,23 +38,25 @@ export function CreateAll({ count, locale, t }: { count: number; locale: string;
   );
 }
 
-// One record: for someone in the directory, or for someone without the
-// Chest (a name as on the contract).
-export function AddRecord({ people, t }: { people: { id: string; name: string }[]; t: Words }) {
+// One record: for someone in the directory (a person picker), or for
+// someone without the Chest (a name as on the contract).
+export function AddRecord({ people, lang, t }: { people: { id: string; name: string; photo: string | null }[]; lang: string; t: Words }) {
   const router = useRouter();
   const toast = useToast();
   const uid = useId();
   const [open, setOpen] = useState(false);
-  const [who, setWho] = useState(people[0]?.id ?? "");
+  const [who, setWho] = useState<Choice[]>([]);
+  const [outside, setOutside] = useState(people.length === 0);
+  const searchPeople = useMemo(() => localSearch(people), [people]);
   const [pending, start] = useTransition();
   if (!open) return <button type="button" className="button quiet" onClick={() => setOpen(true)}><Plus />{t.records.add}</button>;
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const data = new FormData(event.currentTarget);
     start(async () => {
-      const r = await createRecord(who ? { memberId: who } : { legalName: String(data.get("legalName") ?? "") });
+      const r = await createRecord(!outside && who[0] ? { memberId: who[0].id } : { legalName: String(data.get("legalName") ?? "") });
       if (!r.ok) {
-        toast(format(t.errors[r.error], r.values ?? {}));
+        toast({ text: format(t.errors[r.error], r.values ?? {}), tone: "error" });
         return;
       }
       router.push(`/chest/records/${r.value.id}`);
@@ -59,21 +64,25 @@ export function AddRecord({ people, t }: { people: { id: string; name: string }[
   };
   return (
     <form className="inline-form" onSubmit={submit}>
-      <div className="field-group">
-        <label htmlFor={uid + "who"} className="label">{t.records.addFor}</label>
-        <select id={uid + "who"} className="select" value={who} onChange={e => setWho(e.target.value)}>
-          {people.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-          <option value="">{t.records.addSomeoneElse}</option>
-        </select>
-      </div>
-      {!who && (
+      {!outside && t.peoplePicker && (
+        <div className="field-group">
+          <PeoplePicker label={t.records.addFor} value={who} onChange={setWho} search={searchPeople} suggestions={offered(people)} labels={t.peoplePicker} lang={lang} />
+        </div>
+      )}
+      {people.length > 0 && (
+        <label className="check">
+          <input type="checkbox" checked={outside} onChange={e => setOutside(e.target.checked)} />
+          <span>{t.records.addSomeoneElse}</span>
+        </label>
+      )}
+      {outside && (
         <div className="field-group">
           <label htmlFor={uid + "name"} className="label">{t.records.legalName}</label>
           <input id={uid + "name"} name="legalName" className="field" required maxLength={limits.name} autoComplete="off" autoFocus />
         </div>
       )}
       <div className="row">
-        <button type="submit" className="button" disabled={pending}>{pending ? t.records.creating : t.records.create}</button>
+        <button type="submit" className="button" disabled={pending || (!outside && !who[0])}>{pending ? t.records.creating : t.records.create}</button>
         <button type="button" className="button quiet" onClick={() => setOpen(false)}>{t.records.cancel}</button>
       </div>
     </form>

@@ -40,14 +40,14 @@ export function OrgChart({ roots, me, hr, locale, t }: { roots: ChartNode[]; me:
         <div className={n.left ? "node-card left" : n.id === me ? "node-card me" : "node-card"}>
           {n.left ? (
             <div className="node-link">
-              <Portrait name={n.name} photo={null} size={56} arch />
+              <Portrait name={n.name} photo={null} size={56} />
               <span className="node-name">{n.name}</span>
               <span className="node-title left-tag">{t.left}</span>
               {hr && <Link className="node-fix" href={`/chest/table`}>{t.leftHr}</Link>}
             </div>
           ) : (
             <Link href={`/chest/people/${n.id}`} className="node-link">
-              <Portrait name={n.name} photo={n.photo} size={56} team={n.team} arch />
+              <Portrait name={n.name} photo={n.photo} size={56} team={n.team} />
               <span className="node-name">{n.name}</span>
               {n.title && <span className="node-title">{n.title}</span>}
             </Link>

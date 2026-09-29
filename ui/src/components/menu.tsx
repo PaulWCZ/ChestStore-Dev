@@ -5,6 +5,7 @@
 // Escape closes and gives focus back to the button. For rare actions (a
 // row's "Duplicate", "Delete"): frequent ones are buttons on the page.
 import { useEffect, useId, useRef, useState, type ReactElement, type ReactNode } from "react";
+import { useFloat } from "./float.js";
 import { MoreIcon } from "./icons.js";
 import { menuKey } from "./keys.js";
 
@@ -25,6 +26,8 @@ export function Menu({ label, items, icon, showLabel = false, align = "end" }: {
   const list = useRef<HTMLUListElement>(null);
   const wrap = useRef<HTMLDivElement>(null);
   const id = useId();
+  // In a table's scrolling frame or a dialog, the menu is placed over it.
+  useFloat(button, list, open, { align, scroll: false });
 
   useEffect(() => {
     if (!open) return;

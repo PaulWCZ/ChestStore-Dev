@@ -1,13 +1,11 @@
 "use client";
 
+import { Dialog, Menu, useToast, type MenuItem } from "@argentic/chest-ui/components";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import { Dialog } from "../../../../components/dialog.tsx";
 import { Calendar, Check, Clock, Dots, Download, Eye, Move, Pen, People, Pin, Plus, Printer, Seal, Stamp, Trash } from "../../../../components/icons.tsx";
-import { Menu } from "../../../../components/menu.tsx";
 import { NewPageDialog, type NewPageWords, type PageTarget } from "../../../../components/new-page.tsx";
-import { useToast } from "../../../../components/toast.tsx";
 import type { Catalogue } from "../../../../lib/i18n/index.ts";
 import { format, plural } from "../../../../lib/i18n/format.ts";
 import { askRead, confirmRead, deletePage, setPinned, discardDraft, keepDraft, markReviewed, movePage, restorePage, setReview, setTemplate, setWatching } from "../../actions.ts";
@@ -38,9 +36,9 @@ export function PageActions({ page, writer, editHref, t, places, state, groups =
       const result = await setWatching(page.id, next);
       if (!result.ok) {
         setWatched(!next);
-        return toast(format(t.errors[result.error], result.values));
+        return void toast({ text: format(t.errors[result.error], result.values), tone: "error" });
       }
-      toast(next ? t.watch.on : t.watch.off);
+      toast({ id: `watch-${page.id}`, text: next ? t.watch.on : t.watch.off });
     });
   }
 
@@ -48,9 +46,9 @@ export function PageActions({ page, writer, editHref, t, places, state, groups =
     const next = !state.template;
     start(async () => {
       const result = await setTemplate(page.id, next);
-      if (!result.ok) return toast(format(t.errors[result.error], result.values));
+      if (!result.ok) return void toast({ text: format(t.errors[result.error], result.values), tone: "error" });
       router.refresh();
-      toast(format(next ? t.marks.marked : t.marks.unmarked, { title: page.title, space: t.spaceName }));
+      toast({ id: `template-${page.id}`, text: format(next ? t.marks.marked : t.marks.unmarked, { title: page.title, space: t.spaceName }) });
     });
   }
 
@@ -58,25 +56,31 @@ export function PageActions({ page, writer, editHref, t, places, state, groups =
     const next = !state.pinned;
     start(async () => {
       const result = await setPinned(page.id, next);
-      if (!result.ok) return toast(format(t.errors[result.error], result.values));
+      if (!result.ok) return void toast({ text: format(t.errors[result.error], result.values), tone: "error" });
       router.refresh();
-      toast(next ? t.page.pinned : t.page.unpinned);
+      toast({ id: `pin-${page.id}`, text: next ? t.page.pinned : t.page.unpinned });
     });
   }
 
   function remove() {
     start(async () => {
       const result = await deletePage(page.id);
-      if (!result.ok) return toast(format(t.errors[result.error], result.values));
+      if (!result.ok) return void toast({ text: format(t.errors[result.error], result.values), tone: "error" });
       const below = result.value.pages - 1;
       const text = below > 0 ? plural(t.page.deletedWith, below, t.locale, { title: page.title }) : format(t.page.deleted, { title: page.title });
       router.push(page.parentId ? `/chest/pages/${page.parentId}` : `/chest/spaces/${page.spaceId}`);
-      toast(text, { label: t.page.undo, run: async () => {
-        const back = await restorePage(page.id);
-        if (!back.ok) return toast(format(t.errors[back.error], back.values));
-        router.push(`/chest/pages/${page.id}`);
-        toast(t.page.restored);
-      } });
+      // One toast per page; its Undo takes the page out of the trash and
+      // says whether it could (the kit's toast).
+      toast({
+        id: `delete-${page.id}`,
+        text,
+        undo: async () => {
+          const back = await restorePage(page.id);
+          if (!back.ok) return format(t.errors[back.error], back.values);
+          router.push(`/chest/pages/${page.id}`);
+          return true;
+        },
+      });
     });
   }
 
@@ -86,22 +90,20 @@ export function PageActions({ page, writer, editHref, t, places, state, groups =
         {watching ? <Check /> : <Eye />}<span className="label">{watching ? t.watch.watching : t.watch.watch}</span>
       </button>
       {writer && <Link className="button" href={editHref}><Pen />{t.page.edit}</Link>}
-      <Menu label={t.page.more} icon={<Dots />}>
-        {writer && <button type="button" onClick={() => setChild({ spaceId: page.spaceId, spaceName: t.spaceName, parentId: page.id, parentTitle: page.title })}><Plus />{t.shell.newSubpage}</button>}
-        {writer && places && <button type="button" onClick={() => setMoving(true)}><Move />{t.page.move}</button>}
-        {writer && <button type="button" disabled={pending} onClick={pin}><Pin />{state.pinned ? t.page.unpin : t.page.pin}</button>}
-        {writer && <button type="button" disabled={pending} onClick={template}><Stamp />{state.template ? t.marks.unmark : t.marks.mark}</button>}
-        {writer && (state.readAsked
-          ? <Link href={`/chest/pages/${page.id}/reads`}><People />{t.reads.menuSeen}</Link>
-          : <button type="button" onClick={() => setAsking(true)}><Seal />{t.reads.menu}</button>)}
-        {writer && <button type="button" onClick={() => setReviewing(true)}><Calendar />{state.review.months ? format(t.review.menuSet, { months: state.review.months }) : t.review.menu}</button>}
-        <Link href={`/chest/pages/${page.id}/history`}><Clock />{t.page.history}</Link>
-        <button type="button" onClick={() => window.print()}><Printer />{t.page.print}</button>
-        <a href={`/chest/pages/${page.id}/export?format=md`} download><Download />{t.page.exportMarkdown}</a>
-        <a href={`/chest/pages/${page.id}/export?format=html`} download><Download />{t.page.exportHtml}</a>
-        {page.hasChildren && <a href={`/chest/pages/${page.id}/export?format=zip`} download><Download />{t.page.exportZip}</a>}
-        {writer && <button type="button" className="danger" disabled={pending} onClick={remove}><Trash />{t.page.delete}</button>}
-      </Menu>
+      <Menu label={t.page.more} icon={<Dots />} showLabel items={[
+        ...(writer ? [{ label: t.shell.newSubpage, icon: <Plus />, onSelect: () => setChild({ spaceId: page.spaceId, spaceName: t.spaceName, parentId: page.id, parentTitle: page.title }) }] : []),
+        ...(writer && places ? [{ label: t.page.move, icon: <Move />, onSelect: () => setMoving(true) }] : []),
+        ...(writer ? [{ label: state.pinned ? t.page.unpin : t.page.pin, icon: <Pin />, disabled: pending, onSelect: pin }] : []),
+        ...(writer ? [{ label: state.template ? t.marks.unmark : t.marks.mark, icon: <Stamp />, disabled: pending, onSelect: template }] : []),
+        ...(writer ? [state.readAsked ? { label: t.reads.menuSeen, icon: <People />, href: `/chest/pages/${page.id}/reads` } : { label: t.reads.menu, icon: <Seal />, onSelect: () => setAsking(true) }] : []),
+        ...(writer ? [{ label: state.review.months ? format(t.review.menuSet, { months: state.review.months }) : t.review.menu, icon: <Calendar />, onSelect: () => setReviewing(true) }] : []),
+        { label: t.page.history, icon: <Clock />, href: `/chest/pages/${page.id}/history` },
+        { label: t.page.print, icon: <Printer />, onSelect: () => window.print() },
+        { label: t.page.exportMarkdown, icon: <Download />, href: `/chest/pages/${page.id}/export?format=md` },
+        { label: t.page.exportHtml, icon: <Download />, href: `/chest/pages/${page.id}/export?format=html` },
+        ...(page.hasChildren ? [{ label: t.page.exportZip, icon: <Download />, href: `/chest/pages/${page.id}/export?format=zip` }] : []),
+        ...(writer ? [{ label: t.page.delete, icon: <Trash />, tone: "danger" as const, disabled: pending, onSelect: remove }] : []),
+      ] satisfies MenuItem[]} />
       {places && <MoveDialog open={moving} onClose={() => setMoving(false)} page={page} places={places} t={t} />}
       {writer && <AskReadDialog open={asking} onClose={() => setAsking(false)} page={page} groups={groups} t={t} />}
       {writer && <ReviewDialog open={reviewing} onClose={() => setReviewing(false)} page={page} review={state.review} t={t} />}
@@ -142,11 +144,11 @@ function MoveDialog({ open, onClose, page, places, t }: { open: boolean; onClose
       if (!result.ok) return setError(format(t.errors[result.error], result.values));
       onClose();
       router.refresh();
-      toast(t.shell.moved);
+      toast({ id: `move-${page.id}`, text: t.shell.moved });
     });
   }
   return (
-    <Dialog open={open} title={format(t.move.title, { title: page.title })} closeLabel={t.common.close} onClose={onClose}>
+    <Dialog open={open} title={format(t.move.title, { title: page.title })} labels={t.dialog} onClose={onClose}>
       <form className="stack" onSubmit={e => { e.preventDefault(); submit(); }}>
         <div>
           <label className="label" htmlFor="move-space">{t.move.space}</label>
@@ -159,7 +161,7 @@ function MoveDialog({ open, onClose, page, places, t }: { open: boolean; onClose
           <div className="places">
             <label className="choice"><input type="radio" name="parent" value="" checked={parent === ""} onChange={() => setParent("")} />{t.move.top}</label>
             {ordered.map(n => (
-              <label key={n.id} className="choice" style={{ marginInlineStart: n.depth * 18 }}>
+              <label key={n.id} className={`choice depth-${Math.min(n.depth, 6)}`}>
                 <input type="radio" name="parent" value={n.id} checked={parent === n.id} onChange={() => setParent(n.id)} />
                 {format(t.move.under, { title: n.title })}
               </label>
@@ -191,11 +193,11 @@ function ReviewDialog({ open, onClose, page, review, t }: { open: boolean; onClo
       if (!result.ok) return setError(format(t.errors[result.error], result.values));
       onClose();
       router.refresh();
-      toast(months ? format(t.review.set, { months }) : t.review.cleared);
+      toast({ id: `review-${page.id}`, text: months ? format(t.review.set, { months }) : t.review.cleared });
     });
   }
   return (
-    <Dialog open={open} title={t.review.title} closeLabel={t.common.close} onClose={onClose}>
+    <Dialog open={open} title={t.review.title} labels={t.dialog} onClose={onClose}>
       <form className="stack" onSubmit={e => { e.preventDefault(); submit(); }}>
         <p className="where">{format(t.review.intro, { title: page.title })}</p>
         <fieldset className="plain">
@@ -227,9 +229,9 @@ export function ReviewAsk({ pageId, text, months, editHref, t }: { pageId: strin
   function confirm() {
     start(async () => {
       const result = await markReviewed(pageId);
-      if (!result.ok) return toast(format(t.errors[result.error], result.values));
+      if (!result.ok) return void toast({ text: format(t.errors[result.error], result.values), tone: "error" });
       router.refresh();
-      toast(format(t.done, { months }));
+      toast({ id: `reviewed-${pageId}`, text: format(t.done, { months }) });
     });
   }
   return (
@@ -246,21 +248,26 @@ export function ReviewAsk({ pageId, text, months, editHref, t }: { pageId: strin
 
 // The reader's own unsaved changes to this page: continue them, or drop
 // them (with Undo) without opening the editor.
-export function DraftNotice({ pageId, editHref, t }: { pageId: string; editHref: string; t: { text: string; continue: string; discard: string; discarded: string; undo: string; errors: Catalogue["errors"] } }) {
+export function DraftNotice({ pageId, editHref, t }: { pageId: string; editHref: string; t: { text: string; continue: string; discard: string; discarded: string; errors: Catalogue["errors"] } }) {
   const router = useRouter();
   const toast = useToast();
   const [pending, start] = useTransition();
   function discard() {
     start(async () => {
       const result = await discardDraft(pageId);
-      if (!result.ok) return toast(format(t.errors[result.error], result.values));
+      if (!result.ok) return void toast({ text: format(t.errors[result.error], result.values), tone: "error" });
       router.refresh();
       const kept = result.value;
-      toast(t.discarded, kept ? { label: t.undo, run: async () => {
-        const back = await keepDraft(pageId, kept);
-        if (!back.ok) return toast(format(t.errors[back.error], back.values));
-        router.refresh();
-      } } : undefined);
+      toast(kept ? {
+        id: `draft-${pageId}`,
+        text: t.discarded,
+        undo: async () => {
+          const back = await keepDraft(pageId, kept);
+          if (!back.ok) return format(t.errors[back.error], back.values);
+          router.refresh();
+          return true;
+        },
+      } : { id: `draft-${pageId}`, text: t.discarded });
     });
   }
   return (
@@ -291,11 +298,11 @@ function AskReadDialog({ open, onClose, page, groups, t }: { open: boolean; onCl
       if (!result.ok) return setError(format(t.errors[result.error], result.values));
       onClose();
       router.refresh();
-      toast(plural(t.reads.asked, result.value.asked, t.locale));
+      toast({ id: `ask-read-${page.id}`, text: plural(t.reads.asked, result.value.asked, t.locale) });
     });
   }
   return (
-    <Dialog open={open} title={t.reads.title} closeLabel={t.common.close} onClose={onClose}>
+    <Dialog open={open} title={t.reads.title} labels={t.dialog} onClose={onClose}>
       <form className="stack" onSubmit={e => { e.preventDefault(); submit(); }}>
         <p className="where">{format(t.reads.intro, { title: page.title })}</p>
         <fieldset className="plain">
@@ -333,9 +340,9 @@ export function ReadRequest({ pageId, again, t }: { pageId: string; again: boole
   function confirm() {
     start(async () => {
       const result = await confirmRead(pageId);
-      if (!result.ok) return toast(format(t.errors[result.error], result.values));
+      if (!result.ok) return void toast({ text: format(t.errors[result.error], result.values), tone: "error" });
       router.refresh();
-      toast(t.confirmed);
+      toast({ id: `read-${pageId}`, text: t.confirmed });
     });
   }
   return (

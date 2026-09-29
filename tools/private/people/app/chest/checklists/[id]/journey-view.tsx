@@ -1,11 +1,12 @@
 "use client";
 
+import { Avatar, Confirm, DateField, PeoplePicker, useToast } from "@argentic/chest-ui/components";
+import { localSearch, type DateWords, type PeoplePickerWords } from "@argentic/chest-ui/components/logic";
 import { useRouter } from "next/navigation";
-import { useId, useOptimistic, useState, useTransition, type FormEvent } from "react";
+import { useId, useMemo, useOptimistic, useState, useTransition, type FormEvent } from "react";
 import { Pencil, Plus, Trash } from "../../../../components/icons.tsx";
-import { Portrait } from "../../../../components/portrait.tsx";
-import { useToast } from "../../../../components/toast.tsx";
 import type { ErrorCode } from "../../../../lib/app-error.ts";
+import { offered } from "../../../../lib/choices.ts";
 import { format } from "../../../../lib/i18n/format.ts";
 import { limits, type DueState, type Kind } from "../../../../lib/model.ts";
 import { addChecklistItem, deleteChecklist, removeChecklistItem, stopChecklist, tickItem, updateChecklistItem } from "../../actions.ts";
@@ -19,18 +20,31 @@ type Words = {
     before: Record<Kind, string>; onDay: Record<Kind, string>; after: Record<Kind, string>;
     mark: string; give: string; due: string; remove: string; removed: string; add: string; addPlaceholder: string; addButton: string;
     stop: string; stoppedToast: string; stoppedBanner: string; restart: string; delete: string; deleted: string; completeBanner: string;
-    late: string; today: string; saved: string; undo: string;
+    deleteTitle: string; deleteBody: string; deleteConfirm: string; cancel: string;
+    late: string; today: string; saved: string;
   };
   todo: { done: string; undone: string };
   nobody: string;
+  leaveEmpty: string;
   errors: Record<ErrorCode, string>;
+  date: DateWords;
+  peoplePicker: PeoplePickerWords;
 };
+type Person = { id: string; name: string; photo: string | null };
+type Said = { ok: true } | { ok: false; error: ErrorCode; values?: Record<string, string | number> };
 
-export function JourneyView({ journey, steps, hr, people, t }: {
+// One checklist, as HR and the people with a step see it. Ticking, giving
+// a step to someone, moving its day, deleting it are instant, said by a
+// toast — with Undo when it can be undone (the kit's: it says whether the
+// Undo worked). Deleting a stopped checklist is for good: it asks first.
+export function JourneyView({ journey, steps, hr, people, today, lang, t }: {
   journey: { id: string; kind: Kind; anchor: string; stopped: boolean; complete: boolean };
   steps: StepView[];
   hr: boolean;
-  people: { id: string; name: string }[];
+  people: Person[];
+  // Today in the Chest's time zone (the date fields), the words' language.
+  today: string;
+  lang: string;
   t: Words;
 }) {
   const router = useRouter();
@@ -38,41 +52,55 @@ export function JourneyView({ journey, steps, hr, people, t }: {
   const uid = useId();
   const [, start] = useTransition();
   const [editing, setEditing] = useState<string | null>(null);
+  const [asking, setAsking] = useState(false);
   const [ticked, setTicked] = useOptimistic(new Map<string, boolean>(), (state, change: { id: string; done: boolean }) => new Map(state).set(change.id, change.done));
-  const say = (result: { ok: true } | { ok: false; error: ErrorCode; values?: Record<string, string | number> }, success?: string, undo?: () => void) => {
-    if (!result.ok) toast(format(t.errors[result.error], result.values ?? {}));
-    else if (success) toast(success, undo ? { label: t.journey.undo, run: undo } : undefined);
-    return result.ok;
+  const searchPeople = useMemo(() => localSearch(people), [people]);
+  const text = (r: Said): true | string => (r.ok ? true : format(t.errors[r.error], r.values ?? {}));
+  const fail = (said: true | string) => { if (said !== true) toast({ text: said, tone: "error" }); return said === true; };
+  // Runs a change inside a transition (optimistic ticks), resolves with the answer.
+  const run = (step: () => Promise<Said>, before?: () => void) => new Promise<true | string>(resolve => start(async () => {
+    before?.();
+    resolve(text(await step()));
+  }));
+
+  const tick = async (id: string, done: boolean) => {
+    const set = (d: boolean) => run(() => tickItem(id, d), () => setTicked({ id, done: d }));
+    if (fail(await set(done))) toast({ id: `tick-${id}`, text: done ? t.todo.done : t.todo.undone, undo: () => set(!done) });
   };
-  const tick = (id: string, done: boolean, undoable = true) => start(async () => {
-    setTicked({ id, done });
-    say(await tickItem(id, done), undoable ? (done ? t.todo.done : t.todo.undone) : undefined, undoable ? () => tick(id, !done, false) : undefined);
-  });
-  const remove = (id: string, removed: boolean) => start(async () => {
+  const remove = async (id: string) => {
     setEditing(null);
-    say(await removeChecklistItem(id, removed), removed ? t.journey.removed : undefined, removed ? () => remove(id, false) : undefined);
-  });
-  const update = (id: string, input: { assignee?: string | null; due?: string }) => start(async () => {
-    say(await updateChecklistItem(id, input), t.journey.saved);
-  });
-  const stop = (stopped: boolean) => start(async () => {
-    say(await stopChecklist(journey.id, stopped), stopped ? t.journey.stoppedToast : undefined, stopped ? () => stop(false) : undefined);
-  });
-  const destroy = () => start(async () => {
-    if (say(await deleteChecklist(journey.id), t.journey.deleted)) router.push("/chest/checklists");
-  });
+    if (fail(await run(() => removeChecklistItem(id, true)))) toast({ id: `step-${id}`, text: t.journey.removed, undo: () => run(() => removeChecklistItem(id, false)) });
+  };
+  const update = async (id: string, input: { assignee?: string | null; due?: string }) => {
+    if (fail(await run(() => updateChecklistItem(id, input)))) toast({ id: `step-${id}`, text: t.journey.saved });
+  };
+  const stop = async (stopped: boolean) => {
+    if (!fail(await run(() => stopChecklist(journey.id, stopped)))) return;
+    if (stopped) toast({ id: `stop-${journey.id}`, text: t.journey.stoppedToast, undo: () => run(() => stopChecklist(journey.id, false)) });
+  };
+  const destroy = async () => {
+    setAsking(false);
+    if (fail(await run(() => deleteChecklist(journey.id)))) {
+      toast(t.journey.deleted);
+      router.push("/chest/checklists");
+    }
+  };
+
+  const [adding, setAdding] = useState({ text: "", assignee: [] as Person[], due: journey.anchor as string | null });
   const add = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const form = event.currentTarget;
-    const data = new FormData(form);
-    start(async () => {
-      if (say(await addChecklistItem(journey.id, { text: String(data.get("text") ?? ""), assignee: String(data.get("assignee") ?? "") || null, due: String(data.get("due") ?? "") }))) form.reset();
+    if (!adding.text.trim() || !adding.due) return;
+    void run(() => addChecklistItem(journey.id, { text: adding.text, assignee: adding.assignee[0]?.id ?? null, due: adding.due! })).then(said => {
+      if (fail(said)) setAdding(a => ({ ...a, text: "" }));
     });
   };
+
   const shown = steps.map(s => ({ ...s, done: ticked.get(s.id) ?? s.done }));
   const phases = (["before", "on", "after"] as const).map(when => ({ when, steps: shown.filter(s => s.when === when) })).filter(p => p.steps.length > 0);
   const title = { before: t.journey.before[journey.kind], on: t.journey.onDay[journey.kind], after: t.journey.after[journey.kind] };
   const locked = journey.stopped;
+  const picker = { search: searchPeople, suggestions: offered(people), labels: t.peoplePicker, lang, hint: t.leaveEmpty };
+  const chosen = (id: string | null) => people.filter(p => p.id === id);
   return (
     <div className="journey">
       {journey.stopped && (
@@ -80,12 +108,13 @@ export function JourneyView({ journey, steps, hr, people, t }: {
           <span>{t.journey.stoppedBanner}</span>
           {hr && (
             <span className="row">
-              <button type="button" className="button small" onClick={() => stop(false)}>{t.journey.restart}</button>
-              <button type="button" className="button quiet small danger" onClick={destroy}><Trash />{t.journey.delete}</button>
+              <button type="button" className="button small" onClick={() => void stop(false)}>{t.journey.restart}</button>
+              <button type="button" className="button quiet small danger" onClick={() => setAsking(true)}><Trash />{t.journey.delete}</button>
             </span>
           )}
         </div>
       )}
+      <Confirm open={asking} title={t.journey.deleteTitle} body={t.journey.deleteBody} confirmLabel={t.journey.deleteConfirm} cancelLabel={t.journey.cancel} onConfirm={() => void destroy()} onCancel={() => setAsking(false)} />
       {!journey.stopped && shown.length > 0 && shown.every(s => s.done) && <p className="banner ok">{t.journey.completeBanner}</p>}
       {phases.map(phase => (
         <section key={phase.when} className="phase" aria-labelledby={uid + phase.when}>
@@ -94,12 +123,12 @@ export function JourneyView({ journey, steps, hr, people, t }: {
             {phase.steps.map(s => (
               <li key={s.id} className={s.done ? "step is-done" : "step"}>
                 <label className="tick">
-                  <input type="checkbox" checked={s.done} disabled={!s.mine || locked} onChange={e => tick(s.id, e.target.checked)} />
+                  <input type="checkbox" checked={s.done} disabled={!s.mine || locked} onChange={e => void tick(s.id, e.target.checked)} />
                   <span className="box" aria-hidden="true" />
                   <span className="step-text">
                     {s.text}
                     <span className="step-who">
-                      <Portrait name={s.assigneeName} photo={s.assigneePhoto} size={22} />
+                      <Avatar name={s.assigneeName} photo={s.assigneePhoto} size="s" />
                       <span className={s.assignee ? undefined : s.waiting ? "waiting" : "nobody"}>{s.assigneeName}</span>
                       {s.role && <span className="muted">({s.role})</span>}
                       {s.doneBy && <span className="muted">· {s.doneBy}</span>}
@@ -112,18 +141,13 @@ export function JourneyView({ journey, steps, hr, people, t }: {
                 )}
                 {hr && editing === s.id && (
                   <div className="step-edit">
-                    <label>
-                      <span className="label">{t.journey.give}</span>
-                      <select className="select" defaultValue={s.assignee ?? ""} onChange={e => update(s.id, { assignee: e.target.value || null })}>
-                        <option value="">{t.nobody}</option>
-                        {people.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                      </select>
-                    </label>
-                    <label>
-                      <span className="label">{t.journey.due}</span>
-                      <input className="field" type="date" defaultValue={s.due} min="2000-01-01" max="2100-12-31" onChange={e => e.target.value && update(s.id, { due: e.target.value })} />
-                    </label>
-                    <button type="button" className="button quiet small danger" onClick={() => remove(s.id, true)}><Trash />{t.journey.remove}</button>
+                    <div className="step-edit-field">
+                      <PeoplePicker label={t.journey.give} value={chosen(s.assignee)} onChange={c => void update(s.id, { assignee: c[0]?.id ?? null })} {...picker} />
+                    </div>
+                    <div className="step-edit-field">
+                      <DateField label={t.journey.due} value={s.due} today={today} min="2000-01-01" max="2100-12-31" labels={t.date} chips={false} onChange={day => { if (day && day !== s.due) void update(s.id, { due: day }); }} />
+                    </div>
+                    <button type="button" className="button quiet small danger" onClick={() => void remove(s.id)}><Trash />{t.journey.remove}</button>
                   </div>
                 )}
               </li>
@@ -134,28 +158,23 @@ export function JourneyView({ journey, steps, hr, people, t }: {
       {hr && !locked && (
         <>
           <form className="add-step" onSubmit={add}>
-            <h2 className="eyebrow">{t.journey.add}</h2>
+            <h2 className="eyebrow" id={uid + "add"}>{t.journey.add}</h2>
             <div className="add-row">
               <label className="grow">
                 <span className="visually-hidden">{t.journey.add}</span>
-                <input name="text" className="field" placeholder={t.journey.addPlaceholder} maxLength={limits.itemText} required />
+                <input name="text" className="field" placeholder={t.journey.addPlaceholder} maxLength={limits.itemText} required value={adding.text} onChange={e => setAdding(a => ({ ...a, text: e.target.value }))} />
               </label>
-              <label>
-                <span className="visually-hidden">{t.journey.give}</span>
-                <select name="assignee" className="select" defaultValue="">
-                  <option value="">{t.nobody}</option>
-                  {people.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                </select>
-              </label>
-              <label>
-                <span className="visually-hidden">{t.journey.due}</span>
-                <input name="due" className="field" type="date" defaultValue={journey.anchor} min="2000-01-01" max="2100-12-31" />
-              </label>
+              <div className="add-field">
+                <PeoplePicker label={t.journey.give} value={adding.assignee} onChange={c => setAdding(a => ({ ...a, assignee: c }))} {...picker} />
+              </div>
+              <div className="add-field">
+                <DateField label={t.journey.due} value={adding.due} today={today} min="2000-01-01" max="2100-12-31" labels={t.date} chips={false} onChange={day => setAdding(a => ({ ...a, due: day }))} />
+              </div>
               <button type="submit" className="button"><Plus />{t.journey.addButton}</button>
             </div>
           </form>
           <div className="row end">
-            <button type="button" className="button quiet small" onClick={() => stop(true)}>{t.journey.stop}</button>
+            <button type="button" className="button quiet small" onClick={() => void stop(true)}>{t.journey.stop}</button>
           </div>
         </>
       )}

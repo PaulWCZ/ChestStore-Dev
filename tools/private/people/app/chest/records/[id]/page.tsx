@@ -1,7 +1,7 @@
+import { Avatar } from "@argentic/chest-ui/components";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Back, File, Lock, Shield } from "../../../../components/icons.tsx";
-import { Portrait } from "../../../../components/portrait.tsx";
 import { AppError } from "../../../../lib/app-error.ts";
 import { db } from "../../../../lib/db.ts";
 import { directory } from "../../../../lib/directory.ts";
@@ -11,6 +11,7 @@ import { id as rowId } from "../../../../lib/model.ts";
 import { nameOf, people } from "../../../../lib/people.ts";
 import { fieldNames, missing, record, type Field, type HrRecord } from "../../../../lib/records.ts";
 import { viewer } from "../../../../lib/session.ts";
+import { today } from "../../../../lib/zone.ts";
 import { Documents } from "./documents.tsx";
 import { RecordForm } from "./record-form.tsx";
 
@@ -39,13 +40,13 @@ export default async function RecordPage({ params }: { params: Promise<{ id: str
   const gaps = missing(r);
   const fieldWord = (f: string) => (f in t.record.fields ? t.record.fields[f as Field] : f in t.record.kinds ? t.record.kinds[f as keyof typeof t.record.kinds] : f);
   const docs = r.documents.map(d => ({ id: d.id, name: d.name, kind: d.kind, size: d.size, added: formatDate(d.addedAt, locale, { day: "numeric", month: "short", year: "numeric" }), by: nameOf(names.get(d.addedBy), locale) }));
-  const docWords = { record: t.record, errors: t.errors };
+  const docWords = { record: t.record, errors: t.errors, files: t.files };
   return (
-    <main className="page narrow">
+    <div className="page narrow">
       {edit ? <Link className="back" href="/chest/records"><Back />{t.record.back}</Link>
         : <Link className="back" href={`/chest/people/${member.id}`}><Back />{t.record.profile}</Link>}
       <div className="journey-head record-head">
-        <Portrait name={personName} photo={photo} size={72} arch />
+        <Avatar name={personName} photo={photo} size="xl" />
         <div>
           <h1>{edit ? personName : t.record.mine}</h1>
           <p className="muted">{[r.job, t.record.contracts[r.contract]].filter(Boolean).join(" · ")}</p>
@@ -62,8 +63,10 @@ export default async function RecordPage({ params }: { params: Promise<{ id: str
           initial={toForm(r)}
           linked={r.memberId}
           erased={r.erased}
-          members={(await directory(sql, member)).entries.map(e => ({ id: e.id, name: e.name }))}
-          t={{ record: t.record, errors: t.errors }}
+          members={(await directory(sql, member)).entries.map(e => ({ id: e.id, name: e.name, photo: e.photo }))}
+          today={today()}
+          lang={locale}
+          t={{ record: t.record, errors: t.errors, date: t.date, peoplePicker: t.peoplePicker, leaveEmpty: t.people.leaveEmpty }}
         />
       ) : (
         <ReadOnly r={r} day={day} tutor={r.tutorId ? nameOf(names.get(r.tutorId), locale) : ""} t={t.record} />
@@ -89,7 +92,7 @@ export default async function RecordPage({ params }: { params: Promise<{ id: str
           )}
         </section>
       )}
-    </main>
+    </div>
   );
 }
 

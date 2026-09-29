@@ -65,12 +65,33 @@ function hrefOf(path: string, p: URLSearchParams): string {
 // number goes (a new filter starts at the first page); everything else
 // (the search, the other filters) stays: a filtered list is a link one can
 // share, and Back works.
-export function filterHref(path: string, params: ParamsLike, key: string, value: string | null, { resetKeys = ["page", "cursor"] }: { resetKeys?: readonly string[] } = {}): string {
+//
+// `multiple`: the key holds several values, comma-separated
+// ("f=screen,dock"); a chip adds its value or takes it away, the others
+// stay. Values of such a group must not contain a comma.
+//
+// `required`: one value is always chosen: a chip sets its value, choosing
+// it again keeps it (no toggle-off).
+export function filterHref(path: string, params: ParamsLike, key: string, value: string | null, { resetKeys = ["page", "cursor"], multiple = false, required = false }: { resetKeys?: readonly string[]; multiple?: boolean; required?: boolean } = {}): string {
   const p = paramsOf(params);
   for (const k of resetKeys) p.delete(k);
-  if (value === null || value === "" || p.get(key) === value) p.delete(key);
+  if (value === null || value === "") p.delete(key);
+  else if (required) p.set(key, value);
+  else if (multiple) {
+    const now = paramValues(p, key);
+    const next = now.includes(value) ? now.filter(v => v !== value) : [...now, value];
+    if (next.length === 0) p.delete(key);
+    else p.set(key, next.join(","));
+  } else if (p.get(key) === value) p.delete(key);
   else p.set(key, value);
   return hrefOf(path, p);
+}
+
+// paramValues: the values of a multiple filter ("screen,dock" → ["screen",
+// "dock"]), without empties or repeats.
+export function paramValues(params: ParamsLike, key: string): string[] {
+  const v = paramsOf(params).get(key) ?? "";
+  return [...new Set(v.split(",").map(x => x.trim()).filter(x => x !== ""))];
 }
 
 // clearHref: the list without any of these filters (the search stays).
@@ -90,13 +111,26 @@ export function paramOf(params: ParamsLike, key: string): string | null {
   return v === null || v === "" ? null : v;
 }
 
+// How a link decides it names the page shown. `match`: "exact" (this path
+// only) or "prefix" (this path and its sub-pages); by default a section is
+// "prefix", but the root of the tool ("/chest", "/") is "exact" — else it
+// would be current everywhere. `exact: true` is the older spelling of
+// match "exact". `also`: other path prefixes that make it current too (a
+// "Bookings" tab current on "/chest/new" and on "/chest/b/42").
+export type CurrentRule = { readonly match?: "exact" | "prefix"; readonly exact?: boolean; readonly also?: readonly string[] };
+
+const cleanPath = (s: string) => (s.length > 1 ? s.replace(/[?#].*$/u, "").replace(/\/+$/u, "") : s) || "/";
+const under = (p: string, prefix: string) => p === prefix || p.startsWith(prefix === "/" ? "/" : prefix + "/");
+
 // isCurrent: does this link name the page shown? A section's link stays
 // current on its sub-pages ("/chest/boards" on "/chest/boards/42"), unless
-// exact; the root of the tool ("/chest") is always exact.
-export function isCurrent(path: string, href: string, exact = false): boolean {
-  const clean = (s: string) => (s.length > 1 ? s.replace(/[?#].*$/u, "").replace(/\/+$/u, "") : s) || "/";
-  const p = clean(path);
-  const h = clean(href);
-  if (exact || h === "/chest" || h === "/") return p === h;
-  return p === h || p.startsWith(h + "/");
+// exact; the root of the tool ("/chest") is exact unless match is "prefix".
+// The third argument is `exact` (a boolean, as in 0.2.0) or a rule.
+export function isCurrent(path: string, href: string, rule: boolean | CurrentRule = false): boolean {
+  const { match, exact = false, also = [] } = typeof rule === "boolean" ? { exact: rule } : rule;
+  const p = cleanPath(path);
+  const h = cleanPath(href);
+  const how = match ?? (exact || h === "/chest" || h === "/" ? "exact" : "prefix");
+  if (how === "exact" ? p === h : under(p, h)) return true;
+  return also.some(a => under(p, cleanPath(a)));
 }

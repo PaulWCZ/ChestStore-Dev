@@ -1,9 +1,9 @@
 "use client";
 
+import { Avatar, useToast } from "@argentic/chest-ui/components";
+import { searchChoices } from "@argentic/chest-ui/components/logic";
 import { useEffect, useRef, useState, useTransition } from "react";
-import { Avatar } from "../../../../components/avatar.tsx";
 import { Chat } from "../../../../components/icons.tsx";
-import { useToast } from "../../../../components/toast.tsx";
 import type { Catalogue } from "../../../../lib/i18n/index.ts";
 import { format, moment, plural } from "../../../../lib/i18n/format.ts";
 import { limits, linkParts } from "../../../../lib/model.ts";
@@ -28,7 +28,9 @@ export function Comments({ pageId, initial, me, moderator, people = [], t }: { p
   const [named, setNamed] = useState<{ id: string; name: string }[]>([]);
   const [asking, setAsking] = useState<{ query: string; at: number; index: number } | null>(null);
   const field = useRef<HTMLTextAreaElement>(null);
-  const offered = asking ? people.filter(p => fold(p.name).split(/\s+/u).some(w => w.startsWith(fold(asking.query))) || fold(p.name).startsWith(fold(asking.query))).slice(0, 6) : [];
+  // The store's one search rule for people (the kit's): accents and case
+  // aside, the start of any word of the name.
+  const offered = asking ? searchChoices(people, asking.query).slice(0, 6) : [];
   function typed(value: string, caret: number) {
     setText(value);
     const m = /(^|\s)@([\p{L}'’-]{0,24})$/u.exec(value.slice(0, caret));
@@ -73,7 +75,7 @@ export function Comments({ pageId, initial, me, moderator, people = [], t }: { p
   function save(id: string, body: string) {
     start(async () => {
       const result = await editComment(id, body);
-      if (!result.ok) return toast(fail(result));
+      if (!result.ok) return void toast({ text: fail(result), tone: "error" });
       setList(l => l.map(c => (c.id === id ? { ...result.value, when: c.when } : c)));
       setEditing(null);
     });
@@ -86,13 +88,18 @@ export function Comments({ pageId, initial, me, moderator, people = [], t }: { p
       const result = await removeComment(c.id);
       if (!result.ok) {
         setList(l => [...l.slice(0, at), c, ...l.slice(at)]);
-        return toast(fail(result));
+        return void toast({ text: fail(result), tone: "error" });
       }
-      toast(words.removed, { label: words.undo, run: async () => {
-        const back = await restoreComment(c.id);
-        if (!back.ok) return toast(fail(back));
-        setList(l => [...l.slice(0, at), c, ...l.slice(at)]);
-      } });
+      toast({
+        id: `comment-${c.id}`,
+        text: words.removed,
+        undo: async () => {
+          const back = await restoreComment(c.id);
+          if (!back.ok) return fail(back);
+          setList(l => [...l.slice(0, at), c, ...l.slice(at)]);
+          return true;
+        },
+      });
     });
   }
 
@@ -169,4 +176,3 @@ export function Comments({ pageId, initial, me, moderator, people = [], t }: { p
   );
 }
 
-const fold = (s: string) => s.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();

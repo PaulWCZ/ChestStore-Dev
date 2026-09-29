@@ -5,24 +5,48 @@
 **Wiki** (French: *Wiki*). Calm, literate, trustworthy — a well-made
 company handbook on good paper, not a software screen.
 
-## Tokens
+## Its identity is a theme: Library
 
-All in `app/tokens.css` (light, and dark by the system's choice). Ratios
-computed with `scripts/contrast.mjs` (WCAG 2; AA is 4.5:1 for text).
+The wiki's look is **Library**, a theme of the store's UI kit
+(`@argentic/chest-ui`): `defineTheme` in `lib/theme.ts`, value for value the
+catalogue's `library` (a test holds them equal), checked against every
+contrast pair of the kit's token contract in light and dark
+(`checkTheme`, `test/theme.test.ts`). It is the wiki's **default** look. A
+company may instead give its tools — all of them, or the wiki alone — any
+theme of the catalogue (the 17 identities, "Chest", "High contrast") or its
+own brand; the wiki then wears it with the same features, and the header
+shows the company's logo where the book mark stands.
 
-| Token | Light | Dark | Use |
-|---|---|---|---|
-| `--paper` | `#faf6ee` warm paper | `#16140f` | page |
-| `--paper-2` | `#f3eee2` | `#1c1a14` | sidebar, quiet fills |
-| `--surface` | `#fffdf8` | `#211e18` | cards, fields, the version panel |
-| `--ink` | `#23201a` | `#ece5d6` | text — 15.1:1 on paper; 14.7:1 dark |
-| `--ink-2` | `#5d574b` | `#b3aa98` | secondary text — 6.7:1 on paper, 6.2:1 on the sidebar; 8.0:1 / 7.6:1 dark |
-| `--accent` | `#1d5b43` deep green | `#8fcfae` | the main action, links, focus — 7.4:1 on paper; white on it 8.0:1; dark 10.3:1, its ink on it 9.1:1 |
-| `--accent-soft` | `#e3ede5` | `#22362b` | notes, links to pages, current choices — accent on it 6.7:1 / 7.2:1 |
-| `--marker` | `#f6e3a1` highlighter | `#5c4a14` | matched words in search, selection — ink on it 12.7:1 / 6.9:1 |
-| `--added` / `--removed` | `#1d6b3a` on `#e3f0e2`, `#a93226` on `#f8e1dc` | `#9fdcad` on `#1f3524`, `#ff9b8a` on `#3d201b` | history — 5.5:1 / 5.3:1; 8.4:1 / 7.3:1 |
-| `--danger` | `#a93226` | `#ff9b8a` | errors, delete — 6.1:1 / 9.0:1 |
-| space colours | green `#2f6e4f`, blue `#2d5b8a`, plum `#7a3f6b`, rust `#a2502c`, ochre `#a0700f`, slate `#55616c` | lighter tints | a spine, a dot, list numbers — never the only carrier of text |
+So **no colour is written in the wiki's CSS**: `app/globals.css` names only
+the contract's tokens (`--bg`, `--surface`, `--ink`, `--accent`,
+`--accent-text`, `--line-strong`, `--highlight`, `--cat-N`…), and
+`app/tokens.css` holds the wiki's own tokens, each defined from them:
+
+| Token | Defined as | Use |
+|---|---|---|
+| `--font-read` | `--font-display` | page text, titles, excerpts (Library: Newsreader) |
+| `--read-size`, `--measure`, `--sidebar` | 19 px, 40 rem, 288 px | the reading column, the sidebar |
+| `--bar-h` | the kit's header height | what sticks below it (sidebar, editor bars) |
+| `--space` / `--space-ink` | `--cat-N` / `--cat-N-ink` of the space's slot | a space's spine and dot (3:1) / its colour as text (4.5:1) |
+| `--added*` / `--removed*` | `--ok`, `--ok-soft`, `--ok-ink` / `--danger…` | history: words put in, taken out |
+| `--hover`, `--veil` | `color-mix` of `--ink` / `--bg` | decoration only: a row's hover, the translucent header |
+
+Library's values (light / dark) — paper `#faf6ee` / `#16140f`, ink
+`#23201a` / `#ece5d6`, deep green `#1d5b43` / `#8fcfae`, highlighter
+`#f6e3a1` / `#5c4a14` — are in `lib/theme.ts`; what the theme leaves out
+is derived by the kit with the contract's contrast. Field borders are now
+`--line-strong` (`#908877` light: 3.3:1 on paper, 3.5:1 on a card; the old `#cfc3ab`, 1.6:1, was
+under WCAG 1.4.11's 3:1).
+
+**The spaces' colours** are the contract's categorical slots, the same
+family in every theme: green → 2, blue → 1, plum → 4, rust → 3, ochre →
+7, slate → 8 (Library tunes them to the spines the wiki always had). In the
+Chest theme the slots are warm greys: a space is told by its name, which
+is always written.
+
+**Note boxes**: a note on `--accent-soft`, a tip on `--cat-1-soft` with
+`--cat-1-ink`, a warning on `--wait-soft` with `--wait-ink` — each text on
+the ground it was measured on.
 
 **Type**: *Newsreader* (OFL-1.1, variable, with italics) for everything one
 reads — titles, headings, page text at 19 px with 1.7 leading on a 40 rem
@@ -36,28 +60,42 @@ none with reduced motion.
 
 ## Components
 
-The frame (a translucent header with the search; a paper sidebar with each
-space's tree, drag targets drawn as a green line or a dashed box; a drawer
-on phones), buttons (green primary, quiet, small, big, danger), menus,
-dialogs on `<dialog>`, fields, choice cards, colour swatches, toasts with
-*Undo*, notices (someone editing, your draft), the article (kicker,
-display title, byline, table of contents on wide screens, "In this section"
-and "Linked from"), the prose styles (headings, lists with coloured
-markers, quotes with a spine, note boxes with a round sign — note, tip,
-warning —, checklists, tables with an ink head rule, code, figures with
-captions, a fleuron for dividers, links to pages as soft green chips), the
-editor (sticky save bar with the draft's status, a toolbar that wraps on two
-rows on phones, a title that is just large text), the history (a list
-of versions, words taken out struck in red, put in underlined in green,
-long unchanged runs folded), search results with a highlighter, a space's
-table of contents numbered like chapters, empty states with one action.
+The frame is the kit's shell (`AppShell`): the header (the book mark, or
+the company's logo, and "Wiki"; the sections **Home · Pages · Search ·
+Trash** as labelled tabs; a search box on wide screens; the member chip),
+translucent over the paper. Under it, on wide screens, the wiki's paper
+sidebar with each space's tree, drag targets drawn as a green line or a
+dashed box. On a phone the sections take a row of labelled tabs under the
+header (the store's rule: never icons alone, never a hamburger) and the
+tree is the **Pages** section — the same tree on a page of its own, opened
+in one tap — instead of the old drawer.
+
+From the kit, wearing the look: toasts with a truthful *Undo* (French
+« Annuler l’action »), dialogs that open on their first field and ask
+before losing what was typed, the `Confirm` before *Delete for good*, the
+*More* menus, avatars, the empty states, the history's *Changes / As it
+was* tabs, the read statuses (a shape and a word), the importer's file
+picker (drop or choose, each file removable), the no-access page.
+
+The wiki's own: buttons (green primary, quiet, small, big, danger),
+fields, choice cards, colour swatches, notices (someone editing, your
+draft), the article (kicker, display title, byline, table of contents on
+wide screens, "In this section" and "Linked from"), the prose styles
+(headings, lists with coloured markers, quotes with a spine, note boxes
+with a round sign — note, tip, warning —, checklists, tables with an ink
+head rule, code, figures with captions, a fleuron for dividers, links to
+pages as soft green chips), the editor (sticky save bar with the draft's
+status, a toolbar that wraps on two rows on phones, a title that is just
+large text), the history (a list of versions, words taken out struck, put
+in underlined, long unchanged runs folded), search results with a
+highlighter, a space's table of contents numbered like chapters.
 The conversation under a page reads like margin notes: comments in paper
 cards beside an avatar, the author and time in the interface sans, the
 text as written (line breaks kept, addresses as green links), *Edit* and
-*Remove* as quiet underlined words; a highlighted card when the bell opens
+*Delete* as quiet underlined words; a highlighted card when the bell opens
 it. *Watch* is a quiet button that turns green and pressed (an eye, then a
-tick). A page due for review gets one notice with an ochre spine (the
-spaces' ochre) and its two answers. The *New page* dialog's "Start from" is
+tick). A page due for review gets one notice with a spine in the waiting
+state's colour and its two answers. The *New page* dialog's "Start from" is
 a row of choice cards, *Blank page* already chosen; a template carries a
 small green "Template" pill under its title.
 The "/" menu is a small paper card under the line, an icon and a plain
@@ -65,8 +103,8 @@ name per block, the chosen one tinted green; the "@" list under a comment
 is the same card. Pinned pages sit under the home page's question as
 paper tabs with their space's colour on the edge. A page to confirm has a
 green notice with a seal and one button, *I have read it*; *Who has read
-it* is a plain table whose status reads as pills — green "Read", red "Not
-yet", grey for an older version.
+it* is a plain table whose statuses are the kit's badges — "Read",
+"Not yet", "Read version N".
 
 ## Icon
 
@@ -96,7 +134,7 @@ highlighter-yellow search marks keep the paper metaphor all the way.
     { "name": "Ribbon", "value": "#e2a83c" }
   ],
   "fonts": {
-    "display": { "family": "Newsreader", "file": "public/fonts/newsreader-latin-wght-normal.woff2", "weight": 560 },
+    "display": { "family": "Newsreader", "file": "public/fonts/newsreader-latin-wght-normal.woff2", "weight": 600 },
     "body": { "family": "Source Sans 3", "file": "public/fonts/source-sans-3-latin-wght-normal.woff2", "weight": 400 }
   },
   "specimen": "Holidays and time off — how to ask"

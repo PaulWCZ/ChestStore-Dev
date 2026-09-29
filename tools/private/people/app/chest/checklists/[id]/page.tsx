@@ -1,9 +1,9 @@
+import { Avatar } from "@argentic/chest-ui/components";
 import { stepText } from "../../../../lib/examples.ts";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AutoRefresh } from "../../../../components/auto-refresh.tsx";
 import { Back } from "../../../../components/icons.tsx";
-import { Portrait } from "../../../../components/portrait.tsx";
 import { can, ticks } from "../../../../lib/access.ts";
 import { db } from "../../../../lib/db.ts";
 import { AppError } from "../../../../lib/errors.ts";
@@ -14,6 +14,7 @@ import { dueState, id as rowId } from "../../../../lib/model.ts";
 import { today, zone } from "../../../../lib/zone.ts";
 import { viewer } from "../../../../lib/session.ts";
 import { JourneyView, type StepView } from "./journey-view.tsx";
+import { KindBadge } from "../../../../components/kind.tsx";
 
 // One checklist: the steps before, on and after the day, who does each and
 // when; ticked by whoever it is given to (or HR). HR gives a step to
@@ -54,17 +55,17 @@ export default async function JourneyPage({ params }: { params: Promise<{ id: st
     doneBy: i.done && i.doneBy && i.doneAt ? format(i.doneBy === member.id ? t.journey.doneByYou : t.journey.doneBy, { name: nameOf(who.get(i.doneBy), locale), date: formatDate(i.doneAt, locale, { day: "numeric", month: "short", timeZone: zone() }) }) : null,
     mine: ticks(member, i),
   }));
-  const pickable = hr ? (await everyone()).people.map(p => ({ id: p.id, name: p.name })) : [];
+  const pickable = hr ? (await everyone()).people.map(p => ({ id: p.id, name: p.name, photo: p.photo })) : [];
   const done = steps.filter(s => s.done).length;
   return (
-    <main className="page narrow">
+    <div className="page narrow">
       <AutoRefresh seconds={30} />
       <Link className="back" href={hr ? "/chest/checklists" : "/chest/todo"}><Back />{hr ? t.checklists.title : t.todo.title}</Link>
       <header className="journey-head">
-        <Portrait name={personName} photo={subject.photo} size={96} arch />
+        <Avatar name={personName} photo={subject.photo} size="xl" />
         <div>
           <span className="row tags">
-            <span className={`kind ${journey.kind}`}>{t.checklists.kinds[journey.kind]}</span>
+            <KindBadge kind={journey.kind} label={t.checklists.kinds[journey.kind]} />
             {journey.arrivalId && <span className="source">{t.arrivals.fromHiring}</span>}
           </span>
           <h1>{format(journey.kind === "onboarding" ? t.journey.onboarding : t.journey.offboarding, { name: personName })}</h1>
@@ -80,8 +81,10 @@ export default async function JourneyPage({ params }: { params: Promise<{ id: st
         steps={steps}
         hr={hr}
         people={pickable}
-        t={{ journey: t.journey, todo: t.todo, nobody: t.people.nobody, errors: t.errors }}
+        today={now}
+        lang={locale}
+        t={{ journey: t.journey, todo: t.todo, nobody: t.people.nobody, leaveEmpty: t.people.leaveEmpty, errors: t.errors, date: t.date, peoplePicker: t.peoplePicker }}
       />
-    </main>
+    </div>
   );
 }

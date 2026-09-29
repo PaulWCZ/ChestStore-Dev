@@ -1,3 +1,4 @@
+import { Avatar } from "@argentic/chest-ui/components";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Back, Cake, Door, Folder, Mail, Moon, Pencil, Phone, Pin, Wave } from "../../../../components/icons.tsx";
@@ -20,6 +21,7 @@ import { nameOf, people } from "../../../../lib/people.ts";
 import { recordIdOf } from "../../../../lib/records.ts";
 import { CreateRecord } from "../../records/create-record.tsx";
 import { viewer } from "../../../../lib/session.ts";
+import { KindBadge } from "../../../../components/kind.tsx";
 
 // A person's page: who they are, how to reach them, what to ask them,
 // whom they report to and who reports to them. Their own "edit" for them;
@@ -68,17 +70,17 @@ export default async function ProfilePage({ params }: { params: Promise<{ id: st
   }
   const mini = (e: Entry) => (
     <Link className="mini" href={`/chest/people/${e.id}`}>
-      <Portrait name={e.name} photo={e.photo} size={48} />
+      <Avatar name={e.name} photo={e.photo} size="l" />
       <span><strong>{e.name}</strong>{e.title && <span className="muted">{e.title}</span>}</span>
     </Link>
   );
   return (
-    <main className="page narrow">
+    <div className="page narrow">
       <Link className="back" href="/chest"><Back />{t.profile.back}</Link>
       {match && <LinkSuggestion arrivalId={match[0]} memberId={person.id} name={person.name} t={{ arrivals: t.arrivals, errors: t.errors }} />}
       <article className="profile">
         <header className="profile-head">
-          <Portrait name={person.name} photo={person.photo} size={168} team={person.team} arch />
+          <Portrait name={person.name} photo={person.photo} size={168} team={person.team} />
           <div className="profile-id">
             {mine && <span className="badge me">{t.profile.you}</span>}
             <h1>{person.name}</h1>
@@ -166,7 +168,7 @@ export default async function ProfilePage({ params }: { params: Promise<{ id: st
               {checklists.map(c => (
                 <li key={c.id}>
                   <Link className="journey-row" href={`/chest/checklists/${c.id}`}>
-                    <span className={`kind ${c.kind}`}>{t.checklists.kinds[c.kind]}</span>
+                    <KindBadge kind={c.kind} label={t.checklists.kinds[c.kind]} />
                     <span className="journey-name">{c.name}</span>
                     <span className="meter" aria-hidden="true"><span style={{ width: `${c.total ? Math.round((c.done / c.total) * 100) : 0}%` }} /></span>
                     <span className="muted">{format(t.checklists.progress, { done: c.done, total: c.total })}</span>
@@ -205,6 +207,6 @@ export default async function ProfilePage({ params }: { params: Promise<{ id: st
           </div>
         )}
       </article>
-    </main>
+    </div>
   );
 }

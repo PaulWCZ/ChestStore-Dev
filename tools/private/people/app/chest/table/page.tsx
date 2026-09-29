@@ -1,3 +1,4 @@
+import { EmptyState, PageHeader } from "@argentic/chest-ui/components";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Back } from "../../../components/icons.tsx";
@@ -9,6 +10,7 @@ import { format } from "../../../lib/i18n/index.ts";
 import { people } from "../../../lib/people.ts";
 import { choices } from "../../../lib/profiles.ts";
 import { viewer } from "../../../lib/session.ts";
+import { today } from "../../../lib/zone.ts";
 import { TableEditor, type TableRow } from "./table-editor.tsx";
 
 // HR's table: everyone on one screen, job title, team, office, manager,
@@ -30,23 +32,19 @@ export default async function TablePage() {
     id: e.id, name: e.name, photo: e.photo, title: e.title, team: e.team, office: e.office, managerId: e.managerId ?? "", startDate: e.startDate ?? "", phone: e.phone, extras: e.extras,
   }));
   return (
-    <main className="page wide">
+    <div className="page wide">
       <Link className="back" href="/chest"><Back />{t.profile.back}</Link>
-      <div className="page-head">
-        <div>
-          <h1>{t.table.title}</h1>
-          <p className="muted">{t.table.lead}</p>
-        </div>
-      </div>
-      {rows.length === 0 ? <div className="empty"><p>{t.table.empty}</p></div> : (
+      <PageHeader title={t.table.title} intro={t.table.lead} />
+      {rows.length === 0 ? <EmptyState title={t.table.empty} /> : (
         <TableEditor
           rows={rows}
           managers={[...entries.map(e => ({ id: e.id, name: e.name })), ...departed.map(id => ({ id, name: format(t.profile.managerLeft, { name: gone.get(id)?.name || t.people.erased }), left: true }))]}
           fields={fields}
           known={known}
-          t={{ table: t.table, edit: t.edit, errors: t.errors }}
+          today={today()}
+          t={{ table: t.table, edit: t.edit, errors: t.errors, date: t.date }}
         />
       )}
-    </main>
+    </div>
   );
 }

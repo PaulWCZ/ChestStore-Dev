@@ -50,7 +50,7 @@ export function specimen(theme, mode, scope, lang = "en") {
 
 // The specimen's own CSS: only contract tokens, as a tool's would be.
 export const specimenCss = `
-.spec{background:var(--bg);color:var(--ink);font:var(--text-m)/var(--leading) var(--font-body);border-radius:14px;overflow:hidden;border:1px solid color-mix(in oklch,var(--line) 70%,transparent);min-width:0}
+.spec{background:var(--bg);color:var(--ink);font:var(--text-m)/var(--leading) var(--font-body);border-radius:14px;overflow:hidden;border:1px solid color-mix(in oklab,var(--line) 70%,transparent);min-width:0}
 .spec *{box-sizing:border-box}
 .s-bar{display:flex;align-items:center;gap:var(--space-2);padding:var(--space-3) var(--space-4);background:var(--surface);border-bottom:var(--border-width) solid var(--line)}
 .s-mark{width:22px;height:22px;border-radius:var(--radius-s);background:var(--accent);box-shadow:inset 0 0 0 var(--border-width) var(--accent-line)}
@@ -81,7 +81,7 @@ export const specimenCss = `
 .s-fig{margin:0;font-family:var(--font-mono);font-size:var(--text-s);color:var(--ink-2);font-variant-numeric:tabular-nums}
 .s-sw{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
 .s-sw li{display:grid;grid-template-columns:22px 1fr;column-gap:6px;align-items:center;font-size:11px;line-height:1.25;min-width:0}
-.s-sw span{grid-row:span 2;width:22px;height:22px;border-radius:6px;box-shadow:inset 0 0 0 1px color-mix(in oklch,var(--ink) 18%,transparent)}
+.s-sw span{grid-row:span 2;width:22px;height:22px;border-radius:6px;box-shadow:inset 0 0 0 1px color-mix(in oklab,var(--ink) 18%,transparent)}
 .s-sw b{font-weight:600;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.s-sw code{color:var(--ink-2);font-size:10px}
 @media (max-width:520px){.s-sw{grid-template-columns:repeat(2,minmax(0,1fr))}}
 `;

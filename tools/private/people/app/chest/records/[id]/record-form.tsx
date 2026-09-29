@@ -1,9 +1,10 @@
 "use client";
 
+import { Confirm, DateField, PeoplePicker, useToast } from "@argentic/chest-ui/components";
+import { localSearch, type Choice, type DateWords, type PeoplePickerWords } from "@argentic/chest-ui/components/logic";
 import { useRouter } from "next/navigation";
-import { useId, useState, useTransition, type FormEvent, type ReactNode } from "react";
+import { useId, useMemo, useState, useTransition, type FormEvent, type ReactNode } from "react";
 import { Trash } from "../../../../components/icons.tsx";
-import { useToast } from "../../../../components/toast.tsx";
 import type { ErrorCode } from "../../../../lib/app-error.ts";
 import { format } from "../../../../lib/i18n/format.ts";
 import { contracts, limits, sexes, type Contract } from "../../../../lib/model.ts";
@@ -17,21 +18,27 @@ type Words = {
     identity: string; contract: string; emergency: string; fields: Record<Field, string>;
     hints: { legalName: string; qualification: string; workPermit: string; agency: string; register: string };
     contracts: Record<Contract, string>; sexes: Record<"female" | "male", string>; notSaid: string; workingTimes: { full: string; part: string };
-    nobody: string; save: string; saving: string; saved: string; noChange: string; link: string; linkNone: string; linked: string;
-    delete: string; deleteHint: string; deleted: string;
+    save: string; saving: string; saved: string; noChange: string; link: string; linkNone: string; linked: string;
+    delete: string; deleteHint: string; deleted: string; deleteTitle: string; deleteBody: string; deleteConfirm: string; cancel: string;
   };
   errors: Record<ErrorCode, string>;
+  date: DateWords;
+  peoplePicker: PeoplePickerWords;
+  leaveEmpty: string;
 };
 
 // HR's form for one record: identity (as the staff register needs it),
 // contract, emergency contact. Saved in one click; a refusal says why and
 // keeps what was typed. Fields the register needs are marked.
-export function RecordForm({ id, initial, linked, erased, members, t }: {
+export function RecordForm({ id, initial, linked, erased, members, today, lang, t }: {
   id: string;
   initial: Record<Field, string>;
   linked: string | null;
   erased: boolean;
-  members: { id: string; name: string }[];
+  members: { id: string; name: string; photo: string | null }[];
+  // Today in the Chest's time zone (the date fields), the words' language.
+  today: string;
+  lang: string;
   t: Words;
 }) {
   const router = useRouter();
@@ -40,6 +47,8 @@ export function RecordForm({ id, initial, linked, erased, members, t }: {
   const [values, setValues] = useState(initial);
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
+  const searchMembers = useMemo(() => localSearch(members), [members]);
+  const put = (f: Field, value: string) => setValues(v => ({ ...v, [f]: value }));
   const set = (f: Field) => (e: { target: { value: string } }) => setValues(v => ({ ...v, [f]: e.target.value }));
   const contract = values.contract as Contract;
   const register = t.record.hints.register;
@@ -56,8 +65,14 @@ export function RecordForm({ id, initial, linked, erased, members, t }: {
   );
   const text = (f: Field, max: number, needed = false, hint?: string, type = "text") =>
     field(f, <input id={uid + f} className="field" type={type} value={values[f]} onChange={set(f)} maxLength={max} autoComplete="off" aria-describedby={described(f, Boolean(hint), needed)} />, hint, needed);
-  const date = (f: Field, needed = false) =>
-    field(f, <input id={uid + f} className="field" type="date" value={values[f]} onChange={set(f)} min="1900-01-01" max="2100-12-31" aria-describedby={described(f, false, needed)} />, undefined, needed);
+  // A date: the kit's field (typed as people write dates, or chosen on a
+  // calendar). Its label is a string, so what the register needs is marked
+  // by a star in the words themselves.
+  const date = (f: Field, needed = false) => (
+    <div className="field-group">
+      <DateField label={t.record.fields[f] + (needed ? " *" : "")} value={values[f] || null} onChange={day => put(f, day ?? "")} today={today} min="1900-01-01" max="2100-12-31" chips={false} labels={t.date} />
+    </div>
+  );
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -69,7 +84,7 @@ export function RecordForm({ id, initial, linked, erased, members, t }: {
         setError(format(t.errors[r.error], r.values ?? {}));
         return;
       }
-      toast(r.value.changed.length > 0 ? t.record.saved : t.record.noChange);
+      toast({ id: `record-${id}`, text: r.value.changed.length > 0 ? t.record.saved : t.record.noChange });
       router.refresh();
     });
   };
@@ -117,12 +132,11 @@ export function RecordForm({ id, initial, linked, erased, members, t }: {
             {contract !== "permanent" && date("contractEnd", intern)}
             {date("endDate")}
             {(contract === "temporary" || contract === "seconded") && field("agency", <textarea id={uid + "agency"} className="field" rows={2} value={values.agency} onChange={set("agency")} maxLength={limits.agency} aria-describedby={described("agency", true, true)} />, t.record.hints.agency, true)}
-            {intern && field("tutorId", (
-              <select id={uid + "tutorId"} className="select" value={values.tutorId} onChange={set("tutorId")} aria-describedby={described("tutorId", false, true)}>
-                <option value="">{t.record.nobody}</option>
-                {members.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
-              </select>
-            ), undefined, true)}
+            {intern && (
+              <div className="field-group">
+                <PeoplePicker label={t.record.fields.tutorId + " *"} value={members.filter(m => m.id === values.tutorId)} onChange={c => put("tutorId", c[0]?.id ?? "")} search={searchMembers} labels={t.peoplePicker} lang={lang} />
+              </div>
+            )}
             {intern && text("workplace", limits.workplace, true)}
           </div>
         </fieldset>
@@ -142,46 +156,46 @@ export function RecordForm({ id, initial, linked, erased, members, t }: {
         </div>
       </form>
 
-      {!erased && <LinkMember id={id} linked={linked} members={members} t={t} />}
+      {!erased && <LinkMember id={id} linked={linked} members={members} search={searchMembers} lang={lang} t={t} />}
     </>
   );
 }
 
 // Which Chest account the record is about (someone who got the Chest after
 // HR wrote their record), and deleting a record made by mistake.
-function LinkMember({ id, linked, members, t }: { id: string; linked: string | null; members: { id: string; name: string }[]; t: Words }) {
+function LinkMember({ id, linked, members, search, lang, t }: { id: string; linked: string | null; members: { id: string; name: string; photo: string | null }[]; search: (q: string) => Promise<Choice[]>; lang: string; t: Words }) {
   const router = useRouter();
   const toast = useToast();
-  const uid = useId();
-  const [who, setWho] = useState(linked ?? "");
+  const [who, setWho] = useState<Choice[]>(() => members.filter(m => m.id === linked));
+  const [asking, setAsking] = useState(false);
   const [pending, start] = useTransition();
+  const fail = (r: { ok: false; error: ErrorCode; values?: Record<string, string | number> }) => toast({ text: format(t.errors[r.error], r.values ?? {}), tone: "error" });
   return (
     <section className="card-block section record-admin">
-      <div className="field-group">
-        <label htmlFor={uid + "link"} className="label">{t.record.link}</label>
-        <div className="row">
-          <select id={uid + "link"} className="select link-select" value={who} disabled={pending} onChange={e => {
-            const next = e.target.value;
+      <div className="field-group link-select">
+        <PeoplePicker label={t.record.link} hint={t.record.linkNone} value={who} disabled={pending} search={search} labels={t.peoplePicker} lang={lang}
+          onChange={next => {
             setWho(next);
             start(async () => {
-              const r = await linkRecord(id, next || null);
-              if (!r.ok) { setWho(linked ?? ""); toast(format(t.errors[r.error], r.values ?? {})); }
+              const r = await linkRecord(id, next[0]?.id ?? null);
+              if (!r.ok) { setWho(members.filter(m => m.id === linked)); fail(r); }
               else { toast(t.record.linked); router.refresh(); }
             });
-          }}>
-            <option value="">{t.record.linkNone}</option>
-            {members.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
-          </select>
-        </div>
+          }} />
       </div>
       <div className="row">
-        <button type="button" className="button quiet small danger" disabled={pending} onClick={() => start(async () => {
-          const r = await deleteRecord(id);
-          if (!r.ok) toast(format(t.errors[r.error], r.values ?? {}));
-          else { toast(t.record.deleted); router.push("/chest/records"); }
-        })}><Trash />{t.record.delete}</button>
+        <button type="button" className="button quiet small danger" disabled={pending} onClick={() => setAsking(true)}><Trash />{t.record.delete}</button>
         <span className="hint">{t.record.deleteHint}</span>
       </div>
+      <Confirm open={asking} title={t.record.deleteTitle} body={t.record.deleteBody} confirmLabel={t.record.deleteConfirm} cancelLabel={t.record.cancel} onCancel={() => setAsking(false)}
+        onConfirm={() => {
+          setAsking(false);
+          start(async () => {
+            const r = await deleteRecord(id);
+            if (!r.ok) fail(r);
+            else { toast(t.record.deleted); router.push("/chest/records"); }
+          });
+        }} />
     </section>
   );
 }

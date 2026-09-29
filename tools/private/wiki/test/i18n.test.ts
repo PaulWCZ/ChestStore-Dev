@@ -37,7 +37,7 @@ test("plurals and placeholders follow the language", () => {
   assert.equal(plural(en.home.pages, 1, "en"), "1 page");
   assert.equal(plural(en.home.pages, 2, "en"), "2 pages");
   assert.equal(plural(en.home.pages, 0, "en"), "No pages");
-  assert.equal(plural(catalogue("fr").search.results, 1, "fr", { q: "congés" }), "1 page correspond à « congés ».");
+  assert.equal(plural(catalogue("fr").search.results, 1, "fr", { q: "congés" }), "1 page correspond à «\u202fcongés\u202f».");
   assert.equal(plural(catalogue("fr").home.pages, 1.5, "fr"), "1,5 page");
   assert.equal(format("{a} and {b}", { a: 1 }), "1 and {b}");
 });

@@ -44,8 +44,11 @@ export function compareText(a: string, b: string): number {
 
 // initials for an avatar without a photo: the first letters of the first
 // and last words ("Camille Martin" → "CM"); "·" for no name.
+// A trailing note in brackets is not part of the name: "Léa Dubois (former
+// member)" → "LD" (0.2.1).
 export function initials(name: string): string {
-  const words = name.trim().split(/\s+/u).filter(Boolean);
+  const bare = name.replace(/\s*[(（[][^()（）[\]]*[)）\]]\s*$/u, "").trim() || name.trim();
+  const words = bare.split(/\s+/u).filter(Boolean);
   const first = [...(words[0] ?? "")][0] ?? "";
   const last = words.length > 1 ? [...(words.at(-1) ?? "")][0] ?? "" : "";
   return (first + last).toUpperCase() || "·";

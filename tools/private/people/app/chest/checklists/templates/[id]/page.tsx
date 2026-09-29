@@ -32,9 +32,9 @@ export default async function TemplatePage({ params }: { params: Promise<{ id: s
   const gone = await people(named);
   const choices = [...listed, ...named.map(n => ({ id: n, name: nameOf(gone.get(n), locale) }))];
   return (
-    <main className="page narrow">
+    <div className="page narrow">
       <Link className="back" href="/chest/checklists"><Back />{t.template.back}</Link>
       <TemplateEditor template={{ ...template, items: template.items.map(i => ({ ...i, text: stepText(i, t) })) }} people={choices} locale={locale} t={{ template: t.template, kinds: t.checklists.kinds, errors: t.errors }} />
-    </main>
+    </div>
   );
 }

@@ -1,3 +1,4 @@
+import { EmptyState } from "@argentic/chest-ui/components";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { can, spaceAccess } from "../../../../lib/access.ts";
@@ -74,7 +75,7 @@ export default async function ReadPage({ params, searchParams }: { params: Promi
     places = { spaces: writable.map(s => ({ id: s.id, name: s.name })), nodes: all.map(n => ({ id: n.id, spaceId: n.spaceId, parentId: n.parentId, title: n.title })) };
   }
   return (
-    <main className={`page reading color-${p.space.color}`}>
+    <div className={`page reading color-${p.space.color}`}>
       <Flash text={flash} />
       <AutoRefresh seconds={60} />
       <nav className="crumbs" aria-label={t.page.breadcrumb}>
@@ -123,13 +124,10 @@ export default async function ReadPage({ params, searchParams }: { params: Promi
           )}
           {writer && draft.length > 0 && !holder && (
             <DraftNotice pageId={p.id} editHref={`/chest/pages/${p.id}/edit`}
-              t={{ text: t.page.yourDraft, continue: t.page.continueDraft, discard: t.page.discardDraft, discarded: t.page.draftDiscarded, undo: t.page.undo, errors: t.errors }} />
+              t={{ text: t.page.yourDraft, continue: t.page.continueDraft, discard: t.page.discardDraft, discarded: t.page.draftDiscarded, errors: t.errors }} />
           )}
           {empty ? (
-            <div className="empty soft">
-              <p>{t.page.emptyBody}</p>
-              {writer && <Link className="button" href={`/chest/pages/${p.id}/edit`}>{t.page.emptyEdit}</Link>}
-            </div>
+            <EmptyState title={t.page.emptyBody} action={writer ? <Link className="button" href={`/chest/pages/${p.id}/edit`}>{t.page.emptyEdit}</Link> : null} />
           ) : (
             <div className="prose" dangerouslySetInnerHTML={{ __html: html }} />
           )}
@@ -165,6 +163,6 @@ export default async function ReadPage({ params, searchParams }: { params: Promi
           </aside>
         )}
       </div>
-    </main>
+    </div>
   );
 }

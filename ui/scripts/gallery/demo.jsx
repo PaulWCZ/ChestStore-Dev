@@ -8,9 +8,9 @@
 import { useMemo, useState } from "react";
 import {
   AppShell, AvatarStack, Avatar, Confirm, DataTable, DateField, DayStrip, Dialog, EmptyState, FilePicker, Filters, LanguageSwitch,
-  Menu, NoAccess, PageHeader, PeoplePicker, SearchBox, Segmented, StatusBadge, Tabs, TimeSelect, Toasts, useToast,
+  Menu, MonthField, NoAccess, PageHeader, PeoplePicker, SearchBox, Segmented, StatusBadge, Tabs, TimeSelect, Toasts, useToast,
 } from "../../dist/components/index.js";
-import { addDays, en, fill, fr, matches, moveEnd, moveStart, storeLanguages } from "../../dist/components/logic.js";
+import { addDays, en, fill, formatDate, fr, matches, moveEnd, moveStart, storeLanguages } from "../../dist/components/logic.js";
 
 export const demoWords = {
   en: {
@@ -19,24 +19,25 @@ export const demoWords = {
     deleteNote: "Delete a note", noteDeleted: "Note deleted.",
     moveCard: "Move a card", movedTo: "Card moved to {column}.", columns: ["Doing", "Done", "Review"],
     sendInvite: "Send the invitation", inviteSent: "Invitation sent to Léa. It can’t be undone: the email left.",
+    stopTimer: "Stop the timer", stopped: "Timer stopped at 1 min 12 s.", keep: "Keep 1 min", kept: "Kept: 1 min.",
     failing: "Undo that fails", archived: "Board archived.", tooLate: "Someone changed the board since: nothing was undone.",
     dialog: "Dialog", dialogIntro: "Opens on its first field. Type something, then press Escape or click outside: it asks before losing it.",
-    newBoard: "New board", boardName: "Name", boardHint: "You can change it later.", create: "Create", cancel: "Cancel",
+    newBoard: "New board", boardStart: "Starts on", boardName: "Name", boardHint: "You can change it later.", create: "Create", cancel: "Cancel",
     erase: "Erase Léa’s data", eraseTitle: "Erase Léa Moreau’s data?", eraseBody: "Her answers and her name are erased for good. This cannot be undone.", eraseConfirm: "Erase", erased: "Léa’s data erased.",
     people: "People picker", peopleIntro: "Type “lé” or “sal”. Arrows, Enter, Escape; Backspace takes a chip away.",
-    owner: "Owner", guests: "Guests", guestsHint: "People or a whole group.",
+    owner: "Owner", guests: "Guests", formSent: "Form sent ({n}).", sendForm: "Send the form", guestsHint: "People or a whole group.",
     dates: "Dates and times", datesIntro: "Type “29/10”, “3 oct” or “tomorrow”, or open the calendar (arrows, Page Up/Down). Moving the start keeps the meeting’s length.",
-    due: "Due", start: "Starts", end: "Ends", day: "Day",
+    due: "Due", start: "Starts", end: "Ends", day: "Day", month: "Month", saveDue: "Save the date", dueSaved: "Saved: {date}.",
     files: "Files", filesIntro: "Several files, limits stated first, progress while they go, each one removable. (The upload is simulated here.)",
     receipts: "Receipts",
-    table: "Table, filters and search", tableIntro: "Sort by a column, filter by state (the address would keep it), search with “/”.",
+    table: "Table, filters and search", tableIntro: "Sort by a column, filter by one state or several (the address would keep them), search with “/”.",
     client: "Client", amount: "Amount", state: "State", issued: "Issued", quotes: "Quotes", filterState: "State",
     states: { draft: "Draft", sent: "Sent", paid: "Paid", late: "Late" },
     duplicate: "Duplicate", download: "Download PDF", delete: "Delete",
     noQuotes: "No quote matches", noQuotesBody: "Try another word, or clear the filters.",
     bits: "Empty state, avatars, badges, tabs", emptyTitle: "No rooms yet", emptyBody: "Rooms are the places people book: meeting rooms, desks, the van.",
     addRoom: "Add a room", emptyNote: "Only an admin adds rooms.", booking: "Bookings", upcoming: "Upcoming", past: "Past", cancelled: "Cancelled",
-    view: "View", board: "Board", list: "List", morning: "Morning", afternoon: "Afternoon", allDay: "All day", when: "When",
+    view: "View", layout: "Layout (locked)", board: "Board", list: "List", morning: "Morning", afternoon: "Afternoon", allDay: "All day", when: "When",
     shell: "App shell and navigation", shellIntro: "Labelled tabs, never icons alone: in the header on a wide screen, in a row of their own on a phone. The page’s main action sits at the top.",
     home: "Home", myTasks: "My tasks", boards: "Boards", settings: "Settings", manager: "Manager", newTask: "New task", tasksIntro: "What waits for you today.", language: "Language",
     noAccess: "When the role gives nothing",
@@ -47,24 +48,25 @@ export const demoWords = {
     deleteNote: "Supprimer une note", noteDeleted: "Note supprimée.",
     moveCard: "Déplacer une carte", movedTo: "Carte déplacée dans {column}.", columns: ["En cours", "Terminé", "À relire"],
     sendInvite: "Envoyer l’invitation", inviteSent: "Invitation envoyée à Léa. Impossible d’annuler : l’e-mail est parti.",
+    stopTimer: "Arrêter le chrono", stopped: "Chrono arrêté à 1 min 12 s.", keep: "Garder 1 min", kept: "Gardé\u202f: 1 min.",
     failing: "Annulation qui échoue", archived: "Tableau archivé.", tooLate: "Quelqu’un a modifié le tableau entre-temps : rien n’a été annulé.",
     dialog: "Fenêtre de dialogue", dialogIntro: "S’ouvre sur son premier champ. Tapez quelque chose, puis Échap ou un clic à côté : elle demande avant de tout perdre.",
-    newBoard: "Nouveau tableau", boardName: "Nom", boardHint: "Vous pourrez le changer.", create: "Créer", cancel: "Annuler",
+    newBoard: "Nouveau tableau", boardStart: "Commence le", boardName: "Nom", boardHint: "Vous pourrez le changer.", create: "Créer", cancel: "Annuler",
     erase: "Effacer les données de Léa", eraseTitle: "Effacer les données de Léa Moreau ?", eraseBody: "Ses réponses et son nom sont effacés pour de bon. C’est définitif.", eraseConfirm: "Effacer", erased: "Données de Léa effacées.",
     people: "Choix de personnes", peopleIntro: "Tapez « lé » ou « com ». Flèches, Entrée, Échap ; Retour arrière retire une pastille.",
-    owner: "Responsable", guests: "Invités", guestsHint: "Des personnes ou tout un groupe.",
+    owner: "Responsable", guests: "Invités", formSent: "Formulaire envoyé ({n}).", sendForm: "Envoyer le formulaire", guestsHint: "Des personnes ou tout un groupe.",
     dates: "Dates et heures", datesIntro: "Tapez « 29/10 », « 3 oct » ou « demain », ou ouvrez le calendrier (flèches, Page préc./suiv.). Déplacer le début garde la durée de la réunion.",
-    due: "Échéance", start: "Début", end: "Fin", day: "Jour",
+    due: "Échéance", start: "Début", end: "Fin", day: "Jour", month: "Mois", saveDue: "Enregistrer la date", dueSaved: "Enregistré\u202f: {date}.",
     files: "Fichiers", filesIntro: "Plusieurs fichiers, les limites dites d’abord, la progression pendant l’envoi, chacun peut être retiré. (L’envoi est simulé ici.)",
     receipts: "Justificatifs",
-    table: "Tableau, filtres et recherche", tableIntro: "Triez par colonne, filtrez par état (l’adresse le garderait), cherchez avec « / ».",
+    table: "Tableau, filtres et recherche", tableIntro: "Triez par colonne, filtrez par un état ou plusieurs (l’adresse les garderait), cherchez avec « / ».",
     client: "Client", amount: "Montant", state: "État", issued: "Émis le", quotes: "Devis", filterState: "État",
     states: { draft: "Brouillon", sent: "Envoyé", paid: "Payé", late: "En retard" },
     duplicate: "Dupliquer", download: "Télécharger le PDF", delete: "Supprimer",
     noQuotes: "Aucun devis ne correspond", noQuotesBody: "Essayez un autre mot, ou retirez les filtres.",
     bits: "État vide, avatars, badges, onglets", emptyTitle: "Pas encore de salle", emptyBody: "Les salles sont les lieux que l’on réserve : salles de réunion, bureaux, la camionnette.",
     addRoom: "Ajouter une salle", emptyNote: "Seul un administrateur ajoute des salles.", booking: "Réservations", upcoming: "À venir", past: "Passées", cancelled: "Annulées",
-    view: "Affichage", board: "Tableau", list: "Liste", morning: "Matin", afternoon: "Après-midi", allDay: "Journée", when: "Quand",
+    view: "Affichage", layout: "Mise en page (verrouillée)", board: "Tableau", list: "Liste", morning: "Matin", afternoon: "Après-midi", allDay: "Journée", when: "Quand",
     shell: "Cadre et navigation", shellIntro: "Des onglets avec leurs mots, jamais des icônes seules : dans l’en-tête sur grand écran, sur une ligne à eux sur téléphone. L’action principale de la page est en haut.",
     home: "Accueil", myTasks: "Mes tâches", boards: "Tableaux", settings: "Réglages", manager: "Responsable", newTask: "Nouvelle tâche", tasksIntro: "Ce qui vous attend aujourd’hui.", language: "Langue",
     noAccess: "Quand le rôle ne donne rien",
@@ -117,16 +119,21 @@ function ToastDemo({ d, lang }) {
       <button type="button" className="ck-button" onClick={() => toast({ id: "delete-note", text: d.noteDeleted, undo: () => new Promise(r => setTimeout(() => r(true), 600)) })}>{d.deleteNote}</button>
       <button type="button" className="ck-button ck-button-quiet" onClick={() => { const n = moves + 1; setMoves(n); toast({ id: "move-card", text: fill(d.movedTo, { column: d.columns[n % 3] }), undo: () => true }); }}>{d.moveCard}</button>
       <button type="button" className="ck-button ck-button-quiet" onClick={() => toast({ id: "invite", text: d.inviteSent, sent: true })}>{d.sendInvite}</button>
+      <button type="button" className="ck-button ck-button-quiet" onClick={() => toast({ id: "timer", text: d.stopped, action: { label: d.keep, run: () => { toast({ id: "timer-kept", text: d.kept }); } } })}>{d.stopTimer}</button>
       <button type="button" className="ck-button ck-button-quiet" onClick={() => toast({ id: "archive", text: d.archived, undo: () => new Promise(r => setTimeout(() => r(d.tooLate), 500)) })}>{d.failing}</button>
       <span className="demo-note" lang={lang}>Ctrl+Z</span>
     </div>
   );
 }
 
-function DialogDemo({ d, w, lang }) {
+function DialogDemo({ d, w, lang, today }) {
   const toast = useToast();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
+  const list = lang === "fr" ? teamFr : team;
+  const search = useMemo(() => q => new Promise(r => setTimeout(() => r(list.filter(p => matches(p.name, q)).slice(0, 8)), 120)), [list]);
+  const [owner, setOwner] = useState([]);
+  const [start, setStart] = useState(null);
   const [erase, setErase] = useState(false);
   const close = () => { setOpen(false); setName(""); };
   return (
@@ -140,6 +147,9 @@ function DialogDemo({ d, w, lang }) {
           <input id={`${lang}-board-name`} className="ck-field" value={name} onChange={e => setName(e.target.value)} aria-describedby={`${lang}-board-hint`} />
           <p id={`${lang}-board-hint`} className="ck-hint">{d.boardHint}</p>
         </div>
+        {/* A list and a calendar inside a dialog are never cut at its edge. */}
+        <PeoplePicker label={d.owner} search={search} value={owner} onChange={setOwner} suggestions={list.slice(0, 7)} suggestionsLabel={w.peoplePicker.suggested} labels={w.peoplePicker} lang={lang} />
+        <DateField label={d.boardStart} value={start} onChange={setStart} today={today} labels={w.date} />
       </Dialog>
       <Confirm open={erase} title={d.eraseTitle} body={d.eraseBody} confirmLabel={d.eraseConfirm} cancelLabel={d.cancel} onCancel={() => setErase(false)} onConfirm={() => { setErase(false); toast({ text: d.erased, sent: true }); }} />
     </div>
@@ -151,11 +161,19 @@ function PeopleDemo({ d, w, lang }) {
   const search = useMemo(() => q => new Promise(r => setTimeout(() => r(list.filter(p => matches(p.name, q)).slice(0, 8)), 120)), [list]);
   const [owner, setOwner] = useState([list[3]]);
   const [guests, setGuests] = useState([list[1], list[7]]);
+  const [sent, setSent] = useState(0);
+  // In a form: Enter in the picker chooses, it never sends the form.
   return (
-    <div className="demo-grid">
-      <PeoplePicker label={d.owner} search={search} value={owner} onChange={setOwner} suggestions={[list[0], list[3]]} labels={w.peoplePicker} lang={lang} />
-      <PeoplePicker label={d.guests} search={search} value={guests} onChange={setGuests} multiple hint={d.guestsHint} suggestions={[list[4], list[5], list[8]]} labels={w.peoplePicker} lang={lang} />
-    </div>
+    <form className="demo-stack-s" onSubmit={e => { e.preventDefault(); setSent(n => n + 1); }}>
+      <div className="demo-grid">
+        <PeoplePicker label={d.owner} search={search} value={owner} onChange={setOwner} suggestions={[list[0], list[3]]} labels={w.peoplePicker} lang={lang} />
+        <PeoplePicker label={d.guests} search={search} value={guests} onChange={setGuests} multiple hint={d.guestsHint} suggestions={[list[4], list[5], list[8]]} suggestionsLabel={w.peoplePicker.suggested} labels={w.peoplePicker} lang={lang} />
+      </div>
+      <div className="demo-row">
+        <button type="submit" className="ck-button ck-button-quiet">{d.sendForm}</button>
+        <p className="demo-note" role="status">{sent ? fill(d.formSent, { n: sent }) : ""}</p>
+      </div>
+    </form>
   );
 }
 
@@ -163,10 +181,21 @@ function DatesDemo({ d, w, today, lang }) {
   const [due, setDue] = useState(addDays(today, 3));
   const [slot, setSlot] = useState({ start: 540, end: 600 });
   const [day, setDay] = useState(today);
+  const [saved, setSaved] = useState(null);
+  const [month, setMonth] = useState(today.slice(0, 7));
   const days = Array.from({ length: 10 }, (_, i) => addDays(today, i));
+  // A button right under the field: typing a date then clicking it at once
+  // must hit it (the date in words appears on blur; its line is reserved).
   return (
     <div className="demo-grid">
-      <DateField label={d.due} value={due} onChange={setDue} today={today} min={today} labels={w.date} />
+      <div className="demo-stack-s">
+        <DateField label={d.due} value={due} onChange={setDue} today={today} min={today} labels={w.date} />
+        <div className="demo-row">
+          <button type="button" className="ck-button ck-button-quiet" onClick={() => setSaved(due)}>{d.saveDue}</button>
+          <p className="demo-note" role="status">{saved ? fill(d.dueSaved, { date: formatDate(saved, w.date, "long") }) : ""}</p>
+        </div>
+      </div>
+      <MonthField label={d.month} value={month} onChange={setMonth} today={today} labels={w.date} />
       <div className="demo-times">
         <div><label className="ck-label" htmlFor={`${lang}-start`}>{d.start}</label><TimeSelect id={`${lang}-start`} value={slot.start} onChange={s => setSlot(moveStart(slot, s))} /></div>
         <div><label className="ck-label" htmlFor={`${lang}-end`}>{d.end}</label><TimeSelect id={`${lang}-end`} value={slot.end} onChange={e => setSlot(moveEnd(slot, e))} end /></div>
@@ -201,8 +230,9 @@ function FilesDemo({ d, w }) {
 function TableDemo({ d, w, lang }) {
   const [params, setParams] = useState("");
   const [q, setQ] = useState("");
-  const state = new URLSearchParams(params).get("state");
-  const shown = quotes.filter(r => (!state || r.state === state) && (!q || matches(r.client, q) || r.id.toLowerCase().includes(q.toLowerCase())));
+  // Several states at once: ?state=sent,late.
+  const states = (new URLSearchParams(params).get("state") ?? "").split(",").filter(Boolean);
+  const shown = quotes.filter(r => (states.length === 0 || states.includes(r.state)) && (!q || matches(r.client, q) || r.id.toLowerCase().includes(q.toLowerCase())));
   const link = ({ href, children, ...rest }) => <a href={href} {...rest} onClick={e => { e.preventDefault(); setParams(href.split("?")[1] ?? ""); }}>{children}</a>;
   const count = s => quotes.filter(r => r.state === s).length;
   const columns = [
@@ -215,7 +245,7 @@ function TableDemo({ d, w, lang }) {
   return (
     <div className="demo-stack">
       <div className="demo-toolbar">
-        <Filters path="/chest/quotes" params={params} link={link} labels={w.filters} groups={[{ key: "state", label: d.filterState, options: ["draft", "sent", "paid", "late"].map(s => ({ value: s, label: d.states[s], count: count(s) })) }]} />
+        <Filters path="/chest/quotes" params={params} link={link} labels={w.filters} groups={[{ key: "state", label: d.filterState, multiple: true, options: ["draft", "sent", "paid", "late"].map(s => ({ value: s, label: d.states[s], count: count(s) })) }]} />
         <SearchBox action="/chest/quotes" onSearch={setQ} labels={w.search} />
       </div>
       <DataTable caption={d.quotes} columns={columns} rows={shown} rowKey={r => r.id} rowName={r => `${r.id} ${r.client}`} labels={w.table}
@@ -231,6 +261,8 @@ function BitsDemo({ d, w, lang }) {
   const [view, setView] = useState("board");
   const [part, setPart] = useState("day");
   const faces = team.slice(0, 6);
+  // The widest initials: every stack size must keep them whole.
+  const wide = [{ id: "mbr_mw", name: "Marc Weber" }, { id: "mbr_wm", name: "Wanda Moulin" }, { id: "mbr_mm", name: "Maëlle Mercier" }, ...team.slice(0, 3)];
   return (
     <div className="demo-stack">
       <EmptyState title={d.emptyTitle} body={d.emptyBody} action={<button type="button" className="ck-button">{d.addRoom}</button>} example={{ onClick: () => {} }} labels={w.shell} headingLevel={3} />
@@ -242,6 +274,9 @@ function BitsDemo({ d, w, lang }) {
         <AvatarStack people={faces} max={4} labels={w.shell} lang={lang} />
         <AvatarStack people={faces.slice(0, 2)} size="s" labels={w.shell} lang={lang} />
       </div>
+      <div className="demo-row demo-stacks">
+        {["s", "m", "l", "xl"].map(size => <AvatarStack key={size} people={wide} max={4} size={size} labels={w.shell} lang={lang} />)}
+      </div>
       <div className="demo-row">
         {["draft", "sent", "paid", "late"].map(s => <StatusBadge key={s} tone={tone[s]} label={d.states[s]} />)}
         <StatusBadge category={1} label={lang === "fr" ? "Congés" : "Holiday"} />
@@ -251,7 +286,8 @@ function BitsDemo({ d, w, lang }) {
       <Tabs label={d.booking} current={tab} onChange={setTab} items={[{ id: "up", label: d.upcoming, count: 3 }, { id: "past", label: d.past }, { id: "cancel", label: d.cancelled, count: 1 }]}>
         <div className="demo-row">
           <Segmented label={d.view} value={view} onChange={setView} options={[{ value: "board", label: d.board }, { value: "list", label: d.list }]} />
-          <Segmented label={d.when} value={part} onChange={setPart} options={[{ value: "am", label: d.morning }, { value: "pm", label: d.afternoon }, { value: "day", label: d.allDay }]} />
+          <Segmented label={d.when} value={part} onChange={setPart} options={[{ value: "am", label: d.morning }, { value: "pm", label: d.afternoon, disabled: true }, { value: "day", label: d.allDay }]} />
+          <Segmented label={d.layout} value="board" onChange={() => {}} disabled options={[{ value: "board", label: d.board }, { value: "list", label: d.list }]} />
           <Menu label={d.booking} showLabel items={[{ label: d.duplicate, onSelect: () => {} }, { label: d.delete, tone: "danger", onSelect: () => {} }]} />
         </div>
       </Tabs>
@@ -295,7 +331,7 @@ export function Workbench({ lang, today }) {
     <Toasts labels={w.toast}>
       <div className="bench" lang={lang}>
         <Section id={`${lang}-toast`} title={d.toast} intro={d.toastIntro}><ToastDemo d={d} lang={lang} /></Section>
-        <Section id={`${lang}-dialog`} title={d.dialog} intro={d.dialogIntro}><DialogDemo d={d} w={w} lang={lang} /></Section>
+        <Section id={`${lang}-dialog`} title={d.dialog} intro={d.dialogIntro}><DialogDemo d={d} w={w} lang={lang} today={today} /></Section>
         <Section id={`${lang}-people`} title={d.people} intro={d.peopleIntro}><PeopleDemo d={d} w={w} lang={lang} /></Section>
         <Section id={`${lang}-dates`} title={d.dates} intro={d.datesIntro}><DatesDemo d={d} w={w} today={today} lang={lang} /></Section>
         <Section id={`${lang}-files`} title={d.files} intro={d.filesIntro}><FilesDemo d={d} w={w} /></Section>

@@ -7,7 +7,7 @@
 //   npm run check:package        (node scripts/check-package.mjs)
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -18,15 +18,15 @@ const name = manifest.name;
 const subpaths = Object.keys(manifest.exports).filter(key => key !== "./package.json" && !key.endsWith(".css"));
 const expected = {
   color: ["colourWord", "contrast", "fit", "hex", "hueDistance", "inGamut", "luminance", "mix", "oklch", "oklchHex", "oklchToRgb", "parseColor", "rgbToOklch", "toHex"],
-  contract: ["allTokens", "categories", "checkTheme", "colorTokens", "controlHeight", "effectTokens", "pairs", "ratios", "staticTokens", "themeIdPattern", "validateTheme"],
+  contract: ["allTokens", "categories", "categoryFamilies", "checkPalette", "checkTheme", "colorTokens", "controlHeight", "effectTokens", "pairs", "paletteLimits", "ratios", "staticTokens", "themeIdPattern", "validateTheme"],
   fonts: ["closestFont", "familyPattern", "font", "fontBasePattern", "fontFaces", "fontFiles", "fontUrlPattern", "registry", "stackPattern", "systemFont", "systemStacks", "uploadedFont"],
   themes: ["catalogue", "catalogueFonts", "identityOf", "themeOf", "themes"],
   derive: ["BrandError", "deriveTheme", "logoUrlPattern"],
   import: ["importBrand", "maxImportSize"],
   runtime: ["lookColors", "lookCss", "lookNotes", "nonceOf", "resolveTheme", "themeStyle"],
   react: ["ThemeStyle"],
-  components: ["AppShell", "AutoRefresh", "Avatar", "AvatarStack", "BrandMark", "Calendar", "Confirm", "DataTable", "DateField", "DayStrip", "Dialog", "EmptyState", "FilePicker", "Filters", "LanguageSwitch", "MemberChip", "Menu", "Nav", "NavLink", "NoAccess", "PageHeader", "PeoplePicker", "SearchBox", "Segmented", "StatusBadge", "Tabs", "TimeSelect", "Toasts", "filesReady", "useAutoRefresh", "useDismissToast", "useToast"],
-  "components/logic": ["acceptText", "accepts", "activeFilters", "addDays", "addMonths", "ariaSort", "calendarKey", "checkFiles", "clampDate", "clearHref", "compareText", "compareValues", "cx", "daysBetween", "daysInMonth", "durations", "en", "endOfDay", "fileSize", "fill", "filterHref", "fold", "formatDate", "fr", "initials", "isCurrent", "isEditable", "isIsoDate", "isoOf", "kitWords", "latestUndo", "listKey", "localSearch", "matches", "menuKey", "monthGrid", "moveEnd", "moveStart", "nextSort", "paramOf", "parseDate", "parseTime", "partsOf", "plural", "putWithProgress", "refusalText", "relativeDay", "rememberRecent", "searchChoices", "settleUndo", "sortRows", "startOfWeek", "storeLanguages", "tabKey", "timeOptions", "timeText", "toastReducer", "weekday", "weekdayHeads", "wordsFor"],
+  components: ["AppShell", "AutoRefresh", "Avatar", "AvatarStack", "BrandMark", "Calendar", "Confirm", "DataTable", "DateField", "DayStrip", "Dialog", "EmptyState", "FilePicker", "Filters", "LanguageSwitch", "MemberChip", "Menu", "MonthField", "Nav", "NavLink", "NoAccess", "PageHeader", "PeoplePicker", "SearchBox", "Segmented", "StatusBadge", "Tabs", "TimeSelect", "Toasts", "filesReady", "useAutoRefresh", "useDismissToast", "useToast"],
+  "components/logic": ["acceptText", "accepts", "activeFilters", "addDays", "addMonths", "addYearMonths", "ariaSort", "calendarKey", "checkFiles", "clampDate", "clearHref", "compareText", "compareValues", "cx", "dateWords", "daysBetween", "daysInMonth", "durations", "en", "endOfDay", "fileSize", "fill", "filterHref", "fold", "formatDate", "fr", "initials", "isCurrent", "isEditable", "isIsoDate", "isYearMonth", "isoOf", "kitWords", "latestUndo", "listKey", "localSearch", "matches", "menuKey", "monthGrid", "monthsFrom", "moveEnd", "moveStart", "nextSort", "paramOf", "paramValues", "parseDate", "parseTime", "partsOf", "plural", "putWithProgress", "refusalText", "relativeDay", "rememberRecent", "searchChoices", "settleUndo", "sortRows", "startOfWeek", "storeLanguages", "tabKey", "timeOptions", "timeText", "toastReducer", "weekday", "weekdayHeads", "wordsFor"],
 };
 // Subpaths the root must not re-export (React, or the components' own helpers).
 const notInRoot = new Set(["react", "components", "components/logic"]);
@@ -45,7 +45,7 @@ try {
   console.log(`${packed.filename}: ${shipped.length} files, ${packed.size} bytes packed`);
   for (const path of shipped) assert.ok(/^(package\.json|README\.md|LICENSE|tokens\/CONTRACT\.md|css\/components\.css|dist\/(components\/)?[a-z-]+\.(js|d\.ts)(\.map)?|src\/(components\/)?[a-z-]+\.tsx?)$/u.test(path), `unexpected file in the package: ${path}`);
   // Every client module of the components says so (Next.js needs the directive in the file it imports).
-  for (const file of ["index", "toast", "dialog", "people-picker", "date-field", "file-picker", "data-table", "menu", "filters", "bits", "shell"]) assert.ok(readFileSync(join(root, "dist", "components", file + ".js"), "utf8").startsWith('"use client";'), `dist/components/${file}.js starts with "use client"`);
+  for (const file of ["index", "toast", "dialog", "people-picker", "date-field", "month-field", "file-picker", "data-table", "menu", "filters", "bits", "shell"]) assert.ok(readFileSync(join(root, "dist", "components", file + ".js"), "utf8").startsWith('"use client";'), `dist/components/${file}.js starts with "use client"`);
   for (const file of ["logic", "words", "text", "dates", "time", "people", "keys", "toast-state", "files", "lists"]) assert.ok(!/^\s*["']use client["']/u.test(readFileSync(join(root, "dist", "components", file + ".js"), "utf8")), `dist/components/${file}.js is server-safe`);
   assert.ok(!shipped.some(p => p.endsWith(".woff2")), "no font file in the package");
   assert.ok(packed.size < 300_000, `the package stays small (${packed.size} bytes)`);
@@ -139,6 +139,36 @@ export { html, imported, failures, element, BrandError, day, slot, columns, peop
     run(process.execPath, [tsc, "--noEmit", "--strict", "--skipLibCheck", "false", "--target", "es2022", "--module", module, "--moduleResolution", resolution, "--types", "", "--lib", "es2022,dom", "consumer.ts"], consumer);
     console.log(`  moduleResolution ${resolution}: no error`);
   }
+
+  // Next.js's own Link where the kit takes a link, with no cast (0.2.1): the
+  // real next/link types when the studio has Next installed (lab/template),
+  // else said and skipped (test/kit-021.test.tsx holds a stand-in of the
+  // same shape in any case).
+  step("type-check Next.js's Link in every link prop");
+  const next = resolve(root, "..", "lab", "template", "node_modules", "next");
+  if (existsSync(join(next, "package.json"))) {
+    for (const dep of ["next", "@types/node"]) {
+      const from = dep === "next" ? next : join(root, "node_modules", dep);
+      mkdirSync(join(consumer, "node_modules", ...dep.split("/").slice(0, -1)), { recursive: true });
+      symlinkSync(from, join(consumer, "node_modules", dep), "dir");
+    }
+    writeFileSync(join(consumer, "next-link.tsx"), `import Link from "next/link";
+import { AppShell, DayStrip, Filters, LanguageSwitch, Nav, NavLink, Tabs, type LinkComponent } from "${name}/components";
+import { en, storeLanguages } from "${name}/components/logic";
+const link: LinkComponent = Link;
+export const pages = [
+  <AppShell brand="Rooms" nav={[{ href: "/chest", label: "Rooms", also: ["/chest/new"] }]} path="/chest" link={Link} labels={en.shell} />,
+  <Nav items={[{ href: "/chest", label: "Rooms" }]} path="/chest" label="Sections" link={link} />,
+  <NavLink href="/chest" path="/chest" link={Link}>Rooms</NavLink>,
+  <Tabs label="Bookings" current="up" link={Link} items={[{ id: "up", label: "Upcoming", href: "?tab=up" }]} />,
+  <DayStrip days={["2026-09-29"]} current={null} today="2026-09-29" href={d => "/chest?day=" + d} link={Link} labels={en.date} />,
+  <Filters path="/chest" params="" link={Link} groups={[{ key: "f", label: "Kit", multiple: true, options: [{ value: "screen", label: "Screen" }] }]} />,
+  <LanguageSwitch languages={storeLanguages} current="en" label="Language" link={Link} />,
+];
+`);
+    run(process.execPath, [tsc, "--noEmit", "--strict", "--skipLibCheck", "--preserveSymlinks", "--target", "es2022", "--module", "esnext", "--moduleResolution", "bundler", "--jsx", "react-jsx", "--types", "node", "--lib", "es2022,dom", "next-link.tsx"], consumer);
+    console.log(`  next ${JSON.parse(readFileSync(join(next, "package.json"), "utf8")).version}: Link fits AppShell, Nav, NavLink, Tabs, DayStrip, Filters, LanguageSwitch`);
+  } else console.log("  skipped: no next in lab/template/node_modules (the stand-in in test/kit-021.test.tsx still holds it)");
   console.log(`\n${name}@${manifest.version}: package check passed`);
 } finally {
   rmSync(work, { recursive: true, force: true });

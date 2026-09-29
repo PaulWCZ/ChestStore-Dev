@@ -15,10 +15,14 @@
 // current path (usePathname) through a small client component of its own.
 import { useEffect, useRef, type ReactElement, type ReactNode } from "react";
 import { Avatar } from "./avatar.js";
-import { isCurrent } from "./lists.js";
+import { isCurrent, type CurrentRule } from "./lists.js";
 import { en, type Language, type ShellWords } from "./words.js";
 
-export type LinkComponent = (props: { href: string; className?: string; "aria-current"?: "page" | "true"; hrefLang?: string; lang?: string; children: ReactNode }) => ReactElement;
+// A link component: plain <a> by default, or the framework's own. It
+// returns a ReactNode (0.2.1; ReactElement before), so Next.js's `Link` —
+// a forwardRef component — fits as it is: `link={Link}`, no wrapper, no cast.
+export type LinkProps = { href: string; className?: string; "aria-current"?: "page" | "true"; hrefLang?: string; lang?: string; children: ReactNode };
+export type LinkComponent = (props: LinkProps) => ReactNode;
 const PlainLink: LinkComponent = props => <a {...props} />;
 
 export type NavItem = {
@@ -29,12 +33,20 @@ export type NavItem = {
   readonly count?: number;
   // Current only on this exact path (default: also on its sub-pages).
   readonly exact?: boolean;
+  // "exact" or "prefix"; default "prefix", but "exact" for "/chest" (0.2.1).
+  readonly match?: "exact" | "prefix";
+  // Other path prefixes where this section is current too, e.g. a
+  // "Bookings" tab on ["/chest/new", "/chest/b"] (0.2.1).
+  readonly also?: readonly string[];
 };
 
+const ruleOf = ({ exact, match, also }: { exact?: boolean | undefined; match?: "exact" | "prefix" | undefined; also?: readonly string[] | undefined }): CurrentRule => ({ ...(exact !== undefined ? { exact } : {}), ...(match ? { match } : {}), ...(also ? { also } : {}) });
+
 // NavLink: a link that says when it is the page shown (aria-current).
-export function NavLink({ href, path, exact = false, className, link, children }: { href: string; path: string; exact?: boolean; className?: string; link?: LinkComponent; children: ReactNode }): ReactElement {
+// `match` and `also` as for a NavItem.
+export function NavLink({ href, path, exact, match, also, className, link, children }: { href: string; path: string; exact?: boolean; match?: "exact" | "prefix"; also?: readonly string[]; className?: string; link?: LinkComponent; children: ReactNode }): ReactElement {
   const A = link ?? PlainLink;
-  return <A href={href} {...(className ? { className } : {})} {...(isCurrent(path, href, exact) ? { "aria-current": "page" as const } : {})}>{children}</A>;
+  return <A href={href} {...(className ? { className } : {})} {...(isCurrent(path, href, ruleOf({ exact, match, also })) ? { "aria-current": "page" as const } : {})}>{children}</A>;
 }
 
 // Nav: the tool's sections as labelled tabs.
@@ -44,7 +56,7 @@ export function Nav({ items, path, label, link }: { items: readonly NavItem[]; p
       <ul>
         {items.map(i => (
           <li key={i.href}>
-            <NavLink href={i.href} path={path} exact={i.exact ?? false} className="ck-nav-link" {...(link ? { link } : {})}>
+            <NavLink href={i.href} path={path} {...ruleOf(i)} className="ck-nav-link" {...(link ? { link } : {})}>
               {i.icon ? <span className="ck-nav-icon" aria-hidden="true">{i.icon}</span> : null}
               <span className="ck-nav-label">{i.label}</span>
               {i.count ? <span className="ck-count">{i.count}</span> : null}
@@ -101,10 +113,12 @@ export function AppShell({ brand, nav = [], path = "", member, tools, labels = e
 }
 
 // PageHeader: the page's title, a line under it, and its main action.
-export function PageHeader({ title, intro, action, secondary, headingLevel = 1 }: { title: ReactNode; intro?: ReactNode; action?: ReactNode; secondary?: ReactNode; headingLevel?: 1 | 2 }): ReactElement {
+// `size`: "l" (default, --text-2xl) for a section's page, "m" (--text-xl)
+// for a denser page — a form, a record, a tool whose pages are many (0.2.1).
+export function PageHeader({ title, intro, action, secondary, headingLevel = 1, size = "l" }: { title: ReactNode; intro?: ReactNode; action?: ReactNode; secondary?: ReactNode; headingLevel?: 1 | 2; size?: "l" | "m" }): ReactElement {
   const H = headingLevel === 1 ? "h1" : "h2";
   return (
-    <div className="ck-page-head">
+    <div className={size === "m" ? "ck-page-head ck-page-head-m" : "ck-page-head"}>
       <div className="ck-page-title">
         <H>{title}</H>
         {intro ? <p className="ck-page-intro">{intro}</p> : null}
@@ -144,12 +158,21 @@ export function LanguageSwitch({ languages, current, label, back = "/", href, li
 
 // BrandMark: the company's logo when the Chest gives its brand (with its
 // dark variant on dark pages), the tool's own mark otherwise.
-export function BrandMark({ logo, children }: { logo?: { readonly url: string; readonly alt: string; readonly dark?: string | null } | null; children?: ReactNode }): ReactElement {
+// `ground` says what the logo sits on (0.2.1): "page" (default) follows the
+// page's mode; "inverse" is the other mode's ground — a dark header in a
+// light look, a light one in a dark look (the inverse pair, --ink ground);
+// "dark" or "light" a ground that stays so in both modes.
+export type LogoGround = "page" | "inverse" | "dark" | "light";
+export function BrandMark({ logo, ground = "page", children }: { logo?: { readonly url: string; readonly alt: string; readonly dark?: string | null } | null; ground?: LogoGround; children?: ReactNode }): ReactElement {
   if (!logo) return <>{children}</>;
+  const onDark = logo.dark ?? logo.url;
+  const dark = "(prefers-color-scheme: dark)";
+  // [the image shown by default (a light page), the one on a dark page]
+  const [light, darkPage] = ground === "inverse" ? [onDark, logo.url] : ground === "dark" ? [onDark, onDark] : ground === "light" ? [logo.url, logo.url] : [logo.url, onDark];
   return (
     <picture className="ck-logo">
-      {logo.dark ? <source srcSet={logo.dark} media="(prefers-color-scheme: dark)" /> : null}
-      <img src={logo.url} alt={logo.alt} />
+      {darkPage !== light ? <source srcSet={darkPage} media={dark} /> : null}
+      <img src={light} alt={logo.alt} />
     </picture>
   );
 }

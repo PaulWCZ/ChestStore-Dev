@@ -1,11 +1,11 @@
 "use client";
 
+import { Dialog } from "@argentic/chest-ui/components";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useTransition, type ReactNode } from "react";
 import { createPage, listTemplates } from "../app/chest/actions.ts";
 import type { NewPageWords } from "../lib/i18n/index.ts";
 import { format } from "../lib/i18n/format.ts";
-import { Dialog } from "./dialog.tsx";
 
 export type { NewPageWords };
 export type PageTarget = { spaceId: string; spaceName: string; parentId: string | null; parentTitle: string | null };
@@ -14,9 +14,11 @@ const builtins = ["meeting", "howto", "decision"] as const;
 
 // "New page": a title, and what it starts from — blank (chosen already),
 // one of the space's templates, or a ready-made model. Where it goes is
-// already said; the editor opens right after.
+// already said; the editor opens right after. The kit's dialog opens on the
+// title and, once something is typed, asks before closing.
 export function NewPageDialog({ target, onClose, t }: { target: PageTarget | null; onClose: () => void; t: NewPageWords }) {
   const [error, setError] = useState<string | null>(null);
+  const [title, setTitle] = useState("");
   const [start, setStart] = useState("blank");
   const [own, setOwn] = useState<{ id: string; title: string }[]>([]);
   const [pending, begin] = useTransition();
@@ -24,17 +26,19 @@ export function NewPageDialog({ target, onClose, t }: { target: PageTarget | nul
   const spaceId = target?.spaceId ?? null;
   useEffect(() => {
     setStart("blank");
+    setTitle("");
+    setError(null);
     setOwn([]);
     if (spaceId === null) return;
     let live = true;
     void listTemplates(spaceId).then(result => { if (live && result.ok) setOwn(result.value); });
     return () => { live = false; };
   }, [spaceId]);
-  function submit(data: FormData) {
+  function submit() {
     if (!target) return;
     setError(null);
     begin(async () => {
-      const result = await createPage({ spaceId: target.spaceId, parentId: target.parentId, title: String(data.get("title") ?? ""), start });
+      const result = await createPage({ spaceId: target.spaceId, parentId: target.parentId, title, start });
       if (!result.ok) return setError(format(t.errors[result.error], result.values));
       onClose();
       router.push(`/chest/pages/${result.value.id}/edit?new=1`);
@@ -46,12 +50,12 @@ export function NewPageDialog({ target, onClose, t }: { target: PageTarget | nul
     ...builtins.map(b => ({ value: `builtin:${b}`, label: t.templates.builtin[b] })),
   ];
   return (
-    <Dialog open={target !== null} title={t.newPage.title} closeLabel={t.common.close} onClose={() => { setError(null); onClose(); }}>
-      <form action={submit} className="stack">
+    <Dialog open={target !== null} title={t.newPage.title} labels={t.dialog} dirty={title.trim() !== ""} onClose={onClose}>
+      <form className="stack" onSubmit={e => { e.preventDefault(); submit(); }}>
         <p className="where">{target?.parentTitle ? format(t.newPage.inside, { title: target.parentTitle }) : format(t.newPage.at, { space: target?.spaceName ?? "" })}</p>
         <div>
           <label className="label" htmlFor="new-page-title">{t.newPage.name}</label>
-          <input id="new-page-title" name="title" className="field" required maxLength={200} placeholder={t.newPage.placeholder} autoFocus autoComplete="off" aria-describedby={error ? "new-page-error" : undefined} />
+          <input id="new-page-title" name="title" className="field" required maxLength={200} value={title} onChange={e => setTitle(e.target.value)} placeholder={t.newPage.placeholder} autoComplete="off" aria-invalid={error ? true : undefined} aria-describedby={error ? "new-page-error" : undefined} />
         </div>
         <fieldset className="plain">
           <legend className="label">{t.templates.start}</legend>

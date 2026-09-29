@@ -1,25 +1,30 @@
 "use client";
 
+import { DateField, PeoplePicker, useToast } from "@argentic/chest-ui/components";
+import { localSearch, type Choice, type DateWords, type PeoplePickerWords } from "@argentic/chest-ui/components/logic";
 import { useRouter } from "next/navigation";
-import { useId, useState, useTransition, type FormEvent, type KeyboardEvent } from "react";
+import { useId, useMemo, useState, useTransition, type FormEvent, type KeyboardEvent } from "react";
 import { Close, Plus } from "../../../../../components/icons.tsx";
 import { Portrait } from "../../../../../components/portrait.tsx";
-import { useToast } from "../../../../../components/toast.tsx";
 import type { ErrorCode } from "../../../../../lib/app-error.ts";
 import { format } from "../../../../../lib/i18n/format.ts";
 import { limits } from "../../../../../lib/model.ts";
 import { saveProfile } from "../../../actions.ts";
+import { offered } from "../../../../../lib/choices.ts";
 
 type Own = { phone: string; pronouns: string; bio: string; skills: string[]; birthday: string | null };
 type Job = { title: string; team: string; office: string; managerId: string | null; startDate: string | null; phone: string };
 type Words = {
-  edit: Record<"more" | "moreHint" | "aboutYou" | "aboutThem" | "phone" | "phoneHint" | "pronouns" | "pronounsHint" | "bio" | "bioHint" | "skills" | "skillsHint" | "skillPlaceholder" | "addSkill" | "removeSkill" | "birthday" | "birthdayHint" | "day" | "month" | "job" | "jobHint" | "title" | "team" | "office" | "manager" | "noManager" | "startDate" | "save" | "saving" | "saved" | "cancel", string>;
+  edit: Record<"more" | "moreHint" | "aboutYou" | "aboutThem" | "phone" | "phoneHint" | "pronouns" | "pronounsHint" | "bio" | "bioHint" | "skills" | "skillsHint" | "skillPlaceholder" | "addSkill" | "removeSkill" | "birthday" | "birthdayHint" | "day" | "month" | "job" | "jobHint" | "title" | "team" | "office" | "manager" | "startDate" | "save" | "saving" | "saved" | "cancel", string>;
   errors: Record<ErrorCode, string>;
+  date: DateWords;
+  peoplePicker: PeoplePickerWords;
+  leaveEmpty: string;
 };
 
 // The profile form: "About you" for oneself, "Job" for HR. Saved in one
 // click; a refusal says why and keeps what was typed.
-export function ProfileForm({ person, own, job, jobView, managers, known, extras, months, t }: {
+export function ProfileForm({ person, own, job, jobView, managers, known, extras, months, today, lang, t }: {
   person: { id: string; name: string; photo: string | null; team: string };
   own: Own | null;
   job: Job | null;
@@ -28,6 +33,9 @@ export function ProfileForm({ person, own, job, jobView, managers, known, extras
   known: { teams: string[]; offices: string[]; titles: string[] };
   extras: { id: string; label: string; value: string; editable: boolean }[];
   months: string[];
+  // Today in the Chest's time zone (for the date field), and the words' language.
+  today: string;
+  lang: string;
   t: Words;
 }) {
   const router = useRouter();
@@ -40,6 +48,10 @@ export function ProfileForm({ person, own, job, jobView, managers, known, extras
   const [showBirthday, setShowBirthday] = useState(own?.birthday != null);
   const [month, setMonth] = useState(own?.birthday ? Number(own.birthday.slice(0, 2)) : 1);
   const [day, setDay] = useState(own?.birthday ? Number(own.birthday.slice(3)) : 1);
+  // The manager: a person picker over those offered (none below the person).
+  const [manager, setManager] = useState<Choice[]>(() => managers.filter(m => m.id === job?.managerId).map(m => ({ id: m.id, name: m.name })));
+  const searchManagers = useMemo(() => localSearch(managers), [managers]);
+  const [startDate, setStartDate] = useState<string | null>(job?.startDate ?? null);
   const longest = [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][month - 1]!;
 
   const addSkill = () => {
@@ -62,7 +74,7 @@ export function ProfileForm({ person, own, job, jobView, managers, known, extras
     const pendingSkill = skill.replace(/\s+/gu, " ").trim();
     const allSkills = pendingSkill && !skills.includes(pendingSkill) ? [...skills, pendingSkill] : skills;
     const ownInput = own ? { phone: text("phone"), pronouns: text("pronouns"), bio: text("bio"), skills: allSkills, birthday: showBirthday ? { month, day: Math.min(day, longest) } : null } : null;
-    const jobInput = job ? { title: text("title"), team: text("team"), office: text("office"), managerId: text("managerId") || null, startDate: text("startDate") || null, ...(own ? {} : { phone: text("phone") }) } : null;
+    const jobInput = job ? { title: text("title"), team: text("team"), office: text("office"), managerId: manager[0]?.id ?? null, startDate, ...(own ? {} : { phone: text("phone") }) } : null;
     const extraInput = Object.fromEntries(extras.filter(x => x.editable).map(x => [x.id, text("x-" + x.id)]));
     setError(null);
     start(async () => {
@@ -82,7 +94,7 @@ export function ProfileForm({ person, own, job, jobView, managers, known, extras
         <fieldset className="card-block">
           <legend>{t.edit.aboutYou}</legend>
           <div className="with-portrait">
-            <Portrait name={person.name} photo={person.photo} size={72} team={person.team} arch />
+            <Portrait name={person.name} photo={person.photo} size={72} team={person.team} />
             <div className="field-group">
               <label htmlFor={uid + "phone"} className="label">{t.edit.phone}</label>
               <input id={uid + "phone"} name="phone" className="field" type="tel" inputMode="tel" autoComplete="tel" defaultValue={own.phone} maxLength={limits.phone} aria-describedby={uid + "phone-hint"} />
@@ -168,15 +180,10 @@ export function ProfileForm({ person, own, job, jobView, managers, known, extras
               <datalist id={uid + "offices"}>{known.offices.map(x => <option key={x} value={x} />)}</datalist>
             </div>
             <div className="field-group">
-              <label htmlFor={uid + "manager"} className="label">{t.edit.manager}</label>
-              <select id={uid + "manager"} name="managerId" className="select" defaultValue={job.managerId ?? ""}>
-                <option value="">{t.edit.noManager}</option>
-                {managers.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
-              </select>
+              <PeoplePicker label={t.edit.manager} hint={t.leaveEmpty} value={manager} onChange={setManager} search={searchManagers} suggestions={offered(managers)} labels={t.peoplePicker} lang={lang} />
             </div>
             <div className="field-group">
-              <label htmlFor={uid + "start"} className="label">{t.edit.startDate}</label>
-              <input id={uid + "start"} name="startDate" className="field" type="date" defaultValue={job.startDate ?? ""} min="1950-01-01" max="2100-12-31" />
+              <DateField label={t.edit.startDate} value={startDate} onChange={setStartDate} today={today} min="1950-01-01" max="2100-12-31" chips={false} labels={t.date} />
             </div>
           </div>
         </fieldset>

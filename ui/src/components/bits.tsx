@@ -70,7 +70,8 @@ export function Tabs({ items, current, onChange, label, children, link }: {
   onChange?: (id: string) => void;
   label: string;
   children?: ReactNode;
-  link?: (props: { href: string; className?: string; "aria-current"?: "page"; children: ReactNode }) => ReactElement;
+  // Next.js's <Link> as it is, or any component taking these props.
+  link?: (props: { href: string; className?: string; "aria-current"?: "page"; children: ReactNode }) => ReactNode;
 }): ReactElement {
   const base = useId();
   const list = useRef<HTMLDivElement>(null);
@@ -116,24 +117,26 @@ export function Tabs({ items, current, onChange, label, children, link }: {
 // Segmented: one choice out of two or three shown side by side (Board /
 // List, Morning / Afternoon / Day). Native radios: arrows, Space and forms
 // work as everywhere. Four options at most — more is a select.
-export function Segmented<V extends string>({ label, options, value, onChange, name, hideLabel = true }: {
+// `disabled`: the whole choice, or one option (`disabled` on it) (0.2.1).
+export function Segmented<V extends string>({ label, options, value, onChange, name, hideLabel = true, disabled = false }: {
   label: string;
-  options: readonly { readonly value: V; readonly label: string; readonly icon?: ReactNode }[];
+  options: readonly { readonly value: V; readonly label: string; readonly icon?: ReactNode; readonly disabled?: boolean }[];
   value: V;
   onChange: (value: V) => void;
   name?: string;
   hideLabel?: boolean;
+  disabled?: boolean;
 }): ReactElement {
   const auto = useId();
   const group = name ?? auto;
   if (options.length > 4) throw new RangeError("Segmented takes 2 to 4 options; use a select for more");
   return (
-    <fieldset className="ck-segmented">
+    <fieldset className="ck-segmented" disabled={disabled || undefined}>
       <legend className={hideLabel ? "ck-vh" : "ck-label"}>{label}</legend>
       <div className="ck-segments">
         {options.map(o => (
           <label key={o.value} className="ck-segment">
-            <input type="radio" name={group} value={o.value} checked={o.value === value} onChange={() => onChange(o.value)} />
+            <input type="radio" name={group} value={o.value} checked={o.value === value} disabled={o.disabled || undefined} onChange={() => onChange(o.value)} />
             <span>{o.icon}{o.label}</span>
           </label>
         ))}

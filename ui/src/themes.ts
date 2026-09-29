@@ -22,8 +22,9 @@ const sources: ThemeSource[] = [
     dark: { bg: "#161512", surface: "#201f1b", "surface-2": "#2b2923", ink: "#f4efe3", "ink-2": "#b9b2a3", line: "#3a372f", "line-strong": "#f4efe3", accent: "#ffd84d", "accent-ink": "#151515", "accent-soft": "#33301f", "accent-text": "#8fa8ff", ok: "#7bd98f", danger: "#ff8c73", focus: "#8fa8ff", overlay: "rgb(0 0 0 / 0.6)", "shadow-1": "3px 3px 0px #000000", "shadow-2": "5px 5px 0px #000000" },
     palette: {
       chroma: 1.25,
-      // The board's labels: bright fills with ink on them.
-      light: { 1: { soft: "#5bb4ff", ink: "#151515" }, 2: { soft: "#7bd05b", ink: "#151515" }, 3: { soft: "#ff7a59", ink: "#151515" }, 4: { soft: "#b9a3ff", ink: "#151515" }, 5: { soft: "#f266a8", ink: "#151515" }, 6: { soft: "#2fc6b5", ink: "#151515" }, 7: { soft: "#ffd84d", ink: "#151515" }, 8: { soft: "#c3cad2", ink: "#151515" } },
+      // The board's labels: bright fills, each with a deep ink of its own
+      // family (derived: a label in plain black lost its colour).
+      light: { 1: { soft: "#5bb4ff" }, 2: { soft: "#7bd05b" }, 3: { soft: "#ff7a59" }, 4: { soft: "#b9a3ff" }, 5: { soft: "#f266a8" }, 6: { soft: "#2fc6b5" }, 7: { soft: "#ffd84d" }, 8: { soft: "#c3cad2", ink: "#151515" } },
     },
   },
   {
@@ -157,7 +158,7 @@ const sources: ThemeSource[] = [
     fonts: { display: "manrope", body: "manrope", mono: "martian-mono" },
     display: { weight: 700, tracking: "-0.01em" },
     radius: { s: 4, m: 8, l: 12 },
-    light: { bg: "#eef1ec", surface: "#ffffff", "surface-2": "#e3e9e3", ink: "#0d1f19", "ink-2": "#4a5d55", line: "#cfd8d1", "line-strong": "#7a8e84", accent: "#0f5b43", "accent-ink": "#ffffff", "accent-soft": "#dcebe2", danger: "#b42318", "danger-soft": "#fbe3e0", wait: "#8a5a00", "wait-soft": "#fbefd5", focus: "#0f5b43", highlight: "#e4f9b0", "shadow-1": "0px 1px 0px rgb(13 31 25 / 0.06)", "shadow-2": "0px 12px 32px rgb(13 31 25 / 0.18)" },
+    light: { bg: "#eef1ec", surface: "#ffffff", "surface-2": "#e3e9e3", ink: "#0d1f19", "ink-2": "#4a5d55", line: "#cfd8d1", "line-strong": "#7a8e84", accent: "#0f5b43", "accent-ink": "#ffffff", "accent-soft": "#dcebe2", danger: "#b42318", "danger-soft": "#fbe3e0", wait: "#8a5a00", "wait-soft": "#fbefd5", focus: "#0f5b43", highlight: "#c6ff3a", "shadow-1": "0px 1px 0px rgb(13 31 25 / 0.06)", "shadow-2": "0px 12px 32px rgb(13 31 25 / 0.18)" },
     dark: { bg: "#08130f", surface: "#0e1c17", "surface-2": "#142820", ink: "#e3eee8", "ink-2": "#9db3a8", line: "#213a30", "line-strong": "#4e6d5f", accent: "#8fe3bd", "accent-ink": "#06201a", "accent-soft": "#163a2d", danger: "#ff8f84", "danger-soft": "#3a1714", wait: "#f3c46b", "wait-soft": "#2f2410", focus: "#c6ff3a", highlight: "#2c3d10" },
     palette: {
       // The project colours.
@@ -194,7 +195,7 @@ const sources: ThemeSource[] = [
     palette: {
       // Tomato: kickers, "new", the index numbers.
       light: { 3: { solid: "#c93a1e", soft: "#fde3da", ink: "#7a2410" } },
-      dark: { 3: { solid: "#ff8a6b", soft: "#3d1f33", ink: "#ffc2b1" } },
+      dark: { 3: { solid: "#ff8a6b", soft: "#422115", ink: "#ffc2b1" } },
     },
   },
   {
@@ -267,9 +268,11 @@ const sources: ThemeSource[] = [
     light: { bg: "#eef1f4", surface: "#ffffff", "surface-2": "#e3e8ed", ink: "#0f1419", "ink-2": "#4a5561", line: "#d3dae1", accent: "#0f1419", "accent-ink": "#ffffff", "accent-soft": "#d8e4f3", "accent-text": "#0b5cad", focus: "#1f66c7", ok: "#0a6b4a", "ok-soft": "#e3f4ec", wait: "#7d5800", "wait-soft": "#fbf3dc", danger: "#b3261e", "danger-soft": "#fde8e4", "danger-ink": "#a8260f", "shadow-1": "0px 1px 0px rgb(15 20 25 / 0.04), 0px 1px 3px rgb(15 20 25 / 0.06)", "shadow-2": "0px 8px 24px rgb(15 20 25 / 0.16)" },
     dark: { bg: "#0c1015", surface: "#141a21", "surface-2": "#1c232c", ink: "#e7ecf1", "ink-2": "#9aa7b4", line: "#26303b", accent: "#e7ecf1", "accent-ink": "#0f1419", "accent-soft": "#1f3552", "accent-text": "#7cb4ff", focus: "#7cb4ff", ok: "#5fd3a2", "ok-soft": "#10261d", wait: "#eac767", "wait-soft": "#2a2210", danger: "#f2665a", "danger-soft": "#2e1412", "danger-ink": "#f78b81", "shadow-1": "0px 1px 0px rgb(0 0 0 / 0.3)", "shadow-2": "0px 8px 24px rgb(0 0 0 / 0.5)" },
     palette: {
-      // The Okabe–Ito states, as categories.
-      light: { 1: { solid: "#1f66c7", soft: "#e2ecfa", ink: "#1a55a6" }, 2: { solid: "#0a7f58", soft: "#e3f4ec", ink: "#0a6b4a" }, 3: { solid: "#c95a0a", soft: "#fdeee3", ink: "#a54808" }, 5: { solid: "#c42d17", soft: "#fde8e4", ink: "#a8260f" }, 7: { solid: "#a87700", soft: "#fbf3dc", ink: "#7d5800" } },
-      dark: { 1: { solid: "#5b9cf0", soft: "#111f33", ink: "#8bbaf6" }, 2: { solid: "#3fbf8a", soft: "#10261d", ink: "#5fd3a2" }, 3: { solid: "#f08a3c", soft: "#2d1b0f", ink: "#f6a769" }, 5: { solid: "#f2665a", soft: "#2e1412", ink: "#f78b81" }, 7: { solid: "#e0b33a", soft: "#2a2210", ink: "#eac767" } },
+      // The Okabe–Ito states, as categories. Slot 5 is the kit's pink: the
+      // status page's vermilion is its danger, and a red slot 5 left the
+      // pink family (0.2.1).
+      light: { 1: { solid: "#1f66c7", soft: "#e2ecfa", ink: "#1a55a6" }, 2: { solid: "#0a7f58", soft: "#e3f4ec", ink: "#0a6b4a" }, 3: { solid: "#c95a0a", soft: "#fdeee3", ink: "#a54808" }, 7: { solid: "#a87700", soft: "#fbf3dc", ink: "#7d5800" } },
+      dark: { 1: { solid: "#5b9cf0", soft: "#111f33", ink: "#8bbaf6" }, 2: { solid: "#3fbf8a", soft: "#10261d", ink: "#5fd3a2" }, 3: { solid: "#f08a3c", soft: "#2d1b0f", ink: "#f6a769" }, 7: { solid: "#e0b33a", soft: "#2a2210", ink: "#eac767" } },
     },
   },
   {

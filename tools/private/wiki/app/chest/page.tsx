@@ -29,7 +29,7 @@ export default async function Home() {
   const writer = can(member, "write");
   if (spaces.length === 0) {
     return (
-      <main className="page narrow">
+      <div className="page narrow">
         <div className="welcome">
           <Book />
           <h1>{writer ? t.home.empty.title : t.home.empty.readerTitle}</h1>
@@ -44,11 +44,11 @@ export default async function Home() {
             </div>
           )}
         </div>
-      </main>
+      </div>
     );
   }
   return (
-    <main className="page">
+    <div className="page">
       <section className="ask" aria-labelledby="ask-title">
         <h1 id="ask-title">{t.home.title}</h1>
         <form action="/chest/search" role="search" className="ask-form">
@@ -137,11 +137,11 @@ export default async function Home() {
             ))}
           </ul>
           <div className="row-actions spaces-foot">
-            {writer && <NewSpaceButton className="button quiet small" t={{ newSpace: t.newSpace, common: t.common, errors: t.errors }}><Plus />{t.shell.newSpace}</NewSpaceButton>}
+            {writer && <NewSpaceButton className="button quiet small" t={{ newSpace: t.newSpace, common: t.common, errors: t.errors, dialog: t.dialog }}><Plus />{t.shell.newSpace}</NewSpaceButton>}
             {writer && <a className="button quiet small" href="/chest/export" download><Download />{t.home.exportAll}</a>}
           </div>
         </section>
       </div>
-    </main>
+    </div>
   );
 }

@@ -15,7 +15,7 @@
     "test": "node --test --test-concurrency=1 --disable-warning=ExperimentalWarning test/*.test.ts"
   },
   "dependencies": {
-    "@argentic/chest-sdk": "file:vendor/argentic-chest-sdk-0.3.0-studio.10.tgz",
+    "@argentic/chest-sdk": "file:vendor/argentic-chest-sdk-0.3.0-studio.12.tgz",
     "@tiptap/core": "3.31.3",
     "@tiptap/extension-image": "3.31.3",
     "@tiptap/extension-list": "3.31.3",
@@ -30,7 +30,8 @@
     "next": "16.3.6",
     "postgres": "3.4.9",
     "react": "19.3.0",
-    "react-dom": "19.3.0"
+    "react-dom": "19.3.0",
+    "@argentic/chest-ui": "file:vendor/argentic-chest-ui-0.2.1-studio.1.tgz"
   },
   "devDependencies": {
     "@electric-sql/pglite": "0.5.8",

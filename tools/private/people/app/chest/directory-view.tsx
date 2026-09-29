@@ -1,5 +1,7 @@
 "use client";
 
+import { EmptyState, SearchBox } from "@argentic/chest-ui/components";
+import type { SearchWords } from "@argentic/chest-ui/components/logic";
 import Link from "next/link";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Close, Moon, Pin, Search } from "../../components/icons.tsx";
@@ -8,9 +10,13 @@ import { plural } from "../../lib/i18n/format.ts";
 import { fold } from "../../lib/model.ts";
 
 // The wall of portraits, searched as one types (name, job, team, office,
-// "ask me about"; accents and case aside) and filtered by team and office.
-// Every person is on the page already: nothing waits for the server. The
-// search stays in the address, so "back" finds it again.
+// "ask me about"; accents and case aside; "/" goes to the box — the kit's
+// SearchBox) and filtered by team and office. Every person is on the page
+// already: nothing waits for the server. The search stays in the address,
+// so "back" finds it again. Team and office stay two compact selects, not
+// the kit's filter chips: a company has many teams and offices, chips
+// would push the portraits below the fold on a phone, and chips are links
+// that reload the page where this wall filters as one types.
 export type Card = { id: string; name: string; photo: string | null; title: string; team: string; office: string; skills: string[]; isNew: boolean; me: boolean;
   // "Away · back on Mon 12 Oct", written on the server (Leave told People).
   away: string | null;
@@ -20,14 +26,17 @@ export type Card = { id: string; name: string; photo: string | null; title: stri
 
 type Words = {
   directory: {
-    search: string; searchPlaceholder: string; team: string; allTeams: string; office: string; allOffices: string; clear: string;
+    team: string; allTeams: string; office: string; allOffices: string; clear: string;
     shown: { zero?: string; one: string; other: string }; noResults: { title: string; body: string }; askMe: string; new: string;
   };
   you: string;
+  search: SearchWords;
 };
 
 export function DirectoryView({ cards, locale, initial, welcome, t }: { cards: Card[]; locale: string; initial: { q: string; team: string; office: string }; welcome?: ReactNode; t: Words }) {
   const [q, setQ] = useState(initial.q);
+  // The kit's box keeps what is typed; "Clear" gives a fresh one.
+  const [fresh, setFresh] = useState(0);
   const [team, setTeam] = useState(initial.team);
   const [office, setOffice] = useState(initial.office);
   const sorter = useMemo(() => new Intl.Collator(locale, { sensitivity: "base" }), [locale]);
@@ -49,18 +58,17 @@ export function DirectoryView({ cards, locale, initial, welcome, t }: { cards: C
 
   const clear = () => {
     setQ("");
+    setFresh(n => n + 1);
     setTeam("");
     setOffice("");
   };
 
   return (
     <>
-      <div className="finder" role="search">
-        <label className="find">
-          <Search />
-          <span className="visually-hidden">{t.directory.search}</span>
-          <input type="search" value={q} onChange={e => setQ(e.target.value)} placeholder={t.directory.searchPlaceholder} maxLength={100} autoComplete="off" enterKeyHint="search" />
-        </label>
+      <div className="finder">
+        <div className="find">
+          <SearchBox key={fresh} action="/chest" value={q} onSearch={setQ} maxLength={100} labels={t.search} />
+        </div>
         {teams.length > 1 && (
           <label className="filter">
             <span className="visually-hidden">{t.directory.team}</span>
@@ -84,18 +92,18 @@ export function DirectoryView({ cards, locale, initial, welcome, t }: { cards: C
       {!filtered && welcome}
       <p className="visually-hidden" role="status" aria-live="polite">{filtered ? plural(t.directory.shown, shown.length, locale) : ""}</p>
       {shown.length === 0 ? (
-        <div className="empty">
-          <Search />
-          <h2>{t.directory.noResults.title}</h2>
-          <p>{t.directory.noResults.body}</p>
-          <button type="button" className="button quiet" onClick={clear}>{t.directory.clear}</button>
-        </div>
+        <EmptyState
+          icon={<Search />}
+          title={t.directory.noResults.title}
+          body={t.directory.noResults.body}
+          action={<button type="button" className="button quiet" onClick={clear}>{t.directory.clear}</button>}
+        />
       ) : (
         <ul className="wall">
           {shown.map(c => (
             <li key={c.id}>
               <Link className="person" href={`/chest/people/${c.id}`}>
-                <Portrait name={c.name} photo={c.photo} size={104} team={c.team} arch />
+                <Portrait name={c.name} photo={c.photo} size={104} team={c.team} />
                 {(c.isNew || c.me) && <span className={c.me ? "badge me" : "badge"}>{c.me ? t.you : t.directory.new}</span>}
                 <span className="person-name">{c.name}</span>
                 {c.title && <span className="person-title">{c.title}</span>}

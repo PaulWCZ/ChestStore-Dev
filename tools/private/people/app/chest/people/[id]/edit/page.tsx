@@ -10,6 +10,7 @@ import { choices } from "../../../../../lib/profiles.ts";
 import { listFields } from "../../../../../lib/fields.ts";
 import { people } from "../../../../../lib/people.ts";
 import { viewer } from "../../../../../lib/session.ts";
+import { today } from "../../../../../lib/zone.ts";
 import { orgChart, type OrgNode } from "../../../../../lib/tree.ts";
 import { ProfileForm } from "./profile-form.tsx";
 
@@ -51,7 +52,7 @@ export default async function EditPage({ params }: { params: Promise<{ id: strin
   const extras = (await listFields(sql, member)).map(f => ({ ...f, value: person.extras[f.id] ?? "", editable: hr || (mine && f.editor === "person") }));
   const known = hr ? await choices(sql, member) : { teams: [], offices: [], titles: [] };
   return (
-    <main className="page narrow">
+    <div className="page narrow">
       <Link className="back" href={`/chest/people/${id}`}><Back />{person.name}</Link>
       <h1 className="edit-title">{mine ? t.edit.titleMine : format(t.edit.titleOther, { name: person.name })}</h1>
       <ProfileForm
@@ -63,8 +64,10 @@ export default async function EditPage({ params }: { params: Promise<{ id: strin
         known={known}
         extras={extras}
         months={monthNames(locale)}
-        t={{ edit: t.edit, errors: t.errors }}
+        today={today()}
+        lang={locale}
+        t={{ edit: t.edit, errors: t.errors, date: t.date, peoplePicker: t.peoplePicker, leaveEmpty: t.people.leaveEmpty }}
       />
-    </main>
+    </div>
   );
 }

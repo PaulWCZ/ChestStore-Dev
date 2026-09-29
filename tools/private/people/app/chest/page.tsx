@@ -1,3 +1,4 @@
+import { Avatar, PageHeader } from "@argentic/chest-ui/components";
 import Link from "next/link";
 import { AutoRefresh } from "../../components/auto-refresh.tsx";
 import { Cake, CheckList, Download, Star, Table, Upload, Wave } from "../../components/icons.tsx";
@@ -60,7 +61,7 @@ export default async function DirectoryPage({ searchParams }: { searchParams: Pr
             {fresh.slice(0, 3).map(e => (
               <li key={e.id}>
                 <Link href={`/chest/people/${e.id}`} className="hello-card">
-                  <Portrait name={e.name} photo={e.photo} size={112} team={e.team} arch />
+                  <Portrait name={e.name} photo={e.photo} size={112} team={e.team} />
                   <span className="hello-text">
                     <strong>{format(t.directory.sayHello, { name: e.firstName || e.name })}</strong>
                     <span>{[e.title, e.team].filter(Boolean).join(" · ")}</span>
@@ -74,7 +75,7 @@ export default async function DirectoryPage({ searchParams }: { searchParams: Pr
       )}
       {bare && (
         <div className="nudge">
-          <Portrait name={member.name} photo={member.photo} size={56} />
+          <Avatar name={member.name} photo={member.photo} size="xl" />
           <div>
             <h2>{t.directory.complete.title}</h2>
             <p className="muted">{t.directory.complete.body}</p>
@@ -85,7 +86,7 @@ export default async function DirectoryPage({ searchParams }: { searchParams: Pr
     </>
   );
   return (
-    <main className="page wide">
+    <div className="page wide">
       <AutoRefresh seconds={60} />
       {!ok && <p className="banner warn" role="alert">{t.directory.unavailable}</p>}
       {matches.map(m => <LinkSuggestion key={m.arrivalId} arrivalId={m.arrivalId} memberId={m.person.id} name={m.person.name} t={{ arrivals: t.arrivals, errors: t.errors }} />)}
@@ -96,25 +97,23 @@ export default async function DirectoryPage({ searchParams }: { searchParams: Pr
           <span className="go">{t.directory.seeTodo}</span>
         </Link>
       )}
-      <div className="page-head">
-        <div>
-          <h1>{t.directory.title}</h1>
-          <p className="muted">{plural(t.directory.count, entries.length, locale)}</p>
-        </div>
-        {(can(member, "directory.import") || can(member, "directory.export")) && (
-          <div className="row">
+      <PageHeader
+        title={t.directory.title}
+        intro={plural(t.directory.count, entries.length, locale)}
+        secondary={(can(member, "directory.import") || can(member, "directory.export")) && (
+          <>
             {can(member, "profile.job") && <Link className="button quiet small" href="/chest/table"><Table />{t.directory.table}</Link>}
             {can(member, "directory.import") && <Link className="button quiet small" href="/chest/import"><Upload />{t.directory.import}</Link>}
             {can(member, "directory.export") && <a className="button quiet small" href="/chest/export" download><Download />{t.directory.export}</a>}
-          </div>
+          </>
         )}
-      </div>
+      />
       <DirectoryView
         cards={cards}
         locale={locale}
         initial={{ q: pick("q"), team: pick("team"), office: pick("office") }}
         welcome={welcome}
-        t={{ directory: t.directory, you: t.profile.you }}
+        t={{ directory: t.directory, you: t.profile.you, search: t.search }}
       />
       {(moments.length > 0 || soon.length > 0 || soonTold.length > 0) && (
         <div className="moments">
@@ -125,7 +124,7 @@ export default async function DirectoryPage({ searchParams }: { searchParams: Pr
                 {moments.map(m => (
                   <li key={m.kind + m.person.id} className={m.past ? "past" : undefined}>
                     <Link href={`/chest/people/${m.person.id}`}>
-                      <Portrait name={m.person.name} photo={m.person.photo} size={40} />
+                      <Avatar name={m.person.name} photo={m.person.photo} size="l" />
                       <span className="moment-text">
                         <strong>{m.person.name}</strong>
                         <span className="muted">{m.kind === "birthday" ? <><Cake /> {t.directory.birthday}</> : <><Star /> {plural(t.directory.anniversary, m.years, locale)}</>}</span>
@@ -144,7 +143,7 @@ export default async function DirectoryPage({ searchParams }: { searchParams: Pr
                 {soon.map(e => (
                   <li key={e.id}>
                     <Link href={`/chest/people/${e.id}`}>
-                      <Portrait name={e.name} photo={e.photo} size={40} />
+                      <Avatar name={e.name} photo={e.photo} size="l" />
                       <span className="moment-text">
                         <strong>{e.name}</strong>
                         <span className="muted">{[e.title, e.team].filter(Boolean).join(" · ")}</span>
@@ -156,7 +155,7 @@ export default async function DirectoryPage({ searchParams }: { searchParams: Pr
                 {soonTold.map(a => (
                   <li key={"arrival" + a.id}>
                     <Link href="/chest/checklists#arrivals">
-                      <Portrait name={a.name} photo={null} size={40} />
+                      <Avatar name={a.name} size="l" />
                       <span className="moment-text">
                         <strong>{a.name}<span className="source">{a.source === "manual" ? t.arrivals.manual : t.arrivals.fromHiring}</span></strong>
                         <span className="muted">{[a.job, a.team].filter(Boolean).join(" · ")}</span>
@@ -170,6 +169,6 @@ export default async function DirectoryPage({ searchParams }: { searchParams: Pr
           )}
         </div>
       )}
-    </main>
+    </div>
   );
 }

@@ -10,8 +10,9 @@
 // `today` comes from the tool (the Chest's time zone, on the server): the
 // kit never guesses the day from the machine's clock, so server and browser
 // render the same page.
-import { useEffect, useId, useRef, useState, type KeyboardEvent, type ReactElement } from "react";
+import { useEffect, useId, useRef, useState, type KeyboardEvent, type ReactElement, type Ref } from "react";
 import { addDays, addMonths, calendarKey, clampDate, formatDate, isIsoDate, monthGrid, parseDate, partsOf, relativeDay, weekdayHeads, type IsoDate } from "./dates.js";
+import { useFloat } from "./float.js";
 import { CalendarIcon, ChevronLeft, ChevronRight } from "./icons.js";
 import { fill } from "./text.js";
 import { en, type DateWords } from "./words.js";
@@ -45,6 +46,10 @@ export function DateField({ label, value, onChange, today, min = null, max = nul
   const [open, setOpen] = useState(false);
   const wrap = useRef<HTMLDivElement>(null);
   const button = useRef<HTMLButtonElement>(null);
+  const box = useRef<HTMLDivElement>(null);
+  const panel = useRef<HTMLDivElement>(null);
+  // Inside a dialog the calendar is placed over it, never cut at its edge.
+  useFloat(box, panel, open, { scroll: false });
 
   useEffect(() => { setText(value ? formatDate(value, labels) : ""); setProblem(null); }, [value, labels]);
 
@@ -92,7 +97,7 @@ export function DateField({ label, value, onChange, today, min = null, max = nul
     <div className={`ck-date${shownError ? " ck-invalid" : ""}`} ref={wrap}>
       <label className="ck-label" htmlFor={fieldId}>{label}</label>
       <div className="ck-date-row">
-        <div className="ck-date-box">
+        <div className="ck-date-box" ref={box}>
           <input
             id={fieldId}
             className="ck-field ck-date-input"
@@ -137,6 +142,7 @@ export function DateField({ label, value, onChange, today, min = null, max = nul
           max={max}
           labels={labels}
           label={label}
+          panelRef={panel}
           onPick={pick}
           onClose={() => { setOpen(false); button.current?.focus(); }}
         />
@@ -149,7 +155,7 @@ export function DateField({ label, value, onChange, today, min = null, max = nul
 // The calendar popover: a grid of the month (the WAI-ARIA date picker
 // dialog pattern). It opens on the chosen day (or today); arrows move,
 // Page Up/Down change month, Enter or Space choose, Escape closes.
-export function Calendar({ value, today, min = null, max = null, labels = en.date, label, onPick, onClose }: { value: IsoDate | null; today: IsoDate; min?: IsoDate | null; max?: IsoDate | null; labels?: DateWords; label: string; onPick: (iso: IsoDate) => void; onClose: () => void }): ReactElement {
+export function Calendar({ value, today, min = null, max = null, labels = en.date, label, onPick, onClose, panelRef }: { value: IsoDate | null; today: IsoDate; min?: IsoDate | null; max?: IsoDate | null; labels?: DateWords; label: string; onPick: (iso: IsoDate) => void; onClose: () => void; panelRef?: Ref<HTMLDivElement> }): ReactElement {
   const start = clampDate(value && isIsoDate(value) ? value : today, min, max);
   const [focus, setFocus] = useState<IsoDate>(start);
   const grid = useRef<HTMLTableElement>(null);
@@ -178,7 +184,7 @@ export function Calendar({ value, today, min = null, max = null, labels = en.dat
     if (next) { e.preventDefault(); follow.current = true; setFocus(next); }
   }
   return (
-    <div className="ck-calendar" role="dialog" aria-modal="false" aria-label={label} onKeyDown={e => { if (e.key === "Escape") { e.preventDefault(); onClose(); } }}>
+    <div ref={panelRef} className="ck-calendar" role="dialog" aria-modal="false" aria-label={label} onKeyDown={e => { if (e.key === "Escape") { e.preventDefault(); onClose(); } }}>
       <div className="ck-calendar-head">
         <button type="button" className="ck-icon-button" onClick={() => setFocus(clampDate(addMonths(focus, -1), min, max))}><ChevronLeft /><span className="ck-vh">{labels.previousMonth}</span></button>
         <h2 id={titleId} className="ck-calendar-title" aria-live="polite">{formatDate(focus, labels, "month")}</h2>

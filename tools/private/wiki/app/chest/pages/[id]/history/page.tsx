@@ -1,3 +1,4 @@
+import { Tabs } from "@argentic/chest-ui/components";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Flash } from "../../../../../components/flash.tsx";
@@ -43,7 +44,7 @@ export default async function HistoryPage({ params, searchParams }: { params: Pr
   const html = view === "page" ? render(shown.version.doc, { title: i => known.get(i), missing: t.page.missing }).html : "";
   const href = (n: number, mode = view) => `/chest/pages/${p.id}/history?v=${n}${mode === "page" ? "&view=page" : ""}`;
   return (
-    <main className="page history">
+    <div className="page history">
       <Flash text={query["restored"] ? format(t.history.restoredToast, { number: query["restored"] }) : null} />
       <Link className="back" href={`/chest/pages/${p.id}`}><Back />{t.history.back}</Link>
       <h1>{format(t.history.title, { title: p.title })}</h1>
@@ -72,10 +73,10 @@ export default async function HistoryPage({ params, searchParams }: { params: Pr
               <RestoreButton pageId={p.id} number={chosen.number} label={t.history.restore} errors={t.errors} />
             )}
           </div>
-          <div className="tabs" role="tablist">
-            <Link role="tab" aria-selected={view === "changes"} href={href(chosen.number, "changes")}>{t.history.changes}</Link>
-            <Link role="tab" aria-selected={view === "page"} href={href(chosen.number, "page")}>{t.history.asItWas}</Link>
-          </div>
+          <Tabs label={t.history.view} current={view} items={[
+            { id: "changes", label: t.history.changes, href: href(chosen.number, "changes") },
+            { id: "page", label: t.history.asItWas, href: href(chosen.number, "page") },
+          ]} />
           {view === "page" ? (
             <article className="article past">
               <h1 className="past-title">{shown.version.title}</h1>
@@ -93,7 +94,7 @@ export default async function HistoryPage({ params, searchParams }: { params: Pr
           )}
         </section>
       </div>
-    </main>
+    </div>
   );
 }
 

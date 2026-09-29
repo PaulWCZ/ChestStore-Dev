@@ -17,13 +17,16 @@ export type DayStripProps = {
   readonly note?: (day: IsoDate) => ReactNode;
   readonly label?: string;
   readonly labels?: DateWords;
-  // Next.js's <Link>, or any component taking href and children.
-  readonly link?: (props: { href: string; className?: string; "aria-current"?: "date"; "aria-label": string; children: ReactNode }) => ReactElement;
+  // Next.js's <Link> as it is, or any component taking these props.
+  readonly link?: (props: { href: string; className?: string; "aria-current"?: "date"; "aria-label": string; children: ReactNode }) => ReactNode;
   readonly children?: ReactNode;
 };
 
 export function DayStrip({ days, current, today, href, onPick, note, label, labels = en.date, link, children }: DayStripProps): ReactElement {
   const list = current && !days.includes(current) ? [...days, current].sort() : [...days];
+  // Rendered as an element, never called: a forwardRef component (Next.js's
+  // Link) is an object, not a function.
+  const L = link;
   return (
     <div className="ck-daystrip">
       <nav aria-label={label ?? labels.pickDay}>
@@ -43,7 +46,7 @@ export function DayStrip({ days, current, today, href, onPick, note, label, labe
             return (
               <li key={d}>
                 {href ? (
-                  link ? link({ href: href(d), className: cls, ...(d === current ? { "aria-current": "date" as const } : {}), "aria-label": aria, children: body })
+                  L ? <L href={href(d)} className={cls} {...(d === current ? { "aria-current": "date" as const } : {})} aria-label={aria}>{body}</L>
                     : <a href={href(d)} className={cls} aria-current={d === current ? "date" : undefined} aria-label={aria}>{body}</a>
                 ) : (
                   <button type="button" className={cls} aria-pressed={d === current} aria-label={aria} onClick={() => onPick?.(d)}>{body}</button>

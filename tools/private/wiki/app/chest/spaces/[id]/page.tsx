@@ -1,7 +1,7 @@
+import { EmptyState, Menu } from "@argentic/chest-ui/components";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Dots, Download, Gear, Lock, Pen, Plus, Upload } from "../../../../components/icons.tsx";
-import { Menu } from "../../../../components/menu.tsx";
 import { NewPageButton } from "../../../../components/new-page.tsx";
 import { db } from "../../../../lib/db.ts";
 import { AppError } from "../../../../lib/errors.ts";
@@ -37,7 +37,7 @@ export default async function SpacePage({ params }: { params: Promise<{ id: stri
   const now = new Date();
   const words = newPageWords(t);
   return (
-    <main className={`page space-home color-${s.color}`}>
+    <div className={`page space-home color-${s.color}`}>
       <header className="space-head">
         <div>
           <p className="kicker">{plural(t.home.pages, s.pages, locale)}{s.visibility === "groups" && <span className="restricted"><Lock />{t.space.restricted}</span>}{s.editing === "some" && <span className="restricted"><Pen />{t.settings.onlySome}</span>}</p>
@@ -46,18 +46,18 @@ export default async function SpacePage({ params }: { params: Promise<{ id: stri
         </div>
         <div className="actions">
           {writer && <NewPageButton target={{ spaceId: s.id, spaceName: s.name, parentId: null, parentTitle: null }} t={words}><Plus />{t.shell.newPage}</NewPageButton>}
-          <Menu label={t.space.more} icon={<Dots />}>
-            {writer && <Link href={`/chest/spaces/${s.id}/settings`}><Gear />{t.space.settings}</Link>}
-            {writer && <Link href={`/chest/import?space=${s.id}`}><Upload />{t.space.import}</Link>}
-            {s.pages > 0 && <a href={`/chest/spaces/${s.id}/export`} download><Download />{t.space.export}</a>}
-          </Menu>
+          {(writer || s.pages > 0) && <Menu label={t.space.more} icon={<Dots />} showLabel items={[
+            ...(writer ? [{ label: t.space.settings, icon: <Gear />, href: `/chest/spaces/${s.id}/settings` }, { label: t.space.import, icon: <Upload />, href: `/chest/import?space=${s.id}` }] : []),
+            ...(s.pages > 0 ? [{ label: t.space.export, icon: <Download />, href: `/chest/spaces/${s.id}/export` }] : []),
+          ]} />}
         </div>
       </header>
       {top.length === 0 ? (
-        <div className="empty">
-          <p>{writer ? t.space.empty : t.space.emptyReader}</p>
-          {writer && <NewPageButton target={{ spaceId: s.id, spaceName: s.name, parentId: null, parentTitle: null }} t={words}><Plus />{t.space.firstPage}</NewPageButton>}
-        </div>
+        <EmptyState
+          title={writer ? t.space.empty : t.space.emptyReader}
+          action={writer ? <NewPageButton target={{ spaceId: s.id, spaceName: s.name, parentId: null, parentTitle: null }} t={words}><Plus />{t.space.firstPage}</NewPageButton> : null}
+          note={writer ? null : t.space.emptyNote}
+        />
       ) : (
         <ol className="contents">
           {top.map(n => {
@@ -78,6 +78,6 @@ export default async function SpacePage({ params }: { params: Promise<{ id: stri
           })}
         </ol>
       )}
-    </main>
+    </div>
   );
 }

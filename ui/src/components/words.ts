@@ -35,6 +35,9 @@ export type PeoplePickerWords = {
   readonly searching: string;
   readonly failed: string;
   readonly recent: string;
+  // A heading for suggestions that are not the person's recent choices
+  // ("Suggested"), for `suggestionsLabel` (0.2.1).
+  readonly suggested?: string;
   readonly people: string;
   readonly groups: string;
   readonly remove: string;
@@ -73,6 +76,8 @@ export type FileWords = {
   readonly add: string;
   readonly addOne: string;
   readonly drop: string;
+  // The same for a single file ("or drop it here"); `drop` when absent (0.2.1).
+  readonly dropOne?: string;
   readonly limits: string;
   readonly limitsOne: string;
   readonly types: string;
@@ -158,6 +163,7 @@ export const en: KitWords = {
     searching: "Searching…",
     failed: "The search did not answer. Try again.",
     recent: "Recent",
+    suggested: "Suggested",
     people: "People",
     groups: "Groups",
     remove: "Remove {name}",
@@ -194,6 +200,7 @@ export const en: KitWords = {
     add: "Add files",
     addOne: "Add a file",
     drop: "or drop them here",
+    dropOne: "or drop it here",
     limits: "Up to {count} files, {size} each.",
     limitsOne: "One file, {size} at most.",
     types: "Accepted: {types}.",
@@ -261,6 +268,7 @@ export const fr: KitWords = {
     searching: "Recherche…",
     failed: "La recherche n’a pas répondu. Réessayez.",
     recent: "Récents",
+    suggested: "Suggestions",
     people: "Personnes",
     groups: "Groupes",
     remove: "Retirer {name}",
@@ -297,6 +305,7 @@ export const fr: KitWords = {
     add: "Ajouter des fichiers",
     addOne: "Ajouter un fichier",
     drop: "ou déposez-les ici",
+    dropOne: "ou déposez-le ici",
     limits: "Jusqu’à {count} fichiers, {size} chacun.",
     limitsOne: "Un fichier, {size} au plus.",
     types: `Acceptés${nnbsp}: {types}.`,
@@ -346,6 +355,24 @@ export const kitWords: Readonly<Record<string, KitWords>> = { en, fr };
 
 export function wordsFor(locale: string | null | undefined): KitWords {
   return (locale && kitWords[locale]) || en;
+}
+
+// A tool's catalogue may hold date words of its own (a JSON file, or an
+// object without `as const`): there `order` is a string and `weekStart` a
+// number, which the DateWords type refuses. `dateWords` takes them so and
+// gives DateWords back, checked (0.2.1):
+//   date: dateWords(catalogue.date)                   // a whole section
+//   date: dateWords({ ...fr.date, today: "Ce jour" })  // the kit's, one word changed
+export type DateWordsInput = Omit<DateWords, "order" | "weekStart"> & { readonly order: string; readonly weekStart: number };
+
+export function dateWords(words: DateWordsInput): DateWords {
+  const { order, weekStart } = words;
+  if (order !== "dmy" && order !== "mdy" && order !== "ymd") throw new RangeError(`date words: order is "dmy", "mdy" or "ymd", not ${JSON.stringify(order)}`);
+  if (weekStart !== 0 && weekStart !== 1) throw new RangeError(`date words: weekStart is 0 (Sunday) or 1 (Monday), not ${weekStart}`);
+  for (const [key, count] of [["months", 12], ["monthsShort", 12], ["weekdays", 7], ["weekdaysShort", 7]] as const) {
+    if (words[key].length !== count) throw new RangeError(`date words: ${key} holds ${count} names, not ${words[key].length}`);
+  }
+  return { ...words, order, weekStart };
 }
 
 export type Language = { readonly code: string; readonly name: string };

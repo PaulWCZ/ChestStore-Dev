@@ -143,7 +143,7 @@ export function FilePicker({ label, files, onChange, upload, accept, maxSize, ma
           <span>{multiple ? labels.add : labels.addOne}</span>
           <span className="ck-vh">{": " + label}</span>
         </label>
-        <span className="ck-drop-hint" aria-hidden="true">{labels.drop}</span>
+        <span className="ck-drop-hint" aria-hidden="true">{multiple ? labels.drop : labels.dropOne ?? labels.drop}</span>
         {limits && <p id={id + "-limits"} className="ck-hint">{limits}</p>}
       </div>
       {files.length > 0 && (

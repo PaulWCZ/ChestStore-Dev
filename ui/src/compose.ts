@@ -6,7 +6,7 @@
 // are kept as given — if one fails the contract, checkTheme says so; the
 // kit never changes an identity behind its designer's back.
 import { contrast, fit, luminance, mix, oklch, oklchHex, parseColor, toHex } from "./color.js";
-import { categories, checkTheme, validateTheme, type ColorToken, type EffectToken, type Scheme, type Theme, type Words } from "./contract.js";
+import { categories, categoryFamilies, checkTheme, validateTheme, type ColorToken, type EffectToken, type Scheme, type Theme, type Words } from "./contract.js";
 import { font, systemFont, type FontSpec } from "./fonts.js";
 
 // What a scheme must give; everything else may be derived.
@@ -23,7 +23,7 @@ export type CategorySource = { solid?: string; soft?: string; ink?: string };
 // whole palette calmer or louder (chroma, a factor), or set slots itself.
 export type PaletteSource = { chroma?: number; hues?: Partial<Record<number, number>>; light?: Record<number, CategorySource>; dark?: Record<number, CategorySource> };
 
-export const familyHues: readonly number[] = [255, 150, 55, 305, 355, 195, 88, 250];
+export const familyHues: readonly number[] = categoryFamilies.map(f => f.hue);
 const familyChroma: readonly number[] = [0.14, 0.14, 0.15, 0.14, 0.15, 0.11, 0.13, 0.035];
 
 export type ThemeSource = {

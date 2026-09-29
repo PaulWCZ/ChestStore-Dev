@@ -1,98 +1,56 @@
-/* People's design tokens, defined once (DESIGN.md explains them): a warm
-   portrait gallery — cream walls, terracotta, deep plum ink. Light first;
-   dark follows the system. Contrast ratios are checked in DESIGN.md. */
+/* People's own tokens. The contract's (colours, fonts, sizes, spacing,
+   corners, motion: @argentic/chest-ui, tokens/CONTRACT.md) are set by the
+   look of the page — the tool's identity, the Portrait gallery, in
+   lib/theme.ts, or the theme or brand the company chose — in a <style> of
+   app/layout.tsx. Here only what is this tool's alone, always defined from
+   contract tokens, never from a colour, so it follows every theme. */
 :root {
-  color-scheme: light dark;
-  --font-body: "Outfit Variable", system-ui, -apple-system, "Segoe UI", sans-serif;
-  --font-display: var(--font-body);
+  /* The deep plum of the gallery: the current tab, the "You" badge, the
+     chosen option. It is the inverse pair (ink as the ground, the page's
+     background as the text): measured 4.5:1 in every theme, and it turns
+     light on dark pages. */
+  --inverse: var(--ink);
+  --inverse-ink: var(--bg);
 
-  --bg: #fbf5ec;
-  --surface: #fffdf9;
-  --surface-2: #f4ebdf;
-  --ink: #3a1f3d;
-  --ink-2: #6b5169;
-  --line: #eadfd0;
-  --line-strong: #d9c7b3;
-  --accent: #b4472a;
-  --accent-ink: #ffffff;
-  --accent-text: #a3401f;
-  --accent-soft: #f7e3d6;
-  --plum: #3a1f3d;
-  --plum-ink: #fbf5ec;
-  --danger: #b3261e;
-  --ok: #2f6b4a;
-  --ok-soft: #dcebdf;
-  --focus: #b4472a;
+  /* The large soft corner of the welcome cards. */
+  --radius-xl: calc(var(--radius-l) + 8px);
 
-  /* The arches behind portraits, one per team (decorative). */
-  --tint-0: #f3d9c9;
-  --tint-1: #f1e2b8;
-  --tint-2: #d8e5d0;
-  --tint-3: #e6d6e6;
-  --tint-4: #f4d4d9;
-  --tint-5: #d3e3e6;
+  /* A lighter emphasis (names in lists, labels): halfway between the body
+     and the theme's strong weight — 500 in the gallery, 400 in a theme
+     whose weight is one (the Chest theme). */
+  --weight-medium: calc((var(--weight-strong) + 400) / 2);
 
-  --space-1: 4px;
-  --space-2: 8px;
-  --space-3: 12px;
-  --space-4: 16px;
-  --space-5: 24px;
-  --space-6: 32px;
-  --space-7: 48px;
-  --space-8: 72px;
-
-  --radius-s: 10px;
-  --radius-m: 14px;
-  --radius-l: 24px;
-  --radius-xl: 32px;
-  --shadow-1: 0 1px 2px rgb(58 31 61 / 0.06), 0 2px 8px rgb(58 31 61 / 0.04);
-  --shadow-2: 0 12px 32px rgb(58 31 61 / 0.14);
-
-  --text-xs: 0.8125rem;
-  --text-s: 0.9375rem;
-  --text-m: 1.0625rem;
-  --text-l: 1.3125rem;
-  --text-xl: 1.875rem;
-  --text-2xl: clamp(2rem, 1.4rem + 2.4vw, 3rem);
-
-  --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
-  --fast: 140ms;
-  --slow: 260ms;
+  /* The bars of the numbers page: arrivals in the action colour,
+     departures in ink (each figure is written beside its bar). */
+  --bar-in: var(--accent);
+  --bar-out: var(--ink);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #1d1420;
-    --surface: #281c2c;
-    --surface-2: #332537;
-    --ink: #f6ede4;
-    --ink-2: #cbb8c8;
-    --line: #3f2f43;
-    --line-strong: #56435a;
-    --accent: #f08e6a;
-    --accent-ink: #2a1410;
-    --accent-text: #f08e6a;
-    --accent-soft: #432a2b;
-    --plum: #f6ede4;
-    --plum-ink: #1d1420;
-    --danger: #ff9a8a;
-    --ok: #7fc79c;
-    --ok-soft: #22382b;
-    --focus: #f08e6a;
-    --tint-0: #5a3226;
-    --tint-1: #54452a;
-    --tint-2: #2f4632;
-    --tint-3: #4a3350;
-    --tint-4: #56303a;
-    --tint-5: #28444a;
+/* Paper: the staff register and the HR record are printed for an
+   inspector or a signature, whatever the look on screen. A dark theme's
+   light ink, or a brand's tinted grounds, would print pale or grey, so
+   print is neutral: the system's black on white (CSS system colours, not
+   the theme's), hairlines in grey. The look's fonts are kept. */
+@media print {
+  :root:root {
+    color-scheme: light;
+    --bg: Canvas;
+    --surface: Canvas;
+    --surface-2: Canvas;
+    --ink: CanvasText;
+    --ink-2: CanvasText;
+    --line: GrayText;
+    --line-strong: CanvasText;
+    --accent-text: CanvasText;
+    --accent-soft: Canvas;
+    --danger: CanvasText;
+    --danger-ink: CanvasText;
+    --danger-soft: Canvas;
+    --ok-ink: CanvasText;
+    --ok-soft: Canvas;
+    --inverse: CanvasText;
+    --inverse-ink: Canvas;
     --shadow-1: none;
-    --shadow-2: 0 12px 32px rgb(0 0 0 / 0.5);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  :root {
-    --fast: 0ms;
-    --slow: 0ms;
+    --shadow-2: none;
   }
 }

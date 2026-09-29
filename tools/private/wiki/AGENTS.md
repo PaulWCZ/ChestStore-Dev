@@ -33,12 +33,33 @@ what must not break.
 | `lib/lifecycle.ts` | Leaving and erasure |
 | `lib/i18n/` | Every word: `en.ts` (source), `fr.ts`; `format.ts` for the browser |
 | `app/chest/actions.ts` | Server actions: thin; each re-reads the member; answer `Result` codes |
-| `app/chest/layout.tsx`, `components/shell.tsx` | The frame: header, sidebar tree (drag and drop), drawer on phones |
+| `lib/theme.ts` | **The look**: the identity (Library, `defineTheme`, equal to the catalogue's `library`) and `currentLook()` (the company's theme or brand, else the identity) |
+| `app/tokens.css`, `app/globals.css` | The wiki's own tokens (defined from contract tokens) and its components (contract tokens only) |
+| `app/layout.tsx` | `<ThemeStyle>` with the page's nonce, `themeColor` from the look, the kit's `components.css` first |
+| `app/chest/layout.tsx`, `components/shell.tsx`, `components/tree.tsx` | The frame: the kit's `AppShell` (sections Home · Pages · Search · Trash as labelled tabs, `BrandMark`, member chip, `NoAccess`), the header's `SearchBox`, the sidebar tree (drag and drop) on wide screens |
+| `app/chest/pages/page.tsx` | "Pages": the same tree on a page of its own (the way to the pages on a phone) |
 | `app/chest/pages/[id]/edit/` | The editor (client): Tiptap, toolbar, the "/" menu (`slash.tsx`), uploads, link and page pickers, heartbeat and leave; `extensions.ts` = the schema on the client side |
 | `app/chest/**/page.tsx` | Pages (server): read, resolve names, hand words to views |
 | `migrations/` | Schema. Never edit a shipped file; add `0004_…` |
 | `seed/` | `pages/*.md` + `spaces.json` → `build.ts` → `sample.sql` |
 | `test/` | `node:test` with `fakeChest` and PostgreSQL (PGlite or `TEST_DATABASE_URL`); `test/fixtures/` holds files shaped as Confluence, Google Docs and Word export them |
+
+## The UI kit (`@argentic/chest-ui`, vendored in `vendor/`)
+
+The wiki uses the kit's components rather than its own: `Toasts`/`useToast`
+(one toast per action id; `undo` resolves `true` or says why not), `Dialog`
+(opens on its first field; `dirty` asks before losing typed text), `Confirm`
+(only *Delete for good*), `Menu` (a page's and a space's *More*),
+`AppShell`/`BrandMark`/`NoAccess`, `SearchBox`, `Avatar`, `EmptyState`,
+`Tabs` (history), `StatusBadge` (reads), `FilePicker` (import),
+`LanguageSwitch` (public page), `useAutoRefresh`; `searchChoices` and
+`matches` (the store's search rule) for "@" mentions, the page picker and
+the editors filter. Its words are the catalogues' `toast`, `dialog`,
+`searchBox` and `files` sections. The wiki keeps its own "/" menu (a
+listbox that inserts blocks at the caret, not a menu button), its "@"
+list, its buttons, fields and choice cards, and its sidebar tree.
+Re-vendor with `node scripts/add-ui.mjs tools/private/wiki` (from the
+studio's root).
 
 ## Commands
 
@@ -59,7 +80,8 @@ npm ci && npm test && npm run build   # all three must pass
 - **New versions only through `writeContent()`**: it keeps the search words
   and the links table right.
 - **Client components import only** `lib/i18n/format.ts`, `lib/app-error.ts`,
-  `lib/doc.ts`, `lib/model.ts`, `lib/initials.ts` and types. Never the SDK,
+  `lib/doc.ts`, `lib/model.ts`, `@argentic/chest-ui/components` (and
+  `/components/logic`) and types. Never the SDK,
   `lib/db.ts`, `lib/session.ts` (the build fails: `node:crypto`).
 - **Send documents to server actions as JSON strings** (ProseMirror objects
   are not plain objects for React's serializer).
@@ -79,5 +101,16 @@ npm ci && npm test && npm run build   # all three must pass
 - **Tell people only through `lib/tell.ts`**: it drops anyone who cannot
   read the page now and the actor; a new reason gets its own key, replaced
   per page, and is withdrawn in `forget()`/`moved()`.
+- **Never a colour in CSS or a page**: contract tokens only (`--bg`,
+  `--ink`, `--accent-text`, `--line-strong`, `--cat-N`…), the wiki's own
+  tokens defined from them in `app/tokens.css`; text only on a measured pair
+  (`--cat-N-ink` on `--cat-N-soft`, `--ink` on `--highlight`…). The mark
+  (`components/mark.tsx`, `chest/icon.svg`) is the one fixed drawing.
+  `test/theme.test.ts` checks it.
+- **A space's colour is a categorical slot** (`.color-*` in
+  `app/globals.css`): green 2, blue 1, plum 4, rust 3, ochre 7, slate 8.
+- **Reversible → a toast with Undo; irreversible → `Confirm`**; never
+  `window.confirm`, never "Are you sure?". Words follow `lab/GLOSSARY.md`
+  (`node scripts/lint-words.mjs tools/private/wiki` must say 0).
 - **No network, no disk, no background work** (timed work goes through the
   `schedules` proposal, `chest.proposals.json`).

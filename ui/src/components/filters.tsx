@@ -9,7 +9,7 @@
 // reach it from anywhere on the page but a text field.
 import { useEffect, useId, useRef, type ReactElement, type ReactNode } from "react";
 import { SearchIcon } from "./icons.js";
-import { activeFilters, clearHref, filterHref, paramOf } from "./lists.js";
+import { activeFilters, clearHref, filterHref, paramOf, paramValues } from "./lists.js";
 import { isEditable } from "./text.js";
 import { en, type FilterWords, type SearchWords } from "./words.js";
 
@@ -20,10 +20,19 @@ export type FilterGroup = {
   readonly options: readonly FilterOption[];
   // Show an "All" chip first (the group's filter off).
   readonly all?: boolean;
+  // Several values at once, kept comma-separated in the address
+  // ("f=screen,dock"); each chip adds or takes away its own (0.2.1).
+  // Values must not contain a comma.
+  readonly multiple?: boolean;
+  // One value is always chosen (a view, a period): no "All", a chip is not
+  // let go by a second tap, and "Clear filters" leaves this group alone
+  // (0.2.1). `value` is the chosen one when the address names none.
+  readonly required?: boolean;
+  readonly value?: string;
 };
 
 type Params = string | URLSearchParams | Readonly<Record<string, string | undefined>>;
-type LinkLike = (props: { href: string; className?: string; "aria-current"?: "true"; children: ReactNode }) => ReactElement;
+type LinkLike = (props: { href: string; className?: string; "aria-current"?: "true"; children: ReactNode }) => ReactNode;
 
 export type FiltersProps = {
   readonly path: string;
@@ -35,25 +44,28 @@ export type FiltersProps = {
 };
 
 export function Filters({ path, params, groups, labels = en.filters, link }: FiltersProps): ReactElement {
-  const keys = groups.map(g => g.key);
+  // "Clear filters" takes away what may be taken away: not a required group.
+  const keys = groups.filter(g => !g.required).map(g => g.key);
   const on = activeFilters(params, keys);
   const A: LinkLike = link ?? (props => <a {...props} />);
   return (
     <div className="ck-filters" role="group" aria-label={labels.label}>
       {groups.map(g => {
-        const chosen = paramOf(params, g.key);
+        const required = g.required ?? false;
+        const multiple = !required && (g.multiple ?? false);
+        const chosen = multiple ? paramValues(params, g.key) : [paramOf(params, g.key) ?? (required ? g.value ?? null : null)].filter((v): v is string => v !== null);
         return (
           <nav key={g.key} className="ck-filter-group" aria-label={g.label}>
             <span className="ck-filter-label" aria-hidden="true">{g.label}</span>
             <ul>
-              {g.all && (
+              {g.all && !required && (
                 <li>
-                  <A href={filterHref(path, params, g.key, null)} className="ck-filter-chip" {...(chosen === null ? { "aria-current": "true" as const } : {})}>{labels.all}</A>
+                  <A href={filterHref(path, params, g.key, null)} className="ck-filter-chip" {...(chosen.length === 0 ? { "aria-current": "true" as const } : {})}>{labels.all}</A>
                 </li>
               )}
               {g.options.map(o => (
                 <li key={o.value}>
-                  <A href={filterHref(path, params, g.key, o.value)} className="ck-filter-chip" {...(chosen === o.value ? { "aria-current": "true" as const } : {})}>
+                  <A href={filterHref(path, params, g.key, o.value, { multiple, required })} className="ck-filter-chip" {...(chosen.includes(o.value) ? { "aria-current": "true" as const } : {})}>
                     <span>{o.label}</span>
                     {o.count !== undefined && <span className="ck-count">{o.count}</span>}
                   </A>
@@ -82,9 +94,15 @@ export type SearchBoxProps = {
   // Client-side search instead of a page load (the value as one types).
   readonly onSearch?: (query: string) => void;
   readonly id?: string;
+  // The longest query one can type (default 200 characters): a search
+  // never needs more, and the tool's server need not read a novel (0.2.1).
+  readonly maxLength?: number;
+  // Focus the box when the page opens (a search page); never on a page
+  // whose first job is something else (0.2.1).
+  readonly autoFocus?: boolean;
 };
 
-export function SearchBox({ action, value = "", name = "q", keep = {}, shortcut = true, labels = en.search, placeholder, onSearch, id }: SearchBoxProps): ReactElement {
+export function SearchBox({ action, value = "", name = "q", keep = {}, shortcut = true, labels = en.search, placeholder, onSearch, id, maxLength = 200, autoFocus = false }: SearchBoxProps): ReactElement {
   const auto = useId();
   const fieldId = id ?? auto + "-q";
   const field = useRef<HTMLInputElement>(null);
@@ -113,7 +131,9 @@ export function SearchBox({ action, value = "", name = "q", keep = {}, shortcut 
         className="ck-field ck-search-input"
         type="search"
         name={name}
-        defaultValue={value}
+        defaultValue={value.slice(0, maxLength)}
+        maxLength={maxLength}
+        autoFocus={autoFocus || undefined}
         placeholder={placeholder ?? labels.placeholder}
         autoComplete="off"
         enterKeyHint="search"

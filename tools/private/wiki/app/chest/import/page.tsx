@@ -1,3 +1,4 @@
+import { EmptyState } from "@argentic/chest-ui/components";
 import { can } from "../../../lib/access.ts";
 import { db } from "../../../lib/db.ts";
 import { viewer } from "../../../lib/session.ts";
@@ -11,15 +12,15 @@ export default async function ImportPage({ searchParams }: { searchParams: Promi
   if (!v) return null;
   const { member, locale, t } = v;
   if (!can(member, "import")) {
-    return <main className="page narrow"><div className="empty"><p>{t.errors.forbidden}</p></div></main>;
+    return <div className="page narrow"><EmptyState headingLevel={1} title={t.errors.forbidden} /></div>;
   }
   const spaces = (await listSpaces(db(), member)).filter(s => s.access === "write").map(s => ({ id: s.id, name: s.name }));
   const wanted = (await searchParams)["space"];
   return (
-    <main className="page narrow">
+    <div className="page narrow">
       <h1>{t.importer.title}</h1>
       <p className="lead">{t.importer.lead}</p>
-      <Importer spaces={spaces} initialSpace={spaces.some(s => s.id === wanted) ? wanted! : null} locale={locale} t={{ importer: t.importer, errors: t.errors }} />
-    </main>
+      <Importer spaces={spaces} initialSpace={spaces.some(s => s.id === wanted) ? wanted! : null} locale={locale} t={{ importer: t.importer, files: t.files, errors: t.errors }} />
+    </div>
   );
 }

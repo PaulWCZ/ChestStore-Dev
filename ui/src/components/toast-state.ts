@@ -25,9 +25,15 @@ export type ToastInput = {
   readonly undo?: () => UndoResult | Promise<UndoResult>;
   // The action already left the tool (an email, a notification): no Undo.
   readonly sent?: boolean;
+  // One more thing to do about it, beside Undo (0.2.1): "Keep 1 min",
+  // "Open", "Show". `run` is called once, then the toast goes (unless
+  // `close: false`). Never a way to reverse the action: that is `undo`.
+  readonly action?: ToastActionButton;
   // Milliseconds; the default depends on the kind (below).
   readonly duration?: number;
 };
+
+export type ToastActionButton = { readonly label: string; readonly run: () => void | Promise<void>; readonly close?: boolean };
 
 export type ToastPhase = "open" | "undoing" | "undone" | "failed";
 
@@ -37,6 +43,8 @@ export type ToastState = {
   readonly tone: "info" | "error";
   readonly sent: boolean;
   readonly undo: (() => UndoResult | Promise<UndoResult>) | null;
+  // The other button, while the toast is open.
+  readonly action?: ToastActionButton | null;
   readonly phase: ToastPhase;
   // The message shown after an Undo (failed: the tool's words or the kit's).
   readonly note: string | null;
@@ -93,7 +101,9 @@ export function toastReducer(state: readonly ToastState[], action: ToastAction):
       const sent = input.sent === true;
       const undo = !sent && input.undo ? input.undo : null;
       const id = input.id ?? `toast-${seq}`;
-      const length = lengthOf(input, undo !== null);
+      const button = input.action && input.action.label.trim() !== "" ? input.action : null;
+      // A button to reach needs the longer time, as Undo does.
+      const length = lengthOf(input, undo !== null || button !== null);
       const previous = state.find(t => t.id === id);
       const fresh: ToastState = {
         id,
@@ -101,6 +111,7 @@ export function toastReducer(state: readonly ToastState[], action: ToastAction):
         tone: input.tone ?? "info",
         sent,
         undo,
+        action: button,
         phase: "open",
         note: null,
         deadline: now + length,
@@ -140,7 +151,7 @@ export function toastReducer(state: readonly ToastState[], action: ToastAction):
       return state.map(t => {
         if (t.id !== action.id || t.phase !== "undoing") return t;
         const length = action.ok ? durations.afterUndo : durations.error;
-        const next: ToastState = { ...t, phase: action.ok ? "undone" : "failed", undo: null, note: action.note, deadline: action.now + length, remaining: length };
+        const next: ToastState = { ...t, phase: action.ok ? "undone" : "failed", undo: null, action: null, note: action.note, deadline: action.now + length, remaining: length };
         return next.hover || next.focus ? pause(next, action.now) : next;
       });
     }

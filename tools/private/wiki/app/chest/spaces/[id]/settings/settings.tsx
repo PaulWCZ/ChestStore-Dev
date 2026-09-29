@@ -1,9 +1,10 @@
 "use client";
 
+import { useToast } from "@argentic/chest-ui/components";
+import { matches } from "@argentic/chest-ui/components/logic";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { Pen, People, Trash } from "../../../../../components/icons.tsx";
-import { useToast } from "../../../../../components/toast.tsx";
 import type { Catalogue } from "../../../../../lib/i18n/index.ts";
 import { format } from "../../../../../lib/i18n/format.ts";
 import { deleteSpace, updateSpace } from "../../../actions.ts";
@@ -38,7 +39,7 @@ export function SpaceSettings({ space, groups, people, me, colors, t }: { space:
         editors: editing === "some" ? editors : [],
       });
       if (!result.ok) return setError(format(t.errors[result.error], result.values));
-      toast(t.settings.saved);
+      toast({ id: `space-${space.id}`, text: t.settings.saved });
       router.push(`/chest/spaces/${space.id}`);
     });
   }
@@ -46,7 +47,7 @@ export function SpaceSettings({ space, groups, people, me, colors, t }: { space:
     start(async () => {
       const result = await deleteSpace(space.id);
       if (!result.ok) return setError(format(t.errors[result.error], result.values));
-      toast(t.settings.deleted);
+      toast({ id: `space-${space.id}`, text: t.settings.deleted });
       router.push("/chest");
     });
   }
@@ -114,7 +115,7 @@ export function SpaceSettings({ space, groups, people, me, colors, t }: { space:
                   <input id="editor-filter" className="field" type="search" value={filter} onChange={e => setFilter(e.target.value)} placeholder={t.settings.findPerson} autoComplete="off" />
                 </>
               )}
-              {people.length === 0 ? <p className="muted">{t.settings.noEditors}</p> : people.filter(p => editors.includes(p.id) || fold(p.name).includes(fold(filter.trim()))).map(p => (
+              {people.length === 0 ? <p className="muted">{t.settings.noEditors}</p> : people.filter(p => editors.includes(p.id) || matches(p.name, filter)).map(p => (
                 <label key={p.id} className="check">
                   <input type="checkbox" checked={editors.includes(p.id)} onChange={e => setEditors(list => (e.target.checked ? [...list, p.id] : list.filter(x => x !== p.id)))} />
                   {p.id === me ? format(t.settings.meToo, { name: p.name }) : p.name}
@@ -135,4 +136,3 @@ export function SpaceSettings({ space, groups, people, me, colors, t }: { space:
   );
 }
 
-const fold = (s: string) => s.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();

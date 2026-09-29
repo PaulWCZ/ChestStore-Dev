@@ -27,14 +27,14 @@ export default async function EditPage({ params, searchParams }: { params: Promi
   const names = new Map(spaces.map(s => [s.id, s.name]));
   const pages = (await tree(sql, member, spaces.map(s => s.id))).map(n => ({ id: n.id, title: n.title, space: names.get(n.spaceId) ?? "" }));
   return (
-    <main className="page editing-page">
+    <div className="page editing-page">
       <Editor
         page={{ id: p.id, title: p.title, doc: p.doc, version: p.version }}
         pages={pages}
         fresh={fresh}
         locale={locale}
-        t={{ editor: t.editor, errors: t.errors, common: t.common, missing: t.page.missing }}
+        t={{ editor: t.editor, errors: t.errors, common: t.common, dialog: t.dialog, missing: t.page.missing }}
       />
-    </main>
+    </div>
   );
 }

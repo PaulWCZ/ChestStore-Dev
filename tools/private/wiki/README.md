@@ -125,12 +125,28 @@ intranet — on the company's own server, for no fee per seat.
   **Write the first page** (its "Handbook" space is made on the way: no
   word "space" to understand first).
 
+## Looks
+
+The wiki wears its own look — **Library**: warm paper, a reading serif,
+one deep green (`DESIGN.md`) — unless the company chooses otherwise in its
+Chest: **any theme of the catalogue** (the 17 identities of the store's
+tools, "Chest", "High contrast") or **its own brand** (its colours, fonts,
+corners and logo), for all its tools or for the wiki alone. Every feature
+is the same in every look, and every text stays readable (the kit's
+contract, WCAG AA, light and dark); in brand mode the company's logo
+stands where the book mark does. The look is resolved on the server
+(`lib/theme.ts`, `chest.theme()` of the SDK — Proposal (studio)): no
+script, no flash of the wrong look. The shared pieces — toasts with a
+truthful Undo, dialogs, the shell with its labelled tabs, menus, the file
+picker… — are the store's UI kit (`@argentic/chest-ui`), so the wiki
+behaves like the other tools.
+
 ## Roles
 
 | Role | Can |
 |---|---|
-| `editor` | Everything, in the spaces they may edit (all, unless a space names its editors): write and arrange pages, create spaces and set who reads and who edits them, import, restore versions, empty the trash, mark templates, pin pages, set review reminders, ask readers to confirm and see who did, remove any comment of their spaces |
-| `reader` | Read, search, print and download the spaces they see; comment (and edit or remove their own comments), mention people; watch pages; confirm they read a page they are asked to |
+| `editor` | Everything, in the spaces they may edit (all, unless a space names its editors): write and arrange pages, create spaces and set who reads and who edits them, import, restore versions, empty the trash, mark templates, pin pages, set review reminders, ask readers to confirm and see who did, delete any comment of their spaces |
+| `reader` | Read, search, print and download the spaces they see; comment (and edit or delete their own comments), mention people; watch pages; confirm they read a page they are asked to |
 
 The Chest's owner, admins and the tool's builders arrive as editors. A
 space kept to groups is seen only by the members of those groups, its
@@ -146,7 +162,8 @@ enforced on the server in `lib/access.ts`, `lib/comments.ts` and
 
 - **What does a new person see first?** The question "What do you want to
   know?" with one big search box; below, the pages changed lately and the
-  spaces. On a phone, the same, with the page tree behind "Pages".
+  spaces. On a phone, the same, with the sections as labelled tabs under
+  the header — Home, Pages (the whole tree), Search, Trash.
 - **What is the first thing they do?** Type a word ("holidays", "wifi") and
   press Enter: the matching passages, highlighted; one click opens the page.
   An editor on an empty wiki clicks "Add an example handbook" and is reading
@@ -160,8 +177,9 @@ enforced on the server in `lib/access.ts`, `lib/comments.ts` and
 - **What happens after a mistake?** A deleted page comes back with *Undo*
   (or from the trash). A bad edit is undone from the history with
   **Restore**. Discarded changes come back with *Undo*. A closed tab keeps
-  the draft and frees the page for the others at once. A removed comment comes back with *Undo* (for an hour). Only "Delete for good" in the trash cannot be undone, and it
-  asks once more.
+  the draft and frees the page for the others at once. A deleted comment comes back with *Undo* (for an hour). Only "Delete for good" in the trash cannot be undone, and it
+  asks once more, in the page. A dialog with something typed in it asks
+  before closing (Escape, a click beside it).
 
 ## Routes
 
@@ -169,6 +187,7 @@ enforced on the server in `lib/access.ts`, `lib/comments.ts` and
 |---|---|
 | `/` | Public host: says the wiki lives in the Chest (language switch) |
 | `/chest` | Home: search, drafts, recently updated, spaces |
+| `/chest/pages` | Pages: every space and its tree (the sidebar of wide screens, on every screen) |
 | `/chest/spaces/<id>` | A space: its pages as a table of contents |
 | `/chest/spaces/<id>/settings` | Name, description, colour, who reads it, who edits it, delete (its editors) |
 | `/chest/spaces/<id>/export` | The space as a zip of Markdown |

@@ -1,10 +1,10 @@
 "use client";
 
+import { Avatar, Segmented, useToast } from "@argentic/chest-ui/components";
+import { formatDate, parseDate, type DateWords } from "@argentic/chest-ui/components/logic";
 import { useRouter } from "next/navigation";
-import { useId, useState, useTransition, type FormEvent } from "react";
+import { useEffect, useId, useState, useTransition, type FormEvent } from "react";
 import { Plus, Trash } from "../../../components/icons.tsx";
-import { Portrait } from "../../../components/portrait.tsx";
-import { useToast } from "../../../components/toast.tsx";
 import type { ErrorCode } from "../../../lib/app-error.ts";
 import { format } from "../../../lib/i18n/format.ts";
 import { limits } from "../../../lib/model.ts";
@@ -16,21 +16,32 @@ export type TableRow = {
 type Column = "title" | "team" | "office" | "managerId" | "startDate" | "phone";
 type Words = {
   table: {
-    person: string; saved: string; undo: string; addField: string; fieldName: string; fieldPlaceholder: string; fieldEditor: string; editors: { person: string; hr: string };
+    person: string; saved: string; addField: string; fieldName: string; fieldPlaceholder: string; fieldEditor: string; editors: { person: string; hr: string };
     create: string; cancel: string; removeField: string; fieldRemoved: string; renameField: string; cell: string;
   };
   edit: { title: string; team: string; office: string; manager: string; noManager: string; startDate: string; phone: string };
   errors: Record<ErrorCode, string>;
+  date: DateWords;
 };
 
 // Each cell saves itself when HR leaves it (the server checks it as it
 // checks a profile: a loop of managers is refused, a phone must be one);
 // "Undo" puts the value back. A refused value comes back as it was.
-export function TableEditor({ rows, managers, fields, known, t }: {
+//
+// This grid of fields stays the tool's own, not the kit's DataTable (a
+// table to read and sort, not to type in): here every cell is a field
+// saved on its own, the names stay in view while scrolling sideways, and a
+// manager is a select — a compact list that works inside a cell and a
+// scrolling frame, where a person picker's popover would be cut off. The
+// start date is typed as the kit's date field reads it ("29/09/2026",
+// "1er octobre", "demain"), never the browser's date input.
+export function TableEditor({ rows, managers, fields, known, today, t }: {
   rows: TableRow[];
   managers: { id: string; name: string; left?: boolean }[];
   fields: { id: string; label: string; editor: "person" | "hr" }[];
   known: { teams: string[]; offices: string[]; titles: string[] };
+  // Today in the Chest's time zone ("tomorrow" in a date cell).
+  today: string;
   t: Words;
 }) {
   const router = useRouter();
@@ -47,22 +58,31 @@ export function TableEditor({ rows, managers, fields, known, t }: {
   const [saved, setSaved] = useState(values);
   const [, start] = useTransition();
 
-  const commit = (person: string, key: string, value: string, before: string, undoing = false) => {
+  const said = (r: { ok: false; error: ErrorCode; values?: Record<string, string | number> }) => format(t.errors[r.error], r.values ?? {});
+  const send = (person: string, key: string, value: string) => saveCell(person, key, value === "" ? (key === "managerId" || key === "startDate" ? null : "") : value);
+  const commit = (person: string, key: string, value: string, before: string) => {
     if (value === before) return;
     const cell = `${person}|${key}`;
     setSaved(s => ({ ...s, [cell]: value }));
     start(async () => {
-      const r = await saveCell(person, key, value === "" ? (key === "managerId" || key === "startDate" ? null : "") : value);
+      const r = await send(person, key, value);
       if (!r.ok) {
         setValues(v => ({ ...v, [cell]: before }));
         setSaved(s => ({ ...s, [cell]: before }));
-        toast(format(t.errors[r.error], r.values ?? {}));
+        toast({ text: said(r), tone: "error" });
         return;
       }
-      if (!undoing) toast(t.table.saved, { label: t.table.undo, run: () => {
-        setValues(v => ({ ...v, [cell]: before }));
-        commit(person, key, before, value, true);
-      } });
+      toast({
+        id: `cell-${cell}`,
+        text: t.table.saved,
+        undo: async () => {
+          const back = await send(person, key, before);
+          if (!back.ok) return said(back);
+          setValues(v => ({ ...v, [cell]: before }));
+          setSaved(s => ({ ...s, [cell]: before }));
+          return true;
+        },
+      });
     });
   };
   const input = (r: TableRow, key: string, label: string, props: { list?: string; type?: string; maxLength?: number } = {}) => {
@@ -94,7 +114,7 @@ export function TableEditor({ rows, managers, fields, known, t }: {
           <tbody>
             {rows.map(r => (
               <tr key={r.id}>
-                <th scope="row" className="sticky"><span className="sheet-person"><Portrait name={r.name} photo={r.photo} size={32} />{r.name}</span></th>
+                <th scope="row" className="sticky"><span className="sheet-person"><Avatar name={r.name} photo={r.photo} size="m" />{r.name}</span></th>
                 <td>{input(r, "title", t.edit.title, { list: uid + "titles", maxLength: limits.title })}</td>
                 <td>{input(r, "team", t.edit.team, { list: uid + "teams", maxLength: limits.team })}</td>
                 <td>{input(r, "office", t.edit.office, { list: uid + "offices", maxLength: limits.office })}</td>
@@ -110,7 +130,15 @@ export function TableEditor({ rows, managers, fields, known, t }: {
                     {managers.filter(m => m.id !== r.id && (!m.left || m.id === r.managerId)).map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
                   </select>
                 </td>
-                <td>{input(r, "startDate", t.edit.startDate, { type: "date" })}</td>
+                <td>
+                  <DateCell value={values[`${r.id}|startDate`] ?? ""} label={format(t.table.cell, { field: t.edit.startDate, name: r.name })} today={today} words={t.date}
+                    onCommit={iso => {
+                      const cell = `${r.id}|startDate`;
+                      setValues(v => ({ ...v, [cell]: iso }));
+                      commit(r.id, "startDate", iso, saved[cell] ?? "");
+                    }}
+                    onInvalid={() => toast({ text: format(t.date.invalid, { example: formatDate(today, t.date) }), tone: "error" })} />
+                </td>
                 <td>{input(r, "phone", t.edit.phone, { type: "tel", maxLength: limits.phone })}</td>
                 {fields.map(f => <td key={f.id}>{input(r, `x:${f.id}`, f.label, { maxLength: limits.fieldValue })}</td>)}
               </tr>
@@ -142,15 +170,24 @@ function FieldHead({ field, t, onRemoved }: { field: { id: string; label: string
             if (label.trim() === field.label || !label.trim()) { setLabel(field.label); return; }
             start(async () => {
               const r = await updateField(field.id, { label, editor: field.editor });
-              if (!r.ok) { setLabel(field.label); toast(format(t.errors[r.error], r.values ?? {})); }
+              if (!r.ok) { setLabel(field.label); toast({ text: format(t.errors[r.error], r.values ?? {}), tone: "error" }); }
               else router.refresh();
             });
           }} />
         <button type="button" className="icon-button" aria-label={format(t.table.removeField, { name: field.label })} onClick={() => start(async () => {
           const r = await removeField(field.id, true);
-          if (!r.ok) { toast(format(t.errors[r.error], r.values ?? {})); return; }
+          if (!r.ok) { toast({ text: format(t.errors[r.error], r.values ?? {}), tone: "error" }); return; }
           onRemoved();
-          toast(t.table.fieldRemoved, { label: t.table.undo, run: () => start(async () => { await removeField(field.id, false); router.refresh(); }) });
+          toast({
+            id: `field-${field.id}`,
+            text: t.table.fieldRemoved,
+            undo: async () => {
+              const back = await removeField(field.id, false);
+              if (!back.ok) return format(t.errors[back.error], back.values ?? {});
+              router.refresh();
+              return true;
+            },
+          });
         })}><Trash /></button>
       </span>
     </th>
@@ -162,14 +199,15 @@ function NewField({ t }: { t: Words }) {
   const toast = useToast();
   const uid = useId();
   const [open, setOpen] = useState(false);
+  const [editor, setEditor] = useState<"person" | "hr">("person");
   const [pending, start] = useTransition();
   if (!open) return <p className="section-actions"><button type="button" className="button quiet" onClick={() => setOpen(true)}><Plus />{t.table.addField}</button></p>;
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const data = new FormData(event.currentTarget);
     start(async () => {
-      const r = await addField({ label: String(data.get("label") ?? ""), editor: String(data.get("editor") ?? "person") });
-      if (!r.ok) { toast(format(t.errors[r.error], r.values ?? {})); return; }
+      const r = await addField({ label: String(data.get("label") ?? ""), editor });
+      if (!r.ok) { toast({ text: format(t.errors[r.error], r.values ?? {}), tone: "error" }); return; }
       setOpen(false);
       router.refresh();
     });
@@ -180,15 +218,34 @@ function NewField({ t }: { t: Words }) {
         <label htmlFor={uid + "label"} className="label">{t.table.fieldName}</label>
         <input id={uid + "label"} name="label" className="field" required maxLength={limits.fieldLabel} placeholder={t.table.fieldPlaceholder} autoFocus />
       </div>
-      <fieldset className="segmented">
-        <legend className="label">{t.table.fieldEditor}</legend>
-        <label><input type="radio" name="editor" value="person" defaultChecked /><span>{t.table.editors.person}</span></label>
-        <label><input type="radio" name="editor" value="hr" /><span>{t.table.editors.hr}</span></label>
-      </fieldset>
+      <Segmented label={t.table.fieldEditor} hideLabel={false} value={editor} onChange={setEditor} options={[{ value: "person", label: t.table.editors.person }, { value: "hr", label: t.table.editors.hr }]} />
       <div className="row">
         <button type="submit" className="button" disabled={pending}>{t.table.create}</button>
         <button type="button" className="button quiet" onClick={() => setOpen(false)}>{t.table.cancel}</button>
       </div>
     </form>
+  );
+}
+
+// A start date in a cell: typed as people write dates in their language,
+// read by the kit's parseDate, shown back as "29/09/2026". A date it cannot
+// read is refused (said in a toast) and the cell comes back as it was.
+function DateCell({ value, label, today, words, onCommit, onInvalid }: { value: string; label: string; today: string; words: DateWords; onCommit: (iso: string) => void; onInvalid: () => void }) {
+  const shown = value ? formatDate(value, words) : "";
+  const [text, setText] = useState(shown);
+  useEffect(() => setText(shown), [shown]);
+  const leave = () => {
+    if (text.trim() === "") return value === "" ? undefined : onCommit("");
+    const iso = parseDate(text, words, today);
+    if (!iso) {
+      setText(shown);
+      return onInvalid();
+    }
+    setText(formatDate(iso, words));
+    if (iso !== value) onCommit(iso);
+  };
+  return (
+    <input className="cell" value={text} placeholder={words.placeholder} aria-label={label} inputMode="numeric" autoComplete="off"
+      onChange={e => setText(e.target.value)} onBlur={leave} onKeyDown={e => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }} />
   );
 }

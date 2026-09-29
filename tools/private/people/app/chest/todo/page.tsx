@@ -1,3 +1,4 @@
+import { EmptyState, PageHeader } from "@argentic/chest-ui/components";
 import { stepText } from "../../../lib/examples.ts";
 import { AutoRefresh } from "../../../components/auto-refresh.tsx";
 import { CheckList } from "../../../components/icons.tsx";
@@ -42,23 +43,14 @@ export default async function TodoPage() {
   });
   const open = shown.reduce((n, g) => n + g.items.filter(i => !i.done).length, 0);
   return (
-    <main className="page narrow">
+    <div className="page narrow">
       <AutoRefresh seconds={30} />
-      <div className="page-head">
-        <div>
-          <h1>{t.todo.title}</h1>
-          <p className="muted">{plural(t.todo.summary, open, locale)}</p>
-        </div>
-      </div>
+      <PageHeader title={t.todo.title} intro={plural(t.todo.summary, open, locale)} />
       {shown.length === 0 ? (
-        <div className="empty">
-          <CheckList />
-          <h2>{t.todo.empty.title}</h2>
-          <p>{t.todo.empty.body}</p>
-        </div>
+        <EmptyState icon={<CheckList />} title={t.todo.empty.title} body={t.todo.empty.body} />
       ) : (
-        <TodoList groups={shown} t={{ whole: t.todo.whole, late: t.todo.late, today: t.todo.today, done: t.todo.done, undone: t.todo.undone, undo: t.todo.undo, mark: t.journey.mark, doneRecently: t.todo.doneRecently, errors: t.errors }} />
+        <TodoList groups={shown} t={{ whole: t.todo.whole, late: t.todo.late, today: t.todo.today, done: t.todo.done, undone: t.todo.undone, mark: t.journey.mark, doneRecently: t.todo.doneRecently, errors: t.errors }} />
       )}
-    </main>
+    </div>
   );
 }

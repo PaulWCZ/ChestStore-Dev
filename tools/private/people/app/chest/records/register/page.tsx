@@ -1,3 +1,4 @@
+import { EmptyState, PageHeader } from "@argentic/chest-ui/components";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Back, Download } from "../../../../components/icons.tsx";
@@ -9,6 +10,7 @@ import { nameOf, people } from "../../../../lib/people.ts";
 import { mentions, register, type Line } from "../../../../lib/register.ts";
 import { viewer } from "../../../../lib/session.ts";
 import { PrintButton } from "./print-button.tsx";
+import { RegisterTable, type RegisterRow } from "./register-table.tsx";
 
 // The staff register (registre unique du personnel), written from the HR
 // records: employees in the order they were hired, interns in their own
@@ -26,72 +28,31 @@ export default async function RegisterPage() {
   const c = t.register.columns;
   const day = (d: string | null) => (d ? formatDay(d, locale, { day: "2-digit", month: "2-digit", year: "numeric" }) : "");
   const gaps = [...r.employees, ...r.interns].filter(l => l.missing.length > 0).length;
-  const cellOf = (l: Line) => (l.missing.length > 0 ? "gap" : undefined);
+  const row = (l: Line, cells: string[]): RegisterRow => ({ recordId: l.recordId, number: l.number, name: l.name, cells, gap: l.missing.length > 0 });
   return (
-    <main className="page wide register-page">
+    <div className="page wide register-page">
       <Link className="back no-print" href="/chest/records"><Back />{t.record.back}</Link>
-      <div className="page-head">
-        <div>
-          <h1>{t.register.title}</h1>
-          <p className="muted lead">{t.register.lead}</p>
-        </div>
-        <div className="row no-print">
-          <a className="button quiet small" href="/chest/records/register/csv" download><Download />{t.register.csv}</a>
-          <PrintButton label={t.register.print} />
-        </div>
-      </div>
+      <PageHeader
+        title={t.register.title}
+        intro={t.register.lead}
+        secondary={<span className="row no-print"><a className="button quiet small" href="/chest/records/register/csv" download><Download />{t.register.csv}</a></span>}
+        action={<span className="no-print"><PrintButton label={t.register.print} /></span>}
+      />
       {gaps > 0 && <p className="banner warn no-print">{plural(t.register.missing, gaps, locale)}</p>}
-      {r.employees.length === 0 && r.interns.length === 0 ? <div className="empty"><p>{t.register.empty}</p></div> : (
+      {r.employees.length === 0 && r.interns.length === 0 ? <EmptyState title={t.register.empty} /> : (
         <>
           <section className="section" aria-labelledby="emp-title">
             <h2 id="emp-title" className="eyebrow">{t.register.employees}</h2>
-            <div className="table-frame">
-              <table className="plan register">
-                <thead>
-                  <tr>{[c.number, c.name, c.nationality, c.birthDate, c.sex, c.job, c.qualification, c.entry, c.exit, c.permit, c.mentions].map(h => <th key={h} scope="col">{h}</th>)}</tr>
-                </thead>
-                <tbody>
-                  {r.employees.map(l => (
-                    <tr key={l.recordId} className={cellOf(l)}>
-                      <td className="num">{l.number}</td>
-                      <th scope="row"><Link href={`/chest/records/${l.recordId}`}>{l.name}</Link></th>
-                      <td>{l.nationality}</td>
-                      <td>{day(l.birthDate)}</td>
-                      <td>{l.sex ? t.record.sexes[l.sex] : ""}</td>
-                      <td>{l.job}</td>
-                      <td>{l.qualification}</td>
-                      <td>{day(l.startDate)}</td>
-                      <td>{day(l.endDate)}</td>
-                      <td>{l.workPermit}</td>
-                      <td>{mentions(l, t.register.mention)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <RegisterTable caption={c.employees} gap={t.register.gap} labels={t.tables}
+              heads={{ number: c.number, name: c.name, rest: [c.nationality, c.birthDate, c.sex, c.job, c.qualification, c.entry, c.exit, c.permit, c.mentions] }}
+              rows={r.employees.map(l => row(l, [l.nationality, day(l.birthDate), l.sex ? t.record.sexes[l.sex] : "", l.job, l.qualification, day(l.startDate), day(l.endDate), l.workPermit, mentions(l, t.register.mention)]))} />
           </section>
           {r.interns.length > 0 && (
             <section className="section" aria-labelledby="int-title">
               <h2 id="int-title" className="eyebrow">{t.register.interns}</h2>
-              <div className="table-frame">
-                <table className="plan register">
-                  <thead>
-                    <tr>{[c.number, c.name, c.start, c.end, c.tutor, c.workplace].map(h => <th key={h} scope="col">{h}</th>)}</tr>
-                  </thead>
-                  <tbody>
-                    {r.interns.map(l => (
-                      <tr key={l.recordId} className={cellOf(l)}>
-                        <td className="num">{l.number}</td>
-                        <th scope="row"><Link href={`/chest/records/${l.recordId}`}>{l.name}</Link></th>
-                        <td>{day(l.startDate)}</td>
-                        <td>{day(l.endDate ?? l.contractEnd)}</td>
-                        <td>{l.tutorId ? nameOf(names.get(l.tutorId), locale) : ""}</td>
-                        <td>{l.workplace}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <RegisterTable caption={c.interns} gap={t.register.gap} labels={t.tables}
+                heads={{ number: c.number, name: c.name, rest: [c.start, c.end, c.tutor, c.workplace] }}
+                rows={r.interns.map(l => row(l, [day(l.startDate), day(l.endDate ?? l.contractEnd), l.tutorId ? nameOf(names.get(l.tutorId), locale) : "", l.workplace]))} />
             </section>
           )}
         </>
@@ -109,6 +70,6 @@ export default async function RegisterPage() {
           </ul>
         </section>
       )}
-    </main>
+    </div>
   );
 }

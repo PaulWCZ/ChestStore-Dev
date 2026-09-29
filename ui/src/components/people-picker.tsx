@@ -12,6 +12,7 @@
 // with `name`, hidden inputs carry them in a form.
 import { useEffect, useId, useRef, useState, type KeyboardEvent, type ReactElement } from "react";
 import { Avatar } from "./avatar.js";
+import { useFloat } from "./float.js";
 import { CloseIcon, GroupIcon } from "./icons.js";
 import { listKey } from "./keys.js";
 import type { Choice } from "./people.js";
@@ -19,14 +20,20 @@ import { fill, plural } from "./text.js";
 import { en, type PeoplePickerWords } from "./words.js";
 
 export type PeoplePickerProps<T extends Choice> = {
-  // The field's visible label (a picker always has one).
+  // The field's label (a picker always has one).
   readonly label: string;
+  // Keep the label for screen readers only (a picker in a table cell whose
+  // column header says it) (0.2.1).
+  readonly hideLabel?: boolean;
   readonly search: (query: string) => Promise<readonly T[]>;
   readonly value: readonly T[];
   readonly onChange: (value: T[]) => void;
   readonly multiple?: boolean;
   // Offered when nothing is typed (the person's recent choices, "You").
   readonly suggestions?: readonly T[];
+  // The heading over them: the words' `recent` by default; "Suggested",
+  // "Your team"… when they are not the person's recent choices (0.2.1).
+  readonly suggestionsLabel?: string;
   // Form field name: one hidden input per chosen id.
   readonly name?: string;
   readonly id?: string;
@@ -41,7 +48,7 @@ export type PeoplePickerProps<T extends Choice> = {
   readonly delay?: number;
 };
 
-export function PeoplePicker<T extends Choice>({ label, search, value, onChange, multiple = false, suggestions = [], name, id, hint, error, disabled = false, required = false, labels = en.peoplePicker, lang = "en", delay = 150 }: PeoplePickerProps<T>): ReactElement {
+export function PeoplePicker<T extends Choice>({ label, hideLabel = false, search, value, onChange, multiple = false, suggestions = [], suggestionsLabel, name, id, hint, error, disabled = false, required = false, labels = en.peoplePicker, lang = "en", delay = 150 }: PeoplePickerProps<T>): ReactElement {
   const auto = useId();
   const fieldId = id ?? auto + "-field";
   const listId = auto + "-list";
@@ -54,9 +61,14 @@ export function PeoplePicker<T extends Choice>({ label, search, value, onChange,
   const [state, setState] = useState<"idle" | "busy" | "failed">("idle");
   const asked = useRef(0);
   const input = useRef<HTMLInputElement>(null);
+  const box = useRef<HTMLDivElement>(null);
+  const list = useRef<HTMLUListElement>(null);
   const chosenIds = new Set(value.map(v => v.id));
   const single = !multiple ? value[0] ?? null : null;
   const typed = text.trim() !== "" && (multiple || text !== single?.name);
+  const listShown = open && !(options.length === 0 && !typed);
+  // Inside a dialog the list is placed over it, never cut at its edge.
+  useFloat(box, list, listShown, { matchWidth: true });
 
   // A single choice shows its name in the field.
   useEffect(() => { if (!multiple) setText(value[0]?.name ?? ""); }, [multiple, value[0]?.id, value[0]?.name]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -71,7 +83,10 @@ export function PeoplePicker<T extends Choice>({ label, search, value, onChange,
       setState("idle");
       return;
     }
+    // While the answer is on its way the earlier list stays in view, but
+    // nothing in it is active: Enter must not choose from an old answer.
     setState("busy");
+    setActive(-1);
     const timer = setTimeout(() => {
       search(q).then(found => {
         if (n !== asked.current) return;
@@ -118,8 +133,19 @@ export function PeoplePicker<T extends Choice>({ label, search, value, onChange,
       setText(single?.name ?? "");
       return;
     }
+    // Waiting for an answer: the keys that would choose or move wait too,
+    // and Enter never sends the form around the picker.
+    if (state === "busy" && (e.key === "Enter" || e.key === "ArrowDown" || e.key === "ArrowUp")) {
+      e.preventDefault();
+      return;
+    }
     const move = listKey({ active, open }, options.length, e.key, e.altKey);
-    if (!move) return;
+    if (!move) {
+      // The list is shown but nothing is chosen: Enter does nothing (it
+      // never sends the form around the picker with a half-typed name).
+      if (e.key === "Enter" && listShown) e.preventDefault();
+      return;
+    }
     if (e.key !== "Tab") e.preventDefault();
     setOpen(move.open);
     setActive(move.active);
@@ -154,8 +180,8 @@ export function PeoplePicker<T extends Choice>({ label, search, value, onChange,
 
   return (
     <div className={`ck-picker${error ? " ck-invalid" : ""}`}>
-      <label className="ck-label" htmlFor={fieldId}>{label}</label>
-      <div className={`ck-picker-box${disabled ? " ck-disabled" : ""}`} onMouseDown={e => { if (e.target === e.currentTarget) { e.preventDefault(); input.current?.focus(); } }}>
+      <label className={hideLabel ? "ck-vh" : "ck-label"} htmlFor={fieldId}>{label}</label>
+      <div ref={box} className={`ck-picker-box${disabled ? " ck-disabled" : ""}`} onMouseDown={e => { if (e.target === e.currentTarget) { e.preventDefault(); input.current?.focus(); } }}>
         {multiple && value.length > 0 && (
           <ul className="ck-chips" aria-label={labels.chosen}>
             {value.map(v => (
@@ -187,15 +213,22 @@ export function PeoplePicker<T extends Choice>({ label, search, value, onChange,
           spellCheck={false}
           maxLength={100}
           disabled={disabled}
-          onChange={e => { setText(e.target.value); setOpen(true); if (!multiple && e.target.value === "" && single) onChange([]); }}
+          onChange={e => {
+            setText(e.target.value);
+            setOpen(true);
+            // A new search starts with this key: nothing is active until its
+            // answer comes (set here, with the key, not after the render).
+            if (e.target.value.trim() !== "") { setState("busy"); setActive(-1); }
+            if (!multiple && e.target.value === "" && single) onChange([]);
+          }}
           onFocus={() => setOpen(true)}
           onClick={() => setOpen(true)}
           onBlur={() => { setOpen(false); if (!multiple) setText(single?.name ?? ""); else setText(""); }}
           onKeyDown={onKey}
         />
       </div>
-      <ul id={listId} role="listbox" aria-label={label} aria-multiselectable={multiple || undefined} className="ck-listbox" hidden={!open || (ordered.length === 0 && !typed)}>
-        {recent && ordered.length > 0 && <li role="presentation" className="ck-list-head">{labels.recent}</li>}
+      <ul ref={list} id={listId} role="listbox" aria-label={label} aria-multiselectable={multiple || undefined} aria-busy={state === "busy" || undefined} className="ck-listbox" hidden={!listShown}>
+        {recent && ordered.length > 0 && <li role="presentation" className="ck-list-head">{suggestionsLabel ?? labels.recent}</li>}
         {recent ? ordered.map(renderOption) : (
           <>
             {groups.length > 0 && <li role="presentation" className="ck-list-head">{labels.groups}</li>}

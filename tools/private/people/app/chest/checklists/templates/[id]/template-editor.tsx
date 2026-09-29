@@ -1,20 +1,21 @@
 "use client";
 
+import { useToast } from "@argentic/chest-ui/components";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useId, useState, useTransition, type FormEvent } from "react";
 import { Archive, Plus, Trash } from "../../../../../components/icons.tsx";
-import { useToast } from "../../../../../components/toast.tsx";
 import type { ErrorCode } from "../../../../../lib/app-error.ts";
 import { format, plural } from "../../../../../lib/i18n/format.ts";
 import type { Template, TemplateItem } from "../../../../../lib/journeys.ts";
 import { limits, offsets, type ItemRole, type Kind } from "../../../../../lib/model.ts";
 import { addTemplateItem, archiveTemplate, removeTemplateItem, renameTemplate, updateTemplateItem } from "../../../actions.ts";
+import { KindBadge } from "../../../../../components/kind.tsx";
 
 type Words = {
   template: {
     name: string; kind: string; steps: string; step: string; who: string; when: string; remove: string; removed: string; add: string; addPlaceholder: string; addButton: string;
-    saved: string; archive: string; archived: string; restore: string; archivedBanner: string; empty: string; undo: string; start: string;
+    saved: string; archive: string; archived: string; restore: string; archivedBanner: string; empty: string; start: string;
     roles: { person: Record<Kind, string>; manager: string; hr: string; someone: string };
     offsets: Record<string, string>;
     daysBefore: { one: string; other: string }; daysAfter: { one: string; other: string };
@@ -40,7 +41,8 @@ export function TemplateEditor({ template, people, locale, t }: { template: Temp
   const sorted = [...items].sort((a, b) => a.offset - b.offset);
   const when = (n: number) => t.template.offsets[String(n)] ?? plural(n < 0 ? t.template.daysBefore : t.template.daysAfter, Math.abs(n), locale);
   const whenChoices = [...new Set([...offsets, ...items.map(i => i.offset)])].sort((a, b) => a - b);
-  const fail = (r: { ok: false; error: ErrorCode; values?: Record<string, string | number> }) => toast(format(t.errors[r.error], r.values ?? {}));
+  const said = (r: { ok: false; error: ErrorCode; values?: Record<string, string | number> }) => format(t.errors[r.error], r.values ?? {});
+  const fail = (r: { ok: false; error: ErrorCode; values?: Record<string, string | number> }) => void toast({ text: said(r), tone: "error" });
 
   const saveName = () => {
     if (name.trim() === template.name) return;
@@ -73,13 +75,15 @@ export function TemplateEditor({ template, people, locale, t }: { template: Temp
         setItems(list => [...list, item]);
         return;
       }
-      toast(t.template.removed, {
-        label: t.template.undo,
-        run: () => start(async () => {
+      toast({
+        id: `step-${item.id}`,
+        text: t.template.removed,
+        undo: async () => {
           const back = await addTemplateItem(template.id, { text: item.text, role: item.role, memberId: item.memberId, offset: item.offset });
-          if (back.ok) setItems(list => [...list, back.value]);
-          else fail(back);
-        }),
+          if (!back.ok) return said(back);
+          setItems(list => [...list, back.value]);
+          return true;
+        },
       });
     });
   };
@@ -103,7 +107,16 @@ export function TemplateEditor({ template, people, locale, t }: { template: Temp
     const r = await archiveTemplate(template.id, archived);
     if (!r.ok) return fail(r);
     if (archived) {
-      toast(t.template.archived, { label: t.template.undo, run: () => archive(false) });
+      toast({
+        id: `archive-${template.id}`,
+        text: t.template.archived,
+        undo: async () => {
+          const back = await archiveTemplate(template.id, false);
+          if (!back.ok) return said(back);
+          router.refresh();
+          return true;
+        },
+      });
       router.push("/chest/checklists");
     } else router.refresh();
   });
@@ -129,7 +142,7 @@ export function TemplateEditor({ template, people, locale, t }: { template: Temp
         </div>
       )}
       <div className="template-head">
-        <span className={`kind ${template.kind}`}>{t.kinds[template.kind]}</span>
+        <KindBadge kind={template.kind} label={t.kinds[template.kind]} />
         <label className="title-edit">
           <span className="visually-hidden">{t.template.name}</span>
           <input value={name} onChange={e => setName(e.target.value)} onBlur={saveName} onKeyDown={e => e.key === "Enter" && e.currentTarget.blur()} maxLength={limits.templateName} />

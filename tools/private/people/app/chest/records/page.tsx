@@ -1,8 +1,8 @@
+import { Avatar, EmptyState, PageHeader, StatusBadge } from "@argentic/chest-ui/components";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AutoRefresh } from "../../../components/auto-refresh.tsx";
 import { Bars, Folder, Shield } from "../../../components/icons.tsx";
-import { Portrait } from "../../../components/portrait.tsx";
 import { can } from "../../../lib/access.ts";
 import { db } from "../../../lib/db.ts";
 import { directory } from "../../../lib/directory.ts";
@@ -35,7 +35,7 @@ export default async function RecordsPage() {
     return (
       <li key={r.id}>
         <Link className="journey-card record-card" href={`/chest/records/${r.id}`}>
-          <Portrait name={m?.name ?? r.legalName} photo={m?.photo ?? null} size={44} />
+          <Avatar name={m?.name ?? r.legalName} photo={m?.photo ?? null} size="l" />
           <span className="journey-main">
             <strong>{m?.name ?? r.legalName}</strong>
             <span className="muted">{[r.job, t.record.contracts[r.contract], r.workingTime === "part" ? t.record.workingTimes.part : ""].filter(Boolean).join(" · ")}</span>
@@ -43,7 +43,7 @@ export default async function RecordsPage() {
           <span className="record-side">
             {when && <span className="small">{when}</span>}
             {!r.memberId && <span className="source">{r.erased ? t.records.erased : t.records.notMember}</span>}
-            {r.missing.length > 0 && <span className="due late">{plural(t.records.missing, r.missing.length, locale)}</span>}
+            {r.missing.length > 0 && <StatusBadge size="s" tone="wait" label={plural(t.records.missing, r.missing.length, locale)} />}
           </span>
         </Link>
       </li>
@@ -51,28 +51,28 @@ export default async function RecordsPage() {
   };
   const nameOfRecord = (id: string, fallback: string) => byMember.get(records.find(r => r.id === id)?.memberId ?? "")?.name ?? fallback;
   const addWords = { records: t.records, errors: t.errors };
+  const addProps = { people: without.map(e => ({ id: e.id, name: e.name, photo: e.photo })), lang: locale, t: { ...addWords, peoplePicker: t.peoplePicker } };
   return (
-    <main className="page narrow">
+    <div className="page narrow">
       <AutoRefresh seconds={60} />
-      <div className="page-head">
-        <div>
-          <h1>{t.records.title}</h1>
-          <p className="muted lead"><Shield /> {t.records.lead}</p>
-        </div>
-        <div className="row">
-          <Link className="button quiet small" href="/chest/records/register"><Folder />{t.records.register}</Link>
-          <Link className="button quiet small" href="/chest/numbers"><Bars />{t.records.numbers}</Link>
-        </div>
-      </div>
+      <PageHeader
+        title={t.records.title}
+        intro={<span className="lead"><Shield /> {t.records.lead}</span>}
+        secondary={(
+          <>
+            <Link className="button quiet small" href="/chest/records/register"><Folder />{t.records.register}</Link>
+            <Link className="button quiet small" href="/chest/numbers"><Bars />{t.records.numbers}</Link>
+          </>
+        )}
+      />
 
       {records.length === 0 && without.length > 0 ? (
-        <div className="empty">
-          <Folder />
-          <h2>{t.records.empty.title}</h2>
-          <p>{t.records.empty.body}</p>
-          <CreateAll count={without.length} locale={locale} t={addWords} />
-          <AddRecord people={without.map(e => ({ id: e.id, name: e.name }))} t={addWords} />
-        </div>
+        <EmptyState
+          icon={<Folder />}
+          title={t.records.empty.title}
+          body={t.records.empty.body}
+          action={<><CreateAll count={without.length} locale={locale} t={addWords} /><AddRecord {...addProps} /></>}
+        />
       ) : (
         <>
           {soon.length > 0 && (
@@ -105,9 +105,9 @@ export default async function RecordsPage() {
               <ul className="journey-cards">{(list as Summary[]).map(row)}</ul>
             </section>
           ))}
-          <div className="section-actions"><AddRecord people={without.map(e => ({ id: e.id, name: e.name }))} t={addWords} /></div>
+          <div className="section-actions"><AddRecord {...addProps} /></div>
         </>
       )}
-    </main>
+    </div>
   );
 }

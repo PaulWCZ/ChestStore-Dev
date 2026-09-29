@@ -18,7 +18,7 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
   const colors = new Map(spaces.map(s => [s.id, s.color]));
   const now = new Date();
   return (
-    <main className="page narrow">
+    <div className="page narrow">
       <h1 className="visually-hidden">{t.search.title}</h1>
       <form action="/chest/search" role="search" className="ask-form">
         <label htmlFor="search-q" className="visually-hidden">{t.search.label}</label>
@@ -44,7 +44,7 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
           </ol>
         </>
       )}
-    </main>
+    </div>
   );
 }
 

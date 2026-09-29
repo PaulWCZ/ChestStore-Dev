@@ -33,17 +33,17 @@ await step("a profile shows the manager and the team, and calls in one tap", asy
 
 await step("a member ticks their to-do, undoes it, ticks it again; the tab's count follows", async () => {
   await page.goto(origin + "/chest/todo");
-  expect((await page.locator(".tabs .count").innerText()) === "1", "count 1");
+  expect((await page.locator(".ck-nav .ck-count").innerText()) === "1", "count 1");
   await page.locator(".step", { hasText: "Show them the demo van" }).locator("label.tick").click();
-  await page.waitForSelector(".toast");
-  await page.locator(".toast").getByRole("button", { name: "Undo" }).click();
-  await page.waitForTimeout(1200);
+  await page.waitForSelector(".ck-toast");
+  await page.locator(".ck-toast .ck-toast-undo").click();
+  await page.locator(".ck-toast", { hasText: "Undone." }).waitFor();
   await page.reload();
   expect(await page.locator(".steps:not(.done) .step", { hasText: "demo van" }).count() === 1, "undone");
   await page.locator(".step", { hasText: "Show them the demo van" }).locator("label.tick").click();
   await page.waitForTimeout(1500);
   await page.reload();
-  expect(await page.locator(".tabs .count").count() === 0, "count gone");
+  expect(await page.locator(".ck-nav .ck-count").count() === 0, "count gone");
   expect(await page.locator(".steps.done .step", { hasText: "demo van" }).count() === 1, "done recently");
 });
 
@@ -93,8 +93,12 @@ await step("HR sets a job; nobody below a person is offered as their manager", a
   await page.waitForURL(new RegExp(`/chest/people/${id("tom")}$`, "u"));
   expect((await page.locator("h1 + p, .profile-title").first().innerText()).includes("Data engineer") || (await page.locator("main").innerText()).includes("Data engineer"), "title saved");
   await page.goto(origin + "/chest/people/" + id("camille") + "/edit");
-  const options = await page.getByLabel("Manager").locator("option").allTextContents();
-  expect(!options.includes("Tom Walker") && !options.includes("Inès Moreau"), "people below Camille are not offered");
+  // The manager is a person picker: nobody below Camille is found.
+  for (const name of ["Tom", "Inès"]) {
+    await page.getByRole("combobox", { name: "Manager" }).fill(name);
+    await page.locator(".ck-list-empty", { hasText: "No one by that name" }).waitFor();
+    expect(await page.locator("[role=listbox] [role=option]").count() === 0, name + " offered as Camille's manager");
+  }
 });
 
 await step("the org chart folds a team away and back", async () => {
@@ -110,7 +114,7 @@ await step("HR writes a template and starts a departure checklist", async () => 
   await page.goto(origin + "/chest/checklists");
   await page.getByRole("button", { name: "New template" }).click();
   await page.getByLabel("Name of the template").fill("Remote leaver");
-  await page.locator(".segmented").getByText("Departure").click();
+  await page.locator(".ck-segmented").getByLabel("Departure").check();
   await page.getByRole("button", { name: "Create" }).click();
   await page.waitForURL(/\/chest\/checklists\/templates\/\d+$/u);
   await page.getByPlaceholder("What needs doing?").fill("Send the laptop back by courier");
@@ -123,8 +127,10 @@ await step("HR writes a template and starts a departure checklist", async () => 
   await page.waitForFunction(() => document.querySelectorAll(".template-step").length === 2);
   await page.getByRole("link", { name: "Start a checklist from it" }).click();
   await page.waitForURL(/\/chest\/checklists\/new/u);
-  await page.getByLabel("Who is it for?").selectOption({ label: "Tom Walker" });
-  await page.getByLabel("Last day").fill("2026-12-18");
+  await page.getByRole("combobox", { name: "Who is it for?" }).fill("Tom");
+  await page.getByRole("option", { name: "Tom Walker" }).click();
+  await page.getByLabel("Last day").fill("18/12/2026");
+  await page.getByLabel("Last day").press("Tab");
   await page.getByRole("button", { name: "Start", exact: true }).click();
   await page.waitForURL(/\/chest\/checklists\/\d+$/u);
   const text = await page.locator("main").innerText();
@@ -133,14 +139,15 @@ await step("HR writes a template and starts a departure checklist", async () => 
 
 await step("HR gives a step to someone else, removes one and undoes it", async () => {
   await page.locator(".step", { hasText: "Close the accounts" }).getByRole("button").click();
-  await page.locator(".step-edit select").selectOption({ label: "Sofia Rossi" });
-  await page.locator(".toast", { hasText: "Saved." }).waitFor();
+  await page.locator(".step-edit").getByRole("combobox", { name: "Give to" }).fill("Sofia");
+  await page.getByRole("option", { name: "Sofia Rossi" }).click();
+  await page.locator(".ck-toast", { hasText: "Saved." }).waitFor();
   await page.reload();
   expect((await page.locator(".step", { hasText: "Close the accounts" }).innerText()).includes("Sofia Rossi"), "given to Sofia");
   await page.locator(".step", { hasText: "Close the accounts" }).getByRole("button").click();
-  await page.getByRole("button", { name: "Remove" }).click();
-  await page.locator(".toast").getByRole("button", { name: "Undo" }).click();
-  await page.waitForTimeout(1200);
+  await page.getByRole("button", { name: "Delete", exact: true }).click();
+  await page.locator(".ck-toast", { hasText: "Step deleted." }).locator(".ck-toast-undo").click();
+  await page.locator(".ck-toast", { hasText: "Undone." }).waitFor();
   await page.reload();
   expect(await page.locator(".step", { hasText: "Close the accounts" }).count() === 1, "back");
 });
@@ -155,9 +162,8 @@ await step("a departure is told to the other tools; stopped, it is taken back; U
   expect(first.length === 1 && first[0].includes("people.leaving") && first[0].includes(id("tom")) && first[0].includes("2026-12-18"), "leaving told: " + first.join(" | "));
   await page.goto(journey);
   await page.getByRole("button", { name: "Stop this checklist" }).click();
-  await page.waitForSelector(".toast");
-  await page.locator(".toast").getByRole("button", { name: "Undo" }).click();
-  await page.waitForTimeout(1200);
+  await page.locator(".ck-toast", { hasText: "Checklist stopped." }).locator(".ck-toast-undo").click();
+  await page.locator(".ck-toast", { hasText: "Undone." }).waitFor();
   const after = await published();
   expect(after.length === 3 && after[1].includes("people.leaving_cancelled") && after[0].includes("people.leaving ") && after[0].includes("2026-12-18"), "stopped then restarted: " + after.join(" | "));
 });
@@ -167,8 +173,8 @@ await step("HR imports a spreadsheet: sees the plan, imports", async () => {
   writeFileSync(file, "Employee Name,Job Title,Department,Location\nHugo Bernard,Senior account manager,Sales,Lyon\nJean Inconnu,Ghost,,\n");
   await page.goto(origin + "/chest/import");
   await page.locator("input[type=file]").setInputFiles(file);
-  await page.waitForSelector("table.plan");
-  const plan = await page.locator("table.plan").innerText();
+  await page.waitForSelector(".plan table");
+  const plan = await page.locator(".plan table").innerText();
   expect(plan.includes("Senior account manager") && plan.includes("Nobody by that name here"), "plan");
   await page.getByRole("button", { name: "Import 1 profile" }).click();
   await page.waitForURL(/\/chest$/u);
@@ -185,20 +191,20 @@ await step("HR imports BambooHR's report: 'Employee #' left out, columns shown, 
   writeFileSync(file, readFileSync(new URL("../../../tools/private/people/test/fixtures/bamboohr-employee-report.csv", import.meta.url)));
   await page.goto(origin + "/chest/import");
   await page.locator("input[type=file]").setInputFiles(file);
-  await page.waitForSelector("table.plan");
+  await page.waitForSelector(".plan table");
   expect((await page.locator(".mapping summary").innerText()).startsWith("Columns found: First name, Last name, Job title"), "columns: " + await page.locator(".mapping summary").innerText());
   const order = page.locator(".date-order");
   expect(await order.isVisible(), "date order asked");
   expect(await order.getByLabel("Dates read as month/day/year.").isChecked(), "US guess for BambooHR");
-  expect((await page.locator("table.plan").innerText()).includes("3 Oct 2023") || (await page.locator("table.plan").innerText()).includes("2023-10-03"), "Hugo's date month-first");
-  await order.getByText("Dates read as day/month/year.").click();
-  await page.waitForFunction(() => document.querySelector("table.plan")?.textContent?.includes("2023-03-10"));
+  expect((await page.locator(".plan table").innerText()).includes("3 Oct 2023") || (await page.locator(".plan table").innerText()).includes("2023-10-03"), "Hugo's date month-first");
+  await order.getByLabel("Dates read as day/month/year.").check();
+  await page.waitForFunction(() => document.querySelector(".plan table")?.textContent?.includes("2023-03-10"));
   // The mapping step: the mobile phone instead of the work phone.
   await page.locator(".mapping summary").click();
   await page.getByLabel(/^Work Phone/u).selectOption("skip");
   await page.getByLabel(/^Mobile Phone/u).selectOption("phone");
-  await page.waitForFunction(() => document.querySelector("table.plan")?.textContent?.includes("+33 6 98 76 54 32"));
-  expect((await page.locator("table.plan").innerText()).includes("Nobody by that name here"), "Jean left out");
+  await page.waitForFunction(() => document.querySelector(".plan table")?.textContent?.includes("+33 6 98 76 54 32"));
+  expect((await page.locator(".plan table").innerText()).includes("Nobody by that name here"), "Jean left out");
 });
 
 await step("HR writes an expected arrival by hand (a weekend is questioned) and corrects it", async () => {
@@ -206,20 +212,23 @@ await step("HR writes an expected arrival by hand (a weekend is questioned) and 
   await page.getByRole("button", { name: "Expected arrival" }).click();
   await page.getByLabel("Name", { exact: true }).fill("Paul Mercier");
   await page.getByLabel("Job title").fill("Sales associate");
-  await page.getByLabel("First day").fill("2026-11-07");
+  await page.getByLabel("First day").fill("07/11/2026");
+  await page.getByLabel("First day").press("Tab");
   expect((await page.locator(".arrival-form .warn-hint").innerText()).includes("Saturday"), "weekend questioned");
-  await page.getByLabel("First day").fill("2026-11-09");
-  expect(await page.locator(".arrival-form .warn-hint").count() === 0, "weekday fine");
-  await page.getByLabel("Their manager").selectOption({ label: "Inès Moreau" });
+  await page.getByLabel("First day").fill("9 November 2026");
+  await page.getByLabel("First day").press("Tab");
+  expect((await page.locator(".arrival-form .warn-hint").innerText()).trim() === "", "weekday fine");
+  await page.getByRole("combobox", { name: "Their manager" }).fill("Inès");
+  await page.getByRole("option", { name: "Inès Moreau" }).click();
   await page.getByLabel("Their work email (if known)").fill("paul.mercier@example.test");
   await page.getByRole("button", { name: "Save" }).click();
-  await page.locator(".toast", { hasText: "Arrival added." }).waitFor();
+  await page.locator(".ck-toast", { hasText: "Arrival added." }).waitFor();
   const card = page.locator(".arrival", { hasText: "Paul Mercier" });
   expect((await card.innerText()).includes("Added by HR") && (await card.innerText()).includes("9 November"), "arrival: " + await card.innerText());
   await card.getByRole("button", { name: "Change" }).click();
   await card.getByLabel("Job title").fill("Senior sales associate");
   await card.getByRole("button", { name: "Save" }).click();
-  await page.locator(".toast", { hasText: "Arrival saved." }).waitFor();
+  await page.locator(".ck-toast", { hasText: "Arrival saved." }).waitFor();
   await page.locator(".arrival", { hasText: "Senior sales associate" }).waitFor({ timeout: 5000 });
 });
 
@@ -228,19 +237,19 @@ await step("HR edits as a table: a cell saves on leaving it, Undo puts it back; 
   const cell = page.getByLabel("Team of Hugo Bernard");
   await cell.fill("Key accounts");
   await cell.press("Enter");
-  await page.locator(".toast", { hasText: "Saved." }).waitFor();
+  await page.locator(".ck-toast", { hasText: "Saved." }).waitFor();
   await page.goto(origin + "/chest/people/" + id("hugo"));
   expect((await page.locator("main").innerText()).includes("Key accounts"), "saved");
   await page.goto(origin + "/chest/table");
   await page.getByLabel("Team of Hugo Bernard").fill("Export");
   await page.getByLabel("Team of Hugo Bernard").press("Tab");
-  await page.locator(".toast", { hasText: "Saved." }).getByRole("button", { name: "Undo" }).click();
-  await page.waitForTimeout(1200);
+  await page.locator(".ck-toast", { hasText: "Saved." }).locator(".ck-toast-undo").click();
+  await page.locator(".ck-toast", { hasText: "Undone." }).waitFor();
   await page.reload();
   expect((await page.getByLabel("Team of Hugo Bernard").inputValue()) === "Key accounts", "undone");
   // A loop of managers is refused and the cell comes back.
   await page.getByLabel("Manager of Camille Martin").selectOption({ label: "Hugo Bernard" });
-  await page.locator(".toast", { hasText: "loop" }).waitFor();
+  await page.locator(".ck-toast", { hasText: "loop" }).waitFor();
   expect((await page.getByLabel("Manager of Camille Martin").inputValue()) === "", "refused loop comes back");
   await page.getByRole("button", { name: "Add a field" }).click();
   await page.getByLabel("Name of the field").fill("T-shirt");
@@ -248,7 +257,7 @@ await step("HR edits as a table: a cell saves on leaving it, Undo puts it back; 
   await page.getByLabel("T-shirt of Tom Walker").waitFor();
   await page.getByLabel("T-shirt of Tom Walker").fill("M");
   await page.getByLabel("T-shirt of Tom Walker").press("Enter");
-  await page.locator(".toast", { hasText: "Saved." }).waitFor();
+  await page.locator(".ck-toast", { hasText: "Saved." }).waitFor();
   await page.goto(origin + "/chest/people/" + id("tom"));
   expect((await page.locator(".extras").innerText()).includes("T-shirt"), "shown on the profile");
 });
@@ -257,19 +266,19 @@ await step("HR records: everyone without one in a click; a record changed and no
   await page.goto(origin + "/chest/records");
   expect((await page.locator("main").innerText()).includes("Trial period ends"), "trial period coming up");
   await page.getByRole("button", { name: /^Create their/u }).click();
-  await page.locator(".toast", { hasText: /created/u }).waitFor();
+  await page.locator(".ck-toast", { hasText: /created/u }).waitFor();
   await page.locator(".journey-card", { hasText: "Nora Petit" }).click();
   await page.waitForURL(/\/chest\/records\/\d+$/u);
   await page.getByLabel(/^Nationality/u).fill("Française et italienne");
   await page.getByRole("button", { name: "Save", exact: true }).click();
-  await page.locator(".toast", { hasText: "Record saved." }).waitFor();
+  await page.locator(".ck-toast", { hasText: "Record saved." }).waitFor();
   await page.reload();
   expect((await page.locator(".journal").innerText()).includes("Changed: Nationality"), "journal names the field");
   expect(!(await page.locator(".journal").innerText()).includes("italienne"), "never the value");
   const pdf = tmp + "/contrat.pdf";
   writeFileSync(pdf, "%PDF-1.4\n% Contrat de travail\n1 0 obj << >> endobj\ntrailer << >>\n%%EOF\n");
   await page.locator(".doc-upload input[type=file]").setInputFiles({ name: "Contrat Nora.pdf", mimeType: "application/pdf", buffer: readFileSync(pdf) });
-  await page.locator(".toast", { hasText: "Document added." }).waitFor();
+  await page.locator(".ck-toast", { hasText: "Document added." }).waitFor();
   await page.waitForSelector(".doc-list .doc");
   const link = await page.locator(".doc-list .doc").first().getAttribute("href");
   const opened = await page.request.get(origin + link, { maxRedirects: 0 });
@@ -318,8 +327,9 @@ await step("Hiring tells of a hire: HR sees the arrival and prepares it before h
   expect((await arrival.innerText()).includes("Sales associate") && (await arrival.innerText()).includes("2 November"), "arrival shown");
   await arrival.getByRole("link", { name: "Start the arrival checklist" }).click();
   await page.waitForURL(/\/chest\/checklists\/new\?arrival=/u);
-  await page.getByLabel("Their manager").selectOption({ label: "Inès Moreau" });
-  expect((await page.getByLabel("First day").inputValue()) === "2026-11-02", "first day from Hiring");
+  await page.getByRole("combobox", { name: "Their manager" }).fill("Inès");
+  await page.getByRole("option", { name: "Inès Moreau" }).click();
+  expect((await page.getByLabel("First day").inputValue()) === "02/11/2026", "first day from Hiring: " + await page.getByLabel("First day").inputValue());
   await page.getByRole("button", { name: "Start", exact: true }).click();
   await page.waitForURL(/\/chest\/checklists\/\d+$/u);
   const text = await page.locator("main").innerText();
@@ -331,8 +341,8 @@ await step("a hire cancelled after the checklist started: marked cancelled, HR r
   await page.goto(origin + "/chest/checklists");
   const arrival = page.locator(".arrival", { hasText: "Marc Lefort" });
   expect((await arrival.innerText()).includes("Hire cancelled"), "cancelled");
-  await arrival.getByRole("button", { name: "Remove" }).click();
-  await page.waitForSelector(".toast");
+  await arrival.getByRole("button", { name: "Delete" }).click();
+  await page.locator(".ck-toast", { hasText: "Arrival deleted." }).waitFor();
   await page.reload();
   expect(await page.locator(".arrival", { hasText: "Marc Lefort" }).count() === 0, "removed");
 });
@@ -342,7 +352,7 @@ await step("a hire who already has access is offered to link on the directory, i
   await page.goto(origin + "/chest");
   const offer = page.locator(".banner.suggest", { hasText: "Nora Petit now has access" });
   await offer.getByRole("button", { name: "Yes, link" }).click();
-  await page.waitForSelector(".toast");
+  await page.waitForSelector(".ck-toast");
   await page.reload();
   expect(await page.locator(".banner.suggest").count() === 0, "linked");
 });
@@ -405,8 +415,8 @@ await step("phone width: no sideways scroll; the org chart is a list", async () 
   await page.goto(origin + "/chest/chart");
   const box = await page.locator(".node-card").first().boundingBox();
   expect(box.width > 300, "list card width " + box.width);
-  // The sections, each with its word, in a bar at the bottom.
-  const labels = await page.locator(".tabs a .label").evaluateAll(ls => ls.map(l => l.getBoundingClientRect().width > 10 ? l.textContent : ""));
+  // The sections, each with its word under its icon, in a row of their own (the kit's rule).
+  const labels = await page.locator(".ck-nav-link .ck-nav-label").evaluateAll(ls => ls.map(l => l.getBoundingClientRect().width > 10 ? l.textContent : ""));
   expect(labels.join("|") === "Directory|Org chart|My to-dos|Checklists|Records", "labels: " + labels.join("|"));
 });
 

@@ -1,18 +1,24 @@
 "use client";
 
+import { FilePicker, type PickedFile } from "@argentic/chest-ui/components";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { Upload } from "../../../components/icons.tsx";
 import type { Catalogue } from "../../../lib/i18n/index.ts";
 import { format, plural } from "../../../lib/i18n/format.ts";
+import { limits } from "../../../lib/model.ts";
 
-type Words = { importer: Catalogue["importer"]; errors: Catalogue["errors"] };
+type Words = { importer: Catalogue["importer"]; files: Catalogue["files"]; errors: Catalogue["errors"] };
+// What the importer reads (lib/importer.ts).
+const accept = [".zip", ".docx", ".md", ".markdown", ".txt", ".html", ".htm"];
 type Done = { spaceId: string; firstPageId: string | null; pages: number; files: number; skipped: { files: string[]; images: number } };
 
 export function Importer({ spaces, initialSpace, locale, t }: { spaces: { id: string; name: string }[]; initialSpace: string | null; locale: string; t: Words }) {
   const router = useRouter();
-  const [files, setFiles] = useState<File[]>([]);
+  // The kit's picker: by the button or dropped, several at once, each
+  // removable; the files stay in the browser until "Import" sends them.
+  const [picked, setPicked] = useState<readonly PickedFile[]>([]);
+  const files = picked.flatMap(f => (f.file ? [f.file] : []));
   const [into, setInto] = useState<"new" | "existing">(initialSpace ? "existing" : "new");
   const [spaceId, setSpaceId] = useState(initialSpace ?? spaces[0]?.id ?? "");
   const [name, setName] = useState("");
@@ -20,13 +26,15 @@ export function Importer({ spaces, initialSpace, locale, t }: { spaces: { id: st
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<Done | null>(null);
 
-  function choose(list: FileList | null) {
-    const chosen = [...(list ?? [])];
-    setFiles(chosen);
+  function choose(update: (current: readonly PickedFile[]) => PickedFile[]) {
+    setPicked(current => {
+      const next = update(current);
+      // A zip names the new space, unless one was typed.
+      const zip = next.find(f => /\.zip$/iu.test(f.name));
+      if (zip && name === "") setName(zip.name.replace(/\.zip$/iu, "").replace(/^Export-[0-9a-f-]+$/iu, "").replace(/[_-]+/gu, " ").trim());
+      return next;
+    });
     setError(null);
-    // A zip names the new space, unless one was typed.
-    const zip = chosen.find(f => /\.zip$/iu.test(f.name));
-    if (zip && name === "") setName(zip.name.replace(/\.zip$/iu, "").replace(/^Export-[0-9a-f-]+$/iu, "").replace(/[_-]+/gu, " ").trim());
   }
   async function submit() {
     setError(null);
@@ -57,7 +65,7 @@ export function Importer({ spaces, initialSpace, locale, t }: { spaces: { id: st
         {done.skipped.images > 0 && <p className="muted">{plural(t.importer.skippedImages, done.skipped.images, locale)}</p>}
         <div className="row-actions">
           <Link className="button" href={done.firstPageId ? `/chest/pages/${done.firstPageId}` : `/chest/spaces/${done.spaceId}`}>{t.importer.open}</Link>
-          <button type="button" className="button quiet" onClick={() => { setDone(null); setFiles([]); }}>{t.importer.another}</button>
+          <button type="button" className="button quiet" onClick={() => { setDone(null); setPicked([]); }}>{t.importer.another}</button>
         </div>
       </div>
     );
@@ -74,13 +82,8 @@ export function Importer({ spaces, initialSpace, locale, t }: { spaces: { id: st
         </ul>
       </div>
       <div>
-        <span className="label">{t.importer.files}</span>
-        <label className="dropzone">
-          <Upload />
-          <span>{files.length > 0 ? plural(t.importer.chosen, files.length, locale) : t.importer.choose}</span>
-          {files.length > 0 && <span className="muted small">{files.map(f => f.name).slice(0, 3).join(", ")}{files.length > 3 ? "…" : ""}</span>}
-          <input type="file" multiple accept=".zip,.docx,.md,.markdown,.txt,.html,.htm" onChange={e => choose(e.target.files)} />
-        </label>
+        <span className="label" aria-hidden="true">{t.importer.files}</span>
+        <FilePicker label={t.importer.files} files={picked} onChange={choose} accept={accept} maxSize={limits.importBytes} labels={t.files} />
         <p className="muted small">{t.importer.limits}</p>
       </div>
       <fieldset className="plain">

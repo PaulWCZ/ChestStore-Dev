@@ -1,3 +1,4 @@
+import { PageHeader } from "@argentic/chest-ui/components";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Back, Download } from "../../../components/icons.tsx";
@@ -15,17 +16,11 @@ export default async function ImportPage() {
   const { member, locale, t } = v;
   if (!can(member, "directory.import")) notFound();
   return (
-    <main className="page narrow">
+    <div className="page narrow">
       <Link className="back" href="/chest"><Back />{t.profile.back}</Link>
-      <div className="page-head">
-        <div>
-          <h1>{t.import.title}</h1>
-          <p className="muted lead">{t.import.body}</p>
-          <p className="muted small">{t.import.formats}</p>
-        </div>
-      </div>
-      <Importer locale={locale} extras={(await listFields(db(), member)).map(f => ({ id: f.id, label: f.label }))} t={{ import: t.import, errors: t.errors }} />
+      <PageHeader title={t.import.title} intro={<>{t.import.body}<span className="intro-more">{t.import.formats}</span></>} />
+      <Importer locale={locale} extras={(await listFields(db(), member)).map(f => ({ id: f.id, label: f.label }))} t={{ import: t.import, errors: t.errors, files: t.files, tables: t.tables }} />
       {can(member, "directory.export") && <p className="export-link"><a className="link-button" href="/chest/export" download><Download />{t.import.export}</a></p>}
-    </main>
+    </div>
   );
 }

@@ -1,6 +1,6 @@
+import { Avatar, EmptyState, PageHeader } from "@argentic/chest-ui/components";
 import Link from "next/link";
 import { Tree, Upload } from "../../../components/icons.tsx";
-import { Portrait } from "../../../components/portrait.tsx";
 import { can } from "../../../lib/access.ts";
 import { db } from "../../../lib/db.ts";
 import { departedManagers, directory } from "../../../lib/directory.ts";
@@ -30,17 +30,15 @@ export default async function ChartPage() {
   });
   const hr = can(member, "profile.job");
   return (
-    <main className="page wide">
-      <div className="page-head">
-        <h1>{t.chart.title}</h1>
-      </div>
+    <div className="page wide">
+      <PageHeader title={t.chart.title} />
       {roots.length === 0 ? (
-        <div className="empty">
-          <Tree />
-          <h2>{t.chart.empty.title}</h2>
-          <p>{hr ? t.chart.empty.hr : t.chart.empty.body}</p>
-          {can(member, "directory.import") && <Link className="button" href="/chest/import"><Upload />{t.chart.empty.action}</Link>}
-        </div>
+        <EmptyState
+          icon={<Tree />}
+          title={t.chart.empty.title}
+          body={hr ? t.chart.empty.hr : t.chart.empty.body}
+          action={can(member, "directory.import") ? <Link className="button" href="/chest/import"><Upload />{t.chart.empty.action}</Link> : null}
+        />
       ) : (
         <OrgChart roots={roots.map(shape)} me={member.id} hr={hr} locale={locale} t={t.chart} />
       )}
@@ -52,7 +50,7 @@ export default async function ChartPage() {
             {alone.map(p => (
               <li key={p.id}>
                 <Link className="mini" href={hr ? `/chest/people/${p.id}/edit` : `/chest/people/${p.id}`}>
-                  <Portrait name={p.name} photo={p.photo} size={40} />
+                  <Avatar name={p.name} photo={p.photo} size="l" />
                   <span><strong>{p.name}</strong>{p.title && <span className="muted">{p.title}</span>}</span>
                 </Link>
               </li>
@@ -60,6 +58,6 @@ export default async function ChartPage() {
           </ul>
         </section>
       )}
-    </main>
+    </div>
   );
 }

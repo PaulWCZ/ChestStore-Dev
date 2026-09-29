@@ -1,8 +1,8 @@
 "use client";
 
+import { useToast } from "@argentic/chest-ui/components";
 import { useRouter } from "next/navigation";
 import { useTransition } from "react";
-import { useToast } from "../../../../../components/toast.tsx";
 import type { Catalogue } from "../../../../../lib/i18n/index.ts";
 import { format } from "../../../../../lib/i18n/format.ts";
 import { askRead, stopAskRead } from "../../../actions.ts";
@@ -16,17 +16,17 @@ export function ReadsActions({ pageId, stale, t }: { pageId: string; stale: bool
   function again() {
     start(async () => {
       const result = await askRead(pageId);
-      if (!result.ok) return toast(format(t.errors[result.error], result.values));
+      if (!result.ok) return void toast({ text: format(t.errors[result.error], result.values), tone: "error" });
       router.refresh();
-      toast(t.againDone);
+      toast({ id: `ask-read-${pageId}`, text: t.againDone });
     });
   }
   function stop() {
     start(async () => {
       const result = await stopAskRead(pageId);
-      if (!result.ok) return toast(format(t.errors[result.error], result.values));
+      if (!result.ok) return void toast({ text: format(t.errors[result.error], result.values), tone: "error" });
       router.push(`/chest/pages/${pageId}`);
-      toast(t.stopped);
+      toast({ id: `ask-read-${pageId}`, text: t.stopped });
     });
   }
   return (

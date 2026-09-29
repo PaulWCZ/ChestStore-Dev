@@ -93,7 +93,7 @@ which every tool must show anyway.
 **Why a palette per theme, and not `color-mix()` in the tool.** The two
 were weighed:
 
-- `color-mix(in oklch, var(--accent) 20%, var(--surface))` is free and
+- `color-mix(in oklab, var(--accent) 20%, var(--surface))` is free and
   follows any theme, but its contrast is not known until it is rendered:
   a tint that reads on Library's cream fails on Instrument's dark green,
   and a label's text on it cannot be guaranteed. Every tool would need its
@@ -160,8 +160,8 @@ kinds, a calendar's weekend, Timesheets' dark instrument panel). They are
   --kind-holiday-ink: var(--cat-1-ink);
   --today: var(--accent-text);
   /* decoration only (no text on it, no meaning of its own) */
-  --weekend: color-mix(in oklch, var(--surface-2) 60%, var(--bg));
-  --grid: color-mix(in oklch, var(--line) 50%, transparent);
+  --weekend: color-mix(in oklab, var(--surface-2) 60%, var(--bg));
+  --grid: color-mix(in oklab, var(--line) 50%, transparent);
 }
 ```
 
@@ -171,7 +171,12 @@ Rules:
    (`var(--cat-3-soft)` with `var(--cat-3-ink)`, `var(--ink)` on
    `var(--highlight)`): its contrast was measured with the theme.
 2. **Decoration** (a grid, a weekend shade, a contour line, a confetti)
-   may use `color-mix(in oklch, …)` of contract tokens.
+   may use `color-mix(in oklab, …)` of contract tokens — **oklab, not
+   oklch** (0.2.1). A near-neutral colour (a white `--surface`, a grey
+   `--line`) has no real hue, and in OKLCH the browser interpolates
+   whatever hue its rounding left (Chrome: `color-mix(in oklch, #2b59c3
+   20%, white)` swings through pink or blue). OKLab mixes the same
+   perceptual lightness with no hue to swing; `in srgb` is also safe.
 3. **Never a literal colour** in a tool's CSS: it would not follow the
    theme. A tool's own identity is a theme (`defineTheme`), not a
    stylesheet.

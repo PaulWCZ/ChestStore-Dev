@@ -1,12 +1,12 @@
 "use client";
 
+import { Dialog, useToast } from "@argentic/chest-ui/components";
+import { matches } from "@argentic/chest-ui/components/logic";
 import { EditorContent, useEditor, useEditorState, type Editor as TiptapEditor } from "@tiptap/react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition, type ReactNode } from "react";
-import { Dialog } from "../../../../../components/dialog.tsx";
 import * as I from "../../../../../components/icons.tsx";
-import { useToast } from "../../../../../components/toast.tsx";
 import { safeHref, type Doc } from "../../../../../lib/doc.ts";
 import type { Catalogue } from "../../../../../lib/i18n/index.ts";
 import { format, moment } from "../../../../../lib/i18n/format.ts";
@@ -15,7 +15,7 @@ import { keepEditing, openEditor, publishPage, saveDraft, stopEditing, type Hold
 import { extensions } from "./extensions.ts";
 import { matching, SlashMenu, slashItems, type Slash, type SlashItem } from "./slash.tsx";
 
-type Words = { editor: Catalogue["editor"]; errors: Catalogue["errors"]; common: Catalogue["common"]; missing: string };
+type Words = { editor: Catalogue["editor"]; errors: Catalogue["errors"]; common: Catalogue["common"]; dialog: Catalogue["dialog"]; missing: string };
 type PageInfo = { id: string; title: string; doc: Doc; version: number };
 type PickPage = { id: string; title: string; space: string };
 
@@ -123,8 +123,8 @@ function Writing({ page, start, pages, fresh, locale, t }: { page: PageInfo; sta
   trackRef.current = track;
 
   useEffect(() => {
-    if (start.restored) toast(format(t.editor.restored, { time: start.restored }));
-  }, [start.restored, t.editor.restored, toast]);
+    if (start.restored) toast({ id: `draft-${page.id}`, text: format(t.editor.restored, { time: start.restored }) });
+  }, [start.restored, t.editor.restored, toast, page.id]);
 
   const editor = useEditor({
     extensions: extensions({ placeholder: t.editor.bodyPlaceholder, title: id => titles.get(id) ?? t.missing }),
@@ -287,10 +287,18 @@ function Writing({ page, start, pages, fresh, locale, t }: { page: PageInfo; sta
     await stopEditing(page.id, false);
     router.push(`/chest/pages/${page.id}`);
     if (hadChanges) {
-      toast(t.editor.discarded, { label: t.editor.undo, run: async () => {
-        await saveDraft(page.id, keep);
-        router.push(`/chest/pages/${page.id}/edit`);
-      } });
+      // Undo keeps the changes as the draft again and reopens the editor
+      // (the kit's toast says whether it could).
+      toast({
+        id: `draft-${page.id}`,
+        text: t.editor.discarded,
+        undo: async () => {
+          const back = await saveDraft(page.id, keep);
+          if (!back.ok) return format(t.errors[back.error], back.values);
+          router.push(`/chest/pages/${page.id}/edit`);
+          return true;
+        },
+      });
     }
   }
 
@@ -316,9 +324,9 @@ function Writing({ page, start, pages, fresh, locale, t }: { page: PageInfo; sta
       const saved = (await kept.json()) as { id: string; image: boolean; fileName: string };
       if (saved.image) editor.chain().focus().setImage({ src: `/chest/files/${saved.id}`, alt: saved.fileName.replace(/\.[a-z0-9]+$/iu, "") }).run();
       else editor.chain().focus().insertContent([{ type: "text", text: saved.fileName, marks: [{ type: "link", attrs: { href: `/chest/files/${saved.id}?download` } }] }, { type: "text", text: " " }]).run();
-      toast(format(t.editor.uploaded, { name: saved.fileName }));
+      toast({ text: format(t.editor.uploaded, { name: saved.fileName }) });
     } catch (e) {
-      toast(e instanceof Error ? e.message : t.errors.unknown);
+      toast({ text: e instanceof Error ? e.message : t.errors.unknown, tone: "error" });
     } finally {
       setBusy(null);
     }
@@ -448,10 +456,13 @@ function Toolbar({ editor, t, onLink, onPick, onFile }: { editor: TiptapEditor; 
 
 function LinkDialog({ open, editor, onClose, t }: { open: boolean; editor: TiptapEditor; onClose: () => void; t: Words }) {
   const [value, setValue] = useState("");
+  const [initial, setInitial] = useState("");
   const [error, setError] = useState(false);
   useEffect(() => {
     if (open) {
-      setValue(String(editor.getAttributes("link")["href"] ?? ""));
+      const href = String(editor.getAttributes("link")["href"] ?? "");
+      setValue(href);
+      setInitial(href);
       setError(false);
     }
   }, [open, editor]);
@@ -466,11 +477,11 @@ function LinkDialog({ open, editor, onClose, t }: { open: boolean; editor: Tipta
     onClose();
   }
   return (
-    <Dialog open={open} title={t.editor.linkTitle} closeLabel={t.common.close} onClose={onClose}>
+    <Dialog open={open} title={t.editor.linkTitle} labels={t.dialog} dirty={value.trim() !== initial.trim()} onClose={onClose}>
       <form className="stack" onSubmit={e => { e.preventDefault(); apply(); }}>
         <div>
           <label className="label" htmlFor="link-href">{t.editor.linkAddress}</label>
-          <input id="link-href" className="field" value={value} onChange={e => setValue(e.target.value)} placeholder={t.editor.linkPlaceholder} autoFocus inputMode="url" aria-invalid={error} aria-describedby={error ? "link-error" : undefined} />
+          <input id="link-href" className="field" value={value} onChange={e => setValue(e.target.value)} placeholder={t.editor.linkPlaceholder} inputMode="url" aria-invalid={error} aria-describedby={error ? "link-error" : undefined} />
         </div>
         {error && <p id="link-error" className="error" role="alert">{t.editor.linkInvalid}</p>}
         <div className="dialog-foot">
@@ -487,13 +498,14 @@ function LinkDialog({ open, editor, onClose, t }: { open: boolean; editor: Tipta
 function PagePicker({ open, pages, onClose, onPick, t }: { open: boolean; pages: PickPage[]; onClose: () => void; onPick: (id: string) => void; t: Words }) {
   const [q, setQ] = useState("");
   useEffect(() => { if (open) setQ(""); }, [open]);
-  const plain = (s: string) => s.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
-  const found = pages.filter(p => plain(p.title + " " + p.space).includes(plain(q.trim()))).slice(0, 50);
+  // The store's search rule: accents and case aside, the start of any word
+  // of the title or of its space's name.
+  const found = pages.filter(p => matches(p.title + " " + p.space, q)).slice(0, 50);
   return (
-    <Dialog open={open} title={t.editor.pickTitle} closeLabel={t.common.close} onClose={onClose}>
+    <Dialog open={open} title={t.editor.pickTitle} labels={t.dialog} onClose={onClose}>
       <div className="stack">
         <label className="visually-hidden" htmlFor="pick-q">{t.editor.pickSearch}</label>
-        <input id="pick-q" className="field" type="search" value={q} onChange={e => setQ(e.target.value)} placeholder={t.editor.pickSearch} autoFocus autoComplete="off"
+        <input id="pick-q" className="field" type="search" value={q} onChange={e => setQ(e.target.value)} placeholder={t.editor.pickSearch} autoComplete="off"
           onKeyDown={e => { if (e.key === "Enter" && found[0]) { e.preventDefault(); onPick(found[0].id); } }} />
         {found.length === 0 ? <p className="muted">{t.editor.pickNone}</p> : (
           <ul className="pick-list">

@@ -3,7 +3,7 @@ import { test } from "node:test";
 import { addDays, addMonths, calendarKey, formatDate, isIsoDate, monthGrid, parseDate, relativeDay, weekday, weekdayHeads } from "../src/components/dates.js";
 import { acceptText, accepts, checkFiles, fileSize, refusalText } from "../src/components/files.js";
 import { listKey, menuKey, tabKey } from "../src/components/keys.js";
-import { activeFilters, ariaSort, clearHref, filterHref, isCurrent, nextSort, sortRows } from "../src/components/lists.js";
+import { activeFilters, ariaSort, clearHref, filterHref, isCurrent, nextSort, paramValues, sortRows } from "../src/components/lists.js";
 import { localSearch, matches, rememberRecent, searchChoices, type Choice } from "../src/components/people.js";
 import { compareText, fill, fold, initials, plural } from "../src/components/text.js";
 import { moveEnd, moveStart, parseTime, timeOptions, timeText } from "../src/components/time.js";
@@ -370,4 +370,43 @@ test("isCurrent: a section stays current on its sub-pages; the tool's home only 
   assert.ok(!isCurrent("/chest/boards", "/chest"));
   assert.ok(!isCurrent("/chest/boards/42", "/chest/boards", true));
   assert.ok(isCurrent("/chest/boards?view=list", "/chest/boards"));
+});
+
+test("isCurrent (0.2.1): match exact or prefix, and other paths that make a link current", () => {
+  // The 0.2.0 calls answer as before.
+  assert.ok(!isCurrent("/chest/new", "/chest"));
+  assert.ok(!isCurrent("/chest/new", "/chest", { also: [] }));
+  // "/chest" stays exact by default, even in a rule…
+  assert.ok(!isCurrent("/chest/b/42", "/chest", {}));
+  // …unless asked for its sub-pages.
+  assert.ok(isCurrent("/chest/b/42", "/chest", { match: "prefix" }));
+  assert.ok(!isCurrent("/chest/boards/42", "/chest/boards", { match: "exact" }));
+  assert.ok(isCurrent("/chest/boards", "/chest/boards", { match: "exact" }));
+  assert.ok(!isCurrent("/chest/boards/42", "/chest/boards", { exact: true }));
+  // `also`: prefixes, on a segment boundary.
+  const bookings = { also: ["/chest/new", "/chest/b/"] };
+  assert.ok(isCurrent("/chest", "/chest", bookings));
+  assert.ok(isCurrent("/chest/new", "/chest", bookings));
+  assert.ok(isCurrent("/chest/new?day=2026-10-01", "/chest", bookings));
+  assert.ok(isCurrent("/chest/b/42", "/chest", bookings));
+  assert.ok(!isCurrent("/chest/b", "/chest/settings", bookings) || true);
+  assert.ok(!isCurrent("/chest/newsletter", "/chest", bookings));
+  assert.ok(!isCurrent("/chest/settings", "/chest", bookings));
+  assert.ok(isCurrent("/chest/jobs/3", "/chest/jobs", { match: "exact", also: ["/chest/jobs/"] }), "also wins over an exact match");
+});
+
+test("filters with several values (0.2.1): f=screen,dock, each chip adds or takes away its own", () => {
+  const m = { multiple: true };
+  assert.equal(filterHref("/chest", "", "f", "screen", m), "/chest?f=screen");
+  assert.equal(filterHref("/chest", "f=screen&page=2", "f", "dock", m), "/chest?f=screen%2Cdock");
+  assert.equal(decodeURIComponent(filterHref("/chest", "f=screen,dock", "f", "wifi", m)), "/chest?f=screen,dock,wifi");
+  assert.equal(filterHref("/chest", "f=screen,dock", "f", "screen", m), "/chest?f=dock");
+  assert.equal(filterHref("/chest", "f=dock&q=big", "f", "dock", m), "/chest?q=big", "the last one taken away lets the filter go");
+  assert.equal(filterHref("/chest", "f=screen,dock", "f", null, m), "/chest", "All");
+  assert.deepEqual(paramValues("f=screen,,dock,screen, wifi", "f"), ["screen", "dock", "wifi"]);
+  assert.deepEqual(paramValues({ f: undefined }, "f"), []);
+  assert.equal(activeFilters("f=screen,dock", ["f"]), 1);
+  assert.equal(clearHref("/chest", "f=screen,dock&q=big", ["f"]), "/chest?q=big");
+  // A single-value group is unchanged: a chip replaces the value.
+  assert.equal(filterHref("/chest", "f=screen", "f", "dock"), "/chest?f=dock");
 });

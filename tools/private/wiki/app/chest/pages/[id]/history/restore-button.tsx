@@ -2,8 +2,8 @@
 
 import { useRouter } from "next/navigation";
 import { useTransition } from "react";
+import { useToast } from "@argentic/chest-ui/components";
 import { Restore } from "../../../../../components/icons.tsx";
-import { useToast } from "../../../../../components/toast.tsx";
 import type { Catalogue } from "../../../../../lib/i18n/index.ts";
 import { format } from "../../../../../lib/i18n/format.ts";
 import { restoreVersion } from "../../../actions.ts";
@@ -17,7 +17,7 @@ export function RestoreButton({ pageId, number, label, errors }: { pageId: strin
   return (
     <button type="button" className="button" disabled={pending} onClick={() => start(async () => {
       const result = await restoreVersion(pageId, number);
-      if (!result.ok) return toast(format(errors[result.error], result.values));
+      if (!result.ok) return void toast({ text: format(errors[result.error], result.values), tone: "error" });
       router.push(`/chest/pages/${pageId}?restored=${number}`);
     })}><Restore />{label}</button>
   );

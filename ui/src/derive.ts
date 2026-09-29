@@ -5,7 +5,7 @@
 // kept), and every move is said in plain words, in English and French.
 import { contrast, fit, hex, hueDistance, oklch, oklchHex, type Oklch } from "./color.js";
 import { completeScheme, familyHues, type PaletteSource, type SchemeSource } from "./compose.js";
-import { checkTheme, validateTheme, type Theme } from "./contract.js";
+import { checkTheme, paletteLimits, validateTheme, type Theme } from "./contract.js";
 import { font, registry, uploadedFont, type FontCategory, type FontSource, type FontSpec } from "./fonts.js";
 import { note, type Note } from "./notes.js";
 
@@ -166,18 +166,24 @@ function derive(brand: Brand): Derived {
 
   // A second colour: the marker pen, and its family in the palette.
   const palette: PaletteSource = { hues: {}, chroma: Math.max(0.6, Math.min(1.25, p.c / 0.14)) };
-  const nearest = (h: number, taken: number[]) => familyHues.slice(0, 7).map((fh, i) => ({ slot: i + 1, d: hueDistance(fh, h) })).filter(x => !taken.includes(x.slot)).sort((a, b) => a.d - b.d)[0]!.slot;
+  // The nearest free family, if the colour belongs to it (a slot keeps its
+  // family: a brand’s colour never turns the pink slot red; 5° kept for
+  // the shades that gamut mapping turns a little).
+  const nearest = (h: number, taken: number[]): number | null => familyHues.slice(0, 7).map((fh, i) => ({ slot: i + 1, d: hueDistance(fh, h) })).filter(x => !taken.includes(x.slot) && x.d <= paletteLimits.hue - 5).sort((a, b) => a.d - b.d)[0]?.slot ?? null;
   const taken: number[] = [];
   if (p.c >= 0.05) {
     const slot = nearest(p.h, taken);
-    palette.hues![slot] = p.h;
-    taken.push(slot);
+    if (slot !== null) {
+      palette.hues![slot] = p.h;
+      taken.push(slot);
+    }
   }
   if (secondaryHex) {
     const s = oklch(secondaryHex)!;
     light.highlight = must(fit(at(s, 0.93, Math.min(s.c * 0.45, 0.09)), [light.ink], 4.5, "lighter"));
     dark.highlight = must(fit(at(s, 0.34, Math.min(s.c * 0.4, 0.07)), [dark.ink], 4.5, "darker"));
-    if (s.c >= 0.05) palette.hues![nearest(s.h, taken)] = s.h;
+    const slot = s.c >= 0.05 ? nearest(s.h, taken) : null;
+    if (slot !== null) palette.hues![slot] = s.h;
     notes.push(note("secondary_used", { colour: secondaryHex }));
   }
   if (p.c >= 0.08 && hueDistance(p.h, 27) < 22) notes.push(note("accent_like_danger", { colour: primaryHex }));

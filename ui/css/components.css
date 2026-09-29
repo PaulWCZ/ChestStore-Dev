@@ -66,15 +66,15 @@
 .ck-toasts { position: fixed; z-index: 60; left: var(--space-3); right: var(--space-3); bottom: max(var(--space-4), env(safe-area-inset-bottom)); display: grid; justify-items: center; gap: var(--space-2); pointer-events: none; }
 .ck-toast-stack { display: grid; justify-items: center; gap: var(--space-2); }
 .ck-toast {
-  pointer-events: auto; display: flex; align-items: center; gap: var(--space-2);
+  pointer-events: auto; display: flex; flex-wrap: wrap; align-items: center; gap: 0 var(--space-2);
   max-width: min(560px, 100%); padding: var(--space-1) var(--space-1) var(--space-1) var(--space-4);
   border-radius: var(--radius-m); background: var(--ink); color: var(--bg); box-shadow: var(--shadow-2);
   animation: ck-rise var(--slow) var(--ease);
 }
-.ck-toast-text { margin: 0; padding: var(--space-2) 0; }
+.ck-toast-text { flex: 1 1 12em; margin: 0; padding: var(--space-2) 0; }
 .ck-toast .ck-icon { color: inherit; }
-.ck-toast-undo, .ck-toast-close { flex: none; display: inline-flex; align-items: center; gap: var(--space-1); min-height: var(--control-h); border: 0; border-radius: var(--radius-s); background: none; color: inherit; font: inherit; cursor: pointer; }
-.ck-toast-undo { padding: 0 var(--space-3); font-weight: var(--weight-strong); text-decoration: underline; text-underline-offset: 0.2em; }
+.ck-toast-undo, .ck-toast-action, .ck-toast-close { flex: none; display: inline-flex; align-items: center; gap: var(--space-1); min-height: var(--control-h); border: 0; border-radius: var(--radius-s); background: none; color: inherit; font: inherit; cursor: pointer; }
+.ck-toast-undo, .ck-toast-action { padding: 0 var(--space-3); font-weight: var(--weight-strong); text-decoration: underline; text-underline-offset: 0.2em; }
 .ck-toast-undo[aria-disabled="true"] { text-decoration: none; cursor: progress; }
 .ck-toast-close { width: var(--control-h); justify-content: center; }
 .ck-toast :focus-visible { outline: 3px solid currentColor; outline-offset: -3px; }
@@ -117,10 +117,12 @@
 .ck-avatar-group .ck-icon { width: 60%; height: 60%; }
 .ck-stack { display: inline-flex; align-items: center; }
 .ck-stack > .ck-avatar { box-shadow: 0 0 0 2px var(--surface); }
-.ck-stack > .ck-avatar + .ck-avatar { margin-left: -6px; }
-.ck-stack-s > .ck-avatar + .ck-avatar { margin-left: -4px; }
-.ck-stack-l > .ck-avatar + .ck-avatar { margin-left: -8px; }
-.ck-stack-xl > .ck-avatar + .ck-avatar { margin-left: -12px; }
+/* The overlap never reaches the initials (with the ring, which covers 2 px
+   more): none at "s", where 24 px faces have no margin to spare. */
+.ck-stack > .ck-avatar + .ck-avatar { margin-left: -2px; }
+.ck-stack-s > .ck-avatar + .ck-avatar { margin-left: 0; }
+.ck-stack-l > .ck-avatar + .ck-avatar { margin-left: -4px; }
+.ck-stack-xl > .ck-avatar + .ck-avatar { margin-left: -8px; }
 .ck-avatar-more { background: var(--surface); color: var(--ink); border: var(--border-width) solid var(--line-strong); font-variant-numeric: tabular-nums; }
 
 /* ---------- People picker ---------- */
@@ -154,9 +156,15 @@
 .ck-date-input { padding-right: calc(var(--control-h) + var(--space-1)); font-variant-numeric: tabular-nums; }
 .ck-date-open { position: absolute; right: 0; top: 0; }
 .ck-date-chips { display: flex; gap: var(--space-1); flex-wrap: wrap; }
+.ck-month-row { display: flex; align-items: center; gap: var(--space-1); }
+.ck-month-select { flex: 0 1 14em; width: auto; min-width: 0; }
 .ck-chip-button { display: inline-flex; align-items: center; justify-content: center; min-height: var(--control-h); padding: 0 var(--space-3); border: var(--border-width) solid var(--line-strong); border-radius: var(--radius-pill); background: var(--surface); color: var(--ink); font: inherit; font-size: var(--text-s); cursor: pointer; }
 .ck-chip-button:hover { background: var(--surface-2); }
 .ck-chip-button[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent-line); font-weight: var(--weight-strong); }
+/* The date in words keeps its line even while empty: it appears on blur,
+   and a line appearing then moved what was under the pointer (a click right
+   after typing missed its button). */
+.ck-date-read, .ck-date-read:empty { display: block; min-height: calc(var(--text-s) * var(--leading)); line-height: var(--leading); }
 .ck-date-read:not(:empty)::first-letter { text-transform: uppercase; }
 .ck-calendar { position: absolute; z-index: 30; top: 100%; left: 0; margin-top: var(--space-1); width: min(340px, calc(100vw - 2 * var(--space-3))); padding: var(--space-3); border: var(--border-width) solid var(--line-strong); border-radius: var(--radius-l); background: var(--surface); color: var(--ink); box-shadow: var(--shadow-2); }
 .ck-calendar-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); }
@@ -193,9 +201,11 @@
 .ck-files { display: grid; gap: var(--space-2); }
 .ck-drop { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); padding: var(--space-3); border: var(--border-width) dashed var(--line-strong); border-radius: var(--radius-m); background: var(--bg); transition: background var(--fast) var(--ease); }
 .ck-drop.ck-over { background: var(--accent-soft); border-style: solid; border-color: var(--accent-line); }
-.ck-drop.ck-disabled { opacity: 0.6; }
+/* Full or disabled: only the button fades (its text is exempt as a disabled
+   control); the limits beside it stay readable, and "drop here" goes. */
 .ck-drop .ck-button { cursor: pointer; }
-.ck-drop.ck-disabled .ck-button { cursor: default; }
+.ck-drop.ck-disabled .ck-button { cursor: default; opacity: 0.55; }
+.ck-drop.ck-disabled .ck-drop-hint { display: none; }
 .ck-file-input:focus-visible + .ck-button { outline: 3px solid var(--focus); outline-offset: 2px; }
 .ck-drop-hint { color: var(--ink-2); font-size: var(--text-s); }
 .ck-drop .ck-hint { flex-basis: 100%; margin: 0; }
@@ -226,7 +236,9 @@
 .ck-col-narrow { width: 1%; white-space: nowrap; }
 .ck-col-wide { min-width: 16em; }
 .ck-col-actions { width: 1%; padding: 0 var(--space-1) !important; text-align: right !important; }
-.ck-sort { display: inline-flex; align-items: center; gap: var(--space-1); min-height: 36px; margin: 0 calc(-1 * var(--space-1)); padding: 0 var(--space-1); border: 0; border-radius: var(--radius-s); background: none; color: inherit; font: inherit; font-weight: inherit; text-decoration: none; cursor: pointer; }
+/* A sortable header is a button that reads as the header it sits in: it
+   inherits the tool's header typography (small caps, tracking, case). */
+.ck-sort { display: inline-flex; align-items: center; gap: var(--space-1); min-height: 36px; margin: 0 calc(-1 * var(--space-1)); padding: 0 var(--space-1); border: 0; border-radius: var(--radius-s); background: none; color: inherit; font: inherit; font-weight: inherit; font-variant: inherit; font-feature-settings: inherit; letter-spacing: inherit; word-spacing: inherit; text-transform: inherit; text-align: inherit; text-decoration: none; cursor: pointer; }
 .ck-sort:hover { background: var(--surface); }
 .ck-sort .ck-icon { color: var(--ink-2); }
 .ck-sort-none .ck-sort-up, .ck-sort-none .ck-sort-down { opacity: 0.45; }
@@ -302,8 +314,14 @@
 .ck-tabpanel { padding-top: var(--space-4); }
 .ck-segmented { border: 0; margin: 0; padding: 0; min-width: 0; }
 .ck-segments { display: inline-flex; padding: 3px; gap: 2px; border: var(--border-width) solid var(--line-strong); border-radius: var(--radius-m); background: var(--surface-2); }
-.ck-segment { position: relative; }
-.ck-segment input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
+/* The word is the target: the native radio (keyboard, screen readers,
+   forms) is hidden without covering it, so a click on the word is a click
+   on the label, never intercepted by an invisible input (0.2.1). */
+.ck-segment { position: relative; cursor: pointer; }
+.ck-segment input { position: absolute; top: 0; left: 0; width: 1px; height: 1px; margin: 0; opacity: 0; overflow: hidden; clip-path: inset(50%); pointer-events: none; }
+.ck-segment:has(input:disabled) { cursor: not-allowed; }
+.ck-segment input:disabled + span { color: var(--ink-2); }
+.ck-segmented:disabled .ck-segments { opacity: 0.6; }
 .ck-segment span { display: inline-flex; align-items: center; gap: var(--space-1); min-height: calc(var(--control-h) - 8px); padding: 0 var(--space-3); border-radius: calc(var(--radius-m) - 2px); color: var(--ink); font-size: var(--text-s); white-space: nowrap; }
 .ck-segment input:checked + span { background: var(--surface); box-shadow: var(--shadow-1); font-weight: var(--weight-strong); outline: var(--border-width) solid var(--line-strong); }
 .ck-segment input:focus-visible + span { outline: 3px solid var(--focus); outline-offset: 1px; }
@@ -317,7 +335,11 @@
 .ck-brand { display: flex; align-items: center; gap: var(--space-2); min-width: 0; font-family: var(--font-display); font-weight: var(--display-weight); letter-spacing: var(--display-tracking); font-size: var(--text-l); }
 .ck-brand a { display: flex; align-items: center; gap: var(--space-2); min-height: var(--control-h); color: var(--ink); text-decoration: none; }
 .ck-brand svg { width: 28px; height: 28px; flex: none; }
-.ck-logo img { display: block; height: 28px; width: auto; max-width: 160px; }
+/* A company's logo keeps its proportions and never squeezes the header: at
+   most --ck-logo-max wide (160 px unless the tool sets it), a third of a
+   phone's width, scaled down whole (0.2.1). */
+.ck-logo { display: block; flex: 0 1 auto; min-width: 0; }
+.ck-logo img { display: block; height: 28px; width: auto; max-width: min(var(--ck-logo-max, 160px), 33vw); object-fit: contain; object-position: left center; }
 .ck-bar-nav { flex: 1 1 auto; min-width: 0; align-self: stretch; display: flex; }
 .ck-bar-end { margin-left: auto; display: flex; align-items: center; gap: var(--space-3); }
 .ck-nav { display: flex; min-width: 0; }
@@ -340,6 +362,7 @@
 .ck-page-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: var(--space-3) var(--space-4); margin-bottom: var(--space-5); }
 .ck-page-title { min-width: 0; flex: 1 1 20em; }
 .ck-page-title h1, .ck-page-title h2 { margin: 0; font: var(--display-weight) var(--text-2xl)/1.15 var(--font-display); letter-spacing: var(--display-tracking); }
+.ck-page-head-m .ck-page-title h1, .ck-page-head-m .ck-page-title h2 { font-size: var(--text-xl); }
 .ck-page-intro { margin: var(--space-1) 0 0; color: var(--ink-2); max-width: 60ch; }
 .ck-page-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
 .ck-languages { display: flex; gap: var(--space-1); }
@@ -363,6 +386,7 @@
   .ck-member-text { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
   .ck-main { padding: var(--space-4) var(--space-3) var(--space-8); }
   .ck-page-title h1, .ck-page-title h2 { font-size: var(--text-xl); }
+  .ck-page-head-m .ck-page-title h1, .ck-page-head-m .ck-page-title h2 { font-size: var(--text-l); }
   .ck-page-actions { flex-basis: 100%; }
   .ck-page-actions > * { flex: 1 1 auto; }
   .ck-filter-group { flex-wrap: wrap; }

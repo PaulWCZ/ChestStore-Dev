@@ -33,6 +33,12 @@ await en.getByRole("button", { name: "Move a card" }).click();
 await en.getByRole("button", { name: "Move a card" }).click();
 assert.equal(await en.locator(".ck-toast", { hasText: "Card moved" }).count(), 1);
 step("one toast per action id");
+await en.getByRole("button", { name: "Stop the timer" }).click();
+const timer = en.locator(".ck-toast", { hasText: "Timer stopped" });
+await timer.getByRole("button", { name: "Keep 1 min" }).click();
+await en.locator(".ck-toast", { hasText: "Kept: 1 min." }).waitFor();
+assert.equal(await timer.count(), 0, "the toast goes once its action ran");
+step("a toast's own action runs once, then the toast goes");
 await en.getByRole("button", { name: "Undo that fails" }).click();
 const failing = en.locator(".ck-toast", { hasText: "Board archived." });
 await failing.hover();
@@ -63,6 +69,31 @@ await page.getByText("Discard your changes?").first().waitFor();
 await page.getByRole("button", { name: "Discard" }).first().click();
 assert.ok(!(await dlg.isVisible()));
 step("dirty dialog asks on Escape and on the backdrop, inside the dialog");
+// A list and a calendar inside a dialog are shown whole, over its edge.
+await en.getByRole("button", { name: "New board" }).click(); await page.waitForTimeout(200);
+const dialogBox = await dlg.boundingBox();
+const owner = dlg.getByRole("combobox", { name: "Owner" });
+await owner.click();
+const ownerList = dlg.getByRole("listbox", { name: "Owner" });
+await ownerList.waitFor();
+assert.equal(await ownerList.locator(".ck-list-head").textContent(), "Suggested", "suggestions have their own heading");
+const listBox = await ownerList.boundingBox();
+assert.ok(listBox.y + listBox.height > dialogBox.y + dialogBox.height, `the list goes past the dialog's edge (${listBox.y + listBox.height} > ${dialogBox.y + dialogBox.height})`);
+const hit = await page.evaluate(({ x, y }) => document.elementFromPoint(x, y)?.closest("[role=listbox]") !== null, { x: listBox.x + listBox.width / 2, y: listBox.y + listBox.height - 6 });
+assert.ok(hit, "the bottom of the list is seen and reachable, not cut by the dialog");
+await page.screenshot({ path: `${out}/flow-dialog-list.png` });
+await page.keyboard.press("ArrowDown"); await page.keyboard.press("Enter");
+assert.equal(await owner.inputValue(), "Camille Martin");
+await dlg.getByRole("button", { name: "Choose on a calendar" }).click();
+const cal = dlg.locator(".ck-calendar");
+const calBox = await cal.boundingBox();
+const calHit = await page.evaluate(({ x, y }) => document.elementFromPoint(x, y)?.closest(".ck-calendar") !== null, { x: calBox.x + calBox.width / 2, y: calBox.y + calBox.height - 6 });
+assert.ok(calHit, "the calendar is whole, over the dialog's edge");
+await page.keyboard.press("Enter");
+assert.match(await dlg.getByRole("textbox", { name: "Starts on" }).inputValue(), /^\d\d\/\d\d\/\d{4}$/u);
+await page.keyboard.press("Escape");
+assert.ok(!(await dlg.isVisible()));
+step("dialog: a picker's list and a calendar escape the dialog's edge");
 await en.getByRole("button", { name: "Erase Léa’s data" }).click();
 const conf = page.getByRole("alertdialog", { name: /Erase Léa Moreau/ });
 await conf.waitFor(); await page.waitForTimeout(200);
@@ -89,9 +120,45 @@ assert.ok(chips.some(c => c.includes("Léa Moreau")), chips.join("|"));
 await page.keyboard.press("Backspace");
 assert.equal(await en.locator(".ck-picker").nth(1).locator(".ck-chip").count(), 2);
 step("picker: type, arrows (activedescendant), Enter adds a chip, Backspace removes it");
+// Enter while the answer is on its way: nothing chosen, the form not sent.
+const guestChips = () => en.locator(".ck-picker").nth(1).locator(".ck-chip").count();
+const formSent = en.getByText(/^Form sent/u);
+await guests.focus();
+await page.keyboard.type("to"); await page.keyboard.press("Enter");
+assert.equal(await guestChips(), 2, "nothing chosen while searching");
+assert.equal(await en.locator(".ck-picker").nth(1).getByRole("listbox").getAttribute("aria-busy"), "true", "the list says it is busy");
+await page.waitForTimeout(500);
+assert.equal(await guests.getAttribute("aria-activedescendant") !== null, true, "the answer came: its first option is active");
+await page.keyboard.press("Enter");
+assert.equal(await guestChips(), 3, "Enter after the answer picks the active option");
+await page.keyboard.type("hu"); await page.waitForTimeout(500);
+await page.keyboard.type("x"); await page.keyboard.press("Enter");
+assert.equal(await guestChips(), 3, "an earlier answer is not chosen while the new one is on its way");
+await page.waitForTimeout(500); await page.keyboard.press("Enter");
+assert.equal(await formSent.count(), 0, "Enter in the picker never sent the form");
+await page.keyboard.press("Escape");
+await guests.fill(""); await page.keyboard.press("Backspace");
+assert.equal(await guestChips(), 2);
+step("picker: Enter never chooses an old answer nor sends the form while searching");
+
+// Date field: the line of the date in words is kept while it is empty, so
+// the button right under the field does not move between press and release
+// (the blur that writes the date happens on the press).
+const due = en.getByRole("textbox", { name: "Due" });
+await due.fill(""); await due.press("Tab");
+assert.equal(await en.locator(".ck-date-read").first().textContent(), "", "no date: the line is empty");
+const saveDue = en.getByRole("button", { name: "Save the date" });
+await saveDue.scrollIntoViewIfNeeded();
+const gapBelow = async () => (await saveDue.boundingBox()).y - (await due.boundingBox()).y;
+const before = await gapBelow();
+await due.fill("tomorrow");
+await saveDue.click();
+await en.getByText(/^Saved: \w+day \d+ \w+ \d{4}\.$/u).waitFor({ timeout: 2000 });
+assert.equal(await gapBelow(), before, "the button did not move when the date was written in words");
+assert.match(await en.locator(".ck-date-read").first().textContent(), /^Tomorrow · /u);
+step("date: a click right after typing lands (the words' line is reserved)");
 
 // Date field typing + calendar
-const due = en.getByRole("textbox", { name: "Due" });
 await due.fill("tomorrow"); await due.press("Enter");
 assert.match(await due.inputValue(), /^\d\d\/\d\d\/\d{4}$/);
 await due.fill("31/02/2026"); await due.press("Tab");
@@ -106,6 +173,14 @@ await page.screenshot({ path: `${out}/flow-calendar.png` });
 await page.keyboard.press("Enter");
 assert.equal(await due.inputValue(), "23/11/2026");
 step("calendar: opens on the day, arrows and Page Down, Enter picks");
+
+// MonthField: the next month by its button, a month by the list.
+const month = en.getByRole("combobox", { name: "Month" });
+const thisMonth = await month.inputValue();
+await en.getByRole("button", { name: "Next month" }).first().click();
+assert.notEqual(await month.inputValue(), thisMonth);
+assert.match(await month.locator("option:checked").textContent(), /^[A-Z][a-z]+ \d{4}$/u);
+step("month field: next month, the month in words");
 
 // time keeps duration
 await en.getByLabel("Starts").selectOption("840");
@@ -127,6 +202,46 @@ assert.equal(await page.evaluate(() => document.activeElement?.getAttribute("rol
 await page.keyboard.press("End"); await page.keyboard.press("Escape");
 assert.equal(await page.evaluate(() => document.activeElement?.getAttribute("aria-haspopup")), "menu");
 step("menu keyboard: opens on arrow, End, Escape gives focus back");
+// The last row's menu is whole, over the table's scrolling frame.
+const lastMenu = en.getByRole("button", { name: /Actions for Q-2026-018/ });
+await lastMenu.scrollIntoViewIfNeeded(); await lastMenu.click();
+const menuList = en.getByRole("menu");
+const menuBox = await menuList.boundingBox();
+const wrapBox = await en.locator(".ck-table-wrap").boundingBox();
+assert.ok(menuBox.y + menuBox.height > wrapBox.y + wrapBox.height, "the menu goes past the table's frame");
+assert.ok(await page.evaluate(({ x, y }) => document.elementFromPoint(x, y)?.closest("[role=menu]") !== null, { x: menuBox.x + menuBox.width / 2, y: menuBox.y + menuBox.height - 6 }), "its last item is seen and reachable");
+await page.keyboard.press("Escape");
+step("a row's menu is not cut by the table's scrolling frame");
+
+// Filters with several values: two chips on, then one let go.
+await page.locator("body").click({ position: { x: 3, y: 400 } });
+await page.keyboard.press("/"); await page.keyboard.press("Control+a"); await page.keyboard.press("Backspace");
+const chip = name => en.locator(".ck-filter-chip", { hasText: name });
+await chip("Sent").click(); await chip("Late").click();
+assert.equal(await en.locator(".ck-table tbody tr").count(), 3, "sent (2) and late (1)");
+assert.equal(await en.locator('.ck-filter-chip[aria-current="true"]').count(), 2);
+await chip("Sent").click();
+assert.equal(await en.locator(".ck-table tbody tr").count(), 1);
+await en.locator(".ck-filter-clear").click();
+assert.equal(await en.locator(".ck-table tbody tr").count(), 5);
+step("filters: several states at once, one let go, Clear");
+// A sortable header reads as the tool's headers (small caps, tracking, case).
+const th = en.locator("th[aria-sort]").first();
+await th.evaluate(el => { el.style.textTransform = "uppercase"; el.style.letterSpacing = "0.08em"; el.style.fontVariantCaps = "small-caps"; });
+const typo = await th.evaluate(el => { const b = el.querySelector(".ck-sort"), a = getComputedStyle(el), c = getComputedStyle(b); return [a.textTransform, a.letterSpacing, a.fontVariantCaps].join() === [c.textTransform, c.letterSpacing, c.fontVariantCaps].join(); });
+assert.ok(typo, "the sort button inherits the header's typography");
+step("a sortable header's button inherits the header's typography");
+
+// Segmented: a click on the word chooses (the hidden radio does not cover it); a disabled option cannot be chosen.
+await en.getByText("Morning", { exact: true }).click();
+assert.ok(await en.getByRole("radio", { name: "Morning" }).isChecked());
+assert.ok(await en.getByRole("radio", { name: "Afternoon" }).isDisabled());
+await en.getByText("Afternoon", { exact: true }).click({ force: true });
+assert.ok(await en.getByRole("radio", { name: "Morning" }).isChecked(), "a disabled option stays unchosen");
+assert.ok(await en.getByRole("radio", { name: "List" }).nth(1).isDisabled(), "a disabled Segmented");
+await en.getByRole("radio", { name: "Morning" }).focus(); await page.keyboard.press("ArrowRight");
+assert.ok(await en.getByRole("radio", { name: "All day" }).isChecked(), "arrows skip the disabled option");
+step("segmented: the word is the target, disabled options and groups");
 
 // Tabs roving
 await en.getByRole("tab", { name: /Upcoming/ }).focus();

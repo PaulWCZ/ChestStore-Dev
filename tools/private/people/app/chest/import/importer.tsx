@@ -1,9 +1,9 @@
 "use client";
 
+import { DataTable, FilePicker, Segmented, useToast, type PickedFile } from "@argentic/chest-ui/components";
+import type { FileWords, TableWords } from "@argentic/chest-ui/components/logic";
 import { useRouter } from "next/navigation";
-import { useId, useRef, useState, useTransition } from "react";
-import { Upload } from "../../../components/icons.tsx";
-import { useToast } from "../../../components/toast.tsx";
+import { useId, useState, useTransition } from "react";
 import type { ErrorCode } from "../../../lib/app-error.ts";
 import { format, plural } from "../../../lib/i18n/format.ts";
 import type { Choices, Field, Plan, Target } from "../../../lib/importer.ts";
@@ -14,11 +14,13 @@ type Words = {
     choose: string; reading: string; fields: Record<Field, string>; line: string; person: string; changes: string; ready: string;
     skip: Record<"not_found" | "ambiguous" | "duplicate", string>; problems: Record<string, string>;
     dmy: string; mdy: string; summary: { zero?: string; one: string; other: string }; leftOut: { one: string; other: string };
-    apply: { one: string; other: string }; applying: string; done: { zero?: string; one: string; other: string }; loops: string; another: string;
+    apply: { one: string; other: string }; applying: string; done: { zero?: string; one: string; other: string }; loops: string;
     mapping: string; mappingHint: string; sample: string; targets: Record<"skip" | "name" | "first" | "last" | "email", string>;
     missingName: string; missingField: string; dateQuestion: string; columnsFound: string; extra: string;
   };
   errors: Record<ErrorCode, string>;
+  files: FileWords;
+  tables: TableWords;
 };
 
 const fieldOrder: Field[] = ["title", "team", "manager", "phone", "office", "startDate"];
@@ -26,12 +28,14 @@ const fieldOrder: Field[] = ["title", "team", "manager", "phone", "office", "sta
 // The file is read on the server each time: to show what each column holds
 // and what will change, then to import it — never trusting what the page
 // shows. HR corrects what a column holds and, when the dates could be read
-// both ways, says how they are written.
+// both ways, says how they are written. The file is chosen (or dropped)
+// with the kit's FilePicker: it stays in the browser, its text goes to the
+// server action; the plan is the kit's DataTable.
 export function Importer({ locale, extras, t }: { locale: string; extras: { id: string; label: string }[]; t: Words }) {
   const router = useRouter();
   const toast = useToast();
   const uid = useId();
-  const input = useRef<HTMLInputElement>(null);
+  const [files, setFiles] = useState<readonly PickedFile[]>([]);
   const [text, setText] = useState<string | null>(null);
   const [plan, setPlan] = useState<Plan | null>(null);
   const [choices, setChoices] = useState<Choices>({});
@@ -46,18 +50,21 @@ export function Importer({ locale, extras, t }: { locale: string; extras: { id: 
       setPlan(r.value);
     }
   });
-  const choose = async (file: File | undefined) => {
-    if (!file) return;
+  const choose = async (file: File | null | undefined) => {
     setError(null);
     setPlan(null);
     setChoices({});
-    if (file.size > 2 << 20) {
-      setError(t.errors.import_invalid);
-      return;
-    }
+    setText(null);
+    if (!file) return;
     const content = await file.text();
     setText(content);
     preview(content, {});
+  };
+  // One file at a time: choosing one reads it; removing it starts again.
+  const pick = (update: (current: readonly PickedFile[]) => PickedFile[]) => {
+    const next = update(files);
+    setFiles(next);
+    if (next[0]?.key !== files[0]?.key) void choose(next[0]?.file);
   };
   const change = (next: Choices) => {
     setChoices(next);
@@ -71,8 +78,8 @@ export function Importer({ locale, extras, t }: { locale: string; extras: { id: 
         setError(format(t.errors[r.error], r.values ?? {}));
         return;
       }
-      toast(plural(t.import.done, r.value.updated, locale));
-      if (r.value.loops.length > 0) toast(format(t.import.loops, { names: r.value.loops.join(", ") }));
+      toast({ id: "import", text: plural(t.import.done, r.value.updated, locale) });
+      if (r.value.loops.length > 0) toast({ id: "import-loops", text: format(t.import.loops, { names: r.value.loops.join(", ") }) });
       router.push("/chest");
     });
   };
@@ -88,11 +95,8 @@ export function Importer({ locale, extras, t }: { locale: string; extras: { id: 
 
   return (
     <div className="importer">
-      <label className={plan ? "drop small" : "drop"}>
-        <Upload />
-        <span>{pending && !plan ? t.import.reading : plan ? t.import.another : t.import.choose}</span>
-        <input ref={input} type="file" accept=".csv,text/csv,text/plain" className="visually-hidden" onChange={e => void choose(e.target.files?.[0])} />
-      </label>
+      <FilePicker label={t.import.choose} files={files} onChange={pick} accept={[".csv", "text/csv"]} maxFiles={1} maxSize={2 << 20} labels={t.files} />
+      <p className="muted small" role="status">{pending && !plan ? t.import.reading : ""}</p>
       {error && <p className="error" role="alert">{error}</p>}
       {plan && (
         <>
@@ -123,15 +127,10 @@ export function Importer({ locale, extras, t }: { locale: string; extras: { id: 
           </details>
           {plan.missing && <p className="banner warn" role="alert">{plan.missing === "name" ? t.import.missingName : t.import.missingField}</p>}
           {plan.askDateOrder && (
-            <fieldset className="segmented date-order">
-              <legend className="label">{t.import.dateQuestion}</legend>
-              {(["dmy", "mdy"] as const).map(o => (
-                <label key={o}>
-                  <input type="radio" name={uid + "order"} value={o} checked={plan.dateOrder === o} disabled={pending} onChange={() => change({ ...choices, targets: plan.targets, dateOrder: o })} />
-                  <span>{o === "dmy" ? t.import.dmy : t.import.mdy}</span>
-                </label>
-              ))}
-            </fieldset>
+            <div className="date-order">
+              <Segmented label={t.import.dateQuestion} hideLabel={false} value={choices.dateOrder === "dmy" || choices.dateOrder === "mdy" ? choices.dateOrder : plan.dateOrder} onChange={o => change({ ...choices, targets: plan.targets, dateOrder: o })}
+                options={[{ value: "dmy", label: t.import.dmy }, { value: "mdy", label: t.import.mdy }]} />
+            </div>
           )}
           {!plan.missing && (
             <>
@@ -139,31 +138,28 @@ export function Importer({ locale, extras, t }: { locale: string; extras: { id: 
                 <p><strong>{plural(t.import.summary, ready.length, locale)}</strong>{left > 0 && <span className="muted"> · {plural(t.import.leftOut, left, locale)}</span>}</p>
                 {!plan.askDateOrder && plan.columns.includes("startDate") && <p className="muted small">{plan.dateOrder === "dmy" ? t.import.dmy : t.import.mdy}</p>}
               </div>
-              <div className="table-frame">
-                <table className="plan">
-                  <thead>
-                    <tr><th scope="col">{t.import.line}</th><th scope="col">{t.import.person}</th><th scope="col">{t.import.changes}</th></tr>
-                  </thead>
-                  <tbody>
-                    {plan.rows.map(r => (
-                      <tr key={r.line} className={r.skip ? "skipped" : undefined}>
-                        <td className="num">{r.line}</td>
-                        <td>{r.name}</td>
-                        <td>
-                          {r.skip ? <span className="warn-text">{t.import.skip[r.skip]}</span> : (
-                            <>
-                              <span className="changes">
-                                {(Object.entries(r.changes) as [Field, string][]).map(([f, v]) => <span key={f} className="change"><span className="muted">{t.import.fields[f]}</span> {v}</span>)}
-                                {Object.entries(r.extras).map(([x, v]) => <span key={x} className="change"><span className="muted">{extras.find(e => e.id === x)?.label}</span> {v}</span>)}
-                              </span>
-                              {r.problems.map(p => <span key={p} className="warn-text">{t.import.problems[p]}</span>)}
-                            </>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <div className="plan">
+                <DataTable
+                  caption={t.import.changes}
+                  rows={plan.rows}
+                  rowKey={r => String(r.line)}
+                  labels={t.tables}
+                  columns={[
+                    { key: "line", label: t.import.line, value: r => r.line, width: "narrow" },
+                    { key: "person", label: t.import.person, value: r => r.name, rowHeader: true },
+                    {
+                      key: "changes", label: t.import.changes, render: r => r.skip ? <span className="warn-text">{t.import.skip[r.skip]}</span> : (
+                        <>
+                          <span className="changes">
+                            {(Object.entries(r.changes) as [Field, string][]).map(([f, v]) => <span key={f} className="change"><span className="muted">{t.import.fields[f]}</span> {v}</span>)}
+                            {Object.entries(r.extras).map(([x, v]) => <span key={x} className="change"><span className="muted">{extras.find(e => e.id === x)?.label}</span> {v}</span>)}
+                          </span>
+                          {r.problems.map(p => <span key={p} className="warn-text">{t.import.problems[p]}</span>)}
+                        </>
+                      ),
+                    },
+                  ]}
+                />
               </div>
               <div className="row form-actions">
                 <button type="button" className="button" disabled={pending || ready.length === 0} onClick={apply}>{pending ? t.import.applying : plural(t.import.apply, ready.length, locale)}</button>

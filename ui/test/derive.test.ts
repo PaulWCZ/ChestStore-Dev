@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { contrast, oklch } from "../src/color.js";
-import { checkTheme, validateTheme } from "../src/contract.js";
+import { checkPalette, checkTheme, validateTheme } from "../src/contract.js";
 import { BrandError, deriveTheme, type Brand } from "../src/derive.js";
 
 // A seeded generator: the same brands on every run.
@@ -18,11 +18,13 @@ test("any brand gives a theme that passes every pair of the contract, light and 
     const brand: Brand = { primary: colour(r), corners: corners[i % 3]!, density: densities[i % 2]!, ...(i % 2 ? { secondary: colour(r) } : {}), ...(i % 3 === 0 ? { neutral: colour(r) } : {}) };
     const { theme, notes } = deriveTheme(brand);
     assert.deepEqual(checkTheme(theme), [], JSON.stringify(brand));
+    assert.deepEqual(checkPalette(theme), [], `the palette keeps its families: ${JSON.stringify(brand)}`);
     assert.deepEqual(validateTheme(theme), []);
     for (const n of notes) assert.ok(n.en.length > 0 && n.fr.length > 0 && !/\{\w+\}/u.test(n.en + n.fr), n.code);
   }
   for (const extreme of ["#000000", "#ffffff", "#ffff00", "#00ff00", "#0000ff", "#ff0000", "#808080", "#010101", "#fefefe"]) {
     assert.deepEqual(checkTheme(deriveTheme({ primary: extreme, secondary: extreme, neutral: extreme }).theme), [], extreme);
+    assert.deepEqual(checkPalette(deriveTheme({ primary: extreme, secondary: extreme, neutral: extreme }).theme), [], extreme);
   }
 });
 

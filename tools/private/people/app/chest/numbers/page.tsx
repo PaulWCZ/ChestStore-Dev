@@ -9,6 +9,7 @@ import { numbers, type Count } from "../../../lib/numbers.ts";
 import { listRecords } from "../../../lib/records.ts";
 import { viewer } from "../../../lib/session.ts";
 import { today } from "../../../lib/zone.ts";
+import { MonthsTable } from "./months-table.tsx";
 
 // HR's numbers: how many people, by team, office and contract; arrivals
 // and departures month by month; the turnover of the last twelve months.
@@ -40,7 +41,7 @@ export default async function NumbersPage() {
   );
   const peak = Math.max(1, ...n.months.flatMap(m => [m.arrivals, m.departures]));
   return (
-    <main className="page narrow">
+    <div className="page narrow">
       <Link className="back" href="/chest/records"><Back />{t.record.back}</Link>
       <h1 className="edit-title">{t.numbers.title}</h1>
       <div className="stats">
@@ -59,27 +60,10 @@ export default async function NumbersPage() {
       <section className="card-block section" aria-labelledby="months-title">
         <h2 id="months-title" className="legend">{t.numbers.months}</h2>
         <p className="hint">{n.fromRecords ? t.numbers.monthsHint : t.numbers.monthsFromProfiles}</p>
-        <div className="table-frame">
-          <table className="plan months">
-            <thead>
-              <tr>
-                <th scope="col">{t.numbers.month}</th>
-                <th scope="col"><span className="key in" aria-hidden="true" />{t.numbers.arrivals}</th>
-                {n.fromRecords && <th scope="col"><span className="key out" aria-hidden="true" />{t.numbers.departures}</th>}
-              </tr>
-            </thead>
-            <tbody>
-              {n.months.map(m => (
-                <tr key={m.month}>
-                  <th scope="row">{formatDay(m.month + "-01", locale, { month: "short", year: "numeric" })}</th>
-                  <td><span className="cell-bar"><span className="mini-bar in" style={{ width: `${(m.arrivals / peak) * 100}%` }} /><span className="bar-value">{fmt.format(m.arrivals)}</span></span></td>
-                  {n.fromRecords && <td><span className="cell-bar"><span className="mini-bar out" style={{ width: `${(m.departures / peak) * 100}%` }} /><span className="bar-value">{fmt.format(m.departures)}</span></span></td>}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <MonthsTable caption={t.numbers.months} peak={peak} departures={n.fromRecords} labels={t.tables}
+          heads={{ month: t.numbers.month, arrivals: t.numbers.arrivals, departures: t.numbers.departures }}
+          rows={n.months.map(m => ({ month: m.month, label: formatDay(m.month + "-01", locale, { month: "short", year: "numeric" }), arrivals: m.arrivals, departures: m.departures, arrivalsText: fmt.format(m.arrivals), departuresText: fmt.format(m.departures) }))} />
       </section>
-    </main>
+    </div>
   );
 }

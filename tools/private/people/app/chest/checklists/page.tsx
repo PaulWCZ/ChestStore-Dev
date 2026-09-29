@@ -1,20 +1,22 @@
+import { Avatar, EmptyState, PageHeader } from "@argentic/chest-ui/components";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AutoRefresh } from "../../../components/auto-refresh.tsx";
 import { Clipboard, Plus } from "../../../components/icons.tsx";
-import { Portrait } from "../../../components/portrait.tsx";
 import { can } from "../../../lib/access.ts";
 import { db } from "../../../lib/db.ts";
 import { format, formatDay, plural } from "../../../lib/i18n/index.ts";
 import { listJourneys, listTemplates, type JourneySummary } from "../../../lib/journeys.ts";
 import { people, subjectOf } from "../../../lib/people.ts";
 import { viewer } from "../../../lib/session.ts";
+import { today } from "../../../lib/zone.ts";
 import { listArrivals, suggestions } from "../../../lib/arrivals.ts";
 import { directory } from "../../../lib/directory.ts";
 import { ArrivalList, type ArrivalView } from "./arrivals-view.tsx";
 import { ArrivalForm } from "./arrival-form.tsx";
 import { choices } from "../../../lib/profiles.ts";
 import { ExamplesButton, NewTemplate } from "./template-buttons.tsx";
+import { KindBadge } from "../../../components/kind.tsx";
 
 // HR's page: the arrivals and departures in progress, with their progress,
 // and the templates they start from. The one obvious action: start a
@@ -30,7 +32,7 @@ export default async function ChecklistsPage() {
   const known = await choices(sql, member);
   const weekdays = Array.from({ length: 7 }, (_, i) => formatDay(`2024-01-${String(7 + i).padStart(2, "0")}`, locale, { weekday: "long" }));
   const peopleList = entries.map(e => ({ id: e.id, name: e.name }));
-  const formWords = { arrivals: t.arrivals, errors: t.errors };
+  const formProps = { people: peopleList, known, weekdays, today: today(), lang: locale, t: { arrivals: t.arrivals, errors: t.errors, date: t.date, peoplePicker: t.peoplePicker, leaveEmpty: t.people.leaveEmpty } };
   const arrivalViews: ArrivalView[] = expected.map(a => ({
     id: a.id,
     name: a.name,
@@ -53,11 +55,11 @@ export default async function ChecklistsPage() {
     return (
       <li key={j.id}>
         <Link className="journey-card" href={`/chest/checklists/${j.id}`}>
-          <Portrait name={person.name} photo={person.photo} size={52} />
+          <Avatar name={person.name} photo={person.photo} size="l" />
           <span className="journey-main">
             <strong>{person.name}{j.arrivalId && <span className="source">{t.arrivals.group}</span>}</strong>
             <span className="muted">
-              <span className={`kind ${j.kind}`}>{t.checklists.kinds[j.kind]}</span> {j.name} · {format(j.kind === "onboarding" ? t.checklists.firstDay : t.checklists.lastDay, { date: formatDay(j.anchor, locale, { day: "numeric", month: "short" }) })}
+              <KindBadge kind={j.kind} label={t.checklists.kinds[j.kind]} /> {j.name} · {format(j.kind === "onboarding" ? t.checklists.firstDay : t.checklists.lastDay, { date: formatDay(j.anchor, locale, { day: "numeric", month: "short" }) })}
             </span>
           </span>
           <span className="journey-progress">
@@ -70,27 +72,28 @@ export default async function ChecklistsPage() {
   };
   const nothing = journeys.length === 0 && templates.length === 0 && archived.length === 0 && expected.length === 0;
   return (
-    <main className="page narrow">
+    <div className="page narrow">
       <AutoRefresh seconds={60} />
-      <div className="page-head">
-        <h1>{t.checklists.title}</h1>
-        {templates.length > 0 && <Link className="button" href="/chest/checklists/new"><Plus />{t.checklists.start}</Link>}
-      </div>
+      <PageHeader title={t.checklists.title} action={templates.length > 0 ? <Link className="button" href="/chest/checklists/new"><Plus />{t.checklists.start}</Link> : null} />
       {nothing ? (
-        <div className="empty">
-          <Clipboard />
-          <h2>{t.checklists.empty.title}</h2>
-          <p>{t.checklists.empty.body}</p>
-          <ExamplesButton t={buttonWords} />
-          <NewTemplate t={buttonWords} quiet label={t.checklists.empty.scratch} />
-          <ArrivalForm people={peopleList} known={known} weekdays={weekdays} t={formWords} />
-        </div>
+        <EmptyState
+          icon={<Clipboard />}
+          title={t.checklists.empty.title}
+          body={t.checklists.empty.body}
+          action={(
+            <>
+              <ExamplesButton t={buttonWords} />
+              <NewTemplate t={buttonWords} quiet label={t.checklists.empty.scratch} />
+              <ArrivalForm {...formProps} />
+            </>
+          )}
+        />
       ) : (
         <>
           <section id="arrivals" aria-labelledby="arrivals-title" className="section">
             <h2 id="arrivals-title" className="eyebrow">{t.arrivals.title}</h2>
-            {arrivalViews.length > 0 && <ArrivalList arrivals={arrivalViews} people={peopleList} known={known} weekdays={weekdays} locale={locale} t={{ arrivals: t.arrivals, errors: t.errors }} />}
-            <div className="section-actions"><ArrivalForm people={peopleList} known={known} weekdays={weekdays} t={formWords} /></div>
+            {arrivalViews.length > 0 && <ArrivalList arrivals={arrivalViews} locale={locale} {...formProps} />}
+            <div className="section-actions"><ArrivalForm {...formProps} /></div>
           </section>
           <section aria-labelledby="running-title" className="section">
             <h2 id="running-title" className="eyebrow">{t.checklists.running}</h2>
@@ -117,7 +120,7 @@ export default async function ChecklistsPage() {
               {templates.map(x => (
                 <li key={x.id}>
                   <Link href={`/chest/checklists/templates/${x.id}`} className="template-row">
-                    <span className={`kind ${x.kind}`}>{t.checklists.kinds[x.kind]}</span>
+                    <KindBadge kind={x.kind} label={t.checklists.kinds[x.kind]} />
                     <strong>{x.name}</strong>
                     <span className="muted small">{plural(t.checklists.steps, x.items.length, locale)}</span>
                   </Link>
@@ -132,7 +135,7 @@ export default async function ChecklistsPage() {
                   {archived.map(x => (
                     <li key={x.id}>
                       <Link href={`/chest/checklists/templates/${x.id}`} className="template-row">
-                        <span className={`kind ${x.kind}`}>{t.checklists.kinds[x.kind]}</span>
+                        <KindBadge kind={x.kind} label={t.checklists.kinds[x.kind]} />
                         <strong>{x.name}</strong>
                       </Link>
                     </li>
@@ -143,6 +146,6 @@ export default async function ChecklistsPage() {
           </section>
         </>
       )}
-    </main>
+    </div>
   );
 }

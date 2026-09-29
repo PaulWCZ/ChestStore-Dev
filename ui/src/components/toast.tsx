@@ -117,6 +117,13 @@ function Toast({ toast, labels, dispatch, runUndo }: { toast: ToastState; labels
     >
       {toast.sent && <SentIcon />}
       <p className="ck-toast-text">{text}</p>
+      {toast.action && toast.phase === "open" && (
+        <button type="button" className="ck-toast-action" onClick={() => {
+          const { run, close = true } = toast.action!;
+          if (close) dispatch({ type: "dismiss", id });
+          void run();
+        }}>{toast.action.label}</button>
+      )}
       {toast.undo && (toast.phase === "open" || toast.phase === "undoing") && (
         <button type="button" className="ck-toast-undo" aria-keyshortcuts="Control+Z Meta+Z" aria-disabled={toast.phase === "undoing" ? true : undefined} onClick={() => { if (toast.phase === "open") void runUndo(id); }}>
           <UndoIcon />{toast.phase === "undoing" ? labels.undoing : labels.undo}

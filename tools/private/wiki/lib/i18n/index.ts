@@ -49,6 +49,7 @@ export function newPageWords(t: Catalogue) {
   return {
     newPage: t.newPage,
     common: t.common,
+    dialog: t.dialog,
     errors: t.errors,
     templates: { start: t.templates.start, blank: t.templates.blank, builtin: { meeting: b.meeting.name, howto: b.howto.name, decision: b.decision.name } },
   };

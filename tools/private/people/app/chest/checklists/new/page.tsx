@@ -1,3 +1,4 @@
+import { EmptyState } from "@argentic/chest-ui/components";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Back } from "../../../../components/icons.tsx";
@@ -29,14 +30,11 @@ export default async function NewChecklistPage({ searchParams }: { searchParams:
   const kind = asked ? "onboarding" : isKind(query["kind"]) ? query["kind"] : "onboarding";
   const template = typeof query["template"] === "string" ? query["template"] : "";
   return (
-    <main className="page narrow">
+    <div className="page narrow">
       <Link className="back" href="/chest/checklists"><Back />{t.checklists.title}</Link>
       <h1 className="edit-title">{t.start.title}</h1>
       {templates.length === 0 ? (
-        <div className="empty">
-          <p>{t.start.noTemplates}</p>
-          <Link className="button" href="/chest/checklists">{t.start.newTemplate}</Link>
-        </div>
+        <EmptyState title={t.start.noTemplates} action={<Link className="button" href="/chest/checklists">{t.start.newTemplate}</Link>} />
       ) : (
         <StartForm
           people={entries.map(e => ({ id: e.id, name: e.name, startDate: e.startDate }))}
@@ -45,9 +43,10 @@ export default async function NewChecklistPage({ searchParams }: { searchParams:
           initial={{ person, kind, template }}
           today={today()}
           weekdays={weekdays}
-          t={{ start: t.start, kinds: t.checklists.kinds, group: t.arrivals.group, errors: t.errors }}
+          lang={locale}
+          t={{ start: t.start, kinds: t.checklists.kinds, group: t.arrivals.group, errors: t.errors, date: t.date, peoplePicker: t.peoplePicker, leaveEmpty: t.people.leaveEmpty }}
         />
       )}
-    </main>
+    </div>
   );
 }

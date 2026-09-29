@@ -30,7 +30,22 @@ for (const theme of ["chest", "workshop", "library", "brand"]) for (const mode o
   await page.click(`[data-theme="${theme}"]`); if (theme !== "chest") await page.click(`[data-mode="${mode}"]`); await page.click(`[data-lang="${lang}"]`);
   const r = await page.evaluate(async () => { const res = await axe.run(document.getElementById("stage"), { runOnly: { type: "tag", values: ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"] } }); return res.violations.map(v => `${v.id} (${v.nodes.length}): ${v.nodes.slice(0, 3).map(n => n.target.join(" ") + " — " + (n.failureSummary || "").split("\n").slice(1, 2).join("")).join(" | ")}`); });
   if (r.length) { console.log(theme, mode, lang, r); problems.push(`axe ${theme} ${mode} ${lang}`); }
+  // Avatar stacks: no face covers the initials of the one before it (the
+  // next face and its 2 px ring stay right of the letters), at every size.
+  const cropped = await page.evaluate(() => [...document.querySelectorAll(".ck-stack")].filter(stack => stack.offsetParent !== null).flatMap(stack => {
+    const faces = [...stack.children];
+    return faces.slice(0, -1).flatMap((face, i) => {
+      if (!face.firstChild || face.firstChild.nodeType !== Node.TEXT_NODE) return [];
+      const range = document.createRange(); range.selectNodeContents(face);
+      const letters = range.getBoundingClientRect().right;
+      const next = faces[i + 1].getBoundingClientRect().left - 2;
+      return letters > next ? [`${stack.className} "${face.textContent}" ${letters.toFixed(1)} > ${next.toFixed(1)}`] : [];
+    });
+  }));
+  if (cropped.length) { console.log(theme, mode, lang, "cropped initials", cropped); problems.push(`avatar stack crops initials ${theme} ${mode} ${lang}`); }
 }
+await page.click('[data-theme="workshop"]'); await page.click('[data-mode="l"]'); await page.click('[data-lang="en"]');
+await page.locator("#bench-en .demo-stacks").screenshot({ path: `${out}/avatar-stacks.png` });
 await page.click('[data-theme="workshop"]'); await page.click('[data-mode="l"]'); await page.click('[data-lang="en"]');
 await page.screenshot({ path: `${out}/desk-workshop-en.png`, fullPage: true });
 await page.click('[data-theme="brand"]'); await page.click('[data-mode="d"]'); await page.click('[data-lang="fr"]');

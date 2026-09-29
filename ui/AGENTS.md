@@ -31,7 +31,9 @@ the list of tokens; this page is the short path and the mistakes to avoid.
   contract is a tool token defined from contract tokens.
 - **Text only on measured pairs.** Text on `--accent` is `--accent-ink`;
   on `--cat-N-soft` it is `--cat-N-ink`; on `--highlight`, `--ink`; on a
-  state's soft ground, its `-ink`. `color-mix()` is for decoration only.
+  state's soft ground, its `-ink`. `color-mix()` is for decoration only,
+  and `in oklab` (never `in oklch`: a white or a grey has no hue, and
+  Chrome swings the mix through pink or blue).
 - **Field borders are `--line-strong`**, hairlines `--line`. A control's
   edge that must be seen uses `--accent-line` (Workshop's yellow buttons
   need an ink edge).

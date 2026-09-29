@@ -34,7 +34,7 @@ export default async function SettingsPage({ params }: { params: Promise<{ id: s
   const found = await people(others);
   const editors = [...writers, ...others.map(e => ({ id: e, name: nameOf(found.get(e), locale) }))];
   return (
-    <main className="page narrow">
+    <div className="page narrow">
       <Link className="back" href={`/chest/spaces/${s.id}`}><Back />{t.settings.back}</Link>
       <h1>{t.settings.title}</h1>
       <SpaceSettings
@@ -45,6 +45,6 @@ export default async function SettingsPage({ params }: { params: Promise<{ id: s
         colors={[...colors]}
         t={{ settings: t.settings, errors: t.errors }}
       />
-    </main>
+    </div>
   );
 }

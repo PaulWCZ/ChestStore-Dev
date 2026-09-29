@@ -1,11 +1,13 @@
 "use client";
 
+import { DateField, PeoplePicker, useToast } from "@argentic/chest-ui/components";
+import { localSearch, type Choice, type DateWords, type PeoplePickerWords } from "@argentic/chest-ui/components/logic";
 import { useRouter } from "next/navigation";
-import { useId, useState, useTransition, type FormEvent } from "react";
+import { useId, useMemo, useState, useTransition, type FormEvent } from "react";
 import { Pencil, Plus } from "../../../components/icons.tsx";
-import { useToast } from "../../../components/toast.tsx";
 import type { ErrorCode } from "../../../lib/app-error.ts";
 import { format } from "../../../lib/i18n/format.ts";
+import { offered } from "../../../lib/choices.ts";
 import { isWeekend, limits } from "../../../lib/model.ts";
 import { addArrival, updateArrival } from "../actions.ts";
 
@@ -16,27 +18,37 @@ export type ArrivalDraft = { id?: string; name: string; job: string; team: strin
 type Words = {
   arrivals: {
     add: string; addTitle: string; editTitle: string; edit: string; name: string; job: string; team: string; office: string; startDate: string; manager: string;
-    noManager: string; workEmail: string; workEmailHint: string; save: string; saving: string; added: string; saved: string; cancel: string; weekend: string;
+    workEmail: string; workEmailHint: string; save: string; saving: string; added: string; saved: string; cancel: string; weekend: string;
   };
   errors: Record<ErrorCode, string>;
+  date: DateWords;
+  peoplePicker: PeoplePickerWords;
+  leaveEmpty: string;
 };
 
-export function ArrivalForm({ draft, people, known, weekdays, t }: {
+export type ArrivalFormProps = {
   draft?: ArrivalDraft;
   people: { id: string; name: string }[];
   known: { teams: string[]; offices: string[]; titles: string[] };
   // The names of the days, Sunday first, in the reader's language.
   weekdays: string[];
+  // Today in the Chest's time zone (the date field), the words' language.
+  today: string;
+  lang: string;
   t: Words;
-}) {
+};
+
+export function ArrivalForm({ draft, people, known, weekdays, today, lang, t }: ArrivalFormProps) {
   const router = useRouter();
   const toast = useToast();
   const uid = useId();
   const [open, setOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
-  const [startDate, setStartDate] = useState(draft?.startDate ?? "");
-  const weekend = /^\d{4}-\d{2}-\d{2}$/u.test(startDate) && isWeekend(startDate) ? weekdays[new Date(startDate + "T00:00:00Z").getUTCDay()]! : null;
+  const [startDate, setStartDate] = useState<string | null>(draft?.startDate ?? null);
+  const [manager, setManager] = useState<Choice[]>(() => people.filter(p => p.id === draft?.managerId));
+  const searchPeople = useMemo(() => localSearch(people), [people]);
+  const weekend = startDate && isWeekend(startDate) ? weekdays[new Date(startDate + "T00:00:00Z").getUTCDay()]! : null;
 
   if (!open) {
     return draft
@@ -47,7 +59,7 @@ export function ArrivalForm({ draft, people, known, weekdays, t }: {
     event.preventDefault();
     const data = new FormData(event.currentTarget);
     const text = (key: string) => String(data.get(key) ?? "");
-    const input = { name: text("name"), job: text("job"), team: text("team"), place: text("place"), startDate: text("startDate") || null, managerId: text("managerId") || null, workEmail: text("workEmail") };
+    const input = { name: text("name"), job: text("job"), team: text("team"), place: text("place"), startDate, managerId: manager[0]?.id ?? null, workEmail: text("workEmail") };
     setError(null);
     start(async () => {
       const r = draft?.id ? await updateArrival(draft.id, input) : await addArrival(input);
@@ -69,9 +81,8 @@ export function ArrivalForm({ draft, people, known, weekdays, t }: {
           <input id={uid + "name"} name="name" className="field" required defaultValue={draft?.name ?? ""} maxLength={limits.name} autoComplete="off" autoFocus />
         </div>
         <div className="field-group">
-          <label htmlFor={uid + "start"} className="label">{t.arrivals.startDate}</label>
-          <input id={uid + "start"} name="startDate" className="field" type="date" value={startDate} onChange={e => setStartDate(e.target.value)} min="2000-01-01" max="2100-12-31" aria-describedby={weekend ? uid + "weekend" : undefined} />
-          {weekend && <p id={uid + "weekend"} className="hint warn-hint" role="status">{format(t.arrivals.weekend, { day: weekend })}</p>}
+          <DateField label={t.arrivals.startDate} value={startDate} onChange={setStartDate} today={today} min="2000-01-01" max="2100-12-31" chips={false} labels={t.date} />
+          <p className="hint warn-hint" role="status">{weekend ? format(t.arrivals.weekend, { day: weekend }) : ""}</p>
         </div>
         <div className="field-group">
           <label htmlFor={uid + "job"} className="label">{t.arrivals.job}</label>
@@ -89,11 +100,7 @@ export function ArrivalForm({ draft, people, known, weekdays, t }: {
           <datalist id={uid + "offices"}>{known.offices.map(x => <option key={x} value={x} />)}</datalist>
         </div>
         <div className="field-group">
-          <label htmlFor={uid + "manager"} className="label">{t.arrivals.manager}</label>
-          <select id={uid + "manager"} name="managerId" className="select" defaultValue={draft?.managerId ?? ""}>
-            <option value="">{t.arrivals.noManager}</option>
-            {people.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-          </select>
+          <PeoplePicker label={t.arrivals.manager} hint={t.leaveEmpty} value={manager} onChange={setManager} search={searchPeople} suggestions={offered(people)} labels={t.peoplePicker} lang={lang} />
         </div>
         <div className="field-group">
           <label htmlFor={uid + "email"} className="label">{t.arrivals.workEmail}</label>

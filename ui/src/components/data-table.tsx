@@ -49,9 +49,14 @@ export type DataTableProps<R> = {
   readonly labels?: TableWords;
   // A row the person is looking at (just added, opened).
   readonly current?: string | null;
+  // A row's own class and data- attributes (a past booking, a late
+  // invoice), for the tool's CSS; its meaning is also said in a cell (0.2.1).
+  readonly rowProps?: (row: R) => RowProps;
 };
 
-export function DataTable<R>({ caption, showCaption = false, columns, rows, rowKey, rowName, actions, totals, empty, sort, onSort, sortHref, labels = en.table, current }: DataTableProps<R>): ReactElement {
+export type RowProps = { readonly className?: string } & { readonly [data: `data-${string}`]: string | number | boolean | undefined };
+
+export function DataTable<R>({ caption, showCaption = false, columns, rows, rowKey, rowName, actions, totals, empty, sort, onSort, sortHref, labels = en.table, current, rowProps }: DataTableProps<R>): ReactElement {
   const [localSort, setLocalSort] = useState<Sort | null>(null);
   const controlled = sort !== undefined || onSort !== undefined || sortHref !== undefined;
   const active = controlled ? sort ?? null : localSort;
@@ -88,8 +93,11 @@ export function DataTable<R>({ caption, showCaption = false, columns, rows, rowK
         <tbody>
           {shownRows.map(row => {
             const key = rowKey(row);
+            const extra = rowProps?.(row) ?? {};
+            // Only a class and data- attributes: never an event, a style or an ARIA state the table owns.
+            const own = Object.fromEntries(Object.entries(extra).filter(([k, v]) => k.startsWith("data-") && v !== undefined));
             return (
-              <tr key={key} aria-current={current === key ? "true" : undefined}>
+              <tr key={key} {...own} {...(extra.className ? { className: extra.className } : {})} aria-current={current === key ? "true" : undefined}>
                 {columns.map(c => {
                   const content = c.render ? c.render(row) : String(c.value?.(row) ?? "");
                   const cls = `${align(c)}${hide(c)}`.trim() || undefined;

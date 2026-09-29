@@ -15,11 +15,12 @@ export { Dialog, Confirm, type DialogProps, type ConfirmProps } from "./dialog.j
 export { PeoplePicker, type PeoplePickerProps } from "./people-picker.js";
 export { Avatar, AvatarStack, type AvatarSize, type Face } from "./avatar.js";
 export { DateField, Calendar, type DateFieldProps } from "./date-field.js";
+export { MonthField, type MonthFieldProps } from "./month-field.js";
 export { DayStrip, type DayStripProps } from "./day-strip.js";
 export { TimeSelect, type TimeSelectProps } from "./time-select.js";
 export { FilePicker, filesReady, type FilePickerProps, type PickedFile, type Upload } from "./file-picker.js";
-export { DataTable, type Column, type DataTableProps } from "./data-table.js";
+export { DataTable, type Column, type RowProps, type DataTableProps } from "./data-table.js";
 export { Menu, type MenuItem } from "./menu.js";
 export { Filters, SearchBox, type FilterGroup, type FilterOption, type FiltersProps, type SearchBoxProps } from "./filters.js";
 export { EmptyState, StatusBadge, Tabs, Segmented, type TabItem, type Tone } from "./bits.js";
-export { AppShell, AutoRefresh, BrandMark, LanguageSwitch, MemberChip, Nav, NavLink, NoAccess, PageHeader, useAutoRefresh, type AppShellProps, type LinkComponent, type NavItem } from "./shell.js";
+export { AppShell, AutoRefresh, BrandMark, LanguageSwitch, MemberChip, Nav, NavLink, NoAccess, PageHeader, useAutoRefresh, type AppShellProps, type LinkComponent, type LinkProps, type LogoGround, type NavItem } from "./shell.js";
