@@ -2,13 +2,18 @@ import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
 import { Back, Globe, Mask, Users } from "../../../../../components/icons.tsx";
 import { NavLink } from "../../../../../components/nav-link.tsx";
+import { atLeast } from "../../../../../lib/access.ts";
 import { AppError } from "../../../../../lib/app-error.ts";
 import { db } from "../../../../../lib/db.ts";
 import { open, openState } from "../../../../../lib/forms.ts";
 import { viewer } from "../../../../../lib/session.ts";
+import { FormTitle, StatusControl } from "./form-head.tsx";
 
-// A form's frame: its name, its state, and its tabs — Questions, Share,
-// Settings, Answers, Summary. A form the member may not open is not found.
+// A form's frame: its name, its state (and, for its editors, the one
+// action that changes it: stop or take answers again), and its tabs —
+// Questions, Share, Settings (editors), Answers (the table and the
+// summary). Four labelled tabs at most: they fit a phone. A form the
+// member may not open is not found.
 export default async function FormLayout({ children, params }: { children: ReactNode; params: Promise<{ id: string }> }) {
   const v = await viewer();
   if (!v) return null;
@@ -19,27 +24,30 @@ export default async function FormLayout({ children, params }: { children: React
     throw error;
   });
   if (!found) notFound();
-  const { form } = found;
+  const { form, level } = found;
   const state = openState(form);
   const status = form.status === "draft" ? "draft" : state.open ? "open" : (state.reason ?? "closed");
   const base = `/chest/forms/${form.id}`;
+  const editor = atLeast(level, "editor");
   return (
     <div className="form-frame">
       <div className="form-top">
-        <a className="back-link" href="/chest"><Back />{t.shell.home}</a>
+        <NavLink className="back-link" href="/chest"><Back />{t.shell.home}</NavLink>
         <div className="form-name">
-          <h1>{form.draft.title || t.builder.untitled}</h1>
+          <FormTitle initial={form.draft.title} untitled={t.builder.untitled} />
           <span className={`status status-${status}`}>{t.status[status as keyof typeof t.status]}</span>
           <span className="audience">
             {form.audience === "public" ? (<><Globe />{t.home.public}</>) : form.anonymous ? (<><Mask />{t.home.anonymous}</>) : (<><Users />{t.home.team}</>)}
           </span>
+          {editor && form.version > 0 && (form.status === "published" || form.status === "closed") && (
+            <StatusControl formId={form.id} open={form.status === "published"} canReopen={!(form.maxAnswers !== null && form.answerCount >= form.maxAnswers)} t={{ close: t.builder.closeForm, reopen: t.builder.reopen, closed: t.builder.closedToast, reopened: t.builder.reopened, errors: t.errors }} />
+          )}
         </div>
         <nav className="tabs" aria-label={t.tabs.label}>
           <NavLink href={base} exact>{t.tabs.build}</NavLink>
           <NavLink href={`${base}/share`}>{t.tabs.share}</NavLink>
-          <NavLink href={`${base}/settings`}>{t.tabs.settings}</NavLink>
-          <NavLink href={`${base}/answers`}>{t.tabs.answers}</NavLink>
-          <NavLink href={`${base}/summary`}>{t.tabs.summary}</NavLink>
+          {editor && <NavLink href={`${base}/settings`}>{t.tabs.settings}</NavLink>}
+          <NavLink href={`${base}/answers`} also={[`${base}/summary`]}>{t.tabs.answers}</NavLink>
         </nav>
       </div>
       {children}

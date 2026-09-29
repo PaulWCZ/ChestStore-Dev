@@ -8,7 +8,11 @@ import { can } from "../../../../lib/access.ts";
 import { db } from "../../../../lib/db.ts";
 import { bySlug, openState } from "../../../../lib/forms.ts";
 
+import { companyLogo } from "../../../../lib/brand.ts";
+import { catalogue } from "../../../../lib/i18n/index.ts";
+import { imageUrl, pictureUrls } from "../../../../lib/images.ts";
 import { prefill } from "../../../../lib/logic.ts";
+import { languageFor, localize } from "../../../../lib/model.ts";
 import { viewer } from "../../../../lib/session.ts";
 import { answerTeam } from "../../actions.ts";
 
@@ -24,12 +28,16 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 export default async function TeamForm({ params, searchParams }: Props) {
   const v = await viewer();
   if (!v) return null;
-  const { t, locale, member } = v;
+  const { member } = v;
   const { slug } = await params;
   const sql = db();
   const found = await bySlug(sql, slug);
   if (!found || found.form.audience !== "team" || !can(member, "forms.answer")) notFound();
-  const { form, definition } = found;
+  const { form } = found;
+  // The member's language when the form has it, the form's own otherwise.
+  const locale = languageFor(found.definition, v.locale);
+  const t = catalogue(locale);
+  const definition = localize(found.definition, locale);
   const state = openState(form);
   let already = false;
   if (form.once) {
@@ -43,7 +51,7 @@ export default async function TeamForm({ params, searchParams }: Props) {
   const home = <a className="button quiet" href="/chest">{t.respond.thanks.home}</a>;
   const back = <a className="respond-back" href="/chest"><Back />{t.meta.name}</a>;
   return (
-    <RespondFrame accent={form.accent} company={company} footer={t.respond.footerTeam} aside={back}>
+    <RespondFrame accent={form.accent} company={company} logo={await companyLogo()} locale={locale} footer={t.respond.footerTeam} aside={back}>
       {already ? (
         <RespondNotice title={t.respond.already.title} body={t.respond.already.body}>{home}</RespondNotice>
       ) : state.open ? (
@@ -55,7 +63,7 @@ export default async function TeamForm({ params, searchParams }: Props) {
           mode="team"
           slug={slug}
           anonymous={form.anonymous}
-          initial={prefill(definition, query)}
+          initial={{ ...prefill(found.definition, query), ...prefill(definition, query) }}
           thanks={{ title: form.thanksTitle, body: form.thanksBody }}
           redirectUrl={form.redirectUrl}
           words={t.respond}
@@ -63,6 +71,8 @@ export default async function TeamForm({ params, searchParams }: Props) {
           locale={locale}
           grantUrl="/chest/api/upload"
           send={answerTeam}
+          pictures={await pictureUrls(definition, "team")}
+          cover={await imageUrl(form.cover, "team")}
         />
       ) : (
         <RespondNotice title={t.respond.closed.title} body={state.reason === "full" ? t.respond.closed.full : state.reason === "date" ? t.respond.closed.date : t.respond.closed.body}>{home}</RespondNotice>

@@ -7,13 +7,20 @@ import { LanguageSwitch } from "./language-switch.tsx";
 // company's name, the language switch on the public host, a footer that
 // says where answers go. Never the Chest's name: the visitor answers the
 // company.
-export function RespondFrame({ accent, company, locale, languageLabel, back, footer, aside, children }: { accent: Accent; company: string; locale?: Locale; languageLabel?: string; back?: string; footer: string; aside?: ReactNode; children: ReactNode }) {
+// The company's logo when its Chest gives one (the brand the owner chose,
+// chest.theme(): lib/brand.ts), its name otherwise.
+export function RespondFrame({ accent, company, logo, locale, languages, languageLabel, back, footer, aside, children }: { accent: Accent; company: string; logo?: { url: string; dark: string | null } | null; locale?: Locale; languages?: readonly Locale[]; languageLabel?: string; back?: string; footer: string; aside?: ReactNode; children: ReactNode }) {
   return (
-    <div className="respond-page" data-accent={accent}>
+    <div className="respond-page" data-accent={accent} lang={locale}>
       <div className="respond-glow" aria-hidden="true" />
       <header className="respond-top">
-        <span className="respond-company">{company}</span>
-        {locale && languageLabel && <LanguageSwitch current={locale} label={languageLabel} back={back ?? "/"} />}
+        {logo ? (
+          <picture className="respond-logo">
+            {logo.dark && <source media="(prefers-color-scheme: dark)" srcSet={logo.dark} />}
+            <img src={logo.url} alt={company} />
+          </picture>
+        ) : <span className="respond-company">{company}</span>}
+        {locale && languageLabel && <LanguageSwitch current={locale} label={languageLabel} back={back ?? "/"} only={languages} />}
         {aside}
       </header>
       <main className="respond-main" id="main">{children}</main>

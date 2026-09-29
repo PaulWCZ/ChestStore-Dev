@@ -32,7 +32,7 @@ function setup(anonymous: boolean) {
   v2.pages[0]!.questions[0]!.title = "Favourite colour";
   const versions = new Map([[1, v1], [2, v2]]);
   const [red, blue] = colour.options!.map(o => o.id) as [string, string];
-  const a = (id: string, version: number, data: Answer["data"], respondent: string | null, createdAt: string | null): Answer => ({ id, version, data, respondent, email: null, createdAt, month: "2026-09-01", language: "en" });
+  const a = (id: string, version: number, data: Answer["data"], respondent: string | null, createdAt: string | null): Answer => ({ id, version, data, respondent, email: null, createdAt, month: "2026-09-01", language: "en", status: "new", note: "", handledAt: null });
   const answers = [
     a("aaaaaaaaaaaaaaaa", 1, { [colour.id]: { ids: [red] }, [score.id]: 10, [gone.id]: "=cmd" }, anonymous ? null : "mbr_hugoaaaaaaaaaaaaaaaaaaaaaa", anonymous ? null : "2026-09-20T10:00:00Z"),
     a("bbbbbbbbbbbbbbbb", 2, { [colour.id]: { ids: [blue] }, [score.id]: 3 }, null, anonymous ? null : "2026-09-21T10:00:00Z"),
@@ -46,18 +46,22 @@ test("the export: the latest wording, removed questions marked, labels not ids, 
   const { f, versions, answers } = setup(false);
   const names = new Map<string, Person>([["mbr_hugoaaaaaaaaaaaaaaaaaaaaaa", { id: "mbr_hugoaaaaaaaaaaaaaaaaaaaaaa", name: "Hugo Bernard", photo: null, status: "member", locale: "en" }]]);
   const rows = exportRows({ form: f, answers, versions, t: catalogue("en"), locale: "en", zone: "Europe/Paris", names });
-  assert.deepEqual(rows[0], ["Date", "Who", "Favourite colour", "Score", "Old question (Removed from the form)", "Form version"]);
-  assert.deepEqual(rows[1], ["20/09/2026, 12:00", "Hugo Bernard", "Red", 10, "=cmd", 1]);
-  assert.deepEqual(rows[2]!.slice(1), ["Visitor", "Blue", 3, "", 2]);
+  assert.deepEqual(rows[0], ["Date", "Who", "Favourite colour", "Score", "Old question (Removed from the form)", "Follow-up", "Note", "Form version"]);
+  assert.deepEqual(rows[1], ["20/09/2026, 12:00", "Hugo Bernard", "Red", 10, "=cmd", "New", "", 1]);
+  assert.deepEqual(rows[2]!.slice(1), ["Visitor", "Blue", 3, "", "New", "", 2]);
   assert.ok(toCsv(rows).includes("'=cmd"));
 });
 
-test("an anonymous form's export names no one and keeps only the month", () => {
+test("an anonymous form's export is its summary: counts and shares, never one person's row", () => {
   const { f, versions, answers } = setup(true);
   const rows = exportRows({ form: f, answers, versions, t: catalogue("fr"), locale: "fr", zone: "Europe/Paris", names: new Map() });
-  assert.deepEqual(rows[0]!.slice(0, 2), ["Mois", "Favourite colour"]);
-  assert.ok(rows.slice(1).every(r => r[0] === "2026-09"));
+  assert.deepEqual(rows[0], ["Question", "Réponse", "Nombre", "Part (%)"]);
+  assert.deepEqual(rows[1], ["Réponses", "", 3, ""]);
+  assert.ok(rows.some(r => r[0] === "Favourite colour" && r[1] === "Red" && r[2] === 2));
   assert.ok(!JSON.stringify(rows).includes("mbr_"));
+  assert.ok(!JSON.stringify(rows).includes("=cmd"), "no free text in the summary rows");
+  // No line holds two answers of one person: every line is one question.
+  assert.ok(rows.slice(2).every(r => r.length === 4));
 });
 
 test("the summary: bars across versions, averages, and the NPS", () => {

@@ -24,13 +24,13 @@ export type Batch = { formId: string; title: string; anonymous: boolean; answers
 
 // batch: the answers a form's email carries now, and the time up to which
 // they go (mailed_at after sending).
-export async function batch(sql: Sql, formId: string, language: Locale = "en"): Promise<{ batch: Batch; until: Date } | null> {
+export async function batch(sql: Sql, formId: string, language: Locale = "en"): Promise<{ batch: Batch; until: Date; ids: string[] } | null> {
   const [form] = await sql<{ title: string; anonymous: boolean; mailed_at: Date | null; notify_email: boolean }[]>`
     select draft->>'title' as title, anonymous, mailed_at, notify_email from forms where id = ${formId} and deleted_at is null`;
   if (!form || !form.notify_email) return null;
   // An anonymous answer keeps no time finer than its month: the email says
   // how many came, as the bell does, never what.
-  if (form.anonymous) return { batch: { formId, title: form.title, anonymous: true, answers: [], more: 0, replyTo: null }, until: new Date() };
+  if (form.anonymous) return { batch: { formId, title: form.title, anonymous: true, answers: [], more: 0, replyTo: null }, until: new Date(), ids: [] };
   // The first batch of a form holds its last day of answers at most.
   const since = form.mailed_at ?? new Date(Date.now() - 86400000);
   const fresh = await sql<Pending[]>`
@@ -55,6 +55,7 @@ export async function batch(sql: Sql, formId: string, language: Locale = "en"): 
   return {
     batch: { formId, title: form.title, anonymous: false, answers, more: fresh.length - shown.length, replyTo: fresh.length === 1 && emails.length === 1 ? emails[0]! : null },
     until: fresh.at(-1)!.created_at,
+    ids: fresh.map(a => a.id),
   };
 }
 
@@ -87,7 +88,7 @@ export async function send(sql: Sql, formId: string, recipients: { member: strin
   const base = chest.teamUrl();
   const link = base ? `${base}/chest/forms/${formId}/answers` : null;
   let sent = 0;
-  let until: Date | null = null;
+  let ids: string[] = [];
   const made = new Map<Locale, Awaited<ReturnType<typeof batch>>>();
   for (const r of recipients) {
     const person = names.get(r.member);
@@ -95,7 +96,7 @@ export async function send(sql: Sql, formId: string, recipients: { member: strin
     if (!made.has(person.locale)) made.set(person.locale, await batch(sql, formId, person.locale));
     const found = made.get(person.locale);
     if (!found) continue;
-    until = found.until;
+    ids = found.ids;
     const { subject, text } = alertText(found.batch, found.batch.anonymous ? r.count : Math.max(r.count, found.batch.answers.length + found.batch.more), person.locale, link, zone);
     try {
       await mail.send({ to: { member: r.member }, subject, text, ...(found.batch.replyTo ? { replyTo: found.batch.replyTo } : {}), key: `answers:${formId}:${r.member}:${found.until.getTime()}` });
@@ -109,6 +110,8 @@ export async function send(sql: Sql, formId: string, recipients: { member: strin
       if (!(error instanceof ChestError)) throw error;
     }
   }
-  if (until) await sql`update forms set mailed_at = greatest(coalesce(mailed_at, ${until}), ${until}) where id = ${formId}`;
+  // Up to the last answer carried, as the database stamped it (to the
+  // microsecond, which a JavaScript date would round down).
+  if (ids.length) await sql`update forms set mailed_at = greatest(mailed_at, (select max(created_at) from answers where id = any(${ids}))) where id = ${formId}`;
   return sent;
 }

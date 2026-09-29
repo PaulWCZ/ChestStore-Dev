@@ -593,7 +593,7 @@ function QuestionCard(p: CardProps) {
   // The second language: only the words of the question, each over the
   // first language's (shown as its placeholder).
   if (alt) {
-    const text = (key: string, main: string | undefined, label: string, multiline = false, max = limits.questionTitle) => (
+    const text = (key: string, main: string | undefined, label: string, multiline = false, max: number = limits.questionTitle) => (
       <label className="mini block" key={key}>
         <span className="mini-label">{label}</span>
         {multiline

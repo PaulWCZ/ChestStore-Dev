@@ -1,77 +1,154 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, useTransition, type ReactNode } from "react";
-import { Globe, Mask, Users } from "../../../../../../components/icons.tsx";
+import { useCallback, useEffect, useRef, useState, useTransition, type ReactNode } from "react";
+import { Dialog } from "../../../../../../components/dialog.tsx";
+import { Globe, Mask, Picture, Users } from "../../../../../../components/icons.tsx";
 import { useToast } from "../../../../../../components/toast.tsx";
+import type { ErrorCode } from "../../../../../../lib/app-error.ts";
 import type { Catalogue } from "../../../../../../lib/i18n/index.ts";
 import { format, plural } from "../../../../../../lib/i18n/format.ts";
+import { holdLeaving } from "../../../../../../lib/leave-guard.ts";
 import { accents, retentions, type Accent, type Audience, type Layout } from "../../../../../../lib/model.ts";
-import { closeForm, deleteForm, duplicateForm, reopenForm, saveSettings } from "../../../../actions.ts";
+import { uploadImage } from "../../../../../../lib/upload-client.ts";
+import { deleteForm, duplicateForm, saveSettings, setCover } from "../../../../actions.ts";
+
+// Settings save by themselves, like the questions: a moment after the last
+// change, and at once before a tab or link of the tool leaves the page.
+// One model for the whole tool — nothing here waits for a Save button.
 
 type Values = {
   audience: Audience; anonymous: boolean; once: boolean; tellTeam: boolean; layout: Layout; accent: Accent;
   closesDay: string; closesHour: number; maxAnswers: string; thanksTitle: string; thanksBody: string; redirectUrl: string;
-  sendCopy: boolean; retentionMonths: string; watchers: string[];
+  sendCopy: boolean; retentionMonths: string; watchers: string[]; notifyEmail: boolean; shareEvents: boolean;
 };
 type Props = {
   formId: string;
   canEdit: boolean;
   canDelete: boolean;
-  status: "draft" | "published" | "closed";
-  version: number;
+  answers: number;
   initial: Values;
   anonymityLocked: boolean;
   hasFiles: boolean;
   people: { id: string; name: string }[];
   zoneNote: string;
   locale: string;
+  mailWorks: boolean | null;
+  cover: string | null;
   t: { s: Catalogue["settings"]; errors: Catalogue["errors"]; b: Catalogue["builder"] };
 };
+type SaveState = "saved" | "saving" | "error";
 
 export function SettingsView(p: Props) {
   const { s, b } = p.t;
   const [v, setV] = useState<Values>(p.initial);
+  const [save, setSave] = useState<SaveState>("saved");
+  const [problem, setProblem] = useState<string | null>(null);
   const [pending, start] = useTransition();
+  const [confirming, setConfirming] = useState(false);
+  const [cover, setCoverUrl] = useState(p.cover);
+  const [sendingCover, setSendingCover] = useState(false);
   const toast = useToast();
   const router = useRouter();
   const ro = !p.canEdit;
+  const latest = useRef(v);
+  latest.current = v;
+  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const waiting = useRef(false);
+  const first = useRef(true);
+  const lastAudience = useRef(p.initial.audience + p.initial.anonymous);
   const set = <K extends keyof Values>(k: K, value: Values[K]) => setV(x => ({ ...x, [k]: value }));
   const who = v.audience === "public" ? "public" : v.anonymous ? "anonymous" : "team";
-  const error = (code: keyof Catalogue["errors"], values?: Record<string, string | number>) => toast(format(p.t.errors[code] ?? p.t.errors.unknown, values ?? {}));
+  const words = (code: ErrorCode, values?: Record<string, string | number>) => format(p.t.errors[code] ?? p.t.errors.unknown, values ?? {});
 
-  const save = () => start(async () => {
+  const flush = useCallback(async (): Promise<boolean> => {
+    clearTimeout(timer.current);
+    waiting.current = false;
+    const now = latest.current;
+    setSave("saving");
     const r = await saveSettings(p.formId, JSON.stringify({
-      ...v,
-      maxAnswers: v.maxAnswers.trim() === "" ? null : Number(v.maxAnswers),
-      retentionMonths: v.retentionMonths === "" ? null : Number(v.retentionMonths),
-    }));
-    if (r.ok) {
-      toast(s.saved);
+      ...now,
+      maxAnswers: now.maxAnswers.trim() === "" ? null : Number(now.maxAnswers),
+      retentionMonths: now.retentionMonths === "" ? null : Number(now.retentionMonths),
+    })).catch(() => ({ ok: false as const, error: "unavailable" as ErrorCode, values: undefined }));
+    if (!r.ok) {
+      setSave("error");
+      setProblem(words(r.error, r.values));
+      return false;
+    }
+    setProblem(null);
+    setSave(latest.current === now ? "saved" : "saving");
+    // Who answers shows in the form's header: it follows.
+    const audience = now.audience + now.anonymous;
+    if (audience !== lastAudience.current) {
+      lastAudience.current = audience;
       router.refresh();
-    } else error(r.error, r.values);
-  });
-  const run = (action: () => Promise<{ ok: boolean; error?: keyof Catalogue["errors"]; values?: Record<string, string | number> }>, done: string) => start(async () => {
+    }
+    return true;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [p.formId, router]);
+
+  useEffect(() => {
+    if (first.current) {
+      first.current = false;
+      return;
+    }
+    if (ro) return;
+    setSave("saving");
+    waiting.current = true;
+    clearTimeout(timer.current);
+    timer.current = setTimeout(() => void flush(), 600);
+  }, [v, ro, flush]);
+
+  useEffect(() => holdLeaving(async () => (waiting.current || save === "error" ? flush() : true)), [flush, save]);
+  useEffect(() => () => {
+    // Left by the app's own navigation with a change waiting: it goes now.
+    if (waiting.current) void flush();
+  }, [flush]);
+
+  const run = (action: () => Promise<{ ok: boolean; error?: ErrorCode; values?: Record<string, string | number> }>, done?: string) => start(async () => {
     const r = await action();
     if (r.ok) {
-      toast(done);
+      if (done) toast(done);
       router.refresh();
-    } else if (r.error) error(r.error, r.values);
+    } else if (r.error) toast(words(r.error, r.values));
   });
+
+  async function pickCover(file: File) {
+    setSendingCover(true);
+    const sent = await uploadImage(file, p.formId);
+    if (!sent.ok) {
+      setSendingCover(false);
+      return void toast(words(sent.error));
+    }
+    const r = await setCover(p.formId, sent.ref);
+    setSendingCover(false);
+    if (!r.ok) return void toast(words(r.error, r.values));
+    setCoverUrl(r.value.url);
+    toast(s.coverSaved);
+  }
 
   const whoChoice = (value: "public" | "team" | "anonymous", icon: ReactNode, title: string, hint: string) => {
     const lockedOut = (p.anonymityLocked && (value === "anonymous") !== p.initial.anonymous) || (value === "anonymous" && p.hasFiles);
     return (
       <label className={`choice-card${who === value ? " on" : ""}${lockedOut ? " off" : ""}`}>
-        <input type="radio" name="who" checked={who === value} disabled={ro || lockedOut} onChange={() => setV(x => ({ ...x, audience: value === "public" ? "public" : "team", anonymous: value === "anonymous", sendCopy: value === "anonymous" ? false : x.sendCopy, once: value === "anonymous" ? true : x.once }))} />
+        <input type="radio" name="who" checked={who === value} disabled={ro || lockedOut} onChange={() => setV(x => ({ ...x, audience: value === "public" ? "public" : "team", anonymous: value === "anonymous", sendCopy: value === "anonymous" ? false : x.sendCopy, shareEvents: value === "anonymous" ? false : x.shareEvents, once: value === "anonymous" ? true : x.once }))} />
         <span className="choice-icon" aria-hidden="true">{icon}</span>
         <span className="choice-text"><strong>{title}</strong><small>{hint}</small></span>
       </label>
     );
   };
 
+  const saveLabel = save === "saving" ? s.saving : save === "saved" ? s.savedState : s.unsaved;
   return (
-    <form className="panel-page settings" onSubmit={e => { e.preventDefault(); save(); }}>
+    <form className="panel-page settings" onSubmit={e => { e.preventDefault(); void flush(); }}>
+      {!ro && (
+        <p className="settings-status">
+          <span className={`save-state ${save}`} role="status" aria-live="polite">{saveLabel}</span>
+          {problem && <span className="settings-problem" role="alert">{problem}</span>}
+          {save === "error" && <button type="button" className="button link" onClick={() => void flush()}>{b.retry}</button>}
+        </p>
+      )}
       <fieldset className="panel" disabled={ro}>
         <legend>{s.who}</legend>
         <div className="choice-cards">
@@ -82,7 +159,7 @@ export function SettingsView(p: Props) {
         {p.anonymityLocked && <p className="hint">{s.anonymousLocked}</p>}
         {p.hasFiles && !v.anonymous && <p className="hint">{p.t.errors.anonymous_files}</p>}
         {v.audience === "team" && !v.anonymous && (
-          <label className="switch"><input type="checkbox" role="switch" checked={v.once} onChange={e => set("once", e.target.checked)} /><span className="switch-track" aria-hidden="true" />{s.once}</label>
+          <label className="switch"><input type="checkbox" role="switch" checked={v.once} onChange={e => set("once", e.target.checked)} /><span className="switch-track" aria-hidden="true" /><span>{s.once}<small className="switch-hint">{s.onceHint}</small></span></label>
         )}
         {v.audience === "team" && (
           <label className="switch"><input type="checkbox" role="switch" checked={v.tellTeam} onChange={e => set("tellTeam", e.target.checked)} /><span className="switch-track" aria-hidden="true" />{s.tellTeam}</label>
@@ -110,6 +187,20 @@ export function SettingsView(p: Props) {
             </label>
           ))}
         </div>
+        <div className="cover-field">
+          <span className="mini-label">{s.cover}</span>
+          <div className="cover-row">
+            <span className="cover-preview" aria-hidden="true">{cover ? <img src={cover} alt="" /> : <Picture />}</span>
+            {!ro && (
+              <label className={`button quiet small file-button${sendingCover ? " busy" : ""}`}>
+                {sendingCover ? s.coverSending : cover ? s.coverChange : s.coverAdd}
+                <input type="file" accept="image/png,image/jpeg,image/webp" disabled={sendingCover} onChange={e => { const f = e.target.files?.[0]; e.target.value = ""; if (f) void pickCover(f); }} />
+              </label>
+            )}
+            {!ro && cover && <button type="button" className="button link" onClick={() => start(async () => { const r = await setCover(p.formId, null); if (r.ok) { setCoverUrl(null); toast(s.coverRemoved); } else toast(words(r.error)); })}>{s.coverRemove}</button>}
+          </div>
+          <p className="hint">{s.coverHint}</p>
+        </div>
       </fieldset>
 
       <fieldset className="panel" disabled={ro}>
@@ -117,7 +208,7 @@ export function SettingsView(p: Props) {
         <div className="row-fields">
           <label className="mini">
             <span className="mini-label">{s.closesOn}</span>
-            <input className="field" type="date" value={v.closesDay} onChange={e => set("closesDay", e.target.value)} />
+            <input className="field" type="date" lang={p.locale} value={v.closesDay} onChange={e => set("closesDay", e.target.value)} />
           </label>
           {v.closesDay && (
             <label className="mini">
@@ -171,6 +262,24 @@ export function SettingsView(p: Props) {
             </label>
           ))}
         </div>
+        <label className="switch">
+          <input type="checkbox" role="switch" checked={v.notifyEmail} onChange={e => set("notifyEmail", e.target.checked)} />
+          <span className="switch-track" aria-hidden="true" />
+          <span>{s.notifyEmail}<small className="switch-hint">{v.anonymous ? s.notifyEmailAnonymous : s.notifyEmailHint}</small></span>
+        </label>
+        {v.notifyEmail && p.mailWorks === false && <p className="notice">{s.mailOff}</p>}
+      </fieldset>
+
+      <fieldset className="panel" disabled={ro}>
+        <legend>{s.tools}</legend>
+        {v.anonymous ? <p className="hint">{s.toolsAnonymous}</p> : (
+          <label className="switch">
+            <input type="checkbox" role="switch" checked={v.shareEvents} onChange={e => set("shareEvents", e.target.checked)} />
+            <span className="switch-track" aria-hidden="true" />
+            <span>{s.toolsSwitch}<small className="switch-hint">{s.toolsHint}</small></span>
+          </label>
+        )}
+        <p className="hint">{s.webhooksNote}</p>
       </fieldset>
 
       <fieldset className="panel" disabled={ro}>
@@ -185,21 +294,27 @@ export function SettingsView(p: Props) {
         <p className="hint">{s.privacyHint}</p>
       </fieldset>
 
-      {!ro && (
-        <div className="save-bar">
-          <button type="submit" className="button" disabled={pending}>{pending ? s.saving : s.save}</button>
-        </div>
-      )}
-
       <section className="panel quiet-panel" aria-labelledby="form-actions">
         <h2 id="form-actions">{s.danger}</h2>
         <div className="row-actions">
-          {!ro && p.status === "published" && <button type="button" className="button quiet" disabled={pending} onClick={() => run(() => closeForm(p.formId), b.closedToast)}>{b.closeForm}</button>}
-          {!ro && p.status === "closed" && p.version > 0 && <button type="button" className="button quiet" disabled={pending} onClick={() => run(() => reopenForm(p.formId), b.reopened)}>{b.reopen}</button>}
-          <button type="button" className="button quiet" disabled={pending} onClick={() => start(async () => { const r = await duplicateForm(p.formId); if (r && !r.ok) error(r.error, r.values); })}>{b.duplicateForm}</button>
-          {p.canDelete && <button type="button" className="button quiet danger" disabled={pending} onClick={() => start(async () => { const r = await deleteForm(p.formId); if (r.ok) router.push(`/chest?deleted=${p.formId}`); else error(r.error, r.values); })}>{b.deleteForm}</button>}
+          <button type="button" className="button quiet" disabled={pending} onClick={() => start(async () => { const r = await duplicateForm(p.formId); if (r && !r.ok) toast(words(r.error, r.values)); })}>{b.duplicateForm}</button>
+          {p.canDelete && <button type="button" className="button quiet danger" disabled={pending} onClick={() => (p.answers > 0 ? setConfirming(true) : run(() => deleteGo()))}>{b.deleteForm}</button>}
         </div>
       </section>
+
+      <Dialog open={confirming} title={b.deleteTitle} closeLabel={b.cancel} onClose={() => setConfirming(false)}>
+        <p>{plural(b.deleteBody, p.answers, p.locale)}</p>
+        <div className="dialog-actions">
+          <button type="button" className="button danger-solid" disabled={pending} onClick={() => { setConfirming(false); run(() => deleteGo()); }}>{b.deleteForm}</button>
+          <button type="button" className="button quiet" onClick={() => setConfirming(false)}>{b.cancel}</button>
+        </div>
+      </Dialog>
     </form>
   );
+
+  async function deleteGo() {
+    const r = await deleteForm(p.formId);
+    if (r.ok) router.push(`/chest?deleted=${p.formId}`);
+    return r;
+  }
 }

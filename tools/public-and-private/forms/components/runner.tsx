@@ -4,8 +4,8 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState, type Keyboard
 import type { ErrorCode } from "../lib/app-error.ts";
 import type { Catalogue } from "../lib/i18n/index.ts";
 import { format, plural } from "../lib/i18n/format.ts";
-import { asked, has, isPick, read, walk, type AnswerError, type Answers, type FileRef, type Pick } from "../lib/logic.ts";
-import { typesFor, withOptions, type Accent, type Definition, type Layout, type Question } from "../lib/model.ts";
+import { asked, filesIn, has, isGrid, isPick, isRanking, read, walk, type AnswerError, type Answers, type FileRef, type Grid, type Pick } from "../lib/logic.ts";
+import { manyPicks, typesFor, withOptions, type Accent, type Definition, type Layout, type Question } from "../lib/model.ts";
 import { uploadFile } from "../lib/upload-client.ts";
 import { Arrow, Back, Check, Close, Down, Paperclip, StarIcon, Up } from "./icons.tsx";
 
@@ -44,6 +44,9 @@ export type RunnerProps = {
   after?: ReactNode;
   // The builder's preview follows the question being edited.
   focus?: string | null;
+  // The addresses of the form's pictures (by object), and its cover's.
+  pictures?: Record<string, string>;
+  cover?: string | null;
 };
 
 const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
@@ -80,6 +83,8 @@ export function Runner(props: RunnerProps) {
   const [formError, setFormError] = useState<ErrorCode | null>(null);
   const [copy, setCopy] = useState(false);
   const [restored, setRestored] = useState(false);
+  // Where the respondent was, one question at a time: a reload goes back there.
+  const [resumeAt, setResumeAt] = useState(0);
   const [uploading, setUploading] = useState<Record<string, boolean>>({});
   const headingRef = useRef<HTMLDivElement>(null);
 
@@ -93,6 +98,8 @@ export function Runner(props: RunnerProps) {
         setRaw(r => ({ ...kept, ...props.initial, ...r }));
         if (Object.keys(kept).length > 0) setRestored(true);
       }
+      const at = Number(localStorage.getItem(storageKey + ":at") ?? "0");
+      if (Number.isInteger(at) && at >= 1 && 500 >= at) setResumeAt(at);
     } catch {
       /* private mode or blocked storage: nothing kept */
     }
@@ -104,12 +111,24 @@ export function Runner(props: RunnerProps) {
       try {
         const kept = Object.fromEntries(Object.entries(raw).filter(([, v]) => !(v && typeof v === "object" && "ref" in (v as object))));
         localStorage.setItem(storageKey, JSON.stringify(kept));
+        if (stage === "form" && props.layout === "steps") localStorage.setItem(storageKey + ":at", String(index));
       } catch {
         /* nothing kept */
       }
     }, 400);
     return () => clearTimeout(timer);
-  }, [raw, mode, stage, storageKey]);
+  }, [raw, mode, stage, storageKey, index, props.layout]);
+
+  // Shown inside a company's website (Share, "On your website"): the page
+  // tells the frame its height, so the frame fits the form.
+  useEffect(() => {
+    if (mode !== "public" || typeof window === "undefined" || window.parent === window) return;
+    const tell = () => window.parent.postMessage({ type: "chest-forms:height", slug: props.slug, height: document.documentElement.scrollHeight }, "*");
+    const observer = new ResizeObserver(tell);
+    observer.observe(document.body);
+    tell();
+    return () => observer.disconnect();
+  }, [mode, props.slug]);
 
   const answers = useMemo(() => readAll(def, raw), [def, raw]);
   const path = useMemo(() => walk(def, answers), [def, answers]);
@@ -161,6 +180,7 @@ export function Runner(props: RunnerProps) {
     if (result.ok) {
       try {
         localStorage.removeItem(storageKey);
+        localStorage.removeItem(storageKey + ":at");
       } catch {
         /* nothing kept */
       }
@@ -226,13 +246,18 @@ export function Runner(props: RunnerProps) {
     headingRef.current?.querySelector<HTMLElement>("[data-autofocus]")?.focus({ preventScroll: false });
   }, [clampIndex, stage, mode]);
 
+  // A file sent: the question's one file, or one more of its files.
+  const rawRef = useRef(raw);
+  rawRef.current = raw;
   const upload = useCallback(async (q: Question, file: File) => {
     if (!props.grantUrl || mode === "preview") return;
     setUploading(u => ({ ...u, [q.id]: true }));
     const result = await uploadFile(file, props.grantUrl, { slug: props.slug, question: q.id, token: props.token ?? "" }, typesFor(q.accept ?? "any"));
     setUploading(u => ({ ...u, [q.id]: false }));
-    if (result.ok) set(q.id, { ref: result.ref, name: file.name } satisfies FileRef);
-    else setFileError(q.id, result.error);
+    if (!result.ok) return setFileError(q.id, result.error);
+    const sent = { ref: result.ref, name: file.name } satisfies FileRef;
+    if ((q.max ?? 1) > 1) set(q.id, [...(filesIn(rawRef.current[q.id]) as FileRef[]), sent].slice(0, q.max));
+    else set(q.id, sent);
   }, [props.grantUrl, props.slug, props.token, mode, set]);
   const [fileErrors, setFileErrors] = useState<Record<string, ErrorCode>>({});
   const setFileError = (id: string, e: ErrorCode | null) => setFileErrors(f => ({ ...f, [id]: e ?? undefined } as Record<string, ErrorCode>));
@@ -256,6 +281,7 @@ export function Runner(props: RunnerProps) {
       steps={props.layout === "steps"}
       filesOff={props.filesOff === true}
       preview={mode === "preview"}
+      pictures={props.pictures ?? {}}
     />
   );
 
@@ -295,17 +321,24 @@ export function Runner(props: RunnerProps) {
     </>
   );
 
+  const cover = props.cover ? <img className="runner-cover" src={props.cover} alt="" /> : null;
+
   if (stage === "start") {
     return shell(
       <section className="runner-start">
+        {cover}
         <h1 className="runner-title">{def.title}</h1>
         {def.intro && <p className="runner-lede">{def.intro}</p>}
         {notes}
         <div className="runner-actions">
-          <button type="button" className="button form-button big" onClick={() => setStage("form")}>{w.start} <Arrow /></button>
+          {restored && resumeAt > 0 ? (
+            <button type="button" className="button form-button big" onClick={() => { setIndex(resumeAt); setStage("form"); }}>{w.resume} <Arrow /></button>
+          ) : (
+            <button type="button" className="button form-button big" onClick={() => setStage("form")}>{w.start} <Arrow /></button>
+          )}
           <span className="enter-hint" aria-hidden="true">{w.pressEnter}</span>
         </div>
-        {restored && <p className="runner-note">{w.draftKept} <button type="button" className="button link" onClick={() => { setRaw({ ...props.initial }); setRestored(false); try { localStorage.removeItem(storageKey); } catch { /* nothing kept */ } }}>{w.startOver}</button></p>}
+        {restored && <p className="runner-note">{w.draftKept} <button type="button" className="button link" onClick={() => { setRaw({ ...props.initial }); setRestored(false); setResumeAt(0); setIndex(0); try { localStorage.removeItem(storageKey); localStorage.removeItem(storageKey + ":at"); } catch { /* nothing kept */ } }}>{w.startOver}</button></p>}
       </section>,
       null,
     );
@@ -321,6 +354,12 @@ export function Runner(props: RunnerProps) {
     const q = sequence[clampIndex];
     const position = q ? countable.indexOf(q) : -1;
     const last = clampIndex >= sequence.length - 1;
+    // A later question that an answer could still bring (a condition, a
+    // page a rule skipped): the button says OK, not Send, until none can.
+    const shown = new Set(sequence.map(x => x.id));
+    const all = def.pages.flatMap(p => p.questions);
+    const more = q ? all.slice(all.findIndex(x => x.id === q.id) + 1).some(x => !shown.has(x.id) && x.kind !== "statement") : false;
+    const percent = countable.length === 0 ? 0 : Math.round((Math.max(0, position) / countable.length) * 100);
     const onKey = (e: KeyboardEvent<HTMLDivElement>) => {
       if (!q || e.defaultPrevented) return;
       if (e.key === "Enter" && !e.shiftKey && (e.target as HTMLElement).tagName !== "TEXTAREA" && (e.target as HTMLElement).tagName !== "BUTTON" && (e.target as HTMLElement).tagName !== "A") {
@@ -334,11 +373,11 @@ export function Runner(props: RunnerProps) {
         if (q.kind === "yesno" && (key === "Y" || key === "N" || key === w.yes[0]!.toUpperCase() || key === w.no[0]!.toUpperCase())) {
           set(q.id, key === "Y" || key === w.yes[0]!.toUpperCase());
           setTimeout(() => setIndex(i => (i === clampIndex && !last ? i + 1 : i)), 380);
-        } else if ((q.kind === "choice" || q.kind === "choices") && letters.includes(key)) {
+        } else if ((q.kind === "choice" || q.kind === "choices" || q.kind === "picture") && letters.includes(key)) {
           const option = q.options?.[letters.indexOf(key)];
           if (option) {
             const current = isPick(raw[q.id]) ? (raw[q.id] as Pick) : { ids: [] };
-            if (q.kind === "choice") {
+            if (!manyPicks(q)) {
               set(q.id, { ids: [option.id] });
               setTimeout(() => setIndex(i => (i === clampIndex && !last ? i + 1 : i)), 380);
             } else set(q.id, { ...current, ids: current.ids.includes(option.id) ? current.ids.filter(x => x !== option.id) : [...current.ids, option.id] });
@@ -357,14 +396,14 @@ export function Runner(props: RunnerProps) {
           {q && field(q, q.kind === "statement" ? null : position + 1, true)}
           <div className="runner-actions">
             <button type="button" className="button form-button" onClick={next} disabled={sending || Object.values(uploading).some(Boolean)}>
-              {last ? (sending ? w.sending : w.submit) : q?.kind === "statement" ? w.continue : w.next} {!last && <Check />}
+              {last && !more ? (sending ? w.sending : w.submit) : q?.kind === "statement" ? w.continue : w.next} {!(last && !more) && <Check />}
             </button>
-            <span className="enter-hint" aria-hidden="true">{w.pressEnter}</span>
+            <span className="enter-hint" aria-hidden="true">{q?.kind === "long" ? w.pressCtrlEnter : w.pressEnter}</span>
           </div>
           {clampIndex === 0 && notes}
         </div>
         <nav className="step-nav" aria-label={w.progressLabel}>
-          <span className="step-count">{position >= 0 ? format(w.progress, { done: position + 1, total: countable.length }) : ""}</span>
+          <span className="step-count">{format(w.percent, { percent })}</span>
           <button type="button" className="icon-button form-nav" onClick={previous} disabled={clampIndex === 0}><Up /><span className="visually-hidden">{w.back}</span></button>
           <button type="button" className="icon-button form-nav" onClick={next} disabled={sending}><Down /><span className="visually-hidden">{last ? w.submit : w.continue}</span></button>
         </nav>
@@ -382,10 +421,11 @@ export function Runner(props: RunnerProps) {
     <div className="classic">
       {clampIndex === 0 && (
         <header className="classic-head">
+          {cover}
           <h1 className="runner-title">{def.title}</h1>
           {def.intro && <p className="runner-lede">{def.intro}</p>}
           {notes}
-          {restored && <p className="runner-note">{w.draftKept} <button type="button" className="button link" onClick={() => { setRaw({ ...props.initial }); setRestored(false); try { localStorage.removeItem(storageKey); } catch { /* nothing kept */ } }}>{w.startOver}</button></p>}
+          {restored && <p className="runner-note">{w.draftKept} <button type="button" className="button link" onClick={() => { setRaw({ ...props.initial }); setRestored(false); try { localStorage.removeItem(storageKey); localStorage.removeItem(storageKey + ":at"); } catch { /* nothing kept */ } }}>{w.startOver}</button></p>}
         </header>
       )}
       {page?.page.title && <h2 className="page-heading">{page.page.title}</h2>}
@@ -423,6 +463,7 @@ type FieldProps = {
   steps: boolean;
   filesOff: boolean;
   preview: boolean;
+  pictures: Record<string, string>;
 };
 
 function QuestionField(p: FieldProps) {
@@ -550,6 +591,104 @@ function QuestionField(p: FieldProps) {
     );
   }
 
+  if (q.kind === "picture") {
+    const pick: Pick = isPick(p.value) ? p.value : { ids: [] };
+    const multiple = manyPicks(q);
+    const name = `${base}-${q.id}`;
+    const toggle = (id: string) => p.onChange(multiple ? { ids: pick.ids.includes(id) ? pick.ids.filter(x => x !== id) : [...pick.ids, id] } : { ids: [id] });
+    const pickHint = multiple ? (q.min && q.max ? format(w.chooseBetween, { min: q.min, max: q.max }) : q.max ? format(w.chooseUpTo, { max: q.max }) : q.min ? format(w.chooseAtLeast, { min: q.min }) : w.chooseMany) : null;
+    return group(
+      <div className="pictures">
+        {q.options?.map((o, i) => {
+          const on = pick.ids.includes(o.id);
+          const src = o.image ? p.pictures[o.image.object] : undefined;
+          return (
+            <label key={o.id} className={`picture-card${on ? " on" : ""}`} {...press}>
+              <input type={multiple ? "checkbox" : "radio"} name={name} checked={on} onChange={() => toggle(o.id)} onClick={() => { if (!multiple) picked(); else pointer.current = false; }} />
+              <span className="picture-frame">{src ? <img src={src} alt={o.label ? "" : w.picture} loading="lazy" /> : null}</span>
+              <span className="picture-caption"><span className="pill-key" aria-hidden="true">{letters[i] ?? ""}</span><span className="pill-label">{o.label}</span>{on && <Check />}</span>
+            </label>
+          );
+        })}
+      </div>,
+      multiple ? "group" : "radiogroup",
+      pickHint,
+    );
+  }
+
+  if (q.kind === "ranking") {
+    // Tap the items in the order you prefer: each gets its number; tap
+    // again to take it back (the ones after move up).
+    const order: string[] = isRanking(p.value) ? p.value : [];
+    const tap = (id: string) => {
+      const next = order.includes(id) ? order.filter(x => x !== id) : [...order, id];
+      p.onChange(next.length ? next : undefined);
+    };
+    const move = (id: string, delta: -1 | 1) => {
+      const i = order.indexOf(id), j = i + delta;
+      if (i < 0 || j < 0 || j >= order.length) return;
+      const next = [...order];
+      [next[i], next[j]] = [next[j]!, next[i]!];
+      p.onChange(next);
+    };
+    const items = [...(q.options ?? [])].sort((a, b) => {
+      const ia = order.indexOf(a.id), ib = order.indexOf(b.id);
+      return (ia < 0 ? 1e3 : ia) - (ib < 0 ? 1e3 : ib);
+    });
+    return group(
+      <ol className="ranking">
+        {items.map(o => {
+          const place = order.indexOf(o.id);
+          return (
+            <li key={o.id} className={`rank-item${place >= 0 ? " on" : ""}`}>
+              <button type="button" className="rank-pick" aria-pressed={place >= 0} onClick={() => tap(o.id)}>
+                <span className="rank-place" aria-hidden="true">{place >= 0 ? place + 1 : ""}</span>
+                <span className="pill-label">{o.label}</span>
+                <span className="visually-hidden">{place >= 0 ? format(w.rankPlace, { place: place + 1 }) : w.rankNot}</span>
+              </button>
+              {place >= 0 && (
+                <span className="rank-moves">
+                  <button type="button" className="icon-button" disabled={place === 0} onClick={() => move(o.id, -1)}><Up /><span className="visually-hidden">{format(w.rankUp, { item: o.label })}</span></button>
+                  <button type="button" className="icon-button" disabled={place === order.length - 1} onClick={() => move(o.id, 1)}><Down /><span className="visually-hidden">{format(w.rankDown, { item: o.label })}</span></button>
+                </span>
+              )}
+            </li>
+          );
+        })}
+      </ol>,
+      "group",
+      w.rankHint,
+    );
+  }
+
+  if (q.kind === "matrix") {
+    const grid: Grid = isGrid(p.value) ? p.value : { rows: {} };
+    const setCell = (row: string, column: string) => p.onChange({ rows: { ...grid.rows, [row]: column } });
+    return group(
+      <div className="matrix">
+        <div className="matrix-head" aria-hidden="true" style={{ ["--cols" as string]: String(q.options?.length ?? 1) }}>
+          <span />
+          {q.options?.map(c => <span key={c.id}>{c.label}</span>)}
+        </div>
+        {q.rows?.map(r => (
+          <div key={r.id} className="matrix-row" role="radiogroup" aria-label={r.label} style={{ ["--cols" as string]: String(q.options?.length ?? 1) }}>
+            <span className="matrix-label">{r.label}</span>
+            {q.options?.map(c => {
+              const on = grid.rows[r.id] === c.id;
+              return (
+                <label key={c.id} className={`matrix-cell${on ? " on" : ""}`}>
+                  <input type="radio" name={`${base}-${r.id}`} checked={on} onChange={() => setCell(r.id, c.id)} />
+                  <span className="matrix-word">{c.label}</span>
+                </label>
+              );
+            })}
+          </div>
+        ))}
+      </div>,
+      "group",
+    );
+  }
+
   if (q.kind === "yesno") {
     const name = `${base}-${q.id}`;
     return group(
@@ -605,29 +744,37 @@ function QuestionField(p: FieldProps) {
     );
   }
 
-  // A file.
-  const file = p.value && typeof p.value === "object" && "ref" in (p.value as object) ? (p.value as FileRef) : null;
+  // A file, or several (up to the question's number).
+  const sent = filesIn(p.value) as FileRef[];
+  const room = sent.length < (q.max ?? 1);
   const accept = typesFor(q.accept ?? "any").join(",");
   const kinds = q.accept === "images" ? w.file.images : q.accept === "documents" ? w.file.documents : w.file.any;
+  const drop = (f: File) => p.onUpload(f);
+  const removeAt = (i: number) => (q.max ?? 1) > 1 ? p.onChange(sent.length > 1 ? sent.filter((_, k) => k !== i) : undefined) : p.onChange(undefined);
   return (
     <div className={`question kind-file${p.error ? " has-error" : ""}`}>
       <label className="q-heading" htmlFor={inputId}>{heading}</label>
       {help}
       {p.filesOff ? (
         <p className="q-help">{w.file.off}</p>
-      ) : file ? (
-        <div className="file-chosen">
-          <Paperclip /><span className="file-name">{file.name}</span>
-          <button type="button" className="icon-button" onClick={() => p.onChange(undefined)}><Close /><span className="visually-hidden">{w.file.remove}</span></button>
-        </div>
       ) : (
-        <div className={`dropzone${p.uploading ? " busy" : ""}`}
-          onDragOver={e => e.preventDefault()}
-          onDrop={e => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) p.onUpload(f); }}>
-          <input id={inputId} type="file" className="file-input" accept={accept} disabled={p.uploading || p.preview} aria-describedby={describedBy} aria-invalid={invalid} onChange={e => { const f = e.target.files?.[0]; if (f) p.onUpload(f); e.target.value = ""; }} {...auto} />
-          <span className="dropzone-text" aria-hidden="true"><Paperclip /> {p.uploading ? w.file.uploading : <><strong>{w.file.choose}</strong> {w.file.drop}</>}</span>
-          <span className="dropzone-hint">{p.preview ? w.file.notInPreview : `${kinds} · ${w.file.max}`}</span>
-        </div>
+        <>
+          {sent.map((file, i) => (
+            <div key={file.ref} className="file-chosen">
+              <Paperclip /><span className="file-name">{file.name}</span>
+              <button type="button" className="icon-button" onClick={() => removeAt(i)}><Close /><span className="visually-hidden">{format(w.file.removeOne, { name: file.name })}</span></button>
+            </div>
+          ))}
+          {room && (
+            <div className={`dropzone${p.uploading ? " busy" : ""}`}
+              onDragOver={e => e.preventDefault()}
+              onDrop={e => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) drop(f); }}>
+              <input id={inputId} type="file" className="file-input" accept={accept} disabled={p.uploading || p.preview} aria-describedby={describedBy} aria-invalid={invalid} onChange={e => { const f = e.target.files?.[0]; if (f) drop(f); e.target.value = ""; }} {...auto} />
+              <span className="dropzone-text" aria-hidden="true"><Paperclip /> {p.uploading ? w.file.uploading : <><strong>{sent.length > 0 ? w.file.another : w.file.choose}</strong> <span className="drop-hint">{w.file.drop}</span></>}</span>
+              <span className="dropzone-hint">{p.preview ? w.file.notInPreview : `${kinds} · ${w.file.max}${(q.max ?? 1) > 1 ? " · " + format(w.file.upTo, { max: q.max ?? 1 }) : ""}`}</span>
+            </div>
+          )}
+        </>
       )}
       {error}
     </div>

@@ -8,16 +8,19 @@ import { nameOf, people } from "../../../../../../lib/people.ts";
 import { formOr404 } from "../../../../../../lib/pages.ts";
 import { viewer } from "../../../../../../lib/session.ts";
 import { zonedParts } from "../../../../../../lib/zone.ts";
+import { imageUrl } from "../../../../../../lib/images.ts";
+import { getSetting } from "../../../../../../lib/settings.ts";
 import { SettingsView } from "./settings-view.tsx";
 
 // Settings: who answers, how it looks, until when, what happens after, who
-// hears of answers, how long they are kept — and the form itself.
+// hears of answers, where else they go, how long they are kept — and the
+// form itself. For its editors only (a viewer reads the answers).
 export default async function SettingsPage({ params }: { params: Promise<{ id: string }> }) {
   const v = await viewer();
   if (!v) return null;
   const { t, locale, member } = v;
   const sql = db();
-  const { form, level } = await formOr404(member, (await params).id);
+  const { form, level } = await formOr404(member, (await params).id, "editor");
   const { owner, shared, watchers } = await team(sql, form.id);
   const ids = [...new Set([owner, ...shared.map(s => s.member)])].filter(id => id.startsWith("mbr_"));
   const who = await people(ids);
@@ -31,13 +34,15 @@ export default async function SettingsPage({ params }: { params: Promise<{ id: s
       formId={form.id}
       canEdit={atLeast(level, "editor")}
       canDelete={atLeast(level, "owner")}
-      status={form.status}
-      version={form.version}
+      answers={form.answerCount}
+      mailWorks={(await getSetting<boolean>(sql, "mail_works")) ?? null}
+      cover={await imageUrl(form.cover, "team")}
       initial={{
         audience: form.audience, anonymous: form.anonymous, once: form.once, tellTeam: form.tellTeam, layout: form.layout, accent: form.accent,
         closesDay: closes?.day ?? "", closesHour: closes?.hour ?? 18, maxAnswers: form.maxAnswers === null ? "" : String(form.maxAnswers),
         thanksTitle: form.thanksTitle, thanksBody: form.thanksBody, redirectUrl: form.redirectUrl ?? "", sendCopy: form.sendCopy,
         retentionMonths: form.retentionMonths === null ? "" : String(form.retentionMonths), watchers,
+        notifyEmail: form.notifyEmail, shareEvents: form.shareEvents,
       }}
       anonymityLocked={taken}
       hasFiles={hasFiles}

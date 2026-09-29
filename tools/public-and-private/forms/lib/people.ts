@@ -8,7 +8,7 @@ import { catalogue, format } from "./i18n/index.ts";
 // "former" left the Chest (their name kept), "erased" had their data erased,
 // "unknown" is an id the Chest does not know here (or the Chest could not be
 // asked: the page still renders).
-export type Person = { id: string; name: string; photo: string | null; status: "member" | "former" | "erased" | "unknown"; locale: Locale };
+export type Person = { id: string; name: string; photo: string | null; status: "member" | "former" | "erased" | "unknown"; locale: Locale; role?: string | null };
 
 export async function people(ids: Iterable<string>): Promise<Map<string, Person>> {
   const wanted = [...new Set(ids)].filter(id => typeof id === "string" && id.startsWith("mbr_"));
@@ -16,7 +16,7 @@ export async function people(ids: Iterable<string>): Promise<Map<string, Person>
   if (wanted.length === 0) return found;
   try {
     const answer = await members.lookup(wanted);
-    for (const m of answer.members) found.set(m.id, { id: m.id, name: m.name, photo: m.photo, status: "member", locale: m.locale });
+    for (const m of answer.members) found.set(m.id, { id: m.id, name: m.name, photo: m.photo, status: "member", locale: m.locale, role: m.role });
     for (const f of answer.former) found.set(f.id, { id: f.id, name: f.name ?? "", photo: null, status: f.status, locale: "en" });
   } catch (error) {
     if (!(error instanceof ChestError)) throw error;

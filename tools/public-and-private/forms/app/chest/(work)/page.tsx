@@ -1,10 +1,11 @@
 import type { ReactNode } from "react";
 import * as chest from "@argentic/chest-sdk/chest";
 import { AutoRefresh } from "../../../components/auto-refresh.tsx";
-import { Globe, Mask, Plus, Shield, Users } from "../../../components/icons.tsx";
+import { Globe, Inbox, Mask, Plus, Search, Shield, Trash, Users } from "../../../components/icons.tsx";
+import { sent } from "../../../lib/answers.ts";
 import { can } from "../../../lib/access.ts";
 import { db } from "../../../lib/db.ts";
-import { list, teamForms, type Listed } from "../../../lib/forms.ts";
+import { list, teamForms, trash, type Listed } from "../../../lib/forms.ts";
 import type { Catalogue } from "../../../lib/i18n/index.ts";
 import { format, formatDate, plural, relative } from "../../../lib/i18n/index.ts";
 import { viewer } from "../../../lib/session.ts";
@@ -12,14 +13,17 @@ import { DeletedBanner } from "./deleted-banner.tsx";
 import { StartButtons } from "./new/start-buttons.tsx";
 import { templateKeys } from "../../../lib/templates.ts";
 
-// Home: what the team asks me to answer, then my forms, those shared with
-// me, and — for a manager — everyone else's. One obvious action: New form.
+// Home: what the team asks me to answer and what I sent (with where each
+// request stands), then my forms, those shared with me, and — for a
+// manager — everyone else's, searched by title. One obvious action: New form.
 export default async function Home({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const v = await viewer();
   if (!v) return null;
   const { member, t, locale } = v;
   const sql = db();
-  const [all, toAnswer] = await Promise.all([list(sql, member), teamForms(sql, member)]);
+  const params = await searchParams;
+  const search = typeof params["q"] === "string" ? params["q"].slice(0, 100) : "";
+  const [all, toAnswer, mySent, deletedForms] = await Promise.all([list(sql, member, search), teamForms(sql, member), sent(sql, member, 20), trash(sql, member)]);
   const mine = all.filter(f => f.owner === member.id);
   const shared = all.filter(f => f.owner !== member.id && f.level !== "owner");
   const others = all.filter(f => f.owner !== member.id && f.level === "owner");
@@ -54,7 +58,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
       <ul className="form-grid">{forms.map(card)}{extra}</ul>
     </section>
   );
-  const deleted = (await searchParams)["deleted"];
+  const deleted = params["deleted"];
   const templateWords = Object.fromEntries(templateKeys.map(k => [k, t.templates[k].name])) as Record<string, string>;
   return (
     <div className="home">
@@ -82,7 +86,36 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
         </section>
       )}
 
-      {all.length === 0 && creator && (
+      {mySent.length > 0 && (
+        <section className="sent" aria-labelledby="h-sent">
+          <h2 id="h-sent"><Inbox /> {t.home.sent}</h2>
+          <ul>
+            {mySent.slice(0, 8).map(x => (
+              <li key={x.id}>
+                <a href={`/chest/sent/${x.id}`} className="sent-link">
+                  <span className="to-answer-title">{x.formTitle}</span>
+                  <span className="dim">{formatDate(x.createdAt, locale, zone, { day: "numeric", month: "short" })}</span>
+                  <span className={`follow follow-${x.status}`}>{t.follow.states[x.status]}</span>
+                </a>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {(all.length > 0 || search) && (
+        <form className="home-search" method="get" action="/chest" role="search">
+          <label className="search-field">
+            <Search />
+            <span className="visually-hidden">{t.home.search}</span>
+            <input className="field" type="search" name="q" defaultValue={search} placeholder={t.home.search} enterKeyHint="search" />
+          </label>
+          {search && <a className="button link" href="/chest">{t.home.clearSearch}</a>}
+        </form>
+      )}
+      {search && all.length === 0 && <p className="quiet-note">{t.home.noMatch}</p>}
+
+      {all.length === 0 && creator && !search && (
         <section className="empty-hero">
           <div className="empty-art" aria-hidden="true"><span /><span /><span /></div>
           <h2>{t.home.empty.title}</h2>
@@ -91,15 +124,18 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
           <StartButtons keys={["contact", "feedback", "event"]} words={templateWords} errors={t.errors} />
         </section>
       )}
-      {all.length === 0 && !creator && toAnswer.length === 0 && <p className="quiet-note">{t.home.nothingYet}</p>}
+      {all.length === 0 && !creator && toAnswer.length === 0 && !search && <p className="quiet-note">{t.home.nothingYet}</p>}
       {!creator && <p className="quiet-note">{t.home.noCreate}</p>}
 
       {section(t.home.yours, mine)}
       {section(t.home.shared, shared)}
       {section(t.home.others, others)}
 
-      {can(member, "privacy.erase") && all.length > 0 && (
-        <p className="home-foot"><a href="/chest/privacy"><Shield />{t.shell.privacy}</a></p>
+      {(deletedForms.length > 0 || (can(member, "privacy.erase") && all.length > 0)) && (
+        <p className="home-foot">
+          {deletedForms.length > 0 && <a href="/chest/trash"><Trash />{plural(t.trash.link, deletedForms.length, locale)}</a>}
+          {can(member, "privacy.erase") && all.length > 0 && <a href="/chest/privacy"><Shield />{t.shell.privacy}</a>}
+        </p>
       )}
     </div>
   );

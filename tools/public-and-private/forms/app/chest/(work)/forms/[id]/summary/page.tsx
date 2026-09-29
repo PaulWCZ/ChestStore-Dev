@@ -6,20 +6,23 @@ import { format, formatDate, plural } from "../../../../../../lib/i18n/index.ts"
 import { limits } from "../../../../../../lib/model.ts";
 import { viewer } from "../../../../../../lib/session.ts";
 import { summarise, type Bar, type Summary } from "../../../../../../lib/summary.ts";
+import { AnswersSwitch } from "../answers-switch.tsx";
 
 // Summary: each question at a glance — bars for choices, the average and
-// the NPS for scales, numbers' range, the latest texts.
+// the NPS for scales, numbers' range, a ranking's average places, a
+// matrix row by row, the latest texts (shuffled for an anonymous form).
 export default async function SummaryPage({ params }: { params: Promise<{ id: string }> }) {
   const v = await viewer();
   if (!v) return null;
   const { t, locale, member } = v;
   const id = (await params).id;
+  const head = <AnswersSwitch base={`/chest/forms/${id}`} list={t.answers.viewList} summary={t.answers.viewSummary} label={t.answers.views} />;
   let data;
   try {
     data = await allAnswers(db(), member, id);
   } catch (error) {
     if (error instanceof AppError && error.code === "too_few") {
-      return <div className="panel-page"><div className="empty"><h2>{t.answers.floorTitle}</h2><p>{format(t.answers.floor, { floor: limits.anonymousFloor, count: error.values["count"] ?? 0 })}</p></div></div>;
+      return <div className="panel-page">{head}<div className="empty"><h2>{t.answers.floorTitle}</h2><p>{format(t.answers.floor, { floor: limits.anonymousFloor, count: error.values["count"] ?? 0 })}</p></div></div>;
     }
     throw error;
   }
@@ -32,7 +35,7 @@ export default async function SummaryPage({ params }: { params: Promise<{ id: st
         {list.map(b => (
           <li key={b.key} className={highlight && b.count === top && top > 0 ? "top" : ""}>
             <span className="bar-label">{b.label}</span>
-            <span className="bar-track" aria-hidden="true"><span className="bar-fill" style={{ width: `${b.share}%` }} /></span>
+            <span className="bar-track" aria-hidden="true">{b.share > 0 && <span className="bar-fill" style={{ width: `${b.share}%` }} />}</span>
             <span className="bar-value">{b.count} <span className="dim">{format(s.percent, { share: n(b.share) })}</span></span>
           </li>
         ))}
@@ -91,11 +94,38 @@ export default async function SummaryPage({ params }: { params: Promise<{ id: st
           </dl>
         );
       case "files":
-        return <p className="dim">{plural(s.files, st.answered, locale)}</p>;
+        return <p className="dim">{plural(s.files, st.files, locale)}</p>;
+      case "ranks":
+        return (
+          <ol className="ranks">
+            {st.items.map(i => (
+              <li key={i.key}>
+                <span className="bar-label">{i.label}</span>
+                <span className="bar-value">{i.average ? format(s.rankAverage, { place: n(i.average) }) : "—"} <span className="dim">{plural(s.firsts, i.firsts, locale)}</span></span>
+              </li>
+            ))}
+          </ol>
+        );
+      case "grid":
+        return (
+          <div className="table-wrap grid-wrap" tabIndex={0} role="region" aria-label={x.column.question.title}>
+            <table className="grid-table">
+              <thead><tr><th scope="col"><span className="visually-hidden">{s.row}</span></th>{st.columns.map(c => <th key={c.key} scope="col">{c.label}</th>)}</tr></thead>
+              <tbody>
+                {st.rows.map(r => (
+                  <tr key={r.key}>
+                    <th scope="row">{r.label}</th>
+                    {r.cells.map((c, k) => <td key={k} style={{ ["--share" as string]: String(c.share / 100) }}>{c.count} <span className="dim">{format(s.percent, { share: n(c.share) })}</span></td>)}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        );
       case "texts":
         return st.latest.length === 0 ? null : (
           <>
-            <p className="mini-label">{s.latest}</p>
+            <p className="mini-label">{data.form.anonymous ? s.some : s.latest}</p>
             <ul className="texts">{st.latest.map((text, i) => <li key={i}>{text}</li>)}</ul>
             <a className="button link" href={`/chest/forms/${id}/answers`}>{s.seeAll}</a>
           </>
@@ -105,6 +135,7 @@ export default async function SummaryPage({ params }: { params: Promise<{ id: st
   const summaries = summarise(data.versions, data.answers, { yes: t.respond.yes, no: t.respond.no, other: t.respond.other });
   return (
     <div className="summary-page">
+      {head}
       <p className="answers-count">{plural(t.answers.count, data.answers.length, locale)}</p>
       {data.versions.size > 1 && <p className="hint">{s.versions}</p>}
       {data.answers.length === 0 ? <div className="empty"><p>{s.empty}</p></div> : (

@@ -135,8 +135,9 @@ test("anonymous forms: no member id, no time, participants apart, rows in a rand
   const people = [camille, ines, hugo, lea, tom, sofia];
   await send(f, { [mood.id]: 4, [note.id]: "Good week" }, asMember(people[0]!));
   await refused(send(f, { [mood.id]: 4 }, asMember(people[0]!)), "already");
-  await refused(answers.listAnswers(sql, asMember(camille), f.id), "too_few");
+  await refused(answers.listAnswers(sql, asMember(camille), f.id), "anonymous_rows");
   await refused(answers.allAnswers(sql, asMember(camille), f.id), "too_few");
+  await refused(answers.anonymousTexts(sql, asMember(camille), f.id), "too_few");
   for (const p of people.slice(1)) await send(f, { [mood.id]: 3 }, asMember(p));
   const rows = await sql<{ respondent: string | null; email: string | null; created_at: Date | null; xmin: string; ctid: string }[]>`select respondent, email, created_at, xmin::text, ctid::text from answers where form_id = ${f.id}`;
   assert.equal(rows.length, 6);
@@ -148,10 +149,19 @@ test("anonymous forms: no member id, no time, participants apart, rows in a rand
   // Nothing in the answers table says who answered.
   const text = JSON.stringify(await sql`select * from answers where form_id = ${f.id}`);
   for (const p of people) assert.ok(!text.includes(p.id));
-  // Five and more: the answers show, with no one's name; no one can find them to erase.
-  const list = await answers.listAnswers(sql, asMember(camille), f.id);
-  assert.equal(list.total, 6);
-  assert.ok(list.answers.every(a => a.respondent === null && a.createdAt === null));
+  // Five and more: the summary shows, and the written answers each on its
+  // own — never a row that joins one person's answers; no one can find them
+  // to erase.
+  await refused(answers.listAnswers(sql, asMember(camille), f.id), "anonymous_rows");
+  const all = await answers.allAnswers(sql, asMember(camille), f.id);
+  assert.equal(all.answers.length, 6);
+  assert.ok(all.answers.every(a => a.respondent === null && a.createdAt === null));
+  const texts = await answers.anonymousTexts(sql, asMember(camille), f.id);
+  assert.equal(texts.total, 6);
+  assert.deepEqual(texts.texts.map(x => [x.question.id, x.texts]), [[note.id, ["Good week"]]]);
+  const anyId = (await sql<{ id: string }[]>`select id from answers where form_id = ${f.id} limit 1`)[0]!.id;
+  await refused(answers.oneAnswer(sql, asMember(camille), f.id, anyId), "not_found");
+  await refused(answers.follow(sql, asMember(camille), f.id, anyId, { status: "done" }), "not_found");
   assert.deepEqual(await answers.findPerson(sql, asMember(camille), "Good week"), []);
   // The order the table gives is not the order people answered, over several tries.
   const orders = new Set<string>();
