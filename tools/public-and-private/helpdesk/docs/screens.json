@@ -26,5 +26,8 @@
   {"name": "inbox-bulk", "path": "/chest?folder=open", "member": "hugo", "locale": "en", "actions": [{"click": ".tickets li:nth-child(1) .row-check input"}, {"click": ".tickets li:nth-child(2) .row-check input"}, {"wait": 300}], "only": ["desktop", "phone"]},
   {"name": "keys", "path": "/chest?folder=open", "member": "hugo", "locale": "en", "actions": [{"wait": 800}, {"press": "?"}, {"wait": 400}], "only": ["desktop"]},
   {"name": "settings-erase-fr", "path": "/chest/settings", "member": "camille", "locale": "fr", "actions": [{"fill": ["#erase", "jean.dupont@example.com"]}, {"click": "button:has-text('Effacer')"}, {"wait": 400}], "only": ["phone"]},
-  {"name": "settings-holiday", "path": "/chest/settings", "member": "camille", "locale": "en", "full": true, "only": ["desktop"]}
+  {"name": "settings-holiday", "path": "/chest/settings", "member": "camille", "locale": "en", "full": true, "only": ["desktop"]},
+  {"name": "reports-fr", "path": "/chest/reports", "member": "camille", "locale": "fr", "only": ["phone"], "full": true},
+  {"name": "inbox-filters", "path": "/chest", "member": "ines", "locale": "en", "only": ["phone"], "actions": [{"click": "button.filter-toggle"}, {"wait": 300}]},
+  {"name": "contact-form-port", "path": "/", "member": "hugo", "locale": "fr", "look": {"all": "catalogue:library", "tool": "brand:port"}}
 ]

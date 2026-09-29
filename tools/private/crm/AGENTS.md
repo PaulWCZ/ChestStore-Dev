@@ -35,6 +35,18 @@ no import outside it. Read `README.md` first.
 | `app/chest-events`, `app/chest-jobs/[name]` | Signed routes of the Chest |
 | `test/` | `node:test` with `fakeChest`; PGlite or `TEST_DATABASE_URL` |
 
+- `lib/step-calendar.ts` — timed next steps in their owner's Chest
+  calendar (studio proposal `calendar`): call `publishStep` after any change
+  of one step, `reconcile` after anything that changes steps in bulk
+  (deletions, merges, imports, a member leaving) — never write to
+  `calendar` elsewhere. `step_events` is what was put.
+- `lib/seed-words.ts` and `fields.label_key/option_keys` — seeded names
+  (tags, industries, own fields) kept as keys, shown with `shownName` /
+  `localized`; a form's round trip keeps keys (`keptKeys`, `updateField`).
+  Never show a stored tag or industry without `shownName`.
+- `app/chest/ui/call-prompt.tsx` — "Log this call?" after a `tel:` tap
+  (sessionStorage only).
+
 ## Commands
 
 ```sh

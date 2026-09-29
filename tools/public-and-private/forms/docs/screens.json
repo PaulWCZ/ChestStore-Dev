@@ -45,8 +45,8 @@
   {"name": "settings-brand", "path": "/chest/forms/1/settings", "member": "ines", "locale": "en", "look": {"tool": "brand:sample"}, "only": ["desktop"], "full": true},
   {"name": "answers-cards-fr", "path": "/chest/forms/1/answers", "member": "ines", "locale": "fr", "only": ["phone"]},
   {"name": "answers-filter-open", "path": "/chest/forms/1/answers", "member": "ines", "locale": "en", "only": ["phone"], "actions": [{"click": ".filter-toggle"}, {"wait": 300}]},
-  {"name": "answers-columns", "path": "/chest/forms/1/answers", "member": "ines", "locale": "en", "only": ["desktop"], "actions": [{"click": ".columns-pick > summary"}, {"wait": 300}]},
+  {"name": "answers-columns", "path": "/chest/forms/1/answers", "member": "ines", "locale": "en", "only": ["desktop"], "actions": [{"click": "text=Columns shown"}, {"wait": 300}]},
   {"name": "builder-preview-fr", "path": "/chest/forms/1", "member": "ines", "locale": "fr", "only": ["desktop"]},
   {"name": "home-to-answer-phone", "path": "/chest", "member": "hugo", "locale": "en", "only": ["phone"]},
-  {"name": "settings-routes", "path": "/chest/forms/5/settings", "member": "ines", "locale": "en", "actions": [{"click": "label.ck-switch-label >> text=Also create a contact in Clients"}, {"wait": 400}, {"click": "label.ck-switch-label >> text=Also open a ticket in Support"}, {"wait": 1200}, {"hover": ".route-fields"}]}
+  {"name": "settings-routes", "path": "/chest/forms/5/settings", "member": "ines", "locale": "en", "actions": [{"hover": ".route-fields"}, {"wait": 200}]}
 ]

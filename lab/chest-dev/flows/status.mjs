@@ -90,6 +90,7 @@ await step("a theme the company chose for its team's tools never dresses the pub
     await page.request.post(origin + "/_dev/theme", { form: { level: "all", choice: "own" } });
     await context.clearCookies();
     await english();
+    await page.goto(origin + "/?fresh=after-theme");
   }
 });
 

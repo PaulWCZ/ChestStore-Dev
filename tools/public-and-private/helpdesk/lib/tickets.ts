@@ -7,7 +7,7 @@ import type { Query, Sql } from "./db.ts";
 import type { Stored } from "./attachments.ts";
 import { defaultHours, parseHours, readHours, type Hours } from "./hours.ts";
 import { clean, defaultLateHours, defaultSort, email, mergedEvent, readMerged, fillReply, id, isFolder, isPriority, isSort, isStatus, lateChoices, limits, numberInSubject, tagName, ticketNumber, type Folder, type Priority, type Sort, type Status } from "./model.ts";
-import { isLocale } from "./i18n/index.ts";
+import { catalogue, isLocale, locales } from "./i18n/index.ts";
 import { allRules, decide } from "./rules.ts";
 import { baseSubject } from "./text.ts";
 import { readerWords, shownTag, storedTag } from "./seed-words.ts";
@@ -660,8 +660,10 @@ export async function renameTag(sql: Sql, actor: Member | null, tagId: unknown, 
   const key = id(tagId);
   const text = tagName(name);
   return sql.begin(async tx => {
-    const [current] = await tx<{ id: string }[]>`select id from tags where id = ${key} for update`;
+    const [current] = await tx<{ id: string; name: string }[]>`select id, name from tags where id = ${key} for update`;
     if (!current) throw new AppError("not_found");
+    // A seeded tag saved as a reader saw it (in any language) is not renamed.
+    if (locales.some(l => shownTag(current.name, catalogue(l)) === text)) return { id: key, name: shownTag(current.name, readerWords(actor)) };
     const [other] = await tx<{ id: string; name: string }[]>`select id, name from tags where lower(name) = lower(${text}) and id <> ${key}`;
     if (!other) {
       await tx`update tags set name = ${text} where id = ${key}`;
@@ -674,14 +676,15 @@ export async function renameTag(sql: Sql, actor: Member | null, tagId: unknown, 
 }
 
 // deleteTag takes a tag off every ticket; says what undoing needs.
-export async function deleteTag(sql: Sql, actor: Member | null, tagId: unknown): Promise<{ name: string; tickets: string[] }> {
+export async function deleteTag(sql: Sql, actor: Member | null, tagId: unknown): Promise<{ name: string; shown: string; tickets: string[] }> {
   if (!can(actor, "tags.manage")) throw new AppError("forbidden");
   const key = id(tagId);
   return sql.begin(async tx => {
     const tickets = (await tx<{ ticket_id: string }[]>`select ticket_id from ticket_tags where tag_id = ${key}`).map(r => String(r.ticket_id));
     const [tag] = await tx<{ name: string }[]>`delete from tags where id = ${key} returning name`;
     if (!tag) throw new AppError("not_found");
-    return { name: tag.name, tickets };
+    // name: as kept (a seeded tag's key, for Undo); shown: as the reader reads it.
+    return { name: tag.name, shown: shownTag(tag.name, readerWords(actor)), tickets };
   });
 }
 

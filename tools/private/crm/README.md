@@ -29,7 +29,9 @@ that needs the 80 % they use every day. Research:
   Each deal has a page: its stage path (one click moves it; a list on a
   phone), Won/Lost (Won stands out only at the last open stage), its owner,
   its next steps, a one-tap log, its files and its history.
-- **Companies** and **contacts**: lists 100 a page, sorted by name, last
+- **Companies** and **contacts**: on a phone, only the search shows above
+  the list, and one *Filters (n)* button opens the rest (owner, tag, own
+  field, order, exports); an empty list shows none of them. Lists 100 a page, sorted by name, last
   activity (or last contact) or newest, with search, owner, tag and
   own-field filters, and "no contact for 3 years" (see GDPR below). Tick
   rows (or the page, or all that match, up to 500) to give them to
@@ -47,6 +49,20 @@ that needs the 80 % they use every day. Research:
 - **Several next steps**: a deal or a person may have more than one open
   step ("call Tuesday 14:30", "send samples Thursday"), each with an
   optional time; the soonest is the one the lists show.
+- **Timed steps in your calendar**: a next step with a time goes into its
+  owner's **Chest calendar** — the one feed the Chest serves each member,
+  added once to Google Calendar, Outlook or Apple Calendar — as a 30-minute
+  event titled "Call Claire · Head office fit-out" that opens the deal (or
+  the contact). Changed, given to someone else, done, deleted, left
+  without a time or to nobody: the event follows or goes. A step without a
+  time stays a to-do, out of calendars. The step form says "it goes into
+  your Chest calendar" only where the Chest has one (studio proposal
+  `calendar`; `lib/step-calendar.ts`).
+- **"Log this call?"**: on a phone, *Call* on a contact's (or company's)
+  page dials; back on the page afterwards (more than a few seconds later,
+  within three hours), it asks once — "You called Claire Durand. Log the
+  call?" — with a line for what was said; *Not now* forgets it. The tap is
+  remembered in that browser tab only (nothing leaves it until they log).
 - **Merge duplicates**: *… → Merge with a duplicate* on a company or a
   contact: the one kept gains the other's deals, people, history, next
   steps, files and any detail it lacked; the other is deleted (asks once).
@@ -224,6 +240,13 @@ move still stands. Deals imported already won are not told.
   `chest.proposals.json`: see "With the other tools".
 - `files` — the shipped capability (uploads from a member's browser,
   signed links): files on deals, companies and contacts.
+- `calendar` — **Proposal (studio)**, `"calendar": true` in
+  `chest.proposals.json` ("Adds events to the calendar of the members
+  concerned"): timed next steps in their owner's calendar
+  (`lib/step-calendar.ts`: `publishStep` after each change of a step,
+  `reconcile` after bulk changes and each morning). On a Chest without it,
+  the steps stand and the form stops promising the calendar
+  (`tool_state`).
 - **Needed, not built: received mail for the tool** — to log emails by
   themselves (a BCC address, `clients@<company domain>`, files each email on
   the contact whose address it carries; "send from the contact page"). The
@@ -232,6 +255,18 @@ move still stands. Deals imported already won are not told.
   also needs to tell the team's own addresses from clients' (the sender of
   a BCC is the salesperson) — see the SDK report. Until then **emails are
   not captured**: *Log an email* records that one happened.
+
+## Names in each reader's language
+
+The sample book's own fields ("Competitor", "Delivery wanted by", "Lead
+source", "Segment" and its choices), industries ("Food retail") and tags
+("key account") are stored as keys and read in each reader's language
+("Concurrent", "Commerce alimentaire", "grand compte") until someone
+renames them (Settings → Fields; a company's industry or tags edited to
+other words). A form that shows them and is saved unchanged keeps the
+keys (`lib/seed-words.ts`, `lib/fields.ts` `localized`). The records' own
+words — deal titles, steps, notes — are the sample team's, as typed (in
+English), like any company's data.
 
 ## Looks
 
@@ -266,6 +301,11 @@ In the studio: `node lab/chest-dev/dev.mjs tools/private/crm --reset --port 4800
 
 - **Emails are not captured** (no BCC, no Gmail/Outlook sync, no sending
   from the contact page): it needs received mail from the Chest (above).
+- Only timed steps reach the calendar, one way: moving the event in
+  Google or Outlook does not move the step (a feed is read-only).
+- The "Log this call?" prompt knows a tap on *Call*, not the call itself
+  (nor whether it was answered); on a desktop the tap opens whatever app
+  handles phone links.
 - One pipeline; no products or line items (quotes live in *Quotes*); EUR
   only.
 - Fields: four kinds (text, number, date, one choice) — no multi-choice,

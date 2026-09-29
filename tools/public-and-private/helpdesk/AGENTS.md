@@ -41,6 +41,22 @@ what must not break.
 npm ci && npm test && npm run build   # all three must pass
 ```
 
+## Added in round 2 of the critique
+
+- `lib/seed-words.ts` — the tags a desk starts with are kept as keys
+  (`@damaged`) and shown with `shownTag` in the reader's language; every
+  service that returns tag names maps them (`readerWords(actor)`);
+  `tagFor` finds a seeded tag by any of its translations; `renameTag`
+  ignores a save of the shown name; `deleteTag` returns `name` (kept, for
+  Undo) and `shown`.
+- `ticket_links` (migration 0004) — a request sent twice within ten minutes
+  (`fromForm`) is the same ticket with a second follow-up link; `linked()`
+  reads both.
+- Phones: `components/filter-toggle.tsx` (filters behind one button), the
+  folder choice in `components/team-shell.tsx`, `app/chest/reports/period-tabs.tsx`
+  (tabs or one choice), report tables `phone="stack"`.
+- Public pages wear `publicLook()` (brand, else the identity; kit 0.2.3).
+
 ## Rules
 
 - **The public part never shows a note, another customer's request, or a

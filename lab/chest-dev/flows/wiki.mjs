@@ -610,7 +610,7 @@ await step("search in French: little words do not count; words that mean the sam
   await page.getByRole("button", { name: "Add a line" }).click();
   await page.waitForSelector(".ck-toast:has-text('Saved.')");
   await page.reload();
-  expect((await page.locator(".synonym-lines input").last().inputValue()) === "forklift, chariot élévateur", "kept");
+  expect((await page.locator(".synonym-lines textarea").last().inputValue()) === "forklift, chariot élévateur", "kept");
 });
 
 await step("a comment on a passage; a reply; resolved, it folds; reopened", async () => {

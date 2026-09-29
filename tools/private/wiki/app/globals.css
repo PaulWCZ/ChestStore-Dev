@@ -460,6 +460,7 @@ mark { background: var(--highlight); color: var(--ink); padding: 0 0.1em; border
 .synonym-lines { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-2); }
 .synonym-line { display: flex; gap: var(--space-2); align-items: center; }
 .synonym-line .field { flex: 1; min-width: 0; }
+.synonym-lines textarea.field { resize: none; field-sizing: content; min-height: 44px; }
 .synonym-line.new { display: grid; }
 .synonym-line.new .row-actions { display: flex; gap: var(--space-2); }
 @media (max-width: 760px) {

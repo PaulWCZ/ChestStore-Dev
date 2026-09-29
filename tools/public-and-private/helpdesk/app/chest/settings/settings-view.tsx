@@ -101,7 +101,7 @@ export function SettingsView({ settings, tags, locale, publicAddress, emailAddre
                       const r = await deleteTag(g.id);
                       if (!r.ok) return void toast({ text: format(t.errors[r.error], r.values ?? {}), tone: "error" });
                       const gone = r.value;
-                      toast({ id: `tag-${g.id}`, text: format(s.tagDeleted, { tag: gone.name }), undo: async () => { const back = await restoreTag(gone); return back.ok || t.errors[back.error]; } });
+                      toast({ id: `tag-${g.id}`, text: format(s.tagDeleted, { tag: gone.shown }), undo: async () => { const back = await restoreTag({ name: gone.name, tickets: gone.tickets }); return back.ok || t.errors[back.error]; } });
                     })}>{s.deleteTag}</button>
                   </>}
                 </form>

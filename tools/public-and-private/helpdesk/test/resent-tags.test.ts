@@ -58,6 +58,14 @@ test("a seeded tag reads in each reader's language; typed in any language it is 
   assert.deepEqual(inEnglish.tags.map(g => g.name), ["Damaged"]);
   const list = await tickets.tags(sql, asMember(ines));
   assert.equal(list.find(g => g.id === tag.id)?.name, "Abîmé");
-  await tickets.renameTag(sql, asMember(camille), tag.id, "Rayé");
+  // Saved as a French reader saw it: still the seeded tag.
+  await tickets.renameTag(sql, asMember(camille), tag.id, "Abîmé");
+  assert.deepEqual((await tickets.ticket(sql, asMember(hugo), t.number)).tags.map(g => g.name), ["Damaged"]);
+  // Deleted and undone: the seeded tag again, said in the reader's words.
+  const gone = await tickets.deleteTag(sql, asMember(camille), tag.id);
+  assert.deepEqual([gone.name, gone.shown], ["@damaged", "Damaged"]);
+  const back = await tickets.restoreTag(sql, asMember(ines), { name: gone.name, tickets: gone.tickets });
+  assert.equal(back.name, "Abîmé");
+  await tickets.renameTag(sql, asMember(camille), back.id, "Rayé");
   assert.deepEqual((await tickets.ticket(sql, asMember(hugo), t.number)).tags.map(g => g.name), ["Rayé"]);
 });

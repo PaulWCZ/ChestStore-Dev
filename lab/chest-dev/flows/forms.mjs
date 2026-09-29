@@ -381,14 +381,18 @@ await step("a contact form also makes a contact in Clients and opens a ticket in
   await english();
   await page.setViewportSize({ width: 1280, height: 860 });
   await page.goto(origin + "/chest/forms/5/settings");
-  await page.locator("label.ck-switch-label", { hasText: "Also create a contact in Clients" }).click();
-  // The only email question and the only phone question are guessed.
+  // The sample contact form routes already; turned off, then on again: the
+  // only email question and the only phone question are guessed.
+  expect((await page.locator(".route-fields").count()) === 2, "both routes shown");
+  const toContact = page.locator("label.ck-switch-label", { hasText: "Also create a contact in Clients" });
+  await toContact.click();
+  await page.waitForFunction(() => document.querySelectorAll(".route-fields").length === 1);
+  await toContact.click();
   const contact = page.locator(".route-fields").first();
   await contact.waitFor();
   expect((await contact.getByLabel("Their email").locator("option:checked").innerText()) === "Your email address", "email guessed");
   expect((await contact.getByLabel("Their phone").locator("option:checked").innerText()) === "Your phone number", "phone guessed");
   await contact.getByLabel("Their message").selectOption({ label: "Your message" });
-  await page.locator("label.ck-switch-label", { hasText: "Also open a ticket in Support" }).click();
   const ticket = page.locator(".route-fields").nth(1);
   await ticket.getByLabel("Subject").selectOption({ label: "What is it about?" });
   await ticket.getByLabel("Details").selectOption({ label: "Your message" });

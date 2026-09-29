@@ -109,7 +109,22 @@ Intercom): there is no chat bubble.
 - **Reports** (admins): new, closed and still-open requests, the typical
   first-answer time (median, in working hours) and the share answered
   within the threshold, week by week, per person, per tag, per channel, and
-  customers' opinions — 4 to 26 weeks.
+  customers' opinions — 4 to 26 weeks. On a phone the period is one
+  choice, the figures two a row and every table a column of small cards:
+  nothing scrolls sideways.
+- **On a phone**, the inbox's first ticket stays near the top: the folder
+  is one choice ("Unassigned (3) ▾", saved views too), the filters
+  (priority, tag, order, save a view) wait behind one *Filter (n)* button,
+  and "select this page" shows once a ticket is ticked.
+- **A request sent twice** (a double tap, Back then Send) within ten
+  minutes — same address, subject and words — is the same ticket: the
+  second sending gets its own follow-up link to it and is told "we had
+  already received this request"; the team is not told twice, the
+  customer not emailed twice.
+- **Tags a desk starts with** (the sample's "Damaged", "Delivery",
+  "Invoice", "Order change") read in each reader's language ("Abîmé",
+  "Livraison"…) until someone renames them; typed in either language they
+  are the same tag (`lib/seed-words.ts`).
 - **Keyboard**: `j`/`k` move, `Enter` opens, `x` ticks, `r` reply, `n`
   note, `e` close, `c` new ticket, `/` search, `?` the list.
 - A **ticket**: the conversation, a composer with *Reply* or *Internal note*
@@ -260,10 +275,17 @@ mailbox), `node lab/chest-dev/flows/helpdesk.mjs`,
   it is, email in and out works only in the studio's harness.
 - **Live chat** (Crisp, Intercom): no chat bubble; a chat would need a
   push or long-poll primitive (no WebSocket on a Chest).
-- **Imports from Zendesk, Freshdesk or Help Scout**: their export formats
-  could not be read from the studio (their help sites were out of
-  reach), so no importer was built on a guess. History stays in the old
-  tool until one is written against real export files.
+- **Imports from Zendesk, Freshdesk or Help Scout**: not built, on
+  purpose. Their documented export formats could not be read from the
+  studio: on 2026-09-29 support.zendesk.com (article 4408886165402,
+  "Exporting ticket, user, or organization data"), developer.zendesk.com
+  (incremental exports) and developers.freshdesk.com (the tickets API) were
+  refused by the studio's network; a web search only returned
+  third-party summaries (Zendesk's JSON export includes comments but not
+  attachments, must be enabled by Zendesk, and splits tickets over 1 MB),
+  which are not a field-level format to write a parser against. History
+  stays in the old tool (a read-only seat) until an importer is written
+  against the vendors' documentation or a real export file.
 - **A help centre** (knowledge base): the Wiki's job — Support links to
   it (Settings, "help centre's address"); a public mode of the Wiki is in
   the suite's report.

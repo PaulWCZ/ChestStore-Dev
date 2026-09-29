@@ -77,7 +77,7 @@ export async function renameTag(tagId: string, name: string): Promise<Result<tic
   return act(actor => tickets.renameTag(db(), actor, tagId, name));
 }
 
-export async function deleteTag(tagId: string): Promise<Result<{ name: string; tickets: string[] }>> {
+export async function deleteTag(tagId: string): Promise<Result<{ name: string; shown: string; tickets: string[] }>> {
   return act(actor => tickets.deleteTag(db(), actor, tagId));
 }
 

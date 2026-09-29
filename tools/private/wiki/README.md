@@ -52,12 +52,24 @@ intranet — on the company's own server, for no fee per seat.
   holding some follow ("wifi password": the Wi-Fi page, then "Password
   manager"); **a word with a typo** is matched to the nearest word the wiki
   holds ("pasword", "teletravial"); results show the passage with the
-  matched words highlighted.
+  matched words highlighted. **The little words of French and English**
+  ("de", "la", "the", "of"…) never count as words of the query: "note de
+  frais" is not matched on "de" (it found 17 pages; now 2, the *Expense
+  policy* first). **Words that mean the same**, one list per wiki: "note
+  de frais", "remboursement" and "frais" find *Expense policy*;
+  "vacances" finds the holidays; "tt" finds *Charte télétravail*. The wiki
+  starts with 30 French/English office groups (congés/holidays,
+  télétravail/remote, mot de passe/password…); editors change them from
+  the search page (*Words that mean the same*: one line per group,
+  separated by commas; a line deleted comes back with *Undo*).
 - **Pinned pages**: editors pin a few pages ("Holidays", "Who to ask") under
   the home page's search box, for everyone who reads them.
 - **Recently updated** on the home page, with the one question people come
   with: "What do you want to know?"
-- **Import** a **Confluence space** exported as HTML (the zip as it comes:
+- **Import** a **Confluence space** exported as HTML — **each page keeps
+  the date it was last changed in Confluence** (its first version is
+  dated so, "Updated 3 months ago"), and imported pages stay out of the
+  home page's *Recently updated* until someone saves them here (the zip as it comes:
   the space's page tree from `index.html`, or each page's breadcrumbs;
   information/tip/note/warning macros and panels become note boxes, code
   macros code blocks, task lists checklists, links between pages — by
@@ -92,7 +104,17 @@ intranet — on the company's own server, for no fee per seat.
   person edits and removes their own, the page's editors may remove any
   (with *Undo*). The page's author, earlier commenters and watchers get one
   item in the Chest's bell per page ("Hugo commented on “Expenses”"),
-  replaced by the next comment, never doubled.
+  replaced by the next comment, never doubled. **A deleted comment takes
+  its words out of every bell at once** (Undo puts them back; an edited
+  comment's item shows its new words).
+- **Conversations**: *Reply* under a comment (one level: a reply to a
+  reply joins the same conversation; everyone in it is told); **Resolve**
+  (its author or the page's editors) folds it to one line — its first
+  words, "Resolved by Inès Moreau · 2 comments", *Show*, *Reopen*; a new
+  reply opens it again. **A comment on a passage**: select words in the
+  page, *Comment on this passage*; the comment quotes them, and a click
+  on the quote selects them in the page again (or says the page no longer
+  holds them).
 - **@mentions in comments**: typing "@" and the start of a name offers the
   people who read the page; whoever is picked is told in the bell ("Hugo
   mentioned you on “Wi-Fi”"), on their own, only if they may read it.
@@ -101,22 +123,26 @@ intranet — on the company's own server, for no fee per seat.
   on it — one item per page, replaced. Nobody watches a page unless they
   chose to.
 - **Read and acknowledged** (policies, the company's rules): *More → Ask
-  readers to confirm*, everyone who reads the space or some groups. Each
-  is told once in the bell, finds it under "Pages to read" on the home
+  readers to confirm*, everyone who reads the space or **any group of the
+  Chest** (with the `groups` proposal: Sales, the warehouse… even when the
+  wiki is open to all). Each is told in the bell **and by email** (the
+  `mail` proposal: one letter each, in their language, with the link), finds it under "Pages to read" on the home
   page, and sees "Please read this page, then confirm" with **I have read
   it**. The editors see *Who has read it*: how many confirmed the current
   version, each person (not yet, an older version, done) with the date,
   and **download it as a table** (CSV, for the company's records). After a
   change, *Ask again for the current version*; *Stop asking* keeps what
-  was confirmed.
+  was confirmed. **Reminders**: *Remind those who have not confirmed*
+  (bell and email, once a day at most per person), and by itself a week
+  after the ask (the `reviews` schedule, twice at most).
 - **Templates**: an editor marks a page "Use as a template"; *New page*
   then offers, in the same dialog, *Blank page* (chosen), the space's
   templates and three ready-made ones in the editor's language —
   *Meeting notes*, *How-to*, *Decision record*. The template's content is
   copied once; changing it later changes only pages made after.
 - **Review reminders** (optional, quiet): *More → Review reminder*, every
-  3, 6 or 12 months. Whoever sets it is reminded, once, in the bell on the
-  weekday morning it comes due (the `reviews` schedule); the page then asks
+  3, 6 or 12 months. Whoever sets it is reminded, once, in the bell **and
+  by email** on the weekday morning it comes due (the `reviews` schedule); the page then asks
   its editors "Is this page still correct?" — *Still correct* settles it
   for months, *Update it* opens the editor. The home page lists "Pages to
   check". Saving the page does not count as a check.
@@ -269,9 +295,11 @@ page — only the bell item is missing. Bell items need `notifications`
 - **Knowing whether a notification was delivered** per member (today
   `notify` is fire-and-forget in the tool): a review reminder is marked
   "told" even if the Chest was briefly unreachable.
-- **Group changes as events** (`member.updated` with `groups`): watchers
-  who lose a space through a group change keep old bell items until the
-  page changes (a move or the trash withdraws them).
+- **Group changes as events**: with the `groups` proposal the wiki
+  receives `group.changed`, `group.removed` and `member.updated`
+  (`groups`): a page to confirm leaves the bell of whoever it no longer
+  concerns. Watchers who lose a space through a group change still keep
+  old bell items until the page changes.
 
 - **The team host's address** (e.g. `CHEST_ORIGIN`, or `chest.origin()`):
   exports write links back to the wiki; today the address is taken from the
@@ -279,13 +307,14 @@ page — only the bell item is missing. Bell items need `notifications`
 - **A live channel** (server-sent events or a presence API) — for real
   co-editing some day; today a lock and drafts stand in for it.
 - **Localized manifest titles**: `chest.json` has one `title`.
-- **All the Chest's groups, not only those that give the tool**:
-  `members.groups.list()` and `member.groups` name only the groups that
-  give the wiki. A company that opens the wiki to everyone has no group
-  to choose for "who edits Sales" or "ask the sales team to confirm" —
-  only people one by one. Wanted: `members.groups.list({ scope: "chest" })`
-  and the member's other groups (behind a permission such as
-  `members.groups`).
+- `groups` — **Proposal (studio)**, declared (`"groups": "read"`, as
+  News): `members.groups.all()` gives every group of the Chest, for "who
+  reads", "who edits" and "ask to confirm" (lib/groups.ts; without it,
+  the groups that give the wiki, as before).
+- `mail` — **Proposal (studio)**, declared (`"mail": {"send": true}`, as
+  News, Tasks, Polls and Goals): read requests, reminders and review
+  reminders by email (lib/mail.ts). On a Chest without mail, nothing is
+  sent and nothing fails: the bell has told them.
 - **`access.granted` / `member.added` events**: someone who gets the wiki
   after a page asked for read confirmations is asked only when it is asked
   again.
@@ -317,13 +346,19 @@ node lab/chest-dev/screens.mjs tools/private/wiki --port 4300
   subpages): access is per space — reading (everyone or some groups) and
   editing (every editor or some groups and people). A salary grid goes in
   a space kept to the office group.
-- **@mentions inside a page's text** (they work in comments), replies in
-  threads, comments on a part of the text, resolving a comment.
+- **@mentions inside a page's text** (they work in comments). A comment
+  on a passage quotes it but is not pinned to it: after the page is
+  edited, a quote the page no longer holds is only a quote (clicking it
+  says so); no highlight in the page's text until clicked.
 - **Watching a whole space**; watchers are not told of moves or deletes.
 - **Embeds** (a video, a spreadsheet, a PDF shown inside a page): the
   pages show the wiki's own files only; a link opens the rest.
-- **Search across languages** ("vacances" does not find "holidays"),
-  synonyms and abbreviations ("tt" for "télétravail").
+- **Search across languages** beyond the synonyms list: a word nobody
+  listed is found only as written (no stemming: "remboursé" does not find
+  "rembourser").
+- **Emails** cannot be turned off per person (they are the company's
+  requests: read and confirm, check a page); comments and mentions stay
+  in the bell only.
 - **Imports**: Notion databases (CSV), Confluence's page history, comments
   and permissions (the pages as they are now, their images and files
   come), Word's comments, tracked changes (the accepted text comes),

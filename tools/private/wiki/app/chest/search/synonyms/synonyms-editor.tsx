@@ -11,7 +11,7 @@ type Group = { id: string; words: string[] };
 type Words = { synonyms: Catalogue["synonyms"]; errors: Catalogue["errors"] };
 
 // Each line a field ("vacances, congés, holidays"), saved when it is left
-// or with Enter; a line deleted comes back with Undo; one more at the end.
+// or with Enter; a line deleted comes back with Undo; a new one at the top.
 export function SynonymsEditor({ initial, t }: { initial: Group[]; t: Words }) {
   const toast = useToast();
   const [groups, setGroups] = useState(initial);
@@ -56,18 +56,6 @@ export function SynonymsEditor({ initial, t }: { initial: Group[]; t: Words }) {
   }
   return (
     <div className="stack">
-      {groups.length === 0 && <p className="muted">{w.empty}</p>}
-      <ol className="synonym-lines">
-        {groups.map((g, i) => (
-          <li key={g.id} className="synonym-line">
-            <label className="visually-hidden" htmlFor={`syn-${g.id}`}>{format(w.label, { n: i + 1 })}</label>
-            <input id={`syn-${g.id}`} className="field" defaultValue={g.words.join(", ")} maxLength={600}
-              onBlur={e => save(g, e.currentTarget.value.trim())}
-              onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); e.currentTarget.blur(); } }} />
-            <button type="button" className="button quiet small" onClick={() => remove(g)}><Trash />{w.remove}</button>
-          </li>
-        ))}
-      </ol>
       <form className="synonym-line new" onSubmit={e => { e.preventDefault(); if (fresh.trim()) add(); }}>
         <label className="label" htmlFor="syn-new">{w.newLabel}</label>
         <div className="row-actions">
@@ -75,6 +63,18 @@ export function SynonymsEditor({ initial, t }: { initial: Group[]; t: Words }) {
           <button type="submit" className="button" disabled={!fresh.trim()}><Plus />{w.add}</button>
         </div>
       </form>
+      {groups.length === 0 && <p className="muted">{w.empty}</p>}
+      <ol className="synonym-lines">
+        {groups.map((g, i) => (
+          <li key={g.id} className="synonym-line">
+            <label className="visually-hidden" htmlFor={`syn-${g.id}`}>{format(w.label, { n: i + 1 })}</label>
+            <textarea id={`syn-${g.id}`} className="field" rows={1} defaultValue={g.words.join(", ")} maxLength={600}
+              onBlur={e => save(g, e.currentTarget.value.trim())}
+              onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); e.currentTarget.blur(); } }} />
+            <button type="button" className="button quiet small" onClick={() => remove(g)}><Trash />{w.remove}</button>
+          </li>
+        ))}
+      </ol>
     </div>
   );
 }

@@ -15,19 +15,21 @@ what must not break.
 | `lib/spaces.ts`, `lib/pages.ts` | Spaces; the tree, pages, moves, trash, recent, backlinks, `writeContent` (every new version goes through it) |
 | `lib/editing.ts` | The lock (taken, kept by `heartbeat`, given back by `leave` — the beacon route `app/chest/api/pages/[id]/leave` — lapsing after `lockLeaseSeconds`), drafts (`discardDraft`/`keepDraft` from the page), `publish` |
 | `lib/history.ts` | Versions, the comparison in words, restore |
-| `lib/search.ts` | Full-text search (`wiki` text search config; hyphenated words joined by `wiki_compounds` in the index; typos through `search_words` and trigrams; all words first, then some) with marked passages |
+| `lib/search.ts` | Full-text search (`wiki` text search config; hyphenated words joined by `wiki_compounds` in the index; typos through `search_words` and trigrams; little words out (`stopWords`); synonym groups as one word (`units`); all words first, then some) with marked passages |
+| `lib/synonyms.ts` | Words that mean the same (table `synonyms`, seeded in `migrations/0004`): terms as search reads them (`termOf`, `phrase`), editors' add/change/delete; page `app/chest/search/synonyms/` |
+| `lib/mail.ts` | Email beside the bell (Proposal (studio) `mail`): `email(people, write, key)` — read requests, reminders, review reminders |
 | `lib/files.ts` | Files of pages (records; the bytes are the Chest's) |
 | `lib/importer.ts`, `lib/zip.ts` | Imports (Markdown, Notion zip, Confluence HTML export, Google Docs HTML, Word, any HTML) and a bounded in-memory ZIP reader/writer |
 | `lib/html.ts`, `lib/docx.ts` | HTML → document (Confluence's macros, tree and attachments; Google Docs' class styles) and Word → document; never HTML kept, always through `normalize()` |
 | `lib/export.ts`, `lib/origin.ts` | Markdown, HTML and zip exports |
-| `lib/comments.ts` | Comments: read, add, edit (own), remove (own, or the page's editors) and Undo — always through `page()`, so a comment follows its page's access |
+| `lib/comments.ts` | Comments: read, add (a reply: `parentId`, one level; a passage: `quote`), edit (own), resolve (author or editors), remove (own, or the page's editors; a top comment hides its replies) and Undo — always through `page()`, so a comment follows its page's access |
 | `lib/watching.ts` | Watching a page |
 | `lib/templates.ts` | Templates: the flag, a space's templates, the built-in models (words in the catalogues' `templates.builtin`), `createFrom` |
 | `lib/reviews.ts` | Review reminders: set, "still correct", due pages |
 | `lib/reads.ts` | Read and acknowledged: ask (everyone or groups), confirm, the report (`/reads`, `/reads/csv` with `csvCell`), pages to read |
 | `lib/pins.ts` | Pages pinned to the home page |
-| `lib/groups.ts` | The Chest's groups and members of the tool (`membersOfTool`, `editorsOfTool`) |
-| `lib/tell.ts` | **Everything the bell says** (keys `comments:`, `saved:`, `review:`, `read:`, `mention:`), each recipient checked against the space's access at that moment; the `reviews` schedule's work |
+| `lib/groups.ts` | Every group of the Chest (`companyGroups`: `groups.all()` with the proposal, else the groups that give the wiki; cached a minute, `forgetGroups` on group events) and members of the tool (`membersOfTool`, `editorsOfTool`) |
+| `lib/tell.ts` | **Everything the bell says** (keys `comments:`, `saved:`, `review:`, `read:`, `mention:`), each recipient checked against the space's access at that moment; `comment_notices` (which comment an item shows: `commentGone`/`commentShown`); emails of read requests and reminders (`readAsked`, `remindReaders`); the `reviews` schedule's work (review reminders, reminders a week after an ask); `reconcileReads` on group changes |
 | `app/chest-jobs/[name]/route.ts` | Scheduled tasks (proposal): `reviews` |
 | `lib/starter.ts` | The one-click example handbook (words in the catalogues' `starter`) |
 | `lib/lifecycle.ts` | Leaving and erasure |
@@ -119,3 +121,8 @@ npm ci && npm test && npm run build   # all three must pass
   (`node scripts/lint-words.mjs tools/private/wiki` must say 0).
 - **No network, no disk, no background work** (timed work goes through the
   `schedules` proposal, `chest.proposals.json`).
+- **A deleted comment leaves the bell at once** (`tell.commentGone` after
+  `comments.removeComment`); any new place that shows a comment's words to
+  others must record it in `comment_notices`.
+- **Imports keep their source's date** through `writeContent({ at })`;
+  the home page's *Recently updated* uses `recent({ withoutImports: true })`.

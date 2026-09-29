@@ -225,15 +225,16 @@ await step("the admin sets the waiting threshold, renames a tag and deletes one 
   await field.locator("xpath=..").getByRole("button", { name: "Enregistrer" }).click();
   await page.waitForSelector(".ck-toast:has-text('Enregistré.')");
   await page.waitForTimeout(600);
-  const invoice = page.locator("input[value='Invoice']").locator("xpath=..");
+  // The desk's seeded tags read in French for Camille ("Invoice" is « Facture »).
+  const invoice = page.locator("input[value='Facture']").locator("xpath=..");
   await invoice.getByRole("button", { name: "Supprimer" }).click();
   // French typography: a narrow no-break space inside « » (a plain one accepted).
-  await page.locator(".ck-toast", { hasText: /Étiquette «[\u202f\u00a0 ]Invoice[\u202f\u00a0 ]» supprimée\./u }).waitFor();
+  await page.locator(".ck-toast", { hasText: /Étiquette «[\u202f\u00a0 ]Facture[\u202f\u00a0 ]» supprimée\./u }).waitFor();
   expect((await page.locator(".ck-toast-undo").innerText()).includes("Annuler l’action"), "Undo is « Annuler l’action », never Cancel's word");
   await page.locator(".ck-toast-undo").click();
   await page.waitForTimeout(1200);
   await page.reload();
-  expect(await page.locator("input[value='Invoice']").count() === 1, "undo brought it back");
+  expect(await page.locator("input[value='Facture']").count() === 1, "undo brought it back, still a seeded tag");
   expect(await page.locator("input[value='Missing part']").count() === 1, "renamed");
   await page.getByLabel("Signaler un client qui attend une réponse depuis plus de").selectOption("24");
   await page.waitForTimeout(800);
@@ -470,9 +471,77 @@ await step("the customer rates a closed request; the follow-up page speaks the r
   await as(context, origin, "hugo");
 });
 
+await step("a request sent twice is one ticket; the second sending lands on it", async () => {
+  await context.clearCookies();
+  // A visitor of their own (the form counts five requests an hour per visitor).
+  await page.setExtraHTTPHeaders({ "x-forwarded-for": "203.0.113.21" });
+  const send = async () => {
+    await page.goto(origin + "/");
+    await page.getByLabel("Your name").fill("Marc Lenoir");
+    await page.getByLabel("Your email address").fill("marc.lenoir@example.com");
+    await page.getByLabel("Subject").fill("Chair without its screws");
+    await page.getByLabel("Your message").fill("The chair came without its screws.");
+    await page.waitForTimeout(3200);
+    await page.getByRole("button", { name: "Send" }).click();
+    await page.waitForURL(/\/t\/[A-Za-z0-9_-]{32}\?new=1/u);
+    return (await page.locator(".success").innerText());
+  };
+  const first = await send();
+  const second = await send();
+  const number = /(\d{4,})/u.exec(first)?.[1];
+  expect(number && second.includes(number), "the same number: " + second);
+  expect(second.includes("We had already received this request"), "said");
+});
+
+await step("public form on a phone: a wrong address is said under its field; files in plain words", async () => {
+  await context.clearCookies();
+  await page.setExtraHTTPHeaders({ "x-forwarded-for": "203.0.113.22" });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(origin + "/");
+  expect((await page.locator("form").innerText()).includes("photos, PDF, Word, Excel and text files"), "kinds of files in words");
+  await page.getByLabel("Your name").fill("Marc Lenoir");
+  await page.getByLabel("Your email address").fill("marc.lenoir@gmail");
+  await page.getByLabel("Subject").fill("Missing screws");
+  await page.getByLabel("Your message").fill("Hello");
+  await page.waitForTimeout(3200);
+  await page.evaluate(() => document.querySelector("form")?.setAttribute("novalidate", ""));
+  await page.getByRole("button", { name: "Send" }).click();
+  await page.waitForSelector("#email-error");
+  expect(await page.getByLabel("Your email address").getAttribute("aria-invalid") === "true", "the field is marked");
+  const field = await page.getByLabel("Your email address").boundingBox(), said = await page.locator("#email-error").boundingBox();
+  expect(said.y > field.y && said.y - field.y < 120, "the message is under the field");
+  await page.setExtraHTTPHeaders({});
+});
+
+await step("phone: the inbox's first ticket near the top; the folder is one choice; filters behind one button", async () => {
+  await as(context, origin, "ines");
+  await context.addCookies([{ name: "dev_locale", value: "en", url: origin }]);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(origin + "/chest");
+  expect(!(await page.locator(".folders").isVisible()), "no row of chips");
+  await page.locator("#folder-select").selectOption("open");
+  await page.waitForURL(/folder=open/u);
+  const first = await page.locator(".tickets li").first().boundingBox();
+  expect(first && first.y < 420, "first ticket at " + first?.y);
+  expect(!(await page.locator(".filters-line").isVisible()), "filters tucked away");
+  await page.getByRole("button", { name: "Filter" }).click();
+  expect(await page.locator(".filters-line").isVisible(), "filters on demand");
+});
+
+await step("phone: reports fit — the period as one choice, tables as cards", async () => {
+  await as(context, origin, "camille");
+  await context.addCookies([{ name: "dev_locale", value: "fr", url: origin }]);
+  await page.goto(origin + "/chest/reports");
+  const width = await page.evaluate(() => document.documentElement.scrollWidth);
+  expect(width <= 392, "reports overflow: " + width);
+  await page.locator("#period").selectOption("4");
+  await page.waitForURL(/weeks=4/u);
+  expect((await page.locator("main").innerText()).length > 100, "reports shown");
+});
+
 await step("phone width: public form, inbox and ticket fit", async () => {
   await page.setViewportSize({ width: 390, height: 844 });
-  for (const path of ["/", followUp.replace(origin, ""), "/chest", "/chest/tickets/1003", "/chest/tickets/1002", "/chest/settings"]) {
+  for (const path of ["/", followUp.replace(origin, ""), "/chest", "/chest/tickets/1003", "/chest/tickets/1002", "/chest/settings", "/chest/reports", "/chest/reports?weeks=26"]) {
     await page.goto(origin + path);
     const width = await page.evaluate(() => document.documentElement.scrollWidth);
     expect(width <= 392, `${path} overflows: ${width}`);
