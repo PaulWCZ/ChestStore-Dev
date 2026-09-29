@@ -9,8 +9,11 @@ must not break.
 |---|---|
 | `chest.json` | Manifest: roles `manager`, `member`, `viewer`; `database`, `files`, `members`, `notifications`; `receives` |
 | `lib/access.ts` | **Who may do what**: tool abilities (`can`) and a board's access (`boardAccess`: none, read, comment, write, own) |
-| `lib/boards.ts` | Boards, columns, labels, board people and groups |
-| `lib/cards.ts` | Cards, assignees, checklist, comments, files, history, My tasks, search, the tile's count |
+| `lib/boards.ts` | Boards (shared at creation), columns (archived with or after moving their cards), labels, fields, board people and groups |
+| `lib/cards.ts` | Cards, assignees, checklists and steps (subtasks), field values, comments (removed with Undo, purged after 10 min), files, history, moving and copying to another board, My tasks and my steps, search, the tile's count |
+| `lib/mail.ts` | Email beside the bell (Proposal (studio) `mail`): the per-person switch, `email()` in each one's language |
+| `lib/markdown.ts`, `components/markdown.tsx` | The description's small Markdown: a tree (pure, tested), drawn with React — never HTML |
+| `lib/calendar.ts` | The calendar view's month grid — pure, tested |
 | `lib/model.ts` | Bounds, colours, templates, dates, text cleaning — pure |
 | `lib/position.ts` | Fractional positions (a key between two others) — pure, tested |
 | `lib/parse-import.ts`, `lib/importers.ts` | Trello JSON / CSV reading (pure, used in the browser too), then writing a board |
@@ -25,10 +28,13 @@ must not break.
 | `lib/i18n/` | Every word: `en.ts` (source), `fr.ts`; `format.ts` for the browser |
 | `app/chest/actions.ts` | Server actions: thin; each re-reads the member; answer `Result` codes |
 | `app/chest/**/page.tsx` | Pages (server): read, resolve names, hand words to views |
-| `app/chest/boards/[id]/board-view.tsx` | The board (client): dnd-kit, keyboard moves, list view, filters |
-| `app/chest/boards/[id]/card-panel.tsx` | A card (client) |
+| `app/chest/boards/[id]/board-view.tsx` | The board (client): dnd-kit (Enter opens, Space picks up), keyboard moves, filters, the archive-column dialog |
+| `app/chest/boards/[id]/list-view.tsx`, `calendar-view.tsx` | The list (sort, group, done hidden) and the calendar (drag a card to a day) |
+| `app/chest/boards/[id]/card-panel.tsx` | A card (client): Mark done, dates, fields, checklists, Move or copy |
+| `components/dialog.tsx`, `components/people-picker.tsx` | Dialogs that open on their first field; ticking people and groups |
+| `app/chest/export/route.ts` | Every board in one JSON file (managers) |
 | `app/chest/api/cards/[id]/upload/route.ts`, `app/chest/files/[id]/route.ts` | Files: authorise, record, open |
-| `migrations/` | Schema. Never edit a shipped file; add `0002_…` |
+| `migrations/` | Schema. Never edit a shipped file; add the next number (`0004_…`) |
 | `seed/sample.sql` | Sample boards for local runs |
 | `test/` | `node:test` with `fakeChest` and PostgreSQL (PGlite or `TEST_DATABASE_URL`) |
 
@@ -56,6 +62,14 @@ npm ci && npm test && npm run build   # all three must pass
 - **Files**: authorise with `files.uploadUrl` in a `/chest` route after the
   access check; record only after `files.stat`; open through
   `/chest/files/<id>` (a fresh signed link), never put a signed link in a page.
+- **The keyboard opens cards**: the board's `KeyboardSensor` starts on
+  Space only; Enter is the card's own (it opens it). Keep it so.
+- **A new sender of news** (a card or step given, a mention) goes through
+  `lib/tell.ts` with the database, which rings the bell and sends the email
+  to those who did not turn it off; never `mail.send` directly.
+- **Something that points at a card from elsewhere** (a step's assignee, a
+  field value) must be handled where a card moves between boards
+  (`carry()` in `lib/cards.ts`) and where a member leaves (`lib/lifecycle.ts`).
 - **"Today" is `chestToday()`** (`lib/clock.ts`), never the server's date
   or a hard-coded zone; the morning uses its run's `scheduledAt` and
   `timeZone`.

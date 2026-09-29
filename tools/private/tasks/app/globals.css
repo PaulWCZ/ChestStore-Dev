@@ -282,7 +282,7 @@ table.cards th[aria-sort] button.sort .arrow { color: var(--ink); }
 .cal-card { display: flex; align-items: baseline; gap: 4px; padding: 2px 6px; border: 1.5px solid var(--line); border-radius: var(--radius-s); background: var(--surface); color: var(--ink); text-decoration: none; font-size: var(--text-xs); font-weight: 600; line-height: 1.3; overflow-wrap: anywhere; touch-action: manipulation; }
 .cal-card:hover { box-shadow: var(--shadow); }
 .cal-card .bar { flex: none; width: 6px; align-self: stretch; border-radius: 3px; background: var(--c); border: 1px solid var(--line); }
-.cal-card .cal-time { font-variant-numeric: tabular-nums; color: var(--ink-2); }
+.cal-card .cal-time { font-variant-numeric: tabular-nums; color: var(--ink-2); white-space: nowrap; }
 .cal-card.late { border-color: var(--danger); box-shadow: inset 3px 0 0 var(--danger); }
 .cal-card.is-done span:last-of-type { text-decoration: line-through; color: var(--ink-2); }
 .cal-card.dragging { opacity: 0.6; }
@@ -290,7 +290,7 @@ table.cards th[aria-sort] button.sort .arrow { color: var(--ink); }
   /* A phone reads the month as a list of the days that hold cards. */
   .calendar { padding: var(--space-3); }
   .month, .month-row { display: block; }
-  .weekdays-row { display: none; }
+  .weekdays-row, .month-row.quiet-week { display: none; }
   .cal-day { display: none; min-height: 0; padding: var(--space-2) var(--space-3); border-left: 0 !important; border-top: 1px solid var(--line-soft); }
   .cal-day.has-cards, .cal-day.today { display: grid; }
   .cal-date { justify-content: flex-start; gap: var(--space-2); align-items: center; }
@@ -320,6 +320,8 @@ table.cards th[aria-sort] button.sort .arrow { color: var(--ink); }
 .chip.big svg { width: 16px; height: 16px; }
 .field.date { width: auto; max-width: 100%; }
 .select.time { width: auto; }
+.fact.wide { grid-column: span 2; }
+@media (max-width: 760px) { .fact.wide { grid-column: auto; } }
 .fact .hint .link-button { padding-left: var(--space-1); min-height: 28px; font-size: var(--text-s); }
 .panel-body { display: grid; gap: var(--space-5); padding: var(--space-4); }
 .panel-section { display: grid; gap: var(--space-2); }
@@ -440,6 +442,7 @@ dialog.dialog::backdrop { background: var(--overlay); }
 /* Sharing a board: people ticked in a list, groups as choices. */
 .share-box { padding: var(--space-3); border: var(--border) dashed var(--line); border-radius: var(--radius-m); background: var(--surface); }
 .share-box h3 { font-size: var(--text-s); }
+.share-box .hint, .dialog .hint { font-size: var(--text-s); color: var(--ink-2); }
 .people-picker { display: grid; gap: var(--space-2); }
 .people-picker .picker-list { border: 0; margin: 0; padding: 0; max-height: 220px; }
 .picker-groups { border: 0; margin: 0; padding: 0; }

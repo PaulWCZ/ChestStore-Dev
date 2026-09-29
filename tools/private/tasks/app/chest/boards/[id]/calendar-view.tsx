@@ -78,7 +78,7 @@ export function CalendarView({ calendar, cards, labels, writable, locale, query,
             {calendar.weekdays.map(d => <div key={d.long} role="columnheader" className="weekday-name"><abbr title={d.long}>{d.short}</abbr></div>)}
           </div>
           {calendar.weeks.map(week => (
-            <div key={week[0]!.date} className="month-row" role="row">
+            <div key={week[0]!.date} className={`month-row${week.some(d => d.date === calendar.today || shown.some(c => dueOf(c) === d.date)) ? "" : " quiet-week"}`} role="row">
               {week.map(d => (
                 <Day key={d.date} day={d} today={calendar.today} cards={shown.filter(c => dueOf(c) === d.date)} labels={labels} writable={writable} t={t} />
               ))}

@@ -140,7 +140,7 @@ export function CardPanel({ card, board, columns, labels, fields, targets, times
                 </select>
               ) : <span>{columns.find(c => c.id === card.columnId)?.name}{card.done && <> · <span className="chip done">{t.card.doneBadge}</span></>}</span>}
             </div>
-            <div className="fact">
+            <div className="fact wide">
               <label className="label" htmlFor="card-due"><Calendar /> {t.card.due}</label>
               {writable ? (
                 <>
@@ -491,8 +491,12 @@ function Description({ card, writable, t, onSave }: { card: PanelCard; writable:
   useEffect(() => { if (!editing) setValue(card.description); }, [card.description, editing]);
   if (!editing) {
     return (
-      <div className={`description${card.description ? "" : " empty-text"}`} onClick={() => writable && setEditing(true)} role={writable ? "button" : undefined} tabIndex={writable ? 0 : undefined} onKeyDown={e => { if (writable && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); setEditing(true); } }}>
-        {card.description ? <Markdown text={card.description} /> : writable ? t.card.descriptionPlaceholder : ""}
+      <div className="stack">
+        {/* A click on the text edits it (the button below does it from the keyboard); its links stay links. */}
+        <div className={`description${card.description ? "" : " empty-text"}`} onClick={e => { if (writable && !(e.target instanceof HTMLAnchorElement)) setEditing(true); }}>
+          {card.description ? <Markdown text={card.description} /> : writable ? t.card.descriptionPlaceholder : ""}
+        </div>
+        {writable && <div><button type="button" className="link-button" onClick={() => setEditing(true)}><Text /> {card.description ? t.card.editDescription : t.card.addDescription}</button></div>}
       </div>
     );
   }

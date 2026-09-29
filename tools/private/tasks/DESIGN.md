@@ -20,6 +20,7 @@ computed with `scripts/contrast.mjs` (WCAG 2; AA is 4.5:1 for text).
 | `--link` | `#1f4bff` | `#8fa8ff` | links, focus — 6.0:1 / 7.2:1 |
 | `--danger` | `#c2290f` | `#ff8c73` | errors, delete — 5.8:1 / 7.3:1 |
 | board colours | sun `#ffd84d`, tomato `#ff7a59`, berry `#f266a8`, grape `#9b7bff`, sky `#5bb4ff`, sea `#2fc6b5`, leaf `#7bd05b`, sand `#e9c79a`, slate `#9aa5b1` | same | always with ink text: 5.8:1 (grape) to 13.2:1 (sun) |
+| `--head-bg` / `--head-ink` | the board's colour / ink | the colour at 35 % over `--surface` / `--ink` | a board's header and its cards' panels: full colour by day, a tint at night (the full sun yellow glared); light ink on every tint ≥ 5.3:1 |
 
 **Type**: *Space Grotesk* (display: headings, board and column names) and
 *Inter* (everything else), both OFL-1.1, self-hosted in `public/fonts/`.
@@ -34,8 +35,13 @@ Buttons (sun primary, quiet, danger, small), icon buttons, fields and
 selects, choice cards (radio), swatches, chips (label, due late / today /
 done), avatars and stacks, board tiles, task rows with a round tick, lanes
 and cards (normal, done, dragging, overlay), a side panel for a card (full
-screen on a phone), dialogs on `<dialog>`, pop-over pickers, menus, toasts
-with *Undo*, empty states with one action.
+screen on a phone) led by a leaf-green *Mark done* button, dialogs on
+`<dialog>` that open on their first field, pop-over pickers, a people
+picker (a ticked list, and groups), menus, toasts with *Undo*, empty states
+with one action, a sortable and groupable table (list view), a month grid
+(calendar view; on a phone, a list of the days that hold cards), a lock
+pill in the header of a private board, column chips above the board on a
+phone.
 
 ## Icon
 

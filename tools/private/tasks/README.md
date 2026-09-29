@@ -7,18 +7,42 @@ for the work of a small company's teams — the 80 % they use every day.
 
 ## What it does
 
-- **My tasks** (home): everything given to me on any board, grouped *Late,
-  Today, This week, Later, No date*; one tap ticks a task done (it moves to
-  its board's "done" column), with *Undo*. My boards underneath.
+- **My tasks** (home): everything given to me on any board — cards, and
+  steps of a card's checklist given to me (subtasks, their card named
+  under them) — grouped *Late, Today, This week, Later, No date*; one tap
+  ticks it done (a card moves to its board's "done" column), with *Undo*.
+  My boards underneath.
 - **Boards** of columns of cards, from a template (*To do / Doing / Done*,
   a project, a newcomer's arrival, or empty). Visible to everyone in Tasks,
-  or private to chosen people and groups.
-- **Cards**: title, description (links clickable), people, due date,
-  labels, a checklist, comments with **@mentions**, files, and a history.
-  Drag and drop with the mouse, the finger (long press) or the keyboard
-  (Space, arrows, Space). Quick add at the bottom of each column.
-- **List view** of a board; filters by person (or *My cards*) and label.
-- **Search** across every board I see (titles and descriptions).
+  or private: the people and groups are chosen right in the *New board*
+  dialog, and a private board says so in its header (a lock, "Only you",
+  "3 people · 1 group").
+- **Cards**: title, description (a small Markdown: **bold**, *italic*,
+  lists, headings, links), people, due date with an optional time, start
+  date, labels, the board's own **fields**, **checklists** (several, each
+  step may be given to someone with a date), comments with **@mentions**
+  (edit and delete your own, with *Undo*), files, and a history. A big
+  **Mark done** button (and *Reopen*). **Move or copy** a card to another
+  board (labels and fields follow by name; people who cannot see that
+  board are taken off, and the history says where it came from).
+  Drag and drop with the mouse, the finger (long press) or the keyboard:
+  **Enter opens a card**, Space picks it up, the arrows move it, Space
+  drops it. Quick add at the bottom of each column. On a phone, the
+  columns are named above the board; one tap scrolls to one.
+- **Fields** (Monday's columns): text, a number, or one choice among
+  options, per board, set on each card, shown in the list and exported.
+- **List view**: sort by any heading (title, column, people, start, due),
+  group by column, person or due date; done cards hidden unless asked;
+  every title a link that opens the card.
+- **Calendar view**: the month of the board's due dates; a card dragged to
+  another day (mouse, finger or keyboard) takes that date. On a phone, the
+  days that hold cards, as a list.
+- **Search** across every board I see: titles, descriptions, comments,
+  checklists and labels; *Include archived cards* (cards archived, in an
+  archived column or on an archived board, each marked "Archived").
+- **Columns** are archived with their cards, or after moving them to
+  another column: the menu asks when the column holds cards, and the toast
+  says what happened ("Column archived with its 3 cards"), with *Undo*.
 - **Recurring cards**: a card can repeat *every day*, *every weekday*
   (Monday to Friday), *every week* on chosen days, or *every month* on a
   day (the 31st falls on the last day of shorter months). The card says it
@@ -34,13 +58,25 @@ for the work of a small company's teams — the 80 % they use every day.
   late ones first. It replaces yesterday's, and goes away once nothing is
   due (as soon as their last card is done). One switch at the bottom of
   *My tasks* turns it off for oneself.
-- **The bell**: whoever is given a card, mentioned, or has a card commented
-  on hears of it in the Chest's inbox, in their own language; the tile's
-  number is their tasks late or due today.
-- **Import**: a Trello board (JSON export), an Asana project (CSV export) or
-  any spreadsheet (CSV with a title column; French sheets with `;` work).
-  People are found in the Chest by their full name.
-- **Export** a board as CSV (in the reader's language) or JSON (everything).
+- **The bell**: whoever is given a card or a step, mentioned, or has a
+  card commented on hears of it in the Chest's inbox, in their own
+  language; the tile's number is their tasks and steps late or due today.
+- **Email** (Proposal (studio) `mail`): being given a card or a step, being
+  mentioned, and the morning reminder also come by email, in each person's
+  language, with the link to the card; the Chest sends it to their address
+  (the tool never knows it). One switch at the bottom of *My tasks* turns
+  email off for oneself.
+- **Import**: Trello boards (JSON export; several at once), an Asana
+  project (CSV export) or any spreadsheet (CSV with a title column; French
+  sheets with `;` work). Before anything is written, the page shows each
+  board's columns and cards, **the people found in the Chest and those who
+  are not** (their cards stay unassigned), and how many attached files stay
+  behind in Trello (link attachments come into the description). An
+  imported board is **private to the importer** unless *Everyone in Tasks*
+  is chosen.
+- **Export** a board as CSV (in the reader's language) or JSON
+  (everything); managers download **all boards at once** (one JSON file,
+  archived and private boards included).
 - **Nothing is lost by a click**: cards, columns and boards are archived
   (and restored); they are deleted for good only from the archive.
 
@@ -64,7 +100,10 @@ the tool's builders come in with the first role, `manager`.
 - **The first thing they do:** name a board, keep the suggested columns,
   press *Create the board*, then *Add a card* and type.
 - **Clicks for the main job:** giving a task to Inès is 3 clicks from the
-  board (open the card, *Give to…*, Inès); ticking my task done is 1.
+  board (open the card, *Give to…*, Inès); ticking my task done is 1 (from
+  *My tasks*, or *Mark done* in the card).
+- **A viewer on an empty Chest** reads "No board is shared with you yet —
+  Ask Camille Martin to add you to a board" (the managers' names).
 - **A mistake:** a card moved to the wrong column is dragged back; ticked
   by mistake → *Undo* (a repeating card also takes back the next one it
   made, if nobody touched it yet); archived by mistake → *Undo*, or restore it from the
@@ -76,10 +115,11 @@ the tool's builders come in with the first role, `manager`.
 |---|---|---|
 | `/chest` | members | My tasks and my boards |
 | `/chest/boards` (`?archived=1`) | members | all boards I see |
-| `/chest/boards/<id>` (`?card=`, `?view=list`, `?who=`, `?label=`) | members who see the board | the board, a card open beside it |
+| `/chest/boards/<id>` (`?card=`, `?view=list\|calendar`, `?month=YYYY-MM`, `?who=`, `?label=`) | members who see the board | the board, its list or its calendar, a card open beside it |
 | `/chest/boards/<id>/settings` | idem (changes: owners, managers) | settings, archive, export |
 | `/chest/boards/<id>/export?format=csv\|json` | idem | a download |
-| `/chest/search?q=` | members | search |
+| `/chest/search?q=` (`&archived=1`) | members | search |
+| `/chest/export` | managers | every board, one JSON file |
 | `/chest/import` | managers, members | import |
 | `/chest/api/cards/<id>/upload` | who works on the board | authorise then record a file (POST, PUT) |
 | `/chest/files/<id>` (`?download`) | who sees the card | a 15-minute link to the file, signed by the Chest |
@@ -91,9 +131,13 @@ the tool's builders come in with the first role, `manager`.
 
 - `capabilities`: `database`; `files` (card attachments, 25 MB each,
   browser → Chest uploads); `members` (names, photos, who sees a board);
-  `notifications` (the bell and the tile's number); `receives: ["member.*"]`.
-- **Someone leaves** (or loses access): their open cards are unassigned (the
-  history says so), they leave the boards' people; done cards keep them.
+  `notifications` (the bell and the tile's number); `receives: ["member.*"]`;
+  and, Proposal (studio) in `chest.proposals.json`, `mail: {send: true}`
+  (email to members, by their id).
+- **Someone leaves** (or loses access): their open cards and steps are
+  unassigned (the history says so), they leave the boards' people; done
+  cards keep them. A board whose last owner left is managed by the
+  managers (they own every board).
   **An erasure** removes their id everywhere; what they wrote stays for the
   team, signed "Former member". Then the erasure is acknowledged.
 - **Schedules** (Proposal (studio), `chest.proposals.json`): `morning`,
@@ -126,7 +170,11 @@ one already late. Archiving a repeating card stops its series; choosing
   the bell in each member's language.
 - `schedules` — **Proposal (studio)**: the morning run (reminders, the
   repeats' safety net, the tiles' numbers).
-- `chest` — **Proposal (studio)**: the Chest's time zone, for "today".
+- `chest` — **Proposal (studio)**: the Chest's time zone, for "today";
+  its address (`teamUrl`), for the link in an email.
+- `mail` — **Proposal (studio)**: `mail.send({to: {member}})` for the
+  emails of assignment, mention and the morning. On a Chest without mail,
+  `CapabilityNotGranted`: nothing is sent, nothing fails, the bell says it.
 - Without schedules on a real Chest today, recurring cards still work (the
   next card is made at the moment one is done); the reminder does not come
   and the tile's number is refreshed by use only.
@@ -145,8 +193,30 @@ In the studio: `node lab/chest-dev/dev.mjs tools/private/tasks --reset`
 
 ## What it does not do (yet)
 
-Reminders by email or at a time each person chooses (the Chest's bell
-only, at 07:30 on weekdays), repeats every *n* weeks or yearly, repeats on
-a calendar whether done or not (Trello's model), start dates, calendar view,
-card templates, custom fields, automations, dependencies, time tracking
-(see Timesheets), public boards, live co-editing.
+- **Email** needs the `mail` proposal on the Chest: until then the bell
+  alone tells people. No push to a phone (the Chest has none), no email at
+  a time each person chooses (07:30 on weekdays), no email for plain
+  comments on one's cards (the bell only).
+- **Timeline / Gantt**, **dependencies** ("blocked by"), **automations**
+  (Monday's "when status changes, notify…", Trello's Butler), **time
+  tracking** (see Timesheets), workload views, dashboards and charts.
+- **Subtasks are checklist steps**: a step has a person and a date and
+  shows in their *My tasks*, but it has no description, comments or files
+  of its own, and no steps under it.
+- **Fields**: text, number and one choice only (no date, person, several
+  choices, formula or currency fields); no field is required.
+- **Calendar** shows due dates only (a start date does not draw a span),
+  one board at a time (no calendar across boards, no calendar feed to
+  subscribe to).
+- **List view**: no inline editing (a title opens the card); sort and
+  grouping are not remembered.
+- **Import**: attachments uploaded to Trello are not brought (they are
+  counted, and stay in Trello); no Monday import (Monday exports to Excel:
+  save it as CSV with a "Name" column); Asana's subtasks become checklist
+  steps without their people.
+- **Export**: files are listed by name, not included (one JSON file, not a
+  zip).
+- Repeats every *n* weeks or yearly, repeats on a calendar whether done or
+  not (Trello's model), card templates, card covers, watching a card,
+  public boards, live co-editing, a board-level history ("who archived
+  the column?").
