@@ -10,7 +10,16 @@ what must not break.
 | `chest.json`, `chest.proposals.json` | Manifest (roles `admin`, `agent`, `viewer`; public part) and the proposals it uses (`mail`, public uploads, `schedules`) |
 | `lib/access.ts` | Who may do what |
 | `lib/model.ts` | Bounds, statuses, folders, priorities, sorts, file types and limits, "waiting since" and the threshold, email check, `[#number]` in subjects — pure |
-| `lib/tickets.ts` | The service: public form, follow-up link (and its files), email filing, inbox (filters, sorts), answers, notes, assignment, priority, tags, saved replies, settings, erasure, cleanup |
+| `lib/tickets.ts` | The service: public form, follow-up link (and its files, following merges), email filing (`fromEmail`: thread, headers, then same vouched-for sender), bounces, inbox (filters, sorts), answers, notes, assignment, priority, tags, merge/unmerge, bulk/unbulk, customer's address, rating, saved replies, settings (per-language sentence, hours, frame origins, help URL), erasure (and its log), cleanup, `exportAll` |
+| `lib/mail-in.ts` | What `/chest-mail` does: file an email, confirm a new one (never to robots, three an hour per address), tell the team; mark a bounce and tell its author |
+| `lib/hours.ts` | Working hours (pure): the week, days off, `workMinutes`, time zones with Intl, France's public holidays, local timestamps |
+| `lib/text.ts` | Pure text: an email's quoted history (`splitQuoted`), links (`linkify`), `baseSubject`, robots' addresses |
+| `lib/rules.ts` | Rules on arrival: CRUD (admins), matching (`matches`, `decide`), forgetting a member |
+| `lib/views.ts` | Saved views: the inbox's parameters, checked |
+| `lib/reports.ts` | The reports (admins) |
+| `lib/export.ts`, `lib/zip.ts` | The ZIP export: two CSVs and a JSON |
+| `lib/frame.ts` | The websites that may frame the public pages, cached 30 s, read by `proxy.ts` |
+| `components/body.tsx`, `components/keys.tsx`, `components/folder-menu.tsx` | A message's words (links, folded quotes); keyboard shortcuts; the phone's folder menu and round button |
 | `lib/attachments.ts` | Files on messages: who may upload (visitor, member), the grant, taking claims/uploads once and moving them to `files/`, removal, the nightly sweep |
 | `components/file-picker.tsx` | The browser side of an upload (public and team) |
 | `components/badges.tsx`, `components/inbox-filters.tsx` | Priority chip, "waiting since", the inbox's filters |
@@ -20,7 +29,7 @@ what must not break.
 | `lib/lifecycle.ts` | Members leaving or erased |
 | `lib/public-origin.ts` | The public host's address; the visitor's key |
 | `app/page.tsx`, `app/t/[secret]/`, `app/public-actions.ts` | The public part (anonymous); `app/t/[secret]/files/[id]/route.ts` streams a request's file to its link |
-| `app/chest/…`, `app/chest/actions.ts` | The team's part |
+| `app/chest/…`, `app/chest/actions.ts` | The team's part (`inbox-list.tsx`: ticks and the bulk bar; `save-view.tsx`; `settings/hours-box.tsx`, `rules-box.tsx`, `embed-box.tsx`; `reports/`; `messages/[id]/original`) |
 | `app/chest-mail/route.ts`, `app/chest-jobs/[name]/route.ts`, `app/chest-events/route.ts` | Deliveries from the Chest (signed) |
 
 ## Commands
@@ -47,5 +56,19 @@ npm ci && npm test && npm run build   # all three must pass
   and a message not saved deletes the files it took.
 - **Email is optional**: every path must work when `mail.send` throws
   `CapabilityNotGranted` (delivery `page`).
+- **Never file a stranger into someone's ticket**: a received email joins
+  a ticket only by its verified thread, by the id of an email we sent, or
+  — when `authenticated` — by the same customer's address. `[#1042]` in a
+  subject is never proof on its own. Keep `test/mail.test.ts` green.
+- **Automatic answers** (`auto`) never open a ticket, reopen one, notify
+  or get answered; confirmations never go to robots' addresses.
+- **Received HTML** is shown only as the Chest cleaned it, only on the
+  team's side, only on demand; the original `.eml` is a download.
+- **Merging never crosses customers** (the follow-up link of the merged
+  ticket opens the other's conversation).
+- **Framing**: only `/`, `/t/…` and `/lang/…` may carry the admin's
+  `frame-ancestors`; `/chest` always `'none'`.
+- **Working hours** are computed on the server (`lib/hours.ts`, the
+  Chest's time zone); client components format dates only after mount.
 - Identity from `member()` only; rights in `lib/access.ts`; words in every
   catalogue; client components never import the SDK or `lib/db.ts`.

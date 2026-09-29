@@ -1,12 +1,16 @@
 [
-  { "name": "inbox", "path": "/chest", "member": "hugo", "locale": "en", "preview": true },
-  { "name": "ticket", "path": "/chest/tickets/1003", "member": "hugo", "locale": "en" },
-  { "name": "contact-form", "path": "/", "member": "hugo", "locale": "en" },
-  { "name": "follow-up", "path": "/t/demoFollowUpLinkForTheScreens000", "member": "hugo", "locale": "en" },
-  { "name": "inbox-fr", "path": "/chest?folder=open", "member": "camille", "locale": "fr" },
-  { "name": "contact-form-fr", "path": "/", "member": "camille", "locale": "fr", "only": ["phone"] },
-  { "name": "ticket-dark", "path": "/chest/tickets/1001", "member": "ines", "locale": "fr", "dark": true },
-  { "name": "settings", "path": "/chest/settings", "member": "camille", "locale": "en", "only": ["desktop"] },
-  { "name": "inbox-tag", "path": "/chest?tag=2&sort=priority", "member": "hugo", "locale": "en", "only": ["desktop"] },
-  { "name": "follow-up-files", "path": "/t/demoLampFollowUpLinkForScreens00", "member": "hugo", "locale": "fr", "only": ["phone"] }
+  {"name":  "inbox", "path":  "/chest", "member":  "hugo", "locale":  "en", "preview":  true},
+  {"name":  "ticket", "path":  "/chest/tickets/1003", "member":  "hugo", "locale":  "en"},
+  {"name":  "contact-form", "path":  "/", "member":  "hugo", "locale":  "en"},
+  {"name":  "follow-up", "path":  "/t/demoFollowUpLinkForTheScreens000", "member":  "hugo", "locale":  "en"},
+  {"name":  "inbox-fr", "path":  "/chest?folder=open", "member":  "camille", "locale":  "fr"},
+  {"name":  "contact-form-fr", "path":  "/", "member":  "camille", "locale":  "fr", "only":  ["phone"]},
+  {"name":  "ticket-dark", "path":  "/chest/tickets/1001", "member":  "ines", "locale":  "fr", "dark":  true},
+  {"name":  "settings", "path":  "/chest/settings", "member":  "camille", "locale":  "en", "only":  ["desktop"]},
+  {"name":  "inbox-tag", "path":  "/chest?tag=2&sort=priority", "member":  "hugo", "locale":  "en", "only":  ["desktop"]},
+  {"name":  "follow-up-files", "path":  "/t/demoLampFollowUpLinkForScreens00", "member":  "hugo", "locale":  "fr", "only":  ["phone"]},
+  {"name":  "ticket-email", "path":  "/chest/tickets/1002", "member":  "hugo", "locale":  "en"},
+  {"name":  "ticket-bounce-fr", "path":  "/chest/tickets/1007", "member":  "ines", "locale":  "fr", "only":  ["phone"]},
+  {"name":  "reports", "path":  "/chest/reports", "member":  "camille", "locale":  "en", "only":  ["desktop"]},
+  {"name":  "settings-fr", "path":  "/chest/settings", "member":  "camille", "locale":  "fr", "only":  ["phone"]}
 ]

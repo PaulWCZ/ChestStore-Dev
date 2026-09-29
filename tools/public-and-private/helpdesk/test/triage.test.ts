@@ -43,8 +43,10 @@ test("priority: normal by default; those who answer change it; the inbox filters
   const sorted = (await tickets.listTickets(sql, asMember(lea), "open", undefined, { sort: "priority" })).map(r => r.number);
   assert.equal(sorted[0], fire.number);
   assert.equal(sorted.at(-1), low.number);
-  // The default order (waiting longest) is not changed by a priority.
-  const natural = (await tickets.listTickets(sql, asMember(lea), "open")).map(r => r.number);
+  // The default order is the most urgent first; "waiting longest" ignores
+  // the priority.
+  assert.equal((await tickets.listTickets(sql, asMember(lea), "open")).map(r => r.number)[0], fire.number);
+  const natural = (await tickets.listTickets(sql, asMember(lea), "open", undefined, { sort: "waiting" })).map(r => r.number);
   assert.ok(natural.indexOf(calm.number) < natural.indexOf(fire.number));
 });
 
@@ -108,7 +110,7 @@ test("an admin renames (merging into a tag of that name) and deletes tags, with 
   await assert.rejects(tickets.restoreTag(sql, asMember(camille), { name: "X", tickets: ["abc"] }), refused("not_found"));
   // The export says both.
   await tickets.setPriority(sql, asMember(hugo), a.number, "high");
-  const row = (await tickets.exportRows(sql, asMember(hugo))).find(r => r.number === a.number)!;
+  const row = (await tickets.exportAll(sql, asMember(hugo))).find(r => r.number === a.number)!;
   assert.deepEqual([row.priority, row.tags], ["high", ["Delay"]]);
 });
 
@@ -135,10 +137,11 @@ test("waiting since: the customer's first unanswered message; a reply ends it; a
   assert.equal((await tickets.ticket(sql, asMember(hugo), t.number)).waitingSince, null, "shown on open tickets only");
   await tickets.customerReply(sql, t.secret, "Hello again");
   assert.ok(Date.now() - new Date((await tickets.ticket(sql, asMember(hugo), t.number)).waitingSince!).getTime() < 60000);
-  // The inbox puts who has waited longest first.
+  // Among equals, who has waited longest first.
   const older = await open();
   await sql`update tickets set waiting_since = now() - interval '10 days', updated_at = now() where number = ${older.number}`;
-  assert.equal((await tickets.listTickets(sql, asMember(hugo), "open"))[0]?.number, older.number);
+  assert.equal((await tickets.listTickets(sql, asMember(hugo), "open", undefined, { sort: "waiting" }))[0]?.number, older.number);
+  assert.equal((await tickets.listTickets(sql, asMember(hugo), "open", undefined, { priority: "normal" }))[0]?.number, older.number);
 });
 
 test("the threshold: an admin sets it (hours, or never); how long reads in whole units", async () => {

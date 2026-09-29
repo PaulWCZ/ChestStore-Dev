@@ -6,8 +6,10 @@ import { id } from "../../../../lib/model.ts";
 import { currentMember } from "../../../../lib/session.ts";
 
 // Opens an attachment of a ticket, for whoever reads tickets: a fresh
-// 15-minute link signed by the Chest.
-export async function GET(_: Request, { params }: { params: Promise<{ id: string }> }): Promise<Response> {
+// 15-minute link signed by the Chest — always a download; ?thumbnail=1, a
+// small image the Chest made of a photo, for the thread.
+export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }): Promise<Response> {
+  const thumbnail = new URL(request.url).searchParams.get("thumbnail") === "1";
   const actor = await currentMember();
   if (!can(actor, "tickets.read")) return new Response(null, { status: 403 });
   let key: string;
@@ -16,10 +18,10 @@ export async function GET(_: Request, { params }: { params: Promise<{ id: string
   } catch {
     return new Response(null, { status: 404 });
   }
-  const [row] = await db()<{ object: string }[]>`select object from attachments where id = ${key}`;
+  const [row] = await db()<{ object: string; type: string }[]>`select object, type from attachments where id = ${key}`;
   if (!row) return new Response(null, { status: 404 });
   try {
-    const { url } = await files.url(row.object, { download: true });
+    const { url } = await files.url(row.object, thumbnail && /^image\/(jpeg|png|gif|webp)$/u.test(row.type) ? { thumbnail: 256 } : { download: true });
     return new Response(null, { status: 303, headers: { Location: url, "Cache-Control": "no-store" } });
   } catch (error) {
     if (error instanceof ChestError) return new Response(null, { status: error.code === "not_found" ? 404 : 503 });

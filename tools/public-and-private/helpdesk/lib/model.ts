@@ -155,3 +155,11 @@ export function numberInSubject(subject: string): number | null {
 export function fillReply(text: string, values: { customer: string; agent: string }): string {
   return text.replace(/\{(customer|agent)\}/gu, (_, key: "customer" | "agent") => values[key]);
 }
+
+// A merge, as a ticket's event records it: "merged:<number it came
+// from>:<this ticket's state before>" (what Undo puts back).
+export const mergedEvent = (from: number, before: Status) => `merged:${from}:${before}`;
+export function readMerged(body: string): { number: number; before: Status | null } | null {
+  const m = /^merged:([1-9][0-9]{0,8})(?::(open|waiting|closed|spam))?$/u.exec(body);
+  return m ? { number: Number(m[1]), before: (m[2] as Status | undefined) ?? null } : null;
+}

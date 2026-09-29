@@ -6,7 +6,7 @@ import { AppError } from "./app-error.ts";
 import type { Query, Sql } from "./db.ts";
 import type { Stored } from "./attachments.ts";
 import { defaultHours, parseHours, readHours, type Hours } from "./hours.ts";
-import { clean, defaultLateHours, defaultSort, email, fillReply, id, isFolder, isPriority, isSort, isStatus, lateChoices, limits, numberInSubject, tagName, ticketNumber, type Folder, type Priority, type Sort, type Status } from "./model.ts";
+import { clean, defaultLateHours, defaultSort, email, mergedEvent, readMerged, fillReply, id, isFolder, isPriority, isSort, isStatus, lateChoices, limits, numberInSubject, tagName, ticketNumber, type Folder, type Priority, type Sort, type Status } from "./model.ts";
 import { isLocale } from "./i18n/index.ts";
 import { allRules, decide } from "./rules.ts";
 import { baseSubject } from "./text.ts";
@@ -228,10 +228,11 @@ async function withFiles<T>(take: Take | undefined, step: (stored: Stored[]) => 
 
 // The public form's guard: 5 requests an hour from one address (a hash of
 // it), 100 an hour from everyone; a honeypot field; a form sent faster than
-// a person can type is refused. Files have their own counters: 20 an hour
+// a person can type is refused (under 1.5 s) or held until 3 s have passed
+// (lib/form-token.ts). Files have their own counters: 20 an hour
 // from one address, 300 from everyone (the Chest adds its own, per
 // minute).
-export const formLimits = { perVisitorHour: 5, perHour: 100, minimumSeconds: 3, filesPerVisitorHour: 20, filesPerHour: 300 } as const;
+export const formLimits = { perVisitorHour: 5, perHour: 100, minimumSeconds: 3, refuseSeconds: 1.5, filesPerVisitorHour: 20, filesPerHour: 300 } as const;
 
 export async function guard(sql: Query, visitor: string, what: "form" | "file" = "form"): Promise<void> {
   const hour = new Date(Math.floor(Date.now() / 3600000) * 3600000);
@@ -515,7 +516,7 @@ export async function ticket(sql: Sql, actor: Member | null, number: unknown): P
   await sql`insert into viewing (ticket_id, member_id, at) values (${t.id}, ${actor.id}, now()) on conflict (ticket_id, member_id) do update set at = now()`;
   const viewing = (await sql<{ member_id: string }[]>`select member_id from viewing where ticket_id = ${t.id} and member_id <> ${actor.id} and at > now() - interval '40 seconds'`).map(r => r.member_id);
   const others = await sql<{ number: number; subject: string; status: Status; updated_at: Date }[]>`
-    select number, subject, status, updated_at from tickets where lower(customer_email) = lower(${t.customerEmail}) and id <> ${t.id} order by updated_at desc limit 10`;
+    select number, subject, status, updated_at from tickets where lower(customer_email) = lower(${t.customerEmail}) and id <> ${t.id} and merged_into is null order by updated_at desc limit 10`;
   const [tagged] = await sql<{ tags: Tag[] }[]>`select ${tagsOf(sql)} as tags from tickets t where t.id = ${t.id}`;
   return { ...t, messages: await messagesOf(sql, t.id, true), others: others.map(o => ({ number: o.number, subject: o.subject, status: o.status, updatedAt: o.updated_at.toISOString() })), viewing, tags: tagged?.tags ?? [] };
 }
@@ -715,7 +716,7 @@ export async function merge(sql: Sql, actor: Member | null, fromNumber: unknown,
   await sql.begin(async tx => {
     await tx`update messages set merged_from = ${from.id}, ticket_id = ${into.id} where ticket_id = ${from.id}`;
     await tx`insert into ticket_tags (ticket_id, tag_id) select ${into.id}, tag_id from ticket_tags where ticket_id = ${from.id} on conflict do nothing`;
-    await insertMessage(tx, into.id, { kind: "event", author: actor.id, body: `merged:${from.number}` });
+    await insertMessage(tx, into.id, { kind: "event", author: actor.id, body: mergedEvent(from.number, into.status) });
     // The wait is the earliest unanswered of the two; open if either waits on us.
     await tx`
       update tickets set
@@ -742,7 +743,9 @@ export async function unmerge(sql: Sql, actor: Member | null, fromNumber: unknow
   await sql.begin(async tx => {
     const [into] = await tx<{ id: string }[]>`select merged_into as id from tickets where id = ${from.id}`;
     await tx`update messages set ticket_id = ${from.id}, merged_from = null where merged_from = ${from.id}`;
-    await tx`delete from messages where ticket_id = ${into!.id} and kind = 'event' and body = ${"merged:" + from.number}`;
+    const [event] = await tx<{ body: string }[]>`delete from messages where ticket_id = ${into!.id} and kind = 'event' and body like ${"merged:" + from.number + ":%"} returning body`;
+    const before = event ? readMerged(event.body)?.before : null;
+    if (before) await tx`update tickets set status = ${before}, closed_at = case when ${before} = 'closed' then coalesce(closed_at, now()) else null end where id = ${into!.id}`;
     await tx`update tickets set merged_into = null, status = ${back}, closed_at = ${back === "closed" ? tx`now()` : null}, updated_at = now(),
       waiting_since = case when ${back} = 'open' then (select min(m.created_at) from messages m where m.ticket_id = ${from.id} and m.kind = 'customer' and not m.auto and m.created_at > coalesce((select max(r.created_at) from messages r where r.ticket_id = ${from.id} and r.kind = 'reply'), '-infinity')) else null end
       where id = ${from.id}`;
@@ -758,7 +761,7 @@ export async function unmerge(sql: Sql, actor: Member | null, fromNumber: unknow
 // nobody), close them, mark them spam, reopen them, tag them. Says each
 // one's state before, so Undo puts it back. 100 at once at most.
 export type BulkAction = { kind: "assign"; assignee: string | null } | { kind: "status"; status: Status } | { kind: "tag"; name: string } | { kind: "priority"; priority: Priority };
-export type Before = { number: number; status: Status; assignee: string | null; priority: Priority; closedAt: string | null; tagged: boolean };
+export type Before = { id: string; number: number; status: Status; assignee: string | null; priority: Priority; closedAt: string | null; tagged: boolean };
 
 export async function bulk(sql: Sql, actor: Member | null, numbers: unknown, action: BulkAction, answers: (memberId: string) => Promise<boolean>): Promise<{ before: Before[]; tag: Tag | null }> {
   if (!actor || !can(actor, "tickets.manage")) throw new AppError("forbidden");
@@ -769,8 +772,8 @@ export async function bulk(sql: Sql, actor: Member | null, numbers: unknown, act
   if (action.kind === "priority" && !isPriority(action.priority)) throw new AppError("invalid");
   const name = action.kind === "tag" ? tagName(action.name) : null;
   return sql.begin(async tx => {
-    const rows = await tx<{ id: string; number: number; status: Status; assignee: string | null; priority: Priority; closed_at: Date | null }[]>`
-      select id, number, status, assignee, priority, closed_at from tickets where number in ${tx(list)} and merged_into is null for update`;
+    const rows = await tx<{ id: string; number: number; status: Status; assignee: string | null; priority: Priority; closed_at: Date | null; subject: string }[]>`
+      select id, number, status, assignee, priority, closed_at, subject from tickets where number in ${tx(list)} and merged_into is null for update`;
     const tag = name ? await tagFor(tx, name) : null;
     const before: Before[] = [];
     for (const r of rows) {
@@ -780,7 +783,7 @@ export async function bulk(sql: Sql, actor: Member | null, numbers: unknown, act
         const [count] = await tx<{ n: number }[]>`select count(*)::int as n from ticket_tags where ticket_id = ${r.id}`;
         if (!tagged && (count?.n ?? 0) < limits.tagsPerTicket) await tx`insert into ticket_tags (ticket_id, tag_id) values (${r.id}, ${tag.id}) on conflict do nothing`;
       }
-      before.push({ number: r.number, status: r.status, assignee: r.assignee, priority: r.priority, closedAt: r.closed_at?.toISOString() ?? null, tagged });
+      before.push({ id: String(r.id), number: r.number, status: r.status, assignee: r.assignee, priority: r.priority, closedAt: r.closed_at?.toISOString() ?? null, tagged });
     }
     const ids = rows.map(r => String(r.id));
     if (ids.length === 0) throw new AppError("not_found");

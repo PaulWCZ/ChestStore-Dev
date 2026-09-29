@@ -13,7 +13,11 @@ import * as mailer from "../../lib/mailer.ts";
 import { publicOrigin } from "../../lib/public-origin.ts";
 import { currentMember } from "../../lib/session.ts";
 import * as tell from "../../lib/tell.ts";
+import { isLocale } from "../../lib/i18n/index.ts";
+import * as rules from "../../lib/rules.ts";
+import { forgetFrameOrigins } from "../../lib/frame.ts";
 import * as tickets from "../../lib/tickets.ts";
+import * as views from "../../lib/views.ts";
 
 // The team's actions. Each is an endpoint anyone can call: each reads the
 // member from the Chest's assertion again; the services check the rights.
@@ -38,7 +42,7 @@ export async function reply(number: number, body: string, close: boolean, files:
     const done = await tickets.reply(sql, actor, number, body, { close }, memberFiles(files));
     const s = await tickets.settings(sql);
     const sent = await mailer.answer(done.ticket, body.trim(), actor, s.companyName, done.threading, done.messageId, done.files);
-    await tickets.delivered(sql, done.messageId, sent.delivery, sent.delivery === "email" ? sent.mail : undefined);
+    await tickets.delivered(sql, done.messageId, sent.delivery, sent.delivery === "email" ? sent.mail : undefined, sent.delivery === "page" ? sent.refused : undefined);
     await tell.answered(done.ticket);
     await tell.refreshBadges(sql);
     return { delivery: sent.delivery };
@@ -121,7 +125,8 @@ export async function createTicket(input: { name: string; email: string; subject
     await tickets.rememberPublicOrigin(sql, origin);
     const link = `${origin ?? ""}/t/${t.secret}`;
     const s = await tickets.settings(sql);
-    await mailer.confirm({ number: t.number, subject: input.subject.trim(), customerEmail: input.email.trim(), customerName: input.name.trim(), language: input.language === "fr" ? "fr" : "en" }, link, s.companyName);
+    const sent = await mailer.confirm({ number: t.number, subject: input.subject.trim(), customerEmail: input.email.trim(), customerName: input.name.trim(), language: isLocale(input.language) ? input.language : "en" }, link, s.companyName);
+    if (sent.delivery === "email") await tickets.confirmed(sql, t.id, sent.mail);
     await tell.refreshBadges(sql);
     return { number: t.number, link };
   });
@@ -135,8 +140,12 @@ export async function removeReply(id: string): Promise<Result<null>> {
   return act(async actor => { await tickets.removeReply(db(), actor, id); return null; });
 }
 
-export async function saveSettings(input: { companyName?: string; formOpen?: boolean; intro?: string; retentionMonths?: number; lateHours?: number }): Promise<Result<null>> {
-  return act(async actor => { await tickets.saveSettings(db(), actor, input); return null; });
+export async function saveSettings(input: { companyName?: string; formOpen?: boolean; intros?: Record<string, string>; retentionMonths?: number; lateHours?: number; hours?: unknown; frameOrigins?: string; helpUrl?: string }): Promise<Result<null>> {
+  return act(async actor => {
+    await tickets.saveSettings(db(), actor, input);
+    if (input.frameOrigins !== undefined) forgetFrameOrigins();
+    return null;
+  });
 }
 
 export async function eraseCustomer(email: string): Promise<Result<{ tickets: number }>> {
@@ -147,4 +156,72 @@ export async function eraseCustomer(email: string): Promise<Result<{ tickets: nu
     await tell.refreshBadges(sql);
     return { tickets: gone.tickets };
   });
+}
+
+export async function setCustomer(number: number, email: string, name: string): Promise<Result<null>> {
+  return act(async actor => { await tickets.setCustomer(db(), actor, number, { email, name }); return null; });
+}
+
+// Merging: this ticket into another of the same customer; Undo puts it back.
+export async function merge(number: number, into: number): Promise<Result<{ status: string }>> {
+  return act(async actor => {
+    const sql = db();
+    const done = await tickets.merge(sql, actor, number, into);
+    await tell.answered(done.from);
+    await tell.refreshBadges(sql);
+    return { status: done.status };
+  });
+}
+
+export async function unmerge(number: number, status: string): Promise<Result<null>> {
+  return act(async actor => {
+    const sql = db();
+    await tickets.unmerge(sql, actor, number, status);
+    await tell.refreshBadges(sql);
+    return null;
+  });
+}
+
+// Several tickets at once (the inbox's ticks); the answer carries what Undo
+// needs.
+export async function bulk(numbers: number[], action: tickets.BulkAction): Promise<Result<{ before: tickets.Before[]; tag: string | null }>> {
+  return act(async actor => {
+    const sql = db();
+    const done = await tickets.bulk(sql, actor, numbers, action, answers);
+    for (const b of done.before) {
+      if (action.kind === "assign" && b.assignee !== action.assignee) await tell.assigned(actor, { id: b.id, number: b.number, subject: "" }, action.assignee);
+      if (action.kind === "status" && (action.status === "closed" || action.status === "spam")) await tell.answered({ id: b.id });
+    }
+    await tell.refreshBadges(sql);
+    return { before: done.before, tag: done.tag?.id ?? null };
+  });
+}
+
+export async function unbulk(before: tickets.Before[], tag: string | null): Promise<Result<null>> {
+  return act(async actor => {
+    const sql = db();
+    await tickets.unbulk(sql, actor, before, tag);
+    await tell.refreshBadges(sql);
+    return null;
+  });
+}
+
+export async function saveView(name: string, params: views.ViewParams): Promise<Result<views.View>> {
+  return act(actor => views.saveView(db(), actor, name, params));
+}
+
+export async function removeView(id: string): Promise<Result<{ name: string; params: views.ViewParams }>> {
+  return act(actor => views.removeView(db(), actor, id));
+}
+
+export async function restoreView(name: string, params: views.ViewParams): Promise<Result<views.View>> {
+  return act(actor => views.saveView(db(), actor, name, params));
+}
+
+export async function saveRule(input: { field: string; value: string; tag?: string; priority?: string; assignee?: string }): Promise<Result<rules.Rule>> {
+  return act(actor => rules.saveRule(db(), actor, input, answers));
+}
+
+export async function removeRule(id: string): Promise<Result<null>> {
+  return act(async actor => { await rules.removeRule(db(), actor, id); return null; });
 }

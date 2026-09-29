@@ -15,13 +15,21 @@ export function issue(now = Date.now()): string {
   return `${value}.${sign(value)}`;
 }
 
-// check refuses a token not signed here, older than a day, or (unless
-// fast is allowed: a file added while the form is filled) too recent.
-export function check(token: unknown, now = Date.now(), options: { fast?: boolean } = {}): void {
+// check refuses a token not signed here, or older than a day. A form sent
+// faster than a person can possibly write (under a second and a half) is
+// refused; one sent a little faster than the minimum (a person who
+// pasted, or who corrected one field after an error — the page keeps the
+// first token) is not refused: check says how long to wait, and the
+// action waits that long in silence before taking it. Unless fast is
+// allowed (a file added while the form is filled). Says the milliseconds
+// to wait.
+export function check(token: unknown, now = Date.now(), options: { fast?: boolean } = {}): number {
   const [value = "", signature = ""] = typeof token === "string" ? token.split(".") : [];
   const expected = sign(value);
   if (!/^\d{13}$/u.test(value) || signature.length !== expected.length || !timingSafeEqual(Buffer.from(signature), Buffer.from(expected))) throw new AppError("invalid");
   const age = now - Number(value);
-  if (age < formLimits.minimumSeconds * 1000 && !options.fast) throw new AppError("too_fast");
   if (age > 86400000) throw new AppError("invalid");
+  if (options.fast) return 0;
+  if (age < formLimits.refuseSeconds * 1000) throw new AppError("too_fast");
+  return Math.max(0, formLimits.minimumSeconds * 1000 - age);
 }

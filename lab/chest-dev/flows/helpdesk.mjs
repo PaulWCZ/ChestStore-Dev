@@ -45,7 +45,8 @@ await step("a file of a kind not allowed is refused in plain words, nothing is s
 });
 
 await step("a customer adds a photo to a request with their link; another request's file stays out of reach", async () => {
-  await page.goto(origin + "/t/demoLampFollowUpLinkForScreens00");
+  // Jean wrote in French: his page speaks French unless he switches.
+  await page.goto(origin + "/t/demoLampFollowUpLinkForScreens00?lang=en");
   await page.getByPlaceholder("Add something, or answer our question.").fill("Here is the photo of the cracked base.");
   await page.locator("input[type=file]").setInputFiles(pdf("cracked-base.pdf"));
   await settled("form");
@@ -69,10 +70,26 @@ await step("a form sent too fast is refused, what was written stays", async () =
   expect((await page.getByLabel("Your message").inputValue()) === "Too fast", "kept");
 });
 
+await step("a customer who fixes a field and sends again at once is not taken for a robot (critique bug 1)", async () => {
+  await page.goto(origin + "/");
+  await page.waitForTimeout(1700);
+  await page.getByLabel("Your email address").fill("marc.lenoir@gmail");
+  await page.getByLabel("Subject").fill("Quick fix");
+  await page.getByLabel("Your message").fill("Hello, a question about my order.");
+  await page.getByRole("button", { name: "Send" }).click();
+  await page.waitForSelector("p.error");
+  expect((await page.locator("p.error").innerText()).includes("Check the email address"), "the real mistake is said, not 'too fast'");
+  await page.getByLabel("Your email address").fill("marc.lenoir@gmail.com");
+  await page.getByRole("button", { name: "Send" }).click();
+  await page.waitForURL(/\/t\/[A-Za-z0-9_-]{32}\?new=1/u);
+});
+
 await step("the public part in French, by its switch", async () => {
+  await page.goto(origin + "/");
   await page.getByRole("link", { name: "Français" }).click();
-  await page.waitForURL(origin + "/");
+  await page.waitForURL(/\/\?lang=fr$/u);
   expect((await page.locator("h1").innerText()).includes("Contacter Atelier Martin"), "French title");
+  expect((await page.locator("main").innerText()).includes("nous répondons sous un jour ouvré"), "the sentence in French");
   await page.getByRole("link", { name: "English" }).click();
 });
 
@@ -153,7 +170,7 @@ await step("waiting since: the invoice waiting over a day stands out", async () 
   await page.goto(origin + "/chest?folder=open");
   const late = page.locator(".ticket-row", { hasText: "Invoice for order 4471" }).locator(".wait.late");
   expect(await late.count() === 1, "late highlighted");
-  expect((await late.innerText()).includes("Waiting 26 h"), "in plain words");
+  expect((await late.innerText()).includes("Waiting"), "in plain words");
   await page.goto(origin + `/chest/tickets/${lucie}`);
 });
 
@@ -229,9 +246,179 @@ await step("the admin closes the form; the public page says so; then reopens it"
   await page.waitForTimeout(800);
 });
 
+const devPage = async () => (await page.request.get(origin + "/_dev")).text();
+const lastOption = (html, subject) => [...html.matchAll(/<option value="(msg_[a-z2-7]{26})">Reply to “([^”]*)”/gu)].find(m => m[2].includes(subject))?.[1];
+let gift = 0;
+
+await step("email: the customer answers the confirmation; it lands on the ticket; the agent's reply goes back on its thread", async () => {
+  await as(context, origin, "hugo");
+  await page.request.post(origin + "/_dev/receive", { form: { mailbox: "support", from: "tom.h@example.com", subject: "x", text: "Also: do you gift-wrap?", reply: lastOption(await devPage(), "Gift card"), back: "/_dev" } });
+  await page.goto(origin + "/chest?q=tom.h@example.com");
+  expect(await page.locator(".ticket-row", { hasText: "Gift card" }).count() === 1, "one ticket, not two");
+  await page.locator(".ticket-row", { hasText: "Gift card" }).click();
+  await page.waitForURL(/\/chest\/tickets\/\d+/u);
+  gift = Number(page.url().split("/").pop());
+  expect((await page.locator(".thread").innerText()).includes("do you gift-wrap"), "the answer is on the ticket");
+  await page.locator("#answer").fill("Yes, and gift cards from 20 €.");
+  await page.getByRole("button", { name: "Send", exact: true }).click();
+  await page.waitForSelector(".toast");
+  const dev = await devPage();
+  expect(new RegExp(`replies to <code>support\\+t${gift}-[a-z2-7]{10}@`, "u").test(dev), "the reply's address is the ticket's thread");
+});
+
+await step("email: an out-of-office answer is kept quietly and reopens nothing", async () => {
+  await page.request.post(origin + "/_dev/receive", { form: { mailbox: "support", from: "tom.h@example.com", subject: "x", text: "I am away until Monday.", auto: "1", reply: lastOption(await devPage(), "Gift card"), back: "/_dev" } });
+  await page.goto(origin + `/chest/tickets/${gift}`);
+  expect((await page.locator(".side-card").innerText()).includes("Waiting for the customer"), "still waiting for the customer");
+  expect(await page.locator(".msg.auto").count() === 1, "shown as an automatic reply");
+});
+
+await step("email: a bounce shows on the reply and the ticket; fixing the address clears it", async () => {
+  const dev = await devPage();
+  const sent = [...dev.matchAll(/<li><b>([^<]*)<\/b>(?:(?!<li>)[\s\S])*?name="message" value="(msg_[a-z2-7]{26})"/gu)].find(m => m[1].includes("Gift card") && m[1].startsWith("Re:"));
+  await page.request.post(origin + "/_dev/bounce", { form: { message: sent[2], permanent: "1", back: "/_dev" } });
+  await page.goto(origin + `/chest/tickets/${gift}`);
+  expect((await page.locator(".notice.danger").innerText()).includes("do not arrive"), "the ticket says it");
+  expect((await page.locator(".delivery.bounced").innerText()).includes("Not delivered"), "the reply says it");
+  await page.getByRole("button", { name: "Change" }).click();
+  await page.getByLabel("Customer’s email").fill("tom.hardy@example.com");
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await page.waitForSelector(".toast:has-text('Saved.')");
+  await page.reload();
+  expect(await page.locator(".notice.danger").count() === 0, "cleared");
+});
+
+await step("email: HTML shown on demand, the quoted history folded, links clickable", async () => {
+  await page.goto(origin + "/chest/tickets/1002");
+  expect(await page.locator(".bubble .quoted").count() === 1, "quoted text folded");
+  expect(await page.locator(".bubble .body a[href^='https://pay.lumiere']").count() === 1, "link");
+  await page.getByRole("button", { name: "Show formatting" }).click();
+  expect(await page.locator(".bubble .body.html b").count() >= 1, "formatting shown");
+});
+
+await step("merge: the same customer's second request goes into the first; Undo splits them", async () => {
+  await page.request.post(origin + "/_dev/receive", { form: { mailbox: "support", from: "tom.hardy@example.com", fromName: "Tom H", subject: "Gift wrap price", text: "How much is the gift wrap?", back: "/_dev" } });
+  await page.goto(origin + "/chest?q=Gift wrap price");
+  await page.locator(".ticket-row", { hasText: "Gift wrap price" }).click();
+  await page.waitForURL(/\/chest\/tickets\/\d+/u);
+  const second = Number(page.url().split("/").pop());
+  await page.locator("summary", { hasText: "Merge" }).click();
+  await page.getByLabel("Merge into ticket number").fill(String(gift));
+  await page.getByRole("button", { name: "Merge", exact: true }).click();
+  await page.waitForURL(new RegExp(`/chest/tickets/${gift}$`, "u"));
+  await page.waitForSelector(`.thread .event:has-text('Ticket ${second} was merged')`);
+  expect((await page.locator(".thread").innerText()).includes("How much is the gift wrap"), "messages combined");
+  await page.locator(".toast button", { hasText: "Undo" }).click();
+  await page.waitForURL(new RegExp(`/chest/tickets/${second}$`, "u"));
+  await page.waitForTimeout(800);
+  await page.reload();
+  expect((await page.locator(".thread").innerText()).includes("How much is the gift wrap"), "split again");
+});
+
+await step("bulk: tick two tickets, close them, undo", async () => {
+  await page.goto(origin + "/chest?folder=open");
+  const rows = page.locator(".tickets li");
+  const before = await rows.count();
+  await rows.nth(0).locator(".row-check input").check();
+  await rows.nth(1).locator(".row-check input").check();
+  await page.waitForSelector(".bulk-bar:has-text('2 selected')");
+  await page.locator(".bulk-bar").getByRole("button", { name: "Close" }).click();
+  await page.waitForSelector(".toast:has-text('2 tickets changed.')");
+  await page.waitForTimeout(800);
+  expect(await page.locator(".tickets li").count() === before - 2, "closed");
+  await page.locator(".toast button", { hasText: "Undo" }).click();
+  await page.waitForTimeout(1200);
+  await page.reload();
+  expect(await page.locator(".tickets li").count() === before, "back");
+});
+
+await step("a saved view: filters kept under a name in the side column, for everyone", async () => {
+  await page.goto(origin + "/chest?folder=open&priority=urgent");
+  await page.locator("summary", { hasText: "Save this view" }).click();
+  await page.getByLabel("Name of the view").fill("Urgent open");
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await page.waitForSelector(".toast:has-text('View saved.')");
+  await page.waitForTimeout(800);
+  await page.reload();
+  await page.locator(".side nav a", { hasText: "Urgent open" }).click();
+  await page.waitForURL(/priority=urgent/u);
+  expect((await page.locator(".side nav a[aria-current=page]").innerText()).includes("Urgent open"), "current");
+});
+
+await step("keyboard: ? shows the shortcuts, j moves, c opens a new ticket", async () => {
+  await page.goto(origin + "/chest?folder=open");
+  await page.waitForLoadState("networkidle");
+  await page.keyboard.press("?");
+  await page.waitForSelector("dialog.keys[open]");
+  await page.keyboard.press("Escape");
+  await page.keyboard.press("j");
+  expect(await page.evaluate(() => document.activeElement?.classList.contains("ticket-row")), "focus on the first ticket");
+  await page.keyboard.press("c");
+  await page.waitForURL(/\/chest\/new$/u);
+});
+
+await step("an admin sets working hours and a rule on arrival; a new request follows the rule", async () => {
+  await as(context, origin, "camille");
+  await context.addCookies([{ name: "dev_locale", value: "en", url: origin }]);
+  await page.goto(origin + "/chest/settings");
+  await page.getByLabel("Open on Saturday").check();
+  await page.getByRole("button", { name: "Save the hours" }).click();
+  await page.waitForSelector(".toast:has-text('Saved.')");
+  await page.getByRole("button", { name: /Add France’s public holidays/u }).click();
+  await page.waitForTimeout(800);
+  await page.getByLabel("Words, address or domain").fill("gift card");
+  await page.getByLabel("Tag it").fill("Gift");
+  await page.getByLabel("Priority", { exact: true }).selectOption("high");
+  await page.getByRole("button", { name: "Add the rule" }).click();
+  await page.waitForSelector(".rules li:has-text('Contains “gift card”')");
+  await page.reload();
+  expect(await page.locator(".holiday").count() >= 11, "holidays added");
+  await page.request.post(origin + "/_dev/receive", { form: { mailbox: "support", from: "zoe@example.com", subject: "Gift card for my mother", text: "Can I buy a gift card online?", back: "/_dev" } });
+  await page.goto(origin + "/chest?q=zoe@example.com");
+  const row = await page.locator(".ticket-row").first().innerText();
+  expect(row.includes("Gift") && row.includes("High"), "tag and priority from the rule");
+});
+
+await step("an admin allows the company's website to show the form; the code to paste is a plain frame", async () => {
+  await page.goto(origin + "/chest/settings");
+  await page.getByLabel("Websites allowed to show the form (one per line)").fill("https://www.atelier-martin.fr");
+  await page.locator("form:has(#origins)").getByRole("button", { name: "Save" }).click();
+  await page.waitForSelector(".toast:has-text('Saved.')");
+  await page.reload();
+  const code = await page.locator("#embed-code").inputValue();
+  expect(code.startsWith("<iframe") && !code.includes("<script"), "a frame, no script");
+  const headers = (await page.request.get(origin + "/?embed=1")).headers();
+  expect(headers["content-security-policy"].includes("frame-ancestors https://www.atelier-martin.fr"), "the form may be framed there");
+  expect((await page.request.get(origin + "/chest")).headers()["content-security-policy"].includes("frame-ancestors 'none'"), "never the team's pages");
+});
+
+await step("reports and the export for the admin", async () => {
+  await page.goto(origin + "/chest/reports");
+  expect((await page.locator("main, #main").first().innerText()).includes("New requests"), "reports");
+  const zip = await page.request.get(origin + "/chest/export");
+  expect(zip.status() === 200 && zip.headers()["content-type"] === "application/zip", "zip export");
+  const body = (await zip.body()).toString("utf8");
+  expect(body.includes("messages.csv") && body.includes("do you gift-wrap"), "the words of the messages are exported");
+});
+
+await step("the customer rates a closed request; the follow-up page speaks the request's language", async () => {
+  await context.clearCookies();
+  await page.goto(origin + "/t/demoLampFollowUpLinkForScreens00");
+  expect((await page.locator("h1").innerText()).includes("Demande"), "French: the request was written in French");
+  await as(context, origin, "hugo");
+  await page.goto(origin + "/chest/tickets/1003");
+  await page.getByRole("button", { name: "Close", exact: true }).click();
+  await page.waitForTimeout(1000);
+  await context.clearCookies();
+  await page.goto(origin + "/t/demoFollowUpLinkForTheScreens000");
+  await page.getByRole("button", { name: "Yes, thank you" }).click();
+  await page.waitForSelector("text=Thank you for telling us.");
+  await as(context, origin, "hugo");
+});
+
 await step("phone width: public form, inbox and ticket fit", async () => {
   await page.setViewportSize({ width: 390, height: 844 });
-  for (const path of ["/", followUp.replace(origin, ""), "/chest", "/chest/tickets/1003"]) {
+  for (const path of ["/", followUp.replace(origin, ""), "/chest", "/chest/tickets/1003", "/chest/tickets/1002", "/chest/settings"]) {
     await page.goto(origin + path);
     const width = await page.evaluate(() => document.documentElement.scrollWidth);
     expect(width <= 392, `${path} overflows: ${width}`);

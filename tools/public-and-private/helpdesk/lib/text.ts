@@ -46,8 +46,9 @@ export function linkify(text: string): Part[] {
   let at = 0;
   for (const m of text.matchAll(/https?:\/\/[^\s<>"'`]+/giu)) {
     let url = m[0];
-    const trail = /[.,;:!?)\]}»]+$/u.exec(url);
-    if (trail && !(trail[0].startsWith(")") && url.includes("("))) url = url.slice(0, -trail[0].length);
+    // A closing bracket stays only when the address opened it.
+    const open = () => url.split("(").length - 1, close = () => url.split(")").length - 1;
+    while (/[.,;:!?\]}»]$/u.test(url) || (url.endsWith(")") && close() > open())) url = url.slice(0, -1);
     if (url.length < 11) continue;
     if (m.index > at) out.push({ text: text.slice(at, m.index) });
     out.push({ text: url, url });

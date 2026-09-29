@@ -3,15 +3,58 @@
 A tool for [Chest](https://argentic.app): the company's private software
 space. A Chest builds it from this repository and runs it on the company's
 own server. It replaces **Zendesk, Freshdesk or Help Scout** for a small
-company: a public contact form, one shared inbox, replies and internal notes.
+company: email to support@ and a public contact form, one shared inbox,
+replies and internal notes. It is **not** a live-chat tool (Crisp,
+Intercom): there is no chat bubble.
 
 ## What it does
 
+**By email** (the Chest's mail — Proposal (studio), see "Needs from the SDK"):
+- An email to the support address **opens a ticket**, confirmed to the
+  customer (with their follow-up link) in the Chest's language, threaded
+  under their email. Its HTML (cleaned by the Chest) is one click away
+  ("Show formatting"); the text shows by default, the quoted history
+  folded ("Show the quoted text"), web addresses as links; the original
+  `.eml` downloads ("Original email"); attachments are kept (photos shown
+  as thumbnails), and those the Chest refused are named ("Not kept:
+  setup.exe (a program)").
+- **Replies thread onto their ticket**, most certain first: the ticket's
+  own reply address (`support+t1042-…@`, a tag only this tool can make);
+  else In-Reply-To/References matching an email we sent (or one the same,
+  authenticated customer sent); last, only when the Chest vouches for the
+  sender, the same address with "[#1042]" or the same subject on a ticket
+  still open that moved in the last 14 days. Otherwise a new ticket: a
+  stranger never lands in someone else's conversation. A colleague who
+  answers on the thread is shown by their address.
+- **Agents' replies go out by email** from the support address, on the
+  ticket's thread, with the conversation's headers and their files. A
+  **bounce** shows on the reply ("Not delivered: 550 …") and above the
+  ticket ("Emails to … do not arrive"), and tells whoever wrote it;
+  correcting the customer's address (*Change*) clears it. An address the
+  Chest refuses since a bounce is said on the next reply.
+- **No loops, no spam tickets**: an automatic answer (out of office) is
+  kept quietly on the ticket it answers — it reopens nothing, starts no
+  wait, tells no one, is never answered — and opens no ticket; robots'
+  addresses (no-reply@, mailer-daemon@) get no confirmation, one address
+  three an hour at most; spam scores 5 and above go to *Spam*, untold.
+- A merged ticket's emails go to the ticket it was merged into.
+
 **For customers (the public part, no account):**
 - A contact form in the company's name (name, email, subject, message), in
-  English or French with a visible switch, protected without a captcha (a
-  hidden field, a signed "shown at" time, 5 requests an hour per visitor and
-  100 an hour in all).
+  English or French with a visible switch, and the company's sentence in
+  that language (French falls back on English). Protected without a
+  captcha: a hidden field, 5 requests an hour per visitor and 100 in all,
+  and a signed "shown at" time — a form sent in under 1.5 s is refused;
+  between 1.5 and 3 s the server waits the rest in silence. The time is
+  the page's first, kept across corrections: a person who fixes a field
+  and sends again is never taken for a robot.
+- **In the company's website**: an administrator lists its addresses
+  (https, ten at most); the form and its follow-up pages may then be
+  framed there, and nowhere else (`frame-ancestors`; the team's pages
+  never). Settings gives the code to paste — a plain `<iframe>`, no
+  script — in English or French.
+- A link to the company's **help centre** above the form when an admin
+  gives one (the Wiki's public pages, or any page of answers).
 - **Files** on the form and when writing again: photos, PDF, Word, Excel
   or text, 10 MB each, 5 a message. They go from the visitor's browser
   straight to the Chest; what comes back is a one-time claim only that
@@ -21,19 +64,31 @@ company: a public contact form, one shared inbox, replies and internal notes.
   bits; only its hash is stored): the answers, the state, and a box to write
   again (which reopens the request). The link is also emailed when the Chest
   can send email. The files of the request (theirs, and those the team
-  sent with its answers — never a note's) download from there.
+  sent with its answers — never a note's) download from there. It speaks
+  the request's language (the switch still works). Once closed: "Did we
+  solve your problem?" — *Yes, thank you* / *Not really*, one click, the
+  agent told.
 
 **For the team (`/chest`):**
 - A shared **inbox** in folders — *Unassigned, Mine, Open, Waiting, Closed*
-  (and *Spam* when there is some) — the customer who has waited longest
-  first; search by words, customer email or number; filter by **priority**
-  or **tag**, or sort *Most urgent* or *Latest activity* first.
+  (and *Spam* when there is some) — the **most urgent first**, then the
+  customer who has waited longest; search by words, customer email or
+  number; filter by **priority** or **tag**, or sort *Waiting longest* or
+  *Latest activity* first. Unassigned tickets say so in a quiet grey pill.
+- **Several at once**: tick tickets (or *Select all*), then give them to
+  someone, set a priority, add a tag, close them or mark them spam — each
+  with *Undo* (100 at once).
+- **Saved views**: "Save this view" keeps the words, priority, tag and
+  order under a name, in everyone's side column; its maker or an admin
+  removes it (with *Undo*).
 - **Waiting since**: each open ticket says how long its customer has
   waited for an answer ("Waiting 3 h") — from their first message the team
-  has not answered; a reply ends it. Past the threshold an admin sets
-  (24 hours by default; 1 hour to 3 days, or never) it is highlighted in
-  the customer's colour, in bold, and said to screen readers. Hours of the
-  clock, nights and weekends included (no business hours yet).
+  has not answered; a reply ends it. Counted in **working hours** (a week
+  grid, Monday–Friday 9:00–18:00 by default, and days off, with France's
+  public holidays in one click), or every hour of the clock if the admin
+  turns them off. Past the threshold an admin sets (24 hours by default; 1
+  hour to 3 days, or never) it is highlighted, in bold, and said to screen
+  readers.
 - **Priority**: *Low, Normal, High, Urgent*, in words with a sign (a
   flag for urgent, outlined in red; chevrons for high and low) — never
   colour alone. Normal says nothing; urgent rows carry a red edge.
@@ -42,6 +97,21 @@ company: a public contact form, one shared inbox, replies and internal notes.
   same name whatever its case), removes it, clicks it to see every ticket
   carrying it. Ten a ticket, 200 in all. An admin renames them (a name
   that exists merges the two) and deletes them, with *Undo*.
+- **Rules on arrival** (admins): when a new request (form or email)
+  contains some words, or comes from an address or a domain — tag it, set
+  its priority, give it to someone (thirty rules; tags add up, the first
+  priority and person win; a person who leaves drops out of the rules).
+- **Merge** a ticket into another of the **same customer** (they wrote
+  twice): messages combined in time order, tags and the higher priority
+  kept, the other closed and leading there (its link, its email thread);
+  *Undo* splits them again. Never across customers: nobody sees another
+  person's messages.
+- **Reports** (admins): new, closed and still-open requests, the typical
+  first-answer time (median, in working hours) and the share answered
+  within the threshold, week by week, per person, per tag, per channel, and
+  customers' opinions — 4 to 26 weeks.
+- **Keyboard**: `j`/`k` move, `Enter` opens, `x` ticks, `r` reply, `n`
+  note, `e` close, `c` new ticket, `/` search, `?` the list.
 - A **ticket**: the conversation, a composer with *Reply* or *Internal note*
   (notes never reach the customer), *Send* or *Send and close*, **saved
   replies** with `{customer}` and `{agent}`, **files** on a reply (sent
@@ -49,33 +119,34 @@ company: a public contact form, one shared inbox, replies and internal notes.
   with *Undo*, spam, the customer's other requests, and "Hugo is on this
   ticket too" when someone else has it open.
 - **New ticket** for a customer who called or came by.
-- **Settings**: the company name and a sentence on the form, open or close
-  the form, the "waiting too long" threshold, the tags, saved replies,
-  retention of closed tickets, **erase a
-  customer's data** (their right to erasure), export all tickets (CSV).
+- **Settings**: the company name, the form's sentence per language, the
+  help centre's address, open or close the form, working hours and days
+  off, the "waiting too long" threshold, rules on arrival, the websites
+  that may show the form, the tags, saved replies, retention of closed
+  tickets, **erase a customer's data** (their right to erasure; who
+  erased how many tickets, and when, is listed — never whose), and
+  **export everything** (a ZIP: `tickets.csv`, `messages.csv` — every
+  message, notes included, who wrote it, its files' names, dates on the
+  Chest's clock — and `tickets.json`).
 - **The bell**: a new request tells everyone who answers; a customer's new
   message tells the ticket's agent; giving a ticket to someone tells them —
   each in their own language. The tile's number: open tickets nobody took
   plus open ones given to you.
 
-**By email** (when the Chest has mail — see "Needs from the SDK"): replies
-go out from the company's support address, threaded ("Re: … [#1042]");
-email sent to that address opens a ticket or continues one (by the email's
-headers, or its number from the same customer); a closed ticket reopens.
 
 ## Roles
 
 | Role (`chest.json`) | Label | May |
 |---|---|---|
-| `admin` | Administrator | everything, the settings (threshold, renaming and deleting tags), erasing a customer's data |
-| `agent` | Agent | read, answer, note, assign, close, priority, tags (adding a new one), files, saved replies, export |
+| `admin` | Administrator | everything, the settings (hours and threshold, rules, framing, renaming and deleting tags), erasing a customer's data, reports |
+| `agent` | Agent | read, answer, note, assign, close, priority, tags (adding a new one), files, saved replies, merge, several at once, saved views, correct a customer's address, export |
 | `viewer` | Viewer | read the tickets |
 | (none) | — | "You can't use Support yet" |
 
 ## First minute
 
-- **What a new agent sees:** *Unassigned*, with the oldest waiting request
-  on top. On an empty Chest: "Your shared inbox is ready", and a button to
+- **What a new agent sees:** *Unassigned*, with the most urgent request on
+  top (then the one waiting longest). On an empty Chest: "Your shared inbox is ready", and a button to
   open the public form.
 - **The first thing they do:** open the request, type the answer, *Send*.
 - **Clicks for the main job:** 2 (open, send) plus the typing; a saved
@@ -88,16 +159,18 @@ headers, or its number from the same customer); a closed ticket reopens.
 
 | Path | Who | What |
 |---|---|---|
-| `/` | anyone | the contact form |
+| `/` (`?lang=en\|fr`, `?embed=1`) | anyone | the contact form (in a frame of the company's website: `embed`) |
 | `/t/<secret>` | whoever has the link | a request's follow-up page |
 | `/t/<secret>/files/<id>` | idem | a file of that request (not a note's), as a download |
 | `/lang/<code>` | anyone | remembers the public language |
 | `/chest` (`?folder=`, `?q=`, `?priority=`, `?tag=`, `?sort=`) | members with a role | the inbox (a tag without a folder: every ticket carrying it) |
 | `/chest/tickets/<number>` | idem | a ticket |
-| `/chest/new`, `/chest/settings`, `/chest/export` | idem (writing: agents, admins) | new ticket, settings, CSV |
-| `/chest/files/<id>` | idem | an attachment (a fresh 15-minute link) |
+| `/chest/new`, `/chest/settings`, `/chest/export` | idem (writing: agents, admins) | new ticket, settings, the ZIP export |
+| `/chest/reports` (`?weeks=`) | admins | reports |
+| `/chest/messages/<id>/original` | members with a role | a received email's original `.eml` (a download) |
+| `/chest/files/<id>` (`?thumbnail=1`) | idem | an attachment (a fresh 15-minute link), or a photo's thumbnail |
 | `/chest-events` | the Chest only (signed) | members' lifecycle |
-| `/chest-mail` | the Chest only (signed) — proposal | received email |
+| `/chest-mail` | the Chest only (signed) — proposal | received email and bounces |
 | `/chest-jobs/cleanup` | the Chest only (signed) — proposal | nightly retention |
 
 ## On a Chest
@@ -119,9 +192,19 @@ headers, or its number from the same customer); a closed ticket reopens.
 
 - `member.locale` — **Proposal (studio)**, in `vendor/`.
 - **`mail`** — **Proposal (studio)** (`chest.proposals.json`: `send`,
-  mailbox `support`). Without it the tool is fully usable: replies are on
-  the customer's follow-up page, marked *On the follow-up page only*, and
-  Settings says so.
+  mailbox `support`), with **receiving** (studio.12): thread addresses
+  (`send({mailbox, thread})`, `Received.thread`), `mail.handle` with
+  `message` and `bounce`, the HTML cleaned by the Chest, the original
+  `.eml`, `authenticated`, `auto`, `dropped`. Without mail the tool is
+  fully usable through the form: replies are on the customer's follow-up
+  page, marked *On the follow-up page only*, and Settings says so.
+  **On a real Chest today there is no mail**: until the Chest ships it,
+  sell Support as "a contact form and a shared inbox", not as a Zendesk
+  replacement for email.
+- **`chest`** (company, time zone, language, public address) —
+  **Proposal (studio)**: the day and the working hours are the Chest's
+  time zone; email tickets take the Chest's language; links in emails use
+  `chest.publicUrl()` (else the last public address seen).
 - **Scheduled tasks** — **Proposal (studio)**: the nightly `cleanup`.
   Without it, closed tickets are kept until an admin erases them.
 - **Public uploads** — **Proposal (studio)** (`chest.proposals.json`:
@@ -132,9 +215,13 @@ headers, or its number from the same customer); a closed ticket reopens.
   the tool (`/t/<secret>/files/<id>`, streamed with `files.get`): the
   Chest's signed links are for members' browsers; a signed link on the
   public host would spare the tool the bytes.
-- **The public host's address** is derived from the request (and
-  remembered for emails sent outside a request); the Chest should give it
-  (`CHEST_PUBLIC_URL`).
+- **Several mailboxes** (support@ and sales@, two brands) need nothing
+  new of the SDK but a manifest change per company: `mailboxes` is fixed
+  in the manifest, so a company cannot add one from Settings. The SDK
+  report asks for mailboxes an admin names at install time.
+- **Frame ancestors**: the policy is the tool's own (`csp: "tool"`). The
+  Chest's front must pass the tool's `frame-ancestors` through unchanged
+  on the public host (and keep refusing frames on the team host).
 - **The visitor's address** for the form's counters is read from
   `X-Forwarded-For`, assumed set by the Chest's front.
 
@@ -153,10 +240,30 @@ mailbox), `node lab/chest-dev/flows/helpdesk.mjs`,
 
 ## What it does not do (yet)
 
-SLA timers, business hours and reminders (the wait is highlighted, nobody
-is emailed), automatic rules (tag or prioritise on arrival), bulk actions
-on several tickets, satisfaction ratings, merging tickets, reports,
-imports from Zendesk/Freshdesk, live chat, a knowledge base (that is the
-Wiki), image previews in the thread (files open in a new tab), a
-customer choosing the priority. The tool does not scan files for viruses
-(neither does the Chest); it serves them only as downloads.
+- **Email on a real Chest**: the `mail` proposal is not shipped; until
+  it is, email in and out works only in the studio's harness.
+- **Live chat** (Crisp, Intercom): no chat bubble; a chat would need a
+  push or long-poll primitive (no WebSocket on a Chest).
+- **Imports from Zendesk, Freshdesk or Help Scout**: their export formats
+  could not be read from the studio (their help sites were out of
+  reach), so no importer was built on a guess. History stays in the old
+  tool until one is written against real export files.
+- **A help centre** (knowledge base): the Wiki's job — Support links to
+  it (Settings, "help centre's address"); a public mode of the Wiki is in
+  the suite's report.
+- **Several mailboxes or brands**, one company name per tool.
+- **SLA reminders**: the wait is counted in working hours and
+  highlighted, reports give the first-answer time, but nobody is emailed
+  when a target is missed, and there is no separate "resolution" target.
+- **Rules beyond arrival**: rules run when a request arrives, not on
+  later events (no "when a ticket waits 2 days…"), no "any of / all of".
+- **Merging across customers** (Zendesk adds the other as CC): refused,
+  on purpose.
+- **Rich text in replies**: agents write plain text (links become
+  clickable, line breaks kept); no bold or lists.
+- **The files in the export**: the ZIP carries every word and every
+  file's name; the files themselves stay in the Chest (no bulk download
+  of files in the SDK yet).
+- A customer choosing the priority; per-agent notification settings.
+- The tool does not scan files for viruses (the Chest drops what its
+  provider flags on received mail); it serves them only as downloads.

@@ -29,11 +29,13 @@ export async function sendRequest(_: FormState, data: FormData): Promise<FormSta
   try {
     // A field people never see: only robots fill it.
     if (String(data.get("website") ?? "") !== "") throw new AppError("invalid");
-    check(data.get("started"));
+    const wait = check(data.get("started"));
+    if (wait > 0) await new Promise(resolve => setTimeout(resolve, wait));
     const sql = db();
     const h = await headers();
     await tickets.guard(sql, visitorKey(h));
-    const { locale } = await publicWords();
+    // The language the visitor read the form in.
+    const { locale } = await publicWords(data.get("lang"));
     const t = await tickets.fromForm(sql, { name: values["name"], email: values["email"], subject: values["subject"], message: values["message"], language: locale }, visitorFiles(data));
     secret = t.secret;
     const origin = publicOrigin(h);
@@ -42,14 +44,15 @@ export async function sendRequest(_: FormState, data: FormData): Promise<FormSta
     const ticket = { number: t.number, subject: values["subject"]!.trim(), customerEmail: values["email"]!.trim(), customerName: values["name"]!.trim(), language: locale };
     const sent = await mailer.confirm(ticket, `${origin ?? ""}/t/${secret}`, s.companyName);
     mailed = sent.delivery === "email";
-    await tell.newTicket({ id: t.id, number: t.number, subject: ticket.subject, customerName: ticket.customerName, customerEmail: ticket.customerEmail }, values["message"]!);
+    if (sent.delivery === "email") await tickets.confirmed(sql, t.id, sent.mail);
+    await tell.newTicket({ id: t.id, number: t.number, subject: ticket.subject, customerName: ticket.customerName, customerEmail: ticket.customerEmail }, values["message"]!, t.assignee);
     await tell.refreshBadges(sql);
   } catch (error) {
     if (error instanceof AppError) return { error: error.code, values, ...(typeof error.values["max"] === "number" ? { max: error.values["max"] } : {}) };
     console.error("request not saved", error instanceof Error ? error.name : "error");
     return { error: "unavailable", values };
   }
-  redirect(`/t/${secret}?new=1${mailed ? "&mailed=1" : ""}`);
+  redirect(`/t/${secret}?new=1${mailed ? "&mailed=1" : ""}${data.get("embed") === "1" ? "&embed=1" : ""}`);
 }
 
 export type ReplyState = { error: ErrorCode | null; sent: boolean; max?: number };
@@ -67,6 +70,21 @@ export async function writeAgain(secret: string, _: ReplyState, data: FormData):
   } catch (error) {
     if (error instanceof AppError) return { error: error.code, sent: false, ...(typeof error.values["max"] === "number" ? { max: error.values["max"] } : {}) };
     return { error: "unavailable", sent: false };
+  }
+}
+
+// rate: the customer's one click on a closed request ("did we solve it?").
+export async function rate(secret: string, value: "good" | "bad"): Promise<{ ok: boolean; error?: ErrorCode }> {
+  try {
+    const sql = db();
+    // Counted with the files: a few clicks never cost a visitor a request.
+    await tickets.guard(sql, visitorKey(await headers()), "file");
+    const t = await tickets.rate(sql, secret, value);
+    await tell.rated(t, value);
+    return { ok: true };
+  } catch (error) {
+    if (error instanceof AppError) return { ok: false, error: error.code };
+    return { ok: false, error: "unavailable" };
   }
 }
 

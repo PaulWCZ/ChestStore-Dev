@@ -11,8 +11,11 @@ const limits = { name: 120, email: 254, subject: 200, message: 10000 };
 
 // The form a customer fills, with files if they want (a photo of the
 // damage). What they wrote and added comes back if something is wrong:
-// nothing is lost.
-export function ContactForm({ started, locale, t }: { started: string; locale: string; t: Words }) {
+// nothing is lost. The time the form was first shown is kept across those
+// corrections (a refresh of the page would renew it): a person who fixes
+// one field and sends again is never taken for a robot.
+export function ContactForm({ started: shown, locale, embed, t }: { started: string; locale: string; embed: boolean; t: Words }) {
+  const [started] = useState(shown);
   const [state, action, pending] = useActionState<FormState, FormData>(sendRequest, { error: null, values: {} });
   const [files, setFiles] = useState<PickedFile[]>([]);
   const v = state.values;
@@ -23,6 +26,8 @@ export function ContactForm({ started, locale, t }: { started: string; locale: s
   return (
     <form action={action} className="stack" noValidate={false}>
       <input type="hidden" name="started" value={started} />
+      <input type="hidden" name="lang" value={locale} />
+      {embed && <input type="hidden" name="embed" value="1" />}
       <div className="honey" aria-hidden="true">
         <label htmlFor="website">{w.website}</label>
         <input id="website" name="website" tabIndex={-1} autoComplete="off" />

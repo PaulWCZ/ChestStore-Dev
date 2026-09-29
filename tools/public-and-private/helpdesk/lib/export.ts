@@ -5,6 +5,7 @@ import type { Sql } from "./db.ts";
 import { stamp } from "./hours.ts";
 import { format, type Catalogue, type Locale } from "./i18n/index.ts";
 import { nameOf, people } from "./people.ts";
+import { readMerged } from "./model.ts";
 import { exportAll, type ExportTicket } from "./tickets.ts";
 import { zip } from "./zip.ts";
 
@@ -29,7 +30,7 @@ export async function exportZip(sql: Sql, actor: Member | null, t: Catalogue, lo
   const author = (x: ExportTicket, m: ExportTicket["messages"][number]) =>
     m.kind === "customer" ? (m.mailFrom && m.mailFrom.toLowerCase() !== x.customerEmail.toLowerCase() ? m.mailFrom : x.customerName ? `${x.customerName} <${x.customerEmail}>` : x.customerEmail)
       : person(m.author);
-  const body = (m: ExportTicket["messages"][number]) => (m.kind === "event" && m.body.startsWith("merged:") ? format(t.ticket.mergedEvent, { number: m.body.slice(7) }) : m.body);
+  const body = (m: ExportTicket["messages"][number]) => (m.kind === "event" && readMerged(m.body) ? format(t.ticket.mergedEvent, { number: readMerged(m.body)!.number }) : m.body);
   const ticketsCsv = toCsv([
     [h.number, h.subject, h.status, h.priority, h.tags, h.email, h.name, h.assignee, h.channel, h.created, h.updated, h.closed, h.messages, h.rating, h.mergedInto],
     ...all.map(x => [x.number, x.subject, t.ticket.statuses[x.status], t.priority[x.priority], x.tags.join(", "), x.customerEmail, x.customerName, person(x.assignee), t.ticket.channel[x.channel], local(x.createdAt), local(x.updatedAt), local(x.closedAt), x.messages.filter(m => m.kind !== "event").length, x.rating ? t.export.ratings[x.rating] : "", x.mergedInto ?? ""]),

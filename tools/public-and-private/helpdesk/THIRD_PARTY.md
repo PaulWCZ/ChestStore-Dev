@@ -2,6 +2,7 @@
 
 | What | Source | Licence | Where |
 |---|---|---|---|
+| `lib/zip.ts` (a ZIP of text files, stored) | the studio's Clients tool (`tools/private/crm/lib/zip.ts`), written for it — same author, MIT | MIT | `lib/zip.ts` |
 | Atkinson Hyperlegible (font) | [Braille Institute](https://www.brailleinstitute.org/freefont/), via `@fontsource/atkinson-hyperlegible` 5.3.0 | OFL-1.1 | `public/fonts/`, licence in `public/fonts/LICENSE-atkinson-hyperlegible.txt` |
 
 Ideas, no code: the shared-inbox folders and the collision warning
@@ -19,3 +20,15 @@ an admin page to rename and delete. Dependencies from npm under
 their own licences: `next`, `react`, `react-dom` (MIT), `postgres`
 (Unlicense), `@argentic/chest-sdk` (MIT, the studio's working copy in
 `vendor/`). Icons drawn for this tool.
+
+After the critique (2026-09-29), ideas only, no code: threading a reply
+by a tagged reply address and then by In-Reply-To/References (Help
+Scout's and Zendesk's email channels, as we know them; the SDK's
+`mail` proposal cites Postmark's `MailboxHash` and Mailgun's routes);
+merging two requests of the same customer (Zendesk's "Merge tickets",
+FreeScout's merge, AGPL — ideas only); bulk actions from ticked rows,
+triggers on arrival and business hours for SLA timers (Zendesk triggers,
+Freshdesk dispatch rules, Zendesk business hours — as described in the
+critique, not re-read); saved views (Zendesk views). France's public
+holidays: Code du travail, article L3133-1 (the list of eleven days),
+Easter by the Meeus/Jones/Butcher algorithm — our own code.

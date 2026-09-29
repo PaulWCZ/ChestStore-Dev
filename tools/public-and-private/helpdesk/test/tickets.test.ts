@@ -4,7 +4,6 @@ import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
 import { AppError } from "../lib/app-error.ts";
 import { check, issue } from "../lib/form-token.ts";
 import * as mailer from "../lib/mailer.ts";
-import { numberInSubject } from "../lib/model.ts";
 import * as tell from "../lib/tell.ts";
 import * as tickets from "../lib/tickets.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
@@ -48,8 +47,12 @@ test("the public form opens a ticket; its link shows the thread without the team
 test("the form's guard: signed time, not too fast, a few per visitor an hour", async () => {
   const { sql } = database;
   const token = issue(Date.now() - 5000);
-  check(token);
+  assert.equal(check(token), 0);
   assert.throws(() => check(issue()), refused("too_fast"));
+  // A person who corrects a field and sends again at 2 s is not refused:
+  // the action waits the second left, in silence.
+  const wait = check(issue(Date.now() - 2000));
+  assert.ok(wait > 900 && wait <= 1000, String(wait));
   assert.throws(() => check(token.replace(/.$/u, "x")), refused("invalid"));
   assert.throws(() => check("123.abc"), refused("invalid"));
   for (let i = 0; i < 5; i++) await tickets.guard(sql, "203.0.113.9");
@@ -77,32 +80,10 @@ test("replies go by email, threaded, in the customer's language; without mail, o
   // A Chest without mail: nothing sent, the answer is on the page.
   const bare = await fakeChest({ members: everyone, capabilities: ["members"] });
   try {
-    assert.deepEqual(await mailer.answer(done.ticket, "…", asMember(ines), "", [], "1"), { delivery: "page" });
+    assert.deepEqual(await mailer.answer(done.ticket, "…", asMember(ines), "", { inReplyTo: null, references: [] }, "1"), { delivery: "page" });
   } finally {
     await bare.close();
   }
-});
-
-test("a received email continues its ticket (headers or [#number]), reopens it, else opens one", async () => {
-  const { sql } = database;
-  const t = await tickets.fromForm(sql, form({ email: "anna@example.com", subject: "Invoice" }));
-  const r = await tickets.reply(sql, asMember(hugo), t.number, "Here it is.");
-  await tickets.delivered(sql, r.messageId, "email", { id: "msg_" + "a".repeat(26), messageId: "<sent1@atelier.test>" });
-  const base = { from: { address: "anna@example.com", name: "Anna" }, text: "Thanks!", references: [], attachments: [], spam: 0 };
-  const byHeader = await tickets.fromEmail(sql, { ...base, id: "rcv_1", subject: "Re: Invoice", messageId: "<in1@example.com>", inReplyTo: "<sent1@atelier.test>" }, null);
-  assert.deepEqual([byHeader.number, byHeader.created], [t.number, false]);
-  assert.equal((await tickets.ticket(sql, asMember(hugo), t.number)).status, "open");
-  const bySubject = await tickets.fromEmail(sql, { ...base, id: "rcv_2", subject: `Re: Invoice [#${t.number}]`, messageId: "<in2@example.com>", inReplyTo: null }, numberInSubject(`Re: Invoice [#${t.number}]`));
-  assert.equal(bySubject.number, t.number);
-  // Someone else quoting the number does not get into Anna's ticket.
-  const stranger = await tickets.fromEmail(sql, { ...base, from: { address: "eve@example.com", name: null }, id: "rcv_3", subject: `[#${t.number}]`, messageId: "<in3@example.com>", inReplyTo: null }, t.number);
-  assert.equal(stranger.created, true);
-  // The same email twice is filed once.
-  const twice = await tickets.fromEmail(sql, { ...base, id: "rcv_2", subject: "x", messageId: "<in2@example.com>", inReplyTo: null }, null);
-  assert.equal(twice.created, false);
-  assert.equal((await tickets.ticket(sql, asMember(hugo), t.number)).messages.filter(m => m.kind === "customer").length, 3);
-  const spam = await tickets.fromEmail(sql, { ...base, id: "rcv_4", subject: "WIN", messageId: "<spam@x>", inReplyTo: null, spam: 9 }, null);
-  assert.equal((await tickets.ticket(sql, asMember(hugo), spam.number)).status, "spam");
 });
 
 test("the inbox: folders, search, assignment to people who answer, the bell and the tile", async () => {

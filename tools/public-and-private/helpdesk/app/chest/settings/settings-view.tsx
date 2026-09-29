@@ -1,17 +1,20 @@
 "use client";
 
 import { useState, useTransition, type ReactNode } from "react";
-import { Bin, Clock, Download, Globe, Mail, Quote, Tag } from "../../../components/icons.tsx";
+import { Bin, Download, Globe, Mail, Quote, Tag } from "../../../components/icons.tsx";
 import { useToast } from "../../../components/toast.tsx";
-import { format, plural } from "../../../lib/i18n/format.ts";
-import type { Catalogue } from "../../../lib/i18n/index.ts";
-import { lateChoices, limits } from "../../../lib/model.ts";
+import { format, languageNames, plural } from "../../../lib/i18n/format.ts";
+import { locales, type Catalogue } from "../../../lib/i18n/index.ts";
+import { limits } from "../../../lib/model.ts";
 import { deleteTag, eraseCustomer, removeReply, renameTag, restoreTag, saveReply, saveSettings } from "../actions.ts";
 
 type Words = { settings: Catalogue["settings"]; errors: Catalogue["errors"] };
 
-export function SettingsView({ settings, tags, locale, publicAddress, emailAddress, replies, canSettings, canTags, canReplies, canErase, canExport, t }: {
-  settings: { companyName: string; formOpen: boolean; intro: string; retentionMonths: number; lateHours: number };
+export function SettingsView({ settings, tags, locale, publicAddress, emailAddress, replies, canSettings, canTags, canReplies, canErase, canExport, erasures, after, languageLabels, t }: {
+  languageLabels: Record<string, string>;
+  settings: { companyName: string; formOpen: boolean; intros: Record<string, string>; retentionMonths: number; helpUrl: string };
+  erasures: string[];
+  after: ReactNode;
   tags: { id: string; name: string; tickets: number }[];
   locale: string;
   canTags: boolean;
@@ -41,28 +44,31 @@ export function SettingsView({ settings, tags, locale, publicAddress, emailAddre
         <form className="stack" onSubmit={e => {
           e.preventDefault();
           const d = new FormData(e.currentTarget);
-          run(() => saveSettings({ companyName: String(d.get("company") ?? ""), intro: String(d.get("intro") ?? ""), formOpen: d.get("open") === "on", retentionMonths: Number(d.get("retention") ?? 24) }), () => s.saved);
+          const intros = Object.fromEntries(locales.map(code => [code, String(d.get(`intro-${code}`) ?? "")]));
+          run(() => saveSettings({ companyName: String(d.get("company") ?? ""), intros, helpUrl: String(d.get("help") ?? ""), formOpen: d.get("open") === "on", retentionMonths: Number(d.get("retention") ?? 24) }), () => s.saved);
         }}>
           <fieldset disabled={!canSettings} className="stack" style={{ border: 0, padding: 0, margin: 0 }}>
             <label className="switch"><input type="checkbox" name="open" defaultChecked={settings.formOpen} />{s.formOpen}</label>
             <div><label className="label" htmlFor="company">{s.company}</label><input id="company" name="company" className="field" maxLength={80} defaultValue={settings.companyName} /></div>
-            <div><label className="label" htmlFor="intro">{s.intro}</label><textarea id="intro" name="intro" className="field" rows={2} maxLength={500} defaultValue={settings.intro} /></div>
+            {locales.map(code => (
+              <div key={code}>
+                <label className="label" htmlFor={`intro-${code}`}>{format(s.introIn, { language: languageLabels[code] ?? languageNames[code] ?? code })}</label>
+                <textarea id={`intro-${code}`} name={`intro-${code}`} lang={code} className="field" rows={2} maxLength={500} defaultValue={settings.intros[code] ?? ""} aria-describedby={code === "en" ? undefined : `intro-${code}-hint`} />
+                {code !== "en" && <p id={`intro-${code}-hint`} className="hint">{s.introFallback}</p>}
+              </div>
+            ))}
+            <div>
+              <label className="label" htmlFor="help">{s.helpUrl}</label>
+              <input id="help" name="help" type="url" className="field" maxLength={300} defaultValue={settings.helpUrl} placeholder={s.helpPlaceholder} aria-describedby="help-hint" />
+              <p id="help-hint" className="hint">{s.helpHint}</p>
+            </div>
             <div><label className="label" htmlFor="retention">{s.retention}</label><input id="retention" name="retention" type="number" min={0} max={120} className="field" style={{ maxWidth: 140 }} defaultValue={settings.retentionMonths} /></div>
             {canSettings && <div><button type="submit" className="button">{s.save}</button></div>}
           </fieldset>
         </form>
       </Box>
 
-      <Box title={s.late} icon={<Clock />}>
-        <div>
-          <label className="label" htmlFor="late">{s.lateLabel}</label>
-          <select id="late" className="select" style={{ maxWidth: 220 }} defaultValue={settings.lateHours} disabled={!canSettings}
-            onChange={e => { const hours = Number(e.target.value); run(() => saveSettings({ lateHours: hours }), () => s.saved); }}>
-            {lateChoices.map(h => <option key={h} value={h}>{h === 0 ? s.lateNever : plural(s.lateHours, h, locale)}</option>)}
-          </select>
-          <p className="hint" style={{ marginTop: "var(--space-1)" }}>{s.lateHint}</p>
-        </div>
-      </Box>
+      {after}
 
       <Box title={s.tags} icon={<Tag />}>
         <p className="hint">{tags.length === 0 ? s.noTags : s.tagsHint}</p>
@@ -116,7 +122,8 @@ export function SettingsView({ settings, tags, locale, publicAddress, emailAddre
 
       {canExport && (
         <Box title={s.export} icon={<Download />}>
-          <div><a className="button quiet" href="/chest/export"><Download />{s.exportCsv}</a></div>
+          <p className="hint">{s.exportHint}</p>
+          <div><a className="button quiet" href="/chest/export"><Download />{s.exportZip}</a></div>
         </Box>
       )}
 
@@ -128,12 +135,18 @@ export function SettingsView({ settings, tags, locale, publicAddress, emailAddre
             <input id="erase" type="email" className="field" style={{ flex: 1, minWidth: 220 }} value={eraseEmail} onChange={e => setEraseEmail(e.target.value)} required />
             <button type="submit" className="button danger">{s.eraseButton}</button>
           </form>
+          {erasures.length > 0 && (
+            <div className="stack">
+              <h3>{s.erasures}</h3>
+              <ul className="small muted">{erasures.map((line, i) => <li key={i}>{line}</li>)}</ul>
+            </div>
+          )}
         </Box>
       )}
     </>
   );
 }
 
-function Box({ title, icon, children }: { title: string; icon: ReactNode; children: ReactNode }) {
+export function Box({ title, icon, children }: { title: string; icon: ReactNode; children: ReactNode }) {
   return <section className="box"><h2 className="row">{icon}{title}</h2>{children}</section>;
 }

@@ -34,3 +34,6 @@ export const Tag = () => <Icon><path d="M3.5 12.2V4.5a1 1 0 011-1h7.7a1 1 0 01.7
 export const Flag = () => <Icon><path d="M5.5 21V4" /><path d="M5.5 4.5h11l-2.5 4 2.5 4h-11" /></Icon>;
 export const Up = () => <Icon><path d="M6 15l6-6 6 6" /></Icon>;
 export const Down = () => <Icon><path d="M6 9l6 6 6-6" /></Icon>;
+export const Star = () => <Icon><path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z" /></Icon>;
+export const Chart = () => <Icon><path d="M4 20V4M4 20h16" /><path d="M8 16v-4M12 16V8M16 16v-6" /></Icon>;
+export const Merge = () => <Icon><path d="M6 4v5a5 5 0 005 5h7" /><path d="M15 11l3 3-3 3" /><path d="M6 20v-4" /></Icon>;

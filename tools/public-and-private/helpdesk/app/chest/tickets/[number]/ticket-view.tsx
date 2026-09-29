@@ -1,23 +1,30 @@
 "use client";
 
 import Link from "next/link";
-import { useOptimistic, useRef, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import { useEffect, useOptimistic, useRef, useState, useTransition } from "react";
 import { Avatar } from "../../../../components/avatar.tsx";
 import { PriorityChip, Waiting } from "../../../../components/badges.tsx";
+import { Body } from "../../../../components/body.tsx";
 import { FilePicker, filesPending, type PickedFile } from "../../../../components/file-picker.tsx";
-import { Back, Check, Clip, Cross, Eye, Globe, Mail, Note, Quote, Send, Tag } from "../../../../components/icons.tsx";
+import { Alert, Back, Check, Clip, Cross, Download, Eye, Globe, Mail, Note, Quote, Send, Tag } from "../../../../components/icons.tsx";
+import { isTyping } from "../../../../components/keys.tsx";
 import { useToast } from "../../../../components/toast.tsx";
 import { format } from "../../../../lib/i18n/format.ts";
 import type { Catalogue } from "../../../../lib/i18n/index.ts";
 import { limits, priorities, type Priority, type Status } from "../../../../lib/model.ts";
-import { addTag, assign, fileUpload, note, removeTag, reply, setPriority, setStatus } from "../../actions.ts";
+import { addTag, assign, fileUpload, merge, note, removeTag, reply, setCustomer, setPriority, setStatus, unmerge } from "../../actions.ts";
 
 type Words = { ticket: Catalogue["ticket"]; errors: Catalogue["errors"]; people: Catalogue["people"]; priority: Catalogue["priority"]; files: Catalogue["files"] };
 type Tag = { id: string; name: string };
 type View = {
-  ticket: { number: number; subject: string; status: Status; channel: "form" | "email" | "team"; customerName: string; customerEmail: string; assignee: string | null; created: string; priority: Priority; tags: Tag[]; waiting: { text: string; late: boolean; lateText: string } | null };
+  ticket: { number: number; subject: string; status: Status; channel: "form" | "email" | "team"; customerName: string; customerEmail: string; assignee: string | null; created: string; priority: Priority; tags: Tag[]; waiting: { text: string; late: boolean; lateText: string } | null; bounce: { permanent: boolean; reason: string } | null; rating: "good" | "bad" | null };
   tagNames: string[];
-  messages: { id: string; kind: "customer" | "reply" | "note"; who: string; typedBy: string | null; photo: string | null; body: string; when: string; date: string; delivery: "email" | "page" | null; attachments: { id: string; fileName: string; size: string }[] }[];
+  messages: {
+    id: string; kind: "customer" | "reply" | "note" | "event"; who: string; typedBy: string | null; photo: string | null; body: string; when: string; date: string; delivery: "email" | "page" | null;
+    attachments: { id: string; fileName: string; size: string; image: boolean }[];
+    event: string | null; fromOther: string | null; email: boolean; html: string | null; original: boolean; auto: boolean; dropped: string[]; bounce: string | null;
+  }[];
   others: { number: number; subject: string; status: Status; when: string }[];
   viewing: string[];
   team: { id: string; name: string; photo: string | null }[];
@@ -46,6 +53,36 @@ export function TicketView({ ticket, tagNames, messages, others, viewing, team, 
   const field = useRef<HTMLTextAreaElement>(null);
   const menu = useRef<HTMLDetailsElement>(null);
   const fail = (code: keyof Catalogue["errors"], values?: Record<string, string | number>) => toast(format(t.errors[code], values ?? { max: 20000 }));
+  const router = useRouter();
+  const [editing, setEditing] = useState(false);
+  const [mergeInto, setMergeInto] = useState("");
+
+  // Keys: r a reply, n a note, e close (the ? sheet lists them).
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (isTyping(e) || !canAnswer) return;
+      if (e.key === "r" || e.key === "n") {
+        e.preventDefault();
+        setMode(e.key === "r" ? "reply" : "note");
+        field.current?.focus();
+      } else if (e.key === "e" && canManage && ticket.status !== "closed" && ticket.status !== "spam") {
+        e.preventDefault();
+        act(() => setStatus(ticket.number, "closed"), w.closedToast, () => setStatus(ticket.number, ticket.status));
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  });
+
+  function mergeIt(into: number) {
+    start(async () => {
+      const r = await merge(ticket.number, into);
+      if (!r.ok) return fail(r.error, r.values);
+      const before = r.value.status;
+      toast(format(w.mergedToast, { number: into }), { label: w.undo, run: () => start(async () => { await unmerge(ticket.number, before); router.push(`/chest/tickets/${ticket.number}`); }) });
+      router.push(`/chest/tickets/${into}`);
+    });
+  }
 
   function send(close: boolean) {
     const body = text.trim();
@@ -115,20 +152,34 @@ export function TicketView({ ticket, tagNames, messages, others, viewing, team, 
           <p className="row muted small"><span>#{ticket.number}</span>{statusChip}<PriorityChip priority={priority} label={t.priority[priority]} />{ticket.waiting && <Waiting {...ticket.waiting} />}<span>{w.channel[ticket.channel]}</span><span>{ticket.created}</span></p>
           {viewing.length > 0 && <p className="viewing" role="status"><Eye />{format(viewing.length > 1 ? w.viewingMany : w.viewing, { names: viewing.join(", ") })}</p>}
         </div>
+        {ticket.bounce && (
+          <div className="notice danger" role="alert"><Alert /><div className="stack tight"><strong>{format(w.bounceBanner, { email: ticket.customerEmail })}</strong>{ticket.bounce.reason && <span className="small muted">{ticket.bounce.reason}</span>}<span className="small">{w.bounceHint}</span></div></div>
+        )}
         <ol className="thread">
-          {messages.map(m => (
-            <li key={m.id} className={`msg ${m.kind === "customer" ? "" : "team"} ${m.kind === "note" ? "note" : ""}`}>
+          {messages.map(m => m.kind === "event" ? (
+            <li key={m.id} className="event"><span>{m.event ?? m.body}</span> <time dateTime={m.date} title={m.date}>{m.when}</time></li>
+          ) : (
+            <li key={m.id} className={`msg ${m.kind === "customer" ? "" : "team"} ${m.kind === "note" ? "note" : ""} ${m.auto ? "auto" : ""}`}>
               <Avatar name={m.who} photo={m.photo} />
               <div className="bubble">
-                <div className="who">{m.who}{m.kind === "note" && <span className="chip spam">{w.noteTag}</span>}<time dateTime={m.date} title={m.date}>{m.when}</time></div>
+                <div className="who">{m.who}{m.kind === "note" && <span className="chip spam">{w.noteTag}</span>}{m.auto && <span className="chip" title={w.autoHint}>{w.auto}</span>}<time dateTime={m.date} title={m.date}>{m.when}</time></div>
                 {m.typedBy && <p className="small muted">{m.typedBy}</p>}
-                <div className="body">{m.body}</div>
+                {m.fromOther && m.who !== m.fromOther && <p className="small muted">{m.fromOther}</p>}
+                <MessageBody text={m.body} html={m.html} email={m.email} t={w} />
+                {m.attachments.some(a => a.image) && (
+                  <div className="thumbs">
+                    {m.attachments.filter(a => a.image).map(a => <a key={a.id} href={`/chest/files/${a.id}`} target="_blank" rel="noopener"><img src={`/chest/files/${a.id}?thumbnail=1`} alt={format(w.image, { name: a.fileName })} loading="lazy" /></a>)}
+                  </div>
+                )}
                 {m.attachments.length > 0 && (
                   <div className="files" aria-label={w.files}>
                     {m.attachments.map(a => <a key={a.id} href={`/chest/files/${a.id}`} target="_blank" rel="noopener"><Clip />{a.fileName}<span className="size">{a.size}</span></a>)}
                   </div>
                 )}
-                {m.kind === "reply" && m.delivery && <p className="delivery">{m.delivery === "email" ? <><Mail />{w.viaEmail}</> : <><Globe /><span title={w.viaPageHint}>{w.viaPage}</span></>}</p>}
+                {m.dropped.length > 0 && <ul className="dropped small muted">{m.dropped.map(d => <li key={d}>{d}</li>)}</ul>}
+                {m.original && <p className="delivery"><a href={`/chest/messages/${m.id}/original`}><Download />{w.original}</a></p>}
+                {m.kind === "reply" && m.bounce && <p className="delivery bounced"><Alert />{m.bounce}</p>}
+                {m.kind === "reply" && !m.bounce && m.delivery && <p className="delivery">{m.delivery === "email" ? <><Mail />{w.viaEmail}</> : <><Globe /><span title={w.viaPageHint}>{w.viaPage}</span></>}</p>}
               </div>
             </li>
           ))}
@@ -168,8 +219,28 @@ export function TicketView({ ticket, tagNames, messages, others, viewing, team, 
       <aside className="side-card" aria-label={w.customer}>
         <div className="fact">
           <p className="label">{w.from}</p>
-          <p><strong>{ticket.customerName || ticket.customerEmail}</strong></p>
-          {ticket.customerName && <p className="small"><a href={`mailto:${ticket.customerEmail}`}>{ticket.customerEmail}</a></p>}
+          {editing ? (
+            <form className="stack" onSubmit={e => {
+              e.preventDefault();
+              const d = new FormData(e.currentTarget);
+              start(async () => {
+                const r = await setCustomer(ticket.number, String(d.get("email") ?? ""), String(d.get("name") ?? ""));
+                if (!r.ok) return fail(r.error, r.values);
+                setEditing(false);
+                toast(w.customerSaved);
+              });
+            }}>
+              <div><label className="label small" htmlFor="customer-email">{w.customerEmail}</label><input id="customer-email" name="email" type="email" className="field" defaultValue={ticket.customerEmail} required maxLength={254} /></div>
+              <div><label className="label small" htmlFor="customer-name">{w.customerName}</label><input id="customer-name" name="name" className="field" defaultValue={ticket.customerName} maxLength={120} /></div>
+              <div className="row"><button type="submit" className="button small">{w.saveCustomer}</button><button type="button" className="link-button" onClick={() => setEditing(false)}>{w.cancel}</button></div>
+            </form>
+          ) : (
+            <>
+              <p className="row"><strong>{ticket.customerName || ticket.customerEmail}</strong>{canManage && <button type="button" className="link-button" onClick={() => setEditing(true)}>{w.editCustomer}</button>}</p>
+              {ticket.customerName && <p className="small"><a href={`mailto:${ticket.customerEmail}`}>{ticket.customerEmail}</a></p>}
+            </>
+          )}
+          {ticket.rating && <p className="small">{ticket.rating === "good" ? w.ratedGood : w.ratedBad}</p>}
         </div>
         <div className="fact">
           <label className="label" htmlFor="assignee">{w.assignee}</label>
@@ -232,7 +303,35 @@ export function TicketView({ ticket, tagNames, messages, others, viewing, team, 
             </ul>
           </div>
         )}
+        {canManage && ticket.status !== "spam" && (
+          <details className="fact merge">
+            <summary className="link-button">{w.merge}</summary>
+            <form className="stack" onSubmit={e => { e.preventDefault(); const n = Number(mergeInto.replace(/^#/u, "")); if (n > 0) mergeIt(n); }}>
+              <label className="label small" htmlFor="merge-into">{w.mergeLabel}</label>
+              <div className="row add-tag">
+                <input id="merge-into" className="field" inputMode="numeric" list="merge-numbers" value={mergeInto} onChange={e => setMergeInto(e.target.value)} maxLength={10} aria-describedby="merge-hint" />
+                <datalist id="merge-numbers">{others.filter(o => o.status !== "spam").map(o => <option key={o.number} value={o.number}>{o.subject}</option>)}</datalist>
+                <button type="submit" className="button small quiet" disabled={!/^#?[1-9][0-9]{0,8}$/u.test(mergeInto.trim())}>{w.mergeButton}</button>
+              </div>
+              <p id="merge-hint" className="hint">{w.mergeHint}</p>
+            </form>
+          </details>
+        )}
       </aside>
     </div>
+  );
+}
+
+// A message's words: the text, links clickable, an email's quoted history
+// folded; "Show formatting" shows the HTML the Chest cleaned (allowed tags
+// only, no script, style or image — and the tool's policy runs no script
+// anyway).
+function MessageBody({ text, html, email, t }: { text: string; html: string | null; email: boolean; t: Words["ticket"] }) {
+  const [formatted, setFormatted] = useState(false);
+  return (
+    <>
+      {formatted && html ? <div className="body html" dangerouslySetInnerHTML={{ __html: html }} /> : <Body text={text} {...(email ? { quotedLabel: t.quoted } : {})} />}
+      {html && <button type="button" className="link-button small" aria-pressed={formatted} onClick={() => setFormatted(f => !f)}>{formatted ? t.plain : t.formatted}</button>}
+    </>
   );
 }

@@ -1,12 +1,14 @@
 import type { Metadata } from "next";
 import { PublicShell } from "../../../components/public-shell.tsx";
 import { db } from "../../../lib/db.ts";
+import { Body } from "../../../components/body.tsx";
 import { Clip } from "../../../components/icons.tsx";
 import { fileSize, format, formatDate } from "../../../lib/i18n/index.ts";
 import { people } from "../../../lib/people.ts";
 import { publicWords } from "../../../lib/session.ts";
 import { byLink, settings } from "../../../lib/tickets.ts";
 import { CopyLink } from "./copy-link.tsx";
+import { Rate } from "./rate.tsx";
 import { WriteAgain } from "./write-again.tsx";
 
 // Never indexed, never sent as a referrer: the address is the key.
@@ -14,18 +16,21 @@ export const metadata: Metadata = { robots: { index: false, follow: false }, ref
 
 // A customer's request, as they see it with their link: our answers (never
 // the team's notes), its state, and a box to write again.
-export default async function FollowUp({ params, searchParams }: { params: Promise<{ secret: string }>; searchParams: Promise<{ new?: string; mailed?: string }> }) {
-  const { t, locale } = await publicWords();
+// It speaks the request's language (the customer wrote in it), unless the
+// visitor switches.
+export default async function FollowUp({ params, searchParams }: { params: Promise<{ secret: string }>; searchParams: Promise<{ new?: string; mailed?: string; lang?: string; embed?: string }> }) {
   const { secret } = await params;
   const search = await searchParams;
   const sql = db();
+  const ticket = await byLink(sql, secret);
+  const { t, locale } = await publicWords(search.lang, ticket?.language);
   const s = await settings(sql);
   const company = s.companyName || t.public.teamPlain;
-  const ticket = await byLink(sql, secret);
-  const back = `/t/${secret}`;
+  const embed = search.embed === "1";
+  const back = `/t/${secret}${embed ? "?embed=1" : ""}`;
   if (!ticket) {
     return (
-      <PublicShell company={company} locale={locale} label={t.public.language} back="/">
+      <PublicShell company={company} locale={locale} label={t.public.language} back="/" embed={embed}>
         <div className="stack">
           <h1>{t.public.notFoundTitle}</h1>
           <p className="muted">{t.public.notFoundBody}</p>
@@ -40,7 +45,7 @@ export default async function FollowUp({ params, searchParams }: { params: Promi
     return first && who.get(author!)?.status === "member" ? `${first} · ${s.companyName ? format(t.public.team, { company: s.companyName }) : t.public.teamPlain}` : s.companyName ? format(t.public.team, { company: s.companyName }) : t.public.teamPlain;
   };
   return (
-    <PublicShell company={company} locale={locale} label={t.public.language} back={back}>
+    <PublicShell company={company} locale={locale} label={t.public.language} back={back} embed={embed}>
       {search.new && (
         <section className="success" aria-labelledby="thanks">
           <h2 id="thanks">{t.public.thanksTitle}</h2>
@@ -61,7 +66,7 @@ export default async function FollowUp({ params, searchParams }: { params: Promi
             <span className="avatar" aria-hidden="true">{m.kind === "customer" ? "·" : company.slice(0, 1).toUpperCase()}</span>
             <div className="bubble">
               <div className="who">{m.kind === "customer" ? t.public.you : teamName(m.author)} <time dateTime={m.at}>{formatDate(m.at, locale, { dateStyle: "medium", timeStyle: "short" })}</time></div>
-              <div className="body">{m.body}</div>
+              <Body text={m.body} />
               {m.attachments.length > 0 && (
                 <div className="files" aria-label={t.files.list}>
                   {m.attachments.map(a => <a key={a.id} href={`/t/${secret}/files/${a.id}`} rel="noreferrer"><Clip />{a.fileName}<span className="size">{fileSize(a.size, locale)}</span></a>)}
@@ -71,6 +76,7 @@ export default async function FollowUp({ params, searchParams }: { params: Promi
           </li>
         ))}
       </ol>
+      {ticket.status === "closed" && <Rate secret={secret} rating={ticket.rating} t={t.public} />}
       <section className="public-card" aria-labelledby="again">
         <h2 id="again">{t.public.reply}</h2>
         {ticket.status === "closed" && <p className="hint">{t.public.reopenHint}</p>}
