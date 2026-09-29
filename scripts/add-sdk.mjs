@@ -43,8 +43,21 @@ for (const start = Date.now(); ;) {
     execFileSync("sleep", ["1"]);
   }
 }
+// A pack must hold the built files: check it, pack once more if not, then refuse.
+const PREFIX = "argentic-chest-sdk-";
+const built = ["package/dist/index.js"];
+const whole = () => {
+  const file = readdirSync(vendor).find(name => name.startsWith(PREFIX) && name.endsWith(".tgz"));
+  if (!file) return false;
+  const listed = new Set(execFileSync("tar", ["tzf", join(vendor, file)], { encoding: "utf8", maxBuffer: 64 << 20 }).split("\n"));
+  return built.every(path => listed.has(path));
+};
 try {
-  execFileSync("npm", ["pack", "--pack-destination", vendor], { cwd: sdk, stdio: ["ignore", "ignore", "inherit"] });
+  for (let attempt = 1; ; attempt++) {
+    execFileSync("npm", ["pack", "--pack-destination", vendor], { cwd: sdk, stdio: ["ignore", "ignore", "inherit"] });
+    if (whole()) break;
+    if (attempt === 2) { console.error(`the packed copy in ${vendor} lacks its built files (${built.join(", ")}): not installed`); process.exit(1); }
+  }
 } finally {
   rmSync(lock, { recursive: true, force: true });
 }
