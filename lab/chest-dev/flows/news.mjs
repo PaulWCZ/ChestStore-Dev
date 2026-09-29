@@ -19,11 +19,13 @@ page.goto = async (url, options) => { const r = await load(url, options); if (ur
 page.reload = async options => { const r = await again(options); await page.waitForSelector("html[data-hydrated]", { state: "attached" }); return r; };
 const arrive = page.waitForURL.bind(page);
 page.waitForURL = async (url, options) => { await arrive(url, options); await page.waitForSelector("html[data-hydrated]", { state: "attached" }); };
-// An action and the server's answer to it (a server action is a POST).
+// An action and the server's answer to it (a server action is a POST):
+// the request this action sends — never the answer to an earlier one
+// still on its way.
 async function saved(action) {
-  const answer = page.waitForResponse(r => r.request().method() === "POST" && r.url().startsWith(origin + "/chest"));
+  const sent = page.waitForRequest(r => r.method() === "POST" && r.url().startsWith(origin + "/chest"));
   await action();
-  await answer;
+  await (await sent).response();
 }
 // The composer, fresh: no draft left in this browser by an earlier step,
 // and running (its draft read) before anything is typed.
@@ -107,9 +109,9 @@ await step("a reader confirms from the front page; reacts and comments", async (
   expect(!(await page.getByRole("link", { name: "Write a post" }).count()), "no Write button for a reader");
   await page.locator(".asks-you").getByRole("link", { name: "Read it" }).click();
   await page.waitForURL(/\/chest\/posts\/\d+$/u);
-  await page.getByRole("button", { name: "I have read it" }).click();
+  await saved(() => page.getByRole("button", { name: "I have read it" }).click());
   await page.waitForSelector(".confirm-box.done");
-  await page.locator(".reaction", { hasText: "🎉" }).click();
+  await saved(() => page.locator(".reaction", { hasText: "🎉" }).click());
   await page.getByLabel("Your comment").fill("Great, thanks!");
   await saved(() => page.getByRole("button", { name: "Comment", exact: true }).click());
   await page.reload();
@@ -263,7 +265,7 @@ await step("French, phone width: nothing overflows; confirm and write work", asy
   expect(width <= 392, "front page width " + width);
   expect((await page.locator(".asks-you").innerText()).includes("confirmer"), "French strip");
   await page.locator(".asks-you a").click();
-  await page.getByRole("button", { name: "Je l’ai lue" }).click();
+  await saved(() => page.getByRole("button", { name: "Je l’ai lue" }).click());
   await page.waitForSelector(".confirm-box.done");
   width = await page.evaluate(() => document.documentElement.scrollWidth);
   expect(width <= 392, "article width " + width);
