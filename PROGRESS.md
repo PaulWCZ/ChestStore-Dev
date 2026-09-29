@@ -69,11 +69,12 @@ today, 8 partly, 4 public ones not (mail, calendar, custom domains).
   | Timesheets | 62 |
   | Booking | 67 |
   | Support | 46 |
+  | Rooms | 69 |
 
 - **News:** tests pass (72), but the lead's flow run failed: the reply
   never appears and there are races after a restart. Sent back to its
   builder for a root cause and 3 clean runs.
-- **Running:** Equipment, Rooms, Hiring, Status; the Forms critique; the
+- **Running:** Equipment, Hiring, Status; the Forms critique; the
   UI kit's shared components, with the glossary and its lint
   (`lab/GLOSSARY.md`, `scripts/lint-words.mjs`).
 - **Still to confirm:**
