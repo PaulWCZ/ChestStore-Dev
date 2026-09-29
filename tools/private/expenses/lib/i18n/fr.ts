@@ -616,6 +616,7 @@ export const fr: Catalogue = {
     account_invalid: "Un compte ne contient que des lettres et des chiffres, comme 421000.",
     iban_invalid: "Ce n’est pas un IBAN. Recopiez-le depuis votre RIB (il commence par deux lettres, comme FR76).",
     iban_checksum: "Cet IBAN contient une faute de frappe : sa clé ne correspond pas. Vérifiez chaque caractère.",
+    bank_sealed: "Des coordonnées bancaires ne peuvent plus être lues (la clé qui les scellait a disparu) : saisissez-les à nouveau.",
     bic_invalid: "Un BIC compte 8 ou 11 lettres et chiffres, comme BNPAFRPP.",
     no_company_bank: "Saisissez d’abord la raison sociale et le compte bancaire de l’entreprise (Réglages → Entreprise).",
     no_bank_details: "Personne ici n’a encore de coordonnées bancaires dans la zone SEPA : ajoutez-les, ou marquez remboursé à la main.",

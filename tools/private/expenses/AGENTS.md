@@ -9,8 +9,14 @@ what must not break.
 |---|---|
 | `chest.json`, `chest.proposals.json` | Manifest: roles `accountant`, `approver`, `employee`; `database`, `files`, `members`, `notifications`; `receives`. Proposals: schedules `reminder`, `cleanup` |
 | `lib/access.ts` | **Who may do what**: `can(actor, ability)` and `expenseAccess(actor, facts)` (see, own, decide) |
-| `lib/expenses.ts` | Expenses and trips, warnings, send, decide, pay, badges' counts, export rows — every function `(sql, actor, …)` |
-| `lib/settings.ts` | Company settings, categories, mileage scales, vehicles, approvers |
+| `lib/expenses.ts` | Expenses, trips and flat rates, warnings, send, decide (the refusal fingerprint: a refused expense cannot come back unchanged), pay, badges' counts, export rows, kilometres before the tool — every function `(sql, actor, …)` |
+| `lib/settings.ts` | Company settings (currency, reminder, setup done, journal accounts, payer name), categories, flat rates, exchange rates, mileage scales, vehicles and their certificates, approvers, each person's journal account |
+| `lib/bank.ts`, `lib/iban.ts`, `lib/seal.ts` | Bank details: rights (own, accountants), IBAN/BIC checks (mod 97; pure, browser-safe), sealing with `BANK_DETAILS_KEY` |
+| `lib/payments.ts`, `lib/sepa.ts` | Transfer files: the batch (create, cancel, list, write again) and the pain.001.001.03 XML (pure) |
+| `lib/journal.ts` | Accounting entries in the FEC column layout |
+| `lib/csv-read.ts`, `lib/imports.ts` | Reading another tool's CSV and guessing its columns (browser-safe); importing past expenses as history |
+| `lib/receipt-text.ts`, `components/ocr.ts` | What a receipt's text says (pure, tested); reading the photo in the browser with tesseract.js (files copied to `public/ocr/` by `scripts/ocr-assets.mjs`) |
+| `components/upload.ts`, `components/bank-form.tsx` | A file from the browser to the Chest; the bank details form |
 | `lib/scale.ts` | The mileage scale as data and a trip's amount — **pure, browser-safe, tested** |
 | `lib/money.ts` | Integer minor units, parsing what people type, Intl formatting, VAT — browser-safe |
 | `lib/model.ts` | Bounds, text cleaning, days and months — pure |
@@ -24,8 +30,9 @@ what must not break.
 | `app/chest/actions.ts` | Server actions: thin; each re-reads the member; answer `Result` codes |
 | `app/chest/compose.tsx` | The add/edit screens (client): receipt upload, amount, trip estimate |
 | `app/chest/api/receipts/route.ts`, `app/chest/receipts/[id]/route.ts` | Upload grant; open a receipt through a fresh signed link |
-| `app/chest/export/{csv,zip}/route.ts` | Downloads for accountants |
-| `migrations/` | Schema and the default categories and scale. Never edit a shipped file; add `0002_…` |
+| `app/chest/export/{csv,zip,journal}/route.ts`, `app/chest/pay/files/[id]/route.ts`, `app/chest/vehicles/[member]/proof/route.ts` | Downloads for accountants (and a certificate for its owner) |
+| `app/chest/settings/page.tsx`, `app/chest/settings/company/page.tsx`, `settings-view.tsx`, `import-view.tsx` | Settings → Me; Settings → Company (accountants) |
+| `migrations/` | Schema and the default categories and scale (`0001`), everything after the critique (`0002`). Never edit a shipped file; add `0003_…` |
 | `seed/sample.sql` | A month of sample expenses for local runs |
 | `test/` | `node:test` with `fakeChest` and PostgreSQL (PGlite or `TEST_DATABASE_URL`) |
 
@@ -57,3 +64,15 @@ npm ci && npm test && npm run build   # all three must pass
   personal text.
 - A new column holding member ids: add it to `erase()` and to the lifecycle
   test.
+- **A new field of an expense its owner fills** goes into `fingerprint()`
+  (lib/expenses.ts), or a refusal could be answered by sending the same
+  expense again.
+- **Money in two currencies**: `amount` is in the expense's currency,
+  `base` in the company's (null without a rate). Totals, pay-back, the
+  transfer file and the journal use `base`; any new insert of an expense
+  sets it.
+- **Bank details are never shown whole** in a page, a log or an export
+  other than the transfer file; only the person and the accountants reach
+  them (`lib/bank.ts`).
+- Imported expenses (`imported_at`) are history: keep them out of pay,
+  exports and the journal (`within()`).

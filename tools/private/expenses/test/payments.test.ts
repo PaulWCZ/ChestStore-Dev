@@ -96,11 +96,11 @@ test("sealing: AES-256-GCM with the Chest variable, bound to its owner; as typed
   assert.equal(sealed.includes("3000"), false);
   assert.notEqual(seal("FR7630006000011234567890189", "bank:a"), sealed); // a new nonce each time
   assert.equal(unseal(sealed, "bank:a"), "FR7630006000011234567890189");
-  assert.throws(() => unseal(sealed, "bank:b"), refuses("unavailable")); // moved to another row
+  assert.throws(() => unseal(sealed, "bank:b"), refuses("bank_sealed")); // moved to another row
   process.env["BANK_DETAILS_KEY"] = Buffer.alloc(32, 8).toString("base64");
-  assert.throws(() => unseal(sealed, "bank:a"), refuses("unavailable")); // another key
+  assert.throws(() => unseal(sealed, "bank:a"), refuses("bank_sealed")); // another key
   delete process.env["BANK_DETAILS_KEY"];
-  assert.throws(() => unseal(sealed, "bank:a"), refuses("unavailable"));
+  assert.throws(() => unseal(sealed, "bank:a"), refuses("bank_sealed"));
   process.env["BANK_DETAILS_KEY"] = "short";
   assert.throws(() => seal("x", "y"), /32 bytes/u);
 });

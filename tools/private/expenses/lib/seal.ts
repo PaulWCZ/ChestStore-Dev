@@ -35,11 +35,11 @@ export function seal(plain: string, context: string): string {
 }
 
 // unseal gives the value back; a value sealed under a key the tool no
-// longer has (or moved to another row) is "unavailable", never a guess.
+// longer has (or moved to another row) is "bank_sealed", never a guess.
 export function unseal(sealed: string, context: string): string {
   if (sealed.startsWith("v0.")) return sealed.slice(3);
   const k = key();
-  if (!sealed.startsWith("v1.") || !k) throw new AppError("unavailable");
+  if (!sealed.startsWith("v1.") || !k) throw new AppError("bank_sealed");
   const bytes = Buffer.from(sealed.slice(3), "base64");
   try {
     const decipher = createDecipheriv("aes-256-gcm", k, bytes.subarray(0, 12));
@@ -47,6 +47,6 @@ export function unseal(sealed: string, context: string): string {
     decipher.setAuthTag(bytes.subarray(12, 28));
     return Buffer.concat([decipher.update(bytes.subarray(28)), decipher.final()]).toString("utf8");
   } catch {
-    throw new AppError("unavailable");
+    throw new AppError("bank_sealed");
   }
 }

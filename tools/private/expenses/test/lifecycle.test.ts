@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
 import { POST } from "../app/chest-events/route.ts";
+import * as bank from "../lib/bank.ts";
 import * as expenses from "../lib/expenses.ts";
 import * as settings from "../lib/settings.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
@@ -59,6 +60,9 @@ test("an erasure keeps the accounting records under 'erased', deletes notes, dra
   await expenses.submit(sql, asMember(hugo), [kept.id], yes);
   await expenses.decide(sql, asMember(camille), [kept.id], "approve");
   const withHugo = (await expenses.saveExpense(sql, asMember(lea), null, { ...lunch("30"), guestMembers: [hugo.id, camille.id] })).expense;
+  await bank.setBankDetails(sql, asMember(hugo), hugo.id, { iban: "FR76 3000 6000 0112 3456 7890 189" });
+  await settings.setMemberAccount(sql, asMember(camille), hugo.id, "421BERNARD");
+  await expenses.setPriorDistance(sql, asMember(hugo), { year: Number(new Date().getFullYear()), distance: "120" });
   const erasure = "era_" + "c".repeat(26);
   const event = { type: "member.erased" as const, id: "evt_" + "d".repeat(26), data: { id: hugo.id, erasure, deadline: new Date(Date.now() + 864e5).toISOString() } };
   assert.equal(await chest.emit(event, POST), 204);
@@ -72,7 +76,9 @@ test("an erasure keeps the accounting records under 'erased', deletes notes, dra
   const left = await sql`
     select (select count(*) from history where actor = ${hugo.id})::int + (select count(*) from vehicles where member_id = ${hugo.id})::int
       + (select count(*) from approvers where member_id = ${hugo.id} or approver_id = ${hugo.id})::int + (select count(*) from claims where member_id = ${hugo.id})::int
-      + (select count(*) from expenses where member_id = ${hugo.id} or decided_by = ${hugo.id} or approver_id = ${hugo.id})::int as n`;
+      + (select count(*) from expenses where member_id = ${hugo.id} or decided_by = ${hugo.id} or approver_id = ${hugo.id})::int
+      + (select count(*) from bank_accounts where owner = ${hugo.id})::int + (select count(*) from member_accounts where member_id = ${hugo.id})::int
+      + (select count(*) from prior_distances where member_id = ${hugo.id})::int as n`;
   assert.equal(left[0]!["n"], 0);
   // As someone else's guest, a former member.
   assert.deepEqual((await expenses.expense(sql, asMember(lea), withHugo.id)).expense.guests.members, ["erased", camille.id]);

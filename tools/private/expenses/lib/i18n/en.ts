@@ -616,6 +616,7 @@ export const en = {
     account_invalid: "An account is letters and digits only, like 421000.",
     iban_invalid: "This is not an IBAN. Copy it from your bank details (it starts with two letters, like FR76).",
     iban_checksum: "This IBAN has a typo: its check digits don’t match. Check each character.",
+    bank_sealed: "Some bank details can’t be read any more (the key that sealed them is gone): enter them again.",
     bic_invalid: "A BIC has 8 or 11 letters and digits, like BNPAFRPP.",
     no_company_bank: "First enter the company’s name and bank account (Settings → Company).",
     no_bank_details: "Nobody here has bank details in the SEPA zone yet: add them, or mark paid by hand.",

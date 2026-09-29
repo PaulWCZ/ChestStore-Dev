@@ -6,7 +6,7 @@ export const errorCodes = [
   "amount_invalid", "rate_invalid", "date_invalid", "date_future", "vat_too_high", "currency_invalid",
   "distance_invalid", "no_vehicle", "no_scale", "scale_invalid",
   "not_draft", "refused_unchanged", "not_submitted", "not_approved", "self_approval", "reason_needed", "nothing_selected",
-  "approver_invalid", "category_invalid", "allowance_invalid", "count_invalid", "account_invalid", "iban_invalid", "iban_checksum", "bic_invalid", "no_company_bank", "no_bank_details", "sepa_currency", "nothing_to_pay", "file_gone",
+  "approver_invalid", "category_invalid", "allowance_invalid", "count_invalid", "account_invalid", "iban_invalid", "iban_checksum", "bank_sealed", "bic_invalid", "no_company_bank", "no_bank_details", "sepa_currency", "nothing_to_pay", "file_gone",
   "file_missing", "file_too_large", "file_type", "receipt_locked",
   "export_too_large", "unavailable", "unknown",
 ] as const;
