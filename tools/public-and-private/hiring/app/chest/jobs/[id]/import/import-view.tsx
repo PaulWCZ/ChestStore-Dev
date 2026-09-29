@@ -1,9 +1,9 @@
 "use client";
 
+import { FilePicker, useToast, type PickedFile } from "@argentic/chest-ui/components";
+import type { FileWords } from "@argentic/chest-ui/components/logic";
 import { useRouter } from "next/navigation";
 import { useMemo, useState, useTransition } from "react";
-import { Upload } from "../../../../../components/icons.tsx";
-import { useToast } from "../../../../../components/toast.tsx";
 import { parseCsv } from "../../../../../lib/csv.ts";
 import { format, languageNames, plural } from "../../../../../lib/i18n/format.ts";
 import type { Catalogue } from "../../../../../lib/i18n/index.ts";
@@ -13,7 +13,7 @@ import { unzip } from "../../../../../lib/unzip.ts";
 import { uploadCv } from "../../../../../lib/upload.ts";
 import { importCandidates, setCv, undoImport } from "../../../actions.ts";
 
-type Words = { importer: Catalogue["importer"]; errors: Catalogue["errors"]; common: Catalogue["common"]; languages: Catalogue["addForm"] };
+type Words = { importer: Catalogue["importer"]; errors: Catalogue["errors"]; common: Catalogue["common"]; languages: Catalogue["addForm"]; files: FileWords };
 const cvName = /\.(pdf|docx?)$/iu;
 const typeOfName = (name: string) => (/\.pdf$/iu.test(name) ? "application/pdf" : /\.doc$/iu.test(name) ? "application/msword" : "application/vnd.openxmlformats-officedocument.wordprocessingml.document");
 
@@ -25,7 +25,10 @@ export function ImportView({ jobId, language, stages, locale, t }: { jobId: stri
   const toast = useToast();
   const [pending, start] = useTransition();
   const [table, setTable] = useState<string[][] | null>(null);
-  const [fileName, setFileName] = useState("");
+  // The table and the CVs stay in the browser until "Import" (the kit's
+  // file picker without an upload): the table is read here.
+  const [sheet, setSheet] = useState<readonly PickedFile[]>([]);
+  const [cvFiles, setCvFiles] = useState<readonly PickedFile[]>([]);
   const [mapping, setMapping] = useState<Mapping>({});
   const [stageFor, setStageFor] = useState<Record<string, string>>({});
   const [origin, setOrigin] = useState("");
@@ -45,7 +48,6 @@ export function ImportView({ jobId, language, stages, locale, t }: { jobId: stri
       const parsed = parseCsv(await file.text(), 2001);
       if (parsed.length < 2) return setError(w.emptyFile);
       setTable(parsed);
-      setFileName(file.name);
       const m = guess(parsed[0]!);
       setMapping(m);
       // A stage whose name is one of the job's is matched to it.
@@ -63,17 +65,27 @@ export function ImportView({ jobId, language, stages, locale, t }: { jobId: stri
       if (!r.ok) return setError(format(t.errors[r.error], r.values ?? {}));
       setDone(r.value);
       const ids = r.value.added.map(a => a.id);
-      toast(plural(w.imported, ids.length, locale), { label: t.common.undo, run: () => start(async () => { await undoImport(ids); setDone(null); router.refresh(); }) });
+      toast({
+        id: `import-${jobId}`,
+        text: plural(w.imported, ids.length, locale),
+        undo: async () => {
+          const back = await undoImport(ids);
+          if (!back.ok) return format(t.errors[back.error], back.values ?? {});
+          setDone(null);
+          router.refresh();
+          return true;
+        },
+      });
     });
   }
 
   // The CVs: files named with the candidate's email (or a ZIP of them),
   // each sent to the Chest like a CV added by hand.
-  async function attach(files: FileList) {
+  async function attach(files: readonly File[]) {
     if (!done) return;
     const byEmail = new Map(done.added.map(a => [a.email, a.id]));
     const found: { email: string; file: File }[] = [];
-    for (const f of Array.from(files)) {
+    for (const f of files) {
       if (/\.zip$/iu.test(f.name)) {
         try {
           for (const u of await unzip(new Uint8Array(await f.arrayBuffer()), n => cvName.test(n))) {
@@ -107,11 +119,23 @@ export function ImportView({ jobId, language, stages, locale, t }: { jobId: stri
       <section className="panel" aria-labelledby="step-file">
         <h2 id="step-file">{w.step1}</h2>
         <p className="hint tight-top">{w.fileHint}</p>
-        <label className="dropzone">
-          <input type="file" accept=".csv,text/csv,.tsv,.txt" className="visually-hidden" onChange={e => { const f = e.currentTarget.files?.[0]; if (f) void read(f); }} />
-          <span className="dz-icon"><Upload /></span>
-          <span className="dz-text"><strong>{fileName || w.choose}</strong>{table && <span className="muted small"> · {plural(w.rows, table.length - 1, locale)}</span>}</span>
-        </label>
+        <FilePicker
+          label={w.choose}
+          files={sheet}
+          maxFiles={1}
+          accept={[".csv", ".tsv", ".txt"]}
+          labels={t.files}
+          onChange={update => {
+            // No upload here: the picker changes the list only when a file
+            // is added or taken off, from this render's list.
+            const next = update(sheet);
+            setSheet(next);
+            const added = next.find(f => f.file && !sheet.some(x => x.key === f.key));
+            if (added?.file) void read(added.file);
+            if (next.length === 0) { setTable(null); setDone(null); }
+          }}
+        />
+        {table && <p className="muted small">{plural(w.rows, table.length - 1, locale)}</p>}
       </section>
 
       {table && !done && (
@@ -183,11 +207,18 @@ export function ImportView({ jobId, language, stages, locale, t }: { jobId: stri
           {done.added.length > 0 && (
             <>
               <p className="hint">{w.cvHint}</p>
-              <label className="dropzone">
-                <input type="file" multiple accept=".zip,.pdf,.doc,.docx,application/zip,application/pdf" className="visually-hidden" onChange={e => { const f = e.currentTarget.files; if (f) void attach(f); }} />
-                <span className="dz-icon"><Upload /></span>
-                <span className="dz-text"><strong>{w.chooseCvs}</strong></span>
-              </label>
+              <FilePicker
+                label={w.chooseCvs}
+                files={cvFiles}
+                accept={[".zip", ".pdf", ".doc", ".docx"]}
+                labels={t.files}
+                onChange={update => {
+                  const next = update(cvFiles);
+                  setCvFiles(next);
+                  const added = next.filter(f => f.file && !cvFiles.some(x => x.key === f.key)).map(f => f.file!);
+                  if (added.length > 0) void attach(added);
+                }}
+              />
               {cvs && <p>{plural(w.cvsSent, cvs.sent, locale)}{cvs.missing > 0 && <> {plural(w.cvsMissing, cvs.missing, locale)}</>}</p>}
             </>
           )}

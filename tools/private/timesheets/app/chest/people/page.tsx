@@ -1,3 +1,4 @@
+import { PageHeader } from "@argentic/chest-ui/components";
 import { forbidden } from "next/navigation";
 import { can } from "../../../lib/access.ts";
 import { currency, today } from "../../../lib/clock.ts";
@@ -54,20 +55,19 @@ export default async function PeoplePage() {
     };
   }).sort((a, b) => a.name.localeCompare(b.name, locale));
   return (
-    <main className="page">
-      <h1>{t.people.title}</h1>
-      <p className="lead">{format(t.people.intro, { currency: code })}</p>
+    <div className="page">
+      <PageHeader title={t.people.title} intro={format(t.people.intro, { currency: code })} />
       {!dir.reached && <p className="notice small">{t.errors.unavailable}</p>}
       <ul className="person-list">
-        {rows.map(p => <PersonRow key={p.id} person={p} today={now} lockedUntil={s.lockedUntil} companyWeek={s.reminder.minutes} currency={code} comma={locale === "fr"} t={{ people: t.people, errors: t.errors }} />)}
+        {rows.map(p => <PersonRow key={p.id} person={p} today={now} lockedUntil={s.lockedUntil} companyWeek={s.reminder.minutes} currency={code} comma={locale === "fr"} t={{ people: t.people, errors: t.errors, date: t.date }} />)}
       </ul>
       {formers.length > 0 && (
         <section className="panel formers" aria-labelledby="formers-title">
           <h2 id="formers-title">{t.people.formerTitle}</h2>
           <p className="hint">{t.people.formerBody}</p>
-          <FormerList people={formers.map(f => ({ id: f.id, name: f.name, hours: formatDuration(f.minutes) }))} t={{ people: t.people, errors: t.errors }} />
+          <FormerList people={formers.map(f => ({ id: f.id, name: f.name, hours: formatDuration(f.minutes) }))} t={{ people: t.people, errors: t.errors, date: t.date }} />
         </section>
       )}
-    </main>
+    </div>
   );
 }

@@ -1,9 +1,9 @@
 "use client";
 
+import { StatusBadge, useToast } from "@argentic/chest-ui/components";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { Lock, Pencil, Plus, Trash } from "../../components/icons.tsx";
-import { useToast } from "../../components/toast.tsx";
 import { WorkPicker, type PickerProject } from "../../components/work-picker.tsx";
 import { readWork, workValue } from "../../lib/work.ts";
 import { formatDuration, parseDuration } from "../../lib/duration.ts";
@@ -21,7 +21,7 @@ export function DayPanel({ day, total, items, projects, lock, t }: { day: DayInf
   const [hidden, setHidden] = useState<string[]>([]);
   const [, start] = useTransition();
   const shown = items.filter(e => !hidden.includes(e.id));
-  const fail = (code: keyof Catalogue["errors"], values?: Record<string, string | number>) => toast(format(t.errors[code], values));
+  const fail = (code: keyof Catalogue["errors"], values?: Record<string, string | number>) => void toast({ text: format(t.errors[code], values), tone: "error" });
 
   function remove(e: DayItem) {
     setHidden(h => [...h, e.id]);
@@ -31,14 +31,16 @@ export function DayPanel({ day, total, items, projects, lock, t }: { day: DayInf
         setHidden(h => h.filter(x => x !== e.id));
         return fail(r.error, r.values);
       }
-      toast(t.day.deleted, {
-        label: t.timer.undo,
-        run: () => start(async () => {
+      toast({
+        id: `entry-${e.id}`,
+        text: t.day.deleted,
+        undo: async () => {
           const u = await restoreEntries([e.id]);
-          if (!u.ok) fail(u.error, u.values);
+          if (!u.ok) return format(t.errors[u.error], u.values);
           setHidden(h => h.filter(x => x !== e.id));
           router.refresh();
-        }),
+          return true;
+        },
       });
     });
   }
@@ -67,11 +69,11 @@ export function DayPanel({ day, total, items, projects, lock, t }: { day: DayInf
               <div className="entry-side">
                 <span className="num entry-time">{formatDuration(e.minutes)}</span>
                 {e.span && <span className="entry-span num" title={t.day.fromTimer}>{e.span}</span>}
-                {!e.billable && <span className="tag">{t.day.notBillable}</span>}
-                {e.invoiced && <span className="tag">{t.day.invoiced}</span>}
+                {!e.billable && <StatusBadge tone="neutral" size="s" icon={false} label={t.day.notBillable} />}
+                {e.invoiced && <StatusBadge tone="ok" size="s" label={t.day.invoiced} />}
               </div>
               <div className="entry-actions">
-                {e.locked ? <span className="tag"><Lock />{t.day.lockedEntry}</span> : (
+                {e.locked ? <StatusBadge tone="neutral" size="s" icon={<Lock />} label={t.day.lockedEntry} /> : (
                   <>
                     <button type="button" className="button icon link" aria-label={format(t.day.editLabel, { name: e.projectName })} title={t.day.edit} onClick={() => setEditing(e.id)}><Pencil /></button>
                     <button type="button" className="button icon link" aria-label={format(t.day.deleteLabel, { name: e.projectName })} title={t.day.delete} onClick={() => remove(e)}><Trash /></button>
@@ -112,7 +114,7 @@ function EntryForm({ day, entry, projects, t, onDone }: { day: string; entry?: D
     start(async () => {
       const r = entry ? await updateEntry(entry.id, input) : await addEntry(input);
       if (!r.ok) return setError(format(t.errors[r.error], r.values));
-      toast(entry ? t.day.saved : format(t.day.added, { duration: formatDuration(minutes) }));
+      toast({ id: `entry-${entry?.id ?? "new"}`, text: entry ? t.day.saved : format(t.day.added, { duration: formatDuration(minutes) }) });
       onDone();
     });
   }

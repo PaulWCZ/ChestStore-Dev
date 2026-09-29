@@ -1,10 +1,10 @@
 "use client";
 
+import { DateField, Segmented, useToast } from "@argentic/chest-ui/components";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { Back, Close, Plus } from "../../../components/icons.tsx";
-import { useToast } from "../../../components/toast.tsx";
 import { amountText, hoursText, parseAmount, parseHours } from "../../../lib/amounts.ts";
 import type { Catalogue } from "../../../lib/i18n/index.ts";
 import { format } from "../../../lib/i18n/format.ts";
@@ -12,7 +12,7 @@ import { colors } from "../../../lib/model.ts";
 import type { Budget, Task } from "../../../lib/projects.ts";
 import { addTask, archiveProject, archiveTask, createProject, updateProject } from "../actions.ts";
 
-type Words = { project: Catalogue["project"]; colors: Catalogue["colors"]; errors: Catalogue["errors"]; undo: string };
+type Words = { project: Catalogue["project"]; colors: Catalogue["colors"]; errors: Catalogue["errors"]; date: Catalogue["date"] };
 export type FormProject = {
   id: string | null; name: string; clientId: string | null; color: string; billable: boolean; rateCents: number | null; budget: Budget;
   everyone: boolean; people: string[]; archived: boolean; tasks: Task[];
@@ -44,7 +44,7 @@ export function ProjectForm({ initial, clients, people, currency, comma, default
   const [tasks, setTasks] = useState<string[]>(initial.id ? [] : defaultTasks);
   const [taskDraft, setTaskDraft] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [rateFrom, setRateFrom] = useState(rates?.today ?? "");
+  const [rateFrom, setRateFrom] = useState<string | null>(rates?.today ?? null);
   const rateChanged = (rate.trim() === "" ? null : parseAmount(rate)) !== initial.rateCents;
   const askFrom = Boolean(initial.id && rates?.hasTime && rateChanged);
 
@@ -64,7 +64,7 @@ export function ProjectForm({ initial, clients, people, currency, comma, default
     setError(null);
     const input = {
       name, color, billable, rateCents, budget: b, everyone, people: everyone ? [] : chosen,
-      ...(askFrom ? { rateFrom } : {}),
+      ...(askFrom && rateFrom ? { rateFrom } : {}),
       ...(client === "new" ? { newClient } : { clientId: client || null }),
       ...(initial.id ? {} : { tasks }),
     };
@@ -72,12 +72,12 @@ export function ProjectForm({ initial, clients, people, currency, comma, default
       if (initial.id) {
         const r = await updateProject(initial.id, input);
         if (!r.ok) return setError(format(t.errors[r.error], r.values));
-        toast(w.saved);
+        toast({ id: "project", text: w.saved });
         router.push("/chest/projects");
       } else {
         const r = await createProject(input);
         if (!r.ok) return setError(format(t.errors[r.error], r.values));
-        toast(w.saved);
+        toast({ id: "project", text: w.saved });
         router.push("/chest/projects");
       }
     });
@@ -88,8 +88,19 @@ export function ProjectForm({ initial, clients, people, currency, comma, default
     const pid = initial.id;
     start(async () => {
       const r = await archiveProject(pid, archived);
-      if (!r.ok) return toast(format(t.errors[r.error], r.values));
-      toast(archived ? w.archived : w.unarchived, archived ? { label: t.undo, run: () => start(async () => { await archiveProject(pid, false); router.refresh(); }) } : undefined);
+      if (!r.ok) return void toast({ text: format(t.errors[r.error], r.values), tone: "error" });
+      toast({
+        id: `archive-${pid}`,
+        text: archived ? w.archived : w.unarchived,
+        ...(archived ? {
+          undo: async () => {
+            const u = await archiveProject(pid, false);
+            if (!u.ok) return format(t.errors[u.error], u.values);
+            router.refresh();
+            return true;
+          },
+        } : {}),
+      });
       router.refresh();
     });
   }
@@ -141,30 +152,20 @@ export function ProjectForm({ initial, clients, people, currency, comma, default
             {rates?.history && <p className="hint">{rates.history}</p>}
             {askFrom && (
               <>
-                <label className="label" htmlFor="p-rate-from">{w.rateFrom}</label>
-                <input id="p-rate-from" type="date" className="field short" value={rateFrom} min={rates?.lockedUntil ?? undefined} onChange={e => setRateFrom(e.target.value)} />
-                <p className="hint">{w.rateFromHint}</p>
+                <DateField id="p-rate-from" label={w.rateFrom} value={rateFrom} onChange={setRateFrom} today={rates?.today ?? ""} min={rates?.lockedUntil ?? null} hint={w.rateFromHint} chips={false} labels={t.date} />
               </>
             )}
           </div>
         )}
-        <fieldset className="field-block">
-          <legend className="label">{w.budget}</legend>
-          <div className="segmented">
-            {(["none", "hours", "money"] as const).map(k => (
-              <label key={k} className="seg">
-                <input type="radio" name="budget" value={k} checked={kind === k} onChange={() => setKind(k)} />
-                <span>{k === "none" ? w.budgetNone : k === "hours" ? w.budgetHours : w.budgetMoney}</span>
-              </label>
-            ))}
-          </div>
+        <div className="field-block">
+          <Segmented hideLabel={false} label={w.budget} name="budget" value={kind} options={(["none", "hours", "money"] as const).map(k => ({ value: k, label: k === "none" ? w.budgetNone : k === "hours" ? w.budgetHours : w.budgetMoney }))} onChange={setKind} />
           {kind !== "none" && (
             <>
               <label className="label" htmlFor="p-budget">{kind === "hours" ? w.budgetHoursLabel : format(w.budgetMoneyLabel, { currency })}</label>
               <input id="p-budget" className="field num short" inputMode="decimal" value={budget} onChange={e => setBudget(e.target.value)} autoComplete="off" />
             </>
           )}
-        </fieldset>
+        </div>
         {!initial.id && (
           <fieldset className="field-block wide">
             <legend className="label">{w.tasks}</legend>
@@ -188,12 +189,8 @@ export function ProjectForm({ initial, clients, people, currency, comma, default
             </div>
           </fieldset>
         )}
-        <fieldset className="field-block wide">
-          <legend className="label">{w.who}</legend>
-          <div className="segmented">
-            <label className="seg"><input type="radio" name="who" checked={everyone} onChange={() => setEveryone(true)} /><span>{w.whoEveryone}</span></label>
-            <label className="seg"><input type="radio" name="who" checked={!everyone} onChange={() => setEveryone(false)} /><span>{w.whoChosen}</span></label>
-          </div>
+        <div className="field-block wide">
+          <Segmented hideLabel={false} label={w.who} name="who" value={everyone ? "everyone" : "chosen"} options={[{ value: "everyone", label: w.whoEveryone }, { value: "chosen", label: w.whoChosen }]} onChange={v => setEveryone(v === "everyone")} />
           {!everyone && (
             <ul className="people-checks">
               {people.map(p => (
@@ -207,7 +204,7 @@ export function ProjectForm({ initial, clients, people, currency, comma, default
             </ul>
           )}
           <p className="hint">{w.whoHint}</p>
-        </fieldset>
+        </div>
       </div>
       {error && <p className="error" role="alert">{error}</p>}
       <div className="form-actions">
@@ -226,7 +223,7 @@ export function TasksEditor({ projectId, tasks, t }: { projectId: string; tasks:
   const router = useRouter();
   const [draft, setDraft] = useState("");
   const [pending, start] = useTransition();
-  const fail = (code: keyof Catalogue["errors"], values?: Record<string, string | number>) => toast(format(t.errors[code], values));
+  const fail = (code: keyof Catalogue["errors"], values?: Record<string, string | number>) => void toast({ text: format(t.errors[code], values), tone: "error" });
   function add() {
     const name = draft.trim();
     if (!name) return;

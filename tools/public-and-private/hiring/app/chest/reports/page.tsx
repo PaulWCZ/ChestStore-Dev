@@ -1,3 +1,4 @@
+import { PageHeader } from "@argentic/chest-ui/components";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { can } from "../../../lib/access.ts";
@@ -30,7 +31,7 @@ export default async function Reports({ searchParams }: { searchParams: Promise<
   const max = (list: { count?: number; reached?: number }[]) => Math.max(1, ...list.map(x => x.count ?? x.reached ?? 0));
   return (
     <div className="reports">
-      <div className="page-head"><h1>{current ? format(w.titleJob, { job: current.title }) : w.title}</h1></div>
+      <PageHeader title={current ? format(w.titleJob, { job: current.title }) : w.title} />
       <nav className="report-jobs" aria-label={w.pick}>
         <Link href="/chest/reports" aria-current={!current ? "page" : undefined}>{w.all}</Link>
         {jobs.map(j => <Link key={j.id} href={`/chest/reports?job=${j.id}`} aria-current={current?.id === j.id ? "page" : undefined}>{j.title}</Link>)}

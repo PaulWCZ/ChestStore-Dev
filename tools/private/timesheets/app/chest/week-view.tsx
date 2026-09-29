@@ -1,10 +1,10 @@
 "use client";
 
+import { EmptyState, StatusBadge, useToast } from "@argentic/chest-ui/components";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition, type KeyboardEvent } from "react";
 import { Back, Check, Close, Copy, Lock, Next, Note, Plus, Send } from "../../components/icons.tsx";
-import { useToast } from "../../components/toast.tsx";
 import { WorkPicker, type PickerProject } from "../../components/work-picker.tsx";
 import { readWork } from "../../lib/work.ts";
 import { formatDuration, parseDuration } from "../../lib/duration.ts";
@@ -42,7 +42,7 @@ export function WeekView(props: {
 
   const totals = days.map((_, i) => rows.reduce((n, r) => n + r.cells[i]!.minutes, 0));
   const total = totals.reduce((a, b) => a + b, 0);
-  const fail = (code: keyof Catalogue["errors"], values?: Record<string, string | number>) => toast(format(t.errors[code], values));
+  const fail = (code: keyof Catalogue["errors"], values?: Record<string, string | number>) => void toast({ text: format(t.errors[code], values), tone: "error" });
 
   function put(ri: number, ci: number, cell: GridRow["cells"][number]) {
     setRows(list => list.map((r, i) => (i === ri ? { ...r, cells: r.cells.map((c, j) => (j === ci ? cell : c)) } : r)));
@@ -51,7 +51,7 @@ export function WeekView(props: {
   function commit(ri: number, ci: number, text: string): boolean {
     const minutes = parseDuration(text);
     if (minutes === null) {
-      toast(format(t.week.badDuration, { value: text.trim() }));
+      toast({ id: "cell", text: format(t.week.badDuration, { value: text.trim() }), tone: "error" });
       return false;
     }
     const row = rows[ri];
@@ -82,13 +82,13 @@ export function WeekView(props: {
         put(ri, ci, before);
         return fail(r.error, r.values);
       }
-      toast(t.week.noteSaved);
+      toast({ id: "note", text: t.week.noteSaved });
       router.refresh();
     });
   }
 
   function openNote(ri: number, ci: number) {
-    if (!rows[ri]?.cells[ci]?.entryId) return toast(t.week.noteFirst);
+    if (!rows[ri]?.cells[ci]?.entryId) return void toast({ id: "note", text: t.week.noteFirst });
     setNoting({ ri, ci });
   }
 
@@ -102,7 +102,16 @@ export function WeekView(props: {
         return fail(r.error, r.values);
       }
       const ids = r.value;
-      toast(t.week.rowRemoved, { label: t.timer.undo, run: () => start(async () => { const u = await restoreEntries(ids, input); if (!u.ok) fail(u.error, u.values); router.refresh(); }) });
+      toast({
+        id: `row-${row.projectId}-${row.taskId ?? ""}`,
+        text: t.week.rowRemoved,
+        undo: async () => {
+          const u = await restoreEntries(ids, input);
+          if (!u.ok) return format(t.errors[u.error], u.values);
+          router.refresh();
+          return true;
+        },
+      });
     });
   }
 
@@ -110,7 +119,7 @@ export function WeekView(props: {
     start(async () => {
       const r = await copyLastWeek(monday);
       if (!r.ok) return fail(r.error, r.values);
-      toast(r.value > 0 ? plural(t.week.copied, r.value, props.locale) : t.week.nothingToCopy);
+      toast({ id: "copy", text: r.value > 0 ? plural(t.week.copied, r.value, props.locale) : t.week.nothingToCopy });
     });
   }
 
@@ -118,7 +127,17 @@ export function WeekView(props: {
     start(async () => {
       const r = await submitWeek(monday);
       if (!r.ok) return fail(r.error, r.values);
-      toast(t.week.sent, { label: t.week.takeBack, run: () => takeBack() });
+      // Undo takes the week back (the managers' bell item goes with it).
+      toast({
+        id: "week",
+        text: t.week.sent,
+        undo: async () => {
+          const u = await withdrawWeek(monday);
+          if (!u.ok) return format(t.errors[u.error], u.values);
+          router.refresh();
+          return true;
+        },
+      });
       router.refresh();
     });
   }
@@ -127,7 +146,7 @@ export function WeekView(props: {
     start(async () => {
       const r = await withdrawWeek(monday);
       if (!r.ok) return fail(r.error, r.values);
-      toast(t.week.takenBack);
+      toast({ id: "week", text: t.week.takenBack });
       router.refresh();
     });
   }
@@ -206,7 +225,7 @@ export function WeekView(props: {
                         <span className={`swatch c-${r.color}`} aria-hidden="true" />
                         <span className="row-name">
                           <span className="p">{r.projectName}{r.taskName && <span className="k"> · {r.taskName}</span>}</span>
-                          <span className="c">{r.clientName ?? t.work.noClient}{!r.writable && <span className="tag" title={t.week.closedHint}>{t.week.closed}</span>}</span>
+                          <span className="c">{r.clientName ?? t.work.noClient}{!r.writable && <span title={t.week.closedHint}><StatusBadge tone="neutral" size="s" label={t.week.closed} /></span>}</span>
                         </span>
                       </th>
                       {r.cells.map((c, ci) => {
@@ -262,10 +281,7 @@ export function WeekView(props: {
             </table>
           </div>
         ) : (
-          <div className="empty grid-empty">
-            <h2>{t.week.empty.title}</h2>
-            <p>{noProjects ? t.week.empty.noProjects : t.week.empty.body}</p>
-          </div>
+          <EmptyState title={t.week.empty.title} body={noProjects ? t.week.empty.noProjects : t.week.empty.body} />
         )}
         {!closed && !noProjects && (
           <div className="grid-actions">

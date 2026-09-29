@@ -1,7 +1,8 @@
+import { StatusBadge } from "@argentic/chest-ui/components";
 import * as chest from "@argentic/chest-sdk/chest";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Back, Download, External, Link as LinkIcon, Mail, Phone } from "../../../../components/icons.tsx";
+import { Back, Download, External, Link as LinkIcon, Mail, Phone, Star } from "../../../../components/icons.tsx";
 import { candidate as readCandidate, type Activity, type CandidateDetail } from "../../../../lib/candidates.ts";
 import { db } from "../../../../lib/db.ts";
 import { AppError } from "../../../../lib/errors.ts";
@@ -92,8 +93,8 @@ export default async function CandidatePage({ params }: { params: Promise<{ id: 
       <header className="cand-head">
         <div className="cand-title">
           <h1>{c.name}</h1>
-          <span className={`chip ${c.status === "rejected" ? "rejected" : stage?.hired ? "hired" : "stage"}`}>{status}</span>
-          {c.poolAt && <span className="chip asked">{tc.inPool}</span>}
+          <StatusBadge tone={c.status === "rejected" ? "danger" : stage?.hired ? "ok" : "info"} label={status} />
+          {c.poolAt && <StatusBadge tone="neutral" icon={<Star />} label={tc.inPool} />}
         </div>
         <p className="muted">
           {c.source === "careers" ? format(tc.applied, { date: day(c.createdAt, locale) }) : c.source === "import" ? format(tc.importedFrom, { origin: c.origin || tc.anotherTool, date: day(c.createdAt, locale) }) : format(tc.addedBy, { name: name(c.addedBy), date: day(c.createdAt, locale) })}
@@ -113,7 +114,7 @@ export default async function CandidatePage({ params }: { params: Promise<{ id: 
             write={{ templates: [...builtIn, ...own.map(x => ({ id: x.id, name: x.name, language: x.language, subject: x.subject, body: x.body }))], values, languageNames }}
             interview={{ people: eligible.map(m => ({ id: m.id, name: m.name })), preselected: [member.id], today, zone: zone.split("/").at(-1)?.replace(/_/gu, " ") ?? zone, zoneId: zone }}
             jobs={otherJobs.map(j => ({ id: String(j.id), title: j.title }))}
-            t={{ candidate: tc, reject: t.reject, errors: t.errors, common: t.common, apply: t.apply, board: t.board, hire: t.hire, write: t.write, interview: t.interview }}
+            t={{ candidate: tc, reject: t.reject, errors: t.errors, common: t.common, apply: t.apply, board: t.board, hire: t.hire, write: t.write, interview: t.interview, dialog: t.dialog, date: t.dates }}
           />
         )}
       </header>

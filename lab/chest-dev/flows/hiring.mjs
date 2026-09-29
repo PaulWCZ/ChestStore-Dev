@@ -91,8 +91,8 @@ await step("drag a candidate to the next stage with the mouse, and back with Und
   await page.mouse.move(a.x + 40, a.y + 20, { steps: 5 });
   await page.mouse.move(b.x + 40, b.y + 30, { steps: 15 });
   await page.mouse.up();
-  await page.waitForSelector(".toast");
-  expect((await page.locator(".toast").innerText()).includes("Nina Rousseau moved to Screening"), "toast");
+  await page.waitForSelector(".ck-toast");
+  expect((await page.locator(".ck-toast").innerText()).includes("Nina Rousseau moved to Screening"), "toast");
   await page.waitForTimeout(800);
   await page.reload();
   expect((await page.locator(".lane").nth(1).innerText()).includes("Nina Rousseau"), "in Screening");
@@ -108,7 +108,7 @@ await step("move a candidate with the keyboard: one toast, no second announcemen
   await page.waitForTimeout(200);
   await page.keyboard.press("Space");
   await page.waitForTimeout(1500);
-  expect(await page.locator(".toast").count() === 1, "one toast: " + await page.locator(".toast").count());
+  expect(await page.locator(".ck-toast").count() === 1, "one toast: " + await page.locator(".ck-toast").count());
   expect(!(await page.locator("[id^=DndLiveRegion]").innerText()).includes("dropped"), "the drop is said once, by the toast");
   await page.reload();
   expect((await page.locator(".lane").nth(2).innerText()).includes("Mathis Laurent"), "in Interview");
@@ -120,20 +120,20 @@ await step("ask Inès for feedback; she sees it waiting, gives hers, then sees t
   const url = page.url();
   await page.locator(".cand-actions .menu summary").click();
   await page.getByRole("button", { name: "Ask for feedback" }).click();
-  await page.locator(".dialog .check", { hasText: "Inès Moreau" }).click();
+  await page.locator("dialog[open] .check", { hasText: "Inès Moreau" }).click();
   await page.locator("dialog[open]").getByRole("button", { name: "Ask", exact: true }).click();
-  await page.waitForSelector(".toast");
+  await page.waitForSelector(".ck-toast");
   await as(context, origin, "ines");
   await context.addCookies([{ name: "dev_locale", value: "fr", url: origin }]);
   await page.goto(origin + "/chest");
   expect((await page.locator(".waiting").innerText()).includes("Nina Rousseau"), "waiting for Inès (French)");
-  expect((await page.locator(".team-nav").innerText()).includes("Offres"), "French nav");
+  expect((await page.locator(".ck-nav").innerText()).includes("Offres"), "French nav");
   await page.goto(url);
   await page.locator(".scale-step", { hasText: "Excellent" }).click();
   await page.getByLabel("Points forts").fill("Un portfolio solide.");
   await page.locator(".pill", { hasText: "Oui, clairement" }).click();
   await page.getByRole("button", { name: "Envoyer mon avis" }).click();
-  await page.waitForSelector(".toast");
+  await page.waitForSelector(".ck-toast");
   await page.reload();
   expect((await page.locator(".feedback-list").innerText()).includes("Un portfolio solide."), "her feedback shown");
 });
@@ -149,29 +149,32 @@ await step("an interviewer cannot move, sees only her jobs, has no settings", as
   expect(!jobs.includes("Sales associate — Lyon showroom"), "only her jobs: " + jobs.join("|"));
 });
 
-await step("reject: no reason chosen for you; Undo keeps the email from ever leaving; without Undo it leaves after 15 s", async () => {
+await step("reject: no reason chosen for you; Undo keeps the email from ever leaving; without Undo it leaves after 15 s and the toast says it was sent", async () => {
   await as(context, origin, "camille");
   await english();
   await page.goto(origin + "/chest/candidates/4");
   await page.getByRole("button", { name: "Reject" }).click();
-  expect(await page.locator(".dialog .pill.on").count() === 0, "no reason pre-selected");
+  expect(await page.locator("dialog[open] .pill.on").count() === 0, "no reason pre-selected");
   expect(await page.locator("dialog[open]").getByRole("button", { name: "Reject", exact: true }).isDisabled(), "Reject waits for a reason");
-  await page.locator(".dialog .pill", { hasText: "Not enough experience" }).click();
+  await page.locator("dialog[open] .pill", { hasText: "Not enough experience" }).click();
   expect((await page.locator("#reject-text").inputValue()).startsWith("Hello Jonas Weber,"), "draft in English");
   await page.locator("dialog[open]").getByRole("button", { name: "Reject", exact: true }).click();
-  await page.waitForSelector(".toast");
-  expect((await page.locator(".toast").innerText()).includes("Undo keeps it"), "toast says it waits");
+  await page.waitForSelector(".ck-toast");
+  expect((await page.locator(".ck-toast").innerText()).includes("Undo keeps it"), "toast says it waits");
   expect(!(await dev()).includes("Your application — Senior furniture designer"), "nothing left yet");
-  await page.locator(".toast button").click();
+  await page.locator(".ck-toast-undo").click();
   await page.waitForTimeout(16000);
   await page.reload();
-  expect((await page.locator(".cand-title .chip").first().innerText()).includes("Screening"), "back in Screening");
+  expect((await page.locator(".cand-title .ck-badge").first().innerText()).includes("Screening"), "back in Screening");
   expect(!(await dev()).includes("Your application — Senior furniture designer"), "the undone rejection never left");
   await page.getByRole("button", { name: "Reject" }).click();
-  await page.locator(".dialog .pill", { hasText: "Not enough experience" }).click();
+  await page.locator("dialog[open] .pill", { hasText: "Not enough experience" }).click();
   await page.locator("dialog[open]").getByRole("button", { name: "Reject", exact: true }).click();
-  await page.waitForSelector(".toast");
-  await page.waitForTimeout(16000);
+  await page.waitForSelector(".ck-toast");
+  await page.waitForTimeout(17500);
+  // Once the email left, the same toast says so, and offers no Undo.
+  expect((await page.locator(".ck-toast").innerText()).includes("Rejection email sent to Jonas Weber"), "the toast says the email left: " + await page.locator(".ck-toast").innerText());
+  expect(await page.locator(".ck-toast-undo").count() === 0, "no Undo once sent");
   await page.reload();
   expect((await dev()).includes("Your application — Senior furniture designer"), "rejection in the outbox once Undo is over");
   await page.getByRole("button", { name: "Bring back" }).click();
@@ -181,11 +184,11 @@ await step("reject: no reason chosen for you; Undo keeps the email from ever lea
 await step("a candidate who withdrew is closed, not rejected by email", async () => {
   await page.goto(origin + "/chest/candidates/9");
   await page.getByRole("button", { name: "Reject" }).click();
-  await page.locator(".dialog .pill", { hasText: "They withdrew" }).click();
+  await page.locator("dialog[open] .pill", { hasText: "They withdrew" }).click();
   expect(await page.locator("#reject-text").count() === 0, "no email for a withdrawal");
   await page.locator("dialog[open]").getByRole("button", { name: "Close their application" }).click();
-  await page.waitForSelector(".toast");
-  expect((await page.locator(".toast").innerText()).includes("application closed"), "closed");
+  await page.waitForSelector(".ck-toast");
+  expect((await page.locator(".ck-toast").innerText()).includes("application closed"), "closed");
 });
 
 await step("hire someone with a first day: People is told; Undo takes the hire back", async () => {
@@ -193,7 +196,7 @@ await step("hire someone with a first day: People is told; Undo takes the hire b
   await page.getByRole("button", { name: "Move to Hired" }).click();
   await page.getByLabel(/First day/u).fill("2026-11-02");
   await page.getByRole("button", { name: "Confirm the hire" }).click();
-  await page.waitForSelector(".toast");
+  await page.waitForSelector(".ck-toast");
   let log = await dev();
   expect(log.includes("hiring.hired") && log.includes("Clara Fontaine"), "hired published");
   await page.reload();
@@ -202,7 +205,7 @@ await step("hire someone with a first day: People is told; Undo takes the hire b
   await page.locator(".cand-actions .menu summary").click();
   await page.getByRole("button", { name: "Move to…" }).click();
   await page.locator("dialog[open]").getByRole("button", { name: "Offer", exact: true }).click();
-  await page.waitForSelector(".toast");
+  await page.waitForSelector(".ck-toast");
   await page.waitForTimeout(800);
   log = await dev();
   expect(log.includes("hiring.hire_cancelled"), "cancel published");
@@ -229,8 +232,8 @@ await step("write to a candidate from a template; her answer lands on her page",
   await page.locator("#write-template").selectOption({ label: "Ask when they are free" });
   expect((await page.locator("#write-text").inputValue()).startsWith("Hello Emma,"), "template filled");
   await page.locator("dialog[open]").getByRole("button", { name: "Send" }).click();
-  await page.waitForSelector(".toast");
-  expect((await page.locator(".toast").innerText()).includes("Sent to Emma Lefort"), "sent");
+  await page.waitForSelector(".ck-toast");
+  expect((await page.locator(".ck-toast").innerText()).includes("Sent to Emma Lefort"), "sent");
   const log = await dev();
   expect(log.includes("jobs+tc7-"), "reply address is the candidate's thread");
   const id = /<option value="(msg_[a-z2-7]+)">Reply to “Your application — Senior furniture designer” \(emma\.lefort@example\.com\)/u.exec(log)?.[1];
@@ -246,8 +249,10 @@ await step("invite to an interview: busy times shown, .ics emailed, interviewers
   await page.goto(origin + "/chest/candidates/7");
   await page.getByRole("button", { name: "Interview", exact: true }).click();
   const day = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Paris" }).format(new Date(Date.now() + 2 * 86400000));
-  await page.locator("#iv-day").selectOption(day);
-  await page.locator(".dialog .check", { hasText: "Hugo Bernard" }).click();
+  // The kit's DateField: the day typed in the member's language (ISO is read too).
+  await page.locator("#iv-day").fill(day);
+  await page.locator("#iv-day").press("Tab");
+  await page.locator("dialog[open] .check", { hasText: "Hugo Bernard" }).click();
   await page.waitForTimeout(800);
   expect((await page.locator("dialog[open]").innerText()).includes("Hugo Bernard: 16:00–17:00"), "Hugo's other interview is shown");
   await page.locator("#iv-time").selectOption("16:00");
@@ -255,7 +260,7 @@ await step("invite to an interview: busy times shown, .ics emailed, interviewers
   await page.locator("#iv-time").selectOption("10:00");
   await page.locator("#iv-place").fill("Atelier Martin, Lyon");
   await page.locator("dialog[open]").getByRole("button", { name: "Send the invitation" }).click();
-  await page.waitForSelector(".toast");
+  await page.waitForSelector(".ck-toast");
   const log = await dev();
   expect(log.includes("Interview on ") && log.includes("Senior furniture designer"), "invitation in the outbox");
   expect(log.includes("Interview: Emma Lefort"), "in the calendars");
@@ -280,8 +285,8 @@ await step("select two candidates on the board and move them together, with Undo
   await page.locator(".cand.pick", { hasText: "Hélène Vasseur" }).click();
   expect((await page.locator(".bulk-count").innerText()).includes("2 selected"), "2 selected");
   await page.locator("#bulk-move").selectOption({ label: "Offer" });
-  await page.waitForSelector(".toast");
-  expect((await page.locator(".toast").innerText()).includes("2 candidates moved to Offer"), "moved");
+  await page.waitForSelector(".ck-toast");
+  expect((await page.locator(".ck-toast").innerText()).includes("2 candidates moved to Offer"), "moved");
   await page.waitForTimeout(800);
   await page.reload();
   expect((await page.locator(".lane").nth(3).innerText()).includes("Manon Girard"), "in Offer");
@@ -333,7 +338,7 @@ await step("write a job, publish it: it is on the careers page", async () => {
   await page.getByRole("button", { name: "Save the draft" }).click();
   await page.waitForURL(/\/chest\/jobs\/\d+$/u);
   await page.getByRole("button", { name: "Publish" }).click();
-  await page.waitForSelector(".toast");
+  await page.waitForSelector(".ck-toast");
   await page.waitForTimeout(800);
   const careers = await (await page.request.get(origin + "/")).text();
   expect(careers.includes("Wood finisher"), "published");

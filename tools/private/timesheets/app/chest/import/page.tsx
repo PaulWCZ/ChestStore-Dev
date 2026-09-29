@@ -1,3 +1,4 @@
+import { PageHeader } from "@argentic/chest-ui/components";
 import { forbidden } from "next/navigation";
 import { can } from "../../../lib/access.ts";
 import { viewer } from "../../../lib/session.ts";
@@ -10,10 +11,9 @@ export default async function ImportPage() {
   const { member, locale, t } = v;
   if (!can(member, "import")) forbidden();
   return (
-    <main className="page">
-      <h1>{t.importer.title}</h1>
-      <p className="lead">{t.importer.intro}</p>
-      <Importer locale={locale} t={{ importer: t.importer, errors: t.errors }} />
-    </main>
+    <div className="page">
+      <PageHeader title={t.importer.title} intro={t.importer.intro} />
+      <Importer locale={locale} t={{ importer: t.importer, errors: t.errors, files: t.files }} />
+    </div>
   );
 }

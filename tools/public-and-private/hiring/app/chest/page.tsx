@@ -1,5 +1,7 @@
+import { EmptyState, PageHeader, StatusBadge } from "@argentic/chest-ui/components";
+import { headers } from "next/headers";
 import Link from "next/link";
-import { Arrow, Calendar, Inbox, Plus, Star } from "../../components/icons.tsx";
+import { Arrow, Calendar, External, Inbox, Plus, Star } from "../../components/icons.tsx";
 import { can } from "../../lib/access.ts";
 import { waitingOn } from "../../lib/candidates.ts";
 import { db } from "../../lib/db.ts";
@@ -11,6 +13,7 @@ import { stageLabel } from "../../lib/stages.ts";
 import { meetingTime } from "../../lib/i18n/format.ts";
 import * as chest from "@argentic/chest-sdk/chest";
 import { nameOf, people } from "../../lib/people.ts";
+import { publicOrigin } from "../../lib/public-origin.ts";
 import { viewer } from "../../lib/session.ts";
 
 // The jobs: what waits for my feedback first, then the open jobs with their
@@ -25,6 +28,7 @@ export default async function Jobs() {
   const zone = chest.timeZone();
   const who = await people(waiting.map(w => w.requestedBy));
   const recruiter = can(member, "jobs.manage");
+  const careers = (publicOrigin(await headers()) ?? "") + "/";
   const groups: [string, JobRow[]][] = [
     [t.home.open, list.filter(j => j.state === "open")],
     [t.home.drafts, list.filter(j => j.state === "draft")],
@@ -32,10 +36,11 @@ export default async function Jobs() {
   ];
   return (
     <>
-      <div className="page-head">
-        <h1>{t.home.title}</h1>
-        {recruiter && <Link className="button" href="/chest/jobs/new"><Plus />{t.shell.newJob}</Link>}
-      </div>
+      <PageHeader
+        title={t.home.title}
+        secondary={<a className="button quiet" href={careers} target="_blank" rel="noopener">{t.shell.careers}<External /></a>}
+        action={recruiter ? <Link className="button" href="/chest/jobs/new"><Plus />{t.shell.newJob}</Link> : null}
+      />
 
       {waiting.length > 0 && (
         <section className="waiting" aria-labelledby="waiting">
@@ -76,18 +81,9 @@ export default async function Jobs() {
       )}
 
       {list.length === 0 ? (
-        recruiter ? (
-          <div className="empty">
-            <h2>{t.home.emptyTitle}</h2>
-            <p>{t.home.emptyBody}</p>
-            <Link className="button" href="/chest/jobs/new"><Plus />{t.home.emptyAction}</Link>
-          </div>
-        ) : (
-          <div className="empty">
-            <h2>{t.home.emptyInterviewerTitle}</h2>
-            <p>{t.home.emptyInterviewerBody}</p>
-          </div>
-        )
+        recruiter
+          ? <EmptyState title={t.home.emptyTitle} body={t.home.emptyBody} action={<Link className="button" href="/chest/jobs/new"><Plus />{t.home.emptyAction}</Link>} />
+          : <EmptyState title={t.home.emptyInterviewerTitle} body={t.home.emptyInterviewerBody} />
       ) : (
         groups.filter(([, jobs]) => jobs.length > 0).map(([title, jobs]) => (
           <section key={title} className="job-group" aria-label={title}>
@@ -98,7 +94,7 @@ export default async function Jobs() {
                   <Link className={`job-card state-${j.state}`} href={`/chest/jobs/${j.id}`}>
                     <span className="job-card-top">
                       <span className="job-card-title">{j.title}</span>
-                      {j.unseen > 0 && <span className="chip new">{plural(t.home.unseen, j.unseen, locale)}</span>}
+                      {j.unseen > 0 && <StatusBadge category={3} size="s" label={plural(t.home.unseen, j.unseen, locale)} />}
                     </span>
                     <span className="job-card-facts">{[j.team, j.place, t.facts.contract[j.contract]].filter(Boolean).join(" · ")}</span>
                     <span className="pipeline" aria-label={t.home.pipeline}>
@@ -111,7 +107,7 @@ export default async function Jobs() {
                     </span>
                     <span className="job-card-foot">
                       <span>{plural(t.home.candidates, j.active, locale)}</span>
-                      {j.waiting > 0 && <span className="chip asked">{plural(t.home.waitingCount, j.waiting, locale)}</span>}
+                      {j.waiting > 0 && <StatusBadge tone="info" size="s" label={plural(t.home.waitingCount, j.waiting, locale)} />}
                     </span>
                   </Link>
                 </li>

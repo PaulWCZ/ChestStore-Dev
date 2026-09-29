@@ -1,3 +1,4 @@
+import { PageHeader, SearchBox } from "@argentic/chest-ui/components";
 import { FoundList } from "../../../components/found-list.tsx";
 import { search } from "../../../lib/candidates.ts";
 import { db } from "../../../lib/db.ts";
@@ -15,12 +16,10 @@ export default async function Search({ searchParams }: { searchParams: Promise<{
   const found = query.trim().length >= 2 ? await search(db(), member, query) : [];
   return (
     <div className="narrow">
-      <div className="page-head"><h1>{t.search.title}</h1></div>
-      <form className="search-form" role="search" action="/chest/search">
-        <label className="visually-hidden" htmlFor="q">{t.search.label}</label>
-        <input id="q" name="q" type="search" className="field" defaultValue={query} placeholder={t.search.placeholder} maxLength={100} autoFocus />
-        <button type="submit" className="button">{t.search.go}</button>
-      </form>
+      <PageHeader title={t.search.title} />
+      <div className="search-form">
+        <SearchBox action="/chest/search" value={query} id="q" shortcut={false} labels={{ label: t.search.label, placeholder: t.search.placeholder, shortcut: t.search.shortcut, submit: t.search.go }} />
+      </div>
       {query.trim().length < 2 ? <p className="muted">{t.search.hint}</p>
         : found.length === 0 ? <p className="muted" role="status">{format(t.search.none, { q: query })}</p>
           : (

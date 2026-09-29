@@ -21,13 +21,11 @@ import {
 } from "@dnd-kit/core";
 import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import { Avatar, Dialog, Menu, useToast } from "@argentic/chest-ui/components";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState, useTransition, type KeyboardEvent } from "react";
-import { Avatar } from "../../../../components/avatar.tsx";
-import { Dialog } from "../../../../components/dialog.tsx";
-import { Archive, Arrow, Back, Calendar, Chat, Check, CheckList, Clip, Columns, Dots, Gear, ListIcon, Lock, Plus, RepeatIcon, Text } from "../../../../components/icons.tsx";
-import { useToast } from "../../../../components/toast.tsx";
+import { useEffect, useId, useMemo, useRef, useState, useTransition, type KeyboardEvent } from "react";
+import { Archive, Arrow, Back, Calendar, Chat, Check, CheckList, Clip, Columns, Gear, ListIcon, Lock, Plus, RepeatIcon, Text } from "../../../../components/icons.tsx";
 import type { BoardAccess } from "../../../../lib/access.ts";
 import type { Column, Field, Label } from "../../../../lib/boards.ts";
 import type { CardSummary } from "../../../../lib/cards.ts";
@@ -38,7 +36,7 @@ import { CalendarView } from "./calendar-view.tsx";
 import { ListView } from "./list-view.tsx";
 import type { CalendarMonth } from "./page.tsx";
 
-type Words = { board: Catalogue["board"]; card: Catalogue["card"]; errors: Catalogue["errors"]; colors: Catalogue["colors"] };
+type Words = { board: Catalogue["board"]; card: Catalogue["card"]; errors: Catalogue["errors"]; colors: Catalogue["colors"]; dialog: Catalogue["dialog"] };
 export type People = Record<string, { name: string; photo: string | null }>;
 type Props = {
   board: { id: string; name: string; color: string; access: BoardAccess; archived: boolean; privacy: string | null };
@@ -83,7 +81,7 @@ export function BoardView({ board, columns, labels, fields, cards, people, audie
     if (!dragging) setLanes(lanesOf(columns, cards));
   }, [columns, cards, dragging]);
 
-  const fail = (error: keyof Catalogue["errors"], values?: Record<string, string | number>) => toast(format(t.errors[error], values));
+  const fail = (error: keyof Catalogue["errors"], values?: Record<string, string | number>) => void toast({ text: format(t.errors[error], values), tone: "error" });
   const matches = (c: CardSummary) => (filter.who === "" || (filter.who === "me" ? c.assignees.includes(me) : c.assignees.includes(filter.who))) && (filter.label === "" || c.labels.includes(filter.label));
   const filtered = filter.who !== "" || filter.label !== "";
   // The address keeps the view and the filters (a link shows the same).
@@ -304,24 +302,22 @@ function Lane({ boardId, column, ids, byId, labels, people, matches, today, loca
   const [renaming, setRenaming] = useState(false);
   const [, start] = useTransition();
   const toast = useToast();
-  const menu = useRef<HTMLDetailsElement>(null);
   const [archiving, setArchiving] = useState(false);
   const shown = ids.filter(id => byId.has(id) && matches(byId.get(id)!));
   // Archiving a column that holds cards asks where they go; an empty one
   // goes at once. Either way: "Undo".
   const archive = (to: string | null) => {
-    if (menu.current) menu.current.open = false;
     setArchiving(false);
     start(async () => {
       const r = await archiveColumn(column.id, true, to);
       if (!r.ok) return onError(r.error, r.values);
       const where = others.find(c => c.id === to)?.name ?? "";
       const text = r.value.moved > 0 ? plural(t.board.columnArchivedMoved, r.value.moved, locale, { column: where }) : r.value.cards > 0 ? plural(t.board.columnArchivedWith, r.value.cards, locale) : t.board.columnArchived;
-      toast(text, { label: t.card.undo, run: () => start(async () => { await archiveColumn(column.id, false); }) });
+      // One toast per column; its Undo says whether it worked.
+      toast({ id: `archive-column-${column.id}`, text, undo: async () => { const back = await archiveColumn(column.id, false); return back.ok || format(t.errors[back.error], back.values); } });
     });
   };
   const run = (step: () => Promise<{ ok: boolean; error?: keyof Catalogue["errors"] }>) => {
-    if (menu.current) menu.current.open = false;
     start(async () => {
       const r = await step();
       if (!r.ok && r.error) onError(r.error);
@@ -340,17 +336,15 @@ function Lane({ boardId, column, ids, byId, labels, people, matches, today, loca
         )}
         <span className="count" aria-label={plural(t.board.cards, shown.length, locale)}>{shown.length}</span>
         {writable && (
-          <details className="menu" ref={menu}>
-            <summary className="icon-button" title={t.board.columnMenu}><Dots /><span className="visually-hidden">{t.board.columnMenu}</span></summary>
-            <div className="menu-pop">
-              <button type="button" onClick={() => { if (menu.current) menu.current.open = false; setRenaming(true); }}><Text />{t.board.rename}</button>
-              <button type="button" onClick={() => run(() => updateColumn(column.id, { done: !column.done }))}><Check />{column.done ? t.board.markOpen : t.board.markDone}</button>
-              {!first && <button type="button" onClick={() => run(() => moveColumn(column.id, neighbours.beforeBefore, neighbours.before))}><Back />{t.board.moveLeft}</button>}
-              {!last && <button type="button" onClick={() => run(() => moveColumn(column.id, neighbours.after, neighbours.afterAfter))}><Arrow />{t.board.moveRight}</button>}
-              <hr />
-              <button type="button" onClick={() => { if (menu.current) menu.current.open = false; if (ids.length === 0) archive(null); else setArchiving(true); }}><Archive />{t.board.archiveColumn}</button>
-            </div>
-          </details>
+          // The kit's menu button: arrows, Home/End, a letter, Escape gives
+          // the focus back.
+          <Menu label={t.board.columnMenu} items={[
+            { label: t.board.rename, icon: <Text />, onSelect: () => setRenaming(true) },
+            { label: column.done ? t.board.markOpen : t.board.markDone, icon: <Check />, onSelect: () => run(() => updateColumn(column.id, { done: !column.done })) },
+            ...(first ? [] : [{ label: t.board.moveLeft, icon: <Back />, onSelect: () => run(() => moveColumn(column.id, neighbours.beforeBefore, neighbours.before)) }]),
+            ...(last ? [] : [{ label: t.board.moveRight, icon: <Arrow />, onSelect: () => run(() => moveColumn(column.id, neighbours.after, neighbours.afterAfter)) }]),
+            { label: t.board.archiveColumn, icon: <Archive />, onSelect: () => { if (ids.length === 0) archive(null); else setArchiving(true); } },
+          ]} />
         )}
       </div>
       {archiving && <ArchiveColumn column={column} count={ids.length} others={others} locale={locale} onArchive={archive} onClose={() => setArchiving(false)} t={t} />}
@@ -397,7 +391,7 @@ function CardTile({ card, labels, people, today, locale, overlay = false, t }: {
       <span className="card-title">{card.title}</span>
       {(due || card.repeats || card.checklist.total > 0 || card.comments > 0 || card.attachments > 0 || card.hasDescription || card.assignees.length > 0) && (
         <span className="meta">
-          {due && <span className={`chip ${card.done ? "done" : state}`}><Calendar />{state === "due-today" ? t.card.today : new Intl.DateTimeFormat(intl(locale), { day: "numeric", month: "short", timeZone: "UTC" }).format(new Date(due + "T00:00:00Z"))}{card.dueTime && " · " + card.dueTime}</span>}
+          {due && <span className={`chip ${card.done ? "done" : state}`}><Calendar />{state === "due-late" && <span className="visually-hidden">{t.card.late} · </span>}{state === "due-today" ? t.card.today : new Intl.DateTimeFormat(intl(locale), { day: "numeric", month: "short", timeZone: "UTC" }).format(new Date(due + "T00:00:00Z"))}{card.dueTime && " · " + card.dueTime}</span>}
           {card.repeats && !card.done && <span className="stat" title={t.card.repeatBadge}><RepeatIcon /><span className="visually-hidden">{t.card.repeatBadge}</span></span>}
           {card.hasDescription && <span className="stat" title={t.card.description}><Text /></span>}
           {card.checklist.total > 0 && <span className={`stat${card.checklist.done === card.checklist.total ? " chip done" : ""}`} title={t.card.checklist}><CheckList />{card.checklist.done}/{card.checklist.total}</span>}
@@ -405,7 +399,7 @@ function CardTile({ card, labels, people, today, locale, overlay = false, t }: {
           {card.attachments > 0 && <span className="stat" title={t.card.files}><Clip />{card.attachments}</span>}
           {card.assignees.length > 0 && (
             <span className="avatars push">
-              {card.assignees.slice(0, 3).map(a => <Avatar key={a} name={people[a]?.name ?? "?"} photo={people[a]?.photo ?? null} size={24} title={people[a]?.name} />)}
+              {card.assignees.slice(0, 3).map(a => <Avatar key={a} name={people[a]?.name ?? "?"} photo={people[a]?.photo ?? null} size="s" label={people[a]?.name ?? "?"} />)}
             </span>
           )}
         </span>
@@ -478,11 +472,16 @@ function ArchiveColumn({ column, count, others, locale, onArchive, onClose, t }:
   const firstOpen = others.find(c => !c.done) ?? others[0];
   const [choice, setChoice] = useState<"move" | "keep">(firstOpen ? "move" : "keep");
   const [to, setTo] = useState(firstOpen?.id ?? "");
+  const formId = useId();
   return (
-    <Dialog open title={format(t.board.archiveTitle, { column: column.name })} closeLabel={t.card.cancel} onClose={onClose}>
-      <form className="stack" onSubmit={e => { e.preventDefault(); onArchive(choice === "move" && to ? to : null); }}>
+    <Dialog open title={format(t.board.archiveTitle, { column: column.name })} onClose={onClose} labels={t.dialog}
+      footer={<>
+        <button type="button" className="button quiet" onClick={onClose}>{t.card.cancel}</button>
+        <button type="submit" form={formId} className="button"><Archive />{t.board.archiveColumn}</button>
+      </>}>
+      <form id={formId} className="stack" onSubmit={e => { e.preventDefault(); onArchive(choice === "move" && to ? to : null); }}>
         <p>{plural(t.board.archiveHolds, count, locale)}</p>
-        <fieldset className="stack" style={{ border: 0, padding: 0, margin: 0 }}>
+        <fieldset className="stack plain">
           <legend className="visually-hidden">{t.board.archiveWhere}</legend>
           {others.length > 0 && (
             <label className="choice-line">
@@ -503,10 +502,6 @@ function ArchiveColumn({ column, count, others, locale, onArchive, onClose, t }:
             <span>{t.board.archiveKeep}</span>
           </label>
         </fieldset>
-        <div className="dialog-foot">
-          <button type="button" className="button quiet" onClick={onClose}>{t.card.cancel}</button>
-          <button type="submit" className="button"><Archive />{t.board.archiveColumn}</button>
-        </div>
       </form>
     </Dialog>
   );

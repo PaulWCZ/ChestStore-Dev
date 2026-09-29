@@ -1,3 +1,4 @@
+import { EmptyState } from "@argentic/chest-ui/components";
 import Link from "next/link";
 import { AutoRefresh } from "../../components/auto-refresh.tsx";
 import { Grid } from "../../components/icons.tsx";
@@ -70,11 +71,12 @@ export default async function Home() {
       done: null,
     })),
   ].sort((a, b) => (a.due ?? "9999").localeCompare(b.due ?? "9999"));
+  const newBoardWords = { create: t.create, templates: t.templates, errors: t.errors, dialog: t.dialog, peoplePicker: t.peoplePicker };
   const order: DueState[] = ["late", "today", "soon", "later", "none"];
   const mine = boards.filter(b => b.mine > 0 || b.createdBy === member.id).slice(0, 7);
   const shownBoards = mine.length > 0 ? mine : boards.slice(0, 7);
   return (
-    <main className="narrow">
+    <div className="narrow">
       <AutoRefresh seconds={30} />
       <div className="hello">
         <div>
@@ -84,37 +86,25 @@ export default async function Home() {
       </div>
       {boards.length === 0 ? (
         creates ? (
-          <div className="empty">
-            <Grid />
-            <h2>{t.home.firstTime.title}</h2>
-            <p>{t.home.firstTime.body}</p>
-            <NewBoardButton t={{ create: t.create, templates: t.templates, errors: t.errors }} label={t.home.firstTime.action} sharing={sharing} locale={locale} primary />
-          </div>
+          <EmptyState icon={<Grid />} title={t.home.firstTime.title} body={t.home.firstTime.body}
+            action={<NewBoardButton t={newBoardWords} label={t.home.firstTime.action} sharing={sharing} locale={locale} primary />} />
         ) : (
-          <div className="empty">
-            <Grid />
-            <h2>{t.home.nothingShared.title}</h2>
-            <p>{await askWho(t, locale)}</p>
-          </div>
+          <EmptyState icon={<Grid />} title={t.home.nothingShared.title} body={await askWho(t, locale)} />
         )
       ) : (
         <>
           {rows.length === 0 ? (
-            <div className="empty">
-              <h2>{t.home.empty.title}</h2>
-              <p>{t.home.empty.body}</p>
-              <Link className="button quiet" href="/chest/boards">{t.home.empty.action}</Link>
-            </div>
+            <EmptyState title={t.home.empty.title} body={t.home.empty.body} action={<Link className="button quiet" href="/chest/boards">{t.home.empty.action}</Link>} />
           ) : (
-            <TaskGroups rows={rows} order={order} t={{ groups: t.home.groups, markDone: t.home.markDone, doneToast: t.home.doneToast, doneRepeatToast: t.home.doneRepeatToast, stepDone: t.home.stepDone, stepOf: t.home.stepOf, repeats: t.card.repeatBadge, undo: t.card.undo, errors: t.errors, late: t.card.late, today: t.card.today, progress: t.card.progress }} />
+            <TaskGroups rows={rows} order={order} t={{ groups: t.home.groups, markDone: t.home.markDone, doneToast: t.home.doneToast, doneRepeatToast: t.home.doneRepeatToast, stepDone: t.home.stepDone, stepOf: t.home.stepOf, repeats: t.card.repeatBadge, errors: t.errors, late: t.card.late, today: t.card.today, progress: t.card.progress }} />
           )}
-          <section aria-labelledby="your-boards" style={{ marginTop: "var(--space-6)" }}>
+          <section aria-labelledby="your-boards" className="your-boards">
             <div className="section-title">
               <h2 id="your-boards">{t.home.boards}</h2>
               <Link className="link-button" href="/chest/boards">{t.home.allBoards}</Link>
             </div>
             <BoardTiles boards={shownBoards} locale={locale} t={{ open: t.boards.open, mine: t.boards.mine, late: t.boards.late, private: t.boards.private }}>
-              {creates && <NewBoardButton t={{ create: t.create, templates: t.templates, errors: t.errors }} label={t.boards.new} sharing={sharing} locale={locale} tile />}
+              {creates && <NewBoardButton t={newBoardWords} label={t.boards.new} sharing={sharing} locale={locale} tile />}
             </BoardTiles>
           </section>
           <div className="switches">
@@ -123,7 +113,7 @@ export default async function Home() {
           </div>
         </>
       )}
-    </main>
+    </div>
   );
 }
 

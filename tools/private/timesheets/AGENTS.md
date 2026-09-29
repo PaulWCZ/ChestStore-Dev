@@ -27,7 +27,11 @@ first; this page is the map and the rules.
 | `lib/lifecycle.ts`, `app/chest-events/` | Leave, erasure |
 | `app/chest/actions.ts` | Server actions: thin, `act(actor => service(...))` |
 | `app/chest/**` | Pages (server) and views (`"use client"`) |
-| `lib/i18n/en.ts`, `fr.ts` | Every word; `format.ts` for dates, numbers, money |
+| `lib/i18n/en.ts`, `fr.ts` | Every word (with the UI kit's sections: `toast`, `dialog`, `date`, `files`, `table`); `format.ts` for dates, numbers, money |
+| `lib/theme.ts` | The identity (the kit's catalogue theme *Instrument*, `identityOf("timesheets")`) and `currentLook()` (the Chest's choice, else the identity) |
+| `app/layout.tsx` | `<ThemeStyle>` with the page's nonce; `@argentic/chest-ui/components.css`, then `app/tokens.css` (the tool's own tokens, from contract tokens) and `app/globals.css` |
+| `components/shell.tsx`, `app/chest/layout.tsx` | The kit's `AppShell` (tabs, member chip, `BrandMark`, `NoAccess`), the timer, `Toasts` |
+| `components/work-picker.tsx` | The project picker: the tool's own combobox (the kit has no picker of records), with the kit's keys (`listKey`) and search (`matches`) |
 
 ## Commands
 
@@ -36,7 +40,32 @@ npm ci && npm test && npm run build   # all three must pass
 TEST_DATABASE_URL=postgres://postgres:postgres@127.0.0.1:5432/postgres npm test
 ```
 
+## The UI kit (`@argentic/chest-ui`, in `vendor/`)
+
+Used: `AppShell`/`Nav` (via `components/shell.tsx`), `BrandMark`, `NoAccess`,
+`PageHeader`, `Toasts`/`useToast`, `Dialog` (the forgotten timer),
+`Confirm` (forgetting a former member's name), `DateField` (lock date, rate
+dates, a report's days), `Segmented`, `FilePicker` (import), `DataTable`
+(the team's weeks, the report's breakdown), `StatusBadge`, `Avatar`,
+`EmptyState`, `LanguageSwitch`, `useAutoRefresh`; `listKey`/`matches` from
+`/components/logic`. Kept on purpose: the week grid (an editable
+spreadsheet of cells, not a list of records), the day strip (totals under
+each day), the period chips of the reports (one required choice, not an
+optional filter), the project picker (above).
+
 ## Rules
+
+- **Looks**: the CSS names only contract tokens (`ui/tokens/CONTRACT.md`) and
+  the tool's tokens of `app/tokens.css`, which are defined from them — never
+  a colour (`test/theme.test.ts` checks it, and that every `var()` is
+  defined). Text only on measured pairs; `color-mix()` for decoration only.
+- **Kit first**: a toast, dialog, confirm, date field, file picker, table,
+  badge, avatar, empty state is the kit's. `window.confirm` and
+  `<input type="date">` never. Reversible → toast with `undo`; the bell
+  already rang → `sent: true`; irreversible → `Confirm`.
+- **Words**: `node scripts/lint-words.mjs tools/private/timesheets` stays at
+  0 (the store's glossary: Undo is « Annuler l’action », a narrow no-break
+  space before `: ; ? !` and inside « »).
 
 - **Identity only from `member()`** (`lib/session.ts`); store `mbr_…` ids
   (or `erased`), never names.

@@ -1,134 +1,59 @@
-/* Timesheets' design tokens, defined once (DESIGN.md explains them): a
-   precise instrument. A deep ink-green panel on top (the header and the
-   timer), cool paper below, one luminous signal — electric lime — for the
-   running clock and the one button that starts it. Numbers are set in a
-   monospace with tabular figures. Light first; dark follows the system.
-   Contrast ratios are checked in DESIGN.md (scripts/contrast.mjs). */
+/* Timesheets' own tokens. The contract's (colours, fonts, sizes, spacing,
+   corners, motion: @argentic/chest-ui, tokens/CONTRACT.md) are set by the
+   look of the page — the tool's identity "Instrument" (lib/theme.ts), or
+   the theme the company chose — in a <style> of app/layout.tsx. Here only
+   what is this tool's alone, always defined from contract tokens, never
+   from a colour, so it follows every theme (DESIGN.md explains them). */
 :root {
-  color-scheme: light dark;
-  --font-body: "Manrope Variable", system-ui, -apple-system, "Segoe UI", sans-serif;
-  --font-display: var(--font-body);
-  --font-mono: "Martian Mono Variable", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  /* The instrument panel (the header and the timer): the inverse pair of
+     the page — ink as its ground, the page's ground as its text. Dark in a
+     light look, light in a dark look (the contract's rule for a region in
+     the other mode). */
+  --panel: var(--ink);
+  --panel-ink: var(--bg);
+  /* Secondary text on the panel: a measured pair too (ink is read on it). */
+  --panel-ink-2: var(--surface-2);
+  /* Decoration only: the hairline between the header and the timer. */
+  --panel-line: color-mix(in oklch, var(--bg) 22%, var(--ink));
+  /* A field's edge on the panel: must be seen (about 3:1 on the panel). */
+  --panel-field-line: color-mix(in oklch, var(--bg) 50%, var(--ink));
+  /* The one luminous signal: the running clock, Start, the current tab, the
+     mark's hand. The marker pen of the theme; ink reads on it (4.5:1), and it
+     reads on the panel (the same pair). */
+  --signal: var(--highlight);
+  --signal-ink: var(--ink);
+  --signal-glow: color-mix(in oklch, var(--highlight) 40%, transparent);
 
-  /* Paper */
-  --bg: #eef1ec;
-  --surface: #ffffff;
-  --surface-2: #e3e9e3;
-  --ink: #0d1f19;
-  --ink-2: #4a5d55;
-  --line: #cfd8d1;
-  --line-strong: #7a8e84;
-  --accent: #0f5b43;
-  --accent-ink: #ffffff;
-  --accent-soft: #dcebe2;
-  --today: #f1f9df;
-  --chosen: #e6efe9;
-  --danger: #b42318;
-  --warn: #8a5a00;
-  --warn-soft: #fbefd5;
-  --danger-soft: #fbe3e0;
-  --focus: #0f5b43;
+  /* The mark: a dial of the panel's colours, the signal's hand. */
+  --mark-dial: var(--panel);
+  --mark-ring: var(--panel-ink);
+  --mark-tick: var(--panel-ink-2);
 
-  /* The instrument panel (header and timer), dark in both modes */
-  --panel: #0c231b;
-  --panel-2: #14342a;
-  --panel-3: #1d4537;
-  --panel-ink: #e9f3ed;
-  --panel-ink-2: #a9c2b6;
-  --panel-line: #2a5646;
-  --signal: #c6ff3a;
-  --signal-ink: #0c231b;
-  --signal-glow: rgb(198 255 58 / 0.35);
+  /* The week grid: today's column (text on it: a mix of two grounds ink is
+     measured on), the row under the pointer. */
+  --today: color-mix(in oklch, var(--highlight) 45%, var(--surface));
+  --chosen: var(--surface-2);
 
-  --mark-dial: #0c231b;
-  --mark-ring: #e9f3ed;
-  --mark-tick: #a9c2b6;
+  /* Charts: billable time, the rest (3:1 on the card in every theme). */
+  --billable: var(--accent-line);
+  --other: var(--cat-8);
 
-  /* Project colours (swatches, bars) */
-  --c-teal: #0d8a79;
-  --c-sky: #2477c4;
-  --c-indigo: #4a52c9;
-  --c-violet: #8646c2;
-  --c-rose: #c7356f;
-  --c-coral: #d9542c;
-  --c-amber: #b87b00;
-  --c-olive: #5f7f12;
-
-  /* Charts */
-  --billable: #0f5b43;
-  --other: #a9bcb2;
-
-  --space-1: 4px;
-  --space-2: 8px;
-  --space-3: 12px;
-  --space-4: 16px;
-  --space-5: 24px;
-  --space-6: 32px;
-  --space-7: 48px;
-
-  --radius-s: 4px;
-  --radius-m: 8px;
-  --radius-l: 12px;
-  --shadow-1: 0 1px 0 rgb(13 31 25 / 0.06);
-  --shadow-2: 0 12px 32px rgb(13 31 25 / 0.18);
-
-  --text-xs: 0.75rem;
-  --text-s: 0.875rem;
-  --text-m: 1rem;
-  --text-l: 1.25rem;
-  --text-xl: 1.75rem;
-  --text-xxl: 2.25rem;
-
-  --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
-  --fast: 120ms;
-  --slow: 240ms;
+  /* Weights of the identity (500 body, 650 labels, 750 names), following
+     the theme's emphasis: 600 → these, 400 (the Chest theme, which forbids
+     synthetic bold) → 400 everywhere. */
+  --w-body: clamp(400, calc(var(--weight-strong) * 0.5 + 200), 900);
+  --w-semi: clamp(400, calc(var(--weight-strong) * 1.25 - 100), 900);
+  --w-bold: clamp(400, calc(var(--weight-strong) * 1.75 - 300), 900);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #08130f;
-    --surface: #0e1c17;
-    --surface-2: #142820;
-    --ink: #e3eee8;
-    --ink-2: #9db3a8;
-    --line: #213a30;
-    --line-strong: #4e6d5f;
-    --accent: #8fe3bd;
-    --accent-ink: #06201a;
-    --accent-soft: #163a2d;
-    --today: #16280f;
-    --chosen: #12261e;
-    --danger: #ff8f84;
-    --warn: #f3c46b;
-    --warn-soft: #2f2410;
-    --danger-soft: #3a1714;
-    --focus: #c6ff3a;
-
-    --panel: #050d0a;
-    --panel-2: #0d1f18;
-    --panel-3: #163126;
-    --panel-line: #1f4032;
-
-    --c-teal: #3cc3ae;
-    --c-sky: #62a9ec;
-    --c-indigo: #8c93f0;
-    --c-violet: #b88ae8;
-    --c-rose: #ee7aa8;
-    --c-coral: #f58c69;
-    --c-amber: #e7b33e;
-    --c-olive: #a3c451;
-
-    --billable: #8fe3bd;
-    --other: #3d5e50;
-
-    --shadow-1: none;
-    --shadow-2: 0 12px 32px rgb(0 0 0 / 0.55);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  :root {
-    --fast: 0ms;
-    --slow: 0ms;
-  }
-}
+/* Project colours: a project keeps its colour's name ("teal"); each name is
+   a slot of the theme's categorical palette (the same family in every
+   theme; the project's name always goes with it). */
+.c-sky { --c: var(--cat-1); }
+.c-olive { --c: var(--cat-2); }
+.c-coral { --c: var(--cat-3); }
+.c-violet { --c: var(--cat-4); }
+.c-rose { --c: var(--cat-5); }
+.c-teal { --c: var(--cat-6); }
+.c-amber { --c: var(--cat-7); }
+.c-indigo { --c: var(--cat-8); }

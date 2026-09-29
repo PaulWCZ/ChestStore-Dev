@@ -46,7 +46,7 @@ export default async function WeekPage({ searchParams }: { searchParams: Promise
     span: e.startedAt && e.endedAt ? format(t.day.span, { start: clock(e.startedAt, z, locale), end: clock(e.endedAt, z, locale) }) : null,
   }));
   return (
-    <main className="page wide">
+    <div className="page wide">
       <WeekView
         key={monday}
         monday={monday}
@@ -64,6 +64,6 @@ export default async function WeekPage({ searchParams }: { searchParams: Promise
         lock={s.lockedUntil ? { text: format(t.week.lockedUntil, { date: formatDay(s.lockedUntil, locale, { day: "numeric", month: "long", year: "numeric" }), name: s.lockedBy ? nameFor(s.lockedBy, who, locale) : t.people.unknown }), short: format(t.week.lockedShort, { date: formatDay(s.lockedUntil, locale, { day: "numeric", month: "short" }) }) } : null}
         t={{ week: t.week, day: t.day, work: t.work, errors: t.errors, timer: t.timer }}
       />
-    </main>
+    </div>
   );
 }

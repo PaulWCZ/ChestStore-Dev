@@ -1,87 +1,27 @@
-/* Tasks — "bright workshop": paper, ink outlines, sun yellow, hard shadows.
-   Every colour and size of the tool is here (DESIGN.md explains them);
-   ratios checked with scripts/contrast.mjs. */
+/* The tool's own tokens. The contract's (colours, fonts, sizes, spacing,
+   corners, motion: @argentic/chest-ui, tokens/CONTRACT.md) are set by the
+   look of the page — the tool's identity "Workshop" in lib/theme.ts, or the
+   theme the company chose — in a <style> of app/layout.tsx. Here only what
+   is this tool's alone, always defined from contract tokens, never from a
+   colour, so it follows every theme. */
 :root {
-  color-scheme: light dark;
-  --font-display: "Space Grotesk Variable", "Inter Variable", system-ui, sans-serif;
-  --font-body: "Inter Variable", system-ui, -apple-system, "Segoe UI", sans-serif;
-
-  --bg: #fff8e7;
-  --surface: #ffffff;
-  --surface-2: #fdf0cf;
-  --ink: #151515;
-  --ink-2: #5b574e;
-  --line: #151515;
-  --line-soft: #e6dcc4;
-  --accent: #ffd84d;
-  --accent-ink: #151515;
-  --link: #1f4bff;
-  --danger: #c2290f;
-  --ok: #1d7a3a;
-  --focus: #1f4bff;
-  --shadow: 3px 3px 0 var(--line);
-  --shadow-lift: 5px 5px 0 var(--line);
-  --overlay: rgb(21 21 21 / 0.45);
-
-  /* Board and label colours: ink text on each (≥ 5.8:1). */
-  --sun: #ffd84d;
-  --tomato: #ff7a59;
-  --berry: #f266a8;
-  --grape: #9b7bff;
-  --sky: #5bb4ff;
-  --sea: #2fc6b5;
-  --leaf: #7bd05b;
-  --sand: #e9c79a;
-  --slate: #9aa5b1;
-
-  --space-1: 4px;
-  --space-2: 8px;
-  --space-3: 12px;
-  --space-4: 16px;
-  --space-5: 24px;
-  --space-6: 32px;
-  --space-7: 48px;
-
-  --radius-s: 6px;
-  --radius-m: 10px;
-  --radius-l: 14px;
-  --border: 2px;
-
-  --text-xs: 0.75rem;
-  --text-s: 0.875rem;
-  --text-m: 1rem;
-  --text-l: 1.25rem;
-  --text-xl: 1.75rem;
-  --text-xxl: 2.25rem;
-
-  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
-  --fast: 120ms;
-  --slow: 220ms;
+  /* A board column's width. */
   --column: 288px;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #161512;
-    --surface: #201f1b;
-    --surface-2: #2b2923;
-    --ink: #f4efe3;
-    --ink-2: #b9b2a3;
-    --line: #f4efe3;
-    --line-soft: #3a372f;
-    --link: #8fa8ff;
-    --danger: #ff8c73;
-    --ok: #7bd98f;
-    --focus: #8fa8ff;
-    --shadow: 3px 3px 0 #000;
-    --shadow-lift: 5px 5px 0 #000;
-    --overlay: rgb(0 0 0 / 0.6);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  :root {
-    --fast: 0ms;
-    --slow: 0ms;
-  }
-}
+/* The colours of boards and labels, by the name stored with them
+   (lib/model.ts). Each is a slot of the theme's categorical palette,
+   measured with the theme: --c is a fill with --c-ink text on it (a tile,
+   a label chip, a board's header), --c-solid a dot or a bar seen on the
+   page (3:1). The slots are the same families in every theme (1 blue,
+   2 green, 3 orange, 4 violet, 5 pink, 6 teal, 7 ochre, 8 slate): a "sky"
+   board stays bluish in any look. Nine names for eight slots: sand shares
+   slot 8 with slate (the pickers offer eight). */
+.c-sky { --c: var(--cat-1-soft); --c-ink: var(--cat-1-ink); --c-solid: var(--cat-1); }
+.c-leaf { --c: var(--cat-2-soft); --c-ink: var(--cat-2-ink); --c-solid: var(--cat-2); }
+.c-tomato { --c: var(--cat-3-soft); --c-ink: var(--cat-3-ink); --c-solid: var(--cat-3); }
+.c-grape { --c: var(--cat-4-soft); --c-ink: var(--cat-4-ink); --c-solid: var(--cat-4); }
+.c-berry { --c: var(--cat-5-soft); --c-ink: var(--cat-5-ink); --c-solid: var(--cat-5); }
+.c-sea { --c: var(--cat-6-soft); --c-ink: var(--cat-6-ink); --c-solid: var(--cat-6); }
+.c-sun { --c: var(--cat-7-soft); --c-ink: var(--cat-7-ink); --c-solid: var(--cat-7); }
+.c-slate, .c-sand { --c: var(--cat-8-soft); --c-ink: var(--cat-8-ink); --c-solid: var(--cat-8); }

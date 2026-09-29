@@ -1,3 +1,4 @@
+import type { DateWords, DialogWords, FileWords, TableWords, ToastWords } from "@argentic/chest-ui/components/logic";
 import { en } from "./en.ts";
 import { fr } from "./fr.ts";
 
@@ -8,9 +9,16 @@ export const locales = ["en", "fr"] as const;
 export type Locale = (typeof locales)[number];
 export const defaultLocale: Locale = "en";
 
-// A catalogue has the shape of the English one, every leaf a string.
+// Each language named in itself, never translated (the public part's
+// language switch).
+export const languageNames: Record<Locale, string> = { en: "English", fr: "Français" };
+
+// A catalogue has the shape of the English one, every leaf a string — but
+// the UI kit's sections, which have the kit's types (a date's order, the
+// names of the months…).
 type Shape<T> = { readonly [K in keyof T]: T[K] extends string ? string : Shape<T[K]> };
-export type Catalogue = Shape<typeof en>;
+type KitSections = { readonly toast: ToastWords; readonly dialog: DialogWords; readonly date: DateWords; readonly files: FileWords; readonly table: TableWords };
+export type Catalogue = Shape<Omit<typeof en, keyof KitSections>> & KitSections;
 
 const catalogues: Record<Locale, Catalogue> = { en, fr };
 

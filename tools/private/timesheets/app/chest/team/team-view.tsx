@@ -1,11 +1,10 @@
 "use client";
 
+import { Avatar, DataTable, StatusBadge, useToast, type Column, type Tone } from "@argentic/chest-ui/components";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import { Avatar } from "../../../components/avatar.tsx";
 import { Bell, Check } from "../../../components/icons.tsx";
-import { useToast } from "../../../components/toast.tsx";
 import type { Catalogue } from "../../../lib/i18n/index.ts";
 import { format, plural } from "../../../lib/i18n/format.ts";
 import { approveWeek, remind, returnWeek } from "../actions.ts";
@@ -33,12 +32,12 @@ export function Decision({ memberId, week, name, t, approved = false }: { member
   const [pending, start] = useTransition();
   const [back, setBack] = useState(false);
   const [reason, setReason] = useState("");
-  const fail = (code: keyof Catalogue["errors"], values?: Record<string, string | number>) => toast(format(t.errors[code], values));
+  const fail = (code: keyof Catalogue["errors"], values?: Record<string, string | number>) => void toast({ text: format(t.errors[code], values), tone: "error" });
   function approve() {
     start(async () => {
       const r = await approveWeek(memberId, week);
       if (!r.ok) return fail(r.error, r.values);
-      toast(format(t.team.approved, { name }));
+      toast({ id: `week-${memberId}-${week}`, text: format(t.team.approved, { name }) });
       router.refresh();
     });
   }
@@ -46,7 +45,7 @@ export function Decision({ memberId, week, name, t, approved = false }: { member
     start(async () => {
       const r = await returnWeek(memberId, week, reason);
       if (!r.ok) return fail(r.error, r.values);
-      toast(format(t.team.returned, { name }));
+      toast({ id: `week-${memberId}-${week}`, text: format(t.team.returned, { name }) });
       setBack(false);
       router.refresh();
     });
@@ -80,7 +79,7 @@ export function ApproveAll({ weeks, label, locale, t }: { weeks: { memberId: str
         const r = await approveWeek(w.memberId, w.week);
         if (r.ok) done++;
       }
-      toast(plural(t.team.approvedMany, done, locale));
+      toast({ id: "approve-all", text: plural(t.team.approvedMany, done, locale) });
       router.refresh();
     })}><Check />{label}</button>
   );
@@ -92,8 +91,44 @@ export function RemindButton({ memberIds, week, label, locale, t }: { memberIds:
   return (
     <button type="button" className="button" disabled={pending} onClick={() => start(async () => {
       const r = await remind(memberIds, week);
-      if (!r.ok) return toast(format(t.errors[r.error], r.values));
-      toast(plural(t.team.reminded, r.value, locale));
+      if (!r.ok) return void toast({ text: format(t.errors[r.error], r.values), tone: "error" });
+      // The bell items left: no Undo.
+      toast({ id: "remind", text: plural(t.team.reminded, r.value, locale), sent: true });
     })}><Bell />{label}</button>
   );
+}
+
+// Everyone's hours in the last four weeks (the kit's DataTable: a header
+// that stays, sorting by a click, the person's name read before each cell).
+// Each week links to the person's week; its state has a word and a shape.
+export type WeekState = "approved" | "sent" | "returned" | "short" | "";
+export type TeamRow = {
+  memberId: string; name: string; photo: string | null; capacity: number; capacityText: string;
+  weeks: { week: string; minutes: number; text: string; state: WeekState; label: string }[];
+};
+const tones: Record<Exclude<WeekState, "">, Tone> = { approved: "ok", sent: "info", returned: "wait", short: "danger" };
+
+export function TeamTable({ rows, heads, t, labels }: { rows: TeamRow[]; heads: string[]; t: Words; labels: Catalogue["table"] }) {
+  const columns: Column<TeamRow>[] = [
+    { key: "person", label: t.team.person, rowHeader: true, value: r => r.name, render: r => <span className="who-cell"><Avatar name={r.name} photo={r.photo} size="s" /><span>{r.name}</span></span> },
+    ...heads.map((label, i): Column<TeamRow> => ({
+      key: "w" + i,
+      label,
+      align: "end",
+      hideOnPhone: i < 2,
+      value: r => r.weeks[i]?.minutes ?? 0,
+      render: r => {
+        const c = r.weeks[i];
+        if (!c) return null;
+        return (
+          <Link href={`/chest/team/${r.memberId}?week=${c.week}`} className={`week-cell${c.state ? " " + c.state : ""}`} aria-label={c.label}>
+            <span className="num">{c.text}</span>
+            {c.state && <StatusBadge tone={tones[c.state]} size="s" label={t.team.states[c.state]} />}
+          </Link>
+        );
+      },
+    })),
+    { key: "usual", label: t.team.usual, align: "end", hideOnPhone: true, value: r => r.capacity, render: r => <span className="num muted">{r.capacityText}</span> },
+  ];
+  return <DataTable caption={t.team.weeks} columns={columns} rows={rows} rowKey={r => r.memberId} labels={labels} />;
 }

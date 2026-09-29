@@ -1,8 +1,8 @@
 "use client";
 
+import { useToast } from "@argentic/chest-ui/components";
 import { useState, useTransition } from "react";
 import { Bin, Download } from "../../../components/icons.tsx";
-import { useToast } from "../../../components/toast.tsx";
 import { format } from "../../../lib/i18n/format.ts";
 import type { Catalogue } from "../../../lib/i18n/index.ts";
 import { fileMessage, removeMessage } from "../actions.ts";
@@ -36,7 +36,7 @@ function Item({ m, candidates, t }: { m: Row; candidates: { id: string; label: s
         e.preventDefault();
         start(async () => {
           const r = await fileMessage(m.id, chosen);
-          if (!r.ok) return toast(format(t.errors[r.error], r.values ?? {}));
+          if (!r.ok) return void toast({ text: format(t.errors[r.error], r.values ?? {}), tone: "error" });
           toast(w.filed);
         });
       }}>
@@ -49,7 +49,7 @@ function Item({ m, candidates, t }: { m: Row; candidates: { id: string; label: s
         <button type="submit" className="button small" disabled={pending || !chosen}>{w.file}</button>
         <button type="button" className="icon-button" disabled={pending} title={w.remove} onClick={() => start(async () => {
           const r = await removeMessage(m.id);
-          if (!r.ok) return toast(format(t.errors[r.error], r.values ?? {}));
+          if (!r.ok) return void toast({ text: format(t.errors[r.error], r.values ?? {}), tone: "error" });
           toast(w.removed);
         })}><Bin /><span className="visually-hidden">{w.remove}</span></button>
       </form>

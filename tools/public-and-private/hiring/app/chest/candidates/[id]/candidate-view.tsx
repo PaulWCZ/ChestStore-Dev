@@ -1,19 +1,23 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { Confirm, DateField, Dialog, StatusBadge, TimeSelect, useToast } from "@argentic/chest-ui/components";
+import { addDays as addIsoDays, type DateWords, type DialogWords } from "@argentic/chest-ui/components/logic";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
-import { Dialog } from "../../../../components/dialog.tsx";
 import { HireDialog } from "../../../../components/hire-dialog.tsx";
 import { Arrow, Ban, Bell, Bin, Calendar, Close, Dots, Download, Mail, Pencil, People, Send, Star, Undo, Upload } from "../../../../components/icons.tsx";
-import { useToast } from "../../../../components/toast.tsx";
 import type { Feedback } from "../../../../lib/candidates.ts";
 import { fileSize, format, intl, languageNames, plural } from "../../../../lib/i18n/format.ts";
 import type { Catalogue } from "../../../../lib/i18n/index.ts";
 import type { Message } from "../../../../lib/messages.ts";
 import { isCandidateReason, languages, limits, recommendations, type Language, type RejectReason } from "../../../../lib/model.ts";
-import { addDays, durations, startTimes } from "../../../../lib/time.ts";
+import { durations, startTimes } from "../../../../lib/time.ts";
+
+// The interview's start: the tool's own steps (07:00 to 20:45), as minutes.
+const toMinutes = (hhmm: string) => Number(hhmm.slice(0, 2)) * 60 + Number(hhmm.slice(3, 5));
+const firstStart = toMinutes(startTimes[0]!), lastStart = toMinutes(startTimes.at(-1)!);
 import { cvAccept, uploadCv } from "../../../../lib/upload.ts";
-import { addNote, askFeedback, busyTimes, cancelAsk, cancelInterview, considerFor, editCandidate, eraseCandidate, giveFeedback, moveCandidate, rejectCandidate, removeNote, restoreCandidate, scheduleInterview, setCv, setPool, writeTo, writtenOutside } from "../../actions.ts";
+import { addNote, askFeedback, busyTimes, cancelAsk, cancelInterview, considerFor, editCandidate, eraseCandidate, giveFeedback, moveCandidate, rejectCandidate, rejectionsLeft, removeNote, restoreCandidate, scheduleInterview, setCv, setPool, undoReject, writeTo, writtenOutside } from "../../actions.ts";
 import { ReasonPicker } from "../../jobs/[id]/board-view.tsx";
 
 type Errors = Catalogue["errors"];
@@ -22,7 +26,7 @@ const failed = (t: Errors, r: Fail) => format(t[r.error], r.values ?? {});
 
 // ---- The recruiter's actions -----------------------------------------------
 
-type ActionWords = { candidate: Catalogue["candidate"]; reject: Catalogue["reject"]; errors: Errors; common: Catalogue["common"]; apply: Catalogue["apply"]; board: Catalogue["board"]; hire: Catalogue["hire"]; write: Catalogue["write"]; interview: Catalogue["interview"] };
+type ActionWords = { candidate: Catalogue["candidate"]; reject: Catalogue["reject"]; errors: Errors; common: Catalogue["common"]; apply: Catalogue["apply"]; board: Catalogue["board"]; hire: Catalogue["hire"]; write: Catalogue["write"]; interview: Catalogue["interview"]; dialog: DialogWords; date: DateWords };
 type Template = { id: string; name: string; language: string; subject: string; body: string };
 
 export function CandidateActions({ jobId, candidate, stages, next, askable, draft, languageName, locale, write, interview, jobs, t }: {
@@ -43,12 +47,17 @@ export function CandidateActions({ jobId, candidate, stages, next, askable, draf
   const toast = useToast();
   const [pending, start] = useTransition();
   const [dialog, setDialog] = useState<"reject" | "ask" | "edit" | "erase" | "write" | "interview" | "move" | "consider" | null>(null);
+  // Something typed in the open dialog: closing it asks first (the kit's
+  // Dialog), a stray tap never loses a half-written email.
+  const [dirty, setDirty] = useState(false);
+  const typed = () => setDirty(true);
   const menu = useRef<HTMLDetailsElement>(null);
   const file = useRef<HTMLInputElement>(null);
   const w = t.candidate;
   const stageName = (id: string) => stages.find(s => s.id === id)?.name ?? "";
   const close = () => { if (menu.current) menu.current.open = false; };
-  const open = (d: NonNullable<typeof dialog>) => { close(); setDialog(d); };
+  const open = (d: NonNullable<typeof dialog>) => { close(); setDirty(false); setDialog(d); };
+  const shut = () => { setDirty(false); setDialog(null); };
 
   const [hiring, setHiring] = useState<string | null>(null);
   const isHired = (id: string) => stages.find(s => s.id === id)?.hired === true;
@@ -61,15 +70,22 @@ export function CandidateActions({ jobId, candidate, stages, next, askable, draf
     const from = candidate.stageId;
     start(async () => {
       const r = await moveCandidate(candidate.id, to, day ?? undefined);
-      if (!r.ok) return toast(failed(t.errors, r));
-      if (undo) toast(format(w.moved, { stage: stageName(to) }), { label: t.common.undo, run: () => start(async () => { await moveCandidate(candidate.id, from); }) });
+      if (!r.ok) return void toast({ text: failed(t.errors, r), tone: "error" });
+      if (undo) toast({
+        id: `move-${candidate.id}`,
+        text: format(w.moved, { stage: stageName(to) }),
+        undo: async () => {
+          const back = await moveCandidate(candidate.id, from);
+          return back.ok || failed(t.errors, back);
+        },
+      });
     });
   }
 
   function restore() {
     start(async () => {
       const r = await restoreCandidate(candidate.id);
-      if (!r.ok) return toast(failed(t.errors, r));
+      if (!r.ok) return void toast({ text: failed(t.errors, r), tone: "error" });
       toast(format(w.restored, { name: candidate.name, stage: stageName(candidate.stageId) }));
     });
   }
@@ -78,9 +94,9 @@ export function CandidateActions({ jobId, candidate, stages, next, askable, draf
     close();
     start(async () => {
       const sent = await uploadCv(f, "/chest/api/cv");
-      if (!sent.ok) return toast(t.errors[sent.error === "cv_off" ? "unavailable" : sent.error]);
+      if (!sent.ok) return void toast({ text: t.errors[sent.error === "cv_off" ? "unavailable" : sent.error], tone: "error" });
       const r = await setCv(candidate.id, sent.ticket, f.name);
-      if (!r.ok) return toast(failed(t.errors, r));
+      if (!r.ok) return void toast({ text: failed(t.errors, r), tone: "error" });
       toast(w.cvSaved);
     });
   }
@@ -89,7 +105,7 @@ export function CandidateActions({ jobId, candidate, stages, next, askable, draf
     close();
     start(async () => {
       const r = await setPool(candidate.id, on);
-      if (!r.ok) return toast(failed(t.errors, r));
+      if (!r.ok) return void toast({ text: failed(t.errors, r), tone: "error" });
       toast(on ? w.poolOn : w.poolOff);
     });
   }
@@ -126,17 +142,17 @@ export function CandidateActions({ jobId, candidate, stages, next, askable, draf
       </details>
       <input ref={file} type="file" accept={cvAccept} className="visually-hidden" tabIndex={-1} aria-hidden="true" onChange={e => { const f = e.currentTarget.files?.[0]; e.currentTarget.value = ""; if (f) void replaceCv(f); }} />
 
-      <HireDialog name={hiring ? candidate.name : null} onCancel={() => setHiring(null)} onConfirm={day => { const to = hiring; setHiring(null); if (to) move(to, true, day); }} t={{ hire: t.hire, common: t.common }} />
-      <Dialog open={dialog === "reject"} title={format(t.reject.title, { name: candidate.name })} closeLabel={t.common.close} onClose={() => setDialog(null)}>
-        <RejectForm candidate={candidate} draft={draft} languageName={languageName} t={t} onDone={() => setDialog(null)} />
+      <HireDialog name={hiring ? candidate.name : null} today={interview.today} onCancel={() => setHiring(null)} onConfirm={day => { const to = hiring; setHiring(null); if (to) move(to, true, day); }} t={{ hire: t.hire, common: t.common, dialog: t.dialog, date: t.date }} />
+      <Dialog open={dialog === "reject"} dirty={dirty} title={format(t.reject.title, { name: candidate.name })} onClose={shut} labels={t.dialog}>
+        <RejectForm candidate={candidate} onTyped={typed} draft={draft} languageName={languageName} t={t} onDone={shut} />
       </Dialog>
-      <Dialog open={dialog === "write"} title={format(t.write.title, { name: candidate.name })} closeLabel={t.common.close} onClose={() => setDialog(null)}>
-        <WriteForm candidate={candidate} write={write} t={t} onDone={() => setDialog(null)} />
+      <Dialog open={dialog === "write"} dirty={dirty} size="l" title={format(t.write.title, { name: candidate.name })} onClose={shut} labels={t.dialog}>
+        <WriteForm candidate={candidate} onTyped={typed} write={write} t={t} onDone={shut} />
       </Dialog>
-      <Dialog open={dialog === "interview"} title={format(t.interview.dialogTitle, { name: candidate.name })} closeLabel={t.common.close} onClose={() => setDialog(null)}>
-        <InterviewForm candidate={candidate} interview={interview} locale={locale} t={t} onDone={() => setDialog(null)} />
+      <Dialog open={dialog === "interview"} dirty={dirty} size="l" title={format(t.interview.dialogTitle, { name: candidate.name })} onClose={shut} labels={t.dialog}>
+        <InterviewForm candidate={candidate} onTyped={typed} interview={interview} t={t} onDone={shut} />
       </Dialog>
-      <Dialog open={dialog === "move"} title={w.moveTo} closeLabel={t.common.close} onClose={() => setDialog(null)}>
+      <Dialog open={dialog === "move"} title={w.moveTo} onClose={shut} labels={t.dialog}>
         <ul className="pick-list stage-picks">
           {stages.map(s => (
             <li key={s.id}>
@@ -145,30 +161,31 @@ export function CandidateActions({ jobId, candidate, stages, next, askable, draf
           ))}
         </ul>
       </Dialog>
-      <Dialog open={dialog === "consider"} title={format(w.considerTitle, { name: candidate.name })} closeLabel={t.common.close} onClose={() => setDialog(null)}>
-        <ConsiderForm candidateId={candidate.id} jobs={jobs} t={t} onDone={() => setDialog(null)} />
+      <Dialog open={dialog === "consider"} title={format(w.considerTitle, { name: candidate.name })} onClose={shut} labels={t.dialog}>
+        <ConsiderForm candidateId={candidate.id} jobs={jobs} t={t} onDone={shut} />
       </Dialog>
-      <Dialog open={dialog === "ask"} title={w.ask} closeLabel={t.common.close} onClose={() => setDialog(null)}>
-        <AskForm candidateId={candidate.id} askable={askable} locale={locale} t={t} onDone={() => setDialog(null)} />
+      <Dialog open={dialog === "ask"} title={w.ask} onClose={shut} labels={t.dialog}>
+        <AskForm candidateId={candidate.id} askable={askable} locale={locale} t={t} onDone={shut} />
       </Dialog>
-      <Dialog open={dialog === "edit"} title={w.edit} closeLabel={t.common.close} onClose={() => setDialog(null)}>
-        <EditForm candidate={candidate} t={t} onDone={() => setDialog(null)} />
+      <Dialog open={dialog === "edit"} dirty={dirty} title={w.edit} onClose={shut} labels={t.dialog}>
+        <EditForm candidate={candidate} onTyped={typed} t={t} onDone={shut} />
       </Dialog>
-      <Dialog open={dialog === "erase"} title={format(w.eraseTitle, { name: candidate.name })} closeLabel={t.common.close} onClose={() => setDialog(null)}>
-        <div className="stack">
-          <p>{w.eraseBody}</p>
-          <div className="form-actions">
-            <button type="button" className="button danger" disabled={pending} onClick={() => start(async () => {
-              const r = await eraseCandidate(candidate.id);
-              if (!r.ok) return toast(failed(t.errors, r));
-              setDialog(null);
-              toast(format(w.erased, { name: candidate.name }));
-              router.replace(`/chest/jobs/${jobId}`);
-            })}><Bin />{w.eraseConfirm}</button>
-            <button type="button" className="button quiet" onClick={() => setDialog(null)}>{t.common.cancel}</button>
-          </div>
-        </div>
-      </Dialog>
+      <Confirm
+        open={dialog === "erase"}
+        title={format(w.eraseTitle, { name: candidate.name })}
+        body={w.eraseBody}
+        confirmLabel={w.eraseConfirm}
+        cancelLabel={t.common.cancel}
+        busy={pending}
+        onCancel={shut}
+        onConfirm={() => start(async () => {
+          const r = await eraseCandidate(candidate.id);
+          if (!r.ok) return void toast({ text: failed(t.errors, r), tone: "error" });
+          shut();
+          toast(format(w.erased, { name: candidate.name }));
+          router.replace(`/chest/jobs/${jobId}`);
+        })}
+      />
     </div>
   );
 }
@@ -176,7 +193,7 @@ export function CandidateActions({ jobId, candidate, stages, next, askable, draf
 // Rejecting: a reason (nothing chosen for the recruiter: the reasons are
 // data the company answers for), a note, and the email in the candidate's
 // language — which waits until the Undo is over, so Undo is true.
-function RejectForm({ candidate, draft, languageName, t, onDone }: { candidate: { id: string; name: string }; draft: string; languageName: string; t: ActionWords; onDone: () => void }) {
+function RejectForm({ candidate, draft, languageName, t, onDone, onTyped }: { candidate: { id: string; name: string }; draft: string; languageName: string; t: ActionWords; onDone: () => void; onTyped: () => void }) {
   const toast = useToast();
   const [pending, start] = useTransition();
   const [reason, setReason] = useState<RejectReason | null>(null);
@@ -194,10 +211,33 @@ function RejectForm({ candidate, draft, languageName, t, onDone }: { candidate: 
         const r = await rejectCandidate(candidate.id, reason, String(data.get("note") ?? ""), { send: send && !theirs, text: String(data.get("text") ?? "") });
         if (!r.ok) return setError(failed(t.errors, r));
         onDone();
-        const message = r.value.delivery === "waiting" ? w.doneWaiting : theirs ? w.doneClosed : w.done;
-        toast(format(message, { name: candidate.name, seconds: r.value.seconds }), { label: t.common.undo, run: () => start(async () => { await restoreCandidate(candidate.id); }) });
+        const waiting = r.value.delivery === "waiting";
+        const message = waiting ? w.doneWaiting : theirs ? w.doneClosed : w.done;
+        const id = `reject-${candidate.id}`;
+        let undone = false;
+        // Undo brings them back and keeps the email from leaving; if it had
+        // left meanwhile (the toast was held open), Undo says so.
+        toast({
+          id,
+          text: format(message, { name: candidate.name, seconds: r.value.seconds }),
+          ...(waiting ? { duration: r.value.seconds * 1000 } : {}),
+          undo: async () => {
+            undone = true;
+            const back = await undoReject([candidate.id], r.value.at);
+            if (!back.ok) return failed(t.errors, back);
+            return back.value.left === 0 || format(w.undoLate, { name: candidate.name });
+          },
+        });
+        // Once Undo is over, the email leaves: the same toast then says it
+        // was sent, with no Undo (the kit's "sent" state).
+        if (waiting) setTimeout(() => {
+          if (undone) return;
+          void rejectionsLeft([candidate.id], r.value.at).then(left => {
+            if (!undone && left.ok && left.value.left > 0) toast({ id, text: format(w.sent, { name: candidate.name }), sent: true });
+          });
+        }, r.value.seconds * 1000 + 500);
       });
-    }}>
+    }} onInput={onTyped}>
       <ReasonPicker reason={reason} onChange={setReason} t={w} />
       <div className="field-block">
         <label className="label" htmlFor="reject-note">{w.note} <span className="optional">{t.apply.optional}</span></label>
@@ -229,7 +269,7 @@ function RejectForm({ candidate, draft, languageName, t, onDone }: { candidate: 
 // subject and the text filled with their name, the job, the company. It
 // leaves from the jobs mailbox; their answer comes back to their page.
 // Without email on this Chest, the recruiter's own mail app opens with it.
-function WriteForm({ candidate, write, t, onDone }: { candidate: { id: string; name: string; email: string; language: Language }; write: { templates: Template[]; values: Record<string, string>; languageNames: Record<string, string> }; t: ActionWords; onDone: () => void }) {
+function WriteForm({ candidate, write, t, onDone, onTyped }: { candidate: { id: string; name: string; email: string; language: Language }; write: { templates: Template[]; values: Record<string, string>; languageNames: Record<string, string> }; t: ActionWords; onDone: () => void; onTyped: () => void }) {
   const toast = useToast();
   const [pending, start] = useTransition();
   const [chosen, setChosen] = useState("");
@@ -261,9 +301,10 @@ function WriteForm({ candidate, write, t, onDone }: { candidate: { id: string; n
           window.location.href = `mailto:${encodeURIComponent(r.value.to)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(text)}`;
           await writtenOutside(r.value.message);
           toast(w.outside);
-        } else toast(r.value.status === "sent" ? format(w.sent, { name: candidate.name }) : w.queued);
+        } else if (r.value.status === "sent") toast({ id: `write-${candidate.id}`, text: format(w.sent, { name: candidate.name }), sent: true });
+        else toast(w.queued);
       });
-    }}>
+    }} onInput={onTyped}>
       <div className="field-block">
         <label className="label" htmlFor="write-template">{w.template}</label>
         <select id="write-template" className="field" value={chosen} onChange={e => pick(e.target.value)}>
@@ -297,11 +338,11 @@ function WriteForm({ candidate, write, t, onDone }: { candidate: { id: string; n
 // long, who meets them — with the times they are already in an interview
 // that day —, where, a word for the candidate. The candidate gets an
 // email with an .ics; the interviewers see it in their Chest calendar.
-function InterviewForm({ candidate, interview, locale, t, onDone }: { candidate: { id: string; name: string }; locale: string; interview: { people: { id: string; name: string }[]; preselected: string[]; today: string; zone: string; zoneId: string }; t: ActionWords; onDone: () => void }) {
+function InterviewForm({ candidate, interview, t, onDone, onTyped }: { candidate: { id: string; name: string }; onTyped: () => void; interview: { people: { id: string; name: string }[]; preselected: string[]; today: string; zone: string; zoneId: string }; t: ActionWords; onDone: () => void }) {
   const toast = useToast();
   const [pending, start] = useTransition();
-  const [day, setDay] = useState("");
-  const [time, setTime] = useState("10:00");
+  const [day, setDay] = useState<string | null>(null);
+  const [time, setTime] = useState(600);
   const [minutes, setMinutes] = useState(60);
   const [people, setPeople] = useState<Set<string>>(new Set(interview.preselected.filter(p => interview.people.some(x => x.id === p))));
   const [busy, setBusy] = useState<{ member: string; start: string; end: string }[]>([]);
@@ -309,15 +350,10 @@ function InterviewForm({ candidate, interview, locale, t, onDone }: { candidate:
   const [error, setError] = useState<string | null>(null);
   const w = t.interview;
   const names = new Map(interview.people.map(p => [p.id, p.name]));
-  // The next 90 days in words ("Thursday 1 October"): a native date field
-  // follows the browser's own locale, not the member's.
-  const days = useMemo(() => {
-    const words = new Intl.DateTimeFormat(intl(locale), { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" });
-    return Array.from({ length: 90 }, (_, i) => {
-      const value = addDays(interview.today, i);
-      return { value, label: words.format(new Date(value + "T12:00:00Z")) };
-    });
-  }, [interview.today, locale]);
+  // The day, typed or picked in the member's language (the kit's
+  // DateField: never the browser's date field), in the next 90 days.
+  const last = addIsoDays(interview.today, 89);
+  const hhmmOf = (minutes: number) => `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
   const chosen = [...people];
   useEffect(() => {
     if (!day || chosen.length === 0) {
@@ -331,8 +367,7 @@ function InterviewForm({ candidate, interview, locale, t, onDone }: { candidate:
   }, [day, chosen.join(",")]);
   // Times as the Chest's zone reads them, from the server's answer.
   const hhmm = (iso: string) => new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit", hourCycle: "h23", timeZone: interview.zoneId }).format(new Date(iso));
-  const [h, m] = time.split(":").map(Number) as [number, number];
-  const startMin = h * 60 + m, endMin = startMin + minutes;
+  const startMin = time, endMin = startMin + minutes;
   const toMin = (iso: string) => { const [a, b] = hhmm(iso).split(":").map(Number) as [number, number]; return a * 60 + b; };
   const clash = busy.filter(b => toMin(b.start) < endMin && toMin(b.end) > startMin);
   return (
@@ -341,25 +376,21 @@ function InterviewForm({ candidate, interview, locale, t, onDone }: { candidate:
       const data = new FormData(e.currentTarget);
       setError(null);
       start(async () => {
-        const r = await scheduleInterview(candidate.id, { day, time, minutes, people: chosen, place: String(data.get("place") ?? ""), note: String(data.get("note") ?? ""), tell });
+        if (!day) return;
+        const r = await scheduleInterview(candidate.id, { day, time: hhmmOf(time), minutes, people: chosen, place: String(data.get("place") ?? ""), note: String(data.get("note") ?? ""), tell });
         if (!r.ok) return setError(failed(t.errors, r));
         onDone();
-        toast(r.value.status === "sent" ? format(w.invited, { name: candidate.name }) : r.value.status === "none" ? w.noMail : w.saved);
+        if (r.value.status === "sent") toast({ id: `interview-${candidate.id}`, text: format(w.invited, { name: candidate.name }), sent: true });
+        else toast(r.value.status === "none" ? w.noMail : w.saved);
       });
-    }}>
+    }} onInput={onTyped}>
       <div className="three">
-        <div className="field-block">
-          <label className="label" htmlFor="iv-day">{w.day}</label>
-          <select id="iv-day" className="field" required value={day} onChange={e => setDay(e.target.value)}>
-            <option value="">…</option>
-            {days.map(d => <option key={d.value} value={d.value}>{d.label}</option>)}
-          </select>
+        <div className="field-block iv-day">
+          <DateField id="iv-day" label={w.day} value={day} onChange={d => { setDay(d); onTyped(); }} today={interview.today} min={interview.today} max={last} required labels={t.date} />
         </div>
         <div className="field-block">
           <label className="label" htmlFor="iv-time">{format(w.time, { zone: interview.zone })}</label>
-          <select id="iv-time" className="field" value={time} onChange={e => setTime(e.target.value)}>
-            {startTimes.map(x => <option key={x} value={x}>{x}</option>)}
-          </select>
+          <TimeSelect id="iv-time" value={time} onChange={setTime} step={15} min={firstStart} max={lastStart + 15} />
         </div>
         <div className="field-block">
           <label className="label" htmlFor="iv-length">{w.length}</label>
@@ -454,12 +485,12 @@ export function Conversation({ messages, candidate, locale, t }: { messages: Sho
   const w = t.write;
   if (messages.length === 0) return <p className="muted">{format(w.none, { name: candidate.name })}</p>;
   const state = (m: ShownMessage) => m.direction === "in" ? null
-    : m.status === "waiting" ? <span className="chip asked">{w.status.waiting}</span>
+    : m.status === "waiting" ? <StatusBadge tone="wait" size="s" label={w.status.waiting} />
     : m.status === "sent" ? null
-    : m.status === "none" ? <span className="chip">{w.status.none}</span>
-    : m.status === "cancelled" ? <span className="chip">{w.status.cancelled}</span>
-    : m.status === "bounced" ? <span className="chip rejected">{w.status.bounced}</span>
-    : <span className="chip rejected">{w.status.failed}</span>;
+    : m.status === "none" ? <StatusBadge size="s" label={w.status.none} />
+    : m.status === "cancelled" ? <StatusBadge size="s" label={w.status.cancelled} />
+    : m.status === "bounced" ? <StatusBadge tone="danger" size="s" label={w.status.bounced} />
+    : <StatusBadge tone="danger" size="s" label={w.status.failed} />;
   return (
     <ol className="mails">
       {messages.map(m => (
@@ -503,7 +534,7 @@ export function Interviews({ list, manage, t }: { list: { id: string; when: stri
           <li key={i.id} className={i.cancelled ? "cancelled" : i.past ? "past" : undefined}>
             <span className="meet-when">{i.when}</span>
             <span className="muted small">{[i.people, i.place].filter(Boolean).join(" · ")}</span>
-            {i.cancelled ? <span className="chip">{w.cancelled}</span> : (
+            {i.cancelled ? <StatusBadge size="s" label={w.cancelled} /> : (
               <span className="meet-actions">
                 {i.ics && <a className="button link small" href={`/chest/interviews/${i.id}/ics`} download>{w.addToCalendar}</a>}
                 {manage && !i.past && <button type="button" className="button link small" onClick={() => setCancelling(i.id)}><Close />{w.cancel}</button>}
@@ -512,23 +543,26 @@ export function Interviews({ list, manage, t }: { list: { id: string; when: stri
           </li>
         ))}
       </ul>
-      <Dialog open={cancelling !== null} title={w.cancelTitle} closeLabel={t.common.close} onClose={() => setCancelling(null)}>
-        <div className="stack">
-          <label className="check"><input type="checkbox" checked={tell} onChange={e => setTell(e.target.checked)} /><span>{w.tellCancel}</span></label>
-          <div className="form-actions">
-            <button type="button" className="button danger" disabled={pending} onClick={() => {
-              const id = cancelling;
-              setCancelling(null);
-              if (id) start(async () => {
-                const r = await cancelInterview(id, tell);
-                if (!r.ok) return toast(failed(t.errors, r));
-                toast(w.cancelledToast);
-              });
-            }}>{w.cancelConfirm}</button>
-            <button type="button" className="button quiet" onClick={() => setCancelling(null)}>{t.common.cancel}</button>
-          </div>
-        </div>
-      </Dialog>
+      <Confirm
+        open={cancelling !== null}
+        title={w.cancelTitle}
+        body={w.cancelBody}
+        confirmLabel={w.cancelConfirm}
+        cancelLabel={t.common.cancel}
+        busy={pending}
+        onCancel={() => setCancelling(null)}
+        onConfirm={() => {
+          const id = cancelling;
+          setCancelling(null);
+          if (id) start(async () => {
+            const r = await cancelInterview(id, tell);
+            if (!r.ok) return void toast({ text: failed(t.errors, r), tone: "error" });
+            toast(r.value.status === "sent" ? { id: `interview-${id}`, text: w.cancelledSent, sent: true } : w.cancelledToast);
+          });
+        }}
+      >
+        <label className="check"><input type="checkbox" checked={tell} onChange={e => setTell(e.target.checked)} /><span>{w.tellCancel}</span></label>
+      </Confirm>
     </>
   );
 }
@@ -544,7 +578,7 @@ function AskForm({ candidateId, askable, locale, t, onDone }: { candidateId: str
       e.preventDefault();
       start(async () => {
         const r = await askFeedback(candidateId, [...chosen]);
-        if (!r.ok) return toast(failed(t.errors, r));
+        if (!r.ok) return void toast({ text: failed(t.errors, r), tone: "error" });
         onDone();
         toast(plural(w.asked, r.value.count, locale));
       });
@@ -556,7 +590,7 @@ function AskForm({ candidateId, askable, locale, t, onDone }: { candidateId: str
             {p.asked ? (
               <span className="asked-row">
                 <span>{p.name}</span>
-                <button type="button" className="button link small" disabled={pending} onClick={() => start(async () => { const r = await cancelAsk(candidateId, p.id); if (!r.ok) toast(failed(t.errors, r)); })}>{format(w.stopAsking, { name: p.name })}</button>
+                <button type="button" className="button link small" disabled={pending} onClick={() => start(async () => { const r = await cancelAsk(candidateId, p.id); if (!r.ok) toast({ text: failed(t.errors, r), tone: "error" }); })}>{format(w.stopAsking, { name: p.name })}</button>
               </span>
             ) : (
               <label className="check">
@@ -575,12 +609,12 @@ function AskForm({ candidateId, askable, locale, t, onDone }: { candidateId: str
   );
 }
 
-function EditForm({ candidate, t, onDone }: { candidate: { id: string; name: string; email: string; phone: string; link: string; language: Language }; t: ActionWords; onDone: () => void }) {
+function EditForm({ candidate, t, onDone, onTyped }: { candidate: { id: string; name: string; email: string; phone: string; link: string; language: Language }; t: ActionWords; onDone: () => void; onTyped: () => void }) {
   const toast = useToast();
   const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
   return (
-    <form className="stack" onSubmit={e => {
+    <form className="stack" onInput={onTyped} onSubmit={e => {
       e.preventDefault();
       const data = new FormData(e.currentTarget);
       const text = (k: string) => String(data.get(k) ?? "");
@@ -717,7 +751,7 @@ export function Notes({ candidateId, notes, canWrite, t }: { candidateId: string
           {notes.map(n => (
             <li key={n.id}>
               <div className="note-head"><strong>{n.authorName}</strong><span className="muted small">{n.when}</span>
-                {n.mine && canWrite && <button type="button" className="icon-button small" title={w.removeNote} onClick={() => start(async () => { const r = await removeNote(n.id); if (!r.ok) toast(failed(t.errors, r)); })}><Bin /><span className="visually-hidden">{w.removeNote}</span></button>}
+                {n.mine && canWrite && <button type="button" className="icon-button small" title={w.removeNote} onClick={() => start(async () => { const r = await removeNote(n.id); if (!r.ok) toast({ text: failed(t.errors, r), tone: "error" }); })}><Bin /><span className="visually-hidden">{w.removeNote}</span></button>}
               </div>
               <p className="pre">{n.body}</p>
             </li>
@@ -731,7 +765,7 @@ export function Notes({ candidateId, notes, canWrite, t }: { candidateId: string
           if (!body) return;
           start(async () => {
             const r = await addNote(candidateId, body);
-            if (!r.ok) return toast(failed(t.errors, r));
+            if (!r.ok) return void toast({ text: failed(t.errors, r), tone: "error" });
             setText("");
           });
         }}>

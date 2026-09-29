@@ -63,7 +63,7 @@ test("each person gets one item: due today and late, in their language; others n
   chest.notifications.length = 0; // the assignment items
   assert.equal(await chest.run("morning", POST), 204);
   assert.deepEqual(bell(), [
-    [ines.id, "1 tâche pour aujourd’hui, 1 tâche en retard", "En retard : Call the bank\nAujourd’hui : Send the quote", "digest", "/chest"],
+    [ines.id, "1 tâche pour aujourd’hui, 1 tâche en retard", "En retard : Call the bank\nAujourd’hui : Send the quote", "digest", "/chest"],
     [hugo.id, "1 task late", "Late: Call the bank", "digest", "/chest"],
   ]);
   assert.equal(chest.badges.get(ines.id), 2);
@@ -177,7 +177,7 @@ test("the morning makes a missing next card of a repeating card, due that day, a
   await morning(sql, run("2026-10-05T05:30:00Z", "Europe/Paris"));
   const made = await sql<{ id: string; due: string }[]>`select id, to_char(due_on, 'YYYY-MM-DD') as due from cards where title = 'Check the alarm' and id <> ${c.id}`;
   assert.deepEqual(made.map(m => m.due), ["2026-10-05"]);
-  assert.deepEqual(bell(), [[ines.id, "1 tâche pour aujourd’hui", "Aujourd’hui : Check the alarm", "digest", "/chest"]]);
+  assert.deepEqual(bell(), [[ines.id, "1 tâche pour aujourd’hui", "Aujourd’hui : Check the alarm", "digest", "/chest"]]);
 });
 
 test("a long list stays within the bell's bounds, both lines kept", () => {

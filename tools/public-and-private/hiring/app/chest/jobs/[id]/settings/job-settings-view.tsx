@@ -1,31 +1,34 @@
 "use client";
 
+import { Avatar, Confirm, PeoplePicker, useToast } from "@argentic/chest-ui/components";
+import { localSearch, type Choice, type PeoplePickerWords } from "@argentic/chest-ui/components/logic";
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
-import { Avatar } from "../../../../../components/avatar.tsx";
+import { useMemo, useState, useTransition } from "react";
 import { Bin, Check, Down, Pencil, Plus, Up } from "../../../../../components/icons.tsx";
-import { useToast } from "../../../../../components/toast.tsx";
 import { format } from "../../../../../lib/i18n/format.ts";
 import type { Catalogue } from "../../../../../lib/i18n/index.ts";
 import { limits } from "../../../../../lib/model.ts";
 import { addInterviewer, addStage, moveStage, removeInterviewer, removeJob, removeStage, renameStage } from "../../../actions.ts";
 
-type Words = { jobSettings: Catalogue["jobSettings"]; errors: Catalogue["errors"]; common: Catalogue["common"] };
+type Words = { jobSettings: Catalogue["jobSettings"]; errors: Catalogue["errors"]; common: Catalogue["common"]; peoplePicker: PeoplePickerWords };
 type StageRow = { id: string; name: string; hired: boolean; count: number };
 
-export function JobSettingsView({ jobId, stages, interviewers, choices, deletable, t }: {
-  jobId: string; stages: StageRow[]; interviewers: { id: string; name: string; photo: string | null }[]; choices: { id: string; name: string; role: string }[]; deletable: boolean; t: Words;
+export function JobSettingsView({ jobId, stages, interviewers, choices, deletable, locale, t }: {
+  jobId: string; stages: StageRow[]; interviewers: { id: string; name: string; photo: string | null }[]; choices: { id: string; name: string; role: string; photo: string | null }[]; deletable: boolean; locale: string; t: Words;
 }) {
   const router = useRouter();
   const toast = useToast();
   const [pending, start] = useTransition();
   const [editing, setEditing] = useState<string | null>(null);
-  const [pick, setPick] = useState("");
+  const [deleting, setDeleting] = useState(false);
+  // The team as the kit's people picker reads it: a name, its role under it.
+  const team: Choice[] = useMemo(() => choices.map(c => ({ id: c.id, name: c.name, ...(c.role ? { detail: c.role } : {}), photo: c.photo })), [choices]);
+  const search = useMemo(() => localSearch(team), [team]);
   const w = t.jobSettings;
   const run = (step: () => Promise<{ ok: boolean; error?: keyof Catalogue["errors"]; values?: Record<string, string | number> }>, done?: string) =>
     start(async () => {
       const r = await step();
-      if (!r.ok && r.error) toast(format(t.errors[r.error], r.values ?? {}));
+      if (!r.ok && r.error) toast({ text: format(t.errors[r.error], r.values ?? {}), tone: "error" });
       else if (done) toast(done);
     });
   const movable = stages.filter(s => !s.hired);
@@ -77,7 +80,7 @@ export function JobSettingsView({ jobId, stages, interviewers, choices, deletabl
           <ul className="people-list">
             {interviewers.map(p => (
               <li key={p.id}>
-                <Avatar name={p.name} photo={p.photo} size={32} />
+                <Avatar name={p.name} photo={p.photo} size="m" />
                 <span className="person-name">{p.name}</span>
                 <button type="button" className="button link small" disabled={pending} onClick={() => run(() => removeInterviewer(jobId, p.id))}>{w.takeOff}<span className="visually-hidden"> · {p.name}</span></button>
               </li>
@@ -85,14 +88,23 @@ export function JobSettingsView({ jobId, stages, interviewers, choices, deletabl
           </ul>
         )}
         {choices.length > 0 && (
-          <form className="inline-form" onSubmit={e => { e.preventDefault(); if (!pick) return; const name = choices.find(c => c.id === pick)?.name ?? ""; const id = pick; setPick(""); run(() => addInterviewer(jobId, id), format(w.added, { name })); }}>
-            <label className="visually-hidden" htmlFor="pick">{w.pick}</label>
-            <select id="pick" className="field" value={pick} onChange={e => setPick(e.target.value)}>
-              <option value="">{w.pick}</option>
-              {choices.map(c => <option key={c.id} value={c.id}>{c.role ? `${c.name} · ${c.role}` : c.name}</option>)}
-            </select>
-            <button type="submit" className="button quiet" disabled={pending || !pick}><Plus />{w.add}</button>
-          </form>
+          <div className="interviewer-pick">
+            <PeoplePicker
+              id="pick"
+              label={w.pick}
+              hint={w.pickHint}
+              value={[]}
+              search={search}
+              suggestions={team}
+              disabled={pending}
+              labels={t.peoplePicker}
+              lang={locale}
+              onChange={chosen => {
+                const who = chosen[0];
+                if (who) run(() => addInterviewer(jobId, who.id), format(w.added, { name: who.name }));
+              }}
+            />
+          </div>
         )}
       </section>
 
@@ -100,12 +112,23 @@ export function JobSettingsView({ jobId, stages, interviewers, choices, deletabl
         <section className="panel danger-zone" aria-labelledby="danger">
           <h2 id="danger">{w.danger}</h2>
           <p className="hint">{w.deleteHint}</p>
-          <button type="button" className="button danger" disabled={pending} onClick={() => start(async () => {
-            const r = await removeJob(jobId);
-            if (!r.ok) return toast(t.errors[r.error]);
-            toast(w.deleted);
-            router.push("/chest");
-          })}><Bin />{w.deleteDraft}</button>
+          <div><button type="button" className="button danger" disabled={pending} onClick={() => setDeleting(true)}><Bin />{w.deleteDraft}</button></div>
+          <Confirm
+            open={deleting}
+            title={w.deleteTitle}
+            body={w.deleteBody}
+            confirmLabel={w.deleteDraft}
+            cancelLabel={t.common.cancel}
+            busy={pending}
+            onCancel={() => setDeleting(false)}
+            onConfirm={() => start(async () => {
+              const r = await removeJob(jobId);
+              if (!r.ok) return void toast({ text: t.errors[r.error], tone: "error" });
+              setDeleting(false);
+              toast(w.deleted);
+              router.push("/chest");
+            })}
+          />
         </section>
       )}
     </div>

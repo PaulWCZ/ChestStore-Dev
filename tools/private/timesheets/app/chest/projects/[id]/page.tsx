@@ -36,9 +36,9 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
   const now = today();
   const step = (x: RateStep) => format(x.from === origin ? t.people.since0 : t.people.since, { rate: x.cents === null ? t.people.none : money(x.cents, code, locale), date: formatDay(x.from, locale, { day: "numeric", month: "long", year: "numeric" }) });
   const everyoneNamed = [...dir.people.map(x => ({ id: x.id, name: x.name })), ...missing.map(x => ({ id: x, name: nameFor(x, gone, locale) }))];
-  const words = { project: t.project, colors: t.colors, errors: t.errors, undo: t.timer.undo };
+  const words = { project: t.project, colors: t.colors, errors: t.errors, date: t.date };
   return (
-    <main className="page">
+    <div className="page">
       <header className="page-head">
         <h1><span className={`swatch big c-${p.color}`} aria-hidden="true" />{p.name}</h1>
         <p className="used-line">
@@ -69,9 +69,9 @@ export default async function ProjectPage({ params }: { params: Promise<{ id: st
           origin={origin}
           lockedUntil={s.lockedUntil}
           currency={code}
-          t={{ project: t.project, errors: t.errors }}
+          t={{ project: t.project, errors: t.errors, date: t.date }}
         />
       )}
-    </main>
+    </div>
   );
 }

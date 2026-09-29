@@ -16,20 +16,21 @@ export default async function Boards({ searchParams }: { searchParams: Promise<{
   const archived = (await searchParams).archived === "1";
   const creates = !archived && can(member, "boards.create");
   const [boards, sharing] = await Promise.all([listBoards(db(), member, { archived }), creates ? sharingFor(member.id) : Promise.resolve({ people: [], groups: [] })]);
+  const newBoardWords = { create: t.create, templates: t.templates, errors: t.errors, dialog: t.dialog, peoplePicker: t.peoplePicker };
   const words = { open: t.boards.open, mine: t.boards.mine, late: t.boards.late, private: t.boards.private };
   return (
-    <main className="wide">
+    <div className="wide">
       <div className="hello">
         <h1>{archived ? t.boards.archived : t.boards.title}</h1>
         <div className="row">
           {!archived && can(member, "import") && <Link className="button quiet" href="/chest/import"><Upload />{t.shell.import}</Link>}
-          {creates && <NewBoardButton t={{ create: t.create, templates: t.templates, errors: t.errors }} label={t.boards.new} sharing={sharing} locale={locale} primary />}
+          {creates && <NewBoardButton t={newBoardWords} label={t.boards.new} sharing={sharing} locale={locale} primary />}
         </div>
       </div>
       {archived && <Link className="back" href="/chest/boards">{t.boards.back}</Link>}
       {boards.length === 0 && archived ? <p className="muted">{t.boards.noArchived}</p> : (
         <BoardTiles boards={boards} locale={locale} t={words}>
-          {creates && <NewBoardButton t={{ create: t.create, templates: t.templates, errors: t.errors }} label={t.boards.new} sharing={sharing} locale={locale} tile />}
+          {creates && <NewBoardButton t={newBoardWords} label={t.boards.new} sharing={sharing} locale={locale} tile />}
         </BoardTiles>
       )}
       {!archived && (
@@ -38,6 +39,6 @@ export default async function Boards({ searchParams }: { searchParams: Promise<{
           {can(member, "boards.all") && <a className="link-button" href="/chest/export"><Download /> {t.boards.exportAll}</a>}
         </p>
       )}
-    </main>
+    </div>
   );
 }

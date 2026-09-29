@@ -15,6 +15,8 @@ the hour and wants to know where its time goes.
   it into an entry of the day it started, in the Chest's time zone. A timer
   left running more than 10 hours is **forgotten**: on the next visit a
   dialog asks when it really stopped (quarter-hour choices), or discards it.
+  A stop under a minute records nothing: *Undo* puts the timer back, or the
+  timer's line offers *Keep 1 min*.
 - **My week**: a grid of projects/tasks × 7 days where one types hours —
   `1:30`, `1.5`, `1,5`, `90m`, `1h30` are all understood (`lib/duration.ts`,
   tested). Totals per day, row and week; *Copy last week's rows*; rows
@@ -80,6 +82,22 @@ the hour and wants to know where its time goes.
   item in their language — "Your week has 22 h — fill in the rest?". It can
   be turned off; everything else works without it (the Team page's
   *Remind* works on any Chest).
+
+## Looks
+
+The tool wears **any look the company chooses in its Chest**, with the same
+features: its own identity (*Instrument*: ink green, cool paper, a lime
+signal, tabular figures — `DESIGN.md`), any theme of the UI kit's catalogue
+(the store's identities, *Chest*, *High contrast*), or the **company's
+brand** (its colours, fonts, corners — and its logo in the header where
+the tool shows its stopwatch). The choice is for all tools or for this one;
+the page follows it on the next request (`lib/theme.ts`, `chest.theme()`),
+light and dark, every text readable (the kit checks every pair). The
+instrument panel (header and timer) is the page's inverse: dark in a light
+look, light in a dark one. Its components — shell and tabs, toasts with an
+*Undo* that says whether it worked, dialogs, date fields in the reader's
+language, file picker, tables, badges — are the store's shared UI kit
+(`@argentic/chest-ui`, in `vendor/`), so they behave as in every other tool.
 
 It is **not** your company's official working-hours register unless you
 decide so, and it never watches anyone: no screenshots, no activity levels,

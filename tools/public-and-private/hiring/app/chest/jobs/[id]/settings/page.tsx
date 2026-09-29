@@ -1,3 +1,4 @@
+import { PageHeader } from "@argentic/chest-ui/components";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Back } from "../../../../../components/icons.tsx";
@@ -31,14 +32,15 @@ export default async function JobSettings({ params }: { params: Promise<{ id: st
   return (
     <div className="narrow">
       <Link className="back-link" href={`/chest/jobs/${detail.job.id}`}><Back />{detail.job.title}</Link>
-      <div className="page-head"><h1>{t.jobSettings.title}</h1></div>
+      <PageHeader title={t.jobSettings.title} />
       <JobSettingsView
         jobId={detail.job.id}
         stages={detail.stages.map(s => ({ ...s, name: stageLabel(s, t.jobSettings.defaults), count: stageCounts.find(c => String(c.stage_id) === s.id)?.n ?? 0 }))}
         interviewers={detail.interviewers.map(m => ({ id: m, name: nameOf(who.get(m), locale), photo: who.get(m)?.photo ?? null }))}
-        choices={team.filter(m => !detail.interviewers.includes(m.id)).map(m => ({ id: m.id, name: m.name, role: m.role === "recruiter" ? t.roles.recruiter : m.role === "interviewer" ? t.roles.interviewer : "" }))}
+        choices={team.filter(m => !detail.interviewers.includes(m.id)).map(m => ({ id: m.id, name: m.name, photo: m.photo ?? null, role: m.role === "recruiter" ? t.roles.recruiter : m.role === "interviewer" ? t.roles.interviewer : "" }))}
+        locale={locale}
         deletable={(count?.n ?? 0) === 0}
-        t={{ jobSettings: t.jobSettings, errors: t.errors, common: t.common }}
+        t={{ jobSettings: t.jobSettings, errors: t.errors, common: t.common, peoplePicker: t.peoplePicker }}
       />
     </div>
   );

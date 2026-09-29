@@ -31,7 +31,8 @@ must not break.
 | `app/chest/boards/[id]/board-view.tsx` | The board (client): dnd-kit (Enter opens, Space picks up), keyboard moves, filters, the archive-column dialog |
 | `app/chest/boards/[id]/list-view.tsx`, `calendar-view.tsx` | The list (sort, group, done hidden) and the calendar (drag a card to a day) |
 | `app/chest/boards/[id]/card-panel.tsx` | A card (client): Mark done, dates, fields, checklists, Move or copy |
-| `components/dialog.tsx`, `components/people-picker.tsx` | Dialogs that open on their first field; ticking people and groups |
+| `lib/theme.ts`, `app/tokens.css`, `app/globals.css` | The identity "Workshop" (`defineTheme`, the catalogue's `workshop` source) and the page's look (`currentLook`: the company's choice, else the identity); the tool's own tokens (column width, board and label colours → palette slots); its components' CSS, contract tokens only |
+| `components/shell.tsx`, `app/chest/layout.tsx` | The kit's `AppShell` (sections, card search, member chip), `BrandMark`, `NoAccess`, `Toasts` |
 | `app/chest/export/route.ts` | Every board in one JSON file (managers) |
 | `app/chest/api/cards/[id]/upload/route.ts`, `app/chest/files/[id]/route.ts` | Files: authorise, record, open |
 | `migrations/` | Schema. Never edit a shipped file; add the next number (`0004_…`) |
@@ -53,8 +54,28 @@ npm ci && npm test && npm run build   # all three must pass
 - **Add an ability → a line in `test/access.test.ts`.** Add a service →
   tests with each role.
 - **Client components import only** `lib/i18n/format.ts`, `lib/app-error.ts`,
-  `lib/parse-import.ts`, `lib/initials.ts` and types. Never the SDK,
+  `lib/parse-import.ts`, `@argentic/chest-ui/components` (and
+  `/components/logic`) and types. Never the SDK,
   `lib/db.ts`, `lib/session.ts` (the build fails: `node:crypto`).
+- **The UI kit first** (`@argentic/chest-ui/components`, `ui/README.md`):
+  toasts (`useToast`: `{ id, text, undo }`, the Undo returns `true` or why
+  it failed; errors `tone: "error"`), `Dialog` (buttons in `footer`, a
+  form's submit with `form=`), `Confirm` for what cannot be undone (never
+  `window.confirm`), `PeoplePicker` (`localSearch` over the board's people),
+  `DateField` (never `type="date"`; `today` from the server), `FilePicker`
+  (+ `putWithProgress`), `Menu`, `Avatar`, `EmptyState`. Their words are
+  the catalogues' `toast`, `dialog`, `peoplePicker`, `date`, `files`,
+  `searchBox` sections. Kept on purpose: the board's view switch (links
+  with icons in the coloured header), the who/label filter selects, the
+  list view's table (grouping), the "@" mention list (it writes into the
+  text, with the kit's `searchChoices`), the due-time select (it has "Any
+  time"), the importer's three source cards.
+- **Only contract tokens in CSS** (`ui/tokens/CONTRACT.md`); a tool token is
+  defined from them in `app/tokens.css`; never a colour
+  (`test/theme.test.ts`). Text on a board colour is `--c-ink` on `--c`.
+- **French typography**: `node scripts/lint-words.mjs tools/private/tasks`
+  must stay at 0 errors (narrow no-break spaces; Undo is « Annuler
+  l’action »; Delete = Supprimer, Remove = Retirer).
 - **Words live in `lib/i18n/`**, in every catalogue (tests compare keys and
   placeholders, and look for words written in pages).
 - **Drag ids are prefixed** (`card:`, `lane:`): a card and a column may

@@ -20,6 +20,9 @@ export function typeOf(file: { name: string; type: string }): string {
 }
 
 export const cvAccept = ".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+// The same, as the kit's file picker takes it (by extension: some systems
+// give Word files no type).
+export const cvKinds = [".pdf", ".doc", ".docx"];
 export const cvMaxSize = 10 << 20;
 
 export async function uploadCv(file: File, grantUrl: string, extra: Record<string, string> = {}): Promise<UploadResult> {

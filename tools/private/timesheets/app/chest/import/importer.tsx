@@ -1,8 +1,8 @@
 "use client";
 
+import { FilePicker, Segmented, type PickedFile } from "@argentic/chest-ui/components";
 import Link from "next/link";
 import { useState, useTransition } from "react";
-import { Upload } from "../../../components/icons.tsx";
 import { formatDuration } from "../../../lib/duration.ts";
 import type { Catalogue } from "../../../lib/i18n/index.ts";
 import { format, formatDay, plural } from "../../../lib/i18n/format.ts";
@@ -10,7 +10,7 @@ import type { ImportPlan } from "../../../lib/import.ts";
 import { maxBytes, type DateOrder } from "../../../lib/import-formats.ts";
 import { importTime, previewImport, type ImportChoices } from "../actions.ts";
 
-type Words = { importer: Catalogue["importer"]; errors: Catalogue["errors"] };
+type Words = { importer: Catalogue["importer"]; errors: Catalogue["errors"]; files: Catalogue["files"] };
 
 // Choose the file, check what will come (people found or kept as former
 // members, what will be created, what is left out and why), import.
@@ -19,6 +19,9 @@ type Words = { importer: Catalogue["importer"]; errors: Catalogue["errors"] };
 export function Importer({ locale, t }: { locale: string; t: Words }) {
   const w = t.importer;
   const [file, setFile] = useState<{ name: string; text: string } | null>(null);
+  // The kit's FilePicker holds the one file chosen (it stays in the
+  // browser: the text goes to the server to be checked, then imported).
+  const [picked, setPicked] = useState<readonly PickedFile[]>([]);
   const [plan, setPlan] = useState<ImportPlan | null>(null);
   const [order, setOrder] = useState<DateOrder | null>(null);
   const [former, setFormer] = useState<"keep" | "skip">("keep");
@@ -50,6 +53,17 @@ export function Importer({ locale, t }: { locale: string; t: Words }) {
     setFile({ name: f.name, text });
     preview(text, { order: null, former: "keep", locked: "skip" });
   }
+  function choose(update: (current: readonly PickedFile[]) => PickedFile[]) {
+    const next = update(picked);
+    setPicked(next);
+    const f = next[0]?.file;
+    if (f && next[0]!.key !== picked[0]?.key) void pick(f);
+    if (next.length === 0) {
+      setFile(null);
+      setPlan(null);
+      setError(null);
+    }
+  }
   function submit() {
     if (!file) return;
     start(async () => {
@@ -58,6 +72,7 @@ export function Importer({ locale, t }: { locale: string; t: Words }) {
       setDone({ count: r.value.imported, from: plan?.from ?? null, to: plan?.to ?? null });
       setPlan(null);
       setFile(null);
+      setPicked([]);
     });
   }
 
@@ -67,7 +82,7 @@ export function Importer({ locale, t }: { locale: string; t: Words }) {
         <p className="big-line">{plural(w.done, done.count, locale)}</p>
         <div className="row">
           <Link className="button" href={done.from && done.to ? `/chest/reports?preset=custom&from=${done.from}&to=${done.to}&group=person` : "/chest/reports"}>{w.open}</Link>
-          <button type="button" className="button quiet" onClick={() => setDone(null)}>{w.again}</button>
+          <button type="button" className="button quiet" onClick={() => { setDone(null); setPicked([]); }}>{w.again}</button>
         </div>
       </div>
     );
@@ -84,11 +99,7 @@ export function Importer({ locale, t }: { locale: string; t: Words }) {
           </li>
         ))}
       </ul>
-      <label className="button file-input">
-        <Upload />{w.choose}
-        <input type="file" accept=".csv,text/csv" onChange={e => { const f = e.target.files?.[0]; e.target.value = ""; if (f) void pick(f); }} />
-      </label>
-      {file && <p className="muted small">{file.name}</p>}
+      <FilePicker label={w.choose} files={picked} onChange={choose} maxFiles={1} maxSize={maxBytes} accept={[".csv", "text/csv"]} labels={t.files} />
       {pending && !plan && <p className="muted" role="status">{w.reading}</p>}
       {error && <p className="error" role="alert">{error}</p>}
       {plan && (
@@ -96,17 +107,9 @@ export function Importer({ locale, t }: { locale: string; t: Words }) {
           <h2 id="check-title">{w.check}</h2>
           <p>{format(w.from, { source: w.sources[plan.source] })} · {plural(w.rows, plan.rows, locale)}</p>
           {plan.dates.ambiguous && (
-            <fieldset className="field-block">
-              <legend className="label">{w.dates}</legend>
-              <div className="segmented">
-                {(["dmy", "mdy"] as const).map(o => (
-                  <label key={o} className="seg">
-                    <input type="radio" name="order" checked={(order ?? plan.dates.order) === o} onChange={() => { setOrder(o); if (file) preview(file.text, choices({ order: o })); }} />
-                    <span>{o === "dmy" ? w.dayFirst : w.monthFirst}</span>
-                  </label>
-                ))}
-              </div>
-            </fieldset>
+            <div className="field-block">
+              <Segmented hideLabel={false} label={w.dates} name="order" value={order ?? plan.dates.order} options={(["dmy", "mdy"] as const).map(o => ({ value: o, label: o === "dmy" ? w.dayFirst : w.monthFirst }))} onChange={o => { setOrder(o); if (file) preview(file.text, choices({ order: o })); }} />
+            </div>
           )}
           <p className="big-line">{plan.ready ? plural(w.ready, plan.ready, locale) : w.readyNone}</p>
           {plan.from && plan.to && <p className="num">{format(w.span, { from: formatDay(plan.from, locale, { day: "numeric", month: "short", year: "numeric" }), to: formatDay(plan.to, locale, { day: "numeric", month: "short", year: "numeric" }), hours: formatDuration(plan.minutes) })}</p>}
@@ -127,17 +130,9 @@ export function Importer({ locale, t }: { locale: string; t: Words }) {
             </label>
           )}
           {plan.locked.rows > 0 && (
-            <fieldset className="field-block ask">
-              <legend className="label">{plan.locked.until ? format(plural(w.lockedAsk, plan.locked.rows, locale), { date: formatDay(plan.locked.until, locale, { day: "numeric", month: "long", year: "numeric" }) }) : plural(w.closedAsk, plan.locked.rows, locale)}</legend>
-              <div className="segmented">
-                {(["import", "skip"] as const).map(o => (
-                  <label key={o} className="seg">
-                    <input type="radio" name="locked" checked={locked === o} onChange={() => { setLocked(o); if (file) preview(file.text, choices({ locked: o })); }} />
-                    <span>{o === "import" ? w.lockedImport : w.lockedSkip}</span>
-                  </label>
-                ))}
-              </div>
-            </fieldset>
+            <div className="field-block ask">
+              <Segmented hideLabel={false} label={plan.locked.until ? format(plural(w.lockedAsk, plan.locked.rows, locale), { date: formatDay(plan.locked.until, locale, { day: "numeric", month: "long", year: "numeric" }) }) : plural(w.closedAsk, plan.locked.rows, locale)} name="locked" value={locked ?? ("" as "import" | "skip")} options={(["import", "skip"] as const).map(o => ({ value: o, label: o === "import" ? w.lockedImport : w.lockedSkip }))} onChange={o => { setLocked(o); if (file) preview(file.text, choices({ locked: o })); }} />
+            </div>
           )}
           {plan.rates.kept > 0 && <p className="small">{format(w.ratesKept, { source: w.sources[plan.source] })}</p>}
           {plan.rates.ignored && <p className="small muted">{format(w.ratesIgnored, { currency: plan.rates.currency ?? "" })}</p>}

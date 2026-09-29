@@ -1,10 +1,10 @@
+import { NoAccess, Toasts, type NavItem } from "@argentic/chest-ui/components";
 import type { ReactNode } from "react";
 import { AutoRefresh } from "../../components/auto-refresh.tsx";
-import { Avatar } from "../../components/avatar.tsx";
 import { Bars, Folder, Gear, Grid, People } from "../../components/icons.tsx";
 import { Mark } from "../../components/mark.tsx";
-import { NavLink } from "../../components/nav-link.tsx";
-import { Toasts } from "../../components/toast.tsx";
+import { PanelLogo } from "../../components/panel-logo.tsx";
+import { Shell } from "../../components/shell.tsx";
 import { workValue } from "../../lib/work.ts";
 import { can, roleOf } from "../../lib/access.ts";
 import { clock as now, zone } from "../../lib/clock.ts";
@@ -13,29 +13,29 @@ import { lastWork } from "../../lib/entries.ts";
 import { clock, formatDate, relative } from "../../lib/i18n/index.ts";
 import { offeredProjects } from "../../lib/projects.ts";
 import { viewer } from "../../lib/session.ts";
+import { currentLook } from "../../lib/theme.ts";
 import { isForgotten, timer } from "../../lib/timer.ts";
 import { TimerBar, type Forgotten, type RunningView } from "./timer-bar.tsx";
 
-// The members' part. proxy.ts already refused a request without the Chest's
-// assertion; a member whose role gives nothing sees why, not an error. The
-// timer sits on top of every page; on a phone the tabs sit at the bottom,
-// under the thumb.
+// The members' part, in the kit's shell: the instrument panel on top (the
+// tool's mark, or the company's logo in brand mode; the sections as
+// labelled tabs; the member), the timer under it on every page.
+// proxy.ts already refused a request without the Chest's assertion; a
+// member whose role gives nothing sees why, not an error.
 export default async function MembersLayout({ children }: { children: ReactNode }) {
-  const v = await viewer();
+  const [v, look] = await Promise.all([viewer(), currentLook()]);
   if (!v) return null;
   const { member, locale, t } = v;
   const role = roleOf(member);
+  const brand = <a href="/chest"><PanelLogo logo={look.logo}><Mark /></PanelLogo><span>{t.meta.name}</span></a>;
+  const labels = { skip: t.shell.skip, nav: t.shell.nav };
   if (!role) {
     return (
-      <>
-        <header className="top"><a className="brand" href="/chest"><Mark /><span>{t.meta.name}</span></a></header>
-        <main id="main" className="page narrow">
-          <div className="empty">
-            <h1>{t.noAccess.title}</h1>
-            <p>{t.noAccess.body}</p>
-          </div>
-        </main>
-      </>
+      <Shell brand={brand} labels={labels} width="narrow">
+        <div className="page narrow">
+          <NoAccess labels={{ noAccessTitle: t.noAccess.title, noAccessBody: t.noAccess.body }} />
+        </div>
+      </Shell>
     );
   }
   const sql = db();
@@ -73,34 +73,28 @@ export default async function MembersLayout({ children }: { children: ReactNode 
     };
   }
   const lastValue = last && projects.some(p => p.id === last.projectId && (last.taskId === null || p.tasks.some(k => k.id === last.taskId))) ? workValue(last) : "";
+  const nav: NavItem[] = [
+    { href: "/chest", label: t.shell.week, icon: <Grid />, exact: true },
+    { href: "/chest/reports", label: t.shell.reports, icon: <Bars /> },
+    ...(can(member, "approve") ? [{ href: "/chest/team", label: t.shell.team, icon: <People /> }] : []),
+    ...(can(member, "projects.manage") ? [{ href: "/chest/projects", label: t.shell.projects, icon: <Folder /> }] : []),
+    ...(can(member, "settings") ? [{ href: "/chest/settings", label: t.shell.settings, icon: <Gear /> }] : []),
+  ];
   return (
-    <Toasts>
-      <a className="skip" href="#main">{t.shell.skip}</a>
-      <header className="top">
-        <a className="brand" href="/chest"><Mark /><span>{t.meta.name}</span></a>
-        <nav className="tabs" aria-label={t.shell.nav}>
-          <NavLink href="/chest" exact><Grid /><span className="tab-label">{t.shell.week}</span></NavLink>
-          <NavLink href="/chest/reports"><Bars /><span className="tab-label">{t.shell.reports}</span></NavLink>
-          {can(member, "approve") && <NavLink href="/chest/team"><People /><span className="tab-label">{t.shell.team}</span></NavLink>}
-          {can(member, "projects.manage") && <NavLink href="/chest/projects"><Folder /><span className="tab-label">{t.shell.projects}</span></NavLink>}
-          {can(member, "settings") && <NavLink href="/chest/settings"><Gear /><span className="tab-label">{t.shell.settings}</span></NavLink>}
-        </nav>
-        <span className="me">
-          <span className="who">{member.firstName || member.name}<span className="role">{t.roles[role]}</span></span>
-          <Avatar name={member.name} photo={member.photo} />
-        </span>
-      </header>
-      <TimerBar
-        running={view}
-        forgotten={forgotten}
-        projects={projects}
-        last={lastValue}
-        canManage={can(member, "projects.manage")}
-        serverNow={at.getTime()}
-        t={{ timer: t.timer, work: t.work, errors: t.errors }}
-      />
-      <AutoRefresh seconds={60} />
-      <div id="main">{children}</div>
-    </Toasts>
+    <Shell brand={brand} nav={nav} member={{ name: member.name, role: t.roles[role], photo: member.photo }} labels={labels} width="full">
+      <Toasts labels={t.toast}>
+        <TimerBar
+          running={view}
+          forgotten={forgotten}
+          projects={projects}
+          last={lastValue}
+          canManage={can(member, "projects.manage")}
+          serverNow={at.getTime()}
+          t={{ timer: t.timer, work: t.work, errors: t.errors, dialog: t.dialog }}
+        />
+        <AutoRefresh seconds={60} />
+        {children}
+      </Toasts>
+    </Shell>
   );
 }

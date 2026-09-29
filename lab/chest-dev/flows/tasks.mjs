@@ -75,14 +75,17 @@ await step("keyboard: Enter on a focused card opens it; Escape closes; Space sti
 await step("open a card; set a date, a checklist, give it to Inès, mention her", async () => {
   await page.locator(".card", { hasText: "Book the stand" }).click();
   await page.waitForURL(/card=/u);
+  // The kit's date field reads what is typed (ISO too) when Enter is pressed.
   await page.locator("#card-due").fill("2026-10-15");
+  await page.keyboard.press("Enter");
   await page.waitForTimeout(800);
   await page.getByPlaceholder("One step").fill("Choose the size");
   await page.keyboard.press("Enter");
   await page.waitForTimeout(800);
-  await page.getByRole("button", { name: "Give to…" }).click();
-  await page.getByPlaceholder("Find someone").fill("ines");
-  await page.locator(".picker-list label", { hasText: "Inès" }).click();
+  // The kit's people picker: type a name, the list follows, Enter chooses.
+  await page.getByRole("combobox", { name: "Give to" }).fill("ines");
+  await page.locator(".ck-option.ck-active", { hasText: "Inès Moreau" }).waitFor();
+  await page.keyboard.press("Enter");
   await page.waitForTimeout(800);
   await page.keyboard.press("Escape");
   await page.locator("#comment").fill("Can you check the price @In");
@@ -154,8 +157,8 @@ await step("Inès sees it in My tasks, in French, and in her bell", async () => 
 
 await step("tick it done from My tasks, then undo", async () => {
   await page.locator(".task", { hasText: "Book the stand" }).locator("button.check").click();
-  await page.waitForSelector(".toast");
-  await page.locator(".toast button").click();
+  await page.waitForSelector(".ck-toast");
+  await page.locator(".ck-toast-undo").click();
   await page.waitForTimeout(1500);
   await page.reload();
   expect(await page.locator(".task", { hasText: "Book the stand" }).count() === 1, "back after undo");
@@ -178,7 +181,7 @@ await step("the morning: Inès finds one reminder in French; run again, still on
   expect(!(await toggle.isChecked()), "stays off");
   const after = await (await page.request.get(origin + "/_dev")).text();
   expect(!after.includes("<b>Inès Moreau</b> · "), "her item went");
-  expect(after.includes("Hugo Bernard vous a confié une tâche : Book the stand"), "the assignment went by email too");
+  expect(after.includes("Hugo Bernard vous a confié une tâche : Book the stand"), "the assignment went by email too");
   expect(await page.getByRole("switch", { name: /M’envoyer aussi tout cela par e-mail/u }).isChecked(), "email on by default");
   await toggle.check();
   await page.waitForTimeout(800);
@@ -198,7 +201,7 @@ await step("archive a card with undo; export the board", async () => {
   await page.goto(boardUrl);
   await page.locator(".card", { hasText: "Pack the demo laptop" }).click();
   await page.getByRole("button", { name: "Archive" }).click();
-  await page.waitForSelector(".toast");
+  await page.waitForSelector(".ck-toast");
   const csv = await (await page.request.get(boardUrl + "/export?format=csv")).text();
   expect(csv.includes("Book the stand"), "csv");
   expect(!csv.includes("Pack the demo laptop"), "archived card not exported");
@@ -220,17 +223,20 @@ await step("Mark done in the card, then Undo", async () => {
   await page.goto(boardUrl);
   await page.locator(".card", { hasText: "Book the stand" }).click();
   await page.getByRole("button", { name: "Mark done" }).click();
-  await page.locator(".toast", { hasText: "Done: moved to Done." }).waitFor();
+  await page.locator(".ck-toast", { hasText: "Done: moved to Done." }).waitFor();
   await page.locator(".panel .chip.done.big").waitFor();
-  await page.locator(".toast button", { hasText: "Undo" }).click();
+  await page.locator(".ck-toast-undo", { hasText: "Undo" }).click();
   await page.getByRole("button", { name: "Mark done" }).waitFor();
 });
 
 await step("a step given to Inès with a date shows in her My tasks", async () => {
   await page.locator(".check-item", { hasText: "Choose the size" }).getByRole("button", { name: /Person and date/u }).click();
-  await page.getByLabel("Given to").selectOption({ label: "Inès Moreau" });
+  await page.getByRole("combobox", { name: "Given to" }).fill("Inès");
+  await page.locator(".ck-option.ck-active", { hasText: "Inès Moreau" }).waitFor();
+  await page.keyboard.press("Enter");
   await page.waitForTimeout(800);
   await page.getByLabel("Date", { exact: true }).fill("2026-10-10");
+  await page.keyboard.press("Enter");
   await page.waitForTimeout(1200);
   expect(await page.locator(".check-item", { hasText: "Choose the size" }).locator(".chip", { hasText: "Inès Moreau" }).count() === 1, "the step says whom");
   await as(context, origin, "ines");
@@ -249,13 +255,13 @@ await step("a comment deleted comes back with Undo; an empty title says why it i
   const bubble = page.locator(".comment", { hasText: "Password is hunter2" });
   await bubble.waitFor();
   await bubble.getByRole("button", { name: "Delete" }).click();
-  await page.locator(".toast", { hasText: "Comment deleted." }).waitFor();
+  await page.locator(".ck-toast", { hasText: "Comment deleted." }).waitFor();
   await bubble.waitFor({ state: "detached" });
-  await page.locator(".toast button", { hasText: "Undo" }).click();
+  await page.locator(".ck-toast-undo", { hasText: "Undo" }).click();
   await page.locator(".comment", { hasText: "Password is hunter2" }).waitFor();
   await page.locator("#card-title").fill("");
   await page.locator("#card-title").blur();
-  await page.locator(".toast", { hasText: "A card needs a title." }).waitFor();
+  await page.locator(".ck-toast", { hasText: "A card needs a title." }).waitFor();
   expect((await page.locator("#card-title").inputValue()) === "Book the stand", "title kept");
 });
 
@@ -266,7 +272,7 @@ await step("move a card to another board; it arrives with its comments, in the c
   await page.locator("#move-column").selectOption({ label: "Doing" });
   await page.getByRole("button", { name: "Move", exact: true }).click();
   await page.waitForURL(/\/chest\/boards\/1\?card=/u);
-  await page.locator(".toast", { hasText: "Moved to Office move." }).waitFor();
+  await page.locator(".ck-toast", { hasText: "Moved to Office move." }).waitFor();
   expect((await page.locator("#card-column option:checked").textContent()) === "Doing", "in Doing");
   expect((await page.locator(".panel").innerText()).includes("Password is hunter2"), "its comment came along");
   expect((await page.locator(".history").innerText()).includes("moved it here from the board “Trade show”"), "history says where from");
@@ -325,12 +331,12 @@ await step("archive a column with cards: the dialog asks where they go; search w
   await page.getByPlaceholder("What needs doing?").fill("Post on LinkedIn");
   await page.keyboard.press("Enter");
   await page.waitForTimeout(1200);
-  await lane.locator("summary").click();
-  await lane.getByRole("button", { name: "Archive the column" }).click();
+  await lane.getByRole("button", { name: "Column actions" }).click();
+  await lane.getByRole("menuitem", { name: "Archive the column" }).click();
   await page.getByRole("dialog", { name: "Archive “Ideas”" }).waitFor();
   await page.getByLabel(/Archive them with the column/u).check();
   await page.getByRole("dialog").getByRole("button", { name: "Archive the column" }).click();
-  await page.locator(".toast", { hasText: /Column archived with its \d+ cards?\./u }).waitFor();
+  await page.locator(".ck-toast", { hasText: /Column archived with its \d+ cards?\./u }).waitFor();
   await page.goto(origin + "/chest/search?q=LinkedIn");
   expect((await page.locator("main").innerText()).includes("No card found"), "hidden from a plain search");
   await page.getByRole("link", { name: /more in the archive/u }).click();
@@ -342,7 +348,10 @@ await step("a private board shares with the people chosen at creation, and says 
   await page.getByRole("button", { name: "New board" }).first().click();
   await page.keyboard.type("Salaries 2027");
   await page.getByText("Only people I choose").click();
-  await page.locator(".share-box label", { hasText: "Inès Moreau" }).click();
+  await page.locator(".share-box").getByRole("combobox").fill("Inès");
+  await page.locator(".ck-option.ck-active", { hasText: "Inès Moreau" }).waitFor();
+  await page.keyboard.press("Enter");
+  await page.keyboard.press("Tab");
   expect((await page.locator(".share-box .hint").innerText()).includes("you and 1 person"), "says who");
   await page.getByRole("button", { name: "Create the board" }).click();
   await page.waitForURL(/\/chest\/boards\/\d+$/u);

@@ -1,16 +1,16 @@
 "use client";
 
+import { DateField, Segmented, useToast } from "@argentic/chest-ui/components";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { Lock } from "../../../components/icons.tsx";
-import { useToast } from "../../../components/toast.tsx";
 import { hoursText, parseHours } from "../../../lib/amounts.ts";
 import type { Catalogue } from "../../../lib/i18n/index.ts";
 import { format, formatDay } from "../../../lib/i18n/format.ts";
 import type { HoursStyle } from "../../../lib/settings.ts";
 import { lockUntil, saveChoices, saveReminder } from "../actions.ts";
 
-type Words = { settings: Catalogue["settings"]; errors: Catalogue["errors"] };
+type Words = { settings: Catalogue["settings"]; errors: Catalogue["errors"]; date: Catalogue["date"] };
 
 // The locked period, the weekly approval, the usual week and its Friday
 // reminder, how reports write hours.
@@ -23,7 +23,7 @@ export function SettingsView(props: {
   const router = useRouter();
   const toast = useToast();
   const [pending, start] = useTransition();
-  const [until, setUntil] = useState(props.lockedUntil ?? props.lastMonth.day);
+  const [until, setUntil] = useState<string | null>(props.lockedUntil ?? props.lastMonth.day);
   const [enabled, setEnabled] = useState(props.reminder.enabled);
   const [threshold, setThreshold] = useState(hoursText(props.reminder.minutes, props.comma));
   const [approvals, setApprovals] = useState(props.approvals);
@@ -32,17 +32,17 @@ export function SettingsView(props: {
     start(async () => {
       const r = await saveChoices(input);
       if (!r.ok) return fail(r.error, r.values);
-      toast(w.approvals.saved);
+      toast({ id: "choices", text: w.approvals.saved });
       router.refresh();
     });
   }
-  const fail = (code: keyof Catalogue["errors"], values?: Record<string, string | number>) => toast(format(t.errors[code], values));
+  const fail = (code: keyof Catalogue["errors"], values?: Record<string, string | number>) => void toast({ text: format(t.errors[code], values), tone: "error" });
 
   function lock(day: string | null) {
     start(async () => {
       const r = await lockUntil(day);
       if (!r.ok) return fail(r.error, r.values);
-      toast(day ? format(w.lock.locked, { date: formatDay(day, props.locale, { day: "numeric", month: "long", year: "numeric" }) }) : w.lock.unlocked);
+      toast({ id: "lock", text: day ? format(w.lock.locked, { date: formatDay(day, props.locale, { day: "numeric", month: "long", year: "numeric" }) }) : w.lock.unlocked });
       router.refresh();
     });
   }
@@ -52,7 +52,7 @@ export function SettingsView(props: {
     start(async () => {
       const r = await saveReminder({ enabled: next.enabled, minutes });
       if (!r.ok) return fail(r.error, r.values);
-      toast(w.reminder.saved);
+      toast({ id: "reminder", text: w.reminder.saved });
     });
   }
 
@@ -63,9 +63,8 @@ export function SettingsView(props: {
         <p>{w.lock.body}</p>
         <p className={props.lockText ? "notice" : "muted"}>{props.lockText ?? w.lock.none}</p>
         {!props.lastMonth.done && <p><button type="button" className="button" disabled={pending} onClick={() => lock(props.lastMonth.day)}>{props.lastMonth.label}</button></p>}
-        <form className="inline-form" onSubmit={e => { e.preventDefault(); lock(until); }}>
-          <label className="label" htmlFor="lock-until">{w.lock.until}</label>
-          <input id="lock-until" type="date" className="field short" value={until} max={props.today} onChange={e => setUntil(e.target.value)} />
+        <form className="inline-form date-form" onSubmit={e => { e.preventDefault(); if (until) lock(until); }}>
+          <DateField id="lock-until" label={w.lock.until} value={until} onChange={setUntil} today={props.today} max={props.today} chips={false} labels={t.date} />
           <button type="submit" className="button quiet" disabled={pending || !until}>{w.lock.submit}</button>
         </form>
         {props.lockedUntil && <p><button type="button" className="button link" disabled={pending} onClick={() => lock(null)}>{w.lock.unlock}</button></p>}
@@ -94,15 +93,7 @@ export function SettingsView(props: {
       </section>
       <section className="panel" aria-labelledby="hours-title">
         <h2 id="hours-title">{w.hours.title}</h2>
-        <fieldset className="segmented">
-          <legend className="visually-hidden">{w.hours.title}</legend>
-          {(["clock", "decimal"] as const).map(k => (
-            <label key={k} className="seg">
-              <input type="radio" name="hours-style" checked={style === k} disabled={pending} onChange={() => { setStyle(k); choose({ hoursStyle: k }); }} />
-              <span>{w.hours[k]}</span>
-            </label>
-          ))}
-        </fieldset>
+        <Segmented label={w.hours.title} name="hours-style" value={style} options={(["clock", "decimal"] as const).map(k => ({ value: k, label: w.hours[k] }))} onChange={k => { setStyle(k); choose({ hoursStyle: k }); }} />
       </section>
     </>
   );

@@ -1,3 +1,4 @@
+import { EmptyState, PageHeader, SearchBox } from "@argentic/chest-ui/components";
 import { notFound } from "next/navigation";
 import { FoundList } from "../../../components/found-list.tsx";
 import { can } from "../../../lib/access.ts";
@@ -16,15 +17,12 @@ export default async function Pool({ searchParams }: { searchParams: Promise<{ q
   const list = await pool(db(), member, q.slice(0, 100));
   return (
     <div className="narrow">
-      <div className="page-head"><h1>{t.pool.title}</h1></div>
-      <p className="lede-s">{t.pool.intro}</p>
-      <form className="search-form" role="search" action="/chest/pool">
-        <label className="visually-hidden" htmlFor="pool-q">{t.pool.filter}</label>
-        <input id="pool-q" name="q" type="search" className="field" defaultValue={q.slice(0, 100)} placeholder={t.pool.filter} maxLength={100} />
-        <button type="submit" className="button quiet">{t.search.go}</button>
-      </form>
+      <PageHeader title={t.pool.title} intro={t.pool.intro} />
+      <div className="search-form">
+        <SearchBox action="/chest/pool" value={q.slice(0, 100)} id="pool-q" shortcut={false} labels={{ label: t.pool.filter, placeholder: t.pool.filter, shortcut: t.search.shortcut, submit: t.search.go }} />
+      </div>
       {list.length === 0 ? (
-        <div className="empty"><h2>{q ? t.pool.noneFound : t.pool.emptyTitle}</h2><p>{t.pool.emptyBody}</p></div>
+        <EmptyState title={q ? t.pool.noneFound : t.pool.emptyTitle} body={t.pool.emptyBody} />
       ) : (
         <>
           <p className="muted">{plural(t.pool.count, list.length, locale)}</p>

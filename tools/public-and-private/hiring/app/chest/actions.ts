@@ -145,9 +145,10 @@ export async function moveCandidate(candidateId: string, stageId: string, startD
 // recruiter wrote, when they asked for it: it leaves only once the Undo of
 // the toast is over (messages.undoSeconds) — Undo cancels it before
 // anything left.
-export async function rejectCandidate(candidateId: string, reason: string, note: string, email: { send: boolean; text: string }): Promise<Result<{ delivery: "waiting" | "skipped"; seconds: number }>> {
+export async function rejectCandidate(candidateId: string, reason: string, note: string, email: { send: boolean; text: string }): Promise<Result<{ delivery: "waiting" | "skipped"; seconds: number; at: string }>> {
   return act(async actor => {
     const sql = db();
+    const at = new Date(Date.now() - 1000).toISOString();
     const text = email.send ? clean(email.text, limits.emailText, { multiline: true }) : "";
     const before = await candidates.candidate(sql, actor, candidateId);
     const c = await candidates.reject(sql, actor, candidateId, reason, note);
@@ -155,20 +156,21 @@ export async function rejectCandidate(candidateId: string, reason: string, note:
     await interviews.requeue(sql, { candidate: c.id });
     await tell.settled(c.id);
     await tell.refreshBadges(sql);
-    if (!email.send || before.candidate.status !== "active") return { delivery: "skipped" as const, seconds: 0 };
+    if (!email.send || before.candidate.status !== "active") return { delivery: "skipped" as const, seconds: 0, at };
     const s = await jobs.settings(sql);
     const draft = mailer.rejectionDraft(c, before.job, s.companyName, actor.firstName || actor.name);
     await messages.queue(sql, actor, c.id, { kind: "rejection", subject: draft.subject, text, delaySeconds: messages.undoSeconds });
-    return { delivery: "waiting" as const, seconds: messages.undoSeconds };
+    return { delivery: "waiting" as const, seconds: messages.undoSeconds, at };
   });
 }
 
 // bulkReject rejects several candidates of a job with one reason, each
 // with the rejection email in their own language when asked — every email
 // waiting for the Undo like one rejection's. Says who was rejected.
-export async function bulkReject(ids: string[], reason: string, send: boolean): Promise<Result<{ done: string[]; seconds: number }>> {
+export async function bulkReject(ids: string[], reason: string, send: boolean): Promise<Result<{ done: string[]; seconds: number; at: string }>> {
   return act(async actor => {
     const sql = db();
+    const at = new Date(Date.now() - 1000).toISOString();
     if (!Array.isArray(ids) || ids.length === 0 || ids.length > limits.bulk) throw new AppError("invalid");
     const s = await jobs.settings(sql);
     const done: string[] = [];
@@ -186,17 +188,32 @@ export async function bulkReject(ids: string[], reason: string, send: boolean): 
       done.push(c.id);
     }
     await tell.refreshBadges(sql);
-    return { done, seconds: messages.undoSeconds };
+    return { done, seconds: messages.undoSeconds, at };
   });
 }
 
-// bulkRestore: the Undo of a bulk rejection (their emails never leave).
-export async function bulkRestore(ids: string[]): Promise<Result<null>> {
+// undoReject: the Undo of a rejection, of one candidate or several. They
+// are back where they were, and their rejection emails still waiting
+// never leave (candidates.restore cancels them). Says how many had
+// already left since the rejection — the toast was held open past its
+// time — so the Undo tells the truth.
+export async function undoReject(ids: string[], since: string): Promise<Result<{ left: number }>> {
   return act(async actor => {
-    if (!Array.isArray(ids) || ids.length > limits.bulk) throw new AppError("invalid");
-    for (const id of ids) await candidates.restore(db(), actor, id);
-    await tell.refreshBadges(db());
-    return null;
+    const sql = db();
+    if (!Array.isArray(ids) || ids.length === 0 || ids.length > limits.bulk) throw new AppError("invalid");
+    for (const id of ids) await restoreOne(sql, actor, id);
+    await tell.refreshBadges(sql);
+    return { left: await messages.rejectionsSent(sql, actor, ids, since) };
+  });
+}
+
+// rejectionsLeft: once the Undo of a rejection is over, send what is due
+// and say how many of these candidates' rejection emails left.
+export async function rejectionsLeft(ids: string[], since: string): Promise<Result<{ left: number }>> {
+  return act(async actor => {
+    const sql = db();
+    await outbox.flush(sql);
+    return { left: await messages.rejectionsSent(sql, actor, ids, since) };
   });
 }
 
@@ -230,13 +247,20 @@ export async function bulkMoveBack(from: Record<string, string>): Promise<Result
   });
 }
 
+// restoreOne brings a rejected candidate back (Bring back, or the Undo of
+// a rejection): back on their interviewers' calendars, and People told
+// again when they were hired.
+async function restoreOne(sql: ReturnType<typeof db>, actor: Member, candidateId: string): Promise<void> {
+  const before = await candidates.candidate(sql, actor, candidateId);
+  const c = await candidates.restore(sql, actor, candidateId);
+  await interviews.requeue(sql, { candidate: c.id });
+  if (before.candidate.status === "rejected" && (await candidates.isHiredStage(sql, c.stageId))) await tellHired(actor, { ...c, stageEnteredAt: new Date().toISOString() });
+}
+
 export async function restoreCandidate(candidateId: string): Promise<Result<null>> {
   return act(async actor => {
     const sql = db();
-    const before = await candidates.candidate(sql, actor, candidateId);
-    const c = await candidates.restore(sql, actor, candidateId);
-    await interviews.requeue(sql, { candidate: c.id });
-    if (before.candidate.status === "rejected" && (await candidates.isHiredStage(sql, c.stageId))) await tellHired(actor, { ...c, stageEnteredAt: new Date().toISOString() });
+    await restoreOne(sql, actor, candidateId);
     await tell.refreshBadges(sql);
     return null;
   });

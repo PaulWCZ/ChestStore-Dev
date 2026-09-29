@@ -1,8 +1,8 @@
 "use client";
 
+import { useToast } from "@argentic/chest-ui/components";
 import { useState, useTransition, type ReactNode } from "react";
 import { Clock, Mail } from "../../components/icons.tsx";
-import { useToast } from "../../components/toast.tsx";
 import { format } from "../../lib/i18n/format.ts";
 import type { Catalogue } from "../../lib/i18n/index.ts";
 import type { Result } from "../../lib/errors.ts";
@@ -22,7 +22,7 @@ function Switch({ on, icon, save, t }: { on: boolean; icon: ReactNode; save: (on
         setChecked(next);
         start(async () => {
           const r = await save(next);
-          if (!r.ok) { setChecked(!next); toast(format(t.errors[r.error], r.values)); }
+          if (!r.ok) { setChecked(!next); toast({ text: format(t.errors[r.error], r.values), tone: "error" }); }
         });
       }} />
       {icon}

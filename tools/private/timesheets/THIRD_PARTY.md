@@ -11,5 +11,7 @@
 
 Dependencies installed from npm under their own licences: `next`, `react`,
 `react-dom` (MIT), `postgres` (Unlicense), `@argentic/chest-sdk` (MIT, the
-studio's working copy in `vendor/`). Icons and the mark are drawn for this
+studio's working copy in `vendor/`), `@argentic/chest-ui` (MIT, the
+studio's UI kit, in `vendor/`: themes, the look's runtime, shared
+components). Icons and the mark are drawn for this
 tool (`components/icons.tsx`, `components/mark.tsx`).

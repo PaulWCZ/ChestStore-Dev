@@ -1,10 +1,11 @@
 "use client";
 
+import { useToast } from "@argentic/chest-ui/components";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useRef, useTransition } from "react";
 import { Chart, Close, Copy, Dots, Download, Duplicate, External, Gear, Globe, Pencil, Plus, Share, Undo, Upload } from "../../../../components/icons.tsx";
-import { useToast } from "../../../../components/toast.tsx";
+import { format } from "../../../../lib/i18n/format.ts";
 import type { Catalogue } from "../../../../lib/i18n/index.ts";
 import type { JobState } from "../../../../lib/model.ts";
 import { duplicateJob, setJobState } from "../../actions.ts";
@@ -25,9 +26,16 @@ export function JobActions({ job, link, share, t }: { job: { id: string; state: 
     if (menu.current) menu.current.open = false;
     start(async () => {
       const r = await setJobState(job.id, state);
-      if (!r.ok) return toast(t.errors[r.error]);
+      if (!r.ok) return void toast({ text: t.errors[r.error], tone: "error" });
       const previous = r.value.previous as JobState;
-      toast(done, { label: t.common.undo, run: () => start(async () => { await setJobState(job.id, previous); }) });
+      toast({
+        id: `job-state-${job.id}`,
+        text: done,
+        undo: async () => {
+          const back = await setJobState(job.id, previous);
+          return back.ok || t.errors[back.error];
+        },
+      });
     });
   }
   async function copy() {
@@ -36,7 +44,7 @@ export function JobActions({ job, link, share, t }: { job: { id: string; state: 
       await navigator.clipboard.writeText(link);
       toast(t.common.copied);
     } catch {
-      window.prompt(w.copyLink, link);
+      toast({ id: `copy-${job.id}`, text: format(t.common.copyFailed, { link }), tone: "error" });
     }
   }
 
@@ -44,7 +52,7 @@ export function JobActions({ job, link, share, t }: { job: { id: string; state: 
     if (menu.current) menu.current.open = false;
     start(async () => {
       const r = await duplicateJob(job.id);
-      if (!r.ok) return toast(t.errors[r.error]);
+      if (!r.ok) return void toast({ text: t.errors[r.error], tone: "error" });
       toast(w.duplicated);
       router.push(`/chest/jobs/${r.value.id}/edit`);
     });

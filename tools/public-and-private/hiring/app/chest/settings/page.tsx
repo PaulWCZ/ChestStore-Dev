@@ -1,3 +1,4 @@
+import { PageHeader } from "@argentic/chest-ui/components";
 import * as files from "@argentic/chest-sdk/files";
 import { headers } from "next/headers";
 import { notFound } from "next/navigation";
@@ -5,10 +6,11 @@ import { can } from "../../../lib/access.ts";
 import { countryNames } from "../../../lib/countries.ts";
 import { db } from "../../../lib/db.ts";
 import { locales } from "../../../lib/i18n/index.ts";
-import { introFor, settings } from "../../../lib/jobs.ts";
+import { accents, introFor, settings } from "../../../lib/jobs.ts";
 import { templates } from "../../../lib/messages.ts";
 import { publicOrigin } from "../../../lib/public-origin.ts";
-import { viewer } from "../../../lib/session.ts";
+import { nonceOf, viewer } from "../../../lib/session.ts";
+import { accentCss, currentLook } from "../../../lib/theme.ts";
 import { SettingsView } from "./settings-view.tsx";
 
 // The careers page's settings: its name, its words in each language, its
@@ -20,12 +22,16 @@ export default async function Settings() {
   const { t, locale, member } = v;
   const sql = db();
   const s = await settings(sql);
-  const origin = publicOrigin(await headers()) ?? "";
+  const h = await headers();
+  const origin = publicOrigin(h) ?? "";
+  const look = await currentLook();
   const url = (image: { object: string; version: string }) => files.publicUrl(image.object, { version: image.version });
   const own = await templates(sql, member);
   return (
     <div className="narrow">
-      <div className="page-head"><h1>{t.settings.title}</h1></div>
+      <PageHeader title={t.settings.title} />
+      {/* Each swatch in its accent's own colours (lib/theme.ts), light and dark. */}
+      <style nonce={nonceOf(h)} dangerouslySetInnerHTML={{ __html: accents.map(a => accentCss(a, `.swatch-${a}`)).join("\n") }} />
       <SettingsView
         settings={{ companyName: s.ownName, intros: Object.fromEntries(locales.map(l => [l, introFor(s, l)])), careersOpen: s.careersOpen, retentionMonths: s.retentionMonths, country: s.country, website: s.website, accent: s.accent }}
         fallbackName={s.companyName}
@@ -35,6 +41,7 @@ export default async function Settings() {
         photos={s.photos.map(p => ({ object: p.object, url: url(p) }))}
         templates={own.map(x => ({ id: x.id, name: x.name, language: x.language, subject: x.subject, body: x.body }))}
         countryNames={countryNames(locale)}
+        look={look.source}
         t={{ settings: t.settings, retention: t.retention, errors: t.errors, common: t.common, careers: t.careers, templatesWords: t.templates }}
       />
     </div>

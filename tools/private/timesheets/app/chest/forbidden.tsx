@@ -1,3 +1,4 @@
+import { EmptyState } from "@argentic/chest-ui/components";
 import { viewer } from "../../lib/session.ts";
 
 // A page for managers, asked by someone else (forbidden(), HTTP 403): what
@@ -7,12 +8,8 @@ export default async function Forbidden() {
   if (!v) return null;
   const { t } = v;
   return (
-    <main className="page narrow">
-      <div className="empty">
-        <h1>{t.managersOnly.title}</h1>
-        <p>{t.managersOnly.body}</p>
-        <a className="button quiet" href="/chest">{t.notFound.back}</a>
-      </div>
-    </main>
+    <div className="page narrow">
+      <EmptyState headingLevel={1} title={t.managersOnly.title} body={t.managersOnly.body} action={<a className="button quiet" href="/chest">{t.notFound.back}</a>} />
+    </div>
   );
 }

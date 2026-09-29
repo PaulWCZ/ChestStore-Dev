@@ -1,10 +1,10 @@
 "use client";
 
+import { Dialog, useToast } from "@argentic/chest-ui/components";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { Play, Plus, Stop } from "../../components/icons.tsx";
-import { useToast } from "../../components/toast.tsx";
 import { WorkPicker, type PickerProject } from "../../components/work-picker.tsx";
 import { readWork, workValue } from "../../lib/work.ts";
 import { formatClock, formatDuration } from "../../lib/duration.ts";
@@ -17,7 +17,9 @@ import { addEntry, discardTimer, restoreTimer, startTimer, stopTimer, updateTime
 // start instant lives on the server; the clock ticks here from it.
 export type RunningView = { projectId: string; taskId: string | null; note: string; startedAt: string; elapsed: number; since: string; projectName: string };
 export type Forgotten = { date: string; time: string; ago: string; options: { value: string; label: string }[]; chosen: string };
-type Words = { timer: Catalogue["timer"]; work: Catalogue["work"]; errors: Catalogue["errors"] };
+type Words = { timer: Catalogue["timer"]; work: Catalogue["work"]; errors: Catalogue["errors"]; dialog: Catalogue["dialog"] };
+// A stop under a minute recorded nothing: what it was, to keep a minute.
+type Short = { projectId: string; taskId: string | null; day: string; note: string; projectName: string };
 
 export function TimerBar(props: { running: RunningView | null; forgotten: Forgotten | null; projects: PickerProject[]; last: string; canManage: boolean; serverNow: number; t: Words }) {
   const { t } = props;
@@ -30,6 +32,7 @@ export function TimerBar(props: { running: RunningView | null; forgotten: Forgot
   const [work, setWork] = useState(props.running ? workValue(props.running) : props.last);
   const [note, setNote] = useState(props.running?.note ?? "");
   const [elapsed, setElapsed] = useState(props.running?.elapsed ?? 0);
+  const [short, setShort] = useState<Short | null>(null);
   const skew = useRef(0);
   const title = useRef<string | null>(null);
 
@@ -64,13 +67,14 @@ export function TimerBar(props: { running: RunningView | null; forgotten: Forgot
     return () => clearInterval(timer);
   }, [running]);
 
-  const fail = (code: keyof Catalogue["errors"], values?: Record<string, string | number>) => toast(format(t.errors[code], values));
+  const fail = (code: keyof Catalogue["errors"], values?: Record<string, string | number>) => void toast({ text: format(t.errors[code], values), tone: "error" });
   const projectOf = (value: string) => props.projects.find(p => p.id === readWork(value)?.projectId);
 
   function begin() {
     const chosen = readWork(work);
-    if (!chosen) return toast(t.timer.pickFirst);
+    if (!chosen) return void toast({ text: t.timer.pickFirst, tone: "error" });
     const before = running;
+    setShort(null);
     const now = new Date(Date.now() + skew.current).toISOString();
     setRunning({ ...chosen, note, startedAt: now, elapsed: 0, since: "", projectName: projectOf(work)?.name ?? "" });
     start(async () => {
@@ -79,7 +83,7 @@ export function TimerBar(props: { running: RunningView | null; forgotten: Forgot
         setRunning(before);
         return fail(r.error, r.values);
       }
-      if (r.value.stopped) toast(format(t.timer.recorded, { duration: formatDuration(r.value.stopped.minutes), project: before?.projectName ?? "" }));
+      if (r.value.stopped) toast({ id: "timer", text: format(t.timer.recorded, { duration: formatDuration(r.value.stopped.minutes), project: before?.projectName ?? "" }) });
       router.refresh();
     });
   }
@@ -96,17 +100,39 @@ export function TimerBar(props: { running: RunningView | null; forgotten: Forgot
         return fail(r.error, r.values);
       }
       setNote("");
-      if (r.value.entry) toast(format(t.timer.recorded, { duration: formatDuration(r.value.entry.minutes), project: before.projectName }));
+      if (r.value.entry) toast({ id: "timer", text: format(t.timer.recorded, { duration: formatDuration(r.value.entry.minutes), project: before.projectName }) });
       else {
-        // Under a minute: nothing recorded, unless the person keeps a minute.
-        const day = r.value.day;
-        toast(t.timer.tooShort, { label: t.timer.keepMinute, run: () => start(async () => {
-          const k = await addEntry({ projectId: before.projectId, taskId: before.taskId, day, minutes: 1, note: said });
-          if (!k.ok) return fail(k.error, k.values);
-          toast(format(t.timer.recorded, { duration: formatDuration(1), project: before.projectName }));
-          router.refresh();
-        }) });
+        // Under a minute: nothing recorded. Undo puts the timer back as it
+        // was (still running); the timer's line offers to keep a minute.
+        setShort({ projectId: before.projectId, taskId: before.taskId, day: r.value.day, note: said, projectName: before.projectName });
+        toast({
+          id: "timer",
+          text: t.timer.tooShort,
+          undo: async () => {
+            const u = await restoreTimer({ projectId: before.projectId, taskId: before.taskId, note: said, startedAt: before.startedAt });
+            if (!u.ok) return format(t.errors[u.error], u.values);
+            setShort(null);
+            setNote(said);
+            router.refresh();
+            return true;
+          },
+        });
       }
+      router.refresh();
+    });
+  }
+
+  function keepMinute() {
+    if (!short) return;
+    const kept = short;
+    setShort(null);
+    start(async () => {
+      const k = await addEntry({ projectId: kept.projectId, taskId: kept.taskId, day: kept.day, minutes: 1, note: kept.note });
+      if (!k.ok) {
+        setShort(kept);
+        return fail(k.error, k.values);
+      }
+      toast({ id: "timer", text: format(t.timer.recorded, { duration: formatDuration(1), project: kept.projectName }) });
       router.refresh();
     });
   }
@@ -128,7 +154,16 @@ export function TimerBar(props: { running: RunningView | null; forgotten: Forgot
       setRunning(null);
       setNote("");
       const back = r.value;
-      toast(t.timer.discarded, { label: t.timer.undo, run: () => start(async () => { const u = await restoreTimer(back); if (!u.ok) fail(u.error, u.values); router.refresh(); }) });
+      toast({
+        id: "timer",
+        text: t.timer.discarded,
+        undo: async () => {
+          const u = await restoreTimer(back);
+          if (!u.ok) return format(t.errors[u.error], u.values);
+          router.refresh();
+          return true;
+        },
+      });
       router.refresh();
     });
   }
@@ -172,6 +207,12 @@ export function TimerBar(props: { running: RunningView | null; forgotten: Forgot
         )}
       </form>
       {running && running.since && <p className="timer-since">{format(t.timer.since, { time: running.since })}</p>}
+      {!running && short && (
+        <p className="timer-since timer-short">
+          <span>{t.timer.tooShort}</span>
+          <button type="button" className="button link" disabled={pending} onClick={keepMinute}>{t.timer.keepMinute}</button>
+        </p>
+      )}
       {props.forgotten && running && <ForgottenDialog key={running.startedAt} startedAt={running.startedAt} projectName={running.projectName} forgotten={props.forgotten} t={t} onDone={() => router.refresh()} />}
     </section>
   );
@@ -179,8 +220,10 @@ export function TimerBar(props: { running: RunningView | null; forgotten: Forgot
 
 // A timer running more than 10 hours was probably forgotten: ask when it
 // really stopped, once per visit.
+// The kit's Dialog: closing it (Escape, its close button, the backdrop)
+// means "it's still running".
 function ForgottenDialog({ startedAt, projectName, forgotten, t, onDone }: { startedAt: string; projectName: string; forgotten: Forgotten; t: Words; onDone: () => void }) {
-  const dialog = useRef<HTMLDialogElement>(null);
+  const [open, setOpen] = useState(false);
   const toast = useToast();
   const [at, setAt] = useState(forgotten.chosen);
   const [pending, start] = useTransition();
@@ -193,27 +236,34 @@ function ForgottenDialog({ startedAt, projectName, forgotten, t, onDone }: { sta
     } catch {
       // Storage refused (private mode): ask anyway.
     }
-    if (!kept && dialog.current && !dialog.current.open) dialog.current.showModal();
+    if (!kept) setOpen(true);
   }, [storageKey]);
 
-  function close() {
-    dialog.current?.close();
-  }
   function save() {
     start(async () => {
       const r = await stopTimer(at === "now" ? undefined : at);
-      if (!r.ok) return toast(format(t.errors[r.error], r.values));
-      close();
-      toast(r.value.entry ? format(t.timer.recorded, { duration: formatDuration(r.value.entry.minutes), project: projectName }) : t.timer.tooShort);
+      if (!r.ok) return void toast({ text: format(t.errors[r.error], r.values), tone: "error" });
+      setOpen(false);
+      toast({ id: "timer", text: r.value.entry ? format(t.timer.recorded, { duration: formatDuration(r.value.entry.minutes), project: projectName }) : t.timer.tooShort });
       onDone();
     });
   }
   function drop() {
     start(async () => {
       const r = await discardTimer();
-      if (!r.ok) return toast(format(t.errors[r.error], r.values));
-      close();
-      toast(t.timer.discarded);
+      if (!r.ok) return void toast({ text: format(t.errors[r.error], r.values), tone: "error" });
+      setOpen(false);
+      const back = r.value;
+      toast({
+        id: "timer",
+        text: t.timer.discarded,
+        undo: async () => {
+          const u = await restoreTimer(back);
+          if (!u.ok) return format(t.errors[u.error], u.values);
+          onDone();
+          return true;
+        },
+      });
       onDone();
     });
   }
@@ -223,22 +273,31 @@ function ForgottenDialog({ startedAt, projectName, forgotten, t, onDone }: { sta
     } catch {
       // Nothing to remember it in: it asks again next visit.
     }
-    close();
+    setOpen(false);
   }
 
   return (
-    <dialog ref={dialog} className="dialog" aria-labelledby="forgotten-title" onCancel={keep}>
-      <h2 id="forgotten-title">{t.timer.forgotten.title}</h2>
-      <p>{format(t.timer.forgotten.body, { date: forgotten.date, time: forgotten.time, ago: forgotten.ago })}</p>
-      <label className="label" htmlFor="forgotten-at">{t.timer.forgotten.when}</label>
-      <select id="forgotten-at" className="field" value={at} onChange={e => setAt(e.target.value)}>
-        {forgotten.options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-      </select>
-      <div className="dialog-actions">
-        <button type="button" className="button" disabled={pending} onClick={save}>{t.timer.forgotten.save}</button>
-        <button type="button" className="button quiet" disabled={pending} onClick={drop}>{t.timer.forgotten.discard}</button>
-        <button type="button" className="button link" disabled={pending} onClick={keep}>{t.timer.forgotten.keep}</button>
+    <Dialog
+      open={open}
+      title={t.timer.forgotten.title}
+      description={format(t.timer.forgotten.body, { date: forgotten.date, time: forgotten.time, ago: forgotten.ago })}
+      onClose={keep}
+      labels={t.dialog}
+      size="s"
+      footer={
+        <>
+          <button type="button" className="button link" disabled={pending} onClick={keep}>{t.timer.forgotten.keep}</button>
+          <button type="button" className="button quiet" disabled={pending} onClick={drop}>{t.timer.forgotten.discard}</button>
+          <button type="button" className="button" disabled={pending} onClick={save}>{t.timer.forgotten.save}</button>
+        </>
+      }
+    >
+      <div>
+        <label className="label" htmlFor="forgotten-at">{t.timer.forgotten.when}</label>
+        <select id="forgotten-at" className="field" value={at} onChange={e => setAt(e.target.value)}>
+          {forgotten.options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+        </select>
       </div>
-    </dialog>
+    </Dialog>
   );
 }

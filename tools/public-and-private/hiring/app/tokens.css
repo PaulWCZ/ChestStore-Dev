@@ -1,127 +1,32 @@
-/* Hiring's design tokens, defined once (DESIGN.md explains them and lists
-   the contrast ratios, checked with scripts/contrast.mjs). An editorial
-   careers magazine: warm cream paper, deep cobalt ink, one tomato accent,
-   a characterful grotesque for the big words. Light first; dark follows
-   the system. */
+/* Hiring's own tokens. The contract's (colours, fonts, sizes, spacing,
+   corners, motion: @argentic/chest-ui, tokens/CONTRACT.md) are set by the
+   look of the page — Hiring's identity "Magazine" in lib/theme.ts, or the
+   theme or brand the company chose in its Chest — in a <style> of
+   app/layout.tsx. Here only what is Hiring's alone, always defined from
+   contract tokens, never from a colour, so it follows every theme. */
 :root {
-  color-scheme: light dark;
-  --font-body: "Instrument Sans Variable", system-ui, -apple-system, "Segoe UI", sans-serif;
-  --font-display: "Bricolage Grotesque Variable", var(--font-body);
-
-  /* Paper and ink */
-  --paper: #f6f0e4;        /* the page */
-  --card: #fffaf1;         /* surfaces on it */
-  --card-2: #efe6d4;       /* lanes, quiet blocks */
-  --ink: #1a1a2e;          /* text — 15.0:1 on paper */
-  --ink-2: #5b5a6e;        /* secondary text — 5.9:1 on paper, 6.4:1 on card */
-  --line: #e2d7c1;         /* hairlines (decorative) */
-  --line-strong: #8d8474;  /* field borders — 3.4:1 on card */
-
-  /* Cobalt: the brand, the main action */
-  --cobalt: #1c2b8f;       /* 10.3:1 on paper */
-  --cobalt-hover: #14206e;
-  --cobalt-ink: #f6f0e4;   /* on cobalt — 10.3:1 */
-  --cobalt-soft: #e4e7fb;  /* cobalt at rest: chips, selection (cobalt on it 9.6:1) */
-
-  /* Tomato: the accent — kickers, "new", the index numbers */
-  --tomato: #c93a1e;       /* text on paper — 4.5:1 */
-  --tomato-bright: #e5553a;/* shapes only, never text */
-  --tomato-ink: #ffffff;   /* on tomato — 5.1:1 */
-  --tomato-soft: #fde3da;
-  --tomato-deep: #7a2410;  /* on tomato-soft — 8.2:1 */
-
-  --ok: #1d6b43;           /* on card — 6.3:1 */
-  --ok-soft: #dcefe2;
-  --danger: #b0281a;       /* on card — 6.0:1 */
-  --focus: #1c2b8f;
-
-  --space-1: 4px;
-  --space-2: 8px;
-  --space-3: 12px;
-  --space-4: 16px;
-  --space-5: 24px;
-  --space-6: 32px;
-  --space-7: 48px;
-  --space-8: 72px;
-
-  --radius-s: 6px;
-  --radius-m: 10px;
-  --radius-l: 18px;
-  --radius-pill: 999px;
-  --shadow-1: 0 1px 0 rgb(26 26 46 / 0.06), 0 1px 3px rgb(26 26 46 / 0.06);
-  --shadow-2: 0 12px 32px rgb(26 26 46 / 0.16);
-
-  --text-xs: 0.8125rem;
-  --text-s: 0.875rem;
-  --text-m: 1rem;
-  --text-l: 1.1875rem;
-  --text-xl: 1.625rem;
-  --text-2xl: clamp(1.9rem, 1.3rem + 2.2vw, 2.75rem);
+  /* The careers page's huge headline (sizes are not colours: a theme
+     changes the scale, this follows --text-2xl's family). */
   --text-display: clamp(2.6rem, 1.4rem + 5.2vw, 5.6rem);
 
-  --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
-  --fast: 120ms;
-  --slow: 240ms;
-}
+  /* Tomato, the second colour of the identity: categorical slot 3 (the
+     orange family in every theme). Solid for shapes and large figures,
+     ink for small text (on the page and on its soft ground), soft for a
+     chip's ground. */
+  --tomato: var(--cat-3);
+  --tomato-text: var(--cat-3-ink);
+  --tomato-soft: var(--cat-3-soft);
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --paper: #10133a;
-    --card: #181c4a;
-    --card-2: #141840;
-    --ink: #f6f0e4;         /* 15.7:1 on paper */
-    --ink-2: #a9a8bf;       /* 7.7:1 on paper, 6.9:1 on card */
-    --line: #2a2f66;
-    --line-strong: #6d72a8; /* 3.3:1 on card */
-    --cobalt: #9fb0ff;      /* 8.6:1 on paper */
-    --cobalt-hover: #b9c6ff;
-    --cobalt-ink: #10133a;  /* on cobalt — 8.6:1 */
-    --cobalt-soft: #252b6b;
-    --tomato: #ff8a6b;      /* 7.7:1 on paper */
-    --tomato-bright: #ff8a6b;
-    --tomato-ink: #10133a;  /* on tomato — 7.7:1 */
-    --tomato-soft: #3d1f33;
-    --tomato-deep: #ffc2b1;
-    --ok: #7fd6a2;
-    --ok-soft: #173a36;
-    --danger: #ff9a8a;
-    --focus: #ffcf70;
-    --shadow-1: none;
-    --shadow-2: 0 12px 32px rgb(0 0 0 / 0.5);
-  }
-}
+  /* Hairlines on an accent-filled panel (the apply card, the waiting
+     list): decoration only. */
+  --on-accent-line: color-mix(in oklch, var(--accent-ink) 25%, transparent);
 
-@media (prefers-reduced-motion: reduce) {
-  :root { --fast: 0ms; --slow: 0ms; }
-}
+  /* The magazine's pills (buttons, chips): round in a theme with round
+     corners, square in a square one (the Chest theme's radius is 0). */
+  --radius-round: min(var(--radius-pill), calc(var(--radius-s) * 100));
 
-/* The company's accent on its careers page (Settings → Colour): each
-   replaces the cobalt, light and dark, checked with scripts/contrast.mjs
-   (DESIGN.md lists the ratios). Only the careers pages carry it. */
-[data-accent="forest"] { --cobalt: #1f5c3a; --cobalt-hover: #174a2e; --cobalt-ink: #f6f0e4; --cobalt-soft: #dcece2; --focus: #1f5c3a; }
-[data-accent="plum"] { --cobalt: #6b2a5e; --cobalt-hover: #561f4b; --cobalt-ink: #f6f0e4; --cobalt-soft: #f1dfec; --focus: #6b2a5e; }
-[data-accent="tomato"] { --cobalt: #a8321b; --cobalt-hover: #8c2814; --cobalt-ink: #ffffff; --cobalt-soft: #fde3da; --focus: #a8321b; }
-[data-accent="ocean"] { --cobalt: #0b5a73; --cobalt-hover: #084a5f; --cobalt-ink: #f6f0e4; --cobalt-soft: #d8ecf2; --focus: #0b5a73; }
-[data-accent="graphite"] { --cobalt: #2b2b2b; --cobalt-hover: #111111; --cobalt-ink: #f6f0e4; --cobalt-soft: #e6e2da; --focus: #2b2b2b; }
-@media (prefers-color-scheme: dark) {
-  [data-accent="forest"] { --cobalt: #86d6a6; --cobalt-hover: #a3e3bc; --cobalt-ink: #10133a; --cobalt-soft: #173a2a; --focus: #ffcf70; }
-  [data-accent="plum"] { --cobalt: #e3a6d6; --cobalt-hover: #ecc0e2; --cobalt-ink: #10133a; --cobalt-soft: #3a1d38; --focus: #ffcf70; }
-  [data-accent="tomato"] { --cobalt: #ff9a80; --cobalt-hover: #ffb4a0; --cobalt-ink: #10133a; --cobalt-soft: #3d1f25; --focus: #ffcf70; }
-  [data-accent="ocean"] { --cobalt: #7fcbe3; --cobalt-hover: #a0daec; --cobalt-ink: #10133a; --cobalt-soft: #123448; --focus: #ffcf70; }
-  [data-accent="graphite"] { --cobalt: #e6e2da; --cobalt-hover: #f6f0e4; --cobalt-ink: #10133a; --cobalt-soft: #2a2d45; --focus: #ffcf70; }
-}
-/* The swatches of the setting show each accent in the current scheme. */
-.accent-cobalt { --swatch: #1c2b8f; }
-.accent-forest { --swatch: #1f5c3a; }
-.accent-plum { --swatch: #6b2a5e; }
-.accent-tomato { --swatch: #a8321b; }
-.accent-ocean { --swatch: #0b5a73; }
-.accent-graphite { --swatch: #2b2b2b; }
-@media (prefers-color-scheme: dark) {
-  .accent-cobalt { --swatch: #9fb0ff; }
-  .accent-forest { --swatch: #86d6a6; }
-  .accent-plum { --swatch: #e3a6d6; }
-  .accent-tomato { --swatch: #ff9a80; }
-  .accent-ocean { --swatch: #7fcbe3; }
-  .accent-graphite { --swatch: #e6e2da; }
+  /* Heavier lines of the magazine (a field, a card's edge): never thinner
+     than the theme's own line width. */
+  --line-bold: max(1.5px, var(--border-width));
+  --rule: max(2px, var(--border-width));
 }

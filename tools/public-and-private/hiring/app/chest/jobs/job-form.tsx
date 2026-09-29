@@ -1,17 +1,18 @@
 "use client";
 
+import { DateField, Segmented, useToast } from "@argentic/chest-ui/components";
+import type { DateWords } from "@argentic/chest-ui/components/logic";
 import { useRouter } from "next/navigation";
 import { useRef, useState, useTransition } from "react";
 import { Bin, Bold, Heading, List, Plus } from "../../../components/icons.tsx";
 import { RichText } from "../../../components/rich-text.tsx";
-import { useToast } from "../../../components/toast.tsx";
 import { format, languageNames } from "../../../lib/i18n/format.ts";
 import type { Catalogue } from "../../../lib/i18n/index.ts";
 import type { Job } from "../../../lib/jobs.ts";
 import { contracts, currencies, hoursKinds, languages, limits, periods, questionKinds, remotes, type Question, type QuestionKind } from "../../../lib/model.ts";
 import { createJob, updateJob } from "../actions.ts";
 
-type Words = { jobForm: Catalogue["jobForm"]; facts: Catalogue["facts"]; errors: Catalogue["errors"] };
+type Words = { jobForm: Catalogue["jobForm"]; facts: Catalogue["facts"]; errors: Catalogue["errors"]; date: DateWords };
 // A question as the editor holds it: its options one per line.
 type Draft = { id: string; kind: QuestionKind; label: string; options: string; required: boolean };
 const toDraft = (q: Question): Draft => ({ id: q.id, kind: q.kind, label: q.label, options: q.options.join("\n"), required: q.required });
@@ -19,13 +20,14 @@ const toDraft = (q: Question): Draft => ({ id: q.id, kind: q.kind, label: q.labe
 // Writing a job: the facts a candidate looks for first, the description
 // (a few marks anyone can type, a preview), the salary. A new job is saved
 // as a draft: nothing is public until "Publish" on its board.
-export function JobForm({ job, defaultLanguage, defaultCountry, countryNames, t }: { job: Job | null; defaultLanguage: string; defaultCountry: string; countryNames: [string, string][]; t: Words }) {
+export function JobForm({ job, defaultLanguage, defaultCountry, countryNames, today, t }: { job: Job | null; defaultLanguage: string; defaultCountry: string; countryNames: [string, string][]; today: string; t: Words }) {
   const router = useRouter();
   const toast = useToast();
   const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [description, setDescription] = useState(job?.description ?? "");
   const [tab, setTab] = useState<"write" | "preview">("write");
+  const [closesOn, setClosesOn] = useState<string | null>(job?.closesOn || null);
   const area = useRef<HTMLTextAreaElement>(null);
   const [questions, setQuestions] = useState<Draft[]>(() => (job?.questions ?? []).map(toDraft));
   const w = t.jobForm;
@@ -75,7 +77,7 @@ export function JobForm({ job, defaultLanguage, defaultCountry, countryNames, t 
       postalCode: String(data.get("postalCode") ?? ""),
       street: String(data.get("street") ?? ""),
       hours: String(data.get("hours") ?? ""),
-      closesOn: String(data.get("closesOn") ?? ""),
+      closesOn: closesOn ?? "",
       questions: questions.map(q => ({ id: q.id, kind: q.kind, label: q.label, options: q.options.split("\n").map(o => o.trim()).filter(Boolean), required: q.required })),
     };
     start(async () => {
@@ -155,10 +157,7 @@ export function JobForm({ job, defaultLanguage, defaultCountry, countryNames, t 
       <div className="field-block">
         <div className="editor-head">
           <label className="label" htmlFor="description">{w.description}</label>
-          <div className="segmented" role="tablist" aria-label={w.description}>
-            <button type="button" role="tab" aria-selected={tab === "write"} onClick={() => setTab("write")}>{w.write}</button>
-            <button type="button" role="tab" aria-selected={tab === "preview"} onClick={() => setTab("preview")}>{w.preview}</button>
-          </div>
+          <Segmented label={w.description} name="description-view" value={tab} onChange={setTab} options={[{ value: "write", label: w.write }, { value: "preview", label: w.preview }]} />
         </div>
         {tab === "write" ? (
           <div className="editor">
@@ -239,9 +238,7 @@ export function JobForm({ job, defaultLanguage, defaultCountry, countryNames, t 
       </fieldset>
 
       <div className="field-block">
-        <label className="label" htmlFor="closesOn">{w.closesOn} <span className="optional">{w.optional}</span></label>
-        <input id="closesOn" name="closesOn" type="date" className="field short" defaultValue={job?.closesOn ?? ""} aria-describedby="closes-hint" />
-        <p className="hint" id="closes-hint">{w.closesOnHint}</p>
+        <DateField id="closesOn" label={w.closesOnOptional} value={closesOn} onChange={setClosesOn} today={today} hint={w.closesOnHint} labels={t.date} />
       </div>
 
       {error && <p className="error" role="alert">{error}</p>}

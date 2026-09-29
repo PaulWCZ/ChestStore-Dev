@@ -1,3 +1,4 @@
+import { PageHeader } from "@argentic/chest-ui/components";
 import { forbidden } from "next/navigation";
 import Link from "next/link";
 import { People, Upload } from "../../../components/icons.tsx";
@@ -21,8 +22,8 @@ export default async function SettingsPage() {
   const lastMonth = endOfLastMonth(day);
   const long = (d: string) => formatDay(d, locale, { day: "numeric", month: "long", year: "numeric" });
   return (
-    <main className="page">
-      <h1>{t.settings.title}</h1>
+    <div className="page">
+      <PageHeader title={t.settings.title} />
       <SettingsView
         today={day}
         lockedUntil={s.lockedUntil}
@@ -32,7 +33,7 @@ export default async function SettingsPage() {
         approvals={s.approvals}
         hoursStyle={s.hoursStyle}
         comma={locale === "fr"}
-        t={{ settings: t.settings, errors: t.errors }}
+        t={{ settings: t.settings, errors: t.errors, date: t.date }}
         locale={locale}
       />
       <section className="panel">
@@ -45,6 +46,6 @@ export default async function SettingsPage() {
         <p>{t.settings.import.body}</p>
         <p><Link className="button quiet" href="/chest/import"><Upload />{t.settings.import.link}</Link></p>
       </section>
-    </main>
+    </div>
   );
 }

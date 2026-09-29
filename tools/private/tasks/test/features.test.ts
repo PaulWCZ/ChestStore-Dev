@@ -175,7 +175,7 @@ test("a step of a checklist given to someone with a date is a subtask: in their 
   assert.equal((await cards.urgentCounts(sql, [ines.id])).get(ines.id), 1);
   // Told in her language, by the bell and by email.
   await tell.stepAssigned(asMember(hugo), ines.id, { id: step.id, text: "Get the keys" }, change.card, sql);
-  assert.equal(chest.notifications.at(-1)?.title, "Hugo Bernard vous a confié une étape de « Open the new office »");
+  assert.equal(chest.notifications.at(-1)?.title, "Hugo Bernard vous a confié une étape de « Open the new office »");
   assert.match(chest.outbox.at(-1)?.subject ?? "", /confié une étape/u);
   // Ticked: out of her list.
   await cards.updateItem(sql, asMember(ines), step.id, { done: true });
@@ -274,8 +274,8 @@ test("email beside the bell: given a card, mentioned, the morning; in each one's
   // Only Inès (Hugo gave it to himself), in French, with the link when the Chest gives the address.
   assert.equal(chest.outbox.length, 1);
   const letter = chest.outbox[0]!;
-  assert.equal(letter.subject, "Hugo Bernard vous a confié une tâche : Order boxes");
-  assert.match(letter.text, /décochez « M’envoyer aussi tout cela par e-mail »/u);
+  assert.equal(letter.subject, "Hugo Bernard vous a confié une tâche : Order boxes");
+  assert.match(letter.text, /décochez « M’envoyer aussi tout cela par e-mail »/u);
   // A retry sends nothing twice (the key).
   await tell.assigned(asMember(hugo), change.added, { id: c.id, title: "Order boxes", boardId: b.id }, sql);
   assert.equal(chest.outbox.length, 1);
@@ -297,7 +297,7 @@ test("email beside the bell: given a card, mentioned, the morning; in each one's
   const run: Run = { id: "run_" + "b".repeat(26), name: "morning", scheduledAt: new Date().toISOString(), attempt: 1, timeZone: "Europe/Paris" };
   await morning(sql, run);
   assert.deepEqual(chest.outbox.map(m => m.subject), ["1 tâche en retard"]);
-  assert.match(chest.outbox[0]!.text, /En retard :\n• Order boxes/u);
+  assert.match(chest.outbox[0]!.text, /En retard :\n• Order boxes/u);
   await assert.rejects(mail.setEmail(sql, asMember(nora), true), refused("forbidden"));
 });
 

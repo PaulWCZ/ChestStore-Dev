@@ -94,7 +94,7 @@ export default async function BoardPage({ params, searchParams }: { params: Prom
         view={view}
         calendar={calendar}
         filter={{ who: search.who ?? "", label: search.label ?? "" }}
-        t={{ board: t.board, card: t.card, errors: t.errors, colors: t.colors }}
+        t={{ board: t.board, card: t.card, errors: t.errors, colors: t.colors, dialog: t.dialog }}
       />
       {panel && (
         <CardPanel
@@ -110,7 +110,8 @@ export default async function BoardPage({ params, searchParams }: { params: Prom
           audience={audience}
           repeat={repeatView(detail!, cols, b.id, day, locale, t)}
           me={member.id}
-          t={{ card: t.card, activity: t.activity, errors: t.errors, colors: t.colors, fields: t.fields }}
+          locale={locale}
+          t={{ card: t.card, activity: t.activity, errors: t.errors, colors: t.colors, fields: t.fields, dialog: t.dialog, date: t.date, peoplePicker: t.peoplePicker, files: t.files }}
         />
       )}
     </div>

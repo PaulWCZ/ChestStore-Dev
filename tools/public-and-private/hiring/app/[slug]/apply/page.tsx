@@ -41,7 +41,7 @@ export default async function Apply({ params }: { params: Promise<{ slug: string
       </div>
       {open ? (
         <section className="form-card">
-          <ApplyForm slug={job.slug} started={formToken()} kept={format(t.apply.kept, { company, period })} pool={format(t.apply.pool, { company, period })} questions={job.questions} t={{ apply: t.apply, errors: t.errors }} locale={locale} />
+          <ApplyForm slug={job.slug} started={formToken()} kept={format(t.apply.kept, { company, period })} pool={format(t.apply.pool, { company, period })} questions={job.questions} t={{ apply: t.apply, errors: t.errors, files: t.files }} />
         </section>
       ) : (
         <section className="notice-block" role="status">

@@ -25,12 +25,12 @@ export default async function Search({ searchParams }: { searchParams: Promise<{
   }
   const hidden = q && !archived ? (await searchCards(db(), member, q, { archived: true }).catch(() => [])).length - found.length : 0;
   return (
-    <main className="narrow">
+    <div className="narrow">
       <h1>{t.search.title}</h1>
-      <form action="/chest/search" role="search" className="stack" style={{ margin: "var(--space-4) 0" }}>
+      <form action="/chest/search" role="search" aria-label={t.search.title} className="stack search-form">
         <div className="row">
           <label htmlFor="search-page" className="visually-hidden">{t.shell.search}</label>
-          <input id="search-page" name="q" type="search" className="field" style={{ flex: 1 }} defaultValue={q} maxLength={100} placeholder={t.shell.search} autoFocus={!q} />
+          <input id="search-page" name="q" type="search" className="field grow" defaultValue={q} maxLength={100} placeholder={t.shell.search} autoFocus={!q} />
           <button type="submit" className="button">{t.shell.searchButton}</button>
         </div>
         <label className="row small check-line">
@@ -40,7 +40,7 @@ export default async function Search({ searchParams }: { searchParams: Promise<{
       </form>
       {q ? <p className="muted" role="status">{plural(t.search.results, found.length, locale, { q })}</p> : <p className="hint">{t.search.hint}</p>}
       {hidden > 0 && <p className="hint"><Link href={`/chest/search?${new URLSearchParams({ q, archived: "1" }).toString()}`}>{plural(t.search.inArchive, hidden, locale)}</Link></p>}
-      <ul className="task-list" style={{ marginTop: "var(--space-3)" }}>
+      <ul className="task-list results">
         {found.map(c => (
           <li key={c.id} className="task">
             <Link className="title" href={`/chest/boards/${c.boardId}?card=${c.id}`}>{c.title}</Link>
@@ -52,6 +52,6 @@ export default async function Search({ searchParams }: { searchParams: Promise<{
           </li>
         ))}
       </ul>
-    </main>
+    </div>
   );
 }

@@ -1,7 +1,7 @@
+import { PageHeader } from "@argentic/chest-ui/components";
 import Link from "next/link";
 import { forbidden } from "next/navigation";
-import { Avatar } from "../../../components/avatar.tsx";
-import { Back, Check, Next, People, Send } from "../../../components/icons.tsx";
+import { Back, Next, People, Send } from "../../../components/icons.tsx";
 import { can } from "../../../lib/access.ts";
 import { today } from "../../../lib/clock.ts";
 import { db } from "../../../lib/db.ts";
@@ -13,7 +13,7 @@ import { nameFor, people } from "../../../lib/people.ts";
 import { viewer } from "../../../lib/session.ts";
 import { settings } from "../../../lib/settings.ts";
 import { teamWeeks, waiting, withRole } from "../../../lib/weeks.ts";
-import { ApproveAll, RemindButton, WaitingRow } from "./team-view.tsx";
+import { ApproveAll, RemindButton, TeamTable, WaitingRow, type TeamRow } from "./team-view.tsx";
 
 // The team, for managers: the weeks waiting for approval, and everyone's
 // hours in the last four weeks against their usual week — who has not
@@ -36,12 +36,24 @@ export default async function TeamPage({ searchParams }: { searchParams: Promise
   const short = last.filter(r => r.weeks[0]!.status !== "submitted" && r.weeks[0]!.status !== "approved" && r.weeks[0]!.minutes < r.capacity).map(r => r.memberId);
   const weekLabel = (w: string) => formatDay(w, locale, { day: "numeric", month: "short" });
   const photo = (id: string) => who.get(id)?.photo ?? null;
+  const tableRows: TeamRow[] = rows.map(r => {
+    const name = nameFor(r.memberId, who, locale);
+    return {
+      memberId: r.memberId,
+      name,
+      photo: photo(r.memberId),
+      capacity: r.capacity,
+      capacityText: formatDuration(r.capacity),
+      weeks: r.weeks.map(c => {
+        const past = c.week < now;
+        const state = c.status === "approved" ? "approved" : c.status === "submitted" ? "sent" : c.status === "returned" ? "returned" : past && c.minutes < r.capacity ? "short" : "";
+        return { week: c.week, minutes: c.minutes, text: formatDuration(c.minutes), state, label: `${name}, ${format(t.team.weekOf, { date: weekLabel(c.week) })}: ${formatDuration(c.minutes)}${state ? ", " + t.team.states[state] : ""}` };
+      }),
+    };
+  });
   return (
-    <main className="page wide">
-      <header className="page-head">
-        <h1>{t.team.title}</h1>
-        <Link className="button quiet" href="/chest/people"><People />{t.team.people}</Link>
-      </header>
+    <div className="page wide">
+      <PageHeader title={t.team.title} secondary={<Link className="button quiet" href="/chest/people"><People />{t.team.people}</Link>} />
 
       {s.approvals && (
         <section className="panel" aria-labelledby="waiting-title">
@@ -78,43 +90,13 @@ export default async function TeamPage({ searchParams }: { searchParams: Promise
         </div>
         {!dir.reached && <p className="notice small">{t.errors.unavailable}</p>}
         {team.length === 0 ? <p className="muted">{t.team.nobody}</p> : (
-          <div className="team-scroll">
-            <table className="team">
-              <thead>
-                <tr>
-                  <th scope="col">{t.team.person}</th>
-                  {mondays.map((w, i) => <th key={w} scope="col" className={`n${i < 2 ? " hide-phone" : ""}`}>{w === now ? t.team.thisWeek : weekLabel(w)}</th>)}
-                  <th scope="col" className="n hide-phone">{t.team.usual}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map(r => (
-                  <tr key={r.memberId}>
-                    <th scope="row"><span className="who-cell"><Avatar name={nameFor(r.memberId, who, locale)} photo={photo(r.memberId)} size={28} /><span>{nameFor(r.memberId, who, locale)}</span></span></th>
-                    {r.weeks.map((c, i) => {
-                      const past = c.week < now;
-                      const state = c.status === "approved" ? "approved" : c.status === "submitted" ? "sent" : c.status === "returned" ? "returned" : past && c.minutes < r.capacity ? "short" : "";
-                      return (
-                        <td key={c.week} className={`n${i < 2 ? " hide-phone" : ""}${state ? " " + state : ""}`}>
-                          <Link href={`/chest/team/${r.memberId}?week=${c.week}`} className="week-cell" aria-label={`${nameFor(r.memberId, who, locale)}, ${format(t.team.weekOf, { date: weekLabel(c.week) })}: ${formatDuration(c.minutes)}${state ? ", " + t.team.states[state] : ""}`}>
-                            <span className="num">{formatDuration(c.minutes)}</span>
-                            {state && <span className="state-tag">{state === "approved" && <Check />}{t.team.states[state]}</span>}
-                          </Link>
-                        </td>
-                      );
-                    })}
-                    <td className="n num hide-phone muted">{formatDuration(r.capacity)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <div className="team-weeks"><TeamTable rows={tableRows} heads={mondays.map(w => (w === now ? t.team.thisWeek : weekLabel(w)))} t={{ team: t.team, errors: t.errors }} labels={t.table} /></div>
         )}
         <div className="remind-bar">
           <p>{short.length ? plural(t.team.shortLast, short.length, locale) : t.team.allFilled}</p>
           {short.length > 0 && <RemindButton memberIds={short} week={lastWeek} label={plural(t.team.remind, short.length, locale)} locale={locale} t={{ team: t.team, errors: t.errors }} />}
         </div>
       </section>
-    </main>
+    </div>
   );
 }

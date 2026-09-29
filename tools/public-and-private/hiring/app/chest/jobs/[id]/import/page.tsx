@@ -1,3 +1,4 @@
+import { PageHeader } from "@argentic/chest-ui/components";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Back } from "../../../../../components/icons.tsx";
@@ -27,10 +28,9 @@ export default async function Import({ params }: { params: Promise<{ id: string 
   return (
     <div className="narrow">
       <Link className="back-link" href={`/chest/jobs/${detail.job.id}`}><Back />{detail.job.title}</Link>
-      <div className="page-head"><h1>{t.importer.title}</h1></div>
-      <p className="lede-s">{t.importer.intro}</p>
+      <PageHeader title={t.importer.title} intro={t.importer.intro} />
       <ImportView jobId={detail.job.id} language={detail.job.language} stages={detail.stages.map(s => ({ id: s.id, name: stageLabel(s, t.jobSettings.defaults), hired: s.hired }))} locale={locale}
-        t={{ importer: t.importer, errors: t.errors, common: t.common, languages: t.addForm }} />
+        t={{ importer: t.importer, errors: t.errors, common: t.common, languages: t.addForm, files: t.files }} />
     </div>
   );
 }

@@ -1,9 +1,9 @@
 "use client";
 
+import { useToast } from "@argentic/chest-ui/components";
 import { useRef, useState, useTransition } from "react";
 import { CopyButton } from "../../../components/copy-button.tsx";
 import { Bin, Download, Pencil, Plus, Upload } from "../../../components/icons.tsx";
-import { useToast } from "../../../components/toast.tsx";
 import { format, languageNames } from "../../../lib/i18n/format.ts";
 import type { Catalogue } from "../../../lib/i18n/index.ts";
 import { languages, limits, retentionChoices } from "../../../lib/model.ts";
@@ -16,9 +16,9 @@ type Template = { id: string; name: string; language: string; subject: string; b
 
 const accents = ["cobalt", "forest", "plum", "tomato", "ocean", "graphite"] as const;
 
-export function SettingsView({ settings, fallbackName, address, feeds, logo, photos, templates, countryNames, t }: {
+export function SettingsView({ settings, fallbackName, address, feeds, logo, photos, templates, countryNames, look, t }: {
   settings: Settings; fallbackName: string; address: string; feeds: { indeed: string; rss: string; sitemap: string };
-  logo: string | null; photos: { object: string; url: string }[]; templates: Template[]; countryNames: [string, string][]; t: Words;
+  look: "own" | "catalogue" | "brand"; logo: string | null; photos: { object: string; url: string }[]; templates: Template[]; countryNames: [string, string][]; t: Words;
 }) {
   const toast = useToast();
   const [pending, start] = useTransition();
@@ -49,7 +49,7 @@ export function SettingsView({ settings, fallbackName, address, feeds, logo, pho
         <div className="panel address">
           <span className="label">{w.address}</span>
           <a href={address} target="_blank" rel="noopener">{address}</a>
-          <CopyButton text={address} label={w.copy} done={t.common.copied} />
+          <CopyButton text={address} label={w.copy} done={t.common.copied} failed={t.common.copyFailed} />
         </div>
         <label className="check">
           <input type="checkbox" name="careersOpen" defaultChecked={settings.careersOpen} aria-describedby="open-hint" />
@@ -80,11 +80,12 @@ export function SettingsView({ settings, fallbackName, address, feeds, logo, pho
         </fieldset>
         <fieldset className="choices">
           <legend className="label">{w.accent}</legend>
+          {look !== "own" && <p className="hint tight-top">{w.lookNote}</p>}
           <div className="swatches">
             {accents.map(a => (
-              <label key={a} className={`swatch accent-${a}${accent === a ? " on" : ""}`}>
+              <label key={a} className={`swatch${accent === a ? " on" : ""}`}>
                 <input type="radio" name="accent" value={a} checked={accent === a} onChange={() => setAccent(a)} />
-                <span className="swatch-dot" aria-hidden="true" />
+                <span className={`swatch-dot swatch-${a}`} aria-hidden="true" />
                 <span>{w.accents[a]}</span>
               </label>
             ))}
@@ -110,7 +111,7 @@ export function SettingsView({ settings, fallbackName, address, feeds, logo, pho
         <div className="form-actions"><button type="submit" className="button" disabled={pending}>{w.save}</button></div>
       </form>
 
-      <Images logo={logo} photos={photos} t={t} />
+      <Images logo={logo} photos={photos} brandLogo={look === "brand"} t={t} />
 
       <section className="panel" aria-labelledby="reach">
         <h2 id="reach">{w.reach}</h2>
@@ -119,7 +120,7 @@ export function SettingsView({ settings, fallbackName, address, feeds, logo, pho
           {([["indeed", feeds.indeed, w.feedIndeed], ["rss", feeds.rss, w.feedRss], ["sitemap", feeds.sitemap, w.feedSitemap]] as const).map(([key, url, label]) => (
             <div key={key}>
               <dt>{label}</dt>
-              <dd><a href={url} target="_blank" rel="noopener">{url}</a> <CopyButton text={url} label={w.copy} done={t.common.copied} className="button link small" /></dd>
+              <dd><a href={url} target="_blank" rel="noopener">{url}</a> <CopyButton text={url} label={w.copy} done={t.common.copied} failed={t.common.copyFailed} className="button link small" /></dd>
             </div>
           ))}
         </dl>
@@ -138,7 +139,7 @@ export function SettingsView({ settings, fallbackName, address, feeds, logo, pho
 }
 
 // The logo and up to three photos of the careers page.
-function Images({ logo, photos, t }: { logo: string | null; photos: { object: string; url: string }[]; t: Words }) {
+function Images({ logo, photos, brandLogo, t }: { logo: string | null; photos: { object: string; url: string }[]; brandLogo: boolean; t: Words }) {
   const toast = useToast();
   const [pending, start] = useTransition();
   const logoInput = useRef<HTMLInputElement>(null);
@@ -148,9 +149,9 @@ function Images({ logo, photos, t }: { logo: string | null; photos: { object: st
   function send(which: "logo" | "photos", file: File) {
     start(async () => {
       const up = await uploadImage(file);
-      if (!up.ok) return toast(t.errors[up.error === "cv_off" ? "unavailable" : up.error]);
+      if (!up.ok) return void toast({ text: t.errors[up.error === "cv_off" ? "unavailable" : up.error], tone: "error" });
       const r = await setBrandImage(which, up.ticket, keep);
-      if (!r.ok) return toast(format(t.errors[r.error], r.values ?? {}));
+      if (!r.ok) return void toast({ text: format(t.errors[r.error], r.values ?? {}), tone: "error" });
       toast(w.imageSaved);
     });
   }
@@ -158,12 +159,13 @@ function Images({ logo, photos, t }: { logo: string | null; photos: { object: st
     <section className="panel" aria-labelledby="images">
       <h2 id="images">{w.images}</h2>
       <p className="hint tight-top">{w.imagesHint}</p>
+      {brandLogo && <p className="notice">{w.logoBrand}</p>}
       <div className="image-row">
         <span className="label">{w.logo}</span>
         {logo ? <img className="logo-preview" src={logo} alt={w.logo} /> : <span className="muted small">{w.noLogo}</span>}
         <span className="panel-actions">
           <button type="button" className="button quiet small" disabled={pending} onClick={() => logoInput.current?.click()}><Upload />{logo ? w.replace : w.add}</button>
-          {logo && <button type="button" className="button link small" disabled={pending} onClick={() => start(async () => { const r = await setBrandImage("logo", null); if (!r.ok) toast(t.errors[r.error]); })}>{t.common.remove}</button>}
+          {logo && <button type="button" className="button link small" disabled={pending} onClick={() => start(async () => { const r = await setBrandImage("logo", null); if (!r.ok) toast({ text: t.errors[r.error], tone: "error" }); })}>{t.common.remove}</button>}
         </span>
       </div>
       <div className="image-row">
@@ -172,7 +174,7 @@ function Images({ logo, photos, t }: { logo: string | null; photos: { object: st
           {photos.map(p => (
             <li key={p.object}>
               <img src={p.url} alt="" />
-              <button type="button" className="icon-button small" disabled={pending} title={t.common.remove} onClick={() => start(async () => { const r = await setBrandImage("photos", null, keep.filter(k => k !== p.object)); if (!r.ok) toast(t.errors[r.error]); })}><Bin /><span className="visually-hidden">{t.common.remove}</span></button>
+              <button type="button" className="icon-button small" disabled={pending} title={t.common.remove} onClick={() => start(async () => { const r = await setBrandImage("photos", null, keep.filter(k => k !== p.object)); if (!r.ok) toast({ text: t.errors[r.error], tone: "error" }); })}><Bin /><span className="visually-hidden">{t.common.remove}</span></button>
             </li>
           ))}
         </ul>
@@ -205,7 +207,19 @@ function Templates({ templates, t }: { templates: Template[]; t: Words }) {
             <span className="person-name">{x.name}</span>
             <span className="muted small">{languageNames[x.language]}</span>
             <button type="button" className="icon-button" onClick={() => setEditing(x)} title={t.common.edit}><Pencil /><span className="visually-hidden">{t.common.edit} · {x.name}</span></button>
-            <button type="button" className="icon-button" disabled={pending} onClick={() => start(async () => { const r = await removeTemplate(x.id); if (!r.ok) toast(t.errors[r.error]); })} title={t.common.remove}><Bin /><span className="visually-hidden">{t.common.remove} · {x.name}</span></button>
+            <button type="button" className="icon-button" disabled={pending} onClick={() => start(async () => {
+              const r = await removeTemplate(x.id);
+              if (!r.ok) return void toast({ text: t.errors[r.error], tone: "error" });
+              // Undo writes it again, word for word.
+              toast({
+                id: `template-${x.id}`,
+                text: format(w.templateDeleted, { name: x.name }),
+                undo: async () => {
+                  const back = await saveTemplate({ name: x.name, language: x.language, subject: x.subject, body: x.body });
+                  return back.ok || format(t.errors[back.error], back.values ?? {});
+                },
+              });
+            })} title={t.common.delete}><Bin /><span className="visually-hidden">{t.common.delete} · {x.name}</span></button>
           </li>
         ))}
       </ul>
@@ -216,7 +230,7 @@ function Templates({ templates, t }: { templates: Template[]; t: Words }) {
           const text = (k: string) => String(data.get(k) ?? "");
           start(async () => {
             const r = await saveTemplate({ id: editing.id || undefined, name: text("name"), language: text("language"), subject: text("subject"), body: text("body") } as { id?: string; name: string; language: string; subject: string; body: string });
-            if (!r.ok) return toast(format(t.errors[r.error], r.values ?? {}));
+            if (!r.ok) return void toast({ text: format(t.errors[r.error], r.values ?? {}), tone: "error" });
             setEditing(null);
             toast(t.common.saved);
           });

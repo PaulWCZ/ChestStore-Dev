@@ -1,3 +1,4 @@
+import { EmptyState, PageHeader } from "@argentic/chest-ui/components";
 import { AutoSubmit } from "../../../components/auto-submit.tsx";
 import { Download, Note } from "../../../components/icons.tsx";
 import { can } from "../../../lib/access.ts";
@@ -11,6 +12,7 @@ import { billableFilters, groups, isGroup, report, reportPeople, type Line } fro
 import { viewer } from "../../../lib/session.ts";
 import { settings } from "../../../lib/settings.ts";
 import { MarkInvoiced } from "./mark-invoiced.tsx";
+import { GroupChoice, LinesTable, RangeFields, type LineRow } from "./report-views.tsx";
 
 type Query = { preset?: string; from?: string; to?: string; group?: string; person?: string; kind?: string };
 
@@ -51,13 +53,35 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
     return l.projectName ?? "";
   };
   const top = Math.max(1, ...r.lines.map(l => l.minutes));
+  const lines: LineRow[] = r.lines.map(l => {
+    const share = l.budget ? l.budget.used / Math.max(1, l.budget.of) : null;
+    return {
+      key: l.key,
+      name: lineName(l),
+      client: group === "project" || group === "task" ? l.clientName ?? t.reports.noClient : null,
+      color: l.color ?? null,
+      minutes: l.minutes,
+      hours: h(l.minutes),
+      share: l.minutes / top,
+      billableMinutes: l.billableMinutes,
+      billable: h(l.billableMinutes),
+      cents: l.cents,
+      amount: l.cents ? money(l.cents, code, locale) : "–",
+      costCents: l.costCents,
+      cost: l.costCents ? money(l.costCents, code, locale) : "–",
+      marginCents: l.cents - l.costCents,
+      margin: l.cents || l.costCents ? margin(l.cents, l.costCents) : "–",
+      loss: l.cents - l.costCents < 0,
+      budget: l.budget && share !== null ? {
+        share,
+        state: share > 1 ? "over" : share >= 0.8 ? "near" : "",
+        text: format(t.reports.budgetOf, { used: l.budget.kind === "hours" ? h(l.budget.used) : money(l.budget.used, code, locale, { whole: true }), total: l.budget.kind === "hours" ? h(l.budget.of) : money(l.budget.of, code, locale, { whole: true }) }),
+      } : null,
+    };
+  });
   return (
-    <main className="page wide">
-      <header className="page-head">
-        <h1>{t.reports.title}</h1>
-        {r.minutes > 0 && <a className="button quiet" href={`/chest/reports/export?${params}`} download><Download />{t.reports.export}</a>}
-      </header>
-      {!all && <p className="muted">{t.reports.mine}</p>}
+    <div className="page wide">
+      <PageHeader title={t.reports.title} intro={all ? undefined : t.reports.mine} secondary={r.minutes > 0 && <a className="button quiet" href={`/chest/reports/export?${params}`} download><Download />{t.reports.export}</a>} />
 
       <form method="get" className="filters" action="/chest/reports">
         <AutoSubmit />
@@ -73,23 +97,12 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
         {p.preset !== "custom" && <><input type="hidden" name="from" value={p.from} /><input type="hidden" name="to" value={p.to} /></>}
         {p.preset === "custom" && (
           <div className="range">
-            <label className="label" htmlFor="from">{t.reports.from}</label>
-            <input id="from" name="from" type="date" className="field" defaultValue={p.from} />
-            <label className="label" htmlFor="to">{t.reports.to}</label>
-            <input id="to" name="to" type="date" className="field" defaultValue={p.to} />
+            <RangeFields from={p.from} to={p.to} today={today()} t={t.reports} labels={t.date} />
             <button type="submit" className="button quiet">{t.reports.show}</button>
           </div>
         )}
         <div className="filter-row">
-          <fieldset className="segmented">
-            <legend className="label">{t.reports.group}</legend>
-            {groups.filter(g => all || g !== "person").map(g => (
-              <label key={g} className="seg">
-                <input type="radio" name="group" value={g} defaultChecked={group === g} />
-                <span>{t.reports.groups[g]}</span>
-              </label>
-            ))}
-          </fieldset>
+          <GroupChoice label={t.reports.group} value={group} options={groups.filter(g => all || g !== "person").map(g => ({ value: g, label: t.reports.groups[g] }))} />
           {all && (
             <div className="select-filter">
               <label className="label" htmlFor="person">{t.reports.person}</label>
@@ -125,11 +138,11 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
         <p className="small"><a href={`/chest/reports?${new URLSearchParams({ preset: p.preset, from: p.from, to: p.to, group, kind: "uninvoiced", ...(person ? { person } : {}) })}`}>{plural(t.reports.uninvoicedLink, r.uninvoiced, locale)}</a></p>
       )}
       {all && kind === "uninvoiced" && r.minutes > 0 && (
-        <MarkInvoiced query={{ from: p.from, to: p.to, ...(person ? { person } : {}) }} label={plural(t.reports.markInvoiced, r.uninvoiced, locale)} locale={locale} t={{ reports: t.reports, errors: t.errors, undo: t.timer.undo }} />
+        <MarkInvoiced query={{ from: p.from, to: p.to, ...(person ? { person } : {}) }} label={plural(t.reports.markInvoiced, r.uninvoiced, locale)} locale={locale} t={{ reports: t.reports, errors: t.errors }} />
       )}
 
       {r.minutes === 0 ? (
-        <div className="empty"><p>{t.reports.empty}</p></div>
+        <EmptyState title={t.reports.empty} />
       ) : (
         <>
           <section className="chart" aria-labelledby="chart-title">
@@ -152,58 +165,18 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
             </table></div>
           </section>
 
-          <section className="breakdown" aria-labelledby="lines-title">
-            <h2 id="lines-title" className="visually-hidden">{t.reports.groups[group]}</h2>
-            <table className="lines">
-              <thead>
-                <tr>
-                  <th scope="col">{t.reports.groups[group]}</th>
-                  <th scope="col" className="n">{t.reports.hours}</th>
-                  <th scope="col" className="n hide-phone">{t.reports.billable}</th>
-                  {showMoney && <th scope="col" className="n">{t.reports.amount}</th>}
-                  {showCost && <th scope="col" className="n hide-phone">{t.reports.cost}</th>}
-                  {showCost && <th scope="col" className="n hide-phone">{t.reports.margin}</th>}
-                  {group === "project" && <th scope="col" className="hide-phone">{t.reports.budget}</th>}
-                </tr>
-              </thead>
-              <tbody>
-                {r.lines.map(l => {
-                  const share = l.budget ? l.budget.used / Math.max(1, l.budget.of) : null;
-                  return (
-                    <tr key={l.key}>
-                      <th scope="row">
-                        <span className="line-name">
-                          {l.color && <span className={`swatch c-${l.color}`} aria-hidden="true" />}
-                          <span>
-                            <span className="p">{lineName(l)}</span>
-                            {(group === "project" || group === "task") && <span className="c">{l.clientName ?? t.reports.noClient}</span>}
-                          </span>
-                        </span>
-                        <span className="share" aria-hidden="true"><span style={{ width: `${(l.minutes / top) * 100}%` }} /></span>
-                      </th>
-                      <td className="n num">{h(l.minutes)}</td>
-                      <td className="n num hide-phone">{h(l.billableMinutes)}</td>
-                      {showMoney && <td className="n num">{l.cents ? money(l.cents, code, locale) : "–"}</td>}
-                      {showCost && <td className="n num hide-phone">{l.costCents ? money(l.costCents, code, locale) : "–"}</td>}
-                      {showCost && <td className={`n num hide-phone${l.cents - l.costCents < 0 ? " loss" : ""}`}>{l.cents || l.costCents ? margin(l.cents, l.costCents) : "–"}</td>}
-                      {group === "project" && (
-                        <td className="hide-phone">
-                          {l.budget && share !== null ? (
-                            <span className={`budget${share > 1 ? " over" : share >= 0.8 ? " near" : ""}`}>
-                              <span className="meter"><span style={{ width: `${Math.min(100, share * 100)}%` }} /></span>
-                              <span className="small num">{format(t.reports.budgetOf, { used: l.budget.kind === "hours" ? h(l.budget.used) : money(l.budget.used, code, locale, { whole: true }), total: l.budget.kind === "hours" ? h(l.budget.of) : money(l.budget.of, code, locale, { whole: true }) })}</span>
-                            </span>
-                          ) : <span className="muted small">–</span>}
-                        </td>
-                      )}
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </section>
+          <div className="breakdown">
+            <LinesTable
+              rows={lines}
+              show={{ money: showMoney, cost: showCost, budget: group === "project" }}
+              heading={t.reports.groups[group]}
+              totals={{ hours: h(r.minutes), billable: h(r.billableMinutes), amount: money(r.cents, code, locale), cost: money(r.costCents, code, locale), margin: r.cents || r.costCents ? margin(r.cents, r.costCents) : "–" }}
+              t={{ ...t.reports, over: t.projects.over, near: t.projects.near }}
+              labels={t.table}
+            />
+          </div>
         </>
       )}
-    </main>
+    </div>
   );
 }

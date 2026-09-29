@@ -1,17 +1,16 @@
 "use client";
 
+import { Avatar, Confirm, DateField, Dialog, FilePicker, PeoplePicker, useToast, type PickedFile, type Upload } from "@argentic/chest-ui/components";
+import { localSearch, putWithProgress, searchChoices, type Choice } from "@argentic/chest-ui/components/logic";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useRef, useState, useTransition, type ReactNode } from "react";
-import { Avatar } from "../../../../components/avatar.tsx";
+import { useEffect, useMemo, useRef, useState, useTransition, type ReactNode } from "react";
 import Link from "next/link";
-import { Dialog } from "../../../../components/dialog.tsx";
-import { Archive, Calendar, Chat, Check, CheckList, Clip, Clock, Close, Copy, Dots, Download, Fields, File, Flag, MoveTo, People, Plus, RepeatIcon, Restore, Tag, Text, Trash } from "../../../../components/icons.tsx";
+import { Archive, Chat, Check, CheckList, Clip, Clock, Close, Copy, Dots, Download, Fields, File, MoveTo, People, Plus, RepeatIcon, Restore, Tag, Text, Trash } from "../../../../components/icons.tsx";
 import { Markdown } from "../../../../components/markdown.tsx";
-import { useToast } from "../../../../components/toast.tsx";
 import type { Column, Field, Label } from "../../../../lib/boards.ts";
 import type { Activity, Attachment, CardDetail, CheckItem, Comment } from "../../../../lib/cards.ts";
 import { format } from "../../../../lib/i18n/format.ts";
-import type { Catalogue } from "../../../../lib/i18n/index.ts";
+import type { Catalogue, Locale } from "../../../../lib/i18n/index.ts";
 import type { Color } from "../../../../lib/model.ts";
 import { repeatKinds, suggest, type Repeat, type RepeatKind } from "../../../../lib/repeat.ts";
 import {
@@ -40,7 +39,7 @@ export type RepeatView = {
   days: { value: number; short: string; long: string }[];
   today: string;
 };
-type Words = { card: Catalogue["card"]; activity: Catalogue["activity"]; errors: Catalogue["errors"]; colors: Catalogue["colors"]; fields: Catalogue["fields"] };
+type Words = { card: Catalogue["card"]; activity: Catalogue["activity"]; errors: Catalogue["errors"]; colors: Catalogue["colors"]; fields: Catalogue["fields"]; dialog: Catalogue["dialog"]; date: Catalogue["date"]; peoplePicker: Catalogue["peoplePicker"]; files: Catalogue["files"] };
 type People = Record<string, { name: string; photo: string | null }>;
 type Person = { id: string; name: string; photo: string | null };
 type Props = {
@@ -55,13 +54,17 @@ type Props = {
   audience: Person[];
   me: string;
   repeat: RepeatView;
+  locale: Locale;
   t: Words;
 };
-const labelColors: Color[] = ["sun", "tomato", "berry", "grape", "sky", "sea", "leaf", "sand", "slate"];
+// One colour per slot of the theme's palette (app/tokens.css): "sand"
+// shares slate's and is not offered.
+const labelColors: Color[] = ["sun", "tomato", "berry", "grape", "sky", "sea", "leaf", "slate"];
+type Run = (step: () => Promise<{ ok: boolean; error?: keyof Catalogue["errors"]; values?: Record<string, string | number> }>, after?: () => void) => void;
 
 // A card, in full, beside the board. Each change is saved at once; the
 // page refreshes itself from the server after it.
-export function CardPanel({ card, board, columns, labels, fields, targets, times, people, audience, me, repeat, t }: Props) {
+export function CardPanel({ card, board, columns, labels, fields, targets, times, people, audience, me, repeat, locale, t }: Props) {
   const router = useRouter();
   const path = usePathname();
   const toast = useToast();
@@ -80,12 +83,18 @@ export function CardPanel({ card, board, columns, labels, fields, targets, times
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
   }, []);
-  const run = (step: () => Promise<{ ok: boolean; error?: keyof Catalogue["errors"]; values?: Record<string, string | number> }>, after?: () => void) =>
+  const words = (r: { error?: keyof Catalogue["errors"]; values?: Record<string, string | number> | undefined }) => format(t.errors[r.error ?? "unknown"], r.values);
+  const run: Run = (step, after) =>
     start(async () => {
       const r = await step();
-      if (!r.ok && r.error) toast(format(t.errors[r.error], r.values));
+      if (!r.ok && r.error) toast({ text: words(r), tone: "error" });
       else after?.();
     });
+  // A move undone: back to the column it came from; the toast says if not.
+  const moveBack = (from: string) => async () => { const r = await moveCard(card.id, from, null, null); return r.ok || words(r); };
+  // The people of the board, as the kit's pickers want them ("You" first).
+  const choices = useMemo<Choice[]>(() => [...audience].sort((a, b) => Number(b.id === me) - Number(a.id === me)).map(p => ({ kind: "member" as const, id: p.id, name: p.id === me ? t.card.you : p.name, photo: p.photo })), [audience, me, t.card.you]);
+  const [erasing, setErasing] = useState(false);
   const nameOf = (id: string) => people[id]?.name ?? audience.find(p => p.id === id)?.name ?? t.card.nobody;
   const [moving, setMoving] = useState(false);
   // Done in one click: the card goes to the board's first "done" column
@@ -96,7 +105,7 @@ export function CardPanel({ card, board, columns, labels, fields, targets, times
   const markDone = () => {
     if (!doneColumn) return;
     const from = card.columnId;
-    run(() => moveCard(card.id, doneColumn.id, null, null), () => toast(format(t.card.doneToast, { column: doneColumn.name }), { label: t.card.undo, run: () => start(async () => { await moveCard(card.id, from, null, null); }) }));
+    run(() => moveCard(card.id, doneColumn.id, null, null), () => toast({ id: `move-${card.id}`, text: format(t.card.doneToast, { column: doneColumn.name }), undo: moveBack(from) }));
   };
 
   return (
@@ -114,7 +123,7 @@ export function CardPanel({ card, board, columns, labels, fields, targets, times
               {board.writable && (
                 <>
                   <button type="button" className="button small quiet" onClick={() => run(() => archiveCard(card.id, false))}><Restore />{t.card.restore}</button>
-                  <button type="button" className="button small danger" onClick={() => run(() => deleteCard(card.id), close)}><Trash />{t.card.deleteForever}</button>
+                  <button type="button" className="button small danger" onClick={() => setErasing(true)}><Trash />{t.card.deleteForever}</button>
                 </>
               )}
             </div>
@@ -125,7 +134,7 @@ export function CardPanel({ card, board, columns, labels, fields, targets, times
               {card.done ? (
                 <>
                   <span className="chip done big"><Check />{t.card.doneBadge}</span>
-                  {openColumn && <button type="button" className="button quiet small" onClick={() => { const from = card.columnId; run(() => moveCard(card.id, openColumn.id, null, null), () => toast(format(t.card.reopenedToast, { column: openColumn.name }), { label: t.card.undo, run: () => start(async () => { await moveCard(card.id, from, null, null); }) })); }}>{t.card.reopen}</button>}
+                  {openColumn && <button type="button" className="button quiet small" onClick={() => { const from = card.columnId; run(() => moveCard(card.id, openColumn.id, null, null), () => toast({ id: `move-${card.id}`, text: format(t.card.reopenedToast, { column: openColumn.name }), undo: moveBack(from) })); }}>{t.card.reopen}</button>}
                 </>
               ) : <button type="button" className="button done-button" onClick={markDone}><Check />{t.card.markDone}</button>}
             </div>
@@ -140,41 +149,46 @@ export function CardPanel({ card, board, columns, labels, fields, targets, times
                 </select>
               ) : <span>{columns.find(c => c.id === card.columnId)?.name}{card.done && <> · <span className="chip done">{t.card.doneBadge}</span></>}</span>}
             </div>
-            <div className="fact wide">
-              <label className="label" htmlFor="card-due"><Calendar /> {t.card.due}</label>
-              {writable ? (
-                <>
-                  <div className="row">
-                    <input id="card-due" type="date" className="field date" defaultValue={card.due ?? ""} key={card.due ?? "none"} aria-describedby={card.due ? "card-due-said" : undefined} onChange={e => run(() => updateCard(card.id, { due: e.target.value || null }))} />
-                    {card.due && (
-                      <>
-                        <label className="visually-hidden" htmlFor="card-time">{t.card.dueTime}</label>
-                        <select id="card-time" className="select time" value={card.dueTime ?? ""} onChange={e => run(() => updateCard(card.id, { dueTime: e.target.value || null }))}>
-                          <option value="">{t.card.anyTime}</option>
-                          {times.map(x => <option key={x} value={x}>{x}</option>)}
-                        </select>
-                      </>
-                    )}
+            {writable ? (
+              // The kit's date fields: typed in the reader's language
+              // ("15/10", "demain") or picked on a calendar; the day is
+              // written out under the field. Saved when it changes.
+              <div className="fact wide due-line">
+                <DateField id="card-due" label={t.card.due} value={card.due} today={repeat.today} labels={t.date} onChange={due => run(() => updateCard(card.id, { due }))} />
+                {card.due && (
+                  <div className="when">
+                    <label className="visually-hidden" htmlFor="card-time">{t.card.dueTime}</label>
+                    <select id="card-time" className="select time" value={card.dueTime ?? ""} onChange={e => run(() => updateCard(card.id, { dueTime: e.target.value || null }))}>
+                      <option value="">{t.card.anyTime}</option>
+                      {times.map(x => <option key={x} value={x}>{x}</option>)}
+                    </select>
+                    <button type="button" className="link-button" onClick={() => run(() => updateCard(card.id, { due: null }))}>{t.card.removeDue}</button>
                   </div>
-                  {card.due && <span className="hint" id="card-due-said">{card.dueLabel} <button type="button" className="link-button" onClick={() => run(() => updateCard(card.id, { due: null }))}>{t.card.removeDue}</button></span>}
-                </>
-              ) : <span>{card.dueLabel ?? t.card.noDue}</span>}
-            </div>
-            <div className="fact">
-              <label className="label" htmlFor="card-start"><Flag /> {t.card.start}</label>
-              {writable ? (
-                <>
-                  <input id="card-start" type="date" className="field date" defaultValue={card.start ?? ""} key={card.start ?? "none"} aria-describedby={card.start ? "card-start-said" : undefined} onChange={e => run(() => updateCard(card.id, { start: e.target.value || null }))} />
-                  {card.start && <span className="hint" id="card-start-said">{card.startLabel} <button type="button" className="link-button" onClick={() => run(() => updateCard(card.id, { start: null }))}>{t.card.removeStart}</button></span>}
-                </>
-              ) : <span>{card.startLabel ?? t.card.noStart}</span>}
-            </div>
+                )}
+              </div>
+            ) : (
+              <div className="fact wide">
+                <span className="label">{t.card.due}</span>
+                <span>{card.dueLabel ?? t.card.noDue}</span>
+              </div>
+            )}
+            {writable ? (
+              <div className="fact wide due-line">
+                <DateField id="card-start" label={t.card.start} value={card.start} today={repeat.today} labels={t.date} chips={false} onChange={start => run(() => updateCard(card.id, { start }))} />
+                {card.start && <div className="when"><button type="button" className="link-button" onClick={() => run(() => updateCard(card.id, { start: null }))}>{t.card.removeStart}</button></div>}
+              </div>
+            ) : (
+              <div className="fact">
+                <span className="label">{t.card.start}</span>
+                <span>{card.startLabel ?? t.card.noStart}</span>
+              </div>
+            )}
           </div>
 
           <RepeatField card={card} view={repeat} writable={writable} t={t} onSave={rule => run(() => setRepeat(card.id, rule))} />
 
           <Section icon={<People />} title={t.card.assignees}>
-            <Assignees card={card} audience={audience} people={people} writable={writable} me={me} t={t} onSave={ids => run(() => setAssignees(card.id, ids))} />
+            <Assignees card={card} choices={choices} people={people} writable={writable} locale={locale} t={t} onSave={ids => run(() => setAssignees(card.id, ids))} />
           </Section>
 
           <Section icon={<Tag />} title={t.card.labels}>
@@ -196,18 +210,18 @@ export function CardPanel({ card, board, columns, labels, fields, targets, times
           </Section>
 
           <Section icon={<CheckList />} title={t.card.checklist}>
-            <Checklists card={card} writable={writable} audience={audience} people={people} me={me} t={t} run={run} />
+            <Checklists card={card} writable={writable} choices={choices} people={people} me={me} today={repeat.today} locale={locale} t={t} run={run} />
           </Section>
 
           <Section icon={<Clip />} title={t.card.files}>
-            <Files card={card} writable={writable} people={people} t={t} onRemove={id => run(() => detach(id))} onError={code => toast(format(t.errors[code], {}))} onDone={() => router.refresh()} />
+            <Files card={card} writable={writable} people={people} t={t} onRemove={id => run(() => detach(id))} onDone={() => router.refresh()} />
           </Section>
 
           <Section icon={<Chat />} title={t.card.comments}>
             <Thread card={card} people={people} audience={audience} me={me} canComment={canComment} canModerate={card.access === "own"} t={t}
               onAdd={(body, mentions) => run(() => addComment(card.id, body, mentions))}
               onEdit={(id, body) => run(() => editComment(id, body))}
-              onRemove={id => run(() => removeComment(id), () => toast(t.card.commentRemoved, { label: t.card.undo, run: () => start(async () => { const r = await restoreComment(id); if (!r.ok) toast(format(t.errors[r.error], r.values)); }) }))} />
+              onRemove={id => run(() => removeComment(id), () => toast({ id: `comment-${id}`, text: t.card.commentRemoved, undo: async () => { const r = await restoreComment(id); return r.ok || words(r); } }))} />
           </Section>
 
           <Section icon={<Clock />} title={t.card.history}>
@@ -220,12 +234,15 @@ export function CardPanel({ card, board, columns, labels, fields, targets, times
           {writable && (
             <div className="panel-foot">
               {targets.length > 0 && <button type="button" className="button quiet" onClick={() => setMoving(true)}><MoveTo />{t.card.moveOrCopy}</button>}
-              <button type="button" className="button quiet" onClick={() => run(() => archiveCard(card.id, true), () => { close(); toast(t.card.archivedToast, { label: t.card.undo, run: () => start(async () => { await archiveCard(card.id, false); }) }); })}><Archive />{t.card.archive}</button>
+              <button type="button" className="button quiet" onClick={() => run(() => archiveCard(card.id, true), () => { close(); toast({ id: `archive-${card.id}`, text: t.card.archivedToast, undo: async () => { const r = await archiveCard(card.id, false); return r.ok || words(r); } }); })}><Archive />{t.card.archive}</button>
             </div>
           )}
         </div>
       </div>
       {moving && <MoveDialog card={card} board={board} targets={targets} t={t} onClose={() => setMoving(false)} />}
+      {/* Deleting a card for good cannot be undone: asked first, in the page. */}
+      <Confirm open={erasing} title={format(t.card.deleteTitle, { title: card.title })} body={t.card.deleteBody} confirmLabel={t.card.deleteForever} cancelLabel={t.card.cancel}
+        onCancel={() => setErasing(false)} onConfirm={() => { setErasing(false); run(() => deleteCard(card.id), close); }} />
     </>
   );
 }
@@ -248,20 +265,24 @@ function MoveDialog({ card, board, targets, t, onClose }: { card: PanelCard; boa
   const go = (copy: boolean) => start(async () => {
     if (copy) {
       const r = await duplicateCard(card.id, to, column);
-      if (!r.ok) return toast(format(t.errors[r.error], r.values));
+      if (!r.ok) return void toast({ text: format(t.errors[r.error], r.values), tone: "error" });
       onClose();
-      toast(t.card.copied);
+      toast({ text: t.card.copied });
       router.push(`/chest/boards/${r.value.boardId}?card=${r.value.id}`, { scroll: false });
       return;
     }
     const r = await moveToBoard(card.id, to, column);
-    if (!r.ok) return toast(format(t.errors[r.error], r.values));
+    if (!r.ok) return void toast({ text: format(t.errors[r.error], r.values), tone: "error" });
     onClose();
-    toast(r.value.dropped > 0 ? format(t.card.movedDropped, { board: where, count: r.value.dropped }) : format(t.card.movedTo, { board: where }));
+    toast({ text: r.value.dropped > 0 ? format(t.card.movedDropped, { board: where, count: r.value.dropped }) : format(t.card.movedTo, { board: where }) });
     if (r.value.boardId !== board.id) router.push(`/chest/boards/${r.value.boardId}?card=${card.id}`, { scroll: false });
   });
   return (
-    <Dialog open title={t.card.moveOrCopy} closeLabel={t.card.cancel} onClose={onClose}>
+    <Dialog open title={t.card.moveOrCopy} onClose={onClose} labels={t.dialog}
+      footer={<>
+        <button type="button" className="button quiet" disabled={pending || !column} onClick={() => go(true)}><Copy />{t.card.copy}</button>
+        <button type="button" className="button" disabled={pending || !column} onClick={() => go(false)}><MoveTo />{t.card.move}</button>
+      </>}>
       <div className="stack">
         <div>
           <label className="label" htmlFor="move-board">{t.card.toBoard}</label>
@@ -276,10 +297,6 @@ function MoveDialog({ card, board, targets, t, onClose }: { card: PanelCard; boa
           </select>
         </div>
         {to !== board.id && <p className="hint">{t.card.moveHint}</p>}
-        <div className="dialog-foot">
-          <button type="button" className="button quiet" disabled={pending || !column} onClick={() => go(true)}><Copy />{t.card.copy}</button>
-          <button type="button" className="button" disabled={pending || !column} onClick={() => go(false)}><MoveTo />{t.card.move}</button>
-        </div>
       </div>
     </Dialog>
   );
@@ -404,41 +421,24 @@ function TitleField({ card, writable, t, onSave, onEmpty }: { card: PanelCard; w
   );
 }
 
-function Assignees({ card, audience, people, writable, me, t, onSave }: { card: PanelCard; audience: Person[]; people: People; writable: boolean; me: string; t: Words; onSave: (ids: string[]) => void }) {
-  const [open, setOpen] = useState(false);
-  const [q, setQ] = useState("");
-  const [chosen, setChosen] = useState(card.assignees);
-  useEffect(() => setChosen(card.assignees), [card.assignees]);
-  const fold = (s: string) => s.normalize("NFD").replace(/\p{Mn}/gu, "").toLowerCase();
-  const list = [...audience].sort((a, b) => Number(b.id === me) - Number(a.id === me)).filter(p => fold(p.name).includes(fold(q)));
-  const toggle = (id: string) => {
-    const next = chosen.includes(id) ? chosen.filter(x => x !== id) : [...chosen, id];
-    setChosen(next);
-    onSave(next);
-  };
-  return (
-    <div className="picker">
+// The card's people: the kit's picker (type a name, arrows, Enter; the
+// chosen ones as chips, each removable). Saved at once.
+function Assignees({ card, choices, people, writable, locale, t, onSave }: { card: PanelCard; choices: Choice[]; people: People; writable: boolean; locale: Locale; t: Words; onSave: (ids: string[]) => void }) {
+  const chosenOf = (ids: string[]) => ids.map(id => choices.find(c => c.id === id) ?? { kind: "member" as const, id, name: people[id]?.name ?? t.card.nobody, photo: people[id]?.photo ?? null });
+  const [chosen, setChosen] = useState<Choice[]>(() => chosenOf(card.assignees));
+  useEffect(() => setChosen(chosenOf(card.assignees)), [card.assignees]); // eslint-disable-line react-hooks/exhaustive-deps
+  const search = useMemo(() => localSearch(choices), [choices]);
+  if (!writable) {
+    return (
       <div className="people-line">
         {chosen.length === 0 && <span className="muted">{t.card.nobody}</span>}
-        {chosen.map(id => <span key={id} className="person"><Avatar name={people[id]?.name ?? audience.find(p => p.id === id)?.name ?? "?"} photo={people[id]?.photo ?? audience.find(p => p.id === id)?.photo ?? null} size={24} />{people[id]?.name ?? audience.find(p => p.id === id)?.name}</span>)}
-        {writable && <button type="button" className="button small quiet" aria-expanded={open} onClick={() => setOpen(!open)}><Plus />{t.card.assign}</button>}
+        {chosen.map(p => <span key={p.id} className="person"><Avatar name={p.name} photo={p.photo ?? null} size="s" />{p.name}</span>)}
       </div>
-      {open && (
-        <div className="picker-pop" onKeyDown={e => { if (e.key === "Escape") { e.stopPropagation(); setOpen(false); } }}>
-          <label className="visually-hidden" htmlFor="assign-search">{t.card.assignSearch}</label>
-          <input id="assign-search" className="field" placeholder={t.card.assignSearch} value={q} onChange={e => setQ(e.target.value)} autoFocus />
-          <div className="picker-list">
-            {list.map(p => (
-              <label key={p.id}>
-                <input type="checkbox" checked={chosen.includes(p.id)} onChange={() => toggle(p.id)} />
-                <Avatar name={p.name} photo={p.photo} size={24} />{p.name}
-              </label>
-            ))}
-          </div>
-          <button type="button" className="button small" onClick={() => setOpen(false)}>{t.card.close}</button>
-        </div>
-      )}
-    </div>
+    );
+  }
+  return (
+    <PeoplePicker id="card-assign" label={t.card.assign} multiple value={chosen} search={search} suggestions={choices.slice(0, 12)} labels={t.peoplePicker} lang={locale}
+      onChange={next => { setChosen(next); onSave(next.map(p => p.id)); }} />
   );
 }
 
@@ -469,7 +469,7 @@ function Labels({ card, labels, writable, t, onToggle, onCreate }: { card: Panel
             <input id="label-name" name="name" className="field" maxLength={40} placeholder={t.card.labelName} />
             <div className="swatches" role="radiogroup" aria-label={t.card.labels}>
               {labelColors.map(c => (
-                <label key={c} className={`swatch c-${c}`} style={{ background: `var(--${c})` }} title={t.colors[c]}>
+                <label key={c} className={`swatch c-${c}`} title={t.colors[c]}>
                   <input type="radio" name="color" value={c} checked={color === c} onChange={() => setColor(c)} aria-label={t.colors[c]} />
                 </label>
               ))}
@@ -515,22 +515,20 @@ function Description({ card, writable, t, onSave }: { card: PanelCard; writable:
   );
 }
 
-type Run = (step: () => Promise<{ ok: boolean; error?: keyof Catalogue["errors"]; values?: Record<string, string | number> }>, after?: () => void) => void;
-
 // The card's checklists: the main one, then any others with a title. A
 // step may be given to someone, with a date: it shows in their "My tasks".
-function Checklists({ card, writable, audience, people, me, t, run }: { card: PanelCard; writable: boolean; audience: Person[]; people: People; me: string; t: Words; run: Run }) {
+function Checklists({ card, writable, choices, people, me, today, locale, t, run }: { card: PanelCard; writable: boolean; choices: Choice[]; people: People; me: string; today: string; locale: Locale; t: Words; run: Run }) {
   const [adding, setAdding] = useState(false);
   const lists: { id: string | null; title: string | null }[] = [{ id: null, title: null }, ...card.checklists.map(l => ({ id: l.id, title: l.title }))];
   return (
     <div className="stack">
       {lists.map(l => (
-        <ChecklistBlock key={l.id ?? "main"} list={l} items={card.items.filter(i => i.checklistId === l.id)} card={card} writable={writable} audience={audience} people={people} me={me} t={t} run={run} />
+        <ChecklistBlock key={l.id ?? "main"} list={l} items={card.items.filter(i => i.checklistId === l.id)} card={card} writable={writable} choices={choices} people={people} me={me} today={today} locale={locale} t={t} run={run} />
       ))}
       {writable && (adding ? (
         <form className="row" onSubmit={e => { e.preventDefault(); const title = String(new FormData(e.currentTarget).get("title") ?? "").trim(); if (!title) return; run(() => addChecklist(card.id, title), () => setAdding(false)); }}>
           <label htmlFor="new-checklist" className="visually-hidden">{t.card.checklistTitle}</label>
-          <input id="new-checklist" name="title" className="field" style={{ flex: 1 }} maxLength={80} placeholder={t.card.checklistTitle} autoFocus onKeyDown={e => { if (e.key === "Escape") { e.stopPropagation(); setAdding(false); } }} />
+          <input id="new-checklist" name="title" className="field grow" maxLength={80} placeholder={t.card.checklistTitle} autoFocus onKeyDown={e => { if (e.key === "Escape") { e.stopPropagation(); setAdding(false); } }} />
           <button type="submit" className="button small">{t.card.addChecklist}</button>
           <button type="button" className="link-button" onClick={() => setAdding(false)}>{t.card.cancel}</button>
         </form>
@@ -539,13 +537,15 @@ function Checklists({ card, writable, audience, people, me, t, run }: { card: Pa
   );
 }
 
-function ChecklistBlock({ list, items: given, card, writable, audience, people, me, t, run }: { list: { id: string | null; title: string | null }; items: PanelItem[]; card: PanelCard; writable: boolean; audience: Person[]; people: People; me: string; t: Words; run: Run }) {
+function ChecklistBlock({ list, items: given, card, writable, choices, people, me, today, locale, t, run }: { list: { id: string | null; title: string | null }; items: PanelItem[]; card: PanelCard; writable: boolean; choices: Choice[]; people: People; me: string; today: string; locale: Locale; t: Words; run: Run }) {
   const [items, setItems] = useState(given);
   useEffect(() => setItems(given), [given]);
   const [open, setOpen] = useState<string | null>(null);
+  const search = useMemo(() => localSearch(choices), [choices]);
   const done = items.filter(i => i.done).length;
   const key = list.id ?? "main";
-  const nameOf = (id: string) => (id === me ? t.card.you : people[id]?.name ?? audience.find(p => p.id === id)?.name ?? "?");
+  const nameOf = (id: string) => (id === me ? t.card.you : people[id]?.name ?? choices.find(p => p.id === id)?.name ?? "?");
+  const choiceOf = (id: string): Choice => choices.find(p => p.id === id) ?? { kind: "member", id, name: nameOf(id), photo: people[id]?.photo ?? null };
   if (list.id === null && items.length === 0 && !writable) return <p className="muted small">{t.card.noSteps}</p>;
   return (
     <div className="checklist-block">
@@ -575,8 +575,8 @@ function ChecklistBlock({ list, items: given, card, writable, audience, people, 
               <input type="checkbox" id={`item-${item.id}`} checked={item.done} disabled={!writable}
                 onChange={e => { setItems(items.map(i => (i.id === item.id ? { ...i, done: e.target.checked } : i))); run(() => updateItem(item.id, { done: e.target.checked })); }} />
               <label htmlFor={`item-${item.id}`} className="check-text"><span>{item.text}</span></label>
-              {item.assignee && <span className="chip" title={format(t.card.stepGivenTo, { name: nameOf(item.assignee) })}><Avatar name={nameOf(item.assignee)} photo={people[item.assignee]?.photo ?? null} size={18} />{nameOf(item.assignee)}</span>}
-              {item.dueLabel && <span className={`chip${item.late ? " due-late" : ""}`}><Calendar />{item.dueLabel}</span>}
+              {item.assignee && <span className="chip" title={format(t.card.stepGivenTo, { name: nameOf(item.assignee) })}><Avatar name={nameOf(item.assignee)} photo={people[item.assignee]?.photo ?? null} size="s" />{nameOf(item.assignee)}</span>}
+              {item.dueLabel && <span className={`chip${item.late ? " due-late" : ""}`}>{item.late && <span className="visually-hidden">{t.card.late} · </span>}{item.dueLabel}</span>}
               {writable && (
                 <button type="button" className="icon-button" aria-expanded={open === item.id} onClick={() => setOpen(open === item.id ? null : item.id)}>
                   <Dots /><span className="visually-hidden">{format(t.card.stepDetails, { text: item.text })}</span>
@@ -585,17 +585,9 @@ function ChecklistBlock({ list, items: given, card, writable, audience, people, 
             </div>
             {writable && open === item.id && (
               <div className="step-details">
-                <div className="fact">
-                  <label className="label" htmlFor={`step-who-${item.id}`}><People /> {t.card.stepWho}</label>
-                  <select id={`step-who-${item.id}`} className="select" value={item.assignee ?? ""} onChange={e => run(() => updateItem(item.id, { assignee: e.target.value || null }))}>
-                    <option value="">{t.card.nobody}</option>
-                    {audience.map(p => <option key={p.id} value={p.id}>{p.id === me ? t.card.you : p.name}</option>)}
-                  </select>
-                </div>
-                <div className="fact">
-                  <label className="label" htmlFor={`step-due-${item.id}`}><Calendar /> {t.card.stepDue}</label>
-                  <input id={`step-due-${item.id}`} type="date" className="field date" defaultValue={item.due ?? ""} key={item.due ?? "none"} onChange={e => run(() => updateItem(item.id, { due: e.target.value || null }))} />
-                </div>
+                <PeoplePicker id={`step-who-${item.id}`} label={t.card.stepWho} value={item.assignee ? [choiceOf(item.assignee)] : []} search={search} suggestions={choices.slice(0, 12)} labels={t.peoplePicker} lang={locale}
+                  onChange={([p]) => run(() => updateItem(item.id, { assignee: p?.id ?? null }))} />
+                <DateField id={`step-due-${item.id}`} label={t.card.stepDue} value={item.due} today={today} labels={t.date} onChange={due => run(() => updateItem(item.id, { due }))} />
                 <button type="button" className="link-button danger" onClick={() => { setItems(items.filter(i => i.id !== item.id)); setOpen(null); run(() => removeItem(item.id)); }}>{format(t.card.removeItem, { text: item.text })}</button>
               </div>
             )}
@@ -605,7 +597,7 @@ function ChecklistBlock({ list, items: given, card, writable, audience, people, 
       {writable && (
         <form className="row" onSubmit={e => { e.preventDefault(); const form = e.currentTarget; const text = String(new FormData(form).get("item") ?? "").trim(); if (!text) return; run(() => addItem(card.id, text, list.id)); form.reset(); }}>
           <label htmlFor={`new-item-${key}`} className="visually-hidden">{t.card.addItem}</label>
-          <input id={`new-item-${key}`} name="item" className="field" style={{ flex: 1 }} maxLength={300} placeholder={t.card.itemPlaceholder} />
+          <input id={`new-item-${key}`} name="item" className="field grow" maxLength={300} placeholder={t.card.itemPlaceholder} />
           <button type="submit" className="button small quiet"><Plus />{t.card.addItem}</button>
         </form>
       )}
@@ -613,29 +605,35 @@ function ChecklistBlock({ list, items: given, card, writable, audience, people, 
   );
 }
 
-// Files go from the browser to the Chest itself: the tool authorises one
-// upload, the browser sends it, the tool checks it arrived and records it.
-function Files({ card, writable, people, t, onRemove, onError, onDone }: { card: PanelCard; writable: boolean; people: People; t: Words; onRemove: (id: string) => void; onError: (code: keyof Catalogue["errors"]) => void; onDone: () => void }) {
-  const [sending, setSending] = useState<string | null>(null);
-  async function send(file: File) {
-    if (file.size > 25 << 20) return onError("file_too_large");
-    setSending(file.name);
+// Files go from the browser to the Chest itself, through the kit's file
+// picker (drop or choose, the limit said first, progress while sending):
+// the tool authorises one upload, the browser sends it, the tool checks it
+// arrived and records it; the card's list then shows it.
+function Files({ card, writable, people, t, onRemove, onDone }: { card: PanelCard; writable: boolean; people: People; t: Words; onRemove: (id: string) => void; onDone: () => void }) {
+  const [picked, setPicked] = useState<readonly PickedFile[]>([]);
+  const errorOf = (code: keyof Catalogue["errors"] | undefined) => format(t.errors[code ?? "unknown"], {});
+  const upload: Upload = async (file, { onProgress, signal }) => {
+    const type = file.type || "application/octet-stream";
     try {
-      const grant = await fetch(`/chest/api/cards/${card.id}/upload`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ size: file.size, type: file.type || "application/octet-stream" }) });
+      const grant = await fetch(`/chest/api/cards/${card.id}/upload`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ size: file.size, type }), signal });
       const up = await grant.json() as { url?: string; error?: keyof Catalogue["errors"] };
-      if (!grant.ok || !up.url) return onError(up.error ?? "unknown");
-      const put = await fetch(up.url, { method: "PUT", body: file, headers: { "Content-Type": file.type || "application/octet-stream" } });
-      if (!put.ok) return onError(put.status === 413 ? "file_too_large" : "file_missing");
-      const { name } = await put.json() as { name: string };
-      const confirm = await fetch(`/chest/api/cards/${card.id}/upload`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name, fileName: file.name }) });
-      if (!confirm.ok) return onError(((await confirm.json()) as { error?: keyof Catalogue["errors"] }).error ?? "file_missing");
-      onDone();
+      if (!grant.ok || !up.url) return { ok: false, error: errorOf(up.error) };
+      const put = await putWithProgress(up.url, file, { headers: { "Content-Type": type }, onProgress, signal });
+      if (put.status >= 300) return { ok: false, error: errorOf(put.status === 413 ? "file_too_large" : "file_missing") };
+      const { name } = JSON.parse(put.text) as { name: string };
+      const confirm = await fetch(`/chest/api/cards/${card.id}/upload`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name, fileName: file.name }), signal });
+      if (!confirm.ok) return { ok: false, error: errorOf(((await confirm.json()) as { error?: keyof Catalogue["errors"] }).error ?? "file_missing") };
+      return { ok: true, ref: name };
     } catch {
-      onError("unavailable");
-    } finally {
-      setSending(null);
+      return { ok: false, error: errorOf("unavailable") };
     }
-  }
+  };
+  // A file recorded leaves the picker: the card's list shows it.
+  useEffect(() => {
+    if (!picked.some(f => f.status === "ready")) return;
+    setPicked(list => list.filter(f => f.status !== "ready"));
+    onDone();
+  }, [picked, onDone]);
   return (
     <div className="stack">
       <ul className="files">
@@ -649,13 +647,7 @@ function Files({ card, writable, people, t, onRemove, onError, onDone }: { card:
           </li>
         ))}
       </ul>
-      {sending && <p className="hint" role="status">{format(t.card.uploading, { name: sending })}</p>}
-      {writable && (
-        <label className="button small quiet file-input" style={{ width: "fit-content" }}>
-          <Plus />{t.card.addFile}
-          <input type="file" onChange={e => { const f = e.target.files?.[0]; e.target.value = ""; if (f) void send(f); }} />
-        </label>
-      )}
+      {writable && <FilePicker label={t.card.addFile} files={picked} onChange={update => setPicked(update)} upload={upload} maxSize={25 << 20} labels={t.files} />}
     </div>
   );
 }
@@ -674,7 +666,7 @@ function Thread({ card, people, audience, me, canComment, canModerate, t, onAdd,
           const author = c.importedAuthor ? format(t.card.imported, { name: c.importedAuthor }) : people[c.author]?.name ?? "?";
           return (
             <li key={c.id} className="comment">
-              <Avatar name={author} photo={c.importedAuthor ? null : people[c.author]?.photo ?? null} />
+              <Avatar name={author} photo={c.importedAuthor ? null : people[c.author]?.photo ?? null} size="m" />
               <div className="bubble">
                 <div className="who">{author} <time title={c.date}>{c.when}</time>{c.edited && <span className="muted">· {t.card.edited}</span>}</div>
                 {editing === c.id ? (
@@ -707,15 +699,16 @@ function Mentions({ text, names }: { text: string; names: string[] }) {
 }
 
 // The comment field: typing "@" and letters proposes the people of the
-// board; the chosen ones are sent with the comment (and told).
+// board (the kit's search rule: any word of the name, accents aside); the
+// chosen ones are sent with the comment (and told). Its own list, not the
+// kit's PeoplePicker: the name is written into the text where one types.
 function Composer({ people, t, onSubmit }: { people: Person[]; t: Words; onSubmit: (body: string, mentions: string[]) => void }) {
   const [text, setText] = useState("");
   const [chosen, setChosen] = useState<Person[]>([]);
   const [query, setQuery] = useState<string | null>(null);
   const [active, setActive] = useState(0);
   const field = useRef<HTMLTextAreaElement>(null);
-  const fold = (s: string) => s.normalize("NFD").replace(/\p{Mn}/gu, "").toLowerCase();
-  const suggestions = query === null ? [] : people.filter(p => fold(p.name).split(" ").some(w => w.startsWith(fold(query))) || fold(p.name).startsWith(fold(query))).slice(0, 6);
+  const suggestions = query === null ? [] : searchChoices(people, query, { limit: 6 });
   function onChange(value: string, caret: number) {
     setText(value);
     const before = value.slice(0, caret);
@@ -756,13 +749,13 @@ function Composer({ people, t, onSubmit }: { people: Person[]; t: Words; onSubmi
           if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); submit(); }
         }} />
       {suggestions.length > 0 && (
-        <div className="suggestions" id="mention-list" role="listbox" aria-label={t.card.mention}>
+        <ul className="suggestions" id="mention-list" role="listbox" aria-label={t.card.mention}>
           {suggestions.map((p, i) => (
-            <button type="button" key={p.id} id={`mention-${i}`} role="option" aria-selected={i === active} onMouseDown={e => { e.preventDefault(); pick(p); }}>
-              <Avatar name={p.name} photo={p.photo} size={24} />{p.name}
-            </button>
+            <li key={p.id} id={`mention-${i}`} role="option" aria-selected={i === active} onMouseDown={e => { e.preventDefault(); pick(p); }}>
+              <Avatar name={p.name} photo={p.photo} size="s" />{p.name}
+            </li>
           ))}
-        </div>
+        </ul>
       )}
       <div className="row"><button type="submit" className="button small" disabled={!text.trim()}>{t.card.comment}</button></div>
     </form>

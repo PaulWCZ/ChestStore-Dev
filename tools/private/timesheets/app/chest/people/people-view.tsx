@@ -1,16 +1,15 @@
 "use client";
 
+import { Avatar, Confirm, DateField, useToast } from "@argentic/chest-ui/components";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import { Avatar } from "../../../components/avatar.tsx";
 import { Close, Pencil } from "../../../components/icons.tsx";
-import { useToast } from "../../../components/toast.tsx";
 import { amountText, hoursText, parseAmount, parseHours } from "../../../lib/amounts.ts";
 import type { Catalogue } from "../../../lib/i18n/index.ts";
 import { format } from "../../../lib/i18n/format.ts";
 import { forgetFormer, removeRateStep, setCapacity, setRate } from "../actions.ts";
 
-type Words = { people: Catalogue["people"]; errors: Catalogue["errors"] };
+type Words = { people: Catalogue["people"]; errors: Catalogue["errors"]; date: Catalogue["date"] };
 export type PersonView = {
   id: string; name: string; photo: string | null;
   // In force today (cents), and their histories in words.
@@ -31,7 +30,7 @@ export function PersonRow({ person, today, lockedUntil, companyWeek, currency, c
   const [bill, setBill] = useState(person.bill === null ? "" : amountText(person.bill, comma));
   const [cost, setCost] = useState(person.cost === null ? "" : amountText(person.cost, comma));
   const [week, setWeek] = useState(person.week === null ? "" : hoursText(person.week, comma));
-  const [from, setFrom] = useState(today);
+  const [from, setFrom] = useState<string | null>(today);
   const [error, setError] = useState<string | null>(null);
   const changedRate = (text: string, now: number | null) => (text.trim() === "" ? null : parseAmount(text)) !== now;
 
@@ -43,18 +42,18 @@ export function PersonRow({ person, today, lockedUntil, companyWeek, currency, c
     setError(null);
     start(async () => {
       if (b !== person.bill) {
-        const r = await setRate({ kind: "bill", memberId: person.id, cents: b, from });
+        const r = await setRate({ kind: "bill", memberId: person.id, cents: b, from: from ?? today });
         if (!r.ok) return setError(format(t.errors[r.error], r.values));
       }
       if (c !== person.cost) {
-        const r = await setRate({ kind: "cost", memberId: person.id, cents: c, from });
+        const r = await setRate({ kind: "cost", memberId: person.id, cents: c, from: from ?? today });
         if (!r.ok) return setError(format(t.errors[r.error], r.values));
       }
       if (h !== person.week) {
         const r = await setCapacity(person.id, h);
         if (!r.ok) return setError(format(t.errors[r.error], r.values));
       }
-      toast(w.saved);
+      toast({ id: `person-${person.id}`, text: w.saved });
       setEditing(false);
       router.refresh();
     });
@@ -63,7 +62,7 @@ export function PersonRow({ person, today, lockedUntil, companyWeek, currency, c
   function takeBack(step: PersonView["steps"][number]) {
     start(async () => {
       const r = await removeRateStep({ kind: step.kind, memberId: person.id, from: step.from });
-      if (!r.ok) return toast(format(t.errors[r.error], r.values));
+      if (!r.ok) return void toast({ text: format(t.errors[r.error], r.values), tone: "error" });
       router.refresh();
     });
   }
@@ -102,9 +101,7 @@ export function PersonRow({ person, today, lockedUntil, companyWeek, currency, c
           </div>
           {(changedRate(bill, person.bill) || changedRate(cost, person.cost)) && (
             <div className="field-block from">
-              <label className="label" htmlFor={`from-${person.id}`}>{w.from}</label>
-              <input id={`from-${person.id}`} type="date" className="field short" value={from} min={lockedUntil ?? undefined} onChange={e => setFrom(e.target.value)} />
-              <p className="hint">{w.fromHint}</p>
+              <DateField id={`from-${person.id}`} label={w.from} value={from} onChange={setFrom} today={today} min={lockedUntil} hint={w.fromHint} chips={false} labels={t.date} />
             </div>
           )}
           {person.steps.length > 0 && (
@@ -128,34 +125,44 @@ export function PersonRow({ person, today, lockedUntil, companyWeek, currency, c
 }
 
 // People who left before the Chest: their name can be forgotten (their
-// time stays, anonymous).
+// time stays, anonymous). It cannot be undone: the kit's Confirm asks first.
 export function FormerList({ people, t }: { people: { id: string; name: string; hours: string }[]; t: Words }) {
   const router = useRouter();
   const toast = useToast();
   const [pending, start] = useTransition();
-  const [asking, setAsking] = useState<string | null>(null);
+  const [asking, setAsking] = useState<{ id: string; name: string } | null>(null);
+  function forget(id: string) {
+    start(async () => {
+      const r = await forgetFormer(id);
+      if (!r.ok) return void toast({ text: format(t.errors[r.error], r.values), tone: "error" });
+      setAsking(null);
+      toast({ id: `former-${id}`, text: t.people.forgotten });
+      router.refresh();
+    });
+  }
   return (
-    <ul className="client-list">
-      {people.map(p => (
-        <li key={p.id}>
-          <span className="client-name">{p.name}</span>
-          <span className="muted small num">{p.hours}</span>
-          <span className="client-actions">
-            {asking === p.id ? (
-              <>
-                <button type="button" className="button small" disabled={pending} onClick={() => start(async () => {
-                  const r = await forgetFormer(p.id);
-                  if (!r.ok) return toast(format(t.errors[r.error], r.values));
-                  setAsking(null);
-                  toast(t.people.forgotten);
-                  router.refresh();
-                })}>{t.people.forgetConfirm}</button>
-                <button type="button" className="button link small" onClick={() => setAsking(null)}>{t.people.cancel}</button>
-              </>
-            ) : <button type="button" className="button link small" onClick={() => setAsking(p.id)}>{t.people.forget}</button>}
-          </span>
-        </li>
-      ))}
-    </ul>
+    <>
+      <ul className="client-list">
+        {people.map(p => (
+          <li key={p.id}>
+            <span className="client-name">{p.name}</span>
+            <span className="muted small num">{p.hours}</span>
+            <span className="client-actions">
+              <button type="button" className="button link small" onClick={() => setAsking({ id: p.id, name: p.name })}>{t.people.forget}</button>
+            </span>
+          </li>
+        ))}
+      </ul>
+      <Confirm
+        open={asking !== null}
+        title={format(t.people.forgetTitle, { name: asking?.name ?? "" })}
+        body={t.people.forgetBody}
+        confirmLabel={t.people.forgetConfirm}
+        cancelLabel={t.people.cancel}
+        busy={pending}
+        onConfirm={() => { if (asking) forget(asking.id); }}
+        onCancel={() => setAsking(null)}
+      />
+    </>
   );
 }

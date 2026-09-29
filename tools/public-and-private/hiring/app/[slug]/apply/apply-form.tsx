@@ -1,56 +1,47 @@
 "use client";
 
-import { startTransition, useActionState, useRef, useState, type FormEvent } from "react";
-import { Check, File, Upload } from "../../../components/icons.tsx";
-import { fileSize, format } from "../../../lib/i18n/format.ts";
+import { FilePicker, type PickedFile } from "@argentic/chest-ui/components";
+import type { FileWords } from "@argentic/chest-ui/components/logic";
+import { startTransition, useActionState, useEffect, useRef, useState, type FormEvent } from "react";
+import { format } from "../../../lib/i18n/format.ts";
 import type { Catalogue } from "../../../lib/i18n/index.ts";
 import type { Question } from "../../../lib/model.ts";
-import { cvAccept, uploadCv } from "../../../lib/upload.ts";
+import { cvKinds, cvMaxSize, uploadCv } from "../../../lib/upload.ts";
 import { sendApplication, type FormState } from "../../public-actions.ts";
 
-type Words = { apply: Catalogue["apply"]; errors: Catalogue["errors"] };
+type Words = { apply: Catalogue["apply"]; errors: Catalogue["errors"]; files: FileWords };
 const limits = { name: 120, email: 254, phone: 40, link: 500, coverLetter: 10000 };
 
-// The form a candidate fills. The CV goes first, from the browser to the
-// Chest (lib/upload.ts), then the form with the ticket the tool gave for
-// it. Nothing typed is lost when something is refused: the form is sent
-// by hand, never reset.
-export function ApplyForm({ slug, started, kept, pool, questions, t, locale }: { slug: string; started: string; kept: string; pool: string; questions: Question[]; t: Words; locale: string }) {
+// The form a candidate fills. The CV goes as soon as it is chosen, from the
+// browser to the Chest (lib/upload.ts; the kit's file picker says how it
+// goes), then the form with the ticket the tool gave for it. Nothing typed
+// is lost when something is refused: the form is sent by hand, never
+// reset.
+export function ApplyForm({ slug, started, kept, pool, questions, t }: { slug: string; started: string; kept: string; pool: string; questions: Question[]; t: Words }) {
   const [state, dispatch, pending] = useActionState<FormState, FormData>(sendApplication, { error: null });
-  const [file, setFile] = useState<File | null>(null);
-  const [ticket, setTicket] = useState<{ file: File; value: string } | null>(null);
-  const [uploading, setUploading] = useState(false);
+  const [files, setFiles] = useState<readonly PickedFile[]>([]);
   const [local, setLocal] = useState<FormState["error"] | null>(null);
   // Without public uploads on this Chest, a link replaces the file.
   const [linkOnly, setLinkOnly] = useState(false);
-  const input = useRef<HTMLInputElement>(null);
   const w = t.apply;
   const error = local ?? state.error;
   const message = error ? format(t.errors[error], { max: limits.coverLetter }) : null;
+  const uploading = files.some(f => f.status === "sending");
   const busy = pending || uploading;
+  const cv = files.find(f => f.status === "ready" && f.ref);
+  // The form's guard refuses what comes within 3 seconds of the page (a
+  // robot): a CV chosen that fast waits for it before it is sent.
+  const shown = useRef(0);
+  useEffect(() => { shown.current = Date.now(); }, []);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (busy) return;
     setLocal(null);
     const data = new FormData(event.currentTarget);
-    data.delete("file");
-    if (file && !linkOnly) {
-      let value = ticket && ticket.file === file ? ticket.value : null;
-      if (!value) {
-        setUploading(true);
-        const sent = await uploadCv(file, "/api/cv", { slug, started });
-        setUploading(false);
-        if (!sent.ok) {
-          if (sent.error === "cv_off") setLinkOnly(true);
-          else setLocal(sent.error);
-          return;
-        }
-        value = sent.ticket;
-        setTicket({ file, value });
-      }
-      data.set("cv", value);
-      data.set("cvName", file.name);
+    if (cv && !linkOnly) {
+      data.set("cv", cv.ref!);
+      data.set("cvName", cv.name);
     } else if (!linkOnly && !String(data.get("link") ?? "").trim()) {
       setLocal("cv_missing");
       return;
@@ -90,25 +81,24 @@ export function ApplyForm({ slug, started, kept, pool, questions, t, locale }: {
         <p className="notice" role="status">{w.cvOff}</p>
       ) : (
         <div className="field-block">
-          <span className="label" id="cv-label">{w.cv}</span>
-          <label className={`dropzone${file ? " has-file" : ""}`}>
-            <input ref={input} type="file" name="file" accept={cvAccept} className="visually-hidden" aria-labelledby="cv-label" aria-describedby="cv-hint"
-              onChange={e => { setFile(e.currentTarget.files?.[0] ?? null); setLocal(null); }} />
-            {file ? (
-              <>
-                <span className="dz-icon done"><Check /></span>
-                <span className="dz-text"><strong>{format(w.cvChosen, { name: file.name, size: fileSize(file.size, locale) })}</strong></span>
-                <span className="dz-action">{w.cvChange}</span>
-              </>
-            ) : (
-              <>
-                <span className="dz-icon"><Upload /></span>
-                <span className="dz-text"><strong>{w.cvChoose}</strong></span>
-                <span className="dz-action"><File /></span>
-              </>
-            )}
-          </label>
-          <p className="hint" id="cv-hint">{w.cvHint}</p>
+          <span className="label">{w.cv}</span>
+          <FilePicker
+            label={w.cv}
+            files={files}
+            onChange={update => { setFiles(update); setLocal(null); }}
+            accept={cvKinds}
+            maxFiles={1}
+            maxSize={cvMaxSize}
+            labels={t.files}
+            upload={async file => {
+              const wait = 3500 - (Date.now() - shown.current);
+              if (wait > 0) await new Promise(done => setTimeout(done, wait));
+              const sent = await uploadCv(file, "/api/cv", { slug, started });
+              if (sent.ok) return { ok: true, ref: sent.ticket };
+              if (sent.error === "cv_off") setLinkOnly(true);
+              return { ok: false, error: t.errors[sent.error === "cv_off" ? "unavailable" : sent.error] };
+            }}
+          />
         </div>
       )}
       <div className="field-block">

@@ -1,9 +1,9 @@
 "use client";
 
+import { useToast } from "@argentic/chest-ui/components";
 import Link from "next/link";
 import { useOptimistic, useTransition } from "react";
 import { Calendar, Check, CheckList, RepeatIcon } from "../../components/icons.tsx";
-import { useToast } from "../../components/toast.tsx";
 import { format } from "../../lib/i18n/format.ts";
 import type { Catalogue } from "../../lib/i18n/index.ts";
 import type { DueState } from "../../lib/model.ts";
@@ -28,7 +28,7 @@ export type TaskRow = {
   repeats: boolean;
   done: { id: string; name: string } | null;
 };
-type Words = { groups: Catalogue["home"]["groups"]; markDone: string; doneToast: string; doneRepeatToast: string; stepDone: string; stepOf: string; repeats: string; undo: string; errors: Catalogue["errors"]; late: string; today: string; progress: string };
+type Words = { groups: Catalogue["home"]["groups"]; markDone: string; doneToast: string; doneRepeatToast: string; stepDone: string; stepOf: string; repeats: string; errors: Catalogue["errors"]; late: string; today: string; progress: string };
 
 // My tasks by when they are due. Ticking a card moves it to its board's
 // "done" column at once, ticking a step ticks it on its card; with "Undo".
@@ -37,13 +37,15 @@ export function TaskGroups({ rows, order, t }: { rows: TaskRow[]; order: DueStat
   const [shown, remove] = useOptimistic(rows, (list: TaskRow[], gone: string) => list.filter(r => key(r) !== gone));
   const [, start] = useTransition();
   const toast = useToast();
+  const fail = (r: { error: keyof Catalogue["errors"]; values?: Record<string, string | number> | undefined }) => format(t.errors[r.error], r.values);
   function done(row: TaskRow) {
     if (row.kind === "step") {
       start(async () => {
         remove(key(row));
         const result = await updateItem(row.id, { done: true });
-        if (!result.ok) return toast(format(t.errors[result.error], result.values));
-        toast(t.stepDone, { label: t.undo, run: () => start(async () => { await updateItem(row.id, { done: false }); }) });
+        if (!result.ok) return void toast({ text: fail(result), tone: "error" });
+        // One toast per step; its Undo says whether it worked.
+        toast({ id: `step-${row.id}`, text: t.stepDone, undo: async () => { const back = await updateItem(row.id, { done: false }); return back.ok || fail(back); } });
       });
       return;
     }
@@ -52,8 +54,8 @@ export function TaskGroups({ rows, order, t }: { rows: TaskRow[]; order: DueStat
     start(async () => {
       remove(key(row));
       const result = await moveCard(row.id, target.id, null, null);
-      if (!result.ok) return toast(format(t.errors[result.error], result.values));
-      toast(format(row.repeats ? t.doneRepeatToast : t.doneToast, { column: target.name }), { label: t.undo, run: () => start(async () => { await moveCard(row.id, from, null, null); }) });
+      if (!result.ok) return void toast({ text: fail(result), tone: "error" });
+      toast({ id: `done-${row.id}`, text: format(row.repeats ? t.doneRepeatToast : t.doneToast, { column: target.name }), undo: async () => { const back = await moveCard(row.id, from, null, null); return back.ok || fail(back); } });
     });
   }
   return (

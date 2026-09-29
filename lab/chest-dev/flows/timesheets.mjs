@@ -10,7 +10,7 @@ const { browser, context, page, origin, problems } = await open(port, "hugo", { 
 const tmp = process.env.TMPDIR ?? "/tmp";
 const db = postgres((process.env.DEV_DATABASE_URL ?? "postgres://postgres:postgres@127.0.0.1:5432/postgres").replace(/\/[^/]*$/u, "/t_timesheets"), { max: 1, onnotice: () => {} });
 const toast = async text => {
-  await page.locator(".toast", { hasText: text }).first().waitFor({ timeout: 5000 });
+  await page.locator(".ck-toast", { hasText: text }).first().waitFor({ timeout: 5000 });
 };
 // The project picker is a combobox: type a few words, Enter takes the first.
 const pick = async (selector, words) => {
@@ -34,8 +34,8 @@ await step("start the timer on a project; it survives a reload; stop records it"
   expect(/0:00:0\d|0:00:1\d/u.test(await page.locator(".timer-clock").innerText()), "clock ticks");
   await page.getByRole("button", { name: "Stop" }).click();
   await toast("Under a minute");
-  // Offered: keep one minute rather than nothing.
-  await page.locator(".toast", { hasText: "Under a minute" }).getByRole("button", { name: "Keep 1 min" }).click();
+  // Offered, on the timer's line: keep one minute rather than nothing.
+  await page.locator(".timer").getByRole("button", { name: "Keep 1 min" }).click();
   await toast("0:01 recorded on Site vitrine");
   await page.locator(".timer.idle").waitFor();
 });
@@ -80,13 +80,13 @@ await step("add a row, copy last week's rows, remove a row and undo", async () =
   const rows = await page.locator(".grid tbody tr").count();
   expect(rows >= before, `rows ${before} → ${rows}`);
   await page.getByRole("button", { name: "Copy last week’s rows" }).click();
-  await page.locator(".toast").last().waitFor();
+  await page.locator(".ck-toast").last().waitFor();
   const last = page.locator(".grid tbody tr").last();
   const name = await last.locator(".row-name .p").innerText();
   const count = await page.locator(".grid tbody tr").count();
   await last.locator("button[aria-label^='Remove the row']").click();
   await toast("Row removed.");
-  await page.locator(".toast", { hasText: "Row removed." }).getByRole("button", { name: "Undo" }).click();
+  await page.locator(".ck-toast", { hasText: "Row removed." }).getByRole("button", { name: "Undo" }).click();
   await page.waitForTimeout(1500);
   await page.reload();
   expect(await page.locator(".grid tbody tr").count() === count, "row back: " + name);
@@ -110,7 +110,7 @@ await step("the day list: add time, change it, delete it and undo", async () => 
   await page.locator(".entry", { hasText: "Call with the garage" }).locator(".entry-time", { hasText: "1:15" }).waitFor();
   await page.locator(".entry", { hasText: "Call with the garage" }).getByRole("button", { name: /^Delete/u }).click();
   await toast("Entry deleted.");
-  await page.locator(".toast", { hasText: "Entry deleted." }).getByRole("button", { name: "Undo" }).click();
+  await page.locator(".ck-toast", { hasText: "Entry deleted." }).getByRole("button", { name: "Undo" }).click();
   await page.locator(".entry", { hasText: "Call with the garage" }).waitFor();
 });
 
@@ -165,7 +165,8 @@ await step("a manager, in French: a new project with a new client, a rate and a 
   await page.locator("#p-client").selectOption({ label: "Nouveau client…" });
   await page.locator("#p-new-client").fill("Concession Arnaud");
   await page.locator("#p-rate").fill("90,50");
-  await page.getByText("Heures", { exact: true }).click();
+  // The kit's Segmented: native radios (the label's text sits under the radio).
+  await page.getByRole("radio", { name: "Heures", exact: true }).check();
   await page.locator("#p-budget").fill("40");
   await page.getByRole("button", { name: "Créer le projet" }).click();
   await page.waitForURL(/\/chest\/projects$/u);
@@ -180,14 +181,14 @@ await step("the team: approve last week, send this one back with a word, remind 
   expect(await rows.count() === 2, "Hugo's two weeks wait: " + await rows.count());
   // This week's (the newest) goes back with a word.
   await rows.last().getByRole("button", { name: "Renvoyer…" }).click();
-  await page.getByPlaceholder("Que faut-il corriger ?").fill("Il manque la réunion de mardi");
+  await page.getByPlaceholder("Que faut-il corriger\u202f?").fill("Il manque la réunion de mardi");
   await page.getByRole("button", { name: "Renvoyer", exact: true }).click();
-  await page.locator(".toast", { hasText: "Semaine renvoyée à Hugo Bernard." }).waitFor();
+  await page.locator(".ck-toast", { hasText: "Semaine renvoyée à Hugo Bernard." }).waitFor();
   await page.locator(".waiting-row", { hasText: "Hugo Bernard" }).first().getByRole("button", { name: "Valider" }).click();
-  await page.locator(".toast", { hasText: "La semaine de Hugo Bernard est validée." }).waitFor();
+  await page.locator(".ck-toast", { hasText: "La semaine de Hugo Bernard est validée." }).waitFor();
   await page.getByText("Aucune semaine ne vous attend.").waitFor();
   await page.getByRole("button", { name: /^Rappeler/u }).click();
-  await page.locator(".toast", { hasText: /rappelées? dans/u }).waitFor();
+  await page.locator(".ck-toast", { hasText: /rappelées? dans/u }).waitFor();
 });
 
 await step("rates: Hugo's goes up from today; the past keeps its amount", async () => {
@@ -197,7 +198,7 @@ await step("rates: Hugo's goes up from today; the past keeps its amount", async 
   await hugo.locator("input[id^='bill-']").fill("80");
   await hugo.locator("input[id^='from-']").waitFor();
   await hugo.getByRole("button", { name: "Enregistrer" }).click();
-  await page.locator(".toast", { hasText: "Enregistré." }).waitFor();
+  await page.locator(".ck-toast", { hasText: "Enregistré." }).waitFor();
   await page.locator(".person", { hasText: "Hugo Bernard" }).getByText(/à partir du/u).waitFor();
   const text = await page.locator(".person", { hasText: "Hugo Bernard" }).innerText();
   expect(/70,00\s€ depuis le début/u.test(text) && /80,00\s€ à partir du/u.test(text), "history: " + text);
@@ -206,9 +207,9 @@ await step("rates: Hugo's goes up from today; the past keeps its amount", async 
 await step("the manager's reports: everyone, amounts, grouped by person", async () => {
   await page.goto(origin + "/chest/reports?preset=lastWeek");
   await page.getByText("Montant").first().waitFor();
-  await page.getByText("Personne", { exact: true }).first().click();
+  await page.getByRole("radio", { name: "Personne", exact: true }).check();
   await page.waitForURL(/group=person/u);
-  const names = await page.locator(".lines tbody th .p").allInnerTexts();
+  const names = await page.locator(".breakdown tbody th .p").allInnerTexts();
   expect(names.length >= 5, "people: " + names.join("|"));
   await page.getByText("Marge", { exact: true }).first().waitFor();
   expect(await page.getByText("Coût", { exact: true }).count() >= 1, "cost shown to managers");
@@ -217,26 +218,28 @@ await step("the manager's reports: everyone, amounts, grouped by person", async 
 await step("mark the billable time of the week as invoiced, and undo", async () => {
   await page.goto(origin + "/chest/reports?preset=week&kind=uninvoiced");
   await page.getByRole("button", { name: /^Marquer .* comme facturées?$/u }).click();
-  await page.locator(".toast", { hasText: /marquées? comme facturées?/u }).waitFor();
+  await page.locator(".ck-toast", { hasText: /marquées? comme facturées?/u }).waitFor();
   await page.getByText("Aucun temps noté sur cette période.").waitFor();
-  await page.locator(".toast", { hasText: /marquées? comme facturées?/u }).getByRole("button", { name: "Rétablir" }).click();
+  await page.locator(".ck-toast", { hasText: /marquées? comme facturées?/u }).getByRole("button", { name: "Annuler l’action" }).click();
   await page.getByRole("button", { name: /^Marquer/u }).waitFor();
 });
 
 await step("lock a period: the week shows why nothing changes there", async () => {
   await page.goto(origin + "/chest/settings");
   await page.getByRole("button", { name: "Tout déverrouiller" }).click();
-  await page.locator(".toast", { hasText: "Tout est déverrouillé." }).waitFor();
+  await page.locator(".ck-toast", { hasText: "Tout est déverrouillé." }).waitFor();
   const lastMonday = await page.evaluate(() => { const d = new Date(); d.setDate(d.getDate() - ((d.getDay() + 6) % 7) - 7); return d.toISOString().slice(0, 10); });
+  // The kit's DateField: typed (an ISO date is read too), read on leaving it.
   await page.locator("#lock-until").fill(lastMonday);
+  await page.locator("#lock-until").press("Enter");
   await page.getByRole("button", { name: "Verrouiller", exact: true }).click();
-  await page.locator(".toast", { hasText: "Verrouillé jusqu’au" }).waitFor();
+  await page.locator(".ck-toast", { hasText: "Verrouillé jusqu’au" }).waitFor();
   await page.goto(origin + `/chest?week=${lastMonday}`);
   await page.locator(".notice", { hasText: "verrouillé" }).first().waitFor();
   expect(await page.locator(".grid td.ro").count() > 0, "locked cells read-only");
   await page.goto(origin + "/chest/settings");
   await page.getByRole("button", { name: "Tout déverrouiller" }).click();
-  await page.locator(".toast", { hasText: "Tout est déverrouillé." }).waitFor();
+  await page.locator(".ck-toast", { hasText: "Tout est déverrouillé." }).waitFor();
 });
 
 await step("import a Toggl export: check, then import", async () => {
@@ -250,7 +253,7 @@ await step("import a Toggl export: check, then import", async () => {
   // Last month invoiced again: locked (the step before unlocked everything).
   await page.goto(origin + "/chest/settings");
   await page.getByRole("button", { name: /^Verrouiller jusqu’au/u }).click();
-  await page.locator(".toast", { hasText: "Verrouillé jusqu’au" }).waitFor();
+  await page.locator(".ck-toast", { hasText: "Verrouillé jusqu’au" }).waitFor();
   await page.goto(origin + "/chest/import");
   await page.locator("input[type=file]").setInputFiles(file);
   await page.getByText("Vérifiez avant d’importer").waitFor();
@@ -258,7 +261,7 @@ await step("import a Toggl export: check, then import", async () => {
   expect(await page.locator(".import-people li.former", { hasText: "Paul Personne" }).count() === 1, "former member kept");
   await page.getByText(/3 lignes tombent dans la période verrouillée/u).waitFor();
   expect(!(await page.getByRole("button", { name: /^Importer/u }).count()), "nothing to import before the answer");
-  await page.getByText("Oui, c’est l’historique").click();
+  await page.getByRole("radio", { name: "Oui, c’est l’historique" }).check();
   await page.getByRole("button", { name: "Importer 3 saisies" }).click();
   await page.getByText("3 saisies importées.").waitFor();
 });
@@ -283,7 +286,7 @@ await step("on a phone, in French: the day replaces the grid; add time there", a
   await pick("#new-work", "vitrine design");
   await page.locator("#new-duration").fill("2,5");
   await page.getByRole("button", { name: "Enregistrer" }).click();
-  await page.locator(".toast", { hasText: "2:30 ajoutées." }).waitFor();
+  await page.locator(".ck-toast", { hasText: "2:30 ajoutées." }).waitFor();
   const width = await page.evaluate(() => document.documentElement.scrollWidth);
   expect(width <= 390, "no horizontal scroll: " + width);
 });

@@ -19,21 +19,22 @@ import {
   type KeyboardCoordinateGetter,
   type UniqueIdentifier,
 } from "@dnd-kit/core";
+import { Dialog, useToast } from "@argentic/chest-ui/components";
+import type { DateWords, DialogWords } from "@argentic/chest-ui/components/logic";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, useTransition, type KeyboardEvent, type ReactNode } from "react";
-import { Dialog } from "../../../../components/dialog.tsx";
 import { HireDialog } from "../../../../components/hire-dialog.tsx";
 import { Ban, Bell, Clock, File, Select, Star } from "../../../../components/icons.tsx";
-import { useToast } from "../../../../components/toast.tsx";
 import type { CandidateCard } from "../../../../lib/candidates.ts";
 import { format, intl, plural } from "../../../../lib/i18n/format.ts";
 import type { Catalogue, Locale } from "../../../../lib/i18n/index.ts";
 import type { Stage } from "../../../../lib/jobs.ts";
 import { candidateReasons, companyReasons, isCandidateReason, type RejectReason } from "../../../../lib/model.ts";
-import { bulkMove, bulkMoveBack, bulkReject, bulkRestore, moveCandidate } from "../../actions.ts";
+import { bulkMove, bulkMoveBack, bulkReject, moveCandidate, rejectionsLeft, undoReject } from "../../actions.ts";
 
-type Words = { board: Catalogue["board"]; errors: Catalogue["errors"]; reasons: Catalogue["reject"]["reasons"]; reject: Catalogue["reject"]; common: Catalogue["common"]; hire: Catalogue["hire"] };
+type Words = { board: Catalogue["board"]; errors: Catalogue["errors"]; reasons: Catalogue["reject"]["reasons"]; reject: Catalogue["reject"]; common: Catalogue["common"]; hire: Catalogue["hire"]; dialog: DialogWords; date: DateWords };
+type Failure = { ok: false; error: keyof Catalogue["errors"]; values?: Record<string, string | number> };
 // A stage with its name as this reader sees it (lib/stages.ts).
 type Lane = Stage & { label: string };
 
@@ -48,7 +49,7 @@ const raw = (key: UniqueIdentifier) => String(key).replace(/^(cand|stage):/u, ""
 type Places = Record<string, string>;
 const placesOf = (cards: CandidateCard[]): Places => Object.fromEntries(cards.map(c => [c.id, c.stageId]));
 
-export function BoardView({ stages, cards, manage, locale, t }: { stages: Lane[]; cards: CandidateCard[]; manage: boolean; locale: Locale; t: Words }) {
+export function BoardView({ stages, cards, manage, locale, today, t }: { stages: Lane[]; cards: CandidateCard[]; manage: boolean; locale: Locale; today: string; t: Words }) {
   const router = useRouter();
   const toast = useToast();
   const [, start] = useTransition();
@@ -63,6 +64,7 @@ export function BoardView({ stages, cards, manage, locale, t }: { stages: Lane[]
   }, [active, dragging]);
 
   const stageName = (id: string | undefined) => stages.find(s => s.id === id)?.label ?? "";
+  const failed = (r: Failure) => format(t.errors[r.error], r.values ?? {});
   const nameOf = (key: UniqueIdentifier) => byId.get(raw(key))?.name ?? "";
   const stageOfKey = (key: string): string | undefined => (key.startsWith("stage:") ? raw(key) : places[raw(key)]);
 
@@ -75,7 +77,9 @@ export function BoardView({ stages, cards, manage, locale, t }: { stages: Lane[]
     if (hiredStage(to) && !hiredStage(from)) setHiring({ id, to });
     else move(id, to);
   }
-  function move(id: string, to: string, undo = true, day?: string | null) {
+  // One toast per candidate moved (a second move replaces it); its Undo
+  // puts them back and says whether it could.
+  function move(id: string, to: string, day?: string | null) {
     const from = places[id];
     if (!from || from === to) return;
     setPlaces(p => ({ ...p, [id]: to }));
@@ -83,9 +87,19 @@ export function BoardView({ stages, cards, manage, locale, t }: { stages: Lane[]
       const r = await moveCandidate(id, to, day ?? undefined);
       if (!r.ok) {
         setPlaces(p => ({ ...p, [id]: from }));
-        return toast(format(t.errors[r.error], r.values ?? {}));
+        return void toast({ text: failed(r), tone: "error" });
       }
-      if (undo) toast(format(t.board.moved, { name: byId.get(id)?.name ?? "", stage: stageName(to) }), { label: t.common.undo, run: () => move(id, from, false) });
+      toast({
+        id: `move-${id}`,
+        text: format(t.board.moved, { name: byId.get(id)?.name ?? "", stage: stageName(to) }),
+        undo: async () => {
+          setPlaces(p => ({ ...p, [id]: from }));
+          const back = await moveCandidate(id, from);
+          if (back.ok) return true;
+          setPlaces(p => ({ ...p, [id]: to }));
+          return failed(back);
+        },
+      });
     });
   }
 
@@ -157,10 +171,17 @@ export function BoardView({ stages, cards, manage, locale, t }: { stages: Lane[]
       const r = await bulkMove(ids, to);
       if (!r.ok) {
         setPlaces(p => ({ ...p, ...before }));
-        return toast(format(t.errors[r.error], r.values ?? {}));
+        return void toast({ text: failed(r), tone: "error" });
       }
       const from = r.value.from;
-      toast(plural(t.board.movedMany, Object.keys(from).length, locale, { stage: stageName(to) }), { label: t.common.undo, run: () => start(async () => { await bulkMoveBack(from); }) });
+      toast({
+        id: `move-many-${Object.keys(from).sort().join("-")}`,
+        text: plural(t.board.movedMany, Object.keys(from).length, locale, { stage: stageName(to) }),
+        undo: async () => {
+          const back = await bulkMoveBack(from);
+          return back.ok || failed(back);
+        },
+      });
     });
   }
 
@@ -212,21 +233,42 @@ export function BoardView({ stages, cards, manage, locale, t }: { stages: Lane[]
           <button type="button" className="button quiet danger-text" disabled={chosen.size === 0} onClick={() => setBulk("reject")}><Ban />{t.board.rejectMany}</button>
         </div>
       )}
-      <Dialog open={bulk === "reject"} title={plural(t.board.rejectTitle, chosen.size, locale)} closeLabel={t.common.close} onClose={() => setBulk(null)}>
+      <Dialog open={bulk === "reject"} title={plural(t.board.rejectTitle, chosen.size, locale)} onClose={() => setBulk(null)} labels={t.dialog}>
         <BulkReject count={chosen.size} locale={locale} t={t} onCancel={() => setBulk(null)} onConfirm={(reason, send) => {
           const ids = [...chosen];
           setBulk(null);
           stopSelecting();
           start(async () => {
             const r = await bulkReject(ids, reason, send);
-            if (!r.ok) return toast(format(t.errors[r.error], r.values ?? {}));
-            const done = r.value.done;
-            const words = send && !isCandidateReason(reason) ? t.board.rejectedManyEmailed : t.board.rejectedMany;
-            toast(plural(words, done.length, locale, { seconds: r.value.seconds }), { label: t.common.undo, run: () => start(async () => { await bulkRestore(done); }) });
+            if (!r.ok) return void toast({ text: failed(r), tone: "error" });
+            const { done, seconds, at } = r.value;
+            if (done.length === 0) return;
+            const emailed = send && !isCandidateReason(reason);
+            const id = `reject-many-${done.join("-")}`;
+            let undone = false;
+            // Like one rejection (candidate-view.tsx): Undo keeps the emails
+            // from leaving; once it is over, the toast says they left.
+            toast({
+              id,
+              text: plural(emailed ? t.board.rejectedManyEmailed : t.board.rejectedMany, done.length, locale, { seconds }),
+              ...(emailed ? { duration: seconds * 1000 } : {}),
+              undo: async () => {
+                undone = true;
+                const back = await undoReject(done, at);
+                if (!back.ok) return failed(back);
+                return back.value.left === 0 || plural(t.board.undoLateMany, back.value.left, locale);
+              },
+            });
+            if (emailed) setTimeout(() => {
+              if (undone) return;
+              void rejectionsLeft(done, at).then(left => {
+                if (!undone && left.ok && left.value.left > 0) toast({ id, text: plural(t.board.rejectedManySent, left.value.left, locale), sent: true });
+              });
+            }, seconds * 1000 + 500);
           });
         }} />
       </Dialog>
-      <HireDialog name={hiring ? byId.get(hiring.id)?.name ?? "" : null} onCancel={() => setHiring(null)} onConfirm={day => { const h = hiring; setHiring(null); if (h) move(h.id, h.to, true, day); }} t={{ hire: t.hire, common: t.common }} />
+      <HireDialog name={hiring ? byId.get(hiring.id)?.name ?? "" : null} today={today} onCancel={() => setHiring(null)} onConfirm={day => { const h = hiring; setHiring(null); if (h) move(h.id, h.to, day); }} t={{ hire: t.hire, common: t.common, dialog: t.dialog, date: t.date }} />
       {rejected.length > 0 && (
         <section className="rejected" aria-labelledby="rejected-title">
           <button type="button" className="button quiet small" aria-expanded={showRejected} aria-controls="rejected-list" onClick={() => setShowRejected(s => !s)}>

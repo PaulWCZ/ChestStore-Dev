@@ -1,3 +1,4 @@
+import { StatusBadge } from "@argentic/chest-ui/components";
 import Link from "next/link";
 import type { Found } from "../lib/candidates.ts";
 import { formatDate, type Catalogue, type Locale } from "../lib/i18n/index.ts";
@@ -14,7 +15,7 @@ export function FoundList({ list, locale, t, extra }: { list: Found[]; locale: L
             <span className="found-name">{f.name}</span>
             <span className="muted small">{[f.email, f.jobTitle].filter(Boolean).join(" · ")}</span>
           </Link>
-          <span className={`chip ${f.status === "rejected" ? "rejected" : "stage"}`}>{f.status === "rejected" ? t.export.status.rejected : stageLabel(f.stage, t.jobSettings.defaults)}</span>
+          <StatusBadge tone={f.status === "rejected" ? "danger" : "info"} size="s" label={f.status === "rejected" ? t.export.status.rejected : stageLabel(f.stage, t.jobSettings.defaults)} />
           <span className="muted small found-date">{formatDate(f.createdAt, locale, { day: "numeric", month: "short", year: "numeric" })}</span>
           {extra?.(f)}
         </li>

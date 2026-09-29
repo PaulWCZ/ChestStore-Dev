@@ -1,3 +1,4 @@
+import { EmptyState, PageHeader, StatusBadge } from "@argentic/chest-ui/components";
 import { forbidden } from "next/navigation";
 import Link from "next/link";
 import { Plus, Upload } from "../../../components/icons.tsx";
@@ -34,26 +35,20 @@ export default async function ProjectsPage({ searchParams }: { searchParams: Pro
       <span className={`budget ${state}`}>
         <span className="meter"><span style={{ width: `${Math.min(100, share * 100)}%` }} /></span>
         <span className="small num">{format(t.projects.budget, { used, total })}</span>
-        {state && <span className={`tag ${state}`}>{state === "over" ? t.projects.over : t.projects.near}</span>}
+        {state && <StatusBadge tone={state === "over" ? "danger" : "wait"} size="s" label={state === "over" ? t.projects.over : t.projects.near} />}
       </span>
     );
   };
   return (
-    <main className="page wide">
-      <header className="page-head">
-        <h1>{archived ? t.projects.archived : t.projects.title}</h1>
-        {(list.length > 0 || archived) && <Link className="button" href="/chest/projects/new"><Plus />{t.projects.new}</Link>}
-      </header>
+    <div className="page wide">
+      <PageHeader title={archived ? t.projects.archived : t.projects.title} action={(list.length > 0 || archived) && <Link className="button" href="/chest/projects/new"><Plus />{t.projects.new}</Link>} />
       {list.length === 0 && !archived ? (
-        <div className="empty">
-          <h2>{t.projects.empty.title}</h2>
-          <p>{t.projects.empty.body}</p>
-          <div className="row">
-            <Link className="button" href="/chest/projects/new"><Plus />{t.projects.new}</Link>
-            <ExampleButton label={t.projects.empty.example} errors={t.errors} />
-          </div>
-          <Link href="/chest/import" className="small"><Upload />{t.projects.importLink}</Link>
-        </div>
+        <EmptyState
+          title={t.projects.empty.title}
+          body={t.projects.empty.body}
+          action={<><Link className="button" href="/chest/projects/new"><Plus />{t.projects.new}</Link><ExampleButton label={t.projects.empty.example} errors={t.errors} /></>}
+          note={<Link href="/chest/import"><Upload />{t.projects.importLink}</Link>}
+        />
       ) : (
         <div className="project-groups">
           {[...groups].map(([client, projects]) => (
@@ -90,9 +85,9 @@ export default async function ProjectsPage({ searchParams }: { searchParams: Pro
       {clients.length > 0 && (
         <section className="clients" aria-labelledby="clients-title">
           <h2 id="clients-title">{t.projects.clients}</h2>
-          <ClientsView clients={clients.map(c => ({ id: c.id, name: c.name, archived: c.archived, count: plural(t.projects.projectsCount, c.projects, locale) }))} t={{ projects: t.projects, errors: t.errors, undo: t.timer.undo }} />
+          <ClientsView clients={clients.map(c => ({ id: c.id, name: c.name, archived: c.archived, count: plural(t.projects.projectsCount, c.projects, locale) }))} t={{ projects: t.projects, errors: t.errors }} />
         </section>
       )}
-    </main>
+    </div>
   );
 }

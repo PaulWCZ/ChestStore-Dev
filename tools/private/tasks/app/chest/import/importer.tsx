@@ -90,7 +90,7 @@ export function Importer({ t, locale }: { t: Words; locale: string }) {
   const totals = picked.map(p => importedCounts(p.board));
   const files = totals.reduce((n, c) => n + c.files, 0);
   return (
-    <div className="stack" style={{ gap: "var(--space-5)" }}>
+    <div className="stack import">
       <div className="sources">
         {sources.map(s => (
           <section key={s.title} className="source">
@@ -130,7 +130,7 @@ export function Importer({ t, locale }: { t: Words; locale: string }) {
             </div>
           )}
           {files > 0 && <p className="warn">{plural(w.filesStay, files, locale)}</p>}
-          <fieldset className="stack" style={{ border: 0, padding: 0, margin: 0 }}>
+          <fieldset className="stack plain">
             <legend className="label">{w.who}</legend>
             <div className="choices">
               <label className="choice"><input type="radio" name="import-visibility" checked={visibility === "private"} onChange={() => setVisibility("private")} /><span><Lock /> {w.onlyMe}</span><small>{w.onlyMeHint}</small></label>

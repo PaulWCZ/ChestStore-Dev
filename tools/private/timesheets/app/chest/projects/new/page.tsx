@@ -1,3 +1,4 @@
+import { PageHeader } from "@argentic/chest-ui/components";
 import { forbidden } from "next/navigation";
 import { can } from "../../../../lib/access.ts";
 import { currency } from "../../../../lib/clock.ts";
@@ -14,8 +15,8 @@ export default async function NewProjectPage() {
   if (!can(member, "projects.manage")) forbidden();
   const [clients, dir] = await Promise.all([listClients(db(), member), everyoneOrNone()]);
   return (
-    <main className="page">
-      <h1>{t.project.newTitle}</h1>
+    <div className="page">
+      <PageHeader title={t.project.newTitle} />
       <ProjectForm
         initial={{ id: null, name: "", clientId: null, color: "teal", billable: true, rateCents: null, budget: { kind: "none" }, everyone: true, people: [], archived: false, tasks: [] }}
         clients={clients.filter(c => !c.archived).map(c => ({ id: c.id, name: c.name }))}
@@ -23,8 +24,8 @@ export default async function NewProjectPage() {
         currency={currency()}
         comma={locale === "fr"}
         defaultTasks={[t.project.defaultTasks.design, t.project.defaultTasks.development, t.project.defaultTasks.meetings]}
-        t={{ project: t.project, colors: t.colors, errors: t.errors, undo: t.timer.undo }}
+        t={{ project: t.project, colors: t.colors, errors: t.errors, date: t.date }}
       />
-    </main>
+    </div>
   );
 }

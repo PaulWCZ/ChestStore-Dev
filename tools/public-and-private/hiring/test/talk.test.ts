@@ -178,13 +178,13 @@ test("an interview: the candidate is invited with an .ics, the interviewers' cal
   assert.equal(await outbox.sendNow(sql, done.message!), "sent");
   const invitation = chest.outbox.at(-1)!;
   assert.match(invitation.subject, /^Entretien le /u);
-  assert.match(invitation.text, /Lieu : Atelier, Lyon/u);
+  assert.match(invitation.text, /Lieu\s: Atelier, Lyon/u);
   assert.deepEqual(invitation.attachments.map(a => a.name), ["invitation.ics"]);
   const event = chest.calendar.get(interviews.keyOf(done.interview.id));
   assert.ok(event, "in the Chest calendar");
   assert.deepEqual([...event.members].sort(), [camille.id, hugo.id].sort());
   assert.match(chest.feed(hugo.id), /SUMMARY:Interview: Iris Vidal — Interview test/u);
-  assert.match(chest.feed(camille.id, { locale: "fr" }), /Entretien : Iris Vidal/u);
+  assert.match(chest.feed(camille.id, { locale: "fr" }), /Entretien\s: Iris Vidal/u);
   // Busy: times only, for a recruiter.
   const busy = await interviews.busy(sql, recruiter(), [hugo.id, ines.id], day);
   assert.deepEqual(busy.map(b => b.member), [hugo.id]);

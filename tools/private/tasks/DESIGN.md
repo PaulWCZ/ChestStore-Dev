@@ -7,20 +7,38 @@ cards, not a spreadsheet.
 
 ## Tokens
 
-All in `app/tokens.css` (light, and dark by the system's choice). Ratios
-computed with `scripts/contrast.mjs` (WCAG 2; AA is 4.5:1 for text).
+The identity is a **theme of the UI kit**: "Workshop" (French *Atelier*),
+defined with `defineTheme` in `lib/theme.ts` — the very source of the kit
+catalogue's `workshop` theme (`test/theme.test.ts` holds the two equal and
+checks every contrast pair of `ui/tokens/CONTRACT.md`, light and dark). The
+company may give Tasks another look (a catalogue theme, its brand); the CSS
+names **only contract tokens**, so every screen follows. `app/tokens.css`
+holds the tool's own tokens, defined from contract tokens: the column
+width, and the board and label colours by name.
 
-| Token | Light | Dark | Use |
+| Contract token | Light | Dark | Use |
 |---|---|---|---|
 | `--bg` | `#fff8e7` paper | `#161512` | page |
 | `--surface` | `#ffffff` | `#201f1b` | cards, fields |
-| `--ink` | `#151515` | `#f4efe3` | text, outlines — 17.3:1 on paper; 15.9:1 dark |
-| `--ink-2` | `#5b574e` | `#b9b2a3` | secondary text — 6.8:1 on paper; 7.8:1 dark |
-| `--accent` | `#ffd84d` sun | same | the main action, current tab — ink on sun 13.2:1 |
-| `--link` | `#1f4bff` | `#8fa8ff` | links, focus — 6.0:1 / 7.2:1 |
-| `--danger` | `#c2290f` | `#ff8c73` | errors, delete — 5.8:1 / 7.3:1 |
-| board colours | sun `#ffd84d`, tomato `#ff7a59`, berry `#f266a8`, grape `#9b7bff`, sky `#5bb4ff`, sea `#2fc6b5`, leaf `#7bd05b`, sand `#e9c79a`, slate `#9aa5b1` | same | always with ink text: 5.8:1 (grape) to 13.2:1 (sun) |
-| `--head-bg` / `--head-ink` | the board's colour / ink | the colour at 35 % over `--surface` / `--ink` | a board's header and its cards' panels: full colour by day, a tint at night (the full sun yellow glared); light ink on every tint ≥ 5.3:1 |
+| `--ink` | `#151515` | `#f4efe3` | text — 17.3:1 on paper; 15.9:1 dark |
+| `--ink-2` | `#5b574e` | `#b9b2a3` | secondary text |
+| `--line-strong` | `#151515` | `#f4efe3` | the 2 px ink outlines of cards, lanes, fields |
+| `--line` | `#e6dcc4` | `#3a372f` | hairlines (table rows, a description's box) |
+| `--accent` / `--accent-ink` / `--accent-line` | `#ffd84d` sun / ink / ink | sun / ink / sun | the main action, the current section |
+| `--accent-text` | `#1f4bff` | `#8fa8ff` | links (was `--link`) |
+| `--danger` | `#c2290f` | `#ff8c73` | errors, delete |
+| `--shadow-1` / `--shadow-2` | hard 3 px / 5 px ink offset | black | resting / lifted |
+
+**Board and label colours** are slots of the theme's categorical palette
+(`app/tokens.css`): sky 1, leaf 2, tomato 3, grape 4, berry 5, sea 6, sun 7,
+slate 8 — in Workshop the slots' soft grounds are exactly the old fills
+(grape is `#b9a3ff`, slate `#c3cad2`), always with ink on them. Nine names
+for eight slots: **sand shares slate's slot** (existing sand boards and
+labels keep their name; the pickers offer eight). At night a slot's soft
+ground is a dark tint with the slot's own colour as text (measured by the
+kit), which replaces the old 35 % tint. Due chips: late = slot 3, today =
+slot 7, done = slot 2 (each also said in words); a done column wears the
+"ok" state's soft ground; a mention is the marker (`--highlight`).
 
 **Type**: *Space Grotesk* (display: headings, board and column names) and
 *Inter* (everything else), both OFL-1.1, self-hosted in `public/fonts/`.
@@ -31,14 +49,17 @@ hover and tilts while dragged.
 
 ## Components
 
-Buttons (sun primary, quiet, danger, small), icon buttons, fields and
-selects, choice cards (radio), swatches, chips (label, due late / today /
-done), avatars and stacks, board tiles, task rows with a round tick, lanes
-and cards (normal, done, dragging, overlay), a side panel for a card (full
-screen on a phone) led by a leaf-green *Mark done* button, dialogs on
-`<dialog>` that open on their first field, pop-over pickers, a people
-picker (a ticked list, and groups), menus, toasts with *Undo*, empty states
-with one action, a sortable and groupable table (list view), a month grid
+From the UI kit (`@argentic/chest-ui/components`, restyled with Workshop's
+ink edges in `app/globals.css`): the app shell (labelled sections, a row of
+their own on a phone), the card search box ("/"), toasts with an *Undo*
+that tells the truth, dialogs and the *Confirm* of "Delete for good", the
+people picker (card, step, new board, settings), date fields, the file
+picker, the column menu, avatars, empty states and the no-access page.
+The tool's own: buttons (sun primary, quiet, danger, small), icon buttons,
+fields and selects, choice cards (radio), swatches, chips (label, due late
+/ today / done), board tiles, task rows with a round tick, lanes and cards
+(normal, done, dragging, overlay), a side panel for a card (full screen on
+a phone) led by a leaf-green *Mark done* button, the label pop-over, a sortable and groupable table (list view), a month grid
 (calendar view; on a phone, a list of the days that hold cards), a lock
 pill in the header of a private board, column chips above the board on a
 phone.
@@ -46,7 +67,9 @@ phone.
 ## Icon
 
 `chest/icon.svg`: a white card with a tick, on a sun square outlined in ink
-with a hard shadow — the tool's shape language in 48 units. No letters;
+with a hard shadow — the tool's shape language in 48 units. The header's
+mark (`components/mark.tsx`) is the same drawing in the look's accent and
+the ink measured on it; in brand mode the company's logo stands before it. No letters;
 readable at 24 px on light and dark tiles (the ink outline carries it on
 dark).
 
@@ -66,7 +89,7 @@ is exactly what a non-technical team expects from "a board".
     { "name": "Ink", "value": "#151515" },
     { "name": "Sun", "value": "#ffd84d" },
     { "name": "Tomato", "value": "#ff7a59" },
-    { "name": "Grape", "value": "#9b7bff" },
+    { "name": "Grape", "value": "#b9a3ff" },
     { "name": "Leaf", "value": "#7bd05b" }
   ],
   "fonts": {

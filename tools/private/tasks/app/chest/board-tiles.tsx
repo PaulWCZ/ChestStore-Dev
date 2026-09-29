@@ -9,7 +9,7 @@ export function BoardTiles({ boards, locale, t, children }: { boards: BoardSumma
   return (
     <ul className="board-strip">
       {boards.map(b => (
-        <li key={b.id} style={{ display: "grid" }}>
+        <li key={b.id}>
           <Link className={`tile c-${b.color}`} href={`/chest/boards/${b.id}`}>
             <h3>{b.name}</h3>
             {b.visibility === "private" && <span className="lock" title={t.private}><Lock /><span className="visually-hidden">{t.private}</span></span>}
@@ -21,7 +21,7 @@ export function BoardTiles({ boards, locale, t, children }: { boards: BoardSumma
           </Link>
         </li>
       ))}
-      {children && <li style={{ display: "grid" }}>{children}</li>}
+      {children && <li>{children}</li>}
     </ul>
   );
 }

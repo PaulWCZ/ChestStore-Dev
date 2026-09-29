@@ -71,6 +71,22 @@ export async function queue(sql: Query, actor: Member, candidateId: string, inpu
   return String(row!.id);
 }
 
+// rejectionsSent: of these candidates, how many had a rejection email
+// leave since `since` (a rejection's time, from rejectCandidate): what
+// the toast of a rejection says once its Undo is over, and what an Undo
+// that came too late owns up to.
+export async function rejectionsSent(sql: Query, actor: Member | null, candidateIds: unknown, since: unknown): Promise<number> {
+  if (!Array.isArray(candidateIds) || candidateIds.length === 0 || candidateIds.length > limits.bulk) throw new AppError("invalid");
+  const from = typeof since === "string" ? new Date(since) : null;
+  if (!from || Number.isNaN(from.getTime())) throw new AppError("invalid");
+  const ids: string[] = [];
+  for (const candidateId of candidateIds) ids.push((await manageable(sql, actor, candidateId)).candidate.id);
+  const [row] = await sql<{ n: number }[]>`
+    select count(distinct candidate_id)::int as n from messages
+    where candidate_id in ${sql(ids)} and kind = 'rejection' and status = 'sent' and created_at >= ${from}`;
+  return row?.n ?? 0;
+}
+
 // write: a recruiter's email to a candidate (from a template or not).
 export async function write(sql: Sql, actor: Member | null, candidateId: unknown, input: { subject: unknown; text: unknown }): Promise<string> {
   if (!actor) throw new AppError("forbidden");

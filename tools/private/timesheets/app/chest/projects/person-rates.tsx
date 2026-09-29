@@ -1,15 +1,15 @@
 "use client";
 
+import { DateField, useToast } from "@argentic/chest-ui/components";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { Close, Plus } from "../../../components/icons.tsx";
-import { useToast } from "../../../components/toast.tsx";
 import { parseAmount } from "../../../lib/amounts.ts";
 import type { Catalogue } from "../../../lib/i18n/index.ts";
 import { format } from "../../../lib/i18n/format.ts";
 import { removeRateStep, setRate } from "../actions.ts";
 
-type Words = { project: Catalogue["project"]; errors: Catalogue["errors"] };
+type Words = { project: Catalogue["project"]; errors: Catalogue["errors"]; date: Catalogue["date"] };
 export type PersonRate = { memberId: string; name: string; steps: { from: string; label: string; removable: boolean }[] };
 
 // Rates of some people on this project (a senior billed more than the
@@ -23,18 +23,18 @@ export function PersonRates({ projectId, rates, people, hasTime, today, origin, 
   const [pending, start] = useTransition();
   const [who, setWho] = useState("");
   const [rate, setRateText] = useState("");
-  const [from, setFrom] = useState(today);
-  const fail = (code: keyof Catalogue["errors"], values?: Record<string, string | number>) => toast(format(t.errors[code], values));
+  const [from, setFrom] = useState<string | null>(today);
+  const fail = (code: keyof Catalogue["errors"], values?: Record<string, string | number>) => void toast({ text: format(t.errors[code], values), tone: "error" });
 
   function add() {
     const cents = rate.trim() === "" ? null : parseAmount(rate);
     if (!who || (rate.trim() !== "" && cents === null)) return fail("invalid");
     start(async () => {
-      const r = await setRate({ kind: "bill", projectId, memberId: who, cents, from: hasTime ? from : origin });
+      const r = await setRate({ kind: "bill", projectId, memberId: who, cents, from: hasTime ? from ?? today : origin });
       if (!r.ok) return fail(r.error, r.values);
       setWho("");
       setRateText("");
-      toast(w.saved);
+      toast({ id: "person-rate", text: w.saved });
       router.refresh();
     });
   }
@@ -74,12 +74,7 @@ export function PersonRates({ projectId, rates, people, hasTime, today, origin, 
         </select>
         <label className="visually-hidden" htmlFor="pr-rate">{format(w.rate, { currency })}</label>
         <input id="pr-rate" className="field num short" inputMode="decimal" autoComplete="off" placeholder={format(w.rate, { currency })} value={rate} onChange={e => setRateText(e.target.value)} />
-        {hasTime && (
-          <>
-            <label className="label" htmlFor="pr-from">{w.personRateFrom}</label>
-            <input id="pr-from" type="date" className="field short" value={from} min={lockedUntil ?? undefined} onChange={e => setFrom(e.target.value)} />
-          </>
-        )}
+        {hasTime && <DateField id="pr-from" label={w.personRateFrom} value={from} onChange={setFrom} today={today} min={lockedUntil} chips={false} labels={t.date} />}
         <button type="submit" className="button quiet" disabled={pending || !who}><Plus />{w.personRateAdd}</button>
       </form>
     </section>

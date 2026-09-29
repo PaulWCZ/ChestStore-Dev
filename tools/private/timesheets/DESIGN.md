@@ -5,32 +5,45 @@
 **Timesheets** in English, **Temps** in French — short, and said the same
 way by everyone who ever filled one. *Precise, calm, luminous.* A
 stopwatch: a deep ink-green instrument panel, a cool paper page, one lime
-signal that lights up only when time is running.
+signal that lights up only when time is running. It is the catalogue
+theme **Instrument** of the UI kit; the company may choose another look.
 
-## Tokens
+## The identity is a theme
 
-Defined once in `app/tokens.css` (light, and dark with the system).
+Timesheets' look is the UI kit's catalogue theme **Instrument**
+(`@argentic/chest-ui`, `identityOf("timesheets")` in `lib/theme.ts`): one
+source, so the tool's own look and the look a company picks from the
+catalogue are the same, checked against every pair of the kit's contract
+(WCAG AA, light and dark) by `test/theme.test.ts`. A company may give the
+tool another look in its Chest — any theme of the catalogue, or its own
+brand (its colours, fonts, corners and logo) — with the same features:
+the stylesheets name only the contract's tokens (`ui/tokens/CONTRACT.md`)
+and the tool's own tokens, which are defined from them.
 
-| Token | Light | Dark | Use |
-|---|---|---|---|
-| `--panel` | `#0c231b` | `#050d0a` | Header and timer (dark in both modes) |
-| `--panel-2` | `#14342a` | `#0d1f18` | The timer line |
-| `--panel-ink` / `--panel-ink-2` | `#e9f3ed` / `#a9c2b6` | same | Text on the panel |
-| `--signal` | `#c6ff3a` | `#c6ff3a` | Running clock, *Start*/*Stop*, today, current tab |
-| `--bg` / `--surface` | `#eef1ec` / `#ffffff` | `#08130f` / `#0e1c17` | Paper |
-| `--ink` / `--ink-2` | `#0d1f19` / `#4a5d55` | `#e3eee8` / `#9db3a8` | Text |
-| `--accent` | `#0f5b43` | `#8fe3bd` | Buttons, links, billable bars |
-| `--line` / `--line-strong` | `#cfd8d1` / `#7a8e84` | `#213a30` / `#4e6d5f` | Hairlines / field borders |
-| `--warn`, `--danger` | `#8a5a00`, `#b42318` | `#f3c46b`, `#ff8f84` | Locked period, budgets near/over |
-| `--c-teal` … `--c-olive` | 8 project colours | lighter in dark | Swatches, entry bars |
+Instrument's values (light / dark): paper `--bg` `#eef1ec` / `#08130f`,
+`--surface` `#ffffff` / `#0e1c17`; `--ink` `#0d1f19` / `#e3eee8`;
+`--accent` `#0f5b43` / `#8fe3bd`; `--line-strong` `#7a8e84` / `#4e6d5f`
+(3:1 on paper and white); `--highlight` `#e4f9b0` / `#2c3d10`; the project
+colours are its categorical palette.
 
-Contrast (WCAG 2, `scripts/contrast.mjs`): ink on paper 15.0:1; ink-2 on
-paper 6.2:1, on white 7.0:1; white on accent 8.1:1; accent on paper 7.1:1;
-panel ink on panel 14.6:1, panel ink-2 on panel-2 7.1:1; signal ink on
-signal 14.0:1, signal on panel 14.0:1; warn on its soft 5.2:1; danger on
-white 6.6:1. Dark: ink 15.9:1, ink-2 on surface 7.9:1, accent-ink on accent
-11.3:1, danger 8.0:1. Field borders 3.5:1 (light), 3.1:1 (dark). The studio's
-axe audit passes on every screen, light and dark.
+**The tool's own tokens** (`app/tokens.css`, all from contract tokens):
+
+| Token | From | Use |
+|---|---|---|
+| `--panel`, `--panel-ink` | `--ink`, `--bg` (the inverse pair) | The instrument panel: header, timer, the report's total tile, the chosen chip and day |
+| `--panel-ink-2` | `--surface-2` | Secondary text on the panel (ink reads on it, so it reads on ink) |
+| `--panel-line`, `--panel-field-line` | `color-mix` of `--bg` into `--ink` | The panel's hairline (decoration); a field's edge on the panel |
+| `--signal`, `--signal-ink` | `--highlight`, `--ink` | The running clock, *Start*/*Stop*, today's pill, the current tab, the mark's hand |
+| `--today`, `--chosen` | `color-mix` of `--highlight` and `--surface`; `--surface-2` | Today's column; the row under the pointer, open forms |
+| `--billable`, `--other` | `--accent-line`, `--cat-8` | Chart bars (3:1 on the card) |
+| `--w-body`, `--w-semi`, `--w-bold` | computed from `--weight-strong` | Instrument's 500 / 650 / 750, and 400 in a theme that forbids synthetic bold (Chest) |
+| `.c-sky` … `.c-indigo` → `--c` | `--cat-1` … `--cat-8` | Project colours: sky 1, olive 2, coral 3, violet 4, rose 5, teal 6, amber 7, slate 8 (stored as "indigo", named *Slate*) |
+
+The panel is the inverse of the page: dark on a light look, light on a
+dark look (the contract's rule for a region in the other mode). In
+Instrument's light look the signal is the theme's marker pen, a pale lime
+(`#e4f9b0`); the tool's earlier signal, `#c6ff3a`, is not in the theme
+(see the kit's report).
 
 **Type**: Manrope (OFL, variable 200–800) for words — a geometric grotesk,
 weights 500 to 800; **Martian Mono** (OFL, variable) for every number, with
@@ -56,8 +69,14 @@ running swatch beats every 2 s (off with `prefers-reduced-motion`).
   panel), **bars** (billable accent, non-billable grey), **budget meters**
   (accent → warn at 80 % → danger over).
 - **Buttons** — primary (accent), quiet (outlined), link, signal (lime);
-  44 px targets. **Toasts** on the panel with a lime edge and *Undo*.
-- **Empty states** — dashed card, one sentence, one action.
+  44 px targets. **Toasts** are the kit's (the inverse pair, *Undo* that
+  says whether it worked), with the signal on their edge.
+- **The kit's components** — the shell (header as the panel, labelled tabs,
+  a row of their own on a phone), toasts, dialog and confirm, date fields,
+  the file picker, tables (the team's weeks, the report's breakdown),
+  segmented choices, badges, avatars, empty states: styled by
+  `@argentic/chest-ui/components.css`, dressed here with the instrument's
+  small-capital labels.
 - **Project picker** — a field one types into (a combobox): the list drops
   under it, each line a colour dot, project · task and the client in grey;
   the active line has an accent edge.
@@ -67,8 +86,9 @@ running swatch beats every 2 s (off with `prefers-reduced-motion`).
 - **Cell note** — a small note icon in the cell's corner (shown on hover or
   focus, always in accent when there is a note); a popover card with a
   textarea.
-- **Team table** — people × weeks, mono hours with a small state under
-  them: approved/sent in accent, sent back in warn, short in danger.
+- **Team table** — the kit's DataTable: people × weeks, mono hours with a
+  state badge under them (a shape and a word): approved (ok), sent (info),
+  sent back (wait), short (danger).
 - **Money tiles** — amount, cost, margin (danger when negative) beside the
   hours.
 

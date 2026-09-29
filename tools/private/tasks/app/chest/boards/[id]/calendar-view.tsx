@@ -110,7 +110,7 @@ function DayCard({ card, labels, late, writable, t }: { card: CardSummary; label
   params.set("card", card.id);
   const color = labels.find(l => card.labels.includes(l.id))?.color;
   return (
-    <li ref={setNodeRef} style={transform ? { transform: `translate(${transform.x}px, ${transform.y}px)`, zIndex: 5, position: "relative" } : undefined}>
+    <li ref={setNodeRef} className={transform ? "moving" : undefined} style={transform ? { transform: `translate(${transform.x}px, ${transform.y}px)` } : undefined}>
       <Link href={`${path}?${params.toString()}`} scroll={false} {...(writable ? listeners : {})} {...(writable ? attributes : {})} aria-roledescription={undefined}
         className={`cal-card${card.done ? " is-done" : ""}${late ? " late" : ""}${isDragging ? " dragging" : ""}${color ? " c-" + color : ""}`}>
         {color && <span className="bar" aria-hidden="true" />}

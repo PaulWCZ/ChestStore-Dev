@@ -1,3 +1,5 @@
+import { StatusBadge } from "@argentic/chest-ui/components";
+import * as chest from "@argentic/chest-sdk/chest";
 import { headers } from "next/headers";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -10,6 +12,7 @@ import { publicOrigin } from "../../../../lib/public-origin.ts";
 import { viewer } from "../../../../lib/session.ts";
 import { stageLabel } from "../../../../lib/stages.ts";
 import { shareLinks } from "../../../../lib/reach.ts";
+import { dayOf } from "../../../../lib/time.ts";
 import { BoardView } from "./board-view.tsx";
 import { JobActions } from "./job-actions.tsx";
 
@@ -37,7 +40,7 @@ export default async function JobBoard({ params }: { params: Promise<{ id: strin
         <Link className="back-link" href="/chest"><Back />{t.board.back}</Link>
         <div className="board-title">
           <h1>{job.title}</h1>
-          <span className={`chip state-${job.state}`}>{t.home.states[job.state]}</span>
+          <StatusBadge tone={job.state === "open" ? "ok" : job.state === "draft" ? "wait" : "neutral"} label={t.home.states[job.state]} />
         </div>
         <p className="muted board-facts">{[job.team, job.place, t.facts.contract[job.contract], t.facts.remote[job.remote]].filter(Boolean).join(" · ")}</p>
         {manage && (
@@ -57,7 +60,8 @@ export default async function JobBoard({ params }: { params: Promise<{ id: strin
         cards={cards}
         manage={manage}
         locale={locale}
-        t={{ board: t.board, errors: t.errors, reasons: t.reject.reasons, reject: t.reject, common: t.common, hire: t.hire }}
+        today={dayOf(new Date(), chest.timeZone())}
+        t={{ board: t.board, errors: t.errors, reasons: t.reject.reasons, reject: t.reject, common: t.common, hire: t.hire, dialog: t.dialog, date: t.dates }}
       />
     </div>
   );

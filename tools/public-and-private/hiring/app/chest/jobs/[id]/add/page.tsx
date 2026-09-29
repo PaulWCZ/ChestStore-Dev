@@ -1,3 +1,4 @@
+import { PageHeader } from "@argentic/chest-ui/components";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Back } from "../../../../../components/icons.tsx";
@@ -21,14 +22,13 @@ export default async function AddCandidate({ params }: { params: Promise<{ id: s
     throw error;
   }
   if (detail.access !== "manage") notFound();
-  const { t, locale } = v;
+  const { t } = v;
   return (
     <div className="narrow">
       <Link className="back-link" href={`/chest/jobs/${detail.job.id}`}><Back />{detail.job.title}</Link>
-      <div className="page-head"><h1>{t.addForm.title}</h1></div>
-      <p className="lede-s">{t.addForm.intro}</p>
-      <AddForm jobId={detail.job.id} stages={detail.stages.map(s => ({ id: s.id, name: stageLabel(s, t.jobSettings.defaults) }))} language={detail.job.language} locale={locale}
-        t={{ addForm: t.addForm, apply: t.apply, candidate: t.candidate, errors: t.errors }} />
+      <PageHeader title={t.addForm.title} intro={t.addForm.intro} />
+      <AddForm jobId={detail.job.id} stages={detail.stages.map(s => ({ id: s.id, name: stageLabel(s, t.jobSettings.defaults) }))} language={detail.job.language}
+        t={{ addForm: t.addForm, apply: t.apply, candidate: t.candidate, errors: t.errors, files: t.files }} />
     </div>
   );
 }

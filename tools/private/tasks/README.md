@@ -179,6 +179,20 @@ one already late. Archiving a repeating card stops its series; choosing
   next card is made at the moment one is done); the reminder does not come
   and the tile's number is refreshed by use only.
 
+## Looks
+
+Tasks wears **any look the company chooses in its Chest**: its own identity
+"Workshop" (paper, ink outlines, sun yellow — the default), any theme of the
+store's catalogue (the 17 identities, "Chest", "High contrast"), or the
+company's brand imported from its guidelines — for all tools or for Tasks
+alone, with the same features. The look arrives with the page (one
+`<style>` with the page's nonce, no script); in brand mode the company's
+logo stands beside the name. Board and label colours follow the theme's
+palette (a "sky" board stays bluish everywhere; in the "Chest" theme,
+colours are greys and the names tell them apart). Screens:
+`docs/screens/*-chest-*`, `*-theme-*` (Library), `*-brand-*` (the sample
+brand).
+
 ## Develop
 
 ```sh

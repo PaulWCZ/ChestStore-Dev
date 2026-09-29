@@ -1,6 +1,6 @@
+import { Avatar, EmptyState, StatusBadge } from "@argentic/chest-ui/components";
 import Link from "next/link";
 import { forbidden, notFound } from "next/navigation";
-import { Avatar } from "../../../../components/avatar.tsx";
 import { Back, Next } from "../../../../components/icons.tsx";
 import { can } from "../../../../lib/access.ts";
 import { today, zone } from "../../../../lib/clock.ts";
@@ -47,10 +47,10 @@ export default async function PersonWeekPage({ params, searchParams }: { params:
     : state.status === "submitted" ? format(t.team.sentOn, { date: state.submittedAt ? formatDate(state.submittedAt, zone(), locale, { weekday: "long", day: "numeric", month: "short" }) : "" }) : t.team.notSent;
   const link = (w: string) => `/chest/team/${memberId}?week=${w}`;
   return (
-    <main className="page wide">
+    <div className="page wide">
       <p><Link className="button link" href="/chest/team"><Back />{t.team.title}</Link></p>
       <header className="page-head">
-        <h1><Avatar name={name} photo={person.photo} size={40} />{name}</h1>
+        <h1><Avatar name={name} photo={person.photo} size="l" />{name}</h1>
         <div className="week-total">
           <span className="label">{format(t.team.weekOf, { date: formatDay(week, locale, { day: "numeric", month: "long" }) })}</span>
           <span className="num big">{formatDuration(total)}</span>
@@ -67,7 +67,7 @@ export default async function PersonWeekPage({ params, searchParams }: { params:
         {(state.status === "submitted" || state.status === "approved") && <Decision memberId={memberId} week={week} name={name} approved={state.status === "approved"} t={{ team: t.team, errors: t.errors }} />}
       </div>
 
-      {entries.length === 0 ? <div className="empty"><p>{t.team.emptyWeek}</p></div> : (
+      {entries.length === 0 ? <EmptyState title={t.team.emptyWeek} /> : (
         <>
           <div className="grid-scroll read" tabIndex={0} role="region" aria-label={t.team.weeks}>
             <table className="grid">
@@ -103,8 +103,8 @@ export default async function PersonWeekPage({ params, searchParams }: { params:
                   </div>
                   <div className="entry-side">
                     <span className="num entry-time">{formatDuration(e.minutes)}</span>
-                    {!e.billable && <span className="tag">{t.day.notBillable}</span>}
-                    {e.invoiced && <span className="tag">{t.day.invoiced}</span>}
+                    {!e.billable && <StatusBadge tone="neutral" size="s" icon={false} label={t.day.notBillable} />}
+                    {e.invoiced && <StatusBadge tone="ok" size="s" label={t.day.invoiced} />}
                   </div>
                 </li>
               ))}
@@ -112,6 +112,6 @@ export default async function PersonWeekPage({ params, searchParams }: { params:
           </section>
         </>
       )}
-    </main>
+    </div>
   );
 }
