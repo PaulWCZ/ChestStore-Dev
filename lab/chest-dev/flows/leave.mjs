@@ -201,6 +201,7 @@ await step("a last day before the first day: the field refuses it, and the form 
   expect((await page.locator(".quote").innerText()).includes("Fix the date above"), "the cost waits: " + (await page.locator(".quote").innerText()));
   expect(!(await field.locator(".ck-date-read").isVisible()), "no other day shown in words under the refused one");
   expect(await page.getByRole("button", { name: "Send the request" }).isDisabled(), "cannot be sent");
+  await page.goto(origin + "/chest");
 });
 
 await step("he asks to cancel the approved week; she confirms; the days come back", async () => {

@@ -68,9 +68,9 @@ begin
   insert into tickets (number, subject, status, customer_email, customer_name, channel, secret_hash, language, assignee, created_at, updated_at, requester, source)
   values (nextval('ticket_numbers'), 'Imprimante du bureau bloquée', 'waiting', '', '', 'forms', encode(sha256(convert_to(gen_random_uuid()::text, 'UTF8')), 'hex'), 'fr', ines, now() - interval '5 hours', now() - interval '2 hours', 'mbr_noraaaaaaaaaaaaaaaaaaaaaaa',
     jsonb_build_object('form', jsonb_build_object('id', '9', 'title', 'Demande informatique'), 'answer', jsonb_build_object('id', 'seedNoraPrinter1', 'path', null))) returning id into t;
-  insert into messages (ticket_id, kind, body, created_at) values (t, 'customer', E'L''imprimante du premier étage affiche « bourrage papier » depuis ce matin, et rien n''en sort.', now() - interval '5 hours');
+  insert into messages (ticket_id, kind, body, created_at) values (t, 'customer', E'L’imprimante du premier étage affiche « bourrage papier » depuis ce matin, et rien n’en sort.', now() - interval '5 hours');
   insert into messages (ticket_id, kind, author, body, created_at) values (t, 'note', ines, 'Contrat de maintenance : appeler Bureau Services, réf. 2231.', now() - interval '3 hours');
-  insert into messages (ticket_id, kind, author, body, created_at, delivery) values (t, 'reply', ines, E'Bonjour Nora,\n\nLe technicien de Bureau Services passe demain à 9 h. En attendant, l''imprimante du rez-de-chaussée marche.\n\nInès', now() - interval '2 hours', 'page');
+  insert into messages (ticket_id, kind, author, body, created_at, delivery) values (t, 'reply', ines, E'Bonjour Nora,\n\nLe technicien de Bureau Services passe demain à 9 h. En attendant, l’imprimante du rez-de-chaussée marche.\n\nInès', now() - interval '2 hours', 'page');
 
   insert into saved_views (name, params, created_by) values ('Urgent deliveries', jsonb_build_object('folder', 'open', 'tag', delivery::text, 'sort', 'priority'), ines);
   insert into rules (field, value, tag, priority, assignee, created_by) values ('text', 'facture', 'Invoice', null, 'mbr_sofiaaaaaaaaaaaaaaaaaaaaaa', camille), ('from', 'lumiere-hotels.example', null, 'high', null, camille);

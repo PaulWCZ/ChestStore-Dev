@@ -62,7 +62,7 @@ export function TeamShell({ brand, nav, member, folders, views, labels, toast, k
     <Toasts labels={toast}>
       <AppShell brand={brand} nav={nav} path={path} link={Link} member={member} labels={labels} width="full">
         <Keys canCreate={canCreate} t={keys} />
-        <div className={`desk${inbox ? " on-inbox" : ""}`}>
+        <div className={`desk${inbox ? " on-inbox" : ""}${folders.length === 0 ? " bare" : ""}`}>
           {folders.length > 0 && (
             <nav className="folders" aria-label={labels.folders}>
               <ul>

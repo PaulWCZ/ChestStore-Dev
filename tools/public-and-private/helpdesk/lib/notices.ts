@@ -254,7 +254,8 @@ export async function late(sql: Sql, now = new Date()): Promise<number> {
     const minutes = workMinutes(r.waiting_since, now, s.hours, zone);
     if (!lateAfter(minutes, s.lateHours)) continue;
     // Marked first: a failure never tells the channel twice about one wait.
-    const marked = await sql`update tickets set late_noticed_for = waiting_since where id = ${r.id} and waiting_since = ${r.waiting_since} and (late_noticed_for is null or late_noticed_for <> waiting_since) returning id`;
+    // (Timestamps are compared in the database: JavaScript keeps milliseconds only.)
+    const marked = await sql`update tickets set late_noticed_for = waiting_since where id = ${r.id} and status = 'open' and waiting_since is not null and (late_noticed_for is null or late_noticed_for <> waiting_since) returning id`;
     if (marked.length === 0) continue;
     await notice(sql, "late", { id: String(r.id), number: r.number, subject: r.subject, customerName: r.customer_name, customerEmail: r.customer_email, requester: r.requester, channel: r.channel, priority: r.priority, status: r.status }, `late:${r.id}:${r.waiting_since.getTime()}`, { hours: s.lateHours });
     told++;

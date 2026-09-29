@@ -503,16 +503,30 @@ await step("a contact form also makes a contact in Clients and opens a ticket in
   expect(board.includes("<code>forms.request</code>") && board.includes("A quote"), "a ticket for Support, its subject the answer");
 });
 
-await step("one message, one email: Support took the answer, so Forms sent no copy; the answer says where it went, and Support follows it up", async () => {
-  // The step before: the sample contact form sends a copy, and both links are on.
+await step("one message, one email: with a copy on, an answer Support took gets no copy from Forms (Support confirms it); the answer says where it went, and Support follows it up", async () => {
+  await page.goto(origin + "/chest/forms/5/settings");
+  await page.locator("label.ck-switch-label", { hasText: "Email a copy" }).click();
+  expect((await page.locator("main").innerText()).includes("Support confirms each request by email"), "Settings says why no copy goes");
+  await page.waitForSelector(".save-state.saved", { timeout: 10000 });
+  const v = await browser.newPage();
+  await v.goto(origin + "/c2n6yd8u");
+  await v.getByLabel("Your name").fill("Marc Petit");
+  await v.getByLabel("Your email address").fill("marc.petit@example.com");
+  await v.locator("label", { hasText: "A question" }).first().click();
+  await v.getByLabel("Your message").fill("Do you deliver to Lyon?");
+  await v.waitForTimeout(2200);
+  await v.getByRole("button", { name: "Send" }).click();
+  await v.waitForSelector(".runner-thanks", { timeout: 15000 });
+  await v.close();
   const board = await dev();
-  const toNina = board.split("Mail (proposal)")[1] ?? "";
-  expect(!/→ nina\.roux@example\.com/u.test(toNina), "no copy to the visitor: Support confirms");
+  const mail = board.slice(board.indexOf("Mail (proposal)"));
+  expect(!mail.includes("→ marc.petit@example.com"), "no copy to the visitor: Support confirms");
+  expect(board.includes("<code>forms.request</code>") && board.includes("marc.petit@example.com"), "the ticket event left");
   await page.goto(origin + "/chest/forms/5/answers");
-  await page.locator("a", { hasText: "nina.roux@example.com" }).first().click();
+  await page.locator("a", { hasText: "marc.petit@example.com" }).first().click();
   await page.waitForURL(/\/answers\/[a-z0-9]{16}/u);
   const sent = await page.locator(".answer-sent").innerText();
-  expect(sent.includes("Clients (a contact)") && sent.includes("Support (a ticket)"), "where it went: " + sent);
+  expect(sent.includes("Clients (a contact)") && sent.includes("Support (a ticket)") && !sent.includes("a copy"), "where it went: " + sent);
   expect(await page.locator(".answer-sent a", { hasText: "Support (a ticket)" }).getAttribute("href") === "https://helpdesk-chest.chest.test/chest", "a link to Support");
   expect((await page.locator("main").innerText()).includes("Support follows this request up"), "no second follow-up here");
 });
@@ -548,15 +562,30 @@ await step("web addresses: a Slack channel added in Settings gets each new answe
   await page.waitForSelector(".ck-toast:has-text('Address added')");
   await page.waitForSelector(".hook strong:has-text('Sales channel')");
   expect(!(await box.innerText()).includes("abcdefghijklmnopqrstuvwx"), "the secret path is never shown");
-  // A visitor answers: the channel is told.
-  await page.goto(origin + "/chest/forms/5");
+  // A visitor answers the sample contact form (published in the step
+  // before): the channel is told, in the Chest's words, with a link.
   const v = await browser.newPage();
-  const publicLink = (await page.request.get(origin + "/chest/forms/5/share")).url();
-  void publicLink;
-  await v.goto(origin + "/" + (await (await page.request.get(origin + "/_dev")).text()).match(/\/([a-z2-9]{8})"/u)?.[1]);
+  await v.goto(origin + "/c2n6yd8u");
+  await v.getByLabel("Your name").fill("Paul Lemaire");
+  await v.getByLabel("Your email address").fill("paul.lemaire@example.com");
+  await v.locator("label", { hasText: "An order" }).first().click();
+  await v.getByLabel("Your message").fill("Where is my order 1042?");
+  await v.waitForTimeout(2200);
+  await v.getByRole("button", { name: "Send" }).click();
+  await v.waitForSelector(".runner-thanks", { timeout: 15000 });
   await v.close();
   const board = await dev();
-  expect(board.includes("Sales channel"), "the Chest holds the address: " + board.slice(board.indexOf("Webhooks"), board.indexOf("Webhooks") + 300));
+  const journal = board.slice(board.indexOf("Webhooks (proposal)"));
+  expect(/<code>form\.answered<\/code> → Sales channel: <b>delivered<\/b>/u.test(journal), "delivered to the channel: " + journal.slice(0, 400));
+  expect(journal.includes("New answer to “Contact us”") && journal.includes("Where is my order 1042?"), "the form and the answers in the text");
+  await page.goto(origin + "/chest/forms/5/settings");
+  expect((await page.locator("fieldset.hooks").innerText()).includes("The last answer arrived."), "Settings says it arrived");
+  // Removed: asked first (the Chest forgets the address).
+  await page.locator(".hook", { hasText: "Sales channel" }).getByRole("button", { name: "Remove" }).click();
+  await page.locator("dialog[open]").getByRole("button", { name: "Remove" }).click();
+  await page.waitForSelector(".ck-toast:has-text('Address removed.')");
+  await page.reload();
+  expect(await page.locator(".hook", { hasText: "Sales channel" }).count() === 0, "gone");
 });
 
 await step("answers on a phone are cards; the filters wait behind one button; the columns control looks like one", async () => {

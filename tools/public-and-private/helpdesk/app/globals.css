@@ -71,6 +71,8 @@ textarea.field { resize: vertical; line-height: var(--leading); padding: var(--s
    above the folders. */
 .ck-main:has(> .desk) { padding: 0; }
 .desk { display: grid; grid-template-columns: var(--side-width) minmax(0, 1fr); min-height: calc(100dvh - 61px); }
+/* No folders (My requests, a member without a role): the page alone. */
+.desk.bare { grid-template-columns: minmax(0, 1fr); }
 .desk-main { min-width: 0; padding: var(--space-5) var(--space-6) var(--space-7); }
 .folders { position: sticky; top: 61px; align-self: start; max-height: calc(100dvh - 61px); overflow-y: auto; display: grid; gap: 2px; align-content: start; padding: var(--space-4); background: var(--surface); border-right: var(--border-width) solid var(--line); min-height: calc(100dvh - 61px); }
 .folders ul { display: grid; gap: 2px; }
