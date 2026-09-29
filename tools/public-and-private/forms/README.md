@@ -86,10 +86,15 @@ built again from the studio's template to stand next to Tally and Typeform.
   Its type and first bytes are checked before it is kept.
 - **Spam**: no captcha — the form's signed "shown at" time and counters
   per visitor and for everyone (Proposal *visitors*).
-- **Answers** (one tab, *Answers* and *Summary*): a table (a list of cards
-  on a phone) with search, filters that apply at once (a choice or yes/no,
-  a follow-up state with counts, a range of days), newest or oldest first,
-  the columns chosen, a shadow when it scrolls sideways; one answer on its
+- **Answers** (one tab, *Answers* and *Summary*): a table on a wide
+  screen; **on a phone, one card per answer** — who, when, the first three
+  answers (each named by its question), where it stands; the whole row
+  or card opens the answer. Search; filters that apply at once (a choice
+  or yes/no, a follow-up state with counts, a range of days) — on a phone
+  behind one *Filter* button (open when a filter is on); newest or oldest
+  first; *Columns shown* (a button with a chevron) picks the questions;
+  questions read in the member's language when the form has a version in
+  it (the answers, one answer, the summary); one answer on its
   page with *Newer* / *Older*, its files, a mail link to the respondent;
   delete with *Undo*; a summary per question: bars with counts and
   percents, the average for stars and scales, the **NPS** for 0–10 scales,
@@ -111,13 +116,13 @@ built again from the studio's template to stand next to Tally and Typeform.
   by email, the answers written in it, and *Reply* writes to the
   respondent when the batch holds one answer that gave an address; an
   anonymous form's email says only how many.
-- **Other tools of the Chest**: with *Send answers to: the other tools of
-  your Chest*, each answer is published as `forms.answered` (Proposal
-  *events between tools*): the form, its title, the answer, its fields as
-  `{question, key, label, kind, value}` (files by name), the respondent's
-  email if given, the member for a named team form. An admin links the
-  receivers (Clients could make a contact, Helpdesk a ticket). Never for
-  an anonymous form.
+- **Other tools of the Chest** (Settings → *Send answers to*): *Also
+  create a contact in Clients* and *Also open a ticket in Support* — the
+  form's author says which question gives the name, the email, the phone,
+  the company, the message, or the ticket's subject and details (each
+  choice lists only the questions that can give it; the obvious ones are
+  guessed) — and *The other tools of your Chest* for every answer as it
+  is. See **With the other tools** below. Never for an anonymous form.
 - **Deleted forms** stay 30 days in *Deleted forms* (their owner, or any
   manager, brings one back); deleting a form with answers asks first and
   says how many go. Forms started and never touched go after a day.
@@ -130,15 +135,100 @@ built again from the studio's template to stand next to Tally and Typeform.
   answers by email address or name and erases them (*Erase a person's
   answers*).
 
+## With the other tools
+
+Forms tells the other tools of the Chest about answers through **events
+between tools** (Proposal (studio), `sdk/README.md`; `chest.proposals.json`
+`"emits"`). Forms publishes; a receiving tool declares the event in its
+`"receives"`, and **an administrator links the two in the Chest** (a tool
+never picks its publishers). Delivery is the Chest's: signed, at least
+once, to the receiver's `POST /chest-events`. Each event is published once
+per answer (its `key`), within the Chest's 16 KiB (the longest text gives
+way first), **never for an anonymous form**, and never blocks the answer: if
+the Chest cannot take it, the answer is kept all the same. People are
+member ids (`mbr_…`), never names from the Chest; texts are what the
+respondent wrote, trimmed and bounded; yes/no and *Other* in the language
+the respondent read. `path` is the answer's page on the Chest's team
+address (`chest.teamUrl()` + `path`), for a link back.
+
+**Receivers are not built yet** (Clients and Support will be); this is the
+contract they build to. Version 1 (`v: 1`); a later version adds fields,
+never changes one.
+
+### `forms.contact` — make or update a contact (Clients)
+
+Sent when the form maps a contact (Settings) **and** the answer gives an
+email or a phone. The receiver matches an existing contact by `email`
+(lower case) or `phone`, else creates one; it keeps `message` in the
+contact's history, with a link to `answer.path`.
+
+```jsonc
+{
+  "v": 1,
+  "form": { "id": "5", "title": "Contact us" },                 // the title as answered
+  "answer": { "id": "k3…16 letters", "at": "2026-09-29T10:00:00.000Z", "language": "fr", "path": "/chest/forms/5/answers/k3…" },
+  "contact": {
+    "name": "Nina Roux",            // ≤ 120, or null
+    "email": "nina@example.com",    // lower case, ≤ 254, or null
+    "phone": "+33 6 12 34 56 78",   // as typed, ≤ 40, or null — email or phone is always there
+    "company": "Roux SARL"          // ≤ 120, or null
+  },
+  "message": "Six oak chairs…",     // ≤ 4,000, or null
+  "member": null                    // the member who answered a named team form
+}
+```
+
+### `forms.request` — open a ticket (Support)
+
+Sent when the form maps a ticket **and** there is someone to answer: an
+email (public forms: the mapping requires the email question) or the
+member who answered (team forms).
+
+```jsonc
+{
+  "v": 1,
+  "form": { "id": "5", "title": "Contact us" },
+  "answer": { "id": "…", "at": "…", "language": "fr", "path": "/chest/forms/5/answers/…" },
+  "subject": "A quote",              // the mapped answer, else the form's title; ≤ 150
+  "details": "Six oak chairs…",      // ≤ 8,000, or null
+  "requester": { "name": "Nina Roux", "email": "nina@example.com", "member": null },
+  "fields": [                        // every other answer, in the form's order (dropped from the end past 16 KiB)
+    { "question": "q1d…", "label": "Your phone number", "value": "+33 6 12 34 56 78" }
+  ]
+}
+```
+
+### `forms.answered` — every answer, as it is
+
+With *The other tools of your Chest* on: `{ form, title, answer, language,
+fields: [{ question, key, label, kind, value }], email, member }` — values
+as text (choices by their labels, files by their names, never a file),
+numbers as numbers, yes/no as `true`/`false`; `key` is the question's
+name in links (`?nps=9`). For a receiver that wants everything (Tasks, a
+future sheet).
+
+What the mapping holds (`forms.routes`, `lib/routes.ts`): question ids per
+piece, checked against the form's questions when Settings save (a piece
+whose question is gone or changed kind is dropped; a contact without an
+email or a phone question, a public ticket without an email question, is
+refused with a sentence). At answer time the answered version is read: a
+question removed since gives `null`. Duplicating a form does not copy the
+mapping (its questions get new ids). Tests: `test/routes.test.ts`
+(`chest.published`).
+
 ## Looks
 
 Forms wears any look, with the same features: its own identity
 (*Invitation*: lavender mist, aubergine ink, one berry, DM Serif Display
 and DM Sans — `lib/theme.ts`), any theme of the kit's catalogue, or the
 company's brand imported in its Chest — for all its tools or for Forms
-alone. The Chest chooses (`chest.theme()`, `lib/theme.ts` `currentLook`);
-Forms has no switch of its own. In brand mode the company's logo shows
-beside the name in the header and at the top of every respondent's page.
+alone. The Chest chooses (`chest.theme()`, `lib/theme.ts`, `lib/look.ts`);
+Forms has no switch of its own. **A public form** wears the company's
+brand when it has one and Forms' own look otherwise — never a catalogue
+theme chosen for the team's pages, never the Chest's sheet (kit 0.2.3); a
+team form, inside the Chest, wears the team's look. In brand mode the
+company's logo shows beside the name in the header and at the top of
+every respondent's page.
 
 **A form's colour** (Settings → Look, six choices) is a family of the
 look's categorical palette — indigo the blue, teal the teal, tangerine the
@@ -277,15 +367,18 @@ if shipped and keeps working without them:
   opening is not announced; its link is shared by hand.
 - **Chest settings** (`chest.company()`, `timeZone()`, `publicUrl()`,
   `teamUrl()`, `theme()`: the look the company chose, and its logo).
-- **The UI kit's catalogue** (`@argentic/chest-ui`, 0.2.2-studio.1):
+- **The UI kit's catalogue** (`@argentic/chest-ui`, 0.2.3-studio.1; public
+  forms wear the company's brand or Forms' own look, never a catalogue
+  theme chosen for the team — `surface: "public"`):
   Forms' identity is its 20th theme, `forms` ("Invitation"), with the
   fonts `dm-sans` and `dm-serif-display` in its registry: `lib/theme.ts`
   is `identityOf("forms")`, so any other tool may wear it and a company
   that picks it gets exactly Forms' own look.
 - **Public files** (`files.publicUrl`): covers and picture choices; without
   them, the pictures do not show on the public page.
-- **Events between tools** (`events.publish("forms.answered")`): without
-  them, the switch is harmless — nothing leaves.
+- **Events between tools** (`events.publish("forms.answered" |
+  "forms.contact" | "forms.request")`): without them, the switches are
+  harmless — nothing leaves, the answer is kept.
 
 Not in the working copy yet (see the SDK report):
 
@@ -329,8 +422,10 @@ seeded (files are the Chest's): the flow uploads one.
 - **Not shown in another website yet** (the Chest's frame policy, above);
   the button code works. No webhooks or spreadsheet sync (a Chest
   capability is needed, above). Other tools receive answers only once the
-  Chest has events between tools and an admin linked them — no store tool
-  receives `forms.answered` yet.
+  Chest has events between tools and an admin linked them — **no store tool
+  receives `forms.answered`, `forms.contact` or `forms.request` yet**
+  (Clients and Support will; the contract is above). A contact is made
+  from one answer's fields only (no merging rules chosen by the author).
 - **Email alerts** need the Chest's mail; without it Settings says so and
   the bell alone tells. No daily digest (the batches are every 10 minutes).
 - Import: form definitions from Google Forms and Typeform only (not

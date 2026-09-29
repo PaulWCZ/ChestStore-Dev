@@ -4,7 +4,7 @@ import { AppError } from "../lib/app-error.ts";
 import { en } from "../lib/i18n/en.ts";
 import { fr } from "../lib/i18n/fr.ts";
 import { check, walk } from "../lib/logic.ts";
-import { blank, copyDefinition, definition, definitionFromText, limits, problems, redirectUrl, settings, sniff, typesFor } from "../lib/model.ts";
+import { blank, copyDefinition, definition, definitionFromText, limits, problems, readIn, redirectUrl, settings, sniff, typesFor } from "../lib/model.ts";
 import { template, templateKeys } from "../lib/templates.ts";
 import { zonedInstant, zonedParts } from "../lib/zone.ts";
 import { form, opts, q } from "./support/fixtures.ts";
@@ -111,4 +111,12 @@ test("a closing day and hour on the Chest's clock", () => {
   assert.equal(zonedInstant("2026-10-26", 18, "Europe/Paris").toISOString(), "2026-10-26T17:00:00.000Z", "after the change of clock");
   assert.deepEqual(zonedParts(new Date("2026-10-24T16:00:00Z"), "Europe/Paris"), { day: "2026-10-24", hour: 18 });
   assert.throws(() => zonedInstant("2026-13-01", 1, "Europe/Paris"));
+});
+
+test("answers read in the member's language when the form has it, as written otherwise", () => {
+  const ask = { id: "qaaaaaaa", kind: "short" as const, title: "Your name", help: "", required: false };
+  const def = { title: "Contact", intro: "", language: "en" as const, alt: { language: "fr" as const, texts: { title: "Contact FR", qaaaaaaa: "Votre nom" } }, pages: [{ id: "paaaaaaa", title: "", questions: [ask], jumps: [] }] };
+  assert.equal(readIn(def, "fr").pages[0]!.questions[0]!.title, "Votre nom");
+  assert.equal(readIn(def, "en"), def);
+  assert.equal(readIn({ ...def, alt: undefined }, "fr").title, "Contact");
 });

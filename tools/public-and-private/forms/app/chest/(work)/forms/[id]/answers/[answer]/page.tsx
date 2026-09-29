@@ -11,6 +11,7 @@ import { answerText, filesIn, type StoredFile } from "../../../../../../../lib/l
 import { nameOf, people } from "../../../../../../../lib/people.ts";
 import { formOr404 } from "../../../../../../../lib/pages.ts";
 import { viewer } from "../../../../../../../lib/session.ts";
+import { readIn } from "../../../../../../../lib/model.ts";
 import { columnsOf } from "../../../../../../../lib/summary.ts";
 import { AnswerActions, FollowUp } from "./answer-actions.tsx";
 
@@ -42,7 +43,8 @@ export default async function AnswerPage({ params, searchParams }: Props) {
   const words = { yes: t.respond.yes, no: t.respond.no, other: t.respond.other };
   const who = answer.respondent ? nameOf((await people([answer.respondent])).get(answer.respondent), locale) : (answer.email ?? t.answers.visitor);
   const when = answer.createdAt ? formatDate(answer.createdAt, locale, zone, { dateStyle: "full", timeStyle: "short" }) : formatDate(answer.month + "T12:00:00Z", locale, "UTC", { month: "long", year: "numeric" });
-  const asked = definition.pages.flatMap(p => p.questions).filter(q => q.kind !== "statement");
+  // The questions in the member's language when the form has it.
+  const asked = readIn(definition, locale).pages.flatMap(p => p.questions).filter(q => q.kind !== "statement");
   const inVersion = new Set(asked.map(q => q.id));
   const others = columnsOf(await versions(sql, form.id)).filter(c => !inVersion.has(c.question.id) && answer.data[c.question.id] !== undefined).map(c => c.question);
   const size = (n: number) => new Intl.NumberFormat(locale === "en" ? "en-GB" : locale, { style: "unit", unit: n > 1 << 20 ? "megabyte" : "kilobyte", maximumFractionDigits: 1 }).format(n > 1 << 20 ? n / (1 << 20) : Math.max(1, n / 1024));

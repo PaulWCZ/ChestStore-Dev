@@ -4,7 +4,7 @@ import { allAnswers } from "../../../../../../lib/answers.ts";
 import { AppError } from "../../../../../../lib/app-error.ts";
 import { db } from "../../../../../../lib/db.ts";
 import { format, formatDate, plural } from "../../../../../../lib/i18n/index.ts";
-import { limits } from "../../../../../../lib/model.ts";
+import { limits, readIn } from "../../../../../../lib/model.ts";
 import { viewer } from "../../../../../../lib/session.ts";
 import { summarise, type Bar, type Summary } from "../../../../../../lib/summary.ts";
 import { AnswersSwitch } from "../answers-switch.tsx";
@@ -133,7 +133,8 @@ export default async function SummaryPage({ params }: { params: Promise<{ id: st
         );
     }
   };
-  const summaries = summarise(data.versions, data.answers, { yes: t.respond.yes, no: t.respond.no, other: t.respond.other });
+  // The questions in the member's language when the form has it.
+  const summaries = summarise(new Map([...data.versions].map(([n, d]) => [n, readIn(d, locale)])), data.answers, { yes: t.respond.yes, no: t.respond.no, other: t.respond.other });
   return (
     <div className="summary-page">
       {head}

@@ -7,7 +7,7 @@ import { AppError } from "../../../../../../lib/app-error.ts";
 import { db } from "../../../../../../lib/db.ts";
 import { format, formatDate, plural } from "../../../../../../lib/i18n/index.ts";
 import { answerText } from "../../../../../../lib/logic.ts";
-import { limits, withOptions } from "../../../../../../lib/model.ts";
+import { limits, readIn, withOptions } from "../../../../../../lib/model.ts";
 import { nameOf, people } from "../../../../../../lib/people.ts";
 import { formOr404 } from "../../../../../../lib/pages.ts";
 import { viewer } from "../../../../../../lib/session.ts";
@@ -92,15 +92,18 @@ export default async function AnswersPage({ params, searchParams }: Props) {
   const to = one(query["to"]) ?? "";
   const sort = one(query["sort"]) === "oldest" ? "oldest" : "";
   const [question, option] = where.split(":");
-  const data = await listAnswers(sql, member, id, { q, question, option, status, from, to, sort, page: one(query["page"]) }, zone);
+  const listed = await listAnswers(sql, member, id, { q, question, option, status, from, to, sort, page: one(query["page"]) }, zone);
+  // The questions in the member's language when the form has it.
+  const data = { ...listed, versions: new Map([...listed.versions].map(([n, d]) => [n, readIn(d, locale)])) };
+  const draft = readIn(form.draft, locale);
   const words = { yes: t.respond.yes, no: t.respond.no, other: t.respond.other };
-  const every = columnsOf(data.versions, form.draft).filter(c => !c.removed);
+  const every = columnsOf(data.versions, draft).filter(c => !c.removed);
   // The columns chosen: the checkboxes' form repeats "cols", the other
   // links keep them comma-separated.
   const chosen = many(query["cols"]).flatMap(c => c.split(",")).filter(c => every.some(x => x.question.id === c));
   const columns = chosen.length > 0 ? every.filter(c => chosen.includes(c.question.id)) : every.slice(0, 4);
   const labels = optionLabels(data.versions);
-  const filterable = columnsOf(data.versions, form.draft).filter(c => withOptions(c.question.kind) || c.question.kind === "yesno");
+  const filterable = columnsOf(data.versions, draft).filter(c => withOptions(c.question.kind) || c.question.kind === "yesno");
   const who = await people(data.answers.flatMap(a => (a.respondent ? [a.respondent] : [])));
   const pages = Math.max(1, Math.ceil(data.matching / limits.page));
   const keep = new URLSearchParams({ ...(q ? { q } : {}), ...(where ? { where } : {}), ...(status ? { status } : {}), ...(from ? { from } : {}), ...(to ? { to } : {}), ...(sort ? { sort } : {}), ...(chosen.length ? { cols: chosen.join(",") } : {}) });

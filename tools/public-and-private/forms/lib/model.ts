@@ -370,6 +370,12 @@ export function localize(def: Definition, language: Language): Definition {
   return copy;
 }
 
+// readIn: a form as a member reads its answers — in their language when
+// the form has a version in it (the answers, the summary), else as written.
+export function readIn(def: Definition, language: string): Definition {
+  return isLanguage(language) && def.alt?.language === language ? localize(def, language) : def;
+}
+
 // untranslated: how many texts of the first language have no version in
 // the second (the builder says so; it never blocks publishing).
 export function untranslated(def: Definition): number {

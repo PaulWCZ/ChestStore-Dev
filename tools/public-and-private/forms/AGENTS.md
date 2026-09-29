@@ -19,13 +19,14 @@ must not break.
 | `lib/tell.ts`, `lib/notify.ts` | The bell (batched, keyed `answers:<form>`), badges, the team broadcast |
 | `lib/mailer.ts` | The copy of an answer (mail proposal) |
 | `lib/alerts.ts` | New answers by email to the people told, in the bell's batches (`mailed_at`) |
-| `lib/answered.ts` | `forms.answered` for the other tools (events between tools); never anonymous |
+| `lib/answered.ts` | Publishing to the other tools (events between tools): `answered()` (`forms.answered`) and `routed()` (`forms.contact`, `forms.request`); never anonymous, never blocks an answer |
+| `lib/routes.ts` | Pure: the author's mapping (which question gives a contact's name, email…, a ticket's subject…) — `cleanRoutes`, `readRoutes` — and the events' contract v1 (`contactEvent`, `requestEvent`); README "With the other tools" |
 | `lib/images.ts` | Covers and picture-choice pictures: grant, check, publish under `public/`, addresses, sweep |
 | `lib/embed.ts`, `lib/settings.ts` | The websites allowed to frame the public forms (proxy.ts), the tool's settings table |
 | `lib/importer.ts` | Google Forms / Typeform definitions → a draft (pure) |
 | `lib/zip.ts` | A streaming ZIP writer (the "Everything (ZIP)" export) and a reader for tests |
 | `lib/leave-guard.ts` | Unsaved changes are saved before the tool's tabs and links leave (builder, settings) |
-| `lib/theme.ts` | Forms' identity (`defineTheme`, "Invitation") and `currentLook()`: the look the Chest chose, else the identity; `ownLook()` |
+| `lib/theme.ts`, `lib/look.ts` | Forms' identity ("Invitation"), `teamLook()` and `publicLook()` (kit 0.2.3 surfaces: a public form wears the brand or Forms' own look, never a catalogue theme), `ownLook()`; `lib/look.ts` `currentLook()` picks the surface by the member assertion |
 | `app/tokens.css` | Forms' own tokens, made of contract tokens only: sizes, the kinds' colours, the marigold, **a form's colour** (`[data-accent]` → `--form*`) |
 | `components/guarded-link.tsx` | The link of the kit's tabs inside a form: saves what waits before leaving |
 | `components/state-badge.tsx` | A form's state and an answer's follow-up as the kit's `StatusBadge` |
@@ -34,11 +35,11 @@ must not break.
 | `lib/lifecycle.ts` | Members leaving or erased |
 | `components/runner.tsx` | The respondent's form (public page, team page, builder preview) |
 | `app/[slug]`, `app/public-actions.ts`, `app/api/upload` | The public part (anonymous visitors) |
-| `app/chest/(work)/…`, `app/chest/actions.ts` | The team's part: home, templates, the form's tabs, privacy |
+| `app/chest/(work)/…`, `app/chest/actions.ts` | The team's part: home, templates, the form's tabs (answers: `answers-table.tsx` — cards on a phone —, `filter-fold.tsx` — the filters behind one button on a phone), privacy |
 | `app/chest/f/[slug]` | A team form, answered in the Chest |
 | `app/chest-jobs/[name]`, `app/chest-events` | Deliveries from the Chest (signed) |
 
-## The UI kit (`@argentic/chest-ui` 0.2.2-studio.1, `vendor/`)
+## The UI kit (`@argentic/chest-ui` 0.2.3-studio.1, `vendor/`)
 
 Used: `AppShell`, `BrandMark`, `NoAccess`, `Toasts`/`useToast` (Undo for
 deleting a question, a page, an answer, a form, taking someone off a
@@ -71,6 +72,12 @@ TEST_DATABASE_URL=postgres://… npm test
 ```
 
 ## Rules
+
+- **Events to other tools keep their contract** (README "With the other
+  tools", `lib/routes.ts`, v1): add fields, never change or remove one;
+  never for an anonymous form (`anonymous_no_routes` in the database); a
+  new route is mapped by the author in Settings and tested with
+  `chest.published`.
 
 - Identity only from `member(request)` (`lib/session.ts`); store `mbr_…`
   ids, names at render (`lib/people.ts`). A public respondent is never a

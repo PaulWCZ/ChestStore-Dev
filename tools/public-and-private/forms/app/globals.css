@@ -640,3 +640,7 @@ select.field { appearance: auto; }
 /* Which question gives each piece of a contact or a ticket. */
 .route-fields { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 13rem), 1fr)); gap: var(--space-3); padding-left: var(--space-4); border-left: 3px solid var(--line-strong); margin: 0 0 var(--space-2); }
 .route-fields .hint { grid-column: 1 / -1; margin: 0; }
+
+/* An answer's card on a phone: a long question wraps beside its answer
+   (the kit's stacked label keeps its width otherwise). */
+.answers-page .ck-table-stack [data-label]::before { flex: 1 1 60%; min-width: 0; }
