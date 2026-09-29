@@ -223,9 +223,13 @@ test("HR's numbers: one population everywhere — records of people here and mem
   assert.deepEqual([n.months[0]!.month, n.months[11]!.month], ["2025-10", "2026-09"]);
   assert.deepEqual(n.months.find(m => m.month === "2026-03"), { month: "2026-03", arrivals: 0, departures: 1 });
   assert.deepEqual(n.months.find(m => m.month === "2026-04"), { month: "2026-04", arrivals: 1, departures: 0 });
-  // (2 arrivals + 1 departure) / 2 over the 4 here on 1 October 2025 (a,
-  // the one who left in March, b, and the one gone from the Chest).
-  assert.equal(n.turnover, 37.5);
+  // (2 arrivals + 1 departure) / 2 over the 3 employees here on 1 October
+  // 2025 (a, the one who left in March, the one gone from the Chest): the
+  // intern b is not an employee, left out of the turnover.
+  assert.equal(n.turnover, 50);
+  // An intern arriving changes the headcount, never the turnover.
+  const more = numbers(workersOf([...records, { memberId: null, contract: "internship" as const, startDate: "2026-08-20", endDate: null }], directory), "2026-09-29");
+  assert.deepEqual([more.headcount, more.turnover], [5, 50]);
   const none = numbers(workersOf([], directory), "2026-09-29");
   assert.deepEqual([none.fromRecords, none.headcount, none.byContract], [false, 3, [{ contract: null, count: 3 }]]);
 });

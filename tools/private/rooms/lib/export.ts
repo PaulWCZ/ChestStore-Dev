@@ -56,7 +56,12 @@ export async function occupancyCsv(sql: Sql, actor: Member | null, fromValue: un
         select p.member_id as m from presence p where p.day = x.day and p.status = 'office' and (p.office_id = o.id or (p.office_id is null and o.id = (select id from offices order by position, id limit 1)))
         union
         select b.member_id from desk_bookings b join desks d on d.id = b.desk_id join areas a on a.id = d.area_id join floors f on f.id = a.floor_id
-        where b.day = x.day and b.cancelled_at is null and f.office_id = o.id) s) as at_office,
+        where b.day = x.day and b.cancelled_at is null and f.office_id = o.id
+        union
+        select m.member_id from room_bookings b join rooms r on r.id = b.room_id join floors f on f.id = r.floor_id
+          cross join lateral (select b.member_id union select a.member_id from room_attendees a where a.booking_id = b.id) m
+        where b.day = x.day and b.cancelled_at is null and f.office_id = o.id and m.member_id <> 'erased'
+          and not exists (select 1 from presence q where q.member_id = m.member_id and q.day = b.day and q.status <> 'office')) s) as at_office,
       (select count(distinct b.desk_id)::int from desk_bookings b join desks d on d.id = b.desk_id join areas a on a.id = d.area_id join floors f on f.id = a.floor_id
         where b.day = x.day and b.cancelled_at is null and f.office_id = o.id) as desks_booked,
       (select count(*)::int from desks d join areas a on a.id = d.area_id join floors f on f.id = a.floor_id where f.office_id = o.id and d.archived_at is null) as desks,
@@ -72,7 +77,9 @@ export async function occupancyCsv(sql: Sql, actor: Member | null, fromValue: un
 }
 
 // How full the office is on each working day of the week, on average over
-// the last weeks: people at the office and desks booked (counts only). For
+// the last weeks: people at the office (said so, held a desk, or were in
+// a meeting in one of its rooms, as My week counts them) and desks booked
+// (counts only). For
 // the admin's "which days are busy?" at a glance.
 //
 // Only the days since the office's first presence or desk booking count
@@ -100,7 +107,12 @@ export async function weekdayLoad(sql: Sql, actor: Member | null, officeId: stri
           select p.member_id as m from presence p where p.day = x.day and p.status = 'office' and (p.office_id = ${officeId} or p.office_id is null)
           union
           select b.member_id from desk_bookings b join desks d on d.id = b.desk_id join areas a on a.id = d.area_id join floors f on f.id = a.floor_id
-          where b.day = x.day and b.cancelled_at is null and f.office_id = ${officeId}) s) as people,
+          where b.day = x.day and b.cancelled_at is null and f.office_id = ${officeId}
+          union
+          select m.member_id from room_bookings b join rooms r on r.id = b.room_id join floors f on f.id = r.floor_id
+            cross join lateral (select b.member_id union select a.member_id from room_attendees a where a.booking_id = b.id) m
+          where b.day = x.day and b.cancelled_at is null and f.office_id = ${officeId} and m.member_id <> 'erased'
+            and not exists (select 1 from presence q where q.member_id = m.member_id and q.day = b.day and q.status <> 'office')) s) as people,
         (select count(distinct b.desk_id)::int from desk_bookings b join desks d on d.id = b.desk_id join areas a on a.id = d.area_id join floors f on f.id = a.floor_id
           where b.day = x.day and b.cancelled_at is null and f.office_id = ${officeId}) as desks
       from days x

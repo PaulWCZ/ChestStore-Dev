@@ -3,7 +3,9 @@
 // people, by team, office and contract; arrivals and departures month by
 // month; and the turnover of the last twelve months, as French HR usually
 // computes it ("taux de rotation"): the average of arrivals and departures
-// over the period, divided by the headcount on its first day.
+// over the period, divided by the headcount on its first day — employees
+// only (interns are not employees: left out of the turnover, not of the
+// headcount).
 import type { Contract } from "./model.ts";
 
 // One population for every figure: the people working here — each HR
@@ -55,9 +57,12 @@ export function numbers(workers: readonly Worker[], now: string): Numbers {
     arrivals: workers.filter(w => w.startDate?.startsWith(month) && w.startDate <= now).length,
     departures: workers.filter(w => w.endDate?.startsWith(month) && w.endDate <= now).length,
   }));
-  const atStart = workers.filter(w => here(w, first, false)).length;
-  const arrivals = workers.filter(w => w.startDate !== null && w.startDate >= first && w.startDate <= now).length;
-  const departures = workers.filter(w => w.endDate !== null && w.endDate >= first && w.endDate <= now).length;
+  // Turnover counts employees: interns (a stage is not a contract of
+  // employment) are left out, and the page says so.
+  const staff = workers.filter(w => w.contract !== "internship");
+  const atStart = staff.filter(w => here(w, first, false)).length;
+  const arrivals = staff.filter(w => w.startDate !== null && w.startDate >= first && w.startDate <= now).length;
+  const departures = staff.filter(w => w.endDate !== null && w.endDate >= first && w.endDate <= now).length;
   const turnover = atStart > 0 ? Math.round(((arrivals + departures) / 2 / atStart) * 1000) / 10 : null;
   const current = workers.filter(w => here(w, now, true));
   const contracts = new Map<Contract | null, number>();

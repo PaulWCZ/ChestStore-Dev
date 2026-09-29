@@ -6,6 +6,7 @@ import { AppError } from "./app-error.ts";
 import { company } from "./company.ts";
 import type { Query } from "./db.ts";
 import { getDocument, type Full } from "./documents.ts";
+import { versioned } from "./model.ts";
 import { buyerOf, sellerOf, type Seller } from "./parties.ts";
 import { einvoiceXml } from "./einvoice.ts";
 import { renderPdf, pdfFileName } from "./pdf/document.ts";
@@ -37,12 +38,14 @@ export async function draw(sql: Query, full: Full, today: string): Promise<Uint8
   const seller = full.seller ?? sellerOf(await company(sql));
   const buyer = full.buyer ?? (full.client ? buyerOf(full.client) : null);
   const ref = full.related.find(r => (full.type === "credit" ? r.id === full.invoiceId : r.id === full.quoteId));
-  const reference = ref && ref.number ? { number: ref.number, issueDate: ref.issueDate } : null;
+  // A quote's later version prints its version with its number, and so
+  // does the invoice that cites it.
+  const reference = ref && ref.number ? { number: versioned(ref.number, ref.version) ?? ref.number, issueDate: ref.issueDate } : null;
   // An issued invoice or credit note is a Factur-X: its EN 16931 data
   // travels inside its PDF.
   const facturx = frozen(full) && buyer ? einvoiceXml({ doc: full, lines: full.lines, seller, buyer, reference }) : undefined;
   return renderPdf({
-    doc: full,
+    doc: full.type === "quote" ? { ...full, number: versioned(full.number, full.version) } : full,
     lines: full.lines,
     seller,
     buyer,

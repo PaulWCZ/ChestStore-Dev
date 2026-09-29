@@ -823,7 +823,7 @@ export const fr: Catalogue = {
     departures: "Départs",
     month: "Mois",
     turnover: "Taux de rotation (12 mois)",
-    turnoverHint: "La moitié des arrivées et des départs, divisée par l’effectif d’il y a un an.",
+    turnoverHint: "La moitié des arrivées et des départs, divisée par l’effectif d’il y a un an. Stagiaires exclus.",
     noTurnover: "Il faut des dates d’arrivée d’il y a un an (dossiers RH ou profils).",
   },
   bell: {

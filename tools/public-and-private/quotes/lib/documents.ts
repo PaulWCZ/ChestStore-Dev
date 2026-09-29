@@ -5,7 +5,7 @@ import { clientMissing, toClient, type Client } from "./clients.ts";
 import { company, missing, type Company } from "./company.ts";
 import type { Query, Sql } from "./db.ts";
 import { catalogue, format, isLocale, type Locale } from "./i18n/index.ts";
-import { addDays, clean, day, documentNumber, id, limits, oneOf, periodOf, vatTreatments, wholeDays, type DocumentType, type Status, type VatTreatment } from "./model.ts";
+import { addDays, clean, day, documentNumber, id, limits, oneOf, periodOf, vatTreatments, versioned, wholeDays, type DocumentType, type Status, type VatTreatment } from "./model.ts";
 import { formatRate, isVatRate } from "./money.ts";
 import { buyerOf, sellerOf, type Buyer, type Seller } from "./parties.ts";
 import { lineNet, totals, depositBases, type RateTotal, type Totals } from "./totals.ts";
@@ -620,7 +620,7 @@ export async function invoiceFromQuote(sql: Sql, actor: Member | null, quoteId: 
       const multi = bases.length > 1;
       lines = bases.map(b => ({
         kind: "line" as const, itemId: null,
-        description: format(multi ? t.depositOfRate : t.deposit, { percent: formatRate(percent, quote.language), number: quote.number ?? "", rate: formatRate(b.rate, quote.language) }),
+        description: format(multi ? t.depositOfRate : t.deposit, { percent: formatRate(percent, quote.language), number: versioned(quote.number, quote.version) ?? "", rate: formatRate(b.rate, quote.language) }),
         quantity: 1000, unit: "", unitPrice: b.base, discount: 0, vatRate: isVatRate(b.rate) ? b.rate : 0, goods: false, net: b.base,
       }));
       if (lines.length === 0) throw new AppError("nothing_left");

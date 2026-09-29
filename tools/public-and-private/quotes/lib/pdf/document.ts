@@ -402,8 +402,10 @@ function fit(text: string, font: FontName, size: number, max: number): string {
 }
 
 // The file name of a document's PDF: "Facture-F-2026-0042.pdf".
-export function pdfFileName(doc: Pick<Doc, "type" | "number" | "language" | "depositPercent">): string {
+// A quote's later version says so: "Devis-D-2026-0007-v2.pdf".
+export function pdfFileName(doc: Pick<Doc, "type" | "number" | "language" | "depositPercent"> & { version?: number }): string {
   const t = catalogue(doc.language).pdf;
   const kind = doc.type === "quote" ? t.quote : doc.type === "credit" ? t.credit : doc.depositPercent !== null ? t.deposit : t.invoice;
-  return `${kind.normalize("NFKD").replace(/[̀-ͯ]/gu, "").replace(/[^A-Za-z0-9]+/gu, "-")}-${doc.number ?? t.draftFile}.pdf`;
+  const version = doc.number && doc.version && doc.version > 1 ? `-v${doc.version}` : "";
+  return `${kind.normalize("NFKD").replace(/[̀-ͯ]/gu, "").replace(/[^A-Za-z0-9]+/gu, "-")}-${doc.number ?? t.draftFile}${version}.pdf`;
 }

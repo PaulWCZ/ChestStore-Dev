@@ -829,7 +829,7 @@ export const en = {
     departures: "Departures",
     month: "Month",
     turnover: "Turnover (12 months)",
-    turnoverHint: "Half the arrivals and departures, divided by the headcount a year ago.",
+    turnoverHint: "Half the arrivals and departures, divided by the headcount a year ago. Interns are left out.",
     noTurnover: "Needs first days a year back (HR records or profiles).",
   },
   bell: {
