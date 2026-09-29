@@ -300,7 +300,10 @@ await step("invite to an interview: busy times shown, .ics emailed, interviewers
   // The candidate chooses by default; the recruiter may choose the time.
   expect(await page.locator("dialog[open]").getByLabel(/Emma chooses/u).isChecked(), "they choose, by default");
   await page.locator("dialog[open]").getByText("I choose the time").click();
-  const day = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Paris" }).format(new Date(Date.now() + 2 * 86400000));
+  // The day of Hugo's seeded interview (seed: UTC midnight + 2 days 14:00),
+  // as Paris reads it — the same after midnight in Paris as before.
+  const utc = new Date();
+  const day = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Paris" }).format(new Date(Date.UTC(utc.getUTCFullYear(), utc.getUTCMonth(), utc.getUTCDate() + 2, 14)));
   // The kit's DateField: the day typed in the member's language (ISO is read too).
   await page.locator("#iv-day").fill(day);
   await page.locator("#iv-day").press("Tab");

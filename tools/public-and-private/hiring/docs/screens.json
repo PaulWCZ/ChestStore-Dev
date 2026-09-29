@@ -40,5 +40,7 @@
   {"name": "settings-brand", "path": "/chest/settings", "member": "camille", "locale": "fr", "look": {"all": "brand:sample"}},
   {"name": "interview-link", "path": "/chest/candidates/1", "member": "camille", "locale": "en", "actions": [{"click": "button:has-text('Interview')"}, {"wait": 400}]},
   {"name": "new-job", "path": "/chest/jobs/new", "member": "camille", "locale": "fr"},
-  {"name": "board-port", "path": "/chest/jobs/1", "member": "camille", "locale": "en", "look": {"tool": "brand:port"}}
+  {"name": "board-port", "path": "/chest/jobs/1", "member": "camille", "locale": "en", "look": {"tool": "brand:port"}},
+  {"name": "new-job-template", "path": "/chest/jobs/new?template=officeManager", "member": "camille", "locale": "fr", "only": ["phone"]},
+  {"name": "template-files", "path": "/chest/settings", "member": "camille", "locale": "en", "only": ["desktop"], "actions": [{"click": "button:has-text('Add a template')"}, {"wait": 300}, {"hover": ".template-form .ck-files"}]}
 ]
