@@ -118,7 +118,7 @@ test("a card, a step and a mention from one moment: one email, in the reader's l
   assert.equal(await mail.flushMail(sql, later()), 1);
   assert.equal(chest.outbox.length, 1);
   const letter = chest.outbox[0]!;
-  assert.equal(letter.subject, "Hugo Bernard : 1 tâche confiée, 1 étape et 1 mention".replace(/ /gu, " "));
+  assert.equal(letter.subject, "Hugo Bernard\u202f: 1 tâche confiée, 1 étape et 1 mention");
   assert.match(letter.text, /Hugo Bernard vous a confié cette tâche/u);
   assert.match(letter.text, /Compare prices/u);
   assert.match(letter.text, /40 of them/u);
@@ -209,7 +209,7 @@ test("a card waiting for an open card is not marked done, unless forced; its blo
   const free = await cards.freed(sql, truck.id);
   assert.deepEqual(free.map(f => [f.title, f.assignees]), [["Tell the clients", [ines.id]]]);
   await tell.unblocked({ title: "Book the truck" }, free);
-  assert.equal(chest.notifications.at(-1)?.title, "Vous pouvez commencer « Tell the clients »".replace("commencer «", "commencer «"));
+  assert.equal(chest.notifications.at(-1)?.title, "Vous pouvez commencer «\u202fTell the clients\u202f»");
   assert.equal((await cards.boardCards(sql, b.id)).find(x => x.id === clients.id)?.waiting, 0);
   await cards.moveCard(sql, asMember(hugo), clients.id, done.id, null, null);
   // Reopened, the truck blocks it again — for a card not yet done.

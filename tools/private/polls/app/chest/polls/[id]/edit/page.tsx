@@ -1,11 +1,11 @@
 import { notFound } from "next/navigation";
-import { edits } from "../../../../../lib/access.ts";
+import { edits, surveys } from "../../../../../lib/access.ts";
 import { AppError } from "../../../../../lib/app-error.ts";
 import { groups } from "../../../../../lib/audience.ts";
 import { dates } from "../../../../../lib/dates.ts";
 import { db } from "../../../../../lib/db.ts";
 import { nameOf, people } from "../../../../../lib/people.ts";
-import { load, rights, type Poll } from "../../../../../lib/polls.ts";
+import { load, policy, rights, type Poll } from "../../../../../lib/polls.ts";
 import { viewer } from "../../../../../lib/session.ts";
 import { local } from "../../../../../lib/time.ts";
 import { chestToday } from "../../../../../lib/zone.ts";
@@ -67,6 +67,7 @@ export default async function EditPoll({ params }: { params: Promise<{ id: strin
         weekdayNames={d.weekdayNames()}
         locale={locale}
         round={poll.seriesId !== null}
+        surveys={surveys(member, await policy(db()))}
         t={{ composer: t.composer, kinds: t.kinds, errors: t.errors, repeat: t.repeat, date: t.date, peoplePicker: t.peoplePicker }}
       />
     </div>

@@ -7,6 +7,7 @@ import { can } from "../../lib/access.ts";
 import { arriving, newcomers, thisMonth } from "../../lib/calendar.ts";
 import { db } from "../../lib/db.ts";
 import { directory } from "../../lib/directory.ts";
+import { membersWithRecord } from "../../lib/records.ts";
 import { format, formatDay, plural, relativeDays } from "../../lib/i18n/index.ts";
 import { openCounts } from "../../lib/journeys.ts";
 import { addDays, daysBetween, newcomerDays } from "../../lib/model.ts";
@@ -39,6 +40,18 @@ export default async function DirectoryPage({ searchParams }: { searchParams: Pr
   const todo = (await openCounts(sql, [member.id])).get(member.id) ?? 0;
   const me = entries.find(e => e.id === member.id);
   const bare = me !== undefined && !me.phone && !me.bio && me.skills.length === 0;
+  // HR's first run: three steps, each ticked when it is done (then HR's
+  // own profile nudge, like everyone's).
+  const recorded = can(member, "records.manage") ? await membersWithRecord(sql, member) : null;
+  const others = entries.filter(e => e.id !== member.id);
+  const steps = recorded && entries.length > 1 ? [
+    { key: "import", href: "/chest/import", done: others.some(e => e.title || e.team) },
+    { key: "table", href: "/chest/table", done: entries.every(e => e.title) },
+    { key: "records", href: "/chest/records", done: entries.every(e => recorded.has(e.id)) },
+  ] as const : null;
+  // A first run only: nobody's job written yet, or no HR record at all (a
+  // record missing later is the records page's and the register's to say).
+  const setup = steps && (!steps[0].done || recorded!.size === 0) ? steps : null;
   const query = await searchParams;
   const pick = (key: string) => (typeof query[key] === "string" ? (query[key] as string).slice(0, 100) : "");
   // Who is away today (Leave tells People): written here, dates on the server.
@@ -73,7 +86,24 @@ export default async function DirectoryPage({ searchParams }: { searchParams: Pr
           </ul>
         </section>
       )}
-      {bare && (
+      {setup && (
+        <section className="nudge setup" aria-labelledby="setup-title">
+          <div>
+            <h2 id="setup-title">{t.directory.setup.title}</h2>
+            <p className="muted">{t.directory.setup.body}</p>
+            <ol className="setup-steps">
+              {setup.map(s => (
+                <li key={s.key} className={s.done ? "done" : undefined}>
+                  <span className="setup-tick" aria-hidden="true">{s.done ? "✓" : ""}</span>
+                  <Link href={s.href}>{t.directory.setup[s.key]}</Link>
+                  {s.done && <span className="visually-hidden"> ({t.directory.setup.done})</span>}
+                </li>
+              ))}
+            </ol>
+          </div>
+        </section>
+      )}
+      {bare && !setup && (
         <div className="nudge">
           <Avatar name={member.name} photo={member.photo} size="xl" />
           <div>

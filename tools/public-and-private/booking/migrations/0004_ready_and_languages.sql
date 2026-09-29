@@ -24,7 +24,7 @@ where exists (select 1 from calendars c where c.member_id = h.member_id)
 -- who reads neither gets the first. welcome_alt: the welcome sentence in
 -- the second language.
 alter table hosts add column language text check (language ~ '^[a-z]{2}$');
-alter table hosts add column second_language text check (second_language ~ '^[a-z]{2}$' and second_language is distinct from language);
+alter table hosts add column second_language text check (second_language is null or (second_language ~ '^[a-z]{2}$' and language is not null and second_language <> language));
 alter table hosts add column welcome_alt text not null default '' check (char_length(welcome_alt) <= 300);
 
 -- A type's texts in the host's second language, keyed by what they

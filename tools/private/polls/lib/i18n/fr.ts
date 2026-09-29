@@ -82,6 +82,8 @@ export const fr: Catalogue = {
     title: "Réglages",
     membersCreate: "Tout le monde peut lancer un sondage",
     membersCreateHint: "Désactivé : seuls les organisateurs le peuvent. Les sondages déjà lancés restent tels quels.",
+    membersSurveys: "Tout le monde peut lancer une météo d’équipe ou un eNPS",
+    membersSurveysHint: "Désactivé : seuls les organisateurs peuvent lancer un sondage qui revient ou qui pose la question eNPS. Informez votre CSE avant d’en lancer un.",
     saved: "Enregistré.",
   },
   composer: {

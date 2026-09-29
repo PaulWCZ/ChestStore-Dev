@@ -1,5 +1,5 @@
 import type { Member } from "@argentic/chest-sdk/member";
-import { asked, can, edits, manages, resultsState, sees, settles, namesShown, type PollRights, type Policy, type ResultsState } from "./access.ts";
+import { asked, can, companySurvey, edits, surveys, manages, resultsState, sees, settles, namesShown, type PollRights, type Policy, type ResultsState } from "./access.ts";
 import { AppError } from "./app-error.ts";
 import type { Query, Sql } from "./db.ts";
 import { checkOpening, clean, id, limits, readPoll, type Kind, type PollSpec, type Repeat } from "./model.ts";
@@ -142,17 +142,23 @@ function context(ctx: Context): { zone: string; now: Date; today: string; known:
 
 // The admin's choice of who starts polls (one row, created by the migration).
 export async function policy(sql: Query): Promise<Policy> {
-  const [row] = await sql<{ members_create: boolean }[]>`select members_create from settings where id`;
-  return { membersCreate: row?.members_create ?? true };
+  const [row] = await sql<{ members_create: boolean; members_surveys: boolean }[]>`select members_create, members_surveys from settings where id`;
+  return { membersCreate: row?.members_create ?? true, membersSurveys: row?.members_surveys ?? false };
 }
 
-// setPolicy: an admin lets every member start polls, or organisers only.
+// setPolicy: an admin lets every member start polls, or organisers only
+// (membersCreate); lets members start company surveys too — repeating ones
+// and eNPS — or keeps them to organisers (membersSurveys, off by default).
 // Polls members already started stay theirs.
-export async function setPolicy(sql: Sql, actor: Member | null, membersCreate: unknown): Promise<Policy> {
+export async function setPolicy(sql: Sql, actor: Member | null, choice: unknown): Promise<Policy> {
   if (!settles(actor)) throw new AppError("forbidden");
-  if (typeof membersCreate !== "boolean") throw new AppError("invalid");
-  await sql`insert into settings (id, members_create) values (true, ${membersCreate}) on conflict (id) do update set members_create = excluded.members_create`;
-  return { membersCreate };
+  const o = choice && typeof choice === "object" ? choice as Record<string, unknown> : null;
+  if (!o || Object.keys(o).length === 0 || Object.entries(o).some(([k, v]) => !["membersCreate", "membersSurveys"].includes(k) || typeof v !== "boolean")) throw new AppError("invalid");
+  const now = await policy(sql);
+  const next: Policy = { membersCreate: (o["membersCreate"] as boolean | undefined) ?? now.membersCreate, membersSurveys: (o["membersSurveys"] as boolean | undefined) ?? now.membersSurveys };
+  await sql`insert into settings (id, members_create, members_surveys) values (true, ${next.membersCreate}, ${next.membersSurveys})
+    on conflict (id) do update set members_create = excluded.members_create, members_surveys = excluded.members_surveys`;
+  return next;
 }
 
 export async function mayCreate(sql: Query, actor: Member | null): Promise<boolean> {
@@ -163,9 +169,11 @@ export async function mayCreate(sql: Query, actor: Member | null): Promise<boole
 // poll is queued to be told to those asked (lib/tell.ts); a repeating
 // survey starts its series (lib/series.ts).
 export async function createPoll(sql: Sql, actor: Member | null, input: unknown, ctx: Context): Promise<{ id: string; status: Status }> {
-  if (!(await mayCreate(sql, actor))) throw new AppError("forbidden");
+  const rules = await policy(sql);
+  if (!can(actor, "create", rules)) throw new AppError("forbidden");
   const c = context(ctx);
   const spec = readPoll(input, c);
+  if (companySurvey(spec) && !surveys(actor, rules)) throw new AppError("forbidden");
   const open = (input as { open?: unknown }).open === true;
   if (open) checkOpening(spec, c);
   return sql.begin(async tx => {
@@ -192,6 +200,7 @@ export async function updateDraft(sql: Sql, actor: Member | null, pollId: unknow
     const poll = await visible(tx, actor, pollId, { lock: true });
     if (!edits(actor, rights(poll))) throw new AppError("forbidden");
     if (poll.status !== "draft") throw new AppError("locked");
+    if (companySurvey(spec) && !surveys(actor, await policy(tx))) throw new AppError("forbidden");
     if (open) checkOpening(spec, c);
     await tx`delete from questions where poll_id = ${poll.id}`;
     await tx`

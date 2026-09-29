@@ -36,11 +36,11 @@ test("an organiser writes a poll; a member cannot; a sent poll is queued to be t
   assert.deepEqual((await sql`select kind from tellings where poll_id = ${made.id}`).map(r => r["kind"]), ["ask"]);
   // A member starts polls too, unless an admin keeps that to organisers.
   assert.equal((await polls.createPoll(sql, asMember(hugo), lunch, ctx)).status, "open");
-  await assert.rejects(polls.setPolicy(sql, asMember(sofia), false), refuses("forbidden"));
-  await polls.setPolicy(sql, asMember(camille), false);
+  await assert.rejects(polls.setPolicy(sql, asMember(sofia), { membersCreate: false }), refuses("forbidden"));
+  await polls.setPolicy(sql, asMember(camille), { membersCreate: false });
   await assert.rejects(polls.createPoll(sql, asMember(hugo), lunch, ctx), refuses("forbidden"));
   assert.equal((await polls.createPoll(sql, asMember(sofia), lunch, ctx)).status, "open", "organisers still can");
-  await polls.setPolicy(sql, asMember(camille), true);
+  await polls.setPolicy(sql, asMember(camille), { membersCreate: true });
   await assert.rejects(polls.createPoll(sql, asMember(nora), lunch, ctx), refuses("forbidden"));
   await assert.rejects(polls.createPoll(sql, null, lunch, ctx), refuses("forbidden"));
   await assert.rejects(polls.createPoll(sql, asMember(sofia), { ...lunch, closes: { day: "2026-10-05", time: "10:05" } }, ctx), refuses("too_soon"));

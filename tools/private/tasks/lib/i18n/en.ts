@@ -480,6 +480,7 @@ export const en = {
   },
   export: {
     headers: {
+      blockedBy: "Blocked by",
       title: "Title",
       column: "Column",
       assignees: "Assignees",

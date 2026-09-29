@@ -25,7 +25,7 @@ export default async function Places({ searchParams }: { searchParams: Promise<R
       groups={groups}
       names={names}
       locale={locale}
-      t={{ places: t.places, equipment: t.equipment, features: t.features, errors: t.errors, rooms: t.rooms, booking: t.booking, dialog: t.dialog, peoplePicker: t.peoplePicker }}
+      t={{ places: t.places, equipment: t.equipment, features: t.features, featuresShort: t.featuresShort, errors: t.errors, rooms: t.rooms, booking: t.booking, dialog: t.dialog, peoplePicker: t.peoplePicker }}
     />
   );
 }

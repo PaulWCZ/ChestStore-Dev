@@ -47,7 +47,7 @@ export async function myCsv(sql: Sql, actor: Member | null, t: Catalogue, locale
   // The names the tool gave (floors, areas) in the reader's language.
   const presets = JSON.stringify(t.presets);
   const rows = await sql<{ day: string; kind: "desk" | "room" | "presence"; office: string; place: string; start: number | null; end: number | null; title: string; organiser: string; status: string }[]>`
-    select to_char(b.day, 'YYYY-MM-DD') as day, 'desk' as kind, o.name as office, d.name || ' · ' || coalesce(${presets}::jsonb ->> a.preset, a.name) as place,
+    select to_char(b.day, 'YYYY-MM-DD') as day, 'desk' as kind, o.name as office, d.name || ' · ' || coalesce(${presets}::text::jsonb ->> a.preset, a.name) as place,
       (extract(epoch from (lower(b.during) at time zone ${zone}) - b.day::timestamp) / 60)::int as start,
       (extract(epoch from (upper(b.during) at time zone ${zone}) - b.day::timestamp) / 60)::int as "end",
       '' as title, b.member_id as organiser, case when b.cancelled_at is null then 'booked' else 'cancelled' end as status

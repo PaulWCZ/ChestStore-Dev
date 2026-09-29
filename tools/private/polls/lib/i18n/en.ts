@@ -85,6 +85,8 @@ export const en = {
     title: "Settings",
     membersCreate: "Everyone can start a poll",
     membersCreateHint: "Off: only organisers can. Polls already started stay as they are.",
+    membersSurveys: "Everyone can start a team pulse or eNPS",
+    membersSurveysHint: "Off: only organisers can start a survey that comes back or asks eNPS. In France, tell your works council (CSE) before running one.",
     saved: "Saved.",
   },
   composer: {

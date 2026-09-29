@@ -7,12 +7,12 @@ import { useRouter } from "next/navigation";
 import { useMemo, useState, useTransition, type FormEvent, type ReactNode } from "react";
 import { Building, Pencil, Plus, Seat, Trash, Upload } from "../../../components/icons.tsx";
 import type { Catalogue } from "../../../lib/i18n/index.ts";
-import { format, plural } from "../../../lib/i18n/format.ts";
+import { format, formatDay, formatSpan, plural } from "../../../lib/i18n/format.ts";
+import type { CalendarImport as ImportResult, ImportItem } from "../../../lib/calendar-import.ts";
 import { equipment as equipmentKeys, features as featureKeys, limits, type Equipment, type Feature } from "../../../lib/model.ts";
 import type { OfficeView, RoomView, DeskView } from "../../../lib/places.ts";
 import type { Result } from "../../../lib/errors.ts";
 import * as actions from "../actions.ts";
-import { featureIcons } from "../desks/desk-view.tsx";
 import { useExampleOffice } from "../../../components/example-office.tsx";
 import { equipmentIcons } from "../rooms/rooms-view.tsx";
 
@@ -20,6 +20,7 @@ type Words = {
   places: Catalogue["places"];
   equipment: Catalogue["equipment"];
   features: Catalogue["features"];
+  featuresShort: Catalogue["featuresShort"];
   errors: Catalogue["errors"];
   rooms: Catalogue["rooms"];
   booking: Catalogue["booking"];
@@ -137,10 +138,10 @@ export function PlacesView({ offices, office, people, groups, names, locale, t }
               <ul className="tiles admin-tiles">
                 {a.desks.map(d => (
                   <li key={d.id} className={"tile" + (d.assignedTo ? " is-assigned" : " is-free")}>
-                    <button type="button" onClick={() => edit({ kind: "desk", areaId: a.id, desk: d })} aria-label={format(t2.editDesk, { desk: d.name })}>
+                    <button type="button" onClick={() => edit({ kind: "desk", areaId: a.id, desk: d })} aria-label={format(t2.editDesk, { desk: d.name }) + (d.features.length ? " · " + d.features.map(k => t.features[k]).join(", ") : "")}>
                       <span className="tile-name">{d.name}</span>
                       <span className="tile-state">{d.assignedTo ? names[d.assignedTo]?.split(" ")[0] : ""}</span>
-                      <span className="tile-features" aria-hidden="true">{d.features.map(k => { const Icon = featureIcons[k]; return <Icon key={k} />; })}</span>
+                      <span className="tile-features" aria-hidden="true">{d.features.slice(0, 2).map(k => t.featuresShort[k]).join(" · ") + (d.features.length > 2 ? ` +${d.features.length - 2}` : "")}</span>
                     </button>
                   </li>
                 ))}
@@ -162,6 +163,9 @@ export function PlacesView({ offices, office, people, groups, names, locale, t }
 
       <AddInline label={t2.addFloor} placeholder={t2.floorPlaceholder} max={limits.floorName} busy={pending} onSave={name => run(() => actions.addFloor(office.id, name))} />
       <ImportPanel officeId={office.id} t={t} locale={locale} onDone={() => router.refresh()} />
+      {floors.some(f => f.rooms.length > 0) && (
+        <CalendarImport rooms={floors.flatMap(f => f.rooms.map(r => ({ id: r.id, name: r.name })))} t={t} locale={locale} onDone={() => router.refresh()} />
+      )}
       <p className="hint">{t2.csr}</p>
 
       <Dialog open={editing !== null} dirty={dirty} labels={t.dialog} title={editing?.kind === "room" ? (editing.room ? format(t2.editRoom, { room: editing.room.name }) : t2.newRoom) : editing?.kind === "desk" ? format(t2.editDesk, { desk: editing.desk.name }) : ""} onClose={() => edit(null)}>
@@ -446,6 +450,122 @@ function ImportPanel({ officeId, t, locale, onDone }: { officeId: string; t: Wor
         <div className="import-report" role="status">
           <p><strong>{report.said}</strong></p>
           {report.lines.length > 0 && <ul className="hint notes">{report.lines.map((l, i) => <li key={i}>{l}</li>)}</ul>}
+        </div>
+      )}
+    </section>
+  );
+}
+
+// Switching day: a room calendar's .ics export (Google Calendar, Outlook),
+// into one room. The file is read, a preview says what comes in — weekly
+// meetings as weekly bookings — and, line by line, what does not (the
+// days already taken in Rooms, all-day events…); "Import" does it, with
+// Undo. The room is guessed from the calendar's name, and can be changed.
+function CalendarImport({ rooms, t, locale, onDone }: { rooms: { id: string; name: string }[]; t: Words; locale: string; onDone: () => void }) {
+  const toast = useToast();
+  const [busy, start] = useTransition();
+  const [roomId, setRoomId] = useState(rooms[0]!.id);
+  const [file, setFile] = useState<{ name: string; text: string } | null>(null);
+  const [preview, setPreview] = useState<ImportResult | null>(null);
+  const w = t.places.calendar;
+  const roomName = rooms.find(r => r.id === roomId)?.name ?? "";
+  const fold = (x: string) => x.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
+  const fail = (error: keyof Words["errors"], values?: Record<string, string | number>) => void toast({ text: format(t.errors[error], values), tone: "error" });
+
+  function read(room: string, f: { name: string; text: string }) {
+    start(async () => {
+      const r = await actions.readRoomCalendar(room, f.text, false);
+      if (!r.ok) { setPreview(null); return fail(r.error, r.values); }
+      setPreview(r.value);
+    });
+  }
+  async function choose(picked: File) {
+    if (picked.size > 4 << 20) return fail("file_too_large");
+    const text = await picked.text();
+    // The calendar's own name (X-WR-CALNAME), else the file's, names the room.
+    const named = fold((/^X-WR-CALNAME:(.*)$/mu.exec(text)?.[1] ?? "") + " " + picked.name);
+    const guess = rooms.filter(r => named.includes(fold(r.name))).sort((a, b) => b.name.length - a.name.length)[0];
+    const room = guess?.id ?? roomId;
+    setRoomId(room);
+    setFile({ name: picked.name, text });
+    read(room, { name: picked.name, text });
+  }
+  function commit() {
+    if (!file) return;
+    start(async () => {
+      const r = await actions.readRoomCalendar(roomId, file.text, true);
+      if (!r.ok) return fail(r.error, r.values);
+      const batch = r.value.batch;
+      setPreview(null);
+      setFile(null);
+      toast({
+        id: "calendar-import",
+        text: plural(w.done, r.value.added, locale, { room: roomName }),
+        ...(batch ? { undo: async () => {
+          const back = await actions.undoRoomCalendar(batch);
+          onDone();
+          return back.ok ? true : format(t.errors[back.error], back.values);
+        } } : {}),
+      });
+      onDone();
+    });
+  }
+  const when = (i: ImportItem) => {
+    const span = formatSpan(i.start, i.end, locale);
+    const from = formatDay(i.day, locale, { weekday: "short", day: "numeric", month: "short" });
+    if (i.weekly) return plural(w.weekly, i.count, locale, { weekday: formatDay(i.day, locale, { weekday: "long" }), span, date: formatDay(i.day, locale, { day: "numeric", month: "short" }) });
+    if (i.count > 1) return plural(w.several, i.count, locale, { span, date: from });
+    return from + " " + span;
+  };
+  const shortDay = (d: string) => formatDay(d, locale, { weekday: "short", day: "numeric", month: "short" });
+
+  return (
+    <section className="panel" aria-labelledby="calendar-title">
+      <h2 id="calendar-title" className="annotation">{w.title}</h2>
+      <p className="hint">{w.body}</p>
+      <div className="row calendar-pick">
+        <label>
+          <span className="label">{w.room}</span>
+          <select className="select" value={roomId} disabled={busy} onChange={e => { setRoomId(e.target.value); if (file) read(e.target.value, file); }}>
+            {rooms.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+          </select>
+        </label>
+        <label className="button quiet file-input">
+          <Upload />{w.file}
+          <input type="file" accept=".ics,text/calendar" className="visually-hidden" disabled={busy} onChange={e => { const f = e.target.files?.[0]; if (f) void choose(f); e.target.value = ""; }} />
+        </label>
+      </div>
+      {preview && file && (
+        <div className="import-report" role="status" aria-live="polite">
+          <p><strong>{preview.added === 0 ? format(w.nothing, { room: roomName }) : plural(w.preview, preview.added, locale, { room: roomName })}</strong></p>
+          {preview.items.length > 0 && (
+            <ul className="notes import-lines">
+              {preview.items.slice(0, 40).map(i => (
+                <li key={i.line}>
+                  {format(w.line, { line: i.line, title: i.title || t.rooms.untitled, when: when(i) })}
+                  {i.organiser === null && i.organiserText && <span className="muted"> · {format(w.yourName, { name: i.organiserText })}</span>}
+                  {i.taken.length > 0 && <span className="conflict"> · {format(w.takenDays, { days: i.taken.map(shortDay).join(", ") })}</span>}
+                </li>
+              ))}
+              {preview.items.length > 40 && <li className="muted">{plural(t.places.import.more, preview.items.length - 40, locale)}</li>}
+            </ul>
+          )}
+          {preview.leftOut.length > 0 && (
+            <>
+              <p className="annotation">{w.leftOut}</p>
+              <ul className="notes import-lines">
+                {preview.leftOut.slice(0, 40).map((l, k) => (
+                  <li key={k} className={l.reason === "taken" ? "conflict" : undefined}>{format(w.line, { line: l.line, title: l.title || t.rooms.untitled, when: shortDay(l.day) })}: {w.reasons[l.reason]}</li>
+                ))}
+                {preview.leftOut.length > 40 && <li className="muted">{plural(t.places.import.more, preview.leftOut.length - 40, locale)}</li>}
+              </ul>
+            </>
+          )}
+          {preview.cancelled > 0 && <p className="hint">{plural(w.cancelled, preview.cancelled, locale)}</p>}
+          <div className="row">
+            {preview.added > 0 && <button type="button" className="button" disabled={busy} onClick={commit}>{plural(w.confirm, preview.added, locale)}</button>}
+            <button type="button" className="button quiet" disabled={busy} onClick={() => { setPreview(null); setFile(null); }}>{w.cancel}</button>
+          </div>
         </div>
       )}
     </section>

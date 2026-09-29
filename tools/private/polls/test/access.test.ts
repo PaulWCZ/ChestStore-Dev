@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { asked, can, edits, manages, namesShown, resultsState, roleOf, sees, settles, type PollRights } from "../lib/access.ts";
+import { asked, can, companySurvey, edits, surveys, manages, namesShown, resultsState, roleOf, sees, settles, type PollRights } from "../lib/access.ts";
 import { asMember } from "./support/member.ts";
 import { camille, groups, hugo, ines, lea, nora, sofia } from "./support/members.ts";
 
@@ -10,7 +10,7 @@ const poll = (extra: Partial<PollRights> = {}): PollRights => ({ organiser: sofi
 test("everyone with a role creates and answers by default; an admin may keep creating to organisers; no role, nothing", () => {
   assert.deepEqual([can(asMember(sofia), "create"), can(asMember(sofia), "answer")], [true, true]);
   assert.deepEqual([can(asMember(hugo), "create"), can(asMember(hugo), "answer")], [true, true]);
-  const restricted = { membersCreate: false };
+  const restricted = { membersCreate: false, membersSurveys: false };
   assert.deepEqual([can(asMember(hugo), "create", restricted), can(asMember(hugo), "answer", restricted)], [false, true]);
   assert.equal(can(asMember(sofia), "create", restricted), true, "organisers always");
   assert.equal(can(asMember(nora), "create"), false);
@@ -22,6 +22,17 @@ test("everyone with a role creates and answers by default; an admin may keep cre
   assert.deepEqual([can(asMember(nora), "create"), can(asMember(nora), "answer")], [false, false]);
   assert.equal(can(null, "answer"), false);
   assert.equal(roleOf(asMember({ ...hugo, role: "ghost" })), null);
+});
+
+test("a company survey (repeating, or asking eNPS) is for organisers unless an admin opens it to members", () => {
+  assert.equal(surveys(asMember(sofia)), true);
+  assert.equal(surveys(asMember(hugo)), false, "members: not by default");
+  assert.equal(surveys(asMember(hugo), { membersCreate: true, membersSurveys: true }), true);
+  assert.equal(surveys(asMember(hugo), { membersCreate: false, membersSurveys: true }), false, "not when members start nothing");
+  assert.equal(surveys(asMember(nora), { membersCreate: true, membersSurveys: true }), false);
+  assert.equal(companySurvey({ repeat: "week", questions: [] }), true);
+  assert.equal(companySurvey({ repeat: null, questions: [{ kind: "scale" }, { kind: "enps" }] }), true);
+  assert.equal(companySurvey({ repeat: null, questions: [{ kind: "scale" }] }), false);
 });
 
 test("who is asked: everyone with a role, the members of the poll's groups, or people picked by name", () => {

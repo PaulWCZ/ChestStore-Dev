@@ -44,10 +44,14 @@ function lastOffered(today: string): string {
   return d.toISOString().slice(0, 10);
 }
 
-export function Composer({ mode, pollId, initial, groups, today, monthNames, weekdayNames, locale, round, t }: {
+export function Composer({ mode, pollId, initial, groups, today, monthNames, weekdayNames, locale, round, surveys = true, t }: {
   mode: "new" | "draft" | "open";
   // An open round of a pulse survey: its closing time is the series'.
   round?: boolean;
+  // May start a company survey (repeating, eNPS): organisers, or members
+  // when an admin allows it (lib/access.ts, surveys). An eNPS question or a
+  // repeat already in the poll stays shown.
+  surveys?: boolean;
   pollId: string | null;
   initial: ComposerValue;
   groups: { id: string; name: string; size: number }[] | null;
@@ -291,7 +295,7 @@ export function Composer({ mode, pollId, initial, groups, today, monthNames, wee
                   const kind = e.target.value as QKind;
                   setQuestion(q.key, { kind, ...(kind === "enps" && q.text.trim() === "" ? { text: c.enpsDefault } : {}) });
                 }}>
-                  {(["choice", "scale", "text", "enps"] as const).map(k => <option key={k} value={k}>{c.questionKinds[k]}</option>)}
+                  {(["choice", "scale", "text", "enps"] as const).filter(k => k !== "enps" || surveys || q.kind === "enps").map(k => <option key={k} value={k}>{c.questionKinds[k]}</option>)}
                 </select>
               </div>
               {q.kind === "enps" && <p className="hint">{c.enpsHint}</p>}
@@ -319,13 +323,13 @@ export function Composer({ mode, pollId, initial, groups, today, monthNames, wee
             </fieldset>
           ))}
           {questions.length < 10 && <button type="button" className="button small add-line" onClick={() => setQuestions(qs => [...qs, { key: nextKey.current++, kind: "choice", text: "", options: ["", ""], multiple: false, low: "", high: "" }])}><Plus />{c.addQuestion}</button>}
-          <fieldset className="repeat">
+          {(surveys || value.repeat) && <fieldset className="repeat">
             <legend className="label"><RepeatIcon />{c.repeat}</legend>
             <label className="radio-line"><input type="radio" name="repeat" checked={value.repeat === null} onChange={() => set({ repeat: null })} />{c.once}</label>
             <label className="radio-line"><input type="radio" name="repeat" checked={value.repeat === "week"} onChange={() => set({ repeat: "week" })} />{t.repeat.week}</label>
             <label className="radio-line"><input type="radio" name="repeat" checked={value.repeat === "month"} onChange={() => set({ repeat: "month" })} />{t.repeat.month}</label>
             {value.repeat && <p className="hint">{c.repeatHint}</p>}
-          </fieldset>
+          </fieldset>}
         </section>
       )}
 

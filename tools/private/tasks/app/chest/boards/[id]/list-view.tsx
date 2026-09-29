@@ -140,13 +140,14 @@ export function ListView({ columns, cards, labels, fields, people, today, locale
             {g.cards.map(card => {
               const state = !card.due || card.done ? "" : card.due < today ? "due-late" : card.due === today ? "due-today" : "";
               const cardLabels = card.labels.map(id => labels.find(l => l.id === id)).filter((l): l is Label => !!l);
+              const blocked = !card.done && card.waiting !== 0;
               return (
                 <li key={card.id} className={card.done ? "is-done" : undefined}>
                   <Link href={href(card.id)} scroll={false} className="list-card-title">{card.title}</Link>
                   <span className="list-card-meta">
                     <span className="chip">{columnOf(card)?.name}</span>
                     {card.due && <Due card={card} state={state} text={dateOf(card.due)} t={t} />}
-                    {card.waiting > 0 && !card.done && <span className="chip blocked"><Blocked />{t.card.blockedBadge}</span>}
+                    {blocked && <span className="chip blocked"><Blocked />{t.card.blockedBadge}</span>}
                     {cardLabels.map(l => <span key={l.id} className={`chip label-chip c-${l.color}`}>{l.name || t.colors[l.color]}</span>)}
                     {card.assignees.length > 0 && <span className="push"><AvatarStack people={card.assignees.map(a => ({ id: a, name: nameOf(a) || "?", photo: people[a]?.photo ?? null }))} max={3} size="s" labels={{ more: t.board.othersAssigned }} lang={locale} /></span>}
                   </span>

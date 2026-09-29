@@ -65,7 +65,7 @@ export async function monthsDue(sql: Query, today: string): Promise<string[]> {
 
 // makeArchive builds and keeps one month's archive. When the Chest cannot
 // keep the file now, nothing is recorded: the next run tries again.
-export async function makeArchive(sql: Sql, month: string, today: string, locale: Locale): Promise<ArchivePart[]> {
+export async function makeArchive(sql: Sql, month: string, today: string, locale: Locale, partBytes: number = archiveLimits.partBytes): Promise<ArchivePart[]> {
   const p = periodOf(month);
   const list = await rows(sql, system, p, today);
   if (list.length === 0) {
@@ -94,7 +94,7 @@ export async function makeArchive(sql: Sql, month: string, today: string, locale
   for (const r of list) {
     const full = await getDocument(sql, system, r.id, today);
     const bytes = await pdfOfFull(sql, full, today);
-    if (current.documents > 0 && current.size + bytes.length + 2048 > archiveLimits.partBytes) {
+    if (current.documents > 0 && current.size + bytes.length + 2048 > partBytes) {
       const end = zip.finish();
       current.chunks.push(end);
       current.size += end.length;

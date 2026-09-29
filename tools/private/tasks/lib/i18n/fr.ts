@@ -476,6 +476,7 @@ export const fr: Catalogue = {
   },
   export: {
     headers: {
+      blockedBy: "Bloquée par",
       title: "Titre",
       column: "Colonne",
       assignees: "Personnes",

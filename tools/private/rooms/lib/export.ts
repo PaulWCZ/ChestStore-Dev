@@ -24,14 +24,14 @@ export async function bookingsCsv(sql: Sql, actor: Member | null, fromValue: unk
   // The names the tool gave (floors, areas) in the reader's language.
   const presets = JSON.stringify(t.presets);
   const rows = await sql<{ day: string; kind: "desk" | "room"; office: string; floor: string; place: string; start: number; end: number; member_id: string; title: string; people: number }[]>`
-    select to_char(b.day, 'YYYY-MM-DD') as day, 'desk' as kind, o.name as office, coalesce(${presets}::jsonb ->> f.preset, f.name) as floor, d.name || ' · ' || coalesce(${presets}::jsonb ->> a.preset, a.name) as place,
+    select to_char(b.day, 'YYYY-MM-DD') as day, 'desk' as kind, o.name as office, coalesce(${presets}::text::jsonb ->> f.preset, f.name) as floor, d.name || ' · ' || coalesce(${presets}::text::jsonb ->> a.preset, a.name) as place,
       (extract(epoch from (lower(b.during) at time zone ${zone}) - b.day::timestamp) / 60)::int as start,
       (extract(epoch from (upper(b.during) at time zone ${zone}) - b.day::timestamp) / 60)::int as "end",
       b.member_id, '' as title, 0 as people
     from desk_bookings b join desks d on d.id = b.desk_id join areas a on a.id = d.area_id join floors f on f.id = a.floor_id join offices o on o.id = f.office_id
     where b.cancelled_at is null and b.day between ${from} and ${to}
     union all
-    select to_char(b.day, 'YYYY-MM-DD'), 'room', o.name, coalesce(${presets}::jsonb ->> f.preset, f.name), r.name,
+    select to_char(b.day, 'YYYY-MM-DD'), 'room', o.name, coalesce(${presets}::text::jsonb ->> f.preset, f.name), r.name,
       (extract(epoch from (lower(b.during) at time zone ${zone}) - b.day::timestamp) / 60)::int,
       (extract(epoch from (upper(b.during) at time zone ${zone}) - b.day::timestamp) / 60)::int,
       b.member_id, b.title, (select count(*)::int from room_attendees x where x.booking_id = b.id)

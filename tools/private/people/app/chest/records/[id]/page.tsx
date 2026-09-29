@@ -5,10 +5,10 @@ import { Back, File, Lock, Shield } from "../../../../components/icons.tsx";
 import { AppError } from "../../../../lib/app-error.ts";
 import { db } from "../../../../lib/db.ts";
 import { directory } from "../../../../lib/directory.ts";
-import { format, formatDate, formatDay, type Catalogue } from "../../../../lib/i18n/index.ts";
+import { format, formatDate, formatDay, intl, type Catalogue } from "../../../../lib/i18n/index.ts";
 import { ofRecord } from "../../../../lib/journal.ts";
 import { id as rowId } from "../../../../lib/model.ts";
-import { nameOf, people } from "../../../../lib/people.ts";
+import { nameOf, people, plainName } from "../../../../lib/people.ts";
 import { fieldNames, missing, record, type Field, type HrRecord } from "../../../../lib/records.ts";
 import { viewer } from "../../../../lib/session.ts";
 import { today } from "../../../../lib/zone.ts";
@@ -34,7 +34,8 @@ export default async function RecordPage({ params }: { params: Promise<{ id: str
   const edit = access === "edit";
   const history = edit ? await ofRecord(sql, r.id, 30) : [];
   const names = await people([r.memberId ?? "", r.tutorId ?? "", ...r.documents.map(d => d.addedBy), ...history.map(h => h.actor)]);
-  const personName = r.memberId ? nameOf(names.get(r.memberId), locale) : r.legalName;
+  // A record prints: the person's name as it is, never the app's "(former member)".
+  const personName = (r.memberId ? plainName(names.get(r.memberId), locale) : "") || r.legalName;
   const photo = r.memberId ? names.get(r.memberId)?.photo ?? null : null;
   const day = (d: string | null) => (d ? formatDay(d, locale, { day: "numeric", month: "long", year: "numeric" }) : "");
   const gaps = missing(r);
@@ -69,7 +70,7 @@ export default async function RecordPage({ params }: { params: Promise<{ id: str
           t={{ record: t.record, errors: t.errors, date: t.date, peoplePicker: t.peoplePicker, leaveEmpty: t.people.leaveEmpty }}
         />
       ) : (
-        <ReadOnly r={r} day={day} tutor={r.tutorId ? nameOf(names.get(r.tutorId), locale) : ""} t={t.record} />
+        <ReadOnly r={r} day={day} tutor={r.tutorId ? plainName(names.get(r.tutorId), locale) : ""} locale={locale} t={t.record} />
       )}
 
       <section className="card-block section" aria-labelledby="docs-title">
@@ -104,7 +105,7 @@ function toForm(r: HrRecord): Record<Field, string> {
 type RecordWords = Catalogue["record"];
 
 // The person's own record, read-only: what HR keeps about them.
-function ReadOnly({ r, day, tutor, t }: { r: HrRecord; day: (d: string | null) => string; tutor: string; t: RecordWords }) {
+function ReadOnly({ r, day, tutor, locale, t }: { r: HrRecord; day: (d: string | null) => string; tutor: string; locale: string; t: RecordWords }) {
   const item = (label: string, value: string) => <div><dt>{label}</dt><dd>{value || <span className="muted">{t.empty}</span>}</dd></div>;
   return (
     <>
@@ -125,7 +126,7 @@ function ReadOnly({ r, day, tutor, t }: { r: HrRecord; day: (d: string | null) =
           {item(t.fields.contract, t.contracts[r.contract])}
           {item(t.fields.job, r.job)}
           {item(t.fields.qualification, r.qualification)}
-          {item(t.fields.workingTime, t.workingTimes[r.workingTime] + (r.hours ? ` · ${r.hours}` : ""))}
+          {item(t.fields.workingTime, t.workingTimes[r.workingTime] + (r.hours ? ` · ${format(t.hoursValue, { hours: new Intl.NumberFormat(intl(locale), { maximumFractionDigits: 2 }).format(r.hours) })}` : ""))}
           {item(t.fields.startDate, day(r.startDate))}
           {r.trialEnd && item(t.fields.trialEnd, day(r.trialEnd))}
           {r.contract !== "permanent" && item(t.fields.contractEnd, day(r.contractEnd))}

@@ -3,7 +3,8 @@ import { groups } from "../../../lib/audience.ts";
 import { dates } from "../../../lib/dates.ts";
 import { db } from "../../../lib/db.ts";
 import { isKind } from "../../../lib/model.ts";
-import { mayCreate } from "../../../lib/polls.ts";
+import { surveys } from "../../../lib/access.ts";
+import { mayCreate, policy } from "../../../lib/polls.ts";
 import { viewer } from "../../../lib/session.ts";
 import { chestToday } from "../../../lib/zone.ts";
 import { emptyValue, pulseValue } from "../../../lib/composer-value.ts";
@@ -19,9 +20,12 @@ export default async function NewPoll({ searchParams }: { searchParams: Promise<
   const { kind, preset } = await searchParams;
   const d = dates(locale, zone);
   const c = t.composer;
-  const initial = preset === "pulse"
+  // The team pulse is a company survey: organisers only, unless an admin
+  // opened it to members (lib/access.ts).
+  const mayPulse = surveys(member, await policy(db()));
+  const initial = preset === "pulse" && mayPulse
     ? pulseValue({ title: c.pulseTitle, scale: c.pulseScale, low: c.pulseLow, high: c.pulseHigh, enps: c.enpsDefault, text: c.pulseText })
-    : emptyValue(isKind(kind) ? kind : "choice");
+    : emptyValue(isKind(kind) ? kind : preset === "pulse" ? "survey" : "choice");
   return (
     <div className="narrow centred">
       <Composer
@@ -33,6 +37,7 @@ export default async function NewPoll({ searchParams }: { searchParams: Promise<
         monthNames={d.monthNames()}
         weekdayNames={d.weekdayNames()}
         locale={locale}
+        surveys={mayPulse}
         t={{ composer: t.composer, kinds: t.kinds, errors: t.errors, repeat: t.repeat, date: t.date, peoplePicker: t.peoplePicker }}
       />
     </div>

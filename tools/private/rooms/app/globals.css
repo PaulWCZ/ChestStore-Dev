@@ -459,3 +459,7 @@ a.booking-text:hover { text-decoration: underline; }
 .example-note { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-3); padding: var(--space-3) var(--space-4); border: var(--border-width) dashed var(--line); border-radius: var(--radius-m); background: var(--surface); }
 .example-note p { margin: 0; flex: 1 1 18rem; }
 .for-link { min-height: 44px; justify-self: start; padding-left: 0; }
+.calendar-pick { align-items: end; flex-wrap: wrap; }
+.calendar-pick label:first-child { display: grid; gap: var(--space-1); }
+.import-lines li { overflow-wrap: anywhere; }
+.import-report .conflict { color: var(--danger); font-weight: var(--weight-strong); }

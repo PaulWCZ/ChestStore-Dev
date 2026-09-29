@@ -87,14 +87,14 @@ test("date and choice fields: values checked, a date reminds HR in the bell, the
   assert.equal(chest.notifications.length, 0);
   // The import: a date in the file's order, a choice whatever its case.
   const fields = await listFields(sql, hr);
-  const p = plan("Name,Medical visit,Size\nHugo Bernard,21/10/2026,xl\nNora Petit,soon,XXL\n", everyone.map(m => ({ id: m.id, name: m.name, firstName: m.firstName, lastName: m.lastName, photo: null, role: m.role, locale: m.locale, email: "" })), fields);
+  const p = plan("Name,Medical visit,Size\nHugo Bernard,21/10/2026,xl\nNora Petit,soon,XXL\n", everyone.map(m => ({ id: m.id, name: m.name, firstName: m.firstName, lastName: m.lastName, photo: null, role: m.role, locale: "en" as const, email: "" })), fields);
   assert.deepEqual(p.rows.map(r => [r.extras, r.problems]), [[{ [visit.id]: "2026-10-21", [size.id]: "XL" }, []], [{}, ["date", "choice"]]]);
   await removeField(sql, hr, visit.id, true);
   await removeField(sql, hr, size.id, true);
 });
 
 test("the import shows the columns it leaves out", () => {
-  const p = plan("Name,Hobby,T-Shirt Size,Empty\nHugo Bernard,Chess,M,\n", everyone.map(m => ({ id: m.id, name: m.name, firstName: m.firstName, lastName: m.lastName, photo: null, role: m.role, locale: m.locale, email: "" })), []);
+  const p = plan("Name,Hobby,T-Shirt Size,Empty\nHugo Bernard,Chess,M,\n", everyone.map(m => ({ id: m.id, name: m.name, firstName: m.firstName, lastName: m.lastName, photo: null, role: m.role, locale: "en" as const, email: "" })), []);
   assert.equal(p.missing, "field");
   assert.deepEqual(p.leftOut, ["Hobby", "T-Shirt Size"]);
 });

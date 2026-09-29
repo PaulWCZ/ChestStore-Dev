@@ -143,10 +143,17 @@ export async function repeatPoll(pollId: string, on: boolean): Promise<Result<nu
   });
 }
 
-// An admin: may every member start a poll, or organisers only?
+// An admin: may every member start a poll, or organisers only? May members
+// start company surveys (repeating, eNPS) too?
 export async function setMembersCreate(on: boolean): Promise<Result<null>> {
   return act(async actor => {
-    await polls.setPolicy(db(), actor, on);
+    await polls.setPolicy(db(), actor, { membersCreate: on });
+    return null;
+  });
+}
+export async function setMembersSurveys(on: boolean): Promise<Result<null>> {
+  return act(async actor => {
+    await polls.setPolicy(db(), actor, { membersSurveys: on });
     return null;
   });
 }

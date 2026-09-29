@@ -115,6 +115,12 @@ export async function recordIdOf(sql: Query, actor: Member | null, member: strin
   return row ? String(row.id) : null;
 }
 
+// The members who have a record (HR's first-run steps).
+export async function membersWithRecord(sql: Query, actor: Member | null): Promise<Set<string>> {
+  hr(actor);
+  return new Set((await sql<{ member_id: string }[]>`select member_id from records where member_id is not null`).map(r => r.member_id));
+}
+
 // HR's list: everyone with a record, current first, then those who left.
 export async function listRecords(sql: Query, actor: Member | null): Promise<Summary[]> {
   hr(actor);

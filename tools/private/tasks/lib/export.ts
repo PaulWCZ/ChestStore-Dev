@@ -14,13 +14,14 @@ import { nameOf, people } from "./people.ts";
 
 export async function boardCsv(sql: Sql, actor: Member | null, boardId: unknown, t: Catalogue, locale: Locale): Promise<{ name: string; csv: string }> {
   const b = await board(sql, actor, boardId, "read");
-  const cols = await columns(sql, b.id);
+  const cols = await columns(sql, b.id, { words: t.templates.columns });
   const labs = await labels(sql, b.id);
   const own = await fields(sql, b.id);
   const cards = await boardCards(sql, b.id);
+  const titles = new Map(cards.map(c => [c.id, c.title]));
   const who = await people(cards.flatMap(c => c.assignees));
   const h = t.export.headers;
-  const rows: unknown[][] = [[h.title, h.column, h.assignees, h.due, h.labels, h.checklist, h.done, h.description, h.start, h.time, ...own.map(f => f.name)]];
+  const rows: unknown[][] = [[h.title, h.column, h.assignees, h.due, h.labels, h.checklist, h.done, h.description, h.start, h.time, h.blockedBy, ...own.map(f => f.name)]];
   for (const c of cards) {
     const column = cols.find(k => k.id === c.columnId);
     rows.push([
@@ -34,6 +35,7 @@ export async function boardCsv(sql: Sql, actor: Member | null, boardId: unknown,
       "",
       c.start ?? "",
       c.dueTime ?? "",
+      c.blockedBy.map(x => titles.get(x) ?? "").filter(Boolean).join(", "),
       ...own.map(f => c.values[f.id] ?? ""),
     ]);
   }
@@ -74,6 +76,7 @@ async function boardData(sql: Sql, actor: Member | null, boardId: unknown) {
   const lists = ids.length ? await sql<{ id: string; card_id: string; title: string }[]>`select id, card_id, title from checklists where card_id in ${sql(ids)} order by position` : [];
   const comments = ids.length ? await sql<{ card_id: string; author: string; body: string; created_at: Date }[]>`select card_id, author, body, created_at from comments where card_id in ${sql(ids)} and removed_at is null order by created_at` : [];
   const values = ids.length ? await sql<{ card_id: string; field_id: string; value: string }[]>`select card_id, field_id, value from card_values where card_id in ${sql(ids)}` : [];
+  const blockers = ids.length ? await sql<{ card_id: string; blocker_id: string }[]>`select card_id, blocker_id from card_blockers where card_id in ${sql(ids)} order by blocker_id` : [];
   const files = ids.length ? await sql<{ card_id: string; file_name: string; type: string; size: string }[]>`select card_id, file_name, type, size from attachments where card_id in ${sql(ids)} order by added_at` : [];
   const everyone = await people([...assignees.map(a => a.member_id), ...comments.map(c => c.author), ...cards.map(c => c.created_by), ...items.flatMap(i => (i.assignee ? [i.assignee] : []))]);
   const person = (memberId: string) => ({ id: memberId, name: everyone.get(memberId)?.status === "member" || everyone.get(memberId)?.status === "former" ? everyone.get(memberId)!.name : null });
@@ -100,6 +103,7 @@ async function boardData(sql: Sql, actor: Member | null, boardId: unknown) {
         createdAt: c.created_at.toISOString(),
         completedAt: c.completed_at?.toISOString() ?? null,
         assignees: assignees.filter(a => String(a.card_id) === key).map(a => person(a.member_id)),
+        blockedBy: blockers.filter(x => String(x.card_id) === key).map(x => String(x.blocker_id)),
         labels: cardLabels.filter(l => String(l.card_id) === key).map(l => String(l.label_id)),
         checklist: items.filter(i => String(i.card_id) === key && i.checklist_id === null).map(item),
         checklists: lists.filter(l => String(l.card_id) === key).map(l => ({ title: l.title, items: items.filter(i => String(i.checklist_id) === String(l.id)).map(item) })),

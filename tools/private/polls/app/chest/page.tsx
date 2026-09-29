@@ -1,7 +1,7 @@
 import { EmptyState, PageHeader, StatusBadge } from "@argentic/chest-ui/components";
 import { AutoRefresh } from "../../components/auto-refresh.tsx";
 import { Check, Clock, KindIcon, Mask, People, Plus, Pulse, Repeat } from "../../components/icons.tsx";
-import { can, settles } from "../../lib/access.ts";
+import { can, settles, surveys } from "../../lib/access.ts";
 import { everyone, inAudience } from "../../lib/audience.ts";
 import { dates, optionText } from "../../lib/dates.ts";
 import { db } from "../../lib/db.ts";
@@ -101,11 +101,13 @@ export default async function Home() {
                 <span className="line">{t.kinds[k].line}</span>
               </a>
             ))}
-            <a className="kind-tile pulse" href="/chest/new?kind=survey&preset=pulse">
-              <span className="kind-icon"><Pulse /></span>
-              <strong>{t.home.pulse.name}</strong>
-              <span className="line">{t.home.pulse.line}</span>
-            </a>
+            {surveys(member, rules) && (
+              <a className="kind-tile pulse" href="/chest/new?kind=survey&preset=pulse">
+                <span className="kind-icon"><Pulse /></span>
+                <strong>{t.home.pulse.name}</strong>
+                <span className="line">{t.home.pulse.line}</span>
+              </a>
+            )}
           </div>
         </section>
       )}
@@ -134,7 +136,10 @@ export default async function Home() {
       {settles(member) && (
         <section className="section" aria-labelledby="settings">
           <div className="section-head"><h2 id="settings">{t.settings.title}</h2></div>
-          <div className="card narrow-card"><PolicySwitch on={rules.membersCreate} t={{ settings: t.settings, errors: t.errors }} /></div>
+          <div className="card narrow-card settings-card">
+            <PolicySwitch on={rules.membersCreate} t={{ settings: t.settings, errors: t.errors }} />
+            <PolicySwitch on={rules.membersSurveys} which="surveys" t={{ settings: t.settings, errors: t.errors }} />
+          </div>
         </section>
       )}
     </>

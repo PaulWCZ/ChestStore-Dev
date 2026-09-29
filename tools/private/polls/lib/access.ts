@@ -36,9 +36,25 @@ export function roleOf(actor: Pick<Member, "role"> | null): Role | null {
   return role !== null && role !== undefined && (roles as readonly string[]).includes(role) ? role as Role : null;
 }
 
-// The admin's choice of who may start a poll (the settings table).
-export type Policy = { membersCreate: boolean };
-export const defaultPolicy: Policy = { membersCreate: true };
+// The admin's choices (the settings table): who may start a poll, and who
+// may start a company survey — a repeating survey (a pulse) or one with an
+// eNPS question. A survey of the staff's opinion that comes back every
+// week touches the works council (France: CSE, Code du travail L.2312-38)
+// and rings everyone's bell forever: organisers only, unless an admin
+// opens it to members (README, "Works council").
+export type Policy = { membersCreate: boolean; membersSurveys: boolean };
+export const defaultPolicy: Policy = { membersCreate: true, membersSurveys: false };
+
+// surveys: may start a repeating survey or ask the eNPS question.
+export function surveys(actor: Pick<Member, "role"> | null, policy: Policy = defaultPolicy): boolean {
+  const role = roleOf(actor);
+  if (role === "organiser") return true;
+  return role === "member" && policy.membersCreate && policy.membersSurveys;
+}
+
+// companySurvey: what surveys() guards — a poll that repeats or asks eNPS.
+export const companySurvey = (spec: { repeat: string | null; questions: readonly { kind: string }[] }): boolean =>
+  spec.repeat !== null || spec.questions.some(q => q.kind === "enps");
 
 export function can(actor: Pick<Member, "role"> | null, ability: Ability, policy: Policy = defaultPolicy): boolean {
   const role = roleOf(actor);
