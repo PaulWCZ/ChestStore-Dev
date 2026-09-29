@@ -697,7 +697,11 @@ and words are optional, types only widened, a theme made by hand for
   display face); `--radius-chip` (badges and chips follow the theme's
   corners); `--field-pad-x` (fields' padding). `checkTheme`,
   `defineTheme`, `deriveTheme` (a brand's band is its main colour's deep
-  shade) and the 20 themes carry them; tokens/CONTRACT.md documents them,
+  shade) and the 20 themes carry them — the five identities with values
+  of their own (three bands, two reading faces) get them from
+  `identityAdditions`, which `defineTheme` applies to a source of that id
+  and tool, so a tool's own copy of its identity still equals the
+  catalogue's with no change; tokens/CONTRACT.md documents them,
   and the safe way to recolour a region (never `--accent` from a token
   that is `--accent`: it loops).
 - **Forms joins the catalogue** as "Invitation" (the 20th theme), with DM

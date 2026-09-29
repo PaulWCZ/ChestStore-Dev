@@ -10,7 +10,7 @@ import { forwardRef, type AnchorHTMLAttributes, type ReactElement, type ReactNod
 import { renderToStaticMarkup } from "react-dom/server";
 import { contrast } from "../src/color.js";
 import { checkTheme, colorTokens, pairs, staticTokens, validateTheme } from "../src/contract.js";
-import { defineTheme } from "../src/compose.js";
+import { defineTheme, identityAdditions } from "../src/compose.js";
 import { themeCss } from "../src/css.js";
 import { deriveTheme } from "../src/derive.js";
 import { fontFaces } from "../src/fonts.js";
@@ -233,6 +233,10 @@ test("LanguageSwitch and Tabs from a server component (Wiki, Support): an href p
   assert.match(langs, /href="\/p\/fr\/pricing"/u);
   assert.match(langs, /data-next=""/u);
   assert.match(html(<Tabs label="View" current="a" link={Link} items={[{ id: "a", label: "A", href: "?v=a" }, { id: "b", label: "B", href: "?v=b" }]} />), /data-next=""[^>]*aria-current="page"|aria-current="page"[^>]*data-next=""/u);
+  // An inline wrapper is typed from the prop (this file does not compile
+  // otherwise: Rooms writes `link={props => <Link {...props} scroll={false} />}`).
+  assert.match(html(<Tabs label="View" current="a" link={props => <a data-inline="" {...props} />} items={[{ id: "a", label: "A", href: "?v=a" }]} />), /data-inline=""/u);
+  assert.match(html(<Segmented label="View" value="a" link={props => <a data-inline="" {...props} />} options={[{ value: "a", label: "A", href: "?a" }, { value: "b", label: "B", href: "?b" }]} />), /data-inline=""/u);
 });
 
 test("Segmented link variant (CRM), Switch (Forms)", () => {
@@ -382,4 +386,22 @@ test("DateRangeField (0.2.1's deferred date range, Leave): two days under one na
   assert.match(field, /<p class="ck-hint ck-range-length" aria-live="polite">3 jours<\/p>/u);
   assert.match(field, /<input type="hidden" name="from" value="2026-10-05"\/>.*<input type="hidden" name="to" value="2026-10-07"\/>/u);
   assert.doesNotMatch(field, /ck-chip-button/u, "no Today/Tomorrow chips in a range");
+});
+
+test("a tool's own copy of its identity (defineTheme of the same source) gets 0.2.2's additions too: the catalogue and the copy stay equal with no change in the tool", () => {
+  // Equipment, Timesheets, Goals, Wiki and Quotes each hold a copy of the
+  // catalogue's source and test deepEqual(identity, identityOf(tool)).
+  const base = { name: { en: "x", fr: "x" }, description: { en: "x", fr: "x" }, fonts: { display: "newsreader", body: "source-sans-3" }, radius: { s: 4, m: 6, l: 10 },
+    light: { bg: "#f4f2ee", surface: "#ffffff", ink: "#1b1f22", "ink-2": "#56606a", line: "#d9d5cc", accent: "#c2410c", "accent-ink": "#ffffff" },
+    dark: { bg: "#14181b", surface: "#1d2226", ink: "#eef1f3", "ink-2": "#a9b4bd", line: "#353d44", accent: "#ff8a4c", "accent-ink": "#1b1f22" } };
+  const steel = defineTheme({ ...base, id: "labels", tool: "equipment" });
+  assert.equal(steel.light.inverse, "#2e3d48");
+  assert.equal(steel.dark["inverse-ink-2"], "#b7c3cc");
+  const other = defineTheme({ ...base, id: "labels", tool: "stock" });
+  assert.equal(other.light.inverse, other.light.ink, "another tool of the same id: the default band");
+  const own = defineTheme({ ...base, id: "labels", tool: "equipment", light: { ...base.light, inverse: "#123456" } });
+  assert.equal(own.light.inverse, "#123456", "what the source says wins");
+  assert.equal(defineTheme({ ...base, id: "library", tool: "wiki" }).fonts.read!.id, "newsreader");
+  assert.equal(defineTheme({ ...base, id: "library" }).fonts.read!.id, "source-sans-3", "no tool: no addition");
+  for (const [id, a] of Object.entries(identityAdditions)) assert.equal(identityOf(a.tool)!.id, id, `${id} is ${a.tool}'s identity`);
 });

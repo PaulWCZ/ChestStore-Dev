@@ -4,6 +4,9 @@
 // (2026-09-28); where a tool's value did not meet the contract (mostly field
 // borders under 3:1, which the tools' own pages did not ask), the value is
 // left out here and derived — reports/04-themes-and-kit.md lists them.
+// What 0.2.2 added to some identities (a band of their own colour, a face
+// for long text) is in compose.ts (identityAdditions): defineTheme gives it
+// to the catalogue's theme and to the tool's own copy of it alike.
 import { defineTheme, type ThemeSource } from "./compose.js";
 import type { Theme } from "./contract.js";
 import type { FontSpec } from "./fonts.js";
@@ -31,8 +34,7 @@ const sources: ThemeSource[] = [
     id: "library", tool: "wiki",
     name: { en: "Library", fr: "Bibliothèque" },
     description: { en: "Calm and literate: warm paper, a reading serif, one deep green.", fr: "Calme et lettré : papier chaud, un sérif de lecture, un vert profond." },
-    // Long text (a page of the wiki) in Newsreader, a face drawn for reading.
-    fonts: { display: "newsreader", body: "source-sans-3", accent: "newsreader", read: "newsreader" },
+    fonts: { display: "newsreader", body: "source-sans-3", accent: "newsreader" },
     display: { weight: 600, tracking: "-0.01em" },
     type: { xs: 0.8125, s: 0.9375, m: 1.0625, l: 1.3125, xl: 1.75, xxl: 2.5 },
     radius: { s: 5, m: 8, l: 14 },
@@ -159,8 +161,8 @@ const sources: ThemeSource[] = [
     fonts: { display: "manrope", body: "manrope", mono: "martian-mono" },
     display: { weight: 700, tracking: "-0.01em" },
     radius: { s: 4, m: 8, l: 12 },
-    light: { bg: "#eef1ec", surface: "#ffffff", "surface-2": "#e3e9e3", ink: "#0d1f19", "ink-2": "#4a5d55", line: "#cfd8d1", "line-strong": "#7a8e84", accent: "#0f5b43", "accent-ink": "#ffffff", "accent-soft": "#dcebe2", danger: "#b42318", "danger-soft": "#fbe3e0", wait: "#8a5a00", "wait-soft": "#fbefd5", focus: "#0f5b43", highlight: "#c6ff3a", inverse: "#0c231b", "inverse-ink": "#e9f3ed", "inverse-ink-2": "#a9c2b6", "inverse-line": "#2a5646", "shadow-1": "0px 1px 0px rgb(13 31 25 / 0.06)", "shadow-2": "0px 12px 32px rgb(13 31 25 / 0.18)" },
-    dark: { bg: "#08130f", surface: "#0e1c17", "surface-2": "#142820", ink: "#e3eee8", "ink-2": "#9db3a8", line: "#213a30", "line-strong": "#4e6d5f", accent: "#8fe3bd", "accent-ink": "#06201a", "accent-soft": "#163a2d", danger: "#ff8f84", "danger-soft": "#3a1714", wait: "#f3c46b", "wait-soft": "#2f2410", focus: "#c6ff3a", highlight: "#2c3d10", inverse: "#050d0a", "inverse-ink": "#e9f3ed", "inverse-ink-2": "#a9c2b6", "inverse-line": "#1f4032" },
+    light: { bg: "#eef1ec", surface: "#ffffff", "surface-2": "#e3e9e3", ink: "#0d1f19", "ink-2": "#4a5d55", line: "#cfd8d1", "line-strong": "#7a8e84", accent: "#0f5b43", "accent-ink": "#ffffff", "accent-soft": "#dcebe2", danger: "#b42318", "danger-soft": "#fbe3e0", wait: "#8a5a00", "wait-soft": "#fbefd5", focus: "#0f5b43", highlight: "#c6ff3a", "shadow-1": "0px 1px 0px rgb(13 31 25 / 0.06)", "shadow-2": "0px 12px 32px rgb(13 31 25 / 0.18)" },
+    dark: { bg: "#08130f", surface: "#0e1c17", "surface-2": "#142820", ink: "#e3eee8", "ink-2": "#9db3a8", line: "#213a30", "line-strong": "#4e6d5f", accent: "#8fe3bd", "accent-ink": "#06201a", "accent-soft": "#163a2d", danger: "#ff8f84", "danger-soft": "#3a1714", wait: "#f3c46b", "wait-soft": "#2f2410", focus: "#c6ff3a", highlight: "#2c3d10" },
     palette: {
       // The project colours.
       light: { 1: { solid: "#2477c4" }, 2: { solid: "#5f7f12" }, 3: { solid: "#d9542c" }, 4: { solid: "#8646c2" }, 5: { solid: "#c7356f" }, 6: { solid: "#0d8a79" }, 7: { solid: "#b87b00" } },
@@ -206,8 +208,8 @@ const sources: ThemeSource[] = [
     fonts: { display: "ibm-plex-sans", body: "ibm-plex-sans", mono: "ibm-plex-mono" },
     display: { weight: 700 },
     radius: { s: 4, m: 6, l: 10 },
-    light: { bg: "#f4f2ee", surface: "#ffffff", "surface-2": "#eceae4", ink: "#1b1f22", "ink-2": "#56606a", line: "#d9d5cc", "line-strong": "#1b1f22", accent: "#c2410c", "accent-ink": "#ffffff", "accent-soft": "#fde6d6", focus: "#1f6fb2", danger: "#b3261e", "danger-soft": "#fbe3e1", ok: "#1e7a45", "ok-soft": "#e1f2e7", wait: "#9a4a00", "wait-soft": "#fdebd8", inverse: "#2e3d48", "inverse-ink": "#ffffff", "inverse-ink-2": "#c9d3db", "inverse-line": "#43535f", "shadow-1": "0px 1px 0px rgb(27 31 34 / 0.08)", "shadow-2": "0px 12px 32px rgb(20 25 30 / 0.22)" },
-    dark: { bg: "#14181b", surface: "#1d2226", "surface-2": "#262c31", ink: "#eef1f3", "ink-2": "#a9b4bd", line: "#353d44", "line-strong": "#8c99a4", accent: "#ff8a4c", "accent-ink": "#1b1f22", "accent-soft": "#3a2a20", focus: "#8cc2f0", danger: "#ff9b93", "danger-soft": "#3b2020", ok: "#7fd6a0", "ok-soft": "#1f3328", wait: "#ffb37a", "wait-soft": "#3a2a1c", inverse: "#222b32", "inverse-ink": "#ffffff", "inverse-ink-2": "#b7c3cc", "inverse-line": "#36424c" },
+    light: { bg: "#f4f2ee", surface: "#ffffff", "surface-2": "#eceae4", ink: "#1b1f22", "ink-2": "#56606a", line: "#d9d5cc", "line-strong": "#1b1f22", accent: "#c2410c", "accent-ink": "#ffffff", "accent-soft": "#fde6d6", focus: "#1f6fb2", danger: "#b3261e", "danger-soft": "#fbe3e1", ok: "#1e7a45", "ok-soft": "#e1f2e7", wait: "#9a4a00", "wait-soft": "#fdebd8", "shadow-1": "0px 1px 0px rgb(27 31 34 / 0.08)", "shadow-2": "0px 12px 32px rgb(20 25 30 / 0.22)" },
+    dark: { bg: "#14181b", surface: "#1d2226", "surface-2": "#262c31", ink: "#eef1f3", "ink-2": "#a9b4bd", line: "#353d44", "line-strong": "#8c99a4", accent: "#ff8a4c", "accent-ink": "#1b1f22", "accent-soft": "#3a2a20", focus: "#8cc2f0", danger: "#ff9b93", "danger-soft": "#3b2020", ok: "#7fd6a0", "ok-soft": "#1f3328", wait: "#ffb37a", "wait-soft": "#3a2a1c" },
     palette: {
       // The statuses' tags: in use (blue), retired (steel).
       light: { 1: { solid: "#245a86", soft: "#e0ebf5" }, 8: { solid: "#5b636a", soft: "#e9e9e7" } },
@@ -236,8 +238,8 @@ const sources: ThemeSource[] = [
     type: { xs: 0.8125 },
     radius: { s: 6, m: 10, l: 14 },
     motion: { slow: 260 },
-    light: { bg: "#f3eee2", surface: "#fbf9f3", "surface-2": "#e8e0cf", ink: "#17302a", "ink-2": "#4c5f58", line: "#d6ccb8", accent: "#1f4a3f", "accent-ink": "#f7f3e8", ok: "#2e6b45", "ok-soft": "#e0eee3", wait: "#8a5a00", "wait-soft": "#f6e8c8", danger: "#a8321f", "danger-soft": "#f7ddd6", focus: "#bf4f1d", highlight: "#f6dfcd", inverse: "#17302a", "inverse-ink": "#f3eee2", "inverse-ink-2": "#c5d0c8", "inverse-line": "#2a463e", "shadow-1": "0px 1px 2px rgb(23 48 42 / 0.07), 0px 2px 6px rgb(23 48 42 / 0.05)", "shadow-2": "0px 10px 30px rgb(23 48 42 / 0.18)" },
-    dark: { bg: "#0f1715", surface: "#16211e", "surface-2": "#26332f", ink: "#efe8d8", "ink-2": "#a7b3ac", line: "#2d3b37", accent: "#e6dcc4", "accent-ink": "#16211e", ok: "#6fc48e", "ok-soft": "#183124", wait: "#e2b04a", "wait-soft": "#33290f", danger: "#f0806a", "danger-soft": "#3a1c16", focus: "#f08a4b", highlight: "#3a2519", inverse: "#0b1210", "inverse-ink": "#efe8d8", "inverse-ink-2": "#a7b3ac", "inverse-line": "#1a2724" },
+    light: { bg: "#f3eee2", surface: "#fbf9f3", "surface-2": "#e8e0cf", ink: "#17302a", "ink-2": "#4c5f58", line: "#d6ccb8", accent: "#1f4a3f", "accent-ink": "#f7f3e8", ok: "#2e6b45", "ok-soft": "#e0eee3", wait: "#8a5a00", "wait-soft": "#f6e8c8", danger: "#a8321f", "danger-soft": "#f7ddd6", focus: "#bf4f1d", highlight: "#f6dfcd", "shadow-1": "0px 1px 2px rgb(23 48 42 / 0.07), 0px 2px 6px rgb(23 48 42 / 0.05)", "shadow-2": "0px 10px 30px rgb(23 48 42 / 0.18)" },
+    dark: { bg: "#0f1715", surface: "#16211e", "surface-2": "#26332f", ink: "#efe8d8", "ink-2": "#a7b3ac", line: "#2d3b37", accent: "#e6dcc4", "accent-ink": "#16211e", ok: "#6fc48e", "ok-soft": "#183124", wait: "#e2b04a", "wait-soft": "#33290f", danger: "#f0806a", "danger-soft": "#3a1c16", focus: "#f08a4b", highlight: "#3a2519" },
     palette: {
       chroma: 0.85,
       // Sunrise: progress and the check-in.
@@ -249,8 +251,7 @@ const sources: ThemeSource[] = [
     id: "letterpress", tool: "quotes",
     name: { en: "Letterpress", fr: "Typographie" },
     description: { en: "Exact and formal: crisp paper on a quiet desk, blue-black ink, an oxblood seal, a Caslon.", fr: "Exact et formel : papier net sur un bureau calme, encre bleu-noir, un sceau bordeaux, une Caslon." },
-    // Libre Caslon Text is drawn for text sizes: long text reads in it.
-    fonts: { display: "libre-caslon-text", body: "hanken-grotesk", accent: "libre-caslon-text", read: "libre-caslon-text" },
+    fonts: { display: "libre-caslon-text", body: "hanken-grotesk", accent: "libre-caslon-text" },
     display: { weight: 400 },
     type: { xl: 1.875, xxl: 2.5 },
     radius: { s: 3, m: 6, l: 10 },

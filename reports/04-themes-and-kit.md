@@ -653,6 +653,17 @@ The changelog in `ui/README.md` has the whole list; what mattered most:
   The kit's link props now all take a component (`Tabs` and the new
   `Segmented`, `Menu`, `DataTable` included), `LanguageSwitch` takes its
   address as a pattern, and the README gives the one-line re-export.
+- **Backward compatibility, checked.** Each of the 18 tools was copied
+  to a scratch folder with its own `node_modules` but the 0.2.2 working
+  copy in place of its vendored kit, then type-checked (`next typegen` +
+  `tsc`) and tested: 0 type errors, every test passing, except one theme
+  test each in Tasks and Hiring, which fails the same way on 0.2.1 (both
+  are still vendored on 0.2.0: their identity sources predate 0.2.1's
+  palette fixes — a tool change, not a kit one). The check found one
+  regression, fixed before release: `Tabs`' link prop as a union of two
+  function types left an inline `props => <Link …/>` untyped (Rooms);
+  it is one function type again, with a test. `lab/template` re-vendored:
+  14 tests, build passes.
 - **Not in the kit**: the tool bugs of the list (News' raw mention
   tokens in search snippets; the 30 s frame-origin cache in Support,
   Booking, Forms, Status) belong to those tools. The sixteen tools and

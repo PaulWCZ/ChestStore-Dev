@@ -61,7 +61,7 @@ export function StatusBadge({ tone = "neutral", label, category, icon, size = "m
   );
 }
 
-// The link a Tabs gave before 0.2.2 (still accepted).
+// The link Tabs gives: Next's Link, a LinkComponent, or an inline wrapper.
 type TabLink = (props: { href: string; className?: string; "aria-current"?: "page"; children: ReactNode }) => ReactNode;
 
 export type TabItem = { readonly id: string; readonly label: string; readonly count?: number; readonly href?: string };
@@ -79,7 +79,9 @@ export function Tabs({ items, current, onChange, label, children, link, classNam
   children?: ReactNode;
   // Next.js's <Link> as it is, or any component taking these props — a
   // client reference a server component may pass (0.2.2: LinkComponent).
-  link?: LinkComponent | TabLink;
+  // (One function type, so an inline `props => <Link {...props} />` is
+  // typed from it; a LinkComponent fits it too.)
+  link?: TabLink;
   className?: string;
 }): ReactElement {
   const base = useId();

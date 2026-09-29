@@ -137,6 +137,35 @@ export function completeScheme(source: SchemeSource, mode: "light" | "dark", pal
   return s as Scheme;
 }
 
+// What 0.2.2 added to five of the store's identities: a band of their own
+// colour (--inverse: Equipment's steel bar, Timesheets' instrument panel,
+// Goals' dark map margin, from their tokens.css before the kit) and a face
+// for long text (--font-read: Wiki's Newsreader, Quotes' Libre Caslon
+// Text). Each tool keeps its identity as a copy of the catalogue's source
+// and its tests hold the two equal: defineTheme applies these to a source
+// of that id *and* tool, where the source does not say otherwise, so the
+// catalogue and the tools' copies stay one — with no change in the tools.
+type Addition = { readonly tool: string; readonly read?: string; readonly light?: Partial<SchemeSource>; readonly dark?: Partial<SchemeSource> };
+export const identityAdditions: Readonly<Record<string, Addition>> = {
+  labels: {
+    tool: "equipment",
+    light: { inverse: "#2e3d48", "inverse-ink": "#ffffff", "inverse-ink-2": "#c9d3db", "inverse-line": "#43535f" },
+    dark: { inverse: "#222b32", "inverse-ink": "#ffffff", "inverse-ink-2": "#b7c3cc", "inverse-line": "#36424c" },
+  },
+  instrument: {
+    tool: "timesheets",
+    light: { inverse: "#0c231b", "inverse-ink": "#e9f3ed", "inverse-ink-2": "#a9c2b6", "inverse-line": "#2a5646" },
+    dark: { inverse: "#050d0a", "inverse-ink": "#e9f3ed", "inverse-ink-2": "#a9c2b6", "inverse-line": "#1f4032" },
+  },
+  trail: {
+    tool: "goals",
+    light: { inverse: "#17302a", "inverse-ink": "#f3eee2", "inverse-ink-2": "#c5d0c8", "inverse-line": "#2a463e" },
+    dark: { inverse: "#0b1210", "inverse-ink": "#efe8d8", "inverse-ink-2": "#a7b3ac", "inverse-line": "#1a2724" },
+  },
+  library: { tool: "wiki", read: "newsreader" },
+  letterpress: { tool: "quotes", read: "libre-caslon-text" },
+};
+
 const fontOf = (value: string | FontSpec | undefined, fallback: FontSpec): FontSpec => (value === undefined ? fallback : typeof value === "string" ? font(value) : value);
 
 // defineTheme completes a source into a theme, and refuses one that is not
@@ -145,10 +174,11 @@ const fontOf = (value: string | FontSpec | undefined, fallback: FontSpec): FontS
 export function defineTheme(source: ThemeSource): Theme {
   const body = fontOf(source.fonts.body, systemFont("sans"));
   const display = fontOf(source.fonts.display, body);
-  const read = fontOf(source.fonts.read, body);
+  const added = source.tool !== undefined && identityAdditions[source.id]?.tool === source.tool ? identityAdditions[source.id] : undefined;
+  const read = fontOf(source.fonts.read ?? added?.read, body);
   const modes = source.modes ?? "both";
   if ((modes === "both") !== (source.dark !== undefined)) throw new RangeError(`theme ${source.id}: a dark scheme exactly when modes is "both"`);
-  const light = completeScheme(source.light, "light", source.palette);
+  const light = completeScheme({ ...added?.light, ...source.light }, "light", source.palette);
   const theme: Theme = {
     id: source.id,
     name: source.name,
@@ -166,7 +196,7 @@ export function defineTheme(source: ThemeSource): Theme {
     ...(source.fieldPad !== undefined ? { fieldPad: source.fieldPad } : {}),
     motion: { ...defaultMotion, ...source.motion },
     light,
-    dark: source.dark ? completeScheme(source.dark, "dark", source.palette) : light,
+    dark: source.dark ? completeScheme({ ...added?.dark, ...source.dark }, "dark", source.palette) : light,
   };
   const problems = validateTheme(theme);
   if (problems.length > 0) throw new RangeError(`theme ${source.id}: ${problems.join("; ")}`);
