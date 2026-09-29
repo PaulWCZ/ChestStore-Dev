@@ -24,7 +24,7 @@
 // postgres://postgres:postgres@127.0.0.1:5432/postgres).
 import { spawn, execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { createServer, request as httpRequest } from "node:http";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -166,6 +166,27 @@ const env = {
   ...(databaseUrl ? { DATABASE_URL: databaseUrl } : {}),
 };
 delete env["DEV_DATABASE_URL"];
+// --prod serves the last `npm run build`: say so loudly when the sources are
+// newer, so a flow or a screenshot never checks yesterday's code by mistake.
+if (flag("prod")) {
+  const built = join(tool, ".next", "BUILD_ID");
+  if (!existsSync(built)) {
+    console.error("✗ no build: run `npm run build` in the tool first (--prod serves the last build)");
+    process.exit(1);
+  }
+  const at = statSync(built).mtimeMs;
+  const newer = [];
+  const walk = dir => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      if (["node_modules", ".next", "docs", "test", "seed"].includes(entry.name) || entry.name.startsWith(".")) continue;
+      const path = join(dir, entry.name);
+      if (entry.isDirectory()) walk(path);
+      else if (/\.(tsx?|css|json|mjs|sql)$/u.test(entry.name) && statSync(path).mtimeMs > at) newer.push(path.slice(tool.length + 1));
+    }
+  };
+  walk(tool);
+  if (newer.length) console.warn(`! the build is older than ${newer.length} source file(s) (e.g. ${newer.slice(0, 3).join(", ")}): run \`npm run build\` again`);
+}
 const child = spawn("npm", flag("prod") ? ["start"] : ["run", "dev"], { cwd: tool, env, stdio: ["ignore", "inherit", "inherit"] });
 child.on("exit", code => {
   console.log(`the tool stopped (${code})`);
