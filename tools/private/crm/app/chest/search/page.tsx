@@ -1,5 +1,6 @@
+import { EmptyState, SearchBox } from "@argentic/chest-ui/components";
 import Link from "next/link";
-import { Building, Person, Pipeline, Search as SearchIcon } from "../../../components/icons.tsx";
+import { Building, Person, Pipeline } from "../../../components/icons.tsx";
 import { db } from "../../../lib/db.ts";
 import { format, money } from "../../../lib/i18n/index.ts";
 import { stageWords } from "../../../lib/page-data.ts";
@@ -21,16 +22,14 @@ export default async function SearchPage({ searchParams }: { searchParams: Searc
   const { names } = await stageWords(sql, t);
   const none = found && found.companies.length + found.contacts.length + found.deals.length === 0;
   return (
-    <main className="page narrow">
+    <div className="page narrow">
       <h1>{q ? format(t.search.results, { q }) : t.search.title}</h1>
-      <form className="big-search" action="/chest/search" role="search">
-        <SearchIcon />
-        <label className="visually-hidden" htmlFor="search-q">{t.search.label}</label>
-        <input id="search-q" name="q" type="search" className="field" defaultValue={q} maxLength={100} autoFocus={!q} placeholder={t.shell.searchPlaceholder} />
-        <button type="submit" className="button">{t.search.button}</button>
-      </form>
+      {/* The kit's search box, big; the header's keeps the "/" key. */}
+      <div className="big-search">
+        <SearchBox id="search-q" action="/chest/search" value={q} shortcut={false} autoFocus={!q} maxLength={100} labels={{ ...t.searchBox, label: t.search.label }} />
+      </div>
       {!q && <p className="muted">{t.search.hint}</p>}
-      {none && <p className="empty small">{format(t.search.none, { q })}</p>}
+      {none && <div className="empty-box"><EmptyState title={format(t.search.none, { q })} body={t.search.hint} /></div>}
       {found && found.companies.length > 0 && (
         <section aria-labelledby="found-companies" className="found">
           <h2 id="found-companies" className="label-mono"><Building />{t.search.companies}</h2>
@@ -49,6 +48,6 @@ export default async function SearchPage({ searchParams }: { searchParams: Searc
           <ul className="rows compact">{found.deals.map(d => <li key={d.id}><Link prefetch={false} className="row-link" href={`/chest/deals/${d.id}`}><span className="row-main"><span className="row-title">{d.name}</span><span className="row-sub">{[d.detail, names[d.stageId]].filter(Boolean).join(" · ")}</span></span><span className="num row-figures">{money(d.value, locale)}</span></Link></li>)}</ul>
         </section>
       )}
-    </main>
+    </div>
   );
 }

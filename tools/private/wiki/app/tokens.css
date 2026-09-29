@@ -31,8 +31,8 @@
   --removed-ink: var(--danger-ink);
 
   /* Decoration only (no text, no meaning of its own). */
-  --hover: color-mix(in oklch, var(--ink) 6%, transparent);
-  --veil: color-mix(in oklch, var(--bg) 92%, transparent);
+  --hover: color-mix(in srgb, var(--ink) 6%, transparent);
+  --veil: color-mix(in srgb, var(--bg) 92%, transparent);
 }
 
 @media (max-width: 760px) {

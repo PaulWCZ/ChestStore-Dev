@@ -1,3 +1,4 @@
+import { NoAccess } from "@argentic/chest-ui/components";
 import { AutoRefresh } from "../../../components/auto-refresh.tsx";
 import { can } from "../../../lib/access.ts";
 import { db } from "../../../lib/db.ts";
@@ -16,7 +17,7 @@ export default async function Approve() {
   const v = await viewer();
   if (!v) return null;
   const { member, locale, t } = v;
-  if (!can(member, "approve")) return <main className="page"><div className="empty"><h1>{t.noAccess.title}</h1><p>{t.errors.forbidden}</p></div></main>;
+  if (!can(member, "approve")) return <div className="page"><NoAccess title={t.noAccess.title} body={t.errors.forbidden} /></div>;
   const sql = db();
   const list = await waiting(sql, member);
   const recent = await decided(sql, member);
@@ -38,15 +39,15 @@ export default async function Approve() {
     rows: l.map(e => rowView(e, ctx)),
   }));
   return (
-    <main className="page">
+    <div className="page">
       <AutoRefresh seconds={30} />
       <div className="page-head"><h1>{t.approve.title}</h1></div>
       <ApproveView
         groups={groups}
         recent={recent.map(e => rowView(e, { ...ctx, who: nameOf(who.get(e.owner), locale) }))}
         locale={locale}
-        t={{ approve: t.approve, detail: t.detail, form: t.form, errors: t.errors, companyCard: t.status.companyCard }}
+        t={{ approve: t.approve, detail: t.detail, form: t.form, errors: t.errors, dialog: t.dialog, companyCard: t.status.companyCard }}
       />
-    </main>
+    </div>
   );
 }

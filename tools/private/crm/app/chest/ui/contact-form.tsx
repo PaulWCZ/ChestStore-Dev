@@ -1,10 +1,9 @@
 "use client";
 
+import { Dialog, useToast } from "@argentic/chest-ui/components";
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
-import { Dialog } from "../../../components/dialog.tsx";
+import { useId, useState, useTransition } from "react";
 import { Plus } from "../../../components/icons.tsx";
-import { useToast } from "../../../components/toast.tsx";
 import { format } from "../../../lib/i18n/format.ts";
 import type { FieldDef } from "../../../lib/custom.ts";
 import type { Catalogue } from "../../../lib/i18n/index.ts";
@@ -12,14 +11,16 @@ import { addContact, updateContact } from "../actions.ts";
 import { CompanyPicker } from "./pickers.tsx";
 import { CustomInputs } from "./custom-fields.tsx";
 import { Lookalikes } from "./lookalikes.tsx";
-import { OwnerSelect } from "./owner-select.tsx";
+import { OwnerPicker } from "./owner-select.tsx";
 import type { ContactValues } from "./values.ts";
 import type { Teammate } from "./shared.ts";
 
 
 // Add or edit a person: name, then how to reach them and where they work.
-export function ContactDialog({ open, onClose, initial, fields, team, me, canAssign, canCreate, stay = false, t }: { open: boolean; onClose: () => void; initial: ContactValues; fields: FieldDef[]; team: Teammate[]; me: string; canAssign: boolean; canCreate: boolean; stay?: boolean; t: Catalogue }) {
+export function ContactDialog({ open, onClose, initial, fields, team, me, canAssign, canCreate, stay = false, today, t }: { open: boolean; onClose: () => void; initial: ContactValues; fields: FieldDef[]; team: Teammate[]; me: string; canAssign: boolean; canCreate: boolean; stay?: boolean; today: string; t: Catalogue }) {
   const [v, setV] = useState(initial);
+  const formId = useId();
+  const dirty = JSON.stringify(v) !== JSON.stringify(initial);
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
   const router = useRouter();
@@ -40,8 +41,12 @@ export function ContactDialog({ open, onClose, initial, fields, team, me, canAss
     });
   }
   return (
-    <Dialog open={open} title={editing ? t.contact.edit : t.contact.newTitle} closeLabel={t.common.close} onClose={onClose}>
-      <form className="form" onSubmit={e => { e.preventDefault(); submit(); }}>
+    <Dialog open={open} title={editing ? t.contact.edit : t.contact.newTitle} onClose={onClose} dirty={dirty} labels={t.dialog}
+      footer={<>
+        <button type="button" className="button quiet" onClick={onClose}>{t.common.cancel}</button>
+        <button type="submit" form={formId} className="button" disabled={pending}>{pending ? t.common.saving : editing ? t.common.save : t.contact.create}</button>
+      </>}>
+      <form id={formId} className="form" onSubmit={e => { e.preventDefault(); submit(); }}>
         <div className="field-block">
           <label className="label" htmlFor="ct-name">{t.contact.name}</label>
           <input id="ct-name" className="field" value={v.name} onChange={set("name")} maxLength={160} required autoFocus placeholder={t.contact.namePlaceholder} autoComplete="off" />
@@ -74,33 +79,26 @@ export function ContactDialog({ open, onClose, initial, fields, team, me, canAss
             <label className="label" htmlFor="ct-title">{t.contact.title}</label>
             <input id="ct-title" className="field" value={v.title} onChange={set("title")} maxLength={120} placeholder={t.contact.titlePlaceholder} />
           </div>
-          <div className="field-block">
-            <label className="label" htmlFor="ct-owner">{t.common.owner}</label>
-            <OwnerSelect id="ct-owner" value={v.owner} team={team} me={me} canAssign={canAssign} onChange={owner => setV(x => ({ ...x, owner }))} t={t} />
-          </div>
+          <OwnerPicker id="ct-owner" label={t.common.owner} value={v.owner} team={team} me={me} canAssign={canAssign} onChange={owner => setV(x => ({ ...x, owner }))} t={t} />
           <div className="field-block">
             <label className="label" htmlFor="ct-tags">{t.common.tags} <span className="hint">{t.common.tagsHint}</span></label>
             <input id="ct-tags" className="field" value={v.tags} onChange={set("tags")} maxLength={400} />
           </div>
         </div>
-        <CustomInputs fields={fields} values={v.custom} onChange={custom => setV(x => ({ ...x, custom }))} prefix="ct" t={t} />
+        <CustomInputs fields={fields} values={v.custom} onChange={custom => setV(x => ({ ...x, custom }))} prefix="ct" today={today} t={t} />
         <div className="field-block">
           <label className="label" htmlFor="ct-notes">{t.common.notes}</label>
           <textarea id="ct-notes" className="field" rows={3} value={v.notes} onChange={set("notes")} maxLength={5000} aria-describedby="ct-notes-hint" />
           <span className="hint" id="ct-notes-hint">{t.common.notesHint}</span>
         </div>
         {error && <p className="error" role="alert">{error}</p>}
-        <div className="form-actions">
-          <button type="submit" className="button" disabled={pending}>{pending ? t.common.saving : editing ? t.common.save : t.contact.create}</button>
-          <button type="button" className="button quiet" onClick={onClose}>{t.common.cancel}</button>
-        </div>
       </form>
     </Dialog>
   );
 }
 
 // A button that opens the dialog.
-export function NewContactButton({ label, className = "button", initial, ...rest }: { label: string; className?: string; initial: ContactValues; fields: FieldDef[]; stay?: boolean; team: Teammate[]; me: string; canAssign: boolean; canCreate: boolean; t: Catalogue }) {
+export function NewContactButton({ label, className = "button", initial, ...rest }: { label: string; className?: string; initial: ContactValues; fields: FieldDef[]; stay?: boolean; team: Teammate[]; me: string; canAssign: boolean; canCreate: boolean; today: string; t: Catalogue }) {
   const [open, setOpen] = useState(false);
   return (
     <>

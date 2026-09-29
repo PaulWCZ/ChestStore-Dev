@@ -21,11 +21,10 @@ import {
 } from "@dnd-kit/core";
 import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import { Avatar, useToast } from "@argentic/chest-ui/components";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, useTransition, type KeyboardEvent } from "react";
-import { Avatar } from "../../../components/avatar.tsx";
 import { Lost, Trophy } from "../../../components/icons.tsx";
-import { useToast } from "../../../components/toast.tsx";
 import type { Deal } from "../../../lib/deals.ts";
 import { format, money, plural } from "../../../lib/i18n/format.ts";
 import type { Catalogue, Locale } from "../../../lib/i18n/index.ts";
@@ -141,7 +140,7 @@ export function DealBoard({ stages, deals, people, me, today, closedDays, locale
       const r = await moveDeal(id, stage.id, after, before, reason);
       if (!r.ok) {
         reset();
-        return toast(format(t.errors[r.error], r.values));
+        return void toast({ text: format(t.errors[r.error], r.values), tone: "error" });
       }
       if (stage.kind === "won") toast(t.deal.wonToast);
       else if (stage.kind === "lost") toast(t.deal.lostToast);
@@ -261,7 +260,7 @@ function DealTile({ deal, people, me, today, overlay = false, t, locale }: { dea
         <span className="num deal-value">{money(deal.value, locale)}</span>
         {deal.closeLabel && <span className="num muted">{deal.closeLabel}</span>}
         {deal.closedAt === null && <span className={`dot ${state}`} title={stateLabel}><span className="visually-hidden">{stateLabel}</span></span>}
-        <span className="push">{owner ? <Avatar name={owner.name} photo={owner.photo} size={22} title={owner.name} /> : <span className="avatar empty-avatar" title={t.common.unassigned} aria-label={t.common.unassigned} role="img">?</span>}</span>
+        <span className="push">{owner ? <Avatar name={owner.name} photo={owner.photo} size="s" label={owner.name} /> : <Avatar name="?" size="s" className="avatar-none" label={t.common.unassigned} />}</span>
       </span>
     </div>
   );

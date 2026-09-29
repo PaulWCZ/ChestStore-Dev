@@ -1,9 +1,10 @@
 "use client";
 
+import { DateField, PeoplePicker, Tabs, TimeSelect, useToast } from "@argentic/chest-ui/components";
+import { localSearch, type DateWords, type PeoplePickerWords } from "@argentic/chest-ui/components/logic";
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Clip, Clock, Cross, Globe, Group, Person, Picture, Play, Plus, kindIcons } from "../../components/icons.tsx";
-import { useToast } from "../../components/toast.tsx";
 import type { ErrorCode } from "../../lib/app-error.ts";
 import { format, plural } from "../../lib/i18n/format.ts";
 import type { Catalogue } from "../../lib/i18n/index.ts";
@@ -15,8 +16,9 @@ import { TextEditor } from "./text-editor.tsx";
 // two), what the kind needs (days and a place, a colleague), who it is for,
 // pictures and files, then one button that says what will happen —
 // "Publish", "Publish for 6 people", "Publish and tell 6 people by bell and
-// email". A new Important post can be taken back for 10 seconds ("Undo")
-// before anything is sent. A new post's draft is kept in this browser until
+// email". A new Important post can be taken back for 10 seconds (the kit
+// toast's Undo) before anything is sent; once it has gone out, the same
+// toast says "Sent." and offers no Undo. A new post's draft is kept in this browser until
 // it is published: a closed tab loses nothing.
 type FileInfo = { id: string; fileName: string; type: string; size: number };
 export type ComposerDraft = {
@@ -28,12 +30,14 @@ export type ComposerDraft = {
   // The groups and the people it is kept to; none: everyone.
   groups: string[]; people: string[];
 };
-type Words = { composer: Catalogue["composer"]; kinds: Catalogue["kinds"]; errors: Catalogue["errors"] };
+type Words = { composer: Catalogue["composer"]; kinds: Catalogue["kinds"]; errors: Catalogue["errors"]; toast: Catalogue["toast"]; date: DateWords; peoplePicker: PeoplePickerWords };
 type Someone = { id: string; name: string; groups: string[] };
 
 const draftKey = "news.draft";
-const hours = Array.from({ length: 24 * 4 }, (_, i) => `${String(Math.floor(i / 4)).padStart(2, "0")}:${String((i % 4) * 15).padStart(2, "0")}`);
-const fold = (s: string) => s.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
+// Times are kept as "09:30" in the draft; the kit's TimeSelect speaks in
+// minutes since midnight (24-hour steps of 15 minutes, never AM/PM).
+const minutes = (hhmm: string): number | null => (/^\d{2}:\d{2}$/u.test(hhmm) ? Number(hhmm.slice(0, 2)) * 60 + Number(hhmm.slice(3)) : null);
+const hhmm = (m: number | null): string => (m === null ? "" : `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`);
 
 // people: everyone who has News (the welcome, the audience, the count);
 // groups: the Chest's groups; author: who wrote it (never counted); mail:
@@ -58,6 +62,7 @@ export function Composer({ postId, initial, author, people, groups, languages, m
   const title = useRef<HTMLInputElement>(null);
   const editable = postId === null || initial.scheduled;
   const say = (code: ErrorCode, values: Record<string, number | string> = {}) => format(t.errors[code], values);
+  const failed = (code: ErrorCode, values: Record<string, number | string> = {}) => ({ text: say(code, values), tone: "error" as const });
   const update = (patch: Partial<ComposerDraft>) => setD(current => ({ ...current, ...patch }));
   const nameOf = (code: string) => languages.find(l => l.code === code)?.name ?? code;
   const said = (code: string) => languages.find(l => l.code === code)?.said ?? code;
@@ -114,24 +119,24 @@ export function Composer({ postId, initial, author, people, groups, languages, m
     const picture = (coverTypes as readonly string[]).includes(file.type);
     const video = (videoTypes as readonly string[]).includes(file.type);
     const max = role === "attachment" || video ? limits.attachmentSize : limits.coverSize;
-    if (file.size > max) { toast(say("file_too_large")); return null; }
-    if ((role === "cover" || role === "inline") && !picture) { toast(say("not_image")); return null; }
-    if (role === "image" && !picture && !video) { toast(say("not_image")); return null; }
+    if (file.size > max) { toast(failed("file_too_large")); return null; }
+    if ((role === "cover" || role === "inline") && !picture) { toast(failed("not_image")); return null; }
+    if (role === "image" && !picture && !video) { toast(failed("not_image")); return null; }
     setSending(file.name);
     try {
       const type = file.type || "application/octet-stream";
       const grant = await fetch("/chest/api/uploads", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ role, size: file.size, type }) });
       const up = await grant.json() as { url?: string; error?: ErrorCode };
-      if (!grant.ok || !up.url) { toast(say(up.error ?? "unknown")); return null; }
+      if (!grant.ok || !up.url) { toast(failed(up.error ?? "unknown")); return null; }
       const put = await fetch(up.url, { method: "PUT", body: file, headers: { "Content-Type": type } });
-      if (!put.ok) { toast(say(put.status === 413 ? "file_too_large" : put.status === 415 ? "not_image" : "file_missing")); return null; }
+      if (!put.ok) { toast(failed(put.status === 413 ? "file_too_large" : put.status === 415 ? "not_image" : "file_missing")); return null; }
       const { name } = await put.json() as { name: string };
       const confirm = await fetch("/chest/api/uploads", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name, fileName: file.name, role }) });
       const saved = await confirm.json() as FileInfo & { error?: ErrorCode };
-      if (!confirm.ok) { toast(say(saved.error ?? "file_missing")); return null; }
+      if (!confirm.ok) { toast(failed(saved.error ?? "file_missing")); return null; }
       return saved;
     } catch {
-      toast(say("unavailable"));
+      toast(failed("unavailable"));
       return null;
     } finally {
       setSending(null);
@@ -194,31 +199,43 @@ export function Composer({ postId, initial, author, people, groups, languages, m
     }
     const { id, undoUntil } = result.value;
     if (undoUntil) {
-      // Nothing has left yet: "Undo" brings the post back here, files and all.
+      // Nothing has left yet: Undo brings the post back here, files and
+      // all. The toast (in the members' layout) outlives this page: it
+      // follows the author to the article.
       try { localStorage.setItem(draftKey, JSON.stringify({ d, later: false, files: true })); } catch { /* no draft */ }
       const ms = Math.max(1000, new Date(undoUntil).getTime() - Date.now());
-      toast(plural(w.sendingToast, reach, locale), {
-        label: w.undo,
-        run: async () => {
+      const toastId = `send-${id}`;
+      let undone = false;
+      toast({
+        id: toastId,
+        text: plural(w.sendingToast, reach, locale),
+        duration: ms,
+        undo: async () => {
+          undone = true;
           const back = await recallPost(id);
-          if (!back.ok) return toast(say(back.error));
-          toast(w.recalled);
+          // Too late (it went out meanwhile): the toast says so.
+          if (!back.ok) { undone = false; return say(back.error); }
           router.push("/chest/new");
-        },
-      }, {
-        ms,
-        onExpire: async () => {
-          forget();
-          await release();
-          toast(w.sent);
-          router.refresh();
+          return true;
         },
       });
+      // Once the Undo seconds are over, it goes out: the same toast then
+      // says it was sent, and offers no Undo (the kit's "sent" state) —
+      // even if it was held open meanwhile.
+      setTimeout(() => {
+        if (undone) return;
+        forget();
+        void release().then(() => {
+          if (undone) return;
+          toast({ id: toastId, text: w.sent, sent: true });
+          router.refresh();
+        });
+      }, ms + 300);
       router.push(`/chest/posts/${id}`);
       return;
     }
     forget();
-    toast(postId !== null ? w.saved : result.value.published ? w.published : w.scheduledToast);
+    toast({ id: `save-${id}`, text: postId !== null ? w.saved : result.value.published ? w.published : w.scheduledToast });
     router.push(`/chest/posts/${id}`);
   }
 
@@ -232,8 +249,50 @@ export function Composer({ postId, initial, author, people, groups, languages, m
     : w.publish;
 
   const kindName = (k: Kind) => t.kinds[k];
+  // Colleagues found by name (the kit's search rule: accents and case
+  // aside, the start of any word of the name).
+  const colleagues = useMemo(() => people.filter(p => p.id !== author).map(p => ({ kind: "member" as const, id: p.id, name: p.name })), [people, author]);
+  const findColleague = useMemo(() => localSearch(colleagues), [colleagues]);
+  const findAnyone = useMemo(() => localSearch(people.map(p => ({ kind: "member" as const, id: p.id, name: p.name }))), [people]);
+  const byId = new Map(people.map(p => [p.id, p]));
+  const chosenPeople = d.people.map(id => ({ kind: "member" as const, id, name: byId.get(id)?.name ?? "…" }));
+  const welcomed = d.welcome ? [{ kind: "member" as const, id: d.welcome, name: byId.get(d.welcome)?.name ?? "…" }] : [];
   const eventDraft = d.event ?? { day: defaults.day, lastDay: "", start: "", end: "", place: "", seats: "" };
   const setEvent = (patch: Partial<typeof eventDraft>) => update({ event: { ...eventDraft, ...patch } });
+  // The headline and the text of the language shown.
+  const textPanel = (
+            <div id="text-panel" className="text-panel">
+              {tab !== d.locale && <p className="hint">{format(w.versionHint, { language: said(tab) })}</p>}
+              <div className="field-group">
+                <label htmlFor="title">{w.title}</label>
+                <input
+                  id="title"
+                  ref={title}
+                  className="field headline-field"
+                  value={shown.title}
+                  maxLength={limits.title}
+                  placeholder={w.titlePlaceholder}
+                  lang={tab}
+                  aria-invalid={error?.field === "title" ? true : undefined}
+                  aria-describedby={error?.field === "title" ? "form-error" : undefined}
+                  onChange={e => write({ title: e.target.value })}
+                />
+              </div>
+
+              <div className="field-group">
+                <span className="label" id="body-label">{w.body}</span>
+                <TextEditor
+                  key={editorKey + ":" + tab}
+                  id="body"
+                  value={shown.body}
+                  onChange={body => write({ body })}
+                  onPicture={async f => { const saved = await upload(f, "inline"); return saved ? { id: saved.id, name: saved.fileName } : null; }}
+                  placeholder={w.bodyPlaceholder}
+                  t={w}
+                />
+              </div>
+            </div>
+  );
   return (
     <form className="composer" data-ready={ready ? "" : undefined} onSubmit={e => { e.preventDefault(); void save(); }} onKeyDown={e => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); void save(); } }} noValidate>
       <div className="composer-head">
@@ -260,13 +319,7 @@ export function Composer({ postId, initial, author, people, groups, languages, m
           </fieldset>
 
           <div className="languages-bar">
-            {d.versions.length > 0 ? (
-              <div className="tabs" role="tablist" aria-label={w.language}>
-                {[d.locale, ...d.versions.map(v => v.locale)].map(code => (
-                  <button key={code} type="button" role="tab" id={`tab-${code}`} aria-selected={tab === code} aria-controls="text-panel" onClick={() => setTab(code)}><Globe />{nameOf(code)}</button>
-                ))}
-              </div>
-            ) : (
+            {d.versions.length === 0 && (
               <label className="language-pick"><Globe /><span>{w.writtenIn}</span>
                 <select className="field" value={d.locale} onChange={e => { update({ locale: e.target.value }); setTab(e.target.value); }}>
                   {languages.map(l => <option key={l.code} value={l.code}>{l.name}</option>)}
@@ -281,58 +334,27 @@ export function Composer({ postId, initial, author, people, groups, languages, m
             )}
           </div>
 
-          <div id="text-panel" className="text-panel" {...(d.versions.length > 0 ? { role: "tabpanel", "aria-labelledby": `tab-${tab}` } : {})}>
-            {tab !== d.locale && <p className="hint">{format(w.versionHint, { language: said(tab) })}</p>}
-            <div className="field-group">
-              <label htmlFor="title">{w.title}</label>
-              <input
-                id="title"
-                ref={title}
-                className="field headline-field"
-                value={shown.title}
-                maxLength={limits.title}
-                placeholder={w.titlePlaceholder}
-                lang={tab}
-                aria-invalid={error?.field === "title" ? true : undefined}
-                aria-describedby={error?.field === "title" ? "form-error" : undefined}
-                onChange={e => write({ title: e.target.value })}
-              />
-            </div>
-
-            <div className="field-group">
-              <span className="label" id="body-label">{w.body}</span>
-              <TextEditor
-                key={editorKey + ":" + tab}
-                id="body"
-                value={shown.body}
-                onChange={body => write({ body })}
-                onPicture={async f => { const saved = await upload(f, "inline"); return saved ? { id: saved.id, name: saved.fileName } : null; }}
-                placeholder={w.bodyPlaceholder}
-                t={w}
-              />
-            </div>
-          </div>
+          {/* The text in each language: the kit's tabs (arrow keys move) once
+              there is a second version. */}
+          {d.versions.length > 0 ? (
+            <Tabs items={[d.locale, ...d.versions.map(v => v.locale)].map(code => ({ id: code, label: nameOf(code) }))} current={tab} onChange={setTab} label={w.language}>
+              {textPanel}
+            </Tabs>
+          ) : textPanel}
 
           {d.kind === "welcome" && (
             <div className="field-group">
-              <label htmlFor="welcome">{w.welcome}</label>
-              <select id="welcome" className="field" value={d.welcome ?? ""} onChange={e => update({ welcome: e.target.value || null })} aria-describedby="welcome-hint">
-                <option value="">{w.welcomePick}</option>
-                {people.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-              </select>
-              <p id="welcome-hint" className="hint">{w.welcomeHint}</p>
+              <PeoplePicker id="welcome" label={w.welcome} hint={w.welcomeHint} search={findAnyone} value={welcomed} onChange={list => update({ welcome: list[0]?.id ?? null })} labels={{ ...t.peoplePicker, placeholder: w.welcomePick }} lang={locale} />
             </div>
           )}
 
           {d.kind === "event" && (
             <div className="event-fields">
               <div className="field-group">
-                <label htmlFor="event-day">{w.eventDay}</label>
-                <input id="event-day" type="date" className="field" value={eventDraft.day} onChange={e => setEvent({ day: e.target.value })} />
+                <DateField id="event-day" label={w.eventDay} value={eventDraft.day || null} onChange={day => setEvent({ day: day ?? "", ...(day && eventDraft.lastDay && eventDraft.lastDay < day ? { lastDay: "" } : {}) })} today={defaults.today} labels={t.date} />
               </div>
               <div className="field-group">
-                <label htmlFor="event-last">{w.eventLastDay}</label>
-                <input id="event-last" type="date" className="field" value={eventDraft.lastDay} min={eventDraft.day} onChange={e => setEvent({ lastDay: e.target.value })} aria-describedby="last-hint" />
+                <DateField id="event-last" label={w.eventLastDay} hint={w.lastDayHint} value={eventDraft.lastDay || null} min={eventDraft.day || null} chips={false} onChange={day => setEvent({ lastDay: day ?? "" })} today={defaults.today} labels={t.date} />
               </div>
               <div className="field-group">
                 <label htmlFor="event-seats">{w.seats}</label>
@@ -340,19 +362,13 @@ export function Composer({ postId, initial, author, people, groups, languages, m
               </div>
               <div className="field-group">
                 <label htmlFor="event-start">{w.eventStart}</label>
-                <select id="event-start" className="field" value={eventDraft.start} onChange={e => setEvent({ start: e.target.value, ...(e.target.value ? {} : { end: "" }) })} aria-describedby="time-hint">
-                  <option value="">{w.allDay}</option>
-                  {hours.map(h => <option key={h} value={h}>{h}</option>)}
-                </select>
+                <TimeSelect id="event-start" empty={w.allDay} value={minutes(eventDraft.start)} onChange={m => setEvent({ start: hhmm(m), ...(m === null ? { end: "" } : {}) })} describedBy="time-hint" />
               </div>
               <div className="field-group">
                 <label htmlFor="event-end">{w.eventEnd}</label>
-                <select id="event-end" className="field" value={eventDraft.end} disabled={!eventDraft.start} onChange={e => setEvent({ end: e.target.value })}>
-                  <option value="">—</option>
-                  {hours.map(h => <option key={h} value={h}>{h}</option>)}
-                </select>
+                <TimeSelect id="event-end" empty="—" end value={minutes(eventDraft.end)} disabled={!eventDraft.start} onChange={m => setEvent({ end: hhmm(m) })} />
               </div>
-              <p className="hint wide"><span id="time-hint">{w.timeHint}</span> <span id="last-hint">{w.lastDayHint}</span> <span id="seats-hint">{w.seatsHint}</span></p>
+              <p className="hint wide"><span id="time-hint">{w.timeHint}</span> <span id="seats-hint">{w.seatsHint}</span></p>
               <div className="field-group wide">
                 <label htmlFor="event-place">{w.place}</label>
                 <input id="event-place" className="field" value={eventDraft.place} maxLength={limits.place} placeholder={w.placePlaceholder} onChange={e => setEvent({ place: e.target.value })} />
@@ -381,7 +397,9 @@ export function Composer({ postId, initial, author, people, groups, languages, m
                     <span><strong><Group /> {g.name}</strong></span>
                   </label>
                 ))}
-                <PeoplePicker chosen={d.people} people={people.filter(p => p.id !== author)} onChange={list => update({ people: list })} w={w} />
+                <div className="people-picker">
+                  <PeoplePicker id="people-search" label={w.addPeople} multiple search={findColleague} value={chosenPeople} onChange={list => update({ people: list.map(p => p.id) })} labels={t.peoplePicker} lang={locale} />
+                </div>
               </div>
             )}
             <p id="audience-count" className="count" aria-live="polite"><Person />{plural(w.audienceCount, reach, locale)}</p>
@@ -405,8 +423,7 @@ export function Composer({ postId, initial, author, people, groups, languages, m
             </label>
             {d.pinned && (
               <div className="field-group indent">
-                <label htmlFor="pinned-until">{w.pinnedUntil}</label>
-                <input id="pinned-until" type="date" className="field" value={d.pinnedUntil ?? ""} min={defaults.today} onChange={e => update({ pinnedUntil: e.target.value || null })} />
+                <DateField id="pinned-until" label={w.pinnedUntil} value={d.pinnedUntil} min={defaults.today} chips={false} onChange={day => update({ pinnedUntil: day })} today={defaults.today} labels={t.date} />
               </div>
             )}
           </section>
@@ -480,12 +497,11 @@ export function Composer({ postId, initial, author, people, groups, languages, m
         {editable && later && (
           <div className="when-fields" role="group" aria-label={w.when}>
             <Clock />
-            <label className="visually-hidden" htmlFor="later-day">{w.laterDay}</label>
-            <input id="later-day" type="date" className="field" value={d.publishAt?.day ?? defaults.day} min={defaults.today} onChange={e => update({ publishAt: { day: e.target.value, time: d.publishAt?.time ?? defaults.time } })} />
-            <label className="visually-hidden" htmlFor="later-time">{w.laterTime}</label>
-            <select id="later-time" className="field" value={d.publishAt?.time ?? defaults.time} onChange={e => update({ publishAt: { day: d.publishAt?.day ?? defaults.day, time: e.target.value } })}>
-              {hours.map(h => <option key={h} value={h}>{h}</option>)}
-            </select>
+            <DateField id="later-day" label={w.laterDay} value={d.publishAt?.day ?? defaults.day} min={defaults.today} onChange={day => update({ publishAt: { day: day ?? defaults.day, time: d.publishAt?.time ?? defaults.time } })} today={defaults.today} labels={t.date} />
+            <div className="field-group">
+              <label htmlFor="later-time">{w.laterTime}</label>
+              <TimeSelect id="later-time" value={minutes(d.publishAt?.time ?? defaults.time) ?? 540} onChange={m => update({ publishAt: { day: d.publishAt?.day ?? defaults.day, time: hhmm(m) } })} />
+            </div>
           </div>
         )}
         <a className="button quiet" href={postId ? `/chest/posts/${postId}` : "/chest"}>{w.cancel}</a>
@@ -502,40 +518,4 @@ export function Composer({ postId, initial, author, people, groups, languages, m
 
 function audienceChanged(initial: ComposerDraft, now: { groups: string[]; people: string[] }): boolean {
   return [...initial.groups].sort().join() !== [...now.groups].sort().join() || [...initial.people].sort().join() !== [...now.people].sort().join();
-}
-
-// People picked by name: type the start of a name, choose; each chosen one
-// is a chip that removes itself.
-function PeoplePicker({ chosen, people, onChange, w }: { chosen: string[]; people: Someone[]; onChange: (list: string[]) => void; w: Catalogue["composer"] }) {
-  const [q, setQ] = useState("");
-  const found = q.trim()
-    ? people.filter(p => !chosen.includes(p.id) && fold(p.name).split(/\s+/u).concat(fold(p.name)).some(part => part.startsWith(fold(q.trim())))).slice(0, 6)
-    : [];
-  const byId = new Map(people.map(p => [p.id, p]));
-  return (
-    <div className="people-picker">
-      {chosen.length > 0 && (
-        <ul className="chips">
-          {chosen.map(id => (
-            <li key={id}>
-              <Person />{byId.get(id)?.name ?? "…"}
-              <button type="button" className="chip-remove" onClick={() => onChange(chosen.filter(x => x !== id))}><Cross /><span className="visually-hidden">{format(w.removePerson, { name: byId.get(id)?.name ?? "" })}</span></button>
-            </li>
-          ))}
-        </ul>
-      )}
-      <label htmlFor="people-search" className="label-small">{w.addPeople}</label>
-      <input id="people-search" type="search" className="field" value={q} onChange={e => setQ(e.target.value)} placeholder={w.peoplePlaceholder} autoComplete="off" aria-describedby="people-found" />
-      <div id="people-found" aria-live="polite">
-        {found.length > 0 && (
-          <ul className="suggestions">
-            {found.map(p => (
-              <li key={p.id}><button type="button" onClick={() => { onChange([...chosen, p.id]); setQ(""); }}><Plus />{p.name}</button></li>
-            ))}
-          </ul>
-        )}
-        {q.trim() && found.length === 0 && <p className="hint">{w.nobodyFound}</p>}
-      </div>
-    </div>
-  );
 }

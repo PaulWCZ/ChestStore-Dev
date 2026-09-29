@@ -42,7 +42,7 @@ export default async function MyExpenses() {
 
   const waitingFor = (id: string | null) => (id ? nameOf(approvers.get(id), locale) : t.people.accountants);
   return (
-    <main className="page">
+    <div className="page">
       <AutoRefresh seconds={30} />
       {can(member, "settings") && !company.setupDone && <SetupBanner t={t.home.setup} errors={t.errors} />}
       <HomeView
@@ -56,7 +56,7 @@ export default async function MyExpenses() {
         limit={list.length >= shown ? format(t.home.limit, { count: shown }) : null}
         t={{ home: t.home, figures: { waiting: t.home.totalWaiting, toPay: t.home.totalToPay, paid: t.home.totalPaid }, errors: t.errors, refused: t.status.refused, companyCard: t.status.companyCard }}
       />
-    </main>
+    </div>
   );
 }
 

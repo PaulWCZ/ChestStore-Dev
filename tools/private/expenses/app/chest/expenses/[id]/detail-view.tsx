@@ -1,16 +1,16 @@
 "use client";
 
+import { useToast } from "@argentic/chest-ui/components";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import { Warnings } from "../../../../components/bits.tsx";
+import { Stamp, Warnings } from "../../../../components/bits.tsx";
 import { Calendar, Car, Check, Close, Download, FileIcon, Pencil, Receipt, Trash } from "../../../../components/icons.tsx";
-import { useToast } from "../../../../components/toast.tsx";
 import type { Catalogue } from "../../../../lib/i18n/index.ts";
 import { format, plural } from "../../../../lib/i18n/format.ts";
 import type { StampKind } from "../../../../lib/rows.ts";
 import { decideExpenses, removeExpense, restoreExpense } from "../../actions.ts";
 
-type Words = Pick<Catalogue, "detail" | "receipt" | "form" | "errors"> & { deleted: string; undo: string; approved: Catalogue["approve"]["approved"]; refused: string };
+type Words = Pick<Catalogue, "detail" | "receipt" | "form" | "errors"> & { deleted: string; approved: Catalogue["approve"]["approved"]; refused: string };
 
 export function DetailView(props: {
   id: string;
@@ -47,7 +47,16 @@ export function DetailView(props: {
     start(async () => {
       const result = await removeExpense(props.id);
       if (!result.ok) return setError(format(t.errors[result.error], result.values ?? {}));
-      toast(t.deleted, { label: t.undo, run: () => void restoreExpense(props.id).then(() => router.refresh()) });
+      // Deleted, with an Undo that says whether it worked.
+      toast({
+        id: `delete-${props.id}`,
+        text: t.deleted,
+        undo: async () => {
+          const back = await restoreExpense(props.id);
+          router.refresh();
+          return back.ok ? true : format(t.errors[back.error], back.values ?? {});
+        },
+      });
       router.push("/chest");
     });
   }
@@ -56,7 +65,8 @@ export function DetailView(props: {
     start(async () => {
       const result = await decideExpenses([props.id], verdict, verdict === "refuse" ? reason : undefined);
       if (!result.ok) return setError(format(t.errors[result.error], result.values ?? {}));
-      toast(verdict === "approve" ? plural(t.approved, 1, props.locale) : format(t.refused, { name: result.value.owner }));
+      // The owner has been told (the bell): no Undo.
+      toast({ id: `decide-${props.id}`, text: verdict === "approve" ? plural(t.approved, 1, props.locale) : format(t.refused, { name: result.value.owner }), sent: true });
       router.push("/chest/approve");
       router.refresh();
     });
@@ -80,17 +90,17 @@ export function DetailView(props: {
         <section className="paper">
           <div className="paper-head">
             <span className="label">{props.owner ?? t.receipt.title}</span>
-            <span className={`stamp big ${props.stamp.kind}`}>{props.stamp.text}</span>
+            <Stamp kind={props.stamp.kind} text={props.stamp.text} big />
           </div>
           <p className="big-amount">{props.amount}</p>
           {props.card && <p className="hint">{props.card}</p>}
           {props.waitingFor && <p className="hint">{props.waitingFor}</p>}
           <hr className="rule" />
           <dl className="facts">
-            {props.facts.map(([k, v]) => <div key={k} style={{ display: "contents" }}><dt>{k}</dt><dd>{v}</dd></div>)}
+            {props.facts.map(([k, v]) => <div key={k}><dt>{k}</dt><dd>{v}</dd></div>)}
           </dl>
-          {props.warnings.length > 0 && <><hr className="rule" /><div className="sub" style={{ display: "flex", flexWrap: "wrap", gap: 6 }}><Warnings list={props.warnings} /></div></>}
-          {props.reason && <p className="notice bad" style={{ marginTop: 12 }}>{props.reason}</p>}
+          {props.warnings.length > 0 && <><hr className="rule" /><div className="detail-warnings"><Warnings list={props.warnings} /></div></>}
+          {props.reason && <p className="notice bad">{props.reason}</p>}
           {props.receipt && (
             <>
               <hr className="rule" />
@@ -123,11 +133,11 @@ export function DetailView(props: {
               <button type="button" className="button danger" onClick={remove} disabled={pending}><Trash />{t.form.delete}</button>
             </div>
           )}
-          {error && <p className="error" role="alert" style={{ marginTop: 8 }}>{error}</p>}
+          {error && <p className="error" role="alert">{error}</p>}
         </section>
 
         <section aria-labelledby="history">
-          <h2 id="history" className="label" style={{ marginBottom: 8 }}>{t.detail.history}</h2>
+          <h2 id="history" className="label history-title">{t.detail.history}</h2>
           <ol className="timeline">
             {props.history.map((h, i) => <li key={i}><time>{h.when}</time><span>{h.text}</span></li>)}
           </ol>

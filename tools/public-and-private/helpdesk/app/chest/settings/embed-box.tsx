@@ -1,8 +1,8 @@
 "use client";
 
+import { useToast } from "@argentic/chest-ui/components";
 import { useState, useTransition } from "react";
 import { Globe } from "../../../components/icons.tsx";
-import { useToast } from "../../../components/toast.tsx";
 import { format, languageNames } from "../../../lib/i18n/format.ts";
 import { locales, type Catalogue } from "../../../lib/i18n/index.ts";
 import { saveSettings } from "../actions.ts";
@@ -30,10 +30,10 @@ export function EmbedBox({ origins, publicAddress, canSettings, t }: { origins: 
         const value = String(new FormData(e.currentTarget).get("origins") ?? "");
         start(async () => {
           const r = await saveSettings({ frameOrigins: value });
-          toast(r.ok ? s.saved : format(t.errors[r.error], r.values ?? {}));
+          toast(r.ok ? { id: "embed", text: s.saved } : { text: format(t.errors[r.error], r.values ?? {}), tone: "error" });
         });
       }}>
-        <fieldset disabled={!canSettings} className="stack" style={{ border: 0, padding: 0, margin: 0 }}>
+        <fieldset disabled={!canSettings} className="stack bare">
           <div>
             <label className="label" htmlFor="origins">{s.frameOrigins}</label>
             <textarea id="origins" name="origins" className="field" rows={2} defaultValue={origins.join("\n")} placeholder={s.originPlaceholder} spellCheck={false} />
@@ -44,7 +44,7 @@ export function EmbedBox({ origins, publicAddress, canSettings, t }: { origins: 
       {origins.length > 0 && (
         <div className="stack">
           <label className="label" htmlFor="embed-lang">{s.embedLanguage}</label>
-          <select id="embed-lang" className="select" style={{ maxWidth: 220 }} value={lang} onChange={e => setLang(e.target.value)}>
+          <select id="embed-lang" className="select medium" value={lang} onChange={e => setLang(e.target.value)}>
             {locales.map(code => <option key={code} value={code}>{languageNames[code]}</option>)}
           </select>
           <label className="label" htmlFor="embed-code">{s.embedCode}</label>

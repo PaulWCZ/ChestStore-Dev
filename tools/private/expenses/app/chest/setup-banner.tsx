@@ -1,9 +1,9 @@
 "use client";
 
+import { useToast } from "@argentic/chest-ui/components";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { Check } from "../../components/icons.tsx";
-import { useToast } from "../../components/toast.tsx";
 import type { Catalogue } from "../../lib/i18n/index.ts";
 import { format } from "../../lib/i18n/format.ts";
 import { updateCompany } from "./actions.ts";
@@ -29,7 +29,7 @@ export function SetupBanner({ t, errors }: { t: Catalogue["home"]["setup"]; erro
         <a className="button" href="/chest/settings/company">{t.open}</a>
         <button type="button" className="button quiet" disabled={pending} onClick={() => start(async () => {
           const result = await updateCompany({ setupDone: true });
-          if (!result.ok) return void toast(format(errors[result.error], result.values ?? {}));
+          if (!result.ok) return void toast({ text: format(errors[result.error], result.values ?? {}), tone: "error" });
           setGone(true);
           toast(t.hidden);
           router.refresh();

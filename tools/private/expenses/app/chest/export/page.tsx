@@ -1,3 +1,4 @@
+import { NoAccess } from "@argentic/chest-ui/components";
 import { can } from "../../../lib/access.ts";
 import { db } from "../../../lib/db.ts";
 import { exportMonths, exportPeople, exportWithoutRate, type ExportBy } from "../../../lib/expenses.ts";
@@ -14,7 +15,7 @@ export default async function Export({ searchParams }: { searchParams: Promise<{
   const v = await viewer();
   if (!v) return null;
   const { member, locale, t } = v;
-  if (!can(member, "export")) return <main className="page"><div className="empty"><h1>{t.noAccess.title}</h1><p>{t.errors.forbidden}</p></div></main>;
+  if (!can(member, "export")) return <div className="page"><NoAccess title={t.noAccess.title} body={t.errors.forbidden} /></div>;
   const sql = db();
   const query = await searchParams;
   const by: ExportBy = query.by === "paid" ? "paid" : "spent";
@@ -34,7 +35,7 @@ export default async function Export({ searchParams }: { searchParams: Promise<{
   const left = range && count > 0 ? await exportWithoutRate(sql, member, range, person || null) : 0;
   const qs = chosen ? `?month=${chosen}${person ? `&person=${person}` : ""}${by === "paid" ? "&by=paid" : ""}` : "";
   return (
-    <main className="page">
+    <div className="page">
       <div className="page-head">
         <div>
           <h1>{t.export.title}</h1>
@@ -54,6 +55,6 @@ export default async function Export({ searchParams }: { searchParams: Promise<{
         journal={chosen && count > 0 ? "/chest/export/journal" + qs : null}
         t={t.export}
       />
-    </main>
+    </div>
   );
 }

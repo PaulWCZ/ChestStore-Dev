@@ -1,13 +1,16 @@
+"use client";
+
+import { Tabs } from "@argentic/chest-ui/components";
 import Link from "next/link";
 import type { Catalogue } from "../../../lib/i18n/index.ts";
 
 // The two parts of the settings (managers): the stages of the pipeline and
-// the team's own fields.
+// the team's own fields — the kit's link tabs (the address keeps the part).
 export function SettingsTabs({ current, t }: { current: "stages" | "fields"; t: Catalogue }) {
   return (
-    <nav className="segmented" aria-label={t.settings.tabs}>
-      <Link prefetch={false} href="/chest/settings" aria-current={current === "stages" ? "page" : undefined}>{t.settings.stagesTab}</Link>
-      <Link prefetch={false} href="/chest/settings/fields" aria-current={current === "fields" ? "page" : undefined}>{t.settings.fieldsTab}</Link>
-    </nav>
+    <Tabs label={t.settings.tabs} current={current} link={Link} items={[
+      { id: "stages", label: t.settings.stagesTab, href: "/chest/settings" },
+      { id: "fields", label: t.settings.fieldsTab, href: "/chest/settings/fields" },
+    ]} />
   );
 }

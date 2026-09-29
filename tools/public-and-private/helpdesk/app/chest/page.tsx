@@ -1,6 +1,7 @@
 import * as chest from "@argentic/chest-sdk/chest";
+import { EmptyState, PageHeader, SearchBox } from "@argentic/chest-ui/components";
 import { headers } from "next/headers";
-import { Inbox, Search } from "../../components/icons.tsx";
+import { Inbox, Plus } from "../../components/icons.tsx";
 import { InboxFilters } from "../../components/inbox-filters.tsx";
 import { can } from "../../lib/access.ts";
 import { answerers } from "../../lib/tell.ts";
@@ -8,7 +9,7 @@ import { db } from "../../lib/db.ts";
 import { workMinutes } from "../../lib/hours.ts";
 import { format, plural, relative } from "../../lib/i18n/index.ts";
 import { supportAddress } from "../../lib/mailer.ts";
-import { isFolder, lateAfter, waitedFor, type Folder } from "../../lib/model.ts";
+import { defaultSort, isFolder, lateAfter, priorities, sorts, waitedFor, type Folder } from "../../lib/model.ts";
 import { nameOf, people } from "../../lib/people.ts";
 import { publicOrigin } from "../../lib/public-origin.ts";
 import { viewer } from "../../lib/session.ts";
@@ -39,56 +40,60 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
   const now = new Date();
   const zone = chest.timeZone();
   const canManage = can(member, "tickets.manage");
+  const canCreate = can(member, "tickets.answer");
   const team = canManage ? await answerers() : [];
   const who = await people([...rows.map(r => r.assignee).filter((a): a is string => !!a), ...team]);
   const total = counts.all + counts.spam;
   const address = total === 0 ? await supportAddress() : null;
-  const current = viewParams(search);
+  // The order shown by default is no choice of the view's.
+  const current = viewParams({ ...search, sort: search.sort === defaultSort ? undefined : search.sort });
   const shown = (await listViews(sql, member)).find(x => viewHref(x.params) === viewHref(current));
   const savable = !shown && Boolean(current.q || current.priority || current.tag || current.sort);
+  const w = t.inbox;
+  const title = q ? t.shell.search : folder === "all" && tagName ? format(w.tagTitle, { tag: tagName }) : w.folders[folder];
   return (
     <>
-      <div className="page-head">
-        <h1>{q ? t.shell.search : folder === "all" && tagName ? format(t.inbox.tagTitle, { tag: tagName }) : t.inbox.folders[folder]}</h1>
-        <form className="search" action="/chest" role="search">
-          <label htmlFor="q" className="visually-hidden">{t.shell.search}</label>
-          <input id="q" name="q" type="search" className="field" defaultValue={q} placeholder={t.shell.search} maxLength={100} />
-          <button className="button quiet small" type="submit"><Search /><span className="visually-hidden">{t.shell.searchButton}</span></button>
-        </form>
-      </div>
+      <PageHeader size="m" title={title} action={canCreate ? <a className="ck-button" href="/chest/new"><Plus />{t.shell.new}</a> : undefined} />
       {total > 0 && (
-        <div className="filters-line">
-          <InboxFilters tags={tagList.map(g => ({ id: g.id, name: g.name }))} t={{ inbox: t.inbox, priority: t.priority }} />
-          {savable && can(member, "tickets.answer") && <SaveView params={current} t={t.inbox} />}
-          {shown && (shown.createdBy === member.id || can(member, "settings")) && <RemoveView id={shown.id} t={t.inbox} />}
+        <div className="inbox-tools">
+          <SearchBox action="/chest" id="q" value={q} maxLength={100} labels={{ label: t.shell.search, placeholder: t.shell.search, shortcut: w.searchShortcut, submit: t.shell.searchButton }} />
+          <div className="filters-line">
+            <InboxFilters
+              params={search}
+              labels={{ label: w.filters, clear: w.showAll, all: w.any }}
+              groups={[
+                { key: "priority", label: w.priorityFilter, all: true, options: [...priorities].reverse().map(p => ({ value: p, label: t.priority[p] })) },
+                ...(tagList.length > 0 ? [{ key: "tag", label: w.tagFilter, all: true, options: tagList.map(g => ({ value: g.id, label: g.name })) }] : []),
+                { key: "sort", label: w.sortBy, required: true, value: defaultSort, options: sorts.map(o => ({ value: o, label: w.sorts[o] })) },
+              ]}
+            />
+            {savable && canCreate && <SaveView params={current} t={{ inbox: w, dialog: t.dialog, errors: t.errors }} />}
+            {shown && (shown.createdBy === member.id || can(member, "settings")) && <RemoveView id={shown.id} t={w} />}
+          </div>
         </div>
       )}
-      {q && <p className="muted" role="status" style={{ marginBottom: "var(--space-3)" }}>{plural(t.inbox.results, rows.length, locale, { q })}</p>}
+      {q && <p className="muted results" role="status">{plural(w.results, rows.length, locale, { q })}</p>}
       {total === 0 && !q ? (
-        <div className="empty">
-          <Inbox />
-          <h2>{t.inbox.firstTitle}</h2>
-          <p>{format(t.inbox.firstBody, { email: address ? format(t.inbox.firstEmail, { email: address }) : "" })}</p>
-          <a className="button" href={origin ?? "/"} target="_blank" rel="noopener">{t.inbox.openForm}</a>
-        </div>
+        <EmptyState icon={<Inbox />} title={w.firstTitle} body={format(w.firstBody, { email: address ? format(w.firstEmail, { email: address }) : "" })}
+          action={<a className="ck-button" href={origin ?? "/"} target="_blank" rel="noopener">{w.openForm}</a>} />
       ) : rows.length === 0 && !q ? (
-        <div className="empty"><p>{filtered ? t.inbox.filtered : t.inbox.empty[folder]}</p></div>
+        <EmptyState title={filtered ? w.filtered : w.empty[folder]} />
       ) : (
         <InboxList
           rows={rows.map(r => {
             const minutes = r.waitingSince ? workMinutes(r.waitingSince, now, s.hours, zone) : 0;
-            const w = waitedFor(minutes);
+            const wt = waitedFor(minutes);
             return {
               number: r.number, subject: r.subject, status: r.status, priority: r.priority, tags: r.tags,
               customer: r.customerName || r.customerEmail, last: r.last, lastKind: r.lastKind,
               assignee: r.assignee ? nameOf(who.get(r.assignee), locale).split(" ")[0]! : null,
               when: r.waitingSince ? null : relative(r.updatedAt, locale, now), updatedAt: r.updatedAt,
-              waiting: r.waitingSince ? { text: plural(t.waiting[w.unit], w.count, locale), late: lateAfter(minutes, s.lateHours), lateText: format(t.waiting.late, { hours: s.lateHours }) } : null,
+              waiting: r.waitingSince ? { text: plural(t.waiting[wt.unit], wt.count, locale), late: lateAfter(minutes, s.lateHours), lateText: format(t.waiting.late, { hours: s.lateHours }) } : null,
             };
           })}
           canManage={canManage}
           team={team.map(id => ({ id, name: nameOf(who.get(id), locale) }))}
-          t={{ inbox: t.inbox, priority: t.priority, errors: t.errors, statuses: t.ticket.statuses }}
+          t={{ inbox: w, priority: t.priority, errors: t.errors, statuses: t.ticket.statuses }}
           locale={locale}
         />
       )}

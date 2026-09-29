@@ -195,7 +195,7 @@ export function excerpt(text: string, max: number): string {
   // nothing else.
   const blocks = parse(text);
   const told = blocks.filter(b => b.t === "p" || b.t === "quote").map(b => plainInline((b as { c: Inline[] }).c)).join(" ");
-  const flat = (told || plain(text)).replace(/\s+/gu, " ").trim();
+  const flat = (told || plain(text)).replace(/[^\S\u00a0\u202f]+/gu, " ").trim();
   const chars = [...flat];
   if (chars.length <= max) return flat;
   const cut = chars.slice(0, max).join("");

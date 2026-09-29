@@ -1,10 +1,11 @@
-import Link from "next/link";
+import { EmptyState } from "@argentic/chest-ui/components";
 import { db } from "../../../lib/db.ts";
 import { format, formatDay, money, plural } from "../../../lib/i18n/index.ts";
 import { today } from "../../../lib/model.ts";
 import { directory } from "../../../lib/people.ts";
 import { teamReport } from "../../../lib/reports.ts";
 import { viewer } from "../../../lib/session.ts";
+import { PipelineTable, ResultsTable } from "./tables.tsx";
 
 // The team's numbers, for the manager's weekly look: each person's open
 // pipeline and the next steps that slip; won and lost, month by month;
@@ -35,53 +36,23 @@ export default async function Team() {
   const maxReason = Math.max(1, ...r.reasons.map(x => x.count));
   const closeName = (m: string) => (m === "late" ? w.closingLate : m === "later" ? w.closingLater : m === "none" ? w.closingNone : month(m));
   return (
-    <main className="page">
+    <div className="page">
       <div className="page-head">
         <div>
           <h1>{w.title}</h1>
           <p className="lede">{w.lede}</p>
         </div>
       </div>
-      {empty ? <div className="empty small"><p>{w.empty}</p></div> : (
+      {empty ? <div className="empty-box"><EmptyState title={w.empty} /></div> : (
         <div className="report">
           <section className="panel" aria-labelledby="r-pipeline">
             <h2 id="r-pipeline" className="label-mono">{w.pipeline}</h2>
-            <div className="table-wrap" tabIndex={0} role="region" aria-labelledby="r-pipeline">
-              <table className="table">
-                <thead>
-                  <tr>
-                    <th scope="col">{w.person}</th>
-                    <th scope="col" className="right">{w.open}</th>
-                    <th scope="col">{w.value}</th>
-                    <th scope="col" className="right hide-phone">{w.weighted}</th>
-                    <th scope="col" className="right">{w.noStep}</th>
-                    <th scope="col" className="right">{w.late}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {r.owners.map(o => (
-                    <tr key={o.owner ?? "none"}>
-                      <th scope="row"><Link prefetch={false} href={`/chest/deals?view=list&owner=${o.owner ?? "none"}`}>{who(o.owner)}</Link></th>
-                      <td className="right num">{o.open}</td>
-                      <td><span className="bar-cell"><span className="bar-track" aria-hidden="true"><span className="bar-fill" style={{ width: `${Math.round((o.value / maxValue) * 100)}%` }} /></span><span className="num">{money(o.value, locale)}</span></span></td>
-                      <td className="right num hide-phone">{money(o.weighted, locale)}</td>
-                      <td className={`right num${o.noStep > 0 ? " warn-text" : ""}`}>{o.noStep}</td>
-                      <td className={`right num${o.late > 0 ? " late-text" : ""}`}>{o.late}</td>
-                    </tr>
-                  ))}
-                </tbody>
-                <tfoot>
-                  <tr>
-                    <th scope="row">{w.total}</th>
-                    <td className="right num">{totals.open}</td>
-                    <td className="num">{money(totals.value, locale)}</td>
-                    <td className="right num hide-phone">{money(totals.weighted, locale)}</td>
-                    <td className="right num">{totals.noStep}</td>
-                    <td className="right num">{totals.late}</td>
-                  </tr>
-                </tfoot>
-              </table>
-            </div>
+            <PipelineTable
+              labels={t.table}
+              words={{ caption: w.pipeline, person: w.person, open: w.open, value: w.value, weighted: w.weighted, noStep: w.noStep, late: w.late, total: w.total }}
+              rows={r.owners.map(o => ({ key: o.owner ?? "none", href: `/chest/deals?view=list&owner=${o.owner ?? "none"}`, name: who(o.owner), open: o.open, value: o.value, valueText: money(o.value, locale), share: Math.round((o.value / maxValue) * 100), weightedText: money(o.weighted, locale), noStep: o.noStep, late: o.late }))}
+              totals={{ open: String(totals.open), value: money(totals.value, locale), weighted: money(totals.weighted, locale), noStep: String(totals.noStep), late: String(totals.late) }}
+            />
           </section>
 
           <section className="panel" aria-labelledby="r-results">
@@ -96,33 +67,24 @@ export default async function Team() {
               ))}
             </ol>
             {people.length > 0 && (
-              <div className="table-wrap" tabIndex={0} role="region" aria-labelledby="r-results">
-                <table className="table compact-table">
-                  <thead>
-                    <tr>
-                      <th scope="col">{w.person}</th>
-                      {r.months.map(m => <th key={m} scope="col" className="right">{month(m)}</th>)}
-                      <th scope="col" className="right">{w.winRate}</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {people.map(p => {
-                      const lines = r.results.filter(x => x.owner === p);
-                      const won = lines.reduce((n, x) => n + x.won, 0), lost = lines.reduce((n, x) => n + x.lost, 0);
-                      return (
-                        <tr key={p ?? "none"}>
-                          <th scope="row">{who(p)}</th>
-                          {r.months.map(m => {
-                            const x = lines.find(l => l.month === m);
-                            return <td key={m} className="right num">{x ? <>{x.won > 0 && <span className="won-text">{money(x.wonValue, locale, { compact: true })} </span>}<span className="muted small-text">{x.won}/{x.won + x.lost}</span></> : <span className="muted">—</span>}</td>;
-                          })}
-                          <td className="right num">{won + lost > 0 ? `${Math.round((won / (won + lost)) * 100)} %` : "—"}</td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
+              <ResultsTable
+                labels={t.table}
+                words={{ caption: w.results, person: w.person, winRate: w.winRate }}
+                months={r.months.map(month)}
+                rows={people.map(p => {
+                  const lines = r.results.filter(x => x.owner === p);
+                  const won = lines.reduce((n, x) => n + x.won, 0), lost = lines.reduce((n, x) => n + x.lost, 0);
+                  return {
+                    key: p ?? "none",
+                    name: who(p),
+                    months: r.months.map(m => {
+                      const x = lines.find(l => l.month === m);
+                      return x ? { won: x.won > 0 ? money(x.wonValue, locale, { compact: true }) : null, count: `${x.won}/${x.won + x.lost}` } : null;
+                    }),
+                    rate: won + lost > 0 ? `${Math.round((won / (won + lost)) * 100)} %` : "—",
+                  };
+                })}
+              />
             )}
           </section>
 
@@ -160,6 +122,6 @@ export default async function Team() {
           </div>
         </div>
       )}
-    </main>
+    </div>
   );
 }

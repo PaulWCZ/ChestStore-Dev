@@ -17,8 +17,10 @@
 | "Read and acknowledged", per-space edit rights, "/" menu, @mentions (ideas) | Confluence (space permissions; read confirmations are Marketplace add-ons), Notion (page sharing "can edit / can view", the "/" menu, "@" mentions) — as described in the studio's critique of this tool | — | ideas only; **no code copied** |
 
 Dependencies installed from npm under their own licences: `next`, `react`,
-`react-dom` (MIT), `postgres` (Unlicense), `@argentic/chest-sdk` (MIT, the
-studio's working copy in `vendor/`). The ZIP reader and writer
+`react-dom` (MIT), `postgres` (Unlicense), `@argentic/chest-sdk` and `@argentic/chest-ui` (MIT, the
+studio's working copies in `vendor/`: the SDK, and the UI kit — themes,
+shared components; the kit writes the `@font-face` rules for the fonts
+above from its registry). The ZIP reader and writer
 (`lib/zip.ts`), the document checker and renderer (`lib/doc.ts`,
 `lib/render.ts`) and the icons (`components/icons.tsx`) are written for
 this tool.

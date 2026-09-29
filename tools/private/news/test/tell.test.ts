@@ -36,7 +36,7 @@ test("an Important post is told to everyone who has News, in their language, onc
     const items = chest.notifications.filter(n => n.key === `post:${p.id}:important`);
     // Not the author, not Léa (she confirmed already), not Tom (no role).
     assert.deepEqual(items.map(n => n.member).sort(), [hugo.id, ines.id, nora.id, sofia.id].sort());
-    assert.equal(items.find(n => n.member === ines.id)!.title, "Important : Office move");
+    assert.equal(items.find(n => n.member === ines.id)!.title, "Important\u202f: Office move");
     assert.equal(items.find(n => n.member === hugo.id)!.title, "Important: Office move");
     assert.equal(items.find(n => n.member === hugo.id)!.body, "We move on 2 November.");
     assert.equal(items[0]!.path, `/chest/posts/${p.id}`);
@@ -81,10 +81,10 @@ test("a welcome tells the new colleague; a comment tells the author; a reminder 
   try {
     const w = await posts.createPost(database.sql, pub, { kind: "welcome", title: "Welcome Nora!", welcome: nora.id }, { zone });
     await tell.announce(database.sql);
-    assert.deepEqual(chest.notifications.map(n => [n.member, n.title]), [[nora.id, "Bienvenue ! L’équipe vous salue dans les Actualités"]]);
+    assert.deepEqual(chest.notifications.map(n => [n.member, n.title]), [[nora.id, "Bienvenue\u202f! L’équipe vous salue dans les Actualités"]]);
     const done = await posts.addComment(database.sql, asMember(hugo), w.id, "Welcome!");
     await tell.commented(asMember(hugo), done);
-    assert.deepEqual(chest.notifications.at(-1), { member: camille.id, title: "Hugo Bernard a commenté « Welcome Nora! »", body: "Welcome!", path: `/chest/posts/${w.id}#comments`, key: `post:${w.id}:comments` });
+    assert.deepEqual(chest.notifications.at(-1), { member: camille.id, title: "Hugo Bernard a commenté «\u202fWelcome Nora!\u202f»", body: "Welcome!", path: `/chest/posts/${w.id}#comments`, key: `post:${w.id}:comments` });
     // Her own comment tells nobody.
     const before = chest.notifications.length;
     await tell.commented(pub, { ...done, comment: { ...done.comment, body: "Thanks" } });

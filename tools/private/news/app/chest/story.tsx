@@ -1,4 +1,4 @@
-import { Avatar } from "../../components/avatar.tsx";
+import { Avatar } from "@argentic/chest-ui/components";
 import { Calendar, Clock, Group, Pin, Place, kindIcons } from "../../components/icons.tsx";
 import type { Dates } from "../../lib/dates.ts";
 import { format, plural } from "../../lib/i18n/format.ts";
@@ -51,7 +51,7 @@ export function Story({ post, lead = false, author, welcome, isNew, audience = n
       {picture && <div className="story-picture">{picture}</div>}
       <div className="story-text">
         <Kicker post={post} isNew={isNew} audience={audience} t={t} />
-        {welcome && !post.cover && <p className="welcome-line"><Avatar name={welcome.name} photo={welcome.photo} size={lead ? 72 : 48} /><span>{welcome.name}</span></p>}
+        {welcome && !post.cover && <p className="welcome-line"><Avatar name={welcome.name} photo={welcome.photo} size={lead ? "xl" : "l"}{...(lead ? {} : { className: "avatar-48" })} /><span>{welcome.name}</span></p>}
         <Heading className="headline"><a href={`/chest/posts/${post.id}`} className="stretched">{post.title}</a></Heading>
         <EventLine post={post} d={d} t={t} />
         {post.excerpt && <p className="dek">{post.excerpt}</p>}

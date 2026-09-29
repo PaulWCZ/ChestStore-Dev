@@ -1,4 +1,4 @@
-import { Calendar, Car, Receipt } from "../../../components/icons.tsx";
+import { Tabs } from "@argentic/chest-ui/components";
 import { composeData } from "../../../lib/compose.ts";
 import { composeWords } from "../../../lib/compose-words.ts";
 import { db } from "../../../lib/db.ts";
@@ -16,18 +16,20 @@ export default async function NewExpense({ searchParams }: { searchParams: Promi
   const data = await composeData(db(), member, t, locale);
   const words = composeWords(t);
   return (
-    <main className="page">
+    <div className="page">
       <div className="compose-top page-head">
         <h1>{kind === "trip" ? t.form.newTrip : kind === "allowance" ? t.form.newAllowance : t.form.newTitle}</h1>
-        <nav className="kind-switch" aria-label={t.form.kind}>
-          <a href="/chest/new" aria-current={kind === "receipt" ? "page" : undefined}><Receipt />{t.form.kindReceipt}</a>
-          <a href="/chest/new?trip=1" aria-current={kind === "trip" ? "page" : undefined}><Car />{t.form.kindTrip}</a>
-          {data.allowances.length > 0 && <a href="/chest/new?allowance=1" aria-current={kind === "allowance" ? "page" : undefined}><Calendar />{t.form.kindAllowance}</a>}
-        </nav>
+        <div className="kind-switch">
+          <Tabs label={t.form.kind} current={kind} items={[
+            { id: "receipt", label: t.form.kindReceipt, href: "/chest/new" },
+            { id: "trip", label: t.form.kindTrip, href: "/chest/new?trip=1" },
+            ...(data.allowances.length > 0 ? [{ id: "allowance", label: t.form.kindAllowance, href: "/chest/new?allowance=1" }] : []),
+          ]} />
+        </div>
       </div>
       {kind === "trip" && <TripForm data={data} initial={null} locale={locale} t={words} />}
       {kind === "allowance" && <AllowanceForm data={data} initial={null} locale={locale} t={words} />}
       {kind === "receipt" && <ExpenseForm data={data} initial={null} locale={locale} t={words} />}
-    </main>
+    </div>
   );
 }

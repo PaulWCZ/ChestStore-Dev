@@ -1,21 +1,21 @@
 "use client";
 
+import { Avatar, PeoplePicker, Tabs, useToast } from "@argentic/chest-ui/components";
+import { localSearch, type FileWords, type PeoplePickerWords } from "@argentic/chest-ui/components/logic";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useOptimistic, useRef, useState, useTransition } from "react";
-import { Avatar } from "../../../../components/avatar.tsx";
-import { PriorityChip, Waiting } from "../../../../components/badges.tsx";
+import { Attachments, filesPending, type PickedFile } from "../../../../components/attachments.tsx";
+import { PriorityChip, StateBadge, Waiting } from "../../../../components/badges.tsx";
 import { Body } from "../../../../components/body.tsx";
-import { FilePicker, filesPending, type PickedFile } from "../../../../components/file-picker.tsx";
 import { Alert, Back, Check, Clip, Cross, Download, Eye, Globe, Mail, Note, Quote, Send, Tag } from "../../../../components/icons.tsx";
-import { isTyping } from "../../../../components/keys.tsx";
-import { useToast } from "../../../../components/toast.tsx";
+import { busy } from "../../../../components/keys.tsx";
 import { format } from "../../../../lib/i18n/format.ts";
 import type { Catalogue } from "../../../../lib/i18n/index.ts";
 import { limits, priorities, type Priority, type Status } from "../../../../lib/model.ts";
 import { addTag, assign, fileUpload, merge, note, removeTag, reply, setCustomer, setPriority, setStatus, unmerge } from "../../actions.ts";
 
-type Words = { ticket: Catalogue["ticket"]; errors: Catalogue["errors"]; people: Catalogue["people"]; priority: Catalogue["priority"]; files: Catalogue["files"] };
+type Words = { ticket: Catalogue["ticket"]; errors: Catalogue["errors"]; people: Catalogue["people"]; priority: Catalogue["priority"]; files: FileWords & Catalogue["files"]; peoplePicker: PeoplePickerWords };
 type Tag = { id: string; name: string };
 type View = {
   ticket: { number: number; subject: string; status: Status; channel: "form" | "email" | "team"; customerName: string; customerEmail: string; assignee: string | null; created: string; priority: Priority; tags: Tag[]; waiting: { text: string; late: boolean; lateText: string } | null; bounce: { permanent: boolean; reason: string } | null; rating: "good" | "bad" | null };
@@ -46,13 +46,13 @@ export function TicketView({ ticket, tagNames, messages, others, viewing, team, 
   const [mode, setMode] = useState<"reply" | "note">("reply");
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
-  const [files, setFiles] = useState<PickedFile[]>([]);
+  const [files, setFiles] = useState<readonly PickedFile[]>([]);
   const [priority, showPriority] = useOptimistic(ticket.priority);
   const [tags, showTags] = useOptimistic(ticket.tags);
   const [newTag, setNewTag] = useState("");
   const field = useRef<HTMLTextAreaElement>(null);
   const menu = useRef<HTMLDetailsElement>(null);
-  const fail = (code: keyof Catalogue["errors"], values?: Record<string, string | number>) => toast(format(t.errors[code], values ?? { max: 20000 }));
+  const fail = (code: keyof Catalogue["errors"], values?: Record<string, string | number>) => void toast({ text: format(t.errors[code], values ?? { max: 20000 }), tone: "error" });
   const router = useRouter();
   const [editing, setEditing] = useState(false);
   const [mergeInto, setMergeInto] = useState("");
@@ -60,14 +60,14 @@ export function TicketView({ ticket, tagNames, messages, others, viewing, team, 
   // Keys: r a reply, n a note, e close (the ? sheet lists them).
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (isTyping(e) || !canAnswer) return;
+      if (busy(e) || !canAnswer) return;
       if (e.key === "r" || e.key === "n") {
         e.preventDefault();
         setMode(e.key === "r" ? "reply" : "note");
         field.current?.focus();
       } else if (e.key === "e" && canManage && ticket.status !== "closed" && ticket.status !== "spam") {
         e.preventDefault();
-        act(() => setStatus(ticket.number, "closed"), w.closedToast, () => setStatus(ticket.number, ticket.status));
+        closeIt();
       }
     };
     window.addEventListener("keydown", onKey);
@@ -79,7 +79,16 @@ export function TicketView({ ticket, tagNames, messages, others, viewing, team, 
       const r = await merge(ticket.number, into);
       if (!r.ok) return fail(r.error, r.values);
       const before = r.value.status;
-      toast(format(w.mergedToast, { number: into }), { label: w.undo, run: () => start(async () => { await unmerge(ticket.number, before); router.push(`/chest/tickets/${ticket.number}`); }) });
+      toast({
+        id: `merge-${ticket.number}`,
+        text: format(w.mergedToast, { number: into }),
+        undo: async () => {
+          const back = await unmerge(ticket.number, before);
+          if (!back.ok) return t.errors[back.error];
+          router.push(`/chest/tickets/${ticket.number}`);
+          return true;
+        },
+      });
       router.push(`/chest/tickets/${into}`);
     });
   }
@@ -87,7 +96,7 @@ export function TicketView({ ticket, tagNames, messages, others, viewing, team, 
   function send(close: boolean) {
     const body = text.trim();
     if (!body) return field.current?.focus();
-    if (filesPending(files)) return toast(t.files.wait);
+    if (filesPending(files)) return void toast(t.files.wait);
     const attached = files.filter(f => f.ref).map(f => ({ ref: f.ref!, name: f.name }));
     setSending(true);
     start(async () => {
@@ -96,23 +105,28 @@ export function TicketView({ ticket, tagNames, messages, others, viewing, team, 
       if (!result.ok) return fail(result.error, result.values);
       setText("");
       setFiles([]);
-      if (mode === "note") return toast(w.noteToast);
+      if (mode === "note") return void toast(w.noteToast);
+      // The answer left (by email, or on the customer's page): never an Undo.
       const delivery = (result.value as { delivery?: string } | null)?.delivery;
-      toast(close ? w.closedToast : delivery === "page" ? w.viaPage : w.sentToast);
+      toast({ id: `reply-${ticket.number}`, text: close ? w.sentClosedToast : delivery === "page" ? w.viaPage : w.sentToast, sent: true });
     });
   }
-  const act = (step: () => Promise<{ ok: boolean; error?: keyof Catalogue["errors"] }>, done?: string, undo?: () => Promise<unknown>) =>
+  type Step = () => Promise<{ ok: true } | { ok: false; error: keyof Catalogue["errors"] }>;
+  // An act on the ticket, and — when one is given — a toast whose Undo
+  // says whether it worked.
+  const act = (step: Step, done?: string, undo?: Step) =>
     start(async () => {
       const r = await step();
-      if (!r.ok && r.error) return fail(r.error);
-      if (done) toast(done, undo ? { label: w.undo, run: () => start(async () => { await undo(); }) } : undefined);
+      if (!r.ok) return fail(r.error);
+      if (done) toast({ id: `ticket-${ticket.number}`, text: done, ...(undo ? { undo: async () => { const back = await undo(); return back.ok || t.errors[back.error]; } } : {}) });
     });
+  const closeIt = () => act(() => setStatus(ticket.number, "closed"), w.closedToast, () => setStatus(ticket.number, ticket.status));
   function changePriority(value: Priority) {
     start(async () => {
       showPriority(value);
       const r = await setPriority(ticket.number, value);
       if (!r.ok) return fail(r.error);
-      toast(format(w.priorityToast, { priority: t.priority[value] }));
+      toast({ id: `priority-${ticket.number}`, text: format(w.priorityToast, { priority: t.priority[value] }) });
     });
   }
   function tagIt(name: string) {
@@ -142,7 +156,7 @@ export function TicketView({ ticket, tagNames, messages, others, viewing, team, 
     requestAnimationFrame(() => field.current?.focus());
   }
 
-  const statusChip = <span className={`chip ${ticket.status}`}>{w.statuses[ticket.status]}</span>;
+  const statusChip = <StateBadge status={ticket.status} label={w.statuses[ticket.status]} />;
   return (
     <div className="ticket">
       <div>
@@ -162,7 +176,7 @@ export function TicketView({ ticket, tagNames, messages, others, viewing, team, 
             <li key={m.id} className={`msg ${m.kind === "customer" ? "" : "team"} ${m.kind === "note" ? "note" : ""} ${m.auto ? "auto" : ""}`}>
               <Avatar name={m.who} photo={m.photo} />
               <div className="bubble">
-                <div className="who">{m.who}{m.kind === "note" && <span className="chip spam">{w.noteTag}</span>}{m.auto && <span className="chip" title={w.autoHint}>{w.auto}</span>}<time dateTime={m.date} title={m.date}>{m.when}</time></div>
+                <div className="who">{m.who}{m.kind === "note" && <span className="chip note-chip">{w.noteTag}</span>}{m.auto && <span className="chip" title={w.autoHint}>{w.auto}</span>}<time dateTime={m.date} title={m.date}>{m.when}</time></div>
                 {m.typedBy && <p className="small muted">{m.typedBy}</p>}
                 {m.fromOther && m.who !== m.fromOther && <p className="small muted">{m.fromOther}</p>}
                 <MessageBody text={m.body} html={m.html} email={m.email} t={w} />
@@ -186,32 +200,30 @@ export function TicketView({ ticket, tagNames, messages, others, viewing, team, 
         </ol>
         {canAnswer ? (
           <form className={`composer${mode === "note" ? " is-note" : ""}`} onSubmit={e => { e.preventDefault(); send(false); }}>
-            <div className="tabs" role="tablist">
-              <button type="button" role="tab" aria-selected={mode === "reply"} onClick={() => setMode("reply")}><Send /> {w.reply}</button>
-              <button type="button" role="tab" aria-selected={mode === "note"} onClick={() => setMode("note")}><Note /> {w.note}</button>
-            </div>
-            <label htmlFor="answer" className="visually-hidden">{mode === "reply" ? w.reply : w.note}</label>
-            <textarea id="answer" ref={field} value={text} maxLength={20000} placeholder={mode === "reply" ? w.replyPlaceholder : w.notePlaceholder}
-              onChange={e => setText(e.target.value)}
-              onKeyDown={e => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); send(false); } }} />
-            <div className="attach"><FilePicker items={files} setItems={setFiles} upload={fileUpload} kind="team" locale={locale} t={{ files: t.files, errors: t.errors }} /></div>
-            <div className="actions">
-              {mode === "reply" ? (
-                <>
-                  <button type="submit" className="button" disabled={sending || !text.trim()}><Send />{w.send}</button>
-                  <button type="button" className="button quiet" disabled={sending || !text.trim()} onClick={() => send(true)}><Check />{w.sendClose}</button>
-                </>
-              ) : <button type="submit" className="button" disabled={sending || !text.trim()}><Note />{w.addNote}</button>}
-              <span className="spacer" />
-              <details className="menu" ref={menu}>
-                <summary className="button quiet small"><Quote />{w.saved}</summary>
-                <div className="menu-pop">
-                  {replies.length === 0 ? <p className="hint" style={{ padding: "var(--space-2)" }}>{w.noSaved}</p> : replies.map(r => (
-                    <button key={r.id} type="button" onClick={() => insert(r.filled)}><strong>{r.title}</strong><small>{r.filled}</small></button>
-                  ))}
-                </div>
-              </details>
-            </div>
+            <Tabs label={w.answerAs} current={mode} onChange={id => setMode(id as "reply" | "note")} items={[{ id: "reply", label: w.reply }, { id: "note", label: w.note }]}>
+              <label htmlFor="answer" className="visually-hidden">{mode === "reply" ? w.reply : w.note}</label>
+              <textarea id="answer" ref={field} value={text} maxLength={20000} placeholder={mode === "reply" ? w.replyPlaceholder : w.notePlaceholder}
+                onChange={e => setText(e.target.value)}
+                onKeyDown={e => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); send(false); } }} />
+              <div className="attach"><Attachments files={files} setFiles={setFiles} grant={fileUpload} kind="team" label={w.files} t={{ files: t.files, errors: t.errors }} /></div>
+              <div className="actions">
+                {mode === "reply" ? (
+                  <>
+                    <button type="submit" className="ck-button" disabled={sending || !text.trim()}><Send />{w.send}</button>
+                    <button type="button" className="ck-button ck-button-quiet" disabled={sending || !text.trim()} onClick={() => send(true)}><Check />{w.sendClose}</button>
+                  </>
+                ) : <button type="submit" className="ck-button" disabled={sending || !text.trim()}><Note />{w.addNote}</button>}
+                <span className="spacer" />
+                <details className="menu" ref={menu}>
+                  <summary className="ck-button ck-button-quiet ck-button-small"><Quote />{w.saved}</summary>
+                  <div className="menu-pop">
+                    {replies.length === 0 ? <p className="hint menu-empty">{w.noSaved}</p> : replies.map(r => (
+                      <button key={r.id} type="button" onClick={() => insert(r.filled)}><strong>{r.title}</strong><small>{r.filled}</small></button>
+                    ))}
+                  </div>
+                </details>
+              </div>
+            </Tabs>
           </form>
         ) : <p className="notice">{w.cannotAnswer}</p>}
       </div>
@@ -227,12 +239,12 @@ export function TicketView({ ticket, tagNames, messages, others, viewing, team, 
                 const r = await setCustomer(ticket.number, String(d.get("email") ?? ""), String(d.get("name") ?? ""));
                 if (!r.ok) return fail(r.error, r.values);
                 setEditing(false);
-                toast(w.customerSaved);
+                toast({ id: `customer-${ticket.number}`, text: w.customerSaved });
               });
             }}>
               <div><label className="label small" htmlFor="customer-email">{w.customerEmail}</label><input id="customer-email" name="email" type="email" className="field" defaultValue={ticket.customerEmail} required maxLength={254} /></div>
               <div><label className="label small" htmlFor="customer-name">{w.customerName}</label><input id="customer-name" name="name" className="field" defaultValue={ticket.customerName} maxLength={120} /></div>
-              <div className="row"><button type="submit" className="button small">{w.saveCustomer}</button><button type="button" className="link-button" onClick={() => setEditing(false)}>{w.cancel}</button></div>
+              <div className="row"><button type="submit" className="ck-button ck-button-small">{w.saveCustomer}</button><button type="button" className="link-button" onClick={() => setEditing(false)}>{w.cancel}</button></div>
             </form>
           ) : (
             <>
@@ -243,14 +255,17 @@ export function TicketView({ ticket, tagNames, messages, others, viewing, team, 
           {ticket.rating && <p className="small">{ticket.rating === "good" ? w.ratedGood : w.ratedBad}</p>}
         </div>
         <div className="fact">
-          <label className="label" htmlFor="assignee">{w.assignee}</label>
+          {canManage ? <p className="label" aria-hidden="true">{w.assignee}</p> : <p className="label">{w.assignee}</p>}
           {canManage ? (
-            <div className="row">
-              <select id="assignee" className="select" value={ticket.assignee ?? ""} onChange={e => act(() => assign(ticket.number, e.target.value || null))}>
-                <option value="">{w.nobody}</option>
-                {team.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-              </select>
-              {ticket.assignee !== me && canAnswer && <button type="button" className="link-button" onClick={() => act(() => assign(ticket.number, me))}>{w.takeIt}</button>}
+            <div className="stack tight">
+              <PeoplePicker id="assignee" label={w.assignee} hideLabel value={team.filter(p => p.id === ticket.assignee)} search={localSearch(team)}
+                suggestions={[...team.filter(p => p.id === me), ...team.filter(p => p.id !== me)].slice(0, 8)} suggestionsLabel={w.team}
+                onChange={chosen => act(() => assign(ticket.number, chosen[0]?.id ?? null))} labels={{ ...t.peoplePicker, placeholder: w.nobody }} lang={locale} />
+              <div className="row">
+                {ticket.assignee !== me && canAnswer && <button type="button" className="link-button" onClick={() => act(() => assign(ticket.number, me))}>{w.takeIt}</button>}
+                {/* The kit's single picker cannot be emptied: "nobody" is its own act. */}
+                {ticket.assignee && <button type="button" className="link-button" onClick={() => act(() => assign(ticket.number, null))}>{w.unassign}</button>}
+              </div>
             </div>
           ) : <p>{team.find(p => p.id === ticket.assignee)?.name ?? w.nobody}</p>}
         </div>
@@ -279,7 +294,7 @@ export function TicketView({ ticket, tagNames, messages, others, viewing, team, 
               <label htmlFor="new-tag" className="visually-hidden">{w.tagLabel}</label>
               <input id="new-tag" className="field" list="tag-names" value={newTag} maxLength={limits.tag} placeholder={w.tagPlaceholder} autoComplete="off" onChange={e => setNewTag(e.target.value)} />
               <datalist id="tag-names">{tagNames.filter(n => !tags.some(g => g.name === n)).map(n => <option key={n} value={n} />)}</datalist>
-              <button type="submit" className="button small quiet" disabled={!newTag.trim()}>{w.addTag}</button>
+              <button type="submit" className="ck-button ck-button-quiet ck-button-small" disabled={!newTag.trim()}>{w.addTag}</button>
             </form>
           )}
         </div>
@@ -288,9 +303,9 @@ export function TicketView({ ticket, tagNames, messages, others, viewing, team, 
           <div className="row">
             {statusChip}
             {canManage && (ticket.status === "closed" || ticket.status === "spam"
-              ? <button type="button" className="button small quiet" onClick={() => act(() => setStatus(ticket.number, "open"))}>{ticket.status === "spam" ? w.notSpam : w.reopen}</button>
+              ? <button type="button" className="ck-button ck-button-quiet ck-button-small" onClick={() => act(() => setStatus(ticket.number, "open"))}>{ticket.status === "spam" ? w.notSpam : w.reopen}</button>
               : <>
-                  <button type="button" className="button small quiet" onClick={() => act(() => setStatus(ticket.number, "closed"), w.closedToast, () => setStatus(ticket.number, ticket.status))}><Check />{w.close}</button>
+                  <button type="button" className="ck-button ck-button-quiet ck-button-small" onClick={closeIt}><Check />{w.close}</button>
                   <button type="button" className="link-button danger" onClick={() => act(() => setStatus(ticket.number, "spam"))}>{w.markSpam}</button>
                 </>)}
           </div>
@@ -311,7 +326,7 @@ export function TicketView({ ticket, tagNames, messages, others, viewing, team, 
               <div className="row add-tag">
                 <input id="merge-into" className="field" inputMode="numeric" list="merge-numbers" value={mergeInto} onChange={e => setMergeInto(e.target.value)} maxLength={10} aria-describedby="merge-hint" />
                 <datalist id="merge-numbers">{others.filter(o => o.status !== "spam").map(o => <option key={o.number} value={o.number}>{o.subject}</option>)}</datalist>
-                <button type="submit" className="button small quiet" disabled={!/^#?[1-9][0-9]{0,8}$/u.test(mergeInto.trim())}>{w.mergeButton}</button>
+                <button type="submit" className="ck-button ck-button-quiet ck-button-small" disabled={!/^#?[1-9][0-9]{0,8}$/u.test(mergeInto.trim())}>{w.mergeButton}</button>
               </div>
               <p id="merge-hint" className="hint">{w.mergeHint}</p>
             </form>

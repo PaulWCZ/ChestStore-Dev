@@ -1,8 +1,8 @@
 "use client";
 
+import { DateField, SearchBox } from "@argentic/chest-ui/components";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Search } from "../../../components/icons.tsx";
 import type { FieldDef } from "../../../lib/custom.ts";
 import type { Catalogue } from "../../../lib/i18n/index.ts";
 import type { Teammate } from "./shared.ts";
@@ -27,7 +27,7 @@ export function useListAddress() {
 // The filters of a list of companies or contacts: words, owner, tag, one of
 // the team's own fields (and for contacts, "no contact for 3 years"), and
 // its order.
-export function ListFilters({ label, tags, team, me, stale, sorts, fields, t }: { label: string; tags: string[]; team: Teammate[]; me: string; stale?: boolean; sorts: { value: string; label: string }[]; fields: FieldDef[]; t: Catalogue }) {
+export function ListFilters({ label, tags, team, me, stale, sorts, fields, today, t }: { label: string; tags: string[]; team: Teammate[]; me: string; stale?: boolean; sorts: { value: string; label: string }[]; fields: FieldDef[]; today: string; t: Catalogue }) {
   const { params, set } = useListAddress();
   const [q, setQ] = useState(params.get("q") ?? "");
   useEffect(() => {
@@ -37,11 +37,11 @@ export function ListFilters({ label, tags, team, me, stale, sorts, fields, t }: 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [q]);
   return (
-    <div className="filters" role="search">
+    <div className="filters" role="group" aria-label={t.common.filters}>
+      {/* The kit's search box, filtering this list as one types (the
+          header's box keeps the "/" key). */}
       <span className="filter-search">
-        <Search />
-        <label className="visually-hidden" htmlFor="f-q">{label}</label>
-        <input id="f-q" className="field compact" type="search" value={q} onChange={e => setQ(e.target.value)} placeholder={label} maxLength={100} />
+        <SearchBox id="f-q" action="" value={q} shortcut={false} maxLength={100} placeholder={label} labels={{ ...t.searchBox, label }} onSearch={setQ} />
       </span>
       <label className="visually-hidden" htmlFor="f-owner">{t.common.owner}</label>
       <select id="f-owner" className="field compact" value={params.get("owner") ?? ""} onChange={e => set({ owner: e.target.value })}>
@@ -59,7 +59,7 @@ export function ListFilters({ label, tags, team, me, stale, sorts, fields, t }: 
           </select>
         </>
       )}
-      <FieldFilter fields={fields} t={t} />
+      <FieldFilter fields={fields} today={today} t={t} />
       {stale && (
         <label className="check-label" title={t.contacts.staleHint}>
           <input type="checkbox" checked={params.get("stale") === "1"} onChange={e => set({ stale: e.target.checked ? "1" : "" })} />
@@ -78,7 +78,7 @@ export function ListFilters({ label, tags, team, me, stale, sorts, fields, t }: 
 
 // One of the team's own fields as a filter: a choice among its choices,
 // words of a text, a range of numbers or days (or simply "filled in").
-export function FieldFilter({ fields, t }: { fields: FieldDef[]; t: Catalogue }) {
+export function FieldFilter({ fields, today, t }: { fields: FieldDef[]; today: string; t: Catalogue }) {
   const { params, set } = useListAddress();
   const chosen = fields.find(f => f.id === params.get("cf"));
   const [value, setValue] = useState(params.get("cv") ?? "");
@@ -112,15 +112,23 @@ export function FieldFilter({ fields, t }: { fields: FieldDef[]; t: Catalogue })
           <input id="f-cv" className="field compact" value={value} onChange={e => setValue(e.target.value)} placeholder={w.value} maxLength={100} />
         </>
       )}
-      {(chosen?.kind === "number" || chosen?.kind === "date") && (
+      {chosen?.kind === "number" && (
         <>
-          <label className="visually-hidden" htmlFor="f-cmin">{chosen.kind === "date" ? w.from : w.min}</label>
-          <input id="f-cmin" className="field compact range" type={chosen.kind === "date" ? "date" : "text"} inputMode={chosen.kind === "number" ? "decimal" : undefined}
-            defaultValue={params.get("cmin") ?? ""} placeholder={chosen.kind === "date" ? undefined : w.min} onBlur={e => set({ cmin: e.target.value })} onKeyDown={e => { if (e.key === "Enter") set({ cmin: e.currentTarget.value }); }} />
-          <label className="visually-hidden" htmlFor="f-cmax">{chosen.kind === "date" ? w.to : w.max}</label>
-          <input id="f-cmax" className="field compact range" type={chosen.kind === "date" ? "date" : "text"} inputMode={chosen.kind === "number" ? "decimal" : undefined}
-            defaultValue={params.get("cmax") ?? ""} placeholder={chosen.kind === "date" ? undefined : w.max} onBlur={e => set({ cmax: e.target.value })} onKeyDown={e => { if (e.key === "Enter") set({ cmax: e.currentTarget.value }); }} />
+          <label className="visually-hidden" htmlFor="f-cmin">{w.min}</label>
+          <input id="f-cmin" className="field compact range" type="text" inputMode="decimal"
+            defaultValue={params.get("cmin") ?? ""} placeholder={w.min} onBlur={e => set({ cmin: e.target.value })} onKeyDown={e => { if (e.key === "Enter") set({ cmin: e.currentTarget.value }); }} />
+          <label className="visually-hidden" htmlFor="f-cmax">{w.max}</label>
+          <input id="f-cmax" className="field compact range" type="text" inputMode="decimal"
+            defaultValue={params.get("cmax") ?? ""} placeholder={w.max} onBlur={e => set({ cmax: e.target.value })} onKeyDown={e => { if (e.key === "Enter") set({ cmax: e.currentTarget.value }); }} />
         </>
+      )}
+      {/* A range of days: the kit's DateField (typed in the reader's
+          language, or picked), never the browser's date field. */}
+      {chosen?.kind === "date" && (
+        <span className="date-range">
+          <DateField id="f-cmin" label={w.from} value={params.get("cmin") || null} onChange={day => set({ cmin: day ?? "" })} today={today} chips={false} labels={t.date} />
+          <DateField id="f-cmax" label={w.to} value={params.get("cmax") || null} onChange={day => set({ cmax: day ?? "" })} today={today} chips={false} labels={t.date} />
+        </span>
       )}
     </span>
   );

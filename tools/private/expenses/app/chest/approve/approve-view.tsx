@@ -1,19 +1,17 @@
 "use client";
 
+import { Avatar, Dialog, EmptyState, useToast } from "@argentic/chest-ui/components";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import { Avatar } from "../../../components/avatar.tsx";
-import { DateBox, ReceiptThumb, Stamp, Warnings } from "../../../components/bits.tsx";
-import { Dialog } from "../../../components/dialog.tsx";
+import { DateBox, ReceiptThumb, RowStamp, Warnings } from "../../../components/bits.tsx";
 import { Check, Close, Stamp as StampIcon } from "../../../components/icons.tsx";
-import { useToast } from "../../../components/toast.tsx";
 import type { Catalogue } from "../../../lib/i18n/index.ts";
 import { format, plural } from "../../../lib/i18n/format.ts";
 import type { RowView } from "../../../lib/rows.ts";
 import { decideExpenses } from "../actions.ts";
 
 export type PersonGroup = { owner: string; name: string; photo: string | null; summary: string; sent: string; self: boolean; rows: RowView[] };
-type Words = Pick<Catalogue, "approve" | "detail" | "form" | "errors"> & { companyCard: string };
+type Words = Pick<Catalogue, "approve" | "detail" | "form" | "errors" | "dialog"> & { companyCard: string };
 
 // What "Approve all" may approve at once: the lines without a warning.
 const clean = (g: PersonGroup) => g.rows.filter(r => r.warnings.length === 0);
@@ -33,9 +31,10 @@ export function ApproveView({ groups, recent, locale, t }: { groups: PersonGroup
       const result = await decideExpenses(ids, verdict, why);
       if (!result.ok) {
         setGone(set => new Set([...set].filter(id => !ids.includes(id))));
-        return toast(format(t.errors[result.error], result.values ?? {}));
+        return void toast({ text: format(t.errors[result.error], result.values ?? {}), tone: "error" });
       }
-      toast(verdict === "approve" ? plural(t.approve.approved, result.value.count, locale) : format(t.approve.refused, { name: result.value.owner }));
+      // The owners have been told (the bell): no Undo.
+      toast({ id: `decide-${ids.join("-")}`, text: verdict === "approve" ? plural(t.approve.approved, result.value.count, locale) : format(t.approve.refused, { name: result.value.owner }), sent: true });
       setRefusing(null);
       setReason("");
       router.refresh();
@@ -46,16 +45,14 @@ export function ApproveView({ groups, recent, locale, t }: { groups: PersonGroup
   return (
     <>
       {shown.length === 0 && (
-        <div className="paper empty">
-          <span className="glyph"><StampIcon /></span>
-          <h2>{t.approve.empty.title}</h2>
-          <p>{t.approve.empty.body}</p>
+        <div className="paper">
+          <EmptyState icon={<StampIcon />} title={t.approve.empty.title} body={t.approve.empty.body} />
         </div>
       )}
       {shown.map(g => (
         <section key={g.owner} className="paper" aria-label={g.name}>
           <div className="person-head">
-            <Avatar name={g.name} photo={g.photo} size={36} />
+            <Avatar name={g.name} photo={g.photo} size="m" />
             <div className="grow">
               <div className="name">{g.name}</div>
               <div className="hint">{g.summary}{g.sent ? " · " + format(t.approve.sentOn, { when: g.sent }) : ""}</div>
@@ -69,8 +66,8 @@ export function ApproveView({ groups, recent, locale, t }: { groups: PersonGroup
               </button>
             )}
           </div>
-          {g.rows.length > 1 && clean(g).length < g.rows.length && <p className="hint" style={{ marginTop: 8 }}>{plural(t.approve.lookFirst, g.rows.length - clean(g).length, locale)}</p>}
-          {g.self && <p className="notice info" style={{ marginTop: 12 }}>{t.approve.self}</p>}
+          {g.rows.length > 1 && clean(g).length < g.rows.length && <p className="hint">{plural(t.approve.lookFirst, g.rows.length - clean(g).length, locale)}</p>}
+          {g.self && <p className="notice info">{t.approve.self}</p>}
           <hr className="rule" />
           <ul className="rows">
             {g.rows.map(r => (
@@ -100,9 +97,11 @@ export function ApproveView({ groups, recent, locale, t }: { groups: PersonGroup
           </ul>
         </section>
       ))}
-      <Dialog open={lightbox !== null} title={lightbox ? format(t.approve.openReceipt, { what: lightbox.what }) : ""} closeLabel={t.detail.close} onClose={() => setLightbox(null)}>
+      {/* The receipt, large: the kit's dialog (Escape, the close button or the
+          backdrop close it — nothing typed here to lose). */}
+      <Dialog open={lightbox !== null} title={lightbox ? format(t.approve.openReceipt, { what: lightbox.what }) : ""} onClose={() => setLightbox(null)} labels={t.dialog} size="l">
         {lightbox?.preview && <img className="lightbox" src={lightbox.preview} alt={format(t.approve.openReceipt, { what: lightbox.what })} />}
-        {lightbox?.open && <a className="button quiet small" href={lightbox.open} target="_blank" rel="noopener">{t.detail.openFull}</a>}
+        {lightbox?.open && <a className="button quiet small lightbox-open" href={lightbox.open} target="_blank" rel="noopener">{t.detail.openFull}</a>}
       </Dialog>
       {recent.length > 0 && (
         <section className="section" aria-label={t.approve.recent}>
@@ -112,7 +111,7 @@ export function ApproveView({ groups, recent, locale, t }: { groups: PersonGroup
               <li key={r.id} className="row">
                 <DateBox row={r} />
                 <a className="main" href={r.href}><span className="what">{r.what}</span><span className="sub">{r.sub}</span></a>
-                <span className="right"><span className="amount">{r.amount}</span><Stamp row={r} /></span>
+                <span className="right"><span className="amount">{r.amount}</span><RowStamp row={r} /></span>
               </li>
             ))}
           </ul>

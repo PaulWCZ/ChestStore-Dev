@@ -29,6 +29,11 @@ must not break.
 | `lib/people.ts` | Names and photos from ids (`people`, `nameOf`), everyone (`everyone`), who is here (`present`) |
 | `lib/tell.ts`, `lib/notify.ts` | The bell (each recipient's language, keyed per checklist) and badges |
 | `lib/lifecycle.ts`, `lib/morning.ts` | Leaving and erasure; the scheduled morning (proposal) |
+| `lib/theme.ts` | The identity (`defineTheme`, = the catalogue's "Portrait gallery") and `currentLook` (the company's choice, else the identity) |
+| `app/tokens.css`, `app/globals.css` | The tool's own tokens (from contract tokens) and its CSS (contract tokens only; dresses the kit's components in the gallery; the neutral print style) |
+| `components/shell.tsx` | The kit's `AppShell` with Next's `Link` and the current path; the member chip links to one's profile |
+| `components/portrait.tsx`, `lib/tint.ts` | The portrait in its arch (a categorical slot per team) — only where the face is the point; the kit's `Avatar` elsewhere |
+| `lib/choices.ts` | What a person picker offers before anything is typed |
 | `lib/i18n/` | Every word: `en.ts` (source), `fr.ts`; `format.ts` for the browser |
 | `app/chest/actions.ts` | Server actions: thin; each re-reads the member; answer `Result` codes; the bell after a change |
 | `app/chest/**/page.tsx` | Pages (server): read, resolve names, hand words to views |
@@ -88,9 +93,31 @@ npm ci && npm test && npm run build   # all three must pass
   tests with each role; a lifecycle change → `test/lifecycle.test.ts`.
 - **Client components import only** `lib/i18n/format.ts`, `lib/app-error.ts`,
   `lib/model.ts`, `lib/tree.ts`, `lib/calendar.ts`, `lib/tint.ts`,
-  `lib/initials.ts` and types. Never the SDK, `lib/db.ts`, `lib/session.ts`.
+  `lib/choices.ts`, `@argentic/chest-ui/components` (and `/components/logic`)
+  and types. Never the SDK, `lib/db.ts`, `lib/session.ts`.
 - **Words live in `lib/i18n/`**, in every catalogue (tests compare keys and
   placeholders, and look for words written in pages).
 - **No network, no disk, no background work.** Deferred work runs on the
   next request (badges on *My to-dos*, the purge on the directory) or in the
   `morning` schedule when the Chest has schedules.
+- **Looks: the CSS names only contract tokens** (`ui/tokens/CONTRACT.md`)
+  and the tool's tokens of `app/tokens.css`, themselves defined from
+  contract tokens; never a colour (`test/theme.test.ts`). Text on a ground
+  only on measured pairs (`--ink` on `--bg` for the plum, `--cat-N-ink` on
+  `--cat-N-soft`…). The identity stays equal to the catalogue's `gallery`
+  (the test says so): change both together. Show `look.logo` (BrandMark)
+  where the mark is.
+- **Use the kit's components** before writing one: `Toasts`/`useToast`
+  (an Undo returns `true` or a sentence saying why not), `Confirm` for
+  what is for good (never `window.confirm`), `PeoplePicker`, `DateField`
+  (never `type="date"`; `today` from the server), `SearchBox`,
+  `FilePicker`, `DataTable`, `EmptyState`, `Avatar`, `StatusBadge`,
+  `Segmented`, `AppShell`. Kept on purpose: the directory's team and
+  office selects (many values, filtered as one types), HR's sheet (a
+  grid of fields; its date cells read dates with the kit's `parseDate`),
+  the template's "Who" select (roles and people in one list), the
+  birthday's day and month selects (no year).
+- **Words:** the kit's sections (`toast`, `dialog`, `peoplePicker`, `date`,
+  `files`, `tables`, `search`) live in both catalogues; `node
+  scripts/lint-words.mjs tools/private/people` must stay at 0 (Undo is
+  « Annuler l'action »; Delete/Supprimer for what is gone for everyone).

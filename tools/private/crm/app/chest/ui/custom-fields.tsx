@@ -1,12 +1,13 @@
 "use client";
 
+import { DateField } from "@argentic/chest-ui/components";
 import type { FieldDef } from "../../../lib/custom.ts";
 import type { Catalogue } from "../../../lib/i18n/index.ts";
 import type { CustomForm } from "./values.ts";
 
 // The team's own fields in a form: a text, a number, a day, one choice.
 // The server checks each value (lib/custom.ts); an empty one is blank.
-export function CustomInputs({ fields, values, onChange, prefix, t }: { fields: FieldDef[]; values: CustomForm; onChange: (next: CustomForm) => void; prefix: string; t: Catalogue }) {
+export function CustomInputs({ fields, values, onChange, prefix, today, t }: { fields: FieldDef[]; values: CustomForm; onChange: (next: CustomForm) => void; prefix: string; today: string; t: Catalogue }) {
   if (fields.length === 0) return null;
   const set = (id: string, value: string) => onChange({ ...values, [id]: value });
   return (
@@ -14,6 +15,9 @@ export function CustomInputs({ fields, values, onChange, prefix, t }: { fields: 
       {fields.map(f => {
         const id = `${prefix}-f${f.id}`;
         const value = values[f.id] ?? "";
+        // A day: the kit's DateField (typed in the reader's language, or
+        // picked on a calendar), never the browser's date field.
+        if (f.kind === "date") return <DateField key={f.id} id={id} label={f.label} value={value || null} onChange={day => set(f.id, day ?? "")} today={today} chips={false} labels={t.date} />;
         return (
           <div key={f.id} className="field-block">
             <label className="label" htmlFor={id}>{f.label}</label>
@@ -23,8 +27,6 @@ export function CustomInputs({ fields, values, onChange, prefix, t }: { fields: 
                 {!f.options.includes(value) && value !== "" && <option value={value}>{value}</option>}
                 {f.options.map(o => <option key={o} value={o}>{o}</option>)}
               </select>
-            ) : f.kind === "date" ? (
-              <input id={id} className="field" type="date" value={value} onChange={e => set(f.id, e.target.value)} />
             ) : f.kind === "number" ? (
               <input id={id} className="field num" inputMode="decimal" value={value} maxLength={24} onChange={e => set(f.id, e.target.value)} />
             ) : (

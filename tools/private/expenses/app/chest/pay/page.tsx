@@ -1,3 +1,4 @@
+import { NoAccess } from "@argentic/chest-ui/components";
 import { can } from "../../../lib/access.ts";
 import { bankViews } from "../../../lib/bank.ts";
 import { db } from "../../../lib/db.ts";
@@ -22,7 +23,7 @@ export default async function Pay() {
   const v = await viewer();
   if (!v) return null;
   const { member, locale, t } = v;
-  if (!can(member, "pay")) return <main className="page"><div className="empty"><h1>{t.noAccess.title}</h1><p>{t.errors.forbidden}</p></div></main>;
+  if (!can(member, "pay")) return <div className="page"><NoAccess title={t.noAccess.title} body={t.errors.forbidden} /></div>;
   const sql = db();
   const [list, recent, cats, company, ready, files] = await Promise.all([toPay(sql, member), paidRecently(sql, member), categories(sql, { archived: true }), settings(sql), readiness(sql, member), runs(sql, member)]);
   const [who, banks, warned] = await Promise.all([people([...list, ...recent].map(e => e.owner)), bankViews(sql, member, [...new Set(list.map(e => e.owner))]), warnings(sql, list, { anyone: true })]);
@@ -51,7 +52,7 @@ export default async function Pay() {
   const fileTotal = payable.reduce((sum, l) => sum + l.reduce((s, e) => s + (e.base ?? 0), 0), 0);
   const grand = money(list);
   return (
-    <main className="page">
+    <div className="page">
       <div className="page-head">
         <div>
           <h1>{t.pay.title}</h1>
@@ -66,9 +67,9 @@ export default async function Pay() {
         recent={recent.map(e => ({ ...rowView(e, { ...ctx, who: nameOf(who.get(e.owner), locale) }), sub: [nameOf(who.get(e.owner), locale), e.paidOn ? formatDate(e.paidOn + "T12:00:00Z", locale, { day: "numeric", month: "short" }) : ""].filter(Boolean).join(" · ") }))}
         today={today()}
         locale={locale}
-        t={{ pay: t.pay, errors: t.errors, bank: t.settings.bank, cancel: t.form.cancel, close: t.detail.close }}
+        t={{ pay: t.pay, errors: t.errors, bank: t.settings.bank, cancel: t.form.cancel, dialog: t.dialog, date: t.date }}
       />
       <p className="legal">{t.pay.companyCard}</p>
-    </main>
+    </div>
   );
 }

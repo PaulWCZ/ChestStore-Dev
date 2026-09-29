@@ -1,16 +1,17 @@
 "use client";
 
+import { PeoplePicker, useToast } from "@argentic/chest-ui/components";
+import { localSearch, type PeoplePickerWords } from "@argentic/chest-ui/components/logic";
 import { useState, useTransition } from "react";
 import { Flag } from "../../../components/icons.tsx";
-import { useToast } from "../../../components/toast.tsx";
 import { format } from "../../../lib/i18n/format.ts";
 import type { Catalogue } from "../../../lib/i18n/index.ts";
 import { limits, priorities, type Priority } from "../../../lib/model.ts";
-import { removeRule, saveRule } from "../actions.ts";
+import { removeRule, restoreRule, saveRule } from "../actions.ts";
 import { Box } from "./settings-view.tsx";
 
 type Rule = { id: string; field: "text" | "from"; value: string; tag: string | null; priority: Priority | null; assignee: string | null; assigneeName: string | null };
-type Words = { settings: Catalogue["settings"]; errors: Catalogue["errors"]; priority: Catalogue["priority"] };
+type Words = { settings: Catalogue["settings"]; errors: Catalogue["errors"]; priority: Catalogue["priority"]; peoplePicker: PeoplePickerWords };
 
 // Rules on arrival, in one sentence each: "Contains 'invoice' → tag
 // Invoice, to Sofia". Written by an administrator in a short form: when,
@@ -18,6 +19,7 @@ type Words = { settings: Catalogue["settings"]; errors: Catalogue["errors"]; pri
 export function RulesBox({ rules, team, tags, canSettings, t }: { rules: Rule[]; team: { id: string; name: string }[]; tags: string[]; canSettings: boolean; t: Words }) {
   const s = t.settings;
   const [field, setField] = useState<"text" | "from">("text");
+  const [assignee, setAssignee] = useState<{ id: string; name: string }[]>([]);
   const [pending, start] = useTransition();
   const toast = useToast();
   const said = (r: Rule) => [
@@ -32,7 +34,11 @@ export function RulesBox({ rules, team, tags, canSettings, t }: { rules: Rule[];
           {rules.map(r => (
             <li key={r.id}>
               <span className="spacer">{said(r)}</span>
-              {canSettings && <button type="button" className="link-button danger" disabled={pending} onClick={() => start(async () => { const x = await removeRule(r.id); if (!x.ok) toast(format(t.errors[x.error], {})); })}>{s.removeRule}</button>}
+              {canSettings && <button type="button" className="link-button danger" disabled={pending} onClick={() => start(async () => {
+                const x = await removeRule(r.id);
+                if (!x.ok) return void toast({ text: format(t.errors[x.error], {}), tone: "error" });
+                toast({ id: `rule-${r.id}`, text: s.ruleDeleted, undo: async () => { const back = await restoreRule(x.value); return back.ok || t.errors[back.error]; } });
+              })}>{s.deleteRule}</button>}
             </li>
           ))}
         </ol>
@@ -44,9 +50,10 @@ export function RulesBox({ rules, team, tags, canSettings, t }: { rules: Rule[];
           const d = new FormData(form);
           start(async () => {
             const r = await saveRule({ field, value: String(d.get("value") ?? ""), tag: String(d.get("tag") ?? ""), priority: String(d.get("priority") ?? ""), assignee: String(d.get("assignee") ?? "") });
-            if (!r.ok) return toast(format(t.errors[r.error], r.values ?? { max: limits.tag }));
+            if (!r.ok) return void toast({ text: format(t.errors[r.error], r.values ?? { max: limits.tag }), tone: "error" });
             form.reset();
-            toast(s.saved);
+            setAssignee([]);
+            toast({ id: "rule", text: s.saved });
           });
         }}>
           <div className="two">
@@ -76,11 +83,9 @@ export function RulesBox({ rules, team, tags, canSettings, t }: { rules: Rule[];
               </select>
             </div>
             <div>
-              <label className="label" htmlFor="rule-assignee">{s.ruleAssignee}</label>
-              <select id="rule-assignee" name="assignee" className="select" defaultValue="">
-                <option value="">{s.ruleNothing}</option>
-                {team.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-              </select>
+              <PeoplePicker id="rule-assignee" name="assignee" label={s.ruleAssignee} value={assignee} onChange={setAssignee} search={localSearch(team)} suggestions={team.slice(0, 8)} suggestionsLabel={s.team} labels={{ ...t.peoplePicker, placeholder: s.ruleNobody }} />
+              {/* The kit's single picker cannot be emptied: "nobody" is a button. */}
+              {assignee.length > 0 && <button type="button" className="link-button" onClick={() => setAssignee([])}>{s.ruleNobody}</button>}
             </div>
           </div>
           <div><button type="submit" className="button soft" disabled={pending}>{s.addRule}</button></div>

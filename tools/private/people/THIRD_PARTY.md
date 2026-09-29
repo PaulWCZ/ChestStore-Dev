@@ -11,8 +11,10 @@ onboarding templates of activities given to roles (Frappe HR, GPL-3.0;
 Horilla, LGPL-2.1), and the CSS tree of an org chart (dabeng/OrgChart, MIT —
 the idea of nested lists with connector lines, rewritten here).
 
-Dependencies (`next`, `react`, `react-dom`, `postgres`, `@argentic/chest-sdk`)
-are installed from npm under their own licences; `@electric-sql/pglite` is a
+Dependencies (`next`, `react`, `react-dom`, `postgres`) are installed from
+npm under their own licences; `@argentic/chest-sdk` and `@argentic/chest-ui`
+(the store's UI kit: themes and shared components, MIT, © 2026 Argentic)
+are packed copies in `vendor/`; `@electric-sql/pglite` is a
 development dependency for tests only.
 
 ## Formats and rules followed (no code copied)

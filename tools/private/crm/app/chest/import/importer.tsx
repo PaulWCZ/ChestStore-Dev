@@ -1,11 +1,10 @@
 "use client";
 
+import { Confirm, DataTable, FilePicker, Segmented, useToast, type PickedFile } from "@argentic/chest-ui/components";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
-import { Dialog } from "../../../components/dialog.tsx";
 import { Card, ListIcon, Note, Undo, Upload } from "../../../components/icons.tsx";
-import { useToast } from "../../../components/toast.tsx";
 import { AppError } from "../../../lib/app-error.ts";
 import type { FieldDef, FieldObject } from "../../../lib/custom.ts";
 import { format, plural } from "../../../lib/i18n/format.ts";
@@ -15,7 +14,7 @@ import { limits } from "../../../lib/model.ts";
 import { fieldsOf, guessMapping, importKinds, mapRow, ownersIn, readTable, type Field, type ImportKind, type Mapping, type Table, type Target } from "../../../lib/parse-import.ts";
 import { parseVcards, type Card as VCard } from "../../../lib/vcard.ts";
 import { importOwners, importTable, importVcards, undoImport } from "../actions.ts";
-import { OwnerSelect } from "../ui/owner-select.tsx";
+import { OwnerPicker } from "../ui/owner-select.tsx";
 import type { Teammate } from "../ui/shared.ts";
 
 type Picked = { source: "csv"; text: string; table: Table; mapping: Mapping; fileName: string } | { source: "vcf"; text: string; cards: VCard[]; fileName: string };
@@ -36,6 +35,9 @@ export function Importer({ locale, fields, team, me, canAssign, mayCreateFields,
   const [unknown, setUnknown] = useState<{ name: string; rows: number }[]>([]);
   const [fallback, setFallback] = useState<string | null>(me);
   const [undoing, setUndoing] = useState(false);
+  // The file chosen, in the kit's FilePicker (one per source): it stays in
+  // the browser, read here to show it; the server reads it again.
+  const [files, setFiles] = useState<{ csv: readonly PickedFile[]; vcf: readonly PickedFile[] }>({ csv: [], vcf: [] });
   const [pending, start] = useTransition();
   const router = useRouter();
   const custom = (k: ImportKind) => (k === "activities" ? [] : fields[k]);
@@ -55,6 +57,17 @@ export function Importer({ locale, fields, team, me, canAssign, mayCreateFields,
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [csv?.text, ownerColumn]);
 
+  function choose(source: "csv" | "vcf", update: (current: readonly PickedFile[]) => PickedFile[]) {
+    const next = update(files[source]);
+    const file = next[next.length - 1]?.file ?? null;
+    const before = files[source][files[source].length - 1]?.file ?? null;
+    // One file at a time: the newest one, from either source.
+    setFiles({ csv: source === "csv" ? next.slice(-1) : [], vcf: source === "vcf" ? next.slice(-1) : [] });
+    if (!file) {
+      setPicked(null);
+      setError(null);
+    } else if (file !== before) void read(source, file);
+  }
   async function read(source: "csv" | "vcf", file: File) {
     setError(null);
     setReport(null);
@@ -84,6 +97,7 @@ export function Importer({ locale, fields, team, me, canAssign, mayCreateFields,
       if (!r.ok) return setError(format(t.errors[r.error], r.values));
       setReport({ report: r.value, kind: picked.source === "vcf" ? "contacts" : kind });
       setPicked(null);
+      setFiles({ csv: [], vcf: [] });
       router.refresh();
     });
   }
@@ -131,28 +145,14 @@ export function Importer({ locale, fields, team, me, canAssign, mayCreateFields,
       <div className="sources">
         <section className="source panel">
           <h2><ListIcon />{w.csv}</h2>
-          <fieldset className="kinds-choice">
-            <legend className="label">{w.kind}</legend>
-            {importKinds.map(k => (
-              <label key={k} className={`chip-button${kind === k ? " on" : ""}`}>
-                <input type="radio" name="kind" value={k} checked={kind === k} onChange={() => changeKind(k)} className="visually-hidden" />
-                {w.kinds[k]}
-              </label>
-            ))}
-          </fieldset>
+          <Segmented label={w.kind} hideLabel={false} name="kind" value={kind} onChange={changeKind} options={importKinds.map(k => ({ value: k, label: w.kinds[k] }))} />
           <p className="small-text muted">{kind === "activities" ? w.activitiesHow : w.csvHow}</p>
-          <label className="button file-input">
-            <Upload />{w.choose}
-            <input type="file" accept=".csv,text/csv,.txt" onChange={e => { const f = e.target.files?.[0]; e.target.value = ""; if (f) void read("csv", f); }} />
-          </label>
+          <FilePicker label={w.csv} files={files.csv} onChange={update => choose("csv", update)} maxFiles={1} maxSize={limits.importBytes} accept={[".csv", ".txt", "text/csv"]} labels={t.files} />
         </section>
         <section className="source panel">
           <h2><Card />{w.vcf}</h2>
           <p className="small-text muted">{w.vcfHow}</p>
-          <label className="button quiet file-input">
-            <Upload />{w.choose}
-            <input type="file" accept=".vcf,text/vcard,text/x-vcard" onChange={e => { const f = e.target.files?.[0]; e.target.value = ""; if (f) void read("vcf", f); }} />
-          </label>
+          <FilePicker label={w.vcf} files={files.vcf} onChange={update => choose("vcf", update)} maxFiles={1} maxSize={limits.importBytes} accept={[".vcf", "text/vcard", "text/x-vcard"]} labels={t.files} />
         </section>
       </div>
       {error && <p className="error" role="alert">{error}</p>}
@@ -160,17 +160,13 @@ export function Importer({ locale, fields, team, me, canAssign, mayCreateFields,
         <section className="panel" aria-labelledby="map-title">
           <h2 id="map-title">{w.columns}</h2>
           <p className="muted small-text">{csv.fileName} · {plural(w.rows, csv.table.rows.length, locale)} · {w.columnsHint}</p>
-          <div className="table-wrap">
-            <table className="table mapping">
-              <thead><tr><th scope="col">{w.column}</th><th scope="col">{w.example}</th><th scope="col">{w.field}</th></tr></thead>
-              <tbody>
-                {csv.table.head.map((h, i) => {
-                  const example = csv.table.rows.find(r => (r[i] ?? "").trim() !== "")?.[i] ?? "";
-                  return (
-                    <tr key={i}>
-                      <th scope="row">{h || "—"}</th>
-                      <td className="muted example">{example}</td>
-                      <td>
+          <div className="mapping">
+            <DataTable caption={w.columns} labels={t.table} rows={csv.table.head.map((h, i) => ({ i, h, example: csv.table.rows.find(r => (r[i] ?? "").trim() !== "")?.[i] ?? "" }))} rowKey={r => String(r.i)}
+              columns={[
+                { key: "column", label: w.column, rowHeader: true, render: r => r.h || "—" },
+                { key: "example", label: w.example, render: r => <span className="muted example">{r.example}</span> },
+                { key: "field", label: w.field, render: ({ i, h }) => (
+                      <>
                         <label className="visually-hidden" htmlFor={`map-${i}`}>{w.field} {h}</label>
                         <select id={`map-${i}`} className="field compact" value={csv.mapping[i] ?? ""} onChange={e => setTarget(i, e.target.value as Target)}>
                           <option value="">{w.ignore}</option>
@@ -185,22 +181,17 @@ export function Importer({ locale, fields, team, me, canAssign, mayCreateFields,
                           )}
                           {mayCreateFields && kind !== "activities" && <option value="new">{w.newField}</option>}
                         </select>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                      </>
+                ) },
+              ]} />
           </div>
           {shownFields.length > 0 && (
             <>
               <h3 className="label-mono">{w.preview}</h3>
               <p className="muted small-text">{w.previewHint}</p>
-              <div className="table-wrap">
-                <table className="table preview">
-                  <thead><tr>{shownFields.map(f => <th key={f} scope="col">{label(f)}</th>)}</tr></thead>
-                  <tbody>{preview.map((row, i) => <tr key={i}>{shownFields.map(f => <td key={f}>{row[f] ?? ""}</td>)}</tr>)}</tbody>
-                </table>
+              <div className="preview">
+                <DataTable caption={w.preview} labels={t.table} rows={preview.map((row, i) => ({ i, row }))} rowKey={r => String(r.i)}
+                  columns={shownFields.map(f => ({ key: f, label: label(f), render: (r: { row: Record<string, string> }) => r.row[f] ?? "" }))} />
               </div>
             </>
           )}
@@ -209,8 +200,7 @@ export function Importer({ locale, fields, team, me, canAssign, mayCreateFields,
               <p className="strong">{w.ownersTitle}</p>
               <p>{plural(w.ownersBody, unknown.length, locale, { names: unknown.map(o => `${o.name} (${plural(w.rows, o.rows, locale)})`).join(", ") })}</p>
               <p className="row">
-                <label className="label" htmlFor="owner-fallback">{w.ownersGive}</label>
-                <OwnerSelect id="owner-fallback" value={fallback} team={team} me={me} canAssign={canAssign} onChange={setFallback} t={t} />
+                <OwnerPicker id="owner-fallback" label={w.ownersGive} value={fallback} team={team} me={me} canAssign={canAssign} onChange={setFallback} t={t} />
               </p>
             </div>
           )}
@@ -225,11 +215,14 @@ export function Importer({ locale, fields, team, me, canAssign, mayCreateFields,
         <section className="panel" aria-labelledby="vcf-title">
           <h2 id="vcf-title">{w.preview}</h2>
           <p className="muted small-text">{picked.fileName} · {plural(w.cards, picked.cards.length, locale)}</p>
-          <div className="table-wrap">
-            <table className="table preview">
-              <thead><tr><th scope="col">{w.fields.name}</th><th scope="col">{w.fields.email}</th><th scope="col">{w.fields.phone}</th><th scope="col">{w.fields.company}</th></tr></thead>
-              <tbody>{picked.cards.slice(0, 5).map((c, i) => <tr key={i}><td>{c.name}</td><td>{c.email}</td><td className="num">{c.phone}</td><td>{c.company}</td></tr>)}</tbody>
-            </table>
+          <div className="preview">
+            <DataTable caption={w.preview} labels={t.table} rows={picked.cards.slice(0, 5).map((c, i) => ({ i, c }))} rowKey={r => String(r.i)}
+              columns={[
+                { key: "name", label: w.fields.name, render: r => r.c.name },
+                { key: "email", label: w.fields.email, render: r => r.c.email },
+                { key: "phone", label: w.fields.phone, render: r => <span className="num">{r.c.phone}</span> },
+                { key: "company", label: w.fields.company, render: r => r.c.company },
+              ]} />
           </div>
           <FillEmpty checked={fillEmpty} onChange={setFillEmpty} t={t} />
           <div className="form-actions">
@@ -250,25 +243,21 @@ function FillEmpty({ checked, onChange, t }: { checked: boolean; onChange: (valu
   );
 }
 
-// Taking an import back: it asks once, then says how much went.
+// Taking an import back: it deletes what the import added, for good, so it
+// asks once (the kit's Confirm), then says how much went.
 export function UndoDialog({ id, onClose, onDone, locale, t }: { id: string; onClose: () => void; onDone: () => void; locale: Locale; t: Catalogue }) {
   const [pending, start] = useTransition();
   const router = useRouter();
   const toast = useToast();
   return (
-    <Dialog open title={t.importer.undoTitle} closeLabel={t.common.close} onClose={onClose}>
-      <p>{t.importer.undoBody}</p>
-      <div className="form-actions">
-        <button type="button" className="button danger" disabled={pending} onClick={() => start(async () => {
-          const r = await undoImport(id);
-          if (!r.ok) return toast(format(t.errors[r.error], r.values));
-          toast(plural(t.importer.undone, r.value.removed, locale));
-          onDone();
-          router.refresh();
-        })}><Undo />{t.importer.undo}</button>
-        <button type="button" className="button quiet" onClick={onClose}>{t.common.cancel}</button>
-      </div>
-    </Dialog>
+    <Confirm open title={t.importer.undoTitle} body={t.importer.undoBody} confirmLabel={t.importer.undo} cancelLabel={t.common.cancel} busy={pending} onCancel={onClose}
+      onConfirm={() => start(async () => {
+        const r = await undoImport(id);
+        if (!r.ok) return void toast({ text: format(t.errors[r.error], r.values), tone: "error" });
+        toast(plural(t.importer.undone, r.value.removed, locale));
+        onDone();
+        router.refresh();
+      })} />
   );
 }
 

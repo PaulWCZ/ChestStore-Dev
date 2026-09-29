@@ -80,7 +80,7 @@ export default async function FollowUp({ params, searchParams }: { params: Promi
       <section className="public-card" aria-labelledby="again">
         <h2 id="again">{t.public.reply}</h2>
         {ticket.status === "closed" && <p className="hint">{t.public.reopenHint}</p>}
-        <WriteAgain secret={secret} locale={locale} t={{ public: t.public, errors: t.errors, files: t.files }} />
+        <WriteAgain secret={secret} t={{ public: t.public, errors: t.errors, files: t.files }} />
       </section>
     </PublicShell>
   );

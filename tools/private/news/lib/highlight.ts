@@ -48,7 +48,7 @@ export const hasHit = (segments: Segment[]): boolean => segments.some(s => s.hit
 // snippet is the passage around the first word found, on one line, about
 // max characters, cut at words; without a word found, the start.
 export function snippet(text: string, words: string[], max = 220): Segment[] {
-  const flat = text.replace(/\s+/gu, " ").trim();
+  const flat = text.replace(/[^\S\u00a0\u202f]+/gu, " ").trim();
   const all = highlight(flat, words);
   let first = 0;
   let offset = 0;

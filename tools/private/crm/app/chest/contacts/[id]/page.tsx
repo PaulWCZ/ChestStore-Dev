@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { StageBadge } from "../../../../components/stage-badge.tsx";
 import { AutoRefresh } from "../../../../components/auto-refresh.tsx";
 import { Back, Building, Card, Globe, Mail, Phone } from "../../../../components/icons.tsx";
 import { can, canDeleteRecord } from "../../../../lib/access.ts";
@@ -49,7 +50,7 @@ export default async function ContactPage({ params }: { params: Promise<{ id: st
   const stale = Date.now() - Date.parse(c.lastContact ?? c.createdAt) > threeYears;
   const details = shownFields(choices.fields, "contacts", c.custom, locale);
   return (
-    <main className="page record">
+    <div className="page record">
       <AutoRefresh seconds={45} />
       <nav className="crumbs"><Link prefetch={false} href="/chest/contacts"><Back />{t.shell.contacts}</Link></nav>
       <div className="record-head">
@@ -78,6 +79,7 @@ export default async function ContactPage({ params }: { params: Promise<{ id: st
         team={choices.team}
         me={member.id}
         canAssign={choices.canAssign}
+        today={day}
         t={t}
       />
       <div className="record-grid">
@@ -98,7 +100,7 @@ export default async function ContactPage({ params }: { params: Promise<{ id: st
                 {deals.rows.map(d => (
                   <li key={d.id}>
                     <Link prefetch={false} href={`/chest/deals/${d.id}`}>{d.title}</Link>
-                    <span className="mini-meta"><span className={`stage-chip ${kinds.get(d.stageId)}`}>{choices.stageNames[d.stageId]}</span><span className="num">{money(d.value, locale)}</span></span>
+                    <span className="mini-meta"><StageBadge kind={kinds.get(d.stageId) ?? "open"} name={choices.stageNames[d.stageId] ?? ""} /><span className="num">{money(d.value, locale)}</span></span>
                   </li>
                 ))}
               </ul>
@@ -120,6 +122,6 @@ export default async function ContactPage({ params }: { params: Promise<{ id: st
           <PrivacyPanel id={c.id} name={c.name} canDelete={canDeleteRecord(member, c)} t={t} />
         </aside>
       </div>
-    </main>
+    </div>
   );
 }

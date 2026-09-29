@@ -1,9 +1,9 @@
 "use client";
 
+import { useToast } from "@argentic/chest-ui/components";
 import Link from "next/link";
 import { useState, useTransition } from "react";
 import { Check, Clock, Flag, Lost, Mail, Meeting, Note, Pencil, Person, Phone, Pipeline, Plus, Trash, Trophy } from "../../../components/icons.tsx";
-import { useToast } from "../../../components/toast.tsx";
 import type { Activity } from "../../../lib/activities.ts";
 import { format } from "../../../lib/i18n/format.ts";
 import type { Catalogue, Locale } from "../../../lib/i18n/index.ts";
@@ -60,11 +60,21 @@ export function Timeline({ items, people, stageNames, me, canRemoveAny, canLog, 
     setHidden(h => new Set(h).add(a.id));
     start(async () => {
       const r = await removeActivity(a.id);
+      const show = () => setHidden(h => { const n = new Set(h); n.delete(a.id); return n; });
       if (!r.ok) {
-        setHidden(h => { const n = new Set(h); n.delete(a.id); return n; });
-        return toast(format(t.errors[r.error], r.values));
+        show();
+        return void toast({ text: format(t.errors[r.error], r.values), tone: "error" });
       }
-      toast(t.timeline.removed, { label: t.common.undo, run: () => start(async () => { await restoreActivity(a.id); setHidden(h => { const n = new Set(h); n.delete(a.id); return n; }); }) });
+      toast({
+        id: `entry-${a.id}`,
+        text: t.timeline.removed,
+        undo: async () => {
+          const back = await restoreActivity(a.id);
+          if (!back.ok) return format(t.errors[back.error], back.values);
+          show();
+          return true;
+        },
+      });
     });
   }
 
@@ -93,7 +103,7 @@ export function Timeline({ items, people, stageNames, me, canRemoveAny, canLog, 
                   e.preventDefault();
                   const body = String(new FormData(e.currentTarget).get("body") ?? "");
                   setEditing(null);
-                  start(async () => { const r = await editActivity(a.id, body); if (!r.ok) toast(format(t.errors[r.error], r.values)); });
+                  start(async () => { const r = await editActivity(a.id, body); if (!r.ok) toast({ text: format(t.errors[r.error], r.values), tone: "error" }); });
                 }}>
                   <label className="visually-hidden" htmlFor={`edit-${a.id}`}>{t.timeline.editEntry}</label>
                   <textarea id={`edit-${a.id}`} name="body" className="field" rows={3} defaultValue={a.body} maxLength={5000} autoFocus />

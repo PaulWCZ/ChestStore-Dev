@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { StageBadge } from "../../../../components/stage-badge.tsx";
 import { AutoRefresh } from "../../../../components/auto-refresh.tsx";
 import { Back, Globe, Mail, Phone, Pin } from "../../../../components/icons.tsx";
 import { can, canDeleteRecord } from "../../../../lib/access.ts";
@@ -12,7 +13,7 @@ import { db } from "../../../../lib/db.ts";
 import { listDeals } from "../../../../lib/deals.ts";
 import { AppError } from "../../../../lib/errors.ts";
 import { formatDay, money } from "../../../../lib/i18n/index.ts";
-import { phoneHref, websiteHref } from "../../../../lib/model.ts";
+import { phoneHref, today, websiteHref } from "../../../../lib/model.ts";
 import { dealFormProps, formChoices, shownFields, shownFiles, withWhen } from "../../../../lib/page-data.ts";
 import { directory } from "../../../../lib/people.ts";
 import { viewer } from "../../../../lib/session.ts";
@@ -51,7 +52,7 @@ export default async function CompanyPage({ params }: { params: Promise<{ id: st
   ];
   const self = { id: c.id, name: c.name };
   return (
-    <main className="page record">
+    <div className="page record">
       <AutoRefresh seconds={45} />
       <nav className="crumbs"><Link prefetch={false} href="/chest/companies"><Back />{t.shell.companies}</Link></nav>
       <div className="record-head">
@@ -74,6 +75,7 @@ export default async function CompanyPage({ params }: { params: Promise<{ id: st
         team={choices.team}
         me={member.id}
         canAssign={choices.canAssign}
+        today={today()}
         locale={locale}
         t={t}
       />
@@ -87,7 +89,7 @@ export default async function CompanyPage({ params }: { params: Promise<{ id: st
           <section className="panel" aria-labelledby="people-title">
             <div className="panel-head">
               <h2 id="people-title" className="label-mono">{t.company.people} <span className="count num">{people.total}</span></h2>
-              {can(member, "records.write") && <NewContactButton className="link-button" label={t.company.addPerson} initial={emptyContact(member.id, self)} fields={choices.fields.contacts} stay team={choices.team} me={member.id} canAssign={choices.canAssign} canCreate={choices.canCreateCompany} t={t} />}
+              {can(member, "records.write") && <NewContactButton className="link-button" label={t.company.addPerson} initial={emptyContact(member.id, self)} fields={choices.fields.contacts} stay team={choices.team} me={member.id} canAssign={choices.canAssign} canCreate={choices.canCreateCompany} today={today()} t={t} />}
             </div>
             {people.rows.length === 0 ? <p className="muted">{t.company.noPeople}</p> : (
               <ul className="mini-list">
@@ -111,7 +113,7 @@ export default async function CompanyPage({ params }: { params: Promise<{ id: st
                   <li key={d.id}>
                     <Link prefetch={false} href={`/chest/deals/${d.id}`}>{d.title}</Link>
                     <span className="mini-meta">
-                      <span className={`stage-chip ${kinds.get(d.stageId)}`}>{choices.stageNames[d.stageId]}</span>
+                      <StageBadge kind={kinds.get(d.stageId) ?? "open"} name={choices.stageNames[d.stageId] ?? ""} />
                       <span className="num">{money(d.value, locale)}</span>
                       {d.expectedClose && <span className="num muted">{formatDay(d.expectedClose, locale)}</span>}
                     </span>
@@ -135,6 +137,6 @@ export default async function CompanyPage({ params }: { params: Promise<{ id: st
           )}
         </aside>
       </div>
-    </main>
+    </div>
   );
 }

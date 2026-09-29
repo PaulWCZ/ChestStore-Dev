@@ -1,9 +1,9 @@
 "use client";
 
+import { useToast } from "@argentic/chest-ui/components";
 import Link from "next/link";
 import { useOptimistic, useState, useTransition } from "react";
 import { Building, Check, Flag, Person, Pipeline, Plus } from "../../components/icons.tsx";
-import { useToast } from "../../components/toast.tsx";
 import { format } from "../../lib/i18n/format.ts";
 import type { Catalogue, Locale } from "../../lib/i18n/index.ts";
 import type { DueState } from "../../lib/model.ts";
@@ -26,8 +26,17 @@ export function DayList({ rows, team, me, canAssign, today, t }: Props) {
     start(async () => {
       remove(row.id);
       const r = await completeStep(row.id);
-      if (!r.ok) return toast(format(t.errors[r.error], r.values));
-      toast(r.value.last ? t.home.doneToast : t.step.doneToast, { label: t.common.undo, run: () => start(async () => { setAsking(null); await reopenStep(row.id); }) });
+      if (!r.ok) return void toast({ text: format(t.errors[r.error], r.values), tone: "error" });
+      // One toast per step; its Undo says whether it worked.
+      toast({
+        id: `step-${row.id}`,
+        text: r.value.last ? t.home.doneToast : t.step.doneToast,
+        undo: async () => {
+          setAsking(null);
+          const back = await reopenStep(row.id);
+          return back.ok ? true : format(t.errors[back.error], back.values);
+        },
+      });
       if (row.canPlan && r.value.last) setAsking(row);
     });
   }

@@ -1,8 +1,8 @@
 "use client";
 
+import { Confirm, useToast } from "@argentic/chest-ui/components";
 import { useState, useTransition, type ReactNode } from "react";
 import { Bin, Download, Globe, Mail, Quote, Tag } from "../../../components/icons.tsx";
-import { useToast } from "../../../components/toast.tsx";
 import { format, languageNames, plural } from "../../../lib/i18n/format.ts";
 import { locales, type Catalogue } from "../../../lib/i18n/index.ts";
 import { limits } from "../../../lib/model.ts";
@@ -28,13 +28,28 @@ export function SettingsView({ settings, tags, locale, publicAddress, emailAddre
   const toast = useToast();
   const [, start] = useTransition();
   const [eraseEmail, setEraseEmail] = useState("");
+  const [asking, setAsking] = useState(false);
+  const [erasing, setErasing] = useState(false);
   const run = (step: () => Promise<{ ok: boolean; error?: keyof Catalogue["errors"]; values?: Record<string, string | number> }>, done?: (value: unknown) => string, after?: () => void) =>
     start(async () => {
       const r = await step();
-      if (!r.ok && r.error) return toast(format(t.errors[r.error], r.values ?? { max: 5000 }));
+      if (!r.ok && r.error) return void toast({ text: format(t.errors[r.error], r.values ?? { max: 5000 }), tone: "error" });
       if (done) toast(done((r as { value?: unknown }).value));
       after?.();
     });
+  // Erasing is for good (the customer's right to erasure): asked first, in
+  // the page's own dialog — never the browser's.
+  const erase = () => {
+    setErasing(true);
+    start(async () => {
+      const r = await eraseCustomer(eraseEmail);
+      setErasing(false);
+      setAsking(false);
+      if (!r.ok) return void toast({ text: format(t.errors[r.error], r.values ?? {}), tone: "error" });
+      toast(plural(s.erased, r.value.tickets, locale));
+      setEraseEmail("");
+    });
+  };
   return (
     <>
       <Box title={s.form} icon={<Globe />}>
@@ -47,7 +62,7 @@ export function SettingsView({ settings, tags, locale, publicAddress, emailAddre
           const intros = Object.fromEntries(locales.map(code => [code, String(d.get(`intro-${code}`) ?? "")]));
           run(() => saveSettings({ companyName: String(d.get("company") ?? ""), intros, helpUrl: String(d.get("help") ?? ""), formOpen: d.get("open") === "on", retentionMonths: Number(d.get("retention") ?? 24) }), () => s.saved);
         }}>
-          <fieldset disabled={!canSettings} className="stack" style={{ border: 0, padding: 0, margin: 0 }}>
+          <fieldset disabled={!canSettings} className="stack bare">
             <label className="switch"><input type="checkbox" name="open" defaultChecked={settings.formOpen} />{s.formOpen}</label>
             <div><label className="label" htmlFor="company">{s.company}</label><input id="company" name="company" className="field" maxLength={80} defaultValue={settings.companyName} /></div>
             {locales.map(code => (
@@ -62,7 +77,7 @@ export function SettingsView({ settings, tags, locale, publicAddress, emailAddre
               <input id="help" name="help" type="url" className="field" maxLength={300} defaultValue={settings.helpUrl} placeholder={s.helpPlaceholder} aria-describedby="help-hint" />
               <p id="help-hint" className="hint">{s.helpHint}</p>
             </div>
-            <div><label className="label" htmlFor="retention">{s.retention}</label><input id="retention" name="retention" type="number" min={0} max={120} className="field" style={{ maxWidth: 140 }} defaultValue={settings.retentionMonths} /></div>
+            <div><label className="label" htmlFor="retention">{s.retention}</label><input id="retention" name="retention" type="number" min={0} max={120} className="field narrow" defaultValue={settings.retentionMonths} /></div>
             {canSettings && <div><button type="submit" className="button">{s.save}</button></div>}
           </fieldset>
         </form>
@@ -76,17 +91,17 @@ export function SettingsView({ settings, tags, locale, publicAddress, emailAddre
           <ul className="list-rows">
             {tags.map(g => (
               <li key={g.id + g.name}>
-                <form className="row" style={{ flex: 1 }} onSubmit={e => { e.preventDefault(); const d = new FormData(e.currentTarget); run(() => renameTag(g.id, String(d.get("name") ?? "")), () => s.saved); }}>
+                <form className="row grow" onSubmit={e => { e.preventDefault(); const d = new FormData(e.currentTarget); run(() => renameTag(g.id, String(d.get("name") ?? "")), () => s.saved); }}>
                   <label className="visually-hidden" htmlFor={`tag-${g.id}`}>{s.tagName}</label>
-                  <input id={`tag-${g.id}`} name="name" className="field" style={{ flex: 1, minWidth: 160 }} defaultValue={g.name} maxLength={limits.tag} required disabled={!canTags} />
+                  <input id={`tag-${g.id}`} name="name" className="field grow" defaultValue={g.name} maxLength={limits.tag} required disabled={!canTags} />
                   <span className="small muted">{plural(s.tagCount, g.tickets, locale)}</span>
                   {canTags && <>
                     <button type="submit" className="button small quiet">{s.save}</button>
                     <button type="button" className="link-button danger" onClick={() => start(async () => {
                       const r = await deleteTag(g.id);
-                      if (!r.ok) return toast(format(t.errors[r.error], r.values ?? {}));
+                      if (!r.ok) return void toast({ text: format(t.errors[r.error], r.values ?? {}), tone: "error" });
                       const gone = r.value;
-                      toast(format(s.tagDeleted, { tag: gone.name }), { label: s.undo, run: () => start(async () => { await restoreTag(gone); }) });
+                      toast({ id: `tag-${g.id}`, text: format(s.tagDeleted, { tag: gone.name }), undo: async () => { const back = await restoreTag(gone); return back.ok || t.errors[back.error]; } });
                     })}>{s.deleteTag}</button>
                   </>}
                 </form>
@@ -101,12 +116,16 @@ export function SettingsView({ settings, tags, locale, publicAddress, emailAddre
         <ul className="list-rows">
           {replies.map(r => (
             <li key={r.id}>
-              <form className="stack" style={{ flex: 1 }} onSubmit={e => { e.preventDefault(); const d = new FormData(e.currentTarget); run(() => saveReply({ id: r.id, title: String(d.get("title") ?? ""), body: String(d.get("body") ?? "") }), () => s.saved); }}>
+              <form className="stack grow" onSubmit={e => { e.preventDefault(); const d = new FormData(e.currentTarget); run(() => saveReply({ id: r.id, title: String(d.get("title") ?? ""), body: String(d.get("body") ?? "") }), () => s.saved); }}>
                 <label className="visually-hidden" htmlFor={`t-${r.id}`}>{s.replyTitle}</label>
                 <input id={`t-${r.id}`} name="title" className="field" defaultValue={r.title} maxLength={80} disabled={!canReplies} />
                 <label className="visually-hidden" htmlFor={`b-${r.id}`}>{s.replyBody}</label>
                 <textarea id={`b-${r.id}`} name="body" className="field" rows={3} defaultValue={r.body} maxLength={5000} disabled={!canReplies} />
-                {canReplies && <div className="row"><button type="submit" className="button small quiet">{s.save}</button><button type="button" className="link-button danger" onClick={() => run(() => removeReply(r.id))}>{s.remove}</button></div>}
+                {canReplies && <div className="row"><button type="submit" className="button small quiet">{s.save}</button><button type="button" className="link-button danger" onClick={() => start(async () => {
+                  const x = await removeReply(r.id);
+                  if (!x.ok) return void toast({ text: format(t.errors[x.error], {}), tone: "error" });
+                  toast({ id: `reply-${r.id}`, text: format(s.replyDeleted, { title: r.title }), undo: async () => { const back = await saveReply({ title: r.title, body: r.body }); return back.ok || t.errors[back.error]; } });
+                })}>{s.deleteReply}</button></div>}
               </form>
             </li>
           ))}
@@ -130,11 +149,13 @@ export function SettingsView({ settings, tags, locale, publicAddress, emailAddre
       {canErase && (
         <Box title={s.erase} icon={<Bin />}>
           <p className="hint">{s.eraseHint}</p>
-          <form className="row" onSubmit={e => { e.preventDefault(); run(() => eraseCustomer(eraseEmail), v => plural(s.erased, (v as { tickets: number }).tickets, locale), () => setEraseEmail("")); }}>
+          <form className="row" onSubmit={e => { e.preventDefault(); setAsking(true); }}>
             <label className="visually-hidden" htmlFor="erase">{s.erase}</label>
-            <input id="erase" type="email" className="field" style={{ flex: 1, minWidth: 220 }} value={eraseEmail} onChange={e => setEraseEmail(e.target.value)} required />
+            <input id="erase" type="email" className="field grow" value={eraseEmail} onChange={e => setEraseEmail(e.target.value)} required />
             <button type="submit" className="button danger">{s.eraseButton}</button>
           </form>
+          <Confirm open={asking} title={s.eraseTitle} body={format(s.eraseBody, { email: eraseEmail.trim() })} confirmLabel={s.eraseButton} cancelLabel={s.cancel}
+            busy={erasing} onConfirm={erase} onCancel={() => setAsking(false)} />
           {erasures.length > 0 && (
             <div className="stack">
               <h3>{s.erasures}</h3>

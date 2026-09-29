@@ -1,10 +1,9 @@
 "use client";
 
+import { Dialog, useToast } from "@argentic/chest-ui/components";
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
-import { Dialog } from "../../../components/dialog.tsx";
+import { useId, useState, useTransition } from "react";
 import { Plus } from "../../../components/icons.tsx";
-import { useToast } from "../../../components/toast.tsx";
 import { format } from "../../../lib/i18n/format.ts";
 import { countryCodes, countryName } from "../../../lib/countries.ts";
 import type { FieldDef } from "../../../lib/custom.ts";
@@ -12,15 +11,17 @@ import type { Catalogue, Locale } from "../../../lib/i18n/index.ts";
 import { addCompany, updateCompany } from "../actions.ts";
 import { CustomInputs } from "./custom-fields.tsx";
 import { Lookalikes } from "./lookalikes.tsx";
-import { OwnerSelect } from "./owner-select.tsx";
+import { OwnerPicker } from "./owner-select.tsx";
 import type { Teammate } from "./shared.ts";
 import type { CompanyValues } from "./values.ts";
 
 
 // Add or edit a company: the name first, the rest if known. A new one
 // opens its page.
-export function CompanyDialog({ open, onClose, initial, fields, team, me, canAssign, locale, t }: { open: boolean; onClose: () => void; initial: CompanyValues; fields: FieldDef[]; team: Teammate[]; me: string; canAssign: boolean; locale: Locale; t: Catalogue }) {
+export function CompanyDialog({ open, onClose, initial, fields, team, me, canAssign, today, locale, t }: { open: boolean; onClose: () => void; initial: CompanyValues; fields: FieldDef[]; team: Teammate[]; me: string; canAssign: boolean; today: string; locale: Locale; t: Catalogue }) {
   const [v, setV] = useState(initial);
+  const formId = useId();
+  const dirty = JSON.stringify(v) !== JSON.stringify(initial);
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
   const router = useRouter();
@@ -42,8 +43,12 @@ export function CompanyDialog({ open, onClose, initial, fields, team, me, canAss
     });
   }
   return (
-    <Dialog open={open} title={editing ? t.company.edit : t.company.newTitle} closeLabel={t.common.close} onClose={onClose}>
-      <form className="form" onSubmit={e => { e.preventDefault(); submit(); }}>
+    <Dialog open={open} title={editing ? t.company.edit : t.company.newTitle} onClose={onClose} dirty={dirty} labels={t.dialog}
+      footer={<>
+        <button type="button" className="button quiet" onClick={onClose}>{t.common.cancel}</button>
+        <button type="submit" form={formId} className="button" disabled={pending}>{pending ? t.common.saving : editing ? t.common.save : t.company.create}</button>
+      </>}>
+      <form id={formId} className="form" onSubmit={e => { e.preventDefault(); submit(); }}>
         <div className="field-block">
           <label className="label" htmlFor="co-name">{t.company.name}</label>
           <input id="co-name" className="field" value={v.name} onChange={set("name")} maxLength={160} required autoFocus placeholder={t.company.namePlaceholder} />
@@ -66,10 +71,7 @@ export function CompanyDialog({ open, onClose, initial, fields, team, me, canAss
             <label className="label" htmlFor="co-industry">{t.company.industry}</label>
             <input id="co-industry" className="field" value={v.industry} onChange={set("industry")} maxLength={80} placeholder={t.company.industryPlaceholder} />
           </div>
-          <div className="field-block">
-            <label className="label" htmlFor="co-owner">{t.common.owner}</label>
-            <OwnerSelect id="co-owner" value={v.owner} team={team} me={me} canAssign={canAssign} onChange={owner => setV(x => ({ ...x, owner }))} t={t} />
-          </div>
+          <OwnerPicker id="co-owner" label={t.common.owner} value={v.owner} team={team} me={me} canAssign={canAssign} onChange={owner => setV(x => ({ ...x, owner }))} t={t} />
         </div>
         <fieldset className="field-group">
           <legend className="label">{t.company.address}</legend>
@@ -106,7 +108,7 @@ export function CompanyDialog({ open, onClose, initial, fields, team, me, canAss
             <input id="co-vat" className="field num" value={v.vat} onChange={set("vat")} maxLength={20} autoComplete="off" placeholder={t.company.vatPlaceholder} />
           </div>
         </div>
-        <CustomInputs fields={fields} values={v.custom} onChange={custom => setV(x => ({ ...x, custom }))} prefix="co" t={t} />
+        <CustomInputs fields={fields} values={v.custom} onChange={custom => setV(x => ({ ...x, custom }))} prefix="co" today={today} t={t} />
         <div className="field-block">
           <label className="label" htmlFor="co-tags">{t.common.tags} <span className="hint">{t.common.tagsHint}</span></label>
           <input id="co-tags" className="field" value={v.tags} onChange={set("tags")} maxLength={400} />
@@ -117,17 +119,13 @@ export function CompanyDialog({ open, onClose, initial, fields, team, me, canAss
           <span className="hint" id="co-notes-hint">{t.common.notesHint}</span>
         </div>
         {error && <p className="error" role="alert">{error}</p>}
-        <div className="form-actions">
-          <button type="submit" className="button" disabled={pending}>{pending ? t.common.saving : editing ? t.common.save : t.company.create}</button>
-          <button type="button" className="button quiet" onClick={onClose}>{t.common.cancel}</button>
-        </div>
       </form>
     </Dialog>
   );
 }
 
 // A button that opens the dialog.
-export function NewCompanyButton({ label, className = "button", initial, ...rest }: { label: string; className?: string; initial: CompanyValues; fields: FieldDef[]; team: Teammate[]; me: string; canAssign: boolean; locale: Locale; t: Catalogue }) {
+export function NewCompanyButton({ label, className = "button", initial, ...rest }: { label: string; className?: string; initial: CompanyValues; fields: FieldDef[]; team: Teammate[]; me: string; canAssign: boolean; today: string; locale: Locale; t: Catalogue }) {
   const [open, setOpen] = useState(false);
   return (
     <>

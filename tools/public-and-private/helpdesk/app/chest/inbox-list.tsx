@@ -3,11 +3,10 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
-import { Avatar } from "../../components/avatar.tsx";
+import { Avatar, Menu, useToast } from "@argentic/chest-ui/components";
 import { PriorityChip, Waiting } from "../../components/badges.tsx";
-import { Check, Note, Reply, Tag } from "../../components/icons.tsx";
-import { isTyping } from "../../components/keys.tsx";
-import { useToast } from "../../components/toast.tsx";
+import { Check, Flag, Note, Person, Reply, Tag } from "../../components/icons.tsx";
+import { busy } from "../../components/keys.tsx";
 import { format, plural } from "../../lib/i18n/format.ts";
 import type { Catalogue } from "../../lib/i18n/index.ts";
 import { limits, priorities, type Priority, type Status } from "../../lib/model.ts";
@@ -23,8 +22,9 @@ type Action = Parameters<typeof bulk>[1];
 
 // The inbox's list: a row per ticket (open it with a click, or j/k then
 // Enter), and a tick on each for those who manage tickets. Ticked, a bar
-// offers what to do with them all — give them to someone, a priority, a
-// tag, close, spam — each with Undo.
+// offers what to do with them all — give them to someone, a priority (the
+// kit's menus), a tag, close, spam — each with an Undo that says whether
+// it worked.
 export function InboxList({ rows, canManage, team, t, locale }: { rows: Row[]; canManage: boolean; team: { id: string; name: string }[]; t: Words; locale: string }) {
   const w = t.inbox;
   const [selected, setSelected] = useState<Set<number>>(new Set());
@@ -39,7 +39,7 @@ export function InboxList({ rows, canManage, team, t, locale }: { rows: Row[]; c
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (isTyping(e) || rows.length === 0) return;
+      if (busy(e) || rows.length === 0) return;
       if (e.key === "j" || e.key === "k") {
         e.preventDefault();
         const next = Math.min(rows.length - 1, Math.max(0, focus + (e.key === "j" ? 1 : -1)));
@@ -66,11 +66,18 @@ export function InboxList({ rows, canManage, team, t, locale }: { rows: Row[]; c
     const numbers = chosen;
     start(async () => {
       const r = await bulk(numbers, action);
-      if (!r.ok) return toast(format(t.errors[r.error], r.values ?? { max: limits.tag }));
+      if (!r.ok) return void toast({ text: format(t.errors[r.error], r.values ?? { max: limits.tag }), tone: "error" });
       setSelected(new Set());
       setTag("");
       const done = r.value;
-      toast(plural(w.bulkDone, done.before.length, locale), { label: w.undo, run: () => start(async () => { await unbulk(done.before, done.tag); router.refresh(); }) });
+      toast({
+        text: plural(w.bulkDone, done.before.length, locale),
+        undo: async () => {
+          const back = await unbulk(done.before, done.tag);
+          router.refresh();
+          return back.ok || t.errors[back.error];
+        },
+      });
       router.refresh();
     });
   }
@@ -87,25 +94,17 @@ export function InboxList({ rows, canManage, team, t, locale }: { rows: Row[]; c
           {chosen.length > 0 && (
             <div className="bulk-bar" role="group" aria-label={w.bulk}>
               <strong>{plural(w.selected, chosen.length, locale)}</strong>
-              <label className="filter"><span className="visually-hidden">{w.bulkAssign}</span>
-                <select className="select" value="" disabled={pending} onChange={e => e.target.value && run({ kind: "assign", assignee: e.target.value === "-" ? null : e.target.value })}>
-                  <option value="">{w.bulkAssign}</option>
-                  <option value="-">{w.bulkNobody}</option>
-                  {team.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                </select>
-              </label>
-              <label className="filter"><span className="visually-hidden">{w.bulkPriority}</span>
-                <select className="select" value="" disabled={pending} onChange={e => e.target.value && run({ kind: "priority", priority: e.target.value as Priority })}>
-                  <option value="">{w.bulkPriority}</option>
-                  {[...priorities].reverse().map(p => <option key={p} value={p}>{t.priority[p]}</option>)}
-                </select>
-              </label>
+              <Menu label={w.bulkAssign} showLabel align="start" icon={<Person />} items={[
+                { label: w.bulkNobody, onSelect: () => run({ kind: "assign", assignee: null }), disabled: pending },
+                ...team.map(p => ({ label: p.name, onSelect: () => run({ kind: "assign", assignee: p.id }), disabled: pending })),
+              ]} />
+              <Menu label={w.bulkPriority} showLabel align="start" icon={<Flag />} items={[...priorities].reverse().map(p => ({ label: t.priority[p], onSelect: () => run({ kind: "priority", priority: p }), disabled: pending }))} />
               <form className="row bulk-tag" onSubmit={e => { e.preventDefault(); if (tag.trim()) run({ kind: "tag", name: tag.trim() }); }}>
                 <label htmlFor="bulk-tag" className="visually-hidden">{w.bulkTag}</label>
                 <input id="bulk-tag" className="field" value={tag} onChange={e => setTag(e.target.value)} placeholder={w.bulkTagPlaceholder} maxLength={limits.tag} />
-                <button type="submit" className="button small quiet" disabled={pending || !tag.trim()}><Tag />{w.bulkApply}</button>
+                <button type="submit" className="ck-button ck-button-quiet ck-button-small" disabled={pending || !tag.trim()}><Tag />{w.bulkApply}</button>
               </form>
-              <button type="button" className="button small" disabled={pending} onClick={() => run({ kind: "status", status: "closed" })}><Check />{w.bulkClose}</button>
+              <button type="button" className="ck-button ck-button-small" disabled={pending} onClick={() => run({ kind: "status", status: "closed" })}><Check />{w.bulkClose}</button>
               <button type="button" className="link-button danger" disabled={pending} onClick={() => run({ kind: "status", status: "spam" })}>{w.bulkSpam}</button>
               <button type="button" className="link-button" onClick={() => setSelected(new Set())}>{w.bulkClear}</button>
             </div>
@@ -122,7 +121,7 @@ export function InboxList({ rows, canManage, team, t, locale }: { rows: Row[]; c
               </label>
             )}
             <Link ref={el => { links.current[i] = el; }} onFocus={() => setFocus(i)} className={`ticket-row${r.priority === "urgent" && r.status !== "closed" ? " is-urgent" : ""}${selected.has(r.number) ? " is-selected" : ""}`} href={`/chest/tickets/${r.number}`}>
-              <span className="who"><Avatar name={r.customer} photo={null} /></span>
+              <span className="who"><Avatar name={r.customer} /></span>
               <span className="subject">
                 <PriorityChip priority={r.priority} label={t.priority[r.priority]} />
                 <span>{r.subject}</span>

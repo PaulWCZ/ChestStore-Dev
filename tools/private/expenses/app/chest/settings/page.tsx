@@ -30,12 +30,12 @@ export default async function MySettings() {
     proof: proof && { name: proof.name, href: `/chest/vehicles/${member.id}/proof`, checked: proof.checkedAt !== null },
   };
   return (
-    <main className="page">
+    <div className="page">
       <div className="page-head">
         <h1>{t.settings.title}</h1>
         {can(member, "settings") && <SettingsNav current="me" t={t.settings} />}
       </div>
-      <MyView vehicle={vehicleData} bank={bank && { masked: bank.masked, bic: bank.bic, holder: bank.holder, since: relative(bank.updatedAt, locale) }} t={t.settings} errors={t.errors} cancel={t.form.cancel} />
-    </main>
+      <MyView vehicle={vehicleData} bank={bank && { masked: bank.masked, bic: bank.bic, holder: bank.holder, since: relative(bank.updatedAt, locale) }} t={{ ...t.settings, files: t.files, table: t.table }} errors={t.errors} cancel={t.form.cancel} />
+    </div>
   );
 }

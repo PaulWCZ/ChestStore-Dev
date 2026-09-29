@@ -1,32 +1,34 @@
+import { BrandMark, NoAccess } from "@argentic/chest-ui/components";
 import type { ReactNode } from "react";
-import { AutoRefresh } from "../../components/auto-refresh.tsx";
-import { Avatar } from "../../components/avatar.tsx";
-import { Fab, FolderMenu } from "../../components/folder-menu.tsx";
-import { Alert, Chart, Check, Clock, Gear, Inbox, Person, Plus, Star } from "../../components/icons.tsx";
-import { Keys } from "../../components/keys.tsx";
+import { Alert, Chart, Check, Clock, Gear, Inbox, Person, Star } from "../../components/icons.tsx";
 import { Mark } from "../../components/mark.tsx";
-import { NavLink } from "../../components/nav-link.tsx";
-import { Toasts } from "../../components/toast.tsx";
+import { TeamShell } from "../../components/team-shell.tsx";
 import { can, roleOf } from "../../lib/access.ts";
 import { db } from "../../lib/db.ts";
 import { viewer } from "../../lib/session.ts";
+import { currentLook } from "../../lib/theme.ts";
 import { folderCounts } from "../../lib/tickets.ts";
 import { listViews, viewHref } from "../../lib/views.ts";
 
-// The team's part: folders and the team's saved views on the side (with
-// what waits in each), the page beside. On a phone, the side column is a
-// line: the name, a menu of the folders, and a round button for a new
-// ticket. proxy.ts refused anyone the Chest did not sign in.
+// The team's part, in the kit's shell (components/team-shell.tsx): the
+// sections as labelled tabs, who is signed in at the right, and beside the
+// page the inbox's folders and the team's saved views with what waits in
+// each. proxy.ts refused anyone the Chest did not sign in; a member whose
+// role gives nothing sees why, not an error.
 export default async function TeamLayout({ children }: { children: ReactNode }) {
-  const v = await viewer();
+  const [v, look] = await Promise.all([viewer(), currentLook()]);
   if (!v) return null;
   const { member, t } = v;
   const role = roleOf(member);
+  const brand = <a href="/chest"><BrandMark logo={look.logo}><Mark /></BrandMark><span className="brand-name">{t.meta.name}</span></a>;
+  const person = { name: member.name, role: role ? t.roles[role] : null, photo: member.photo };
+  const shell = { skip: t.shell.skip, nav: t.shell.nav, folders: t.shell.folders, views: t.shell.views };
+  const keys = { keys: t.shell.keys, keysClose: t.shell.keysClose, keyList: t.shell.keyList, dialog: t.dialog };
   if (!role) {
     return (
-      <main className="main">
-        <div className="empty"><h1>{t.noAccess.title}</h1><p>{t.noAccess.body}</p></div>
-      </main>
+      <TeamShell brand={brand} nav={[]} member={person} folders={[]} views={[]} labels={shell} toast={t.toast} keys={keys} canCreate={false} icons={{ view: <Star /> }}>
+        <NoAccess labels={{ noAccessTitle: t.noAccess.title, noAccessBody: t.noAccess.body }} />
+      </TeamShell>
     );
   }
   const sql = db();
@@ -40,40 +42,16 @@ export default async function TeamLayout({ children }: { children: ReactNode }) 
     { key: "closed", href: "/chest?folder=closed", label: f.closed, count: null, icon: <Check /> },
     ...(counts.spam > 0 ? [{ key: "spam", href: "/chest?folder=spam", label: f.spam, count: counts.spam, icon: <Alert /> }] : []),
   ];
-  const pages = [
+  // A ticket and a new ticket are parts of the inbox: its tab stays current.
+  const nav = [
+    { href: "/chest", label: t.shell.inbox, icon: <Inbox />, match: "exact" as const, also: ["/chest/tickets", "/chest/new"] },
     ...(can(member, "reports") ? [{ href: "/chest/reports", label: t.shell.reports, icon: <Chart /> }] : []),
     { href: "/chest/settings", label: t.shell.settings, icon: <Gear /> },
   ];
-  const canCreate = can(member, "tickets.answer");
   return (
-    <Toasts>
-      <AutoRefresh seconds={20} />
-      <Keys canCreate={canCreate} t={t.shell} />
-      <a className="skip" href="#main">{t.shell.skip}</a>
-      <div className="app">
-        <aside className="side">
-          <a className="brand" href="/chest"><Mark /><span>{t.meta.name}</span></a>
-          <nav aria-label={t.shell.nav} className="folders">
-            {folders.map(x => <NavLink key={x.key} href={x.href} match={x.key}>{x.icon}{x.label}{x.count !== null && <span className="n">{x.count}</span>}</NavLink>)}
-            {views.length > 0 && <p className="nav-head" id="views-head">{t.shell.views}</p>}
-            {views.map(x => <NavLink key={x.id} href={viewHref(x.params)} view><Star />{x.name}</NavLink>)}
-            <span className="sep" />
-            {canCreate && <NavLink href="/chest/new"><Plus />{t.shell.new}</NavLink>}
-            {pages.map(x => <NavLink key={x.href} href={x.href}>{x.icon}{x.label}</NavLink>)}
-          </nav>
-          <FolderMenu label={t.shell.folder} options={[
-            ...folders.map(x => ({ href: x.href, label: x.count ? `${x.label} (${x.count})` : x.label, match: x.key })),
-            ...views.map(x => ({ href: viewHref(x.params), label: x.name, view: true })),
-            ...pages.map(x => ({ href: x.href, label: x.label })),
-          ]} />
-          <span className="me">
-            <Avatar name={member.name} photo={member.photo} />
-            <span className="who">{member.firstName || member.name} · {t.roles[role]}</span>
-          </span>
-        </aside>
-        <div className="main" id="main">{children}</div>
-      </div>
-      {canCreate && <Fab label={t.shell.new}><Plus /></Fab>}
-    </Toasts>
+    <TeamShell brand={brand} nav={nav} member={person} folders={folders} views={views.map(x => ({ id: x.id, href: viewHref(x.params), name: x.name }))}
+      labels={shell} toast={t.toast} keys={keys} canCreate={can(member, "tickets.answer")} icons={{ view: <Star /> }}>
+      {children}
+    </TeamShell>
   );
 }

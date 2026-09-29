@@ -70,10 +70,10 @@ test("an Important post goes by email to its audience, once, in each person's la
     assert.match(english.text, /click “I have read it”/u);
     assert.match(english.text, /Camille Martin marked this post Important/u);
     const french = chest.outbox.find(m => m.to[0] === ines.email)!;
-    assert.equal(french.subject, "Important : Déménagement");
+    assert.equal(french.subject, "Important\u202f: Déménagement");
     assert.match(french.text, /Nous déménageons le 2 novembre\./u);
     // The bell speaks each language too.
-    assert.equal(chest.notifications.find(n => n.member === ines.id)!.title, "Important : Déménagement");
+    assert.equal(chest.notifications.find(n => n.member === ines.id)!.title, "Important\u202f: Déménagement");
     assert.equal(chest.notifications.find(n => n.member === hugo.id)!.title, "Important: Office move");
     // Told again (its audience changed): nobody is emailed twice.
     await database.sql`update posts set announced_at = null where id = ${p.id}`;
@@ -397,7 +397,7 @@ test("the weekly digest by email too, unless the person turned it off", async ()
     assert.ok(!to.includes(hugo.email), "Hugo turned it off");
     assert.ok(to.includes(ines.email) && to.includes(sofia.email));
     const french = chest.outbox.find(m => m.to[0] === ines.email)!;
-    assert.match(french.subject, /Cette semaine dans les Actualités : 1 publication/u);
+    assert.match(french.subject, /Cette semaine dans les Actualités\u202f: 1 publication/u);
     assert.match(french.text, /• Menu de la cantine/u);
   } finally {
     await chest.close();

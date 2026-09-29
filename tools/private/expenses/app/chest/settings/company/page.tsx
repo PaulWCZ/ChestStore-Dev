@@ -1,3 +1,4 @@
+import { NoAccess } from "@argentic/chest-ui/components";
 import { can } from "../../../../lib/access.ts";
 import { db } from "../../../../lib/db.ts";
 import { format } from "../../../../lib/i18n/index.ts";
@@ -21,7 +22,7 @@ export default async function CompanySettings() {
   const v = await viewer();
   if (!v) return null;
   const { member, locale, t } = v;
-  if (!can(member, "settings")) return <main className="page"><div className="empty"><h1>{t.noAccess.title}</h1><p>{t.errors.forbidden}</p></div></main>;
+  if (!can(member, "settings")) return <div className="page"><NoAccess title={t.noAccess.title} body={t.errors.forbidden} /></div>;
   const sql = db();
   const year = Number(today().slice(0, 4));
   const [company, cats, map, all, everyone, current, bank, flat, known, cars, accounts] = await Promise.all([
@@ -32,7 +33,7 @@ export default async function CompanySettings() {
   const approvers = everyone.filter(h => h.role === "approver" || h.role === "accountant");
   const withRole = everyone.filter(h => h.role !== null);
   return (
-    <main className="page wide">
+    <div className="page wide">
       <div className="page-head">
         <h1>{t.settings.title}</h1>
         <SettingsNav current="company" t={t.settings} />
@@ -61,10 +62,10 @@ export default async function CompanySettings() {
           fallback: all.some(s => s.year === year) ? null : format(t.settings.scale.fallback, { year, from: current.year }),
           kinds: vehicleKinds.map(k => ({ value: k, label: vehicleName(k, t), powers: Object.fromEntries(current.data[k].rows.map(r => [r.power, powerName(k, r.power, t)])) })),
         }}
-        t={t.settings}
+        t={{ ...t.settings, files: t.files, table: t.table }}
         errors={t.errors}
         cancel={t.form.cancel}
       />
-    </main>
+    </div>
   );
 }

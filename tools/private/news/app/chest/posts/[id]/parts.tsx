@@ -1,10 +1,9 @@
 "use client";
 
+import { Avatar, useToast } from "@argentic/chest-ui/components";
 import { useRouter } from "next/navigation";
 import { useEffect, useId, useLayoutEffect, useOptimistic, useRef, useState, useTransition } from "react";
-import { Avatar } from "../../../../components/avatar.tsx";
 import { Check, Clock, Pen, Pin, Reply, Trash } from "../../../../components/icons.tsx";
-import { useToast } from "../../../../components/toast.tsx";
 import type { ErrorCode } from "../../../../lib/app-error.ts";
 import { format, plural } from "../../../../lib/i18n/format.ts";
 import type { Catalogue } from "../../../../lib/i18n/index.ts";
@@ -12,9 +11,11 @@ import { addComment, answerEvent, confirmRead, deletePost, editComment, mentiona
 
 // The parts of a post a person acts on. Each changes the screen at once
 // (optimistic), then the server confirms; a refusal puts it back and says
-// why, in a toast.
+// why, in a toast (the kit's: an error is said at once, an Undo tells the
+// truth, what already left says "sent").
 type Errors = Catalogue["errors"];
 const say = (errors: Errors, code: ErrorCode, values: Record<string, number | string> = {}) => format(errors[code], values);
+const failed = (errors: Errors, code: ErrorCode, values: Record<string, number | string> = {}) => ({ text: say(errors, code, values), tone: "error" as const });
 
 export function PostTools({ id, pinned, t, errors }: { id: string; pinned: boolean; t: Catalogue["post"]; errors: Errors }) {
   const router = useRouter();
@@ -27,17 +28,24 @@ export function PostTools({ id, pinned, t, errors }: { id: string; pinned: boole
       <button type="button" className="button quiet small" aria-pressed={isPinned} onClick={() => start(async () => {
         setPinned(!isPinned);
         const r = await pinPost(id, !isPinned);
-        toast(r.ok ? (isPinned ? t.unpinnedToast : t.pinnedToast) : say(errors, r.error, r.values));
+        toast(r.ok ? { id: `pin-${id}`, text: isPinned ? t.unpinnedToast : t.pinnedToast } : failed(errors, r.error, r.values));
       })}><Pin />{isPinned ? t.unpin : t.pin}</button>
       <button type="button" className="button quiet small danger" onClick={() => start(async () => {
         const r = await deletePost(id);
-        if (!r.ok) return toast(say(errors, r.error, r.values));
+        if (!r.ok) return void toast(failed(errors, r.error, r.values));
         router.push("/chest");
-        toast(t.deleted, { label: t.undo, run: () => start(async () => {
-          const back = await restorePost(id);
-          if (!back.ok) return toast(say(errors, back.error));
-          router.push(`/chest/posts/${id}`);
-        }) });
+        // Undo brings it back, and the article with it; the toast says
+        // whether it worked.
+        toast({
+          id: `delete-${id}`,
+          text: t.deleted,
+          undo: async () => {
+            const back = await restorePost(id);
+            if (!back.ok) return say(errors, back.error);
+            router.push(`/chest/posts/${id}`);
+            return true;
+          },
+        });
       })}><Trash />{t.delete}</button>
     </div>
   );
@@ -58,7 +66,7 @@ export function ConfirmBox({ id, own, confirmed, again, when, t, errors }: { id:
           <button type="button" className="button" onClick={() => start(async () => {
             setDone(true);
             const r = await confirmRead(id);
-            toast(r.ok ? t.thanks : say(errors, r.error, r.values));
+            toast(r.ok ? { id: `confirm-${id}`, text: t.thanks } : failed(errors, r.error, r.values));
           })}><Check />{t.confirm}</button>
         </>
       )}
@@ -87,8 +95,8 @@ export function SendingNotice({ id, until, t, errors }: { id: string; until: str
       <span>{left === null ? t.goingOut : format(t.goingOutIn, { seconds: left })}</span>
       <button type="button" className="button small" disabled={busy} onClick={() => start(async () => {
         const r = await recallPost(id);
-        if (!r.ok) return toast(say(errors, r.error, r.values));
-        toast(t.recalled);
+        if (!r.ok) return void toast(failed(errors, r.error, r.values));
+        toast({ id: `send-${id}`, text: t.recalled });
         router.push("/chest/new");
       })}>{t.undoSend}</button>
     </p>
@@ -105,8 +113,8 @@ export function Rsvp({ id, answer, open, full, t, errors }: { id: string; answer
     const next = taking ? null : value;
     setMine(next === "yes" && full ? "wait" : next);
     const r = await answerEvent(id, next);
-    if (!r.ok) toast(say(errors, r.error, r.values));
-    else if (r.value.answer === "wait") toast(t.youWait);
+    if (!r.ok) toast(failed(errors, r.error, r.values));
+    else if (r.value.answer === "wait") toast({ id: `rsvp-${id}`, text: t.youWait });
   });
   const coming = mine === "yes" || mine === "wait";
   return (
@@ -136,7 +144,7 @@ export function Reactions({ id, list, t, errors, locale }: { id: string; list: R
           <button key={r.emoji} type="button" className={"reaction" + (r.mine ? " mine" : "")} aria-pressed={r.mine} title={r.count > 0 ? format(t.by, { emoji: label, names }) : label} onClick={() => start(async () => {
             toggle(r.emoji);
             const done = await react(id, r.emoji, !r.mine);
-            if (!done.ok) toast(say(errors, done.error, done.values));
+            if (!done.ok) toast(failed(errors, done.error, done.values));
           })}>
             <span aria-hidden="true">{r.symbol}</span>
             <span className="visually-hidden">{label}</span>
@@ -203,7 +211,7 @@ export function Comments({ id, thread, canModerate, me, t, errors, locale, you }
     start(async () => {
       change({ type: "add", comment: { id: "pending", parentId, author: you, photo: me.photo, mine: true, when: "", date: "", raw, pieces: piecesOf(body.trim(), chosen), names: {}, edited: false } });
       const r = await addComment(id, raw, parentId);
-      if (!r.ok) toast(say(errors, r.error, r.values));
+      if (!r.ok) toast(failed(errors, r.error, r.values));
     });
     setReplyTo(null);
     return true;
@@ -213,19 +221,26 @@ export function Comments({ id, thread, canModerate, me, t, errors, locale, you }
     start(async () => {
       change({ type: "remove", id: commentId });
       const r = await removeComment(commentId);
-      if (!r.ok) return toast(say(errors, r.error, r.values));
-      toast(t.deleted, { label: t.undo, run: () => start(async () => { const back = await restoreComment(commentId); if (!back.ok) toast(say(errors, back.error)); }) });
+      if (!r.ok) return void toast(failed(errors, r.error, r.values));
+      toast({
+        id: `delete-comment-${commentId}`,
+        text: t.deleted,
+        undo: async () => {
+          const back = await restoreComment(commentId);
+          return back.ok ? true : say(errors, back.error);
+        },
+      });
     });
   }
 
   function save(c: CommentView, body: string, chosen: Map<string, string>): boolean {
     const raw = toTokens(body.trim(), chosen);
-    if (!raw) { toast(errors.empty); return false; }
+    if (!raw) { toast({ text: errors.empty, tone: "error" }); return false; }
     setEditing(null);
     start(async () => {
       change({ type: "edit", id: c.id, raw, pieces: piecesOf(body.trim(), chosen) });
       const r = await editComment(c.id, raw);
-      if (!r.ok) toast(say(errors, r.error, r.values));
+      if (!r.ok) toast(failed(errors, r.error, r.values));
     });
     return true;
   }
@@ -234,7 +249,7 @@ export function Comments({ id, thread, canModerate, me, t, errors, locale, you }
   const repliesOf = (parent: string) => shown.filter(c => c.parentId === parent);
   const item = (c: CommentView, reply: boolean) => (
     <li key={c.id} id={"comment-" + c.id} className={"comment" + (reply ? " reply" : "") + (c.id === "pending" ? " pending" : "")}>
-      <Avatar name={c.author} photo={c.photo} size={reply ? 28 : 32} />
+      <Avatar name={c.author} photo={c.photo} size="m" {...(reply ? { className: "avatar-28" } : {})} />
       <div className="comment-body">
         <p className="comment-meta"><strong>{c.author}</strong>{c.when && <time title={c.date}>{c.when}</time>}{c.edited && <span>{t.edited}</span>}</p>
         {editing === c.id ? (
@@ -271,7 +286,7 @@ export function Comments({ id, thread, canModerate, me, t, errors, locale, you }
         ))}
       </ol>
       <div className="comment-form">
-        <Avatar name={me.name} photo={me.photo} size={32} />
+        <Avatar name={me.name} photo={me.photo} size="m" />
         <Writer postId={id} label={t.label} initial={{ text: "", chosen: new Map() }} submit={t.send} onSubmit={(body, chosen) => send(body, chosen, null)} placeholder={t.placeholder} t={t} errors={errors} />
       </div>
     </section>
@@ -370,7 +385,8 @@ export function RemindButton({ id, t, errors, locale }: { id: string; t: Catalog
   return (
     <button type="button" className="button small" disabled={busy} onClick={() => start(async () => {
       const r = await remind(id);
-      toast(r.ok ? plural(t.reminded, r.value.count, locale) : say(errors, r.error, r.values));
+      // The reminders left (bell and email): the toast says so, with no Undo.
+      toast(r.ok ? { id: `remind-${id}`, text: plural(t.reminded, r.value.count, locale), sent: true } : failed(errors, r.error, r.values));
     })}>{t.remind}</button>
   );
 }

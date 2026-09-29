@@ -1,7 +1,8 @@
 "use client";
 
+import { StatusBadge, type Tone } from "@argentic/chest-ui/components";
 import { useState } from "react";
-import type { RowView } from "../lib/rows.ts";
+import type { RowView, StampKind } from "../lib/rows.ts";
 import { Alert, Calendar, Car, FileIcon, Receipt } from "./icons.tsx";
 
 // Small pieces every list of expenses uses.
@@ -18,12 +19,27 @@ export function DateBox({ row }: { row: Pick<RowView, "day" | "month"> }) {
   return <span className="date-box" aria-hidden="true"><b>{row.day}</b><span>{row.month}</span></span>;
 }
 
-export function Stamp({ row, big = false }: { row: Pick<RowView, "stamp">; big?: boolean }) {
-  return <span className={`stamp ${row.stamp.kind}${big ? " big" : ""}`}>{row.stamp.text}</span>;
+// Where an expense stands, as a rubber stamp on the receipt: the kit's
+// StatusBadge (a shape and a word, never the colour alone), in the stamp's
+// look (app/globals.css).
+const tones: Record<StampKind | "cancelled", Tone> = { draft: "neutral", refused: "danger", submitted: "wait", approved: "ok", paid: "ok", imported: "neutral", cancelled: "neutral" };
+
+export function Stamp({ kind, text, big = false }: { kind: StampKind | "cancelled"; text: string; big?: boolean }) {
+  return <span className={`stamp ${kind}${big ? " big" : ""}`}><StatusBadge tone={tones[kind]} label={text} size="s" /></span>;
+}
+
+export function RowStamp({ row, big = false }: { row: Pick<RowView, "stamp">; big?: boolean }) {
+  return <Stamp kind={row.stamp.kind} text={row.stamp.text} big={big} />;
+}
+
+// What deserves a look (a duplicate, no receipt, above the limit…): the
+// kit's badge in the waiting tone, with a warning sign and its words.
+export function Warning({ text }: { text: string }) {
+  return <StatusBadge tone="wait" icon={<Alert />} label={text} size="s" />;
 }
 
 export function Warnings({ list }: { list: string[] }) {
-  return <>{list.map(w => <span key={w} className="warn"><Alert />{w}</span>)}</>;
+  return <>{list.map(w => <Warning key={w} text={w} />)}</>;
 }
 
 // A thumbnail that opens its receipt: a photo in a large preview (the

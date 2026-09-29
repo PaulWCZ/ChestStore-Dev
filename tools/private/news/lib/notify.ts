@@ -44,7 +44,9 @@ export async function badges(counts: Map<string, number>): Promise<void> {
 }
 
 // cut shortens a text to max characters (not UTF-16 units), with an ellipsis.
+// Runs of spaces and line breaks become one space; the no-break spaces of
+// French typography (before « : », inside « ») stay.
 export function cut(text: string, max: number): string {
-  const chars = [...text.replace(/\s+/gu, " ").trim()];
+  const chars = [...text.replace(/[^\S\u00a0\u202f]+/gu, " ").trim()];
   return chars.length <= max ? chars.join("") : chars.slice(0, max - 1).join("") + "…";
 }

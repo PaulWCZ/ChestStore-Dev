@@ -1,17 +1,19 @@
+import { BrandMark, LanguageSwitch } from "@argentic/chest-ui/components";
 import { Mark } from "../components/mark.tsx";
-import { LanguageSwitch } from "../components/language-switch.tsx";
+import { languageNames, locales } from "../lib/i18n/index.ts";
 import { publicWords } from "../lib/session.ts";
+import { currentLook } from "../lib/theme.ts";
 
 // The public host's root. This tool has no public part: whoever lands here
 // is told where the tool lives, in their language.
 export default async function PublicHome() {
-  const { t, locale } = await publicWords();
+  const [{ t, locale }, look] = await Promise.all([publicWords(), currentLook()]);
   return (
     <main className="public">
-      <div className="brand"><Mark />{t.meta.name}</div>
+      <div className="brand"><BrandMark logo={look.logo}><Mark /></BrandMark>{t.meta.name}</div>
       <h1>{t.public.title}</h1>
       <p>{t.public.body}</p>
-      <LanguageSwitch current={locale} label={t.public.language} />
+      <LanguageSwitch languages={locales.map(code => ({ code, name: languageNames[code] ?? code }))} current={locale} label={t.public.language} />
     </main>
   );
 }

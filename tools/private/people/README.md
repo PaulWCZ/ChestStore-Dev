@@ -27,7 +27,7 @@ see "What it does not do yet".
 - **Extra fields** HR adds for everyone ("Languages", "T-shirt size",
   "LinkedIn"; 20 at most): each filled by the person (and HR) or by HR
   only, shown on the profile, found by the search, in the export and the
-  import. Removing one has *Undo* (kept 30 days).
+  import. Deleting one has *Undo* (kept 30 days).
 - **A profile page** per person: how to reach them (one tap to call), what
   to ask them, whom they report to and who reports to them, how long they
   have been here, their checklists (for those allowed to see them).
@@ -40,7 +40,7 @@ see "What it does not do yet".
 - **Edit as a table** (HR) — everyone on one screen: job title, team,
   office, manager, start date, phone and the extra fields as cells, each
   saved when HR leaves it, with *Undo*; a refused value (a loop, a wrong
-  phone) comes back as it was. HR adds, renames and removes extra fields
+  phone) comes back as it was. HR adds, renames and deletes extra fields
   there.
 - **Org chart**, drawn from the managers: top-down trees with thin
   connectors, each team folding open and shut; an indented list on phones;
@@ -59,8 +59,8 @@ see "What it does not do yet".
   HR starts one for a person; each step goes to someone, who finds it in
   **My to-dos** and in the Chest's bell, in their language; they tick it
   (with *Undo*). HR follows progress, gives a step to someone else, moves
-  its day, adds or removes steps, stops a checklist (with *Undo*) or
-  deletes a stopped one. The person who started it is told when it is
+  its day, adds or deletes steps, stops a checklist (with *Undo*) or
+  deletes a stopped one (asked first: it is for good). The person who started it is told when it is
   complete.
 - **Import** a CSV (a shared spreadsheet, BambooHR's reports, a Google
   Workspace users export, Lucca's export): columns recognised from their
@@ -108,7 +108,7 @@ The part of BambooHR / Lucca Core HR a French SME is required to have.
   ("My HR record" on their profile), read-only; **anyone else — their
   manager included — is told it does not exist** (404).
 - **A journal of every reading and change**: who opened a record, changed
-  which fields (names only, never values), added, opened or removed which
+  which fields (names only, never values), added, opened or deleted which
   kind of document, read or downloaded the register — shown on the record
   and the register; kept two years. The person's own readings are not
   noted.
@@ -167,7 +167,7 @@ admin linked the two; `chest.proposals.json` `receives`):
   becomes theirs and their steps reach their bell.
 - `hiring.hire_cancelled` `{candidate}`: the arrival goes if nothing was
   started for it; otherwise it is marked *Hire cancelled*, its checklist
-  stopped (its steps leave everyone's bell) and HR is told; HR removes it.
+  stopped (its steps leave everyone's bell) and HR is told; HR deletes it.
   Brought back into Hired, it is expected again (a stopped checklist is
   restarted by HR from its page).
 - **Personal data of arrivals**: the email Hiring sends is never stored.
@@ -205,6 +205,24 @@ ones Rooms receives; unchanged).
   reason. **Equipment** receives it: it lists what the person holds to
   take back before that day.
 
+## Looks
+
+People wears its own identity, the **Portrait gallery** (cream walls,
+terracotta, deep plum ink, portraits in arches) — or **any theme of the
+store's catalogue**, or **the company's own brand** (its colours, fonts,
+corners, and its logo where People's mark is), as the company chooses in
+its Chest, for all its tools or for People alone. Same features, same
+pages, readable in every look (every theme is checked against WCAG AA,
+light and dark). The look is resolved on the server
+(`chest.theme()`, a Proposal (studio) of the SDK) and written into the page;
+no script, nothing to set in People. The staff register and the HR record
+print black on white whatever the look (DESIGN.md, "Paper").
+
+The shared pieces — the header and its labelled tabs, toasts with *Undo*,
+dialogs, people pickers, date fields, the search box, file pickers, tables,
+empty states, avatars — are the store's UI kit (`@argentic/chest-ui`,
+`vendor/`), so they behave as in every other tool.
+
 ## Roles
 
 | Role (`chest.json`) | Label | May |
@@ -230,9 +248,10 @@ records: see "On a Chest").
   HR setting up a new company: *Import* (a BambooHR or Lucca file) or
   *Edit as a table*; then *Records* → *Create their N records* (1 click)
   → complete each; the staff register is then written.
-- **A mistake:** ticking has *Undo*; removing a step or stopping a checklist
-  has *Undo*; a cell of the table has *Undo*; removing a document or an
-  extra field has *Undo*; a refused save says why and keeps what was
+- **A mistake:** ticking has *Undo*; deleting a step or stopping a checklist
+  has *Undo*; a cell of the table has *Undo*; deleting a document or an
+  extra field has *Undo* (an Undo that comes too late says so); deleting a
+  checklist or a record for good asks first, in the page; a refused save says why and keeps what was
   typed; a manager that would make a loop is refused in plain words; a
   first day on a weekend is questioned.
 
@@ -316,6 +335,9 @@ records: see "On a Chest").
   departures.
 - **The Chest's time zone** — **Proposal (studio)** (`chest.timeZone()`,
   `chest.today()`): "today", due days and anniversaries.
+- **The company's look** — **Proposal (studio)** (`chest.theme()`, SDK
+  0.3.0-studio.12): the theme or brand the company chose. Without it (a
+  real Chest today) People wears its own identity.
 - **Files** (`files`, 0.2.0): the records' documents, uploaded by the
   browser straight to the Chest (`uploadUrl`), opened through `files.url`.
 - **Wished for, not built** (in the SDK report): **sealed fields** — a

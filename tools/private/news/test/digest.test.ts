@@ -62,9 +62,9 @@ test("each person gets one item: the posts of the week they have not seen, in th
     assert.equal(h!.path, "/chest");
     // Inès (French, Sales, never came): everything of the week.
     const [i] = digestOf(ines.id);
-    assert.equal(i!.title, "Cette semaine : 4 publications que vous n’avez pas encore vues");
+    assert.equal(i!.title, "Cette semaine\u202f: 4 publications que vous n’avez pas encore vues");
     // Nora (no group): not the Sales post.
-    assert.equal(digestOf(nora.id)[0]!.title, "Cette semaine : 3 publications que vous n’avez pas encore vues");
+    assert.equal(digestOf(nora.id)[0]!.title, "Cette semaine\u202f: 3 publications que vous n’avez pas encore vues");
     // Camille wrote all she could see: only Sofia's Sales post, not for her.
     assert.deepEqual(digestOf(camille.id), []);
     // Sofia: Camille's three.

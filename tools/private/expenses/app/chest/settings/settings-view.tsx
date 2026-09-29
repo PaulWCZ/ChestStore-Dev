@@ -1,21 +1,22 @@
 "use client";
 
+import { Avatar, FilePicker, StatusBadge, useToast, type PickedFile } from "@argentic/chest-ui/components";
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
-import { Avatar } from "../../../components/avatar.tsx";
+import { useEffect, useState, useTransition } from "react";
 import { BankForm, type BankCurrent } from "../../../components/bank-form.tsx";
+import { Stamp } from "../../../components/bits.tsx";
 import { Car, Wallet } from "../../../components/icons.tsx";
-import { useToast } from "../../../components/toast.tsx";
 import type { Catalogue } from "../../../lib/i18n/index.ts";
 import { format, intl, plural } from "../../../lib/i18n/format.ts";
 import type { Result } from "../../../lib/errors.ts";
 import type { Scale, VehicleKind } from "../../../lib/scale.ts";
 import { upload } from "../../../components/upload.ts";
+import { limits, receiptTypes } from "../../../lib/model.ts";
 import { ImportSection } from "./import-view.tsx";
 import { addCategory, checkVehicle, saveAllowanceRate, saveScale, setApprover, setMemberAccount, setPriorDistance, setRate, setVehicle, setVehicleProof, updateCategory, updateCompany } from "../actions.ts";
 
 type Option = { value: string; label: string };
-type Words = Catalogue["settings"];
+type Words = Catalogue["settings"] & { files: Catalogue["files"]; table: Catalogue["table"] };
 type Errors = Catalogue["errors"];
 type CategoryRow = { id: string; name: string; placeholder: string; account: string; vatRecovery: string; cap: string; mileage: boolean; archived: boolean; guests: boolean; perNight: boolean; allowance: boolean };
 type Company = {
@@ -47,11 +48,11 @@ function useRun(errors: Errors) {
   const run = <T,>(step: () => Promise<Result<T>>, done?: (value: T) => string | void) => start(async () => {
     const result = await step();
     if (!result.ok) {
-      toast(format(errors[result.error], result.values ?? {}));
+      toast({ text: format(errors[result.error], result.values ?? {}), tone: "error" });
       return;
     }
     const message = done?.(result.value);
-    if (message) toast(message);
+    if (message) toast({ id: "settings", text: message });
     router.refresh();
   });
   return { run, pending };
@@ -73,7 +74,7 @@ export function MyView({ vehicle, bank, t, errors, cancel }: { vehicle: VehicleD
     <div className="settings">
       <VehicleForm vehicle={vehicle} t={t} errors={errors} />
       <section id="bank" className="paper" aria-labelledby="bank-title">
-        <h2 id="bank-title" style={{ display: "flex", gap: 8, alignItems: "center" }}><Wallet />{t.bank.title}</h2>
+        <h2 id="bank-title" className="section-title"><Wallet />{t.bank.title}</h2>
         <p className="hint">{t.bank.intro}</p>
         <hr className="rule" />
         <BankForm owner="me" current={bank} t={t.bank} errors={errors} save={t.bank.save} cancel={cancel} />
@@ -98,7 +99,7 @@ export function CompanyView({ locale, company, t, errors, cancel }: { locale: st
       <JournalAccounts company={company} t={t} errors={errors} />
       <Vehicles company={company} t={t} errors={errors} />
       <ScaleEditor company={company} locale={locale} t={t} errors={errors} />
-      <ImportSection team={company.team} locale={locale} t={t.import} errors={errors} />
+      <ImportSection team={company.team} locale={locale} t={t.import} kit={{ files: t.files, table: t.table }} errors={errors} />
     </div>
   );
 }
@@ -111,7 +112,7 @@ function VehicleForm({ vehicle, t, errors }: { vehicle: VehicleData; t: Words; e
   const [electric, setElectric] = useState(vehicle.current?.electric ?? false);
   return (
     <section id="vehicle" className="paper" aria-labelledby="vehicle-title">
-      <h2 id="vehicle-title" style={{ display: "flex", gap: 8, alignItems: "center" }}><Car />{t.vehicle.title}</h2>
+      <h2 id="vehicle-title" className="section-title"><Car />{t.vehicle.title}</h2>
       <p className="hint">{t.vehicle.intro}</p>
       <hr className="rule" />
       <form className="form-grid" onSubmit={e => { e.preventDefault(); run(() => setVehicle({ kind, power, electric }), () => t.vehicle.saved); }}>
@@ -151,7 +152,7 @@ function PriorForm({ prior, t, errors }: { prior: VehicleData["prior"]; t: Words
   const [value, setValue] = useState(prior.value);
   return (
     <form className="pay-form" onSubmit={e => { e.preventDefault(); run(() => setPriorDistance(prior.year, value), () => format(t.vehicle.priorSaved, { year: prior.year })); }}>
-      <div className="field-row" style={{ flex: "1 1 260px" }}>
+      <div className="field-row grow-row">
         <label htmlFor="prior">{format(t.vehicle.prior, { year: prior.year })}</label>
         <input id="prior" className="field mono" inputMode="decimal" value={value} onChange={e => setValue(e.target.value)} placeholder="0" aria-describedby="prior-hint" />
         <span id="prior-hint" className="hint">{t.vehicle.priorHint}</span>
@@ -161,34 +162,44 @@ function PriorForm({ prior, t, errors }: { prior: VehicleData["prior"]; t: Words
   );
 }
 
-// The registration certificate: a photo or a PDF, straight to the Chest.
+// The registration certificate: a photo or a PDF, straight to the Chest
+// (the kit's FilePicker; the photo of a phone's camera or a file). Once it
+// arrived, it is kept as the vehicle's certificate.
 function ProofField({ proof, t, errors }: { proof: VehicleData["proof"]; t: Words; errors: Errors }) {
   const { run, pending } = useRun(errors);
-  const toast = useToast();
-  const [sending, setSending] = useState(false);
-  async function pick(file: File | undefined) {
-    if (!file) return;
-    setSending(true);
-    const sent = await upload(file);
-    setSending(false);
-    if (!sent.ok) return void toast(format(errors[sent.error], sent.values ?? {}));
-    run(() => setVehicleProof(sent.object, file.name), () => t.vehicle.proofSaved);
-  }
-  const input = <input type="file" accept="image/*,application/pdf,.heic,.pdf" onChange={e => { const f = e.target.files?.[0]; e.target.value = ""; void pick(f); }} />;
+  const [files, setFiles] = useState<readonly PickedFile[]>([]);
+  // Arrived: kept on the vehicle, and the list is empty again.
+  const arrived = files.find(f => f.status === "ready" && f.ref);
+  useEffect(() => {
+    if (!arrived) return;
+    setFiles(list => list.filter(f => f.key !== arrived.key));
+    run(() => setVehicleProof(arrived.ref!, arrived.name), () => t.vehicle.proofSaved);
+  }, [arrived, run, t.vehicle.proofSaved]);
   return (
     <div className="field-row">
       <span className="field-label">{t.vehicle.proof}</span>
       <span className="hint">{t.vehicle.proofHint}</span>
-      <div className="proof-line">
-        {proof && (
-          <>
-            <a className="mono" href={proof.href} target="_blank" rel="noopener">{proof.name}</a>
-            <span className={proof.checked ? "ok-tag" : "warn"}>{proof.checked ? t.vehicle.proofChecked : t.vehicle.proofUnchecked}</span>
-          </>
-        )}
-        <label className={`button small quiet file-label${pending || sending ? " busy" : ""}`}>{proof ? t.vehicle.proofReplace : t.vehicle.proofAdd}{input}</label>
-        {proof && <button type="button" className="link-button danger" disabled={pending} onClick={() => run(() => setVehicleProof(null), () => t.vehicle.proofRemoved)}>{t.vehicle.proofRemove}</button>}
-      </div>
+      {proof && (
+        <div className="proof-line">
+          <a className="mono" href={proof.href} target="_blank" rel="noopener">{proof.name}</a>
+          <StatusBadge tone={proof.checked ? "ok" : "wait"} label={proof.checked ? t.vehicle.proofChecked : t.vehicle.proofUnchecked} size="s" />
+          <button type="button" className="link-button danger" disabled={pending} onClick={() => run(() => setVehicleProof(null), () => t.vehicle.proofRemoved)}>{t.vehicle.proofRemove}</button>
+        </div>
+      )}
+      <FilePicker
+        label={proof ? t.vehicle.proofReplace : t.vehicle.proofAdd}
+        files={files}
+        onChange={setFiles}
+        maxFiles={1}
+        maxSize={limits.receiptSize}
+        accept={[...receiptTypes, ".heic", ".heif", ".pdf"]}
+        disabled={pending}
+        labels={t.files}
+        upload={async (file, { onProgress, signal }) => {
+          const sent = await upload(file, { onProgress, signal });
+          return sent.ok ? { ok: true, ref: sent.object } : { ok: false, error: format(errors[sent.error], sent.values ?? {}) };
+        }}
+      />
     </div>
   );
 }
@@ -200,7 +211,7 @@ function CompanyForm({ company, t, errors }: { company: Company; t: Words; error
       <h2 id="company-title">{t.company.title}</h2>
       <hr className="rule" />
       <div className="form-grid">
-        <div className="field-row" style={{ maxWidth: 320 }}>
+        <div className="field-row narrow">
           <label htmlFor="currency">{t.company.currency}</label>
           <select id="currency" className="field" defaultValue={company.currency} disabled={pending} onChange={e => run(() => updateCompany({ currency: e.target.value }), () => t.company.saved)}>
             {company.currencies.map(c => <option key={c} value={c}>{c}</option>)}
@@ -222,7 +233,7 @@ function CompanyBank({ company, t, errors, cancel }: { company: Company; t: Word
       <hr className="rule" />
       <div className="form-grid">
         <form className="pay-form" onSubmit={e => { e.preventDefault(); run(() => updateCompany({ payer }), () => t.company.saved); }}>
-          <div className="field-row" style={{ flex: "1 1 280px" }}>
+          <div className="field-row grow-row">
             <label htmlFor="payer">{t.bank.payer}</label>
             <input id="payer" className="field" value={payer} onChange={e => setPayer(e.target.value)} maxLength={70} autoComplete="organization" />
           </div>
@@ -272,8 +283,8 @@ function Categories({ company, t, errors }: { company: Company; t: Words; errors
           </tbody>
         </table>
       </div>
-      <form className="pay-form" style={{ marginTop: 12 }} onSubmit={e => { e.preventDefault(); if (name.trim()) run(() => addCategory({ name }), () => { setName(""); return t.company.saved; }); }}>
-        <div className="field-row" style={{ flex: "1 1 240px" }}>
+      <form className="pay-form add-row" onSubmit={e => { e.preventDefault(); if (name.trim()) run(() => addCategory({ name }), () => { setName(""); return t.company.saved; }); }}>
+        <div className="field-row grow-row">
           <label htmlFor="new-category">{t.categories.newName}</label>
           <input id="new-category" className="field" value={name} onChange={e => setName(e.target.value)} maxLength={60} />
         </div>
@@ -345,16 +356,16 @@ function Allowances({ company, t, errors }: { company: Company; t: Words; errors
           </tbody>
         </table>
       </div>
-      <form className="pay-form" style={{ marginTop: 12 }} onSubmit={e => { e.preventDefault(); if (name.trim() && amount.trim()) run(() => saveAllowanceRate(null, { name, amount, unit }), () => { setName(""); setAmount(""); return t.company.saved; }); }}>
-        <div className="field-row" style={{ flex: "1 1 220px" }}>
+      <form className="pay-form add-row" onSubmit={e => { e.preventDefault(); if (name.trim() && amount.trim()) run(() => saveAllowanceRate(null, { name, amount, unit }), () => { setName(""); setAmount(""); return t.company.saved; }); }}>
+        <div className="field-row grow-row">
           <label htmlFor="new-allowance">{t.allowances.newName}</label>
           <input id="new-allowance" className="field" value={name} onChange={e => setName(e.target.value)} maxLength={80} />
         </div>
-        <div className="field-row" style={{ flex: "0 1 120px" }}>
+        <div className="field-row w-s">
           <label htmlFor="new-allowance-amount">{t.allowances.amount}</label>
           <input id="new-allowance-amount" className="field mono" inputMode="decimal" value={amount} onChange={e => setAmount(e.target.value)} />
         </div>
-        <div className="field-row" style={{ flex: "0 1 140px" }}>
+        <div className="field-row w-m">
           <label htmlFor="new-allowance-unit">{t.allowances.unit}</label>
           <select id="new-allowance-unit" className="field" value={unit} onChange={e => setUnit(e.target.value)}>
             {company.units.map(u => <option key={u.value} value={u.value}>{u.label}</option>)}
@@ -390,14 +401,14 @@ function Rates({ company, locale, t, errors }: { company: Company; locale: strin
         </ul>
       )}
       {others.length > 0 && (
-        <form className="pay-form" style={{ marginTop: 12 }} onSubmit={e => { e.preventDefault(); if (currency && rate.trim()) run(() => setRate(currency, rate.trim()), v => { setRateText(""); return saved(v.count); }); }}>
-          <div className="field-row" style={{ flex: "0 1 140px" }}>
+        <form className="pay-form add-row" onSubmit={e => { e.preventDefault(); if (currency && rate.trim()) run(() => setRate(currency, rate.trim()), v => { setRateText(""); return saved(v.count); }); }}>
+          <div className="field-row w-m">
             <label htmlFor="new-rate-currency">{t.rates.currency}</label>
             <select id="new-rate-currency" className="field" value={currency} onChange={e => setCurrency(e.target.value)}>
               {others.map(c => <option key={c} value={c}>{c}</option>)}
             </select>
           </div>
-          <div className="field-row" style={{ flex: "0 1 200px" }}>
+          <div className="field-row w-l">
             <label htmlFor="new-rate">{format(t.rates.rate, { currency, company: company.currency })}</label>
             <input id="new-rate" className="field mono" inputMode="decimal" value={rate} onChange={e => setRateText(e.target.value)} />
           </div>
@@ -452,7 +463,7 @@ function Vehicles({ company, t, errors }: { company: Company; t: Words; errors: 
                     {t.vehicles.check}<span className="visually-hidden">: {v.name}</span>
                   </label>
                 )}
-                {v.proof && !v.checked && <span className="warn">{t.vehicles.unchecked}</span>}
+                {v.proof && !v.checked && <StatusBadge tone="wait" label={t.vehicles.unchecked} size="s" />}
               </span>
             </li>
           ))}
@@ -486,13 +497,13 @@ function ScaleEditor({ company, locale, t, errors }: { company: Company; locale:
     <section id="scale" className="paper" aria-labelledby="scale-title">
       <div className="paper-head">
         <h2 id="scale-title">{t.scale.title}</h2>
-        <span className="stamp">{t.scale.check}</span>
+        <Stamp kind="submitted" text={t.scale.check} />
       </div>
       <p className="hint">{t.scale.intro}</p>
-      {company.fallback && <p className="notice" style={{ marginTop: 12 }}>{company.fallback}</p>}
+      {company.fallback && <p className="notice scale-fallback">{company.fallback}</p>}
       <hr className="rule" />
       <div className="year-tabs" role="group" aria-label={t.scale.year}>
-        {years.map(y => <button key={y} type="button" className="chip small" aria-pressed={y === year} style={y === year ? { background: "var(--ink)", color: "var(--bg)" } : undefined} onClick={() => setYear(y)}>{y}</button>)}
+        {years.map(y => <button key={y} type="button" className="chip small" aria-pressed={y === year} onClick={() => setYear(y)}>{y}</button>)}
         {!years.includes(next) && <button type="button" className="chip small" onClick={() => { setDraft({ year: next, data: structuredClone(shown.data), source: "" }); setYear(next); }}>{format(t.scale.add, { year: next })}</button>}
       </div>
       <form onSubmit={e => { e.preventDefault(); run(() => saveScale(shown.year, shown.data, shown.source), () => { setDraft(null); return t.scale.saved; }); }} className="form-grid">
@@ -501,7 +512,7 @@ function ScaleEditor({ company, locale, t, errors }: { company: Company; locale:
           return (
             <div key={k.value} className="table-wrap">
               <table className="grid">
-                <caption className="label" style={{ textAlign: "left", paddingBottom: 6 }}>{k.label}</caption>
+                <caption className="label">{k.label}</caption>
                 <thead>
                   <tr>
                     <th>{t.scale.power}</th>

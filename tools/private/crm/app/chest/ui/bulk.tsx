@@ -1,14 +1,13 @@
 "use client";
 
+import { Confirm, useToast } from "@argentic/chest-ui/components";
 import { useRouter } from "next/navigation";
 import { createContext, useContext, useState, useTransition, type ReactNode } from "react";
-import { Dialog } from "../../../components/dialog.tsx";
 import { Close, Person, Tag, Trash } from "../../../components/icons.tsx";
-import { useToast } from "../../../components/toast.tsx";
 import { format, intl, plural } from "../../../lib/i18n/format.ts";
 import type { Catalogue, Locale } from "../../../lib/i18n/index.ts";
 import { bulkChange, matchingIds } from "../actions.ts";
-import { OwnerSelect } from "./owner-select.tsx";
+import { OwnerPicker } from "./owner-select.tsx";
 import type { Teammate } from "./shared.ts";
 
 // Changing many at once: tick rows (or the whole page), then give them to
@@ -77,7 +76,7 @@ export function BulkBar({ table, team, me, canAssign, canDelete, locale, t }: { 
   function run(action: Parameters<typeof bulkChange>[2]) {
     start(async () => {
       const r = await bulkChange(table, ids, action);
-      if (!r.ok) return toast(format(t.errors[r.error], r.values));
+      if (!r.ok) return void toast({ text: format(t.errors[r.error], r.values), tone: "error" });
       toast(r.value.skipped > 0 ? format(w.skipped, { done: r.value.done, skipped: r.value.skipped }) : plural(action.kind === "delete" ? w.deleted : w.done, r.value.done, locale));
       s!.clear();
       setMode("");
@@ -89,8 +88,7 @@ export function BulkBar({ table, team, me, canAssign, canDelete, locale, t }: { 
       <span className="strong num" aria-live="polite">{plural(w.selected, ids.length, locale)}</span>
       {mode === "assign" ? (
         <form className="row" onSubmit={e => { e.preventDefault(); run({ kind: "assign", owner }); }}>
-          <label className="visually-hidden" htmlFor="bulk-owner">{w.assign}</label>
-          <OwnerSelect id="bulk-owner" value={owner} team={team} me={me} canAssign={canAssign} onChange={setOwner} t={t} />
+          <OwnerPicker id="bulk-owner" label={w.assign} hideLabel value={owner} team={team} me={me} canAssign={canAssign} onChange={setOwner} t={t} />
           <button type="submit" className="button small" disabled={pending}>{w.apply}</button>
           <button type="button" className="button small quiet" onClick={() => setMode("")}>{t.common.cancel}</button>
         </form>
@@ -110,15 +108,8 @@ export function BulkBar({ table, team, me, canAssign, canDelete, locale, t }: { 
           <button type="button" className="icon-button small" onClick={() => s.clear()} title={w.clear}><Close /><span className="visually-hidden">{w.clear}</span></button>
         </span>
       )}
-      {mode === "delete" && (
-        <Dialog open title={plural(w.deleteTitle, ids.length, locale)} closeLabel={t.common.close} onClose={() => setMode("")}>
-          <p>{w.deleteBody}</p>
-          <div className="form-actions">
-            <button type="button" className="button danger" disabled={pending} onClick={() => run({ kind: "delete" })}><Trash />{w.deleteConfirm}</button>
-            <button type="button" className="button quiet" onClick={() => setMode("")}>{t.common.cancel}</button>
-          </div>
-        </Dialog>
-      )}
+      {/* Deleting records cannot be undone: the kit's Confirm asks once. */}
+      <Confirm open={mode === "delete"} title={plural(w.deleteTitle, ids.length, locale)} body={w.deleteBody} confirmLabel={w.deleteConfirm} cancelLabel={t.common.cancel} busy={pending} onConfirm={() => run({ kind: "delete" })} onCancel={() => setMode("")} />
     </div>
   );
 }

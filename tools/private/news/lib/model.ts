@@ -55,7 +55,7 @@ export const isCoverType = (type: string): boolean => (coverTypes as readonly st
 export function clean(value: unknown, max: number, options: { multiline?: boolean; optional?: boolean } = {}): string {
   if (typeof value !== "string") throw new AppError("invalid");
   let text = value.replace(/\r\n?/gu, "\n");
-  text = options.multiline ? text.replace(/[^\P{Cc}\n\t]/gu, "") : text.replace(/\s+/gu, " ").replace(/\p{Cc}/gu, "");
+  text = options.multiline ? text.replace(/[^\P{Cc}\n\t]/gu, "") : text.replace(/[^\S\u00a0\u202f]+/gu, " ").replace(/\p{Cc}/gu, "");
   text = options.multiline ? text.replace(/\n{3,}/gu, "\n\n").trim() : text.trim();
   if (text === "" && !options.optional) throw new AppError("empty");
   if ([...text].length > max) throw new AppError("too_long", { max });

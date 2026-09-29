@@ -1,11 +1,12 @@
+import { Avatar, EmptyState } from "@argentic/chest-ui/components";
 import Link from "next/link";
-import { Avatar } from "../../../components/avatar.tsx";
 import { Download } from "../../../components/icons.tsx";
 import { can } from "../../../lib/access.ts";
 import { listCompanies, tagsInUse } from "../../../lib/companies.ts";
 import { db } from "../../../lib/db.ts";
 import { fieldFilterOf, listFields } from "../../../lib/fields.ts";
 import { format, money, plural, relative } from "../../../lib/i18n/index.ts";
+import { today } from "../../../lib/model.ts";
 import { directory } from "../../../lib/people.ts";
 import { viewer } from "../../../lib/session.ts";
 import { team as teamOf } from "../../../lib/team.ts";
@@ -42,15 +43,15 @@ export default async function Companies({ searchParams }: { searchParams: Search
   const team = people.map(p => ({ id: p.id, name: p.name, photo: p.photo }));
   const writes = can(member, "records.write");
   return (
-    <main className="page">
+    <div className="page">
       <div className="page-head">
         <div>
           <h1>{t.companies.title}</h1>
           <p className="lede num">{plural(t.companies.count, total, locale)}</p>
         </div>
-        {writes && <NewCompanyButton label={t.companies.new} initial={emptyCompany(member.id)} fields={fields} team={team} me={member.id} canAssign={can(member, "assign")} locale={locale} t={t} />}
+        {writes && <NewCompanyButton label={t.companies.new} initial={emptyCompany(member.id)} fields={fields} team={team} me={member.id} canAssign={can(member, "assign")} today={today()} locale={locale} t={t} />}
       </div>
-      <ListFilters label={t.companies.filter} tags={tags} team={team} me={member.id} fields={fields} sorts={[{ value: "name", label: t.companies.sorts.name }, { value: "recent", label: t.companies.sorts.recent }, { value: "created", label: t.companies.sorts.created }]} t={t} />
+      <ListFilters label={t.companies.filter} tags={tags} team={team} me={member.id} fields={fields} today={today()} sorts={[{ value: "name", label: t.companies.sorts.name }, { value: "recent", label: t.companies.sorts.recent }, { value: "created", label: t.companies.sorts.created }]} t={t} />
       <BulkProvider>
         <div className="list-summary">
           {writes ? <PageCheck ids={rows.map(r => r.id)} total={total} table="companies" filter={filter} locale={locale} t={t} /> : <span />}
@@ -58,11 +59,11 @@ export default async function Companies({ searchParams }: { searchParams: Search
         </div>
         {writes && <BulkBar table="companies" team={team} me={member.id} canAssign={can(member, "assign")} canDelete locale={locale} t={t} />}
         {rows.length === 0 ? (
-          <div className="empty small">
-            <h2>{filtered ? t.companies.emptyFiltered : t.companies.empty}</h2>
-            {!filtered && <p>{t.companies.emptyBody}</p>}
-            {!filtered && can(member, "import") && <Link prefetch={false} className="button quiet" href="/chest/import">{t.shell.import}</Link>}
-          </div>
+          <EmptyState
+            title={filtered ? t.companies.emptyFiltered : t.companies.empty}
+            body={filtered ? undefined : t.companies.emptyBody}
+            action={!filtered && can(member, "import") ? <Link prefetch={false} className="button quiet" href="/chest/import">{t.shell.import}</Link> : undefined}
+          />
         ) : (
           <ul className={`rows${writes ? " selectable" : ""}`}>
             {rows.map(c => (
@@ -78,7 +79,7 @@ export default async function Companies({ searchParams }: { searchParams: Search
                     <span className="num">{c.openDeals > 0 ? `${plural(t.companies.openDeals, c.openDeals, locale)} · ${money(c.openValue, locale)}` : plural(t.companies.openDeals, 0, locale)}</span>
                   </span>
                   <span className="row-when muted" title={t.companies.lastActivity}>{c.lastActivity ? relative(c.lastActivity, locale) : t.companies.never}</span>
-                  <span className="row-owner">{c.owner ? <Avatar name={owners[c.owner]?.name ?? "?"} photo={owners[c.owner]?.photo ?? null} size={26} title={owners[c.owner]?.name} /> : <span className="avatar empty-avatar" role="img" aria-label={t.common.unassigned} title={t.common.unassigned}>?</span>}</span>
+                  <span className="row-owner">{c.owner ? <Avatar name={owners[c.owner]?.name ?? "?"} photo={owners[c.owner]?.photo ?? null} size="s" label={owners[c.owner]?.name ?? t.people.unknown} /> : <Avatar name="?" size="s" className="avatar-none" label={t.common.unassigned} />}</span>
                 </Link>
               </li>
             ))}
@@ -86,6 +87,6 @@ export default async function Companies({ searchParams }: { searchParams: Search
         )}
       </BulkProvider>
       <Pager path="/chest/companies" params={kept} page={page} pageSize={pageSize} total={total} locale={locale} t={t} />
-    </main>
+    </div>
   );
 }

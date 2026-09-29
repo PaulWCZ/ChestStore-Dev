@@ -25,7 +25,7 @@ export default async function EditExpense({ params }: { params: Promise<{ id: st
   const data = await composeData(sql, member, t, locale, { category: e.categoryId, ...(e.allowance ? { allowance: e.allowance.id } : {}) });
   const initial = initialOf(e, locale, await guestNames(e, locale));
   return (
-    <main className="page">
+    <div className="page">
       <div className="page-head">
         <h1>{e.trip ? t.form.editTrip : e.allowance ? t.form.editAllowance : t.form.editTitle}</h1>
       </div>
@@ -33,6 +33,6 @@ export default async function EditExpense({ params }: { params: Promise<{ id: st
       {e.trip && <TripForm data={data} initial={initial} locale={locale} t={composeWords(t)} />}
       {e.allowance && <AllowanceForm data={data} initial={initial} locale={locale} t={composeWords(t)} />}
       {!e.trip && !e.allowance && <ExpenseForm data={data} initial={initial} locale={locale} t={composeWords(t)} />}
-    </main>
+    </div>
   );
 }

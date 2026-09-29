@@ -1,8 +1,8 @@
 "use client";
 
+import { DataTable, FilePicker, useToast, type PickedFile } from "@argentic/chest-ui/components";
 import { useRouter } from "next/navigation";
-import { useMemo, useState, useTransition } from "react";
-import { useToast } from "../../../components/toast.tsx";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { guessDateOrder, guessMapping, importFields, parseCsv, personKey, readDate, type DateOrder, type ImportField, type Mapping } from "../../../lib/csv-read.ts";
 import type { Catalogue } from "../../../lib/i18n/index.ts";
 import { format, plural } from "../../../lib/i18n/format.ts";
@@ -13,8 +13,9 @@ const maxBytes = 2 << 20;
 
 // Import past expenses: read the previous tool's CSV here, in the browser;
 // guess its columns, let the accountant correct them and see the first
-// lines as they will be read; then send the mapped lines.
-export function ImportSection({ team, locale, t, errors }: { team: { id: string; name: string }[]; locale: string; t: Words; errors: Catalogue["errors"] }) {
+// lines as they will be read; then send the mapped lines. The file is
+// picked with the kit's FilePicker and stays in the browser (no upload).
+export function ImportSection({ team, locale, t, kit, errors }: { team: { id: string; name: string }[]; locale: string; t: Words; kit: Pick<Catalogue, "files" | "table">; errors: Catalogue["errors"] }) {
   const router = useRouter();
   const toast = useToast();
   const [pending, start] = useTransition();
@@ -23,6 +24,14 @@ export function ImportSection({ team, locale, t, errors }: { team: { id: string;
   const [order, setOrder] = useState<DateOrder>("dmy");
   const [problem, setProblem] = useState<string | null>(null);
   const [result, setResult] = useState<string | null>(null);
+  const [files, setFiles] = useState<readonly PickedFile[]>([]);
+  // A file picked (the picker already refused one too big or of another
+  // kind): read it here. Taken off, the preview goes too.
+  const picked = files[0]?.file ?? null;
+  useEffect(() => {
+    if (picked) void pick(picked);
+    else setRows(null);
+  }, [picked]);
   const names = useMemo(() => new Set(team.map(m => personKey(m.name))), [team]);
 
   async function pick(file: File | undefined) {
@@ -49,11 +58,12 @@ export function ImportSection({ team, locale, t, errors }: { team: { id: string;
     const lines = body.map(r => Object.fromEntries(importFields.map(f => [f, value(r, f)])));
     start(async () => {
       const answer = await importExpenses(lines, order);
-      if (!answer.ok) return void toast(format(errors[answer.error], answer.values ?? {}));
+      if (!answer.ok) return void toast({ text: format(errors[answer.error], answer.values ?? {}), tone: "error" });
       const { imported, skipped } = answer.value;
       const why = skipped.slice(0, 8).map(s => `${format(t.line, { line: s.line + 1 })} (${s.reason in t.reasons ? t.reasons[s.reason as keyof Words["reasons"]] : errors[s.reason as keyof Catalogue["errors"]] ?? s.reason})`).join(", ");
       setResult([plural(t.done, imported, locale), skipped.length > 0 ? `${plural(t.skipped, skipped.length, locale)}: ${why}${skipped.length > 8 ? "…" : ""}` : ""].filter(Boolean).join(" "));
-      toast(plural(t.done, imported, locale));
+      toast({ id: "import", text: plural(t.done, imported, locale) });
+      setFiles([]);
       setRows(null);
       router.refresh();
     });
@@ -66,15 +76,15 @@ export function ImportSection({ team, locale, t, errors }: { team: { id: string;
       <hr className="rule" />
       <div className="form-grid">
         <div className="field-row">
-          <label htmlFor="import-file">{t.file}</label>
-          <input id="import-file" type="file" accept=".csv,text/csv,text/plain" className="field" onChange={e => { const f = e.target.files?.[0]; e.target.value = ""; void pick(f); }} />
+          <span className="field-label" aria-hidden="true">{t.file}</span>
+          <FilePicker label={t.file} files={files} onChange={setFiles} maxFiles={1} maxSize={maxBytes} accept={[".csv", "text/csv", "text/plain"]} labels={kit.files} />
         </div>
         {problem && <p className="error" role="alert">{problem}</p>}
         {result && <p className="notice info" role="status">{result}</p>}
         {rows && (
           <>
-            <fieldset className="import-map" style={{ border: 0, padding: 0, margin: 0 }}>
-              <legend className="field-label" style={{ marginBottom: 8 }}>{t.columns}</legend>
+            <fieldset className="import-map">
+              <legend className="field-label">{t.columns}</legend>
               {importFields.map(f => (
                 <div key={f} className="field-row">
                   <label htmlFor={`map-${f}`}>{t.fields[f]}</label>
@@ -93,23 +103,22 @@ export function ImportSection({ team, locale, t, errors }: { team: { id: string;
                 </select>
               </div>
             </fieldset>
-            <div className="table-wrap">
-              <table className="grid import-preview">
-                <caption className="label" style={{ textAlign: "left", paddingBottom: 6 }}>{t.preview}</caption>
-                <thead><tr>{(["date", "person", "amount", "currency", "category", "merchant"] as const).map(f => <th key={f}>{t.fields[f]}</th>)}</tr></thead>
-                <tbody>
-                  {body.slice(0, 5).map((r, i) => (
-                    <tr key={i}>
-                      <td className="mono">{readDate(value(r, "date"), order) ?? value(r, "date")}</td>
-                      <td className={names.has(personKey(value(r, "person"))) ? undefined : "unmatched"}>{value(r, "person")}</td>
-                      <td className="mono">{value(r, "amount")}</td>
-                      <td>{value(r, "currency")}</td>
-                      <td>{value(r, "category")}</td>
-                      <td>{value(r, "merchant")}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div className="import-preview">
+              <DataTable
+                caption={t.preview}
+                showCaption
+                rows={body.slice(0, 5).map((r, i) => ({ i, r }))}
+                rowKey={x => String(x.i)}
+                labels={kit.table}
+                columns={[
+                  { key: "date", label: t.fields.date, render: x => <span className="mono">{readDate(value(x.r, "date"), order) ?? value(x.r, "date")}</span> },
+                  { key: "person", label: t.fields.person, rowHeader: true, render: x => <span className={names.has(personKey(value(x.r, "person"))) ? undefined : "unmatched"}>{value(x.r, "person")}</span> },
+                  { key: "amount", label: t.fields.amount, align: "end", render: x => <span className="mono">{value(x.r, "amount")}</span> },
+                  { key: "currency", label: t.fields.currency, render: x => value(x.r, "currency") },
+                  { key: "category", label: t.fields.category, render: x => value(x.r, "category") },
+                  { key: "merchant", label: t.fields.merchant, render: x => value(x.r, "merchant") },
+                ]}
+              />
             </div>
             <p className="hint" role="status">
               {plural(t.matched, ready, locale)}{" "}

@@ -1,3 +1,4 @@
+import { EmptyState } from "@argentic/chest-ui/components";
 import { AutoRefresh } from "../../components/auto-refresh.tsx";
 import { Alarm, Clock, Pen } from "../../components/icons.tsx";
 import { can } from "../../lib/access.ts";
@@ -48,8 +49,13 @@ export default async function FrontPage({ searchParams }: { searchParams: Promis
   };
   const [lead, ...rest] = f.posts;
   const publisher = can(member, "publish");
+  // An empty section offers every post; an empty front page, to a
+  // publisher, the first post.
+  const seeAll = <a className="button quiet" href="/chest">{t.front.seeAll}</a>;
+  const writeFirst = <a className="button" href="/chest/new"><Pen />{t.front.empty.action}</a>;
+  const emptyAction = kind ? seeAll : publisher ? writeFirst : null;
   return (
-    <main className="front">
+    <div className="front">
       <AutoRefresh seconds={60} />
       <header className="nameplate">
         <p className="dateline"><span>{d.today()}</span></p>
@@ -69,11 +75,11 @@ export default async function FrontPage({ searchParams }: { searchParams: Promis
       )}
 
       {!lead ? (
-        <div className="empty">
-          <h2>{kind ? t.front.emptySection[kind as keyof typeof t.front.emptySection] : t.front.empty.title}</h2>
-          {!kind && <p>{publisher ? t.front.empty.body : t.front.empty.reader}</p>}
-          {kind ? <a className="button quiet" href="/chest">{t.front.seeAll}</a> : (publisher && <a className="button" href="/chest/new"><Pen />{t.front.empty.action}</a>)}
-        </div>
+        <EmptyState
+          title={kind ? t.front.emptySection[kind as keyof typeof t.front.emptySection] : t.front.empty.title}
+          body={kind ? null : publisher ? t.front.empty.body : t.front.empty.reader}
+          action={emptyAction}
+        />
       ) : (
         <div className="front-grid">
           <div className="lead-slot">
@@ -127,6 +133,6 @@ export default async function FrontPage({ searchParams }: { searchParams: Promis
       )}
       <DigestSwitch on={digestOn} t={t.front} errors={t.errors} />
       {publisher && <p className="foot-link"><a href="/chest/transfer">{t.transfer.link}</a></p>}
-    </main>
+    </div>
   );
 }

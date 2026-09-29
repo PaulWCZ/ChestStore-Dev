@@ -22,7 +22,7 @@ export default async function NewPost({ searchParams }: { searchParams: Promise<
   const people = (await everyone()).people.map(p => ({ id: p.id, name: p.name, groups: p.groups }));
   const groups = await chestGroups();
   return (
-    <main className="desk">
+    <div className="desk">
       <Composer
         postId={null}
         initial={{ author: member.id, kind, title: "", body: "", locale, versions: [], important: false, pinned: false, pinnedUntil: null, scheduled: false, publishAt: null, event: kind === "event" ? { day: tomorrow.day, lastDay: "", start: "", end: "", place: "", seats: "" } : null, welcome: null, cover: null, attachments: [], gallery: [], groups: [], people: [] }}
@@ -33,8 +33,8 @@ export default async function NewPost({ searchParams }: { searchParams: Promise<
         mail={await learned(db(), "mail")}
         defaults={{ day: tomorrow.day, time: "09:00", today: today(zone) }}
         locale={locale}
-        t={{ composer: t.composer, kinds: t.kinds, errors: t.errors }}
+        t={{ composer: t.composer, kinds: t.kinds, errors: t.errors, toast: t.toast, date: t.date, peoplePicker: t.peoplePicker }}
       />
-    </main>
+    </div>
   );
 }

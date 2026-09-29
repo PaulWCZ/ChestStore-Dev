@@ -1,9 +1,8 @@
 "use client";
 
+import { Confirm, useToast } from "@argentic/chest-ui/components";
 import { useState, useTransition } from "react";
-import { Dialog } from "../../../../components/dialog.tsx";
 import { Down, Plus, Trash, Up } from "../../../../components/icons.tsx";
-import { useToast } from "../../../../components/toast.tsx";
 import { fieldKinds, fieldObjects, type FieldDef, type FieldKind, type FieldObject } from "../../../../lib/custom.ts";
 import { format } from "../../../../lib/i18n/format.ts";
 import type { Catalogue } from "../../../../lib/i18n/index.ts";
@@ -21,7 +20,7 @@ export function FieldsEditor({ fields, t }: { fields: Record<FieldObject, FieldD
   const toast = useToast();
   const run = (step: () => Promise<Answer>, done?: string) => start(async () => {
     const r = await step();
-    if (!r.ok && r.error) toast(format(t.errors[r.error], r.values));
+    if (!r.ok && r.error) toast({ text: format(t.errors[r.error], r.values), tone: "error" });
     else if (done) toast(done);
   });
   return (
@@ -58,15 +57,10 @@ export function FieldsEditor({ fields, t }: { fields: Record<FieldObject, FieldD
           <AddField object={object} disabled={pending} run={run} t={t} />
         </section>
       ))}
-      {removing && (
-        <Dialog open title={format(w.removeTitle, { label: removing.label })} closeLabel={t.common.close} onClose={() => setRemoving(null)}>
-          <p>{w.removeBody}</p>
-          <div className="form-actions">
-            <button type="button" className="button danger" disabled={pending} onClick={() => { const f = removing; setRemoving(null); run(() => removeField(f.id), w.removed); }}><Trash />{t.settings.remove}</button>
-            <button type="button" className="button quiet" onClick={() => setRemoving(null)}>{t.common.cancel}</button>
-          </div>
-        </Dialog>
-      )}
+      {/* A field's values go with it, for good: the kit's Confirm asks once. */}
+      <Confirm open={removing !== null} title={removing ? format(w.removeTitle, { label: removing.label }) : ""} body={w.removeBody} confirmLabel={w.removeConfirm} cancelLabel={t.common.cancel} busy={pending}
+        onCancel={() => setRemoving(null)}
+        onConfirm={() => { const f = removing; setRemoving(null); if (f) run(() => removeField(f.id), w.removed); }} />
     </div>
   );
 }

@@ -1,47 +1,33 @@
+import { BrandMark, NoAccess, Toasts } from "@argentic/chest-ui/components";
 import type { ReactNode } from "react";
-import { Avatar } from "../../components/avatar.tsx";
-import { Search } from "../../components/icons.tsx";
 import { Mark } from "../../components/mark.tsx";
-import { Toasts } from "../../components/toast.tsx";
-import { WriteButton } from "../../components/write-button.tsx";
+import { Shell } from "../../components/shell.tsx";
 import { can, roleOf } from "../../lib/access.ts";
 import { viewer } from "../../lib/session.ts";
+import { currentLook } from "../../lib/theme.ts";
 
-// The members' part. proxy.ts already refused a request without the Chest's
-// assertion; a member whose role gives nothing sees why, not an error.
+// The members' part, in the kit's shell. proxy.ts already refused a request
+// without the Chest's assertion; a member whose role gives nothing sees
+// why, not an error. In brand mode the company's logo stands where the
+// News mark does. The toasts (the kit's: an Undo that tells the truth)
+// serve every page, and outlive a page change: the Undo of an Important
+// post follows its author from the composer to the article.
 export default async function MembersLayout({ children }: { children: ReactNode }) {
-  const v = await viewer();
+  const [v, look] = await Promise.all([viewer(), currentLook()]);
   if (!v) return null;
   const { member, t } = v;
   const role = roleOf(member);
   return (
-    <Toasts>
-      <a className="skip" href="#main">{t.shell.skip}</a>
-      <header className="topbar">
-        <a className="brand" href="/chest"><Mark /><span>{t.meta.name}</span></a>
-        {role && (
-          <form className="search" role="search" action="/chest/search" method="get">
-            <label htmlFor="top-search" className="visually-hidden">{t.search.label}</label>
-            <input id="top-search" name="q" type="search" className="field" placeholder={t.shell.search} maxLength={200} />
-            <button type="submit" className="icon-button"><Search /><span className="visually-hidden">{t.search.button}</span></button>
-          </form>
-        )}
-        {can(member, "publish") && <WriteButton label={t.shell.write} />}
-        <span className="me">
-          <span className="who">{member.firstName || member.name}{role ? " · " + t.roles[role] : ""}</span>
-          <Avatar name={member.name} photo={member.photo} />
-        </span>
-      </header>
-      <div id="main">
-        {role ? children : (
-          <main className="narrow">
-            <div className="empty">
-              <h1>{t.noAccess.title}</h1>
-              <p>{t.noAccess.body}</p>
-            </div>
-          </main>
-        )}
-      </div>
+    <Toasts labels={t.toast}>
+      <Shell
+        brand={<a href="/chest"><BrandMark logo={look.logo}><Mark /></BrandMark><span>{t.meta.name}</span></a>}
+        member={{ name: member.name, role: role ? t.roles[role] : null, photo: member.photo }}
+        search={role ? t.searchBox : null}
+        write={can(member, "publish") ? t.shell.write : null}
+        labels={{ skip: t.shell.skip, nav: t.shell.sections }}
+      >
+        {role ? children : <div className="narrow"><NoAccess labels={{ noAccessTitle: t.noAccess.title, noAccessBody: t.noAccess.body }} /></div>}
+      </Shell>
     </Toasts>
   );
 }

@@ -1,28 +1,30 @@
 "use client";
 
+import { DateField, Dialog, useToast } from "@argentic/chest-ui/components";
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
-import { Dialog } from "../../../components/dialog.tsx";
+import { useId, useState, useTransition } from "react";
 import { Plus } from "../../../components/icons.tsx";
-import { useToast } from "../../../components/toast.tsx";
 import type { FieldDef } from "../../../lib/custom.ts";
 import { format } from "../../../lib/i18n/format.ts";
 import type { Catalogue } from "../../../lib/i18n/index.ts";
 import { addDeal, updateDeal } from "../actions.ts";
 import { CustomInputs } from "./custom-fields.tsx";
-import { OwnerSelect } from "./owner-select.tsx";
+import { OwnerPicker } from "./owner-select.tsx";
 import { CompanyPicker, ContactPicker } from "./pickers.tsx";
 import type { Choice, Teammate } from "./shared.ts";
 import type { DealValues } from "./values.ts";
 
-export type DealFormProps = { fields: FieldDef[]; stages: Choice[]; team: Teammate[]; me: string; canAssign: boolean; canCreateCompany: boolean; t: Catalogue };
+export type DealFormProps = { fields: FieldDef[]; stages: Choice[]; team: Teammate[]; me: string; canAssign: boolean; canCreateCompany: boolean; today: string; t: Catalogue };
 
 // Add or edit a deal: what, for whom, how much, by when. The company and
 // the person are found by typing (a new company is added on the spot);
 // choosing a person brings their company; choosing a company offers its
 // people first.
-export function DealDialog({ open, onClose, initial, fields, stages, team, me, canAssign, canCreateCompany, t }: DealFormProps & { open: boolean; onClose: () => void; initial: DealValues }) {
+export function DealDialog({ open, onClose, initial, fields, stages, team, me, canAssign, canCreateCompany, today, t }: DealFormProps & { open: boolean; onClose: () => void; initial: DealValues }) {
   const [v, setV] = useState(initial);
+  const formId = useId();
+  // Something typed: closing asks first (the kit's Dialog).
+  const dirty = JSON.stringify(v) !== JSON.stringify(initial);
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
   const router = useRouter();
@@ -45,8 +47,12 @@ export function DealDialog({ open, onClose, initial, fields, stages, team, me, c
     });
   }
   return (
-    <Dialog open={open} title={editing ? t.deal.edit : t.deal.newTitle} closeLabel={t.common.close} onClose={onClose}>
-      <form className="form" onSubmit={e => { e.preventDefault(); submit(); }}>
+    <Dialog open={open} title={editing ? t.deal.edit : t.deal.newTitle} onClose={onClose} dirty={dirty} labels={t.dialog}
+      footer={<>
+        <button type="button" className="button quiet" onClick={onClose}>{t.common.cancel}</button>
+        <button type="submit" form={formId} className="button" disabled={pending}>{pending ? t.common.saving : editing ? t.common.save : t.deal.create}</button>
+      </>}>
+      <form id={formId} className="form" onSubmit={e => { e.preventDefault(); submit(); }}>
         <div className="field-block">
           <label className="label" htmlFor="dl-title">{t.deal.titleLabel}</label>
           <input id="dl-title" className="field" value={v.title} onChange={e => setV(x => ({ ...x, title: e.target.value }))} maxLength={160} required autoFocus placeholder={t.deal.titlePlaceholder} />
@@ -69,10 +75,7 @@ export function DealDialog({ open, onClose, initial, fields, stages, team, me, c
             <label className="label" htmlFor="dl-value">{t.deal.valueLabel}</label>
             <input id="dl-value" className="field num" value={v.value} onChange={e => setV(x => ({ ...x, value: e.target.value }))} inputMode="decimal" maxLength={24} placeholder={t.deal.valuePlaceholder} />
           </div>
-          <div className="field-block">
-            <label className="label" htmlFor="dl-close">{t.deal.close}</label>
-            <input id="dl-close" className="field" type="date" value={v.expectedClose} onChange={e => setV(x => ({ ...x, expectedClose: e.target.value }))} />
-          </div>
+          <DateField id="dl-close" label={t.deal.close} value={v.expectedClose || null} onChange={day => setV(x => ({ ...x, expectedClose: day ?? "" }))} today={today} chips={false} labels={t.date} />
           {!editing && (
             <div className="field-block">
               <label className="label" htmlFor="dl-stage">{t.deal.stage}</label>
@@ -82,18 +85,11 @@ export function DealDialog({ open, onClose, initial, fields, stages, team, me, c
             </div>
           )}
           {!editing && (
-            <div className="field-block">
-              <label className="label" htmlFor="dl-owner">{t.deal.owner}</label>
-              <OwnerSelect id="dl-owner" value={v.owner} team={team} me={me} canAssign={canAssign} onChange={owner => setV(x => ({ ...x, owner }))} t={t} />
-            </div>
+            <OwnerPicker id="dl-owner" label={t.deal.owner} value={v.owner} team={team} me={me} canAssign={canAssign} onChange={owner => setV(x => ({ ...x, owner }))} t={t} />
           )}
         </div>
-        <CustomInputs fields={fields} values={v.custom} onChange={custom => setV(x => ({ ...x, custom }))} prefix="dl" t={t} />
+        <CustomInputs fields={fields} values={v.custom} onChange={custom => setV(x => ({ ...x, custom }))} prefix="dl" today={today} t={t} />
         {error && <p className="error" role="alert">{error}</p>}
-        <div className="form-actions">
-          <button type="submit" className="button" disabled={pending}>{pending ? t.common.saving : editing ? t.common.save : t.deal.create}</button>
-          <button type="button" className="button quiet" onClick={onClose}>{t.common.cancel}</button>
-        </div>
       </form>
     </Dialog>
   );

@@ -14,7 +14,7 @@ export default async function Settings() {
   const { stages, names } = await stageWords(sql, t);
   const counts = new Map((await sql<{ stage_id: string; n: number }[]>`select stage_id, count(*)::int as n from deals group by stage_id`).map(r => [String(r.stage_id), r.n]));
   return (
-    <main className="page narrow">
+    <div className="page narrow">
       <div className="page-head">
         <div>
           <h1>{t.settings.title}</h1>
@@ -25,6 +25,6 @@ export default async function Settings() {
       {can(member, "stages") ? (
         <StagesEditor stages={stages.map(s => ({ id: s.id, kind: s.kind, name: s.name ?? "", shown: names[s.id]!, standard: s.key ? t.stages[s.key] : null, probability: s.probability, deals: counts.get(s.id) ?? 0 }))} locale={v.locale} t={t} />
       ) : <p className="notice">{t.settings.readOnly}</p>}
-    </main>
+    </div>
   );
 }

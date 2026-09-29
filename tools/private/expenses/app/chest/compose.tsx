@@ -1,9 +1,10 @@
 "use client";
 
+import { DateField, EmptyState, useToast } from "@argentic/chest-ui/components";
+import { addDays } from "@argentic/chest-ui/components/logic";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, useTransition, type FormEvent } from "react";
-import { Camera, Car, Check, Close, FileIcon, Receipt } from "../../components/icons.tsx";
-import { useToast } from "../../components/toast.tsx";
+import { Calendar, Camera, Car, Check, Close, FileIcon, Receipt } from "../../components/icons.tsx";
 import { typeOf, upload } from "../../components/upload.ts";
 import { readReceipt } from "../../components/ocr.ts";
 import type { ComposeData, Initial } from "../../lib/compose.ts";
@@ -15,25 +16,34 @@ import { tripCents } from "../../lib/scale.ts";
 import { allowanceDetail, km } from "../../lib/words.ts";
 import { saveAllowance, saveExpense, saveTrip, sendExpenses } from "./actions.ts";
 
-export type ComposeWords = Pick<Catalogue, "form" | "receipt" | "trip" | "allowance" | "errors"> & { saved: string; send: string; sent: Catalogue["home"]["sent"] };
+export type ComposeWords = Pick<Catalogue, "form" | "receipt" | "trip" | "allowance" | "errors" | "date"> & { saved: string; send: string; sent: Catalogue["home"]["sent"] };
 type ErrorKey = keyof Catalogue["errors"];
 
-// Once saved: back to the list, with "Send it now" in the toast.
+// Once saved: back to the list, with "Send it now" in the toast. Once
+// sent, the approver has been told: the toast says so, with no Undo.
 function useSaved(t: ComposeWords, locale: string) {
   const router = useRouter();
   const toast = useToast();
   return (id: string) => {
-    toast(t.saved, {
-      label: t.send,
-      run: () => void sendExpenses([id]).then(r => {
-        toast(r.ok ? plural(t.sent, r.value.count, locale, { name: r.value.to }) : format(t.errors[r.error], r.values ?? {}));
-        router.refresh();
-      }),
+    toast({
+      id: `saved-${id}`,
+      text: t.saved,
+      action: {
+        label: t.send,
+        run: () => void sendExpenses([id]).then(r => {
+          toast(r.ok ? { id: `send-${id}`, text: plural(t.sent, r.value.count, locale, { name: r.value.to }), sent: true } : { text: format(t.errors[r.error], r.values ?? {}), tone: "error" });
+          router.refresh();
+        }),
+      },
     });
     router.push("/chest");
     router.refresh();
   };
 }
+
+// The quick days of an expense's date: it happened today or yesterday,
+// never tomorrow.
+const pastChips = (t: ComposeWords, today: string) => [{ label: t.date.today, value: today }, { label: t.date.yesterday, value: addDays(today, -1) }];
 
 function symbolOf(currency: string, locale: string): string {
   try {
@@ -45,6 +55,12 @@ function symbolOf(currency: string, locale: string): string {
 
 // The receipt: straight from the phone's camera, or a file (a photo, a PDF
 // from an email). It goes to the Chest while the person types the amount.
+// The tool's own picker, not the kit's FilePicker: a receipt needs both a
+// camera button and a file button side by side (the kit's `capture` makes
+// its one button the camera, and a PDF from an email could no longer be
+// chosen on a phone), the photo shown large to check it, and the file in
+// hand at once to read it (components/ocr.ts). Its upload goes with the
+// kit's putWithProgress (components/upload.ts).
 function ReceiptPicker({ t, initial, onChange, onFile, onBusy, onError }: {
   t: ComposeWords;
   initial: Initial["receipt"];
@@ -56,6 +72,7 @@ function ReceiptPicker({ t, initial, onChange, onFile, onBusy, onError }: {
 }) {
   const [shown, setShown] = useState<{ image: string | null; pdf: boolean; name: string } | null>(initial ? { image: initial.thumb, pdf: initial.pdf, name: initial.name } : null);
   const [sending, setSending] = useState(false);
+  const [progress, setProgress] = useState(0);
   const [ready, setReady] = useState(false);
   const local = useRef<string | null>(null);
   useEffect(() => () => { if (local.current) URL.revokeObjectURL(local.current); }, []);
@@ -70,10 +87,11 @@ function ReceiptPicker({ t, initial, onChange, onFile, onBusy, onError }: {
     local.current = viewable ? URL.createObjectURL(file) : null;
     setShown({ image: local.current, pdf: type === "application/pdf", name: file.name });
     setSending(true);
+    setProgress(0);
     setReady(false);
     onBusy(true);
     onFile(file, type);
-    const sent = await upload(file);
+    const sent = await upload(file, { onProgress: setProgress });
     setSending(false);
     onBusy(false);
     if (!sent.ok) {
@@ -108,7 +126,7 @@ function ReceiptPicker({ t, initial, onChange, onFile, onBusy, onError }: {
     <div className="attached">
       {shown.image ? <img className="preview" src={shown.image} alt={format(t.receipt.preview, { what: shown.name })} /> : <span className="preview">{shown.pdf ? <FileIcon /> : <Receipt />}</span>}
       <div className="state" role="status">
-        {sending ? <><span>{t.receipt.sending}</span><span className="progress"><i /></span></> : <><strong>{(ready || initial) && <Check />}{ready || !initial ? t.receipt.ready : shown.pdf ? t.receipt.pdf : t.receipt.title}</strong><span className="hint">{t.receipt.kept}</span></>}
+        {sending ? <><span>{t.receipt.sending}</span><progress max={1} value={progress} aria-label={t.receipt.sending} /></> : <><strong>{(ready || initial) && <Check />}{ready || !initial ? t.receipt.ready : shown.pdf ? t.receipt.pdf : t.receipt.title}</strong><span className="hint">{t.receipt.kept}</span></>}
       </div>
       <div className="actions">
         <label className="link-button file-label">{t.receipt.replace}{input(false)}</label>
@@ -273,9 +291,8 @@ export function ExpenseForm({ data, initial, locale, t }: { data: ComposeData; i
           <input id="merchant" name="merchant" className={`field${suggested.has("merchant") ? " suggested" : ""}`} list="merchants" maxLength={limits.merchant} placeholder={t.form.merchantPlaceholder} value={merchant} onChange={e => { setMerchant(e.target.value); typed("merchant"); }} autoComplete="off" />
           <datalist id="merchants">{data.merchants.map(m => <option key={m} value={m} />)}</datalist>
         </div>
-        <div className="field-row">
-          <label htmlFor="date">{t.form.date}</label>
-          <input id="date" name="date" type="date" className={`field mono${suggested.has("date") ? " suggested" : ""}`} max={data.today} value={day} onChange={e => { setDay(e.target.value); typed("date"); }} required />
+        <div className={suggested.has("date") ? "date-suggested" : undefined}>
+          <DateField id="date" name="date" label={t.form.date} value={day || null} onChange={d => { setDay(d ?? ""); typed("date"); }} today={data.today} max={data.today} chips={pastChips(t, data.today)} labels={t.date} required />
         </div>
       </div>
 
@@ -370,11 +387,8 @@ export function TripForm({ data, initial, locale, t }: { data: ComposeData; init
 
   if (!data.vehicle) {
     return (
-      <div className="paper flat empty">
-        <span className="glyph"><Car /></span>
-        <h2>{t.trip.noVehicle}</h2>
-        <p>{t.trip.noVehicleBody}</p>
-        <a className="button" href="/chest/settings#vehicle">{t.trip.setVehicle}</a>
+      <div className="paper flat">
+        <EmptyState icon={<Car />} title={t.trip.noVehicle} body={t.trip.noVehicleBody} action={<a className="button" href="/chest/settings#vehicle">{t.trip.setVehicle}</a>} />
       </div>
     );
   }
@@ -394,7 +408,7 @@ export function TripForm({ data, initial, locale, t }: { data: ComposeData; init
     <form className="compose" onSubmit={submit} noValidate>
       {!initial && data.usual.length > 0 && (
         <div className="chips" role="group" aria-label={t.trip.usual}>
-          <span className="field-label" aria-hidden="true" style={{ width: "100%" }}>{t.trip.usual}</span>
+          <span className="field-label usual-title" aria-hidden="true">{t.trip.usual}</span>
           {data.usual.map(u => (
             <button key={`${u.from}|${u.to}|${u.tenths}`} type="button" className="chip" onClick={() => { setFrom(u.from); setTo(u.to); setDistance(String(u.tenths / 10).replace(".", locale === "fr" ? "," : ".")); setRound(false); }}>
               {format(t.trip.usualTrip, { from: u.from, to: u.to, km: km(u.tenths, locale) })}
@@ -420,10 +434,7 @@ export function TripForm({ data, initial, locale, t }: { data: ComposeData; init
         </div>
         <label className="check"><input type="checkbox" checked={round} onChange={e => setRound(e.target.checked)} />{t.trip.roundTrip}</label>
       </div>
-      <div className="field-row">
-        <label htmlFor="date">{t.form.date}</label>
-        <input id="date" name="date" type="date" className="field mono" max={data.today} value={day} onChange={e => setDay(e.target.value)} required />
-      </div>
+      <DateField id="date" name="date" label={t.form.date} value={day || null} onChange={d => setDay(d ?? "")} today={data.today} max={data.today} chips={pastChips(t, data.today)} labels={t.date} required />
       <div className="paper flat" aria-live="polite">
         <div className="estimate">
           <span className="label">{estimate ? format(t.trip.estimateHint, { year: estimate.year, km: estimate.before }) : format(t.trip.scaleNote, { year: data.scales[0]?.year ?? "" })}</span>
@@ -455,18 +466,19 @@ export function AllowanceForm({ data, initial, locale, t }: { data: ComposeData;
   const [error, setError] = useState<string | null>(null);
   const [rate, setRate] = useState(initial?.allowanceId || (data.allowances[0]?.id ?? ""));
   const [units, setUnits] = useState(initial?.units ?? "1");
+  const [day, setDay] = useState(initial?.spentOn ?? data.today);
   const chosen = data.allowances.find(a => a.id === rate);
   const count = /^\d{1,3}$/u.test(units.trim()) ? Number(units) : 0;
   const unit = (chosen?.unit ?? "day") as keyof ComposeWords["allowance"]["count"];
 
   if (data.allowances.length === 0) {
-    return <div className="paper flat empty"><p>{t.allowance.none}</p></div>;
+    return <div className="paper flat"><EmptyState icon={<Calendar />} title={t.allowance.none} /></div>;
   }
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
-    const input = { spentOn: String(form.get("date") ?? ""), allowanceId: rate, units, note: String(form.get("note") ?? "") };
+    const input = { spentOn: day, allowanceId: rate, units, note: String(form.get("note") ?? "") };
     start(async () => {
       const result = await saveAllowance(initial?.id ?? null, input);
       if (!result.ok) return setError(format(t.errors[result.error], result.values ?? {}));
@@ -490,10 +502,7 @@ export function AllowanceForm({ data, initial, locale, t }: { data: ComposeData;
           <label htmlFor="units">{t.allowance.count[unit]}</label>
           <input id="units" className="field mono" inputMode="numeric" autoComplete="off" value={units} onChange={e => setUnits(e.target.value)} />
         </div>
-        <div className="field-row">
-          <label htmlFor="date">{t.allowance.date}</label>
-          <input id="date" name="date" type="date" className="field mono" max={data.today} defaultValue={initial?.spentOn ?? data.today} required />
-        </div>
+        <DateField id="date" name="date" label={t.allowance.date} value={day || null} onChange={d => setDay(d ?? "")} today={data.today} max={data.today} chips={pastChips(t, data.today)} labels={t.date} required />
       </div>
       <div className="paper flat" aria-live="polite">
         <div className="estimate">

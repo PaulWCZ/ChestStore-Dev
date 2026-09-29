@@ -1,14 +1,14 @@
 "use client";
 
+import { Confirm, useToast } from "@argentic/chest-ui/components";
 import { useRouter } from "next/navigation";
-import { useState, useTransition, type FormEvent } from "react";
+import { useEffect, useState, useTransition, type FormEvent } from "react";
 import type { Catalogue } from "../lib/i18n/index.ts";
 import { format } from "../lib/i18n/format.ts";
 import { checkBic, checkIban, groupIban } from "../lib/iban.ts";
 import { limits } from "../lib/model.ts";
 import { removeBank, saveBank } from "../app/chest/actions.ts";
 import { Check } from "./icons.tsx";
-import { useToast } from "./toast.tsx";
 
 export type BankCurrent = { masked: string; bic: string | null; holder: string; since: string } | null;
 type Words = Catalogue["settings"]["bank"];
@@ -16,8 +16,9 @@ type Words = Catalogue["settings"]["bank"];
 // Bank details, for oneself ("me"), a person (an accountant, from "To pay
 // back") or the company. Once saved, only the masked account shows; the
 // IBAN is checked while it is typed (country, length, check digits), and
-// again on the server.
-export function BankForm({ owner, current, t, errors, save, cancel, holder = true, idPrefix = "bank", onDone }: {
+// again on the server. `onDirty` says when an IBAN is being typed (a
+// dialog around it then asks before closing).
+export function BankForm({ owner, current, t, errors, save, cancel, holder = true, idPrefix = "bank", onDirty, onDone }: {
   owner: string;
   cancel: string;
   current: BankCurrent;
@@ -26,6 +27,7 @@ export function BankForm({ owner, current, t, errors, save, cancel, holder = tru
   save: string;
   holder?: boolean;
   idPrefix?: string;
+  onDirty?: (dirty: boolean) => void;
   onDone?: () => void;
 }) {
   const router = useRouter();
@@ -36,6 +38,9 @@ export function BankForm({ owner, current, t, errors, save, cancel, holder = tru
   const [bic, setBic] = useState(current?.bic ?? "");
   const [name, setName] = useState(current?.holder ?? "");
   const [error, setError] = useState<string | null>(null);
+  const [erasing, setErasing] = useState(false);
+  const dirty = editing && iban.trim() !== "";
+  useEffect(() => onDirty?.(dirty), [dirty, onDirty]);
 
   // What is wrong with the IBAN typed, once it looks complete.
   const typed = iban.replace(/\s/gu, "");
@@ -53,17 +58,20 @@ export function BankForm({ owner, current, t, errors, save, cancel, holder = tru
       if (!result.ok) return setError(format(errors[result.error], result.values ?? {}));
       setIban("");
       setEditing(false);
-      toast(t.saved);
+      toast({ id: `bank-${owner}`, text: t.saved });
       onDone?.();
       router.refresh();
     });
   }
 
-  function remove() {
+  // Erasing bank details cannot be undone (they are not kept anywhere):
+  // it asks first, in the page.
+  function erase() {
     start(async () => {
       const result = await removeBank(owner);
-      if (!result.ok) return void toast(format(errors[result.error], result.values ?? {}));
-      toast(t.removed);
+      setErasing(false);
+      if (!result.ok) return void toast({ text: format(errors[result.error], result.values ?? {}), tone: "error" });
+      toast({ id: `bank-${owner}`, text: t.removed });
       setEditing(true);
       onDone?.();
       router.refresh();
@@ -79,8 +87,9 @@ export function BankForm({ owner, current, t, errors, save, cancel, holder = tru
         </div>
         <div className="actions-bar">
           <button type="button" className="button quiet small" onClick={() => setEditing(true)}>{t.replace}</button>
-          <button type="button" className="button danger small" onClick={remove} disabled={pending}>{t.remove}</button>
+          <button type="button" className="button danger small" onClick={() => setErasing(true)} disabled={pending}>{t.remove}</button>
         </div>
+        <Confirm open={erasing} title={t.eraseTitle} body={format(t.eraseBody, { masked: current.masked })} confirmLabel={t.remove} cancelLabel={cancel} busy={pending} onConfirm={erase} onCancel={() => setErasing(false)} />
       </div>
     );
   }

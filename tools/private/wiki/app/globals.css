@@ -112,6 +112,7 @@ fieldset.plain { border: 0; padding: 0; margin: 0; min-width: 0; }
 .ck-main { padding: 0; }
 .bar-search { display: flex; flex: 1 1 18rem; max-width: 22rem; }
 .bar-search .ck-search { max-width: none; }
+.ck-member-name, .ck-member-role { white-space: nowrap; }
 
 .frame { display: grid; grid-template-columns: var(--sidebar) minmax(0, 1fr); min-height: calc(100dvh - var(--bar-h)); }
 .frame.editing, .frame:not(:has(> .sidebar)) { grid-template-columns: minmax(0, 1fr); }
@@ -183,7 +184,7 @@ fieldset.plain { border: 0; padding: 0; margin: 0; min-width: 0; }
 .drafts .kicker { color: var(--ink); }
 .drafts .muted { color: var(--ink); }
 .drafts ul { list-style: none; margin: var(--space-2) 0 0; padding: 0; display: grid; gap: var(--space-1); }
-.drafts li { display: flex; align-items: center; gap: var(--space-3); }
+.drafts li { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-3); }
 .draft-title { font-weight: var(--weight-strong); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .home-grid { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: var(--space-7); border-top: var(--border-width) solid var(--line); padding-top: var(--space-5); }
 .home-grid .kicker { margin-bottom: var(--space-3); }
@@ -268,7 +269,7 @@ fieldset.plain { border: 0; padding: 0; margin: 0; min-width: 0; }
 .prose h3 { font-size: 1.25em; font-weight: var(--display-weight); margin-top: 1.6em; }
 .prose h4 { font: var(--weight-strong) 0.78em/1.4 var(--font-body); letter-spacing: 0.09em; text-transform: uppercase; color: var(--ink-2); margin-top: 1.8em; }
 .prose h2 + *, .prose h3 + *, .prose h4 + * { margin-top: 0.45em; }
-.prose a { color: var(--accent-text); text-decoration-color: color-mix(in oklch, var(--accent-text) 45%, transparent); }
+.prose a { color: var(--accent-text); text-decoration-color: color-mix(in srgb, var(--accent-text) 45%, transparent); }
 .prose a:hover { text-decoration-color: currentColor; }
 .prose a.page-ref { display: inline; padding: 0 0.15em; border-radius: 3px; background: var(--accent-soft); text-decoration: none; }
 .prose a.page-ref::before { content: "↗ "; font-family: var(--font-body); font-size: 0.8em; opacity: 0.7; }

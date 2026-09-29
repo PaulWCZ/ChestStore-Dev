@@ -12,7 +12,7 @@ export default async function FieldsSettings() {
   const { member, t } = v;
   const fields = await fieldsByObject(db());
   return (
-    <main className="page narrow">
+    <div className="page narrow">
       <div className="page-head">
         <div>
           <h1>{t.settings.fields.title}</h1>
@@ -21,6 +21,6 @@ export default async function FieldsSettings() {
         <SettingsTabs current="fields" t={t} />
       </div>
       {can(member, "fields") ? <FieldsEditor fields={fields} t={t} /> : <p className="notice">{t.settings.fields.readOnly}</p>}
-    </main>
+    </div>
   );
 }

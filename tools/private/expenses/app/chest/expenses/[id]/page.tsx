@@ -60,8 +60,8 @@ export default async function ExpensePage({ params }: { params: Promise<{ id: st
     : null;
 
   return (
-    <main className="page wide">
-      <a className="link-button" href={access.own ? "/chest" : access.decide ? "/chest/approve" : "/chest"} style={{ display: "inline-flex", alignItems: "center", gap: 4, marginBottom: 12 }}><Back />{t.form.back}</a>
+    <div className="page wide">
+      <a className="link-button back" href={access.own ? "/chest" : access.decide ? "/chest/approve" : "/chest"}><Back />{t.form.back}</a>
       <DetailView
         id={e.id}
         own={access.own}
@@ -79,10 +79,10 @@ export default async function ExpensePage({ params }: { params: Promise<{ id: st
         reason={e.status === "draft" && e.refusedReason ? format(t.home.refusedBecause, { reason: e.refusedReason }) : null}
         waitingFor={e.status === "submitted" ? format(t.home.waitingFor, { name: e.approver ? name(e.approver) : t.people.accountants }) : null}
         history={history.map(h => ({ when: formatDate(h.at, locale, { day: "numeric", month: "short" }), text: historyText(h, t, locale, name, e.paidOn) }))}
-        t={{ detail: t.detail, receipt: t.receipt, form: t.form, errors: t.errors, deleted: t.home.deleted, undo: t.home.undo, approved: t.approve.approved, refused: t.approve.refused }}
+        t={{ detail: t.detail, receipt: t.receipt, form: t.form, errors: t.errors, deleted: t.home.deleted, approved: t.approve.approved, refused: t.approve.refused }}
         locale={locale}
       />
-    </main>
+    </div>
   );
 }
 

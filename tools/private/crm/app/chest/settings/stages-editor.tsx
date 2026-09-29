@@ -1,8 +1,8 @@
 "use client";
 
+import { useToast } from "@argentic/chest-ui/components";
 import { useTransition } from "react";
 import { Down, Lost, Plus, Trash, Trophy, Up } from "../../../components/icons.tsx";
-import { useToast } from "../../../components/toast.tsx";
 import { format, plural } from "../../../lib/i18n/format.ts";
 import type { Catalogue, Locale } from "../../../lib/i18n/index.ts";
 import { addStage, moveStage, removeStage, updateStage } from "../actions.ts";
@@ -16,7 +16,7 @@ export function StagesEditor({ stages, locale, t }: { stages: Row[]; locale: Loc
   const toast = useToast();
   const run = (step: () => Promise<{ ok: boolean; error?: keyof Catalogue["errors"]; values?: Record<string, string | number> }>, done?: string) => start(async () => {
     const r = await step();
-    if (!r.ok && r.error) toast(format(t.errors[r.error], r.values));
+    if (!r.ok && r.error) toast({ text: format(t.errors[r.error], r.values), tone: "error" });
     else if (done) toast(done);
   });
   const open = stages.filter(s => s.kind === "open");

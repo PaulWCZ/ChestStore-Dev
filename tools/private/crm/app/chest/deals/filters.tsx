@@ -8,7 +8,7 @@ import type { Choice, Teammate } from "../ui/shared.ts";
 
 // The deals' filters: they write the address, so a filtered list can be
 // bookmarked, shared, and exported as it is shown.
-export function Filters({ view, owner, stage, closing, status, team, me, stages, fields, t }: { view: "board" | "list"; owner: string; stage: string; closing: string; status: string; team: Teammate[]; me: string; stages: Choice[]; fields: FieldDef[]; t: Catalogue }) {
+export function Filters({ view, owner, stage, closing, status, team, me, stages, fields, today, t }: { view: "board" | "list"; owner: string; stage: string; closing: string; status: string; team: Teammate[]; me: string; stages: Choice[]; fields: FieldDef[]; today: string; t: Catalogue }) {
   const router = useRouter();
   const path = usePathname();
   const params = useSearchParams();
@@ -45,7 +45,7 @@ export function Filters({ view, owner, stage, closing, status, team, me, stages,
             <input type="checkbox" checked={closing === "month"} onChange={e => set("closing", e.target.checked ? "month" : "")} />
             {t.deals.closing}
           </label>
-          <FieldFilter fields={fields} t={t} />
+          <FieldFilter fields={fields} today={today} t={t} />
         </>
       )}
     </div>

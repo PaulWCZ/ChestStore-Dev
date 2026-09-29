@@ -1,21 +1,24 @@
+import { EmptyState } from "@argentic/chest-ui/components";
 import Link from "next/link";
 import { AutoRefresh } from "../../../components/auto-refresh.tsx";
-import { Download, ListIcon, Pipeline } from "../../../components/icons.tsx";
+import { Download } from "../../../components/icons.tsx";
 import { can, canEditDeal } from "../../../lib/access.ts";
 import { db } from "../../../lib/db.ts";
 import { boardClosedDays, boardDeals, listDeals, type DealFilter } from "../../../lib/deals.ts";
-import { format, formatDay, money, plural } from "../../../lib/i18n/index.ts";
+import { formatDay, money, plural } from "../../../lib/i18n/index.ts";
 import { today } from "../../../lib/model.ts";
 import { fieldFilterOf } from "../../../lib/fields.ts";
 import { dealFormProps, dueLabel, formChoices } from "../../../lib/page-data.ts";
 import { directory } from "../../../lib/people.ts";
 import { viewer } from "../../../lib/session.ts";
-import { BulkBar, BulkProvider, RowCheck } from "../ui/bulk.tsx";
+import { BulkBar, BulkProvider } from "../ui/bulk.tsx";
 import { NewDealButton } from "../ui/deal-form.tsx";
 import { Pager } from "../ui/pager.tsx";
 import { emptyDeal } from "../ui/values.ts";
 import { DealBoard } from "./board.tsx";
+import { DealTable } from "./deal-table.tsx";
 import { Filters } from "./filters.tsx";
+import { ViewSwitch } from "./view-switch.tsx";
 
 type Search = Promise<Record<string, string | string[] | undefined>>;
 const one = (v: string | string[] | undefined) => (typeof v === "string" ? v : "");
@@ -54,10 +57,8 @@ export default async function Deals({ searchParams }: { searchParams: Search }) 
       <div>
         <h1>{t.deals.title}</h1>
       </div>
-      <nav className="segmented" aria-label={t.deals.views}>
-        <Link prefetch={false} href={`/chest/deals${query({ view: "", status: "", stage: "", closing: "", cf: "", cv: "", cmin: "", cmax: "" })}`} aria-current={view === "board" ? "page" : undefined}><Pipeline />{t.deals.board}</Link>
-        <Link prefetch={false} href={`/chest/deals${query({ view: "list" })}`} aria-current={view === "list" ? "page" : undefined}><ListIcon />{t.deals.list}</Link>
-      </nav>
+      <ViewSwitch view={view} label={t.deals.views} words={{ board: t.deals.board, list: t.deals.list }}
+        board={`/chest/deals${query({ view: "", status: "", stage: "", closing: "", cf: "", cv: "", cmin: "", cmax: "" })}`} list={`/chest/deals${query({ view: "list" })}`} />
       {can(member, "deals.create") && <NewDealButton label={t.deals.new} initial={newDeal} {...dealProps} />}
     </div>
   );
@@ -66,17 +67,17 @@ export default async function Deals({ searchParams }: { searchParams: Search }) 
     const deals = await boardDeals(sql, member, { owner });
     const people = await directory(deals.map(d => d.owner), locale);
     return (
-      <main className="page wide">
+      <div className="page wide">
         <AutoRefresh seconds={30} />
         {head}
-        <Filters view="board" owner={owner} stage="" closing="" status="" team={choices.team} me={member.id} stages={choices.stageChoices} fields={[]} t={t} />
+        <Filters view="board" owner={owner} stage="" closing="" status="" team={choices.team} me={member.id} stages={choices.stageChoices} fields={[]} today={now} t={t} />
         {!can(member, "deals.create") && <p className="notice">{t.deals.readOnly}</p>}
         {deals.length === 0 ? (
-          <div className="empty">
-            <h2>{owner ? t.deals.emptyFiltered : t.deals.empty}</h2>
-            {!owner && <p>{can(member, "deals.create") ? t.deals.emptyBoardAction : t.deals.emptyBody}</p>}
-            {!owner && can(member, "deals.create") && <NewDealButton label={t.deals.new} initial={newDeal} {...dealProps} />}
-          </div>
+          <EmptyState
+            title={owner ? t.deals.emptyFiltered : t.deals.empty}
+            body={owner ? undefined : can(member, "deals.create") ? t.deals.emptyBoardAction : t.deals.emptyBody}
+            action={!owner && can(member, "deals.create") ? <NewDealButton label={t.deals.new} initial={newDeal} {...dealProps} /> : undefined}
+          />
         ) : (
         <>
         <p className="legend" aria-label={t.deals.legendLabel}>
@@ -95,7 +96,7 @@ export default async function Deals({ searchParams }: { searchParams: Search }) 
         />
         </>
         )}
-      </main>
+      </div>
     );
   }
 
@@ -106,9 +107,9 @@ export default async function Deals({ searchParams }: { searchParams: Search }) 
   const filtered = owner !== "" || filter.stage !== "" || filter.closing !== "" || one(params["status"]) !== "" || filter.q !== "" || field !== undefined;
   const writes = can(member, "deals.create");
   return (
-    <main className="page wide">
+    <div className="page wide">
       {head}
-      <Filters view="list" owner={owner} stage={String(filter.stage ?? "")} closing={filter.closing ?? ""} status={one(params["status"])} team={choices.team} me={member.id} stages={choices.stageChoices} fields={choices.fields.deals} t={t} />
+      <Filters view="list" owner={owner} stage={String(filter.stage ?? "")} closing={filter.closing ?? ""} status={one(params["status"])} team={choices.team} me={member.id} stages={choices.stageChoices} fields={choices.fields.deals} today={now} t={t} />
       <BulkProvider>
       {writes && <BulkBar table="deals" team={choices.team} me={member.id} canAssign={choices.canAssign} canDelete={false} locale={locale} t={t} />}
       <div className="list-summary">
@@ -116,51 +117,36 @@ export default async function Deals({ searchParams }: { searchParams: Search }) 
         <a className="link-button" href={`/chest/export/deals${query({})}`} download><Download />{t.common.exportCsv}</a>
       </div>
       {rows.length === 0 ? (
-        <div className="empty small">
-          <h2>{filtered ? t.deals.emptyFiltered : t.deals.empty}</h2>
-          {!filtered && <p>{t.deals.emptyBody}</p>}
-          {filtered && <Link prefetch={false} className="button quiet" href="/chest/deals?view=list">{t.common.clear}</Link>}
-        </div>
+        <EmptyState
+          title={filtered ? t.deals.emptyFiltered : t.deals.empty}
+          body={filtered ? undefined : t.deals.emptyBody}
+          action={filtered ? <Link prefetch={false} className="button quiet" href="/chest/deals?view=list">{t.common.clear}</Link> : undefined}
+        />
       ) : (
-        <div className="table-wrap">
-          <table className="table">
-            <thead>
-              <tr>
-                {writes && <th scope="col" className="check-col"><span className="visually-hidden">{t.common.bulk.actions}</span></th>}
-                <th scope="col">{t.deals.listTitle}</th>
-                <th scope="col" className="hide-phone">{t.deals.listCompany}</th>
-                <th scope="col" className="right">{t.deals.listValue}</th>
-                <th scope="col">{t.deals.listStage}</th>
-                <th scope="col" className="right hide-phone">{t.deals.listProbability}</th>
-                <th scope="col" className="hide-phone">{t.deals.listClose}</th>
-                <th scope="col" className="hide-phone">{t.deals.listOwner}</th>
-                <th scope="col" className="hide-phone">{t.deals.listStep}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map(d => {
-                const late = d.step && d.step.due < now;
-                const k = kind.get(d.stageId);
-                return (
-                  <tr key={d.id}>
-                    {writes && <td className="check-col"><RowCheck id={d.id} label={format(t.common.bulk.select, { name: d.title })} /></td>}
-                    <td><Link prefetch={false} className="strong" href={`/chest/deals/${d.id}`}>{d.title}</Link><span className="show-phone muted small-text">{d.company?.name}</span></td>
-                    <td className="hide-phone">{d.company ? <Link prefetch={false} href={`/chest/companies/${d.company.id}`}>{d.company.name}</Link> : <span className="muted">—</span>}</td>
-                    <td className="right num">{money(d.value, locale)}</td>
-                    <td><span className={`stage-chip ${k}`}>{choices.stageNames[d.stageId]}</span></td>
-                    <td className="right num hide-phone">{probability.get(d.stageId)}%</td>
-                    <td className="num hide-phone">{d.expectedClose ? formatDay(d.expectedClose, locale, { day: "numeric", month: "short", year: "numeric" }) : <span className="muted">—</span>}</td>
-                    <td className="hide-phone">{people[d.owner ?? ""]?.name ?? <span className="muted">{t.common.unassigned}</span>}</td>
-                    <td className="hide-phone">{d.step ? <span className={late ? "due late" : ""}>{d.step.text} · {dueLabel(d.step, now, locale, t)}{d.steps > 1 ? ` · +${d.steps - 1}` : ""}</span> : <span className="muted">{k === "open" ? t.deals.noStep : "—"}</span>}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+        <DealTable
+          writes={writes}
+          labels={t.table}
+          words={{ caption: t.deals.title, select: t.common.bulk.selectColumn, selectOne: t.common.bulk.select, title: t.deals.listTitle, company: t.deals.listCompany, value: t.deals.listValue, stage: t.deals.listStage, probability: t.deals.listProbability, close: t.deals.listClose, owner: t.deals.listOwner, step: t.deals.listStep }}
+          rows={rows.map(d => {
+            const k = kind.get(d.stageId) ?? "open";
+            return {
+              id: d.id,
+              title: d.title,
+              company: d.company ? { id: d.company.id, name: d.company.name } : null,
+              value: money(d.value, locale),
+              stage: choices.stageNames[d.stageId] ?? "",
+              kind: k,
+              probability: `${probability.get(d.stageId) ?? 0}%`,
+              close: d.expectedClose ? formatDay(d.expectedClose, locale, { day: "numeric", month: "short", year: "numeric" }) : null,
+              owner: people[d.owner ?? ""]?.name ?? t.common.unassigned,
+              step: d.step ? { text: `${d.step.text} · ${dueLabel(d.step, now, locale, t)}${d.steps > 1 ? ` · +${d.steps - 1}` : ""}`, late: d.step.due < now } : null,
+              noStep: k === "open" ? t.deals.noStep : "—",
+            };
+          })}
+        />
       )}
       </BulkProvider>
       <Pager path="/chest/deals" params={{ view: "list", ...Object.fromEntries(Object.entries(kept).filter(([, x]) => x !== "")) }} page={page} pageSize={pageSize} total={total} locale={locale} t={t} />
-    </main>
+    </div>
   );
 }

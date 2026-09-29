@@ -1,8 +1,8 @@
 "use client";
 
+import { useToast } from "@argentic/chest-ui/components";
 import { useState, useTransition, type ReactNode } from "react";
 import { Mail, Meeting, Note, Phone } from "../../../components/icons.tsx";
-import { useToast } from "../../../components/toast.tsx";
 import { format } from "../../../lib/i18n/format.ts";
 import type { Catalogue } from "../../../lib/i18n/index.ts";
 import type { LoggedKind } from "../../../lib/model.ts";
@@ -33,7 +33,15 @@ export function Composer({ on, t }: { on: { deal?: string; contact?: string; com
         setBody(text);
         return setError(format(t.errors[r.error], r.values));
       }
-      toast(format(t.log.logged, { kind: t.timeline.kinds[kind] }), { label: t.common.undo, run: () => start(async () => { await removeActivity(r.value.id); }) });
+      // Undo takes the entry back out of the history (it says if it could not).
+      toast({
+        id: `log-${r.value.id}`,
+        text: format(t.log.logged, { kind: t.timeline.kinds[kind] }),
+        undo: async () => {
+          const back = await removeActivity(r.value.id);
+          return back.ok ? true : format(t.errors[back.error], back.values);
+        },
+      });
     });
   }
   return (

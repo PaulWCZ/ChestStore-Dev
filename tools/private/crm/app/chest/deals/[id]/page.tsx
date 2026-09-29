@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { StageBadge } from "../../../../components/stage-badge.tsx";
 import { AutoRefresh } from "../../../../components/auto-refresh.tsx";
 import { Back, Building, Person } from "../../../../components/icons.tsx";
 import { can, canEditDeal } from "../../../../lib/access.ts";
@@ -38,7 +39,7 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
   const now = today();
   const ownerName = people[d.owner ?? ""]?.name ?? t.common.unassigned;
   return (
-    <main className="page record">
+    <div className="page record">
       <AutoRefresh seconds={45} />
       <nav className="crumbs"><Link prefetch={false} href="/chest/deals"><Back />{t.shell.deals}</Link></nav>
       <div className="record-head">
@@ -77,7 +78,7 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
         <aside className="record-side">
           <dl className="facts">
             <div><dt>{t.deal.value}</dt><dd className="num">{money(d.value, locale, { cents: true })}</dd></div>
-            <div><dt>{t.deal.stage}</dt><dd><span className={`stage-chip ${stage.kind}`}>{choices.stageNames[stage.id]}</span></dd></div>
+            <div><dt>{t.deal.stage}</dt><dd><StageBadge kind={stage.kind} name={choices.stageNames[stage.id] ?? ""} /></dd></div>
             <div><dt>{t.deal.close}</dt><dd className="num">{d.expectedClose ? formatDay(d.expectedClose, locale, { day: "numeric", month: "long", year: "numeric" }) : <span className="muted">{t.deal.noClose}</span>}</dd></div>
             <div><dt>{t.deal.owner}</dt><dd>{ownerName}</dd></div>
             <div><dt>{t.deal.company}</dt><dd>{d.company ? <Link prefetch={false} href={`/chest/companies/${d.company.id}`}>{d.company.name}</Link> : <span className="muted">{t.deal.noCompany}</span>}</dd></div>
@@ -87,6 +88,6 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
           <FilesBox on={{ deal: d.id }} files={shownFiles(files, people, member, locale, t)} canAdd={can(member, "activities.log")} t={t} />
         </aside>
       </div>
-    </main>
+    </div>
   );
 }

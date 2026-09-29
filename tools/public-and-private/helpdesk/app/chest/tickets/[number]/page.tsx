@@ -86,7 +86,7 @@ export default async function TicketPage({ params }: { params: Promise<{ number:
       canAnswer={can(member, "tickets.answer")}
       canManage={can(member, "tickets.manage")}
       locale={locale}
-      t={{ ticket: t.ticket, errors: t.errors, people: t.people, priority: t.priority, files: t.files }}
+      t={{ ticket: t.ticket, errors: t.errors, people: t.people, priority: t.priority, files: t.files, peoplePicker: t.peoplePicker }}
     />
   );
 }

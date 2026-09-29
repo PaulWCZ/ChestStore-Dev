@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import { FilePicker, filesPending, readyFiles, type PickedFile } from "../components/file-picker.tsx";
+import { Attachments, filesPending, readyFiles, type PickedFile } from "../components/attachments.tsx";
 import { format } from "../lib/i18n/format.ts";
 import type { Catalogue } from "../lib/i18n/index.ts";
 import { fileUpload, sendRequest, type FormState } from "./public-actions.ts";
@@ -17,7 +17,7 @@ const limits = { name: 120, email: 254, subject: 200, message: 10000 };
 export function ContactForm({ started: shown, locale, embed, t }: { started: string; locale: string; embed: boolean; t: Words }) {
   const [started] = useState(shown);
   const [state, action, pending] = useActionState<FormState, FormData>(sendRequest, { error: null, values: {} });
-  const [files, setFiles] = useState<PickedFile[]>([]);
+  const [files, setFiles] = useState<readonly PickedFile[]>([]);
   const v = state.values;
   const w = t.public;
   const error = state.error ? format(t.errors[state.error], { max: state.max ?? (state.error === "too_long" ? limits.message : 0) }) : null;
@@ -42,7 +42,7 @@ export function ContactForm({ started: shown, locale, embed, t }: { started: str
           <input id="email" name="email" type="email" className="field" autoComplete="email" required maxLength={limits.email} defaultValue={v["email"] ?? ""} aria-invalid={invalid("email") || undefined} aria-describedby="email-hint" />
         </div>
       </div>
-      <p id="email-hint" className="hint" style={{ marginTop: "calc(-1 * var(--space-2))" }}>{w.emailHint}</p>
+      <p id="email-hint" className="hint email-hint">{w.emailHint}</p>
       <div>
         <label className="label" htmlFor="subject">{w.subject}</label>
         <input id="subject" name="subject" className="field" required maxLength={limits.subject} placeholder={w.subjectPlaceholder} defaultValue={v["subject"] ?? ""} />
@@ -52,7 +52,7 @@ export function ContactForm({ started: shown, locale, embed, t }: { started: str
         <textarea id="message" name="message" className="field" required rows={7} maxLength={limits.message} placeholder={w.messagePlaceholder} defaultValue={v["message"] ?? ""} aria-invalid={invalid("message") || undefined} />
       </div>
       <input type="hidden" name="files" value={readyFiles(files)} />
-      <FilePicker items={files} setItems={setFiles} upload={fileUpload.bind(null, { started })} kind="public" locale={locale} t={{ files: t.files, errors: t.errors }} />
+      <Attachments files={files} setFiles={setFiles} grant={fileUpload.bind(null, { started })} kind="public" label={t.files.list} t={{ files: t.files, errors: t.errors }} />
       {error && <p className="error" role="alert">{error}</p>}
       <div><button type="submit" className="button" disabled={pending || waiting} title={waiting ? t.files.wait : undefined}>{pending ? w.sending : w.send}</button></div>
     </form>

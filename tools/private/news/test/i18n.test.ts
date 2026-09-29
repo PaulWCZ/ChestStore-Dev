@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { en } from "../lib/i18n/en.ts";
 import { catalogue, format, locales, plural, publicLocale } from "../lib/i18n/index.ts";
+import { cut } from "../lib/notify.ts";
 
 // Every catalogue has exactly the keys of the English one, no empty word,
 // and the same {placeholders} in each word.
@@ -40,4 +41,10 @@ test("plurals and placeholders follow the language", () => {
   assert.equal(plural(catalogue("fr").comments.title, 0, "fr"), "Commentaires");
   assert.equal(plural(en.readers.reminded, 1200, "en"), "Reminder sent to 1,200 people.");
   assert.equal(format("{a} and {b}", { a: 1 }), "1 and {b}");
+});
+
+test("a bell item keeps French typography: the narrow no-break spaces survive cut()", () => {
+  const title = format(catalogue("fr").bell.important, { title: "Déménagement\n  du   bureau" });
+  assert.equal(cut(title, 80), "Important : Déménagement du bureau");
+  assert.equal(cut(format(catalogue("fr").bell.commented, { name: "Inès", title: "Plan" }), 80), "Inès a commenté « Plan »");
 });

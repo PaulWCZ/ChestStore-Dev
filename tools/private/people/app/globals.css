@@ -380,8 +380,12 @@ textarea.field { resize: vertical; line-height: 1.5; padding-top: var(--space-3)
 .step-edit-field { flex: 1 1 220px; min-width: 0; }
 .add-step { margin-top: var(--space-5); padding: var(--space-4); border-radius: var(--radius-l); border: 1.5px dashed var(--line-strong); }
 .add-row { display: flex; gap: var(--space-2); flex-wrap: wrap; align-items: center; }
-.add-row { align-items: flex-end; }
 .add-field { flex: 1 1 200px; min-width: 0; }
+/* A checklist's new step: the fields with a label above them; the text and
+   the button line up with their boxes. */
+.journey .add-row { align-items: flex-start; }
+.journey .add-row > .grow, .journey .add-row > .button { margin-top: calc(var(--text-s) * var(--leading) + var(--space-1)); }
+.journey .add-step + .row.end { margin-top: var(--space-3); }
 .todo-groups { display: grid; gap: var(--space-6); }
 .todo-head { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; margin-bottom: var(--space-3); }
 .todo-head h2 { flex: 1 1 200px; }

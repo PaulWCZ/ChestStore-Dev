@@ -1,3 +1,4 @@
+import { EmptyState } from "@argentic/chest-ui/components";
 import Link from "next/link";
 import { AutoRefresh } from "../../components/auto-refresh.tsx";
 import { Building, Chart, Pipeline, Trophy, Upload } from "../../components/icons.tsx";
@@ -38,19 +39,20 @@ export default async function MyDay() {
 
   if (!hasRecords) {
     return (
-      <main className="page narrow">
-        <div className="empty first">
-          <Building />
-          <h1>{reads ? t.home.viewer.emptyTitle : t.home.firstTime.title}</h1>
-          <p>{reads ? t.home.viewer.emptyBody : t.home.firstTime.body}</p>
-          {can(member, "records.write") && (
-            <div className="row center">
-              <NewCompanyButton label={t.home.firstTime.addCompany} initial={emptyCompany(member.id)} fields={choices.fields.companies} team={choices.team} me={member.id} canAssign={choices.canAssign} locale={locale} t={t} />
+      <div className="page narrow first">
+        <EmptyState
+          headingLevel={1}
+          icon={<Building />}
+          title={reads ? t.home.viewer.emptyTitle : t.home.firstTime.title}
+          body={reads ? t.home.viewer.emptyBody : t.home.firstTime.body}
+          action={can(member, "records.write") ? (
+            <>
+              <NewCompanyButton label={t.home.firstTime.addCompany} initial={emptyCompany(member.id)} fields={choices.fields.companies} team={choices.team} me={member.id} canAssign={choices.canAssign} today={now} locale={locale} t={t} />
               {can(member, "import") && <Link prefetch={false} className="button quiet" href="/chest/import"><Upload />{t.home.firstTime.import}</Link>}
-            </div>
-          )}
-        </div>
-      </main>
+            </>
+          ) : undefined}
+        />
+      </div>
     );
   }
 
@@ -64,7 +66,7 @@ export default async function MyDay() {
     const max = Math.max(1, ...open.map(s => s.value));
     const won = await wonThisMonth(sql, member, now);
     return (
-      <main className="page day">
+      <div className="page day">
         <AutoRefresh seconds={60} />
         <div className="page-head">
           <div>
@@ -114,7 +116,7 @@ export default async function MyDay() {
             </section>
           </aside>
         </div>
-      </main>
+      </div>
     );
   }
 
@@ -138,7 +140,7 @@ export default async function MyDay() {
   const logs = can(member, "activities.log");
 
   return (
-    <main className="page day">
+    <div className="page day">
       <AutoRefresh seconds={60} />
       <div className="page-head">
         <div>
@@ -152,10 +154,8 @@ export default async function MyDay() {
         <section aria-labelledby="steps-title" className="day-steps">
           <h2 id="steps-title" className="visually-hidden">{t.step.title}</h2>
           {rows.length === 0 ? (
-            <div className="empty small">
-              <h3>{t.home.nothing}</h3>
-              <p>{t.home.nothingBody}</p>
-              <Link prefetch={false} className="button quiet" href="/chest/deals">{t.shell.deals}</Link>
+            <div className="empty-box">
+              <EmptyState headingLevel={3} title={t.home.nothing} body={t.home.nothingBody} action={<Link prefetch={false} className="button quiet" href="/chest/deals">{t.shell.deals}</Link>} />
             </div>
           ) : (
             <DayList rows={rows} team={choices.team} me={member.id} canAssign={choices.canAssign} today={now} locale={locale} t={t} />
@@ -193,6 +193,6 @@ export default async function MyDay() {
           </section>
         </aside>
       </div>
-    </main>
+    </div>
   );
 }

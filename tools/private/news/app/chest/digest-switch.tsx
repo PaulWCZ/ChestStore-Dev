@@ -1,8 +1,8 @@
 "use client";
 
+import { useToast } from "@argentic/chest-ui/components";
 import { useOptimistic, useTransition } from "react";
 import { Mail } from "../../components/icons.tsx";
-import { useToast } from "../../components/toast.tsx";
 import { format } from "../../lib/i18n/format.ts";
 import type { Catalogue } from "../../lib/i18n/index.ts";
 import { digestByEmail } from "./actions.ts";
@@ -20,7 +20,7 @@ export function DigestSwitch({ on, t, errors }: { on: boolean; t: Catalogue["fro
       <button type="button" className="link-button" onClick={() => start(async () => {
         set(!shown);
         const r = await digestByEmail(!shown);
-        toast(r.ok ? (shown ? t.digestStopped : t.digestStarted) : format(errors[r.error], r.values ?? {}));
+        toast(r.ok ? { id: "digest", text: shown ? t.digestStopped : t.digestStarted } : { id: "digest", text: format(errors[r.error], r.values ?? {}), tone: "error" });
       })}>{shown ? t.digestTurnOff : t.digestTurnOn}</button>
     </p>
   );

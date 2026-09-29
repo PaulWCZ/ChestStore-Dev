@@ -1,4 +1,5 @@
-import { Search as SearchIcon, Speech } from "../../../components/icons.tsx";
+import { EmptyState, SearchBox } from "@argentic/chest-ui/components";
+import { Speech } from "../../../components/icons.tsx";
 import { Highlighted } from "../../../components/highlighted.tsx";
 import { dates } from "../../../lib/dates.ts";
 import { db } from "../../../lib/db.ts";
@@ -22,17 +23,14 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
   const name = (id: string) => (id === member.id ? t.people.you : nameOf(who.get(id), locale));
   const d = dates(locale, zone);
   return (
-    <main className="search-page narrow">
+    <div className="search-page narrow">
       <h1>{t.search.title}</h1>
-      <form className="search-box" role="search" action="/chest/search" method="get">
-        <label htmlFor="q" className="visually-hidden">{t.search.label}</label>
-        <input id="q" name="q" type="search" className="field" defaultValue={query} placeholder={t.search.placeholder} maxLength={limits.query} autoFocus={!query} />
-        <button type="submit" className="button"><SearchIcon />{t.search.button}</button>
-      </form>
+      <div className="search-box">
+        <SearchBox id="q" action="/chest/search" value={query} maxLength={limits.query} autoFocus={!query} labels={t.searchBox} />
+      </div>
       {!query ? <p className="quiet-text">{t.search.start}</p> : hits.length === 0 ? (
-        <div className="empty" role="status">
-          <h2>{format(t.search.none, { query })}</h2>
-          <p>{t.search.noneHint}</p>
+        <div role="status">
+          <EmptyState title={format(t.search.none, { query })} body={t.search.noneHint} />
         </div>
       ) : (
         <>
@@ -62,6 +60,6 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
           </ol>
         </>
       )}
-    </main>
+    </div>
   );
 }

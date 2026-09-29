@@ -5,60 +5,85 @@
 **People** (French: *Équipe*). Warm, welcoming, personal — a portrait
 gallery on a cream wall, not an HR database.
 
+## A theme, and every other look
+
+People's identity is a **theme of the UI kit** (`@argentic/chest-ui`):
+`defineTheme` in `lib/theme.ts`, value for value the catalogue's
+**"Portrait gallery"** (`gallery`; `test/theme.test.ts` holds the two equal
+and checks every contrast pair of `ui/tokens/CONTRACT.md`, WCAG AA, light
+and dark). It is the tool's own look by default; a company may instead give
+People any theme of the catalogue, or its own brand (then its logo stands
+where People's mark is), in its Chest — for all its tools or for People
+alone. The features and the layout are the same in every look.
+
 ## Tokens
 
-All in `app/tokens.css` (light, and dark by the system's choice). Ratios
-computed with `scripts/contrast.mjs` (WCAG 2; AA is 4.5:1 for text).
+Colours, fonts, sizes, corners and motion: `lib/theme.ts` (the contract's
+names: `--bg`, `--surface`, `--ink`, `--accent`, `--cat-N-soft`…). Written
+into the page by `<ThemeStyle>` (app/layout.tsx, with the page's nonce).
+The CSS names only contract tokens and the tool's own, in `app/tokens.css`,
+each defined from contract tokens — never a colour:
 
-| Token | Light | Dark | Use |
-|---|---|---|---|
-| `--bg` | `#fbf5ec` cream | `#1d1420` night plum | page |
-| `--surface` | `#fffdf9` | `#281c2c` | cards, fields |
-| `--surface-2` | `#f4ebdf` | `#332537` | chips, hovers |
-| `--ink` | `#3a1f3d` deep plum | `#f6ede4` | text — 13.4:1 on cream; 15.5:1 dark |
-| `--ink-2` | `#6b5169` | `#cbb8c8` | secondary text — 6.4:1 on cream, 5.9:1 on surface-2; 9.6:1 / 7.7:1 dark |
-| `--accent` | `#b4472a` terracotta | `#f08e6a` | the main action, counts — white on it 5.4:1; dark ink `#2a1410` on it 7.3:1 |
-| `--accent-text` | `#a3401f` | `#f08e6a` | eyebrows, links — 5.1:1 on `--accent-soft`, 5.0:1+ on cream; 5.5:1 / 7.5:1 dark |
-| `--accent-soft` | `#f7e3d6` | `#432a2b` | "say hello", to-do banner, focus halo |
-| `--plum` / `--plum-ink` | `#3a1f3d` / `#fbf5ec` | inverted | current tab, "you" badge, toasts — 13.4:1 |
-| `--ok` on `--ok-soft` | `#2f6b4a` on `#dcebdf` | `#7fc79c` on `#22382b` | "Arrival" tag, done — 5.1:1 / 6.3:1 |
-| `--danger` | `#b3261e` | `#ff9a8a` | errors, late — 6.0:1 on cream / 7.9:1 dark |
-| `--tint-0…5` | terracotta, ochre, sage, plum, rose, teal pastels | deep versions | the arch behind a portrait, one per team (decorative, no text on them) |
+| Tool token | From | Use |
+|---|---|---|
+| `--inverse` / `--inverse-ink` | `--ink` / `--bg` (the measured inverse pair) | the deep plum: current tab, "This is you" badge, chosen option, language switch |
+| `--radius-xl` | `--radius-l` + 8 px | the welcome cards |
+| `--weight-medium` | halfway between 400 and `--weight-strong` | names in lists, labels (500 here, 400 in the Chest theme) |
+| `--bar-in` / `--bar-out` | `--accent` / `--ink` | arrivals and departures on the numbers page |
 
-**Type**: *Outfit* (variable, OFL-1.1, self-hosted in `public/fonts/`) for
-everything: geometric and friendly; 650 for titles with tight tracking,
-400–600 for text; 17 px body. Eyebrows are small caps-style uppercase with
-wide tracking in terracotta. **Shape**: pills for buttons, tabs, fields'
-search and chips; 24–32 px radii for cards; portraits are round, set in an
-*arch* (round top, soft bottom corners) of their team's tint — the tool's
-signature. **Space**: 4, 8, 12, 16, 24, 32, 48, 72. **Shadows**: soft and
-warm (plum at 6–14 %), none in dark. **Motion**: 140 and 260 ms; cards rise
-3 px on hover; none with reduced motion.
+The arches behind portraits are the **categorical palette's soft grounds**
+(`lib/tint.ts`: slots 3 terracotta, 7 ochre, 2 sage, 4 plum, 5 rose, 6 teal —
+exactly the old six tints in the gallery, and the same families in any
+theme). Field borders are `--line-strong` (3:1 on the page; the old
+`#d9c7b3` was 1.6:1 and is gone).
+
+| Gallery (light / dark) | Value |
+|---|---|
+| cream `--bg` | `#fbf5ec` / `#1d1420` |
+| deep plum `--ink` | `#3a1f3d` / `#f6ede4` |
+| terracotta `--accent` | `#b4472a` / `#f08e6a` |
+| blush `--accent-soft` | `#f7e3d6` / `#432a2b` |
+
+**Type**: *Outfit* (variable, OFL-1.1, self-hosted in `public/fonts/`; the
+kit writes its `@font-face`) for everything: geometric and friendly;
+headings at the theme's display weight (600) with tight tracking, 17 px
+body. Eyebrows are uppercase with wide tracking in `--accent-text`.
+**Shape**: pills for buttons, tabs, the search field and chips; 24–32 px
+radii for cards; portraits round, set in an *arch* of their team's colour —
+the tool's signature. **Motion**: 140 and 260 ms; none with reduced motion.
+
+**Paper.** The staff register (A4 landscape) and the HR record print in a
+**neutral print style**, not in the look on screen: black on white (CSS
+system colours `CanvasText` on `Canvas`, `color-scheme: light`), hairlines
+in grey, no shadows, the look's fonts kept. A dark theme's light ink or a
+brand's tinted grounds would print pale on white paper, and a register is
+handed to a labour inspector: it must read the same whatever the company
+chose. The shell, actions, toasts and upload fields are not printed.
 
 ## Components
 
-Pill buttons (terracotta primary, quiet outline, small, danger text), icon
-buttons (44 px round), fields and selects (46 px, terracotta focus halo),
-a big round search field, a chips input for "Ask me about", a switch (the
-birthday opt-in), segmented radios, choice cards; portrait cards on a wall
-(arch, name, title, team pill, office, topics, "New" / "This is you"
-badges); the "Say hello" card; profile header with a large arch; the org
-chart (cards joined by thin 1.5 px connectors with rounded elbows; on a
-phone, an indented list with a thread down the side); checklist steps with
-a round tick, who does it (small portrait, role) and a due pill (late /
-today / date); progress meters; banners (to-do, warning, done); toasts in
-plum with *Undo*; dashed empty states with one action. Added with the HR
-records: a phone **bottom bar** (icon over its word, the current section
-in a soft terracotta well); the **"has left" card** in the org chart
-(dashed, on the quiet surface, faded portrait); a **sheet** for HR's table
-(sticky name column and header, borderless cells that show a terracotta
-outline when edited); the **record** (a lock banner saying who sees the
-page, cards per part, a star and one line for what the register needs, a
-sticky save bar, document rows with a file icon); the **register** table
-(row marked on the left in red when a detail is missing; an A4 landscape
-print layout without the tool's chrome); **numbers** as stat tiles and
-thin terracotta bars, each with its figure beside it (arrivals terracotta,
-departures plum, with a key).
+From the kit (`@argentic/chest-ui/components`, dressed in the gallery by
+`app/globals.css`): the **AppShell** (labelled tabs — rounded, the current
+one in plum on a wide screen; on a phone the kit's one rule, a row of
+labelled tabs under the header, where People had its own bottom bar), the
+member chip (a link to one's profile), **Toasts** with a truthful Undo
+(« Annuler l'action »), **Confirm** before deleting a checklist or a record
+for good, **PeoplePicker** (managers, tutors, who a step is given to, whom
+a checklist is for — arrivals first), **DateField** (every date but the
+birthday's day and month), **SearchBox** (the directory, "/" to search),
+**FilePicker** (the CSV import, a record's documents, with progress),
+**DataTable** (the import plan, the register, the months), **EmptyState**,
+**Avatar** (every small face), **StatusBadge** (arrival/departure, late
+details, a cancelled hire), **Segmented**, **LanguageSwitch**,
+**BrandMark**, **NoAccess**.
+
+The tool's own: the **portrait in its arch** (directory cards, "Say hello",
+the profile, the org chart — where the face is the point); the org chart
+(cards joined by thin connectors; an indented list on a phone); checklist
+steps with a round tick and a due pill; the "has left" card; HR's **sheet**
+(a grid of fields saved cell by cell, sticky names — not a DataTable, which
+is for reading); the record (lock banner, cards per part, a star for what
+the register needs); stat tiles and thin bars with their figures.
 
 ## Icon
 
@@ -89,7 +114,7 @@ grid.
     { "name": "Ochre", "value": "#f1e2b8" }
   ],
   "fonts": {
-    "display": { "family": "Outfit", "file": "public/fonts/outfit-latin-wght-normal.woff2", "weight": 650 },
+    "display": { "family": "Outfit", "file": "public/fonts/outfit-latin-wght-normal.woff2", "weight": 600 },
     "body": { "family": "Outfit", "file": "public/fonts/outfit-latin-wght-normal.woff2", "weight": 400 }
   },
   "specimen": "Say hello to Nora — she started on Monday"

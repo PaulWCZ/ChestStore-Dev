@@ -1,6 +1,6 @@
 "use client";
 
-import { useToast } from "../../../components/toast.tsx";
+import { useToast } from "@argentic/chest-ui/components";
 import { format } from "../../../lib/i18n/format.ts";
 import type { Catalogue } from "../../../lib/i18n/index.ts";
 import { addCompany, pickCompanies, pickContacts } from "../actions.ts";
@@ -20,7 +20,7 @@ export function CompanyPicker({ id, value, onChange, canCreate, t }: { id: strin
           run: async (q: string) => {
             const r = await addCompany({ name: q });
             if (!r.ok) {
-              toast(format(t.errors[r.error], r.values));
+              toast({ text: format(t.errors[r.error], r.values), tone: "error" });
               return null;
             }
             toast(format(t.deal.companyCreated, { name: r.value.name }));

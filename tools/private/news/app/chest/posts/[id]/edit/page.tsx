@@ -41,8 +41,8 @@ export default async function EditPost({ params }: { params: Promise<{ id: strin
   const groups = listed === "unavailable" ? [] : listed.map(g => ({ id: g.id, name: g.name }));
   for (const g of draft.groups) if (!groups.some(x => x.id === g)) groups.push({ id: g, name: v.t.front.formerGroup });
   return (
-    <main className="desk">
-      <Composer postId={id} initial={draft} author={draft.author} people={people} groups={groups} languages={composerLanguages(locale)} mail={await learned(sql, "mail")} defaults={{ day: tomorrow.day, time: "09:00", today: today(zone) }} locale={locale} t={{ composer: t.composer, kinds: t.kinds, errors: t.errors }} />
-    </main>
+    <div className="desk">
+      <Composer postId={id} initial={draft} author={draft.author} people={people} groups={groups} languages={composerLanguages(locale)} mail={await learned(sql, "mail")} defaults={{ day: tomorrow.day, time: "09:00", today: today(zone) }} locale={locale} t={{ composer: t.composer, kinds: t.kinds, errors: t.errors, toast: t.toast, date: t.date, peoplePicker: t.peoplePicker }} />
+    </div>
   );
 }

@@ -1,27 +1,30 @@
 "use client";
 
+import { FilePicker, useToast, type PickedFile } from "@argentic/chest-ui/components";
+import type { FileWords } from "@argentic/chest-ui/components/logic";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { useToast } from "../../../components/toast.tsx";
 import type { ErrorCode } from "../../../lib/app-error.ts";
 import { format, plural } from "../../../lib/i18n/format.ts";
 import type { Catalogue } from "../../../lib/i18n/index.ts";
 import { undoSlackImport } from "../actions.ts";
 
-// A Slack export: choose the ZIP, then the channel, then import — with
-// "Undo" in the toast.
+// A Slack export: choose the ZIP (the kit's file picker: the button or a
+// drop, the limit said first; the file stays in the browser and is read
+// from here), then the channel, then import — with Undo in the toast.
 type Channel = { id: string; name: string; messages: number };
 
-export function SlackImport({ t, errors, undo, locale }: { t: Catalogue["transfer"]; errors: Catalogue["errors"]; undo: string; locale: string }) {
+export function SlackImport({ t, errors, files: words, maxSize, locale }: { t: Catalogue["transfer"]; errors: Catalogue["errors"]; files: FileWords; maxSize: number; locale: string }) {
   const router = useRouter();
   const toast = useToast();
-  const [file, setFile] = useState<File | null>(null);
+  const [files, setFiles] = useState<readonly PickedFile[]>([]);
   const [channels, setChannels] = useState<Channel[] | null>(null);
   const [chosen, setChosen] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
   const say = (code: ErrorCode, values: Record<string, number | string> = {}) => format(errors[code], values);
+  const file = files[0]?.file ?? null;
 
   async function send(f: File, channel: string | null) {
     const response = await fetch("/chest/api/import" + (channel ? "?channel=" + encodeURIComponent(channel) : ""), { method: "POST", headers: { "Content-Type": "application/zip" }, body: f });
@@ -29,8 +32,15 @@ export function SlackImport({ t, errors, undo, locale }: { t: Catalogue["transfe
     if (!response.ok) throw new Error(say(answer.error ?? "unknown", answer.values));
     return answer;
   }
+  // A file chosen (or removed): its channels are read at once.
+  function pick(update: (current: readonly PickedFile[]) => PickedFile[]) {
+    const next = update(files);
+    setFiles(next);
+    const f = next[0]?.file ?? null;
+    setChannels(null); setChosen(null); setError(null); setNote(null);
+    if (f && f !== file) void read(f);
+  }
   async function read(f: File) {
-    setFile(f); setChannels(null); setChosen(null); setError(null); setNote(null);
     setBusy(format(t.reading, { name: f.name }));
     try {
       const answer = await send(f, null);
@@ -49,15 +59,20 @@ export function SlackImport({ t, errors, undo, locale }: { t: Catalogue["transfe
     try {
       const answer = await send(file, chosen);
       const added = answer.added ?? 0;
+      const batch = answer.batch;
       setNote(answer.unmatched?.length ? format(t.unmatched, { names: answer.unmatched.join(", ") }) : null);
-      toast(plural(t.imported, added, locale), added > 0 && answer.batch ? {
-        label: undo,
-        run: async () => {
-          const r = await undoSlackImport(answer.batch!);
-          toast(r.ok ? plural(t.undone, r.value.count, locale) : say(r.error));
-          router.refresh();
-        },
-      } : undefined, { ms: 12000 });
+      // Nobody was told of an import: it can be taken back whole.
+      toast({
+        id: `import-${batch ?? chosen}`,
+        text: plural(t.imported, added, locale),
+        ...(added > 0 && batch ? {
+          undo: async () => {
+            const r = await undoSlackImport(batch);
+            router.refresh();
+            return r.ok ? true : say(r.error);
+          },
+        } : {}),
+      });
       router.refresh();
     } catch (e) {
       setError(e instanceof Error ? e.message : say("unknown"));
@@ -68,10 +83,7 @@ export function SlackImport({ t, errors, undo, locale }: { t: Catalogue["transfe
   const count = channels?.find(c => c.id === chosen)?.messages ?? 0;
   return (
     <div className="stack">
-      <label className="button quiet file-input">
-        {t.chooseFile}
-        <input type="file" accept=".zip,application/zip" onChange={e => { const f = e.target.files?.[0]; e.target.value = ""; if (f) void read(f); }} />
-      </label>
+      <FilePicker label={t.chooseFile} files={files} onChange={pick} maxFiles={1} maxSize={maxSize} accept={[".zip", "application/zip"]} labels={words} />
       {busy && <p className="hint" role="status">{busy}</p>}
       {error && <p className="error" role="alert">{error}</p>}
       {channels && channels.length > 0 && (

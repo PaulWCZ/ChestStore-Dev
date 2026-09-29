@@ -1,5 +1,5 @@
+import { Avatar, EmptyState } from "@argentic/chest-ui/components";
 import Link from "next/link";
-import { Avatar } from "../../../components/avatar.tsx";
 import { Card, Download } from "../../../components/icons.tsx";
 import { can } from "../../../lib/access.ts";
 import { tagsInUse } from "../../../lib/companies.ts";
@@ -47,15 +47,15 @@ export default async function Contacts({ searchParams }: { searchParams: Search 
   const team = people.map(p => ({ id: p.id, name: p.name, photo: p.photo }));
   const writes = can(member, "records.write");
   return (
-    <main className="page">
+    <div className="page">
       <div className="page-head">
         <div>
           <h1>{t.contacts.title}</h1>
           <p className="lede num">{plural(t.contacts.count, total, locale)}</p>
         </div>
-        {writes && <NewContactButton label={t.contacts.new} initial={emptyContact(member.id)} fields={fields} team={team} me={member.id} canAssign={can(member, "assign")} canCreate={writes} t={t} />}
+        {writes && <NewContactButton label={t.contacts.new} initial={emptyContact(member.id)} fields={fields} team={team} me={member.id} canAssign={can(member, "assign")} canCreate={writes} today={today()} t={t} />}
       </div>
-      <ListFilters label={t.contacts.filter} tags={tags} team={team} me={member.id} stale fields={fields} sorts={[{ value: "name", label: t.contacts.sorts.name }, { value: "last", label: t.contacts.sorts.last }, { value: "created", label: t.contacts.sorts.created }]} t={t} />
+      <ListFilters label={t.contacts.filter} tags={tags} team={team} me={member.id} stale fields={fields} today={today()} sorts={[{ value: "name", label: t.contacts.sorts.name }, { value: "last", label: t.contacts.sorts.last }, { value: "created", label: t.contacts.sorts.created }]} t={t} />
       {filter.stale && <p className="notice">{t.contacts.staleHint}</p>}
       <BulkProvider>
         <div className="list-summary">
@@ -67,11 +67,11 @@ export default async function Contacts({ searchParams }: { searchParams: Search 
         </div>
         {writes && <BulkBar table="contacts" team={team} me={member.id} canAssign={can(member, "assign")} canDelete locale={locale} t={t} />}
         {rows.length === 0 ? (
-          <div className="empty small">
-            <h2>{filtered ? t.contacts.emptyFiltered : t.contacts.empty}</h2>
-            {!filtered && <p>{t.contacts.emptyBody}</p>}
-            {!filtered && can(member, "import") && <Link prefetch={false} className="button quiet" href="/chest/import">{t.shell.import}</Link>}
-          </div>
+          <EmptyState
+            title={filtered ? t.contacts.emptyFiltered : t.contacts.empty}
+            body={filtered ? undefined : t.contacts.emptyBody}
+            action={!filtered && can(member, "import") ? <Link prefetch={false} className="button quiet" href="/chest/import">{t.shell.import}</Link> : undefined}
+          />
         ) : (
           <ul className={`rows${writes ? " selectable" : ""}`}>
             {rows.map(c => {
@@ -88,7 +88,7 @@ export default async function Contacts({ searchParams }: { searchParams: Search 
                       {c.step ? <span className={`due ${state}`}>{c.step.text} · {dueLabel(c.step, now, locale, t)}{c.steps > 1 ? ` · +${c.steps - 1}` : ""}</span> : null}
                     </span>
                     <span className="row-when muted" title={t.contacts.lastContact}>{c.lastContact ? relative(c.lastContact, locale) : t.contacts.never}</span>
-                    <span className="row-owner">{c.owner ? <Avatar name={owners[c.owner]?.name ?? "?"} photo={owners[c.owner]?.photo ?? null} size={26} title={owners[c.owner]?.name} /> : <span className="avatar empty-avatar" role="img" aria-label={t.common.unassigned} title={t.common.unassigned}>?</span>}</span>
+                    <span className="row-owner">{c.owner ? <Avatar name={owners[c.owner]?.name ?? "?"} photo={owners[c.owner]?.photo ?? null} size="s" label={owners[c.owner]?.name ?? t.people.unknown} /> : <Avatar name="?" size="s" className="avatar-none" label={t.common.unassigned} />}</span>
                   </Link>
                 </li>
               );
@@ -97,6 +97,6 @@ export default async function Contacts({ searchParams }: { searchParams: Search 
         )}
       </BulkProvider>
       <Pager path="/chest/contacts" params={kept} page={page} pageSize={pageSize} total={total} locale={locale} t={t} />
-    </main>
+    </div>
   );
 }

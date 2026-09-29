@@ -1,10 +1,10 @@
 "use client";
 
+import { EmptyState, PageHeader, useToast } from "@argentic/chest-ui/components";
 import { useRouter } from "next/navigation";
 import { useMemo, useState, useTransition } from "react";
-import { DateBox, Stamp, Thumb, Warnings } from "../../components/bits.tsx";
+import { DateBox, RowStamp, Thumb, Warnings } from "../../components/bits.tsx";
 import { Car, Plus, Receipt, Send } from "../../components/icons.tsx";
-import { useToast } from "../../components/toast.tsx";
 import type { Catalogue } from "../../lib/i18n/index.ts";
 import { format, plural } from "../../lib/i18n/format.ts";
 import { formatMoney } from "../../lib/money.ts";
@@ -54,8 +54,9 @@ export function HomeView({ locale, empty, figures, drafts, waiting, approved, hi
     const ids = selected.map(d => d.id);
     start(async () => {
       const result = await sendExpenses(ids);
-      if (!result.ok) return toast(format(t.errors[result.error], result.values ?? {}));
-      toast(plural(t.home.sent, result.value.count, locale, { name: result.value.to }));
+      if (!result.ok) return void toast({ text: format(t.errors[result.error], result.values ?? {}), tone: "error" });
+      // The approver has been told: sent, never an Undo.
+      toast({ id: "send", text: plural(t.home.sent, result.value.count, locale, { name: result.value.to }), sent: true });
       setUnticked(new Set());
       router.refresh();
     });
@@ -71,12 +72,14 @@ export function HomeView({ locale, empty, figures, drafts, waiting, approved, hi
   if (empty) {
     return (
       <>
-        <div className="paper empty">
-          <span className="glyph"><Receipt /></span>
-          <h1>{t.home.empty.title}</h1>
-          <p>{t.home.empty.body}</p>
-          <a className="button" href="/chest/new"><Plus />{t.home.empty.action}</a>
-          <a className="link-button" href="/chest/new?trip=1">{t.home.addTrip}</a>
+        <div className="paper">
+          <EmptyState
+            headingLevel={1}
+            icon={<Receipt />}
+            title={t.home.empty.title}
+            body={t.home.empty.body}
+            action={<><a className="button" href="/chest/new"><Plus />{t.home.empty.action}</a><a className="link-button" href="/chest/new?trip=1">{t.home.addTrip}</a></>}
+          />
         </div>
         {dock}
       </>
@@ -85,10 +88,7 @@ export function HomeView({ locale, empty, figures, drafts, waiting, approved, hi
 
   return (
     <>
-      <div className="page-head">
-        <h1>{t.home.title}</h1>
-        <a className="button quiet small hide-phone" href="/chest/new?trip=1"><Car />{t.home.addTrip}</a>
-      </div>
+      <PageHeader size="m" title={t.home.title} secondary={<a className="button quiet small hide-phone" href="/chest/new?trip=1"><Car />{t.home.addTrip}</a>} />
       <div className="figures">
         <div className="figure"><span className="label">{t.figures.waiting}</span><span className="amount">{figures.waiting}</span></div>
         <div className="figure money"><span className="label">{t.figures.toPay}</span><span className="amount">{figures.toPay}</span></div>
@@ -118,23 +118,23 @@ export function HomeView({ locale, empty, figures, drafts, waiting, approved, hi
                 </a>
                 <span className="right">
                   <span className="amount">{d.amount}</span>
-                  {d.blocked ? <a className="button small quiet" href={`${d.href}/edit`}>{t.home.fix}<span className="visually-hidden">: {d.what}</span></a> : d.stamp.kind === "refused" && <Stamp row={d} />}
+                  {d.blocked ? <a className="button small quiet" href={`${d.href}/edit`}>{t.home.fix}<span className="visually-hidden">: {d.what}</span></a> : d.stamp.kind === "refused" && <RowStamp row={d} />}
                 </span>
               </li>
             ))}
           </ul>
           <hr className="rule" />
           <div className="total-line"><span className="label">{plural(t.home.count, selected.length, locale)}</span><span className="amount">{total || "—"}</span></div>
-          <button type="button" className="button block" style={{ marginTop: 12 }} onClick={send} disabled={pending || selected.length === 0}>
+          <button type="button" className="button block send" onClick={send} disabled={pending || selected.length === 0}>
             <Send />{plural(t.home.send, selected.length, locale)}
           </button>
         </section>
       )}
 
       {[waiting, approved].filter(g => g.rows.length > 0).map(g => <Group key={g.key} group={g} companyCard={t.companyCard} />)}
-      {history.length > 0 && <h2 className="section label" style={{ marginBottom: 0 }}>{t.home.history}</h2>}
+      {history.length > 0 && <h2 className="section label earlier-title">{t.home.history}</h2>}
       {history.map(g => <Group key={g.key} group={g} companyCard={t.companyCard} />)}
-      {limit && <p className="hint" style={{ marginTop: 16 }}>{limit}</p>}
+      {limit && <p className="hint limit-hint">{limit}</p>}
       {dock}
     </>
   );
@@ -152,7 +152,7 @@ function Group({ group, companyCard }: { group: HomeGroup; companyCard: string }
               <span className="what">{r.what}</span>
               <span className="sub">{r.sub && <span>{r.sub}</span>}{r.card && <span>{companyCard}</span>}<Warnings list={r.warnings} /></span>
             </a>
-            <span className="right"><span className="amount">{r.amount}</span><Stamp row={r} /></span>
+            <span className="right"><span className="amount">{r.amount}</span><RowStamp row={r} /></span>
           </li>
         ))}
       </ul>

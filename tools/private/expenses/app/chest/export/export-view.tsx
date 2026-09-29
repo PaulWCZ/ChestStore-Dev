@@ -1,5 +1,6 @@
 "use client";
 
+import { EmptyState, Segmented } from "@argentic/chest-ui/components";
 import { useRouter } from "next/navigation";
 import { Download, FileIcon, Table, Zip } from "../../../components/icons.tsx";
 import type { Catalogue } from "../../../lib/i18n/index.ts";
@@ -22,13 +23,11 @@ export function ExportView({ by, months, month, people, person, summary, leftOut
   const router = useRouter();
   const go = (m: string | null, p: string, b = by) => router.push(`/chest/export?${[m ? `month=${m}` : "", p ? `person=${p}` : "", b === "paid" ? "by=paid" : ""].filter(Boolean).join("&")}`);
   const switchBy = (
-    <fieldset className="segmented by-switch">
-      <legend>{t.by}</legend>
-      <label className="segment"><input type="radio" name="by" checked={by === "spent"} onChange={() => go(null, "", "spent")} /><strong>{t.bySpent}</strong></label>
-      <label className="segment"><input type="radio" name="by" checked={by === "paid"} onChange={() => go(null, "", "paid")} /><strong>{t.byPaid}</strong></label>
-    </fieldset>
+    <div className="by-switch">
+      <Segmented name="by" label={t.by} hideLabel={false} value={by} onChange={b => go(null, "", b)} options={[{ value: "spent", label: t.bySpent }, { value: "paid", label: t.byPaid }]} />
+    </div>
   );
-  if (months.length === 0) return <>{switchBy}<div className="paper empty"><span className="glyph"><Table /></span><p>{t.none}</p></div></>;
+  if (months.length === 0) return <>{switchBy}<div className="paper"><EmptyState icon={<Table />} title={t.none} /></div></>;
   return (
     <>
       {switchBy}
@@ -55,22 +54,24 @@ export function ExportView({ by, months, month, people, person, summary, leftOut
             <a className="download" href={csv} download>
               <strong><Table />{t.csv}</strong>
               <span>{t.csvHint}</span>
-              <span className="button small" style={{ width: "fit-content" }}><Download />{t.download}</span>
+              <span className="button small"><Download />{t.download}</span>
             </a>
             <a className="download" href={zip} download>
               <strong><Zip />{t.zip}</strong>
               <span>{t.zipHint}</span>
-              <span className="button small" style={{ width: "fit-content" }}><Download />{t.download}</span>
+              <span className="button small"><Download />{t.download}</span>
             </a>
             <a className="download" href={journal} download>
               <strong><FileIcon />{t.journal}</strong>
               <span>{t.journalHint}</span>
-              <span className="button small" style={{ width: "fit-content" }}><Download />{t.download}</span>
+              <span className="button small"><Download />{t.download}</span>
             </a>
           </div>
         ) : null}
-        {leftOut && <p className="notice" style={{ marginTop: 12 }}>{leftOut}</p>}
-        <p className="hint" style={{ marginTop: 12 }}>{t.bound}</p>
+        <div className="export-notes">
+          {leftOut && <p className="notice">{leftOut}</p>}
+          <p className="hint">{t.bound}</p>
+        </div>
       </section>
       <p className="legal">{t.legal}</p>
     </>

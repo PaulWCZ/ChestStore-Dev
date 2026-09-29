@@ -6,7 +6,7 @@ import type { Custom, FieldDef, FieldObject } from "./custom.ts";
 import type { Sql } from "./db.ts";
 import { fieldsByObject } from "./fields.ts";
 import { formatDate, formatDay, intl, plural, relative, type Catalogue, type Locale } from "./i18n/index.ts";
-import { stageName, type Stage } from "./model.ts";
+import { stageName, today, type Stage } from "./model.ts";
 import { listStages } from "./stages.ts";
 import { team } from "./team.ts";
 
@@ -33,9 +33,10 @@ export async function formChoices(sql: Sql, actor: Member, t: Catalogue) {
   };
 }
 
-// The props of "New deal" (DealDialog), from formChoices.
+// The props of "New deal" (DealDialog), from formChoices; `today` in the
+// Chest's time zone, for its date field.
 export function dealFormProps(choices: Awaited<ReturnType<typeof formChoices>>, me: string, t: Catalogue) {
-  return { fields: choices.fields.deals, stages: choices.openStages, team: choices.team, me, canAssign: choices.canAssign, canCreateCompany: choices.canCreateCompany, t };
+  return { fields: choices.fields.deals, stages: choices.openStages, team: choices.team, me, canAssign: choices.canAssign, canCreateCompany: choices.canCreateCompany, today: today(), t };
 }
 
 // A timeline as its view shows it: each item's time in words, written here.

@@ -17,17 +17,17 @@ export default async function ImportPage() {
   const { member, locale, t } = v;
   if (!can(member, "import")) {
     return (
-      <main className="page narrow">
+      <div className="page narrow">
         <div className="page-head"><div><h1>{t.importer.title}</h1></div></div>
         <p className="notice">{t.importer.readOnly}</p>
-      </main>
+      </div>
     );
   }
   const sql = db();
   const [fields, people, recent] = await Promise.all([fieldsByObject(sql), teamOf(), recentImports(sql, member)]);
   const names = await directory([...recent.map(r => r.author), ...people.map(p => p.id)], locale);
   return (
-    <main className="page narrow">
+    <div className="page narrow">
       <div className="page-head">
         <div>
           <h1>{t.importer.title}</h1>
@@ -37,6 +37,6 @@ export default async function ImportPage() {
       <Importer locale={locale} fields={fields} team={people.map(p => ({ id: p.id, name: p.name, photo: p.photo }))} me={member.id} canAssign={can(member, "assign")} mayCreateFields={can(member, "fields")}
         people={Object.fromEntries(Object.entries(names).map(([id, p]) => [id, p.name]))} t={t} />
       <RecentImports lines={recent.map(r => ({ id: r.id, count: r.created, undone: r.undone, undoable: r.undoable, line: format(t.importer.recentLine, { file: r.fileName || t.importer.noFile, who: r.author === member.id ? t.people.you : names[r.author]?.name ?? t.people.erased, when: relative(r.at, locale) }) }))} locale={locale} t={t} />
-    </main>
+    </div>
   );
 }

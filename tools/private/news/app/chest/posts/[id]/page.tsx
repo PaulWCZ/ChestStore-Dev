@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { AutoRefresh } from "../../../../components/auto-refresh.tsx";
-import { Avatar } from "../../../../components/avatar.tsx";
+import { Avatar } from "@argentic/chest-ui/components";
 import { Back, Calendar, Clip, Clock, Download, Globe, Group, History, Mail, Pin, Place } from "../../../../components/icons.tsx";
 import { RichText } from "../../../../components/rich-text.tsx";
 import { calendarPage } from "../../../../lib/agenda.ts";
@@ -76,7 +76,7 @@ export default async function PostPage({ params, searchParams }: { params: Promi
   }
 
   return (
-    <main className="article-page">
+    <div className="article-page">
       <AutoRefresh seconds={30} />
       <a className="back" href="/chest"><Back />{t.post.back}</a>
       <article className="article" aria-labelledby="headline" lang={shown.locale}>
@@ -84,7 +84,7 @@ export default async function PostPage({ params, searchParams }: { params: Promi
           <Kicker post={p} isNew={false} t={{ kinds: t.kinds, front: t.front, event: t.event }} />
           <h1 id="headline">{shown.title}</h1>
           <div className="byline-row" lang={locale}>
-            <Avatar name={name(p.author)} photo={photo(p.author)} size={40} />
+            <Avatar name={name(p.author)} photo={photo(p.author)} size="l" className="avatar-40" />
             <p className="byline">
               <strong>{format(t.front.by, { name: name(p.author) })}</strong>
               <span>
@@ -111,7 +111,7 @@ export default async function PostPage({ params, searchParams }: { params: Promi
 
         {p.welcome && (
           <div className="welcome-card" lang={locale}>
-            <Avatar name={name(p.welcome)} photo={photo(p.welcome)} size={96} />
+            <Avatar name={name(p.welcome)} photo={photo(p.welcome)} size="xl" className="avatar-96" />
             <p>{format(t.welcome.hello, { name: name(p.welcome) })}</p>
           </div>
         )}
@@ -135,13 +135,13 @@ export default async function PostPage({ params, searchParams }: { params: Promi
                 <>
                   <p className="quiet-text">{[going.length ? plural(t.event.going, going.length, locale) : null, notGoing.length ? plural(t.event.notGoing, notGoing.length, locale) : null].filter(Boolean).join(" · ")}</p>
                   <ul className="people">
-                    {going.map(a => <li key={a.member}><Avatar name={name(a.member)} photo={photo(a.member)} size={28} />{name(a.member)}</li>)}
+                    {going.map(a => <li key={a.member}><Avatar name={name(a.member)} photo={photo(a.member)} size="m" className="avatar-28" />{name(a.member)}</li>)}
                   </ul>
                   {waiting.length > 0 && (
                     <>
                       <h3 className="quiet-text">{t.event.waitingList}</h3>
                       <ol className="people waiting">
-                        {waiting.map(a => <li key={a.member}><Avatar name={name(a.member)} photo={photo(a.member)} size={28} />{name(a.member)}</li>)}
+                        {waiting.map(a => <li key={a.member}><Avatar name={name(a.member)} photo={photo(a.member)} size="m" className="avatar-28" />{name(a.member)}</li>)}
                       </ol>
                     </>
                   )}
@@ -210,11 +210,11 @@ export default async function PostPage({ params, searchParams }: { params: Promi
           <div className="readers-lists">
             <div>
               <h3>{t.readers.pending}</h3>
-              {readers.pending.length === 0 ? <p className="quiet-text">{t.readers.all}</p> : <ul className="people">{readers.pending.map(m => <li key={m.id}><Avatar name={m.name} photo={m.photo} size={28} />{m.name}</li>)}</ul>}
+              {readers.pending.length === 0 ? <p className="quiet-text">{t.readers.all}</p> : <ul className="people">{readers.pending.map(m => <li key={m.id}><Avatar name={m.name} photo={m.photo} size="m" className="avatar-28" />{m.name}</li>)}</ul>}
             </div>
             <div>
               <h3>{t.readers.confirmed}</h3>
-              {readers.confirmed.length === 0 ? <p className="quiet-text">{t.readers.none}</p> : <ul className="people">{readers.confirmed.map(c => <li key={c.member}><Avatar name={name(c.member)} photo={photo(c.member)} size={28} /><span>{name(c.member)}</span><time className="quiet-text" dateTime={c.at}>{d.short(c.at)}</time></li>)}</ul>}
+              {readers.confirmed.length === 0 ? <p className="quiet-text">{t.readers.none}</p> : <ul className="people">{readers.confirmed.map(c => <li key={c.member}><Avatar name={name(c.member)} photo={photo(c.member)} size="m" className="avatar-28" /><span>{name(c.member)}</span><time className="quiet-text" dateTime={c.at}>{d.short(c.at)}</time></li>)}</ul>}
             </div>
           </div>
           {readers.earlier > 0 && <p className="quiet-text">{plural(t.readers.earlier, readers.earlier, locale)}</p>}
@@ -268,6 +268,6 @@ export default async function PostPage({ params, searchParams }: { params: Promi
           you={t.people.you}
         />
       )}
-    </main>
+    </div>
   );
 }

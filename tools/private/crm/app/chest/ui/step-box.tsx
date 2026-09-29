@@ -1,15 +1,14 @@
 "use client";
 
+import { Avatar, DateField, TimeSelect, useToast } from "@argentic/chest-ui/components";
 import { useState, useTransition } from "react";
-import { Avatar } from "../../../components/avatar.tsx";
 import { Check, Flag, Pencil, Plus, Trash } from "../../../components/icons.tsx";
-import { useToast } from "../../../components/toast.tsx";
 import { format } from "../../../lib/i18n/format.ts";
 import type { Catalogue } from "../../../lib/i18n/index.ts";
-import { addDays, dueState, nextWorkday, stepTimes } from "../../../lib/model.ts";
+import { addDays, dueState, nextWorkday } from "../../../lib/model.ts";
 import type { Step } from "../../../lib/steps.ts";
 import { addStep, clearStep, completeStep, reopenStep, updateStep } from "../actions.ts";
-import { OwnerSelect } from "./owner-select.tsx";
+import { OwnerPicker } from "./owner-select.tsx";
 import type { People, Teammate } from "./shared.ts";
 
 // A step as its view shows it: when, in words the server wrote.
@@ -41,8 +40,17 @@ export function StepBox({ steps, on, team, people, me, canEdit, canAssign, today
   function done(step: Step) {
     start(async () => {
       const r = await completeStep(step.id);
-      if (!r.ok) return toast(format(t.errors[r.error], r.values));
-      toast(t.step.doneToast, { label: t.common.undo, run: () => start(async () => { await reopenStep(step.id); setMode({ kind: "view" }); }) });
+      if (!r.ok) return void toast({ text: format(t.errors[r.error], r.values), tone: "error" });
+      // One toast per step; its Undo says whether it worked.
+      toast({
+        id: `step-${step.id}`,
+        text: t.step.doneToast,
+        undo: async () => {
+          const back = await reopenStep(step.id);
+          setMode({ kind: "view" });
+          return back.ok ? true : format(t.errors[back.error], back.values);
+        },
+      });
       if (canEdit && r.value.last) setMode({ kind: "next" });
     });
   }
@@ -75,7 +83,7 @@ export function StepBox({ steps, on, team, people, me, canEdit, canAssign, today
                   <p className="step-meta">
                     <span className={`due ${s}`}>{step.label}</span>
                     <span className="who">
-                      <Avatar name={people[step.owner ?? ""]?.name ?? t.common.unassigned} photo={people[step.owner ?? ""]?.photo ?? null} size={20} />
+                      <Avatar name={people[step.owner ?? ""]?.name ?? t.common.unassigned} photo={people[step.owner ?? ""]?.photo ?? null} size="s" />
                       {step.owner === me ? t.people.you : people[step.owner ?? ""]?.name ?? t.common.unassigned}
                     </span>
                   </p>
@@ -85,7 +93,7 @@ export function StepBox({ steps, on, team, people, me, canEdit, canAssign, today
                     {canEdit && (
                       <button type="button" className="icon-button small" disabled={pending} title={t.step.remove} onClick={() => start(async () => {
                         const r = await clearStep(step.id);
-                        toast(r.ok ? t.step.cleared : format(t.errors[r.error], r.values));
+                        toast(r.ok ? t.step.cleared : { text: format(t.errors[r.error], r.values), tone: "error" });
                       })}><Trash /><span className="visually-hidden">{t.step.remove}</span></button>
                     )}
                   </div>
@@ -101,27 +109,29 @@ export function StepBox({ steps, on, team, people, me, canEdit, canAssign, today
 }
 
 // Plan a step, or change one: what, when (today, tomorrow, in a week, or a
-// day; a time if it matters), who. `on` null: a step of one's own.
+// day typed or picked on a calendar — the kit's DateField; a time if it
+// matters), who. `on` null: a step of one's own.
 export function StepForm({ initial, on, team, me, canAssign, today, onDone, onSkip, t }: { initial: Step | null; on: On | null; team: Teammate[]; me: string; canAssign: boolean; today: string; onDone: () => void; onSkip: (() => void) | null; t: Catalogue }) {
   const [text, setText] = useState(initial?.text ?? "");
-  const [due, setDue] = useState(initial?.due ?? nextWorkday(today));
-  const [time, setTime] = useState(initial?.time ?? "");
+  const [due, setDue] = useState<string | null>(initial?.due ?? nextWorkday(today));
+  const [time, setTime] = useState<number | null>(minutesOf(initial?.time ?? null));
   const [owner, setOwner] = useState<string | null>(initial?.owner ?? me);
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
   const toast = useToast();
-  const quick = [
-    { label: t.step.today, day: today },
-    { label: t.step.tomorrow, day: nextWorkday(today) },
-    { label: t.step.inWeek, day: addDays(today, 7) },
+  const chips = [
+    { label: t.step.today, value: today },
+    { label: t.step.tomorrow, value: nextWorkday(today) },
+    { label: t.step.inWeek, value: addDays(today, 7) },
   ];
   const key = on === null ? "self" : "deal" in on ? "d" + on.deal : "c" + on.contact;
   return (
     <form className="form step-form" onSubmit={e => {
       e.preventDefault();
       setError(null);
+      if (!due) return setError(t.step.dueMissing);
       start(async () => {
-        const input = { text, due, time: time || null, owner };
+        const input = { text, due, time: time === null ? null : clock(time), owner };
         const r = initial ? await updateStep(initial.id, input) : await addStep(on, input);
         if (!r.ok) return setError(format(t.errors[r.error], r.values));
         toast(t.step.planned);
@@ -132,24 +142,14 @@ export function StepForm({ initial, on, team, me, canAssign, today, onDone, onSk
         <label className="label" htmlFor={`step-text-${key}`}>{t.step.text}</label>
         <input id={`step-text-${key}`} className="field" value={text} onChange={e => setText(e.target.value)} maxLength={200} required autoFocus placeholder={t.step.textPlaceholder} />
       </div>
-      <div className="field-block">
-        <span className="label" id={`step-due-label-${key}`}>{t.step.due}</span>
-        <div className="quick-days" role="group" aria-labelledby={`step-due-label-${key}`}>
-          {quick.map(q => <button key={q.label} type="button" className={`chip-button${due === q.day ? " on" : ""}`} aria-pressed={due === q.day} onClick={() => setDue(q.day)}>{q.label}</button>)}
-          <label className="visually-hidden" htmlFor={`step-due-${key}`}>{t.step.due}</label>
-          <input id={`step-due-${key}`} className="field date" type="date" value={due} onChange={e => setDue(e.target.value)} required />
-          <label className="visually-hidden" htmlFor={`step-time-${key}`}>{t.step.time}</label>
-          <select id={`step-time-${key}`} className="field time" value={time} onChange={e => setTime(e.target.value)}>
-            <option value="">{t.step.noTime}</option>
-            {!stepTimes.includes(time) && time !== "" && <option value={time}>{time}</option>}
-            {stepTimes.map(x => <option key={x} value={x}>{x}</option>)}
-          </select>
+      <div className="step-when">
+        <DateField id={`step-due-${key}`} label={t.step.due} value={due} onChange={setDue} today={today} chips={chips} required labels={t.date} />
+        <div className="field-block step-time">
+          <label className="label" htmlFor={`step-time-${key}`}>{t.step.time}</label>
+          <TimeSelect id={`step-time-${key}`} className="field" value={time} onChange={setTime} empty={t.step.noTime} step={30} min={7 * 60} max={21 * 60} />
         </div>
       </div>
-      <div className="field-block">
-        <label className="label" htmlFor={`step-who-${key}`}>{t.step.who}</label>
-        <OwnerSelect id={`step-who-${key}`} value={owner} team={team} me={me} canAssign={canAssign} allowNobody={false} onChange={setOwner} t={t} />
-      </div>
+      <OwnerPicker id={`step-who-${key}`} label={t.step.who} value={owner} team={team} me={me} canAssign={canAssign} allowNobody={false} onChange={setOwner} t={t} />
       {error && <p className="error" role="alert">{error}</p>}
       <div className="form-actions">
         <button type="submit" className="button small" disabled={pending}>{t.step.save}</button>
@@ -158,3 +158,10 @@ export function StepForm({ initial, on, team, me, canAssign, today, onDone, onSk
     </form>
   );
 }
+
+// A step's time is kept as "14:30"; the kit's TimeSelect counts minutes.
+function minutesOf(time: string | null): number | null {
+  const m = time ? /^(\d{2}):(\d{2})/u.exec(time) : null;
+  return m ? Number(m[1]) * 60 + Number(m[2]) : null;
+}
+const clock = (minutes: number) => `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
