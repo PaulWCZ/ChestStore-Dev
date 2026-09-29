@@ -51,12 +51,10 @@ table, blockers by owner) + `reports/05-critique/<tool>.md` (17 tools) +
 cross-cutting fixes). No tool can be cancelled tomorrow; ~6 categories
 today, 8 partly, 4 public ones not (mail, calendar, custom domains).
 
-**Critique fixes: 17 of 18 tools done and verified by the lead.**
+**Critique fixes: 18 of 18 tools done and verified by the lead** (Forms last: 79 tests).
 - All 17 pass on PGlite and PostgreSQL, with flows and audit. Latest
   verified: Hiring (59 tests), Status (61), News (72; a real mention bug
   fixed).
-- Forms is still being fixed after its critique; its builder resumed after
-  the session limit.
 
 **Still to confirm:**
 - Legal and official values for Leave, People and Expenses. They were read
@@ -75,9 +73,15 @@ acceptance, in a later round.
 
 **Migration to the kit and themes** (brief in the scratchpad
 `migrate-brief.md`; 2–4 agent-hours per tool):
-- **Wave 1, running:** Rooms, Hiring, Booking, Timesheets, Tasks.
-- **Next waves:** Wiki, Leave, News, People, CRM, Expenses, Support,
-  Equipment, Polls, Goals, Quotes, Status, and Forms once its fixes land.
+- **Wave 1:**
+  - done and verified: Booking (lint 75 → 0), Rooms (48 → 0);
+  - running: Hiring, Timesheets, Tasks.
+- **Kit 0.2.1 fixes, running:** DateField layout shift, Next Link type, nav
+  `also`, AvatarStack crop, multi-value filters, category hues, PageHeader
+  size.
+- **Wave 2, running:** Wiki, Leave, People.
+- **Next:** News, CRM, Expenses, Support, Equipment, Polls, Goals, Quotes,
+  Status, Forms.
 
 **Then:**
 - Re-run the critique on the migrated tools and update the verdict table
