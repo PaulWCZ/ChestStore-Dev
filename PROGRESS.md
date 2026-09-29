@@ -45,15 +45,21 @@ checks, gallery `ui/gallery/index.html` looked at). Report
 the tools (critique `_store.md` names them), then migrate the 17 tools
 (estimate in report 04 §10).
 
-**Severe critique:** collaboration (tasks, wiki, news, polls, goals) and
-sales (crm, quotes, helpdesk, booking) are written in the scratchpad
-`critique/*.md`. HR and the rest of the store are still running. To be
-consolidated into `reports/05-critique.md`. **No tool can be cancelled
-against its competitor tomorrow**: the recurring gaps are email (SDK mail
-not shipped), imports, and group targeting.
+**Severe critique: done** — `reports/05-critique.md` (summary, verdict
+table, blockers by owner) + `reports/05-critique/<tool>.md` (17 tools) +
+`_store.md` (pitch test, coherence, best components for the kit, top 15
+cross-cutting fixes). No tool can be cancelled tomorrow; ~6 categories
+today, 8 partly, 4 public ones not (mail, calendar, custom domains).
 
-**Fixes under way:** Clients, Quotes, Tasks, Wiki, Polls. Then News,
-Goals, Support, Booking. Forms (tool 18) is still being built.
+**Fix queue (each builder works its critique's Fix plan; lead verifies):**
+running — Clients, Quotes, Tasks, Wiki, Polls, Expenses, Leave; SDK
+studio.12 (calendar bridge, groups capability, inbound mail). Next —
+People, Timesheets, Equipment, News, Goals, Support, Booking, Rooms,
+Hiring, Status (and adopt calendar/groups/inbound mail where they apply).
+Then the kit's shared components (`_store.md` §3 names the best source for
+each) and the migration of all tools to the kit and themes; the store
+glossary + lint (`_store.md` §2). Forms (tool 18) still being built; it
+needs screenshots + preview and its own critique once done.
 
 **Harness:** `--empty` starts a tool with no sample data.
 
