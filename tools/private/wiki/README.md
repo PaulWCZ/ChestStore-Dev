@@ -20,7 +20,16 @@ intranet — on the company's own server, for no fee per seat.
   title, so they survive renames and moves), bulleted, numbered and
   check lists, quotes, **note boxes** (note, tip, warning), tables, images
   and files (to the Chest's file storage, by button, paste or drop),
-  dividers. Markdown shortcuts work as you type (`# `, `- `, `1. `, `> `,
+  dividers. **Nothing pasted disappears silently**: a picture pasted or
+  dropped from the web (a Google Doc, a web page, an email) cannot be
+  kept — the wiki shows its own files only and has no network to fetch
+  it — so it becomes a warning note in its place, *Picture from the web
+  not kept ("schema"): download it, then drop it here*, with a link to
+  the picture, and a toast says how many; a picture carried inside the
+  clipboard is uploaded like a pasted file; a picture of this wiki copied
+  from another page stays. If a save still leaves one out, it says
+  *Saved — but 1 picture from the web was not kept*, never a bare
+  "Saved.". Markdown shortcuts work as you type (`# `, `- `, `1. `, `> `,
   `[ ] `…), and **"/"** at the start of a line lists every block by name
   ("/tab" → Table; arrows, Enter). On a phone the toolbar wraps on two
   rows: every tool in sight. **Create and write** puts the cursor in the
@@ -52,7 +61,18 @@ intranet — on the company's own server, for no fee per seat.
   holding some follow ("wifi password": the Wi-Fi page, then "Password
   manager"); **a word with a typo** is matched to the nearest word the wiki
   holds ("pasword", "teletravial"); results show the passage with the
-  matched words highlighted. **The little words of French and English**
+  matched words highlighted (*Wi-Fi* marked whole). **By the stem of a
+  word, in French and English** (`migrations/0005`): *rembourser*,
+  *remboursé* and *remboursement* find each other, *reimbursed* finds
+  *reimburse*. **A relevance floor**: pages holding the words as typed
+  (or by their stem) come first, then those with them in their title,
+  then those found only through a word that means the same (*horaires*
+  puts the *Règlement intérieur* first, the firmware page's "opening
+  hours" after); when some pages hold every word, the others follow only
+  if they hold one as typed (*clé bureau* is not every page saying
+  "office"); a page found only through a typo's neighbour is left out
+  when better ones exist (*nouvel arrivant* no longer lists the expense
+  page for its "arrives"). **The little words of French and English**
   ("de", "la", "the", "of"…) never count as words of the query: "note de
   frais" is not matched on "de" (it found 17 pages; now 2, the *Expense
   policy* first). **Words that mean the same**, one list per wiki: "note
@@ -146,10 +166,22 @@ intranet — on the company's own server, for no fee per seat.
   its editors "Is this page still correct?" — *Still correct* settles it
   for months, *Update it* opens the editor. The home page lists "Pages to
   check". Saving the page does not count as a check.
+- **My pages**: everyone — readers too — has a private space of their
+  own, made with its first page (*New private page* on the home page and
+  in the sidebar): meeting notes, drafts, a list. **Only its owner sees
+  it**: not the Chest's administrators, not the editors; its pages are in
+  their search only; nobody is told about them; it has no settings and
+  asks nobody to confirm. To share a page, an editor **moves** it to a
+  space; a page of a shared space never moves into someone's "My pages".
+  A reader writes there and nowhere else. It goes when its owner leaves
+  the company (or is erased); losing access keeps it for their return.
 - **An empty wiki** offers, in one click, an example handbook in the
   editor's language (five short linked pages to edit or delete), or
   **Write the first page** (its "Handbook" space is made on the way: no
-  word "space" to understand first).
+  word "space" to understand first). A **reader** of an empty wiki is
+  told whom to ask (*To add the first pages, ask Inès Moreau, Tom Walker
+  or Camille Martin*), and may start their own *My pages* meanwhile; an
+  empty space tells a reader who writes in it.
 
 ## Looks
 
@@ -176,7 +208,7 @@ Fredoka); titles and headings stay in its display face.
 | Role | Can |
 |---|---|
 | `editor` | Everything, in the spaces they may edit (all, unless a space names its editors): write and arrange pages, create spaces and set who reads and who edits them, import, restore versions, empty the trash, mark templates, pin pages, set review reminders, ask readers to confirm and see who did, delete any comment of their spaces |
-| `reader` | Read, search, print and download the spaces they see; comment (and edit or delete their own comments), mention people; watch pages; confirm they read a page they are asked to |
+| `reader` | Read, search, print and download the spaces they see; comment (and edit or delete their own comments), mention people; watch pages; confirm they read a page they are asked to; write in their own *My pages* |
 
 The Chest's owner, admins and the tool's builders arrive as editors. A
 space kept to groups is seen only by the members of those groups, its
@@ -254,6 +286,12 @@ enforced on the server in `lib/access.ts`, `lib/comments.ts` and
   heartbeat (`seen_at`), who edits a space (`spaces.editing`,
   `space_editors`), read confirmations (`pages.read_*`, `page_reads`) and
   pins (`pages.pinned_at`).
+  `migrations/0005_stems.sql` adds `wiki_en` / `wiki_fr` (`unaccent`
+  then the English or French stemmer; copied from News's `news_en` /
+  `news_fr`) and a generated `stems` vector on pages, and teaches the
+  starting synonyms "nouvel arrivant". `migrations/0006_private_pages.sql`
+  allows a space's `visibility` to be `private` ("My pages", one per
+  member).
   `migrations/0002_comments_watching_templates_reviews.sql`
   adds comments, watchers, the template flag and review reminders.
   `migrations/0001_wiki.sql` creates the `unaccent` and
@@ -342,10 +380,15 @@ node lab/chest-dev/screens.mjs tools/private/wiki --port 4300
 
 - **Live co-editing** and cursors (needs a realtime channel from the Chest);
   one editor at a time instead.
-- **Restrictions per page** ("only me / these people" on one page and its
+- **Restrictions per page** ("only these people" on one page and its
   subpages): access is per space — reading (everyone or some groups) and
   editing (every editor or some groups and people). A salary grid goes in
-  a space kept to the office group.
+  a space kept to the office group; "only me" is *My pages*. Planned
+  next, reusing the space rules of `lib/access.ts`.
+- **My pages**: one per person (no sub-spaces), not shared with a few
+  people (a page is private or in a space), not renamed; a reader cannot
+  share a page of theirs (they write nowhere else: an editor copies it);
+  a pasted picture from the web is a note, not the picture (no network).
 - **@mentions inside a page's text** (they work in comments). A comment
   on a passage quotes it but is not pinned to it: after the page is
   edited, a quote the page no longer holds is only a quote (clicking it
@@ -353,9 +396,12 @@ node lab/chest-dev/screens.mjs tools/private/wiki --port 4300
 - **Watching a whole space**; watchers are not told of moves or deletes.
 - **Embeds** (a video, a spreadsheet, a PDF shown inside a page): the
   pages show the wiki's own files only; a link opens the rest.
-- **Search across languages** beyond the synonyms list: a word nobody
-  listed is found only as written (no stemming: "remboursé" does not find
-  "rembourser").
+- **Search across languages** beyond the synonyms list and the French and
+  English stems: a French word does not find its English translation
+  unless the synonyms list says so ("remboursé" finds the French
+  expense page, not the English *Expense policy*). Stemming follows
+  PostgreSQL's Snowball stemmers (a stem shared by unrelated words can
+  match both).
 - **Emails** cannot be turned off per person (they are the company's
   requests: read and confirm, check a page); comments and mentions stay
   in the bell only.

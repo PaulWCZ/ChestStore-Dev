@@ -185,7 +185,7 @@ fieldset.plain { border: 0; padding: 0; margin: 0; min-width: 0; }
 .drafts .muted { color: var(--ink); }
 .drafts ul { list-style: none; margin: var(--space-2) 0 0; padding: 0; display: grid; gap: var(--space-1); }
 .drafts li { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-3); }
-.draft-title { font-weight: var(--weight-strong); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.draft-title { color: var(--ink); font-weight: var(--weight-strong); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .home-grid { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: var(--space-7); border-top: var(--border-width) solid var(--line); padding-top: var(--space-5); }
 .home-grid .kicker { margin-bottom: var(--space-3); }
 .recent { list-style: none; margin: 0; padding: 0; }

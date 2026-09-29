@@ -24,3 +24,11 @@ above from its registry). The ZIP reader and writer
 (`lib/zip.ts`), the document checker and renderer (`lib/doc.ts`,
 `lib/render.ts`) and the icons (`components/icons.tsx`) are written for
 this tool.
+
+## From the studio's News tool
+
+`migrations/0005_stems.sql` copies the French and English stemming
+configurations of News (`tools/private/news/migrations/0003_reach.sql`,
+`news_en` / `news_fr`, MIT, © 2026 Argentic) as `wiki_en` / `wiki_fr`; the
+same studio, the same licence, copied rather than imported (one tool, one
+folder).

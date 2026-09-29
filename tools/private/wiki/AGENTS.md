@@ -8,14 +8,14 @@ what must not break.
 | Path | What it is |
 |---|---|
 | `chest.json` | Manifest: roles `editor`, `reader`; `database`, `files`, `members`; `receives` |
-| `lib/access.ts` | **Who may do what**: abilities (`can`) and a space's access (`spaceAccess`: none, read, write — seeing by `visibility`/groups, editing by `editing`/`editors`) |
+| `lib/access.ts` | **Who may do what**: abilities (`can`) and a space's access (`spaceAccess`: none, read, write — seeing by `visibility`/groups, editing by `editing`/`editors`; `private` = "My pages", its creator's alone, admins included out) |
 | `lib/doc.ts` | **The document schema**: `normalize()` (the only door for content), `safeHref`, `lines`/`plainText`, `references` — pure, browser-safe |
 | `lib/render.ts` | Document → HTML, every word escaped — pure |
 | `lib/markdown.ts` | Markdown in (markdown-it → document) and out |
 | `lib/spaces.ts`, `lib/pages.ts` | Spaces; the tree, pages, moves, trash, recent, backlinks, `writeContent` (every new version goes through it) |
 | `lib/editing.ts` | The lock (taken, kept by `heartbeat`, given back by `leave` — the beacon route `app/chest/api/pages/[id]/leave` — lapsing after `lockLeaseSeconds`), drafts (`discardDraft`/`keepDraft` from the page), `publish` |
 | `lib/history.ts` | Versions, the comparison in words, restore |
-| `lib/search.ts` | Full-text search (`wiki` text search config; hyphenated words joined by `wiki_compounds` in the index; typos through `search_words` and trigrams; little words out (`stopWords`); synonym groups as one word (`units`); all words first, then some) with marked passages |
+| `lib/search.ts` | Full-text search (`wiki` text search config; stems through `wiki_en`/`wiki_fr` and `pages.stems` (migrations/0005); the relevance floor `kept()`; `segments()` joins "Wi"-"Fi" into one mark; hyphenated words joined by `wiki_compounds` in the index; typos through `search_words` and trigrams; little words out (`stopWords`); synonym groups as one word (`units`); all words first, then some) with marked passages |
 | `lib/synonyms.ts` | Words that mean the same (table `synonyms`, seeded in `migrations/0004`): terms as search reads them (`termOf`, `phrase`), editors' add/change/delete; page `app/chest/search/synonyms/` |
 | `lib/mail.ts` | Email beside the bell (Proposal (studio) `mail`): `email(people, write, key)` — read requests, reminders, review reminders |
 | `lib/files.ts` | Files of pages (records; the bytes are the Chest's) |
@@ -40,9 +40,9 @@ what must not break.
 | `app/layout.tsx` | `<ThemeStyle>` with the page's nonce, `themeColor` from the look, the kit's `components.css` first |
 | `app/chest/layout.tsx`, `components/shell.tsx`, `components/tree.tsx` | The frame: the kit's `AppShell` (sections Home · Pages · Search · Trash as labelled tabs, `BrandMark`, member chip, `NoAccess`), the header's `SearchBox`, the sidebar tree (drag and drop) on wide screens |
 | `app/chest/pages/page.tsx` | "Pages": the same tree on a page of its own (the way to the pages on a phone) |
-| `app/chest/pages/[id]/edit/` | The editor (client): Tiptap, toolbar, the "/" menu (`slash.tsx`), uploads, link and page pickers, heartbeat and leave; `extensions.ts` = the schema on the client side |
+| `app/chest/pages/[id]/edit/` | The editor (client): Tiptap, toolbar, `paste.ts` (pictures in pasted HTML: the web's become a warning note, the clipboard's are uploaded, ours keep a relative address), the "/" menu (`slash.tsx`), uploads, link and page pickers, heartbeat and leave; `extensions.ts` = the schema on the client side |
 | `app/chest/**/page.tsx` | Pages (server): read, resolve names, hand words to views |
-| `migrations/` | Schema. Never edit a shipped file; add `0004_…` |
+| `migrations/` | Schema. Never edit a shipped file; add `0007_…` |
 | `seed/` | `pages/*.md` + `spaces.json` → `build.ts` → `sample.sql` |
 | `test/` | `node:test` with `fakeChest` and PostgreSQL (PGlite or `TEST_DATABASE_URL`); `test/fixtures/` holds files shaped as Confluence, Google Docs and Word export them |
 
@@ -84,6 +84,12 @@ npm ci && npm test && npm run build   # all three must pass
   node or mark means: `lib/doc.ts` (schema + bounds), `lib/render.ts`,
   `lib/markdown.ts` (both ways), `extensions.ts` (editor), CSS, and tests
   in `test/doc.test.ts` — including what must be refused.
+- **Nothing a person pasted vanishes silently**: `normalize(doc, dropped)`
+  counts the pictures it leaves out; `publish` answers `dropped` and the
+  page says it. A new kind of content the schema refuses needs the same.
+- **"My pages" is private for everyone else**: a `private` space answers
+  `none` to all but its creator (never an admin rule before it); a page
+  of a shared space never moves in; nothing asks others about it.
 - **New versions only through `writeContent()`**: it keeps the search words
   and the links table right.
 - **Client components import only** `lib/i18n/format.ts`, `lib/app-error.ts`,
