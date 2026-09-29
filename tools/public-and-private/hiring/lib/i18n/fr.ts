@@ -568,7 +568,7 @@ export const fr: Catalogue = {
     blank: "Un e-mail vierge",
     subject: "Objet",
     text: "Message",
-    hint: "Il part de votre adresse de recrutement vers {email}. Sa réponse revient sur cette page.",
+    hint: "Envoyé depuis votre adresse de recrutement à {email}. Sa réponse revient sur cette page.",
     send: "Envoyer",
     sent: "Envoyé à {name}.",
     queued: "L’e-mail part dans un instant.",

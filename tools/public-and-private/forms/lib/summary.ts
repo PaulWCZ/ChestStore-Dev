@@ -2,7 +2,7 @@
 // matched across versions by their id (a question keeps its id when a form
 // is edited); the latest wording names them, questions removed since come
 // last, marked as such.
-import { has, isPick, type Answers, type StoredFile } from "./logic.ts";
+import { filesIn, has, isGrid, isPick, isRanking, type Answers } from "./logic.ts";
 import type { Definition, Question } from "./model.ts";
 
 export type Column = { question: Question; removed: boolean };
@@ -21,7 +21,7 @@ export function columnsOf(versions: Map<number, Definition>, current?: Definitio
 // An option's label as the latest version that has it wrote it.
 export function optionLabels(versions: Map<number, Definition>): Map<string, string> {
   const labels = new Map<string, string>();
-  for (const [, d] of [...versions.entries()].sort((a, b) => a[0] - b[0])) for (const q of d.pages.flatMap(p => p.questions)) for (const o of q.options ?? []) labels.set(o.id, o.label);
+  for (const [, d] of [...versions.entries()].sort((a, b) => a[0] - b[0])) for (const q of d.pages.flatMap(p => p.questions)) for (const o of [...(q.options ?? []), ...(q.rows ?? [])]) labels.set(o.id, o.label);
   return labels;
 }
 
@@ -32,7 +32,11 @@ export type Stat =
   | { type: "number"; answered: number; average: number; min: number; max: number }
   | { type: "texts"; answered: number; latest: string[] }
   | { type: "dates"; answered: number; first: string; last: string }
-  | { type: "files"; answered: number };
+  | { type: "files"; answered: number; files: number }
+  // A ranking: each item's average place (1 is first), best first.
+  | { type: "ranks"; answered: number; items: { key: string; label: string; average: number; firsts: number }[] }
+  // A matrix: for each row, the count and share of each column.
+  | { type: "grid"; answered: number; columns: { key: string; label: string }[]; rows: { key: string; label: string; answered: number; cells: { count: number; share: number }[] }[] };
 export type Nps = { score: number; promoters: number; passives: number; detractors: number };
 export type Summary = { column: Column; stat: Stat };
 
@@ -55,7 +59,8 @@ export function summarise(versions: Map<number, Definition>, answers: { data: An
     switch (q.kind) {
       case "choice":
       case "choices":
-      case "dropdown": {
+      case "dropdown":
+      case "picture": {
         const counts = new Map<string, number>();
         const others: string[] = [];
         for (const v of values) {
@@ -93,8 +98,28 @@ export function summarise(versions: Map<number, Definition>, answers: { data: An
         const days = values.filter((v): v is string => typeof v === "string").sort();
         return { column, stat: { type: "dates", answered, first: days[0] ?? "", last: days.at(-1) ?? "" } };
       }
-      case "file":
-        return { column, stat: { type: "files", answered: values.filter(v => typeof v === "object" && v !== null && "file" in (v as StoredFile)).length } };
+      case "file": {
+        const held = values.map(v => filesIn(v).filter(f => "file" in f).length).filter(n => n > 0);
+        return { column, stat: { type: "files", answered: held.length, files: held.reduce((a, b) => a + b, 0) } };
+      }
+      case "ranking": {
+        const lists = values.filter(isRanking);
+        const items = (q.options ?? []).map(o => {
+          const places = lists.map(l => l.indexOf(o.id)).filter(i => i >= 0);
+          return { key: o.id, label: labels.get(o.id) ?? o.label, average: places.length ? Math.round((places.reduce((a, b) => a + b + 1, 0) / places.length) * 10) / 10 : 0, firsts: places.filter(i => i === 0).length };
+        });
+        items.sort((a, b) => (a.average || Infinity) - (b.average || Infinity));
+        return { column, stat: { type: "ranks", answered, items } };
+      }
+      case "matrix": {
+        const grids = values.filter(isGrid);
+        const columns = (q.options ?? []).map(o => ({ key: o.id, label: labels.get(o.id) ?? o.label }));
+        const rows = (q.rows ?? []).map(r => {
+          const picked = grids.map(g => g.rows[r.id]).filter((c): c is string => typeof c === "string");
+          return { key: r.id, label: labels.get(r.id) ?? r.label, answered: picked.length, cells: columns.map(c => ({ count: picked.filter(x => x === c.key).length, share: share(picked.filter(x => x === c.key).length, picked.length) })) };
+        });
+        return { column, stat: { type: "grid", answered, columns, rows } };
+      }
       default:
         return { column, stat: { type: "texts", answered, latest: values.filter((v): v is string => typeof v === "string").slice(0, 5) } };
     }

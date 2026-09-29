@@ -22,4 +22,4 @@ export { DataTable, type Column, type DataTableProps } from "./data-table.js";
 export { Menu, type MenuItem } from "./menu.js";
 export { Filters, SearchBox, type FilterGroup, type FilterOption, type FiltersProps, type SearchBoxProps } from "./filters.js";
 export { EmptyState, StatusBadge, Tabs, Segmented, type TabItem, type Tone } from "./bits.js";
-export { AppShell, AutoRefresh, BrandMark, LanguageSwitch, MemberChip, Nav, NavLink, NoAccess, PageHeader, storeLanguages, useAutoRefresh, type AppShellProps, type Language, type LinkComponent, type NavItem } from "./shell.js";
+export { AppShell, AutoRefresh, BrandMark, LanguageSwitch, MemberChip, Nav, NavLink, NoAccess, PageHeader, useAutoRefresh, type AppShellProps, type LinkComponent, type NavItem } from "./shell.js";

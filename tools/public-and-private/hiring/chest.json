@@ -2,7 +2,7 @@
   "version": 2,
   "name": "hiring",
   "title": "Hiring",
-  "description": "Publish your jobs on your own careers page and choose your candidates together: one board per job, CVs, notes and feedback.",
+  "description": "Publish your jobs on your careers page, Google and Indeed, and hire together: one board per job, CVs, emails, interviews.",
   "icon": "chest/icon.svg",
   "preview": "chest/preview.png",
   "roles": ["recruiter", "interviewer"],

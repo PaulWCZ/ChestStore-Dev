@@ -55,8 +55,13 @@ export function Dialog({ open, title, onClose, children, description, footer, di
     if (!open && d.open) d.close();
   }, [open]);
 
+  // Asking: focus on "Keep editing". Back to editing: focus on the field
+  // (after the body is no longer inert — focusing it before would fail).
+  const back = useRef(false);
   useEffect(() => {
     if (asking) keep.current?.focus();
+    else if (back.current) body.current?.querySelector<HTMLElement>(fieldSelector)?.focus();
+    back.current = false;
   }, [asking]);
 
   const request = useCallback(() => {
@@ -71,7 +76,7 @@ export function Dialog({ open, title, onClose, children, description, footer, di
       aria-labelledby={titleId}
       aria-describedby={description ? descriptionId : undefined}
       // Escape: the browser's "cancel". Refused while dirty (asks instead).
-      onCancel={e => { e.preventDefault(); if (asking) setAsking(false); else request(); }}
+      onCancel={e => { e.preventDefault(); if (asking) { back.current = true; setAsking(false); } else request(); }}
       onClose={() => { if (open) onClose(); }}
       onClick={e => { if (e.target === ref.current) request(); }}
     >
@@ -89,7 +94,7 @@ export function Dialog({ open, title, onClose, children, description, footer, di
             <p id={titleId + "-ask-body"}>{labels.discardBody}</p>
             <div className="ck-row">
               <button type="button" className="ck-button ck-button-quiet" onClick={() => { setAsking(false); onClose(); }}>{labels.discard}</button>
-              <button type="button" ref={keep} className="ck-button" onClick={() => { setAsking(false); body.current?.querySelector<HTMLElement>(fieldSelector)?.focus(); }}>{labels.keepEditing}</button>
+              <button type="button" ref={keep} className="ck-button" onClick={() => { back.current = true; setAsking(false); }}>{labels.keepEditing}</button>
             </div>
           </div>
         )}

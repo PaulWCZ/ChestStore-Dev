@@ -69,5 +69,5 @@ export async function report(sql: Sql, actor: Member | null, jobId?: unknown, no
       from candidates c join stages s on s.id = c.stage_id where c.job_id = ${key}`;
     funnel = stages.map(s => ({ id: String(s.id), name: s.name, preset: s.preset, reached: furthest.filter(f => f.position >= s.position).length }));
   }
-  return { total: counts?.total ?? 0, active: counts?.active ?? 0, rejected: counts?.rejected ?? 0, hired: counts?.hired ?? 0, sources, funnel, reasons, daysToHire: median, hires: days.length, months };
+  return { total: counts?.total ?? 0, active: counts?.active ?? 0, rejected: counts?.rejected ?? 0, hired: counts?.hired ?? 0, sources: sources.map(x => ({ source: x.source, count: x.count })), funnel, reasons: reasons.map(x => ({ reason: x.reason, count: x.count })), daysToHire: median, hires: days.length, months };
 }

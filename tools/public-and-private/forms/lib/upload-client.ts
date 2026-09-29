@@ -38,3 +38,24 @@ export async function uploadFile(file: File, grantUrl: string, extra: Record<str
     return { ok: false, error: "unavailable" };
   }
 }
+
+// uploadImage: a picture for a form (its cover, a picture choice) — the
+// same three steps, on the team host; answers the ticket the form's action
+// takes.
+export async function uploadImage(file: File, formId: string): Promise<UploadResult> {
+  const type = typeOf(file);
+  if (!["image/png", "image/jpeg", "image/webp"].includes(type)) return { ok: false, error: "image_invalid" };
+  if (file.size > limits.image) return { ok: false, error: "image_too_large" };
+  try {
+    const answer = await fetch("/chest/api/image", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ form: formId, type, size: file.size }) });
+    const grant = (await answer.json().catch(() => ({}))) as { url?: string; ticket?: string; error?: ErrorCode };
+    if (!answer.ok || !grant.url || !grant.ticket) return { ok: false, error: grant.error ?? "unavailable" };
+    const put = await fetch(grant.url, { method: "PUT", body: file, headers: { "Content-Type": type } });
+    if (put.status === 413) return { ok: false, error: "image_too_large" };
+    if (put.status === 415 || put.status === 400) return { ok: false, error: "image_invalid" };
+    if (!put.ok) return { ok: false, error: "unavailable" };
+    return { ok: true, ref: grant.ticket };
+  } catch {
+    return { ok: false, error: "unavailable" };
+  }
+}

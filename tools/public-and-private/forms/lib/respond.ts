@@ -6,7 +6,9 @@ import type { Sql } from "./db.ts";
 import { attempt } from "./errors.ts";
 import type { Form } from "./forms.ts";
 import type { AnswerError } from "./logic.ts";
+import { answered } from "./answered.ts";
 import { sendCopy } from "./mailer.ts";
+import { isLanguage, localize } from "./model.ts";
 import { afterAnswer } from "./tell.ts";
 import * as uploads from "./uploads.ts";
 
@@ -47,8 +49,13 @@ export async function take(sql: Sql, form: Form, payload: { version: unknown; an
     let copy = false;
     if (form.sendCopy && !form.anonymous) {
       const to = form.audience === "team" && respondent ? { member: respondent.id } : answer.email;
-      if (to) copy = (await sendCopy(to, definition, answer.data, language, chest.company(), answer.id)) === "email";
+      // In the language the person read the form in: its second version
+      // when it has one in their language.
+      const read = isLanguage(language) ? localize(definition, language) : definition;
+      if (to) copy = (await sendCopy(to, read, answer.data, language, chest.company(), answer.id)) === "email";
     }
+    // Other tools of the Chest (Proposal (studio): events between tools).
+    await answered(form, definition, answer);
     await afterAnswer(sql, form.id).catch(() => false);
     return copy;
   });

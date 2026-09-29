@@ -3,8 +3,10 @@
     "send": true
   },
   "files": {
-    "publicUploads": true
+    "publicUploads": true,
+    "publicFiles": true
   },
+  "emits": ["forms.answered"],
   "schedules": [
     {
       "name": "bell",

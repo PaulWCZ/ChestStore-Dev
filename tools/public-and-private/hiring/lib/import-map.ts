@@ -77,6 +77,8 @@ function valid(y: number, mo: number, d: number): string | null {
 // A CV in an export's ZIP belongs to the candidate whose address its file
 // name holds ("lucie.garnier@example.com.pdf", "cv_lucie.garnier@example.com.pdf").
 export function emailInName(fileName: string): string | null {
-  const m = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/u.exec(fileName.replace(/\.(pdf|docx?|PDF|DOCX?)$/u, ""));
+  // "_" and spaces separate words of a file name ("cv_lucie@…"): an
+  // address rarely holds them.
+  const m = /[A-Za-z0-9.%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/u.exec(fileName.replace(/\.(pdf|docx?|PDF|DOCX?)$/u, ""));
   return m ? m[0].toLowerCase() : null;
 }

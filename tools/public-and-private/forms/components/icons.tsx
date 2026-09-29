@@ -42,6 +42,11 @@ export const Grip = () => <Icon><circle cx="9" cy="6" r="1" /><circle cx="15" cy
 export const Paperclip = () => <Icon><path d="M19 11.5 12 18.5a4.5 4.5 0 0 1-6.4-6.4l7.4-7.4a3 3 0 0 1 4.3 4.3L9.9 16.3a1.5 1.5 0 0 1-2.1-2.1L14.5 7.5" /></Icon>;
 export const Sparkle = () => <Icon><path d="M12 3.5c.6 4.2 2.3 5.9 6.5 6.5-4.2.6-5.9 2.3-6.5 6.5-.6-4.2-2.3-5.9-6.5-6.5 4.2-.6 5.9-2.3 6.5-6.5Z" /><path d="M18.5 16.5c.2 1.4.8 2 2 2.2-1.2.2-1.8.8-2 2.2-.2-1.4-.8-2-2-2.2 1.2-.2 1.8-.8 2-2.2Z" /></Icon>;
 
+export const Picture = () => <Icon><rect x="3.5" y="4.5" width="17" height="15" rx="2.5" /><circle cx="9" cy="10" r="1.8" /><path d="M4 17.5l5-4.5 3.5 3 3-2.5 4.5 4" /></Icon>;
+export const Languages = () => <Icon><path d="M4 5.5h9M8.5 3.5v2M11 5.5c-.8 3.8-3.4 6.8-6.5 8.5M6.5 9c1 1.9 2.8 3.6 4.8 4.6" /><path d="M13 20.5l4-9 4 9M14.4 17.5h5.2" /></Icon>;
+export const Restore = () => <Icon><path d="M4.5 12a7.5 7.5 0 1 0 2.2-5.3L4.5 9" /><path d="M4.5 4.5V9H9" /></Icon>;
+export const Zip = () => <Icon><path d="M6 3.5h8l4 4v13H6Z" /><path d="M10 3.5v2M12 5.5v2M10 7.5v2M12 9.5v2M10 11.5v2" /><rect x="9.5" y="14" width="3" height="3.5" rx="1" /></Icon>;
+
 export function StarIcon({ filled }: { filled: boolean }) {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" className="star-icon">
@@ -60,6 +65,9 @@ const kindPaths: Record<Kind, ReactNode> = {
   choice: (<><circle cx="12" cy="12" r="8" /><circle cx="12" cy="12" r="3.5" fill="currentColor" /></>),
   choices: (<><rect x="4" y="4" width="16" height="16" rx="4" /><path d="M8 12.5l3 3 5-6" /></>),
   dropdown: (<><rect x="3.5" y="6" width="17" height="12" rx="3" /><path d="M13.5 11l2 2 2-2" /></>),
+  picture: (<><rect x="3.5" y="4.5" width="17" height="15" rx="2.5" /><circle cx="9" cy="10" r="1.8" /><path d="M4 17.5l5-4.5 3.5 3 3-2.5 4.5 4" /></>),
+  matrix: (<><rect x="3.5" y="4.5" width="17" height="15" rx="2.5" /><path d="M3.5 9.5h17M3.5 14.5h17M10 4.5v15" /><circle cx="14" cy="12" r="1" fill="currentColor" /><circle cx="17" cy="17" r="1" fill="currentColor" /></>),
+  ranking: (<><path d="M9 6.5h11M9 12h8M9 17.5h5" /><path d="M4 5l1.5-1v5M3.8 13.2c.4-.9 2.4-1 2.4.3 0 1-2.4 2-2.4 3h2.5" /></>),
   yesno: (<><path d="M4 12.5l3.5 3.5L14 9" /><path d="M16 9l5 5M21 9l-5 5" /></>),
   rating: (<path d="M12 3.2l2.7 5.6 6.1.8-4.5 4.2 1.1 6.1L12 17l-5.4 2.9 1.1-6.1-4.5-4.2 6.1-.8Z" />),
   scale: (<><path d="M3.5 17h17" /><path d="M5 17v-3M9 17v-5M13 17v-7M17 17V8" /><path d="M20 17V6" /></>),

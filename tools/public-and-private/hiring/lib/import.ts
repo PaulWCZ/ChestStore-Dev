@@ -97,6 +97,10 @@ export async function undoImport(sql: Sql, actor: Member | null, ids: unknown): 
   const gone = await sql<{ cv_object: string | null }[]>`
     delete from candidates c where c.id in ${sql(keys)} and c.source = 'import'
       and not exists (select 1 from activity a where a.candidate_id = c.id and a.kind not in ('imported', 'cv'))
+      and not exists (select 1 from notes n where n.candidate_id = c.id)
+      and not exists (select 1 from feedback f where f.candidate_id = c.id)
+      and not exists (select 1 from messages m where m.candidate_id = c.id)
+      and not exists (select 1 from interviews i where i.candidate_id = c.id)
     returning cv_object`;
   return gone.map(g => g.cv_object).filter((o): o is string => o !== null);
 }

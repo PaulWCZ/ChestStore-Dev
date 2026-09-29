@@ -3,7 +3,7 @@
 // "use client"), the same in Node and in every browser. A server component
 // formats a date for a DayStrip here; a service applies the people search
 // rule; tests drive the keyboards without a browser.
-export { en, fr, kitWords, wordsFor, type DateWords, type DialogWords, type FileWords, type FilterWords, type KitWords, type PeoplePickerWords, type Plural, type SearchWords, type ShellWords, type TableWords, type ToastWords } from "./words.js";
+export { en, fr, kitWords, storeLanguages, wordsFor, type Language, type DateWords, type DialogWords, type FileWords, type FilterWords, type KitWords, type PeoplePickerWords, type Plural, type SearchWords, type ShellWords, type TableWords, type ToastWords } from "./words.js";
 export { compareText, cx, fill, fold, initials, isEditable, plural } from "./text.js";
 export { addDays, addMonths, calendarKey, clampDate, daysBetween, daysInMonth, formatDate, isIsoDate, isoOf, monthGrid, parseDate, partsOf, relativeDay, startOfWeek, weekday, weekdayHeads, type CalendarDay, type IsoDate } from "./dates.js";
 export { endOfDay, moveEnd, moveStart, parseTime, timeOptions, timeText, type TimeOptions } from "./time.js";

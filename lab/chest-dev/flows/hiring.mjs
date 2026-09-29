@@ -51,6 +51,9 @@ await step("a candidate applies with a PDF CV and lands on the thank-you page; a
 await step("a file that says PDF but is not one is refused; what was typed stays", async () => {
   await page.goto(origin + "/sales-associate-lyon-showroom/apply");
   await fillApplication("Bot Faker", "bot@example.com", { name: "cv.pdf", mimeType: "application/pdf", buffer: Buffer.from("not a pdf at all") });
+  // The showroom job asks its questions on the form.
+  expect((await page.locator(".questions").innerText()).includes("Can you work on Saturdays?"), "the job's question");
+  await page.locator(".questions .pill", { hasText: "Yes" }).first().click();
   await page.getByRole("button", { name: "Send my application" }).click();
   await page.waitForSelector("p.error");
   expect((await page.locator("p.error").innerText()).includes("PDF or a Word file"), "refused");
@@ -115,9 +118,10 @@ await step("ask Inès for feedback; she sees it waiting, gives hers, then sees t
   await page.locator(".cand", { hasText: "Nina Rousseau" }).click();
   await page.waitForURL(/\/chest\/candidates\/\d+$/u);
   const url = page.url();
+  await page.locator(".cand-actions .menu summary").click();
   await page.getByRole("button", { name: "Ask for feedback" }).click();
   await page.locator(".dialog .check", { hasText: "Inès Moreau" }).click();
-  await page.locator(".dialog").getByRole("button", { name: "Ask", exact: true }).click();
+  await page.locator("dialog[open]").getByRole("button", { name: "Ask", exact: true }).click();
   await page.waitForSelector(".toast");
   await as(context, origin, "ines");
   await context.addCookies([{ name: "dev_locale", value: "fr", url: origin }]);
@@ -151,21 +155,21 @@ await step("reject: no reason chosen for you; Undo keeps the email from ever lea
   await page.goto(origin + "/chest/candidates/4");
   await page.getByRole("button", { name: "Reject" }).click();
   expect(await page.locator(".dialog .pill.on").count() === 0, "no reason pre-selected");
-  expect(await page.locator(".dialog").getByRole("button", { name: "Reject", exact: true }).isDisabled(), "Reject waits for a reason");
+  expect(await page.locator("dialog[open]").getByRole("button", { name: "Reject", exact: true }).isDisabled(), "Reject waits for a reason");
   await page.locator(".dialog .pill", { hasText: "Not enough experience" }).click();
   expect((await page.locator("#reject-text").inputValue()).startsWith("Hello Jonas Weber,"), "draft in English");
-  await page.locator(".dialog").getByRole("button", { name: "Reject", exact: true }).click();
+  await page.locator("dialog[open]").getByRole("button", { name: "Reject", exact: true }).click();
   await page.waitForSelector(".toast");
   expect((await page.locator(".toast").innerText()).includes("Undo keeps it"), "toast says it waits");
   expect(!(await dev()).includes("Your application — Senior furniture designer"), "nothing left yet");
   await page.locator(".toast button").click();
   await page.waitForTimeout(16000);
   await page.reload();
-  expect((await page.locator(".cand-title .chip").innerText()).includes("Screening"), "back in Screening");
+  expect((await page.locator(".cand-title .chip").first().innerText()).includes("Screening"), "back in Screening");
   expect(!(await dev()).includes("Your application — Senior furniture designer"), "the undone rejection never left");
   await page.getByRole("button", { name: "Reject" }).click();
   await page.locator(".dialog .pill", { hasText: "Not enough experience" }).click();
-  await page.locator(".dialog").getByRole("button", { name: "Reject", exact: true }).click();
+  await page.locator("dialog[open]").getByRole("button", { name: "Reject", exact: true }).click();
   await page.waitForSelector(".toast");
   await page.waitForTimeout(16000);
   await page.reload();
@@ -179,7 +183,7 @@ await step("a candidate who withdrew is closed, not rejected by email", async ()
   await page.getByRole("button", { name: "Reject" }).click();
   await page.locator(".dialog .pill", { hasText: "They withdrew" }).click();
   expect(await page.locator("#reject-text").count() === 0, "no email for a withdrawal");
-  await page.locator(".dialog").getByRole("button", { name: "Close their application" }).click();
+  await page.locator("dialog[open]").getByRole("button", { name: "Close their application" }).click();
   await page.waitForSelector(".toast");
   expect((await page.locator(".toast").innerText()).includes("application closed"), "closed");
 });
@@ -195,7 +199,9 @@ await step("hire someone with a first day: People is told; Undo takes the hire b
   await page.reload();
   expect((await page.locator(".cand-head").innerText()).includes("Starts on 2 November 2026"), "start date shown");
   await page.getByRole("button", { name: "Move to Hired" }).count();
-  await page.locator("#move-to").selectOption({ label: "Offer" });
+  await page.locator(".cand-actions .menu summary").click();
+  await page.getByRole("button", { name: "Move to…" }).click();
+  await page.locator("dialog[open]").getByRole("button", { name: "Offer", exact: true }).click();
   await page.waitForSelector(".toast");
   await page.waitForTimeout(800);
   log = await dev();
@@ -222,7 +228,7 @@ await step("write to a candidate from a template; her answer lands on her page",
   await page.getByRole("button", { name: "Write" }).click();
   await page.locator("#write-template").selectOption({ label: "Ask when they are free" });
   expect((await page.locator("#write-text").inputValue()).startsWith("Hello Emma,"), "template filled");
-  await page.locator(".dialog").getByRole("button", { name: "Send" }).click();
+  await page.locator("dialog[open]").getByRole("button", { name: "Send" }).click();
   await page.waitForSelector(".toast");
   expect((await page.locator(".toast").innerText()).includes("Sent to Emma Lefort"), "sent");
   const log = await dev();
@@ -239,16 +245,16 @@ await step("write to a candidate from a template; her answer lands on her page",
 await step("invite to an interview: busy times shown, .ics emailed, interviewers' calendars have it", async () => {
   await page.goto(origin + "/chest/candidates/7");
   await page.getByRole("button", { name: "Interview", exact: true }).click();
-  const day = new Date(Date.now() + 2 * 86400000).toISOString().slice(0, 10);
-  await page.locator("#iv-day").fill(day);
+  const day = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Paris" }).format(new Date(Date.now() + 2 * 86400000));
+  await page.locator("#iv-day").selectOption(day);
   await page.locator(".dialog .check", { hasText: "Hugo Bernard" }).click();
   await page.waitForTimeout(800);
-  expect((await page.locator(".dialog").innerText()).includes("Hugo Bernard: 16:00–17:00"), "Hugo's other interview is shown");
+  expect((await page.locator("dialog[open]").innerText()).includes("Hugo Bernard: 16:00–17:00"), "Hugo's other interview is shown");
   await page.locator("#iv-time").selectOption("16:00");
   expect((await page.locator(".busy").getAttribute("class")).includes("clash"), "clash said");
   await page.locator("#iv-time").selectOption("10:00");
   await page.locator("#iv-place").fill("Atelier Martin, Lyon");
-  await page.locator(".dialog").getByRole("button", { name: "Send the invitation" }).click();
+  await page.locator("dialog[open]").getByRole("button", { name: "Send the invitation" }).click();
   await page.waitForSelector(".toast");
   const log = await dev();
   expect(log.includes("Interview on ") && log.includes("Senior furniture designer"), "invitation in the outbox");

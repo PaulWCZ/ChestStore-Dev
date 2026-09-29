@@ -30,13 +30,24 @@ export function Toasts({ children }: { children: ReactNode }) {
   );
 }
 
+// A toast stays 4 seconds, or 10 with an action; the time stops while the
+// pointer is on it or the keyboard is in it (WCAG 2.2.1): a keyboard or
+// screen-reader user has time to reach "Undo".
 function ToastItem({ toast, close }: { toast: Toast; close: (id: number) => void }) {
+  const left = useRef(toast.action ? 10000 : 4000);
+  const [held, setHeld] = useState(0);
   useEffect(() => {
-    const timer = setTimeout(() => close(toast.id), toast.action ? 8000 : 4000);
-    return () => clearTimeout(timer);
-  }, [toast, close]);
+    if (held > 0) return;
+    const started = Date.now();
+    const timer = setTimeout(() => close(toast.id), left.current);
+    return () => {
+      clearTimeout(timer);
+      left.current = Math.max(1500, left.current - (Date.now() - started));
+    };
+  }, [toast, close, held]);
+  const hold = (by: number) => setHeld(h => Math.max(0, h + by));
   return (
-    <div className="toast">
+    <div className="toast" onPointerEnter={() => hold(1)} onPointerLeave={() => hold(-1)} onFocus={() => hold(1)} onBlur={() => hold(-1)}>
       <span>{toast.text}</span>
       {toast.action && <button type="button" className="button link" onClick={() => { toast.action!.run(); close(toast.id); }}>{toast.action.label}</button>}
     </div>

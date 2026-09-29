@@ -139,6 +139,8 @@ insert into messages (candidate_id, direction, kind, author, subject, body, stat
   (1, 'in', 'message', null, 'Re: Your application — Senior furniture designer', E'Hello Camille,\n\nThank you! Tuesday or Wednesday afternoon works for me.\n\nLucie', 'received', now() - interval '17 days', null),
   (11, 'in', 'message', null, 'Re: Your application — Sales associate — Lyon showroom', E'Bonjour,\n\nMerci pour votre réponse. N’hésitez pas à me recontacter si un poste se libère.\n\nJulie', 'received', now() - interval '10 days', null);
 update messages set from_address = 'lucie.garnier@example.com', from_name = 'Lucie Garnier', authenticated = true where candidate_id = 1 and direction = 'in';
+insert into messages (candidate_id, direction, kind, author, subject, body, status, from_address, from_name, authenticated, created_at) values
+  (null, 'in', 'message', null, 'CV for the showroom job', E'Hello,\n\nA friend told me about your showroom job. My CV is attached; I can come by any day.\n\nThomas Roux', 'received', 'thomas.roux@example.com', 'Thomas Roux', true, now() - interval '4 hours');
 update messages set from_address = 'julie.morel@example.com', from_name = 'Julie Morel', authenticated = true where candidate_id = 11 and direction = 'in';
 insert into activity (candidate_id, actor, kind, data, created_at) values
   (1, 'mbr_camilleaaaaaaaaaaaaaaaaaaa', 'wrote', '{"kind": "message"}', now() - interval '18 days'),

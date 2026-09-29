@@ -9,26 +9,35 @@
 //   sends to its page (always a later one) or to the end; none, the next
 //   page;
 // - an answer to a question that was not asked is dropped, never stored.
-import { END, limits, withOptions, type Condition, type Definition, type Page, type Question } from "./model.ts";
+import { END, limits, manyPicks, withOptions, type Condition, type Definition, type Page, type Question } from "./model.ts";
 
 // What an answer is, once read:
 // short, long, email, phone → string; number → number; choice, choices,
-// dropdown → Pick; yesno → boolean; rating, scale → integer; date →
-// "YYYY-MM-DD"; file → FileRef (sent) or StoredFile (kept).
+// dropdown, picture → Pick; yesno → boolean; rating, scale → integer; date
+// → "YYYY-MM-DD"; ranking → the item ids, first to last; matrix → Grid
+// (row id → column id); file → FileRef (sent) or StoredFile (kept), or a
+// list of them when the question takes several files.
 export type Pick = { ids: string[]; other?: string };
 export type FileRef = { ref: string; name: string };
 export type StoredFile = { file: string; name: string; type: string; size: number };
-export type Value = string | number | boolean | Pick | FileRef | StoredFile;
+export type Grid = { rows: Record<string, string> };
+export type Value = string | number | boolean | Pick | FileRef | StoredFile | string[] | Grid | (FileRef | StoredFile)[];
 export type Answers = Record<string, Value>;
 
 export const isPick = (v: unknown): v is Pick => v !== null && typeof v === "object" && Array.isArray((v as Pick).ids);
-const isFile = (v: unknown): v is FileRef | StoredFile => v !== null && typeof v === "object" && typeof (v as FileRef).name === "string" && ("ref" in (v as object) || "file" in (v as object));
+export const isGrid = (v: unknown): v is Grid => v !== null && typeof v === "object" && !Array.isArray(v) && (v as Grid).rows !== null && typeof (v as Grid).rows === "object" && !Array.isArray((v as Grid).rows);
+export const isFile = (v: unknown): v is FileRef | StoredFile => v !== null && typeof v === "object" && !Array.isArray(v) && typeof (v as FileRef).name === "string" && ("ref" in (v as object) || "file" in (v as object));
+// The files of an answer to a file question, one or several.
+export const filesIn = (v: unknown): (FileRef | StoredFile)[] => (Array.isArray(v) ? v.filter(isFile) : isFile(v) ? [v] : []);
+export const isRanking = (v: unknown): v is string[] => Array.isArray(v) && v.every(x => typeof x === "string");
 
 // has: whether a value counts as answered.
 export function has(value: Value | undefined): boolean {
   if (value === undefined || value === null) return false;
   if (typeof value === "string") return value.trim() !== "";
+  if (Array.isArray(value)) return value.length > 0;
   if (isPick(value)) return value.ids.length > 0 || (value.other ?? "").trim() !== "";
+  if (isGrid(value)) return Object.keys(value.rows).length > 0;
   return true;
 }
 
@@ -99,7 +108,7 @@ export const asked = (w: Walk): Question[] => w.pages.flatMap(p => p.questions);
 
 // ---- Reading one answer -------------------------------------------------------
 
-export type AnswerError = "required" | "invalid" | "too_short" | "too_long" | "too_small" | "too_large" | "too_few" | "too_many" | "email" | "phone" | "date";
+export type AnswerError = "required" | "invalid" | "too_short" | "too_long" | "too_small" | "too_large" | "too_few" | "too_many" | "email" | "phone" | "date" | "rank_all" | "every_row";
 
 const emailPattern = /^[^\s@<>()[\]\\,;:"]{1,64}@[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+$/u;
 const chars = (s: string) => [...s].length;
@@ -144,7 +153,8 @@ export function read(q: Question, raw: unknown): { value?: Value; error?: Answer
     }
     case "choice":
     case "dropdown":
-    case "choices": {
+    case "choices":
+    case "picture": {
       if (!isPick(raw) || raw.ids.length > limits.options) return { error: "invalid" };
       const known = new Set((q.options ?? []).map(o => o.id));
       const ids = [...new Set(raw.ids)];
@@ -154,12 +164,33 @@ export function read(q: Question, raw: unknown): { value?: Value; error?: Answer
       if (chars(other) > limits.option) return { error: "too_long" };
       const count = ids.length + (other ? 1 : 0);
       if (count === 0) return {};
-      if (q.kind !== "choices" && count > 1) return { error: "invalid" };
-      if (q.kind === "choices" && q.min !== undefined && count < q.min) return { error: "too_few" };
-      if (q.kind === "choices" && q.max !== undefined && count > q.max) return { error: "too_many" };
+      const many = manyPicks(q);
+      if (!many && count > 1) return { error: "invalid" };
+      if (many && q.min !== undefined && count < q.min) return { error: "too_few" };
+      if (many && q.max !== undefined && count > q.max) return { error: "too_many" };
       // Kept in the order of the options, whatever order they were ticked in.
       const order = (q.options ?? []).map(o => o.id);
       return { value: { ids: ids.sort((a, b) => order.indexOf(a) - order.indexOf(b)), ...(other ? { other } : {}) } };
+    }
+    case "ranking": {
+      // The items in the respondent's order; a required ranking orders them all.
+      if (!isRanking(raw) || raw.length > limits.rankItems) return { error: "invalid" };
+      const known = new Set((q.options ?? []).map(o => o.id));
+      if (new Set(raw).size !== raw.length || !raw.every(i => known.has(i))) return { error: "invalid" };
+      if (raw.length === 0) return {};
+      if (q.required && raw.length < known.size) return { error: "rank_all" };
+      return { value: [...raw] };
+    }
+    case "matrix": {
+      // One column per row; a required matrix answers every row.
+      if (!isGrid(raw)) return { error: "invalid" };
+      const rows = new Set((q.rows ?? []).map(r => r.id)), columns = new Set((q.options ?? []).map(o => o.id));
+      const entries = Object.entries(raw.rows);
+      if (entries.length > limits.rows || !entries.every(([r, c]) => rows.has(r) && typeof c === "string" && columns.has(c))) return { error: "invalid" };
+      if (entries.length === 0) return {};
+      if (q.required && entries.length < rows.size) return { error: "every_row" };
+      const order = (q.rows ?? []).map(r => r.id);
+      return { value: { rows: Object.fromEntries(entries.sort((a, b) => order.indexOf(a[0]) - order.indexOf(b[0]))) } };
     }
     case "yesno":
       return typeof raw === "boolean" ? { value: raw } : { error: "invalid" };
@@ -172,10 +203,21 @@ export function read(q: Question, raw: unknown): { value?: Value; error?: Answer
     case "date":
       return typeof raw === "string" && validDate(raw) ? { value: raw } : { error: "date" };
     case "file": {
-      if (!isFile(raw)) return { error: "invalid" };
-      const ref = (raw as FileRef).ref;
-      if (typeof ref !== "string" || ref.length === 0 || ref.length > 300) return { error: "invalid" };
-      return { value: { ref, name: oneLine(raw.name).slice(0, limits.fileName) || "file" } };
+      // One file, or up to the question's number of files (a list).
+      const many = (q.max ?? 1) > 1;
+      const sent = Array.isArray(raw) ? raw : [raw];
+      if (sent.length === 0) return {};
+      if (!many && sent.length > 1) return { error: "invalid" };
+      if (sent.length > (q.max ?? 1)) return { error: "too_many" };
+      const refs: FileRef[] = [];
+      for (const one of sent) {
+        if (!isFile(one)) return { error: "invalid" };
+        const ref = (one as FileRef).ref;
+        if (typeof ref !== "string" || ref.length === 0 || ref.length > 300) return { error: "invalid" };
+        refs.push({ ref, name: oneLine(one.name).slice(0, limits.fileName) || "file" });
+      }
+      if (new Set(refs.map(r => r.ref)).size !== refs.length) return { error: "invalid" };
+      return { value: many ? refs : refs[0]! };
     }
   }
 }
@@ -204,16 +246,20 @@ export function check(def: Definition, raw: unknown): { answers: Answers; errors
 }
 
 // The text of an answer for a table, an email or a CSV: option labels, not
-// ids; "Yes"/"No", files by name. The words come from the caller.
+// ids; "Yes"/"No", files by name, a ranking in order, a matrix row by row.
+// The words come from the caller.
 export function answerText(q: Question, v: Value | undefined, words: { yes: string; no: string; other: string }): string {
   if (v === undefined) return "";
+  const label = (id: string, list = q.options) => list?.find(o => o.id === id)?.label ?? "";
   if (isPick(v)) {
-    const labels = v.ids.map(id => q.options?.find(o => o.id === id)?.label ?? "").filter(Boolean);
+    const labels = v.ids.map(id => label(id)).filter(Boolean);
     if (v.other) labels.push(`${words.other}: ${v.other}`);
     return labels.join(", ");
   }
   if (typeof v === "boolean") return v ? words.yes : words.no;
-  if (typeof v === "object") return v.name;
+  if (q.kind === "ranking" && isRanking(v)) return v.map((id, i) => `${i + 1}. ${label(id)}`).join(", ");
+  if (isGrid(v)) return (q.rows ?? []).filter(r => v.rows[r.id]).map(r => `${r.label}: ${label(v.rows[r.id]!)}`).join("; ");
+  if (typeof v === "object") return filesIn(v).map(f => f.name).join(", ");
   return String(v);
 }
 
@@ -222,16 +268,16 @@ export function answerText(q: Question, v: Value | undefined, words: { yes: stri
 export function prefill(def: Definition, params: Record<string, string | undefined>): Answers {
   const found: Answers = {};
   for (const q of def.pages.flatMap(p => p.questions)) {
-    const text = params[q.id];
+    const text = (q.key ? params[q.key] : undefined) ?? params[q.id];
     if (typeof text !== "string" || text === "" || text.length > 1000) continue;
     let raw: unknown = text;
     if (withOptions(q.kind)) {
-      const wanted = text.split(q.kind === "choices" ? "," : "\u0000").map(lower);
+      const wanted = text.split(manyPicks(q) ? "," : "\u0000").map(lower);
       const ids = (q.options ?? []).filter(o => wanted.includes(lower(o.label)) || wanted.includes(o.id)).map(o => o.id);
-      raw = { ids: q.kind === "choices" ? ids : ids.slice(0, 1) };
+      raw = { ids: manyPicks(q) ? ids : ids.slice(0, 1) };
     } else if (q.kind === "yesno") raw = ["yes", "oui", "true", "1"].includes(lower(text)) ? true : ["no", "non", "false", "0"].includes(lower(text)) ? false : undefined;
     else if (q.kind === "rating" || q.kind === "scale") raw = /^\d{1,2}$/u.test(text) ? Number(text) : undefined;
-    else if (q.kind === "file") raw = undefined;
+    else if (q.kind === "file" || q.kind === "matrix" || q.kind === "ranking") raw = undefined;
     const { value } = read(q, raw);
     if (value !== undefined) found[q.id] = value;
   }

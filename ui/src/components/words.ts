@@ -302,7 +302,7 @@ export const fr: KitWords = {
     types: `Acceptés${nnbsp}: {types}.`,
     list: "Fichiers",
     remove: "Retirer {name}",
-    sending: "Envoi… {percent}${nnbsp}%",
+    sending: `Envoi… {percent}${nnbsp}%`,
     ready: "Prêt",
     failed: "Non envoyé",
     retry: "Réessayer",
@@ -347,3 +347,13 @@ export const kitWords: Readonly<Record<string, KitWords>> = { en, fr };
 export function wordsFor(locale: string | null | undefined): KitWords {
   return (locale && kitWords[locale]) || en;
 }
+
+export type Language = { readonly code: string; readonly name: string };
+
+// The languages the store's tools speak today, each named in itself (never
+// translated): the LanguageSwitch's list. Data, so it lives here and not
+// in the client barrel (a server component would get a client reference).
+export const storeLanguages: readonly Language[] = [
+  { code: "en", name: "English" },
+  { code: "fr", name: "Français" },
+];

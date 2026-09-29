@@ -1,4 +1,4 @@
-// Builds ui/gallery/index.html: every theme of the catalogue side by side,
+// Builds ui/gallery/index.html (and ui/gallery/components.html, below): every theme of the catalogue side by side,
 // light and dark, as the same small screen of a tool; and "Your brand", a
 // panel where one types colours or drops a tokens/CSS file and sees the
 // derived theme with what the kit adjusted. One static file that opens with
@@ -133,7 +133,7 @@ ${pageCss}
   <div>
     <h1 ${both("Themes for Chest tools", "Les thèmes des outils Chest")}>Themes for Chest tools</h1>
     <p ${both("Each company chooses how its tools look: every tool keeps its own identity, or one theme for all, or its own brand. Same features, only the look changes — and every text stays readable.", "Chaque entreprise choisit l’allure de ses outils : chacun garde son identité, ou un thème pour tous, ou sa propre marque. Mêmes fonctions, seule l’allure change — et chaque texte reste lisible.")}>Each company chooses how its tools look: every tool keeps its own identity, or one theme for all, or its own brand. Same features, only the look changes — and every text stays readable.</p>
-    <div class="facts"><span ${both(`${catalogue.length} themes`, `${catalogue.length} thèmes`)}>${catalogue.length} themes</span><span ${both("Every pair checked: WCAG AA, light and dark", "Chaque paire vérifiée : WCAG AA, clair et sombre")}>Every pair checked: WCAG AA, light and dark</span><span ${both(`${registry.size} open-licence fonts`, `${registry.size} polices sous licence libre`)}>${registry.size} open-licence fonts</span><span>${escape(pkg.name)} ${escape(pkg.version)}</span></div>
+    <div class="facts"><span ${both(`${catalogue.length} themes`, `${catalogue.length} thèmes`)}>${catalogue.length} themes</span><span ${both("Every pair checked: WCAG AA, light and dark", "Chaque paire vérifiée : WCAG AA, clair et sombre")}>Every pair checked: WCAG AA, light and dark</span><span ${both(`${registry.size} open-licence fonts`, `${registry.size} polices sous licence libre`)}>${registry.size} open-licence fonts</span><span>${escape(pkg.name)} ${escape(pkg.version)}</span><a href="components.html" ${both("The components →", "Les composants →")}>The components →</a></div>
   </div>
   <div class="langs" role="group" aria-label="Language / Langue"><button type="button" data-lang="en" aria-pressed="true">English</button><button type="button" data-lang="fr" aria-pressed="false">Français</button></div>
 </div>
@@ -166,4 +166,6 @@ ${pageCss}
 `;
 const out = join(root, "gallery", "index.html");
 writeFileSync(out, html);
+// The second page: the components, in a few looks (gallery/components-page.mjs).
+await import("./gallery/components-page.mjs");
 console.log(`gallery/index.html: ${catalogue.length} themes, ${faces.length} font faces (${Math.round(fontBytes / 1024)} KiB), ${Math.round(statSync(out).size / 1024)} KiB in all`);

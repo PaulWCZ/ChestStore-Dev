@@ -50,6 +50,24 @@ the list of tokens; this page is the short path and the mistakes to avoid.
 - **Log `look.problem`**, never show it: the page falls back to the
   identity.
 
+## Components (`@argentic/chest-ui/components`)
+
+- Use the kit's component before writing one: toast, dialog, people
+  picker, date/time fields, file picker, table, filters, search, empty
+  state, avatars, badges, tabs, the shell (README "Components").
+- `import "@argentic/chest-ui/components.css"` once, in the root layout.
+- Words: `labels={kitWords[locale].<section>}` (from
+  `@argentic/chest-ui/components/logic`), or the tool's own catalogue
+  section of the same type. Never an English string in a component call.
+- `today` for date components comes from the server (the Chest's time
+  zone); never `new Date()` in a client render.
+- Function props (`search`, `upload`, `onChange`, `link`) are passed from
+  the tool's own `"use client"` component, not from a server component.
+- Reversible act → toast with `undo`; the act already left (email, bell) →
+  `sent: true`; irreversible → `Confirm`. Never `window.confirm`.
+- Navigation: `AppShell` + `Nav` (labelled tabs); the page's main action in
+  `PageHeader`.
+
 ## Pitfalls
 
 | Symptom | Cause |
@@ -59,4 +77,6 @@ the list of tokens; this page is the short path and the mistakes to avoid.
 | `Cannot find module next/headers` in tests | A module the tests import reads `next/headers`: keep the nonce in the layout, not in `lib/theme.ts`. |
 | Colours stay the identity's with a catalogue choice | `chest.theme()` answer kept: the real Chest's max-age (≤ 5 min); in tests `forgetTheme()`. |
 | `validateTheme` refuses a stack | Quote family names with spaces (`'Segoe UI'`), no `var()`, no `;`. |
+| `Attempted to call … from the server` | A pure helper was imported from `/components` (a client boundary) into server code: import it from `/components/logic`. |
+| Hydration error 418 around a date | A date formatted with `Intl` or `new Date()` in a client render: use `formatDate(iso, words)` and a `today` from the server. |
 | A brand's font is missing | Its `id` is not in the registry: `deriveTheme` uses Inter and says so in `notes`. |

@@ -9,6 +9,7 @@ import {
   definition,
   definitionFromText,
   id as readId,
+  isImage,
   isMemberId,
   limits,
   problems,
@@ -17,6 +18,7 @@ import {
   type Accent,
   type Audience,
   type Definition,
+  type Image,
   type Layout,
   type Settings,
   type Status,
@@ -48,6 +50,9 @@ export type Form = {
   sendCopy: boolean;
   retentionMonths: number | null;
   answerCount: number;
+  notifyEmail: boolean;
+  shareEvents: boolean;
+  cover: Image | null;
   createdAt: string;
   updatedAt: string;
   publishedAt: string | null;
@@ -75,6 +80,9 @@ type Row = {
   send_copy: boolean;
   retention_months: number | null;
   answer_count: number;
+  notify_email: boolean;
+  share_events: boolean;
+  cover: Image | null;
   created_at: Date;
   updated_at: Date;
   published_at: Date | null;
@@ -102,12 +110,15 @@ export const toForm = (r: Row): Form => ({
   sendCopy: r.send_copy,
   retentionMonths: r.retention_months,
   answerCount: r.answer_count,
+  notifyEmail: r.notify_email,
+  shareEvents: r.share_events,
+  cover: r.cover ?? null,
   createdAt: r.created_at.toISOString(),
   updatedAt: r.updated_at.toISOString(),
   publishedAt: r.published_at ? r.published_at.toISOString() : null,
 });
 
-export const columns = "id, slug, owner, status, audience, anonymous, once, tell_team, layout, accent, draft, revision, version, closes_at, max_answers, thanks_title, thanks_body, redirect_url, send_copy, retention_months, answer_count, created_at, updated_at, published_at";
+export const columns = "id, slug, owner, status, audience, anonymous, once, tell_team, layout, accent, draft, revision, version, closes_at, max_answers, thanks_title, thanks_body, redirect_url, send_copy, retention_months, answer_count, notify_email, share_events, cover, created_at, updated_at, published_at";
 
 // Whether a form takes answers now, and if not, why.
 export type OpenState = { open: boolean; reason: "draft" | "closed" | "date" | "full" | null };
@@ -169,10 +180,12 @@ export async function bySlug(sql: Query, slug: unknown): Promise<{ form: Form; d
 export type Listed = { id: string; slug: string; title: string; status: Status; audience: Audience; anonymous: boolean; owner: string; level: Level; answers: number; unseen: number; updatedAt: string; open: OpenState; closesAt: string | null; maxAnswers: number | null };
 
 // The forms an actor may open: their own, those shared with them, and —
-// for a manager — everyone else's.
-export async function list(sql: Sql, actor: Member | null): Promise<Listed[]> {
+// for a manager — everyone else's. `search`: words of the title, whatever
+// their case and accents.
+export async function list(sql: Sql, actor: Member | null, search = ""): Promise<Listed[]> {
   if (!actor || !can(actor, "forms.answer")) throw new AppError("forbidden");
   const all = can(actor, "forms.all");
+  const words = search.normalize("NFKD").replace(/[\u0300-\u036f]/gu, "").toLowerCase().split(/\s+/u).filter(Boolean).slice(0, 6);
   const rows = await sql<(Row & { shared: Level | null; unseen: number | null; live: number })[]>`
     select ${sql.unsafe(columns.split(", ").map(c => "f." + c).join(", "))}, a.level as shared, w.unseen,
       (select count(*)::int from answers x where x.form_id = f.id and x.deleted_at is null) as live
@@ -182,7 +195,8 @@ export async function list(sql: Sql, actor: Member | null): Promise<Listed[]> {
     where f.deleted_at is null and (${all} or f.owner = ${actor.id} or a.member is not null)
     order by f.updated_at desc
     limit ${limits.forms}`;
-  return rows.map(r => {
+  const plain = (text: string) => text.normalize("NFKD").replace(/[\u0300-\u036f]/gu, "").toLowerCase();
+  return rows.filter(r => words.every(w => plain(r.draft.title ?? "").includes(w))).map(r => {
     const form = toForm(r);
     return {
       id: form.id, slug: form.slug, title: form.draft.title, status: form.status, audience: form.audience, anonymous: form.anonymous, owner: form.owner,
@@ -249,6 +263,18 @@ export async function saveDraft(sql: Sql, actor: Member | null, formId: unknown,
     where id = ${form.id} and revision = ${revision} and deleted_at is null
     returning revision, updated_at`;
   if (!row) throw new AppError("conflict");
+  return { revision: row.revision, updatedAt: row.updated_at.toISOString() };
+}
+
+// overwriteDraft: the editor keeps their version after a conflict — the
+// one saved meanwhile is replaced (they were shown it and chose).
+export async function overwriteDraft(sql: Sql, actor: Member | null, formId: unknown, text: unknown): Promise<{ revision: number; updatedAt: string }> {
+  const { form } = await open(sql, actor, formId, "editor");
+  const def = definitionFromText(text);
+  const [row] = await sql<{ revision: number; updated_at: Date }[]>`
+    update forms set draft = ${sql.json(def as never)}, revision = revision + 1, updated_at = now()
+    where id = ${form.id} and deleted_at is null returning revision, updated_at`;
+  if (!row) throw new AppError("not_found");
   return { revision: row.revision, updatedAt: row.updated_at.toISOString() };
 }
 
@@ -333,7 +359,8 @@ export async function saveSettings(sql: Sql, actor: Member | null, formId: unkno
     const [row] = await tx<Row[]>`
       update forms set audience = ${s.audience}, anonymous = ${s.anonymous}, once = ${s.once}, tell_team = ${s.tellTeam}, layout = ${s.layout}, accent = ${s.accent},
         closes_at = ${s.closesAt}, max_answers = ${s.maxAnswers}, thanks_title = ${s.thanksTitle}, thanks_body = ${s.thanksBody},
-        redirect_url = ${s.redirectUrl}, send_copy = ${s.sendCopy}, retention_months = ${s.retentionMonths}, updated_at = now()
+        redirect_url = ${s.redirectUrl}, send_copy = ${s.sendCopy}, retention_months = ${s.retentionMonths},
+        notify_email = ${s.notifyEmail}, share_events = ${s.shareEvents}, updated_at = now()
       where id = ${form.id} returning ${tx.unsafe(columns)}`;
     // Only people who may open the form can be told of its answers.
     const { owner, shared } = await team(tx, form.id);
@@ -343,6 +370,17 @@ export async function saveSettings(sql: Sql, actor: Member | null, formId: unkno
     for (const m of wanted) await tx`insert into watchers (form_id, member) values (${form.id}, ${m}) on conflict do nothing`;
     return toForm(row!);
   });
+}
+
+// setCover: the picture at the top of the respondent's page (null: none).
+// Answers the object replaced, which the caller deletes.
+export async function setCover(sql: Sql, actor: Member | null, formId: unknown, cover: unknown): Promise<string | null> {
+  const { form } = await open(sql, actor, formId, "editor");
+  if (cover !== null && !isImage(cover)) throw new AppError("invalid");
+  const value = cover === null ? null : { object: cover.object, version: cover.version };
+  if (value && !value.object.startsWith("public/covers/")) throw new AppError("invalid");
+  await sql`update forms set cover = ${value ? sql.json(value as never) : null}, updated_at = now() where id = ${form.id}`;
+  return form.cover && form.cover.object !== value?.object ? form.cover.object : null;
 }
 
 // share gives a member a level on a form (editor or viewer), or takes it
@@ -368,7 +406,8 @@ export async function duplicate(sql: Sql, actor: Member | null, formId: unknown,
   const def = copyDefinition(form.draft);
   def.title = [...title(def.title)].slice(0, limits.title).join("");
   const copy = await create(sql, actor, { definition: def, settings: { audience: form.audience, anonymous: form.anonymous, once: form.once, layout: form.layout, accent: form.accent, sendCopy: form.sendCopy } });
-  await sql`update forms set thanks_title = ${form.thanksTitle}, thanks_body = ${form.thanksBody}, redirect_url = ${form.redirectUrl}, retention_months = ${form.retentionMonths} where id = ${copy.id}`;
+  await sql`update forms set thanks_title = ${form.thanksTitle}, thanks_body = ${form.thanksBody}, redirect_url = ${form.redirectUrl}, retention_months = ${form.retentionMonths},
+    notify_email = ${form.notifyEmail}, share_events = ${form.shareEvents}, cover = ${form.cover ? sql.json(form.cover as never) : null} where id = ${copy.id}`;
   return copy;
 }
 
@@ -377,6 +416,22 @@ export async function duplicate(sql: Sql, actor: Member | null, formId: unknown,
 export async function remove(sql: Sql, actor: Member | null, formId: unknown): Promise<void> {
   const { form } = await open(sql, actor, formId, "owner");
   await sql`update forms set deleted_at = now() where id = ${form.id}`;
+}
+
+// The forms put aside in the last 30 days that the actor may bring back:
+// their own, or every one for a manager. Newest first.
+export type Deleted = { id: string; title: string; owner: string; answers: number; deletedAt: string };
+export const trashDays = 30;
+export async function trash(sql: Sql, actor: Member | null): Promise<Deleted[]> {
+  if (!actor || !can(actor, "forms.create")) return [];
+  const all = can(actor, "forms.all");
+  const rows = await sql<{ id: string; title: string; owner: string; answers: number; deleted_at: Date }[]>`
+    select f.id, f.draft->>'title' as title, f.owner, f.deleted_at,
+      (select count(*)::int from answers a where a.form_id = f.id and a.deleted_at is null) as answers
+    from forms f
+    where f.deleted_at is not null and f.deleted_at > now() - make_interval(days => ${trashDays}) and (${all} or f.owner = ${actor.id})
+    order by f.deleted_at desc limit 200`;
+  return rows.map(r => ({ id: String(r.id), title: r.title ?? "", owner: r.owner, answers: r.answers, deletedAt: r.deleted_at.toISOString() }));
 }
 
 export async function restore(sql: Sql, actor: Member | null, formId: unknown): Promise<void> {

@@ -4,7 +4,9 @@ import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
 import { POST as events } from "../app/chest-events/route.ts";
 import { POST as jobsRoute } from "../app/chest-jobs/[name]/route.ts";
 import * as candidates from "../lib/candidates.ts";
+import * as interviews from "../lib/interviews.ts";
 import * as jobs from "../lib/jobs.ts";
+import * as messages from "../lib/messages.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { application, openJob } from "./support/fixtures.ts";
 import { asMember } from "./support/member.ts";
@@ -49,6 +51,11 @@ test("an erasure removes the member's id everywhere, keeps what they wrote, and 
   await candidates.giveFeedback(sql, asMember(ines), c.id, { rating: 4, strengths: "Great", recommendation: "strong_yes" });
   await candidates.addNote(sql, asMember(camille), c.id, "Called her.");
   await candidates.askFeedback(sql, asMember(camille), c.id, [ines.id, hugo.id], async () => true);
+  // Camille writes, keeps a template, plans an interview with Inès.
+  await messages.write(sql, asMember(camille), c.id, { subject: "Hello", text: "Hello" });
+  await messages.saveTemplate(sql, asMember(camille), { name: "Mine", language: "en", subject: "S", body: "B" });
+  const day = new Date(Date.now() + 5 * 864e5).toISOString().slice(0, 10);
+  await interviews.schedule(sql, asMember(camille), c.id, { day, time: "10:00", minutes: 30, people: [camille.id, ines.id], tell: false }, async () => true);
   const erasure = "era_" + "e".repeat(26);
   const event = { type: "member.erased" as const, id: "evt_" + "f".repeat(26), data: { id: camille.id, erasure, deadline: new Date(Date.now() + 864e5).toISOString() } };
   assert.equal(await chest.emit(event, events), 204);
@@ -58,7 +65,9 @@ test("an erasure removes the member's id everywhere, keeps what they wrote, and 
   const [left] = await sql<{ n: number }[]>`
     select (select count(*) from notes where author in (${camille.id}, ${ines.id}))::int + (select count(*) from feedback where author in (${camille.id}, ${ines.id}))::int
       + (select count(*) from activity where actor in (${camille.id}, ${ines.id}) or data::text like ${"%" + ines.id + "%"})::int
-      + (select count(*) from jobs where created_by = ${camille.id})::int + (select count(*) from job_interviewers where member_id = ${ines.id})::int as n`;
+      + (select count(*) from jobs where created_by = ${camille.id})::int + (select count(*) from job_interviewers where member_id = ${ines.id})::int
+      + (select count(*) from messages where author = ${camille.id})::int + (select count(*) from templates where created_by = ${camille.id})::int
+      + (select count(*) from interviews where created_by = ${camille.id})::int + (select count(*) from interview_people where member_id in (${camille.id}, ${ines.id}))::int as n`;
   assert.equal(left!.n, 0);
   const [kept] = await sql<{ notes: number; feedback: number }[]>`select (select count(*) from notes where candidate_id = ${c.id})::int as notes, (select count(*) from feedback where candidate_id = ${c.id})::int as feedback`;
   assert.deepEqual([kept!.notes, kept!.feedback], [1, 1]);

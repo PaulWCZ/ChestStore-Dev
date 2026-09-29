@@ -6,6 +6,8 @@ import type { ReactNode } from "react";
 import { catalogue } from "../lib/i18n/index.ts";
 import { pageLocale } from "../lib/session.ts";
 import { currentLook } from "../lib/theme.ts";
+// The kit's components first, so the tool's own CSS can restyle them.
+import "@argentic/chest-ui/components.css";
 import "./tokens.css";
 import "./globals.css";
 

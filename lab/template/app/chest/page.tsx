@@ -1,6 +1,6 @@
 import * as chest from "@argentic/chest-sdk/chest";
+import { Toasts } from "@argentic/chest-ui/components";
 import { AutoRefresh } from "../../components/auto-refresh.tsx";
-import { Toasts } from "../../components/toast.tsx";
 import { can } from "../../lib/access.ts";
 import { db } from "../../lib/db.ts";
 import { formatDate, relative } from "../../lib/i18n/index.ts";
@@ -27,7 +27,7 @@ export default async function NotesPage() {
     date: formatDate(n.createdAt, locale, chest.timeZone(), { dateStyle: "full", timeStyle: "short" }),
   }));
   return (
-    <Toasts>
+    <Toasts labels={t.toast}>
       <AutoRefresh seconds={20} />
       <NotesView
         notes={shown}

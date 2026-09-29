@@ -79,6 +79,8 @@
 .ck-toast-close { width: var(--control-h); justify-content: center; }
 .ck-toast :focus-visible { outline: 3px solid currentColor; outline-offset: -3px; }
 .ck-toast-error { background: var(--danger); color: var(--surface); }
+/* Sent: the action already left (an email, a bell item): a paper plane, and never an Undo. */
+.ck-toast-sent { padding-left: var(--space-3); }
 @keyframes ck-rise { from { transform: translateY(8px); opacity: 0; } to { transform: none; opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .ck-toast { animation: none; } }
 
@@ -152,7 +154,7 @@
 .ck-date-input { padding-right: calc(var(--control-h) + var(--space-1)); font-variant-numeric: tabular-nums; }
 .ck-date-open { position: absolute; right: 0; top: 0; }
 .ck-date-chips { display: flex; gap: var(--space-1); flex-wrap: wrap; }
-.ck-chip-button { min-height: var(--control-h); padding: 0 var(--space-3); border: var(--border-width) solid var(--line-strong); border-radius: var(--radius-pill); background: var(--surface); color: var(--ink); font: inherit; font-size: var(--text-s); cursor: pointer; }
+.ck-chip-button { display: inline-flex; align-items: center; justify-content: center; min-height: var(--control-h); padding: 0 var(--space-3); border: var(--border-width) solid var(--line-strong); border-radius: var(--radius-pill); background: var(--surface); color: var(--ink); font: inherit; font-size: var(--text-s); cursor: pointer; }
 .ck-chip-button:hover { background: var(--surface-2); }
 .ck-chip-button[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent-line); font-weight: var(--weight-strong); }
 .ck-date-read:not(:empty)::first-letter { text-transform: uppercase; }
@@ -221,7 +223,8 @@
 .ck-table tbody tr:last-child > * { border-bottom: 0; }
 .ck-align-end { text-align: right !important; }
 .ck-align-center { text-align: center !important; }
-.ck-col-narrow { width: 1%; }
+.ck-col-narrow { width: 1%; white-space: nowrap; }
+.ck-col-wide { min-width: 16em; }
 .ck-col-actions { width: 1%; padding: 0 var(--space-1) !important; text-align: right !important; }
 .ck-sort { display: inline-flex; align-items: center; gap: var(--space-1); min-height: 36px; margin: 0 calc(-1 * var(--space-1)); padding: 0 var(--space-1); border: 0; border-radius: var(--radius-s); background: none; color: inherit; font: inherit; font-weight: inherit; text-decoration: none; cursor: pointer; }
 .ck-sort:hover { background: var(--surface); }

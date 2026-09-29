@@ -33,6 +33,15 @@ export const errorCodes = [
   "invalid_url",
   "too_few",
   "limit",
+  // An anonymous form's answers are never listed one by one.
+  "anonymous_rows",
+  // Pictures (a cover, a picture choice): not an image the tool takes, or too large.
+  "image_invalid",
+  "image_too_large",
+  // Websites allowed to show the public forms: not an https address.
+  "invalid_site",
+  // Importing: a file the tool cannot read.
+  "import_invalid",
 ] as const;
 export type ErrorCode = (typeof errorCodes)[number];
 

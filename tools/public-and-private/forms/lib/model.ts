@@ -32,15 +32,29 @@ export const limits = {
   page: 50,
   // Anonymous answers are shown only from this many on (tool README).
   anonymousFloor: 5,
+  // A matrix: its rows (the things rated) and columns (the scale).
+  rows: 20,
+  columns: 10,
+  // Items to put in order.
+  rankItems: 20,
+  // Files one file question takes.
+  files: 10,
+  // Texts of a form's second language.
+  texts: 1000,
+  image: 2 << 20,
 } as const;
 
-export const kinds = ["short", "long", "email", "phone", "number", "choice", "choices", "dropdown", "yesno", "rating", "scale", "date", "file", "statement"] as const;
+export const kinds = ["short", "long", "email", "phone", "number", "choice", "choices", "dropdown", "picture", "yesno", "rating", "scale", "matrix", "ranking", "date", "file", "statement"] as const;
 export type Kind = (typeof kinds)[number];
 export const isKind = (value: unknown): value is Kind => typeof value === "string" && (kinds as readonly string[]).includes(value);
 
-// Kinds that take a list of options, and those whose answer is a choice.
-export const withOptions = (kind: Kind) => kind === "choice" || kind === "choices" || kind === "dropdown";
+// Kinds whose answer is a choice among options (a Pick), and the kinds
+// whose editor lists options (a matrix's are its columns).
+export const withOptions = (kind: Kind) => kind === "choice" || kind === "choices" || kind === "dropdown" || kind === "picture";
+export const listsOptions = (kind: Kind) => withOptions(kind) || kind === "ranking" || kind === "matrix";
 export const textKinds: readonly Kind[] = ["short", "long", "email", "phone"];
+// Whether a question takes several picks (Several choices, pictures with several).
+export const manyPicks = (q: Pick<Question, "kind" | "multiple">) => q.kind === "choices" || (q.kind === "picture" && q.multiple === true);
 
 export const accepts = ["any", "images", "documents"] as const;
 export type Accept = (typeof accepts)[number];
@@ -55,6 +69,7 @@ export function opsFor(kind: Kind): Op[] {
     case "dropdown":
       return ["is", "is_not", "answered", "empty"];
     case "choices":
+    case "picture":
       return ["includes", "excludes", "answered", "empty"];
     case "yesno":
       return ["is", "answered", "empty"];
@@ -64,6 +79,8 @@ export function opsFor(kind: Kind): Op[] {
       return ["is", "is_not", "gt", "lt", "answered", "empty"];
     case "file":
     case "date":
+    case "matrix":
+    case "ranking":
       return ["answered", "empty"];
     case "statement":
       return [];
@@ -73,7 +90,14 @@ export function opsFor(kind: Kind): Op[] {
 }
 export const needsValue = (op: Op) => op !== "answered" && op !== "empty";
 
-export type Option = { id: string; label: string };
+// A picture of a picture choice, or a form's cover: an object the tool
+// published under public/ (Proposal (studio): files.publicFiles), and its
+// version for the address.
+export type Image = { object: string; version: string };
+export const imagePattern = /^public\/(pictures|covers)\/[0-9a-f]{20}\.(png|jpg|webp)$/u;
+export const isImage = (value: unknown): value is Image =>
+  value !== null && typeof value === "object" && typeof (value as Image).object === "string" && imagePattern.test((value as Image).object) && typeof (value as Image).version === "string" && /^[0-9A-Za-z._-]{1,40}$/u.test((value as Image).version);
+export type Option = { id: string; label: string; image?: Image };
 export type ConditionValue = string | number | boolean;
 export type Condition = { question: string; op: Op; value?: ConditionValue };
 export type Question = {
@@ -95,11 +119,26 @@ export type Question = {
   left?: string;
   right?: string;
   accept?: Accept;
+  // A matrix's rows (its options are the columns).
+  rows?: Option[];
+  // A picture choice that takes several picks.
+  multiple?: boolean;
+  // The question's name in a prefilled link (?<key>=…) and for other tools.
+  key?: string;
   showIf?: Condition;
 };
 export type Jump = { when: Condition; to: string };
 export type Page = { id: string; title: string; questions: Question[]; jumps: Jump[] };
-export type Definition = { title: string; intro: string; pages: Page[] };
+// A form's languages: the one its questions are written in, and optionally
+// a second version of its texts (keyed by what they translate: "title",
+// "intro", a page id, a question id, "<question>.help", "<question>.left",
+// "<question>.right", "<question>.<option or row>"). A text left empty
+// falls back to the first language.
+export const languages = ["en", "fr"] as const;
+export type Language = (typeof languages)[number];
+export const isLanguage = (value: unknown): value is Language => typeof value === "string" && (languages as readonly string[]).includes(value);
+export type Alt = { language: Language; texts: Record<string, string> };
+export type Definition = { title: string; intro: string; pages: Page[]; language?: Language; alt?: Alt };
 
 export const END = "end";
 const idPattern = /^[a-z0-9]{6,12}$/u;
@@ -166,6 +205,24 @@ function condition(value: unknown): Condition | undefined {
   return { question, op: op as Op, ...(kept !== undefined ? { value: kept } : {}) };
 }
 
+// The options of a list (choices, a matrix's rows or columns, items to
+// rank): unique ids, a label each, a picture for a picture choice.
+function optionList(value: unknown, max: number, pictures = false): Option[] {
+  const seen = new Set<string>();
+  return list(value, max).map(o => {
+    if (!isObject(o) || !isItemId(o["id"]) || seen.has(o["id"])) throw new AppError("invalid");
+    seen.add(o["id"]);
+    const option: Option = { id: o["id"], label: soft(o["label"], limits.option) };
+    if (pictures && o["image"] !== undefined && o["image"] !== null) {
+      if (!isImage(o["image"])) throw new AppError("invalid");
+      option.image = { object: o["image"].object, version: o["image"].version };
+    }
+    return option;
+  });
+}
+
+export const keyPattern = /^[a-z][a-z0-9_]{0,29}$/u;
+
 function question(value: unknown): Question {
   if (!isObject(value) || !isItemId(value["id"]) || !isKind(value["kind"])) throw new AppError("invalid");
   const kind = value["kind"];
@@ -188,18 +245,19 @@ function question(value: unknown): Question {
     if (max !== undefined) q.max = max;
   }
   if (withOptions(kind)) {
-    const seen = new Set<string>();
-    q.options = list(value["options"], limits.options).map(o => {
-      if (!isObject(o) || !isItemId(o["id"]) || seen.has(o["id"])) throw new AppError("invalid");
-      seen.add(o["id"]);
-      return { id: o["id"], label: soft(o["label"], limits.option) };
-    });
-    if (kind !== "dropdown" && value["other"] === true) q.other = true;
-    if (kind === "choices") {
+    q.options = optionList(value["options"], limits.options, kind === "picture");
+    if ((kind === "choice" || kind === "choices") && value["other"] === true) q.other = true;
+    if (kind === "picture" && value["multiple"] === true) q.multiple = true;
+    if (kind === "choices" || q.multiple) {
       const min = whole(value["min"], 1, limits.options), max = whole(value["max"], 1, limits.options);
       if (min !== undefined) q.min = min;
       if (max !== undefined) q.max = max;
     }
+  }
+  if (kind === "ranking") q.options = optionList(value["options"], limits.rankItems);
+  if (kind === "matrix") {
+    q.rows = optionList(value["rows"], limits.rows);
+    q.options = optionList(value["options"], limits.columns);
   }
   if (kind === "rating") q.steps = whole(value["steps"], 3, 10) ?? 5;
   if (kind === "scale") {
@@ -208,10 +266,36 @@ function question(value: unknown): Question {
     q.left = soft(value["left"], 60);
     q.right = soft(value["right"], 60);
   }
-  if (kind === "file") q.accept = (accepts as readonly unknown[]).includes(value["accept"]) ? (value["accept"] as Accept) : "any";
+  if (kind === "file") {
+    q.accept = (accepts as readonly unknown[]).includes(value["accept"]) ? (value["accept"] as Accept) : "any";
+    const max = whole(value["max"], 1, limits.files);
+    if (max !== undefined && max > 1) q.max = max;
+  }
+  if (kind !== "statement" && value["key"] !== undefined && value["key"] !== null && value["key"] !== "") {
+    if (typeof value["key"] !== "string" || !keyPattern.test(value["key"])) throw new AppError("invalid");
+    q.key = value["key"];
+  }
   const showIf = condition(value["showIf"]);
   if (showIf) q.showIf = showIf;
   return q;
+}
+
+// The texts of a second language: keys that name what they translate,
+// each bounded like the text it translates.
+const textKey = /^(title|intro|[a-z0-9]{6,12}(\.(help|left|right|[a-z0-9]{6,12}))?)$/u;
+function alt(value: unknown, main: Language | undefined): Alt | undefined {
+  if (value === undefined || value === null) return undefined;
+  if (!isObject(value) || !isLanguage(value["language"]) || !main || value["language"] === main || !isObject(value["texts"])) throw new AppError("invalid");
+  const entries = Object.entries(value["texts"]);
+  if (entries.length > limits.texts) throw new AppError("invalid");
+  const texts: Record<string, string> = {};
+  for (const [key, text] of entries) {
+    if (!textKey.test(key)) throw new AppError("invalid");
+    const long = key === "intro" || key.endsWith(".help");
+    const kept = soft(text, key === "intro" ? limits.intro : key === "title" ? limits.title : long ? limits.help : limits.questionTitle, long || !key.includes("."));
+    if (kept !== "") texts[key] = kept;
+  }
+  return { language: value["language"], texts };
 }
 
 export function definition(value: unknown): Definition {
@@ -220,6 +304,7 @@ export function definition(value: unknown): Definition {
   if (pages.length === 0) throw new AppError("invalid");
   const ids = new Set<string>();
   let count = 0;
+  const language = value["language"] === undefined || value["language"] === null ? undefined : isLanguage(value["language"]) ? value["language"] : (() => { throw new AppError("invalid"); })();
   const def: Definition = {
     title: soft(value["title"], limits.title),
     intro: soft(value["intro"], limits.intro, true),
@@ -243,7 +328,70 @@ export function definition(value: unknown): Definition {
     }),
   };
   if (count > limits.questions) throw new AppError("too_long", { max: limits.questions });
+  if (language) def.language = language;
+  const second = alt(value["alt"], language);
+  if (second) def.alt = second;
   return def;
+}
+
+// ---- Languages ------------------------------------------------------------------
+
+// languageFor: the language a person reads a form in — theirs when the form
+// has it, otherwise the form's first one (the tool's words follow, so a
+// page never mixes two languages). A form that never said its language
+// follows the person.
+export function languageFor(def: Pick<Definition, "language" | "alt">, wanted: Language): Language {
+  if (!def.language || wanted === def.language || wanted === def.alt?.language) return wanted;
+  return def.language;
+}
+
+// localize: the form as it reads in a language — the second language's
+// texts where they were written, the first language's elsewhere. Ids,
+// logic and everything but words stay the same, so answers are checked
+// against the form itself.
+export function localize(def: Definition, language: Language): Definition {
+  if (!def.alt || def.alt.language !== language) return def;
+  const t = def.alt.texts;
+  const pick = (key: string, text: string) => t[key] || text;
+  const copy: Definition = structuredClone(def);
+  copy.title = pick("title", copy.title);
+  copy.intro = pick("intro", copy.intro);
+  for (const p of copy.pages) {
+    p.title = pick(p.id, p.title);
+    for (const q of p.questions) {
+      q.title = pick(q.id, q.title);
+      q.help = pick(`${q.id}.help`, q.help);
+      if (q.left !== undefined) q.left = pick(`${q.id}.left`, q.left);
+      if (q.right !== undefined) q.right = pick(`${q.id}.right`, q.right);
+      for (const o of q.options ?? []) o.label = pick(`${q.id}.${o.id}`, o.label);
+      for (const r of q.rows ?? []) r.label = pick(`${q.id}.${r.id}`, r.label);
+    }
+  }
+  return copy;
+}
+
+// untranslated: how many texts of the first language have no version in
+// the second (the builder says so; it never blocks publishing).
+export function untranslated(def: Definition): number {
+  if (!def.alt) return 0;
+  const t = def.alt.texts;
+  let missing = 0;
+  const count = (key: string, text: string | undefined) => {
+    if (text && !t[key]) missing++;
+  };
+  count("title", def.title);
+  count("intro", def.intro);
+  for (const p of def.pages) {
+    count(p.id, p.title);
+    for (const q of p.questions) {
+      count(q.id, q.title);
+      count(`${q.id}.help`, q.help);
+      count(`${q.id}.left`, q.left);
+      count(`${q.id}.right`, q.right);
+      for (const o of [...(q.options ?? []), ...(q.rows ?? [])]) count(`${q.id}.${o.id}`, o.label);
+    }
+  }
+  return missing;
 }
 
 // definitionFromText reads the builder's JSON, bounded before it is parsed.
@@ -271,7 +419,10 @@ export type ProblemCode =
   | "condition_unknown"
   | "condition_value"
   | "jump_backward"
-  | "jump_unknown";
+  | "jump_unknown"
+  | "no_picture"
+  | "few_rows"
+  | "key_taken";
 export type Problem = { code: ProblemCode; question?: string; page?: string };
 
 export function allQuestions(def: Definition): Question[] {
@@ -300,18 +451,25 @@ export function problems(def: Definition): Problem[] {
     }
   };
   let index = 0;
+  const keys = new Set<string>();
   def.pages.forEach((page, pageIndex) => {
     for (const q of page.questions) {
       const where = { question: q.id };
       if (q.kind !== "statement" && q.title === "") found.push({ ...where, code: "question_title" });
       if (q.kind === "statement" && q.title === "" && q.help === "") found.push({ ...where, code: "question_title" });
-      if (withOptions(q.kind)) {
+      if (listsOptions(q.kind)) {
         const options = q.options ?? [];
         if (options.length + (q.other ? 1 : 0) < 2) found.push({ ...where, code: "few_options" });
-        if (options.some(o => o.label === "")) found.push({ ...where, code: "empty_option" });
+        if ([...options, ...(q.rows ?? [])].some(o => o.label === "" && !(q.kind === "picture" && o.image))) found.push({ ...where, code: "empty_option" });
+        if (q.kind === "picture" && options.some(o => !o.image)) found.push({ ...where, code: "no_picture" });
+        if (q.kind === "matrix" && (q.rows ?? []).length === 0) found.push({ ...where, code: "few_rows" });
       }
       if (q.min !== undefined && q.max !== undefined && q.min > q.max) found.push({ ...where, code: "min_max" });
-      if (q.kind === "choices" && q.max !== undefined && q.max > (q.options?.length ?? 0) + (q.other ? 1 : 0)) found.push({ ...where, code: "min_max" });
+      if (manyPicks(q) && q.max !== undefined && q.max > (q.options?.length ?? 0) + (q.other ? 1 : 0)) found.push({ ...where, code: "min_max" });
+      if (q.key) {
+        if (keys.has(q.key)) found.push({ ...where, code: "key_taken" });
+        keys.add(q.key);
+      }
       if (q.showIf) checkCondition(q.showIf, index, where);
       index++;
     }
@@ -354,6 +512,11 @@ export type Settings = {
   sendCopy: boolean;
   retentionMonths: number | null;
   watchers: string[];
+  // The people told also get an email of each batch (Proposal (studio): mail).
+  notifyEmail: boolean;
+  // Each answer is told to the tools of the Chest an admin linked
+  // (Proposal (studio): events between tools, forms.answered).
+  shareEvents: boolean;
 };
 
 export const memberPattern = /^mbr_[a-z2-7]{26}$/u;
@@ -400,6 +563,8 @@ export function settings(value: unknown, closesAt: string | null): Settings {
     sendCopy: !anonymous && value["sendCopy"] === true,
     retentionMonths: retention === null || retention === undefined || retention === "" ? null : (retentions as readonly unknown[]).includes(retention) ? (retention as number) : (() => { throw new AppError("invalid"); })(),
     watchers: [...new Set(watchers as string[])],
+    notifyEmail: value["notifyEmail"] === true,
+    shareEvents: !anonymous && value["shareEvents"] === true,
   };
 }
 
@@ -421,14 +586,34 @@ export function blank(title = ""): Definition {
   return { title, intro: "", pages: [{ id: newId(), title: "", questions: [], jumps: [] }] };
 }
 
-// A question of a kind, as the builder adds it.
-export function newQuestion(kind: Kind, labels: { option: (n: number) => string } = { option: n => String(n) }): Question {
+// A question of a kind, as the builder adds it. Options start empty: the
+// builder shows "Option 1" as a placeholder, and an option left empty is
+// flagged before publishing (never a stray "Option 2" in a live form). A
+// matrix starts with the columns the creator's language gives.
+export function newQuestion(kind: Kind, words: { columns?: readonly string[] } = {}): Question {
   const q: Question = { id: newId(), kind, title: "", help: "", required: false };
-  if (withOptions(kind)) q.options = [1, 2].map(n => ({ id: newId(), label: labels.option(n) }));
+  const empty = (n: number) => Array.from({ length: n }, () => ({ id: newId(), label: "" }));
+  if (withOptions(kind)) q.options = empty(2);
+  if (kind === "ranking") q.options = empty(3);
+  if (kind === "matrix") {
+    q.rows = empty(2);
+    q.options = (words.columns ?? ["1", "2", "3", "4"]).slice(0, limits.columns).map(label => ({ id: newId(), label }));
+  }
   if (kind === "rating") q.steps = 5;
   if (kind === "scale") Object.assign(q, { from: 0, to: 10, left: "", right: "" });
   if (kind === "file") q.accept = "any";
   return q;
+}
+
+// enterOption: Enter in an option's field goes to the next option when it
+// is still empty, or adds one right after it; the focus follows. Answers
+// the options and the index to focus.
+export function enterOption(options: Option[], at: number): { options: Option[]; focus: number } {
+  const next = options[at + 1];
+  if (next && next.label === "" && !next.image) return { options, focus: at + 1 };
+  const copy = [...options];
+  copy.splice(at + 1, 0, { id: newId(), label: "" });
+  return { options: copy, focus: at + 1 };
 }
 
 // copyQuestion gives a question new ids (its options too): a duplicate is a
@@ -437,6 +622,8 @@ export function copyQuestion(q: Question): Question {
   const copy: Question = structuredClone(q);
   copy.id = newId();
   if (copy.options) copy.options = copy.options.map(o => ({ ...o, id: newId() }));
+  if (copy.rows) copy.rows = copy.rows.map(o => ({ ...o, id: newId() }));
+  delete copy.key;
   return copy;
 }
 
@@ -453,7 +640,7 @@ export function copyDefinition(def: Definition): Definition {
     p.id = rename(p.id);
     for (const q of p.questions) {
       q.id = rename(q.id);
-      if (q.options) for (const o of q.options) o.id = rename(o.id);
+      for (const o of [...(q.options ?? []), ...(q.rows ?? [])]) o.id = rename(o.id);
     }
   }
   const fix = (c: Condition) => {
@@ -466,6 +653,16 @@ export function copyDefinition(def: Definition): Definition {
       fix(j.when);
       if (j.to !== END) j.to = rename(j.to);
     }
+  }
+  // The second language's texts follow the new ids.
+  if (copy.alt) {
+    const texts: Record<string, string> = {};
+    for (const [key, text] of Object.entries(copy.alt.texts)) {
+      const [head, tail] = key.split(".");
+      const renamed = map.get(head!) ?? head!;
+      texts[tail ? `${renamed}.${map.get(tail) ?? tail}` : renamed] = text;
+    }
+    copy.alt = { ...copy.alt, texts };
   }
   return copy;
 }

@@ -33,6 +33,24 @@ open). Both OFL-1.1, self-hosted (`public/fonts/`). Display sizes up to
 the one printed flourish); **motion** 120/240 ms, none with
 `prefers-reduced-motion`.
 
+### The company's accent (careers pages only)
+
+Settings → *Colour* replaces the cobalt on the careers pages with one of
+six accents, each checked with `scripts/contrast.mjs` (text on paper, the
+button's words on it, text on its soft tint), light and dark:
+
+| Accent | Light (on paper #f6f0e4 / words on it / on soft) | Dark (on paper #10133a / #10133a on it / on soft) |
+|---|---|---|
+| Cobalt (default) | the tool's own | the tool's own |
+| Forest | #1f5c3a 6.98 / 6.98 / 6.47 | #86d6a6 10.36 / 10.36 / 7.27 |
+| Plum | #6b2a5e 8.74 / 8.74 / 7.79 | #e3a6d6 9.09 / 9.09 / 7.57 |
+| Tomato | #a8321b 5.90 / 6.69 (white) / 5.48 | #ff9a80 8.66 / 8.66 / 7.17 |
+| Ocean | #0b5a73 6.79 / 6.79 / 6.31 | #7fcbe3 9.82 / 9.82 / 7.17 |
+| Graphite | #2b2b2b 12.48 / 12.48 / 10.96 | #e6e2da 13.82 / 13.82 / 10.42 |
+
+The team's pages keep the cobalt: the accent is the company's voice to
+candidates, the tool keeps its own for the team.
+
 ## Components
 
 Pill buttons (cobalt / quiet outline / danger / link), fields with a 1.5 px

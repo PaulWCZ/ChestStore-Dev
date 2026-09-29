@@ -16,7 +16,7 @@
 import { useEffect, useRef, type ReactElement, type ReactNode } from "react";
 import { Avatar } from "./avatar.js";
 import { isCurrent } from "./lists.js";
-import { en, type ShellWords } from "./words.js";
+import { en, type Language, type ShellWords } from "./words.js";
 
 export type LinkComponent = (props: { href: string; className?: string; "aria-current"?: "page" | "true"; hrefLang?: string; lang?: string; children: ReactNode }) => ReactElement;
 const PlainLink: LinkComponent = props => <a {...props} />;
@@ -125,7 +125,6 @@ export function NoAccess({ labels = en.shell, title, body, action }: { labels?: 
   );
 }
 
-export type Language = { readonly code: string; readonly name: string };
 
 // LanguageSwitch: the public part's visible switch (the members' part
 // follows member.locale and has none). Each language is named in itself,
@@ -142,12 +141,6 @@ export function LanguageSwitch({ languages, current, label, back = "/", href, li
     </nav>
   );
 }
-
-// The languages the store's tools speak today, each named in itself.
-export const storeLanguages: readonly Language[] = [
-  { code: "en", name: "English" },
-  { code: "fr", name: "Français" },
-];
 
 // BrandMark: the company's logo when the Chest gives its brand (with its
 // dark variant on dark pages), the tool's own mark otherwise.

@@ -1,8 +1,7 @@
 "use client";
 
+import { Avatar, EmptyState, useToast } from "@argentic/chest-ui/components";
 import { useOptimistic, useRef, useState, useTransition } from "react";
-import { Avatar } from "../../components/avatar.tsx";
-import { useToast } from "../../components/toast.tsx";
 import type { ErrorCode } from "../../lib/errors.ts";
 import { format, plural } from "../../lib/i18n/format.ts";
 import type { Catalogue, Locale } from "../../lib/i18n/index.ts";
@@ -52,8 +51,16 @@ export function NotesView({ notes, locale, canWrite, canPin, canRemoveAny, me, t
     startTransition(async () => {
       change({ type: "remove", id });
       const result = await deleteNote(id);
-      if (!result.ok) return toast(words(result.error));
-      toast(t.notes.removed, { label: t.notes.undo, run: () => startTransition(async () => { const back = await undoDelete(id); if (!back.ok) toast(words(back.error)); }) });
+      if (!result.ok) return void toast({ text: words(result.error), tone: "error" });
+      // One toast per note; its Undo says whether it worked (the kit's toast).
+      toast({
+        id: `delete-${id}`,
+        text: t.notes.removed,
+        undo: async () => {
+          const back = await undoDelete(id);
+          return back.ok ? true : words(back.error);
+        },
+      });
     });
   }
 
@@ -61,7 +68,7 @@ export function NotesView({ notes, locale, canWrite, canPin, canRemoveAny, me, t
     startTransition(async () => {
       change({ type: "pin", id, pinned });
       const result = await pinNote(id, pinned);
-      if (!result.ok) toast(words(result.error));
+      if (!result.ok) toast({ text: words(result.error), tone: "error" });
     });
   }
 
@@ -93,11 +100,11 @@ export function NotesView({ notes, locale, canWrite, canPin, canRemoveAny, me, t
       ) : <p className="meta">{t.notes.readOnly}</p>}
 
       {shown.length === 0 ? (
-        <div className="empty">
-          <h2>{t.notes.empty.title}</h2>
-          <p>{t.notes.empty.body}</p>
-          {canWrite && <button type="button" className="button quiet" onClick={() => post(t.notes.exampleText)}>{t.notes.empty.example}</button>}
-        </div>
+        <EmptyState
+          title={t.notes.empty.title}
+          body={t.notes.empty.body}
+          example={canWrite ? { label: t.notes.empty.example, onClick: () => post(t.notes.exampleText) } : null}
+        />
       ) : (
         <>
           <p className="meta">{plural(t.notes.count, shown.length, locale)}</p>
@@ -106,7 +113,7 @@ export function NotesView({ notes, locale, canWrite, canPin, canRemoveAny, me, t
               <li key={n.id} id={"note-" + n.id} className={"note" + (n.pinned ? " pinned" : "") + (n.id === "pending" ? " pending" : "")}>
                 <p>{n.body}</p>
                 <div className="meta">
-                  <Avatar name={n.author} photo={n.photo} size={24} />
+                  <Avatar name={n.author} photo={n.photo} size="s" />
                   <span>{format(t.notes.by, { name: n.author })}</span>
                   {n.when && <time title={n.date}>{n.when}</time>}
                   {n.pinned && <span className="tag">{t.notes.pinned}</span>}

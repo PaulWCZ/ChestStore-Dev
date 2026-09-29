@@ -571,7 +571,7 @@ export const en = {
     blank: "A blank email",
     subject: "Subject",
     text: "Message",
-    hint: "It leaves from your jobs address to {email}. Their answer comes back to this page.",
+    hint: "Sent from your jobs address to {email}. Their answer comes back to this page.",
     send: "Send",
     sent: "Sent to {name}.",
     queued: "The email will leave in a moment.",

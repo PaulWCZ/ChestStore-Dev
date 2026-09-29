@@ -30,7 +30,8 @@ node scripts/add-ui.mjs tools/private/<name>    # packs ui/ into the tool's vend
 ```
 
 Node 22 or later, ESM, TypeScript declarations included. No dependency;
-React is an optional peer (only for `@argentic/chest-ui/react`).
+React is an optional peer (only for `@argentic/chest-ui/react` and the
+components).
 
 ## Imports
 
@@ -38,6 +39,9 @@ React is an optional peer (only for `@argentic/chest-ui/react`).
 |---|---|
 | `@argentic/chest-ui/runtime` | `resolveTheme`, `themeStyle`, `lookCss`, `lookColors`, `lookNotes`, `nonceOf`, types `Look`, `ThemeChoice`: the page's look, on the server |
 | `@argentic/chest-ui/react` | `ThemeStyle`: the same `<style>`, as a React element (a server component in Next.js) |
+| `@argentic/chest-ui/components` | the store's shared React components (client components): `Toasts`/`useToast`, `Dialog`, `Confirm`, `PeoplePicker`, `DateField`, `Calendar`, `DayStrip`, `TimeSelect`, `FilePicker`, `DataTable`, `Menu`, `Filters`, `SearchBox`, `EmptyState`, `Avatar`, `AvatarStack`, `StatusBadge`, `Tabs`, `Segmented`, `AppShell`, `Nav`, `NavLink`, `PageHeader`, `MemberChip`, `NoAccess`, `LanguageSwitch`, `BrandMark`, `AutoRefresh`/`useAutoRefresh` (see "Components") |
+| `@argentic/chest-ui/components/logic` | their rules as pure, server-safe functions, and their default words `en`, `fr`, `kitWords`, `wordsFor(locale)`, `storeLanguages` |
+| `@argentic/chest-ui/components.css` | the components' stylesheet (contract tokens only) |
 | `@argentic/chest-ui/themes` | `catalogue`, `themes`, `themeOf(id)`, `identityOf(tool)`, `catalogueFonts` |
 | `@argentic/chest-ui/derive` | `deriveTheme`, `BrandError`, `logoUrlPattern`, types `Brand`, `BrandFont`, `BrandLogo`, `Derived`, `Corners`, `Density` |
 | `@argentic/chest-ui/import` | `importBrand`, `maxImportSize`, types `Imported`, `ImportFormat` |
@@ -246,17 +250,231 @@ The studio's harness serves `ui/fonts/` exactly there
   font's family is renamed "Brand <family>" so it is never mistaken for
   an installed font.
 
+
+## Components
+
+`@argentic/chest-ui/components` holds the pieces every store tool had
+built for itself (reports/05-critique/_store.md §3), rebuilt once from the
+best of the 18 tools, and held to the store's behaviour rules (§2): an
+Undo that tells the truth, dialogs that never lose what was typed, one
+phone navigation rule, never the browser's date field.
+
+**Rules they all follow.**
+
+- **Styled only by contract tokens** (`css/components.css`, every class
+  `ck-…`): they wear the tool's identity, any catalogue theme, any brand,
+  light and dark. Import the stylesheet once, in the root layout:
+  `import "@argentic/chest-ui/components.css";` — a file, no runtime
+  style injection, no inline style: the studio's nonce policy is
+  unchanged.
+- **No word of their own.** Every text comes from a `labels` prop, typed
+  (`ToastWords`, `DateWords`…). The kit gives English and French:
+  `import { kitWords } from "@argentic/chest-ui/components/logic"` then
+  `labels={kitWords[locale].toast}` — plain data, so a server component
+  may pass it. French follows the store glossary (`lab/GLOSSARY.md`):
+  Undo is « Annuler l’action », narrow no-break spaces before `: ; ? !`.
+- **Server-render safe.** No `Intl` formatting, no clock, no random in a
+  render: dates are written from the words, "today" is given by the tool
+  (from `chest.timeZone()`, on the server), sorting uses a
+  machine-independent order. The tests render every component under two
+  time zones and compare; the gallery hydrates them in a browser and shows
+  any mismatch (React error 418).
+- **Accessible, keyboard complete** (WCAG 2.1 AA): the ARIA patterns
+  (combobox, menu button, tabs, grid date picker, alertdialog), 44 px
+  targets, visible focus, live regions present from the first render; the
+  keyboards are pure functions (`listKey`, `menuKey`, `tabKey`,
+  `calendarKey`) with their own tests.
+- **Client components** (`"use client"`, named exports only, as Next.js
+  requires). Functions cannot cross from a server component: a prop that
+  is a function (`search`, `onChange`, `link`, `upload`) is passed from the
+  tool's own client component.
+
+### Toasts — Undo that tells the truth
+
+```tsx
+<Toasts labels={kitWords[locale].toast}>{page}</Toasts>        // once, around the page
+const toast = useToast();
+toast({ id: `delete-${id}`, text: t.deleted, undo: async () => (await restore(id)).ok || t.errors.tooLate });
+toast({ id: `reject-${id}`, text: t.rejectionSent, sent: true });   // the email left: never an Undo
+toast({ text: t.errors.unavailable, tone: "error" });
+```
+
+`undo` resolves `true`/nothing when it worked, `false` or a sentence (in
+the reader's language) when it did not; the toast then says "Undone." or
+why. A toast waits while hovered or focused and gets at least 6 s more
+once the keyboard leaves it (WCAG 2.2.1); 6 s plain, 10 s with Undo or an
+error; **one toast per `id`** (showing it again replaces it); at most
+three. `sent: true` never offers Undo, even if one was passed, and turns
+an earlier toast of the same id into "sent". **Ctrl+Z / ⌘Z**, outside a
+text field, runs the newest Undo (`aria-keyshortcuts`). Rules in
+`toast-state.ts` (`toastReducer`, tested without a browser).
+
+### Dialog and Confirm
+
+```tsx
+<Dialog open={open} title={t.newBoard} onClose={close} dirty={name !== ""} labels={kitWords[locale].dialog}
+  footer={<><button className="ck-button ck-button-quiet" onClick={close}>{t.cancel}</button><button className="ck-button">{t.create}</button></>}>
+  …fields…
+</Dialog>
+<Confirm open={asking} title={t.eraseTitle} body={t.eraseBody} confirmLabel={t.erase} cancelLabel={t.cancel} onConfirm={erase} onCancel={() => setAsking(false)} />
+```
+
+Native `<dialog>` (focus trapped and restored by the browser). Opens on
+its first field; ids from `useId`. `dirty`: Escape, the close button and
+the backdrop ask "Discard your changes?" inside the dialog (never
+`window.confirm`); "Keep editing" returns to the field. `Confirm` is an
+`alertdialog` for irreversible acts only: opens on Cancel, the backdrop
+does nothing, Escape cancels. `size`: `s`, `m`, `l`; a bottom sheet under
+520 px.
+
+### PeoplePicker
+
+```tsx
+<PeoplePicker label={t.guests} multiple value={guests} onChange={setGuests} name="guests"
+  search={q => searchPeople(q)}               // the tool's server action, or localSearch(team)
+  suggestions={recentPeople} labels={kitWords[locale].peoplePicker} lang={locale} />
+```
+
+The ARIA 1.2 combobox (`aria-activedescendant`, arrows wrap, Enter
+chooses, Escape closes, Backspace removes the last chip). Choices are
+`{ kind?: "member" | "group", id, name, detail?, photo?, size? }`: Chest
+groups appear under their own heading with their size. Nothing typed:
+`suggestions` (the person's recent choices first — keep them with
+`rememberRecent`). The search rule (`matches`, `searchChoices`,
+`localSearch`): accents and case aside, the start of any word of the name,
+words in any order ("lé", "mor", "lea mo"), recent first, then groups,
+then people, 50 at most. With `name`, hidden inputs carry the ids.
+
+### DateField, Calendar, DayStrip, TimeSelect
+
+```tsx
+<DateField label={t.due} value={due} onChange={setDue} today={today} min={today} name="due" labels={kitWords[locale].date} />
+<DayStrip days={next10} current={day} today={today} href={d => `/chest?day=${d}`} link={Link} labels={kitWords[locale].date} />
+<TimeSelect id="start" value={slot.start} onChange={s => setSlot(moveStart(slot, s))} step={15} />
+<TimeSelect id="end" value={slot.end} onChange={e => setSlot(moveEnd(slot, e))} end />
+```
+
+`DateField`'s value is an ISO date or `null`. It reads what people type in
+their language (`parseDate`: "29/09/2026", "29/9", "29 sept", "1er
+octobre", "Oct 5, 2026", "demain", ISO), says a wrong date in words,
+writes the day in full under the field ("Tomorrow · Wednesday 30
+September 2026"), offers Today and Tomorrow chips (or `chips`), and a
+calendar popover (the WAI-ARIA date picker: arrows, Home/End, Page
+Up/Down, Shift for a year). Never `<input type="date">`. `DayStrip`:
+Rooms' strip of big day tiles (links or buttons), scrolling sideways on a
+phone. `TimeSelect`: a 24-hour list every `step` minutes, `end` offers
+24:00; `moveStart` keeps the duration when the start moves (the Rooms
+bug), `moveEnd` never lets the end pass the start.
+
+### FilePicker
+
+```tsx
+const [files, setFiles] = useState<readonly PickedFile[]>([]);
+<FilePicker label={t.receipts} files={files} onChange={setFiles} maxFiles={5} maxSize={10 << 20}
+  accept={["image/*", ".pdf"]} capture="environment" name="receipts" labels={kitWords[locale].files}
+  upload={async (file, { onProgress, signal }) => {
+    const grant = await askUploadUrl(file.type, file.size);          // the tool's server: files.uploadUrl
+    if (!grant.ok) return { ok: false, error: t.errors[grant.error] };
+    const sent = await putWithProgress(grant.url, file, { headers: { "Content-Type": file.type }, onProgress, signal });
+    return sent.status < 300 ? { ok: true, ref: grant.name } : { ok: false, error: t.errors.upload };
+  }} />
+```
+
+Several files by the button or by dropping them; the limits said before
+one tries ("Up to 5 files, 10 MB each. Accepted: image, PDF."); refusals
+per file (too big, wrong kind, too many); progress per file; remove
+(aborts an upload in flight) and retry. `filesReady(files)` before a
+form submits. Without `upload`, files stay in the browser (an importer
+reads `file`). **Sniffing the bytes on the server stays the tool's job**
+(Hiring's `lib/cv.ts`).
+
+### DataTable and Menu
+
+```tsx
+<DataTable caption={t.quotes} rows={rows} rowKey={r => r.id} rowName={r => r.number}
+  columns={[
+    { key: "number", label: t.number, value: r => r.number, rowHeader: true, width: "narrow" },
+    { key: "client", label: t.client, value: r => r.client },
+    { key: "state", label: t.state, render: r => <StatusBadge tone={tones[r.state]} label={t.states[r.state]} /> },
+    { key: "total", label: t.total, value: r => r.total, render: r => r.totalText, align: "end" },
+  ]}
+  totals={{ total: grandTotalText }} actions={r => [{ label: t.duplicate, onSelect: … }, { label: t.delete, tone: "danger", onSelect: … }]}
+  sort={sort} sortHref={s => `?sort=${s.key}&dir=${s.dir}`} empty={<EmptyState … />} labels={kitWords[locale].table} />
+```
+
+Sticky header (and totals) inside a scrolling region reachable by the
+keyboard; sortable columns (those with `value`) with `aria-sort`; sorting
+by the tool (`sort` + `onSort`, or `sortHref` for a server sort in the
+address) or, without them, here after a click; a row header per row;
+`hideOnPhone` columns; a `Menu` of rare actions per row (the ARIA menu
+button: arrows, Home/End, a letter, Escape returns focus). `Menu` is also
+usable alone.
+
+### Filters and SearchBox
+
+```tsx
+<Filters path="/chest/quotes" params={searchParams} link={Link} labels={kitWords[locale].filters}
+  groups={[{ key: "state", label: t.state, all: true, options: states.map(s => ({ value: s, label: t.states[s], count: counts[s] })) }]} />
+<SearchBox action="/chest/quotes" value={q} keep={{ state }} labels={kitWords[locale].search} />
+```
+
+Filters are links (`filterHref`: a chip toggles, the search stays, the
+page resets): a filtered list is shareable and Back works, with or without
+script; counts on each chip; "Clear filters" when one is on. `SearchBox`
+is a GET form (`role="search"`), "/" focuses it from anywhere but a field
+(`shortcut`), or `onSearch` for a list filtered in the page.
+
+### EmptyState, Avatar, AvatarStack, StatusBadge, Tabs, Segmented
+
+- `EmptyState({ title, body, action, example, note, icon })`: pass
+  `action` only when the viewer may act; otherwise `note` says who can
+  ("An admin adds the rooms."); `example` is "Start with an example".
+- `Avatar({ name, photo, size: "s"|"m"|"l"|"xl", label })`: decorative
+  unless `label`; `AvatarStack({ people, max })`: every face readable,
+  "+2", the names said once.
+- `StatusBadge({ tone: "ok"|"wait"|"danger"|"info"|"neutral", label })`:
+  a shape **and** a word; `category={1…8}` for a category chip (its label
+  is what tells it).
+- `Tabs({ items: [{ id, label, count, href }], current, label })`: links
+  when the items have `href` (the usual case), else a tab list with a
+  roving focus and a panel. `Segmented`: 2 to 4 native radios.
+
+### AppShell, Nav, PageHeader — the one navigation rule
+
+```tsx
+// components/shell.tsx of a Next.js tool ("use client")
+const path = usePathname();
+<AppShell brand={<a href="/chest"><Mark />{t.name}</a>} nav={items} path={path} link={Link}
+  member={{ name, role: t.roles[role], photo }} labels={kitWords[locale].shell}>{children}</AppShell>
+```
+
+Sections are **labelled tabs, never icons alone, never hidden** (no
+hamburger, no "···"): in the header on a wide screen, in a row of their
+own under it under 760 px (icon above the word, five at most). The member
+chip at the right ("Camille Martin · Manager"; on a phone the name is
+read, the avatar shown). `PageHeader({ title, intro, action })`: the
+page's main action at the right of its title, a full-width button under
+it on a phone. `NoAccess` for a role that gives nothing; `LanguageSwitch`
+(public part) with `storeLanguages` (from `/components/logic`); `BrandMark({ logo })` for
+`look.logo`; `NavLink` / `isCurrent` for other links;
+`useAutoRefresh(router.refresh, 20)` (the Chest has no WebSocket).
+
+Every component is in `gallery/components.html` (`npm run gallery`), in
+the Chest look, Workshop, Library and a brand, light and dark, English
+and French, working.
+
 ## Develop
 
 ```sh
 npm ci
 npm test                # build dist/, compile the tests into build/, run them (node --test)
 npm run check:package   # npm pack, install into a temp project, import every subpath from Node and esbuild, type-check a TS consumer
-npm run gallery         # ui/gallery/index.html
+npm run gallery         # ui/gallery/index.html and ui/gallery/components.html
 npm run fonts           # fetch the catalogue's fonts again (network)
 ```
 
-`src/` holds the modules, `test/` the tests and `test/fixtures/` realistic
+`src/` holds the modules (`src/components/` the React components and their
+pure rules), `css/` the components' stylesheet, `test/` the tests and `test/fixtures/` realistic
 brand files, `scripts/` the fonts, gallery and package scripts,
 `tokens/CONTRACT.md` the contract. TypeScript strict, ES2022, NodeNext.
 Adding a theme: a source in `src/themes.ts` (the tests then hold it to

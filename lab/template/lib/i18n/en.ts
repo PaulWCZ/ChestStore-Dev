@@ -18,7 +18,7 @@ export const en = {
   },
   notFound: {
     title: "Nothing here",
-    body: "This page does not exist, or it was removed.",
+    body: "This page does not exist, or it was deleted.",
     back: "Back to the notes",
   },
   roles: {
@@ -58,8 +58,16 @@ export const en = {
     pinned: "Pinned",
     remove: "Delete",
     removed: "Note deleted.",
-    undo: "Undo",
     readOnly: "You can read the notes. Ask a manager to let you post.",
+  },
+  // The toasts' words (the kit's ToastWords: @argentic/chest-ui/components).
+  toast: {
+    region: "Notifications",
+    undo: "Undo",
+    undoing: "Undoing…",
+    undone: "Undone.",
+    undoFailed: "It could not be undone. Try again from the page.",
+    dismiss: "Dismiss",
   },
   errors: {
     forbidden: "Your role does not allow this.",

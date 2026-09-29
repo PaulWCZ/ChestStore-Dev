@@ -8,6 +8,10 @@ export const locales = ["en", "fr"] as const;
 export type Locale = (typeof locales)[number];
 export const defaultLocale: Locale = "en";
 
+// Each language named in itself, never translated (the public part's
+// language switch).
+export const languageNames: Record<Locale, string> = { en: "English", fr: "Français" };
+
 // A catalogue has the shape of the English one, every leaf a string.
 type Shape<T> = { readonly [K in keyof T]: T[K] extends string ? string : Shape<T[K]> };
 export type Catalogue = Shape<typeof en>;

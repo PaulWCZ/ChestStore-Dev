@@ -31,7 +31,7 @@
   "translations": {
     "fr": {
       "title": "Recrutement",
-      "description": "Publiez vos offres sur votre page carrières, sur Google et Indeed, et choisissez vos candidats ensemble : un tableau par offre, les CV, les emails, les entretiens.",
+      "description": "Publiez vos offres sur votre page carrières, Google et Indeed, et recrutez ensemble : un tableau par offre, les CV, les e-mails, les entretiens.",
       "role_labels": {
         "recruiter": "Recruteur",
         "interviewer": "Intervieweur"

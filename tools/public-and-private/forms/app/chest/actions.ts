@@ -17,6 +17,12 @@ import { isTemplate, template } from "../../lib/templates.ts";
 import * as uploads from "../../lib/uploads.ts";
 import { zonedInstant } from "../../lib/zone.ts";
 import * as chest from "@argentic/chest-sdk/chest";
+import { ChestError } from "@argentic/chest-sdk/errors";
+import { saveSites } from "../../lib/embed.ts";
+import * as files from "@argentic/chest-sdk/files";
+import { acceptImage, imageUrl } from "../../lib/images.ts";
+import { languageFor, type Image } from "../../lib/model.ts";
+import { notify } from "../../lib/notify.ts";
 
 // The server actions of the members' part. Each is an endpoint anyone can
 // call: each reads the member from the Chest's assertion again, and the
@@ -39,6 +45,12 @@ export async function createForm(key: string): Promise<Result> {
 
 export async function saveDraft(id: string, text: string, revision: number): Promise<Result<{ revision: number }>> {
   return attempt(async () => forms.saveDraft(db(), await currentMember(), id, text, revision));
+}
+
+// keepMine: after a conflict, the editor chose to keep their version over
+// the one saved meanwhile (the builder asked them).
+export async function keepMine(id: string, text: string): Promise<Result<{ revision: number }>> {
+  return attempt(async () => forms.overwriteDraft(db(), await currentMember(), id, text));
 }
 
 export async function publishForm(id: string): Promise<Result<{ version: number; slug: string }>> {
@@ -137,6 +149,69 @@ export async function saveSettings(id: string, json: string): Promise<Result> {
   return result;
 }
 
+// setCover: a picture the editor's browser sent (its ticket), or null.
+export async function setCover(id: string, ticket: string | null): Promise<Result<{ cover: Image | null; url: string | null }>> {
+  const result = await attempt(async () => {
+    const actor = await currentMember();
+    await forms.open(db(), actor, id, "editor");
+    const cover = ticket === null ? null : await acceptImage(ticket, "covers");
+    const replaced = await forms.setCover(db(), actor, id, cover);
+    if (replaced) await files.delete(replaced).catch(() => false);
+    return { cover, url: await imageUrl(cover, "team") };
+  });
+  done();
+  return result;
+}
+
+// acceptPicture: a picture for a picture choice; the builder puts it in the
+// option (the draft saves it).
+export async function acceptPicture(id: string, ticket: string): Promise<Result<{ image: Image; url: string | null }>> {
+  return attempt(async () => {
+    await forms.open(db(), await currentMember(), id, "editor");
+    const image = await acceptImage(ticket, "pictures");
+    return { image, url: await imageUrl(image, "team") };
+  });
+}
+
+// followAnswer: new, in progress or done, and a note; on a team form the
+// person who sent it is told in the bell, in their language.
+export async function followAnswer(id: string, answerId: string, input: { status?: string; note?: string }): Promise<Result> {
+  const result = await attempt(async () => {
+    const { answer, form, told } = await answers.follow(db(), await currentMember(), id, answerId, input);
+    if (told && form.audience === "team" && answer.respondent) {
+      const title = (await forms.versionOf(db(), form.id, answer.version))?.title ?? form.draft.title;
+      await notify([answer.respondent], t => ({ title: format(t.follow.bell[answer.status], { form: title || t.builder.untitled }), ...(answer.note ? { body: answer.note } : {}) }), { path: `/chest/sent/${answer.id}`, key: `sent:${answer.id}` });
+    }
+    return null;
+  });
+  done();
+  return result;
+}
+
+// The websites allowed to show the public forms in a frame (managers).
+export async function saveEmbedSites(text: string): Promise<Result<{ sites: string[] }>> {
+  const result = await attempt(async () => ({ sites: await saveSites(db(), await currentMember(), text) }));
+  done();
+  return result;
+}
+
+// People to share a form with, as the owner types a name: the members who
+// have the tool (the Chest searches first and last names, accents aside).
+export async function findPeople(query: string): Promise<Result<{ id: string; name: string; photo: string | null; role: string | null }[]>> {
+  return attempt(async () => {
+    const actor = await currentMember();
+    if (!actor || !can(actor, "forms.create")) throw new AppError("forbidden");
+    const q = typeof query === "string" ? query.trim().slice(0, 60) : "";
+    try {
+      const page = await members.list({ limit: 8, ...(q ? { q } : {}) });
+      return page.members.filter(m => m.role !== null && m.id !== actor.id).map(m => ({ id: m.id, name: m.name, photo: m.photo, role: m.role }));
+    } catch (error) {
+      if (error instanceof ChestError) throw new AppError("unavailable");
+      throw error;
+    }
+  });
+}
+
 // share: a member of the Chest who has the tool, at a level, or taken off.
 export async function shareForm(id: string, memberId: string, level: "editor" | "viewer" | null): Promise<Result> {
   const result = await attempt(async () => {
@@ -172,7 +247,8 @@ export async function answerTeam(payload: string): Promise<Taken> {
     if (!found || found.form.audience !== "team") throw new AppError("not_found");
     // No revalidation here: the page would re-render as "already answered"
     // under the respondent's thank-you. Every page is rendered per request.
-    return await take(db(), found.form, p, actor, isLocale(actor.locale) ? actor.locale : "en");
+    // The language the member read the form in: theirs, or the form's own.
+    return await take(db(), found.form, p, actor, languageFor(found.definition, isLocale(actor.locale) ? actor.locale : "en"));
   } catch (error) {
     if (error instanceof AppError) return { ok: false, error: error.code };
     console.error("answer not saved", error instanceof Error ? error.name + ": " + error.message : "error");

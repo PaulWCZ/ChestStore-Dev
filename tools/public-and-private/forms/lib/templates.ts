@@ -2,7 +2,7 @@
 // member's language. Their words are in the catalogues (templates.*): a new
 // language translates them there, nothing here.
 import type { Catalogue } from "./i18n/index.ts";
-import { blank, newId, newQuestion, type Definition, type Kind, type Question, type Settings } from "./model.ts";
+import { blank, isLanguage, newId, newQuestion, type Definition, type Kind, type Question, type Settings } from "./model.ts";
 
 export const templateKeys = ["blank", "contact", "event", "feedback", "job", "it", "pulse"] as const;
 export type TemplateKey = (typeof templateKeys)[number];
@@ -18,7 +18,15 @@ const page = (questions: Question[], title = "") => ({ id: newId(), title, quest
 
 export type Template = { definition: Definition; settings: Partial<Pick<Settings, "audience" | "once" | "layout" | "accent" | "sendCopy" | "anonymous">> };
 
+// A new form is written in the language of the person who starts it: the
+// respondent's page then speaks that language, or the form's second one.
 export function template(key: TemplateKey, t: Catalogue): Template {
+  const made = build(key, t);
+  if (isLanguage(t.meta.lang)) made.definition.language = t.meta.lang;
+  return made;
+}
+
+function build(key: TemplateKey, t: Catalogue): Template {
   const w = t.templates;
   switch (key) {
     case "blank":

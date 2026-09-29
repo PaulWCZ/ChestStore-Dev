@@ -59,7 +59,7 @@ export function DataTable<R>({ caption, showCaption = false, columns, rows, rowK
 
   if (rows.length === 0 && empty) return <>{empty}</>;
   const align = (c: Column<R>) => (c.align && c.align !== "start" ? ` ck-align-${c.align}` : "");
-  const hide = (c: Column<R>) => (c.hideOnPhone ? " ck-hide-phone" : "");
+  const hide = (c: Column<R>) => (c.hideOnPhone ? " ck-hide-phone" : "") + (c.width ? " ck-col-" + c.width : "");
 
   return (
     <div className="ck-table-wrap" role="region" aria-label={fill(labels.scroll, { caption })} tabIndex={0}>
@@ -73,7 +73,7 @@ export function DataTable<R>({ caption, showCaption = false, columns, rows, rowK
               const next = nextSort(active, c.key);
               const inner = <>{c.label}<SortIcon dir={state === "ascending" ? "asc" : state === "descending" ? "desc" : "none"} /></>;
               return (
-                <th key={c.key} scope="col" aria-sort={sortable && state !== "none" ? state : undefined} className={`${align(c)}${hide(c)}${c.width ? " ck-col-" + c.width : ""}`.trim() || undefined}>
+                <th key={c.key} scope="col" aria-sort={sortable && state !== "none" ? state : undefined} className={`${align(c)}${hide(c)}`.trim() || undefined}>
                   {!sortable ? c.label : sortHref ? (
                     <a className="ck-sort" href={sortHref(next)}>{inner}</a>
                   ) : (

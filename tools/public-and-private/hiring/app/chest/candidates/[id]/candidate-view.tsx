@@ -11,7 +11,7 @@ import { fileSize, format, intl, languageNames, plural } from "../../../../lib/i
 import type { Catalogue } from "../../../../lib/i18n/index.ts";
 import type { Message } from "../../../../lib/messages.ts";
 import { isCandidateReason, languages, limits, recommendations, type Language, type RejectReason } from "../../../../lib/model.ts";
-import { durations, startTimes } from "../../../../lib/time.ts";
+import { addDays, durations, startTimes } from "../../../../lib/time.ts";
 import { cvAccept, uploadCv } from "../../../../lib/upload.ts";
 import { addNote, askFeedback, busyTimes, cancelAsk, cancelInterview, considerFor, editCandidate, eraseCandidate, giveFeedback, moveCandidate, rejectCandidate, removeNote, restoreCandidate, scheduleInterview, setCv, setPool, writeTo, writtenOutside } from "../../actions.ts";
 import { ReasonPicker } from "../../jobs/[id]/board-view.tsx";
@@ -134,7 +134,7 @@ export function CandidateActions({ jobId, candidate, stages, next, askable, draf
         <WriteForm candidate={candidate} write={write} t={t} onDone={() => setDialog(null)} />
       </Dialog>
       <Dialog open={dialog === "interview"} title={format(t.interview.dialogTitle, { name: candidate.name })} closeLabel={t.common.close} onClose={() => setDialog(null)}>
-        <InterviewForm candidate={candidate} interview={interview} t={t} onDone={() => setDialog(null)} />
+        <InterviewForm candidate={candidate} interview={interview} locale={locale} t={t} onDone={() => setDialog(null)} />
       </Dialog>
       <Dialog open={dialog === "move"} title={w.moveTo} closeLabel={t.common.close} onClose={() => setDialog(null)}>
         <ul className="pick-list stage-picks">
@@ -297,7 +297,7 @@ function WriteForm({ candidate, write, t, onDone }: { candidate: { id: string; n
 // long, who meets them — with the times they are already in an interview
 // that day —, where, a word for the candidate. The candidate gets an
 // email with an .ics; the interviewers see it in their Chest calendar.
-function InterviewForm({ candidate, interview, t, onDone }: { candidate: { id: string; name: string }; interview: { people: { id: string; name: string }[]; preselected: string[]; today: string; zone: string; zoneId: string }; t: ActionWords; onDone: () => void }) {
+function InterviewForm({ candidate, interview, locale, t, onDone }: { candidate: { id: string; name: string }; locale: string; interview: { people: { id: string; name: string }[]; preselected: string[]; today: string; zone: string; zoneId: string }; t: ActionWords; onDone: () => void }) {
   const toast = useToast();
   const [pending, start] = useTransition();
   const [day, setDay] = useState("");
@@ -309,6 +309,15 @@ function InterviewForm({ candidate, interview, t, onDone }: { candidate: { id: s
   const [error, setError] = useState<string | null>(null);
   const w = t.interview;
   const names = new Map(interview.people.map(p => [p.id, p.name]));
+  // The next 90 days in words ("Thursday 1 October"): a native date field
+  // follows the browser's own locale, not the member's.
+  const days = useMemo(() => {
+    const words = new Intl.DateTimeFormat(intl(locale), { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" });
+    return Array.from({ length: 90 }, (_, i) => {
+      const value = addDays(interview.today, i);
+      return { value, label: words.format(new Date(value + "T12:00:00Z")) };
+    });
+  }, [interview.today, locale]);
   const chosen = [...people];
   useEffect(() => {
     if (!day || chosen.length === 0) {
@@ -341,7 +350,10 @@ function InterviewForm({ candidate, interview, t, onDone }: { candidate: { id: s
       <div className="three">
         <div className="field-block">
           <label className="label" htmlFor="iv-day">{w.day}</label>
-          <input id="iv-day" type="date" className="field" required min={interview.today} value={day} onChange={e => setDay(e.target.value)} />
+          <select id="iv-day" className="field" required value={day} onChange={e => setDay(e.target.value)}>
+            <option value="">…</option>
+            {days.map(d => <option key={d.value} value={d.value}>{d.label}</option>)}
+          </select>
         </div>
         <div className="field-block">
           <label className="label" htmlFor="iv-time">{format(w.time, { zone: interview.zone })}</label>

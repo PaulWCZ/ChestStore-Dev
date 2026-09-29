@@ -6,6 +6,7 @@ import { AppError } from "../lib/app-error.ts";
 import { db } from "../lib/db.ts";
 import { bySlug } from "../lib/forms.ts";
 import { admit, checkForm } from "../lib/guard.ts";
+import { isLanguage, languageFor } from "../lib/model.ts";
 import { readPayload, take, type Taken } from "../lib/respond.ts";
 
 // The public forms' one action: anyone on the Internet may call it. It
@@ -22,7 +23,8 @@ export async function answerPublic(payload: string): Promise<Taken> {
     const found = await bySlug(sql, p.slug);
     if (!found || found.form.audience !== "public") throw new AppError("not_found");
     await admit(sql, h, "answer");
-    return await take(sql, found.form, p, null, visitors.language(h));
+    const wanted = visitors.language(h);
+    return await take(sql, found.form, p, null, languageFor(found.definition, isLanguage(wanted) ? wanted : "en"));
   } catch (error) {
     if (error instanceof AppError) return { ok: false, error: error.code };
     console.error("answer not saved", error instanceof Error ? error.name + ": " + error.message : "error");
