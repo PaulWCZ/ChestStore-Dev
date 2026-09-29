@@ -109,8 +109,6 @@ export const fr: Catalogue = {
     other: "Proposer « Autre », à écrire soi-même",
     dates: "Jours proposés",
     datesHint: "Touchez les jours qui pourraient convenir.",
-    previousMonth: "Mois précédent",
-    nextMonth: "Mois suivant",
     noDays: "Aucun jour choisi pour l’instant.",
     allDay: "Toute la journée",
     addTime: "Ajouter un horaire",

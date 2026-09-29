@@ -91,8 +91,14 @@ in Workshop and High contrast).
   anonymous poll for good asks first in the kit's `Confirm`.
 - **The composer** uses the kit's `PeoplePicker`, `DateField` (the closing
   day) and `TimeSelect` (half hours; a slot keeps its length when its start
-  moves). The days to propose stay Polls' own month grid: several days are
-  tapped at once, which the kit's one-day calendar does not do.
+  moves). The days to propose are the kit's `Calendar` in its multiple
+  mode, inline (several days tapped one after another; arrows, Page
+  Up/Down, Enter or Space), dressed in Polls' dashed today and chosen days
+  on their ledge. The admin's "Everyone can start a poll" is the kit's
+  `Switch` (it takes effect at once); the composer's on/off choices wait
+  for Send, so they stay Polls' own chunky checkboxes. Chips, counters and
+  tags take `--radius-chip` (square in a square theme); fields the
+  contract's `--field-pad-x`, so they line up with the kit's.
 
 ## Icon
 

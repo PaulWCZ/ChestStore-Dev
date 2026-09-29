@@ -20,7 +20,6 @@ export const Mask = () => <Icon><path d="M3 8c3-1.5 6-1.5 9 0 3-1.5 6-1.5 9 0 0 
 export const Eye = () => <Icon><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z" /><circle cx="12" cy="12" r="2.8" /></Icon>;
 export const Star = () => <Icon><path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.8l-5.2 2.8 1-5.8-4.3-4.1 5.9-.9z" /></Icon>;
 export const Back = () => <Icon><path d="M15 5l-7 7 7 7" /></Icon>;
-export const Next = () => <Icon><path d="M9 5l7 7-7 7" /></Icon>;
 export const Up = () => <Icon><path d="M6 14l6-6 6 6" /></Icon>;
 export const Down = () => <Icon><path d="M6 10l6 6 6-6" /></Icon>;
 export const Trash = () => <Icon><path d="M4.5 7h15M9.5 7V4.5h5V7M6.5 7l1 12.5h9l1-12.5" /></Icon>;

@@ -1,10 +1,10 @@
 "use client";
 
-import { DateField, PeoplePicker, TimeSelect, useToast } from "@argentic/chest-ui/components";
+import { Calendar, DateField, PeoplePicker, TimeSelect, useToast } from "@argentic/chest-ui/components";
 import { endOfDay, moveEnd, moveStart, timeText } from "@argentic/chest-ui/components/logic";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { Back, Cross, Down, KindIcon, Mask, Next, Plus, Repeat as RepeatIcon, Send, Trash, Up } from "../../components/icons.tsx";
+import { Back, Cross, Down, KindIcon, Mask, Plus, Repeat as RepeatIcon, Send, Trash, Up } from "../../components/icons.tsx";
 import { format, plural } from "../../lib/i18n/format.ts";
 import type { Catalogue } from "../../lib/i18n/index.ts";
 import { editPoll, savePoll, searchPeople } from "./actions.ts";
@@ -38,13 +38,10 @@ function moveSlotEnd(slot: Slot, end: number | null): Slot {
   return { start: timeText(moved.start), end: timeText(moved.end) };
 }
 
-function monthGrid(year: number, month: number): (string | null)[] {
-  const first = new Date(Date.UTC(year, month, 1));
-  const offset = (first.getUTCDay() + 6) % 7;
-  const days = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
-  const cells: (string | null)[] = Array.from({ length: offset }, () => null);
-  for (let d = 1; d <= days; d++) cells.push(`${year}-${String(month + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`);
-  return cells;
+// The last day a date poll offers: the end of the month a year from today.
+function lastOffered(today: string): string {
+  const d = new Date(Date.UTC(Number(today.slice(0, 4)), Number(today.slice(5, 7)) - 1 + 13, 0, 12));
+  return d.toISOString().slice(0, 10);
 }
 
 export function Composer({ mode, pollId, initial, groups, today, monthNames, weekdayNames, locale, round, t }: {
@@ -67,10 +64,6 @@ export function Composer({ mode, pollId, initial, groups, today, monthNames, wee
   const withKeys = (qs: Omit<Question, "key">[]): Question[] => qs.map(q => ({ ...q, key: nextKey.current++ }));
   const [value, setValue] = useState<ComposerValue>(initial);
   const [questions, setQuestions] = useState<Question[]>(() => initial.questions.map((q, i) => ({ ...q, key: i })));
-  const [month, setMonth] = useState(() => {
-    const start = initial.days[0]?.day ?? today;
-    return { year: Number(start.slice(0, 4)), month: Number(start.slice(5, 7)) - 1 };
-  });
   const [busy, setBusy] = useState<"send" | "save" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const restored = useRef(false);
@@ -175,14 +168,6 @@ export function Composer({ mode, pollId, initial, groups, today, monthNames, wee
   }
   const onSubmit = (e: FormEvent) => { e.preventDefault(); void submit(!locked); };
 
-  const grid = monthGrid(month.year, month.month);
-  const thisMonth = Number(today.slice(0, 4)) * 12 + Number(today.slice(5, 7)) - 1;
-  const shownMonth = month.year * 12 + month.month;
-  const moveMonth = (step: number) => setMonth(m => {
-    const n = m.year * 12 + m.month + step;
-    return { year: Math.floor(n / 12), month: n % 12 };
-  });
-
   return (
     <form className="composer" onSubmit={onSubmit} noValidate>
       <a className="back" href="/chest"><Back />{c.cancel}</a>
@@ -238,21 +223,10 @@ export function Composer({ mode, pollId, initial, groups, today, monthNames, wee
         <section className="card" aria-labelledby="days">
           <h2 id="days">{c.dates}</h2>
           <p className="hint">{c.datesHint}</p>
-          <div className="cal">
-            <div className="cal-head">
-              <button type="button" className="icon-button" disabled={shownMonth <= thisMonth} onClick={() => moveMonth(-1)}><Back /><span className="visually-hidden">{c.previousMonth}</span></button>
-              <strong aria-live="polite">{monthNames[month.month]} {month.year}</strong>
-              <button type="button" className="icon-button" disabled={shownMonth >= thisMonth + 12} onClick={() => moveMonth(1)}><Next /><span className="visually-hidden">{c.nextMonth}</span></button>
-            </div>
-            <div className="cal-grid">
-              {weekdayNames.map(w => <span key={w} className="wd" aria-hidden="true">{w}</span>)}
-              {grid.map((day, i) => day === null ? <span key={"x" + i} /> : (
-                <button key={day} type="button" className={"cal-day" + (day === today ? " today" : "")} disabled={day < today} aria-pressed={value.days.some(d => d.day === day)} aria-label={dayLabel(day)} onClick={() => toggleDay(day)}>
-                  {Number(day.slice(8))}
-                </button>
-              ))}
-            </div>
-          </div>
+          {/* Several days, tapped one after another (the kit's calendar, in
+              its multiple mode: arrows, Page Up/Down, Enter or Space adds or
+              takes a day away). From today to a year ahead. */}
+          <Calendar className="cal" inline multiple value={null} selected={value.days.map(d => d.day)} today={today} min={today} max={lastOffered(today)} labelledBy="days" labels={t.date} onPick={toggleDay} />
           {value.days.length === 0 ? <p className="hint">{c.noDays}</p> : (
             <div className="chosen-days">
               {value.days.map(d => (

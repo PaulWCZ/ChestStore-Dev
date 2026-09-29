@@ -290,6 +290,6 @@ In the studio: `node lab/chest-dev/dev.mjs tools/private/polls --prod --reset
   importing for short-lived polls.)
 - **An export of every poll at once** for an admin: one CSV per poll.
 - Participants adding options; ranking questions; a date picker showing
-  more than one month (the days to propose are Polls' own month grid: the
-  kit's calendar picks one day, not several); calendar conflict hints on dates; time zones other
+  more than one month (the days to propose are the kit's calendar, one
+  month at a time); calendar conflict hints on dates; time zones other
   than the Chest's for date options; push reminders.

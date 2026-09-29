@@ -82,8 +82,8 @@ await step("find a date: tap days, add a time, send", async () => {
   await page.goto(origin + "/chest/new?kind=date");
   await page.getByLabel("What is it for?").fill("Team dinner");
   await page.getByRole("button", { name: "Next month" }).click();
-  await page.locator(".cal-day", { hasText: /^12$/u }).click();
-  await page.locator(".cal-day", { hasText: /^13$/u }).click();
+  await page.locator(".cal .ck-day:not(.ck-day-out)", { hasText: /^12$/u }).click();
+  await page.locator(".cal .ck-day:not(.ck-day-out)", { hasText: /^13$/u }).click();
   await page.locator(".chosen-day").first().getByRole("button", { name: "Add a time" }).click();
   // The start moves: the end follows, the slot keeps its two hours (12:00–14:00 → 18:00–20:00).
   await page.getByLabel("From", { exact: true }).first().selectOption({ label: "18:00" });

@@ -52,14 +52,16 @@ npm ci && npm test && npm run build   # all three must pass
   for decoration only. A kind or an answer always has its icon and word.
 - **Kit components first** (`@argentic/chest-ui/components`): `AppShell`,
   `BrandMark`, `NoAccess`, `Toasts`/`useToast`, `Confirm`, `PeoplePicker`,
-  `DateField`, `TimeSelect`, `Avatar`, `StatusBadge`, `EmptyState`,
+  `DateField`, `Calendar` (multiple, inline: the days of a date poll),
+  `TimeSelect`, `Switch` (the admin's policy), `Avatar`, `StatusBadge`, `EmptyState`,
   `PageHeader`, `LanguageSwitch`, `useAutoRefresh`. Their words are the
   `toast`, `peoplePicker` and `date` sections of the catalogues. A reversible
   act → a toast with `undo`; a bell item that left → `sent: true`; the
   irreversible (closing an anonymous poll) → `Confirm`. Never
   `window.confirm`, never `<input type="date">`.
-- Kept on purpose: the multi-day month grid of the composer (the kit's
-  calendar picks one day), the date grid of results (a people × dates
+- Kept on purpose: the composer's on/off choices drawn as chunky switches
+  (they wait for Send — the kit's `Switch` is for what takes effect at
+  once), the date grid of results (a people × dates
   matrix with its best column lit — `DataTable` is a list of records), the
   kind chips with their icons, the chunky answer controls.
 

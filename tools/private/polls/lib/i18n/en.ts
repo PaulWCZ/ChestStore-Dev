@@ -112,8 +112,6 @@ export const en = {
     other: "Allow “Other”, in their own words",
     dates: "Days to propose",
     datesHint: "Tap the days that could work.",
-    previousMonth: "Previous month",
-    nextMonth: "Next month",
     noDays: "No day chosen yet.",
     allDay: "All day",
     addTime: "Add a time",

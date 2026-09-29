@@ -49,13 +49,13 @@
     ]
    },
    {
-    "click": ".cal-head button >> nth=1"
+    "click": ".cal .ck-calendar-head button >> nth=1"
    },
    {
-    "click": ".cal-day >> text=15"
+    "click": ".cal .ck-day:not(.ck-day-out) >> text=/^15$/"
    },
    {
-    "click": ".cal-day >> text=16"
+    "click": ".cal .ck-day:not(.ck-day-out) >> text=/^16$/"
    },
    {
     "click": ".chosen-day >> nth=1 >> text=Add a time"

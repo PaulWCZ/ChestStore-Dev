@@ -1,6 +1,6 @@
 "use client";
 
-import { useToast } from "@argentic/chest-ui/components";
+import { Switch, useToast } from "@argentic/chest-ui/components";
 import { useState } from "react";
 import { format } from "../../lib/i18n/format.ts";
 import type { en } from "../../lib/i18n/en.ts";
@@ -25,10 +25,6 @@ export function PolicySwitch({ on, t }: { on: boolean; t: Words }) {
     }
     toast({ id: "policy", text: t.settings.saved });
   }
-  return (
-    <label className="switch">
-      <input type="checkbox" checked={value} disabled={busy} onChange={e => void change(e.target.checked)} />
-      <span className="switch-text"><strong>{t.settings.membersCreate}</strong><span className="hint">{t.settings.membersCreateHint}</span></span>
-    </label>
-  );
+  // Takes effect at once: the kit's Switch (a checkbox with the switch role).
+  return <Switch className="policy-switch" label={<strong>{t.settings.membersCreate}</strong>} hint={t.settings.membersCreateHint} checked={value} disabled={busy} onChange={next => void change(next)} />;
 }

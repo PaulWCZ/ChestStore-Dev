@@ -18,8 +18,12 @@ tokens (`ui/tokens/CONTRACT.md`) and the tool's own, defined from them
 own: **the five state colours**, in every look (they are meaning —
 `lib/states.ts`, measured against every theme and hundreds of derived
 brands), and, in its own look only, **the dark control-panel header**
-(`[data-look="own"]` in `app/globals.css`: the inverse pair on a light
-page). Any other look keeps the kit's header, like every tool wearing it.
+(`[data-look="own"]` in `app/globals.css`: the contract's `--inverse`
+band with its `--inverse-ink`, `--inverse-ink-2` and `--inverse-line`,
+dark in light and dark mode alike). Any other look keeps the kit's
+header, like every tool wearing it. Incident updates and post-mortems
+read in the look's `--font-read`; chips and state pills take
+`--radius-chip` (square in a square look); fields `--field-pad-x`.
 
 ## Tokens (`lib/theme.ts` for the look, `lib/states.ts` for the states)
 
@@ -73,7 +77,7 @@ panels, one for toasts and dialogs. **Motion**: 120/220 ms, none with
 - **Rows**: past incidents, a 3 px coloured edge.
 - **State label**: icon + word in the state's ink colour.
 - **Buttons**: ink (primary), white with a line (quiet), link; green for
-  *Resolve*; 44 px targets (36 px for icon buttons in dense lists).
+  *Resolve*; 44 px targets (small and link buttons included).
 - **Team frame**: the kit's AppShell — five labelled sections (Now,
   History, Services, Checks, Settings; incidents belong to Now,
   subscribers to Settings), on a phone a row of their own; in the

@@ -41,10 +41,10 @@ time { font-variant-numeric: tabular-nums; }
 .button:hover { background: color-mix(in oklab, var(--accent) 86%, var(--bg)); }
 .button:active { transform: scale(0.98); }
 .button[disabled] { opacity: 0.55; cursor: default; }
-.button.small { min-height: 36px; padding: 0 var(--space-3); font-size: var(--text-s); }
+.button.small { min-height: var(--control-h); padding: 0 var(--space-3); font-size: var(--text-s); }
 .button.quiet { background: var(--surface); color: var(--ink); border-color: var(--line-strong); }
 .button.quiet:hover { background: var(--surface-2); }
-.button.link { background: none; border-color: transparent; color: var(--ink-2); min-height: 36px; padding: 0 var(--space-2); }
+.button.link { background: none; border-color: transparent; color: var(--ink-2); min-height: var(--control-h); padding: 0 var(--space-2); }
 .button.link:hover { color: var(--ink); background: none; }
 .button.link.danger { color: var(--danger); }
 /* "Resolve", "Finish": the operational state's own colour, in every look. */
@@ -56,9 +56,9 @@ time { font-variant-numeric: tabular-nums; }
 .icon-button svg { width: 18px; height: 18px; }
 
 .label { display: block; font-weight: var(--weight-strong); font-size: var(--text-s); margin-bottom: var(--space-2); color: var(--ink); }
-.field { width: 100%; min-height: var(--control-h); padding: var(--space-2) var(--space-3); border: var(--border-width) solid var(--line-strong); border-radius: var(--radius-m); background: var(--surface); }
+.field { width: 100%; min-height: var(--control-h); padding: var(--space-2) var(--field-pad-x); border: var(--border-width) solid var(--line-strong); border-radius: var(--radius-m); background: var(--surface); }
 .field.big { font-size: var(--text-l); font-weight: var(--weight-strong); }
-textarea.field { resize: vertical; line-height: 1.5; padding: var(--space-3); }
+textarea.field { resize: vertical; line-height: 1.5; padding: var(--space-3) var(--field-pad-x); }
 select.field { width: auto; padding-right: var(--space-5); }
 .field:focus { border-color: var(--focus); outline: none; box-shadow: 0 0 0 3px var(--accent-soft); }
 .field[aria-invalid="true"] { border-color: var(--danger); }
@@ -72,7 +72,7 @@ legend { padding: 0; }
 .two { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--space-4); }
 .honey { position: absolute; left: -10000px; width: 1px; height: 1px; overflow: hidden; }
 
-.chip { display: inline-flex; align-items: center; gap: var(--space-1); padding: 1px var(--space-2); border-radius: var(--radius-pill); font-size: var(--text-xs); font-weight: var(--weight-strong); letter-spacing: 0.02em; text-transform: uppercase; background: var(--surface-2); color: var(--ink-2); white-space: nowrap; }
+.chip { display: inline-flex; align-items: center; gap: var(--space-1); padding: 1px var(--space-2); border-radius: var(--radius-chip); font-size: var(--text-xs); font-weight: var(--weight-strong); letter-spacing: 0.02em; text-transform: uppercase; background: var(--surface-2); color: var(--ink-2); white-space: nowrap; }
 .chip.step-investigating { background: var(--s-major-tint); color: var(--s-major-ink); }
 .chip.step-identified { background: var(--s-partial-tint); color: var(--s-partial-ink); }
 .chip.step-monitoring { background: var(--s-degraded-tint); color: var(--s-degraded-ink); }
@@ -94,7 +94,7 @@ legend { padding: 0; }
 .state-label { color: var(--s-ink); }
 .state-label svg { color: var(--s); }
 .state-label.quiet { font-weight: 400; }
-.state-pill { display: inline-flex; padding: 1px var(--space-2); border-radius: var(--radius-pill); background: var(--s-tint); color: var(--s-ink); font-size: var(--text-xs); font-weight: var(--weight-strong); }
+.state-pill { display: inline-flex; padding: 1px var(--space-2); border-radius: var(--radius-chip); background: var(--s-tint); color: var(--s-ink); font-size: var(--text-xs); font-weight: var(--weight-strong); }
 
 /* ---- Public part -------------------------------------------------------- */
 .wrap { width: 100%; max-width: var(--public-width); margin: 0 auto; padding-left: var(--space-5); padding-right: var(--space-5); }
@@ -117,7 +117,7 @@ legend { padding: 0; }
 .postmortem h2 { font-size: var(--text-l); }
 /* The kit's language switch, as the identity drew it: one bordered pair. */
 .public-actions .ck-languages { gap: 0; border: var(--border-width) solid var(--line-strong); border-radius: var(--radius-m); overflow: hidden; }
-.public-actions .ck-language { min-height: 36px; border-radius: 0; font-size: var(--text-s); font-weight: var(--weight-strong); }
+.public-actions .ck-language { border-radius: 0; font-size: var(--text-s); font-weight: var(--weight-strong); }
 .public-actions .ck-language[aria-current="true"] { background: var(--ink); color: var(--bg); }
 .public-main { padding-top: var(--space-6); padding-bottom: var(--space-7); display: grid; gap: var(--space-6); }
 .public-foot { padding-top: var(--space-5); padding-bottom: var(--space-7); border-top: 1px solid var(--line); display: grid; gap: var(--space-3); color: var(--ink-2); font-size: var(--text-s); }
@@ -203,7 +203,8 @@ h1.incident-title { font-size: var(--text-xl); }
 .step-resolved::before, .step-completed::before { background: var(--s-operational) !important; border-color: var(--s-operational) !important; }
 .step-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-1) var(--space-3); }
 .step-head time, .step-head .muted { color: var(--ink-2); font-size: var(--text-s); }
-.prose { display: grid; gap: var(--space-2); margin-top: 2px; }
+.prose { display: grid; gap: var(--space-2); margin-top: 2px; font-family: var(--font-read); }
+.step .body { font-family: var(--font-read); }
 .prose p, .step .body { white-space: pre-line; overflow-wrap: anywhere; }
 .rows { list-style: none; margin: 0; padding: 0; }
 .row-incident { padding: var(--space-4) var(--space-5); border-top: 1px solid var(--line); display: grid; gap: 4px; position: relative; }
@@ -230,19 +231,15 @@ code.copy { display: block; padding: var(--space-3); background: var(--surface-2
 
 /* ---- Team part ---------------------------------------------------------- */
 /* The kit's AppShell. In the identity's own look, its header stays a dark
-   control panel, as Status always drew it: the inverse pair (--ink ground,
-   --bg text) on a light page, the page's own darkest ground on a dark one.
-   Any other look keeps the kit's header, like every tool wearing it. */
-[data-look="own"] .ck-bar { background: var(--ink); border-bottom-color: var(--ink); }
-[data-look="own"] .ck-bar, [data-look="own"] .ck-brand a, [data-look="own"] .ck-bar .ck-nav-link, [data-look="own"] .ck-bar .ck-nav-link:hover, [data-look="own"] .ck-member-name, [data-look="own"] .ck-member-role, [data-look="own"] .ck-bar .public-link { color: var(--bg); }
-[data-look="own"] .ck-bar .ck-nav-link[aria-current="page"] { border-bottom-color: var(--bg); }
-[data-look="own"] .ck-bar-nav { border-top-color: color-mix(in oklab, var(--bg) 25%, var(--ink)); }
-@media (prefers-color-scheme: dark) {
-  [data-look="own"] .ck-bar { background: var(--bg); border-bottom-color: var(--line); }
-  [data-look="own"] .ck-bar, [data-look="own"] .ck-brand a, [data-look="own"] .ck-bar .ck-nav-link, [data-look="own"] .ck-bar .ck-nav-link:hover, [data-look="own"] .ck-member-name, [data-look="own"] .ck-member-role, [data-look="own"] .ck-bar .public-link { color: var(--ink); }
-  [data-look="own"] .ck-bar .ck-nav-link[aria-current="page"] { border-bottom-color: var(--ink); }
-  [data-look="own"] .ck-bar-nav { border-top-color: var(--line); }
-}
+   control panel, as Status always drew it: the contract's region of its own
+   colour (--inverse, dark in both modes, with its measured inks). Any other
+   look keeps the kit's header, like every tool wearing it. */
+[data-look="own"] .ck-bar { background: var(--inverse); border-bottom-color: var(--inverse); }
+[data-look="own"] .ck-bar, [data-look="own"] .ck-brand a, [data-look="own"] .ck-bar .ck-nav-link:hover, [data-look="own"] .ck-bar .ck-nav-link[aria-current="page"], [data-look="own"] .ck-member-name, [data-look="own"] .ck-bar .public-link { color: var(--inverse-ink); }
+[data-look="own"] .ck-bar .ck-nav-link, [data-look="own"] .ck-member-role { color: var(--inverse-ink-2); }
+[data-look="own"] .ck-bar .ck-nav-link[aria-current="page"] { border-bottom-color: var(--inverse-ink); }
+[data-look="own"] .ck-bar-nav { border-top-color: var(--inverse-line); }
+[data-look="own"] .ck-bar :focus-visible { outline-color: var(--inverse-ink); }
 .ck-brand .mark { width: 30px; height: 30px; }
 .public-link { display: inline-flex; align-items: center; gap: 6px; min-height: var(--control-h); color: var(--ink); font-size: var(--text-s); font-weight: var(--weight-strong); text-decoration: none; white-space: nowrap; }
 .public-link:hover { text-decoration: underline; }
