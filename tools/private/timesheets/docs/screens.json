@@ -1,7 +1,7 @@
 [
-  { "name": "week", "path": "/chest", "member": "camille", "locale": "en", "preview": true, "actions": [{ "click": "a[aria-label='Previous week']" }, { "wait": 1200 }] },
-  { "name": "week-fr", "path": "/chest", "member": "ines", "locale": "fr", "actions": [{ "click": "a[aria-label='Semaine précédente']" }, { "wait": 1200 }] },
-  { "name": "week-returned-fr", "path": "/chest", "member": "lea", "locale": "fr", "actions": [{ "click": "a[aria-label='Semaine précédente']" }, { "wait": 1200 }] },
+  { "name": "week", "path": "/chest", "member": "camille", "locale": "en", "preview": true, "actions": [{ "click": "a[aria-label='Previous week']:visible" }, { "wait": 1200 }] },
+  { "name": "week-fr", "path": "/chest", "member": "ines", "locale": "fr", "actions": [{ "click": "a[aria-label='Semaine précédente']:visible" }, { "wait": 1200 }] },
+  { "name": "week-returned-fr", "path": "/chest", "member": "lea", "locale": "fr", "actions": [{ "click": "a[aria-label='Semaine précédente']:visible" }, { "wait": 1200 }] },
   { "name": "reports", "path": "/chest/reports?preset=lastWeek", "member": "camille", "locale": "en" },
   { "name": "reports-fr", "path": "/chest/reports?preset=month&group=person", "member": "camille", "locale": "fr" },
   { "name": "team", "path": "/chest/team", "member": "camille", "locale": "en" },

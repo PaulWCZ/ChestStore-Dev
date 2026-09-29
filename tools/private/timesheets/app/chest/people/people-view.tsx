@@ -79,7 +79,7 @@ export function PersonRow({ person, today, lockedUntil, companyWeek, currency, c
         <dl className="person-facts">
           <div><dt>{w.bill}</dt><dd>{person.billText ?? <span className="muted">{w.noRate}</span>}</dd></div>
           <div><dt>{w.cost}</dt><dd>{person.costText ?? <span className="muted">{w.noRate}</span>}</dd></div>
-          <div><dt>{w.week}</dt><dd className="num">{person.weekText}</dd></div>
+          <div><dt>{w.week}</dt><dd>{person.weekText}</dd></div>
         </dl>
       ) : (
         <form className="person-form" onSubmit={e => { e.preventDefault(); save(); }}>

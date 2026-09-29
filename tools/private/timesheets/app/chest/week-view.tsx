@@ -152,9 +152,9 @@ export function WeekView(props: {
         </div>
       </header>
 
-      {standing.approvals && (
+      {standing.approvals && (standing.status !== "open" || (standing.canSubmit && total > 0)) && (
         <div className={`standing ${standing.status}`} role="status">
-          {standing.status === "open" && standing.canSubmit && (
+          {standing.status === "open" && (
             <>
               <span>{t.week.sendHint}</span>
               <button type="button" className="button" disabled={pending} onClick={send}><Send />{t.week.send}</button>
@@ -162,14 +162,14 @@ export function WeekView(props: {
           )}
           {standing.status === "submitted" && (
             <>
-              <span className="state"><Send />{t.week.submitted}</span>
+              <span className="state"><Send /><span>{t.week.submitted}</span></span>
               <button type="button" className="button link" disabled={pending} onClick={takeBack}>{t.week.takeBack}</button>
             </>
           )}
-          {standing.status === "approved" && <span className="state"><Check />{standing.text}</span>}
+          {standing.status === "approved" && <span className="state"><Check /><span>{standing.text}</span></span>}
           {standing.status === "returned" && (
             <>
-              <span className="state">{standing.text}{standing.reason && <q className="reason">{standing.reason}</q>}</span>
+              <span className="state"><span>{standing.text} {standing.reason && <q className="reason">{standing.reason}</q>}</span></span>
               <button type="button" className="button" disabled={pending} onClick={send}><Send />{t.week.sendAgain}</button>
             </>
           )}
@@ -220,7 +220,8 @@ export function WeekView(props: {
                           const why = c.invoiced ? ` (${t.week.invoiced})` : "";
                           return (
                             <td key={d.day} className={classes + " ro"}>
-                              <span className="num" aria-label={`${label}: ${formatDuration(c.minutes)}${why}${c.note ? `. ${c.note}` : ""}`} title={c.note || undefined}>{c.minutes ? formatDuration(c.minutes) : ""}</span>
+                              <span className="num" aria-hidden="true" title={c.note || undefined}>{c.minutes ? formatDuration(c.minutes) : ""}</span>
+                              <span className="visually-hidden">{`${label}: ${formatDuration(c.minutes)}${why}${c.note ? `. ${c.note}` : ""}`}</span>
                               {c.note && <span className="note-dot static" aria-hidden="true" />}
                             </td>
                           );

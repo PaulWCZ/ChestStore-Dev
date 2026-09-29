@@ -216,6 +216,7 @@ export const en = {
     remind: { one: "Remind {count} person", other: "Remind {count} people" },
     reminded: { zero: "Nobody to remind any more.", one: "{count} person reminded in their bell.", other: "{count} people reminded in their bell." },
     notSent: "Not sent yet.",
+    sentOn: "Sent for approval on {date}.",
     ofUsual: "{billable} billable · usual week {usual}",
     emptyWeek: "No time in this week.",
     notes: "Entries and notes",

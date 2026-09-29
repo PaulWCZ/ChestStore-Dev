@@ -8,7 +8,8 @@ the hour and wants to know where its time goes.
 ## What it does
 
 - **A timer on top of every page**: "What are you working on?", a project
-  (and task), *Start*. One timer per person, kept on the server (its start
+  (and task) found by typing a few words of it (a searchable picker, also
+  in the grid and the day list), *Start*. One timer per person, kept on the server (its start
   instant): it survives a reload, a closed tab, another device (pages
   re-read it every minute and when they come back into view). *Stop* turns
   it into an entry of the day it started, in the Chest's time zone. A timer
@@ -19,6 +20,13 @@ the hour and wants to know where its time goes.
   tested). Totals per day, row and week; *Copy last week's rows*; rows
   added and removed (with *Undo*). Enter and the arrows move down and up the
   column, Tab to the right. A cell holding several entries opens the day.
+  **Each cell has its note** (the note icon, or Shift+Enter): what the
+  time was for, as the client's invoice will say it.
+- **Send my week, approval**: a person sends their week; it waits
+  read-only (they may take it back). A manager approves it — it locks: no
+  one changes it any more — or sends it back with a word, which the person
+  reads on their week. The bell tells the managers of a week to approve,
+  and the person of the answer. The company may turn approvals off.
 - **The day list**: each entry with its project, task, note, time of day
   (from the timer) and billable mark; add, change, delete with *Undo*. **On a
   phone the day list replaces the grid**, with a strip of the week's days.
@@ -27,9 +35,29 @@ the hour and wants to know where its time goes.
   ("203:45 of 220:00 — Almost spent"), tasks (Design, Development,
   Meetings…), closed projects, and who records time on it: everyone, or
   chosen people (only their projects are offered to them).
+- **Rates with a history** (managers): a billable rate per project, per
+  person (their usual rate) and per person on a project (a senior billed
+  more), and a **cost rate** per person. Every rate applies **from a day**:
+  an entry's amount uses the rate in force on its day, so raising a rate
+  never rewrites last year's amounts (a new rate cannot start inside the
+  locked period). An entry's rates are written on it for good once it is
+  invoiced, imported with the old tool's rates, or its author erased.
+- **Budget alerts**: when a project crosses 80 % and then 100 % of its
+  budget (hours, or billable amount), the managers get one bell item each
+  time (checked when time or a budget changes).
+- **Team** (managers): the weeks to approve (one by one, or all); everyone's
+  hours over four weeks against their usual week (the company's 35 h, or
+  their own), who is short in red, and *Remind* — one bell item in each
+  person's language. A person's week opens read-only with every note.
 - **Reports**: this week, last week, this month, last month or chosen days;
-  grouped by project, client, person or task; billable or not; amounts from
-  the rates (managers); a bar per day (per week beyond two months); budgets.
+  grouped by project, client, person or task; billable or not, or
+  billable and not invoiced yet; for managers the amount, the cost and the
+  **margin** (at the rates in force on each day); a warning for billable
+  time without a note; a bar per day (per week beyond two months); budgets.
+  Hours written 4:05 or 4.08, as the company chooses.
+- **Invoiced time** (managers): in "Billable, not invoiced", *Mark N
+  entries as invoiced* once the invoice is out; that time locks and keeps
+  its rates; *Undo* puts it back.
   **CSV export in the reader's language** (French: `;` and decimal commas),
   protected against formula injection. Members see only their own time.
 - **Locked periods**: a manager locks everything up to a date (after
@@ -40,11 +68,18 @@ the hour and wants to know where its time goes.
   and word order aside), clients, projects and tasks created as needed, a
   preview first (who was found, what will be created, what is left out and
   why, day/month order when the dates are ambiguous). Importing the same
-  file twice adds nothing.
+  file twice adds nothing. **People who left before the Chest are kept**
+  as former members (their name, their time, read-only; a manager may
+  forget the name later). Rows in the locked period (or an approved week)
+  are imported **only if the manager answers "Yes, it's history"** — the
+  page asks. Harvest's Billable/Cost Rate and Clockify's rate columns (and
+  Toggl's Amount) come along when in the Chest's currency, so past amounts
+  match the old invoices; Harvest rows marked invoiced come in invoiced.
 - **Friday reminder** (optional, a schedules proposal): on Friday at 15:30,
-  whoever has fewer hours than the threshold (35 h by default) gets one bell
+  whoever is short of their usual week and has not sent it gets one bell
   item in their language — "Your week has 22 h — fill in the rest?". It can
-  be turned off; everything else works without it.
+  be turned off; everything else works without it (the Team page's
+  *Remind* works on any Chest).
 
 It is **not** your company's official working-hours register unless you
 decide so, and it never watches anyone: no screenshots, no activity levels,
@@ -54,8 +89,8 @@ no idle detection.
 
 | Role | Can |
 |---|---|
-| `manager` (Manager / Responsable) | Everything a member can; clients, projects, tasks, rates, budgets, who works on what; everyone's reports, amounts and CSV; locking; import; the reminder's setting |
-| `member` (Member / Membre) | Their own time (timer, week, day) on the projects open to them; their own reports and CSV (no rates) |
+| `manager` (Manager / Responsable) | Everything a member can; clients, projects, tasks, rates and cost rates, usual weeks, budgets, who works on what; approving weeks and reminding; everyone's reports, amounts, costs, margins and CSV; marking time invoiced; locking; import; settings |
+| `member` (Member / Membre) | Their own time (timer, week, day, notes) on the projects open to them; sending their week; their own reports and CSV (never a rate or an amount) |
 
 Nobody changes another person's time. The rules live in `lib/access.ts`;
 every service checks them on the server.
@@ -70,12 +105,15 @@ every service checks them on the server.
   Or type `1:30` in a cell of the week.
 - **Clicks for the main job**: 1 (Start), 1 (Stop). Filling a day in the
   grid: a click and a few keys per cell.
+- **Friday**: *Send my week* above the grid; the answer comes in the bell.
 - **A mistake**: a wrong duration is refused with an example of what works
   and the cell keeps its old value; a deleted entry or row comes back with
   *Undo*; a discarded timer too; a forgotten timer asks instead of counting
   a night; a locked day says why and who to ask.
 - **A new manager**: *Projects* is empty and offers *New project* or *Add an
-  example project*, and the import from Toggl, Clockify or Harvest.
+  example project*, and the import from Toggl, Clockify or Harvest. A
+  member who asks a managers' page reads "This page is for managers"
+  (HTTP 403), not an error.
 
 ## Routes
 
@@ -83,10 +121,13 @@ every service checks them on the server.
 |---|---|
 | `/` | Public host: says the tool lives in the Chest (language switch) |
 | `/chest` | My week (`?week=` a Monday, `?day=` the day listed) |
-| `/chest/reports` | Reports (`preset`, `from`, `to`, `group`, `person`, `kind`) |
-| `/chest/reports/export` | The report's entries as CSV |
-| `/chest/projects`, `/new`, `/[id]` | Clients and projects (managers) |
-| `/chest/settings` | Locked period, Friday reminder (managers) |
+| `/chest/reports` | Reports (`preset`, `from`, `to`, `group`, `person`, `kind`: `all`, `billable`, `non`, `uninvoiced`) |
+| `/chest/reports/export` | The report's entries as CSV (the same parameters; `preset` alone works) |
+| `/chest/projects`, `/new`, `/[id]` | Clients and projects, rates by person on a project (managers) |
+| `/chest/team` | Weeks to approve, hours per week against the usual week, Remind (managers; `until` a Monday) |
+| `/chest/team/[member]` | One person's week, read-only, with notes; approve or send back (`week` a Monday) |
+| `/chest/people` | Rates, cost rates and usual weeks of each person; former people of imports (managers) |
+| `/chest/settings` | Locked period, weekly approval, usual week and Friday reminder, hours style (managers) |
 | `/chest/import` | Import from Toggl, Clockify, Harvest (managers) |
 | `/chest-events` | Members' lifecycle (signed by the Chest) |
 | `/chest-jobs/friday` | The Friday reminder (schedules proposal, signed) |
@@ -98,11 +139,13 @@ every service checks them on the server.
 - **Someone leaves** (or loses access): their running timer stops and
   becomes an entry when plausible (under 10 hours, in an open day; dropped
   otherwise), they leave the projects they were named on, their grid rows
-  go. Their time stays — reports and invoices need it — and reads "Camille
-  Martin (former member)". **An erasure**: the same, then their entries stay
-  for the company's accounts with the author `erased` ("Former member") and
-  their notes cleared; a lock they set forgets who set it; the erasure is
-  acknowledged.
+  go. Their time and rates stay — reports and invoices need them — and read
+  "Camille Martin (former member)". **An erasure**: the same, then their
+  entries stay for the company's accounts with their rates written on them
+  (the amounts do not move), the author `erased` ("Former member") and
+  their notes cleared; their own rates, usual week and approval rows go; a
+  lock, rate, approval or invoicing they did forgets who did it; the
+  erasure is acknowledged.
 - **Nothing runs in the background**: deleted entries are purged after 30
   days on a later request. No WebSocket: pages re-read themselves every
   minute while visible (the timer's state from another device).
@@ -117,6 +160,14 @@ every service checks them on the server.
   day an entry belongs to, "this week"), `currency()` (rates and amounts).
 - `schedules` — **Proposal (studio)**, `chest.proposals.json`: the Friday
   reminder. Without it the tool is complete; the setting says so.
+- **Wished — events between tools, for invoicing**: the hand-off of
+  "Billable, not invoiced" time to the Quotes tool (a draft invoice per
+  client) is a suite link for later: `events.publish("timesheets.billable",
+  {client, lines[]})` and Quotes answering `quotes.invoiced` so the time is
+  marked invoiced by itself. Today a manager marks it by hand.
+- **Wished — a start-timer event from Tasks**: Toggl and Clockify users start
+  timers from their task tool; with events between tools, Tasks could send
+  `tasks.timer.start` (a task's title as the note).
 - **Wished**: `members.list({ q })` matching on full names returns
   candidates, but an import needs "who is *exactly* this name" for
   thousands of rows; today the tool lists everyone once (2,000 people at
@@ -138,8 +189,19 @@ In the studio: `node lab/chest-dev/dev.mjs tools/private/timesheets --prod --res
 
 ## What it does not do (yet)
 
-Invoicing (the Quotes tool's job), weekly submission and approval, rates
-per person or rate history (a changed rate changes past amounts), a
-calendar/timeline view, tags, punch-in/out for legal working hours, Toggl's
-JSON data export, an entry's edit history, several running timers. Never:
-screenshots, activity or idle tracking.
+- **Invoices**: it marks time invoiced, it does not write the invoice; the
+  hand-off to the Quotes tool waits for events between tools (above).
+- **No integrations or browser extension**: no timer started from Jira,
+  Asana, Trello or GitHub, no calendar sync. Time is recorded here, on the
+  phone or the computer.
+- No calendar/timeline view, no tags, no favourites; one running timer per
+  person.
+- Budget alerts go to every manager (there is no "project manager" per
+  project yet) and are checked when time or a budget changes, not when a
+  person's rate changes.
+- Approval is weekly and for every person alike (no approval by project
+  manager, no monthly periods).
+- No export of the projects and clients themselves (their time exports as
+  CSV); no Toggl JSON data export import; no entry edit history;
+  punch-in/out for legal working hours is not this tool.
+- Never: screenshots, activity or idle tracking.

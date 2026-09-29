@@ -58,6 +58,19 @@ running swatch beats every 2 s (off with `prefers-reduced-motion`).
 - **Buttons** — primary (accent), quiet (outlined), link, signal (lime);
   44 px targets. **Toasts** on the panel with a lime edge and *Undo*.
 - **Empty states** — dashed card, one sentence, one action.
+- **Project picker** — a field one types into (a combobox): the list drops
+  under it, each line a colour dot, project · task and the client in grey;
+  the active line has an accent edge.
+- **Week standing** — a bar above the grid: *Send my week* (accent) when
+  open; soft accent when sent or approved (with a check); warn-soft when
+  sent back, the manager's word quoted in ink.
+- **Cell note** — a small note icon in the cell's corner (shown on hover or
+  focus, always in accent when there is a note); a popover card with a
+  textarea.
+- **Team table** — people × weeks, mono hours with a small state under
+  them: approved/sent in accent, sent back in warn, short in danger.
+- **Money tiles** — amount, cost, margin (danger when negative) beside the
+  hours.
 
 ## Icon
 

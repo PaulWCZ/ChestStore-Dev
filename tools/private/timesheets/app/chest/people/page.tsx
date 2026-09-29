@@ -49,7 +49,7 @@ export default async function PeoplePage() {
       week: mine,
       billText: bill.length ? describe(bill).join(" · ") : null,
       costText: cost.length ? describe(cost).join(" · ") : null,
-      weekText: formatDuration(mine ?? s.reminder.minutes) + (mine === null ? ` (${t.people.companyWeek})` : ""),
+      weekText: formatDuration(mine ?? s.reminder.minutes) + (mine === null ? ` · ${t.people.companyWeek}` : ""),
       steps: [...bill.map(x => ({ kind: "bill" as const, from: x.from, label: describe([x])[0]! })), ...cost.map(x => ({ kind: "cost" as const, from: x.from, label: describe([x])[0]! }))].filter(x => s.lockedUntil === null || x.from > s.lockedUntil),
     };
   }).sort((a, b) => a.name.localeCompare(b.name, locale));

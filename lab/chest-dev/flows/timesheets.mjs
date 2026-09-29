@@ -12,11 +12,19 @@ const db = postgres((process.env.DEV_DATABASE_URL ?? "postgres://postgres:postgr
 const toast = async text => {
   await page.locator(".toast", { hasText: text }).first().waitFor({ timeout: 5000 });
 };
+// The project picker is a combobox: type a few words, Enter takes the first.
+const pick = async (selector, words) => {
+  await page.locator(selector).click();
+  await page.locator(selector).fill(words);
+  await page.locator(".picker-option").first().waitFor();
+  await page.keyboard.press("Enter");
+};
 
 await step("start the timer on a project; it survives a reload; stop records it", async () => {
   await page.goto(origin + "/chest");
   await page.getByPlaceholder("What are you working on?").fill("Checkout page");
-  await page.locator("#timer-work").selectOption({ label: "Site vitrine · Développement" });
+  await pick("#timer-work", "vitrine dévelop");
+  expect(await page.locator("#timer-work").inputValue() === "Site vitrine · Développement", "picked by typing: " + await page.locator("#timer-work").inputValue());
   await page.getByRole("button", { name: "Start" }).click();
   await page.locator(".timer.running").waitFor();
   await page.waitForTimeout(1500);
@@ -26,6 +34,9 @@ await step("start the timer on a project; it survives a reload; stop records it"
   expect(/0:00:0\d|0:00:1\d/u.test(await page.locator(".timer-clock").innerText()), "clock ticks");
   await page.getByRole("button", { name: "Stop" }).click();
   await toast("Under a minute");
+  // Offered: keep one minute rather than nothing.
+  await page.locator(".toast", { hasText: "Under a minute" }).getByRole("button", { name: "Keep 1 min" }).click();
+  await toast("0:01 recorded on Site vitrine");
   await page.locator(".timer.idle").waitFor();
 });
 
@@ -63,7 +74,7 @@ await step("type hours in the week grid; a wrong entry is refused, a right one s
 await step("add a row, copy last week's rows, remove a row and undo", async () => {
   const before = await page.locator(".grid tbody tr").count();
   await page.getByRole("button", { name: "Add a row" }).click();
-  await page.locator("#add-row").selectOption({ label: "Signalétique · Repérage" });
+  await pick("#add-row", "signal repérage");
   await page.getByRole("button", { name: "Add", exact: true }).click();
   await page.waitForTimeout(1200);
   const rows = await page.locator(".grid tbody tr").count();
@@ -85,7 +96,7 @@ await step("the day list: add time, change it, delete it and undo", async () => 
   await page.locator(".day-head a").nth(1).click();
   await page.waitForURL(/day=/u);
   await page.getByRole("button", { name: "Add time" }).click();
-  await page.locator("#new-work").selectOption({ label: "Identité visuelle" });
+  await pick("#new-work", "identité");
   await page.locator("#new-duration").fill("45m");
   await page.locator("#new-note").fill("Call with the garage");
   await page.getByRole("button", { name: "Save" }).click();
@@ -103,6 +114,32 @@ await step("the day list: add time, change it, delete it and undo", async () => 
   await page.locator(".entry", { hasText: "Call with the garage" }).waitFor();
 });
 
+await step("a note in a grid cell: Shift+Enter, write, Enter", async () => {
+  await page.goto(origin + "/chest");
+  await page.locator("[data-cell='0:2']").focus();
+  await page.keyboard.press("Shift+Enter");
+  const box = page.getByRole("dialog", { name: /^Note of/u });
+  await box.waitFor();
+  await box.locator("textarea").fill("Checkout page, second pass");
+  await page.keyboard.press("Enter");
+  await toast("Note saved.");
+  await page.reload();
+  expect(await page.locator("td.noted .note-button.has").count() >= 1, "note shown on the cell");
+  expect((await page.locator("[data-cell='0:2']").getAttribute("aria-label"))?.includes("Checkout page, second pass"), "the note is read with the cell");
+});
+
+await step("send my week: it becomes read-only, and can be taken back", async () => {
+  await page.getByRole("button", { name: "Send my week" }).click();
+  await toast("Week sent.");
+  await page.locator(".standing.submitted").waitFor();
+  expect(await page.locator(".grid .cell-input").count() === 0, "no cell can be typed in");
+  await page.getByRole("button", { name: "Take it back" }).first().click();
+  await toast("Week taken back");
+  await page.locator(".grid .cell-input").first().waitFor();
+  await page.getByRole("button", { name: "Send my week" }).click();
+  await toast("Week sent.");
+});
+
 await step("a member's reports show their own time, with a CSV; managers' pages are closed to them", async () => {
   await page.goto(origin + "/chest/reports?preset=month");
   await page.getByText("Your own time.").waitFor();
@@ -113,8 +150,10 @@ await step("a member's reports show their own time, with a CSV; managers' pages 
   const { readFileSync } = await import("node:fs");
   const csv = readFileSync(path, "utf8");
   expect(csv.includes("Date,Person,Client") && !csv.includes("Inès"), "own CSV");
-  await page.goto(origin + "/chest/projects");
-  await page.getByText("Your role does not allow this.").waitFor();
+  const answer = await page.goto(origin + "/chest/projects");
+  await page.getByText("This page is for managers").waitFor();
+  expect(answer?.status() === 403, "manager page answers 403: " + answer?.status());
+  expect(!(await page.getByText("You can’t use this tool yet").count()), "no 'can't use the tool' for a member");
 });
 
 await step("a manager, in French: a new project with a new client, a rate and a budget", async () => {
@@ -135,6 +174,35 @@ await step("a manager, in French: a new project with a new client, a rate and a 
   expect((await row.innerText()).includes("90,50"), "rate in French: " + await row.innerText());
 });
 
+await step("the team: approve last week, send this one back with a word, remind who is short", async () => {
+  await page.goto(origin + "/chest/team");
+  const rows = page.locator(".waiting-row", { hasText: "Hugo Bernard" });
+  expect(await rows.count() === 2, "Hugo's two weeks wait: " + await rows.count());
+  // This week's (the newest) goes back with a word.
+  await rows.last().getByRole("button", { name: "Renvoyer…" }).click();
+  await page.getByPlaceholder("Que faut-il corriger ?").fill("Il manque la réunion de mardi");
+  await page.getByRole("button", { name: "Renvoyer", exact: true }).click();
+  await page.locator(".toast", { hasText: "Semaine renvoyée à Hugo Bernard." }).waitFor();
+  await page.locator(".waiting-row", { hasText: "Hugo Bernard" }).first().getByRole("button", { name: "Valider" }).click();
+  await page.locator(".toast", { hasText: "La semaine de Hugo Bernard est validée." }).waitFor();
+  await page.getByText("Aucune semaine ne vous attend.").waitFor();
+  await page.getByRole("button", { name: /^Rappeler/u }).click();
+  await page.locator(".toast", { hasText: /rappelées? dans/u }).waitFor();
+});
+
+await step("rates: Hugo's goes up from today; the past keeps its amount", async () => {
+  await page.goto(origin + "/chest/people");
+  const hugo = page.locator(".person", { hasText: "Hugo Bernard" });
+  await hugo.getByRole("button", { name: "Modifier" }).click();
+  await hugo.locator("input[id^='bill-']").fill("80");
+  await hugo.locator("input[id^='from-']").waitFor();
+  await hugo.getByRole("button", { name: "Enregistrer" }).click();
+  await page.locator(".toast", { hasText: "Enregistré." }).waitFor();
+  await page.locator(".person", { hasText: "Hugo Bernard" }).getByText(/à partir du/u).waitFor();
+  const text = await page.locator(".person", { hasText: "Hugo Bernard" }).innerText();
+  expect(/70,00\s€ depuis le début/u.test(text) && /80,00\s€ à partir du/u.test(text), "history: " + text);
+});
+
 await step("the manager's reports: everyone, amounts, grouped by person", async () => {
   await page.goto(origin + "/chest/reports?preset=lastWeek");
   await page.getByText("Montant").first().waitFor();
@@ -142,6 +210,17 @@ await step("the manager's reports: everyone, amounts, grouped by person", async 
   await page.waitForURL(/group=person/u);
   const names = await page.locator(".lines tbody th .p").allInnerTexts();
   expect(names.length >= 5, "people: " + names.join("|"));
+  await page.getByText("Marge", { exact: true }).first().waitFor();
+  expect(await page.getByText("Coût", { exact: true }).count() >= 1, "cost shown to managers");
+});
+
+await step("mark the billable time of the week as invoiced, and undo", async () => {
+  await page.goto(origin + "/chest/reports?preset=week&kind=uninvoiced");
+  await page.getByRole("button", { name: /^Marquer .* comme facturées?$/u }).click();
+  await page.locator(".toast", { hasText: /marquées? comme facturées?/u }).waitFor();
+  await page.getByText("Aucun temps noté sur cette période.").waitFor();
+  await page.locator(".toast", { hasText: /marquées? comme facturées?/u }).getByRole("button", { name: "Rétablir" }).click();
+  await page.getByRole("button", { name: /^Marquer/u }).waitFor();
 });
 
 await step("lock a period: the week shows why nothing changes there", async () => {
@@ -168,23 +247,40 @@ await step("import a Toggl export: check, then import", async () => {
     "MOREAU Inès,ines@example.test,Studio Nuit,Affiches,,Poster,Yes,2026-06-03,14:00:00,2026-06-03,15:30:00,01:30:00,",
     "Paul Personne,paul@example.test,Studio Nuit,Affiches,,Poster,Yes,2026-06-03,14:00:00,2026-06-03,15:30:00,01:30:00,",
   ].join("\n"));
+  // Last month invoiced again: locked (the step before unlocked everything).
+  await page.goto(origin + "/chest/settings");
+  await page.getByRole("button", { name: /^Verrouiller jusqu’au/u }).click();
+  await page.locator(".toast", { hasText: "Verrouillé jusqu’au" }).waitFor();
   await page.goto(origin + "/chest/import");
   await page.locator("input[type=file]").setInputFiles(file);
   await page.getByText("Vérifiez avant d’importer").waitFor();
-  expect((await page.locator(".check-panel").innerText()).includes("2 saisies prêtes à importer"), await page.locator(".check-panel").innerText());
-  expect(await page.locator(".import-people li.missing", { hasText: "Paul Personne" }).count() === 1, "unmatched listed");
-  await page.getByRole("button", { name: "Importer 2 saisies" }).click();
-  await page.getByText("2 saisies importées.").waitFor();
+  // Paul left before the Chest: kept as a former member. June is locked: the page asks.
+  expect(await page.locator(".import-people li.former", { hasText: "Paul Personne" }).count() === 1, "former member kept");
+  await page.getByText(/3 lignes tombent dans la période verrouillée/u).waitFor();
+  expect(!(await page.getByRole("button", { name: /^Importer/u }).count()), "nothing to import before the answer");
+  await page.getByText("Oui, c’est l’historique").click();
+  await page.getByRole("button", { name: "Importer 3 saisies" }).click();
+  await page.getByText("3 saisies importées.").waitFor();
+});
+
+await step("Hugo reads why his week came back and sends it again", async () => {
+  await as(context, origin, "hugo");
+  await context.addCookies([{ name: "dev_locale", value: "en", url: origin }]);
+  await page.goto(origin + "/chest");
+  await page.locator(".standing.returned", { hasText: "Il manque la réunion de mardi" }).waitFor();
+  await page.getByRole("button", { name: "Send it again" }).click();
+  await toast("Week sent.");
 });
 
 await step("on a phone, in French: the day replaces the grid; add time there", async () => {
   await as(context, origin, "ines");
+  await context.addCookies([{ name: "dev_locale", value: "fr", url: origin }]);
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(origin + "/chest");
   expect(!(await page.locator(".grid-area").isVisible()), "grid hidden");
   expect(await page.locator(".day-strip").isVisible(), "day strip");
   await page.getByRole("button", { name: "Ajouter du temps" }).click();
-  await page.locator("#new-work").selectOption({ label: "Site vitrine · Design" });
+  await pick("#new-work", "vitrine design");
   await page.locator("#new-duration").fill("2,5");
   await page.getByRole("button", { name: "Enregistrer" }).click();
   await page.locator(".toast", { hasText: "2:30 ajoutées." }).waitFor();

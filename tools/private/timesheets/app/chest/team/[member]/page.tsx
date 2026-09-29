@@ -44,7 +44,7 @@ export default async function PersonWeekPage({ params, searchParams }: { params:
   }
   const statusText = state.status === "approved" ? format(t.week.approvedBy, { name: decider, date: state.decidedAt ? formatDate(state.decidedAt, zone(), locale, { day: "numeric", month: "short" }) : "" })
     : state.status === "returned" ? `${format(t.week.returnedBy, { name: decider })} “${state.reason}”`
-    : state.status === "submitted" ? t.team.states.sent : t.team.notSent;
+    : state.status === "submitted" ? format(t.team.sentOn, { date: state.submittedAt ? formatDate(state.submittedAt, zone(), locale, { weekday: "long", day: "numeric", month: "short" }) : "" }) : t.team.notSent;
   const link = (w: string) => `/chest/team/${memberId}?week=${w}`;
   return (
     <main className="page wide">
@@ -69,7 +69,7 @@ export default async function PersonWeekPage({ params, searchParams }: { params:
 
       {entries.length === 0 ? <div className="empty"><p>{t.team.emptyWeek}</p></div> : (
         <>
-          <div className="grid-scroll read">
+          <div className="grid-scroll read" tabIndex={0} role="region" aria-label={t.team.weeks}>
             <table className="grid">
               <thead>
                 <tr>

@@ -2,7 +2,7 @@
   "version": 2,
   "name": "timesheets",
   "title": "Timesheets",
-  "description": "Record time on clients' projects with a timer or a week grid, see where it went, export it for invoicing.",
+  "description": "Record time on clients' projects with a timer or a week grid, approve each week, see where it went and what it earned.",
   "icon": "chest/icon.svg",
   "preview": "chest/preview.png",
   "roles": [

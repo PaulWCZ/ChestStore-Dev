@@ -109,3 +109,11 @@ test("the CSV is in the reader's language: French with ';' and decimal commas, n
   assert.equal((await GET(new Request(url))).status, 401);
   assert.equal((await GET(withMember(new Request(url), nora))).status, 403);
 });
+
+test("the CSV follows preset= alone (last week: nothing of this week)", async () => {
+  const url = "http://tool.test/chest/reports/export?preset=lastWeek";
+  const rows = (await (await GET(withMember(new Request(url), { ...camille, locale: "en" }))).text()).replace(/^﻿/u, "").trim().split("\r\n");
+  const lastMonday = addDays(monday, -7);
+  assert.ok(rows.slice(1).every(r => r >= lastMonday && r < monday), rows.join("\n"));
+  assert.match((await GET(withMember(new Request(url), camille))).headers.get("Content-Disposition") ?? "", new RegExp(`temps-${lastMonday}-${addDays(lastMonday, 6)}`, "u"));
+});

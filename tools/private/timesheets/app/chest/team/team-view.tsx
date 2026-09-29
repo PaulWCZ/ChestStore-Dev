@@ -19,7 +19,7 @@ export function WaitingRow({ memberId, week, name, photo, label, hours, t }: { m
       <Avatar name={name} photo={photo} />
       <span className="waiting-who">
         <Link href={`/chest/team/${memberId}?week=${week}`}><strong>{name}</strong></Link>
-        <span className="small muted">{label} · <span className="num">{hours}</span></span>
+        <span className="small muted">{label} · {hours}</span>
       </span>
       <Decision memberId={memberId} week={week} name={name} t={t} />
     </li>

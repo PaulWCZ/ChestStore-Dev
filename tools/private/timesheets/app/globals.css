@@ -381,7 +381,8 @@ select.field { padding-right: var(--space-6); }
 
 /* ——— The week's standing in the approval ——— */
 .standing { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-3); padding: var(--space-2) var(--space-2) var(--space-2) var(--space-4); margin-bottom: var(--space-3); border-radius: var(--radius-m); background: var(--surface); border: 1px solid var(--line); font-weight: 600; font-size: var(--text-s); min-height: 56px; }
-.standing .state { display: inline-flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
+.standing .state { display: inline-flex; align-items: flex-start; gap: var(--space-2); flex: 1 1 16rem; min-width: 0; }
+.standing .state > svg { margin-top: 3px; }
 .standing.submitted { background: var(--accent-soft); border-color: var(--accent-soft); color: var(--accent); }
 .standing.approved { background: var(--accent-soft); border-color: var(--accent-soft); color: var(--accent); }
 .standing.returned { background: var(--warn-soft); border-color: var(--warn-soft); color: var(--warn); }
@@ -472,6 +473,7 @@ select.field { padding-right: var(--space-6); }
   }
   .tabs a { flex-direction: column; gap: 2px; min-height: 60px; font-size: var(--text-xs); border-bottom: 0; border-top: 3px solid transparent; flex: 1; justify-content: center; margin: 0; }
   .tabs a[aria-current="page"] { border-top-color: var(--signal); }
+  .tabs a { padding: 0 2px; white-space: nowrap; min-width: 0; }
   .tabs svg { width: 22px; height: 22px; }
   body { padding-bottom: 72px; }
   .toasts { bottom: 84px; }

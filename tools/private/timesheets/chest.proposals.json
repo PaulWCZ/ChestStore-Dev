@@ -8,7 +8,7 @@
   "translations": {
     "fr": {
       "title": "Temps",
-      "description": "Notez le temps passé sur les projets clients, au chrono ou à la semaine, voyez où il est allé, exportez-le pour facturer.",
+      "description": "Notez le temps passé sur les projets clients, au chrono ou à la semaine, validez chaque semaine, voyez où il est allé et ce qu’il a rapporté.",
       "role_labels": {
         "manager": "Responsable",
         "member": "Membre"
