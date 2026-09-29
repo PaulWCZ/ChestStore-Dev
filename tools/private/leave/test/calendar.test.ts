@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { addMonths, clip, completedMonths, cost, coverage, earned, easter, holidays, holidaysBetween, isDay, monthDays, overlaps, periodStart, spanValid, type Rules, type Span } from "../lib/calendar.ts";
+import { addMonths, clip, completedMonths, cost, coverage, earned, easter, endAfterStart, holidays, holidaysBetween, isDay, monthDays, overlaps, periodStart, spanValid, type Rules, type Span } from "../lib/calendar.ts";
 
 // The French calendar and the counting of days: pure, checked against
 // dates anyone can verify.
@@ -132,4 +132,22 @@ test("part-time and four-day weeks: paid leave from the first day the person wou
   assert.equal(cost(span("2026-11-09", "2026-11-13"), { counting: "worked", daysOff: all }), 4);
   // The rest of a leave cut at a month's start: it had begun, its first day counts.
   assert.equal(cost(span("2026-10-07", "2026-10-07"), { counting: "ouvrables", daysOff: all, workDays: noWednesday }, { head: false, tail: false }), 1);
+});
+
+test("a new first day keeps the leave's length, never past the last day one may ask for", () => {
+  // A one-day request (the form's start) moved: it stays one day.
+  assert.equal(endAfterStart("2026-09-30", "2026-09-30", "2027-01-25", "2027-09-30"), "2027-01-25");
+  // Monday to Wednesday moved to Thursday: three days, to Saturday.
+  assert.equal(endAfterStart("2026-10-05", "2026-10-07", "2026-10-08", "2027-09-30"), "2026-10-10");
+  // Moved back: the length is kept too.
+  assert.equal(endAfterStart("2026-10-05", "2026-10-07", "2026-10-01", "2027-09-30"), "2026-10-03");
+  // No first day yet: the last day stays unless the first passes it.
+  assert.equal(endAfterStart("", "2026-10-20", "2026-10-08", "2027-09-30"), "2026-10-20");
+  assert.equal(endAfterStart("", "2026-10-02", "2026-10-08", "2027-09-30"), "2026-10-08");
+  assert.equal(endAfterStart("2026-10-05", "", "2026-10-08", "2027-09-30"), "2026-10-08");
+  // A range already upside down has no length: the last day becomes the first.
+  assert.equal(endAfterStart("2026-10-09", "2026-10-05", "2026-10-12", "2027-09-30"), "2026-10-12");
+  // Never past the latest day; never before the new first day.
+  assert.equal(endAfterStart("2026-10-05", "2026-10-09", "2027-09-28", "2027-09-30"), "2027-09-30");
+  assert.equal(endAfterStart("2026-10-05", "2026-10-09", "2027-10-02", "2027-09-30"), "2027-10-02");
 });

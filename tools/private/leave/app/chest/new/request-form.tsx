@@ -1,12 +1,12 @@
 "use client";
 
 import { DateField, PeoplePicker, Segmented } from "@argentic/chest-ui/components";
-import { localSearch, moveRangeEnd, moveRangeStart } from "@argentic/chest-ui/components/logic";
+import { localSearch, moveRangeEnd } from "@argentic/chest-ui/components/logic";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState, useTransition } from "react";
 import { Back } from "../../../components/icons.tsx";
-import { addDays, cost, daysOffFor, isDay, weekday, works, type Counting, type Half, type Span } from "../../../lib/calendar.ts";
+import { addDays, cost, daysOffFor, endAfterStart, isDay, weekday, works, type Counting, type Half, type Span } from "../../../lib/calendar.ts";
 import type { Catalogue } from "../../../lib/i18n/index.ts";
 import { format, formatDay, formatDays, plural } from "../../../lib/i18n/format.ts";
 import type { ErrorCode } from "../../../lib/app-error.ts";
@@ -71,15 +71,24 @@ export function RequestForm(props: {
   const legal = props.events.find(e => e.key === event);
   const needsEvent = type?.key === "family";
 
-  // The kit's range rules: a new first day keeps the leave's length (a
-  // Monday-to-Wednesday leave moved to Thursday still lasts three days, never
-  // past the last day one may ask for); a last day is never before the first.
+  // The kit's range rules (endAfterStart, tested in test/calendar.test.ts):
+  // a new first day keeps the leave's length, never past the last day one
+  // may ask for; a last day is never before the first.
+  // When the first day moves the last one, the last day's field is drawn
+  // anew (endField): the kit's DateField copies a new value into its text
+  // in an effect that can land after the person started typing the last
+  // day, and React's write to the input then drops their selection — what
+  // they typed was added to the old date ("25/01/20272027-01-28").
+  const [endField, setEndField] = useState(0);
   function changeStart(value: string | null) {
     const day = value ?? "";
     setStart(day);
     if (!isDay(day)) return;
-    const moved = moveRangeStart({ from: isDay(start) ? start : null, to: isDay(end) ? end : null }, day).to;
-    setEnd(moved === null ? day : moved > props.latest ? props.latest : moved);
+    const moved = endAfterStart(start, end, day, props.latest);
+    if (moved !== end) {
+      setEnd(moved);
+      setEndField(n => n + 1);
+    }
   }
 
   function changeEnd(value: string | null) {
@@ -152,7 +161,7 @@ export function RequestForm(props: {
           )}
         </div>
         <div className="date-field">
-          <DateField id="end" label={t.form.lastDay} value={isDay(end) ? end : null} onChange={changeEnd} today={props.today} min={isDay(start) ? start : props.earliest} max={props.latest} chips={false} required labels={t.date} />
+          <DateField key={endField} id="end" label={t.form.lastDay} value={isDay(end) ? end : null} onChange={changeEnd} today={props.today} min={isDay(start) ? start : props.earliest} max={props.latest} chips={false} required labels={t.date} />
           {type?.halfDays && !single && (
             <Segmented label={t.form.lastDay} value={endHalf} onChange={setEndHalf} options={[{ value: "pm", label: t.form.whole }, { value: "am", label: t.form.morningOnly }]} />
           )}

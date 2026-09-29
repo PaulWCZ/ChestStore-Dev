@@ -27,6 +27,18 @@ export function daysBetween(a: Day, b: Day): number {
   return Math.round((toTime(b) - toTime(a)) / DAY);
 }
 
+// endAfterStart: the last day of a request once its first day moves to
+// `next` (the kit's range rule, moveRangeStart): a leave keeps its length
+// (Monday–Wednesday moved to Thursday ends on Saturday); without a length
+// yet, the last day moves only when the first would pass it; never after
+// `latest`, the last day one may ask for (nor before `next`).
+export function endAfterStart(start: string, end: string, next: Day, latest: Day): Day {
+  let moved: Day;
+  if (isDay(start) && isDay(end) && end >= start) moved = addDays(next, daysBetween(start, end));
+  else moved = isDay(end) && end >= next ? end : next;
+  return moved > latest ? (latest >= next ? latest : next) : moved;
+}
+
 // weekday: 0 Sunday, 1 Monday … 6 Saturday.
 export function weekday(day: Day): number {
   return new Date(toTime(day)).getUTCDay();
