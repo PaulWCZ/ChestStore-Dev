@@ -23,11 +23,12 @@ module is not in the root).
 | Import | Gives |
 |---|---|
 | `@argentic/chest-sdk/member` | `member(request)`, type `Member`: the member of a request on the team host of a server tool, read from the `Chest-Member` assertion and verified; `null` without a valid assertion. `memberIdPattern`, `groupIdPattern`: the grammars of the identifiers (`mbr_…`, `grp_…`) |
-| `@argentic/chest-sdk/members` | `list`, `get`, `lookup`, `groups.list`, `forget`, types `MemberPage`, `Lookup`, `FormerMember`, `Group`: the members who have the tool (capability `members`, their addresses with `members.email`) |
+| `@argentic/chest-sdk/members` | `list`, `get`, `lookup`, `groups.list`, `forget`, types `MemberPage`, `Lookup`, `FormerMember`, `Group`: the members who have the tool (capability `members`, their addresses with `members.email`); **Proposal (studio)** `groups.all`, `groups.members`, types `ChestGroup`, `GroupMembers`: every group of the Chest (`"groups": "read"`) |
 | `@argentic/chest-sdk/notifications` | `notify`, `withdraw`, `broadcast` (Proposal (studio)), `badge.set`, `badge.setMany`, types `Notice`, `Delivery`, `BadgeCount`, `BadgeWrite`: counters on the tool's tile and items in members' inboxes, inside the Chest (capability `notifications`) |
 | `@argentic/chest-sdk/events` | `handle`, `verify`, `acknowledgeErasure`, `memorySeen`, `erasureIdPattern`, types `ChestEvent`, `MemberUpdated`, `AccessRevoked`, `MemberRemoved`, `MemberErased`, `MemberChange`, `Handlers`, `Seen`: the events of the members' lifecycle the Chest posts to the tool's `/chest-events` (`"receives": ["member.*"]`), verified, deduplicated by id, and the acknowledgment of an erasure |
 | `@argentic/chest-sdk/chest` | **Proposal (studio).** `company`, `timeZone`, `today`, `currency`, `locale`, `teamUrl`, `publicUrl`: the Chest's settings every tool needs; `theme`, `readThemeChoice`, `forgetTheme`, `themeIdPattern`, types `ThemeChoice`, `BrandChoice`, `ThemeFont`: the look the company chose for its tools |
 | `@argentic/chest-sdk/visitors` | **Proposal (studio).** `formToken`, `checkForm`, `count`, `language`, `visitor`, `address`: the guard and the language of a public host's anonymous visitors |
+| `@argentic/chest-sdk/calendar` | **Proposal (studio).** `put`, `remove`, `list`, `page`, and the iCalendar writer `ics`, `escapeText`, `foldLine`, `unfold`, `uidOf`, `feed`, `pick`, `check`, `isDay`, `keyPattern`, `limits`: events about members that the Chest merges into one calendar feed per member (`"calendar": true`) |
 | `@argentic/chest-sdk/checks` | **Proposal (studio).** `configure`, `list`, `handle`, `verify`, `checkManifest`, `checkChecks`: web addresses the Chest checks for the tool, and their results |
 | `@argentic/chest-sdk/database` | `databaseUrl()`: the address of the tool's own PostgreSQL database (capability `database`) |
 | `@argentic/chest-sdk/files` | `put`, `get`, `stat`, `list`, `move`, `delete`, `url`, `uploadUrl`, types `FileObject`, `FileData`, `FilePage`: the tool's private files (capability `files`), kept by the Chest, a 15-minute signed link to one (or to its thumbnail), and uploads straight from a member's browser |
@@ -216,6 +217,64 @@ const people = await members.lookup(rows.flatMap(r => [r.assignee, r.created_by]
 
 To search tasks by assignee name: `members.list({ q })` first, then
 `where assignee = any($ids)`.
+
+### `groups` — every group of the Chest (Proposal (studio))
+
+`groups.list()` says only the groups that **give** the tool. A tool open to
+everyone — News, Polls, Wiki, the usual case — has none, so it cannot offer
+"post to the Sales team" or "ask only Tech". A tool that declares
+
+```jsonc
+// chest.json (chest.proposals.json in the studio), with "members" — approved as:
+//   “Sees your Chest's groups and who is in them”
+{ "groups": "read", "receives": ["member.*", "group.*"] }
+```
+
+sees them all:
+
+```ts
+import * as members from "@argentic/chest-sdk/members";
+await members.groups.all();                    // [{id, name, size}] — every group, by name
+await members.groups.members("grp_…");         // {members: ["mbr_…"], next} — or null: no such group
+member(request).groups;                        // all the member's groups (64 at most), not only those giving the tool
+```
+
+- **Who is in a group** is said among the members who **have the tool**: a
+  member without access stays unknown, as everywhere (`size` counts them
+  the same way). `members(id, {after, limit})`: by identifier, 500 a page
+  by default, 1,000 at most; `null` for a group the Chest does not have.
+- `member(request).groups`, `members.get/list/lookup` carry **all** the
+  member's groups, and `members.list({group})` works with any group.
+- **Events** (`"receives": ["group.*"]`, only with `"groups": "read"`):
+  `group.changed {id, changed: ["name" | "members"]}` and `group.removed
+  {id}` on `POST /chest-events`, handled by `events.handle` like member
+  events (`"group.changed": e => …`). When someone leaves a group, the tool
+  also gets `member.updated {changed: ["groups"]}` for them: withdraw what
+  targeted them through that group (a poll's reminder, a post's badge);
+  `group.removed` withdraws what targeted the group.
+- Errors: `CapabilityNotGranted` (not declared or not approved),
+  `RateLimited` (shared with `members`: 600 calls a minute), `Unavailable`.
+
+Store group ids, resolve names when rendering (`all()` is one call; keep it
+a minute). In tests: `fakeChest({groups: [{id, name, members, grants: false}],
+capabilities: ["members", "groups"]})` — `grants: false` is a group that
+does not give the tool (only seen with `groups`); `chest.emit({type:
+"group.changed", data: {id, changed: ["members"]}}, to)`. The harness's
+`/_dev` lists the groups and moves a member in or out (and tells the tool).
+
+Risks: the organisation chart leaks to every tool that asks — hence a
+permission of its own, in words the owner understands; group names can be
+sensitive ("Disciplinary committee"): an owner may hide a group from tools
+(the Chest's side, not designed here). Elsewhere (from the vendors' docs
+as a web search showed them on 2026-09-29; the pages themselves were not
+reachable from the studio): Microsoft Graph's `GroupMember.Read.All` reads
+the membership of groups and, as an application permission, needs an
+admin's consent ([docs](https://learn.microsoft.com/en-us/graph/permissions-reference));
+Slack's `usergroups:read` scope lets an app list user groups and their
+members and receive `subteam_members_changed` / `subteam_updated` events
+([docs](https://docs.slack.dev/reference/scopes/usergroups.read/)) — the
+same split as here: a permission to read the directory's groups, apart
+from reading people, with change events.
 
 ## `notifications` — badges and inbox items
 
@@ -423,7 +482,8 @@ export async function POST(request: Request) {
 | `send(message)` | Queues one message: `to`/`cc` (addresses or `{member}`), `subject`, `text` (+ `html`), `mailbox` (its address and the company's name; the no-reply address otherwise), `fromName`, `replyTo`, `inReplyTo`/`references` (threads), `attachments` (a file of the tool's `files`, or content), `key` (the same key within 24 h sends nothing again). `{id: "msg_…", messageId}` |
 | `status(id)` | `queued`, `sent`, `delivered`, `bounced`, `complained`, `failed` |
 | `mailboxAddress(name)` | The mailbox's address, to show on pages; null until the owner gives it one |
-| `handle(request, handler, {seen?})`, `verify(request)` | A received message: `{id: "rcv_…", mailbox, from {address, name}, to, cc, subject, text, html (unsanitised), messageId, inReplyTo, references, attachments [{file, name, type, size}] already in the tool's files under `mail/`, receivedAt, spam 0–10}` |
+| `handle(request, handler \| {message, bounce}, {seen?})`, `verify(request)` | A received message: `{kind: "message", id: "rcv_…", mailbox, from {address, name}, to, cc, deliveredTo, thread, subject, text, html (cleaned by the Chest), original (the .eml in the tool's files), messageId, inReplyTo, references, attachments [{file, name, type, size}] already in the tool's files under `mail/`, dropped, receivedAt, spam 0–10, authenticated, auto}`; or a bounce `{kind: "bounce", id: "bnc_…", message, recipient, permanent, reason, at}` |
+| `threadAddress(mailbox, thread)`, `threadTag`, `threadOf` | A conversation's own reply address (`support+t1042-k3q…@…`), whose tag only this tool can make, and the thread read back from an address |
 | `isAddress(text)` | A plain address the Chest would send to |
 
 Refusals: `ChestError` `invalid_address`, `invalid_message` (before
@@ -439,6 +499,195 @@ In tests: `fakeChest({ capabilities: [..., "mail"], mail: { domain, mailboxes, p
 `chest.outbox` holds what was sent (addresses resolved, members' included);
 `chest.receive({mailbox, from, subject, text, attachments?}, to)` delivers a
 message to `POST <to>/chest-mail`, attachments stored in the tool's files.
+
+### Receiving: threads, what the Chest cleans, bounces (Proposal (studio))
+
+The Chest runs the company's inbound mail (MX on its domain): an address a
+tool declared in `mailboxes` is **owned** by that tool (`support@`,
+`jobs@`); any other address of the domain the tools do not own is refused
+at the SMTP door (550), as is a message over 25 MiB (552, the sender told
+by their own server). Each accepted message is posted to the tool's `POST
+/chest-mail`, signed `Chest-Mail` (HS256 under HMAC-SHA256("Chest-Mail v1")
+of `CHEST_TOKEN`, like `Chest-Event`), at least once (the same `id`),
+again for 72 hours while the tool does not answer 2xx.
+
+```ts
+// Reply on ticket 1042: replies come back to support+t1042-k3q…@<domain>
+await mail.send({ to: customer, subject: "Re: Broken order [#1042]", text, mailbox: "support", thread: "1042", inReplyTo, references });
+
+export async function POST(request: Request) {
+  return new Response(null, { status: await mail.handle(request, {
+    message: async m => {
+      if (m.auto) return;                                      // out of office: never answer, never reopen
+      const ticket = m.thread ?? await byMessageIds([m.inReplyTo, ...m.references]);
+      await (ticket && m.authenticated !== false ? addReply(ticket, m) : openTicket(m));
+    },
+    bounce: b => markUndelivered(b.message, b.recipient, b.permanent),
+  }, { seen }) });
+}
+```
+
+- **Threads.** `send({mailbox, thread})` gives the message the Reply-To
+  `mailbox+t<thread>-<tag>@<domain>`; the tag is 50 bits of HMAC of the
+  mailbox and the thread under a key derived from `CHEST_TOKEN` ("Chest-Mail-Thread
+  v1"), lower case (mail systems may lower-case an address). The Chest
+  routes `mailbox+anything@` to the mailbox and says `deliveredTo`; the SDK
+  checks the tag and fills `thread` — so nobody can drop a message into a
+  ticket by writing to `support+1042@`. A thread is 1 to 16 of `a-z 0-9`.
+  Without a valid tag (a client that answers the From address, a token
+  changed by a reinstall), `thread` is null: match `inReplyTo` and
+  `references` against the `messageId`s of what the tool sent, then open a
+  new conversation. A subject's `[#1042]` is never proof.
+- **HTML is cleaned by the Chest**, not by each tool: allowed tags only
+  (paragraphs, emphasis, lists, quotes, tables, `a href` http/https/mailto
+  with `rel="noopener noreferrer nofollow"`), no script, style, attribute,
+  comment or image (remote images track the reader; inline `cid:` images
+  arrive as attachments). Why: a sanitiser is a dependency every tool
+  would carry (the SDK stays dependency-free; DOMPurify on a server needs
+  a DOM, heavy for 256 MiB), one mistake in one tool is stored XSS on its
+  origin, and the Chest updates one cleaner for all. `text` is always
+  there (the text part, or the HTML made text). `original` is the message
+  as received (`message/rfc822` in the tool's files): offer it as a
+  download ("Show original"), never inline. Still render `html` inside the
+  tool's strict CSP.
+- **What the Chest found.** `spam` 0–10 (8 and above is kept in the
+  Chest's quarantine, the owner sees it, the tool never does);
+  `authenticated`: the From domain vouches for it (DMARC, or SPF/DKIM
+  aligned) — without, never attach it to an existing customer's
+  conversation on the From address alone; `auto`: an automatic answer
+  (`Auto-Submitted`, out of office, a list's notice) — never answer it
+  automatically.
+- **Attachments** are stored in the tool's files under `mail/` before the
+  message is posted (they count in its quota); `dropped` names those the
+  Chest did not keep (`count` beyond 20, `type` executables, `virus`,
+  `quota` when the tool's files are full). Posted text is cut at 1 MiB,
+  cleaned HTML at 2 MiB; the original stays whole.
+- **Bounces** never arrive as messages: the Chest sends with its own return
+  path per message, updates `status(id)` (`bounced`), suppresses a
+  permanently failing address for the whole Chest, and posts `{kind:
+  "bounce", message, recipient, permanent, reason}`. A handler given as a
+  function receives messages only (a bounce is accepted and ignored).
+
+In tests: `chest.receive({mailbox, from, subject, text, html?, thread?,
+deliveredTo?, authenticated?, auto?, attachments?}, to)` delivers as the
+Chest would (the HTML cleaned by a strict stand-in, the original stored,
+executables dropped); `chest.bounce(messageId, to, {permanent?, reason?})`
+bounces a sent message. The harness's `/_dev` sends an email to the tool
+(new, or a reply to a message of the outbox, to its thread address), with
+an HTML part, "automatic" and "not authenticated" switches, and bounces
+any sent message.
+
+Risks: a tool as an open relay (never: it can only send from its
+mailboxes, within its quota); mail loops (`auto`, and the Chest refuses to
+post more than 20 messages an hour from one sender to one mailbox);
+phishing through a trusted inbox (`authenticated` and `spam` given to the
+tool; the owner sees the quarantine). The loop guard is designed, not
+faked. Elsewhere (from the vendors' docs as a web search showed them on
+2026-09-29): Postmark posts each inbound message as JSON, with the part
+after "+" of the address as `MailboxHash` for threading and SpamAssassin's
+`X-Spam-Score` among the headers
+([docs](https://postmarkapp.com/developer/webhooks/inbound-webhook));
+Mailgun routes post a parsed message (or the raw MIME) to a URL and sign
+webhooks with HMAC-SHA256
+([docs](https://documentation.mailgun.com/docs/mailgun/user-manual/receive-forward-store/receive-http)).
+Neither cleans the HTML nor authenticates the thread's "+" part for the
+app; the Chest does both, because its tools are small and many.
+
+## `calendar` — one calendar feed per member (Proposal (studio))
+
+Everyone lives in Google Calendar, Outlook or Apple Calendar. Tools put
+the events they know about members — a room booked, a desk day, an
+approved leave, a meeting a guest booked, an interview, a company event,
+a task due — and the Chest serves each member **one** secret iCalendar
+feed (RFC 5545) that merges every tool's. The member adds it once ("Add
+your Chest calendar", a page of the Chest); the tool never serves a
+feed, never sees its address, and a private tool (no host a calendar app
+can reach without signing in) needs no public part for it.
+
+```jsonc
+// chest.json (chest.proposals.json in the studio) — approved as:
+//   “Adds events to the calendar of the members concerned”
+{ "calendar": true }
+```
+
+```ts
+import * as calendar from "@argentic/chest-sdk/calendar";
+await calendar.put({
+  key: "booking:981", members: [host, ...guests],                        // the same key replaces
+  title: { en: "Room booked: Green room", fr: "Salle réservée : Salle verte" },
+  start: "2026-10-12T09:00:00+02:00", end: "2026-10-12T10:00:00+02:00",
+  location: "Green room, 2nd floor", path: "/chest/bookings/981",
+});                                                                        // {key, members, skipped}
+await calendar.put({ key: "leave:42", members: [who], title: { en: "Off", fr: "Absent" }, days: { first: "2026-10-12", last: "2026-10-16" }, private: true });
+await calendar.put({ key: "desk:2026-10-13", members: [who], title: "Office — desk D-12", days: { first: "2026-10-13", last: "2026-10-13" }, busy: false });
+await calendar.remove("booking:981");                                     // gone from every feed; true if it was there
+const { events, next } = await calendar.list();                           // what the tool put, to reconcile
+// A link to the member's page: <a href={calendar.page}>See it in your calendar</a>   ("/_chest/calendar")
+```
+
+| Field | Rules |
+|---|---|
+| `key` | The tool's name for it, 1 to 64 of `A-Z a-z 0-9 . _ : -`. Put again = replace (members too); `remove` = gone |
+| `members` | 1 to 1,000 member ids; `skipped` says those without the tool (not kept) |
+| `title`, `description` | One text, or `{en, fr}`: the Chest writes each member's feed in **their** language (theirs, then English, then the first given) — one put for a meeting of people who read different languages. Titles 1–120 characters, descriptions 1,000, plain text |
+| `start`, `end` | Instants: a `Date`, or ISO 8601 **with** `Z` or an offset (a local time without a zone is refused); written in UTC |
+| `days` | `{first, last}` inclusive, `YYYY-MM-DD`: whole days (`VALUE=DATE`, the feed's `DTEND` the day after the last) |
+| `location` | Plain text, 200 characters |
+| `path` | A page of the tool under `/chest`, made absolute on its team host (never a free URL: no phishing link in someone's calendar) |
+| `busy` | `false`: shown free (`TRANSP:TRANSPARENT`: a desk day, a due date); busy by default |
+| `private` | `CLASS:PRIVATE`: a calendar shared with colleagues shows it as busy, without its words (a leave) |
+
+**Decisions.** Titles per language, not rendered by the Chest from a
+template: the tool knows its words; the Chest only picks. `path`, not a
+URL. Feeds are **personal only** for now: no "my team's absences" feed
+(a manager's view needs rules per tool — Leave may show "Away" and never
+the kind — and belongs to a later "shared feeds" step). The secret is
+random (32 bytes), kept hashed by the Chest, replaceable ("New address":
+the old one stops working at once) — a signed URL could not be revoked.
+Events are the Chest's copy: a member who loses the tool loses its events
+at the next fetch; a member who leaves the Chest loses their feed.
+
+**The feed** (`calendar.feed`, `calendar.ics` write it; the fake serves it):
+`text/calendar; charset=utf-8`, CRLF, lines folded at 75 octets never
+inside a character, TEXT escaped (`\\ \; \, \n`), UTC times,
+`UID` = a hash of tool and key `@<chest domain>` (stable, reveals no
+key), `DTSTAMP` = the event's last change (stable between fetches, so an
+`ETag` answers 304), `SEQUENCE` counts changes, `CATEGORIES` the tool's
+title, `NAME`/`X-WR-CALNAME` "Chest — <company>", `REFRESH-INTERVAL`
+PT1H (a hint), `Referrer-Policy: no-referrer`, `noindex`. A feed holds the
+member's 2,000 events nearest to today, from a year back.
+
+**Bounds.** 5,000 events kept per tool (`QuotaExceeded`), 1,000 members an
+event, events ending at most a year ago and starting at most two years
+ahead (`invalid_event`; the Chest forgets an event a year after its end),
+600 writes a minute (`RateLimited`). Errors before anything is sent:
+`invalid_event`, `invalid_key`, `invalid_id`; `CapabilityNotGranted`
+without the permission or on a Chest without the calendar — the tool then
+keeps its own "Add to calendar" file (`calendar.ics([...], {method:
+"PUBLISH"})` writes one) and says so. The Chest journals puts per tool
+(count, never titles); agents read a member's own events through the MCP
+server like the inbox.
+
+**Honest limit.** Calendar apps fetch a subscribed feed at their own pace
+— Google Calendar every several hours (6 to 24 by third-party accounts
+seen 2026-09-29; Google publishes no figure) — so a booking made now may
+show there hours later; the tool's page stays the truth. The next step,
+not built: a read-only **free/busy connector** (a member links their
+Google or Microsoft calendar once — OAuth held by the Chest, declared
+network — and tools ask "is Inès free 14:00–15:00?" without ever seeing
+events), which Booking needs to stop double-booking.
+
+In tests: `fakeChest({capabilities: [..., "calendar"], calendar: {domain,
+toolTitle, company}})` (or `calendar: false`, a Chest without it);
+`chest.calendar` (the events by key), `chest.feed(member, {locale?, now?})`
+(the member's feed as the Chest writes it), `chest.feedUrl(member)` and
+`chest.newFeedUrl(member)` (served by the fake's front at
+`/_chest/calendar/<secret>.ics`, 404 once replaced); the front's
+`/_chest/calendar` is the member's page (with the `Chest-Member`
+assertion). The harness's `/_dev` shows the signed-in member's feed
+address (a calendar app on the machine may subscribe to
+`http://localhost:<port>/_chest/calendar/<secret>.ics`), their page, "New
+address", and every event the tool put.
 
 ## `schedules` — scheduled tasks (Proposal (studio))
 
@@ -874,6 +1123,9 @@ await chest.close();
 | `fakeChest({settings: {company, currency, locale, publicUrl}})` | **Proposal (studio).** The Chest's settings (`chest`) in the environment while the fake runs; `CHEST_TEAM_URL` is the fake's origin |
 | `fakeChest({theme, themeFiles})`, `chest.theme`, `chest.themeFiles` | **Proposal (studio).** The company's look at its two levels (`{all, tools}`), which `chest.theme()` answers resolved for the tool (`CHEST_TOOL`) with `max-age=0`; the files its front serves under `/_chest/theme/` |
 | `chest.former` | **Proposal (studio).** Those who left (`{id, name}`) or were erased (`{id, erased: true}`): what `members.lookup` answers "former" for. A test or a harness that removes a member from `chest.members` moves them here, as a real Chest would |
+| `fakeChest({calendar})`, `chest.calendar`, `chest.feed(member)`, `chest.feedUrl(member)`, `chest.newFeedUrl(member)` | **Proposal (studio).** The calendar bridge (with `"calendar"` in `capabilities`): the events put, a member's feed as the Chest writes it, its secret address on the fake's front |
+| `fakeChest({groups: [{…, grants: false}], capabilities: [..., "groups"]})` | **Proposal (studio).** Groups that do not give the tool, seen only with `groups` (`groups.all`, `groups.members`, all of a member's groups); `emit` delivers `group.changed` and `group.removed` |
+| `chest.receive(message, to)`, `chest.bounce(messageId, to, options?)` | **Proposal (studio).** A message delivered to `POST <to>/chest-mail` as the Chest would (HTML cleaned, original stored, executables dropped, `thread`/`deliveredTo`, `authenticated`, `auto`); a sent message bounced (status, suppression, the bounce posted) |
 | `chest.close()` | Stops it and restores the environment |
 
 ## Version

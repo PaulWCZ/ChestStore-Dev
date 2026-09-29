@@ -13,7 +13,8 @@ import type { IncomingMessage } from "node:http";
 //   (/_chest/members/{id}/photo?v=<rev>), role one of the roles chest.json
 //   declares: null when there is none.
 // - isBuilder says they build this tool; groups are the groups that give them
-//   this tool ("grp_…").
+//   this tool ("grp_…") — all their groups, 64 at most, for a tool that
+//   holds "groups": "read" (Proposal (studio)).
 // - email is there only when the tool holds "members.email".
 // - locale is the language the member reads the Chest in, among the
 //   languages of the store (locales): English when the Chest says none, or
@@ -114,6 +115,6 @@ export function member(request: IncomingMessage | Request): Member | null {
   const now = Math.floor(Date.now() / 1000);
   if (iat > now + skew || exp <= now - skew) return null;
   if (typeof given_name !== "string" || typeof family_name !== "string" || typeof name !== "string" || typeof picture !== "string" || typeof role !== "string" || typeof admin !== "boolean" || typeof builder !== "boolean") return null;
-  if (!Array.isArray(groups) || groups.length > 16 || !groups.every(g => typeof g === "string" && groupIdPattern.test(g)) || (email !== undefined && typeof email !== "string") || (locale !== undefined && typeof locale !== "string")) return null;
+  if (!Array.isArray(groups) || groups.length > 64 || !groups.every(g => typeof g === "string" && groupIdPattern.test(g)) || (email !== undefined && typeof email !== "string") || (locale !== undefined && typeof locale !== "string")) return null;
   return { id: sub, firstName: given_name, lastName: family_name, name, photo: picture === "" ? null : picture, role: role === "" ? null : role, isAdmin: admin, isBuilder: builder, groups: [...groups] as string[], locale: localeOf(locale), ...(email === undefined ? {} : { email }) };
 }

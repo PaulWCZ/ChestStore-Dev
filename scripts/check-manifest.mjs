@@ -14,7 +14,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 // The keys the SDK working copy proposes for the manifest, and their checks.
-const proposalKeys = new Set(["schedules", "mail", "files", "emits", "receives", "translations", "checks"]);
+const proposalKeys = new Set(["schedules", "mail", "files", "emits", "receives", "translations", "checks", "calendar", "groups"]);
 const schedulesPath = join(root, "sdk", "dist", "src", "schedules.js");
 const schedulesApi = existsSync(schedulesPath) ? await import(pathToFileURL(schedulesPath).href) : null;
 const checksPath = join(dirname(schedulesPath), "checks.js");
@@ -278,7 +278,17 @@ export function checkTool(folder) {
       for (const key of Object.keys(proposals)) if (!proposalKeys.has(key)) error(`chest.proposals.json: unknown proposal key "${key}"`);
       const eventName = /^[a-z0-9]+(-[a-z0-9]+)*\.[a-z][a-z0-9_.-]{0,62}$/u;
       if (proposals.emits !== undefined && (!Array.isArray(proposals.emits) || proposals.emits.length > 32 || !proposals.emits.every(e => typeof e === "string" && eventName.test(e) && e.startsWith(manifest.name + ".")))) error(`chest.proposals.json: emits is up to 32 event names "${manifest.name}.<name>"`);
-      if (proposals.receives !== undefined && (!Array.isArray(proposals.receives) || proposals.receives.length > 32 || !proposals.receives.every(e => typeof e === "string" && eventName.test(e) && !e.startsWith(manifest.name + ".")))) error("chest.proposals.json: receives is up to 32 event names of other tools (<tool>.<name>)");
+      // "group.*": the Chest's group events, with "groups": "read".
+      const toolEvents = Array.isArray(proposals.receives) ? proposals.receives.filter(e => e !== "group.*") : [];
+      if (proposals.receives !== undefined && (!Array.isArray(proposals.receives) || proposals.receives.length > 32 || !toolEvents.every(e => typeof e === "string" && eventName.test(e) && !e.startsWith(manifest.name + ".") && !e.startsWith("group.") && !e.startsWith("member.")))) error("chest.proposals.json: receives is up to 32 event names of other tools (<tool>.<name>), and \"group.*\"");
+      if (Array.isArray(proposals.receives) && proposals.receives.includes("group.*") && proposals.groups !== "read") error('chest.proposals.json: receives "group.*" needs "groups": "read"');
+      // The Chest's groups: "groups": "read" — “Sees your Chest's groups and who is in them”.
+      if (proposals.groups !== undefined) {
+        if (proposals.groups !== "read") error('chest.proposals.json: groups is "read"');
+        else if (!(manifest.capabilities ?? []).includes("members")) error("chest.proposals.json: groups needs the capability members");
+      }
+      // The calendar bridge: "calendar": true — “Adds events to the calendar of the members concerned”.
+      if (proposals.calendar !== undefined && proposals.calendar !== true) error('chest.proposals.json: calendar is true');
       if (proposals.files !== undefined) {
         const f = proposals.files;
         if (f === null || typeof f !== "object" || Array.isArray(f) || Object.keys(f).some(k => k !== "publicUploads" && k !== "publicFiles") || Object.values(f).some(v => typeof v !== "boolean")) error('chest.proposals.json: files is {"publicUploads": true, "publicFiles": true}');

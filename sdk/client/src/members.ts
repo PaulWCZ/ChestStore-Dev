@@ -32,6 +32,9 @@ export type Lookup = { members: Member[]; former: FormerMember[]; unknown: strin
 export type Group = { id: string; name: string; members: string[] };
 
 const maxLimit = 500;
+// The groups a member may carry: those that give the tool, or all of the
+// member's groups for a tool that holds "groups": "read" (Proposal (studio)).
+const maxGroups = 64;
 const lookupBatch = 200;
 const cacheTime = 60_000;
 const cacheSize = 5000;
@@ -47,7 +50,7 @@ const text = (value: unknown, max: number): value is string => typeof value === 
 // Chest's answer.
 function shown(value: unknown): Member {
   const m = value !== null && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null;
-  if (!m || typeof m["id"] !== "string" || !memberIdPattern.test(m["id"]) || !text(m["first_name"], 256) || !text(m["last_name"], 256) || !text(m["name"], 520) || !(m["photo"] === null || text(m["photo"], 200)) || !(m["role"] === null || text(m["role"], 48)) || typeof m["admin"] !== "boolean" || typeof m["builder"] !== "boolean" || !Array.isArray(m["groups"]) || m["groups"].length > 16 || !m["groups"].every(g => typeof g === "string" && groupIdPattern.test(g)) || !(m["email"] === undefined || text(m["email"], 254)) || !(m["locale"] === undefined || typeof m["locale"] === "string")) throw new Unavailable();
+  if (!m || typeof m["id"] !== "string" || !memberIdPattern.test(m["id"]) || !text(m["first_name"], 256) || !text(m["last_name"], 256) || !text(m["name"], 520) || !(m["photo"] === null || text(m["photo"], 200)) || !(m["role"] === null || text(m["role"], 48)) || typeof m["admin"] !== "boolean" || typeof m["builder"] !== "boolean" || !Array.isArray(m["groups"]) || m["groups"].length > maxGroups || !m["groups"].every(g => typeof g === "string" && groupIdPattern.test(g)) || !(m["email"] === undefined || text(m["email"], 254)) || !(m["locale"] === undefined || typeof m["locale"] === "string")) throw new Unavailable();
   return { id: m["id"], firstName: m["first_name"], lastName: m["last_name"], name: m["name"], photo: m["photo"], role: m["role"], isAdmin: m["admin"], isBuilder: m["builder"], groups: [...m["groups"]] as string[], locale: localeOf(m["locale"]), ...(m["email"] === undefined ? {} : { email: m["email"] }) };
 }
 
@@ -150,18 +153,77 @@ export async function lookup(ids: Iterable<string>): Promise<Lookup> {
   return result;
 }
 
-// groups are the groups of the Chest that give the tool, each with the
-// identifiers of its members; nothing of the others.
+// A group of the Chest as a tool with "groups": "read" sees it: its
+// identifier, its name, and how many of its members have the tool
+// (Proposal (studio)).
+export type ChestGroup = { id: string; name: string; size: number };
+// A page of a group's members: the identifiers of those who have the tool.
+export type GroupMembers = { members: string[]; next: string | null };
+
+function checkGroup(id: unknown): string {
+  if (typeof id !== "string" || !groupIdPattern.test(id)) throw new ChestError("invalid_id", 400, "invalid group identifier");
+  return id;
+}
+
+// groups: the groups of the Chest. list() says those that give the tool,
+// each with the identifiers of its members — nothing of the others.
+//
+// Proposal (studio) — the "groups" capability. A tool open to everyone
+// (News, Polls, Wiki) has no group that gives it, so list() is empty and
+// it cannot offer "the Sales team". With "groups": "read" in chest.json
+// (approved: “Sees your Chest's groups and who is in them”), all() says
+// every group of the Chest, members(id) who is in one (among the members
+// who have the tool: a member without access stays unknown), and
+// member(request).groups and members.* carry all of a member's groups,
+// not only those that give the tool. With "receives": ["group.*"], the
+// Chest tells the tool when a group is renamed, changes members or is
+// deleted (events.ts). Errors: CapabilityNotGranted (403: not declared or
+// not approved), RateLimited, Unavailable.
 export const groups = {
   async list(): Promise<Group[]> {
     const response = await ask("members", "GET", "/groups");
     if (response.status !== 200) throw await refusal(response, "members");
     const answer = (await json(response)) as { groups?: unknown } | null;
-    if (!answer || !Array.isArray(answer.groups) || answer.groups.length > 16) throw new Unavailable();
+    if (!answer || !Array.isArray(answer.groups) || answer.groups.length > maxGroups) throw new Unavailable();
     return answer.groups.map(value => {
       const g = value as { id?: unknown; name?: unknown; members?: unknown } | null;
       if (!g || typeof g.id !== "string" || !groupIdPattern.test(g.id) || !text(g.name, 256) || !Array.isArray(g.members) || g.members.length > 128 || !g.members.every(m => typeof m === "string" && memberIdPattern.test(m))) throw new Unavailable();
       return { id: g.id, name: g.name, members: [...g.members] as string[] };
     });
+  },
+  // all is every group of the Chest (500 at most), by name: its id, its
+  // name and how many of its members have the tool.
+  async all(): Promise<ChestGroup[]> {
+    const response = await ask("groups", "GET", "/groups/all");
+    if (response.status !== 200) throw await refusal(response, "groups");
+    const answer = (await json(response)) as { groups?: unknown } | null;
+    if (!answer || !Array.isArray(answer.groups) || answer.groups.length > 500) throw new Unavailable();
+    return answer.groups.map(value => {
+      const g = value as { id?: unknown; name?: unknown; size?: unknown } | null;
+      if (!g || typeof g.id !== "string" || !groupIdPattern.test(g.id) || !text(g.name, 256) || typeof g.size !== "number" || !Number.isInteger(g.size) || g.size < 0) throw new Unavailable();
+      return { id: g.id, name: g.name, size: g.size };
+    });
+  },
+  // members says who is in a group, among the members who have the tool,
+  // limit at a time (500 by default, 1,000 at most), by identifier; null
+  // for a group the Chest does not have (never was, or deleted).
+  async members(id: string, options: { after?: string; limit?: number } = {}): Promise<GroupMembers | null> {
+    checkGroup(id);
+    const query = new URLSearchParams();
+    if (options.after !== undefined) query.set("after", checkId(options.after));
+    if (options.limit !== undefined) {
+      if (!Number.isInteger(options.limit) || options.limit < 1 || options.limit > 1000) throw new ChestError("invalid_query", 400, "limit is 1 to 1000");
+      query.set("limit", String(options.limit));
+    }
+    const response = await ask("groups", "GET", `/groups/${id}/members` + (query.size ? "?" + query.toString() : ""));
+    if (response.status === 404) {
+      const code = ((await json(response).catch(() => null)) as { error?: unknown } | null)?.error;
+      if (code === "group_not_found") return null;
+      throw new Unavailable();
+    }
+    if (response.status !== 200) throw await refusal(response, "groups");
+    const answer = (await json(response)) as { members?: unknown; next?: unknown } | null;
+    if (!answer || !Array.isArray(answer.members) || answer.members.length > 1000 || !answer.members.every(m => typeof m === "string" && memberIdPattern.test(m)) || !(answer.next === null || (typeof answer.next === "string" && memberIdPattern.test(answer.next)))) throw new Unavailable();
+    return { members: [...answer.members] as string[], next: answer.next };
   },
 };

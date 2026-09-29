@@ -17,7 +17,8 @@
 //   the rest is the public host (no member), /_chest/… is the fake Chest's
 //   front (uploads, file links, photos), /_dev is the harness: who you are,
 //   the bell, badges, files, and buttons that play the Chest (member
-//   lifecycle events, proposals such as scheduled tasks or the outbox).
+//   lifecycle events, proposals such as scheduled tasks, the outbox and
+//   received mail, the calendar feeds, the Chest's groups).
 //
 // Environment: DEV_DATABASE_URL (a PostgreSQL superuser URL, default
 // postgres://postgres:postgres@127.0.0.1:5432/postgres).
@@ -131,8 +132,12 @@ const chest = await testing.fakeChest({
   members,
   former: [{ id: "mbr_" + "paul" + "a".repeat(22), name: "Paul Lefèvre" }],
   groups: cast.groups.map(g => ({ ...g, members: members.filter(m => m.groups.includes(g.id)).map(m => m.id) })),
-  capabilities: [...capabilities.filter(c => c !== "database"), ...(proposals.mail ? ["mail"] : [])],
+  capabilities: [...capabilities.filter(c => c !== "database"), ...(proposals.mail ? ["mail"] : []), ...(proposals.calendar === true ? ["calendar"] : []), ...(proposals.groups === "read" ? ["groups"] : [])],
   mail: { domain: "atelier-martin.test", mailboxes: proposals.mail?.mailboxes ?? [] },
+  // The calendar bridge (Proposal (studio)): each member's feed at
+  // http://localhost:<port>/_chest/calendar/<secret>.ics — a calendar app
+  // on this machine may subscribe to it.
+  calendar: { domain: "atelier-martin.test", toolTitle: manifest.title ?? manifest.name, company: "Atelier Martin" },
   emits: proposals.emits ?? [],
   storage: { publicUploads: proposals.files?.publicUploads === true, publicFiles: proposals.files?.publicFiles === true },
   receives: manifest.receives ?? [],
@@ -243,8 +248,45 @@ const front = createServer(async (request, response) => {
         return void response.writeHead(303, back).end();
       }
       if (path === "/_dev/receive") {
-        const status = await chest.receive({ mailbox: form.get("mailbox"), from: form.get("from"), fromName: form.get("fromName") || undefined, subject: form.get("subject"), text: form.get("text") }, `http://127.0.0.1:${inner}`);
-        console.log(`mail to ${form.get("mailbox")} → ${status}`);
+        // Proposal (studio): a new message, or a reply to one the tool sent
+        // (to its thread address when it had one, In-Reply-To its id).
+        const replied = chest.outbox.find(m => m.id === form.get("reply"));
+        const mailbox = form.get("mailbox");
+        const message = { mailbox, from: form.get("from"), fromName: form.get("fromName") || undefined, subject: form.get("subject"), text: form.get("text"), ...(form.get("html") ? { html: form.get("html") } : {}), auto: form.get("auto") === "1", authenticated: form.get("forged") !== "1" };
+        if (replied) {
+          message.subject = /^re:/iu.test(replied.subject) ? replied.subject : `Re: ${replied.subject}`;
+          message.inReplyTo = replied.messageId;
+          message.references = [...(replied.references ?? []), replied.messageId];
+          if (replied.replyTo && replied.replyTo.startsWith(mailbox + "+")) message.deliveredTo = replied.replyTo;
+        }
+        const status = await chest.receive(message, `http://127.0.0.1:${inner}`);
+        console.log(`mail to ${message.deliveredTo ?? mailbox} → ${status}`);
+        return void response.writeHead(303, back).end();
+      }
+      if (path === "/_dev/bounce") {
+        const status = await chest.bounce(form.get("message"), `http://127.0.0.1:${inner}`, { permanent: form.get("permanent") !== "0" });
+        console.log(`bounce of ${form.get("message")} → ${status}`);
+        return void response.writeHead(303, back).end();
+      }
+      if (path === "/_dev/feed") {
+        chest.newFeedUrl(form.get("member"));
+        console.log(`new calendar address for ${form.get("member")}`);
+        return void response.writeHead(303, back).end();
+      }
+      if (path === "/_dev/group") {
+        // Proposal (studio): the admin moves someone in or out of a group;
+        // the Chest tells the tool (member.updated, and group.changed to a
+        // tool that receives "group.*").
+        const group = chest.groups.find(g => g.id === form.get("group"));
+        const who = chest.members.find(m => m.id === form.get("member"));
+        if (group && who) {
+          const adding = form.get("action") === "add";
+          if (adding && !group.members.includes(who.id)) { group.members.push(who.id); who.groups.push(group.id); }
+          if (!adding) { group.members = group.members.filter(id => id !== who.id); who.groups = who.groups.filter(id => id !== group.id); }
+          const to = `http://127.0.0.1:${inner}`;
+          if ((manifest.receives ?? []).includes("member.*")) console.log(`event member.updated (groups) → ${await chest.emit({ type: "member.updated", data: { id: who.id, changed: ["groups"] } }, to)}`);
+          if ((proposals.receives ?? []).includes("group.*")) console.log(`event group.changed (members) → ${await chest.emit({ type: "group.changed", data: { id: group.id, changed: ["members"] } }, to)}`);
+        }
         return void response.writeHead(303, back).end();
       }
       if (path === "/_dev/deliver") {
@@ -280,7 +322,14 @@ const front = createServer(async (request, response) => {
     const html = devPage({ manifest, proposals, chest, me: current(request), origin, schedulesApi: testing.schedulesApi, catalogue, sampleBrand });
     return void response.writeHead(200, { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" }).end(html);
   }
-  if (path.startsWith("/_chest/")) return relay(request, response, { port: Number(new URL(chest.api).port) }, request.headers);
+  if (path.startsWith("/_chest/")) {
+    // The Chest's own page for a member's calendar (Proposal (studio)) is
+    // shown to the member signed in, as /chest is.
+    const headers = { ...request.headers };
+    delete headers["chest-member"];
+    if (path === "/_chest/calendar" || path === "/_chest/calendar/new") headers["chest-member"] = testing.signAssertion(current(request));
+    return relay(request, response, { port: Number(new URL(chest.api).port) }, headers);
+  }
   if (path === "/chest-events" || path === "/chest-mail" || path.startsWith("/chest-jobs/")) return void response.writeHead(404).end();
   const headers = { ...request.headers, "x-forwarded-host": `localhost:${port}`, "x-forwarded-proto": "http" };
   delete headers["chest-member"];

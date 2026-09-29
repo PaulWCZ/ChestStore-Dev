@@ -34,7 +34,10 @@ import { memberIdPattern } from "./member.js";
 //
 // Bounds: 500 messages a day per tool (the owner may raise it), 50
 // recipients a message, 10 MiB a message with its attachments, 998
-// characters a subject line; received: 25 MiB a message.
+// characters a subject line; received: 25 MiB a message (larger ones are
+// refused by the Chest's mail server, the sender told), 20 attachments,
+// 1 MiB of text and 2 MiB of cleaned HTML posted (the rest cut, the
+// original .eml kept whole), 4 MiB posted in all.
 
 export type Address = string | { member: string };
 export type Attachment = { file: string; name?: string } | { name: string; type: string; content: Uint8Array | string };
@@ -50,6 +53,12 @@ export type Message = {
   // The name shown with the address: "Camille at Atelier Martin".
   fromName?: string;
   replyTo?: string;
+  // Proposal (studio): the tool's name for a conversation (a ticket, a
+  // candidate): 1 to 16 of a-z 0-9. With a mailbox, replies go to that
+  // mailbox's thread address (support+t1042-…@), and the message the
+  // Chest delivers back says thread "1042" — only if the address is one
+  // this tool made (threadTag). Not with replyTo.
+  thread?: string;
   // Threading, for replies to a received message.
   inReplyTo?: string;
   references?: string[];
@@ -62,26 +71,72 @@ export type Sent = { id: string; messageId: string; status: "queued" };
 export type Status = { id: string; status: "queued" | "sent" | "delivered" | "bounced" | "complained" | "failed"; at: string };
 
 export type Received = {
+  kind: "message";
   id: string;
   mailbox: string;
   from: { address: string; name: string | null };
   to: string[];
   cc: string[];
+  // The address the Chest received it for (the envelope's): the mailbox,
+  // or one of its thread addresses (support+t1042-…@).
+  deliveredTo: string;
+  // The tool's thread when deliveredTo is a thread address this tool made
+  // (its tag verified: nobody can guess one); null otherwise — then match
+  // inReplyTo and references against the messageIds of what it sent.
+  thread: string | null;
   subject: string;
+  // The plain text: the text part, or the HTML part made text.
   text: string;
-  // The HTML as sent: never show it without sanitising it.
+  // The HTML part cleaned by the Chest: allowed tags only (paragraphs,
+  // emphasis, lists, quotes, tables, links http/https/mailto), no script,
+  // no style, no attribute but a link's href, no image (remote images
+  // track the reader). Still show it inside the tool's strict policy.
   html: string | null;
+  // The message exactly as received (RFC 5322, .eml), in the tool's
+  // files: for "Show original" — download only, never shown inline.
+  original: string | null;
   messageId: string;
   inReplyTo: string | null;
   references: string[];
   // Stored by the Chest in the tool's files before the message was posted.
   attachments: { file: string; name: string; type: string; size: number }[];
+  // Attachments the Chest did not keep: beyond 20, a type it refuses
+  // (executables), a virus, or the tool's files full.
+  dropped: { name: string; size: number; reason: "count" | "type" | "virus" | "quota" }[];
   receivedAt: string;
-  // 0 (clean) to 10 (surely spam), from the Chest's filter.
+  // 0 (clean) to 10 (surely spam), from the Chest's filter; the Chest
+  // keeps 8 and above in its quarantine (the owner sees it) and never
+  // posts them.
   spam: number;
+  // The sender's domain vouches for it (DMARC, or SPF or DKIM aligned with
+  // the From domain): without, "from" may be forged — never act on it
+  // alone (a reply goes to a new thread, not an existing customer's).
+  authenticated: boolean;
+  // An automatic answer (out of office, Auto-Submitted, a list's
+  // notice): never answer it automatically — mail loops.
+  auto: boolean;
 };
+// Proposal (studio): a message the tool sent that could not be delivered.
+// The Chest recognises bounces (its own return path per message), updates
+// status(), adds a permanent failure's address to the Chest's suppression
+// list, and posts the bounce — never as a received message.
+export type Bounce = {
+  kind: "bounce";
+  id: string;
+  // The message sent (send's id).
+  message: string;
+  recipient: string;
+  // true: the address does not exist or refuses (no retry, suppressed);
+  // false: a temporary failure after the Chest's retries (a full mailbox).
+  permanent: boolean;
+  // What the receiving server said, shortened (plain text, 500 characters).
+  reason: string;
+  at: string;
+};
+export type MailHandlers = { message?: (message: Received) => void | Promise<void>; bounce?: (bounce: Bounce) => void | Promise<void> };
 
-export const limits = { recipients: 50, size: 10 << 20, subject: 998, perDay: 500, received: 25 << 20 } as const;
+export const limits = { recipients: 50, size: 10 << 20, subject: 998, perDay: 500, received: 25 << 20, attachments: 20, text: 1 << 20, html: 2 << 20 } as const;
+export const threadPattern = /^[a-z0-9]{1,16}$/u;
 export const mailboxPattern = /^[a-z][a-z0-9-]{0,31}$/u;
 export const messageIdPattern = /^msg_[a-z2-7]{26}$/u;
 const address = /^[^\s@<>()[\]\\,;:"]{1,64}@[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+$/u;
@@ -117,6 +172,7 @@ export async function send(message: Message): Promise<Sent> {
   if (message.mailbox !== undefined && !mailboxPattern.test(message.mailbox)) throw new ChestError("invalid_message", 400, "invalid mailbox");
   if (message.fromName !== undefined && (typeof message.fromName !== "string" || message.fromName.length > 100 || !headerSafe(message.fromName))) throw new ChestError("invalid_message", 400, "invalid sender name");
   if (message.replyTo !== undefined && !isAddress(message.replyTo)) throw new ChestError("invalid_address", 400, "invalid reply-to");
+  if (message.thread !== undefined && (typeof message.thread !== "string" || !threadPattern.test(message.thread) || message.mailbox === undefined || message.replyTo !== undefined)) throw new ChestError("invalid_message", 400, "a thread is 1 to 16 of a-z 0-9, with a mailbox and without replyTo");
   if (message.key !== undefined && !/^[A-Za-z0-9._:-]{1,64}$/u.test(message.key)) throw new ChestError("invalid_message", 400, "invalid key");
   for (const id of [message.inReplyTo, ...(message.references ?? [])]) if (id !== undefined && (typeof id !== "string" || id.length > 998 || !headerSafe(id))) throw new ChestError("invalid_message", 400, "invalid message id");
   const attachments = (message.attachments ?? []).map(a => ("file" in a ? { file: a.file, ...(a.name ? { name: a.name } : {}) } : { name: a.name, type: a.type, content: Buffer.from(typeof a.content === "string" ? new TextEncoder().encode(a.content) : a.content).toString("base64") }));
@@ -126,6 +182,7 @@ export async function send(message: Message): Promise<Sent> {
     ...(message.mailbox !== undefined ? { mailbox: message.mailbox } : {}),
     ...(message.fromName !== undefined ? { from_name: message.fromName } : {}),
     ...(message.replyTo !== undefined ? { reply_to: message.replyTo } : {}),
+    ...(message.thread !== undefined ? { reply_tag: threadTag(message.mailbox as string, message.thread) } : {}),
     ...(message.inReplyTo !== undefined ? { in_reply_to: message.inReplyTo } : {}),
     ...(message.references !== undefined ? { references: message.references } : {}),
     ...(attachments.length ? { attachments } : {}),
@@ -173,6 +230,79 @@ export async function mailboxAddress(mailbox: string): Promise<string | null> {
   return answer && isAddress(answer.address) ? answer.address : null;
 }
 
+// ---- Threads (Proposal (studio)) -------------------------------------------
+//
+// A reply must land on its ticket even when the customer's mail client
+// drops the References header, and nobody may drop a message into a
+// ticket that is not theirs by writing to support+1042@. So the thread
+// address carries the tool's thread and a tag only this tool can make: an
+// HMAC of the mailbox and the thread under a key derived from CHEST_TOKEN
+// (like its other keys), 50 bits in base32 — lower case, as mail systems
+// may lower-case an address. The Chest only routes mailbox+anything@ to
+// the mailbox and says which address it received; this SDK checks the tag.
+// A tag made before the token changed (a reinstall) no longer verifies:
+// the message comes with thread null and the tool falls back on
+// References.
+
+const threadLabel = "Chest-Mail-Thread v1";
+const base32 = "abcdefghijklmnopqrstuvwxyz234567";
+const tagPattern = /^t([a-z0-9]{1,16})-([a-z2-7]{10})$/u;
+
+function mac(mailbox: string, thread: string): string {
+  const token = process.env["CHEST_TOKEN"];
+  if (!token || !/^[A-Za-z0-9_-]{43,512}$/u.test(token)) throw new CapabilityNotGranted("mail");
+  const key = createHmac("sha256", Buffer.from(token, "utf8")).update(threadLabel).digest();
+  const sum = createHmac("sha256", key).update(mailbox + "\u0000" + thread).digest();
+  let bits = 0, value = 0, out = "";
+  for (const byte of sum) {
+    value = (value << 8) | byte;
+    bits += 8;
+    while (bits >= 5 && out.length < 10) {
+      out += base32[(value >>> (bits - 5)) & 31];
+      bits -= 5;
+    }
+    if (out.length === 10) break;
+  }
+  return out;
+}
+
+// threadTag is what follows "+" in a thread address of that mailbox:
+// "t1042-k3q…". A tool rarely needs it: send({mailbox, thread}) uses it.
+export function threadTag(mailbox: string, thread: string): string {
+  if (!mailboxPattern.test(mailbox) || typeof thread !== "string" || !threadPattern.test(thread)) throw new ChestError("invalid_message", 400, "invalid mailbox or thread");
+  return `t${thread}-${mac(mailbox, thread)}`;
+}
+
+// threadOf reads an address the Chest received a message for: the thread
+// of this tool it carries, or null (no tag, another mailbox's, a tag this
+// tool did not make).
+export function threadOf(address: string, mailbox: string): string | null {
+  if (typeof address !== "string" || !mailboxPattern.test(mailbox)) return null;
+  const local = address.slice(0, address.lastIndexOf("@")).toLowerCase();
+  if (!local.startsWith(mailbox + "+")) return null;
+  const m = tagPattern.exec(local.slice(mailbox.length + 1));
+  if (!m) return null;
+  let expected: string;
+  try {
+    expected = mac(mailbox, m[1]!);
+  } catch {
+    return null;
+  }
+  const a = Buffer.from(expected), b = Buffer.from(m[2]!);
+  return a.length === b.length && timingSafeEqual(a, b) ? m[1]! : null;
+}
+
+// threadAddress is the address that brings a reply back to this thread
+// ("support+t1042-k3q…@atelier-martin.fr"), to show on a page ("reply to
+// this address"); null until the owner gives the mailbox an address.
+export async function threadAddress(mailbox: string, thread: string): Promise<string | null> {
+  const tag = threadTag(mailbox, thread);
+  const plain = await mailboxAddress(mailbox);
+  if (plain === null) return null;
+  const at = plain.lastIndexOf("@");
+  return plain.slice(0, at) + "+" + tag + plain.slice(at);
+}
+
 // ---- Received mail ---------------------------------------------------------
 
 const label = "Chest-Mail v1";
@@ -181,6 +311,7 @@ const skew = 5;
 const maxBody = 4 << 20;
 const compact = /^([A-Za-z0-9_-]+)\.([A-Za-z0-9_-]+)\.([A-Za-z0-9_-]+)$/u;
 const receivedPattern = /^rcv_[a-z2-7]{26}$/u;
+export const bouncePattern = /^bnc_[a-z2-7]{26}$/u;
 
 function object(value: unknown): Record<string, unknown> | null {
   return value !== null && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null;
@@ -213,9 +344,11 @@ async function bodyOf(request: IncomingMessage | Request): Promise<Buffer | null
 }
 const strings = (v: unknown, max: number): v is string[] => Array.isArray(v) && v.length <= max && v.every(x => typeof x === "string" && x.length <= 998);
 
-// verify returns the received message a delivery carries (POST /chest-mail,
-// signed Chest-Mail for this tool), or null. It reads the body.
-export async function verify(request: IncomingMessage | Request): Promise<Received | null> {
+// verify returns what a delivery carries (POST /chest-mail, signed
+// Chest-Mail for this tool): a received message, or a bounce of a message
+// the tool sent (Proposal (studio)); null for anything else. It reads the
+// body.
+export async function verify(request: IncomingMessage | Request): Promise<Received | Bounce | null> {
   const token = process.env["CHEST_TOKEN"];
   const tool = process.env["CHEST_TOOL"];
   if (!token || !/^[A-Za-z0-9_-]{43,512}$/u.test(token) || !tool || request.method !== "POST") return null;
@@ -233,7 +366,7 @@ export async function verify(request: IncomingMessage | Request): Promise<Receiv
   const payload = object(parse(Buffer.from(encodedPayload, "base64url").toString("utf8")));
   if (!payload || Object.keys(payload).length !== claims.length || !claims.every(n => Object.hasOwn(payload, n))) return null;
   const { aud, iat, exp, jti, digest } = payload;
-  if (aud !== tool || typeof jti !== "string" || !receivedPattern.test(jti) || typeof digest !== "string") return null;
+  if (aud !== tool || typeof jti !== "string" || !(receivedPattern.test(jti) || bouncePattern.test(jti)) || typeof digest !== "string") return null;
   if (typeof iat !== "number" || typeof exp !== "number" || exp <= iat) return null;
   const now = Math.floor(Date.now() / 1000);
   if (iat > now + skew || exp <= now - skew) return null;
@@ -244,40 +377,58 @@ export async function verify(request: IncomingMessage | Request): Promise<Receiv
   if (told.length !== sum.length || !timingSafeEqual(told, sum)) return null;
   const m = object(parse(body.toString("utf8")));
   if (!m || m["id"] !== jti) return null;
+  if (bouncePattern.test(jti)) {
+    if (m["kind"] !== "bounce" || typeof m["message"] !== "string" || !messageIdPattern.test(m["message"]) || !isAddress(m["recipient"]) || typeof m["permanent"] !== "boolean" || typeof m["reason"] !== "string" || m["reason"].length > 500 || typeof m["at"] !== "string") return null;
+    return { kind: "bounce", id: jti, message: m["message"], recipient: m["recipient"] as string, permanent: m["permanent"], reason: m["reason"], at: m["at"] };
+  }
   const from = object(m["from"]);
   const attachments = Array.isArray(m["attachments"]) ? m["attachments"].map(object) : null;
-  if (typeof m["mailbox"] !== "string" || !mailboxPattern.test(m["mailbox"]) || !from || !isAddress(from["address"]) || !(from["name"] === null || typeof from["name"] === "string")) return null;
-  if (!strings(m["to"], 100) || !strings(m["cc"], 100) || typeof m["subject"] !== "string" || typeof m["text"] !== "string" || !(m["html"] === null || typeof m["html"] === "string")) return null;
-  if (typeof m["message_id"] !== "string" || !(m["in_reply_to"] === null || typeof m["in_reply_to"] === "string") || !strings(m["references"], 100) || typeof m["received_at"] !== "string" || typeof m["spam"] !== "number") return null;
-  if (!attachments || !attachments.every(a => a && typeof a["file"] === "string" && typeof a["name"] === "string" && typeof a["type"] === "string" && typeof a["size"] === "number")) return null;
+  const dropped = Array.isArray(m["dropped"]) ? m["dropped"].map(object) : null;
+  if (m["kind"] !== "message" || typeof m["mailbox"] !== "string" || !mailboxPattern.test(m["mailbox"]) || !from || !isAddress(from["address"]) || !(from["name"] === null || typeof from["name"] === "string")) return null;
+  if (!strings(m["to"], 100) || !strings(m["cc"], 100) || !isAddress(m["delivered_to"]) || typeof m["subject"] !== "string" || typeof m["text"] !== "string" || !(m["html"] === null || typeof m["html"] === "string") || !(m["original"] === null || typeof m["original"] === "string")) return null;
+  if (typeof m["message_id"] !== "string" || !(m["in_reply_to"] === null || typeof m["in_reply_to"] === "string") || !strings(m["references"], 100) || typeof m["received_at"] !== "string" || typeof m["spam"] !== "number" || typeof m["authenticated"] !== "boolean" || typeof m["auto"] !== "boolean") return null;
+  if (!attachments || attachments.length > limits.attachments || !attachments.every(a => a && typeof a["file"] === "string" && typeof a["name"] === "string" && typeof a["type"] === "string" && typeof a["size"] === "number")) return null;
+  if (!dropped || !dropped.every(d => d && typeof d["name"] === "string" && typeof d["size"] === "number" && ["count", "type", "virus", "quota"].includes(d["reason"] as string))) return null;
+  const mailbox = m["mailbox"];
   return {
+    kind: "message",
     id: jti,
-    mailbox: m["mailbox"],
+    mailbox,
     from: { address: from["address"] as string, name: from["name"] as string | null },
     to: m["to"] as string[],
     cc: m["cc"] as string[],
+    deliveredTo: m["delivered_to"] as string,
+    thread: threadOf(m["delivered_to"] as string, mailbox),
     subject: m["subject"],
     text: m["text"],
     html: m["html"] as string | null,
+    original: m["original"] as string | null,
     messageId: m["message_id"],
     inReplyTo: m["in_reply_to"] as string | null,
     references: m["references"] as string[],
     attachments: (attachments as Record<string, unknown>[]).map(a => ({ file: a["file"] as string, name: a["name"] as string, type: a["type"] as string, size: a["size"] as number })),
+    dropped: (dropped as Record<string, unknown>[]).map(d => ({ name: d["name"] as string, size: d["size"] as number, reason: d["reason"] as Received["dropped"][number]["reason"] })),
     receivedAt: m["received_at"],
     spam: Math.max(0, Math.min(10, m["spam"])),
+    authenticated: m["authenticated"],
+    auto: m["auto"],
   };
 }
 
-// handle verifies a delivery and hands the message to the handler: 401 for
-// a delivery that is not the Chest's, 204 once handled. A handler that
+// handle verifies a delivery and hands it to its handler: 401 for a
+// delivery that is not the Chest's, 204 once handled. handler is a
+// function of the received messages (a bounce is then accepted and
+// ignored), or {message, bounce} (Proposal (studio)). A handler that
 // throws makes handle throw: answer 500, the Chest delivers it again (at
 // least once: the same id; keep the handler idempotent). seen, as in
-// events, drops a message handled already.
-export async function handle(request: IncomingMessage | Request, handler: (message: Received) => void | Promise<void>, options: { seen?: { has(id: string): boolean | Promise<boolean>; add(id: string): void | Promise<void> } } = {}): Promise<number> {
-  const message = await verify(request);
-  if (!message) return 401;
-  if (options.seen && (await options.seen.has(message.id))) return 204;
-  await handler(message);
-  await options.seen?.add(message.id);
+// events, drops what was handled already.
+export async function handle(request: IncomingMessage | Request, handler: ((message: Received) => void | Promise<void>) | MailHandlers, options: { seen?: { has(id: string): boolean | Promise<boolean>; add(id: string): void | Promise<void> } } = {}): Promise<number> {
+  const delivery = await verify(request);
+  if (!delivery) return 401;
+  if (options.seen && (await options.seen.has(delivery.id))) return 204;
+  const handlers: MailHandlers = typeof handler === "function" ? { message: handler } : handler;
+  if (delivery.kind === "message") await handlers.message?.(delivery);
+  else await handlers.bounce?.(delivery);
+  await options.seen?.add(delivery.id);
   return 204;
 }

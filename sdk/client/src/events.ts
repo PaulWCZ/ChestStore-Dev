@@ -2,7 +2,7 @@ import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 import type { IncomingMessage } from "node:http";
 import { ask, json as readJson, refusal } from "./api.js";
 import { CapabilityNotGranted, ChestError, Unavailable } from "./errors.js";
-import { memberIdPattern } from "./member.js";
+import { groupIdPattern, memberIdPattern } from "./member.js";
 import { forget } from "./members.js";
 
 // What the Chest tells a server tool of its members' lifecycle, for a tool
@@ -37,8 +37,16 @@ export type MemberRemoved = { id: string; type: "member.removed"; occurredAt: st
 // The owner asked for this person's data to be erased: delete or anonymise
 // what the tool keeps of them before deadline, then acknowledgeErasure(erasure).
 export type MemberErased = { id: string; type: "member.erased"; occurredAt: string; data: { id: string; erasure: string; deadline: string } };
+// Proposal (studio) — the groups of the Chest, for a tool that holds
+// "groups": "read" and receives "group.*": a group was renamed or changed
+// members (who is in it; member.updated with "groups" also comes for each
+// member concerned who has the tool), or was deleted — withdraw what
+// targeted it.
+export type GroupChange = "name" | "members";
+export type GroupChanged = { id: string; type: "group.changed"; occurredAt: string; data: { id: string; changed: GroupChange[] } };
+export type GroupRemoved = { id: string; type: "group.removed"; occurredAt: string; data: { id: string } };
 // An event, told apart by its type.
-export type ChestEvent = MemberUpdated | AccessRevoked | MemberRemoved | MemberErased;
+export type ChestEvent = MemberUpdated | AccessRevoked | MemberRemoved | MemberErased | GroupChanged | GroupRemoved;
 export type ChestEventType = ChestEvent["type"];
 
 // What handle() calls for each type; a type left out is accepted and ignored.
@@ -174,9 +182,18 @@ async function envelope(request: IncomingMessage | Request): Promise<{ event: Ch
   }
   if (Object.keys(e).length !== 4) return null;
   const data = object(e["data"]);
+  const base = { id: jti, occurredAt: e["occurredAt"] as string };
+  // The Chest's groups (Proposal (studio)): data names a group.
+  if (e["type"] === "group.changed" || e["type"] === "group.removed") {
+    if (!data || typeof data["id"] !== "string" || !groupIdPattern.test(data["id"])) return null;
+    const keys = Object.keys(data).sort().join(",");
+    if (e["type"] === "group.removed") return keys === "id" ? { known: true, event: { ...base, type: "group.removed", data: { id: data["id"] } } } : null;
+    const changed = data["changed"];
+    if (keys !== "changed,id" || !Array.isArray(changed) || changed.length < 1 || changed.length > 2 || !changed.every(c => c === "name" || c === "members") || new Set(changed).size !== changed.length) return null;
+    return { known: true, event: { ...base, type: "group.changed", data: { id: data["id"], changed: [...changed] as GroupChange[] } } };
+  }
   if (!data || typeof data["id"] !== "string" || !memberIdPattern.test(data["id"])) return null;
   const keys = Object.keys(data).sort().join(",");
-  const base = { id: jti, occurredAt: e["occurredAt"] as string };
   switch (e["type"]) {
     case "member.updated": {
       const changed = data["changed"];

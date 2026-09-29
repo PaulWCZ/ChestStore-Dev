@@ -25,14 +25,15 @@ const expected = {
   members: ["forget", "get", "groups", "list", "lookup"],
   notifications: ["badge", "broadcast", "notify", "withdraw"],
   events: ["acknowledgeErasure", "erasureIdPattern", "handle", "memorySeen", "publish", "toolEventPattern", "verify"],
-  mail: ["handle", "isAddress", "limits", "mailboxAddress", "mailboxPattern", "messageIdPattern", "send", "status", "verify"],
+  mail: ["bouncePattern", "handle", "isAddress", "limits", "mailboxAddress", "mailboxPattern", "messageIdPattern", "send", "status", "threadAddress", "threadOf", "threadPattern", "threadTag", "verify"],
+  calendar: ["check", "escapeText", "feed", "foldLine", "ics", "isDay", "keyPattern", "limits", "list", "page", "pick", "put", "remove", "uidOf", "unfold"],
   schedules: ["checkSchedules", "describeCron", "handle", "limits", "nextRun", "parseCron", "runIdPattern", "schedulePattern", "timeZone", "verify"],
   chest: ["company", "currency", "forgetTheme", "locale", "publicUrl", "readThemeChoice", "teamUrl", "theme", "themeIdPattern", "timeZone", "today"],
   visitors: ["address", "checkForm", "count", "formToken", "language", "visitor"],
   checks: ["checkChecks", "checkIdPattern", "checkManifest", "checkPattern", "configure", "handle", "limits", "list", "verify"],
   testing: ["fakeChest", "signAssertion", "withMember"],
 };
-const namespaces = ["files", "members", "notifications", "events", "schedules", "mail", "chest", "visitors", "checks"];
+const namespaces = ["files", "members", "notifications", "events", "schedules", "mail", "chest", "visitors", "checks", "calendar"];
 const rootExports = [...Object.entries(expected).filter(([sub]) => !namespaces.includes(sub) && sub !== "testing").flatMap(([, names]) => names), ...namespaces].sort();
 
 const subpaths = Object.keys(manifest.exports).filter(key => key !== "./package.json");

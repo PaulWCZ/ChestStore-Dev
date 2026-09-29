@@ -11,7 +11,7 @@ tested, faked in `testing`, documented in `sdk/README.md` (sections marked
 Seventeen tools were built for the opening store, each to production
 quality, each in its own folder, by builders who used the SDK as a
 third-party developer would. What they needed and did not find is below,
-proven by code: every proposal is built in `sdk/` (0.3.0-studio.10 —
+proven by code: every proposal is built in `sdk/` (0.3.0-studio.12 —
 typed, tested, faked in `testing`, documented in `sdk/README.md` under
 **Proposal (studio)**) and used by at least one tool.
 
@@ -41,6 +41,24 @@ typed, tested, faked in `testing`, documented in `sdk/README.md` under
 10. **`chest dev` and `chest check`** — our `lab/chest-dev` and
     `scripts/check-manifest.mjs` are working models; with them an agent
     can build, verify and screenshot a tool alone.
+
+**After the severe critique (2026-09-29, `reports/05-critique.md`).** The
+critics found that the four public-facing tools cannot replace their SaaS
+and that the calendar-shaped tools are islands. That reorders the top of
+this list for the *pitch* (the table in §8 has the detail):
+
+- **`mail` send *and* receive** moves to first place among new
+  primitives: it is the difference between "a contact form" and a
+  helpdesk. Receiving is now designed to the end — thread addresses only
+  the tool can mint, HTML cleaned by the Chest, bounces apart (§4.2, §4.13).
+- **The calendar bridge** (§4.11, built) — one secret feed per member
+  merging every tool's events. Rooms, Leave, Booking, Hiring, News and
+  Tasks need it; four tools already wrote their own `.ics` code, and a
+  private tool cannot serve a feed at all.
+- **`groups` read** (§4.12, built) — News, Polls and Wiki, open to
+  everyone, cannot target "the Sales team" today.
+- **Platform only**: web push and an email digest of the bell (§4.14);
+  custom domains for public hosts (§4.15). No SDK can design these away.
 
 ## 2. What works well — keep it
 
@@ -283,8 +301,8 @@ digest in News; two new suite links). What they ran into, by module:
 - **The Chest logs** to, subject, size, status — not bodies by default.
 - **Risks**: spam and reputation (bounded by quotas, suppression, the
   company's own domain and provider), phishing through a tool (sender is
-  always the company's domain; no free "from"), received HTML (delivered
-  unsanitised and marked so; tools sanitise).
+  always the company's domain; no free "from"), received HTML (now cleaned
+  by the Chest before delivery, §4.13).
 - **Elsewhere**: Supabase and Firebase leave email to a provider the
   developer configures (credentials in the app); Vercel has none;
   PocketBase has SMTP settings. Better here: one connection by the owner,
@@ -507,6 +525,200 @@ _(more sections as tools need them: public accounts, payments, AI.)_
   (only designed); a light-only choice for any theme; tinting the portal's
   tiles in brand mode.
 
+### 4.11 The calendar bridge — `calendar` (built)
+
+- **Needed by** (critique, 2026-09-29): Rooms (`05-critique/rooms.md`
+  blocker 1: "No calendar bridge at all"), Leave (`leave.md` #8: "No iCal /
+  Outlook / Google feed"), Booking (`booking.md` #5: the host's feed only
+  through a public host), Hiring (interviews, `hiring.md` #3), News (events),
+  Tasks (due dates); ranked first of the store's 15 cross-cutting fixes in
+  `05-critique/_store.md` §4. Evidence in code: **four tools wrote their
+  own iCalendar writer** (`news/lib/ics.ts`, `polls/lib/ics.ts`,
+  `booking/lib/ics.ts`, `status/lib/ics.ts`, 78–90 lines each), and Booking
+  had to serve its host's feed on its **public** host with a token of its
+  own (`booking/app/feed/[token]/route.ts`) — a private tool (Rooms, Leave,
+  Tasks) has no host a calendar app can reach without signing in, so it
+  cannot serve a feed at all. And each tool's feed would be one more URL a
+  member must add: six tools, six subscriptions.
+- **Working copy**: `sdk/client/src/calendar.ts` — `put`, `remove`, `list`,
+  `page`, and the writer `ics`, `escapeText`, `foldLine`, `unfold`,
+  `uidOf`, `feed`, `pick`, `check`; `fakeChest({calendar})`,
+  `chest.calendar`, `chest.feed(member)`, `chest.feedUrl`/`newFeedUrl`, the
+  fake front's `/_chest/calendar/<secret>.ics` and `/_chest/calendar`
+  page; `sdk/client/test/calendar.test.ts` (7 tests: RFC 5545 §3.1
+  folding and its unfolding example, §3.3.11 escaping example, §3.3.5 UTC
+  form, §3.6.1 exclusive DTEND across a year, per-language feeds, replace
+  and remove, access, secret address replaced, ETag, page); the harness
+  shows the signed-in member's feed address (subscribable from a calendar
+  app on the machine), their page, "New address" and the tool's events.
+- **API**: `calendar.put({key, members, title, description?, start, end |
+  days: {first, last}, location?, path?, busy?, private?})` →
+  `{key, members, skipped}`; `remove(key)` → boolean; `list({after,
+  limit})`. Idempotent by key (replace, members too; `SEQUENCE` counts).
+- **Decisions**: (1) **titles per language given by the tool**
+  (`{en, fr}` or one text), the Chest picks each reader's — the same
+  shape as `broadcast`; a template language in the Chest would be a second
+  i18n system. (2) **`path` under `/chest`, not a URL**: nothing in a
+  colleague's calendar links outside the company's tools. (3) **Personal
+  feeds only**: a team's absences for a manager need per-tool rules
+  ("Away", never the kind of leave) — a later "shared feeds" step. (4) **A
+  random secret, stored hashed, replaceable** — not a signed URL, which
+  could not be revoked. (5) **UID = hash(tool, key)@domain**: stable, no
+  internal id leaks into invitations. (6) **DTSTAMP = last change**, so a
+  feed that did not change is byte-identical and answers 304.
+- **Manifest and approval**: `"calendar": true` — "Adds events to the
+  calendar of the members concerned". The member's page: "Add your Chest
+  calendar" with the address, a webcal link, Google's steps, "New address".
+- **Quotas**: 5,000 events per tool, 1,000 members an event, a year back
+  and two years ahead, 600 writes a minute; a feed holds a member's 2,000
+  nearest events. The Chest journals writes per tool (counts, not titles).
+- **Risks**: a feed address is a bearer secret (anyone with it reads that
+  member's week): only the member sees it, "New address" revokes, feeds
+  are `noindex`, `no-referrer`, and private events carry `CLASS:PRIVATE`;
+  a leaked title (a leave's reason) — tools write neutral titles ("Off"),
+  the guide says so; load (a calendar app polls hourly): the answer is
+  static per member and cached by `ETag`.
+- **Honest limit**: Google Calendar refreshes a subscribed calendar at its
+  own pace — "every 6–24 hours" per third-party guides seen on 2026-09-29
+  ([usecarly.com](https://www.usecarly.com/blog/how-to/how-to-subscribe-to-calendar-google/),
+  [add-to-calendar-pro.com](https://add-to-calendar-pro.com/articles/synching-ical-with-google-calendar));
+  Google's own help page ([support.google.com/calendar/answer/37100](https://support.google.com/calendar/answer/37100))
+  could not be read from the studio. So the feed shows plans, not
+  last-minute changes; Booking's critic made the same point (`booking.md` #5).
+- **Next step, not built**: a read-only **free/busy connector** — a member
+  links their Google or Microsoft calendar once (OAuth held by the Chest,
+  the provider's hosts declared as network), and a tool asks
+  `calendar.busy(member, from, to)` → busy intervals only, never titles.
+  That is what Booking needs to stop double-booking (`booking.md` blocker
+  1) and Hiring to propose interview times.
+- **Elsewhere**: the critique notes Lucca and Factorial offer absence
+  feeds (`leave.md` #8, the critics' knowledge, not re-read); each SaaS
+  gives one feed per product. The Chest gives one per person for all its
+  tools — something a bundle of SaaS cannot.
+
+### 4.12 Seeing the Chest's groups — `groups` read (built)
+
+- **Needed by**: News (`05-critique/news.md` #2: "Posting to a team does
+  not work in the default setup"), Polls (`polls.md` #5: "'Some groups'
+  only lists groups that give Polls access"), Wiki (per-space rights by
+  group, `wiki.md` #3), Rooms (rooms reserved to a group, `rooms.md` #11),
+  and the kit's people picker with groups (`_store.md` §3). Seven tools call
+  `members.groups.list()` today (Goals, Tasks, Timesheets, Wiki, News,
+  Leave, Polls) — and get nothing when the tool is open to everyone, the
+  usual setting for exactly those tools.
+- **Working copy**: `members.groups.all()` → `[{id, name, size}]`,
+  `members.groups.members(id, {after, limit})` → `{members, next}` or
+  null; all of a member's groups in `member(request).groups` and
+  `members.*` (cap raised from 16 to 64); events `group.changed {id,
+  changed: ["name" | "members"]}` and `group.removed {id}` in
+  `events.ts`; `fakeChest` groups with `grants: false`;
+  `sdk/client/test/groups.test.ts` (3 tests); `scripts/check-manifest.mjs`
+  reads `"groups": "read"` (with `members`) and `"receives": ["group.*"]`
+  (with `groups`); the harness lists groups and moves a member in or out,
+  telling the tool.
+- **Decisions**: who is in a group is answered **among the members who
+  have the tool** — the rule "a member without access does not exist for
+  the tool" holds; `size` counts the same way. `"read"`, a string, leaves
+  room for nothing else on purpose: groups are the Chest's, never a tool's.
+- **Approval sentence**: "Sees your Chest's groups and who is in them".
+- **Risks**: the organisation chart reaches every tool that asks (hence a
+  permission in words); sensitive group names — the Chest should let the
+  owner hide a group from tools (not designed). Found with the harness: a
+  tool still on an older SDK answers **401** to `group.changed` (its
+  verifier expects a member id in `data.id`), so the Chest must send group
+  events only to versions that declare `group.*` — the manifest makes that
+  true.
+- **Elsewhere** (vendors' docs as a web search showed them, 2026-09-29):
+  Microsoft Graph `GroupMember.Read.All`, admin consent for apps
+  ([permissions reference](https://learn.microsoft.com/en-us/graph/permissions-reference));
+  Slack `usergroups:read`, with `subteam_members_changed` events
+  ([scope](https://docs.slack.dev/reference/scopes/usergroups.read/)).
+  Same split; ours adds the owner's sentence and the access rule.
+
+### 4.13 Receiving mail — `mail` inbound, finished (built)
+
+§4.2 had the shape (`mailboxes`, `handle`, `chest.receive`). What a real
+helpdesk and a jobs@ inbox need was missing; the critique made it the
+blocker of Support (`helpdesk.md` #1) and Hiring (`hiring.md` #2).
+
+- **Threads that cannot be forged.** `send({mailbox, thread: "1042"})`
+  sets Reply-To `support+t1042-<tag>@<domain>`; the tag is 50 bits of HMAC
+  of mailbox and thread under a key derived from `CHEST_TOKEN`, lower
+  case. The Chest routes `support+*` to the mailbox and says
+  `deliveredTo`; the SDK verifies and fills `received.thread`. Writing to
+  `support+1042@` lands nowhere special. Fallback: `inReplyTo` /
+  `references` against sent `messageId`s. `threadAddress`, `threadTag`,
+  `threadOf` exported.
+- **HTML cleaned by the Chest** — decided against "unsanitised, tools
+  clean": a server sanitiser is a dependency (DOMPurify needs a DOM) each
+  of many small tools would carry and get wrong once — stored XSS on its
+  origin. The Chest cleans once (allow-list, links http/https/mailto, no
+  images, no attributes), keeps `text` always, and stores the original
+  `.eml` in the tool's files for "Show original" (download only). The fake
+  has a strict stand-in cleaner, tested against script, style, event
+  handlers, `javascript:` (also entity-encoded), images, iframes, comments.
+- **What the Chest found**: `spam` (8+ quarantined, never posted),
+  `authenticated` (DMARC/aligned SPF or DKIM), `auto` (out-of-office,
+  `Auto-Submitted`) so tools never answer robots; `dropped` attachments
+  (beyond 20, executables, virus, quota).
+- **Bounces apart**: `handle(request, {message, bounce})`; a bounce
+  updates `status()`, suppresses a permanent failure Chest-wide, and is
+  posted as `{kind: "bounce", message, recipient, permanent, reason}` —
+  never as a received message (Support's old risk: a bounce reopening a
+  ticket). Function handlers stay valid (Support's route is unchanged).
+- **Limits**: 25 MiB accepted at SMTP (552 beyond), 20 attachments, 1 MiB
+  text and 2 MiB HTML posted, 4 MiB per delivery; unknown addresses 550.
+- **Manifest and approval** unchanged: `"mail": {"mailboxes": ["support"]}`
+  — "Receives the emails sent to support@<your domain>".
+- **Tests**: 3 new in `sdk/client/test/mail.test.ts` (threads, forged and
+  foreign tags, case; cleaned HTML, original, dropped, auto,
+  authenticated; bounces, suppression, dedup). `chest.bounce()`,
+  `chest.receive({thread, deliveredTo, html, auto, authenticated})`; the
+  harness's form sends a new message or a reply to any outbox message (to
+  its thread address), with HTML and the two switches, and bounces.
+- **Risks**: open relay (impossible: mailboxes only, quota), loops (`auto`,
+  a per-sender rate the Chest applies — designed, not faked), a token
+  change breaking old reply addresses (fallback on References).
+- **Elsewhere** (vendors' docs as a web search showed them, 2026-09-29):
+  Postmark posts inbound mail as JSON with `MailboxHash` (the part after
+  "+") for threading and SpamAssassin headers
+  ([docs](https://postmarkapp.com/developer/webhooks/inbound-webhook));
+  Mailgun routes post a parsed message or raw MIME to a URL, webhooks
+  signed with HMAC-SHA256
+  ([docs](https://documentation.mailgun.com/docs/mailgun/user-manual/receive-forward-store/receive-http)).
+  Neither authenticates the "+" part nor cleans HTML for the app.
+
+### 4.14 Platform only — reaching people outside the Chest tab
+
+The critique's third blocker (`05-critique.md`; `_store.md` §4 #3): Leave
+approvals, Expenses approvals, Tasks assignments and News' Important posts
+wait in a bell nobody opens. No SDK change fixes it — tools already
+`notify`; the **Chest** must carry the bell further:
+
+- **Web push** from the portal: the Chest's own service worker, installed
+  as a PWA on phones (iOS requires the home-screen install), one opt-in
+  per member per device; each bell item pushed with its title and the
+  tool's name, opening its `path`. Tools gain nothing to call: an item
+  keyed and withdrawn in the bell is withdrawn from the device.
+- **An email digest of the bell** (needs the Chest's mail, §4.2): per
+  member "at once / daily at 08:00 / never", default daily, only unread
+  items, grouped by tool, in the member's language; a switch per tool.
+- **Tools may mark urgency**: `notify(..., {urgent: true})` would push
+  immediately and bypass the digest (quota: 20 a day per tool) — the only
+  SDK part, not built until the Chest has push.
+
+### 4.15 Platform only — custom domains for public hosts
+
+`status.`, `careers.`, `book.`, `support.` on the company's own domain are
+required to replace Statuspage, Teamtailor, Calendly or Zendesk
+(`05-critique.md` blocker 4; `status.md`). The Chest must: let the owner
+map a hostname to a tool's public host (a CNAME to the Chest, checked);
+obtain and renew certificates automatically (ACME HTTP-01 or TLS-ALPN-01);
+serve the tool unchanged under both names; and give tools the address
+through `chest.publicUrl()` (§4.5), which already exists for this — no
+tool code changes. Mail links and calendar feeds then use the company's
+name too.
+
 ## 5. Public-facing tools
 
 Support and Booking have a public part (a contact form and follow-up page;
@@ -671,6 +883,19 @@ Ordered by what the opening store needs (counts from the 17 tools'
 | 9 | Public uploads/files | spec'd, now built in the SDK | Hiring | a candidate cannot send a CV | medium (already specified) |
 | 10 | Events between tools | new primitive | Leave → Rooms (built); 5 more links wanted | the suite is a set of silos | medium: routing, admin links, journal |
 | 11 | `chest dev` (local Chest) and `chest check` | tooling | every builder | a day of harness per team; agents cannot verify | medium — our `lab/chest-dev` is a working model |
+
+**Reordered for the pitch after the critique (2026-09-29).** The table
+above ranks by how many tools use a change; the critique ranks by which
+SaaS a company can cancel. Both kept; for the launch, the order is:
+
+| # | Change | Kind | Unblocks | Effort | Risk | Order |
+|---|---|---|---|---|---|---|
+| A | `mail` send + receive (§4.2, §4.13) | Chest + SDK (built) | Support, Hiring, Booking, Status (the four "No" of the pitch), Leave/Tasks/News by email | L | spam, reputation, phishing (bounded by quotas, mailboxes, cleaning) | 1 |
+| B | Calendar bridge `calendar` (§4.11) | Chest + SDK (built) | Rooms, Leave, Booking, Hiring, News, Tasks | M | a bearer feed address (revocable) | 2 |
+| C | Web push + email digest of the bell (§4.14) | Chest only | every tool with approvals or assignments | M | notification fatigue (digest by default) | 3 |
+| D | Custom domains for public hosts (§4.15) | Chest only | Status, Hiring, Booking, Support | M | certificates, domain takeover (CNAME check) | 4 |
+| E | `groups` read (§4.12) | Chest + SDK (built) | News, Polls, Wiki, Rooms | S | the org chart to tools (a permission) | 5 |
+| F | Free/busy connector (§4.11 "next step") | Chest + SDK (not built) | Booking, Hiring | L | OAuth tokens held by the Chest | 6 |
 
 Deliberately not proposed: WebSockets and background processes (polling
 every 20–45 s and schedules covered every case met), outbound network per
