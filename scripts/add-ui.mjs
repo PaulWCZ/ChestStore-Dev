@@ -13,7 +13,7 @@
 // fonts (ui/README.md, "Fonts"); a tool keeps its own identity's fonts in
 // its public/fonts/.
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync, statSync } from "node:fs";
 import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -33,7 +33,22 @@ mkdirSync(vendor, { recursive: true });
 // Only the kit's previous copies go; the SDK's copy stays.
 for (const old of readdirSync(vendor).filter(name => name.startsWith("argentic-chest-ui-") && name.endsWith(".tgz"))) rmSync(join(vendor, old));
 // prepack builds dist/ from the working copy's sources.
-execFileSync("npm", ["pack", "--pack-destination", vendor], { cwd: ui, stdio: ["ignore", "ignore", "inherit"] });
+// Packing rebuilds dist/: two packs at once give an incomplete copy, so
+// one pack at a time (a lock folder; one older than 10 minutes is stale).
+const lock = join(ui, ".pack-lock");
+for (const start = Date.now(); ;) {
+  try { mkdirSync(lock); break; } catch {
+    const age = (() => { try { return Date.now() - statSync(lock).mtimeMs; } catch { return 0; } })();
+    if (age > 600_000) { rmSync(lock, { recursive: true, force: true }); continue; }
+    if (Date.now() - start > 900_000) { console.error(`another pack holds ${lock}`); process.exit(1); }
+    execFileSync("sleep", ["1"]);
+  }
+}
+try {
+  execFileSync("npm", ["pack", "--pack-destination", vendor], { cwd: ui, stdio: ["ignore", "ignore", "inherit"] });
+} finally {
+  rmSync(lock, { recursive: true, force: true });
+}
 const tarball = readdirSync(vendor).find(name => name.startsWith("argentic-chest-ui-") && name.endsWith(".tgz"));
 
 const manifestPath = join(tool, "package.json");
