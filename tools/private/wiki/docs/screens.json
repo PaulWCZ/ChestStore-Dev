@@ -32,5 +32,7 @@
   {"name": "edit-reader", "path": "/chest/pages/3/edit", "member": "hugo", "locale": "en", "only": ["desktop"]},
   {"name": "comments-passage", "path": "/chest/pages/2", "member": "tom", "locale": "en", "actions": [{"click": ".comment-quote .quote-link"}, {"wait": 700}], "only": ["desktop"]},
   {"name": "page-port", "path": "/chest/pages/2", "member": "camille", "locale": "fr", "look": {"tool": "brand:port"}},
-  {"name": "page-brand", "path": "/chest/pages/2", "member": "camille", "locale": "en", "look": {"tool": "brand:sample"}}
+  {"name": "page-brand", "path": "/chest/pages/2", "member": "camille", "locale": "en", "look": {"tool": "brand:sample"}},
+  {"name": "search-stem-fr", "path": "/chest/search?q=rembours%C3%A9", "member": "lea", "locale": "fr"},
+  {"name": "search-wifi", "path": "/chest/search?q=wifi", "member": "hugo", "locale": "en", "only": ["desktop"]}
 ]
