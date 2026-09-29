@@ -4,7 +4,7 @@ import { asked, can, sees } from "./access.ts";
 import { AppError } from "./app-error.ts";
 import type { Query, Sql } from "./db.ts";
 import { readAnswer, type Given } from "./model.ts";
-import { closeDue, load, rights, type Poll } from "./polls.ts";
+import { closeDue, load, placesTaken, rights, type Poll } from "./polls.ts";
 
 // Answering a poll. One answer per member and poll (participants), bound
 // to the member the Chest asserts — never to an id a browser sends.
@@ -32,8 +32,19 @@ export async function answer(sql: Sql, actor: Member | null, pollId: unknown, in
     if (poll.status === "draft") throw new AppError("locked");
     if (!asked(actor, rights(poll))) throw new AppError("not_asked");
     if (poll.status === "closed") throw new AppError("closed");
-    const given = readAnswer(input, poll.questions);
+    const given = readAnswer(input, poll.questions, { slots: poll.slots !== null });
     const [existing] = await tx<{ id: string }[]>`select id from participants where poll_id = ${poll.id} and member = ${actor.id}`;
+    // A sign-up sheet: a place is taken only if one is left (the poll row is
+    // locked: two people cannot take the last place at once). Keeping a
+    // place one already has is always fine.
+    if (poll.slots !== null) {
+      const taken = await placesTaken(tx, poll, existing?.id ?? null);
+      const g = given.get(poll.questions[0]!.id);
+      const wanted = g?.kind === "choice" ? g.options : g?.kind === "date" ? [...g.values].filter(([, v]) => v === 2).map(([o]) => o) : [];
+      for (const o of wanted) {
+        if ((taken[o] ?? 0) >= poll.slots) throw new AppError("full");
+      }
+    }
     if (poll.anonymous) {
       if (existing) throw new AppError("already");
       await anonymous(tx, poll, actor.id, given);
@@ -49,7 +60,7 @@ export async function answer(sql: Sql, actor: Member | null, pollId: unknown, in
         for (const o of g.options) row(o, null, null);
         if (g.other) row(null, null, g.other);
       } else if (g.kind === "date") for (const [o, v] of g.values) row(o, v, null);
-      else if (g.kind === "scale") row(null, g.value, null);
+      else if (g.kind === "scale" || g.kind === "enps") row(null, g.value, null);
       else row(null, null, g.text);
     }
     await tx`insert into answers ${tx(rows, "participant_id", "question_id", "option_id", "value", "text")}`;
@@ -88,7 +99,7 @@ async function anonymous(tx: Query, poll: Poll, member: string, given: Map<strin
         texts.push({ question_id: question, body: g.other });
       }
     } else if (g.kind === "date") for (const [o, v] of g.values) add(question, `o${o}:${v}`);
-    else if (g.kind === "scale") add(question, "v" + g.value);
+    else if (g.kind === "scale" || g.kind === "enps") add(question, "v" + g.value);
     else texts.push({ question_id: question, body: g.text });
   }
   const participants = (await tx<{ member: string }[]>`select member from participants where poll_id = ${poll.id}`).map(p => p.member);

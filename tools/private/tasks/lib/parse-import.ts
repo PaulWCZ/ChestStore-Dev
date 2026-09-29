@@ -11,12 +11,22 @@ export type ImportedCard = {
   title: string;
   description: string;
   due: string | null;
+  start: string | null;
   labels: string[];
   people: string[];
   checklist: { text: string; done: boolean }[];
   comments: { author: string; text: string; at: string | null }[];
   archived: boolean;
+  // Files attached in the other tool: not brought (they stay there); the
+  // page says how many.
+  files: number;
 };
+// What a board brings, for the check before importing.
+export function importedCounts(board: ImportedBoard): { columns: number; cards: number; files: number; people: string[] } {
+  const cards = board.columns.flatMap(c => c.cards);
+  return { columns: board.columns.length, cards: cards.length, files: cards.reduce((n, c) => n + c.files, 0), people: [...new Set(cards.flatMap(c => c.people))] };
+}
+
 export type ImportedBoard = {
   name: string;
   columns: { name: string; done: boolean; cards: ImportedCard[] }[];
@@ -43,7 +53,7 @@ const colorOf = (trello: unknown, index: number): Color => (typeof trello === "s
 type TrelloJson = {
   name?: unknown;
   lists?: { id?: unknown; name?: unknown; closed?: unknown; pos?: unknown }[];
-  cards?: { id?: unknown; name?: unknown; desc?: unknown; idList?: unknown; closed?: unknown; pos?: unknown; due?: unknown; idLabels?: unknown; idMembers?: unknown; idChecklists?: unknown }[];
+  cards?: { id?: unknown; name?: unknown; desc?: unknown; idList?: unknown; closed?: unknown; pos?: unknown; due?: unknown; start?: unknown; idLabels?: unknown; idMembers?: unknown; idChecklists?: unknown; attachments?: unknown; badges?: { attachments?: unknown } }[];
   labels?: { id?: unknown; name?: unknown; color?: unknown }[];
   checklists?: { id?: unknown; idCard?: unknown; name?: unknown; checkItems?: { name?: unknown; state?: unknown; pos?: unknown }[] }[];
   members?: { id?: unknown; fullName?: unknown }[];
@@ -78,11 +88,13 @@ export function fromTrello(text: string): ImportedBoard {
         title: oneLine(c.name, limits.title) || "—",
         description: cut(c.desc, limits.description),
         due: dayOf(c.due),
+        start: dayOf(c.start),
         labels: array<unknown>(c.idLabels).map(l => labelName.get(String(l))).filter((l): l is string => !!l),
         people: array<unknown>(c.idMembers).map(m => people.get(String(m))).filter((m): m is string => !!m),
         checklist: checklists.filter(k => k.idCard === c.id).flatMap(k => array<{ name?: unknown; state?: unknown; pos?: unknown }>(k.checkItems).sort((a, b) => num(a.pos) - num(b.pos))).slice(0, limits.checkItemsPerCard).map(i => ({ text: oneLine(i.name, limits.checkItem) || "—", done: i.state === "complete" })),
         comments: comments.filter(a => a.data?.card?.id === c.id).reverse().map(a => ({ author: oneLine(a.memberCreator?.fullName, 120), text: cut(a.data?.text, limits.comment), at: typeof a.date === "string" ? a.date : null })).filter(x => x.text),
         archived: c.closed === true,
+        files: Math.max(array<unknown>(c.attachments).length, num(c.badges?.attachments)),
       })),
     })),
   };
@@ -94,6 +106,7 @@ const headers = {
   column: ["section/column", "section", "list name", "list", "column", "status", "colonne", "liste", "statut"],
   description: ["notes", "card description", "description", "details"],
   due: ["due date", "due", "due on", "échéance", "date d'échéance"],
+  start: ["start date", "start", "start on", "début", "date de début"],
   people: ["assignee", "members", "assigned to", "owner", "responsable", "assigné"],
   labels: ["tags", "labels", "label", "étiquettes"],
   done: ["completed at", "completed", "done", "terminé"],
@@ -135,7 +148,7 @@ export function fromCsv(text: string, fallbackName: string): ImportedBoard {
     }
     const labels = split(get(row, "labels"));
     labels.forEach(l => labelNames.add(l));
-    const card: ImportedCard = { title, description: cut(get(row, "description"), limits.description), due: dayOf(get(row, "due")), labels, people: split(get(row, "people")).slice(0, limits.assigneesPerCard), checklist: [], comments: [], archived: truthy(get(row, "archived")) };
+    const card: ImportedCard = { title, description: cut(get(row, "description"), limits.description), due: dayOf(get(row, "due")), start: dayOf(get(row, "start")), labels, people: split(get(row, "people")).slice(0, limits.assigneesPerCard), checklist: [], comments: [], archived: truthy(get(row, "archived")), files: 0 };
     // A completed task goes to a "done" column of its own.
     if (done) {
       let finished = columns.find(c => c.done);

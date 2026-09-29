@@ -35,6 +35,9 @@ export type Seller = {
   penaltyRate: number | null;
   earlyDiscount: string;
   footer: string;
+  // A page where the client pays online, printed on invoices; absent on
+  // documents numbered before it existed.
+  paymentLink?: string;
 };
 
 export type Buyer = {
@@ -51,7 +54,7 @@ export type Buyer = {
   vatNumber: string;
 };
 
-const sellerKeys: (keyof Seller)[] = ["legalName", "tradeName", "legalForm", "capital", "address", "postcode", "city", "country", "siren", "siret", "rcsCity", "vatNumber", "franchise", "vatOnDebits", "email", "phone", "website", "bank", "iban", "bic", "logo", "logoType", "paymentDays", "penaltyRate", "earlyDiscount", "footer"];
+const sellerKeys: (keyof Seller)[] = ["legalName", "tradeName", "legalForm", "capital", "address", "postcode", "city", "country", "siren", "siret", "rcsCity", "vatNumber", "franchise", "vatOnDebits", "email", "phone", "website", "bank", "iban", "bic", "logo", "logoType", "paymentDays", "penaltyRate", "earlyDiscount", "footer", "paymentLink"];
 const buyerKeys: (keyof Buyer)[] = ["kind", "name", "contact", "email", "address", "postcode", "city", "country", "deliveryAddress", "siren", "vatNumber"];
 
 export function sellerOf(source: Seller): Seller {

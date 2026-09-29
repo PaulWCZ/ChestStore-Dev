@@ -9,7 +9,7 @@ import { asked } from "./access.ts";
 // loses access is no longer counted. The Chest answers 500 at a time; Polls
 // reads up to 10,000 people.
 export type Person = { id: string; name: string; locale: Locale; role: string | null; groups: string[] };
-export type Audience = { everyone: boolean; groups: readonly string[] };
+export type Audience = { everyone: boolean; groups: readonly string[]; people: readonly string[] };
 
 export const pageSize = 500;
 export const maxPages = 20;
@@ -50,10 +50,35 @@ export async function all(audience: Audience): Promise<{ people: Person[]; compl
 // everyone: all who have the tool with a role, once, for a page that counts
 // several polls' audiences.
 export async function everyone(): Promise<{ people: Person[]; complete: boolean }> {
-  return all({ everyone: true, groups: [] });
+  return all({ everyone: true, groups: [], people: [] });
 }
 
 export const inAudience = (p: Person, audience: Audience): boolean => asked({ ...p, isAdmin: false }, audience);
+
+// findPeople: members who have Polls whose name starts with what was typed,
+// for "who is asked: these people".
+export async function findPeople(q: string): Promise<{ id: string; name: string }[]> {
+  const text = q.trim().slice(0, 60);
+  if (text === "") return [];
+  try {
+    return (await members.list({ q: text, limit: 12 })).members.filter(m => m.role !== null).map(m => ({ id: m.id, name: m.name }));
+  } catch (error) {
+    if (error instanceof ChestError) return [];
+    throw error;
+  }
+}
+
+// havePolls: of these ids, those of members who have Polls now (null when
+// the Chest cannot say).
+export async function havePolls(ids: string[]): Promise<string[] | null> {
+  if (ids.length === 0) return [];
+  try {
+    return (await members.lookup(ids)).members.filter(m => m.role !== null).map(m => m.id);
+  } catch (error) {
+    if (error instanceof ChestError) return null;
+    throw error;
+  }
+}
 
 // The groups that give Polls (the Chest shows a tool only these), by name:
 // the choices of "who is asked". Null when the Chest cannot say.

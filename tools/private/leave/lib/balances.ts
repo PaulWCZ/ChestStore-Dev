@@ -1,7 +1,7 @@
 import type { Member } from "@argentic/chest-sdk/member";
 import { can, sightOf } from "./access.ts";
 import { AppError } from "./app-error.ts";
-import { earned, round2, type Day } from "./calendar.ts";
+import { addDays, addMonths, completedMonths, periodStart, round2, type Day } from "./calendar.ts";
 import type { Query, Sql } from "./db.ts";
 import { clean, decimalDays, day, limits, memberId, numeric, today } from "./model.ts";
 import { leaveType, settings, types, type LeaveType, type Settings } from "./rules.ts";
@@ -9,50 +9,189 @@ import { staffOf, staffRow, type Staff } from "./staff.ts";
 
 // Balances, as a ledger: every change is a line (opening, adjustment,
 // taken, returned), never changed. A person's balance of a type is their
-// latest opening line (or zero), the lines written after it, and what they
-// earned month by month since — from the opening's day, or their start
-// date if later — computed when read: nothing runs at night.
+// latest opening (one line, or two for paid leave: acquired and being
+// earned), the lines written after it, and what they earned month by month
+// since — from the opening's day, or their start date if later, to today or
+// their last day — computed when read: nothing runs at night.
+//
+// Paid leave lives in reference periods (1 June to 31 May by default; art.
+// L3141-10 and R3141-4 of the Code du travail, reports/02-open-source/leave.md):
+// what is earned during a period ("being earned", CP N) is taken during the
+// next one ("acquired", CP N-1). Days taken come out of the oldest days
+// first; taking days still being earned is taking them early (by
+// anticipation). When a period ends, what was "being earned" becomes
+// "acquired" — computed from the dates, no job needed — and what was left of
+// the acquired days is carried over or lost, as HR chose for the kind.
 
 export type LineKind = "opening" | "adjustment" | "taken" | "returned";
-export type Line = { id: string; typeId: string; kind: LineKind; days: number; onDate: Day; reason: string; requestId: string | null; createdBy: string; createdAt: string };
+export type Bucket = "acquired" | "earning";
+export type Line = { id: string; typeId: string; kind: LineKind; days: number; onDate: Day; reason: string; requestId: string | null; bucket: Bucket | null; createdBy: string; createdAt: string };
+
+// A year of a kind of leave, as the pay slip shows it: what was credited
+// (earned, set, given), what was used (taken), what is left.
+export type Year = { start: Day; credited: number; used: number; left: number };
+// The end of a year: its days left over were carried over or lost.
+export type Close = { on: Day; days: number; lost: boolean; typeId: string };
 
 export type Balance = {
   typeId: string;
-  left: number; // what the person may still take (approved leave already deducted)
+  left: number; // what the person may still take (approved leave already deducted) — the one "days left" everywhere
+  acquired: number; // paid leave: earned before this period, to take now (CP N-1, carried-over days included); other kinds: this year's days
+  earning: number; // paid leave: being earned this period (CP N), less what was taken early
+  carried: number; // of `acquired`, days from older years carried over
+  deadline: Day | null; // the day the acquired days must be taken by, when the kind loses them
   earnedThisPeriod: number; // earned since the reference period began
   earnedTotal: number; // earned since the count started
   months: number; // months earned
   perMonth: number; // earned each month (0: nothing earned by itself)
   since: Day | null; // when the count started (null: not set up)
+  sinceOpening: boolean; // the count starts at an opening balance (not at the start date)
+  until: Day | null; // the person's last day: nothing is earned after it
   pending: number; // asked, not yet answered: not deducted yet
   setUp: boolean; // an opening balance, a start date, or a line: HR set this person up
+  years: { last: Year | null; current: Year }; // CP N-1 and CP N (paid leave), for the pay slip
+  closes: Close[]; // the ends of years with days carried over or lost
 };
 
-type LineRow = { id: string; member_id: string; type_id: string; kind: LineKind; days: string; on_date: string; reason: string | null; request_id: string | null; created_by: string; created_at: Date };
+export type Period = "running" | "acquired" | "yearly";
+export type Kind = { id: string; perYear: number; period?: Period; periodMonth?: number | null; unused?: "carry" | "lose" };
+
+type LineRow = { id: string; member_id: string; type_id: string; kind: LineKind; days: string; on_date: string; reason: string | null; request_id: string | null; bucket: Bucket | null; created_by: string; created_at: Date };
 const toLine = (r: LineRow): Line => ({
   id: String(r.id), typeId: String(r.type_id), kind: r.kind, days: numeric(r.days), onDate: r.on_date, reason: r.reason ?? "",
-  requestId: r.request_id === null ? null : String(r.request_id), createdBy: r.created_by, createdAt: r.created_at.toISOString(),
+  requestId: r.request_id === null ? null : String(r.request_id), bucket: r.bucket, createdBy: r.created_by, createdAt: r.created_at.toISOString(),
 });
 
+type In = Pick<Line, "kind" | "days" | "onDate"> & Partial<Pick<Line, "bucket" | "requestId" | "createdAt">>;
+const later = (a: Day, b: Day): Day => (a > b ? a : b);
+
 // compute: one person's balance of one type, from their lines (in the
-// order written), their start date and the rules. Pure.
-export function compute(type: Pick<LeaveType, "id" | "perYear">, lines: readonly Pick<Line, "kind" | "days" | "onDate">[], staff: Pick<Staff, "startDate">, s: Pick<Settings, "periodStartMonth">, on: Day, pending = 0): Balance {
-  const lastOpening = lines.findLastIndex(l => l.kind === "opening");
-  const counted = lastOpening >= 0 ? lines.slice(lastOpening) : lines;
-  const opening = lastOpening >= 0 ? lines[lastOpening]!.onDate : null;
-  const since = opening && staff.startDate ? (staff.startDate > opening ? staff.startDate : opening) : opening ?? staff.startDate;
-  const e = type.perYear > 0 && since ? earned(since, on, type.perYear, s.periodStartMonth) : { total: 0, thisPeriod: 0, months: 0 };
-  const sum = counted.reduce((a, l) => a + l.days, 0);
+// order written), their start and last days and the rules. Pure.
+export function compute(type: Kind, lines: readonly In[], staff: Pick<Staff, "startDate"> & Partial<Pick<Staff, "endDate">>, s: Pick<Settings, "periodStartMonth">, on: Day, pending = 0): Balance {
+  const mode: Period = type.period ?? "running";
+  const month = type.periodMonth ?? s.periodStartMonth;
+  const lose = mode !== "running" && type.unused === "lose";
+  const yearOf = (d: Day): Day => (mode === "running" ? "0000-01-01" : periodStart(d, month));
+  const before = (p: Day): Day => (mode === "running" ? p : addMonths(p, -12));
+  // Where days credited on a day go: paid leave set or given is acquired
+  // (to take now) unless said "being earned"; other kinds, that year.
+  const creditYear = (d: Day, bucket: Bucket | null | undefined): Day => (mode === "acquired" && bucket !== "earning" ? before(yearOf(d)) : yearOf(d));
+
+  // The latest opening: its last line, and the line before it when both
+  // were written together (acquired and being earned).
+  const last = lines.findLastIndex(l => l.kind === "opening");
+  let first = last;
+  if (last > 0) {
+    const a = lines[last - 1]!;
+    const b = lines[last]!;
+    if (a.kind === "opening" && a.onDate === b.onDate && a.createdAt === b.createdAt && (a.bucket ?? "acquired") !== (b.bucket ?? "acquired")) first = last - 1;
+  }
+  const opening = last >= 0 ? lines[last]!.onDate : null;
+
+  const credit = new Map<Day, number>();
+  const used = new Map<Day, number>();
+  const add = (m: Map<Day, number>, y: Day, n: number) => m.set(y, round2((m.get(y) ?? 0) + n));
+  if (last >= 0) for (const l of lines.slice(first, last + 1)) add(credit, creditYear(l.onDate, l.bucket), l.days);
+
+  // Earned month by month, each month in the year it was worked in (one
+  // completed on a year's first day was worked in the year before).
+  const since = opening && staff.startDate ? later(staff.startDate, opening) : opening ?? staff.startDate;
+  const until = staff.endDate ? addDays(staff.endDate, 1) : null;
+  const to = until && until < on ? until : on;
+  const months = type.perYear > 0 && since ? completedMonths(since, to) : 0;
+  const cur = yearOf(on);
+  let earnedThisPeriod = 0;
+  for (let i = 1; i <= months; i++) {
+    const n = round2((i * type.perYear) / 12) - round2(((i - 1) * type.perYear) / 12);
+    const y = yearOf(addDays(addMonths(since!, i), -1));
+    add(credit, y, n);
+    if (y === cur) earnedThisPeriod = round2(earnedThisPeriod + n);
+  }
+
+  // What came after the opening: days credited, and days used — a request's
+  // lines (taken, given back) as one, on its first day.
+  const debits: { on: Day; days: number; order: number }[] = [];
+  const nets = new Map<string, { on: Day; days: number; order: number }>();
+  lines.slice(last + 1).forEach((l, order) => {
+    if (l.requestId) {
+      const n = nets.get(l.requestId) ?? { on: l.onDate, days: 0, order };
+      n.days = round2(n.days + l.days);
+      nets.set(l.requestId, n);
+    } else if (l.days < 0) debits.push({ on: l.onDate, days: -l.days, order });
+    else add(credit, creditYear(l.onDate, l.bucket), l.days);
+  });
+  for (const n of nets.values()) {
+    if (n.days < 0) debits.push({ on: n.on, days: -n.days, order: n.order });
+    else if (n.days > 0) add(credit, yearOf(n.on), n.days);
+  }
+  // The oldest days first; a year whose days were lost is no longer there
+  // to take from; what is missing is taken early from the day's own year.
+  debits.sort((a, b) => (a.on < b.on ? -1 : a.on > b.on ? 1 : a.order - b.order));
+  for (const d of debits) {
+    const own = yearOf(d.on);
+    const floor = lose ? (mode === "acquired" ? before(own) : own) : null;
+    let need = d.days;
+    for (const y of [...credit.keys()].sort()) {
+      if (need <= 0 || y > own || (floor !== null && y < floor)) continue;
+      const free = round2((credit.get(y) ?? 0) - (used.get(y) ?? 0));
+      if (free <= 0) continue;
+      const take = Math.min(free, need);
+      add(used, y, take);
+      need = round2(need - take);
+    }
+    if (need > 0) add(used, own, need);
+  }
+
+  // Today: this year, the year before, older years carried over or lost.
+  const floorNow = lose ? (mode === "acquired" ? before(cur) : cur) : null;
+  let acquired = 0, earning = 0, carried = 0;
+  const closes: Close[] = [];
+  const keys = [...new Set([...credit.keys(), ...used.keys()])].sort();
+  const yearAt = (y: Day): Year => {
+    const c = credit.get(y) ?? 0;
+    const u = used.get(y) ?? 0;
+    return { start: y, credited: round2(c), used: round2(u), left: round2(c - u) };
+  };
+  for (const y of keys) {
+    const rest = yearAt(y).left;
+    if (mode === "running") { acquired += rest; continue; }
+    if (y > cur || (y === cur && mode === "acquired")) { earning += rest; continue; }
+    if (y === cur) { acquired += rest; continue; }
+    // A year that is over for taking its days: closed on its end.
+    const over = mode === "acquired" ? y < before(cur) : true;
+    if (!over) { acquired += rest; continue; }
+    const closedOn = addMonths(y, mode === "acquired" ? 24 : 12);
+    if (floorNow !== null && y < floorNow && rest > 0) {
+      closes.push({ on: closedOn, days: rest, lost: true, typeId: type.id });
+      continue;
+    }
+    acquired += rest;
+    if (rest > 0) {
+      carried += rest;
+      closes.push({ on: closedOn, days: rest, lost: false, typeId: type.id });
+    }
+  }
+  acquired = round2(acquired);
+  earning = round2(earning);
+  const periodEnd = addDays(addMonths(cur, 12), -1);
   return {
     typeId: type.id,
-    left: round2(sum + e.total),
-    earnedThisPeriod: e.thisPeriod,
-    earnedTotal: e.total,
-    months: e.months,
+    left: round2(acquired + earning),
+    acquired,
+    earning,
+    carried: round2(carried),
+    deadline: lose && mode !== "running" ? periodEnd : null,
+    earnedThisPeriod,
+    earnedTotal: round2((months * type.perYear) / 12),
+    months,
     perMonth: round2(type.perYear / 12),
     since,
+    sinceOpening: since !== null && since === opening && opening !== staff.startDate,
+    until: staff.endDate ?? null,
     pending: round2(pending),
     setUp: since !== null || lines.length > 0,
+    years: { last: mode === "acquired" ? yearAt(before(cur)) : null, current: yearAt(cur) },
+    closes,
   };
 }
 
@@ -65,7 +204,7 @@ export async function balancesOf(sql: Query, ids: string[], on = today()): Promi
   const counted = all.filter(t => t.balance);
   if (counted.length === 0) return found;
   const lines = await sql<LineRow[]>`
-    select id, member_id, type_id, kind, days, to_char(on_date, 'YYYY-MM-DD') as on_date, reason, request_id, created_by, created_at
+    select id, member_id, type_id, kind, days, to_char(on_date, 'YYYY-MM-DD') as on_date, reason, request_id, bucket, created_by, created_at
     from ledger where member_id in ${sql(ids)} order by id`;
   const pending = await sql<{ member_id: string; type_id: string; days: string }[]>`
     select member_id, type_id, sum(days) as days from requests where member_id in ${sql(ids)} and status = 'pending' group by member_id, type_id`;
@@ -93,7 +232,7 @@ export async function balances(sql: Query, actor: Member | null, person: unknown
 export async function ledger(sql: Query, actor: Member | null, person: unknown): Promise<Line[]> {
   const who = await visible(sql, actor, person);
   const rows = await sql<LineRow[]>`
-    select id, member_id, type_id, kind, days, to_char(on_date, 'YYYY-MM-DD') as on_date, reason, request_id, created_by, created_at
+    select id, member_id, type_id, kind, days, to_char(on_date, 'YYYY-MM-DD') as on_date, reason, request_id, bucket, created_by, created_at
     from ledger where member_id = ${who} order by id desc limit 500`;
   return rows.map(toLine);
 }

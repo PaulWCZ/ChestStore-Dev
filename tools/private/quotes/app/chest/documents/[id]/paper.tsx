@@ -11,6 +11,7 @@ import type { Catalogue, Locale } from "../../../../lib/i18n/index.ts";
 import { formatMoney, formatNumber, formatQuantity, formatRate, inputAmount, inputPercent, parseAmount, parsePercent, parseQuantity, vatRates } from "../../../../lib/money.ts";
 import { addressLines, spacedSiren } from "../../../../lib/parties.ts";
 import { lineNet, totals } from "../../../../lib/totals.ts";
+import { unitText } from "../../../../lib/units.ts";
 import type { ClientOption, DocView, ItemOption } from "../../../../lib/views.ts";
 import { saveDraft } from "../../actions.ts";
 
@@ -181,7 +182,7 @@ export function Paper(props: PaperProps) {
       return (
         <>
           <div className="desc desc-read">{readOnlyDescription(l.description)}</div>
-          <div className="cell"><span className="phone-label">{w.quantity}</span>{formatQuantity(p.quantity ?? 0, header.language)}{l.unit ? " " + l.unit : ""}</div>
+          <div className="cell"><span className="phone-label">{w.quantity}</span>{formatQuantity(p.quantity ?? 0, header.language)}{l.unit ? " " + unitText(l.unit, p.quantity ?? 0, w, header.language) : ""}</div>
           <div className="cell"><span className="phone-label">{w.unitPrice}</span>{figure(p.unitPrice ?? 0)}</div>
           {anyDiscount && <div className="cell"><span className="phone-label">{w.discount}</span>{(p.discount ?? 0) !== 0 ? "−" + formatRate(p.discount ?? 0, header.language) : ""}</div>}
           {!noVat && <div className="cell"><span className="phone-label">{w.vat}</span>{formatRate(l.vatRate, header.language)}</div>}
@@ -242,7 +243,7 @@ export function Paper(props: PaperProps) {
     </div>
   );
 
-  const unitWords = Object.values(t.units);
+  const unitWords = Object.values(w.units).map(u => u.one);
   const lang = header.language;
   const titleWord = doc.type === "quote" ? w.quote : doc.type === "credit" ? w.credit : doc.depositPercent !== null ? w.deposit : w.invoice;
   const operation = (() => {

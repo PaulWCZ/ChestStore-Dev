@@ -10,8 +10,8 @@ import { useToast } from "../../../../../components/toast.tsx";
 import { safeHref, type Doc } from "../../../../../lib/doc.ts";
 import type { Catalogue } from "../../../../../lib/i18n/index.ts";
 import { format, moment } from "../../../../../lib/i18n/format.ts";
-import { draftEverySeconds } from "../../../../../lib/model.ts";
-import { openEditor, publishPage, saveDraft, stopEditing, type Holder } from "../../../actions.ts";
+import { draftEverySeconds, heartbeatSeconds } from "../../../../../lib/model.ts";
+import { keepEditing, openEditor, publishPage, saveDraft, stopEditing, type Holder } from "../../../actions.ts";
 import { extensions } from "./extensions.ts";
 
 type Words = { editor: Catalogue["editor"]; errors: Catalogue["errors"]; common: Catalogue["common"]; missing: string };
@@ -27,7 +27,7 @@ type Phase =
 // as it is — or the member's own unsaved draft, which comes back. Every
 // change is kept as a draft within seconds; "Save" makes it the page's new
 // version. "Stop editing" drops the changes, with undo.
-export function Editor({ page, pages, locale, t }: { page: PageInfo; pages: PickPage[]; locale: string; t: Words }) {
+export function Editor({ page, pages, fresh = false, locale, t }: { page: PageInfo; pages: PickPage[]; fresh?: boolean; locale: string; t: Words }) {
   const [phase, setPhase] = useState<Phase>({ kind: "opening" });
   const [error, setError] = useState<string | null>(null);
   const open = useCallback(async (takeOver = false) => {
@@ -61,12 +61,12 @@ export function Editor({ page, pages, locale, t }: { page: PageInfo; pages: Pick
       </div>
     );
   }
-  return <Writing key={phase.base + ":" + phase.title} page={page} start={phase} pages={pages} locale={locale} t={t} />;
+  return <Writing key={phase.base + ":" + phase.title} page={page} start={phase} pages={pages} fresh={fresh} locale={locale} t={t} />;
 }
 
-type Status = { kind: "clean" } | { kind: "saving" } | { kind: "draft"; at: string } | { kind: "offline" };
+type Status = { kind: "clean" } | { kind: "nothing" } | { kind: "saving" } | { kind: "draft"; at: string } | { kind: "offline" };
 
-function Writing({ page, start, pages, locale, t }: { page: PageInfo; start: Extract<Phase, { kind: "editing" }>; pages: PickPage[]; locale: string; t: Words }) {
+function Writing({ page, start, pages, fresh, locale, t }: { page: PageInfo; start: Extract<Phase, { kind: "editing" }>; pages: PickPage[]; fresh: boolean; locale: string; t: Words }) {
   const router = useRouter();
   const toast = useToast();
   const [title, setTitle] = useState(start.title);
@@ -78,6 +78,10 @@ function Writing({ page, start, pages, locale, t }: { page: PageInfo; start: Ext
   const [pickOpen, setPickOpen] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const dirty = useRef(false);
+  // Anything typed since the editor opened (the title too).
+  const touched = useRef(start.restored !== null);
+  // Leaving through "Save" or "Stop editing": the lock is given back there.
+  const closing = useRef(false);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const titleRef = useRef(title);
   const fileInput = useRef<HTMLInputElement>(null);
@@ -137,25 +141,61 @@ function Writing({ page, start, pages, locale, t }: { page: PageInfo; start: Ext
   }, [page.id, start.base, locale]);
   const changed = useCallback(() => {
     dirty.current = true;
+    touched.current = true;
     clearTimeout(timer.current);
     timer.current = setTimeout(() => void flush(), draftEverySeconds * 1000);
   }, [flush]);
   changedRef.current = changed;
   useEffect(() => {
     const hide = () => { if (document.visibilityState === "hidden") void flush(); };
-    const leave = (e: BeforeUnloadEvent) => { if (dirty.current) { e.preventDefault(); e.returnValue = t.editor.leave; } };
+    const warn = (e: BeforeUnloadEvent) => { if (dirty.current) { e.preventDefault(); e.returnValue = t.editor.leave; } };
+    // Gone without "Save" or "Stop editing" (tab closed, back button, a
+    // link elsewhere): the lock goes back at once, with the latest draft
+    // when it fits in a beacon (else the one saved seconds ago stays).
+    const leave = () => {
+      if (closing.current) return;
+      clearTimeout(timer.current);
+      const current = editorRef.current;
+      let body = "";
+      if (dirty.current && current) {
+        const draft = JSON.stringify({ title: titleRef.current, doc: current.getJSON(), baseVersion: start.base });
+        if (draft.length < 60_000) body = draft;
+      }
+      navigator.sendBeacon(`/chest/api/pages/${page.id}/leave`, new Blob([body], { type: "text/plain" }));
+      dirty.current = false;
+    };
+    // Back from the browser's cache: the editor is open again.
+    const back = (e: PageTransitionEvent) => { if (e.persisted) void keepEditing(page.id).then(r => { if (r.ok) setLost(r.value.holder); }); };
+    // Still here: the lock stays, and a lock someone else took shows.
+    const beat = setInterval(() => void keepEditing(page.id).then(r => { if (r.ok) setLost(r.value.holder); }).catch(() => {}), heartbeatSeconds * 1000);
     document.addEventListener("visibilitychange", hide);
-    window.addEventListener("beforeunload", leave);
+    window.addEventListener("beforeunload", warn);
+    window.addEventListener("pagehide", leave);
+    window.addEventListener("pageshow", back);
     return () => {
       document.removeEventListener("visibilitychange", hide);
-      window.removeEventListener("beforeunload", leave);
-      clearTimeout(timer.current);
+      window.removeEventListener("beforeunload", warn);
+      window.removeEventListener("pagehide", leave);
+      window.removeEventListener("pageshow", back);
+      clearInterval(beat);
+      leave();
     };
-  }, [flush, t.editor.leave]);
+  }, [flush, page.id, start.base, t.editor.leave]);
+
+  // Just created: the cursor waits in the page, so the first words land.
+  useEffect(() => {
+    if (fresh && editor) editor.commands.focus("start");
+  }, [fresh, editor]);
 
   function save() {
     if (!editor) return;
     setError(null);
+    // Nothing typed: nothing to save (and no "Saved." for an empty page).
+    if (!touched.current) {
+      setStatus({ kind: "nothing" });
+      editor.commands.focus();
+      return;
+    }
     startSave(async () => {
       clearTimeout(timer.current);
       const result = await publishPage(page.id, { title: titleRef.current, doc: JSON.stringify(editor.getJSON()), baseVersion: start.base });
@@ -164,6 +204,7 @@ function Writing({ page, start, pages, locale, t }: { page: PageInfo; start: Ext
         return setError(format(t.errors[result.error], result.values));
       }
       dirty.current = false;
+      closing.current = true;
       router.push(`/chest/pages/${page.id}?saved=${result.value.version}${result.value.replaced ? `&over=${result.value.replaced}` : ""}`);
     });
   }
@@ -174,6 +215,7 @@ function Writing({ page, start, pages, locale, t }: { page: PageInfo; start: Ext
     const hadChanges = dirty.current || status.kind !== "clean" || start.restored !== null;
     const keep = { title: titleRef.current, doc: JSON.stringify(editor.getJSON()), baseVersion: start.base };
     dirty.current = false;
+    closing.current = true;
     await stopEditing(page.id, false);
     router.push(`/chest/pages/${page.id}`);
     if (hadChanges) {
@@ -216,7 +258,7 @@ function Writing({ page, start, pages, locale, t }: { page: PageInfo; start: Ext
 
   uploadRef.current = upload;
 
-  const statusText = status.kind === "saving" ? t.editor.status.saving : status.kind === "draft" ? format(t.editor.status.draft, { time: status.at }) : status.kind === "offline" ? t.editor.status.offline : t.editor.status.clean;
+  const statusText = status.kind === "nothing" ? t.editor.status.nothing : status.kind === "saving" ? t.editor.status.saving : status.kind === "draft" ? format(t.editor.status.draft, { time: status.at }) : status.kind === "offline" ? t.editor.status.offline : t.editor.status.clean;
 
   return (
     <div className="writer" onKeyDown={e => { if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "s") { e.preventDefault(); save(); } }}>

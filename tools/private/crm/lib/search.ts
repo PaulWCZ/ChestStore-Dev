@@ -1,6 +1,6 @@
 import type { Member } from "@argentic/chest-sdk/member";
 import { can } from "./access.ts";
-import { likePattern, words } from "./companies.ts";
+import { likePattern, phoneQuery, words } from "./companies.ts";
 import type { Sql } from "./db.ts";
 import { AppError } from "./errors.ts";
 import { clean, domainOf, freeMail, limits, optionalId } from "./model.ts";
@@ -20,17 +20,19 @@ export async function search(sql: Sql, actor: Member | null, query: unknown): Pr
   const q = clean(query ?? "", limits.query, { optional: true });
   const tsq = words(q);
   const plain = q.replace(/[\\%_]/gu, "");
-  if (!tsq && plain.trim().length < 2) return { companies: [], contacts: [], deals: [] };
+  if (!tsq && plain.trim().length < 2 && !phoneQuery(q)) return { companies: [], contacts: [], deals: [] };
   const like = likePattern(q);
+  const digits = phoneQuery(q);
+  const phoneMatch = (alias: string) => (digits ? sql`or ${sql(alias + ".phone_digits")} like ${"%" + digits + "%"}` : sql``);
   const match = (alias: string) => sql`(${tsq ? sql`${sql(alias + ".search")} @@ to_tsquery('crm', ${tsq}) or` : sql``} ${sql(alias + ".folded")} like '%' || crm_fold(${plain}) || '%' or word_similarity(crm_fold(${plain}), ${sql(alias + ".folded")}) > 0.5)`;
   const rank = (alias: string) => sql`(${tsq ? sql`ts_rank(${sql(alias + ".search")}, to_tsquery('crm', ${tsq})) +` : sql``} word_similarity(crm_fold(${plain}), ${sql(alias + ".folded")}))`;
   const companies = await sql<{ id: string; name: string; detail: string }[]>`
     select o.id, o.name, concat_ws(' · ', nullif(o.industry, ''), nullif(o.website, '')) as detail from companies o
-    where ${match("o")} or o.website ilike ${like} or o.phone ilike ${like}
+    where ${match("o")} or o.website ilike ${like} or o.phone ilike ${like} ${phoneMatch("o")}
     order by ${rank("o")} desc, o.folded limit 20`;
   const contacts = await sql<{ id: string; name: string; detail: string }[]>`
     select c.id, c.name, concat_ws(' · ', nullif(c.title, ''), o.name, nullif(c.email, '')) as detail from contacts c left join companies o on o.id = c.company_id
-    where ${match("c")} or c.email ilike ${like} or c.phone ilike ${like}
+    where ${match("c")} or c.email ilike ${like} or c.phone ilike ${like} or c.phone2 ilike ${like} ${phoneMatch("c")}
     order by ${rank("c")} desc, c.folded limit 20`;
   const deals = await sql<{ id: string; name: string; detail: string; value_cents: string; stage_id: string }[]>`
     select d.id, d.title as name, coalesce(o.name, '') as detail, d.value_cents, d.stage_id from deals d left join companies o on o.id = d.company_id

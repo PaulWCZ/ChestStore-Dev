@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
 import { fromMarkdown } from "../lib/markdown.ts";
-import { normalize } from "../lib/doc.ts";
+import { lines, normalize } from "../lib/doc.ts";
 import * as editing from "../lib/editing.ts";
 import * as history from "../lib/history.ts";
 import * as pages from "../lib/pages.ts";
@@ -64,6 +64,36 @@ test("a space kept to a group is invisible to others, even by its pages' ids", a
   // Opened to everyone, it shows.
   await spaces.updateSpace(sql, asMember(camille), hr.id, { visibility: "everyone" });
   assert.equal((await pages.page(sql, asMember(lea), p.id)).title, "Salaries 2026");
+});
+
+test("who edits a space: every editor, or only some groups and people — the others read it", async () => {
+  const { sql } = database;
+  const sales = await spaces.createSpace(sql, asMember(ines), { name: "Sales desk" });
+  const p = await pages.createPage(sql, asMember(tom), { spaceId: sales.id, title: "Price list" });
+  // Ines keeps it to the sales group; Tom (tech) now reads it.
+  const kept = await spaces.updateSpace(sql, asMember(ines), sales.id, { editing: "some", editors: [groups.sales] });
+  assert.equal(kept.editing, "some");
+  assert.deepEqual(kept.editors, [groups.sales]);
+  assert.equal((await spaces.space(sql, asMember(tom), sales.id)).access, "read");
+  await assert.rejects(pages.createPage(sql, asMember(tom), { spaceId: sales.id, title: "Mine" }), /forbidden/u);
+  await assert.rejects(editing.startEditing(sql, asMember(tom), p.id), /forbidden/u);
+  await assert.rejects(pages.deletePage(sql, asMember(tom), p.id), /forbidden/u);
+  await assert.rejects(spaces.updateSpace(sql, asMember(tom), sales.id, { editing: "editors" }), /forbidden/u);
+  assert.equal((await pages.page(sql, asMember(tom), p.id)).title, "Price list");
+  assert.ok(!(await pages.trash(sql, asMember(tom))).some(x => x.id === p.id));
+  // Named by person, Tom writes again; a reader named stays a reader.
+  await spaces.updateSpace(sql, asMember(ines), sales.id, { editors: [groups.sales, tom.id, hugo.id] });
+  assert.equal((await spaces.space(sql, asMember(tom), sales.id)).access, "write");
+  assert.equal((await spaces.space(sql, asMember(hugo), sales.id)).access, "read");
+  // Whoever narrows the list stays on it; the admins always write.
+  const narrowed = await spaces.updateSpace(sql, asMember(tom), sales.id, { editors: [groups.sales] });
+  assert.ok(narrowed.editors.includes(tom.id));
+  assert.equal((await spaces.space(sql, asMember(camille), sales.id)).access, "write");
+  await assert.rejects(spaces.updateSpace(sql, asMember(ines), sales.id, { editors: ["mbr_bad"] }), /invalid/u);
+  // Back to every editor: the list goes.
+  const open = await spaces.updateSpace(sql, asMember(ines), sales.id, { editing: "editors" });
+  assert.deepEqual(open.editors, []);
+  assert.equal((await spaces.space(sql, asMember(tom), sales.id)).access, "write");
 });
 
 test("pages: a tree, created, moved, never under themselves", async () => {
@@ -139,6 +169,42 @@ test("saving nothing new writes no version; stopping gives the lock back and dro
   assert.equal((await editing.myDrafts(sql, asMember(tom))).length, 0);
   await assert.rejects(editing.publish(sql, asMember(tom), p.id, { title: "", doc: md("x"), baseVersion: 2 }), /empty/u);
   await assert.rejects(editing.publish(sql, asMember(tom), p.id, { title: "t", doc: { type: "nope" }, baseVersion: 2 }), /invalid/u);
+});
+
+test("an editor who leaves without saying so frees the page: at once by the leaving tab, or after two minutes unheard", async () => {
+  const { sql } = database;
+  const s = await spaces.createSpace(sql, asMember(ines), { name: "Leaving" });
+  const p = await pages.createPage(sql, asMember(ines), { spaceId: s.id, title: "Parking" });
+  // Tom opens the editor, types, and closes the tab: the beacon keeps his words and frees the page.
+  assert.equal((await editing.startEditing(sql, asMember(tom), p.id)).status, "editing");
+  assert.equal((await editing.startEditing(sql, asMember(ines), p.id)).status, "locked");
+  await editing.leave(sql, asMember(tom), p.id, { title: "Parking", doc: JSON.stringify(md("Six spaces.")), baseVersion: 1 });
+  assert.equal(await editing.lockOf(sql, p.id), null);
+  const back = await editing.startEditing(sql, asMember(tom), p.id);
+  assert.ok(back.status === "editing" && back.draft !== null && lines(back.draft.doc).join(" ").includes("Six spaces."));
+  // His editor says it is open: the lock stays his, even without typing.
+  await sql`update page_locks set seen_at = now() - interval '90 seconds', active_at = now() - interval '10 minutes' where page_id = ${p.id}`;
+  assert.deepEqual(await editing.heartbeat(sql, asMember(tom), p.id), { lock: null });
+  assert.equal((await editing.startEditing(sql, asMember(ines), p.id)).status, "locked");
+  // His laptop shuts: unheard of for two minutes, the page is free — no "take over" needed.
+  await sql`update page_locks set seen_at = now() - interval '3 minutes' where page_id = ${p.id}`;
+  assert.equal(await editing.lockOf(sql, p.id), null);
+  assert.equal((await editing.startEditing(sql, asMember(ines), p.id)).status, "editing");
+  // Tom's editor wakes up: it learns who has the page now; his draft stays his.
+  const woke = await editing.heartbeat(sql, asMember(tom), p.id);
+  assert.equal(woke.lock?.memberId, ines.id);
+  assert.equal((await sql`select 1 from drafts where page_id = ${p.id} and member_id = ${tom.id}`).length, 1);
+  // Ines saves without being refused by Tom's old lock; readers cannot touch locks.
+  await editing.publish(sql, asMember(ines), p.id, { title: "Parking", doc: md("Four spaces."), baseVersion: 1 });
+  await assert.rejects(editing.leave(sql, asMember(hugo), p.id), /forbidden/u);
+  await assert.rejects(editing.heartbeat(sql, asMember(hugo), p.id), /forbidden/u);
+  // From the page, Tom drops his old draft, and Undo puts it back.
+  const dropped = await editing.discardDraft(sql, asMember(tom), p.id);
+  assert.ok(dropped && lines(dropped.doc).join(" ").includes("Six spaces."));
+  assert.equal((await sql`select 1 from drafts where page_id = ${p.id} and member_id = ${tom.id}`).length, 0);
+  await editing.keepDraft(sql, asMember(tom), p.id, { title: dropped.title, doc: JSON.stringify(dropped.doc), baseVersion: dropped.baseVersion });
+  assert.equal((await sql`select 1 from drafts where page_id = ${p.id} and member_id = ${tom.id}`).length, 1);
+  assert.equal(await editing.discardDraft(sql, asMember(ines), p.id), null);
 });
 
 test("history: each save a version; compare in words; restore is a new version", async () => {

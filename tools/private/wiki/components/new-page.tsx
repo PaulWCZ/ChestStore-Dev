@@ -37,7 +37,7 @@ export function NewPageDialog({ target, onClose, t }: { target: PageTarget | nul
       const result = await createPage({ spaceId: target.spaceId, parentId: target.parentId, title: String(data.get("title") ?? ""), start });
       if (!result.ok) return setError(format(t.errors[result.error], result.values));
       onClose();
-      router.push(`/chest/pages/${result.value.id}/edit`);
+      router.push(`/chest/pages/${result.value.id}/edit?new=1`);
     });
   }
   const choices = [

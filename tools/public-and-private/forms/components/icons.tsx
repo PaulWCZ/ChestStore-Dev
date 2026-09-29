@@ -52,20 +52,20 @@ export function StarIcon({ filled }: { filled: boolean }) {
 
 // One icon per kind of question: what the builder's type menu and cards show.
 const kindPaths: Record<Kind, ReactNode> = {
-  short: <path d="M4 9.5h16M4 14.5h9" />,
-  long: <><path d="M4 6.5h16M4 11h16M4 15.5h16M4 20h9" /></>,
-  email: <><rect x="3.5" y="5.5" width="17" height="13" rx="2.5" /><path d="M4.5 7l7.5 6 7.5-6" /></>,
-  phone: <path d="M8 3.5h3l1.5 4-2 1.5a10 10 0 0 0 4.5 4.5l1.5-2 4 1.5v3a2 2 0 0 1-2 2A15.5 15.5 0 0 1 4 5.5a2 2 0 0 1 2-2Z" />,
-  number: <path d="M9 4 7 20M17 4l-2 16M4.5 9h16M3.5 15h16" />,
-  choice: <><circle cx="12" cy="12" r="8" /><circle cx="12" cy="12" r="3.5" fill="currentColor" /></>,
-  choices: <><rect x="4" y="4" width="16" height="16" rx="4" /><path d="M8 12.5l3 3 5-6" /></>,
-  dropdown: <><rect x="3.5" y="6" width="17" height="12" rx="3" /><path d="M13.5 11l2 2 2-2" /></>,
-  yesno: <><path d="M4 12.5l3.5 3.5L14 9" /><path d="M16 9l5 5M21 9l-5 5" /></>,
-  rating: <path d="M12 3.2l2.7 5.6 6.1.8-4.5 4.2 1.1 6.1L12 17l-5.4 2.9 1.1-6.1-4.5-4.2 6.1-.8Z" />,
-  scale: <><path d="M3.5 17h17" /><path d="M5 17v-3M9 17v-5M13 17v-7M17 17V8" /><path d="M20 17V6" /></>,
-  date: <><rect x="4" y="5.5" width="16" height="14.5" rx="2.5" /><path d="M4 10h16M8.5 3.5v4M15.5 3.5v4" /></>,
-  file: <path d="M19 11.5 12 18.5a4.5 4.5 0 0 1-6.4-6.4l7.4-7.4a3 3 0 0 1 4.3 4.3L9.9 16.3a1.5 1.5 0 0 1-2.1-2.1L14.5 7.5" />,
-  statement: <><path d="M6 5.5h12M12 5.5V19" /><path d="M9 19h6" /></>,
+  short: (<path d="M4 9.5h16M4 14.5h9" />),
+  long: (<><path d="M4 6.5h16M4 11h16M4 15.5h16M4 20h9" /></>),
+  email: (<><rect x="3.5" y="5.5" width="17" height="13" rx="2.5" /><path d="M4.5 7l7.5 6 7.5-6" /></>),
+  phone: (<path d="M8 3.5h3l1.5 4-2 1.5a10 10 0 0 0 4.5 4.5l1.5-2 4 1.5v3a2 2 0 0 1-2 2A15.5 15.5 0 0 1 4 5.5a2 2 0 0 1 2-2Z" />),
+  number: (<path d="M9 4 7 20M17 4l-2 16M4.5 9h16M3.5 15h16" />),
+  choice: (<><circle cx="12" cy="12" r="8" /><circle cx="12" cy="12" r="3.5" fill="currentColor" /></>),
+  choices: (<><rect x="4" y="4" width="16" height="16" rx="4" /><path d="M8 12.5l3 3 5-6" /></>),
+  dropdown: (<><rect x="3.5" y="6" width="17" height="12" rx="3" /><path d="M13.5 11l2 2 2-2" /></>),
+  yesno: (<><path d="M4 12.5l3.5 3.5L14 9" /><path d="M16 9l5 5M21 9l-5 5" /></>),
+  rating: (<path d="M12 3.2l2.7 5.6 6.1.8-4.5 4.2 1.1 6.1L12 17l-5.4 2.9 1.1-6.1-4.5-4.2 6.1-.8Z" />),
+  scale: (<><path d="M3.5 17h17" /><path d="M5 17v-3M9 17v-5M13 17v-7M17 17V8" /><path d="M20 17V6" /></>),
+  date: (<><rect x="4" y="5.5" width="16" height="14.5" rx="2.5" /><path d="M4 10h16M8.5 3.5v4M15.5 3.5v4" /></>),
+  file: (<path d="M19 11.5 12 18.5a4.5 4.5 0 0 1-6.4-6.4l7.4-7.4a3 3 0 0 1 4.3 4.3L9.9 16.3a1.5 1.5 0 0 1-2.1-2.1L14.5 7.5" />),
+  statement: (<><path d="M6 5.5h12M12 5.5V19" /><path d="M9 19h6" /></>),
 };
 export function KindIcon({ kind }: { kind: Kind }) {
   return <Icon className={"kind-icon kind-" + kind}>{kindPaths[kind]}</Icon>;

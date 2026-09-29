@@ -15,6 +15,7 @@ export function zonedInstant(day: string, hour: number, zone: string): Date {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/u.exec(day);
   if (!m || !Number.isInteger(hour) || hour < 0 || hour > 23) throw new RangeError("invalid day or hour");
   const guess = Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]), hour);
+  if (new Date(guess).toISOString().slice(0, 10) !== day) throw new RangeError("invalid day");
   let at = new Date(guess - offset(zone, new Date(guess)) * 60000);
   at = new Date(guess - offset(zone, at) * 60000);
   return at;

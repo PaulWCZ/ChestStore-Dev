@@ -3,9 +3,10 @@ import * as members from "@argentic/chest-sdk/members";
 import { headers } from "next/headers";
 import { atLeast } from "../../../../../../lib/access.ts";
 import { db } from "../../../../../../lib/db.ts";
-import { open, openState, team, versionOf } from "../../../../../../lib/forms.ts";
+import { openState, team, versionOf } from "../../../../../../lib/forms.ts";
 import { nameOf, people } from "../../../../../../lib/people.ts";
 import { formLink } from "../../../../../../lib/public-origin.ts";
+import { formOr404 } from "../../../../../../lib/pages.ts";
 import { viewer } from "../../../../../../lib/session.ts";
 import { ShareView } from "./share-view.tsx";
 
@@ -16,7 +17,7 @@ export default async function SharePage({ params }: { params: Promise<{ id: stri
   if (!v) return null;
   const { t, locale, member } = v;
   const sql = db();
-  const { form, level } = await open(sql, member, (await params).id);
+  const { form, level } = await formOr404(member, (await params).id);
   const def = form.version > 0 ? await versionOf(sql, form.id, form.version) : null;
   const { owner, shared } = await team(sql, form.id);
   const who = await people([owner, ...shared.map(s => s.member)]);

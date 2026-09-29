@@ -4,10 +4,11 @@ import { atLeast } from "../../../../../../../lib/access.ts";
 import { oneAnswer } from "../../../../../../../lib/answers.ts";
 import { AppError } from "../../../../../../../lib/app-error.ts";
 import { db } from "../../../../../../../lib/db.ts";
-import { open, versions } from "../../../../../../../lib/forms.ts";
+import { versions } from "../../../../../../../lib/forms.ts";
 import { format, formatDate } from "../../../../../../../lib/i18n/index.ts";
 import { answerText, type StoredFile } from "../../../../../../../lib/logic.ts";
 import { nameOf, people } from "../../../../../../../lib/people.ts";
+import { formOr404 } from "../../../../../../../lib/pages.ts";
 import { viewer } from "../../../../../../../lib/session.ts";
 import { columnsOf } from "../../../../../../../lib/summary.ts";
 import { notFound } from "next/navigation";
@@ -21,7 +22,7 @@ export default async function AnswerPage({ params }: { params: Promise<{ id: str
   const { t, locale, member } = v;
   const sql = db();
   const { id, answer: answerId } = await params;
-  const { level } = await open(sql, member, id);
+  const { level } = await formOr404(member, id);
   const found = await oneAnswer(sql, member, id, answerId).catch(error => {
     if (error instanceof AppError && (error.code === "not_found" || error.code === "too_few")) return null;
     throw error;
@@ -53,9 +54,9 @@ export default async function AnswerPage({ params }: { params: Promise<{ id: str
             <div key={q.id} className="answer-item">
               <dt>{q.title}{!inVersion.has(q.id) && <span className="tag">{t.answers.removedQuestion}</span>}</dt>
               <dd>
-                {value === undefined ? <span className="dim">{t.answers.noAnswer}</span>
-                  : file ? <a className="file-link" href={`/chest/forms/${form.id}/files/${answer.id}/${q.id}`} target="_blank" rel="noreferrer"><Paperclip />{file.name} <span className="dim">{format(t.answers.fileSize, { size: size(file.size) })}</span></a>
-                  : <span className="answer-text">{answerText(q, value, words)}</span>}
+                {value === undefined ? (<span className="dim">{t.answers.noAnswer}</span>)
+                  : file ? (<a className="file-link" href={`/chest/forms/${form.id}/files/${answer.id}/${q.id}`} target="_blank" rel="noreferrer"><Paperclip />{file.name} <span className="dim">{format(t.answers.fileSize, { size: size(file.size) })}</span></a>)
+                  : (<span className="answer-text">{answerText(q, value, words)}</span>)}
               </dd>
             </div>
           );

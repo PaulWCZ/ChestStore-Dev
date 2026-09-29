@@ -134,6 +134,7 @@ test("someone who leaves frees the pages they were editing; an erasure removes t
   await editing.startEditing(sql, asMember(ines), p.id);
   await editing.publish(sql, asMember(ines), p.id, { title: "Who to ask", doc: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "Ask Camille." }] }] }, baseVersion: 1 });
   await editing.startEditing(sql, asMember(ines), p.id);
+  await spaces.updateSpace(sql, asMember(camille), s.id, { editing: "some", editors: [ines.id, tom.id] });
   const erasure = "era_" + "c".repeat(26);
   const event = { type: "member.erased" as const, id: "evt_" + "d".repeat(26), data: { id: ines.id, erasure, deadline: new Date(Date.now() + 864e5).toISOString() } };
   assert.equal(await chest.emit(event, POST), 204);
@@ -141,7 +142,7 @@ test("someone who leaves frees the pages they were editing; an erasure removes t
   const after = await pages.page(sql, asMember(camille), p.id);
   assert.equal(after.updatedBy, "erased");
   assert.ok((await history.versions(sql, asMember(camille), p.id)).every(v => v.author !== ines.id));
-  for (const table of ["pages", "page_versions", "page_files", "spaces", "drafts", "page_locks"]) {
+  for (const table of ["pages", "page_versions", "page_files", "spaces", "drafts", "page_locks", "space_editors"]) {
     const [row] = await sql.unsafe(`select count(*)::int as n from ${table} t where row_to_json(t)::text like $1`, [`%${ines.id}%`]);
     assert.equal(row!["n"], 0, table);
   }

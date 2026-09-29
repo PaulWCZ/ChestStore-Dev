@@ -8,11 +8,13 @@ import { Editor } from "./editor.tsx";
 
 // Editing a page. Rendering takes nothing: the editor asks for the page's
 // lock once it is on screen (a link prefetched never locks a page).
-export default async function EditPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function EditPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<Record<string, string | undefined>> }) {
   const v = await viewer();
   if (!v) return null;
   const { member, locale, t } = v;
   const { id } = await params;
+  // Just created ("Create and write"): the cursor waits in the page.
+  const fresh = (await searchParams)["new"] === "1";
   const sql = db();
   let p: Page;
   try {
@@ -29,6 +31,7 @@ export default async function EditPage({ params }: { params: Promise<{ id: strin
       <Editor
         page={{ id: p.id, title: p.title, doc: p.doc, version: p.version }}
         pages={pages}
+        fresh={fresh}
         locale={locale}
         t={{ editor: t.editor, errors: t.errors, common: t.common, missing: t.page.missing }}
       />

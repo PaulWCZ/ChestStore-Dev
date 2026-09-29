@@ -42,6 +42,9 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
         } else if (r.kind === "scale") {
           for (const c of r.counts) rows.push([heading(r), c.value, c.count, c.percent]);
           rows.push([heading(r), t.csv.average, r.average ?? "", ""]);
+        } else if (r.kind === "enps") {
+          for (const [value, count] of r.counts.entries()) rows.push([heading(r), value, count, r.answered > 0 ? Math.round((count * 100) / r.answered) : 0]);
+          rows.push([heading(r), t.csv.enps, r.score ?? "", ""]);
         } else for (const x of r.texts) rows.push([heading(r), x.body, "", ""]);
       }
     } else {
@@ -51,7 +54,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
           for (const o of q.options) columns.push({ title: when(o), cell: a => word(a.find(x => x.question === q.id && x.option === o.id)?.value) });
         } else if (q.kind === "choice") {
           columns.push({ title: heading(q), cell: a => a.filter(x => x.question === q.id).map(x => (x.option ? q.options.find(o => o.id === x.option)?.label ?? "" : `${t.csv.other}: ${x.text ?? ""}`)).join(" ; ") });
-        } else if (q.kind === "scale") columns.push({ title: heading(q), cell: a => a.find(x => x.question === q.id)?.value ?? "" });
+        } else if (q.kind === "scale" || q.kind === "enps") columns.push({ title: heading(q), cell: a => a.find(x => x.question === q.id)?.value ?? "" });
         else columns.push({ title: heading(q), cell: a => a.find(x => x.question === q.id)?.text ?? "" });
       }
       const byParticipant = new Map<string, typeof data.rows>();

@@ -10,7 +10,7 @@ import { NewPageDialog, type NewPageWords, type PageTarget } from "../../../../c
 import { useToast } from "../../../../components/toast.tsx";
 import type { Catalogue } from "../../../../lib/i18n/index.ts";
 import { format, plural } from "../../../../lib/i18n/format.ts";
-import { deletePage, markReviewed, movePage, restorePage, setReview, setTemplate, setWatching } from "../../actions.ts";
+import { deletePage, discardDraft, keepDraft, markReviewed, movePage, restorePage, setReview, setTemplate, setWatching } from "../../actions.ts";
 
 export type TemplateWords = { tag: string; mark: string; unmark: string; marked: string; unmarked: string };
 type Words = NewPageWords & { page: Catalogue["page"]; move: Catalogue["move"]; shell: Catalogue["shell"]; watch: Catalogue["watch"]; review: Omit<Catalogue["review"], "due">; marks: TemplateWords; spaceName: string; locale: string };
@@ -223,6 +223,37 @@ export function ReviewAsk({ pageId, text, months, editHref, t }: { pageId: strin
       <div className="row-actions">
         <button type="button" className="button small" disabled={pending} onClick={confirm}><Check />{t.stillCorrect}</button>
         <Link className="button small quiet" href={editHref}><Pen />{t.update}</Link>
+      </div>
+    </div>
+  );
+}
+
+// The reader's own unsaved changes to this page: continue them, or drop
+// them (with Undo) without opening the editor.
+export function DraftNotice({ pageId, editHref, t }: { pageId: string; editHref: string; t: { text: string; continue: string; discard: string; discarded: string; undo: string; errors: Catalogue["errors"] } }) {
+  const router = useRouter();
+  const toast = useToast();
+  const [pending, start] = useTransition();
+  function discard() {
+    start(async () => {
+      const result = await discardDraft(pageId);
+      if (!result.ok) return toast(format(t.errors[result.error], result.values));
+      router.refresh();
+      const kept = result.value;
+      toast(t.discarded, kept ? { label: t.undo, run: async () => {
+        const back = await keepDraft(pageId, kept);
+        if (!back.ok) return toast(format(t.errors[back.error], back.values));
+        router.refresh();
+      } } : undefined);
+    });
+  }
+  return (
+    <div className="notice mine" role="status">
+      <Pen />
+      <p>{t.text}</p>
+      <div className="row-actions">
+        <Link className="button small" href={editHref}>{t.continue}</Link>
+        <button type="button" className="button small quiet" disabled={pending} onClick={discard}>{t.discard}</button>
       </div>
     </div>
   );

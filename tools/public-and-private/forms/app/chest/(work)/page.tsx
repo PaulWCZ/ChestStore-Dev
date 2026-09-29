@@ -34,7 +34,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
           <span className="form-card-top">
             <span className={`status status-${status}`}>{t.status[status as keyof Catalogue["status"]]}</span>
             <span className="audience" title={f.audience === "public" ? t.home.public : f.anonymous ? t.home.anonymous : t.home.team}>
-              {f.audience === "public" ? <Globe /> : f.anonymous ? <Mask /> : <Users />}
+              {f.audience === "public" ? (<Globe />) : f.anonymous ? (<Mask />) : (<Users />)}
               <span className="visually-hidden">{f.audience === "public" ? t.home.public : f.anonymous ? t.home.anonymous : t.home.team}</span>
             </span>
           </span>

@@ -2,7 +2,9 @@ import type { Member } from "@argentic/chest-sdk/member";
 import { can, canEditDeal } from "./access.ts";
 import { record } from "./activities.ts";
 import { parseAmount } from "./amount.ts";
-import { likePattern, ownerClause, words, type OwnerFilter } from "./companies.ts";
+import { likePattern, ownerClause, pageOf, words, type OwnerFilter } from "./companies.ts";
+import { customValues, type Custom } from "./custom.ts";
+import { fieldClause, listFields, type FieldFilter } from "./fields.ts";
 import type { Query, Sql } from "./db.ts";
 import { AppError } from "./errors.ts";
 import { clean, day, id, limits, monthOf, optionalId, owner as ownerOf, today, type Stage } from "./model.ts";
@@ -28,17 +30,21 @@ export type Deal = {
   contact: { id: string; name: string } | null;
   reason: string;
   closedAt: string | null;
+  // The next open step (the soonest), and how many are open.
   step: Step | null;
+  steps: number;
+  custom: Custom;
   createdBy: string;
   createdAt: string;
 };
 
-type Row = { id: string; title: string; value_cents: string; currency: string; stage_id: string; position: string; expected_close: string | null; owner: string | null; company_id: string | null; company_name: string | null; contact_id: string | null; contact_name: string | null; reason: string; closed_at: Date | null; step: Parameters<typeof toStep>[0] | null; created_by: string; created_at: Date };
+type Row = { id: string; title: string; value_cents: string; currency: string; stage_id: string; position: string; expected_close: string | null; owner: string | null; company_id: string | null; company_name: string | null; contact_id: string | null; contact_name: string | null; reason: string; closed_at: Date | null; step: Parameters<typeof toStep>[0] | null; open_steps: number; custom: Custom; created_by: string; created_at: Date };
 
 const columns = (sql: Query) => sql`
   d.id, d.title, d.value_cents, d.currency, d.stage_id, d.position, to_char(d.expected_close, 'YYYY-MM-DD') as expected_close, d.owner,
-  d.company_id, o.name as company_name, d.contact_id, c.name as contact_name, d.reason, d.closed_at, d.created_by, d.created_at,
-  (select row_to_json(x) from (select ${stepColumns(sql)} from steps p where p.deal_id = d.id and p.done_at is null) x) as step`;
+  d.company_id, o.name as company_name, d.contact_id, c.name as contact_name, d.reason, d.closed_at, d.custom, d.created_by, d.created_at,
+  (select row_to_json(x) from (select ${stepColumns(sql)} from steps p where p.deal_id = d.id and p.done_at is null order by p.due_on, p.due_time nulls last, p.id limit 1) x) as step,
+  (select count(*)::int from steps p where p.deal_id = d.id and p.done_at is null) as open_steps`;
 const from = (sql: Query) => sql`deals d join stages s on s.id = d.stage_id left join companies o on o.id = d.company_id left join contacts c on c.id = d.contact_id`;
 
 const toDeal = (r: Row): Deal => ({
@@ -55,6 +61,8 @@ const toDeal = (r: Row): Deal => ({
   reason: r.reason,
   closedAt: r.closed_at?.toISOString() ?? null,
   step: r.step ? toStep(r.step) : null,
+  steps: r.open_steps,
+  custom: r.custom ?? {},
   createdBy: r.created_by,
   createdAt: r.created_at.toISOString(),
 });
@@ -79,12 +87,14 @@ export async function boardDeals(sql: Sql, actor: Member | null, filter: { owner
   return rows.map(toDeal);
 }
 
-export type DealFilter = { owner?: OwnerFilter; stage?: unknown; closing?: "month" | ""; status?: "open" | "won" | "lost" | ""; q?: unknown; company?: unknown; contact?: unknown };
+export type DealFilter = { owner?: OwnerFilter; stage?: unknown; closing?: "month" | ""; status?: "open" | "won" | "lost" | ""; q?: unknown; company?: unknown; contact?: unknown; field?: FieldFilter };
 
 // listDeals: the list view, filtered: owner, stage, closing this month,
 // open/won/lost, words of the title or the company.
-export async function listDeals(sql: Sql, actor: Member | null, filter: DealFilter = {}, limit = 500, now = today()): Promise<{ rows: Deal[]; total: number; value: number }> {
+export async function listDeals(sql: Sql, actor: Member | null, filter: DealFilter = {}, limit = 500, now = today(), page: unknown = 1): Promise<{ rows: Deal[]; total: number; value: number; page: number; pageSize: number }> {
   reader(actor);
+  const at = pageOf(page);
+  const fields = filter.field ? await listFields(sql, "deals") : [];
   const stageId = optionalId(filter.stage ?? null);
   const q = typeof filter.q === "string" ? clean(filter.q, limits.query, { optional: true }) : "";
   const tsq = q ? words(q) : null;
@@ -98,13 +108,14 @@ export async function listDeals(sql: Sql, actor: Member | null, filter: DealFilt
     and ${filter.closing === "month" ? sql`s.kind = 'open' and d.expected_close between ${month.first} and ${month.last}` : sql`true`}
     and ${companyId ? sql`d.company_id = ${companyId}` : sql`true`}
     and ${contactId ? sql`d.contact_id = ${contactId}` : sql`true`}
+    and ${fieldClause(sql, "d", fields, filter.field)}
     and ${q ? sql`(${tsq ? sql`d.search @@ to_tsquery('crm', ${tsq}) or` : sql``} d.folded like '%' || crm_fold(${q.replace(/[\\%_]/gu, "")}) || '%' or o.name ilike ${likePattern(q)})` : sql`true`}`;
   const [sum] = await sql<{ n: number; value: string | null }[]>`select count(*)::int as n, sum(d.value_cents) as value from ${from(sql)} where ${where}`;
   const rows = await sql<Row[]>`
     select ${columns(sql)} from ${from(sql)} where ${where}
     order by case s.kind when 'open' then 0 else 1 end, d.expected_close nulls last, d.value_cents desc, d.id
-    limit ${limit}`;
-  return { rows: rows.map(toDeal), total: sum?.n ?? 0, value: Number(sum?.value ?? 0) };
+    limit ${limit} offset ${(at - 1) * limit}`;
+  return { rows: rows.map(toDeal), total: sum?.n ?? 0, value: Number(sum?.value ?? 0), page: at, pageSize: limit };
 }
 
 export async function deal(sql: Query, actor: Member | null, dealId: unknown): Promise<Deal> {
@@ -139,9 +150,10 @@ async function top(sql: Query, stageId: string): Promise<string> {
   return between(null, first?.position ?? null);
 }
 
-export async function addDeal(sql: Sql, actor: Member | null, input: { title: unknown; company?: unknown; contact?: unknown; value?: unknown; stage?: unknown; expectedClose?: unknown; owner?: unknown }): Promise<Deal> {
+export async function addDeal(sql: Sql, actor: Member | null, input: { title: unknown; company?: unknown; contact?: unknown; value?: unknown; stage?: unknown; expectedClose?: unknown; owner?: unknown; custom?: unknown }): Promise<Deal> {
   if (!can(actor, "deals.create")) throw new AppError("forbidden");
   const title = clean(input.title, limits.dealTitle);
+  const custom = customValues(await listFields(sql, "deals"), {}, input.custom);
   const value = parseAmount(input.value ?? 0);
   const expectedClose = day(input.expectedClose);
   const stages = await listStages(sql);
@@ -153,8 +165,8 @@ export async function addDeal(sql: Sql, actor: Member | null, input: { title: un
   const created = await sql.begin(async tx => {
     const position = await top(tx, s.id);
     const [row] = await tx<{ id: string }[]>`
-      insert into deals (title, company_id, contact_id, value_cents, stage_id, position, expected_close, owner, created_by, closed_at)
-      values (${title}, ${l.companyId}, ${l.contactId}, ${value}, ${s.id}, ${position}, ${expectedClose}, ${owner}, ${actor!.id}, ${s.kind === "open" ? null : tx`now()`})
+      insert into deals (title, company_id, contact_id, value_cents, stage_id, position, expected_close, owner, custom, created_by, closed_at)
+      values (${title}, ${l.companyId}, ${l.contactId}, ${value}, ${s.id}, ${position}, ${expectedClose}, ${owner}, ${tx.json(custom)}, ${actor!.id}, ${s.kind === "open" ? null : tx`now()`})
       returning id`;
     await record(tx, "created", actor!.id, { dealId: String(row!.id), companyId: l.companyId, contactId: l.contactId }, "", { stage: s.id });
     return String(row!.id);
@@ -169,15 +181,16 @@ async function editable(sql: Sql, actor: Member | null, dealId: unknown): Promis
   return d;
 }
 
-export async function updateDeal(sql: Sql, actor: Member | null, dealId: unknown, input: { title?: unknown; company?: unknown; contact?: unknown; value?: unknown; expectedClose?: unknown; reason?: unknown }): Promise<void> {
+export async function updateDeal(sql: Sql, actor: Member | null, dealId: unknown, input: { title?: unknown; company?: unknown; contact?: unknown; value?: unknown; expectedClose?: unknown; reason?: unknown; custom?: unknown }): Promise<void> {
   const d = await editable(sql, actor, dealId);
+  const custom = customValues(await listFields(sql, "deals"), d.custom, input.custom);
   const title = input.title === undefined ? d.title : clean(input.title, limits.dealTitle);
   const value = input.value === undefined ? d.value : parseAmount(input.value);
   const expectedClose = input.expectedClose === undefined ? d.expectedClose : day(input.expectedClose);
   const reason = input.reason === undefined ? d.reason : clean(input.reason, limits.reason, { optional: true });
   const l = await links(sql, input, { companyId: d.company?.id ?? null, contactId: d.contact?.id ?? null });
   await sql`
-    update deals set title = ${title}, value_cents = ${value}, expected_close = ${expectedClose}, reason = ${reason},
+    update deals set title = ${title}, value_cents = ${value}, expected_close = ${expectedClose}, reason = ${reason}, custom = ${sql.json(custom)},
       company_id = ${l.companyId}, contact_id = ${l.contactId}, updated_at = now()
     where id = ${d.id}`;
   // What was logged on the deal follows it to its new company and contact.
@@ -241,10 +254,14 @@ export async function moveDeal(sql: Sql, actor: Member | null, dealId: unknown, 
 
 // deleteDeal deletes it for good with its history (a deal that went
 // nowhere is better marked Lost: the reason teaches something).
-export async function deleteDeal(sql: Sql, actor: Member | null, dealId: unknown): Promise<{ stepOwner: string | null; stepId: string | null }> {
+export async function deleteDeal(sql: Sql, actor: Member | null, dealId: unknown): Promise<{ steps: { id: string; owner: string | null }[]; objects: string[] }> {
   const d = await editable(sql, actor, dealId);
-  await sql`delete from deals where id = ${d.id}`;
-  return { stepOwner: d.step?.owner ?? null, stepId: d.step?.id ?? null };
+  return sql.begin(async tx => {
+    const steps = await tx<{ id: string; owner: string | null }[]>`select id, owner from steps where deal_id = ${d.id} and done_at is null`;
+    const objects = (await tx<{ object: string }[]>`select object from attachments where deal_id = ${d.id}`).map(r => r.object);
+    await tx`delete from deals where id = ${d.id}`;
+    return { steps: steps.map(s => ({ id: String(s.id), owner: s.owner })), objects };
+  });
 }
 
 // My open deals, by stage: how many and how much (for My day).

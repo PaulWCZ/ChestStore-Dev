@@ -20,6 +20,13 @@ export const limits = {
   attachmentsPerCard: 30,
   attachmentSize: 25 << 20,
   boardPeople: 200,
+  checklistsPerCard: 10,
+  checklistTitle: 80,
+  fieldsPerBoard: 20,
+  fieldName: 40,
+  fieldOptions: 30,
+  fieldOption: 40,
+  fieldValue: 500,
 } as const;
 
 // The colours of boards and labels: names the design turns into tokens.
@@ -65,6 +72,35 @@ export function day(value: unknown): string | null {
   const year = date.getUTCFullYear();
   if (year < 2000 || year > 2100) throw new AppError("invalid");
   return value;
+}
+
+// A time of day, 24-hour "HH:MM", or nothing.
+export function time(value: unknown): string | null {
+  if (value === null || value === "" || value === undefined) return null;
+  if (typeof value !== "string" || !/^([01][0-9]|2[0-3]):[0-5][0-9]$/u.test(value)) throw new AppError("invalid");
+  return value;
+}
+
+// The times offered for a due time: every quarter of an hour (a select,
+// not the browser's time field, which writes AM/PM on many computers).
+export const quarterHours: string[] = Array.from({ length: 96 }, (_, i) => `${String(Math.floor(i / 4)).padStart(2, "0")}:${String((i % 4) * 15).padStart(2, "0")}`);
+
+// A board's own fields: text, a number, or one choice among options.
+export const fieldKinds = ["text", "number", "choice"] as const;
+export type FieldKind = (typeof fieldKinds)[number];
+export const isFieldKind = (value: unknown): value is FieldKind => typeof value === "string" && (fieldKinds as readonly string[]).includes(value);
+
+// fieldValue checks what a card holds for a field: a number is written the
+// way it was typed but must read as one ("12", "12.5", "12,5", "-3");
+// a choice is one of the options; empty means none.
+export function fieldValue(kind: FieldKind, options: readonly string[], value: unknown): string | null {
+  if (value === null || value === undefined) return null;
+  const text = clean(value, limits.fieldValue, { optional: true });
+  if (text === "") return null;
+  if (kind === "number" && !/^-?\d{1,15}([.,]\d{1,6})?$/u.test(text.replace(/[\s\u202f\u00a0]/gu, ""))) throw new AppError("invalid");
+  if (kind === "number") return text.replace(/[\s\u202f\u00a0]/gu, "").replace(",", ".");
+  if (kind === "choice" && !options.includes(text)) throw new AppError("invalid");
+  return text;
 }
 
 // Today in the Chest's time zone, as a day.

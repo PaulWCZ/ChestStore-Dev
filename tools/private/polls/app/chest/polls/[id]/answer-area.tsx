@@ -4,17 +4,18 @@ import { useRouter } from "next/navigation";
 import { useMemo, useState, type FormEvent } from "react";
 import { Check, Cross, Maybe, Mask, Party } from "../../../../components/icons.tsx";
 import { useToast } from "../../../../components/toast.tsx";
-import { format } from "../../../../lib/i18n/format.ts";
+import { format, plural } from "../../../../lib/i18n/format.ts";
 import type { en } from "../../../../lib/i18n/en.ts";
 import { answerPoll } from "../../actions.ts";
 
 // Answering a poll: big tappable choices, yes / if need be / no per date,
 // a 1–5 scale, free text. After sending: thanks (and, for a named poll,
 // "change my answer" until it closes).
-type Words = { poll: Record<keyof typeof en.poll, string>; errors: Record<keyof typeof en.errors, string> };
+type Plural = { one: string; other: string; zero?: string };
+type Words = { poll: { [K in keyof typeof en.poll]: (typeof en.poll)[K] extends string ? string : Plural }; errors: Record<keyof typeof en.errors, string> };
 export type AnswerQuestion = {
   id: string;
-  kind: "choice" | "date" | "scale" | "text";
+  kind: "choice" | "date" | "scale" | "text" | "enps";
   text: string;
   multiple: boolean;
   other: boolean;
@@ -28,8 +29,12 @@ type State = Record<string, { options: string[]; other: string; value: number | 
 
 const blank = (questions: AnswerQuestion[]): State => Object.fromEntries(questions.map(q => [q.id, { options: [], other: "", value: null, text: "", dates: {} }]));
 
-export function AnswerArea({ pollId, questions, single, anonymous, answered, mine, changeNote, said, t }: {
+export function AnswerArea({ pollId, questions, single, anonymous, answered, mine, changeNote, said, slots, taken, locale, t }: {
   pollId: string;
+  // A sign-up sheet: places per answer, and those taken by others and me.
+  slots: number | null;
+  taken: Record<string, number> | null;
+  locale: string;
   questions: AnswerQuestion[];
   single: boolean;
   anonymous: boolean;
@@ -48,6 +53,13 @@ export function AnswerArea({ pollId, questions, single, anonymous, answered, min
   const [cheer, setCheer] = useState(0);
 
   const set = (id: string, change: Partial<State[string]>) => setState(s => ({ ...s, [id]: { ...s[id]!, ...change } }));
+  // Places left on a sign-up sheet: an option I already hold counts as mine.
+  const held = (q: AnswerQuestion, optionId: string) => {
+    const was = mine?.[q.id];
+    return q.kind === "date" ? was?.dates[optionId] === 2 : Boolean(was?.options.includes(optionId));
+  };
+  const left = (q: AnswerQuestion, optionId: string) => (slots === null || taken === null ? null : Math.max(0, slots - (taken[optionId] ?? 0) + (held(q, optionId) ? 1 : 0)));
+  const placesWord = (n: number) => plural(t.poll.places as Plural, n, locale);
 
   async function submit(e: FormEvent) {
     e.preventDefault();
@@ -58,7 +70,7 @@ export function AnswerArea({ pollId, questions, single, anonymous, answered, min
       const a = state[q.id]!;
       if (q.kind === "choice") input[q.id] = { options: a.options, ...(q.other ? { other: a.other } : {}) };
       else if (q.kind === "date") input[q.id] = { dates: a.dates };
-      else if (q.kind === "scale") { if (a.value !== null) input[q.id] = { value: a.value }; }
+      else if (q.kind === "scale" || q.kind === "enps") { if (a.value !== null) input[q.id] = { value: a.value }; }
       else if (a.text.trim()) input[q.id] = { text: a.text };
     }
     const result = await answerPoll(pollId, input);
@@ -107,12 +119,17 @@ export function AnswerArea({ pollId, questions, single, anonymous, answered, min
               {title}
               <p className="hint">{q.multiple ? t.poll.pickSeveral : t.poll.pickOne}</p>
               <div className="pick">
-                {q.options.map(o => (
-                  <label key={o.id} className="pick-option">
-                    <input type={type} name={"q" + q.id} checked={a.options.includes(o.id)} onChange={e => toggle(o.id, e.target.checked)} />
-                    <span className="grow">{o.label}</span>
-                  </label>
-                ))}
+                {q.options.map(o => {
+                  const places = left(q, o.id);
+                  const full = places === 0 && !a.options.includes(o.id);
+                  return (
+                    <label key={o.id} className={"pick-option" + (full ? " full" : "")}>
+                      <input type={type} name={"q" + q.id} checked={a.options.includes(o.id)} disabled={full} onChange={e => toggle(o.id, e.target.checked)} />
+                      <span className="grow">{o.label}</span>
+                      {places !== null && <span className={"places" + (places === 0 ? " none" : "")}>{placesWord(places)}</span>}
+                    </label>
+                  );
+                })}
                 {q.other && (
                   <label className="pick-option">
                     <input type={type} name={"q" + q.id} checked={a.other.trim() !== "" || (a.options.length === 0 && a.other !== "")} onChange={e => {
@@ -142,15 +159,17 @@ export function AnswerArea({ pollId, questions, single, anonymous, answered, min
                   const value = a.dates[o.id] ?? null;
                   const choose = (v: number) => set(q.id, { dates: { ...a.dates, [o.id]: v } });
                   const cls = value === 2 ? " yes" : value === 1 ? " maybe" : "";
+                  const places = left(q, o.id);
+                  const full = places === 0 && value !== 2;
                   return (
                     <div key={o.id} className={"date-row" + cls} role="radiogroup" aria-label={o.date!.text + (o.date!.hours ? ", " + o.date!.hours : "")}>
                       <div className="when">
                         <span className="day-badge" aria-hidden="true"><span className="m">{o.date!.month}</span><span className="d">{o.date!.day}</span><span className="w">{o.date!.weekday}</span></span>
-                        <span className="when-text"><strong>{o.date!.text}</strong>{o.date!.hours && <span>{o.date!.hours}</span>}</span>
+                        <span className="when-text"><strong>{o.date!.text}</strong>{o.date!.hours && <span>{o.date!.hours}</span>}{places !== null && <span className={"places" + (places === 0 ? " none" : "")}>{placesWord(places)}</span>}</span>
                       </div>
-                      <div className="tri">
-                        <label className="yes"><input type="radio" name={`d${o.id}`} checked={value === 2} onChange={() => choose(2)} /><span><Check />{t.poll.yes}</span></label>
-                        <label className="maybe"><input type="radio" name={`d${o.id}`} checked={value === 1} onChange={() => choose(1)} /><span><Maybe />{t.poll.maybe}</span></label>
+                      <div className={"tri" + (slots !== null ? " two" : "")}>
+                        <label className="yes"><input type="radio" name={`d${o.id}`} checked={value === 2} disabled={full} onChange={() => choose(2)} /><span><Check />{t.poll.yes}</span></label>
+                        {slots === null && <label className="maybe"><input type="radio" name={`d${o.id}`} checked={value === 1} onChange={() => choose(1)} /><span><Maybe />{t.poll.maybe}</span></label>}
                         <label className="no"><input type="radio" name={`d${o.id}`} checked={value === 0} onChange={() => choose(0)} /><span><Cross />{t.poll.no}</span></label>
                       </div>
                     </div>
@@ -173,6 +192,22 @@ export function AnswerArea({ pollId, questions, single, anonymous, answered, min
                 ))}
               </div>
               {(q.low || q.high) && <div className="scale-ends"><span>{q.low}</span><span>{q.high}</span></div>}
+            </fieldset>
+          );
+        }
+        if (q.kind === "enps") {
+          return (
+            <fieldset key={q.id} className="q scale enps">
+              {single ? <legend className="visually-hidden">{q.text}</legend> : <legend>{q.text}</legend>}
+              <div className="scale-buttons eleven">
+                {Array.from({ length: 11 }, (_, n) => (
+                  <label key={n}>
+                    <input type="radio" name={"q" + q.id} checked={a.value === n} onChange={() => set(q.id, { value: n })} aria-label={String(n) + (n === 0 ? " · " + t.poll.enpsLow : n === 10 ? " · " + t.poll.enpsHigh : "")} />
+                    <span>{n}</span>
+                  </label>
+                ))}
+              </div>
+              <div className="scale-ends"><span>{t.poll.enpsLow}</span><span>{t.poll.enpsHigh}</span></div>
             </fieldset>
           );
         }

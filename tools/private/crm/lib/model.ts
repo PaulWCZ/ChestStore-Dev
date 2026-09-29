@@ -24,13 +24,22 @@ export const limits = {
   importRows: 5000,
   importBytes: 5 << 20,
   maxCents: 100_000_000_000,
+  postcode: 20,
+  city: 80,
+  country: 80,
+  url: 200,
+  fileName: 200,
+  attachments: 30,
+  attachmentSize: 25 << 20,
+  bulk: 500,
+  pageSize: 100,
 } as const;
 
 // What people log by hand, and what the tool records by itself.
 export const loggedKinds = ["call", "meeting", "email", "note"] as const;
 export type LoggedKind = (typeof loggedKinds)[number];
 export const isLoggedKind = (value: unknown): value is LoggedKind => typeof value === "string" && (loggedKinds as readonly string[]).includes(value);
-export type ActivityKind = LoggedKind | "step" | "created" | "stage" | "won" | "lost" | "reopened" | "owner" | "unassigned";
+export type ActivityKind = LoggedKind | "step" | "created" | "stage" | "won" | "lost" | "reopened" | "owner" | "unassigned" | "merged";
 
 // clean trims a text and bounds it; line breaks are kept only where the
 // text may have several lines; other control characters are dropped.
@@ -187,4 +196,42 @@ export type StageKey = (typeof stageKeys)[number];
 export type Stage = { id: string; key: StageKey | null; name: string | null; kind: "open" | "won" | "lost"; probability: number; position: string };
 export function stageName(stage: Pick<Stage, "key" | "name">, words: Record<StageKey, string>): string {
   return stage.name ?? (stage.key ? words[stage.key] : "");
+}
+
+// A SIREN (9 digits) or a SIRET (14), written with or without spaces.
+export function siren(value: unknown): string {
+  const text = clean(value ?? "", 30, { optional: true }).replace(/[\s.]/gu, "");
+  if (text === "") return "";
+  if (!/^([0-9]{9}|[0-9]{14})$/u.test(text)) throw new AppError("bad_siren");
+  return text;
+}
+
+// An intra-community VAT number: two letters, then 2 to 13 letters or
+// digits ("FR 40 303 265 045" → "FR40303265045"). Only its shape is checked.
+export function vat(value: unknown): string {
+  const text = clean(value ?? "", 30, { optional: true }).replace(/[\s.-]/gu, "").toUpperCase();
+  if (text === "") return "";
+  if (!/^[A-Z]{2}[0-9A-Z]{2,13}$/u.test(text)) throw new AppError("bad_vat");
+  return text;
+}
+
+// A time of day, "HH:MM" (24 hours), or nothing.
+export function time(value: unknown): string | null {
+  if (value === null || value === undefined || value === "") return null;
+  if (typeof value !== "string" || !/^([01][0-9]|2[0-3]):[0-5][0-9]$/u.test(value)) throw new AppError("bad_time");
+  return value;
+}
+
+// The times a next step offers: every half hour from 07:00 to 20:30 (a
+// select, not a native field: those follow the browser's AM/PM).
+export const stepTimes: string[] = Array.from({ length: 28 }, (_, i) => `${String(7 + Math.floor(i / 2)).padStart(2, "0")}:${i % 2 ? "30" : "00"}`);
+
+// The digits of a phone number as search compares them: "+33 (0)4 78…",
+// "0033 4 78…" and "04 78…" are the same number (as crm_phone, in SQL).
+export function phoneDigits(value: string): string {
+  const v = value.replace(/\(\s*0\s*\)/gu, "");
+  const digits = v.replace(/[^0-9]/gu, "");
+  if (/^\s*\+\s*33/u.test(v)) return "0" + digits.slice(2);
+  if (/^\s*0033/u.test(v)) return "0" + digits.slice(4);
+  return digits;
 }

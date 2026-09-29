@@ -176,6 +176,70 @@ test("a refusal needs a reason and brings the expense back to its owner's drafts
   assert.equal(chest.notifications.some(n => n.key === `refused:${a.id}`), false);
 });
 
+test("a refused expense never goes back unchanged: not ticked, not sent, not approved in bulk", async () => {
+  const { sql } = database;
+  await settings.setApprover(sql, asMember(camille), hugo.id, ines.id, yes);
+  const taxi = (await expenses.saveExpense(sql, asMember(hugo), null, lunch({ amount: "32", merchant: "G7 Taxi", categoryId: cat["travel"] }))).expense;
+  const meal = (await expenses.saveExpense(sql, asMember(hugo), null, lunch())).expense;
+  await expenses.submit(sql, asMember(hugo), [taxi.id, meal.id], yes);
+  await expenses.decide(sql, asMember(ines), [taxi.id], "refuse", "The taxi receipt is missing");
+  const back = (await expenses.expense(sql, asMember(hugo), taxi.id)).expense;
+  assert.equal(back.refusedUnchanged, true);
+  // Sent again as it was, alone or with another draft: refused, nothing sent.
+  const other = (await expenses.saveExpense(sql, asMember(hugo), null, lunch({ amount: "9", merchant: "Paul" }))).expense;
+  await assert.rejects(expenses.submit(sql, asMember(hugo), [taxi.id], yes), refuses("refused_unchanged"));
+  await assert.rejects(expenses.submit(sql, asMember(hugo), [other.id, taxi.id], yes), refuses("refused_unchanged"));
+  assert.equal((await expenses.expense(sql, asMember(hugo), other.id)).expense.status, "draft");
+  // Saved again without a change: still unchanged.
+  await expenses.saveExpense(sql, asMember(hugo), taxi.id, lunch({ amount: "32", merchant: "G7 Taxi", categoryId: cat["travel"] }));
+  assert.equal((await expenses.expense(sql, asMember(hugo), taxi.id)).expense.refusedUnchanged, true);
+  // Even if it were sent unchanged (a sending from before this check), no approval as it is.
+  await sql`update expenses set status = 'submitted', approver_id = ${ines.id}, submitted_at = now() where id = ${taxi.id}`;
+  await assert.rejects(expenses.decide(sql, asMember(ines), [meal.id, taxi.id], "approve"), refuses("refused_unchanged"));
+  assert.equal((await expenses.expense(sql, asMember(hugo), meal.id)).expense.status, "submitted");
+  await expenses.decide(sql, asMember(ines), [taxi.id], "refuse", "Still no receipt");
+  // Changed (a receipt added, or a note for the approver): it goes, and the
+  // approver sees it was refused before, with the reason.
+  const receipt = await upload(chest, sql, asMember(hugo), "%PDF-1.4 taxi");
+  await expenses.saveExpense(sql, asMember(hugo), taxi.id, lunch({ amount: "32", merchant: "G7 Taxi", categoryId: cat["travel"] }), receipt);
+  const fixed = (await expenses.expense(sql, asMember(hugo), taxi.id)).expense;
+  assert.equal(fixed.refusedUnchanged, false);
+  assert.equal(fixed.refusedReason, "Still no receipt");
+  await expenses.submit(sql, asMember(hugo), [taxi.id], yes);
+  const list = await expenses.waiting(sql, asMember(ines));
+  const warned = await expenses.warnings(sql, list, { anyone: true });
+  assert.deepEqual(warned.get(taxi.id), [{ code: "resent", reason: "Still no receipt" }]);
+  assert.equal(warned.get(meal.id)?.some(w => w.code === "resent"), false);
+  await expenses.decide(sql, asMember(ines), [taxi.id], "approve");
+  assert.equal((await expenses.expense(sql, asMember(hugo), taxi.id)).expense.status, "approved");
+});
+
+test("a refused trip stays unchanged when only the scale moves its amount; a note is a change", async () => {
+  const { sql } = database;
+  await settings.setVehicle(sql, asMember(lea), { kind: "car", power: "4", electric: false });
+  const trip = await expenses.saveTrip(sql, asMember(lea), null, { spentOn: "2026-04-02", from: "A", to: "B", distance: "30" });
+  await expenses.submit(sql, asMember(lea), [trip.id], yes);
+  await expenses.decide(sql, asMember(camille), [trip.id], "refuse", "Which client?");
+  // An earlier trip moves this one along the scale: not a change of hers.
+  await expenses.saveTrip(sql, asMember(lea), null, { spentOn: "2026-03-01", from: "C", to: "D", distance: "4990" });
+  const moved = (await expenses.expense(sql, asMember(lea), trip.id)).expense;
+  assert.notEqual(moved.amount, trip.amount);
+  assert.equal(moved.refusedUnchanged, true);
+  await expenses.saveTrip(sql, asMember(lea), trip.id, { spentOn: "2026-04-02", from: "A", to: "B", distance: "30", note: "Visit to Maison Roux" });
+  assert.equal((await expenses.expense(sql, asMember(lea), trip.id)).expense.refusedUnchanged, false);
+});
+
+test("a refusal recorded before the fingerprint counts as unchanged until the draft is saved again", async () => {
+  const { sql } = database;
+  const a = (await expenses.saveExpense(sql, asMember(hugo), null, lunch())).expense;
+  await sql`update expenses set refused_reason = 'Old refusal', decided_by = ${camille.id}, decided_at = now() + interval '1 second' where id = ${a.id}`;
+  assert.equal((await expenses.expense(sql, asMember(hugo), a.id)).expense.refusedUnchanged, true);
+  await assert.rejects(expenses.submit(sql, asMember(hugo), [a.id], yes), refuses("refused_unchanged"));
+  await sql`update expenses set decided_at = now() - interval '1 minute' where id = ${a.id}`;
+  await expenses.saveExpense(sql, asMember(hugo), a.id, lunch({ note: "Receipt attached on paper" }));
+  assert.equal((await expenses.expense(sql, asMember(hugo), a.id)).expense.refusedUnchanged, false);
+});
+
 test("an approver who may no longer approve is passed over: the accountants get it", async () => {
   const { sql } = database;
   await settings.setApprover(sql, asMember(camille), hugo.id, tom.id, yes);

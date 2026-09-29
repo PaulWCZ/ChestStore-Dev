@@ -2,11 +2,11 @@ import { ChestError } from "@argentic/chest-sdk/errors";
 import type { Member } from "@argentic/chest-sdk/member";
 import * as members from "@argentic/chest-sdk/members";
 import { atLeast, boardAccess, roleOf, type BoardAccess } from "./access.ts";
-import { board, type Board } from "./boards.ts";
+import { board, fields as boardFields, type Board } from "./boards.ts";
 import type { Query, Sql } from "./db.ts";
 import { AppError } from "./errors.ts";
 import { chestToday } from "./clock.ts";
-import { clean, day, id, limits, memberIds } from "./model.ts";
+import { clean, day, fieldValue, id, limits, memberIds, memberPattern, time } from "./model.ts";
 import { between } from "./position.ts";
 import { firstDue, parseRepeat, type Repeat } from "./repeat.ts";
 import { makeNext, takeBack } from "./repeats.ts";
@@ -21,6 +21,9 @@ export type CardSummary = {
   title: string;
   position: string;
   due: string | null;
+  // The hour it is due at ("HH:MM"), and the day work starts.
+  dueTime: string | null;
+  start: string | null;
   done: boolean;
   assignees: string[];
   labels: string[];
@@ -30,11 +33,16 @@ export type CardSummary = {
   hasDescription: boolean;
   // The card repeats (its next one is made when it is done).
   repeats: boolean;
+  // The board's fields: field id → value.
+  values: Record<string, string>;
 };
 
 export type Activity = { id: string; actor: string; kind: string; data: Record<string, unknown>; at: string };
 export type Comment = { id: string; author: string; body: string; at: string; edited: boolean; importedAuthor: string | null };
-export type CheckItem = { id: string; text: string; done: boolean; position: string };
+// A step of a checklist; given to someone with a date, it is a subtask.
+// checklistId null: the card's main checklist.
+export type CheckItem = { id: string; text: string; done: boolean; position: string; checklistId: string | null; assignee: string | null; due: string | null };
+export type Checklist = { id: string; title: string };
 export type Attachment = { id: string; object: string; fileName: string; type: string; size: number; addedBy: string; at: string };
 export type CardDetail = CardSummary & {
   boardId: string;
@@ -43,6 +51,7 @@ export type CardDetail = CardSummary & {
   createdBy: string;
   createdAt: string;
   items: CheckItem[];
+  checklists: Checklist[];
   thread: Comment[];
   history: Activity[];
   files: Attachment[];
@@ -51,7 +60,7 @@ export type CardDetail = CardSummary & {
   next: { id: string; due: string | null; done: boolean; archived: boolean } | null;
 };
 
-type SummaryRow = { id: string; column_id: string; title: string; position: string; due_on: string | null; done: boolean; description: string; assignees: string[] | null; labels: string[] | null; items_done: number; items: number; comments: number; attachments: number; repeats: boolean };
+type SummaryRow = { id: string; column_id: string; title: string; position: string; due_on: string | null; due_time: string | null; start_on: string | null; done: boolean; description: string; assignees: string[] | null; labels: string[] | null; items_done: number; items: number; comments: number; attachments: number; repeats: boolean; vals: Record<string, string> | null };
 
 const summary = (r: SummaryRow): CardSummary => ({
   id: String(r.id),
@@ -59,6 +68,8 @@ const summary = (r: SummaryRow): CardSummary => ({
   title: r.title,
   position: r.position,
   due: r.due_on,
+  dueTime: r.due_on ? r.due_time : null,
+  start: r.start_on,
   done: r.done,
   assignees: r.assignees ?? [],
   labels: (r.labels ?? []).map(String),
@@ -67,17 +78,19 @@ const summary = (r: SummaryRow): CardSummary => ({
   attachments: r.attachments,
   hasDescription: r.description !== "",
   repeats: r.repeats,
+  values: r.vals ?? {},
 });
 
 const summaryColumns = (sql: Sql) => sql`
-  c.id, c.column_id, c.title, c.position, to_char(c.due_on, 'YYYY-MM-DD') as due_on, k.done, c.description,
+  c.id, c.column_id, c.title, c.position, to_char(c.due_on, 'YYYY-MM-DD') as due_on, c.due_time, to_char(c.start_on, 'YYYY-MM-DD') as start_on, k.done, c.description,
   (select array_agg(member_id order by member_id) from card_assignees where card_id = c.id) as assignees,
   (select array_agg(label_id order by label_id) from card_labels where card_id = c.id) as labels,
   (select count(*)::int from checklist_items where card_id = c.id and done) as items_done,
   (select count(*)::int from checklist_items where card_id = c.id) as items,
-  (select count(*)::int from comments where card_id = c.id) as comments,
+  (select count(*)::int from comments where card_id = c.id and removed_at is null) as comments,
   (select count(*)::int from attachments where card_id = c.id) as attachments,
-  c.repeat is not null as repeats`;
+  c.repeat is not null as repeats,
+  (select jsonb_object_agg(field_id::text, value) from card_values where card_id = c.id) as vals`;
 
 // The open cards of a board (in live columns), in order.
 export async function boardCards(sql: Sql, boardId: string, options: { archived?: boolean } = {}): Promise<CardSummary[]> {
@@ -121,8 +134,10 @@ export async function cardDetail(sql: Sql, actor: Member | null, cardId: unknown
   const [next] = s!.next_card_id ? await sql<{ id: string; due_on: string | null; done: boolean; archived: boolean }[]>`
     select n.id, to_char(n.due_on, 'YYYY-MM-DD') as due_on, k.done, n.archived_at is not null as archived from cards n join columns k on k.id = n.column_id where n.id = ${s!.next_card_id}` : [];
   const repeat = readRule(s!.repeat);
-  const items = await sql<{ id: string; text: string; done: boolean; position: string }[]>`select id, text, done, position from checklist_items where card_id = ${row.id} order by position, id`;
-  const thread = await sql<{ id: string; author: string; body: string; created_at: Date; edited_at: Date | null; imported_author: string | null }[]>`select id, author, body, created_at, edited_at, imported_author from comments where card_id = ${row.id} order by created_at, id`;
+  const items = await sql<{ id: string; text: string; done: boolean; position: string; checklist_id: string | null; assignee: string | null; due_on: string | null }[]>`
+    select id, text, done, position, checklist_id, assignee, to_char(due_on, 'YYYY-MM-DD') as due_on from checklist_items where card_id = ${row.id} order by position, id`;
+  const lists = await sql<{ id: string; title: string }[]>`select id, title from checklists where card_id = ${row.id} order by position, id`;
+  const thread = await sql<{ id: string; author: string; body: string; created_at: Date; edited_at: Date | null; imported_author: string | null }[]>`select id, author, body, created_at, edited_at, imported_author from comments where card_id = ${row.id} and removed_at is null order by created_at, id`;
   const history = await sql<{ id: string; actor: string; kind: string; data: Record<string, unknown>; at: Date }[]>`select id, actor, kind, data, at from activity where card_id = ${row.id} order by at desc, id desc limit 50`;
   const files = await sql<{ id: string; object: string; file_name: string; type: string; size: string; added_by: string; added_at: Date }[]>`select id, object, file_name, type, size, added_by, added_at from attachments where card_id = ${row.id} order by added_at, id`;
   return {
@@ -133,7 +148,8 @@ export async function cardDetail(sql: Sql, actor: Member | null, cardId: unknown
     archived: row.archived_at !== null,
     createdBy: s!.created_by,
     createdAt: s!.created_at.toISOString(),
-    items: items.map(i => ({ id: String(i.id), text: i.text, done: i.done, position: i.position })),
+    items: items.map(i => ({ id: String(i.id), text: i.text, done: i.done, position: i.position, checklistId: i.checklist_id === null ? null : String(i.checklist_id), assignee: i.assignee, due: i.due_on })),
+    checklists: lists.map(l => ({ id: String(l.id), title: l.title })),
     thread: thread.map(c => ({ id: String(c.id), author: c.author, body: c.body, at: c.created_at.toISOString(), edited: c.edited_at !== null, importedAuthor: c.imported_author })),
     history: history.map(h => ({ id: String(h.id), actor: h.actor, kind: h.kind, data: h.data, at: h.at.toISOString() })),
     files: files.map(f => ({ id: String(f.id), object: f.object, fileName: f.file_name, type: f.type, size: Number(f.size), addedBy: f.added_by, at: f.added_at.toISOString() })),
@@ -165,23 +181,41 @@ export async function addCard(sql: Sql, actor: Member | null, boardId: unknown, 
     await record(tx, String(row!.id), actor!.id, "created");
     return String(row!.id);
   });
-  return { id: created, columnId: c.id, title: text, position, due: null, done: c.done, assignees: [], labels: [], checklist: { done: 0, total: 0 }, comments: 0, attachments: 0, hasDescription: false, repeats: false };
+  return { id: created, columnId: c.id, title: text, position, due: null, dueTime: null, start: null, done: c.done, assignees: [], labels: [], checklist: { done: 0, total: 0 }, comments: 0, attachments: 0, hasDescription: false, repeats: false, values: {} };
 }
 
-export async function updateCard(sql: Sql, actor: Member | null, cardId: unknown, input: { title?: unknown; description?: unknown; due?: unknown }): Promise<{ title: string; due: string | null; dueChanged: boolean }> {
+// updateCard changes what is given: title, description, due date (and
+// its time: removing the date removes the time), start date.
+export async function updateCard(sql: Sql, actor: Member | null, cardId: unknown, input: { title?: unknown; description?: unknown; due?: unknown; dueTime?: unknown; start?: unknown }): Promise<{ title: string; due: string | null; dueChanged: boolean }> {
   const { row } = await card(sql, actor, cardId, "write");
   if (row.archived_at) throw new AppError("forbidden");
-  const [current] = await sql<{ title: string; description: string; due_on: string | null }[]>`select title, description, to_char(due_on, 'YYYY-MM-DD') as due_on from cards where id = ${row.id}`;
+  const [current] = await sql<{ title: string; description: string; due_on: string | null; due_time: string | null; start_on: string | null }[]>`
+    select title, description, to_char(due_on, 'YYYY-MM-DD') as due_on, due_time, to_char(start_on, 'YYYY-MM-DD') as start_on from cards where id = ${row.id}`;
   const title = input.title === undefined ? current!.title : clean(input.title, limits.title);
   const description = input.description === undefined ? current!.description : clean(input.description, limits.description, { multiline: true, optional: true });
   const due = input.due === undefined ? current!.due_on : day(input.due);
+  const dueTime = due === null ? null : input.dueTime === undefined ? current!.due_time : time(input.dueTime);
+  const start = input.start === undefined ? current!.start_on : day(input.start);
   await sql.begin(async tx => {
-    await tx`update cards set title = ${title}, description = ${description}, due_on = ${due}, updated_at = now() where id = ${row.id}`;
+    await tx`update cards set title = ${title}, description = ${description}, due_on = ${due}, due_time = ${dueTime}, start_on = ${start}, updated_at = now() where id = ${row.id}`;
     if (title !== current!.title) await record(tx, row.id, actor!.id, "renamed", { from: current!.title, to: title });
     if (description !== current!.description) await record(tx, row.id, actor!.id, "described");
-    if (due !== current!.due_on) await record(tx, row.id, actor!.id, due ? "due_set" : "due_removed", due ? { due } : {});
+    if (due !== current!.due_on || (due && dueTime !== current!.due_time)) await record(tx, row.id, actor!.id, due ? "due_set" : "due_removed", due ? { due, ...(dueTime ? { time: dueTime } : {}) } : {});
+    if (start !== current!.start_on) await record(tx, row.id, actor!.id, start ? "start_set" : "start_removed", start ? { start } : {});
   });
   return { title, due, dueChanged: due !== current!.due_on };
+}
+
+// setValue gives a card its value for one of the board's fields (null or
+// "" clears it).
+export async function setValue(sql: Sql, actor: Member | null, cardId: unknown, fieldId: unknown, value: unknown): Promise<void> {
+  const { row, board: b } = await card(sql, actor, cardId, "write");
+  if (row.archived_at) throw new AppError("forbidden");
+  const f = (await boardFields(sql, b.id)).find(x => x.id === id(fieldId));
+  if (!f) throw new AppError("not_found");
+  const text = fieldValue(f.kind, f.options, value);
+  if (text === null) await sql`delete from card_values where card_id = ${row.id} and field_id = ${f.id}`;
+  else await sql`insert into card_values (card_id, field_id, value) values (${row.id}, ${f.id}, ${text}) on conflict (card_id, field_id) do update set value = excluded.value`;
 }
 
 // setRepeat makes a card repeat (a rule of lib/repeat.ts), or stop (null).
@@ -240,6 +274,140 @@ export async function moveCard(sql: Sql, actor: Member | null, cardId: unknown, 
   return { from: row.column_id, to: c.id, completed, ...series };
 }
 
+// Another board: a card moves or is copied there, into one of its
+// columns. What belongs to the board goes by name: labels (made on the
+// target board when missing, as room allows), fields of the same name and
+// kind; people who cannot see the target board are left behind.
+type Target = { board: Board; column: { id: string; done: boolean } };
+
+async function target(sql: Sql, actor: Member | null, boardId: unknown, columnId: unknown): Promise<Target> {
+  const b = await board(sql, actor, boardId, "write");
+  if (b.archived) throw new AppError("forbidden");
+  return { board: b, column: await liveColumn(sql, b.id, columnId) };
+}
+
+const fold = (s: string) => s.normalize("NFD").replace(/\p{Mn}/gu, "").toLowerCase().trim();
+
+// carry maps what hangs on a card to the target board, inside the
+// transaction: the labels' ids there, the fields' values there, the people
+// who see it. Says who was left behind.
+async function carry(tx: Query, cardId: string, from: Board, to: Board): Promise<{ labels: string[]; values: { field: string; value: string }[]; people: string[]; dropped: string[] }> {
+  const cardLabels = await tx<{ name: string; color: string }[]>`select l.name, l.color from card_labels cl join labels l on l.id = cl.label_id where cl.card_id = ${cardId} order by l.id`;
+  const theirs = await tx<{ id: string; name: string; color: string }[]>`select id, name, color from labels where board_id = ${to.id} order by id`;
+  const labels: string[] = [];
+  for (const l of cardLabels) {
+    const same = theirs.find(x => (l.name ? fold(x.name) === fold(l.name) : !x.name && x.color === l.color));
+    if (same) labels.push(String(same.id));
+    else if (theirs.length < limits.labelsPerBoard) {
+      const [made] = await tx<{ id: string }[]>`insert into labels (board_id, name, color) values (${to.id}, ${l.name}, ${l.color}) returning id`;
+      theirs.push({ id: String(made!.id), name: l.name, color: l.color });
+      labels.push(String(made!.id));
+    }
+  }
+  const values: { field: string; value: string }[] = [];
+  if (from.id !== to.id) {
+    const held = await tx<{ name: string; kind: string; value: string }[]>`select f.name, f.kind, v.value from card_values v join fields f on f.id = v.field_id where v.card_id = ${cardId}`;
+    const fieldsThere = await tx<{ id: string; name: string; kind: string; options: unknown }[]>`select id, name, kind, options from fields where board_id = ${to.id}`;
+    for (const v of held) {
+      const f = fieldsThere.find(x => fold(x.name) === fold(v.name) && x.kind === v.kind);
+      if (f && (f.kind !== "choice" || (Array.isArray(f.options) && f.options.includes(v.value)))) values.push({ field: String(f.id), value: v.value });
+    }
+  } else {
+    for (const v of await tx<{ field_id: string; value: string }[]>`select field_id, value from card_values where card_id = ${cardId}`) values.push({ field: String(v.field_id), value: v.value });
+  }
+  const assigned = (await tx<{ member_id: string }[]>`select member_id from card_assignees where card_id = ${cardId}`).map(r => r.member_id);
+  const steps = (await tx<{ assignee: string }[]>`select distinct assignee from checklist_items where card_id = ${cardId} and assignee is not null`).map(r => r.assignee);
+  const everyone = [...new Set([...assigned, ...steps])];
+  const allowed = from.id === to.id ? new Set(everyone) : await audience(to, everyone);
+  return { labels, values, people: everyone.filter(p => allowed.has(p)), dropped: everyone.filter(p => !allowed.has(p)) };
+}
+
+// moveToBoard moves a card to a column of another board, with its
+// comments, checklists, files and history; the history says where it came
+// from. Says who was left behind (they no longer see it).
+export async function moveToBoard(sql: Sql, actor: Member | null, cardId: unknown, boardId: unknown, columnId: unknown): Promise<{ from: string; to: string; dropped: string[]; stayed: string[]; completed: boolean | null }> {
+  const { row, board: from } = await card(sql, actor, cardId, "write");
+  if (row.archived_at) throw new AppError("forbidden");
+  const to = await target(sql, actor, boardId, columnId);
+  if (to.board.id === from.id) {
+    const moved = await moveCard(sql, actor, row.id, to.column.id, null, null);
+    const stayed = (await sql<{ member_id: string }[]>`select member_id from card_assignees where card_id = ${row.id}`).map(r => r.member_id);
+    return { from: from.id, to: from.id, dropped: [], stayed, completed: moved.completed };
+  }
+  const [counted] = await sql<{ count: number }[]>`select count(*)::int as count from cards where board_id = ${to.board.id} and archived_at is null`;
+  if ((counted?.count ?? 0) >= limits.cardsPerBoard) throw new AppError("too_many", { max: limits.cardsPerBoard });
+  const [was] = await sql<{ done: boolean }[]>`select done from columns where id = ${row.column_id}`;
+  const completed = was?.done === to.column.done ? null : to.column.done;
+  const result = await sql.begin(async tx => {
+    const kept = await carry(tx, row.id, from, to.board);
+    const [edge] = await tx<{ position: string }[]>`select position from cards where column_id = ${to.column.id} order by position desc limit 1`;
+    await tx`update cards set board_id = ${to.board.id}, column_id = ${to.column.id}, position = ${between(edge?.position ?? null, null)}, updated_at = now(),
+      completed_at = ${to.column.done ? (completed === null ? tx`completed_at` : tx`now()`) : null} where id = ${row.id}`;
+    await tx`delete from card_labels where card_id = ${row.id}`;
+    for (const l of kept.labels) await tx`insert into card_labels (card_id, label_id) values (${row.id}, ${l}) on conflict do nothing`;
+    await tx`delete from card_values where card_id = ${row.id}`;
+    for (const v of kept.values) await tx`insert into card_values (card_id, field_id, value) values (${row.id}, ${v.field}, ${v.value})`;
+    for (const p of kept.dropped) {
+      await tx`delete from card_assignees where card_id = ${row.id} and member_id = ${p}`;
+      await tx`update checklist_items set assignee = null where card_id = ${row.id} and assignee = ${p}`;
+    }
+    await record(tx, row.id, actor!.id, "moved_board", { from: from.name, to: to.board.name });
+    for (const p of kept.dropped) await record(tx, row.id, actor!.id, "unassigned", { member: p });
+    if (completed === true) await makeNext(tx, row.id, chestToday(), actor!.id);
+    if (completed === false) await takeBack(tx, row.id);
+    const stayed = (await tx<{ member_id: string }[]>`select member_id from card_assignees where card_id = ${row.id}`).map(r => r.member_id);
+    return { dropped: kept.dropped, stayed };
+  });
+  return { from: from.id, to: to.board.id, completed, ...result };
+}
+
+// duplicateCard copies a card into a column (of its board or another): its
+// title, description, dates, people, labels, fields and checklists, the
+// steps unticked — not its comments, files, history or repeat. The copy
+// comes right under the card in its own column, at the bottom elsewhere.
+export async function duplicateCard(sql: Sql, actor: Member | null, cardId: unknown, boardId: unknown, columnId: unknown): Promise<{ id: string; boardId: string; people: string[] }> {
+  const { row, board: from } = await card(sql, actor, cardId, "read");
+  const to = await target(sql, actor, boardId, columnId);
+  const [counted] = await sql<{ count: number }[]>`select count(*)::int as count from cards where board_id = ${to.board.id} and archived_at is null`;
+  if ((counted?.count ?? 0) >= limits.cardsPerBoard) throw new AppError("too_many", { max: limits.cardsPerBoard });
+  return sql.begin(async tx => {
+    const [source] = await tx<{ title: string; description: string; position: string; due_on: string | null; due_time: string | null; start_on: string | null }[]>`
+      select title, description, position, to_char(due_on, 'YYYY-MM-DD') as due_on, due_time, to_char(start_on, 'YYYY-MM-DD') as start_on from cards where id = ${row.id}`;
+    let position: string;
+    if (to.column.id === row.column_id) {
+      const [next] = await tx<{ position: string }[]>`select position from cards where column_id = ${row.column_id} and position > ${source!.position} order by position limit 1`;
+      position = between(source!.position, next?.position ?? null);
+    } else {
+      const [edge] = await tx<{ position: string }[]>`select position from cards where column_id = ${to.column.id} order by position desc limit 1`;
+      position = between(edge?.position ?? null, null);
+    }
+    const kept = await carry(tx, row.id, from, to.board);
+    const [made] = await tx<{ id: string }[]>`
+      insert into cards (board_id, column_id, title, description, position, due_on, due_time, start_on, created_by, completed_at)
+      values (${to.board.id}, ${to.column.id}, ${source!.title}, ${source!.description}, ${position}, ${source!.due_on}, ${source!.due_time}, ${source!.start_on}, ${actor!.id}, ${to.column.done ? tx`now()` : null})
+      returning id`;
+    const copy = String(made!.id);
+    const assigned = (await tx<{ member_id: string }[]>`select member_id from card_assignees where card_id = ${row.id}`).map(r => r.member_id).filter(p => kept.people.includes(p));
+    for (const p of assigned) await tx`insert into card_assignees (card_id, member_id) values (${copy}, ${p})`;
+    for (const l of kept.labels) await tx`insert into card_labels (card_id, label_id) values (${copy}, ${l}) on conflict do nothing`;
+    for (const v of kept.values) await tx`insert into card_values (card_id, field_id, value) values (${copy}, ${v.field}, ${v.value})`;
+    const lists = await tx<{ id: string; title: string; position: string }[]>`select id, title, position from checklists where card_id = ${row.id} order by position`;
+    const listIds = new Map<string, string>();
+    for (const l of lists) {
+      const [n] = await tx<{ id: string }[]>`insert into checklists (card_id, title, position) values (${copy}, ${l.title}, ${l.position}) returning id`;
+      listIds.set(String(l.id), String(n!.id));
+    }
+    const items = await tx<{ text: string; position: string; checklist_id: string | null; assignee: string | null; due_on: string | null }[]>`
+      select text, position, checklist_id, assignee, to_char(due_on, 'YYYY-MM-DD') as due_on from checklist_items where card_id = ${row.id} order by position`;
+    for (const i of items) {
+      await tx`insert into checklist_items (card_id, text, done, position, checklist_id, assignee, due_on)
+        values (${copy}, ${i.text}, false, ${i.position}, ${i.checklist_id === null ? null : listIds.get(String(i.checklist_id)) ?? null}, ${i.assignee && kept.people.includes(i.assignee) ? i.assignee : null}, ${i.due_on})`;
+    }
+    await record(tx, copy, actor!.id, "copied", { from: row.title });
+    return { id: copy, boardId: to.board.id, people: assigned };
+  });
+}
+
 // audience says which of these people may see the board: only they may be
 // given its cards or mentioned on it.
 export async function audience(b: Board, ids: string[]): Promise<Set<string>> {
@@ -283,35 +451,95 @@ export async function setLabel(sql: Sql, actor: Member | null, cardId: unknown, 
   else await sql`delete from card_labels where card_id = ${row.id} and label_id = ${l.id}`;
 }
 
-// Checklist.
-export async function addItem(sql: Sql, actor: Member | null, cardId: unknown, text: unknown): Promise<CheckItem> {
+// Checklists: the card's main one (items without a checklist) and extra
+// ones with a title. A step may be given to someone who sees the board,
+// with a date: a subtask, shown in their "My tasks".
+async function listOf(sql: Sql, cardId: string, checklistId: unknown): Promise<string | null> {
+  if (checklistId === undefined || checklistId === null || checklistId === "") return null;
+  const [l] = await sql<{ id: string }[]>`select id from checklists where id = ${id(checklistId)} and card_id = ${cardId}`;
+  if (!l) throw new AppError("not_found");
+  return String(l.id);
+}
+
+export async function addItem(sql: Sql, actor: Member | null, cardId: unknown, text: unknown, options: { checklist?: unknown } = {}): Promise<CheckItem> {
   const { row } = await card(sql, actor, cardId, "write");
   const value = clean(text, limits.checkItem);
+  const checklistId = await listOf(sql, row.id, options.checklist);
   const [counted] = await sql<{ count: number }[]>`select count(*)::int as count from checklist_items where card_id = ${row.id}`;
   if ((counted?.count ?? 0) >= limits.checkItemsPerCard) throw new AppError("too_many", { max: limits.checkItemsPerCard });
   const [last] = await sql<{ position: string }[]>`select position from checklist_items where card_id = ${row.id} order by position desc limit 1`;
   const position = between(last?.position ?? null, null);
-  const [created] = await sql<{ id: string }[]>`insert into checklist_items (card_id, text, position) values (${row.id}, ${value}, ${position}) returning id`;
-  return { id: String(created!.id), text: value, done: false, position };
+  const [created] = await sql<{ id: string }[]>`insert into checklist_items (card_id, text, position, checklist_id) values (${row.id}, ${value}, ${position}, ${checklistId}) returning id`;
+  return { id: String(created!.id), text: value, done: false, position, checklistId, assignee: null, due: null };
 }
 
-async function item(sql: Sql, actor: Member | null, itemId: unknown): Promise<{ id: string; cardId: string }> {
+async function item(sql: Sql, actor: Member | null, itemId: unknown): Promise<{ id: string; cardId: string; text: string; done: boolean; assignee: string | null; due: string | null; row: CardRow; board: Board }> {
   const key = id(itemId);
-  const [row] = await sql<{ card_id: string }[]>`select card_id from checklist_items where id = ${key}`;
+  const [found] = await sql<{ card_id: string; text: string; done: boolean; assignee: string | null; due_on: string | null }[]>`select card_id, text, done, assignee, to_char(due_on, 'YYYY-MM-DD') as due_on from checklist_items where id = ${key}`;
+  if (!found) throw new AppError("not_found");
+  const { row, board: b } = await card(sql, actor, String(found.card_id), "write");
+  return { id: key, cardId: row.id, text: found.text, done: found.done, assignee: found.assignee, due: found.due_on, row, board: b };
+}
+
+// updateItem changes a step: its text, ticked or not, whom it is given to
+// (someone who sees the board, or null), its date. Says who was newly
+// given it, to tell them.
+export async function updateItem(sql: Sql, actor: Member | null, itemId: unknown, input: { text?: unknown; done?: unknown; assignee?: unknown; due?: unknown }): Promise<{ assigned: string | null; previous: string | null; assignee: string | null; text: string; card: { id: string; title: string; boardId: string } }> {
+  const i = await item(sql, actor, itemId);
+  const text = input.text === undefined ? i.text : clean(input.text, limits.checkItem);
+  const done = typeof input.done === "boolean" ? input.done : i.done;
+  let assignee = i.assignee;
+  if (input.assignee !== undefined) {
+    if (input.assignee !== null && (typeof input.assignee !== "string" || !memberPattern.test(input.assignee))) throw new AppError("invalid");
+    assignee = input.assignee as string | null;
+    if (assignee && assignee !== i.assignee && !(await audience(i.board, [assignee])).has(assignee)) throw new AppError("invalid");
+  }
+  const due = input.due === undefined ? i.due : day(input.due);
+  await sql.begin(async tx => {
+    await tx`update checklist_items set text = ${text}, done = ${done}, assignee = ${assignee}, due_on = ${due} where id = ${i.id}`;
+    if (assignee !== i.assignee && assignee) await record(tx, i.cardId, actor!.id, "step_assigned", { member: assignee, step: text });
+  });
+  return { assigned: assignee !== i.assignee ? assignee : null, previous: assignee !== i.assignee ? i.assignee : null, assignee, text, card: { id: i.cardId, title: i.row.title, boardId: i.board.id } };
+}
+
+export async function removeItem(sql: Sql, actor: Member | null, itemId: unknown): Promise<{ assignee: string | null; cardId: string }> {
+  const i = await item(sql, actor, itemId);
+  await sql`delete from checklist_items where id = ${i.id}`;
+  return { assignee: i.done ? null : i.assignee, cardId: i.cardId };
+}
+
+// Extra checklists ("Before the event", "On the day"…).
+export async function addChecklist(sql: Sql, actor: Member | null, cardId: unknown, title: unknown): Promise<Checklist> {
+  const { row } = await card(sql, actor, cardId, "write");
+  if (row.archived_at) throw new AppError("forbidden");
+  const name = clean(title, limits.checklistTitle);
+  const [counted] = await sql<{ count: number }[]>`select count(*)::int as count from checklists where card_id = ${row.id}`;
+  if ((counted?.count ?? 0) >= limits.checklistsPerCard) throw new AppError("too_many", { max: limits.checklistsPerCard });
+  const [last] = await sql<{ position: string }[]>`select position from checklists where card_id = ${row.id} order by position desc limit 1`;
+  const [created] = await sql<{ id: string }[]>`insert into checklists (card_id, title, position) values (${row.id}, ${name}, ${between(last?.position ?? null, null)}) returning id`;
+  return { id: String(created!.id), title: name };
+}
+
+async function checklist(sql: Sql, actor: Member | null, checklistId: unknown): Promise<{ id: string; cardId: string }> {
+  const key = id(checklistId);
+  const [row] = await sql<{ card_id: string }[]>`select card_id from checklists where id = ${key}`;
   if (!row) throw new AppError("not_found");
   await card(sql, actor, String(row.card_id), "write");
   return { id: key, cardId: String(row.card_id) };
 }
 
-export async function updateItem(sql: Sql, actor: Member | null, itemId: unknown, input: { text?: unknown; done?: unknown }): Promise<void> {
-  const i = await item(sql, actor, itemId);
-  if (input.text !== undefined) await sql`update checklist_items set text = ${clean(input.text, limits.checkItem)} where id = ${i.id}`;
-  if (typeof input.done === "boolean") await sql`update checklist_items set done = ${input.done} where id = ${i.id}`;
+export async function renameChecklist(sql: Sql, actor: Member | null, checklistId: unknown, title: unknown): Promise<void> {
+  const l = await checklist(sql, actor, checklistId);
+  await sql`update checklists set title = ${clean(title, limits.checklistTitle)} where id = ${l.id}`;
 }
 
-export async function removeItem(sql: Sql, actor: Member | null, itemId: unknown): Promise<void> {
-  const i = await item(sql, actor, itemId);
-  await sql`delete from checklist_items where id = ${i.id}`;
+// removeChecklist removes an extra checklist and its steps; says who held
+// open steps of it (their "My tasks" change).
+export async function removeChecklist(sql: Sql, actor: Member | null, checklistId: unknown): Promise<{ assignees: string[] }> {
+  const l = await checklist(sql, actor, checklistId);
+  const held = await sql<{ assignee: string }[]>`select distinct assignee from checklist_items where checklist_id = ${l.id} and assignee is not null and not done`;
+  await sql`delete from checklists where id = ${l.id}`;
+  return { assignees: held.map(h => h.assignee) };
 }
 
 // Comments: whoever may comment on the board; mentions name people who see
@@ -327,25 +555,48 @@ export async function addComment(sql: Sql, actor: Member | null, cardId: unknown
   return { comment: { id: String(created!.id), author: actor!.id, body: text, at: created!.created_at.toISOString(), edited: false, importedAuthor: null }, mentions, assignees, title: row.title, boardId: b.id };
 }
 
-async function comment(sql: Sql, actor: Member | null, commentId: unknown): Promise<{ id: string; author: string; access: BoardAccess }> {
+async function comment(sql: Sql, actor: Member | null, commentId: unknown): Promise<{ id: string; author: string; access: BoardAccess; removed: Date | null }> {
   const key = id(commentId);
-  const [row] = await sql<{ card_id: string; author: string }[]>`select card_id, author from comments where id = ${key}`;
+  const [row] = await sql<{ card_id: string; author: string; removed_at: Date | null }[]>`select card_id, author, removed_at from comments where id = ${key}`;
   if (!row) throw new AppError("not_found");
   const { board: b } = await card(sql, actor, String(row.card_id), "comment");
-  return { id: key, author: row.author, access: b.access };
+  return { id: key, author: row.author, access: b.access, removed: row.removed_at };
 }
 
 export async function editComment(sql: Sql, actor: Member | null, commentId: unknown, body: unknown): Promise<void> {
   const c = await comment(sql, actor, commentId);
+  if (c.removed) throw new AppError("not_found");
   if (c.author !== actor!.id) throw new AppError("forbidden");
   await sql`update comments set body = ${clean(body, limits.comment, { multiline: true })}, edited_at = now() where id = ${c.id}`;
 }
 
-// A comment is removed by its author, or by a board owner.
+// How long a removed comment can be brought back ("Undo"); after that it
+// is deleted for good — a password pasted by mistake must really go.
+export const undoMinutes = 10;
+
+// purgeComments deletes for good the comments removed more than
+// undoMinutes ago (at each removal, and each morning).
+export async function purgeComments(sql: Query): Promise<void> {
+  await sql`delete from comments where removed_at < now() - make_interval(mins => ${undoMinutes})`;
+}
+
+// A comment is removed by its author, or by a board owner: hidden at
+// once, kept a few minutes for "Undo", then deleted for good.
 export async function removeComment(sql: Sql, actor: Member | null, commentId: unknown): Promise<void> {
   const c = await comment(sql, actor, commentId);
   if (c.author !== actor!.id && !atLeast(c.access, "own")) throw new AppError("forbidden");
-  await sql`delete from comments where id = ${c.id}`;
+  if (c.removed) return;
+  await sql`update comments set removed_at = now() where id = ${c.id}`;
+  await purgeComments(sql);
+}
+
+// restoreComment brings back a comment removed a moment ago, by whoever
+// may remove it.
+export async function restoreComment(sql: Sql, actor: Member | null, commentId: unknown): Promise<void> {
+  const c = await comment(sql, actor, commentId);
+  if (c.author !== actor!.id && !atLeast(c.access, "own")) throw new AppError("forbidden");
+  const [back] = await sql<{ id: string }[]>`update comments set removed_at = null where id = ${c.id} and removed_at > now() - make_interval(mins => ${undoMinutes}) returning id`;
+  if (!back && c.removed) throw new AppError("not_found");
 }
 
 // Archive and delete: a card is archived (and restored) by whoever works on
@@ -429,48 +680,77 @@ export async function myTasks(sql: Sql, actor: Member | null): Promise<MyTask[]>
   return rows.filter(r => visible.has(String(r.board_id))).map(r => ({ ...summary(r), boardId: String(r.board_id), boardName: r.board_name, boardColor: r.board_color, columnName: r.column_name }));
 }
 
-// The number on the tile: open tasks given to each member, late or due
-// today.
+// My steps: open steps of checklists given to the actor (subtasks), on
+// open cards of boards they still see.
+export type MyStep = { id: string; text: string; due: string | null; cardId: string; cardTitle: string; boardId: string; boardName: string; boardColor: string };
+export async function mySteps(sql: Sql, actor: Member | null): Promise<MyStep[]> {
+  if (!actor || roleOf(actor) === null) throw new AppError("forbidden");
+  const rows = await sql<{ id: string; text: string; due_on: string | null; card_id: string; card_title: string; board_id: string; board_name: string; board_color: string }[]>`
+    select i.id, i.text, to_char(i.due_on, 'YYYY-MM-DD') as due_on, c.id as card_id, c.title as card_title, c.board_id, b.name as board_name, b.color as board_color
+    from checklist_items i join cards c on c.id = i.card_id join columns k on k.id = c.column_id join boards b on b.id = c.board_id
+    where i.assignee = ${actor.id} and not i.done and c.archived_at is null and k.archived_at is null and b.archived_at is null and not k.done
+    order by i.due_on asc nulls last, i.id
+    limit 500`;
+  const visible = new Map<string, boolean>();
+  const result: MyStep[] = [];
+  for (const r of rows) {
+    const key = String(r.board_id);
+    if (!visible.has(key)) visible.set(key, await board(sql, actor, key, "read").then(() => true, () => false));
+    if (visible.get(key)) result.push({ id: String(r.id), text: r.text, due: r.due_on, cardId: String(r.card_id), cardTitle: r.card_title, boardId: key, boardName: r.board_name, boardColor: r.board_color });
+  }
+  return result;
+}
+
+// The number on the tile: open tasks and steps given to each member, late
+// or due today.
 export async function urgentCounts(sql: Sql, memberIdsList: string[], now = chestToday()): Promise<Map<string, number>> {
   const counts = new Map<string, number>(memberIdsList.map(m => [m, 0]));
   if (memberIdsList.length === 0) return counts;
   const rows = await sql<{ member_id: string; count: number }[]>`
-    select a.member_id, count(*)::int as count
-    from card_assignees a join cards c on c.id = a.card_id join columns k on k.id = c.column_id join boards b on b.id = c.board_id
-    where a.member_id in ${sql(memberIdsList)} and c.archived_at is null and k.archived_at is null and b.archived_at is null and not k.done and c.due_on <= ${now}
-    group by a.member_id`;
+    select member_id, count(*)::int as count from (
+      select a.member_id
+      from card_assignees a join cards c on c.id = a.card_id join columns k on k.id = c.column_id join boards b on b.id = c.board_id
+      where a.member_id in ${sql(memberIdsList)} and c.archived_at is null and k.archived_at is null and b.archived_at is null and not k.done and c.due_on <= ${now}
+      union all
+      select i.assignee as member_id
+      from checklist_items i join cards c on c.id = i.card_id join columns k on k.id = c.column_id join boards b on b.id = c.board_id
+      where i.assignee in ${sql(memberIdsList)} and not i.done and c.archived_at is null and k.archived_at is null and b.archived_at is null and not k.done and i.due_on <= ${now}
+    ) due
+    group by member_id`;
   for (const r of rows) counts.set(r.member_id, r.count);
   return counts;
 }
 
-// search finds cards by words of their title or description, on the boards
-// the actor sees.
-export async function searchCards(sql: Sql, actor: Member | null, query: unknown): Promise<MyTask[]> {
+// search finds cards by words of their title or description, or a phrase
+// of their comments, checklists or labels, on the boards the actor sees;
+// with archived, also cards archived, in archived columns or on archived
+// boards (each says so).
+export type Found = MyTask & { archived: boolean };
+export async function searchCards(sql: Sql, actor: Member | null, query: unknown, options: { archived?: boolean } = {}): Promise<Found[]> {
   if (!actor || roleOf(actor) === null) throw new AppError("forbidden");
   const q = clean(query, 100);
   const words = q.split(/\s+/u).map(w => w.replace(/[^\p{L}\p{N}]/gu, "")).filter(Boolean).slice(0, 8);
   if (words.length === 0) return [];
   const pattern = "%" + q.replace(/[\\%_]/gu, "\\$&") + "%";
-  const rows = await sql<(SummaryRow & { board_id: string; board_name: string; board_color: string; column_name: string })[]>`
-    select ${summaryColumns(sql)}, c.board_id, b.name as board_name, b.color as board_color, k.name as column_name
+  const rows = await sql<(SummaryRow & { board_id: string; board_name: string; board_color: string; column_name: string; archived: boolean })[]>`
+    select ${summaryColumns(sql)}, c.board_id, b.name as board_name, b.color as board_color, k.name as column_name,
+      (c.archived_at is not null or k.archived_at is not null or b.archived_at is not null) as archived
     from cards c join columns k on k.id = c.column_id join boards b on b.id = c.board_id
-    where c.archived_at is null and k.archived_at is null and b.archived_at is null
-      and (c.search @@ to_tsquery('simple', ${words.map(w => w + ":*").join(" & ")}) or c.title ilike ${pattern})
+    where ${options.archived ? sql`true` : sql`c.archived_at is null and k.archived_at is null and b.archived_at is null`}
+      and (c.search @@ to_tsquery('simple', ${words.map(w => w + ":*").join(" & ")}) or c.title ilike ${pattern}
+        or exists (select 1 from comments m where m.card_id = c.id and m.removed_at is null and m.body ilike ${pattern})
+        or exists (select 1 from checklist_items i where i.card_id = c.id and i.text ilike ${pattern})
+        or exists (select 1 from checklists l where l.card_id = c.id and l.title ilike ${pattern})
+        or exists (select 1 from card_labels cl join labels l on l.id = cl.label_id where cl.card_id = c.id and l.name ilike ${pattern}))
     order by k.done, c.updated_at desc
     limit 200`;
   const seen = new Map<string, boolean>();
-  const result: MyTask[] = [];
+  const result: Found[] = [];
   for (const r of rows) {
     const key = String(r.board_id);
-    if (!seen.has(key)) {
-      try {
-        await board(sql, actor, key, "read");
-        seen.set(key, true);
-      } catch {
-        seen.set(key, false);
-      }
-    }
-    if (seen.get(key)) result.push({ ...summary(r), boardId: key, boardName: r.board_name, boardColor: r.board_color, columnName: r.column_name });
+    if (!seen.has(key)) seen.set(key, await board(sql, actor, key, "read").then(() => true, () => false));
+    if (seen.get(key)) result.push({ ...summary(r), boardId: key, boardName: r.board_name, boardColor: r.board_color, columnName: r.column_name, archived: r.archived });
   }
-  return result.slice(0, 50);
+  // Archived ones after the others.
+  return result.sort((a, b) => Number(a.archived) - Number(b.archived)).slice(0, 50);
 }

@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import type { Member } from "@argentic/chest-sdk/member";
 import { can, expenseAccess, type ExpenseAccess } from "./access.ts";
 import { AppError } from "./app-error.ts";
@@ -35,6 +36,8 @@ export type Expense = {
   decidedBy: string | null;
   decidedAt: string | null;
   refusedReason: string | null;
+  // Refused, and nothing changed since: it cannot be sent again as it is.
+  refusedUnchanged: boolean;
   paidOn: string | null;
   createdAt: string;
   deleted: boolean;
@@ -45,12 +48,38 @@ type Row = {
   category_id: string; merchant: string; note: string; paid_by: PaidBy; receipt_object: string | null; receipt_name: string | null; receipt_type: string | null; receipt_size: string | null;
   from_place: string | null; to_place: string | null; distance_tenths: number | null; vehicle: VehicleKind | null; power: string | null; electric: boolean | null; scale_year: number | null;
   approver_id: string | null; submitted_at: Date | null; decided_by: string | null; decided_at: Date | null; refused_reason: string | null; paid_on: string | null; created_at: Date; deleted_at: Date | null;
+  refused_fingerprint: string | null; updated_at: Date;
 };
 
 const columns = (sql: Query) => sql`
   e.id, e.member_id, e.kind, e.status, to_char(e.spent_on, 'YYYY-MM-DD') as spent_on, e.amount_cents, e.currency, e.vat_cents, e.category_id, e.merchant, e.note, e.paid_by,
   e.receipt_object, e.receipt_name, e.receipt_type, e.receipt_size, e.from_place, e.to_place, e.distance_tenths, e.vehicle, e.power, e.electric, e.scale_year,
-  e.approver_id, e.submitted_at, e.decided_by, e.decided_at, e.refused_reason, to_char(e.paid_on, 'YYYY-MM-DD') as paid_on, e.created_at, e.deleted_at`;
+  e.approver_id, e.submitted_at, e.decided_by, e.decided_at, e.refused_reason, to_char(e.paid_on, 'YYYY-MM-DD') as paid_on, e.created_at, e.deleted_at,
+  e.refused_fingerprint, e.updated_at`;
+
+// What its owner put on an expense, as one hash: what a refusal remembers,
+// so that the same expense cannot come back unchanged. A trip's amount is
+// left out (the scale and the other trips move it, not its owner). Empty
+// values are left out too, so that a column added later with its default
+// does not make an old refusal look changed.
+export function fingerprint(r: Row): string {
+  const fields: Record<string, unknown> = {
+    kind: r.kind, spentOn: r.spent_on, amount: r.kind === "mileage" ? null : String(r.amount_cents), currency: r.currency, vat: r.vat_cents === null ? null : String(r.vat_cents),
+    category: String(r.category_id), merchant: r.merchant, note: r.note, paidBy: r.paid_by, receipt: r.receipt_object,
+    from: r.from_place, to: r.to_place, distance: r.distance_tenths,
+  };
+  const kept = Object.entries(fields).filter(([, v]) => v !== null && v !== undefined && v !== "" && !(Array.isArray(v) && v.length === 0)).sort(([a], [b]) => a.localeCompare(b));
+  return createHash("sha256").update(JSON.stringify(kept)).digest("hex");
+}
+
+// A draft refused and not changed since. A refusal from before the
+// fingerprint (the first version) counts as unchanged until the draft is
+// saved again.
+function refusedUnchanged(r: Row): boolean {
+  if (r.status !== "draft" || r.refused_reason === null) return false;
+  if (r.refused_fingerprint !== null) return fingerprint(r) === r.refused_fingerprint;
+  return r.decided_at !== null && r.updated_at.getTime() <= r.decided_at.getTime();
+}
 
 function toExpense(r: Row): Expense {
   return {
@@ -73,6 +102,7 @@ function toExpense(r: Row): Expense {
     decidedBy: r.decided_by,
     decidedAt: r.decided_at?.toISOString() ?? null,
     refusedReason: r.refused_reason,
+    refusedUnchanged: refusedUnchanged(r),
     paidOn: r.paid_on,
     createdAt: r.created_at.toISOString(),
     deleted: r.deleted_at !== null,
@@ -80,27 +110,32 @@ function toExpense(r: Row): Expense {
 }
 
 // Warnings, never blocks: what an approver should look at twice.
-export type Warning = { code: "duplicate" | "receipt_reused" | "no_receipt" | "over_cap"; cap?: number };
+// "resent": sent again after a refusal (changed since: otherwise it could
+// not be sent), with the reason of the last refusal — the approver checks
+// the change, and "Approve all" leaves it for a look of its own.
+export type Warning = { code: "duplicate" | "receipt_reused" | "no_receipt" | "over_cap" | "resent"; cap?: number; reason?: string };
 
 export async function warnings(sql: Query, list: Expense[], options: { anyone?: boolean } = {}): Promise<Map<string, Warning[]>> {
   const out = new Map<string, Warning[]>();
   if (list.length === 0) return out;
   const idList = list.map(e => e.id);
   const { currency } = await settings(sql);
-  const rows = await sql<{ id: string; duplicate: boolean; reused: boolean; cap: string | null }[]>`
+  const rows = await sql<{ id: string; duplicate: boolean; reused: boolean; cap: string | null; refused: string | null }[]>`
     select e.id,
       exists (select 1 from expenses o where o.id <> e.id and o.deleted_at is null and o.kind = 'expense' and e.kind = 'expense'
               and o.member_id = e.member_id and o.spent_on = e.spent_on and o.amount_cents = e.amount_cents and o.currency = e.currency
               and lower(o.merchant) = lower(e.merchant)) as duplicate,
       exists (select 1 from expenses o where o.id <> e.id and o.deleted_at is null and e.receipt_sha256 is not null and o.receipt_sha256 = e.receipt_sha256
               and (${options.anyone === true} or o.member_id = e.member_id)) as reused,
-      c.cap_cents as cap
+      c.cap_cents as cap,
+      case when e.status = 'submitted' then (select h.detail from history h where h.expense_id = e.id and h.kind = 'refused' order by h.at desc, h.id desc limit 1) end as refused
     from expenses e join categories c on c.id = e.category_id
     where e.id = any(${idList}::bigint[])`;
   const byId = new Map(rows.map(r => [String(r.id), r]));
   for (const e of list) {
     const r = byId.get(e.id);
     const found: Warning[] = [];
+    if (r?.refused !== null && r?.refused !== undefined) found.push({ code: "resent", reason: r.refused });
     if (r?.duplicate) found.push({ code: "duplicate" });
     if (r?.reused) found.push({ code: "receipt_reused" });
     if (e.kind === "expense" && !e.receipt) found.push({ code: "no_receipt" });
@@ -353,10 +388,12 @@ export async function submit(sql: Sql, actor: Member | null, selection: unknown,
   let approver = await approverOf(sql, actor.id);
   if (approver !== null && !(await mayApprove(approver))) approver = null;
   return sql.begin(async tx => {
-    const rows = await tx<{ id: string; status: Status }[]>`
-      select id, status from expenses where id = any(${list}::bigint[]) and member_id = ${actor.id} and deleted_at is null for update`;
+    const rows = await tx<Row[]>`
+      select ${columns(tx)} from expenses e where e.id = any(${list}::bigint[]) and e.member_id = ${actor.id} and e.deleted_at is null for update`;
     if (rows.length !== list.length) throw new AppError("not_found");
     if (rows.some(r => r.status !== "draft")) throw new AppError("not_draft");
+    // A refusal means something: the same expense does not go back as it was.
+    if (rows.some(refusedUnchanged)) throw new AppError("refused_unchanged");
     const [claim] = await tx<{ id: string }[]>`insert into claims (member_id) values (${actor.id}) returning id`;
     const updated = await tx<Row[]>`
       update expenses as e set status = 'submitted', approver_id = ${approver}, submitted_at = now(), claim_id = ${claim!.id}, refused_reason = null, decided_by = null, decided_at = null
@@ -417,12 +454,21 @@ export async function decide(sql: Sql, actor: Member | null, selection: unknown,
       if (!access.see) throw new AppError("not_found");
       if (r.status !== "submitted") throw new AppError("not_submitted");
       if (!access.decide) throw new AppError(r.member_id === actor.id ? "self_approval" : "forbidden");
+      // Sent again exactly as it was refused (a sending from before this
+      // check, or a race): never approved as it is.
+      if (verdict === "approve" && r.refused_fingerprint !== null && fingerprint(r) === r.refused_fingerprint) throw new AppError("refused_unchanged");
     }
     const updated = verdict === "approve"
       ? await tx<Row[]>`update expenses as e set status = 'approved', decided_by = ${actor.id}, decided_at = now() where e.id = any(${list}::bigint[]) returning ${columns(tx)}`
       : await tx<Row[]>`
           update expenses as e set status = 'draft', decided_by = ${actor.id}, decided_at = now(), refused_reason = ${reason}, approver_id = null, submitted_at = null, claim_id = null
           where e.id = any(${list}::bigint[]) returning ${columns(tx)}`;
+    if (verdict === "refuse") {
+      for (const r of updated) {
+        r.refused_fingerprint = fingerprint(r);
+        await tx`update expenses set refused_fingerprint = ${r.refused_fingerprint} where id = ${r.id}`;
+      }
+    }
     for (const r of updated) await tx`insert into history (expense_id, actor, kind, detail) values (${r.id}, ${actor.id}, ${verdict === "approve" ? "approved" : "refused"}, ${reason ?? ""})`;
     const byOwner = new Map<string, Expense[]>();
     for (const r of updated.map(toExpense)) byOwner.set(r.owner, [...(byOwner.get(r.owner) ?? []), r]);

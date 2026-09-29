@@ -6,6 +6,7 @@ import * as cards from "../../lib/cards.ts";
 import { db } from "../../lib/db.ts";
 import { attempt, AppError, type Result } from "../../lib/errors.ts";
 import { catalogue, isLocale } from "../../lib/i18n/index.ts";
+import * as mail from "../../lib/mail.ts";
 import * as reminders from "../../lib/reminders.ts";
 import { currentMember } from "../../lib/session.ts";
 import * as tell from "../../lib/tell.ts";
@@ -26,7 +27,7 @@ async function act<T>(step: (actor: NonNullable<Awaited<ReturnType<typeof curren
 }
 
 // Boards.
-export async function createBoard(input: { name: string; template: string; visibility: string; color?: string }): Promise<Result<{ id: string }>> {
+export async function createBoard(input: { name: string; template: string; visibility: string; color?: string; people?: string[]; groups?: string[] }): Promise<Result<{ id: string }>> {
   return act(async actor => {
     const t = catalogue(isLocale(actor.locale) ? actor.locale : "en");
     const b = await boards.createBoard(db(), actor, input, t.templates.columns);
@@ -63,8 +64,26 @@ export async function moveColumn(columnId: string, after: string | null, before:
   return act(async actor => { await boards.moveColumn(db(), actor, columnId, after, before); return null; });
 }
 
-export async function archiveColumn(columnId: string, archived: boolean): Promise<Result<null>> {
-  return act(async actor => { await boards.archiveColumn(db(), actor, columnId, archived); return null; });
+// Archive a column; its cards go with it, or first to another column (to).
+export async function archiveColumn(columnId: string, archived: boolean, to?: string | null): Promise<Result<{ cards: number; moved: number }>> {
+  return act(async actor => {
+    const sql = db();
+    const done = await boards.archiveColumn(sql, actor, columnId, archived, { to: to ?? null });
+    return done;
+  });
+}
+
+// Fields of a board.
+export async function addField(boardId: string, input: { name: string; kind: string; options?: string[] }): Promise<Result<boards.Field>> {
+  return act(actor => boards.addField(db(), actor, boardId, input));
+}
+
+export async function updateField(fieldId: string, input: { name?: string; options?: string[] }): Promise<Result<null>> {
+  return act(async actor => { await boards.updateField(db(), actor, fieldId, input); return null; });
+}
+
+export async function removeField(fieldId: string): Promise<Result<null>> {
+  return act(async actor => { await boards.removeField(db(), actor, fieldId); return null; });
 }
 
 // Labels.
@@ -85,7 +104,7 @@ export async function addCard(boardId: string, columnId: string, title: string, 
   return act(actor => cards.addCard(db(), actor, boardId, columnId, title, { top }));
 }
 
-export async function updateCard(cardId: string, input: { title?: string; description?: string; due?: string | null }): Promise<Result<null>> {
+export async function updateCard(cardId: string, input: { title?: string; description?: string; due?: string | null; dueTime?: string | null; start?: string | null }): Promise<Result<null>> {
   return act(async actor => {
     const sql = db();
     const changed = await cards.updateCard(sql, actor, cardId, input);
@@ -94,6 +113,31 @@ export async function updateCard(cardId: string, input: { title?: string; descri
       await tell.refreshBadges(sql, detail.assignees);
     }
     return null;
+  });
+}
+
+export async function setValue(cardId: string, fieldId: string, value: string | null): Promise<Result<null>> {
+  return act(async actor => { await cards.setValue(db(), actor, cardId, fieldId, value); return null; });
+}
+
+// Another board: move the card there, or copy it (there or here).
+export async function moveToBoard(cardId: string, boardId: string, columnId: string): Promise<Result<{ boardId: string; dropped: number }>> {
+  return act(async actor => {
+    const sql = db();
+    const moved = await cards.moveToBoard(sql, actor, cardId, boardId, columnId);
+    if (moved.dropped.length > 0) await tell.unassigned(moved.dropped, cardId);
+    if (moved.completed) await tell.settled(cardId);
+    await tell.refreshBadges(sql, [...moved.dropped, ...moved.stayed]);
+    return { boardId: moved.to, dropped: moved.dropped.length };
+  });
+}
+
+export async function duplicateCard(cardId: string, boardId: string, columnId: string): Promise<Result<{ id: string; boardId: string }>> {
+  return act(async actor => {
+    const sql = db();
+    const copy = await cards.duplicateCard(sql, actor, cardId, boardId, columnId);
+    await tell.refreshBadges(sql, copy.people);
+    return { id: copy.id, boardId: copy.boardId };
   });
 }
 
@@ -113,6 +157,11 @@ export async function setReminder(on: boolean): Promise<Result<null>> {
   return act(async actor => { await reminders.setReminder(db(), actor, on); return null; });
 }
 
+// Email beside the bell, for oneself.
+export async function setEmail(on: boolean): Promise<Result<null>> {
+  return act(async actor => { await mail.setEmail(db(), actor, on); return null; });
+}
+
 export async function moveCard(cardId: string, columnId: string, after: string | null, before: string | null): Promise<Result<null>> {
   return act(async actor => {
     const sql = db();
@@ -130,7 +179,7 @@ export async function setAssignees(cardId: string, people: string[]): Promise<Re
   return act(async actor => {
     const sql = db();
     const change = await cards.setAssignees(sql, actor, cardId, people);
-    await tell.assigned(actor, change.added, { id: cardId, title: change.title, boardId: change.boardId });
+    await tell.assigned(actor, change.added, { id: cardId, title: change.title, boardId: change.boardId }, sql);
     await tell.unassigned(change.removed, cardId);
     await tell.refreshBadges(sql, [...change.added, ...change.removed]);
     return null;
@@ -141,23 +190,54 @@ export async function setLabel(cardId: string, labelId: string, on: boolean): Pr
   return act(async actor => { await cards.setLabel(db(), actor, cardId, labelId, on); return null; });
 }
 
-export async function addItem(cardId: string, text: string): Promise<Result<cards.CheckItem>> {
-  return act(actor => cards.addItem(db(), actor, cardId, text));
+export async function addItem(cardId: string, text: string, checklist?: string | null): Promise<Result<cards.CheckItem>> {
+  return act(actor => cards.addItem(db(), actor, cardId, text, { checklist: checklist ?? null }));
 }
 
-export async function updateItem(itemId: string, input: { text?: string; done?: boolean }): Promise<Result<null>> {
-  return act(async actor => { await cards.updateItem(db(), actor, itemId, input); return null; });
+// A step: ticked, renamed, given to someone (told), dated.
+export async function updateItem(itemId: string, input: { text?: string; done?: boolean; assignee?: string | null; due?: string | null }): Promise<Result<null>> {
+  return act(async actor => {
+    const sql = db();
+    const change = await cards.updateItem(sql, actor, itemId, input);
+    if (change.assigned) await tell.stepAssigned(actor, change.assigned, { id: itemId, text: change.text }, change.card, sql);
+    if (change.previous || input.done === true) await tell.stepSettled(change.card.id, itemId);
+    await tell.refreshBadges(sql, [change.assigned, change.previous, change.assignee].filter((p): p is string => !!p));
+    return null;
+  });
 }
 
 export async function removeItem(itemId: string): Promise<Result<null>> {
-  return act(async actor => { await cards.removeItem(db(), actor, itemId); return null; });
+  return act(async actor => {
+    const sql = db();
+    const gone = await cards.removeItem(sql, actor, itemId);
+    await tell.stepSettled(gone.cardId, itemId);
+    if (gone.assignee) await tell.refreshBadges(sql, [gone.assignee]);
+    return null;
+  });
+}
+
+export async function addChecklist(cardId: string, title: string): Promise<Result<cards.Checklist>> {
+  return act(actor => cards.addChecklist(db(), actor, cardId, title));
+}
+
+export async function renameChecklist(checklistId: string, title: string): Promise<Result<null>> {
+  return act(async actor => { await cards.renameChecklist(db(), actor, checklistId, title); return null; });
+}
+
+export async function removeChecklist(checklistId: string): Promise<Result<null>> {
+  return act(async actor => {
+    const sql = db();
+    const gone = await cards.removeChecklist(sql, actor, checklistId);
+    await tell.refreshBadges(sql, gone.assignees);
+    return null;
+  });
 }
 
 export async function addComment(cardId: string, body: string, mentions: string[]): Promise<Result<cards.Comment>> {
   return act(async actor => {
     const done = await cards.addComment(db(), actor, cardId, body, mentions);
     const card = { id: cardId, title: done.title, boardId: done.boardId };
-    await tell.mentioned(actor, done.mentions, card, done.comment.body);
+    await tell.mentioned(actor, done.mentions, card, done.comment.body, db(), done.comment.id);
     await tell.commented(actor, done.assignees.filter(a => !done.mentions.includes(a)), card, done.comment.body);
     return done.comment;
   });
@@ -169,6 +249,10 @@ export async function editComment(commentId: string, body: string): Promise<Resu
 
 export async function removeComment(commentId: string): Promise<Result<null>> {
   return act(async actor => { await cards.removeComment(db(), actor, commentId); return null; });
+}
+
+export async function restoreComment(commentId: string): Promise<Result<null>> {
+  return act(async actor => { await cards.restoreComment(db(), actor, commentId); return null; });
 }
 
 export async function archiveCard(cardId: string, archived: boolean): Promise<Result<null>> {
@@ -199,15 +283,24 @@ export async function detach(attachmentId: string): Promise<Result<null>> {
   });
 }
 
-// Import: the page read the file to show what will come; the server reads
-// it again (never trusting the page's reading) and writes the board.
-export async function importBoard(kind: "trello" | "csv", text: string, name: string): Promise<Result<{ id: string; cards: number; matched: number; people: number }>> {
+// Import: the page read the file to show what will come, and asks which
+// of the people named are found in the Chest; the server reads the file
+// again (never trusting the page's reading) and writes the board, private
+// unless "everyone" was chosen.
+export async function previewImport(names: string[]): Promise<Result<{ found: string[]; missing: string[] }>> {
+  return act(async actor => {
+    const { previewPeople } = await import("../../lib/importers.ts");
+    return previewPeople(actor, names);
+  });
+}
+
+export async function importBoard(kind: "trello" | "csv", text: string, name: string, visibility: "team" | "private" = "private"): Promise<Result<{ id: string; cards: number; matched: number; people: number }>> {
   return act(async actor => {
     const { fromCsv, fromTrello, importBoard: write } = await import("../../lib/importers.ts");
     if (typeof text !== "string" || text.length > 10 << 20) throw new AppError("import_invalid");
     const board = kind === "trello" ? fromTrello(text) : fromCsv(text, name);
     if (kind === "trello" && typeof name === "string" && name.trim()) board.name = name.trim().slice(0, 80);
     const t = catalogue(isLocale(actor.locale) ? actor.locale : "en");
-    return write(db(), actor, board, t.templates.columns.done);
+    return write(db(), actor, board, t.templates.columns.done, { visibility });
   });
 }

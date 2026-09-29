@@ -5,11 +5,12 @@ import { Download, Search } from "../../../../../../components/icons.tsx";
 import { listAnswers } from "../../../../../../lib/answers.ts";
 import { AppError } from "../../../../../../lib/app-error.ts";
 import { db } from "../../../../../../lib/db.ts";
-import { open } from "../../../../../../lib/forms.ts";
+
 import { format, formatDate, plural } from "../../../../../../lib/i18n/index.ts";
 import { answerText } from "../../../../../../lib/logic.ts";
 import { limits, withOptions } from "../../../../../../lib/model.ts";
 import { nameOf, people } from "../../../../../../lib/people.ts";
+import { formOr404 } from "../../../../../../lib/pages.ts";
 import { viewer } from "../../../../../../lib/session.ts";
 import { columnsOf, optionLabels } from "../../../../../../lib/summary.ts";
 import { seen } from "../../../../../../lib/tell.ts";
@@ -29,7 +30,7 @@ export default async function AnswersPage({ params, searchParams }: Props) {
   const q = one(query["q"]) ?? "";
   const where = one(query["where"]) ?? "";
   const [question, option] = where.split(":");
-  const { form } = await open(sql, member, id);
+  const { form } = await formOr404(member, id);
   await seen(sql, form.id, member.id);
   let data;
   try {

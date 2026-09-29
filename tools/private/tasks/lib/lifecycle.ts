@@ -4,8 +4,8 @@ import type { Sql } from "./db.ts";
 // What Tasks does when a member changes, loses access, leaves or is erased
 // (the Chest posts these to /chest-events, at least once).
 //
-// - Losing access or leaving: their open cards are unassigned (the history
-//   says so), so nothing waits on someone who is gone; they leave the
+// - Losing access or leaving: their open cards and steps are unassigned
+//   (the history says so), so nothing waits on someone who is gone; they leave the
 //   boards' people, and their reminder setting goes. Done and archived
 //   cards keep who did them.
 // - Erasure: their id disappears from everything — assignments, boards'
@@ -21,6 +21,8 @@ export async function leave(sql: Sql, memberId: string): Promise<void> {
       await tx`delete from card_assignees where card_id = ${card_id} and member_id = ${memberId}`;
       await tx`insert into activity (card_id, actor, kind, data) values (${card_id}, 'chest', 'unassigned_left', ${tx.json({ member: memberId })})`;
     }
+    // Their open steps are freed too; ticked ones keep who did them.
+    await tx`update checklist_items set assignee = null where assignee = ${memberId} and not done`;
     await tx`delete from board_people where member_id = ${memberId}`;
     await tx`delete from reminders where member_id = ${memberId}`;
   });
@@ -29,6 +31,7 @@ export async function leave(sql: Sql, memberId: string): Promise<void> {
 export async function erase(sql: Sql, memberId: string): Promise<void> {
   await sql.begin(async tx => {
     await tx`delete from card_assignees where member_id = ${memberId}`;
+    await tx`update checklist_items set assignee = null where assignee = ${memberId}`;
     await tx`delete from board_people where member_id = ${memberId}`;
     await tx`delete from reminders where member_id = ${memberId}`;
     await tx`update boards set created_by = 'erased' where created_by = ${memberId}`;

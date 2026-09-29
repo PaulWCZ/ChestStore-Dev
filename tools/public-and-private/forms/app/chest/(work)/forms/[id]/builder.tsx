@@ -280,14 +280,14 @@ export function Builder(props: Props) {
           <button type="button" aria-pressed={view === "edit"} onClick={() => setView("edit")}><Pencil />{b.edit}</button>
           <button type="button" aria-pressed={view === "preview"} onClick={() => setView("preview")}><Eye />{b.preview}</button>
         </div>
-        {props.canEdit && unpublished && props.version > 0 && <button type="button" className="button link desktop-only" onClick={() => void discard()}>{b.discard}</button>}
+        {props.canEdit && unpublished && props.version !== 0 && <button type="button" className="button link desktop-only" onClick={() => void discard()}>{b.discard}</button>}
         {props.canEdit && (
           <button type="button" className={`button${unpublished ? "" : " quiet"}`} onClick={() => void publish()} disabled={publishing || (!unpublished && status === "published")}>
             {publishing ? b.publishing : !unpublished && status === "published" ? b.upToDate : props.version > 0 ? b.publishChanges : b.publish}
           </button>
         )}
       </div>
-      {unpublished && props.version > 0 && props.canEdit && <p className="changes-note">{b.changes}</p>}
+      {unpublished && props.version !== 0 && props.canEdit && <p className="changes-note">{b.changes}</p>}
 
       {showProblems && found.length > 0 && (
         <div className="problems" role="alert">

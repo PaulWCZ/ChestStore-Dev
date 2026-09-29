@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Dots, Download, Gear, Lock, Plus, Upload } from "../../../../components/icons.tsx";
+import { Dots, Download, Gear, Lock, Pen, Plus, Upload } from "../../../../components/icons.tsx";
 import { Menu } from "../../../../components/menu.tsx";
 import { NewPageButton } from "../../../../components/new-page.tsx";
 import { db } from "../../../../lib/db.ts";
@@ -40,7 +40,7 @@ export default async function SpacePage({ params }: { params: Promise<{ id: stri
     <main className={`page space-home color-${s.color}`}>
       <header className="space-head">
         <div>
-          <p className="kicker">{plural(t.home.pages, s.pages, locale)}{s.visibility === "groups" && <span className="restricted"><Lock />{t.space.restricted}</span>}</p>
+          <p className="kicker">{plural(t.home.pages, s.pages, locale)}{s.visibility === "groups" && <span className="restricted"><Lock />{t.space.restricted}</span>}{s.editing === "some" && <span className="restricted"><Pen />{t.settings.onlySome}</span>}</p>
           <h1>{s.name}</h1>
           {s.description && <p className="lead">{s.description}</p>}
         </div>

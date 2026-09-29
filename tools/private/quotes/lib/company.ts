@@ -2,7 +2,7 @@ import type { Member } from "@argentic/chest-sdk/member";
 import { can } from "./access.ts";
 import { AppError } from "./app-error.ts";
 import type { Query, Sql } from "./db.ts";
-import { bic, clean, country, email, iban, limits, prefix, siren, siret, vatNumber, wholeDays } from "./model.ts";
+import { bic, clean, country, email, iban, limits, prefix, siren, siret, vatNumber, wholeDays, type NumberFormat } from "./model.ts";
 import { parseAmount, parsePercent } from "./money.ts";
 import type { Seller } from "./parties.ts";
 
@@ -10,11 +10,20 @@ import type { Seller } from "./parties.ts";
 // (French mandatory mentions), and the defaults of new documents. Only the
 // admin changes them; a document keeps the details it was numbered with.
 
+// The accounts of the accountant's entries (lib/journal.ts): the journal,
+// the clients' account, sales of services and of goods, deposits received,
+// and the VAT collected at each rate (hundredths of a percent → account).
+export type Accounts = { journal: string; client: string; services: string; goods: string; deposits: string; vat: Record<string, string> };
+export const defaultAccounts: Accounts = { journal: "VE", client: "411000", services: "706000", goods: "707000", deposits: "419100", vat: { "2000": "445710", "1000": "445710", "550": "445710", "210": "445710" } };
+
 export type Company = Seller & {
   validityDays: number;
   quotePrefix: string;
   invoicePrefix: string;
   creditPrefix: string;
+  numberFormat: NumberFormat;
+  reminders: { on: boolean; days: number[]; email: boolean };
+  accounts: Accounts;
   mailWorks: boolean | null;
   updatedBy: string | null;
   updatedAt: string | null;
@@ -25,21 +34,29 @@ type Row = {
   siren: string; siret: string; rcs_city: string; vat_number: string; vat_regime: string; vat_on_debits: boolean; email: string; phone: string; website: string;
   bank: string; iban: string; bic: string; logo_object: string | null; logo_type: string | null; payment_days: number; validity_days: number; penalty_rate: number | null;
   early_discount: string; quote_prefix: string; invoice_prefix: string; credit_prefix: string; footer: string; mail_works: boolean | null; updated_by: string | null; updated_at: Date | null;
+  number_format: NumberFormat; payment_link: string; reminders_on: boolean; reminder_days: number[]; reminders_email: boolean; accounts: Partial<Accounts> | null;
 };
+
+const accountsOf = (value: Partial<Accounts> | null): Accounts => ({ ...defaultAccounts, ...(value ?? {}), vat: { ...defaultAccounts.vat, ...(value?.vat ?? {}) } });
 
 const toCompany = (r: Row): Company => ({
   legalName: r.legal_name, tradeName: r.trade_name, legalForm: r.legal_form, capital: r.capital, address: r.address, postcode: r.postcode, city: r.city, country: r.country,
   siren: r.siren, siret: r.siret, rcsCity: r.rcs_city, vatNumber: r.vat_number, franchise: r.vat_regime === "franchise", vatOnDebits: r.vat_on_debits,
   email: r.email, phone: r.phone, website: r.website, bank: r.bank, iban: r.iban, bic: r.bic, logo: r.logo_object, logoType: r.logo_type,
-  paymentDays: r.payment_days, penaltyRate: r.penalty_rate, earlyDiscount: r.early_discount, footer: r.footer,
+  paymentDays: r.payment_days, penaltyRate: r.penalty_rate, earlyDiscount: r.early_discount, footer: r.footer, paymentLink: r.payment_link ?? "",
   validityDays: r.validity_days, quotePrefix: r.quote_prefix, invoicePrefix: r.invoice_prefix, creditPrefix: r.credit_prefix,
+  numberFormat: r.number_format ?? "yearly",
+  reminders: { on: r.reminders_on ?? false, days: [...(r.reminder_days ?? [7, 15, 30])].sort((a, b) => a - b), email: r.reminders_email ?? true },
+  accounts: accountsOf(r.accounts ?? null),
   mailWorks: r.mail_works, updatedBy: r.updated_by, updatedAt: r.updated_at ? r.updated_at.toISOString() : null,
 });
 
 export async function company(sql: Query): Promise<Company> {
-  const [row] = await sql<Row[]>`select * from company where id = 1`;
-  if (!row) throw new AppError("not_found");
-  return toCompany(row);
+  let [row] = await sql<Row[]>`select * from company where id = 1`;
+  // The migration writes the one row; should it ever be missing, an empty
+  // company comes back (every page asks for it), as on the first day.
+  if (!row) [row] = await sql<Row[]>`insert into company (id) values (1) on conflict (id) do update set id = 1 returning *`;
+  return toCompany(row!);
 }
 
 // What must be filled in before a document can carry the company's name:
@@ -60,7 +77,54 @@ export function missing(c: Company): string[] {
 export type CompanyInput = Partial<Record<
   | "legalName" | "tradeName" | "legalForm" | "capital" | "address" | "postcode" | "city" | "country" | "siren" | "siret" | "rcsCity" | "vatNumber"
   | "franchise" | "vatOnDebits" | "email" | "phone" | "website" | "bank" | "iban" | "bic" | "paymentDays" | "validityDays" | "penaltyRate"
-  | "earlyDiscount" | "footer" | "quotePrefix" | "invoicePrefix" | "creditPrefix", unknown>>;
+  | "earlyDiscount" | "footer" | "quotePrefix" | "invoicePrefix" | "creditPrefix" | "paymentLink" | "remindersOn" | "reminderDays" | "remindersEmail" | "accounts", unknown>>;
+
+// A web address clients open to pay: https only, 300 characters at most.
+export function paymentLink(value: unknown): string {
+  if (value === undefined || value === null || value === "") return "";
+  if (typeof value !== "string") throw new AppError("link_invalid");
+  const text = value.trim();
+  if (text === "") return "";
+  let url: URL;
+  try {
+    url = new URL(text);
+  } catch {
+    throw new AppError("link_invalid");
+  }
+  if (url.protocol !== "https:" || text.length > 300 || /\s/u.test(text)) throw new AppError("link_invalid");
+  return url.href;
+}
+
+// The days after the due date a late invoice is reminded: 1 to 5 steps,
+// each 1 to 365 days, "7, 15, 30" as typed.
+export function reminderDays(value: unknown): number[] {
+  const list = Array.isArray(value) ? value : typeof value === "string" ? value.split(/[\s,;]+/u).filter(Boolean) : null;
+  if (!list || list.length === 0 || list.length > 5) throw new AppError("reminder_days_invalid");
+  const days = list.map(v => (typeof v === "string" && /^\d{1,3}$/u.test(v) ? Number(v) : v));
+  if (days.some(d => typeof d !== "number" || !Number.isInteger(d) || d < 1 || d > 365)) throw new AppError("reminder_days_invalid");
+  return [...new Set(days as number[])].sort((a, b) => a - b);
+}
+
+// An account number of the books: 1 to 20 digits or capital letters.
+function account(value: unknown): string {
+  if (typeof value !== "string" || !/^[0-9A-Z]{1,20}$/u.test(value.trim().toUpperCase())) throw new AppError("account_invalid");
+  return value.trim().toUpperCase();
+}
+
+export function accounts(value: unknown, current: Accounts): Accounts {
+  if (!value || typeof value !== "object") throw new AppError("invalid");
+  const v = value as Record<string, unknown>;
+  const pick = (key: "journal" | "client" | "services" | "goods" | "deposits") => (v[key] === undefined ? current[key] : account(v[key]));
+  const vat = { ...current.vat };
+  if (v["vat"] !== undefined) {
+    if (!v["vat"] || typeof v["vat"] !== "object") throw new AppError("invalid");
+    for (const [rate, number] of Object.entries(v["vat"] as Record<string, unknown>)) {
+      if (!(rate in defaultAccounts.vat)) throw new AppError("invalid");
+      vat[rate] = account(number);
+    }
+  }
+  return { journal: pick("journal"), client: pick("client"), services: pick("services"), goods: pick("goods"), deposits: pick("deposits"), vat };
+}
 
 const bool = (value: unknown): boolean => {
   if (typeof value !== "boolean") throw new AppError("invalid");
@@ -122,6 +186,11 @@ export async function updateCompany(sql: Sql, actor: Member | null, input: Compa
     quote_prefix: input.quotePrefix === undefined ? current.quotePrefix : prefix(input.quotePrefix),
     invoice_prefix: input.invoicePrefix === undefined ? current.invoicePrefix : prefix(input.invoicePrefix),
     credit_prefix: input.creditPrefix === undefined ? current.creditPrefix : prefix(input.creditPrefix),
+    payment_link: input.paymentLink === undefined ? current.paymentLink ?? "" : paymentLink(input.paymentLink),
+    reminders_on: input.remindersOn === undefined ? current.reminders.on : bool(input.remindersOn),
+    reminder_days: sql.array(input.reminderDays === undefined ? current.reminders.days : reminderDays(input.reminderDays), 23) as never,
+    reminders_email: input.remindersEmail === undefined ? current.reminders.email : bool(input.remindersEmail),
+    accounts: sql.json((input.accounts === undefined ? current.accounts : accounts(input.accounts, current.accounts)) as never),
   };
   // Three sequences, three prefixes: a number never reads as another kind.
   if (new Set([next.quote_prefix, next.invoice_prefix, next.credit_prefix]).size !== 3) throw new AppError("prefix_invalid");

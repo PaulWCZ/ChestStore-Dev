@@ -1,8 +1,9 @@
 import { headers } from "next/headers";
 import { atLeast } from "../../../../../lib/access.ts";
 import { db } from "../../../../../lib/db.ts";
-import { open, unpublished } from "../../../../../lib/forms.ts";
+import { unpublished } from "../../../../../lib/forms.ts";
 import { formLink } from "../../../../../lib/public-origin.ts";
+import { formOr404 } from "../../../../../lib/pages.ts";
 import { viewer } from "../../../../../lib/session.ts";
 import { Builder } from "./builder.tsx";
 
@@ -11,7 +12,7 @@ export default async function BuildPage({ params }: { params: Promise<{ id: stri
   const v = await viewer();
   if (!v) return null;
   const { t, locale } = v;
-  const { form, level } = await open(db(), v.member, (await params).id);
+  const { form, level } = await formOr404(v.member, (await params).id);
   return (
     <Builder
       id={form.id}

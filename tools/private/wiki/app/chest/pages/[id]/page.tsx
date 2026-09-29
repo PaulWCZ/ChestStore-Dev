@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { can } from "../../../../lib/access.ts";
 import { AutoRefresh } from "../../../../components/auto-refresh.tsx";
 import { Flash } from "../../../../components/flash.tsx";
 import { Clock, Lock, Pen } from "../../../../components/icons.tsx";
@@ -15,7 +16,7 @@ import { viewer } from "../../../../lib/session.ts";
 import { listSpaces } from "../../../../lib/spaces.ts";
 import { isWatching } from "../../../../lib/watching.ts";
 import { Comments } from "./comments.tsx";
-import { PageActions, ReviewAsk, type MovePlace } from "./page-actions.tsx";
+import { DraftNotice, PageActions, ReviewAsk, type MovePlace } from "./page-actions.tsx";
 
 // Reading a page: the default for everyone. Where it is, its title, who
 // changed it last, the text set for reading; for editors one obvious
@@ -91,6 +92,7 @@ export default async function ReadPage({ params, searchParams }: { params: Promi
               />
             </div>
           </header>
+          {!writer && can(member, "write") && <p className="muted small read-only"><Lock />{format(t.page.readOnly, { space: p.space.name })}</p>}
           {holder && (
             <p className="notice" role="status"><Lock />{format(holder.idle ? t.page.editingIdle : t.page.editing, { name: nameOf(who.get(holder.memberId), locale), time: moment(holder.since, locale, now) })}</p>
           )}
@@ -99,8 +101,12 @@ export default async function ReadPage({ params, searchParams }: { params: Promi
               text={format(t.review.due, { when: relative(p.review.reviewedAt, locale, now) })}
               t={{ stillCorrect: t.review.stillCorrect, update: t.review.update, done: t.review.done, errors: t.errors }} />
           )}
-          {draft.length > 0 && !holder && (
-            <p className="notice mine" role="status"><Pen />{t.page.yourDraft} <Link href={`/chest/pages/${p.id}/edit`}>{t.page.continueDraft}</Link></p>
+          {writer && lock && lock.memberId === member.id && draft.length === 0 && (
+            <p className="notice mine" role="status"><Pen />{t.page.editingYou} <Link href={`/chest/pages/${p.id}/edit`}>{t.page.continueDraft}</Link></p>
+          )}
+          {writer && draft.length > 0 && !holder && (
+            <DraftNotice pageId={p.id} editHref={`/chest/pages/${p.id}/edit`}
+              t={{ text: t.page.yourDraft, continue: t.page.continueDraft, discard: t.page.discardDraft, discarded: t.page.draftDiscarded, undo: t.page.undo, errors: t.errors }} />
           )}
           {empty ? (
             <div className="empty soft">

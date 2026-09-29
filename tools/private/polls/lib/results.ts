@@ -2,7 +2,7 @@
 // The results of a poll, computed from counts. A named poll's counts come
 // from its answers (with who gave them); an anonymous poll's are the
 // tallies themselves (with nobody). Pure, tested alone.
-import type { QuestionKind } from "./model.ts";
+import { enps, type QuestionKind } from "./model.ts";
 
 export type OptionRow = { id: string; label: string; day: string | null; start: string | null; end: string | null };
 export type QuestionRow = { id: string; kind: QuestionKind; text: string; multiple: boolean; other: boolean; low: string; high: string; options: OptionRow[] };
@@ -34,7 +34,15 @@ export type DateResult = {
 };
 export type ScaleResult = { kind: "scale"; id: string; text: string; low: string; high: string; answered: number; counts: { value: number; count: number; percent: number; voters: string[] }[]; average: number | null };
 export type TextResult = { kind: "text"; id: string; text: string; answered: number; texts: TextRow[] };
-export type QuestionResult = ChoiceResult | DateResult | ScaleResult | TextResult;
+// eNPS: the 0–10 answers in three bands, and the score (−100 to +100).
+export type EnpsResult = {
+  kind: "enps"; id: string; text: string; answered: number;
+  counts: number[];
+  score: number | null;
+  bands: { detractors: number; passives: number; promoters: number };
+  percents: { detractors: number; passives: number; promoters: number };
+};
+export type QuestionResult = ChoiceResult | DateResult | ScaleResult | TextResult | EnpsResult;
 
 const percent = (count: number, of: number) => (of > 0 ? Math.round((count * 100) / of) : 0);
 
@@ -72,7 +80,7 @@ export function fromAnswers(questions: QuestionRow[], rows: AnswerRow[]): { coun
       line.values[r.option] = r.value;
       byParticipant.set(r.participant, line);
       grid.set(q.id, byParticipant);
-    } else if (q.kind === "scale" && r.value !== null) add(q.id, "v" + r.value, r.member);
+    } else if ((q.kind === "scale" || q.kind === "enps") && r.value !== null) add(q.id, "v" + r.value, r.member);
     else if (q.kind === "text" && r.text) texts.push({ question: q.id, body: r.text, member: r.member });
   }
   for (const [question, who] of answeredBy) counts.get(question)?.set("n", who.size);
@@ -116,6 +124,16 @@ export function results(questions: QuestionRow[], counts: Counts, extra: { voter
       const total = scale.reduce((s, v) => s + v.count, 0);
       const average = total > 0 ? Math.round((scale.reduce((s, v) => s + v.value * v.count, 0) / total) * 10) / 10 : null;
       return { kind: "scale", id: q.id, text: q.text, low: q.low, high: q.high, answered, counts: scale, average };
+    }
+    if (q.kind === "enps") {
+      const values = Array.from({ length: 11 }, (_, v) => c.get("v" + v) ?? 0);
+      const e = enps(values);
+      const bands = { detractors: e?.detractors ?? 0, passives: e?.passives ?? 0, promoters: e?.promoters ?? 0 };
+      const total = e?.total ?? 0;
+      return {
+        kind: "enps", id: q.id, text: q.text, answered, counts: values, score: e?.score ?? null, bands,
+        percents: { detractors: percent(bands.detractors, total), passives: percent(bands.passives, total), promoters: percent(bands.promoters, total) },
+      };
     }
     return { kind: "text", id: q.id, text: q.text, answered, texts: mine };
   });

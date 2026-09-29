@@ -2,7 +2,7 @@ import type { Member } from "@argentic/chest-sdk/member";
 import { can, spaceAccess, type SpaceAccess, type SpaceAudience } from "./access.ts";
 import type { Fragment, Query, Sql } from "./db.ts";
 import { AppError } from "./errors.ts";
-import { clean, colors, groupIds, id, isColor, limits, type Color } from "./model.ts";
+import { clean, colors, editorIds, groupIds, id, isColor, limits, type Color } from "./model.ts";
 import { between } from "./position.ts";
 
 // Spaces: the shelves of the wiki ("Handbook", "Sales", "Tech"), each with
@@ -18,21 +18,28 @@ export type Space = {
   position: string;
   visibility: "everyone" | "groups";
   groups: string[];
+  // Who edits it: every editor, or only some (the groups and people named).
+  editing: "editors" | "some";
+  editors: string[];
   createdBy: string;
   access: SpaceAccess;
   pages: number;
 };
 
-type SpaceRow = { id: string; name: string; description: string; color: string; position: string; visibility: "everyone" | "groups"; created_by: string; pages: number };
+type SpaceRow = { id: string; name: string; description: string; color: string; position: string; visibility: "everyone" | "groups"; editing: "editors" | "some"; created_by: string; pages: number };
 
 async function rows(sql: Query, where: Fragment): Promise<Space[]> {
   const found = await sql<SpaceRow[]>`
-    select s.id, s.name, s.description, s.color, s.position, s.visibility, s.created_by,
+    select s.id, s.name, s.description, s.color, s.position, s.visibility, s.editing, s.created_by,
       (select count(*)::int from pages p where p.space_id = s.id and p.deleted_at is null) as pages
     from spaces s where ${where} order by s.position, s.id`;
   const ids = found.map(r => String(r.id));
   const groups = new Map<string, string[]>(ids.map(i => [i, []]));
-  if (ids.length > 0) for (const g of await sql<{ space_id: string; group_id: string }[]>`select space_id, group_id from space_groups where space_id in ${sql(ids)} order by group_id`) groups.get(String(g.space_id))?.push(g.group_id);
+  const editors = new Map<string, string[]>(ids.map(i => [i, []]));
+  if (ids.length > 0) {
+    for (const g of await sql<{ space_id: string; group_id: string }[]>`select space_id, group_id from space_groups where space_id in ${sql(ids)} order by group_id`) groups.get(String(g.space_id))?.push(g.group_id);
+    for (const e of await sql<{ space_id: string; who: string }[]>`select space_id, who from space_editors where space_id in ${sql(ids)} order by who`) editors.get(String(e.space_id))?.push(e.who);
+  }
   return found.map(r => ({
     id: String(r.id),
     name: r.name,
@@ -41,6 +48,8 @@ async function rows(sql: Query, where: Fragment): Promise<Space[]> {
     position: r.position,
     visibility: r.visibility,
     groups: groups.get(String(r.id)) ?? [],
+    editing: r.editing === "some" ? "some" as const : "editors" as const,
+    editors: editors.get(String(r.id)) ?? [],
     createdBy: r.created_by,
     access: "none" as SpaceAccess,
     pages: r.pages,
@@ -64,7 +73,7 @@ export async function space(sql: Query, actor: Member | null, spaceId: unknown, 
   return found;
 }
 
-export type SpaceInput = { name?: unknown; description?: unknown; color?: unknown; visibility?: unknown; groups?: unknown };
+export type SpaceInput = { name?: unknown; description?: unknown; color?: unknown; visibility?: unknown; groups?: unknown; editing?: unknown; editors?: unknown };
 
 export async function createSpace(sql: Sql, actor: Member | null, input: SpaceInput): Promise<Space> {
   if (!actor || !can(actor, "write")) throw new AppError("forbidden");
@@ -95,10 +104,17 @@ export async function updateSpace(sql: Sql, actor: Member | null, spaceId: unkno
   // Kept to groups, a space needs at least one: otherwise it would be the
   // creator's alone, which is what a draft is for.
   if (visibility === "groups" && groups.length === 0) throw new AppError("invalid");
+  const editing = input.editing === undefined ? s.editing : input.editing === "some" ? "some" : "editors";
+  let editors = editing === "editors" ? [] : input.editors === undefined ? s.editors : editorIds(input.editors);
+  // Whoever keeps a space to some editors stays one of them.
+  if (editing === "some" && spaceAccess(actor, { visibility, groups, createdBy: s.createdBy, editing, editors }) !== "write") editors = [...editors, actor!.id];
+  if (editors.length > limits.editorsPerSpace) throw new AppError("too_many", { max: limits.editorsPerSpace });
   await sql.begin(async tx => {
-    await tx`update spaces set name = ${name}, description = ${description}, color = ${color}, visibility = ${visibility} where id = ${s.id}`;
+    await tx`update spaces set name = ${name}, description = ${description}, color = ${color}, visibility = ${visibility}, editing = ${editing} where id = ${s.id}`;
     await tx`delete from space_groups where space_id = ${s.id}`;
     for (const g of groups) await tx`insert into space_groups (space_id, group_id) values (${s.id}, ${g})`;
+    await tx`delete from space_editors where space_id = ${s.id}`;
+    for (const e of editors) await tx`insert into space_editors (space_id, who) values (${s.id}, ${e})`;
   });
   return space(sql, actor, s.id);
 }
@@ -135,5 +151,5 @@ export async function visibleSpaceIds(sql: Query, actor: Member | null): Promise
 // someone about one of its pages, that they may still see it.
 export async function audienceOf(sql: Query, spaceId: string): Promise<SpaceAudience | null> {
   const [found] = await rows(sql, sql`s.id = ${spaceId}`);
-  return found ? { visibility: found.visibility, groups: found.groups, createdBy: found.createdBy } : null;
+  return found ? { visibility: found.visibility, groups: found.groups, createdBy: found.createdBy, editing: found.editing, editors: found.editors } : null;
 }

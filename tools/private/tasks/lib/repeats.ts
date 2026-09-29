@@ -11,7 +11,7 @@ import { addDays, nextDue, parseRepeat, type Repeat } from "./repeat.ts";
 // however often the morning runs. Reopened by mistake ("Undo"), the done
 // card takes back a next one nobody touched yet.
 
-type Pending = { id: string; board_id: string; title: string; description: string; due_on: string | null; created_by: string; repeat: unknown; completed_on: string | null };
+type Pending = { id: string; board_id: string; title: string; description: string; due_on: string | null; due_time: string | null; created_by: string; repeat: unknown; completed_on: string | null };
 
 // makeNext makes the next card of a done repeating card, inside the
 // caller's transaction; the id of the new card, or null when there is
@@ -20,7 +20,7 @@ type Pending = { id: string; board_id: string; title: string; description: strin
 export async function makeNext(tx: Query, cardId: string, today: string, actor: string): Promise<string | null> {
   // The row is locked: two deliveries of a run, or a run and a click, make one card.
   const [c] = await tx<Pending[]>`
-    select c.id, c.board_id, c.title, c.description, to_char(c.due_on, 'YYYY-MM-DD') as due_on, c.created_by, c.repeat, to_char(c.completed_at, 'YYYY-MM-DD') as completed_on
+    select c.id, c.board_id, c.title, c.description, to_char(c.due_on, 'YYYY-MM-DD') as due_on, c.due_time, c.created_by, c.repeat, to_char(c.completed_at, 'YYYY-MM-DD') as completed_on
     from cards c join columns k on k.id = c.column_id join boards b on b.id = c.board_id
     where c.id = ${cardId} and c.repeat is not null and c.next_card_id is null and c.archived_at is null and k.done and k.archived_at is null and b.archived_at is null
     for update of c`;
@@ -39,13 +39,24 @@ export async function makeNext(tx: Query, cardId: string, today: string, actor: 
   const [edge] = await tx<{ position: string }[]>`select position from cards where column_id = ${lane.id} order by position desc limit 1`;
   const due = nextDue(rule, c.due_on ?? addDays(today, -1), today);
   const [made] = await tx<{ id: string }[]>`
-    insert into cards (board_id, column_id, title, description, position, due_on, created_by, repeat)
-    values (${c.board_id}, ${lane.id}, ${c.title}, ${c.description}, ${between(edge?.position ?? null, null)}, ${due}, ${c.created_by}, ${tx.json(rule as never)})
+    insert into cards (board_id, column_id, title, description, position, due_on, due_time, created_by, repeat)
+    values (${c.board_id}, ${lane.id}, ${c.title}, ${c.description}, ${between(edge?.position ?? null, null)}, ${due}, ${c.due_time}, ${c.created_by}, ${tx.json(rule as never)})
     returning id`;
   const next = String(made!.id);
   await tx`insert into card_assignees (card_id, member_id) select ${next}, member_id from card_assignees where card_id = ${c.id}`;
   await tx`insert into card_labels (card_id, label_id) select ${next}, label_id from card_labels where card_id = ${c.id}`;
-  await tx`insert into checklist_items (card_id, text, done, position) select ${next}, text, false, position from checklist_items where card_id = ${c.id}`;
+  // Checklists come along, unticked, their steps still given to the same
+  // people (without dates: those belonged to the last one).
+  const lists = await tx<{ id: string; title: string; position: string }[]>`select id, title, position from checklists where card_id = ${c.id} order by position`;
+  const listIds = new Map<string, string>();
+  for (const l of lists) {
+    const [n] = await tx<{ id: string }[]>`insert into checklists (card_id, title, position) values (${next}, ${l.title}, ${l.position}) returning id`;
+    listIds.set(String(l.id), String(n!.id));
+  }
+  for (const i of await tx<{ text: string; position: string; checklist_id: string | null; assignee: string | null }[]>`select text, position, checklist_id, assignee from checklist_items where card_id = ${c.id} order by position`) {
+    await tx`insert into checklist_items (card_id, text, done, position, checklist_id, assignee) values (${next}, ${i.text}, false, ${i.position}, ${i.checklist_id === null ? null : listIds.get(String(i.checklist_id)) ?? null}, ${i.assignee})`;
+  }
+  await tx`insert into card_values (card_id, field_id, value) select ${next}, field_id, value from card_values where card_id = ${c.id}`;
   await tx`update cards set next_card_id = ${next} where id = ${c.id}`;
   await tx`insert into activity (card_id, actor, kind, data) values (${next}, ${actor}, 'repeat_made', ${tx.json({ from: c.id })})`;
   await tx`insert into activity (card_id, actor, kind, data) values (${c.id}, ${actor}, 'repeat_next', ${tx.json({ due })})`;

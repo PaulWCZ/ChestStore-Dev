@@ -1,10 +1,11 @@
 import * as chest from "@argentic/chest-sdk/chest";
 import { atLeast } from "../../../../../../lib/access.ts";
 import { db } from "../../../../../../lib/db.ts";
-import { open, team, versionOf } from "../../../../../../lib/forms.ts";
+import { team, versionOf } from "../../../../../../lib/forms.ts";
 import { format } from "../../../../../../lib/i18n/index.ts";
 import { allQuestions } from "../../../../../../lib/model.ts";
 import { nameOf, people } from "../../../../../../lib/people.ts";
+import { formOr404 } from "../../../../../../lib/pages.ts";
 import { viewer } from "../../../../../../lib/session.ts";
 import { zonedParts } from "../../../../../../lib/zone.ts";
 import { SettingsView } from "./settings-view.tsx";
@@ -16,7 +17,7 @@ export default async function SettingsPage({ params }: { params: Promise<{ id: s
   if (!v) return null;
   const { t, locale, member } = v;
   const sql = db();
-  const { form, level } = await open(sql, member, (await params).id);
+  const { form, level } = await formOr404(member, (await params).id);
   const { owner, shared, watchers } = await team(sql, form.id);
   const ids = [...new Set([owner, ...shared.map(s => s.member)])].filter(id => id.startsWith("mbr_"));
   const who = await people(ids);

@@ -17,6 +17,14 @@ export const limits = {
   dates: { min: 1, max: 40 },
   questions: { min: 1, max: 10 },
   groups: 20,
+  people: 200,
+  // A sign-up sheet: places per answer.
+  slots: { min: 1, max: 999 },
+  comment: 1000,
+  // Comments on one poll, at most.
+  comments: 300,
+  // The organiser's reminder, at most this often (hours).
+  nudgeHours: 12,
   // How far ahead a poll may close, and a date be proposed, in days.
   aheadDays: 400,
   // A poll closes at least this long after it is sent.
@@ -31,7 +39,7 @@ export const kinds = ["choice", "date", "survey"] as const;
 export type Kind = (typeof kinds)[number];
 export const isKind = (value: unknown): value is Kind => typeof value === "string" && (kinds as readonly string[]).includes(value);
 
-export const questionKinds = ["choice", "scale", "text"] as const;
+export const questionKinds = ["choice", "scale", "text", "enps"] as const;
 export type SurveyQuestionKind = (typeof questionKinds)[number];
 export type QuestionKind = SurveyQuestionKind | "date";
 
@@ -64,6 +72,24 @@ export function id(value: unknown): string {
 }
 
 export const groupPattern = /^grp_[a-z2-7]{26}$/u;
+export const memberPattern = /^mbr_[a-z2-7]{26}$/u;
+
+// How often a pulse survey comes back.
+export const repeats = ["week", "month"] as const;
+export type Repeat = (typeof repeats)[number];
+
+// eNPS (employee Net Promoter Score): "How likely are you to recommend
+// working here to a friend?", 0 to 10. Promoters answer 9 or 10,
+// detractors 0 to 6; the score is the share of promoters minus the share
+// of detractors, from −100 to +100.
+export function enps(counts: readonly number[]): { score: number; promoters: number; passives: number; detractors: number; total: number } | null {
+  const total = counts.reduce((s, c) => s + c, 0);
+  if (total === 0) return null;
+  const detractors = counts.slice(0, 7).reduce((s, c) => s + c, 0);
+  const passives = (counts[7] ?? 0) + (counts[8] ?? 0);
+  const promoters = (counts[9] ?? 0) + (counts[10] ?? 0);
+  return { score: Math.round(((promoters - detractors) * 100) / total), promoters, passives, detractors, total };
+}
 
 const record = (value: unknown): Record<string, unknown> => {
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new AppError("invalid");
@@ -79,6 +105,7 @@ const flag = (value: unknown): boolean => value === true;
 // What the composer sends.
 export type DateInput = { day: string; start?: string | null; end?: string | null };
 export type QuestionInput = { kind: SurveyQuestionKind; text: string; options?: string[]; multiple?: boolean; low?: string; high?: string };
+export type AudienceInput = { everyone: true } | { everyone: false; groups?: string[]; people?: string[] };
 export type PollInput = {
   kind: Kind;
   title: string;
@@ -93,8 +120,12 @@ export type PollInput = {
   questions?: QuestionInput[];
   anonymous?: boolean;
   results?: "live" | "closed";
-  audience?: { everyone: true } | { everyone: false; groups: string[] };
+  audience?: AudienceInput;
   closes?: { day: string; time: string } | null;
+  // A sign-up sheet: places per answer (choice and date polls, named).
+  slots?: number | null;
+  // A survey that comes back every week or month.
+  repeat?: Repeat | null;
 };
 
 // What the database receives: the poll and its questions, checked.
@@ -108,7 +139,10 @@ export type PollSpec = {
   results: "live" | "closed";
   everyone: boolean;
   groups: string[];
+  people: string[];
   closesAt: Date | null;
+  slots: number | null;
+  repeat: Repeat | null;
   questions: QuestionSpec[];
 };
 
@@ -157,18 +191,20 @@ function surveyQuestions(value: unknown): QuestionSpec[] {
   return given.map(v => {
     const q = record(v);
     const kind = q["kind"];
-    if (kind !== "choice" && kind !== "scale" && kind !== "text") throw new AppError("invalid");
+    if (kind !== "choice" && kind !== "scale" && kind !== "text" && kind !== "enps") throw new AppError("invalid");
     const text = clean(q["text"], limits.question);
     if (kind === "choice") return { kind, text, multiple: flag(q["multiple"]), other: false, low: "", high: "", options: labels(q["options"], limits.surveyChoices) };
+    if (kind === "enps") return { kind, text, multiple: false, other: false, low: "", high: "", options: [] };
     if (kind === "scale") return { kind, text, multiple: false, other: false, low: clean(q["low"], limits.scaleEnd, { optional: true }), high: clean(q["high"], limits.scaleEnd, { optional: true }), options: [] };
     return { kind, text, multiple: false, other: false, low: "", high: "", options: [] };
   });
 }
 
 // readPoll checks everything the composer sends. `today` and `zone` are the
-// Chest's; `known` the groups that give the tool (null: the Chest could not
-// say, the ids are only checked for their shape).
-export function readPoll(input: unknown, context: { zone: string; now: Date; today: string; known: readonly string[] | null }): PollSpec {
+// Chest's; `known` the groups that give the tool, `knownPeople` the picked
+// people who have it (null: the Chest could not say, the ids are only
+// checked for their shape).
+export function readPoll(input: unknown, context: { zone: string; now: Date; today: string; known: readonly string[] | null; knownPeople?: readonly string[] | null }): PollSpec {
   const o = record(input);
   const kind = o["kind"];
   if (!isKind(kind)) throw new AppError("invalid");
@@ -182,6 +218,7 @@ export function readPoll(input: unknown, context: { zone: string; now: Date; tod
   const audience = o["audience"] === undefined ? { everyone: true } : record(o["audience"]);
   let everyone = true;
   let groups: string[] = [];
+  let people: string[] = [];
   if (audience["everyone"] !== true) {
     everyone = false;
     groups = [...new Set(list(audience["groups"]).map(g => {
@@ -189,8 +226,15 @@ export function readPoll(input: unknown, context: { zone: string; now: Date; tod
       if (context.known !== null && !context.known.includes(g)) throw new AppError("no_group");
       return g;
     }))];
-    if (groups.length === 0) throw new AppError("no_group");
+    people = [...new Set(list(audience["people"]).map(p => {
+      if (typeof p !== "string" || !memberPattern.test(p)) throw new AppError("no_person");
+      const known = context.knownPeople ?? null;
+      if (known !== null && !known.includes(p)) throw new AppError("no_person");
+      return p;
+    }))];
+    if (groups.length === 0 && people.length === 0) throw new AppError("no_group");
     if (groups.length > limits.groups) throw new AppError("too_many", { max: limits.groups });
+    if (people.length > limits.people) throw new AppError("too_many", { max: limits.people });
   }
 
   let closesAt: Date | null = null;
@@ -198,8 +242,26 @@ export function readPoll(input: unknown, context: { zone: string; now: Date; tod
     const c = record(o["closes"]);
     closesAt = zoned(readDay(c["day"]), readTime(c["time"]), context.zone);
   }
-  const results = o["results"] === "closed" ? "closed" : "live";
-  return { kind, title, details, anonymous: flag(o["anonymous"]), results, everyone, groups, closesAt, questions };
+  const anonymous = flag(o["anonymous"]);
+  // Anonymous: results once closed, never live (lib/access.ts).
+  const results = anonymous || o["results"] === "closed" ? "closed" : "live";
+  let slots: number | null = null;
+  if (o["slots"] !== undefined && o["slots"] !== null && o["slots"] !== "") {
+    const n = o["slots"];
+    if (typeof n !== "number" || !Number.isInteger(n) || n < limits.slots.min || n > limits.slots.max) throw new AppError("invalid");
+    if (kind === "survey") throw new AppError("invalid");
+    // A sign-up sheet says who took each place: it cannot be anonymous.
+    if (anonymous) throw new AppError("slots_anonymous");
+    slots = n;
+  }
+  let repeat: Repeat | null = null;
+  if (o["repeat"] !== undefined && o["repeat"] !== null && o["repeat"] !== "") {
+    if (kind !== "survey" || !(repeats as readonly unknown[]).includes(o["repeat"])) throw new AppError("invalid");
+    repeat = o["repeat"] as Repeat;
+    // Each round closes when the next one opens.
+    closesAt = null;
+  }
+  return { kind, title, details, anonymous, results, everyone, groups, people, closesAt, slots, repeat, questions };
 }
 
 // checkOpening: what must hold when a poll is sent (not while it is a
@@ -220,14 +282,15 @@ export type Given =
   | { kind: "choice"; options: string[]; other: string }
   | { kind: "date"; values: Map<string, DateValue> }
   | { kind: "scale"; value: number }
+  | { kind: "enps"; value: number }
   | { kind: "text"; text: string };
 
 export type QuestionShape = { id: string; kind: QuestionKind; multiple: boolean; other: boolean; options: { id: string }[] };
 
 // readAnswer checks an answer against the poll's questions. A question left
 // blank is skipped; at least one must be answered; a date poll's options
-// not answered are "no".
-export function readAnswer(input: unknown, questions: QuestionShape[]): Map<string, Given> {
+// not answered are "no". A sign-up sheet's dates take yes or no only.
+export function readAnswer(input: unknown, questions: QuestionShape[], options: { slots?: boolean } = {}): Map<string, Given> {
   const o = record(input);
   const out = new Map<string, Given>();
   for (const key of Object.keys(o)) if (!questions.some(q => q.id === key)) throw new AppError("invalid");
@@ -251,6 +314,7 @@ export function readAnswer(input: unknown, questions: QuestionShape[]): Map<stri
       for (const [k, v] of Object.entries(given)) {
         if (!known.has(k)) throw new AppError("invalid");
         if (v !== 0 && v !== 1 && v !== 2) throw new AppError("invalid");
+        if (v === 1 && options.slots) throw new AppError("invalid");
         values.set(k, v);
       }
       for (const opt of q.options) if (!values.has(opt.id)) values.set(opt.id, 0);
@@ -260,6 +324,11 @@ export function readAnswer(input: unknown, questions: QuestionShape[]): Map<stri
       if (value === undefined || value === null) continue;
       if (typeof value !== "number" || !Number.isInteger(value) || value < 1 || value > 5) throw new AppError("invalid");
       out.set(q.id, { kind: "scale", value });
+    } else if (q.kind === "enps") {
+      const value = a["value"];
+      if (value === undefined || value === null) continue;
+      if (typeof value !== "number" || !Number.isInteger(value) || value < 0 || value > 10) throw new AppError("invalid");
+      out.set(q.id, { kind: "enps", value });
     } else {
       const text = clean(a["text"], limits.text, { multiline: true, optional: true });
       if (text) out.set(q.id, { kind: "text", text });

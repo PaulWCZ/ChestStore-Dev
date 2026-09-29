@@ -12,7 +12,9 @@ import type { RowView } from "../../lib/rows.ts";
 import { sendExpenses } from "./actions.ts";
 
 export type HomeGroup = { key: string; title: string; total: string; rows: RowView[] };
-type Draft = RowView & { amountValue: number; currency: string };
+// blocked: refused and not changed since — it cannot be sent as it is, so
+// it is never ticked; fixed: refused, then changed.
+type Draft = RowView & { amountValue: number; currency: string; blocked: boolean; fixed: boolean };
 type Words = { home: Catalogue["home"]; figures: { waiting: string; toPay: string; paid: string }; errors: Catalogue["errors"]; refused: string; companyCard: string };
 
 export function HomeView({ locale, empty, figures, drafts, waiting, approved, history, limit, t }: {
@@ -29,9 +31,10 @@ export function HomeView({ locale, empty, figures, drafts, waiting, approved, hi
   const router = useRouter();
   const toast = useToast();
   const [pending, start] = useTransition();
-  // Every draft is selected unless the person unticks it.
+  // Every draft is selected unless the person unticks it — except a refused
+  // one not changed since, which waits for its fix.
   const [unticked, setUnticked] = useState<Set<string>>(new Set());
-  const selected = drafts.filter(d => !unticked.has(d.id));
+  const selected = drafts.filter(d => !d.blocked && !unticked.has(d.id));
   const total = useMemo(() => {
     const sums = new Map<string, number>();
     for (const d of selected) sums.set(d.currency, (sums.get(d.currency) ?? 0) + d.amountValue);
@@ -102,14 +105,21 @@ export function HomeView({ locale, empty, figures, drafts, waiting, approved, hi
           <ul className="rows">
             {drafts.map(d => (
               <li key={d.id} className="row selectable">
-                <input type="checkbox" className="pick" checked={!unticked.has(d.id)} onChange={e => toggle(d.id, e.target.checked)} aria-label={`${t.home.select}: ${d.what}, ${d.amount}`} />
+                {d.blocked
+                  ? <span className="pick" aria-hidden="true" />
+                  : <input type="checkbox" className="pick" checked={!unticked.has(d.id)} onChange={e => toggle(d.id, e.target.checked)} aria-label={`${t.home.select}: ${d.what}, ${d.amount}`} />}
                 <Thumb row={d} />
                 <a className="main" href={d.href}>
                   <span className="what">{d.what}</span>
                   <span className="sub"><span className="mono">{d.day} {d.month}</span>{d.sub && <span>{d.sub}</span>}{d.card && <span>{t.companyCard}</span>}<Warnings list={d.warnings} /></span>
                   {d.reason && <span className="reason">{format(t.home.refusedBecause, { reason: d.reason })}</span>}
+                  {d.blocked && <span className="reason">{t.home.fixFirst}</span>}
+                  {d.fixed && <span className="fixed">{t.home.fixed}</span>}
                 </a>
-                <span className="right"><span className="amount">{d.amount}</span>{d.stamp.kind === "refused" && <Stamp row={d} />}</span>
+                <span className="right">
+                  <span className="amount">{d.amount}</span>
+                  {d.blocked ? <a className="button small quiet" href={`${d.href}/edit`}>{t.home.fix}<span className="visually-hidden">: {d.what}</span></a> : d.stamp.kind === "refused" && <Stamp row={d} />}
+                </span>
               </li>
             ))}
           </ul>

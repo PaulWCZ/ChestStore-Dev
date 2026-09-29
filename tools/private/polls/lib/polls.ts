@@ -1,9 +1,10 @@
 import type { Member } from "@argentic/chest-sdk/member";
-import { asked, can, edits, manages, resultsState, sees, namesShown, type PollRights, type ResultsState } from "./access.ts";
+import { asked, can, edits, manages, resultsState, sees, settles, namesShown, type PollRights, type Policy, type ResultsState } from "./access.ts";
 import { AppError } from "./app-error.ts";
 import type { Query, Sql } from "./db.ts";
-import { checkOpening, clean, id, limits, readPoll, type Kind, type PollSpec } from "./model.ts";
+import { checkOpening, clean, id, limits, readPoll, type Kind, type PollSpec, type Repeat } from "./model.ts";
 import { fromAnswers, results, type AnswerRow, type Counts, type QuestionResult, type QuestionRow, type TextRow } from "./results.ts";
+import { startSeries } from "./series.ts";
 import { day as readDay, time as readTime, zoned } from "./time.ts";
 
 // The polls: written, sent, answered, closed, deleted. Every function takes
@@ -24,6 +25,7 @@ export type Poll = {
   results: "live" | "closed";
   everyone: boolean;
   groups: string[];
+  people: string[];
   closesAt: string | null;
   openedAt: string | null;
   closedAt: string | null;
@@ -33,27 +35,39 @@ export type Poll = {
   deleted: boolean;
   createdAt: string;
   updatedAt: string;
+  // A sign-up sheet: places per answer.
+  slots: number | null;
+  // A pulse survey: how often it comes back, its series and round.
+  repeat: Repeat | null;
+  seriesId: string | null;
+  round: number | null;
+  // Its words were changed after this many people had answered.
+  editedAfter: number | null;
+  nudgedAt: string | null;
   questions: QuestionRow[];
 };
 
-export type Context = { zone: string; now?: Date; today?: string; known?: readonly string[] | null };
+export type Context = { zone: string; now?: Date; today?: string; known?: readonly string[] | null; knownPeople?: readonly string[] | null };
 
 type PollRow = {
   id: string; kind: Kind; title: string; details: string; organiser: string; status: Status; anonymous: boolean; results: "live" | "closed";
-  everyone: boolean; groups: string[]; closes_at: Date | null; opened_at: Date | null; closed_at: Date | null; closed_by_date: boolean;
+  everyone: boolean; groups: string[]; people: string[]; closes_at: Date | null; opened_at: Date | null; closed_at: Date | null; closed_by_date: boolean;
   final_option: string | null; final_at: Date | null; deleted_at: Date | null; created_at: Date; updated_at: Date;
+  slots: number | null; repeat: Repeat | null; series_id: string | null; round: number | null; edited_after: number | null; nudged_at: Date | null;
 };
 
 const iso = (d: Date | string | null): string | null => (d === null ? null : new Date(d).toISOString());
 
-export const rights = (p: Pick<Poll, "organiser" | "status" | "everyone" | "groups" | "deleted" | "anonymous" | "results">): PollRights => p;
+export const rights = (p: Pick<Poll, "organiser" | "status" | "everyone" | "groups" | "people" | "deleted" | "anonymous" | "results">): PollRights => p;
 
 function toPoll(r: PollRow, questions: QuestionRow[]): Poll {
   return {
     id: String(r.id), kind: r.kind, title: r.title, details: r.details, organiser: r.organiser, status: r.status, anonymous: r.anonymous, results: r.results,
-    everyone: r.everyone, groups: r.groups ?? [], closesAt: iso(r.closes_at), openedAt: iso(r.opened_at), closedAt: iso(r.closed_at), closedByDate: r.closed_by_date,
+    everyone: r.everyone, groups: r.groups ?? [], people: r.people ?? [], closesAt: iso(r.closes_at), openedAt: iso(r.opened_at), closedAt: iso(r.closed_at), closedByDate: r.closed_by_date,
     finalOption: r.final_option === null ? null : String(r.final_option), finalAt: iso(r.final_at), deleted: r.deleted_at !== null,
-    createdAt: iso(r.created_at)!, updatedAt: iso(r.updated_at)!, questions,
+    createdAt: iso(r.created_at)!, updatedAt: iso(r.updated_at)!,
+    slots: r.slots, repeat: r.repeat, seriesId: r.series_id === null ? null : String(r.series_id), round: r.round, editedAfter: r.edited_after, nudgedAt: iso(r.nudged_at),
+    questions,
   };
 }
 
@@ -109,7 +123,7 @@ async function visible(sql: Query, actor: Member | null, pollId: unknown, option
   return poll;
 }
 
-async function insertQuestions(sql: Query, pollId: string, spec: PollSpec): Promise<void> {
+export async function insertQuestions(sql: Query, pollId: string, spec: Pick<PollSpec, "questions">): Promise<void> {
   for (const [position, q] of spec.questions.entries()) {
     const [row] = await sql<{ id: string }[]>`
       insert into questions (poll_id, position, kind, text, multiple, other, low, high)
@@ -120,28 +134,51 @@ async function insertQuestions(sql: Query, pollId: string, spec: PollSpec): Prom
   }
 }
 
-function context(ctx: Context): { zone: string; now: Date; today: string; known: readonly string[] | null } {
+function context(ctx: Context): { zone: string; now: Date; today: string; known: readonly string[] | null; knownPeople: readonly string[] | null } {
   const now = ctx.now ?? new Date();
   const today = ctx.today ?? new Intl.DateTimeFormat("en-CA", { timeZone: ctx.zone, year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
-  return { zone: ctx.zone, now, today, known: ctx.known ?? null };
+  return { zone: ctx.zone, now, today, known: ctx.known ?? null, knownPeople: ctx.knownPeople ?? null };
+}
+
+// The admin's choice of who starts polls (one row, created by the migration).
+export async function policy(sql: Query): Promise<Policy> {
+  const [row] = await sql<{ members_create: boolean }[]>`select members_create from settings where id`;
+  return { membersCreate: row?.members_create ?? true };
+}
+
+// setPolicy: an admin lets every member start polls, or organisers only.
+// Polls members already started stay theirs.
+export async function setPolicy(sql: Sql, actor: Member | null, membersCreate: unknown): Promise<Policy> {
+  if (!settles(actor)) throw new AppError("forbidden");
+  if (typeof membersCreate !== "boolean") throw new AppError("invalid");
+  await sql`insert into settings (id, members_create) values (true, ${membersCreate}) on conflict (id) do update set members_create = excluded.members_create`;
+  return { membersCreate };
+}
+
+export async function mayCreate(sql: Query, actor: Member | null): Promise<boolean> {
+  return can(actor, "create", await policy(sql));
 }
 
 // createPoll writes a poll: a draft, or sent at once (open: true). A sent
-// poll is queued to be told to those asked (lib/tell.ts).
+// poll is queued to be told to those asked (lib/tell.ts); a repeating
+// survey starts its series (lib/series.ts).
 export async function createPoll(sql: Sql, actor: Member | null, input: unknown, ctx: Context): Promise<{ id: string; status: Status }> {
-  if (!can(actor, "create")) throw new AppError("forbidden");
+  if (!(await mayCreate(sql, actor))) throw new AppError("forbidden");
   const c = context(ctx);
   const spec = readPoll(input, c);
   const open = (input as { open?: unknown }).open === true;
   if (open) checkOpening(spec, c);
   return sql.begin(async tx => {
     const [row] = await tx<{ id: string }[]>`
-      insert into polls (kind, title, details, organiser, status, anonymous, results, everyone, groups, closes_at, opened_at, created_at, updated_at)
-      values (${spec.kind}, ${spec.title}, ${spec.details}, ${actor!.id}, ${open ? "open" : "draft"}, ${spec.anonymous}, ${spec.results}, ${spec.everyone}, ${spec.groups}, ${spec.closesAt}, ${open ? c.now : null}, ${c.now}, ${c.now})
+      insert into polls (kind, title, details, organiser, status, anonymous, results, everyone, groups, people, closes_at, slots, repeat, opened_at, created_at, updated_at)
+      values (${spec.kind}, ${spec.title}, ${spec.details}, ${actor!.id}, ${open ? "open" : "draft"}, ${spec.anonymous}, ${spec.results}, ${spec.everyone}, ${spec.groups}, ${spec.people}, ${spec.closesAt}, ${spec.slots}, ${spec.repeat}, ${open ? c.now : null}, ${c.now}, ${c.now})
       returning id`;
     const pollId = String(row!.id);
     await insertQuestions(tx, pollId, spec);
-    if (open) await tx`insert into tellings (poll_id, kind) values (${pollId}, 'ask') on conflict do nothing`;
+    if (open) {
+      if (spec.repeat) await startSeries(tx, pollId, actor!.id, spec.repeat, c.now, c.zone);
+      await tx`insert into tellings (poll_id, kind) values (${pollId}, 'ask') on conflict do nothing`;
+    }
     return { id: pollId, status: open ? "open" : "draft" };
   });
 }
@@ -159,11 +196,14 @@ export async function updateDraft(sql: Sql, actor: Member | null, pollId: unknow
     await tx`delete from questions where poll_id = ${poll.id}`;
     await tx`
       update polls set kind = ${spec.kind}, title = ${spec.title}, details = ${spec.details}, anonymous = ${spec.anonymous}, results = ${spec.results},
-        everyone = ${spec.everyone}, groups = ${spec.groups}, closes_at = ${spec.closesAt}, status = ${open ? "open" : "draft"},
-        opened_at = ${open ? c.now : null}, updated_at = ${c.now}
+        everyone = ${spec.everyone}, groups = ${spec.groups}, people = ${spec.people}, closes_at = ${spec.closesAt}, slots = ${spec.slots}, repeat = ${spec.repeat},
+        status = ${open ? "open" : "draft"}, opened_at = ${open ? c.now : null}, updated_at = ${c.now}
       where id = ${poll.id}`;
     await insertQuestions(tx, poll.id, spec);
-    if (open) await tx`insert into tellings (poll_id, kind) values (${poll.id}, 'ask') on conflict do nothing`;
+    if (open) {
+      if (spec.repeat) await startSeries(tx, poll.id, poll.organiser, spec.repeat, c.now, c.zone);
+      await tx`insert into tellings (poll_id, kind) values (${poll.id}, 'ask') on conflict do nothing`;
+    }
     return { id: poll.id, status: open ? "open" : "draft" };
   });
 }
@@ -185,11 +225,19 @@ export async function editOpen(sql: Sql, actor: Member | null, pollId: unknown, 
     const poll = await visible(tx, actor, pollId, { lock: true });
     if (!edits(actor, rights(poll))) throw new AppError("forbidden");
     if (poll.status !== "open") throw new AppError("locked");
+    // A round of a pulse survey closes when the next one opens: its closing
+    // time is the series'.
+    if (poll.seriesId !== null) closesAt = poll.closesAt ? new Date(poll.closesAt) : null;
     const closeChanged = (closesAt?.getTime() ?? null) !== (poll.closesAt ? new Date(poll.closesAt).getTime() : null);
     if (closeChanged && closesAt) checkOpening({ closesAt, questions: [] }, c);
     // A later closing time: the day-before reminder is due again.
     const remindAgain = closeChanged && (closesAt === null || closesAt.getTime() - c.now.getTime() > 864e5);
-    await tx`update polls set title = ${title}, details = ${details}, closes_at = ${closesAt}, updated_at = ${c.now}${remindAgain ? tx`, reminded_at = null` : tx``} where id = ${poll.id}`;
+    // New words over answers already given: the poll says so ("Edited after
+    // 3 answers"), so nobody reads old answers under new words unawares.
+    const wordsChanged = title !== poll.title || details !== poll.details;
+    const answers = wordsChanged ? (await tx<{ n: number }[]>`select count(*)::int as n from participants where poll_id = ${poll.id}`)[0]!.n : 0;
+    const editedAfter = answers > 0 ? Math.max(answers, poll.editedAfter ?? 0) : poll.editedAfter;
+    await tx`update polls set title = ${title}, details = ${details}, closes_at = ${closesAt}, edited_after = ${editedAfter}, updated_at = ${c.now}${remindAgain ? tx`, reminded_at = null` : tx``} where id = ${poll.id}`;
     if (remindAgain) await tx`delete from tellings where poll_id = ${poll.id} and kind = 'remind'`;
     return load(tx, poll.id);
   });
@@ -204,6 +252,7 @@ export async function sendDraft(sql: Sql, actor: Member | null, pollId: unknown,
     if (poll.status !== "draft") throw new AppError("locked");
     checkOpening({ closesAt: poll.closesAt ? new Date(poll.closesAt) : null, questions: poll.questions }, c);
     await tx`update polls set status = 'open', opened_at = ${c.now}, updated_at = ${c.now} where id = ${poll.id}`;
+    if (poll.repeat) await startSeries(tx, poll.id, poll.organiser, poll.repeat, c.now, c.zone);
     await tx`insert into tellings (poll_id, kind) values (${poll.id}, 'ask') on conflict do nothing`;
     return load(tx, poll.id);
   });
@@ -231,6 +280,12 @@ export async function reopenPoll(sql: Sql, actor: Member | null, pollId: unknown
     if (!manages(actor, rights(poll))) throw new AppError("forbidden");
     if (poll.status !== "closed") throw new AppError("not_closed");
     if (poll.finalOption !== null) throw new AppError("locked");
+    // An anonymous poll, once closed, has shown its results: reopening it
+    // and closing it again would let anyone compare the two and read the
+    // answers given in between.
+    if (poll.anonymous) throw new AppError("anonymous_final");
+    // A round of a pulse survey: the next round is the way on.
+    if (poll.seriesId !== null) throw new AppError("locked");
     const past = poll.closesAt !== null && new Date(poll.closesAt).getTime() <= now.getTime();
     await tx`
       update polls set status = 'open', closed_at = null, closed_by_date = false, settled_at = null, updated_at = ${now}${past ? tx`, closes_at = null, reminded_at = null` : tx``}
@@ -266,6 +321,7 @@ export async function restorePoll(sql: Sql, actor: Member | null, pollId: unknow
 // purge removes for good what was deleted long ago.
 export async function purge(sql: Query, now = new Date()): Promise<number> {
   const rows = await sql`delete from polls where deleted_at is not null and deleted_at < ${now}::timestamptz - make_interval(days => ${limits.purgeDays}) returning id`;
+  await sql`delete from comments where deleted_at is not null and deleted_at < ${now}::timestamptz - make_interval(days => ${limits.purgeDays})`;
   return rows.length;
 }
 
@@ -301,6 +357,9 @@ export type Card = {
   anonymous: boolean;
   everyone: boolean;
   groups: string[];
+  people: string[];
+  repeat: Repeat | null;
+  round: number | null;
   closesAt: string | null;
   closedAt: string | null;
   updatedAt: string;
@@ -332,12 +391,13 @@ export async function home(sql: Sql, actor: Member | null, now = new Date()): Pr
     const poll = toPoll(r, []);
     if (!sees(actor, rights(poll))) continue;
     cards.push({
-      id: poll.id, kind: poll.kind, title: poll.title, organiser: poll.organiser, status: poll.status, anonymous: poll.anonymous, everyone: poll.everyone, groups: poll.groups,
+      id: poll.id, kind: poll.kind, title: poll.title, organiser: poll.organiser, status: poll.status, anonymous: poll.anonymous, everyone: poll.everyone, groups: poll.groups, people: poll.people,
+      repeat: poll.repeat, round: poll.round,
       closesAt: poll.closesAt, closedAt: poll.closedAt, updatedAt: poll.updatedAt, answered: r.answered, answers: r.answers,
       final: r.final_day ? { day: dayText(r.final_day)!, start: r.final_start, end: r.final_end } : null, mine: poll.organiser === actor.id,
     });
   }
-  const isAsked = (c: Card) => asked(actor, { everyone: c.everyone, groups: c.groups });
+  const isAsked = (c: Card) => asked(actor, { everyone: c.everyone, groups: c.groups, people: c.people });
   return {
     toAnswer: cards.filter(c => c.status === "open" && isAsked(c) && !c.answered),
     mine: cards.filter(c => c.mine && c.status !== "closed").sort((a, b) => (a.status === b.status ? b.updatedAt.localeCompare(a.updatedAt) : a.status === "draft" ? 1 : -1)),
@@ -361,6 +421,8 @@ export type PollView = {
   names: boolean;
   // Named polls, for those who see the names: who answered.
   participants: string[];
+  // A sign-up sheet: places taken per option (a date: its "yes").
+  taken: Record<string, number> | null;
 };
 
 async function counts(sql: Query, poll: Poll): Promise<{ counts: Counts; voters?: Map<string, string[]>; texts: TextRow[]; grid?: Map<string, { member: string; values: Record<string, number> }[]> }> {
@@ -417,7 +479,40 @@ export async function view(sql: Sql, actor: Member | null, pollId: unknown, now 
   if (names || (manages(actor, r) && !poll.anonymous)) {
     participants = (await sql<{ member: string }[]>`select member from participants where poll_id = ${poll.id} order by id`).map(p => p.member);
   }
-  return { poll, asked: asked(actor, r), manages: manages(actor, r), edits: edits(actor, r), answered: Boolean(me), mine, answers, state, results: shown, names, participants };
+  const taken = poll.slots === null ? null : await placesTaken(sql, poll);
+  return { poll, asked: asked(actor, r), manages: manages(actor, r), edits: edits(actor, r), answered: Boolean(me), mine, answers, state, results: shown, names, participants, taken };
+}
+
+// placesTaken counts a sign-up sheet's places per option: those who chose
+// it (a choice poll), those who said yes (a date poll). Everyone who can
+// answer sees how many are left, whatever the results setting.
+export async function placesTaken(sql: Query, poll: Pick<Poll, "id" | "kind" | "questions">, except: string | null = null): Promise<Record<string, number>> {
+  const q = poll.questions[0];
+  const taken: Record<string, number> = Object.fromEntries((q?.options ?? []).map(o => [o.id, 0]));
+  if (!q) return taken;
+  const rows = await sql<{ option_id: string; n: number }[]>`
+    select a.option_id, count(*)::int as n from answers a join participants p on p.id = a.participant_id
+    where p.poll_id = ${poll.id} and a.question_id = ${q.id} and a.option_id is not null
+      and (${poll.kind === "date"} = false or a.value = 2) and (${except}::bigint is null or p.id <> ${except}::bigint)
+    group by a.option_id`;
+  for (const r of rows) taken[String(r.option_id)] = r.n;
+  return taken;
+}
+
+// nudge: the organiser reminds those who have not answered (a bell item,
+// and an email where the Chest sends them — lib/tell.ts), at most every 12
+// hours. The organiser never learns who is reminded in an anonymous poll.
+export async function nudge(sql: Sql, actor: Member | null, pollId: unknown, now = new Date()): Promise<Poll> {
+  return sql.begin(async tx => {
+    await closeDue(tx, now);
+    const poll = await visible(tx, actor, pollId, { lock: true });
+    if (!manages(actor, rights(poll))) throw new AppError("forbidden");
+    if (poll.status !== "open") throw new AppError("closed");
+    if (poll.nudgedAt && now.getTime() - new Date(poll.nudgedAt).getTime() < limits.nudgeHours * 3600_000) throw new AppError("nudged", { hours: limits.nudgeHours });
+    await tx`update polls set nudged_at = ${now} where id = ${poll.id}`;
+    await tx`insert into tellings (poll_id, kind, created_at) values (${poll.id}, 'remind', ${now}) on conflict (poll_id, kind) do update set after = null, lease = null, created_at = ${now}`;
+    return { ...poll, nudgedAt: now.toISOString() };
+  });
 }
 
 // For a download: the poll and its answers, for those who manage it.
@@ -435,15 +530,15 @@ export async function exportData(sql: Sql, actor: Member | null, pollId: unknown
 export async function pendingCounts(sql: Query, people: { id: string; groups: readonly string[]; role: string | null }[], now = new Date()): Promise<Map<string, number>> {
   const counts = new Map<string, number>(people.map(p => [p.id, 0]));
   if (people.length === 0) return counts;
-  const open = await sql<{ id: string; everyone: boolean; groups: string[] }[]>`
-    select id, everyone, groups from polls where status = 'open' and deleted_at is null and (closes_at is null or closes_at > ${now})`;
+  const open = await sql<{ id: string; everyone: boolean; groups: string[]; people: string[] }[]>`
+    select id, everyone, groups, people from polls where status = 'open' and deleted_at is null and (closes_at is null or closes_at > ${now})`;
   if (open.length === 0) return counts;
   const done = await sql<{ poll_id: string; member: string }[]>`
     select poll_id, member from participants where poll_id = any(${open.map(o => o.id)}::bigint[]) and member = any(${people.map(p => p.id)})`;
   const answered = new Set(done.map(d => `${d.poll_id}/${d.member}`));
   for (const p of people) {
     const actor = { id: p.id, role: p.role, isAdmin: false, groups: [...p.groups] };
-    counts.set(p.id, open.filter(o => asked(actor, { everyone: o.everyone, groups: o.groups ?? [] }) && !answered.has(`${o.id}/${p.id}`)).length);
+    counts.set(p.id, open.filter(o => asked(actor, { everyone: o.everyone, groups: o.groups ?? [], people: o.people ?? [] }) && !answered.has(`${o.id}/${p.id}`)).length);
   }
   return counts;
 }

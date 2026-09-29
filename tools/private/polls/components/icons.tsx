@@ -30,6 +30,11 @@ export const Lock = () => <Icon><rect x="5" y="10.5" width="14" height="10" rx="
 export const Send = () => <Icon><path d="M4 12l16-7.5L14.5 20l-2.8-6.2L4 12z" /><path d="M11.7 13.8L20 4.5" /></Icon>;
 export const Info = () => <Icon><circle cx="12" cy="12" r="8.5" /><path d="M12 11v5.5M12 7.8v.2" /></Icon>;
 export const Party = () => <Icon><path d="M4 20l4.5-12L16 15.5 4 20z" /><path d="M14 4.5c.5 1.5 0 2.5-1 3M19.5 10c-1.5-.5-2.5 0-3 1M17 3.5v2M20.5 7h-2M15.5 8.5l1-1" /></Icon>;
+export const Repeat = () => <Icon><path d="M4.5 11V9.5a3 3 0 013-3h11M15.5 3.5l3 3-3 3" /><path d="M19.5 13v1.5a3 3 0 01-3 3h-11M8.5 20.5l-3-3 3-3" /></Icon>;
+export const Bell = () => <Icon><path d="M6 16.5V11a6 6 0 0112 0v5.5l1.5 2h-15z" /><path d="M10 20.5a2 2 0 004 0" /></Icon>;
+export const Chat = () => <Icon><path d="M4 6.5a2.5 2.5 0 012.5-2.5h11A2.5 2.5 0 0120 6.5v7a2.5 2.5 0 01-2.5 2.5H11l-4.5 4v-4A2.5 2.5 0 014 13.5z" /></Icon>;
+export const Trend = () => <Icon><path d="M3.5 17l5-5.5 4 3.5 7.5-8" /><path d="M15 7h5v5" /></Icon>;
+export const Pulse = () => <Icon><path d="M3 12h4l2.5-6 4.5 12 2.5-6H21" /></Icon>;
 export const CalendarPlus = () => <Icon><rect x="3.5" y="5" width="17" height="15" rx="3" /><path d="M8 3v4M16 3v4M3.5 10h17M12 13v4.5M9.8 15.2h4.4" /></Icon>;
 
 // The three kinds, each its own picture.

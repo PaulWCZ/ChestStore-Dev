@@ -187,7 +187,16 @@ select.field { appearance: none; background-image: linear-gradient(45deg, transp
 .attached .state { display: grid; gap: 2px; }
 .attached .state strong { display: flex; gap: 6px; align-items: center; }
 .attached .state strong svg { color: var(--green); }
+.attached .state { min-width: 0; overflow-wrap: anywhere; }
 .attached .actions { display: grid; gap: 2px; justify-items: end; }
+/* A file input inside a label: the label is the control people see. */
+.file-label { position: relative; overflow: hidden; }
+.file-label input[type="file"] { position: absolute; inset: 0; opacity: 0; width: 100%; cursor: pointer; font-size: 0; }
+.file-label:has(input:focus-visible) { outline: 3px solid var(--focus); outline-offset: 2px; }
+@media (max-width: 460px) {
+  .attached { grid-template-columns: auto minmax(0, 1fr); }
+  .attached .actions { grid-column: 1 / -1; display: flex; gap: var(--space-4); justify-content: flex-start; }
+}
 .progress { height: 4px; background: var(--surface-2); border-radius: 2px; overflow: hidden; }
 .progress i { display: block; height: 100%; width: 40%; background: var(--green); animation: slide 1s linear infinite; }
 @keyframes slide { from { transform: translateX(-100%); } to { transform: translateX(250%); } }
@@ -315,3 +324,11 @@ table.grid tr.hidden td { opacity: 0.55; }
 .settings > *, .form-grid > *, .compose > * { min-width: 0; }
 .table-wrap, .tabs { position: relative; }
 .estimate { align-items: center; }
+
+/* Refused, and what the owner did about it. */
+.row .fixed { margin-top: 4px; color: var(--green); font-size: var(--text-s); font-weight: 600; }
+span.pick { display: inline-block; width: 22px; }
+/* The approver's receipt thumbnail opens it large. */
+.thumb-button { padding: 0; border: 0; background: none; cursor: zoom-in; border-radius: var(--radius-s); display: inline-grid; }
+.lightbox { width: 100%; max-height: 70vh; object-fit: contain; background: #fff; border-radius: var(--radius-s); }
+.row.decision.warned { box-shadow: inset 3px 0 0 var(--amber); padding-left: var(--space-2); }

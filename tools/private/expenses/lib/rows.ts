@@ -19,6 +19,9 @@ export type RowView = {
   stamp: { kind: StampKind; text: string };
   card: boolean;
   thumb: string | null;
+  // The receipt itself (opens in a new tab) and a large preview of a photo.
+  open: string | null;
+  preview: string | null;
   icon: "receipt" | "car" | "pdf" | "none";
   warnings: string[];
   reason: string | null;
@@ -30,7 +33,9 @@ export function stampOf(e: Expense, t: Catalogue): { kind: StampKind; text: stri
 }
 
 export function warningText(w: Warning, t: Catalogue, currency: string, locale: Locale): string {
-  return w.code === "over_cap" ? format(t.warnings.over_cap, { cap: formatMoney(w.cap ?? 0, currency, locale) }) : t.warnings[w.code];
+  if (w.code === "over_cap") return format(t.warnings.over_cap, { cap: formatMoney(w.cap ?? 0, currency, locale) });
+  if (w.code === "resent") return format(t.warnings.resent, { reason: w.reason ?? "" });
+  return t.warnings[w.code];
 }
 
 export function rowView(e: Expense, ctx: { t: Catalogue; locale: Locale; categories: Map<string, Category>; warnings?: Map<string, Warning[]>; currency: string; who?: string }): RowView {
@@ -51,6 +56,8 @@ export function rowView(e: Expense, ctx: { t: Catalogue; locale: Locale; categor
     stamp: stampOf(e, t),
     card: e.paidBy === "company",
     thumb: e.receipt && thumbnailTypes.includes(e.receipt.type) ? `/chest/receipts/${e.id}?size=256` : null,
+    open: e.receipt ? `/chest/receipts/${e.id}` : null,
+    preview: e.receipt && thumbnailTypes.includes(e.receipt.type) ? `/chest/receipts/${e.id}?size=1024` : null,
     icon: e.trip ? "car" : e.receipt ? (e.receipt.type === "application/pdf" ? "pdf" : "receipt") : "none",
     warnings: (ctx.warnings?.get(e.id) ?? []).map(w => warningText(w, t, ctx.currency, locale)),
     reason: e.status === "draft" ? e.refusedReason : null,

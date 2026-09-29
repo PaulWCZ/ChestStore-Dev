@@ -8,6 +8,7 @@ export const limits = {
   note: 300,
   reason: 300,
   typeName: 40,
+  employeeNumber: 30,
   types: 20,
   adjustment: 366,
   perYear: 60,

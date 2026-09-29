@@ -5,7 +5,7 @@ import { clientMissing, toClient, type Client } from "./clients.ts";
 import { company, missing, type Company } from "./company.ts";
 import type { Query, Sql } from "./db.ts";
 import { catalogue, format, isLocale, type Locale } from "./i18n/index.ts";
-import { addDays, clean, day, documentNumber, id, limits, oneOf, vatTreatments, wholeDays, type DocumentType, type Status, type VatTreatment } from "./model.ts";
+import { addDays, clean, day, documentNumber, id, limits, oneOf, periodOf, vatTreatments, wholeDays, type DocumentType, type Status, type VatTreatment } from "./model.ts";
 import { formatRate, isVatRate } from "./money.ts";
 import { buyerOf, sellerOf, type Buyer, type Seller } from "./parties.ts";
 import { lineNet, totals, depositBases, type RateTotal, type Totals } from "./totals.ts";
@@ -278,7 +278,9 @@ export async function createDocument(sql: Sql, actor: Member | null, type: unkno
     insert into documents ${sql({
       type: kind,
       client_id: client ? Number(client.id) : null,
-      language: client?.language ?? defaults.locale,
+      // The client's language; without a client yet, the author's own, so
+      // the paper they write on speaks their language.
+      language: client?.language ?? (isLocale(actor!.locale) ? actor!.locale : defaults.locale),
       currency: defaults.currency,
       valid_until: kind === "quote" ? addDays(defaults.today, c.validityDays) : null,
       payment_days: c.paymentDays,
@@ -456,22 +458,26 @@ export async function restoreDraft(sql: Sql, actor: Member | null, documentId: u
 // nextNumber gives the next number of a sequence, inside the caller's
 // transaction: the counter's row stays locked until it commits, so two
 // numberings wait for each other, and a transaction that fails gives its
-// number back. No gap, no duplicate.
-export async function nextNumber(tx: Query, type: DocumentType, year: number, prefixText: string): Promise<{ seq: number; number: string }> {
-  await tx`insert into counters (type, year, last) values (${type}, ${year}, 0) on conflict (type, year) do nothing`;
-  const [row] = await tx<{ last: number }[]>`update counters set last = last + 1 where type = ${type} and year = ${year} returning last`;
+// number back. No gap, no duplicate. The period is the year, or 0 for
+// numbers that never restart (company.number_format).
+export async function nextNumber(tx: Query, type: DocumentType, period: number, prefixText: string): Promise<{ seq: number; number: string }> {
+  await tx`insert into counters (type, year, last) values (${type}, ${period}, 0) on conflict (type, year) do nothing`;
+  const [row] = await tx<{ last: number }[]>`update counters set last = last + 1 where type = ${type} and year = ${period} returning last`;
   const seq = row!.last;
-  return { seq, number: documentNumber(prefixText, year, seq) };
+  return { seq, number: documentNumber(prefixText, period, seq) };
 }
+
+export const prefixOf = (c: Pick<Company, "quotePrefix" | "invoicePrefix" | "creditPrefix">, type: DocumentType): string =>
+  type === "quote" ? c.quotePrefix : type === "invoice" ? c.invoicePrefix : c.creditPrefix;
 
 // The number a document would take if numbered now: shown in the message
 // the send dialog prepares (sendDocument puts the true one if another
 // document took it meanwhile).
 export async function upcomingNumber(sql: Query, type: DocumentType, today: string): Promise<string> {
   const c = await company(sql);
-  const year = Number(today.slice(0, 4));
-  const [row] = await sql<{ last: number }[]>`select last from counters where type = ${type} and year = ${year}`;
-  return documentNumber(type === "quote" ? c.quotePrefix : type === "invoice" ? c.invoicePrefix : c.creditPrefix, year, (row?.last ?? 0) + 1);
+  const period = periodOf(c.numberFormat, today);
+  const [row] = await sql<{ last: number }[]>`select last from counters where type = ${type} and year = ${period}`;
+  return documentNumber(prefixOf(c, type), period, (row?.last ?? 0) + 1);
 }
 
 // What a document must hold before it is numbered.
@@ -506,7 +512,7 @@ export async function sendQuote(sql: Sql, actor: Member | null, documentId: unkn
     const set: Record<string, unknown> = { seller: tx.json(sellerOf(c) as never), buyer: tx.json(buyerOf(client!) as never), franchise: c.franchise, sent_at: new Date(), sent_by: actor!.id, emailed_to: emailedTo };
     if (d.status === "draft" && d.number !== null) Object.assign(set, { status: "sent", issue_date: today });
     else if (d.status === "draft") {
-      const year = Number(today.slice(0, 4));
+      const year = periodOf(c.numberFormat, today);
       const { seq, number } = await nextNumber(tx, "quote", year, c.quotePrefix);
       Object.assign(set, { status: "sent", number, seq, year, issue_date: today });
     }
@@ -665,8 +671,8 @@ export async function finalise(sql: Sql, actor: Member | null, documentId: unkno
     // Numbers follow the dates: never a date before the last one issued.
     const [last] = await tx<{ day: string | null }[]>`select max(issue_date) as day from documents where type = ${d.type} and status = 'final'`;
     if (last?.day && last.day > today) throw new AppError("date_invalid");
-    const year = Number(today.slice(0, 4));
-    const { seq, number } = await nextNumber(tx, d.type, year, d.type === "invoice" ? c.invoicePrefix : c.creditPrefix);
+    const year = periodOf(c.numberFormat, today);
+    const { seq, number } = await nextNumber(tx, d.type, year, prefixOf(c, d.type));
     for (const [i, l] of lines.entries()) await tx`update lines set net = ${l.kind === "line" ? lineNet(l) : 0} where document_id = ${docId} and position = ${i + 1}`;
     const [row] = await tx<Row[]>`
       update documents set ${tx({

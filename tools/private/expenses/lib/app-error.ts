@@ -5,7 +5,7 @@ export const errorCodes = [
   "forbidden", "not_found", "invalid", "too_long", "empty", "too_many",
   "amount_invalid", "date_invalid", "date_future", "vat_too_high", "currency_invalid",
   "distance_invalid", "no_vehicle", "no_scale", "scale_invalid",
-  "not_draft", "not_submitted", "not_approved", "self_approval", "reason_needed", "nothing_selected",
+  "not_draft", "refused_unchanged", "not_submitted", "not_approved", "self_approval", "reason_needed", "nothing_selected",
   "approver_invalid", "category_invalid",
   "file_missing", "file_too_large", "file_type", "receipt_locked",
   "export_too_large", "unavailable", "unknown",

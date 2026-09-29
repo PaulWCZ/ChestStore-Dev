@@ -1,9 +1,11 @@
+import { ChestError } from "@argentic/chest-sdk/errors";
 import type { Member } from "@argentic/chest-sdk/member";
-import { atLeast, boardAccess, can, type BoardAccess } from "./access.ts";
+import * as members from "@argentic/chest-sdk/members";
+import { atLeast, boardAccess, can, roleOf, type BoardAccess } from "./access.ts";
 import { chestToday } from "./clock.ts";
 import type { Sql } from "./db.ts";
 import { AppError } from "./errors.ts";
-import { clean, colors, groupPattern, id, isColor, isTemplate, limits, memberIds, templates, type Color, type Template } from "./model.ts";
+import { clean, colors, groupPattern, id, isColor, isFieldKind, isTemplate, limits, memberIds, templates, type Color, type FieldKind, type Template } from "./model.ts";
 import { between, isPosition, sequence } from "./position.ts";
 import { makeNext, takeBack } from "./repeats.ts";
 
@@ -24,6 +26,7 @@ export type Board = {
 };
 export type Column = { id: string; name: string; position: string; done: boolean };
 export type Label = { id: string; name: string; color: Color };
+export type Field = { id: string; name: string; kind: FieldKind; options: string[] };
 
 type BoardRow = { id: string; name: string; color: string; visibility: "team" | "private"; archived_at: Date | null; created_by: string };
 
@@ -72,18 +75,44 @@ export async function listBoards(sql: Sql, actor: Member | null, options: { arch
   return rows.map(r => ({ ...toBoard(r, m.get(String(r.id))!, actor), open: r.open, mine: r.mine, late: r.late })).filter(b => b.access !== "none");
 }
 
+// groupIds reads a list of the Chest's group ids.
+function groupIds(value: unknown): string[] {
+  if (value === undefined) return [];
+  if (!Array.isArray(value) || !value.every(g => typeof g === "string" && groupPattern.test(g)) || value.length > 16) throw new AppError("invalid");
+  return [...new Set(value as string[])];
+}
+
+// withTasks keeps the people who have a role in Tasks (the others could
+// never open the board).
+export async function withTasks(ids: string[]): Promise<string[]> {
+  if (ids.length === 0) return [];
+  try {
+    const found = await members.lookup(ids);
+    const allowed = new Set(found.members.filter(m => roleOf(m) !== null).map(m => m.id));
+    return ids.filter(i => allowed.has(i));
+  } catch (error) {
+    if (error instanceof ChestError) throw new AppError("unavailable");
+    throw error;
+  }
+}
+
 // createBoard makes a board from a template, its creator its owner; the
-// column names come in the creator's words (a page gives them).
-export async function createBoard(sql: Sql, actor: Member | null, input: { name: unknown; color?: unknown; template?: unknown; visibility?: unknown }, columnNames: Record<string, string>): Promise<Board> {
+// column names come in the creator's words (a page gives them). A private
+// board is shared at once with the people and groups chosen.
+export async function createBoard(sql: Sql, actor: Member | null, input: { name: unknown; color?: unknown; template?: unknown; visibility?: unknown; people?: unknown; groups?: unknown }, columnNames: Record<string, string>): Promise<Board> {
   if (!actor || !can(actor, "boards.create")) throw new AppError("forbidden");
   const name = clean(input.name, limits.boardName);
   const color: Color = input.color === undefined ? colors[Math.floor(Math.random() * colors.length)]! : isColor(input.color) ? input.color : "sun";
   const template: Template = input.template === undefined ? "simple" : isTemplate(input.template) ? input.template : "simple";
   const visibility = input.visibility === "private" ? "private" : "team";
+  const people = visibility === "private" ? await withTasks(memberIds(input.people ?? [], limits.boardPeople).filter(p => p !== actor.id)) : [];
+  const groups = visibility === "private" ? groupIds(input.groups) : [];
   const boardId = await sql.begin(async tx => {
     const [row] = await tx<{ id: string }[]>`insert into boards (name, color, visibility, created_by) values (${name}, ${color}, ${visibility}, ${actor.id}) returning id`;
     const key = String(row!.id);
     await tx`insert into board_people (board_id, member_id, owner) values (${key}, ${actor.id}, true)`;
+    for (const p of people) await tx`insert into board_people (board_id, member_id, owner) values (${key}, ${p}, false)`;
+    for (const g of groups) await tx`insert into board_groups (board_id, group_id) values (${key}, ${g})`;
     const steps = templates[template];
     const positions = sequence(steps.length);
     for (const [i, step] of steps.entries()) await tx`insert into columns (board_id, name, position, done) values (${key}, ${columnNames[step.key] ?? step.key}, ${positions[i]!}, ${step.done})`;
@@ -106,8 +135,8 @@ export async function setPeople(sql: Sql, actor: Member | null, boardId: unknown
   const b = await board(sql, actor, boardId, "own");
   const people = memberIds(input.people, limits.boardPeople);
   const owners = memberIds(input.owners, limits.boardPeople).filter(o => people.includes(o));
-  if (!Array.isArray(input.groups) || !input.groups.every(g => typeof g === "string" && groupPattern.test(g)) || input.groups.length > 16) throw new AppError("invalid");
-  const groups = [...new Set(input.groups as string[])];
+  if (!Array.isArray(input.groups)) throw new AppError("invalid");
+  const groups = groupIds(input.groups);
   if (owners.length === 0) throw new AppError("invalid");
   await sql.begin(async tx => {
     await tx`delete from board_people where board_id = ${b.id}`;
@@ -183,9 +212,33 @@ export async function moveColumn(sql: Sql, actor: Member | null, columnId: unkno
   await sql`update columns set position = ${between(low, high)} where id = ${c.id}`;
 }
 
-export async function archiveColumn(sql: Sql, actor: Member | null, columnId: unknown, archived: boolean): Promise<void> {
-  const { column: c } = await column(sql, actor, columnId, "write");
-  await sql`update columns set archived_at = ${archived ? sql`now()` : null} where id = ${c.id}`;
+// archiveColumn archives a column (or restores it). Its cards go with it
+// (hidden with the column, found again by a search that includes the
+// archive, back when it is restored), unless they are moved first to
+// another column of the board ("to"). Says how many cards it held and how
+// many moved.
+export async function archiveColumn(sql: Sql, actor: Member | null, columnId: unknown, archived: boolean, options: { to?: unknown } = {}): Promise<{ cards: number; moved: number }> {
+  const { column: c, board: b } = await column(sql, actor, columnId, "write");
+  const target = archived && options.to !== undefined && options.to !== null ? (await columns(sql, b.id)).find(x => x.id === id(options.to) && x.id !== c.id) : undefined;
+  if (archived && options.to !== undefined && options.to !== null && !target) throw new AppError("not_found");
+  return sql.begin(async tx => {
+    const held = await tx<{ id: string; repeat: unknown }[]>`select id, repeat from cards where column_id = ${c.id} and archived_at is null order by position, id`;
+    let moved = 0;
+    if (target) {
+      const [edge] = await tx<{ position: string }[]>`select position from cards where column_id = ${target.id} order by position desc limit 1`;
+      const keys = sequence(held.length, edge?.position ?? null);
+      for (const [i, card] of held.entries()) {
+        const key = String(card.id);
+        await tx`update cards set column_id = ${target.id}, position = ${keys[i]!}, updated_at = now(), completed_at = ${target.done ? (c.done ? tx`completed_at` : tx`now()`) : null} where id = ${key}`;
+        const kind = target.done === c.done ? "moved" : target.done ? "completed" : "reopened";
+        await tx`insert into activity (card_id, actor, kind, data) values (${key}, ${actor!.id}, ${kind}, ${tx.json({ from: c.id, to: target.id })})`;
+        if (card.repeat !== null && target.done !== c.done) await (target.done ? makeNext(tx, key, chestToday(), actor!.id) : takeBack(tx, key));
+        moved++;
+      }
+    }
+    await tx`update columns set archived_at = ${archived ? tx`now()` : null} where id = ${c.id}`;
+    return { cards: held.length, moved };
+  });
 }
 
 // Labels.
@@ -222,6 +275,61 @@ export async function updateLabel(sql: Sql, actor: Member | null, labelId: unkno
 export async function removeLabel(sql: Sql, actor: Member | null, labelId: unknown): Promise<void> {
   const l = await label(sql, actor, labelId);
   await sql`delete from labels where id = ${l.id}`;
+}
+
+// Fields: a board's own columns of data (text, number, one choice), shown
+// on its cards and in its list. Whoever works on the board shapes them,
+// as with labels.
+export async function fields(sql: Sql, boardId: string): Promise<Field[]> {
+  const rows = await sql<{ id: string; name: string; kind: string; options: unknown }[]>`select id, name, kind, options from fields where board_id = ${boardId} order by position, id`;
+  return rows.map(r => ({ id: String(r.id), name: r.name, kind: isFieldKind(r.kind) ? r.kind : "text", options: Array.isArray(r.options) ? r.options.filter((o): o is string => typeof o === "string") : [] }));
+}
+
+function fieldOptions(kind: FieldKind, value: unknown): string[] {
+  if (kind !== "choice") return [];
+  if (!Array.isArray(value)) throw new AppError("invalid");
+  const options = [...new Set(value.map(v => clean(v, limits.fieldOption, { optional: true })).filter(Boolean))];
+  if (options.length === 0) throw new AppError("empty");
+  if (options.length > limits.fieldOptions) throw new AppError("too_many", { max: limits.fieldOptions });
+  return options;
+}
+
+export async function addField(sql: Sql, actor: Member | null, boardId: unknown, input: { name: unknown; kind: unknown; options?: unknown }): Promise<Field> {
+  const b = await board(sql, actor, boardId, "write");
+  const name = clean(input.name, limits.fieldName);
+  if (!isFieldKind(input.kind)) throw new AppError("invalid");
+  const options = fieldOptions(input.kind, input.options ?? []);
+  const list = await fields(sql, b.id);
+  if (list.length >= limits.fieldsPerBoard) throw new AppError("too_many", { max: limits.fieldsPerBoard });
+  const [last] = await sql<{ position: string }[]>`select position from fields where board_id = ${b.id} order by position desc limit 1`;
+  const [row] = await sql<{ id: string }[]>`insert into fields (board_id, name, kind, options, position) values (${b.id}, ${name}, ${input.kind}, ${sql.json(options)}, ${between(last?.position ?? null, null)}) returning id`;
+  return { id: String(row!.id), name, kind: input.kind, options };
+}
+
+async function field(sql: Sql, actor: Member | null, fieldId: unknown): Promise<Field & { boardId: string }> {
+  const key = id(fieldId);
+  const [row] = await sql<{ board_id: string }[]>`select board_id from fields where id = ${key}`;
+  if (!row) throw new AppError("not_found");
+  const b = await board(sql, actor, String(row.board_id), "write");
+  const found = (await fields(sql, b.id)).find(f => f.id === key)!;
+  return { ...found, boardId: b.id };
+}
+
+// updateField renames a field or changes its options; the values of an
+// option taken away are cleared.
+export async function updateField(sql: Sql, actor: Member | null, fieldId: unknown, input: { name?: unknown; options?: unknown }): Promise<void> {
+  const f = await field(sql, actor, fieldId);
+  const name = input.name === undefined ? f.name : clean(input.name, limits.fieldName);
+  const options = input.options === undefined ? f.options : fieldOptions(f.kind, input.options);
+  await sql.begin(async tx => {
+    await tx`update fields set name = ${name}, options = ${tx.json(options)} where id = ${f.id}`;
+    if (f.kind === "choice") await tx`delete from card_values where field_id = ${f.id} and not (value = any(${options}))`;
+  });
+}
+
+export async function removeField(sql: Sql, actor: Member | null, fieldId: unknown): Promise<void> {
+  const f = await field(sql, actor, fieldId);
+  await sql`delete from fields where id = ${f.id}`;
 }
 
 export { isPosition };

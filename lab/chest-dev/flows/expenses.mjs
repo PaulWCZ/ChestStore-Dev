@@ -27,6 +27,10 @@ await step("phone: Hugo snaps the receipt, types the amount, picks Meals, saves"
   await page.waitForURL(/\/chest\/new$/u);
   await page.locator(".capture .shoot input[type=file]").setInputFiles(receipt);
   await page.waitForSelector("text=Receipt added", { timeout: 8000 });
+  // The receipt card fits the phone: nothing pushed off-screen.
+  const wide = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+  expect(wide <= 0, `the page scrolls sideways by ${wide}px once the receipt is added`);
+  expect(await page.getByText("Remove", { exact: true }).isVisible(), "Remove visible");
   await page.waitForFunction(() => document.activeElement?.id === "amount", null, { timeout: 3000 }); // the amount, next
   await page.locator("#amount").fill("41,00");
   await page.getByText("Meals", { exact: true }).click();
@@ -110,10 +114,54 @@ await step("Inès, in French: refuses the taxi without receipt, approves the res
   expect(/Inès Moreau approved 4 expenses/u.test(dev), "approval in English");
 });
 
-await step("Hugo sees why the taxi came back, fixes nothing yet", async () => {
+await step("Hugo: the refused taxi is not ticked and cannot go back as it was", async () => {
   await as(context, origin, "hugo");
+  await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(origin + "/chest");
-  expect((await page.locator("main").innerText()).includes("Refused: Il manque le reçu du taxi"), "reason shown");
+  const taxi = page.locator(".row", { hasText: "G7 Taxi" });
+  expect((await taxi.innerText()).includes("Refused: Il manque le reçu du taxi"), "reason shown");
+  expect(await taxi.locator("input.pick").count() === 0, "no tick on the refused taxi");
+  expect((await taxi.innerText()).includes("Change it before sending it again"), "says what to do");
+  expect(await page.getByRole("button", { name: /^Send 1 expense$/u }).count() === 1, "only Chez Janou would be sent");
+});
+
+await step("Hugo fixes the taxi (a photo of the receipt and a note), then sends it with Chez Janou", async () => {
+  await page.locator(".row", { hasText: "G7 Taxi" }).getByRole("link", { name: /^Fix it/u }).click();
+  await page.waitForURL(/\/edit$/u);
+  await page.locator(".capture .pick-file input[type=file]").setInputFiles(receipt);
+  await page.waitForSelector("text=Receipt added", { timeout: 8000 });
+  await page.getByText("VAT and note").click();
+  await page.locator("#note").fill("Found the receipt in my coat");
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await page.waitForURL(/\/chest$/u);
+  const taxi = page.locator(".row", { hasText: "G7 Taxi" });
+  expect((await taxi.innerText()).includes("Changed: ready to send again"), "marked changed");
+  expect(await taxi.locator("input.pick").isChecked(), "ticked again once changed");
+  await page.getByRole("button", { name: /^Send 2 expenses$/u }).click();
+  await page.waitForSelector("text=2 expenses sent to Inès Moreau.");
+});
+
+await step("Inès: “Approve all” leaves the taxi sent again after its refusal for a look of its own", async () => {
+  await as(context, origin, "ines");
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto(origin + "/chest/approve");
+  const hugo = page.locator("section.paper", { hasText: "Hugo Bernard" });
+  const taxi = hugo.locator(".row", { hasText: "G7 Taxi" });
+  expect((await taxi.innerText()).includes("Renvoyée après un refus : « Il manque le reçu du taxi"), "the line says it was refused before");
+  expect((await hugo.innerText()).includes("1 a une alerte : regardez-la d’abord."), "says why it is left");
+  await hugo.getByRole("button", { name: "Valider celle sans alerte" }).click();
+  await page.waitForSelector("text=1 dépense validée.");
+  await page.waitForTimeout(800);
+  await page.reload();
+  const left = page.locator("section.paper", { hasText: "Hugo Bernard" });
+  expect((await left.innerText()).includes("G7 Taxi") && !(await left.innerText()).includes("Chez Janou"), "only the taxi waits");
+  // Its receipt opens large from the list.
+  await left.locator(".row", { hasText: "G7 Taxi" }).getByRole("button", { name: /^Justificatif de G7 Taxi/u }).click();
+  await page.waitForSelector("dialog[open] img.lightbox");
+  await page.waitForFunction(() => { const img = document.querySelector("dialog[open] img.lightbox"); return img instanceof HTMLImageElement && img.complete && img.naturalWidth > 0; }, null, { timeout: 8000 });
+  await page.keyboard.press("Escape");
+  await left.locator(".row", { hasText: "G7 Taxi" }).getByRole("button", { name: /^Valider/u }).click();
+  await page.waitForSelector("text=1 dépense validée.");
 });
 
 await step("Camille pays Hugo back, undoes it, pays again", async () => {

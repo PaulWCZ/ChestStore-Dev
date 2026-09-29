@@ -44,7 +44,7 @@ export function CatalogueView({ t, locale, items, archived, canWrite, currency }
     toast(value ? format(c.archivedToast, { name: item.name }) : c.restored, value ? { label: t.common.undo, run: () => void archiveItem(item.id, false).then(() => router.refresh()) } : undefined);
     router.refresh();
   }
-  const units = Object.values(t.units);
+  const units = Object.values(t.pdf.units).map(u => u.one);
   return (
     <main className="page">
       <div className="page-head">

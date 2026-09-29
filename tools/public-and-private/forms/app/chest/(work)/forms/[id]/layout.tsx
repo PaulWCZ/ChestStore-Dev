@@ -31,7 +31,7 @@ export default async function FormLayout({ children, params }: { children: React
           <h1>{form.draft.title || t.builder.untitled}</h1>
           <span className={`status status-${status}`}>{t.status[status as keyof typeof t.status]}</span>
           <span className="audience">
-            {form.audience === "public" ? <><Globe />{t.home.public}</> : form.anonymous ? <><Mask />{t.home.anonymous}</> : <><Users />{t.home.team}</>}
+            {form.audience === "public" ? (<><Globe />{t.home.public}</>) : form.anonymous ? (<><Mask />{t.home.anonymous}</>) : (<><Users />{t.home.team}</>)}
           </span>
         </div>
         <nav className="tabs" aria-label={t.tabs.label}>

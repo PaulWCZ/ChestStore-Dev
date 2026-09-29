@@ -1,4 +1,6 @@
+import * as chest from "@argentic/chest-sdk/chest";
 import { CapabilityNotGranted, ChestError, QuotaExceeded, RateLimited, Unavailable } from "@argentic/chest-sdk/errors";
+import * as mail from "@argentic/chest-sdk/mail";
 import type { Locale, Member } from "@argentic/chest-sdk/member";
 import * as notifications from "@argentic/chest-sdk/notifications";
 import { roles } from "./access.ts";
@@ -9,13 +11,16 @@ import { catalogue, format, locales, type Catalogue } from "./i18n/index.ts";
 import { badges, cut, notify, withdraw } from "./notify.ts";
 import { people as lookup, nameOf } from "./people.ts";
 import { answeredBy, closeDue, load, pendingCounts, purge, type Poll } from "./polls.ts";
+import { openRounds } from "./series.ts";
 import { chestZone } from "./zone.ts";
 
 // What Polls tells people through the Chest's bell, each in their own
 // language, and the number on its tile (the polls waiting for their answer).
 //
 // - 'ask': a poll is sent — everyone asked hears of it (not its organiser).
-// - 'remind': the day before it closes, those who have not answered.
+// - 'remind': the day before it closes, or when its organiser asks, those
+//   who have not answered — in the bell and, where the Chest sends email
+//   (Proposal (studio): mail), by email too.
 // - 'final': a date poll's date is chosen — everyone asked.
 // - the organiser hears that their poll closed by its date.
 //
@@ -31,6 +36,7 @@ export const pollPath = (pollId: string) => `/chest/polls/${pollId}`;
 export const askKey = (pollId: string) => `poll:${pollId}:ask`;
 export const finalKey = (pollId: string) => `poll:${pollId}:final`;
 const closedKey = (pollId: string) => `poll:${pollId}:closed`;
+export const commentKey = (pollId: string) => `poll:${pollId}:comments`;
 
 type Kind = "ask" | "remind" | "final";
 type Told = { done: true } | { done: false; after: string | null };
@@ -66,6 +72,9 @@ async function organiserName(poll: Poll): Promise<(locale: Locale) => string> {
 async function broadcastTo(poll: Poll, kind: "ask" | "final", key: string): Promise<"done" | "fallback" | "wait"> {
   const zone = chestZone();
   const name = await organiserName(poll);
+  // The Chest broadcasts to roles or groups: people picked by name are
+  // told a page at a time.
+  if (poll.people.length > 0) return "fallback";
   const messages = Object.fromEntries(locales.map(l => [l, words(kind, poll, catalogue(l), l, name(l), zone)])) as Record<Locale, { title: string; body: string }>;
   try {
     await notifications.broadcast({ messages: { ...messages, en: messages.en }, path: pollPath(poll.id), key, to: poll.everyone ? { roles: [...roles] } : { groups: poll.groups } });
@@ -102,6 +111,7 @@ async function tellPages(sql: Sql, poll: Poll, kind: Kind, key: string, after: s
         if (error instanceof ChestError) return { done: false, after: cursor };
         throw error;
       }
+      if (kind === "remind") await emailReminders(poll, group, catalogue(locale), locale, name(locale), zone);
     }
     if (kind === "ask") await badges(await pendingCounts(sql, people));
     if (!found.next) return { done: true };
@@ -109,6 +119,40 @@ async function tellPages(sql: Sql, poll: Poll, kind: Kind, key: string, after: s
     await sql`update tellings set after = ${cursor} where poll_id = ${poll.id} and kind = ${kind}`;
   }
   return { done: true };
+}
+
+// A reminder by email as well, one message per person (nobody sees who
+// else is reminded), in their language, with the link to answer. Email is
+// a courtesy on top of the bell: a Chest that cannot send email yet (no
+// "mail"), or the day's quota reached, sends nothing more and the bell
+// item stands. The key makes a repeated delivery of the same reminder send
+// nothing twice.
+async function emailReminders(poll: Poll, people: Person[], t: Catalogue, locale: Locale, organiser: string, zone: string): Promise<void> {
+  const d = dates(locale, zone);
+  const base = chest.teamUrl();
+  const link = base ? base.replace(/\/$/u, "") + pollPath(poll.id) : pollPath(poll.id);
+  const stamp = (poll.nudgedAt ?? poll.closesAt ?? "").replace(/\D/gu, "").slice(0, 12);
+  for (const p of people) {
+    try {
+      await mail.send({
+        to: { member: p.id },
+        subject: format(t.mail.subject, { title: poll.title }),
+        text: format(poll.closesAt ? t.mail.bodyUntil : t.mail.body, { name: p.name, organiser, title: poll.title, date: poll.closesAt ? d.at(poll.closesAt) : "", link }),
+        key: `remind.${poll.id}.${stamp}.${p.id.slice(4, 30)}`.slice(0, 64),
+      });
+    } catch (error) {
+      if (error instanceof ChestError) return;
+      throw error;
+    }
+  }
+}
+
+// commented: the organiser hears of a new comment on their poll (one item
+// per poll, replaced by the next comment).
+export async function commented(poll: Poll, author: Member): Promise<void> {
+  if (poll.organiser === author.id || poll.organiser === "erased") return;
+  const who = await lookup([author.id]);
+  await notify([poll.organiser], (t, locale) => ({ title: cut(format(t.bell.comment, { name: nameOf(who.get(author.id), locale), title: poll.title }), 80) }), { path: pollPath(poll.id) + "#comments", key: commentKey(poll.id) });
 }
 
 async function withdrawFrom(key: string, ids: Iterable<string>): Promise<void> {
@@ -171,7 +215,7 @@ export async function runTellings(sql: Sql, now = new Date()): Promise<{ told: s
 // it opens, closes, is reopened, deleted or restored). The Chest takes 600
 // badge writes a minute: in a larger company the rest are set at each
 // member's next visit.
-export async function refreshAsked(sql: Sql, poll: Pick<Poll, "everyone" | "groups">): Promise<void> {
+export async function refreshAsked(sql: Sql, poll: Pick<Poll, "everyone" | "groups" | "people">): Promise<void> {
   let after: string | null = null;
   for (let i = 0; i < maxPages; i++) {
     let found;
@@ -233,6 +277,7 @@ export async function queueReminders(sql: Sql, now = new Date()): Promise<string
 // purge what was deleted long ago.
 export async function pass(sql: Sql, now = new Date()): Promise<{ told: string[]; waiting: string[]; settled: string[] }> {
   await closeDue(sql, now);
+  await openRounds(sql, chestZone(), now);
   const settled = await settle(sql, now);
   await queueReminders(sql, now);
   const result = await runTellings(sql, now);

@@ -4,6 +4,7 @@ import { AppError } from "../../../../../lib/app-error.ts";
 import { groups } from "../../../../../lib/audience.ts";
 import { dates } from "../../../../../lib/dates.ts";
 import { db } from "../../../../../lib/db.ts";
+import { nameOf, people } from "../../../../../lib/people.ts";
 import { load, rights, type Poll } from "../../../../../lib/polls.ts";
 import { viewer } from "../../../../../lib/session.ts";
 import { local } from "../../../../../lib/time.ts";
@@ -35,6 +36,7 @@ export default async function EditPoll({ params }: { params: Promise<{ id: strin
       if (o.start) day.slots.push({ start: o.start, end: o.end ?? "" });
     }
   }
+  const picked = await people(poll.people);
   const initial: ComposerValue = {
     kind: poll.kind,
     title: poll.title,
@@ -48,7 +50,10 @@ export default async function EditPoll({ params }: { params: Promise<{ id: strin
     results: poll.results,
     everyone: poll.everyone,
     groups: poll.groups,
+    people: poll.people.filter(p => p.startsWith("mbr_")).map(p => ({ id: p, name: nameOf(picked.get(p), locale) })),
     closes: poll.closesAt ? local(poll.closesAt, zone) : null,
+    slots: poll.slots,
+    repeat: poll.repeat,
   };
   return (
     <div className="narrow centred">
@@ -61,7 +66,8 @@ export default async function EditPoll({ params }: { params: Promise<{ id: strin
         monthNames={d.monthNames()}
         weekdayNames={d.weekdayNames()}
         locale={locale}
-        t={{ composer: t.composer, kinds: t.kinds, errors: t.errors }}
+        round={poll.seriesId !== null}
+        t={{ composer: t.composer, kinds: t.kinds, errors: t.errors, repeat: t.repeat }}
       />
     </div>
   );

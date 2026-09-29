@@ -2,21 +2,21 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { Back, Cross, Down, KindIcon, Mask, Next, Plus, Send, Trash, Up } from "../../components/icons.tsx";
+import { Back, Cross, Down, KindIcon, Mask, Next, Plus, Repeat as RepeatIcon, Send, Trash, Up } from "../../components/icons.tsx";
 import { useToast } from "../../components/toast.tsx";
 import { format, plural } from "../../lib/i18n/format.ts";
 import type { Catalogue } from "../../lib/i18n/index.ts";
-import { editPoll, savePoll } from "./actions.ts";
+import { editPoll, savePoll, searchPeople } from "./actions.ts";
 import type { ComposerValue, Slot, SurveyQuestion } from "../../lib/composer-value.ts";
 
 // Writing a poll: its kind, its question, the answers (or days, or survey
 // questions), who is asked, anonymous or not, when results show, when it
 // closes. A new poll's words are kept in this browser until it is saved: a
 // closed tab loses nothing.
-type QKind = "choice" | "scale" | "text";
+type QKind = "choice" | "scale" | "text" | "enps";
 type Question = SurveyQuestion & { key: number };
 
-type Words = Pick<Catalogue, "composer" | "kinds" | "errors">;
+type Words = Pick<Catalogue, "composer" | "kinds" | "errors" | "repeat">;
 
 const times = Array.from({ length: 48 }, (_, i) => `${String(Math.floor(i / 2)).padStart(2, "0")}:${i % 2 ? "30" : "00"}`);
 const storageKey = "polls:new";
@@ -32,8 +32,10 @@ function monthGrid(year: number, month: number): (string | null)[] {
   return cells;
 }
 
-export function Composer({ mode, pollId, initial, groups, today, monthNames, weekdayNames, locale, t }: {
+export function Composer({ mode, pollId, initial, groups, today, monthNames, weekdayNames, locale, round, t }: {
   mode: "new" | "draft" | "open";
+  // An open round of a pulse survey: its closing time is the series'.
+  round?: boolean;
   pollId: string | null;
   initial: ComposerValue;
   groups: { id: string; name: string; size: number }[] | null;
@@ -94,6 +96,31 @@ export function Composer({ mode, pollId, initial, groups, today, monthNames, wee
     set({ days: has ? value.days.filter(d => d.day !== day) : [...value.days, { day, slots: [] }].sort((a, b) => a.day.localeCompare(b.day)) });
   }
   const setSlots = (day: string, slots: Slot[]) => set({ days: value.days.map(d => (d.day === day ? { ...d, slots } : d)) });
+  // The times of the first day that has some, on every chosen day.
+  const copyTimes = () => {
+    const from = value.days.find(d => d.slots.length > 0);
+    if (from) set({ days: value.days.map(d => ({ ...d, slots: from.slots.map(x => ({ ...x })) })) });
+  };
+
+  // People picked by name: the Chest finds them as one types.
+  const [query, setQuery] = useState("");
+  const [found, setFound] = useState<{ id: string; name: string }[] | null>(null);
+  useEffect(() => {
+    const q = query.trim();
+    if (q.length < 1) { setFound(null); return; }
+    let live = true;
+    const timer = window.setTimeout(async () => {
+      const result = await searchPeople(q);
+      if (live) setFound(result.ok ? result.value : []);
+    }, 250);
+    return () => { live = false; window.clearTimeout(timer); };
+  }, [query]);
+  const addPerson = (p: { id: string; name: string }) => {
+    if (!value.people.some(x => x.id === p.id)) set({ people: [...value.people, p] });
+    setQuery("");
+    setFound(null);
+  };
+  const hasGroups = groups !== null && groups.length > 0;
 
   function input(open: boolean) {
     return {
@@ -104,9 +131,11 @@ export function Composer({ mode, pollId, initial, groups, today, monthNames, wee
       ...(value.kind === "date" ? { dates: value.days.flatMap(d => (d.slots.length === 0 ? [{ day: d.day }] : d.slots.map(s => ({ day: d.day, start: s.start, end: s.end || null })))) } : {}),
       ...(value.kind === "survey" ? { questions: questions.map(q => ({ kind: q.kind, text: q.text, ...(q.kind === "choice" ? { options: q.options, multiple: q.multiple } : {}), ...(q.kind === "scale" ? { low: q.low, high: q.high } : {}) })) } : {}),
       anonymous: value.anonymous,
-      results: value.results,
-      audience: value.everyone || !groups || groups.length === 0 ? { everyone: true } : { everyone: false, groups: value.groups },
-      closes: value.closes,
+      results: value.anonymous ? "closed" : value.results,
+      audience: value.everyone ? { everyone: true } : { everyone: false, groups: value.groups, people: value.people.map(p => p.id) },
+      closes: value.kind === "survey" && value.repeat ? null : value.closes,
+      ...(value.kind !== "survey" && value.slots !== null && !value.anonymous ? { slots: value.slots } : {}),
+      ...(value.kind === "survey" && value.repeat ? { repeat: value.repeat } : {}),
       open,
     };
   }
@@ -115,7 +144,7 @@ export function Composer({ mode, pollId, initial, groups, today, monthNames, wee
     setBusy(open ? "send" : "save");
     setError(null);
     const result = locked
-      ? await editPoll(pollId!, { title: value.title, details: value.details, closes: value.closes })
+      ? await editPoll(pollId!, { title: value.title, details: value.details, closes: round ? null : value.closes })
       : await savePoll(pollId, input(open));
     setBusy(null);
     if (!result.ok) {
@@ -247,6 +276,24 @@ export function Composer({ mode, pollId, initial, groups, today, monthNames, wee
                   </div>
                 </div>
               ))}
+              {value.days.length > 1 && value.days.some(d => d.slots.length > 0) && (
+                <button type="button" className="button small add-line" onClick={copyTimes}>{c.copyTimes}</button>
+              )}
+            </div>
+          )}
+        </section>
+      )}
+
+      {!locked && value.kind !== "survey" && !value.anonymous && (
+        <section className="card" aria-labelledby="slots-title">
+          <label className="switch">
+            <input type="checkbox" checked={value.slots !== null} onChange={e => set({ slots: e.target.checked ? 3 : null })} />
+            <span className="switch-text"><strong id="slots-title">{c.slots}</strong><span className="hint">{value.kind === "date" ? c.slotsDateHint : c.slotsHint}</span></span>
+          </label>
+          {value.slots !== null && (
+            <div className="slots-count">
+              <label className="label" htmlFor="slots">{c.slotsCount}</label>
+              <input id="slots" className="field" type="number" inputMode="numeric" min={1} max={999} value={value.slots} onChange={e => set({ slots: Math.max(1, Math.min(999, Math.floor(Number(e.target.value) || 1))) })} />
             </div>
           )}
         </section>
@@ -267,10 +314,14 @@ export function Composer({ mode, pollId, initial, groups, today, monthNames, wee
               <input className="field" value={q.text} maxLength={200} aria-label={format(c.question, { n: i + 1 })} placeholder={c.questionPlaceholder} onChange={e => setQuestion(q.key, { text: e.target.value })} />
               <div>
                 <label className="label" htmlFor={"kind-" + q.key}>{c.answerWith}</label>
-                <select id={"kind-" + q.key} className="field" value={q.kind} onChange={e => setQuestion(q.key, { kind: e.target.value as QKind })}>
-                  {(["choice", "scale", "text"] as const).map(k => <option key={k} value={k}>{c.questionKinds[k]}</option>)}
+                <select id={"kind-" + q.key} className="field" value={q.kind} onChange={e => {
+                  const kind = e.target.value as QKind;
+                  setQuestion(q.key, { kind, ...(kind === "enps" && q.text.trim() === "" ? { text: c.enpsDefault } : {}) });
+                }}>
+                  {(["choice", "scale", "text", "enps"] as const).map(k => <option key={k} value={k}>{c.questionKinds[k]}</option>)}
                 </select>
               </div>
+              {q.kind === "enps" && <p className="hint">{c.enpsHint}</p>}
               {q.kind === "choice" && (
                 <>
                   <div className="list-edit">
@@ -295,6 +346,13 @@ export function Composer({ mode, pollId, initial, groups, today, monthNames, wee
             </fieldset>
           ))}
           {questions.length < 10 && <button type="button" className="button small add-line" onClick={() => setQuestions(qs => [...qs, { key: nextKey.current++, kind: "choice", text: "", options: ["", ""], multiple: false, low: "", high: "" }])}><Plus />{c.addQuestion}</button>}
+          <fieldset className="repeat">
+            <legend className="label"><RepeatIcon />{c.repeat}</legend>
+            <label className="radio-line"><input type="radio" name="repeat" checked={value.repeat === null} onChange={() => set({ repeat: null })} />{c.once}</label>
+            <label className="radio-line"><input type="radio" name="repeat" checked={value.repeat === "week"} onChange={() => set({ repeat: "week" })} />{t.repeat.week}</label>
+            <label className="radio-line"><input type="radio" name="repeat" checked={value.repeat === "month"} onChange={() => set({ repeat: "month" })} />{t.repeat.month}</label>
+            {value.repeat && <p className="hint">{c.repeatHint}</p>}
+          </fieldset>
         </section>
       )}
 
@@ -303,38 +361,65 @@ export function Composer({ mode, pollId, initial, groups, today, monthNames, wee
         {!locked && (
           <fieldset>
             <legend className="label">{c.who}</legend>
-            <label className="radio-line"><input type="radio" name="who" checked={value.everyone || !groups || groups.length === 0} onChange={() => set({ everyone: true })} />{c.everyone}</label>
-            {groups && groups.length > 0 ? (
-              <>
-                <label className="radio-line"><input type="radio" name="who" checked={!value.everyone} onChange={() => set({ everyone: false })} />{c.someGroups}</label>
-                {!value.everyone && (
-                  <div className="group-list">
-                    {groups.map(g => (
+            <label className="radio-line"><input type="radio" name="who" checked={value.everyone} onChange={() => set({ everyone: true })} />{c.everyone}</label>
+            <label className="radio-line"><input type="radio" name="who" checked={!value.everyone} onChange={() => set({ everyone: false })} />{c.chosen}</label>
+            {!value.everyone && (
+              <div className="audience">
+                {hasGroups ? (
+                  <div className="group-list" role="group" aria-label={c.groupsLabel}>
+                    {groups!.map(g => (
                       <label key={g.id}>
                         <input type="checkbox" checked={value.groups.includes(g.id)} onChange={e => set({ groups: e.target.checked ? [...value.groups, g.id] : value.groups.filter(x => x !== g.id) })} />
                         <span>{g.name} <small>{plural(c.groupSize, g.size, locale)}</small></span>
                       </label>
                     ))}
                   </div>
-                )}
-              </>
-            ) : <p className="hint">{c.noGroups}</p>}
+                ) : <p className="hint">{c.noGroups}</p>}
+                <div className="people-pick">
+                  <label className="label" htmlFor="find-people">{c.peopleLabel}</label>
+                  {value.people.length > 0 && (
+                    <ul className="picked">
+                      {value.people.map(p => (
+                        <li key={p.id} className="chip">
+                          {p.name}
+                          <button type="button" className="chip-x" onClick={() => set({ people: value.people.filter(x => x.id !== p.id) })}><Cross /><span className="visually-hidden">{format(c.removePerson, { name: p.name })}</span></button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  <input id="find-people" className="field" type="search" autoComplete="off" value={query} placeholder={c.findPeople} onChange={e => setQuery(e.target.value)}
+                    onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); const first = found?.find(p => !value.people.some(x => x.id === p.id)); if (first) addPerson(first); } }} />
+                  {found !== null && (
+                    found.length === 0 ? <p className="hint" role="status">{c.noMatch}</p> : (
+                      <ul className="found" aria-label={c.findPeople}>
+                        {found.filter(p => !value.people.some(x => x.id === p.id)).map(p => (
+                          <li key={p.id}><button type="button" className="button small" onClick={() => addPerson(p)}><Plus />{p.name}</button></li>
+                        ))}
+                      </ul>
+                    )
+                  )}
+                </div>
+              </div>
+            )}
           </fieldset>
         )}
-        {!locked && (
+        {!locked && (value.kind === "survey" || value.slots === null) && (
           <label className="switch">
             <input type="checkbox" checked={value.anonymous} onChange={e => set({ anonymous: e.target.checked, ...(e.target.checked ? { results: "closed" as const } : {}) })} />
             <span className="switch-text"><strong>{c.anonymous}</strong><span className="hint">{c.anonymousHint}</span></span>
           </label>
         )}
-        {!locked && (
+        {!locked && (value.anonymous ? (
+          <p className="note anon"><Mask />{c.anonymousResults}</p>
+        ) : (
           <fieldset>
             <legend className="label">{c.results}</legend>
             <label className="radio-line"><input type="radio" name="results" checked={value.results === "live"} onChange={() => set({ results: "live" })} />{c.live}</label>
             <label className="radio-line"><input type="radio" name="results" checked={value.results === "closed"} onChange={() => set({ results: "closed" })} />{c.afterClose}</label>
             <p className="hint">{c.resultsHint}</p>
           </fieldset>
-        )}
+        ))}
+        {(value.kind === "survey" && value.repeat) || round ? <p className="hint"><RepeatIcon /> {c.repeatHint}</p> : (
         <fieldset>
           <legend className="label">{c.closes}</legend>
           <label className="radio-line"><input type="radio" name="closes" checked={value.closes === null} onChange={() => set({ closes: null })} />{c.never}</label>
@@ -348,6 +433,7 @@ export function Composer({ mode, pollId, initial, groups, today, monthNames, wee
             </div>
           )}
         </fieldset>
+        )}
       </section>
 
       <div className="actions-bar">

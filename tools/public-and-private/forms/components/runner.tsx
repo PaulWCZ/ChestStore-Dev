@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import type { ErrorCode } from "../lib/app-error.ts";
 import type { Catalogue } from "../lib/i18n/index.ts";
 import { format, plural } from "../lib/i18n/format.ts";
@@ -436,15 +436,17 @@ function QuestionField(p: FieldProps) {
   const auto = p.autofocus ? { "data-autofocus": true } : {};
   // A pick with the mouse or a finger moves on by itself (one question at a
   // time); the keyboard's arrows only choose — Enter goes on.
-  const picked = (e: MouseEvent<HTMLInputElement>) => {
-    if (e.detail > 0) p.onPicked?.();
+  const pointer = useRef(false);
+  const press = { onPointerDown: () => { pointer.current = true; } };
+  const picked = () => {
+    if (pointer.current) p.onPicked?.();
+    pointer.current = false;
   };
 
   const heading = (
     <>
       {p.number !== null && <span className="q-number" aria-hidden="true">{p.number}<Arrow /></span>}
-      <span className="q-title">{q.title}</span>
-      {q.required && <span className="q-required"><span aria-hidden="true">*</span><span className="visually-hidden">{w.requiredMark}</span></span>}
+      <span className="q-title">{q.title}{q.required && <span className="q-required"><span aria-hidden="true"> *</span><span className="visually-hidden">{w.requiredMark}</span></span>}</span>
     </>
   );
   const help = q.help ? <p className="q-help" id={helpId}>{q.help}</p> : null;
@@ -466,7 +468,7 @@ function QuestionField(p: FieldProps) {
     const common = { id: inputId, "aria-describedby": describedBy, "aria-invalid": invalid, "aria-required": q.required || undefined, ...auto };
     let control: ReactNode;
     if (q.kind === "long") {
-      control = <textarea className="answer-input long" rows={p.steps ? 3 : 4} value={text} maxLength={q.max ?? 5000} placeholder={w.typeHere} onChange={e => p.onChange(e.target.value)} {...common} />;
+      control = <textarea className="answer-input long" rows={p.steps ? 3 : 4} value={text} maxLength={q.max ?? 5000} placeholder={p.steps ? w.typeHere : undefined} onChange={e => p.onChange(e.target.value)} {...common} />;
     } else if (q.kind === "dropdown") {
       const picked = isPick(p.value) ? p.value.ids[0] ?? "" : "";
       control = (
@@ -479,7 +481,7 @@ function QuestionField(p: FieldProps) {
       const type = q.kind === "email" ? "email" : q.kind === "phone" ? "tel" : q.kind === "date" ? "date" : "text";
       const inputMode = q.kind === "number" ? "decimal" : q.kind === "email" ? "email" : q.kind === "phone" ? "tel" : undefined;
       const autoComplete = q.kind === "email" ? "email" : q.kind === "phone" ? "tel" : undefined;
-      control = <input className="answer-input" type={type} inputMode={inputMode} autoComplete={autoComplete} value={text} maxLength={q.kind === "short" ? (q.max ?? 500) : undefined} placeholder={q.kind === "number" ? w.numberHere : q.kind === "date" ? undefined : w.typeHere} onChange={e => p.onChange(e.target.value)} {...common} />;
+      control = <input className="answer-input" type={type} inputMode={inputMode} autoComplete={autoComplete} value={text} maxLength={q.kind === "short" ? (q.max ?? 500) : undefined} placeholder={!p.steps || q.kind === "date" ? undefined : q.kind === "number" ? w.numberHere : w.typeHere} onChange={e => p.onChange(e.target.value)} {...common} />;
     }
     const bounds = q.kind === "number" ? rangeText(q, w) : null;
     return (
@@ -503,7 +505,7 @@ function QuestionField(p: FieldProps) {
         <span id={inputId} tabIndex={-1} className="q-focus" {...auto}>{heading}</span>
       </legend>
       {help}
-      {extraHint && <p className="q-help">{extraHint}</p>}
+      {extraHint && <p className={q.kind === "scale" ? "visually-hidden" : "q-help"}>{extraHint}</p>}
       <div className={`answer-group group-${q.kind}`} role={role === "radiogroup" ? "radiogroup" : undefined} aria-labelledby={legendId}>{children}</div>
       {error}
     </fieldset>
@@ -524,8 +526,8 @@ function QuestionField(p: FieldProps) {
         {q.options?.map((o, i) => {
           const on = pick.ids.includes(o.id);
           return (
-            <label key={o.id} className={`pill${on ? " on" : ""}`}>
-              <input type={multiple ? "checkbox" : "radio"} name={name} checked={on} onChange={() => toggle(o.id)} onClick={e => { if (!multiple) picked(e); }} />
+            <label key={o.id} className={`pill${on ? " on" : ""}`} {...press}>
+              <input type={multiple ? "checkbox" : "radio"} name={name} checked={on} onChange={() => toggle(o.id)} onClick={() => { if (!multiple) picked(); else pointer.current = false; }} />
               <span className="pill-key" aria-hidden="true">{letters[i] ?? ""}</span>
               <span className="pill-label">{o.label}</span>
               {on && <Check />}
@@ -553,7 +555,7 @@ function QuestionField(p: FieldProps) {
     return group(
       <>
         {[true, false].map(v => (
-          <label key={String(v)} className={`pill yesno${p.value === v ? " on" : ""}`}>
+          <label key={String(v)} className={`pill yesno${p.value === v ? " on" : ""}`} {...press}>
             <input type="radio" name={name} checked={p.value === v} onChange={() => p.onChange(v)} onClick={picked} />
             <span className="pill-key" aria-hidden="true">{(v ? w.yes : w.no)[0]}</span>
             <span className="pill-label">{v ? w.yes : w.no}</span>
@@ -570,7 +572,7 @@ function QuestionField(p: FieldProps) {
     return group(
       <div className="stars">
         {Array.from({ length: q.steps ?? 5 }, (_, i) => i + 1).map(v => (
-          <label key={v} className={`star${v <= n ? " on" : ""}`}>
+          <label key={v} className={`star${v <= n ? " on" : ""}`} {...press}>
             <input type="radio" name={name} checked={n === v} onChange={() => p.onChange(v)} onClick={picked} />
             <StarIcon filled={v <= n} />
             <span className="visually-hidden">{plural(w.stars, v, p.locale)}</span>
@@ -588,7 +590,7 @@ function QuestionField(p: FieldProps) {
       <>
         <div className="scale" style={{ ["--cells" as string]: String(to - from + 1) }}>
           {Array.from({ length: to - from + 1 }, (_, i) => from + i).map(v => (
-            <label key={v} className={`cell${p.value === v ? " on" : ""}`}>
+            <label key={v} className={`cell${p.value === v ? " on" : ""}`} {...press}>
               <input type="radio" name={name} checked={p.value === v} onChange={() => p.onChange(v)} onClick={picked} />
               <span>{v}</span>
             </label>

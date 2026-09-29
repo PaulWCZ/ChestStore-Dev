@@ -10,6 +10,8 @@ export const errorCodes = [
   "company_incomplete", "client_incomplete", "client_archived", "no_email",
   "deposit_invalid", "nothing_left", "credit_too_large", "payment_too_large", "payment_invalid", "nothing_due",
   "frozen", "suppressed", "mail_quota", "logo_type", "logo_too_large", "file_missing", "period_invalid", "export_too_large",
+  "next_number_invalid", "next_number_backwards", "numbering_started", "link_invalid", "reminder_days_invalid", "account_invalid",
+  "import_invalid", "import_empty", "import_too_large", "repeat_invalid",
   "unavailable", "unknown",
 ] as const;
 export type ErrorCode = (typeof errorCodes)[number];

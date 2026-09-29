@@ -125,7 +125,7 @@ function ReceiptPicker({ t, initial, onChange, onBusy, onError }: {
         {sending ? <><span>{t.receipt.sending}</span><span className="progress"><i /></span></> : <><strong>{(ready || initial) && <Check />}{ready || !initial ? t.receipt.ready : shown.pdf ? t.receipt.pdf : t.receipt.title}</strong><span className="hint">{t.receipt.kept}</span></>}
       </div>
       <div className="actions">
-        <label className="link-button" style={{ position: "relative" }}>{t.receipt.replace}{input(false)}</label>
+        <label className="link-button file-label">{t.receipt.replace}{input(false)}</label>
         <button type="button" className="link-button danger" onClick={() => { setShown(null); setReady(false); onChange(null); }} disabled={sending}>{t.receipt.remove}</button>
       </div>
     </div>

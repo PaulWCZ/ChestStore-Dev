@@ -7,6 +7,7 @@ export const limits = {
   spaceDescription: 300,
   spaces: 200,
   groupsPerSpace: 16,
+  editorsPerSpace: 100,
   title: 200,
   pages: 5000,
   depth: 12,
@@ -34,6 +35,11 @@ export const isReviewMonths = (value: unknown): value is ReviewMonths => typeof 
 export const lockIdleMinutes = 15;
 // The editor saves the draft this often while typing, which keeps the lock.
 export const draftEverySeconds = 2;
+// An open editor says so this often; a lock not heard of for the lease
+// (a closed tab, a crashed laptop) is free again — a tab that is closed
+// properly gives it back at once.
+export const heartbeatSeconds = 30;
+export const lockLeaseSeconds = 120;
 
 // The colours of spaces: names the design turns into tokens.
 export const colors = ["green", "blue", "plum", "rust", "ochre", "slate"] as const;
@@ -68,6 +74,14 @@ export function groupIds(value: unknown): string[] {
   if (!Array.isArray(value) || !value.every(v => typeof v === "string" && groupPattern.test(v))) throw new AppError("invalid");
   const ids = [...new Set(value as string[])];
   if (ids.length > limits.groupsPerSpace) throw new AppError("too_many", { max: limits.groupsPerSpace });
+  return ids;
+}
+
+// The groups and people who edit a space kept to some editors.
+export function editorIds(value: unknown): string[] {
+  if (!Array.isArray(value) || !value.every(v => typeof v === "string" && (groupPattern.test(v) || memberPattern.test(v)))) throw new AppError("invalid");
+  const ids = [...new Set(value as string[])];
+  if (ids.length > limits.editorsPerSpace) throw new AppError("too_many", { max: limits.editorsPerSpace });
   return ids;
 }
 

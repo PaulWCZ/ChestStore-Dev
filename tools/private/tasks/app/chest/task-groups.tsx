@@ -7,15 +7,20 @@ import { useToast } from "../../components/toast.tsx";
 import { format } from "../../lib/i18n/format.ts";
 import type { Catalogue } from "../../lib/i18n/index.ts";
 import type { DueState } from "../../lib/model.ts";
-import { moveCard } from "./actions.ts";
+import { moveCard, updateItem } from "./actions.ts";
 
+// A task of mine: a card given to me, or a step of a card's checklist given
+// to me (a subtask: its card is named under it).
 export type TaskRow = {
+  kind: "card" | "step";
   id: string;
   title: string;
+  cardId: string;
+  cardTitle: string | null;
   boardId: string;
   boardName: string;
   boardColor: string;
-  columnId: string;
+  columnId: string | null;
   due: string | null;
   dueLabel: string | null;
   state: DueState;
@@ -23,22 +28,32 @@ export type TaskRow = {
   repeats: boolean;
   done: { id: string; name: string } | null;
 };
-type Words = { groups: Catalogue["home"]["groups"]; markDone: string; doneToast: string; doneRepeatToast: string; repeats: string; undo: string; errors: Catalogue["errors"]; late: string; today: string; progress: string };
+type Words = { groups: Catalogue["home"]["groups"]; markDone: string; doneToast: string; doneRepeatToast: string; stepDone: string; stepOf: string; repeats: string; undo: string; errors: Catalogue["errors"]; late: string; today: string; progress: string };
 
-// My tasks by when they are due. Ticking one moves it to its board's
-// "done" column at once, with "Undo".
+// My tasks by when they are due. Ticking a card moves it to its board's
+// "done" column at once, ticking a step ticks it on its card; with "Undo".
 export function TaskGroups({ rows, order, t }: { rows: TaskRow[]; order: DueState[]; t: Words }) {
-  const [shown, remove] = useOptimistic(rows, (list: TaskRow[], id: string) => list.filter(r => r.id !== id));
+  const key = (r: TaskRow) => r.kind + r.id;
+  const [shown, remove] = useOptimistic(rows, (list: TaskRow[], gone: string) => list.filter(r => key(r) !== gone));
   const [, start] = useTransition();
   const toast = useToast();
   function done(row: TaskRow) {
-    if (!row.done) return;
-    const target = row.done;
+    if (row.kind === "step") {
+      start(async () => {
+        remove(key(row));
+        const result = await updateItem(row.id, { done: true });
+        if (!result.ok) return toast(format(t.errors[result.error], result.values));
+        toast(t.stepDone, { label: t.undo, run: () => start(async () => { await updateItem(row.id, { done: false }); }) });
+      });
+      return;
+    }
+    if (!row.done || !row.columnId) return;
+    const target = row.done, from = row.columnId;
     start(async () => {
-      remove(row.id);
+      remove(key(row));
       const result = await moveCard(row.id, target.id, null, null);
       if (!result.ok) return toast(format(t.errors[result.error], result.values));
-      toast(format(row.repeats ? t.doneRepeatToast : t.doneToast, { column: target.name }), { label: t.undo, run: () => start(async () => { await moveCard(row.id, row.columnId, null, null); }) });
+      toast(format(row.repeats ? t.doneRepeatToast : t.doneToast, { column: target.name }), { label: t.undo, run: () => start(async () => { await moveCard(row.id, from, null, null); }) });
     });
   }
   return (
@@ -51,13 +66,16 @@ export function TaskGroups({ rows, order, t }: { rows: TaskRow[]; order: DueStat
             <h2 id={`group-${state}`}>{t.groups[state]} <span className="chip">{list.length}</span></h2>
             <ul className="task-list">
               {list.map(row => (
-                <li key={row.id} className="task">
-                  {row.done ? (
+                <li key={key(row)} className={`task${row.kind === "step" ? " step" : ""}`}>
+                  {row.kind === "step" || row.done ? (
                     <button type="button" className="check" onClick={() => done(row)} title={format(t.markDone, { title: row.title })}>
                       <Check /><span className="visually-hidden">{format(t.markDone, { title: row.title })}</span>
                     </button>
                   ) : <span className="check" aria-hidden="true" />}
-                  <Link className="title" href={`/chest/boards/${row.boardId}?card=${row.id}`}>{row.title}</Link>
+                  <span className="task-text">
+                    <Link className="title" href={`/chest/boards/${row.boardId}?card=${row.cardId}`}>{row.title}</Link>
+                    {row.cardTitle && <span className="small muted">{format(t.stepOf, { card: row.cardTitle })}</span>}
+                  </span>
                   <span className="where">
                     {row.repeats && <span className="chip" title={t.repeats}><RepeatIcon /><span className="visually-hidden">{t.repeats}</span></span>}
                     {row.checklist.total > 0 && <span className="chip"><CheckList />{row.checklist.done}/{row.checklist.total}</span>}

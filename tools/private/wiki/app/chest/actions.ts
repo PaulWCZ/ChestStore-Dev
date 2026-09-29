@@ -45,7 +45,7 @@ export async function createSpace(input: { name: string; description?: string })
   return act(async actor => ({ id: (await spaces.createSpace(db(), actor, input)).id }));
 }
 
-export async function updateSpace(spaceId: string, input: { name?: string; description?: string; color?: string; visibility?: string; groups?: string[] }): Promise<Result<null>> {
+export async function updateSpace(spaceId: string, input: { name?: string; description?: string; color?: string; visibility?: string; groups?: string[]; editing?: string; editors?: string[] }): Promise<Result<null>> {
   return act(async actor => { await spaces.updateSpace(db(), actor, spaceId, input); return null; });
 }
 
@@ -136,6 +136,27 @@ export async function publishPage(pageId: string, input: { title: string; doc: u
     if (done.changed) await tell.saved(db(), actor, await pages.page(db(), actor, pageId));
     return done;
   });
+}
+
+// The open editor, every 30 seconds: the lock stays the member's (or comes
+// back, if it lapsed and nobody took it); someone else's comes with a name.
+export async function keepEditing(pageId: string): Promise<Result<{ holder: Holder | null }>> {
+  return act(async actor => {
+    const { lock } = await editing.heartbeat(db(), actor, pageId);
+    return { holder: lock ? await holder(lock, actor) : null };
+  }, { refresh: false });
+}
+
+// Unsaved changes dropped from the page itself; Undo puts them back.
+export async function discardDraft(pageId: string): Promise<Result<{ title: string; doc: string; baseVersion: number } | null>> {
+  return act(async actor => {
+    const kept = await editing.discardDraft(db(), actor, pageId);
+    return kept ? { title: kept.title, doc: JSON.stringify(kept.doc), baseVersion: kept.baseVersion } : null;
+  });
+}
+
+export async function keepDraft(pageId: string, draft: { title: string; doc: string; baseVersion: number }): Promise<Result<null>> {
+  return act(async actor => { await editing.keepDraft(db(), actor, pageId, draft); return null; });
 }
 
 export async function stopEditing(pageId: string, keepDraft = false): Promise<Result<null>> {

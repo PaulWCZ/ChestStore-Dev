@@ -3,7 +3,7 @@ import { diffArrays, diffWords } from "diff";
 import type { Sql, Query } from "./db.ts";
 import { lines, normalize, type Doc } from "./doc.ts";
 import { AppError } from "./errors.ts";
-import { limits, lockIdleMinutes } from "./model.ts";
+import { limits, lockIdleMinutes, lockLeaseSeconds } from "./model.ts";
 import { page, writeContent } from "./pages.ts";
 
 // A page's history: every save is a version, kept whole. The history lists
@@ -37,7 +37,9 @@ export async function restore(sql: Sql, actor: Member | null, pageId: unknown, n
   const old = await version(sql, actor, p.id, number);
   return sql.begin(async tx => {
     const [lock] = await tx<{ member_id: string; idle: boolean }[]>`
-      select member_id, active_at < now() - make_interval(mins => ${lockIdleMinutes}) as idle from page_locks where page_id = ${p.id} for update`;
+      select member_id, active_at < now() - make_interval(mins => ${lockIdleMinutes})
+        or seen_at < now() - make_interval(secs => ${lockLeaseSeconds}) as idle
+      from page_locks where page_id = ${p.id} for update`;
     if (lock && lock.member_id !== actor!.id && !lock.idle) throw new AppError("locked");
     await tx`select 1 from pages where id = ${p.id} for update`;
     return { version: await writeContent(tx, p.id, actor!.id, { title: old.title, doc: old.doc, kind: "restored", restoredFrom: old.number }) };

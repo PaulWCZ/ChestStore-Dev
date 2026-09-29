@@ -214,10 +214,33 @@ export function prefix(value: unknown): string {
   return text;
 }
 
-// A document's number: prefix, year, and the sequence on four digits
-// (more beyond 9,999): "F-2026-0042".
-export function documentNumber(prefixText: string, year: number, seq: number): string {
-  return `${prefixText}-${year}-${String(seq).padStart(4, "0")}`;
+// How documents are numbered: with the year, from 0001 each year
+// ("F-2026-0042"), or without it, never restarting ("F-0042") — the way
+// many companies number, and the one to continue from a tool that did so.
+export const numberFormats = ["yearly", "continuous"] as const;
+export type NumberFormat = (typeof numberFormats)[number];
+
+// The period a sequence counts in: the year of the day, or 0 when the
+// numbers never restart.
+export function periodOf(numberFormat: NumberFormat, today: string): number {
+  return numberFormat === "continuous" ? 0 : Number(today.slice(0, 4));
+}
+
+// A document's number: prefix, year (none in the period 0), and the
+// sequence on four digits (more beyond 9,999): "F-2026-0042", "F-0042".
+export function documentNumber(prefixText: string, period: number, seq: number): string {
+  return period === 0 ? `${prefixText}-${String(seq).padStart(4, "0")}` : `${prefixText}-${period}-${String(seq).padStart(4, "0")}`;
+}
+
+// A number this tool could have given (a sent quote's, in a message).
+export const numberPattern = /^[A-Z0-9]{1,8}(-\d{4})?-\d{4,}$/u;
+
+// The next number a person asks a sequence to continue from: a whole
+// number from 1 to 99,999,999.
+export function nextSeq(value: unknown): number {
+  const n = typeof value === "string" && /^\s*\d{1,8}\s*$/u.test(value) ? Number(value.trim()) : value;
+  if (typeof n !== "number" || !Number.isInteger(n) || n < 1 || n > 99_999_999) throw new AppError("next_number_invalid");
+  return n;
 }
 
 // --- Documents ------------------------------------------------------------

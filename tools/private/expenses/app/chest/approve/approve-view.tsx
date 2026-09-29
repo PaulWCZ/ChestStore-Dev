@@ -3,7 +3,8 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { Avatar } from "../../../components/avatar.tsx";
-import { DateBox, Stamp, Thumb, Warnings } from "../../../components/bits.tsx";
+import { DateBox, ReceiptThumb, Stamp, Warnings } from "../../../components/bits.tsx";
+import { Dialog } from "../../../components/dialog.tsx";
 import { Check, Close, Stamp as StampIcon } from "../../../components/icons.tsx";
 import { useToast } from "../../../components/toast.tsx";
 import type { Catalogue } from "../../../lib/i18n/index.ts";
@@ -14,6 +15,9 @@ import { decideExpenses } from "../actions.ts";
 export type PersonGroup = { owner: string; name: string; photo: string | null; summary: string; sent: string; self: boolean; rows: RowView[] };
 type Words = Pick<Catalogue, "approve" | "detail" | "form" | "errors"> & { companyCard: string };
 
+// What "Approve all" may approve at once: the lines without a warning.
+const clean = (g: PersonGroup) => g.rows.filter(r => r.warnings.length === 0);
+
 export function ApproveView({ groups, recent, locale, t }: { groups: PersonGroup[]; recent: RowView[]; locale: string; t: Words }) {
   const router = useRouter();
   const toast = useToast();
@@ -21,6 +25,7 @@ export function ApproveView({ groups, recent, locale, t }: { groups: PersonGroup
   const [gone, setGone] = useState<Set<string>>(new Set());
   const [refusing, setRefusing] = useState<string | null>(null);
   const [reason, setReason] = useState("");
+  const [lightbox, setLightbox] = useState<RowView | null>(null);
 
   function decide(ids: string[], verdict: "approve" | "refuse", why?: string) {
     setGone(set => new Set([...set, ...ids]));
@@ -55,18 +60,22 @@ export function ApproveView({ groups, recent, locale, t }: { groups: PersonGroup
               <div className="name">{g.name}</div>
               <div className="hint">{g.summary}{g.sent ? " · " + format(t.approve.sentOn, { when: g.sent }) : ""}</div>
             </div>
-            {g.rows.length > 1 && (
-              <button type="button" className="button" disabled={pending} onClick={() => decide(g.rows.map(r => r.id), "approve")}>
-                <Check />{plural(t.approve.approveAll, g.rows.length, locale)}
+            {/* "Approve all" approves what has no warning; a warned line
+                (a refusal sent again, no receipt, a duplicate…) gets a look
+                and a decision of its own. */}
+            {g.rows.length > 1 && clean(g).length > 0 && (
+              <button type="button" className="button" disabled={pending} onClick={() => decide(clean(g).map(r => r.id), "approve")}>
+                <Check />{clean(g).length === g.rows.length ? plural(t.approve.approveAll, g.rows.length, locale) : plural(t.approve.approveClean, clean(g).length, locale)}
               </button>
             )}
           </div>
+          {g.rows.length > 1 && clean(g).length < g.rows.length && <p className="hint" style={{ marginTop: 8 }}>{plural(t.approve.lookFirst, g.rows.length - clean(g).length, locale)}</p>}
           {g.self && <p className="notice info" style={{ marginTop: 12 }}>{t.approve.self}</p>}
           <hr className="rule" />
           <ul className="rows">
             {g.rows.map(r => (
-              <li key={r.id} className="row decision">
-                <Thumb row={r} />
+              <li key={r.id} className={`row decision${r.warnings.length > 0 ? " warned" : ""}`}>
+                <ReceiptThumb row={r} label={format(t.approve.openReceipt, { what: r.what })} onPreview={() => setLightbox(r)} />
                 <a className="main" href={r.href}>
                   <span className="what">{r.what}</span>
                   <span className="sub"><span className="mono">{r.day} {r.month}</span>{r.sub && <span>{r.sub}</span>}{r.card && <span>{t.companyCard}</span>}<Warnings list={r.warnings} /></span>
@@ -75,7 +84,7 @@ export function ApproveView({ groups, recent, locale, t }: { groups: PersonGroup
                   <span className="amount">{r.amount}</span>
                   <span className="decide">
                     <button type="button" className="button small" disabled={pending} onClick={() => decide([r.id], "approve")} aria-label={`${t.approve.approveOne}: ${r.what}, ${r.amount}`}><Check />{t.approve.approveOne}</button>
-                    <button type="button" className="button small danger" disabled={pending} onClick={() => { setRefusing(r.id); setReason(""); }} aria-label={`${t.approve.refuse}: ${r.what}, ${r.amount}`}><Close /><span className="visually-hidden">{t.approve.refuse}</span></button>
+                    <button type="button" className="button small danger" disabled={pending} onClick={() => { setRefusing(r.id); setReason(""); }} aria-label={`${t.approve.refuse}: ${r.what}, ${r.amount}`}><Close /><span className="refuse-word">{t.approve.refuse}</span></button>
                   </span>
                 </span>
                 {refusing === r.id && (
@@ -91,6 +100,10 @@ export function ApproveView({ groups, recent, locale, t }: { groups: PersonGroup
           </ul>
         </section>
       ))}
+      <Dialog open={lightbox !== null} title={lightbox ? format(t.approve.openReceipt, { what: lightbox.what }) : ""} closeLabel={t.detail.close} onClose={() => setLightbox(null)}>
+        {lightbox?.preview && <img className="lightbox" src={lightbox.preview} alt={format(t.approve.openReceipt, { what: lightbox.what })} />}
+        {lightbox?.open && <a className="button quiet small" href={lightbox.open} target="_blank" rel="noopener">{t.detail.openFull}</a>}
+      </Dialog>
       {recent.length > 0 && (
         <section className="section" aria-label={t.approve.recent}>
           <h2><span>{t.approve.recent}</span></h2>

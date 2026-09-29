@@ -1,5 +1,20 @@
 [
-  { "name": "notes", "path": "/chest", "member": "camille", "locale": "en", "preview": true },
-  { "name": "notes-fr", "path": "/chest", "member": "ines", "locale": "fr" },
-  { "name": "notes-dark", "path": "/chest", "member": "hugo", "locale": "en", "dark": true, "only": ["phone"] }
+  { "name": "builder", "path": "/chest/forms/1", "member": "ines", "locale": "en", "preview": true, "actions": [{ "click": ".qcard >> nth=1 >> .card-summary" }, { "wait": 500 }] },
+  { "name": "home", "path": "/chest", "member": "camille", "locale": "en" },
+  { "name": "templates", "path": "/chest/new", "member": "ines", "locale": "en" },
+  { "name": "public-start", "path": "/k7m2fq9d", "member": "camille", "locale": "en" },
+  { "name": "public-question", "path": "/k7m2fq9d", "member": "camille", "locale": "en", "actions": [{ "click": "text=Start" }, { "wait": 500 }, { "click": ".star >> nth=3" }, { "wait": 700 }] },
+  { "name": "public-classic", "path": "/p4x8vn2c", "member": "camille", "locale": "en" },
+  { "name": "public-classic-fr", "path": "/p4x8vn2c", "member": "camille", "locale": "fr", "only": ["phone"] },
+  { "name": "team-form", "path": "/chest/f/t9r3hw6b", "member": "hugo", "locale": "en" },
+  { "name": "anonymous-form-fr-dark", "path": "/chest/f/w5c8ja3e", "member": "sofia", "locale": "fr", "dark": true, "actions": [{ "click": ".button.form-button" }, { "wait": 500 }] },
+  { "name": "answers", "path": "/chest/forms/1/answers", "member": "ines", "locale": "en" },
+  { "name": "answer", "path": "/chest/forms/2/answers/seed00000000000s", "member": "camille", "locale": "en" },
+  { "name": "summary", "path": "/chest/forms/1/summary", "member": "ines", "locale": "en" },
+  { "name": "summary-anonymous-fr-dark", "path": "/chest/forms/4/summary", "member": "camille", "locale": "fr", "dark": true },
+  { "name": "settings", "path": "/chest/forms/1/settings", "member": "ines", "locale": "en" },
+  { "name": "share", "path": "/chest/forms/2/share", "member": "camille", "locale": "en" },
+  { "name": "builder-fr", "path": "/chest/forms/3", "member": "camille", "locale": "fr", "only": ["phone"] },
+  { "name": "privacy", "path": "/chest/privacy?q=paul.durand%40example.org", "member": "camille", "locale": "en", "only": ["desktop"] },
+  { "name": "home-fr-dark", "path": "/chest", "member": "camille", "locale": "fr", "dark": true }
 ]

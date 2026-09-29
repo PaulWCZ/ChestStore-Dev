@@ -25,3 +25,11 @@ export function Stamp({ row, big = false }: { row: Pick<RowView, "stamp">; big?:
 export function Warnings({ list }: { list: string[] }) {
   return <>{list.map(w => <span key={w} className="warn"><Alert />{w}</span>)}</>;
 }
+
+// A thumbnail that opens its receipt: a photo in a large preview (the
+// caller's lightbox), a PDF in a new tab; nothing to open, just the icon.
+export function ReceiptThumb({ row, label, onPreview }: { row: Pick<RowView, "thumb" | "icon" | "open" | "preview">; label: string; onPreview: () => void }) {
+  if (row.preview) return <button type="button" className="thumb-button" onClick={onPreview}><Thumb row={row} /><span className="visually-hidden">{label}</span></button>;
+  if (row.open) return <a className="thumb-button" href={row.open} target="_blank" rel="noopener"><Thumb row={row} /><span className="visually-hidden">{label}</span></a>;
+  return <Thumb row={row} />;
+}

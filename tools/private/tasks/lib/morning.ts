@@ -5,9 +5,10 @@ import * as notifications from "@argentic/chest-sdk/notifications";
 import type { Run } from "@argentic/chest-sdk/schedules";
 import { boardAccess } from "./access.ts";
 import { membership } from "./boards.ts";
-import { urgentCounts } from "./cards.ts";
+import { purgeComments, urgentCounts } from "./cards.ts";
 import type { Sql } from "./db.ts";
 import { catalogue, format, isLocale, plural, type Catalogue } from "./i18n/index.ts";
+import { email } from "./mail.ts";
 import { today } from "./model.ts";
 import { badges, cut, withdraw } from "./notify.ts";
 import { reminderKey } from "./reminders.ts";
@@ -24,7 +25,10 @@ import { catchUp } from "./repeats.ts";
 //    soon as their last one is done: tell.refreshBadges). Cards done or
 //    archived never remind; a person who turned the reminder off is not
 //    reminded;
-// 3. every tile's number is set right, since dates moved overnight.
+//    The same goes by email to those who did not turn email off (Proposal
+//    (studio) "mail"); steps given to them (subtasks) count as tasks;
+// 3. every tile's number is set right, since dates moved overnight;
+// 4. comments removed yesterday are deleted for good (the Undo is long past).
 //
 // Idempotent: a run delivered twice makes no second card and sends the
 // same item again under the same key.
@@ -34,12 +38,19 @@ type Due = { member_id: string; board_id: string; title: string; due_on: string 
 export async function morning(sql: Sql, run: Run): Promise<void> {
   const day = today(new Date(run.scheduledAt), run.timeZone);
   await catchUp(sql, day);
+  await purgeComments(sql);
   const rows = await sql<Due[]>`
-    select a.member_id, c.board_id, c.title, to_char(c.due_on, 'YYYY-MM-DD') as due_on
-    from card_assignees a join cards c on c.id = a.card_id join columns k on k.id = c.column_id join boards b on b.id = c.board_id
-    where c.archived_at is null and k.archived_at is null and b.archived_at is null and not k.done and c.due_on <= ${day}
-      and not exists (select 1 from reminders r where r.member_id = a.member_id and r.off)
-    order by c.due_on, c.id
+    select member_id, board_id, title, due_on from (
+      select a.member_id, c.board_id, c.title, to_char(c.due_on, 'YYYY-MM-DD') as due_on, c.id as card_id, 0 as step
+      from card_assignees a join cards c on c.id = a.card_id join columns k on k.id = c.column_id join boards b on b.id = c.board_id
+      where c.archived_at is null and k.archived_at is null and b.archived_at is null and not k.done and c.due_on <= ${day}
+      union all
+      select i.assignee as member_id, c.board_id, i.text || ' (' || c.title || ')' as title, to_char(i.due_on, 'YYYY-MM-DD') as due_on, c.id as card_id, i.id as step
+      from checklist_items i join cards c on c.id = i.card_id join columns k on k.id = c.column_id join boards b on b.id = c.board_id
+      where i.assignee is not null and not i.done and c.archived_at is null and k.archived_at is null and b.archived_at is null and not k.done and i.due_on <= ${day}
+    ) due
+    where not exists (select 1 from reminders r where r.member_id = due.member_id and r.off)
+    order by due_on, card_id, step
     limit 20000`;
   const reminded = await remind(sql, rows, day);
   // Taken back from those reminded before and not today.
@@ -87,6 +98,14 @@ async function remind(sql: Sql, rows: Due[], day: string): Promise<Set<string>> 
     } catch (error) {
       if (!(error instanceof ChestError)) throw error;
     }
+    // The email says it in full: every title, one per line.
+    await email(sql, [id], words => ({
+      subject: reminder(words, m.locale, list).title,
+      lines: [
+        ...(list.late.length > 0 ? [words.mail.lateHeading, ...list.late.map(x => "• " + x), ""] : []),
+        ...(list.today.length > 0 ? [words.mail.todayHeading, ...list.today.map(x => "• " + x)] : []),
+      ],
+    }), { path: "/chest", key: `d:${day}` });
   }
   if (reminded.size > 0) {
     await sql`insert into reminders ${sql([...reminded].map(member_id => ({ member_id, sent_on: day })), "member_id", "sent_on")}

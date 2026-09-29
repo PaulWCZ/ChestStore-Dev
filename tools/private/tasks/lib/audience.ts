@@ -34,3 +34,21 @@ export async function groupsOfTool(): Promise<{ id: string; name: string }[]> {
     return [];
   }
 }
+
+// Whom a new private board may be shared with: everyone who has Tasks but
+// the creator, and the groups that give it.
+export async function sharingFor(memberId: string): Promise<{ people: Person[]; groups: { id: string; name: string }[] }> {
+  const [people, groups] = await Promise.all([boardAudience({ visibility: "team", people: [], groups: [] }), groupsOfTool()]);
+  return { people: people.filter(p => p.id !== memberId), groups };
+}
+
+// The managers' names, for "ask a manager" (at most three).
+export async function managerNames(): Promise<string[]> {
+  try {
+    const answer = await members.list({ limit: 500 });
+    return answer.members.filter(m => m.role === "manager").slice(0, 3).map(m => m.name);
+  } catch (error) {
+    if (!(error instanceof ChestError)) throw error;
+    return [];
+  }
+}

@@ -8,7 +8,7 @@ import { colors } from "./model.ts";
 import { type ImportedBoard } from "./parse-import.ts";
 import { sequence } from "./position.ts";
 
-export { dayOf, fromCsv, fromTrello, type ImportedBoard, type ImportedCard } from "./parse-import.ts";
+export { dayOf, fromCsv, fromTrello, importedCounts, type ImportedBoard, type ImportedCard } from "./parse-import.ts";
 
 // Moving in from another tool: a Trello board (its JSON export), or a CSV
 // of tasks (Asana's project export, Trello's CSV export, or any sheet with
@@ -44,15 +44,28 @@ export function importedPeople(board: ImportedBoard): string[] {
   return [...new Set(board.columns.flatMap(c => c.cards.flatMap(k => k.people)))];
 }
 
-// importBoard writes the board; the importer owns it. Says how many cards
-// came and how many people were matched.
-export async function importBoard(sql: Sql, actor: Member | null, imported: ImportedBoard, doneName: string): Promise<{ id: string; cards: number; matched: number; people: number }> {
+// previewPeople says, before anything is written, which of the names the
+// other tool gave are found in the Chest and which stay unassigned.
+export async function previewPeople(actor: Member | null, names: unknown): Promise<{ found: string[]; missing: string[] }> {
   if (!actor || !can(actor, "import")) throw new AppError("forbidden");
+  if (!Array.isArray(names) || names.length > 2000 || !names.every(n => typeof n === "string" && n.length <= 120)) throw new AppError("invalid");
+  const list = [...new Set(names as string[])];
+  const matched = await matchPeople(list);
+  return { found: list.filter(n => matched.has(fold(n))), missing: list.filter(n => !matched.has(fold(n))) };
+}
+
+// importBoard writes the board; the importer owns it. It is private (the
+// importer alone sees it) unless they chose "everyone": an imported board
+// may hold what the whole company should not read. Says how many cards
+// came and how many people were matched.
+export async function importBoard(sql: Sql, actor: Member | null, imported: ImportedBoard, doneName: string, options: { visibility?: unknown } = {}): Promise<{ id: string; cards: number; matched: number; people: number }> {
+  if (!actor || !can(actor, "import")) throw new AppError("forbidden");
+  const visibility = options.visibility === "team" ? "team" : "private";
   const names = importedPeople(imported);
   const matched = await matchPeople(names);
   let count = 0;
   const id = await sql.begin(async tx => {
-    const [b] = await tx<{ id: string }[]>`insert into boards (name, color, created_by) values (${imported.name}, ${colors[0]}, ${actor.id}) returning id`;
+    const [b] = await tx<{ id: string }[]>`insert into boards (name, color, visibility, created_by) values (${imported.name}, ${colors[0]}, ${visibility}, ${actor.id}) returning id`;
     const boardId = String(b!.id);
     await tx`insert into board_people (board_id, member_id, owner) values (${boardId}, ${actor.id}, true)`;
     const labelIds = new Map<string, string>();
@@ -67,8 +80,8 @@ export async function importBoard(sql: Sql, actor: Member | null, imported: Impo
       const cardKeys = sequence(column.cards.length);
       for (const [j, c] of column.cards.entries()) {
         const [row] = await tx<{ id: string }[]>`
-          insert into cards (board_id, column_id, title, description, position, due_on, created_by, completed_at, archived_at)
-          values (${boardId}, ${columnId}, ${c.title}, ${c.description}, ${cardKeys[j]!}, ${c.due}, ${actor.id}, ${column.done ? tx`now()` : null}, ${c.archived ? tx`now()` : null})
+          insert into cards (board_id, column_id, title, description, position, due_on, start_on, created_by, completed_at, archived_at)
+          values (${boardId}, ${columnId}, ${c.title}, ${c.description}, ${cardKeys[j]!}, ${c.due}, ${c.start ?? null}, ${actor.id}, ${column.done ? tx`now()` : null}, ${c.archived ? tx`now()` : null})
           returning id`;
         const cardId = String(row!.id);
         count++;

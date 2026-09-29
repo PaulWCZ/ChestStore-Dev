@@ -25,10 +25,10 @@ export default async function SummaryPage({ params }: { params: Promise<{ id: st
   }
   const s = t.summary;
   const n = (x: number) => new Intl.NumberFormat(locale === "en" ? "en-GB" : locale, { maximumFractionDigits: 2 }).format(x);
-  const bars = (list: Bar[], highlight = true) => {
+  const bars = (list: Bar[], highlight = true, numeric = false) => {
     const top = Math.max(...list.map(b => b.count), 0);
     return (
-      <ul className="bars">
+      <ul className={numeric ? "bars numeric" : "bars"}>
         {list.map(b => (
           <li key={b.key} className={highlight && b.count === top && top > 0 ? "top" : ""}>
             <span className="bar-label">{b.label}</span>
@@ -72,7 +72,7 @@ export default async function SummaryPage({ params }: { params: Promise<{ id: st
                 </ul>
               </div>
             )}
-            {bars(st.bars, false)}
+            {bars(st.bars, false, true)}
           </>
         );
       case "number":

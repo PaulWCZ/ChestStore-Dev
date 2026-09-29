@@ -45,7 +45,7 @@ export default async function MyExpenses() {
         locale={locale}
         empty={list.length === 0}
         figures={{ waiting: money(submitted), toPay: money(toBePaid), paid: money(paidThisYear) }}
-        drafts={drafts.map(e => ({ ...rowView(e, ctx), amountValue: e.amount, currency: e.currency }))}
+        drafts={drafts.map(e => ({ ...rowView(e, ctx), amountValue: e.amount, currency: e.currency, blocked: e.refusedUnchanged, fixed: e.refusedReason !== null && !e.refusedUnchanged }))}
         waiting={{ key: "waiting", title: t.home.waiting, total: money(submitted), rows: submitted.map(e => ({ ...rowView(e, ctx), sub: [rowView(e, ctx).sub, format(t.home.waitingFor, { name: waitingFor(e.approver) })].filter(Boolean).join(" · ") })) }}
         approved={{ key: "approved", title: t.home.approved, total: money(toBePaid), rows: toBePaid.map(e => rowView(e, ctx)) }}
         history={history}

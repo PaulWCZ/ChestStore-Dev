@@ -74,7 +74,7 @@ for (const p of order) {
   position.set(slot, n);
   const versions = readdirSync(join(here, "pages")).filter(f => f.startsWith(p.key + ".v")).sort().map(f => read(f));
   const all = [...versions.map(v => ({ author: v.meta["author"]!, days: Number(v.meta["days"]), doc: toDoc(v.body), kind: "edited" })), { author: m["author"]!, days: Number(m["updated"]), doc: toDoc(p.body), kind: "edited" }];
-  all[0]!.kind = "imported";
+  all[0]!.kind = "created";
   const current = all.at(-1)!;
   const body = plainText(current.doc, i => titles.get(i));
   out.push(`insert into pages (id, space_id, parent_id, position, title, doc, body, version, created_by, created_at, updated_by, updated_at) overriding system value values (${m["id"]}, ${space.id}, ${m["parent"] ?? "null"}, ${q(String.fromCharCode(96 + n))}, ${q(m["title"]!)}, ${q(JSON.stringify(current.doc))}::jsonb, ${q(body)}, ${all.length}, ${q(member(all[0]!.author))}, now() - interval '${m["created"]} days', ${q(member(current.author))}, now() - interval '${current.days} days' - interval '${(Number(m["id"]) * 37) % 600} minutes');`);
@@ -85,7 +85,8 @@ for (const p of order) {
   JSON.stringify(current.doc).replace(/"type":"pageRef","attrs":\{"id":"(\d+)"\}/gu, (_all, id: string) => { links.add(id); return ""; });
   for (const to of links) linkRows.push(`insert into page_links (from_page, to_page) values (${m["id"]}, ${to});`);
   if (m["template"] === "true") out.push(`update pages set template = true where id = ${m["id"]};`);
-  if (m["lock"]) out.push(`insert into page_locks (page_id, member_id, since, active_at) values (${m["id"]}, ${q(member(m["lock"]))}, now() - interval '${Number(m["lockMinutes"] ?? 5) + 20} minutes', now() - interval '${m["lockMinutes"] ?? 5} minutes');`);
+  // Someone's editor stays open for the sample's whole life (seen_at ahead).
+  if (m["lock"]) out.push(`insert into page_locks (page_id, member_id, since, active_at, seen_at) values (${m["id"]}, ${q(member(m["lock"]))}, now() - interval '${Number(m["lockMinutes"] ?? 5) + 20} minutes', now() - interval '${m["lockMinutes"] ?? 5} minutes', now() + interval '30 days');`);
   out.push("");
 }
 out.push(...linkRows, "");

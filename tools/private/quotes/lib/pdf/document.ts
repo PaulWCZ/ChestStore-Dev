@@ -4,6 +4,7 @@ import { catalogue, format, formatDay, type Locale } from "../i18n/index.ts";
 import { formatMoney, formatNumber, formatQuantity, formatRate } from "../money.ts";
 import { addressLines, spacedSiren, type Buyer, type Seller } from "../parties.ts";
 import { totals } from "../totals.ts";
+import { unitText } from "../units.ts";
 import type { Image } from "./image.ts";
 import type { FontName } from "./metrics.ts";
 import { A4, Page, PdfWriter, textWidth, wrap, type Rgb } from "./writer.ts";
@@ -235,7 +236,7 @@ export function renderPdf(input: PdfInput): Uint8Array {
     texts.forEach((l, i) => page.text(margin, top + 9 + i * 12, l, i === 0 ? "Helvetica" : "Helvetica", size, i === 0 ? ink : grey));
     let x = margin + descW + 10;
     const cells: Record<Column["key"], string> = {
-      qty: formatQuantity(line.quantity, locale) + (line.unit ? " " + line.unit : ""),
+      qty: formatQuantity(line.quantity, locale) + (line.unit ? " " + unitText(line.unit, line.quantity, t, locale) : ""),
       price: figure(line.unitPrice),
       discount: line.discount > 0 ? "−" + formatRate(line.discount, locale) : "",
       vat: formatRate(line.vatRate, locale),

@@ -9,7 +9,7 @@ import { company, rememberMail } from "./company.ts";
 import type { Sql } from "./db.ts";
 import { getDocument, recordReminder, recordSent, sendQuote, type Full } from "./documents.ts";
 import { catalogue, format, formatDay } from "./i18n/index.ts";
-import { clean, email, limits } from "./model.ts";
+import { clean, email, limits, numberPattern } from "./model.ts";
 import { formatMoney } from "./money.ts";
 import { pdfFileName } from "./pdf/document.ts";
 
@@ -60,7 +60,7 @@ function checkMessage(input: unknown): Message & { upcoming: string | null } {
   const m = input as Record<string, unknown>;
   const to = email(m["to"]);
   if (!to) throw new AppError("no_email");
-  const upcoming = typeof m["upcoming"] === "string" && /^[A-Z0-9]{1,8}-\d{4}-\d{4,}$/u.test(m["upcoming"]) ? m["upcoming"] : null;
+  const upcoming = typeof m["upcoming"] === "string" && numberPattern.test(m["upcoming"]) ? m["upcoming"] : null;
   return { to, subject: clean(m["subject"], limits.title), text: clean(m["text"], limits.message, { multiline: true }), upcoming };
 }
 

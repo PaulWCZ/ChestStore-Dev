@@ -136,17 +136,33 @@ export function daysOffFor(rules: { alsace: boolean; workedHolidays: readonly st
 // - "ouvres" (jours ouvrés): Monday to Friday, public holidays not worked
 //   excluded. The usual rule: 25 days a year.
 // - "ouvrables" (jours ouvrables): Monday to Saturday, public holidays not
-//   worked excluded — and, when the leave ends on the last worked day of a
-//   week, the Saturday that follows before the person comes back counts too
-//   (a week off Monday to Friday costs 6 jours ouvrables). 30 days a year.
+//   worked excluded. 30 days a year.
+//   With both, paid leave starts on the first day the person would have
+//   worked and runs to the day before they are back: the counted days that
+//   follow the span until the person's next worked day count too (a week
+//   off Monday to Friday costs 6 jours ouvrables: the Saturday; someone who
+//   does not work on Fridays and is off Monday to Thursday is charged the
+//   Friday). The same rule for part-time staff as for full-time staff
+//   (reports/02-open-source/leave.md, "French rules").
+// - "worked": the days the person works, public holidays excluded (RTT,
+//   remote work).
 // - "calendar": every day, holidays and week-ends included (sick leave is
 //   usually counted so).
 export type Half = "am" | "pm";
 export const isHalf = (value: unknown): value is Half => value === "am" || value === "pm";
 export type Span = { start: Day; startHalf: Half; end: Day; endHalf: Half };
-export type Counting = "ouvres" | "ouvrables" | "calendar";
-// daysOff: the public holidays the company does not work.
-export type Rules = { counting: Counting; daysOff: ReadonlySet<Day> | ReadonlyMap<Day, unknown> };
+export type Counting = "ouvres" | "ouvrables" | "worked" | "calendar";
+// daysOff: the public holidays the company does not work. workDays: the
+// days of the week the person works (0 Sunday … 6 Saturday; Monday to
+// Friday when not given).
+export type Rules = { counting: Counting; daysOff: ReadonlySet<Day> | ReadonlyMap<Day, unknown>; workDays?: readonly number[] | null };
+
+export const fullWeek: readonly number[] = [1, 2, 3, 4, 5];
+
+// isWeek: a list of the days of a week someone works, at least one.
+export function isWeek(value: unknown): value is number[] {
+  return Array.isArray(value) && value.length >= 1 && value.length <= 7 && new Set(value).size === value.length && value.every(d => Number.isInteger(d) && d >= 0 && d <= 6);
+}
 
 // A span is well formed when it ends after it starts: on a single day,
 // "from the afternoon to noon" is not a time.
@@ -160,25 +176,35 @@ export function spanValid(span: Span): boolean {
 // isHalfDaySpan: the span has a half day at either end.
 export const hasHalf = (span: Span): boolean => span.startHalf === "pm" || span.endHalf === "am";
 
+// works: the person works that day (their week, not a public holiday off).
+export function works(day: Day, rules: Pick<Rules, "daysOff" | "workDays">): boolean {
+  return (rules.workDays ?? fullWeek).includes(weekday(day)) && !rules.daysOff.has(day);
+}
+
 function counted(day: Day, rules: Rules): boolean {
   if (rules.counting === "calendar") return true;
+  if (rules.counting === "worked") return works(day, rules);
   const wd = weekday(day);
   if (wd === 0) return false;
   if (wd === 6 && rules.counting === "ouvres") return false;
   return !rules.daysOff.has(day);
 }
 
-// A worked day of the company: Monday to Friday, not a holiday it takes off.
-const worked = (day: Day, rules: Rules): boolean => weekday(day) >= 1 && weekday(day) <= 5 && !rules.daysOff.has(day);
-
 // cost is what a span takes, in the rules' days (a multiple of ½). tail:
-// false leaves out the jours-ouvrables Saturday after the end (a span cut
-// at a month's end, whose rest counts it).
+// false leaves out the days after the end (a span cut at a month's end,
+// whose rest counts them).
 export function cost(span: Span, rules: Rules, options: { tail?: boolean } = {}): number {
   if (!spanValid(span)) return 0;
-  let halves = 0;
+  const legal = rules.counting === "ouvres" || rules.counting === "ouvrables";
   const last = daysBetween(span.start, span.end);
-  for (let i = 0; i <= last; i++) {
+  let first = 0;
+  // Paid leave starts on the first day the person would have worked.
+  if (legal) {
+    while (first <= last && !works(addDays(span.start, first), rules)) first++;
+    if (first > last) return 0;
+  }
+  let halves = 0;
+  for (let i = first; i <= last; i++) {
     const day = addDays(span.start, i);
     if (!counted(day, rules)) continue;
     let h = 2;
@@ -186,10 +212,10 @@ export function cost(span: Span, rules: Rules, options: { tail?: boolean } = {})
     if (i === last && span.endHalf === "am") h -= 1;
     halves += Math.max(h, 0);
   }
-  // Jours ouvrables: the Saturday between the leave's end and the return.
-  if (rules.counting === "ouvrables" && span.endHalf === "pm" && options.tail !== false) {
-    for (let d = addDays(span.end, 1), n = 0; n < 7 && !worked(d, rules); d = addDays(d, 1), n++) {
-      if (weekday(d) === 6 && !rules.daysOff.has(d)) halves += 2;
+  // … and runs to the day before they are back.
+  if (legal && span.endHalf === "pm" && options.tail !== false) {
+    for (let d = addDays(span.end, 1), n = 0; n < 14 && !works(d, rules); d = addDays(d, 1), n++) {
+      if (counted(d, rules)) halves += 2;
     }
   }
   return halves / 2;
