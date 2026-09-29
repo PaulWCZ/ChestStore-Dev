@@ -73,15 +73,23 @@ acceptance, in a later round.
 
 **Migration to the kit and themes** (brief in the scratchpad
 `migrate-brief.md`; 2–4 agent-hours per tool):
-- **Wave 1:**
-  - done and verified: Booking (lint 75 → 0), Rooms (48 → 0);
-  - running: Hiring, Timesheets, Tasks.
-- **Kit 0.2.1 fixes, running:** DateField layout shift, Next Link type, nav
-  `also`, AvatarStack crop, multi-value filters, category hues, PageHeader
-  size.
-- **Wave 2, running:** Wiki, Leave, People.
-- **Next:** News, CRM, Expenses, Support, Equipment, Polls, Goals, Quotes,
-  Status, Forms.
+- **Migrated and verified by the lead** (tests on both databases, flows,
+  audit, word lint at 0):
+
+  | Tool | Tests | Lint before → after |
+  |---|---|---|
+  | Booking | 72 | 75 → 0 |
+  | Rooms | 74 | 48 → 0 |
+  | Timesheets | 68 | 59 → 0 |
+  | Hiring | 65 | 77 → 0 |
+  | Tasks | 70 | 75 → 0 |
+  | Leave | 68 | 50 → 0 |
+
+- **Running:** kit 0.2.1 (about 22 findings from the migrations, incl.
+  signature colours of the identity themes); migrations of Wiki, People,
+  News, Clients, Expenses and Support.
+- **Next:** Equipment, Polls, Goals, Quotes, Status, Forms. Then re-vendor
+  kit 0.2.1 everywhere and remove the tools' workarounds.
 
 **Then:**
 - Re-run the critique on the migrated tools and update the verdict table
