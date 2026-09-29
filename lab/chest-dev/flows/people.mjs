@@ -114,7 +114,7 @@ await step("HR writes a template and starts a departure checklist", async () => 
   await page.goto(origin + "/chest/checklists");
   await page.getByRole("button", { name: "New template" }).click();
   await page.getByLabel("Name of the template").fill("Remote leaver");
-  await page.locator(".ck-segmented").getByLabel("Departure").check();
+  await page.locator(".ck-segmented").getByText("Departure").click();
   await page.getByRole("button", { name: "Create" }).click();
   await page.waitForURL(/\/chest\/checklists\/templates\/\d+$/u);
   await page.getByPlaceholder("What needs doing?").fill("Send the laptop back by courier");
@@ -197,7 +197,7 @@ await step("HR imports BambooHR's report: 'Employee #' left out, columns shown, 
   expect(await order.isVisible(), "date order asked");
   expect(await order.getByLabel("Dates read as month/day/year.").isChecked(), "US guess for BambooHR");
   expect((await page.locator(".plan table").innerText()).includes("3 Oct 2023") || (await page.locator(".plan table").innerText()).includes("2023-10-03"), "Hugo's date month-first");
-  await order.getByLabel("Dates read as day/month/year.").check();
+  await order.getByText("Dates read as day/month/year.").click();
   await page.waitForFunction(() => document.querySelector(".plan table")?.textContent?.includes("2023-03-10"));
   // The mapping step: the mobile phone instead of the work phone.
   await page.locator(".mapping summary").click();
