@@ -86,12 +86,24 @@ acceptance, in a later round.
   | Leave | 68 | 50 → 0 |
   | Wiki | 74 | 66 → 0 |
   | People | 56 | 6 → 0 |
+  | Expenses | 76 | 78 → 0 |
+  | Clients | 63 | 71 → 0 |
+  | News | 80 | 60 → 0 |
+  | Support | 51 | 43 → 0 |
+  | Equipment | 72 | 93 → 0 |
+  | Goals | 54 | 35 → 0 |
+  | Polls | 59 | 51 → 0 |
+  | Status | 73 | 94 → 0 |
 
 - **Kit 0.2.1 is verified** (93 tests). The findings for 0.2.2 are
   collected in the scratchpad `kit-next.md`.
-- **Running:** News, Clients, Expenses, Support, Equipment, Polls, Goals.
-- **Next:** Quotes, Status, Forms. Then re-vendor kit 0.2.1 everywhere and
-  remove the tools' workarounds. Then kit 0.2.2.
+- **Running:** Quotes and Forms (the last two).
+- **Then:**
+  - kit 0.2.2 (findings in the scratchpad `kit-next.md`), and add the Forms
+    identity as the 20th catalogue theme;
+  - re-vendor every tool;
+  - fix the two tool bugs noted there (the frame-origin cache, and raw
+    mention tokens in News search).
 
 **Then:**
 - Re-run the critique on the migrated tools and update the verdict table
