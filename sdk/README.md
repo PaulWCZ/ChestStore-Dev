@@ -30,6 +30,7 @@ module is not in the root).
 | `@argentic/chest-sdk/visitors` | **Proposal (studio).** `formToken`, `checkForm`, `count`, `language`, `visitor`, `address`: the guard and the language of a public host's anonymous visitors |
 | `@argentic/chest-sdk/calendar` | **Proposal (studio).** `put`, `remove`, `list`, `page`, and the iCalendar writer `ics`, `escapeText`, `foldLine`, `unfold`, `uidOf`, `feed`, `pick`, `check`, `isDay`, `keyPattern`, `limits`: events about members that the Chest merges into one calendar feed per member (`"calendar": true`) |
 | `@argentic/chest-sdk/checks` | **Proposal (studio).** `configure`, `list`, `handle`, `verify`, `checkManifest`, `checkChecks`: web addresses the Chest checks for the tool, and their results |
+| `@argentic/chest-sdk/webhooks` | **Proposal (studio).** `add`, `remove`, `list`, `enable`, `rotateSecret`, `send`, `journal`, `handle`, `verify`, and for forms and receivers `checkUrl`, `checkInput`, `checkMessage`, `checkManifest`, `isPublicAddress`, `shownUrl`, `format`, `escapeSlack`, `sign`, `verifySignature`, `limits`: notices the Chest delivers, signed, to addresses the company's admins or the tool's subscribers give (`"webhooks": {"max": N}`) |
 | `@argentic/chest-sdk/database` | `databaseUrl()`: the address of the tool's own PostgreSQL database (capability `database`) |
 | `@argentic/chest-sdk/files` | `put`, `get`, `stat`, `list`, `move`, `delete`, `url`, `uploadUrl`, types `FileObject`, `FileData`, `FilePage`: the tool's private files (capability `files`), kept by the Chest, a 15-minute signed link to one (or to its thumbnail), and uploads straight from a member's browser |
 | `@argentic/chest-sdk/errors` | `ChestError` (`code`, `status`), `CapabilityNotGranted` (403), `TooLarge` (413), `QuotaExceeded` (429), `RateLimited` (429), `Unavailable` (503): what the SDK throws when the Chest does not give what a tool asks |
@@ -912,6 +913,143 @@ harness), never a private address. In tests: `fakeChest({checks: {max}})`,
 `chest.checks` (the list configured), `chest.check(name, to, {ok, status,
 ms, error})`.
 
+## `webhooks` — notices the Chest delivers to outside addresses (Proposal (studio))
+
+```jsonc
+// chest.json (chest.proposals.json in the studio) — a permission the owner approves:
+// “Sends notices to web addresses your admins or subscribers give, signed by your Chest (up to 200 addresses)”
+"webhooks": { "max": 200 }
+```
+
+```ts
+import * as webhooks from "@argentic/chest-sdk/webhooks";
+
+// An admin pastes an address (a Zapier "catch hook", a Slack or Teams channel's webhook):
+const problems = webhooks.checkUrl(form.url, form.kind);            // [] or what to fix, before asking the Chest
+const { id, secret } = await webhooks.add({ url: form.url, kind: "generic", label: "Zapier — new answers", owner: who.id });
+// generic: show `secret` once ("paste it in your receiver"), store only `id`; slack/teams: secret is null
+
+await webhooks.send([id, slackId], { event: "form.answered", text: "New answer to “Contact” from Atelier Dupont", data: { form: 12, answer: 981 }, key: "answer:981" });
+await webhooks.list();                         // state, last outcome, last error, failures in a row
+await webhooks.journal({ target: id });        // the deliveries of the last 30 days, newest first
+
+// app/chest-webhooks/route.ts — outside /chest, never behind a session
+export async function POST(request: Request) {
+  return new Response(null, { status: await webhooks.handle(request, { disabled: e => markBroken(e.target, e.lastError) }) });
+}
+```
+
+A tool reaches only the hosts its manifest names, and a customer's address
+is not known when the manifest is written; opening "anywhere" would make
+each tool a way out of the Chest (and into the company's network). So the
+tool never connects: it hands the Chest a target and a message, and the
+Chest checks, formats, signs, delivers, retries and journals.
+
+| Export | Gives |
+|---|---|
+| `add({url, kind, label, owner?})` | A target: `{id: "whk_…", secret, target}`. `kind` `"generic"` (any https receiver: JSON, signed), `"slack"` (a Slack incoming webhook, `https://hooks.slack.com/services/…`) or `"teams"` (a Teams Workflows webhook, `https://….environment.api.powerplatform.com/powerautomate/automations/direct/workflows/…`). `owner`: the member who added it, or none (a subscriber of a public page). `secret` (`whsec_…`, generic only) is given once |
+| `send(ids, {event, text, data?, key})` | One delivery per target, queued: `{deliveries: [{id: "whd_…", target}], skipped: [{target, reason: "disabled" \| "not_found"}]}`. The same `key` within 24 hours answers the first deliveries and sends nothing |
+| `list()`, `remove(id)`, `enable(id)`, `rotateSecret(id)` | The targets with `state` (`active`, `disabled`), `status` of the last delivery (`delivered`, `failed`, `disabled`, null), `lastError`, `failures` in a row; the address shown without its query (generic) or its secret path (Slack, Teams). `enable` tries a disabled target again (a ping first); `rotateSecret` gives a new secret, the old one still signs for 24 hours |
+| `journal({target?, after?, limit?})` | Deliveries: `status` (`pending`, `retrying`, `delivered`, `failed`), `attempts`, `responseStatus`, `lastError`, `nextAttemptAt` — never the text or data |
+| `handle(request, {disabled})`, `verify(request)` | `webhook.disabled` `{id: "whe_…", target, reason: "failures" \| "gone", lastError}` on `POST /chest-webhooks`, signed `Chest-Webhooks` (HS256 under HMAC-SHA256("Chest-Webhooks v1") of `CHEST_TOKEN`, like `Chest-Check`), at least once |
+| `checkUrl`, `checkInput`, `checkMessage`, `checkManifest`, `isPublicAddress`, `shownUrl` | The rules, for a form to explain a refusal before it happens |
+| `format(kind, message)`, `escapeSlack`, `sign`, `verifySignature` | The exact bodies and signature the Chest sends, and the receiver's check |
+
+**What the Chest checks at `add`** (refusal `ChestError` `invalid_target`,
+400, before anything leaves; `address_refused` or `verification_failed`,
+422): https only; port 443 or 1024 and above; no user name or password;
+no fragment; no IP literal or name of a private, loopback, link-local,
+shared, documentation, multicast or reserved range (IPv4 and IPv6,
+including IPv4-mapped and NAT64 forms, which reach IPv4 through a back
+door); no `localhost`, `.local`, `.internal`, `.home.arpa`… name; **then
+the name is resolved and every address must be public** — and again at
+each attempt, the connection made to the address just checked (no DNS
+rebinding between check and use). Slack and Teams addresses must be of
+their provider's shape (a generic target cannot name them: the Chest
+formats for them). A generic address must answer a signed `chest.ping`
+(`data.challenge`) with a 2xx within 10 s, which proves someone set a
+receiver there. Redirects are never followed (a 3xx is a failure,
+`redirect`).
+
+**What is posted.**
+
+| Kind | Body (JSON) | Headers |
+|---|---|---|
+| `generic` | `{"id": "whd_…", "event": "form.answered", "text": "…", "data": {…}, "key": "answer:981", "tool": "forms", "created_at": "…"}` | `Chest-Webhook-Id` (the same on every attempt, and the body's signed `id`: deduplicate on the body's), `Chest-Webhook-Event`, `Chest-Webhook-Signature: t=<unix seconds>,v1=<hex>` |
+| `slack` | `{"text": "…"}`, with `&`, `<`, `>` escaped as Slack asks (so a text can never mention `@channel` or forge a link) | — (the address is the secret) |
+| `teams` | `{"type": "message", "attachments": [{"contentType": "application/vnd.microsoft.card.adaptive", "contentUrl": null, "content": {"type": "AdaptiveCard", "version": "1.4", "body": [{"type": "TextBlock", "text": "…", "wrap": true}]}}]}` | — |
+
+Slack's shape is its incoming webhooks' documented payload (`text`, with
+those three characters escaped); Teams' is what a Workflows "When a Teams
+webhook request is received" flow expects since Microsoft retired Office
+365 connectors (sources and dates: `reports/03-sdk-report.md` §4.17).
+
+**Verifying a delivery (the receiver's side).** `v1` is the hex
+HMAC-SHA256, keyed by the target's secret (the whole `whsec_…` string), of
+`<t>.<raw body>`. Refuse a `t` more than 5 minutes from now (a replay);
+during a rotation two `v1` come, either may match. Verify the raw bytes
+before parsing them.
+
+```js
+// Any Node receiver (Express needs express.raw() on this route)
+import { createHmac, timingSafeEqual } from "node:crypto";
+function verified(secret, header, rawBody) {
+  const t = header.match(/(?:^|,)t=(\d+)/)?.[1];
+  if (!t || Math.abs(Date.now() / 1000 - Number(t)) > 300) return false;
+  const expected = createHmac("sha256", secret).update(`${t}.`).update(rawBody).digest();
+  return header.split(",").filter(p => p.startsWith("v1=")).some(p => {
+    const given = Buffer.from(p.slice(3), "hex");
+    return given.length === expected.length && timingSafeEqual(given, expected);
+  });
+}
+// A Node tool of another Chest: webhooks.verifySignature({ secret, header, body })
+```
+
+**Delivery.** At least once. 10 s to answer; a 2xx is delivered; 408,
+429 (its `Retry-After` honoured up to an hour), 5xx and network errors
+(`timeout`, `dns`, `tls`, `refused`, `private_address`) are tried again 1
+min, 5 min, 30 min, 2 h, 6 h, 12 h and 24 h after the send (8 attempts),
+then `failed`; any other 4xx fails at once (the receiver refused it). The
+Chest paces one request a second per target (Slack's own limit) by
+queuing, never by refusing. After **10 failed attempts in a row** — or at
+once on 410, or 404 from Slack or Teams (the hook was deleted) — the target
+is **disabled**: its pending deliveries fail, sends skip it, the owner's
+page shows it, and the tool receives `webhook.disabled` (tell its admin;
+`enable(id)` once fixed).
+
+**Quotas and journal.** `max` targets (1 to 1,000, the manifest's); 60 new
+targets an hour; 1,000 deliveries an hour per tool (a send to 50 targets is
+50; `QuotaExceeded`, nothing sent); 500 targets a send; `text` 1 to 4,000
+characters, `data` 16 KiB, `label` 80. The Chest journals every delivery
+for 30 days (target, event, key, attempts, statuses, errors, times — never
+the text or data, dropped once delivered or failed) on the owner's page for
+the tool, where the owner can also disable any target; `journal()` gives
+the tool the same, for its admin's screen. Addresses are kept encrypted
+and never shown whole again, not even to the tool.
+
+Refusals: `ChestError` `invalid_target`, `invalid_message`, `invalid_id`,
+`invalid_query` (400, nothing sent), `address_refused`,
+`verification_failed` (422), `target_not_found` (404, `enable`),
+`QuotaExceeded`, `CapabilityNotGranted` (not declared, or a Chest without
+webhooks yet — the tool hides its "Add a webhook" form and says so),
+`Unavailable` (send again with the same key: harmless).
+
+In tests: `fakeChest({webhooks: {max, resolve?, deliver?, to?}})` —
+`resolve` plays DNS (`{"rebind.example.com": "10.0.0.7", "gone.example.com":
+"nxdomain"}`; other names resolve to a public address), `deliver(url,
+{method, headers, body})` receives each POST a test wants to see (a
+receiver verifying the signature), `to` is where `webhook.disabled` is
+posted. `chest.webhooks.targets` (with `fullUrl`, `secrets`),
+`.deliveries` (with `text`, `data` and the last `request`: url, headers,
+body), `.events`; `.respond(targetOrUrl, 503 | "timeout" | "dns" | …)`
+makes a receiver fail from now on (200 by default); `.retry()` plays the
+time of every pending retry. The fake makes each first attempt before
+`send` answers, so a test reads the outcome at once. The harness's `/_dev`
+lists the targets and the journal (bodies and signatures), makes a target
+answer 503 or time out, and plays the retries; nothing leaves the
+machine. The one-request-a-second pacing and `Retry-After` are designed,
+not faked.
+
 ## `databaseUrl()` — database of a server tool
 
 A v2 tool that declares `"capabilities": ["database"]` in its `chest.json`
@@ -1126,6 +1264,7 @@ await chest.close();
 | `fakeChest({calendar})`, `chest.calendar`, `chest.feed(member)`, `chest.feedUrl(member)`, `chest.newFeedUrl(member)` | **Proposal (studio).** The calendar bridge (with `"calendar"` in `capabilities`): the events put, a member's feed as the Chest writes it, its secret address on the fake's front |
 | `fakeChest({groups: [{…, grants: false}], capabilities: [..., "groups"]})` | **Proposal (studio).** Groups that do not give the tool, seen only with `groups` (`groups.all`, `groups.members`, all of a member's groups); `emit` delivers `group.changed` and `group.removed` |
 | `chest.receive(message, to)`, `chest.bounce(messageId, to, options?)` | **Proposal (studio).** A message delivered to `POST <to>/chest-mail` as the Chest would (HTML cleaned, original stored, executables dropped, `thread`/`deliveredTo`, `authenticated`, `auto`); a sent message bounced (status, suppression, the bounce posted) |
+| `fakeChest({webhooks: {max, resolve?, deliver?, to?}})`, `chest.webhooks` | **Proposal (studio).** The webhook targets the tool added, the deliveries (bodies and signatures as sent), the `webhook.disabled` events; `respond(target, answer)` makes a receiver fail, `retry()` plays the retries (see `webhooks`) |
 | `chest.close()` | Stops it and restores the environment |
 
 ## Version

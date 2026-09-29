@@ -22,6 +22,17 @@ function lookPanel(manifest, chest, catalogue, sampleBrand) {
 <p>Now: ${effective}. A page shows it at its next load (the tool asks <code>chest.theme()</code>).</p></section>`;
 }
 
+// Webhooks (Proposal (studio)): the targets the tool added, the deliveries
+// the Chest made (the journal the owner reads), and buttons that make a
+// target fail and play the retries. Nothing leaves this machine.
+function webhooksPanelOf(chest, proposals) {
+  const hooks = chest.webhooks ?? { targets: [], deliveries: [], events: [] };
+  const targets = hooks.targets.map(t => `<li><b>${escape(t.label)}</b> <code>${escape(t.kind)}</code> ${escape(t.url)}<br><small>${escape(t.state)}${t.status ? ` · last: ${escape(t.status)}` : ""}${t.lastError ? ` · <code>${escape(t.lastError)}</code>` : ""} · ${t.failures} failure${t.failures === 1 ? "" : "s"} in a row</small><form method="post" action="/_dev/webhook"><input type="hidden" name="target" value="${escape(t.id)}"><button name="action" value="fail">Answer 503</button> <button name="action" value="timeout">Time out</button> <button name="action" value="ok">Answer 200</button></form></li>`).join("");
+  const deliveries = hooks.deliveries.slice(-12).reverse().map(d => `<li><code>${escape(d.event)}</code> → ${escape(hooks.targets.find(t => t.id === d.target)?.label ?? d.target)}: <b>${escape(d.status)}</b> (${d.attempts} attempt${d.attempts === 1 ? "" : "s"}${d.lastError ? `, ${escape(d.lastError)}` : ""})<details><summary>body</summary><pre style="white-space:pre-wrap">${escape(d.request?.body ?? "")}</pre>${d.request?.headers["Chest-Webhook-Signature"] ? `<small>Chest-Webhook-Signature: <code>${escape(d.request.headers["Chest-Webhook-Signature"])}</code></small>` : ""}</details></li>`).join("");
+  const events = hooks.events.slice(-4).reverse().map(e => `<li><code>webhook.disabled</code> ${escape(e.target)} (${escape(e.reason)}) → ${e.status ?? "not posted"}</li>`).join("");
+  return `<section><h2>Webhooks (proposal)</h2><p>Up to ${escape(String(proposals.webhooks.max))} addresses. Deliveries are simulated: every target answers 200 unless told otherwise.</p><ul>${targets || "<li class=none>The tool has added no target yet.</li>"}</ul><form method="post" action="/_dev/webhook"><button name="action" value="retry">Play the pending retries</button></form><p>Journal:</p><ul>${deliveries || "<li class=none>No delivery yet.</li>"}</ul>${events ? `<p>Told to the tool:</p><ul>${events}</ul>` : ""}</section>`;
+}
+
 export function devPage({ manifest, proposals = {}, chest, me, origin, schedulesApi, catalogue = [], sampleBrand = null }) {
   const name = id => chest.members.find(m => m.id === id)?.name ?? id;
   const people = chest.members.map(m => `<option value="${m.id}"${m.id === me.id ? " selected" : ""}>${escape(m.name)} — ${escape(m.role ?? "no role")}${m.isAdmin ? " (admin)" : ""}</option>`).join("");
@@ -51,7 +62,8 @@ export function devPage({ manifest, proposals = {}, chest, me, origin, schedules
   const eventsPanel = proposals.emits || proposals.receives ? `<section><h2>Events between tools (proposal)</h2>${proposals.emits ? `<p>Published:</p><ul>${published || "<li class=none>None yet.</li>"}</ul>` : ""}${receivable ? `<form method="post" action="/_dev/deliver" style="display:grid;gap:6px"><p style="margin:0">Deliver an event of another tool:</p><select name="type">${receivable}</select><textarea name="data" rows="3">{"member": "${escape(me.id)}"}</textarea><button>Deliver</button></form>` : ""}</section>` : "";
   const checks = (chest.checks ?? []).map(c => `<li><form method="post" action="/_dev/check"><input type="hidden" name="name" value="${escape(c.name)}"><b>${escape(c.name)}</b> <code>${escape(c.url)}</code> every ${escape(String(c.every))} min <button name="ok" value="1">Send "up"</button> <button name="ok" value="0">Send "down"</button></form></li>`).join("");
   const checksPanel = proposals.checks ? `<section><h2>Checks (proposal)</h2>${checks ? `<ul>${checks}</ul>` : "<p>The tool has configured no check yet.</p>"}</section>` : "";
-  const extra = (chest.theme && sampleBrand ? lookPanel(manifest, chest, catalogue, sampleBrand) : "") + checksPanel + eventsPanel + calendarPanel + groupsPanel + mailPanel + (schedules ? `<section><h2>Schedules (proposal)</h2><ul>${schedules}</ul>${runs ? `<p>Last runs:</p><ul>${runs}</ul>` : ""}</section>` : "");
+  const webhooksPanel = proposals.webhooks ? webhooksPanelOf(chest, proposals) : "";
+  const extra = (chest.theme && sampleBrand ? lookPanel(manifest, chest, catalogue, sampleBrand) : "") + checksPanel + webhooksPanel + eventsPanel + calendarPanel + groupsPanel + mailPanel + (schedules ? `<section><h2>Schedules (proposal)</h2><ul>${schedules}</ul>${runs ? `<p>Last runs:</p><ul>${runs}</ul>` : ""}</section>` : "");
   const events = chest.members.map(m => `<option value="${m.id}">${escape(m.name)}</option>`).join("");
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>chest dev · ${escape(manifest.title ?? manifest.name)}</title>
 <style>

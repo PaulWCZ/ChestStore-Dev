@@ -11,7 +11,7 @@ tested, faked in `testing`, documented in `sdk/README.md` (sections marked
 Seventeen tools were built for the opening store, each to production
 quality, each in its own folder, by builders who used the SDK as a
 third-party developer would. What they needed and did not find is below,
-proven by code: every proposal is built in `sdk/` (0.3.0-studio.12 —
+proven by code: every proposal is built in `sdk/` (0.3.0-studio.13 —
 typed, tested, faked in `testing`, documented in `sdk/README.md` under
 **Proposal (studio)**) and used by at least one tool.
 
@@ -740,7 +740,7 @@ README what it cannot do until then.
 | **Members by role, in one call** | Timesheets, Status | `members.ids({roles})`, or `notify({toRoles})` with a message per language. |
 | **Sending to a partner service** | Quotes (the company's approved e-invoicing platform), Booking (payments) | `partners` declared in the manifest, credentials held by the Chest, `partners.send(name, {kind, file, key})` and status events. |
 | **Guest accounts** | Quotes (the outside accountant), Polls (external participants) | A time-limited guest with one tool and one role. |
-| **Webhooks to customer URLs** | Status (subscribers' Slack or webhooks) | The Chest delivers signed POSTs to URLs subscribers give; the tool never needs open egress. |
+| **Webhooks to customer URLs** | Status (subscribers' Slack or webhooks) | The Chest delivers signed POSTs to URLs subscribers give; the tool never needs open egress. **Now built: §4.17.** |
 | **Bulk file export** | Support, News, Wiki | `files.archive(names)` → a signed ZIP download. |
 | **Video** | News | A poster frame and size caps in `files`. |
 | **OCR / AI on a stored file** | Expenses (receipts the phone cannot read) | `ai` or `ocr.read(object)`. Expenses reads receipts locally in the browser today. |
@@ -752,6 +752,175 @@ Harness items raised by the same builders are fixed in the studio:
   the sources;
 - the audit replays screen actions;
 - screens and audit accept file uploads.
+
+### 4.17 Notices to outside addresses — `webhooks` (built)
+
+- **Needed by**: **Status** — Statuspage's subscribers get incidents by
+  webhook, Slack and Teams, not only email; its README names the
+  primitive (`tools/public-and-private/status/README.md`, "`webhooks`")
+  and the critique ranks it next after `mail`
+  (`reports/05-critique/status.md`, fix 3). **Forms** — Typeform and Tally
+  customers pipe answers to Zapier, Make, a sheet script or Slack; its
+  README asks for exactly this (`tools/public-and-private/forms/README.md`,
+  "Webhooks to a customer's URL"; critique `forms.md` blocker 3).
+  **Support** (the `helpdesk` tool) and **Hiring** — "a new ticket" and "a
+  new application" posted to a team's channel is the first integration
+  Zendesk- and Teamtailor-style tools are asked for; neither README writes
+  it yet: that need is ours, from the category, not a builder's report.
+- **Why not `network`**: a manifest is written once for every company, a
+  customer's address is not known then, and `"network": ["*"]` would turn
+  each tool into a way out of the Chest — and into the company's own
+  network (SSRF). The tool never connects: the Chest delivers.
+- **Working copy**: `sdk/client/src/webhooks.ts` — `add`, `remove`,
+  `list`, `enable`, `rotateSecret`, `send`, `journal`, `handle`/`verify`
+  of `webhook.disabled` on `POST /chest-webhooks`, and the rules and
+  formats as pure functions (`checkUrl`, `checkInput`, `checkMessage`,
+  `checkManifest`, `isPublicAddress`, `shownUrl`, `format`, `escapeSlack`,
+  `sign`, `verifySignature`); `fakeChest({webhooks: {max, resolve,
+  deliver, to}})`, `chest.webhooks` (targets, deliveries with the request
+  as sent, events, `respond()`, `retry()`); `sdk/client/test/webhooks.test.ts`
+  (6 tests: address rules, the three payloads and the signature by hand,
+  ping and idempotent sends, the refusals at add, backoff then
+  disable-and-tell, the 8-attempt end); the manifest checker reads the
+  permission (`scripts/check-manifest.mjs`); the harness's `/_dev` lists
+  targets and the journal (bodies, signatures), makes a target answer 503
+  or time out, and plays the retries. SDK 0.3.0-studio.13. No tool uses it
+  yet: Status and Forms are the first to wire (both already say "not
+  built" rather than fake it).
+- **API**:
+
+  ```ts
+  type WebhookKind = "generic" | "slack" | "teams";
+  add(input: { url: string; kind: WebhookKind; label: string; owner?: string }): Promise<{ id: string; secret: string | null; target: WebhookTarget }>;
+  send(targets: string | string[], message: { event: string; text: string; data?: Record<string, unknown>; key: string }): Promise<{ deliveries: { id: string; target: string }[]; skipped: { target: string; reason: "disabled" | "not_found" }[] }>;
+  list(): Promise<WebhookTarget[]>;            // state active|disabled, status delivered|failed|disabled|null, lastError, failures
+  remove(id: string): Promise<boolean>;
+  enable(id: string): Promise<WebhookTarget>;  // after webhook.disabled, once fixed (pings again)
+  rotateSecret(id: string): Promise<string>;   // the old secret signs beside it for 24 h
+  journal(o?: { target?: string; after?: string; limit?: number }): Promise<{ deliveries: WebhookDelivery[]; next: string | null }>;
+  handle(request, { disabled?: (e: WebhookEvent) => void | Promise<void> }): Promise<number>;
+  verifySignature({ secret, header, body, now?, tolerance? }): boolean; // the receiver's side
+  ```
+
+  Manifest: `"webhooks": {"max": 1 to 1000}`. Deliveries: generic
+  `{id, event, text, data, key, tool, created_at}` with `Chest-Webhook-Id`,
+  `Chest-Webhook-Event` and `Chest-Webhook-Signature: t=<unix>,v1=<hex
+  HMAC-SHA256(secret, "<t>.<body>")>`; Slack `{"text"}` (`&`, `<`, `>`
+  escaped); Teams the Adaptive Card envelope a Workflows webhook expects.
+  Details, the receiver's snippet and the fake: `sdk/README.md`,
+  "`webhooks`".
+- **Approval sentence**: "Sends notices to web addresses your admins or
+  subscribers give, signed by your Chest (up to 200 addresses)". The owner
+  sees each address (host, label, who added it), its state and the
+  journal, and can disable any of them.
+- **Quotas and limits**: `max` targets; 60 new targets an hour; 1,000
+  deliveries an hour per tool, 500 targets a send; text 4,000 characters,
+  data 16 KiB; 10 s per attempt; 8 attempts over 24 h (0, 1 min, 5 min,
+  30 min, 2 h, 6 h, 12 h, 24 h); 10 failed attempts in a row disable a
+  target (at once on 410, or 404 from Slack/Teams); one request a second
+  per target, queued. **Journal**: every delivery 30 days (target, event,
+  key, attempts, statuses, errors, times — never text or data).
+  **Agents** reach the same through the Chest's MCP as the owner's
+  reading of the journal (list, disable, enable), never the addresses in
+  full.
+- **Risks and their bounds**:
+  - *SSRF* — the Chest posting into its own or the company's network.
+    Bounded: https only; ports 443 or ≥ 1024; no credentials in the
+    address; IP literals and names of private, loopback, link-local,
+    shared, documentation, multicast and reserved ranges refused, IPv4 and
+    IPv6 including IPv4-mapped, NAT64, 6to4 and Teredo forms (the rule is
+    `isPublicAddress`, shared by the SDK, the fake and — proposed — the
+    Chest); **resolution checked at add and at every attempt, the
+    connection pinned to the checked address** (no DNS rebinding);
+    redirects never followed; the answer's body never read beyond a short
+    error excerpt, never shown to the tool (no blind-SSRF oracle beyond a
+    status code). A finding on the way: Node's `BlockList` matches IPv4
+    addresses against IPv6 rules as IPv4-mapped, so a single list with
+    `::ffff:0:0/96` blocks *every* IPv4 address — two lists are needed
+    (a test pins it).
+  - *Spam* — a tool, or an anonymous subscriber of a public page, aiming
+    the Chest at someone else's endpoint. Bounded: a generic address must
+    answer a signed `chest.ping` with a 2xx (someone set a receiver
+    there); Slack and Teams addresses must be of their provider's shape,
+    and only reach a channel whose member created the hook; per-tool
+    quotas and 60 adds an hour; failing targets are disabled; the owner
+    sees and can cut any target. A public subscription form should still
+    use `visitors.count` (§4.8).
+  - *Secrets* — a Slack or Teams address **is** a credential (anyone with
+    it posts to the channel). The Chest keeps addresses encrypted, never
+    shows them whole again (`shownUrl`: the host only), never logs them;
+    the generic signing secret is given once (the tool shows it, stores
+    only the id) and rotates with a 24 h overlap. Our own tests trip
+    secret scanners with a Slack-shaped placeholder: GitHub push
+    protection rejected one; test addresses are now built in parts.
+  - *Cost on a small server* — 1,000 deliveries an hour at ≤ 10 s each is
+    a queue, not a load; retries are spread over 24 h.
+- **Elsewhere** (as a web search showed their documentation on
+  2026-09-29; the vendors' own pages were not reachable from this
+  machine, so the sources are the search results and third-party guides,
+  marked as such):
+  - **Stripe** signs `Stripe-Signature: t=…,v1=…`, the HMAC-SHA256 of
+    `<t>.<body>`, its libraries refusing a timestamp older than 5 minutes
+    ([docs.stripe.com/webhooks](https://docs.stripe.com/webhooks)); it
+    retries for up to three days with exponential backoff and then
+    disables the endpoint and emails the owner (third-party:
+    [Hookdeck's guide](https://hookdeck.com/webhooks/platforms/guide-to-stripe-webhooks-features-and-best-practices)).
+    We copied the header's shape — receivers already know it — and chose
+    24 h: a company's own receivers are few and watched.
+  - **GitHub** sends `X-Hub-Signature-256: sha256=<hex HMAC of the body>`,
+    without a timestamp
+    ([docs](https://docs.github.com/en/webhooks/using-webhooks/validating-webhook-deliveries)):
+    a captured delivery can be replayed. Ours dates the signature.
+  - **Statuspage** quarantines a webhook subscriber after 10 failed
+    requests in about an hour, 30 s to answer, 3xx a failure, and emails
+    the subscriber
+    ([Atlassian support](https://support.atlassian.com/statuspage/docs/enable-webhook-notifications/)).
+    Our 10 failures in a row and "a redirect is a failure" match it;
+    the tool is told (`webhook.disabled`) so Status can do the same email.
+  - **Standard Webhooks** (the spec Svix and others follow) signs
+    `<id>.<timestamp>.<body>` with a `whsec_` secret, base64
+    ([spec](https://github.com/standard-webhooks/standard-webhooks/blob/main/spec/standard-webhooks.md)).
+    We borrowed the `whsec_` prefix; our id is inside the signed body
+    rather than in the signed text, which binds it as well for our JSON
+    but not for a receiver that trusts the `Chest-Webhook-Id` header
+    alone. **To consider before a Chest ships it**: adopting the spec's
+    headers exactly would let receivers use its libraries in every
+    language.
+  - **Slack** incoming webhooks take a JSON `text` (mrkdwn) or `blocks` at
+    `https://hooks.slack.com/services/T…/B…/…`; `&`, `<`, `>` must be
+    escaped as entities; about one message a second per channel, 429 with
+    `Retry-After` beyond; `invalid_payload`, `no_service` (404, the hook is
+    gone), `channel_is_archived`
+    ([Slack docs](https://docs.slack.dev/messaging/sending-messages-using-incoming-webhooks/),
+    [rate limits](https://docs.slack.dev/apis/web-api/rate-limits/),
+    [formatting](https://github.com/slackhq/slack-api-docs/blob/master/page_formatting.md)).
+  - **Microsoft Teams** retired Office 365 connectors (the old
+    `webhook.office.com` addresses) in 2026 — sources disagree on the day
+    (March 31 or May 22, 2026); new hooks are Workflows (Power Automate)
+    flows whose address is
+    `https://<env>.environment.api.powerplatform.com/powerautomate/automations/direct/workflows/<id>/triggers/manual/paths/invoke?…`
+    (the `logic.azure.com` addresses stopped on November 30, 2025), and
+    they expect `{"type": "message", "attachments": [{"contentType":
+    "application/vnd.microsoft.card.adaptive", "contentUrl": null,
+    "content": <Adaptive Card>}]}`
+    ([Microsoft Learn](https://learn.microsoft.com/en-us/microsoftteams/platform/webhooks-and-connectors/how-to/add-incoming-webhook),
+    [M365 dev blog](https://devblogs.microsoft.com/microsoft365dev/retirement-of-office-365-connectors-within-microsoft-teams/),
+    [community thread on the two hosts](https://community.powerplatform.com/forums/thread/details/?threadid=c7987e0f-1650-f011-877a-7c1e5258795a)).
+    **Assumed, to verify on a real tenant**: that a flow created from the
+    Teams "Post to a channel when a webhook request is received" template
+    accepts an anonymous POST at the new host (one thread says the new
+    host wants a token unless the trigger allows anyone); the shape check
+    in `checkUrl` follows the documented path and may need widening.
+  - What we do better for a small company: the tool never holds an
+    address it cannot keep safe, the owner sees every target in one
+    place across tools, and the SSRF rules live once in the Chest instead
+    of in each tool.
+- **Still missing**: Slack and Teams formatting beyond one text (a title,
+  a link button, a colour per event), a "send a test" button on the
+  owner's page, delivery of `webhook.disabled` by email to a subscriber
+  who has no member account (needs `mail`), and the Standard Webhooks
+  headers as an option. `Retry-After` and the one-a-second pacing are
+  designed, not faked.
 
 ## 5. Public-facing tools
 
@@ -930,6 +1099,7 @@ SaaS a company can cancel. Both kept; for the launch, the order is:
 | D | Custom domains for public hosts (§4.15) | Chest only | Status, Hiring, Booking, Support | M | certificates, domain takeover (CNAME check) | 4 |
 | E | `groups` read (§4.12) | Chest + SDK (built) | News, Polls, Wiki, Rooms | S | the org chart to tools (a permission) | 5 |
 | F | Free/busy connector (§4.11 "next step") | Chest + SDK (not built) | Booking, Hiring | L | OAuth tokens held by the Chest | 6 |
+| G | `webhooks` to outside addresses (§4.17) | Chest + SDK (built) | Status (subscribers' Slack/Teams/webhooks), Forms (Zapier, Make, Slack), Support, Hiring (a channel told) | M | SSRF, spam, addresses as secrets (bounded: resolution checked and pinned, ping, quotas, encrypted, owner's journal) | 7 |
 
 Deliberately not proposed: WebSockets and background processes (polling
 every 20–45 s and schedules covered every case met), outbound network per

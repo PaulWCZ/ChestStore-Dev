@@ -18,7 +18,7 @@
 //   front (uploads, file links, photos), /_dev is the harness: who you are,
 //   the bell, badges, files, and buttons that play the Chest (member
 //   lifecycle events, proposals such as scheduled tasks, the outbox and
-//   received mail, the calendar feeds, the Chest's groups).
+//   received mail, the calendar feeds, the Chest's groups, webhooks).
 //
 // Environment: DEV_DATABASE_URL (a PostgreSQL superuser URL, default
 // postgres://postgres:postgres@127.0.0.1:5432/postgres).
@@ -148,6 +148,11 @@ const chest = await testing.fakeChest({
   origin,
   schedules: proposals.schedules ?? [],
   ...(proposals.checks ? { checks: proposals.checks } : {}),
+  // Webhooks (Proposal (studio)): the Chest delivers to the addresses the
+  // tool adds — simulated here (no request leaves this machine); /_dev
+  // makes a target fail and plays the retries; webhook.disabled goes to
+  // the tool's POST /chest-webhooks.
+  ...(proposals.webhooks ? { webhooks: { max: proposals.webhooks.max, to: `http://127.0.0.1:${inner}` } } : {}),
   timeZone: process.env["CHEST_TIMEZONE"] ?? "Europe/Paris",
   // The Chest's settings (Proposal (studio): the chest module): the cast's
   // company; both hosts are this harness's one origin.
@@ -275,6 +280,17 @@ const front = createServer(async (request, response) => {
         console.log(`check ${form.get("name")} ${ok ? "ok" : "failed"} → ${status}`);
         return void response.writeHead(303, back).end();
       }
+      if (path === "/_dev/webhook") {
+        // Proposal (studio): a target answers 503 (or times out) from now
+        // on, or 200 again; "retry" plays the time of every pending retry.
+        const action = form.get("action");
+        if (action === "retry") console.log(`webhooks: ${await chest.webhooks.retry()} retried`);
+        else if (form.get("target")) {
+          chest.webhooks.respond(form.get("target"), action === "fail" ? 503 : action === "timeout" ? "timeout" : 200);
+          console.log(`webhook ${form.get("target")} now answers ${action === "fail" ? "503" : action === "timeout" ? "nothing (timeout)" : "200"}`);
+        }
+        return void response.writeHead(303, back).end();
+      }
       if (path === "/_dev/receive") {
         // Proposal (studio): a new message, or a reply to one the tool sent
         // (to its thread address when it had one, In-Reply-To its id).
@@ -358,7 +374,7 @@ const front = createServer(async (request, response) => {
     if (path === "/_chest/calendar" || path === "/_chest/calendar/new") headers["chest-member"] = testing.signAssertion(current(request));
     return relay(request, response, { port: Number(new URL(chest.api).port) }, headers);
   }
-  if (path === "/chest-events" || path === "/chest-mail" || path.startsWith("/chest-jobs/")) return void response.writeHead(404).end();
+  if (path === "/chest-events" || path === "/chest-mail" || path === "/chest-checks" || path === "/chest-webhooks" || path.startsWith("/chest-jobs/")) return void response.writeHead(404).end();
   const headers = { ...request.headers, "x-forwarded-host": `localhost:${port}`, "x-forwarded-proto": "http" };
   delete headers["chest-member"];
   const first = path.split("/")[1]?.toLowerCase();

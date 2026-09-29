@@ -146,9 +146,11 @@ export function checkManifest(value: unknown): string[] {
 // documentation, benchmarking, multicast, reserved; for IPv6 also unique
 // local, the IPv4-mapped and translated ranges (which would reach IPv4
 // through a back door), 6to4 and Teredo.
-const blocked = new BlockList();
-for (const [address, prefix] of [["0.0.0.0", 8], ["10.0.0.0", 8], ["100.64.0.0", 10], ["127.0.0.0", 8], ["169.254.0.0", 16], ["172.16.0.0", 12], ["192.0.0.0", 24], ["192.0.2.0", 24], ["192.88.99.0", 24], ["192.168.0.0", 16], ["198.18.0.0", 15], ["198.51.100.0", 24], ["203.0.113.0", 24], ["224.0.0.0", 4], ["240.0.0.0", 4]] as const) blocked.addSubnet(address, prefix, "ipv4");
-for (const [address, prefix] of [["::", 96], ["::ffff:0:0", 96], ["64:ff9b::", 96], ["64:ff9b:1::", 48], ["100::", 64], ["2001::", 32], ["2001:2::", 48], ["2001:10::", 28], ["2001:20::", 28], ["2001:db8::", 32], ["2002::", 16], ["3fff::", 20], ["5f00::", 16], ["fc00::", 7], ["fe80::", 10], ["fec0::", 10], ["ff00::", 8]] as const) blocked.addSubnet(address, prefix, "ipv6");
+// Two lists: Node's BlockList matches an IPv4 address against IPv6 rules
+// as IPv4-mapped, so ::ffff:0:0/96 would block every IPv4 address.
+const blocked4 = new BlockList(), blocked6 = new BlockList();
+for (const [address, prefix] of [["0.0.0.0", 8], ["10.0.0.0", 8], ["100.64.0.0", 10], ["127.0.0.0", 8], ["169.254.0.0", 16], ["172.16.0.0", 12], ["192.0.0.0", 24], ["192.0.2.0", 24], ["192.88.99.0", 24], ["192.168.0.0", 16], ["198.18.0.0", 15], ["198.51.100.0", 24], ["203.0.113.0", 24], ["224.0.0.0", 4], ["240.0.0.0", 4]] as const) blocked4.addSubnet(address, prefix, "ipv4");
+for (const [address, prefix] of [["::", 96], ["::ffff:0:0", 96], ["64:ff9b::", 96], ["64:ff9b:1::", 48], ["100::", 64], ["2001::", 32], ["2001:2::", 48], ["2001:10::", 28], ["2001:20::", 28], ["2001:db8::", 32], ["2002::", 16], ["3fff::", 20], ["5f00::", 16], ["fc00::", 7], ["fe80::", 10], ["fec0::", 10], ["ff00::", 8]] as const) blocked6.addSubnet(address, prefix, "ipv6");
 
 // isPublicAddress says an IP address may receive a delivery: the rule the
 // Chest applies to every address a name resolves to, before each attempt.
@@ -156,7 +158,7 @@ export function isPublicAddress(address: string): boolean {
   const plain = address.startsWith("[") && address.endsWith("]") ? address.slice(1, -1) : address;
   const family = isIP(plain);
   if (family === 0) return false;
-  return !blocked.check(plain, family === 4 ? "ipv4" : "ipv6");
+  return family === 4 ? !blocked4.check(plain, "ipv4") : !blocked6.check(plain, "ipv6");
 }
 
 // Names that never lead outside: the machine, the local network, and the

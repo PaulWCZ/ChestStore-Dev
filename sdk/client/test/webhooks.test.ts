@@ -6,7 +6,9 @@ import { fakeChest } from "../src/testing.js";
 
 // A made-up address in Slack's shape, built in parts so secret scanners do not take it for a real one.
 const slack = ["https://hooks.slack.com/services", "T0" + "0000000", "B0" + "0000000", "x".repeat(24)].join("/");
-const teams = "https://default0123456789abcdef.0e.environment.api.powerplatform.com/powerautomate/automations/direct/workflows/0123456789abcdef0123456789abcdef/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=secretpart";
+// Built in parts, with placeholder values: never a provider's address in
+// its real token shape (secret scanners rightly refuse those).
+const teams = ["https://default" + "0".repeat(16) + ".0e.environment.api.powerplatform.com/powerautomate/automations/direct/workflows", "0".repeat(32), "triggers/manual/paths/invoke?api-version=1&sig=placeholder"].join("/");
 const owner = "mbr_camilleaaaaaaaaaaaaaaaaaaa";
 const code = (c: string) => (e: unknown) => (e as { code?: string }).code === c;
 
@@ -32,7 +34,7 @@ test("an address is checked before anything is sent: https, no credentials, no p
     ["https://receiver.example.com/#x", "generic"],
     [slack, "generic"],
     ["https://hooks.slack.com/services/nope", "slack"],
-    ["https://evil.example.com/services/T0ABCDEF1/B0ABCDEF2/abcdefghijklmnopqrstuvwx", "slack"],
+    [slack.replace("hooks.slack.com", "evil.example.com"), "slack"],
     ["https://outlook.office.com/webhook/abc", "teams"],
   ] as const) assert.ok(webhooks.checkUrl(url, kind).length > 0, `${url} (${kind}) is refused`);
   assert.equal(webhooks.isPublicAddress("93.184.215.14"), true);
