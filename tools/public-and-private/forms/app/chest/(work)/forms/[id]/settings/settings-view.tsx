@@ -95,7 +95,7 @@ export function SettingsView(p: Props) {
           {(["steps", "classic"] as const).map(l => (
             <label key={l} className={`choice-card layout-card${v.layout === l ? " on" : ""}`}>
               <input type="radio" name="layout" checked={v.layout === l} onChange={() => set("layout", l)} />
-              <span className={`layout-art ${l}`} aria-hidden="true"><span /><span /><span /></span>
+              <span className={`layout-art art-${l}`} aria-hidden="true"><span /><span /><span /></span>
               <span className="choice-text"><strong>{l === "steps" ? s.layoutSteps : s.layoutClassic}</strong><small>{l === "steps" ? s.layoutStepsHint : s.layoutClassicHint}</small></span>
             </label>
           ))}

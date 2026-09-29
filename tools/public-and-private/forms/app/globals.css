@@ -296,10 +296,10 @@ select.field { appearance: auto; }
 .layout-card { flex-direction: column; }
 .layout-art { display: flex; flex-direction: column; gap: 6px; justify-content: center; align-self: stretch; height: 72px; padding: 0 14px; border-radius: 10px; background: var(--surface-2); }
 .layout-art > span { display: block; align-self: stretch; height: 8px; border-radius: 99px; background: var(--line-strong); flex: none; }
-.layout-art.steps > span:nth-child(1) { margin: 0 15%; height: 10px; background: var(--ink-2); opacity: 0.55; }
-.layout-art.steps > span:nth-child(2) { margin: 0 32%; background: var(--accent); }
-.layout-art.steps > span:nth-child(3) { display: none; }
-.layout-art.classic > span:nth-child(odd) { margin-right: 45%; }
+.layout-art.art-steps > span:nth-child(1) { margin: 0 15%; height: 10px; background: var(--ink-2); opacity: 0.55; }
+.layout-art.art-steps > span:nth-child(2) { margin: 0 32%; background: var(--accent); }
+.layout-art.art-steps > span:nth-child(3) { display: none; }
+.layout-art.art-classic > span:nth-child(odd) { margin-right: 45%; }
 .swatches { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; margin-top: var(--space-3); }
 .swatches .mini-label { margin: 0 var(--space-2) 0 0; }
 .swatch { position: relative; display: grid; place-items: center; width: 44px; height: 44px; border-radius: 50%; cursor: pointer; }
@@ -546,3 +546,4 @@ select.field { appearance: auto; }
   .answer-group.group-yesno { grid-template-columns: 1fr 1fr; }
   .runner-thanks { padding: var(--space-6) 0; }
 }
+.bar-value .dim { margin-left: 6px; font-weight: 500; }
