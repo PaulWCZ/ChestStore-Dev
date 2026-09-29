@@ -88,7 +88,7 @@ export function StartForm({ people, arrivals, templates, initial, today, weekday
       </div>
       {arrival && (
         <div className="field-group">
-          <PeoplePicker label={t.start.manager} hint={t.leaveEmpty} value={manager} onChange={setManager} search={searchPeople} suggestions={offered(people)} labels={t.peoplePicker} lang={lang} />
+          <PeoplePicker label={t.start.manager} hint={t.leaveEmpty} clearable value={manager} onChange={setManager} search={searchPeople} suggestions={offered(people)} labels={t.peoplePicker} lang={lang} />
         </div>
       )}
       <fieldset className="field-group">

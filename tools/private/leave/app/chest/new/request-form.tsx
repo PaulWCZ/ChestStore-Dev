@@ -1,7 +1,7 @@
 "use client";
 
 import { DateField, PeoplePicker, Segmented } from "@argentic/chest-ui/components";
-import { localSearch } from "@argentic/chest-ui/components/logic";
+import { localSearch, moveRangeEnd, moveRangeStart } from "@argentic/chest-ui/components/logic";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState, useTransition } from "react";
@@ -71,10 +71,19 @@ export function RequestForm(props: {
   const legal = props.events.find(e => e.key === event);
   const needsEvent = type?.key === "family";
 
+  // The kit's range rules: a new first day keeps the leave's length (a
+  // Monday-to-Wednesday leave moved to Thursday still lasts three days, never
+  // past the last day one may ask for); a last day is never before the first.
   function changeStart(value: string | null) {
     const day = value ?? "";
     setStart(day);
-    if (isDay(day) && (!isDay(end) || end < day)) setEnd(day);
+    if (!isDay(day)) return;
+    const moved = moveRangeStart({ from: isDay(start) ? start : null, to: isDay(end) ? end : null }, day).to;
+    setEnd(moved === null ? day : moved > props.latest ? props.latest : moved);
+  }
+
+  function changeEnd(value: string | null) {
+    setEnd(isDay(start) ? moveRangeEnd({ from: start, to: value }, value).to ?? "" : value ?? "");
   }
 
   function submit(e: React.FormEvent) {
@@ -143,7 +152,7 @@ export function RequestForm(props: {
           )}
         </div>
         <div className="date-field">
-          <DateField id="end" label={t.form.lastDay} value={isDay(end) ? end : null} onChange={v => setEnd(v ?? "")} today={props.today} min={isDay(start) ? start : props.earliest} max={props.latest} chips={false} required labels={t.date} />
+          <DateField id="end" label={t.form.lastDay} value={isDay(end) ? end : null} onChange={changeEnd} today={props.today} min={isDay(start) ? start : props.earliest} max={props.latest} chips={false} required labels={t.date} />
           {type?.halfDays && !single && (
             <Segmented label={t.form.lastDay} value={endHalf} onChange={setEndHalf} options={[{ value: "pm", label: t.form.whole }, { value: "am", label: t.form.morningOnly }]} />
           )}

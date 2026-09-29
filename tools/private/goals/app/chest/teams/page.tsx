@@ -1,4 +1,5 @@
-import Link from "next/link";
+import { Filters } from "@argentic/chest-ui/components";
+import { Link } from "../../../components/link.tsx";
 import { People } from "../../../components/icons.tsx";
 import { MapEmpty } from "../../../components/map-empty.tsx";
 import { Contours } from "../../../components/contours.tsx";
@@ -11,7 +12,6 @@ import { context } from "../../../lib/page-data.ts";
 import { cycleObjectives, defaultCycle } from "../../../lib/read.ts";
 import { viewer } from "../../../lib/session.ts";
 import { pctText } from "../../../lib/views.ts";
-import { LinkFilters } from "../views/company-filters.tsx";
 import { cycleGroup } from "../views/cycle-group.ts";
 
 // The teams, each a tile: its progress in the cycle shown, its
@@ -31,7 +31,7 @@ export default async function Teams({ searchParams }: { searchParams: Promise<{ 
       <div className="head">
         <div className="titles"><h1>{t.teams.title}</h1></div>
       </div>
-      {cycle && active.length > 0 && <LinkFilters path="/chest/teams" params={{ cycle: cycle.id }} groups={[cycleGroup(ctx.cycles, cycle.id, t)]} labels={t.filters} />}
+      {cycle && active.length > 0 && <Filters link={Link} path="/chest/teams" params={{ cycle: cycle.id }} groups={[cycleGroup(ctx.cycles, cycle.id, t)]} labels={t.filters} />}
       {active.length === 0 ? (
         <MapEmpty icon={<People />} title={t.teams.empty} body={t.teams.emptyBody} action={can(member, "settings.manage") ? <Link className="button" href="/chest/settings#teams">{t.teams.emptyAdmin}</Link> : null} />
       ) : (

@@ -1,6 +1,7 @@
+import { Filters } from "@argentic/chest-ui/components";
+import { Link } from "../../../components/link.tsx";
 import type { FilterGroup } from "@argentic/chest-ui/components";
 import { paramValues } from "@argentic/chest-ui/components/logic";
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AutoRefresh } from "../../../components/auto-refresh.tsx";
 import { CycleChip } from "../../../components/cycle-chip.tsx";
@@ -19,7 +20,7 @@ import { idsOf, objectiveView, pctText, personView, type ObjectiveView } from ".
 import { AddExample } from "../views/add-example.tsx";
 import { ChaseList, type ChasePerson } from "../views/chase-list.tsx";
 import { cycleGroup } from "../views/cycle-group.ts";
-import { LinkFilters, OwnerFilter } from "../views/company-filters.tsx";
+import { OwnerFilter } from "../views/company-filters.tsx";
 import { Tree, type TreeNode } from "../views/tree.tsx";
 
 // The company's goals as a trail map: each company objective, and beneath
@@ -117,7 +118,7 @@ export default async function Company({ searchParams }: { searchParams: Promise<
       </div>
 
       <div className="tree-tools">
-        <LinkFilters path="/chest/company" params={params} groups={[cycleGroup(ctx.cycles, cycle.id, t)]} labels={t.filters} />
+        <Filters link={Link} path="/chest/company" params={params} groups={[cycleGroup(ctx.cycles, cycle.id, t)]} labels={t.filters} />
         <div className="end">
           {can(member, "any.write") && open && <Link className="button quiet small" href={`/chest/import?cycle=${cycle.id}`}><Upload />{t.company.import}</Link>}
           <a className="button quiet small" href={`/chest/cycles/${cycle.id}/export`} download><Download />{t.company.export}</a>
@@ -155,7 +156,7 @@ export default async function Company({ searchParams }: { searchParams: Promise<
           </div>
           {chase.length > 0 && <ChaseList people={chase} all={can(member, "any.write")} locale={locale} t={{ chase: t.chase, errors: t.errors, objective: t.objective }} />}
           <div className="filters">
-            <LinkFilters path="/chest/company" params={params} groups={groups} labels={t.filters} />
+            <Filters link={Link} path="/chest/company" params={params} groups={groups} labels={t.filters} />
             {!chosenOwner && <OwnerFilter path="/chest/company" params={params} owners={ownerChoices} label={t.company.owner} labels={t.peoplePicker} lang={locale} />}
           </div>
           {filtering ? (

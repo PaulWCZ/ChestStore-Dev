@@ -90,7 +90,7 @@ export function PageActions({ page, writer, editHref, t, places, state, groups =
         {watching ? <Check /> : <Eye />}<span className="label">{watching ? t.watch.watching : t.watch.watch}</span>
       </button>
       {writer && <Link className="button" href={editHref}><Pen />{t.page.edit}</Link>}
-      <Menu label={t.page.more} icon={<Dots />} showLabel items={[
+      <Menu label={t.page.more} icon={<Dots />} showLabel size="m" link={Link} items={[
         ...(writer ? [{ label: t.shell.newSubpage, icon: <Plus />, onSelect: () => setChild({ spaceId: page.spaceId, spaceName: t.spaceName, parentId: page.id, parentTitle: page.title }) }] : []),
         ...(writer && places ? [{ label: t.page.move, icon: <Move />, onSelect: () => setMoving(true) }] : []),
         ...(writer ? [{ label: state.pinned ? t.page.unpin : t.page.pin, icon: <Pin />, disabled: pending, onSelect: pin }] : []),
@@ -99,9 +99,9 @@ export function PageActions({ page, writer, editHref, t, places, state, groups =
         ...(writer ? [{ label: state.review.months ? format(t.review.menuSet, { months: state.review.months }) : t.review.menu, icon: <Calendar />, onSelect: () => setReviewing(true) }] : []),
         { label: t.page.history, icon: <Clock />, href: `/chest/pages/${page.id}/history` },
         { label: t.page.print, icon: <Printer />, onSelect: () => window.print() },
-        { label: t.page.exportMarkdown, icon: <Download />, href: `/chest/pages/${page.id}/export?format=md` },
-        { label: t.page.exportHtml, icon: <Download />, href: `/chest/pages/${page.id}/export?format=html` },
-        ...(page.hasChildren ? [{ label: t.page.exportZip, icon: <Download />, href: `/chest/pages/${page.id}/export?format=zip` }] : []),
+        { label: t.page.exportMarkdown, icon: <Download />, href: `/chest/pages/${page.id}/export?format=md`, download: true },
+        { label: t.page.exportHtml, icon: <Download />, href: `/chest/pages/${page.id}/export?format=html`, download: true },
+        ...(page.hasChildren ? [{ label: t.page.exportZip, icon: <Download />, href: `/chest/pages/${page.id}/export?format=zip`, download: true }] : []),
         ...(writer ? [{ label: t.page.delete, icon: <Trash />, tone: "danger" as const, disabled: pending, onSelect: remove }] : []),
       ] satisfies MenuItem[]} />
       {places && <MoveDialog open={moving} onClose={() => setMoving(false)} page={page} places={places} t={t} />}

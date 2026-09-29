@@ -495,6 +495,10 @@ export const en = {
     tooMany: "{count} files at most.",
     units: ["B", "KB", "MB", "GB"],
     decimal: ".",
+    takePhoto: "Take a photo",
+    chooseFile: "Choose a file",
+    kinds: { image: "images", audio: "sound files", video: "videos", text: "text files" },
+    separator: ": ",
   },
   errors: {
     forbidden: "Your role does not allow this.",

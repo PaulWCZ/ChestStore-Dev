@@ -24,7 +24,7 @@ the contract's tokens (`--bg`, `--surface`, `--ink`, `--accent`,
 
 | Token | Defined as | Use |
 |---|---|---|
-| `--font-read` | `--font-display` | page text, titles, excerpts (Library: Newsreader) |
+| `--font-read` | the contract's (not the wiki's: 0.2.2) | page text, excerpts, snippets (Library: Newsreader; the body face in a theme whose display face is for headings) — titles and a page's headings use `--font-display` |
 | `--read-size`, `--measure`, `--sidebar` | 19 px, 40 rem, 288 px | the reading column, the sidebar |
 | `--bar-h` | the kit's header height | what sticks below it (sidebar, editor bars) |
 | `--space` / `--space-ink` | `--cat-N` / `--cat-N-ink` of the space's slot | a space's spine and dot (3:1) / its colour as text (4.5:1) |

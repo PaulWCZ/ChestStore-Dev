@@ -47,7 +47,7 @@ img { max-width: 100%; }
   .ck-bar-nav { align-items: center; }
   .ck-nav-link { border: 0; border-radius: var(--radius-pill); padding: 0 var(--space-4); color: var(--ink); font-weight: var(--weight-medium); transition: background var(--fast) var(--ease); }
   .ck-nav-link:hover { background: var(--surface-2); }
-  .ck-nav-link[aria-current="page"] { background: var(--inverse); color: var(--inverse-ink); }
+  .ck-nav-link[aria-current="page"] { background: var(--chosen); color: var(--chosen-ink); }
   .ck-nav-icon svg { width: 19px; height: 19px; }
 }
 /* On a phone, the kit's rule: the sections in a row of their own under
@@ -174,17 +174,17 @@ textarea.field { resize: vertical; line-height: 1.5; padding-top: var(--space-3)
 .person-name { font-size: var(--text-l); font-weight: var(--weight-strong); letter-spacing: var(--display-tracking); line-height: 1.2; }
 .person-title { color: var(--ink-2); }
 .person-where { display: flex; gap: var(--space-2); flex-wrap: wrap; justify-content: center; align-items: center; margin-top: var(--space-2); font-size: var(--text-s); color: var(--ink-2); }
-.team { padding: 2px 10px; border-radius: var(--radius-pill); background: var(--surface-2); color: var(--ink); font-weight: var(--weight-medium); }
+.team { padding: 2px 10px; border-radius: var(--radius-chip); background: var(--surface-2); color: var(--ink); font-weight: var(--weight-medium); }
 .office { display: inline-flex; align-items: center; gap: 3px; }
 .topics { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; margin-top: var(--space-3); }
-.topic { display: inline-flex; align-items: center; gap: 4px; padding: 2px 10px; border-radius: var(--radius-pill); border: 1px solid var(--line-strong); font-size: var(--text-xs); color: var(--ink); }
+.topic { display: inline-flex; align-items: center; gap: 4px; padding: 2px 10px; border-radius: var(--radius-chip); border: 1px solid var(--line-strong); font-size: var(--text-xs); color: var(--ink); }
 .topics.big { justify-content: flex-start; gap: var(--space-2); }
 .topics.big .topic { font-size: var(--text-s); padding: 4px 14px; background: var(--surface); }
-.away { display: inline-flex; align-self: center; width: fit-content; align-items: center; gap: 6px; margin-top: var(--space-2); padding: 3px 12px; border-radius: var(--radius-pill); background: var(--surface-2); color: var(--ink); font-size: var(--text-xs); font-weight: var(--weight-strong); line-height: 1.35; }
+.away { display: inline-flex; align-self: center; width: fit-content; align-items: center; gap: 6px; margin-top: var(--space-2); padding: 3px 12px; border-radius: var(--radius-chip); background: var(--surface-2); color: var(--ink); font-size: var(--text-xs); font-weight: var(--weight-strong); line-height: 1.35; }
 .away svg { color: var(--accent-text); flex: none; }
 .profile-id .away { align-self: flex-start; font-size: var(--text-s); padding: 4px 14px; margin: var(--space-2) 0 0; }
-.badge { position: absolute; top: var(--space-3); right: var(--space-3); padding: 2px 10px; border-radius: var(--radius-pill); background: var(--accent); color: var(--accent-ink); font-size: var(--text-xs); font-weight: var(--weight-strong); }
-.badge.me { background: var(--inverse); color: var(--inverse-ink); }
+.badge { position: absolute; top: var(--space-3); right: var(--space-3); padding: 2px 10px; border-radius: var(--radius-chip); background: var(--accent); color: var(--accent-ink); font-size: var(--text-xs); font-weight: var(--weight-strong); }
+.badge.me { background: var(--chosen); color: var(--chosen-ink); }
 .profile-id .badge { position: static; display: inline-block; margin-bottom: var(--space-2); }
 .moments { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: var(--space-6); margin-top: var(--space-7); padding-top: var(--space-6); border-top: 1px solid var(--line); }
 .moment-list { display: grid; gap: var(--space-1); }
@@ -256,7 +256,7 @@ textarea.field { resize: vertical; line-height: 1.5; padding-top: var(--space-3)
 /* The kit's segmented choice, as the gallery's pills: the chosen one in plum. */
 .ck-segments { border: 0; padding: 0; gap: var(--space-2); background: none; flex-wrap: wrap; }
 .ck-segment span { min-height: var(--control-h); padding: 0 var(--space-4); border-radius: var(--radius-pill); border: 1.5px solid var(--line-strong); font-size: var(--text-m); font-weight: var(--weight-medium); }
-.ck-segment input:checked + span { background: var(--inverse); color: var(--inverse-ink); border-color: var(--inverse); outline: 0; box-shadow: none; }
+.ck-segment input:checked + span { background: var(--chosen); color: var(--chosen-ink); border-color: var(--chosen); outline: 0; box-shadow: none; }
 .check { display: inline-flex; align-items: center; gap: var(--space-2); min-height: var(--control-h); cursor: pointer; }
 .check input { width: 20px; height: 20px; accent-color: var(--accent); }
 .choices { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--space-2); }
@@ -372,7 +372,7 @@ textarea.field { resize: vertical; line-height: 1.5; padding-top: var(--space-3)
 .step-who { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: var(--text-s); color: var(--ink); text-decoration: none; }
 .step-who .ck-avatar { box-shadow: none; }
 .nobody { color: var(--danger); font-weight: var(--weight-medium); }
-.due { font-size: var(--text-s); font-weight: var(--weight-medium); color: var(--ink-2); white-space: nowrap; padding: 2px 10px; border-radius: var(--radius-pill); }
+.due { font-size: var(--text-s); font-weight: var(--weight-medium); color: var(--ink-2); white-space: nowrap; padding: 2px 10px; border-radius: var(--radius-chip); }
 .due.late { color: var(--danger-ink); background: var(--danger-soft); }
 .due.today { color: var(--accent-text); background: var(--accent-soft); }
 .step.is-done .due { color: var(--ink-2); background: none; }
@@ -416,7 +416,7 @@ textarea.field { resize: vertical; line-height: 1.5; padding-top: var(--space-3)
 .page.public .brand { display: flex; align-items: center; gap: var(--space-2); font: var(--display-weight) var(--text-l) var(--font-display); }
 .page.public .ck-logo img { height: 44px; }
 .ck-language { border-radius: var(--radius-pill); }
-.ck-language[aria-current="true"] { background: var(--inverse); color: var(--inverse-ink); border-color: var(--inverse); }
+.ck-language[aria-current="true"] { background: var(--chosen); color: var(--chosen-ink); border-color: var(--chosen); }
 
 @media (max-width: 560px) {
   .hello-list { grid-template-columns: 1fr; }
@@ -448,7 +448,7 @@ textarea.field { resize: vertical; line-height: 1.5; padding-top: var(--space-3)
 .banner.todo > span:first-of-type { flex: 1 1 auto; min-width: 0; }
 
 /* ---------- Arrivals (told by Hiring) ---------- */
-.source { display: inline-block; padding: 1px 10px; border-radius: var(--radius-pill); font-size: var(--text-xs); font-weight: var(--weight-strong); background: var(--accent-soft); color: var(--accent-text); margin-left: var(--space-2); vertical-align: 2px; }
+.source { display: inline-block; padding: 1px 10px; border-radius: var(--radius-chip); font-size: var(--text-xs); font-weight: var(--weight-strong); background: var(--accent-soft); color: var(--accent-text); margin-left: var(--space-2); vertical-align: 2px; }
 .tags { gap: var(--space-2); }
 .tags .source { margin-left: 0; }
 .arrival-list { display: grid; gap: var(--space-2); }
@@ -467,7 +467,7 @@ textarea.field { resize: vertical; line-height: 1.5; padding-top: var(--space-3)
 /* ---------- A manager who left (kept in the org chart) ---------- */
 .node-card.left { border-style: dashed; border-color: var(--line-strong); background: var(--surface-2); box-shadow: none; }
 .node-card.left .portrait { opacity: 0.6; }
-.left-tag { display: inline-block; margin-top: 2px; padding: 1px 10px; border-radius: var(--radius-pill); background: var(--surface); color: var(--ink); font-weight: var(--weight-strong); }
+.left-tag { display: inline-block; margin-top: 2px; padding: 1px 10px; border-radius: var(--radius-chip); background: var(--surface); color: var(--ink); font-weight: var(--weight-strong); }
 .node-fix { margin-top: var(--space-1); font-size: var(--text-xs); font-weight: var(--weight-strong); color: var(--accent-text); min-height: 32px; display: inline-flex; align-items: center; }
 .manager-left { font-weight: var(--weight-medium); }
 .extras { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--space-3); margin: 0; }
@@ -505,6 +505,11 @@ select.cell { appearance: auto; }
 .cell:focus { outline: 2px solid var(--accent); outline-offset: -2px; background: var(--surface); }
 .cell.head { min-width: 120px; font-weight: var(--weight-strong); color: var(--ink); padding: 0 var(--space-1); }
 .cell::placeholder { color: var(--ink-2); }
+/* The kit's compact date field, dressed as the sheet's other cells. */
+.cell-date { min-width: 190px; }
+.cell-date .ck-date-input { border: 0; background: transparent; border-radius: 0; }
+.cell-date .ck-date-input:focus { outline: 2px solid var(--accent); outline-offset: -2px; background: var(--surface); }
+.cell-date .ck-error { padding: 0 var(--space-3) var(--space-1); }
 .sheet .field-head { padding: 0 var(--space-1); }
 .field-head .row { flex-wrap: nowrap; gap: 0; }
 .new-field { margin-top: var(--space-4); }

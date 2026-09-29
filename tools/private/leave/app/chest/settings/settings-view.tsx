@@ -1,6 +1,6 @@
 "use client";
 
-import { StatusBadge, useToast } from "@argentic/chest-ui/components";
+import { StatusBadge, Switch, useToast } from "@argentic/chest-ui/components";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { Plus } from "../../../components/icons.tsx";
@@ -56,19 +56,13 @@ export function SettingsView(props: { settings: Rules; holidays: { key: string; 
 
       <section className="panel">
         <h2>{t.settings.holidays}</h2>
-        <label className="check">
-          <input type="checkbox" checked={rules.alsace} onChange={e => save({ ...rules, alsace: e.target.checked })} />
-          <span>{t.settings.alsace}</span>
-        </label>
+        <Switch label={t.settings.alsace} checked={rules.alsace} onChange={on => save({ ...rules, alsace: on })} />
         <p className="muted small">{t.settings.workedHint}</p>
         <ul className="holiday-list">
           {props.holidays.filter(h => rules.alsace || !h.alsace).map(h => (
             <li key={h.key}>
               <span><strong>{h.name}</strong> <span className="muted small">{h.day}</span></span>
-              <label className="check small">
-                <input type="checkbox" checked={rules.workedHolidays.includes(h.key)} onChange={e => save({ ...rules, workedHolidays: e.target.checked ? [...rules.workedHolidays, h.key] : rules.workedHolidays.filter(k => k !== h.key) })} />
-                <span>{t.settings.worked}</span>
-              </label>
+              <Switch className="small" label={<>{t.settings.worked}<span className="visually-hidden"> ({h.name})</span></>} checked={rules.workedHolidays.includes(h.key)} onChange={on => save({ ...rules, workedHolidays: on ? [...rules.workedHolidays, h.key] : rules.workedHolidays.filter(k => k !== h.key) })} />
             </li>
           ))}
         </ul>
@@ -146,11 +140,15 @@ function TypeEditor({ row, colors, months, companyMonth, t, onDone }: { row: Typ
   const leave = () => {
     if (!fresh && (v.name !== row.name || v.perYear !== row.perYear)) run(() => saveType(row.id, input(v)));
   };
-  const flag = (key: "balance" | "halfDays" | "approval" | "notes" | "overdraw" | "away", label: string) => (
+  // A saved kind changes at once: a switch. A new one waits for its Add
+  // button: a checkbox (the kit's rule for Switch).
+  const flag = (key: "balance" | "halfDays" | "approval" | "notes" | "overdraw" | "away", label: string) => fresh ? (
     <label className="check small">
       <input type="checkbox" checked={v[key]} disabled={pending} onChange={e => change({ [key]: e.target.checked })} />
       <span>{label}</span>
     </label>
+  ) : (
+    <Switch className="small" label={label} checked={v[key]} disabled={pending} onChange={on => change({ [key]: on })} />
   );
   return (
     <li className={`type-editor${row.archived ? " archived" : ""}`}>

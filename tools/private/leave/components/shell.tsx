@@ -19,7 +19,7 @@ export function Shell({ brand, nav, member, labels, children }: {
 }) {
   const path = usePathname();
   return (
-    <AppShell brand={brand} nav={nav} path={path} link={props => <Link {...props} />} member={member} labels={labels} width="full">
+    <AppShell brand={brand} nav={nav} path={path} link={Link} member={member} labels={labels} width="full">
       {children}
     </AppShell>
   );

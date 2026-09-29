@@ -61,9 +61,17 @@ the app shell with labelled tabs (a row under the header on a phone),
 toasts with an *Undo* that tells the truth, the dialog that keeps typed
 text, date fields (typed in the reader's language or chosen on a
 calendar), the people picker (who a request is for, a person's approver),
-segmented controls (whole day / morning / afternoon), the people table,
+segmented controls (whole day / morning / afternoon), the people table
+(a whole row opens the person's page; a card per person on a phone),
 filters (whose absences), tabs, status badges, avatars, empty states, the
-file picker (imports), the no-access page, the language switch.
+file picker (imports), switches (settings that take effect at once: the
+Alsace-Moselle holidays, a worked holiday, a saved kind's options), the
+month field (payroll's month), the no-access page, the language switch.
+The request form keeps two date fields rather than the kit's
+`DateRangeField`: each end has its own half-day choice under it, and the
+start keeps its Today/Tomorrow chips; it uses the kit's range rules (a new
+first day keeps the leave's length). Kind chips, holiday tags and the
+"away" chips take `--radius-chip` (square in a square theme).
 
 Leave's own: pill buttons (sea primary, big, quiet, small, danger), kind
 cards (radio, a dot when chosen), kind chips (solid when approved, striped
@@ -73,8 +81,9 @@ answer"), request rows, answer cards, a timeline of what happened, the
 month grid (sticky names and days, bars that join across days, half-day
 halves, shaded week-ends and holidays, today ringed), the absence cards by
 week for phones, rest days hatched in a part-timer's row, the balance
-history table (computed "End of the year" lines in italics — its own:
-the kit's table has no row styles), week-day toggles, HR's first-run
+history table (computed "End of the year" lines in italics — its own: a
+server-rendered table, where the kit's `DataTable` would need a client
+wrapper for its render functions), week-day toggles, HR's first-run
 checklist, the import's mapping box, settings panels.
 
 ## Icon

@@ -1,6 +1,7 @@
 "use client";
 
-import { EmptyState, Segmented } from "@argentic/chest-ui/components";
+import { EmptyState, Filters, Segmented } from "@argentic/chest-ui/components";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Download, FileIcon, Table, Zip } from "../../../components/icons.tsx";
 import type { Catalogue } from "../../../lib/i18n/index.ts";
@@ -21,31 +22,28 @@ export function ExportView({ by, months, month, people, person, summary, leftOut
   t: Catalogue["export"];
 }) {
   const router = useRouter();
-  const go = (m: string | null, p: string, b = by) => router.push(`/chest/export?${[m ? `month=${m}` : "", p ? `person=${p}` : "", b === "paid" ? "by=paid" : ""].filter(Boolean).join("&")}`);
   const switchBy = (
     <div className="by-switch">
-      <Segmented name="by" label={t.by} hideLabel={false} value={by} onChange={b => go(null, "", b)} options={[{ value: "spent", label: t.bySpent }, { value: "paid", label: t.byPaid }]} />
+      <Segmented label={t.by} hideLabel={false} value={by} link={Link} options={[{ value: "spent", label: t.bySpent, href: "/chest/export" }, { value: "paid", label: t.byPaid, href: "/chest/export?by=paid" }]} />
     </div>
   );
   if (months.length === 0) return <>{switchBy}<div className="paper"><EmptyState icon={<Table />} title={t.none} /></div></>;
   return (
     <>
       {switchBy}
-      <div className="pickers">
-        <div className="field-row">
-          <label htmlFor="month">{t.month}</label>
-          <select id="month" className="field" value={month ?? ""} onChange={e => go(e.target.value, "")}>
-            {months.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
-          </select>
-        </div>
-        <div className="field-row">
-          <label htmlFor="person">{t.person}</label>
-          <select id="person" className="field" value={person} onChange={e => go(month, e.target.value)}>
-            <option value="">{t.everyone}</option>
-            {people.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
-          </select>
-        </div>
-      </div>
+      {/* The kit's filters as two lists, kept in the address (a link to
+          share; without script, a "Show" button). */}
+      <Filters
+        className="pickers"
+        path="/chest/export"
+        params={{ month: month ?? undefined, person: person || undefined, by: by === "paid" ? "paid" : undefined }}
+        onNavigate={href => router.push(href)}
+        labels={{ label: t.filters, clear: t.clear, all: t.everyone, apply: t.show }}
+        groups={[
+          { key: "month", label: t.month, as: "select", required: true, ...(month ? { value: month } : {}), options: months },
+          { key: "person", label: t.person, as: "select", options: people },
+        ]}
+      />
       <section className="paper">
         <p className="label" role="status">{summary ?? t.none}</p>
         <hr className="rule" />

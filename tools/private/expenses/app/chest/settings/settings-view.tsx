@@ -1,6 +1,6 @@
 "use client";
 
-import { Avatar, FilePicker, StatusBadge, useToast, type PickedFile } from "@argentic/chest-ui/components";
+import { Avatar, FilePicker, StatusBadge, Switch, useToast, type PickedFile } from "@argentic/chest-ui/components";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
 import { BankForm, type BankCurrent } from "../../../components/bank-form.tsx";
@@ -163,7 +163,9 @@ function PriorForm({ prior, t, errors }: { prior: VehicleData["prior"]; t: Words
 }
 
 // The registration certificate: a photo or a PDF, straight to the Chest
-// (the kit's FilePicker; the photo of a phone's camera or a file). Once it
+// (the kit's FilePicker, a thumbnail of the photo while it goes; not its
+// `camera` yet: on a computer its hidden camera input has no label — the
+// kit's 0.2.2 hides the label but not the input). Once it
 // arrived, it is kept as the vehicle's certificate.
 function ProofField({ proof, t, errors }: { proof: VehicleData["proof"]; t: Words; errors: Errors }) {
   const { run, pending } = useRun(errors);
@@ -195,6 +197,7 @@ function ProofField({ proof, t, errors }: { proof: VehicleData["proof"]; t: Word
         accept={[...receiptTypes, ".heic", ".heif", ".pdf"]}
         disabled={pending}
         labels={t.files}
+        preview={f => (f.file && viewable(f.file) ? <Thumb file={f.file} /> : null)}
         upload={async (file, { onProgress, signal }) => {
           const sent = await upload(file, { onProgress, signal });
           return sent.ok ? { ok: true, ref: sent.object } : { ok: false, error: format(errors[sent.error], sent.values ?? {}) };
@@ -204,8 +207,24 @@ function ProofField({ proof, t, errors }: { proof: VehicleData["proof"]; t: Word
   );
 }
 
+// A photo's thumbnail before its name while it is sent (the policy allows
+// blob: images); a PDF keeps the kit's file sign.
+const viewable = (file: File) => file.type.startsWith("image/") && file.type !== "image/heic" && file.type !== "image/heif";
+function Thumb({ file }: { file: File }) {
+  const [url, setUrl] = useState<string | null>(null);
+  useEffect(() => {
+    const made = URL.createObjectURL(file);
+    setUrl(made);
+    return () => URL.revokeObjectURL(made);
+  }, [file]);
+  return url ? <img src={url} alt="" /> : null;
+}
+
 function CompanyForm({ company, t, errors }: { company: Company; t: Words; errors: Errors }) {
   const { run, pending } = useRun(errors);
+  // The month-end reminder takes effect at once: a switch, its value shown
+  // at once and put back if the server refuses.
+  const [reminder, setReminder] = useState(company.reminder);
   return (
     <section className="paper" aria-labelledby="company-title">
       <h2 id="company-title">{t.company.title}</h2>
@@ -217,7 +236,14 @@ function CompanyForm({ company, t, errors }: { company: Company; t: Words; error
             {company.currencies.map(c => <option key={c} value={c}>{c}</option>)}
           </select>
         </div>
-        <label className="check"><input type="checkbox" defaultChecked={company.reminder} disabled={pending} onChange={e => run(() => updateCompany({ reminder: e.target.checked }), () => t.company.saved)} />{t.company.reminder}</label>
+        <Switch label={t.company.reminder} checked={reminder} disabled={pending} onChange={on => {
+          setReminder(on);
+          run(async () => {
+            const result = await updateCompany({ reminder: on });
+            if (!result.ok) setReminder(!on);
+            return result;
+          }, () => t.company.saved);
+        }} />
       </div>
     </section>
   );

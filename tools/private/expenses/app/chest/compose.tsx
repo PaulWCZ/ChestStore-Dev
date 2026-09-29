@@ -55,11 +55,13 @@ function symbolOf(currency: string, locale: string): string {
 
 // The receipt: straight from the phone's camera, or a file (a photo, a PDF
 // from an email). It goes to the Chest while the person types the amount.
-// The tool's own picker, not the kit's FilePicker: a receipt needs both a
-// camera button and a file button side by side (the kit's `capture` makes
-// its one button the camera, and a PDF from an email could no longer be
-// chosen on a phone), the photo shown large to check it, and the file in
-// hand at once to read it (components/ocr.ts). Its upload goes with the
+// The tool's own picker, not the kit's FilePicker: a receipt needs a big
+// camera button beside the file button (the kit's 0.2.2 `camera` is a
+// phone-only button, and leaves an unlabelled input on a computer), the
+// photo shown large to check it (the kit's `preview` is a 40 px
+// thumbnail), the stored receipt shown when an expense is edited (the
+// kit's files are only those picked now), and the file in hand at once to
+// read it (components/ocr.ts). Its upload goes with the
 // kit's putWithProgress (components/upload.ts).
 function ReceiptPicker({ t, initial, onChange, onFile, onBusy, onError }: {
   t: ComposeWords;

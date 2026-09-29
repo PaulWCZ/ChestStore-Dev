@@ -180,7 +180,7 @@ export function ProfileForm({ person, own, job, jobView, managers, known, extras
               <datalist id={uid + "offices"}>{known.offices.map(x => <option key={x} value={x} />)}</datalist>
             </div>
             <div className="field-group">
-              <PeoplePicker label={t.edit.manager} hint={t.leaveEmpty} value={manager} onChange={setManager} search={searchManagers} suggestions={offered(managers)} labels={t.peoplePicker} lang={lang} />
+              <PeoplePicker label={t.edit.manager} hint={t.leaveEmpty} clearable value={manager} onChange={setManager} search={searchManagers} suggestions={offered(managers)} labels={t.peoplePicker} lang={lang} />
             </div>
             <div className="field-group">
               <DateField label={t.edit.startDate} value={startDate} onChange={setStartDate} today={today} min="1950-01-01" max="2100-12-31" chips={false} labels={t.date} />

@@ -15,8 +15,10 @@ import { cache } from "react";
 // Where Goals' old tokens went: on track / at risk / off track are the
 // contract's ok / wait / danger states; the sunrise orange is the
 // categorical palette's slot 3 (orange in every theme) and the marker pen
-// (--highlight, its soft ground); the dark header is the inverse pair
-// (--ink ground, --bg text); the contour lines are a color-mix of lines.
+// (--highlight, its soft ground); the dark header is the contract's
+// --inverse band (the forest, dark in both modes: the kit's catalogue adds it
+// to this source, identityAdditions "trail"); the contour lines are a
+// color-mix of lines.
 // Its fonts (Barlow Semi Condensed, Work Sans) are the tool's own files in
 // public/fonts/ (served at /fonts).
 export const identity = defineTheme({

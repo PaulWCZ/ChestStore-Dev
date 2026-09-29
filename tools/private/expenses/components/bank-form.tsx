@@ -17,11 +17,11 @@ type Words = Catalogue["settings"]["bank"];
 // back") or the company. Once saved, only the masked account shows; the
 // IBAN is checked while it is typed (country, length, check digits), and
 // again on the server. `onDirty` says when an IBAN is being typed (a
-// dialog around it then asks before closing). Inside a dialog, the caller
-// asks before erasing (`onErase`, with EraseBank beside its dialog): the
-// kit's Confirm nested in its Dialog would close both (ui 0.2.1: React
-// passes a nested dialog's close event on to the outer one).
-export function BankForm({ owner, current, t, errors, save, cancel, holder = true, idPrefix = "bank", onDirty, onErase, onDone }: {
+// dialog around it then asks before closing). Erasing asks first, in the
+// kit's Confirm — inside a Dialog too (kit 0.2.2: each dialog answers only
+// its own events); once erased, `onDone` (a dialog closes) or the empty
+// form.
+export function BankForm({ owner, current, t, errors, save, cancel, holder = true, idPrefix = "bank", onDirty, onDone }: {
   owner: string;
   cancel: string;
   current: BankCurrent;
@@ -31,7 +31,6 @@ export function BankForm({ owner, current, t, errors, save, cancel, holder = tru
   holder?: boolean;
   idPrefix?: string;
   onDirty?: (dirty: boolean) => void;
-  onErase?: () => void;
   onDone?: () => void;
 }) {
   const router = useRouter();
@@ -77,9 +76,9 @@ export function BankForm({ owner, current, t, errors, save, cancel, holder = tru
         </div>
         <div className="actions-bar">
           <button type="button" className="button quiet small" onClick={() => setEditing(true)}>{t.replace}</button>
-          <button type="button" className="button danger small" onClick={() => (onErase ? onErase() : setErasing(true))} disabled={pending}>{t.remove}</button>
+          <button type="button" className="button danger small" onClick={() => setErasing(true)} disabled={pending}>{t.remove}</button>
         </div>
-        {!onErase && <EraseBank owner={erasing ? owner : null} masked={current.masked} t={t} errors={errors} cancel={cancel} onClose={() => setErasing(false)} onErased={() => setEditing(true)} />}
+        <EraseBank owner={erasing ? owner : null} masked={current.masked} t={t} errors={errors} cancel={cancel} onClose={() => setErasing(false)} onErased={() => (onDone ? onDone() : setEditing(true))} />
       </div>
     );
   }
@@ -119,7 +118,7 @@ export function BankForm({ owner, current, t, errors, save, cancel, holder = tru
 
 // Erasing bank details cannot be undone (they are not kept anywhere): it
 // asks first, in the page (the kit's Confirm), naming the account.
-export function EraseBank({ owner, masked, t, errors, cancel, onClose, onErased }: { owner: string | null; masked: string; t: Words; errors: Catalogue["errors"]; cancel: string; onClose: () => void; onErased?: () => void }) {
+function EraseBank({ owner, masked, t, errors, cancel, onClose, onErased }: { owner: string | null; masked: string; t: Words; errors: Catalogue["errors"]; cancel: string; onClose: () => void; onErased?: () => void }) {
   const router = useRouter();
   const toast = useToast();
   const [pending, start] = useTransition();

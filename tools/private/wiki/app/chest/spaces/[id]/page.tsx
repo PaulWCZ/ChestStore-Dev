@@ -1,5 +1,5 @@
 import { EmptyState, Menu } from "@argentic/chest-ui/components";
-import Link from "next/link";
+import { Link } from "../../../../components/link.tsx";
 import { notFound } from "next/navigation";
 import { Dots, Download, Gear, Lock, Pen, Plus, Upload } from "../../../../components/icons.tsx";
 import { NewPageButton } from "../../../../components/new-page.tsx";
@@ -46,9 +46,9 @@ export default async function SpacePage({ params }: { params: Promise<{ id: stri
         </div>
         <div className="actions">
           {writer && <NewPageButton target={{ spaceId: s.id, spaceName: s.name, parentId: null, parentTitle: null }} t={words}><Plus />{t.shell.newPage}</NewPageButton>}
-          {(writer || s.pages > 0) && <Menu label={t.space.more} icon={<Dots />} showLabel items={[
+          {(writer || s.pages > 0) && <Menu label={t.space.more} icon={<Dots />} showLabel size="m" link={Link} items={[
             ...(writer ? [{ label: t.space.settings, icon: <Gear />, href: `/chest/spaces/${s.id}/settings` }, { label: t.space.import, icon: <Upload />, href: `/chest/import?space=${s.id}` }] : []),
-            ...(s.pages > 0 ? [{ label: t.space.export, icon: <Download />, href: `/chest/spaces/${s.id}/export` }] : []),
+            ...(s.pages > 0 ? [{ label: t.space.export, icon: <Download />, href: `/chest/spaces/${s.id}/export`, download: true }] : []),
           ]} />}
         </div>
       </header>

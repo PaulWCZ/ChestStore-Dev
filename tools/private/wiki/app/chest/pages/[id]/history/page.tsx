@@ -1,5 +1,5 @@
 import { Tabs } from "@argentic/chest-ui/components";
-import Link from "next/link";
+import { Link } from "../../../../../components/link.tsx";
 import { notFound } from "next/navigation";
 import { Flash } from "../../../../../components/flash.tsx";
 import { Back } from "../../../../../components/icons.tsx";
@@ -73,7 +73,7 @@ export default async function HistoryPage({ params, searchParams }: { params: Pr
               <RestoreButton pageId={p.id} number={chosen.number} label={t.history.restore} errors={t.errors} />
             )}
           </div>
-          <Tabs label={t.history.view} current={view} items={[
+          <Tabs label={t.history.view} current={view} link={Link} items={[
             { id: "changes", label: t.history.changes, href: href(chosen.number, "changes") },
             { id: "page", label: t.history.asItWas, href: href(chosen.number, "page") },
           ]} />

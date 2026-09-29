@@ -1,6 +1,6 @@
 "use client";
 
-import { AppShell, MemberChip, type LinkComponent, type NavItem } from "@argentic/chest-ui/components";
+import { AppShell, MemberChip, type NavItem } from "@argentic/chest-ui/components";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
@@ -10,8 +10,6 @@ import type { ReactNode } from "react";
 // never icons alone), the member chip at the right, a link to one's own
 // profile. Here only because the current path and Next's <Link> are
 // functions of the browser (ui/README.md "AppShell").
-
-const link: LinkComponent = props => <Link {...props} />;
 
 export function Shell({ brand, nav, member, me, labels, children }: {
   brand: ReactNode;
@@ -30,7 +28,7 @@ export function Shell({ brand, nav, member, me, labels, children }: {
     </Link>
   ) : <MemberChip name={member.name} role={member.role} photo={member.photo} />);
   return (
-    <AppShell brand={brand} nav={nav} path={path} link={link} tools={chip} labels={labels} width="full">
+    <AppShell brand={brand} nav={nav} path={path} link={Link} tools={chip} labels={labels} width="full">
       {children}
     </AppShell>
   );

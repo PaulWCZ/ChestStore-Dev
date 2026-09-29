@@ -3,10 +3,9 @@ import { notFound } from "next/navigation";
 import { Back, Download } from "../../../../components/icons.tsx";
 import { can } from "../../../../lib/access.ts";
 import { addMonths } from "../../../../lib/calendar.ts";
-import { formatDay } from "../../../../lib/i18n/index.ts";
 import { today } from "../../../../lib/model.ts";
 import { viewer } from "../../../../lib/session.ts";
-import { OnDay } from "./on-day.tsx";
+import { OnDay, OnMonth } from "./on-day.tsx";
 
 // Payroll's two files: the absences of a month (the pay slip's days off),
 // and everyone's balances on a day (the pay slip's paid-leave box, and what
@@ -14,14 +13,11 @@ import { OnDay } from "./on-day.tsx";
 export default async function PayrollPage() {
   const v = await viewer();
   if (!v) return null;
-  const { member, locale, t } = v;
+  const { member, t } = v;
   if (!can(member, "export")) notFound();
   const now = today();
-  // The months payroll asks for: this one, the next, and two years back
-  // (a select in the reader's language — not the browser's month field,
-  // which writes the computer's format).
+  // The months payroll asks for: this one, the next, and two years back.
   const first = now.slice(0, 7) + "-01";
-  const months = Array.from({ length: 27 }, (_, i) => addMonths(first, 1 - i).slice(0, 7)).map(m => ({ value: m, name: formatDay(m + "-01", locale, { month: "long", year: "numeric" }) }));
   return (
     <div className="page narrow">
       <Link className="back" href="/chest/people"><Back />{t.team.back}</Link>
@@ -31,10 +27,7 @@ export default async function PayrollPage() {
         <p className="muted small">{t.payroll.absencesHint}</p>
         <form className="form-row" action="/chest/people/export" method="get">
           <div className="field-group">
-            <label className="field-label" htmlFor="month">{t.team.exportMonth}</label>
-            <select id="month" name="month" className="field compact month-select" defaultValue={now.slice(0, 7)} required>
-              {months.map(m => <option key={m.value} value={m.value}>{m.name}</option>)}
-            </select>
+            <OnMonth today={now} min={addMonths(first, -25).slice(0, 7)} max={addMonths(first, 1).slice(0, 7)} label={t.team.exportMonth} labels={t.date} />
           </div>
           <button type="submit" className="button"><Download />{t.payroll.download}</button>
         </form>

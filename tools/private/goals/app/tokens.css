@@ -13,34 +13,30 @@
   --sunrise-soft: var(--cat-3-soft);
   --sunrise-ink: var(--cat-3-ink);
 
-  /* The header is the map's dark margin: the inverse pair (ink as the
-     ground, the page's background as the text — measured in every theme,
-     and it turns light on dark pages). The current tab is underlined with
-     the marker pen, which the contract holds at 4.5:1 against the ink. */
-  --top-bg: var(--ink);
-  --top-ink: var(--bg);
+  /* The header is the map's dark margin: the contract's region of its own
+     colour (--inverse, kit 0.2.2) — the Trail map's forest, dark in both
+     modes; a catalogue theme's own band, a brand's deep shade — with its
+     measured text. The current tab is underlined with the marker pen
+     (--highlight: 9:1 or more on --inverse in every catalogue theme's and
+     3,000 random brands' light scheme, measured 2026-09-29). */
+  --top-bg: var(--inverse);
+  --top-ink: var(--inverse-ink);
   --top-mark: var(--highlight);
 
   /* The map's contour lines: decoration only (nothing is read from them). */
   --contour: color-mix(in oklab, var(--line) 75%, var(--surface));
-  --top-contour: color-mix(in oklab, var(--bg) 13%, var(--ink));
-  --top-rule: color-mix(in oklab, var(--bg) 22%, var(--ink));
+  --top-contour: color-mix(in oklab, var(--inverse-ink) 13%, var(--inverse));
+  --top-rule: var(--inverse-line);
 
   /* Page widths. */
   --page-width: 1180px;
   --narrow-width: 820px;
 }
 
-/* In dark mode the header stays the map's dark margin, as Goals always
-   drew it: the page's own ground with its ink (a measured pair), a line
-   under it, and the current tab underlined with the accent's edge (3:1 on
-   the ground). The inverse pair would turn it light on a dark page. */
+/* In dark mode the marker pen is a dark ground (under 3:1 on the band):
+   the current tab is underlined in the band's own text colour. */
 @media (prefers-color-scheme: dark) {
   :root {
-    --top-bg: var(--bg);
-    --top-ink: var(--ink);
-    --top-mark: var(--accent-line);
-    --top-contour: color-mix(in oklab, var(--ink) 9%, var(--bg));
-    --top-rule: var(--line);
+    --top-mark: var(--inverse-ink);
   }
 }

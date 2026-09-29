@@ -8,9 +8,10 @@
   /* The deep plum of the gallery: the current tab, the "You" badge, the
      chosen option. It is the inverse pair (ink as the ground, the page's
      background as the text): measured 4.5:1 in every theme, and it turns
-     light on dark pages. */
-  --inverse: var(--ink);
-  --inverse-ink: var(--bg);
+     light on dark pages. Not the contract's --inverse (0.2.2), which is a
+     band that stays dark in both modes: this is a chosen state. */
+  --chosen: var(--ink);
+  --chosen-ink: var(--bg);
 
   /* The large soft corner of the welcome cards. */
   --radius-xl: calc(var(--radius-l) + 8px);
@@ -48,8 +49,8 @@
     --danger-soft: Canvas;
     --ok-ink: CanvasText;
     --ok-soft: Canvas;
-    --inverse: CanvasText;
-    --inverse-ink: Canvas;
+    --chosen: CanvasText;
+    --chosen-ink: Canvas;
     --shadow-1: none;
     --shadow-2: none;
   }

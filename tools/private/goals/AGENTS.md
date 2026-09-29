@@ -72,4 +72,8 @@ npm ci && npm test && npm run build   # all three must pass
   `DataTable`, `EmptyState`, `Avatar`, `StatusBadge`, `AppShell`. Their
   words are the catalogues' `toast`, `dialog`, `peoplePicker`, `date`,
   `files`, `filters`, `tables` sections; `node scripts/lint-words.mjs`
-  (studio) must report 0 errors.
+  (studio) must report 0 errors. Kit 0.2.2 (re-vendored 2026-09-29): the
+  header is `--inverse` (no dark-mode override of our own; it stays the
+  map's dark margin in every look); server pages pass Next's `Link` to
+  `Filters` through `components/link.tsx` (a `"use client"` re-export),
+  so the `LinkFilters` wrapper is gone.

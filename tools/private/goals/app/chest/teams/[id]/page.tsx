@@ -1,4 +1,5 @@
-import Link from "next/link";
+import { Filters } from "@argentic/chest-ui/components";
+import { Link } from "../../../../components/link.tsx";
 import { notFound } from "next/navigation";
 import { AutoRefresh } from "../../../../components/auto-refresh.tsx";
 import { Back, Plus } from "../../../../components/icons.tsx";
@@ -12,7 +13,6 @@ import { cycleObjectives, defaultCycle } from "../../../../lib/read.ts";
 import { viewer } from "../../../../lib/session.ts";
 import { settings, team as readTeam } from "../../../../lib/teams.ts";
 import { idsOf, objectiveView } from "../../../../lib/views.ts";
-import { LinkFilters } from "../../views/company-filters.tsx";
 import { cycleGroup } from "../../views/cycle-group.ts";
 
 // A team's page: its objectives in the cycle shown, with their key
@@ -52,7 +52,7 @@ export default async function TeamPage({ params, searchParams }: { params: Promi
           {canWrite && <Link className="button" href={`/chest/objectives/new?cycle=${cycle.id}&level=team&team=${team.id}`}><Plus />{format(t.teams.newObjective, { team: team.name })}</Link>}
         </div>
       </div>
-      {cycle && <LinkFilters path={`/chest/teams/${team.id}`} params={{ cycle: cycle.id }} groups={[cycleGroup(ctx.cycles, cycle.id, t)]} labels={t.filters} />}
+      {cycle && <Filters link={Link} path={`/chest/teams/${team.id}`} params={{ cycle: cycle.id }} groups={[cycleGroup(ctx.cycles, cycle.id, t)]} labels={t.filters} />}
       {ours.length === 0 ? (
         <MapEmpty title={format(t.teams.teamEmpty, { team: team.name, cycle: cycle?.name ?? "" })} body={format(t.teams.teamEmptyBody, { team: team.name })} action={canWrite ? <Link className="button" href={`/chest/objectives/new?cycle=${cycle.id}&level=team&team=${team.id}`}><Plus />{format(t.teams.newObjective, { team: team.name })}</Link> : null} />
       ) : (

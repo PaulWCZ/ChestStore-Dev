@@ -84,8 +84,11 @@ npm ci && npm test && npm run build   # all three must pass
   (`useToast`: an Undo that returns whether it worked; `sent: true` when the
   bell already told someone and nothing is taken back), `Dialog` with
   `dirty`, `DateField` (never `type="date"` or `type="month"`),
-  `PeoplePicker`, `Segmented`, `DataTable`, `Filters`, `Tabs`,
-  `StatusBadge`, `Avatar`, `EmptyState`, `FilePicker`, `AppShell`. Their
+  `PeoplePicker`, `Segmented`, `DataTable` (`rowHref`, `phone="stack"`),
+  `Filters`, `Tabs`, `StatusBadge`, `Avatar`, `EmptyState`, `FilePicker`,
+  `Switch` (only for what takes effect at once; a new kind's options wait
+  for its Add button, so they stay checkboxes), `MonthField`, `AppShell`
+  (Next's `Link` passed as it is). Chips take `--radius-chip`. Their
   words are the catalogues' `toast`, `dialog`, `peoplePicker`, `date`,
   `files`, `table`, `filters` sections. Never `window.confirm`.
 - **Words follow the store's glossary** (`lab/GLOSSARY.md`): `node

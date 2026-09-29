@@ -51,11 +51,16 @@ The wiki uses the kit's components rather than its own: `Toasts`/`useToast`
 (opens on its first field; `dirty` asks before losing typed text), `Confirm`
 (only *Delete for good*), `Menu` (a page's and a space's *More*),
 `AppShell`/`BrandMark`/`NoAccess`, `SearchBox`, `Avatar`, `EmptyState`,
-`Tabs` (history), `StatusBadge` (reads), `FilePicker` (import),
+`Tabs` (history; Next's `Link` through `components/link.tsx`, the
+`"use client"` re-export a server page may pass), `StatusBadge` (reads),
+`FilePicker` (import),
 `LanguageSwitch` (public page), `useAutoRefresh`; `searchChoices` and
 `matches` (the store's search rule) for "@" mentions, the page picker and
 the editors filter. Its words are the catalogues' `toast`, `dialog`,
-`searchBox` and `files` sections. The wiki keeps its own "/" menu (a
+`searchBox` and `files` sections. `Menu` takes `size="m"` (as tall as the wiki's buttons), `link` and
+`download` on export items. Long text uses the contract's `--font-read`,
+never a font of the wiki's own; titles use `--font-display`. The wiki
+keeps its own "/" menu (a
 listbox that inserts blocks at the caret, not a menu button), its "@"
 list, its buttons, fields and choice cards, and its sidebar tree.
 Re-vendor with `node scripts/add-ui.mjs tools/private/wiki` (from the

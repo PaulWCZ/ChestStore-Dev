@@ -1,5 +1,6 @@
+import { Filters } from "@argentic/chest-ui/components";
+import { Link } from "../../../../components/link.tsx";
 import * as chest from "@argentic/chest-sdk/chest";
-import Link from "next/link";
 import { Back, Lock } from "../../../../components/icons.tsx";
 import { MapEmpty } from "../../../../components/map-empty.tsx";
 import { db } from "../../../../lib/db.ts";
@@ -8,7 +9,6 @@ import { isLevel } from "../../../../lib/model.ts";
 import { context } from "../../../../lib/page-data.ts";
 import { everyone } from "../../../../lib/people.ts";
 import { viewer } from "../../../../lib/session.ts";
-import { LinkFilters } from "../../views/company-filters.tsx";
 import { cycleGroup } from "../../views/cycle-group.ts";
 import { ObjectiveForm } from "../../views/objective-form.tsx";
 
@@ -51,7 +51,7 @@ export default async function NewObjective({ searchParams }: { searchParams: Pro
       <div className="head">
         <div className="titles"><h1>{t.form.newTitle}</h1></div>
       </div>
-      {open.length > 1 && <LinkFilters path="/chest/objectives/new" params={{ cycle: cycle.id, level: q.level, team: q.team, parent: q.parent }} groups={[cycleGroup(open, cycle.id, t)]} labels={t.filters} />}
+      {open.length > 1 && <Filters link={Link} path="/chest/objectives/new" params={{ cycle: cycle.id, level: q.level, team: q.team, parent: q.parent }} groups={[cycleGroup(open, cycle.id, t)]} labels={t.filters} />}
       <ObjectiveForm
         mode="new"
         cycleId={cycle.id}

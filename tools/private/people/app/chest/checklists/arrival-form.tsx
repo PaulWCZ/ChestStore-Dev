@@ -100,7 +100,7 @@ export function ArrivalForm({ draft, people, known, weekdays, today, lang, t }: 
           <datalist id={uid + "offices"}>{known.offices.map(x => <option key={x} value={x} />)}</datalist>
         </div>
         <div className="field-group">
-          <PeoplePicker label={t.arrivals.manager} hint={t.leaveEmpty} value={manager} onChange={setManager} search={searchPeople} suggestions={offered(people)} labels={t.peoplePicker} lang={lang} />
+          <PeoplePicker label={t.arrivals.manager} hint={t.leaveEmpty} clearable value={manager} onChange={setManager} search={searchPeople} suggestions={offered(people)} labels={t.peoplePicker} lang={lang} />
         </div>
         <div className="field-group">
           <label htmlFor={uid + "email"} className="label">{t.arrivals.workEmail}</label>

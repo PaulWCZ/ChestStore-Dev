@@ -112,11 +112,17 @@ npm ci && npm test && npm run build   # all three must pass
   what is for good (never `window.confirm`), `PeoplePicker`, `DateField`
   (never `type="date"`; `today` from the server), `SearchBox`,
   `FilePicker`, `DataTable`, `EmptyState`, `Avatar`, `StatusBadge`,
-  `Segmented`, `AppShell`. Kept on purpose: the directory's team and
-  office selects (many values, filtered as one types), HR's sheet (a
-  grid of fields; its date cells read dates with the kit's `parseDate`),
-  the template's "Who" select (roles and people in one list), the
-  birthday's day and month selects (no year).
+  `Segmented`, `AppShell` (Next's `Link` passed as it is). A single
+  picker that may stay empty (a manager, who does a step) is `clearable`;
+  the register's rows open the record (`rowHref`); HR's sheet dates are
+  the compact `DateField`; chips take `--radius-chip`. Kept on purpose:
+  the directory's team and office selects (the directory filters in the
+  page as one types; the kit's `Filters` are links in the address), HR's
+  sheet (a grid of fields saved one by one, not a `DataTable`), the
+  template's "Who" select (roles and people in one list), the birthday's
+  day and month selects (no year), the birthday's own switch (it waits
+  for Save: the kit's `Switch` takes effect at once). `--chosen` (not the
+  contract's `--inverse`) is the inverse pair for a chosen state.
 - **Words:** the kit's sections (`toast`, `dialog`, `peoplePicker`, `date`,
   `files`, `tables`, `search`) live in both catalogues; `node
   scripts/lint-words.mjs tools/private/people` must stay at 0 (Undo is

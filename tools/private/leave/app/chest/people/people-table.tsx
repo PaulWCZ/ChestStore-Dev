@@ -25,8 +25,8 @@ type Words = { team: Catalogue["team"]; table: Catalogue["table"] };
 
 // Everyone HR sees (or the people a manager answers for) as the kit's
 // table: a sticky header, sortable columns, the person's name as the row's
-// header (a link to their page, where their approver, dates and balances
-// are changed).
+// header; the whole row opens their page (where their approver, dates and
+// balances are changed); on a phone each person is a card of lines.
 export function PeopleTable({ rows, kinds, former, t }: { rows: PersonRow[]; kinds: string[]; former: boolean; t: Words }) {
   const columns: Column<PersonRow>[] = [
     {
@@ -36,7 +36,7 @@ export function PeopleTable({ rows, kinds, former, t }: { rows: PersonRow[]; kin
       value: r => r.name,
       render: r => (
         <>
-          <Link className="person-link" href={`/chest/people/${r.id}`}><Avatar name={r.avatarName} photo={r.photo} size="s" />{r.name}</Link>
+          <span className="person-link"><Avatar name={r.avatarName} photo={r.photo} size="s" />{r.name}</span>
           {r.number && <span className="muted small number">{r.number}</span>}
         </>
       ),
@@ -51,5 +51,5 @@ export function PeopleTable({ rows, kinds, former, t }: { rows: PersonRow[]; kin
     })),
     ...(former ? [] : [{ key: "waiting", label: t.team.pending, align: "end" as const, value: (r: PersonRow) => r.waitingDays, render: (r: PersonRow) => r.waiting }]),
   ];
-  return <DataTable caption={t.team.title} columns={columns} rows={rows} rowKey={r => r.id} labels={t.table} />;
+  return <DataTable caption={t.team.title} columns={columns} rows={rows} rowKey={r => r.id} rowHref={r => `/chest/people/${r.id}`} link={Link} phone="stack" labels={t.table} />;
 }

@@ -140,10 +140,10 @@ script, no flash of the wrong look. The shared pieces — toasts with a
 truthful Undo, dialogs, the shell with its labelled tabs, menus, the file
 picker… — are the store's UI kit (`@argentic/chest-ui`), so the wiki
 behaves like the other tools.
-One compromise: page text is set in the look's *display* face (Library's
-Newsreader); in a theme whose display face is made for headings only
-(Trail's condensed Barlow, Confetti's Fredoka) long pages read less well
-than in its body face — the kit's contract has no "reading" face yet.
+Pages are read in the look's reading face (the kit's `--font-read`:
+Library's Newsreader; the body face in a theme whose display face is made
+for headings only, such as Trail's condensed Barlow or Confetti's
+Fredoka); titles and headings stay in its display face.
 
 ## Roles
 

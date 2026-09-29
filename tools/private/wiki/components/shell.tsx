@@ -56,7 +56,7 @@ export function Shell({ brand, member, spaces, nodes, canWrite, noAccess = false
       brand={brand}
       nav={nav}
       path={path}
-      link={props => <Link {...props} />}
+      link={Link}
       member={member}
       tools={editing || noAccess ? null : <div className="bar-search"><SearchBox action="/chest/search" labels={t.searchBox} placeholder={t.shell.search} maxLength={100} /></div>}
       labels={{ skip: t.shell.skip, nav: t.shell.nav }}

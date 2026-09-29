@@ -1,9 +1,9 @@
 "use client";
 
-import { Avatar, Segmented, useToast } from "@argentic/chest-ui/components";
-import { formatDate, parseDate, type DateWords } from "@argentic/chest-ui/components/logic";
+import { Avatar, DateField, Segmented, useToast } from "@argentic/chest-ui/components";
+import type { DateWords } from "@argentic/chest-ui/components/logic";
 import { useRouter } from "next/navigation";
-import { useEffect, useId, useState, useTransition, type FormEvent } from "react";
+import { useId, useState, useTransition, type FormEvent } from "react";
 import { Plus, Trash } from "../../../components/icons.tsx";
 import type { ErrorCode } from "../../../lib/app-error.ts";
 import { format } from "../../../lib/i18n/format.ts";
@@ -31,10 +31,9 @@ type Words = {
 // This grid of fields stays the tool's own, not the kit's DataTable (a
 // table to read and sort, not to type in): here every cell is a field
 // saved on its own, the names stay in view while scrolling sideways, and a
-// manager is a select — a compact list that works inside a cell and a
-// scrolling frame, where a person picker's popover would be cut off. The
-// start date is typed as the kit's date field reads it ("29/09/2026",
-// "1er octobre", "demain"), never the browser's date input.
+// manager is a select — a compact list in a cell. The start date is the
+// kit's compact date field ("29/09/2026", "1er octobre", "demain", or its
+// calendar), never the browser's date input.
 export function TableEditor({ rows, managers, fields, known, today, t }: {
   rows: TableRow[];
   managers: { id: string; name: string; left?: boolean }[];
@@ -137,7 +136,7 @@ export function TableEditor({ rows, managers, fields, known, today, t }: {
                       setValues(v => ({ ...v, [cell]: iso }));
                       commit(r.id, "startDate", iso, saved[cell] ?? "");
                     }}
-                    onInvalid={() => toast({ text: format(t.date.invalid, { example: formatDate(today, t.date) }), tone: "error" })} />
+ />
                 </td>
                 <td>{input(r, "phone", t.edit.phone, { type: "tel", maxLength: limits.phone })}</td>
                 {fields.map(f => <td key={f.id}>{input(r, `x:${f.id}`, f.label, { maxLength: limits.fieldValue })}</td>)}
@@ -227,25 +226,12 @@ function NewField({ t }: { t: Words }) {
   );
 }
 
-// A start date in a cell: typed as people write dates in their language,
-// read by the kit's parseDate, shown back as "29/09/2026". A date it cannot
-// read is refused (said in a toast) and the cell comes back as it was.
-function DateCell({ value, label, today, words, onCommit, onInvalid }: { value: string; label: string; today: string; words: DateWords; onCommit: (iso: string) => void; onInvalid: () => void }) {
-  const shown = value ? formatDate(value, words) : "";
-  const [text, setText] = useState(shown);
-  useEffect(() => setText(shown), [shown]);
-  const leave = () => {
-    if (text.trim() === "") return value === "" ? undefined : onCommit("");
-    const iso = parseDate(text, words, today);
-    if (!iso) {
-      setText(shown);
-      return onInvalid();
-    }
-    setText(formatDate(iso, words));
-    if (iso !== value) onCommit(iso);
-  };
-  return (
-    <input className="cell" value={text} placeholder={words.placeholder} aria-label={label} inputMode="numeric" autoComplete="off"
-      onChange={e => setText(e.target.value)} onBlur={leave} onKeyDown={e => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }} />
-  );
+// A start date in a cell: typed as people write dates in their language
+// ("29/09/2026", "1er octobre", "demain") or chosen on a calendar.
+function DateCell({ value, label, today, words, onCommit }: { value: string; label: string; today: string; words: DateWords; onCommit: (iso: string) => void }) {
+  // The kit's date field in its compact form: the cell and its calendar
+  // (placed over the table's scrolling frame), the date in words read to
+  // screen readers; a date it cannot read stays as typed, with its problem
+  // under it, and nothing is saved.
+  return <DateField variant="compact" hideLabel className="cell-date" label={label} value={value || null} today={today} labels={words} onChange={iso => onCommit(iso ?? "")} />;
 }

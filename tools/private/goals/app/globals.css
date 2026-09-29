@@ -35,7 +35,8 @@ ul, ol { margin: 0; padding: 0; list-style: none; }
 .eyebrow { font: var(--display-weight) var(--text-xs)/1.3 var(--font-display); text-transform: uppercase; letter-spacing: 0.08em; color: var(--ink-2); }
 
 /* ---------- Shell: the map's dark margin, with its contour lines ----------
-   The kit's AppShell, on the inverse pair (--top-bg / --top-ink). The
+   The kit's AppShell, on the region of its own colour (--top-bg /
+   --top-ink: --inverse, --inverse-ink). The
    contours are drawn behind everything in the header (its sticky position
    makes it the stacking context). */
 .ck-bar { background: var(--top-bg); color: var(--top-ink); border-bottom: var(--border-width) solid var(--top-rule); overflow: hidden; }

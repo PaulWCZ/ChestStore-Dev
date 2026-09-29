@@ -142,7 +142,7 @@ export function JourneyView({ journey, steps, hr, people, today, lang, t }: {
                 {hr && editing === s.id && (
                   <div className="step-edit">
                     <div className="step-edit-field">
-                      <PeoplePicker label={t.journey.give} value={chosen(s.assignee)} onChange={c => void update(s.id, { assignee: c[0]?.id ?? null })} {...picker} />
+                      <PeoplePicker label={t.journey.give} clearable value={chosen(s.assignee)} onChange={c => void update(s.id, { assignee: c[0]?.id ?? null })} {...picker} />
                     </div>
                     <div className="step-edit-field">
                       <DateField label={t.journey.due} value={s.due} today={today} min="2000-01-01" max="2100-12-31" labels={t.date} chips={false} onChange={day => { if (day && day !== s.due) void update(s.id, { due: day }); }} />
@@ -165,7 +165,7 @@ export function JourneyView({ journey, steps, hr, people, today, lang, t }: {
                 <input name="text" className="field" placeholder={t.journey.addPlaceholder} maxLength={limits.itemText} required value={adding.text} onChange={e => setAdding(a => ({ ...a, text: e.target.value }))} />
               </label>
               <div className="add-field">
-                <PeoplePicker label={t.journey.give} value={adding.assignee} onChange={c => setAdding(a => ({ ...a, assignee: c }))} {...picker} />
+                <PeoplePicker label={t.journey.give} clearable value={adding.assignee} onChange={c => setAdding(a => ({ ...a, assignee: c }))} {...picker} />
               </div>
               <div className="add-field">
                 <DateField label={t.journey.due} value={adding.due} today={today} min="2000-01-01" max="2100-12-31" labels={t.date} chips={false} onChange={day => setAdding(a => ({ ...a, due: day }))} />

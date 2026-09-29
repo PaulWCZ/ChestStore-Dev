@@ -53,11 +53,17 @@ npm ci && npm test && npm run build   # all three must pass
   `sent: true` once someone was told), `Dialog` (`dirty` while an IBAN is
   typed), `Confirm` (erasing bank details), `DateField` (every date: never
   `type="date"`), `FilePicker` (registration certificate, CSV import),
-  `DataTable` (import preview), `Tabs`, `Segmented`, `EmptyState`,
+  `DataTable` (import preview), `Tabs`, `Segmented` (Export's "Month of"
+  is its link variant), `Filters` (Export's month and person, as select
+  groups in the address), `Switch` (the month-end reminder), `EmptyState`,
   `Avatar`, `StatusBadge`, `LanguageSwitch`, `useAutoRefresh`. Their words
   are the catalogues' `toast`, `dialog`, `date`, `files`, `table` sections.
-  Kept on purpose: the receipt picker of `compose.tsx` (camera and file
-  side by side, the photo shown large, read at once in the browser), the
+  The registration certificate's `FilePicker` shows a photo's thumbnail
+  (`preview`). Kept on purpose: the receipt picker of `compose.tsx`
+  (camera and file side by side on every screen, the photo shown large,
+  the stored receipt shown when editing, read at once in the browser —
+  the kit's `camera`/`preview` give a 40 px thumbnail and no stored file;
+  and its `camera` leaves an unlabelled input on a computer, 0.2.2), the
   guests field (colleagues and outside names), the paid-with segments (each
   with its meaning), the approver `<select>` per person (a few approvers
   and "the accountants"), the settings' editable grids.
@@ -65,9 +71,8 @@ npm ci && npm test && npm run build   # all three must pass
   tool's tokens of `app/tokens.css`, themselves defined from contract
   tokens; never a colour (`test/theme.test.ts`). Text sits only on measured
   pairs (`--ok-ink` on `--ok-soft`…); field borders are `--line-strong`.
-- **Never a Confirm inside a Dialog** (kit 0.2.1: React passes the inner
-  dialog's close to the outer one): render it beside, as `pay-view.tsx`
-  does with `EraseBank`.
+- **A Confirm inside a Dialog closes alone** (kit 0.2.2): `BankForm`
+  asks before erasing with its own `EraseBank`, in a dialog or not.
 - **Words**: `node ../../../scripts/lint-words.mjs tools/private/expenses`
   (store glossary) stays at 0 errors — French narrow no-break spaces before
   `: ; ? ! %`, Undo « Annuler l’action », Remove/Delete/Erase =

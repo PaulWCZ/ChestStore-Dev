@@ -493,6 +493,10 @@ export const fr: Catalogue = {
     tooMany: "{count} fichiers au plus.",
     units: ["o", "Ko", "Mo", "Go"],
     decimal: ",",
+    takePhoto: "Prendre une photo",
+    chooseFile: "Choisir un fichier",
+    kinds: { image: "images", audio: "fichiers audio", video: "vidéos", text: "fichiers texte" },
+    separator: " : ",
   },
   errors: {
     forbidden: "Votre rôle ne le permet pas.",

@@ -26,7 +26,7 @@ each defined from contract tokens — never a colour:
 
 | Tool token | From | Use |
 |---|---|---|
-| `--inverse` / `--inverse-ink` | `--ink` / `--bg` (the measured inverse pair) | the deep plum: current tab, "This is you" badge, chosen option, language switch |
+| `--chosen` / `--chosen-ink` | `--ink` / `--bg` (the measured inverse pair; not the contract's `--inverse` band, which stays dark in both modes) | the deep plum: current tab, "This is you" badge, chosen option, language switch |
 | `--radius-xl` | `--radius-l` + 8 px | the welcome cards |
 | `--weight-medium` | halfway between 400 and `--weight-strong` | names in lists, labels (500 here, 400 in the Chest theme) |
 | `--bar-in` / `--bar-out` | `--accent` / `--ink` | arrivals and departures on the numbers page |

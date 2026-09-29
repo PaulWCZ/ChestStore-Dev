@@ -36,7 +36,7 @@ button, input, textarea, select { font: inherit; color: inherit; }
 .ck-brand svg { width: 30px; height: 30px; }
 .ck-nav-link { font-size: var(--text-s); }
 .ck-nav-link[aria-current="page"] { border-bottom-color: var(--ink); }
-.ck-nav .ck-count { font-family: var(--font-mono); font-size: var(--text-xs); background: var(--ink); color: var(--bg); border-radius: var(--radius-pill); padding: 0 6px; line-height: 18px; }
+.ck-nav .ck-count { font-family: var(--font-mono); font-size: var(--text-xs); background: var(--ink); color: var(--bg); padding: 0 6px; line-height: 18px; }
 .ck-main { padding: 0; }
 .top-add { flex: none; }
 .page { max-width: var(--page-width); margin: 0 auto; padding: var(--space-5) var(--space-4) calc(var(--space-7) + var(--dock-h)); }
@@ -92,7 +92,7 @@ select.field { appearance: none; background-image: linear-gradient(45deg, transp
 /* Radio chips: categories, VAT rates. */
 .chips { display: flex; flex-wrap: wrap; gap: var(--space-2); border: 0; margin: 0; padding: 0; }
 .chips legend { padding: 0; margin-bottom: var(--space-2); font-weight: var(--weight-strong); font-size: var(--text-s); }
-.chip { position: relative; display: inline-flex; align-items: center; gap: 6px; min-height: 42px; padding: 0 var(--space-3); border: 1.5px solid var(--line-strong); border-radius: var(--radius-pill); background: var(--surface); cursor: pointer; font-weight: var(--weight-strong); font-size: var(--text-s); user-select: none; }
+.chip { position: relative; display: inline-flex; align-items: center; gap: 6px; min-height: 42px; padding: 0 var(--space-3); border: 1.5px solid var(--line-strong); border-radius: var(--radius-chip); background: var(--surface); cursor: pointer; font-weight: var(--weight-strong); font-size: var(--text-s); user-select: none; }
 .chip input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
 .chip:hover { border-color: var(--ink-2); }
 .chip:has(input:checked), .chip[aria-pressed="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
@@ -110,7 +110,7 @@ select.field { appearance: none; background-image: linear-gradient(45deg, transp
 .segment:has(input:focus-visible) { outline: 3px solid var(--focus); outline-offset: 2px; }
 /* The kit's link tabs (kind of expense, settings) as a pill switch. */
 .kind-switch .ck-tabs ul { padding: 3px; background: var(--surface-2); border: 0; border-radius: var(--radius-pill); width: fit-content; max-width: 100%; gap: 2px; }
-.kind-switch .ck-tab { min-height: 40px; margin: 0; padding: 0 var(--space-4); border: 0; border-radius: var(--radius-pill); font-weight: var(--weight-strong); font-size: var(--text-s); }
+.kind-switch .ck-tab { margin: 0; padding: 0 var(--space-4); border: 0; border-radius: var(--radius-pill); font-weight: var(--weight-strong); font-size: var(--text-s); }
 .kind-switch .ck-tab[aria-current="page"] { background: var(--surface); color: var(--ink); box-shadow: var(--shadow-1); }
 .kind-switch .ck-tab svg { width: 1.1em; height: 1.1em; }
 
@@ -292,6 +292,11 @@ details.more .inside { display: grid; gap: var(--space-4); padding-top: var(--sp
 /* ── Export ─────────────────────────────────────────────────────── */
 .pickers { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3); margin-bottom: var(--space-4); }
 @media (max-width: 560px) { .pickers { grid-template-columns: 1fr; } }
+/* The kit's filters as two lists: each name above its list, full width. */
+.pickers .ck-filter-select { display: grid; gap: var(--space-1); align-content: start; }
+.pickers .ck-filter-select .ck-select { width: 100%; }
+.pickers .ck-filter-label { font-weight: var(--weight-strong); font-size: var(--text-s); color: var(--ink); }
+.pickers .ck-filter-clear { grid-column: 1 / -1; justify-self: start; }
 .downloads { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: var(--space-3); }
 .download { display: grid; gap: var(--space-2); padding: var(--space-4); border: 1.5px solid var(--ink); border-radius: var(--radius-l); background: var(--surface); text-decoration: none; }
 .download:hover { box-shadow: 4px 4px 0 var(--ink); transform: translate(-2px, -2px); transition: transform var(--fast) var(--ease), box-shadow var(--fast); }

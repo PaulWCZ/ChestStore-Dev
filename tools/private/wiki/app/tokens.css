@@ -5,9 +5,9 @@
    only what is the wiki's alone, always defined from contract tokens,
    never from a colour, so it follows every theme. */
 :root {
-  /* Pages are set for reading in the look's display face (Library's
-     Newsreader), the interface around them in its body face. */
-  --font-read: var(--font-display);
+  /* Pages are read in the look's --font-read (the contract's reading
+     face: Library's Newsreader, the body face in a theme whose display
+     face is for headings only); titles in its display face. */
   --read-size: 1.1875rem;
   --measure: 40rem;
   --sidebar: 288px;
