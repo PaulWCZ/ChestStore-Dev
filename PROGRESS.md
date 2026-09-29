@@ -51,42 +51,39 @@ table, blockers by owner) + `reports/05-critique/<tool>.md` (17 tools) +
 cross-cutting fixes). No tool can be cancelled tomorrow; ~6 categories
 today, 8 partly, 4 public ones not (mail, calendar, custom domains).
 
-**Fix queue (each builder works its critique's Fix plan; lead verifies):**
-- **Done and verified (tests on PGlite and PostgreSQL, flows, audit):**
+**Critique fixes: 17 of 18 tools done and verified by the lead.**
+- All 17 pass on PGlite and PostgreSQL, with flows and audit. Latest
+  verified: Hiring (59 tests), Status (61), News (72; a real mention bug
+  fixed).
+- Forms is still being fixed after its critique; its builder resumed after
+  the session limit.
 
-  | Tool | Tests |
-  |---|---|
-  | Polls | 54 |
-  | Tasks | 65 |
-  | Forms | 59 |
-  | Clients | 58 |
-  | Leave | 64 |
-  | Quotes | 99 |
-  | Expenses | 70 |
-  | Wiki | 69 |
-  | Goals | 49 |
-  | People | 51 |
-  | Timesheets | 62 |
-  | Booking | 67 |
-  | Support | 46 |
-  | Rooms | 69 |
-  | Equipment | 66 |
-  | News | 72 |
-  | Status | 61 |
+**Still to confirm:**
+- Legal and official values for Leave, People and Expenses. They were read
+  through search summaries because the official sites are blocked here.
+- Quotes' Factur-X against a real PA, and the SEPA file with a real bank.
 
-- **Running:** Hiring; Forms fixes after its critique; the Forms critique; the
-  UI kit's shared components, with the glossary and its lint
-  (`lab/GLOSSARY.md`, `scripts/lint-words.mjs`).
-- **Still to confirm:**
-  - Leave, People and Expenses legal or official values (read through
-    search summaries; official sites are blocked here).
-  - Quotes' Factur-X against a real PA; the SEPA file with a real bank.
-- **Decided:** move Quotes to `tools/public-and-private/` for online quote
-  acceptance, in a later round.
-- **SDK report §4.16** lists what the fixes needed and could not build.
-- **Then:** migrate all tools to the kit and themes; fix the Forms
-  critique; re-run the critique on the fixed tools to update the verdict
-  table in `reports/05-critique.md`.
+**Decided:** move Quotes to `tools/public-and-private/` for online quote
+acceptance, in a later round.
+
+**UI kit 0.2.0-studio.1 is done and verified.**
+- 28 components, 68 tests, gallery `ui/gallery/components.html`.
+- `lab/template` is migrated.
+- A glossary (`lab/GLOSSARY.md`) and a word lint
+  (`scripts/lint-words.mjs`, 1,175 findings across the 18 tools).
+- Nit: the smallest avatar stack clips initials.
+
+**Migration to the kit and themes** (brief in the scratchpad
+`migrate-brief.md`; 2–4 agent-hours per tool):
+- **Wave 1, running:** Rooms, Hiring, Booking, Timesheets, Tasks.
+- **Next waves:** Wiki, Leave, News, People, CRM, Expenses, Support,
+  Equipment, Polls, Goals, Quotes, Status, and Forms once its fixes land.
+
+**Then:**
+- Re-run the critique on the migrated tools and update the verdict table
+  in `reports/05-critique.md`.
+- Rebuild the showcase with looks.
+- Update the PR description.
 
 **Harness:**
 - `--empty` starts a tool with no sample data.
