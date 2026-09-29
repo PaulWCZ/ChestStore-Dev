@@ -14,5 +14,6 @@ Written for this tool rather than taken from a library: the Markdown-lite
 reader (`lib/markdown.ts`, rendered as React elements, never HTML) and the
 iCalendar writer (`lib/ics.ts`, RFC 5545). Dependencies installed from npm
 under their own licences: `next`, `react`, `react-dom` (MIT), `postgres`
-(Unlicense), `@argentic/chest-sdk` (MIT, the studio's working copy in
-`vendor/`). Icons are drawn for this tool (`components/icons.tsx`).
+(Unlicense), `@argentic/chest-sdk` and `@argentic/chest-ui` (MIT, © 2026
+Argentic: the studio's SDK and UI kit, packed in `vendor/`; the kit's
+components, themes and component words). Icons are drawn for this tool (`components/icons.tsx`).
