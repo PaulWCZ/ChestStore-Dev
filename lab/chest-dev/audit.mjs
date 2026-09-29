@@ -37,6 +37,7 @@ async function run(page, actions = []) {
   for (const action of actions) {
     if (action.click) await page.click(action.click, { timeout: 10_000 });
     if (action.fill) await page.fill(action.fill[0], action.fill[1], { timeout: 10_000 });
+    if (action.upload) await page.setInputFiles(action.upload[0], resolve(folder, action.upload[1]));
     if (action.press) await page.keyboard.press(action.press);
     if (action.hover) await page.hover(action.hover, { timeout: 10_000 });
     if (action.wait) await page.waitForTimeout(action.wait);

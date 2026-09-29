@@ -6,6 +6,7 @@
 // Reads <tool>/docs/screens.json:
 //   [{ "name": "board", "path": "/chest", "member": "camille", "locale": "en",
 //      "actions": [{"click": "text=New task"}, {"fill": ["#title", "Call Inès"]}, {"wait": 300}],
+//      (also {"upload": ["input[type=file]", "test/fixtures/sample.csv"]}, a path in the tool),
 //      "preview": true }]
 // A shot may name the company's look (Proposal (studio), the harness's
 // switcher): "look": {"all": "catalogue:newsprint", "tool": "inherit"}
@@ -38,6 +39,7 @@ async function run(page, actions = []) {
   for (const action of actions) {
     if (action.click) await page.click(action.click);
     if (action.fill) await page.fill(action.fill[0], action.fill[1]);
+    if (action.upload) await page.setInputFiles(action.upload[0], resolve(folder, action.upload[1]));
     if (action.press) await page.keyboard.press(action.press);
     if (action.hover) await page.hover(action.hover);
     if (action.wait) await page.waitForTimeout(action.wait);
