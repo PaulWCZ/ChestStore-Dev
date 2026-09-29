@@ -32,3 +32,4 @@ export const Clock = () => <Icon><circle cx="12" cy="12" r="8" /><path d="M12 8v
 export const Table = () => <Icon><rect x="4" y="5" width="16" height="14" rx="1.5" /><path d="M4 10h16M4 14.5h16M10 5v14" /></Icon>;
 export const Zip = () => <Icon><path d="M6 3h12v18H6z" /><path d="M12 3v2M12 7v2M12 11v2M11 15h2v3h-2z" /></Icon>;
 export const Calendar = () => <Icon><rect x="4" y="5.5" width="16" height="14.5" rx="1.5" /><path d="M4 10h16M8.5 3.5v4M15.5 3.5v4M8 14h2M12 14h2M8 17h2" /></Icon>;
+export const Search = () => <Icon><circle cx="11" cy="11" r="6" /><path d="M15.5 15.5L20 20" /></Icon>;

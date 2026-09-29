@@ -6,6 +6,7 @@ import { useState, useTransition, type ReactNode } from "react";
 import { Check, Clock, Flag, Lost, Mail, Meeting, Note, Pencil, Person, Phone, Pipeline, Plus, Trash, Trophy } from "../../../components/icons.tsx";
 import type { Activity } from "../../../lib/activities.ts";
 import { format } from "../../../lib/i18n/format.ts";
+import { phoneHref } from "../../../lib/model.ts";
 import type { Catalogue, Locale } from "../../../lib/i18n/index.ts";
 import { editActivity, removeActivity, restoreActivity } from "../actions.ts";
 import type { People } from "./shared.ts";
@@ -49,6 +50,27 @@ export function Timeline({ items, people, stageNames, me, canRemoveAny, canLog, 
     const at = t.timeline.form.indexOf("{form}");
     if (!a.link || at < 0) return format(t.timeline.form, { form });
     return <>{t.timeline.form.slice(0, at)}<a href={a.link} target="_blank" rel="noopener">{form}</a>{t.timeline.form.slice(at + "{form}".length)}</>;
+  }
+
+  // Who filled the form in, as the form gave it (lib/from-forms.ts keeps
+  // it on the line): never hidden behind the contact it was filed on.
+  function submittedBy(a: TimelineItem): ReactNode {
+    const w = a.data["who"];
+    if (a.kind !== "form" || typeof w !== "object" || w === null) return null;
+    const who = w as Record<string, unknown>;
+    const s = (key: string) => (typeof who[key] === "string" ? String(who[key]) : "");
+    const parts: ReactNode[] = [];
+    if (s("name")) parts.push(<span key="n">{s("name")}</span>);
+    if (s("email")) parts.push(<a key="e" href={`mailto:${s("email")}`}>{s("email")}</a>);
+    if (s("phone")) parts.push(<a key="p" className="num" href={phoneHref(s("phone"))}>{s("phone")}</a>);
+    if (s("company")) parts.push(<span key="c">{s("company")}</span>);
+    if (parts.length === 0) return null;
+    return (
+      <p className="event-who">
+        <span className="visually-hidden">{t.timeline.formGave} </span>
+        {parts.flatMap((p, i) => (i === 0 ? [p] : [<span key={`s${i}`} className="sep" aria-hidden="true">·</span>, p]))}
+      </p>
+    );
   }
 
   function sentence(a: Activity): string | null {
@@ -111,6 +133,7 @@ export function Timeline({ items, people, stageNames, me, canRemoveAny, canLog, 
                 {elsewhere && <span className="event-on">{format(t.timeline.on, { what: "" })}<Link prefetch={false} href={elsewhere.href}>{elsewhere.label}</Link></span>}
                 <time dateTime={a.at} title={a.whenFull}>{a.when}</time>
               </p>
+              {submittedBy(a)}
               {editing === a.id ? (
                 <form className="event-edit" onSubmit={e => {
                   e.preventDefault();

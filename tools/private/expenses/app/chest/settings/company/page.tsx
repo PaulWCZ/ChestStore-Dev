@@ -7,7 +7,8 @@ import { commonCurrencies, inputAmount } from "../../../../lib/money.ts";
 import { holders } from "../../../../lib/people.ts";
 import { vehicleKinds } from "../../../../lib/scale.ts";
 import { viewer } from "../../../../lib/session.ts";
-import { allowanceUnits, allowances, approverMap, categories, memberAccounts, rates, scaleFor, scales, settings, vehicles } from "../../../../lib/settings.ts";
+import { alone } from "../../../../lib/approvals.ts";
+import { allowanceUnits, allowances, approverMap, cardRules, categories, memberAccounts, rates, scaleFor, scales, settings, vehicles } from "../../../../lib/settings.ts";
 import { rateText } from "../../../../lib/money.ts";
 import { bankCurrent, bankDetails } from "../../../../lib/bank.ts";
 import { addressCountries } from "../../../../lib/iban.ts";
@@ -27,9 +28,9 @@ export default async function CompanySettings() {
   if (!can(member, "settings")) return <div className="page"><NoAccess title={t.noAccess.title} body={t.errors.forbidden} /></div>;
   const sql = db();
   const year = Number(today().slice(0, 4));
-  const [company, cats, map, all, everyone, current, bank, flat, known, cars, accounts] = await Promise.all([
+  const [company, cats, map, all, everyone, current, bank, flat, known, cars, accounts, words, lonely] = await Promise.all([
     settings(sql), categories(sql, { archived: true }), approverMap(sql), scales(sql), holders(), scaleFor(sql, year), bankDetails(sql, member, "company"),
-    allowances(sql, { archived: true }), rates(sql), vehicles(sql, member), memberAccounts(sql),
+    allowances(sql, { archived: true }), rates(sql), vehicles(sql, member), memberAccounts(sql), cardRules(sql), alone(sql),
   ]);
   const names = new Map(everyone.map(h => [h.id, h.name]));
   const approvers = everyone.filter(h => h.role === "approver" || h.role === "accountant");
@@ -60,7 +61,9 @@ export default async function CompanySettings() {
           currencies: [...new Set([company.currency, ...commonCurrencies])],
           reminder: company.reminder,
           categories: cats.map(c => ({ id: c.id, name: c.name ?? "", placeholder: c.key ? categoryName({ key: c.key, name: null }, t) : "", account: c.account, vatRecovery: String(c.vatRecovery), cap: c.cap === null ? "" : inputAmount(c.cap, company.currency, locale), mileage: c.mileage, archived: c.archived, guests: c.guests, perNight: c.perNight, allowance: c.key === "allowance" })),
-          people: withRole.map(h => ({ id: h.id, name: h.name, photo: h.photo, role: t.roles[h.role as keyof typeof t.roles] ?? "", approver: map.get(h.id) ?? "", account: accounts.get(h.id) ?? "" })),
+          people: withRole.map(h => ({ id: h.id, name: h.name, photo: h.photo, role: t.roles[h.role as keyof typeof t.roles] ?? "", approver: map.get(h.id) ?? "", account: accounts.get(h.id) ?? "", accountant: h.role === "accountant", alone: lonely.includes(h.id) })),
+          cardRules: words.map(r => ({ id: r.id, words: r.words, category: r.categoryId })),
+          cardCategories: cats.filter(c => !c.archived && !c.mileage && c.key !== "allowance").map(c => ({ value: c.id, label: categoryName(c, t) })),
           approvers: approvers.map(h => ({ id: h.id, name: h.name })),
           scales: all.map(s => ({ year: s.year, data: s.data, source: s.source })),
           year,

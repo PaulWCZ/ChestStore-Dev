@@ -13,7 +13,7 @@ import type { Scale, VehicleKind } from "../../../lib/scale.ts";
 import { upload } from "../../../components/upload.ts";
 import { limits, receiptTypes } from "../../../lib/model.ts";
 import { ImportSection } from "./import-view.tsx";
-import { addCategory, checkVehicle, saveAllowanceRate, saveScale, setApprover, setMemberAccount, setPriorDistance, setRate, setVehicle, setVehicleProof, updateCategory, updateCompany } from "../actions.ts";
+import { addCardRule, addCategory, checkVehicle, removeCardRule, saveAllowanceRate, saveScale, setApprover, setMemberAccount, setPriorDistance, setRate, setVehicle, setVehicleProof, updateCategory, updateCompany } from "../actions.ts";
 
 type Option = { value: string; label: string };
 type Words = Catalogue["settings"] & { files: Catalogue["files"]; table: Catalogue["table"] };
@@ -36,7 +36,9 @@ type Company = {
   currencies: string[];
   reminder: boolean;
   categories: CategoryRow[];
-  people: { id: string; name: string; photo: string | null; role: string; approver: string; account: string }[];
+  people: { id: string; name: string; photo: string | null; role: string; approver: string; account: string; accountant: boolean; alone: boolean }[];
+  cardRules: { id: string; words: string; category: string }[];
+  cardCategories: Option[];
   approvers: { id: string; name: string }[];
   scales: { year: number; data: Scale; source: string }[];
   year: number;
@@ -91,11 +93,12 @@ export function CompanyView({ locale, company, t, errors, cancel }: { locale: st
   return (
     <div className="settings">
       <nav className="toc" aria-label={t.sections}>
-        {([["bank", t.bank.companyTitle], ["categories", t.categories.title], ["approvers", t.approvers.title], ["allowances", t.allowances.title], ["rates", t.rates.title], ["journal", t.journal.title], ["vehicles", t.vehicles.title], ["scale", t.scale.title], ["import", t.import.title]] as const).map(([id, label]) => <a key={id} href={`#${id}`}>{label}</a>)}
+        {([["bank", t.bank.companyTitle], ["categories", t.categories.title], ["card-words", t.cardWords.title], ["approvers", t.approvers.title], ["allowances", t.allowances.title], ["rates", t.rates.title], ["journal", t.journal.title], ["vehicles", t.vehicles.title], ["scale", t.scale.title], ["import", t.import.title]] as const).map(([id, label]) => <a key={id} href={`#${id}`}>{label}</a>)}
       </nav>
       <CompanyForm company={company} t={t} errors={errors} />
       <CompanyBank company={company} t={t} errors={errors} cancel={cancel} />
       <Categories company={company} t={t} errors={errors} />
+      <CardWords company={company} t={t} errors={errors} />
       <Approvers company={company} t={t} errors={errors} />
       <Allowances company={company} t={t} errors={errors} />
       <Rates company={company} locale={locale} t={t} errors={errors} />
@@ -358,14 +361,58 @@ function Approvers({ company, t, errors }: { company: Company; t: Words; errors:
               <span><strong>{p.name}</strong><br /><span className="hint">{p.role}</span></span>
               <input className="field num mono" aria-label={`${t.approvers.accountCode}: ${p.name}`} title={t.approvers.accountHint} placeholder={company.journal.employees} defaultValue={p.account} maxLength={20}
                 onBlur={e => { if (e.target.value.trim() !== p.account) run(() => setMemberAccount(p.id, e.target.value.trim()), () => t.company.saved); }} />
+              {/* Nobody approves their own: an accountant's "nobody named"
+                  means the other accountants — or nobody at all when they
+                  are the only one. */}
               <select className="field" aria-label={`${t.approvers.approver}: ${p.name}`} defaultValue={p.approver} disabled={pending} onChange={e => run(() => setApprover(p.id, e.target.value || null), v => format(t.approvers.saved, { name: v.name }))}>
-                <option value="">{t.approvers.accountants}</option>
+                <option value="">{!p.accountant ? t.approvers.accountants : p.alone ? t.approvers.nobody : t.approvers.otherAccountants}</option>
                 {company.approvers.filter(a => a.id !== p.id).map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
               </select>
+              {p.alone && <p className="notice alone-row">{format(t.approvers.alone, { name: p.name })}</p>}
             </li>
           ))}
         </ul>
       )}
+    </section>
+  );
+}
+
+// Card statement words: which words of a bank label give a card payment
+// its category (lib/card-guess.ts). A list, one line added at a time.
+function CardWords({ company, t, errors }: { company: Company; t: Words; errors: Errors }) {
+  const { run, pending } = useRun(errors);
+  const [words, setWords] = useState("");
+  const [category, setCategory] = useState(company.cardCategories[0]?.value ?? "");
+  const label = (id: string) => company.cardCategories.find(c => c.value === id)?.label ?? "";
+  return (
+    <section id="card-words" className="paper" aria-labelledby="card-words-title">
+      <h2 id="card-words-title">{t.cardWords.title}</h2>
+      <p className="hint">{t.cardWords.intro}</p>
+      <hr className="rule" />
+      {company.cardRules.length === 0 ? <p className="hint">{t.cardWords.none}</p> : (
+        <ul className="word-list">
+          {company.cardRules.map(r => (
+            <li key={r.id}>
+              <span className="mono">{r.words}</span>
+              <span className="hint">{label(r.category)}</span>
+              <button type="button" className="link-button danger" disabled={pending} onClick={() => run(() => removeCardRule(r.id), () => t.company.saved)}>{t.cardWords.remove}<span className="visually-hidden"> {r.words}</span></button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <form className="pay-form add-row" onSubmit={e => { e.preventDefault(); if (words.trim() && category) run(() => addCardRule(words, category), () => { setWords(""); return t.company.saved; }); }}>
+        <div className="field-row grow-row">
+          <label htmlFor="new-card-words">{t.cardWords.words}</label>
+          <input id="new-card-words" className="field mono" value={words} onChange={e => setWords(e.target.value)} maxLength={40} placeholder={t.cardWords.example} />
+        </div>
+        <div className="field-row w-m">
+          <label htmlFor="new-card-category">{t.cardWords.category}</label>
+          <select id="new-card-category" className="field" value={category} onChange={e => setCategory(e.target.value)}>
+            {company.cardCategories.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+          </select>
+        </div>
+        <button type="submit" className="button quiet" disabled={pending || !words.trim() || !category}>{t.cardWords.add}</button>
+      </form>
     </section>
   );
 }

@@ -125,6 +125,60 @@ file §final):
 **Round-2 fixes** are under way tool by tool. Each works its file's "Top 3
 fixes now". `PROGRESS.md` records what the lead has verified.
 
+## Round 3 (2026-09-29, after round-2 fixes and kit 0.2.5)
+
+Four critics used all 18 tools again, the same way, with one extra
+instruction: find what round 2 missed, and try real situations end to
+end (a new hire's first week, month-end, a customer complaint, a manager
+on a phone). The files are in `reports/05-critique/round-3/`; screenshot
+paths in them point to the critics' working folder, which is not kept.
+
+Every round-2 "top fix" landed. Round 3 found problems the earlier rounds
+did not, several of them serious:
+
+- **Self-approval.** In Expenses the accountant could approve and pay her
+  own claim; in Timesheets a manager could approve their own week.
+- **Privacy.** A seeded "Medical visit" date in People was visible to
+  every colleague; Equipment showed every member all serial numbers and
+  who holds every key and badge.
+- **Suite links.** Clients matched a form contact by phone alone and
+  filed one visitor's message into another client's history (the rule
+  came from the lead's own brief, and the lead verified it — a lesson:
+  a match rule is a privacy rule). A colleague's request answered in
+  Support could not be read by that colleague.
+- **Switching day.** A Trello "Done" list imported into Tasks as late
+  open work.
+- **Client-facing words.** Quotes showed a raw "{company}" after online
+  acceptance, and a sent quote could change silently under its number.
+- **"Platform gaps" that are not.** Email (`mail` is built but only a few
+  tools declared it), billable time from Timesheets to Quotes, guest
+  answers in Polls, Slack/Teams notices (`webhooks` built, unused), MDM
+  sync in Equipment: all buildable now.
+
+| Tool | Cancel tomorrow? (round 3) | Completeness 1 → 2 → 3 | UX 1 → 2 → 3 |
+|---|---|---|---|
+| Tasks | Trello: an S fix away (import) · Asana: not yet | 6 → 7.5 → 8 | 7 → 7.5 → 7.5 |
+| Wiki | Handbook/intranet: yes · Confluence docs: not yet · Notion: no | 6 → 8 → 8.5 | 7.5 → 8.5 → 8.5 |
+| News | Office intranet and Slack #announcements: yes · Workvivo: not yet | 5.5 → 8 → 8.5 | 8 → 8.5 → 9 |
+| Polls | Doodle internal: yes · with guests: no · Officevibe: not yet | 5.5 → 7.5 → 8 | 8 → 8.5 → 9 |
+| Goals | Perdoo / OKR sheet: yes · Lattice: no, by design | 6.5 → 8.5 → 8.5 | 8 → 8.5 → 8.5 |
+| Leave | Not yet (email, People's data typed twice) | 5 → 7.5 → 8 | 8 → 8.5 → 8.5 |
+| People | Not yet (privacy default, HR import, documents) | 4 → 7 → 7.5 | 8 → 8.5 → 8.5 |
+| Expenses | Not yet — one S fix (self-approval) from yes | 5 → 7.5 → 8 | 7 → 8 → 8 |
+| Timesheets | Toggl/Clockify: yes · Harvest: not yet | 5 → 7.5 → 8 | 8 → 8 → 8.5 |
+| Equipment | Yes for SMEs · IT teams with MDM: not yet | 6 → 8.5 → 8.5 | 8 → 8.5 → 8.5 |
+| Clients | 3–10 people without email sync: yes, once the match bug is fixed | 5 → 7 → 7.5 | 7.5 → 8 → 8 |
+| Quotes | Not yet (no PA, no supplier invoices, no bank matching) | 4 → 6.5 → 7 | 7.5 → 8 → 8 |
+| Support | Not yet (email on a real Chest) | 4.5 → 6 → 6.5 | 8 → 8 → 8.5 |
+| Booking | Individual pages: yes on the proposals · today: not yet | 3.5 → 6.5 → 7 | 8 → 8 → 8.5 |
+| Forms | Internal forms: yes · website forms: not yet | 6 → 7.5 → 7.5 | 7 → 8 → 8 |
+| Rooms | Desks: yes on the proposals · meeting rooms in Google/Microsoft companies: no | 5 → 7 → 7.5 | 7 → 8 → 8 |
+| Hiring | Teamtailor for 5–15 hires a year: yes on the proposals · WTTJ: no | 4 → 6.5 → 7.5 | 7 → 8 → 8 |
+| Status | Not yet (custom domain, subscriber channels) | 5 → 7 → 7 | 8 → 8.5 → 8.5 |
+
+**Round-3 fixes** started at once on all 18 tools, security and privacy
+first. `PROGRESS.md` records what the lead has verified.
+
 ## What blocks the pitch, by who can fix it
 
 ### The platform (the Chest and the SDK): no tool can fix these alone

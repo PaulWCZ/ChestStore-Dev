@@ -22,8 +22,10 @@ import { everyone, type Colleague } from "./people.ts";
 // the same file twice adds nothing. The page shows the plan first; the
 // import reads the file again on the server.
 
-export type Source = "snipe" | "csv";
-export const isSource = (value: unknown): value is Source => value === "snipe" || value === "csv";
+// "intune": the devices Microsoft Intune knows and Equipment does not, as
+// lib/intune.ts writes them (columns in English).
+export type Source = "snipe" | "csv" | "intune";
+export const isSource = (value: unknown): value is Source => value === "snipe" || value === "csv" || value === "intune";
 
 type Field =
   | "tag" | "name" | "model" | "manufacturer" | "category" | "serial" | "status"
@@ -230,6 +232,16 @@ function nameIndex(people: Colleague[]): Map<string, string[]> {
     add(plain(`${p.lastName} ${p.firstName}`), p.id);
   }
   return index;
+}
+
+// The member a name designates, when exactly one has it (Intune's user of a
+// device): the same matching as an import's.
+export function personByName(people: Colleague[]): (name: string) => string | null {
+  const index = nameIndex(people);
+  return name => {
+    const found = index.get(plain(name)) ?? [];
+    return found.length === 1 ? found[0]! : null;
+  };
 }
 
 // ---- The plan -------------------------------------------------------------
@@ -536,7 +548,7 @@ export async function applyImport(sql: Sql, actor: Member | null, source: unknow
     // Tags the file names, so that the tool's own numbers skip them.
     const named = new Set(usable.flatMap(r => (r.tag ? [r.tag.toLowerCase()] : [])));
     const today = chest.today();
-    const note = source === "snipe" ? "Snipe-IT" : "CSV";
+    const note = source === "snipe" ? "Snipe-IT" : source === "intune" ? "Intune" : "CSV";
     for (const r of usable) {
       let tag = r.tag;
       while (!tag) {

@@ -5,7 +5,7 @@ import { addressCountries } from "../../../lib/iban.ts";
 import { countryOptions } from "../../../lib/words.ts";
 import { db } from "../../../lib/db.ts";
 import { paidRecently, toPay, totals, warnings, type Expense } from "../../../lib/expenses.ts";
-import { format, formatDate, languageNames, plural, relative } from "../../../lib/i18n/index.ts";
+import { dot, format, formatDate, languageNames, plural, relative, shortDate } from "../../../lib/i18n/index.ts";
 import { today } from "../../../lib/model.ts";
 import { formatMoney } from "../../../lib/money.ts";
 import { readiness, remittance, runs } from "../../../lib/payments.ts";
@@ -31,7 +31,7 @@ export default async function Pay() {
   const [list, recent, cats, company, ready, files] = await Promise.all([toPay(sql, member), paidRecently(sql, member), categories(sql, { archived: true }), settings(sql), readiness(sql, member), runs(sql, member)]);
   const [who, banks, warned, companyBank] = await Promise.all([people([...list, ...recent].map(e => e.owner)), bankViews(sql, member, [...new Set(list.map(e => e.owner))]), warnings(sql, list, { anyone: true }), bankViews(sql, member, ["company"]).then(m => m.get("company") ?? null)]);
   const flat = new Map((await allowances(sql, { archived: true })).map(a => [a.id, a]));
-  const ctx = { t, locale, allowances: flat, categories: new Map(cats.map(c => [c.id, c])), currency: company.currency, warnings: new Map([...warned].map(([id, w]) => [id, w.filter(x => x.code === "no_rate" || x.code === "card_own_money")])) };
+  const ctx = { t, locale, allowances: flat, categories: new Map(cats.map(c => [c.id, c])), currency: company.currency, warnings: new Map([...warned].map(([id, w]) => [id, w.filter(x => x.code === "no_rate" || x.code === "card_own_money" || x.code === "self_approved")])) };
   const money = (l: Expense[]) => totals(l).map(x => formatMoney(x.amount, x.currency, locale)).join(" + ");
   const byOwner = new Map<string, Expense[]>();
   for (const e of list) byOwner.set(e.owner, [...(byOwner.get(e.owner) ?? []), e]);
@@ -76,7 +76,7 @@ export default async function Pay() {
         preview={payable.length > 0 ? { count: payable.length, label: plural(t.pay.make, payable.length, locale, { total: formatMoney(fileTotal, "EUR", locale) }), statement: format(t.pay.statementText, { text: remittance(company.bankLocale, "E12"), language: languageNames[company.bankLocale] ?? company.bankLocale }) } : null}
         countries={countryOptions(addressCountries, locale)}
         files={files.map(f => ({ id: f.id, cancelled: f.cancelled, title: format(t.pay.fileFor, { date: formatDate(f.executionDate + "T12:00:00Z", locale, { day: "numeric", month: "long" }) }), sub: `${plural(t.pay.fileCount, f.count, locale)} · ${formatMoney(f.total, f.currency, locale)}` }))}
-        recent={recent.map(e => ({ ...rowView(e, { ...ctx, who: nameOf(who.get(e.owner), locale) }), sub: [nameOf(who.get(e.owner), locale), e.paidOn ? formatDate(e.paidOn + "T12:00:00Z", locale, { day: "numeric", month: "short" }) : ""].filter(Boolean).join(" · ") }))}
+        recent={recent.map(e => ({ ...rowView(e, { ...ctx, who: nameOf(who.get(e.owner), locale) }), sub: [nameOf(who.get(e.owner), locale), e.paidOn ? shortDate(e.paidOn, locale) : ""].filter(Boolean).join(dot) }))}
         today={today()}
         locale={locale}
         t={{ pay: t.pay, errors: t.errors, bank: t.settings.bank, cancel: t.form.cancel, dialog: t.dialog, date: t.date }}

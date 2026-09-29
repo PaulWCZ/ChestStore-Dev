@@ -350,14 +350,7 @@ a.booking-text:hover { text-decoration: underline; }
 }
 .panel > .button, .panel > .link-button, .stack > .button { justify-self: start; }
 .place-line::first-letter { text-transform: uppercase; }
-@media (max-width: 760px) {
-  .toolbar .chips { flex-wrap: nowrap; overflow-x: auto; width: 100%; padding-bottom: 2px; scrollbar-width: none; }
-  .toolbar .chip { flex: none; }
-}
 .stack > *, .toolbar > * { min-width: 0; }
-@media (max-width: 760px) {
-  .toolbar .chips { flex: 1 1 100%; }
-}
 
 /* ---------- After the critique ---------- */
 /* One hint for the mouse, another for the finger. */
@@ -423,8 +416,6 @@ a.booking-text:hover { text-decoration: underline; }
 @media (max-width: 560px) {
   .usual-day { display: grid; gap: var(--space-1); }
   .usual-form .choice-row .seg { min-width: 0; padding: 0 var(--space-1); }
-  .finder .chips { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; }
-  .finder .chip { flex: none; }
 }
 @media (min-width: 561px) { .finder-fields { grid-template-columns: repeat(3, minmax(0, 160px)); } }
 @media (max-width: 560px) {
@@ -467,3 +458,10 @@ a.booking-text:hover { text-decoration: underline; }
 .calendar-pick label:first-child { display: grid; gap: var(--space-1); }
 .import-lines li { overflow-wrap: anywhere; }
 .import-report .conflict { color: var(--danger); font-weight: var(--weight-strong); }
+.import-report .import-yours { font-weight: var(--weight-strong); border-left: 3px solid var(--mine-line); padding-left: var(--space-2); }
+/* Phone: the equipment chips wrap (every one visible); the day strip,
+   wider than a phone, fades at its right edge: there is more to scroll. */
+@media (max-width: 560px) {
+  .finder .chip { min-height: 40px; }
+  .ck-daystrip nav { -webkit-mask-image: linear-gradient(to right, var(--ink) calc(100% - 28px), transparent); mask-image: linear-gradient(to right, var(--ink) calc(100% - 28px), transparent); }
+}

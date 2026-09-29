@@ -15,7 +15,7 @@ import { zone } from "../../lib/zone.ts";
 import { flush } from "../../lib/calendar.ts";
 import { checkIn as checkInto } from "../../lib/check-in.ts";
 import * as usual from "../../lib/usual.ts";
-import { directory } from "../../lib/directory.ts";
+import { matchable } from "../../lib/directory.ts";
 import * as imports from "../../lib/import.ts";
 import * as example from "../../lib/example.ts";
 import * as calendarImport from "../../lib/calendar-import.ts";
@@ -219,7 +219,7 @@ export async function importRooms(officeId: string, text: string): Promise<Resul
 }
 export async function importDesks(officeId: string, text: string): Promise<Result<Omit<imports.DesksImported, "cancelled"> & { cancelled: number }>> {
   return act(async actor => {
-    const everyone = await directory();
+    const everyone = await matchable();
     const done = await imports.importDesks(db(), actor, officeId, text, everyone);
     await tell.desksCancelled(actor, done.cancelled, "given");
     return { ...done, cancelled: done.cancelled.length };
@@ -229,7 +229,7 @@ export async function importDesks(officeId: string, text: string): Promise<Resul
 // A room calendar's .ics export: first a preview (nothing is written),
 // then the import; Undo takes the whole import back.
 export async function readRoomCalendar(roomId: string, text: string, commit: boolean): Promise<Result<calendarImport.CalendarImport>> {
-  return act(async actor => calendarImport.importRoomCalendar(db(), actor, { roomId, text, commit }, await directory(), zone()));
+  return act(async actor => calendarImport.importRoomCalendar(db(), actor, { roomId, text, commit }, await matchable(), zone()));
 }
 export async function undoRoomCalendar(batch: string): Promise<Result<{ removed: number }>> {
   return act(async actor => ({ removed: await calendarImport.undoCalendarImport(db(), actor, batch) }));

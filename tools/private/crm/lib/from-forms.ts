@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import type { ToolEvent } from "@argentic/chest-sdk/events";
 import type { Query, Sql } from "./db.ts";
 import { format } from "./i18n/index.ts";
+import { fold } from "./fold.ts";
 import { email as checkEmail, limits, phone as checkPhone, phoneDigits } from "./model.ts";
 import { notify } from "./notify.ts";
 import { managers } from "./team.ts";
@@ -15,14 +16,28 @@ import { managers } from "./team.ts";
 //   { v: 1, form: {id, title}, answer: {id, at, language, path},
 //     contact: {name, email, phone, company}, message, member }
 //
-// The person is found by email (whatever its case), then by phone (digits
-// compared, "+33 6…" as "06…"); otherwise a new contact is made, at the
-// company of that name (found accents and case aside, or added). Either
-// way their history gains one line, "Filled in the form “Contact us”",
-// with their message, in each reader's language, and they count as in
-// touch that day (the prospects' three-year rule). An existing contact
-// keeps what the team wrote: only an empty email, phone or company is
-// filled in.
+// Who the person is — a privacy rule (GDPR: one person's words must never
+// sit in another's file, where their right of access cannot find them and
+// erasing the other would take them):
+//
+// 1. the same email (whatever its case) is the same person;
+// 2. the same phone (digits compared, "+33 6…" as "06…") is the same
+//    person only when the name is the same too (accents, case, punctuation
+//    and word order aside: "Roux, Nina" = "nina roux") — a switchboard, a
+//    shop's line or a mistyped digit is shared by several people;
+// 3. otherwise a new contact is made; when its phone is another contact's,
+//    it is marked as maybe the same person (`maybe_same`), for someone to
+//    merge or keep apart (the contact's page asks).
+//
+// Either way their history gains one line, "Filled in the form “Contact
+// us”", with their message and what the form gave (name, email, phone,
+// company: `data.who`, shown on the line), in each reader's language, and
+// they count as in touch that day (the prospects' three-year rule). An
+// existing contact keeps what the team wrote: only an empty email, phone
+// or company is filled in; a different address the form gave stays on the
+// line, where a manager's check finds it (lib/leads.ts, formLinesToCheck).
+// A new contact is at the company of that name (found accents and case
+// aside, or added).
 //
 // Who owns a new contact: nobody. An import gives its rows to the person
 // who imports (lib/importers.ts); here nobody acts, so the contact is
@@ -89,22 +104,34 @@ export function readFormContact(event: Pick<ToolEvent, "id" | "data">, now = new
 
 type Found = { id: string; name: string; email: string; phone: string; phone2: string; company_id: string | null; owner: string | null };
 
-// The contact this person already is: the same email (lower case on both
-// sides), else the same phone number, either of the contact's two.
-async function match(tx: Query, c: FormContact): Promise<Found | null> {
+// sameName: two names of one person, as people write them — accents,
+// case, punctuation and the order of the words aside. An empty name is
+// nobody's.
+export function sameName(a: string, b: string): boolean {
+  const words = (name: string) => fold(name).split(" ").filter(Boolean).sort().join(" ");
+  const x = words(a);
+  return x !== "" && x === words(b);
+}
+
+// match: the contact this person surely is (`found`), else the one they
+// may be (`maybe`: same phone, another name) — see the rule above.
+async function match(tx: Query, c: FormContact): Promise<{ found: Found | null; maybe: Found | null }> {
   if (c.email) {
     const [row] = await tx<Found[]>`select id, name, email, phone, phone2, company_id, owner from contacts where email <> '' and lower(email) = ${c.email} order by id limit 1`;
-    if (row) return row;
+    if (row) return { found: row, maybe: null };
   }
   const digits = c.phone ? phoneDigits(c.phone) : "";
-  if (digits.length >= 6) {
-    const [row] = await tx<Found[]>`
-      select id, name, email, phone, phone2, company_id, owner from contacts
-      where phone_digits like ${"%" + digits + "%"} and (crm_phone(phone) = ${digits} or crm_phone(phone2) = ${digits})
-      order by id limit 1`;
-    if (row) return row;
-  }
-  return null;
+  if (digits.length < 6) return { found: null, maybe: null };
+  const rows = await tx<Found[]>`
+    select id, name, email, phone, phone2, company_id, owner from contacts
+    where phone_digits like ${"%" + digits + "%"} and (crm_phone(phone) = ${digits} or crm_phone(phone2) = ${digits})
+    order by id limit 20`;
+  // The same name at this number: them. An email the form gave that is
+  // another than theirs does not make them someone else (a new work
+  // address) — it stays on the line for a manager to see.
+  const same = rows.find(r => sameName(r.name, c.name));
+  if (same) return { found: same, maybe: null };
+  return { found: null, maybe: rows[0] ?? null };
 }
 
 // The company of that name, accents and case aside; added if there is none
@@ -118,7 +145,7 @@ async function companyNamed(tx: Query, name: string, form: string, at: Date): Pr
   return String(row!.id);
 }
 
-export type Received = { contact: { id: string; name: string; owner: string | null }; created: boolean };
+export type Received = { contact: { id: string; name: string; owner: string | null }; created: boolean; maybe: { id: string; name: string } | null };
 
 // receiveFormContact: the contact found or made, and the line of history;
 // null when the event is not one to act on, or was already handled.
@@ -131,7 +158,7 @@ export async function receiveFormContact(sql: Sql, event: Pick<ToolEvent, "id" |
       where kind = 'form' and (data->>'event' = ${c.event} or (data->>'answer' = ${c.answer.id} and data->>'formId' = ${c.form.id}))
       limit 1`;
     if (done) return null;
-    const found = await match(tx, c);
+    const { found, maybe } = await match(tx, c);
     let contact: Received["contact"];
     let companyId: string | null;
     if (found) {
@@ -152,18 +179,22 @@ export async function receiveFormContact(sql: Sql, event: Pick<ToolEvent, "id" |
     } else {
       companyId = await companyNamed(tx, c.company, c.form.title, c.answer.at);
       const name = c.name || c.email || c.phone;
+      // A lead: in My day until someone takes it (lib/leads.ts).
       const [row] = await tx<{ id: string }[]>`
-        insert into contacts (name, email, phone, company_id, owner, created_by, last_contact_at)
-        values (${name}, ${c.email}, ${c.phone}, ${companyId}, null, 'chest', ${c.answer.at})
+        insert into contacts (name, email, phone, company_id, owner, created_by, last_contact_at, maybe_same, lead_since)
+        values (${name}, ${c.email}, ${c.phone}, ${companyId}, null, 'chest', ${c.answer.at}, ${maybe ? maybe.id : null}, now())
         returning id`;
       // Added when the form was answered, then the line of the answer.
       await tx`insert into activities (kind, contact_id, company_id, author, data, at) values ('created', ${row!.id}, ${companyId}, 'chest', ${tx.json({ form: c.form.title })}, ${c.answer.at})`;
       contact = { id: String(row!.id), name, owner: null };
     }
+    // What the form gave, always on the line: who filled it in is never
+    // hidden behind the contact it was filed on.
+    const who = { name: c.name, email: c.email, phone: c.phone, company: c.company };
     await tx`
       insert into activities (kind, body, data, contact_id, company_id, author, at)
-      values ('form', ${c.message}, ${tx.json({ event: c.event, formId: c.form.id, form: c.form.title, answer: c.answer.id, path: c.answer.path })}, ${contact.id}, ${companyId}, 'chest', ${c.answer.at})`;
-    return { contact, created: !found };
+      values ('form', ${c.message}, ${tx.json({ event: c.event, formId: c.form.id, form: c.form.title, answer: c.answer.id, path: c.answer.path, who })}, ${contact.id}, ${companyId}, 'chest', ${c.answer.at})`;
+    return { contact, created: !found, maybe: maybe && !found ? { id: String(maybe.id), name: maybe.name } : null };
   });
   if (received) await tell(received, c);
   return received;
@@ -175,7 +206,7 @@ export const formKey = (formId: string, answerId: string) => "form:" + createHas
 async function tell(received: Received, c: FormContact): Promise<void> {
   const to = received.contact.owner?.startsWith("mbr_") ? [received.contact.owner] : await managers();
   await notify(to, t => ({
-    title: format(received.created ? t.bell.formNew : t.bell.formKnown, { name: received.contact.name, form: c.form.title }),
+    title: format(received.maybe ? t.bell.formMaybe : received.created ? t.bell.formNew : t.bell.formKnown, { name: received.contact.name, form: c.form.title, other: received.maybe?.name ?? "" }),
     ...(c.message ? { body: c.message } : {}),
   }), { path: `/chest/contacts/${received.contact.id}`, key: formKey(c.form.id, c.answer.id) });
 }

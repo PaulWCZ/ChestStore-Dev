@@ -6,7 +6,7 @@ import { can } from "./access.ts";
 import { AppError } from "./app-error.ts";
 import type { Sql } from "./db.ts";
 import { check } from "./form-token.ts";
-import { byLink, guard, settings } from "./tickets.ts";
+import { byLink, guard, myRequest, settings } from "./tickets.ts";
 import { checkFile, fileName, fileTypes, isFileType, limits, type FileType } from "./model.ts";
 
 // Files added to a message, around the browser's own upload to the Chest
@@ -65,6 +65,13 @@ export async function visitorGrant(sql: Sql, where: { started?: unknown; secret?
 // memberGrant: someone who answers may send a file for a reply or a note.
 export async function memberGrant(actor: Member | null, type: unknown, size: unknown): Promise<{ url: string; expiresIn: number }> {
   if (!can(actor, "tickets.answer")) throw new AppError("forbidden");
+  return grant("team", type, size);
+}
+
+// requesterGrant: a colleague may send a file for their own request only
+// (My requests); the request must be theirs.
+export async function requesterGrant(sql: Sql, actor: Member | null, number: unknown, type: unknown, size: unknown): Promise<{ url: string; expiresIn: number }> {
+  await myRequest(sql, actor, number);
   return grant("team", type, size);
 }
 

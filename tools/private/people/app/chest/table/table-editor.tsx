@@ -4,7 +4,7 @@ import { Avatar, DateField, Segmented, useToast } from "@argentic/chest-ui/compo
 import type { DateWords } from "@argentic/chest-ui/components/logic";
 import { useRouter } from "next/navigation";
 import { useId, useState, useTransition, type FormEvent } from "react";
-import { Plus, Trash } from "../../../components/icons.tsx";
+import { Lock, Plus, Trash } from "../../../components/icons.tsx";
 import type { ErrorCode } from "../../../lib/app-error.ts";
 import { format } from "../../../lib/i18n/format.ts";
 import { limits } from "../../../lib/model.ts";
@@ -17,6 +17,7 @@ type Column = "title" | "team" | "office" | "managerId" | "startDate" | "phone";
 type Words = {
   table: {
     person: string; saved: string; addField: string; fieldName: string; fieldPlaceholder: string; fieldEditor: string; editors: { person: string; hr: string };
+    fieldSeen: string; seens: { everyone: string; private: string }; seenOf: string;
     create: string; cancel: string; removeField: string; fieldRemoved: string; renameField: string; cell: string;
     fieldKind: string; kinds: Record<"text" | "date" | "choice", string>; fieldOptions: string; fieldAlert: string; fieldAlertHint: string; noChoice: string;
   };
@@ -38,7 +39,7 @@ type Words = {
 export function TableEditor({ rows, managers, fields, known, today, t }: {
   rows: TableRow[];
   managers: { id: string; name: string; left?: boolean }[];
-  fields: { id: string; label: string; editor: "person" | "hr"; kind: "text" | "date" | "choice"; options: string[] }[];
+  fields: { id: string; label: string; editor: "person" | "hr"; seen: "everyone" | "private"; kind: "text" | "date" | "choice"; options: string[] }[];
   known: { teams: string[]; offices: string[]; titles: string[] };
   // Today in the Chest's time zone ("tomorrow" in a date cell).
   today: string;
@@ -174,10 +175,11 @@ export function TableEditor({ rows, managers, fields, known, today, t }: {
 
 // A column of HR's own: its name can be changed in place; removing it has
 // "Undo".
-function FieldHead({ field, t, onRemoved }: { field: { id: string; label: string; editor: "person" | "hr"; kind: "text" | "date" | "choice" }; t: Words; onRemoved: () => void }) {
+function FieldHead({ field, t, onRemoved }: { field: { id: string; label: string; editor: "person" | "hr"; seen: "everyone" | "private"; kind: "text" | "date" | "choice" }; t: Words; onRemoved: () => void }) {
   const router = useRouter();
   const toast = useToast();
   const [label, setLabel] = useState(field.label);
+  const [seen, setSeen] = useState(field.seen);
   const [, start] = useTransition();
   return (
     <th scope="col" className="field-head">
@@ -192,6 +194,20 @@ function FieldHead({ field, t, onRemoved }: { field: { id: string; label: string
               else router.refresh();
             });
           }} />
+        {seen === "private" && <span className="seen-lock" title={t.table.seens.private}><Lock /></span>}
+        <select className="cell head-seen" value={seen} aria-label={format(t.table.seenOf, { name: field.label })}
+          onChange={e => {
+            const next = e.target.value as "everyone" | "private";
+            setSeen(next);
+            start(async () => {
+              const r = await updateField(field.id, { label: field.label, editor: field.editor, seen: next });
+              if (!r.ok) { setSeen(field.seen); toast({ text: format(t.errors[r.error], r.values ?? {}), tone: "error" }); }
+              else { toast({ id: `seen-${field.id}`, text: t.table.saved }); router.refresh(); }
+            });
+          }}>
+          <option value="everyone">{t.table.seens.everyone}</option>
+          <option value="private">{t.table.seens.private}</option>
+        </select>
         <button type="button" className="icon-button" aria-label={format(t.table.removeField, { name: field.label })} onClick={() => start(async () => {
           const r = await removeField(field.id, true);
           if (!r.ok) { toast({ text: format(t.errors[r.error], r.values ?? {}), tone: "error" }); return; }
@@ -219,13 +235,17 @@ function NewField({ t }: { t: Words }) {
   const [open, setOpen] = useState(false);
   const [editor, setEditor] = useState<"person" | "hr">("person");
   const [kind, setKind] = useState<"text" | "date" | "choice">("text");
+  // Who sees it: a date is HR's and the person's by default (a medical
+  // visit), until HR chooses.
+  const [seen, setSeen] = useState<"everyone" | "private" | null>(null);
+  const shownTo = seen ?? (kind === "date" ? "private" : "everyone");
   const [pending, start] = useTransition();
   if (!open) return <p className="section-actions"><button type="button" className="button quiet" onClick={() => setOpen(true)}><Plus />{t.table.addField}</button></p>;
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const data = new FormData(event.currentTarget);
     start(async () => {
-      const r = await addField({ label: String(data.get("label") ?? ""), editor, kind, options: String(data.get("options") ?? ""), alertDays: String(data.get("alert") ?? "") });
+      const r = await addField({ label: String(data.get("label") ?? ""), editor, seen: shownTo, kind, options: String(data.get("options") ?? ""), alertDays: String(data.get("alert") ?? "") });
       if (!r.ok) { toast({ text: format(t.errors[r.error], r.values ?? {}), tone: "error" }); return; }
       setOpen(false);
       router.refresh();
@@ -252,6 +272,7 @@ function NewField({ t }: { t: Words }) {
         </div>
       )}
       <Segmented label={t.table.fieldEditor} hideLabel={false} value={editor} onChange={setEditor} options={[{ value: "person", label: t.table.editors.person }, { value: "hr", label: t.table.editors.hr }]} />
+      <Segmented label={t.table.fieldSeen} hideLabel={false} value={shownTo} onChange={setSeen} options={[{ value: "everyone", label: t.table.seens.everyone }, { value: "private", label: t.table.seens.private }]} />
       <div className="row">
         <button type="submit" className="button" disabled={pending}>{t.table.create}</button>
         <button type="button" className="button quiet" onClick={() => setOpen(false)}>{t.table.cancel}</button>

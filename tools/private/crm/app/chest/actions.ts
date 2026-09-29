@@ -12,6 +12,7 @@ import { attempt, AppError, type Result } from "../../lib/errors.ts";
 import * as fields from "../../lib/fields.ts";
 import { catalogue, isLocale } from "../../lib/i18n/index.ts";
 import type { ImportReport } from "../../lib/importers.ts";
+import * as leads from "../../lib/leads.ts";
 import { mergeCompanies, mergeContacts } from "../../lib/merge.ts";
 import { search, type Lookalike } from "../../lib/search.ts";
 import { currentMember } from "../../lib/session.ts";
@@ -72,6 +73,31 @@ export async function updateContact(id: string, input: ContactInput): Promise<Re
 }
 export async function deleteContact(id: string): Promise<Result<null>> {
   return act(async actor => { await settle(await contacts.deleteContact(db(), actor, id)); return null; });
+}
+
+// Leads from the forms (My day), a contact that may be another, and the
+// form answers a manager checks (lib/leads.ts).
+export async function takeLead(id: string, to?: string): Promise<Result<{ name: string }>> {
+  return act(async actor => {
+    const taken = await leads.takeLead(db(), actor, id, to);
+    await tell.leadGiven(actor, taken.owner, taken);
+    return { name: taken.name };
+  });
+}
+export async function dismissLead(id: string): Promise<Result<null>> {
+  return act(async actor => { await leads.dismissLead(db(), actor, id); return null; });
+}
+export async function restoreLead(id: string): Promise<Result<null>> {
+  return act(async actor => { await leads.restoreLead(db(), actor, id); return null; });
+}
+export async function keepApart(id: string): Promise<Result<null>> {
+  return act(async actor => { await leads.keepApart(db(), actor, id); return null; });
+}
+export async function markFormLine(id: string, checked: boolean): Promise<Result<null>> {
+  return act(async actor => { await leads.markChecked(db(), actor, id, checked); return null; });
+}
+export async function moveFormLine(id: string, to: string): Promise<Result<{ contact: string }>> {
+  return act(actor => leads.moveLine(db(), actor, id, to));
 }
 
 // Many at once, and duplicates merged.

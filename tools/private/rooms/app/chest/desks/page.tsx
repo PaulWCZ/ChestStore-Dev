@@ -68,6 +68,9 @@ export default async function Desks({ searchParams }: { searchParams: Promise<Re
   return (
     <div className="wide">
       <AutoRefresh seconds={20} />
+      {/* The day strip, the part of day, the view and the filters come
+          before the first desk: one Tab stop jumps over them. */}
+      {floors.length > 0 && <a className="ck-skip" href="#desk-places">{t.desks.skip}</a>}
       <PageHeader title={t.desks.title}
         intro={<span className="place-line">{formatDay(day, locale, { weekday: "long", day: "numeric", month: "long" })}{office ? " · " + office.name : ""}</span>}
         secondary={exempt || c.offices.length > 1 ? <>

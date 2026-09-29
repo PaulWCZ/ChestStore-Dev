@@ -232,6 +232,14 @@ export function documentNumber(prefixText: string, period: number, seq: number):
   return period === 0 ? `${prefixText}-${String(seq).padStart(4, "0")}` : `${prefixText}-${period}-${String(seq).padStart(4, "0")}`;
 }
 
+// A quote's number as people read it: its version after the number once
+// it was changed after being sent ("D-2026-0007 v2"); the first version is
+// the number alone. The number itself never changes (the sequence, the
+// search and the other tools keep it).
+export function versioned(number: string | null, version: number): string | null {
+  return number !== null && version > 1 ? `${number} v${version}` : number;
+}
+
 // A number this tool could have given (a sent quote's, in a message).
 export const numberPattern = /^[A-Z0-9]{1,8}(-\d{4})?-\d{4,}$/u;
 

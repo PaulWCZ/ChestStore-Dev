@@ -6,7 +6,7 @@ import { Building, Chart, Pipeline, Trophy, Upload } from "../../components/icon
 import { can, canEditDeal, roleOf } from "../../lib/access.ts";
 import { db } from "../../lib/db.ts";
 import { openByStage, wonThisMonth } from "../../lib/deals.ts";
-import { format, formatDay, money, plural } from "../../lib/i18n/index.ts";
+import { format, formatDay, money, plural, relative } from "../../lib/i18n/index.ts";
 import { dueState, today } from "../../lib/model.ts";
 import { dealFormProps, dueLabel, formChoices } from "../../lib/page-data.ts";
 import { directory } from "../../lib/people.ts";
@@ -18,6 +18,8 @@ import { NewCompanyButton } from "./ui/company-form.tsx";
 import { NewDealButton } from "./ui/deal-form.tsx";
 import { emptyCompany, emptyDeal } from "./ui/values.ts";
 import { DayList, SelfStepButton, type DayRow } from "./day-list.tsx";
+import { LeadsBox } from "./leads-box.tsx";
+import { countFormLinesToCheck, leads } from "../../lib/leads.ts";
 
 // My day: what I promised to do (late and today first), then my open
 // deals, stage by stage. The one obvious action: do the next thing, say
@@ -125,7 +127,14 @@ export default async function MyDay() {
     );
   }
 
-  const [steps, byStage, won] = await Promise.all([myDay(sql, member, now), openByStage(sql, member, member.id), wonThisMonth(sql, member, now)]);
+  const writes = can(member, "records.write");
+  const [steps, byStage, won, inbox, toCheck] = await Promise.all([
+    myDay(sql, member, now), openByStage(sql, member, member.id), wonThisMonth(sql, member, now),
+    // New contacts from forms, nobody's yet (lib/leads.ts), and — for a
+    // manager — form answers that may sit in the wrong person's file.
+    writes ? leads(sql, member) : Promise.resolve({ rows: [], total: 0 }),
+    countFormLinesToCheck(sql, member),
+  ]);
   // The tile's number may have gone stale overnight: set it right whenever
   // its owner comes home.
   await refreshBadges(sql, [member.id]);
@@ -157,8 +166,12 @@ export default async function MyDay() {
       </div>
       <div className="day-grid">
         <section aria-labelledby="steps-title" className="day-steps">
+          {toCheck > 0 && <p className="notice warn"><Link prefetch={false} href="/chest/settings/forms">{plural(t.check.notice, toCheck, locale)}</Link></p>}
+          {inbox.rows.length > 0 && (
+            <LeadsBox rows={inbox.rows.map(l => ({ ...l, when: relative(l.since, locale) }))} total={inbox.total} team={choices.team} me={member.id} canAssign={choices.canAssign} today={now} calendar={inCalendar} t={t} />
+          )}
           <h2 id="steps-title" className="visually-hidden">{t.step.title}</h2>
-          {rows.length === 0 ? (
+          {rows.length === 0 ? inbox.rows.length > 0 ? null : (
             <div className="empty-box">
               <EmptyState headingLevel={3} title={t.home.nothing} body={t.home.nothingBody} action={<Link prefetch={false} className="button quiet" href="/chest/deals">{t.shell.deals}</Link>} />
             </div>

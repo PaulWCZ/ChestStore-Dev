@@ -52,9 +52,13 @@ export function colleagueName(person: Person | undefined, tr: Catalogue, locale:
 
 // The customer wrote again: the ticket's agent hears of it (everyone, if
 // nobody has it).
-export async function customerWrote(t: Pick<Ticket, "id" | "number" | "subject" | "assignee" | "customerName" | "customerEmail">, body: string): Promise<void> {
+// A colleague who wrote again from My requests is named as the Chest names
+// them, in each reader's language.
+export async function customerWrote(t: Pick<Ticket, "id" | "number" | "subject" | "assignee" | "customerName" | "customerEmail"> & { requester?: string | null }, body: string): Promise<void> {
   if (!t.assignee) return newTicket(t, body);
-  await notify([t.assignee], tr => ({ title: format(tr.bell.replied, { customer: cut(t.customerName || t.customerEmail, 40), number: t.number }), body: cut(body, 280) }), { path: path(t), key: `ticket:${t.id}:reply` });
+  const colleague = t.requester ? (await people([t.requester])).get(t.requester) : undefined;
+  const customer = (tr: Catalogue, locale: Locale) => (t.requester ? colleagueName(colleague, tr, locale) : t.customerName || t.customerEmail);
+  await notify([t.assignee], (tr, locale) => ({ title: format(tr.bell.replied, { customer: cut(customer(tr, locale), 40), number: t.number }), body: cut(body, 280) }), { path: path(t), key: `ticket:${t.id}:reply` });
 }
 
 export async function assigned(actor: Member, t: Pick<Ticket, "id" | "number" | "subject">, to: string | null): Promise<void> {
@@ -64,10 +68,14 @@ export async function assigned(actor: Member, t: Pick<Ticket, "id" | "number" | 
 }
 
 // A colleague's request was answered: they hear of it in the bell, in
-// their language — when they have Support (the Chest tells only those).
+// their language, and the item opens their own request (My requests,
+// /chest/mine/<number>) — which any member who has Support may read,
+// with a role or none. A colleague who does not have Support at all is
+// not told by the Chest (it tells only members who have the tool).
+const minePath = (t: Pick<Ticket, "number">) => `/chest/mine/${t.number}`;
 export async function colleagueAnswered(t: Pick<Ticket, "id" | "number" | "subject" | "requester">, actor: Member): Promise<void> {
   if (!t.requester || t.requester === "erased" || t.requester === actor.id) return;
-  await notify([t.requester], tr => ({ title: format(tr.bell.colleagueAnswered, { name: actor.name, number: t.number }), body: cut(t.subject, 280) }), { path: path(t), key: `ticket:${t.id}:answered` });
+  await notify([t.requester], tr => ({ title: format(tr.bell.colleagueAnswered, { name: actor.name, number: t.number }), body: cut(t.subject, 280) }), { path: minePath(t), key: `ticket:${t.id}:answered` });
 }
 
 // Answered or closed: nothing waits on the team any more.
@@ -82,9 +90,11 @@ export async function bounced(t: Pick<Ticket, "id" | "number">, to: string, reci
 }
 
 // The customer rated a closed request: its agent hears of it.
-export async function rated(t: Pick<Ticket, "id" | "number" | "assignee" | "customerName" | "customerEmail">, rating: "good" | "bad"): Promise<void> {
+export async function rated(t: Pick<Ticket, "id" | "number" | "assignee" | "customerName" | "customerEmail"> & { requester?: string | null }, rating: "good" | "bad"): Promise<void> {
   if (!t.assignee) return;
-  await notify([t.assignee], tr => ({ title: format(rating === "good" ? tr.bell.ratedGood : tr.bell.ratedBad, { customer: cut(t.customerName || t.customerEmail, 40), number: t.number }) }), { path: path(t), key: `ticket:${t.id}:rated` });
+  const colleague = t.requester ? (await people([t.requester])).get(t.requester) : undefined;
+  const customer = (tr: Catalogue, locale: Locale) => (t.requester ? colleagueName(colleague, tr, locale) : t.customerName || t.customerEmail);
+  await notify([t.assignee], (tr, locale) => ({ title: format(rating === "good" ? tr.bell.ratedGood : tr.bell.ratedBad, { customer: cut(customer(tr, locale), 40), number: t.number }) }), { path: path(t), key: `ticket:${t.id}:rated` });
 }
 
 export async function refreshBadges(sql: Sql): Promise<void> {

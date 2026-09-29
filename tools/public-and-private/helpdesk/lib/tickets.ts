@@ -960,6 +960,88 @@ export async function linkFile(sql: Query, secret: unknown, fileId: unknown): Pr
   return row ? { object: row.object, fileName: row.file_name, type: row.type } : null;
 }
 
+// ---- A colleague's own requests ("My requests") -----------------------------
+
+// Any member who reaches the tool — with a role or none, as most colleagues
+// who send an IT request through a team form of Forms — reads and answers
+// the tickets they asked (requester = their member id), and nothing else:
+// never another person's ticket, never a note, never who else is on it.
+// A ticket that is not theirs is "not_found", exactly like one that does
+// not exist. Merged into another of theirs (merging never crosses
+// requesters), it opens that one.
+export type MyRequest = { number: number; subject: string; status: Status; updatedAt: string; answered: boolean };
+
+export async function myRequests(sql: Query, actor: Member | null): Promise<MyRequest[]> {
+  if (!actor) throw new AppError("forbidden");
+  const rows = await sql<{ number: number; subject: string; status: Status; updated_at: Date; last_kind: string | null }[]>`
+    select t.number, t.subject, t.status, t.updated_at,
+      (select m.kind from messages m where m.ticket_id = t.id and m.kind in ('customer', 'reply') and not m.auto order by m.created_at desc, m.id desc limit 1) as last_kind
+    from tickets t
+    where t.requester = ${actor.id} and t.merged_into is null and t.status <> 'spam'
+    order by t.status = 'closed', t.updated_at desc, t.id desc limit 100`;
+  return rows.map(r => ({ number: r.number, subject: r.subject, status: r.status, updatedAt: r.updated_at.toISOString(), answered: r.last_kind === "reply" }));
+}
+
+// How many requests of the actor's are not closed (their tab's number).
+export async function myOpenCount(sql: Query, actor: Member | null): Promise<number> {
+  if (!actor) return 0;
+  const [row] = await sql<{ n: number }[]>`select count(*)::int as n from tickets where requester = ${actor.id} and merged_into is null and status in ('open', 'waiting')`;
+  return row?.n ?? 0;
+}
+
+export async function myRequest(sql: Query, actor: Member | null, number: unknown): Promise<Ticket & { messages: Message[] }> {
+  if (!actor) throw new AppError("forbidden");
+  let t = await byNumber(sql, number);
+  if (t.requester !== actor.id || t.status === "spam") throw new AppError("not_found");
+  if (t.mergedInto !== null) {
+    const into = await followMerges(sql, { id: t.id, number: t.number });
+    if (!into || into.id === t.id) throw new AppError("not_found");
+    t = await byNumber(sql, into.number);
+    if (t.requester !== actor.id || t.status === "spam") throw new AppError("not_found");
+  }
+  return { ...t, messages: await messagesOf(sql, t.id, false) };
+}
+
+// writeMine adds the colleague's message (and files) to their own request;
+// it goes back to the team (reopened when it was closed).
+export async function writeMine(sql: Sql, actor: Member | null, number: unknown, body: unknown, files: Files = noFiles): Promise<Ticket> {
+  const t = await myRequest(sql, actor, number);
+  const text = clean(body, limits.body, { multiline: true });
+  await withFiles(files.take, stored => sql.begin(async tx => {
+    await insertMessage(tx, t.id, { kind: "customer", author: null, body: text, files: stored });
+    await tx`update tickets set status = 'open', closed_at = null, updated_at = now() where id = ${t.id}`;
+    await refreshSearch(tx, t.id);
+  }), files.drop);
+  return { ...t, status: "open" };
+}
+
+// rateMine: "Did we solve your problem?" on the colleague's own closed request.
+export async function rateMine(sql: Sql, actor: Member | null, number: unknown, value: unknown): Promise<Ticket> {
+  const t = await myRequest(sql, actor, number);
+  if (value !== "good" && value !== "bad") throw new AppError("invalid");
+  if (t.status !== "closed") throw new AppError("not_closed");
+  await sql`update tickets set rating = ${value}, rated_at = now() where id = ${t.id}`;
+  return { ...t, rating: value };
+}
+
+// myFile finds a file of the colleague's own request they may open: in a
+// message they see (theirs or an answer), never a note's. Null otherwise.
+export async function myFile(sql: Query, actor: Member | null, number: unknown, fileId: unknown): Promise<{ object: string; fileName: string; type: string } | null> {
+  let t: Ticket;
+  let key: string;
+  try {
+    t = await myRequest(sql, actor, number);
+    key = id(fileId);
+  } catch (error) {
+    if (error instanceof AppError) return null;
+    throw error;
+  }
+  const [row] = await sql<{ object: string; file_name: string; type: string }[]>`
+    select a.object, a.file_name, a.type from attachments a join messages m on m.id = a.message_id
+    where a.id = ${key} and m.ticket_id = ${t.id} and m.kind in ('customer', 'reply') and not m.auto`;
+  return row ? { object: row.object, fileName: row.file_name, type: row.type } : null;
+}
+
 // ---- Saved replies ---------------------------------------------------------
 
 export type SavedReply = { id: string; title: string; body: string };

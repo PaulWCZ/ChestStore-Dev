@@ -1,7 +1,7 @@
 import { AutoRefresh } from "../../components/auto-refresh.tsx";
 import { db } from "../../lib/db.ts";
 import { mine, totals, warnings } from "../../lib/expenses.ts";
-import { format, formatDate } from "../../lib/i18n/index.ts";
+import { dot, format, formatDate } from "../../lib/i18n/index.ts";
 import { formatMoney } from "../../lib/money.ts";
 import { nameOf, people } from "../../lib/people.ts";
 import { rowView } from "../../lib/rows.ts";
@@ -55,7 +55,7 @@ export default async function MyExpenses() {
         empty={list.length === 0}
         figures={{ waiting: money(submitted), toPay: money(toBePaid), paid: money(paidThisYear) }}
         drafts={drafts.map(e => ({ ...rowView(e, ctx), amountValue: e.amount, currency: e.currency, blocked: e.refusedUnchanged, fixed: e.refusedReason !== null && !e.refusedUnchanged }))}
-        waiting={{ key: "waiting", title: t.home.waiting, total: money(submitted), rows: submitted.map(e => ({ ...rowView(e, ctx), sub: [rowView(e, ctx).sub, waitingFor(e.approver)].filter(Boolean).join(" · ") })) }}
+        waiting={{ key: "waiting", title: t.home.waiting, total: money(submitted), rows: submitted.map(e => ({ ...rowView(e, ctx), sub: [rowView(e, ctx).sub, waitingFor(e.approver)].filter(Boolean).join(dot) })) }}
         approved={{ key: "approved", title: t.home.approved, total: money(toBePaid), rows: toBePaid.map(e => rowView(e, ctx)) }}
         history={history}
         limit={list.length >= shown ? format(t.home.limit, { count: shown }) : null}

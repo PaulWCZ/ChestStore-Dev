@@ -193,6 +193,17 @@ select.field { padding-right: var(--space-6); }
 .problem-head a:hover { text-decoration: underline; }
 .problem-foot { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); flex-wrap: wrap; }
 .problem-foot .small { display: inline-flex; align-items: center; gap: 6px; }
+/* A problem while the warranty runs: what to claim, in the tag's colour. */
+.warn-line { color: var(--ink); padding-left: var(--space-3); border-left: 3px solid var(--wait); }
+.warranty-line { color: var(--ink); padding-left: var(--space-3); border-left: 3px solid var(--tag); }
+/* A folded list (the overview's long sections): the rest one tap away. */
+.fold > summary { list-style: none; display: inline-flex; align-items: center; gap: var(--space-2); cursor: pointer; min-height: 44px; }
+.fold > summary::-webkit-details-marker { display: none; }
+.fold > summary svg { transition: transform var(--fast); }
+.fold[open] > summary svg { transform: rotate(90deg); }
+.fold[open] .fold-more, .fold:not([open]) .fold-less { display: none; }
+.fold > ul { margin-top: var(--space-2); }
+@media (prefers-reduced-motion: reduce) { .fold > summary svg { transition: none; } }
 .quote { border-left: 3px solid var(--line); padding-left: var(--space-3); white-space: pre-wrap; overflow-wrap: anywhere; }
 .mini-link { display: flex; align-items: center; gap: var(--space-3); text-decoration: none; color: var(--ink); min-height: 44px; flex-wrap: wrap; }
 .mini-link:hover .strong { text-decoration: underline; }
@@ -476,6 +487,8 @@ li.mini > .mini-link { flex: 1 1 240px; }
 @media (max-width: 520px) { .cat-row > .button { margin-left: 60px; } }
 
 /* A category's own fields. */
+/* Whether members see who holds a category's items: a line of its own. */
+.cat-see { flex-basis: 100%; font-size: var(--text-s); }
 .fields-editor { flex-basis: 100%; }
 .fields-editor > summary { list-style: none; display: inline-flex; gap: var(--space-2); cursor: pointer; }
 .fields-editor > summary::-webkit-details-marker { display: none; }
@@ -511,8 +524,12 @@ li.mini > .mini-link { flex: 1 1 240px; }
   .page-head .actions, .ck-page-actions { flex-direction: column-reverse; align-items: stretch; width: 100%; }
   .page-head .actions > *, .ck-page-actions > * { width: 100%; justify-content: center; }
   .bins { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-2); }
-  .bin { grid-template-columns: 1fr; padding: var(--space-3); }
-  .bin-icon { grid-row: auto; width: 36px; height: 36px; margin-bottom: var(--space-2); }
+  /* The stock on a phone: the icon beside the name, the counts under
+     both — shorter tiles, so "Needs your attention" comes sooner. */
+  .bin { grid-template-columns: auto 1fr; align-items: center; column-gap: var(--space-2); padding: var(--space-2) var(--space-3); }
+  .bin-icon { grid-row: auto; width: 28px; height: 28px; }
+  .bin-icon svg { width: 20px; height: 20px; }
+  .bin-count, .bin-sub { grid-column: 1 / -1; }
 }
 
 /* The kit's menu button ("More", size "m") among the tool's buttons: the

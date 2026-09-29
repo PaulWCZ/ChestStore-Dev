@@ -1,5 +1,5 @@
 import type { Expense, Warning } from "./expenses.ts";
-import { format, formatDate, type Catalogue, type Locale } from "./i18n/index.ts";
+import { dot, format, formatDate, shortDate, type Catalogue, type Locale } from "./i18n/index.ts";
 import { thumbnailTypes } from "./model.ts";
 import { formatMoney } from "./money.ts";
 import type { Allowance, Category } from "./settings.ts";
@@ -13,6 +13,8 @@ export type RowView = {
   href: string;
   day: string;
   month: string;
+  // The day in one line, as every list writes it (shortDate).
+  date: string;
   what: string;
   sub: string;
   amount: string;
@@ -64,8 +66,9 @@ export function rowView(e: Expense, ctx: RowContext): RowView {
     href: `/chest/expenses/${e.id}`,
     day: formatDate(date, locale, { day: "numeric" }),
     month: formatDate(date, locale, { month: "short" }).replace(".", ""),
+    date: shortDate(e.spentOn, locale),
     what,
-    sub: subParts.join(" · "),
+    sub: subParts.join(dot),
     amount: formatMoney(e.amount, e.currency, locale),
     stamp: stampOf(e, t),
     card: e.paidBy === "company",

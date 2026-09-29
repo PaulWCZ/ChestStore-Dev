@@ -51,8 +51,11 @@ create table letters (
   body text not null check (char_length(body) between 1 and 8000),
   phrase text check (phrase in ('certificate', 'attestation')),
   position integer not null,
+  created_by text not null,
   created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
+  updated_at timestamptz not null default now(),
+  -- Deleted with Undo: kept 30 days, then gone.
+  removed_at timestamptz
 );
 
 alter table journal drop constraint journal_action_check;

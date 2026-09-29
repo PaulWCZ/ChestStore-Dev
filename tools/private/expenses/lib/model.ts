@@ -32,6 +32,9 @@ export const limits = {
   // One expense: 1,000,000.00 at most.
   amount: 100_000_000,
   categories: 50,
+  // Card statement words (card_rules): 300 rules of 40 characters.
+  cardRules: 300,
+  cardRule: 40,
   // Lines of one import of past expenses.
   importLines: 2000,
   // One export: this many expenses (CSV) and receipts (ZIP), and bytes of

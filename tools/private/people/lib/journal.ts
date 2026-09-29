@@ -6,7 +6,8 @@ import type { Query } from "./db.ts";
 // It names the fields, never their values: the journal is not a second copy
 // of the record. HR reads it on the record and on the profile; it is kept
 // two years. Every sensitive read or write goes through here.
-export type Action = "viewed" | "created" | "changed" | "linked" | "document_added" | "document_opened" | "document_removed" | "register_viewed" | "register_exported" | "profile_changed";
+export type Action = "viewed" | "created" | "changed" | "linked" | "document_added" | "document_opened" | "document_removed" | "register_viewed" | "register_exported" | "profile_changed"
+  | "imported" | "change_asked" | "change_accepted" | "change_declined" | "letter_printed";
 export type Entry = { id: string; at: string; actor: string; action: Action; fields: string[] };
 
 export const keepJournalDays = 730;

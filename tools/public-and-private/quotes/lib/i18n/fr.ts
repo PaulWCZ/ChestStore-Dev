@@ -32,7 +32,7 @@ export const fr: Catalogue = {
     refusedBy: "Refusé par {name} le {date}.",
     acceptedByCompany: "{company} a noté qu’il était accepté.",
     refusedByCompany: "{company} a noté qu’il était refusé.",
-    acceptedNext: "{company} est prévenue. Gardez le PDF que vous avez accepté : c’est celui ci-dessous.",
+    acceptedNext: "Votre réponse a été transmise à {company}. Gardez le PDF que vous avez accepté : c’est celui ci-dessous.",
     pdfOpen: "Ouvrir le PDF",
     pdfAccepted: "Télécharger le devis accepté (PDF)",
     toAnswer: "Aller à la réponse",

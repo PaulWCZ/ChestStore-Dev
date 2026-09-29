@@ -51,6 +51,8 @@ export async function erase(sql: Sql, memberId: string): Promise<void> {
     await eraseSightings(tx, memberId);
     await tx`update requests set status = case when status in ('open', 'approved') then 'cancelled' else status end, member_id = 'erased', updated_at = now() where member_id = ${memberId}`;
     await tx`update requests set decided_by = 'erased' where decided_by = ${memberId}`;
+    await tx`update intune_devices set member_id = 'erased' where member_id = ${memberId}`;
+    await tx`update intune_reads set by = 'erased' where by = ${memberId}`;
   });
   await withdraw(`left:${memberId}`);
   await stays(memberId);

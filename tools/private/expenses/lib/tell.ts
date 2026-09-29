@@ -1,10 +1,12 @@
+import { createHash } from "node:crypto";
 import type { Member } from "@argentic/chest-sdk/member";
 import type { Query } from "./db.ts";
 import { waitingCounts, totals, type Decision, type Expense, type Total } from "./expenses.ts";
-import { format, formatDate, plural } from "./i18n/index.ts";
+import { format, formatDate, plural, shortDate } from "./i18n/index.ts";
 import { formatMoney } from "./money.ts";
 import { badges, cut, notify, withdraw } from "./notify.ts";
 import { receiptsOwed } from "./cards.ts";
+import { email } from "./mail.ts";
 import { accountants } from "./people.ts";
 
 // What Expenses tells people through the Chest's bell, each in their own
@@ -21,14 +23,19 @@ function what(e: Expense, locale: string): string {
   return place ? `${place} · ${amount}` : amount;
 }
 
-// Someone sent expenses: their approver (or the accountants) hears of it.
-export async function sent(sql: Query, actor: Member, result: { approver: string | null; expenses: Expense[] }): Promise<void> {
+// Someone sent expenses: their approver (or the accountants) hears of it,
+// in the bell and by email.
+export async function sent(sql: Query, actor: Member, result: { claim?: string; approver: string | null; expenses: Expense[] }): Promise<void> {
   const recipients = result.approver ? [result.approver] : (await accountants()).filter(a => a !== actor.id);
   const sum = totals(result.expenses);
   await notify(recipients, (t, locale) => ({
     title: plural(t.bell.sent, result.expenses.length, locale, { name: actor.name, total: totalText(sum, locale) }),
     body: cut(result.expenses.map(e => what(e, locale)).join("\n"), 280),
   }), { path: "/chest/approve", key: `waiting:${actor.id}` });
+  await email(recipients, (t, locale) => ({
+    subject: plural(t.mail.sent, result.expenses.length, locale, { name: actor.name, total: totalText(sum, locale) }),
+    lines: [plural(t.mail.sentLine, result.expenses.length, locale, { name: actor.name }), "", ...result.expenses.map(e => `${shortDate(e.spentOn, locale)} · ${what(e, locale)}`)],
+  }), { path: "/chest/approve", key: `sent:${result.claim ?? createHash("sha256").update(result.expenses.map(e => e.id).join(",")).digest("hex").slice(0, 24)}` });
   // Refused expenses sent again no longer need their owner's look.
   for (const e of result.expenses) await withdraw(`refused:${e.id}`, [actor.id]);
   await refresh(sql, [actor.id, ...recipients]);
@@ -111,8 +118,18 @@ export async function bankChanged(actor: Member, owner: string, last4: string): 
 // receipt is there (settleCardReceipts).
 export async function cardReceipts(sql: Query, owners: string[]): Promise<number> {
   const owed = await receiptsOwed(sql, [...new Set(owners)]);
+  const lines = await receiptLines(sql, [...owed.keys()]);
   for (const [owner, count] of owed) {
     await notify([owner], (t, locale) => ({ title: plural(t.bell.cardReceipts, count, locale), body: t.bell.cardReceiptsBody }), { path: "/chest", key: `card:${owner}` });
+    // By email too, each payment named: "Receipt needed: UBER *TRIP · €23.40".
+    const mine = lines.filter(l => l.owner === owner);
+    await email([owner], (t, locale) => {
+      const named = mine.map(l => `${shortDate(l.day, locale)} · ${l.merchant} · ${formatMoney(l.amount, l.currency, locale)}`);
+      return {
+        subject: mine.length === 1 ? format(t.mail.cardOne, { what: `${mine[0]!.merchant} · ${formatMoney(mine[0]!.amount, mine[0]!.currency, locale)}` }) : plural(t.bell.cardReceipts, count, locale),
+        lines: [plural(t.mail.cardLine, count, locale), "", ...named, "", t.bell.cardReceiptsBody],
+      };
+    }, { path: "/chest", key: `card:${createHash("sha256").update(mine.map(l => l.id).join(",")).digest("hex").slice(0, 24)}` });
   }
   await refresh(sql, [...owed.keys()]);
   return owed.size;
@@ -121,4 +138,15 @@ export async function cardReceipts(sql: Query, owners: string[]): Promise<number
 export async function settleCardReceipts(sql: Query, owners: string[]): Promise<void> {
   const owed = await receiptsOwed(sql, owners);
   for (const owner of new Set(owners)) if (!owed.has(owner)) await withdraw(`card:${owner}`, [owner]);
+}
+
+// The card payments still waiting for their receipt, one line each.
+async function receiptLines(sql: Query, owners: string[]): Promise<{ id: string; owner: string; day: string; merchant: string; amount: number; currency: string }[]> {
+  if (owners.length === 0) return [];
+  const rows = await sql<{ id: string; member_id: string; day: string; merchant: string; amount_cents: string; currency: string }[]>`
+    select e.id, e.member_id, to_char(e.spent_on, 'YYYY-MM-DD') as day, e.merchant, e.amount_cents, e.currency
+    from card_lines c join expenses e on e.id = c.expense_id
+    where c.link = 'created' and e.status = 'draft' and e.deleted_at is null and e.receipt_object is null and e.member_id = any(${owners}::text[])
+    order by e.spent_on, e.id limit 2000`;
+  return rows.map(r => ({ id: String(r.id), owner: r.member_id, day: r.day, merchant: r.merchant, amount: Number(r.amount_cents), currency: r.currency }));
 }

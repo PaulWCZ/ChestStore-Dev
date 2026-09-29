@@ -81,7 +81,8 @@ function csvText(rows: ExportRow[], who: Map<string, Person>, locale: Locale, re
       r.base !== null && r.baseCurrency === currency ? money(r.base, currency) : "",
       r.paidBy === "me" ? c.me : c.company,
       r.paidBy === "company" && r.status === "approved" ? t.status.companyCard : t.status[r.status],
-      r.decidedBy ? nameOf(who.get(r.decidedBy), locale) : "",
+      // Approved by its own owner (possible before that was refused): said.
+      r.decidedBy ? (r.decidedBy === r.owner ? format(c.selfApproved, { name: nameOf(who.get(r.decidedBy), locale) }) : nameOf(who.get(r.decidedBy), locale)) : "",
       r.paidOn ? csvDate(r.paidOn, locale) : "",
       receiptNames.get(r.id) ?? "",
       "E" + r.id,

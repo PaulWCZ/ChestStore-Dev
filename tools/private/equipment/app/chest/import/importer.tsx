@@ -8,25 +8,31 @@ import type { Plan } from "../../../lib/importer.ts";
 import type { Catalogue } from "../../../lib/i18n/index.ts";
 import { format, plural } from "../../../lib/i18n/format.ts";
 import { categoryName } from "../../../lib/words.ts";
-import { checkImport, runImport } from "../actions.ts";
+import { checkImport, checkIntune, runImport } from "../actions.ts";
 
 type Words = { importer: Catalogue["importer"]; errors: Catalogue["errors"]; status: Catalogue["status"]; categories: Catalogue["categories"]; files: Catalogue["files"]; table: Catalogue["table"] };
 type PlanRow = Plan["rows"][number];
-type Source = "snipe" | "csv";
+type Source = "snipe" | "csv" | "intune";
+type FileSource = "snipe" | "csv";
+// Microsoft Intune, as the page found it: connected (its administrator set
+// its three settings), and the last read in words.
+export type IntuneInfo = { connected: boolean; last: string | null; lastFailed: string | null };
 
 // Pick the source and the file (the kit's file picker: by the button or by
 // dropping it, the limits said first; the file stays in the browser), see
 // what will come (the server reads the file and matches people), import.
 // Nothing is added before the button.
-export function Importer({ t, locale }: { t: Words; locale: string }) {
+export function Importer({ t, locale, intune }: { t: Words; locale: string; intune: IntuneInfo }) {
   const w = t.importer;
   const [picked, setPicked] = useState<{ source: Source; text: string; plan: Plan; keep: string[] | undefined } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<number | null>(null);
   const [pending, start] = useTransition();
-  const [files, setFiles] = useState<Record<Source, readonly PickedFile[]>>({ snipe: [], csv: [] });
+  const [files, setFiles] = useState<Record<FileSource, readonly PickedFile[]>>({ snipe: [], csv: [] });
+  // What the last "Read Intune" found when nothing was missing.
+  const [intuneNews, setIntuneNews] = useState<string | null>(null);
   // A file picked for one source: read it (the other source's goes).
-  const pick = (source: Source) => (update: (current: readonly PickedFile[]) => PickedFile[]) => {
+  const pick = (source: FileSource) => (update: (current: readonly PickedFile[]) => PickedFile[]) => {
     const next = update(files[source]);
     setFiles({ snipe: [], csv: [], [source]: next });
     const added = next.find(f => !files[source].some(o => o.key === f.key));
@@ -34,7 +40,28 @@ export function Importer({ t, locale }: { t: Words; locale: string }) {
     if (next.length === 0) setPicked(null);
   };
 
-  async function read(source: Source, file: File) {
+  // Intune: read it now (the item pages and the overview get its news too),
+  // and show what it knows that is not here yet, as a file would be shown.
+  function readIntune() {
+    setError(null);
+    setDone(null);
+    setIntuneNews(null);
+    setFiles({ snipe: [], csv: [] });
+    start(async () => {
+      const r = await checkIntune();
+      if (!r.ok) {
+        setPicked(null);
+        return setError(format(t.errors[r.error], r.values));
+      }
+      if (!r.value.plan || !r.value.text) {
+        setPicked(null);
+        return setIntuneNews(plural(w.intuneAllHere, r.value.devices, locale));
+      }
+      setPicked({ source: "intune", text: r.value.text, plan: r.value.plan, keep: undefined });
+    });
+  }
+
+  async function read(source: FileSource, file: File) {
     setError(null);
     setDone(null);
     const text = await file.text();
@@ -81,7 +108,7 @@ export function Importer({ t, locale }: { t: Words; locale: string }) {
       </div>
     );
   }
-  const sources: { source: Source; title: string; how: string }[] = [
+  const sources: { source: FileSource; title: string; how: string }[] = [
     { source: "snipe", title: w.snipe, how: w.snipeHow },
     { source: "csv", title: w.csv, how: w.csvHow },
   ];
@@ -98,6 +125,20 @@ export function Importer({ t, locale }: { t: Words; locale: string }) {
             <FilePicker label={s.title} files={files[s.source]} onChange={pick(s.source)} maxFiles={1} maxSize={5 << 20} accept={[".csv", "text/csv", "text/plain"]} labels={t.files} />
           </section>
         ))}
+        <section className="source" id="intune" aria-labelledby="intune-title">
+          <h2 id="intune-title">{w.intune}</h2>
+          {intune.connected ? (
+            <>
+              <p className="small muted">{w.intuneHow}</p>
+              <div><button type="button" className="button quiet" disabled={pending} onClick={readIntune}>{pending && picked === null ? w.intuneReading : w.intuneRead}</button></div>
+              {intune.last && <p className="small muted">{intune.last}</p>}
+              {intune.lastFailed && <p className="small warn-text">{intune.lastFailed}</p>}
+            </>
+          ) : (
+            <p className="small muted">{w.intuneOff}</p>
+          )}
+          {intuneNews && <p className="small strong" role="status">{intuneNews}</p>}
+        </section>
       </div>
       {error && <p className="error" role="alert">{error}</p>}
       {picked && (

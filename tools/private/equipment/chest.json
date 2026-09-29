@@ -22,6 +22,15 @@
   "receives": [
     "member.*"
   ],
+  "network": [
+    "login.microsoftonline.com",
+    "graph.microsoft.com"
+  ],
+  "env": [
+    "INTUNE_TENANT_ID",
+    "INTUNE_CLIENT_ID",
+    "INTUNE_CLIENT_SECRET"
+  ],
   "build": {
     "runtime": "node",
     "install": "npm ci",

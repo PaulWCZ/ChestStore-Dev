@@ -2,7 +2,7 @@ import { Avatar } from "@argentic/chest-ui/components";
 import { listName } from "../../../../lib/examples.ts";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Back, Cake, Door, Folder, Mail, Moon, Pencil, Phone, Pin, Wave } from "../../../../components/icons.tsx";
+import { Back, Cake, Door, Folder, Lock, Mail, Moon, Pencil, Phone, Pin, Wave } from "../../../../components/icons.tsx";
 import { Portrait } from "../../../../components/portrait.tsx";
 import { can } from "../../../../lib/access.ts";
 import { tenure } from "../../../../lib/calendar.ts";
@@ -133,7 +133,7 @@ export default async function ProfilePage({ params }: { params: Promise<{ id: st
           <section className="profile-block">
             <h2>{t.profile.more}</h2>
             <dl className="extras">
-              {extras.map(f => <div key={f.id}><dt>{f.label}</dt><dd>{f.kind === "date" && /^\d{4}-\d{2}-\d{2}$/u.test(person.extras[f.id] ?? "") ? formatDay(person.extras[f.id]!, locale) : person.extras[f.id]}</dd></div>)}
+              {extras.map(f => <div key={f.id}><dt>{f.label}{f.seen === "private" && <span className="seen-lock" title={t.profile.privateField}><Lock /><span className="visually-hidden">{t.profile.privateField}</span></span>}</dt><dd>{f.kind === "date" && /^\d{4}-\d{2}-\d{2}$/u.test(person.extras[f.id] ?? "") ? formatDay(person.extras[f.id]!, locale) : person.extras[f.id]}</dd></div>)}
             </dl>
           </section>
         )}

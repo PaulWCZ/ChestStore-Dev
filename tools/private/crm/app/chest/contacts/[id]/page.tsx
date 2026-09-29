@@ -25,7 +25,8 @@ import { FilesBox } from "../../ui/files-box.tsx";
 import { StepBox } from "../../ui/step-box.tsx";
 import { Timeline } from "../../ui/timeline.tsx";
 import { customForm, emptyDeal } from "../../ui/values.ts";
-import { ContactControls, PrivacyPanel } from "./controls.tsx";
+import { ContactControls, MaybeSame, PrivacyPanel } from "./controls.tsx";
+import { maybeSame } from "../../../../lib/leads.ts";
 
 const threeYears = 3 * 365.25 * 864e5;
 
@@ -39,12 +40,13 @@ export default async function ContactPage({ params }: { params: Promise<{ id: st
   const { id } = await params;
   const sql = db();
   const c = await readContact(sql, member, id).catch(e => { if (e instanceof AppError && e.code === "not_found") notFound(); throw e; });
-  const [items, deals, choices, steps, files] = await Promise.all([
+  const [items, deals, choices, steps, files, maybe] = await Promise.all([
     timeline(sql, { contactId: c.id }),
     listDeals(sql, member, { contact: c.id, status: "" }, 200),
     formChoices(sql, member, t),
     openSteps(sql, { contactId: c.id }),
     listFiles(sql, member, { contact: c.id }),
+    maybeSame(sql, c.id),
   ]);
   const names = await directory([c.owner, ...steps.map(s => s.owner), ...items.map(a => a.author), ...items.flatMap(a => (a.data["to"] ? [String(a.data["to"])] : [])), ...files.map(f => f.addedBy)], locale);
   const kinds = new Map(choices.stages.map(s => [s.id, s.kind]));
@@ -73,6 +75,7 @@ export default async function ContactPage({ params }: { params: Promise<{ id: st
         {c.tags.length > 0 && <p className="tags">{c.tags.map(tag => <Link prefetch={false} key={tag} className="tag" href={`/chest/contacts?tag=${encodeURIComponent(tag)}`}>{shownName("tags", tag, t)}</Link>)}</p>}
       </div>
       {stale && <p className="notice warn">{t.contact.staleWarning}</p>}
+      {maybe && <MaybeSame id={c.id} name={c.name} other={maybe} canMerge={canDeleteRecord(member, c)} canEdit={can(member, "records.write")} t={t} />}
       <ContactControls
         contact={{ id: c.id, name: c.name, email: c.email, phone: c.phone, phone2: c.phone2, url: c.url, title: c.title, company: c.company, notes: c.notes, tags: c.tags.map(tag => shownName("tags", tag, t)).join(", "), owner: c.owner, custom: customForm(c.custom) }}
         ownerName={names[c.owner ?? ""]?.name ?? t.common.unassigned}

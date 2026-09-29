@@ -4,7 +4,8 @@ import { AppError } from "./app-error.ts";
 import { conflict, span } from "./booking-rules.ts";
 import { enqueue, roomKey } from "./calendar.ts";
 import type { Sql } from "./db.ts";
-import { NotACalendar, readEvents } from "./ical.ts";
+import { NotACalendar, readEvents, type EventPerson } from "./ical.ts";
+import { matcher, type Matchable } from "./match.ts";
 import { addDays, id, limits, minutesNow, step, today, weekday } from "./model.ts";
 import { rules } from "./settings.ts";
 import { wall } from "./wall-clock.ts";
@@ -26,10 +27,12 @@ import { wall } from "./wall-clock.ts";
 // database's own, not guessed), then imports; Undo takes the whole import
 // back (`undoCalendarImport`, by its batch).
 //
-// The organiser and guests are matched by name to the people who have
-// Rooms (the file carries names and addresses; this Chest gives Rooms no
-// addresses); an organiser nobody matches leaves the booking in the
-// importing admin's name, and the preview says so.
+// The organiser and guests are matched to the people who have Rooms by
+// address (when the Chest gives addresses: "members.email") and by name,
+// in the forms Google and Outlook write them ("Martin, Camille" too:
+// lib/match.ts). A booking whose organiser nobody matches stays in the
+// importing admin's name; the preview says how many, and which guests it
+// did not find, before anything is imported.
 
 export type ImportSkip = "taken" | "exists" | "all_day" | "outside_hours" | "closed_day" | "too_long";
 export type ImportItem = {
@@ -45,6 +48,8 @@ export type ImportItem = {
   // The organiser matched to someone of the Chest, else null (the admin).
   organiser: string | null;
   organiserText: string | null;
+  // Guests the file names that nobody in Rooms matches (not invited).
+  unknownGuests: string[];
   // Days of this event left out because the room is taken then.
   taken: string[];
 };
@@ -56,11 +61,17 @@ export type CalendarImport = {
   leftOut: ImportLeftOut[];
   // Events the file lists as cancelled: never imported.
   cancelled: number;
+  // Bookings that come in the importing admin's name: their organiser is
+  // nobody in Rooms (or the file names none).
+  yours: number;
+  // Guests nobody in Rooms matches, each once (the first 20).
+  unknownGuests: string[];
 };
 
 export const importLimits = { fileBytes: 4 << 20, bookings: 3000, weeksAhead: 52 } as const;
 
-const fold = (s: string) => s.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase().replace(/\s+/gu, " ").trim();
+const sameAs = (a: EventPerson, b: EventPerson) =>
+  (a.address !== null && a.address.toLowerCase() === b.address?.toLowerCase()) || (a.name !== null && a.name === b.name);
 class Preview extends Error {
   readonly result: CalendarImport;
   constructor(result: CalendarImport) {
@@ -73,7 +84,7 @@ export async function importRoomCalendar(
   sql: Sql,
   actor: Member | null,
   input: { roomId: unknown; text: unknown; commit: boolean },
-  people: readonly { id: string; name: string }[],
+  people: readonly Matchable[],
   zone: string,
   at = new Date(),
 ): Promise<CalendarImport> {
@@ -81,12 +92,8 @@ export async function importRoomCalendar(
   const roomId = id(input.roomId);
   if (typeof input.text !== "string" || input.text.trim() === "") throw new AppError("empty");
   if (input.text.length > importLimits.fileBytes) throw new AppError("file_too_large");
-  const byName = new Map<string, string[]>();
-  for (const p of people) byName.set(fold(p.name), [...(byName.get(fold(p.name)) ?? []), p.id]);
-  const who = (name: string | null) => {
-    const found = name ? byName.get(fold(name)) ?? [] : [];
-    return found.length === 1 ? found[0]! : null;
-  };
+  const who = matcher(people);
+  const shown = (p: EventPerson | null) => (p ? p.name ?? p.address : null);
   const day0 = today(zone, at);
   const horizon = addDays(day0, 7 * importLimits.weeksAhead);
   let reading;
@@ -102,7 +109,8 @@ export async function importRoomCalendar(
     const r = await rules(tx);
     const nowMinutes = minutesNow(zone, at);
     const batch = input.commit ? String((await tx<{ n: string }[]>`select nextval('room_imports') as n`)[0]!.n) : null;
-    const result: CalendarImport = { batch, added: 0, items: [], leftOut: [], cancelled: reading.cancelled };
+    const result: CalendarImport = { batch, added: 0, items: [], leftOut: [], cancelled: reading.cancelled, yours: 0, unknownGuests: [] };
+    const unknown = new Set<string>();
     const known = new Set((await tx<{ source: string }[]>`select source from room_bookings where room_id = ${roomId} and source is not null and cancelled_at is null`).map(x => x.source));
     const newIds: string[] = [];
     for (const e of reading.events) {
@@ -111,9 +119,12 @@ export async function importRoomCalendar(
       const leave = (reason: ImportSkip, d = first.date) => result.leftOut.push({ line: e.line, title, day: d, reason });
       if (e.allDay) { leave("all_day"); continue; }
       const organiser = who(e.organizer);
-      const guests = [...new Set(e.attendees.map(who).filter((x): x is string => x !== null && x !== (organiser ?? actor.id)))].slice(0, limits.attendees);
+      const matched = e.attendees.map(a => ({ a, id: who(a) }));
+      const guests = [...new Set(matched.map(x => x.id).filter((x): x is string => x !== null && x !== (organiser ?? actor.id)))].slice(0, limits.attendees);
+      // The organiser is often listed among the guests too: not "not found".
+      const missing = [...new Set(matched.filter(x => x.id === null && !(organiser === null && e.organizer && sameAs(x.a, e.organizer))).map(x => shown(x.a)!))];
       const series = e.weekly && e.occurrences.length > 1 ? String((await tx<{ n: string }[]>`select nextval('room_series') as n`)[0]!.n) : null;
-      const item: ImportItem = { line: e.line, title, day: "", start: 0, end: 0, count: 0, weekly: series !== null, organiser, organiserText: e.organizer, taken: [] };
+      const item: ImportItem = { line: e.line, title, day: "", start: 0, end: 0, count: 0, weekly: series !== null, organiser, organiserText: shown(e.organizer), unknownGuests: missing, taken: [] };
       let exists = 0;
       for (const o of e.occurrences) {
         const s = wall(o.start, zone), en = wall(o.end, zone);
@@ -150,12 +161,15 @@ export async function importRoomCalendar(
       if (item.count > 0) {
         item.weekly = item.weekly && item.count > 1;
         result.items.push(item);
+        if (organiser === null) result.yours += item.count;
+        for (const g of missing) unknown.add(g);
       } else if (item.taken.length > 0) {
         // Every day of the series is taken: said as one line.
         leave("taken", item.taken[0]);
       }
       if (exists > 0 && item.count === 0 && item.taken.length === 0) leave("exists");
     }
+    result.unknownGuests = [...unknown].slice(0, 20);
     if (!input.commit) throw new Preview(result);
     await enqueue(tx, newIds.map(roomKey));
     return result;

@@ -37,7 +37,7 @@ test("plurals and placeholders follow the language", () => {
   assert.equal(plural(en.week.inOffice, 1, "en"), "1 person at the office");
   assert.equal(plural(en.week.inOffice, 3, "en"), "3 people at the office");
   assert.equal(plural(en.week.inOffice, 0, "en"), "Nobody at the office yet");
-  assert.equal(plural(catalogue("fr").desks.freeCount, 2, "fr"), "2 bureaux libres");
+  assert.equal(plural(catalogue("fr").desks.freeCount, 2, "fr"), "2 postes libres");
   assert.equal(format("{a} and {b}", { a: 1 }), "1 and {b}");
 });
 

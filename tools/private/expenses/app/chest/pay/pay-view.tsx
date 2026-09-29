@@ -161,7 +161,7 @@ export function PayView({ groups, ready, preview, files, recent, today, locale, 
             {g.rows.map(r => (
               <li key={r.id} className="row">
                 <Thumb row={r} />
-                <a className="main" href={r.href}><span className="what">{r.what}</span><span className="sub"><span className="mono">{r.day} {r.month}</span>{r.sub && <span>{r.sub}</span>}<Warnings list={r.warnings} /></span></a>
+                <a className="main" href={r.href}><span className="what">{r.what}</span><span className="sub"><span className="mono">{r.date}</span>{r.sub && <span>{r.sub}</span>}<Warnings list={r.warnings} /></span></a>
                 <span className="right"><span className="amount">{r.amount}</span></span>
               </li>
             ))}

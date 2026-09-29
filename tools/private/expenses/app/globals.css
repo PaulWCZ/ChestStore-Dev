@@ -345,6 +345,12 @@ table.grid tr.hidden td { opacity: 0.55; }
 .toc { display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-3); margin-bottom: var(--space-3); font-size: var(--text-s); }
 .toc a { color: var(--ink-2); text-underline-offset: 3px; min-height: 32px; display: inline-flex; align-items: center; }
 .toc a:hover { color: var(--ink); }
+.people-list li .alone-row { grid-column: 1 / -1; margin: 0; }
+.word-list { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 0 var(--space-4); }
+.word-list li { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-1) 0; border-bottom: 1px dashed var(--line); min-height: 44px; }
+.word-list li .hint { flex: 1; }
+.search-page { margin-bottom: var(--space-4); max-width: 560px; }
+.search-hint { margin-top: 0; }
 .rate-list { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-2); }
 .rate-list li { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; }
 .rate-list label { font-weight: var(--weight-strong); font-size: var(--text-s); min-width: 140px; }
@@ -383,7 +389,8 @@ table.grid tr.hidden td { opacity: 0.55; }
   .row.file-row { grid-template-columns: auto 1fr; }
   .row.file-row .right { grid-column: 1 / -1; justify-items: start; }
 }
-.row .sub > span:not(.warn, .ck-badge) + span:not(.warn, .ck-badge)::before { content: "·"; margin-right: var(--space-2); color: var(--ink-2); }
+/* The dot stays with the part before it: a wrapped line never starts with one. */
+.row .sub > span:not(.warn, .ck-badge):has(+ span:not(.warn, .ck-badge))::after { content: "·"; margin-left: var(--space-2); color: var(--ink-2); }
 @media (max-width: 760px) { .hide-phone { display: none; } }
 
 /* Refused, and what the owner did about it. */

@@ -10,6 +10,7 @@ import * as arrivals from "../../lib/arrivals.ts";
 import { profilePhrase } from "../../lib/examples.ts";
 import * as fields from "../../lib/fields.ts";
 import * as records from "../../lib/records.ts";
+import * as changes from "../../lib/changes.ts";
 import { today } from "../../lib/zone.ts";
 import * as importer from "../../lib/importer.ts";
 import * as j from "../../lib/journeys.ts";
@@ -67,11 +68,11 @@ export async function saveCell(memberId: string, key: string, value: string | nu
 }
 
 // HR's extra profile fields.
-export async function addField(input: { label: string; editor: string; kind?: string; options?: string; alertDays?: string }): Promise<Result<fields.Extra>> {
+export async function addField(input: { label: string; editor: string; seen?: string; kind?: string; options?: string; alertDays?: string }): Promise<Result<fields.Extra>> {
   return act(actor => fields.addField(db(), actor, input));
 }
 
-export async function updateField(fieldId: string, input: { label: string; editor: string; options?: string; alertDays?: string }): Promise<Result<null>> {
+export async function updateField(fieldId: string, input: { label: string; editor: string; seen?: string; options?: string; alertDays?: string }): Promise<Result<null>> {
   return act(async actor => { await fields.updateField(db(), actor, fieldId, input); return null; });
 }
 
@@ -223,6 +224,20 @@ export async function saveRecord(recordId: string, input: Record<string, unknown
 
 export async function linkRecord(recordId: string, memberId: string | null): Promise<Result<null>> {
   return act(async actor => { await records.linkRecord(db(), actor, recordId, memberId); return null; });
+}
+
+// A change the person asks for their record (address, emergency contact),
+// and HR's answer.
+export async function askChange(recordId: string, input: Record<string, string>): Promise<Result<null>> {
+  return act(async actor => { await changes.askChange(db(), actor, recordId, input); return null; });
+}
+
+export async function withdrawChange(requestId: string): Promise<Result<null>> {
+  return act(async actor => { await changes.withdrawChange(db(), actor, requestId); return null; });
+}
+
+export async function decideChange(requestId: string, accept: boolean, answer: string): Promise<Result<null>> {
+  return act(async actor => { await changes.decideChange(db(), actor, requestId, accept, answer); return null; });
 }
 
 export async function deleteRecord(recordId: string): Promise<Result<null>> {

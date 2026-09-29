@@ -113,7 +113,7 @@ export function HomeView({ locale, empty, figures, drafts, waiting, approved, hi
                 <Thumb row={d} />
                 <a className="main" href={d.href}>
                   <span className="what">{d.what}</span>
-                  <span className="sub"><span className="mono">{d.day} {d.month}</span>{d.sub && <span>{d.sub}</span>}{d.card && !d.receiptNeeded && <span>{t.companyCard}</span>}{d.receiptNeeded ? <Warning text={t.home.receiptNeeded} /> : <Warnings list={d.warnings} />}</span>
+                  <span className="sub"><span className="mono">{d.date}</span>{d.sub && <span>{d.sub}</span>}{d.card && !d.receiptNeeded && <span>{t.companyCard}</span>}{d.receiptNeeded ? <Warning text={t.home.receiptNeeded} /> : <Warnings list={d.warnings} />}</span>
                   {d.reason && <span className="reason">{format(t.home.refusedBecause, { reason: d.reason })}</span>}
                   {d.blocked && <span className="reason">{t.home.fixFirst}</span>}
                   {d.fixed && <span className="fixed">{t.home.fixed}</span>}

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { addDays, clean, clock, day, freeSlots, id, int, keysOf, memberIds, minutes, mondayOf, nextNames, nextWorkingDay, overlaps, today, twoWeeks, weekday } from "../lib/model.ts";
+import { addDays, clean, clock, day, freeSlots, id, int, keysOf, memberIds, minutes, mondayOf, nextNames, nextWorkingDay, overlaps, tapStart, today, twoWeeks, weekday } from "../lib/model.ts";
 
 test("texts are trimmed, one line, bounded", () => {
   assert.equal(clean("  Weekly\n  sync\t", 20), "Weekly sync");
@@ -52,4 +52,12 @@ test("desk names go on from the last one", () => {
   assert.deepEqual(nextNames([], 2), ["D-01", "D-02"]);
   assert.deepEqual(nextNames(["D-09", "D-10", "Window"], 2), ["D-11", "D-12"]);
   assert.deepEqual(nextNames(["7", "12"], 1), ["13"]);
+});
+
+test("a tap on a free stretch starts at the wanted time, else 08:00 for an early stretch, else its start", () => {
+  assert.equal(tapStart({ start: 420, end: 870 }, 540), 540, "07:00–14:30 with 09:00 wanted: 09:00");
+  assert.equal(tapStart({ start: 420, end: 525 }, 540), 480, "07:00–08:45: 08:00");
+  assert.equal(tapStart({ start: 420, end: 495 }, 540), 420, "07:00–08:15: too short for 08:00");
+  assert.equal(tapStart({ start: 780, end: 1200 }, 540), 780, "13:00–20:00: 13:00");
+  assert.equal(tapStart({ start: 420, end: 555 }, 540), 480, "09:00 leaves only a quarter: 08:00");
 });

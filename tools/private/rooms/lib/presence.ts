@@ -70,17 +70,45 @@ export async function presenceOf(sql: Query, people: readonly string[], from: st
 }
 
 // Who is at an office each day: said "office" there (or without an office
-// named), or holds a desk there. Day → member ids.
-export async function atOffice(sql: Query, officeId: string, from: string, to: string): Promise<Map<string, string[]>> {
-  const rows = await sql<{ day: string; member_id: string }[]>`
-    select to_char(day, 'YYYY-MM-DD') as day, member_id from presence
-      where day between ${from} and ${to} and status = 'office' and (office_id = ${officeId} or office_id is null)
-    union
-    select to_char(b.day, 'YYYY-MM-DD'), b.member_id from desk_bookings b join desks d on d.id = b.desk_id join areas a on a.id = d.area_id join floors f on f.id = a.floor_id
-      where b.day between ${from} and ${to} and b.cancelled_at is null and b.member_id <> 'erased' and f.office_id = ${officeId}
-        and not exists (select 1 from presence p where p.member_id = b.member_id and p.day = b.day and p.status <> 'office')
-    order by 1, 2`;
+// named), holds a desk there, or is in a meeting in one of its rooms (the
+// organiser and the guests) — unless they said "remote" or "off" that day.
+// Day → member ids. Without an office yet (null): whoever said "office".
+export async function atOffice(sql: Query, officeId: string | null, from: string, to: string): Promise<Map<string, string[]>> {
+  const rows = officeId === null
+    ? await sql<{ day: string; member_id: string }[]>`
+      select to_char(day, 'YYYY-MM-DD') as day, member_id from presence
+        where day between ${from} and ${to} and status = 'office'
+      order by 1, 2`
+    : await sql<{ day: string; member_id: string }[]>`
+      select to_char(day, 'YYYY-MM-DD') as day, member_id from presence
+        where day between ${from} and ${to} and status = 'office' and (office_id = ${officeId} or office_id is null)
+      union
+      select to_char(x.day, 'YYYY-MM-DD'), x.member_id from (
+        select b.day, b.member_id from desk_bookings b join desks d on d.id = b.desk_id join areas a on a.id = d.area_id join floors f on f.id = a.floor_id
+          where b.day between ${from} and ${to} and b.cancelled_at is null and f.office_id = ${officeId}
+        union
+        select b.day, m.member_id from room_bookings b join rooms r on r.id = b.room_id join floors f on f.id = r.floor_id
+          cross join lateral (select b.member_id union select a.member_id from room_attendees a where a.booking_id = b.id) m
+          where b.day between ${from} and ${to} and b.cancelled_at is null and r.archived_at is null and f.office_id = ${officeId}
+      ) x
+        where x.member_id <> 'erased' and not exists (select 1 from presence p where p.member_id = x.member_id and p.day = x.day and p.status <> 'office')
+      order by 1, 2`;
   const found = new Map<string, string[]>();
   for (const r of rows) found.set(r.day, [...(found.get(r.day) ?? []), r.member_id]);
+  return found;
+}
+
+// The days some people are in a meeting of a room (as its organiser or a
+// guest): member → days. "Who's where" counts them at the office on a day
+// they said nothing.
+export async function inMeetings(sql: Query, people: readonly string[], from: string, to: string): Promise<Map<string, Set<string>>> {
+  const found = new Map<string, Set<string>>();
+  if (people.length === 0) return found;
+  const rows = await sql<{ member_id: string; day: string }[]>`
+    select distinct m.member_id, to_char(b.day, 'YYYY-MM-DD') as day
+    from room_bookings b join rooms r on r.id = b.room_id
+      cross join lateral (select b.member_id union select a.member_id from room_attendees a where a.booking_id = b.id) m
+    where b.day between ${from} and ${to} and b.cancelled_at is null and r.archived_at is null and m.member_id = any(${people as string[]}::text[])`;
+  for (const r of rows) found.set(r.member_id, (found.get(r.member_id) ?? new Set()).add(r.day));
   return found;
 }

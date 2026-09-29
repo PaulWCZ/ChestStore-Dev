@@ -3,6 +3,7 @@ import type { Sql } from "./db.ts";
 import { everyone, people } from "./people.ts";
 import { forget } from "./journal.ts";
 import { eraseRecords } from "./records.ts";
+import { forgetChanges } from "./changes.ts";
 import { left, todo } from "./tell.ts";
 import { today } from "./zone.ts";
 
@@ -60,6 +61,7 @@ export async function erase(sql: Sql, memberId: string, now: string): Promise<vo
     await tx`update arrivals set hired_by = null where hired_by = ${memberId}`;
     await tx`update arrivals set member_id = 'erased' where member_id = ${memberId}`;
     await tx`delete from away where member_id = ${memberId}`;
+    await forgetChanges(tx, memberId);
     await eraseRecords(tx, memberId, now);
     await forget(tx, memberId);
   });

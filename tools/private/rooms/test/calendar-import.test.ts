@@ -7,7 +7,7 @@ import { addDays, weekday } from "../lib/model.ts";
 import * as rooms from "../lib/room-bookings.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
-import { camille, everyone, hugo, ines } from "./support/members.ts";
+import { camille, everyone, hugo, ines, sofia } from "./support/members.ts";
 import { office, workday, zone } from "./support/places.ts";
 
 let database: TestDatabase;
@@ -77,8 +77,8 @@ test("the reader: a weekly series with its exception and moved day, texts unesca
   const standup = events.find(e => e.title === "Sales stand-up, weekly")!;
   assert.equal(standup.weekly, true);
   assert.equal(standup.occurrences.length, 8, "ten, less the one taken out and the one moved");
-  assert.equal(standup.organizer, "Hugo Bernard");
-  assert.deepEqual(standup.attendees, ["Inès Moreau"]);
+  assert.deepEqual(standup.organizer, { name: "Hugo Bernard", address: "hugo@atelier-martin.test" });
+  assert.deepEqual(standup.attendees, [{ name: "Inès Moreau", address: "ines@atelier-martin.test" }]);
   assert.ok(standup.line > 1);
   const moved = events.find(e => e.title === "Sales stand-up (moved)")!;
   assert.equal(moved.weekly, false);
@@ -118,6 +118,8 @@ test("preview writes nothing; the import recreates the weekly series, flags each
   const client = done.items.find(i => i.title.startsWith("Client visit"))!;
   assert.equal(client.organiser, null, "nobody by that name: the admin's booking");
   assert.equal(client.organiserText, "Someone Outside");
+  // In the admin's name: the client visit and the three reviews (no organiser).
+  assert.equal(done.yours, 1 + 3 + 1, "the client visit, the three reviews and the moved stand-up name no organiser anyone matches");
   assert.deepEqual(done.leftOut.map(l => l.reason).sort(), ["all_day", "outside_hours"]);
   assert.ok(done.leftOut.every(l => l.line > 0 && l.day));
   assert.equal(done.items.find(i => i.title === "Review")!.count, 3);
@@ -156,3 +158,55 @@ test("only admins import; a file that is not a calendar, or an unknown room, is 
   await assert.rejects(importRoomCalendar(sql, admin, { roomId: o.atlas, text: "", commit: false }, people, zone), { code: "empty" });
   await assert.rejects(undoCalendarImport(sql, asMember(hugo), "1"), { code: "forbidden" });
 });
+
+// Outlook in an Exchange company: the organiser as "Last, First", guests
+// by address only, a department in brackets; addresses matched when the
+// Chest gives them (members.email).
+test("Outlook's \"Martin, Camille\" and addresses find the people; the preview counts the bookings left in the admin's name and names the guests not found", async () => {
+  const { sql } = database;
+  const o = await office(sql, "Lille");
+  const monday = nextMonday();
+  const thu = addDays(monday, 3), fri = addDays(monday, 4);
+  const withAddresses = everyone.filter(p => p.role !== null).map(p => ({ id: p.id, name: p.name, firstName: p.firstName, lastName: p.lastName, email: p.firstName.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase() + "@example.test" }));
+  const text = [
+    "BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:Microsoft Exchange Server 2010",
+    "BEGIN:VEVENT", `DTSTART;TZID=Romance Standard Time:${stamp(thu, "10:00")}`, `DTEND;TZID=Romance Standard Time:${stamp(thu, "11:00")}`, "UID:outlook-1",
+    "SUMMARY:Budget 2027", 'ORGANIZER;CN="Martin, Camille":mailto:someone-else@example.test',
+    'ATTENDEE;ROLE=REQ-PARTICIPANT;CN="Martin, Camille":mailto:someone-else@example.test',
+    "ATTENDEE;ROLE=REQ-PARTICIPANT:mailto:hugo@example.test",
+    'ATTENDEE;CN="Rossi, Sofia (Finance)":mailto:s.rossi@elsewhere.test',
+    'ATTENDEE;CN="Durand, Paul":mailto:paul.durand@client.test',
+    "END:VEVENT",
+    "BEGIN:VEVENT", `DTSTART;TZID=Romance Standard Time:${stamp(fri, "10:00")}`, `DTEND;TZID=Romance Standard Time:${stamp(fri, "11:00")}`, "UID:outlook-2",
+    "SUMMARY:Supplier call", "ORGANIZER:mailto:ines@example.test", "END:VEVENT",
+    "BEGIN:VEVENT", `DTSTART;TZID=Romance Standard Time:${stamp(fri, "14:00")}`, `DTEND;TZID=Romance Standard Time:${stamp(fri, "15:00")}`, "UID:outlook-3",
+    "SUMMARY:Visit", 'ORGANIZER;CN="Durand, Paul":mailto:paul.durand@client.test', "END:VEVENT",
+    "END:VCALENDAR",
+  ].join("\r\n");
+
+  // With names only (no members.email): "Martin, Camille" and "Rossi,
+  // Sofia (Finance)" are found by name; an address alone is not.
+  const byName = await importRoomCalendar(sql, admin, { roomId: o.atlas, text, commit: false }, people.map(p => ({ ...p, ...splitName(p.name) })), zone);
+  const budget = byName.items.find(i => i.title === "Budget 2027")!;
+  assert.equal(budget.organiser, camille.id);
+  assert.deepEqual(budget.unknownGuests.sort(), ["Durand, Paul", "hugo@example.test"]);
+  assert.equal(byName.items.find(i => i.title === "Supplier call")!.organiser, null);
+  assert.equal(byName.yours, 2, "the supplier call and the visit");
+  assert.deepEqual(byName.unknownGuests.sort(), ["Durand, Paul", "hugo@example.test"]);
+
+  // With addresses: Hugo and Inès by address, too.
+  const done = await importRoomCalendar(sql, admin, { roomId: o.atlas, text, commit: true }, withAddresses, zone);
+  assert.equal(done.items.find(i => i.title === "Supplier call")!.organiser, ines.id);
+  assert.equal(done.yours, 1, "only the visit of someone outside the company");
+  assert.deepEqual(done.unknownGuests, ["Durand, Paul"]);
+  const [row] = await sql<{ member_id: string; attendees: string[] }[]>`
+    select b.member_id, coalesce((select array_agg(a.member_id order by a.member_id) from room_attendees a where a.booking_id = b.id), '{}') as attendees
+    from room_bookings b where b.title = 'Budget 2027' and b.cancelled_at is null`;
+  assert.equal(row!.member_id, camille.id);
+  assert.deepEqual(row!.attendees, [hugo.id, sofia.id].sort());
+});
+
+function splitName(name: string) {
+  const [firstName, ...rest] = name.split(" ");
+  return { firstName: firstName!, lastName: rest.join(" ") };
+}

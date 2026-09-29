@@ -75,7 +75,7 @@ export function ApproveView({ groups, recent, locale, t }: { groups: PersonGroup
                 <ReceiptThumb row={r} label={format(t.approve.openReceipt, { what: r.what })} onPreview={() => setLightbox(r)} />
                 <a className="main" href={r.href}>
                   <span className="what">{r.what}</span>
-                  <span className="sub"><span className="mono">{r.day} {r.month}</span>{r.sub && <span>{r.sub}</span>}{r.card && <span>{t.companyCard}</span>}<Warnings list={r.warnings} /></span>
+                  <span className="sub"><span className="mono">{r.date}</span>{r.sub && <span>{r.sub}</span>}{r.card && <span>{t.companyCard}</span>}<Warnings list={r.warnings} /></span>
                 </a>
                 <span className="right">
                   <span className="amount">{r.amount}</span>

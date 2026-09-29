@@ -27,6 +27,16 @@ export function formatDate(value: Date | string, locale: Locale, options: Intl.D
   return new Intl.DateTimeFormat(intl(locale), { timeZone, ...options }).format(typeof value === "string" ? new Date(value) : value);
 }
 
+// dot joins the parts of a line ("Meals · 44,86 €"): a no-break space
+// before it, so that a wrapped line never starts with it.
+export const dot = "\u00a0· ";
+
+// shortDate is how every list writes a day ("8 Sept", "8 sept."): one
+// format for the whole tool.
+export function shortDate(day: string, locale: Locale): string {
+  return formatDate(day.length === 10 ? day + "T12:00:00Z" : day, locale, { day: "numeric", month: "short" });
+}
+
 // relative says "3 minutes ago", "yesterday"… in that language.
 export function relative(value: Date | string, locale: Locale, now = new Date()): string {
   const seconds = Math.round(((typeof value === "string" ? new Date(value) : value).getTime() - now.getTime()) / 1000);

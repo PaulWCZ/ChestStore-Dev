@@ -32,7 +32,7 @@ export const en = {
     refusedBy: "Declined by {name} on {date}.",
     acceptedByCompany: "{company} recorded that it was accepted.",
     refusedByCompany: "{company} recorded that it was declined.",
-    acceptedNext: "{company} has been told. Keep the PDF you accepted: it is the one below.",
+    acceptedNext: "Your answer was sent to {company}. Keep the PDF you accepted: it is the one below.",
     pdfOpen: "Open the PDF",
     pdfAccepted: "Download the quote you accepted (PDF)",
     toAnswer: "Go to the answer",

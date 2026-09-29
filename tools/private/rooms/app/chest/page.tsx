@@ -8,7 +8,7 @@ import { can } from "../../lib/access.ts";
 import { feedPage } from "../../lib/calendar.ts";
 import { context, told } from "../../lib/context.ts";
 import { deskBookingsOf, deskBookingsOn, usualDesk } from "../../lib/desk-bookings.ts";
-import { formatDay, formatSpan } from "../../lib/i18n/index.ts";
+import { formatDay, formatSpan, formatTime } from "../../lib/i18n/index.ts";
 import { addDays, minutesNow, mondayOf, overlaps, twoWeeks, placeName } from "../../lib/model.ts";
 import { checkInOpens } from "../../lib/check-in.ts";
 import { nameOf, people } from "../../lib/people.ts";
@@ -27,16 +27,14 @@ export default async function MyWeek({ searchParams }: { searchParams: Promise<R
   const c = await context(params);
   if (!c) return null;
   const { member, locale, t, sql, office } = c;
-  if (!office) {
-    return (
-      <div className="narrow">
-        <EmptyState headingLevel={1} icon={<Building />} title={t.week.noOffice.title} body={t.week.noOffice.body}
-          {...(can(member, "places.manage")
-            ? { action: <><Link className="button" href="/chest/places">{t.week.noOffice.action}</Link><ExampleButton t={{ label: t.week.noOffice.example, added: t.places.example.added, errors: t.errors }} /></> }
-            : { note: t.week.noOffice.member })} />
-      </div>
-    );
-  }
+  // Before any office exists, people still say where they work ("who is
+  // in on Thursday?"): the week shows, with what an admin does first.
+  const setUp = office ? null : (
+    <EmptyState headingLevel={2} icon={<Building />} title={t.week.noOffice.title} body={can(member, "places.manage") ? t.week.noOffice.body : t.week.noOffice.presence}
+      {...(can(member, "places.manage")
+        ? { action: <><Link className="button" href="/chest/places">{t.week.noOffice.action}</Link><ExampleButton t={{ label: t.week.noOffice.example, added: t.places.example.added, errors: t.errors }} /></> }
+        : { note: t.week.noOffice.member })} />
+  );
   // What the rules no longer keep goes (nothing runs in the background).
   await purge(sql, c.zone);
   const days = twoWeeks(c.today, c.rules.weekdays);
@@ -44,10 +42,10 @@ export default async function MyWeek({ searchParams }: { searchParams: Promise<R
   const to = addDays(from, 13);
   const [said, present, myDesks, myRooms, usual, pattern, how] = await Promise.all([
     presenceOf(sql, [member.id], from, to),
-    atOffice(sql, office.id, from, to),
+    atOffice(sql, office?.id ?? null, from, to),
     deskBookingsOf(sql, [member.id], from, to),
     myRoomBookings(sql, member, from, to, c.zone),
-    usualDesk(sql, member, office.id),
+    office ? usualDesk(sql, member, office.id) : null,
     usualWeek(sql, member),
     told(sql),
   ]);
@@ -84,21 +82,28 @@ export default async function MyWeek({ searchParams }: { searchParams: Promise<R
       })),
       usualFree: usual !== null && !usual.assigned && !onUsual.some(b => b.day === d && overlaps(b.part, "day")),
       lentTo: lent ? nameOf(who.get(lent.memberId), locale) : null,
+      // The first meeting still to come that day, for "at the office?"
+      // when I said Remote or Off.
+      meeting: (() => {
+        const m = myRooms.find(b => b.day === d && (d > c.today || (d === c.today && b.end > now)));
+        return m ? { room: m.roomName, time: formatTime(m.start, locale) } : null;
+      })(),
     };
   });
   const focus = typeof params["day"] === "string" && days.includes(params["day"]) ? params["day"] : null;
   // The desks one may choose for the usual week: free ones and my own.
-  const choices = office.floors.flatMap(f => f.areas.flatMap(a => a.desks
+  const choices = (office?.floors ?? []).flatMap(f => f.areas.flatMap(a => a.desks
     .filter(d => (d.assignedTo === null || d.assignedTo === member.id) && (a.groupId === null || can(member, "bookings.any") || member.groups.includes(a.groupId)))
     .map(d => ({ id: d.id, name: `${d.name} · ${a.name}`, mine: d.assignedTo === member.id }))));
   return (
     <div className="narrow">
       <AutoRefresh seconds={30} />
-      <PageHeader title={t.week.title} intro={<span className="place-line">{office.name}{office.address ? " · " + office.address : ""}</span>}
-        secondary={c.offices.length > 1 ? <OfficePicker offices={c.offices.map(o => ({ id: o.id, name: o.name }))} current={office.id} label={t.shell.office} path="/chest" /> : undefined} />
+      <PageHeader title={t.week.title} intro={office ? <span className="place-line">{office.name}{office.address ? " · " + office.address : ""}</span> : undefined}
+        secondary={office && c.offices.length > 1 ? <OfficePicker offices={c.offices.map(o => ({ id: o.id, name: o.name }))} current={office.id} label={t.shell.office} path="/chest" /> : undefined} />
+      {setUp}
       <WeekView
         days={rows}
-        officeId={office.id}
+        officeId={office?.id ?? null}
         focus={focus}
         usual={usual ? { ...usual, areaName: placeName(usual.areaName, usual.areaPreset, t.presets) } : null}
         pattern={pattern}

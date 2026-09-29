@@ -9,6 +9,7 @@ export const errorCodes = [
   "file_missing", "file_too_large", "import_invalid", "unavailable", "unknown",
   "invalid_field", "invalid_quantity", "tag_series", "not_enough", "is_consumable", "not_consumable",
   "not_yours", "already_confirmed", "not_open", "inventory_open", "no_inventory", "no_such_tag", "field_taken", "charter_changed", "reminded_today",
+  "intune_not_connected", "intune_denied", "intune_unreachable", "intune_busy", "intune_invalid",
 ] as const;
 export type ErrorCode = (typeof errorCodes)[number];
 

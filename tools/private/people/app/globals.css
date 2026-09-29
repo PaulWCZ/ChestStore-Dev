@@ -524,6 +524,8 @@ select.cell { appearance: auto; }
 .cell-date .ck-error { padding: 0 var(--space-3) var(--space-1); }
 .sheet .field-head { padding: 0 var(--space-1); }
 .field-head .row { flex-wrap: nowrap; gap: 0; }
+.cell.head-seen { min-width: 0; width: auto; max-width: 180px; font-weight: normal; color: var(--ink-2); font-size: var(--text-xs); }
+.seen-lock { display: inline-grid; place-items: center; padding: 0 2px; color: var(--ink-2); }
 .new-field { margin-top: var(--space-4); }
 
 /* ---------- HR records ---------- */
@@ -588,3 +590,23 @@ select.cell { appearance: auto; }
 .mini-bar { min-width: 2px; max-width: 80%; }
 .mini-bar.out { background: var(--bar-out); }
 .stat, .grid-2 > .card-block { align-content: start; }
+
+/* The days a part-timer works: one chip per day, a real checkbox inside. */
+.week-days { grid-column: 1 / -1; }
+.day-chips { display: flex; flex-wrap: wrap; gap: var(--space-1); }
+.check-chip { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 12px; border-radius: var(--radius-chip); border: 1.5px solid var(--line-strong); background: var(--surface); color: var(--ink); font-size: var(--text-s); cursor: pointer; }
+.check-chip input { width: 18px; height: 18px; margin: 0; accent-color: var(--chosen-ink); }
+.check-chip:has(input:checked) { border-color: var(--chosen); background: var(--chosen); color: var(--chosen-ink); font-weight: var(--weight-strong); }
+.check-chip:has(input:focus-visible) { outline: 3px solid var(--focus); outline-offset: 2px; }
+
+/* A change the person asked for their record: theirs while it waits, HR's to answer. */
+.label-group { margin: var(--space-2) 0 0; font-size: var(--text-s); font-weight: var(--weight-strong); text-transform: uppercase; letter-spacing: 0.08em; color: var(--accent-text); }
+.change-waiting { justify-content: space-between; background: var(--accent-soft); }
+.change-waiting > div { flex: 1 1 260px; }
+.change-waiting p { margin: 0; }
+.change-list { list-style: none; padding: 0; margin: var(--space-1) 0 0; display: grid; gap: 2px; white-space: pre-line; }
+.change-asked { border: 2px solid var(--accent); }
+.change-diff { display: grid; gap: var(--space-2); margin: var(--space-2) 0 var(--space-3); }
+.change-diff dt { font-size: var(--text-s); color: var(--ink-2); }
+.change-diff dd { margin: 0; white-space: pre-line; }
+.quote { margin: 0 0 var(--space-3); padding-left: var(--space-3); border-left: 3px solid var(--line-strong); color: var(--ink); }

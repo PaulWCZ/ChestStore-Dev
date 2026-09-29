@@ -10,6 +10,7 @@ import {
   limits, memberId, phone, sexes, workDays, type Contract, type DocumentKind, type Sex,
 } from "./model.ts";
 import { everyone, present } from "./people.ts";
+import { tellRecords } from "./share.ts";
 
 // Employee records: what HR keeps about each person employed — identity as
 // the staff register needs it, the contract, the emergency contact, the
@@ -146,6 +147,7 @@ export async function createRecord(sql: Sql, actor: Member | null, input: { memb
     const person = listed.people.find(p => p.id === member);
     if (!person) throw new AppError("not_member");
     const [done] = await createFor(sql, who, [{ id: member, name: person.name }]);
+    await tellRecords(sql, [done!.id]);
     return { id: done!.id };
   }
   const name = clean(input?.legalName, limits.name);
@@ -160,7 +162,9 @@ export async function createForEveryone(sql: Sql, actor: Member | null): Promise
   const who = hr(actor);
   const listed = await everyone();
   if (!listed.ok) throw new AppError("unavailable");
-  return (await createFor(sql, who, listed.people.map(p => ({ id: p.id, name: p.name })))).filter(r => r.created).length;
+  const made = (await createFor(sql, who, listed.people.map(p => ({ id: p.id, name: p.name })))).filter(r => r.created);
+  await tellRecords(sql, made.map(r => r.id));
+  return made.length;
 }
 
 async function createFor(sql: Sql, actor: Member, people: { id: string; name: string }[]): Promise<{ id: string; created: boolean }[]> {
@@ -242,7 +246,7 @@ export async function updateRecord(sql: Sql, actor: Member | null, recordId: unk
   const key = id(recordId);
   if (!input || typeof input !== "object" || Array.isArray(input)) throw new AppError("invalid");
   const given = read(input as { [key: string]: unknown });
-  return sql.begin(async tx => {
+  const done = await sql.begin(async tx => {
     const current = await load(tx, key);
     if (!current) throw new AppError("not_found");
     const before = toFields(current);
@@ -263,6 +267,8 @@ export async function updateRecord(sql: Sql, actor: Member | null, recordId: unk
     await note(tx, who, "changed", { recordId: key, fields: changed });
     return { changed };
   }).catch(error => { throw numberTaken(error); });
+  if (done.changed.length > 0) await tellRecords(sql, [key]);
+  return done;
 }
 
 // A unique employee number: another record's is refused in words.
@@ -283,10 +289,12 @@ export async function linkRecord(sql: Sql, actor: Member | null, recordId: unkno
       const [taken] = await tx`select 1 from records where member_id = ${target} and id <> ${key}`;
       if (taken) throw new AppError("invalid");
     }
-    const done = await tx`update records set member_id = ${target}, updated_at = now() where id = ${key} and erased_at is null`;
+    // Linked to someone else: what was told is theirs no more.
+    const done = await tx`update records set member_id = ${target}, told = null, updated_at = now() where id = ${key} and erased_at is null`;
     if (done.count === 0) throw new AppError("not_found");
     await note(tx, who, "linked", { recordId: key, fields: ["memberId"] });
   });
+  await tellRecords(sql, [key]);
 }
 
 // A record made by mistake goes; the record of someone who worked here

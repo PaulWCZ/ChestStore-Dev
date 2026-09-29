@@ -183,6 +183,19 @@ export function freeSlots(taken: readonly { start: number; end: number }[], open
   return slots.filter(s => s.end - s.start >= step);
 }
 
+// Where a tap on a free stretch ("07:00–14:30") starts a booking: at the
+// time the member is looking for ("Find a free room": 09:00, or the next
+// round hour today) when the stretch holds half an hour from it; else,
+// for a stretch that opens before the working day, at 08:00; else at the
+// stretch's start. Never a 7 a.m. meeting by a single tap.
+export const workdayStart = 8 * 60;
+export function tapStart(slot: { start: number; end: number }, wanted: number): number {
+  const fits = (m: number) => m >= slot.start && m + 30 <= slot.end;
+  if (fits(wanted)) return wanted;
+  if (slot.start < workdayStart && fits(workdayStart)) return workdayStart;
+  return slot.start;
+}
+
 // The next free desk name in a series: "D-07" after "D-06", "12" after "11".
 export function nextNames(existing: readonly string[], count: number, prefix = "D-"): string[] {
   let highest = 0;

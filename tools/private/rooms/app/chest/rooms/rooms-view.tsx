@@ -9,7 +9,7 @@ import { Accessible, CalendarAdd, Check, Lock, Phone, Plus, Repeat, Screen, Seat
 import type { Result } from "../../../lib/errors.ts";
 import type { Catalogue } from "../../../lib/i18n/index.ts";
 import { format, formatDay, formatSpan, formatTime, plural } from "../../../lib/i18n/format.ts";
-import { addDays, equipment as equipmentKeys, freeSlots, limits, step, type Equipment } from "../../../lib/model.ts";
+import { addDays, equipment as equipmentKeys, freeSlots, limits, step, tapStart, type Equipment } from "../../../lib/model.ts";
 import { bookRoom, cancelRoomBooking, checkIn, restoreRoomBookings, updateRoomBooking } from "../actions.ts";
 
 export type GridRoom = { id: string; name: string; capacity: number; equipment: Equipment[]; note: string; photo: boolean; floor: string; group: { name: string; mine: boolean } | null };
@@ -25,10 +25,12 @@ export type Locked = { why: "past" | "closed" | "notYet"; opensOn?: string } | n
 
 export const equipmentIcons: Record<Equipment, ComponentType> = { screen: Screen, video: Video, whiteboard: Whiteboard, phone: Phone, accessible: Accessible };
 
-export function RoomsView({ head, strip, day, days, today, now, locked: lockedDay, open, close, maxWeeks, rooms, bookings, people, bookFor, initial, told, calendarPage, locale, t }: {
+export function RoomsView({ head, strip, notice, day, days, today, now, locked: lockedDay, open, close, maxWeeks, rooms, bookings, people, bookFor, initial, told, calendarPage, locale, t }: {
   // The page's title and the line under it; the office picker; the days.
   // Here, so that the page's one action, "Book a room", sits at the top.
   head: { title: string; intro: ReactNode; secondary?: ReactNode };
+  // Why the day shown is not the one asked for (after hours: tomorrow).
+  notice?: string | null;
   strip: ReactNode;
   day: string;
   // The days the booking form offers (value, words), the day shown among them.
@@ -63,6 +65,9 @@ export function RoomsView({ head, strip, day, days, today, now, locked: lockedDa
   // Where a new booking starts when nothing was picked: the next round
   // hour today, 09:00 on another day (never the grid's first quarter).
   const preferred = Math.min(Math.max(now === null ? 9 * 60 : Math.ceil(earliest / 60) * 60, earliest, open), Math.max(earliest, close - step));
+  // The time "Find a free room" asks for: a tap on a free stretch of the
+  // phone's list starts there too when the stretch holds it.
+  const [findAt, setFindAt] = useState(preferred);
   const locked = lockedDay !== null || earliest >= close;
   const bookable = (r: GridRoom) => r.group === null || r.group.mine;
   const fail = (error: keyof Catalogue["errors"], values?: Record<string, string | number>) => void toast({ text: format(t.errors[error], values), tone: "error" });
@@ -83,7 +88,7 @@ export function RoomsView({ head, strip, day, days, today, now, locked: lockedDa
   }
   function openNew(roomId?: string, from?: number, to?: number) {
     const room = roomId ?? rooms.find(bookable)?.id ?? rooms[0]!.id;
-    const first = from ?? freeSlots(takenOf(room), open, close, preferred)[0]?.start ?? freeSlots(takenOf(room), open, close, earliest)[0]?.start ?? earliest;
+    const first = from ?? freeSlots(takenOf(room), open, close, Math.max(findAt, earliest))[0]?.start ?? freeSlots(takenOf(room), open, close, earliest)[0]?.start ?? earliest;
     openDraft(draftFrom(room, first, to));
   }
   const close_ = () => { setDialog(null); setDirty(false); };
@@ -159,11 +164,12 @@ export function RoomsView({ head, strip, day, days, today, now, locked: lockedDa
       action={<button type="button" className="button" disabled={locked || !rooms.some(bookable)} onClick={() => openNew()}><Plus />{t.rooms.book}</button>} />
     {strip}
     <div className="stack">
+      {notice && <p className="hint" role="status">{notice}</p>}
       {hint
         ? <p className="hint is-locked" role="status">{hint}</p>
         : <p className="hint"><span className="on-desktop">{t.rooms.dragHint}</span><span className="on-phone">{t.rooms.tapHint}</span></p>}
 
-      {!locked && <Finder rooms={rooms} bookings={bookings} earliest={earliest} preferred={preferred} close={close} bookable={bookable} locale={locale} t={t}
+      {!locked && <Finder rooms={rooms} bookings={bookings} earliest={earliest} at={findAt} setAt={setFindAt} close={close} bookable={bookable} locale={locale} t={t}
         onPick={(roomId, from, to) => openDraft(draftFrom(roomId, from, to))} />}
 
       <Grid rooms={rooms} bookings={bookings} open={open} close={close} earliest={locked ? close : earliest} now={now} bookable={bookable} locale={locale} t={t}
@@ -181,7 +187,7 @@ export function RoomsView({ head, strip, day, days, today, now, locked: lockedDa
                 <div className="free-slots">
                   <span className="annotation">{t.rooms.freeSlots}</span>
                   {slots.map(s => (
-                    <button key={s.start} type="button" className="slot-chip" onClick={() => openDraft(draftFrom(r.id, s.start, Math.min(s.end, s.start + 60)))}>
+                    <button key={s.start} type="button" className="slot-chip" onClick={() => { const from = tapStart(s, Math.max(findAt, earliest)); openDraft(draftFrom(r.id, from, Math.min(s.end, from + 60))); }}>
                       {formatSpan(s.start, s.end, locale)}
                     </button>
                   ))}
@@ -240,14 +246,13 @@ export function RoomsView({ head, strip, day, days, today, now, locked: lockedDa
 // "I need a room for 6 at 14:00 for an hour": the rooms free then, big
 // enough, with what was asked — one tap opens the form with that slot. On
 // today it starts at the current quarter hour: the rooms free now.
-function Finder({ rooms, bookings, earliest, preferred, close, bookable, locale, t, onPick }: {
-  rooms: GridRoom[]; bookings: GridBooking[]; earliest: number; preferred: number; close: number; bookable: (r: GridRoom) => boolean; locale: string; t: Words;
+function Finder({ rooms, bookings, earliest, at, setAt, close, bookable, locale, t, onPick }: {
+  rooms: GridRoom[]; bookings: GridBooking[]; earliest: number; at: number; setAt: (m: number) => void; close: number; bookable: (r: GridRoom) => boolean; locale: string; t: Words;
   onPick: (roomId: string, from: number, to: number) => void;
 }) {
   const biggest = Math.max(...rooms.map(r => r.capacity));
   const sizes = [1, 2, 4, 6, 8, 10, 12, 16, 20, 30, 50].filter(n => n <= biggest);
   const [size, setSize] = useState(1);
-  const [at, setAt] = useState(preferred);
   const [length, setLength] = useState(60);
   const [wanted, setWanted] = useState<Equipment[]>([]);
   const from = Math.max(at, earliest);

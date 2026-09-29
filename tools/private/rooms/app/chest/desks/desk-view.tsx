@@ -147,9 +147,9 @@ export function DeskView({ floors, day, part, view, wanted, locked, hint, forWho
         <Tabs label={t.desks.view} current={view} link={props => <Link {...props} scroll={false} />}
           items={[{ id: "plan", label: t.desks.plan, href: links.views.plan }, { id: "list", label: t.desks.list, href: links.views.list }]} />
       </div>
-      <Filters path="/chest/desks" params={links.params} link={props => <Link {...props} scroll={false} />} labels={t.filters} phone="scroll" className="feature-filters"
+      <Filters path="/chest/desks" params={links.params} link={props => <Link {...props} scroll={false} />} labels={t.filters} className="feature-filters"
         groups={[{ key: "f", label: t.desks.filters, multiple: true, options: featureKeys.map(f => ({ value: f, label: t.features[f] })) }]} />
-      <p className={"hint" + (locked ? " is-locked" : "")} aria-live="polite">
+      <p id="desk-places" tabIndex={-1} className={"hint" + (locked ? " is-locked" : "")} aria-live="polite">
         {locked ? hint : <>{plural(t.desks.freeCount, freeDesks.length, locale)} · {hint}</>}
       </p>
       {view === "plan" ? (

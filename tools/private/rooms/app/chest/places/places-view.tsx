@@ -538,6 +538,8 @@ function CalendarImport({ rooms, t, locale, onDone }: { rooms: { id: string; nam
       {preview && file && (
         <div className="import-report" role="status" aria-live="polite">
           <p><strong>{preview.added === 0 ? format(w.nothing, { room: roomName }) : plural(w.preview, preview.added, locale, { room: roomName })}</strong></p>
+          {preview.yours > 0 && <p className="import-yours">{plural(w.yours, preview.yours, locale)}</p>}
+          {preview.unknownGuests.length > 0 && <p className="hint">{format(w.guestsUnknown, { names: preview.unknownGuests.join(", ") })}</p>}
           {preview.items.length > 0 && (
             <ul className="notes import-lines">
               {preview.items.slice(0, 40).map(i => (

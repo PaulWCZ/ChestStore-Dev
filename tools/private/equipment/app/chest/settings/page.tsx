@@ -27,7 +27,7 @@ export default async function Settings() {
       <p className="muted lead">{t.settings.intro}</p>
       <CategoriesView
         categories={counts.map(c => ({
-          id: c.id, name: c.name ?? "", builtIn: c.key ? t.categories[c.key] : null, icon: c.icon, kind: c.kind, total: c.total,
+          id: c.id, name: c.name ?? "", builtIn: c.key ? t.categories[c.key] : null, icon: c.icon, kind: c.kind, total: c.total, membersSee: c.membersSee,
           fields: fields.filter(f => f.categoryId === c.id).map(f => ({ id: f.id, name: fieldName(f, t), type: f.type })),
         }))}
         t={{ settings: t.settings, icons: t.icons, errors: t.errors, common: t.common }}

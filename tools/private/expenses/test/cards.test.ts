@@ -10,6 +10,7 @@ import * as cards from "../lib/cards.ts";
 import { parseCsv } from "../lib/csv-read.ts";
 import * as expenses from "../lib/expenses.ts";
 import { erase } from "../lib/lifecycle.ts";
+import * as settings from "../lib/settings.ts";
 import * as tell from "../lib/tell.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
@@ -174,6 +175,37 @@ test("importing a statement: matched to their expense, or a draft asking its hol
   assert.equal(chest.notifications.some(n => n.key === `card:${hugo.id}`), false);
   await assert.rejects(cards.undoStatement(sql, asMember(camille), done.statement), refuses("not_found"));
   await assert.rejects(cards.undoStatement(sql, asMember(ines), "1"), refuses("forbidden"));
+});
+
+test("card statement words: a draft gets the category its label suggests; the accountant edits the list", async () => {
+  const { sql } = database;
+  const rules = await settings.listCardRules(sql, asMember(camille));
+  assert.equal(rules.find(r => r.words === "UBER")?.categoryId, cat["travel"]);
+  assert.equal(rules.find(r => r.words === "UBER EATS")?.categoryId, cat["meals"]);
+  await assert.rejects(settings.listCardRules(sql, asMember(ines)), refuses("forbidden"));
+  const lines = [
+    { date: "2026-09-10", label: "UBER *TRIP", amount: 2340, currency: "EUR", member: hugo.id },
+    { date: "2026-09-11", label: "UBER *EATS PARIS", amount: 1890, currency: "EUR", member: hugo.id },
+    { date: "2026-09-12", label: "CB TOTAL ST OUEN", amount: 6120, currency: "EUR", member: hugo.id },
+    { date: "2026-09-13", label: "MONOPRIX PARIS 11", amount: 1275, currency: "EUR", member: hugo.id },
+  ];
+  await cards.importStatement(sql, asMember(camille), { lines }, team);
+  const byAmount = new Map((await expenses.mine(sql, asMember(hugo))).map(e => [e.amount, e.categoryId]));
+  assert.deepEqual([byAmount.get(2340), byAmount.get(1890), byAmount.get(6120), byAmount.get(1275)], [cat["travel"], cat["meals"], cat["fuel"], cat["other"]]);
+  // A word of the company's own: MONOPRIX is office supplies here.
+  await assert.rejects(settings.addCardRule(sql, asMember(hugo), "Monoprix", cat["supplies"]), refuses("forbidden"));
+  await assert.rejects(settings.addCardRule(sql, asMember(camille), "*", cat["supplies"]), refuses("empty"));
+  await assert.rejects(settings.addCardRule(sql, asMember(camille), "Monoprix", cat["mileage"]), refuses("category_invalid"));
+  const added = await settings.addCardRule(sql, asMember(camille), " monoprix ", cat["supplies"]);
+  assert.equal(added.words, "MONOPRIX");
+  // The same words again: another category, still one rule.
+  const again = await settings.addCardRule(sql, asMember(camille), "MONOPRIX", cat["meals"]);
+  assert.equal(again.id, added.id);
+  await cards.importStatement(sql, asMember(camille), { lines: [{ ...lines[3]!, date: "2026-09-14", amount: 990 }] }, team);
+  assert.equal((await expenses.mine(sql, asMember(hugo))).find(e => e.amount === 990)?.categoryId, cat["meals"]);
+  await assert.rejects(settings.removeCardRule(sql, asMember(ines), added.id), refuses("forbidden"));
+  await settings.removeCardRule(sql, asMember(camille), added.id);
+  await assert.rejects(settings.removeCardRule(sql, asMember(camille), added.id), refuses("not_found"));
 });
 
 test("a card payment's receipt: the holder adds it and sends; touched drafts cannot be undone away; a deleted draft is for the accountant to check", async () => {

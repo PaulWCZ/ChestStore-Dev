@@ -1,7 +1,8 @@
 {
   "emits": [
     "people.leaving",
-    "people.leaving_cancelled"
+    "people.leaving_cancelled",
+    "people.record"
   ],
   "schedules": [
     {

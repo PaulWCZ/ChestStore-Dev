@@ -2,7 +2,9 @@ import type { Run } from "@argentic/chest-sdk/schedules";
 import type { Sql } from "./db.ts";
 import { totals } from "./expenses.ts";
 import { plural } from "./i18n/index.ts";
+import { email } from "./mail.ts";
 import { cut, notify } from "./notify.ts";
+import { accountants } from "./people.ts";
 import { cleanUploads, forget } from "./receipts.ts";
 import { settings } from "./settings.ts";
 import { totalText } from "./tell.ts";
@@ -13,9 +15,12 @@ import { totalText } from "./tell.ts";
 // in their bell, in their language — "Send your expenses before the end of
 // the month", with their count and total. It replaces last month's (same
 // key); a run delivered twice sends the same item again, not a second one.
-// Off when the accountant turned the reminder off.
-export async function reminder(sql: Sql, _run: Run): Promise<number> {
+// Off when the accountant turned the reminder off. The same by email, and
+// an email to each approver with expenses waiting for them ("5 expenses
+// wait for you"): one per month (the key), whatever the retries.
+export async function reminder(sql: Sql, run: Run): Promise<number> {
   if (!(await settings(sql)).reminder) return 0;
+  const month = run.scheduledAt.slice(0, 7);
   const rows = await sql<{ member_id: string; amount_cents: string; currency: string }[]>`
     select member_id, amount_cents, currency from expenses
     where status = 'draft' and deleted_at is null and member_id <> 'erased' order by member_id limit 20000`;
@@ -24,6 +29,17 @@ export async function reminder(sql: Sql, _run: Run): Promise<number> {
   for (const [member, list] of byMember) {
     const sum = totals(list);
     await notify([member], (t, locale) => ({ title: t.bell.reminder, body: cut(plural(t.bell.reminderBody, list.length, locale, { total: totalText(sum, locale) }), 280) }), { path: "/chest", key: "reminder" });
+    await email([member], (t, locale) => ({ subject: t.bell.reminder, lines: [plural(t.bell.reminderBody, list.length, locale, { total: totalText(sum, locale) }), "", t.mail.reminderLine] }), { path: "/chest", key: `reminder:${month}` });
+  }
+  // What waits for each approver: sent to them, or to the accountants
+  // (never their own).
+  const waiting = await sql<{ member_id: string; approver_id: string | null }[]>`
+    select member_id, approver_id from expenses where status = 'submitted' and deleted_at is null limit 20000`;
+  const team = waiting.some(w => w.approver_id === null) ? await accountants() : [];
+  const counts = new Map<string, number>();
+  for (const w of waiting) for (const who of w.approver_id ? [w.approver_id] : team.filter(a => a !== w.member_id)) counts.set(who, (counts.get(who) ?? 0) + 1);
+  for (const [who, count] of counts) {
+    await email([who], (t, locale) => ({ subject: plural(t.mail.waiting, count, locale), lines: [plural(t.mail.waiting, count, locale), "", t.mail.waitingLine] }), { path: "/chest/approve", key: `waiting:${month}` });
   }
   return byMember.size;
 }

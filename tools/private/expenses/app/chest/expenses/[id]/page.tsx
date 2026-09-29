@@ -5,7 +5,7 @@ import { AppError } from "../../../../lib/app-error.ts";
 import { approversFor } from "../../../../lib/approvals.ts";
 import { db } from "../../../../lib/db.ts";
 import { expense, warnings } from "../../../../lib/expenses.ts";
-import { format, formatDate, plural, type Catalogue, type Locale } from "../../../../lib/i18n/index.ts";
+import { format, formatDate, plural, shortDate, type Catalogue, type Locale } from "../../../../lib/i18n/index.ts";
 import { thumbnailTypes } from "../../../../lib/model.ts";
 import { formatMoney, rateText, recoverable } from "../../../../lib/money.ts";
 import { nameOf, people } from "../../../../lib/people.ts";
@@ -79,7 +79,7 @@ export default async function ExpensePage({ params }: { params: Promise<{ id: st
         warnings={(warned.get(e.id) ?? []).map(w => warningText(w, t, company.currency, locale))}
         reason={e.status === "draft" && e.refusedReason ? format(t.home.refusedBecause, { reason: e.refusedReason }) : null}
         waitingFor={e.status === "submitted" ? (e.approver ? format(t.home.waitingFor, { name: name(e.approver) }) : (await approversFor(sql, e.owner)).length === 0 ? t.home.waitingNobody : format(t.home.waitingFor, { name: t.people.accountants })) : null}
-        history={history.map(h => ({ when: formatDate(h.at, locale, { day: "numeric", month: "short" }), text: historyText(h, t, locale, name, e.paidOn) }))}
+        history={history.map(h => ({ when: shortDate(h.at, locale), text: historyText(h, t, locale, name, e.paidOn) }))}
         t={{ detail: t.detail, receipt: t.receipt, form: t.form, errors: t.errors, deleted: t.home.deleted, approved: t.approve.approved, refused: t.approve.refused }}
         locale={locale}
       />

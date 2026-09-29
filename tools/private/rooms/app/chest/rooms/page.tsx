@@ -9,7 +9,7 @@ import { feedPage } from "../../../lib/calendar.ts";
 import { bookableDays, context, formDays, lockOf, shownDay, told } from "../../../lib/context.ts";
 import { directory } from "../../../lib/directory.ts";
 import { chestGroups } from "../../../lib/groups.ts";
-import { formatDay } from "../../../lib/i18n/index.ts";
+import { format, formatDay, formatTime } from "../../../lib/i18n/index.ts";
 import { addDays, minutesNow } from "../../../lib/model.ts";
 import { nameOf, people } from "../../../lib/people.ts";
 import { roomDay } from "../../../lib/room-bookings.ts";
@@ -72,6 +72,7 @@ export default async function Rooms({ searchParams }: { searchParams: Promise<Re
       ) : (
         <RoomsView
           head={{ title: t.rooms.title, intro, secondary: picker }}
+          notice={over && params["day"] === undefined ? format(t.rooms.afterHours, { time: formatTime(c.rules.dayEnd, locale), day: formatDay(day, locale, { weekday: "long", day: "numeric", month: "long" }) }) : null}
           strip={strip}
           key={day}
           day={day}

@@ -48,7 +48,7 @@ export async function MinePage() {
   // same line under every item imported years ago was noise.
   const recentDays = 30;
 
-  function Card({ item, since, receipt }: { item: Item; since: string; receipt?: { r: Receipt | undefined } }) {
+  function Card({ item, since, receipt, heading }: { item: Item; since: string; receipt?: { r: Receipt | undefined }; heading?: string }) {
     const r = receipt?.r;
     const toConfirm = receipt !== undefined && r !== undefined && !r.confirmedAt;
     const unconfirmed = receipt !== undefined && !r?.confirmedAt;
@@ -56,7 +56,8 @@ export async function MinePage() {
       <li className={toConfirm ? "label-card to-confirm" : "label-card"}>
         <div className="label-top">
           <AssetTag tag={item.tag} />
-          <span className="label-cat">{categoryName(item.category, t)}</span>
+          {/* Under "Licences and subscriptions" the built-in category's name would say it twice. */}
+          {!(heading && categoryName(item.category, t).toLowerCase() === heading.toLowerCase()) && <span className="label-cat">{categoryName(item.category, t)}</span>}
           {toConfirm && <StatusStamp status="confirm" text={t.person.toConfirm} />}
         </div>
         <Link href={`/chest/items/${item.id}`} className="label-body">
@@ -110,7 +111,7 @@ export async function MinePage() {
             <section aria-labelledby="licences">
               <h2 id="licences" className="section-title">{t.mine.licences}</h2>
               <ul className="label-grid">
-                {held.seats.map(item => <Card key={item.id} item={item} since={format(t.mine.seatSince, { date: long(item.seatSince.slice(0, 10)) })} />)}
+                {held.seats.map(item => <Card key={item.id} item={item} heading={t.mine.licences} since={format(t.mine.seatSince, { date: long(item.seatSince.slice(0, 10)) })} />)}
               </ul>
             </section>
           )}

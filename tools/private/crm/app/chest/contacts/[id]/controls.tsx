@@ -7,7 +7,7 @@ import { Download, Merge, Pencil, Shield, Trash } from "../../../../components/i
 import type { FieldDef } from "../../../../lib/custom.ts";
 import { format } from "../../../../lib/i18n/format.ts";
 import type { Catalogue } from "../../../../lib/i18n/index.ts";
-import { deleteContact } from "../../actions.ts";
+import { deleteContact, keepApart } from "../../actions.ts";
 import { ContactDialog } from "../../ui/contact-form.tsx";
 import type { ContactValues } from "../../ui/values.ts";
 import { MergeDialog } from "../../ui/merge-dialog.tsx";
@@ -58,5 +58,30 @@ export function PrivacyPanel({ id, name, canDelete, t }: { id: string; name: str
           router.push("/chest/contacts");
         })} />
     </section>
+  );
+}
+
+// A contact a form made whose phone is another contact's, under another
+// name (lib/from-forms.ts): maybe one person, maybe two sharing a line.
+// Merge them, or keep them apart — a person decides, never the tool.
+export function MaybeSame({ id, name, other, canMerge, canEdit, t }: { id: string; name: string; other: { id: string; name: string }; canMerge: boolean; canEdit: boolean; t: Catalogue }) {
+  const [merging, setMerging] = useState(false);
+  const [gone, setGone] = useState(false);
+  const [pending, start] = useTransition();
+  const toast = useToast();
+  if (gone) return null;
+  return (
+    <div className="notice warn maybe-same" role="status">
+      <span>{format(t.maybeSame.notice, { name: other.name })}</span>
+      <span className="spacer" />
+      {canMerge && <button type="button" className="button small" onClick={() => setMerging(true)}><Merge />{t.maybeSame.merge}</button>}
+      {canEdit && <button type="button" className="button small quiet" disabled={pending} onClick={() => start(async () => {
+        const r = await keepApart(id);
+        if (!r.ok) return void toast({ text: format(t.errors[r.error], r.values), tone: "error" });
+        setGone(true);
+        toast(t.maybeSame.apartDone);
+      })}>{t.maybeSame.apart}</button>}
+      {merging && <MergeDialog table="contacts" id={id} name={name} initial={other} onClose={() => setMerging(false)} t={t} />}
+    </div>
   );
 }

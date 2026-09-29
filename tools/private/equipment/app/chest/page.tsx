@@ -3,13 +3,15 @@ import Link from "next/link";
 import { RemindButton } from "../../components/remind-button.tsx";
 import { Avatar, EmptyState, PageHeader } from "@argentic/chest-ui/components";
 import { AssetTag, StatusStamp } from "../../components/bits.tsx";
-import { Alert, CategoryIcon, Check, Chevron, Clipboard, Clock, Plus, Print, Sliders, TakeBack, Upload, Wrench } from "../../components/icons.tsx";
+import { Alert, CategoryIcon, Check, Chevron, Clipboard, Clock, Plus, Print, Sliders, Sync, TakeBack, Upload, Wrench } from "../../components/icons.tsx";
+import { Fold } from "../../components/fold.tsx";
 import { SolveButton } from "../../components/solve-button.tsx";
 import { can } from "../../lib/access.ts";
 import { categoryCounts } from "../../lib/categories.ts";
 import { db } from "../../lib/db.ts";
 import { leavingList, purgeDepartures } from "../../lib/departures.ts";
 import { format, formatDay, plural, relative } from "../../lib/i18n/index.ts";
+import { status as intuneStatus } from "../../lib/intune.ts";
 import { openInventory } from "../../lib/inventory.ts";
 import { holderCounts, listItems, overview, unconfirmedReceipts } from "../../lib/items.ts";
 import { addDays } from "../../lib/model.ts";
@@ -35,11 +37,11 @@ export default async function Home() {
   const sql = db();
   const today = chest.today();
   await purgeDepartures(sql, today);
-  const [counts, ov, holders, departing, requests, unconfirmed, inventory] = await Promise.all([
+  const [counts, ov, holders, departing, requests, unconfirmed, inventory, intune] = await Promise.all([
     categoryCounts(sql, member), overview(sql, member, today), holderCounts(sql, member), leavingList(sql, member), waitingRequests(sql, member),
-    unconfirmedReceipts(sql, member, addDays(today, -7)), openInventory(sql),
+    unconfirmedReceipts(sql, member, addDays(today, -7)), openInventory(sql), intuneStatus(sql, member),
   ]);
-  const names = await people([...holders.keys(), ...departing.map(d => d.memberId), ...ov.problems.map(p => p.reportedBy), ...holderIds([...ov.ending, ...ov.repair]), ...requests.map(r => r.member), ...unconfirmed.map(u => u.member)]);
+  const names = await people([...intune.differ.flatMap(d => [d.intune, d.holder ?? ""]), ...holders.keys(), ...departing.map(d => d.memberId), ...ov.problems.map(p => p.reportedBy), ...holderIds([...ov.ending, ...ov.repair]), ...requests.map(r => r.member), ...unconfirmed.map(u => u.member)]);
   const leavers = [...holders].filter(([id, c]) => (id === "erased" || names.get(id)?.status !== "member") && c.items + c.seats > 0);
   // Still here, leaving soon: once they have left, "leavers" says the rest.
   const leaving = departing.filter(d => names.get(d.memberId)?.status === "member");
@@ -60,7 +62,8 @@ export default async function Home() {
     );
   }
 
-  const attention = ov.problems.length + ov.ending.length + ov.repair.length + leavers.length + leaving.length + requests.length + ov.low.length + unconfirmed.length;
+  const attention = ov.problems.length + ov.ending.length + ov.repair.length + leavers.length + leaving.length + requests.length + ov.low.length + unconfirmed.length
+    + intune.differ.length + (intune.missing > 0 ? 1 : 0);
   // What a request may be answered with: things in stock, supplies left,
   // licences with a free seat.
   const offer = requests.length === 0 ? [] : [
@@ -132,8 +135,7 @@ export default async function Home() {
             <section className="panel" id="leaving" aria-labelledby="leaving-title">
               <h3 id="leaving-title"><TakeBack />{t.overview.leaving}</h3>
               <p className="small muted">{t.overview.leavingHint}</p>
-              <ul className="plain">
-                {leaving.map(d => {
+              <Fold more={plural(t.overview.more, leaving.length - 3, locale)} less={t.overview.less} items={leaving.map(d => {
                   const person = names.get(d.memberId);
                   const name = nameOf(person, locale);
                   return (
@@ -148,34 +150,35 @@ export default async function Home() {
                       </Link>
                     </li>
                   );
-                })}
-              </ul>
+                })} />
             </section>
           )}
           {ov.problems.length > 0 && (
             <section className="panel" aria-labelledby="problems">
               <h3 id="problems"><Alert />{t.overview.problems}</h3>
-              <ul className="plain">
-                {ov.problems.map(p => (
+              <Fold more={plural(t.overview.more, ov.problems.length - 3, locale)} less={t.overview.less} items={ov.problems.map(p => (
                   <li key={p.id} className="problem">
                     <div className="problem-head">
                       <Link href={`/chest/items/${p.itemId}`} className="strong">{p.item.name}</Link> <AssetTag tag={p.item.tag} />
                     </div>
                     <p className="quote">{p.body}</p>
+                    {p.item.category.kind === "asset" && p.item.warrantyUntil && p.item.warrantyUntil >= today && p.item.status !== "in_repair" && (
+                      <p className="warranty-line small">
+                        <Link href={`/chest/items/${p.itemId}#problems`}>{format(t.claim.claimIt, { date: formatDay(p.item.warrantyUntil, locale, { day: "numeric", month: "short" }) })}</Link>
+                      </p>
+                    )}
                     <div className="problem-foot">
                       <span className="small muted"><Avatar name={nameOf(names.get(p.reportedBy), locale)} photo={names.get(p.reportedBy)?.photo ?? null} size="s" /> {format(t.overview.reportedBy, { name: p.reportedBy === "erased" ? t.people.erased : nameOf(names.get(p.reportedBy), locale), when: relative(p.createdAt, locale, now) })}</span>
                       <SolveButton id={p.id} label={t.overview.solved} done={t.overview.solvedDone} errors={t.errors} />
                     </div>
                   </li>
-                ))}
-              </ul>
+                ))} />
             </section>
           )}
           {ov.low.length > 0 && (
             <section className="panel" id="low" aria-labelledby="low-title">
               <h3 id="low-title"><Alert />{t.overview.low}</h3>
-              <ul className="plain">
-                {ov.low.map(item => (
+              <Fold more={plural(t.overview.more, ov.low.length - 3, locale)} less={t.overview.less} items={ov.low.map(item => (
                   <li key={item.id} className="mini">
                     <Link href={`/chest/items/${item.id}`} className="mini-link">
                       <span className="mini-icon" aria-hidden="true"><CategoryIcon name={item.category.icon} /></span>
@@ -183,16 +186,14 @@ export default async function Home() {
                       <span className="low-text small">{plural(t.overview.left, item.quantity ?? 0, locale)} · {format(t.overview.minimum, { min: item.minQuantity ?? 0 })}</span>
                     </Link>
                   </li>
-                ))}
-              </ul>
+                ))} />
             </section>
           )}
           {ov.ending.length > 0 && (
             <section className="panel" id="ending" aria-labelledby="ending-title">
               <h3 id="ending-title"><Clock />{t.overview.ending}</h3>
               <p className="small muted">{t.overview.endingHint}</p>
-              <ul className="plain">
-                {ov.ending.map(item => {
+              <Fold more={plural(t.overview.more, ov.ending.length - 3, locale)} less={t.overview.less} items={ov.ending.map(item => {
                   const row = rowOf(item, names, t, locale, today, member.id);
                   return (
                     <li key={item.id} className="mini">
@@ -203,15 +204,13 @@ export default async function Home() {
                       </Link>
                     </li>
                   );
-                })}
-              </ul>
+                })} />
             </section>
           )}
           {ov.repair.length > 0 && (
             <section className="panel" aria-labelledby="repair">
               <h3 id="repair"><Wrench />{t.overview.repair}</h3>
-              <ul className="plain">
-                {ov.repair.map(item => (
+              <Fold more={plural(t.overview.more, ov.repair.length - 3, locale)} less={t.overview.less} items={ov.repair.map(item => (
                   <li key={item.id} className="mini">
                     <Link href={`/chest/items/${item.id}`} className="mini-link">
                       <span className="mini-icon" aria-hidden="true"><CategoryIcon name={item.category.icon} /></span>
@@ -223,16 +222,14 @@ export default async function Home() {
                       ) : <StatusStamp status={item.status} text={t.status[item.status]} />}
                     </Link>
                   </li>
-                ))}
-              </ul>
+                ))} />
             </section>
           )}
           {unconfirmed.length > 0 && (
             <section className="panel" id="unconfirmed" aria-labelledby="unconfirmed-title">
               <h3 id="unconfirmed-title"><Check />{t.overview.unconfirmed}</h3>
               <p className="small muted">{t.overview.unconfirmedHint}</p>
-              <ul className="plain">
-                {unconfirmed.map(u => {
+              <Fold more={plural(t.overview.more, unconfirmed.length - 3, locale)} less={t.overview.less} items={unconfirmed.map(u => {
                   const name = nameOf(names.get(u.member), locale);
                   return (
                     <li key={u.item.id} className="mini">
@@ -243,15 +240,38 @@ export default async function Home() {
                       {u.member.startsWith("mbr_") && <RemindButton id={u.item.id} name={name} item={u.item.name} done={u.remindedToday} t={{ overview: t.overview, errors: t.errors }} />}
                     </li>
                   );
-                })}
-              </ul>
+                })} />
+            </section>
+          )}
+          {(intune.differ.length > 0 || intune.missing > 0) && (
+            <section className="panel" id="intune" aria-labelledby="intune-title">
+              <h3 id="intune-title"><Sync />{t.overview.intune}</h3>
+              {intune.lastGood && <p className="small muted">{format(t.overview.intuneHint, { when: relative(intune.lastGood, locale, now) })}</p>}
+              {intune.missing > 0 && (
+                <p><Link href="/chest/import#intune" className="strong">{plural(t.overview.intuneMissing, intune.missing, locale)}</Link></p>
+              )}
+              {intune.differ.length > 0 && (
+                <Fold more={plural(t.overview.more, intune.differ.length - 3, locale)} less={t.overview.less} items={intune.differ.map(d => {
+                  const here = d.holder ? (d.holder === "erased" ? t.people.erased : nameOf(names.get(d.holder), locale)) : d.place ?? t.overview.intuneNobody;
+                  return (
+                    <li key={d.itemId} className="mini">
+                      <Link href={`/chest/items/${d.itemId}`} className="mini-link">
+                        <span className="mini-what">
+                          <span className="strong">{d.name}</span> <AssetTag tag={d.tag} />{" "}
+                          <span className="muted">{format(t.overview.intuneDiffer, { here, intune: nameOf(names.get(d.intune), locale) })}</span>
+                        </span>
+                        <Chevron />
+                      </Link>
+                    </li>
+                  );
+                })} />
+              )}
             </section>
           )}
           {leavers.length > 0 && (
             <section className="panel warn" aria-labelledby="leavers">
               <h3 id="leavers"><Alert />{t.overview.leavers}</h3>
-              <ul className="plain">
-                {leavers.map(([id, c]) => {
+              <Fold more={plural(t.overview.more, leavers.length - 3, locale)} less={t.overview.less} items={leavers.map(([id, c]) => {
                   const name = id === "erased" ? t.people.erased : nameOf(names.get(id), locale);
                   return (
                     <li key={id} className="mini">
@@ -262,8 +282,7 @@ export default async function Home() {
                       </Link>
                     </li>
                   );
-                })}
-              </ul>
+                })} />
             </section>
           )}
         </div>

@@ -75,7 +75,7 @@ export default async function QuoteLinkPage({ params, searchParams }: { params: 
         {showing === "refused" && <div className="seal-mark" aria-hidden="true"><Close /></div>}
         <h1>{title}</h1>
         <p className="lead" role={q["answered"] === "1" ? "status" : undefined}>{lead}</p>
-        {showing === "accepted" && answer && <p className="hint">{o.acceptedNext}</p>}
+        {showing === "accepted" && answer && <p className="hint">{format(o.acceptedNext, { company: companyName })}</p>}
         <p className="row centre">
           <a className="button quiet" href={pdf} target="_blank" rel="noopener"><Download />{showing === "accepted" && answer ? o.pdfAccepted : o.pdfOpen}</a>
           {showing === "open" && <a className="link-button" href="#answer">{o.toAnswer}</a>}

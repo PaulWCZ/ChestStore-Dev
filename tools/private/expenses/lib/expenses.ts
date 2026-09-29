@@ -152,7 +152,10 @@ function toExpense(r: Row): Expense {
 // "card_own_money": a company card payment of the statement matches it,
 // yet its owner says they paid with their own money (it must not be paid
 // back twice).
-export type Warning = { code: "duplicate" | "receipt_reused" | "no_receipt" | "over_cap" | "resent" | "no_guests" | "no_rate" | "over_cap_night" | "card_own_money"; cap?: number; reason?: string };
+// "self_approved": approved by its own owner — only before the rule that
+// nobody approves their own (an accountant alone could, then); kept
+// visible where it is paid and exported.
+export type Warning = { code: "duplicate" | "receipt_reused" | "no_receipt" | "over_cap" | "resent" | "no_guests" | "no_rate" | "over_cap_night" | "card_own_money" | "self_approved"; cap?: number; reason?: string };
 
 export async function warnings(sql: Query, list: Expense[], options: { anyone?: boolean } = {}): Promise<Map<string, Warning[]>> {
   const out = new Map<string, Warning[]>();
@@ -181,6 +184,7 @@ export async function warnings(sql: Query, list: Expense[], options: { anyone?: 
     if (e.kind === "expense" && !e.receipt) found.push({ code: "no_receipt" });
     if (e.base === null) found.push({ code: "no_rate" });
     if (r?.card) found.push({ code: "card_own_money" });
+    if ((e.status === "approved" || e.status === "paid") && e.decidedBy === e.owner && !e.imported) found.push({ code: "self_approved" });
     if (e.kind === "expense" && r?.guests && !e.alone && e.guests.members.length + e.guests.names.length === 0) found.push({ code: "no_guests" });
     // A hotel's limit is per night.
     const perUnit = e.nights ? Math.ceil(e.amount / e.nights) : e.amount;

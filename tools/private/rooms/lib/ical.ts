@@ -4,7 +4,7 @@ import { windowsZone } from "./windows-zones.ts";
 // Reading a room calendar's .ics export (RFC 5545) — Google Calendar's
 // "Export" of a resource calendar, Outlook's "Save calendar" — for the
 // bookings to bring into Rooms on switching day: each event's title, its
-// organiser's and guests' names (CN), and its occurrences as instants,
+// organiser's and guests' names (CN) and addresses, and its occurrences as instants,
 // with whether it is a weekly series Rooms can keep as one.
 //
 // The reader is the studio's own, copied from the Booking tool
@@ -340,15 +340,18 @@ function text(value: string | undefined): string {
   return (value ?? "").replace(/\\([nN,;\\])/gu, (_, c: string) => (c === "n" || c === "N" ? " " : c)).replace(/\s+/gu, " ").trim();
 }
 
-// A person of an event, as the file names them: their name (CN), else the
-// address's local part. Rooms and other resources (CUTYPE=RESOURCE/ROOM)
-// are not people.
-function personOf(p: Property): string | null {
+// A person of an event, as the file names them: their name (CN) and
+// their address (mailto:), either of which may be missing. Rooms and other
+// resources (CUTYPE=RESOURCE/ROOM) are not people.
+export type EventPerson = { name: string | null; address: string | null };
+function personOf(p: Property): EventPerson | null {
   const kind = (p.params["CUTYPE"] ?? "").toUpperCase();
   if (kind === "RESOURCE" || kind === "ROOM") return null;
-  const name = text(p.params["CN"]);
-  const address = p.value.replace(/^mailto:/iu, "").trim();
-  return name && name !== address ? name : address || null;
+  const address = p.value.replace(/^mailto:/iu, "").trim().slice(0, 254);
+  const cn = text(p.params["CN"]).slice(0, 200);
+  const name = cn && cn.toLowerCase() !== address.toLowerCase() ? cn : null;
+  const mail = address.includes("@") ? address : null;
+  return name || mail ? { name, address: mail } : null;
 }
 
 export type Occurrence = { start: number; end: number; key: string };
@@ -357,8 +360,8 @@ export type CalendarEvent = {
   line: number;
   uid: string;
   title: string;
-  organizer: string | null;
-  attendees: string[];
+  organizer: EventPerson | null;
+  attendees: EventPerson[];
   allDay: boolean;
   // Every week on the same weekday (FREQ=WEEKLY, INTERVAL=1, one BYDAY at
   // most, the start's): Rooms keeps it as one weekly booking.
@@ -449,7 +452,7 @@ export function readEvents(input: string, window: { from: number; to: number; zo
       uid,
       title: text(prop(e, "SUMMARY")?.value),
       organizer: organizer ? personOf(organizer) : null,
-      attendees: props(e, "ATTENDEE").map(personOf).filter((n): n is string => n !== null),
+      attendees: props(e, "ATTENDEE").map(personOf).filter((n): n is EventPerson => n !== null),
       allDay: start.allDay,
       weekly,
       repeats: ruleText !== undefined && !weekly,

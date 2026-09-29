@@ -8,6 +8,7 @@ import { Alert, Back, CategoryIcon, Print } from "../../../../components/icons.t
 import { LabelFace } from "../../../../components/label-face.tsx";
 import { ReceiveButton } from "../../../../components/receive-button.tsx";
 import { ReportButton } from "../../../../components/report-button.tsx";
+import { ClaimButton } from "../../../../components/claim-button.tsx";
 import { SolveButton } from "../../../../components/solve-button.tsx";
 import { can } from "../../../../lib/access.ts";
 import { AppError } from "../../../../lib/app-error.ts";
@@ -15,6 +16,7 @@ import { db } from "../../../../lib/db.ts";
 import type { Catalogue, Locale } from "../../../../lib/i18n/index.ts";
 import { format, formatDate, formatDay, plural, relative } from "../../../../lib/i18n/index.ts";
 import { fieldsOf, valuesOf } from "../../../../lib/fields.ts";
+import { factsOf } from "../../../../lib/intune.ts";
 import { lastSeen, openInventory } from "../../../../lib/inventory.ts";
 import { itemDetail, places, repairCosts, repairOf, type HistoryEntry, type Receipt } from "../../../../lib/items.ts";
 import { currentCharter } from "../../../../lib/receipts.ts";
@@ -94,6 +96,8 @@ export default async function ItemPage({ params, searchParams }: { params: Promi
   const ending = endingOf(item, t, locale, today);
   const cat = categoryName(item.category, t);
   const licence = item.category.kind === "licence";
+  // A moment's day in the Chest's time zone (YYYY-MM-DD).
+  const localDay = (at: string) => new Intl.DateTimeFormat("en-CA", { timeZone: zone, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(at));
   const day = (d: string | null) => (d ? formatDay(d, locale, { day: "numeric", month: "long", year: "numeric" }) : null);
   const words = { report: t.report, errors: t.errors, common: t.common, dialog: t.dialog };
 
@@ -172,9 +176,10 @@ export default async function ItemPage({ params, searchParams }: { params: Promi
   }
 
   const full = detail.item;
-  const [team, placeList, ownFields, repair, costs, seenInfo, inventory] = await Promise.all([
+  const [team, placeList, ownFields, repair, costs, seenInfo, inventory, intune] = await Promise.all([
     can(member, "items.manage") ? everyone() : Promise.resolve({ ok: true, people: [] }), places(sql, member), fieldsOf(sql, full.category.id),
     full.status === "in_repair" ? repairOf(sql, full.id) : Promise.resolve(null), repairCosts(sql, full.id), lastSeen(sql, full.id), openInventory(sql),
+    full.category.kind === "asset" ? factsOf(sql, member, full.serial) : Promise.resolve(null),
   ]);
   const opening = (await searchParams).give === "1" ? "give" as const : null;
   const repairText = repair ? [
@@ -214,6 +219,26 @@ export default async function ItemPage({ params, searchParams }: { params: Promi
       ...(full.category.kind === "asset" && (seenText || inventory) ? [[t.item.lastSeen, seenText ?? t.item.neverSeen] as [string, string]] : []),
     ];
   for (const { field, value } of valuesOf(ownFields, full.extra)) details.push([fieldName(field, t), field.type === "date" ? day(value) : value]);
+  // What Microsoft Intune said of it at its last read (same serial number);
+  // the person it names, when they are not who holds it here.
+  if (intune) {
+    details.push([t.item.intune, [
+      intune.lastCheckIn ? format(t.item.intuneCheckIn, { when: relative(intune.lastCheckIn, locale, now) }) : t.item.intuneNever,
+      [intune.os, intune.osVersion].filter(Boolean).join(" "),
+      intune.deviceName ?? "",
+    ].filter(Boolean).join(" · ")]);
+  }
+  const intuneNames = intune?.member && intune.member !== "erased" && intune.member !== full.holder ? await people([intune.member]) : null;
+  const intuneOther = intuneNames && intune?.member ? nameOf(intuneNames.get(intune.member), locale) : null;
+  // A problem while the warranty runs: the supplier's details, and a claim
+  // (to repair) unless it is already away, lost or retired.
+  const warranty = full.category.kind === "asset" && full.warrantyUntil !== null && full.warrantyUntil >= today
+    ? {
+      text: format(t.claim.until, { date: day(full.warrantyUntil) ?? "" }),
+      facts: { warranty: day(full.warrantyUntil) ?? "", supplier: full.supplier, bought: day(full.purchasedOn), invoice: full.invoice ? `/chest/items/${full.id}/invoice` : null },
+      claimable: full.status === "in_use" || full.status === "in_stock",
+    }
+    : null;
 
   return (
     <div className="wide item-page">
@@ -240,9 +265,22 @@ export default async function ItemPage({ params, searchParams }: { params: Promi
                 {detail.problems.map(p => (
                   <li key={p.id} className="problem">
                     <p className="quote">{p.body}</p>
+                    {warranty && (
+                      <p className="warranty-line small">
+                        <strong>{warranty.text}</strong>
+                        {full.supplier && <> · {format(t.claim.from, { supplier: full.supplier })}</>}
+                      </p>
+                    )}
                     <div className="problem-foot">
                       <span className="small muted">{format(t.item.problemBy, { name: who(p.reportedBy, names, t, locale), when: relative(p.createdAt, locale, now) })}</span>
-                      <SolveButton id={p.id} label={t.overview.solved} done={t.overview.solvedDone} errors={t.errors} />
+                      <span className="row">
+                        {warranty?.claimable && (
+                          <ClaimButton item={{ id: full.id, name: full.name }} problem={p.body} facts={warranty.facts} today={today}
+                            holderName={holder.kind === "member" && !holder.you ? holder.name : null}
+                            t={{ claim: t.claim, repair: t.repair, errors: t.errors, common: t.common, dialog: t.dialog, date: t.date }} />
+                        )}
+                        <SolveButton id={p.id} label={t.overview.solved} done={t.overview.solvedDone} errors={t.errors} />
+                      </span>
                     </div>
                   </li>
                 ))}
@@ -257,6 +295,7 @@ export default async function ItemPage({ params, searchParams }: { params: Promi
               {full.category.kind === "asset" && <div><dt>{t.item.serial}</dt><dd className="mono">{item.serial ?? t.common.none}</dd></div>}
               {details.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value ?? t.common.none}</dd></div>)}
             </dl>
+            {intuneOther && <p className="warn-line">{format(t.item.intuneOther, { name: intuneOther })}</p>}
             {full.notes && <div className="notes"><h3>{t.item.notes}</h3><p>{full.notes}</p></div>}
             <p className="small muted">{format(t.item.added, { date: formatDate(full.createdAt, locale, { day: "numeric", month: "long", year: "numeric" }, zone) })}</p>
           </section>
@@ -275,9 +314,13 @@ export default async function ItemPage({ params, searchParams }: { params: Promi
               {detail.history.map(h => (
                 <li key={h.id} className={`tl tl-${h.kind}`}>
                   <span className="tl-text">{historyText(h, names, t, locale)}</span>
+                  {/* The day it happened leads (the order of the history); when it
+                      was said later (a handover recorded late, an import), when
+                      it was written follows. */}
                   <span className="tl-when small muted">
-                    {formatDate(h.at, locale, { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }, zone)}
-                    {h.day && h.day !== h.at.slice(0, 10) && <> · {format(t.history.on, { date: formatDay(h.day, locale) })}</>}
+                    {h.day && h.day !== localDay(h.at) ? (
+                      <>{formatDay(h.day, locale, { day: "numeric", month: "short", year: "numeric" })} · {format(t.history.recorded, { date: formatDate(h.at, locale, { day: "numeric", month: "short", year: "numeric" }, zone) })}</>
+                    ) : formatDate(h.at, locale, { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }, zone)}
                   </span>
                   {h.note && h.kind !== "edited" && h.kind !== "photo" && h.kind !== "invoice" && <span className="tl-note">{h.note}</span>}
                   {historyExtra(h, t, locale, currency) && <span className="tl-note">{historyExtra(h, t, locale, currency)}</span>}

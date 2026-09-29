@@ -19,7 +19,7 @@ type Words = {
   record: {
     identity: string; contract: string; emergency: string; fields: Record<Field, string>;
     hints: { legalName: string; qualification: string; workPermit: string; agency: string; register: string; permitEnd: string; employeeNumber: string; workDays: string };
-    weekDays: string[];
+    weekDays: readonly string[];
     contracts: Record<Contract, string>; sexes: Record<"female" | "male", string>; notSaid: string; workingTimes: { full: string; part: string };
     save: string; saving: string; saved: string; noChange: string; link: string; linkNone: string; linked: string;
     delete: string; deleteHint: string; deleted: string; deleteTitle: string; deleteBody: string; deleteConfirm: string; cancel: string;
@@ -145,9 +145,9 @@ export function RecordForm({ id, initial, linked, erased, members, today, lang, 
             ))}
             {text("hours", 5, false, undefined, "text")}
             {(values.workingTime === "part" || values.workDays !== "") && (
-              <fieldset className="field-group week-days" aria-describedby={uid + "workDays-hint"}>
-                <legend className="label">{t.record.fields.workDays}</legend>
-                <div className="row">
+              <div className="field-group week-days" role="group" aria-labelledby={uid + "workDays"} aria-describedby={uid + "workDays-hint"}>
+                <span id={uid + "workDays"} className="label">{t.record.fields.workDays}</span>
+                <div className="day-chips">
                   {t.record.weekDays.map((name, i) => (
                     <label key={name} className="check-chip">
                       <input type="checkbox" checked={days.has(i + 1)} onChange={() => toggleDay(i + 1)} />
@@ -156,7 +156,7 @@ export function RecordForm({ id, initial, linked, erased, members, today, lang, 
                   ))}
                 </div>
                 <p id={uid + "workDays-hint"} className="hint">{t.record.hints.workDays}</p>
-              </fieldset>
+              </div>
             )}
             {date("startDate", true)}
             {date("trialEnd")}

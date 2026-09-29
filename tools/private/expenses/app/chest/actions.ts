@@ -137,6 +137,15 @@ export async function updateCompany(input: { currency?: string; reminder?: boole
   return act(async actor => { await settings.updateSettings(db(), actor, input); return null; });
 }
 
+// Card statement words (Settings → Company).
+export async function addCardRule(words: string, categoryId: string): Promise<Result> {
+  return act(async actor => { await settings.addCardRule(db(), actor, words, categoryId); return null; });
+}
+
+export async function removeCardRule(ruleId: string): Promise<Result> {
+  return act(async actor => { await settings.removeCardRule(db(), actor, ruleId); return null; });
+}
+
 export async function addCategory(input: { name: string; account?: string; vatRecovery?: number; cap?: string | null }): Promise<Result<{ id: string }>> {
   return act(async actor => ({ id: (await settings.addCategory(db(), actor, input)).id }));
 }

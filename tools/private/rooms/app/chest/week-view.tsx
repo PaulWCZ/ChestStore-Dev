@@ -26,6 +26,8 @@ export type WeekDay = {
   usualFree: boolean;
   // My own desk, lent that day to this person.
   lentTo: string | null;
+  // My first meeting still to come that day (organiser or guest).
+  meeting: { room: string; time: string } | null;
 };
 
 type Words = {
@@ -51,7 +53,8 @@ const faces = 4;
 export function WeekView({ days, officeId, focus, usual, pattern, weekdays, desks, calendarPage, self, locale, t }: {
   days: WeekDay[];
   self: { name: string; photo: string | null };
-  officeId: string;
+  // null: no office yet — presence only, no desks.
+  officeId: string | null;
   focus: string | null;
   usual: { id: string; name: string; areaName: string; assigned: boolean } | null;
   pattern: Pattern;
@@ -215,8 +218,14 @@ export function WeekView({ days, officeId, focus, usual, pattern, weekdays, desk
                       ))}
                     </ul>
                   )}
+                  {(me === "remote" || me === "off") && d.meeting && !d.past && (
+                    <div className="suggest meeting-hint">
+                      <span className="hint">{format(t.week.meetingThere, { room: d.meeting.room, time: d.meeting.time })}</span>
+                      <button type="button" className="button small" onClick={() => say(d, "office")}><Plan />{t.status.office}</button>
+                    </div>
+                  )}
                   {d.lentTo && !d.past && <p className="suggest hint">{format(me === "office" ? t.week.lentBack : t.week.lent, { desk: usual?.name ?? "", name: d.lentTo })}</p>}
-                  {me === "office" && !d.past && d.desks.length === 0 && (
+                  {me === "office" && !d.past && d.desks.length === 0 && officeId !== null && (
                     <div className="suggest">
                       {usual?.assigned && !d.lentTo ? (
                         <span className="muted"><Desk /> {format(t.week.yourDesk, { desk: usual.name })}</span>

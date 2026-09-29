@@ -1,11 +1,12 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { addCategory, removeCategory, restoreCategory, updateCategory } from "../../lib/categories.ts";
+import { addCategory, removeCategory, restoreCategory, setMembersSee as setSee, updateCategory } from "../../lib/categories.ts";
 import { db } from "../../lib/db.ts";
 import { attempt, type Result } from "../../lib/errors.ts";
 import { addField, removeField, renameField, restoreField } from "../../lib/fields.ts";
 import { applyImport, previewImport, type Plan } from "../../lib/importer.ts";
+import { missingAsCsv, refresh } from "../../lib/intune.ts";
 import * as inventory from "../../lib/inventory.ts";
 import * as items from "../../lib/items.ts";
 import { confirm, remind, setCharter } from "../../lib/receipts.ts";
@@ -179,6 +180,10 @@ export async function saveCategory(id: string, input: { name?: string; icon?: st
   return act(async actor => { await updateCategory(db(), actor, id, input); return null; });
 }
 
+export async function setMembersSee(id: string, value: boolean): Promise<Result> {
+  return act(async actor => { await setSee(db(), actor, id, value); return null; });
+}
+
 export async function newCategory(input: { name: string; icon: string; kind: string }): Promise<Result> {
   return act(async actor => { await addCategory(db(), actor, input); return null; });
 }
@@ -193,6 +198,20 @@ export async function undoDropCategory(id: string): Promise<Result> {
 
 export async function checkImport(source: string, text: string, options?: { keep?: string[] }): Promise<Result<Plan>> {
   return attempt(async () => previewImport(db(), await currentMember(), source, text, options));
+}
+
+// Microsoft Intune (read only): the devices it knows and Equipment does not,
+// read now and shown in the importer's preview; nothing is added before
+// the importer's button.
+export async function checkIntune(): Promise<Result<{ devices: number; text: string | null; plan: Plan | null }>> {
+  const result = await attempt(async () => {
+    const actor = await currentMember();
+    const read = await refresh(db(), actor);
+    const { text, count } = await missingAsCsv(db(), actor, read.list);
+    return { devices: read.devices, text: count > 0 ? text : null, plan: count > 0 ? await previewImport(db(), actor, "intune", text) : null };
+  });
+  revalidatePath("/chest", "layout");
+  return result;
 }
 
 export async function runImport(source: string, text: string, options?: { keep?: string[] }): Promise<Result<{ imported: number; skipped: number; fields: number }>> {

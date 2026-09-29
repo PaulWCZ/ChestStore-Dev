@@ -4,6 +4,7 @@ import { AppError } from "./app-error.ts";
 import { parseCsv } from "./csv.ts";
 import type { Sql } from "./db.ts";
 import { equipment as equipmentKeys, id, limits, type Equipment } from "./model.ts";
+import { matcher, type Matchable } from "./match.ts";
 import { cancelDeskBookings, type CancelledDesk } from "./places.ts";
 
 // Moving in: the meeting rooms a company already keeps in Google Workspace
@@ -111,24 +112,23 @@ export async function importRooms(sql: Sql, actor: Member | null, officeId: unkn
 }
 
 // Who has which desk: a desk (its name, "D-12") and a person (their name as
-// the Chest knows it; an address when the Chest gives addresses). A desk
+// the Chest knows it, "Martin, Camille" too; an address when the Chest
+// gives addresses: lib/match.ts). A desk
 // that does not exist yet is added to the area named in an "Area" column.
 // Giving a desk cancels others' coming bookings of it (returned: the caller
 // tells them), as giving it by hand does.
-export async function importDesks(sql: Sql, actor: Member | null, officeId: unknown, text: unknown, people: readonly { id: string; name: string; email?: string }[]): Promise<DesksImported> {
+export async function importDesks(sql: Sql, actor: Member | null, officeId: unknown, text: unknown, people: readonly Matchable[]): Promise<DesksImported> {
   if (!can(actor, "places.manage")) throw new AppError("forbidden");
   const oid = id(officeId);
   const { header, rows } = rowsOf(text);
   const c = {
-    desk: column(header, ["Desk", "Desk name", "Desk Name", "Space", "Space name", "Seat", "Bureau", "Poste", "Nom du bureau"]),
+    desk: column(header, ["Desk", "Desk name", "Desk Name", "Space", "Space name", "Seat", "Bureau", "Poste", "Nom du bureau", "Nom du poste"]),
     person: column(header, ["Person", "Name", "User", "User name", "Assigned to", "Assignee", "Owner", "Employee", "Personne", "Nom", "Attribué à", "Collaborateur"]),
     email: column(header, ["Email", "E-mail", "User email", "Email address", "Mail", "Adresse e-mail", "Courriel"]),
     area: column(header, ["Area", "Zone", "Neighborhood", "Neighbourhood", "Espace"]),
   };
   if (c.desk < 0 || (c.person < 0 && c.email < 0)) throw new AppError("invalid");
-  const byName = new Map<string, string[]>();
-  for (const p of people) byName.set(fold(p.name), [...(byName.get(fold(p.name)) ?? []), p.id]);
-  const byEmail = new Map(people.filter(p => p.email).map(p => [p.email!.toLowerCase(), p.id]));
+  const who = matcher(people);
   return sql.begin(async tx => {
     const [office] = await tx`select 1 from offices where id = ${oid} for update`;
     if (!office) throw new AppError("not_found");
@@ -146,8 +146,7 @@ export async function importDesks(sql: Sql, actor: Member | null, officeId: unkn
       const email = c.email >= 0 ? (row[c.email] ?? "").trim().toLowerCase() : "";
       const name = c.person >= 0 ? (row[c.person] ?? "").trim() : "";
       if (!email && !name) { result.skipped.push({ line, reason: "no_person" }); continue; }
-      const named = name ? byName.get(fold(name)) ?? [] : [];
-      const person = (email ? byEmail.get(email) : undefined) ?? (named.length === 1 ? named[0] : undefined);
+      const person = who({ name: name || null, address: email || null });
       if (!person) { result.skipped.push({ line, reason: "unknown_person" }); continue; }
       if (given.has(person)) { result.skipped.push({ line, reason: "taken" }); continue; }
       let desk = desks.get(fold(deskName));

@@ -86,6 +86,7 @@ export const en = {
   },
   week: {
     title: "My week",
+    meetingThere: "Meeting in {room} at {time}: coming to the office?",
     thisWeek: "This week",
     nextWeek: "Next week",
     whereOn: "Where are you on {day}?",
@@ -113,6 +114,7 @@ export const en = {
       action: "Set up the office",
       example: "Start with an example",
       member: "Ask an admin of Rooms to set up your office.",
+      presence: "No office is set up yet. You can already say where you will be each day.",
     },
   },
   usual: {
@@ -133,6 +135,7 @@ export const en = {
   },
   desks: {
     title: "Book a desk",
+    skip: "Go to the desks",
     part: "When",
     filters: "Show",
     plan: "Plan",
@@ -167,7 +170,8 @@ export const en = {
     kept: "Kept",
   },
   rooms: {
-    title: "Book a room",
+    title: "Meeting rooms",
+    afterHours: "The rooms close at {time} today: here is {day}.",
     book: "Book a room",
     grid: "Rooms and hours",
     freeSlots: "Free:",
@@ -368,6 +372,8 @@ export const en = {
       weekly: { one: "every {weekday}, {span}, from {date} ({count} week)", other: "every {weekday}, {span}, from {date} ({count} weeks)" },
       several: { one: "{span}, {count} day from {date}", other: "{span}, {count} days from {date}" },
       yourName: "in your name: {name} does not use Rooms",
+      yours: { one: "{count} of them will be in your name: its organiser is not found in Rooms.", other: "{count} of them will be in your name: their organiser is not found in Rooms." },
+      guestsUnknown: "Not found in Rooms, so not invited: {names}.",
       takenDays: "not on {days}: the room is already booked in Rooms",
       leftOut: "Not imported",
       reasons: {

@@ -1,4 +1,4 @@
-import { BrandMark, NoAccess, Toasts, type NavItem } from "@argentic/chest-ui/components";
+import { BrandMark, NoAccess, SearchBox, Toasts, type NavItem } from "@argentic/chest-ui/components";
 import type { ReactNode } from "react";
 import { Download, Gear, Plus, Receipt, Stamp, Wallet } from "../../components/icons.tsx";
 import { Mark } from "../../components/mark.tsx";
@@ -35,7 +35,7 @@ export default async function MembersLayout({ children }: { children: ReactNode 
   const approvals = can(member, "approve") ? (await waiting(sql, member)).length : 0;
   const payments = can(member, "pay") ? new Set((await toPay(sql, member)).map(e => e.owner)).size : 0;
   const nav: NavItem[] = [
-    { href: "/chest", label: t.shell.mine, icon: <Receipt />, exact: true, also: ["/chest/new", "/chest/expenses"] },
+    { href: "/chest", label: t.shell.mine, icon: <Receipt />, exact: true, also: ["/chest/new", "/chest/expenses", "/chest/search"] },
     ...(can(member, "approve") ? [{ href: "/chest/approve", label: t.shell.approve, icon: <Stamp />, count: approvals }] : []),
     ...(can(member, "pay") ? [{ href: "/chest/pay", label: t.shell.pay, icon: <Wallet />, count: payments, also: ["/chest/cards"] }] : []),
     ...(can(member, "export") ? [{ href: "/chest/export", label: t.shell.export, icon: <Download /> }] : []),
@@ -46,7 +46,7 @@ export default async function MembersLayout({ children }: { children: ReactNode 
       brand={brand}
       nav={nav}
       member={{ name: member.name, role: t.roles[role], photo: member.photo }}
-      tools={<a className="button small top-add" href="/chest/new"><Plus />{t.shell.add}</a>}
+      tools={<><SearchBox action="/chest/search" labels={t.search} maxLength={100} className="top-search" /><a className="button small top-add" href="/chest/new"><Plus />{t.shell.add}</a></>}
       labels={labels}
       width="full"
     >

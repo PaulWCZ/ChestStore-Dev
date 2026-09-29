@@ -8,14 +8,15 @@ import type { Catalogue } from "../../../lib/i18n/index.ts";
 import { format, plural } from "../../../lib/i18n/format.ts";
 import type { Result } from "../../../lib/errors.ts";
 import { fieldTypes, icons, kinds, limits, type FieldType, type IconName, type Kind } from "../../../lib/model.ts";
-import { dropCategory, dropField, newCategory, newField, saveCategory, saveField, undoDropCategory, undoDropField } from "../actions.ts";
+import { dropCategory, dropField, newCategory, newField, saveCategory, saveField, setMembersSee, undoDropCategory, undoDropField } from "../actions.ts";
 
 type Words = { settings: Catalogue["settings"]; icons: Catalogue["icons"]; errors: Catalogue["errors"]; common: Catalogue["common"] };
 type FieldRow = { id: string; name: string; type: FieldType };
-type Cat = { id: string; name: string; builtIn: string | null; icon: IconName; kind: Kind; total: number; fields: FieldRow[] };
+type Cat = { id: string; name: string; builtIn: string | null; icon: IconName; kind: Kind; total: number; membersSee: boolean; fields: FieldRow[] };
 
 // Each category on one line: its icon (a menu of icons), its name (saved when
-// one leaves the field), how many items, delete when empty (with Undo).
+// one leaves the field), how many items, delete when empty (with Undo);
+// whether members see who holds its items (saved when ticked).
 export function CategoriesView({ categories, t, locale }: { categories: Cat[]; t: Words; locale: string }) {
   const router = useRouter();
   const toast = useToast();
@@ -58,6 +59,20 @@ export function CategoriesView({ categories, t, locale }: { categories: Cat[]; t
                 toast({ id: `category-${c.id}`, text: format(w.removed, { name: label }), undo: undoing(() => undoDropCategory(c.id)) });
                 router.refresh();
               })}><Trash /><span>{w.remove}</span></button>
+              {c.kind !== "consumable" && (
+                <label className="check cat-see">
+                  <input type="checkbox" checked={c.membersSee} disabled={pending} onChange={e => {
+                    const on = e.currentTarget.checked;
+                    start(async () => {
+                      const r = await setMembersSee(c.id, on);
+                      if (!r.ok) return show(r);
+                      toast(format(on ? w.seeOn : w.seeOff, { name: label }));
+                      router.refresh();
+                    });
+                  }} />
+                  <span>{w.membersSee}</span>
+                </label>
+              )}
               <FieldsEditor category={c} label={label} t={t} />
             </li>
           );

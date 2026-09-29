@@ -32,7 +32,7 @@ test("the bookings of a period, in the admin's words, formulas neutralised; memb
   const csv = await bookingsCsv(sql, asMember(camille), d, d, catalogue("fr"), "fr", zone);
   const lines = csv.replace(/^﻿/u, "").trim().split("\r\n");
   assert.equal(lines[0], "Date,Type,Site,Étage,Lieu,Début,Fin,Réservé par,Objet,Personnes invitées");
-  assert.equal(lines[1], `${d},Bureau,Paris,First floor,D-01 · Open space,00:00,12:00,Hugo Bernard,,`);
+  assert.equal(lines[1], `${d},Poste,Paris,First floor,D-01 · Open space,00:00,12:00,Hugo Bernard,,`);
   assert.equal(lines[2], `${d},Salle,Paris,Ground floor,Atlas,10:00,11:00,Inès Moreau,"'=HYPERLINK(""x"")",1`);
   await assert.rejects(bookingsCsv(sql, asMember(hugo), d, d, catalogue("en"), "en", zone), { code: "forbidden" });
   await assert.rejects(bookingsCsv(sql, asMember(camille), d, "1999-01-01", catalogue("en"), "en", zone), { code: "invalid" });

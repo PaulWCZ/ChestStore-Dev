@@ -371,6 +371,9 @@ textarea.field { resize: vertical; min-height: 64px; }
 .event-head strong { color: var(--ink); }
 .event-head time { font-size: var(--text-xs); color: var(--ink-2); }
 .event-on { color: var(--ink-2); }
+/* What a form gave (name · email · phone), under its line. */
+.event-who { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 var(--space-2); font-size: var(--text-s); color: var(--ink); overflow-wrap: anywhere; }
+.event-who .sep { color: var(--ink-2); }
 .event-body { white-space: pre-wrap; overflow-wrap: anywhere; background: var(--surface); border: var(--border-width) solid var(--line); border-radius: var(--radius-m); padding: var(--space-2) var(--space-3); font-size: var(--text-m); }
 .event-actions { display: flex; gap: 2px; opacity: 0.4; }
 .event:hover .event-actions, .event:focus-within .event-actions { opacity: 1; }
@@ -609,3 +612,26 @@ textarea.field { resize: vertical; min-height: 64px; }
 @media (max-width: 760px) {
   .owner-inline .ck-picker { grid-template-columns: 1fr; row-gap: var(--space-1); }
 }
+
+/* The leads inbox (My day): contacts forms made, nobody's yet. */
+.leads { display: flex; flex-direction: column; gap: var(--space-2); margin-bottom: var(--space-5); }
+.lead-list { background: var(--surface); border: var(--border-width) solid var(--line); border-left: 3px solid var(--accent-line); border-radius: var(--radius-m); }
+.lead-row { display: flex; flex-wrap: wrap; align-items: flex-start; gap: var(--space-2) var(--space-3); padding: var(--space-3); }
+.lead-row + .lead-row { border-top: var(--border-width) solid var(--line); }
+.lead-main { flex: 1 1 18rem; min-width: 0; display: flex; flex-direction: column; gap: var(--space-1); }
+.lead-name { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 var(--space-2); }
+.lead-name a { font-weight: var(--weight-strong); }
+.lead-when { font-size: var(--text-xs); }
+.lead-reach { display: flex; flex-wrap: wrap; gap: 0 var(--space-3); font-size: var(--text-s); overflow-wrap: anywhere; }
+.lead-message { white-space: pre-wrap; overflow-wrap: anywhere; font-size: var(--text-s); color: var(--ink-2); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.lead-maybe { margin: 0; }
+.lead-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+/* A form answer to check (Settings → Form answers). */
+.check-list { display: flex; flex-direction: column; gap: var(--space-3); }
+.check-row { background: var(--surface); border: var(--border-width) solid var(--line); border-radius: var(--radius-m); padding: var(--space-3); display: flex; flex-direction: column; gap: var(--space-2); }
+.check-row .row { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.maybe-same { flex-wrap: wrap; }
+.maybe-same .spacer { flex: 1; }
+.check-row fieldset, .form fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
+.check-line { display: flex; align-items: center; gap: var(--space-2); min-height: 44px; cursor: pointer; }
+.check-line input { width: 20px; height: 20px; accent-color: var(--accent); }

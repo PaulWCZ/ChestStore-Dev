@@ -234,3 +234,31 @@ export async function removeRule(id: string): Promise<Result<rules.Rule>> {
 export async function restoreRule(rule: rules.Rule): Promise<Result<rules.Rule>> {
   return act(actor => rules.restoreRule(db(), actor, rule, answers));
 }
+
+// ---- My requests: a colleague's own tickets (any member, their own only) ----
+
+// writeMine: the colleague writes again on their own request; its agent
+// (or everyone who answers, when nobody has it) hears of it.
+export async function writeMine(number: number, body: string, files: { ref: string; name: string }[] = []): Promise<Result<null>> {
+  return act(async actor => {
+    const sql = db();
+    const t = await tickets.writeMine(sql, actor, number, body, memberFiles(files));
+    await tell.customerWrote(t, body.trim());
+    await tell.refreshBadges(sql);
+    return null;
+  });
+}
+
+export async function rateMine(number: number, value: "good" | "bad"): Promise<Result<null>> {
+  return act(async actor => {
+    const t = await tickets.rateMine(db(), actor, number, value);
+    await tell.rated(t, value);
+    return null;
+  });
+}
+
+// mineUpload lets a colleague send one file for their own request.
+export async function mineUpload(number: number, type: string, size: number): Promise<{ ok: true; url: string } | { ok: false; error: ErrorCode; max?: number }> {
+  const result = await attempt(async () => attachments.requesterGrant(db(), await currentMember(), number, type, size));
+  return result.ok ? { ok: true, url: result.value.url } : { ok: false, error: result.error, ...(typeof result.values?.["max"] === "number" ? { max: result.values["max"] } : {}) };
+}

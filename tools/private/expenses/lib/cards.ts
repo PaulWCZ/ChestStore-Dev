@@ -6,7 +6,8 @@ import { match, merchantFromLabel, type Candidate, type CardPayment } from "./ca
 import type { Query, Sql } from "./db.ts";
 import { clean, id, limits, today } from "./model.ts";
 import { convert, isCurrency } from "./money.ts";
-import { categories, settings } from "./settings.ts";
+import { guessCategory } from "./card-guess.ts";
+import { cardRules, categories, settings } from "./settings.ts";
 
 // Company card statements: the accountant imports the month's card export
 // (read and mapped in the browser: lib/card-read.ts). Each card payment is
@@ -60,6 +61,9 @@ export async function importStatement(sql: Sql, actor: Member | null, input: { f
   const cats = await categories(sql);
   const other = cats.find(c => c.key === "other") ?? cats.find(c => !c.mileage && c.key !== "allowance");
   if (!other) throw new AppError("category_invalid");
+  // The label's words say what it was for, when a rule knows them
+  // (lib/card-guess.ts); "Other" otherwise.
+  const rules = await cardRules(sql);
   return sql.begin(async tx => {
     // Payments already imported (an overlapping statement) are left out.
     const known = new Set((await tx<{ member_id: string; line_key: string }[]>`
@@ -90,12 +94,13 @@ export async function importStatement(sql: Sql, actor: Member | null, input: { f
       let link: "matched" | "created" = "matched";
       if (expenseId === null) {
         // No expense yet: a draft of the holder, paid with the company card,
-        // waiting for its receipt and its category.
+        // waiting for its receipt; its category guessed from the label.
+        const category = guessCategory(p.label, rules) ?? other.id;
         const rate = p.currency === company.currency ? null : rateOf.get(p.currency) ?? null;
         const base = p.currency === company.currency ? p.amount : rate ? convert(p.amount, p.currency, rate, company.currency) : null;
         const [created] = await tx<{ id: string }[]>`
           insert into expenses (member_id, kind, spent_on, amount_cents, currency, category_id, merchant, paid_by, rate_micro, rate_source, base_cents, base_currency)
-          values (${p.member}, 'expense', ${p.day}, ${p.amount}, ${p.currency}, ${other.id}, ${merchantFromLabel(p.label)}, 'company',
+          values (${p.member}, 'expense', ${p.day}, ${p.amount}, ${p.currency}, ${category}, ${merchantFromLabel(p.label)}, 'company',
                   ${rate}, ${rate ? "company" : null}, ${base}, ${base === null ? null : company.currency})
           returning id`;
         expenseId = String(created!.id);

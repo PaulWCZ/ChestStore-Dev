@@ -8,6 +8,7 @@ import { db } from "../../../lib/db.ts";
 import { directory } from "../../../lib/directory.ts";
 import { format, formatDay, plural } from "../../../lib/i18n/index.ts";
 import { listRecords, upcoming, type Summary } from "../../../lib/records.ts";
+import { waitingChanges } from "../../../lib/changes.ts";
 import { viewer } from "../../../lib/session.ts";
 import { today } from "../../../lib/zone.ts";
 import { AddRecord, CreateAll } from "./record-buttons.tsx";
@@ -22,7 +23,7 @@ export default async function RecordsPage() {
   if (!can(member, "records.manage")) notFound();
   const sql = db();
   const now = today();
-  const [records, { entries }, soon] = await Promise.all([listRecords(sql, member), directory(sql, member), upcoming(sql, now)]);
+  const [records, { entries }, soon, asked] = await Promise.all([listRecords(sql, member), directory(sql, member), upcoming(sql, now), waitingChanges(sql, member)]);
   const byMember = new Map(entries.map(e => [e.id, e]));
   const without = entries.filter(e => !records.some(r => r.memberId === e.id));
   const day = (d: string) => formatDay(d, locale, { day: "numeric", month: "short", year: "numeric" });
@@ -75,6 +76,21 @@ export default async function RecordsPage() {
         />
       ) : (
         <>
+          {asked.length > 0 && (
+            <section className="section" aria-labelledby="asked-title">
+              <h2 id="asked-title" className="eyebrow">{t.records.asked}</h2>
+              <ul className="moment-list">
+                {asked.map(a => (
+                  <li key={a.id}>
+                    <Link href={`/chest/records/${a.recordId}`}>
+                      <span className="moment-text"><strong>{nameOfRecord(a.recordId, a.legalName)}</strong></span>
+                      <span className="moment-date">{format(t.records.asks, { fields: Object.keys(a.changes).map(f => t.record.fields[f as keyof typeof t.record.fields]).join(", ") })}</span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
           {soon.length > 0 && (
             <section className="section" aria-labelledby="soon-title">
               <h2 id="soon-title" className="eyebrow">{t.records.comingUp}</h2>

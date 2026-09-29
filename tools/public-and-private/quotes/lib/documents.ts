@@ -15,8 +15,10 @@ import { lineNet, totals, depositBases, type RateTotal, type Totals } from "./to
 //
 // - A quote is a draft until it is sent: it then takes the next number of
 //   the quotes' sequence ("D-2026-0001"); the client accepts or refuses it;
-//   past its validity date, a sent quote is "expired". Quotes are not
-//   regulated: a sent quote may still be corrected.
+//   past its validity date, a sent quote is "expired". A sent quote is
+//   never changed in place: changing it starts its next version ("v2",
+//   lib/versions.ts), a draft again until it is sent — the client's link
+//   then shows the new version, and the earlier ones stay readable.
 // - An invoice (blank, or made from an accepted quote — in full, or a
 //   deposit of a percentage) is a draft anyone selling may prepare. When
 //   billing *finalises* it, it takes the next number of the invoices'
@@ -96,6 +98,9 @@ export type Doc = {
   // Made from a deal won in Clients: its title, and when it was reopened.
   crmTitle: string | null;
   crmReopenedAt: string | null;
+  // A quote's version: 1, then 2 once it was changed after being sent
+  // (lib/versions.ts). Invoices and credit notes stay at 1.
+  version: number;
 };
 
 // What a document is now, as the lists and the pages say it.
@@ -111,7 +116,7 @@ type Row = {
   rates: RateTotal[]; seller: Seller | null; buyer: Buyer | null; created_by: string; created_at: Date; updated_at: Date; ready_at: Date | null; sent_at: Date | null;
   sent_by: string | null; emailed_to: string | null; decided_at: Date | null; decided_by: string | null; finalised_at: Date | null; finalised_by: string | null;
   reminded_at: Date | null; reminders: number; pdf_object: string | null; pdf_sha256: string | null; pdf_format?: "pdf" | "factur-x" | null; deleted_at: Date | null;
-  crm_title: string | null; crm_reopened_at: Date | null;
+  crm_title: string | null; crm_reopened_at: Date | null; version?: number;
 };
 
 const iso = (d: Date | null) => (d ? d.toISOString() : null);
@@ -125,7 +130,7 @@ export const toDoc = (r: Row): Doc => ({
   updatedAt: r.updated_at.toISOString(), readyAt: iso(r.ready_at), sentAt: iso(r.sent_at), sentBy: r.sent_by, emailedTo: r.emailed_to, decidedAt: iso(r.decided_at),
   decidedBy: r.decided_by, finalisedAt: iso(r.finalised_at), finalisedBy: r.finalised_by, remindedAt: iso(r.reminded_at), reminders: r.reminders,
   pdfObject: r.pdf_object, pdfSha256: r.pdf_sha256, pdfFormat: r.pdf_format ?? null, deleted: r.deleted_at !== null,
-  crmTitle: r.crm_title ?? null, crmReopenedAt: iso(r.crm_reopened_at ?? null),
+  crmTitle: r.crm_title ?? null, crmReopenedAt: iso(r.crm_reopened_at ?? null), version: r.version ?? 1,
 });
 
 type LineRow = { document_id: number; kind: "line" | "section"; item_id: number | null; description: string; quantity: number; unit: string; unit_price: number; discount: number; vat_rate: number; goods: boolean; net: number; deposit_of?: number | null };
@@ -203,7 +208,7 @@ export async function listDocuments(sql: Query, actor: Member | null, options: L
   });
 }
 
-export type Related = { id: string; type: DocumentType; number: string | null; status: Status; gross: number; depositPercent: number | null; issueDate: string | null };
+export type Related = { id: string; type: DocumentType; number: string | null; status: Status; gross: number; depositPercent: number | null; issueDate: string | null; version: number };
 
 export type Full = Doc & {
   lines: Line[];
@@ -248,7 +253,7 @@ export async function getDocument(sql: Query, actor: Member | null, documentId: 
     select * from documents where deleted_at is null and id <> ${docId} and (
       (quote_id = ${docId}) or (invoice_id = ${docId}) or (id = ${d.quoteId ?? 0}) or (id = ${d.invoiceId ?? 0})
       or (${d.quoteId ?? 0}::bigint <> 0 and quote_id = ${d.quoteId ?? 0}))
-    order by id`).map(r => ({ id: String(r.id), type: r.type, number: r.number, status: r.status, gross: r.gross, depositPercent: r.deposit_percent, issueDate: r.issue_date }));
+    order by id`).map(r => ({ id: String(r.id), type: r.type, number: r.number, status: r.status, gross: r.gross, depositPercent: r.deposit_percent, issueDate: r.issue_date, version: r.version ?? 1 }));
   const due = collectable(d) ? d.gross - credited - paid : 0;
   return { ...d, lines, client, payments, paid, credited, due, state: stateOf(d, { paid, credited }, today), related };
 }
@@ -262,7 +267,9 @@ export function editAbility(type: DocumentType): Ability {
 
 export function editable(d: Pick<Doc, "type" | "status" | "deleted">): boolean {
   if (d.deleted) return false;
-  return d.type === "quote" ? d.status === "draft" || d.status === "sent" : d.status === "draft";
+  // A sent quote is changed through its next version (lib/versions.ts),
+  // never in place: the client holds what was sent.
+  return d.status === "draft";
 }
 
 // --- Creating --------------------------------------------------------------
@@ -466,6 +473,9 @@ export async function removeDraft(sql: Sql, actor: Member | null, documentId: un
   if (d.deleted || !can(actor, "read")) throw new AppError("not_found");
   if (!can(actor, editAbility(d.type))) throw new AppError("forbidden");
   if (d.status !== "draft") throw new AppError("not_draft");
+  // The next version of a sent quote is discarded (lib/versions.ts), never
+  // deleted: the quote was sent under its number.
+  if (d.version > 1) throw new AppError("wrong_status");
   await sql`update documents set deleted_at = now(), updated_at = now() where id = ${docId} and status = 'draft'`;
   await sql`delete from documents where deleted_at < now() - interval '30 days' and status = 'draft' and not exists (select 1 from documents x where x.quote_id = documents.id or x.invoice_id = documents.id)`;
   return d;

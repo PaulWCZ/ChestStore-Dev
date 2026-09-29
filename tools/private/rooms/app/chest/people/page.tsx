@@ -7,7 +7,7 @@ import { directory } from "../../../lib/directory.ts";
 import { chestGroups } from "../../../lib/groups.ts";
 import { format, formatDay, plural } from "../../../lib/i18n/index.ts";
 import { limits, nextWorkingDay, placeName, twoWeeks, type Status } from "../../../lib/model.ts";
-import { presenceOf } from "../../../lib/presence.ts";
+import { inMeetings, presenceOf } from "../../../lib/presence.ts";
 
 // "Who's where": everyone who has Rooms, on one day, grouped by where they
 // work, with the desk they booked. A team (a Chest group: Sales, Tech…)
@@ -30,9 +30,11 @@ export default async function WhoIsWhere({ searchParams }: { searchParams: Promi
   const coming = twoWeeks(c.today, c.rules.weekdays).filter(d => d >= c.today).slice(0, 5);
   const from = coming[0] && coming[0] < day ? coming[0] : day;
   const to = coming.at(-1) && coming.at(-1)! > day ? coming.at(-1)! : day;
-  const [said, desks] = await Promise.all([presenceOf(sql, ids, from, to), deskBookingsOf(sql, ids, from, to)]);
+  const [said, desks, meetings] = await Promise.all([presenceOf(sql, ids, from, to), deskBookingsOf(sql, ids, from, to), inMeetings(sql, ids, from, to)]);
   const officeName = new Map(c.offices.map(o => [o.id, o.name]));
-  const statusOf = (id: string, d: string): Status | "none" => said.get(id)?.get(d)?.status ?? (desks.some(b => b.memberId === id && b.day === d) ? "office" : "none");
+  // What a person said; else a desk or a meeting in a room that day means
+  // the office (as My week counts them).
+  const statusOf = (id: string, d: string): Status | "none" => said.get(id)?.get(d)?.status ?? (desks.some(b => b.memberId === id && b.day === d) || meetings.get(id)?.has(d) ? "office" : "none");
   const groups: Record<Status | "none", typeof everyone> = { office: [], remote: [], off: [], none: [] };
   for (const p of everyone) groups[statusOf(p.id, day)].push(p);
   const detailed = q !== "" && everyone.length <= 5;

@@ -57,7 +57,7 @@ export async function register(sql: Query, actor: Member | null, as: "register_v
         legalName: r.legal_name, sex: r.sex, birthDate: r.birth_date, nationality: r.nationality, job: r.job, qualification: r.qualification, contract: r.contract,
         workingTime: r.working_time, hours: r.hours === null ? null : Number(r.hours), startDate: r.start_date, trialEnd: r.trial_end, contractEnd: r.contract_end,
         endDate: r.end_date, workPermit: r.work_permit, agency: r.agency, tutorId: r.tutor_id, workplace: r.workplace,
-        emergencyName: "", emergencyRelation: "", emergencyPhone: "", address: "",
+        emergencyName: "", emergencyRelation: "", emergencyPhone: "", address: "", employeeNumber: "", permitEnd: null, workDays: null,
       }),
     });
   }

@@ -6,6 +6,7 @@ import { AppError } from "./app-error.ts";
 import type { Query, Sql } from "./db.ts";
 import { clean, id, limits, memberId, percent } from "./model.ts";
 import { convert, defaultCurrency, isCurrency, parseAmount, parseRate } from "./money.ts";
+import { ruleWords, type CardRule } from "./card-guess.ts";
 import { checkScale, isVehicleKind, powers, type Scale, type VehicleKind } from "./scale.ts";
 
 // What the accountant sets for the whole company — currency, reminder,
@@ -433,4 +434,49 @@ export async function setMemberAccount(sql: Sql, actor: Member | null, memberVal
   }
   if (!/^[0-9A-Za-z]{1,20}$/u.test(account)) throw new AppError("account_invalid");
   await sql`insert into member_accounts (member_id, account) values (${member}, ${account}) on conflict (member_id) do update set account = excluded.account`;
+}
+
+// Card statement words (migrations/0004_card_words.sql): which words of a
+// bank label say which category. cardRules is what the import uses (any
+// category still shown); the accountant lists, adds and removes them.
+export type CardRuleView = CardRule & { id: string };
+
+export async function cardRules(sql: Query): Promise<CardRuleView[]> {
+  const rows = await sql<{ id: string; words: string; category_id: string }[]>`
+    select r.id, r.words, r.category_id from card_rules r join categories c on c.id = r.category_id
+    where c.archived_at is null and not c.mileage and c.key is distinct from 'allowance' order by r.words`;
+  return rows.map(r => ({ id: String(r.id), words: r.words, categoryId: String(r.category_id) }));
+}
+
+export async function listCardRules(sql: Query, actor: Member | null): Promise<CardRuleView[]> {
+  if (!can(actor, "settings")) throw new AppError("forbidden");
+  return cardRules(sql);
+}
+
+// addCardRule adds the words, or gives words already there another
+// category.
+export async function addCardRule(sql: Sql, actor: Member | null, wordsValue: unknown, categoryValue: unknown): Promise<CardRuleView> {
+  if (!can(actor, "settings")) throw new AppError("forbidden");
+  if (typeof wordsValue !== "string") throw new AppError("invalid");
+  if (wordsValue.length > limits.cardRule * 2) throw new AppError("too_long", { max: limits.cardRule });
+  const words = ruleWords(wordsValue);
+  if (words.length < 2) throw new AppError("empty");
+  if (words.length > limits.cardRule) throw new AppError("too_long", { max: limits.cardRule });
+  const cid = id(categoryValue);
+  const [category] = await sql<{ id: string }[]>`select id from categories where id = ${cid} and archived_at is null and not mileage and key is distinct from 'allowance'`;
+  if (!category) throw new AppError("category_invalid");
+  return sql.begin(async tx => {
+    const [counted] = await tx<{ n: number }[]>`select count(*)::int as n from card_rules where words <> ${words}`;
+    if ((counted?.n ?? 0) >= limits.cardRules) throw new AppError("too_many", { max: limits.cardRules });
+    const [row] = await tx<{ id: string }[]>`
+      insert into card_rules (words, category_id) values (${words}, ${cid})
+      on conflict (words) do update set category_id = excluded.category_id returning id`;
+    return { id: String(row!.id), words, categoryId: cid };
+  });
+}
+
+export async function removeCardRule(sql: Sql, actor: Member | null, ruleValue: unknown): Promise<void> {
+  if (!can(actor, "settings")) throw new AppError("forbidden");
+  const [gone] = await sql`delete from card_rules where id = ${id(ruleValue)} returning id`;
+  if (!gone) throw new AppError("not_found");
 }

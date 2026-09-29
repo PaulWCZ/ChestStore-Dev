@@ -12,8 +12,8 @@ import type { Choice } from "./shared.ts";
 // Merge this record into the one that stays: find it by typing, read what
 // will happen, merge. The dialog says it all before the button; the
 // merged record's history keeps a line of it.
-export function MergeDialog({ table, id, name, onClose, t }: { table: "companies" | "contacts"; id: string; name: string; onClose: () => void; t: Catalogue }) {
-  const [into, setInto] = useState<Choice | null>(null);
+export function MergeDialog({ table, id, name, initial = null, onClose, t }: { table: "companies" | "contacts"; id: string; name: string; initial?: Choice | null; onClose: () => void; t: Catalogue }) {
+  const [into, setInto] = useState<Choice | null>(initial);
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
   const formId = useId();

@@ -14,6 +14,12 @@ export async function dealGiven(actor: Member, to: string | null, deal: { id: st
   await notify([to], (t, locale) => ({ title: format(t.bell.dealGiven, { name: actor.name }), body: cut(`${deal.title} · ${money(deal.value, locale)}`, 280) }), { path: `/chest/deals/${deal.id}`, key: `deal:${deal.id}:owner` });
 }
 
+// A lead from a form given to someone else (lib/leads.ts).
+export async function leadGiven(actor: Member, to: string, contact: { id: string; name: string }): Promise<void> {
+  if (to === actor.id) return;
+  await notify([to], t => ({ title: format(t.bell.leadGiven, { name: actor.name }), body: cut(contact.name, 280) }), { path: `/chest/contacts/${contact.id}`, key: `contact:${contact.id}:owner` });
+}
+
 export async function stepGiven(actor: Member, to: string | null, step: { id: string; text: string; due: string; time: string | null }, on: { kind: "deal" | "contact"; id: string; title: string } | null): Promise<void> {
   if (!to || to === actor.id) return;
   await notify([to], (t, locale) => {

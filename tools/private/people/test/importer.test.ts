@@ -70,7 +70,7 @@ test("Lucca's export: semicolons, Nom + Prénom in capitals, 'Matricule' left ou
 
 test("header words and date orders", () => {
   assert.deepEqual(readHeader(["Employee #", "Name", "Supervisor"]), ["skip", "name", "manager"]);
-  assert.deepEqual(readHeader(["Unknown", "Nom", "T-shirt"], [{ id: "4", label: "T-Shirt", editor: "person", kind: "text", options: [], alertDays: null }]), ["skip", "name", "x:4"]);
+  assert.deepEqual(readHeader(["Unknown", "Nom", "T-shirt"], [{ id: "4", label: "T-Shirt", editor: "person", seen: "everyone", kind: "text", options: [], alertDays: null }]), ["skip", "name", "x:4"]);
   assert.equal(dateOrder(["13/01/2024", "02/03/2024"]), "dmy");
   assert.equal(dateOrder(["01/13/2024"]), "mdy");
   assert.equal(dateOrder(["01/02/2024"]), "ambiguous");

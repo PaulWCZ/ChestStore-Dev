@@ -14,6 +14,8 @@ import { viewer } from "../../../../lib/session.ts";
 import { today } from "../../../../lib/zone.ts";
 import { Documents } from "./documents.tsx";
 import { RecordForm } from "./record-form.tsx";
+import { AnswerChange, AskChange } from "./change-request.tsx";
+import { waitingChange } from "../../../../lib/changes.ts";
 
 // One employee record. HR edits it (every visit and change is noted); the
 // person it is about reads it; anyone else is told it does not exist.
@@ -32,6 +34,11 @@ export default async function RecordPage({ params }: { params: Promise<{ id: str
   }
   const { record: r, access } = found;
   const edit = access === "edit";
+  // A change the person asked (address, emergency contact), waiting for HR.
+  const asked = await waitingChange(sql, member, r.id);
+  const waiting = asked ? { id: asked.id, changes: asked.changes, note: asked.note, asked: formatDate(asked.createdAt, locale, { day: "numeric", month: "long" }) } : null;
+  const askableNow = { address: r.address, emergencyName: r.emergencyName, emergencyRelation: r.emergencyRelation, emergencyPhone: r.emergencyPhone };
+  const changeWords = { change: t.change, fields: t.record.fields, emergency: t.record.emergency, errors: t.errors, dialog: t.dialog };
   const history = edit ? await ofRecord(sql, r.id, 30) : [];
   const names = await people([r.memberId ?? "", r.tutorId ?? "", ...r.documents.map(d => d.addedBy), ...history.map(h => h.actor)]);
   // A record prints: the person's name as it is, never the app's "(former member)".
@@ -58,8 +65,11 @@ export default async function RecordPage({ params }: { params: Promise<{ id: str
       {r.erased && <p className="banner warn"><Shield />{t.records.erased}</p>}
       {edit && gaps.length > 0 && <p className="banner warn" role="status">{format(t.record.missing, { list: gaps.map(fieldWord).join(", ") })}</p>}
 
+      {edit && waiting && <AnswerChange name={personName} waiting={waiting} current={askableNow} t={changeWords} />}
+
       {edit ? (
         <RecordForm
+          key={r.updatedAt}
           id={r.id}
           initial={toForm(r)}
           linked={r.memberId}
@@ -70,7 +80,10 @@ export default async function RecordPage({ params }: { params: Promise<{ id: str
           t={{ record: t.record, errors: t.errors, date: t.date, peoplePicker: t.peoplePicker, leaveEmpty: t.people.leaveEmpty }}
         />
       ) : (
-        <ReadOnly r={r} day={day} tutor={r.tutorId ? plainName(names.get(r.tutorId), locale) : ""} locale={locale} t={t.record} />
+        <>
+          <ReadOnly r={r} day={day} tutor={r.tutorId ? plainName(names.get(r.tutorId), locale) : ""} locale={locale} t={t.record} />
+          {!r.erased && <div className="section"><AskChange recordId={r.id} current={askableNow} waiting={waiting} t={changeWords} /></div>}
+        </>
       )}
 
       <section className="card-block section" aria-labelledby="docs-title">
@@ -99,7 +112,7 @@ export default async function RecordPage({ params }: { params: Promise<{ id: str
 
 // What the form edits: every field as text.
 function toForm(r: HrRecord): Record<Field, string> {
-  return Object.fromEntries(fieldNames.map(f => [f, r[f] === null ? "" : String(r[f])])) as Record<Field, string>;
+  return Object.fromEntries(fieldNames.map(f => [f, r[f] === null ? "" : Array.isArray(r[f]) ? r[f].join(",") : String(r[f])])) as Record<Field, string>;
 }
 
 type RecordWords = Catalogue["record"];
@@ -117,16 +130,19 @@ function ReadOnly({ r, day, tutor, locale, t }: { r: HrRecord; day: (d: string |
           {item(t.fields.birthDate, day(r.birthDate))}
           {item(t.fields.nationality, r.nationality)}
           {r.workPermit && item(t.fields.workPermit, r.workPermit)}
+          {r.permitEnd && item(t.fields.permitEnd, day(r.permitEnd))}
           {item(t.fields.address, r.address)}
         </dl>
       </section>
       <section className="card-block readonly section">
         <h2 className="legend">{t.contract}</h2>
         <dl className="grid-2">
+          {r.employeeNumber && item(t.fields.employeeNumber, r.employeeNumber)}
           {item(t.fields.contract, t.contracts[r.contract])}
           {item(t.fields.job, r.job)}
           {item(t.fields.qualification, r.qualification)}
           {item(t.fields.workingTime, t.workingTimes[r.workingTime] + (r.hours ? ` · ${format(t.hoursValue, { hours: new Intl.NumberFormat(intl(locale), { maximumFractionDigits: 2 }).format(r.hours) })}` : ""))}
+          {r.workDays && item(t.fields.workDays, r.workDays.map(n => t.weekDays[n - 1]).join(", "))}
           {item(t.fields.startDate, day(r.startDate))}
           {r.trialEnd && item(t.fields.trialEnd, day(r.trialEnd))}
           {r.contract !== "permanent" && item(t.fields.contractEnd, day(r.contractEnd))}

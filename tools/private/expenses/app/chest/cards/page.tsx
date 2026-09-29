@@ -2,7 +2,7 @@ import { NoAccess } from "@argentic/chest-ui/components";
 import { can } from "../../../lib/access.ts";
 import { cardOverview, type CardLineView } from "../../../lib/cards.ts";
 import { db } from "../../../lib/db.ts";
-import { formatDate, plural, relative } from "../../../lib/i18n/index.ts";
+import { formatDate, plural, relative, shortDate } from "../../../lib/i18n/index.ts";
 import { formatMoney } from "../../../lib/money.ts";
 import { holders, nameOf, people } from "../../../lib/people.ts";
 import { viewer } from "../../../lib/session.ts";
@@ -21,7 +21,7 @@ export default async function Cards() {
   const sql = db();
   const [overview, team, company] = await Promise.all([cardOverview(sql, member), holders(), settings(sql)]);
   const who = await people([...overview.waiting, ...overview.ownMoney, ...overview.deleted].map(l => l.member).concat(overview.statements.map(s => s.createdBy)));
-  const day = (iso: string) => formatDate(iso + "T12:00:00Z", locale, { day: "numeric", month: "short" });
+  const day = (iso: string) => shortDate(iso, locale);
   const line = (l: CardLineView): CardLine => ({ id: l.id, day: day(l.date), label: l.label || "—", amount: formatMoney(l.amount, l.currency, locale), href: l.expense ? `/chest/expenses/${l.expense}` : null, name: nameOf(who.get(l.member), locale) });
   const byMember = new Map<string, CardLineView[]>();
   for (const l of overview.waiting) byMember.set(l.member, [...(byMember.get(l.member) ?? []), l]);
