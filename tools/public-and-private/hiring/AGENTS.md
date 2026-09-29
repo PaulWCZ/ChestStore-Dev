@@ -20,7 +20,8 @@ must not break.
 | `lib/messages.ts` | The conversation (out and in), the queue (a rejection waits `undoSeconds`), templates, emails to file |
 | `lib/outbox.ts` | Sends what is due (claimed, keyed `message:<id>`), then the calendars; called by the team layout, actions and the `outbox` schedule |
 | `lib/mail-in.ts`, `app/chest-mail/route.ts` | Received emails: matched by thread, references, then an authenticated address; bounces |
-| `lib/self-schedule.ts`, `app/interview/[token]/`, `migrations/0004_self_scheduling.sql` | The candidate chooses the interview time: a link (secret stored as SHA-256), free times by the people's Hiring interviews, `choose` under `lock table interview_requests` then the same invitation as `interviews.ts` |
+| `lib/self-schedule.ts`, `app/interview/[token]/`, `migrations/0004_self_scheduling.sql` | The candidate chooses the interview time: a link (secret stored as SHA-256, `?lang=` the candidate's language, read by `proxy.ts` → `x-link-lang` → `publicWords`), free times by the people's Hiring interviews and Booking's busy times, lunch left out (`skip_lunch`), `choose` under `lock table interview_requests` then the same invitation as `interviews.ts` |
+| `lib/messages.ts` (`takeFiles`, `write`, `saveTemplate`, `sweepTemplateFiles`) | Files sent with an email (`sent/`) or kept with a template (`templates/`): uploaded like a CV (`/chest/api/cv`, `cv.accept(…, folder)`), a template's copied per email, orphans swept nightly |
 | `components/description-editor.tsx`, `lib/rich-text.ts` (`toHtml`, `fromEditor`) | The job editor: contentEditable in, the plain marks out (never HTML stored or rendered) |
 | `lib/interviews.ts`, `lib/time.ts` | Interviews, busy times, the `.ics`, the interviewers' Chest calendars (`flushCalendars`), times in the Chest's zone |
 | `lib/reach.ts`, `lib/public-feed.ts`, `app/jobs.xml`, `app/feed.xml`, `app/sitemap.xml`, `app/robots.txt` | JobPosting JSON-LD, Indeed XML, RSS, sitemap — pure writers and their routes |
@@ -29,7 +30,7 @@ must not break.
 | `lib/reports.ts` | Counts for the reports |
 | `lib/brand.ts`, `lib/careers.ts` | The careers page's logo and photos (public files), accent, intro per language |
 | `lib/tell.ts`, `lib/notify.ts` | Bell and tile |
-| `lib/share.ts` | `hiring.hired` / `hiring.hire_cancelled` for People (events between tools; README "With the other tools") — never add application data to them |
+| `lib/share.ts`, `lib/busy-snapshot.ts` | `hiring.hired` / `hiring.hire_cancelled` for People; `hiring.busy` (a member's interviews, times only, when changed: `shared_busy`) for Booking; `booking.busy` heard (`takeBusy` → `told_busy`, `told_spans`, read by `toldBusy`) — events between tools, README "With the other tools"; never add application data to them |
 | `lib/lifecycle.ts` | Members leaving or erased |
 | `lib/theme.ts`, `app/layout.tsx`, `app/tokens.css` | The identity (*Magazine*: the catalogue's, `identityOf("hiring")`; its `source` only makes the careers accents and a test holds it equal — change Magazine in `ui/src/themes.ts` first), the careers accents (`accentThemes`, `accentCss`), the look of a request (`currentLook`: `chest.theme()` else the identity) written by `<ThemeStyle>` with the nonce; Hiring's own tokens, defined from contract tokens |
 | `components/team-shell.tsx`, `components/public-shell.tsx` | The kit's `AppShell` (tabs, search, member, toasts, 30 s refresh); the careers frame (brand logo or Hiring's, accent only in the own look) |
@@ -85,6 +86,12 @@ TEST_DATABASE_URL=postgres://… npm test
 - Emails to candidates go through `messages.queue` and the outbox, never
   `mail.send` directly: a rejection must stay undoable until it leaves.
 - Interviewers never see the conversation; `busy` gives times only.
+- Busy times from another tool (`told_spans`) count wherever free times
+  are computed (`freeTimes`, `busy`), and are never told again
+  (`hiring.busy` carries only Hiring's own interviews).
+- A file sent to a candidate is the email's own copy (`sent/`): delete it
+  with the candidate (`forget`); a template's files (`templates/`) go
+  only by `sweepTemplateFiles`, so Undo of a deleted template works.
 - A received email is attached to a candidate by its thread or references;
   by its From address only when `authenticated`.
 - Words only in `lib/i18n/en.ts` and `fr.ts` (same keys; tests check);

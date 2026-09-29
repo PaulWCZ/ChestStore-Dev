@@ -38,7 +38,8 @@ decides together.
   its text only (`components/description-editor.tsx`, `lib/rich-text.ts`).
 - **The application form** (`/<job>/apply`): name, email, phone and a
   LinkedIn or portfolio link (optional), **the CV** (PDF or Word, 10 MB at
-  most), a few words, **the job's screening questions** (0 to 5: a few
+  most) — **or a photo of it** (JPEG, PNG, HEIC: what a phone takes; shown
+  on the candidate's page), a few words, **the job's screening questions** (0 to 5: a few
   words, yes/no, one choice; required or not), how long it is kept (a
   sentence, not a box to tick: applying rests on steps before a contract,
   not on consent), and an optional box *Keep me in mind for other jobs*
@@ -49,6 +50,9 @@ decides together.
   A thank-you page; a confirmation email in the candidate's language
   (Proposal *mail*) — no candidate account: the email says the team will
   write.
+- **A new company's first screen**: one button, *Write a job*, and three
+  jobs to start from (*Office manager*, *Salesperson*, *Customer
+  support*, in the recruiter's language: a draft to adapt).
 - **Jobs** (`/chest`): open jobs with their pipeline at a glance and their
   new applications, drafts, closed jobs; what waits for *my* feedback
   first, *my next interviews*, emails to file. Write a job (draft, with its
@@ -70,25 +74,36 @@ decides together.
   theirs, notes, the history, the answers to the job's questions.
   **Write** to them (templates in both languages — ask availability, news,
   offer, rejection — and the company's own, filled with their name, the
-  job, the company, the sender): the email leaves from the `jobs` mailbox
+  job, the company, the sender), **with files** (an offer letter, a
+  contract: up to five, 9 MB together; a company template may carry its
+  own, the offer letter sent every time — each email sends its own copy,
+  kept in the conversation and erased with the candidate): the email leaves from the `jobs` mailbox
   with the candidate's own thread address as Reply-To, so **their answer
   lands back in their conversation** (the thread, else In-Reply-To /
   References, else their address when the sender's domain is verified;
   anything else waits in *Emails to file*). **The candidate chooses the
   interview time** (the default of *Interview*): who meets them, how long,
   between which days and hours; the candidate gets a link
-  (`/interview/<secret>`, never indexed; one open link per candidate, a new
-  one replaces it; the secret is stored only as its SHA-256) and picks a
-  time when **everyone chosen is free, by their interviews in Hiring**
-  (weekdays, at least 12 hours ahead). The time chosen is checked again
+  (`/interview/<secret>?lang=<their language>`, never indexed; one open
+  link per candidate, a new one replaces it; the secret is stored only as
+  its SHA-256; the page speaks the language they applied in, as their
+  emails, unless they switch) and picks a time when **everyone chosen is
+  free — by their interviews in Hiring and by what Booking says of them**
+  (their bookings, blocked times and Google/Outlook/Apple calendars: README
+  "With the other tools") — on weekdays, at least 12 hours ahead, **lunch
+  (12:00–14:00) left out** unless the recruiter unticks it; on a phone,
+  three days first, then *More days*. Nobody is ticked silently: the
+  job's interviewers are ticked at first, the recruiter is not, and the
+  button names who meets them ("Send the link (Hugo, Inès)"); the history
+  keeps one line for it. The time chosen is checked again
   under a lock (two candidates on the last free hour: the second is told
   it was just taken and sees what is left), becomes an interview, the
   confirmation email with its `.ics` leaves, the interviewers' Chest
   calendars get it and they hear it in the bell. On a Chest without email
   the recruiter gets the link to send. Or **the recruiter chooses**:
   a day, a time in the Chest's zone, a length, who meets them (with the
-  times they are already in an interview that day, and a warning on a
-  clash), a place or video link, a note; the candidate gets an email with
+  times they are already busy that day — an interview, or Booking's
+  "(Booking)" —, and a warning on a clash), a place or video link, a note; the candidate gets an email with
   an `.ics` (and a CANCEL one if called off), the interviewers get it in
   their Chest calendar feed, and a reminder on the morning of it.
   **Reject** with a reason (none chosen for you; "they withdrew" and "they
@@ -165,7 +180,7 @@ A member with no role sees why, not an error.
 ## First minute
 
 - **What does a new recruiter see first?** An empty page that says *Post
-  your first job* and one button, *Write a job*.
+  your first job*, one button, *Write a job*, and three jobs to start from.
 - **What is the first thing they do?** Write the title, contract and
   description (a template in the placeholder), save the draft, press
   *Publish*: the job is on the careers page, its link one click away.
@@ -236,6 +251,15 @@ decision, never the tool's:
 |---|---|---|
 | `hiring.hired` | A candidate is moved into the job's *Hired* stage (the recruiter may give their first day in a small dialog); or a rejected candidate sitting in *Hired* is brought back | `{ candidate, name, email, job, team, place, startDate, hiredBy }` — key `hiring:<candidate>:hired:<time of the move>` |
 | `hiring.hire_cancelled` | Moved out of *Hired* (*Undo* included), rejected from it, or erased | `{ candidate }` — key `hiring:<candidate>:cancelled:<time>` |
+| `hiring.busy` | A member's interviews changed (planned, chosen by a candidate, called off; the `outbox` schedule catches the rest and moves the window each day) — for Booking | A snapshot of times only: `{ v: 1, member, at, from, to, spans: [[start, end], …] }` (UTC minutes, 90 days from today, 300 spans at most) — key `busy:<member>:<ms>:<hash>` |
+
+**What Hiring hears** (`"receives": ["booking.busy"]`): Booking's snapshot
+of a host's busy times, in the same shape (`lib/busy-snapshot.ts`, the
+same file in both tools). Kept per tool and member, the latest by `at`
+only (`told_busy`, `told_spans`); a candidate is never offered those
+times, the recruiter sees them marked "(Booking)"; forgotten when the
+member leaves or is erased. Hiring never tells again what Booking told it,
+and never says who a candidate is, which job, or where.
 
 Only who is joining, for which job, where and when: never the CV, the cover
 letter, notes, feedback or ratings. Publishing is a courtesy: when the Chest
@@ -275,7 +299,9 @@ tool calls them as if shipped and keeps working without them:
   page a recruiter opens after its Undo, and there is no morning reminder.
 - **Visitors** (`visitors.formToken/checkForm/count/language`): without the
   Chest's counting, the tool counts in its own table.
-- **Events between tools** (`events.publish`): without them, People is not told of hires.
+- **Events between tools** (`events.publish`, `receives`): without them,
+  People is not told of hires, Booking does not see interviews, and free
+  times come from Hiring's interviews only.
 - **Chest settings** (`chest.company()`, `chest.publicUrl()`,
   `chest.timeZone()`, `chest.locale()`): the company name by default, the
   careers page's address, the zone of interview times, the language the
@@ -310,10 +336,12 @@ upload one.
   outbound network). Whether Google indexes a given careers page, and
   whether a real Chest's public host adds its own `X-Robots-Tag`, was not
   verified (no crawler reaches the studio).
-- **Free times come from Hiring's own interviews only**, not from the
-  interviewers' agendas (Outlook, Google): a meeting elsewhere is not
-  seen. A free/busy connector is the `calendar` proposal's next step
-  (Needs from the SDK). The candidate cannot move a time they chose (they
+- **Free times** come from Hiring's interviews and what Booking tells
+  (its bookings and the Google/Outlook/Apple calendars a host connected
+  there). An interviewer who is not a Booking host, or has not connected
+  a calendar there, is known by Hiring's interviews only; Booking's own
+  reading lags up to about 15 minutes. Lunch is fixed at 12:00–14:00 (not
+  per company yet). The candidate cannot move a time they chose (they
   answer the email; the recruiter moves it), and the recruiter cannot
   offer hand-picked times. The `.ics` is a PUBLISH file ("add to my
   calendar", same UID for every version), not an iTIP invitation with
@@ -321,8 +349,13 @@ upload one.
 - **The board on a phone** shows one stage at a time (tabs); moving a
   card is done from the candidate's page there (no drag across hidden
   stages).
-- **Templates are plain text**; no attachments when writing (an offer
-  letter is pasted or sent from one's mailbox).
+- **Templates are plain text** (their files aside); no e-signature of
+  the offer letter. On a Chest without email, the recruiter's own mail
+  app opens with the text: the files are kept on the page, to attach
+  there by hand. Files a candidate's data export (ZIP) or the full export
+  do not include sent files yet.
+- A HEIC photo of a CV is kept and downloaded; browsers other than Safari
+  cannot show it on the page.
 - **Emails to file** are filed one by one; an attachment a candidate sends
   is downloaded, never shown inside the tool.
 - **No hiring requests to approve**, no scorecards per stage, no
