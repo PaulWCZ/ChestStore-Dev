@@ -4,7 +4,7 @@ import type { AddressInfo } from "node:net";
 import type { ChestEvent } from "./events.js";
 import { groupIdPattern, member as memberOf, memberIdPattern, type Member } from "./member.js";
 import { check as checkCalendarEvent, feed as calendarFeed, keyPattern as calendarKeyPattern, limits as calendarLimits, type CalendarEvent, type KeptEvent } from "./calendar.js";
-import { forgetTheme } from "./chest.js";
+import { forgetTheme, toolNamePattern } from "./chest.js";
 import { threadTag } from "./mail.js";
 import { forget } from "./members.js";
 import { checkInput as checkWebhookInput, checkMessage as checkWebhookMessage, deliveryIdPattern as webhookDeliveryPattern, format as formatWebhook, isPublicAddress, limits as webhookLimits, shownUrl, sign as signWebhook, targetIdPattern as webhookTargetPattern, type WebhookDelivery, type WebhookKind, type WebhookTarget } from "./webhooks.js";
@@ -64,6 +64,13 @@ export type FakeChestOptions = {
   // environment while the fake runs. The team URL is the fake's origin;
   // the public URL is set only when named (a tool with a public part).
   settings?: { company?: string; currency?: string; locale?: string; publicUrl?: string };
+  // Proposal (studio): the other tools installed on this Chest, by name,
+  // and their addresses (chest.toolUrl, CHEST_TOOL_URLS): true for a tool
+  // with its team host only, at https://<name>-chest.chest.test; or its
+  // team and public origins as a test names them (public: an open public
+  // part). This tool is always there, at the fake's origin (and its
+  // settings.publicUrl).
+  tools?: Record<string, FakeToolAddresses | true>;
   // Proposal (studio): the Chest's ceiling per visitor's address across
   // the tools, an hour (visitors.count).
   visitors?: { perAddressHour?: number };
@@ -105,6 +112,11 @@ export type FakeChestOptions = {
   // settable as chest.webhooks.to.
   webhooks?: { max: number; resolve?: Record<string, string>; deliver?: (url: string, init: { method: "POST"; headers: Record<string, string>; body: string }) => Promise<Response | number>; to?: string | ((request: Request) => Response | Promise<Response>) };
 };
+
+// Proposal (studio): a tool installed beside this one, as a test names it:
+// its team origin (https://<name>-chest.chest.test when left out; null for
+// none) and its public origin while its public part is open.
+export type FakeToolAddresses = { team?: string | null; public?: string | null };
 
 // Proposal (studio): how a webhook target answers the fake Chest: an HTTP
 // status, or a network failure.
@@ -213,6 +225,14 @@ export type FakeChest = {
   // Proposal (studio): the webhook targets, deliveries and events, and the
   // controls that play the receivers.
   webhooks: FakeWebhooks;
+  // Proposal (studio): the tools installed on this Chest, as
+  // CHEST_TOOL_URLS gives them (this tool included); installTool() and
+  // removeTool() play the owner installing (or opening a public part) and
+  // removing one — the environment is rewritten, as the Chest does before
+  // the tool's next start.
+  tools: Record<string, { team: string | null; public: string | null }>;
+  installTool(name: string, addresses?: FakeToolAddresses | true): void;
+  removeTool(name: string): void;
   run(name: string, to: string | ((request: Request) => Response | Promise<Response>), options?: { id?: string; scheduledAt?: string; attempt?: number }): Promise<number>;
   close(): Promise<void>;
 };
@@ -380,7 +400,7 @@ export async function fakeChest(options: FakeChestOptions = {}): Promise<FakeChe
   const publicMaxObject = 10 << 20;
   // The erasures the tool was told of, by emit: those it may acknowledge.
   const erasures = new Set<string>();
-  const chest: FakeChest = { api: "", token, tool, members: [...(options.members ?? [])], former: [...(options.former ?? [])], groups: [...(options.groups ?? [])], files, notifications: [], badges: new Map(), acknowledged: [], emit: async () => 0, upload: async () => new Response(), published: [], deliver: async () => 0, checks: [], check: async () => 0, outbox: [], receive: async () => 0, calendar: new Map(), feed: () => "", feedUrl: () => "", newFeedUrl: () => "", bounce: async () => 0, schedules: [...(options.schedules ?? [])], theme: { all: options.theme?.all ?? null, tools: { ...options.theme?.tools } }, themeFiles: new Map(Object.entries(options.themeFiles ?? {}).map(([path, f]) => [path, { data: typeof f.data === "string" ? new TextEncoder().encode(f.data) : f.data, type: f.type ?? "application/octet-stream" }])), runs: [], run: async () => 0, webhooks: { targets: [], deliveries: [], events: [], to: options.webhooks?.to ?? null, respond: () => {}, retry: async () => 0 }, close: async () => {} };
+  const chest: FakeChest = { api: "", token, tool, members: [...(options.members ?? [])], former: [...(options.former ?? [])], groups: [...(options.groups ?? [])], files, notifications: [], badges: new Map(), acknowledged: [], emit: async () => 0, upload: async () => new Response(), published: [], deliver: async () => 0, checks: [], check: async () => 0, outbox: [], receive: async () => 0, calendar: new Map(), feed: () => "", feedUrl: () => "", newFeedUrl: () => "", bounce: async () => 0, schedules: [...(options.schedules ?? [])], theme: { all: options.theme?.all ?? null, tools: { ...options.theme?.tools } }, themeFiles: new Map(Object.entries(options.themeFiles ?? {}).map(([path, f]) => [path, { data: typeof f.data === "string" ? new TextEncoder().encode(f.data) : f.data, type: f.type ?? "application/octet-stream" }])), runs: [], run: async () => 0, webhooks: { targets: [], deliveries: [], events: [], to: options.webhooks?.to ?? null, respond: () => {}, retry: async () => 0 }, tools: {}, installTool: () => {}, removeTool: () => {}, close: async () => {} };
   const former = chest.former;
   let window = 0, calls = 0;
   // A member's groups as the tool sees them: all with "groups" (Proposal
@@ -1174,7 +1194,7 @@ export async function fakeChest(options: FakeChestOptions = {}): Promise<FakeChe
     route(request, response, url).catch(() => { if (!response.headersSent) send(response, 503, { error: "unavailable" }); else response.destroy(); });
   });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
-  const saved = Object.fromEntries(["CHEST_API", "CHEST_TOKEN", "CHEST_TOOL", "CHEST_TIMEZONE", "CHEST_COMPANY", "CHEST_CURRENCY", "CHEST_LOCALE", "CHEST_TEAM_URL", "CHEST_PUBLIC_URL"].map(name => [name, process.env[name]]));
+  const saved = Object.fromEntries(["CHEST_API", "CHEST_TOKEN", "CHEST_TOOL", "CHEST_TIMEZONE", "CHEST_COMPANY", "CHEST_CURRENCY", "CHEST_LOCALE", "CHEST_TEAM_URL", "CHEST_PUBLIC_URL", "CHEST_TOOL_URLS"].map(name => [name, process.env[name]]));
   chest.api = "http://127.0.0.1:" + (server.address() as AddressInfo).port;
   const zone = options.timeZone ?? "Europe/Paris";
   Object.assign(process.env, { CHEST_API: chest.api, CHEST_TOKEN: token, CHEST_TOOL: tool, CHEST_TIMEZONE: zone, CHEST_TEAM_URL: origin });
@@ -1183,6 +1203,29 @@ export async function fakeChest(options: FakeChestOptions = {}): Promise<FakeChe
     if (value === undefined) delete process.env[name];
     else process.env[name] = value;
   }
+  // The tools installed beside this one (chest.toolUrl): written to the
+  // environment as the Chest writes CHEST_TOOL_URLS, this tool first.
+  const writeTools = () => {
+    process.env["CHEST_TOOL_URLS"] = JSON.stringify(chest.tools);
+  };
+  const addresses = (name: string, given: FakeToolAddresses | true | undefined) => {
+    if (!toolNamePattern.test(name) || name.length > 63) throw new Error(`fakeChest: ${JSON.stringify(name)} is not a tool's name (chest.json "name")`);
+    const value = given === true || given === undefined ? {} : given;
+    return { team: value.team === undefined ? `https://${name}-chest.chest.test` : value.team, public: value.public ?? null };
+  };
+  chest.tools = { [tool]: { team: origin, public: settings.publicUrl ?? null } };
+  for (const [name, given] of Object.entries(options.tools ?? {})) if (name !== tool) chest.tools[name] = addresses(name, given);
+  chest.installTool = (name, given) => {
+    if (name === tool) throw new Error("fakeChest.installTool: this tool is already installed (its addresses are the fake's origin and settings.publicUrl)");
+    chest.tools[name] = addresses(name, given);
+    writeTools();
+  };
+  chest.removeTool = name => {
+    if (name === tool) throw new Error("fakeChest.removeTool: not this tool itself");
+    delete chest.tools[name];
+    writeTools();
+  };
+  writeTools();
   forget();
   forgetTheme();
   chest.emit = async (event, to) => {

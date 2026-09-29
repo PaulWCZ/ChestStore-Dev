@@ -26,7 +26,7 @@ module is not in the root).
 | `@argentic/chest-sdk/members` | `list`, `get`, `lookup`, `groups.list`, `forget`, types `MemberPage`, `Lookup`, `FormerMember`, `Group`: the members who have the tool (capability `members`, their addresses with `members.email`); **Proposal (studio)** `groups.all`, `groups.members`, types `ChestGroup`, `GroupMembers`: every group of the Chest (`"groups": "read"`) |
 | `@argentic/chest-sdk/notifications` | `notify`, `withdraw`, `broadcast` (Proposal (studio)), `badge.set`, `badge.setMany`, types `Notice`, `Delivery`, `BadgeCount`, `BadgeWrite`: counters on the tool's tile and items in members' inboxes, inside the Chest (capability `notifications`) |
 | `@argentic/chest-sdk/events` | `handle`, `verify`, `acknowledgeErasure`, `memorySeen`, `erasureIdPattern`, types `ChestEvent`, `MemberUpdated`, `AccessRevoked`, `MemberRemoved`, `MemberErased`, `MemberChange`, `Handlers`, `Seen`: the events of the members' lifecycle the Chest posts to the tool's `/chest-events` (`"receives": ["member.*"]`), verified, deduplicated by id, and the acknowledgment of an erasure |
-| `@argentic/chest-sdk/chest` | **Proposal (studio).** `company`, `timeZone`, `today`, `currency`, `locale`, `teamUrl`, `publicUrl`: the Chest's settings every tool needs; `theme`, `readThemeChoice`, `forgetTheme`, `themeIdPattern`, types `ThemeChoice`, `BrandChoice`, `ThemeFont`: the look the company chose for its tools |
+| `@argentic/chest-sdk/chest` | **Proposal (studio).** `company`, `timeZone`, `today`, `currency`, `locale`, `teamUrl`, `publicUrl`: the Chest's settings every tool needs; `toolUrl`, `toolLink`, `readToolUrls`, `toolNamePattern`, types `ToolSurface`, `ToolAddresses`: the addresses of the other tools installed on the Chest; `theme`, `readThemeChoice`, `forgetTheme`, `themeIdPattern`, types `ThemeChoice`, `BrandChoice`, `ThemeFont`: the look the company chose for its tools |
 | `@argentic/chest-sdk/visitors` | **Proposal (studio).** `formToken`, `checkForm`, `count`, `language`, `visitor`, `address`: the guard and the language of a public host's anonymous visitors |
 | `@argentic/chest-sdk/calendar` | **Proposal (studio).** `put`, `remove`, `list`, `page`, and the iCalendar writer `ics`, `escapeText`, `foldLine`, `unfold`, `uidOf`, `feed`, `pick`, `check`, `isDay`, `keyPattern`, `limits`: events about members that the Chest merges into one calendar feed per member (`"calendar": true`) |
 | `@argentic/chest-sdk/checks` | **Proposal (studio).** `configure`, `list`, `handle`, `verify`, `checkManifest`, `checkChecks`: web addresses the Chest checks for the tool, and their results |
@@ -796,6 +796,53 @@ request — an email sent by a schedule, an export, a calendar feed — use
 `teamUrl()` / `publicUrl()` instead of a forwarded host.
 `schedules.timeZone()` is the same function.
 
+### `toolUrl` — the address of another tool (Proposal (studio))
+
+```ts
+chest.toolUrl("forms");                                 // "https://forms-chest.atelier-martin.fr"
+chest.toolUrl("forms", { surface: "public" });          // "https://forms.atelier-martin.fr" (null while closed)
+chest.toolUrl("wiki");                                  // null: not installed on this Chest
+chest.toolLink("forms", "/chest/forms/5/answers/k3ab"); // "https://forms-chest.atelier-martin.fr/chest/forms/5/answers/k3ab"
+chest.toolLink("forms", "//evil.example");              // null
+```
+
+A tool that received an event of another tool links the member back to it
+(Clients and Support to the answer in Forms). The Chest gives every tool the
+origins of the tools installed on it, in `CHEST_TOOL_URLS`:
+
+```json
+{ "forms": { "team": "https://forms-chest.atelier-martin.fr", "public": "https://forms.atelier-martin.fr" },
+  "crm":   { "team": "https://crm-chest.atelier-martin.fr" } }
+```
+
+- **Names** are the tools' `name` in `chest.json` (`toolNamePattern`:
+  lowercase letters, digits, single hyphens, 63 at most). Any other name
+  answers null.
+- **`team`** (the default surface) is the team host, where members reach a
+  tool under `/chest`; **`public`** is the public host, present only while
+  the owner keeps the public part open (a custom domain when the owner set
+  one).
+- **Only origins**: https, or http for `localhost` / `127.0.0.1` (a local
+  harness); no credentials, path, query or fragment. An entry that is not
+  one is ignored — the tool is then "not installed" for this function —,
+  never the whole map. This tool's own name answers `teamUrl()` /
+  `publicUrl()` when the map does not list it.
+- **`toolLink(name, path, {surface?})`** joins the origin and a path that
+  starts with `/` and not `//`, in the simple form the Chest's front accepts
+  (printable ASCII, no `\`, no `.` or `..` segment, no encoded `/`, `\` or
+  NUL, 512 characters at most). A team link is `/chest` or under it; a
+  public link is never under `/chest` (the front sends that to the team
+  host). null otherwise, or when `toolUrl` is null: show the text without a
+  link.
+- **Fresh at the next start.** The Chest rewrites the variable when a tool
+  is installed or removed and when a public part opens or closes; a running
+  tool reads it at its next start. A stale map only lacks a new tool (no
+  link) or links to a removed one (the Chest's front answers 404).
+- **A link is not access.** The member who follows it may not have that
+  tool; its team host then says so. Store the other tool's name and path in
+  your database (never an absolute URL, which changes with a custom domain),
+  and make the link when you render the page.
+
 ### `theme` — the look the company chose (Proposal (studio))
 
 ```ts
@@ -1259,6 +1306,7 @@ await chest.close();
 | `fakeChest({origin})` | **Proposal (studio).** The team host its links and uploads point to (`https://<tool>-chest.chest.test` by default). A local harness gives its own (`http://localhost:<port>`) and relays `/_chest/*` of its host to `chest.api`, where the fake Chest's front serves the uploads, the signed links and the members' photos (initials). `files.url` and `uploadUrl` accept `http://localhost` and `http://127.0.0.1` links for that reason |
 | `fakeChest({schedules, timeZone})`, `chest.run(name, to, {id?, scheduledAt?, attempt?})`, `chest.runs` | **Proposal (studio).** A run of a declared schedule delivered to `POST <to>/chest-jobs/<name>` (or a handler of Web Requests), signed as the Chest would; `CHEST_TIMEZONE` set (Europe/Paris by default) |
 | `fakeChest({settings: {company, currency, locale, publicUrl}})` | **Proposal (studio).** The Chest's settings (`chest`) in the environment while the fake runs; `CHEST_TEAM_URL` is the fake's origin |
+| `fakeChest({tools})`, `chest.tools`, `chest.installTool(name, addresses?)`, `chest.removeTool(name)` | **Proposal (studio).** The tools installed beside this one (`chest.toolUrl`), by name: `true` for a team host at `https://<name>-chest.chest.test`, or `{team?, public?}` origins (`public` an open public part, `team: null` none). This tool is always there, at the fake's origin and `settings.publicUrl`. `installTool` and `removeTool` rewrite `CHEST_TOOL_URLS` as the Chest does |
 | `fakeChest({theme, themeFiles})`, `chest.theme`, `chest.themeFiles` | **Proposal (studio).** The company's look at its two levels (`{all, tools}`), which `chest.theme()` answers resolved for the tool (`CHEST_TOOL`) with `max-age=0`; the files its front serves under `/_chest/theme/` |
 | `chest.former` | **Proposal (studio).** Those who left (`{id, name}`) or were erased (`{id, erased: true}`): what `members.lookup` answers "former" for. A test or a harness that removes a member from `chest.members` moves them here, as a real Chest would |
 | `fakeChest({calendar})`, `chest.calendar`, `chest.feed(member)`, `chest.feedUrl(member)`, `chest.newFeedUrl(member)` | **Proposal (studio).** The calendar bridge (with `"calendar"` in `capabilities`): the events put, a member's feed as the Chest writes it, its secret address on the fake's front |

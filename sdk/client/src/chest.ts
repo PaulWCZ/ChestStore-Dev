@@ -91,6 +91,125 @@ export function publicUrl(): string | null {
   return origin(env("CHEST_PUBLIC_URL"));
 }
 
+// Proposal (studio): the addresses of the other tools installed on this
+// Chest, so that a tool can link a member to a page of another one — the
+// answer in Forms behind a new contact in Clients or a ticket in Support.
+// The Chest gives them in the tool's environment, beside its own:
+//
+//   CHEST_TOOL_URLS   {"forms": {"team": "https://forms-chest.atelier.fr",
+//                                "public": "https://forms.atelier.fr"},
+//                      "crm":   {"team": "https://crm-chest.atelier.fr"}}
+//
+// one entry per installed tool (by its chest.json name), "team" its team
+// host, "public" its public host only while its public part is open. The
+// Chest rewrites it when a tool is installed or removed, or when a public
+// part is opened or closed; a running tool sees the change at its next
+// start (a stale map only misses a new tool, or links to a removed one,
+// which the Chest's front answers 404). CHEST_* names are the Chest's own:
+// no admin setting can shadow it.
+//
+//   chest.toolUrl("forms");                         // "https://forms-chest.atelier.fr"
+//   chest.toolLink("forms", "/chest/forms/5/answers/k3abc");
+//   chest.toolUrl("forms", { surface: "public" });  // null while closed
+//
+// An address is only an origin, https (http only for localhost and
+// 127.0.0.1), without credentials, path, query or fragment; anything else
+// is ignored, as if the tool were not installed.
+
+export type ToolSurface = "team" | "public";
+export type ToolAddresses = { team: string | null; public: string | null };
+
+// A tool's name as chest.json writes it (and as its events are prefixed).
+export const toolNamePattern = /^[a-z0-9]+(-[a-z0-9]+)*$/u;
+const maxToolName = 63;
+const maxToolUrls = 64 * 1024;
+const maxLinkPath = 512;
+
+// strictOrigin: an origin and nothing else ("https://host[:port]", a
+// trailing slash admitted).
+const strictOrigin = (value: unknown): string | null => {
+  if (typeof value !== "string" || value.length > 300) return null;
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    return null;
+  }
+  if (url.username || url.password || url.search || url.hash || url.pathname !== "/" || /[?#]/u.test(value)) return null;
+  if (!/^[a-z][a-z0-9+.-]*:\/\/[^/?#\\]+\/?$/iu.test(value)) return null;
+  return origin(value);
+};
+
+let parsed: { raw: string; tools: ReadonlyMap<string, ToolAddresses> } | null = null;
+
+// readToolUrls checks the map the Chest gives, entry by entry: a name that
+// is not a tool's, or an address that is not an origin, is dropped (never
+// the whole map). Exported for the Chest's own tests and the fake Chest.
+export function readToolUrls(raw: string | undefined): ReadonlyMap<string, ToolAddresses> {
+  const tools = new Map<string, ToolAddresses>();
+  if (!raw || raw.length > maxToolUrls) return tools;
+  let value: unknown;
+  try {
+    value = JSON.parse(raw);
+  } catch {
+    return tools;
+  }
+  if (!record(value)) return tools;
+  for (const [name, entry] of Object.entries(value)) {
+    if (name.length > maxToolName || !toolNamePattern.test(name) || !record(entry)) continue;
+    const addresses = { team: strictOrigin(entry["team"]), public: strictOrigin(entry["public"]) };
+    if (addresses.team || addresses.public) tools.set(name, addresses);
+  }
+  return tools;
+}
+
+const installed = (): ReadonlyMap<string, ToolAddresses> => {
+  const raw = process.env["CHEST_TOOL_URLS"] ?? "";
+  if (!parsed || parsed.raw !== raw) parsed = { raw, tools: readToolUrls(raw) };
+  return parsed.tools;
+};
+
+// toolUrl is the origin of a tool installed on this Chest, on its team host
+// (by default) or its public host; null when no such tool is installed,
+// when it has no such surface (no public part, or one the owner has not
+// opened), outside a Chest, or for a name that is not a tool's. This
+// tool's own name answers teamUrl() / publicUrl().
+export function toolUrl(name: string, options: { surface?: ToolSurface } = {}): string | null {
+  const surface = options.surface ?? "team";
+  if (typeof name !== "string" || name.length > maxToolName || !toolNamePattern.test(name) || (surface !== "team" && surface !== "public")) return null;
+  const entry = installed().get(name);
+  if (entry) return entry[surface];
+  if (name === (process.env["CHEST_TOOL"] ?? "")) return surface === "team" ? teamUrl() : publicUrl();
+  return null;
+}
+
+// A path a link may carry: printable ASCII, no "\", no "//", no "." or
+// ".." segment however written, no encoded "/", "\" or NUL — what the
+// Chest's front accepts in its simple form.
+const linkPath = (path: string): boolean =>
+  path.length <= maxLinkPath &&
+  /^\/[\x21-\x5b\x5d-\x7e]*$/u.test(path) &&
+  !path.includes("//") &&
+  !/%(2f|5c|00)/iu.test(path) &&
+  !path.split(/[?#]/u)[0]!.split("/").some(s => /^(\.|%2e){1,2}$/iu.test(s));
+
+// toolLink is the absolute address of a page of another tool: its origin
+// (toolUrl) and path, which starts with "/" and not "//". On the team host a
+// member reaches the tool only under /chest, so a team link is "/chest" or
+// under it; a public link is never under /chest (the Chest would send it to
+// the team host). null when the tool has no such address (toolUrl) or the
+// path is not one of these.
+export function toolLink(name: string, path: string, options: { surface?: ToolSurface } = {}): string | null {
+  const surface = options.surface ?? "team";
+  if (typeof path !== "string" || !linkPath(path)) return null;
+  const underChest = /^\/chest([/?#]|$)/iu.test(path);
+  if (surface === "team" ? !/^\/chest([/?#]|$)/u.test(path) : underChest) return null;
+  const base = toolUrl(name, { surface });
+  if (!base) return null;
+  const link = new URL(base + path);
+  return link.origin === base ? base + path : null;
+}
+
 // Proposal (studio): the look the company chose for its tools. The owner
 // chooses once in the Chest's admin — for all tools, and, if they want,
 // otherwise for one tool — among three answers:

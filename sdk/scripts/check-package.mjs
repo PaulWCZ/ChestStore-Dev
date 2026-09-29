@@ -28,7 +28,7 @@ const expected = {
   mail: ["bouncePattern", "handle", "isAddress", "limits", "mailboxAddress", "mailboxPattern", "messageIdPattern", "send", "status", "threadAddress", "threadOf", "threadPattern", "threadTag", "verify"],
   calendar: ["check", "escapeText", "feed", "foldLine", "ics", "isDay", "keyPattern", "limits", "list", "page", "pick", "put", "remove", "uidOf", "unfold"],
   schedules: ["checkSchedules", "describeCron", "handle", "limits", "nextRun", "parseCron", "runIdPattern", "schedulePattern", "timeZone", "verify"],
-  chest: ["company", "currency", "forgetTheme", "locale", "publicUrl", "readThemeChoice", "teamUrl", "theme", "themeIdPattern", "timeZone", "today"],
+  chest: ["company", "currency", "forgetTheme", "locale", "publicUrl", "readThemeChoice", "readToolUrls", "teamUrl", "theme", "themeIdPattern", "timeZone", "today", "toolLink", "toolNamePattern", "toolUrl"],
   visitors: ["address", "checkForm", "count", "formToken", "language", "visitor"],
   checks: ["checkChecks", "checkIdPattern", "checkManifest", "checkPattern", "configure", "handle", "limits", "list", "verify"],
   webhooks: ["add", "checkInput", "checkManifest", "checkMessage", "checkUrl", "deliveryIdPattern", "enable", "escapeSlack", "eventIdPattern", "format", "handle", "isPublicAddress", "journal", "keyPattern", "limits", "list", "remove", "rotateSecret", "secretPattern", "send", "shownUrl", "sign", "targetIdPattern", "verify", "verifySignature", "webhookEventPattern"],
