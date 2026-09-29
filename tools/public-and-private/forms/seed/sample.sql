@@ -135,3 +135,10 @@ update versions set definition = jsonb_set(jsonb_set(definition, '{language}', '
 update forms set routes = '{"contact": {"name": "q1bxxxxx", "email": "q1cxxxxx", "phone": "q1dxxxxx", "company": null, "message": "q1ixxxxx"}, "request": {"subject": "q1hxxxxx", "details": "q1ixxxxx", "email": "q1cxxxxx", "name": "q1bxxxxx"}}'::jsonb where id = 5;
 
 select setval(pg_get_serial_sequence('forms', 'id'), 100);
+
+-- Round 3: where answers went (answers.sent) and a web address of the
+-- feedback form (form_hooks; the harness's fake Chest does not know this
+-- target, so Settings shows it as the tool recorded it).
+update answers set sent = '{webhooks,copy}' where id = 'seed00000000000s';
+insert into form_hooks (id, form_id, kind, label, shown, created_by, created_at) values
+  ('whk_seedaaaaaaaaaaaaaaaaaaaaaa', 1, 'slack', 'Customer care channel', 'https://hooks.slack.com/services/T0001/…', 'mbr_inesaaaaaaaaaaaaaaaaaaaaaa', now() - interval '20 days');

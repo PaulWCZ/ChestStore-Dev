@@ -49,5 +49,8 @@
   {"name": "answers-filter-open", "path": "/chest/forms/1/answers", "member": "ines", "locale": "en", "only": ["phone"], "actions": [{"click": ".filter-toggle"}, {"wait": 300}]},
   {"name": "home-to-answer-phone", "path": "/chest", "member": "hugo", "locale": "en", "only": ["phone"]},
   {"name": "settings-routes", "path": "/chest/forms/5/settings", "member": "ines", "locale": "en", "actions": [{"hover": ".route-fields"}, {"wait": 200}]},
+  {"name": "settings-hooks", "path": "/chest/forms/1/settings", "member": "ines", "locale": "en", "only": ["desktop"], "actions": [{"hover": "fieldset.hooks"}, {"wait": 200}]},
+  {"name": "settings-links-fr", "path": "/chest/forms/5/settings", "member": "camille", "locale": "fr", "only": ["phone"], "actions": [{"hover": ".route-fields"}, {"wait": 200}]},
+  {"name": "answer-sent-fr", "path": "/chest/forms/2/answers/seed00000000000s", "member": "camille", "locale": "fr", "only": ["phone"]},
   {"name": "home-port", "path": "/chest", "member": "camille", "locale": "en", "look": {"tool": "brand:port"}}
 ]

@@ -122,7 +122,8 @@ await step("settings save by themselves (no Save button): a copy by email, the b
   await page.goto(formUrl + "/settings");
   expect((await page.getByRole("button", { name: "Save" }).count()) === 0, "no Save button");
   await page.locator("label.ck-switch-label", { hasText: "Email a copy" }).click();
-  await page.locator("label.ck-switch-label", { hasText: "Also send them each batch by email" }).click();
+  // Round 3: a new public form has its owner's alerts by email on already.
+  expect(await page.getByRole("switch", { name: "Also send them each batch by email" }).isChecked(), "the owner's alerts by email on by default");
   await page.locator("label.ck-switch-label", { hasText: "The other tools of your Chest" }).click();
   await page.locator("input[placeholder='Thank you!']").fill("Thanks, see you Friday");
   // Straight to another tab: the change goes first.
