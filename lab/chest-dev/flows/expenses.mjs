@@ -34,6 +34,12 @@ await step("phone: Hugo snaps the receipt, types the amount, picks Meals, saves"
   await page.waitForFunction(() => document.activeElement?.id === "amount", null, { timeout: 3000 }); // the amount, next
   await page.locator("#amount").fill("41,00");
   await page.getByText("Meals", { exact: true }).click();
+  // Who was there: a colleague picked by name, a guest from outside typed.
+  await page.locator("#guest").fill("Inès Moreau");
+  await page.locator("#guest").press("Enter");
+  await page.locator("#guest").fill("Mme Garnier (Garnier & Fils)");
+  await page.getByRole("button", { name: "Add", exact: true }).click();
+  expect((await page.locator(".guests").innerText()).includes("3 people at the table · €13.67 each"), "per person: " + (await page.locator(".guests").innerText()));
   await page.locator("#merchant").fill("Café Kitsuné");
   await page.getByText("VAT and note").click();
   await page.getByRole("button", { name: "10 %" }).click();
@@ -47,6 +53,21 @@ await step("phone: Hugo snaps the receipt, types the amount, picks Meals, saves"
   const thumb = page.locator(".row", { hasText: "Café Kitsuné" }).locator("img.thumb");
   expect(await thumb.count() === 1, "thumbnail shown");
   await page.waitForFunction(() => [...document.querySelectorAll("img.thumb")].some(img => img.complete && img.naturalWidth > 0), null, { timeout: 8000 });
+});
+
+await step("phone: the photo is read in the browser — amount, day and shop suggested, to check", async () => {
+  await page.goto(origin + "/chest/new");
+  await page.locator(".capture .shoot input[type=file]").setInputFiles(receipt);
+  await page.waitForSelector(".reading.read", { timeout: 40000 });
+  expect((await page.locator(".reading").innerText()).startsWith("Read from the photo: amount, VAT, date, where"), "status: " + (await page.locator(".reading").innerText()));
+  expect((await page.locator("#amount").inputValue()) === "41.00", "amount " + (await page.locator("#amount").inputValue()));
+  expect((await page.locator("#merchant").inputValue()) === "CAFÉ KITSUNÉ", "merchant " + (await page.locator("#merchant").inputValue()));
+  expect((await page.locator("#date").inputValue()) === "2026-09-28", "date " + (await page.locator("#date").inputValue()));
+  expect(await page.locator(".money-input.suggested").count() === 1, "the amount is marked as read");
+  await page.locator("#amount").fill("41.50");
+  expect(await page.locator(".money-input.suggested").count() === 0, "typed over: no longer marked");
+  await page.getByRole("link", { name: "Cancel" }).click();
+  await page.waitForURL(/\/chest$/u);
 });
 
 await step("the receipt opens, byte for byte, through a fresh link", async () => {
@@ -182,6 +203,69 @@ await step("Camille pays Hugo back, undoes it, pays again", async () => {
   expect(dev.includes("Paid back:"), "Hugo told in English");
 });
 
+await step("Camille pays the others by one transfer file (SEPA), then enters Léa's bank details", async () => {
+  await page.goto(origin + "/chest/pay");
+  const panel = page.locator("section.by-file");
+  const make = panel.getByRole("button", { name: /^Créer le fichier · 1 virement · 188,40\s€$/u });
+  expect(await make.count() === 1, "one transfer: Tom's (Léa has no bank details) — " + (await panel.innerText()));
+  const [download] = await Promise.all([page.waitForEvent("download"), make.click()]);
+  const { readFileSync } = await import("node:fs");
+  const xml = readFileSync(await download.path(), "utf8");
+  expect(/^EXP-\d{8}-[0-9A-F]{8}\.xml$/u.test(download.suggestedFilename()), "file name " + download.suggestedFilename());
+  expect(xml.includes('xmlns="urn:iso:std:iso:20022:tech:xsd:pain.001.001.03"') && xml.includes("<IBAN>GB82WEST12345698765432</IBAN>") && xml.includes('<InstdAmt Ccy="EUR">188.40</InstdAmt>') && xml.includes("<Nm>Atelier Roux SARL</Nm>") && xml.includes("<IBAN>FR1420041010050500013M02606</IBAN>"), "pain.001 content");
+  if (process.env.SEPA_XSD) {
+    const { execFileSync } = await import("node:child_process");
+    execFileSync("xmllint", ["--noout", "--schema", process.env.SEPA_XSD, await download.path()], { stdio: "pipe" });
+  }
+  await page.waitForSelector("text=1 personne n’a pas de coordonnées bancaires");
+  await page.waitForTimeout(800);
+  await page.reload();
+  expect(await page.locator("section.paper", { hasText: "Tom Walker" }).count() === 0, "Tom paid by the file");
+  expect(/fichiers de virement/iu.test(await page.locator("main").innerText()), "the file is listed");
+  const lea = page.locator("section.paper", { hasText: "Léa Dubois" });
+  expect((await lea.innerText()).includes("Pas de coordonnées bancaires"), "Léa has none");
+  await lea.getByRole("button", { name: /^Saisir ses coordonnées bancaires/u }).click();
+  await page.locator("#person-bank-iban").fill("BE68 5390 0754 7035");
+  await page.locator("#person-bank-bic").click();
+  expect((await page.locator("dialog[open]").innerText()).includes("faute de frappe"), "the typo is caught while typing");
+  await page.locator("#person-bank-iban").fill("BE68 5390 0754 7034");
+  await page.getByRole("button", { name: "Enregistrer ses coordonnées" }).click();
+  await page.waitForSelector("dialog[open]", { state: "detached", timeout: 5000 }).catch(() => {});
+  await page.waitForTimeout(800);
+  await page.reload();
+  expect((await page.locator("section.paper", { hasText: "Léa Dubois" }).innerText()).includes("BE•• •••• 7034"), "masked account");
+  const dev = await (await page.request.get(origin + "/_dev")).text();
+  expect(dev.includes("Camille Martin a modifié vos coordonnées bancaires (compte finissant par 7034)"), "Léa told, in French");
+});
+
+await step("the accounting entries (FEC layout) and the export by month of payment", async () => {
+  const entries = await (await page.request.get(origin + "/chest/export/journal?month=2026-09")).text();
+  const lines = entries.split("\r\n");
+  expect(lines[0] === "JournalCode\tJournalLib\tEcritureNum\tEcritureDate\tCompteNum\tCompteLib\tCompAuxNum\tCompAuxLib\tPieceRef\tPieceDate\tEcritureLib\tDebit\tCredit\tEcritureLet\tDateLet\tValidDate\tMontantdevise\tIdevise", "FEC header");
+  expect(entries.includes("\t421BERNARD\tHugo Bernard\t"), "Hugo's own account");
+  await page.goto(origin + "/chest/export?by=paid");
+  expect(/remboursées en septembre 2026/iu.test(await page.locator("main").innerText()), "by month of payment");
+  expect(await page.locator("a.download").count() === 3, "three downloads");
+});
+
+await step("Camille imports Expensify's history: columns guessed, the unknown person left out", async () => {
+  await page.goto(origin + "/chest/settings/company#import");
+  const { fileURLToPath } = await import("node:url");
+  const file = fileURLToPath(new URL("../../../tools/private/expenses/test/fixtures/expensify-export.csv", import.meta.url));
+  await page.locator("#import-file").setInputFiles(file);
+  await page.waitForSelector("text=4 lignes sont prêtes.");
+  expect((await page.locator("#import").innerText()).includes("Robert Smith"), "the unmatched name is shown");
+  expect((await page.locator("#date-order").inputValue()) === "mdy", "US dates recognised");
+  await page.getByRole("button", { name: "Importer 4 lignes" }).click();
+  await page.waitForSelector("text=3 dépenses importées.");
+  expect((await page.locator("#import").innerText()).includes("un remboursement"), "the refund is left out, and said");
+  await as(context, origin, "hugo");
+  await page.goto(origin + "/chest");
+  const uber = page.locator(".row", { hasText: "Uber" });
+  expect(/imported/iu.test(await uber.innerText()), "in Hugo's history, stamped");
+  await as(context, origin, "camille");
+});
+
 await step("the export: a French CSV and a ZIP of the receipts", async () => {
   await page.goto(origin + "/chest/export");
   const csvHref = await page.locator("a.download").first().getAttribute("href");
@@ -193,7 +277,7 @@ await step("the export: a French CSV and a ZIP of the receipts", async () => {
 });
 
 await step("Camille names Inès as Léa's approver; Léa's trip waiting moves to her", async () => {
-  await page.goto(origin + "/chest/settings");
+  await page.goto(origin + "/chest/settings/company");
   await page.getByLabel(/Validé par.*Léa Dubois/u).selectOption({ label: "Inès Moreau" });
   await page.waitForSelector("text=Enregistré. Ses dépenses en attente vont à Inès Moreau.");
   await as(context, origin, "ines");
@@ -205,6 +289,28 @@ await step("the 25th: a reminder to those with drafts, in their language", async
   await page.request.post(origin + "/_dev/schedule", { form: { name: "reminder" } });
   const dev = await (await page.request.get(origin + "/_dev")).text();
   expect(dev.includes("Send your expenses before the end of the month") && dev.includes("Envoyez vos notes de frais avant la fin du mois"), "reminders in English and French");
+});
+
+await step("Tom claims a flat rate: two meals away from home", async () => {
+  await as(context, origin, "tom");
+  await page.goto(origin + "/chest/new?allowance=1");
+  await page.locator("label.chip", { hasText: "Meal away from home (URSSAF)" }).click();
+  await page.locator("#units").fill("2");
+  expect((await page.locator(".estimate").innerText()).includes("€42.80"), "live amount: " + (await page.locator(".estimate").innerText()));
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await page.waitForURL(/\/chest$/u);
+  expect((await page.locator(".row", { hasText: "Meal away from home" }).innerText()).includes("2 meals × €21.40"), "in the drafts");
+});
+
+await step("Inès sees Sofia's London expense in euros; Léa gives her kilometres driven before the tool", async () => {
+  await as(context, origin, "ines");
+  await page.goto(origin + "/chest/approve");
+  expect((await page.locator(".row", { hasText: "Heathrow Express" }).innerText()).includes("Soit 44,86"), "converted at Sofia's rate");
+  await as(context, origin, "lea");
+  await page.goto(origin + "/chest/settings");
+  await page.locator("#prior").fill("800");
+  await page.getByRole("button", { name: "Enregistrer", exact: true }).click();
+  await page.waitForSelector("text=Vos trajets de 2026 pas encore validés ont été mis à jour.");
 });
 
 await step("rights: an employee cannot pay or see another's expense; no role, no tool", async () => {
@@ -223,7 +329,7 @@ await step("rights: an employee cannot pay or see another's expense; no role, no
 await step("phone width: no page scrolls sideways", async () => {
   await as(context, origin, "camille");
   await page.setViewportSize({ width: 390, height: 844 });
-  for (const path of ["/chest", "/chest/new", "/chest/new?trip=1", "/chest/approve", "/chest/pay", "/chest/export", "/chest/settings"]) {
+  for (const path of ["/chest", "/chest/new", "/chest/new?trip=1", "/chest/new?allowance=1", "/chest/approve", "/chest/pay", "/chest/export", "/chest/settings", "/chest/settings/company"]) {
     await page.goto(origin + path);
     const wide = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
     expect(wide <= 0, `${path} scrolls sideways by ${wide}px`);

@@ -12,8 +12,9 @@ import { exportRows } from "../../../../lib/reports.ts";
 
 // The report's entries as a CSV, for a spreadsheet, the invoicing or the
 // payroll: in the reader's language (French: ";" and decimal commas), names
-// resolved now. A member gets their own time; rates and amounts are for
-// managers.
+// resolved now. A member gets their own time; rates, amounts, costs and
+// what was invoiced are for managers (each at the rate in force on the
+// entry's day).
 export async function GET(request: Request): Promise<Response> {
   const actor = member(request);
   if (!actor) return new Response(null, { status: 401 });
@@ -29,10 +30,13 @@ export async function GET(request: Request): Promise<Response> {
     const number = (n: number) => new Intl.NumberFormat(intl(locale), { maximumFractionDigits: 2, useGrouping: false }).format(n);
     const e = t.export;
     const csv = toCsv([
-      [e.date, e.person, e.client, e.project, e.task, e.note, e.hours, e.billable, ...(money ? [e.rate, e.amount] : []), e.start, e.end],
+      [e.date, e.person, e.client, e.project, e.task, e.note, e.hours, e.billable, ...(money ? [e.rate, e.amount, e.costRate, e.cost, e.invoiced] : []), e.start, e.end],
       ...rows.map(r => [
         r.day, nameFor(r.memberId, who, locale), r.clientName ?? "", r.projectName, r.taskName ?? "", r.note, number(hours(r.minutes)), r.billable ? e.yes : e.no,
-        ...(money ? [r.rateCents === null ? "" : number(r.rateCents / 100), r.cents ? number(r.cents / 100) : ""] : []),
+        ...(money ? [
+          r.rateCents === null ? "" : number(r.rateCents / 100), r.cents ? number(r.cents / 100) : "",
+          r.costRateCents === null ? "" : number(r.costRateCents / 100), r.costCents ? number(r.costCents / 100) : "", r.invoiced ? e.yes : e.no,
+        ] : []),
         r.startedAt ? clock(r.startedAt, z, locale) : "", r.endedAt ? clock(r.endedAt, z, locale) : "",
       ]),
     ], e.separator === ";" ? ";" : ",");

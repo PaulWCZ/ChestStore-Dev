@@ -90,4 +90,37 @@ insert into history (expense_id, actor, kind, detail, at) values
   (21, 'mbr_paulaaaaaaaaaaaaaaaaaaaaaa', 'created', '', '2026-09-01 19:30:00+02'),
   (21, 'mbr_paulaaaaaaaaaaaaaaaaaaaaaa', 'submitted', '', '2026-09-02 09:12:00+02'),
   (22, 'mbr_sofiaaaaaaaaaaaaaaaaaaaaaa', 'created', '', '2026-09-26 19:30:00+02');
+-- After the critique: the company's bank account and name, people's bank
+-- details (sample IBANs from the banks' published examples; kept as typed:
+-- the harness sets no BANK_DETAILS_KEY), journal accounts, guests on meals,
+-- tolls and parking, a trip abroad in pounds, a flat rate, a hotel's nights.
+update expenses set base_cents = amount_cents, base_currency = currency where base_cents is null and currency = 'EUR';
+insert into settings (key, value) values ('setupDone', 'true'), ('payer', '"Atelier Roux SARL"');
+insert into bank_accounts (owner, iban, last4, country, bic, holder, updated_by, updated_at) values
+  ('company', 'v0.FR1420041010050500013M02606', '2606', 'FR', null, '', 'mbr_camilleaaaaaaaaaaaaaaaaaaa', '2026-09-01 10:00:00+02'),
+  ('mbr_hugoaaaaaaaaaaaaaaaaaaaaaa', 'v0.FR7630006000011234567890189', '0189', 'FR', 'AGRIFRPP', '', 'mbr_hugoaaaaaaaaaaaaaaaaaaaaaa', '2026-06-02 10:00:00+02'),
+  ('mbr_sofiaaaaaaaaaaaaaaaaaaaaaa', 'v0.DE89370400440532013000', '3000', 'DE', null, '', 'mbr_sofiaaaaaaaaaaaaaaaaaaaaaa', '2026-09-24 18:00:00+02'),
+  ('mbr_tomaaaaaaaaaaaaaaaaaaaaaaa', 'v0.GB82WEST12345698765432', '5432', 'GB', 'NWBKGB2L', '', 'mbr_camilleaaaaaaaaaaaaaaaaaaa', '2026-05-12 10:00:00+02');
+insert into member_accounts (member_id, account) values ('mbr_hugoaaaaaaaaaaaaaaaaaaaaaa', '421BERNARD'), ('mbr_tomaaaaaaaaaaaaaaaaaaaaaaa', '421WALKER');
+insert into rates (currency, rate_micro, updated_by) values ('GBP', 1165300, 'mbr_camilleaaaaaaaaaaaaaaaaaaa');
+update expenses set guest_names = '{"M. Garnier (Garnier & Fils)"}' where id = 1;
+update expenses set guest_names = '{"Paul Roche (Bocuse Traiteur)","Anne Roche (Bocuse Traiteur)"}' where id = 6;
+update expenses set guest_members = '{mbr_hugoaaaaaaaaaaaaaaaaaaaaaa,mbr_leaaaaaaaaaaaaaaaaaaaaaaaa,mbr_sofiaaaaaaaaaaaaaaaaaaaaaa}', guest_names = '{"Maxime (freelance)","Julie (freelance)"}' where id = 14;
+update expenses set guest_names = '{"Mme Leroy, buyer (Maison Roux)"}' where id = 18;
+update expenses set alone = true where id in (8, 10, 22);
+update expenses set category_id = (select id from categories where key = 'parking') where id = 15;
+update expenses set nights = 1 where id in (2, 5);
+insert into expenses (id, member_id, kind, status, spent_on, amount_cents, currency, rate_micro, rate_source, base_cents, base_currency, vat_cents, category_id, merchant, note, paid_by, allowance_id, units, nights, approver_id, submitted_at, decided_by, decided_at, created_at, updated_at) overriding system value values
+  (23, 'mbr_sofiaaaaaaaaaaaaaaaaaaaaaa', 'expense', 'submitted', '2026-09-17', 3850, 'GBP', 1165300, 'typed', 4486, 'EUR', null, 2, 'Heathrow Express', 'London, client workshop', 'me', null, null, null, 'mbr_inesaaaaaaaaaaaaaaaaaaaaaa', '2026-09-22 09:12:00+02', null, null, '2026-09-17 19:30:00+02', '2026-09-17 19:30:00+02'),
+  (24, 'mbr_tomaaaaaaaaaaaaaaaaaaaaaaa', 'allowance', 'approved', '2026-09-14', 17040, 'EUR', null, null, 17040, 'EUR', null, (select id from categories where key = 'allowance'), '', 'Installation at the Nantes site', 'me', (select id from allowances where key = 'night_other'), 3, null, 'mbr_inesaaaaaaaaaaaaaaaaaaaaaa', '2026-09-18 09:12:00+02', 'mbr_inesaaaaaaaaaaaaaaaaaaaaaa', '2026-09-18 16:40:00+02', '2026-09-17 19:30:00+02', '2026-09-17 19:30:00+02'),
+  (25, 'mbr_leaaaaaaaaaaaaaaaaaaaaaaaa', 'expense', 'approved', '2026-09-08', 21000, 'EUR', null, null, 21000, 'EUR', 1909, 3, 'Hôtel Mercure Lille', 'Two nights, supplier audit', 'me', null, null, 2, null, '2026-09-11 09:12:00+02', 'mbr_camilleaaaaaaaaaaaaaaaaaaa', '2026-09-11 16:40:00+02', '2026-09-10 19:30:00+02', '2026-09-10 19:30:00+02');
+insert into history (expense_id, actor, kind, detail, at) values
+  (23, 'mbr_sofiaaaaaaaaaaaaaaaaaaaaaa', 'created', '', '2026-09-17 19:30:00+02'),
+  (23, 'mbr_sofiaaaaaaaaaaaaaaaaaaaaaa', 'submitted', '', '2026-09-22 09:12:00+02'),
+  (24, 'mbr_tomaaaaaaaaaaaaaaaaaaaaaaa', 'created', '', '2026-09-17 19:30:00+02'),
+  (24, 'mbr_tomaaaaaaaaaaaaaaaaaaaaaaa', 'submitted', '', '2026-09-18 09:12:00+02'),
+  (24, 'mbr_inesaaaaaaaaaaaaaaaaaaaaaa', 'approved', '', '2026-09-18 16:40:00+02'),
+  (25, 'mbr_leaaaaaaaaaaaaaaaaaaaaaaaa', 'created', '', '2026-09-10 19:30:00+02'),
+  (25, 'mbr_leaaaaaaaaaaaaaaaaaaaaaaaa', 'submitted', '', '2026-09-11 09:12:00+02'),
+  (25, 'mbr_camilleaaaaaaaaaaaaaaaaaaa', 'approved', '', '2026-09-11 16:40:00+02');
 select setval(pg_get_serial_sequence('expenses', 'id'), 100);

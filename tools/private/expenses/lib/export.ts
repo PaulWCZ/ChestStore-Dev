@@ -85,7 +85,7 @@ function csvText(rows: ExportRow[], who: Map<string, Person>, locale: Locale, re
       r.paidOn ? csvDate(r.paidOn, locale) : "",
       receiptNames.get(r.id) ?? "",
       "E" + r.id,
-      [...r.guests.members.map(g => nameOf(who.get(g), locale)), ...r.guests.names].join(", "),
+      r.alone ? t.form.alone : [...r.guests.members.map(g => nameOf(who.get(g), locale)), ...r.guests.names].join(", "),
     ];
   });
   return toCsv([header, ...body], separatorFor(locale));

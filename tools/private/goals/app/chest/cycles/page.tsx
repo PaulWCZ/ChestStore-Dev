@@ -4,8 +4,8 @@ import { Progress } from "../../../components/progress.tsx";
 import { can } from "../../../lib/access.ts";
 import { db } from "../../../lib/db.ts";
 import { format, plural } from "../../../lib/i18n/index.ts";
-import { nextQuarter, objectiveProgress, percent, quarterOf } from "../../../lib/model.ts";
-import { context, cycleWords } from "../../../lib/page-data.ts";
+import { firstCycleChoices, nextQuarter, objectiveProgress, percent } from "../../../lib/model.ts";
+import { context, cycleWords, quarterName } from "../../../lib/page-data.ts";
 import { viewer } from "../../../lib/session.ts";
 import { pctText } from "../../../lib/views.ts";
 import { CycleAdmin, NewCycle } from "../views/cycle-admin.tsx";
@@ -35,7 +35,8 @@ export default async function Cycles() {
     return percent(each.length ? each.reduce((a, b) => a + b, 0) / each.length : null);
   };
   const latest = ctx.cycles[0];
-  const suggestion = latest ? nextQuarter(latest.endsOn) : quarterOf(ctx.clock.today);
+  const q = latest ? nextQuarter(latest.endsOn) : firstCycleChoices(ctx.clock.today).main.quarter;
+  const suggestion = { name: quarterName(t, q), startsOn: q.startsOn, endsOn: q.endsOn };
   return (
     <div className="page narrow">
       <div className="head">

@@ -8,7 +8,8 @@ export const limits = {
   teamName: 60,
   title: 200,
   why: 2000,
-  unit: 20,
+  // A unit, or its two forms "customer/customers".
+  unit: 41,
   note: 500,
   comment: 2000,
   learned: 2000,
@@ -101,16 +102,34 @@ export function cycleDates(starts: unknown, ends: unknown): { startsOn: string; 
 }
 
 // The calendar quarter of a day, and the next one: what "New cycle"
-// suggests. The name is "Q4 2026" in every language (a label, not a word).
-export function quarterOf(date: string): { name: string; startsOn: string; endsOn: string } {
+// suggests. `name` is "Q4 2026"; pages write it in the reader's words
+// ("T4 2026" in French) from `quarter` and `year`.
+export type Quarter = { name: string; quarter: number; year: number; startsOn: string; endsOn: string };
+export function quarterOf(date: string): Quarter {
   const [y, m] = date.split("-").map(Number) as [number, number];
   const q = Math.floor((m - 1) / 3);
   const startsOn = `${y}-${String(q * 3 + 1).padStart(2, "0")}-01`;
   const endsOn = new Date(Date.UTC(y, q * 3 + 3, 0)).toISOString().slice(0, 10);
-  return { name: `Q${q + 1} ${y}`, startsOn, endsOn };
+  return { name: `Q${q + 1} ${y}`, quarter: q + 1, year: y, startsOn, endsOn };
 }
-export function nextQuarter(after: string): { name: string; startsOn: string; endsOn: string } {
+export function nextQuarter(after: string): Quarter {
   return quarterOf(addDays(quarterOf(after).endsOn, 1));
+}
+
+// Within this many days of a quarter's end, a first cycle is the next
+// quarter: a company that starts Goals on 29 September plans Q4, not the
+// 1 day left of Q3.
+export const lateInQuarterDays = 14;
+
+// What "Start" offers on a Chest without cycles, on a day of the Chest's
+// calendar: the quarter to start (with the other one as a second choice
+// late in a quarter).
+export type Suggestion = { which: "current" | "next"; quarter: Quarter };
+export function firstCycleChoices(today: string): { main: Suggestion; other: Suggestion | null } {
+  const current = quarterOf(today);
+  const left = daysBetween(today, current.endsOn);
+  if (left < lateInQuarterDays) return { main: { which: "next", quarter: nextQuarter(today) }, other: { which: "current", quarter: current } };
+  return { main: { which: "current", quarter: current }, other: null };
 }
 
 // Whether a cycle runs on a day (its first and last days included).
@@ -149,7 +168,7 @@ export function measure(input: { kind?: unknown; unit?: unknown; start?: unknown
   const target = parseValue(input.target);
   if (start === target) throw new AppError("same_values");
   if (input.kind === "percent" && [start, target].some(v => v < -1000 || v > 1000)) throw new AppError("invalid_number");
-  const unit = input.kind === "number" ? clean(input.unit ?? "", limits.unit, { optional: true }) : "";
+  const unit = input.kind === "number" ? clean(input.unit ?? "", limits.unit, { optional: true }).replace(/\s*\/\s*/gu, "/") : "";
   return { kind: input.kind, unit, start, target };
 }
 

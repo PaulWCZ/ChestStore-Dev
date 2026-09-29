@@ -5,6 +5,7 @@ import type { Query, Sql } from "./db.ts";
 import { addDays, clean, day, id, isItemRole, isKind, limits, memberId, offset, type ItemRole, type Kind } from "./model.ts";
 import { today } from "./zone.ts";
 import { present } from "./people.ts";
+import { samePhrase } from "./examples.ts";
 
 // Checklists: templates HR writes once ("Office newcomer", "Leaving"), and
 // the onboardings and offboardings started from them for one person — a
@@ -12,7 +13,9 @@ import { present } from "./people.ts";
 // from the start date (or the last day).
 
 // Templates.
-export type TemplateItem = { id: string; text: string; role: ItemRole; memberId: string | null; offset: number };
+// phrase: the key of an example step's words (lib/examples.ts), shown in
+// each reader's language until HR rewords it.
+export type TemplateItem = { id: string; text: string; phrase: string | null; role: ItemRole; memberId: string | null; offset: number };
 export type Template = { id: string; kind: Kind; name: string; archived: boolean; items: TemplateItem[] };
 
 // first is the one row a count or an aggregate always answers.
@@ -26,8 +29,8 @@ function manager(actor: Member | null): Member {
 }
 
 type TemplateRow = { id: string; kind: Kind; name: string; archived_at: Date | null };
-type TemplateItemRow = { id: string; template_id: string; text: string; role: ItemRole; member_id: string | null; offset_days: number };
-const toItem = (r: TemplateItemRow): TemplateItem => ({ id: String(r.id), text: r.text, role: r.role, memberId: r.member_id, offset: r.offset_days });
+type TemplateItemRow = { id: string; template_id: string; text: string; phrase: string | null; role: ItemRole; member_id: string | null; offset_days: number };
+const toItem = (r: TemplateItemRow): TemplateItem => ({ id: String(r.id), text: r.text, phrase: r.phrase, role: r.role, memberId: r.member_id, offset: r.offset_days });
 
 export async function listTemplates(sql: Query, actor: Member | null, options: { archived?: boolean } = {}): Promise<Template[]> {
   manager(actor);
@@ -37,7 +40,7 @@ export async function listTemplates(sql: Query, actor: Member | null, options: {
     order by kind, lower(name), id`;
   if (rows.length === 0) return [];
   const items = await sql<TemplateItemRow[]>`
-    select id, template_id, text, role, member_id, offset_days from template_items
+    select id, template_id, text, phrase, role, member_id, offset_days from template_items
     where template_id in ${sql(rows.map(r => r.id))} order by offset_days, position, id`;
   return rows.map(r => ({
     id: String(r.id), kind: r.kind, name: r.name, archived: r.archived_at !== null,
@@ -49,7 +52,7 @@ export async function template(sql: Query, actor: Member | null, templateId: unk
   manager(actor);
   const [row] = await sql<TemplateRow[]>`select id, kind, name, archived_at from templates where id = ${id(templateId)}`;
   if (!row) throw new AppError("not_found");
-  const items = await sql<TemplateItemRow[]>`select id, template_id, text, role, member_id, offset_days from template_items where template_id = ${row.id} order by offset_days, position, id`;
+  const items = await sql<TemplateItemRow[]>`select id, template_id, text, phrase, role, member_id, offset_days from template_items where template_id = ${row.id} order by offset_days, position, id`;
   return { id: String(row.id), kind: row.kind, name: row.name, archived: row.archived_at !== null, items: items.map(toItem) };
 }
 
@@ -101,7 +104,7 @@ export async function addTemplateItem(sql: Sql, actor: Member | null, templateId
     const [row] = await tx<TemplateItemRow[]>`
       insert into template_items (template_id, position, text, role, member_id, offset_days)
       values (${t}, ${last + 1}, ${fields.text}, ${fields.role}, ${fields.memberId}, ${fields.offset})
-      returning id, template_id, text, role, member_id, offset_days`;
+      returning id, template_id, text, phrase, role, member_id, offset_days`;
     return toItem(row!);
   });
 }
@@ -109,23 +112,31 @@ export async function addTemplateItem(sql: Sql, actor: Member | null, templateId
 export async function updateTemplateItem(sql: Sql, actor: Member | null, itemId: unknown, input: ItemInput): Promise<TemplateItem> {
   manager(actor);
   const fields = await itemFields(input);
+  const key = id(itemId);
+  // Reworded, an example step keeps HR's words in every language; saved
+  // with its own words (in any language), it keeps its phrase.
+  const [current] = await sql<{ text: string; phrase: string | null }[]>`select text, phrase from template_items where id = ${key}`;
+  if (!current) throw new AppError("not_found");
+  const phrase = current.text === fields.text || samePhrase(current.phrase, fields.text) ? current.phrase : null;
+  const text = phrase ? current.text : fields.text;
   const [row] = await sql<TemplateItemRow[]>`
-    update template_items set text = ${fields.text}, role = ${fields.role}, member_id = ${fields.memberId}, offset_days = ${fields.offset}
-    where id = ${id(itemId)} returning id, template_id, text, role, member_id, offset_days`;
+    update template_items set text = ${text}, phrase = ${phrase}, role = ${fields.role}, member_id = ${fields.memberId}, offset_days = ${fields.offset}
+    where id = ${key} returning id, template_id, text, phrase, role, member_id, offset_days`;
   if (!row) throw new AppError("not_found");
   return toItem(row);
 }
 
 export async function removeTemplateItem(sql: Sql, actor: Member | null, itemId: unknown): Promise<TemplateItem> {
   manager(actor);
-  const [row] = await sql<TemplateItemRow[]>`delete from template_items where id = ${id(itemId)} returning id, template_id, text, role, member_id, offset_days`;
+  const [row] = await sql<TemplateItemRow[]>`delete from template_items where id = ${id(itemId)} returning id, template_id, text, phrase, role, member_id, offset_days`;
   if (!row) throw new AppError("not_found");
   return toItem(row);
 }
 
 // The example templates, in the words of the language HR reads: one click
 // on an empty page gives something real to start from.
-export type Examples = { onboarding: { name: string; items: readonly { text: string; role: ItemRole; offset: number }[] }; offboarding: { name: string; items: readonly { text: string; role: ItemRole; offset: number }[] } };
+type ExampleItem = { text: string; phrase: string; role: ItemRole; offset: number };
+export type Examples = { onboarding: { name: string; items: readonly ExampleItem[] }; offboarding: { name: string; items: readonly ExampleItem[] } };
 
 export async function addExamples(sql: Sql, actor: Member | null, examples: Examples): Promise<string[]> {
   const who = manager(actor);
@@ -136,7 +147,7 @@ export async function addExamples(sql: Sql, actor: Member | null, examples: Exam
       const [row] = await tx<{ id: string }[]>`insert into templates (kind, name, created_by) values (${kind}, ${e.name}, ${who.id}) returning id`;
       let position = 0;
       for (const item of e.items) {
-        await tx`insert into template_items (template_id, position, text, role, offset_days) values (${row!.id}, ${++position}, ${item.text}, ${item.role}, ${item.offset})`;
+        await tx`insert into template_items (template_id, position, text, phrase, role, offset_days) values (${row!.id}, ${++position}, ${item.text}, ${item.phrase}, ${item.role}, ${item.offset})`;
       }
       ids.push(String(row!.id));
     }
@@ -145,7 +156,7 @@ export async function addExamples(sql: Sql, actor: Member | null, examples: Exam
 }
 
 // Checklists started for one person.
-export type JourneyItem = { id: string; text: string; role: ItemRole; assignee: string | null; due: string; done: boolean; doneAt: string | null; doneBy: string | null };
+export type JourneyItem = { id: string; text: string; phrase: string | null; role: ItemRole; assignee: string | null; due: string; done: boolean; doneAt: string | null; doneBy: string | null };
 export type Journey = {
   id: string; kind: Kind;
   // The member it is about; null while it is about an arrival told by
@@ -157,7 +168,7 @@ export type Journey = {
 export type JourneySummary = Omit<Journey, "items"> & { total: number; done: number; next: string | null; late: number };
 
 type JourneyRow = { id: string; kind: Kind; person_id: string | null; arrival_id: string | null; arrival_name: string | null; name: string; anchor: string; created_by: string; created_at: Date; stopped_at: Date | null; completed_at: Date | null; manager_id: string | null };
-type ItemRow = { id: string; journey_id: string; text: string; role: ItemRole; assignee: string | null; due_on: string; done_at: Date | null; done_by: string | null };
+type ItemRow = { id: string; journey_id: string; text: string; phrase: string | null; role: ItemRole; assignee: string | null; due_on: string; done_at: Date | null; done_by: string | null };
 // A checklist's manager is the person's (or, for an arrival, the one HR
 // chose when starting it).
 const journeyColumns = "j.id, j.kind, j.person_id, j.arrival_id, a.name as arrival_name, j.name, to_char(j.anchor, 'YYYY-MM-DD') as anchor, j.created_by, j.created_at, j.stopped_at, j.completed_at, coalesce(p.manager_id, a.manager_id) as manager_id";
@@ -166,19 +177,19 @@ const toJourney = (r: JourneyRow) => ({
   id: String(r.id), kind: r.kind, personId: r.person_id, arrivalId: r.arrival_id === null ? null : String(r.arrival_id), arrivalName: r.arrival_name, name: r.name, anchor: r.anchor, createdBy: r.created_by, createdAt: r.created_at.toISOString(),
   stopped: r.stopped_at !== null, completedAt: r.completed_at?.toISOString() ?? null, managerId: r.manager_id,
 });
-const toJourneyItem = (r: ItemRow): JourneyItem => ({ id: String(r.id), text: r.text, role: r.role, assignee: r.assignee, due: r.due_on, done: r.done_at !== null, doneAt: r.done_at?.toISOString() ?? null, doneBy: r.done_by });
+const toJourneyItem = (r: ItemRow): JourneyItem => ({ id: String(r.id), text: r.text, phrase: r.phrase, role: r.role, assignee: r.assignee, due: r.due_on, done: r.done_at !== null, doneAt: r.done_at?.toISOString() ?? null, doneBy: r.done_by });
 
 async function itemsOf(sql: Query, journeyIds: string[]): Promise<ItemRow[]> {
   if (journeyIds.length === 0) return [];
   return sql<ItemRow[]>`
-    select id, journey_id, text, role, assignee, to_char(due_on, 'YYYY-MM-DD') as due_on, done_at, done_by from journey_items
+    select id, journey_id, text, phrase, role, assignee, to_char(due_on, 'YYYY-MM-DD') as due_on, done_at, done_by from journey_items
     where journey_id in ${sql(journeyIds)} and removed_at is null order by due_on, position, id`;
 }
 
 // Starting a checklist: the template's items are copied, each given to
-// whom its role names now — the person, their manager (nobody yet if they
-// have none: HR gives it), whoever starts it (HR), or the member named (if
-// still here).
+// whom its role names now — the person, their manager, whoever starts it
+// (HR), or the member named. A manager or a named member who is not here
+// (none yet, or gone) leaves the step to HR, never to nobody.
 export type Started = { id: string; personId: string | null; kind: Kind; assignees: Map<string, string[]> };
 
 export async function startJourney(sql: Sql, actor: Member | null, input: { personId?: unknown; arrivalId?: unknown; managerId?: unknown; templateId?: unknown; anchor?: unknown }): Promise<Started> {
@@ -208,8 +219,8 @@ export async function startJourney(sql: Sql, actor: Member | null, input: { pers
   const assigneeOf = (item: TemplateItem): string | null => {
     if (item.role === "person") return person;
     if (item.role === "hr") return who.id;
-    if (item.role === "manager") return managerId && here.has(managerId) ? managerId : null;
-    return item.memberId && here.has(item.memberId) ? item.memberId : null;
+    if (item.role === "manager") return managerId && here.has(managerId) ? managerId : who.id;
+    return item.memberId && here.has(item.memberId) ? item.memberId : who.id;
   };
   return sql.begin(async tx => {
     if (arrival) await tx`update arrivals set manager_id = ${managerId} where id = ${arrival}`;
@@ -222,8 +233,8 @@ export async function startJourney(sql: Sql, actor: Member | null, input: { pers
     for (const item of t.items) {
       const assignee = assigneeOf(item);
       await tx`
-        insert into journey_items (journey_id, position, text, role, assignee, due_on)
-        values (${journeyId}, ${++position}, ${item.text}, ${item.role}, ${assignee}, ${addDays(anchor, item.offset)})`;
+        insert into journey_items (journey_id, position, text, phrase, role, assignee, due_on)
+        values (${journeyId}, ${++position}, ${item.text}, ${item.phrase}, ${item.role}, ${assignee}, ${addDays(anchor, item.offset)})`;
       if (assignee) assignees.set(assignee, [...(assignees.get(assignee) ?? []), item.text]);
     }
     return { id: journeyId, personId: person, kind: t.kind, assignees };
@@ -290,7 +301,7 @@ export type MyGroup = { journey: Omit<Journey, "items">; items: JourneyItem[] };
 export async function myItems(sql: Query, actor: Member | null): Promise<MyGroup[]> {
   if (!actor || !can(actor, "directory.read")) throw new AppError("forbidden");
   const rows = await sql<(ItemRow & { j_id: string })[]>`
-    select i.id, i.journey_id, i.text, i.role, i.assignee, to_char(i.due_on, 'YYYY-MM-DD') as due_on, i.done_at, i.done_by
+    select i.id, i.journey_id, i.text, i.phrase, i.role, i.assignee, to_char(i.due_on, 'YYYY-MM-DD') as due_on, i.done_at, i.done_by
     from journey_items i join journeys j on j.id = i.journey_id
     where i.assignee = ${actor.id} and i.removed_at is null and j.stopped_at is null
       and (i.done_at is null or i.done_at > now() - interval '7 days')
@@ -377,7 +388,7 @@ export async function addJourneyItem(sql: Sql, actor: Member | null, journeyId: 
     const [row] = await tx<ItemRow[]>`
       insert into journey_items (journey_id, position, text, role, assignee, due_on)
       values (${jid}, ${last + 1}, ${text}, ${assignee ? "member" : "hr"}, ${assignee}, ${due})
-      returning id, journey_id, text, role, assignee, to_char(due_on, 'YYYY-MM-DD') as due_on, done_at, done_by`;
+      returning id, journey_id, text, phrase, role, assignee, to_char(due_on, 'YYYY-MM-DD') as due_on, done_at, done_by`;
     return { item: toJourneyItem(row!), ticked: await settle(tx, jid, assignee) };
   });
 }
@@ -394,22 +405,25 @@ export async function updateJourneyItem(sql: Sql, actor: Member | null, itemId: 
     if (assignee && !(await present([assignee])).has(assignee)) throw new AppError("not_member");
   }
   return sql.begin(async tx => {
-    const [current] = await tx<{ assignee: string | null; journey_id: string; role: ItemRole }[]>`
-      select i.assignee, i.journey_id, i.role from journey_items i join journeys j on j.id = i.journey_id
+    const [current] = await tx<{ assignee: string | null; journey_id: string; role: ItemRole; text: string; phrase: string | null }[]>`
+      select i.assignee, i.journey_id, i.role, i.text, i.phrase from journey_items i join journeys j on j.id = i.journey_id
       where i.id = ${key} and i.removed_at is null and j.stopped_at is null for update of i`;
     if (!current) throw new AppError("not_found");
     const nextAssignee = assignee === undefined ? current.assignee : assignee;
     // Given to someone by name, the item's role says so; its role is kept
     // while it stays with the same person.
     const role: ItemRole = assignee === undefined || assignee === current.assignee ? current.role : assignee === null ? "hr" : "member";
+    // Reworded, a step keeps HR's words in every language.
+    const keep = text === undefined || text === current.text || samePhrase(current.phrase, text);
     const [row] = await tx<ItemRow[]>`
       update journey_items set
-        text = coalesce(${text ?? null}, text),
+        text = ${keep ? current.text : text!},
+        phrase = ${keep ? current.phrase : null},
         due_on = coalesce(${due ?? null}::date, due_on),
         assignee = ${nextAssignee},
         role = ${role}
       where id = ${key}
-      returning id, journey_id, text, role, assignee, to_char(due_on, 'YYYY-MM-DD') as due_on, done_at, done_by`;
+      returning id, journey_id, text, phrase, role, assignee, to_char(due_on, 'YYYY-MM-DD') as due_on, done_at, done_by`;
     return { item: toJourneyItem(row!), before: current.assignee, journeyId: String(current.journey_id) };
   });
 }
@@ -446,8 +460,23 @@ export async function deleteJourney(sql: Sql, actor: Member | null, journeyId: u
 
 // The open items given to each of these people in one checklist (for the
 // bell's "2 to-dos for you").
-export async function openIn(sql: Query, journeyId: string, assignee: string): Promise<string[]> {
-  return (await sql<{ text: string }[]>`
-    select text from journey_items where journey_id = ${journeyId} and assignee = ${assignee} and done_at is null and removed_at is null
-    order by due_on, position`).map(r => r.text);
+export async function openIn(sql: Query, journeyId: string, assignee: string): Promise<{ text: string; phrase: string | null }[]> {
+  return sql<{ text: string; phrase: string | null }[]>`
+    select text, phrase from journey_items where journey_id = ${journeyId} and assignee = ${assignee} and done_at is null and removed_at is null
+    order by due_on, position`;
+}
+
+// A step that ticks itself: the newcomer's "fill in your profile" once they
+// did. Says what changed, for the bell, like a tick.
+export async function autoTick(sql: Sql, member: string, phrase: string): Promise<Ticked[]> {
+  return sql.begin(async tx => {
+    const rows = await tx<{ journey_id: string }[]>`
+      update journey_items i set done_at = now(), done_by = ${member}
+      from journeys j where j.id = i.journey_id and j.stopped_at is null
+        and i.assignee = ${member} and i.phrase = ${phrase} and i.done_at is null and i.removed_at is null
+      returning i.journey_id`;
+    const ticked: Ticked[] = [];
+    for (const jid of new Set(rows.map(r => String(r.journey_id)))) ticked.push(await settle(tx, jid, member));
+    return ticked;
+  });
 }

@@ -1,0 +1,235 @@
+import type { Member } from "@argentic/chest-sdk/member";
+import { can, roles } from "./access.ts";
+import { AppError } from "./app-error.ts";
+import { today } from "./clock.ts";
+import type { Query } from "./db.ts";
+import { addDays, isDay, mondayOf } from "./days.ts";
+import { managerIds } from "./directory.ts";
+import { formatDuration } from "./duration.ts";
+import { format, formatDay } from "./i18n/index.ts";
+import { clean, memberPattern, numeric } from "./model.ts";
+import { notify, withdraw } from "./notify.ts";
+import { people } from "./people.ts";
+import { settings } from "./settings.ts";
+import { transaction } from "./tx.ts";
+
+// The week as a ritual: a person submits their week; a manager approves it
+// (it locks: nobody changes it any more) or sends it back with a word (it
+// opens again). While it waits, the person may take it back. The bell
+// tells the managers of a week to approve, and the person of the answer.
+// The company may turn approvals off (Settings): then nobody submits.
+//
+// Beside it, each person's usual week (their capacity, the company's by
+// default): the Team page shows who is under it, and "Remind" rings their
+// bell.
+
+export type WeekStatus = "open" | "submitted" | "approved" | "returned";
+export type WeekState = { status: WeekStatus; minutes: number; submittedAt: string | null; decidedBy: string | null; decidedAt: string | null; reason: string };
+const open: WeekState = { status: "open", minutes: 0, submittedAt: null, decidedBy: null, decidedAt: null, reason: "" };
+
+type Row = { member_id: string; week: string; status: Exclude<WeekStatus, "open">; minutes: number; submitted_at: Date; decided_by: string | null; decided_at: Date | null; reason: string };
+const toState = (r: Row): WeekState => ({
+  status: r.status, minutes: r.minutes, submittedAt: new Date(r.submitted_at).toISOString(), decidedBy: r.decided_by,
+  decidedAt: r.decided_at ? new Date(r.decided_at).toISOString() : null, reason: r.reason,
+});
+const columns = (sql: Query) => sql`member_id, to_char(week, 'YYYY-MM-DD') as week, status, minutes, submitted_at, decided_by, decided_at, reason`;
+
+function monday(value: unknown): string {
+  if (!isDay(value)) throw new AppError("invalid");
+  return mondayOf(value);
+}
+
+function person(value: unknown): string {
+  if (typeof value !== "string" || !memberPattern.test(value)) throw new AppError("not_found");
+  return value;
+}
+
+export async function weekState(sql: Query, memberId: string, week: string): Promise<WeekState> {
+  const [r] = await sql<Row[]>`select ${columns(sql)} from weeks where member_id = ${memberId} and week = ${mondayOf(week)}`;
+  return r ? toState(r) : open;
+}
+
+// weekLock refuses a change to a day of a week that was submitted or
+// approved (the caller holds the person's lock).
+export async function weekLock(tx: Query, memberId: string, day: string): Promise<void> {
+  if (!memberPattern.test(memberId)) return;
+  const [r] = await tx<{ status: string }[]>`select status from weeks where member_id = ${memberId} and week = ${mondayOf(day)}`;
+  if (r?.status === "submitted") throw new AppError("week_submitted");
+  if (r?.status === "approved") throw new AppError("week_approved");
+}
+
+// The weeks of a person that no longer change, among some days.
+export async function closedWeeks(sql: Query, memberId: string, from: string, to: string): Promise<Set<string>> {
+  const rows = await sql<{ week: string }[]>`
+    select to_char(week, 'YYYY-MM-DD') as week from weeks where member_id = ${memberId} and status in ('submitted', 'approved') and week between ${mondayOf(from)} and ${to}`;
+  return new Set(rows.map(r => r.week));
+}
+
+async function total(tx: Query, memberId: string, week: string): Promise<number> {
+  const [r] = await tx<{ total: string }[]>`
+    select coalesce(sum(minutes), 0)::text as total from entries where member_id = ${memberId} and day between ${week} and ${addDays(week, 6)} and deleted_at is null`;
+  return numeric(r?.total);
+}
+
+const lockPerson = (tx: Query, memberId: string) => tx`select pg_advisory_xact_lock(hashtext(${"timesheets:" + memberId}))`;
+const approveKey = (memberId: string, week: string) => `approve:${memberId}:${week}`;
+const answerKey = (week: string) => `approval:${week}`;
+
+// submitWeek: the person sends their week (this one or one before). A week
+// running now may be sent too (someone off on Friday).
+export async function submitWeek(sql: Query, actor: Member | null, week: unknown): Promise<WeekState> {
+  if (!actor || !can(actor, "time.own")) throw new AppError("forbidden");
+  const w = monday(week);
+  if (w > mondayOf(today())) throw new AppError("week_future");
+  if (!(await settings(sql)).approvals) throw new AppError("forbidden");
+  const state = await transaction(sql, async tx => {
+    await lockPerson(tx, actor.id);
+    const [r] = await tx<Row[]>`select ${columns(tx)} from weeks where member_id = ${actor.id} and week = ${w} for update`;
+    if (r && r.status !== "returned") throw new AppError("week_state");
+    const minutes = await total(tx, actor.id, w);
+    const [row] = await tx<Row[]>`
+      insert into weeks (member_id, week, status, minutes, submitted_at) values (${actor.id}, ${w}, 'submitted', ${minutes}, now())
+      on conflict (member_id, week) do update set status = 'submitted', minutes = excluded.minutes, submitted_at = now(), decided_by = null, decided_at = null, reason = ''
+      returning ${columns(tx)}`;
+    return toState(row!);
+  });
+  await withdraw(answerKey(w), [actor.id]);
+  const managers = (await managerIds()).filter(id => id !== actor.id);
+  await notify(managers, (t, locale) => ({
+    title: format(t.bell.submitted, { name: actor.name, date: formatDay(w, locale, { day: "numeric", month: "short" }), hours: formatDuration(state.minutes) }),
+  }), { path: `/chest/team/${actor.id}?week=${w}`, key: approveKey(actor.id, w) });
+  return state;
+}
+
+// withdrawWeek: the person takes back a week that waits (to change it).
+export async function withdrawWeek(sql: Query, actor: Member | null, week: unknown): Promise<void> {
+  if (!actor || !can(actor, "time.own")) throw new AppError("forbidden");
+  const w = monday(week);
+  const done = await sql`delete from weeks where member_id = ${actor.id} and week = ${w} and status = 'submitted'`;
+  if (done.count === 0) throw new AppError("week_state");
+  await withdraw(approveKey(actor.id, w));
+}
+
+// A manager's answer.
+export async function approveWeek(sql: Query, actor: Member | null, memberId: unknown, week: unknown): Promise<WeekState> {
+  if (!actor || !can(actor, "approve")) throw new AppError("forbidden");
+  const who = person(memberId);
+  const w = monday(week);
+  const [r] = await sql<Row[]>`
+    update weeks set status = 'approved', decided_by = ${actor.id}, decided_at = now(), reason = ''
+    where member_id = ${who} and week = ${w} and status = 'submitted' returning ${columns(sql)}`;
+  if (!r) throw new AppError("week_state");
+  await withdraw(approveKey(who, w));
+  if (who !== actor.id) {
+    await notify([who], (t, locale) => ({ title: format(t.bell.approved, { date: formatDay(w, locale, { day: "numeric", month: "short" }) }) }), { path: `/chest?week=${w}`, key: answerKey(w) });
+  }
+  return toState(r);
+}
+
+// returnWeek sends a waiting (or approved) week back with a word: it opens
+// again for its person, who reads why.
+export async function returnWeek(sql: Query, actor: Member | null, memberId: unknown, week: unknown, reason: unknown): Promise<WeekState> {
+  if (!actor || !can(actor, "approve")) throw new AppError("forbidden");
+  const who = person(memberId);
+  const w = monday(week);
+  const why = clean(reason, 300);
+  const [r] = await sql<Row[]>`
+    update weeks set status = 'returned', decided_by = ${actor.id}, decided_at = now(), reason = ${why}
+    where member_id = ${who} and week = ${w} and status in ('submitted', 'approved') returning ${columns(sql)}`;
+  if (!r) throw new AppError("week_state");
+  await withdraw(approveKey(who, w));
+  await notify([who], (t, locale) => ({
+    title: format(t.bell.returned, { date: formatDay(w, locale, { day: "numeric", month: "short" }) }),
+    body: why,
+  }), { path: `/chest?week=${w}`, key: answerKey(w) });
+  return toState(r);
+}
+
+// The weeks waiting for a manager, oldest first.
+export type Waiting = { memberId: string; week: string; minutes: number; billableMinutes: number; submittedAt: string };
+
+export async function waiting(sql: Query, actor: Member | null): Promise<Waiting[]> {
+  if (!actor || !can(actor, "approve")) throw new AppError("forbidden");
+  const rows = await sql<{ member_id: string; week: string; minutes: string; billable: string; submitted_at: Date }[]>`
+    select w.member_id, to_char(w.week, 'YYYY-MM-DD') as week, w.submitted_at,
+      coalesce((select sum(e.minutes) from entries e where e.member_id = w.member_id and e.day between w.week and w.week + 6 and e.deleted_at is null), 0)::text as minutes,
+      coalesce((select sum(e.minutes) from entries e where e.member_id = w.member_id and e.day between w.week and w.week + 6 and e.deleted_at is null and e.billable), 0)::text as billable
+    from weeks w where w.status = 'submitted' order by w.week, w.submitted_at limit 500`;
+  return rows.map(r => ({ memberId: r.member_id, week: r.week, minutes: numeric(r.minutes), billableMinutes: numeric(r.billable), submittedAt: new Date(r.submitted_at).toISOString() }));
+}
+
+// People's usual weeks.
+export async function capacities(sql: Query, memberIds: readonly string[]): Promise<Map<string, number>> {
+  const s = await settings(sql);
+  const rows = memberIds.length ? await sql<{ member_id: string; week_minutes: number }[]>`select member_id, week_minutes from people where member_id = any(${[...memberIds]}::text[])` : [];
+  return new Map(memberIds.map(id => [id, rows.find(r => r.member_id === id)?.week_minutes ?? s.reminder.minutes]));
+}
+
+// setCapacity gives a person their own usual week (null: the company's).
+export async function setCapacity(sql: Query, actor: Member | null, memberId: unknown, minutes: unknown): Promise<void> {
+  if (!actor || !can(actor, "rates")) throw new AppError("forbidden");
+  const who = person(memberId);
+  if (minutes === null) {
+    await sql`delete from people where member_id = ${who}`;
+    return;
+  }
+  if (typeof minutes !== "number" || !Number.isInteger(minutes) || minutes < 0 || minutes > 6000) throw new AppError("invalid");
+  await sql`insert into people (member_id, week_minutes) values (${who}, ${minutes}) on conflict (member_id) do update set week_minutes = excluded.week_minutes`;
+}
+
+// The team's weeks: for each person and each of some Mondays, their hours,
+// the state of that week and their usual week.
+export type TeamCell = { week: string; minutes: number; status: WeekStatus; reason: string };
+export type TeamRow = { memberId: string; capacity: number; weeks: TeamCell[] };
+
+export async function teamWeeks(sql: Query, actor: Member | null, memberIds: readonly string[], mondays: readonly string[]): Promise<TeamRow[]> {
+  if (!actor || !can(actor, "approve")) throw new AppError("forbidden");
+  if (memberIds.length === 0 || mondays.length === 0) return [];
+  const first = mondays.reduce((a, b) => (a < b ? a : b));
+  const last = addDays(mondays.reduce((a, b) => (a > b ? a : b)), 6);
+  const [sums, states, caps] = await Promise.all([
+    sql<{ member_id: string; week: string; total: string }[]>`
+      select member_id, to_char(date_trunc('week', day)::date, 'YYYY-MM-DD') as week, sum(minutes)::text as total from entries
+      where deleted_at is null and day between ${first} and ${last} and member_id = any(${[...memberIds]}::text[]) group by 1, 2`,
+    sql<Row[]>`select ${columns(sql)} from weeks where week between ${first} and ${last} and member_id = any(${[...memberIds]}::text[])`,
+    capacities(sql, memberIds),
+  ]);
+  return memberIds.map(memberId => ({
+    memberId,
+    capacity: caps.get(memberId) ?? 0,
+    weeks: mondays.map(week => {
+      const st = states.find(s => s.member_id === memberId && s.week === week);
+      return { week, minutes: numeric(sums.find(s => s.member_id === memberId && s.week === week)?.total), status: st?.status ?? "open", reason: st?.reason ?? "" };
+    }),
+  }));
+}
+
+// remind rings the bell of those, among the people named, whose week is
+// under their usual week and not sent yet — each in their language, one
+// item per week (a second reminder replaces the first). Says how many.
+export async function remind(sql: Query, actor: Member | null, memberIds: unknown, week: unknown): Promise<number> {
+  if (!actor || !can(actor, "approve")) throw new AppError("forbidden");
+  const w = monday(week);
+  if (w > mondayOf(today())) throw new AppError("week_future");
+  if (!Array.isArray(memberIds) || memberIds.length === 0 || memberIds.length > 2000) throw new AppError("invalid");
+  const ids = [...new Set(memberIds.map(person))];
+  const rows = await teamWeeks(sql, actor, ids, [w]);
+  const short = rows.filter(r => r.weeks[0]!.status !== "submitted" && r.weeks[0]!.status !== "approved" && r.weeks[0]!.minutes < r.capacity);
+  const found = await people(short.map(r => r.memberId));
+  const current = short.filter(r => found.get(r.memberId)?.status === "member");
+  for (const r of current) {
+    const minutes = r.weeks[0]!.minutes;
+    await notify([r.memberId], (t, locale) => ({
+      title: minutes === 0
+        ? format(t.bell.remindEmpty, { date: formatDay(w, locale, { day: "numeric", month: "short" }) })
+        : format(t.bell.remind, { date: formatDay(w, locale, { day: "numeric", month: "short" }), hours: formatDuration(minutes), usual: formatDuration(r.capacity) }),
+    }), { path: `/chest?week=${w}`, key: `remind:${w}` });
+  }
+  return current.length;
+}
+
+// The people of the team: whoever has the tool with a role, as the Chest
+// says now (names are never copied).
+export function withRole<T extends { role: string | null }>(list: T[]): T[] {
+  return list.filter(p => p.role !== null && (roles as readonly string[]).includes(p.role));
+}

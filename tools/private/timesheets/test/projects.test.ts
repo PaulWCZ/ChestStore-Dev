@@ -98,8 +98,6 @@ test("a project's budget shows what it used: hours, and billable hours at its ra
   const read = await projects.project(sql, asMember(camille), p.id);
   assert.deepEqual(read.used, { minutes: 120, billableMinutes: 90, cents: 9000 });
   assert.equal(projects.budgetShare(read), 0.09);
-  assert.equal(projects.amount(45, 10000), 7500);
-  assert.equal(projects.amount(45, null), 0);
 });
 
 test("clients are renamed and hidden; tasks are added, renamed and closed", async () => {

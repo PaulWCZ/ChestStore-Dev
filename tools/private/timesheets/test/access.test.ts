@@ -6,7 +6,7 @@ import { camille, hugo, nora } from "./support/members.ts";
 
 // Each role's rights, one by one: what the server enforces.
 test("a manager may do everything; a member records their own time; no role, nothing", () => {
-  const all: Ability[] = ["time.own", "projects.manage", "projects.all", "reports.all", "lock", "import", "settings"];
+  const all: Ability[] = ["time.own", "projects.manage", "projects.all", "reports.all", "lock", "import", "settings", "rates", "approve", "invoice"];
   assert.deepEqual(all.filter(a => can(asMember(camille), a)), all);
   assert.deepEqual(all.filter(a => can(asMember(hugo), a)), ["time.own"]);
   assert.deepEqual(all.filter(a => can(asMember(nora), a)), []);

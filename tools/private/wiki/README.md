@@ -21,37 +21,70 @@ intranet — on the company's own server, for no fee per seat.
   check lists, quotes, **note boxes** (note, tip, warning), tables, images
   and files (to the Chest's file storage, by button, paste or drop),
   dividers. Markdown shortcuts work as you type (`# `, `- `, `1. `, `> `,
-  `[ ] `…).
+  `[ ] `…), and **"/"** at the start of a line lists every block by name
+  ("/tab" → Table; arrows, Enter). On a phone the toolbar wraps on two
+  rows: every tool in sight. **Create and write** puts the cursor in the
+  new page; **Save** with nothing typed says "Nothing to save yet" instead
+  of saving an empty page.
 - **Drafts that are never lost.** Every change is kept as the member's
   draft within two seconds; a closed tab or a lost connection loses
   nothing — the draft comes back when they open the editor again, and the
   home page lists unsaved changes. **Save** makes it the page's new version.
 - **One editor at a time** (the Chest has no live channel for co-editing):
   opening the editor takes the page's lock. Others see "Camille Martin is
-  editing this page since 10:02" and can read meanwhile. After **15 minutes
-  without typing**, another editor may **take over**; the first one's draft
-  stays theirs, and if they save later the other version stays in the
-  history (they are told).
+  editing this page since 10:02" and can read meanwhile. **Leaving the
+  editor any way at all** — closing the tab, the back button, a link —
+  gives the lock back at once (a beacon, with the last words as a draft);
+  an open editor says so every 30 seconds, and a lock not heard of for
+  **two minutes** (a crash, a laptop shut) is free again. After **15
+  minutes without typing**, another editor may **take over**; the first
+  one's draft stays theirs, and if they save later the other version stays
+  in the history (they are told). On the page, its owner sees "You have
+  unsaved changes" — **Continue editing** or **Discard them** (with Undo).
 - **History**: every save is a version — who, when; the changes shown in
   words (taken out struck through, put in underlined, unchanged paragraphs
   folded); the page "as it was"; **Restore** (itself a new version, so it
   can be undone).
 - **Search** over titles and text, in French and English alike: accents
-  and case aside, by the start of words, a title with a typo still found;
-  results show the passage with the matched words highlighted.
+  and case aside, by the start of words; **"wifi", "wi-fi" and "Wi-Fi" are
+  one word** (and "email"/"e-mail", "aujourdhui"/"aujourd'hui"); pages
+  holding every word come first, and when fewer than three do, pages
+  holding some follow ("wifi password": the Wi-Fi page, then "Password
+  manager"); **a word with a typo** is matched to the nearest word the wiki
+  holds ("pasword", "teletravial"); results show the passage with the
+  matched words highlighted.
+- **Pinned pages**: editors pin a few pages ("Holidays", "Who to ask") under
+  the home page's search box, for everyone who reads them.
 - **Recently updated** on the home page, with the one question people come
   with: "What do you want to know?"
-- **Import** a **Notion export** ("Markdown & CSV" zip, as it comes — even
-  the zip inside the zip), an Obsidian vault, or any `.md` files: folders
-  become the tree, Notion's ids leave the titles, links between files
-  become links between pages, images and attached files go to the Chest.
-  What cannot come is said (Notion databases as CSV, images from the web).
+- **Import** a **Confluence space** exported as HTML (the zip as it comes:
+  the space's page tree from `index.html`, or each page's breadcrumbs;
+  information/tip/note/warning macros and panels become note boxes, code
+  macros code blocks, task lists checklists, links between pages — by
+  file or by Confluence's page id — links between the new pages, images
+  and attachments files of the pages, attachments only listed linked
+  under "Attachments"), a **Notion export** ("Markdown & CSV" zip, as it
+  comes — even the zip inside the zip), a **Google Docs** document
+  downloaded as a web page (zip: bold and italics from its styles, images,
+  links without Google's redirect), **Word** documents (`.docx`: title,
+  headings — whatever Word's language —, nested lists, tables, pictures,
+  links), an Obsidian vault, or any `.md` or `.html` files: folders become
+  the tree, links between files become links between pages, images and
+  attached files go to the Chest. What cannot come is said (Notion
+  databases as CSV, images from the web, a file that cannot be read).
 - **Export**: a page as Markdown or as a self-contained web page (images
-  inside); a page with its subpages, or a whole space, as a zip of Markdown
-  files in folders with their images and files, links between them intact.
+  inside); a page with its subpages, a whole space, or **everything**
+  ("Download everything" on the home page: a folder per space) as a zip of
+  Markdown files in folders with their images and files, links between
+  them intact.
 - **Spaces kept to some groups** (HR, management): only their members, the
   space's creator and the Chest's administrators see it — its pages, its
   search results, its titles in links.
+- **Who edits a space**: every editor (the default), or **only some groups
+  and people** (Sales writes Sales; everyone else reads it) — set in the
+  space's settings. Its creator and the Chest's administrators always
+  edit; whoever narrows the list stays on it; a reader stays a reader. An
+  editor who only reads a space sees why on its pages.
 - **Trash**: deleting a page (with its subpages) offers *Undo*; the trash
   restores it later, or deletes it for good with its history and files.
 - **Comments** at the bottom of every page: plain text, web addresses
@@ -60,8 +93,22 @@ intranet — on the company's own server, for no fee per seat.
   (with *Undo*). The page's author, earlier commenters and watchers get one
   item in the Chest's bell per page ("Hugo commented on “Expenses”"),
   replaced by the next comment, never doubled.
-- **Watch** a page (one switch next to *Edit*): be told in the bell when
-  someone else saves it or comments on it — one item per page, replaced.
+- **@mentions in comments**: typing "@" and the start of a name offers the
+  people who read the page; whoever is picked is told in the bell ("Hugo
+  mentioned you on “Wi-Fi”"), on their own, only if they may read it.
+- **Watch** a page (one switch next to *Edit*, "Watching" in words on a
+  phone too): be told in the bell when someone else saves it or comments
+  on it — one item per page, replaced. Nobody watches a page unless they
+  chose to.
+- **Read and acknowledged** (policies, the company's rules): *More → Ask
+  readers to confirm*, everyone who reads the space or some groups. Each
+  is told once in the bell, finds it under "Pages to read" on the home
+  page, and sees "Please read this page, then confirm" with **I have read
+  it**. The editors see *Who has read it*: how many confirmed the current
+  version, each person (not yet, an older version, done) with the date,
+  and **download it as a table** (CSV, for the company's records). After a
+  change, *Ask again for the current version*; *Stop asking* keeps what
+  was confirmed.
 - **Templates**: an editor marks a page "Use as a template"; *New page*
   then offers, in the same dialog, *Blank page* (chosen), the space's
   templates and three ready-made ones in the editor's language —
@@ -74,14 +121,16 @@ intranet — on the company's own server, for no fee per seat.
   for months, *Update it* opens the editor. The home page lists "Pages to
   check". Saving the page does not count as a check.
 - **An empty wiki** offers, in one click, an example handbook in the
-  editor's language (five short linked pages to edit or delete).
+  editor's language (five short linked pages to edit or delete), or
+  **Write the first page** (its "Handbook" space is made on the way: no
+  word "space" to understand first).
 
 ## Roles
 
 | Role | Can |
 |---|---|
-| `editor` | Everything: write and arrange pages, create spaces and set who reads them, import, restore versions, empty the trash, mark templates, set review reminders, remove any comment of their spaces |
-| `reader` | Read, search, print and download the spaces they see; comment (and edit or remove their own comments); watch pages |
+| `editor` | Everything, in the spaces they may edit (all, unless a space names its editors): write and arrange pages, create spaces and set who reads and who edits them, import, restore versions, empty the trash, mark templates, pin pages, set review reminders, ask readers to confirm and see who did, remove any comment of their spaces |
+| `reader` | Read, search, print and download the spaces they see; comment (and edit or remove their own comments), mention people; watch pages; confirm they read a page they are asked to |
 
 The Chest's owner, admins and the tool's builders arrive as editors. A
 space kept to groups is seen only by the members of those groups, its
@@ -102,13 +151,16 @@ enforced on the server in `lib/access.ts`, `lib/comments.ts` and
   press Enter: the matching passages, highlighted; one click opens the page.
   An editor on an empty wiki clicks "Add an example handbook" and is reading
   (and editing) a real page within seconds.
-- **How many clicks for the main jobs?** Find an answer: type + Enter + 1.
-  Change a page: **Edit** (1), type, **Save** (1). Write a new page: "+" next
-  to a space or a page (1), a title (Enter), write, **Save**.
+- **How many clicks for the main jobs?** Find an answer: type + Enter + 1
+  (or one click on a pinned page). Change a page: **Edit** (1), type,
+  **Save** (1). Write a new page: "+" next to a space or a page (1), a
+  title (typed at once: the field has the focus), Enter, write (the cursor
+  is already in the page), **Save**. Confirm a policy: **I have read it**
+  (1).
 - **What happens after a mistake?** A deleted page comes back with *Undo*
   (or from the trash). A bad edit is undone from the history with
   **Restore**. Discarded changes come back with *Undo*. A closed tab keeps
-  the draft. A removed comment comes back with *Undo* (for an hour). Only "Delete for good" in the trash cannot be undone, and it
+  the draft and frees the page for the others at once. A removed comment comes back with *Undo* (for an hour). Only "Delete for good" in the trash cannot be undone, and it
   asks once more.
 
 ## Routes
@@ -118,18 +170,22 @@ enforced on the server in `lib/access.ts`, `lib/comments.ts` and
 | `/` | Public host: says the wiki lives in the Chest (language switch) |
 | `/chest` | Home: search, drafts, recently updated, spaces |
 | `/chest/spaces/<id>` | A space: its pages as a table of contents |
-| `/chest/spaces/<id>/settings` | Name, description, colour, who reads it, delete (editors) |
+| `/chest/spaces/<id>/settings` | Name, description, colour, who reads it, who edits it, delete (its editors) |
 | `/chest/spaces/<id>/export` | The space as a zip of Markdown |
 | `/chest/pages/<id>` | Read a page |
 | `/chest/pages/<id>/edit` | Edit it (takes the lock once on screen) |
 | `/chest/pages/<id>/history?v=<n>[&view=page]` | Its versions, changes, restore |
 | `/chest/pages/<id>/export?format=md\|html\|zip` | Download |
+| `/chest/pages/<id>/reads` | Who has read it (its editors): ask again, stop asking |
+| `/chest/pages/<id>/reads/csv` | The same, as a table |
+| `/chest/export` | Every space the member sees, one zip |
 | `/chest/search?q=` | Search |
-| `/chest/import` | Import Markdown / Notion |
+| `/chest/import` | Import Confluence, Notion, Google Docs, Word, Markdown, HTML |
 | `/chest/trash` | Deleted pages |
 | `/chest/files/<id>` | Opens an image or file of a page (a fresh 15-minute link from the Chest) |
 | `/chest/api/pages/<id>/upload` | POST authorises an upload, PUT records it |
 | `/chest/api/import` | POST the import's files (form) |
+| `/chest/api/pages/<id>/leave` | POST (a beacon, same origin only): the editor closed; gives the lock back, keeps the draft |
 | `/chest-events` | The members' lifecycle, signed by the Chest |
 | `/chest-jobs/reviews` | The `reviews` schedule (Proposal (studio)), signed by the Chest: weekdays 07:40 |
 
@@ -140,10 +196,16 @@ enforced on the server in `lib/access.ts`, `lib/comments.ts` and
   who may still read a page before telling them), `notifications` (bell
   items: comments, saves of watched pages, reviews due; keyed
   `comments:<page>`, `saved:<page>`, `review:<page>`, withdrawn when the
-  page goes to the trash or moves where the person cannot read it). No
-  network. Schedule (proposal, `chest.proposals.json`): `reviews`,
+  page goes to the trash or moves where the person cannot read it; also
+  `read:<page>`, `mention:<page>`). No network. Schedule (proposal, `chest.proposals.json`): `reviews`,
   `40 7 * * 1-5`.
-- **Database**: `migrations/0002_comments_watching_templates_reviews.sql`
+- **Database**: `migrations/0003_search_editors_reads.sql` indexes
+  hyphenated words joined too (`wiki_compounds`), keeps the wiki's words
+  for typos (`search_words`, filled by a trigger), adds the lock's
+  heartbeat (`seen_at`), who edits a space (`spaces.editing`,
+  `space_editors`), read confirmations (`pages.read_*`, `page_reads`) and
+  pins (`pages.pinned_at`).
+  `migrations/0002_comments_watching_templates_reviews.sql`
   adds comments, watchers, the template flag and review reminders.
   `migrations/0001_wiki.sql` creates the `unaccent` and
   `pg_trgm` extensions (both *trusted*: the database's owner may create
@@ -151,17 +213,19 @@ enforced on the server in `lib/access.ts`, `lib/comments.ts` and
   + `unaccent`), so that search works the same in every language.
 - **Lifecycle**: a member who **leaves or loses access** frees the pages
   they were editing; their unsaved drafts are deleted (no one else can
-  read them), and they stop watching pages. What they wrote stays, signed
+  read them), they stop watching pages and are no longer named among a
+  space's editors. Their read confirmations stay (the company's record). What they wrote stays, signed
   "(former member)" — pages and comments. Review reminders they owned stay
   and go to whoever last saved each page (if they still write there). An
   **erasure** also replaces their id with `erased` as author of pages,
-  versions, files, spaces and comments ("Former member"), then is
-  acknowledged. The
+  versions, files, spaces and comments ("Former member"), deletes their
+  read confirmations, then is acknowledged. The
   *text* of pages is the company's: a name written in a page is not
   searched for and removed.
 - **Bounds**: 5,000 pages, 200 spaces, 12 levels deep, 200 files of 25 MiB
-  per page, a page's content 400,000 characters (2 MB of JSON); imports up
-  to 60 MB and 500 pages, zip entries bounded (5,000 entries, 32 MiB each,
+  per page, a page's content 400,000 characters (2 MB of JSON); 12 pinned pages, 100 groups
+  and people naming a space's editors; imports up to 60 MB and 500 pages
+  (an HTML page up to 8 MiB), zip entries bounded (5,000 entries, 32 MiB each,
   256 MiB in all, sizes checked before inflating, paths cleaned).
 - **Security**: content is ProseMirror JSON checked on the server against
   the schema of `lib/doc.ts` (unknown nodes, marks and attributes dropped;
@@ -192,6 +256,21 @@ page — only the bell item is missing. Bell items need `notifications`
 - **A live channel** (server-sent events or a presence API) — for real
   co-editing some day; today a lock and drafts stand in for it.
 - **Localized manifest titles**: `chest.json` has one `title`.
+- **All the Chest's groups, not only those that give the tool**:
+  `members.groups.list()` and `member.groups` name only the groups that
+  give the wiki. A company that opens the wiki to everyone has no group
+  to choose for "who edits Sales" or "ask the sales team to confirm" —
+  only people one by one. Wanted: `members.groups.list({ scope: "chest" })`
+  and the member's other groups (behind a permission such as
+  `members.groups`).
+- **`access.granted` / `member.added` events**: someone who gets the wiki
+  after a page asked for read confirmations is asked only when it is asked
+  again.
+- **The Chest's front relaying `navigator.sendBeacon`**: the editor gives
+  its lock back with a same-origin `POST` sent while the tab closes
+  (`/chest/api/pages/<id>/leave`, `text/plain`); the front must relay it
+  with the member's assertion like any other request (untested on a real
+  Chest). Without it, the two-minute lease still frees the page.
 
 ## Develop
 
@@ -211,18 +290,36 @@ node lab/chest-dev/screens.mjs tools/private/wiki --port 4300
 
 - **Live co-editing** and cursors (needs a realtime channel from the Chest);
   one editor at a time instead.
-- **Mentions** (`@name`) in comments, replies in threads, comments on a
-  part of the text, resolving a comment.
-- **"Read and acknowledged"** for policies.
+- **Restrictions per page** ("only me / these people" on one page and its
+  subpages): access is per space — reading (everyone or some groups) and
+  editing (every editor or some groups and people). A salary grid goes in
+  a space kept to the office group.
+- **@mentions inside a page's text** (they work in comments), replies in
+  threads, comments on a part of the text, resolving a comment.
 - **Watching a whole space**; watchers are not told of moves or deletes.
+- **Embeds** (a video, a spreadsheet, a PDF shown inside a page): the
+  pages show the wiki's own files only; a link opens the rest.
+- **Search across languages** ("vacances" does not find "holidays"),
+  synonyms and abbreviations ("tt" for "télétravail").
+- **Imports**: Notion databases (CSV), Confluence's page history, comments
+  and permissions (the pages as they are now, their images and files
+  come), Word's comments, tracked changes (the accepted text comes),
+  headers, footers, footnotes and text boxes, Google Docs' nested list
+  levels (they come flat), images that are not PNG, JPEG, GIF or WebP.
+  No preview before an import: it lands in a new space (or the one
+  chosen) and can be deleted from the trash.
+- **"Everything" exports** carry up to the export's file budget of images
+  and files; beyond it, pages link to the files on the wiki.
 - A template's images stay the template's files: deleting the template for
   good breaks them in pages made from it.
 - Changing a space's groups does not withdraw bell items already sent
   about its pages (moving a page or putting it in the trash does).
-- **Restrictions per page**: access is per space.
+- Read confirmations are asked of the people the Chest lists as having the
+  wiki at that moment; someone who gets it later is asked when the page is
+  asked again.
 - **Public pages** (a public help centre): the wiki is private only.
-- **Confluence (HTML) and Word/HTML imports**: Markdown and Notion only.
 - **Auto-emptying the trash**: pages stay there until deleted for good.
+- **An audit of who viewed a page or deleted a space**.
 - The search words of a page name the pages it links to as they were
   called when it was last saved (a rename shows at once when reading, and
   in search after the next save of the linking page).

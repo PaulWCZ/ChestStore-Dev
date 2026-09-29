@@ -1,4 +1,11 @@
 {
+  "mail": {
+    "send": true
+  },
+  "receives": [
+    "crm.deal.won",
+    "crm.deal.reopened"
+  ],
   "schedules": [
     {
       "name": "reminder",

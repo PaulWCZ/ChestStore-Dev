@@ -5,7 +5,7 @@ export const errorCodes = [
   "forbidden", "not_found", "invalid", "too_long", "empty", "too_many",
   "invalid_date", "dates_order", "too_long_cycle", "invalid_number", "same_values", "invalid_score",
   "closed", "personal_off", "parent_invalid", "team_archived", "team_exists", "too_late", "cycle_has_objectives",
-  "import_invalid", "unavailable", "unknown",
+  "import_invalid", "import_too_big", "import_no_objective", "import_nothing", "already_reminded", "unavailable", "unknown",
 ] as const;
 export type ErrorCode = (typeof errorCodes)[number];
 

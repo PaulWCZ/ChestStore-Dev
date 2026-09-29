@@ -63,7 +63,7 @@ test("a cell with several entries is changed in the day list", async () => {
   await entries.addEntry(sql, me, { projectId: site.id, day, minutes: 60, note: "Call" });
   await entries.addEntry(sql, me, { projectId: site.id, day, minutes: 30, note: "Mockups" });
   const w = await entries.week(sql, me, monday());
-  assert.deepEqual(w.rows[0]!.cells[2], { minutes: 90, count: 2, entryId: null });
+  assert.deepEqual(w.rows[0]!.cells[2], { minutes: 90, count: 2, entryId: null, note: "", invoiced: false });
   await assert.rejects(entries.saveCell(sql, me, { projectId: site.id, taskId: null, day, minutes: 60 }), refused("several"));
 });
 

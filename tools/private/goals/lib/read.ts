@@ -236,3 +236,38 @@ export async function checkIns(sql: Query, keyResultIds: string[], perKeyResult 
   }
   return found;
 }
+
+// Who has not checked in this week, key result by key result: what a
+// manager chases on Friday. Every such key result of the cycles running
+// today, or only those of objectives `objectiveOwner` owns. With when each
+// was last checked in (null: never).
+export type Waiting = { keyResultId: string; title: string; objectiveId: string; objectiveTitle: string; owner: string; lastCheckIn: string | null; createdAt: string };
+export async function waitingList(sql: Query, clock: Clock & { today: string }, options: { objectiveOwner?: string } = {}): Promise<Waiting[]> {
+  const rows = await sql<{ id: string; title: string; objective_id: string; objective_title: string; owner: string; last_at: Date | null; created_at: Date }[]>`
+    select k.id, k.title, o.id as objective_id, o.title as objective_title, k.owner, k.created_at,
+      (select max(created_at) from check_ins c where c.key_result_id = k.id) as last_at
+    from key_results k
+    join objectives o on o.id = k.objective_id and o.archived_at is null
+    join cycles y on y.id = o.cycle_id and y.closed_at is null and y.starts_on <= ${clock.today} and y.ends_on >= ${clock.today}
+    where k.archived_at is null and k.owner like 'mbr\\_%'
+      ${options.objectiveOwner ? sql`and o.owner = ${options.objectiveOwner}` : sql``}
+      and k.created_at < ${clock.weekStart}
+      and not (case when k.target_value > k.start_value then k.current_value >= k.target_value else k.current_value <= k.target_value end)
+      and not exists (select 1 from check_ins c where c.key_result_id = k.id and c.created_at >= ${clock.weekStart})
+    order by k.owner, last_at nulls first, k.id limit 1000`;
+  return rows.map(r => ({ keyResultId: String(r.id), title: r.title, objectiveId: String(r.objective_id), objectiveTitle: r.objective_title, owner: r.owner, lastCheckIn: r.last_at?.toISOString() ?? null, createdAt: r.created_at.toISOString() }));
+}
+
+// The changes made to key results after they were written (lib/key-results.ts).
+export type Change = { id: string; keyResultId: string; field: "title" | "kind" | "unit" | "start" | "target" | "weight" | "owner"; before: string; after: string; author: string; at: string };
+export async function keyResultChanges(sql: Query, keyResultIds: string[]): Promise<Map<string, Change[]>> {
+  const found = new Map<string, Change[]>();
+  if (keyResultIds.length === 0) return found;
+  const rows = await sql<{ id: string; key_result_id: string; field: Change["field"]; before: string; after: string; author: string; created_at: Date }[]>`
+    select id, key_result_id, field, before, after, author, created_at from key_result_changes where key_result_id in ${sql(keyResultIds)} order by created_at, id limit 2000`;
+  for (const r of rows) {
+    const key = String(r.key_result_id);
+    found.set(key, [...(found.get(key) ?? []), { id: String(r.id), keyResultId: key, field: r.field, before: r.before, after: r.after, author: r.author, at: r.created_at.toISOString() }]);
+  }
+  return found;
+}

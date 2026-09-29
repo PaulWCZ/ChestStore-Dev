@@ -90,7 +90,7 @@ export type Initial = {
   nights: string;
   allowanceId: string;
   units: string;
-  guests: { members: { id: string; name: string }[]; names: string[] };
+  guests: { members: { id: string; name: string }[]; names: string[]; alone: boolean };
 };
 
 // The names of the guests an expense already has, for the edit screen.
@@ -119,6 +119,6 @@ export function initialOf(e: Expense, locale: Locale, members: { id: string; nam
     nights: e.nights === null ? "1" : String(e.nights),
     allowanceId: e.allowance?.id ?? "",
     units: e.allowance ? String(e.allowance.units) : "1",
-    guests: { members, names: e.guests.names },
+    guests: { members, names: e.guests.names, alone: e.alone },
   };
 }

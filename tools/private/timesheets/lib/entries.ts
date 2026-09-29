@@ -5,13 +5,18 @@ import { today } from "./clock.ts";
 import type { Query } from "./db.ts";
 import { addDays, isDay, mondayOf, weekDays } from "./days.ts";
 import { clean, day as checkDay, id, limits, minutes as checkMinutes, numeric, optionalId, isColor, type Color } from "./model.ts";
-import { offeredProjects, transaction, writable } from "./projects.ts";
+import { offeredProjects, writable } from "./projects.ts";
+import { transaction } from "./tx.ts";
+import { checkBudgets } from "./budgets.ts";
 import { isLocked, settings } from "./settings.ts";
+import { closedWeeks, weekLock, weekState, type WeekState } from "./weeks.ts";
 
 // Time entries: a person's own time, by day (the day list) and by week
 // (the grid). Everyone writes only their own; nothing changes in a locked
-// period; a person's day holds 24 hours at most — checked in one
-// transaction per person, so two tabs saving at once cannot overflow it.
+// period, in a week sent for approval or approved, nor once invoiced; a
+// person's day holds 24 hours at most — checked in one transaction per
+// person, so two tabs saving at once cannot overflow it. After a change,
+// the projects' budgets are checked (lib/budgets.ts).
 
 export type Entry = {
   id: string;
@@ -24,12 +29,13 @@ export type Entry = {
   startedAt: string | null;
   endedAt: string | null;
   source: "manual" | "grid" | "timer" | "import";
+  invoiced: boolean;
 };
 export type DayEntry = Entry & { projectName: string; clientName: string | null; color: Color; taskName: string | null; locked: boolean };
 
 // A cell of the week grid: the minutes of a row on a day, from how many
 // entries (a cell with several is changed in the day list).
-export type Cell = { minutes: number; count: number; entryId: string | null };
+export type Cell = { minutes: number; count: number; entryId: string | null; note: string; invoiced: boolean };
 export type GridRow = {
   projectId: string;
   taskId: string | null;
@@ -40,14 +46,15 @@ export type GridRow = {
   writable: boolean;
   cells: Cell[];
 };
-export type Week = { monday: string; days: string[]; rows: GridRow[]; totals: number[]; total: number; lockedUntil: string | null };
+export type Week = { monday: string; days: string[]; rows: GridRow[]; totals: number[]; total: number; lockedUntil: string | null; state: WeekState };
 
-type Row = { id: string; project_id: string; task_id: string | null; day: string; minutes: number; note: string; billable: boolean; started_at: Date | null; ended_at: Date | null; source: Entry["source"] };
+type Row = { id: string; project_id: string; task_id: string | null; day: string; minutes: number; note: string; billable: boolean; started_at: Date | null; ended_at: Date | null; source: Entry["source"]; invoiced_at: Date | null };
 const toEntry = (r: Row): Entry => ({
   id: r.id, projectId: r.project_id, taskId: r.task_id, day: r.day, minutes: r.minutes, note: r.note, billable: r.billable,
   startedAt: r.started_at ? new Date(r.started_at).toISOString() : null, endedAt: r.ended_at ? new Date(r.ended_at).toISOString() : null, source: r.source,
+  invoiced: r.invoiced_at !== null,
 });
-const columns = (sql: Query) => sql`id::text, project_id::text, task_id::text, to_char(day, 'YYYY-MM-DD') as day, minutes, note, billable, started_at, ended_at, source`;
+const columns = (sql: Query) => sql`id::text, project_id::text, task_id::text, to_char(day, 'YYYY-MM-DD') as day, minutes, note, billable, started_at, ended_at, source, invoiced_at`;
 
 function own(actor: Member | null): Member {
   if (!actor || !can(actor, "time.own")) throw new AppError("forbidden");
@@ -70,22 +77,25 @@ export async function checkDayTotal(tx: Query, memberId: string, day: string): P
   if (numeric(row?.total) > 1440) throw new AppError("day_full");
 }
 
-async function checkOpen(tx: Query, day: string): Promise<void> {
+// checkOpen refuses a change to one of the person's days that no longer
+// changes: the locked period, a week sent for approval or approved.
+export async function checkOpen(tx: Query, memberId: string, day: string): Promise<void> {
   if (isLocked(await settings(tx), day)) throw new AppError("locked");
+  await weekLock(tx, memberId, day);
 }
 
 // The entries of one of the person's days, with their projects' names.
 export async function dayEntries(sql: Query, actor: Member | null, day: unknown): Promise<DayEntry[]> {
   const me = own(actor);
   if (!isDay(day)) throw new AppError("invalid");
-  const s = await settings(sql);
+  const [s, closed] = await Promise.all([settings(sql), closedWeeks(sql, me.id, day, day)]);
   const rows = await sql<(Row & { project_name: string; client_name: string | null; color: string; task_name: string | null })[]>`
-    select e.id::text, e.project_id::text, e.task_id::text, to_char(e.day, 'YYYY-MM-DD') as day, e.minutes, e.note, e.billable, e.started_at, e.ended_at, e.source,
+    select e.id::text, e.project_id::text, e.task_id::text, to_char(e.day, 'YYYY-MM-DD') as day, e.minutes, e.note, e.billable, e.started_at, e.ended_at, e.source, e.invoiced_at,
       p.name as project_name, c.name as client_name, p.color, t.name as task_name
     from entries e join projects p on p.id = e.project_id left join clients c on c.id = p.client_id left join tasks t on t.id = e.task_id
     where e.member_id = ${me.id} and e.day = ${day} and e.deleted_at is null
     order by e.started_at nulls last, e.id`;
-  return rows.map(r => ({ ...toEntry(r), projectName: r.project_name, clientName: r.client_name, color: isColor(r.color) ? r.color : "teal", taskName: r.task_name, locked: isLocked(s, r.day) }));
+  return rows.map(r => ({ ...toEntry(r), projectName: r.project_name, clientName: r.client_name, color: isColor(r.color) ? r.color : "teal", taskName: r.task_name, locked: isLocked(s, r.day) || closed.has(mondayOf(r.day)) || r.invoiced_at !== null }));
 }
 
 // The person's week: a row per project and task they recorded time on or
@@ -97,14 +107,16 @@ export async function week(sql: Query, actor: Member | null, monday: unknown): P
   const days = weekDays(start);
   const end = days[6]!;
   await purge(sql);
-  const [s, sums, kept, open] = await Promise.all([
+  const [s, sums, kept, open, state] = await Promise.all([
     settings(sql),
-    sql<{ project_id: string; task_id: string | null; day: string; minutes: string; count: number; entry_id: string }[]>`
-      select project_id::text, task_id::text, to_char(day, 'YYYY-MM-DD') as day, sum(minutes)::text as minutes, count(*)::int as count, min(id)::text as entry_id
+    sql<{ project_id: string; task_id: string | null; day: string; minutes: string; count: number; entry_id: string; note: string; invoiced: boolean }[]>`
+      select project_id::text, task_id::text, to_char(day, 'YYYY-MM-DD') as day, sum(minutes)::text as minutes, count(*)::int as count, min(id)::text as entry_id,
+        min(note) as note, bool_or(invoiced_at is not null) as invoiced
       from entries where member_id = ${me.id} and day between ${start} and ${end} and deleted_at is null
       group by project_id, task_id, day`,
     sql<{ project_id: string; task_id: string }[]>`select project_id::text, task_id::text from week_rows where member_id = ${me.id} and week = ${start}`,
     offeredProjects(sql, me),
+    weekState(sql, me.id, start),
   ]);
   const keys = new Map<string, { projectId: string; taskId: string | null }>();
   for (const r of [...kept.map(k => ({ project_id: k.project_id, task_id: k.task_id === "0" ? null : k.task_id })), ...sums]) {
@@ -124,7 +136,9 @@ export async function week(sql: Query, actor: Member | null, monday: unknown): P
     const offer = open.find(o => o.id === k.projectId);
     const cells = days.map(d => {
       const found = sums.find(x => x.project_id === k.projectId && (x.task_id ?? null) === k.taskId && x.day === d);
-      return found ? { minutes: numeric(found.minutes), count: found.count, entryId: found.count === 1 ? found.entry_id : null } : { minutes: 0, count: 0, entryId: null };
+      return found
+        ? { minutes: numeric(found.minutes), count: found.count, entryId: found.count === 1 ? found.entry_id : null, note: found.count === 1 ? found.note : "", invoiced: found.invoiced }
+        : { minutes: 0, count: 0, entryId: null, note: "", invoiced: false };
     });
     rows.push({
       projectId: k.projectId, taskId: k.taskId, projectName: p.name, clientName: p.client_name, color: isColor(p.color) ? p.color : "teal",
@@ -135,7 +149,7 @@ export async function week(sql: Query, actor: Member | null, monday: unknown): P
   }
   rows.sort((a, b) => (a.clientName ?? "").localeCompare(b.clientName ?? "") || a.projectName.localeCompare(b.projectName) || (a.taskName ?? "").localeCompare(b.taskName ?? ""));
   const totals = days.map((_, i) => rows.reduce((sum, r) => sum + r.cells[i]!.minutes, 0));
-  return { monday: start, days, rows, totals, total: totals.reduce((a, b) => a + b, 0), lockedUntil: s.lockedUntil };
+  return { monday: start, days, rows, totals, total: totals.reduce((a, b) => a + b, 0), lockedUntil: s.lockedUntil, state };
 }
 
 // saveCell sets a grid cell: the minutes of that row on that day. An empty
@@ -145,18 +159,20 @@ export async function saveCell(sql: Query, actor: Member | null, input: { projec
   const me = own(actor);
   const when = checkDay(input.day, today());
   const value = checkMinutes(input.minutes, { zero: true });
-  return transaction(sql, async tx => {
+  const cell = await transaction(sql, async tx => {
     await lockPerson(tx, me.id);
-    await checkOpen(tx, when);
+    await checkOpen(tx, me.id, when);
     const w = await writable(tx, me, input.projectId, input.taskId);
-    const found = await tx<{ id: string }[]>`
-      select id::text from entries where member_id = ${me.id} and project_id = ${w.projectId} and task_id is not distinct from ${w.taskId}::bigint and day = ${when} and deleted_at is null`;
+    const found = await tx<{ id: string; note: string; invoiced: boolean }[]>`
+      select id::text, note, invoiced_at is not null as invoiced from entries
+      where member_id = ${me.id} and project_id = ${w.projectId} and task_id is not distinct from ${w.taskId}::bigint and day = ${when} and deleted_at is null`;
     if (found.length > 1) throw new AppError("several");
+    if (found[0]?.invoiced) throw new AppError("invoiced");
     await keepRow(tx, me.id, mondayOf(when), w.projectId, w.taskId);
     const existing = found[0];
     if (value === 0) {
       if (existing) await tx`update entries set deleted_at = now(), updated_at = now() where id = ${existing.id}`;
-      return { minutes: 0, count: 0, entryId: null };
+      return { projectId: w.projectId, cell: { minutes: 0, count: 0, entryId: null, note: "", invoiced: false } };
     }
     let entryId: string;
     if (existing) {
@@ -169,8 +185,10 @@ export async function saveCell(sql: Query, actor: Member | null, input: { projec
       entryId = row!.id;
     }
     await checkDayTotal(tx, me.id, when);
-    return { minutes: value, count: 1, entryId };
+    return { projectId: w.projectId, cell: { minutes: value, count: 1, entryId, note: existing?.note ?? "", invoiced: false } };
   });
+  await checkBudgets(sql, [cell.projectId]);
+  return cell.cell;
 }
 
 async function keepRow(tx: Query, memberId: string, monday: string, projectId: string, taskId: string | null): Promise<void> {
@@ -186,9 +204,9 @@ export async function addEntry(sql: Query, actor: Member | null, input: EntryInp
   const when = checkDay(input.day, today());
   const value = checkMinutes(input.minutes);
   const note = clean(input.note ?? "", limits.note, { optional: true, multiline: true });
-  return transaction(sql, async tx => {
+  const entry = await transaction(sql, async tx => {
     await lockPerson(tx, me.id);
-    await checkOpen(tx, when);
+    await checkOpen(tx, me.id, when);
     const w = await writable(tx, me, input.projectId, input.taskId);
     const billable = w.billable && input.billable !== false;
     const [row] = await tx<Row[]>`
@@ -198,6 +216,8 @@ export async function addEntry(sql: Query, actor: Member | null, input: EntryInp
     await checkDayTotal(tx, me.id, when);
     return toEntry(row!);
   });
+  await checkBudgets(sql, [entry.projectId]);
+  return entry;
 }
 
 // updateEntry changes one of the person's entries (its day, project, task,
@@ -209,12 +229,13 @@ export async function updateEntry(sql: Query, actor: Member | null, entryId: unk
   const when = checkDay(input.day, today());
   const value = checkMinutes(input.minutes);
   const note = clean(input.note ?? "", limits.note, { optional: true, multiline: true });
-  return transaction(sql, async tx => {
+  const [entry, before] = await transaction(sql, async tx => {
     await lockPerson(tx, me.id);
     const [current] = await tx<Row[]>`select ${columns(tx)} from entries where id = ${eid} and member_id = ${me.id} and deleted_at is null`;
     if (!current) throw new AppError("not_found");
-    await checkOpen(tx, current.day);
-    await checkOpen(tx, when);
+    if (current.invoiced_at) throw new AppError("invoiced");
+    await checkOpen(tx, me.id, current.day);
+    await checkOpen(tx, me.id, when);
     const sameWork = String(input.projectId) === current.project_id && (optionalId(input.taskId) ?? null) === (current.task_id ?? null);
     let projectId = current.project_id, taskId = current.task_id, projectBillable: boolean;
     if (sameWork) {
@@ -233,18 +254,41 @@ export async function updateEntry(sql: Query, actor: Member | null, entryId: unk
         started_at = ${keepTimes ? current.started_at : null}, ended_at = ${keepTimes ? current.ended_at : null}, updated_at = now()
       where id = ${eid} returning ${columns(tx)}`;
     await checkDayTotal(tx, me.id, when);
-    return toEntry(row!);
+    return [toEntry(row!), current.project_id] as const;
   });
+  await checkBudgets(sql, [entry.projectId, before]);
+  return entry;
 }
 
 export async function deleteEntry(sql: Query, actor: Member | null, entryId: unknown): Promise<void> {
   const me = own(actor);
   const eid = id(entryId);
-  await transaction(sql, async tx => {
-    const [current] = await tx<{ day: string }[]>`select to_char(day, 'YYYY-MM-DD') as day from entries where id = ${eid} and member_id = ${me.id} and deleted_at is null`;
+  const projectId = await transaction(sql, async tx => {
+    await lockPerson(tx, me.id);
+    const [current] = await tx<{ day: string; project_id: string; invoiced: boolean }[]>`
+      select to_char(day, 'YYYY-MM-DD') as day, project_id::text, invoiced_at is not null as invoiced from entries where id = ${eid} and member_id = ${me.id} and deleted_at is null`;
     if (!current) throw new AppError("not_found");
-    await checkOpen(tx, current.day);
+    if (current.invoiced) throw new AppError("invoiced");
+    await checkOpen(tx, me.id, current.day);
     await tx`update entries set deleted_at = now(), updated_at = now() where id = ${eid}`;
+    return current.project_id;
+  });
+  await checkBudgets(sql, [projectId]);
+}
+
+// setNote writes the note of one of the person's entries (the grid's note).
+export async function setNote(sql: Query, actor: Member | null, entryId: unknown, note: unknown): Promise<void> {
+  const me = own(actor);
+  const eid = id(entryId);
+  const text = clean(note, limits.note, { optional: true, multiline: true });
+  await transaction(sql, async tx => {
+    await lockPerson(tx, me.id);
+    const [current] = await tx<{ day: string; invoiced: boolean }[]>`
+      select to_char(day, 'YYYY-MM-DD') as day, invoiced_at is not null as invoiced from entries where id = ${eid} and member_id = ${me.id} and deleted_at is null`;
+    if (!current) throw new AppError("not_found");
+    if (current.invoiced) throw new AppError("invoiced");
+    await checkOpen(tx, me.id, current.day);
+    await tx`update entries set note = ${text}, updated_at = now() where id = ${eid}`;
   });
 }
 
@@ -254,18 +298,20 @@ export async function restoreEntries(sql: Query, actor: Member | null, entryIds:
   if (!Array.isArray(entryIds) || entryIds.length > 500) throw new AppError("invalid");
   const ids = entryIds.map(id);
   if (ids.length === 0) return 0;
-  return transaction(sql, async tx => {
+  const restored = await transaction(sql, async tx => {
     await lockPerson(tx, me.id);
     const rows = await tx<{ id: string; day: string; project_id: string; task_id: string | null }[]>`
       select id::text, to_char(day, 'YYYY-MM-DD') as day, project_id::text, task_id::text from entries
       where id = any(${ids}::bigint[]) and member_id = ${me.id} and deleted_at is not null`;
     if (rows.length === 0) throw new AppError("not_found");
-    for (const r of rows) await checkOpen(tx, r.day);
+    for (const r of rows) await checkOpen(tx, me.id, r.day);
     await tx`update entries set deleted_at = null, updated_at = now() where id = any(${rows.map(r => r.id)}::bigint[])`;
     for (const r of rows) await keepRow(tx, me.id, mondayOf(r.day), r.project_id, r.task_id);
     for (const d of new Set(rows.map(r => r.day))) await checkDayTotal(tx, me.id, d);
-    return rows.length;
+    return rows;
   });
+  await checkBudgets(sql, restored.map(r => r.project_id));
+  return restored.length;
 }
 
 // Rows of the grid.
@@ -287,17 +333,21 @@ export async function removeRow(sql: Query, actor: Member | null, input: { week:
   const monday = mondayOf(input.week);
   const pid = id(input.projectId);
   const tid = optionalId(input.taskId);
-  return transaction(sql, async tx => {
+  const ids = await transaction(sql, async tx => {
     await lockPerson(tx, me.id);
-    const found = await tx<{ id: string; day: string }[]>`
-      select id::text, to_char(day, 'YYYY-MM-DD') as day from entries
+    const found = await tx<{ id: string; day: string; invoiced: boolean }[]>`
+      select id::text, to_char(day, 'YYYY-MM-DD') as day, invoiced_at is not null as invoiced from entries
       where member_id = ${me.id} and project_id = ${pid} and task_id is not distinct from ${tid}::bigint and day between ${monday} and ${addDays(monday, 6)} and deleted_at is null`;
+    await weekLock(tx, me.id, monday);
     const s = await settings(tx);
     if (found.some(e => isLocked(s, e.day))) throw new AppError("locked");
+    if (found.some(e => e.invoiced)) throw new AppError("invoiced");
     if (found.length) await tx`update entries set deleted_at = now(), updated_at = now() where id = any(${found.map(e => e.id)}::bigint[])`;
     await tx`delete from week_rows where member_id = ${me.id} and week = ${monday} and project_id = ${pid} and task_id = ${tid ?? 0}`;
     return found.map(e => e.id);
   });
+  if (ids.length) await checkBudgets(sql, [pid]);
+  return ids;
 }
 
 // copyLastWeek puts in this week's grid the rows of the week before (its

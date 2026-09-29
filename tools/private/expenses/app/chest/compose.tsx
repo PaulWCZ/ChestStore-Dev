@@ -118,7 +118,7 @@ function ReceiptPicker({ t, initial, onChange, onFile, onBusy, onError }: {
   );
 }
 
-type Guests = { members: { id: string; name: string }[]; names: string[] };
+type Guests = { members: { id: string; name: string }[]; names: string[]; alone: boolean };
 
 // Who was at a meal: colleagues picked by name from the team, people from
 // outside typed as they are ("Jean Dupont (Acme)"). Enter or "Add" adds
@@ -130,8 +130,8 @@ function GuestsField({ team, value, onChange, perPerson, t }: { team: ComposeDat
     if (!typed) return;
     const colleague = team.find(m => m.name.toLocaleLowerCase() === typed.toLocaleLowerCase());
     if (colleague) {
-      if (!value.members.some(m => m.id === colleague.id)) onChange({ ...value, members: [...value.members, colleague] });
-    } else if (!value.names.includes(typed)) onChange({ ...value, names: [...value.names, typed.slice(0, limits.guestName)] });
+      if (!value.members.some(m => m.id === colleague.id)) onChange({ ...value, alone: false, members: [...value.members, colleague] });
+    } else if (!value.names.includes(typed)) onChange({ ...value, alone: false, names: [...value.names, typed.slice(0, limits.guestName)] });
     setText("");
   }
   const chips = [...value.members.map(m => ({ key: m.id, name: m.name, drop: () => onChange({ ...value, members: value.members.filter(x => x.id !== m.id) }) })),
@@ -151,6 +151,7 @@ function GuestsField({ team, value, onChange, perPerson, t }: { team: ComposeDat
       </div>
       <datalist id="team">{team.map(m => <option key={m.id} value={m.name} />)}</datalist>
       <span id="guest-hint" className="hint">{perPerson ?? t.form.guestsHint}</span>
+      {chips.length === 0 && <label className="check"><input type="checkbox" checked={value.alone} onChange={e => onChange({ ...value, alone: e.target.checked })} />{t.form.alone}</label>}
     </div>
   );
 }
@@ -168,7 +169,7 @@ export function ExpenseForm({ data, initial, locale, t }: { data: ComposeData; i
   const [rate, setRate] = useState(initial?.rate ?? "");
   const [paidBy, setPaidBy] = useState<"me" | "company">(initial?.paidBy ?? "me");
   const [category, setCategory] = useState(initial?.categoryId ?? "");
-  const [guests, setGuests] = useState<Guests>(initial?.guests ?? { members: [], names: [] });
+  const [guests, setGuests] = useState<Guests>(initial?.guests ?? { members: [], names: [], alone: false });
   const [merchant, setMerchant] = useState(initial?.merchant ?? "");
   const [day, setDay] = useState(initial?.spentOn ?? data.today);
   // What the photo said: the fields it filled (only empty ones), until
@@ -221,7 +222,7 @@ export function ExpenseForm({ data, initial, locale, t }: { data: ComposeData; i
     if (!category) return setError(t.errors.category_invalid);
     setError(null);
     const input = { spentOn: day, amount, currency, vat, rate: foreign ? rate : "", categoryId: category, merchant, note: String(form.get("note") ?? ""), paidBy, receiptName,
-      guestMembers: asksGuests ? guests.members.map(m => m.id) : [], guestNames: asksGuests ? guests.names : [], nights: chosen?.perNight ? nights : undefined };
+      guestMembers: asksGuests ? guests.members.map(m => m.id) : [], guestNames: asksGuests ? guests.names : [], alone: asksGuests && guests.alone, nights: chosen?.perNight ? nights : undefined };
     start(async () => {
       const result = await saveExpense(initial?.id ?? null, input, receipt);
       if (!result.ok) return setError(format(t.errors[result.error], result.values ?? {}));

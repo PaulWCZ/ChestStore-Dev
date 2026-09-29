@@ -1,0 +1,8 @@
+Name,Owner email,OKR Type,Type,Start date,End date,Private,Description,Starting amount,Progress amount,Goal amount,Priority,Tag
+Grow revenue in the Lyon region,camille.martin@atelier-martin.fr,Objective,,2026-10-01,2026-12-31,false,Lyon is our second market,,,,P1,Sales
+New customers signed,ines.moreau@atelier-martin.fr,Key result,digit,2026-10-01,2026-12-31,false,,0,4,20,P1,Sales
+Revenue from new customers,camille.martin@atelier-martin.fr,Key result,dollar,2026-10-01,2026-12-31,false,,0,"12,500",50000,P1,Sales
+Launch the online catalogue,hugo.bernard@atelier-martin.fr,Key result,binary,2026-10-01,2026-12-31,false,,,,,P2,
+Make the workshop safer,jean.dupont@atelier-martin.fr,Objective,,2026-10-01,2026-12-31,false,,,,,P2,Workshop
+Days without an accident,jean.dupont@atelier-martin.fr,Key result,digit,2026-10-01,2026-12-31,false,,0,30,90,P2,
+Staff trained on the new saw,sofia.rossi@atelier-martin.fr,Key result,percent,2026-10-01,2026-12-31,false,,0,25,100,P2,

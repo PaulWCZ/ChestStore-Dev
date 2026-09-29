@@ -19,6 +19,21 @@ export const limits = {
   templates: 50,
   importRows: 2000,
   importBytes: 2 << 20,
+  name: 120,
+  email: 254,
+  fieldLabel: 40,
+  fieldValue: 200,
+  fields: 20,
+  nationality: 60,
+  qualification: 120,
+  workPermit: 120,
+  agency: 300,
+  workplace: 120,
+  relation: 60,
+  address: 300,
+  documentName: 120,
+  documentBytes: 20 << 20,
+  documentsPerRecord: 100,
 } as const;
 
 // How long a departed person's profile is kept (to restore it if they come
@@ -54,7 +69,7 @@ export function memberId(value: unknown): string {
 }
 
 // A day (YYYY-MM-DD), or nothing when optional.
-export function day(value: unknown, options: { optional?: boolean } = {}): string | null {
+export function day(value: unknown, options: { optional?: boolean; from?: number } = {}): string | null {
   if (value === null || value === "" || value === undefined) {
     if (options.optional) return null;
     throw new AppError("empty");
@@ -63,7 +78,7 @@ export function day(value: unknown, options: { optional?: boolean } = {}): strin
   const date = new Date(value + "T00:00:00Z");
   if (Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== value) throw new AppError("invalid");
   const year = date.getUTCFullYear();
-  if (year < 1950 || year > 2100) throw new AppError("invalid");
+  if (year < (options.from ?? 1950) || year > 2100) throw new AppError("invalid");
   return value;
 }
 
@@ -150,3 +165,47 @@ export function dueState(due: string, now: string): DueState {
   if (due === now) return "today";
   return daysBetween(now, due) <= 7 ? "soon" : "later";
 }
+
+// A work address, as people write it: one @, a dot in the domain, no
+// spaces. Only checked for shape; the Chest's own addresses win.
+export function email(value: unknown): string {
+  const text = clean(value, limits.email, { optional: true }).toLowerCase();
+  if (text === "") return "";
+  if (!/^[^\s@<>()"',;:]+@[^\s@<>()"',;:]+\.[^\s@<>()"',;:.]{2,}$/u.test(text)) throw new AppError("invalid");
+  return text;
+}
+
+// Saturday and Sunday: a first day falling on one gets a word of warning.
+export function isWeekend(value: string): boolean {
+  const d = new Date(value + "T00:00:00Z").getUTCDay();
+  return d === 0 || d === 6;
+}
+
+// The employee record.
+export const contracts = ["permanent", "fixed_term", "apprenticeship", "professionalisation", "internship", "temporary", "seconded"] as const;
+export type Contract = (typeof contracts)[number];
+export const isContract = (value: unknown): value is Contract => typeof value === "string" && (contracts as readonly string[]).includes(value);
+// Contracts with a planned end, and those an outside employer holds.
+export const endsByItself = (c: Contract): boolean => c !== "permanent";
+export const fromElsewhere = (c: Contract): boolean => c === "temporary" || c === "seconded";
+
+export const sexes = ["female", "male"] as const;
+export type Sex = (typeof sexes)[number];
+
+export const documentKinds = ["contract", "amendment", "certificate", "identity", "other"] as const;
+export type DocumentKind = (typeof documentKinds)[number];
+export const isDocumentKind = (value: unknown): value is DocumentKind => typeof value === "string" && (documentKinds as readonly string[]).includes(value);
+// What a record's document may be: PDFs, photos and scans, office files.
+export const documentTypes = ["application/pdf", "image/jpeg", "image/png", "image/webp", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "application/vnd.oasis.opendocument.text"] as const;
+
+// Weekly hours as people write them ("35", "24,5").
+export function hours(value: unknown): number | null {
+  if (value === null || value === undefined || value === "") return null;
+  const n = typeof value === "number" ? value : typeof value === "string" && /^\d{1,2}([.,]\d{1,2})?$/u.test(value.trim()) ? Number(value.trim().replace(",", ".")) : NaN;
+  if (!Number.isFinite(n) || n <= 0 || n > 60) throw new AppError("invalid");
+  return Math.round(n * 100) / 100;
+}
+
+// How long the staff register keeps someone after they left (Code du
+// travail R1221-26: five years), then their record goes.
+export const keepRecordYears = 5;

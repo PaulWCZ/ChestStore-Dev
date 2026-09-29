@@ -46,6 +46,8 @@ export type Expense = {
   nights: number | null;
   // Who was at the table: people of the Chest (ids) and from outside (names).
   guests: { members: string[]; names: string[] };
+  // A meal said to be without guests ("just me").
+  alone: boolean;
   approver: string | null;
   submittedAt: string | null;
   decidedBy: string | null;
@@ -67,7 +69,7 @@ type Row = {
   approver_id: string | null; submitted_at: Date | null; decided_by: string | null; decided_at: Date | null; refused_reason: string | null; paid_on: string | null; created_at: Date; deleted_at: Date | null;
   refused_fingerprint: string | null; updated_at: Date; guest_members: string[]; guest_names: string[];
   rate_micro: string | null; rate_source: "typed" | "company" | null; base_cents: string | null; base_currency: string | null; payment_run_id: string | null;
-  allowance_id: string | null; units: number | null; nights: number | null; imported_at: Date | null;
+  allowance_id: string | null; units: number | null; nights: number | null; imported_at: Date | null; alone: boolean;
 };
 
 const columns = (sql: Query) => sql`
@@ -75,7 +77,7 @@ const columns = (sql: Query) => sql`
   e.receipt_object, e.receipt_name, e.receipt_type, e.receipt_size, e.from_place, e.to_place, e.distance_tenths, e.vehicle, e.power, e.electric, e.scale_year,
   e.approver_id, e.submitted_at, e.decided_by, e.decided_at, e.refused_reason, to_char(e.paid_on, 'YYYY-MM-DD') as paid_on, e.created_at, e.deleted_at,
   e.refused_fingerprint, e.updated_at, e.guest_members, e.guest_names,
-  e.rate_micro, e.rate_source, e.base_cents, e.base_currency, e.payment_run_id, e.allowance_id, e.units, e.nights, e.imported_at`;
+  e.rate_micro, e.rate_source, e.base_cents, e.base_currency, e.payment_run_id, e.allowance_id, e.units, e.nights, e.imported_at, e.alone`;
 
 // What its owner put on an expense, as one hash: what a refusal remembers,
 // so that the same expense cannot come back unchanged. A trip's amount is
@@ -86,9 +88,9 @@ export function fingerprint(r: Row): string {
   const fields: Record<string, unknown> = {
     kind: r.kind, spentOn: r.spent_on, amount: r.kind === "mileage" ? null : String(r.amount_cents), currency: r.currency, vat: r.vat_cents === null ? null : String(r.vat_cents),
     category: String(r.category_id), merchant: r.merchant, note: r.note, paidBy: r.paid_by, receipt: r.receipt_object,
-    from: r.from_place, to: r.to_place, distance: r.distance_tenths, allowance: r.allowance_id === null ? null : String(r.allowance_id), units: r.units, nights: r.nights, guestMembers: r.guest_members, guestNames: r.guest_names, rate: r.rate_source === "typed" ? r.rate_micro : null,
+    from: r.from_place, to: r.to_place, distance: r.distance_tenths, allowance: r.allowance_id === null ? null : String(r.allowance_id), units: r.units, nights: r.nights, guestMembers: r.guest_members, guestNames: r.guest_names, alone: r.alone, rate: r.rate_source === "typed" ? r.rate_micro : null,
   };
-  const kept = Object.entries(fields).filter(([, v]) => v !== null && v !== undefined && v !== "" && !(Array.isArray(v) && v.length === 0)).sort(([a], [b]) => a.localeCompare(b));
+  const kept = Object.entries(fields).filter(([, v]) => v !== null && v !== undefined && v !== "" && v !== false && !(Array.isArray(v) && v.length === 0)).sort(([a], [b]) => a.localeCompare(b));
   return createHash("sha256").update(JSON.stringify(kept)).digest("hex");
 }
 
@@ -121,6 +123,7 @@ function toExpense(r: Row): Expense {
     paidBy: r.paid_by,
     receipt: r.receipt_object ? { name: r.receipt_name ?? "", type: r.receipt_type ?? "", size: Number(r.receipt_size ?? 0) } : null,
     guests: { members: r.guest_members ?? [], names: r.guest_names ?? [] },
+    alone: r.alone,
     allowance: r.kind === "allowance" && r.allowance_id !== null ? { id: String(r.allowance_id), units: r.units ?? 1 } : null,
     nights: r.nights,
     trip: r.kind === "mileage" ? { from: r.from_place ?? "", to: r.to_place ?? "", distance: r.distance_tenths ?? 0, vehicle: r.vehicle!, power: r.power ?? "", electric: r.electric ?? false, scaleYear: r.scale_year ?? 0 } : null,
@@ -168,7 +171,7 @@ export async function warnings(sql: Query, list: Expense[], options: { anyone?: 
     if (r?.reused) found.push({ code: "receipt_reused" });
     if (e.kind === "expense" && !e.receipt) found.push({ code: "no_receipt" });
     if (e.base === null) found.push({ code: "no_rate" });
-    if (e.kind === "expense" && r?.guests && e.guests.members.length + e.guests.names.length === 0) found.push({ code: "no_guests" });
+    if (e.kind === "expense" && r?.guests && !e.alone && e.guests.members.length + e.guests.names.length === 0) found.push({ code: "no_guests" });
     // A hotel's limit is per night.
     const perUnit = e.nights ? Math.ceil(e.amount / e.nights) : e.amount;
     if (r?.cap !== null && r?.cap !== undefined && e.currency === currency && perUnit > Number(r.cap)) found.push({ code: e.nights ? "over_cap_night" : "over_cap", cap: Number(r.cap) });
@@ -223,7 +226,7 @@ async function ownDraft(tx: Query, actor: Member, expenseId: string, kind: Kind)
 
 // An expense with a receipt. `receipt`: a new upload (inspected by the
 // caller: lib/receipts.ts), null to take it off, undefined to keep it.
-export type ExpenseInput = { spentOn?: unknown; amount?: unknown; currency?: unknown; vat?: unknown; categoryId?: unknown; merchant?: unknown; note?: unknown; paidBy?: unknown; receiptName?: unknown; guestMembers?: unknown; guestNames?: unknown; rate?: unknown; nights?: unknown };
+export type ExpenseInput = { spentOn?: unknown; amount?: unknown; currency?: unknown; vat?: unknown; categoryId?: unknown; merchant?: unknown; note?: unknown; paidBy?: unknown; receiptName?: unknown; guestMembers?: unknown; guestNames?: unknown; alone?: unknown; rate?: unknown; nights?: unknown };
 
 // The guests of a meal: member ids (never the actor: they paid) and names
 // of people from outside, 30 of each at most.
@@ -274,6 +277,9 @@ export async function saveExpense(sql: Sql, actor: Member | null, expenseId: unk
   if (typeof paidBy !== "string" || !(paidByValues as readonly string[]).includes(paidBy)) throw new AppError("invalid");
   const categoryId = id(input.categoryId);
   const guests = guestsOf(input, actor.id);
+  if (input.alone !== undefined && typeof input.alone !== "boolean") throw new AppError("invalid");
+  // Guests named: not alone, whatever was ticked.
+  const alone = input.alone === true && guests.members.length + guests.names.length === 0;
   const receiptName = receipt ? clean(input.receiptName ?? "", limits.fileName, { optional: true }) || receipt.object.split("/").at(-1)! : null;
   return sql.begin(async tx => {
     const existing = expenseId === null || expenseId === undefined ? null : await ownDraft(tx, actor, id(expenseId), "expense");
@@ -295,8 +301,8 @@ export async function saveExpense(sql: Sql, actor: Member | null, expenseId: unk
     let row: Row | undefined;
     if (!existing) {
       [row] = await tx<Row[]>`
-        insert into expenses as e (member_id, kind, spent_on, amount_cents, currency, vat_cents, category_id, merchant, note, paid_by, guest_members, guest_names, rate_micro, rate_source, base_cents, base_currency, nights, receipt_object, receipt_name, receipt_type, receipt_size, receipt_sha256)
-        values (${actor.id}, 'expense', ${day}, ${amount}, ${currency}, ${vat}, ${categoryId}, ${merchant}, ${note}, ${paidBy}, ${guests.members}::text[], ${guests.names}::text[],
+        insert into expenses as e (member_id, kind, spent_on, amount_cents, currency, vat_cents, category_id, merchant, note, paid_by, guest_members, guest_names, alone, rate_micro, rate_source, base_cents, base_currency, nights, receipt_object, receipt_name, receipt_type, receipt_size, receipt_sha256)
+        values (${actor.id}, 'expense', ${day}, ${amount}, ${currency}, ${vat}, ${categoryId}, ${merchant}, ${note}, ${paidBy}, ${guests.members}::text[], ${guests.names}::text[], ${alone},
                 ${rate?.micro ?? null}, ${rate?.source ?? null}, ${base}, ${baseCurrency}, ${nights},
                 ${fileFields?.object ?? null}, ${fileFields?.name ?? null}, ${fileFields?.type ?? null}, ${fileFields?.size ?? null}, ${fileFields?.sha ?? null})
         returning ${columns(tx)}`;
@@ -304,7 +310,7 @@ export async function saveExpense(sql: Sql, actor: Member | null, expenseId: unk
     } else {
       [row] = await tx<Row[]>`
         update expenses as e set spent_on = ${day}, amount_cents = ${amount}, currency = ${currency}, vat_cents = ${vat}, category_id = ${categoryId},
-          merchant = ${merchant}, note = ${note}, paid_by = ${paidBy}, guest_members = ${guests.members}::text[], guest_names = ${guests.names}::text[],
+          merchant = ${merchant}, note = ${note}, paid_by = ${paidBy}, guest_members = ${guests.members}::text[], guest_names = ${guests.names}::text[], alone = ${alone},
           rate_micro = ${rate?.micro ?? null}, rate_source = ${rate?.source ?? null}, base_cents = ${base}, base_currency = ${baseCurrency}, nights = ${nights}, updated_at = now()
           ${fileFields ? tx`, receipt_object = ${fileFields.object}, receipt_name = ${fileFields.name}, receipt_type = ${fileFields.type}, receipt_size = ${fileFields.size}, receipt_sha256 = ${fileFields.sha}` : tx``}
         where e.id = ${existing.id}

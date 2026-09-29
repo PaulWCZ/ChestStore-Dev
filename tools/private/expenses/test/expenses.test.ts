@@ -185,6 +185,12 @@ test("guests at a meal: colleagues by id (never the payer), outsiders by name; a
   await assert.rejects(expenses.saveExpense(sql, asMember(hugo), null, lunch({ guestNames: "Jean" })), refuses("invalid"));
   await assert.rejects(expenses.saveExpense(sql, asMember(hugo), null, lunch({ guestNames: Array.from({ length: 31 }, (_, i) => "G" + i) })), refuses("too_many"));
   await assert.rejects(expenses.saveExpense(sql, asMember(hugo), null, lunch({ guestNames: ["x".repeat(121)] })), refuses("too_long"));
+  // "Just me" answers the question: no warning; guests named win over it.
+  const solo = (await expenses.saveExpense(sql, asMember(hugo), null, lunch({ amount: "14", alone: true }))).expense;
+  assert.equal(solo.alone, true);
+  assert.equal((await expenses.warnings(sql, [solo])).get(solo.id)?.some(w => w.code === "no_guests") ?? false, false);
+  assert.equal((await expenses.saveExpense(sql, asMember(hugo), null, lunch({ amount: "15", alone: true, guestNames: ["Jean"] }))).expense.alone, false);
+  await assert.rejects(expenses.saveExpense(sql, asMember(hugo), null, lunch({ alone: "yes" })), refuses("invalid"));
   // Only categories that ask for guests flag a meal without them.
   const taxi = (await expenses.saveExpense(sql, asMember(hugo), null, lunch({ categoryId: cat["travel"], amount: "12" }))).expense;
   assert.deepEqual((await expenses.warnings(sql, [taxi])).get(taxi.id)?.map(w => w.code), ["no_receipt"]);

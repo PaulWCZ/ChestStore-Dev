@@ -1,0 +1,6 @@
+Objective,Key result,Owner,Start,Target,Current,Unit,Team
+Keep every customer we have,Customers lost,Hugo Bernard,3,0,1,customer/customers,Sales
+,Customers called every month,Hugo Bernard,0,40,12,,Sales
+Keep every customer we have,Reviews answered within a day,Nobody Known,0,100%,60%,,Sales
+Hire a second welder,Welder hired,Camille Martin,,,,,
+Broken row,No target here,Camille Martin,0,,3,,

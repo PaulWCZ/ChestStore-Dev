@@ -7,6 +7,10 @@ import { attempt, AppError, type Result } from "../../lib/errors.ts";
 import { examples } from "../../lib/examples.ts";
 import { catalogue, isLocale } from "../../lib/i18n/index.ts";
 import * as arrivals from "../../lib/arrivals.ts";
+import { profilePhrase } from "../../lib/examples.ts";
+import * as fields from "../../lib/fields.ts";
+import * as records from "../../lib/records.ts";
+import { today } from "../../lib/zone.ts";
 import * as importer from "../../lib/importer.ts";
 import * as j from "../../lib/journeys.ts";
 import * as profiles from "../../lib/profiles.ts";
@@ -29,18 +33,50 @@ async function act<T>(step: (actor: Member) => Promise<T>): Promise<Result<T>> {
   return result;
 }
 
-// Profiles: what a person writes about themselves, and the job fields HR
-// keeps. Either part may be absent.
-export async function saveProfile(id: string, own: unknown, job: unknown): Promise<Result<null>> {
+// Profiles: what a person writes about themselves, the job fields HR
+// keeps, and the values of HR's extra fields. Any part may be absent. The
+// newcomer's "fill in your profile" step ticks itself once they did.
+export async function saveProfile(id: string, own: unknown, job: unknown, extras?: Record<string, string>): Promise<Result<null>> {
   return act(async actor => {
     const sql = db();
     if (own !== null && own !== undefined) {
       if (id !== actor.id) throw new AppError("forbidden");
-      await profiles.updateOwn(sql, actor, own);
+      const saved = await profiles.updateOwn(sql, actor, own);
+      if (saved.phone || saved.bio || saved.skills.length > 0) {
+        for (const ticked of await j.autoTick(sql, actor.id, profilePhrase)) await afterTick(actor, ticked);
+      }
     }
     if (job !== null && job !== undefined) await profiles.updateJob(sql, actor, id, job);
+    if (extras && typeof extras === "object") {
+      for (const [fieldId, value] of Object.entries(extras).slice(0, 50)) await fields.setValue(sql, actor, id, fieldId, value);
+    }
     return null;
   });
+}
+
+// One cell of HR's table: a job field ("title", "team", "office",
+// "managerId", "startDate", "phone") or an extra field ("x:<id>").
+export async function saveCell(memberId: string, key: string, value: string | null): Promise<Result<null>> {
+  return act(async actor => {
+    const sql = db();
+    if (typeof key === "string" && key.startsWith("x:")) await fields.setValue(sql, actor, memberId, key.slice(2), value ?? "");
+    else if (["title", "team", "office", "managerId", "startDate", "phone"].includes(key)) await profiles.updateJob(sql, actor, memberId, { [key]: value });
+    else throw new AppError("invalid");
+    return null;
+  });
+}
+
+// HR's extra profile fields.
+export async function addField(input: { label: string; editor: string }): Promise<Result<fields.Extra>> {
+  return act(actor => fields.addField(db(), actor, input));
+}
+
+export async function updateField(fieldId: string, input: { label: string; editor: string }): Promise<Result<null>> {
+  return act(async actor => { await fields.updateField(db(), actor, fieldId, input); return null; });
+}
+
+export async function removeField(fieldId: string, removed: boolean): Promise<Result<null>> {
+  return act(async actor => { await fields.removeField(db(), actor, fieldId, removed); return null; });
 }
 
 // Ticking a step of a checklist (or unticking it).
@@ -153,13 +189,56 @@ export async function deleteChecklist(journeyId: string): Promise<Result<null>> 
   });
 }
 
-// Import: the page shows the plan; the import reads the file again.
-export async function previewImport(text: string): Promise<Result<importer.Plan>> {
-  return act(actor => importer.previewImport(db(), actor, text));
+// Import: the page shows the plan (with HR's choices of columns and date
+// order); the import reads the file again with the same choices.
+export async function previewImport(text: string, choices: importer.Choices = {}): Promise<Result<importer.Plan>> {
+  return act(actor => importer.previewImport(db(), actor, text, choices));
 }
 
-export async function applyImport(text: string): Promise<Result<{ updated: number; skipped: number; loops: string[] }>> {
-  return act(actor => importer.applyImport(db(), actor, text));
+export async function applyImport(text: string, choices: importer.Choices = {}): Promise<Result<{ updated: number; skipped: number; loops: string[] }>> {
+  return act(actor => importer.applyImport(db(), actor, text, choices));
+}
+
+// Arrivals written by HR by hand.
+export async function addArrival(input: arrivals.ArrivalInput): Promise<Result<{ id: string }>> {
+  return act(async actor => ({ id: (await arrivals.addArrival(db(), actor, input)).id }));
+}
+
+export async function updateArrival(arrivalId: string, input: arrivals.ArrivalInput): Promise<Result<null>> {
+  return act(async actor => { await arrivals.updateArrival(db(), actor, arrivalId, input); return null; });
+}
+
+// Employee records.
+export async function createRecord(input: { memberId?: string; legalName?: string }): Promise<Result<{ id: string }>> {
+  return act(actor => records.createRecord(db(), actor, input));
+}
+
+export async function createAllRecords(): Promise<Result<number>> {
+  return act(actor => records.createForEveryone(db(), actor));
+}
+
+export async function saveRecord(recordId: string, input: Record<string, unknown>): Promise<Result<{ changed: string[] }>> {
+  return act(actor => records.updateRecord(db(), actor, recordId, input));
+}
+
+export async function linkRecord(recordId: string, memberId: string | null): Promise<Result<null>> {
+  return act(async actor => { await records.linkRecord(db(), actor, recordId, memberId); return null; });
+}
+
+export async function deleteRecord(recordId: string): Promise<Result<null>> {
+  return act(async actor => { await records.deleteRecord(db(), actor, recordId, today()); return null; });
+}
+
+export async function documentUpload(recordId: string, input: { type: string; size: number }): Promise<Result<{ url: string }>> {
+  return act(actor => records.documentUpload(db(), actor, recordId, input));
+}
+
+export async function documentAdded(recordId: string, input: { object: string; name: string; kind: string }): Promise<Result<records.Document>> {
+  return act(actor => records.addDocument(db(), actor, recordId, input));
+}
+
+export async function removeDocument(recordId: string, documentId: string): Promise<Result<null>> {
+  return act(async actor => { await records.removeDocument(db(), actor, recordId, documentId); return null; });
 }
 
 // Arrivals told by other tools: linked to the member they became, or

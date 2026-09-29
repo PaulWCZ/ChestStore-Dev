@@ -95,10 +95,10 @@ test("the CSV is in the reader's language: French with ';' and decimal commas, n
   assert.match(fr.headers.get("Content-Disposition") ?? "", /temps-/u);
   const text = await fr.text();
   const lines = text.replace(/^﻿/u, "").trim().split("\r\n");
-  assert.equal(lines[0], "Date;Personne;Client;Projet;Tâche;Note;Heures;Facturable;Taux horaire;Montant;Début;Fin");
-  assert.ok(lines.some(l => l.includes("Hugo Bernard;Dupain;Site;Design;'=cmd|' /C calc'!A0;2;Oui;90;180;")), text);
-  assert.ok(lines.some(l => l.includes("Inès Moreau;Dupain;Brand;;\"Logo; colours\";1,5;Oui;120;180;")), text);
-  assert.ok(lines.some(l => l.includes(";0,5;Non;;;")), text);
+  assert.equal(lines[0], "Date;Personne;Client;Projet;Tâche;Note;Heures;Facturable;Taux horaire;Montant;Coût horaire;Coût;Facturé;Début;Fin");
+  assert.ok(lines.some(l => l.includes("Hugo Bernard;Dupain;Site;Design;'=cmd|' /C calc'!A0;2;Oui;90;180;;;Non;")), text);
+  assert.ok(lines.some(l => l.includes("Inès Moreau;Dupain;Brand;;\"Logo; colours\";1,5;Oui;120;180;;;Non;")), text);
+  assert.ok(lines.some(l => l.includes(";0,5;Non;;;;;Non;")), text);
   // English, for a member: commas, dots, their own rows, no rates.
   const en = await GET(withMember(new Request(url), hugo));
   const rows = (await en.text()).replace(/^﻿/u, "").trim().split("\r\n");

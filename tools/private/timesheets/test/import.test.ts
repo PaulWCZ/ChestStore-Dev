@@ -55,7 +55,7 @@ test("the three exports are told apart and read", () => {
   assert.equal(t.source, "toggl");
   assert.equal(t.rows.length, 4);
   assert.deepEqual(t.invalid, [6]);
-  assert.deepEqual({ ...t.rows[0]!, line: 0 }, { line: 0, person: "Camille Martin", client: "Boulangerie Dupain", project: "Site vitrine", task: "Design", note: "Maquettes accueil", billable: true, day: "2026-09-01", start: 540, minutes: 150 });
+  assert.deepEqual({ ...t.rows[0]!, line: 0 }, { line: 0, person: "Camille Martin", client: "Boulangerie Dupain", project: "Site vitrine", task: "Design", note: "Maquettes accueil", billable: true, day: "2026-09-01", start: 540, minutes: 150, rateCents: null, costCents: null, invoiced: null });
   assert.equal(t.rows[1]!.note, "Call, with the baker");
   const c = parseExport(clockify);
   assert.deepEqual(c.dates, { ambiguous: false, order: "mdy" });
@@ -90,42 +90,45 @@ test("the plan shows who is found, what will be created, what is left out; impor
   const { sql } = database;
   const m = asMember(camille);
   await projects.createProject(sql, m, { name: "Site vitrine", newClient: "boulangerie DUPAIN", tasks: ["design"] });
-  const plan = await planImport(sql, m, toggl, options);
+  // Here people not in the Chest are left out (the manager's choice).
+  const skip = { ...options, former: "skip" as const };
+  const plan = await planImport(sql, m, toggl, skip);
   assert.equal(plan.source, "toggl");
   assert.equal(plan.rows, 5);
   assert.equal(plan.ready, 3);
   assert.equal(plan.minutes, 150 + 45 + 20);
-  assert.deepEqual(plan.people.map(p => [p.name, p.memberId, p.rows]), [["Robert Unknown", null, 1], ["Camille Martin", camille.id, 2], ["MOREAU Ines", ines.id, 1]]);
+  assert.deepEqual(plan.people.map(p => [p.name, p.memberId, p.former, p.rows]), [["Robert Unknown", null, false, 1], ["Camille Martin", camille.id, false, 2], ["MOREAU Ines", ines.id, false, 1]]);
   assert.deepEqual(plan.newClients, []);
   assert.deepEqual(plan.newProjects, [{ client: null, name: "No project" }]);
   assert.equal(plan.newTasks, 0);
   assert.deepEqual(plan.skipped, { person: 1, locked: 0, duplicate: 0, invalid: 1, dayFull: 0 });
-  const done = await runImport(sql, m, toggl, options);
+  const done = await runImport(sql, m, toggl, skip);
   assert.equal(done.imported, 3);
   const r = await report(sql, m, { from: "2026-09-01", to: "2026-09-02", group: "person" });
   assert.equal(r.minutes, 215);
   assert.equal(r.billableMinutes, 150);
   // Again: every row is known.
-  const again = await planImport(sql, m, toggl, options);
+  const again = await planImport(sql, m, toggl, skip);
   assert.equal(again.ready, 0);
   assert.equal(again.skipped.duplicate, 3);
-  assert.equal((await runImport(sql, m, toggl, options)).imported, 0);
+  assert.equal((await runImport(sql, m, toggl, skip)).imported, 0);
 });
 
 test("clients, projects and tasks are created as needed; people are matched by full name", async () => {
   const { sql } = database;
   const m = asMember(camille);
-  const plan = await planImport(sql, m, harvest, options);
+  const skip = { ...options, former: "skip" as const };
+  const plan = await planImport(sql, m, harvest, skip);
   assert.deepEqual(plan.newClients, ["Mairie"]);
   assert.deepEqual(plan.newProjects, [{ client: "Mairie", name: "Signalétique" }]);
   assert.equal(plan.newTasks, 1);
-  assert.equal(plan.ready, 1); // Léa has no access in the tests' Chest
-  assert.equal((await runImport(sql, m, harvest, options)).imported, 1);
+  assert.equal(plan.ready, 1); // Léa has no access in the tests' Chest, and is left out here
+  assert.equal((await runImport(sql, m, harvest, skip)).imported, 1);
   const list = await projects.listProjects(sql, m);
   const p = list.find(x => x.name === "Signalétique")!;
   assert.equal(p.clientName, "Mairie");
   assert.deepEqual(p.tasks.map(k => k.name), ["Réunions"]);
-  const c = await runImport(sql, m, clockify, options);
+  const c = await runImport(sql, m, clockify, skip);
   assert.equal(c.imported, 2);
   assert.ok((await projects.listProjects(sql, m)).some(x => x.name === "Brand" && x.clientName === "Garage Leroy"));
 });

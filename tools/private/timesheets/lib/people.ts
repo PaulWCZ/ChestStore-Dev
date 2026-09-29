@@ -1,18 +1,28 @@
 import { ChestError } from "@argentic/chest-sdk/errors";
 import type { Locale } from "@argentic/chest-sdk/member";
 import * as members from "@argentic/chest-sdk/members";
+import { db } from "./db.ts";
 import { catalogue, format } from "./i18n/index.ts";
 
 // The people a page shows, from the member ids the tool stores: names and
 // photos come from the Chest when rendering, never from the tool's data.
 // "former" left the Chest (their name kept), "erased" had their data erased,
 // "unknown" is an id the Chest does not know here (or the Chest could not be
-// asked: the page still renders).
+// asked: the page still renders). An 'imp_…' id is someone who left before
+// the Chest, whose time came with an import: "former", with the name the
+// old tool gave (kept by the tool: the Chest never knew them).
 export type Person = { id: string; name: string; photo: string | null; status: "member" | "former" | "erased" | "unknown"; locale: Locale };
 
 export async function people(ids: Iterable<string>): Promise<Map<string, Person>> {
-  const wanted = [...new Set(ids)].filter(id => typeof id === "string" && id.startsWith("mbr_"));
+  const all = [...new Set(ids)];
+  const wanted = all.filter(id => typeof id === "string" && id.startsWith("mbr_"));
   const found = new Map<string, Person>();
+  const imported = all.filter(id => typeof id === "string" && /^imp_[1-9][0-9]{0,17}$/u.test(id));
+  if (imported.length) {
+    const rows = await db()<{ id: string; name: string }[]>`select 'imp_' || id as id, name from former_people where id = any(${imported.map(x => x.slice(4))}::bigint[])`;
+    for (const r of rows) found.set(r.id, { id: r.id, name: r.name, photo: null, status: "former", locale: "en" });
+    for (const id of imported) if (!found.has(id)) found.set(id, { id, name: "", photo: null, status: "erased", locale: "en" });
+  }
   if (wanted.length === 0) return found;
   try {
     const answer = await members.lookup(wanted);

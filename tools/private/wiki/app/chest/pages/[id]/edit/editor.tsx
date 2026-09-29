@@ -141,14 +141,13 @@ function Writing({ page, start, pages, fresh, locale, t }: { page: PageInfo; sta
         if ($from.parent.type.spec.code) return false;
         const before = $from.parent.textBetween(Math.max(0, $from.parentOffset - 1), $from.parentOffset, undefined, "\ufffc");
         if (before !== "" && !/\s/u.test(before)) return false;
-        setTimeout(() => {
-          const box = view.coordsAtPos(from);
-          const x = Math.max(8, Math.min(box.left, window.innerWidth - 272));
-          // Below the line, or above it when the screen ends first.
-          const tall = Math.min(340, window.innerHeight / 2);
-          const y = box.bottom + 6 + tall > window.innerHeight ? Math.max(8, box.top - 6 - tall) : box.bottom + 6;
-          setSlash({ from, query: "", index: 0, x, y });
-        }, 0);
+        // Opened at once (a fast typist's next letters filter it), where
+        // the "/" goes: below the line, or above it when the screen ends first.
+        const box = view.coordsAtPos(from);
+        const x = Math.max(8, Math.min(box.left, window.innerWidth - 272));
+        const tall = Math.min(340, window.innerHeight / 2);
+        const y = box.bottom + 6 + tall > window.innerHeight ? Math.max(8, box.top - 6 - tall) : box.bottom + 6;
+        setSlash({ from, query: "", index: 0, x, y });
         return false;
       },
       handleKeyDown: (_view, event) => {

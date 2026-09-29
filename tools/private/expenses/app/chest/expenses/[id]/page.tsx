@@ -46,6 +46,7 @@ export default async function ExpensePage({ params }: { params: Promise<{ id: st
     if (e.merchant) facts.push([t.detail.fields.merchant, e.merchant]);
     if (e.nights !== null && e.nights > 1) facts.push([t.detail.fields.nights, `${e.nights} · ${format(t.form.perNight, { amount: formatMoney(Math.round(e.amount / e.nights), e.currency, locale) })}`]);
     const guests = [...e.guests.members.map(g => nameOf(who.get(g), locale)), ...e.guests.names];
+    if (e.alone) facts.push([t.detail.fields.guests, t.form.alone]);
     if (guests.length > 0) facts.push([t.detail.fields.guests, `${guests.join(", ")}\n${plural(t.form.perPerson, guests.length + 1, locale, { amount: formatMoney(Math.round(e.amount / (guests.length + 1)), e.currency, locale) })}`]);
     facts.push([t.detail.fields.paidBy, e.paidBy === "me" ? t.form.paidByMe : t.form.paidByCompany]);
     if (e.rate !== null && e.base !== null && e.baseCurrency) facts.push([t.detail.fields.rate, `1 ${e.currency} = ${rateText(e.rate, locale)} ${e.baseCurrency}\n${format(t.form.converted, { amount: formatMoney(e.base, e.baseCurrency, locale) })}`]);

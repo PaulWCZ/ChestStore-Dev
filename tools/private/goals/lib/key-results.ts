@@ -12,11 +12,11 @@ import { activeMember, checkKeyResult, insertKeyResult, type KeyResultInput } fr
 // checks in: a new value, a confidence, a line. Check-ins are never edited:
 // the latest may be taken back by its author for half an hour.
 
-type KeyResultRow = { id: string; objective_id: string; cycle_id: string; objective_owner: string; objective_title: string; owner: string; title: string; kind: Kind; start_value: string; target_value: string; current_value: string; archived: boolean };
+type KeyResultRow = { id: string; objective_id: string; cycle_id: string; objective_owner: string; objective_title: string; owner: string; title: string; kind: Kind; unit: string; weight: number; start_value: string; target_value: string; current_value: string; archived: boolean; source: string | null };
 
 async function load(sql: Query, keyResultId: unknown, options: { archived?: boolean } = {}): Promise<KeyResultRow> {
   const [row] = await sql<KeyResultRow[]>`
-    select k.id, k.objective_id, o.cycle_id, o.owner as objective_owner, o.title as objective_title, k.owner, k.title, k.kind, k.start_value, k.target_value, k.current_value, (k.archived_at is not null) as archived
+    select k.id, k.objective_id, o.cycle_id, o.owner as objective_owner, o.title as objective_title, k.owner, k.title, k.kind, k.unit, k.weight, k.source, k.start_value, k.target_value, k.current_value, (k.archived_at is not null) as archived
     from key_results k join objectives o on o.id = k.objective_id and o.archived_at is null
     where k.id = ${id(keyResultId)}`;
   if (!row || row.archived !== Boolean(options.archived)) throw new AppError("not_found");
@@ -54,17 +54,34 @@ export async function updateKeyResult(sql: Sql, actor: Member | null, keyResultI
       if (some) throw new AppError("invalid");
     }
   }
+  // Every change after the key result was written is kept, with who made
+  // it: a target lowered in week 10 shows in its history.
+  const changes: { field: string; before: string; after: string }[] = [];
+  const note = (field: string, before: string | number, after: string | number) => { if (String(before) !== String(after)) changes.push({ field, before: String(before).slice(0, 200), after: String(after).slice(0, 200) }); };
+  note("title", k.title, title);
+  note("owner", k.owner, owner);
+  if (weight !== undefined) note("weight", k.weight, weight);
+  if (m) {
+    note("kind", k.kind, m.kind);
+    note("unit", k.unit, m.unit);
+    if (m.kind !== "milestone") {
+      note("start", Number(k.start_value), m.start);
+      note("target", Number(k.target_value), m.target);
+    }
+  }
   await sql.begin(async tx => {
     await tx`update key_results set title = ${title}, owner = ${owner}, weight = coalesce(${weight ?? null}::smallint, weight) where id = ${k.id}`;
     if (m) {
       const [{ checked }] = (await tx<{ checked: boolean }[]>`select exists (select 1 from check_ins where key_result_id = ${k.id}) as checked`) as unknown as [{ checked: boolean }];
-      // Without a check-in, the current value is the start.
+      // Without a check-in (and no value brought by an import), the current
+      // value is the start.
       await tx`
         update key_results set kind = ${m.kind}, unit = ${m.unit}, start_value = ${m.start}, target_value = ${m.target},
-          current_value = case when ${checked}::boolean then current_value else ${m.start} end,
+          current_value = case when ${checked}::boolean or current_value <> start_value then current_value else ${m.start} end,
           currency = case when ${m.kind} = 'money' then coalesce(currency, ${chest.currency()}) else null end
         where id = ${k.id}`;
     }
+    for (const c of changes) await tx`insert into key_result_changes (key_result_id, field, before, after, author) values (${k.id}, ${c.field}, ${c.before}, ${c.after}, ${actor!.id})`;
   });
   return { previousOwner: k.owner, owner, title, objectiveId: String(k.objective_id), objectiveTitle: k.objective_title };
 }

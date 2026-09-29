@@ -45,6 +45,18 @@ dashed *Draft*, ink *Sent*, green outline *Approved*, green filled *Paid*,
 red *Refused*, tilted 2°), warning pills, three figures with a top rule,
 person headers with avatar, facts lists, a timeline, toasts with *Undo*,
 empty states with one action, a bottom dock on phones.
+Added after the critique: the kind switch has a third choice (flat rate,
+calendar icon); fields the phone read from the photo are outlined in green
+(`.suggested`) until changed, with one status line under the receipt
+(`.reading`); guests as removable chips with one "add" field; a refused
+draft not changed since shows *Fix it* instead of its tick; warned lines of
+*To approve* carry an amber left edge and their receipt opens large in a
+dialog (`.lightbox`); the bank account is always shown masked in monospace
+(`FR•• •••• 0189`), with an amber pill when it changed lately; the
+transfer-file panel is an ink-outlined sheet; *Settings* has two pages
+(*Me*, *Company*) switched like the kind switch, the company one opening
+with a row of anchor links; the accountant's first visit shows an
+ink-outlined checklist sheet on *My expenses*.
 
 ## Icon
 

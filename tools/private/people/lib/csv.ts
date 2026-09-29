@@ -41,12 +41,26 @@ export function parseCsv(text: string, maxRows = 20000): string[][] {
   return rows;
 }
 
-// A cell a spreadsheet would run as a formula (=, +, -, @, tab, return) is
-// written behind a quote: exports never carry an injection.
+// A cell a spreadsheet would run as a formula is written behind a quote,
+// so exports never carry an injection: one starting with =, @, a tab or a
+// return, or with + or - followed by anything else than a number or a
+// phone ("+33 6 12 34 56 78", "-3" stay as they are: nothing in them can
+// call a function or another program).
+export function unsafeCell(text: string): boolean {
+  if (/^[=@\t\r]/u.test(text)) return true;
+  return /^[+-]/u.test(text) && !/^[+-][0-9\s().\/+-]*$/u.test(text);
+}
+
 function cell(value: unknown): string {
   let text = value === null || value === undefined ? "" : String(value);
-  if (/^[=+\-@\t\r]/u.test(text)) text = "'" + text;
+  if (unsafeCell(text)) text = "'" + text;
   return /[",;\n\r]/u.test(text) ? '"' + text.replace(/"/gu, '""') + '"' : text;
+}
+
+// unquote takes back the quote a cell got on the way out ('=…), so a file
+// exported by People and imported again round-trips.
+export function unquote(text: string): string {
+  return /^'[=@+\-\t\r]/u.test(text) ? text.slice(1) : text;
 }
 
 export function toCsv(rows: unknown[][]): string {

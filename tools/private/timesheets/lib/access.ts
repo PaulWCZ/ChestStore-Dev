@@ -3,9 +3,11 @@ import type { Member } from "@argentic/chest-sdk/member";
 // Who may do what, in one place. The roles are chest.json's, strongest
 // first; the owner, the admins and the tool's builders enter with the first.
 //
-// - manager: clients, projects, tasks, rates and budgets, who works on
-//   what; everyone's reports and exports; locking a period; imports; the
-//   tool's settings. Records their own time like everyone.
+// - manager: clients, projects, tasks, rates (billable and cost, with
+//   their history) and budgets, who works on what; everyone's reports,
+//   amounts, costs and exports; approving weeks; marking time invoiced;
+//   locking a period; imports; the tool's settings. Records their own time
+//   like everyone.
 // - member: records their own time (timer, week, day) on the projects open
 //   to them; sees their own reports.
 //
@@ -20,10 +22,13 @@ export type Ability =
   | "reports.all"
   | "lock"
   | "import"
-  | "settings";
+  | "settings"
+  | "rates"
+  | "approve"
+  | "invoice";
 
 const grants: Record<Role, readonly Ability[]> = {
-  manager: ["time.own", "projects.manage", "projects.all", "reports.all", "lock", "import", "settings"],
+  manager: ["time.own", "projects.manage", "projects.all", "reports.all", "lock", "import", "settings", "rates", "approve", "invoice"],
   member: ["time.own"],
 };
 

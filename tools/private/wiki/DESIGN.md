@@ -46,8 +46,8 @@ and "Linked from"), the prose styles (headings, lists with coloured
 markers, quotes with a spine, note boxes with a round sign — note, tip,
 warning —, checklists, tables with an ink head rule, code, figures with
 captions, a fleuron for dividers, links to pages as soft green chips), the
-editor (sticky save bar with the draft's status, a toolbar that scrolls
-sideways on phones, a title that is just large text), the history (a list
+editor (sticky save bar with the draft's status, a toolbar that wraps on two
+rows on phones, a title that is just large text), the history (a list
 of versions, words taken out struck in red, put in underlined in green,
 long unchanged runs folded), search results with a highlighter, a space's
 table of contents numbered like chapters, empty states with one action.
@@ -60,6 +60,13 @@ tick). A page due for review gets one notice with an ochre spine (the
 spaces' ochre) and its two answers. The *New page* dialog's "Start from" is
 a row of choice cards, *Blank page* already chosen; a template carries a
 small green "Template" pill under its title.
+The "/" menu is a small paper card under the line, an icon and a plain
+name per block, the chosen one tinted green; the "@" list under a comment
+is the same card. Pinned pages sit under the home page's question as
+paper tabs with their space's colour on the edge. A page to confirm has a
+green notice with a seal and one button, *I have read it*; *Who has read
+it* is a plain table whose status reads as pills — green "Read", red "Not
+yet", grey for an older version.
 
 ## Icon
 

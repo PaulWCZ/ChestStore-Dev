@@ -6,10 +6,13 @@ import type { Member } from "@argentic/chest-sdk/member";
 // - hr: everything members do, and edits everyone's job fields (title,
 //   team, office, manager, start date, work phone), the checklist
 //   templates, starts and follows every onboarding and offboarding, ticks
-//   any item, imports and exports the directory.
+//   any item, imports and exports the directory, and keeps the employee
+//   records (contract, staff register, emergency contact, documents).
 // - member: reads the directory and the org chart, edits their own profile
 //   (phone, pronouns, bio, "ask me about", birthday), does the checklist
-//   items given to them and follows the checklists they take part in.
+//   items given to them and follows the checklists they take part in;
+//   reads their own employee record (never anyone else's — a manager
+//   sees nothing of their reports' records).
 export const roles = ["hr", "member"] as const;
 export type Role = (typeof roles)[number];
 
@@ -19,10 +22,11 @@ export type Ability =
   | "profile.job"
   | "checklists.manage"
   | "directory.import"
-  | "directory.export";
+  | "directory.export"
+  | "records.manage";
 
 const grants: Record<Role, readonly Ability[]> = {
-  hr: ["directory.read", "profile.own", "profile.job", "checklists.manage", "directory.import", "directory.export"],
+  hr: ["directory.read", "profile.own", "profile.job", "checklists.manage", "directory.import", "directory.export", "records.manage"],
   member: ["directory.read", "profile.own"],
 };
 
@@ -48,4 +52,12 @@ export function seesJourney(actor: Member | null, journey: { personId: string | 
 export function ticks(actor: Member | null, item: { assignee: string | null }): boolean {
   if (!actor || roleOf(actor) === null) return false;
   return can(actor, "checklists.manage") || item.assignee === actor.id;
+}
+
+// What one employee record allows: HR edits it; the person it is about
+// reads it; anyone else is told it does not exist.
+export function recordAccess(actor: Member | null, record: { memberId: string | null }): "edit" | "read" | null {
+  if (!actor || roleOf(actor) === null) return null;
+  if (can(actor, "records.manage")) return "edit";
+  return record.memberId !== null && record.memberId === actor.id ? "read" : null;
 }

@@ -6,8 +6,11 @@ import type { Query } from "./db.ts";
 import { wall } from "./days.ts";
 import { checkDayTotal, type Entry } from "./entries.ts";
 import { clean, id, isColor, limits, optionalId, type Color } from "./model.ts";
-import { transaction, writable } from "./projects.ts";
+import { writable } from "./projects.ts";
+import { transaction } from "./tx.ts";
+import { checkBudgets } from "./budgets.ts";
 import { isLocked, settings } from "./settings.ts";
+import { weekLock } from "./weeks.ts";
 
 // The one running timer of each person, kept on the server (its start
 // instant): it survives a reload, a closed tab, another device. Stopping it
@@ -66,6 +69,7 @@ async function close(tx: Query, memberId: string, running: Running, end: Date): 
   if (minutes < 1) return null;
   const day = wall(started, zone()).day;
   if (isLocked(await settings(tx), day)) throw new AppError("locked");
+  await weekLock(tx, memberId, day);
   const [row] = await tx<{ id: string }[]>`
     insert into entries (member_id, project_id, task_id, day, minutes, note, billable, started_at, ended_at, source)
     values (${memberId}, ${running.project_id}, ${running.task_id}, ${day}, ${minutes}, ${running.note}, ${running.billable}, ${started}, ${end}, 'timer')
@@ -73,7 +77,7 @@ async function close(tx: Query, memberId: string, running: Running, end: Date): 
   await checkDayTotal(tx, memberId, day);
   return {
     id: row!.id, projectId: running.project_id, taskId: running.task_id, day, minutes, note: running.note, billable: running.billable,
-    startedAt: started.toISOString(), endedAt: end.toISOString(), source: "timer",
+    startedAt: started.toISOString(), endedAt: end.toISOString(), source: "timer", invoiced: false,
   };
 }
 
@@ -90,9 +94,11 @@ export async function startTimer(sql: Query, actor: Member | null, input: { proj
   const me = own(actor);
   const note = clean(input.note ?? "", limits.note, { optional: true });
   const now = clock.now();
-  return transaction(sql, async tx => {
+  const result = await transaction(sql, async tx => {
     await lockPerson(tx, me.id);
     const w = await writable(tx, me, input.projectId, input.taskId);
+    // Its time would land in a week sent for approval or approved.
+    await weekLock(tx, me.id, wall(now, zone()).day);
     const before = await running(tx, me.id);
     let stopped: Entry | null = null;
     if (before) {
@@ -102,6 +108,8 @@ export async function startTimer(sql: Query, actor: Member | null, input: { proj
     await tx`insert into timers (member_id, project_id, task_id, note, started_at) values (${me.id}, ${w.projectId}, ${w.taskId}, ${note}, ${now})`;
     return { stopped };
   });
+  if (result.stopped) await checkBudgets(sql, [result.stopped.projectId]);
+  return result;
 }
 
 // updateTimer changes what the running timer is for (project, task, note).
@@ -124,8 +132,9 @@ export async function updateTimer(sql: Query, actor: Member | null, input: { pro
 
 // stopTimer stops the timer now, or at the time the person says it really
 // stopped (a forgotten timer): after its start, not in the future, a day
-// at most.
-export async function stopTimer(sql: Query, actor: Member | null, at?: unknown): Promise<{ entry: Entry | null }> {
+// at most. Under a minute nothing is recorded; the answer then gives the
+// day, so that the page may offer to keep one minute.
+export async function stopTimer(sql: Query, actor: Member | null, at?: unknown): Promise<{ entry: Entry | null; day: string }> {
   const me = own(actor);
   const now = clock.now();
   let end = now;
@@ -134,12 +143,14 @@ export async function stopTimer(sql: Query, actor: Member | null, at?: unknown):
     end = new Date(at);
     if (end.getTime() > now.getTime() + 60_000) throw new AppError("invalid");
   }
-  return transaction(sql, async tx => {
+  const result = await transaction(sql, async tx => {
     await lockPerson(tx, me.id);
     const now2 = await running(tx, me.id);
     if (!now2) throw new AppError("no_timer");
-    return { entry: await close(tx, me.id, now2, end) };
+    return { entry: await close(tx, me.id, now2, end), day: wall(new Date(now2.started_at), zone()).day };
   });
+  if (result.entry) await checkBudgets(sql, [result.entry.projectId]);
+  return result;
 }
 
 // discardTimer throws the running timer away; what it gives back lets
@@ -182,7 +193,8 @@ export async function stopForLeaver(tx: Query, memberId: string): Promise<void> 
   const minutes = Math.round((end.getTime() - started.getTime()) / 60000);
   const day = wall(started, zone()).day;
   const [row] = await tx<{ total: string }[]>`select coalesce(sum(minutes), 0)::text as total from entries where member_id = ${memberId} and day = ${day} and deleted_at is null`;
-  const fits = Number(row?.total ?? 0) + minutes <= 1440 && !isLocked(await settings(tx), day);
+  const [closed] = await tx`select 1 from weeks where member_id = ${memberId} and week = date_trunc('week', ${day}::date)::date and status in ('submitted', 'approved')`;
+  const fits = Number(row?.total ?? 0) + minutes <= 1440 && !isLocked(await settings(tx), day) && !closed;
   if (isForgotten({ startedAt: started.toISOString() }, end) || !fits || minutes < 1) {
     await tx`delete from timers where member_id = ${memberId}`;
     return;

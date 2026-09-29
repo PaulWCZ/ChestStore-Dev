@@ -3,11 +3,13 @@ import type { Member } from "@argentic/chest-sdk/member";
 import { can } from "./access.ts";
 import { AppError } from "./app-error.ts";
 import type { Query, Sql } from "./db.ts";
-import { addDays, clean, fold, id, limits, memberId } from "./model.ts";
+import { randomBytes } from "node:crypto";
+import { addDays, clean, day, email, fold, id, limits, memberId } from "./model.ts";
 import { present } from "./people.ts";
 import { profiles, save, wouldLoop } from "./profiles.ts";
 
-// Arrivals: people another tool says are coming, who are not members yet
+// Arrivals: people coming who are not members yet — written by HR by hand
+// (a hire made through LinkedIn and email), or told by another tool
 // (Proposal (studio): events between tools). Today, Hiring:
 //
 //   hiring.hired          { candidate, name, email, job, team, place, startDate, hiredBy }
@@ -24,9 +26,12 @@ import { profiles, save, wouldLoop } from "./profiles.ts";
 export const keepUnlinkedDays = 90;
 
 export type Arrival = {
-  id: string; source: "hiring"; status: "expected" | "cancelled";
+  id: string; source: "hiring" | "manual"; status: "expected" | "cancelled";
   name: string; job: string; team: string; place: string; startDate: string | null;
   managerId: string | null; hiredBy: string | null; toldAt: string; checklists: number;
+  // The company address they will have (HR's arrivals only; never Hiring's
+  // personal one).
+  workEmail: string;
 };
 
 type Hired = { candidate: string; name: string; job: string; team: string; place: string; startDate: string | null; hiredBy: string | null };
@@ -107,18 +112,18 @@ export async function hireCancelled(sql: Sql, event: ToolEvent): Promise<{ id: s
   });
 }
 
-type Row = { id: string; source: "hiring"; status: "expected" | "cancelled"; name: string; job: string; team: string; place: string; start_date: string | null; manager_id: string | null; hired_by: string | null; told_at: Date; checklists: number };
+type Row = { id: string; source: "hiring" | "manual"; status: "expected" | "cancelled"; name: string; job: string; team: string; place: string; start_date: string | null; manager_id: string | null; hired_by: string | null; told_at: Date; checklists: number; work_email: string };
 
 async function load(sql: Query, ids?: string[]): Promise<Arrival[]> {
   const rows = await sql<Row[]>`
-    select a.id, a.source, a.status, a.name, a.job, a.team, a.place, to_char(a.start_date, 'YYYY-MM-DD') as start_date, a.manager_id, a.hired_by, a.told_at,
+    select a.id, a.source, a.status, a.name, a.job, a.team, a.place, to_char(a.start_date, 'YYYY-MM-DD') as start_date, a.manager_id, a.hired_by, a.told_at, a.work_email,
       (select count(*)::int from journeys j where j.arrival_id = a.id) as checklists
     from arrivals a
     where a.status <> 'linked' ${ids ? sql`and a.id in ${sql(ids)}` : sql``}
     order by a.status, a.start_date nulls last, a.id limit 500`;
   return rows.map(r => ({
     id: String(r.id), source: r.source, status: r.status, name: r.name, job: r.job, team: r.team, place: r.place, startDate: r.start_date,
-    managerId: r.manager_id, hiredBy: r.hired_by, toldAt: r.told_at.toISOString(), checklists: r.checklists,
+    managerId: r.manager_id, hiredBy: r.hired_by, toldAt: r.told_at.toISOString(), checklists: r.checklists, workEmail: r.work_email,
   }));
 }
 
@@ -162,7 +167,7 @@ export async function linkArrival(sql: Sql, actor: Member | null, arrivalId: unk
       await tx`update journey_items set assignee = ${who} where journey_id in ${tx(ids)} and role = 'person' and assignee is null and done_at is null`;
     }
     await tx`
-      update arrivals set status = 'linked', member_id = ${who}, linked_at = now(), name = '', job = '', team = '', place = '', start_date = null, manager_id = null, hired_by = null
+      update arrivals set status = 'linked', member_id = ${who}, linked_at = now(), name = '', job = '', team = '', place = '', start_date = null, manager_id = null, hired_by = null, work_email = ''
       where id = ${key}`;
     return { journeys: ids, memberId: who };
   });
@@ -196,15 +201,58 @@ export async function purgeArrivals(sql: Query, now: string): Promise<number> {
   return gone.length;
 }
 
-// The members an arrival may have become: the same name, accents and case
-// aside.
-export function suggestions<P extends { id: string; name: string }>(arrivals: readonly Pick<Arrival, "id" | "name" | "status">[], people: readonly P[]): Map<string, P[]> {
+// The members an arrival may have become: the one with the work address HR
+// wrote, otherwise the same name (accents and case aside).
+export function suggestions<P extends { id: string; name: string; email?: string }>(arrivals: readonly Pick<Arrival, "id" | "name" | "status" | "workEmail">[], people: readonly P[]): Map<string, P[]> {
   const found = new Map<string, P[]>();
   for (const a of arrivals) {
     if (a.status !== "expected") continue;
+    const byAddress = a.workEmail ? people.filter(p => p.email && p.email.toLowerCase() === a.workEmail) : [];
     const key = fold(a.name);
-    const same = people.filter(p => fold(p.name) === key);
+    const same = byAddress.length > 0 ? byAddress : people.filter(p => fold(p.name) === key);
     if (same.length > 0) found.set(a.id, same);
   }
   return found;
+}
+
+// An arrival HR writes by hand: the same thing Hiring's event makes, so
+// the checklist, the link to the member and the purge work alike.
+export type ArrivalInput = { name?: unknown; job?: unknown; team?: unknown; place?: unknown; startDate?: unknown; managerId?: unknown; workEmail?: unknown };
+
+async function readArrival(input: ArrivalInput) {
+  if (!input || typeof input !== "object") throw new AppError("invalid");
+  const manager = input.managerId === undefined || input.managerId === null || input.managerId === "" ? null : memberId(input.managerId);
+  if (manager && !(await present([manager])).has(manager)) throw new AppError("not_member");
+  return {
+    name: clean(input.name, limits.name),
+    job: clean(input.job ?? "", limits.title, { optional: true }),
+    team: clean(input.team ?? "", limits.team, { optional: true }),
+    place: clean(input.place ?? "", limits.office, { optional: true }),
+    startDate: day(input.startDate, { optional: true }),
+    managerId: manager,
+    workEmail: email(input.workEmail ?? ""),
+  };
+}
+
+export async function addArrival(sql: Sql, actor: Member | null, input: ArrivalInput): Promise<Arrival> {
+  if (!actor || !can(actor, "checklists.manage")) throw new AppError("forbidden");
+  const a = await readArrival(input);
+  const ref = "manual-" + randomBytes(9).toString("hex");
+  const [row] = await sql<{ id: string }[]>`
+    insert into arrivals (source, ref, name, job, team, place, start_date, manager_id, work_email, hired_by)
+    values ('manual', ${ref}, ${a.name}, ${a.job}, ${a.team}, ${a.place}, ${a.startDate}, ${a.managerId}, ${a.workEmail}, ${actor.id}) returning id`;
+  return (await load(sql, [String(row!.id)]))[0]!;
+}
+
+// HR corrects an arrival they wrote (Hiring's are brought up to date by
+// Hiring itself).
+export async function updateArrival(sql: Sql, actor: Member | null, arrivalId: unknown, input: ArrivalInput): Promise<Arrival> {
+  if (!actor || !can(actor, "checklists.manage")) throw new AppError("forbidden");
+  const key = id(arrivalId);
+  const a = await readArrival(input);
+  const done = await sql`
+    update arrivals set name = ${a.name}, job = ${a.job}, team = ${a.team}, place = ${a.place}, start_date = ${a.startDate}, manager_id = ${a.managerId}, work_email = ${a.workEmail}
+    where id = ${key} and source = 'manual' and status = 'expected'`;
+  if (done.count === 0) throw new AppError("not_found");
+  return (await load(sql, [key]))[0]!;
 }

@@ -12,12 +12,14 @@ alter table expenses add column refused_fingerprint text check (refused_fingerpr
 -- Guests on meals: who was at the table (French practice for business
 -- meals: the names and companies of the guests). People of the Chest by id,
 -- people from outside by name. A category asks for them when `guests` is
--- on (meals by default); an expense of such a category without guests gets
--- a warning, never a block.
+-- on (meals by default); an expense of such a category that names nobody
+-- and does not say "just me" gets a warning, never a block.
 alter table categories add column guests boolean not null default false;
 update categories set guests = true where key = 'meals';
 alter table expenses add column guest_members text[] not null default '{}' check (cardinality(guest_members) <= 30);
 alter table expenses add column guest_names text[] not null default '{}' check (cardinality(guest_names) <= 30);
+-- "Just me": a meal without guests, said so (no warning).
+alter table expenses add column alone boolean not null default false;
 
 -- Tolls and parking: their own category (VAT generally recoverable; the
 -- accountant checks). Built-in keys grow: 'parking', and 'allowance' for

@@ -1,6 +1,7 @@
 import type { Member } from "@argentic/chest-sdk/member";
 import type { Query } from "./db.ts";
 import { format, formatDay, plural } from "./i18n/index.ts";
+import { stepText } from "./examples.ts";
 import { about, openCounts, openIn } from "./journeys.ts";
 import type { Kind } from "./model.ts";
 import { badges, cut, notify, withdraw } from "./notify.ts";
@@ -37,7 +38,7 @@ export async function todo(sql: Query, actor: Member | null, journey: { id: stri
     if (actor && assignee === actor.id) continue;
     await notify([assignee], (t, locale) => {
       const words = assignee === it.personId ? t.bell.yours[it.kind] : t.bell.todo[it.kind];
-      return { title: plural(words, open.length, locale, { name: it.name }), body: cut(open.join(" · "), 280) };
+      return { title: plural(words, open.length, locale, { name: it.name }), body: cut(open.map(o => stepText(o, t)).join(" · "), 280) };
     }, { path: "/chest/todo", key: todoKey(journey.id) });
   }
   await refreshBadges(sql, who);
@@ -60,14 +61,20 @@ export async function reopened(journeyId: string): Promise<void> {
   await withdraw(`journey:${journeyId}:done`);
 }
 
-// HR hears that someone left and who no longer has a manager.
-export async function left(hr: string[], leaver: { id: string; name: string }, reports: string[], open: number): Promise<void> {
+// HR hears that someone left: whose manager they were (they keep their
+// place in the org chart, flagged), how many to-dos came to HR, and that
+// their record needs a last day.
+export async function left(hr: string[], leaver: { id: string; name: string }, change: { reports: string[]; open: number; record: boolean }): Promise<void> {
   if (hr.length === 0) return;
-  const names = [...(await people(reports)).values()].map(p => p.name).filter(Boolean);
+  const names = [...(await people(change.reports)).values()].map(p => p.name).filter(Boolean);
   await notify(hr, (t, locale) => ({
     title: cut(format(t.bell.left.title, { name: leaver.name || t.people.erased }), 80),
-    body: [reports.length ? plural(t.bell.left.reports, reports.length, locale, { names: names.join(", ") }) : "", open ? plural(t.bell.left.items, open, locale) : ""].filter(Boolean).join("\n") || t.bell.left.nothing,
-  }), { path: "/chest/chart", key: `left:${leaver.id}` });
+    body: [
+      change.reports.length ? plural(t.bell.left.reports, change.reports.length, locale, { names: names.join(", ") }) : "",
+      change.open ? plural(t.bell.left.items, change.open, locale) : "",
+      change.record ? t.bell.left.record : "",
+    ].filter(Boolean).join("\n") || t.bell.left.nothing,
+  }), { path: change.reports.length ? "/chest/chart" : "/chest/records", key: `left:${leaver.id}` });
 }
 
 // HR hears of an arrival told by another tool ("Hiring: Lucie Garnier

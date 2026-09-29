@@ -48,7 +48,7 @@ export function WeekView(props: {
     const before = row.cells[ci]!;
     if (minutes === before.minutes) return true;
     const put = (cell: GridRow["cells"][number]) => setRows(list => list.map((r, i) => (i === ri ? { ...r, cells: r.cells.map((c, j) => (j === ci ? cell : c)) } : r)));
-    put({ minutes, count: minutes ? 1 : 0, entryId: before.entryId });
+    put({ ...before, minutes, count: minutes ? 1 : 0, note: minutes ? before.note : "" });
     start(async () => {
       const r = await saveCell({ projectId: row.projectId, taskId: row.taskId, day: days[ci]!.day, minutes });
       if (!r.ok) {

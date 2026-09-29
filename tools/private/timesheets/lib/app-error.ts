@@ -20,6 +20,12 @@ export const errorCodes = [
   "future",
   "import_invalid",
   "import_too_big",
+  "rate_locked",
+  "week_submitted",
+  "week_approved",
+  "invoiced",
+  "week_future",
+  "week_state",
   "unavailable",
   "unknown",
 ] as const;

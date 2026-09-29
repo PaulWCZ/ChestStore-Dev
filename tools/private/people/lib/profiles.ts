@@ -5,6 +5,9 @@ import type { Query, Sql } from "./db.ts";
 import { birthday, clean, day, keepLeftDays, limits, memberId, phone, skills } from "./model.ts";
 import { purgeArrivals } from "./arrivals.ts";
 import { purgeAway } from "./away.ts";
+import { purgeFields } from "./fields.ts";
+import { note, purgeJournal } from "./journal.ts";
+import { purgeRecords } from "./records.ts";
 import { present } from "./people.ts";
 
 // What the directory knows of a person beyond their name and photo (which
@@ -24,13 +27,16 @@ export type Profile = {
   startDate: string | null;
   // "MM-DD", only when the person chose to show it.
   birthday: string | null;
+  // Their manager left the company: managerId still names them (their place
+  // in the org chart is kept) until HR names someone else.
+  managerLeft: boolean;
 };
 
-export const blank = (id: string): Profile => ({ memberId: id, title: "", team: "", office: "", managerId: null, phone: "", pronouns: "", bio: "", skills: [], startDate: null, birthday: null });
+export const blank = (id: string): Profile => ({ memberId: id, title: "", team: "", office: "", managerId: null, phone: "", pronouns: "", bio: "", skills: [], startDate: null, birthday: null, managerLeft: false });
 
-type Row = { member_id: string; title: string; team: string; office: string; manager_id: string | null; phone: string; pronouns: string; bio: string; skills: string[]; start_date: string | null; birthday: string | null };
-const columns = "member_id, title, team, office, manager_id, phone, pronouns, bio, skills, to_char(start_date, 'YYYY-MM-DD') as start_date, birthday";
-const toProfile = (r: Row): Profile => ({ memberId: r.member_id, title: r.title, team: r.team, office: r.office, managerId: r.manager_id, phone: r.phone, pronouns: r.pronouns, bio: r.bio, skills: r.skills, startDate: r.start_date, birthday: r.birthday });
+type Row = { member_id: string; title: string; team: string; office: string; manager_id: string | null; phone: string; pronouns: string; bio: string; skills: string[]; start_date: string | null; birthday: string | null; manager_left: boolean };
+const columns = "member_id, title, team, office, manager_id, phone, pronouns, bio, skills, to_char(start_date, 'YYYY-MM-DD') as start_date, birthday, manager_left";
+const toProfile = (r: Row): Profile => ({ memberId: r.member_id, title: r.title, team: r.team, office: r.office, managerId: r.manager_id, phone: r.phone, pronouns: r.pronouns, bio: r.bio, skills: r.skills, startDate: r.start_date, birthday: r.birthday, managerLeft: r.manager_left });
 
 function reader(actor: Member | null): Member {
   if (!actor || !can(actor, "directory.read")) throw new AppError("forbidden");
@@ -66,14 +72,22 @@ export async function reportsOf(sql: Query, actor: Member | null, id: string): P
 // (nothing runs in the background: this runs when the directory is read,
 // and each morning when schedules exist).
 export async function reconcile(sql: Sql, presentIds: string[], now: string): Promise<void> {
-  if (presentIds.length > 0) await sql`update profiles set left_at = null where left_at is not null and member_id = any(${presentIds}::text[])`;
+  if (presentIds.length > 0) {
+    await sql`update profiles set left_at = null where left_at is not null and member_id = any(${presentIds}::text[])`;
+    // A manager who came back is their reports' manager again.
+    await sql`update profiles set manager_left = false where manager_left and manager_id = any(${presentIds}::text[])`;
+  }
   await purgeLeft(sql);
   await purgeArrivals(sql, now);
   await purgeAway(sql, now);
+  await purgeRecords(sql, now);
+  await purgeFields(sql);
+  await purgeJournal(sql);
 }
 
 export async function purgeLeft(sql: Query): Promise<number> {
-  const gone = await sql`delete from profiles where left_at < now() - make_interval(days => ${keepLeftDays}) returning member_id`;
+  const gone = await sql<{ member_id: string }[]>`delete from profiles where left_at < now() - make_interval(days => ${keepLeftDays}) returning member_id`;
+  if (gone.length > 0) await sql`delete from field_values where member_id = any(${gone.map(g => g.member_id)}::text[])`;
   return gone.length;
 }
 
@@ -116,15 +130,23 @@ export async function updateJob(sql: Sql, actor: Member | null, id: unknown, inp
   const asked = [who, ...(manager ? [manager] : [])];
   const here = await present(asked);
   if (!here.has(who)) throw new AppError("not_found");
-  if (manager && !here.has(manager)) throw new AppError("not_member");
   if (manager === who) throw new AppError("cycle");
   return sql.begin(async tx => {
     // One change of managers at a time: two at once could close a loop
     // neither sees.
     await tx`select pg_advisory_xact_lock(hashtext('people.managers'))`;
-    if (manager && await wouldLoop(tx, who, manager)) throw new AppError("cycle");
     const current = (await profiles(tx, actor, [who])).get(who)!;
-    return save(tx, { ...current, ...fields, ...(manager !== undefined ? { managerId: manager } : {}) });
+    // Keeping a manager who left (the form sends what it shows) is no
+    // change; naming anyone else needs someone in the directory.
+    if (manager === current.managerId) manager = undefined;
+    if (manager && !here.has(manager)) throw new AppError("not_member");
+    if (manager && await wouldLoop(tx, who, manager)) throw new AppError("cycle");
+    const next: Profile = { ...current, ...fields, ...(manager !== undefined ? { managerId: manager, managerLeft: false } : {}) };
+    const changed = (["title", "team", "office", "managerId", "startDate", "phone"] as const).filter(f => next[f] !== current[f]);
+    if (changed.length === 0) return current;
+    const saved = await save(tx, next);
+    await note(tx, actor, "profile_changed", { memberId: who, fields: [...changed] });
+    return saved;
   });
 }
 
@@ -146,13 +168,13 @@ export async function wouldLoop(sql: Query, person: string, manager: string): Pr
 // save writes a whole profile (the fields already checked).
 export async function save(sql: Query, p: Profile): Promise<Profile> {
   const [row] = await sql.unsafe<Row[]>(
-    `insert into profiles (member_id, title, team, office, manager_id, phone, pronouns, bio, skills, start_date, birthday, left_at, updated_at)
-     values ($1, $2, $3, $4, $5, $6, $7, $8, $9::text[], $10::date, $11, null, now())
+    `insert into profiles (member_id, title, team, office, manager_id, phone, pronouns, bio, skills, start_date, birthday, manager_left, left_at, updated_at)
+     values ($1, $2, $3, $4, $5, $6, $7, $8, $9::text[], $10::date, $11, $12, null, now())
      on conflict (member_id) do update set title = excluded.title, team = excluded.team, office = excluded.office, manager_id = excluded.manager_id,
        phone = excluded.phone, pronouns = excluded.pronouns, bio = excluded.bio, skills = excluded.skills, start_date = excluded.start_date,
-       birthday = excluded.birthday, left_at = null, updated_at = now()
+       birthday = excluded.birthday, manager_left = excluded.manager_left, left_at = null, updated_at = now()
      returning ${columns}`,
-    [p.memberId, p.title, p.team, p.office, p.managerId, p.phone, p.pronouns, p.bio, p.skills, p.startDate, p.birthday],
+    [p.memberId, p.title, p.team, p.office, p.managerId, p.phone, p.pronouns, p.bio, p.skills, p.startDate, p.birthday, p.managerId !== null && p.managerLeft],
   );
   return toProfile(row!);
 }

@@ -2,7 +2,7 @@ import type { Member } from "@argentic/chest-sdk/member";
 import { cycles as allCycles, type Cycle } from "./read.ts";
 import type { Query } from "./db.ts";
 import { format, formatDay, plural, type Catalogue, type Locale } from "./i18n/index.ts";
-import { cycleTime } from "./model.ts";
+import { cycleTime, type Quarter } from "./model.ts";
 import { people as lookup, type Person } from "./people.ts";
 import { teams } from "./teams.ts";
 import { clockAt } from "./tell.ts";
@@ -34,4 +34,9 @@ export function cycleWords(cycle: Cycle, today: string, t: Catalogue, locale: Lo
   else if (time.phase === "after") when = format(t.cycle.ended, { date: formatDay(cycle.endsOn, locale, { day: "numeric", month: "long" }) });
   else when = `${format(t.cycle.week, { week: time.week, weeks: time.weeks })} · ${plural(t.cycle.daysLeft, time.daysLeft, locale)}`;
   return { dates, when, elapsed: Math.round(time.elapsed * 100) };
+}
+
+// A quarter's name in the reader's words: "Q4 2026", "T4 2026".
+export function quarterName(t: Catalogue, q: Quarter): string {
+  return format(t.cycle.quarterName, { quarter: q.quarter, year: q.year });
 }

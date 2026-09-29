@@ -62,7 +62,8 @@ test("starting another timer stops the first one; under a minute records nothing
   assert.equal(stopped?.note, "First");
   assert.equal((await timers.timer(sql, me))?.projectId, other.id);
   at("2026-09-29T08:00:20Z");
-  assert.deepEqual(await timers.stopTimer(sql, me), { entry: null });
+  // The day comes back, so that the page may offer to keep one minute.
+  assert.deepEqual(await timers.stopTimer(sql, me), { entry: null, day: "2026-09-29" });
   assert.equal((await dayEntries(sql, me, "2026-09-29")).length, 1);
 });
 

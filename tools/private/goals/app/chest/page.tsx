@@ -6,10 +6,10 @@ import { Alert, Mountain, Plus } from "../../components/icons.tsx";
 import { ObjectiveCard } from "../../components/objective-card.tsx";
 import { can } from "../../lib/access.ts";
 import { db } from "../../lib/db.ts";
-import { format, plural } from "../../lib/i18n/index.ts";
-import { quarterOf, runsOn } from "../../lib/model.ts";
+import { format, formatDay, plural } from "../../lib/i18n/index.ts";
+import { daysBetween, firstCycleChoices, runsOn, type Suggestion } from "../../lib/model.ts";
 import { orphans } from "../../lib/orphans.ts";
-import { context, cycleWords } from "../../lib/page-data.ts";
+import { context, cycleWords, quarterName } from "../../lib/page-data.ts";
 import { ownedBy } from "../../lib/read.ts";
 import { viewer } from "../../lib/session.ts";
 import { refreshBadges } from "../../lib/tell.ts";
@@ -40,7 +40,16 @@ export default async function MyGoals() {
           <span className="summit"><Mountain /></span>
           <h2>{t.home.noCycle}</h2>
           <p>{can(member, "cycles.manage") ? t.home.noCycleBody : t.home.noCycleMember}</p>
-          {can(member, "cycles.manage") && <StartCycle label={format(t.home.startCycle, { name: quarterOf(clock.today).name })} errors={t.errors} />}
+          {can(member, "cycles.manage") && (() => {
+            const choices = firstCycleChoices(clock.today);
+            const label = (s: Suggestion, words: string) => format(words, { name: quarterName(t, s.quarter), dates: format(t.cycle.dates, { start: formatDay(s.quarter.startsOn, locale, { day: "numeric", month: "short" }), end: formatDay(s.quarter.endsOn, locale, { day: "numeric", month: "short" }) }), left: plural(t.cycle.daysLeft, daysBetween(clock.today, s.quarter.endsOn), locale) });
+            return (
+              <>
+                {choices.other && <p className="hint">{format(t.home.lateInQuarter, { name: quarterName(t, choices.other.quarter), left: plural(t.cycle.daysLeft, daysBetween(clock.today, choices.other.quarter.endsOn), locale) })}</p>}
+                <StartCycle main={{ which: choices.main.which, label: label(choices.main, t.home.startCycle) }} other={choices.other ? { which: choices.other.which, label: label(choices.other, t.home.startCurrent) } : null} errors={t.errors} />
+              </>
+            );
+          })()}
         </div>
       </div>
     );

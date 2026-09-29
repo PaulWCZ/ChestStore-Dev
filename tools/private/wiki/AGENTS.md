@@ -8,33 +8,37 @@ what must not break.
 | Path | What it is |
 |---|---|
 | `chest.json` | Manifest: roles `editor`, `reader`; `database`, `files`, `members`; `receives` |
-| `lib/access.ts` | **Who may do what**: abilities (`can`) and a space's access (`spaceAccess`: none, read, write) |
+| `lib/access.ts` | **Who may do what**: abilities (`can`) and a space's access (`spaceAccess`: none, read, write — seeing by `visibility`/groups, editing by `editing`/`editors`) |
 | `lib/doc.ts` | **The document schema**: `normalize()` (the only door for content), `safeHref`, `lines`/`plainText`, `references` — pure, browser-safe |
 | `lib/render.ts` | Document → HTML, every word escaped — pure |
 | `lib/markdown.ts` | Markdown in (markdown-it → document) and out |
 | `lib/spaces.ts`, `lib/pages.ts` | Spaces; the tree, pages, moves, trash, recent, backlinks, `writeContent` (every new version goes through it) |
-| `lib/editing.ts` | The lock, drafts, `publish` |
+| `lib/editing.ts` | The lock (taken, kept by `heartbeat`, given back by `leave` — the beacon route `app/chest/api/pages/[id]/leave` — lapsing after `lockLeaseSeconds`), drafts (`discardDraft`/`keepDraft` from the page), `publish` |
 | `lib/history.ts` | Versions, the comparison in words, restore |
-| `lib/search.ts` | Full-text search (`wiki` text search config) with marked passages |
+| `lib/search.ts` | Full-text search (`wiki` text search config; hyphenated words joined by `wiki_compounds` in the index; typos through `search_words` and trigrams; all words first, then some) with marked passages |
 | `lib/files.ts` | Files of pages (records; the bytes are the Chest's) |
-| `lib/importer.ts`, `lib/zip.ts` | Imports (Markdown, Notion zip) and a bounded in-memory ZIP reader/writer |
+| `lib/importer.ts`, `lib/zip.ts` | Imports (Markdown, Notion zip, Confluence HTML export, Google Docs HTML, Word, any HTML) and a bounded in-memory ZIP reader/writer |
+| `lib/html.ts`, `lib/docx.ts` | HTML → document (Confluence's macros, tree and attachments; Google Docs' class styles) and Word → document; never HTML kept, always through `normalize()` |
 | `lib/export.ts`, `lib/origin.ts` | Markdown, HTML and zip exports |
 | `lib/comments.ts` | Comments: read, add, edit (own), remove (own, or the page's editors) and Undo — always through `page()`, so a comment follows its page's access |
 | `lib/watching.ts` | Watching a page |
 | `lib/templates.ts` | Templates: the flag, a space's templates, the built-in models (words in the catalogues' `templates.builtin`), `createFrom` |
 | `lib/reviews.ts` | Review reminders: set, "still correct", due pages |
-| `lib/tell.ts` | **Everything the bell says** (keys `comments:`, `saved:`, `review:`), each recipient checked against the space's access at that moment; the `reviews` schedule's work |
+| `lib/reads.ts` | Read and acknowledged: ask (everyone or groups), confirm, the report (`/reads`, `/reads/csv` with `csvCell`), pages to read |
+| `lib/pins.ts` | Pages pinned to the home page |
+| `lib/groups.ts` | The Chest's groups and members of the tool (`membersOfTool`, `editorsOfTool`) |
+| `lib/tell.ts` | **Everything the bell says** (keys `comments:`, `saved:`, `review:`, `read:`, `mention:`), each recipient checked against the space's access at that moment; the `reviews` schedule's work |
 | `app/chest-jobs/[name]/route.ts` | Scheduled tasks (proposal): `reviews` |
 | `lib/starter.ts` | The one-click example handbook (words in the catalogues' `starter`) |
 | `lib/lifecycle.ts` | Leaving and erasure |
 | `lib/i18n/` | Every word: `en.ts` (source), `fr.ts`; `format.ts` for the browser |
 | `app/chest/actions.ts` | Server actions: thin; each re-reads the member; answer `Result` codes |
 | `app/chest/layout.tsx`, `components/shell.tsx` | The frame: header, sidebar tree (drag and drop), drawer on phones |
-| `app/chest/pages/[id]/edit/` | The editor (client): Tiptap, toolbar, uploads, link and page pickers; `extensions.ts` = the schema on the client side |
+| `app/chest/pages/[id]/edit/` | The editor (client): Tiptap, toolbar, the "/" menu (`slash.tsx`), uploads, link and page pickers, heartbeat and leave; `extensions.ts` = the schema on the client side |
 | `app/chest/**/page.tsx` | Pages (server): read, resolve names, hand words to views |
-| `migrations/` | Schema. Never edit a shipped file; add `0002_…` |
+| `migrations/` | Schema. Never edit a shipped file; add `0004_…` |
 | `seed/` | `pages/*.md` + `spaces.json` → `build.ts` → `sample.sql` |
-| `test/` | `node:test` with `fakeChest` and PostgreSQL (PGlite or `TEST_DATABASE_URL`) |
+| `test/` | `node:test` with `fakeChest` and PostgreSQL (PGlite or `TEST_DATABASE_URL`); `test/fixtures/` holds files shaped as Confluence, Google Docs and Word export them |
 
 ## Commands
 
@@ -66,6 +70,12 @@ npm ci && npm test && npm run build   # all three must pass
   placeholders, and look for words written in pages).
 - **Compare timestamps in SQL**, never through JavaScript `Date`s
   (PostgreSQL keeps microseconds).
+- **Writing in a space is `space(…, "write")` / `page(…, "write")`**, never
+  `can(actor, "write")` alone: a space may name its editors.
+- **An import never keeps HTML**: HTML and Word become documents in
+  `lib/html.ts` / `lib/docx.ts`, then `normalize()`. A new format comes
+  with a fixture shaped as the other product writes it (`test/fixtures/`)
+  and its source in `THIRD_PARTY.md`.
 - **Tell people only through `lib/tell.ts`**: it drops anyone who cannot
   read the page now and the actor; a new reason gets its own key, replaced
   per page, and is withdrawn in `forget()`/`moved()`.

@@ -2,10 +2,10 @@ import { ChestError } from "@argentic/chest-sdk/errors";
 import type { Locale } from "@argentic/chest-sdk/member";
 import * as members from "@argentic/chest-sdk/members";
 
-// The people who have the tool, as the Chest says now: the rows of the team
-// calendar and of HR's list, the approvers one may name, the HR people who
-// answer when nobody else was named. Read from the Chest each time (names
-// are never copied), 500 at a time, up to 2,000 people.
+// The people who have the tool, as the Chest says now: the rows of the Team
+// and People pages, the people one may name on a project, the names an
+// import matches. Read from the Chest each time (names are never copied),
+// 500 at a time, up to 2,000 people.
 export type DirectoryPerson = { id: string; name: string; firstName: string; lastName: string; photo: string | null; role: string | null; groups: string[]; locale: Locale };
 
 export async function everyone(): Promise<DirectoryPerson[]> {
@@ -31,30 +31,21 @@ export async function everyoneOrNone(): Promise<{ people: DirectoryPerson[]; rea
   }
 }
 
-// The HR people now (members.list by role).
-export async function hrIds(): Promise<string[]> {
+// The managers now (members.list by role): who hears of weeks to approve
+// and budgets running out. The Chest not answering: nobody (a bell is a
+// courtesy).
+export async function managerIds(): Promise<string[]> {
   const found: string[] = [];
   let after: string | undefined;
-  for (let page = 0; page < 4; page++) {
-    const answer = await members.list({ role: "hr", limit: 500, ...(after ? { after } : {}) });
-    found.push(...answer.members.map(m => m.id));
-    if (!answer.next) break;
-    after = answer.next;
-  }
-  return found;
-}
-
-// roleNow: the role of someone who has the tool, null if they have none or
-// no longer have the tool.
-export async function roleNow(memberId: string): Promise<string | null> {
-  return (await members.get(memberId))?.role ?? null;
-}
-
-export async function groups(): Promise<{ id: string; name: string; members: string[] }[]> {
   try {
-    return (await members.groups.list()).map(g => ({ id: g.id, name: g.name, members: g.members }));
+    for (let page = 0; page < 4; page++) {
+      const answer = await members.list({ role: "manager", limit: 500, ...(after ? { after } : {}) });
+      found.push(...answer.members.map(m => m.id));
+      if (!answer.next) break;
+      after = answer.next;
+    }
   } catch (error) {
     if (!(error instanceof ChestError)) throw error;
-    return [];
   }
+  return found;
 }

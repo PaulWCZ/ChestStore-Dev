@@ -3,6 +3,7 @@
 // and Harvest into one neutral shape. Pure and tested. The column names are
 // facts about those exports (read in solidtime's importers, AGPL-3.0, whose
 // code is not copied — see THIRD_PARTY.md); the parser is our own.
+import { parseAmount } from "./amounts.ts";
 import { AppError } from "./app-error.ts";
 import { parseCsv } from "./csv.ts";
 
@@ -23,8 +24,17 @@ export type Imported = {
   // Minutes after midnight when the export gives a start time.
   start: number | null;
   minutes: number;
+  // The old tool's hourly rates (cents) and whether it was invoiced, when
+  // the export says: Harvest's Billable Rate, Cost Rate and Invoiced?;
+  // Clockify's Billable Rate (EUR) and Cost Rate (EUR); Toggl's Amount
+  // (EUR), turned into a rate.
+  rateCents: number | null;
+  costCents: number | null;
+  invoiced: boolean | null;
 };
-export type Parsed = { source: Source; rows: Imported[]; invalid: number[]; dates: { ambiguous: boolean; order: DateOrder } };
+// The currency of the rates, when the export names it ("Amount (EUR)",
+// Harvest's Currency column); null when it does not.
+export type Parsed = { source: Source; rows: Imported[]; invalid: number[]; dates: { ambiguous: boolean; order: DateOrder }; currency: string | null; rates: boolean };
 
 export const maxRows = 20000;
 export const maxBytes = 5 << 20;
@@ -131,6 +141,12 @@ export function parseExport(text: string, options: { order?: DateOrder } = {}): 
     return "";
   };
   const dateColumn = source === "harvest" ? ["date"] : ["start date"];
+  // Money columns carry their currency in their name, "(EUR)".
+  const money = (base: string) => [...index.keys()].find(k => k === base || k.startsWith(base + " ("));
+  const rateColumn = source === "toggl" ? money("amount") : money("billable rate");
+  const costColumn = source === "toggl" ? undefined : money("cost rate");
+  const codeOf = (text: string | undefined) => (text ? /\b([A-Z]{3})\b/u.exec(text.toUpperCase())?.[1] ?? null : null);
+  let currency = codeOf(/\(([^)]*)\)/u.exec(rateColumn ?? costColumn ?? "")?.[1]);
   const detected = dateOrder(body.map(r => col(r, ...dateColumn)));
   const order = options.order ?? detected.order;
   const rows: Imported[] = [];
@@ -156,6 +172,12 @@ export function parseExport(text: string, options: { order?: DateOrder } = {}): 
       invalid.push(line);
       return;
     }
+    if (source === "harvest" && currency === null) currency = codeOf(col(row, "currency"));
+    const rateText = rateColumn ? col(row, rateColumn).trim() : "";
+    const costText = costColumn ? col(row, costColumn).trim() : "";
+    let rateCents = rateText ? parseAmount(rateText) : null;
+    if (source === "toggl" && rateCents !== null) rateCents = Math.round((rateCents * 60) / minutes);
+    const costCents = costText ? parseAmount(costText) : null;
     rows.push({
       line,
       person,
@@ -167,9 +189,14 @@ export function parseExport(text: string, options: { order?: DateOrder } = {}): 
       day,
       start,
       minutes,
+      // A rate of 0 is how the exports write "no rate".
+      rateCents: rateCents !== null && rateCents > 0 && rateCents <= 100_000_000 ? rateCents : null,
+      costCents: costCents !== null && costCents > 0 && costCents <= 100_000_000 ? costCents : null,
+      invoiced: source === "harvest" ? readBillable(col(row, "invoiced?")) : null,
     });
   });
-  return { source, rows, invalid, dates: { ambiguous: options.order ? false : detected.ambiguous, order } };
+  const rates = rows.some(r => r.rateCents !== null || r.costCents !== null);
+  return { source, rows, invalid, dates: { ambiguous: options.order ? false : detected.ambiguous, order }, currency, rates };
 }
 
 // fold is how names are compared: accents, case, spaces and the order of

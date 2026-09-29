@@ -24,6 +24,9 @@
   "receives": [
     "member.*"
   ],
+  "env": [
+    "BANK_DETAILS_KEY"
+  ],
   "build": {
     "runtime": "node",
     "install": "npm ci",

@@ -38,7 +38,8 @@ export function nameOf(person: Person | undefined, locale: Locale): string {
 // aside): the directory's truth. Asked 500 at a time, up to 5,000 people.
 // When the Chest cannot be asked, the page says so (ok: false) instead of
 // showing an empty company.
-export type Colleague = { id: string; name: string; firstName: string; lastName: string; photo: string | null; role: string | null; locale: Locale };
+// email: their work address, when the Chest gives it (members.email).
+export type Colleague = { id: string; name: string; firstName: string; lastName: string; photo: string | null; role: string | null; locale: Locale; email: string };
 
 export async function everyone(options: { role?: string } = {}): Promise<{ ok: boolean; people: Colleague[] }> {
   const found: Colleague[] = [];
@@ -46,7 +47,7 @@ export async function everyone(options: { role?: string } = {}): Promise<{ ok: b
     let after: string | undefined;
     for (let page = 0; page < 10; page++) {
       const answer = await members.list({ limit: 500, ...(after ? { after } : {}), ...(options.role ? { role: options.role } : {}) });
-      for (const m of answer.members) found.push({ id: m.id, name: m.name, firstName: m.firstName, lastName: m.lastName, photo: m.photo, role: m.role, locale: m.locale });
+      for (const m of answer.members) found.push({ id: m.id, name: m.name, firstName: m.firstName, lastName: m.lastName, photo: m.photo, role: m.role, locale: m.locale, email: m.email ?? "" });
       if (!answer.next) break;
       after = answer.next;
     }

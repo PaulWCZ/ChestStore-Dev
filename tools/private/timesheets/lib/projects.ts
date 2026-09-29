@@ -2,7 +2,11 @@ import type { Member } from "@argentic/chest-sdk/member";
 import { can, offered } from "./access.ts";
 import { AppError } from "./app-error.ts";
 import type { Query } from "./db.ts";
-import { bool, cents, clean, colors, id, isColor, limits, memberIds, numeric, optionalId, type Color } from "./model.ts";
+import { today } from "./clock.ts";
+import { bool, cents, clean, colors, day as checkDay, id, isColor, limits, memberIds, numeric, optionalId, type Color } from "./model.ts";
+import { mirror, origin, revenueOf } from "./rates.ts";
+import { isLocked, settings } from "./settings.ts";
+import { transaction } from "./tx.ts";
 
 // Clients, their projects and the projects' tasks; who may record time on
 // each project; each project's budget and what it used. Managers change
@@ -35,11 +39,6 @@ type ProjectRow = {
   budget_kind: "none" | "hours" | "money"; budget_minutes: number | null; budget_cents: string | null; everyone: boolean; archived_at: Date | null;
 };
 
-// The value of a usage in money: billable minutes at the project's rate.
-export function amount(billableMinutes: number, rateCents: number | null): number {
-  return rateCents === null ? 0 : Math.round((billableMinutes * rateCents) / 60);
-}
-
 // budgetShare: how much of the budget is used, 0.64 for 64 %; null without
 // a budget.
 export function budgetShare(p: Pick<Project, "budget" | "used">): number | null {
@@ -50,7 +49,9 @@ export function budgetShare(p: Pick<Project, "budget" | "used">): number | null 
 
 async function load(sql: Query, where: { archived?: boolean; ids?: string[] }): Promise<Project[]> {
   const rows = await sql<ProjectRow[]>`
-    select p.id::text, p.name, p.client_id::text, c.name as client_name, p.color, p.billable, p.rate_cents::text, p.budget_kind, p.budget_minutes, p.budget_cents::text, p.everyone, p.archived_at
+    select p.id::text, p.name, p.client_id::text, c.name as client_name, p.color, p.billable,
+      (select r.rate_cents from rates r where r.kind = 'bill' and r.project_id = p.id and r.member_id is null and r.from_day <= ${today()} order by r.from_day desc limit 1)::text as rate_cents,
+      p.budget_kind, p.budget_minutes, p.budget_cents::text, p.everyone, p.archived_at
     from projects p left join clients c on c.id = p.client_id
     where ${where.ids ? sql`p.id = any(${where.ids}::bigint[])` : where.archived === undefined ? sql`true` : where.archived ? sql`p.archived_at is not null` : sql`p.archived_at is null`}
     order by lower(coalesce(c.name, '')), lower(p.name)
@@ -61,9 +62,9 @@ async function load(sql: Query, where: { archived?: boolean; ids?: string[] }): 
     sql<{ id: string; project_id: string; name: string; archived_at: Date | null }[]>`
       select id::text, project_id::text, name, archived_at from tasks where project_id = any(${ids}::bigint[]) order by archived_at nulls first, lower(name)`,
     sql<{ project_id: string; member_id: string }[]>`select project_id::text, member_id from project_people where project_id = any(${ids}::bigint[]) order by member_id`,
-    sql<{ project_id: string; minutes: string; billable: string }[]>`
-      select project_id::text, sum(minutes)::text as minutes, coalesce(sum(minutes) filter (where billable), 0)::text as billable
-      from entries where deleted_at is null and project_id = any(${ids}::bigint[]) group by project_id`,
+    sql<{ project_id: string; minutes: string; billable: string; cents: string }[]>`
+      select e.project_id::text, sum(e.minutes)::text as minutes, coalesce(sum(e.minutes) filter (where e.billable), 0)::text as billable, ${revenueOf(sql)} as cents
+      from entries e where e.deleted_at is null and e.project_id = any(${ids}::bigint[]) group by e.project_id`,
   ]);
   return rows.map(r => {
     const u = used.find(x => x.project_id === r.id);
@@ -83,7 +84,7 @@ async function load(sql: Query, where: { archived?: boolean; ids?: string[] }): 
       people: people.filter(p => p.project_id === r.id).map(p => p.member_id),
       archived: r.archived_at !== null,
       tasks: tasks.filter(t => t.project_id === r.id).map(t => ({ id: t.id, name: t.name, archived: t.archived_at !== null })),
-      used: { minutes: numeric(u?.minutes), billableMinutes, cents: amount(billableMinutes, rateCents) },
+      used: { minutes: numeric(u?.minutes), billableMinutes, cents: Math.round(numeric(u?.cents)) },
     };
   });
 }
@@ -194,6 +195,9 @@ export type ProjectInput = {
   color?: unknown;
   billable?: unknown;
   rateCents?: unknown;
+  // The day a changed rate applies from (today when not said; since the
+  // start for a project without time yet).
+  rateFrom?: unknown;
   budget?: unknown;
   everyone?: unknown;
   people?: unknown;
@@ -275,6 +279,7 @@ export async function createProject(sql: Query, actor: Member | null, input: Pro
       values (${clientId}, ${p.name}, ${p.color}, ${p.billable}, ${p.rateCents}, ${p.budget.kind},
         ${p.budget.kind === "hours" ? p.budget.minutes : null}, ${p.budget.kind === "money" ? p.budget.cents : null}, ${p.everyone})
       returning id::text`;
+    if (p.rateCents !== null) await tx`insert into rates (kind, project_id, from_day, rate_cents, set_by) values ('bill', ${row!.id}, ${origin}, ${p.rateCents}, ${actor!.id})`;
     for (const name of tasks) await tx`insert into tasks (project_id, name) values (${row!.id}, ${name})`;
     for (const person of p.people) await tx`insert into project_people (project_id, member_id) values (${row!.id}, ${person}) on conflict do nothing`;
     return row!.id;
@@ -292,8 +297,9 @@ export async function updateProject(sql: Query, actor: Member | null, projectId:
     const clientId = p.newClient ? await insertClient(tx, p.newClient) : p.clientId;
     await checkClient(tx, clientId);
     if (await nameTaken(tx, clientId, p.name, pid)) throw new AppError("duplicate");
+    await changeRate(tx, actor!, pid, p.rateCents, input.rateFrom);
     await tx`
-      update projects set client_id = ${clientId}, name = ${p.name}, color = ${p.color}, billable = ${p.billable}, rate_cents = ${p.rateCents},
+      update projects set client_id = ${clientId}, name = ${p.name}, color = ${p.color}, billable = ${p.billable},
         budget_kind = ${p.budget.kind}, budget_minutes = ${p.budget.kind === "hours" ? p.budget.minutes : null}, budget_cents = ${p.budget.kind === "money" ? p.budget.cents : null},
         everyone = ${p.everyone}
       where id = ${pid}`;
@@ -301,6 +307,30 @@ export async function updateProject(sql: Query, actor: Member | null, projectId:
     for (const person of p.people) await tx`insert into project_people (project_id, member_id) values (${pid}, ${person}) on conflict do nothing`;
   });
   return project(sql, actor, pid);
+}
+
+// changeRate: the project's rate from a day on, when it changed. The time
+// before that day keeps the rate it had. Without a day: since the start
+// when the project has no time yet, today otherwise. Never in the locked
+// period.
+async function changeRate(tx: Query, actor: Member, projectId: string, rateCents: number | null, from: unknown): Promise<void> {
+  const now = today();
+  const [current] = await tx<{ rate_cents: string | null }[]>`
+    select rate_cents::text from rates where kind = 'bill' and project_id = ${projectId} and member_id is null and from_day <= ${now} order by from_day desc limit 1`;
+  const before = current?.rate_cents === null || current === undefined ? null : Number(current.rate_cents);
+  if (before === rateCents) return;
+  let day: string;
+  if (from === undefined || from === null || from === "") {
+    const [any] = await tx`select 1 from entries where project_id = ${projectId} and deleted_at is null limit 1`;
+    day = any ? now : origin;
+  } else day = from === origin ? origin : checkDay(from, now);
+  if (isLocked(await settings(tx), day)) throw new AppError("rate_locked");
+  await tx`
+    insert into rates (kind, project_id, from_day, rate_cents, set_by) values ('bill', ${projectId}, ${day}, ${rateCents}, ${actor.id})
+    on conflict (kind, coalesce(project_id, 0), coalesce(member_id, ''), from_day) do update set rate_cents = excluded.rate_cents, set_by = excluded.set_by, set_at = now()`;
+  // A later step would hide the new rate: the new one wins from its day on.
+  await tx`delete from rates where kind = 'bill' and project_id = ${projectId} and member_id is null and from_day > ${day}`;
+  await mirror(tx, projectId);
 }
 
 // An archived project is no longer offered; its time stays in the reports.
@@ -365,9 +395,4 @@ export async function example(sql: Query, actor: Member | null, words: { client:
   });
 }
 
-// transaction runs steps in one transaction, or inside the one the caller
-// already opened.
-export async function transaction<T>(sql: Query, steps: (tx: Query) => Promise<T>): Promise<T> {
-  if ("begin" in sql && typeof sql.begin === "function") return (await sql.begin(tx => steps(tx))) as T;
-  return steps(sql);
-}
+export { transaction } from "./tx.ts";

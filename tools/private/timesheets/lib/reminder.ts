@@ -8,10 +8,12 @@ import { intl } from "./i18n/format.ts";
 import { numeric } from "./model.ts";
 import { notify } from "./notify.ts";
 import { settings } from "./settings.ts";
+import { capacities } from "./weeks.ts";
 
 // Friday afternoon (schedule "friday", a proposal of the SDK working copy):
-// everyone whose week holds fewer hours than the company's threshold finds
-// one item in their bell, in their own language — "Your week has 22 h —
+// everyone whose week holds fewer hours than their usual week (the
+// company's, or theirs on the People page) and who has not sent it yet
+// finds one item in their bell, in their own language — "Your week has 22 h —
 // fill in the rest?" — replacing last week's. Off in the settings, it sends
 // nothing. Idempotent: a run delivered twice sends the same item again
 // under the same key. Without schedules (a Chest that does not run them),
@@ -27,10 +29,14 @@ export async function friday(sql: Sql, run: Run): Promise<number> {
     select member_id, sum(minutes)::text as total from entries
     where deleted_at is null and day between ${monday} and ${addDays(monday, 6)} and member_id = any(${people.map(p => p.id)}::text[])
     group by member_id`;
+  const [caps, sent] = await Promise.all([
+    capacities(sql, people.map(p => p.id)),
+    sql<{ member_id: string }[]>`select member_id from weeks where week = ${monday} and status in ('submitted', 'approved')`,
+  ]);
   const byTotal = new Map<number, string[]>();
   for (const p of people) {
     const total = numeric(sums.find(r => r.member_id === p.id)?.total);
-    if (total >= s.reminder.minutes) continue;
+    if (total >= (caps.get(p.id) ?? s.reminder.minutes) || sent.some(r => r.member_id === p.id)) continue;
     byTotal.set(total, [...(byTotal.get(total) ?? []), p.id]);
   }
   let told = 0;

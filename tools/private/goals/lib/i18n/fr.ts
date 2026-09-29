@@ -84,6 +84,7 @@ export const fr: Catalogue = {
     dates: "{start} – {end}",
     timeGone: "Temps écoulé : {percent}",
     show: "Afficher",
+    quarterName: "T{quarter} {year}",
   },
   progress: {
     label: "Avancement",
@@ -111,10 +112,12 @@ export const fr: Catalogue = {
     noCycle: "Pas encore de cycle",
     noCycleBody: "Les objectifs se fixent pour une période, souvent un trimestre. Lancez le premier et écrivez ce qui compte.",
     noCycleMember: "Un administrateur lance le premier cycle. D’ici là, rien à fixer.",
-    startCycle: "Lancer {name}",
+    startCycle: "Lancer le {name} ({dates})",
     orphans: { one: "{count} objectif attend un nouveau responsable", other: "{count} objectifs attendent un nouveau responsable" },
     orphansAction: "Choisir qui reprend",
     keyResultsOf: "Mes résultats clés dans « {objective} »",
+    startCurrent: "Ou lancer le {name} tout de suite ({left})",
+    lateInQuarter: "Le {name} touche à sa fin ({left}) : préparez le trimestre suivant.",
   },
   checkIn: {
     open: "Faire le point",

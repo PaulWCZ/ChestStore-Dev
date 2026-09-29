@@ -84,6 +84,7 @@ export const en = {
     dates: "{start} – {end}",
     timeGone: "Time gone: {percent}",
     show: "Show",
+    quarterName: "Q{quarter} {year}",
   },
   progress: {
     label: "Progress",
@@ -111,10 +112,12 @@ export const en = {
     noCycle: "No cycle yet",
     noCycleBody: "Goals are set for a period, usually a quarter. Start the first one and write what matters.",
     noCycleMember: "An admin starts the first cycle. Until then, there is nothing to set.",
-    startCycle: "Start {name}",
+    startCycle: "Start {name} ({dates})",
     orphans: { one: "{count} goal needs a new owner", other: "{count} goals need a new owner" },
     orphansAction: "Choose who takes over",
     keyResultsOf: "Key results I own in “{objective}”",
+    startCurrent: "Or start {name} now ({left})",
+    lateInQuarter: "{name} is nearly over ({left}): plan the next quarter.",
   },
   checkIn: {
     open: "Check in",

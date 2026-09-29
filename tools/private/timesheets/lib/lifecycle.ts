@@ -1,5 +1,6 @@
 import * as events from "@argentic/chest-sdk/events";
 import type { Sql } from "./db.ts";
+import { fixRates } from "./rates.ts";
 import { stopForLeaver } from "./timer.ts";
 
 // What Timesheets does when a member loses access, leaves or is erased (the
@@ -10,10 +11,14 @@ import { stopForLeaver } from "./timer.ts";
 //   were named on and their grid rows go. Their time stays: the company's
 //   reports and invoices need it; names are resolved when rendering, so it
 //   reads "Camille Martin (former member)".
+//   Their rates stay too: their past time keeps its amounts and costs.
 // - Erasure: the same, then their time is kept for the company's accounts
-//   but no longer theirs — its author becomes 'erased' ("Former member" in
-//   the reports) and the notes they wrote are cleared; the period lock
-//   forgets who set it. Then the erasure is acknowledged.
+//   but no longer theirs — its rates are written on each entry (the
+//   amounts do not move), its author becomes 'erased' ("Former member" in
+//   the reports) and the notes they wrote are cleared; their rates, usual
+//   week and weeks sent for approval go; the period lock, the rates, the
+//   approvals and the invoicing they did forget who did them. Then the
+//   erasure is acknowledged.
 // Every step is idempotent: an event delivered again changes nothing more.
 export async function leave(sql: Sql, memberId: string): Promise<void> {
   await sql.begin(async tx => {
@@ -28,7 +33,14 @@ export async function erase(sql: Sql, memberId: string): Promise<void> {
   await leave(sql, memberId);
   await sql.begin(async tx => {
     await tx`delete from timers where member_id = ${memberId}`;
+    await fixRates(tx, { memberId });
     await tx`update entries set member_id = 'erased', note = '', updated_at = now() where member_id = ${memberId}`;
+    await tx`update entries set invoiced_by = 'erased' where invoiced_by = ${memberId}`;
+    await tx`delete from rates where member_id = ${memberId}`;
+    await tx`update rates set set_by = 'erased' where set_by = ${memberId}`;
+    await tx`delete from people where member_id = ${memberId}`;
+    await tx`delete from weeks where member_id = ${memberId}`;
+    await tx`update weeks set decided_by = 'erased' where decided_by = ${memberId}`;
     await tx`update settings set locked_by = 'erased' where locked_by = ${memberId}`;
   });
 }

@@ -7,9 +7,13 @@ import * as cycles from "../../lib/cycles.ts";
 import { db } from "../../lib/db.ts";
 import { attempt, AppError, type Result } from "../../lib/errors.ts";
 import { catalogue, isLocale } from "../../lib/i18n/index.ts";
+import * as importer from "../../lib/import.ts";
 import * as keyResults from "../../lib/key-results.ts";
-import { quarterOf } from "../../lib/model.ts";
+import * as mail from "../../lib/mail.ts";
+import { firstCycleChoices } from "../../lib/model.ts";
+import { quarterName } from "../../lib/page-data.ts";
 import * as objectives from "../../lib/objectives.ts";
+import * as reminders from "../../lib/remind.ts";
 import { reassign as reassignOwner } from "../../lib/orphans.ts";
 import { currentMember } from "../../lib/session.ts";
 import * as teams from "../../lib/teams.ts";
@@ -38,11 +42,15 @@ export async function createCycle(input: { name: string; startsOn: string; endsO
   return act(async actor => ({ id: (await cycles.createCycle(db(), actor, input)).id }));
 }
 
-// The first cycle, in one click: the calendar quarter of today.
-export async function startFirstCycle(): Promise<Result<{ id: string }>> {
+// The first cycle, in one click: this calendar quarter, or the next one
+// when this one is nearly over (the Chest's calendar decides, never the
+// browser's), named in the admin's words ("T4 2026").
+export async function startFirstCycle(which: "current" | "next"): Promise<Result<{ id: string }>> {
   return act(async actor => {
-    const q = quarterOf(today());
-    return { id: (await cycles.createCycle(db(), actor, { ...q, current: true })).id };
+    const choices = firstCycleChoices(today());
+    const chosen = [choices.main, choices.other].find(c => c?.which === which) ?? choices.main;
+    const q = chosen.quarter;
+    return { id: (await cycles.createCycle(db(), actor, { name: quarterName(words(actor), q), startsOn: q.startsOn, endsOn: q.endsOn, current: true })).id };
   });
 }
 
@@ -236,5 +244,47 @@ export async function reassign(input: { kind: "objective" | "key_result" | "all"
     await tell.tellAdminsOfOrphans(sql);
     await tell.refreshBadges(sql, [done.to]);
     return done.count;
+  });
+}
+
+// Reminding who has not checked in this week (bell and email, once a day).
+export async function remind(owner: string): Promise<Result<null>> {
+  return act(async actor => { await reminders.remind(db(), actor, owner, tell.clockAt()); return null; });
+}
+
+export async function remindAll(): Promise<Result<number>> {
+  return act(actor => reminders.remindAll(db(), actor, tell.clockAt()));
+}
+
+// My choice: reminders by email too, or only in the bell.
+export async function setEmail(on: boolean): Promise<Result<null>> {
+  return act(async actor => { await mail.setEmail(db(), actor, on); return null; });
+}
+
+// Importing a spreadsheet: what it would do, then doing it (and Undo).
+type ImportInput = { text: string; mapping: importer.Mapping | null; cycleId: string; owners: Record<string, string> };
+export async function previewImport(input: ImportInput): Promise<Result<importer.Preview>> {
+  return attempt(async () => {
+    const actor = await currentMember();
+    if (!actor) throw new AppError("forbidden");
+    return importer.previewImport(db(), actor, input);
+  });
+}
+
+export async function runImport(input: ImportInput): Promise<Result<{ objectives: string[]; keyResults: number }>> {
+  return act(async actor => {
+    const sql = db();
+    const done = await importer.runImport(sql, actor, input);
+    await tell.refreshBadges(sql, done.owners);
+    return { objectives: done.objectives, keyResults: done.keyResults };
+  });
+}
+
+export async function undoImport(ids: string[]): Promise<Result<number>> {
+  return act(async actor => {
+    const sql = db();
+    const n = await importer.undoImport(sql, actor, ids);
+    await tell.refreshBadges(sql, null);
+    return n;
   });
 }
