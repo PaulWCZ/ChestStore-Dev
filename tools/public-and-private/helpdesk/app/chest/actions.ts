@@ -15,7 +15,6 @@ import { currentMember } from "../../lib/session.ts";
 import * as tell from "../../lib/tell.ts";
 import { isLocale } from "../../lib/i18n/index.ts";
 import * as rules from "../../lib/rules.ts";
-import { forgetFrameOrigins } from "../../lib/frame.ts";
 import * as tickets from "../../lib/tickets.ts";
 import * as views from "../../lib/views.ts";
 
@@ -141,11 +140,7 @@ export async function removeReply(id: string): Promise<Result<null>> {
 }
 
 export async function saveSettings(input: { companyName?: string; formOpen?: boolean; intros?: Record<string, string>; retentionMonths?: number; lateHours?: number; hours?: unknown; frameOrigins?: string; helpUrl?: string }): Promise<Result<null>> {
-  return act(async actor => {
-    await tickets.saveSettings(db(), actor, input);
-    if (input.frameOrigins !== undefined) forgetFrameOrigins();
-    return null;
-  });
+  return act(async actor => { await tickets.saveSettings(db(), actor, input); return null; });
 }
 
 export async function eraseCustomer(email: string): Promise<Result<{ tickets: number }>> {

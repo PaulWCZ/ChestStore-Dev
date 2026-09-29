@@ -221,3 +221,17 @@ test("export: every ticket and every message — notes too — in a ZIP of two s
   assert.deepEqual(mine.messages.map(m => m.kind), ["customer", "note", "reply"]);
   await assert.rejects(exportZip(sql, asMember(nora), catalogue("en"), "en"), refused("forbidden"));
 });
+
+test("a website allowed in Settings may frame the form on the very next request, as the proxy reads it", async () => {
+  const { sql } = database;
+  // Next.js runs proxy.ts in its own module instance, apart from the server
+  // actions: load lib/frame.ts a second time, as the proxy does, and read
+  // through db() exactly as it calls it.
+  const proxied = (await import(`../lib/frame.ts?proxy=${Date.now()}`)) as typeof import("../lib/frame.ts");
+  await tickets.saveSettings(sql, asMember(camille), { frameOrigins: "https://www.atelier-martin.fr" });
+  assert.deepEqual(await proxied.frameOrigins(), ["https://www.atelier-martin.fr"]);
+  await tickets.saveSettings(sql, asMember(camille), { frameOrigins: "https://www.atelier-martin.fr\nhttps://shop.atelier-martin.fr" });
+  assert.deepEqual(await proxied.frameOrigins(), ["https://www.atelier-martin.fr", "https://shop.atelier-martin.fr"]);
+  await tickets.saveSettings(sql, asMember(camille), { frameOrigins: "" });
+  assert.deepEqual(await proxied.frameOrigins(), []);
+});

@@ -1,0 +1,56 @@
+"use client";
+
+// DateRangeField: a range of days — a leave, a trip, a rental — as two
+// DateFields under one name ("From", "To"), with how many days it holds
+// said under them (0.2.2; Leave used two DateFields and its own rules).
+// Moving the first day keeps the range's length; the last day is never
+// before the first (moveRangeStart, moveRangeEnd in dates.ts, tested).
+// Its value: { from, to }, ISO dates or null while being chosen.
+import { useId, type ReactElement, type ReactNode } from "react";
+import { DateField } from "./date-field.js";
+import { moveRangeEnd, moveRangeStart, rangeDays, type DateRange, type IsoDate } from "./dates.js";
+import { plural } from "./text.js";
+import { en, type DateWords } from "./words.js";
+
+export type DateRangeFieldProps = {
+  // The range's name (the legend of its two fields).
+  readonly label: ReactNode;
+  readonly value: DateRange;
+  readonly onChange: (value: DateRange) => void;
+  readonly today: IsoDate;
+  readonly min?: IsoDate | null;
+  readonly max?: IsoDate | null;
+  // Form field names of the two ends (hidden inputs, ISO dates).
+  readonly names?: { readonly from: string; readonly to: string };
+  readonly hint?: string;
+  readonly error?: string | null;
+  readonly required?: boolean;
+  readonly disabled?: boolean;
+  readonly labels?: DateWords;
+  // Language of the plural rules (the words' language).
+  readonly lang?: string;
+  // Hide "3 days" under the fields (a tool that says it its own way).
+  readonly hideLength?: boolean;
+  readonly className?: string;
+};
+
+export function DateRangeField({ label, value, onChange, today, min = null, max = null, names, hint, error, required = false, disabled = false, labels = en.date, lang = "en", hideLength = false, className }: DateRangeFieldProps): ReactElement {
+  const id = useId();
+  const days = rangeDays(value);
+  const length = !hideLength && days !== null ? plural(labels.rangeDays ?? en.date.rangeDays!, days, lang) : "";
+  const describedBy = [hint ? id + "-hint" : null, error ? id + "-error" : null].filter(Boolean).join(" ") || undefined;
+  return (
+    <fieldset className={`ck-range${error ? " ck-invalid" : ""}${className ? " " + className : ""}`} disabled={disabled || undefined} aria-describedby={describedBy}>
+      <legend className="ck-label">{label}</legend>
+      <div className="ck-range-row">
+        <DateField label={labels.rangeFrom ?? en.date.rangeFrom!} value={value.from} onChange={from => onChange(moveRangeStart(value, from))}
+          today={today} min={min} max={max} labels={labels} required={required} disabled={disabled} chips={false} {...(names ? { name: names.from } : {})} />
+        <DateField label={labels.rangeTo ?? en.date.rangeTo!} value={value.to} onChange={to => onChange(moveRangeEnd(value, to))}
+          today={today} min={value.from ?? min} max={max} labels={labels} required={required} disabled={disabled} chips={false} {...(names ? { name: names.to } : {})} />
+      </div>
+      <p className="ck-hint ck-range-length" aria-live="polite">{length}</p>
+      {hint && <p id={id + "-hint"} className="ck-hint">{hint}</p>}
+      {error && <p id={id + "-error"} className="ck-error">{error}</p>}
+    </fieldset>
+  );
+}

@@ -18,7 +18,7 @@ what must not break.
 | `lib/views.ts` | Saved views: the inbox's parameters, checked |
 | `lib/reports.ts` | The reports (admins) |
 | `lib/export.ts`, `lib/zip.ts` | The ZIP export: two CSVs and a JSON |
-| `lib/frame.ts` | The websites that may frame the public pages, cached 30 s, read by `proxy.ts` |
+| `lib/frame.ts` | The websites that may frame the public pages, read from the database on every framed page by `proxy.ts` (no cache: the proxy runs in its own module instance) |
 | `lib/theme.ts`, `app/tokens.css`, `app/globals.css` | The identity "Calm counter" (`defineTheme`, equal to the catalogue's `counter`) and `currentLook` (the company's choice, else the identity); Support's own tokens, from contract tokens; the styles (contract tokens only) |
 | `components/team-shell.tsx` | The kit's `AppShell` + toasts + auto-refresh, and the column (a row of chips on a phone) of folders and saved views |
 | `components/body.tsx`, `components/keys.tsx` | A message's words (links, folded quotes); keyboard shortcuts (`?` sheet in the kit's `Dialog`; `busy()`: never while typing or while a dialog is open) |

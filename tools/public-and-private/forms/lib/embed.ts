@@ -47,22 +47,21 @@ export async function saveSites(sql: Query, actor: Member | null, value: unknown
   if (!can(actor, "forms.all")) throw new AppError("forbidden");
   const list = sites(value);
   await putSetting(sql, "embed_origins", list);
-  cached = null;
   return list;
 }
 
-// Read for every public page's policy: kept 30 seconds in the process, so
-// a page does not ask the database each time.
-let cached: { at: number; origins: string[] } | null = null;
-export async function embedOrigins(now = Date.now()): Promise<string[]> {
-  if (cached && now - cached.at < 30_000) return cached.origins;
+// Read from the database for every public page's policy (proxy.ts), never
+// kept in the process: Next.js runs proxy.ts in its own module instance,
+// apart from the server actions, so a copy kept here could not be told of a
+// change and a newly allowed website would be refused until it expired.
+// One row by its key: as cheap as a query gets.
+export async function embedOrigins(sql: Query = db()): Promise<string[]> {
   try {
-    cached = { at: now, origins: await embedSites(db()) };
+    return await embedSites(sql);
   } catch {
     // No database yet (a build, a Chest starting): nobody frames it.
-    cached = { at: now, origins: [] };
+    return [];
   }
-  return cached.origins;
 }
 
 // frameAncestors: nobody for the team's pages; the allowed websites for

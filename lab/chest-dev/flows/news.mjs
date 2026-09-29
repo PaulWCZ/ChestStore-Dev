@@ -247,6 +247,13 @@ await step("search: one box, accents and case aside, words marked, only what one
   expect((await page.locator(".result mark").allTextContents()).includes("déménagement"), "accents and case aside");
   await page.goto(origin + "/chest/search?q=bonus");
   expect((await page.locator("main").innerText()).includes("Rien trouvé"), "Léa finds nothing of Sales");
+  // A comment that mentions someone reads their name, never the stored token.
+  await page.goto(origin + "/chest/search?q=plantes");
+  const comments = page.locator(".result-comments");
+  const said = await comments.innerText();
+  expect(said.includes("@Sofia Rossi, qui s’occupe du déménagement des plantes"), "the mention reads as a name: " + said);
+  expect(!/mbr_|@\[/u.test(await comments.innerHTML()), "no member id in the passage");
+  expect((await comments.locator("mark").allTextContents()).includes("plantes"), "the word found still marked");
 });
 
 await step("the weekly digest: one item per person, in their language, never doubled, gone once they come", async () => {

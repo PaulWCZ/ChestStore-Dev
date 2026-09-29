@@ -42,6 +42,8 @@ export const fr: Catalogue = {
     erased: "Ancien membre",
     unknown: "Membre inconnu",
     you: "Vous",
+    // After "@" in a comment, for a person the Chest no longer knows.
+    mentionGone: "ancien membre",
   },
   kinds: {
     announcement: "Annonce",

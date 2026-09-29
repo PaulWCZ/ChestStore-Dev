@@ -33,3 +33,11 @@ export function nameOf(person: Person | undefined, locale: Locale): string {
   if (person.status === "former") return person.name ? format(t.former, { name: person.name }) : t.erased;
   return person.name;
 }
+
+// mentionOf is how a mention in a comment names a person, after its "@":
+// their name; someone the Chest no longer knows (erased, or an id it does
+// not know here) reads "former member" — never their id.
+export function mentionOf(person: Person | undefined, locale: Locale): string {
+  if (!person || person.status === "unknown" || person.status === "erased" || (person.status === "former" && !person.name)) return catalogue(locale).people.mentionGone;
+  return nameOf(person, locale);
+}

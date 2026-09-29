@@ -72,6 +72,32 @@ the list of tokens; this page is the short path and the mistakes to avoid.
   wrapper, no cast); a section current on other paths takes `also`.
 - A category's fill is `--cat-N` (3:1) or `--cat-N-soft`; `--cat-N-ink`
   is for its text. A catalogue's date words go through `dateWords()`.
+- `useToast()` returns `ShowToast`, `(input) => string` (the toast's id).
+  Where a callback must return nothing — React's `startTransition`, a
+  prop typed `() => void` in a strict position — use braces:
+  `startTransition(() => { toast(t.saved); })`, not
+  `startTransition(() => toast(t.saved))` (a `string` is not `void`
+  there). An act done late (a delete sent once its Undo can no longer be
+  used) goes in `onExpire` (0.2.2).
+- A region of its own colour (a header bar, a panel) is `--inverse` with
+  `--inverse-ink` / `--inverse-ink-2` / `--inverse-line` (0.2.2), never
+  `--ink` as a ground; long text (an article, a page) is
+  `font-family: var(--font-read)`; a tool's own field lines up with the
+  kit's with `padding: 0 var(--field-pad-x)`; a chip or badge of the
+  tool's own takes `border-radius: var(--radius-chip)`.
+- Controlled `Segmented`: change the value you pass at once (state or
+  `useOptimistic`) when `onChange` starts something slow; a view kept in
+  the address is its link variant (options with `href`).
+- Every control stays 44 px: `ck-button-small` is smaller words, not a
+  smaller target (0.2.2). A row that opens a page: `DataTable rowHref`,
+  not an `onClick` on a `<tr>`.
+- A `Confirm` inside a `Dialog` is fine (0.2.2: each closes alone).
+- A server component may pass `link={Link}` only as a client reference:
+  `next/link` imported there is a plain function and React refuses it.
+  Keep `components/link.tsx`: `"use client"; export { default as Link }
+  from "next/link";` and import `Link` from it in server components.
+  `LanguageSwitch href="/p/{code}"` is plain data. `search`, `onChange`,
+  `upload`, `onNavigate` still come from a client component.
 
 ## Pitfalls
 
@@ -85,3 +111,7 @@ the list of tokens; this page is the short path and the mistakes to avoid.
 | `Attempted to call … from the server` | A pure helper was imported from `/components` (a client boundary) into server code: import it from `/components/logic`. |
 | Hydration error 418 around a date | A date formatted with `Intl` or `new Date()` in a client render: use `formatDate(iso, words)` and a `today` from the server. |
 | A brand's font is missing | Its `id` is not in the registry: `deriveTheme` uses Inter and says so in `notes`. |
+| A region's colours vanish (transparent, or the page's) | Its CSS redefines `--accent` (or another token) from a tool token that is itself `var(--accent)`: a cycle, which the browser drops. Take the region's colour from a contract token that never names it (tokens/CONTRACT.md, "A tool's own tokens", rule 5). |
+| Two subset files of a font of the tool's own hide each other | Give each file its `range` (unicode-range) in the `FontSpec` (0.2.2), or use a registered font id. |
+| `Functions cannot be passed directly to Client Components … link: function` | `next/link` passed from a server component: import `Link` from a `"use client"` re-export instead (above). |
+| `lint-words` flags another product's menu (« Paramètres » of Google) | Quote it in guillemets and list it in `export const quotedUi = […]` beside the catalogue (lab/GLOSSARY.md, "Quoting another product"). |

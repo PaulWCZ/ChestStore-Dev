@@ -39,6 +39,12 @@ await timer.getByRole("button", { name: "Keep 1 min" }).click();
 await en.locator(".ck-toast", { hasText: "Kept: 1 min." }).waitFor();
 assert.equal(await timer.count(), 0, "the toast goes once its action ran");
 step("a toast's own action runs once, then the toast goes");
+// A short toast keeps its close button on its line (Wiki, 0.2.2).
+await en.getByRole("button", { name: "Move a card" }).click();
+const short = en.locator(".ck-toast", { hasText: "Card moved" });
+const line = await short.evaluate(t => { const a = t.querySelector(".ck-toast-text").getBoundingClientRect(), b = t.querySelector(".ck-toast-close").getBoundingClientRect(); return { text: a.top + a.height / 2, close: b.top + b.height / 2, height: t.getBoundingClientRect().height }; });
+assert.ok(Math.abs(line.text - line.close) <= 2 && line.height <= 56, `the close button sits on the text's line (${JSON.stringify(line)})`);
+step("a short toast keeps its close button on its line");
 await en.getByRole("button", { name: "Undo that fails" }).click();
 const failing = en.locator(".ck-toast", { hasText: "Board archived." });
 await failing.hover();
@@ -103,6 +109,29 @@ assert.ok(await conf.isVisible(), "backdrop does nothing");
 await page.keyboard.press("Escape");
 assert.ok(!(await conf.isVisible()));
 step("Confirm: alertdialog on Cancel; backdrop inert; Escape cancels");
+// A Confirm opened from a Dialog closes alone: by its Cancel, by Escape,
+// and by its action — the Dialog stays open (Expenses, 0.2.2).
+await en.getByRole("button", { name: "New board" }).click(); await page.waitForTimeout(200);
+const nested = () => page.getByRole("alertdialog", { name: /Delete the “Sprint” template/ });
+await dlg.getByRole("button", { name: "Delete the template" }).click();
+await nested().waitFor();
+await nested().getByRole("button", { name: "Cancel" }).click();
+await page.waitForTimeout(150);
+assert.ok(!(await nested().isVisible()), "the Confirm closed");
+assert.ok(await dlg.isVisible(), "its Cancel left the Dialog open");
+await dlg.getByRole("button", { name: "Delete the template" }).click();
+await nested().waitFor(); await page.waitForTimeout(150);
+await page.keyboard.press("Escape"); await page.waitForTimeout(150);
+assert.ok(!(await nested().isVisible()), "Escape closed the Confirm");
+assert.ok(await dlg.isVisible(), "Escape on the Confirm left the Dialog open");
+await dlg.getByRole("button", { name: "Delete the template" }).click();
+await nested().waitFor();
+await nested().getByRole("button", { name: "Delete the template" }).click();
+await en.locator(".ck-toast", { hasText: "Template deleted." }).waitFor();
+assert.ok(await dlg.isVisible(), "its action left the Dialog open");
+await page.keyboard.press("Escape"); await page.waitForTimeout(150);
+assert.ok(!(await dlg.isVisible()), "Escape then closes the Dialog itself");
+step("a Confirm opened from a Dialog closes alone (Cancel, Escape, its action)");
 
 // People picker
 const guests = en.getByRole("combobox", { name: "Guests" });
@@ -140,6 +169,14 @@ await page.keyboard.press("Escape");
 await guests.fill(""); await page.keyboard.press("Backspace");
 assert.equal(await guestChips(), 2);
 step("picker: Enter never chooses an old answer nor sends the form while searching");
+// A single picker that may be left empty: its visible button (People, Support, 0.2.2).
+const ownerBox = en.locator(".ck-picker").first();
+await ownerBox.getByRole("button", { name: "Remove Léa Moreau" }).click();
+assert.equal(await en.getByRole("combobox", { name: "Owner" }).first().inputValue(), "");
+assert.equal(await ownerBox.locator(".ck-picker-clear").count(), 0, "nothing chosen: no button");
+assert.equal(await page.evaluate(() => document.activeElement?.getAttribute("role")), "combobox", "focus back in the field");
+await page.keyboard.press("Escape");
+step("picker: clearable empties a single choice");
 
 // Date field: the line of the date in words is kept while it is empty, so
 // the button right under the field does not move between press and release
@@ -165,7 +202,7 @@ await due.fill("31/02/2026"); await due.press("Tab");
 await en.getByText("Type a date like").waitFor();
 step("date: words parsed, a wrong date explained");
 await due.fill("15/10/2026"); await due.press("Enter");
-await en.getByRole("button", { name: "Choose on a calendar" }).click();
+await en.getByRole("button", { name: "Choose on a calendar" }).first().click();
 assert.equal(await page.evaluate(() => document.activeElement?.dataset.day), "2026-10-15");
 await page.keyboard.press("ArrowDown"); await page.keyboard.press("ArrowRight"); await page.keyboard.press("PageDown");
 assert.equal(await page.evaluate(() => document.activeElement?.dataset.day), "2026-11-23");
@@ -241,6 +278,64 @@ assert.ok(await en.getByRole("radio", { name: "List" }).nth(1).isDisabled(), "a 
 await en.getByRole("radio", { name: "Morning" }).focus(); await page.keyboard.press("ArrowRight");
 assert.ok(await en.getByRole("radio", { name: "All day" }).isChecked(), "arrows skip the disabled option");
 step("segmented: the word is the target, disabled options and groups");
+
+// Menu items: a second line, two items of one label, a download link (Support, Equipment, Wiki, 0.2.2).
+await en.getByRole("button", { name: "Give to" }).click();
+const giveTo = en.getByRole("menu");
+assert.equal(await giveTo.getByRole("menuitem").count(), 2, "two items of the same name, both there");
+assert.match(await giveTo.getByRole("menuitem").nth(1).textContent(), /Léa Moreau.*Sales, Lyon/u);
+await page.keyboard.press("ArrowDown");
+assert.match(await page.evaluate(() => document.activeElement?.textContent), /Sales, Lyon/u, "arrows move between items of one label");
+await page.keyboard.press("Escape");
+await en.getByRole("button", { name: "Export" }).click();
+const csv = en.getByRole("menuitem", { name: /Download CSV/ });
+assert.equal(await csv.getAttribute("download"), "quotes.csv");
+assert.equal(await en.getByRole("menuitem", { name: /Open the board/ }).getAttribute("download"), null);
+const exportBox = await en.getByRole("button", { name: "Export" }).boundingBox();
+assert.ok(exportBox.height >= 44, "a shown label's button is 44 px");
+await page.keyboard.press("Escape");
+step("menu: a second line, items of one label, a download");
+// Segmented link variant: a link per view, the current one marked (CRM).
+await en.getByRole("link", { name: "List", exact: true }).click();
+assert.equal(await en.getByRole("link", { name: "List", exact: true }).getAttribute("aria-current"), "page");
+assert.ok(await en.getByRole("radio", { name: "List" }).first().isChecked(), "the same state, as links");
+await en.getByRole("link", { name: "Board", exact: true }).click();
+step("segmented links: a view in the address");
+// Switch (Forms).
+const sw = en.getByRole("switch", { name: "Email me when someone answers" });
+assert.ok(await sw.isChecked());
+await en.getByText("Email me when someone answers").click();
+assert.ok(!(await sw.isChecked()), "a click on the words turns it off");
+await sw.focus(); await page.keyboard.press("Space");
+assert.ok(await sw.isChecked(), "Space turns it on");
+step("switch: words and Space");
+// Calendar, several days (People).
+const daysOff = en.getByRole("group", { name: "Days off" });
+const chosenBefore = await daysOff.locator('[aria-selected="true"]').count();
+await daysOff.locator("button.ck-day:not(.ck-day-chosen):not(.ck-day-out)").first().click();
+assert.equal(await daysOff.locator('[aria-selected="true"]').count(), chosenBefore + 1, "a day added");
+await page.keyboard.press("Enter");
+assert.equal(await daysOff.locator('[aria-selected="true"]').count(), chosenBefore, "Enter takes it away again; the calendar stays");
+assert.equal(await daysOff.getByRole("grid").getAttribute("aria-multiselectable"), "true");
+step("calendar: several days, added and taken away");
+// A range of days: moving its start keeps its length (0.2.2).
+const trip = en.getByRole("group", { name: "Trip" });
+const tripFrom = trip.getByRole("textbox", { name: "From" }), tripTo = trip.getByRole("textbox", { name: "To" });
+// (React writes the other field after its render: wait for it, 2 s at most.)
+const settle = async (read, want) => { for (let i = 0; i < 40 && (await read()) !== want; i++) await page.waitForTimeout(50); return read(); };
+await tripFrom.fill("20/11/2026"); await tripFrom.press("Enter");
+assert.equal(await settle(() => tripTo.inputValue(), "22/11/2026"), "22/11/2026", "three days stay three days");
+assert.equal(await settle(() => trip.locator(".ck-range-length").textContent(), "3 days"), "3 days");
+await tripTo.fill("18/11/2026"); await tripTo.press("Enter");
+assert.match(await trip.locator(".ck-error").first().textContent(), /Choose .* or later/u, "an end before the start is refused, in words");
+await tripTo.fill("25/11/2026"); await tripTo.press("Enter");
+assert.equal(await settle(() => trip.locator(".ck-range-length").textContent(), "6 days"), "6 days");
+step("date range: the length kept, the end never before the start");
+// A filter of many options as a list (Equipment).
+await en.getByRole("combobox", { name: "Category" }).selectOption({ label: "Training" });
+assert.equal(await en.getByRole("combobox", { name: "Category" }).inputValue(), "c3");
+await en.getByRole("combobox", { name: "Category" }).selectOption({ label: "All" });
+step("filters: a select group");
 
 // Tabs roving
 await en.getByRole("tab", { name: /Upcoming/ }).focus();

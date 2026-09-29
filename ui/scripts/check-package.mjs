@@ -19,14 +19,14 @@ const subpaths = Object.keys(manifest.exports).filter(key => key !== "./package.
 const expected = {
   color: ["colourWord", "contrast", "fit", "hex", "hueDistance", "inGamut", "luminance", "mix", "oklch", "oklchHex", "oklchToRgb", "parseColor", "rgbToOklch", "toHex"],
   contract: ["allTokens", "categories", "categoryFamilies", "checkPalette", "checkTheme", "colorTokens", "controlHeight", "effectTokens", "pairs", "paletteLimits", "ratios", "staticTokens", "themeIdPattern", "validateTheme"],
-  fonts: ["closestFont", "familyPattern", "font", "fontBasePattern", "fontFaces", "fontFiles", "fontUrlPattern", "registry", "stackPattern", "systemFont", "systemStacks", "uploadedFont"],
+  fonts: ["closestFont", "familyPattern", "font", "fontBasePattern", "fontFaces", "fontFiles", "fontUrlPattern", "registry", "stackPattern", "systemFont", "systemStacks", "unicodeRangePattern", "uploadedFont"],
   themes: ["catalogue", "catalogueFonts", "identityOf", "themeOf", "themes"],
   derive: ["BrandError", "deriveTheme", "logoUrlPattern"],
   import: ["importBrand", "maxImportSize"],
   runtime: ["lookColors", "lookCss", "lookNotes", "nonceOf", "resolveTheme", "themeStyle"],
   react: ["ThemeStyle"],
-  components: ["AppShell", "AutoRefresh", "Avatar", "AvatarStack", "BrandMark", "Calendar", "Confirm", "DataTable", "DateField", "DayStrip", "Dialog", "EmptyState", "FilePicker", "Filters", "LanguageSwitch", "MemberChip", "Menu", "MonthField", "Nav", "NavLink", "NoAccess", "PageHeader", "PeoplePicker", "SearchBox", "Segmented", "StatusBadge", "Tabs", "TimeSelect", "Toasts", "filesReady", "useAutoRefresh", "useDismissToast", "useToast"],
-  "components/logic": ["acceptText", "accepts", "activeFilters", "addDays", "addMonths", "addYearMonths", "ariaSort", "calendarKey", "checkFiles", "clampDate", "clearHref", "compareText", "compareValues", "cx", "dateWords", "daysBetween", "daysInMonth", "durations", "en", "endOfDay", "fileSize", "fill", "filterHref", "fold", "formatDate", "fr", "initials", "isCurrent", "isEditable", "isIsoDate", "isYearMonth", "isoOf", "kitWords", "latestUndo", "listKey", "localSearch", "matches", "menuKey", "monthGrid", "monthsFrom", "moveEnd", "moveStart", "nextSort", "paramOf", "paramValues", "parseDate", "parseTime", "partsOf", "plural", "putWithProgress", "refusalText", "relativeDay", "rememberRecent", "searchChoices", "settleUndo", "sortRows", "startOfWeek", "storeLanguages", "tabKey", "timeOptions", "timeText", "toastReducer", "weekday", "weekdayHeads", "wordsFor"],
+  components: ["AppShell", "AutoRefresh", "Avatar", "AvatarStack", "BrandMark", "Calendar", "Confirm", "DataTable", "DateField", "DateRangeField", "DayStrip", "Dialog", "EmptyState", "FilePicker", "Filters", "LanguageSwitch", "MemberChip", "Menu", "MonthField", "Nav", "NavLink", "NoAccess", "PageHeader", "PeoplePicker", "SearchBox", "Segmented", "StatusBadge", "Switch", "Tabs", "TimeSelect", "Toasts", "filesReady", "useAutoRefresh", "useDismissToast", "useFloat", "useToast"],
+  "components/logic": ["acceptText", "accepts", "activeFilters", "addDays", "addMonths", "addYearMonths", "ariaSort", "calendarKey", "checkFiles", "clampDate", "clearHref", "compareText", "compareValues", "cx", "dateWords", "daysBetween", "daysInMonth", "durations", "en", "endOfDay", "expired", "fileSize", "fill", "filterHref", "fold", "formatDate", "fr", "initials", "isCurrent", "isEditable", "isIsoDate", "isYearMonth", "isoOf", "kitWords", "latestUndo", "listKey", "localSearch", "matches", "menuKey", "monthGrid", "monthsFrom", "moveEnd", "moveRangeEnd", "moveRangeStart", "moveStart", "nextSort", "paramEntries", "paramOf", "paramValues", "parseDate", "parseTime", "partsOf", "plural", "putWithProgress", "rangeDays", "refusalText", "relativeDay", "rememberRecent", "searchChoices", "settleUndo", "sortRows", "startOfWeek", "storeLanguages", "tabKey", "timeOptions", "timeText", "toastReducer", "weekday", "weekdayHeads", "wordsFor"],
 };
 // Subpaths the root must not re-export (React, or the components' own helpers).
 const notInRoot = new Set(["react", "components", "components/logic"]);
@@ -92,7 +92,7 @@ try {
     assert.equal(r.same, true, `${how}: one catalogue for the root and /themes`);
     assert.ok(r.notes > 0);
     assert.equal(r.primary, "#0e7c66");
-    assert.equal(r.count, 19);
+    assert.equal(r.count, 20);
     assert.equal(r.rendered, true, `${how}: the components render on the server`);
     for (const s of specifiers) console.log(`  ${s}: ${r.names[s].length} exports`);
   }
@@ -153,7 +153,7 @@ export { html, imported, failures, element, BrandError, day, slot, columns, peop
       symlinkSync(from, join(consumer, "node_modules", dep), "dir");
     }
     writeFileSync(join(consumer, "next-link.tsx"), `import Link from "next/link";
-import { AppShell, DayStrip, Filters, LanguageSwitch, Nav, NavLink, Tabs, type LinkComponent } from "${name}/components";
+import { AppShell, DataTable, DayStrip, Filters, LanguageSwitch, Menu, Nav, NavLink, Segmented, Tabs, type LinkComponent } from "${name}/components";
 import { en, storeLanguages } from "${name}/components/logic";
 const link: LinkComponent = Link;
 export const pages = [
@@ -163,11 +163,14 @@ export const pages = [
   <Tabs label="Bookings" current="up" link={Link} items={[{ id: "up", label: "Upcoming", href: "?tab=up" }]} />,
   <DayStrip days={["2026-09-29"]} current={null} today="2026-09-29" href={d => "/chest?day=" + d} link={Link} labels={en.date} />,
   <Filters path="/chest" params="" link={Link} groups={[{ key: "f", label: "Kit", multiple: true, options: [{ value: "screen", label: "Screen" }] }]} />,
-  <LanguageSwitch languages={storeLanguages} current="en" label="Language" link={Link} />,
+  <LanguageSwitch languages={storeLanguages} current="en" label="Language" link={Link} href="/p/{code}" />,
+  <Segmented label="View" value="board" link={Link} options={[{ value: "board", label: "Board", href: "?view=board" }, { value: "list", label: "List", href: "?view=list" }]} />,
+  <DataTable caption="Quotes" rows={[{ id: "q1" }]} rowKey={r => r.id} columns={[{ key: "id", label: "Id", value: r => r.id, rowHeader: true }]} rowHref={r => "/chest/" + r.id} link={Link} />,
+  <Menu label="More" items={[{ id: "open", label: "Open", href: "/chest/1" }]} link={Link} />,
 ];
 `);
     run(process.execPath, [tsc, "--noEmit", "--strict", "--skipLibCheck", "--preserveSymlinks", "--target", "es2022", "--module", "esnext", "--moduleResolution", "bundler", "--jsx", "react-jsx", "--types", "node", "--lib", "es2022,dom", "next-link.tsx"], consumer);
-    console.log(`  next ${JSON.parse(readFileSync(join(next, "package.json"), "utf8")).version}: Link fits AppShell, Nav, NavLink, Tabs, DayStrip, Filters, LanguageSwitch`);
+    console.log(`  next ${JSON.parse(readFileSync(join(next, "package.json"), "utf8")).version}: Link fits AppShell, Nav, NavLink, Tabs, DayStrip, Filters, LanguageSwitch, Segmented, DataTable, Menu`);
   } else console.log("  skipped: no next in lab/template/node_modules (the stand-in in test/kit-021.test.tsx still holds it)");
   console.log(`\n${name}@${manifest.version}: package check passed`);
 } finally {

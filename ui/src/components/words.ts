@@ -70,6 +70,11 @@ export type DateWords = {
   readonly tooLate: string;
   readonly otherDay: string;
   readonly pickDay: string;
+  // DateRangeField (0.2.2; the kit's English when absent): its two
+  // fields, and how long the range is.
+  readonly rangeFrom?: string;
+  readonly rangeTo?: string;
+  readonly rangeDays?: Plural;
 };
 
 export type FileWords = {
@@ -206,6 +211,9 @@ export const en: KitWords = {
     tooLate: "Choose {date} or earlier.",
     otherDay: "Another day…",
     pickDay: "Choose a day",
+    rangeFrom: "From",
+    rangeTo: "To",
+    rangeDays: { one: "{count} day", other: "{count} days" },
   },
   files: {
     add: "Add files",
@@ -316,6 +324,9 @@ export const fr: KitWords = {
     tooLate: "Choisissez le {date} ou avant.",
     otherDay: "Un autre jour…",
     pickDay: "Choisir un jour",
+    rangeFrom: "Du",
+    rangeTo: "Au",
+    rangeDays: { one: "{count} jour", other: "{count} jours" },
   },
   files: {
     add: "Ajouter des fichiers",

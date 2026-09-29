@@ -594,3 +594,67 @@ What matters beyond the kit:
   `textContent` (or a regex with ` `) to check the character.
 - **Not done: a date range.** Leave uses two `DateField`s; a
   `DateRangeField` (one calendar, two ends) is listed for 0.3.
+
+## 17. 0.2.2-studio.1: what sixteen migrations found (2026-09-29)
+
+Sixteen tools on the kit, plus Forms and Quotes migrating, reported
+their gaps (the lead's list, one line per finding and tool). All kit items are in 0.2.2, **backward
+compatible** (a tool on 0.2.1 re-vendors with no code change: new props
+and words optional, types widened, a hand-made 0.2.1 theme still valid).
+The changelog in `ui/README.md` has the whole list; what mattered most:
+
+- **A real bug: nested dialogs closed each other (Expenses).** React
+  passes a nested `<dialog>`'s `cancel` and `close` events up its own
+  tree, so a `Confirm` opened from a `Dialog` closed both. Each dialog now
+  answers only its own events. The browser flow (Cancel, Escape and the
+  Confirm's action, the Dialog must stay open) fails on 0.2.1's code and
+  passes on 0.2.2's — checked both ways.
+- **44 px for real.** `ck-button-small` was 36 px (Menu's shown label,
+  the calendar's close); sortable headers and link buttons too. Every
+  control is now 44 px, or reaches it with an invisible margin (a chip's
+  remove button, a segment). check-page measures every control of the
+  gallery on a desk and a phone — by its box, or by what answers the
+  pointer 22 px around its centre — and the phone header's parts against
+  the screen's edge (the member's name sat past it: Quotes).
+- **Four contract tokens.** `--inverse` (with `-ink`, `-ink-2`,
+  `-line`, measured): a band of its own colour, dark in both modes —
+  Equipment's steel bar had collapsed to the ink (black in Chest and
+  Blueprint), Timesheets' and Goals' panels turned light in dark mode.
+  `--font-read`: long text in a face drawn for it — the Wiki showed
+  articles in display faces (Barlow Semi Condensed, Fredoka, Young
+  Serif) under other themes; Library reads in Newsreader, Letterpress in
+  Libre Caslon Text, the rest in their body face. `--radius-chip`: chips
+  and badges square in a square theme. `--field-pad-x`. The 20 themes,
+  `defineTheme`, `deriveTheme` (a brand's band is its main colour's deep
+  shade) and 1,500 random brands pass the new pairs.
+- **Forms is the 20th theme**, "Invitation", with DM Serif Display and
+  DM Sans added to the registry (the same Fontsource 5.3.0 files Forms
+  serves, byte for byte); its berry is pinned. Fonts declared from files
+  now carry a `unicode-range` (two subset files hid each other).
+- **What tools had rebuilt around the kit**: a single `PeoplePicker`
+  that can be emptied, a `DateRangeField` (0.2.1's deferred item), a
+  `Switch`, a `Calendar` of several days, a `Segmented` of links (a view
+  in the address), a `Filters` group as a select (30 categories) and one
+  scrolling line per group on a phone, `FilePicker` "Take a photo" with a
+  preview slot, `DataTable` rows that open a page, a sticky first column
+  and cards on a phone, `Menu` items with a second line and downloads,
+  toast `onExpire` for deletes done late, `className` everywhere a tool
+  restyles.
+- **Words.** "Accepted: image" is now "images" / « images », types are
+  named once by their extension (JPG, VCF, ODT); the screen-reader
+  separator is the words' (a narrow space in French). `lint-words` lets a
+  tool quote another product's interface (« Paramètres » of Google) with
+  an explicit, listed escape (`quotedUi`, lab/GLOSSARY.md).
+- **Server components (Wiki, Support).** Checked in a Next 16.3.6
+  production build of a copy of the template: `next/link` imported in a
+  server page and passed to `Tabs` is refused ("Functions cannot be
+  passed directly to Client Components"); the same `Link` re-exported
+  from a one-line `"use client"` file is a client reference and renders.
+  The kit's link props now all take a component (`Tabs` and the new
+  `Segmented`, `Menu`, `DataTable` included), `LanguageSwitch` takes its
+  address as a pattern, and the README gives the one-line re-export.
+- **Not in the kit**: the tool bugs of the list (News' raw mention
+  tokens in search snippets; the 30 s frame-origin cache in Support,
+  Booking, Forms, Status) belong to those tools. The sixteen tools and
+  Forms/Quotes must re-vendor (`node scripts/add-ui.mjs <tool>`); the kit
+  did not touch `tools/`.

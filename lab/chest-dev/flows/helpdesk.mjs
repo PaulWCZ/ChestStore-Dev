@@ -419,16 +419,30 @@ await step("an admin sets working hours and a rule on arrival; a new request fol
   expect(row.includes("Gift") && row.includes("High"), "tag and priority from the rule");
 });
 
-await step("an admin allows the company's website to show the form; the code to paste is a plain frame", async () => {
+await step("an admin allows the company's website to show the form, which may frame it at once; the code to paste is a plain frame", async () => {
+  const policy = async () => (await page.request.get(origin + "/?embed=1")).headers()["content-security-policy"] ?? "";
+  const sites = page.getByLabel("Websites allowed to show the form (one per line)");
+  const save = async () => {
+    for (const close of await page.locator(".ck-toast-close").all()) await close.click().catch(() => {});
+    await page.locator("form:has(#origins)").getByRole("button", { name: "Save" }).click();
+    await page.waitForSelector(".ck-toast:has-text('Saved.')");
+  };
   await page.goto(origin + "/chest/settings");
-  await page.getByLabel("Websites allowed to show the form (one per line)").fill("https://www.atelier-martin.fr");
-  await page.locator("form:has(#origins)").getByRole("button", { name: "Save" }).click();
-  await page.waitForSelector(".ck-toast:has-text('Saved.')");
+  // The public page has just been served (the policy read), then a site is added:
+  // the very next request carries it — no waiting.
+  expect(!(await policy()).includes("https://www.atelier-martin.fr"), "not allowed yet");
+  await sites.fill("https://www.atelier-martin.fr");
+  await save();
+  expect((await policy()).includes("frame-ancestors https://www.atelier-martin.fr"), "the form may be framed there at once");
+  await sites.fill("https://www.atelier-martin.fr\nhttps://shop.atelier-martin.fr");
+  await save();
+  expect((await policy()).includes("frame-ancestors https://www.atelier-martin.fr https://shop.atelier-martin.fr"), "a second site at once");
+  await sites.fill("https://www.atelier-martin.fr");
+  await save();
+  expect(!(await policy()).includes("shop.atelier-martin.fr"), "a site removed is refused at once");
   await page.reload();
   const code = await page.locator("#embed-code").inputValue();
   expect(code.startsWith("<iframe") && !code.includes("<script"), "a frame, no script");
-  const headers = (await page.request.get(origin + "/?embed=1")).headers();
-  expect(headers["content-security-policy"].includes("frame-ancestors https://www.atelier-martin.fr"), "the form may be framed there");
   expect((await page.request.get(origin + "/chest")).headers()["content-security-policy"].includes("frame-ancestors 'none'"), "never the team's pages");
 });
 

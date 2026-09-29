@@ -93,6 +93,31 @@ await step("an edit made just before switching tab is kept (the tab waits for th
   await page.keyboard.press("Escape");
 });
 
+await step("a manager allows the company's website on the Share tab: the public form may be framed there at once", async () => {
+  await as(context, origin, "camille");
+  await english();
+  const policy = async () => (await page.request.get(link)).headers()["content-security-policy"] ?? "";
+  const sites = page.getByLabel("Websites allowed to show it (one per line)");
+  const save = async () => {
+    for (const close of await page.locator(".ck-toast-close").all()) await close.click().catch(() => {});
+    await page.getByRole("button", { name: "Save the websites" }).click();
+    await page.locator(".ck-toast", { hasText: "Websites saved." }).waitFor();
+  };
+  await page.goto(formUrl + "/share");
+  // The public form has just been served (the policy read), then a site is
+  // allowed: the very next request carries it — no waiting.
+  expect((await policy()).includes("frame-ancestors 'none'"), "nobody frames it yet");
+  await sites.fill("https://www.atelier-martin.fr");
+  await save();
+  expect((await policy()).includes("frame-ancestors 'self' https://www.atelier-martin.fr"), "framed by the site at once");
+  expect((await page.request.get(origin + "/chest")).headers()["content-security-policy"].includes("frame-ancestors 'none'"), "never the team's pages");
+  await sites.fill("");
+  await save();
+  expect((await policy()).includes("frame-ancestors 'none'"), "a site removed is refused at once");
+  await as(context, origin, "ines");
+  await english();
+});
+
 await step("settings save by themselves (no Save button): a copy by email, the bell and email for the owner, other tools", async () => {
   await page.goto(formUrl + "/settings");
   expect((await page.getByRole("button", { name: "Save" }).count()) === 0, "no Save button");

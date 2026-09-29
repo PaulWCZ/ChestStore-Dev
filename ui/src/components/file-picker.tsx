@@ -47,9 +47,9 @@ export type FilePickerProps = FileRules & {
   // Elsewhere the one button. Photos are images: `accept` should allow them.
   readonly camera?: boolean | "user" | "environment";
   // Something of the tool's own in each file's row, before its name: a
-  // thumbnail of a photo once the tool can show it (an <img> of its own
-  // address — a blob: address is refused by the studio's image policy)
-  // (0.2.2).
+  // thumbnail of a photo (the stored file's address once sent, or
+  // URL.createObjectURL(file.file) where the tool's policy allows img-src
+  // blob: — the kit does not know the policy, so it draws none) (0.2.2).
   readonly preview?: (file: PickedFile) => ReactNode;
   // Show the label above the drop zone (it is read by screen readers in
   // any case, after the button's words) (0.2.2).

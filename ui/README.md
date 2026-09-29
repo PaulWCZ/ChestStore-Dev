@@ -10,7 +10,7 @@ keeps every text readable (WCAG 2.2 AA) whatever the choice:
 - a **token contract** (`tokens/CONTRACT.md`): the CSS custom properties
   every theme defines, light and dark, and the contrast pairs every theme
   must pass;
-- a **catalogue** of 19 themes: the 17 identities of the store's tools,
+- a **catalogue** of 20 themes: the 18 identities of the store's tools,
   "Chest" (the portal's own sheet, light only) and "High contrast";
 - **`deriveTheme(brand)`**: a whole theme from a company's colours, fonts,
   corners and density, light and dark, AA guaranteed, and plain notes (in
@@ -39,7 +39,7 @@ components).
 |---|---|
 | `@argentic/chest-ui/runtime` | `resolveTheme`, `themeStyle`, `lookCss`, `lookColors`, `lookNotes`, `nonceOf`, types `Look`, `ThemeChoice`: the page's look, on the server |
 | `@argentic/chest-ui/react` | `ThemeStyle`: the same `<style>`, as a React element (a server component in Next.js) |
-| `@argentic/chest-ui/components` | the store's shared React components (client components): `Toasts`/`useToast`, `Dialog`, `Confirm`, `PeoplePicker`, `DateField`, `Calendar`, `MonthField`, `DayStrip`, `TimeSelect`, `FilePicker`, `DataTable`, `Menu`, `Filters`, `SearchBox`, `EmptyState`, `Avatar`, `AvatarStack`, `StatusBadge`, `Tabs`, `Segmented`, `AppShell`, `Nav`, `NavLink`, `PageHeader`, `MemberChip`, `NoAccess`, `LanguageSwitch`, `BrandMark`, `AutoRefresh`/`useAutoRefresh` (see "Components") |
+| `@argentic/chest-ui/components` | the store's shared React components (client components): `Toasts`/`useToast`, `Dialog`, `Confirm`, `PeoplePicker`, `DateField`, `DateRangeField`, `Calendar`, `MonthField`, `DayStrip`, `TimeSelect`, `FilePicker`, `DataTable`, `Menu`, `Filters`, `SearchBox`, `EmptyState`, `Avatar`, `AvatarStack`, `StatusBadge`, `Tabs`, `Segmented`, `Switch`, `AppShell`, `Nav`, `NavLink`, `PageHeader`, `MemberChip`, `NoAccess`, `LanguageSwitch`, `BrandMark`, `AutoRefresh`/`useAutoRefresh`, and the hook `useFloat` (see "Components") |
 | `@argentic/chest-ui/components/logic` | their rules as pure, server-safe functions, and their default words `en`, `fr`, `kitWords`, `wordsFor(locale)`, `storeLanguages` |
 | `@argentic/chest-ui/components.css` | the components' stylesheet (contract tokens only) |
 | `@argentic/chest-ui/themes` | `catalogue`, `themes`, `themeOf(id)`, `identityOf(tool)`, `catalogueFonts` |
@@ -48,7 +48,7 @@ components).
 | `@argentic/chest-ui/contract` | `colorTokens`, `effectTokens`, `staticTokens`, `allTokens`, `pairs`, `checkTheme`, `checkPalette`, `categoryFamilies`, `paletteLimits`, `ratios`, `validateTheme`, `categories`, `controlHeight`, `themeIdPattern`, types `Theme`, `Scheme`, `Pair`, `Failure`, `Words` |
 | `@argentic/chest-ui/fonts` | `registry`, `font(id)`, `systemFont`, `uploadedFont`, `fontFaces`, `fontFiles`, `closestFont`, patterns, types `FontSpec`, `FontEntry`, `FontSource` |
 | `@argentic/chest-ui/color` | `parseColor`, `hex`, `oklch`, `oklchHex`, `contrast`, `luminance`, `fit`, `mix`, `hueDistance`, `colourWord`… |
-| `@argentic/chest-ui` | all of the above but React, and `defineTheme` (a tool's own identity), `completeScheme`, `category`, `note`, `themeCss`, `staticDeclarations`, `schemeDeclarations`, `themeColors` |
+| `@argentic/chest-ui` | all of the above but React, and `defineTheme` (a tool's own identity), `completeScheme`, `category`, `note`, `themeCss`, `staticDeclarations`, `schemeDeclarations`, `themeColors`, `chipRadius` |
 
 ## A tool, in four steps
 
@@ -133,10 +133,18 @@ tool's name (a `<picture>` with its dark variant).
 | `trail` | Trail map / Carte de randonnée | Goals | Barlow Semi Condensed + Work Sans |
 | `letterpress` | Letterpress / Typographie | Quotes & invoices | Libre Caslon Text + Hanken Grotesk |
 | `control-room` | Control room / Salle de contrôle | Status | Red Hat Text + Mono |
+| `forms` | Invitation / Invitation | Forms | DM Serif Display + DM Sans (0.2.2) |
 | `chest` | Chest / Chest | the portal's sheet | "Suisse" (Arial) + "Works" (Georgia); light only |
 | `high-contrast` | High contrast / Contraste élevé | — | Atkinson Hyperlegible |
 
-All 19 pass every pair of the contract in both modes, and all but Chest
+Long text reads in each theme's `--font-read` (0.2.2): its body face,
+except Library (Newsreader) and Letterpress (Libre Caslon Text), faces
+drawn for reading. Each theme also has a band of its own colour,
+`--inverse` (a header bar, a panel), dark in both modes: Tool crib's
+steel, Instrument's ink-green panel, Trail map's forest margin; the ink
+elsewhere (tokens/CONTRACT.md).
+
+All 20 pass every pair of the contract in both modes, and all but Chest
 keep each categorical slot in its colour family (`checkPalette`) (the
 tests hold them to it). `ui/gallery/index.html` shows them side by side (`npm run
 gallery`).
@@ -209,9 +217,9 @@ radius. At most 1 MiB and 5,000 tokens; no network, no evaluation.
 
 ## Fonts
 
-The catalogue's 30 fonts are OFL-1.1, from Fontsource 5.3.0 (the packages
+The catalogue's 32 fonts are OFL-1.1, from Fontsource 5.3.0 (the packages
 and versions the tools already self-host), latin and latin-ext subsets,
-WOFF2 only: **2.5 MB in `ui/fonts/`, each with its licence file**
+WOFF2 only: **2.4 MB in `ui/fonts/`, each with its licence file**
 (`LICENSE-<id>.txt`), fetched by `npm run fonts`.
 
 **They are served by the Chest, not shipped in each tool.** The npm
@@ -222,7 +230,7 @@ the Chest's front serves the fonts under `/_chest/theme/fonts/` on the
 tool's own hosts (and a brand's uploaded fonts and logo under
 `/_chest/theme/brand/`). Why:
 
-- **size**: every catalogue font in every tool would be 2.5 MB × 17
+- **size**: every catalogue font in every tool would be 2.4 MB × 18
   repositories (and in the studio's git, at every re-vendor), for fonts
   most companies never pick;
 - **CSP**: the files are on the tool's origin, so `font-src 'self'` and
@@ -287,8 +295,19 @@ phone navigation rule, never the browser's date field.
   `calendarKey`) with their own tests.
 - **Client components** (`"use client"`, named exports only, as Next.js
   requires). Functions cannot cross from a server component: a prop that
-  is a function (`search`, `onChange`, `link`, `upload`) is passed from the
-  tool's own client component.
+  is a function (`search`, `onChange`, `upload`) is passed from the
+  tool's own client component. A **link component** can, as a client
+  reference (0.2.2): `next/link` imported in a server component is a plain
+  function, which React refuses to send ("Functions cannot be passed
+  directly to Client Components"); re-exported from a `"use client"` file
+  it is a reference, which React sends. So a tool keeps one line —
+  `components/link.tsx`: `"use client"; export { default as Link } from
+  "next/link";` — and a server component writes `<Tabs link={Link} …>`,
+  `<Segmented link={Link} …>`, `<LanguageSwitch link={Link} …>`,
+  `<Menu link={Link} …>`. Checked in a Next 16.3.6 production build of
+  the template (a server page: `next/link` directly gives the error
+  above; the re-export renders the links). What stays a function has a
+  data form: `LanguageSwitch href="/p/{code}/pricing"`.
 
 ### Toasts — Undo that tells the truth
 
@@ -314,6 +333,14 @@ toast with an action stays 10 s. It never reverses the act — that is
 `undo`. Rules in
 `toast-state.ts` (`toastReducer`, tested without a browser).
 
+`onExpire` (0.2.2) is called once when a toast goes while what it tells
+still stands — its time is up, it was dismissed, replaced by one of the
+same id, pushed out by newer ones, or its Undo failed; never after an
+Undo that worked. For an act done late (a delete sent to the server only
+when its Undo can no longer be used): `toast({ id, text: t.deleted, undo:
+() => { cancel(id); return true; }, onExpire: () => void erase(id) })`. A
+page closed before never calls it: such an act must be safe to lose.
+
 ### Dialog and Confirm
 
 ```tsx
@@ -331,6 +358,11 @@ the backdrop ask "Discard your changes?" inside the dialog (never
 `alertdialog` for irreversible acts only: opens on Cancel, the backdrop
 does nothing, Escape cancels. `size`: `s`, `m`, `l`; a bottom sheet under
 520 px.
+
+A `Confirm` (or a `Dialog`) opened from inside a `Dialog` closes alone
+(0.2.2): each dialog answers only its own `cancel` and `close` events —
+React passed a nested dialog's events up to the one around it, and
+closing the inner one closed both (Expenses).
 
 ### PeoplePicker
 
@@ -355,6 +387,10 @@ groups appear under their own heading with their size. Nothing typed:
 `localSearch`): accents and case aside, the start of any word of the name,
 words in any order ("lé", "mor", "lea mo"), recent first, then groups,
 then people, 50 at most. With `name`, hidden inputs carry the ids.
+
+`clearable` (0.2.2): a single choice that may be left empty shows a
+button that takes the person away (`onChange([])`, named "Remove Léa
+Moreau"); erasing the name did it too, but nobody saw it. `className`.
 
 ### DateField, Calendar, DayStrip, TimeSelect
 
@@ -394,6 +430,28 @@ or any box that scrolls are placed over it (fixed to the viewport,
 flipped above the field when there is no room below), never cut at its
 edge; elsewhere the CSS places them as before.
 
+**0.2.2.** `DateField`: `label` may hold more than words (a required
+mark); `hideLabel`; `describedBy` (the tool's own lines, read after the
+kit's); `variant="compact"` — the field and its calendar only, no chips,
+the date in words read but not shown (a table cell); `onEnter(iso)`
+(Enter, once the date is read: a tool that sends its form on Enter);
+`className` and `data-*` on its root. `Calendar`: `multiple` with
+`selected` (several days; a click, Enter or Space adds or takes one away
+and the calendar stays; `aria-multiselectable`), `inline` (part of the
+page), `labelledBy`; `onClose` is optional.
+
+```tsx
+<DateRangeField label={t.leave} value={range} onChange={setRange} today={today} min={today}
+  names={{ from: "from", to: "to" }} labels={kitWords[locale].date} lang={locale} />
+```
+
+`DateRangeField` (0.2.2, the range 0.2.1 deferred): two `DateField`s
+under one name ("From" / « Du », "To" / « Au »), how many days under them
+("3 days", both ends counted). Moving the first day keeps the length
+(`moveRangeStart`), the last is never before the first (`moveRangeEnd`,
+`rangeDays` — in `/components/logic`). Its words are optional
+(`rangeFrom`, `rangeTo`, `rangeDays` in `DateWords`).
+
 ### FilePicker
 
 ```tsx
@@ -417,6 +475,22 @@ reads `file`). **Sniffing the bytes on the server stays the tool's job**
 (Hiring's `lib/cv.ts`). With `maxFiles={1}` it says "or drop it here"
 (`labels.dropOne`, « ou déposez-le ici »); full, only its button fades —
 the limits beside it stay readable (0.2.1).
+
+**0.2.2.** `camera` (a phone's "Take a photo" beside "Choose a file";
+elsewhere the one button — `capture` alone still opens only the camera);
+`preview(file)`: something of the tool's own before each file's name (a
+thumbnail: the stored file's own address once sent, or
+`URL.createObjectURL(file.file)` where the tool's policy has `img-src
+blob:` — the kit does not know the tool's policy, so it draws none);
+`showLabel`; `id` (the file input's); `className`.
+"Accepted:" names families in words (`image/*` → "images" / « images »),
+each type once by its usual extension (JPG and JPEG are one; `text/vcard`,
+`text/x-vcard` and `.vcf` are VCF; OpenDocument is ODT/ODS/ODP), and
+leaves out what a family already says (`acceptText(accept, words)`). The
+words between the button and the field's name come from the words
+(`separator`: ": ", French « » + narrow space). New words (`takePhoto`,
+`chooseFile`, `kinds`, `separator`) are optional: a 0.2.1 catalogue gets
+the kit's English for them.
 
 ### DataTable and Menu
 
@@ -443,6 +517,20 @@ row its own class and data- attributes (nothing else) (0.2.1). A sortable
 header's button inherits the header's typography (case, tracking, small
 caps).
 
+**0.2.2.** `DataTable`: `header` on a column (what its header shows —
+an icon, a line break; `label` stays its name), `className` on a column's
+cells, `className` and `id` on the table; `stickyFirst` (the first column
+stays while the table scrolls sideways); `phone="stack"` (under 640 px,
+each row a card of labelled lines — the header hides, so sorting is on
+wider screens); `rowHref(row)` with `link` (the whole row opens a page: its
+header cell is the link, the rest of the row answers the pointer, its own
+buttons and links keep working; with `stickyFirst` the link covers its
+cell only). `Menu`: `id` on an item (two items of one label — two people
+named alike — no longer share a key), `note` (a second line), `download`
+(a link that downloads: a plain `<a>`), `link` (Next's `Link` for `href`
+items), `size` ("s", the default, or "m") for a shown label — both 44 px —
+and `className`.
+
 ### Filters and SearchBox
 
 ```tsx
@@ -463,6 +551,15 @@ value (`value` when the address names none): no "All", no let-go, and
 (`shortcut`), or `onSearch` for a list filtered in the page; `maxLength`
 (200 by default) and `autoFocus` (0.2.1).
 
+**0.2.2.** `clearAlso`: other parameters "Clear filters" takes away too,
+and that make it appear (a date range). `as: "select"` on a group: a list
+to choose from, for a group of many options — it goes to its address when
+chosen (`onNavigate(href)` from a client component, else its form is
+sent; a "Show" button where no script runs). `phone="scroll"`: on a
+phone each group keeps one line that scrolls sideways. `className`.
+`SearchBox`: `minLength`, `required`, a list of values in `keep`
+(`{ tag: ["a", "b"] }`), `className`.
+
 ### EmptyState, Avatar, AvatarStack, StatusBadge, Tabs, Segmented
 
 - `EmptyState({ title, body, action, example, note, icon })`: pass
@@ -481,6 +578,22 @@ value (`value` when the address names none): no "All", no let-go, and
   roving focus and a panel. `Segmented`: 2 to 4 native radios; `disabled`
   on it or on one option; the word is the target (the radio is hidden
   without covering it) (0.2.1).
+
+**0.2.2.** `StatusBadge`: `className`; `icon` with a `category` (in
+place of its dot); `empty` — the dashed badge of what is not there yet
+("No owner yet"). Badges, chips, counters and filter chips take
+`--radius-chip`: square in a square theme (the Chest), pills elsewhere.
+`Segmented` is controlled: a tool whose `onChange` starts something slow
+(a server action, then a refresh) changes the value it passes at once
+(its own state, or React's `useOptimistic`), or the choice shows the old
+value until the answer comes, then jumps (People). A view kept in the
+address is the **link variant**: options with `href` are links, the
+current one `aria-current="page"` (CRM's Board / List). `className` on
+`Segmented` and `Tabs`; `Tabs`' `link` takes any link component.
+`Switch({ label, checked, onChange, name, hint })`: something on or off
+that takes effect at once (a checkbox with the switch role; Space
+toggles; a form sends `value` when on) — not for a choice that waits for
+a Save.
 
 ### AppShell, Nav, PageHeader — the one navigation rule
 
@@ -521,7 +634,79 @@ Every component is in `gallery/components.html` (`npm run gallery`), in
 the Chest look, Workshop, Library and a brand, light and dark, English
 and French, working.
 
+**0.2.2.** `AppShell`: `width="full"` takes the header to the edges too;
+`toolsOn` ("all", "wide" — hidden under 760 px —, "phone"), and the
+classes `ck-wide-only` / `ck-phone-only` for one tool of several;
+`className`. On a phone the member's name is read, not shown, and no
+longer lies past the screen's edge (Quotes); a section's count sits at the
+top right of its icon, never over it, with five sections (Expenses).
+`NavItem.className`. `PageHeader`: `intro` that is not a sentence is a
+`<div>` (a line with a badge, two paragraphs); `className`.
+`LanguageSwitch`: `href` as a pattern (`"/p/{code}/pricing"`), `className`.
+`useFloat(anchor, popover, open, options)` is exported: a tool's own
+popover in a dialog or a table's frame is placed over it as the kit's are.
+
 ## Changelog
+
+### 0.2.2-studio.1 (2026-09-29)
+
+What the sixteen migrated tools reported (Wiki, People, Expenses, CRM,
+Support, Equipment, Booking), then Forms and Quotes. **Backward
+compatible**: a tool on 0.2.1 re-vendors with no code change — new props
+and words are optional, types only widened, a theme made by hand for
+0.2.1 stays valid (the new tokens get defaults).
+
+- **Bug — nested dialogs**: a `Confirm` opened from a `Dialog` closed
+  both (Cancel, Escape or its action). Each dialog answers only its own
+  events; played in the browser (check-flows), and the flow fails
+  without the fix.
+- **Bug — toast**: a short toast's close button no longer drops to a
+  second line (no wrap; the text shrinks first) — tested in the CSS and
+  measured in the browser.
+- **Targets**: every control is 44 px (`--control-h`): `ck-button-small`
+  (36 px before) and `ck-button-link`, sortable headers, calendar days;
+  a chip's remove button and a segment reach it with an invisible margin;
+  the skip link. check-page measures every control of the gallery, on a
+  desk and a phone (its box, or what answers the pointer 22 px around
+  it). `Menu` with a shown label: `size`.
+- **Components**: `PeoplePicker` `clearable`; `Menu` item `id`, `note`,
+  `download`, `link`; `Filters` `clearAlso`, `as: "select"`,
+  `phone="scroll"`, `onNavigate`; `SearchBox` `minLength`, `required`,
+  lists in `keep`; `FilePicker` `camera`, `preview`, `showLabel`, `id`,
+  friendly "Accepted:" (families in words, JPG once, MIME types as
+  extensions, ODT/ODS/ODP, VCF), the separator from the words (French
+  narrow space); `className` on `StatusBadge`, `DateField`, `DataTable`
+  (and `id`), `NavItem`, `Segmented`, `Tabs`, `Menu`, `Filters`,
+  `SearchBox`, `PeoplePicker`, `FilePicker`, `PageHeader`, `AppShell`,
+  `LanguageSwitch`; `DateField` label as a node, `hideLabel`,
+  `describedBy`, `variant="compact"`, `onEnter`, `data-*`; toast
+  `onExpire`; `useFloat` exported; `AppShell` `width="full"` header,
+  `toolsOn`, the phone's member name in place, nav counts beside their
+  icon; `LanguageSwitch` `href` pattern and link components from server
+  components (through a `"use client"` re-export of `Link`); `Segmented` link variant (and its controlled state
+  documented); `StatusBadge` `icon` with a category and `empty`;
+  `PageHeader` intro as a `<div>`; `DataTable` column `header` and
+  `className`, `stickyFirst`, `phone="stack"`, `rowHref`; `Calendar`
+  `multiple` and `inline`; **`DateRangeField`** (new, 0.2.1's deferred
+  range); **`Switch`** (new).
+- **Contract**: `--inverse`, `--inverse-ink`, `--inverse-ink-2`,
+  `--inverse-line` — a region of its own colour, dark in both modes, with
+  measured pairs (Equipment's steel bar no longer collapses to the ink);
+  `--font-read` — each theme's face for long text (Library: Newsreader,
+  Letterpress: Libre Caslon Text, the body face elsewhere, never a
+  display face); `--radius-chip` (badges and chips follow the theme's
+  corners); `--field-pad-x` (fields' padding). `checkTheme`,
+  `defineTheme`, `deriveTheme` (a brand's band is its main colour's deep
+  shade) and the 20 themes carry them; tokens/CONTRACT.md documents them,
+  and the safe way to recolour a region (never `--accent` from a token
+  that is `--accent`: it loops).
+- **Forms joins the catalogue** as "Invitation" (the 20th theme), with DM
+  Serif Display and DM Sans in the registry (`npm run fonts`; the files
+  are the ones Forms serves) and its berry pinned by the signature test.
+- **Fonts from files** take a `range` (unicode-range): two subset files
+  of one face no longer hide each other (Forms).
+- **Docs**: `useToast()` returns the toast's id — in a callback that must
+  return nothing, use braces (AGENTS.md).
 
 ### 0.2.1-studio.1 (2026-09-29)
 
@@ -568,7 +753,7 @@ optional, types only widened).
   oklch` (a white has no hue; Chrome swings the mix through pink/blue).
 
 For 0.3: a date range on the calendar (`DateRangeField`, Leave uses two
-`DateField`s today).
+`DateField`s today) — done in 0.2.2.
 
 ## Develop
 
@@ -577,7 +762,7 @@ npm ci
 npm test                # build dist/, compile the tests into build/, run them (node --test)
 npm run check:package   # npm pack, install into a temp project, import every subpath from Node and esbuild, type-check a TS consumer
 npm run gallery         # ui/gallery/index.html and ui/gallery/components.html
-node scripts/gallery/check-page.mjs    # the components page in Chromium: hydration, axe in every look, no network, 390 px
+node scripts/gallery/check-page.mjs    # the components page in Chromium: hydration, axe in every look, no network, 390 px, 44 px targets, the phone header
 node scripts/gallery/check-flows.mjs   # its keyboard and mouse flows (toast, dialog, picker, dates, table, menu, tabs)
 npm run fonts           # fetch the catalogue's fonts again (network)
 ```

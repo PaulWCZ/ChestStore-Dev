@@ -330,6 +330,20 @@ await step("settings: the company's links; import from Statuspage; download ever
   await page.getByLabel("Your website").fill("https://www.atelier-martin.fr");
   await page.locator("#links-title").locator("..").getByRole("button", { name: "Save" }).click();
   await page.waitForSelector(".ck-toast >> text=Saved.");
+  // A site added to those that may show the banner frames it at once.
+  const banner = async () => (await page.request.get(origin + "/embed")).headers()["content-security-policy"] ?? "";
+  const saveSites = async (text) => {
+    await page.locator("#embed-sites").fill(text);
+    for (const close of await page.locator(".ck-toast-close").all()) await close.click().catch(() => {});
+    await page.locator("#embed-sites").locator("xpath=ancestor::form").getByRole("button", { name: "Save" }).click();
+    await page.waitForSelector(".ck-toast >> text=Saved.");
+  };
+  const listed = await page.locator("#embed-sites").inputValue();
+  expect(!(await banner()).includes("https://news.atelier-martin.fr"), "not allowed yet");
+  await saveSites(listed + "\nhttps://news.atelier-martin.fr");
+  expect((await banner()).includes("https://news.atelier-martin.fr"), "the banner may be framed there at once");
+  await saveSites(listed);
+  expect(!(await banner()).includes("https://news.atelier-martin.fr"), "a site removed is refused at once");
   const fixtures = join(import.meta.dirname, "..", "..", "..", "tools", "public-and-private", "status", "test", "fixtures");
   await page.setInputFiles("section[aria-labelledby=import-title] input[type=file]", [join(fixtures, "statuspage-components.json"), join(fixtures, "statuspage-incidents.json"), join(fixtures, "statuspage-maintenances.json")]);
   await page.getByRole("button", { name: "Import", exact: true }).click();

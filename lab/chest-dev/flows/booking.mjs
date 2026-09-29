@@ -210,6 +210,8 @@ await step("a host blocks a whole day: visitors are no longer offered it", async
   let date = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
   while (date.getUTCDate() !== dayNumber) date = new Date(date.getTime() + 864e5);
   await page.locator("#bl-day").fill(date.toISOString().slice(0, 10));
+  // The kit's date field reads what was typed when it loses focus.
+  await page.locator("#bl-day").press("Tab");
   await page.locator("#bl-from").selectOption("0");
   await page.locator("#bl-to").selectOption("1440");
   await page.locator("#bl-note").fill("Trade fair set-up");
@@ -277,17 +279,20 @@ await step("a team type offers the first of its hosts who is free", async () => 
   await page.waitForSelector(".calendar button.open");
 });
 
-await step("an administrator lets the company's website show the booking pages", async () => {
+await step("an administrator lets the company's website show the booking pages, at once", async () => {
   await as(context, origin, "camille");
   await english();
+  const read = async () => (await page.request.get(origin + "/ines-moreau")).headers()["content-security-policy"] ?? "";
+  // The public page has just been served (the policy read), then a site is
+  // allowed: the very next request carries it — no waiting.
+  expect(!(await read()).includes("https://www.atelier-martin.fr"), "not allowed yet");
   await page.goto(origin + "/chest/settings");
   await page.getByLabel("Websites allowed").fill("https://www.atelier-martin.fr");
   await page.locator("form", { has: page.getByLabel("Websites allowed") }).getByRole("button", { name: "Save" }).click();
   await page.waitForSelector(".ck-toast >> text=Saved.");
+  const policy = await read();
+  expect(policy.includes("frame-ancestors 'self' https://www.atelier-martin.fr"), "public pages framed by the site at once: " + policy);
   expect((await page.locator("#frame-code").inputValue()).startsWith("<iframe src="), "code to paste");
-  await page.waitForTimeout(31000);
-  const policy = (await page.request.get(origin + "/ines-moreau")).headers()["content-security-policy"] ?? "";
-  expect(policy.includes("frame-ancestors 'self' https://www.atelier-martin.fr"), "public pages framed by the site: " + policy);
   const team = (await page.request.get(origin + "/chest")).headers()["content-security-policy"] ?? "";
   expect(team.includes("frame-ancestors 'none'"), "the team's pages never");
 });

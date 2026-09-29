@@ -252,3 +252,29 @@ export function monthsFrom(first: YearMonth, last: YearMonth): YearMonth[] {
   for (let m = first; m <= last && out.length < 600; m = addYearMonths(m, 1)) out.push(m);
   return out;
 }
+
+// A range of days, both ends included (0.2.2). Either end may be missing
+// while it is being chosen.
+export type DateRange = { readonly from: IsoDate | null; readonly to: IsoDate | null };
+
+// moveRangeStart: a new first day keeps the range's length (the leave that
+// started on Monday and moves to Wednesday still lasts three days); with no
+// length yet, the last day only moves when the first would pass it.
+export function moveRangeStart(range: DateRange, from: IsoDate | null): DateRange {
+  if (from === null) return { from: null, to: range.to };
+  if (range.from !== null && range.to !== null && isIsoDate(range.from) && isIsoDate(range.to)) return { from, to: addDays(from, Math.max(0, daysBetween(range.from, range.to))) };
+  return { from, to: range.to !== null && range.to < from ? from : range.to };
+}
+
+// moveRangeEnd: a last day never before the first (it becomes the first).
+export function moveRangeEnd(range: DateRange, to: IsoDate | null): DateRange {
+  if (to === null || range.from === null) return { from: range.from, to };
+  return { from: range.from, to: to < range.from ? range.from : to };
+}
+
+// rangeDays: how many days the range holds, both ends included; null
+// while an end is missing.
+export function rangeDays(range: DateRange): number | null {
+  if (range.from === null || range.to === null || !isIsoDate(range.from) || !isIsoDate(range.to)) return null;
+  return daysBetween(range.from, range.to) + 1;
+}

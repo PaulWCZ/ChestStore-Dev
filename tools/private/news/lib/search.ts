@@ -3,8 +3,10 @@ import { can } from "./access.ts";
 import type { Sql } from "./db.ts";
 import { AppError } from "./errors.ts";
 import { hasHit, highlight, snippet, terms, type Segment } from "./highlight.ts";
+import { isLocale } from "./i18n/index.ts";
 import { plain } from "./markdown.ts";
-import { limits, pick, type Kind, type Version } from "./model.ts";
+import { limits, mentionToken, pick, withNames, type Kind, type Version } from "./model.ts";
+import { mentionOf, people, type Person } from "./people.ts";
 import { seen } from "./posts.ts";
 
 // Search across the posts and the comments the actor may see (the same
@@ -14,7 +16,10 @@ import { seen } from "./posts.ts";
 // ("move" finds "moving", "déménager" finds "déménagement"); a headline
 // with a typo is still found (trigrams). A post is found by any of its
 // languages and shown in the reader's, or in the one that matched. A post appears once, with the passage of its text and the
-// comments that matched, the words found marked.
+// comments that matched, the words found marked. A comment's mentions
+// (stored @[mbr_…]) read "@Name" in the reader's language, names from the
+// Chest ("@former member" for someone it no longer knows), before the
+// passage is cut and marked: no member id ever reaches the page.
 export type CommentHit = { id: string; author: string; at: string; text: Segment[] };
 export type Hit = {
   id: string;
@@ -76,6 +81,10 @@ export async function search(sql: Sql, actor: Member | null, query: unknown, now
       rank: p.rank,
     });
   }
+  const locale = isLocale(actor.locale) ? actor.locale : "en";
+  const mentioned = comments.flatMap(c => [...c.body.matchAll(mentionToken)].map(m => m[1]!));
+  const who = mentioned.length > 0 ? await people(mentioned) : new Map<string, Person>();
+  const readable = (body: string) => withNames(body, id => mentionOf(who.get(id), locale));
   for (const c of comments) {
     const key = String(c.post_id);
     const hit = found.get(key) ?? {
@@ -83,7 +92,7 @@ export async function search(sql: Sql, actor: Member | null, query: unknown, now
       publishAt: c.publish_at.toISOString(), scheduled: c.publish_at.getTime() > now.getTime(), comments: [], rank: 0,
     };
     hit.rank = Math.max(hit.rank, c.rank);
-    if (hit.comments.length < 3) hit.comments.push({ id: String(c.id), author: c.author, at: c.created_at.toISOString(), text: snippet(c.body, words, 160) });
+    if (hit.comments.length < 3) hit.comments.push({ id: String(c.id), author: c.author, at: c.created_at.toISOString(), text: snippet(readable(c.body), words, 160) });
     found.set(key, hit);
   }
   return [...found.values()]

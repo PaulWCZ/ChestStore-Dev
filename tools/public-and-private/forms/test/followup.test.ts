@@ -177,6 +177,23 @@ test("websites allowed to show the public forms: https addresses, managers only;
   assert.equal(frameAncestors([], false), "frame-ancestors 'none'");
 });
 
+test("a website allowed on the Share tab may frame the public forms on the very next request, as the proxy reads it", async () => {
+  const { sql } = database;
+  // Next.js runs proxy.ts in its own module instance, apart from the server
+  // actions (whose saveSites once cleared only its own copy of a cache): load
+  // lib/embed.ts a second time, as the proxy does, and read through db()
+  // exactly as it calls it.
+  const proxied = (await import(`../lib/embed.ts?proxy=${Date.now()}`)) as typeof import("../lib/embed.ts");
+  await saveSites(sql, asMember(camille), "");
+  assert.equal(proxied.frameAncestors(await proxied.embedOrigins(), false), "frame-ancestors 'none'");
+  await saveSites(sql, asMember(camille), "https://www.atelier-martin.fr");
+  assert.equal(proxied.frameAncestors(await proxied.embedOrigins(), false), "frame-ancestors 'self' https://www.atelier-martin.fr");
+  await saveSites(sql, asMember(camille), "https://www.atelier-martin.fr\nhttps://shop.atelier-martin.fr");
+  assert.deepEqual(await proxied.embedOrigins(), ["https://www.atelier-martin.fr", "https://shop.atelier-martin.fr"]);
+  await saveSites(sql, asMember(camille), "");
+  assert.deepEqual(await proxied.embedOrigins(), []);
+});
+
 test("pictures: checked by their first bytes, published under public/, swept when no form uses them", async () => {
   const { sql } = database;
   const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 0]);

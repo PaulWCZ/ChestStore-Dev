@@ -153,7 +153,7 @@ export function embedOrigins(value: unknown): string[] {
   if (out.length > 10) throw new AppError("too_many_sites", { max: 10 });
   return out;
 }
-const isOrigin = (o: string) => /^https:\/\/[a-z0-9.-]{1,253}(:\d{1,5})?$/u.test(o);
+export const isOrigin = (o: string) => /^https:\/\/[a-z0-9.-]{1,253}(:\d{1,5})?$/u.test(o);
 
 export async function rememberCalendar(sql: Query, works: boolean): Promise<void> {
   await sql`insert into settings (key, value) values ('calendar_works', ${sql.json(works)}) on conflict (key) do update set value = excluded.value where settings.value <> excluded.value`;

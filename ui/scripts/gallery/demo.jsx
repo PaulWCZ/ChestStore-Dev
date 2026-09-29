@@ -7,8 +7,8 @@
 // below, which play the part of a tool's catalogue.
 import { useMemo, useState } from "react";
 import {
-  AppShell, AvatarStack, Avatar, Confirm, DataTable, DateField, DayStrip, Dialog, EmptyState, FilePicker, Filters, LanguageSwitch,
-  Menu, MonthField, NoAccess, PageHeader, PeoplePicker, SearchBox, Segmented, StatusBadge, Tabs, TimeSelect, Toasts, useToast,
+  AppShell, AvatarStack, Avatar, Calendar, Confirm, DataTable, DateField, DateRangeField, DayStrip, Dialog, EmptyState, FilePicker, Filters, LanguageSwitch,
+  Menu, MonthField, NoAccess, PageHeader, PeoplePicker, SearchBox, Segmented, StatusBadge, Switch, Tabs, TimeSelect, Toasts, useToast,
 } from "../../dist/components/index.js";
 import { addDays, en, fill, formatDate, fr, matches, moveEnd, moveStart, storeLanguages } from "../../dist/components/logic.js";
 
@@ -41,6 +41,10 @@ export const demoWords = {
     shell: "App shell and navigation", shellIntro: "Labelled tabs, never icons alone: in the header on a wide screen, in a row of their own on a phone. The page’s main action sits at the top.",
     home: "Home", myTasks: "My tasks", boards: "Boards", settings: "Settings", manager: "Manager", newTask: "New task", tasksIntro: "What waits for you today.", language: "Language",
     noAccess: "When the role gives nothing",
+    removeTemplate: "Delete the template", removeTemplateTitle: "Delete the “Sprint” template?", removeTemplateBody: "Boards made from it keep their columns.", templateRemoved: "Template deleted.",
+    daysOff: "Days off", daysOffIntro: "Choose several days.", category: "Category", categories: ["Hardware", "Software", "Travel", "Training", "Office", "Other"],
+    export: "Export", exportNote: "The rows shown, as a spreadsheet", exportCsv: "Download CSV", openBoard: "Open the board", sameName: "Léa Moreau", sameNameNote: "Accounts, Paris", sameNameNote2: "Sales, Lyon", assignTo: "Give to",
+    trip: "Trip", notify: "Email me when someone answers", notifyHint: "One email a day at most.", noOwner: "No owner yet", laptop: "Laptop",
   },
   fr: {
     toast: "Toast — une annulation qui dit vrai",
@@ -70,6 +74,10 @@ export const demoWords = {
     shell: "Cadre et navigation", shellIntro: "Des onglets avec leurs mots, jamais des icônes seules : dans l’en-tête sur grand écran, sur une ligne à eux sur téléphone. L’action principale de la page est en haut.",
     home: "Accueil", myTasks: "Mes tâches", boards: "Tableaux", settings: "Réglages", manager: "Responsable", newTask: "Nouvelle tâche", tasksIntro: "Ce qui vous attend aujourd’hui.", language: "Langue",
     noAccess: "Quand le rôle ne donne rien",
+    removeTemplate: "Supprimer le modèle", removeTemplateTitle: "Supprimer le modèle « Sprint » ?", removeTemplateBody: "Les tableaux créés avec lui gardent leurs colonnes.", templateRemoved: "Modèle supprimé.",
+    daysOff: "Jours de congé", daysOffIntro: "Choisissez plusieurs jours.", category: "Catégorie", categories: ["Matériel", "Logiciel", "Déplacement", "Formation", "Bureau", "Autre"],
+    export: "Exporter", exportNote: "Les lignes affichées, en tableur", exportCsv: "Télécharger le CSV", openBoard: "Ouvrir le tableau", sameName: "Léa Moreau", sameNameNote: "Comptabilité, Paris", sameNameNote2: "Ventes, Lyon", assignTo: "Donner à",
+    trip: "Déplacement", notify: "M’écrire quand quelqu’un répond", notifyHint: "Un e-mail par jour au plus.", noOwner: "Pas encore de responsable", laptop: "Ordinateur portable",
   },
 };
 
@@ -135,6 +143,7 @@ function DialogDemo({ d, w, lang, today }) {
   const [owner, setOwner] = useState([]);
   const [start, setStart] = useState(null);
   const [erase, setErase] = useState(false);
+  const [template, setTemplate] = useState(false);
   const close = () => { setOpen(false); setName(""); };
   return (
     <div className="demo-row">
@@ -150,6 +159,9 @@ function DialogDemo({ d, w, lang, today }) {
         {/* A list and a calendar inside a dialog are never cut at its edge. */}
         <PeoplePicker label={d.owner} search={search} value={owner} onChange={setOwner} suggestions={list.slice(0, 7)} suggestionsLabel={w.peoplePicker.suggested} labels={w.peoplePicker} lang={lang} />
         <DateField label={d.boardStart} value={start} onChange={setStart} today={today} labels={w.date} />
+        {/* A Confirm opened from a Dialog: closing it leaves the Dialog open (0.2.2). */}
+        <div><button type="button" className="ck-button ck-button-quiet ck-button-small" onClick={() => setTemplate(true)}>{d.removeTemplate}</button></div>
+        <Confirm open={template} title={d.removeTemplateTitle} body={d.removeTemplateBody} confirmLabel={d.removeTemplate} cancelLabel={d.cancel} onCancel={() => setTemplate(false)} onConfirm={() => { setTemplate(false); toast({ id: "template", text: d.templateRemoved }); }} />
       </Dialog>
       <Confirm open={erase} title={d.eraseTitle} body={d.eraseBody} confirmLabel={d.eraseConfirm} cancelLabel={d.cancel} onCancel={() => setErase(false)} onConfirm={() => { setErase(false); toast({ text: d.erased, sent: true }); }} />
     </div>
@@ -166,7 +178,7 @@ function PeopleDemo({ d, w, lang }) {
   return (
     <form className="demo-stack-s" onSubmit={e => { e.preventDefault(); setSent(n => n + 1); }}>
       <div className="demo-grid">
-        <PeoplePicker label={d.owner} search={search} value={owner} onChange={setOwner} suggestions={[list[0], list[3]]} labels={w.peoplePicker} lang={lang} />
+        <PeoplePicker label={d.owner} search={search} value={owner} onChange={setOwner} clearable suggestions={[list[0], list[3]]} labels={w.peoplePicker} lang={lang} />
         <PeoplePicker label={d.guests} search={search} value={guests} onChange={setGuests} multiple hint={d.guestsHint} suggestions={[list[4], list[5], list[8]]} suggestionsLabel={w.peoplePicker.suggested} labels={w.peoplePicker} lang={lang} />
       </div>
       <div className="demo-row">
@@ -183,6 +195,8 @@ function DatesDemo({ d, w, today, lang }) {
   const [day, setDay] = useState(today);
   const [saved, setSaved] = useState(null);
   const [month, setMonth] = useState(today.slice(0, 7));
+  const [off, setOff] = useState([addDays(today, 7), addDays(today, 8)]);
+  const [trip, setTrip] = useState({ from: addDays(today, 14), to: addDays(today, 16) });
   const days = Array.from({ length: 10 }, (_, i) => addDays(today, i));
   // A button right under the field: typing a date then clicking it at once
   // must hit it (the date in words appears on blur; its line is reserved).
@@ -196,6 +210,7 @@ function DatesDemo({ d, w, today, lang }) {
         </div>
       </div>
       <MonthField label={d.month} value={month} onChange={setMonth} today={today} labels={w.date} />
+      <DateRangeField label={d.trip} value={trip} onChange={setTrip} today={today} min={today} labels={w.date} lang={lang} />
       <div className="demo-times">
         <div><label className="ck-label" htmlFor={`${lang}-start`}>{d.start}</label><TimeSelect id={`${lang}-start`} value={slot.start} onChange={s => setSlot(moveStart(slot, s))} /></div>
         <div><label className="ck-label" htmlFor={`${lang}-end`}>{d.end}</label><TimeSelect id={`${lang}-end`} value={slot.end} onChange={e => setSlot(moveEnd(slot, e))} end /></div>
@@ -203,6 +218,10 @@ function DatesDemo({ d, w, today, lang }) {
       <div className="demo-wide">
         <span className="ck-label" aria-hidden="true">{d.day}</span>
         <DayStrip days={days} current={day} today={today} onPick={setDay} labels={w.date} label={d.day} />
+      </div>
+      <div>
+        <p className="ck-label" id={`${lang}-days-off`}>{d.daysOff}</p>
+        <Calendar value={null} today={today} multiple inline selected={off} labelledBy={`${lang}-days-off`} labels={w.date} onPick={iso => setOff(o => (o.includes(iso) ? o.filter(x => x !== iso) : [...o, iso]))} />
       </div>
     </div>
   );
@@ -230,6 +249,7 @@ function FilesDemo({ d, w }) {
 function TableDemo({ d, w, lang }) {
   const [params, setParams] = useState("");
   const [q, setQ] = useState("");
+  const [cat, setCat] = useState("");
   // Several states at once: ?state=sent,late.
   const states = (new URLSearchParams(params).get("state") ?? "").split(",").filter(Boolean);
   const shown = quotes.filter(r => (states.length === 0 || states.includes(r.state)) && (!q || matches(r.client, q) || r.id.toLowerCase().includes(q.toLowerCase())));
@@ -245,10 +265,11 @@ function TableDemo({ d, w, lang }) {
   return (
     <div className="demo-stack">
       <div className="demo-toolbar">
-        <Filters path="/chest/quotes" params={params} link={link} labels={w.filters} groups={[{ key: "state", label: d.filterState, multiple: true, options: ["draft", "sent", "paid", "late"].map(s => ({ value: s, label: d.states[s], count: count(s) })) }]} />
+        <Filters path="/chest/quotes" params={params} link={link} labels={w.filters} phone="scroll" groups={[{ key: "state", label: d.filterState, multiple: true, options: ["draft", "sent", "paid", "late"].map(s => ({ value: s, label: d.states[s], count: count(s) })) }]} />
+        <Filters path="/chest/quotes" params={cat ? `cat=${cat}` : ""} labels={w.filters} onNavigate={href => setCat(new URLSearchParams(href.split("?")[1] ?? "").get("cat") ?? "")} groups={[{ key: "cat", label: d.category, as: "select", options: d.categories.map((c, i) => ({ value: `c${i}`, label: c })) }]} />
         <SearchBox action="/chest/quotes" onSearch={setQ} labels={w.search} />
       </div>
-      <DataTable caption={d.quotes} columns={columns} rows={shown} rowKey={r => r.id} rowName={r => `${r.id} ${r.client}`} labels={w.table}
+      <DataTable caption={d.quotes} columns={columns} rows={shown} rowKey={r => r.id} rowName={r => `${r.id} ${r.client}`} labels={w.table} phone="stack" rowHref={r => `#${r.id}`}
         actions={() => [{ label: d.duplicate, onSelect: () => {} }, { label: d.download, onSelect: () => {} }, { label: d.delete, tone: "danger", onSelect: () => {} }]}
         totals={{ amount: money(shown.reduce((s, r) => s + r.amount, 0), lang) }}
         empty={<EmptyState title={d.noQuotes} body={d.noQuotesBody} headingLevel={3} labels={w.shell} />} />
@@ -260,6 +281,7 @@ function BitsDemo({ d, w, lang }) {
   const [tab, setTab] = useState("up");
   const [view, setView] = useState("board");
   const [part, setPart] = useState("day");
+  const [notify, setNotify] = useState(true);
   const faces = team.slice(0, 6);
   // The widest initials: every stack size must keep them whole.
   const wide = [{ id: "mbr_mw", name: "Marc Weber" }, { id: "mbr_wm", name: "Wanda Moulin" }, { id: "mbr_mm", name: "Maëlle Mercier" }, ...team.slice(0, 3)];
@@ -282,13 +304,19 @@ function BitsDemo({ d, w, lang }) {
         <StatusBadge category={1} label={lang === "fr" ? "Congés" : "Holiday"} />
         <StatusBadge category={3} label={lang === "fr" ? "Formation" : "Training"} />
         <StatusBadge category={5} label={lang === "fr" ? "Maladie" : "Sick"} />
+        <StatusBadge category={1} label={d.laptop} icon={<svg className="ck-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><rect x="4" y="5" width="16" height="11" rx="1" /><path d="M2 19h20" /></svg>} />
+        <StatusBadge label={d.noOwner} empty />
       </div>
+      <Switch label={d.notify} hint={d.notifyHint} checked={notify} onChange={setNotify} />
       <Tabs label={d.booking} current={tab} onChange={setTab} items={[{ id: "up", label: d.upcoming, count: 3 }, { id: "past", label: d.past }, { id: "cancel", label: d.cancelled, count: 1 }]}>
         <div className="demo-row">
           <Segmented label={d.view} value={view} onChange={setView} options={[{ value: "board", label: d.board }, { value: "list", label: d.list }]} />
           <Segmented label={d.when} value={part} onChange={setPart} options={[{ value: "am", label: d.morning }, { value: "pm", label: d.afternoon, disabled: true }, { value: "day", label: d.allDay }]} />
           <Segmented label={d.layout} value="board" onChange={() => {}} disabled options={[{ value: "board", label: d.board }, { value: "list", label: d.list }]} />
+          <Segmented label={d.view} value={view} link={({ href, children, ...rest }) => <a href={href} {...rest} onClick={e => { e.preventDefault(); setView(href.slice(6)); }}>{children}</a>} options={[{ value: "board", label: d.board, href: "?view=board" }, { value: "list", label: d.list, href: "?view=list" }]} />
           <Menu label={d.booking} showLabel items={[{ label: d.duplicate, onSelect: () => {} }, { label: d.delete, tone: "danger", onSelect: () => {} }]} />
+          <Menu label={d.export} showLabel size="m" align="start" items={[{ id: "csv", label: d.exportCsv, note: d.exportNote, href: "data:text/csv,a", download: "quotes.csv" }, { id: "open", label: d.openBoard, href: "#board", }]} />
+          <Menu label={d.assignTo} showLabel align="start" items={[{ id: "mbr_lea1", label: d.sameName, note: d.sameNameNote, onSelect: () => {} }, { id: "mbr_lea2", label: d.sameName, note: d.sameNameNote2, onSelect: () => {} }]} />
         </div>
       </Tabs>
     </div>

@@ -189,6 +189,13 @@ textarea.ck-field { padding-block: var(--space-2); line-height: var(--leading); 
 .ck-calendar-foot { display: flex; justify-content: space-between; gap: var(--space-2); margin-top: var(--space-2); }
 /* A calendar that is part of the page (0.2.2). */
 .ck-calendar-inline { position: static; margin: 0; box-shadow: none; border-color: var(--line); }
+/* A range of days: two fields under one name, its length under them (0.2.2). */
+.ck-range { min-width: 0; margin: 0; padding: 0; border: 0; }
+.ck-range > .ck-label { padding: 0; }
+.ck-range-row { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-4); }
+.ck-range-row > .ck-date { flex: 1 1 13em; min-width: 0; }
+.ck-range-row .ck-label { font-weight: normal; color: var(--ink-2); }
+.ck-range-length { margin-top: 0; }
 /* A compact date field: the field alone (a cell, a dense row) (0.2.2). */
 .ck-date-compact .ck-date-row { flex-wrap: nowrap; }
 .ck-date-compact .ck-date-box { flex: 1 1 auto; min-width: 9.5em; }
@@ -279,6 +286,7 @@ textarea.ck-field { padding-block: var(--space-2); line-height: var(--leading); 
    ::after covers the row; the row's own controls stay above it (0.2.2).
    With stickyFirst, the link covers its own cell only. */
 .ck-table-linked tbody tr { position: relative; }
+.ck-table-linked tbody > tr > * { height: calc(var(--control-h) + var(--border-width)); }
 .ck-table-linked tbody tr:hover { background: var(--surface-2); }
 .ck-row-link { color: inherit; text-decoration: none; }
 .ck-row-link:hover { text-decoration: underline; text-underline-offset: 0.2em; }
@@ -297,7 +305,8 @@ textarea.ck-field { padding-block: var(--space-2); line-height: var(--leading); 
   .ck-table-stack [data-label]::before { content: attr(data-label); flex: none; color: var(--ink-2); font-size: var(--text-s); font-weight: normal; text-align: left; }
   .ck-table-stack .ck-col-actions { position: absolute; top: var(--space-1); right: var(--space-1); padding: 0 !important; }
   .ck-table-stack tfoot > tr > * { position: static; background: none; }
-  .ck-table-stack tfoot { position: sticky; bottom: 0; background: var(--surface-2); border-top: var(--border-width) solid var(--line-strong); }
+  .ck-table-stack tfoot { position: sticky; bottom: 0; z-index: 3; background: var(--surface-2); border-top: var(--border-width) solid var(--line-strong); }
+  .ck-table-stack.ck-table-linked tbody > tr > * { height: auto; }
   .ck-table-stack tfoot > tr > .ck-empty-cell, .ck-table-stack tfoot > tr > td:empty { display: none; }
   .ck-table-stack .ck-hide-phone { display: none; }
   .ck-table-stack tbody > tr > :first-child { position: static; box-shadow: none; }
@@ -388,6 +397,7 @@ textarea.ck-field { padding-block: var(--space-2); line-height: var(--leading); 
 .ck-segment { position: relative; cursor: pointer; }
 /* The word's target reaches 44 px over the group's padding (0.2.2). */
 .ck-segment::before { content: ""; position: absolute; inset: -4px 0; }
+.ck-segment > span, .ck-segment-link > span { position: relative; }
 .ck-segment input { position: absolute; top: 0; left: 0; width: 1px; height: 1px; margin: 0; opacity: 0; overflow: hidden; clip-path: inset(50%); pointer-events: none; }
 .ck-segment:has(input:disabled) { cursor: not-allowed; }
 .ck-segment input:disabled + span { color: var(--ink-2); }
@@ -420,7 +430,7 @@ textarea.ck-field { padding-block: var(--space-2); line-height: var(--leading); 
 
 /* ---------- The shell and the one navigation rule ---------- */
 .ck-shell { min-height: 100dvh; display: flex; flex-direction: column; }
-.ck-skip { position: absolute; left: var(--space-3); top: -80px; z-index: 70; padding: var(--space-2) var(--space-3); border-radius: var(--radius-s); background: var(--surface); color: var(--ink); box-shadow: var(--shadow-2); }
+.ck-skip { position: absolute; left: var(--space-3); top: -80px; z-index: 70; display: inline-flex; align-items: center; min-height: var(--control-h); padding: 0 var(--space-3); border-radius: var(--radius-s); background: var(--surface); color: var(--ink); box-shadow: var(--shadow-2); }
 .ck-skip:focus { top: var(--space-3); }
 .ck-bar { position: sticky; top: 0; z-index: 50; background: var(--surface); border-bottom: var(--border-width) solid var(--line); }
 .ck-bar-inner { display: flex; flex-wrap: wrap; align-items: center; gap: 0 var(--space-4); max-width: 1280px; margin: 0 auto; padding: 0 var(--space-4); min-height: 60px; }
@@ -488,11 +498,12 @@ div.ck-page-intro > :last-child { margin-bottom: 0; }
   .ck-nav-label { max-width: 100%; overflow-wrap: anywhere; }
   /* The name is read, not shown: hidden in place, never past the edge (0.2.2). */
   .ck-member-text { position: absolute; top: 0; left: 0; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .ck-member-text > * { display: block; max-width: 1px; overflow: hidden; }
   .ck-wide-only { display: none !important; }
   /* phone="scroll": each filter group on one line, scrolling sideways (0.2.2). */
-  .ck-filters-scroll { flex-direction: column; align-items: stretch; flex-wrap: nowrap; }
+  .ck-filters-scroll { flex-direction: column; align-items: stretch; flex-wrap: nowrap; width: 100%; min-width: 0; max-width: 100%; }
   .ck-filters-scroll .ck-filter-group { flex-wrap: nowrap; }
-  .ck-filters-scroll .ck-filter-group ul { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: thin; padding: 3px; margin: -3px; }
+  .ck-filters-scroll .ck-filter-group ul { flex: 1 1 0; width: 0; flex-wrap: nowrap; min-width: 0; overflow-x: auto; scrollbar-width: thin; padding: 3px; margin: -3px; }
   .ck-main { padding: var(--space-4) var(--space-3) var(--space-8); }
   .ck-page-title h1, .ck-page-title h2 { font-size: var(--text-xl); }
   .ck-page-head-m .ck-page-title h1, .ck-page-head-m .ck-page-title h2 { font-size: var(--text-l); }

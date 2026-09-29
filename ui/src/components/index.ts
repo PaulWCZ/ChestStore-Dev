@@ -15,6 +15,7 @@ export { Dialog, Confirm, type DialogProps, type ConfirmProps } from "./dialog.j
 export { PeoplePicker, type PeoplePickerProps } from "./people-picker.js";
 export { Avatar, AvatarStack, type AvatarSize, type Face } from "./avatar.js";
 export { DateField, Calendar, type CalendarProps, type DateFieldProps } from "./date-field.js";
+export { DateRangeField, type DateRangeFieldProps } from "./date-range.js";
 export { MonthField, type MonthFieldProps } from "./month-field.js";
 export { DayStrip, type DayStripProps } from "./day-strip.js";
 export { TimeSelect, type TimeSelectProps } from "./time-select.js";

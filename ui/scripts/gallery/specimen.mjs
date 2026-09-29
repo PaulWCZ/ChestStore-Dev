@@ -1,5 +1,6 @@
 // A theme's specimen, as the gallery shows it: the same small screen of a
-// tool (a header, a heading, a button and its quiet sibling, a link, a
+// tool (a header in the theme's band of its own colour, --inverse, a
+// heading, a lead in the reading face, a button and its quiet sibling, a link, a
 // field, three states, the eight categories, the palette) in one mode.
 // Shared by the gallery's build (Node) and its "Your brand" panel (the
 // browser), so both draw exactly the same thing.
@@ -11,7 +12,7 @@ export const words = {
     ok: "Approved", wait: "Waiting", danger: "Refused", mark: "Due today",
     cats: ["Holiday", "Training", "Travel", "Remote", "Sick", "Client", "Event", "Other"],
     figures: "Total € 1 234,50 · 09:30–17:00",
-    swatches: { bg: "page", surface: "surface", "surface-2": "quiet fill", ink: "text", "ink-2": "secondary", accent: "action", "accent-text": "link", focus: "focus" },
+    swatches: { bg: "page", surface: "surface", "surface-2": "quiet fill", ink: "text", "ink-2": "secondary", accent: "action", "accent-text": "link", focus: "focus", inverse: "band", highlight: "marker" },
   },
   fr: {
     app: "Planning", who: "Camille", heading: "Le plan de la semaine", lead: "Trois tâches sont à rendre avant vendredi. Demandez de l’aide tôt.",
@@ -19,7 +20,7 @@ export const words = {
     ok: "Approuvé", wait: "En attente", danger: "Refusé", mark: "À rendre aujourd’hui",
     cats: ["Congés", "Formation", "Déplacement", "Télétravail", "Maladie", "Client", "Événement", "Autre"],
     figures: "Total 1 234,50 € · 09:30–17:00",
-    swatches: { bg: "page", surface: "surface", "surface-2": "fond discret", ink: "texte", "ink-2": "secondaire", accent: "action", "accent-text": "lien", focus: "focus" },
+    swatches: { bg: "page", surface: "surface", "surface-2": "fond discret", ink: "texte", "ink-2": "secondaire", accent: "action", "accent-text": "lien", focus: "focus", inverse: "bandeau", highlight: "surligneur" },
   },
 };
 
@@ -52,14 +53,14 @@ export function specimen(theme, mode, scope, lang = "en") {
 export const specimenCss = `
 .spec{background:var(--bg);color:var(--ink);font:var(--text-m)/var(--leading) var(--font-body);border-radius:14px;overflow:hidden;border:1px solid color-mix(in oklab,var(--line) 70%,transparent);min-width:0}
 .spec *{box-sizing:border-box}
-.s-bar{display:flex;align-items:center;gap:var(--space-2);padding:var(--space-3) var(--space-4);background:var(--surface);border-bottom:var(--border-width) solid var(--line)}
+.s-bar{display:flex;align-items:center;gap:var(--space-2);padding:var(--space-3) var(--space-4);background:var(--inverse);color:var(--inverse-ink)}
 .s-mark{width:22px;height:22px;border-radius:var(--radius-s);background:var(--accent);box-shadow:inset 0 0 0 var(--border-width) var(--accent-line)}
 .s-app{font-family:var(--font-display);font-weight:var(--display-weight);letter-spacing:var(--display-tracking)}
-.s-who{margin-left:auto;display:flex;align-items:center;gap:var(--space-2);color:var(--ink-2);font-size:var(--text-s)}
-.s-avatar{width:26px;height:26px;border-radius:var(--radius-pill);display:grid;place-items:center;background:var(--surface-2);color:var(--ink-2);font-size:10px;font-weight:var(--weight-strong)}
+.s-who{margin-left:auto;display:flex;align-items:center;gap:var(--space-2);color:var(--inverse-ink-2);font-size:var(--text-s)}
+.s-avatar{width:26px;height:26px;border-radius:var(--radius-pill);display:grid;place-items:center;background:var(--inverse-line);color:var(--inverse-ink);font-size:10px;font-weight:var(--weight-strong)}
 .s-body{padding:var(--space-5) var(--space-4) var(--space-4);display:grid;gap:var(--space-4)}
 .s-h{margin:0;font:var(--display-weight) var(--text-xl)/1.15 var(--font-display);letter-spacing:var(--display-tracking)}
-.s-lead{margin:0;color:var(--ink-2);font-size:var(--text-s)}
+.s-lead{margin:0;color:var(--ink-2);font-family:var(--font-read)}
 .s-mk{background:var(--highlight);color:var(--ink);padding:0 .3em;border-radius:var(--radius-s)}
 .s-card{background:var(--surface);border:var(--border-width) solid var(--line);border-radius:var(--radius-l);padding:var(--space-4);box-shadow:var(--shadow-1);display:grid;gap:var(--space-3)}
 .s-lbl{display:grid;gap:var(--space-1);font-size:var(--text-s);color:var(--ink-2)}
@@ -70,7 +71,7 @@ export const specimenCss = `
 .s-lnk{color:var(--accent-text);font-weight:var(--weight-strong);text-underline-offset:3px;margin-left:var(--space-2)}
 .s-lnk:focus-visible,.s-btn:focus-visible{outline:3px solid var(--focus);outline-offset:2px}
 .s-states{display:flex;flex-wrap:wrap;gap:var(--space-2)}
-.s-st{display:inline-flex;align-items:center;gap:.45em;padding:.2em .7em;border-radius:var(--radius-pill);font-size:var(--text-s);font-weight:var(--weight-strong)}
+.s-st{display:inline-flex;align-items:center;gap:.45em;padding:.2em .7em;border-radius:var(--radius-chip);font-size:var(--text-s);font-weight:var(--weight-strong)}
 .s-st::before{content:"";width:.62em;height:.62em;flex:none}
 .s-ok{background:var(--ok-soft);color:var(--ok-ink)}.s-ok::before{background:var(--ok)}
 .s-wait{background:var(--wait-soft);color:var(--wait-ink)}.s-wait::before{border:2px solid var(--wait)}

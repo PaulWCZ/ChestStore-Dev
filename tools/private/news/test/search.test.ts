@@ -7,7 +7,7 @@ import * as posts from "../lib/posts.ts";
 import { search, type Hit } from "../lib/search.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
 import { asMember } from "./support/member.ts";
-import { camille, everyone, fakeGroups, hugo, ines, lea, stranger } from "./support/members.ts";
+import { camille, everyone, fakeGroups, hugo, ines, lea, sofia, stranger } from "./support/members.ts";
 
 let database: TestDatabase;
 let chest: FakeChest;
@@ -104,6 +104,28 @@ test("search finds comments, under their post; deleted ones and deleted posts ar
   await posts.deletePost(database.sql, pub, p.id);
   assert.deepEqual(await find("building"), []);
   assert.deepEqual(await find("building", pub), []);
+});
+
+test("a comment's mentions read as names in its passage, never as member ids; someone no longer known is a former member", async () => {
+  const p = await write({ kind: "info", title: "Parking", body: "New spaces behind the building." });
+  const gone = "mbr_" + "z".repeat(26);
+  const c = await posts.addComment(database.sql, asMember(ines), p.id, `@[${hugo.id}] les places vélo sont derrière, dis-le à @[${gone}] et @[erased]`);
+  // An id the Chest does not know, and a person erased, as the text keeps them.
+  await database.sql`update comments set body = ${`@[${hugo.id}] les places vélo sont derrière, dis-le à @[${gone}] et @[erased]`} where id = ${c.comment.id}`;
+  const text = (hits: Hit[]) => hits[0]!.comments[0]!.text.map(s => s.text).join("");
+  const inEnglish = await find("velo");
+  assert.equal(text(inEnglish), "@Hugo Bernard les places vélo sont derrière, dis-le à @former member et @former member");
+  assert.deepEqual(marked(inEnglish[0]!.comments[0]!.text), ["vélo"]);
+  const inFrench = await find("velo", asMember(lea));
+  assert.equal(text(inFrench), "@Hugo Bernard les places vélo sont derrière, dis-le à @ancien membre et @ancien membre");
+  for (const hits of [inEnglish, inFrench]) assert.ok(!/mbr_|@\[/u.test(JSON.stringify(hits.map(h => h.comments.map(x => x.text)))), "no member id in a result");
+  // Names are written before the passage is cut: it still holds the word found, marked.
+  const long = "Lorem ipsum ".repeat(30);
+  await database.sql`update comments set body = ${`${long}@[${sofia.id}] a les clés du local vélo`} where id = ${c.comment.id}`;
+  const [hit] = await find("velo");
+  const passage = hit!.comments[0]!.text;
+  assert.ok(passage.map(s => s.text).join("").includes("@Sofia Rossi a les clés du local vélo"), passage.map(s => s.text).join(""));
+  assert.deepEqual(marked(passage), ["vélo"]);
 });
 
 test("a scheduled post is found by publishers only", async () => {
