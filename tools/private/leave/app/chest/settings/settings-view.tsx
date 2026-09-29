@@ -1,9 +1,9 @@
 "use client";
 
+import { StatusBadge, useToast } from "@argentic/chest-ui/components";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { Plus } from "../../../components/icons.tsx";
-import { useToast } from "../../../components/toast.tsx";
 import type { ErrorCode } from "../../../lib/app-error.ts";
 import type { Catalogue } from "../../../lib/i18n/index.ts";
 import { format } from "../../../lib/i18n/format.ts";
@@ -33,8 +33,8 @@ export function SettingsView(props: { settings: Rules; holidays: { key: string; 
       const result = await saveSettings(next);
       if (!result.ok) {
         setRules(before);
-        toast(format(t.errors[result.error as ErrorCode], result.values));
-      } else toast(t.settings.saved);
+        toast({ text: format(t.errors[result.error as ErrorCode], result.values), tone: "error" });
+      } else toast({ id: "settings", text: t.settings.saved });
       router.refresh();
     });
   }
@@ -110,7 +110,7 @@ function TypeEditor({ row, colors, months, companyMonth, t, onDone }: { row: Typ
   const [pending, start] = useTransition();
   const idp = row.id || "new";
   const fresh = !row.id;
-  const run = (step: () => Promise<Result<unknown>>, undo?: () => void) => start(async () => {
+  const run = (step: () => Promise<Result<unknown>>, undo?: () => void, done: string = t.settings.saved, reverse?: () => Promise<Result<unknown>>) => start(async () => {
     setError(null);
     const result = await step();
     if (!result.ok) {
@@ -118,7 +118,17 @@ function TypeEditor({ row, colors, months, companyMonth, t, onDone }: { row: Typ
       setError(format(t.errors[result.error as ErrorCode], result.values));
       return;
     }
-    toast(t.settings.saved);
+    toast({
+      id: `type-${idp}`,
+      text: done,
+      ...(reverse ? {
+        undo: async () => {
+          const back = await reverse();
+          router.refresh();
+          return back.ok ? true : format(t.errors[back.error as ErrorCode], back.values);
+        },
+      } : {}),
+    });
     onDone?.();
     router.refresh();
   });
@@ -218,8 +228,8 @@ function TypeEditor({ row, colors, months, companyMonth, t, onDone }: { row: Typ
         {error && <p className="error" role="alert">{error}</p>}
         <div className="card-actions">
           {fresh && <button type="submit" className="button small" disabled={pending}>{t.settings.add}</button>}
-          {!fresh && <button type="button" className="button quiet small" disabled={pending} onClick={() => run(() => archiveType(row.id, !row.archived))}>{row.archived ? t.settings.restore : t.settings.archive}</button>}
-          {row.archived && <span className="status s-cancelled">{t.settings.archived}</span>}
+          {!fresh && <button type="button" className="button quiet small" disabled={pending} onClick={() => run(() => archiveType(row.id, !row.archived), undefined, row.archived ? t.settings.shownDone : t.settings.hiddenDone, () => archiveType(row.id, row.archived))}>{row.archived ? t.settings.restore : t.settings.archive}</button>}
+          {row.archived && <StatusBadge tone="neutral" label={t.settings.archived} size="s" />}
         </div>
       </form>
     </li>

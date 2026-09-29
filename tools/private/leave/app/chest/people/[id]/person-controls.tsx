@@ -1,15 +1,15 @@
 "use client";
 
+import { DateField, Segmented, useToast } from "@argentic/chest-ui/components";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import { useToast } from "../../../../components/toast.tsx";
 import type { ErrorCode } from "../../../../lib/app-error.ts";
 import type { Catalogue } from "../../../../lib/i18n/index.ts";
 import { format } from "../../../../lib/i18n/format.ts";
 import type { Result } from "../../../../lib/errors.ts";
 import { adjustBalance, setBalance, setEmployeeNumber, setEndDate, setStartDate, setWorkDays } from "../../actions.ts";
 
-type Words = { team: Catalogue["team"]; errors: Catalogue["errors"] };
+type Words = { team: Catalogue["team"]; errors: Catalogue["errors"]; date: Catalogue["date"] };
 
 // Saves one of a person's fields as soon as it changes, with a toast.
 function useSave(t: Words) {
@@ -19,23 +19,23 @@ function useSave(t: Words) {
   const save = (step: () => Promise<Result<null>>, undo?: () => void) => start(async () => {
     const result = await step();
     if (!result.ok) undo?.();
-    toast(result.ok ? t.team.saved : format(t.errors[result.error as ErrorCode], result.values));
+    toast(result.ok ? { id: "saved", text: t.team.saved } : { text: format(t.errors[result.error as ErrorCode], result.values), tone: "error" });
     router.refresh();
   });
   return { pending, save };
 }
 
 // The start date (since when leave is earned) or the last day (nothing is
-// earned after it): saved when it changes; empty clears it.
-export function DayField({ kind, memberId, value, label, t }: { kind: "start" | "end"; memberId: string; value: string; label: string; t: Words }) {
+// earned after it): saved when it changes; emptied, it is cleared.
+export function DayField({ kind, memberId, value, label, today, t }: { kind: "start" | "end"; memberId: string; value: string | null; label: string; today: string; t: Words }) {
   const { pending, save } = useSave(t);
-  const idp = `${kind}-date`;
+  const [current, setCurrent] = useState(value);
   return (
-    <div className="field-group">
-      <label className="field-label" htmlFor={idp}>{label}</label>
-      <input id={idp} className="field compact" type="date" defaultValue={value} disabled={pending} onChange={e => {
-        const next = e.target.value || null;
-        save(() => (kind === "start" ? setStartDate(memberId, next) : setEndDate(memberId, next)));
+    <div className="field-group day-field">
+      <DateField id={`${kind}-date`} label={label} value={current} today={today} chips={false} disabled={pending} labels={t.date} onChange={next => {
+        const before = current;
+        setCurrent(next);
+        save(() => (kind === "start" ? setStartDate(memberId, next) : setEndDate(memberId, next)), () => setCurrent(before));
       }} />
     </div>
   );
@@ -113,14 +113,11 @@ export function BalanceForms({ memberId, types, today, t }: { memberId: string; 
         setDays("");
         setEarning("");
         setReason("");
-        toast(t.team.saved);
+        toast({ id: "saved", text: t.team.saved });
         router.refresh();
       });
     }}>
-      <div className="segmented" role="radiogroup" aria-label={t.team.balances}>
-        <button type="button" role="radio" aria-checked={mode === "adjust"} onClick={() => setMode("adjust")}>{t.team.adjust}</button>
-        <button type="button" role="radio" aria-checked={mode === "set"} onClick={() => setMode("set")}>{t.team.setBalance}</button>
-      </div>
+      <Segmented label={t.team.balances} value={mode} onChange={setMode} options={[{ value: "adjust", label: t.team.adjust }, { value: "set", label: t.team.setBalance }]} />
       <p className="muted small">{mode === "adjust" ? t.team.adjustHint : split ? t.team.setSplitHint : t.team.setBalanceHint}</p>
       <div className="form-row">
         <div className="field-group">
@@ -149,9 +146,8 @@ export function BalanceForms({ memberId, types, today, t }: { memberId: string; 
           </div>
         )}
         {mode === "set" && (
-          <div className="field-group">
-            <label className="field-label" htmlFor="bf-on">{t.team.onDate}</label>
-            <input id="bf-on" className="field" type="date" required value={onDate} onChange={e => setOnDate(e.target.value)} />
+          <div className="field-group day-field">
+            <DateField id="bf-on" label={t.team.onDate} value={onDate || null} onChange={v => setOnDate(v ?? "")} today={today} required labels={t.date} />
           </div>
         )}
         <div className="field-group grow">

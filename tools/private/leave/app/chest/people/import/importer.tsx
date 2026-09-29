@@ -1,16 +1,17 @@
 "use client";
 
+import { DateField, FilePicker, useToast, type PickedFile } from "@argentic/chest-ui/components";
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
-import { useToast } from "../../../../components/toast.tsx";
+import { useEffect, useState, useTransition } from "react";
 import type { ErrorCode } from "../../../../lib/app-error.ts";
 import type { Catalogue } from "../../../../lib/i18n/index.ts";
 import { format, formatDay, plural } from "../../../../lib/i18n/format.ts";
 import type { Field, ImportColumn, ImportPlan, KindMap, LeavePlan, Mapping } from "../../../../lib/import.ts";
+import { limits } from "../../../../lib/model.ts";
 import { normalize } from "../../../../lib/normalize.ts";
 import { applyImport, applyLeaveImport, checkImport, checkLeaveImport } from "../../actions.ts";
 
-type Words = { import: Catalogue["import"]; errors: Catalogue["errors"]; team: Catalogue["team"] };
+type Words = { import: Catalogue["import"]; errors: Catalogue["errors"]; team: Catalogue["team"]; date: Catalogue["date"]; files: Catalogue["files"] };
 
 // The two imports, in three steps: the file; what was recognised — an
 // unknown column (or, for leave, an unknown kind) gets a select, and the
@@ -28,8 +29,25 @@ export function Importer({ what, example, today, fields, kinds, t }: {
   const [counted, setCounted] = useState(true);
   const [reason, setReason] = useState(what === "leave" ? t.import.reasonLeave : t.import.reasonDefault);
   const [error, setError] = useState<string | null>(null);
+  const [files, setFiles] = useState<readonly PickedFile[]>([]);
   const [pending, start] = useTransition();
   const locale = typeof document === "undefined" ? "en" : document.documentElement.lang || "en";
+
+  // A file chosen (or dropped) in the kit's file picker is read here, in
+  // the browser, and checked like pasted text: nothing is uploaded.
+  const picked = files.find(f => f.status === "ready" && f.file)?.file ?? null;
+  useEffect(() => {
+    if (!picked) return;
+    let live = true;
+    picked.text().then(value => {
+      if (!live) return;
+      setText(value);
+      setMapping({});
+      setKindMap({});
+      check(value, {}, {});
+    });
+    return () => { live = false; };
+  }, [picked]); // eslint-disable-line react-hooks/exhaustive-deps
   const kindName = new Map(kinds.map(k => [k.id, k.name]));
   const fieldName = new Map(fields.map(f => [f.value, f.label]));
 
@@ -67,7 +85,7 @@ export function Importer({ what, example, today, fields, kinds, t }: {
       if (what === "leave") {
         const result = await applyLeaveImport(text, mapping, kindMap, counted, reason);
         if (!result.ok) return setError(format(t.errors[result.error as ErrorCode], result.values));
-        toast(plural(t.import.leaveDone, result.value.done, locale) + (result.value.skipped.length > 0 ? " " + plural(t.import.leaveSkipped, result.value.skipped.length, locale) : ""));
+        toast({ text: plural(t.import.leaveDone, result.value.done, locale) + (result.value.skipped.length > 0 ? " " + plural(t.import.leaveSkipped, result.value.skipped.length, locale) : "") });
         if (result.value.skipped.length > 0) {
           setError(result.value.skipped.map(s => format(t.import.skippedLine, { line: s.line, why: t.import.skipped[s.problem as keyof typeof t.import.skipped] ?? s.problem })).join(" · "));
           setPlan(null);
@@ -76,7 +94,7 @@ export function Importer({ what, example, today, fields, kinds, t }: {
       } else {
         const result = await applyImport(text, mapping, asOf, reason);
         if (!result.ok) return setError(format(t.errors[result.error as ErrorCode], result.values));
-        toast(plural(t.import.done, result.value.balances, locale) + (result.value.people > 0 ? " " + plural(t.import.peopleDone, result.value.people, locale) : ""));
+        toast({ text: plural(t.import.done, result.value.balances, locale) + (result.value.people > 0 ? " " + plural(t.import.peopleDone, result.value.people, locale) : "") });
       }
       router.push("/chest/people");
     });
@@ -104,18 +122,7 @@ export function Importer({ what, example, today, fields, kinds, t }: {
         <pre>{example}</pre>
         <p className="muted small">{what === "leave" ? t.import.exampleLeaveHint : t.import.exampleHint}</p>
       </details>
-      <label className="button quiet file-button">
-        {t.import.file}
-        <input type="file" accept=".csv,text/csv,text/plain" className="visually-hidden" onChange={async e => {
-          const file = e.target.files?.[0];
-          if (!file) return;
-          const value = await file.text();
-          setText(value);
-          setMapping({});
-          setKindMap({});
-          check(value, {}, {});
-        }} />
-      </label>
+      <FilePicker label={t.import.file} files={files} onChange={setFiles} maxFiles={1} maxSize={limits.importBytes} accept={[".csv", "text/csv", "text/plain"]} labels={t.files} />
       <label htmlFor="csv" className="field-label">{t.import.paste}</label>
       <textarea id="csv" className="field mono" rows={6} value={text} onChange={e => setText(e.target.value)} />
       <button type="button" className="button quiet" disabled={pending || !text.trim()} onClick={() => check(text)}>{t.import.check}</button>
@@ -164,9 +171,8 @@ export function Importer({ what, example, today, fields, kinds, t }: {
             <form className="stack" onSubmit={apply}>
               {what === "people" ? (
                 <div className="form-row">
-                  <div className="field-group">
-                    <label className="field-label" htmlFor="as-of">{t.import.asOf}</label>
-                    <input id="as-of" className="field" type="date" required value={asOf} onChange={e => setAsOf(e.target.value)} />
+                  <div className="field-group day-field">
+                    <DateField id="as-of" label={t.import.asOf} value={asOf || null} onChange={v => setAsOf(v ?? "")} today={today} required labels={t.date} />
                   </div>
                   <div className="field-group grow">
                     <label className="field-label" htmlFor="import-reason">{t.import.reason}</label>

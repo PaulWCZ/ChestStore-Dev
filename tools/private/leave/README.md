@@ -264,10 +264,31 @@ comparison of ouvrés with ouvrables.
   The owner decides an erasure in the Chest; HR should download the payroll
   exports it must keep **before** asking for one. The tool cannot keep a
   person's identity against an erasure.
+- **Its look** follows the company's choice in the Chest (see "Looks");
+  without that choice (or on a Chest without themes) it is Seaside.
 - **Nothing runs in the background**: earned leave is computed when read;
   the tile's numbers are set whenever a request changes (and each weekday
   morning with the schedule proposal).
 - No WebSocket: the pages re-read themselves every 30–60 s while visible.
+
+## Looks
+
+Leave wears its own look, **Seaside** (a pastel sky, peach and mint, big
+rounded cards; `lib/theme.ts`, DESIGN.md) — or any theme of the Chest's
+catalogue (the store's 17 identities, "Chest", "High contrast"), or the
+**company's brand** (its colours, fonts, corners and logo), as the company
+chooses in its Chest for all its tools or for Leave alone (`chest.theme()`,
+**Proposal (studio)**, SDK 0.3.0-studio.12). Every feature is the same in
+every look, and every text stays readable (WCAG AA, light and dark): the
+kinds of leave keep their colour family (sky stays bluish, peach
+orange-ish…) in every theme, and are told by their name where a theme has
+no colour (the "Chest" theme). In brand mode the company's logo stands
+beside "Leave". The look is resolved on the server, one `<style>` with the
+page's nonce; nothing runs in the browser for it.
+
+The pages are built from the store's UI kit (`@argentic/chest-ui`, in
+`vendor/`): its shell, toasts, dialogs, date fields, people picker, table,
+filters and badges, so Leave behaves like the other tools of the store.
 
 ## With the other tools
 
@@ -284,6 +305,8 @@ here.
 
 - `member.locale` — **Proposal (studio)**, in `vendor/`: the interface and
   the bell in each member's language.
+- `chest.theme()` — **Proposal (studio)**: the look the company chose
+  (see "Looks"). Without it, Leave wears Seaside.
 - **Scheduled tasks** — **Proposal (studio)** (`chest.proposals.json`,
   `app/chest-jobs/[name]/route.ts`): the weekday morning reminder at 08:30.
   Without it, requests still reach approvers through the bell and the tile.

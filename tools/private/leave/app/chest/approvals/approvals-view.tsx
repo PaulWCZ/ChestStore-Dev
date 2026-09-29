@@ -1,11 +1,10 @@
 "use client";
 
+import { Avatar, EmptyState, useToast } from "@argentic/chest-ui/components";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import { Avatar } from "../../../components/avatar.tsx";
 import { Check, Close } from "../../../components/icons.tsx";
-import { useToast } from "../../../components/toast.tsx";
 import type { ErrorCode } from "../../../lib/app-error.ts";
 import type { Catalogue } from "../../../lib/i18n/index.ts";
 import { format } from "../../../lib/i18n/format.ts";
@@ -35,16 +34,16 @@ type Words = { approvals: Catalogue["approvals"]; errors: Catalogue["errors"]; h
 
 // Each request as a card: who, what, when, what it leaves; "Approve" is the
 // obvious action, "Refuse" asks for an optional word first. An answer can
-// be taken back for ten minutes ("Undo").
+// be taken back for ten minutes ("Undo"): the person's bell item about it
+// is withdrawn then (lib/tell.ts), so the Undo tells the truth.
 export function Approvals({ cards, hr, t }: { cards: Card[]; hr: boolean; t: Words }) {
   const [gone, setGone] = useState<Set<string>>(new Set());
   const shown = cards.filter(c => !gone.has(c.id));
   const hide = (id: string, hidden: boolean) => setGone(g => { const n = new Set(g); if (hidden) n.add(id); else n.delete(id); return n; });
   if (shown.length === 0) {
     return (
-      <div className="empty calm">
-        <h2>{t.approvals.empty}</h2>
-        <p>{t.approvals.emptyBody}</p>
+      <div className="calm">
+        <EmptyState title={t.approvals.empty} body={t.approvals.emptyBody} />
       </div>
     );
   }
@@ -78,18 +77,22 @@ function Item({ card, t, hide }: { card: Card; t: Words; hide: (id: string, hidd
       const result = await step();
       if (!result.ok) {
         hide(card.id, false);
-        toast(format(t.errors[result.error as ErrorCode], result.values));
+        toast({ text: format(t.errors[result.error as ErrorCode], result.values), tone: "error" });
         return;
       }
-      toast(done, undo ? {
-        label: t.home.undo,
-        run: () => start(async () => {
-          const back = await takeBack(card.id);
-          if (back.ok) hide(card.id, false);
-          else toast(format(t.errors[back.error as ErrorCode], back.values));
-          router.refresh();
-        }),
-      } : undefined);
+      toast({
+        id: `answer-${card.id}`,
+        text: done,
+        ...(undo ? {
+          undo: async () => {
+            const back = await takeBack(card.id);
+            router.refresh();
+            if (!back.ok) return format(t.errors[back.error as ErrorCode], back.values);
+            hide(card.id, false);
+            return true;
+          },
+        } : { sent: true }),
+      });
       router.refresh();
     });
   }
@@ -97,7 +100,7 @@ function Item({ card, t, hide }: { card: Card; t: Words; hide: (id: string, hidd
   return (
     <li className="card" id={`r-${card.id}`}>
       <div className="card-head">
-        <Avatar name={card.avatarName} photo={card.photo} size={40} />
+        <Avatar name={card.avatarName} photo={card.photo} size="l" />
         <div>
           <p className="card-who"><Link href={`/chest/requests/${card.id}`}>{card.name}</Link></p>
           <p className="muted small">{card.asked}{card.approver && !card.mine ? " · " + card.approver : ""}</p>

@@ -24,6 +24,10 @@ must not break.
 | `lib/tell.ts`, `lib/notify.ts` | The bell (each recipient's language) and approvers' tile numbers |
 | `lib/lifecycle.ts` | Leaving and erasure |
 | `lib/morning.ts` | The weekday reminder (schedule proposal) |
+| `lib/theme.ts` | **The look**: the identity "Seaside" (`defineTheme`, equal to the catalogue's) and `currentLook()` (the company's choice from `chest.theme()`, else the identity) |
+| `app/tokens.css`, `app/globals.css` | Leave's own tokens (kinds → categorical slots, calendar shades), defined from contract tokens only; its components |
+| `components/shell.tsx` | The kit's `AppShell` with Next's `Link` and the current path |
+| `lib/status.ts` | A request's state → the kit's `StatusBadge` tone |
 | `lib/i18n/` | Every word: `en.ts` (source), `fr.ts`; `format.ts` (dates, days, spans) for the browser |
 | `app/chest/actions.ts` | Server actions: thin; each re-reads the member; answer `Result` codes |
 | `app/chest/**/page.tsx` | Pages (server): read, resolve names, hand words to views |
@@ -61,10 +65,31 @@ npm ci && npm test && npm run build   # all three must pass
 - **Add an ability → a line in `test/access.test.ts`.** Add a service →
   tests with each role and its refusals.
 - **Client components import only** `lib/calendar.ts`, `lib/i18n/format.ts`,
-  `lib/app-error.ts`, `lib/initials.ts`, `lib/type-name.ts`, `lib/left.ts`,
-  `lib/normalize.ts` and types.
+  `lib/app-error.ts`, `lib/type-name.ts`, `lib/left.ts`, `lib/normalize.ts`,
+  `lib/model.ts`, `lib/status.ts`, `@argentic/chest-ui/components` (and
+  `/components/logic`) and types.
   Never the SDK, `lib/db.ts`, `lib/session.ts`.
 - **Words live in `lib/i18n/`**, in every catalogue (tests compare keys and
   placeholders, and look for words written in pages).
 - **No network, no disk, no background work.** Earned leave is computed on
   read; reminders only through the schedule proposal.
+- **The look is the theme's**: never a colour in CSS or in a page — use the
+  contract's tokens (`ui/tokens/CONTRACT.md`) or Leave's tokens in
+  `app/tokens.css`, defined from them (`test/theme.test.ts` fails on a
+  literal). Text only on measured pairs: on a kind's `--k` the text is
+  `--k-ink`; on `--accent`, `--accent-ink`. A new kind colour is a new
+  categorical slot mapping in `app/tokens.css` (and `colors` in
+  `lib/model.ts`). Weights come from `--display-weight` / `--weight-strong`.
+- **The kit's components first** (`@argentic/chest-ui/components`): toasts
+  (`useToast`: an Undo that returns whether it worked; `sent: true` when the
+  bell already told someone and nothing is taken back), `Dialog` with
+  `dirty`, `DateField` (never `type="date"` or `type="month"`),
+  `PeoplePicker`, `Segmented`, `DataTable`, `Filters`, `Tabs`,
+  `StatusBadge`, `Avatar`, `EmptyState`, `FilePicker`, `AppShell`. Their
+  words are the catalogues' `toast`, `dialog`, `peoplePicker`, `date`,
+  `files`, `table`, `filters` sections. Never `window.confirm`.
+- **Words follow the store's glossary** (`lab/GLOSSARY.md`): `node
+  scripts/lint-words.mjs tools/private/leave` must stay at 0 (French: a
+  narrow no-break space before `: ; ? !`, Undo = « Annuler l’action »).
+- In brand mode the company's logo stands where the mark is (`BrandMark`
+  in `app/chest/layout.tsx` and `app/page.tsx`).

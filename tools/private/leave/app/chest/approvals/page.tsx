@@ -65,10 +65,10 @@ export default async function ApprovalsPage() {
     };
   });
   return (
-    <main className="page">
+    <div className="page">
       <AutoRefresh seconds={30} />
       <h1>{t.approvals.title}</h1>
       <Approvals cards={cards} hr={hr} t={{ approvals: t.approvals, errors: t.errors, home: t.home }} />
-    </main>
+    </div>
   );
 }

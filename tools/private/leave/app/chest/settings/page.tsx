@@ -21,7 +21,7 @@ export default async function SettingsPage() {
   const list = holidays(year, { alsace: true }).map(h => ({ key: h.key, name: t.holidays[h.key], day: formatDay(h.day, locale, { weekday: "short", day: "numeric", month: "long" }), alsace: h.key === "goodFriday" || h.key === "stStephen" }));
   const months = Array.from({ length: 12 }, (_, i) => ({ value: i + 1, name: formatDay(`2026-${String(i + 1).padStart(2, "0")}-01`, locale, { month: "long" }) }));
   return (
-    <main className="page">
+    <div className="page">
       <h1>{t.settings.title}</h1>
       <SettingsView
         settings={s}
@@ -34,6 +34,6 @@ export default async function SettingsPage() {
         colors={colors.map(c => ({ key: c, name: t.colors[c] }))}
         t={{ settings: t.settings, errors: t.errors }}
       />
-    </main>
+    </div>
   );
 }

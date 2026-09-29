@@ -1,3 +1,4 @@
+import { Tabs } from "@argentic/chest-ui/components";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Back } from "../../../../components/icons.tsx";
@@ -38,13 +39,10 @@ export default async function ImportPage({ searchParams }: { searchParams: Promi
     else fields.push({ value: `b:${ty.id}:total`, label: name(ty) });
   }
   return (
-    <main className="page narrow">
+    <div className="page narrow">
       <Link className="back" href="/chest/people"><Back />{t.team.back}</Link>
       <h1>{t.import.title}</h1>
-      <nav className="pills import-tabs" aria-label={t.import.title}>
-        <Link href="/chest/people/import" aria-current={!leave ? "true" : undefined}>{t.import.tabPeople}</Link>
-        <Link href="/chest/people/import?what=leave" aria-current={leave ? "true" : undefined}>{t.import.tabLeave}</Link>
-      </nav>
+      <Tabs label={t.import.title} current={leave ? "leave" : "people"} items={[{ id: "people", label: t.import.tabPeople, href: "/chest/people/import" }, { id: "leave", label: t.import.tabLeave, href: "/chest/people/import?what=leave" }]} />
       <p className="lead">{leave ? t.import.introLeave : t.import.intro}</p>
       <Importer
         key={leave ? "leave" : "people"}
@@ -53,8 +51,8 @@ export default async function ImportPage({ searchParams }: { searchParams: Promi
         today={today()}
         fields={fields}
         kinds={all.map(ty => ({ id: ty.id, name: name(ty) }))}
-        t={{ import: t.import, errors: t.errors, team: t.team }}
+        t={{ import: t.import, errors: t.errors, team: t.team, date: t.date, files: t.files }}
       />
-    </main>
+    </div>
   );
 }

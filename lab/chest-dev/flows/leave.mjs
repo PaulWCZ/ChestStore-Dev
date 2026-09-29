@@ -9,7 +9,13 @@ const tmp = process.env.TMPDIR ?? "/tmp";
 const speak = locale => context.addCookies([{ name: "dev_locale", value: locale, url: origin }]);
 const day = d => d.toISOString().slice(0, 10);
 const plus = (d, n) => new Date(d.getTime() + n * 864e5);
-const toast = () => page.locator(".toast").last().innerText();
+const toast = () => page.locator(".ck-toast .ck-toast-text").last().innerText();
+// A day typed in the kit's date field (ISO is read in every language), then
+// Enter, which commits it as leaving the field would.
+const typeDay = async (selector, value) => {
+  await page.locator(selector).fill(value);
+  await page.locator(selector).press("Enter");
+};
 
 // A Monday about ten weeks ahead; the flow moves a week on if a public
 // holiday makes the week cost less than 5 days.
@@ -19,8 +25,8 @@ while (monday.getUTCDay() !== 1) monday = plus(monday, 1);
 async function ask(start, end, options = {}) {
   await page.goto(origin + "/chest/new");
   if (options.kind) await page.locator(".kind-option", { hasText: options.kind }).click();
-  await page.locator("#start").fill(start);
-  await page.locator("#end").fill(end);
+  await typeDay("#start", start);
+  await typeDay("#end", end);
   if (options.half) await page.getByRole("radio", { name: options.half }).click();
   if (options.note) await page.locator("#note").fill(options.note);
   return page.locator(".quote-days").innerText();
@@ -65,10 +71,11 @@ await step("cancel a waiting request, then undo", async () => {
   await send();
   const row = page.locator(".request", { hasText: "1 day" }).filter({ hasText: "Waiting" }).first();
   await row.getByRole("button", { name: "Cancel" }).click();
-  await page.waitForSelector(".toast");
+  await page.waitForSelector(".ck-toast");
   expect((await toast()).includes("Request cancelled"), "toast");
-  await page.locator(".toast").getByRole("button", { name: "Undo" }).click();
+  await page.locator(".ck-toast").getByRole("button", { name: "Undo" }).click();
   await page.waitForTimeout(1500);
+  expect((await toast()) === "Undone.", "the toast says it was undone: " + (await toast()));
   await page.reload();
   expect(await page.locator(".request", { hasText: "1 day" }).filter({ hasText: "Waiting" }).count() >= 1, "back to waiting");
 });
@@ -81,9 +88,9 @@ await step("the manager, in French, approves from the list — undoes — approv
   const card = page.locator(".card", { hasText: "Trip to Lisbon" });
   expect((await card.innerText()).includes("Solde ensuite"), "balance after");
   await card.getByRole("button", { name: "Valider" }).click();
-  await page.waitForSelector(".toast");
+  await page.waitForSelector(".ck-toast");
   expect((await toast()).includes("Validé. Hugo est prévenu."), "toast: " + (await toast()));
-  await page.locator(".toast").getByRole("button", { name: "Annuler l’action" }).click();
+  await page.locator(".ck-toast").getByRole("button", { name: "Annuler l’action" }).click();
   await page.waitForTimeout(1500);
   await page.reload();
   await page.locator(".card", { hasText: "Trip to Lisbon" }).getByRole("button", { name: "Valider" }).click();
@@ -109,8 +116,9 @@ await step("she refuses another with a word; he reads it", async () => {
 await step("he asks to cancel the approved week; she confirms; the days come back", async () => {
   const before = await page.locator(".balance", { hasText: "Paid leave" }).locator("strong").innerText();
   await page.locator(".request", { hasText: "5 days" }).filter({ hasText: "Approved" }).first().getByRole("button", { name: "Ask to cancel" }).click();
-  await page.waitForSelector(".toast");
+  await page.waitForSelector(".ck-toast");
   expect((await toast()).includes("Your approver will confirm"), "asked");
+  expect(await page.locator(".ck-toast-undo").count() === 0, "no Undo once the approver is told");
   await as(context, origin, "ines");
   await page.goto(origin + "/chest/approvals");
   await page.locator(".card", { hasText: "Asks to cancel" }).getByRole("button", { name: "Cancel the leave" }).click();
@@ -127,8 +135,8 @@ await step("sick leave is recorded at once, without a note", async () => {
   await page.goto(origin + "/chest/new");
   await page.locator(".kind-option", { hasText: "Sick leave" }).click();
   expect(await page.locator("#note").count() === 0, "no note field");
-  await page.locator("#start").fill(wednesday);
-  await page.locator("#end").fill(day(plus(monday, 17)));
+  await typeDay("#start", wednesday);
+  await typeDay("#end", day(plus(monday, 17)));
   await send("Record it");
   expect((await page.locator(".request", { hasText: "Sick leave" }).first().innerText()).includes("Recorded"), "recorded");
 });
@@ -148,8 +156,15 @@ await step("a colleague sees who is away, not why; she cannot open HR's pages", 
 await step("HR: sets an approver, adds a day with a reason, sees it in the history", async () => {
   await as(context, origin, "camille");
   await page.goto(origin + "/chest/people");
-  await page.getByLabel("Approver · Nora Petit").selectOption({ label: "Inès Moreau" });
-  await page.waitForSelector(".toast");
+  await page.getByRole("link", { name: "Nora Petit" }).click();
+  await page.waitForURL(/\/chest\/people\/mbr_/u);
+  // The approver: typed in the kit's people picker, saved when chosen.
+  await page.getByRole("combobox", { name: "Approver" }).fill("ine");
+  await page.getByRole("option", { name: /Inès Moreau/u }).click();
+  await page.waitForSelector(".ck-toast");
+  expect((await toast()) === "Saved.", "saved: " + (await toast()));
+  await page.goto(origin + "/chest/people");
+  expect((await page.locator("tr", { hasText: "Nora Petit" }).innerText()).includes("Inès Moreau"), "Nora's approver in the table");
   await page.getByRole("link", { name: "Nora Petit" }).click();
   await page.waitForURL(/\/chest\/people\/mbr_/u);
   await page.locator("#bf-days").fill("1");
@@ -180,7 +195,7 @@ await step("HR downloads the month's payroll export", async () => {
 await step("HR switches the company to Alsace-Moselle", async () => {
   await page.goto(origin + "/chest/settings");
   await page.getByLabel("Alsace-Moselle (Good Friday and 26 December too)").check();
-  await page.waitForSelector(".toast");
+  await page.waitForSelector(".ck-toast");
   await page.reload();
   expect(await page.getByText("Good Friday", { exact: true }).isVisible(), "Good Friday listed");
 });
@@ -253,8 +268,8 @@ await step("HR records a sick day phoned in, for Nora", async () => {
   expect(await page.getByRole("heading", { name: "Leave for Nora Petit" }).isVisible(), "title");
   await page.locator(".kind-option", { hasText: "Sick leave" }).click();
   const tuesday = day(plus(monday, 29));
-  await page.locator("#start").fill(tuesday);
-  await page.locator("#end").fill(tuesday);
+  await typeDay("#start", tuesday);
+  await typeDay("#end", tuesday);
   await page.getByRole("button", { name: "Record it" }).click();
   await page.waitForURL(/done=recorded/u);
   expect((await page.locator(".requests").innerText()).includes("Sick leave"), "recorded");
@@ -271,7 +286,7 @@ await step("HR changes a kind in place: saved at once, nothing to forget", async
   await page.goto(origin + "/chest/settings");
   const rtt = page.locator(".type-editor").filter({ has: page.locator('input[placeholder="RTT"]') });
   await rtt.getByLabel("May go below zero").uncheck();
-  await page.waitForSelector(".toast");
+  await page.waitForSelector(".ck-toast");
   await page.reload();
   expect(!(await page.locator(".type-editor").filter({ has: page.locator('input[placeholder="RTT"]') }).getByLabel("May go below zero").isChecked()), "saved");
 });
@@ -286,7 +301,7 @@ await step("someone leaves: their last day is set; HR finds them under Former, w
   expect(csv.status() === 200 && (await csv.text()).includes("Sofia Rossi"), "balances CSV");
 });
 
-await step("phone width, in French: the month as a list of days, tabs under the thumb, no sideways scroll", async () => {
+await step("phone width, in French: the month as a list of days, labelled tabs under the header, no sideways scroll", async () => {
   await as(context, origin, "lea");
   await speak("fr");
   await page.setViewportSize({ width: 390, height: 844 });
@@ -301,8 +316,12 @@ await step("phone width, in French: the month as a list of days, tabs under the 
   const people = new Set(await page.locator(".week-group li:not(.holiday-row) .day-who strong").allInnerTexts());
   expect(cards >= 1 && cards <= 40, "one card per absence: " + cards + " for " + people.size + " people");
   expect(!(await page.locator(".grid-wrap").isVisible()), "grid hidden");
-  const tabs = await page.locator(".tabs").boundingBox();
-  expect(tabs.y > 700, "tab bar at the bottom: " + tabs.y);
+  // The store's one phone rule (the kit's AppShell): the sections are
+  // labelled tabs in a row of their own under the header, never hidden.
+  const tabs = await page.locator(".ck-nav").boundingBox();
+  expect(tabs && tabs.y < 200 && tabs.width >= 380, "tab row under the header: " + JSON.stringify(tabs));
+  const labels = await page.locator(".ck-nav .ck-nav-label").evaluateAll(els => els.filter(e => e.getBoundingClientRect().height > 0).map(e => e.textContent));
+  expect(labels.includes("Mes congés") && labels.includes("Qui est absent") && labels.includes("À valider"), "labelled tabs: " + labels.join(", "));
 });
 
 await browser.close();

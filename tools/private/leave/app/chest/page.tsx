@@ -1,5 +1,5 @@
+import { Avatar, EmptyState } from "@argentic/chest-ui/components";
 import Link from "next/link";
-import { Avatar } from "../../components/avatar.tsx";
 import { AutoRefresh } from "../../components/auto-refresh.tsx";
 import { Arrow, Check, Plus } from "../../components/icons.tsx";
 import { can } from "../../lib/access.ts";
@@ -24,9 +24,9 @@ const inSentence = (name: string): string => (name === name.toUpperCase() ? name
 function HeroArt() {
   return (
     <svg className="hero-art" viewBox="0 0 320 200" preserveAspectRatio="xMaxYMax slice" aria-hidden="true" focusable="false">
-      <circle cx="220" cy="118" r="54" fill="var(--sun)" opacity="0.85" />
-      <path d="M0 150c27 0 40-12 66-12s40 12 66 12 40-12 66-12 40 12 66 12 40-12 56-12v62H0z" fill="var(--accent)" opacity="0.9" />
-      <path d="M40 176c16 0 24-7 40-7s24 7 40 7 24-7 40-7 24 7 40 7 24-7 40-7 24 7 40 7" fill="none" stroke="var(--sky)" strokeWidth="4" strokeLinecap="round" opacity="0.8" />
+      <circle className="hero-sun" cx="220" cy="118" r="54" />
+      <path className="hero-sea" d="M0 150c27 0 40-12 66-12s40 12 66 12 40-12 66-12 40 12 66 12 40-12 56-12v62H0z" />
+      <path className="hero-wave" d="M40 176c16 0 24-7 40-7s24 7 40 7 24-7 40-7 24 7 40 7 24-7 40-7 24 7 40 7" />
     </svg>
   );
 }
@@ -74,7 +74,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ d
   const counted = myBalances.filter(b => !typeOf.get(b.typeId)?.archived);
   const main = counted[0];
   return (
-    <main className="page">
+    <div className="page">
       <AutoRefresh seconds={60} />
       {done === "sent" && <p className="notice ok" role="status">{t.home.sent}</p>}
       {done === "declared" && <p className="notice ok" role="status">{t.home.declared}</p>}
@@ -145,7 +145,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ d
               const p = who.get(e.memberId);
               return (
                 <li key={e.id}>
-                  <Avatar name={p?.name ?? ""} photo={p?.photo ?? null} size={28} />
+                  <Avatar name={p?.name ?? ""} photo={p?.photo ?? null} size="s" />
                   <span><strong>{nameOf(p, locale)}</strong> <span className="muted">{e.start === e.end ? spanText(e, locale, t.span) : format(t.home.until, { day: formatDay(e.end, locale) })}</span></span>
                 </li>
               );
@@ -157,14 +157,11 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ d
       <section aria-labelledby="mine">
         <h2 id="mine" className="section-title">{t.home.mine}</h2>
         {rows.length === 0 ? (
-          <div className="empty">
-            <h3>{t.home.empty}</h3>
-            <p>{t.home.emptyBody}</p>
-          </div>
+          <EmptyState title={t.home.empty} body={t.home.emptyBody} headingLevel={3} />
         ) : (
           <MyRequests rows={rows} t={{ home: t.home, status: t.status, errors: t.errors }} />
         )}
       </section>
-    </main>
+    </div>
   );
 }

@@ -1,9 +1,9 @@
 "use client";
 
+import { useToast } from "@argentic/chest-ui/components";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { Check, Close } from "../../../../components/icons.tsx";
-import { useToast } from "../../../../components/toast.tsx";
 import type { ErrorCode } from "../../../../lib/app-error.ts";
 import type { Catalogue } from "../../../../lib/i18n/index.ts";
 import { format } from "../../../../lib/i18n/format.ts";
@@ -36,8 +36,8 @@ export function RequestActions(props: {
   function run(step: () => Promise<Result<unknown>>, done: string) {
     start(async () => {
       const result = await step();
-      if (!result.ok) toast(format(t.errors[result.error as ErrorCode], result.values));
-      else toast(done);
+      if (!result.ok) toast({ text: format(t.errors[result.error as ErrorCode], result.values), tone: "error" });
+      else toast({ id: `request-${id}`, text: done });
       setRefusing(false);
       router.refresh();
     });

@@ -1,5 +1,5 @@
+import { Avatar, EmptyState, Filters } from "@argentic/chest-ui/components";
 import Link from "next/link";
-import { Avatar } from "../../../components/avatar.tsx";
 import { AutoRefresh } from "../../../components/auto-refresh.tsx";
 import { Back, Next } from "../../../components/icons.tsx";
 import { can } from "../../../lib/access.ts";
@@ -66,10 +66,11 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
   const colorOf = (e: Entry) => (e.typeId ? typeOf.get(e.typeId)?.color ?? "sky" : "away");
   const halfWord = (c: "full" | "am" | "pm") => (c === "full" ? t.calendar.allDay : c === "am" ? t.calendar.morning : t.calendar.afternoon);
 
+  // Whose absences: everyone (no filter), the people I answer for, a Chest
+  // group — chips kept in the address (the kit's Filters).
   const filters = [
-    { key: "all", label: t.calendar.everyone },
-    ...(mine.length > 0 ? [{ key: "mine", label: t.calendar.myPeople }] : []),
-    ...teams.map(g => ({ key: g.id, label: g.name })),
+    ...(mine.length > 0 ? [{ value: "mine", label: t.calendar.myPeople }] : []),
+    ...teams.map(g => ({ value: g.id, label: g.name })),
   ];
 
   const shows = (d: Day) => weekday(d) !== 0 && weekday(d) !== 6 && !off.has(d);
@@ -87,7 +88,7 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
   const listWeeks = [...new Set([...cards.map(c => mondayOf(c.part.start < from ? from : c.part.start)), ...holidaysAhead.map(([d]) => mondayOf(d))])].sort();
 
   return (
-    <main className="page wide">
+    <div className="page wide">
       <AutoRefresh seconds={60} />
       <div className="cal-head">
         <h1>{t.calendar.title}</h1>
@@ -98,10 +99,13 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
           {month !== now.slice(0, 7) && <Link className="button quiet small" href={link(now.slice(0, 7))}>{t.calendar.today}</Link>}
         </nav>
       </div>
-      {filters.length > 1 && (
-        <nav className="pills" aria-label={t.calendar.show}>
-          {filters.map(f => <Link key={f.key} href={link(month, f.key)} aria-current={show === f.key || (f.key === "all" && !filters.some(x => x.key === show)) ? "true" : undefined}>{f.label}</Link>)}
-        </nav>
+      {filters.length > 0 && (
+        <Filters
+          path="/chest/calendar"
+          params={{ month, ...(filters.some(f => f.value === show) ? { show } : {}) }}
+          groups={[{ key: "show", label: t.calendar.show, all: true, options: filters }]}
+          labels={{ label: t.calendar.show, all: t.calendar.everyone, clear: t.calendar.everyone }}
+        />
       )}
       <ul className="legend">
         <li><span className="swatch k-away" />{t.calendar.approved}</li>
@@ -112,7 +116,7 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
       </ul>
       {!dir.reached && <p className="notice">{t.calendar.unreachable}</p>}
 
-      {rows.length === 0 ? <p className="empty">{t.calendar.noPeople}</p> : (
+      {rows.length === 0 ? <EmptyState title={t.calendar.noPeople} /> : (
         <div className="grid-wrap">
           <table className="grid">
             <caption className="visually-hidden">{format(t.calendar.caption, { month: monthName })}</caption>
@@ -139,7 +143,7 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
                 const list = byPerson.get(id) ?? [];
                 return (
                   <tr key={id} className={id === member.id ? "mine-row" : undefined}>
-                    <th scope="row" className="who-col"><span className="person-cell"><Avatar name={p?.name ?? ""} photo={p?.photo ?? null} size={24} /><span>{name}</span></span></th>
+                    <th scope="row" className="who-col"><span className="person-cell"><Avatar name={p?.name ?? ""} photo={p?.photo ?? null} size="s" /><span>{name}</span></span></th>
                     {days.map(d => {
                       const wd = weekday(d);
                       // Nobody is "away" on a day nobody works: bars skip
@@ -185,7 +189,7 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
                   const p = who.get(e.memberId);
                   return (
                     <li key={e.id} className={e.status === "pending" ? "pending-row" : undefined}>
-                      <Avatar name={p?.name ?? ""} photo={p?.photo ?? null} size={28} />
+                      <Avatar name={p?.name ?? ""} photo={p?.photo ?? null} size="s" />
                       <span className="day-who"><strong>{e.memberId === member.id ? t.people.you : nameOf(p, locale)}</strong><span className="muted small">{spanText(e, locale, t.span)}</span></span>
                       <span className={`kind small k-${colorOf(e)}${e.status === "pending" ? " pending" : ""}`}>{what(e)}</span>
                     </li>
@@ -196,7 +200,7 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
           );
         })}
       </div>
-    </main>
+    </div>
   );
 }
 

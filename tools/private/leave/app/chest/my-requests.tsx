@@ -1,11 +1,12 @@
 "use client";
 
+import { StatusBadge, useToast } from "@argentic/chest-ui/components";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import { useToast } from "../../components/toast.tsx";
 import type { Catalogue } from "../../lib/i18n/index.ts";
 import { format } from "../../lib/i18n/format.ts";
+import { toneOf } from "../../lib/status.ts";
 import { cancelLeave, restoreLeave } from "./actions.ts";
 
 export type RequestRow = {
@@ -25,8 +26,9 @@ export type RequestRow = {
 type Words = { home: Catalogue["home"]; status: Catalogue["status"]; errors: Catalogue["errors"] };
 
 // My requests: coming up first, then earlier ones. Cancelling a waiting
-// request is immediate, with "Undo"; an approved one is asked to the
-// approver.
+// request is immediate, with "Undo" (the kit's toast says whether it
+// worked); an approved one is asked to the approver (their bell is told:
+// the toast offers no Undo).
 export function MyRequests({ rows, t }: { rows: RequestRow[]; t: Words }) {
   const router = useRouter();
   const toast = useToast();
@@ -34,7 +36,8 @@ export function MyRequests({ rows, t }: { rows: RequestRow[]; t: Words }) {
   const [, start] = useTransition();
   const [hidden, setHidden] = useState<Set<string>>(new Set());
 
-  const fail = (error: keyof Words["errors"], values?: Record<string, string | number>) => toast(format(t.errors[error], values));
+  const fail = (error: keyof Words["errors"], values?: Record<string, string | number>) => toast({ text: format(t.errors[error], values), tone: "error" });
+  const show = (id: string) => setHidden(h => { const n = new Set(h); n.delete(id); return n; });
 
   function cancel(row: RequestRow) {
     setBusy(row.id);
@@ -43,21 +46,23 @@ export function MyRequests({ rows, t }: { rows: RequestRow[]; t: Words }) {
       const result = await cancelLeave(row.id);
       setBusy(null);
       if (!result.ok) {
-        setHidden(h => { const n = new Set(h); n.delete(row.id); return n; });
+        show(row.id);
         fail(result.error, result.values);
         return;
       }
       if (result.value === "cancelled") {
-        toast(t.home.cancelled, {
-          label: t.home.undo,
-          run: () => start(async () => {
+        toast({
+          id: `cancel-${row.id}`,
+          text: t.home.cancelled,
+          undo: async () => {
             const back = await restoreLeave(row.id);
-            if (!back.ok) fail(back.error, back.values);
-            setHidden(h => { const n = new Set(h); n.delete(row.id); return n; });
             router.refresh();
-          }),
+            if (!back.ok) return format(t.errors[back.error], back.values);
+            show(row.id);
+            return true;
+          },
         });
-      } else toast(t.home.cancelAsked);
+      } else toast({ id: `cancel-${row.id}`, text: t.home.cancelAsked, sent: true });
       router.refresh();
     });
   }
@@ -75,7 +80,7 @@ export function MyRequests({ rows, t }: { rows: RequestRow[]; t: Words }) {
             <span className="muted">{r.days}</span>
             {r.reason && (r.status === "refused" || r.status === "cancelled") && <span className="muted request-reason">“{r.reason}”</span>}
           </span>
-          <span className={`status s-${r.status}`}>{hidden.has(r.id) ? t.status.cancelled : t.status[r.status]}</span>
+          <StatusBadge tone={hidden.has(r.id) ? "neutral" : toneOf(r.status)} label={hidden.has(r.id) ? t.status.cancelled : t.status[r.status]} size="s" />
           {(r.canCancel || r.canAskCancel) && !hidden.has(r.id) && (
             <button type="button" className="button quiet small" disabled={busy === r.id} onClick={() => cancel(r)}>
               {r.canCancel ? t.home.cancel : t.home.askCancel}

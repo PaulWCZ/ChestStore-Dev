@@ -1,6 +1,6 @@
+import { Avatar, StatusBadge } from "@argentic/chest-ui/components";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Avatar } from "../../../../components/avatar.tsx";
 import { Back } from "../../../../components/icons.tsx";
 import { AppError } from "../../../../lib/app-error.ts";
 import { balancesOf } from "../../../../lib/balances.ts";
@@ -12,6 +12,7 @@ import { afterRequest } from "../../../../lib/left.ts";
 import { history, pendingOf, request, undoMinutes, type Seen, type Step } from "../../../../lib/requests.ts";
 import { leaveType } from "../../../../lib/rules.ts";
 import { viewer } from "../../../../lib/session.ts";
+import { toneOf } from "../../../../lib/status.ts";
 import { typeName } from "../../../../lib/type-name.ts";
 import { RequestActions } from "./request-actions.tsx";
 
@@ -40,16 +41,16 @@ export default async function RequestPage({ params }: { params: Promise<{ id: st
   const actorName = (id: string) => (id === "chest" ? t.people.chest : id === member.id ? t.people.you : nameOf(who.get(id), locale));
   const recent = r.decidedBy === member.id && r.decidedAt !== null && Date.now() - Date.parse(r.decidedAt) < undoMinutes * 60000;
   return (
-    <main className="page narrow">
+    <div className="page narrow">
       <Link className="back" href={r.sight === "own" ? "/chest" : "/chest/approvals"}><Back />{r.sight === "own" ? t.shell.home : t.shell.approvals}</Link>
       <article className="detail">
         <header className="detail-head">
-          <Avatar name={person?.name ?? ""} photo={person?.photo ?? null} size={48} />
+          <Avatar name={person?.name ?? ""} photo={person?.photo ?? null} size="l" />
           <div>
             <p className="muted small">{t.request.title}</p>
             <h1>{r.sight === "own" ? t.people.you : nameOf(person, locale)}</h1>
           </div>
-          <span className={`status s-${status}`}>{t.status[status]}</span>
+          <StatusBadge tone={toneOf(status)} label={t.status[status]} />
         </header>
         <dl className="facts">
           <div><dt>{t.request.what}</dt><dd><span className={`kind k-${ty.color}`}>{typeName(ty, t.types)}</span>{r.event ? <span className="muted"> · {t.events[r.event]}</span> : null}</dd></div>
@@ -80,6 +81,6 @@ export default async function RequestPage({ params }: { params: Promise<{ id: st
           ))}
         </ol>
       </article>
-    </main>
+    </div>
   );
 }

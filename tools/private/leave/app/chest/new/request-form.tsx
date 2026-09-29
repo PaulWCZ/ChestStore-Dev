@@ -1,5 +1,7 @@
 "use client";
 
+import { DateField, PeoplePicker, Segmented } from "@argentic/chest-ui/components";
+import { localSearch } from "@argentic/chest-ui/components/logic";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState, useTransition } from "react";
@@ -16,7 +18,7 @@ export type FormType = {
   // The balance: the one "left", the days waiting, and both in words.
   left: { left: number; pending: number; line: string } | null;
 };
-type Words = { form: Catalogue["form"]; units: Catalogue["units"]; holidays: Catalogue["holidays"]; errors: Catalogue["errors"]; span: Catalogue["span"] };
+type Words = { form: Catalogue["form"]; units: Catalogue["units"]; holidays: Catalogue["holidays"]; errors: Catalogue["errors"]; span: Catalogue["span"]; date: Catalogue["date"]; peoplePicker: Catalogue["peoplePicker"] };
 
 type OneDay = "whole" | "morning" | "afternoon";
 
@@ -25,6 +27,7 @@ export function RequestForm(props: {
   rules: { counting: "ouvres" | "ouvrables"; alsace: boolean; workedHolidays: string[] };
   workDays: number[] | null;
   first: string;
+  today: string;
   earliest: string;
   latest: string;
   locale: string;
@@ -68,9 +71,10 @@ export function RequestForm(props: {
   const legal = props.events.find(e => e.key === event);
   const needsEvent = type?.key === "family";
 
-  function changeStart(value: string) {
-    setStart(value);
-    if (isDay(value) && (!isDay(end) || end < value)) setEnd(value);
+  function changeStart(value: string | null) {
+    const day = value ?? "";
+    setStart(day);
+    if (isDay(day) && (!isDay(end) || end < day)) setEnd(day);
   }
 
   function submit(e: React.FormEvent) {
@@ -92,12 +96,20 @@ export function RequestForm(props: {
       <Link className="back" href={forSomeone ? `/chest/people/${props.who}` : "/chest"}><Back />{t.form.back}</Link>
       <h1>{forSomeone ? format(t.form.titleFor, { name: props.whoName! }) : t.form.title}</h1>
       {props.people && (
-        <div className="field-group for-whom">
-          <label className="field-label" htmlFor="for">{t.form.forWhom}</label>
-          <select id="for" className="field" value={props.who} onChange={e => router.push(e.target.value === props.people![0]!.id ? "/chest/new" : `/chest/new?for=${e.target.value}`)}>
-            {props.people.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-          </select>
-          {forSomeone && <p className="muted small">{t.form.recordHint}</p>}
+        <div className="for-whom">
+          <PeoplePicker
+            label={t.form.forWhom}
+            value={props.people.filter(p => p.id === props.who)}
+            search={localSearch(props.people)}
+            suggestions={props.people.slice(0, 8)}
+            onChange={chosen => {
+              const next = chosen[0];
+              if (next && next.id !== props.who) router.push(next.id === props.people![0]!.id ? "/chest/new" : `/chest/new?for=${next.id}`);
+            }}
+            hint={forSomeone ? t.form.recordHint : undefined}
+            labels={t.peoplePicker}
+            lang={locale}
+          />
         </div>
       )}
 
@@ -125,31 +137,21 @@ export function RequestForm(props: {
 
       <div className="dates">
         <div className="date-field">
-          <label htmlFor="start">{t.form.firstDay}</label>
-          <input id="start" className="field" type="date" required min={props.earliest} max={props.latest} value={start} onChange={e => changeStart(e.target.value)} />
+          <DateField id="start" label={t.form.firstDay} value={isDay(start) ? start : null} onChange={changeStart} today={props.today} min={props.earliest} max={props.latest} required labels={t.date} />
           {type?.halfDays && !single && (
-            <div className="segmented" role="radiogroup" aria-label={t.form.firstDay}>
-              <button type="button" role="radio" aria-checked={startHalf === "am"} onClick={() => setStartHalf("am")}>{t.form.whole}</button>
-              <button type="button" role="radio" aria-checked={startHalf === "pm"} onClick={() => setStartHalf("pm")}>{t.form.afternoonOnly}</button>
-            </div>
+            <Segmented label={t.form.firstDay} value={startHalf} onChange={setStartHalf} options={[{ value: "am", label: t.form.whole }, { value: "pm", label: t.form.afternoonOnly }]} />
           )}
         </div>
         <div className="date-field">
-          <label htmlFor="end">{t.form.lastDay}</label>
-          <input id="end" className="field" type="date" required min={start || props.earliest} max={props.latest} value={end} onChange={e => setEnd(e.target.value)} />
+          <DateField id="end" label={t.form.lastDay} value={isDay(end) ? end : null} onChange={v => setEnd(v ?? "")} today={props.today} min={isDay(start) ? start : props.earliest} max={props.latest} chips={false} required labels={t.date} />
           {type?.halfDays && !single && (
-            <div className="segmented" role="radiogroup" aria-label={t.form.lastDay}>
-              <button type="button" role="radio" aria-checked={endHalf === "pm"} onClick={() => setEndHalf("pm")}>{t.form.whole}</button>
-              <button type="button" role="radio" aria-checked={endHalf === "am"} onClick={() => setEndHalf("am")}>{t.form.morningOnly}</button>
-            </div>
+            <Segmented label={t.form.lastDay} value={endHalf} onChange={setEndHalf} options={[{ value: "pm", label: t.form.whole }, { value: "am", label: t.form.morningOnly }]} />
           )}
         </div>
       </div>
       {type?.halfDays && single && (
-        <div className="segmented wide" role="radiogroup" aria-label={t.form.oneDay}>
-          {(["whole", "morning", "afternoon"] as const).map(o => (
-            <button key={o} type="button" role="radio" aria-checked={oneDay === o} onClick={() => setOneDay(o)}>{t.form[o]}</button>
-          ))}
+        <div className="one-day">
+          <Segmented label={t.form.oneDay} value={oneDay} onChange={setOneDay} options={(["whole", "morning", "afternoon"] as const).map(o => ({ value: o, label: t.form[o] }))} />
         </div>
       )}
 

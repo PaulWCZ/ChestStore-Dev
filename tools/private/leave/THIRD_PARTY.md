@@ -13,6 +13,7 @@
 
 `lib/csv.ts` comes from the studio's Tasks tool (same licence and authors).
 Dependencies installed from npm under their own licences: `next`, `react`,
-`react-dom` (MIT), `postgres` (Unlicense), `@argentic/chest-sdk` (MIT, the
-studio's working copy in `vendor/`). Icons and the mark are drawn for this
+`react-dom` (MIT), `postgres` (Unlicense), `@argentic/chest-sdk` and `@argentic/chest-ui` (MIT, the
+studio's working copies in `vendor/`: the SDK, and the UI kit's themes
+and components). Icons and the mark are drawn for this
 tool (`components/icons.tsx`, `components/mark.tsx`).

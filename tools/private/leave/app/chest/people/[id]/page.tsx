@@ -1,6 +1,6 @@
+import { Avatar, StatusBadge } from "@argentic/chest-ui/components";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Avatar } from "../../../../components/avatar.tsx";
 import { Back, Plus } from "../../../../components/icons.tsx";
 import { can, canBeApprover } from "../../../../lib/access.ts";
 import { AppError } from "../../../../lib/app-error.ts";
@@ -16,8 +16,9 @@ import { ofPerson } from "../../../../lib/requests.ts";
 import { types } from "../../../../lib/rules.ts";
 import { viewer } from "../../../../lib/session.ts";
 import { staffRow } from "../../../../lib/staff.ts";
+import { toneOf } from "../../../../lib/status.ts";
 import { typeName } from "../../../../lib/type-name.ts";
-import { ApproverSelect } from "../people-controls.tsx";
+import { ApproverPicker } from "../people-controls.tsx";
 import { BalanceForms, DayField, NumberField, WorkWeek } from "./person-controls.tsx";
 
 // One person, for HR (who changes their approver, dates, week, number and
@@ -48,6 +49,7 @@ export default async function PersonPage({ params, searchParams }: { params: Pro
   const counted = list.filter(b => !typeOf.get(b.typeId)?.archived);
   const long = (d: string) => formatDay(d, locale, { day: "numeric", month: "short", year: "numeric" });
   const done = (await searchParams).done;
+  const words = { team: t.team, errors: t.errors, date: t.date };
   // The history: the lines, and the ends of years computed when read (days
   // carried over or lost), the latest first.
   const history = [
@@ -56,11 +58,11 @@ export default async function PersonPage({ params, searchParams }: { params: Pro
   ].sort((a, b) => (a.on !== b.on ? (a.on < b.on ? 1 : -1) : a.close && !b.close ? -1 : b.close && !a.close ? 1 : b.order - a.order));
   const days = [1, 2, 3, 4, 5, 6, 0].map(d => ({ value: d, name: formatDay(`2026-06-${String(7 + (d === 0 ? 7 : d)).padStart(2, "0")}`, locale, { weekday: "short" }) }));
   return (
-    <main className="page">
+    <div className="page">
       <Link className="back" href="/chest/people"><Back />{t.team.back}</Link>
       {done === "recorded" && <p className="notice ok" role="status">{t.team.recorded}</p>}
       <header className="detail-head">
-        <Avatar name={person?.name ?? ""} photo={person?.photo ?? null} size={56} />
+        <Avatar name={person?.name ?? ""} photo={person?.photo ?? null} size="l" />
         <div>
           <h1>{nameOf(person, locale)}</h1>
           {st.endDate && <p className="muted small">{format(t.team.leftOn, { date: long(st.endDate) })}</p>}
@@ -70,14 +72,13 @@ export default async function PersonPage({ params, searchParams }: { params: Pro
 
       {hr && (
         <div className="settings-row">
-          <div className="field-group">
-            <span className="field-label">{t.team.approver}</span>
-            <ApproverSelect memberId={id} value={st.approverId ?? ""} options={dir.people.filter(p => canBeApprover(p.role) && p.id !== id).map(p => ({ id: p.id, name: p.name }))} label={t.team.approver} t={{ team: t.team, errors: t.errors }} />
+          <div className="field-group approver-field">
+            <ApproverPicker memberId={id} value={st.approverId} options={dir.people.filter(p => canBeApprover(p.role) && p.id !== id).map(p => ({ id: p.id, name: p.name, photo: p.photo ?? null }))} label={t.team.approver} locale={locale} t={{ team: t.team, errors: t.errors, peoplePicker: t.peoplePicker }} />
           </div>
-          <DayField kind="start" memberId={id} value={st.startDate ?? ""} label={t.team.startDate} t={{ team: t.team, errors: t.errors }} />
-          <DayField kind="end" memberId={id} value={st.endDate ?? ""} label={t.team.lastDay} t={{ team: t.team, errors: t.errors }} />
-          <NumberField memberId={id} value={st.employeeNumber ?? ""} t={{ team: t.team, errors: t.errors }} />
-          <WorkWeek memberId={id} value={st.workDays ?? [...fullWeek]} days={days} t={{ team: t.team, errors: t.errors }} />
+          <DayField kind="start" memberId={id} value={st.startDate} label={t.team.startDate} today={today()} t={words} />
+          <DayField kind="end" memberId={id} value={st.endDate} label={t.team.lastDay} today={today()} t={words} />
+          <NumberField memberId={id} value={st.employeeNumber ?? ""} t={words} />
+          <WorkWeek memberId={id} value={st.workDays ?? [...fullWeek]} days={days} t={words} />
         </div>
       )}
       {!hr && st.workDays && <p className="muted">{format(t.team.worksOn, { days: days.filter(d => st.workDays!.includes(d.value)).map(d => d.name).join(", ") })}</p>}
@@ -102,7 +103,7 @@ export default async function PersonPage({ params, searchParams }: { params: Pro
       </ul>
 
       {hr && counted.length > 0 && (
-        <BalanceForms memberId={id} types={counted.map(b => ({ id: b.typeId, name: typeName(typeOf.get(b.typeId), t.types), split: typeOf.get(b.typeId)?.period === "acquired" }))} today={today()} t={{ team: t.team, errors: t.errors }} />
+        <BalanceForms memberId={id} types={counted.map(b => ({ id: b.typeId, name: typeName(typeOf.get(b.typeId), t.types), split: typeOf.get(b.typeId)?.period === "acquired" }))} today={today()} t={words} />
       )}
 
       <h2 className="section-title">{t.team.ledger}</h2>
@@ -146,11 +147,11 @@ export default async function PersonPage({ params, searchParams }: { params: Pro
             <li key={r.id} className="request">
               <span className={`kind k-${typeOf.get(r.typeId)?.color ?? "sky"}`}>{typeName(typeOf.get(r.typeId), t.types)}</span>
               <span className="request-when"><Link href={`/chest/requests/${r.id}`}>{spanText(r, locale, t.span, { year: true })}</Link><span className="muted">{plural(t.units.days, r.days, locale)}</span></span>
-              <span className={`status s-${status(r)}`}>{t.status[status(r)]}</span>
+              <StatusBadge tone={toneOf(status(r))} label={t.status[status(r)]} size="s" />
             </li>
           ))}
         </ul>
       )}
-    </main>
+    </div>
   );
 }

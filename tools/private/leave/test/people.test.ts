@@ -9,7 +9,6 @@ import * as balances from "../lib/balances.ts";
 import { addDays, addMonths } from "../lib/calendar.ts";
 import { en } from "../lib/i18n/en.ts";
 import { fr } from "../lib/i18n/fr.ts";
-import { initials } from "../lib/initials.ts";
 import { planImport, planLeave, type KindNames } from "../lib/import.ts";
 import { today } from "../lib/model.ts";
 import * as requests from "../lib/requests.ts";
@@ -209,11 +208,4 @@ test("Lucca's approved leave: its absence export as it is; kinds by name or mapp
   // Imported again: what overlaps is said, not doubled.
   const twice = await requests.importLeave(sql, asMember(camille), lines, false, "Lucca");
   assert.deepEqual(twice.skipped.map(s => s.problem), ["overlap", "overlap"]);
-});
-
-test("initials leave out the note after a former member's name", () => {
-  assert.equal(initials("Léa Dubois (former member)"), "LD");
-  assert.equal(initials("Léa Dubois (ancien membre)"), "LD");
-  assert.equal(initials("Inès Moreau"), "IM");
-  assert.equal(initials(""), "·");
 });

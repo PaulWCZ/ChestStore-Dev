@@ -60,13 +60,14 @@ export default async function NewRequest({ searchParams }: { searchParams: Promi
   const w = window(today());
   const choices = recordable.length > 0 ? [{ id: member.id, name: t.form.me }, ...recordable.map(id => ({ id, name: nameOf(names.get(id), locale) })).sort((a, b) => a.name.localeCompare(b.name, locale))] : null;
   return (
-    <main className="page narrow">
+    <div className="page narrow">
       <RequestForm
         key={who}
         types={list}
         rules={{ counting: s.counting, alsace: s.alsace, workedHolidays: s.workedHolidays }}
         workDays={me.workDays}
         first={first}
+        today={today()}
         earliest={w.earliest}
         latest={w.latest}
         locale={locale}
@@ -75,8 +76,8 @@ export default async function NewRequest({ searchParams }: { searchParams: Promi
         who={who}
         whoName={forSomeone ? nameOf(names.get(who), locale) : null}
         events={Object.entries(familyEvents).map(([key, days]) => ({ key, days, name: t.events[key as keyof typeof familyEvents] }))}
-        t={{ form: t.form, units: t.units, holidays: t.holidays, errors: t.errors, span: t.span }}
+        t={{ form: t.form, units: t.units, holidays: t.holidays, errors: t.errors, span: t.span, date: t.date, peoplePicker: t.peoplePicker }}
       />
-    </main>
+    </div>
   );
 }
