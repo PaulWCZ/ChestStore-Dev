@@ -728,6 +728,7 @@ await calendar.put({
 });                                                                        // {key, members, skipped}
 await calendar.put({ key: "leave:42", members: [who], title: { en: "Off", fr: "Absent" }, days: { first: "2026-10-12", last: "2026-10-16" }, private: true });
 await calendar.put({ key: "desk:2026-10-13", members: [who], title: "Office — desk D-12", days: { first: "2026-10-13", last: "2026-10-13" }, busy: false });
+await calendar.putMany(openTasks.map(eventOf));                           // Proposal (studio.15): 100 a call, [{key, members, skipped}] in order
 await calendar.remove("booking:981");                                     // gone from every feed; true if it was there
 const { events, next } = await calendar.list();                           // what the tool put, to reconcile
 // A link to the member's page: <a href={calendar.page}>See it in your calendar</a>   ("/_chest/calendar")
@@ -735,7 +736,7 @@ const { events, next } = await calendar.list();                           // wha
 
 | Field | Rules |
 |---|---|
-| `key` | The tool's name for it, 1 to 64 of `A-Z a-z 0-9 . _ : -`. Put again = replace (members too); `remove` = gone |
+| `key` | The tool's name for it, 1 to 64 of `A-Z a-z 0-9 . _ : -`. Put again = replace (members too); `remove` = gone. It names the event for as long as it lives (`list` says it back), so it is never hashed nor cut: a longer one is refused (`invalid_key`) — build it from ids |
 | `members` | 1 to 1,000 member ids; `skipped` says those without the tool (not kept) |
 | `title`, `description` | One text, or `{en, fr}`: the Chest writes each member's feed in **their** language (theirs, then English, then the first given) — one put for a meeting of people who read different languages. Titles 1–120 characters, descriptions 1,000, plain text |
 | `start`, `end` | Instants: a `Date`, or ISO 8601 **with** `Z` or an offset (a local time without a zone is refused); written in UTC |
@@ -744,6 +745,17 @@ const { events, next } = await calendar.list();                           // wha
 | `path` | A page of the tool under `/chest`, made absolute on its team host (never a free URL: no phishing link in someone's calendar) |
 | `busy` | `false`: shown free (`TRANSP:TRANSPARENT`: a desk day, a due date); busy by default |
 | `private` | `CLASS:PRIVATE`: a calendar shared with colleagues shows it as busy, without its words (a leave) |
+
+**`putMany(events)` (Proposal (studio.15)).** A first sync — every open
+task with a due date, every approved leave of the year — was one `put` per
+event against the 600 writes a minute. `putMany` checks every event first
+(one wrong event, or a key given twice: nothing sent), sends 100 a call,
+and answers each event's `{key, members, skipped}` in the order given. The
+Chest applies a batch whole or not at all — `QuotaExceeded` when its new
+keys would pass 5,000 events — and counts it as one write of the minute
+(`limits.perBatch`, `limits.perMinute`). Beyond 100, batches go one after
+the other: an error after the first leaves the earlier ones applied; put
+again, it is idempotent by key.
 
 **Decisions.** Titles per language, not rendered by the Chest from a
 template: the tool knows its words; the Chest only picks. `path`, not a
@@ -869,7 +881,7 @@ await events.handle(request, memberHandlers, { seen, tools: {
 
 | Export | Gives |
 |---|---|
-| `publish(type, data, {key?})` | `{id, receivers}`: `type` is `"<tool>.<name>"` of this tool, declared in `emits`; `data` a JSON object (16 KiB at most; people as member ids); the same `key` within 24 h is one event. `ChestError` `invalid_event`, `CapabilityNotGranted` (not declared, or no events between tools yet), `QuotaExceeded` (1,000 an hour) |
+| `publish(type, data, {key?})` | `{id, receivers}`: `type` is `"<tool>.<name>"` of this tool, declared in `emits`; `data` a JSON object (16 KiB at most; people as member ids); the same `key` within 24 h is one event — any text of 1 to 512 characters, never cut (a long one goes as its SHA-256, as `mail`'s; studio.15), and the same key with another type or other data is refused (`ChestError` `key_conflict`, 409), never answered with the first event. `ChestError` `invalid_event`, `CapabilityNotGranted` (not declared, or no events between tools yet), `QuotaExceeded` (1,000 an hour) |
 | `handle(request, handlers, {seen, tools})` | Also hands a received tool event `{id, type, source, occurredAt, data}` to `tools[type]`; a type without a handler is accepted and ignored |
 
 What the owner approves: for the publisher, "Tells other tools when a
@@ -1102,7 +1114,7 @@ Chest checks, formats, signs, delivers, retries and journals.
 | Export | Gives |
 |---|---|
 | `add({url, kind, label, owner?})` | A target: `{id: "whk_…", secret, target}`. `kind` `"generic"` (any https receiver: JSON, signed), `"slack"` (a Slack incoming webhook, `https://hooks.slack.com/services/…`) or `"teams"` (a Teams Workflows webhook, `https://….environment.api.powerplatform.com/powerautomate/automations/direct/workflows/…`). `owner`: the member who added it, or none (a subscriber of a public page). `secret` (`whsec_…`, generic only) is given once |
-| `send(ids, {event, text, data?, key})` | One delivery per target, queued: `{deliveries: [{id: "whd_…", target}], skipped: [{target, reason: "disabled" \| "not_found"}]}`. The same `key` within 24 hours answers the first deliveries and sends nothing |
+| `send(ids, {event, text, data?, key})` | One delivery per target, queued: `{deliveries: [{id: "whd_…", target}], skipped: [{target, reason: "disabled" \| "not_found"}]}`. The same `key` within 24 hours answers the first deliveries and sends nothing. Any key of 1 to 512 characters, never cut: a longer one than 64 of `A-Z a-z 0-9 . _ : -` goes as its SHA-256 (the journal shows that); the same key for another event is refused (`key_conflict`, nothing sent) — studio.15 |
 | `list()`, `remove(id)`, `enable(id)`, `rotateSecret(id)` | The targets with `state` (`active`, `disabled`), `status` of the last delivery (`delivered`, `failed`, `disabled`, null), `lastError`, `failures` in a row; the address shown without its query (generic) or its secret path (Slack, Teams). `enable` tries a disabled target again (a ping first); `rotateSecret` gives a new secret, the old one still signs for 24 hours |
 | `journal({target?, after?, limit?})` | Deliveries: `status` (`pending`, `retrying`, `delivered`, `failed`), `attempts`, `responseStatus`, `lastError`, `nextAttemptAt` — never the text or data |
 | `handle(request, {disabled})`, `verify(request)` | `webhook.disabled` `{id: "whe_…", target, reason: "failures" \| "gone", lastError}` on `POST /chest-webhooks`, signed `Chest-Webhooks` (HS256 under HMAC-SHA256("Chest-Webhooks v1") of `CHEST_TOKEN`, like `Chest-Check`), at least once |
@@ -1415,17 +1427,27 @@ await chest.close();
 | `fakeChest({settings: {company, currency, locale, publicUrl}})` | **Proposal (studio).** The Chest's settings (`chest`) in the environment while the fake runs; `CHEST_TEAM_URL` is the fake's origin |
 | `fakeChest({tools})`, `chest.tools`, `chest.installTool(name, addresses?)`, `chest.removeTool(name)` | **Proposal (studio).** The tools installed beside this one (`chest.toolUrl`), by name: `true` for a team host at `https://<name>-chest.chest.test`, or `{team?, public?}` origins (`public` an open public part, `team: null` none). This tool is always there, at the fake's origin and `settings.publicUrl`. `installTool` and `removeTool` rewrite `CHEST_TOOL_URLS` as the Chest does |
 | `fakeChest({theme, themeFiles})`, `chest.theme`, `chest.themeFiles` | **Proposal (studio).** The company's look at its two levels (`{all, tools}`), which `chest.theme()` answers resolved for the tool (`CHEST_TOOL`) with `max-age=0`; the files its front serves under `/_chest/theme/` |
-| `chest.former` | **Proposal (studio).** Those who left (`{id, name}`) or were erased (`{id, erased: true}`): what `members.lookup` answers "former" for. A test or a harness that removes a member from `chest.members` moves them here, as a real Chest would |
+| `chest.former` | **Proposal (studio).** Those who left (`{id, name, leftAt?}`) or were erased (`{id, erased: true, leftAt?}`): what `members.lookup` answers "former" for (`leftAt`, studio.15, when they left). A test or a harness that removes a member from `chest.members` moves them here, as a real Chest would, then calls `clearCaches()` |
+| `fakeChest({tool})` | **studio.15.** The tool's name (`chest.json` `name`) as `CHEST_TOOL` while the fake runs — what `events.publish` (`"<tool>.<name>"`), `member()` and the signatures read. Without it, the environment's `CHEST_TOOL`, or `"tool"` |
+| `chest.clearCaches()` | **studio.15.** Forgets what the process keeps of the Chest's answers — `members.lookup`'s minute, the theme — after a test changed `chest.members`, `chest.former` or `chest.theme` by hand (an event delivered with `emit` already empties lookup's) |
+| `fakeChest({network: {host: handler}})`, `chest.egress` | **studio.15.** The hosts the tool declares (`chest.json` `network`: `"graph.microsoft.com"`, `"*.icloud.com"`) and a handler of Web Requests answering each. While the fake runs, the tool's **plain `fetch()`**, unchanged, goes as through the Chest's egress proxy (see "`network`" above): a declared host to its handler (redirects followed through declared hosts, `AbortSignal` honoured); an undeclared name, an IP literal or a port other than 80/443 refused as the proxy refuses — `fetch` rejects with a `TypeError` for `https:`, answers 403 `Chest-Egress: refused; reason=…` for `http:`; `localhost`, `127.0.0.1` and `::1` (the fake's API, the tool's own test server) straight through. `chest.egress` lists each request `{method, url, status, refused?}`. It replaces `globalThis.fetch` (and gives it back on `close`) rather than setting the proxy variables: Node reads `NODE_USE_ENV_PROXY` only when it starts, and a test needs neither a proxy nor Node 24.5. `node:http(s).request` is not routed. Without `network`, `fetch` is left alone |
+| `chest.held` | **Proposal (studio.15).** What members' email preferences held back: `{id, member, reason: "none" \| "digest", subject, text}` (members take an optional `mailPreference`) |
 | `fakeChest({calendar})`, `chest.calendar`, `chest.feed(member)`, `chest.feedUrl(member)`, `chest.newFeedUrl(member)` | **Proposal (studio).** The calendar bridge (with `"calendar"` in `capabilities`): the events put, a member's feed as the Chest writes it, its secret address on the fake's front |
 | `fakeChest({groups: [{…, grants: false}], capabilities: [..., "groups"]})` | **Proposal (studio).** Groups that do not give the tool, seen only with `groups` (`groups.all`, `groups.members`, all of a member's groups); `emit` delivers `group.changed` and `group.removed` |
 | `chest.receive(message, to)`, `chest.bounce(messageId, to, options?)` | **Proposal (studio).** A message delivered to `POST <to>/chest-mail` as the Chest would (HTML cleaned, original stored, executables dropped, `thread`/`deliveredTo`, `authenticated`, `auto`); a sent message bounced (status, suppression, the bounce posted) |
 | `fakeChest({webhooks: {max, resolve?, deliver?, to?}})`, `chest.webhooks` | **Proposal (studio).** The webhook targets the tool added, the deliveries (bodies and signatures as sent), the `webhook.disabled` events; `respond(target, answer)` makes a receiver fail, `retry()` plays the retries (see `webhooks`) |
-| `chest.close()` | Stops it and restores the environment |
+| `chest.close()` | Stops it and restores the environment (and `fetch`) |
 
 ## Version
 
 The package version is `version` in `package.json` (semver), published by a
-tag `vX.Y.Z` (see `PUBLISHING.md`).
+tag `vX.Y.Z` (see `PUBLISHING.md`). This working copy is
+`0.3.0-studio.15`: studio.15 fixed idempotency keys (never cut; long ones
+hashed; a key reused for something else refused with `key_conflict`),
+added `fakeChest({tool, network})`, `chest.clearCaches()`, and the
+proposals `members.matchEmails`, `calendar.putMany`, `FormerMember.leftAt`
+and the members' email preference (`member.mailPreference`,
+`mail.send({transactional})`).
 
 ## The MCP server
 

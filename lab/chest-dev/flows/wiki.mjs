@@ -784,5 +784,35 @@ await step("round 3: a reader's empty space names who can write in it", async ()
   expect(note.includes("To add pages here, ask") && note.includes("Tom Walker"), "names the editors: " + note);
 });
 
+await step("round 3: “My pages” — a reader writes a private page; nobody else sees it, not even an administrator", async () => {
+  await as(context, origin, "hugo");
+  await context.addCookies([{ name: "dev_locale", value: "en", url: origin }]);
+  await page.goto(origin + "/chest");
+  await page.getByRole("button", { name: "New private page" }).first().click();
+  await page.waitForFunction(() => document.activeElement?.id === "new-page-title");
+  await page.keyboard.type("My questions for the review");
+  await page.keyboard.press("Enter");
+  await page.waitForURL(/\/chest\/pages\/\d+\/edit(\?new=1)?$/u);
+  const url = page.url().replace(/\/edit(\?new=1)?$/u, "");
+  await page.locator(".ProseMirror").waitFor();
+  await page.waitForFunction(() => document.activeElement?.classList.contains("ProseMirror"));
+  await page.keyboard.type("PRIVATEWORD: ask about training days.");
+  await page.waitForSelector(".save-status:has-text('Draft saved')", { timeout: 8000 });
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await page.waitForURL(u => u.href.startsWith(url) && !u.pathname.endsWith("/edit"));
+  await page.locator(".prose").waitFor();
+  expect((await page.locator("main").innerText()).includes("Only you see this page. To share it, move it to a space."), "said on the page");
+  expect(await page.locator(".sidebar").getByRole("link", { name: "My pages" }).isVisible(), "in the sidebar");
+  expect(await page.locator(".sidebar").getByRole("button", { name: "New private page" }).count() === 0, "no second “My pages”");
+  await page.goto(origin + "/chest/search?q=PRIVATEWORD");
+  expect((await page.locator(".result-title").first().innerText()) === "My questions for the review", "Hugo finds it");
+  for (const who of ["camille", "tom", "lea"]) {
+    await as(context, origin, who);
+    expect((await page.request.get(url)).status() === 404, who + " gets “not found”");
+    await page.goto(origin + "/chest/search?q=PRIVATEWORD");
+    expect(await page.locator(".result-title").count() === 0, who + " finds nothing");
+  }
+});
+
 await browser.close();
 done(problems);

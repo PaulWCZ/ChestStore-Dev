@@ -21,7 +21,9 @@ export function HistoryBar({ id, name, days, uptime, since = null, measured = nu
   // beside it, so "100 %" never stands alone next to yellow ticks.
   const slower = days.filter(d => d.state === "degraded").length;
   const slowerText = slower > 0 ? plural(w.slowerDays, slower, locale) : null;
-  const summary = `${format(since ? w.historySince : w.historyLabel, { component: name, uptime: uptimeText, date })}${slowerText ? ` ${slowerText}.` : ""} ${since && bad.length === 0 ? format(w.noIncidentSince, { date }) : plural(w.daysWithIncidents, bad.length, locale)}`;
+  // The sentence says "since" once: the figure alone after it.
+  const plainUptime = uptime === null ? w.noUptime : format(measured ? w.uptimeDeclared : w.uptime, { percent: percent(uptime, locale) });
+  const summary = `${format(since ? w.historySince : w.historyLabel, { component: name, uptime: since ? plainUptime : uptimeText, date })}${slowerText ? ` ${slowerText}.` : ""} ${since && bad.length === 0 ? format(w.noIncidentSince, { date }) : plural(w.daysWithIncidents, bad.length, locale)}`;
   return (
     <div className="history">
       <p className="visually-hidden">{summary}</p>
