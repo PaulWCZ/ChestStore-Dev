@@ -29,7 +29,7 @@ export default async function InventoryPage() {
       <div className="page-head">
         <div>
           <h1>{t.inventory.title}</h1>
-          <p className="muted">{now ? format(t.inventory.started, { date: date(now.inventory.startedAt), name: nameOf(names.get(now.inventory.startedBy), locale) }) : t.inventory.intro}</p>
+          {now && <p className="muted">{format(t.inventory.started, { date: date(now.inventory.startedAt), name: nameOf(names.get(now.inventory.startedBy), locale) })}</p>}
         </div>
       </div>
       <InventoryView

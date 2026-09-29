@@ -73,5 +73,7 @@ export function fileSize(bytes: number, locale: Locale): string {
   for (const [unit, size] of units) {
     if (bytes >= size) return new Intl.NumberFormat(intl(locale), { style: "unit", unit, unitDisplay: "short", maximumFractionDigits: bytes >= 10 * size ? 0 : 1 }).format(bytes / size);
   }
-  return new Intl.NumberFormat(intl(locale), { style: "unit", unit: "byte", unitDisplay: "short" }).format(bytes);
+  // Bytes in words ("193 bytes", "193 octets"): the short style writes
+  // "193 byte" in English.
+  return new Intl.NumberFormat(intl(locale), { style: "unit", unit: "byte", unitDisplay: "long" }).format(bytes);
 }

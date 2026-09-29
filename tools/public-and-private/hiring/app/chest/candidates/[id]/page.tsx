@@ -111,7 +111,7 @@ export default async function CandidatePage({ params }: { params: Promise<{ id: 
             languageName={languageNames[c.language] ?? c.language}
             locale={locale}
             write={{ templates: [...builtIn, ...own.map(x => ({ id: x.id, name: x.name, language: x.language, subject: x.subject, body: x.body }))], values, languageNames }}
-            interview={{ people: eligible.map(m => ({ id: m.id, name: m.name })), preselected: [member.id], today, zone: zone.split("/").at(-1)?.replace(/_/gu, " ") ?? zone }}
+            interview={{ people: eligible.map(m => ({ id: m.id, name: m.name })), preselected: [member.id], today, zone: zone.split("/").at(-1)?.replace(/_/gu, " ") ?? zone, zoneId: zone }}
             jobs={otherJobs.map(j => ({ id: String(j.id), title: j.title }))}
             t={{ candidate: tc, reject: t.reject, errors: t.errors, common: t.common, apply: t.apply, board: t.board, hire: t.hire, write: t.write, interview: t.interview }}
           />
@@ -165,6 +165,7 @@ export default async function CandidatePage({ params }: { params: Promise<{ id: 
               <Conversation
                 messages={mails.map(m => ({ ...m, authorName: m.author ? name(m.author) : m.kind === "confirmation" ? t.write.automatic : "", when: formatDate(m.createdAt, locale, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) }))}
                 candidate={{ name: c.name, email: c.email }}
+                locale={locale}
                 t={{ write: t.write }}
               />
             </section>

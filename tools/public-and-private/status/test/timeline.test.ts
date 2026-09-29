@@ -63,13 +63,13 @@ test("each day shows its worst state and its incidents; before the component exi
   assert.equal(d.at(-11)!.state, "operational");
 });
 
-test("uptime: a major outage counts fully, a partial one half, degraded and maintenance not at all", () => {
+test("uptime, Statuspage's rule: a major outage counts fully, a partial one for 30 %, degraded and maintenance not at all", () => {
   const created = now - 200 * 86400000;
   const window = now - lastDays(now, zone, 90)[0]!.from;
   const major = incident("1", [{ at: now - 10 * H, status: "investigating", states: { a: "major" } }], now - 8 * H);
   assert.ok(Math.abs(uptime("a", created, spans([major], now), now, zone)! - (1 - 2 * H / window) * 100) < 1e-9);
   const partial = incident("2", [{ at: now - 10 * H, status: "investigating", states: { a: "partial" } }], now - 8 * H);
-  assert.ok(Math.abs(uptime("a", created, spans([partial], now), now, zone)! - (1 - H / window) * 100) < 1e-9);
+  assert.ok(Math.abs(uptime("a", created, spans([partial], now), now, zone)! - (1 - 0.3 * 2 * H / window) * 100) < 1e-9);
   const degraded = incident("3", [{ at: now - 10 * H, status: "investigating", states: { a: "degraded" } }], now - 8 * H);
   assert.equal(uptime("a", created, spans([degraded], now), now, zone), 100);
   // Two incidents at once never count twice.

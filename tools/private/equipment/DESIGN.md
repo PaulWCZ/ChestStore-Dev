@@ -54,6 +54,16 @@ with reduced motion.
   people picker, dialog (native `<dialog>`), "More" menu, toast with *Undo*,
   empty states with one action. 44 px targets; 3 px focus ring.
 
+- **Receipt band** — a strip with a left rule under the holder: orange
+  tape and soft orange while it waits for "I received it", stock-green
+  once confirmed; the card of My equipment waiting for it wears the same
+  orange outline and a *To confirm* stamp.
+- **Printed forms** (handover and return sheets) — plain black on white
+  paper, IBM Plex, a rule under the head, a table of items, the rules in a
+  box, two signature boxes; the steel bar and the tape never print.
+- **Scan box** — the inventory's one wide monospaced field that keeps the
+  focus for a barcode scanner, with a progress meter above it.
+
 ## Icon
 
 `chest/icon.svg`: an orange asset tag with its hole and three printed lines,

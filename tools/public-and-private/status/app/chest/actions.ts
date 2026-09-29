@@ -12,7 +12,10 @@ import { flush } from "../../lib/mailer.ts";
 import { moment, worst, type Impact } from "../../lib/model.ts";
 import { currentMember } from "../../lib/session.ts";
 import { setChecksState } from "../../lib/settings.ts";
+import { headers } from "next/headers";
+import * as heartbeats from "../../lib/heartbeats.ts";
 import { savePageSettings } from "../../lib/page-settings.ts";
+import { publicOrigin } from "../../lib/public-origin.ts";
 import * as subscribers from "../../lib/subscribers.ts";
 import * as templates from "../../lib/templates.ts";
 import * as tell from "../../lib/tell.ts";
@@ -244,4 +247,18 @@ export async function removeTemplate(templateId: string): Promise<Result> {
 
 export async function savePage(input: { website: string; support: string; embedSites: string }): Promise<Result> {
   return act(async actor => { await savePageSettings(db(), actor, input); return null; });
+}
+
+// ---- Heartbeats ------------------------------------------------------------
+
+// A new secret address for a service's job, shown once.
+export async function createHeartbeat(componentId: string, every: number): Promise<Result<{ url: string }>> {
+  return act(async actor => {
+    const { token } = await heartbeats.createHeartbeat(db(), actor, componentId, every);
+    return { url: `${publicOrigin(await headers()) ?? ""}/heartbeat/${token}` };
+  });
+}
+
+export async function removeHeartbeat(componentId: string): Promise<Result> {
+  return act(async actor => { await heartbeats.removeHeartbeat(db(), actor, componentId); return null; });
 }

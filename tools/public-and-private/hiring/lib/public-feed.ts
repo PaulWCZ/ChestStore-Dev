@@ -1,7 +1,7 @@
 import * as files from "@argentic/chest-sdk/files";
 import { headers } from "next/headers";
 import type { Sql } from "./db.ts";
-import { salaryText } from "./facts.ts";
+import { salaryText, type Salary } from "./facts.ts";
 import { catalogue, isLocale } from "./i18n/index.ts";
 import { publicJobs, settings, type PublicJob, type Settings } from "./jobs.ts";
 import { publicOrigin } from "./public-origin.ts";
@@ -25,7 +25,7 @@ export function companyOf(s: Settings, origin: string): Company {
 // A job's salary in its own language, as its page writes it.
 export function salaryWords(j: ReachJob): string {
   const locale = isLocale(j.language) ? j.language : "en";
-  return j.salary ? salaryText(j.salary, catalogue(locale).facts, locale) : "";
+  return j.salary ? salaryText(j.salary as Salary, catalogue(locale).facts, locale) : "";
 }
 
 export const xml = (body: string, type = "application/xml") => new Response(body, { headers: { "Content-Type": `${type}; charset=utf-8`, "Cache-Control": "public, max-age=600" } });

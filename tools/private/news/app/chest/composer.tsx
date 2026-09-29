@@ -95,6 +95,10 @@ export function Composer({ postId, initial, author, people, groups, languages, m
     }
   }, [d, later, postId]);
 
+  // Running in the browser, its draft read: what it shows can be acted on.
+  const [ready, setReady] = useState(false);
+  useEffect(() => { setReady(true); }, []);
+
   function forget() {
     try { localStorage.removeItem(draftKey); } catch { /* nothing kept */ }
   }
@@ -231,7 +235,7 @@ export function Composer({ postId, initial, author, people, groups, languages, m
   const eventDraft = d.event ?? { day: defaults.day, lastDay: "", start: "", end: "", place: "", seats: "" };
   const setEvent = (patch: Partial<typeof eventDraft>) => update({ event: { ...eventDraft, ...patch } });
   return (
-    <form className="composer" onSubmit={e => { e.preventDefault(); void save(); }} onKeyDown={e => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); void save(); } }} noValidate>
+    <form className="composer" data-ready={ready ? "" : undefined} onSubmit={e => { e.preventDefault(); void save(); }} onKeyDown={e => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); void save(); } }} noValidate>
       <div className="composer-head">
         <h1>{postId === null ? w.newTitle : w.editTitle}</h1>
         {restored && (

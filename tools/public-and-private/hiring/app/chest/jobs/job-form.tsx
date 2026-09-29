@@ -2,21 +2,24 @@
 
 import { useRouter } from "next/navigation";
 import { useRef, useState, useTransition } from "react";
-import { Bold, Heading, List } from "../../../components/icons.tsx";
+import { Bin, Bold, Heading, List, Plus } from "../../../components/icons.tsx";
 import { RichText } from "../../../components/rich-text.tsx";
 import { useToast } from "../../../components/toast.tsx";
 import { format, languageNames } from "../../../lib/i18n/format.ts";
 import type { Catalogue } from "../../../lib/i18n/index.ts";
 import type { Job } from "../../../lib/jobs.ts";
-import { contracts, currencies, languages, limits, periods, remotes } from "../../../lib/model.ts";
+import { contracts, currencies, hoursKinds, languages, limits, periods, questionKinds, remotes, type Question, type QuestionKind } from "../../../lib/model.ts";
 import { createJob, updateJob } from "../actions.ts";
 
 type Words = { jobForm: Catalogue["jobForm"]; facts: Catalogue["facts"]; errors: Catalogue["errors"] };
+// A question as the editor holds it: its options one per line.
+type Draft = { id: string; kind: QuestionKind; label: string; options: string; required: boolean };
+const toDraft = (q: Question): Draft => ({ id: q.id, kind: q.kind, label: q.label, options: q.options.join("\n"), required: q.required });
 
 // Writing a job: the facts a candidate looks for first, the description
 // (a few marks anyone can type, a preview), the salary. A new job is saved
 // as a draft: nothing is public until "Publish" on its board.
-export function JobForm({ job, defaultLanguage, t }: { job: Job | null; defaultLanguage: string; t: Words }) {
+export function JobForm({ job, defaultLanguage, defaultCountry, countryNames, t }: { job: Job | null; defaultLanguage: string; defaultCountry: string; countryNames: [string, string][]; t: Words }) {
   const router = useRouter();
   const toast = useToast();
   const [pending, start] = useTransition();
@@ -24,7 +27,9 @@ export function JobForm({ job, defaultLanguage, t }: { job: Job | null; defaultL
   const [description, setDescription] = useState(job?.description ?? "");
   const [tab, setTab] = useState<"write" | "preview">("write");
   const area = useRef<HTMLTextAreaElement>(null);
+  const [questions, setQuestions] = useState<Draft[]>(() => (job?.questions ?? []).map(toDraft));
   const w = t.jobForm;
+  const change = (i: number, patch: Partial<Draft>) => setQuestions(list => list.map((q, k) => (k === i ? { ...q, ...patch } : q)));
 
   // The toolbar writes the marks around the selection, as one would type them.
   function mark(kind: "bold" | "list" | "heading") {
@@ -66,6 +71,12 @@ export function JobForm({ job, defaultLanguage, t }: { job: Job | null; defaultL
       salaryCurrency: String(data.get("salaryCurrency") ?? ""),
       salaryPeriod: String(data.get("salaryPeriod") ?? ""),
       salaryShown: data.get("salaryShown") === "on",
+      country: String(data.get("country") ?? ""),
+      postalCode: String(data.get("postalCode") ?? ""),
+      street: String(data.get("street") ?? ""),
+      hours: String(data.get("hours") ?? ""),
+      closesOn: String(data.get("closesOn") ?? ""),
+      questions: questions.map(q => ({ id: q.id, kind: q.kind, label: q.label, options: q.options.split("\n").map(o => o.trim()).filter(Boolean), required: q.required })),
     };
     start(async () => {
       const result = job ? await updateJob(job.id, input) : await createJob(input);
@@ -100,7 +111,7 @@ export function JobForm({ job, defaultLanguage, t }: { job: Job | null; defaultL
         </div>
       </div>
       <p className="hint tight" id="language-hint">{w.languageHint}</p>
-      <div className="two">
+      <div className="three">
         <div className="field-block">
           <label className="label" htmlFor="contract">{w.contract}</label>
           <select id="contract" name="contract" className="field" defaultValue={job?.contract ?? "permanent"}>
@@ -113,7 +124,33 @@ export function JobForm({ job, defaultLanguage, t }: { job: Job | null; defaultL
             {remotes.map(r => <option key={r} value={r}>{t.facts.remote[r]}</option>)}
           </select>
         </div>
+        <div className="field-block">
+          <label className="label" htmlFor="hours">{w.hours}</label>
+          <select id="hours" name="hours" className="field" defaultValue={job?.hours ?? "full_time"}>
+            {hoursKinds.map(h => <option key={h} value={h}>{t.facts.hours[h]}</option>)}
+          </select>
+        </div>
       </div>
+      <fieldset className="salary">
+        <legend className="label">{w.address}</legend>
+        <p className="hint tight-top">{w.addressHint}</p>
+        <div className="address-row">
+          <div className="field-block">
+            <label className="small-label" htmlFor="street">{w.street} <span className="optional">{w.optional}</span></label>
+            <input id="street" name="street" className="field" maxLength={limits.street} defaultValue={job?.street ?? ""} autoComplete="off" />
+          </div>
+          <div className="field-block">
+            <label className="small-label" htmlFor="postalCode">{w.postalCode}</label>
+            <input id="postalCode" name="postalCode" className="field" maxLength={limits.postalCode} defaultValue={job?.postalCode ?? ""} autoComplete="off" />
+          </div>
+          <div className="field-block">
+            <label className="small-label" htmlFor="country">{w.country}</label>
+            <select id="country" name="country" className="field" defaultValue={job?.country ?? defaultCountry}>
+              {countryNames.map(([code, name]) => <option key={code} value={code}>{name}</option>)}
+            </select>
+          </div>
+        </div>
+      </fieldset>
 
       <div className="field-block">
         <div className="editor-head">
@@ -137,6 +174,38 @@ export function JobForm({ job, defaultLanguage, t }: { job: Job | null; defaultL
         )}
         <p className="hint" id="description-hint">{w.descriptionHint}</p>
       </div>
+
+      <fieldset className="salary questions-editor">
+        <legend className="label">{w.questions} <span className="optional">{w.optional}</span></legend>
+        <p className="hint tight-top">{w.questionsHint}</p>
+        {questions.map((q, i) => (
+          <div key={q.id || i} className="question-row">
+            <div className="question-top">
+              <div className="field-block grow">
+                <label className="small-label" htmlFor={`q-label-${i}`}>{w.question} {i + 1}</label>
+                <input id={`q-label-${i}`} className="field" required maxLength={limits.questionLabel} value={q.label} onChange={e => change(i, { label: e.target.value })} placeholder={w.questionPlaceholder} />
+              </div>
+              <div className="field-block">
+                <label className="small-label" htmlFor={`q-kind-${i}`}>{w.answerKind}</label>
+                <select id={`q-kind-${i}`} className="field" value={q.kind} onChange={e => change(i, { kind: e.target.value as QuestionKind })}>
+                  {questionKinds.map(k => <option key={k} value={k}>{w.kinds[k]}</option>)}
+                </select>
+              </div>
+              <button type="button" className="icon-button" onClick={() => setQuestions(list => list.filter((_, k) => k !== i))} title={w.removeQuestion}><Bin /><span className="visually-hidden">{w.removeQuestion} {i + 1}</span></button>
+            </div>
+            {q.kind === "choice" && (
+              <div className="field-block">
+                <label className="small-label" htmlFor={`q-options-${i}`}>{w.options}</label>
+                <textarea id={`q-options-${i}`} className="field" rows={3} value={q.options} onChange={e => change(i, { options: e.target.value })} placeholder={w.optionsPlaceholder} />
+              </div>
+            )}
+            <label className="check"><input type="checkbox" checked={q.required} onChange={e => change(i, { required: e.target.checked })} /><span>{w.required}</span></label>
+          </div>
+        ))}
+        {questions.length < limits.questions && (
+          <button type="button" className="button quiet small" onClick={() => setQuestions(list => [...list, { id: "", kind: "yesno", label: "", options: "", required: false }])}><Plus />{w.addQuestion}</button>
+        )}
+      </fieldset>
 
       <fieldset className="salary">
         <legend className="label">{w.salary}</legend>
@@ -168,6 +237,12 @@ export function JobForm({ job, defaultLanguage, t }: { job: Job | null; defaultL
         </label>
         <p className="hint">{w.salaryHint}</p>
       </fieldset>
+
+      <div className="field-block">
+        <label className="label" htmlFor="closesOn">{w.closesOn} <span className="optional">{w.optional}</span></label>
+        <input id="closesOn" name="closesOn" type="date" className="field short" defaultValue={job?.closesOn ?? ""} aria-describedby="closes-hint" />
+        <p className="hint" id="closes-hint">{w.closesOnHint}</p>
+      </div>
 
       {error && <p className="error" role="alert">{error}</p>}
       <div className="form-actions">

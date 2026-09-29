@@ -192,6 +192,9 @@ export function Comments({ id, thread, canModerate, me, t, errors, locale, you }
     return list.map(x => (x.id === c.id ? { ...x, raw: c.raw, pieces: c.pieces, edited: true } : x));
   });
   const [replyTo, setReplyTo] = useState<string | null>(null);
+  // Running in the browser: its buttons answer.
+  const [ready, setReady] = useState(false);
+  useEffect(() => { setReady(true); }, []);
   const [editing, setEditing] = useState<string | null>(null);
 
   function send(body: string, chosen: Map<string, string>, parentId: string | null): boolean {
@@ -249,7 +252,7 @@ export function Comments({ id, thread, canModerate, me, t, errors, locale, you }
   );
 
   return (
-    <section className="comments" id="comments" aria-labelledby="comments-title">
+    <section className="comments" id="comments" aria-labelledby="comments-title" data-ready={ready ? "" : undefined}>
       <h2 id="comments-title">{plural(t.title, shown.length, locale)}</h2>
       {shown.length === 0 && <p className="quiet-text">{t.empty}</p>}
       <ol className="thread">

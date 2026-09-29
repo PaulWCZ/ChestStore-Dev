@@ -6,6 +6,7 @@ import { StateLabel } from "../../components/state.tsx";
 import { phaseOf, stepOf } from "../../components/incident-card.tsx";
 import { checkError } from "../../lib/check-words.ts";
 import { statuses } from "../../lib/checks.ts";
+import { listHeartbeats } from "../../lib/heartbeats.ts";
 import { db } from "../../lib/db.ts";
 import { format, relative, stamp } from "../../lib/i18n/index.ts";
 import { pass } from "../../lib/jobs.ts";
@@ -32,6 +33,7 @@ export default async function Overview() {
   // too); "What your customers see" is the public page's own view.
   const [view, customers] = await Promise.all([statusView(sql, zone, now, { team: true }), statusView(sql, zone, now)]);
   const down = [...(await statuses(sql)).values()].filter(s => s.downSince);
+  const silent = (await listHeartbeats(sql)).filter(b => b.downSince);
   const componentName = (id: string) => view.entries.flatMap(e => (e.self ? [e.self] : e.children)).find(c => c.id === id)?.name ?? "";
   const publicHome = publicOrigin(await headers()) ?? "";
   const when = (d: Date) => stamp(d, zone, locale, now);
@@ -61,9 +63,16 @@ export default async function Overview() {
         </div>
       ) : (
         <>
-          {down.length > 0 && (
+          {down.length + silent.length > 0 && (
             <section aria-labelledby="checks-title" className="stack">
               <h2 id="checks-title" className="section-title">{t.checks.nowTitle}</h2>
+              {silent.map(b => (
+                <div key={`h-${b.componentId}`} id={`heartbeat-${b.componentId}`} className="alert" role="status">
+                  <strong>{format(t.heartbeats.nowDown, { component: componentName(b.componentId), time: stamp(b.downSince!, zone, locale, now) })}</strong>
+                  <p className="muted">{t.checks.nowHint}</p>
+                  <div className="actions"><a className="button" href={`/chest/incidents/new?component=${b.componentId}`}>{t.checks.openIncident}</a></div>
+                </div>
+              ))}
               {down.map(d => (
                 <div key={d.componentId} id={`check-${d.componentId}`} className="alert" role="status">
                   <strong>{format(t.checks.nowDown, { component: componentName(d.componentId), time: stamp(d.downSince!, zone, locale, now), error: checkError(t.checks, d.last?.error ?? null, d.last?.status ?? null, d.last?.ms ?? 0) })}</strong>

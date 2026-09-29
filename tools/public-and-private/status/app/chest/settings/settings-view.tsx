@@ -69,8 +69,10 @@ export function SettingsView({ origin, settings, branded, templates, t }: { orig
       setImporting(false);
     }
   };
-  const badge = `<a href="${origin}/"><img src="${origin}/badge.svg" alt="${w.badgeAlt}" height="20"></a>`;
-  const frame = `<iframe src="${origin}/embed" title="${t.widget}" height="64" style="width:100%;max-width:480px;border:0"></iframe>`;
+  // HTML to paste elsewhere; the words in it are the editor's language.
+  const quote = (value: string) => `"${value.replace(/&/gu, "&amp;").replace(/"/gu, "&quot;")}"`;
+  const badge = `<a href=${quote(origin + "/")}><img src=${quote(origin + "/badge.svg")} alt=${quote(w.badgeAlt!)} height="20"></a>`;
+  const frame = `<iframe src=${quote(origin + "/embed")} title=${quote(t.widget)} height="64" style="width:100%;max-width:480px;border:0"></iframe>`;
   return (
     <>
       <section className="card pad stack" aria-labelledby="links-title">

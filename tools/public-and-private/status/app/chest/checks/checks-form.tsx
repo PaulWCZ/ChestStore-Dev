@@ -4,17 +4,24 @@ import { useState } from "react";
 import { useToast } from "../../../components/toast.tsx";
 import { useRun } from "../../../components/use-run.ts";
 import type { ErrorCode } from "../../../lib/app-error.ts";
-import { format } from "../../../lib/i18n/format.ts";
+import { format, plural } from "../../../lib/i18n/format.ts";
 import { saveChecks } from "../actions.ts";
 
 // One line per service: the address to check (empty: not checked), how
 // often, the expected answer and when it is too slow. One button saves
 // them all, and hands the list to the Chest.
 export type CheckRow = { componentId: string; name: string; group: string | null; url: string; every: number; expectStatus: number; maxMs: number; standing: string; tone: string };
-type Words = { checks: Record<string, string>; errors: Record<ErrorCode, string> };
+type Words = { checks: Record<string, string>; seconds: { one: string; other: string }; errors: Record<ErrorCode, string> };
 
-export function ChecksForm({ rows, everyChoices, limit, t }: { rows: CheckRow[]; everyChoices: { value: number; label: string }[]; limit: string; t: Words }) {
+// The answers a page usually gives, in words; the seconds after which it
+// is too slow. A value saved before (any HTTP status, any time) stays offered.
+const answers = [200, 204, 301, 302, 401];
+const seconds = [1, 2, 3, 5, 10, 20, 30];
+
+export function ChecksForm({ rows, everyChoices, limit, locale, t }: { rows: CheckRow[]; everyChoices: { value: number; label: string }[]; limit: string; locale: string; t: Words }) {
   const w = t.checks;
+  const answerWord = (status: number) => w[`status${status}`] ?? format(w.statusOther!, { status });
+  const secondsWord = (ms: number) => plural(t.seconds, ms / 1000, locale);
   const toast = useToast();
   const { run, pending } = useRun(t.errors);
   const [values, setValues] = useState(rows);
@@ -47,11 +54,15 @@ export function ChecksForm({ rows, everyChoices, limit, t }: { rows: CheckRow[];
                   </div>
                   <div>
                     <label className="label small-label" htmlFor={`status-${r.componentId}`}>{w.status}</label>
-                    <input id={`status-${r.componentId}`} className="field narrow-field" type="number" min={100} max={599} value={r.expectStatus} onChange={e => set(i, { expectStatus: Number(e.target.value) })} />
+                    <select id={`status-${r.componentId}`} className="field" value={r.expectStatus} onChange={e => set(i, { expectStatus: Number(e.target.value) })}>
+                      {[...new Set([...answers, r.expectStatus])].map(s => <option key={s} value={s}>{answerWord(s)}</option>)}
+                    </select>
                   </div>
                   <div>
                     <label className="label small-label" htmlFor={`ms-${r.componentId}`}>{w.maxMs}</label>
-                    <input id={`ms-${r.componentId}`} className="field narrow-field" type="number" min={100} max={30000} step={100} value={r.maxMs} onChange={e => set(i, { maxMs: Number(e.target.value) })} />
+                    <select id={`ms-${r.componentId}`} className="field" value={r.maxMs} onChange={e => set(i, { maxMs: Number(e.target.value) })}>
+                      {[...new Set([...seconds.map(n => n * 1000), r.maxMs])].sort((a, b) => a - b).map(ms => <option key={ms} value={ms}>{secondsWord(ms)}</option>)}
+                    </select>
                   </div>
                 </>
               )}

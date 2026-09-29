@@ -23,6 +23,9 @@ export function Toasts({ children }: { children: ReactNode }) {
     setToasts(list => [...list.slice(-2), { id, text, ...(action ? { action } : {}), options }]);
   }, []);
   const close = useCallback((id: number) => setToasts(list => list.filter(t => t.id !== id)), []);
+  // The page runs in the browser: its buttons answer (browser tests wait
+  // for this rather than for a time).
+  useEffect(() => { document.documentElement.dataset["hydrated"] = ""; }, []);
   return (
     <Context.Provider value={show}>
       {children}

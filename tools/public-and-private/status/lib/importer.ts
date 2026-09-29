@@ -46,9 +46,9 @@ const incidentSteps = new Set(["investigating", "identified", "monitoring", "res
 function bounded(value: unknown, max: number, multiline: boolean, fallback: string): string {
   const raw = [...text(value)].slice(0, max).join("");
   try {
-    return clean(raw, max, { multiline });
+    return clean(raw, max, { multiline, optional: fallback === "" });
   } catch {
-    return clean(fallback, max, { multiline });
+    return clean(fallback, max, { multiline, optional: true });
   }
 }
 

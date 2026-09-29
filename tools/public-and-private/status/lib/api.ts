@@ -1,5 +1,4 @@
 import { createHash } from "node:crypto";
-import { headers } from "next/headers";
 import * as chest from "@argentic/chest-sdk/chest";
 import { db, type Query } from "./db.ts";
 import { catalogue } from "./i18n/index.ts";
@@ -169,9 +168,7 @@ function maintenanceStep(u: Update, i: Incident): string {
   return u.status;
 }
 
-async function context(sql: Query, now: Date): Promise<Context> {
-  const origin = publicOrigin(await headers()) ?? "";
-  await rememberPublicOrigin(sql, origin || null);
+async function context(sql: Query, now: Date, origin: string): Promise<Context> {
   const zone = chest.timeZone();
   const [view, rows, touches] = await Promise.all([
     statusView(sql, zone, now),
@@ -201,10 +198,11 @@ function statusOf(c: Context) {
 
 export type Endpoint = "summary" | "status" | "components" | "incidents" | "unresolved" | "maintenances" | "upcoming" | "active";
 
-// The body of one endpoint.
-export async function api(endpoint: Endpoint, now = new Date()): Promise<unknown> {
+// The body of one endpoint; origin: the public page's address.
+export async function api(endpoint: Endpoint, options: { origin: string; now?: Date }): Promise<unknown> {
   const sql = db();
-  const c = await context(sql, now);
+  const now = options.now ?? new Date();
+  const c = await context(sql, now, options.origin);
   const page = pageOf(c);
   const components = componentsOf(c);
   if (endpoint === "status") return { page, status: statusOf(c) };
@@ -237,8 +235,10 @@ export const apiHeaders = {
 
 export function apiRoute(endpoint: Endpoint) {
   return {
-    async GET(): Promise<Response> {
-      return new Response(JSON.stringify(await api(endpoint)), { headers: apiHeaders });
+    async GET(request: Request): Promise<Response> {
+      const origin = publicOrigin(request.headers) ?? "";
+      await rememberPublicOrigin(db(), origin || null);
+      return new Response(JSON.stringify(await api(endpoint, { origin })), { headers: apiHeaders });
     },
     OPTIONS(): Response {
       return new Response(null, { status: 204, headers: { ...apiHeaders, "Access-Control-Allow-Headers": "Content-Type", "Content-Type": "text/plain" } });

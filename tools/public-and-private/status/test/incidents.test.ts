@@ -69,7 +69,7 @@ test("an incident is refused without an editor, a title, a component, a known co
   await refuses("invalid", () => incidents.openIncident(sql, editor, { ...good, states: { [String(group!.id)]: "major" } }));
 });
 
-test("updates keep the components as they were unless told; resolving sets everything back; posting again reopens", async () => {
+test("updates keep the components as they were unless told; resolving sets everything back; reopening takes an explicit reopen", async () => {
   const { sql } = database;
   const t0 = new Date(Date.now() - 3 * 3600000);
   const { incidentId } = await incidents.openIncident(sql, editor, { title: "Slow checkout", status: "investigating", body: "Slow.", states: { [checkout]: "partial" } }, t0);
@@ -89,7 +89,11 @@ test("updates keep the components as they were unless told; resolving sets every
   const view = await statusView(sql, zone);
   assert.equal(view.overall, "operational");
   assert.equal(view.recent.length, 1);
-  const again = await incidents.addUpdate(sql, editor, incidentId, { status: "investigating", body: "It is back." });
+  // A step posted to a resolved incident is refused: a slip must not reopen
+  // it and email every subscriber. Resolving it again is refused too.
+  await refuses("already_resolved", () => incidents.addUpdate(sql, editor, incidentId, { status: "investigating", body: "It is back." }));
+  await refuses("already_resolved", () => incidents.addUpdate(sql, editor, incidentId, { status: "resolved", body: "Again.", reopen: true }));
+  const again = await incidents.addUpdate(sql, editor, incidentId, { status: "investigating", body: "It is back.", reopen: true });
   assert.equal(again.reopened, true);
   i = await incidents.incidentFor(sql, editor, incidentId);
   assert.equal(i.status, "investigating");

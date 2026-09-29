@@ -4,7 +4,7 @@ import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
 import * as candidates from "../lib/candidates.ts";
 import * as jobs from "../lib/jobs.ts";
 import { testDatabase, type TestDatabase } from "./support/db.ts";
-import { application, openJob, stageNames } from "./support/fixtures.ts";
+import { application, label, openJob } from "./support/fixtures.ts";
 import { asMember } from "./support/member.ts";
 import { camille, everyone, hugo, ines, lea, nora, sofia } from "./support/members.ts";
 
@@ -23,7 +23,7 @@ const recruiter = () => asMember(camille);
 const hasTool = async (id: string) => everyone.some(m => m.id === id);
 const isRecruiter = async (id: string) => everyone.some(m => m.id === id && m.role === "recruiter");
 
-test("an application lands in the first stage, with its consent; the form's rules", async () => {
+test("an application lands in the first stage, without a forced consent; the form's rules", async () => {
   const { sql } = database;
   const job = await openJob(sql, recruiter());
   const { candidate } = await candidates.apply(sql, application(job.slug));
@@ -31,10 +31,12 @@ test("an application lands in the first stage, with its consent; the form's rule
   assert.equal(d.stages[0]!.id, candidate.stageId);
   assert.equal(candidate.link, "https://linkedin.com/in/lucie");
   assert.equal(candidate.language, "fr");
-  assert.ok(candidate.consentAt);
+  // Applying needs no consent; the pool is an optional box.
+  assert.equal(candidate.consentAt, null);
+  assert.equal(candidate.poolAt, null);
   assert.deepEqual(d.activity.map(a => a.kind), ["applied"]);
-  await assert.rejects(candidates.apply(sql, application(job.slug, { consent: false })), { code: "consent" });
-  await assert.rejects(candidates.apply(sql, application(job.slug, { consent: "true" })), { code: "consent" });
+  assert.ok((await candidates.apply(sql, application(job.slug, { email: "pool@example.com", pool: true }))).candidate.poolAt);
+  await assert.rejects(candidates.apply(sql, application(job.slug, { pool: "yes" })), { code: "invalid" });
   await assert.rejects(candidates.apply(sql, application(job.slug, { email: "lucie@" })), { code: "invalid_email" });
   await assert.rejects(candidates.apply(sql, application(job.slug, { link: "javascript:alert(1)" })), { code: "invalid_link" });
   await assert.rejects(candidates.apply(sql, application(job.slug, { link: "" })), { code: "cv_missing" });
@@ -48,7 +50,7 @@ test("an application lands in the first stage, with its consent; the form's rule
   await jobs.saveSettings(sql, recruiter(), { careersOpen: false });
   await assert.rejects(candidates.apply(sql, application(job.slug)), { code: "closed" });
   await jobs.saveSettings(sql, recruiter(), { careersOpen: true });
-  const draft = await jobs.createJob(sql, recruiter(), { title: "Hidden", contract: "permanent", remote: "onsite" }, stageNames);
+  const draft = await jobs.createJob(sql, recruiter(), { title: "Hidden", contract: "permanent", remote: "onsite" });
   await assert.rejects(candidates.apply(sql, application(draft.slug)), { code: "not_found" });
 });
 
@@ -136,7 +138,7 @@ test("moving, rejecting with a reason, bringing back; an interviewer does none o
   const stages = (await jobs.job(sql, recruiter(), job.id)).stages;
   const foreign = (await jobs.job(sql, recruiter(), other.id)).stages[1]!;
   const moved = await candidates.move(sql, recruiter(), c.id, stages[1]!.id);
-  assert.deepEqual([moved.from.name, moved.to.name], ["New", "Screening"]);
+  assert.deepEqual([label(moved.from), label(moved.to)], ["New", "Screening"]);
   await assert.rejects(candidates.move(sql, recruiter(), c.id, foreign.id), { code: "invalid" });
   const i = asMember(ines);
   await assert.rejects(candidates.move(sql, i, c.id, stages[2]!.id), { code: "forbidden" });
@@ -178,7 +180,7 @@ test("a recruiter adds someone by hand, notes, edits, exports; others' applicati
   assert.deepEqual(d.elsewhere.map(e => e.jobTitle), ["Referral test two"]);
   assert.equal(d.notes.length, 1);
   const out = await candidates.exportRows(sql, recruiter(), job.id);
-  assert.deepEqual(out.rows.map(r => [r.name, r.stage, r.source]), [["Marc Dupont", "Interview", "team"]]);
+  assert.deepEqual(out.rows.map(r => [r.name, label(r.stage), r.source]), [["Marc Dupont", "Interview", "team"]]);
 });
 
 test("erasing a candidate and the retention delete them with their CV", async () => {

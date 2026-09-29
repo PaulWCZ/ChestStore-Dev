@@ -11,6 +11,28 @@ const { browser, context, page, origin, problems } = await open(port, "camille",
 const tmp = process.env.FLOW_TMP ?? process.env.TMPDIR ?? "/tmp";
 const speak = locale => context.addCookies([{ name: "dev_locale", value: locale, url: origin }]);
 const dev = async () => (await page.request.get(origin + "/_dev")).text();
+// A page loaded is not yet a page that answers: wait until it runs in the
+// browser (the tool marks <html data-hydrated>) before acting on it.
+const load = page.goto.bind(page);
+const again = page.reload.bind(page);
+page.goto = async (url, options) => { const r = await load(url, options); if (url.startsWith(origin + "/chest")) await page.waitForSelector("html[data-hydrated]", { state: "attached" }); return r; };
+page.reload = async options => { const r = await again(options); await page.waitForSelector("html[data-hydrated]", { state: "attached" }); return r; };
+const arrive = page.waitForURL.bind(page);
+page.waitForURL = async (url, options) => { await arrive(url, options); await page.waitForSelector("html[data-hydrated]", { state: "attached" }); };
+// An action and the server's answer to it (a server action is a POST).
+async function saved(action) {
+  const answer = page.waitForResponse(r => r.request().method() === "POST" && r.url().startsWith(origin + "/chest"));
+  await action();
+  await answer;
+}
+// The composer, fresh: no draft left in this browser by an earlier step,
+// and running (its draft read) before anything is typed.
+async function compose(path = "/chest/new") {
+  await page.goto(origin + "/chest");
+  await page.evaluate(() => { try { localStorage.removeItem("news.draft"); } catch {} });
+  await page.goto(origin + path);
+  await page.waitForSelector(".composer[data-ready]", { state: "attached" });
+}
 // The text box shows formatting as it is typed: no marks to type.
 async function type(text, { bold = null } = {}) {
   await page.locator("#body").click();
@@ -43,6 +65,7 @@ await step("a publisher writes an Important post with a picture and a file", asy
   await page.goto(origin + "/chest");
   await page.getByRole("link", { name: "Write a post" }).first().click();
   await page.waitForURL(/\/chest\/new/u);
+  await page.waitForSelector(".composer[data-ready]", { state: "attached" });
   await page.getByLabel("Headline").fill("New badges from Monday");
   await type("Your new badge opens ", { bold: "both doors" });
   await page.keyboard.type(".");
@@ -88,8 +111,7 @@ await step("a reader confirms from the front page; reacts and comments", async (
   await page.waitForSelector(".confirm-box.done");
   await page.locator(".reaction", { hasText: "🎉" }).click();
   await page.getByLabel("Your comment").fill("Great, thanks!");
-  await page.getByRole("button", { name: "Comment", exact: true }).click();
-  await page.waitForTimeout(1200);
+  await saved(() => page.getByRole("button", { name: "Comment", exact: true }).click());
   await page.reload();
   expect(await page.locator(".confirm-box.done").isVisible(), "confirmation kept");
   expect(await page.locator(".reaction.mine", { hasText: "🎉" }).isVisible(), "reaction kept");
@@ -117,8 +139,7 @@ await step("events: a reader answers and takes it to their calendar", async () =
   await as(context, origin, "ines");
   await speak("fr");
   await page.goto(origin + "/chest/posts/3");
-  await page.getByRole("button", { name: "Je viens", exact: true }).click();
-  await page.waitForTimeout(1000);
+  await saved(() => page.getByRole("button", { name: "Je viens", exact: true }).click());
   await page.reload();
   expect(await page.locator(".rsvp button[aria-pressed=true]", { hasText: "Je viens" }).isVisible(), "answer kept");
   expect((await page.locator(".attendees").innerText()).includes("Vous"), "listed as coming");
@@ -130,6 +151,7 @@ await step("a publisher adds a picture to the lead story, then deletes a post an
   await as(context, origin, "sofia");
   await speak("en");
   await page.goto(origin + "/chest/posts/4/edit");
+  await page.waitForSelector(".composer[data-ready]", { state: "attached" });
   const cover = tmp + "/news-move.png";
   await picture(cover, 20);
   await page.locator(".side-card input[type=file]").first().setInputFiles(cover);
@@ -168,7 +190,7 @@ let salesUrl = "";
 await step("a publisher writes for one team only; nobody else sees it, is told or counted", async () => {
   await as(context, origin, "camille");
   await speak("en");
-  await page.goto(origin + "/chest/new");
+  await compose();
   await page.getByLabel("Headline").fill("Sales bonus: the new rules");
   await type("From October, the bonus is paid ", { bold: "every quarter" });
   await page.getByLabel("Some groups or people").check();
@@ -253,7 +275,7 @@ await step("French, phone width: nothing overflows; confirm and write work", asy
   width = await page.evaluate(() => document.documentElement.scrollWidth);
   expect(width <= 392, "search width " + width);
   await as(context, origin, "camille");
-  await page.goto(origin + "/chest/new?kind=event");
+  await compose("/chest/new?kind=event");
   width = await page.evaluate(() => document.documentElement.scrollWidth);
   expect(width <= 392, "composer width " + width);
   await page.getByLabel("Titre").fill("Apéro sur la terrasse");
@@ -269,7 +291,7 @@ await step("Undo within 10 seconds: nothing leaves, the post is back in the comp
   await as(context, origin, "sofia");
   await speak("en");
   const before = (await dev()).split("Oops: wrong date").length;
-  await page.goto(origin + "/chest/new");
+  await compose();
   await page.getByLabel("Headline").fill("Oops: wrong date");
   await type("The party is on the 32nd.");
   await page.getByLabel("Important").check();
@@ -277,6 +299,8 @@ await step("Undo within 10 seconds: nothing leaves, the post is back in the comp
   await page.waitForURL(/\/chest\/posts\/\d+$/u);
   await page.locator(".toast").getByRole("button", { name: "Undo" }).click();
   await page.waitForURL(/\/chest\/new$/u);
+  // The draft comes back from this browser once the composer is running.
+  await page.locator(".notice", { hasText: "Your draft is back" }).waitFor();
   expect(await page.getByLabel("Headline").inputValue() === "Oops: wrong date", "the draft is back");
   await page.waitForTimeout(11000);
   expect((await dev()).split("Oops: wrong date").length === before, "no bell, no email");
@@ -285,7 +309,7 @@ await step("Undo within 10 seconds: nothing leaves, the post is back in the comp
 
 await step("hand-picked people, and any group of the Chest", async () => {
   await as(context, origin, "camille");
-  await page.goto(origin + "/chest/new");
+  await compose();
   await page.getByLabel("Headline").fill("Client visit: who comes");
   await page.getByLabel("Some groups or people").check();
   await page.locator("#people-search").fill("lé");
@@ -302,13 +326,13 @@ await step("hand-picked people, and any group of the Chest", async () => {
   expect((await page.request.get(url)).status() === 200, "Tom does");
   // Tech is a group of the Chest: offered even though News is open to all.
   await as(context, origin, "camille");
-  await page.goto(origin + "/chest/new");
+  await compose();
   await page.getByLabel("Some groups or people").check();
   expect(await page.locator(".audience-groups label", { hasText: "Tech" }).isVisible(), "every group offered");
 });
 
 await step("two languages: each reader sees theirs", async () => {
-  await page.goto(origin + "/chest/new");
+  await compose();
   await page.getByLabel("Headline").fill("Canteen closed on Friday");
   await type("Bring your lunch.");
   await page.getByRole("button", { name: "Add a version in French" }).click();
@@ -330,12 +354,11 @@ await step("an event with places: a waiting list, and the Chest's calendar", asy
   await speak("en");
   await page.goto(origin + "/chest/posts/9");
   expect((await page.locator(".seats").innerText()).includes("3 of 3 places taken"), "full");
-  await page.getByRole("button", { name: "Join the waiting list" }).click();
+  await saved(() => page.getByRole("button", { name: "Join the waiting list" }).click());
   await page.waitForSelector(".toast:has-text('waiting list')");
   await as(context, origin, "lea");
   await page.goto(origin + "/chest/posts/9");
-  await page.getByRole("button", { name: /I’m coming/u }).click();
-  await page.waitForTimeout(1200);
+  await saved(() => page.getByRole("button", { name: /I’m coming/u }).click());
   const panel = await dev();
   expect(panel.includes("event:9") && panel.includes("Nora Petit"), "Nora (first waiting) got the place and the calendar");
   expect(panel.includes("Une place est à vous"), "and was told");
@@ -352,9 +375,9 @@ await step("replies and mentions", async () => {
   await box.fill("Thanks! @Sof");
   await page.locator(".suggestions button", { hasText: "Sofia Rossi" }).click();
   await box.pressSequentially("will you check?");
-  await page.locator(".reply-form").getByRole("button", { name: "Reply", exact: true }).click();
+  await saved(() => page.locator(".reply-form").getByRole("button", { name: "Reply", exact: true }).click());
   // Wait for the saved reply itself, not a fixed time: then read it again from the server.
-  await page.locator(".comment.reply", { hasText: "will you check?" }).waitFor();
+  await page.locator(".comment.reply", { hasText: "will you check?" }).waitFor({ timeout: 8000 }).catch(async e => { console.log("DIAG toasts", await page.locator(".toast").allInnerTexts(), "thread", await page.locator("#comments").innerText(), "url", page.url()); throw e; });
   await page.reload();
   const mention = page.locator(".comment.reply .mention", { hasText: "@Sofia Rossi" });
   await mention.waitFor({ timeout: 10_000 }).catch(() => {});
@@ -367,6 +390,7 @@ await step("replies and mentions", async () => {
 await step("a changed Important text: its earlier version kept, everyone asked again", async () => {
   await as(context, origin, "camille");
   await page.goto(origin + "/chest/posts/4/edit");
+  await page.waitForSelector(".composer[data-ready]", { state: "attached" });
   await page.locator("#body").click();
   await page.keyboard.press("Control+End");
   await page.keyboard.type(" Parking opens on 3 November.");
@@ -381,7 +405,7 @@ await step("a changed Important text: its earlier version kept, everyone asked a
 });
 
 await step("schedule from the bar, next to Publish", async () => {
-  await page.goto(origin + "/chest/new");
+  await compose();
   await page.getByLabel("Headline").fill("Monday meeting moved");
   await page.getByRole("button", { name: "Schedule…" }).click();
   await page.locator("#later-time").selectOption("08:30");

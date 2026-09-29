@@ -112,3 +112,12 @@ export async function checkChanged(change: { componentId: string; kind: "down" |
     `check:${change.componentId}`,
   );
 }
+
+// A heartbeat fell silent, or its job called again: told like a check.
+export async function heartbeatChanged(change: { componentId: string; kind: "down" | "up"; since: Date }, component: string): Promise<void> {
+  await tellTeam(
+    t => (change.kind === "down" ? { title: format(t.heartbeats.alertTitle, { component }), body: t.heartbeats.alertBody } : { title: format(t.heartbeats.upTitle, { component }) }),
+    change.kind === "down" ? `/chest#heartbeat-${change.componentId}` : "/chest",
+    `heartbeat:${change.componentId}`,
+  );
+}

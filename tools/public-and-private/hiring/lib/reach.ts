@@ -126,7 +126,7 @@ export function jsonLd(value: unknown): string {
 // XML text: the five characters escaped, characters XML refuses removed.
 export const xmlText = (text: string) => text.replace(/[^\x09\x0a\x0d\x20-\ud7ff\ue000-\ufffd\u{10000}-\u{10ffff}]/gu, "").replace(/&/gu, "&amp;").replace(/</gu, "&lt;").replace(/>/gu, "&gt;").replace(/"/gu, "&quot;").replace(/'/gu, "&apos;");
 // CDATA: "]]>" split across two sections, so it can never end one early.
-export const cdata = (text: string) => `<![CDATA[${text.replace(/[^\x09\x0a\x0d\x20-\ud7ff\ue000-\ufffd\u{10000}-\u{10ffff}]/gu, "").replace(/]]>/gu, "]]]]><![CDATA[>")}]]>`;
+export const cdata = (text: string) => `<![CDATA[${text.replace(/[^\x09\x0a\x0d\x20-\ud7ff\ue000-\ufffd\u{10000}-\u{10ffff}]/gu, "").replace(/\]\]>/gu, "]]]]><![CDATA[>")}]]>`;
 
 // RFC 822 dates, as RSS and Indeed write them.
 export const rfc822 = (iso: string) => new Date(iso).toUTCString();

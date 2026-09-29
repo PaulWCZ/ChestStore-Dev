@@ -10,11 +10,16 @@ what must not break.
 | `chest.json`, `chest.proposals.json` | The manifest; the SDK proposals it uses (weekly schedule, French tile) |
 | `migrations/0001_equipment.sql` | Categories, items, seats, problems, history (append-only trigger), chest_events |
 | `migrations/0002_departures.sql` | Departures told by People (member, last day, when told) |
+| `migrations/0003_receipts_requests_fields.sql` | Receipts, rules (charters), requests, fields per category, supplies (quantity, minimum), inventories, invoice; history gains qty, cost, ref, due and new kinds |
 | `lib/access.ts` | **Who may do what** — the only place roles are read |
 | `lib/model.ts` | Pure rules: limits, statuses, tags, money, dates, `clean()` |
-| `lib/items.ts` | Items: list, detail (full / brief), create, edit, give, take back, status, seats, problems, holdings, overview |
+| `lib/items.ts` | Items: list (pages), detail (full / brief), create (one or several), edit, give, take back, status and repairs, seats, supplies (hand out, restock), problems, holdings, invoice, overview; opening and closing receipts |
+| `lib/receipts.ts` | "I received it", the rules (charter versions), the handover and return sheets |
+| `lib/requests.ts` | Requests: ask, approve, refuse, fulfil (give / seat / hand out), cancel |
+| `lib/fields.ts` | Fields per category and reading their values |
+| `lib/inventory.ts` | Inventories: start, seen (tag, label link, id), close with the missing, report, last seen |
 | `lib/categories.ts` | Categories |
-| `lib/importer.ts` | Snipe-IT / spreadsheet import: `plan()` is pure, `applyImport()` writes |
+| `lib/importer.ts` | Snipe-IT / spreadsheet import: `plan()` is pure, `applyImport()` writes; other columns become fields when kept; `test/fixtures/` holds Snipe-IT exports |
 | `lib/export.ts`, `lib/csv.ts` | CSV out (reads back through the importer) |
 | `lib/qr.ts` | The QR encoder (tested by decoding) |
 | `lib/tell.ts`, `lib/notify.ts` | Bell items (keyed, withdrawn when settled), managers' badges |
@@ -37,6 +42,11 @@ what must not break.
 - The history is append-only: add a `kind` (migration + catalogue
   `history.*`) rather than editing rows. A shipped migration is never
   edited.
+- A receipt is opened by `give()` to a member and closed (never deleted)
+  whenever the item leaves them; an Undo of a take-back reopens it. Only
+  the holder confirms it. The tile's count is `tell.refreshBadges`.
+- Field values live in `items.extra` keyed by field id; a form or an
+  import is checked with `readExtra()` / `fieldValue()`.
 - A tool event is validated field by field and ignored when it does not
   fit; a departure keeps only the member, the day and when it was told.
   The `leaving:<member>` bell item is withdrawn when all is back, when the

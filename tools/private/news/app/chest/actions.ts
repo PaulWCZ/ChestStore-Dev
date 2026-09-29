@@ -24,13 +24,15 @@ import { chestZone } from "../../lib/zone.ts";
 
 type Actor = NonNullable<Awaited<ReturnType<typeof currentMember>>>;
 
-async function act<T>(step: (actor: Actor) => Promise<T>): Promise<Result<T>> {
+// refresh: false for an action that only reads (the page stays as it is:
+// no re-render while someone types).
+async function act<T>(step: (actor: Actor) => Promise<T>, options: { refresh?: boolean } = {}): Promise<Result<T>> {
   const result = await attempt(async () => {
     const actor = await currentMember();
     if (!actor) throw new AppError("forbidden");
     return step(actor);
   });
-  revalidatePath("/chest", "layout");
+  if (options.refresh !== false) revalidatePath("/chest", "layout");
   return result;
 }
 
@@ -147,7 +149,7 @@ export async function mentionable(postId: string, query: string): Promise<Result
       if (error instanceof ChestError) return [];
       throw error;
     }
-  });
+  }, { refresh: false });
 }
 
 export async function confirmRead(postId: string): Promise<Result<null>> {

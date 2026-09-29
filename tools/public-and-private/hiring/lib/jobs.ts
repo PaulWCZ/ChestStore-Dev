@@ -128,10 +128,12 @@ export async function settings(sql: Query): Promise<Settings> {
   };
 }
 
-// introFor: the careers page's words in a language — its own, else the
-// single intro of before; empty means the tool's default sentence.
-export function introFor(s: Settings, locale: Locale): string {
-  return s.intros[locale] ?? (Object.keys(s.intros).length === 0 ? s.intro : "");
+// introFor: the careers page's words in a language — its own; else the
+// single intro of before, only in the Chest's own language (it was written
+// in one language: shown in another, it mixed languages on the page);
+// empty means the tool's default sentence in that language.
+export function introFor(s: Settings, locale: Locale, written: string = chest.locale()): string {
+  return s.intros[locale] ?? (Object.keys(s.intros).length === 0 && locale === written ? s.intro : "");
 }
 
 async function setSetting(sql: Query, key: string, value: unknown): Promise<void> {
