@@ -1,13 +1,14 @@
 // People, as the team uses it, in a real browser: node lab/chest-dev/flows/people.mjs [port]
 // (the harness runs the tool with --reset: the sample company is there, Nora
 // started six days ago and her welcome checklist is under way).
-import { writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { as, done, expect, id, open, step } from "./lib.mjs";
 
 const port = Number(process.argv[2] ?? 4700);
-const { browser, context, page, origin, problems } = await open(port, "hugo", { locale: "en", allow404: /\/chest\/(checklists|people\/mbr_\w+\/edit)$/u });
+const { browser, context, page, origin, problems } = await open(port, "hugo", { locale: "en", allow404: /\/chest\/(checklists|records(\/\d+)?|people\/mbr_\w+\/edit)$/u });
 const tmp = process.env.TMPDIR ?? "/tmp";
 const cards = () => page.locator(".wall .person-name").allTextContents();
+let noraRecord = "";
 
 await step("a member finds people by name (accents aside), by topic, by team", async () => {
   await page.goto(origin + "/chest");
@@ -69,6 +70,10 @@ await step("the newcomer fills in her profile: phone, topics, birthday", async (
   await page.waitForURL(new RegExp(`/chest/people/${id("nora")}$`, "u"));
   const text = await page.locator("main").innerText();
   expect(text.includes("Quotes") && text.includes("Italian") && text.includes("Birthday: 14 March") && text.includes("06 11 22 33 44"), "saved: " + text.slice(0, 300));
+  // Her "fill in your profile" step ticked itself.
+  await page.goto(origin + "/chest/todo");
+  expect(await page.locator(".steps:not(.done) .step", { hasText: "Fill in your profile" }).count() === 0, "profile step still open");
+  expect(await page.locator(".steps.done .step", { hasText: "Fill in your profile" }).count() === 1, "profile step done");
 });
 
 await step("a wrong phone is refused, what was typed stays", async () => {
@@ -129,7 +134,7 @@ await step("HR writes a template and starts a departure checklist", async () => 
 await step("HR gives a step to someone else, removes one and undoes it", async () => {
   await page.locator(".step", { hasText: "Close the accounts" }).getByRole("button").click();
   await page.locator(".step-edit select").selectOption({ label: "Sofia Rossi" });
-  await page.waitForSelector(".toast");
+  await page.locator(".toast", { hasText: "Saved." }).waitFor();
   await page.reload();
   expect((await page.locator(".step", { hasText: "Close the accounts" }).innerText()).includes("Sofia Rossi"), "given to Sofia");
   await page.locator(".step", { hasText: "Close the accounts" }).getByRole("button").click();
@@ -170,7 +175,130 @@ await step("HR imports a spreadsheet: sees the plan, imports", async () => {
   await page.getByPlaceholder("A name, a job, a topic…").fill("senior");
   expect((await cards()).join("|") === "Hugo Bernard", "imported");
   const csv = await (await page.request.get(origin + "/chest/export")).text();
-  expect(csv.includes("Senior account manager") && csv.startsWith("﻿Name,Job title"), "export");
+  expect(csv.includes("Senior account manager") && csv.startsWith("﻿Name,Work email,Job title"), "export: " + csv.slice(0, 80));
+  // Phones leave as they are (no quote in front of "+33").
+  expect(csv.includes(",+33 6 12 45 78 90,") && !csv.includes("'+33"), "phones untouched");
+});
+
+await step("HR imports BambooHR's report: 'Employee #' left out, columns shown, the date order asked", async () => {
+  const file = tmp + "/bamboohr.csv";
+  writeFileSync(file, readFileSync(new URL("../../../tools/private/people/test/fixtures/bamboohr-employee-report.csv", import.meta.url)));
+  await page.goto(origin + "/chest/import");
+  await page.locator("input[type=file]").setInputFiles(file);
+  await page.waitForSelector("table.plan");
+  expect((await page.locator(".mapping summary").innerText()).startsWith("Columns found: First name, Last name, Job title"), "columns: " + await page.locator(".mapping summary").innerText());
+  const order = page.locator(".date-order");
+  expect(await order.isVisible(), "date order asked");
+  expect(await order.getByLabel("Dates read as month/day/year.").isChecked(), "US guess for BambooHR");
+  expect((await page.locator("table.plan").innerText()).includes("3 Oct 2023") || (await page.locator("table.plan").innerText()).includes("2023-10-03"), "Hugo's date month-first");
+  await order.getByText("Dates read as day/month/year.").click();
+  await page.waitForFunction(() => document.querySelector("table.plan")?.textContent?.includes("2023-03-10"));
+  // The mapping step: the mobile phone instead of the work phone.
+  await page.locator(".mapping summary").click();
+  await page.getByLabel(/^Work Phone/u).selectOption("skip");
+  await page.getByLabel(/^Mobile Phone/u).selectOption("phone");
+  await page.waitForFunction(() => document.querySelector("table.plan")?.textContent?.includes("+33 6 98 76 54 32"));
+  expect((await page.locator("table.plan").innerText()).includes("Nobody by that name here"), "Jean left out");
+});
+
+await step("HR writes an expected arrival by hand (a weekend is questioned) and corrects it", async () => {
+  await page.goto(origin + "/chest/checklists");
+  await page.getByRole("button", { name: "Expected arrival" }).click();
+  await page.getByLabel("Name", { exact: true }).fill("Paul Mercier");
+  await page.getByLabel("Job title").fill("Sales associate");
+  await page.getByLabel("First day").fill("2026-11-07");
+  expect((await page.locator(".arrival-form .warn-hint").innerText()).includes("Saturday"), "weekend questioned");
+  await page.getByLabel("First day").fill("2026-11-09");
+  expect(await page.locator(".arrival-form .warn-hint").count() === 0, "weekday fine");
+  await page.getByLabel("Their manager").selectOption({ label: "Inès Moreau" });
+  await page.getByLabel("Their work email (if known)").fill("paul.mercier@example.test");
+  await page.getByRole("button", { name: "Save" }).click();
+  await page.locator(".toast", { hasText: "Arrival added." }).waitFor();
+  const card = page.locator(".arrival", { hasText: "Paul Mercier" });
+  expect((await card.innerText()).includes("Added by HR") && (await card.innerText()).includes("9 November"), "arrival: " + await card.innerText());
+  await card.getByRole("button", { name: "Change" }).click();
+  await card.getByLabel("Job title").fill("Senior sales associate");
+  await card.getByRole("button", { name: "Save" }).click();
+  await page.locator(".toast", { hasText: "Arrival saved." }).waitFor();
+  await page.locator(".arrival", { hasText: "Senior sales associate" }).waitFor({ timeout: 5000 });
+});
+
+await step("HR edits as a table: a cell saves on leaving it, Undo puts it back; a field of HR's own", async () => {
+  await page.goto(origin + "/chest/table");
+  const cell = page.getByLabel("Team of Hugo Bernard");
+  await cell.fill("Key accounts");
+  await cell.press("Enter");
+  await page.locator(".toast", { hasText: "Saved." }).waitFor();
+  await page.goto(origin + "/chest/people/" + id("hugo"));
+  expect((await page.locator("main").innerText()).includes("Key accounts"), "saved");
+  await page.goto(origin + "/chest/table");
+  await page.getByLabel("Team of Hugo Bernard").fill("Export");
+  await page.getByLabel("Team of Hugo Bernard").press("Tab");
+  await page.locator(".toast", { hasText: "Saved." }).getByRole("button", { name: "Undo" }).click();
+  await page.waitForTimeout(1200);
+  await page.reload();
+  expect((await page.getByLabel("Team of Hugo Bernard").inputValue()) === "Key accounts", "undone");
+  // A loop of managers is refused and the cell comes back.
+  await page.getByLabel("Manager of Camille Martin").selectOption({ label: "Hugo Bernard" });
+  await page.locator(".toast", { hasText: "loop" }).waitFor();
+  expect((await page.getByLabel("Manager of Camille Martin").inputValue()) === "", "refused loop comes back");
+  await page.getByRole("button", { name: "Add a field" }).click();
+  await page.getByLabel("Name of the field").fill("T-shirt");
+  await page.getByRole("button", { name: "Add", exact: true }).click();
+  await page.getByLabel("T-shirt of Tom Walker").waitFor();
+  await page.getByLabel("T-shirt of Tom Walker").fill("M");
+  await page.getByLabel("T-shirt of Tom Walker").press("Enter");
+  await page.locator(".toast", { hasText: "Saved." }).waitFor();
+  await page.goto(origin + "/chest/people/" + id("tom"));
+  expect((await page.locator(".extras").innerText()).includes("T-shirt"), "shown on the profile");
+});
+
+await step("HR records: everyone without one in a click; a record changed and noted; a document added; the register", async () => {
+  await page.goto(origin + "/chest/records");
+  expect((await page.locator("main").innerText()).includes("Trial period ends"), "trial period coming up");
+  await page.getByRole("button", { name: /^Create their/u }).click();
+  await page.locator(".toast", { hasText: /created/u }).waitFor();
+  await page.locator(".journey-card", { hasText: "Nora Petit" }).click();
+  await page.waitForURL(/\/chest\/records\/\d+$/u);
+  await page.getByLabel(/^Nationality/u).fill("Française et italienne");
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await page.locator(".toast", { hasText: "Record saved." }).waitFor();
+  await page.reload();
+  expect((await page.locator(".journal").innerText()).includes("Changed: Nationality"), "journal names the field");
+  expect(!(await page.locator(".journal").innerText()).includes("italienne"), "never the value");
+  const pdf = tmp + "/contrat.pdf";
+  writeFileSync(pdf, "%PDF-1.4\n% Contrat de travail\n1 0 obj << >> endobj\ntrailer << >>\n%%EOF\n");
+  await page.locator(".doc-upload input[type=file]").setInputFiles({ name: "Contrat Nora.pdf", mimeType: "application/pdf", buffer: readFileSync(pdf) });
+  await page.locator(".toast", { hasText: "Document added." }).waitFor();
+  await page.waitForSelector(".doc-list .doc");
+  const link = await page.locator(".doc-list .doc").first().getAttribute("href");
+  const opened = await page.request.get(origin + link, { maxRedirects: 0 });
+  expect(opened.status() === 303 && /_chest\/files/u.test(opened.headers()["location"] ?? ""), "document opens through a signed link: " + opened.status());
+  noraRecord = page.url();
+  await page.goto(origin + "/chest/records/register");
+  const register = await page.locator("main").innerText();
+  expect(register.includes("Staff register") && register.includes("NGUYEN Linh") && register.includes("Temporary") === false, "register: " + register.slice(0, 200));
+  expect(register.includes("Seconded (Bristol Data Ltd"), "seconded mention with the employer");
+  const csv = await (await page.request.get(origin + "/chest/records/register/csv")).text();
+  expect(csv.includes("Staff register — employees") && csv.includes("Staff register — interns"), "register CSV");
+  await page.goto(origin + "/chest/numbers");
+  expect((await page.locator(".stat").first().innerText()).includes("People"), "numbers");
+});
+
+await step("a record is its person's to read, and nobody else's (not even their manager)", async () => {
+  await as(context, origin, "nora");
+  await page.context().addCookies([{ name: "dev_locale", value: "en", url: origin }]);
+  await page.goto(origin + "/chest/people/" + id("nora"));
+  await page.getByRole("link", { name: "My HR record" }).click();
+  await page.waitForURL(/\/chest\/records\/\d+$/u);
+  const text = await page.locator("main").innerText();
+  expect(text.includes("Only HR can change it") && text.includes("Française et italienne") && await page.locator("form").count() === 0, "read-only");
+  await as(context, origin, "ines");
+  const manager = await page.goto(noraRecord);
+  expect(manager.status() === 404, "manager sees nothing: " + manager.status());
+  const list = await page.goto(origin + "/chest/records");
+  expect(list.status() === 404, "list is HR's");
+  await as(context, origin, "camille");
 });
 
 async function deliver(type, data) {
@@ -255,9 +383,21 @@ await step("in French: the directory and a checklist speak French", async () => 
   await fr.browser.close();
 });
 
+await step("a manager leaves: her report keeps his place under her card, marked; her steps go to HR", async () => {
+  await as(context, origin, "camille");
+  await page.request.post(origin + "/_dev/event", { form: { type: "member.removed", member: id("lea"), back: "/_dev" } });
+  await page.goto(origin + "/chest/chart");
+  const card = page.locator(".node-card.left", { hasText: "Léa Dubois" });
+  expect((await card.innerText()).includes("Has left"), "Léa's place kept");
+  expect(await page.locator(".node-card", { hasText: "Tom Walker" }).isVisible(), "Tom still in the chart");
+  expect(await page.locator(".alone", { hasText: "Tom Walker" }).count() === 0, "not set aside");
+  await page.goto(origin + "/chest/people/" + id("tom"));
+  expect((await page.locator("main").innerText()).includes("Léa Dubois has left"), "profile says so");
+});
+
 await step("phone width: no sideways scroll; the org chart is a list", async () => {
   await page.setViewportSize({ width: 390, height: 844 });
-  for (const path of ["/chest", "/chest/chart", "/chest/todo", "/chest/checklists", "/chest/people/" + id("ines")]) {
+  for (const path of ["/chest", "/chest/chart", "/chest/todo", "/chest/checklists", "/chest/people/" + id("ines"), "/chest/records", "/chest/records/register", "/chest/numbers", noraRecord.replace(origin, "")]) {
     await page.goto(origin + path);
     const width = await page.evaluate(() => document.documentElement.scrollWidth);
     expect(width <= 392, path + " overflows: " + width);
@@ -265,6 +405,9 @@ await step("phone width: no sideways scroll; the org chart is a list", async () 
   await page.goto(origin + "/chest/chart");
   const box = await page.locator(".node-card").first().boundingBox();
   expect(box.width > 300, "list card width " + box.width);
+  // The sections, each with its word, in a bar at the bottom.
+  const labels = await page.locator(".tabs a .label").evaluateAll(ls => ls.map(l => l.getBoundingClientRect().width > 10 ? l.textContent : ""));
+  expect(labels.join("|") === "Directory|Org chart|My to-dos|Checklists|Records", "labels: " + labels.join("|"));
 });
 
 await browser.close();

@@ -7,7 +7,7 @@ must not break.
 
 | Path | What it is |
 |---|---|
-| `chest.json` | Manifest: roles `hr`, `member`; `database`, `members`, `notifications`; `receives` |
+| `chest.json` | Manifest: roles `hr`, `member`; `database`, `files`, `members`, `members.email`, `notifications`; `receives` |
 | `chest.proposals.json` | Proposal keys (the `morning` schedule, `emits`, `receives` of other tools' events) — kept apart, a Chest refuses unknown keys |
 | `lib/access.ts` | **Who may do what**: abilities (`can`), who sees a checklist (`seesJourney`), who ticks a step (`ticks`) |
 | `lib/model.ts` | Bounds, text cleaning, days, phones, topics, birthdays, checklist roles and offsets — pure |
@@ -15,12 +15,17 @@ must not break.
 | `lib/directory.ts` | The directory: the Chest's members + profiles |
 | `lib/tree.ts`, `lib/calendar.ts` | The org chart from managers; newcomers, arrivals, birthdays, anniversaries — pure, used in pages |
 | `lib/journeys.ts` | Templates and checklists (called *journeys* in code): start, tick, edit steps, stop, lists, counts |
-| `lib/arrivals.ts` | Arrivals told by Hiring (events between tools): read and check each event, cancel, link to a member, remove, purge after 90 days, name suggestions |
+| `lib/arrivals.ts` | Arrivals written by HR (`manual`) or told by Hiring (events between tools): read and check each event, add and correct by hand, cancel, link to a member, remove, purge after 90 days, suggestions (work email, then name) |
 | `lib/away.ts` | Leaves told by Leave (events between tools): read and check each event, "away today and back when" (`awayToday`, pure), the badge's words, purge once past |
 | `lib/share.ts` | What People tells other tools: departures (`people.leaving`, `people.leaving_cancelled`) around a leaving checklist's start, stop and restart (`around`) |
 | `lib/zone.ts` | The Chest's time zone and today (the `chest` module) — server only |
-| `lib/examples.ts` | The two example templates, in the reader's words |
-| `lib/importer.ts`, `lib/export.ts`, `lib/csv.ts` | CSV import (header aliases, name matching, dates), export, CSV reading/writing (formula-safe) |
+| `lib/examples.ts` | The two example templates; their steps' phrases, shown in each reader's language (`stepText`) until reworded (`samePhrase`) |
+| `lib/importer.ts`, `lib/export.ts`, `lib/csv.ts` | CSV import (header aliases, HR's column mapping, email then name matching, date order asked when ambiguous), export, CSV reading/writing (formula-safe, phones untouched, `unquote` on the way back) |
+| `lib/records.ts` | **HR records**: read (journal), create (one, for everyone), edit (field by field), link, delete a mistake, documents (upload through the Chest, open by signed link), what is coming up, purge after five years, erasure |
+| `lib/register.ts` | The staff register (registre unique du personnel) from the records, its mentions and its CSV |
+| `lib/journal.ts` | Who read or changed a record, the register, someone's job details — field names only; kept two years |
+| `lib/fields.ts` | HR's extra profile fields and their values |
+| `lib/numbers.ts` | Headcount, arrivals and departures by month, turnover — pure |
 | `lib/people.ts` | Names and photos from ids (`people`, `nameOf`), everyone (`everyone`), who is here (`present`) |
 | `lib/tell.ts`, `lib/notify.ts` | The bell (each recipient's language, keyed per checklist) and badges |
 | `lib/lifecycle.ts`, `lib/morning.ts` | Leaving and erasure; the scheduled morning (proposal) |
@@ -29,7 +34,7 @@ must not break.
 | `app/chest/**/page.tsx` | Pages (server): read, resolve names, hand words to views |
 | `app/chest/**/*-view.tsx`, `*-form.tsx`, `*-editor.tsx`, `org-chart.tsx`, `todo-list.tsx`, `importer.tsx` | Client views |
 | `app/chest-events/route.ts`, `app/chest-jobs/[name]/route.ts` | Lifecycle events; scheduled runs |
-| `migrations/` | Schema. Never edit a shipped file; add `0002_…` |
+| `migrations/` | Schema (`0004_records.sql`: manual arrivals, manager left, phrases, extra fields, records, documents, journal). Never edit a shipped file; add the next number |
 | `seed/sample.sql` | A sample company for local runs and screenshots |
 | `test/` | `node:test` with `fakeChest` and PostgreSQL (PGlite or `TEST_DATABASE_URL`) |
 
@@ -60,6 +65,23 @@ npm ci && npm test && npm run build   # all three must pass
   (start, stop, restart) goes through `share.around`, which publishes only
   when the last day actually changed. Never publish more than
   `{member, lastDay}`.
+- **HR records are HR's and their person's only**: every read goes through
+  `recordAccess` (lib/access.ts); anyone else gets `not_found` — a manager
+  included. Every opening by someone else than the person, every change,
+  every document and register read goes through `journal.note`, with field
+  names, never values. Never add salary or a social security number (README,
+  "HR records"). The legal name in a record is the one deliberate copy of a
+  name (the register outlives the Chest's memory); keep it HR-written.
+- **A record of someone who worked here is not deleted** before five years
+  after their last day (R1221-26); an erasure keeps only the register's
+  fields and legal documents, detached (`eraseRecords`).
+- **A manager who leaves stays their reports' manager, flagged**
+  (`profiles.manager_left`) until HR names someone; steps never go to
+  nobody (`leave()` gives them to HR; `startJourney` gives a missing
+  manager's step to HR).
+- **Example steps keep their phrase** while their text is a catalogue's
+  words; rewording drops it. New example steps need a key in every
+  catalogue.
 - **Birthdays are opt-in**: stored only while the person shows it; never
   written by HR nor by the import.
 - **Add an ability → a line in `test/access.test.ts`.** Add a service →

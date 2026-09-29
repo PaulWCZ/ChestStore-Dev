@@ -44,17 +44,20 @@ export function RecordForm({ id, initial, linked, erased, members, t }: {
   const contract = values.contract as Contract;
   const register = t.record.hints.register;
 
+  // A star marks what the staff register needs; the one line saying so is
+  // read with each of these fields.
+  const described = (f: Field, hint: boolean, needed: boolean) => [hint ? uid + f + "-hint" : "", needed ? uid + "register" : ""].filter(Boolean).join(" ") || undefined;
   const field = (f: Field, control: ReactNode, hint?: string, needed = false) => (
     <div className="field-group">
-      <label htmlFor={uid + f} className="label">{t.record.fields[f]}{needed && <span className="needed" title={register} aria-hidden="true"> *</span>}</label>
+      <label htmlFor={uid + f} className="label">{t.record.fields[f]}{needed && <span className="needed" aria-hidden="true"> *</span>}</label>
       {control}
-      {(hint || needed) && <p id={uid + f + "-hint"} className="hint">{[hint, needed ? register : ""].filter(Boolean).join(" ")}</p>}
+      {hint && <p id={uid + f + "-hint"} className="hint">{hint}</p>}
     </div>
   );
   const text = (f: Field, max: number, needed = false, hint?: string, type = "text") =>
-    field(f, <input id={uid + f} className="field" type={type} value={values[f]} onChange={set(f)} maxLength={max} autoComplete="off" aria-describedby={hint || needed ? uid + f + "-hint" : undefined} />, hint, needed);
+    field(f, <input id={uid + f} className="field" type={type} value={values[f]} onChange={set(f)} maxLength={max} autoComplete="off" aria-describedby={described(f, Boolean(hint), needed)} />, hint, needed);
   const date = (f: Field, needed = false) =>
-    field(f, <input id={uid + f} className="field" type="date" value={values[f]} onChange={set(f)} min="1900-01-01" max="2100-12-31" aria-describedby={needed ? uid + f + "-hint" : undefined} />, undefined, needed);
+    field(f, <input id={uid + f} className="field" type="date" value={values[f]} onChange={set(f)} min="1900-01-01" max="2100-12-31" aria-describedby={described(f, false, needed)} />, undefined, needed);
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -74,12 +77,13 @@ export function RecordForm({ id, initial, linked, erased, members, t }: {
   return (
     <>
       <form className="form" onSubmit={submit} noValidate>
+        <p id={uid + "register"} className="hint"><span className="needed" aria-hidden="true">* </span>{register}</p>
         <fieldset className="card-block">
           <legend>{t.record.identity}</legend>
           <div className="grid-2">
             {text("legalName", limits.name, true, t.record.hints.legalName)}
             {field("sex", (
-              <select id={uid + "sex"} className="select" value={values.sex} onChange={set("sex")} aria-describedby={!intern ? uid + "sex-hint" : undefined}>
+              <select id={uid + "sex"} className="select" value={values.sex} onChange={set("sex")} aria-describedby={described("sex", false, !intern)}>
                 <option value="">{t.record.notSaid}</option>
                 {sexes.map(s => <option key={s} value={s}>{t.record.sexes[s]}</option>)}
               </select>
@@ -112,9 +116,9 @@ export function RecordForm({ id, initial, linked, erased, members, t }: {
             {date("trialEnd")}
             {contract !== "permanent" && date("contractEnd", intern)}
             {date("endDate")}
-            {(contract === "temporary" || contract === "seconded") && field("agency", <textarea id={uid + "agency"} className="field" rows={2} value={values.agency} onChange={set("agency")} maxLength={limits.agency} aria-describedby={uid + "agency-hint"} />, t.record.hints.agency, true)}
+            {(contract === "temporary" || contract === "seconded") && field("agency", <textarea id={uid + "agency"} className="field" rows={2} value={values.agency} onChange={set("agency")} maxLength={limits.agency} aria-describedby={described("agency", true, true)} />, t.record.hints.agency, true)}
             {intern && field("tutorId", (
-              <select id={uid + "tutorId"} className="select" value={values.tutorId} onChange={set("tutorId")} aria-describedby={uid + "tutorId-hint"}>
+              <select id={uid + "tutorId"} className="select" value={values.tutorId} onChange={set("tutorId")} aria-describedby={described("tutorId", false, true)}>
                 <option value="">{t.record.nobody}</option>
                 {members.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
               </select>

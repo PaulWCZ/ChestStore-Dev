@@ -36,7 +36,7 @@ export default async function ProfilePage({ params }: { params: Promise<{ id: st
   if (!person) notFound();
   const manager = person.managerId ? entries.find(e => e.id === person.managerId) : undefined;
   // A manager who left keeps their place, marked, until HR names someone.
-  const formerManager = person.managerLeft && person.managerId && !manager ? nameOf((await people([person.managerId])).get(person.managerId), locale) : null;
+  const formerManager = person.managerLeft && person.managerId && !manager ? (await people([person.managerId])).get(person.managerId)?.name ?? "" : null;
   const reports = entries.filter(e => e.managerId === person.id);
   const mine = person.id === member.id;
   const hr = can(member, "profile.job");

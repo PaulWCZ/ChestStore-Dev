@@ -8,7 +8,7 @@ import { format, monthNames } from "../../../../../lib/i18n/index.ts";
 import { memberPattern } from "../../../../../lib/model.ts";
 import { choices } from "../../../../../lib/profiles.ts";
 import { listFields } from "../../../../../lib/fields.ts";
-import { nameOf, people } from "../../../../../lib/people.ts";
+import { people } from "../../../../../lib/people.ts";
 import { viewer } from "../../../../../lib/session.ts";
 import { orgChart, type OrgNode } from "../../../../../lib/tree.ts";
 import { ProfileForm } from "./profile-form.tsx";
@@ -45,7 +45,7 @@ export default async function EditPage({ params }: { params: Promise<{ id: strin
     const current = entries.find(e => e.id === person.managerId);
     if (current) managers.push({ id: current.id, name: current.name });
     // A manager who left stays chosen (marked) until HR picks someone else.
-    else if (person.managerLeft) managers.unshift({ id: person.managerId, name: format(t.profile.managerLeft, { name: nameOf((await people([person.managerId])).get(person.managerId), locale) }) });
+    else if (person.managerLeft) managers.unshift({ id: person.managerId, name: format(t.profile.managerLeft, { name: (await people([person.managerId])).get(person.managerId)?.name || t.people.erased }) });
   }
   // HR's extra fields: the person fills theirs; HR fills any.
   const extras = (await listFields(sql, member)).map(f => ({ ...f, value: person.extras[f.id] ?? "", editable: hr || (mine && f.editor === "person") }));

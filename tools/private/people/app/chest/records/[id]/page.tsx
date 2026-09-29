@@ -49,7 +49,7 @@ export default async function RecordPage({ params }: { params: Promise<{ id: str
         <div>
           <h1>{edit ? personName : t.record.mine}</h1>
           <p className="muted">{[r.job, t.record.contracts[r.contract]].filter(Boolean).join(" · ")}</p>
-          {r.memberId && <Link className="link-button" href={`/chest/people/${r.memberId}`}>{t.record.profile}</Link>}
+          {edit && r.memberId && <Link className="link-button" href={`/chest/people/${r.memberId}`}>{t.record.profile}</Link>}
         </div>
       </div>
       <p className="banner private"><Lock />{edit ? (r.memberId ? format(t.record.hrOnly, { name: personName }) : t.record.hrOnlyOther) : t.record.readOnly}</p>

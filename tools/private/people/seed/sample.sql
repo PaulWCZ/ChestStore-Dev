@@ -71,3 +71,57 @@ insert into arrivals (source, ref, name, job, team, place, start_date, hired_by)
 insert into away (request, member_id, from_day, to_day, from_half, to_half, told_at) values
   ('L-118', 'mbr_inesaaaaaaaaaaaaaaaaaaaaaa', (now() at time zone 'Europe/Paris')::date - 1, (now() at time zone 'Europe/Paris')::date + 2, 'am', 'pm', now()),
   ('L-121', 'mbr_tomaaaaaaaaaaaaaaaaaaaaaaa', (now() at time zone 'Europe/Paris')::date, (now() at time zone 'Europe/Paris')::date, 'pm', 'pm', now());
+
+-- The example steps speak each reader's language (their phrase).
+update template_items t set phrase = p.phrase from (values
+  ('Order the laptop and accessories', 'onboarding.laptop'), ('Create their accounts (email, the Chest)', 'onboarding.accounts'),
+  ('Prepare their desk and badge', 'onboarding.desk'), ('Welcome them and show them around', 'onboarding.welcome'), ('Lunch with the team', 'onboarding.lunch'),
+  ('Fill in your profile in People', 'onboarding.profile'), ('Read the handbook', 'onboarding.handbook'), ('Set the first goals together', 'onboarding.goals'),
+  ('One-month check-in', 'onboarding.checkIn'), ('Plan the handover of their work', 'offboarding.handover'), ('Farewell drink', 'offboarding.farewell'),
+  ('Return the laptop, badge and keys', 'offboarding.equipment'), ('Close their accounts and access', 'offboarding.access'),
+  ('Send the final documents (certificate, pay slip)', 'offboarding.documents')
+) as p(text, phrase) where t.text = p.text;
+update journey_items j set phrase = t.phrase from template_items t where t.template_id = 1 and t.text = j.text;
+
+-- Written by HR by hand: Marc joins the warehouse next month (a weekday).
+insert into arrivals (source, ref, name, job, team, place, start_date, hired_by, work_email) values
+  ('manual', 'manual-sample1', 'Marc Lefèvre', 'Warehouse lead', 'Logistics', 'Lyon',
+   (date_trunc('week', current_date + 35))::date, 'mbr_camilleaaaaaaaaaaaaaaaaaaa', 'marc.lefevre@example.test');
+
+-- An extra field HR added; people fill it in.
+insert into fields (label, editor, position) values ('Languages', 'person', 1);
+insert into field_values (member_id, field_id, value) values
+  ('mbr_sofiaaaaaaaaaaaaaaaaaaaaaa', 1, 'Italian, English, French'),
+  ('mbr_tomaaaaaaaaaaaaaaaaaaaaaaa', 1, 'English, French'),
+  ('mbr_inesaaaaaaaaaaaaaaaaaaaaaa', 1, 'French, Spanish');
+
+-- HR records: the staff register in hiring order, an intern, someone
+-- without the Chest (the warehouse), someone who left; Nora's trial period
+-- ends soon.
+insert into records (member_id, legal_name, sex, birth_date, nationality, job, qualification, contract, working_time, hours, start_date, trial_end, contract_end, end_date,
+  work_permit, agency, tutor_id, workplace, emergency_name, emergency_relation, emergency_phone, address, created_by) values
+  ('mbr_camilleaaaaaaaaaaaaaaaaaaa', 'MARTIN Camille Hélène', 'female', date '1984-04-18', 'Française', 'Office manager', 'Cadre, position 2.1', 'permanent', 'full', 35, date '2017-02-06', null, null, null,
+   '', '', null, '', 'Julien Martin', 'Spouse', '+33 6 10 20 30 40', '14 rue Oberkampf
+75011 Paris', 'mbr_camilleaaaaaaaaaaaaaaaaaaa'),
+  (null, 'GIRAUD Paul', 'male', date '1979-09-02', 'Française', 'Warehouse operator', 'Ouvrier, niveau II coefficient 170', 'permanent', 'full', 35, date '2018-03-05', null, null, date '2024-06-28',
+   '', '', null, '', '', '', '', '', 'mbr_camilleaaaaaaaaaaaaaaaaaaa'),
+  ('mbr_inesaaaaaaaaaaaaaaaaaaaaaa', 'MOREAU Inès', 'female', date '1986-11-23', 'Française', 'Head of sales', 'Cadre, position 3.1', 'permanent', 'full', 35, date '2019-05-13', null, null, null,
+   '', '', null, '', 'Carlos Moreau', 'Father', '+33 6 55 44 33 22', '', 'mbr_camilleaaaaaaaaaaaaaaaaaaa'),
+  ('mbr_leaaaaaaaaaaaaaaaaaaaaaaaa', 'DUBOIS Léa', 'female', date '1992-07-08', 'Française', 'Lead developer', 'Cadre, position 2.2', 'permanent', 'full', 35, date '2020-10-01', null, null, null,
+   '', '', null, '', '', '', '', '', 'mbr_camilleaaaaaaaaaaaaaaaaaaa'),
+  (null, 'DIALLO Aminata', 'female', date '1995-01-30', 'Sénégalaise', 'Warehouse operator', 'Ouvrier, niveau I coefficient 150', 'fixed_term', 'part', 24, date '2023-09-04', null, current_date + 20, null,
+   'Carte de séjour « salarié » n° 7512345678', '', null, '', 'Moussa Diallo', 'Brother', '+33 7 12 34 56 78', '', 'mbr_camilleaaaaaaaaaaaaaaaaaaa'),
+  ('mbr_sofiaaaaaaaaaaaaaaaaaaaaaa', 'ROSSI Sofia', 'female', date '1996-03-14', 'Italienne', 'HR assistant', 'Employée, niveau 3', 'permanent', 'full', 35, date '2023-01-09', null, null, null,
+   '', '', null, '', '', '', '', '', 'mbr_camilleaaaaaaaaaaaaaaaaaaa'),
+  ('mbr_tomaaaaaaaaaaaaaaaaaaaaaaa', 'WALKER Thomas', 'male', date '1991-12-01', 'Britannique', 'Developer', '', 'seconded', 'full', 35, date '2024-03-04', null, null, null,
+   'Titre de séjour « talent » n° 9912345678', 'Bristol Data Ltd
+1 Harbour Road, Bristol BS1, United Kingdom', null, '', '', '', '', '', 'mbr_camilleaaaaaaaaaaaaaaaaaaa'),
+  (null, 'NGUYEN Linh', 'female', date '2004-05-20', 'Française', 'Marketing intern', '', 'internship', 'full', 35, current_date - 40, null, current_date + 50, null,
+   '', '', 'mbr_inesaaaaaaaaaaaaaaaaaaaaaa', 'Lyon office', '', '', '', '', 'mbr_camilleaaaaaaaaaaaaaaaaaaa'),
+  ('mbr_noraaaaaaaaaaaaaaaaaaaaaaa', 'PETIT Nora', 'female', date '2000-02-11', 'Française', 'Sales assistant', 'Employée, niveau 2', 'permanent', 'full', 35, current_date - 6, current_date + 9, null, null,
+   '', '', null, '', 'Anne Petit', 'Mother', '+33 6 77 88 99 00', '', 'mbr_camilleaaaaaaaaaaaaaaaaaaa');
+
+insert into journal (at, actor, action, record_id, fields) values
+  (now() - interval '6 days', 'mbr_camilleaaaaaaaaaaaaaaaaaaa', 'created', 9, '{}'),
+  (now() - interval '6 days', 'mbr_camilleaaaaaaaaaaaaaaaaaaa', 'changed', 9, '{birthDate,nationality,qualification,trialEnd}'),
+  (now() - interval '2 days', 'mbr_sofiaaaaaaaaaaaaaaaaaaaaaa', 'viewed', 9, '{}');

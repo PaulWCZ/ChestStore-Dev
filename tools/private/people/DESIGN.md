@@ -47,7 +47,18 @@ chart (cards joined by thin 1.5 px connectors with rounded elbows; on a
 phone, an indented list with a thread down the side); checklist steps with
 a round tick, who does it (small portrait, role) and a due pill (late /
 today / date); progress meters; banners (to-do, warning, done); toasts in
-plum with *Undo*; dashed empty states with one action.
+plum with *Undo*; dashed empty states with one action. Added with the HR
+records: a phone **bottom bar** (icon over its word, the current section
+in a soft terracotta well); the **"has left" card** in the org chart
+(dashed, on the quiet surface, faded portrait); a **sheet** for HR's table
+(sticky name column and header, borderless cells that show a terracotta
+outline when edited); the **record** (a lock banner saying who sees the
+page, cards per part, a star and one line for what the register needs, a
+sticky save bar, document rows with a file icon); the **register** table
+(row marked on the left in red when a detail is missing; an A4 landscape
+print layout without the tool's chrome); **numbers** as stat tiles and
+thin terracotta bars, each with its figure beside it (arrivals terracotta,
+departures plum, with a key).
 
 ## Icon
 

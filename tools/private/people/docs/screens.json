@@ -11,5 +11,12 @@
   {"name": "edit-fr", "path": "/chest/people/mbr_leaaaaaaaaaaaaaaaaaaaaaaaa/edit", "member": "lea", "locale": "fr", "only": ["desktop"]},
   {"name": "template", "path": "/chest/checklists/templates/1", "member": "camille", "locale": "en", "only": ["desktop"]},
   {"name": "directory-dark", "path": "/chest", "member": "tom", "locale": "en", "dark": true},
-  {"name": "chart-dark", "path": "/chest/chart", "member": "sofia", "locale": "en", "dark": true, "only": ["phone"]}
+  {"name": "chart-dark", "path": "/chest/chart", "member": "sofia", "locale": "en", "dark": true, "only": ["phone"]},
+  {"name": "records", "path": "/chest/records", "member": "camille", "locale": "en"},
+  {"name": "record", "path": "/chest/records/9", "member": "camille", "locale": "en"},
+  {"name": "register-fr", "path": "/chest/records/register", "member": "camille", "locale": "fr", "only": ["desktop"]},
+  {"name": "my-record-fr", "path": "/chest/records/9", "member": "nora", "locale": "fr"},
+  {"name": "numbers", "path": "/chest/numbers", "member": "sofia", "locale": "en"},
+  {"name": "table", "path": "/chest/table", "member": "sofia", "locale": "en", "only": ["desktop"]},
+  {"name": "records-dark", "path": "/chest/records", "member": "sofia", "locale": "en", "dark": true, "only": ["phone"]}
 ]

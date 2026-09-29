@@ -2,9 +2,14 @@
 
 A tool for [Chest](https://argentic.app): the company's private software
 space. A Chest builds it from this repository and runs it on the company's
-own server. It replaces the **directory, org chart and onboarding parts of
-BambooHR, Factorial or Lucca Poplee**, the Google Workspace directory, and
-the Notion "team" page or shared "who's who" spreadsheet.
+own server. It replaces the **directory, org chart, onboarding and employee
+record of BambooHR, Factorial or Lucca (Poplee / Core HR)** for a small
+company — contract, emergency contact, documents and the French staff
+register (*registre unique du personnel*) — the Google Workspace
+directory, and the Notion "team" page or shared "who's who" spreadsheet.
+It does **not** replace their payroll, salary and compensation reviews,
+time off (the store's Leave tool), performance reviews (Goals) or e-signature:
+see "What it does not do yet".
 
 ## What it does
 
@@ -13,18 +18,37 @@ the Notion "team" page or shared "who's who" spreadsheet.
   only what the Chest does not know: job title, team, office, manager, work
   phone, pronouns, a short bio, "Ask me about" topics, start date, and a
   birthday (day and month only, shown only if the person turns it on).
-  Search as you type on name, job, team, office and topics (accents and case
-  aside); filter by team and office; the search stays in the address.
+  Search as you type on name, job, team, office, topics, work email and
+  HR's extra fields (accents and case aside); filter by team and office;
+  the search stays in the address.
+- **Work email** — the Chest's address of each member (`members.email`),
+  on their profile with a *Write* button beside *Call*; in the export; used
+  by the import to match people.
+- **Extra fields** HR adds for everyone ("Languages", "T-shirt size",
+  "LinkedIn"; 20 at most): each filled by the person (and HR) or by HR
+  only, shown on the profile, found by the search, in the export and the
+  import. Removing one has *Undo* (kept 30 days).
 - **A profile page** per person: how to reach them (one tap to call), what
   to ask them, whom they report to and who reports to them, how long they
   have been here, their checklists (for those allowed to see them).
-- **Edit** — each person edits their own phone, pronouns, bio, topics and
-  birthday; HR edits anyone's job title, team, office, manager, start date
-  and work phone. A manager can never be someone below the person: the
-  server refuses loops (and the picker does not offer them).
+- **Edit** — each person edits their own phone, pronouns, bio, topics,
+  birthday and extra fields; HR edits anyone's job title, team, office,
+  manager, start date and work phone. A manager can never be someone below
+  the person: the server refuses loops (and the picker does not offer
+  them). HR's changes of job details are written in a journal (who, when,
+  which fields — never the values), shown to HR on the profile.
+- **Edit as a table** (HR) — everyone on one screen: job title, team,
+  office, manager, start date, phone and the extra fields as cells, each
+  saved when HR leaves it, with *Undo*; a refused value (a loop, a wrong
+  phone) comes back as it was. HR adds, renames and removes extra fields
+  there.
 - **Org chart**, drawn from the managers: top-down trees with thin
   connectors, each team folding open and shut; an indented list on phones;
-  "Not in the chart yet" lists those without a manager or team.
+  "Not in the chart yet" lists those without a manager or team. **A manager
+  who leaves keeps their place**: a dashed card "Has left" stays above
+  their reports (under their own manager while their profile is kept)
+  until HR names someone else; the reports' profiles say "Léa Dubois has
+  left".
 - **New colleagues** — people who started in the last 30 days are greeted
   on the directory ("Say hello to Nora"), those arriving in the next 60
   days listed; **this month**'s birthdays (opt-in) and work anniversaries.
@@ -38,13 +62,86 @@ the Notion "team" page or shared "who's who" spreadsheet.
   its day, adds or removes steps, stops a checklist (with *Undo*) or
   deletes a stopped one. The person who started it is told when it is
   complete.
-- **Import** a CSV (a shared spreadsheet, BambooHR's "Employee directory"
-  report, a Google Workspace users export, Lucca's export): people matched
-  by full name (accents, case and "Last First" order aside); columns for
-  title, team, manager (by name), phone, office, start date recognised in
-  English and French; day-first or month-first dates detected; a preview
-  says what will change and what is left out; empty cells change nothing.
-  **Export** the directory as CSV (the same columns: it round-trips).
+- **Import** a CSV (a shared spreadsheet, BambooHR's reports, a Google
+  Workspace users export, Lucca's export): columns recognised from their
+  names in English and French — BambooHR's "Employee #" (left out), "First
+  Name", "Last Name", "Reporting to", "Supervisor", "Hire Date", "Work
+  Email"; Lucca's "Matricule", "Nom", "Prénom", "Date d'entrée" — and a
+  **mapping step** where HR says what any column holds (or leaves it out,
+  or sends it to an extra field). People are matched by work email when
+  the file has one, otherwise by full name (accents, case, commas and "Last
+  First" order aside). When the dates could be day/month or month/day,
+  **HR is asked** (BambooHR's guess is month-first). A preview says what
+  will change and what is left out; empty cells change nothing.
+  **Export** the directory as CSV (the same columns, extra fields
+  included: it round-trips; phone numbers are written as they are, only
+  cells that could run as formulas get a quote, taken back on import).
+- **Expected arrivals written by hand** — "Someone is joining" on the
+  Checklists page (name, job, team, office, first day, manager, work email):
+  the same arrival Hiring's event makes, so a company hiring through
+  LinkedIn and email starts the checklist before day 1. HR corrects its
+  own arrivals; when the newcomer gets the Chest, People offers to link
+  them (by the work email, else by name). A first day on a Saturday or
+  Sunday is questioned (here and when starting a checklist).
+- **Example steps in each reader's language** — the steps of the two
+  example templates show in English or French to each person (bell
+  included) until HR rewords one. The newcomer's **"Fill in your profile"
+  ticks itself** once they did.
+
+## HR records (HR only; each person reads their own)
+
+The part of BambooHR / Lucca Core HR a French SME is required to have.
+
+- **One record per person employed** — members, and people **without the
+  Chest** (a warehouse worker, an intern): *Identity* (name and first
+  names as on the contract, sex, date of birth, nationality, work permit
+  type and number, home address), *Contract* (permanent / fixed-term /
+  apprenticeship / work-study / internship / temporary / seconded; job;
+  qualification — level or coefficient of the collective agreement; full
+  or part time and weekly hours; first day, end of trial period, planned
+  end, last day; the agency or seconding employer; an intern's tutor and
+  place), *In an emergency* (name, relationship, phone), *Documents*
+  (contracts, amendments, certificates, ID: PDFs, pictures, Word or
+  OpenDocument files up to 20 MB, kept through the Chest's files, opened
+  through a fresh 15-minute link).
+- **Who sees what**: HR edits every record; **the person reads their own**
+  ("My HR record" on their profile), read-only; **anyone else — their
+  manager included — is told it does not exist** (404).
+- **A journal of every reading and change**: who opened a record, changed
+  which fields (names only, never values), added, opened or removed which
+  kind of document, read or downloaded the register — shown on the record
+  and the register; kept two years. The person's own readings are not
+  noted.
+- **One click to start**: "Create their 12 records" for everyone in the
+  directory who has none, filled with their name, job and start date.
+- **Coming up** and in HR's bell each morning: trial periods ending within
+  two weeks, contracts within a month.
+- **The staff register** (*registre unique du personnel*, Code du travail
+  L1221-13, D1221-23, R1221-26 — sources in THIRD_PARTY.md), written from
+  the records: employees in the order they were hired (name and first
+  names, nationality, date of birth, sex, job, qualification, entry,
+  exit, work permit, and the mentions *CDD*, *salarié temporaire* with the
+  agency, *mis à disposition* with the employer, *temps partiel*,
+  *apprenti*, *contrat de professionnalisation*), interns in their own part
+  (dates, tutor, place). Rows missing what the law asks are marked. **Print
+  or save as PDF** (a print layout, A4 landscape) or **download as CSV**.
+  A record stays five years after the person's last day, then goes with
+  its documents; a record of someone who worked here cannot be deleted
+  (only one made by mistake).
+- **Numbers**: headcount, by team, office and contract; arrivals and
+  departures for each of the last twelve months; turnover over twelve
+  months (half of arrivals plus departures, divided by the headcount a year
+  ago — the usual French *taux de rotation*), each figure written next to
+  its bar.
+- **Salary is not kept here — a decision.** In France the pay slip and the
+  DSN are made by payroll software or the accountant, which already hold
+  salary and its history; a second copy in a directory tool would be one
+  more place to leak the most sensitive figure of the company, readable by
+  whoever runs the tool (the Chest gives the tool's builders its strongest
+  role) and by the database's backups, without encryption the SDK does
+  not offer yet (see "Needs from the SDK"). The register does not need it.
+  Likewise the social security number (NIR, strictly framed by the CNIL) is
+  not asked.
 
 ## With the other tools
 
@@ -112,11 +209,12 @@ ones Rooms receives; unchanged).
 
 | Role (`chest.json`) | Label | May |
 |---|---|---|
-| `hr` | HR | everything below, and: everyone's job fields, templates, start/follow/stop checklists, tick any step, import, export |
-| `member` | Member | read the directory and the org chart, edit their own profile, do and tick the steps given to them, see the checklists they take part in (theirs, their reports', those with a step for them) |
+| `hr` | HR | everything below, and: everyone's job fields and extra fields, the table, templates, start/follow/stop checklists, arrivals, tick any step, import, export, **HR records, documents, the staff register, numbers** |
+| `member` | Member | read the directory and the org chart, edit their own profile, do and tick the steps given to them, see the checklists they take part in (theirs, their reports', those with a step for them), **read their own HR record** — never anyone else's |
 | (none) | — | "You can't use People yet" |
 
-The owner, the admins and the tool's builders arrive as `hr`.
+The owner, the admins and the tool's builders arrive as `hr` (and so read HR
+records: see "On a Chest").
 
 ## First minute
 
@@ -129,9 +227,14 @@ The owner, the admins and the tool's builders arrive as `hr`.
   clicks. Tick a to-do: 1 click from *My to-dos* (the bell links there).
   HR starting an arrival: *Start a checklist* → person, template, date →
   *Start* (4 clicks; the first day is pre-filled from the start date).
+  HR setting up a new company: *Import* (a BambooHR or Lucca file) or
+  *Edit as a table*; then *Records* → *Create their N records* (1 click)
+  → complete each; the staff register is then written.
 - **A mistake:** ticking has *Undo*; removing a step or stopping a checklist
-  has *Undo*; a refused save says why and keeps what was typed; a manager
-  that would make a loop is refused in plain words.
+  has *Undo*; a cell of the table has *Undo*; removing a document or an
+  extra field has *Undo*; a refused save says why and keeps what was
+  typed; a manager that would make a loop is refused in plain words; a
+  first day on a weekend is questioned.
 
 ## Routes
 
@@ -145,7 +248,13 @@ The owner, the admins and the tool's builders arrive as `hr`.
 | `/chest/checklists`, `/chest/checklists/new` | HR | arrivals and departures, templates; start one |
 | `/chest/checklists/<id>` | HR, the person, their manager, those with a step | one checklist |
 | `/chest/checklists/templates/<id>` | HR | a template |
-| `/chest/import`, `/chest/export` | HR | CSV import, CSV download |
+| `/chest/import`, `/chest/export` | HR | CSV import (with the mapping step), CSV download |
+| `/chest/table` | HR | edit everyone as a table; extra fields |
+| `/chest/records` | HR | HR records: coming up, without a record, working here, starting, left |
+| `/chest/records/<id>` | HR, the record's person | one record (HR edits; the person reads) |
+| `/chest/records/<id>/documents/<doc>` | HR, the record's person | a document, through a fresh signed link (303) |
+| `/chest/records/register`, `/chest/records/register/csv` | HR | the staff register; its CSV |
+| `/chest/numbers` | HR | headcount, arrivals and departures, turnover |
 | `/chest-events` | the Chest only (signed) | members' lifecycle |
 | `/chest-jobs/morning` | the Chest only (signed) — proposal | the weekday morning reminder |
 | `/` | anyone | "People lives in your Chest" |
@@ -153,22 +262,40 @@ The owner, the admins and the tool's builders arrive as `hr`.
 ## On a Chest
 
 - `capabilities`: `database`, `members` (names, photos, roles: the directory
-  itself), `notifications` (the bell and the tile's number: open to-dos);
-  `receives: ["member.*"]`. No files, no network.
+  itself), `members.email` (the work address on profiles, the import's
+  matching), `files` (the records' documents, 20 MB each), `notifications`
+  (the bell and the tile's number: open to-dos); `receives: ["member.*"]`.
+  No network.
+- **Who is HR**: the owner, the admins and the tool's builders enter with
+  the first role, `hr` — so they read HR records. Give the tool's building
+  to someone who may read them, or see "Needs from the SDK".
 - **The directory is the Chest's members who have the tool.** Give People
   to everyone (open to all) so the directory is the whole company.
 - **Someone leaves** (or loses access): they leave the directory at once;
   their profile is kept 30 days in case they come back, then purged. The
   people they managed no longer have a manager, their open steps go to
-  "Nobody yet", templates naming them give the step to HR — and HR is told
-  in the bell. Checklist history keeps them as "(former member)".
-- **An erasure** deletes their profile and the checklists about them (their
-  HR record), and replaces their id everywhere else; then it is
+  HR (whoever started the checklist, when still HR), templates naming them
+  give the step to HR, the people they managed keep them as manager,
+  flagged "has left" — and HR is told in the bell (and to write their last
+  day in their record). Checklist history keeps them as "(former member)".
+  Their HR record stays (the register).
+- **An erasure** deletes their profile, extra fields and the checklists
+  about them, and replaces their id everywhere else (journal included).
+  Their HR record: deleted if they never started; otherwise the law wins
+  over erasure for what the register must show (GDPR art. 17(3)(b)): the
+  identity, contract fields, contracts and certificates stay, **detached
+  from the member**, until five years after their last day; the emergency
+  contact, the address, ID and other documents go. Then it is
   acknowledged.
 - **Privacy**: no photo is stored (the Chest's own); a birthday is day and
   month only, and only when the person turns it on — turning it off forgets
-  it. No sensitive HR data (salary, contract, ID) is kept: that is not a
-  directory's job.
+  it. HR records hold personal data that only HR and the person see; the
+  journal names fields, never values; no salary, no social security
+  number. The legal name is written by HR in the record (not copied from
+  the Chest): the register must still show it five years after the
+  person left, after the Chest forgot them — the one place People keeps a
+  name, on purpose. Data is not encrypted at rest by People itself (see
+  "Needs from the SDK").
 - No WebSocket: pages re-read themselves every 30–60 s while visible.
 
 ## Needs from the SDK
@@ -189,7 +316,17 @@ The owner, the admins and the tool's builders arrive as `hr`.
   departures.
 - **The Chest's time zone** — **Proposal (studio)** (`chest.timeZone()`,
   `chest.today()`): "today", due days and anniversaries.
-- **Wished for, not built**: **email** would let HR send a welcome message
+- **Files** (`files`, 0.2.0): the records' documents, uploaded by the
+  browser straight to the Chest (`uploadUrl`), opened through `files.url`.
+- **Wished for, not built** (in the SDK report): **sealed fields** — a
+  Chest-held key to encrypt the most sensitive fields at rest
+  (`secrets.seal(text)` / `open(sealed)`), so a database backup or a
+  builder reading tables sees nothing; **a role the builders do not get**
+  (the manifest marking `hr` as "never given by default"), so building the
+  tool does not mean reading records; a **Chest-wide audit journal** the
+  tool writes to and the owner reads (People keeps its own meanwhile);
+  **events from Equipment** ("everything taken back" for a person) to tick
+  the leaving checklist's return step; **email** would let HR send a welcome message
   before day 1 (the newcomer often has no Chest access yet); the Chest's
   **working week and public holidays** (the "back on" day skips Saturdays
   and Sundays only); Equipment's items as steps of the leaving checklist
@@ -210,9 +347,17 @@ welcome checklist is under way), `node lab/chest-dev/flows/people.mjs 4700`
 
 ## What it does not do (yet)
 
-A column-mapping step in the import (column names are recognised from a
-list of English and French headers), vCard export, custom profile fields,
-languages spoken as a field, "away" from other sources than Leave (a
-calendar), public holidays in the "back on" day, a "last day" field apart
-from a leaving checklist, teams as Chest groups, drag-and-drop in the org chart, reminders by email,
-emailing the newcomer before day 1, sensitive HR files (never).
+Payroll, salary and compensation reviews, and the social security number
+(never here: see "HR records"); e-signature of contracts; a generated work
+certificate or contract from a template; the dates of an administrative
+authorisation of hiring or dismissal in the register (rare cases); the
+register's "indelible" history as a legal PDF signed and timestamped (the
+journal names changes; the printed register is the day's state);
+encryption at rest of records (needs the SDK); field-level visibility on
+profiles (for example the phone for the team only); vCard export; "away"
+from other sources than Leave (a calendar); public holidays in the "back
+on" day; teams as Chest groups; drag-and-drop in the org chart; reminders
+by email; emailing the newcomer before day 1; ticking "return the laptop"
+when Equipment has everything back (needs an Equipment event); an export
+of checklists and their history; custom fields of other kinds than text
+(a date, a choice).
