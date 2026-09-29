@@ -4,7 +4,9 @@
 -- Camille and Sofia recruit; Inès, Hugo and Léa interview. CVs are files
 -- of the Chest and cannot be seeded: the flows upload one.
 insert into settings (key, value) values
-  ('intro', '"We design and build solid-wood furniture in our Lyon workshop — forty people who like things made well, and made to last. If one of these jobs speaks to you, tell us about yourself."');
+  ('intros', '{"en": "We design and build solid-wood furniture in our Lyon workshop — forty people who like things made well, and made to last. If one of these jobs speaks to you, tell us about yourself.", "fr": "Nous dessinons et fabriquons des meubles en bois massif dans notre atelier lyonnais — quarante personnes qui aiment les choses bien faites, et faites pour durer. Si l’un de ces postes vous parle, racontez-nous qui vous êtes."}'),
+  ('website', '"https://atelier-martin.example/"'),
+  ('country', '"FR"');
 
 insert into jobs (id, slug, title, team, place, contract, remote, language, description, salary_min, salary_max, salary_currency, salary_period, salary_shown, state, created_by, created_at, updated_at, opened_at, closed_at) overriding system value values
   (1, 'senior-furniture-designer', 'Senior furniture designer', 'Design studio', 'Lyon', 'permanent', 'hybrid', 'en',
@@ -20,11 +22,20 @@ insert into jobs (id, slug, title, team, place, contract, remote, language, desc
    E'Two months at the bench with our cabinet makers, from June to August.\n\n- Sanding, assembling, finishing\n- A real piece of your own by the end of the summer',
    null, null, 'EUR', 'month', false, 'closed', 'mbr_camilleaaaaaaaaaaaaaaaaaaa', now() - interval '120 days', now() - interval '60 days', now() - interval '118 days', now() - interval '60 days');
 
-insert into stages (id, job_id, name, position, hired) overriding system value values
-  (1, 1, 'New', 0, false), (2, 1, 'Screening', 1, false), (3, 1, 'Interview', 2, false), (4, 1, 'Offer', 3, false), (5, 1, 'Hired', 4, true),
-  (6, 2, 'New', 0, false), (7, 2, 'Phone call', 1, false), (8, 2, 'Showroom day', 2, false), (9, 2, 'Offer', 3, false), (10, 2, 'Hired', 4, true),
-  (11, 3, 'Nouveaux', 0, false), (12, 3, 'Présélection', 1, false), (13, 3, 'Entretien', 2, false), (14, 3, 'Proposition', 3, false), (15, 3, 'Embauché', 4, true),
-  (16, 4, 'New', 0, false), (17, 4, 'Interview', 1, false), (18, 4, 'Hired', 2, true);
+-- Default stages are keys (preset), each reader sees them in their
+-- language; the showroom job has two stages of its own, named by Sofia.
+insert into stages (id, job_id, name, preset, position, hired) overriding system value values
+  (1, 1, null, 'new', 0, false), (2, 1, null, 'screening', 1, false), (3, 1, null, 'interview', 2, false), (4, 1, null, 'offer', 3, false), (5, 1, null, 'hired', 4, true),
+  (6, 2, null, 'new', 0, false), (7, 2, 'Phone call', null, 1, false), (8, 2, 'Showroom day', null, 2, false), (9, 2, null, 'offer', 3, false), (10, 2, null, 'hired', 4, true),
+  (11, 3, null, 'new', 0, false), (12, 3, null, 'screening', 1, false), (13, 3, null, 'interview', 2, false), (14, 3, null, 'offer', 3, false), (15, 3, null, 'hired', 4, true),
+  (16, 4, null, 'new', 0, false), (17, 4, null, 'interview', 1, false), (18, 4, null, 'hired', 2, true);
+
+-- Where the jobs are (Google for Jobs and the feeds place them), and the
+-- showroom's questions.
+update jobs set postal_code = '69003', street = '14 rue des Tanneurs' where id in (1, 3, 4);
+update jobs set postal_code = '69002', street = '8 rue Mercière' where id = 2;
+update jobs set closes_on = (now() + interval '40 days')::date where id = 2;
+update jobs set questions = '[{"id": "qsat1", "kind": "yesno", "label": "Can you work on Saturdays?", "options": [], "required": true}, {"id": "qstart2", "kind": "choice", "label": "When could you start?", "options": ["Right away", "Within a month", "Later"], "required": false}]' where id = 2;
 
 insert into job_interviewers (job_id, member_id, added_by, added_at) values
   (1, 'mbr_inesaaaaaaaaaaaaaaaaaaaaaa', 'mbr_camilleaaaaaaaaaaaaaaaaaaa', now() - interval '24 days'),
@@ -79,31 +90,31 @@ insert into notes (candidate_id, author, body, created_at) values
 insert into activity (candidate_id, actor, kind, data, created_at) values
   (1, null, 'applied', '{}', now() - interval '21 days'),
   (1, null, 'emailed', '{"kind": "confirmation"}', now() - interval '21 days'),
-  (1, 'mbr_camilleaaaaaaaaaaaaaaaaaaa', 'moved', '{"from": "New", "to": "Screening"}', now() - interval '18 days'),
-  (1, 'mbr_camilleaaaaaaaaaaaaaaaaaaa', 'moved', '{"from": "Screening", "to": "Interview"}', now() - interval '6 days'),
+  (1, 'mbr_camilleaaaaaaaaaaaaaaaaaaa', 'moved', '{"from": null, "fromPreset": "new", "to": null, "toPreset": "screening"}', now() - interval '18 days'),
+  (1, 'mbr_camilleaaaaaaaaaaaaaaaaaaa', 'moved', '{"from": null, "fromPreset": "screening", "to": null, "toPreset": "interview"}', now() - interval '6 days'),
   (1, 'mbr_hugoaaaaaaaaaaaaaaaaaaaaaa', 'feedback', '{}', now() - interval '3 days'),
   (1, 'mbr_camilleaaaaaaaaaaaaaaaaaaa', 'feedback', '{}', now() - interval '3 days'),
   (1, 'mbr_camilleaaaaaaaaaaaaaaaaaaa', 'asked', '{"members": ["mbr_inesaaaaaaaaaaaaaaaaaaaaaa"]}', now() - interval '2 days'),
   (2, null, 'applied', '{}', now() - interval '1 day'),
   (3, null, 'applied', '{}', now() - interval '3 hours'),
   (4, null, 'applied', '{}', now() - interval '12 days'),
-  (4, 'mbr_camilleaaaaaaaaaaaaaaaaaaa', 'moved', '{"from": "New", "to": "Screening"}', now() - interval '9 days'),
-  (5, 'mbr_camilleaaaaaaaaaaaaaaaaaaa', 'added', '{"stage": "Screening"}', now() - interval '19 days'),
-  (5, 'mbr_camilleaaaaaaaaaaaaaaaaaaa', 'moved', '{"from": "Screening", "to": "Interview"}', now() - interval '10 days'),
+  (4, 'mbr_camilleaaaaaaaaaaaaaaaaaaa', 'moved', '{"from": null, "fromPreset": "new", "to": null, "toPreset": "screening"}', now() - interval '9 days'),
+  (5, 'mbr_camilleaaaaaaaaaaaaaaaaaaa', 'added', '{"stage": null, "preset": "screening"}', now() - interval '19 days'),
+  (5, 'mbr_camilleaaaaaaaaaaaaaaaaaaa', 'moved', '{"from": null, "fromPreset": "screening", "to": null, "toPreset": "interview"}', now() - interval '10 days'),
   (5, 'mbr_inesaaaaaaaaaaaaaaaaaaaaaa', 'feedback', '{}', now() - interval '6 days'),
   (5, 'mbr_hugoaaaaaaaaaaaaaaaaaaaaaa', 'feedback', '{}', now() - interval '5 days'),
-  (5, 'mbr_camilleaaaaaaaaaaaaaaaaaaa', 'moved', '{"from": "Interview", "to": "Offer"}', now() - interval '2 days'),
+  (5, 'mbr_camilleaaaaaaaaaaaaaaaaaaa', 'moved', '{"from": null, "fromPreset": "interview", "to": null, "toPreset": "offer"}', now() - interval '2 days'),
   (6, null, 'applied', '{}', now() - interval '15 days'),
-  (6, 'mbr_camilleaaaaaaaaaaaaaaaaaaa', 'moved', '{"from": "New", "to": "Screening"}', now() - interval '14 days'),
+  (6, 'mbr_camilleaaaaaaaaaaaaaaaaaaa', 'moved', '{"from": null, "fromPreset": "new", "to": null, "toPreset": "screening"}', now() - interval '14 days'),
   (6, 'mbr_camilleaaaaaaaaaaaaaaaaaaa', 'rejected', '{"reason": "experience"}', now() - interval '13 days'),
   (6, 'mbr_camilleaaaaaaaaaaaaaaaaaaa', 'emailed', '{"kind": "rejection"}', now() - interval '13 days'),
   (7, null, 'applied', '{}', now() - interval '16 days'),
-  (7, 'mbr_camilleaaaaaaaaaaaaaaaaaaa', 'moved', '{"from": "Screening", "to": "Interview"}', now() - interval '4 days'),
+  (7, 'mbr_camilleaaaaaaaaaaaaaaaaaaa', 'moved', '{"from": null, "fromPreset": "screening", "to": null, "toPreset": "interview"}', now() - interval '4 days'),
   (7, 'mbr_hugoaaaaaaaaaaaaaaaaaaaaaa', 'feedback', '{}', now() - interval '2 days'),
   (7, 'mbr_camilleaaaaaaaaaaaaaaaaaaa', 'asked', '{"members": ["mbr_inesaaaaaaaaaaaaaaaaaaaaaa"]}', now() - interval '1 day'),
   (8, null, 'applied', '{}', now() - interval '5 hours'),
   (9, null, 'applied', '{}', now() - interval '10 days'),
-  (9, 'mbr_sofiaaaaaaaaaaaaaaaaaaaaaa', 'moved', '{"from": "New", "to": "Phone call"}', now() - interval '7 days'),
+  (9, 'mbr_sofiaaaaaaaaaaaaaaaaaaaaaa', 'moved', '{"from": null, "fromPreset": "new", "to": "Phone call"}', now() - interval '7 days'),
   (10, null, 'applied', '{}', now() - interval '14 days'),
   (10, 'mbr_sofiaaaaaaaaaaaaaaaaaaaaaa', 'moved', '{"from": "Phone call", "to": "Showroom day"}', now() - interval '3 days'),
   (10, 'mbr_leaaaaaaaaaaaaaaaaaaaaaaaa', 'feedback', '{}', now() - interval '2 days'),
@@ -111,13 +122,40 @@ insert into activity (candidate_id, actor, kind, data, created_at) values
   (11, 'mbr_sofiaaaaaaaaaaaaaaaaaaaaaa', 'rejected', '{"reason": "salary"}', now() - interval '11 days'),
   (12, null, 'applied', '{}', now() - interval '2 days'),
   (13, null, 'applied', '{}', now() - interval '7 days'),
-  (13, 'mbr_camilleaaaaaaaaaaaaaaaaaaa', 'moved', '{"from": "Nouveaux", "to": "Entretien"}', now() - interval '2 days'),
+  (13, 'mbr_camilleaaaaaaaaaaaaaaaaaaa', 'moved', '{"from": null, "fromPreset": "new", "to": null, "toPreset": "interview"}', now() - interval '2 days'),
   (13, 'mbr_camilleaaaaaaaaaaaaaaaaaaa', 'feedback', '{}', now() - interval '1 day'),
   (14, null, 'applied', '{}', now() - interval '110 days'),
-  (14, 'mbr_camilleaaaaaaaaaaaaaaaaaaa', 'moved', '{"from": "Interview", "to": "Hired"}', now() - interval '75 days'),
+  (14, 'mbr_camilleaaaaaaaaaaaaaaaaaaa', 'moved', '{"from": null, "fromPreset": "interview", "to": null, "toPreset": "hired"}', now() - interval '75 days'),
   (15, null, 'applied', '{}', now() - interval '100 days'),
   (15, 'mbr_camilleaaaaaaaaaaaaaaaaaaa', 'rejected', '{"reason": "filled"}', now() - interval '74 days');
 
+-- Some agreed to be kept in mind for other jobs; Julie answered her
+-- rejection; an interview is planned with Lucie; a template of the team.
+update candidates set pool_at = created_at where id in (1, 4, 7, 11, 13);
+update candidates set answers = '[{"id": "qsat1", "label": "Can you work on Saturdays?", "answer": "yes"}, {"id": "qstart2", "label": "When could you start?", "answer": "Within a month"}]' where id = 8;
+insert into messages (candidate_id, direction, kind, author, subject, body, status, created_at, sent_at) values
+  (1, 'out', 'confirmation', null, 'We received your application — Senior furniture designer', E'Hello Lucie Garnier,\n\nThank you for applying for Senior furniture designer at Atelier Martin. Your application has reached the team: we read every one, and we will write to you, whatever our answer.\n\nAtelier Martin', 'sent', now() - interval '21 days', now() - interval '21 days'),
+  (1, 'out', 'message', 'mbr_camilleaaaaaaaaaaaaaaaaaaa', 'Your application — Senior furniture designer', E'Hello Lucie,\n\nThank you for applying for the Senior furniture designer position. We would like to talk with you: when are you free next week for a 30-minute call?\n\nCamille\nAtelier Martin', 'sent', now() - interval '18 days', now() - interval '18 days'),
+  (1, 'in', 'message', null, 'Re: Your application — Senior furniture designer', E'Hello Camille,\n\nThank you! Tuesday or Wednesday afternoon works for me.\n\nLucie', 'received', now() - interval '17 days', null),
+  (11, 'in', 'message', null, 'Re: Your application — Sales associate — Lyon showroom', E'Bonjour,\n\nMerci pour votre réponse. N’hésitez pas à me recontacter si un poste se libère.\n\nJulie', 'received', now() - interval '10 days', null);
+update messages set from_address = 'lucie.garnier@example.com', from_name = 'Lucie Garnier', authenticated = true where candidate_id = 1 and direction = 'in';
+update messages set from_address = 'julie.morel@example.com', from_name = 'Julie Morel', authenticated = true where candidate_id = 11 and direction = 'in';
+insert into activity (candidate_id, actor, kind, data, created_at) values
+  (1, 'mbr_camilleaaaaaaaaaaaaaaaaaaa', 'wrote', '{"kind": "message"}', now() - interval '18 days'),
+  (1, null, 'replied', '{"auto": false}', now() - interval '17 days'),
+  (11, null, 'replied', '{"auto": false}', now() - interval '10 days');
+insert into interviews (id, candidate_id, starts_at, ends_at, place, note, created_by, calendar) overriding system value values
+  (1, 1, date_trunc('day', now()) + interval '2 days 14 hours', date_trunc('day', now()) + interval '2 days 15 hours', 'Atelier Martin, 14 rue des Tanneurs, Lyon', 'Bring a few pieces of your portfolio.', 'mbr_camilleaaaaaaaaaaaaaaaaaaa', 'pending'),
+  (2, 13, date_trunc('day', now()) + interval '3 days 10 hours', date_trunc('day', now()) + interval '3 days 11 hours', 'Atelier Martin, 14 rue des Tanneurs, Lyon', '', 'mbr_camilleaaaaaaaaaaaaaaaaaaa', 'pending');
+insert into interview_people (interview_id, member_id) values
+  (1, 'mbr_camilleaaaaaaaaaaaaaaaaaaa'), (1, 'mbr_hugoaaaaaaaaaaaaaaaaaaaaaa'),
+  (2, 'mbr_inesaaaaaaaaaaaaaaaaaaaaaa');
+insert into activity (candidate_id, actor, kind, data, created_at) values
+  (1, 'mbr_camilleaaaaaaaaaaaaaaaaaaa', 'interview', jsonb_build_object('at', to_char((date_trunc('day', now()) + interval '2 days 14 hours') at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"'), 'people', jsonb_build_array('mbr_camilleaaaaaaaaaaaaaaaaaaa', 'mbr_hugoaaaaaaaaaaaaaaaaaaaaaa')), now() - interval '1 day');
+insert into templates (name, language, subject, body, created_by) values
+  ('Showroom day invitation', 'en', 'A day in our showroom — {job}', E'Hello {firstName},\n\nWe would like you to spend a day with us in the showroom, rue Mercière: you will meet the team and a few of our clients. Which day suits you next week?\n\n{sender}\n{company}', 'mbr_sofiaaaaaaaaaaaaaaaaaaaaaa');
+
 select setval(pg_get_serial_sequence('jobs', 'id'), 100);
+select setval(pg_get_serial_sequence('interviews', 'id'), 100);
 select setval(pg_get_serial_sequence('stages', 'id'), 100);
 select setval(pg_get_serial_sequence('candidates', 'id'), 100);

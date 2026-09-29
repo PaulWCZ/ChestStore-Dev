@@ -15,7 +15,9 @@ async function fillApplication(name, email, file) {
   await page.getByLabel(/LinkedIn or portfolio/u).fill("linkedin.com/in/" + name.split(" ")[0].toLowerCase());
   if (file) await page.locator("input[type=file]").setInputFiles(file);
   await page.getByLabel(/A few words to the team/u).fill("I build furniture on weekends and would love to do it every day.");
-  await page.locator("input[name=consent]").check();
+  // No consent to tick to apply: an optional box for the talent pool.
+  expect(await page.locator("input[name=consent]").count() === 0, "no forced consent");
+  await page.locator("input[name=pool]").check();
   await page.waitForTimeout(3200);
 }
 
@@ -28,6 +30,7 @@ await step("the careers page lists the open jobs, in English and in French", asy
   await page.getByRole("link", { name: "Français" }).click();
   await page.waitForURL(origin + "/");
   expect((await page.locator("h1").innerText()).includes("Rejoignez Atelier Martin"), "French title");
+  expect((await page.locator(".lede").innerText()).startsWith("Nous dessinons"), "French intro on the French page");
   await page.getByRole("link", { name: "English" }).click();
   await page.waitForURL(origin + "/");
 });
@@ -92,7 +95,7 @@ await step("drag a candidate to the next stage with the mouse, and back with Und
   expect((await page.locator(".lane").nth(1).innerText()).includes("Nina Rousseau"), "in Screening");
 });
 
-await step("move a candidate with the keyboard", async () => {
+await step("move a candidate with the keyboard: one toast, no second announcement", async () => {
   await page.locator(".cand", { hasText: "Mathis Laurent" }).focus();
   await page.keyboard.press("Space");
   await page.waitForTimeout(200);
@@ -102,6 +105,8 @@ await step("move a candidate with the keyboard", async () => {
   await page.waitForTimeout(200);
   await page.keyboard.press("Space");
   await page.waitForTimeout(1500);
+  expect(await page.locator(".toast").count() === 1, "one toast: " + await page.locator(".toast").count());
+  expect(!(await page.locator("[id^=DndLiveRegion]").innerText()).includes("dropped"), "the drop is said once, by the toast");
   await page.reload();
   expect((await page.locator(".lane").nth(2).innerText()).includes("Mathis Laurent"), "in Interview");
 });
@@ -140,21 +145,43 @@ await step("an interviewer cannot move, sees only her jobs, has no settings", as
   expect(!jobs.includes("Sales associate — Lyon showroom"), "only her jobs: " + jobs.join("|"));
 });
 
-await step("the recruiter rejects with an email in the candidate's language, then undoes", async () => {
+await step("reject: no reason chosen for you; Undo keeps the email from ever leaving; without Undo it leaves after 15 s", async () => {
   await as(context, origin, "camille");
   await english();
   await page.goto(origin + "/chest/candidates/4");
   await page.getByRole("button", { name: "Reject" }).click();
+  expect(await page.locator(".dialog .pill.on").count() === 0, "no reason pre-selected");
+  expect(await page.locator(".dialog").getByRole("button", { name: "Reject", exact: true }).isDisabled(), "Reject waits for a reason");
   await page.locator(".dialog .pill", { hasText: "Not enough experience" }).click();
   expect((await page.locator("#reject-text").inputValue()).startsWith("Hello Jonas Weber,"), "draft in English");
   await page.locator(".dialog").getByRole("button", { name: "Reject", exact: true }).click();
   await page.waitForSelector(".toast");
-  expect((await page.locator(".toast").innerText()).includes("The email is on its way"), "emailed");
-  expect((await dev()).includes("Your application — Senior furniture designer"), "rejection in the outbox");
+  expect((await page.locator(".toast").innerText()).includes("Undo keeps it"), "toast says it waits");
+  expect(!(await dev()).includes("Your application — Senior furniture designer"), "nothing left yet");
   await page.locator(".toast button").click();
-  await page.waitForTimeout(1200);
+  await page.waitForTimeout(16000);
   await page.reload();
   expect((await page.locator(".cand-title .chip").innerText()).includes("Screening"), "back in Screening");
+  expect(!(await dev()).includes("Your application — Senior furniture designer"), "the undone rejection never left");
+  await page.getByRole("button", { name: "Reject" }).click();
+  await page.locator(".dialog .pill", { hasText: "Not enough experience" }).click();
+  await page.locator(".dialog").getByRole("button", { name: "Reject", exact: true }).click();
+  await page.waitForSelector(".toast");
+  await page.waitForTimeout(16000);
+  await page.reload();
+  expect((await dev()).includes("Your application — Senior furniture designer"), "rejection in the outbox once Undo is over");
+  await page.getByRole("button", { name: "Bring back" }).click();
+  await page.waitForTimeout(800);
+});
+
+await step("a candidate who withdrew is closed, not rejected by email", async () => {
+  await page.goto(origin + "/chest/candidates/9");
+  await page.getByRole("button", { name: "Reject" }).click();
+  await page.locator(".dialog .pill", { hasText: "They withdrew" }).click();
+  expect(await page.locator("#reject-text").count() === 0, "no email for a withdrawal");
+  await page.locator(".dialog").getByRole("button", { name: "Close their application" }).click();
+  await page.waitForSelector(".toast");
+  expect((await page.locator(".toast").innerText()).includes("application closed"), "closed");
 });
 
 await step("hire someone with a first day: People is told; Undo takes the hire back", async () => {
@@ -173,6 +200,122 @@ await step("hire someone with a first day: People is told; Undo takes the hire b
   await page.waitForTimeout(800);
   log = await dev();
   expect(log.includes("hiring.hire_cancelled"), "cancel published");
+});
+
+await step("reach: the job page carries JobPosting data (with the nonce), the feeds and sitemap list the open jobs", async () => {
+  const html = await (await page.request.get(origin + "/senior-furniture-designer")).text();
+  const m = /<script type="application\/ld\+json" nonce="([^"]+)">([^<]+)<\/script>/u.exec(html);
+  expect(m, "JSON-LD with a nonce");
+  const data = JSON.parse(m[2]);
+  for (const key of ["title", "description", "datePosted", "hiringOrganization", "jobLocation"]) expect(data[key], "JobPosting " + key);
+  expect(/index, follow/u.test(html), "indexable");
+  const indeed = await (await page.request.get(origin + "/jobs.xml")).text();
+  expect(indeed.startsWith("<?xml") && indeed.includes("<referencenumber><![CDATA[1]]></referencenumber>"), "Indeed feed");
+  const rss = await (await page.request.get(origin + "/feed.xml")).text();
+  expect(rss.includes("<rss version=\"2.0\"") && rss.includes("/senior-furniture-designer</link>"), "RSS");
+  expect((await (await page.request.get(origin + "/sitemap.xml")).text()).includes("/office-manager</loc>"), "sitemap");
+  expect((await (await page.request.get(origin + "/robots.txt")).text()).includes("Disallow: /chest"), "robots");
+});
+
+await step("write to a candidate from a template; her answer lands on her page", async () => {
+  await page.goto(origin + "/chest/candidates/7");
+  await page.getByRole("button", { name: "Write" }).click();
+  await page.locator("#write-template").selectOption({ label: "Ask when they are free" });
+  expect((await page.locator("#write-text").inputValue()).startsWith("Hello Emma,"), "template filled");
+  await page.locator(".dialog").getByRole("button", { name: "Send" }).click();
+  await page.waitForSelector(".toast");
+  expect((await page.locator(".toast").innerText()).includes("Sent to Emma Lefort"), "sent");
+  const log = await dev();
+  expect(log.includes("jobs+tc7-"), "reply address is the candidate's thread");
+  const id = /<option value="(msg_[a-z2-7]+)">Reply to “Your application — Senior furniture designer” \(emma\.lefort@example\.com\)/u.exec(log)?.[1];
+  expect(id, "the message in the outbox");
+  const r = await page.request.post(origin + "/_dev/receive", { form: { mailbox: "jobs", reply: id, from: "emma.lefort@example.com", fromName: "Emma Lefort", subject: "x", text: "Thursday at 10 works for me. Emma", back: "/_dev" }, maxRedirects: 0 });
+  expect(r.status() === 303, "delivered");
+  await page.reload();
+  expect((await page.locator(".mails").innerText()).includes("Thursday at 10 works for me"), "her answer in the conversation");
+  expect((await page.locator(".timeline").innerText()).includes("They answered by email"), "in the history");
+});
+
+await step("invite to an interview: busy times shown, .ics emailed, interviewers' calendars have it", async () => {
+  await page.goto(origin + "/chest/candidates/7");
+  await page.getByRole("button", { name: "Interview", exact: true }).click();
+  const day = new Date(Date.now() + 2 * 86400000).toISOString().slice(0, 10);
+  await page.locator("#iv-day").fill(day);
+  await page.locator(".dialog .check", { hasText: "Hugo Bernard" }).click();
+  await page.waitForTimeout(800);
+  expect((await page.locator(".dialog").innerText()).includes("Hugo Bernard: 16:00–17:00"), "Hugo's other interview is shown");
+  await page.locator("#iv-time").selectOption("16:00");
+  expect((await page.locator(".busy").getAttribute("class")).includes("clash"), "clash said");
+  await page.locator("#iv-time").selectOption("10:00");
+  await page.locator("#iv-place").fill("Atelier Martin, Lyon");
+  await page.locator(".dialog").getByRole("button", { name: "Send the invitation" }).click();
+  await page.waitForSelector(".toast");
+  const log = await dev();
+  expect(log.includes("Interview on ") && log.includes("Senior furniture designer"), "invitation in the outbox");
+  expect(log.includes("Interview: Emma Lefort"), "in the calendars");
+  await page.reload();
+  expect((await page.locator(".meetings").innerText()).includes("10:00"), "on her page");
+});
+
+await step("search finds Hélène without the accent; the talent pool lists who agreed", async () => {
+  await page.locator("#top-q").fill("helene");
+  await page.locator("#top-q").press("Enter");
+  await page.waitForURL(/\/chest\/search\?q=helene/u);
+  expect((await page.locator(".found-list").innerText()).includes("Hélène Vasseur"), "found");
+  await page.goto(origin + "/chest/pool");
+  const pool = await page.locator(".found-list").innerText();
+  expect(pool.includes("Nina Rousseau") && pool.includes("Lucie Garnier"), "pool: " + pool.slice(0, 80));
+});
+
+await step("select two candidates on the board and move them together, with Undo", async () => {
+  await page.goto(origin + "/chest/jobs/3");
+  await page.getByRole("button", { name: "Select" }).click();
+  await page.locator(".cand.pick", { hasText: "Manon Girard" }).click();
+  await page.locator(".cand.pick", { hasText: "Hélène Vasseur" }).click();
+  expect((await page.locator(".bulk-count").innerText()).includes("2 selected"), "2 selected");
+  await page.locator("#bulk-move").selectOption({ label: "Offer" });
+  await page.waitForSelector(".toast");
+  expect((await page.locator(".toast").innerText()).includes("2 candidates moved to Offer"), "moved");
+  await page.waitForTimeout(800);
+  await page.reload();
+  expect((await page.locator(".lane").nth(3).innerText()).includes("Manon Girard"), "in Offer");
+});
+
+await step("French screens: default stages in French, never mixed", async () => {
+  await context.addCookies([{ name: "dev_locale", value: "fr", url: origin }]);
+  await page.goto(origin + "/chest/jobs/1");
+  const lanes = await page.locator(".lane-head h2").allTextContents();
+  expect(lanes.join("|") === "Nouveaux|Présélection|Entretien|Proposition|Embauché", "French stages: " + lanes.join("|"));
+  await english();
+});
+
+await step("import candidates from a Teamtailor-style CSV, then Undo", async () => {
+  await page.goto(origin + "/chest/jobs/2/import");
+  const csv = "First name,Last name,Email,Phone,Job,Stage,Created at,LinkedIn URL\nPaul,Martin,paul.martin@example.com,+33 6 00 00 00 01,Sales associate,Phone call,2026-09-01 10:12,linkedin.com/in/paulmartin\nIris,Dupuis,iris.dupuis@example.com,,Sales associate,New,2026-09-10,\nBad,Row,not-an-email,,,,2026-09-10,\n";
+  await page.locator("input[type=file]").setInputFiles({ name: "teamtailor-candidates.csv", mimeType: "text/csv", buffer: Buffer.from(csv) });
+  await page.waitForSelector(".preview-table");
+  expect(await page.locator("#origin").inputValue() === "Teamtailor", "origin guessed");
+  await page.getByRole("button", { name: /Import 3 candidates/u }).click();
+  await page.waitForSelector("#step-cvs");
+  const done = await page.locator("#step-cvs").locator("..").innerText();
+  expect(done.includes("2 candidates imported") && done.includes("Row 4"), "imported, one skipped: " + done.slice(0, 120));
+  await page.goto(origin + "/chest/jobs/2");
+  expect((await page.locator(".lanes").innerText()).includes("Paul Martin"), "on the board");
+});
+
+await step("duplicate a job into a new draft", async () => {
+  await page.goto(origin + "/chest/jobs/3");
+  await page.locator(".job-actions .menu summary").click();
+  await page.getByRole("button", { name: "Duplicate" }).click();
+  await page.waitForURL(/\/chest\/jobs\/\d+\/edit$/u);
+  expect((await page.getByLabel("Job title").inputValue()) === "Office manager", "copied");
+});
+
+await step("export everything as a ZIP; a candidate's own data", async () => {
+  const zip = await page.request.get(origin + "/chest/export");
+  expect(zip.status() === 200 && (await zip.body()).subarray(0, 2).toString() === "PK", "zip");
+  const theirs = await page.request.get(origin + "/chest/candidates/1/data");
+  expect(theirs.status() === 200 && (await theirs.body()).subarray(0, 2).toString() === "PK", "their data");
 });
 
 await step("write a job, publish it: it is on the careers page", async () => {
@@ -226,7 +369,7 @@ await step("the nightly cleanup runs", async () => {
 
 await step("phone width: careers, job, form, board, candidate fit", async () => {
   await page.setViewportSize({ width: 390, height: 844 });
-  for (const path of ["/", "/senior-furniture-designer", "/senior-furniture-designer/apply", "/chest", "/chest/jobs/1", "/chest/candidates/1", "/chest/jobs/1/settings", "/chest/settings"]) {
+  for (const path of ["/", "/senior-furniture-designer", "/senior-furniture-designer/apply", "/chest", "/chest/jobs/1", "/chest/candidates/1", "/chest/jobs/1/settings", "/chest/settings", "/chest/reports?job=1", "/chest/pool", "/chest/search?q=lu", "/chest/jobs/2/import", "/sales-associate-lyon-showroom/apply"]) {
     await page.goto(origin + path);
     const width = await page.evaluate(() => document.documentElement.scrollWidth);
     expect(width <= 392, `${path} overflows: ${width}`);

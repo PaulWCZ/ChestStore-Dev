@@ -2,7 +2,8 @@
 -- Atelier Martin's online shop. The member ids are the dev harness's
 -- (lab/chest-dev/cast.mjs); times are relative to today, in Paris.
 -- 90 days of history (six incidents, one maintenance done), one incident
--- being watched now, a maintenance planned next week, three subscribers.
+-- being watched now (in English and French), a maintenance planned next
+-- week, three subscribers, a post-mortem, templates, a team-only service.
 create function pg_temp.at(days integer, minutes integer) returns timestamptz language sql as $$
   select (date_trunc('day', now() at time zone 'Europe/Paris') + make_interval(days => days, mins => minutes)) at time zone 'Europe/Paris'
 $$;
@@ -114,4 +115,24 @@ begin
     from generate_series(1, 720) h, components c where c.name = 'Website';
   insert into settings (key, value) values ('checks_state', '"running"');
   insert into settings (key, value) values ('mail_state', jsonb_build_object('state', 'ok', 'at', now()));
+
+  -- After the critique: a post-mortem on the payment outage; the incident
+  -- being watched now written in French too; a service for the team only;
+  -- two templates; the company's links; a nightly backup's heartbeat.
+  insert into updates (incident_id, status, body, posted_at, author)
+    select id, 'postmortem', E'On that afternoon our payment provider lost a data centre, and its backup took two hours to take over. PayPal kept working.\n\nWhat we changed: card payments now fall back to a second provider within a minute, and we test that switch every month.', resolved_at + interval '2 days', lea
+    from incidents where title = 'Card payments failing';
+  update incidents set language = 'en', second_language = 'fr', title_second = 'Dates de livraison affichées en retard' where title = 'Delivery dates shown late';
+  update updates u set body_second = case u.status
+      when 'investigating' then 'Certaines fiches produit affichent une date de livraison une semaine plus tard que la vraie. Les commandes partent à l’heure.'
+      when 'identified' then 'Un calendrier des jours fériés du transporteur a été chargé deux fois. Nous le corrigeons.'
+      when 'monitoring' then 'Les dates sont de nouveau justes sur toutes les pages vérifiées. Nous surveillons jusqu’à demain matin.' end
+    from incidents i where i.id = u.incident_id and i.title = 'Delivery dates shown late';
+  insert into components (kind, name, description, position, team_only, created_at) values ('component', 'Back office', 'Stock and orders, for the team', 4, true, created);
+  insert into templates (name, title, body, title_second, body_second, states, created_by) values
+    ('Payments are slow', 'Payments are slow', 'Paying takes longer than usual. Orders go through; please do not pay twice.', 'Paiements lents', 'Le paiement prend plus de temps que d’habitude. Les commandes passent : ne payez pas deux fois.', (select jsonb_object_agg(id, 'degraded') from components where name = 'Payments'), camille),
+    ('Website unreachable', 'Our website is unreachable', 'Our website does not answer. We are looking into it and will post an update soon.', null, null, (select jsonb_object_agg(id, 'major') from components where name = 'Website'), tom);
+  insert into settings (key, value) values ('page', '{"website": "https://www.atelier-martin.fr/", "support": "mailto:support@atelier-martin.fr", "embedSites": ["https://www.atelier-martin.fr"]}');
+  insert into heartbeats (component_id, token_hash, every, grace, last_seen, created_at)
+    select id, encode(sha256('seed-backup-token'::bytea), 'hex'), 1440, 5, least(pg_temp.at(0, 180), now() - interval '1 hour'), now() - interval '30 days' from components where name = 'Back office';
 end $$;

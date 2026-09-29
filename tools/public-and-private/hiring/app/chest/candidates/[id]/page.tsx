@@ -84,7 +84,7 @@ export default async function CandidatePage({ params }: { params: Promise<{ id: 
   const zone = chest.timeZone();
   const today = dayOf(new Date(), zone);
   // Jobs this person could be proposed for: open or draft, not this one.
-  const otherJobs = manage ? await sql<{ id: string; title: string }[]>`select id, title from jobs where state <> 'closed' and id <> ${c.jobId} order by title limit 200` : [];
+  const otherJobs = manage ? await sql<{ id: string; title: string }[]>`select id, title from jobs where state != 'closed' and id != ${c.jobId} order by title limit 200` : [];
 
   return (
     <div className="candidate-page">

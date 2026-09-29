@@ -94,3 +94,34 @@
 @media (prefers-reduced-motion: reduce) {
   :root { --fast: 0ms; --slow: 0ms; }
 }
+
+/* The company's accent on its careers page (Settings → Colour): each
+   replaces the cobalt, light and dark, checked with scripts/contrast.mjs
+   (DESIGN.md lists the ratios). Only the careers pages carry it. */
+[data-accent="forest"] { --cobalt: #1f5c3a; --cobalt-hover: #174a2e; --cobalt-ink: #f6f0e4; --cobalt-soft: #dcece2; --focus: #1f5c3a; }
+[data-accent="plum"] { --cobalt: #6b2a5e; --cobalt-hover: #561f4b; --cobalt-ink: #f6f0e4; --cobalt-soft: #f1dfec; --focus: #6b2a5e; }
+[data-accent="tomato"] { --cobalt: #a8321b; --cobalt-hover: #8c2814; --cobalt-ink: #ffffff; --cobalt-soft: #fde3da; --focus: #a8321b; }
+[data-accent="ocean"] { --cobalt: #0b5a73; --cobalt-hover: #084a5f; --cobalt-ink: #f6f0e4; --cobalt-soft: #d8ecf2; --focus: #0b5a73; }
+[data-accent="graphite"] { --cobalt: #2b2b2b; --cobalt-hover: #111111; --cobalt-ink: #f6f0e4; --cobalt-soft: #e6e2da; --focus: #2b2b2b; }
+@media (prefers-color-scheme: dark) {
+  [data-accent="forest"] { --cobalt: #86d6a6; --cobalt-hover: #a3e3bc; --cobalt-ink: #10133a; --cobalt-soft: #173a2a; --focus: #ffcf70; }
+  [data-accent="plum"] { --cobalt: #e3a6d6; --cobalt-hover: #ecc0e2; --cobalt-ink: #10133a; --cobalt-soft: #3a1d38; --focus: #ffcf70; }
+  [data-accent="tomato"] { --cobalt: #ff9a80; --cobalt-hover: #ffb4a0; --cobalt-ink: #10133a; --cobalt-soft: #3d1f25; --focus: #ffcf70; }
+  [data-accent="ocean"] { --cobalt: #7fcbe3; --cobalt-hover: #a0daec; --cobalt-ink: #10133a; --cobalt-soft: #123448; --focus: #ffcf70; }
+  [data-accent="graphite"] { --cobalt: #e6e2da; --cobalt-hover: #f6f0e4; --cobalt-ink: #10133a; --cobalt-soft: #2a2d45; --focus: #ffcf70; }
+}
+/* The swatches of the setting show each accent in the current scheme. */
+.accent-cobalt { --swatch: #1c2b8f; }
+.accent-forest { --swatch: #1f5c3a; }
+.accent-plum { --swatch: #6b2a5e; }
+.accent-tomato { --swatch: #a8321b; }
+.accent-ocean { --swatch: #0b5a73; }
+.accent-graphite { --swatch: #2b2b2b; }
+@media (prefers-color-scheme: dark) {
+  .accent-cobalt { --swatch: #9fb0ff; }
+  .accent-forest { --swatch: #86d6a6; }
+  .accent-plum { --swatch: #e3a6d6; }
+  .accent-tomato { --swatch: #ff9a80; }
+  .accent-ocean { --swatch: #7fcbe3; }
+  .accent-graphite { --swatch: #e6e2da; }
+}

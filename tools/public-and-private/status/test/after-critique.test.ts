@@ -260,3 +260,33 @@ test("download everything: services, incidents with removed updates and the log,
   await refuses("forbidden", () => exportAll(sql, asMember(nora)));
   await refuses("forbidden", () => subscribersCsv(sql, asMember(nora)));
 });
+
+test("heartbeats: a secret address a job calls; silence past its deadline is told once, a call brings it back", async () => {
+  const { sql } = database;
+  const { createHeartbeat, removeHeartbeat, listHeartbeats, beat, silent } = await import("../lib/heartbeats.ts");
+  const { token } = await createHeartbeat(sql, editor, website, 60);
+  assert.match(token, /^[A-Za-z0-9_-]{43}$/u);
+  const [stored] = await sql<{ token_hash: string }[]>`select token_hash from heartbeats`;
+  assert.notEqual(stored!.token_hash, token, "only its hash is kept");
+  const t0 = new Date();
+  assert.deepEqual(await beat(sql, token, t0), { componentId: website, back: false });
+  assert.equal(await beat(sql, "x".repeat(43), t0), null);
+  assert.equal(await beat(sql, "../etc", t0), null);
+  // Within the hour and its 5-minute grace: nothing.
+  assert.deepEqual(await silent(sql, new Date(t0.getTime() + 64 * 60000)), []);
+  const late = await silent(sql, new Date(t0.getTime() + 66 * 60000));
+  assert.deepEqual(late.map(l => [l.componentId, l.since.getTime()]), [[website, t0.getTime() + 3600000]]);
+  assert.deepEqual(await silent(sql, new Date(t0.getTime() + 120 * 60000)), [], "told once");
+  assert.ok((await listHeartbeats(sql))[0]!.downSince);
+  assert.deepEqual(await beat(sql, token, new Date(t0.getTime() + 130 * 60000)), { componentId: website, back: true });
+  assert.equal((await listHeartbeats(sql))[0]!.downSince, null);
+  // A new address replaces the old one.
+  const renewed = await createHeartbeat(sql, editor, website, 1440);
+  assert.equal(await beat(sql, token), null);
+  assert.ok(await beat(sql, renewed.token));
+  await refuses("invalid", () => createHeartbeat(sql, editor, website, 7));
+  await refuses("forbidden", () => createHeartbeat(sql, asMember(nora), website, 60));
+  await refuses("not_found", () => createHeartbeat(sql, editor, "999", 60));
+  await removeHeartbeat(sql, editor, website);
+  assert.equal(await beat(sql, renewed.token), null);
+});

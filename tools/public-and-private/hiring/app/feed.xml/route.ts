@@ -13,3 +13,6 @@ export async function GET(): Promise<Response> {
   const facts = (j: (typeof jobs)[number]) => [j.team, j.place, t.facts.contract[j.contract], t.facts.remote[j.remote]].filter(Boolean).join(" · ");
   return xml(rssFeed(jobs, channel, origin, facts), "application/rss+xml");
 }
+
+// Read at each request: the jobs change, the disk is read-only.
+export const dynamic = "force-dynamic";

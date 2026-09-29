@@ -17,7 +17,7 @@ export default async function Reports({ searchParams }: { searchParams: Promise<
   const { job } = await searchParams;
   const { t, locale, member } = v;
   const sql = db();
-  const jobs = await sql<{ id: string; title: string; state: string }[]>`select id, title, state from jobs where state <> 'draft' order by (state = 'open') desc, coalesce(opened_at, created_at) desc limit 100`;
+  const jobs = await sql<{ id: string; title: string; state: string }[]>`select id, title, state from jobs where state != 'draft' order by (state = 'open') desc, coalesce(opened_at, created_at) desc limit 100`;
   let r: Report;
   try {
     r = await report(sql, member, job);

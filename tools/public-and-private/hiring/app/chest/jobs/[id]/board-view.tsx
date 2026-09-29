@@ -191,10 +191,10 @@ export function BoardView({ stages, cards, manage, locale, t }: { stages: Lane[]
             return (
               <LaneView key={stage.id} stage={stage} count={here.length} manage={manage && !selecting} locale={locale} t={t}>
                 {here.map(c => (selecting
-                  ? <li key={c.id}><label className={`cand pick${chosen.has(c.id) ? " chosen" : ""}`}><input type="checkbox" checked={chosen.has(c.id)} onChange={() => toggle(c.id)} /><CardBody card={c} locale={locale} t={t} /></label></li>
+                  ? (<li key={c.id}><label className={`cand pick${chosen.has(c.id) ? " chosen" : ""}`}><input type="checkbox" checked={chosen.has(c.id)} onChange={() => toggle(c.id)} /><CardBody card={c} locale={locale} t={t} /></label></li>)
                   : manage
-                    ? <DraggableCard key={c.id} card={c} locale={locale} t={t} onOpen={open} />
-                    : <li key={c.id}><Link className="cand-link" href={`/chest/candidates/${c.id}`}><CardBody card={c} locale={locale} t={t} /></Link></li>))}
+                    ? (<DraggableCard key={c.id} card={c} locale={locale} t={t} onOpen={open} />)
+                    : (<li key={c.id}><Link className="cand-link" href={`/chest/candidates/${c.id}`}><CardBody card={c} locale={locale} t={t} /></Link></li>)))}
               </LaneView>
             );
           })}

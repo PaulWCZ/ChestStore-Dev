@@ -377,7 +377,7 @@ await step("replies and mentions", async () => {
   await box.pressSequentially("will you check?");
   await saved(() => page.locator(".reply-form").getByRole("button", { name: "Reply", exact: true }).click());
   // Wait for the saved reply itself, not a fixed time: then read it again from the server.
-  await page.locator(".comment.reply", { hasText: "will you check?" }).waitFor({ timeout: 8000 }).catch(async e => { console.log("DIAG toasts", await page.locator(".toast").allInnerTexts(), "thread", await page.locator("#comments").innerText(), "url", page.url()); throw e; });
+  await page.locator(".comment.reply", { hasText: "Thanks! @Sofia Rossi will you check?" }).waitFor();
   await page.reload();
   const mention = page.locator(".comment.reply .mention", { hasText: "@Sofia Rossi" });
   await mention.waitFor({ timeout: 10_000 }).catch(() => {});

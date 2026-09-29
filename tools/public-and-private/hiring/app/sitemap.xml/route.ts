@@ -7,3 +7,6 @@ export async function GET(): Promise<Response> {
   const { jobs, origin } = await feedData(db());
   return xml(sitemap(jobs, origin));
 }
+
+// Read at each request: the jobs change, the disk is read-only.
+export const dynamic = "force-dynamic";

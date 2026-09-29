@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useId, useOptimistic, useRef, useState, useTransition } from "react";
+import { useEffect, useId, useLayoutEffect, useOptimistic, useRef, useState, useTransition } from "react";
 import { Avatar } from "../../../../components/avatar.tsx";
 import { Check, Clock, Pen, Pin, Reply, Trash } from "../../../../components/icons.tsx";
 import { useToast } from "../../../../components/toast.tsx";
@@ -290,6 +290,7 @@ function Writer({ postId, label, initial, submit, onSubmit, onCancel, placeholde
   const [found, setFound] = useState<{ id: string; name: string }[]>([]);
   const [query, setQuery] = useState<string | null>(null);
   const box = useRef<HTMLTextAreaElement>(null);
+  const caret = useRef<number | null>(null);
   const fieldId = useId();
   useEffect(() => {
     if (!query) return setFound([]);
@@ -309,14 +310,22 @@ function Writer({ postId, label, initial, submit, onSubmit, onCancel, placeholde
   }
   function pick(person: { id: string; name: string }) {
     const el = box.current;
-    const caret = el?.selectionStart ?? text.length;
-    const before = text.slice(0, caret).replace(/@([\p{L}\p{M}'-]{1,30})$/u, "@" + person.name + " ");
-    const next = before + text.slice(caret);
+    const at = el?.selectionStart ?? text.length;
+    const before = text.slice(0, at).replace(/@([\p{L}\p{M}'-]{1,30})$/u, "@" + person.name + " ");
+    const next = before + text.slice(at);
     setText(next);
     setChosen(current => new Map(current).set(person.name, person.id));
     setQuery(null);
-    requestAnimationFrame(() => { el?.focus(); el?.setSelectionRange(before.length, before.length); });
+    // Back to the box at once, the caret after the name — set when the new
+    // text is on screen (a later frame would move it under what is typed next).
+    caret.current = before.length;
+    el?.focus();
   }
+  useLayoutEffect(() => {
+    if (caret.current === null || !box.current) return;
+    box.current.setSelectionRange(caret.current, caret.current);
+    caret.current = null;
+  }, [text]);
   function go() {
     if (!text.trim()) return setError(errors.empty);
     if (onSubmit(text, chosen)) { setText(""); setChosen(new Map()); setQuery(null); }
