@@ -313,6 +313,9 @@ textarea.ck-field { padding-block: var(--space-2); line-height: var(--leading); 
   .ck-table-stack tbody tr:last-child { border-bottom: 0; }
   .ck-table-stack tbody > tr > *, .ck-table-stack tfoot > tr > * { display: flex; justify-content: space-between; align-items: baseline; gap: var(--space-3); padding: 2px 0; border: 0; text-align: right; white-space: normal; width: auto; }
   .ck-table-stack tbody > tr > th { justify-content: flex-start; text-align: left; font-size: var(--text-m); padding-right: var(--control-h); }
+  /* A line's label wraps beside its value, never clipped nor pushing it
+     out: at most 60% of the line, broken at its spaces (0.2.4: a long
+     question kept its width, Forms). */
   .ck-table-stack [data-label]::before { content: attr(data-label); flex: none; color: var(--ink-2); font-size: var(--text-s); font-weight: normal; text-align: left; }
   .ck-table-stack .ck-col-actions { position: absolute; top: var(--space-1); right: var(--space-1); padding: 0 !important; }
   .ck-table-stack tfoot > tr > * { position: static; background: none; }
@@ -518,17 +521,22 @@ div.ck-page-intro > :last-child { margin-bottom: 0; }
   .ck-bar-inner { padding: 0 var(--space-3); gap: 0 var(--space-2); min-height: 52px; }
   .ck-bar-nav { order: 3; flex-basis: 100%; margin: 0 calc(-1 * var(--space-3)); border-top: var(--border-width) solid var(--line); }
   .ck-nav { width: 100%; }
-  .ck-nav ul { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(64px, 1fr); width: 100%; gap: 0; overflow-x: auto; scrollbar-width: none; }
-  .ck-nav li { display: block; }
-  .ck-nav-link { flex-direction: column; justify-content: center; gap: 2px; min-height: 56px; min-width: 0; padding: var(--space-1) var(--space-1); font-size: var(--text-xs); white-space: normal; text-align: center; line-height: 1.15; hyphens: manual; }
-  /* A count sits at the top right of its icon, never over it, whatever
-     the tab's width (five tabs at 390 px) (0.2.2). */
+  /* The tabs share the width equally while every word fits; a tab whose
+     longest word is wider than its share takes what that word needs from
+     the others (min-content), so "À rembourser" wraps at its space onto
+     two lines and "Entreprises" stays whole at 390 px (0.2.4: they ended
+     in "…"). A tab never claims more than 40% of the row for one word. */
+  .ck-nav ul { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(min-content, 1fr); width: 100%; gap: 0; overflow-x: auto; scrollbar-width: none; }
+  .ck-nav li { display: block; min-width: 48px; }
+  .ck-nav-link { flex-direction: column; justify-content: center; gap: 2px; min-height: 56px; min-width: 0; max-width: 40vw; margin-inline: auto; padding: var(--space-1) 2px; font-size: min(var(--text-xs), 0.75rem); white-space: normal; text-align: center; line-height: 1.15; hyphens: manual; }
+  /* A count sits beside its icon at the top right, never over it (0.2.4:
+     it covered the icon's right edge with five tabs, Expenses). */
   .ck-nav-link { position: relative; }
-  .ck-nav-link .ck-count { position: absolute; top: 3px; left: calc(50% + 6px); transform: none; }
+  .ck-nav-link .ck-count { position: absolute; top: 2px; left: calc(50% + 6px); transform: none; }
   .ck-nav-link:not(:has(.ck-nav-icon)) .ck-count { position: static; }
   /* A label wraps at its spaces only, never inside a word ("Entrepris/es"
-     in a wide brand face): a word wider than its tab ends in "…" — the
-     link's name stays whole for screen readers (0.2.3). */
+     in a wide brand face); only a single word wider than 40% of the row
+     ends in "…" — the link's name stays whole for screen readers (0.2.3). */
   .ck-nav-label { max-width: 100%; overflow: hidden; text-overflow: ellipsis; overflow-wrap: normal; word-break: normal; }
   /* The name is read, not shown: hidden in place, never past the edge (0.2.2). */
   .ck-member-text { position: absolute; top: 0; left: 0; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }

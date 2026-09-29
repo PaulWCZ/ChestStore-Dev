@@ -99,12 +99,30 @@ for (const width of [390, 320]) for (const wide of [false, true]) for (const the
 await phone.evaluate(() => { for (const s of document.querySelectorAll("#stage .bench")) s.style.removeProperty("--font-body"); });
 await phone.setViewportSize({ width: 390, height: 900 });
 await phone.click('[data-theme="library"]'); await phone.click('[data-lang="fr"]');
-// Five sections with counts on a phone: a count never covers its icon (Expenses).
+// Five sections with counts on a phone: a count never touches its icon
+// (Expenses; 0.2.4: not even its right edge).
 const covered = await phone.evaluate(() => [...document.querySelectorAll(".ck-nav-link")].filter(a => a.querySelector(".ck-count") && a.querySelector(".ck-nav-icon") && a.offsetParent !== null).filter(a => {
   const c = a.querySelector(".ck-count").getBoundingClientRect(), i = a.querySelector(".ck-nav-icon svg").getBoundingClientRect();
-  return c.left < i.right - 1 && c.bottom > i.top + 1 && c.top < i.bottom - 1 && c.right > i.left + 1 && (c.left < i.left + i.width * 0.75);
+  return c.left < i.right && c.bottom > i.top && c.top < i.bottom && c.right > i.left;
 }).map(a => a.textContent));
 if (covered.length) problems.push("a nav count covers its icon: " + covered.join(", "));
+// Expenses' five French sections at 390 px (0.2.4: "À rembour…"): every
+// name whole — two lines at a space, a slightly smaller face, a wider tab
+// for a long word — in every look; no "…".
+for (const theme of ["chest", "workshop", "library", "instrument", "brand"]) {
+  await phone.click(`[data-theme="${theme}"]`);
+  const cut = await phone.evaluate(() => {
+    const nav = [...document.querySelectorAll("#stage .ck-nav")].find(n => n.offsetParent !== null);
+    const labels = [...nav.querySelectorAll(".ck-nav-label")];
+    const before = labels.map(l => l.textContent);
+    ["Accueil", "Mes dépenses", "À rembourser", "Entreprises", "Réglages"].forEach((t, i) => { if (labels[i]) labels[i].textContent = t; });
+    const out = labels.filter(l => l.scrollWidth > l.clientWidth + 0.5).map(l => l.textContent);
+    labels.forEach((l, i) => { l.textContent = before[i]; });
+    return out;
+  });
+  if (cut.length) problems.push(`a section's name is cut on a phone (${theme}): ${cut.join(", ")}`);
+}
+await phone.click('[data-theme="library"]');
 // Every control is a 44 px target (brief/05; 0.2.2): its box, or an
 // invisible margin that answers the pointer 22 px around its centre.
 for (const [label, p] of [["desk", page], ["phone", phone]]) {

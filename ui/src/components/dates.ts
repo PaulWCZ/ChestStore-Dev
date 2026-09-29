@@ -280,3 +280,19 @@ export function rangeDays(range: DateRange): number | null {
   if (range.from === null || range.to === null || !isIsoDate(range.from) || !isIsoDate(range.to)) return null;
   return daysBetween(range.from, range.to) + 1;
 }
+
+// readTypedDate: what a DateField does with the text typed in it (0.2.4)
+// — "" is no date; a date it reads within min…max is that date;
+// anything else is refused with the sentence shown under the field (in
+// the words' language): a text it cannot read, a day before `min`, a day
+// after `max`. A refused text never leaves the old date in place: the
+// field keeps the text, says the problem and its value becomes null.
+export type TypedDate = { readonly ok: true; readonly value: IsoDate | null } | { readonly ok: false; readonly problem: string; readonly reason: "invalid" | "too_early" | "too_late" };
+export function readTypedDate(raw: string, words: DateWords, today: IsoDate, { min = null, max = null }: { min?: IsoDate | null; max?: IsoDate | null } = {}): TypedDate {
+  if (raw.trim() === "") return { ok: true, value: null };
+  const iso = parseDate(raw, words, today);
+  if (!iso) return { ok: false, reason: "invalid", problem: fill(words.invalid, { example: formatDate(today, words) }) };
+  if (min && iso < min) return { ok: false, reason: "too_early", problem: fill(words.tooEarly, { date: formatDate(min, words, "long") }) };
+  if (max && iso > max) return { ok: false, reason: "too_late", problem: fill(words.tooLate, { date: formatDate(max, words, "long") }) };
+  return { ok: true, value: iso };
+}

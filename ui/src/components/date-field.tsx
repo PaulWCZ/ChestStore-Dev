@@ -11,10 +11,9 @@
 // kit never guesses the day from the machine's clock, so server and browser
 // render the same page.
 import { useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactElement, type ReactNode, type Ref } from "react";
-import { addDays, addMonths, calendarKey, clampDate, formatDate, isIsoDate, monthGrid, parseDate, partsOf, relativeDay, weekdayHeads, type IsoDate } from "./dates.js";
+import { addDays, addMonths, calendarKey, clampDate, formatDate, isIsoDate, monthGrid, partsOf, readTypedDate, relativeDay, weekdayHeads, type IsoDate } from "./dates.js";
 import { useFloat } from "./float.js";
 import { CalendarIcon, ChevronLeft, ChevronRight } from "./icons.js";
-import { fill } from "./text.js";
 import { en, type DateWords } from "./words.js";
 
 export type DateFieldProps = {
@@ -48,11 +47,17 @@ export type DateFieldProps = {
   // for a tool that sends its form on Enter. Not called for a date that
   // cannot be read (0.2.2).
   readonly onEnter?: (value: IsoDate | null) => void;
+  // Told when what was typed is refused (a date it cannot read, or one
+  // before `min` or after `max`) — the sentence shown under the field —
+  // and with null once the field holds a date it accepts again (0.2.4):
+  // a tool that saves from its own state (not a form) keeps its Save
+  // from going while a problem stands.
+  readonly onProblem?: (problem: string | null) => void;
   readonly className?: string;
 } & { readonly [data: `data-${string}`]: string | number | boolean | undefined };
 
 export function DateField(props: DateFieldProps): ReactElement {
-  const { label, hideLabel = false, value, onChange, today, min = null, max = null, chips, name, id, hint, error, required = false, disabled = false, labels = en.date, describedBy, variant = "full", onEnter, className } = props;
+  const { label, hideLabel = false, value, onChange, today, min = null, max = null, chips, name, id, hint, error, required = false, disabled = false, labels = en.date, describedBy, variant = "full", onEnter, onProblem, className } = props;
   const data = Object.fromEntries(Object.entries(props).filter(([k, v]) => k.startsWith("data-") && v !== undefined));
   const compact = variant === "compact";
   const auto = useId();
@@ -110,26 +115,35 @@ export function DateField(props: DateFieldProps): ReactElement {
     return () => document.removeEventListener("pointerdown", onDown);
   }, [open]);
 
+  // The field's own problem, told to the browser (setCustomValidity: a
+  // form sent natively stops on it) and to the tool (onProblem), once per
+  // change (0.2.4).
+  const told = useRef<string | null>(null);
+  useEffect(() => {
+    field.current?.setCustomValidity(problem ?? "");
+    if (told.current !== problem) { told.current = problem; onProblem?.(problem); }
+  }, [problem]); // eslint-disable-line react-hooks/exhaustive-deps -- told once per change of the problem, not per render
+
   // commit reads what was typed: the date (null for nothing), or
-  // undefined when it cannot be read (the problem is then shown).
+  // undefined when it is refused — it cannot be read, or it is before
+  // `min` or after `max`. A refused text stays as typed, the problem is
+  // said under it, and the value is no longer the old date (0.2.4: a date
+  // before `min` kept the previous value, and Timesheets saved "today"
+  // in place of refusing): onChange(null), once, which the tool reads
+  // as "no date yet"; the text and the problem stay (the field already
+  // counts null as seen, so the null coming back does not redraw it).
   function commit(raw: string): IsoDate | null | undefined {
     setTyping(false);
-    if (raw.trim() === "") {
-      setProblem(null);
-      if (value !== null) onChange(null);
-      return null;
-    }
-    const iso = parseDate(raw, labels, today);
-    if (!iso) {
-      setProblem(fill(labels.invalid, { example: formatDate(today, labels) }));
+    const read = readTypedDate(raw, labels, today, { min, max });
+    if (!read.ok) {
+      setProblem(read.problem);
+      if (value !== null) { setSeen({ value: null, shown: "" }); onChange(null); }
       return undefined;
     }
-    if (min && iso < min) { setProblem(fill(labels.tooEarly, { date: formatDate(min, labels, "long") })); return undefined; }
-    if (max && iso > max) { setProblem(fill(labels.tooLate, { date: formatDate(max, labels, "long") })); return undefined; }
     setProblem(null);
-    setText(formatDate(iso, labels));
-    if (iso !== value) onChange(iso);
-    return iso;
+    if (read.value !== null) setText(formatDate(read.value, labels));
+    if (read.value !== value) onChange(read.value);
+    return read.value;
   }
 
   function pick(iso: IsoDate) {
