@@ -36,7 +36,7 @@ export function NewTicket({ locale, t }: { locale: string; t: { create: Catalogu
       <div><label className="label" htmlFor="message">{w.message}</label><textarea id="message" name="message" className="field" rows={6} required maxLength={20000} /></div>
       <div>
         <label className="label" htmlFor="language">{w.language}</label>
-        <select id="language" name="language" className="select" defaultValue={locale} style={{ maxWidth: 240 }}>
+        <select id="language" name="language" className="select medium" defaultValue={locale}>
           {Object.entries(languageNames).map(([code, name]) => <option key={code} value={code} lang={code}>{name}</option>)}
         </select>
       </div>

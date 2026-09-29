@@ -257,6 +257,22 @@ Wiki's spaces kept to groups).
   at once; a **video thumbnail/transcoding** service (videos play as
   uploaded); a **polls** embed across tools.
 
+## Looks
+
+News wears **any look the company chooses in its Chest**: its own identity
+"Newsprint" (newsprint paper, black rules, a headline serif, one press red
+— the default), any theme of the store's catalogue (the 17 identities,
+"Chest", "High contrast"), or the company's brand imported from its
+guidelines — for all tools or for News alone, with the same features. The
+look arrives with the page (one `<style>` with the page's nonce, no
+script); in brand mode the company's logo stands beside the name, on the
+members' pages and the public root. The newspaper's heavier weights are
+steps above the theme's own (`app/tokens.css`), so a theme whose hierarchy
+is size alone (the "Chest" theme) stays at one weight. Screens:
+`docs/screens/*-chest-*`, `*-theme-*` (Workshop, Library), `*-brand-*` (the
+sample brand); `important-undo-*` and `important-sent-*` show the Undo of an
+Important post and the same toast once it went out.
+
 ## Develop
 
 ```sh

@@ -4,11 +4,20 @@
   { "name": "receipt", "path": "/chest/expenses/101", "member": "camille", "locale": "en", "preview": true },
   { "name": "refused-fr", "path": "/chest", "member": "lea", "locale": "fr" },
   { "name": "approve-fr", "path": "/chest/approve", "member": "ines", "locale": "fr" },
+  { "name": "pay-bank-dialog-fr", "path": "/chest/pay", "member": "camille", "locale": "fr", "actions": [{ "click": ".bank-line .link-button >> nth=0" }, { "wait": 600 }] },
   { "name": "trip-fr", "path": "/chest/new?trip=1", "member": "lea", "locale": "fr" },
   { "name": "flat-rate", "path": "/chest/new?allowance=1", "member": "tom", "locale": "en" },
   { "name": "pay-fr", "path": "/chest/pay", "member": "camille", "locale": "fr" },
   { "name": "export", "path": "/chest/export", "member": "camille", "locale": "en", "only": ["desktop"] },
   { "name": "my-settings", "path": "/chest/settings", "member": "hugo", "locale": "en" },
   { "name": "company-settings-fr", "path": "/chest/settings/company", "member": "camille", "locale": "fr", "only": ["desktop"] },
-  { "name": "my-expenses-dark", "path": "/chest", "member": "sofia", "locale": "en", "dark": true }
+  { "name": "my-expenses-dark", "path": "/chest", "member": "sofia", "locale": "en", "dark": true },
+  { "name": "my-expenses-chest", "path": "/chest", "member": "hugo", "locale": "en", "look": { "all": "catalogue:chest" } },
+  { "name": "my-expenses-theme", "path": "/chest", "member": "hugo", "locale": "en", "look": { "all": "catalogue:library" } },
+  { "name": "my-expenses-theme-dark", "path": "/chest", "member": "sofia", "locale": "en", "dark": true, "look": { "all": "catalogue:library" }, "only": ["phone"] },
+  { "name": "approve-theme-fr", "path": "/chest/approve", "member": "ines", "locale": "fr", "look": { "all": "catalogue:seaside" }, "only": ["desktop"] },
+  { "name": "my-expenses-brand-fr", "path": "/chest", "member": "lea", "locale": "fr", "look": { "all": "catalogue:library", "tool": "brand:sample" } },
+  { "name": "my-expenses-brand-dark", "path": "/chest", "member": "sofia", "locale": "en", "dark": true, "look": { "tool": "brand:sample" }, "only": ["phone"] },
+  { "name": "add-brand", "path": "/chest/new", "member": "hugo", "locale": "en", "look": { "tool": "brand:sample" }, "only": ["phone"] },
+  { "name": "pay-file-undo-fr", "path": "/chest/pay", "member": "camille", "locale": "fr", "actions": [{ "click": "section.paper .pay-form button[type=submit] >> nth=0" }, { "wait": 800 }], "only": ["desktop"] }
 ]

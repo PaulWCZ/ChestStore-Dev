@@ -392,7 +392,7 @@ export const fr: Catalogue = {
   },
   searchBox: {
     label: "Rechercher dans les Actualités",
-    placeholder: "Rechercher dans les publications et les commentaires",
+    placeholder: "Rechercher",
     shortcut: "Appuyez sur / pour rechercher",
     submit: "Rechercher",
   },

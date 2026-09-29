@@ -75,6 +75,14 @@ export async function paid(sql: Query, actor: Member, decisions: Decision[], pai
   await refresh(sql, [actor.id]);
 }
 
+// A payment undone (the accountant's Undo, or a transfer file cancelled):
+// the "Paid back" each person was told is taken back from their bell, so
+// the Undo tells the truth.
+export async function unpaid(sql: Query, owners: string[]): Promise<void> {
+  for (const owner of new Set(owners)) if (owner !== "erased") await withdraw(`paid:${owner}`, [owner]);
+  await refresh(sql, owners);
+}
+
 // refresh sets the tile's number of these members and of the accountants.
 export async function refresh(sql: Query, people: string[]): Promise<void> {
   const accounting = await accountants();

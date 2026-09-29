@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { fakeChest, type FakeChest } from "@argentic/chest-sdk/testing";
+import { initials } from "@argentic/chest-ui/components/logic";
 import { AppError } from "../lib/app-error.ts";
 import { listCategories } from "../lib/categories.ts";
-import { initials } from "../lib/initials.ts";
 import * as items from "../lib/items.ts";
 import { erase } from "../lib/lifecycle.ts";
 import { confirm, currentCharter, handoverSheet, returnSheet, setCharter } from "../lib/receipts.ts";
@@ -152,6 +152,8 @@ test("an erasure keeps the receipts, without the person", async () => {
   assert.ok((await sql`select 1 from receipts where member_id = 'erased'`).length > 0);
 });
 
+// The avatars are the kit's: its initials() (fed by this tool's rule) must
+// keep giving a former member their own initials.
 test("initials leave out the note after a former member's name (HB, never HM)", () => {
   assert.equal(initials("Hugo Bernard (former member)"), "HB");
   assert.equal(initials("Hugo Bernard (ancien membre)"), "HB");

@@ -53,7 +53,7 @@ export function Shell({ brand, member, words, sections, more, search, labels, ch
       tools={sections ? (
         <>
           <SearchBox action="/chest/search" labels={search} maxLength={100} />
-          {items.length > 0 && <Menu label={words.more} items={items} />}
+          {items.length > 0 && <Menu label={words.more} items={items} showLabel />}
         </>
       ) : null}
       labels={labels}

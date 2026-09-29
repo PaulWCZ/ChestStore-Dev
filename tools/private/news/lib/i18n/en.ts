@@ -393,7 +393,7 @@ export const en = {
   },
   searchBox: {
     label: "Search News",
-    placeholder: "Search posts and comments",
+    placeholder: "Search News",
     shortcut: "Press / to search",
     submit: "Search",
   },

@@ -212,7 +212,13 @@ test("the transfer file: one transfer per person with bank details, everything p
   }
   // A line of a batch is not undone alone: the batch is cancelled.
   await assert.rejects(expenses.unmarkPaid(sql, asMember(camille), [h1]), refuses("invalid"));
-  assert.deepEqual(await payments.cancelRun(sql, asMember(camille), made.run.id), [hugo.id]);
+  const back = await payments.cancelRun(sql, asMember(camille), made.run.id);
+  assert.deepEqual(back, [hugo.id]);
+  // The file cancelled: the "Paid back" Hugo was told goes from his bell.
+  await tell.paid(sql, asMember(camille), made.decisions, made.run.executionDate);
+  assert.ok(chest.notifications.some(n => n.key === `paid:${hugo.id}`));
+  await tell.unpaid(sql, back);
+  assert.equal(chest.notifications.some(n => n.key === `paid:${hugo.id}`), false);
   assert.equal((await expenses.expense(sql, asMember(hugo), h1)).expense.status, "approved");
   await assert.rejects(payments.cancelRun(sql, asMember(camille), made.run.id), refuses("not_found"));
   await assert.rejects(payments.runFile(sql, asMember(camille), made.run.id), refuses("not_found"));

@@ -29,7 +29,7 @@ export default async function InventoryReport({ params }: { params: Promise<{ id
   const date = formatDate(found.inventory.closedAt!, locale, { day: "numeric", month: "long", year: "numeric" }, chest.timeZone());
   const missing = (found.inventory.total ?? 0) - (found.inventory.seen ?? 0);
   return (
-    <main className="wide">
+    <div className="wide">
       <Link className="back no-print" href="/chest/inventory"><Back />{t.inventory.back}</Link>
       <div className="page-head">
         <div>
@@ -42,6 +42,6 @@ export default async function InventoryReport({ params }: { params: Promise<{ id
       {found.missing.length === 0 ? <p className="all-clear"><span aria-hidden="true">✓</span> {t.inventory.nothingMissing}</p> : (
         <ul className="lines">{found.missing.map(i => <ItemLine key={i.id} row={rowOf(i, names, t, locale, today, member.id)} />)}</ul>
       )}
-    </main>
+    </div>
   );
 }

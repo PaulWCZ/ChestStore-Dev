@@ -66,7 +66,7 @@ test("replies go by email, threaded, in the customer's language; without mail, o
   const ticket = (await tickets.byLink(sql, t.secret))!;
   const first = await mailer.confirm(ticket, `https://helpdesk.atelier.test/t/${t.secret}`, "Atelier Martin");
   assert.equal(first.delivery, "email");
-  assert.match(chest.outbox[0]!.subject, /^Nous avons bien reçu votre demande : Broken lamp \[#\d+\]$/u);
+  assert.match(chest.outbox[0]!.subject, /^Nous avons bien reçu votre demande\u202f: Broken lamp \[#\d+\]$/u);
   assert.match(chest.outbox[0]!.text, new RegExp(t.secret));
   const done = await tickets.reply(sql, asMember(ines), t.number, "Sorry! A new one is on its way.");
   assert.equal(done.ticket.status, "waiting");

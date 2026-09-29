@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { PublicShell } from "../../../components/public-shell.tsx";
 import { db } from "../../../lib/db.ts";
 import { Body } from "../../../components/body.tsx";
+import { StateBadge } from "../../../components/badges.tsx";
 import { Clip } from "../../../components/icons.tsx";
 import { fileSize, format, formatDate } from "../../../lib/i18n/index.ts";
 import { people } from "../../../lib/people.ts";
@@ -57,8 +58,8 @@ export default async function FollowUp({ params, searchParams }: { params: Promi
       )}
       <div className="stack">
         <h1>{format(t.public.followTitle, { number: ticket.number })}</h1>
-        <p className="muted" style={{ fontSize: "var(--text-l)" }}>{ticket.subject}</p>
-        <p className="status-line"><span className="muted">{t.public.status}</span><span className={`chip ${ticket.status}`}>{t.public.statuses[ticket.status]}</span></p>
+        <p className="muted subject-line">{ticket.subject}</p>
+        <p className="status-line"><span className="muted">{t.public.status}</span><StateBadge status={ticket.status} label={t.public.statuses[ticket.status]} /></p>
       </div>
       <ol className="thread" aria-label={t.public.followTitle.replace("{number}", String(ticket.number))}>
         {ticket.messages.map(m => (

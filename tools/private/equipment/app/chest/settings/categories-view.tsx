@@ -1,11 +1,12 @@
 "use client";
 
+import { useToast } from "@argentic/chest-ui/components";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { CategoryIcon, Plus, Seat, Sliders, Trash } from "../../../components/icons.tsx";
-import { useToast } from "../../../components/toast.tsx";
 import type { Catalogue } from "../../../lib/i18n/index.ts";
 import { format, plural } from "../../../lib/i18n/format.ts";
+import type { Result } from "../../../lib/errors.ts";
 import { fieldTypes, icons, kinds, limits, type FieldType, type IconName, type Kind } from "../../../lib/model.ts";
 import { dropCategory, dropField, newCategory, newField, saveCategory, saveField, undoDropCategory, undoDropField } from "../actions.ts";
 
@@ -14,7 +15,7 @@ type FieldRow = { id: string; name: string; type: FieldType };
 type Cat = { id: string; name: string; builtIn: string | null; icon: IconName; kind: Kind; total: number; fields: FieldRow[] };
 
 // Each category on one line: its icon (a menu of icons), its name (saved when
-// one leaves the field), how many items, remove when empty (with Undo).
+// one leaves the field), how many items, delete when empty (with Undo).
 export function CategoriesView({ categories, t, locale }: { categories: Cat[]; t: Words; locale: string }) {
   const router = useRouter();
   const toast = useToast();
@@ -23,8 +24,13 @@ export function CategoriesView({ categories, t, locale }: { categories: Cat[]; t
   const [error, setError] = useState<string | null>(null);
   const w = t.settings;
   const show = (r: { ok: boolean; error?: keyof Catalogue["errors"]; values?: Record<string, string | number> }) => {
-    if (!r.ok) toast(format(t.errors[r.error ?? "unknown"], r.values));
+    if (!r.ok) toast({ text: format(t.errors[r.error ?? "unknown"], r.values), tone: "error" });
     router.refresh();
+  };
+  const undoing = (step: () => Promise<Result>) => async () => {
+    const u = await step();
+    router.refresh();
+    return u.ok || format(t.errors[u.error], u.values);
   };
 
   return (
@@ -49,7 +55,7 @@ export function CategoriesView({ categories, t, locale }: { categories: Cat[]; t
               <button type="button" className="button small quiet" disabled={pending || c.total > 0} title={c.total > 0 ? w.inUse : undefined} onClick={() => start(async () => {
                 const r = await dropCategory(c.id);
                 if (!r.ok) return show(r);
-                toast(format(w.removed, { name: label }), { label: t.common.undo, run: () => void undoDropCategory(c.id).then(() => router.refresh()) });
+                toast({ id: `category-${c.id}`, text: format(w.removed, { name: label }), undo: undoing(() => undoDropCategory(c.id)) });
                 router.refresh();
               })}><Trash /><span>{w.remove}</span></button>
               <FieldsEditor category={c} label={label} t={t} />
@@ -127,12 +133,12 @@ function FieldsEditor({ category, label, t }: { category: Cat; label: string; t:
               <li key={f.id}>
                 <label className="visually-hidden" htmlFor={`field-${f.id}`}>{format(w.renameField, { name: f.name })}</label>
                 <input id={`field-${f.id}`} className="field" defaultValue={f.name} maxLength={limits.fieldName}
-                  onBlur={e => { const v = e.target.value.trim(); if (v && v !== f.name) start(async () => { const r = await saveField(f.id, v); if (!r.ok) toast(format(t.errors[r.error], r.values)); router.refresh(); }); }} />
+                  onBlur={e => { const v = e.target.value.trim(); if (v && v !== f.name) start(async () => { const r = await saveField(f.id, v); if (!r.ok) toast({ text: format(t.errors[r.error], r.values), tone: "error" }); router.refresh(); }); }} />
                 <span className="small muted">{w.fieldTypes[f.type]}</span>
                 <button type="button" className="icon-button" disabled={pending} onClick={() => start(async () => {
                   const r = await dropField(f.id);
-                  if (!r.ok) return toast(format(t.errors[r.error], r.values));
-                  toast(format(w.fieldRemoved, { name: f.name }), { label: t.common.undo, run: () => void undoDropField(f.id).then(() => router.refresh()) });
+                  if (!r.ok) return void toast({ text: format(t.errors[r.error], r.values), tone: "error" });
+                  toast({ id: `field-${f.id}`, text: format(w.fieldRemoved, { name: f.name }), undo: async () => { const u = await undoDropField(f.id); router.refresh(); return u.ok || format(t.errors[u.error], u.values); } });
                   router.refresh();
                 })}><Trash /><span className="visually-hidden">{format(w.removeField, { name: f.name })}</span></button>
               </li>

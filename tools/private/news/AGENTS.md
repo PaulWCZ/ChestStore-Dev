@@ -31,7 +31,9 @@ must not break.
 | `app/chest/actions.ts` | Server actions: thin; each re-reads the member; answer `Result` codes |
 | `app/chest/page.tsx`, `story.tsx` | The front page (server) |
 | `app/chest/posts/[id]/page.tsx`, `parts.tsx` | A post (server) and what people act on (client) |
-| `app/chest/composer.tsx`, `text-editor.tsx` | The composer (client): the formatted text (Tiptap), languages, audience and its count, uploads, gallery, the button that says who is told, the 10-second Undo, draft |
+| `app/chest/composer.tsx`, `text-editor.tsx` | The composer (client): the formatted text (Tiptap), languages (the kit's `Tabs`), audience and its count (the kit's `PeoplePicker`), days and times (`DateField`, `TimeSelect`), uploads, gallery, the button that says who is told, the 10-second Undo (a kit toast that turns into "sent"), draft |
+| `lib/theme.ts`, `app/layout.tsx`, `app/tokens.css` | The identity "Newsprint" (`defineTheme`, equal to the kit catalogue's), the look of a request (`currentLook`), its `<style>` with the page's nonce; the tool's own tokens, from contract tokens |
+| `components/shell.tsx`, `app/chest/layout.tsx` | The kit's `AppShell` (search box, "Write a post", member chip), `BrandMark`, `NoAccess`, `Toasts`; the `html[data-hydrated]` marker the browser flows wait for |
 | `app/chest/transfer/`, `app/chest/api/import/` | Slack import, download all posts |
 | `app/chest/api/uploads/route.ts`, `app/chest/files/[id]/route.ts` | Files: authorise, record, open |
 | `app/chest/search/page.tsx` | The search page (the topbar's box lands here) |
@@ -76,8 +78,31 @@ npm ci && npm test && npm run build   # all three must pass
 - **Add an ability → a line in `test/access.test.ts`.** Add a service →
   tests with each role and its refusals.
 - **Client components import only** `lib/i18n/format.ts`, `lib/app-error.ts`,
-  `lib/markdown.ts`, `lib/model.ts`, `lib/initials.ts` and types. Never the
+  `lib/markdown.ts`, `lib/model.ts`, `@argentic/chest-ui/components` (and
+  `/components/logic`) and types. Never the
   SDK, `lib/db.ts`, `lib/session.ts`.
+- **The UI kit first** (`@argentic/chest-ui/components`, `ui/README.md`):
+  toasts (`useToast`: `{ id, text, undo }`, the Undo returns `true` or why
+  it failed; errors `tone: "error"`; what already left — reminders, an
+  Important post once its seconds are over — `sent: true`, never an Undo),
+  `DateField` and `TimeSelect` (never `type="date"`/`"time"`; `today` from
+  the server), `PeoplePicker` (`localSearch` over who has News),
+  `FilePicker` (the Slack ZIP, read in the browser), `Tabs`, `SearchBox`,
+  `EmptyState`, `Avatar`, `AppShell`, `LanguageSwitch`, `useAutoRefresh`.
+  Their words are the catalogues' `toast`, `peoplePicker`, `date`, `files`,
+  `searchBox` sections. Kept on purpose: the front page's section tabs
+  (newspaper section names, links that filter), the kind cards and the
+  audience radios of the composer (each with a hint), the cover, gallery
+  and attachment pickers (they show thumbnails and go through News's
+  three-step upload), the "@" mention list (it writes into the text), the
+  in-page "goes out in 8 s" notice with its own Undo.
+- **Only contract tokens in CSS** (`ui/tokens/CONTRACT.md`); a tool token
+  is defined from them in `app/tokens.css`; never a colour; weights from the
+  theme's tokens, 400 aside (`test/theme.test.ts`).
+- **French typography**: `node scripts/lint-words.mjs tools/private/news`
+  stays at 0 errors (narrow no-break spaces; Undo is « Annuler l’action »;
+  Delete = Supprimer, Remove = Retirer). `cut()` and `clean()` keep the
+  no-break spaces.
 - **Words live in `lib/i18n/`**, in every catalogue (tests compare keys and
   placeholders, and look for words written in pages).
 - **No network, no disk, no background work.** Deferred work runs on the

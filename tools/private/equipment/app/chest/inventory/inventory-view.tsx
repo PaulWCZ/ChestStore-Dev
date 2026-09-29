@@ -1,12 +1,13 @@
 "use client";
 
+import { EmptyState, useToast } from "@argentic/chest-ui/components";
 import { useRouter } from "next/navigation";
 import { useRef, useState, useTransition } from "react";
 import { ItemLine } from "../../../components/bits.tsx";
 import { Check, Clipboard } from "../../../components/icons.tsx";
-import { useToast } from "../../../components/toast.tsx";
 import type { Catalogue } from "../../../lib/i18n/index.ts";
 import { format, plural } from "../../../lib/i18n/format.ts";
+import type { Result } from "../../../lib/errors.ts";
 import type { Row } from "../../../lib/view.ts";
 import { closeInventory, markSeen, reopenInventory, startInventory, unmarkSeen } from "../actions.ts";
 
@@ -24,6 +25,13 @@ export function InventoryView({ open, seen, notSeen, t, locale }: { open: boolea
   const box = useRef<HTMLInputElement>(null);
   const w = t.inventory;
   const total = seen.length + notSeen.length;
+  const fault = (r: { error: keyof Catalogue["errors"]; values?: Record<string, string | number> }) => format(t.errors[r.error], r.values);
+  // An Undo that tells the truth: true when it worked, else why not.
+  const undoing = (step: () => Promise<Result>) => async () => {
+    const u = await step();
+    router.refresh();
+    return u.ok || fault(u);
+  };
 
   function scan(input: { text?: string; itemId?: string }) {
     setError(null);
@@ -34,8 +42,11 @@ export function InventoryView({ open, seen, notSeen, t, locale }: { open: boolea
         return;
       }
       const v = r.value;
-      toast(v.outOfScope ? format(w.outOfScope, { tag: v.tag }) : v.already ? format(w.alreadyToast, { tag: v.tag }) : format(w.seenToast, { tag: v.tag, name: v.name }),
-        v.already || v.outOfScope ? undefined : { label: t.common.undo, run: () => void unmarkSeen(v.id).then(() => router.refresh()) });
+      toast({
+        id: `seen-${v.id}`,
+        text: v.outOfScope ? format(w.outOfScope, { tag: v.tag }) : v.already ? format(w.alreadyToast, { tag: v.tag }) : format(w.seenToast, { tag: v.tag, name: v.name }),
+        ...(v.already || v.outOfScope ? {} : { undo: undoing(() => unmarkSeen(v.id)) }),
+      });
       setText("");
       router.refresh();
       box.current?.focus();
@@ -44,16 +55,17 @@ export function InventoryView({ open, seen, notSeen, t, locale }: { open: boolea
 
   if (!open) {
     return (
-      <div className="empty">
-        <span className="empty-art" aria-hidden="true"><Clipboard /></span>
-        <p>{w.intro}</p>
-        <button type="button" className="button" disabled={pending} onClick={() => start(async () => {
+      <EmptyState
+        icon={<span className="empty-art"><Clipboard /></span>}
+        title={w.idle}
+        body={w.intro}
+        action={<button type="button" className="button" disabled={pending} onClick={() => start(async () => {
           const r = await startInventory();
           if (!r.ok) return setError(format(t.errors[r.error], r.values));
           router.refresh();
-        })}><Clipboard />{w.start}</button>
-        {error && <p className="error" role="alert">{error}</p>}
-      </div>
+        })}><Clipboard />{w.start}</button>}
+        note={error ? <span className="error" role="alert">{error}</span> : undefined}
+      />
     );
   }
 
@@ -107,7 +119,7 @@ export function InventoryView({ open, seen, notSeen, t, locale }: { open: boolea
           const r = await closeInventory();
           if (!r.ok) return setError(format(t.errors[r.error], r.values));
           const closed = r.value;
-          toast(plural(w.closed, closed.missing, locale), { label: t.common.undo, run: () => void reopenInventory(closed.id).then(() => router.refresh()) });
+          toast({ id: `close-${closed.id}`, text: plural(w.closed, closed.missing, locale), undo: undoing(() => reopenInventory(closed.id)) });
           router.push(`/chest/inventory/${closed.id}`);
         })}>{w.close}</button>
       </div>

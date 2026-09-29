@@ -1,15 +1,16 @@
 "use client";
 
+import { EmptyState, Filters, SearchBox } from "@argentic/chest-ui/components";
 import Link from "next/link";
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { ItemLine } from "../../../components/bits.tsx";
-import { Download, Print, Search } from "../../../components/icons.tsx";
+import { Download, Plus, Print } from "../../../components/icons.tsx";
 import type { Catalogue } from "../../../lib/i18n/index.ts";
 import { format, plural } from "../../../lib/i18n/format.ts";
 import { statuses } from "../../../lib/model.ts";
 import type { Row } from "../../../lib/view.ts";
 
-type Words = { list: Catalogue["list"]; status: Catalogue["status"]; shell: Catalogue["shell"]; common: Catalogue["common"] };
+type Words = { list: Catalogue["list"]; status: Catalogue["status"]; common: Catalogue["common"]; overview: Catalogue["overview"]; shell: Catalogue["shell"]; filters: Catalogue["filters"]; search: Catalogue["search"] };
 type Option = { value: string; label: string };
 
 const pageQuery = (query: string, page: number) => {
@@ -18,17 +19,17 @@ const pageQuery = (query: string, page: number) => {
   return p.toString();
 };
 
-// The list and its filters: a plain GET form (it works without script),
-// sent again as soon as a filter changes. A manager ticks items to print
-// their labels, or prints those shown.
+// The list, its search and its filters — all in the address (a filtered
+// list is a link one can share, Back works, and it works without script):
+// the kit's search box and filter chips (status, category, sort); who holds
+// it, a list of the team and the places, in a small form of its own. A
+// manager ticks items to print their labels, or prints those shown.
 export function ItemsView({ rows, paging, manager, filtered, query, values, categories, holders, places, t, locale }: {
   rows: Row[]; paging: { page: number; pages: number; text: string } | null; manager: boolean; filtered: boolean; query: string;
   values: { q: string; category: string; status: string; holder: string; sort: string };
   categories: Option[]; holders: Option[]; places: string[]; t: Words; locale: string;
 }) {
-  const form = useRef<HTMLFormElement>(null);
   const [picked, setPicked] = useState<Set<string>>(new Set());
-  const submit = () => form.current?.requestSubmit();
   const toggle = (id: string) => setPicked(old => {
     const next = new Set(old);
     if (next.has(id)) next.delete(id); else next.add(id);
@@ -36,50 +37,32 @@ export function ItemsView({ rows, paging, manager, filtered, query, values, cate
   });
   const all = rows.length > 0 && rows.every(r => picked.has(r.id));
   const w = t.list;
+  // What the address says now (the chips and the forms keep the rest).
+  const params: Record<string, string> = Object.fromEntries(Object.entries(values).filter(([, v]) => v !== ""));
 
   return (
     <div className="stack">
-      <form ref={form} className="filters" method="get" action="/chest/items" role="search">
+      <div className="filters">
         <div className="filter-q">
-          <label htmlFor="list-q" className="visually-hidden">{w.search}</label>
-          <Search />
-          <input id="list-q" name="q" type="search" className="field" defaultValue={values.q} placeholder={t.shell.search} maxLength={100} />
-          <button type="submit" className="button quiet">{w.search}</button>
+          <SearchBox action="/chest/items" value={values.q} keep={{ category: values.category, status: values.status, holder: values.holder, sort: values.sort === "tag" ? "" : values.sort }}
+            shortcut={false} maxLength={100} labels={{ ...t.search, label: w.search }} />
         </div>
-        <div className="filter-selects">
-          <label className="select-label">
-            <span>{w.category}</span>
-            <select name="category" className="field" defaultValue={values.category} onChange={submit}>
-              <option value="">{w.any}</option>
-              {categories.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
-            </select>
-          </label>
-          <label className="select-label">
-            <span>{w.status}</span>
-            <select name="status" className="field" defaultValue={values.status} onChange={submit}>
-              <option value="">{w.any}</option>
-              {statuses.map(s => <option key={s} value={s}>{t.status[s]}</option>)}
-              <option value="low">{w.low}</option>
-            </select>
-          </label>
-          <label className="select-label">
-            <span>{w.holder}</span>
-            <select name="holder" className="field" defaultValue={values.holder} onChange={submit}>
-              <option value="">{w.anyone}</option>
-              <option value="nobody">{w.nobody}</option>
-              {holders.length > 0 && <optgroup label={w.team}>{holders.map(h => <option key={h.value} value={h.value}>{h.label}</option>)}</optgroup>}
-              {places.length > 0 && <optgroup label={w.places}>{places.map(p => <option key={p} value={"place:" + p}>{p}</option>)}</optgroup>}
-            </select>
-          </label>
-          <label className="select-label">
-            <span>{w.sort}</span>
-            <select name="sort" className="field" defaultValue={values.sort} onChange={submit}>
-              {(["tag", "name", "newest", "ending"] as const).map(s => <option key={s} value={s}>{w.sorts[s]}</option>)}
-            </select>
-          </label>
-        </div>
-        {filtered && <Link className="button link" href="/chest/items">{w.clear}</Link>}
-      </form>
+        <Filters path="/chest/items" params={params} link={Link} labels={t.filters} groups={[
+          { key: "status", label: w.status, all: true, options: [...statuses.map(s => ({ value: s, label: t.status[s] })), { value: "low", label: w.low }] },
+          { key: "category", label: w.category, all: true, options: categories },
+          { key: "sort", label: w.sort, required: true, value: "tag", options: (["tag", "name", "newest", "ending"] as const).map(s => ({ value: s, label: w.sorts[s] })) },
+        ]} />
+        <form className="holder-filter" method="get" action="/chest/items">
+          {(["q", "category", "status", "sort"] as const).map(k => values[k] && !(k === "sort" && values[k] === "tag") ? <input key={k} type="hidden" name={k} value={values[k]} /> : null)}
+          <label className="ck-filter-label" htmlFor="list-holder">{w.holder}</label>
+          <select id="list-holder" name="holder" className="field" defaultValue={values.holder} onChange={e => e.currentTarget.form?.requestSubmit()}>
+            <option value="">{w.anyone}</option>
+            <option value="nobody">{w.nobody}</option>
+            {holders.length > 0 && <optgroup label={w.team}>{holders.map(h => <option key={h.value} value={h.value}>{h.label}</option>)}</optgroup>}
+            {places.length > 0 && <optgroup label={w.places}>{places.map(p => <option key={p} value={"place:" + p}>{p}</option>)}</optgroup>}
+          </select>
+        </form>
+      </div>
 
       {manager && rows.length > 0 && (
         <div className="bulk no-print">
@@ -97,7 +80,7 @@ export function ItemsView({ rows, paging, manager, filtered, query, values, cate
       )}
 
       {rows.length === 0 ? (
-        <div className="empty"><p>{filtered ? w.empty : w.emptyAll}</p></div>
+        <EmptyState title={filtered ? w.empty : w.emptyAll} action={manager && !filtered ? <Link className="button" href="/chest/items/new"><Plus />{t.overview.add}</Link> : undefined} />
       ) : (
         <ul className="lines">
           {rows.map(r => (

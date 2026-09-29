@@ -12,7 +12,7 @@ type Person = Choice & { kind: "member" };
 // (the field left empty) — the kit's people picker: type "lé" or "mor",
 // arrows, Enter; the team is offered before anything is typed. Someone who
 // may not give things away is offered only themselves.
-export function OwnerPicker({ id, label, hideLabel = false, value, team, me, canAssign, allowNobody = true, onChange, t }: { id: string; label: string; hideLabel?: boolean; value: string | null; team: Teammate[]; me: string; canAssign: boolean; allowNobody?: boolean; onChange: (value: string | null) => void; t: Catalogue }) {
+export function OwnerPicker({ id, label, hideLabel = false, hint = true, value, team, me, canAssign, allowNobody = true, onChange, t }: { id: string; label: string; hideLabel?: boolean; hint?: boolean; value: string | null; team: Teammate[]; me: string; canAssign: boolean; allowNobody?: boolean; onChange: (value: string | null) => void; t: Catalogue }) {
   const people = useMemo<Person[]>(() => (canAssign ? team : team.filter(p => p.id === me || p.id === value)).map(p => ({ kind: "member", id: p.id, name: p.name, photo: p.photo, ...(p.id === me ? { detail: t.people.you } : {}) })), [canAssign, team, me, value, t.people.you]);
   const chosen: Person[] = value === null ? [] : [people.find(p => p.id === value) ?? { kind: "member", id: value, name: t.people.unknown }];
   const search = useMemo(() => localSearch(people), [people]);
@@ -30,7 +30,7 @@ export function OwnerPicker({ id, label, hideLabel = false, value, team, me, can
       suggestions={people.slice(0, 12)}
       suggestionsLabel={t.peoplePicker.suggested}
       required={!nobody}
-      {...(nobody ? { hint: t.common.nobodyHint } : {})}
+      {...(nobody && hint ? { hint: t.common.nobodyHint } : {})}
       labels={t.peoplePicker}
       lang={t.meta.lang}
     />

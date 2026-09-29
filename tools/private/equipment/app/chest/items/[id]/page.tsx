@@ -2,8 +2,8 @@ import * as chest from "@argentic/chest-sdk/chest";
 import { headers } from "next/headers";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { Avatar } from "@argentic/chest-ui/components";
 import { AssetTag, StatusStamp } from "../../../../components/bits.tsx";
-import { Avatar } from "../../../../components/avatar.tsx";
 import { Alert, Back, CategoryIcon, Print } from "../../../../components/icons.tsx";
 import { LabelFace } from "../../../../components/label-face.tsx";
 import { ReceiveButton } from "../../../../components/receive-button.tsx";
@@ -95,7 +95,7 @@ export default async function ItemPage({ params, searchParams }: { params: Promi
   const cat = categoryName(item.category, t);
   const licence = item.category.kind === "licence";
   const day = (d: string | null) => (d ? formatDay(d, locale, { day: "numeric", month: "long", year: "numeric" }) : null);
-  const words = { report: t.report, errors: t.errors, common: t.common };
+  const words = { report: t.report, errors: t.errors, common: t.common, dialog: t.dialog };
 
   const head = (
     <header className="item-head">
@@ -126,12 +126,12 @@ export default async function ItemPage({ params, searchParams }: { params: Promi
     const mine = detail.mine;
     const charter = mine && holder.kind === "member" && !detail.receipt?.confirmedAt ? await currentCharter(sql) : null;
     return (
-      <main className="narrow item-page">
+      <div className="narrow item-page">
         <Link className="back" href={mine ? "/chest" : "/chest/items"}><Back />{mine ? t.mine.title : t.list.title}</Link>
         {head}
         <section className="holder-panel" aria-label={t.item.with}>
           {holder.kind === "member" ? (
-            <p className="holder-line"><Avatar name={holder.name} photo={holder.photo} size={36} /><span><strong>{holder.you ? format(t.item.withYou, { date: day(item.heldSince) ?? "" }) : holderText}</strong>{!holder.you && item.heldSince && <span className="muted block">{format(t.item.withSince, { date: day(item.heldSince) ?? "" })}</span>}</span></p>
+            <p className="holder-line"><Avatar name={holder.name} photo={holder.photo} size="m" /><span><strong>{holder.you ? format(t.item.withYou, { date: day(item.heldSince) ?? "" }) : holderText}</strong>{!holder.you && item.heldSince && <span className="muted block">{format(t.item.withSince, { date: day(item.heldSince) ?? "" })}</span>}</span></p>
           ) : holder.kind === "place" ? (
             <p className="holder-line"><strong>{format(t.item.atPlace, { place: holder.name })}</strong></p>
           ) : holder.kind === "seats" ? (
@@ -156,7 +156,7 @@ export default async function ItemPage({ params, searchParams }: { params: Promi
               <div className="row">
                 {holder.kind === "member" && !detail.receipt?.confirmedAt && (
                   <ReceiveButton id={item.id} name={item.name} label={t.item.received} charter={charter ? { id: charter.id, body: charter.body } : null}
-                    given={givenText(detail.receipt)} condition={detail.receipt?.condition ?? null} t={{ receive: t.receive, errors: t.errors, common: t.common }} />
+                    given={givenText(detail.receipt)} condition={detail.receipt?.condition ?? null} t={{ receive: t.receive, errors: t.errors, common: t.common, dialog: t.dialog }} />
                 )}
                 <ReportButton id={item.id} name={item.name} label={t.item.report} t={words} primary={holder.kind !== "member" || Boolean(detail.receipt?.confirmedAt)} />
               </div>
@@ -165,7 +165,7 @@ export default async function ItemPage({ params, searchParams }: { params: Promi
         </section>
         {detail.myProblems.map(p => <p key={p.id} className="sent">{format(t.item.yourProblem, { when: relative(p.createdAt, locale, now) })} <span className="quote">{p.body}</span></p>)}
         {!mine && <p className="muted small">{t.item.onlyYours}</p>}
-      </main>
+      </div>
     );
   }
 
@@ -214,7 +214,7 @@ export default async function ItemPage({ params, searchParams }: { params: Promi
   for (const { field, value } of valuesOf(ownFields, full.extra)) details.push([field.name, field.type === "date" ? day(value) : value]);
 
   return (
-    <main className="wide item-page">
+    <div className="wide item-page">
       <Link className="back" href="/chest/items"><Back />{t.list.title}</Link>
       <div className="item-grid">
         <div className="item-main">
@@ -229,7 +229,7 @@ export default async function ItemPage({ params, searchParams }: { params: Promi
             today={today}
             locale={locale}
             extras={extras}
-            t={{ item: t.item, give: t.give, takeBack: t.takeBack, status: t.status, errors: t.errors, common: t.common, people: t.people, handOut: t.handOut, restock: t.restock, repair: t.repair, list: t.list }}
+            t={{ item: t.item, give: t.give, takeBack: t.takeBack, status: t.status, errors: t.errors, common: t.common, people: t.people, handOut: t.handOut, restock: t.restock, repair: t.repair, list: t.list, dialog: t.dialog, peoplePicker: t.peoplePicker, date: t.date, lang: locale }}
           />
           {detail.problems.length > 0 && (
             <section className="panel warn" aria-labelledby="problems">
@@ -258,8 +258,8 @@ export default async function ItemPage({ params, searchParams }: { params: Promi
             {full.notes && <div className="notes"><h3>{t.item.notes}</h3><p>{full.notes}</p></div>}
             <p className="small muted">{format(t.item.added, { date: formatDate(full.createdAt, locale, { day: "numeric", month: "long", year: "numeric" }, zone) })}</p>
           </section>
-          <PhotoControl id={item.id} has={item.photo !== null} t={{ item: t.item, errors: t.errors }} />
-          <InvoiceControl id={item.id} has={full.invoice !== null} t={{ item: t.item, errors: t.errors }} />
+          <PhotoControl id={item.id} name={item.name} has={item.photo !== null} t={{ item: t.item, errors: t.errors, common: t.common }} />
+          <InvoiceControl id={item.id} name={item.name} has={full.invoice !== null} t={{ item: t.item, errors: t.errors, common: t.common }} />
         </div>
         <aside className="item-side">
           <section className="panel" aria-labelledby="label">
@@ -286,6 +286,6 @@ export default async function ItemPage({ params, searchParams }: { params: Promi
           </section>
         </aside>
       </div>
-    </main>
+    </div>
   );
 }

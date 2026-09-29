@@ -7,26 +7,36 @@ company's own newspaper, not a social feed.
 
 ## Tokens
 
-All in `app/tokens.css` (light, and dark by the system's choice). Ratios
-computed with `scripts/contrast.mjs` (WCAG 2; AA is 4.5:1 for text).
+The identity is a **theme of the UI kit**: "Newsprint" (French *Papier
+journal*), defined with `defineTheme` in `lib/theme.ts` — the very source of
+the kit catalogue's `newsprint` theme (`test/theme.test.ts` holds the two
+equal and checks every contrast pair of `ui/tokens/CONTRACT.md`, light and
+dark). The company may give News another look (a catalogue theme, its
+brand); the CSS names **only contract tokens**, so every screen follows.
+`app/tokens.css` holds the tool's own tokens, defined from contract tokens:
+the display sizes of the nameplate and the lead headline, `--rule` (the
+black rules, `--line-strong`), and the heavier weights as steps above the
+theme's (`--weight-plate` 900, `--weight-heavy` 800, `--weight-label` 800,
+`--weight-bold` 700 in Newsprint; all 400 in a one-weight theme).
 
-| Token | Light | Dark | Use |
+| Contract token | Light | Dark | Use |
 |---|---|---|---|
-| `--bg` | `#f7f3ea` newsprint | `#121110` | page |
+| `--bg` | `#f7f3ea` newsprint | `#121110` | page, header |
 | `--surface` | `#fffdf8` | `#1c1a17` | fields, reactions |
-| `--ink` / `--rule` | `#16130f` | `#f3ede2` | text and the black rules — 16.7:1 / 16.2:1 |
-| `--ink-2` | `#5c554b` | `#b8ae9e` | bylines, dates — 6.6:1 / 8.6:1 (5.8:1 / 5.7:1 on the highlight) |
-| `--accent` | `#c4121a` press red | `#ff6f61` | kickers, Important, the main action — 5.5:1 / 6.9:1; white on red 6.1:1, ink on dark red 6.8:1; 4.8:1 on the highlight |
-| `--highlight` | `#f2e3b8` marker pen | `#3b331c` | what asks for you (confirm), welcome card — ink on it 14.5:1 / 10.8:1 |
-| `--ok` | `#1d6b3a` | `#6fcf8f` | confirmed, coming — 5.9:1; text on it 5.9:1 / 9.9:1 |
-| `--hairline` | `#d9d0bf` | `#3a352e` | thin separators, field borders (not text) |
+| `--ink` / `--line-strong` | `#16130f` | `#f3ede2` | text and the black rules — 16.7:1 / 16.2:1 |
+| `--ink-2` | `#5c554b` | `#b8ae9e` | bylines, dates — 6.6:1 / 8.6:1 |
+| `--line` | `#d9d0bf` | `#3a352e` | hairlines, field sides (never the only sign) |
+| `--accent` / `--accent-text` / `--accent-line` | `#c4121a` press red | `#ff6f61` | kickers, Important, the main action, current section — white on red 6.1:1, ink on dark red 6.8:1 |
+| `--highlight` | `#f2e3b8` marker pen | `#3b331c` | what asks for you (confirm), welcome card, search hits — ink on it 14.5:1 / 10.8:1 |
+| `--ok` | `#1d6b3a` | `#6fcf8f` | confirmed, coming — 5.9:1 |
+| `--danger` | derived | derived | errors, the Delete button |
 
 **Type**: *Fraunces* (OFL-1.1, variable, with italics) for everything that
 is a headline — the nameplate at 900, lead headlines at 800 with tight
 tracking, the welcome line in italic, drop caps; *Libre Franklin* (OFL-1.1)
 for reading and for the small uppercase labels (kickers, bylines, section
 names, letter-spaced 0.1–0.14em). Body 16 px, article text 18 px / 1.7.
-Both self-hosted in `public/fonts/`.
+Both self-hosted in `public/fonts/` (the kit writes their `@font-face` from `lib/theme.ts`).
 **Shape**: square — 2 px radii, 2 px ink borders on boxes (event, readers),
 1 px black rules between stories, a 4 px + 1 px double rule under the
 nameplate. No shadows but the toast's. **Space**: 4, 8, 12, 16, 24, 32, 48,
@@ -47,7 +57,7 @@ a text editor that shows formatting as typed under a sticky icon toolbar —
 pressed tools inverted to ink —, language tabs, side cards, a sticky action
 bar whose red button says who will be told, with *Schedule…* beside it),
 buttons (red primary, ink outline quiet, red outline danger, all 44 px),
-toasts with *Undo*, empty states. The search: a field in the topbar (a
+the kit's components dressed as the paper (square toasts, empty states between rules, fields with a ruled bottom edge, faces on the marker pen). The search: a field in the topbar (a
 magnifier button on a phone), a results list under a thick rule, the words
 found struck with the marker pen (`<mark>`, `--highlight`, semi-bold), the
 comments found indented under a hairline edge. The audience: an ink-grey

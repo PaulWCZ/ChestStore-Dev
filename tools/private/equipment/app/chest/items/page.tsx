@@ -1,4 +1,5 @@
 import * as chest from "@argentic/chest-sdk/chest";
+import { PageHeader } from "@argentic/chest-ui/components";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Plus } from "../../../components/icons.tsx";
@@ -48,14 +49,9 @@ export default async function ItemsPage({ searchParams }: { searchParams: Promis
   const query = new URLSearchParams(Object.entries({ q, category: filters.category ?? "", status: filters.status ?? "", holder: filters.holder ?? "", sort: filters.sort ?? "" }).filter(([, value]) => value !== "")).toString();
 
   return (
-    <main className="wide">
-      <div className="page-head">
-        <div>
-          <h1>{t.list.title}</h1>
-          <p className="muted" aria-live="polite">{plural(t.list.count, total, locale)}</p>
-        </div>
-        {manager && <div className="actions"><Link className="button" href="/chest/items/new"><Plus />{t.overview.add}</Link></div>}
-      </div>
+    <div className="wide">
+      <PageHeader size="m" title={t.list.title} intro={plural(t.list.count, total, locale)}
+        action={manager ? <Link className="button" href="/chest/items/new"><Plus />{t.overview.add}</Link> : undefined} />
       <ItemsView
         rows={rows}
         paging={pages > 1 ? { page, pages, text: format(t.list.page, { from: (page - 1) * size + 1, to: (page - 1) * size + shown.length, total }) } : null}
@@ -66,9 +62,9 @@ export default async function ItemsPage({ searchParams }: { searchParams: Promis
         categories={categories.map(c => ({ value: c.id, label: categoryName(c, t) }))}
         holders={holderOptions}
         places={placeList}
-        t={{ list: t.list, status: t.status, shell: t.shell, common: t.common }}
+        t={{ list: t.list, status: t.status, shell: t.shell, common: t.common, overview: t.overview, filters: t.filters, search: t.search }}
         locale={locale}
       />
-    </main>
+    </div>
   );
 }

@@ -1,3 +1,4 @@
+import { PageHeader } from "@argentic/chest-ui/components";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { can } from "../../../lib/access.ts";
@@ -36,15 +37,10 @@ export default async function PeoplePage() {
   })).filter(e => e.count > 0);
   const members: Entry[] = team.people.map(p => ({ id: p.id, name: p.name, photo: p.photo, text: describe(p.id), count: (counts.get(p.id)?.items ?? 0) + (counts.get(p.id)?.seats ?? 0) }));
   return (
-    <main className="wide">
-      <div className="page-head">
-        <div>
-          <h1>{t.peopleList.title}</h1>
-          <p className="muted">{t.peopleList.intro}</p>
-        </div>
-      </div>
+    <div className="wide">
+      <PageHeader size="m" title={t.peopleList.title} intro={t.peopleList.intro} />
       {!team.ok && <p className="notice">{t.peopleList.unavailable}</p>}
-      <PeopleView leavers={leavers} members={members} t={t.peopleList} />
+      <PeopleView leavers={leavers} members={members} t={t.peopleList} search={t.search} />
       {placeList.length > 0 && (
         <section aria-labelledby="places">
           <h2 id="places" className="section-title">{t.peopleList.places}</h2>
@@ -60,6 +56,6 @@ export default async function PeoplePage() {
           </ul>
         </section>
       )}
-    </main>
+    </div>
   );
 }

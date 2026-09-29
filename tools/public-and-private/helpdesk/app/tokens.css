@@ -1,76 +1,28 @@
-/* Support — "calm conversation": mint-white paper, deep teal, a coral
-   warmth for customers, butter-yellow team notes. Atkinson Hyperlegible
-   everywhere: made to be read by everyone. Ratios: scripts/contrast.mjs. */
+/* Support's own tokens. The contract's (colours, fonts, sizes, spacing,
+   corners, motion: @argentic/chest-ui, tokens/CONTRACT.md) are set by the
+   look of the page — Support's identity "Calm counter" in lib/theme.ts, or
+   the theme or brand the company chose in its Chest — in a <style> of
+   app/layout.tsx. Here only what is Support's alone, always defined from
+   contract tokens, never from a colour, so it follows every theme. */
 :root {
-  color-scheme: light dark;
-  --font: "Atkinson Hyperlegible", system-ui, -apple-system, "Segoe UI", sans-serif;
+  /* The customer's coral: categorical slot 3 (the orange family in every
+     theme). The soft ground for a late wait, its ink for the words on it,
+     the solid colour for its edge. */
+  --customer: var(--cat-3-soft);
+  --customer-ink: var(--cat-3-ink);
+  --customer-line: var(--cat-3);
 
-  --bg: #f3f7f6;
-  --surface: #ffffff;
-  --surface-2: #e8f1ef;
-  --ink: #12302f;
-  --ink-2: #4a6361;
-  --line: #d3e2df;
-  --accent: #0b6e69;
-  --accent-ink: #ffffff;
-  --accent-soft: #ddefec;
-  --customer: #ffd9cf;
-  --customer-line: #f2b3a3;
-  --note: #fff1b8;
-  --note-line: #e5cf6f;
-  --danger: #b3261e;
-  --focus: #0b6e69;
-  --shadow: 0 1px 2px rgb(18 48 47 / 0.06), 0 4px 16px rgb(18 48 47 / 0.06);
-  --shadow-lift: 0 10px 30px rgb(18 48 47 / 0.14);
-  --overlay: rgb(18 48 47 / 0.4);
+  /* The team's butter notes: the marker pen (--highlight, --ink on it is a
+     measured pair in every theme) with slot 7's ochre (the same family) for
+     the dashed edge a note is told by. */
+  --note: var(--highlight);
+  --note-line: var(--cat-7);
 
-  --space-1: 4px;
-  --space-2: 8px;
-  --space-3: 12px;
-  --space-4: 16px;
-  --space-5: 24px;
-  --space-6: 32px;
-  --space-7: 48px;
+  /* Support's pills (buttons, chips): round in a theme with round corners,
+     square in a square one (the Chest theme's radius is 0). */
+  --radius-round: min(var(--radius-pill), calc(var(--radius-s) * 100));
 
-  --radius-s: 8px;
-  --radius-m: 14px;
-  --radius-l: 22px;
-
-  --text-xs: 0.78rem;
-  --text-s: 0.9rem;
-  --text-m: 1.0625rem;
-  --text-l: 1.3rem;
-  --text-xl: 1.75rem;
-  --text-xxl: 2.25rem;
-
-  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
-  --fast: 120ms;
-  --slow: 220ms;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #0f1c1c;
-    --surface: #172726;
-    --surface-2: #1e3a37;
-    --ink: #e6f2f0;
-    --ink-2: #a7c1be;
-    --line: #2b4744;
-    --accent: #5fd3c8;
-    --accent-ink: #0f1c1c;
-    --accent-soft: #1e3a37;
-    --customer: #3b2a26;
-    --customer-line: #7a4a3f;
-    --note: #2f2a14;
-    --note-line: #6b5c20;
-    --danger: #ff9a85;
-    --focus: #5fd3c8;
-    --shadow: none;
-    --shadow-lift: 0 10px 30px rgb(0 0 0 / 0.5);
-    --overlay: rgb(0 0 0 / 0.6);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  :root { --fast: 0ms; --slow: 0ms; }
+  /* The side column of folders, and the page's reading width. */
+  --side-width: 250px;
+  --line-bold: max(1.5px, var(--border-width));
 }

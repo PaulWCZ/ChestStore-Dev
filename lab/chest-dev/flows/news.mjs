@@ -11,6 +11,10 @@ const { browser, context, page, origin, problems } = await open(port, "camille",
 const tmp = process.env.FLOW_TMP ?? process.env.TMPDIR ?? "/tmp";
 const speak = locale => context.addCookies([{ name: "dev_locale", value: locale, url: origin }]);
 const dev = async () => (await page.request.get(origin + "/_dev")).text();
+// French puts a narrow no-break space before ":" (the bell may show it as
+// a plain space): either is accepted.
+const sp = "[ \u00a0\u202f]";
+const has = (text, pattern) => new RegExp(pattern, "u").test(text);
 // A page loaded is not yet a page that answers: wait until it runs in the
 // browser (the tool marks <html data-hydrated>) before acting on it.
 const load = page.goto.bind(page);
@@ -84,7 +88,7 @@ await step("a publisher writes an Important post with a picture and a file", asy
   await page.getByLabel("Important").check();
   await page.getByRole("button", { name: "Publish and tell 6 people by bell and email" }).click();
   await page.waitForURL(/\/chest\/posts\/\d+$/u);
-  expect(await page.locator(".toast", { hasText: "Telling 6 people in 10 seconds" }).isVisible(), "the Undo toast");
+  expect(await page.locator(".ck-toast", { hasText: "Telling 6 people in 10 seconds" }).locator(".ck-toast-undo").isVisible(), "the Undo toast");
   expect(await page.locator(".prose strong", { hasText: "both doors" }).isVisible() && await page.locator(".prose li").count() >= 2, "kept as formatted");
   expect(await page.getByRole("heading", { name: "New badges from Monday" }).isVisible(), "the article");
   const width = await page.locator(".cover img").evaluate(img => img.naturalWidth);
@@ -96,10 +100,11 @@ const badgesUrl = page.url();
 
 await step("after 10 seconds, everyone is told in their bell and by email, in their language", async () => {
   expect(!(await dev()).includes("Important: New badges from Monday"), "nothing sent during the Undo seconds");
-  await page.waitForSelector(".toast:has-text('Sent.')", { timeout: 15000 });
+  await page.waitForSelector(".ck-toast.ck-toast-sent:has-text('Sent.')", { timeout: 15000 });
+  expect(!(await page.locator(".ck-toast", { hasText: "Sent." }).locator(".ck-toast-undo").count()), "once sent, no Undo");
   const text = await dev();
-  expect(text.includes("<b>Important : New badges from Monday</b>") && text.includes("<b>Important: New badges from Monday</b>"), "emails in both languages");
-  expect(text.includes("Important : New badges from Monday"), "French bell for Inès");
+  expect(has(text, `<b>Important${sp}: New badges from Monday</b>`) && text.includes("<b>Important: New badges from Monday</b>"), "emails in both languages");
+  expect(has(text, `Important${sp}: New badges from Monday`), "French bell for Inès");
   expect(text.includes("Important: New badges from Monday"), "English bell for Hugo");
 });
 
@@ -130,7 +135,7 @@ await step("the publisher sees who read it, reminds the others, downloads the li
   expect(readers.includes("Hugo Bernard"), "Hugo confirmed");
   expect(readers.includes("Nora Petit") && !readers.includes("Unknown member"), "those who have not, by name");
   await page.getByRole("button", { name: "Remind those who have not" }).click();
-  await page.waitForSelector(".toast:has-text('Reminder sent to 5 people')");
+  await page.waitForSelector(".ck-toast.ck-toast-sent:has-text('Reminder sent to 5 people')");
   const csv = await (await page.request.get(badgesUrl + "/confirmations")).text();
   expect(csv.includes("Hugo Bernard,Confirmed"), "csv confirmed row");
   expect(csv.includes("Not yet"), "csv pending rows");
@@ -164,7 +169,7 @@ await step("a publisher adds a picture to the lead story, then deletes a post an
   await page.goto(origin + "/chest/posts/2");
   await page.getByRole("button", { name: "Delete" }).click();
   await page.waitForURL(origin + "/chest");
-  await page.locator(".toast").getByRole("button", { name: "Undo" }).click();
+  await page.locator(".ck-toast").getByRole("button", { name: "Undo" }).click();
   await page.waitForURL(/\/chest\/posts\/2$/u);
   expect(await page.getByRole("heading", { name: "The Wi-Fi password changes on Monday" }).isVisible(), "restored");
 });
@@ -204,13 +209,13 @@ await step("a publisher writes for one team only; nobody else sees it, is told o
   await page.getByRole("button", { name: "Publish and tell 2 people by bell and email" }).click();
   await page.waitForURL(/\/chest\/posts\/\d+$/u);
   salesUrl = page.url();
-  await page.waitForSelector(".toast:has-text('Sent.')", { timeout: 15000 });
+  await page.waitForSelector(".ck-toast.ck-toast-sent:has-text('Sent.')", { timeout: 15000 });
   await page.reload();
   expect((await page.locator(".notices").innerText()).includes("Only for Sales: nobody else sees this post."), "the audience is said");
   expect(/Read by 0 of 2/u.test(await page.locator(".readers h2").innerText()), "counted on Sales only");
   const bell = await dev();
   expect(bell.includes("Hugo Bernard</b> · Important: Sales bonus"), "Hugo (Sales) is told");
-  expect(!bell.includes("Léa Dubois</b> · Important : Sales bonus") && !bell.includes("Tom Walker</b> · Important: Sales bonus"), "Tech is not told");
+  expect(!has(bell, `Léa Dubois</b> · Important${sp}: Sales bonus`) && !bell.includes("Tom Walker</b> · Important: Sales bonus"), "Tech is not told");
   await as(context, origin, "lea");
   await page.goto(origin + "/chest");
   expect(!(await page.locator("main").innerText()).includes("Sales bonus"), "not on Léa's front page");
@@ -245,7 +250,7 @@ await step("search: one box, accents and case aside, words marked, only what one
 });
 
 await step("the weekly digest: one item per person, in their language, never doubled, gone once they come", async () => {
-  const count = text => (text.match(/Nora Petit<\/b> · Cette semaine : \d+ publications? que vous n’avez pas encore vues?/gu) ?? []).length;
+  const count = text => (text.match(/Nora Petit<\/b> · Cette semaine[ \u00a0\u202f]: \d+ publications? que vous n’avez pas encore vues?/gu) ?? []).length;
   await page.request.post(origin + "/_dev/schedule", { form: { name: "digest" } });
   expect(count(await dev()) === 1, "Nora (French) has her digest");
   await page.request.post(origin + "/_dev/schedule", { form: { name: "digest" } });
@@ -269,10 +274,10 @@ await step("French, phone width: nothing overflows; confirm and write work", asy
   await page.waitForSelector(".confirm-box.done");
   width = await page.evaluate(() => document.documentElement.scrollWidth);
   expect(width <= 392, "article width " + width);
-  await page.getByRole("button", { name: "Rechercher" }).click();
-  await page.waitForURL(/\/chest\/search/u);
-  await page.locator("#q").fill("déménagement plantes");
-  await page.locator("#q").press("Enter");
+  // The header's search has a row of its own on a phone.
+  await page.getByRole("searchbox", { name: "Rechercher dans les Actualités" }).fill("déménagement plantes");
+  await page.getByRole("searchbox", { name: "Rechercher dans les Actualités" }).press("Enter");
+  await page.waitForURL(/\/chest\/search\?q=/u);
   await page.waitForSelector(".result mark");
   width = await page.evaluate(() => document.documentElement.scrollWidth);
   expect(width <= 392, "search width " + width);
@@ -299,7 +304,7 @@ await step("Undo within 10 seconds: nothing leaves, the post is back in the comp
   await page.getByLabel("Important").check();
   await page.getByRole("button", { name: /^Publish and tell \d+ people/u }).click();
   await page.waitForURL(/\/chest\/posts\/\d+$/u);
-  await page.locator(".toast").getByRole("button", { name: "Undo" }).click();
+  await page.locator(".ck-toast").getByRole("button", { name: "Undo" }).click();
   await page.waitForURL(/\/chest\/new$/u);
   // The draft comes back from this browser once the composer is running.
   await page.locator(".notice", { hasText: "Your draft is back" }).waitFor();
@@ -314,10 +319,12 @@ await step("hand-picked people, and any group of the Chest", async () => {
   await compose();
   await page.getByLabel("Headline").fill("Client visit: who comes");
   await page.getByLabel("Some groups or people").check();
+  // The kit's people picker: type the start of a name, choose in the list.
   await page.locator("#people-search").fill("lé");
-  await page.locator(".suggestions button", { hasText: "Léa Dubois" }).click();
+  await page.getByRole("option", { name: /Léa Dubois/u }).click();
   await page.locator("#people-search").fill("Tom");
-  await page.locator(".suggestions button", { hasText: "Tom Walker" }).click();
+  await page.getByRole("option", { name: /Tom Walker/u }).click();
+  expect((await page.locator(".people-picker").innerText()).includes("Léa Dubois"), "chosen people shown as chips");
   await page.getByRole("button", { name: "Publish for 2 people" }).click();
   await page.waitForURL(/\/chest\/posts\/\d+$/u);
   const url = page.url();
@@ -357,7 +364,7 @@ await step("an event with places: a waiting list, and the Chest's calendar", asy
   await page.goto(origin + "/chest/posts/9");
   expect((await page.locator(".seats").innerText()).includes("3 of 3 places taken"), "full");
   await saved(() => page.getByRole("button", { name: "Join the waiting list" }).click());
-  await page.waitForSelector(".toast:has-text('waiting list')");
+  await page.waitForSelector(".ck-toast:has-text('waiting list')");
   await as(context, origin, "lea");
   await page.goto(origin + "/chest/posts/9");
   await saved(() => page.getByRole("button", { name: /I’m coming/u }).click());
@@ -423,9 +430,12 @@ await step("import a Slack channel, take it back; download all posts", async () 
   await page.waitForSelector(".channels");
   await page.getByLabel(/#enrique/u).check();
   await page.getByRole("button", { name: "Import 30 messages" }).click();
-  await page.waitForSelector(".toast:has-text('30 posts imported')");
-  await page.locator(".toast").getByRole("button", { name: "Undo" }).click();
-  await page.waitForSelector(".toast:has-text('30 imported posts taken back')");
+  await page.waitForSelector(".ck-toast:has-text('30 posts imported')");
+  const found = async () => (await (await page.request.get(origin + "/chest/search?q=setup+installed")).text()).includes('class="result"');
+  expect(await found(), "the imported messages are posts");
+  await page.locator(".ck-toast").getByRole("button", { name: "Undo" }).click();
+  await page.waitForSelector(".ck-toast[data-phase=undone]");
+  expect(!(await found()), "taken back: none of them left");
   const zip = await page.request.get(origin + "/chest/transfer/export");
   expect(zip.status() === 200 && (zip.headers()["content-type"] ?? "").includes("zip") && (await zip.body()).length > 1000, "the ZIP");
 });
@@ -434,7 +444,7 @@ await step("the weekly digest email can be turned off", async () => {
   await as(context, origin, "hugo");
   await page.goto(origin + "/chest");
   await page.getByRole("button", { name: "Stop the email" }).click();
-  await page.waitForSelector(".toast:has-text('No more weekly email')");
+  await page.waitForSelector(".ck-toast:has-text('No more weekly email')");
   await page.reload();
   expect(await page.getByRole("button", { name: "Also by email" }).isVisible(), "kept");
 });

@@ -124,7 +124,7 @@ function OwnerInline({ owner, team, me, canAssign, give, t }: { owner: string | 
       emptied.current = false;
       if (owner !== null) give(null);
     }}>
-      <OwnerPicker id="deal-owner" label={t.deal.owner} value={owner} team={team} me={me} canAssign={canAssign}
+      <OwnerPicker id="deal-owner" label={t.deal.owner} hint={false} value={owner} team={team} me={me} canAssign={canAssign}
         onChange={next => { emptied.current = next === null; if (next !== null && next !== owner) give(next); }} t={t} />
     </span>
   );

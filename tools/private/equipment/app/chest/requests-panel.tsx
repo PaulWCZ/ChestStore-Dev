@@ -2,17 +2,16 @@
 
 import { useRouter } from "next/navigation";
 import { useMemo, useState, useTransition } from "react";
-import { Avatar } from "../../components/avatar.tsx";
-import { Dialog } from "../../components/dialog.tsx";
-import { CategoryIcon, Check, Close, Give, Inbox, Search } from "../../components/icons.tsx";
-import { useToast } from "../../components/toast.tsx";
+import { Avatar, Dialog, SearchBox, useToast } from "@argentic/chest-ui/components";
+import { StatusStamp } from "../../components/bits.tsx";
+import { CategoryIcon, Check, Close, Give, Inbox } from "../../components/icons.tsx";
 import type { Catalogue } from "../../lib/i18n/index.ts";
 import { format } from "../../lib/i18n/format.ts";
 import { fold, limits } from "../../lib/model.ts";
 import type { Row } from "../../lib/view.ts";
 import { approveRequest, fulfilRequest, refuseRequest } from "./actions.ts";
 
-type Words = { overview: Catalogue["overview"]; requests: Catalogue["requests"]; errors: Catalogue["errors"]; common: Catalogue["common"] };
+type Words = { overview: Catalogue["overview"]; requests: Catalogue["requests"]; errors: Catalogue["errors"]; common: Catalogue["common"]; dialog: Catalogue["dialog"]; search: Catalogue["search"] };
 export type WaitingRequest = { id: string; member: string; name: string; photo: string | null; body: string; kind: string | null; categoryId: string | null; approved: boolean; when: string; gone: boolean };
 
 // The requests waiting for the managers, on the overview: give something
@@ -41,7 +40,8 @@ export function RequestsPanel({ requests, offer, t }: { requests: WaitingRequest
     const r = await step();
     if (!r.ok) return setError(format(t.errors[r.error ?? "unknown"], r.values));
     after?.();
-    toast(done);
+    // The person was told (their bell): the act has left, no Undo.
+    toast({ text: done, sent: true });
     router.refresh();
   });
 
@@ -52,9 +52,9 @@ export function RequestsPanel({ requests, offer, t }: { requests: WaitingRequest
         {requests.map(r => (
           <li key={r.id} className="problem">
             <div className="problem-head">
-              <Avatar name={r.name} photo={r.photo} size={24} />
+              <Avatar name={r.name} photo={r.photo} size="s" />
               <span className="small muted">{format(w.asked, { name: r.name, when: r.when })}{r.kind ? ` · ${r.kind}` : ""}</span>
-              {r.approved && <span className="stamp rq-approved">{t.overview.approved}</span>}
+              {r.approved && <StatusStamp status="approved" text={t.overview.approved} />}
             </div>
             <p className="quote">{r.body}</p>
             <div className="row">
@@ -66,14 +66,10 @@ export function RequestsPanel({ requests, offer, t }: { requests: WaitingRequest
         ))}
       </ul>
       {error && !giving && !refusing && <p className="error" role="alert">{error}</p>}
-      <Dialog open={giving !== null} title={format(w.giveTitle, { name: giving?.name ?? "" })} closeLabel={t.common.close} onClose={() => setGiving(null)}>
+      <Dialog open={giving !== null} title={format(w.giveTitle, { name: giving?.name ?? "" })} labels={t.dialog} onClose={() => setGiving(null)}>
         <div className="stack">
           {giving && <p className="quote">{giving.body}</p>}
-          <div className="search-field">
-            <Search />
-            <label className="visually-hidden" htmlFor="request-q">{w.findStock}</label>
-            <input id="request-q" className="field" type="search" value={q} onChange={e => setQ(e.target.value)} placeholder={w.findStock} autoFocus autoComplete="off" maxLength={limits.search} />
-          </div>
+          <SearchBox action="/chest/items" onSearch={setQ} shortcut={false} labels={{ ...t.search, label: w.findStock, placeholder: w.findStock }} maxLength={limits.search} />
           {shown.length === 0 ? <p className="muted">{w.noStock}</p> : (
             <ul className="pick-list">
               {shown.map(o => (
@@ -89,11 +85,11 @@ export function RequestsPanel({ requests, offer, t }: { requests: WaitingRequest
           {error && <p className="error" role="alert">{error}</p>}
         </div>
       </Dialog>
-      <Dialog open={refusing !== null} title={format(w.refuseTitle, { name: refusing?.name ?? "" })} closeLabel={t.common.close} onClose={() => setRefusing(null)}>
+      <Dialog open={refusing !== null} title={format(w.refuseTitle, { name: refusing?.name ?? "" })} labels={t.dialog} dirty={reason.trim() !== ""} onClose={() => setRefusing(null)}>
         <form className="stack" onSubmit={e => { e.preventDefault(); if (refusing) run(() => refuseRequest(refusing.id, reason), format(w.refusedDone, { name: refusing.name }), () => setRefusing(null)); }}>
           <div className="form-field">
             <label className="label" htmlFor="refuse-reason">{w.reason}</label>
-            <textarea id="refuse-reason" className="field" rows={3} value={reason} onChange={e => setReason(e.target.value)} maxLength={limits.request} autoFocus />
+            <textarea id="refuse-reason" className="field" rows={3} value={reason} onChange={e => setReason(e.target.value)} maxLength={limits.request} />
           </div>
           {error && <p className="error" role="alert">{error}</p>}
           <div className="row end">

@@ -95,7 +95,11 @@ export async function markPaid(ids: string[], paidOn: string): Promise<Result> {
 }
 
 export async function unmarkPaid(ids: string[]): Promise<Result> {
-  return act(async actor => { await expenses.unmarkPaid(db(), actor, ids); return null; });
+  return act(async actor => {
+    const sql = db();
+    await tell.unpaid(sql, await expenses.unmarkPaid(sql, actor, ids));
+    return null;
+  });
 }
 
 // Settings.
@@ -169,8 +173,7 @@ export async function makeTransferFile(executionDate: string): Promise<Result<{ 
 export async function cancelTransferFile(runId: string): Promise<Result> {
   return act(async actor => {
     const sql = db();
-    const owners = await payments.cancelRun(sql, actor, runId);
-    await tell.refresh(sql, owners);
+    await tell.unpaid(sql, await payments.cancelRun(sql, actor, runId));
     return null;
   });
 }

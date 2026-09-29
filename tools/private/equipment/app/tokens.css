@@ -1,121 +1,48 @@
-/* Equipment's design tokens, defined once (DESIGN.md explains them): the
-   tool crib — steel shelves, utility orange tags, printed labels. Light
-   first; dark follows the system. Contrast ratios are checked in DESIGN.md. */
+/* Equipment's own tokens. The contract's (colours, fonts, sizes, spacing,
+   corners, motion: @argentic/chest-ui, tokens/CONTRACT.md) are set by the
+   look of the page — the tool's identity "Tool crib" (lib/theme.ts), or the
+   theme the company chose — in a <style> of app/layout.tsx. Here only what
+   is this tool's alone, always defined from contract tokens, never from a
+   colour, so it follows every theme (DESIGN.md explains them). */
 :root {
-  color-scheme: light dark;
-  --font-body: "IBM Plex Sans Variable", system-ui, -apple-system, "Segoe UI", sans-serif;
-  --font-display: var(--font-body);
-  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  /* The steel shelf (the header bar): in a light look, the inverse pair of
+     the page — ink as its ground, the page's ground as its text, the quiet
+     ground (surface-2) for its secondary text: all measured pairs. */
+  --steel: var(--ink);
+  --steel-ink: var(--bg);
+  --steel-2: var(--surface-2);
+  /* Decoration only: a tab under the pointer, the current tab (their text
+     keeps a measured pair: the mix moves the ground a little). */
+  --steel-line: color-mix(in oklab, var(--steel-ink) 14%, var(--steel));
 
-  --bg: #f4f2ee;
-  --surface: #ffffff;
-  --surface-2: #eceae4;
-  --ink: #1b1f22;
-  --ink-2: #56606a;
-  --line: #d9d5cc;
-  --line-strong: #1b1f22;
+  /* The asset tag: utility orange tape, as printed — the one action
+     colour and the text measured on it. */
+  --tag: var(--accent);
+  --tag-ink: var(--accent-ink);
 
-  --steel: #2e3d48;
-  --steel-ink: #ffffff;
-  --steel-2: #c9d3db;
-  --steel-line: #43535f;
+  /* A printed label's lift off the shelf: decoration, a thin line and a
+     soft shadow from the look's own veil (dark in both modes). */
+  --shadow-label: 0 1px 0 color-mix(in oklab, var(--overlay) 22%, transparent), 0 3px 8px -4px color-mix(in oklab, var(--overlay) 40%, transparent);
 
-  --accent: #c2410c;
-  --accent-hover: #a8380a;
-  --accent-ink: #ffffff;
-  --tag: #f06a1f;
-  --tag-ink: #1b1f22;
-  --accent-soft: #fde6d6;
-  --focus: #1f6fb2;
+  /* The drawings of the bins, lines and cards (a category's icon): quiet. */
+  --crib-icon: var(--ink);
 
-  --danger: #b3261e;
-  --ok: #1e7a45;
-  --warn: #9a4a00;
-
-  --st-stock: #1e7a45;
-  --st-stock-bg: #e1f2e7;
-  --st-use: #245a86;
-  --st-use-bg: #e0ebf5;
-  --st-repair: #9a4a00;
-  --st-repair-bg: #fdebd8;
-  --st-lost: #b3261e;
-  --st-lost-bg: #fbe3e1;
-  --st-retired: #5b636a;
-  --st-retired-bg: #e9e9e7;
-
-  --space-1: 4px;
-  --space-2: 8px;
-  --space-3: 12px;
-  --space-4: 16px;
-  --space-5: 24px;
-  --space-6: 32px;
-  --space-7: 48px;
-
-  --radius-s: 4px;
-  --radius-m: 6px;
-  --radius-l: 10px;
-  --shadow-1: 0 1px 0 rgb(27 31 34 / 0.08);
-  --shadow-label: 0 1px 0 rgb(27 31 34 / 0.1), 0 3px 8px -4px rgb(27 31 34 / 0.18);
-  --shadow-2: 0 12px 32px rgb(20 25 30 / 0.22);
-
-  --text-xs: 0.75rem;
-  --text-s: 0.875rem;
-  --text-m: 1rem;
-  --text-l: 1.25rem;
-  --text-xl: 1.75rem;
-
-  --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
-  --fast: 120ms;
-  --slow: 240ms;
+  /* The paper: the handover and return sheets and the asset labels are
+     printed, so they stay black on white in every look — the system's own
+     page colours in the light scheme (not a colour of the tool's, and the
+     same on screen, where the sheet is a preview of the paper). */
+  --paper: Canvas;
+  --paper-ink: CanvasText;
+  --paper-ink-2: GrayText;
 }
 
+/* In a dark look the steel bar is the quiet ground of the page (dark
+   steel), with the page's own text on it. */
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #14181b;
-    --surface: #1d2226;
-    --surface-2: #262c31;
-    --ink: #eef1f3;
-    --ink-2: #a9b4bd;
-    --line: #353d44;
-    --line-strong: #8c99a4;
-
-    --steel: #222b32;
-    --steel-ink: #ffffff;
-    --steel-2: #b7c3cc;
-    --steel-line: #36424c;
-
-    --accent: #ff8a4c;
-    --accent-hover: #ffa06e;
-    --accent-ink: #1b1f22;
-    --tag: #ff8a4c;
-    --tag-ink: #1b1f22;
-    --accent-soft: #3a2a20;
-    --focus: #8cc2f0;
-
-    --danger: #ff9b93;
-    --ok: #7fd6a0;
-    --warn: #ffb37a;
-
-    --st-stock: #7fd6a0;
-    --st-stock-bg: #1f3328;
-    --st-use: #8cc2f0;
-    --st-use-bg: #1e2d3b;
-    --st-repair: #ffb37a;
-    --st-repair-bg: #3a2a1c;
-    --st-lost: #ff9b93;
-    --st-lost-bg: #3b2020;
-    --st-retired: #b7bfc6;
-    --st-retired-bg: #2b3035;
-
-    --shadow-1: none;
-    --shadow-label: 0 0 0 1px rgb(0 0 0 / 0.2);
-    --shadow-2: 0 12px 32px rgb(0 0 0 / 0.55);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  :root {
-    --fast: 0ms;
-    --slow: 0ms;
+    --steel: var(--surface-2);
+    --steel-ink: var(--ink);
+    --steel-2: var(--ink-2);
+    --crib-icon: var(--ink-2);
   }
 }

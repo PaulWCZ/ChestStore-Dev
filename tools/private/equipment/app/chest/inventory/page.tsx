@@ -1,4 +1,5 @@
 import * as chest from "@argentic/chest-sdk/chest";
+import { PageHeader } from "@argentic/chest-ui/components";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { can } from "../../../lib/access.ts";
@@ -25,13 +26,8 @@ export default async function InventoryPage() {
   const names = await people([...(now ? [now.inventory.startedBy, ...holderIds([...now.seen, ...now.notSeen])] : [])]);
   const date = (d: string) => formatDate(d, locale, { day: "numeric", month: "long", year: "numeric" }, zone);
   return (
-    <main className="wide">
-      <div className="page-head">
-        <div>
-          <h1>{t.inventory.title}</h1>
-          {now && <p className="muted">{format(t.inventory.started, { date: date(now.inventory.startedAt), name: nameOf(names.get(now.inventory.startedBy), locale) })}</p>}
-        </div>
-      </div>
+    <div className="wide">
+      <PageHeader size="m" title={t.inventory.title} intro={now ? format(t.inventory.started, { date: date(now.inventory.startedAt), name: nameOf(names.get(now.inventory.startedBy), locale) }) : undefined} />
       <InventoryView
         open={now !== null}
         seen={(now?.seen ?? []).map(i => rowOf(i, names, t, locale, today, member.id))}
@@ -53,6 +49,6 @@ export default async function InventoryPage() {
           </ul>
         )}
       </section>
-    </main>
+    </div>
   );
 }

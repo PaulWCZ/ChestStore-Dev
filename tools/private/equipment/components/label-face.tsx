@@ -2,14 +2,15 @@ import { encode, svgPath } from "../lib/qr.ts";
 
 // A printed asset label: the QR code of the item's page in the Chest, the
 // company, the tag in large monospaced letters, the item's name. The same
-// drawing on the item's page and on the A4 sheets.
+// drawing on the item's page and on the A4 sheets. Black on white in every
+// look (the paper's colours, app/tokens.css): a scanner needs it so.
 export function QrCode({ value, label }: { value: string; label: string }) {
   const matrix = encode(value);
   const size = matrix.length + 8;
   return (
     <svg className="qr" viewBox={`0 0 ${size} ${size}`} role="img" aria-label={label} shapeRendering="crispEdges">
-      <rect width={size} height={size} fill="#fff" />
-      <path d={svgPath(matrix, 4)} fill="#000" />
+      <rect className="qr-ground" width={size} height={size} />
+      <path className="qr-modules" d={svgPath(matrix, 4)} />
     </svg>
   );
 }

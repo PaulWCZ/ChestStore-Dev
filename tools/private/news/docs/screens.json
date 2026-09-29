@@ -13,5 +13,15 @@
   { "name": "search", "path": "/chest/search?q=bikes", "member": "hugo", "locale": "en" },
   { "name": "search-fr", "path": "/chest/search?q=demenagement", "member": "lea", "locale": "fr" },
   { "name": "transfer", "path": "/chest/transfer", "member": "camille", "locale": "en" },
-  { "name": "front-dark", "path": "/chest", "member": "tom", "locale": "en", "dark": true }
+  { "name": "front-dark", "path": "/chest", "member": "tom", "locale": "en", "dark": true },
+  { "name": "front-chest", "path": "/chest", "member": "hugo", "locale": "en", "look": { "all": "catalogue:chest" } },
+  { "name": "article-chest", "path": "/chest/posts/4", "member": "ines", "locale": "fr", "look": { "all": "catalogue:chest" }, "only": ["desktop"] },
+  { "name": "front-theme", "path": "/chest", "member": "hugo", "locale": "en", "look": { "all": "catalogue:workshop" } },
+  { "name": "front-theme-dark", "path": "/chest", "member": "tom", "locale": "fr", "dark": true, "look": { "all": "catalogue:workshop" }, "only": ["phone"] },
+  { "name": "compose-theme", "path": "/chest/new?kind=event", "member": "sofia", "locale": "fr", "look": { "all": "catalogue:library" }, "only": ["desktop"] },
+  { "name": "front-brand", "path": "/chest", "member": "ines", "locale": "fr", "look": { "all": "catalogue:workshop", "tool": "brand:sample" } },
+  { "name": "front-brand-dark", "path": "/chest", "member": "tom", "locale": "en", "dark": true, "look": { "tool": "brand:sample" }, "only": ["phone"] },
+  { "name": "article-brand", "path": "/chest/posts/3", "member": "camille", "locale": "en", "look": { "tool": "brand:sample" }, "only": ["desktop"] },
+  { "name": "important-undo", "path": "/chest/new", "member": "sofia", "locale": "fr", "actions": [{ "fill": ["#title", "Nouveaux badges lundi"] }, { "click": ".side-card .check input[type=checkbox] >> nth=0" }, { "click": ".composer-bar button[type=submit]" }, { "wait": 2500 }], "only": ["desktop"] },
+  { "name": "important-sent", "path": "/chest/new", "member": "sofia", "locale": "en", "actions": [{ "fill": ["#title", "New badges from Monday"] }, { "click": ".side-card .check input[type=checkbox] >> nth=0" }, { "click": ".composer-bar button[type=submit]" }, { "wait": 12500 }], "only": ["phone"] }
 ]

@@ -11,7 +11,7 @@ import { format, plural } from "../../../lib/i18n/format.ts";
 import type { Catalogue, Locale } from "../../../lib/i18n/index.ts";
 import type { ImportReport } from "../../../lib/importers.ts";
 import { limits } from "../../../lib/model.ts";
-import { fieldsOf, guessMapping, importKinds, mapRow, ownersIn, readTable, type Field, type ImportKind, type Mapping, type Table, type Target } from "../../../lib/parse-import.ts";
+import { fieldsOf, guessMapping, importKinds, mapRow, ownersIn, readTable, type Field, type ImportKind, type Mapped, type Mapping, type Table, type Target } from "../../../lib/parse-import.ts";
 import { parseVcards, type Card as VCard } from "../../../lib/vcard.ts";
 import { importOwners, importTable, importVcards, undoImport } from "../actions.ts";
 import { OwnerPicker } from "../ui/owner-select.tsx";
@@ -191,7 +191,7 @@ export function Importer({ locale, fields, team, me, canAssign, mayCreateFields,
               <p className="muted small-text">{w.previewHint}</p>
               <div className="preview">
                 <DataTable caption={w.preview} labels={t.table} rows={preview.map((row, i) => ({ i, row }))} rowKey={r => String(r.i)}
-                  columns={shownFields.map(f => ({ key: f, label: label(f), render: (r: { row: Record<string, string> }) => r.row[f] ?? "" }))} />
+                  columns={shownFields.map(f => ({ key: f, label: label(f), render: (r: { row: Mapped }) => String(r.row[f] ?? "") }))} />
               </div>
             </>
           )}

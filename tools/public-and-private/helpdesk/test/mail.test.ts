@@ -47,7 +47,7 @@ test("an email to support@ opens a ticket, confirmed on its thread; the customer
   // Confirmed in French (the Chest's language), threaded under their email.
   const confirmation = chest.outbox.at(-1)!;
   assert.deepEqual(confirmation.to, [from]);
-  assert.match(confirmation.subject, new RegExp(`^Nous avons bien reçu votre demande : Broken lamp \\[#${number}\\]$`, "u"));
+  assert.match(confirmation.subject, new RegExp(`^Nous avons bien reçu votre demande\u202f: Broken lamp \\[#${number}\\]$`, "u"));
   assert.match(confirmation.replyTo!, new RegExp(`^support\\+t${number}-[a-z2-7]{10}@atelier\\.test$`, "u"));
   assert.match(confirmation.inReplyTo!, /^<rcv_/u);
   assert.match(confirmation.text, /https:\/\/support\.atelier\.test\/t\/[A-Za-z0-9_-]{32}/u);

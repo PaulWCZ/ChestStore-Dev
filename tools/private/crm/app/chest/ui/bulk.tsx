@@ -88,7 +88,7 @@ export function BulkBar({ table, team, me, canAssign, canDelete, locale, t }: { 
       <span className="strong num" aria-live="polite">{plural(w.selected, ids.length, locale)}</span>
       {mode === "assign" ? (
         <form className="row" onSubmit={e => { e.preventDefault(); run({ kind: "assign", owner }); }}>
-          <OwnerPicker id="bulk-owner" label={w.assign} hideLabel value={owner} team={team} me={me} canAssign={canAssign} onChange={setOwner} t={t} />
+          <OwnerPicker id="bulk-owner" label={w.assign} hideLabel hint={false} value={owner} team={team} me={me} canAssign={canAssign} onChange={setOwner} t={t} />
           <button type="submit" className="button small" disabled={pending}>{w.apply}</button>
           <button type="button" className="button small quiet" onClick={() => setMode("")}>{t.common.cancel}</button>
         </form>

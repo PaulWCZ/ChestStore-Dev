@@ -81,3 +81,10 @@ test("the stylesheets read only contract tokens and the tool's own", () => {
   }
   assert.deepEqual(unknown, []);
 });
+
+// A weight written as a number would not follow a theme whose hierarchy is
+// size alone (the Chest theme's 400): weights come from tokens, 400 aside.
+test("weights come from the theme's tokens", () => {
+  const css = readFileSync(join(root, "app", "globals.css"), "utf8");
+  assert.deepEqual([...css.matchAll(/font-weight:\s*(\d+)/gu)].map(m => m[1]).filter(w => w !== "400"), []);
+});

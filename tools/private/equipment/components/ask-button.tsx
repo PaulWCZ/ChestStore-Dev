@@ -1,16 +1,15 @@
 "use client";
 
+import { Dialog, useToast } from "@argentic/chest-ui/components";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { askFor } from "../app/chest/actions.ts";
 import type { Catalogue } from "../lib/i18n/index.ts";
 import { format } from "../lib/i18n/format.ts";
 import { limits } from "../lib/model.ts";
-import { Dialog } from "./dialog.tsx";
 import { Plus } from "./icons.tsx";
-import { useToast } from "./toast.tsx";
 
-type Words = { requests: Catalogue["requests"]; errors: Catalogue["errors"]; common: Catalogue["common"] };
+type Words = { requests: Catalogue["requests"]; errors: Catalogue["errors"]; common: Catalogue["common"]; dialog: Catalogue["dialog"] };
 
 // "Ask for something": a few words, and the kind of thing if one knows it;
 // the equipment managers hear it in their bell.
@@ -30,18 +29,19 @@ export function AskButton({ categories, t, primary = false }: { categories: { id
       setOpen(false);
       setBody("");
       setCategoryId("");
-      toast(w.sent);
+      // The managers were told (their bell): sent, never an Undo.
+      toast({ text: w.sent, sent: true });
       router.refresh();
     });
   }
   return (
     <>
       <button type="button" className={primary ? "button" : "button quiet keep-label"} onClick={() => { setError(null); setOpen(true); }}><Plus /><span>{w.ask}</span></button>
-      <Dialog open={open} title={w.title} closeLabel={t.common.close} onClose={() => setOpen(false)}>
+      <Dialog open={open} title={w.title} labels={t.dialog} dirty={body.trim() !== ""} onClose={() => setOpen(false)}>
         <form className="stack" onSubmit={e => { e.preventDefault(); send(); }}>
           <div className="form-field">
             <label className="label" htmlFor="ask-body">{w.what}</label>
-            <textarea id="ask-body" className="field" rows={3} value={body} maxLength={limits.request} placeholder={w.placeholder} onChange={e => setBody(e.target.value)} autoFocus required />
+            <textarea id="ask-body" className="field" rows={3} value={body} maxLength={limits.request} placeholder={w.placeholder} onChange={e => setBody(e.target.value)} required />
           </div>
           <div className="form-field">
             <label className="label" htmlFor="ask-kind">{w.kind} <span className="muted">({t.common.optional})</span></label>

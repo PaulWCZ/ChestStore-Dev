@@ -1,3 +1,4 @@
+import { PageHeader } from "@argentic/chest-ui/components";
 import { can } from "../../../lib/access.ts";
 import { viewer } from "../../../lib/session.ts";
 import { NewTicket } from "./new-ticket.tsx";
@@ -9,10 +10,7 @@ export default async function NewTicketPage() {
   const { member, locale, t } = v;
   return (
     <div className="boxes">
-      <div className="stack">
-        <h1>{t.create.title}</h1>
-        <p className="muted">{t.create.intro}</p>
-      </div>
+      <PageHeader size="m" title={t.create.title} intro={t.create.intro} />
       {can(member, "tickets.answer") ? <NewTicket locale={locale} t={{ create: t.create, errors: t.errors }} /> : <p className="notice">{t.ticket.cannotAnswer}</p>}
     </div>
   );

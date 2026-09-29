@@ -9,7 +9,8 @@ let lucie = 0;
 // Small files as a browser would pick them.
 const png = { name: "box.png", mimeType: "image/png", buffer: Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13]) };
 const pdf = (name) => ({ name, mimeType: "application/pdf", buffer: Buffer.from("%PDF-1.7\n% sample\n") });
-const settled = async (scope) => page.waitForFunction(s => !document.querySelector(s + " .picked")?.textContent?.match(/Adding|Ajout/u), scope);
+// The kit's FilePicker: a file is listed at once, "sending" until the Chest has it.
+const settled = async (scope) => page.waitForFunction(s => document.querySelector(s + " .ck-file-list") && !document.querySelector(s + " .ck-file-sending"), scope);
 
 await step("a customer writes through the public form and lands on their follow-up page", async () => {
   await context.clearCookies();
@@ -20,9 +21,10 @@ await step("a customer writes through the public form and lands on their follow-
   await page.getByLabel("Subject").fill("Missing screws for the bookcase");
   await page.getByLabel("Your message").fill("Hello, the bag of screws was missing from the box. Lucie");
   await page.locator("input[type=file]").setInputFiles(png);
-  await page.waitForSelector(".picked li");
+  await page.waitForSelector(".ck-file-list li");
   await settled("form");
-  expect((await page.locator(".picked").innerText()).includes("box.png"), "file listed");
+  expect((await page.locator(".ck-file-list").innerText()).includes("box.png"), "file listed");
+  expect(await page.locator(".ck-file-ready").count() === 1, "file arrived");
   await page.waitForTimeout(3200);
   await page.getByRole("button", { name: "Send" }).click();
   await page.waitForURL(/\/t\/[A-Za-z0-9_-]{32}\?new=1/u);
@@ -39,9 +41,9 @@ await step("a customer writes through the public form and lands on their follow-
 await step("a file of a kind not allowed is refused in plain words, nothing is sent", async () => {
   await page.goto(origin + "/");
   await page.locator("input[type=file]").setInputFiles({ name: "run.exe", mimeType: "application/x-msdownload", buffer: Buffer.from("MZ") });
-  await page.waitForSelector(".picker .error");
-  expect((await page.locator(".picker .error").innerText()).includes("cannot be added"), "type refused");
-  expect(await page.locator(".picked li").count() === 0, "not listed");
+  await page.waitForSelector(".ck-file-problems .ck-error");
+  expect((await page.locator(".ck-file-problems .ck-error").innerText()).includes("run.exe: this kind of file is not accepted"), "type refused, in plain words");
+  expect(await page.locator(".ck-file-list li").count() === 0, "not listed");
 });
 
 await step("a customer adds a photo to a request with their link; another request's file stays out of reach", async () => {
@@ -119,7 +121,8 @@ await step("an agent takes it, inserts a saved reply, sends it: the customer get
   await page.locator(".composer input[type=file]").setInputFiles(pdf("return-label.pdf"));
   await settled(".composer");
   await page.getByRole("button", { name: "Send", exact: true }).click();
-  await page.waitForSelector(".toast");
+  await page.waitForSelector(".ck-toast:has-text('Answer sent.')");
+  expect(await page.locator(".ck-toast-undo").count() === 0, "an answer that left offers no Undo");
   await page.waitForTimeout(800);
   expect((await page.locator(".thread").innerText()).includes("Sent by email"), "delivery");
   expect((await page.locator(".thread .msg.team").last().innerText()).includes("return-label.pdf"), "the reply carries its file");
@@ -143,7 +146,7 @@ await step("an internal note stays inside; the customer's page does not show it"
 await step("priority and tags: urgent in words, a tag made on the fly, the inbox filtered by both", async () => {
   await page.goto(origin + `/chest/tickets/${lucie}`);
   await page.getByLabel("Priority").selectOption("urgent");
-  await page.waitForSelector(".toast:has-text('Priority: Urgent.')");
+  await page.waitForSelector(".ck-toast:has-text('Priority: Urgent.')");
   expect((await page.locator(".ticket-head").innerText()).includes("Urgent"), "said in the head");
   await page.getByLabel("Add a tag").fill("Missing parts");
   await page.getByRole("button", { name: "Add", exact: true }).click();
@@ -153,11 +156,13 @@ await step("priority and tags: urgent in words, a tag made on the fly, the inbox
   const row = page.locator(".ticket-row", { hasText: "Missing screws" });
   expect((await row.innerText()).includes("Urgent") && (await row.innerText()).includes("Missing parts"), "row shows priority and tag");
   await page.goto(origin + "/chest?folder=open");
-  await page.locator(".filters select").first().selectOption("urgent");
+  await page.getByRole("navigation", { name: "Priority" }).getByRole("link", { name: "Urgent" }).click();
   await page.waitForURL(/priority=urgent/u);
+  await page.waitForFunction(() => !document.querySelector(".tickets")?.textContent?.includes("Invoice for order 4471"));
   const urgent = await page.locator(".tickets").innerText();
   expect(urgent.includes("Wrong address") && !urgent.includes("Invoice for order 4471"), "filtered by priority");
-  await page.getByRole("link", { name: "Show all" }).click();
+  expect(await page.getByRole("navigation", { name: "Priority" }).locator("a[aria-current=true]", { hasText: "Urgent" }).count() === 1, "the chip says it is on");
+  await page.getByRole("link", { name: "Clear filters" }).click();
   await page.waitForURL(u => !u.search.includes("priority"));
   await page.goto(origin + `/chest/tickets/${lucie}`);
   await page.getByRole("link", { name: "Tickets tagged Missing parts" }).click();
@@ -176,8 +181,9 @@ await step("waiting since: the invoice waiting over a day stands out", async () 
 
 await step("close with undo", async () => {
   await page.getByRole("button", { name: "Close", exact: true }).click();
-  await page.waitForSelector(".toast");
-  await page.locator(".toast button").click();
+  await page.waitForSelector(".ck-toast:has-text('Ticket closed.')");
+  await page.locator(".ck-toast-undo").click();
+  await page.waitForSelector(".ck-toast:has-text('Undone.')");
   await page.waitForTimeout(1200);
   await page.reload();
   expect((await page.locator(".side-card").innerText()).includes("Waiting for the customer"), "status back");
@@ -204,25 +210,27 @@ await step("a viewer reads but cannot answer; French for Camille", async () => {
   expect((await page.locator("main, #main").first().innerText()).includes("Your role lets you read tickets"), "read only");
   await as(context, origin, "camille");
   await page.goto(origin + "/chest");
-  expect((await page.locator(".side").innerText()).includes("À attribuer"), "French folders");
+  expect((await page.locator(".folders").innerText()).includes("À attribuer"), "French folders");
 });
 
 await step("the admin sets the waiting threshold, renames a tag and deletes one with undo (in French)", async () => {
   await page.goto(origin + "/chest/settings");
   await page.getByLabel("Signaler un client qui attend une réponse depuis plus de").selectOption("48");
-  await page.waitForSelector(".toast:has-text('Enregistré.')");
+  await page.waitForSelector(".ck-toast:has-text('Enregistré.')");
   await page.goto(origin + "/chest?folder=open");
   expect(await page.locator(".ticket-row", { hasText: "Invoice for order 4471" }).locator(".wait.late").count() === 0, "not late at 48 h");
   await page.goto(origin + "/chest/settings");
   const field = page.locator("input[value='Missing parts']");
   await field.fill("Missing part");
   await field.locator("xpath=..").getByRole("button", { name: "Enregistrer" }).click();
-  await page.waitForSelector(".toast:has-text('Enregistré.')");
+  await page.waitForSelector(".ck-toast:has-text('Enregistré.')");
   await page.waitForTimeout(600);
   const invoice = page.locator("input[value='Invoice']").locator("xpath=..");
   await invoice.getByRole("button", { name: "Supprimer" }).click();
-  await page.waitForSelector(".toast:has-text('Étiquette « Invoice » supprimée.')");
-  await page.locator(".toast button", { hasText: "Annuler" }).click();
+  // French typography: a narrow no-break space inside « » (a plain one accepted).
+  await page.locator(".ck-toast", { hasText: /Étiquette «[\u202f\u00a0 ]Invoice[\u202f\u00a0 ]» supprimée\./u }).waitFor();
+  expect((await page.locator(".ck-toast-undo").innerText()).includes("Annuler l’action"), "Undo is « Annuler l’action », never Cancel's word");
+  await page.locator(".ck-toast-undo").click();
   await page.waitForTimeout(1200);
   await page.reload();
   expect(await page.locator("input[value='Invoice']").count() === 1, "undo brought it back");
@@ -261,7 +269,7 @@ await step("email: the customer answers the confirmation; it lands on the ticket
   expect((await page.locator(".thread").innerText()).includes("do you gift-wrap"), "the answer is on the ticket");
   await page.locator("#answer").fill("Yes, and gift cards from 20 €.");
   await page.getByRole("button", { name: "Send", exact: true }).click();
-  await page.waitForSelector(".toast");
+  await page.waitForSelector(".ck-toast:has-text('Answer sent.')");
   const dev = await devPage();
   expect(new RegExp(`replies to <code>support\\+t${gift}-[a-z2-7]{10}@`, "u").test(dev), "the reply's address is the ticket's thread");
 });
@@ -283,7 +291,7 @@ await step("email: a bounce shows on the reply and the ticket; fixing the addres
   await page.getByRole("button", { name: "Change" }).click();
   await page.getByLabel("Customer’s email").fill("tom.hardy@example.com");
   await page.getByRole("button", { name: "Save", exact: true }).click();
-  await page.waitForSelector(".toast:has-text('Saved.')");
+  await page.waitForSelector(".ck-toast:has-text('Saved.')");
   await page.reload();
   expect(await page.locator(".notice.danger").count() === 0, "cleared");
 });
@@ -308,7 +316,7 @@ await step("merge: the same customer's second request goes into the first; Undo 
   await page.waitForURL(new RegExp(`/chest/tickets/${gift}$`, "u"));
   await page.waitForSelector(`.thread .event:has-text('Ticket ${second} was merged')`);
   expect((await page.locator(".thread").innerText()).includes("How much is the gift wrap"), "messages combined");
-  await page.locator(".toast button", { hasText: "Undo" }).click();
+  await page.locator(".ck-toast-undo").click();
   await page.waitForURL(new RegExp(`/chest/tickets/${second}$`, "u"));
   await page.waitForTimeout(800);
   await page.reload();
@@ -323,36 +331,68 @@ await step("bulk: tick two tickets, close them, undo", async () => {
   await rows.nth(1).locator(".row-check input").check();
   await page.waitForSelector(".bulk-bar:has-text('2 selected')");
   await page.locator(".bulk-bar").getByRole("button", { name: "Close" }).click();
-  await page.waitForSelector(".toast:has-text('2 tickets changed.')");
+  await page.waitForSelector(".ck-toast:has-text('2 tickets changed.')");
   await page.waitForTimeout(800);
   expect(await page.locator(".tickets li").count() === before - 2, "closed");
-  await page.locator(".toast button", { hasText: "Undo" }).click();
-  await page.waitForTimeout(1200);
+  await page.locator(".ck-toast-undo").click();
+  await page.waitForSelector(".ck-toast:has-text('Undone.')");
   await page.reload();
   expect(await page.locator(".tickets li").count() === before, "back");
 });
 
 await step("a saved view: filters kept under a name in the side column, for everyone", async () => {
   await page.goto(origin + "/chest?folder=open&priority=urgent");
-  await page.locator("summary", { hasText: "Save this view" }).click();
+  await page.getByRole("button", { name: "Save this view" }).click();
   await page.getByLabel("Name of the view").fill("Urgent open");
-  await page.getByRole("button", { name: "Save", exact: true }).click();
-  await page.waitForSelector(".toast:has-text('View saved.')");
+  await page.getByRole("dialog").getByRole("button", { name: "Save", exact: true }).click();
+  await page.waitForSelector(".ck-toast:has-text('View saved.')");
   await page.waitForTimeout(800);
   await page.reload();
-  await page.locator(".side nav a", { hasText: "Urgent open" }).click();
+  await page.locator(".folders a", { hasText: "Urgent open" }).click();
   await page.waitForURL(/priority=urgent/u);
-  expect((await page.locator(".side nav a[aria-current=page]").innerText()).includes("Urgent open"), "current");
+  expect((await page.locator(".folders a[aria-current=page]").innerText()).includes("Urgent open"), "current");
 });
 
-await step("keyboard: ? shows the shortcuts, j moves, c opens a new ticket", async () => {
+await step("keyboard: ? shows the shortcuts, / searches, j/k move, x ticks, Enter opens, r/n answer, e closes, c opens a new ticket", async () => {
+  const blur = () => page.evaluate(() => (document.activeElement instanceof HTMLElement ? document.activeElement.blur() : undefined));
+  const focused = () => page.evaluate(() => document.activeElement?.getAttribute("href") ?? document.activeElement?.id ?? "");
   await page.goto(origin + "/chest?folder=open");
   await page.waitForLoadState("networkidle");
   await page.keyboard.press("?");
   await page.waitForSelector("dialog.keys[open]");
+  expect((await page.locator("dialog.keys").innerText()).includes("Tick the ticket"), "the list of keys");
   await page.keyboard.press("Escape");
+  await page.waitForSelector("dialog.keys[open]", { state: "detached" }).catch(() => {});
+  expect(await page.locator("dialog.keys[open]").count() === 0, "Escape closes it");
+  await page.keyboard.press("/");
+  expect(await focused() === "q", "/ goes to the search");
+  await blur();
   await page.keyboard.press("j");
   expect(await page.evaluate(() => document.activeElement?.classList.contains("ticket-row")), "focus on the first ticket");
+  const first = await focused();
+  await page.keyboard.press("j");
+  expect(await focused() !== first, "j: the next one");
+  await page.keyboard.press("k");
+  expect(await focused() === first, "k: back to the first");
+  await page.keyboard.press("x");
+  await page.waitForSelector(".bulk-bar:has-text('1 selected')");
+  await page.keyboard.press("x");
+  await page.waitForSelector(".bulk-bar", { state: "detached" });
+  await page.keyboard.press("Enter");
+  await page.waitForURL(u => u.pathname === first);
+  await page.waitForSelector("#answer");
+  await page.waitForLoadState("networkidle");
+  await page.keyboard.press("n");
+  expect(await focused() === "answer", "n: the answer box");
+  expect(await page.getByRole("tab", { name: "Internal note" }).getAttribute("aria-selected") === "true", "n: a note");
+  await blur();
+  await page.keyboard.press("r");
+  expect(await page.getByRole("tab", { name: "Reply" }).getAttribute("aria-selected") === "true", "r: a reply");
+  await blur();
+  await page.keyboard.press("e");
+  await page.waitForSelector(".ck-toast:has-text('Ticket closed.')");
+  await page.locator(".ck-toast-undo").click();
+  await page.waitForSelector(".ck-toast:has-text('Undone.')");
   await page.keyboard.press("c");
   await page.waitForURL(/\/chest\/new$/u);
 });
@@ -363,7 +403,7 @@ await step("an admin sets working hours and a rule on arrival; a new request fol
   await page.goto(origin + "/chest/settings");
   await page.getByLabel("Open on Saturday").check();
   await page.getByRole("button", { name: "Save the hours" }).click();
-  await page.waitForSelector(".toast:has-text('Saved.')");
+  await page.waitForSelector(".ck-toast:has-text('Saved.')");
   await page.getByRole("button", { name: /Add France’s public holidays/u }).click();
   await page.waitForTimeout(800);
   await page.getByLabel("Words, address or domain").fill("gift card");
@@ -383,7 +423,7 @@ await step("an admin allows the company's website to show the form; the code to 
   await page.goto(origin + "/chest/settings");
   await page.getByLabel("Websites allowed to show the form (one per line)").fill("https://www.atelier-martin.fr");
   await page.locator("form:has(#origins)").getByRole("button", { name: "Save" }).click();
-  await page.waitForSelector(".toast:has-text('Saved.')");
+  await page.waitForSelector(".ck-toast:has-text('Saved.')");
   await page.reload();
   const code = await page.locator("#embed-code").inputValue();
   expect(code.startsWith("<iframe") && !code.includes("<script"), "a frame, no script");

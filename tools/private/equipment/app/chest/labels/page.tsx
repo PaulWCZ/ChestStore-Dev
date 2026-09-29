@@ -1,5 +1,6 @@
 import * as chest from "@argentic/chest-sdk/chest";
 import { headers } from "next/headers";
+import { EmptyState } from "@argentic/chest-ui/components";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Back } from "../../../components/icons.tsx";
@@ -36,7 +37,7 @@ export default async function Labels({ searchParams }: { searchParams: Promise<R
   const sheets: (typeof shown)[] = [];
   for (let i = 0; i < shown.length; i += perSheet) sheets.push(shown.slice(i, i + perSheet));
   return (
-    <main className="labels-page">
+    <div className="labels-page">
       <div className="labels-bar no-print">
         <Link className="back" href="/chest/items"><Back />{t.labels.back}</Link>
         <div className="page-head">
@@ -47,7 +48,7 @@ export default async function Labels({ searchParams }: { searchParams: Promise<R
           {shown.length > 0 && <div className="actions"><span className="muted">{plural(t.labels.count, shown.length, locale)}</span><PrintButton label={t.labels.print} /></div>}
         </div>
         {capped && <p className="notice">{format(t.labels.capped, { count: limits.labels })}</p>}
-        {shown.length === 0 && <div className="empty"><p>{t.labels.empty}</p><Link className="button quiet" href="/chest/items">{t.labels.back}</Link></div>}
+        {shown.length === 0 && <EmptyState title={t.labels.empty} action={<Link className="button quiet" href="/chest/items">{t.labels.back}</Link>} />}
       </div>
       {sheets.map((sheet, n) => (
         <section key={n} className="sheet" aria-label={`${t.labels.title} ${n + 1}`}>
@@ -58,6 +59,6 @@ export default async function Labels({ searchParams }: { searchParams: Promise<R
           ))}
         </section>
       ))}
-    </main>
+    </div>
   );
 }

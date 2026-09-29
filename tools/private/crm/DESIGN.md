@@ -18,49 +18,60 @@ terminal, made plain enough for a salesperson between two meetings.
     { "name": "Today", "value": "#9a5200" }
   ],
   "fonts": {
-    "display": { "family": "IBM Plex Sans", "file": "public/fonts/ibm-plex-sans-latin-600-normal.woff2", "weight": 600 },
+    "display": { "family": "IBM Plex Sans", "file": "public/fonts/ibm-plex-sans-latin-wght-normal.woff2", "weight": 600 },
     "body": { "family": "IBM Plex Mono", "file": "public/fonts/ibm-plex-mono-latin-500-normal.woff2", "weight": 500 }
   },
   "specimen": "Head office fit-out — €48,500 · Proposal 50%"
 }
 ```
 
-## Tokens
+## Tokens — the identity is a theme
 
-Defined once in `app/tokens.css` (light, and dark under
-`prefers-color-scheme`).
+Clients' look is **"Sales desk"**, a theme of the UI kit's token contract
+(`@argentic/chest-ui`, `ui/tokens/CONTRACT.md`): `defineTheme` in
+`lib/theme.ts`, the very same source as the catalogue's `sales-desk` theme
+(`test/theme.test.ts` holds the two equal, and every contrast pair of the
+contract, light and dark). Every colour lives there; the CSS names only
+contract tokens (`--bg`, `--surface`, `--ink`, `--ink-2`, `--accent`,
+`--accent-text`, `--accent-line`, `--ok`/`--wait`/`--danger` and their
+`-soft`/`-ink`, `--cat-1…8`, `--font-body`, `--font-mono`, `--radius-s/m/l`…).
+`app/tokens.css` keeps the tool's own names, each defined from contract
+tokens, never from a colour:
 
-| Token | Light | Dark | Use |
-|---|---|---|---|
-| `--bg` | `#f4f6f9` | `#0b0f15` | Page (cool slate) |
-| `--surface` | `#ffffff` | `#121821` | Panels, rows, cards |
-| `--surface-2` | `#eef1f5` | `#19212c` | Columns, headers, hovers |
-| `--line` / `--line-strong` | `#d5dbe3` / `#aeb8c5` | `#263140` / `#3a4859` | Thin rules instead of shadows |
-| `--ink` / `--ink-2` / `--muted` | `#0f1722` / `#3b4656` / `#5b6676` | `#e6ebf2` / `#b3bdca` / `#8d98a8` | Text |
-| `--accent` | `#2152ff` | `#6f8cff` | What acts: buttons, links, current stage |
-| `--won` / `--won-bar` | `#0f7a3d` / `#1f9d55` | `#4ade80` / `#22c55e` | Won |
-| `--lost` | `#c4231c` | `#ff7b72` | Lost, late, delete |
-| `--today` | `#9a5200` | `#f0b35a` | Due today |
+| Tool token | Is | Use |
+|---|---|---|
+| `--won`, `--won-soft`, `--won-ink` | `--ok` family | Won: badges, the Won button (with `--surface` text), the green top rule |
+| `--lost`, `--lost-soft`, `--lost-ink`, `--late` | `--danger` family | Lost, late, delete |
+| `--today`, `--today-soft`, `--today-ink` | `--wait` family | Due today, look-alike warnings |
+| `--chart` | `--accent-line` | A single-series bar (pipeline, what should close): 3:1 in every theme, even where the accent is a light fill |
+| `--chart-won`, `--chart-lost` | `--cat-2`, `--cat-5` | The Team page's won months and lost reasons (categorical slots: green, pink-red in every theme) |
+| `--accent-hover`, `--surface-3` | `color-mix()` of contract tokens | Decoration only (a button under the pointer, a closed stage) |
+| `--header` | 60 px | What sticks under the header |
 
-Contrast (WCAG 2, `node scripts/contrast.mjs`), all AA for text:
-ink on bg 16.6:1; muted on bg 5.4:1, on surface-2 5.1:1; accent on white
-5.7:1, white on accent 5.7:1; accent-soft-ink on accent-soft 6.3:1; won on
-won-soft 4.8:1; lost on lost-soft 5.0:1; today on white 5.9:1; dark ink on
-won-bar 5.4:1; white on lost 5.8:1. Dark: ink on bg 16.0:1; muted on
-surface 6.1:1, on surface-2 5.6:1; accent on surface 5.8:1; bg on accent
-6.3:1; won on surface 10.2:1; lost on surface 7.1:1; bg on lost 7.6:1;
-today on today-soft 8.7:1.
+Stage colours on the board follow the contract too: open stages' top rule
+is `--accent-line`, Won `--ok`, Lost `--danger` — always with their icon
+and name. Field borders are `--line-strong` (3:1: the old `#aeb8c5`
+hairline was 1.9:1 and is gone).
+
+The company may give Clients any other look in its Chest — a catalogue
+theme, or its own brand (then its logo stands where the mark is,
+`BrandMark`) — with the same features; the look is resolved on the server
+(`currentLook`) and written as one `<style>` with the page's nonce
+(`app/layout.tsx`). Screens: `docs/screens/*-chest-*`, `*-theme-*`,
+`*-brand-*`.
 
 **Type**: IBM Plex Sans (400–700) for words; **IBM Plex Mono** (400–600,
 `tabular-nums`) for every figure — amounts, dates, counts, column totals —
 and for the small spaced capital labels (`.label-mono`: *NEXT STEP*,
 *HISTORY*, *OWNER*) that give the tool its terminal touch. Both OFL-1.1,
-self-hosted (`public/fonts/`). Sizes 12–36 px; body 15 px.
+self-hosted (`public/fonts/`, the kit writes their `@font-face` from the
+theme). Sizes 12–36 px; body 15 px.
 
 **Spacing** 4 · 8 · 12 · 16 · 24 · 32 · 48 px. **Radii** small: 3, 6,
 10 px. **Shadows** almost none: hairlines separate; a shadow only for what
 floats (menus, dialogs, a dragged deal). **Motion**: 120 ms, off with
-`prefers-reduced-motion`. Every target is at least 40–44 px.
+`prefers-reduced-motion`. Every target is 44 px (`--control-h`), small
+buttons 36 px in dense places.
 
 ## Components
 
@@ -80,8 +91,11 @@ floats (menus, dialogs, a dragged deal). **Motion**: 120 ms, off with
   a 44 px checkbox column for those who may change them; a sticky bar with
   a blue hairline appears when rows are ticked (give, tag, delete). Lists
   come 100 a page ("101–200 of 2,500", previous / next).
-- **Picker**: a field that searches as one types (ARIA combobox), each
-  option a name and a muted detail, "+ New company “…”" last.
+- **Picker** of records (a company, a contact): a field that searches the
+  server as one types, each option a name and a muted detail, "+ New
+  company “…”" last — the tool's own (it creates records), with the kit's
+  keys (`listKey`) and list classes. People (owners) use the kit's
+  `PeoplePicker`.
 - **Next step box**: a coloured left edge by the soonest step's urgency;
   each open step with its *Done*; "Plan another step" as a link.
 - **Composer**: a field and four one-tap outline buttons that say what they
@@ -94,10 +108,17 @@ floats (menus, dialogs, a dragged deal). **Motion**: 120 ms, off with
   library, the same bars as *My day*.
 - **Timeline**: a thin vertical rule, round icons tinted by kind, what
   people wrote in a bordered block, what the tool recorded as a sentence.
-- **Dialog** (native `<dialog>`, full screen on a phone), **toast** with
-  *Undo*, **empty states** with one action.
-- **Phone**: a bottom bar (My day, Deals, Companies, Contacts, Team) under the
-  thumb; the board scrolls one column at a time.
+- From the UI kit, in Sales desk's precision (`app/globals.css` restyles a
+  few `ck-` classes: square-cut badges, mono spaced capitals in table
+  headers): the **shell** (sections as labelled tabs; a row of their own
+  under the header on a phone), **toasts** with an Undo that tells the
+  truth, **dialogs** that ask before losing what was typed, **Confirm** for
+  what cannot be undone, **DateField** and **TimeSelect**, **DataTable**,
+  **SearchBox** ("/"), **Segmented** (Board / List), **Tabs** (settings),
+  **Menu** ("More"), **FilePicker**, **StatusBadge**, **Avatar**,
+  **EmptyState**, **NoAccess**.
+- **Phone**: the sections under the header, the search under them; the
+  board scrolls one column at a time.
 
 ## Icon
 

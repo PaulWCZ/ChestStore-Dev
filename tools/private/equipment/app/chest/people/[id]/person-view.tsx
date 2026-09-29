@@ -1,19 +1,19 @@
 "use client";
 
+import { Dialog, EmptyState, SearchBox, useToast } from "@argentic/chest-ui/components";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState, useTransition } from "react";
-import { ItemLine } from "../../../../components/bits.tsx";
-import { Dialog } from "../../../../components/dialog.tsx";
-import Link from "next/link";
-import { CategoryIcon, Give, Print, Search, TakeBack } from "../../../../components/icons.tsx";
-import { useToast } from "../../../../components/toast.tsx";
+import { ItemLine, StatusStamp } from "../../../../components/bits.tsx";
+import { CategoryIcon, Give, Print, TakeBack } from "../../../../components/icons.tsx";
 import type { Catalogue } from "../../../../lib/i18n/index.ts";
 import { format, plural } from "../../../../lib/i18n/format.ts";
-import { fold } from "../../../../lib/model.ts";
+import type { Result } from "../../../../lib/errors.ts";
+import { fold, limits } from "../../../../lib/model.ts";
 import type { Row } from "../../../../lib/view.ts";
 import { giveBackEverything, giveItem, giveSeat, takeBackItem, takeEverythingBack, takeSeat, undoTakeBack, undoTakeSeat } from "../../actions.ts";
 
-type Words = { person: Catalogue["person"]; errors: Catalogue["errors"]; common: Catalogue["common"]; give: Catalogue["give"]; takeBack: Catalogue["takeBack"]; item: Catalogue["item"]; list: Catalogue["list"] };
+type Words = { person: Catalogue["person"]; errors: Catalogue["errors"]; common: Catalogue["common"]; give: Catalogue["give"]; takeBack: Catalogue["takeBack"]; item: Catalogue["item"]; list: Catalogue["list"]; dialog: Catalogue["dialog"]; search: Catalogue["search"] };
 
 // A person's equipment as a checklist: take one thing back, or everything
 // at once (Undo gives it all back); give them something from the stock.
@@ -37,14 +37,21 @@ export function PersonView({ holder, name, present, gone, items, seats, offer, c
     const k = fold(q);
     return offer.filter(o => !k || fold(`${o.name} ${o.tag} ${o.category} ${o.serial ?? ""}`).includes(k)).slice(0, 60);
   }, [offer, q]);
-  const err = (r: { error: keyof Catalogue["errors"]; values?: Record<string, string | number> }) => toast(format(t.errors[r.error], r.values));
+  const fault = (r: { error: keyof Catalogue["errors"]; values?: Record<string, string | number> }) => format(t.errors[r.error], r.values);
+  const err = (r: { error: keyof Catalogue["errors"]; values?: Record<string, string | number> }) => void toast({ text: fault(r), tone: "error" });
+  // An Undo that tells the truth: true when it worked, else why not.
+  const undoing = (step: () => Promise<Result>) => async () => {
+    const u = await step();
+    router.refresh();
+    return u.ok || fault(u);
+  };
 
   function takeAll() {
     start(async () => {
       const r = await takeEverythingBack(holder);
       if (!r.ok) return err(r);
       const taken = r.value;
-      toast(plural(t.person.takenAll, taken.items.length + taken.seats.length, locale), { label: t.common.undo, run: () => void giveBackEverything(holder, taken).then(() => router.refresh()) });
+      toast({ id: `take-all-${holder}`, text: plural(t.person.takenAll, taken.items.length + taken.seats.length, locale), undo: undoing(() => giveBackEverything(holder, taken)) });
       router.refresh();
     });
   }
@@ -53,12 +60,12 @@ export function PersonView({ holder, name, present, gone, items, seats, offer, c
       if (row.holder.kind === "seats") {
         const r = await takeSeat(row.id, holder);
         if (!r.ok) return err(r);
-        toast(t.takeBack.seatDone, holder.startsWith("mbr_") ? { label: t.common.undo, run: () => void undoTakeSeat(row.id, holder).then(() => router.refresh()) } : undefined);
+        toast({ id: `seat-${row.id}-${holder}`, text: t.takeBack.seatDone, ...(holder.startsWith("mbr_") ? { undo: undoing(() => undoTakeSeat(row.id, holder)) } : {}) });
       } else {
         const r = await takeBackItem(row.id, {});
         if (!r.ok) return err(r);
         const from = r.value;
-        toast(format(t.takeBack.done, { name: row.name }), { label: t.common.undo, run: () => void undoTakeBack(row.id, from).then(() => router.refresh()) });
+        toast({ id: `back-${row.id}`, text: format(t.takeBack.done, { name: row.name }), undo: undoing(() => undoTakeBack(row.id, from)) });
       }
       router.refresh();
     });
@@ -76,7 +83,7 @@ export function PersonView({ holder, name, present, gone, items, seats, offer, c
 
   const back = (row: Row) => (
     <span className="line-act">
-      {receipt[row.id] && <span className={receipt[row.id] === "confirmed" ? "stamp st-received" : "stamp st-confirm"}>{receipt[row.id] === "confirmed" ? t.person.confirmed : t.person.toConfirm}</span>}
+      {receipt[row.id] && <StatusStamp status={receipt[row.id] === "confirmed" ? "received" : "confirm"} text={receipt[row.id] === "confirmed" ? t.person.confirmed : t.person.toConfirm} />}
       <button type="button" className="button small quiet" disabled={pending} onClick={() => takeOne(row)}>
         <TakeBack /><span aria-hidden="true">{t.item.takeBack}</span><span className="visually-hidden">{format(t.takeBack.title, { name: row.name })}</span>
       </button>
@@ -89,11 +96,11 @@ export function PersonView({ holder, name, present, gone, items, seats, offer, c
       {!gone && leaving && count > 0 && <p className="notice warn">{leaving}</p>}
       <div className="row">
         {count > 0 && <button type="button" className="button" disabled={pending} onClick={takeAll}><TakeBack />{t.person.takeAll}</button>}
-        {present && <button type="button" className={count > 0 ? "button quiet" : "button"} onClick={() => { setError(null); setGiving(true); }}><Give />{t.person.give}</button>}
+        {present && <button type="button" className={count > 0 ? "button quiet" : "button"} onClick={() => { setError(null); setQ(""); setGiving(true); }}><Give />{t.person.give}</button>}
         {sheets && count > 0 && <Link className="button quiet" href={sheets.handover}><Print />{t.person.handover}</Link>}
         {sheets && <Link className="button quiet" href={sheets.back}><Print />{t.person.returnSheet}</Link>}
       </div>
-      {count === 0 && <div className="empty"><p>{t.person.empty}</p></div>}
+      {count === 0 && <EmptyState title={t.person.empty} />}
       {items.length > 0 && (
         <section aria-labelledby="held">
           <h2 id="held" className="section-title">{t.person.items}</h2>
@@ -106,13 +113,9 @@ export function PersonView({ holder, name, present, gone, items, seats, offer, c
           <ul className="lines checklist">{seats.map(r => <ItemLine key={r.id} row={r} extra={back(r)} />)}</ul>
         </section>
       )}
-      <Dialog open={giving} title={format(t.person.giveTitle, { name })} closeLabel={t.common.close} onClose={() => setGiving(false)}>
+      <Dialog open={giving} title={format(t.person.giveTitle, { name })} labels={t.dialog} onClose={() => setGiving(false)}>
         <div className="stack">
-          <div className="search-field">
-            <Search />
-            <label className="visually-hidden" htmlFor="offer-q">{t.person.findItem}</label>
-            <input id="offer-q" className="field" type="search" value={q} onChange={e => setQ(e.target.value)} placeholder={t.person.findItem} autoFocus autoComplete="off" />
-          </div>
+          <SearchBox action="/chest/items" onSearch={setQ} shortcut={false} maxLength={limits.search} labels={{ ...t.search, label: t.person.findItem, placeholder: t.person.findItem }} />
           {shown.length === 0 ? <p className="muted">{t.person.noStock}</p> : (
             <ul className="pick-list">
               {shown.map(o => (

@@ -379,8 +379,11 @@ test("the accountant pays back what was approved and paid with one's own money; 
   await tell.paid(sql, asMember(camille), done, "2026-09-28");
   assert.equal((await expenses.expense(sql, asMember(hugo), mine.id)).expense.paidOn, "2026-09-28");
   assert.deepEqual(chest.notifications.map(n => [n.member, n.title]), [[hugo.id, "Paid back: €42.50, on 28 September"]]);
-  // Undo.
-  assert.deepEqual(await expenses.unmarkPaid(sql, asMember(camille), [mine.id]), [hugo.id]);
+  // Undo: back to pay, and Hugo's "Paid back" taken back from his bell.
+  const back = await expenses.unmarkPaid(sql, asMember(camille), [mine.id]);
+  assert.deepEqual(back, [hugo.id]);
+  await tell.unpaid(sql, back);
+  assert.deepEqual(chest.notifications.filter(n => n.key === `paid:${hugo.id}`), []);
   assert.equal((await expenses.expense(sql, asMember(hugo), mine.id)).expense.status, "approved");
   await assert.rejects(expenses.unmarkPaid(sql, asMember(camille), [mine.id]), refuses("invalid"));
 });

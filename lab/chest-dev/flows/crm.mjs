@@ -56,10 +56,10 @@ await step("add a person there, then a deal for her", async () => {
 
 await step("log a call in one tap (a button that says “Log a call”); the history shows it; Undo takes it back", async () => {
   await page.getByRole("button", { name: "Log a call", exact: true }).click();
-  await page.waitForSelector(".toast:has-text('Call logged')");
+  await page.waitForSelector(".ck-toast:has-text('Call logged')");
   await page.waitForSelector(".timeline .event.k-call");
-  await page.locator(".toast button").click();
-  await page.waitForTimeout(1200);
+  await page.locator(".ck-toast-undo").click();
+  await page.waitForSelector(".ck-toast:has-text('Undone.')");
   await page.reload();
   expect(await page.locator(".timeline .event.k-call").count() === 0, "undone");
   await page.getByRole("textbox", { name: "What was said" }).fill("Wants the counter before the winter season.");
@@ -86,7 +86,7 @@ await step("several next steps on one deal, one with a time", async () => {
   await page.getByRole("button", { name: "Plan another step" }).click();
   await page.getByLabel("What", { exact: true }).fill("Send fabric samples");
   await page.getByRole("button", { name: "Tomorrow" }).click();
-  await page.locator("select[id^=step-time]").selectOption("14:30");
+  await page.locator("select[id^=step-time]").selectOption({ label: "14:30" });
   await page.getByRole("button", { name: "Plan it" }).click();
   await page.waitForSelector(".step-item:has-text('Send fabric samples')");
   expect(await page.locator(".step-item").count() === 2, "two open steps");
@@ -101,7 +101,7 @@ await step("a new deal from My day: a company found by typing, or added on the s
   await page.waitForSelector(".combo-list li:has-text('Cabinet Lefèvre Avocats')");
   await page.locator("#dl-company").fill("Cantine Scolaire Martel");
   await page.locator(".combo-create").click();
-  await page.waitForSelector(".toast:has-text('Cantine Scolaire Martel')");
+  await page.waitForSelector(".ck-toast:has-text('Cantine Scolaire Martel')");
   expect((await page.locator("#dl-company").inputValue()) === "Cantine Scolaire Martel", "chosen");
   await page.getByRole("button", { name: "Create the deal" }).click();
   await page.waitForURL(/\/chest\/deals\/\d+$/u);
@@ -162,7 +162,7 @@ await step("the board: move a deal with the keyboard, then to Won with a reason"
   await page.getByLabel("A few words help the team next time.").fill("Fast delivery promised");
   await page.waitForFunction(() => document.querySelector("dialog[open] #reason")?.value === "Fast delivery promised");
   await page.locator("dialog[open]").getByRole("button", { name: "Won" }).click();
-  await page.waitForSelector(".toast:has-text('Won! Well done.')");
+  await page.waitForSelector(".ck-toast:has-text('Won! Well done.')");
   await page.reload();
   expect((await boardLane("Won").innerText()).includes("Dispensary counter"), "won");
   await page.goto(dealUrl);
@@ -185,9 +185,11 @@ await step("the manager gives Inès a deal: she is told in French", async () => 
   await as(context, origin, "camille");
   await page.goto(dealUrl);
   await page.getByRole("button", { name: "Rouvrir" }).click();
-  await page.waitForSelector(".toast");
+  await page.waitForSelector(".ck-toast");
   expect((await dev()).includes("crm.deal.reopened"), "Quotes is told it was reopened");
-  await page.locator("#deal-owner").selectOption(id("ines"));
+  // The owner is the kit's people picker: type, choose, saved at once.
+  await page.locator("#deal-owner").fill("Inès");
+  await page.locator(".ck-option", { hasText: "Inès Moreau" }).click();
   await page.waitForTimeout(1500);
   expect((await dev()).includes("Camille Martin vous a confié une affaire"), "French bell item");
 });
@@ -196,7 +198,7 @@ await step("search with the / key, accents and case aside", async () => {
   await as(context, origin, "hugo");
   await page.goto(origin + "/chest/deals");
   await page.keyboard.press("/");
-  expect(await page.evaluate(() => document.activeElement?.id === "q"), "focused");
+  expect(await page.evaluate(() => document.activeElement?.classList.contains("ck-search-input") && document.activeElement.closest(".ck-bar") !== null), "the header's search box is focused");
   await page.keyboard.type("cherif");
   await page.keyboard.press("Enter");
   await page.waitForURL(/\/chest\/search\?q=cherif/u);
@@ -208,9 +210,9 @@ await step("import a HubSpot contacts export: columns matched, previewed, import
   writeFileSync(file, "Record ID,First Name,Last Name,Email,Phone Number,Job Title,Company Name,Contact owner\n901,Gaëlle,Perrin,g.perrin@fromagerie-perrin.fr,04 50 11 22 33,Buyer,Fromagerie Perrin,Inès Moreau\n902,Claire,Durand,claire.durand@durand-boulangeries.fr,,,,\n");
   await page.goto(origin + "/chest/import");
   await page.locator(".source", { hasText: "Spreadsheet" }).locator("input[type=file]").setInputFiles(file);
-  await page.waitForSelector("table.mapping");
+  await page.waitForSelector(".mapping table");
   expect((await page.locator("#map-1").inputValue()) === "firstName", "first name guessed");
-  expect((await page.locator("table.preview").innerText()).includes("g.perrin@fromagerie-perrin.fr"), "preview");
+  expect((await page.locator(".preview table").innerText()).includes("g.perrin@fromagerie-perrin.fr"), "preview");
   await page.getByRole("button", { name: /^Import · 2 rows$/u }).click();
   await page.waitForSelector("text=Imported: 1 new, 1 already here.");
   await page.goto(origin + "/chest/contacts?q=perrin");
@@ -222,7 +224,7 @@ await step("import a HubSpot file: unknown columns kept in the notes, unknown ow
   writeFileSync(file, "Record ID,First Name,Last Name,Email,Company Name,Contact owner,Lifecycle Stage,Create Date\n7001,Bastien,Roche,b.roche@roche-menuiserie.fr,Menuiserie Roche,Paul Witczak,Customer,2024-03-02\n7002,Emma,Vial,emma@vial-conseil.fr,Vial Conseil,Paul Witczak,Lead,2025-01-20\n");
   await page.goto(origin + "/chest/import");
   await page.locator(".source", { hasText: "Spreadsheet" }).locator("input[type=file]").setInputFiles(file);
-  await page.waitForSelector("table.mapping");
+  await page.waitForSelector(".mapping table");
   expect((await page.locator("#map-6").inputValue()) === "keep", "Lifecycle Stage goes to the notes");
   await page.waitForSelector(".owners-check:has-text('Paul Witczak')");
   await page.getByRole("button", { name: /^Import · 2 rows$/u }).click();
@@ -237,7 +239,7 @@ await step("import a HubSpot file: unknown columns kept in the notes, unknown ow
   await page.goto(origin + "/chest/import");
   await page.locator(".mini-list li", { hasText: "hubspot-more.csv" }).getByRole("button", { name: "Undo this import" }).click();
   await page.locator("dialog[open]").getByRole("button", { name: "Undo this import" }).click();
-  await page.waitForSelector(".toast:has-text('Import undone')");
+  await page.waitForSelector(".ck-toast:has-text('Import undone')");
   await page.goto(origin + "/chest/contacts?q=roche");
   expect(await page.locator(".row-link", { hasText: "Bastien Roche" }).count() === 0, "taken back");
 });
@@ -249,7 +251,7 @@ await step("select contacts, tag them at once", async () => {
   await page.locator(".bulk-bar").getByRole("button", { name: "Add a tag" }).click();
   await page.locator("#bulk-tag").fill("Salon 2026");
   await page.locator(".bulk-bar").getByRole("button", { name: "Apply" }).click();
-  await page.waitForSelector(".toast:has-text('changed')");
+  await page.waitForSelector(".ck-toast:has-text('changed')");
   await page.goto(origin + "/chest/contacts?tag=Salon%202026");
   expect((await page.locator(".rows").innerText()).includes("Claire Durand"), "tagged");
 });
@@ -295,8 +297,8 @@ await step("GDPR: a person's data is exported, then deleted for good", async () 
   const data = JSON.parse(await (await page.request.get(contactUrl + "/data")).text());
   expect(data.contact.email === "a.masson@pharmacie-centrale.fr" && data.deals.length === 1, "export");
   expect(data.activities.some(a => a.text.includes("winter season")), "what was written about her");
-  await page.getByRole("button", { name: "Delete this person" }).click();
-  await page.getByRole("button", { name: "Delete for good" }).click();
+  await page.getByRole("button", { name: "Erase this person" }).click();
+  await page.getByRole("button", { name: "Erase", exact: true }).click();
   await page.waitForURL(/\/chest\/contacts$/u);
   const gone = await page.request.get(contactUrl);
   expect(gone.status() === 404, "gone: " + gone.status());
@@ -330,7 +332,7 @@ await step("the manager adds a field, fills it, filters by it, exports it", asyn
   await page.locator("#kind-companies").selectOption("choice");
   await page.locator("#opts-companies").fill("30 days\n45 days\n60 days");
   await page.locator("form.add-field").first().getByRole("button", { name: "Add the field" }).click();
-  await page.waitForSelector(".toast:has-text('Field added.')");
+  await page.waitForSelector(".ck-toast:has-text('Field added.')");
   await page.goto(companyUrl);
   await page.getByRole("button", { name: "Edit", exact: true }).click();
   await page.getByLabel("Payment terms").selectOption("45 days");
@@ -355,8 +357,8 @@ await step("merge a duplicate company: its deals and history move", async () => 
   await page.waitForURL(/\/chest\/companies\/\d+$/u);
   await page.getByRole("button", { name: "Log a call", exact: true }).click();
   await page.waitForSelector(".timeline .event.k-call");
-  await page.locator(".record-bar summary").click();
-  await page.getByRole("button", { name: "Merge with a duplicate" }).click();
+  await page.locator(".record-bar .ck-menu button").first().click();
+  await page.getByRole("menuitem", { name: "Merge with a duplicate" }).click();
   await page.locator("#merge-into").fill("Pharmacie Centrale");
   await page.locator(".combo-list li", { hasText: /^Pharmacie Centrale/u }).first().click();
   await page.locator("dialog[open]").getByRole("button", { name: "Merge", exact: true }).click();
@@ -385,7 +387,7 @@ await step("the manager renames a stage: everyone reads the new name", async () 
   const field = page.locator(".stage-row").nth(1).locator("input").first();
   await field.fill("Rendez-vous fait");
   await field.blur();
-  await page.waitForSelector(".toast");
+  await page.waitForSelector(".ck-toast");
   await as(context, origin, "hugo");
   await page.goto(origin + "/chest/deals");
   expect((await page.locator(".lane h2").allTextContents()).join("|").includes("Rendez-vous fait"), "renamed");
@@ -396,11 +398,11 @@ await step("someone leaves: their deals go unassigned and the manager is told", 
   await page.waitForTimeout(800);
   await page.goto(origin + "/chest/deals?view=list&owner=none");
   expect((await page.locator("table").innerText()).includes("Open space acoustic panels"), "unassigned");
-  expect((await dev()).includes("est parti : ses clients n’ont plus de responsable"), "managers told (Camille reads French)");
+  expect(/est parti[ \u202f\u00a0]: ses clients n’ont plus de responsable/u.test(await dev()), "managers told (Camille reads French)");
   await page.goto(origin + "/chest/deals");
   await page.locator(".deal-card", { hasText: "Open space acoustic panels" }).click();
   await page.getByRole("button", { name: "Take it" }).click();
-  await page.waitForSelector(".toast:has-text('It’s yours now.')");
+  await page.waitForSelector(".ck-toast:has-text('It’s yours now.')");
 });
 
 await step("the weekday morning puts each person's due steps in their bell", async () => {
@@ -417,17 +419,17 @@ await step("French: Inès's day and contacts in her language", async () => {
   expect(text.includes("Nouveau contact") && text.includes("Exporter en vCard"), "French");
 });
 
-await step("phone width: My day first, bottom bar, nothing overflows; the board scrolls sideways", async () => {
+await step("phone width: My day first, labelled sections under the header, nothing overflows; the board scrolls sideways", async () => {
   await page.setViewportSize({ width: 390, height: 844 });
   for (const path of ["/chest", "/chest/deals", "/chest/contacts", "/chest/companies", dealUrl.replace(origin, ""), companyUrl.replace(origin, "")]) {
     await page.goto(origin + path);
     const width = await page.evaluate(() => document.documentElement.scrollWidth);
     expect(width <= 392, `${path} overflows: ${width}`);
   }
-  expect(await page.locator(".bottom-nav").isVisible(), "bottom bar");
+  expect(await page.locator(".ck-bar-nav .ck-nav").isVisible(), "sections under the header");
 
   await page.goto(origin + "/chest");
-  await page.locator(".bottom-nav a", { hasText: "Affaires" }).click();
+  await page.locator(".ck-nav a", { hasText: "Affaires" }).click();
   await page.waitForURL(/\/chest\/deals$/u);
   // On a phone the stages are a list to choose from; Won is quiet at the first stage.
   await as(context, origin, "hugo");

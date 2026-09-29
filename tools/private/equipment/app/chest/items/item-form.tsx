@@ -1,10 +1,10 @@
 "use client";
 
+import { DateField, useToast } from "@argentic/chest-ui/components";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { CategoryIcon, Give } from "../../../components/icons.tsx";
-import { useToast } from "../../../components/toast.tsx";
 import type { Catalogue } from "../../../lib/i18n/index.ts";
 import { format } from "../../../lib/i18n/format.ts";
 import { limits, type FieldType, type IconName, type Kind } from "../../../lib/model.ts";
@@ -17,7 +17,7 @@ export type FormValues = {
   warrantyUntil: string; notes: string; seats: string; renewsOn: string; cost: string; period: "month" | "year";
   quantity: string; minQuantity: string; extra: Record<string, string>; count: string; serials: string;
 };
-type Words = { form: Catalogue["form"]; item: Catalogue["item"]; periods: Catalogue["periods"]; errors: Catalogue["errors"]; common: Catalogue["common"] };
+type Words = { form: Catalogue["form"]; item: Catalogue["item"]; periods: Catalogue["periods"]; errors: Catalogue["errors"]; common: Catalogue["common"]; date: Catalogue["date"] };
 
 // Add or edit an item. The category comes first (it decides the fields: a
 // licence has seats and a renewal, a thing has a serial and a warranty,
@@ -25,8 +25,10 @@ type Words = { form: Catalogue["form"]; item: Catalogue["item"]; periods: Catalo
 // only the name is required. A new thing may come several at once (one
 // serial number each, pasted from the delivery note), and may be given
 // right away ("Add and give to someone").
-export function ItemForm({ mode, id, initial, categories, fields, nextTag, suppliers, currency, t }: {
-  mode: "new" | "edit"; id?: string; initial: FormValues; categories: CategoryOption[]; fields: FieldOption[]; nextTag: string; suppliers: string[]; currency: string; t: Words;
+export function ItemForm({ mode, id, initial, categories, fields, nextTag, suppliers, currency, today, t }: {
+  mode: "new" | "edit"; id?: string; initial: FormValues; categories: CategoryOption[]; fields: FieldOption[]; nextTag: string; suppliers: string[]; currency: string;
+  // The Chest's today (its time zone), for the date fields.
+  today: string; t: Words;
 }) {
   const [v, setV] = useState<FormValues>(initial);
   const [error, setError] = useState<string | null>(null);
@@ -58,7 +60,7 @@ export function ItemForm({ mode, id, initial, categories, fields, nextTag, suppl
         const made = r.value;
         if (made.length > 1) {
           const ids = made.map(m => m.id).join(",");
-          toast(format(t.form.createdMany, { count: made.length, first: made[0]!.tag, last: made.at(-1)!.tag }), { label: t.form.printLabels, run: () => router.push(`/chest/labels?ids=${ids}`) });
+          toast({ text: format(t.form.createdMany, { count: made.length, first: made[0]!.tag, last: made.at(-1)!.tag }), action: { label: t.form.printLabels, run: () => router.push(`/chest/labels?ids=${ids}`) } });
           router.push("/chest/items?sort=newest");
           return;
         }
@@ -72,6 +74,14 @@ export function ItemForm({ mode, id, initial, categories, fields, nextTag, suppl
       }
     });
   }
+
+  // A day: the kit's field, typed in the reader's language or chosen on a
+  // calendar (never the browser's own date input).
+  const day = (key: "purchasedOn" | "warrantyUntil" | "renewsOn", label: string) => (
+    <div className="form-field">
+      <DateField label={label} value={v[key] || null} onChange={d => set(key, d ?? "")} today={today} chips={false} labels={t.date} />
+    </div>
+  );
 
   const field = (key: keyof FormValues, label: string, props: Record<string, unknown> = {}, hint?: string) => (
     <div className="form-field">
@@ -105,7 +115,7 @@ export function ItemForm({ mode, id, initial, categories, fields, nextTag, suppl
         {kind === "licence" ? (
           <>
             {field("seats", t.item.seats, { type: "number", min: 1, max: limits.seats, inputMode: "numeric", required: true }, t.form.seatsHint)}
-            {field("renewsOn", t.item.renews, { type: "date" })}
+            {day("renewsOn", t.item.renews)}
             <div className="form-field">
               <label className="label" htmlFor="f-cost">{t.item.cost} <span className="muted">({currency})</span></label>
               <div className="joined">
@@ -132,19 +142,24 @@ export function ItemForm({ mode, id, initial, categories, fields, nextTag, suppl
                 <p id="h-serials" className="hint">{t.form.serialsHint}</p>
               </div>
             ) : field("serial", t.item.serial, { maxLength: limits.serial, placeholder: t.form.serialPlaceholder, autoComplete: "off", spellCheck: false })}
-            {field("purchasedOn", t.item.bought, { type: "date" })}
+            {day("purchasedOn", t.item.bought)}
             <div className="form-field">
               <label className="label" htmlFor="f-price">{t.item.price} <span className="muted">({currency})</span></label>
               <input id="f-price" className="field" value={v.price} onChange={e => set("price", e.target.value)} inputMode="decimal" placeholder={t.form.pricePlaceholder} maxLength={20} />
             </div>
-            {field("warrantyUntil", t.item.warranty, { type: "date" })}
+            {day("warrantyUntil", t.item.warranty)}
           </>
         )}
-        {own.map(f => (
+        {own.map(f => f.type === "date" ? (
+          <div className="form-field" key={f.id}>
+            <DateField label={`${f.name} (${t.common.optional})`} value={v.extra[f.id] || null} today={today} chips={false} labels={t.date}
+              onChange={d => setV(old => ({ ...old, extra: { ...old.extra, [f.id]: d ?? "" } }))} />
+          </div>
+        ) : (
           <div className="form-field" key={f.id}>
             <label className="label" htmlFor={`x-${f.id}`}>{f.name} <span className="muted">({t.common.optional})</span></label>
             <input id={`x-${f.id}`} className={f.type === "text" ? "field" : "field mono"} value={v.extra[f.id] ?? ""} maxLength={limits.fieldValue}
-              type={f.type === "date" ? "date" : "text"} inputMode={f.type === "number" ? "decimal" : undefined}
+              type="text" inputMode={f.type === "number" ? "decimal" : undefined}
               onChange={e => { const value = e.target.value; setV(old => ({ ...old, extra: { ...old.extra, [f.id]: value } })); }} />
           </div>
         ))}

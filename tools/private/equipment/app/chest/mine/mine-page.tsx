@@ -1,7 +1,8 @@
 import * as chest from "@argentic/chest-sdk/chest";
 import Link from "next/link";
+import { EmptyState, PageHeader } from "@argentic/chest-ui/components";
 import { AskButton } from "../../../components/ask-button.tsx";
-import { AssetTag } from "../../../components/bits.tsx";
+import { AssetTag, StatusStamp } from "../../../components/bits.tsx";
 import { CategoryIcon, Print, Shelves } from "../../../components/icons.tsx";
 import { ReceiveButton } from "../../../components/receive-button.tsx";
 import { ReportButton } from "../../../components/report-button.tsx";
@@ -33,7 +34,7 @@ export async function MinePage() {
   const givers = await people([...held.receipts.values()].map(r => r.givenBy));
   const zone = chest.timeZone();
   const now = new Date();
-  const words = { report: t.report, errors: t.errors, common: t.common };
+  const words = { report: t.report, errors: t.errors, common: t.common, dialog: t.dialog };
   const problemsOf = (itemId: string) => held.problems.filter(p => p.itemId === itemId);
   const long = (d: string) => formatDay(d, locale, { day: "numeric", month: "long", year: "numeric" });
   const givenText = (item: Item, r: Receipt | undefined) => {
@@ -52,7 +53,7 @@ export async function MinePage() {
         <div className="label-top">
           <AssetTag tag={item.tag} />
           <span className="label-cat">{categoryName(item.category, t)}</span>
-          {toConfirm && <span className="stamp st-confirm">{t.person.toConfirm}</span>}
+          {toConfirm && <StatusStamp status="confirm" text={t.person.toConfirm} />}
         </div>
         <Link href={`/chest/items/${item.id}`} className="label-body">
           {item.photo ? <img className="label-photo" src={`/chest/items/${item.id}/photo?size=256`} alt="" /> : <span className="label-icon" aria-hidden="true"><CategoryIcon name={item.category.icon} /></span>}
@@ -66,7 +67,7 @@ export async function MinePage() {
         <div className="label-actions row">
           {unconfirmed && (
             <ReceiveButton id={item.id} name={item.name} label={t.item.received} primary={toConfirm} given={givenText(item, r)} condition={r?.condition ?? null}
-              charter={charter ? { id: charter.id, body: charter.body } : null} t={{ receive: t.receive, errors: t.errors, common: t.common }} />
+              charter={charter ? { id: charter.id, body: charter.body } : null} t={{ receive: t.receive, errors: t.errors, common: t.common, dialog: t.dialog }} />
           )}
           <ReportButton id={item.id} name={item.name} label={t.mine.report} t={words} />
         </div>
@@ -75,31 +76,23 @@ export async function MinePage() {
   }
 
   const empty = held.items.length === 0 && held.seats.length === 0;
-  const ask = <AskButton categories={categories.map(c => ({ id: c.id, name: categoryName(c, t) }))} t={{ requests: t.requests, errors: t.errors, common: t.common }} primary={empty} />;
+  const ask = <AskButton categories={categories.map(c => ({ id: c.id, name: categoryName(c, t) }))} t={{ requests: t.requests, errors: t.errors, common: t.common, dialog: t.dialog }} primary={empty} />;
   return (
-    <main className="wide">
-      <div className="page-head">
-        <div>
-          <h1>{t.mine.title}</h1>
-          {!empty && <p className="muted">{waiting.length > 0 ? plural(t.mine.toConfirm, waiting.length, locale) : t.mine.intro}</p>}
-        </div>
-        {!empty && (
-          <div className="actions">
-            <Link className="button quiet" href={`/chest/people/${member.id}/handover`}><Print /><span>{t.mine.sheet}</span></Link>
-            {ask}
-          </div>
-        )}
-      </div>
+    <div className="wide">
+      <PageHeader
+        size="m"
+        title={t.mine.title}
+        intro={empty ? undefined : waiting.length > 0 ? plural(t.mine.toConfirm, waiting.length, locale) : t.mine.intro}
+        secondary={empty ? undefined : <Link className="button quiet" href={`/chest/people/${member.id}/handover`}><Print /><span>{t.mine.sheet}</span></Link>}
+        action={empty ? undefined : ask}
+      />
       {empty ? (
-        <div className="empty">
-          <span className="empty-art" aria-hidden="true"><CategoryIcon name="laptop" /><CategoryIcon name="badge" /></span>
-          <h2>{t.mine.empty.title}</h2>
-          <p>{t.mine.empty.body}</p>
-          <div className="row center">
-            {ask}
-            <Link className="button quiet" href="/chest/items"><Shelves />{t.mine.browse}</Link>
-          </div>
-        </div>
+        <EmptyState
+          icon={<span className="empty-art"><CategoryIcon name="laptop" /><CategoryIcon name="badge" /></span>}
+          title={t.mine.empty.title}
+          body={t.mine.empty.body}
+          action={<>{ask}<Link className="button quiet" href="/chest/items"><Shelves />{t.mine.browse}</Link></>}
+        />
       ) : (
         <>
           {held.items.length > 0 && (
@@ -128,6 +121,6 @@ export async function MinePage() {
           />
         </section>
       )}
-    </main>
+    </div>
   );
 }

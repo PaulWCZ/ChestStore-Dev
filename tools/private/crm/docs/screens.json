@@ -16,5 +16,13 @@
   {"name": "contacts-bulk", "path": "/chest/contacts", "member": "ines", "locale": "en", "only": ["desktop"], "actions": [{"click": ".page-check input"}, {"wait": 400}]},
   {"name": "team", "path": "/chest/team", "member": "camille", "locale": "en"},
   {"name": "day-viewer-fr", "path": "/chest", "member": "lea", "locale": "fr"},
-  {"name": "fields", "path": "/chest/settings/fields", "member": "camille", "locale": "en", "only": ["desktop"]}
+  {"name": "fields", "path": "/chest/settings/fields", "member": "camille", "locale": "en", "only": ["desktop"]},
+  {"name": "board-chest", "path": "/chest/deals", "member": "camille", "locale": "en", "look": {"all": "catalogue:chest"}},
+  {"name": "board-theme", "path": "/chest/deals", "member": "camille", "locale": "en", "look": {"all": "catalogue:library"}},
+  {"name": "board-theme-dark", "path": "/chest/deals", "member": "hugo", "locale": "en", "dark": true, "look": {"all": "catalogue:library"}, "only": ["phone"]},
+  {"name": "board-brand", "path": "/chest/deals", "member": "ines", "locale": "fr", "look": {"all": "catalogue:library", "tool": "brand:sample"}},
+  {"name": "board-brand-dark", "path": "/chest/deals", "member": "hugo", "locale": "en", "dark": true, "look": {"tool": "brand:sample"}, "only": ["phone"]},
+  {"name": "day-theme", "path": "/chest", "member": "ines", "locale": "fr", "look": {"all": "catalogue:workshop"}, "only": ["desktop"]},
+  {"name": "team-brand", "path": "/chest/team", "member": "camille", "locale": "en", "look": {"tool": "brand:sample"}, "only": ["desktop"]},
+  {"name": "deal-undo-fr", "path": "/chest/deals/4", "member": "hugo", "locale": "fr", "actions": [{"click": "button:has-text('Noter un appel')"}, {"wait": 800}], "only": ["desktop"]}
 ]

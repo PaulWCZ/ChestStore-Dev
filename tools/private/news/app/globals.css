@@ -36,6 +36,7 @@ button, input, textarea, select { font: inherit; color: inherit; }
 .ck-brand .mark { width: 30px; height: 30px; }
 .ck-bar-end .ck-search { flex: 0 1 280px; }
 .ck-bar-end .write { flex: none; }
+.ck-bar-end .ck-member-text { white-space: nowrap; }
 .narrow { max-width: 720px; margin: 0 auto; padding: var(--space-6) var(--space-4); }
 
 /* ── Controls ──────────────────────────────────────────── */
@@ -271,7 +272,7 @@ textarea.field { resize: vertical; min-height: 88px; line-height: 1.55; }
 .kind-choice.on > svg { color: var(--accent-text); }
 .kind-choice:focus-within { outline: 3px solid var(--focus); outline-offset: 2px; }
 .headline-field { font-family: var(--font-display); font-size: var(--text-xl); font-weight: var(--display-weight); min-height: 56px; }
-.event-fields { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-3); padding: var(--space-4); border: 2px solid var(--ink); }
+.event-fields { display: grid; align-items: start; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-3); padding: var(--space-4); border: 2px solid var(--ink); }
 .event-fields .hint span { margin-right: var(--space-2); }
 .event-fields .hint { grid-column: 1 / -1; margin-top: calc(-1 * var(--space-2)); }
 .event-fields .wide { grid-column: 1 / -1; }
@@ -321,7 +322,8 @@ textarea.field { resize: vertical; min-height: 88px; line-height: 1.55; }
 .composer-bar { position: sticky; bottom: 0; display: flex; align-items: center; justify-content: flex-end; gap: var(--space-3); flex-wrap: wrap; padding: var(--space-3) 0; background: var(--bg); border-top: 1px solid var(--rule); z-index: 5; }
 .composer-bar .error { margin-right: auto; }
 .composer-bar button[type="submit"] { white-space: normal; text-align: center; }
-.when-fields { display: flex; align-items: center; gap: var(--space-2); margin-right: auto; }
+.when-fields { display: flex; align-items: flex-start; flex-wrap: wrap; gap: var(--space-2) var(--space-3); margin-right: auto; }
+.when-fields > svg { margin-top: 2.1em; }
 .when-fields > svg { color: var(--accent-text); }
 .when-fields .field { width: auto; min-height: 44px; }
 .indent { padding-left: 34px; }
@@ -352,7 +354,7 @@ textarea.field { resize: vertical; min-height: 88px; line-height: 1.55; }
 /* Toasts: a strip of ink, square. */
 .ck-toast { border-radius: var(--radius-s); font-weight: var(--weight-strong); font-size: var(--text-s); }
 /* The language tabs of the composer. */
-.text-block .ck-tabs, .composer-main .ck-tablist { border-bottom: 1px solid var(--line); }
+.composer-main .ck-tablist { border-bottom: 1px solid var(--line); }
 
 /* ── The public root ───────────────────────────────────── */
 .page.public { max-width: 560px; margin: 0 auto; padding: var(--space-8) var(--space-4); display: grid; gap: var(--space-4); text-align: center; justify-items: center; }
@@ -378,6 +380,14 @@ mark { background: var(--highlight); color: var(--ink); font-weight: var(--weigh
 .audience-groups { display: grid; gap: 0; padding-left: 34px; }
 
 /* ── Narrow screens ────────────────────────────────────── */
+/* The kit's header wraps under 760 px: the search gets a row of its own. */
+@media (max-width: 760px) {
+  .ck-bar-inner { padding-top: var(--space-1); }
+  .ck-bar-end { display: contents; }
+  .ck-bar-end .write, .ck-bar-end .ck-member { margin-left: auto; }
+  .ck-bar-end .write + .ck-member { margin-left: 0; }
+  .ck-bar-end .ck-search { order: 4; flex: 1 0 100%; max-width: none; margin: 0 0 var(--space-2); }
+}
 @media (max-width: 900px) {
   .front-grid { grid-template-columns: minmax(0, 1fr); grid-template-areas: "lead" "side" "rest"; }
   .side { position: static; border-left: 0; padding-left: 0; margin-top: var(--space-5); }
@@ -393,15 +403,13 @@ mark { background: var(--highlight); color: var(--ink); font-weight: var(--weigh
   .story:not(.lead) .story-cover { aspect-ratio: 1; }
   .sections { flex-wrap: wrap; justify-content: center; overflow: visible; }
   .sections a { padding: 0 var(--space-2); }
-  .ck-bar-end { display: contents; }
-  .ck-bar-end .write { margin-left: auto; }
-  .ck-bar-end .ck-search { order: 4; flex: 1 0 100%; max-width: none; margin: 0 0 var(--space-2); }
   .asks-you { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: start; }
   .asks-you .button { grid-column: 2; margin-left: 0; justify-self: start; }
   .readers-lists { grid-template-columns: minmax(0, 1fr); }
   .event-fields { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
   .event-fields .field-group:first-child { grid-column: 1 / -1; }
   .when-fields { margin-right: 0; flex-basis: 100%; }
+  .when-fields > svg { display: none; }
   .composer-bar { justify-content: stretch; }
   .composer-bar > .button { flex: 1 1 auto; }
   .comment.reply, .reply-form { margin-left: var(--space-5); }

@@ -1,4 +1,5 @@
 import * as chest from "@argentic/chest-sdk/chest";
+import { EmptyState } from "@argentic/chest-ui/components";
 import { can } from "../../../../lib/access.ts";
 import { listCategories } from "../../../../lib/categories.ts";
 import { db } from "../../../../lib/db.ts";
@@ -13,13 +14,13 @@ export default async function NewItem({ searchParams }: { searchParams: Promise<
   const v = await viewer();
   if (!v) return null;
   const { member, t } = v;
-  if (!can(member, "items.manage")) return <main className="narrow"><div className="empty"><p>{t.errors.forbidden}</p></div></main>;
+  if (!can(member, "items.manage")) return <div className="narrow"><EmptyState headingLevel={1} title={t.errors.forbidden} /></div>;
   const sql = db();
   const [categories, hints, fields] = await Promise.all([listCategories(sql, member), formHints(sql, member), allFields(sql)]);
   const wanted = (await searchParams).category;
   const first = categories.find(c => c.id === wanted) ?? categories[0];
   return (
-    <main className="narrow">
+    <div className="narrow">
       <h1 className="page-title">{t.form.newTitle}</h1>
       <ItemForm
         mode="new"
@@ -29,8 +30,9 @@ export default async function NewItem({ searchParams }: { searchParams: Promise<
         nextTag={hints.nextTag}
         suppliers={hints.suppliers}
         currency={chest.currency()}
-        t={{ form: t.form, item: t.item, periods: t.periods, errors: t.errors, common: t.common }}
+        today={chest.today()}
+        t={{ form: t.form, item: t.item, periods: t.periods, errors: t.errors, common: t.common, date: t.date }}
       />
-    </main>
+    </div>
   );
 }

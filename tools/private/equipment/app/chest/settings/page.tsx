@@ -21,7 +21,7 @@ export default async function Settings() {
   const sql = db();
   const [counts, fields, charter] = await Promise.all([categoryCounts(sql, member), allFields(sql), currentCharter(sql)]);
   return (
-    <main className="narrow">
+    <div className="narrow">
       <h1 className="page-title">{t.settings.title}</h1>
       <p className="muted lead">{t.settings.intro}</p>
       <CategoriesView
@@ -34,6 +34,6 @@ export default async function Settings() {
       />
       <p className="small muted">{format(t.settings.currency, { currency: chest.currency() })}</p>
       <RulesView body={charter?.body ?? ""} t={{ settings: t.settings, errors: t.errors, common: t.common }} />
-    </main>
+    </div>
   );
 }

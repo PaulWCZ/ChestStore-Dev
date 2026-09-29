@@ -34,8 +34,6 @@ function sender(value: unknown): string {
   return text;
 }
 
-// saveRule adds a rule (or changes one): a condition, and at least one of a
-// tag, a priority, someone who answers.
 type Checked = { field: Rule["field"]; value: string; tag: string | null; priority: Priority | null; assignee: string | null };
 async function checkRule(input: { field: unknown; value: unknown; tag?: unknown; priority?: unknown; assignee?: unknown }, answers: (memberId: string) => Promise<boolean>): Promise<Checked> {
   if (input.field !== "text" && input.field !== "from") throw new AppError("invalid");

@@ -52,7 +52,7 @@ export function ContactForm({ started: shown, locale, embed, t }: { started: str
         <textarea id="message" name="message" className="field" required rows={7} maxLength={limits.message} placeholder={w.messagePlaceholder} defaultValue={v["message"] ?? ""} aria-invalid={invalid("message") || undefined} />
       </div>
       <input type="hidden" name="files" value={readyFiles(files)} />
-      <Attachments files={files} setFiles={setFiles} grant={fileUpload.bind(null, { started })} kind="public" label={t.files.list} t={{ files: t.files, errors: t.errors }} />
+      <Attachments files={files} setFiles={setFiles} grant={fileUpload.bind(null, { started })} kind="public" label={t.public.attach} t={{ files: t.files, errors: t.errors }} />
       {error && <p className="error" role="alert">{error}</p>}
       <div><button type="submit" className="button" disabled={pending || waiting} title={waiting ? t.files.wait : undefined}>{pending ? w.sending : w.send}</button></div>
     </form>

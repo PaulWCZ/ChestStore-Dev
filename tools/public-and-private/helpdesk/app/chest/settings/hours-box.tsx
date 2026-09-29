@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { DateField, useToast } from "@argentic/chest-ui/components";
+import { formatDate, type DateWords } from "@argentic/chest-ui/components/logic";
+import { useState, useTransition } from "react";
 import { Clock, Cross } from "../../../components/icons.tsx";
-import { useToast } from "../../../components/toast.tsx";
 import { format, plural } from "../../../lib/i18n/format.ts";
 import type { Catalogue } from "../../../lib/i18n/index.ts";
 import { clock, frenchHolidays, halfHours, isDate, maxHolidays, weekdays, type Hours } from "../../../lib/hours.ts";
@@ -10,21 +11,22 @@ import { lateChoices } from "../../../lib/model.ts";
 import { saveSettings } from "../actions.ts";
 import { Box } from "./settings-view.tsx";
 
-type Words = { settings: Catalogue["settings"]; errors: Catalogue["errors"] };
+type Words = { settings: Catalogue["settings"]; errors: Catalogue["errors"]; dates: DateWords };
 
 // When the team works: a week (each day open or not, from … to …, on the
 // half hour, in 24-hour steps: a time field would follow the browser's
-// AM/PM), the days off, and after how long a wait is highlighted.
-export function HoursBox({ hours, lateHours, year, canSettings, locale, t }: { hours: Hours; lateHours: number; year: number; canSettings: boolean; locale: string; t: Words }) {
+// AM/PM), the days off (the kit's DateField, never the browser's), and
+// after how long a wait is highlighted.
+export function HoursBox({ hours, lateHours, year, today, canSettings, locale, t }: { hours: Hours; lateHours: number; year: number; today: string; canSettings: boolean; locale: string; t: Words }) {
   const s = t.settings;
   const [draft, setDraft] = useState(hours);
-  const [day, setDay] = useState("");
+  const [day, setDay] = useState<string | null>(null);
   const [pending, start] = useTransition();
   const toast = useToast();
   const save = (next: Hours) => start(async () => {
     const r = await saveSettings({ hours: next });
-    if (!r.ok) return toast(format(t.errors[r.error], r.values ?? {}));
-    toast(s.saved);
+    if (!r.ok) return void toast({ text: format(t.errors[r.error], r.values ?? {}), tone: "error" });
+    toast({ id: "hours", text: s.saved });
   });
   const setDayHours = (i: number, value: Hours["days"][number]) => setDraft(d => ({ ...d, days: d.days.map((x, j) => (j === i ? value : x)) }));
   const addDays = (days: string[]) => {
@@ -37,23 +39,21 @@ export function HoursBox({ hours, lateHours, year, canSettings, locale, t }: { h
     setDraft(next);
     save(next);
   };
-  // Dates in words only after the page is live: Node's and the browser's
-  // Intl may write them differently (hydration).
-  const [live, setLive] = useState(false);
-  useEffect(() => setLive(true), []);
-  const dateLabel = (date: string) => !live ? date : new Intl.DateTimeFormat(locale === "en" ? "en-GB" : locale, { dateStyle: "full", timeZone: "UTC" }).format(new Date(date + "T00:00:00Z"));
+  // Dates in words from the kit's date words (no Intl: the server and the
+  // browser write them the same).
+  const dateLabel = (date: string) => formatDate(date, t.dates, "long");
   return (
     <Box title={s.hours} icon={<Clock />}>
       <div>
         <label className="label" htmlFor="late">{s.lateLabel}</label>
-        <select id="late" className="select" style={{ maxWidth: 220 }} defaultValue={lateHours} disabled={!canSettings}
-          onChange={e => { const value = Number(e.target.value); start(async () => { const r = await saveSettings({ lateHours: value }); toast(r.ok ? s.saved : format(t.errors[r.error], {})); }); }}>
+        <select id="late" className="select medium" defaultValue={lateHours} disabled={!canSettings}
+          onChange={e => { const value = Number(e.target.value); start(async () => { const r = await saveSettings({ lateHours: value }); toast(r.ok ? { id: "late", text: s.saved } : { text: format(t.errors[r.error], {}), tone: "error" }); }); }}>
           {lateChoices.map(h => <option key={h} value={h}>{h === 0 ? s.lateNever : plural(s.lateHours, h, locale)}</option>)}
         </select>
-        <p className="hint" style={{ marginTop: "var(--space-1)" }}>{draft.on ? s.lateHintWork : s.lateHint}</p>
+        <p className="hint under">{draft.on ? s.lateHintWork : s.lateHint}</p>
       </div>
       <form className="stack" onSubmit={e => { e.preventDefault(); save(draft); }}>
-        <fieldset disabled={!canSettings} className="stack" style={{ border: 0, padding: 0, margin: 0 }}>
+        <fieldset disabled={!canSettings} className="stack bare">
           <label className="switch"><input type="checkbox" checked={draft.on} onChange={e => setDraft(d => ({ ...d, on: e.target.checked }))} />{s.hoursOn}</label>
           <p className="hint">{s.hoursHint}</p>
           {draft.on && (
@@ -99,10 +99,9 @@ export function HoursBox({ hours, lateHours, year, canSettings, locale, t }: { h
           )}
           {canSettings && (
             <div className="row">
-              <form className="row add-tag" onSubmit={e => { e.preventDefault(); if (isDate(day)) { addDays([day]); setDay(""); } }}>
-                <label htmlFor="holiday" className="visually-hidden">{s.holidayDate}</label>
-                <input id="holiday" type="date" className="field" value={day} onChange={e => setDay(e.target.value)} />
-                <button type="submit" className="button small quiet" disabled={!isDate(day) || pending}>{s.addHoliday}</button>
+              <form className="row add-day" onSubmit={e => { e.preventDefault(); if (day && isDate(day)) { addDays([day]); setDay(null); } }}>
+                <DateField id="holiday" label={s.holidayDate} value={day} onChange={setDay} today={today} chips={false} labels={t.dates} />
+                <button type="submit" className="button small quiet" disabled={!day || !isDate(day) || pending}>{s.addHoliday}</button>
               </form>
               <button type="button" className="link-button" disabled={pending} onClick={() => addDays(frenchHolidays(year))}>{format(s.addFrance, { year })}</button>
             </div>

@@ -7,6 +7,8 @@ import Link from "next/link";
 // The Team page's tables, in the kit's table (sticky header and totals, a
 // row header per person, a column sorted on a click): the figures come
 // written by the server; the numbers kept beside them only sort.
+const figure = (text: string) => <span className="num">{text}</span>;
+
 export type PipelineRow = { key: string; href: string; name: string; open: number; value: number; valueText: string; share: number; weightedText: string; noStep: number; late: number };
 
 export function PipelineTable({ rows, totals, words, labels }: { rows: PipelineRow[]; totals: { open: string; value: string; weighted: string; noStep: string; late: string }; words: { caption: string; person: string; open: string; value: string; weighted: string; noStep: string; late: string; total: string }; labels: TableWords }) {
@@ -20,7 +22,7 @@ export function PipelineTable({ rows, totals, words, labels }: { rows: PipelineR
         { key: "noStep", label: words.noStep, align: "end", value: r => r.noStep, render: r => <span className={`num${r.noStep > 0 ? " warn-text" : ""}`}>{r.noStep}</span> },
         { key: "late", label: words.late, align: "end", value: r => r.late, render: r => <span className={`num${r.late > 0 ? " late-text" : ""}`}>{r.late}</span> },
       ]}
-      totals={{ open: <span className="num">{totals.open}</span>, value: <span className="num">{totals.value}</span>, weighted: <span className="num">{totals.weighted}</span>, noStep: <span className="num">{totals.noStep}</span>, late: <span className="num">{totals.late}</span> }} />
+      totals={Object.fromEntries(Object.entries(totals).map(([key, text]) => [key, figure(text)]))} />
   );
 }
 

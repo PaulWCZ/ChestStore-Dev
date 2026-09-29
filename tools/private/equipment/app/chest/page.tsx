@@ -1,7 +1,7 @@
 import * as chest from "@argentic/chest-sdk/chest";
 import Link from "next/link";
+import { Avatar, EmptyState, PageHeader } from "@argentic/chest-ui/components";
 import { AssetTag, StatusStamp } from "../../components/bits.tsx";
-import { Avatar } from "../../components/avatar.tsx";
 import { Alert, CategoryIcon, Check, Chevron, Clipboard, Clock, Plus, Print, Sliders, TakeBack, Upload, Wrench } from "../../components/icons.tsx";
 import { SolveButton } from "../../components/solve-button.tsx";
 import { can } from "../../lib/access.ts";
@@ -47,17 +47,15 @@ export default async function Home() {
 
   if (stocked.length === 0 && ov.repair.length === 0 && leavers.length === 0 && requests.length === 0) {
     return (
-      <main className="narrow">
-        <div className="empty hero">
-          <span className="empty-art" aria-hidden="true"><CategoryIcon name="laptop" /><CategoryIcon name="phone" /><CategoryIcon name="key" /></span>
-          <h1>{t.overview.empty.title}</h1>
-          <p>{t.overview.empty.body}</p>
-          <div className="row center">
-            <Link className="button" href="/chest/items/new"><Plus />{t.overview.empty.add}</Link>
-            <Link className="button quiet" href="/chest/import"><Upload />{t.overview.empty.import}</Link>
-          </div>
-        </div>
-      </main>
+      <div className="narrow hero">
+        <EmptyState
+          headingLevel={1}
+          icon={<span className="empty-art"><CategoryIcon name="laptop" /><CategoryIcon name="phone" /><CategoryIcon name="key" /></span>}
+          title={t.overview.empty.title}
+          body={t.overview.empty.body}
+          action={<><Link className="button" href="/chest/items/new"><Plus />{t.overview.empty.add}</Link><Link className="button quiet" href="/chest/import"><Upload />{t.overview.empty.import}</Link></>}
+        />
+      </div>
     );
   }
 
@@ -70,16 +68,17 @@ export default async function Home() {
   ].filter(i => i.category.kind !== "consumable" || (i.quantity ?? 0) > 0).map(i => ({ ...rowOf(i, names, t, locale, today, member.id), categoryId: i.category.id }));
   const kindName = new Map(counts.map(c => [c.id, categoryName(c, t)]));
   return (
-    <main className="wide">
-      <div className="page-head">
-        <h1>{t.overview.title}</h1>
-        <div className="actions">
+    <div className="wide">
+      <PageHeader
+        size="m"
+        title={t.overview.title}
+        secondary={<>
           <Link className="button quiet" href="/chest/import"><Upload /><span>{t.shell.import}</span></Link>
           <Link className="button quiet" href="/chest/labels?all=1"><Print /><span>{t.shell.labels}</span></Link>
           <Link className="button quiet" href="/chest/inventory"><Clipboard /><span>{inventory ? t.inventory.open : t.shell.inventory}</span></Link>
-          <Link className="button" href="/chest/items/new"><Plus />{t.overview.add}</Link>
-        </div>
-      </div>
+        </>}
+        action={<Link className="button" href="/chest/items/new"><Plus />{t.overview.add}</Link>}
+      />
 
       <section aria-labelledby="stock">
         <div className="section-head">
@@ -125,7 +124,7 @@ export default async function Home() {
                 };
               })}
               offer={offer}
-              t={{ overview: t.overview, requests: t.requests, errors: t.errors, common: t.common }}
+              t={{ overview: t.overview, requests: t.requests, errors: t.errors, common: t.common, dialog: t.dialog, search: t.search }}
             />
           )}
           {leaving.length > 0 && (
@@ -139,7 +138,7 @@ export default async function Home() {
                   return (
                     <li key={d.memberId} className="mini">
                       <Link href={`/chest/people/${d.memberId}`} className="mini-link">
-                        <Avatar name={name} photo={person?.photo ?? null} size={28} />
+                        <Avatar name={name} photo={person?.photo ?? null} size="m" />
                         <span className="mini-what">
                           <span className="strong">{name}</span>{" "}
                           <span className="muted">{plural(t.overview.leaverHolds, d.items + d.seats, locale)} · {format(t.overview.lastDay, { date: formatDay(d.lastDay, locale, { weekday: "short", day: "numeric", month: "short" }) })}</span>
@@ -163,7 +162,7 @@ export default async function Home() {
                     </div>
                     <p className="quote">{p.body}</p>
                     <div className="problem-foot">
-                      <span className="small muted"><Avatar name={nameOf(names.get(p.reportedBy), locale)} photo={names.get(p.reportedBy)?.photo ?? null} size={20} /> {format(t.overview.reportedBy, { name: p.reportedBy === "erased" ? t.people.erased : nameOf(names.get(p.reportedBy), locale), when: relative(p.createdAt, locale, now) })}</span>
+                      <span className="small muted"><Avatar name={nameOf(names.get(p.reportedBy), locale)} photo={names.get(p.reportedBy)?.photo ?? null} size="s" /> {format(t.overview.reportedBy, { name: p.reportedBy === "erased" ? t.people.erased : nameOf(names.get(p.reportedBy), locale), when: relative(p.createdAt, locale, now) })}</span>
                       <SolveButton id={p.id} label={t.overview.solved} done={t.overview.solvedDone} errors={t.errors} />
                     </div>
                   </li>
@@ -237,7 +236,7 @@ export default async function Home() {
                   return (
                     <li key={u.item.id} className="mini">
                       <Link href={`/chest/items/${u.item.id}`} className="mini-link">
-                        <Avatar name={name} photo={names.get(u.member)?.photo ?? null} size={28} />
+                        <Avatar name={name} photo={names.get(u.member)?.photo ?? null} size="m" />
                         <span className="mini-what"><span className="strong">{u.item.name}</span> <AssetTag tag={u.item.tag} /> <span className="muted">{name} · {format(t.overview.givenOn, { date: formatDay(u.givenOn, locale, { day: "numeric", month: "short" }) })}</span></span>
                       </Link>
                     </li>
@@ -255,7 +254,7 @@ export default async function Home() {
                   return (
                     <li key={id} className="mini">
                       <Link href={`/chest/people/${id}`} className="mini-link">
-                        <Avatar name={name} photo={null} size={28} />
+                        <Avatar name={name} photo={null} size="m" />
                         <span className="mini-what"><span className="strong">{name}</span> <span className="muted">{plural(t.overview.leaverHolds, c.items + c.seats, locale)}</span></span>
                         <Chevron />
                       </Link>
@@ -267,6 +266,6 @@ export default async function Home() {
           )}
         </div>
       </section>
-    </main>
+    </div>
   );
 }

@@ -27,7 +27,7 @@ export function WriteAgain({ secret, t }: { secret: string; t: { public: Catalog
       <label htmlFor="message" className="visually-hidden">{t.public.reply}</label>
       <textarea id="message" name="message" className="field" rows={5} required maxLength={10000} placeholder={t.public.replyPlaceholder} />
       <input type="hidden" name="files" value={readyFiles(files)} />
-      <Attachments files={files} setFiles={setFiles} grant={fileUpload.bind(null, { secret })} kind="public" label={t.files.list} t={{ files: t.files, errors: t.errors }} />
+      <Attachments files={files} setFiles={setFiles} grant={fileUpload.bind(null, { secret })} kind="public" label={t.public.attach} t={{ files: t.files, errors: t.errors }} />
       {state.error && <p className="error" role="alert">{format(t.errors[state.error], { max: state.max ?? 10000 })}</p>}
       {state.sent && <p role="status" className="muted">{t.public.replied}</p>}
       <div><button type="submit" className="button" disabled={pending || waiting} title={waiting ? t.files.wait : undefined}>{t.public.replySend}</button></div>

@@ -17,8 +17,11 @@ type Words = Catalogue["settings"]["bank"];
 // back") or the company. Once saved, only the masked account shows; the
 // IBAN is checked while it is typed (country, length, check digits), and
 // again on the server. `onDirty` says when an IBAN is being typed (a
-// dialog around it then asks before closing).
-export function BankForm({ owner, current, t, errors, save, cancel, holder = true, idPrefix = "bank", onDirty, onDone }: {
+// dialog around it then asks before closing). Inside a dialog, the caller
+// asks before erasing (`onErase`, with EraseBank beside its dialog): the
+// kit's Confirm nested in its Dialog would close both (ui 0.2.1: React
+// passes a nested dialog's close event on to the outer one).
+export function BankForm({ owner, current, t, errors, save, cancel, holder = true, idPrefix = "bank", onDirty, onErase, onDone }: {
   owner: string;
   cancel: string;
   current: BankCurrent;
@@ -28,17 +31,18 @@ export function BankForm({ owner, current, t, errors, save, cancel, holder = tru
   holder?: boolean;
   idPrefix?: string;
   onDirty?: (dirty: boolean) => void;
+  onErase?: () => void;
   onDone?: () => void;
 }) {
   const router = useRouter();
   const toast = useToast();
   const [pending, start] = useTransition();
   const [editing, setEditing] = useState(current === null);
+  const [erasing, setErasing] = useState(false);
   const [iban, setIban] = useState("");
   const [bic, setBic] = useState(current?.bic ?? "");
   const [name, setName] = useState(current?.holder ?? "");
   const [error, setError] = useState<string | null>(null);
-  const [erasing, setErasing] = useState(false);
   const dirty = editing && iban.trim() !== "";
   useEffect(() => onDirty?.(dirty), [dirty, onDirty]);
 
@@ -64,20 +68,6 @@ export function BankForm({ owner, current, t, errors, save, cancel, holder = tru
     });
   }
 
-  // Erasing bank details cannot be undone (they are not kept anywhere):
-  // it asks first, in the page.
-  function erase() {
-    start(async () => {
-      const result = await removeBank(owner);
-      setErasing(false);
-      if (!result.ok) return void toast({ text: format(errors[result.error], result.values ?? {}), tone: "error" });
-      toast({ id: `bank-${owner}`, text: t.removed });
-      setEditing(true);
-      onDone?.();
-      router.refresh();
-    });
-  }
-
   if (current && !editing) {
     return (
       <div className="bank-current">
@@ -87,9 +77,9 @@ export function BankForm({ owner, current, t, errors, save, cancel, holder = tru
         </div>
         <div className="actions-bar">
           <button type="button" className="button quiet small" onClick={() => setEditing(true)}>{t.replace}</button>
-          <button type="button" className="button danger small" onClick={() => setErasing(true)} disabled={pending}>{t.remove}</button>
+          <button type="button" className="button danger small" onClick={() => (onErase ? onErase() : setErasing(true))} disabled={pending}>{t.remove}</button>
         </div>
-        <Confirm open={erasing} title={t.eraseTitle} body={format(t.eraseBody, { masked: current.masked })} confirmLabel={t.remove} cancelLabel={cancel} busy={pending} onConfirm={erase} onCancel={() => setErasing(false)} />
+        {!onErase && <EraseBank owner={erasing ? owner : null} masked={current.masked} t={t} errors={errors} cancel={cancel} onClose={() => setErasing(false)} onErased={() => setEditing(true)} />}
       </div>
     );
   }
@@ -99,7 +89,7 @@ export function BankForm({ owner, current, t, errors, save, cancel, holder = tru
       <div className="field-row">
         <label htmlFor={`${idPrefix}-iban`}>{t.iban}</label>
         <div className="iban-input">
-          <input id={`${idPrefix}-iban`} className="field mono" value={iban} onChange={e => setIban(e.target.value)} onBlur={() => check?.ok && setIban(groupIban(check.iban))}
+          <input id={`${idPrefix}-iban`} className="field mono" value={iban} onChange={e => { setIban(e.target.value); onDirty?.(e.target.value.trim() !== ""); }} onBlur={() => check?.ok && setIban(groupIban(check.iban))}
             autoComplete="off" spellCheck={false} autoCapitalize="characters" maxLength={50} placeholder={t.ibanPlaceholder}
             aria-invalid={ibanError !== null} aria-describedby={`${idPrefix}-iban-hint`} />
           {check?.ok && <span className="ok" aria-hidden="true"><Check /></span>}
@@ -125,4 +115,24 @@ export function BankForm({ owner, current, t, errors, save, cancel, holder = tru
       </div>
     </form>
   );
+}
+
+// Erasing bank details cannot be undone (they are not kept anywhere): it
+// asks first, in the page (the kit's Confirm), naming the account.
+export function EraseBank({ owner, masked, t, errors, cancel, onClose, onErased }: { owner: string | null; masked: string; t: Words; errors: Catalogue["errors"]; cancel: string; onClose: () => void; onErased?: () => void }) {
+  const router = useRouter();
+  const toast = useToast();
+  const [pending, start] = useTransition();
+  function erase() {
+    if (!owner) return;
+    start(async () => {
+      const result = await removeBank(owner);
+      onClose();
+      if (!result.ok) return void toast({ text: format(errors[result.error], result.values ?? {}), tone: "error" });
+      toast({ id: `bank-${owner}`, text: t.removed });
+      onErased?.();
+      router.refresh();
+    });
+  }
+  return <Confirm open={owner !== null} title={t.eraseTitle} body={format(t.eraseBody, { masked })} confirmLabel={t.remove} cancelLabel={cancel} busy={pending} onConfirm={erase} onCancel={onClose} />;
 }

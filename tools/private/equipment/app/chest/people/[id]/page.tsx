@@ -1,7 +1,7 @@
 import * as chest from "@argentic/chest-sdk/chest";
+import { Avatar } from "@argentic/chest-ui/components";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Avatar } from "../../../../components/avatar.tsx";
 import { Back } from "../../../../components/icons.tsx";
 import { can } from "../../../../lib/access.ts";
 import { AppError } from "../../../../lib/app-error.ts";
@@ -47,10 +47,10 @@ export default async function PersonPage({ params }: { params: Promise<{ id: str
   const lastDay = present ? await lastDayOf(sql, member, id) : null;
   const leaving = lastDay ? format(t.person.leaving, { date: formatDay(lastDay, locale, { weekday: "long", day: "numeric", month: "long" }) }) : null;
   return (
-    <main className="wide">
+    <div className="wide">
       <Link className="back" href="/chest/people"><Back />{t.peopleList.title}</Link>
       <div className="person-head">
-        <Avatar name={name} photo={person?.photo ?? null} size={64} />
+        <Avatar name={name} photo={person?.photo ?? null} size="xl" />
         <div>
           <h1>{name}</h1>
           <p className="muted">
@@ -71,9 +71,9 @@ export default async function PersonPage({ params }: { params: Promise<{ id: str
         leaving={leaving}
         receipt={receipt}
         sheets={id !== "erased" ? { handover: `/chest/people/${id}/handover`, back: `/chest/people/${id}/return` } : null}
-        t={{ person: t.person, errors: t.errors, common: t.common, give: t.give, takeBack: t.takeBack, item: t.item, list: t.list }}
+        t={{ person: t.person, errors: t.errors, common: t.common, give: t.give, takeBack: t.takeBack, item: t.item, list: t.list, dialog: t.dialog, search: t.search }}
         locale={locale}
       />
-    </main>
+    </div>
   );
 }

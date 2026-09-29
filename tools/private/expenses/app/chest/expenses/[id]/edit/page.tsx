@@ -29,7 +29,7 @@ export default async function EditExpense({ params }: { params: Promise<{ id: st
       <div className="page-head">
         <h1>{e.trip ? t.form.editTrip : e.allowance ? t.form.editAllowance : t.form.editTitle}</h1>
       </div>
-      {e.refusedReason && <p className="notice bad" style={{ marginBottom: 24 }}>{format(t.home.refusedBecause, { reason: e.refusedReason })}</p>}
+      {e.refusedReason && <p className="notice bad refused-note">{format(t.home.refusedBecause, { reason: e.refusedReason })}</p>}
       {e.trip && <TripForm data={data} initial={initial} locale={locale} t={composeWords(t)} />}
       {e.allowance && <AllowanceForm data={data} initial={initial} locale={locale} t={composeWords(t)} />}
       {!e.trip && !e.allowance && <ExpenseForm data={data} initial={initial} locale={locale} t={composeWords(t)} />}

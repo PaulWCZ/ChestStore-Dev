@@ -85,7 +85,7 @@ export function RulesBox({ rules, team, tags, canSettings, t }: { rules: Rule[];
             <div>
               <PeoplePicker id="rule-assignee" name="assignee" label={s.ruleAssignee} value={assignee} onChange={setAssignee} search={localSearch(team)} suggestions={team.slice(0, 8)} suggestionsLabel={s.team} labels={{ ...t.peoplePicker, placeholder: s.ruleNobody }} />
               {/* The kit's single picker cannot be emptied: "nobody" is a button. */}
-              {assignee.length > 0 && <button type="button" className="link-button" onClick={() => setAssignee([])}>{s.ruleNobody}</button>}
+              {assignee.length > 0 && <button type="button" className="link-button" onClick={() => setAssignee([])}>{s.ruleClear}</button>}
             </div>
           </div>
           <div><button type="submit" className="button soft" disabled={pending}>{s.addRule}</button></div>

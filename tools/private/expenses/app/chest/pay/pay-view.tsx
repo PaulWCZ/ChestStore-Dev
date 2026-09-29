@@ -3,7 +3,7 @@
 import { Avatar, DateField, Dialog, EmptyState, useToast } from "@argentic/chest-ui/components";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import { BankForm } from "../../../components/bank-form.tsx";
+import { BankForm, EraseBank } from "../../../components/bank-form.tsx";
 import { DateBox, RowStamp, Stamp, Thumb, Warning, Warnings } from "../../../components/bits.tsx";
 import { Check, Download, FileIcon, Wallet } from "../../../components/icons.tsx";
 import type { Catalogue } from "../../../lib/i18n/index.ts";
@@ -45,6 +45,7 @@ export function PayView({ groups, ready, preview, files, recent, today, locale, 
   const [execution, setExecution] = useState(today);
   const [editing, setEditing] = useState<PayGroup | null>(null);
   const [typing, setTyping] = useState(false);
+  const [erasing, setErasing] = useState<PayGroup | null>(null);
   const errorText = (r: { error: keyof Catalogue["errors"]; values?: Record<string, string | number> }) => format(t.errors[r.error], r.values ?? {});
 
   function pay(g: PayGroup) {
@@ -164,8 +165,10 @@ export function PayView({ groups, ready, preview, files, recent, today, locale, 
       {/* Someone's bank details: the kit's dialog, which asks before losing
           an IBAN being typed. */}
       <Dialog open={editing !== null} title={editing ? format(t.pay.bankFor, { name: editing.name }) : ""} onClose={() => { setEditing(null); setTyping(false); }} dirty={typing} labels={t.dialog}>
-        {editing && <BankForm owner={editing.owner} current={editing.bank && { masked: editing.bank.masked, bic: editing.bank.bic, holder: editing.bank.holder, since: editing.bank.since }} t={t.bank} errors={t.errors} save={t.pay.saveBank} cancel={t.cancel} idPrefix="person-bank" onDirty={setTyping} onDone={() => { setEditing(null); setTyping(false); }} />}
+        {editing && <BankForm owner={editing.owner} current={editing.bank && { masked: editing.bank.masked, bic: editing.bank.bic, holder: editing.bank.holder, since: editing.bank.since }} t={t.bank} errors={t.errors} save={t.pay.saveBank} cancel={t.cancel} idPrefix="person-bank" onDirty={setTyping} onErase={() => setErasing(editing)} onDone={() => { setEditing(null); setTyping(false); }} />}
       </Dialog>
+      {/* Beside the dialog, not in it (see BankForm): erasing asks first. */}
+      <EraseBank owner={erasing?.owner ?? null} masked={erasing?.bank?.masked ?? ""} t={t.bank} errors={t.errors} cancel={t.cancel} onClose={() => setErasing(null)} onErased={() => setEditing(null)} />
       {files.length > 0 && (
         <section className="section" aria-label={t.pay.files}>
           <h2><span>{t.pay.files}</span></h2>

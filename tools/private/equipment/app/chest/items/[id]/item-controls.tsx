@@ -1,21 +1,25 @@
 "use client";
 
+import { Avatar, DateField, Dialog, Menu, PeoplePicker, Segmented, useToast } from "@argentic/chest-ui/components";
+import { localSearch } from "@argentic/chest-ui/components/logic";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, useTransition } from "react";
-import { Avatar } from "../../../../components/avatar.tsx";
-import { Dialog } from "../../../../components/dialog.tsx";
-import { Check, Dots, Give, Pencil, Plus, Print, Search, Seat, Sliders, TakeBack, Trash } from "../../../../components/icons.tsx";
-import { useToast } from "../../../../components/toast.tsx";
+import { StatusStamp } from "../../../../components/bits.tsx";
+import { Check, Dots, Give, Pencil, Plus, Print, Seat, Sliders, TakeBack, Trash } from "../../../../components/icons.tsx";
 import type { Catalogue } from "../../../../lib/i18n/index.ts";
 import { format, plural } from "../../../../lib/i18n/format.ts";
-import { chosenStatuses, fold, limits, type Kind, type Status } from "../../../../lib/model.ts";
+import type { Result } from "../../../../lib/errors.ts";
+import { chosenStatuses, limits, type Kind, type Status } from "../../../../lib/model.ts";
 import type { Holder } from "../../../../lib/view.ts";
 import { deleteItem, giveItem, giveSeat, handOut, markSeen, restock, restoreItem, setItemStatus, takeBackItem, takeSeat, undoTakeBack, undoTakeSeat, unmarkSeen } from "../../actions.ts";
 
 type Words = {
   item: Catalogue["item"]; give: Catalogue["give"]; takeBack: Catalogue["takeBack"]; status: Catalogue["status"]; errors: Catalogue["errors"]; common: Catalogue["common"];
   people: Catalogue["people"]; handOut: Catalogue["handOut"]; restock: Catalogue["restock"]; repair: Catalogue["repair"]; list: Catalogue["list"];
+  dialog: Catalogue["dialog"]; peoplePicker: Catalogue["peoplePicker"]; date: Catalogue["date"];
+  // The language of the words (the picker's plural rules).
+  lang: string;
 };
 type Colleague = { id: string; name: string; photo: string | null };
 type SeatHolder = { member: string; name: string; photo: string | null; since: string };
@@ -35,8 +39,8 @@ type Extras = {
 
 // Who has it, and the one action that follows: give it (in stock), take it
 // back (held), a seat (licence), hand some out (supplies). Rare actions —
-// edit, status, delete — are in "More". Taking back and deleting offer Undo
-// instead of a question.
+// edit, status, delete — are in "More" (the kit's menu). Taking back and
+// deleting offer Undo instead of a question.
 export function ItemControls({ item, holder, holderText, seatHolders, team, places, today, locale, extras, t }: {
   item: ItemInfo; holder: Holder; holderText: string; seatHolders: SeatHolder[]; team: Colleague[]; places: string[]; today: string; locale: string; extras: Extras; t: Words;
 }) {
@@ -53,18 +57,25 @@ export function ItemControls({ item, holder, holderText, seatHolders, team, plac
     }
   }, [extras.opening]); // eslint-disable-line react-hooks/exhaustive-deps
   const [error, setError] = useState<string | null>(null);
+  // Something typed in the open dialog: closing it asks first (the kit's).
+  const [dirty, setDirty] = useState(false);
   const fail = (r: { error: keyof Catalogue["errors"]; values?: Record<string, string | number> }) => setError(format(t.errors[r.error], r.values));
-  const open = (d: typeof dialog) => { setError(null); setDialog(d); };
+  const open = (d: typeof dialog) => { setError(null); setDirty(false); setDialog(d); };
+  const close = () => { setDirty(false); setDialog(null); };
   const held = holder.kind === "member" || holder.kind === "place";
+  const fault = (r: { error: keyof Catalogue["errors"]; values?: Record<string, string | number> }) => format(t.errors[r.error], r.values);
+  // An Undo that tells the truth: true when it worked, else why not.
+  const undoing = (step: () => Promise<Result>, then: () => void = () => router.refresh()) => async () => {
+    const u = await step();
+    if (u.ok) then();
+    return u.ok || fault(u);
+  };
 
   function remove() {
     start(async () => {
       const r = await deleteItem(item.id);
-      if (!r.ok) return toast(format(t.errors[r.error], r.values));
-      toast(format(t.item.deleted, { name: item.name }), {
-        label: t.common.undo,
-        run: () => void restoreItem(item.id).then(u => { if (u.ok) router.push(`/chest/items/${item.id}`); else toast(format(t.errors[u.error], u.values)); }),
-      });
+      if (!r.ok) return void toast({ text: fault(r), tone: "error" });
+      toast({ id: `delete-${item.id}`, text: format(t.item.deleted, { name: item.name }), undo: undoing(() => restoreItem(item.id), () => router.push(`/chest/items/${item.id}`)) });
       router.push("/chest/items");
     });
   }
@@ -72,28 +83,27 @@ export function ItemControls({ item, holder, holderText, seatHolders, team, plac
   function dropSeat(s: SeatHolder) {
     start(async () => {
       const r = await takeSeat(item.id, s.member);
-      if (!r.ok) return toast(format(t.errors[r.error], r.values));
-      toast(t.takeBack.seatDone, s.member.startsWith("mbr_") ? { label: t.common.undo, run: () => void undoTakeSeat(item.id, s.member).then(() => router.refresh()) } : undefined);
+      if (!r.ok) return void toast({ text: fault(r), tone: "error" });
+      toast({ id: `seat-${item.id}-${s.member}`, text: t.takeBack.seatDone, ...(s.member.startsWith("mbr_") ? { undo: undoing(() => undoTakeSeat(item.id, s.member)) } : {}) });
       router.refresh();
     });
   }
 
+  // Rare acts, in the kit's menu button. Delete is for a mistake (the
+  // status dialog says what to do with something the company no longer
+  // has); it offers Undo.
   const more = (
-    <details className="menu">
-      <summary className="button quiet"><Dots /><span>{t.common.more}</span></summary>
-      <div className="menu-list" role="group">
-        <Link className="menu-item" href={`/chest/items/${item.id}/edit`}><Pencil />{t.common.edit}</Link>
-        <button type="button" className="menu-item" onClick={() => open("status")}><Sliders />{t.item.status}</button>
-        <button type="button" className="menu-item danger" onClick={remove} disabled={pending}><Trash />{t.common.delete}</button>
-        <p className="menu-hint">{t.item.deleteHint}</p>
-      </div>
-    </details>
+    <Menu label={t.common.more} showLabel align="start" icon={<Dots />} items={[
+      { label: t.common.edit, href: `/chest/items/${item.id}/edit`, icon: <Pencil /> },
+      { label: t.item.status, onSelect: () => open("status"), icon: <Sliders /> },
+      { label: t.common.delete, onSelect: remove, tone: "danger", disabled: pending, icon: <Trash /> },
+    ]} />
   );
 
   function seen(on: boolean) {
     start(async () => {
       const r = on ? await markSeen({ itemId: item.id }) : await unmarkSeen(item.id);
-      if (!r.ok) return toast(format(t.errors[r.error], r.values));
+      if (!r.ok) return void toast({ text: fault(r), tone: "error" });
       router.refresh();
     });
   }
@@ -138,7 +148,7 @@ export function ItemControls({ item, holder, holderText, seatHolders, team, plac
             <ul className="seat-list">
               {seatHolders.map((s, i) => (
                 <li key={s.member + i}>
-                  <Avatar name={s.name} photo={s.photo} size={28} />
+                  <Avatar name={s.name} photo={s.photo} size="m" />
                   <span className="seat-name">{s.name}<span className="small muted block">{s.since}</span></span>
                   <button type="button" className="button small quiet" disabled={pending} onClick={() => dropSeat(s)}><TakeBack /><span className="visually-hidden">{format(t.item.takeSeat, { name: s.name })}</span><span aria-hidden="true">{t.item.takeBack}</span></button>
                 </li>
@@ -153,7 +163,7 @@ export function ItemControls({ item, holder, holderText, seatHolders, team, plac
       ) : (
         <>
           {holder.kind === "member" ? (
-            <p className="holder-line"><Avatar name={holder.name} photo={holder.photo} size={40} /><span><strong className={holder.gone ? "gone" : undefined}>{holderText}</strong>{item.heldSince && <span className="muted block">{format(t.item.withSince, { date: item.heldSince })}</span>}</span></p>
+            <p className="holder-line"><Avatar name={holder.name} photo={holder.photo} size="l" /><span><strong className={holder.gone ? "gone" : undefined}>{holderText}</strong>{item.heldSince && <span className="muted block">{format(t.item.withSince, { date: item.heldSince })}</span>}</span></p>
           ) : holder.kind === "place" ? (
             <p className="holder-line"><strong>{format(t.item.atPlace, { place: holder.name })}</strong>{item.heldSince && <span className="muted block">{format(t.item.withSince, { date: item.heldSince })}</span>}</p>
           ) : (
@@ -181,62 +191,62 @@ export function ItemControls({ item, holder, holderText, seatHolders, team, plac
         </>
       )}
 
-      <Dialog open={dialog === "give"} title={format(t.give.title, { name: item.name })} closeLabel={t.common.close} onClose={() => setDialog(null)}>
-        <GiveForm item={item} team={team.filter(p => !(holder.kind === "member" && holder.id === p.id))} places={places} today={today} t={t} error={error} pending={pending}
+      <Dialog open={dialog === "give"} title={format(t.give.title, { name: item.name })} labels={t.dialog} dirty={dirty} onClose={close}>
+        <GiveForm item={item} team={team.filter(p => !(holder.kind === "member" && holder.id === p.id))} places={places} today={today} t={t} error={error} pending={pending} onDirty={setDirty}
           onSubmit={(to, note, day, label) => start(async () => {
             const r = await giveItem(item.id, { to, note, day });
             if (!r.ok) return fail(r);
-            setDialog(null);
+            close();
             toast("member" in to ? format(t.give.done, { name: label }) : format(t.give.moved, { place: label }));
             router.refresh();
           })} />
       </Dialog>
-      <Dialog open={dialog === "seat"} title={format(t.give.seatTitle, { name: item.name })} closeLabel={t.common.close} onClose={() => setDialog(null)}>
-        <PeoplePicker people={team.filter(p => !seatHolders.some(s => s.member === p.id))} t={t} error={error} pending={pending}
-          onPick={p => start(async () => {
+      <Dialog open={dialog === "seat"} title={format(t.give.seatTitle, { name: item.name })} labels={t.dialog} onClose={close}>
+        <SeatForm team={team.filter(p => !seatHolders.some(s => s.member === p.id))} t={t} error={error} pending={pending}
+          onSubmit={p => start(async () => {
             const r = await giveSeat(item.id, p.id);
             if (!r.ok) return fail(r);
-            setDialog(null);
+            close();
             toast(format(t.give.seatDone, { name: p.name }));
             router.refresh();
           })} />
       </Dialog>
-      <Dialog open={dialog === "back"} title={format(t.takeBack.title, { name: item.name })} closeLabel={t.common.close} onClose={() => setDialog(null)}>
-        <BackForm from={holderText} today={today} t={t} error={error} pending={pending}
+      <Dialog open={dialog === "back"} title={format(t.takeBack.title, { name: item.name })} labels={t.dialog} dirty={dirty} onClose={close}>
+        <BackForm from={holderText} today={today} t={t} error={error} pending={pending} onDirty={setDirty}
           onSubmit={(note, repair, day) => start(async () => {
             const r = await takeBackItem(item.id, { note, day, status: repair ? "in_repair" : "in_stock" });
             if (!r.ok) return fail(r);
-            setDialog(null);
+            close();
             const from = r.value;
-            toast(format(repair ? t.takeBack.doneRepair : t.takeBack.done, { name: item.name }), { label: t.common.undo, run: () => void undoTakeBack(item.id, from).then(() => router.refresh()) });
+            toast({ id: `back-${item.id}`, text: format(repair ? t.takeBack.doneRepair : t.takeBack.done, { name: item.name }), undo: undoing(() => undoTakeBack(item.id, from)) });
             router.refresh();
           })} />
       </Dialog>
-      <Dialog open={dialog === "status"} title={format(t.item.statusTitle, { name: item.name })} closeLabel={t.common.close} onClose={() => setDialog(null)}>
-        <StatusForm item={item} today={today} t={t} error={error} pending={pending}
+      <Dialog open={dialog === "status"} title={format(t.item.statusTitle, { name: item.name })} labels={t.dialog} dirty={dirty} onClose={close}>
+        <StatusForm item={item} today={today} t={t} error={error} pending={pending} onDirty={setDirty}
           onSubmit={(status, note, repair) => start(async () => {
             const r = await setItemStatus(item.id, status, note, repair);
             if (!r.ok) return fail(r);
-            setDialog(null);
+            close();
             router.refresh();
           })} />
       </Dialog>
-      <Dialog open={dialog === "out"} title={format(t.handOut.title, { name: item.name })} closeLabel={t.common.close} onClose={() => setDialog(null)}>
-        <HandOutForm max={item.quantity ?? 0} team={team} places={places} t={t} error={error} pending={pending}
+      <Dialog open={dialog === "out"} title={format(t.handOut.title, { name: item.name })} labels={t.dialog} dirty={dirty} onClose={close}>
+        <HandOutForm max={item.quantity ?? 0} team={team} places={places} t={t} error={error} pending={pending} onDirty={setDirty}
           onSubmit={(qty, to, note) => start(async () => {
             const r = await handOut(item.id, { qty, to, note });
             if (!r.ok) return fail(r);
-            setDialog(null);
+            close();
             toast(plural(t.handOut.done, Number(qty), locale));
             router.refresh();
           })} />
       </Dialog>
-      <Dialog open={dialog === "in"} title={format(t.restock.title, { name: item.name })} closeLabel={t.common.close} onClose={() => setDialog(null)}>
-        <RestockForm t={t} error={error} pending={pending}
+      <Dialog open={dialog === "in"} title={format(t.restock.title, { name: item.name })} labels={t.dialog} dirty={dirty} onClose={close}>
+        <RestockForm t={t} error={error} pending={pending} onDirty={setDirty}
           onSubmit={(qty, note) => start(async () => {
             const r = await restock(item.id, { qty, note });
             if (!r.ok) return fail(r);
-            setDialog(null);
+            close();
             toast(plural(t.restock.done, Number(qty), locale));
             router.refresh();
           })} />
@@ -245,74 +255,72 @@ export function ItemControls({ item, holder, holderText, seatHolders, team, plac
   );
 }
 
-// Everyone who has the tool, found by the start of a name (accents aside).
-function PeoplePicker({ people, t, error, pending, onPick, picked }: { people: Colleague[]; t: Words; error: string | null; pending: boolean; onPick: (p: Colleague) => void; picked?: string }) {
-  const [q, setQ] = useState("");
-  const shown = useMemo(() => {
-    const k = fold(q);
-    return people.filter(p => !k || fold(p.name).split(" ").some(w => w.startsWith(k)) || fold(p.name).startsWith(k)).slice(0, 50);
-  }, [people, q]);
+// The kit's people picker over the people who have the tool (the page gave
+// them): the start of any word of a name, accents aside; with nothing
+// typed, the first of them.
+function TeamPicker({ team, value, onChange, t, error }: { team: Colleague[]; value: Colleague | null; onChange: (p: Colleague | null) => void; t: Words; error?: string | null }) {
+  const search = useMemo(() => localSearch(team), [team]);
+  const suggestions = useMemo(() => team.slice(0, 50), [team]);
   return (
-    <div className="stack">
-      <div className="search-field">
-        <Search />
-        <label className="visually-hidden" htmlFor="pick-q">{t.give.find}</label>
-        <input id="pick-q" className="field" type="search" value={q} onChange={e => setQ(e.target.value)} placeholder={t.give.find} autoFocus autoComplete="off" />
-      </div>
-      {shown.length === 0 ? <p className="muted">{t.give.noOne}</p> : (
-        <ul className="pick-list">
-          {shown.map(p => (
-            <li key={p.id}>
-              <button type="button" className={p.id === picked ? "pick picked" : "pick"} aria-pressed={p.id === picked} disabled={pending} onClick={() => onPick(p)}>
-                <Avatar name={p.name} photo={p.photo} size={28} /><span>{p.name}</span>
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
-      {error && <p className="error" role="alert">{error}</p>}
-    </div>
+    <PeoplePicker
+      label={t.give.who}
+      search={search}
+      value={value ? [value] : []}
+      onChange={v => onChange(v[0] ?? null)}
+      suggestions={suggestions}
+      suggestionsLabel={t.give.team}
+      error={error ?? null}
+      labels={{ ...t.peoplePicker, placeholder: t.give.find, noMatch: t.give.noOne }}
+      lang={t.lang}
+    />
   );
 }
 
-function GiveForm({ item, team, places, today, t, error, pending, onSubmit }: {
-  item: ItemInfo; team: Colleague[]; places: string[]; today: string; t: Words; error: string | null; pending: boolean;
+// A seat of a licence: whom to, then give it.
+function SeatForm({ team, t, error, pending, onSubmit }: { team: Colleague[]; t: Words; error: string | null; pending: boolean; onSubmit: (p: Colleague) => void }) {
+  const [person, setPerson] = useState<Colleague | null>(null);
+  return (
+    <form className="stack" onSubmit={e => { e.preventDefault(); if (person) onSubmit(person); }}>
+      <TeamPicker team={team} value={person} onChange={setPerson} t={t} />
+      {error && <p className="error" role="alert">{error}</p>}
+      <div className="row end">
+        <button type="submit" className="button" disabled={pending || !person}><Seat />{person ? format(t.give.seatTo, { name: person.name }) : t.item.giveSeat}</button>
+      </div>
+    </form>
+  );
+}
+
+function GiveForm({ item, team, places, today, t, error, pending, onDirty, onSubmit }: {
+  item: ItemInfo; team: Colleague[]; places: string[]; today: string; t: Words; error: string | null; pending: boolean; onDirty: (dirty: boolean) => void;
   onSubmit: (to: { member: string } | { place: string }, note: string, day: string, label: string) => void;
 }) {
   const [mode, setMode] = useState<"person" | "place">("person");
   const [person, setPerson] = useState<Colleague | null>(null);
   const [place, setPlace] = useState("");
   const [note, setNote] = useState("");
-  const [day, setDay] = useState(today);
-  const ready = mode === "person" ? person !== null : place.trim() !== "" && place.trim() !== item.placeName;
+  const [day, setDay] = useState<string | null>(today);
+  useEffect(() => onDirty(note.trim() !== "" || place.trim() !== ""), [note, place]); // eslint-disable-line react-hooks/exhaustive-deps
+  const ready = day !== null && (mode === "person" ? person !== null : place.trim() !== "" && place.trim() !== item.placeName);
   return (
     <form className="stack" onSubmit={e => {
       e.preventDefault();
       if (!ready) return;
-      onSubmit(mode === "person" ? { member: person!.id } : { place: place.trim() }, note, day, mode === "person" ? person!.name : place.trim());
+      onSubmit(mode === "person" ? { member: person!.id } : { place: place.trim() }, note, day!, mode === "person" ? person!.name : place.trim());
     }}>
-      <div className="segmented" role="radiogroup" aria-label={t.item.with}>
-        <label className={mode === "person" ? "on" : undefined}><input type="radio" name="give-mode" checked={mode === "person"} onChange={() => setMode("person")} />{t.give.toPerson}</label>
-        <label className={mode === "place" ? "on" : undefined}><input type="radio" name="give-mode" checked={mode === "place"} onChange={() => setMode("place")} />{t.give.toPlace}</label>
-      </div>
+      <Segmented label={t.item.with} name="give-mode" value={mode} onChange={setMode} options={[{ value: "person", label: t.give.toPerson }, { value: "place", label: t.give.toPlace }]} />
       {mode === "person" ? (
-        <PeoplePicker people={team} t={t} error={null} pending={pending} picked={person?.id} onPick={setPerson} />
+        <TeamPicker team={team} value={person} onChange={setPerson} t={t} />
       ) : (
         <div className="form-field">
           <label className="label" htmlFor="give-place">{t.give.place}</label>
-          <input id="give-place" className="field" list="give-places" value={place} onChange={e => setPlace(e.target.value)} maxLength={limits.place} placeholder={t.give.placePlaceholder} autoFocus />
+          <input id="give-place" className="field" list="give-places" value={place} onChange={e => setPlace(e.target.value)} maxLength={limits.place} placeholder={t.give.placePlaceholder} />
           <datalist id="give-places">{places.map(p => <option key={p} value={p} />)}</datalist>
         </div>
       )}
-      <div className="two">
-        <div className="form-field">
-          <label className="label" htmlFor="give-day">{t.give.day}</label>
-          <input id="give-day" className="field" type="date" value={day} max={today} onChange={e => setDay(e.target.value)} required />
-        </div>
-        <div className="form-field">
-          <label className="label" htmlFor="give-note">{t.give.note} <span className="muted">({t.common.optional})</span></label>
-          <input id="give-note" className="field" value={note} onChange={e => setNote(e.target.value)} maxLength={limits.condition} placeholder={t.give.notePlaceholder} />
-        </div>
+      <DateField label={t.give.day} value={day} onChange={setDay} today={today} max={today} required labels={t.date} chips={[{ label: t.date.today, value: today }]} />
+      <div className="form-field">
+        <label className="label" htmlFor="give-note">{t.give.note} <span className="muted">({t.common.optional})</span></label>
+        <input id="give-note" className="field" value={note} onChange={e => setNote(e.target.value)} maxLength={limits.condition} placeholder={t.give.notePlaceholder} />
       </div>
       {error && <p className="error" role="alert">{error}</p>}
       <div className="row end">
@@ -322,68 +330,62 @@ function GiveForm({ item, team, places, today, t, error, pending, onSubmit }: {
   );
 }
 
-function BackForm({ from, today, t, error, pending, onSubmit }: { from: string; today: string; t: Words; error: string | null; pending: boolean; onSubmit: (note: string, repair: boolean, day: string) => void }) {
+function BackForm({ from, today, t, error, pending, onDirty, onSubmit }: { from: string; today: string; t: Words; error: string | null; pending: boolean; onDirty: (dirty: boolean) => void; onSubmit: (note: string, repair: boolean, day: string) => void }) {
   const [note, setNote] = useState("");
   const [repair, setRepair] = useState(false);
-  const [day, setDay] = useState(today);
+  const [day, setDay] = useState<string | null>(today);
+  useEffect(() => onDirty(note.trim() !== ""), [note]); // eslint-disable-line react-hooks/exhaustive-deps
   return (
-    <form className="stack" onSubmit={e => { e.preventDefault(); onSubmit(note, repair, day); }}>
+    <form className="stack" onSubmit={e => { e.preventDefault(); if (day) onSubmit(note, repair, day); }}>
       <p className="strong">{format(t.takeBack.from, { name: from })}</p>
-      <div className="two">
-        <div className="form-field">
-          <label className="label" htmlFor="back-day">{t.takeBack.day}</label>
-          <input id="back-day" className="field" type="date" value={day} max={today} onChange={e => setDay(e.target.value)} required />
-        </div>
-        <div className="form-field">
-          <label className="label" htmlFor="back-note">{t.takeBack.note} <span className="muted">({t.common.optional})</span></label>
-          <input id="back-note" className="field" value={note} onChange={e => setNote(e.target.value)} maxLength={limits.condition} placeholder={t.takeBack.notePlaceholder} autoFocus />
-        </div>
+      <div className="form-field">
+        <label className="label" htmlFor="back-note">{t.takeBack.note} <span className="muted">({t.common.optional})</span></label>
+        <input id="back-note" className="field" value={note} onChange={e => setNote(e.target.value)} maxLength={limits.condition} placeholder={t.takeBack.notePlaceholder} />
       </div>
+      <DateField label={t.takeBack.day} value={day} onChange={setDay} today={today} max={today} required labels={t.date} chips={[{ label: t.date.today, value: today }]} />
       <label className="check"><input type="checkbox" checked={repair} onChange={e => setRepair(e.target.checked)} /><span>{t.takeBack.repair}</span></label>
       {error && <p className="error" role="alert">{error}</p>}
       <div className="row end">
-        <button type="submit" className="button" disabled={pending}><TakeBack />{t.takeBack.submit}</button>
+        <button type="submit" className="button" disabled={pending || day === null}><TakeBack />{t.takeBack.submit}</button>
       </div>
     </form>
   );
 }
 
-function StatusForm({ item, today, t, error, pending, onSubmit }: {
-  item: ItemInfo; today: string; t: Words; error: string | null; pending: boolean; onSubmit: (status: string, note: string, repair: { ref?: string; due?: string; cost?: string }) => void;
+function StatusForm({ item, today, t, error, pending, onDirty, onSubmit }: {
+  item: ItemInfo; today: string; t: Words; error: string | null; pending: boolean; onDirty: (dirty: boolean) => void; onSubmit: (status: string, note: string, repair: { ref?: string; due?: string; cost?: string }) => void;
 }) {
   const choices = item.kind !== "asset" ? (["in_stock", "retired"] as const) : chosenStatuses;
   const [status, setStatus] = useState<string>(choices.includes(item.status as never) ? item.status : choices[0]);
   const [note, setNote] = useState("");
   const [ref, setRef] = useState("");
-  const [due, setDue] = useState("");
+  const [due, setDue] = useState<string | null>(null);
   const [cost, setCost] = useState("");
+  useEffect(() => onDirty(note.trim() !== "" || ref.trim() !== "" || cost.trim() !== ""), [note, ref, cost]); // eslint-disable-line react-hooks/exhaustive-deps
   // Going to repair: the repairer's ticket and when it comes back; coming
   // back from it: what it cost.
   const toRepair = status === "in_repair";
   const fromRepair = item.status === "in_repair" && status !== "in_repair";
   return (
-    <form className="stack" onSubmit={e => { e.preventDefault(); onSubmit(status, note, toRepair ? { ref, due } : fromRepair ? { cost } : {}); }}>
+    <form className="stack" onSubmit={e => { e.preventDefault(); onSubmit(status, note, toRepair ? { ref, due: due ?? "" } : fromRepair ? { cost } : {}); }}>
       <fieldset className="choices">
         <legend className="visually-hidden">{t.item.status}</legend>
         {choices.map(s => (
           <label key={s} className={status === s ? "choice picked" : "choice"}>
             <input type="radio" name="status" value={s} checked={status === s} onChange={() => setStatus(s)} />
-            <span className={`stamp st-${s}`}>{t.status[s]}</span>
+            <StatusStamp status={s} text={t.status[s]} />
           </label>
         ))}
       </fieldset>
-      <p className="hint">{item.kind === "licence" ? t.item.statusHintLicence : t.item.statusHint}</p>
+      <p className="hint">{item.kind === "licence" ? t.item.statusHintLicence : t.item.statusHint} {t.item.deleteHint}</p>
       {toRepair && (
-        <div className="two">
+        <>
           <div className="form-field">
             <label className="label" htmlFor="repair-ref">{t.repair.ref} <span className="muted">({t.common.optional})</span></label>
             <input id="repair-ref" className="field mono" value={ref} onChange={e => setRef(e.target.value)} maxLength={limits.ref} placeholder={t.repair.refPlaceholder} autoComplete="off" />
           </div>
-          <div className="form-field">
-            <label className="label" htmlFor="repair-due">{t.repair.due} <span className="muted">({t.common.optional})</span></label>
-            <input id="repair-due" className="field" type="date" min={today} value={due} onChange={e => setDue(e.target.value)} />
-          </div>
-        </div>
+          <DateField label={`${t.repair.due} (${t.common.optional})`} value={due} onChange={setDue} today={today} min={today} labels={t.date} />
+        </>
       )}
       {fromRepair && (
         <div className="form-field">
@@ -405,8 +407,8 @@ function StatusForm({ item, today, t, error, pending, onSubmit }: {
 
 // Hand some out: how many, for whom (nobody in particular, a person, a
 // place), a note.
-function HandOutForm({ max, team, places, t, error, pending, onSubmit }: {
-  max: number; team: Colleague[]; places: string[]; t: Words; error: string | null; pending: boolean;
+function HandOutForm({ max, team, places, t, error, pending, onDirty, onSubmit }: {
+  max: number; team: Colleague[]; places: string[]; t: Words; error: string | null; pending: boolean; onDirty: (dirty: boolean) => void;
   onSubmit: (qty: string, to: { member: string } | { place: string } | null, note: string) => void;
 }) {
   const [qty, setQty] = useState("1");
@@ -414,6 +416,7 @@ function HandOutForm({ max, team, places, t, error, pending, onSubmit }: {
   const [person, setPerson] = useState<Colleague | null>(null);
   const [place, setPlace] = useState("");
   const [note, setNote] = useState("");
+  useEffect(() => onDirty(note.trim() !== "" || place.trim() !== ""), [note, place]); // eslint-disable-line react-hooks/exhaustive-deps
   const n = Number(qty);
   const ready = Number.isInteger(n) && n >= 1 && n <= max && (mode === "nobody" || (mode === "person" ? person !== null : place.trim() !== ""));
   return (
@@ -424,14 +427,10 @@ function HandOutForm({ max, team, places, t, error, pending, onSubmit }: {
     }}>
       <div className="form-field narrow-field">
         <label className="label" htmlFor="out-qty">{t.handOut.qty}</label>
-        <input id="out-qty" className="field" type="number" min={1} max={max} inputMode="numeric" value={qty} onChange={e => setQty(e.target.value)} required autoFocus />
+        <input id="out-qty" className="field" type="number" min={1} max={max} inputMode="numeric" value={qty} onChange={e => setQty(e.target.value)} required />
       </div>
-      <div className="segmented" role="radiogroup" aria-label={t.handOut.to}>
-        <label className={mode === "nobody" ? "on" : undefined}><input type="radio" name="out-mode" checked={mode === "nobody"} onChange={() => setMode("nobody")} />{t.handOut.nobody}</label>
-        <label className={mode === "person" ? "on" : undefined}><input type="radio" name="out-mode" checked={mode === "person"} onChange={() => setMode("person")} />{t.give.toPerson}</label>
-        <label className={mode === "place" ? "on" : undefined}><input type="radio" name="out-mode" checked={mode === "place"} onChange={() => setMode("place")} />{t.give.toPlace}</label>
-      </div>
-      {mode === "person" && <PeoplePicker people={team} t={t} error={null} pending={pending} picked={person?.id} onPick={setPerson} />}
+      <Segmented label={t.handOut.to} name="out-mode" value={mode} onChange={setMode} options={[{ value: "nobody", label: t.handOut.nobody }, { value: "person", label: t.give.toPerson }, { value: "place", label: t.give.toPlace }]} />
+      {mode === "person" && <TeamPicker team={team} value={person} onChange={setPerson} t={t} />}
       {mode === "place" && (
         <div className="form-field">
           <label className="label" htmlFor="out-place">{t.give.place}</label>
@@ -451,15 +450,16 @@ function HandOutForm({ max, team, places, t, error, pending, onSubmit }: {
   );
 }
 
-function RestockForm({ t, error, pending, onSubmit }: { t: Words; error: string | null; pending: boolean; onSubmit: (qty: string, note: string) => void }) {
+function RestockForm({ t, error, pending, onDirty, onSubmit }: { t: Words; error: string | null; pending: boolean; onDirty: (dirty: boolean) => void; onSubmit: (qty: string, note: string) => void }) {
   const [qty, setQty] = useState("");
   const [note, setNote] = useState("");
+  useEffect(() => onDirty(qty.trim() !== "" || note.trim() !== ""), [qty, note]); // eslint-disable-line react-hooks/exhaustive-deps
   const n = Number(qty);
   return (
     <form className="stack" onSubmit={e => { e.preventDefault(); if (Number.isInteger(n) && n >= 1) onSubmit(qty, note); }}>
       <div className="form-field narrow-field">
         <label className="label" htmlFor="in-qty">{t.restock.qty}</label>
-        <input id="in-qty" className="field" type="number" min={1} max={limits.quantity} inputMode="numeric" value={qty} onChange={e => setQty(e.target.value)} required autoFocus />
+        <input id="in-qty" className="field" type="number" min={1} max={limits.quantity} inputMode="numeric" value={qty} onChange={e => setQty(e.target.value)} required />
       </div>
       <div className="form-field">
         <label className="label" htmlFor="in-note">{t.restock.note} <span className="muted">({t.common.optional})</span></label>

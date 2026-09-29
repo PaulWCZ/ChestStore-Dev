@@ -26,9 +26,12 @@ no import outside it. Read `README.md` first.
 | `lib/lifecycle.ts` | Leave, removal, erasure |
 | `lib/share.ts` | Events to other tools (proposal): `crm.deal.won`, `crm.deal.reopened` — the contract Quotes reads; change it only with Quotes |
 | `lib/team.ts`, `lib/people.ts` | Who may own things; names from ids |
-| `lib/i18n/en.ts`, `fr.ts` | Every word. English is the source |
+| `lib/i18n/en.ts`, `fr.ts` | Every word. English is the source; the UI kit's sections (`toast`, `dialog`, `peoplePicker`, `date`, `files`, `table`, `searchBox`) are given to its components as `labels` |
+| `lib/theme.ts` | The identity "Sales desk" (`defineTheme`, equal to the catalogue's `sales-desk`) and `currentLook()` (the Chest's choice, else the identity) |
+| `app/tokens.css`, `app/globals.css` | Tool tokens defined from contract tokens; the tool's components (contract tokens only, a few `ck-` classes restyled) |
+| `components/shell.tsx` | The kit's AppShell: sections, SearchBox ("/"), the "More" Menu |
 | `app/chest/actions.ts` | Server actions: thin, re-read the member |
-| `app/chest/**/page.tsx` | Server pages; `app/chest/ui/*` shared client views (`combobox.tsx` + `pickers.tsx` search as one types, `bulk.tsx`, `step-box.tsx`, `files-box.tsx`, `custom-fields.tsx`, `merge-dialog.tsx`, `pager.tsx`); `app/chest/deals/board.tsx` the dnd-kit board |
+| `app/chest/**/page.tsx` | Server pages; `app/chest/ui/*` shared client views (`combobox.tsx` + `pickers.tsx` search records as one types — the kit's keys and list classes, `owner-select.tsx` the kit's PeoplePicker for owners, `bulk.tsx`, `step-box.tsx`, `files-box.tsx`, `custom-fields.tsx`, `merge-dialog.tsx`, `pager.tsx`); `app/chest/deals/board.tsx` the dnd-kit board |
 | `app/chest-events`, `app/chest-jobs/[name]` | Signed routes of the Chest |
 | `test/` | `node:test` with `fakeChest`; PGlite or `TEST_DATABASE_URL` |
 
@@ -40,6 +43,27 @@ TEST_DATABASE_URL=postgres://postgres:postgres@127.0.0.1:5432/postgres npm test
 ```
 
 ## Rules
+
+- **The UI kit first** (`@argentic/chest-ui/components`, vendored in
+  `vendor/`, `node ../../../scripts/add-ui.mjs` to refresh): toasts
+  (`useToast`: an Undo that returns `true` or the reason it failed; `tone:
+  "error"`), `Dialog` (with `dirty` and a `footer` whose submit names the
+  form), `Confirm` for what cannot be undone (never `window.confirm`),
+  `PeoplePicker` (owners), `DateField` / `TimeSelect` (never `type="date"`),
+  `DataTable` (in a client component: its columns are functions),
+  `SearchBox`, `Segmented`, `Tabs`, `Menu`, `FilePicker`, `StatusBadge`,
+  `Avatar`, `EmptyState`, `AppShell`, `NoAccess`, `useAutoRefresh`. The
+  record pickers (`combobox.tsx`) stay the tool's: they create records.
+- **CSS names only contract tokens** (`ui/tokens/CONTRACT.md`) or tool
+  tokens of `app/tokens.css` defined from them — never a colour
+  (`test/theme.test.ts` checks it). Text on a soft ground is its `-ink`;
+  a filled state button has `--surface` text; field edges `--line-strong`;
+  a filled control's edge `--accent-line`; categories and chart series
+  `--cat-N`.
+- Words follow `lab/GLOSSARY.md` (`node ../../../scripts/lint-words.mjs .`
+  must say 0): Undo « Annuler l’action », Delete/Supprimer (gone),
+  Erase/Effacer (a person's data, GDPR), Remove/Retirer (out of a list);
+  a narrow no-break space before `: ; ? !` and inside « ».
 
 - Identity only from `member(request)` (`lib/session.ts`); store `mbr_…`
   ids, never names or emails of the team.

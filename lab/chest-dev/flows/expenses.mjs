@@ -47,7 +47,7 @@ await step("phone: Hugo snaps the receipt, types the amount, picks Meals, saves"
   await page.locator("#note").fill("Lunch with Mme Garnier");
   await page.getByRole("button", { name: "Save", exact: true }).click();
   await page.waitForURL(/\/chest$/u);
-  await page.waitForSelector(".toast");
+  await page.waitForSelector(".ck-toast");
   const text = await page.locator("main").innerText();
   expect(text.includes("Café Kitsuné") && text.includes("€41.00"), "in the drafts");
   const thumb = page.locator(".row", { hasText: "Café Kitsuné" }).locator("img.thumb");
@@ -62,7 +62,10 @@ await step("phone: the photo is read in the browser — amount, day and shop sug
   expect((await page.locator(".reading").innerText()).startsWith("Read from the photo: amount, VAT, date, where"), "status: " + (await page.locator(".reading").innerText()));
   expect((await page.locator("#amount").inputValue()) === "41.00", "amount " + (await page.locator("#amount").inputValue()));
   expect((await page.locator("#merchant").inputValue()) === "CAFÉ KITSUNÉ", "merchant " + (await page.locator("#merchant").inputValue()));
-  expect((await page.locator("#date").inputValue()) === "2026-09-28", "date " + (await page.locator("#date").inputValue()));
+  // The kit's DateField: the day as typed in the reader's language, the ISO day in the form.
+  expect((await page.locator("input[type=hidden][name=date]").inputValue()) === "2026-09-28", "date " + (await page.locator("input[type=hidden][name=date]").inputValue()));
+  expect((await page.locator("#date").inputValue()) === "28/09/2026", "date as typed " + (await page.locator("#date").inputValue()));
+  expect(await page.locator(".date-suggested").count() === 1, "the date is marked as read");
   expect(await page.locator(".money-input.suggested").count() === 1, "the amount is marked as read");
   await page.locator("#amount").fill("41.50");
   expect(await page.locator(".money-input.suggested").count() === 0, "typed over: no longer marked");
@@ -99,8 +102,8 @@ await step("delete a draft, then undo", async () => {
   await page.getByRole("button", { name: "Delete" }).click();
   await page.waitForURL(/\/chest$/u);
   expect(!(await page.locator("main").innerText()).includes("Chez Janou"), "gone");
-  await page.locator(".toast button").click();
-  await page.waitForTimeout(1200);
+  await page.locator(".ck-toast-undo").click();
+  await page.locator(".ck-toast", { hasText: "Undone." }).waitFor();
   await page.reload();
   expect((await page.locator("main").innerText()).includes("Chez Janou"), "back after undo");
 });
@@ -122,7 +125,7 @@ await step("Inès, in French: refuses the taxi without receipt, approves the res
   const hugo = page.locator("section.paper", { hasText: "Hugo Bernard" });
   expect((await hugo.innerText()).includes("Pas de justificatif"), "warning in French");
   await hugo.getByRole("button", { name: /^Refuser.*G7 Taxi/u }).click();
-  await hugo.getByPlaceholder("Pourquoi ? La personne lira ce message.").fill("Il manque le reçu du taxi : ajoutez une photo.");
+  await hugo.getByPlaceholder(/^Pourquoi\s\? La personne lira ce message\.$/u).fill("Il manque le reçu du taxi : ajoutez une photo.");
   await hugo.getByRole("button", { name: "Refuser et renvoyer" }).click();
   await page.waitForSelector("text=Renvoyée à Hugo Bernard, avec votre motif.");
   await page.waitForTimeout(800);
@@ -168,8 +171,8 @@ await step("Inès: “Approve all” leaves the taxi sent again after its refusa
   await page.goto(origin + "/chest/approve");
   const hugo = page.locator("section.paper", { hasText: "Hugo Bernard" });
   const taxi = hugo.locator(".row", { hasText: "G7 Taxi" });
-  expect((await taxi.innerText()).includes("Renvoyée après un refus : « Il manque le reçu du taxi"), "the line says it was refused before");
-  expect((await hugo.innerText()).includes("1 a une alerte : regardez-la d’abord."), "says why it is left");
+  expect(/Renvoyée après un refus\s:\s«\sIl manque le reçu du taxi/u.test(await taxi.innerText()), "the line says it was refused before");
+  expect(/1 a une alerte\s: regardez-la d’abord\./u.test(await hugo.innerText()), "says why it is left");
   await hugo.getByRole("button", { name: "Valider celle sans alerte" }).click();
   await page.waitForSelector("text=1 dépense validée.");
   await page.waitForTimeout(800);
@@ -190,12 +193,14 @@ await step("Camille pays Hugo back, undoes it, pays again", async () => {
   await page.goto(origin + "/chest/pay");
   const hugo = page.locator("section.paper", { hasText: "Hugo Bernard" });
   await hugo.getByRole("button", { name: "Marquer remboursé" }).click();
-  await page.waitForSelector(".toast");
-  await page.locator(".toast button").click();
-  await page.waitForSelector("text=De retour dans « à rembourser ».");
+  await page.waitForSelector(".ck-toast");
+  await page.locator(".ck-toast-undo").click();
+  await page.locator(".ck-toast", { hasText: "Action annulée." }).waitFor();
+  // The Undo tells the truth: Hugo's "Paid back" left his bell.
+  expect(!(await (await page.request.get(origin + "/_dev")).text()).includes("Paid back:"), "Hugo's bell no longer says paid");
   await page.reload();
   await page.locator("section.paper", { hasText: "Hugo Bernard" }).getByRole("button", { name: "Marquer remboursé" }).click();
-  await page.waitForSelector(".toast");
+  await page.waitForSelector(".ck-toast");
   await page.waitForTimeout(1000);
   await page.reload();
   expect(await page.locator("section.paper", { hasText: "Hugo Bernard" }).count() === 0, "Hugo paid");
@@ -238,6 +243,45 @@ await step("Camille pays the others by one transfer file (SEPA), then enters Lé
   expect(dev.includes("Camille Martin a modifié vos coordonnées bancaires (compte finissant par 7034)"), "Léa told, in French");
 });
 
+await step("Camille: a half-typed IBAN is not lost by a stray Escape; erasing bank details asks first", async () => {
+  await page.goto(origin + "/chest/pay");
+  const lea = page.locator("section.paper", { hasText: "Léa Dubois" });
+  await lea.getByRole("button", { name: /^Modifier/u }).click();
+  const dialog = page.locator("dialog[open]");
+  await dialog.getByRole("button", { name: "Remplacer" }).click();
+  await page.locator("#person-bank-iban").fill("FR76 3000");
+  await page.keyboard.press("Escape");
+  await dialog.getByText(/^Abandonner vos modifications\s\?$/u).waitFor();
+  await dialog.getByRole("button", { name: "Continuer" }).click();
+  expect((await page.locator("#person-bank-iban").inputValue()) === "FR76 3000", "the IBAN typed is kept");
+  await page.keyboard.press("Escape");
+  await dialog.getByRole("button", { name: "Abandonner" }).click();
+  await page.waitForSelector("dialog[open]", { state: "detached", timeout: 5000 });
+  await lea.getByRole("button", { name: /^Modifier/u }).click();
+  await page.locator("dialog[open]").getByRole("button", { name: "Effacer" }).click();
+  const confirm = page.locator("dialog[open][role=alertdialog]");
+  expect(/Effacer ces coordonnées bancaires\s\?/u.test(await confirm.innerText()) && (await confirm.innerText()).includes("7034"), "asks first, naming the account");
+  await confirm.getByRole("button", { name: "Annuler" }).click();
+  expect(await page.locator("dialog[open][role=alertdialog]").count() === 0 && (await page.locator("dialog[open]").innerText()).includes("7034"), "cancelled: nothing erased, the bank details dialog still open");
+  await page.locator("dialog[open]").getByRole("button", { name: "Effacer" }).click();
+  await page.locator("dialog[open][role=alertdialog]").getByRole("button", { name: "Effacer" }).click();
+  await page.locator(".ck-toast", { hasText: "Coordonnées bancaires effacées." }).waitFor();
+  await page.waitForSelector("dialog[open]", { state: "detached", timeout: 5000 });
+  await page.reload();
+  expect((await page.locator("section.paper", { hasText: "Léa Dubois" }).innerText()).includes("Pas de coordonnées bancaires"), "erased");
+});
+
+await step("Hugo adds his registration certificate (the kit's file picker, straight to the Chest)", async () => {
+  await as(context, origin, "hugo");
+  await page.goto(origin + "/chest/settings");
+  await page.locator("#vehicle input[type=file]").setInputFiles(receipt);
+  await page.locator(".ck-toast", { hasText: "Certificate saved." }).waitFor({ timeout: 8000 });
+  await page.reload();
+  const vehicle = await page.locator("#vehicle").innerText();
+  expect(vehicle.includes("expenses-receipt.png") && vehicle.includes("Not checked yet"), "the certificate is kept: " + vehicle);
+  await as(context, origin, "camille");
+});
+
 await step("the accounting entries (FEC layout) and the export by month of payment", async () => {
   const entries = await (await page.request.get(origin + "/chest/export/journal?month=2026-09")).text();
   const lines = entries.split("\r\n");
@@ -252,7 +296,7 @@ await step("Camille imports Expensify's history: columns guessed, the unknown pe
   await page.goto(origin + "/chest/settings/company#import");
   const { fileURLToPath } = await import("node:url");
   const file = fileURLToPath(new URL("../../../tools/private/expenses/test/fixtures/expensify-export.csv", import.meta.url));
-  await page.locator("#import-file").setInputFiles(file);
+  await page.locator("#import input[type=file]").setInputFiles(file);
   await page.waitForSelector("text=4 lignes sont prêtes.");
   expect((await page.locator("#import").innerText()).includes("Robert Smith"), "the unmatched name is shown");
   expect((await page.locator("#date-order").inputValue()) === "mdy", "US dates recognised");

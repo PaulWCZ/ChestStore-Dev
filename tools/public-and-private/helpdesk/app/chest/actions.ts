@@ -222,6 +222,10 @@ export async function saveRule(input: { field: string; value: string; tag?: stri
   return act(actor => rules.saveRule(db(), actor, input, answers));
 }
 
-export async function removeRule(id: string): Promise<Result<null>> {
-  return act(async actor => { await rules.removeRule(db(), actor, id); return null; });
+export async function removeRule(id: string): Promise<Result<rules.Rule>> {
+  return act(actor => rules.removeRule(db(), actor, id));
+}
+
+export async function restoreRule(rule: rules.Rule): Promise<Result<rules.Rule>> {
+  return act(actor => rules.restoreRule(db(), actor, rule, answers));
 }

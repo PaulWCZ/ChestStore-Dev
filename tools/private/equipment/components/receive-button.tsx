@@ -1,16 +1,15 @@
 "use client";
 
+import { Dialog, useToast } from "@argentic/chest-ui/components";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { confirmReceipt } from "../app/chest/actions.ts";
 import type { Catalogue } from "../lib/i18n/index.ts";
 import { format } from "../lib/i18n/format.ts";
 import { limits } from "../lib/model.ts";
-import { Dialog } from "./dialog.tsx";
 import { Check } from "./icons.tsx";
-import { useToast } from "./toast.tsx";
 
-type Words = { receive: Catalogue["receive"]; errors: Catalogue["errors"]; common: Catalogue["common"] };
+type Words = { receive: Catalogue["receive"]; errors: Catalogue["errors"]; common: Catalogue["common"]; dialog: Catalogue["dialog"] };
 
 // "I received it": the holder says the item reached them — with a remark
 // if something is off, and, when the company set rules, having read them
@@ -42,7 +41,7 @@ export function ReceiveButton({ id, name, given, condition, charter, label, t, p
   return (
     <>
       <button type="button" className={primary ? "button" : "button quiet small"} onClick={() => { setError(null); setOpen(true); }}><Check />{label}</button>
-      <Dialog open={open} title={format(w.title, { name })} closeLabel={t.common.close} onClose={() => setOpen(false)}>
+      <Dialog open={open} title={format(w.title, { name })} labels={t.dialog} dirty={remark.trim() !== ""} onClose={() => setOpen(false)}>
         <form className="stack" onSubmit={e => { e.preventDefault(); send(); }}>
           <div>
             <p>{given}</p>

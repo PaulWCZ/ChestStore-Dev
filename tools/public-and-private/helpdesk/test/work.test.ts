@@ -124,8 +124,21 @@ test("rules on arrival: an admin writes them; a new request gets its tag, priori
   await leave(sql, ines.id);
   const left = await rules.listRules(sql, asMember(lea));
   assert.deepEqual(left.map(r => [r.value, r.assignee]), [["facture", null], ["bigco.fr", null]]);
+  // Deleting says what the rule was; Undo puts it back in its place (rules
+  // run in order), once.
+  const gone = await rules.removeRule(sql, asMember(camille), left[0]!.id);
+  assert.deepEqual([gone.id, gone.value, gone.tag], [left[0]!.id, "facture", "Invoice"]);
+  await assert.rejects(rules.removeRule(sql, asMember(camille), left[0]!.id), refused("not_found"));
+  await assert.rejects(rules.restoreRule(sql, asMember(hugo), gone, answers), refused("forbidden"));
+  const back = await rules.restoreRule(sql, asMember(camille), gone, answers);
+  assert.deepEqual(back, gone);
+  assert.deepEqual((await rules.listRules(sql, asMember(lea))).map(r => r.value), ["facture", "bigco.fr"], "back before the later rule");
+  await assert.rejects(rules.restoreRule(sql, asMember(camille), gone, answers), refused("invalid"), "not twice");
+  const added = await rules.saveRule(sql, asMember(camille), { field: "text", value: "remboursement", tag: "Refund" }, answers);
+  assert.ok(Number(added.id) > Number(vip.id), "a new rule after a restored one still gets a fresh id");
   await rules.removeRule(sql, asMember(camille), vip.id);
   await rules.removeRule(sql, asMember(camille), left[0]!.id);
+  await rules.removeRule(sql, asMember(camille), added.id);
   assert.deepEqual(await rules.listRules(sql, asMember(lea)), []);
 });
 

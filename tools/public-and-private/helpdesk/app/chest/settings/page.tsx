@@ -1,4 +1,5 @@
 import * as chest from "@argentic/chest-sdk/chest";
+import { PageHeader } from "@argentic/chest-ui/components";
 import { headers } from "next/headers";
 import { can } from "../../../lib/access.ts";
 import { db } from "../../../lib/db.ts";
@@ -30,7 +31,7 @@ export default async function SettingsPage() {
   const origin = publicOrigin(await headers()) ?? "/";
   return (
     <div className="boxes">
-      <h1>{t.settings.title}</h1>
+      <PageHeader size="m" title={t.settings.title} />
       <SettingsView
         settings={{ companyName: s.companyName, formOpen: s.formOpen, intros: s.intros, retentionMonths: s.retentionMonths, helpUrl: s.helpUrl }}
         tags={tagList}
@@ -48,8 +49,8 @@ export default async function SettingsPage() {
         t={{ settings: t.settings, errors: t.errors }}
         after={
           <>
-            <HoursBox hours={s.hours} lateHours={s.lateHours} year={Number(chest.today().slice(0, 4))} canSettings={canSettings} locale={locale} t={{ settings: t.settings, errors: t.errors }} />
-            <RulesBox rules={rules.map(r => ({ ...r, assigneeName: r.assignee ? name(r.assignee) : null }))} team={team.map(id => ({ id, name: name(id) }))} tags={tagList.map(g => g.name)} canSettings={canSettings} t={{ settings: t.settings, errors: t.errors, priority: t.priority }} />
+            <HoursBox hours={s.hours} lateHours={s.lateHours} year={Number(chest.today().slice(0, 4))} today={chest.today()} canSettings={canSettings} locale={locale} t={{ settings: t.settings, errors: t.errors, dates: t.dates }} />
+            <RulesBox rules={rules.map(r => ({ ...r, assigneeName: r.assignee ? name(r.assignee) : null }))} team={team.map(id => ({ id, name: name(id) }))} tags={tagList.map(g => g.name)} canSettings={canSettings} t={{ settings: t.settings, errors: t.errors, priority: t.priority, peoplePicker: t.peoplePicker }} />
             <EmbedBox origins={s.frameOrigins} publicAddress={origin} canSettings={canSettings} t={{ settings: t.settings, errors: t.errors, embedTitle: t.public.embedTitle }} />
           </>
         }

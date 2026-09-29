@@ -9,7 +9,7 @@ import { PrintButton } from "./print-button.tsx";
 // file); on paper, only the form.
 export function SheetPage({ title, back, backLabel, t, children }: { title: string; back: string; backLabel: string; t: Catalogue["sheet"]; children: ReactNode }) {
   return (
-    <main className="sheet-page">
+    <div className="sheet-page">
       <div className="labels-bar no-print">
         <a className="back" href={back}><Back />{backLabel}</a>
         <div className="page-head">
@@ -21,7 +21,7 @@ export function SheetPage({ title, back, backLabel, t, children }: { title: stri
         </div>
       </div>
       <article className="paper" aria-label={title}>{children}</article>
-    </main>
+    </div>
   );
 }
 

@@ -233,6 +233,22 @@ move still stands. Deals imported already won are not told.
   a BCC is the salesperson) — see the SDK report. Until then **emails are
   not captured**: *Log an email* records that one happened.
 
+## Looks
+
+Clients wears its own identity, **"Sales desk"** (cool slate, one electric
+blue, figures in IBM Plex Mono — `lib/theme.ts`, DESIGN.md), by default.
+The company may choose another look in its Chest, for all its tools or for
+Clients alone: any theme of the UI kit's catalogue (the store's 17
+identities, "Chest", "High contrast") or **its own brand** (colours,
+fonts, corners, logo — the logo then stands where the Clients mark is).
+Every feature is the same in every look, and every text stays readable
+(WCAG AA, light and dark): the CSS names only the kit's contract tokens.
+The look is resolved on the server (`chest.theme()`, SDK proposal) and
+written as one `<style>` with the page's nonce; outside a Chest that
+serves themes, it is Sales desk. Screens: `docs/screens/board-chest-*`
+(the portal's look), `board-theme-*` and `day-theme-*` (Library,
+Workshop), `board-brand-*` and `team-brand-*` (a sample brand).
+
 ## Develop
 
 ```sh

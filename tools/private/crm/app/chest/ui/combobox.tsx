@@ -145,7 +145,8 @@ export function Combobox<T extends Option>({ id, value, onChange, search, placeh
 // it is placed `fixed` under its field, and follows it. The kit does the
 // same for its own pickers (its float.ts, MIT, this studio), but does not
 // export it; this is its rule, shortened.
-function useFloat(anchor: RefObject<HTMLElement | null>, float: RefObject<HTMLElement | null>, open: boolean) {
+type Ref = RefObject<HTMLElement | null>;
+function useFloat(anchor: Ref, float: Ref, open: boolean) {
   useLayoutEffect(() => {
     const a = anchor.current, f = float.current;
     if (!open || !a || !f || !a.closest("dialog")) return;

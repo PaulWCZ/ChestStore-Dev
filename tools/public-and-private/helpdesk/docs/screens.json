@@ -12,5 +12,19 @@
   {"name":  "ticket-email", "path":  "/chest/tickets/1002", "member":  "hugo", "locale":  "en"},
   {"name":  "ticket-bounce-fr", "path":  "/chest/tickets/1007", "member":  "ines", "locale":  "fr", "only":  ["phone"]},
   {"name":  "reports", "path":  "/chest/reports", "member":  "camille", "locale":  "en", "only":  ["desktop"]},
-  {"name":  "settings-fr", "path":  "/chest/settings", "member":  "camille", "locale":  "fr", "only":  ["phone"]}
+  {"name":  "settings-fr", "path":  "/chest/settings", "member":  "camille", "locale":  "fr", "only":  ["phone"]},
+  {"name": "inbox-chest", "path": "/chest", "member": "hugo", "locale": "en", "look": {"all": "catalogue:chest"}},
+  {"name": "inbox-theme", "path": "/chest?folder=open", "member": "hugo", "locale": "en", "look": {"all": "catalogue:library"}},
+  {"name": "inbox-theme-dark", "path": "/chest?folder=open", "member": "hugo", "locale": "en", "dark": true, "look": {"all": "catalogue:library"}, "only": ["phone"]},
+  {"name": "inbox-brand", "path": "/chest", "member": "camille", "locale": "fr", "look": {"all": "catalogue:library", "tool": "brand:sample"}},
+  {"name": "inbox-brand-dark", "path": "/chest", "member": "ines", "locale": "fr", "dark": true, "look": {"tool": "brand:sample"}, "only": ["phone"]},
+  {"name": "ticket-brand", "path": "/chest/tickets/1001", "member": "hugo", "locale": "en", "look": {"tool": "brand:sample"}, "only": ["desktop"]},
+  {"name": "contact-form-brand", "path": "/", "member": "hugo", "locale": "fr", "look": {"tool": "brand:sample"}},
+  {"name": "follow-up-brand-dark", "path": "/t/demoFollowUpLinkForTheScreens000", "member": "hugo", "locale": "en", "dark": true, "look": {"tool": "brand:sample"}, "only": ["phone"]},
+  {"name": "contact-form-chest", "path": "/", "member": "hugo", "locale": "en", "look": {"all": "catalogue:chest"}, "only": ["desktop"]},
+  {"name": "ticket-closed-undo", "path": "/chest/tickets/1001", "member": "camille", "locale": "fr", "actions": [{"click": ".side-card button:has-text('Terminer')"}, {"wait": 700}], "only": ["desktop"]},
+  {"name": "inbox-bulk", "path": "/chest?folder=open", "member": "hugo", "locale": "en", "actions": [{"click": ".tickets li:nth-child(1) .row-check input"}, {"click": ".tickets li:nth-child(2) .row-check input"}, {"wait": 300}], "only": ["desktop", "phone"]},
+  {"name": "keys", "path": "/chest?folder=open", "member": "hugo", "locale": "en", "actions": [{"wait": 800}, {"press": "?"}, {"wait": 400}], "only": ["desktop"]},
+  {"name": "settings-erase-fr", "path": "/chest/settings", "member": "camille", "locale": "fr", "actions": [{"fill": ["#erase", "jean.dupont@example.com"]}, {"click": "button:has-text('Effacer')"}, {"wait": 400}], "only": ["phone"]},
+  {"name": "settings-holiday", "path": "/chest/settings", "member": "camille", "locale": "en", "full": true, "only": ["desktop"]}
 ]

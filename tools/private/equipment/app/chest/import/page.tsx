@@ -9,10 +9,10 @@ export default async function ImportPage() {
   const { member, locale, t } = v;
   if (!can(member, "items.manage")) notFound();
   return (
-    <main className="narrow">
+    <div className="narrow">
       <h1 className="page-title">{t.importer.title}</h1>
       <p className="muted lead">{t.importer.intro}</p>
-      <Importer t={{ importer: t.importer, errors: t.errors, status: t.status, categories: t.categories }} locale={locale} />
-    </main>
+      <Importer t={{ importer: t.importer, errors: t.errors, status: t.status, categories: t.categories, files: t.files, table: t.table }} locale={locale} />
+    </div>
   );
 }

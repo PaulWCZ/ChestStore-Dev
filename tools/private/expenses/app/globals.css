@@ -32,7 +32,6 @@ button, input, textarea, select { font: inherit; color: inherit; }
 
 /* ── Shell: the kit's AppShell in the receipt look ──────────────────── */
 .ck-bar { background: color-mix(in srgb, var(--bg) 92%, transparent); backdrop-filter: blur(8px); border-bottom: var(--border-width) dashed var(--rule); }
-.ck-bar-inner { max-width: var(--page-wide); }
 .ck-brand a { font-weight: var(--display-weight); letter-spacing: -0.02em; font-size: 1.05rem; white-space: nowrap; }
 .ck-brand svg { width: 30px; height: 30px; }
 .ck-nav-link { font-size: var(--text-s); }
@@ -345,7 +344,6 @@ table.grid tr.hidden td { opacity: 0.55; }
 .chip .chip-note { font-weight: 500; font-size: var(--text-xs); opacity: 0.85; }
 .nights .field { max-width: 160px; }
 .field-row.narrow { max-width: 320px; }
-.grow-row { flex: 1 1 260px; }
 .import-map { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: var(--space-3); border: 0; padding: 0; margin: 0; }
 .import-map legend { margin-bottom: var(--space-2); }
 .import-preview td { white-space: nowrap; max-width: 220px; overflow: hidden; text-overflow: ellipsis; }
@@ -407,3 +405,20 @@ span.pick { display: inline-block; width: 22px; }
 .ck-languages { display: flex; gap: var(--space-3); }
 .button.send { margin-top: var(--space-3); }
 h2.earlier-title { margin-bottom: 0; }
+.export-notes { margin-top: var(--space-3); }
+.refused-note { margin-bottom: var(--space-5); }
+.add-row { margin-top: var(--space-3); }
+.pay-form .grow-row { flex: 1 1 250px; }
+.pay-form .w-s { flex: 0 1 120px; }
+.pay-form .w-m { flex: 0 1 140px; }
+.pay-form .w-l { flex: 0 1 200px; }
+.scale-fallback { margin-top: var(--space-3); }
+@media (max-width: 760px) {
+  /* On a phone the dock holds "Add"; a page head whose only action is
+     for wide screens takes no room. */
+  .ck-bar .top-add, .ck-page-actions:has(> .hide-phone:only-child) { display: none; }
+}
+/* A date field and its button on one line: the button beside the field
+   (not beside the day written under it). */
+.pay-form:has(> .ck-date) { align-items: flex-start; }
+.pay-form:has(> .ck-date) > .button { margin-top: calc(var(--text-s) * var(--leading) + var(--space-1)); min-height: 48px; }

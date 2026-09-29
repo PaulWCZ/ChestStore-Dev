@@ -27,7 +27,7 @@ export default async function EditItem({ params }: { params: Promise<{ id: strin
   const item = detail.item;
   const [categories, hints, fields] = await Promise.all([listCategories(sql, member), formHints(sql, member), allFields(sql)]);
   return (
-    <main className="narrow">
+    <div className="narrow">
       <h1 className="page-title">{format(t.form.editTitle, { name: item.name })}</h1>
       <ItemForm
         mode="edit"
@@ -43,8 +43,9 @@ export default async function EditItem({ params }: { params: Promise<{ id: strin
         nextTag={hints.nextTag}
         suppliers={hints.suppliers}
         currency={chest.currency()}
-        t={{ form: t.form, item: t.item, periods: t.periods, errors: t.errors, common: t.common }}
+        today={chest.today()}
+        t={{ form: t.form, item: t.item, periods: t.periods, errors: t.errors, common: t.common, date: t.date }}
       />
-    </main>
+    </div>
   );
 }
