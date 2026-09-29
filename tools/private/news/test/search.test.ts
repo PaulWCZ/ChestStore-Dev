@@ -128,6 +128,22 @@ test("a comment's mentions read as names in its passage, never as member ids; so
   assert.deepEqual(marked(passage), ["vélo"]);
 });
 
+test("a mention is not a word of its comment: its member id, \"mbr\" or \"erased\" find nothing", async () => {
+  const p = await write({ kind: "info", title: "Parking", body: "New spaces behind the building." });
+  const c = await posts.addComment(database.sql, asMember(ines), p.id, `@[${hugo.id}] les places vélo sont derrière`);
+  await database.sql`update comments set body = ${`@[${hugo.id}] les places vélo sont derrière, dis-le à @[erased]`} where id = ${c.comment.id}`;
+  for (const q of ["mbr", hugo.id, hugo.id.slice(4, 12), `mbr ${hugo.id.slice(4, 10)}`, "erased"]) {
+    assert.deepEqual(await find(q), [], `"${q}" finds nothing`);
+    assert.deepEqual(await find(q, asMember(lea)), [], `"${q}" finds nothing in French`);
+  }
+  // The comment's own words still find it, its mentions written as names.
+  const [hit] = await find("derriere");
+  assert.equal(hit!.comments[0]!.text.map(s => s.text).join(""), "@Hugo Bernard les places vélo sont derrière, dis-le à @former member");
+  // A mention typed as plain words in a post is text like any other.
+  const q = await write({ kind: "info", title: "Codes", body: "Our member ids start with mbr." });
+  assert.deepEqual(ids(await find("mbr")), [q.id]);
+});
+
 test("a scheduled post is found by publishers only", async () => {
   const day = new Date(Date.now() + 864e5).toISOString().slice(0, 10);
   const p = await write({ kind: "info", title: "Surprise party", publishAt: { day, time: "09:00" } });

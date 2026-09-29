@@ -25,11 +25,15 @@ export function PersonRates({ projectId, rates, people, hasTime, today, origin, 
   const [who, setWho] = useState("");
   const [rate, setRateText] = useState("");
   const [from, setFrom] = useState<string | null>(today);
+  // What the day field refuses as typed (unreadable): said under it; Add
+  // waits — the day it held before is never sent in its place.
+  const [fromProblem, setFromProblem] = useState<string | null>(null);
   const fail = (code: keyof Catalogue["errors"], values?: Record<string, string | number>) => void toast({ text: format(t.errors[code], values), tone: "error" });
 
   function add() {
     const cents = rate.trim() === "" ? null : parseAmount(rate);
     if (!who || (rate.trim() !== "" && cents === null)) return fail("invalid");
+    if (hasTime && fromProblem) return void document.getElementById("pr-from")?.focus();
     const problem = hasTime ? rateDayProblem(from, lock, { missing: t.errors.rate_day_missing }) : null;
     if (problem) return void toast({ text: problem, tone: "error" });
     start(async () => {
@@ -77,8 +81,8 @@ export function PersonRates({ projectId, rates, people, hasTime, today, origin, 
         </select>
         <label className="visually-hidden" htmlFor="pr-rate">{format(w.rate, { currency })}</label>
         <input id="pr-rate" className="field num short" inputMode="decimal" autoComplete="off" placeholder={format(w.rate, { currency })} value={rate} onChange={e => setRateText(e.target.value)} />
-        {hasTime && <DateField id="pr-from" label={w.personRateFrom} value={from} onChange={setFrom} today={today} hint={lock?.text} chips={false} labels={t.date} />}
-        <button type="submit" className="button quiet" disabled={pending || !who}><Plus />{w.personRateAdd}</button>
+        {hasTime && <DateField id="pr-from" label={w.personRateFrom} value={from} onChange={setFrom} onProblem={setFromProblem} today={today} hint={lock?.text} chips={false} labels={t.date} />}
+        <button type="submit" className="button quiet" disabled={pending || !who || (hasTime && fromProblem !== null)}><Plus />{w.personRateAdd}</button>
       </form>
     </section>
   );

@@ -159,6 +159,35 @@ await step("Sofia sends it and records a partial payment, then deletes and resto
   expect(await page.locator(".payments li").count() === 1, "payment restored");
 });
 
+await step("a payment dated after today is refused out loud: it is not recorded for today in its place", async () => {
+  // The kit's DateField (0.2.4): a day after `max` stays as typed, the
+  // field says why, and Record waits — the dialog reads the day from its
+  // state, which still held today.
+  const later = new Date(Date.now() + 3 * 86400000).toISOString().slice(0, 10);
+  await page.getByRole("button", { name: "Record a payment" }).click();
+  await page.locator("#paid-on").fill(later);
+  let sent = 0;
+  const count = r => { if (r.method() === "POST" && r.url().startsWith(origin + "/chest")) sent++; };
+  page.on("request", count);
+  await page.getByRole("button", { name: "Record", exact: true }).click();
+  await page.locator(".ck-dialog .ck-date .ck-error", { hasText: /or earlier\./u }).waitFor();
+  await page.locator(".ck-dialog p.error", { hasText: /or earlier\./u }).waitFor();
+  await page.waitForTimeout(800);
+  page.off("request", count);
+  expect(sent === 0, "nothing sent: " + sent);
+  expect(await page.locator("#paid-on").inputValue() === later, "the day stays as typed");
+  expect(await page.evaluate(() => document.activeElement?.id === "paid-on"), "the day field has the focus");
+  expect(await page.locator("text=Recorded.").count() === 0, "not recorded");
+  // Today again: the sentence goes; the dialog closes untouched.
+  await page.locator(".ck-dialog").getByRole("button", { name: "Today", exact: true }).click();
+  await page.locator(".ck-dialog .ck-error").waitFor({ state: "detached", timeout: 5000 });
+  await page.locator(".ck-dialog p.error").waitFor({ state: "detached", timeout: 5000 });
+  expect(await page.locator("#paid-on").getAttribute("aria-invalid") === null, "the field holds today again");
+  await page.locator(".ck-dialog").getByRole("button", { name: "Cancel" }).click();
+  await page.reload();
+  expect(await page.locator(".payments li").count() === 1, "still one payment");
+});
+
 await step("the PDF downloads: a real PDF", async () => {
   const r = await page.request.get(invoiceUrl + "/pdf?download");
   const body = Buffer.from(await r.body());

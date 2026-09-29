@@ -437,6 +437,42 @@ await step("schedule from the bar, next to Publish", async () => {
   expect((await page.locator(".notices").innerText()).includes("Scheduled for"), "scheduled");
 });
 
+await step("a day before today is refused out loud: nothing is scheduled for the day it held before", async () => {
+  // The kit's DateField (0.2.4): a day before `min` stays as typed, the
+  // field says why, and Schedule waits — it once sent the previous day.
+  const iso = offset => { const d = new Date(); d.setUTCDate(d.getUTCDate() + offset); return d.toISOString().slice(0, 10); };
+  const past = iso(-3);
+  const later = iso(5);
+  await compose();
+  await page.getByLabel("Headline").fill("Car park closed for works");
+  await page.getByRole("button", { name: "Schedule…" }).click();
+  await page.locator("#later-day").fill(past);
+  let sent = 0;
+  const count = r => { if (r.method() === "POST" && r.url().startsWith(origin + "/chest")) sent++; };
+  page.on("request", count);
+  await page.getByRole("button", { name: "Schedule", exact: true }).click();
+  await page.locator(".when-fields .ck-error", { hasText: /or later\./u }).waitFor();
+  await page.locator("#form-error", { hasText: /or later\./u }).waitFor();
+  await page.waitForTimeout(800);
+  page.off("request", count);
+  expect(sent === 0, "nothing sent: " + sent);
+  expect(/\/chest\/new$/u.test(page.url()), "still writing: " + page.url());
+  expect(await page.locator("#later-day").inputValue() === past, "the day stays as typed");
+  expect(await page.locator("#later-day").getAttribute("aria-invalid") === "true", "the field is invalid");
+  expect(await page.evaluate(() => document.activeElement?.id === "later-day"), "the day field has the focus");
+  // Ctrl+Enter waits too.
+  await page.locator("#later-day").press("Control+Enter");
+  await page.waitForTimeout(800);
+  expect(/\/chest\/new$/u.test(page.url()), "Ctrl+Enter sends nothing either");
+  // A good day: scheduled for that day, not the one held before.
+  await page.locator("#later-day").fill(later);
+  await page.getByRole("button", { name: "Schedule", exact: true }).click();
+  await page.waitForURL(/\/chest\/posts\/\d+$/u);
+  const notice = await page.locator(".notices").innerText();
+  const said = new Date(later + "T12:00:00Z").toLocaleDateString("en-GB", { day: "numeric", month: "long", timeZone: "UTC" });
+  expect(notice.includes("Scheduled for") && notice.includes(said), `scheduled for ${said}: ${notice}`);
+});
+
 await step("import a Slack channel, take it back; download all posts", async () => {
   const fixture = new URL("../../../tools/private/news/test/fixtures/slack-export-viewer-testarchive.zip", import.meta.url).pathname;
   await page.goto(origin + "/chest/transfer");

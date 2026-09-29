@@ -1,6 +1,6 @@
 "use client";
 
-import { DateField, PeoplePicker, useToast } from "@argentic/chest-ui/components";
+import { PeoplePicker, useToast } from "@argentic/chest-ui/components";
 import { localSearch, type DateWords, type PeoplePickerWords } from "@argentic/chest-ui/components/logic";
 import { useRouter } from "next/navigation";
 import { useMemo, useState, useTransition, type FormEvent } from "react";
@@ -10,6 +10,7 @@ import { format } from "../../../../lib/i18n/format.ts";
 import { isWeekend, type Kind } from "../../../../lib/model.ts";
 import { startChecklist } from "../../actions.ts";
 import { KindBadge } from "../../../../components/kind.tsx";
+import { useDateProblems, WatchedDateField } from "../../../../components/date-problems.tsx";
 
 // Someone a checklist can be for: a member, or an expected arrival.
 type Pickable = { id: string; name: string; startDate: string | null; managerId?: string | null; detail?: string };
@@ -55,6 +56,9 @@ export function StartForm({ people, arrivals, templates, initial, today, weekday
   const startDate = everyone.find(p => p.id === person)?.startDate ?? null;
   const [anchor, setAnchor] = useState<string | null>(chosen.kind === "onboarding" && startDate ? startDate : today);
   const [touched, setTouched] = useState(false);
+  // A day refused by the field (before 2000, after 2100, unreadable) leaves
+  // the previous one in `anchor`: the checklist waits (kit 0.2.4).
+  const dates = useDateProblems();
   const weekend = anchor && isWeekend(anchor) ? weekdays[new Date(anchor + "T00:00:00Z").getUTCDay()]! : null;
   const suggest = (p: string, tid: string) => {
     if (touched) return;
@@ -64,6 +68,7 @@ export function StartForm({ people, arrivals, templates, initial, today, weekday
   };
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (dates.problem) return;
     setError(null);
     start(async () => {
       const result = await startChecklist(arrival ? { arrivalId: arrival.id.slice("arrival:".length), managerId: manager[0]?.id ?? null, templateId, anchor: anchor ?? "" } : { personId: person, templateId, anchor: anchor ?? "" });
@@ -104,14 +109,14 @@ export function StartForm({ people, arrivals, templates, initial, today, weekday
         </div>
       </fieldset>
       <div className="field-group">
-        <DateField label={chosen.kind === "onboarding" ? t.start.firstDay : t.start.lastDay} value={anchor} required min="2000-01-01" max="2100-12-31" today={today} labels={t.date}
-          onChange={day => { setAnchor(day); setTouched(true); }} />
+        <WatchedDateField label={chosen.kind === "onboarding" ? t.start.firstDay : t.start.lastDay} value={anchor} required min="2000-01-01" max="2100-12-31" today={today} labels={t.date}
+          onProblem={dates.watch("anchor")} onChange={day => { setAnchor(day); setTouched(true); }} />
         <p className="hint warn-hint" role="status">{weekend ? format(t.start.weekend, { day: weekend }) : ""}</p>
       </div>
       <p className="hint">{t.start.told}</p>
       {error && <p className="error" role="alert">{error}</p>}
       <div className="row form-actions">
-        <button type="submit" className="button" disabled={pending || !person || !anchor}>{pending ? t.start.starting : t.start.submit}</button>
+        <button type="submit" className="button" disabled={pending || !person || !anchor || dates.problem !== null}>{pending ? t.start.starting : t.start.submit}</button>
       </div>
     </form>
   );

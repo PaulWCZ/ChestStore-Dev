@@ -5,6 +5,7 @@ import { localSearch, type DateWords, type PeoplePickerWords } from "@argentic/c
 import { useRouter } from "next/navigation";
 import { useId, useMemo, useOptimistic, useState, useTransition, type FormEvent } from "react";
 import { Pencil, Plus, Trash } from "../../../../components/icons.tsx";
+import { useDateProblems, WatchedDateField } from "../../../../components/date-problems.tsx";
 import type { ErrorCode } from "../../../../lib/app-error.ts";
 import { offered } from "../../../../lib/choices.ts";
 import { format } from "../../../../lib/i18n/format.ts";
@@ -86,10 +87,14 @@ export function JourneyView({ journey, steps, hr, people, today, lang, t }: {
     }
   };
 
+  // The new step's day, refused by its field (kit 0.2.4), leaves the previous
+  // one in `adding.due`: the step waits. (A step's own day saves on each
+  // change: a refused day is never sent, and the field says why.)
+  const addDates = useDateProblems();
   const [adding, setAdding] = useState({ text: "", assignee: [] as Person[], due: journey.anchor as string | null });
   const add = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!adding.text.trim() || !adding.due) return;
+    if (!adding.text.trim() || !adding.due || addDates.problem) return;
     void run(() => addChecklistItem(journey.id, { text: adding.text, assignee: adding.assignee[0]?.id ?? null, due: adding.due! })).then(said => {
       if (fail(said)) setAdding(a => ({ ...a, text: "" }));
     });
@@ -168,9 +173,9 @@ export function JourneyView({ journey, steps, hr, people, today, lang, t }: {
                 <PeoplePicker label={t.journey.give} clearable value={adding.assignee} onChange={c => setAdding(a => ({ ...a, assignee: c }))} {...picker} />
               </div>
               <div className="add-field">
-                <DateField label={t.journey.due} value={adding.due} today={today} min="2000-01-01" max="2100-12-31" labels={t.date} chips={false} onChange={day => setAdding(a => ({ ...a, due: day }))} />
+                <WatchedDateField label={t.journey.due} value={adding.due} today={today} min="2000-01-01" max="2100-12-31" labels={t.date} chips={false} onProblem={addDates.watch("due")} onChange={day => setAdding(a => ({ ...a, due: day }))} />
               </div>
-              <button type="submit" className="button"><Plus />{t.journey.addButton}</button>
+              <button type="submit" className="button" disabled={addDates.problem !== null}><Plus />{t.journey.addButton}</button>
             </div>
           </form>
           <div className="row end">

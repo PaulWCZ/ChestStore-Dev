@@ -1,10 +1,11 @@
 "use client";
 
-import { DateField, PeoplePicker, useToast } from "@argentic/chest-ui/components";
+import { PeoplePicker, useToast } from "@argentic/chest-ui/components";
 import { localSearch, type Choice, type DateWords, type PeoplePickerWords } from "@argentic/chest-ui/components/logic";
 import { useRouter } from "next/navigation";
 import { useId, useMemo, useState, useTransition, type FormEvent } from "react";
 import { Pencil, Plus } from "../../../components/icons.tsx";
+import { useDateProblems, WatchedDateField } from "../../../components/date-problems.tsx";
 import type { ErrorCode } from "../../../lib/app-error.ts";
 import { format } from "../../../lib/i18n/format.ts";
 import { offered } from "../../../lib/choices.ts";
@@ -47,6 +48,9 @@ export function ArrivalForm({ draft, people, known, weekdays, today, lang, t }: 
   const [pending, start] = useTransition();
   const [startDate, setStartDate] = useState<string | null>(draft?.startDate ?? null);
   const [manager, setManager] = useState<Choice[]>(() => people.filter(p => p.id === draft?.managerId));
+  // A start day refused by its field (kit 0.2.4) leaves the previous one in
+  // `startDate`: the form (noValidate: the browser does not stop it) waits.
+  const dates = useDateProblems();
   const searchPeople = useMemo(() => localSearch(people), [people]);
   const weekend = startDate && isWeekend(startDate) ? weekdays[new Date(startDate + "T00:00:00Z").getUTCDay()]! : null;
 
@@ -57,6 +61,7 @@ export function ArrivalForm({ draft, people, known, weekdays, today, lang, t }: 
   }
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (dates.problem) return;
     const data = new FormData(event.currentTarget);
     const text = (key: string) => String(data.get(key) ?? "");
     const input = { name: text("name"), job: text("job"), team: text("team"), place: text("place"), startDate, managerId: manager[0]?.id ?? null, workEmail: text("workEmail") };
@@ -81,7 +86,7 @@ export function ArrivalForm({ draft, people, known, weekdays, today, lang, t }: 
           <input id={uid + "name"} name="name" className="field" required defaultValue={draft?.name ?? ""} maxLength={limits.name} autoComplete="off" autoFocus />
         </div>
         <div className="field-group">
-          <DateField label={t.arrivals.startDate} value={startDate} onChange={setStartDate} today={today} min="2000-01-01" max="2100-12-31" chips={false} labels={t.date} />
+          <WatchedDateField label={t.arrivals.startDate} value={startDate} onChange={setStartDate} onProblem={dates.watch("startDate")} today={today} min="2000-01-01" max="2100-12-31" chips={false} labels={t.date} />
           <p className="hint warn-hint" role="status">{weekend ? format(t.arrivals.weekend, { day: weekend }) : ""}</p>
         </div>
         <div className="field-group">
@@ -110,7 +115,7 @@ export function ArrivalForm({ draft, people, known, weekdays, today, lang, t }: 
       </div>
       {error && <p className="error" role="alert">{error}</p>}
       <div className="row form-actions">
-        <button type="submit" className="button" disabled={pending}>{pending ? t.arrivals.saving : t.arrivals.save}</button>
+        <button type="submit" className="button" disabled={pending || dates.problem !== null}>{pending ? t.arrivals.saving : t.arrivals.save}</button>
         <button type="button" className="button quiet" onClick={() => setOpen(false)}>{t.arrivals.cancel}</button>
       </div>
     </form>

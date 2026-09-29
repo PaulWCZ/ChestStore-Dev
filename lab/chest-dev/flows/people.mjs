@@ -101,6 +101,41 @@ await step("HR sets a job; nobody below a person is offered as their manager", a
   }
 });
 
+await step("a start date before the field's first day is refused: nothing saved, the old date kept, then a good one saved (kit 0.2.4)", async () => {
+  // The profile form is noValidate and saves from its own state: before
+  // 0.2.4 the previous date would have gone in place of the refused one.
+  const edit = origin + "/chest/people/" + id("tom") + "/edit";
+  await page.goto(edit);
+  const field = page.getByLabel("Start date", { exact: true });
+  const before = await field.inputValue();
+  expect(before !== "", "Tom has a start date");
+  await field.fill("01/01/1900");
+  await field.press("Tab");
+  const said = page.locator(".ck-date .ck-error");
+  await said.waitFor();
+  expect((await said.innerText()).includes("1950 or later"), "the field says why: " + (await said.innerText()));
+  expect((await field.getAttribute("aria-invalid")) === "true", "field invalid");
+  expect((await field.inputValue()) === "01/01/1900", "what was typed stays");
+  const save = page.getByRole("button", { name: "Save" });
+  expect(await save.isDisabled(), "Save waits while the date is refused");
+  // Enter in another field (implicit submission) sends nothing either.
+  await page.getByLabel("Job title").press("Enter");
+  await page.waitForTimeout(800);
+  expect(page.url() === edit, "not sent: " + page.url());
+  await page.goto(edit);
+  expect((await page.getByLabel("Start date", { exact: true }).inputValue()) === before, "the stored date is untouched");
+  // A good day is saved; then Tom's own date goes back.
+  for (const day of ["03/02/2020", before]) {
+    await page.goto(edit);
+    await page.getByLabel("Start date", { exact: true }).fill(day);
+    await page.getByLabel("Start date", { exact: true }).press("Tab");
+    await page.getByRole("button", { name: "Save" }).click();
+    await page.waitForURL(new RegExp(`/chest/people/${id("tom")}$`, "u"));
+    await page.goto(edit);
+    expect((await page.getByLabel("Start date", { exact: true }).inputValue()) === day, "saved: " + day);
+  }
+});
+
 await step("the org chart folds a team away and back", async () => {
   await page.goto(origin + "/chest/chart");
   expect(await page.locator(".node-name", { hasText: "Tom Walker" }).isVisible(), "tom visible");

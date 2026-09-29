@@ -2,7 +2,7 @@
 
 import { Avatar, Confirm, DateField, useToast } from "@argentic/chest-ui/components";
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { Close, Pencil } from "../../../components/icons.tsx";
 import { amountText, hoursText, parseAmount, parseHours } from "../../../lib/amounts.ts";
 import type { Catalogue } from "../../../lib/i18n/index.ts";
@@ -37,7 +37,13 @@ export function PersonRow({ person, today, lock, companyWeek, currency, comma, t
   const [from, setFrom] = useState<string | null>(today);
   const [error, setError] = useState<string | null>(null);
   const [dayError, setDayError] = useState<string | null>(null);
+  // What the day field refuses as typed (unreadable): said under it; Save
+  // waits — the day it held before is never sent in its place.
+  const [dayProblem, setDayProblem] = useState<string | null>(null);
   const changedRate = (text: string, now: number | null) => (text.trim() === "" ? null : parseAmount(text)) !== now;
+  const askDay = changedRate(bill, person.bill) || changedRate(cost, person.cost);
+  // The day field leaves when no rate changes: its refusal goes with it.
+  useEffect(() => { if (!askDay || !editing) setDayProblem(null); }, [askDay, editing]);
 
   function save() {
     const b = bill.trim() === "" ? null : parseAmount(bill);
@@ -45,6 +51,7 @@ export function PersonRow({ person, today, lock, companyWeek, currency, comma, t
     const h = week.trim() === "" ? null : parseHours(week);
     if ((bill.trim() !== "" && b === null) || (cost.trim() !== "" && c === null) || (week.trim() !== "" && h === null)) return setError(t.errors.invalid);
     // A changed rate needs its first day, after the locked period.
+    if ((b !== person.bill || c !== person.cost) && dayProblem) return void document.getElementById(`from-${person.id}`)?.focus();
     const problem = b !== person.bill || c !== person.cost ? rateDayProblem(from, lock, { missing: t.errors.rate_day_missing }) : null;
     setDayError(problem);
     // The day field then says why, and takes the focus (its error is read).
@@ -109,9 +116,9 @@ export function PersonRow({ person, today, lock, companyWeek, currency, comma, t
               <p className="hint">{w.weekHint}</p>
             </div>
           </div>
-          {(changedRate(bill, person.bill) || changedRate(cost, person.cost)) && (
+          {askDay && (
             <div className="field-block from">
-              <DateField id={`from-${person.id}`} label={w.from} value={from} onChange={d => { setFrom(d); setDayError(null); }} today={today} hint={lock ? `${w.fromHint} ${lock.text}` : w.fromHint} error={dayError ?? undefined} chips={false} labels={t.date} />
+              <DateField id={`from-${person.id}`} label={w.from} value={from} onChange={d => { setFrom(d); setDayError(null); }} onProblem={setDayProblem} today={today} hint={lock ? `${w.fromHint} ${lock.text}` : w.fromHint} error={dayError ?? undefined} chips={false} labels={t.date} />
             </div>
           )}
           {person.steps.length > 0 && (
@@ -125,7 +132,7 @@ export function PersonRow({ person, today, lock, companyWeek, currency, comma, t
           )}
           {error && <p className="error" role="alert">{error}</p>}
           <div className="form-actions">
-            <button type="submit" className="button" disabled={pending}>{w.save}</button>
+            <button type="submit" className="button" disabled={pending || (askDay && dayProblem !== null)}>{w.save}</button>
             <button type="button" className="button link" onClick={() => setEditing(false)}>{w.cancel}</button>
           </div>
         </form>

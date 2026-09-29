@@ -206,7 +206,7 @@ export const en = {
     bodyPlaceholder: "Write here. Type “/” for a heading, a list, a table…",
     status: {
       clean: "No changes",
-      nothing: "Nothing to save yet — type in the page.",
+      nothing: "Nothing to save yet: type in the page.",
       draft: "Draft saved {time}",
       saving: "Saving draft…",
       offline: "Not saved yet — check your connection",

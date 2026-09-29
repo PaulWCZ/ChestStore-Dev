@@ -38,7 +38,7 @@ must not break.
 | `app/chest/api/uploads/route.ts`, `app/chest/files/[id]/route.ts` | Files: authorise, record, open |
 | `app/chest/search/page.tsx` | The search page (the topbar's box lands here) |
 | `app/chest-events/route.ts`, `app/chest-jobs/[name]/route.ts` | The Chest's signed calls (`publish`, `digest`) |
-| `migrations/` | Schema. Never edit a shipped file; add `0004_…` |
+| `migrations/` | Schema. Never edit a shipped file; add `0006_…` |
 | `seed/sample.sql` | A small company's month, for local runs |
 | `test/` | `node:test` with `fakeChest` and PostgreSQL (PGlite or `TEST_DATABASE_URL`) |
 

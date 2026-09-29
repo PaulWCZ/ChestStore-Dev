@@ -102,6 +102,45 @@ await step("find a date: tap days, add a time, send", async () => {
 });
 const dinnerUrl = page.url();
 
+await step("a closing day before today is refused out loud: neither Save draft nor Send keeps the day it held before", async () => {
+  // The kit's DateField (0.2.4): a day before `min` stays as typed, the
+  // field says why, and the poll waits — Save draft (a button, not the
+  // form's submit) once kept the previous day.
+  const dmy = offset => { const d = new Date(Date.now() + offset * 86400000); return `${d.getUTCDate()}/${d.getUTCMonth() + 1}/${d.getUTCFullYear()}`; };
+  await page.goto(origin + "/chest/new?kind=choice");
+  await page.getByLabel("Your question").fill("Lunch spot on Friday?");
+  await page.getByLabel("Answer 1").fill("Pizza");
+  await page.getByLabel("Answer 2").fill("Sushi");
+  await page.getByText("On a date").click();
+  const before = await page.locator("#closes-day").inputValue();
+  expect(before !== "", "a closing day to begin with: " + before);
+  await page.locator("#closes-day").fill(dmy(-3));
+  let sent = 0;
+  const count = r => { if (r.method() === "POST" && r.url().startsWith(origin + "/chest")) sent++; };
+  page.on("request", count);
+  await page.getByRole("button", { name: "Save draft" }).click();
+  await page.locator(".closing .ck-error", { hasText: /or later\./u }).waitFor();
+  await page.locator(".actions-bar .error", { hasText: /or later\./u }).waitFor();
+  expect(await page.evaluate(() => document.activeElement?.id === "closes-day"), "the day field has the focus");
+  await page.getByRole("button", { name: "Send to the team" }).click();
+  await page.waitForTimeout(800);
+  page.off("request", count);
+  expect(sent === 0, "nothing sent: " + sent);
+  expect(/\/chest\/new\?kind=choice$/u.test(page.url()), "still writing: " + page.url());
+  expect(await page.locator("#closes-day").inputValue() === dmy(-3), "the day stays as typed");
+  // A good day: the draft keeps that one.
+  await page.locator("#closes-day").fill(dmy(20));
+  await page.getByRole("button", { name: "Save draft" }).click();
+  await page.waitForURL(/\/chest\/polls\/\d+\/edit$/u);
+  await page.locator(".ck-toast", { hasText: "Draft saved." }).waitFor();
+  expect(await page.locator(".actions-bar .error").count() === 0, "no error left");
+  await page.reload();
+  const kept = await page.locator("#closes-day").inputValue();
+  const good = new Date(Date.now() + 20 * 86400000);
+  const padded = `${String(good.getUTCDate()).padStart(2, "0")}/${String(good.getUTCMonth() + 1).padStart(2, "0")}/${good.getUTCFullYear()}`;
+  expect(kept === padded, `the draft closes on the day typed: ${kept} (${padded})`);
+});
+
 await step("a member says yes and if need be; the organiser closes, picks the date, everyone is told", async () => {
   await who("hugo", "en");
   await page.goto(dinnerUrl);

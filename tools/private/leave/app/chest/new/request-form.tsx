@@ -50,6 +50,12 @@ export function RequestForm(props: {
   const [note, setNote] = useState("");
   const [event, setEvent] = useState("");
   const [error, setError] = useState<string | null>(null);
+  // A day the date fields refuse as typed (before the first day one may
+  // ask for, after the last, or unreadable): said under the field; the
+  // request waits — the day the field held before is never sent instead.
+  const [startProblem, setStartProblem] = useState<string | null>(null);
+  const [endProblem, setEndProblem] = useState<string | null>(null);
+  const refused = startProblem !== null || endProblem !== null;
   const [pending, startTransition] = useTransition();
   const type = types.find(ty => ty.id === typeId) ?? types[0];
 
@@ -90,6 +96,7 @@ export function RequestForm(props: {
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
+    if (refused) return void document.getElementById(startProblem !== null ? "start" : "end")?.focus();
     if (!span || !type) return;
     setError(null);
     startTransition(async () => {
@@ -148,13 +155,13 @@ export function RequestForm(props: {
 
       <div className="dates">
         <div className="date-field">
-          <DateField id="start" label={t.form.firstDay} value={isDay(start) ? start : null} onChange={changeStart} today={props.today} min={props.earliest} max={props.latest} required labels={t.date} />
+          <DateField id="start" label={t.form.firstDay} value={isDay(start) ? start : null} onChange={changeStart} onProblem={setStartProblem} today={props.today} min={props.earliest} max={props.latest} required labels={t.date} />
           {type?.halfDays && !single && (
             <Segmented label={t.form.firstDay} value={startHalf} onChange={setStartHalf} options={[{ value: "am", label: t.form.whole }, { value: "pm", label: t.form.afternoonOnly }]} />
           )}
         </div>
         <div className="date-field">
-          <DateField id="end" label={t.form.lastDay} value={isDay(end) ? end : null} onChange={changeEnd} today={props.today} min={isDay(start) ? start : props.earliest} max={props.latest} chips={false} required labels={t.date} />
+          <DateField id="end" label={t.form.lastDay} value={isDay(end) ? end : null} onChange={changeEnd} onProblem={setEndProblem} today={props.today} min={isDay(start) ? start : props.earliest} max={props.latest} chips={false} required labels={t.date} />
           {type?.halfDays && !single && (
             <Segmented label={t.form.lastDay} value={endHalf} onChange={setEndHalf} options={[{ value: "pm", label: t.form.whole }, { value: "am", label: t.form.morningOnly }]} />
           )}
@@ -192,7 +199,7 @@ export function RequestForm(props: {
 
       {error && <p className="error" role="alert">{error}</p>}
       <div className="send">
-        <button type="submit" className="button big" disabled={pending || !valid || days <= 0 || blocked || (needsEvent && !event)}>
+        <button type="submit" className="button big" disabled={pending || refused || !valid || days <= 0 || blocked || (needsEvent && !event)}>
           {pending ? t.form.sending : forSomeone || !type?.approval ? t.form.record : t.form.send}
         </button>
         <span className="muted">{forSomeone ? t.form.recordedHint : type?.approval ? props.answerer : t.form.declaredHint}</span>

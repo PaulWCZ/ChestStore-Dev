@@ -108,6 +108,33 @@ await step("a car trip: the scale's amount shows live, round trip doubles it", a
   expect((await page.locator("main").innerText()).includes("Office, Paris → Versailles, client"), "trip in the drafts");
 });
 
+await step("a day after today is refused: said under the field, Save waits, nothing saved — never today in its place (kit 0.2.4)", async () => {
+  // The form is noValidate and saves from its own state: before 0.2.4 the
+  // previous day (today) would have gone in place of the refused one.
+  await page.goto(origin + "/chest");
+  const drafts = await page.locator("main .row").count();
+  await page.goto(origin + "/chest/new");
+  await page.locator("#amount").fill("12,00");
+  await page.locator("fieldset.chips label.chip").first().click();
+  await page.locator("#merchant").fill("Refused day café");
+  const later = new Date(Date.now() + 3 * 864e5).toISOString().slice(0, 10);
+  await page.locator("#date").fill(later);
+  await page.locator("#date").press("Tab");
+  const said = page.locator(".ck-date .ck-error");
+  await said.waitFor();
+  expect((await said.innerText()).includes("or earlier"), "the field says why: " + (await said.innerText()));
+  expect((await page.locator("#date").inputValue()) === later, "what was typed stays");
+  expect((await page.locator("input[type=hidden][name=date]").inputValue()) === "", "no day in the form");
+  const save = page.getByRole("button", { name: "Save", exact: true });
+  expect(await save.isDisabled(), "Save waits while the day is refused");
+  await page.locator("#merchant").press("Enter");
+  await page.waitForTimeout(1000);
+  expect(/\/chest\/new$/u.test(page.url()), "not sent: " + page.url());
+  await page.goto(origin + "/chest");
+  expect((await page.locator("main .row").count()) === drafts, "no draft added");
+  expect(!(await page.locator("main").innerText()).includes("Refused day café"), "nothing saved with another day");
+});
+
 await step("delete a draft, then undo", async () => {
   await page.locator(".row", { hasText: "Chez Janou" }).locator("a.main").click();
   await page.getByRole("button", { name: "Delete" }).click();

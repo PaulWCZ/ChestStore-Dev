@@ -26,6 +26,9 @@ export function Importer({ what, example, today, fields, kinds, t }: {
   const [kindMap, setKindMap] = useState<KindMap>({});
   const [plan, setPlan] = useState<ImportPlan | LeavePlan | null>(null);
   const [asOf, setAsOf] = useState(today);
+  // A day the field refuses as typed (unreadable): said under it; the
+  // import waits — the day it held before is never sent in its place.
+  const [asOfProblem, setAsOfProblem] = useState<string | null>(null);
   const [counted, setCounted] = useState(true);
   const [reason, setReason] = useState(what === "leave" ? t.import.reasonLeave : t.import.reasonDefault);
   const [error, setError] = useState<string | null>(null);
@@ -75,12 +78,16 @@ export function Importer({ what, example, today, fields, kinds, t }: {
 
   const rows = plan?.rows ?? [];
   const ready = rows.filter(r => r.problem === null && r.memberId);
+  // The day field leaves with its form: its refusal goes with it.
+  const asOfShown = plan !== null && what === "people" && ready.length > 0;
+  useEffect(() => { if (!asOfShown) setAsOfProblem(null); }, [asOfShown]);
   const unknown = plan ? plan.columns.filter(c => !c.known || mapping[c.index] !== undefined) : [];
   const unknownKinds = plan && "unknownKinds" in plan ? plan.unknownKinds : [];
   const recognised = plan ? plan.columns.filter(c => c.known && c.field !== "ignore" && mapping[c.index] === undefined).map(c => `${c.header} → ${fieldName.get(c.field) ?? c.field}`) : [];
 
   function apply(e: React.FormEvent) {
     e.preventDefault();
+    if (what === "people" && asOfProblem !== null) return void document.getElementById("as-of")?.focus();
     start(async () => {
       if (what === "leave") {
         const result = await applyLeaveImport(text, mapping, kindMap, counted, reason);
@@ -172,7 +179,7 @@ export function Importer({ what, example, today, fields, kinds, t }: {
               {what === "people" ? (
                 <div className="form-row">
                   <div className="field-group day-field">
-                    <DateField id="as-of" label={t.import.asOf} value={asOf || null} onChange={v => setAsOf(v ?? "")} today={today} required labels={t.date} />
+                    <DateField id="as-of" label={t.import.asOf} value={asOf || null} onChange={v => setAsOf(v ?? "")} onProblem={setAsOfProblem} today={today} required labels={t.date} />
                   </div>
                   <div className="field-group grow">
                     <label className="field-label" htmlFor="import-reason">{t.import.reason}</label>
@@ -182,7 +189,7 @@ export function Importer({ what, example, today, fields, kinds, t }: {
               ) : (
                 <Checkbox label={t.import.counted} checked={counted} onChange={setCounted} />
               )}
-              <button type="submit" className="button" disabled={pending}>{plural(what === "leave" ? t.import.applyLeave : t.import.applyPeople, ready.length, locale)}</button>
+              <button type="submit" className="button" disabled={pending || (what === "people" && asOfProblem !== null)}>{plural(what === "leave" ? t.import.applyLeave : t.import.applyPeople, ready.length, locale)}</button>
             </form>
           )}
         </>

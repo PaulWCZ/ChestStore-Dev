@@ -195,6 +195,46 @@ await step("Camille starts the next cycle", async () => {
   expect((await page.locator("ul.rows").innerText()).includes("T1 2027"), "T1 2027 (Camille reads French) suggested and created");
 });
 
+await step("an end before the cycle's start is refused: said under the field, Save waits, the old end kept; a good end saved (kit 0.2.4)", async () => {
+  // The dialog saves from its own state: before 0.2.4 the previous end
+  // would have gone in place of the refused one.
+  const row = () => page.locator("ul.rows > li", { hasText: "T1 2027" });
+  const edit = async () => {
+    await page.goto(origin + "/chest/cycles");
+    await row().getByRole("button", { name: "Plus pour T1 2027" }).click();
+    await page.getByRole("menuitem", { name: "Modifier" }).click();
+    return page.locator("dialog[open]").getByLabel("Fin", { exact: true });
+  };
+  await page.goto(origin + "/chest/cycles");
+  const shown = await row().innerText();
+  let end = await edit();
+  const before = await end.inputValue();
+  await end.fill("01/01/2020");
+  await end.press("Tab");
+  const said = page.locator("dialog[open] .ck-date .ck-error");
+  await said.waitFor();
+  expect((await said.innerText()).includes("ou après"), "the field says why: " + (await said.innerText()));
+  expect((await end.inputValue()) === "01/01/2020", "what was typed stays");
+  expect(await page.locator("dialog[open]").getByRole("button", { name: "Enregistrer" }).isDisabled(), "Save waits while the end is refused");
+  await page.locator("dialog[open]").getByLabel("Nom").press("Enter");
+  await page.waitForTimeout(1000);
+  expect(await page.locator(".ck-toast", { hasText: "Enregistré." }).count() === 0, "nothing sent");
+  await page.goto(origin + "/chest/cycles");
+  expect((await row().innerText()) === shown, "the stored end is untouched: " + (await row().innerText()));
+  // A good end is saved; then the cycle's own end goes back.
+  for (const day of ["30/04/2027", before]) {
+    end = await edit();
+    await end.fill(day);
+    await end.press("Tab");
+    await page.locator("dialog[open]").getByRole("button", { name: "Enregistrer" }).click();
+    await page.locator("dialog[open]").waitFor({ state: "detached" }).catch(() => {});
+    await page.waitForTimeout(800);
+    end = await edit();
+    expect((await end.inputValue()) === day, "saved: " + day + " / " + (await end.inputValue()));
+    await page.keyboard.press("Escape");
+  }
+});
+
 await step("Friday's reminder reaches whoever has key results waiting, in their language", async () => {
   await page.request.post(origin + "/_dev/schedule", { form: { name: "reminder" } });
   const bell = await dev();

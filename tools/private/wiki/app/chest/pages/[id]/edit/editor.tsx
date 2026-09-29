@@ -338,12 +338,16 @@ function Writing({ page, start, pages, fresh, locale, t }: { page: PageInfo; sta
 
   return (
     <div className="writer" onKeyDown={e => { if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "s") { e.preventDefault(); save(); } }}>
-      <div className="writer-bar">
-        <button type="button" className="button quiet" onClick={() => void stop()}><I.Back /><span className="label">{t.editor.back}</span></button>
-        <span className={`save-status ${status.kind}`} role="status" aria-live="polite">{busy ?? statusText}</span>
-        <button type="button" className="button" onClick={save} disabled={saving || lost !== null}>{saving ? t.editor.saving : t.editor.save}</button>
+      {/* The bar and the toolbar stay in sight together, whatever the
+          bar's height (the status wraps on a phone). */}
+      <div className="writer-top">
+        <div className="writer-bar">
+          <button type="button" className="button quiet" onClick={() => void stop()}><I.Back /><span className="label">{t.editor.back}</span></button>
+          <span className={`save-status ${status.kind}`} role="status" aria-live="polite">{busy ?? statusText}</span>
+          <button type="button" className="button" onClick={save} disabled={saving || lost !== null}>{saving ? t.editor.saving : t.editor.save}</button>
+        </div>
+        {editor && <Toolbar editor={editor} t={t} onLink={() => setLinkOpen(true)} onPick={() => setPickOpen(true)} onFile={() => fileInput.current?.click()} />}
       </div>
-      {editor && <Toolbar editor={editor} t={t} onLink={() => setLinkOpen(true)} onPick={() => setPickOpen(true)} onFile={() => fileInput.current?.click()} />}
       <input ref={fileInput} type="file" hidden multiple onChange={e => { for (const f of [...(e.target.files ?? [])]) void upload(f); e.target.value = ""; }} />
       <div className="sheet">
         {lost && <p className="notice warn" role="alert"><I.Lock />{format(t.editor.lost, { name: lost.name })}</p>}

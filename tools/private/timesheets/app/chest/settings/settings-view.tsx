@@ -24,6 +24,9 @@ export function SettingsView(props: {
   const toast = useToast();
   const [pending, start] = useTransition();
   const [until, setUntil] = useState<string | null>(props.lockedUntil ?? props.lastMonth.day);
+  // A day the field refuses (after today, or unreadable): its sentence
+  // shows under it and nothing is locked — never the day it held before.
+  const [untilProblem, setUntilProblem] = useState<string | null>(null);
   const [enabled, setEnabled] = useState(props.reminder.enabled);
   const [threshold, setThreshold] = useState(hoursText(props.reminder.minutes, props.comma));
   const [approvals, setApprovals] = useState(props.approvals);
@@ -63,9 +66,9 @@ export function SettingsView(props: {
         <p>{w.lock.body}</p>
         <p className={props.lockText ? "notice" : "muted"}>{props.lockText ?? w.lock.none}</p>
         {!props.lastMonth.done && <p><button type="button" className="button" disabled={pending} onClick={() => lock(props.lastMonth.day)}>{props.lastMonth.label}</button></p>}
-        <form className="inline-form date-form" onSubmit={e => { e.preventDefault(); if (until) lock(until); }}>
-          <DateField id="lock-until" label={w.lock.until} value={until} onChange={setUntil} today={props.today} max={props.today} chips={false} labels={t.date} />
-          <button type="submit" className="button quiet" disabled={pending || !until}>{w.lock.submit}</button>
+        <form className="inline-form date-form" onSubmit={e => { e.preventDefault(); if (untilProblem) return void document.getElementById("lock-until")?.focus(); if (until) lock(until); }}>
+          <DateField id="lock-until" label={w.lock.until} value={until} onChange={setUntil} onProblem={setUntilProblem} today={props.today} max={props.today} chips={false} labels={t.date} />
+          <button type="submit" className="button quiet" disabled={pending || !until || untilProblem !== null}>{w.lock.submit}</button>
         </form>
         {props.lockedUntil && <p><button type="button" className="button link" disabled={pending} onClick={() => lock(null)}>{w.lock.unlock}</button></p>}
       </section>

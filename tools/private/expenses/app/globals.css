@@ -34,7 +34,9 @@ button, input, textarea, select { font: inherit; color: inherit; }
 .ck-bar { background: color-mix(in srgb, var(--bg) 92%, transparent); backdrop-filter: blur(8px); border-bottom: var(--border-width) dashed var(--rule); }
 .ck-brand a { font-weight: var(--display-weight); letter-spacing: -0.02em; font-size: 1.05rem; white-space: nowrap; }
 .ck-brand svg { width: 30px; height: 30px; }
-.ck-nav-link { font-size: var(--text-s); }
+/* On a desk only: on a phone the kit sizes the tabs' words (at most 12 px,
+   whole words first: "À rembourser" on two lines, 0.2.4). */
+@media (min-width: 761px) { .ck-nav-link { font-size: var(--text-s); } }
 .ck-nav-link[aria-current="page"] { border-bottom-color: var(--ink); }
 .ck-nav .ck-count { font-family: var(--font-mono); font-size: var(--text-xs); background: var(--ink); color: var(--bg); padding: 0 6px; line-height: 18px; }
 .ck-main { padding: 0; }

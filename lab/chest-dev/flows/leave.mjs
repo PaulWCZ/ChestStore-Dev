@@ -1,11 +1,13 @@
 // Leave, as people use it, in a real browser: node lab/chest-dev/flows/leave.mjs [port]
 // (the harness runs the tool with --reset: the sample company is there).
 import { writeFileSync } from "node:fs";
+import postgres from "postgres";
 import { as, done, expect, id, open, step } from "./lib.mjs";
 
 const port = Number(process.argv[2] ?? 4400);
 const { browser, context, page, origin, problems } = await open(port, "hugo", { locale: "en", allow404: /\/chest\/(approvals|settings|people)$/u });
 const tmp = process.env.TMPDIR ?? "/tmp";
+const db = postgres((process.env.DEV_DATABASE_URL ?? "postgres://postgres:postgres@127.0.0.1:5432/postgres").replace(/\/[^/]*$/u, "/t_leave"), { max: 1, onnotice: () => {} });
 const speak = locale => context.addCookies([{ name: "dev_locale", value: locale, url: origin }]);
 const day = d => d.toISOString().slice(0, 10);
 const plus = (d, n) => new Date(d.getTime() + n * 864e5);
@@ -83,6 +85,38 @@ await step("a half day costs half a day; a week-end costs nothing and cannot be 
   await ask(saturday, day(plus(monday, 13)));
   expect(await page.getByRole("button", { name: "Send the request" }).isDisabled(), "disabled on a week-end");
   expect(await page.getByText("week-ends, public holidays or days not worked").isVisible(), "why");
+});
+
+await step("a first day before the earliest one may ask for is refused as typed; the day the field held is not sent", async () => {
+  // Kit 0.2.4: a day before `min` stays as typed, says why, and the
+  // request waits — never the first day the field held before (the bug
+  // class where Timesheets saved "today" in place of refusing).
+  const count = async () => Number((await db`select count(*)::int as n from requests where member_id = ${id("hugo")}`)[0].n);
+  const before = await count();
+  await page.goto(origin + "/chest/new");
+  const held = await page.locator("#start").inputValue();
+  expect(held !== "", "the first day holds a day: " + held);
+  const tooEarly = day(plus(new Date(), -400));
+  await page.locator("#start").fill(tooEarly);
+  await page.locator("#start").press("Tab");
+  const field = page.locator(".ck-date", { has: page.locator("#start") });
+  await field.locator(".ck-error", { hasText: /^Choose .* or later\.$/u }).waitFor();
+  expect(await page.locator("#start").getAttribute("aria-invalid") === "true", "the field says it is refused");
+  expect(await page.locator("#start").inputValue() === tooEarly, "the text stays as typed");
+  const sendButton = page.getByRole("button", { name: "Send the request" });
+  // The field tells the form after it shows its sentence: wait a moment for it.
+  await sendButton.evaluate(b => new Promise(ok => { const t0 = Date.now(); const tick = () => (b.disabled || Date.now() - t0 > 3000 ? ok() : requestAnimationFrame(tick)); tick(); }));
+  expect(await sendButton.isDisabled(), "Send waits while the day is refused");
+  // Even a submit forced past the button stops on the field.
+  await page.locator("form.ask").evaluate(form => form.requestSubmit());
+  await page.waitForTimeout(1000);
+  expect(new URL(page.url()).pathname === "/chest/new", "still on the form: " + page.url());
+  expect((await count()) === before, "no request saved");
+  // A good day then clears the refusal.
+  await page.locator("#start").fill(held);
+  await page.locator("#start").press("Tab");
+  await page.waitForFunction(() => document.getElementById("start")?.getAttribute("aria-invalid") !== "true");
+  expect(await field.locator(".ck-error").count() === 0, "the sentence is gone");
 });
 
 await step("cancel a waiting request, then undo", async () => {
@@ -393,5 +427,6 @@ await step("phone width, in French: the month as a list of days, labelled tabs u
   expect(labels.includes("Mes congés") && labels.includes("Qui est absent") && labels.includes("À valider"), "labelled tabs: " + labels.join(", "));
 });
 
+await db.end();
 await browser.close();
 done(problems);

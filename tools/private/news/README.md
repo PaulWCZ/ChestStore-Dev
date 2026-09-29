@@ -78,7 +78,9 @@ channel where announcements drown.
   English and French (*move* finds *moving*, *déménager* finds
   *déménagement*), every word needed, in any language of the post; a
   headline with a typo is still found. The words found are marked; a
-  comment found shows under its post, with its author.
+  comment found shows under its post, with its author, its mentions
+  written as names. A mention is not a word of its comment: a member id,
+  "mbr" or "erased" finds nothing (`migrations/0005_…`).
 - **The weekly digest**: on Monday morning (08:30, the Chest's time zone),
   each person finds one item in their bell, in their language — *This
   week: 3 posts you haven't seen yet* and their headlines — only when there

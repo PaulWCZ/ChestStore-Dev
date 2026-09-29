@@ -86,12 +86,30 @@ export function Paper(props: PaperProps) {
   const dirty = useRef(false);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const focusNext = useRef<string | null>(null);
+  // A day written on the paper that the field refuses as typed (it cannot
+  // read it): the field says why, and saving waits — nothing is sent
+  // with the previous day in place of what was typed (kit 0.2.4). Held
+  // per field; a field no longer on the paper has none.
+  const [dateProblems, setDateProblems] = useState<Readonly<Record<string, string>>>({});
+  const refusedDays = useRef<Readonly<Record<string, string>>>({});
+  const dateProblem = (id: string) => (problem: string | null) => {
+    const { [id]: _was, ...rest } = refusedDays.current;
+    refusedDays.current = problem ? { ...rest, [id]: problem } : rest;
+    setDateProblems(refusedDays.current);
+    // A day again: what was held back (or the same paper) is saved.
+    if (!problem) changed();
+  };
+  useEffect(() => {
+    if (editing) return;
+    refusedDays.current = {};
+    setDateProblems({});
+  }, [editing]);
   const w = words[header.language] ?? words.en;
   const client = clients.find(c => c.id === header.clientId) ?? null;
   const buyer = editing ? client : doc.buyer;
   const noVat = doc.franchise || header.vatTreatment === "reverse_charge";
   const parsed = useMemo(() => lines.map(l => parse(l, doc.currency)), [lines, doc.currency]);
-  const invalid = parsed.some(p => p.quantity === null || p.unitPrice === null || p.discount === null) || (doc.type === "invoice" && !/^\d{1,3}$/u.test(header.paymentDays.trim())) || (doc.type === "quote" && editing && header.validUntil === "");
+  const invalid = parsed.some(p => p.quantity === null || p.unitPrice === null || p.discount === null) || (doc.type === "invoice" && !/^\d{1,3}$/u.test(header.paymentDays.trim())) || (doc.type === "quote" && editing && header.validUntil === "") || (editing && Object.keys(dateProblems).length > 0);
   const sums = useMemo(() => totals(lines.map((l, i) => ({ kind: l.kind, quantity: parsed[i]!.quantity ?? 0, unitPrice: parsed[i]!.unitPrice ?? 0, discount: parsed[i]!.discount ?? 0, vatRate: l.vatRate })), { noVat }), [lines, parsed, noVat]);
   const money = (minor: number) => formatMoney(minor, doc.currency, header.language);
   const anyDiscount = parsed.some((p, i) => lines[i]!.kind === "line" && (p.discount ?? 0) !== 0);
@@ -102,7 +120,14 @@ export function Paper(props: PaperProps) {
   // Saving: a moment after the last change, and before any action.
   async function flush(): Promise<boolean> {
     clearTimeout(timer.current);
-    if (!editing || !dirty.current) return true;
+    if (!editing) return true;
+    // A refused day stops any step (send, finalise…) even with nothing
+    // else to save: the paper would go out with the previous day.
+    if (Object.keys(refusedDays.current).length > 0) {
+      onState("invalid");
+      return false;
+    }
+    if (!dirty.current) return true;
     const { header: h, lines: ls } = latest.current;
     const values = ls.map(l => parse(l, doc.currency));
     if (values.some(p => p.quantity === null || p.unitPrice === null || p.discount === null)) {
@@ -276,7 +301,7 @@ export function Paper(props: PaperProps) {
             {doc.type === "quote" && (
               <>
                 <dt className={editing ? "at-field" : undefined} aria-hidden={editing ? true : undefined}>{w.validUntil}</dt>
-                <dd>{editing ? <DateField id="valid" label={w.validUntil} hideLabel value={header.validUntil || null} onChange={v => setH({ validUntil: v ?? "" })} today={props.today} required chips={false} labels={props.dateWords} /> : dates.valid}</dd>
+                <dd>{editing ? <DateField id="valid" label={w.validUntil} hideLabel value={header.validUntil || null} onChange={v => setH({ validUntil: v ?? "" })} onProblem={dateProblem("valid")} today={props.today} required chips={false} labels={props.dateWords} /> : dates.valid}</dd>
               </>
             )}
             {doc.type === "invoice" && (
@@ -292,7 +317,7 @@ export function Paper(props: PaperProps) {
             {(editing || doc.deliveryDate) && doc.type !== "credit" && (
               <>
                 <dt className={editing ? "at-field" : undefined} aria-hidden={editing ? true : undefined}>{w.deliveryDate}</dt>
-                <dd>{editing ? <DateField id="delivery" label={w.deliveryDate} hideLabel value={header.deliveryDate || null} onChange={v => setH({ deliveryDate: v ?? "" })} today={props.today} chips={false} labels={props.dateWords} /> : dates.delivery}</dd>
+                <dd>{editing ? <DateField id="delivery" label={w.deliveryDate} hideLabel value={header.deliveryDate || null} onChange={v => setH({ deliveryDate: v ?? "" })} onProblem={dateProblem("delivery")} today={props.today} chips={false} labels={props.dateWords} /> : dates.delivery}</dd>
               </>
             )}
             {doc.reference && (

@@ -1,10 +1,11 @@
 "use client";
 
-import { Confirm, DateField, Dialog, Menu, useToast } from "@argentic/chest-ui/components";
+import { Confirm, Dialog, Menu, useToast } from "@argentic/chest-ui/components";
 import type { DateWords, DialogWords } from "@argentic/chest-ui/components/logic";
 import { useRouter } from "next/navigation";
 import { useId, useState, useTransition } from "react";
 import { Alert, Plus } from "../../../components/icons.tsx";
+import { useDateProblems, WatchedDateField } from "../../../components/date-problems.tsx";
 import { format } from "../../../lib/i18n/format.ts";
 import type { Catalogue } from "../../../lib/i18n/index.ts";
 import { closeCycle, createCycle, deleteCycle, makeCurrent, reopenCycle, updateCycle } from "../actions.ts";
@@ -16,14 +17,14 @@ type Failed = { ok: false; error: keyof Catalogue["errors"]; values?: Record<str
 
 // A cycle's name and dates (the kit's date fields: typed in the reader's
 // language, or on a calendar).
-function CycleFields({ v, onChange, today, t }: { v: Values; onChange: (patch: Partial<Values>) => void; today: string; t: Words }) {
+function CycleFields({ v, onChange, onProblem, today, t }: { v: Values; onChange: (patch: Partial<Values>) => void; onProblem: (key: string) => (problem: string | null) => void; today: string; t: Words }) {
   const uid = useId();
   return (
     <>
       <div><label className="label" htmlFor={`${uid}-name`}>{t.cycles.name}</label><input id={`${uid}-name`} className="field" maxLength={60} value={v.name} onChange={e => onChange({ name: e.target.value })} /></div>
       <div className="grid-2">
-        <DateField label={t.cycles.starts} value={v.startsOn || null} onChange={d => onChange({ startsOn: d ?? "" })} today={today} chips={false} labels={t.date} />
-        <DateField label={t.cycles.ends} value={v.endsOn || null} onChange={d => onChange({ endsOn: d ?? "" })} today={today} min={v.startsOn || null} chips={false} labels={t.date} />
+        <WatchedDateField label={t.cycles.starts} value={v.startsOn || null} onChange={d => onChange({ startsOn: d ?? "" })} onProblem={onProblem("startsOn")} today={today} chips={false} labels={t.date} />
+        <WatchedDateField label={t.cycles.ends} value={v.endsOn || null} onChange={d => onChange({ endsOn: d ?? "" })} onProblem={onProblem("endsOn")} today={today} min={v.startsOn || null} chips={false} labels={t.date} />
       </div>
       {v.current !== undefined && <label className="check"><input type="checkbox" checked={v.current} onChange={e => onChange({ current: e.target.checked })} />{t.cycles.makeCurrentToo}</label>}
     </>
@@ -37,16 +38,20 @@ function CycleDialog({ open, title, initial, submit, saveLabel, today, t, onClos
   const [v, setV] = useState(initial);
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
+  // A day refused by its field (an end before the start, unreadable) leaves
+  // the previous one in `v`: saving waits (kit 0.2.4).
+  const dates = useDateProblems();
   const dirty = v.name !== initial.name || v.startsOn !== initial.startsOn || v.endsOn !== initial.endsOn;
   const close = () => { setV(initial); setError(null); onClose(); };
   return (
     <Dialog open={open} title={title} onClose={close} dirty={dirty} labels={t.dialog}
       footer={<>
         <button type="button" className="button quiet" onClick={close}>{t.cycles.cancel}</button>
-        <button type="submit" form={formId} className="button" disabled={pending}>{saveLabel}</button>
+        <button type="submit" form={formId} className="button" disabled={pending || dates.problem !== null}>{saveLabel}</button>
       </>}>
       <form id={formId} className="stack" onSubmit={e => {
         e.preventDefault();
+        if (dates.problem) return;
         start(async () => {
           const r = await submit(v);
           if (!r.ok) return setError(format(t.errors[r.error], r.values ?? {}));
@@ -54,7 +59,7 @@ function CycleDialog({ open, title, initial, submit, saveLabel, today, t, onClos
           onClose();
         });
       }}>
-        <CycleFields v={v} onChange={p => setV({ ...v, ...p })} today={today} t={t} />
+        <CycleFields v={v} onChange={p => setV({ ...v, ...p })} onProblem={dates.watch} today={today} t={t} />
         {error && <p className="error" role="alert"><Alert />{error}</p>}
       </form>
     </Dialog>

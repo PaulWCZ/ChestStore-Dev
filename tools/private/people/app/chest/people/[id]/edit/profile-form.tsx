@@ -1,11 +1,12 @@
 "use client";
 
-import { Checkbox, DateField, PeoplePicker, useToast } from "@argentic/chest-ui/components";
+import { Checkbox, PeoplePicker, useToast } from "@argentic/chest-ui/components";
 import { localSearch, type Choice, type DateWords, type PeoplePickerWords } from "@argentic/chest-ui/components/logic";
 import { useRouter } from "next/navigation";
 import { useId, useMemo, useState, useTransition, type FormEvent, type KeyboardEvent } from "react";
 import { Close, Plus } from "../../../../../components/icons.tsx";
 import { Portrait } from "../../../../../components/portrait.tsx";
+import { useDateProblems, WatchedDateField } from "../../../../../components/date-problems.tsx";
 import type { ErrorCode } from "../../../../../lib/app-error.ts";
 import { format } from "../../../../../lib/i18n/format.ts";
 import { limits } from "../../../../../lib/model.ts";
@@ -54,6 +55,10 @@ export function ProfileForm({ person, own, job, jobView, managers, known, extras
   const [manager, setManager] = useState<Choice[]>(() => managers.filter(m => m.id === job?.managerId).map(m => ({ id: m.id, name: m.name })));
   const searchManagers = useMemo(() => localSearch(managers), [managers]);
   const [startDate, setStartDate] = useState<string | null>(job?.startDate ?? null);
+  // A day refused by its field (kit 0.2.4) leaves the previous one in
+  // `startDate` or `dates`: the profile (noValidate: the browser does not
+  // stop it) waits.
+  const refused = useDateProblems();
   const longest = [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][month - 1]!;
 
   const addSkill = () => {
@@ -71,6 +76,7 @@ export function ProfileForm({ person, own, job, jobView, managers, known, extras
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (refused.problem) return;
     const data = new FormData(event.currentTarget);
     const text = (name: string) => String(data.get(name) ?? "");
     const pendingSkill = skill.replace(/\s+/gu, " ").trim();
@@ -181,7 +187,7 @@ export function ProfileForm({ person, own, job, jobView, managers, known, extras
               <PeoplePicker label={t.edit.manager} hint={t.leaveEmpty} clearable value={manager} onChange={setManager} search={searchManagers} suggestions={offered(managers)} labels={t.peoplePicker} lang={lang} />
             </div>
             <div className="field-group">
-              <DateField label={t.edit.startDate} value={startDate} onChange={setStartDate} today={today} min="1950-01-01" max="2100-12-31" chips={false} labels={t.date} />
+              <WatchedDateField label={t.edit.startDate} value={startDate} onChange={setStartDate} onProblem={refused.watch("startDate")} today={today} min="1950-01-01" max="2100-12-31" chips={false} labels={t.date} />
             </div>
           </div>
         </fieldset>
@@ -204,7 +210,7 @@ export function ProfileForm({ person, own, job, jobView, managers, known, extras
             {extras.map(x => x.editable ? (
               x.kind === "date" ? (
                 <div key={x.id} className="field-group">
-                  <DateField label={x.label} value={dates[x.id] ?? null} onChange={v => setDates(d => ({ ...d, [x.id]: v }))} today={today} min="1950-01-01" max="2100-12-31" chips={false} labels={t.date} />
+                  <WatchedDateField label={x.label} value={dates[x.id] ?? null} onChange={v => setDates(d => ({ ...d, [x.id]: v }))} onProblem={refused.watch("x-" + x.id)} today={today} min="1950-01-01" max="2100-12-31" chips={false} labels={t.date} />
                 </div>
               ) : x.kind === "choice" ? (
                 <div key={x.id} className="field-group">
@@ -230,7 +236,7 @@ export function ProfileForm({ person, own, job, jobView, managers, known, extras
 
       {error && <p className="error" role="alert">{error}</p>}
       <div className="row form-actions">
-        <button type="submit" className="button" disabled={pending}>{pending ? t.edit.saving : t.edit.save}</button>
+        <button type="submit" className="button" disabled={pending || refused.problem !== null}>{pending ? t.edit.saving : t.edit.save}</button>
         <button type="button" className="button quiet" onClick={() => router.push(`/chest/people/${person.id}`)}>{t.edit.cancel}</button>
       </div>
     </form>

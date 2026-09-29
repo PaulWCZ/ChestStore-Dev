@@ -104,6 +104,30 @@ await step("open a card; set a date, a checklist, give it to Inès, mention her"
   mentionedAt = Date.now();
 });
 
+await step("a due date typed wrong is refused as typed; the card keeps its date (nothing auto-saved)", async () => {
+  // Kit 0.2.4: a refused text stays as typed, says why, and onChange is not
+  // called — the due date saved on every change is neither erased (null)
+  // nor re-sent. Tasks has no date field with min or max: the refused text
+  // here is one the field cannot read, the same rule (readTypedDate).
+  await page.goto(boardUrl);
+  await page.locator(".card", { hasText: "Book the stand" }).click();
+  await page.waitForURL(/card=/u);
+  const held = await page.locator("#card-due").inputValue();
+  expect(held !== "", "the card has a due date: " + held);
+  await page.locator("#card-due").fill("32/13/2026");
+  await page.locator("#card-due").press("Tab");
+  const field = page.locator(".ck-date", { has: page.locator("#card-due") });
+  await field.locator(".ck-error", { hasText: /^Type a date like /u }).waitFor();
+  expect(await page.locator("#card-due").getAttribute("aria-invalid") === "true", "the field says it is refused");
+  expect(await page.locator("#card-due").inputValue() === "32/13/2026", "the text stays as typed");
+  await page.waitForTimeout(1000);
+  expect(await page.locator(".ck-toast-error").count() === 0, "no error toast");
+  await page.reload();
+  await page.locator("#card-due").waitFor();
+  expect(await page.locator("#card-due").inputValue() === held, "the card keeps its due date: " + await page.locator("#card-due").inputValue());
+  // The card stays open for the next step.
+});
+
 await step("SECRETX: a comment deleted leaves nothing in the bell (and, later, nothing by email)", async () => {
   await page.locator("#comment").fill("Door code is 4321 SECRETX @In");
   await page.waitForSelector(".suggestions");

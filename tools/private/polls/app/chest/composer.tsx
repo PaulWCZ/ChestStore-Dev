@@ -71,6 +71,17 @@ export function Composer({ mode, pollId, initial, groups, today, monthNames, wee
   const [busy, setBusy] = useState<"send" | "save" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const restored = useRef(false);
+  // The closing day as typed, when the field refuses it (before today,
+  // unreadable): the field says why, and neither Save nor Send goes until
+  // it holds a day again — never the previous day in place of what was
+  // typed (kit 0.2.4). A field no longer shown has no problem: the page
+  // tells, by the field's aria-invalid.
+  const closesProblem = useRef<string | null>(null);
+  const onClosesProblem = (problem: string | null) => {
+    closesProblem.current = problem;
+    if (!problem) setError(e => (e === refusedDay.current ? null : e));
+  };
+  const refusedDay = useRef<string | null>(null);
   const locked = mode === "open";
 
   // A new poll's words survive a closed tab (this browser only).
@@ -142,6 +153,12 @@ export function Composer({ mode, pollId, initial, groups, today, monthNames, wee
   }
 
   async function submit(open: boolean) {
+    if (closesProblem.current && document.getElementById("closes-day")?.getAttribute("aria-invalid") === "true") {
+      refusedDay.current = closesProblem.current;
+      setError(closesProblem.current);
+      requestAnimationFrame(() => document.getElementById("closes-day")?.focus());
+      return;
+    }
     setBusy(open ? "send" : "save");
     setError(null);
     const result = locked
@@ -383,7 +400,7 @@ export function Composer({ mode, pollId, initial, groups, today, monthNames, wee
           <label className="radio-line"><input type="radio" name="closes" checked={value.closes !== null} onChange={() => set({ closes: value.closes ?? { day: nextDay(today, 3), time: "18:00" } })} />{c.onDate}</label>
           {value.closes && (
             <div className="closing">
-              <DateField id="closes-day" label={c.day} value={value.closes.day || null} onChange={day => set({ closes: { ...value.closes!, day: day ?? "" } })} today={today} min={today} labels={t.date} />
+              <DateField id="closes-day" label={c.day} value={value.closes.day || null} onChange={day => set({ closes: { ...value.closes!, day: day ?? "" } })} onProblem={onClosesProblem} today={today} min={today} labels={t.date} />
               <div>
                 <label className="ck-label" htmlFor="closes-time">{c.time}</label>
                 <TimeSelect id="closes-time" step={step} value={minutesOf(value.closes.time)} onChange={m => set({ closes: { ...value.closes!, time: timeText(m) } })} />

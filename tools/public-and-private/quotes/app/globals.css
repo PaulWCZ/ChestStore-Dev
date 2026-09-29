@@ -39,7 +39,8 @@ button, input, textarea, select { font: inherit; color: inherit; }
 .ck-bar-inner { max-width: var(--page-width); padding: 0 var(--space-5); min-height: 64px; }
 .ck-brand { font-size: 1.15rem; }
 .ck-brand svg { width: 30px; height: 30px; }
-.ck-nav-link { font-size: var(--text-s); }
+/* Wide screens only: on a phone the kit sizes the sections' names (0.2.4). */
+@media (min-width: 761px) { .ck-nav-link { font-size: var(--text-s); } }
 /* The pages keep their own width and margins. */
 .ck-main-full { padding: 0; }
 @media (max-width: 760px) { .ck-bar-inner { padding: 0 var(--space-3); min-height: 52px; } }

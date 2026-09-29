@@ -1,11 +1,12 @@
 "use client";
 
-import { Avatar, DateField, Dialog, Menu, PeoplePicker, Segmented, useToast } from "@argentic/chest-ui/components";
+import { Avatar, Dialog, Menu, PeoplePicker, Segmented, useToast } from "@argentic/chest-ui/components";
 import { localSearch } from "@argentic/chest-ui/components/logic";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useLayoutEffect, useMemo, useState, useTransition } from "react";
 import { StatusStamp } from "../../../../components/bits.tsx";
+import { useDateProblems, WatchedDateField } from "../../../../components/date-problems.tsx";
 import { Check, Dots, Give, Pencil, Plus, Print, Seat, Sliders, TakeBack, Trash } from "../../../../components/icons.tsx";
 import type { Catalogue } from "../../../../lib/i18n/index.ts";
 import { format, plural } from "../../../../lib/i18n/format.ts";
@@ -301,8 +302,11 @@ function GiveForm({ item, team, places, today, t, error, pending, onDirty, onSub
   const [place, setPlace] = useState("");
   const [note, setNote] = useState("");
   const [day, setDay] = useState<string | null>(today);
+  // A day refused by its field (after today, unreadable) leaves the previous
+  // one in `day`: giving waits until the field holds a day (kit 0.2.4).
+  const dates = useDateProblems();
   useLayoutEffect(() => onDirty(note.trim() !== "" || place.trim() !== ""), [note, place]); // eslint-disable-line react-hooks/exhaustive-deps
-  const ready = day !== null && (mode === "person" ? person !== null : place.trim() !== "" && place.trim() !== item.placeName);
+  const ready = day !== null && dates.problem === null && (mode === "person" ? person !== null : place.trim() !== "" && place.trim() !== item.placeName);
   return (
     <form className="stack" onSubmit={e => {
       e.preventDefault();
@@ -319,7 +323,7 @@ function GiveForm({ item, team, places, today, t, error, pending, onDirty, onSub
           <datalist id="give-places">{places.map(p => <option key={p} value={p} />)}</datalist>
         </div>
       )}
-      <DateField label={t.give.day} value={day} onChange={setDay} today={today} max={today} required labels={t.date} chips={[{ label: t.date.today, value: today }]} />
+      <WatchedDateField label={t.give.day} value={day} onChange={setDay} onProblem={dates.watch("day")} today={today} max={today} required labels={t.date} chips={[{ label: t.date.today, value: today }]} />
       <div className="form-field">
         <label className="label" htmlFor="give-note">{t.give.note} <span className="muted">({t.common.optional})</span></label>
         <input id="give-note" className="field" value={note} onChange={e => setNote(e.target.value)} maxLength={limits.condition} placeholder={t.give.notePlaceholder} />
@@ -336,19 +340,21 @@ function BackForm({ from, today, t, error, pending, onDirty, onSubmit }: { from:
   const [note, setNote] = useState("");
   const [repair, setRepair] = useState(false);
   const [day, setDay] = useState<string | null>(today);
+  // A refused day leaves the previous one in `day`: taking back waits.
+  const dates = useDateProblems();
   useLayoutEffect(() => onDirty(note.trim() !== ""), [note]); // eslint-disable-line react-hooks/exhaustive-deps
   return (
-    <form className="stack" onSubmit={e => { e.preventDefault(); if (day) onSubmit(note, repair, day); }}>
+    <form className="stack" onSubmit={e => { e.preventDefault(); if (day && !dates.problem) onSubmit(note, repair, day); }}>
       <p className="strong">{format(t.takeBack.from, { name: from })}</p>
       <div className="form-field">
         <label className="label" htmlFor="back-note">{t.takeBack.note} <span className="muted">({t.common.optional})</span></label>
         <input id="back-note" className="field" value={note} onChange={e => setNote(e.target.value)} maxLength={limits.condition} placeholder={t.takeBack.notePlaceholder} />
       </div>
-      <DateField label={t.takeBack.day} value={day} onChange={setDay} today={today} max={today} required labels={t.date} chips={[{ label: t.date.today, value: today }]} />
+      <WatchedDateField label={t.takeBack.day} value={day} onChange={setDay} onProblem={dates.watch("day")} today={today} max={today} required labels={t.date} chips={[{ label: t.date.today, value: today }]} />
       <label className="check"><input type="checkbox" checked={repair} onChange={e => setRepair(e.target.checked)} /><span>{t.takeBack.repair}</span></label>
       {error && <p className="error" role="alert">{error}</p>}
       <div className="row end">
-        <button type="submit" className="button" disabled={pending || day === null}><TakeBack />{t.takeBack.submit}</button>
+        <button type="submit" className="button" disabled={pending || day === null || dates.problem !== null}><TakeBack />{t.takeBack.submit}</button>
       </div>
     </form>
   );
@@ -363,13 +369,16 @@ function StatusForm({ item, today, t, error, pending, onDirty, onSubmit }: {
   const [ref, setRef] = useState("");
   const [due, setDue] = useState<string | null>(null);
   const [cost, setCost] = useState("");
+  // A return day refused by its field (before today, unreadable) leaves the
+  // previous one in `due`: saving waits (kit 0.2.4).
+  const dates = useDateProblems();
   useLayoutEffect(() => onDirty(note.trim() !== "" || ref.trim() !== "" || cost.trim() !== ""), [note, ref, cost]); // eslint-disable-line react-hooks/exhaustive-deps
   // Going to repair: the repairer's ticket and when it comes back; coming
   // back from it: what it cost.
   const toRepair = status === "in_repair";
   const fromRepair = item.status === "in_repair" && status !== "in_repair";
   return (
-    <form className="stack" onSubmit={e => { e.preventDefault(); onSubmit(status, note, toRepair ? { ref, due: due ?? "" } : fromRepair ? { cost } : {}); }}>
+    <form className="stack" onSubmit={e => { e.preventDefault(); if (dates.problem) return; onSubmit(status, note, toRepair ? { ref, due: due ?? "" } : fromRepair ? { cost } : {}); }}>
       <fieldset className="choices">
         <legend className="visually-hidden">{t.item.status}</legend>
         {choices.map(s => (
@@ -386,7 +395,7 @@ function StatusForm({ item, today, t, error, pending, onDirty, onSubmit }: {
             <label className="label" htmlFor="repair-ref">{t.repair.ref} <span className="muted">({t.common.optional})</span></label>
             <input id="repair-ref" className="field mono" value={ref} onChange={e => setRef(e.target.value)} maxLength={limits.ref} placeholder={t.repair.refPlaceholder} autoComplete="off" />
           </div>
-          <DateField label={`${t.repair.due} (${t.common.optional})`} value={due} onChange={setDue} today={today} min={today} labels={t.date} />
+          <WatchedDateField label={`${t.repair.due} (${t.common.optional})`} value={due} onChange={setDue} onProblem={dates.watch("due")} today={today} min={today} labels={t.date} />
         </>
       )}
       {fromRepair && (
@@ -401,7 +410,7 @@ function StatusForm({ item, today, t, error, pending, onDirty, onSubmit }: {
       </div>
       {error && <p className="error" role="alert">{error}</p>}
       <div className="row end">
-        <button type="submit" className="button" disabled={pending}>{t.common.save}</button>
+        <button type="submit" className="button" disabled={pending || dates.problem !== null}>{t.common.save}</button>
       </div>
     </form>
   );

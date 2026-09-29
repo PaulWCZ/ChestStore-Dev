@@ -420,6 +420,36 @@ await step("an admin sets working hours and a rule on arrival; a new request fol
   expect(row.includes("Gift") && row.includes("High"), "tag and priority from the rule");
 });
 
+await step("a day off typed so it cannot be read is refused out loud: the day chosen before is not added in its place", async () => {
+  // The kit's DateField (0.2.4): the text stays, the field says why, and
+  // the form's submit stops on it — the tool's state still held the day
+  // chosen before.
+  const year = new Date().getUTCFullYear() + 1;
+  await page.goto(origin + "/chest/settings");
+  const before = await page.locator(".holiday").count();
+  await page.locator("#holiday").fill(`${year}-03-10`);
+  await page.locator("#holiday").press("Tab");
+  await page.locator("#holiday").fill("the tenth");
+  let sent = 0;
+  const count = r => { if (r.method() === "POST" && r.url().startsWith(origin + "/chest")) sent++; };
+  page.on("request", count);
+  await page.locator(".add-day").getByRole("button", { name: "Add", exact: true }).click();
+  await page.locator(".add-day .ck-error", { hasText: /Type a date like/u }).waitFor();
+  await page.waitForTimeout(800);
+  page.off("request", count);
+  expect(sent === 0, "nothing sent: " + sent);
+  expect(await page.locator("#holiday").inputValue() === "the tenth", "the text stays as typed");
+  expect(await page.locator("#holiday").evaluate(e => !e.validity.valid), "the browser holds the form on the field");
+  expect(await page.locator(".holiday", { hasText: `10 March ${year}` }).count() === 0, "the day chosen before is not added");
+  // A day it reads: that one is added, not the one before.
+  await page.locator("#holiday").fill(`${year}-03-12`);
+  await page.locator(".add-day").getByRole("button", { name: "Add", exact: true }).click();
+  await page.locator(".holiday", { hasText: `12 March ${year}` }).waitFor();
+  await page.reload();
+  expect(await page.locator(".holiday").count() === before + 1, "one day more");
+  expect(await page.locator(".holiday", { hasText: `12 March ${year}` }).count() === 1 && await page.locator(".holiday", { hasText: `10 March ${year}` }).count() === 0, "the day typed, only");
+});
+
 await step("an admin allows the company's website to show the form, which may frame it at once; the code to paste is a plain frame", async () => {
   const policy = async () => (await page.request.get(origin + "/?embed=1")).headers()["content-security-policy"] ?? "";
   const sites = page.getByLabel("Websites allowed to show the form (one per line)");

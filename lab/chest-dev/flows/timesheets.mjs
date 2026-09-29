@@ -276,6 +276,47 @@ await step("lock a period: the week shows why nothing changes there", async () =
   await page.locator(".ck-toast", { hasText: "Tout est déverrouillé." }).waitFor();
 });
 
+await step("a lock day after today is refused as typed; the day the field held is not locked", async () => {
+  // Kit 0.2.4: a day after `max` stays as typed, says why, and Save waits.
+  // Before, the field kept its previous day (last month's end) and
+  // "Lock" sent it — the bug class where Timesheets saved "today".
+  await page.goto(origin + "/chest/settings");
+  const was = await db`select locked_until from settings`;
+  expect(was.length === 0 || was[0].locked_until === null, "nothing locked before: " + JSON.stringify(was));
+  const held = await page.locator("#lock-until").inputValue();
+  expect(held !== "", "the field holds a day before: " + held);
+  // Three days ahead: after today in any time zone the Chest may use.
+  const later = await page.evaluate(() => { const d = new Date(); d.setDate(d.getDate() + 3); return d.toISOString().slice(0, 10); });
+  await page.locator("#lock-until").fill(later);
+  await page.locator("#lock-until").press("Tab");
+  const field = page.locator(".ck-date", { has: page.locator("#lock-until") });
+  await field.locator(".ck-error", { hasText: /or earlier\.|ou avant\./u }).waitFor();
+  expect(await page.locator("#lock-until").getAttribute("aria-invalid") === "true", "the field says it is refused");
+  expect(await page.locator("#lock-until").inputValue() === later, "the text stays as typed");
+  const lockButton = page.locator(".date-form button[type=submit]");
+  // The field tells the form after it shows its sentence: wait a moment for it.
+  await lockButton.evaluate(b => new Promise(ok => { const t0 = Date.now(); const tick = () => (b.disabled || Date.now() - t0 > 3000 ? ok() : requestAnimationFrame(tick)); tick(); }));
+  expect(await lockButton.isDisabled(), "Lock waits while the day is refused");
+  // Even a submit forced past the button stops on the field.
+  await page.locator(".date-form").evaluate(form => form.requestSubmit());
+  await page.waitForTimeout(800);
+  expect(await page.locator(".ck-toast", { hasText: /Verrouillé jusqu’au|Locked up to/u }).count() === 0, "no lock toast");
+  const rows = await db`select locked_until from settings`;
+  expect(rows.length === 0 || rows[0].locked_until === null, "nothing locked in the database: " + JSON.stringify(rows));
+  // A good day then locks, as before.
+  await page.locator("#lock-until").fill(held);
+  await page.locator("#lock-until").press("Tab");
+  await page.waitForFunction(() => document.getElementById("lock-until")?.getAttribute("aria-invalid") !== "true");
+  await lockButton.evaluate(b => new Promise(ok => { const t0 = Date.now(); const tick = () => (!b.disabled || Date.now() - t0 > 3000 ? ok() : requestAnimationFrame(tick)); tick(); }));
+  expect(!(await lockButton.isDisabled()), "Lock is back");
+  await lockButton.click();
+  await page.locator(".ck-toast", { hasText: /Verrouillé jusqu’au|Locked up to/u }).waitFor();
+  const after = await db`select locked_until::text as d from settings`;
+  expect(after[0]?.d !== null && after[0].d < later, "locked up to the good day: " + JSON.stringify(after));
+  await page.getByRole("button", { name: /^(Tout déverrouiller|Unlock everything)$/u }).click();
+  await page.locator(".ck-toast", { hasText: /Tout est déverrouillé|Everything is unlocked/u }).waitFor();
+});
+
 await step("import a Toggl export: check, then import", async () => {
   const file = join(tmp, "toggl-flow.csv");
   writeFileSync(file, [

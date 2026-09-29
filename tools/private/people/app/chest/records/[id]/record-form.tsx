@@ -1,10 +1,11 @@
 "use client";
 
-import { Confirm, DateField, PeoplePicker, useToast } from "@argentic/chest-ui/components";
+import { Confirm, PeoplePicker, useToast } from "@argentic/chest-ui/components";
 import { localSearch, type Choice, type DateWords, type PeoplePickerWords } from "@argentic/chest-ui/components/logic";
 import { useRouter } from "next/navigation";
 import { useId, useMemo, useState, useTransition, type FormEvent, type ReactNode } from "react";
 import { Trash } from "../../../../components/icons.tsx";
+import { useDateProblems, WatchedDateField } from "../../../../components/date-problems.tsx";
 import type { ErrorCode } from "../../../../lib/app-error.ts";
 import { format } from "../../../../lib/i18n/format.ts";
 import { contracts, limits, sexes, type Contract } from "../../../../lib/model.ts";
@@ -48,6 +49,9 @@ export function RecordForm({ id, initial, linked, erased, members, today, lang, 
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
   const searchMembers = useMemo(() => localSearch(members), [members]);
+  // A day refused by its field (kit 0.2.4) leaves the previous one in
+  // `values`: the record (noValidate: the browser does not stop it) waits.
+  const dates = useDateProblems();
   const put = (f: Field, value: string) => setValues(v => ({ ...v, [f]: value }));
   const set = (f: Field) => (e: { target: { value: string } }) => setValues(v => ({ ...v, [f]: e.target.value }));
   const contract = values.contract as Contract;
@@ -70,12 +74,13 @@ export function RecordForm({ id, initial, linked, erased, members, today, lang, 
   // by a star in the words themselves.
   const date = (f: Field, needed = false) => (
     <div className="field-group">
-      <DateField label={t.record.fields[f] + (needed ? " *" : "")} value={values[f] || null} onChange={day => put(f, day ?? "")} today={today} min="1900-01-01" max="2100-12-31" chips={false} labels={t.date} />
+      <WatchedDateField label={t.record.fields[f] + (needed ? " *" : "")} value={values[f] || null} onChange={day => put(f, day ?? "")} onProblem={dates.watch(f)} today={today} min="1900-01-01" max="2100-12-31" chips={false} labels={t.date} />
     </div>
   );
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (dates.problem) return;
     const changed = Object.fromEntries((Object.keys(values) as Field[]).filter(f => values[f] !== initial[f]).map(f => [f, values[f] === "" && ["sex", "tutorId", "hours"].includes(f) ? null : values[f]]));
     setError(null);
     start(async () => {
@@ -152,7 +157,7 @@ export function RecordForm({ id, initial, linked, erased, members, today, lang, 
 
         {error && <p className="error" role="alert">{error}</p>}
         <div className="row form-actions sticky-actions">
-          <button type="submit" className="button" disabled={pending}>{pending ? t.record.saving : t.record.save}</button>
+          <button type="submit" className="button" disabled={pending || dates.problem !== null}>{pending ? t.record.saving : t.record.save}</button>
         </div>
       </form>
 

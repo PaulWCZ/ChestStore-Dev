@@ -206,7 +206,7 @@ export const fr: Catalogue = {
     bodyPlaceholder: "Écrivez ici. Tapez « / » pour un titre, une liste, un tableau…",
     status: {
       clean: "Aucune modification",
-      nothing: "Rien à enregistrer pour l’instant : écrivez dans la page.",
+      nothing: "Rien à enregistrer : écrivez dans la page.",
       draft: "Brouillon enregistré à {time}",
       saving: "Enregistrement du brouillon…",
       offline: "Pas encore enregistré — vérifiez votre connexion",

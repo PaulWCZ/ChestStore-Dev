@@ -2,7 +2,7 @@
 
 import { DateField, Segmented, useToast } from "@argentic/chest-ui/components";
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import type { ErrorCode } from "../../../../lib/app-error.ts";
 import type { Catalogue } from "../../../../lib/i18n/index.ts";
 import { format, plural } from "../../../../lib/i18n/format.ts";
@@ -100,12 +100,19 @@ export function BalanceForms({ memberId, types, today, t }: { memberId: string; 
   const [bucket, setBucket] = useState<"acquired" | "earning">("acquired");
   const [reason, setReason] = useState("");
   const [onDate, setOnDate] = useState(today);
+  // A day the field refuses as typed (unreadable): said under it; Save
+  // waits — the day it held before is never sent in its place.
+  const [onDateProblem, setOnDateProblem] = useState<string | null>(null);
+  const refused = mode === "set" && onDateProblem !== null;
+  // The day field leaves with "State the balance": its refusal goes with it.
+  useEffect(() => { if (mode !== "set") setOnDateProblem(null); }, [mode]);
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
   const split = types.find(ty => ty.id === typeId)?.split ?? false;
   return (
     <form className="balance-form" onSubmit={e => {
       e.preventDefault();
+      if (refused) return void document.getElementById("bf-on")?.focus();
       setError(null);
       start(async () => {
         const result = mode === "adjust"
@@ -152,14 +159,14 @@ export function BalanceForms({ memberId, types, today, t }: { memberId: string; 
         )}
         {mode === "set" && (
           <div className="field-group day-field">
-            <DateField id="bf-on" label={t.team.onDate} value={onDate || null} onChange={v => setOnDate(v ?? "")} today={today} required labels={t.date} />
+            <DateField id="bf-on" label={t.team.onDate} value={onDate || null} onChange={v => setOnDate(v ?? "")} onProblem={setOnDateProblem} today={today} required labels={t.date} />
           </div>
         )}
         <div className="field-group grow">
           <label className="field-label" htmlFor="bf-reason">{t.team.reason}</label>
           <input id="bf-reason" className="field" required={mode === "adjust"} maxLength={300} placeholder={t.team.reasonPlaceholder} value={reason} onChange={e => setReason(e.target.value)} />
         </div>
-        <button type="submit" className="button" disabled={pending}>{t.team.save}</button>
+        <button type="submit" className="button" disabled={pending || refused}>{t.team.save}</button>
       </div>
       {error && <p className="error" role="alert">{error}</p>}
     </form>

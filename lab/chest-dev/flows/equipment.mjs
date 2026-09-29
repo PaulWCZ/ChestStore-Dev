@@ -55,6 +55,41 @@ await step("take it back, then Undo: it is with Hugo again", async () => {
   expect((await page.locator(".holder-panel").innerText()).includes("Hugo Bernard"), "back with Hugo");
 });
 
+await step("a take-back day after today is refused: the laptop stays with Hugo, nothing sent; Today, then taken back (kit 0.2.4)", async () => {
+  // The form saves from its own state: before 0.2.4 the previous day
+  // (today) would have gone in place of the refused one.
+  await page.goto(itemUrl);
+  await page.getByRole("button", { name: "Take back" }).first().click();
+  const day = page.locator("dialog[open]").getByLabel("On", { exact: true });
+  const later = new Date(Date.now() + 3 * 864e5).toISOString().slice(0, 10);
+  await day.fill(later);
+  await day.press("Tab");
+  const said = page.locator("dialog[open] .ck-date .ck-error");
+  await said.waitFor();
+  expect((await said.innerText()).includes("or earlier"), "the field says why: " + (await said.innerText()));
+  expect((await day.inputValue()) === later, "what was typed stays");
+  const send = page.getByRole("button", { name: "Take it back" });
+  expect(await send.isDisabled(), "Take it back waits while the day is refused");
+  await page.getByLabel(/^Condition/u).press("Enter");
+  await page.waitForTimeout(1000);
+  expect(await page.getByText("is back in stock").count() === 0, "nothing sent");
+  await page.goto(itemUrl);
+  expect((await page.locator(".holder-panel").innerText()).includes("Hugo Bernard"), "still with Hugo");
+  // Today (a chip) clears the refusal: taken back, then Undo (Hugo keeps it).
+  await page.getByRole("button", { name: "Take back" }).first().click();
+  await page.locator("dialog[open]").getByLabel("On", { exact: true }).fill(later);
+  await page.locator("dialog[open]").getByLabel("On", { exact: true }).press("Tab");
+  await page.locator("dialog[open] .ck-date .ck-error").waitFor();
+  await page.locator("dialog[open] .ck-date").getByRole("button", { name: "Today" }).click();
+  expect(await page.locator("dialog[open] .ck-date .ck-error").count() === 0, "refusal gone");
+  await page.getByRole("button", { name: "Take it back" }).click();
+  await page.getByText("is back in stock").waitFor();
+  await page.getByRole("button", { name: "Undo" }).click();
+  await page.waitForTimeout(1500);
+  await page.reload();
+  expect((await page.locator(".holder-panel").innerText()).includes("Hugo Bernard"), "back with Hugo");
+});
+
 await step("a licence: give a seat to Inès; the count follows", async () => {
   await page.goto(origin + "/chest/items?q=Figma");
   await page.locator(".line-main", { hasText: "Figma" }).click();

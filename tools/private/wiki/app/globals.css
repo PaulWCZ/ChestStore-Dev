@@ -313,10 +313,13 @@ fieldset.plain { border: 0; padding: 0; margin: 0; min-width: 0; }
 
 /* ---------- Editing ---------- */
 .editing-page { max-width: none; padding: 0 0 var(--space-8); }
-.writer-bar { position: sticky; top: var(--bar-h); z-index: 15; display: flex; align-items: center; gap: var(--space-3); padding: var(--space-2) var(--space-4); background: var(--bg); border-bottom: var(--border-width) solid var(--line); }
-.save-status { flex: 1; min-width: 0; text-align: center; color: var(--ink-2); font-size: var(--text-xs); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.writer-top { position: sticky; top: var(--bar-h); z-index: 15; background: var(--bg); }
+.writer-bar { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-2) var(--space-4); background: var(--bg); border-bottom: var(--border-width) solid var(--line); }
+/* The whole status stays readable on a phone: it wraps (two short lines
+   at 390 px) rather than ending in "…". */
+.save-status { flex: 1; min-width: 0; text-align: center; color: var(--ink-2); font-size: var(--text-xs); line-height: 1.25; text-wrap: balance; overflow-wrap: anywhere; }
 .save-status.offline { color: var(--danger); }
-.toolbar-wrap { position: sticky; top: calc(var(--bar-h) + 60px + var(--border-width)); z-index: 14; background: var(--bg); border-bottom: var(--border-width) solid var(--line); }
+.toolbar-wrap { background: var(--bg); border-bottom: var(--border-width) solid var(--line); }
 .toolbar { display: flex; align-items: center; gap: 2px; max-width: 960px; margin: 0 auto; padding: var(--space-1) var(--space-4); overflow-x: auto; scrollbar-width: thin; }
 .toolbar.sub { gap: var(--space-2); padding-bottom: var(--space-2); }
 .tool { display: inline-grid; place-items: center; width: 40px; height: 40px; flex: none; border: 0; border-radius: var(--radius-s); background: none; color: var(--ink); cursor: pointer; }
@@ -521,6 +524,11 @@ mark { background: var(--highlight); color: var(--ink); padding: 0 0.1em; border
   .actions .ck-menu > .ck-button { width: var(--control-h); padding: 0; }
   .writer-bar { padding: var(--space-2) var(--space-3); gap: var(--space-2); }
   .writer-bar .button { padding: 0 var(--space-3); }
+  /* The status gets a line of its own under the two buttons: read whole,
+     never cut ("Rien à enregistrer : écrivez dans la page."). */
+  .writer-bar { flex-wrap: wrap; row-gap: var(--space-1); }
+  .writer-bar > .button:last-child { margin-left: auto; }
+  .save-status { order: 3; flex: 1 0 100%; }
   /* Every tool in sight: the bar wraps on two rows instead of hiding half of them. */
   .toolbar { flex-wrap: wrap; overflow-x: visible; padding: var(--space-1) var(--space-2); row-gap: 0; }
   .toolbar .sep { display: none; }

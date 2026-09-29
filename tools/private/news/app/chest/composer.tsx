@@ -60,6 +60,19 @@ export function Composer({ postId, initial, author, people, groups, languages, m
   const [restored, setRestored] = useState(false);
   const [editorKey, setEditorKey] = useState(0);
   const title = useRef<HTMLInputElement>(null);
+  // A day the field refuses as typed (before its first day, unreadable):
+  // the field says why, and saving waits until it holds a day again —
+  // never the previous day sent in place of what was typed (kit 0.2.4).
+  // A field no longer shown (or shown afresh) has no problem: the page
+  // itself tells, by the field's aria-invalid.
+  const dateProblems = useRef(new Map<string, string>());
+  const dateProblem = (id: string) => (problem: string | null) => {
+    if (problem) dateProblems.current.set(id, problem);
+    else {
+      dateProblems.current.delete(id);
+      setError(e => (e?.field === id ? null : e));
+    }
+  };
   const editable = postId === null || initial.scheduled;
   const say = (code: ErrorCode, values: Record<string, number | string> = {}) => format(t.errors[code], values);
   const failed = (code: ErrorCode, values: Record<string, number | string> = {}) => ({ text: say(code, values), tone: "error" as const });
@@ -154,6 +167,13 @@ export function Composer({ postId, initial, author, people, groups, languages, m
 
   async function save() {
     if (saving) return;
+    const refused = [...dateProblems.current].find(([id]) => document.getElementById(id)?.getAttribute("aria-invalid") === "true");
+    if (refused) {
+      const [id, problem] = refused;
+      setError({ text: problem, field: id });
+      requestAnimationFrame(() => document.getElementById(id)?.focus());
+      return;
+    }
     if (!d.title.trim()) {
       setTab(d.locale);
       setError({ text: say("empty"), field: "title" });
@@ -273,10 +293,10 @@ export function Composer({ postId, initial, author, people, groups, languages, m
           {d.kind === "event" && (
             <div className="event-fields">
               <div className="field-group">
-                <DateField id="event-day" label={w.eventDay} value={eventDraft.day || null} onChange={day => setEvent({ day: day ?? "", ...(day && eventDraft.lastDay && eventDraft.lastDay < day ? { lastDay: "" } : {}) })} today={defaults.today} labels={t.date} />
+                <DateField id="event-day" label={w.eventDay} value={eventDraft.day || null} onChange={day => setEvent({ day: day ?? "", ...(day && eventDraft.lastDay && eventDraft.lastDay < day ? { lastDay: "" } : {}) })} onProblem={dateProblem("event-day")} today={defaults.today} labels={t.date} />
               </div>
               <div className="field-group">
-                <DateField id="event-last" label={w.eventLastDay} hint={w.lastDayHint} value={eventDraft.lastDay || null} min={eventDraft.day || null} chips={false} onChange={day => setEvent({ lastDay: day ?? "" })} today={defaults.today} labels={t.date} />
+                <DateField id="event-last" label={w.eventLastDay} hint={w.lastDayHint} value={eventDraft.lastDay || null} min={eventDraft.day || null} chips={false} onChange={day => setEvent({ lastDay: day ?? "" })} onProblem={dateProblem("event-last")} today={defaults.today} labels={t.date} />
               </div>
               <div className="field-group">
                 <label htmlFor="event-seats">{w.seats}</label>
@@ -336,7 +356,11 @@ export function Composer({ postId, initial, author, people, groups, languages, m
             </div>
   );
   return (
-    <form className="composer" data-ready={ready ? "" : undefined} onSubmit={e => { e.preventDefault(); void save(); }} onKeyDown={e => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); void save(); } }} noValidate>
+    <form className="composer" data-ready={ready ? "" : undefined} onSubmit={e => { e.preventDefault(); void save(); }} onKeyDown={e => {
+      // Ctrl+Enter sends once the field it was pressed in has read what was
+      // typed (a day, or its refusal): the next turn's submit sees it.
+      if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); const form = e.currentTarget; setTimeout(() => form.requestSubmit(), 0); }
+    }} noValidate>
       <div className="composer-head">
         <h1>{postId === null ? w.newTitle : w.editTitle}</h1>
         {restored && (
@@ -424,7 +448,7 @@ export function Composer({ postId, initial, author, people, groups, languages, m
             <Checkbox label={<strong>{w.pinned}</strong>} hint={w.pinnedHint} checked={d.pinned} onChange={on => update({ pinned: on })} />
             {d.pinned && (
               <div className="field-group indent">
-                <DateField id="pinned-until" label={w.pinnedUntil} value={d.pinnedUntil} min={defaults.today} chips={false} onChange={day => update({ pinnedUntil: day })} today={defaults.today} labels={t.date} />
+                <DateField id="pinned-until" label={w.pinnedUntil} value={d.pinnedUntil} min={defaults.today} chips={false} onChange={day => update({ pinnedUntil: day })} onProblem={dateProblem("pinned-until")} today={defaults.today} labels={t.date} />
               </div>
             )}
           </section>
@@ -498,7 +522,7 @@ export function Composer({ postId, initial, author, people, groups, languages, m
         {editable && later && (
           <div className="when-fields" role="group" aria-label={w.when}>
             <Clock />
-            <DateField id="later-day" label={w.laterDay} value={d.publishAt?.day ?? defaults.day} min={defaults.today} onChange={day => update({ publishAt: { day: day ?? defaults.day, time: d.publishAt?.time ?? defaults.time } })} today={defaults.today} labels={t.date} />
+            <DateField id="later-day" label={w.laterDay} value={d.publishAt?.day ?? defaults.day} min={defaults.today} onChange={day => update({ publishAt: { day: day ?? defaults.day, time: d.publishAt?.time ?? defaults.time } })} onProblem={dateProblem("later-day")} today={defaults.today} labels={t.date} />
             <div className="field-group">
               <label htmlFor="later-time">{w.laterTime}</label>
               <TimeSelect id="later-time" value={minutes(d.publishAt?.time ?? defaults.time) ?? 540} onChange={m => update({ publishAt: { day: d.publishAt?.day ?? defaults.day, time: hhmm(m) } })} />

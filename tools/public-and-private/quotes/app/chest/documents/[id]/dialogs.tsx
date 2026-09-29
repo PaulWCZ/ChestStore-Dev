@@ -2,7 +2,7 @@
 
 import { Confirm, DateField, Dialog } from "@argentic/chest-ui/components";
 import { addDays } from "@argentic/chest-ui/components/logic";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Alert, Download, Info, Send } from "../../../../components/icons.tsx";
 import { format, languageNames } from "../../../../lib/i18n/format.ts";
 import type { Catalogue, Locale } from "../../../../lib/i18n/index.ts";
@@ -212,8 +212,10 @@ export function PaymentDialog({ t, doc, locale, today, onClose, onDone }: Close 
   const [note, setNote] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const refused = useRefusedDay(setError);
   async function submit(e: React.FormEvent) {
     e.preventDefault();
+    if (refused.stop("paid-on")) return;
     if (!paidOn) return setError(t.errors.date_invalid);
     setBusy(true);
     const result = await addPayment(doc.id, { paidOn, amount, method, note });
@@ -230,7 +232,7 @@ export function PaymentDialog({ t, doc, locale, today, onClose, onDone }: Close 
           <span className="hint">{format(p.left, { amount: formatMoney(doc.due, doc.currency, locale) })}</span>
         </div>
         <div className="half">
-          <DateField id="paid-on" label={p.date} value={paidOn} onChange={setPaidOn} today={today} max={today} required labels={t.date}
+          <DateField id="paid-on" label={p.date} value={paidOn} onChange={setPaidOn} onProblem={refused.onProblem} today={today} max={today} required labels={t.date}
             chips={[{ label: t.date.today, value: today }, { label: t.date.yesterday, value: addDays(today, -1) }]} />
         </div>
         <div className="field-row half">
@@ -262,8 +264,10 @@ export function RepeatDialog({ t, doc, today, suggested, onClose, onDone }: Clos
   const [first, setFirst] = useState<string | null>(suggested.month);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const refused = useRefusedDay(setError);
   async function submit(e: React.FormEvent) {
     e.preventDefault();
+    if (refused.stop("repeat-first")) return;
     if (!first) return setError(t.errors.date_invalid);
     setBusy(true);
     const result = await repeatInvoice(doc.id, every, first);
@@ -282,7 +286,7 @@ export function RepeatDialog({ t, doc, today, suggested, onClose, onDone }: Clos
           </select>
         </div>
         <div className="half">
-          <DateField id="repeat-first" label={r.first} value={first} onChange={setFirst} today={today} min={today} required labels={t.date} chips={false} />
+          <DateField id="repeat-first" label={r.first} value={first} onChange={setFirst} onProblem={refused.onProblem} today={today} min={today} required labels={t.date} chips={false} />
         </div>
         {error && <p className="error" role="alert">{error}</p>}
         <div className="dialog-actions">
@@ -292,4 +296,27 @@ export function RepeatDialog({ t, doc, today, suggested, onClose, onDone }: Clos
       </form>
     </Dialog>
   );
+}
+
+// A day the kit's DateField refuses as typed (after `max`, before `min`,
+// unreadable): the field says why and keeps the text, and the dialog's
+// own submit (it reads the day from its state) waits — never the previous
+// day in place of what was typed (kit 0.2.4). The problem is told on
+// leaving the field, before the click that submits lands.
+function useRefusedDay(setError: (update: (error: string | null) => string | null) => void) {
+  const problem = useRef<string | null>(null);
+  return {
+    onProblem(next: string | null) {
+      const was = problem.current;
+      problem.current = next;
+      if (next === null && was !== null) setError(e => (e === was ? null : e));
+    },
+    stop(fieldId: string): boolean {
+      const now = problem.current;
+      if (now === null) return false;
+      setError(() => now);
+      requestAnimationFrame(() => document.getElementById(fieldId)?.focus());
+      return true;
+    },
+  };
 }

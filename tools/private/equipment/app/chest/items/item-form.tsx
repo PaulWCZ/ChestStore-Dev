@@ -1,10 +1,11 @@
 "use client";
 
-import { DateField, useToast } from "@argentic/chest-ui/components";
+import { useToast } from "@argentic/chest-ui/components";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { CategoryIcon, Give } from "../../../components/icons.tsx";
+import { useDateProblems, WatchedDateField } from "../../../components/date-problems.tsx";
 import type { Catalogue } from "../../../lib/i18n/index.ts";
 import { format } from "../../../lib/i18n/format.ts";
 import { limits, type FieldType, type IconName, type Kind } from "../../../lib/model.ts";
@@ -33,6 +34,10 @@ export function ItemForm({ mode, id, initial, categories, fields, nextTag, suppl
   const [v, setV] = useState<FormValues>(initial);
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
+  // A day refused by its field (unreadable) leaves the previous one in `v`:
+  // saving — the form's submit, and "Add and give", a button's click —
+  // waits while one stands (kit 0.2.4).
+  const dates = useDateProblems();
   const router = useRouter();
   const toast = useToast();
   const set = <K extends keyof FormValues>(key: K, value: FormValues[K]) => setV(old => ({ ...old, [key]: value }));
@@ -45,6 +50,7 @@ export function ItemForm({ mode, id, initial, categories, fields, nextTag, suppl
   const many = mode === "new" && kind === "asset" ? Math.max(Number(v.count) || 1, serialLines.length) : 1;
 
   function submit(andGive: boolean) {
+    if (dates.problem) return;
     setError(null);
     start(async () => {
       const extra = Object.fromEntries(own.map(f => [f.id, v.extra[f.id] ?? ""]));
@@ -79,7 +85,7 @@ export function ItemForm({ mode, id, initial, categories, fields, nextTag, suppl
   // calendar (never the browser's own date input).
   const day = (key: "purchasedOn" | "warrantyUntil" | "renewsOn", label: string) => (
     <div className="form-field">
-      <DateField label={label} value={v[key] || null} onChange={d => set(key, d ?? "")} today={today} chips={false} labels={t.date} />
+      <WatchedDateField label={label} value={v[key] || null} onChange={d => set(key, d ?? "")} onProblem={dates.watch(key)} today={today} chips={false} labels={t.date} />
     </div>
   );
 
@@ -152,7 +158,7 @@ export function ItemForm({ mode, id, initial, categories, fields, nextTag, suppl
         )}
         {own.map(f => f.type === "date" ? (
           <div className="form-field" key={f.id}>
-            <DateField label={`${f.name} (${t.common.optional})`} value={v.extra[f.id] || null} today={today} chips={false} labels={t.date}
+            <WatchedDateField label={`${f.name} (${t.common.optional})`} value={v.extra[f.id] || null} today={today} chips={false} labels={t.date} onProblem={dates.watch("x-" + f.id)}
               onChange={d => setV(old => ({ ...old, extra: { ...old.extra, [f.id]: d ?? "" } }))} />
           </div>
         ) : (
@@ -178,9 +184,9 @@ export function ItemForm({ mode, id, initial, categories, fields, nextTag, suppl
       <div className="row end form-actions">
         <Link className="button quiet" href={mode === "edit" ? `/chest/items/${id}` : "/chest/items"}>{t.form.cancel}</Link>
         {mode === "new" && kind === "asset" && many === 1 && (
-          <button type="button" className="button quiet" disabled={pending || !v.name.trim() || !v.categoryId} onClick={() => submit(true)}><Give />{t.form.addAndGive}</button>
+          <button type="button" className="button quiet" disabled={pending || !v.name.trim() || !v.categoryId || dates.problem !== null} onClick={() => submit(true)}><Give />{t.form.addAndGive}</button>
         )}
-        <button type="submit" className="button" disabled={pending || !v.name.trim() || !v.categoryId}>
+        <button type="submit" className="button" disabled={pending || !v.name.trim() || !v.categoryId || dates.problem !== null}>
           {pending ? t.common.saving : mode === "new" ? (many > 1 ? format(t.form.createMany, { count: many }) : t.form.create) : t.common.save}
         </button>
       </div>

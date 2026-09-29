@@ -3,7 +3,7 @@
 import { DateField, Segmented, useToast } from "@argentic/chest-ui/components";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { Back, Close, Plus } from "../../../components/icons.tsx";
 import { amountText, hoursText, parseAmount, parseHours } from "../../../lib/amounts.ts";
 import type { Catalogue } from "../../../lib/i18n/index.ts";
@@ -48,6 +48,12 @@ export function ProjectForm({ initial, clients, people, currency, comma, default
   const [rateFrom, setRateFrom] = useState<string | null>(rates?.today ?? null);
   const rateChanged = (rate.trim() === "" ? null : parseAmount(rate)) !== initial.rateCents;
   const askFrom = Boolean(initial.id && rates?.hasTime && rateChanged);
+  // What the day field refuses as typed (unreadable): said under it; Save
+  // waits — the day it held before is never sent in its place.
+  const [fromProblem, setFromProblem] = useState<string | null>(null);
+  const fromRefused = billable && askFrom && fromProblem !== null;
+  // The day field leaves when the rate is back as it was: its refusal goes with it.
+  useEffect(() => { if (!billable || !askFrom) setFromProblem(null); }, [billable, askFrom]);
 
   function save() {
     const rateCents = rate.trim() === "" ? null : parseAmount(rate);
@@ -64,6 +70,7 @@ export function ProjectForm({ initial, clients, people, currency, comma, default
     }
     // A changed rate on a project with time needs its first day, after the
     // locked period.
+    if (fromRefused) return void document.getElementById("p-rate-from")?.focus();
     const problem = askFrom ? rateDayProblem(rateFrom, rates?.lock ?? null, { missing: t.errors.rate_day_missing }) : null;
     if (problem) return setError(problem);
     setError(null);
@@ -157,7 +164,7 @@ export function ProjectForm({ initial, clients, people, currency, comma, default
             {rates?.history && <p className="hint">{rates.history}</p>}
             {askFrom && (
               <>
-                <DateField id="p-rate-from" label={w.rateFrom} value={rateFrom} onChange={setRateFrom} today={rates?.today ?? ""} hint={rates?.lock ? `${w.rateFromHint} ${rates.lock.text}` : w.rateFromHint} chips={false} labels={t.date} />
+                <DateField id="p-rate-from" label={w.rateFrom} value={rateFrom} onChange={setRateFrom} onProblem={setFromProblem} today={rates?.today ?? ""} hint={rates?.lock ? `${w.rateFromHint} ${rates.lock.text}` : w.rateFromHint} chips={false} labels={t.date} />
               </>
             )}
           </div>
@@ -213,7 +220,7 @@ export function ProjectForm({ initial, clients, people, currency, comma, default
       </div>
       {error && <p className="error" role="alert">{error}</p>}
       <div className="form-actions">
-        <button type="submit" className="button" disabled={pending}>{initial.id ? w.save : w.create}</button>
+        <button type="submit" className="button" disabled={pending || fromRefused}>{initial.id ? w.save : w.create}</button>
         <Link className="button link" href="/chest/projects"><Back />{w.back}</Link>
         {initial.id && <button type="button" className="button link danger-link" disabled={pending} onClick={() => archive(!initial.archived)}>{initial.archived ? w.unarchive : w.archive}</button>}
       </div>

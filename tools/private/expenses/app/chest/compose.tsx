@@ -1,11 +1,12 @@
 "use client";
 
-import { DateField, EmptyState, useToast } from "@argentic/chest-ui/components";
+import { EmptyState, useToast } from "@argentic/chest-ui/components";
 import { addDays } from "@argentic/chest-ui/components/logic";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, useTransition, type FormEvent } from "react";
 import { Alert, Calendar, Camera, Car, Check, Close, FileIcon, Receipt } from "../../components/icons.tsx";
 import { typeOf, upload } from "../../components/upload.ts";
+import { useDateProblems, WatchedDateField } from "../../components/date-problems.tsx";
 import { readReceipt } from "../../components/ocr.ts";
 import type { ComposeData, Initial } from "../../lib/compose.ts";
 import type { Catalogue } from "../../lib/i18n/index.ts";
@@ -196,6 +197,9 @@ export function ExpenseForm({ data, initial, locale, t }: { data: ComposeData; i
   const [guests, setGuests] = useState<Guests>(initial?.guests ?? { members: [], names: [], alone: false });
   const [merchant, setMerchant] = useState(initial?.merchant ?? "");
   const [day, setDay] = useState(initial?.spentOn ?? data.today);
+  // A day refused by the date field (after today, unreadable) leaves the
+  // previous one in `day`: the form (noValidate) waits (kit 0.2.4).
+  const dates = useDateProblems();
   // What the photo said: the fields it filled (only empty ones), until
   // the person changes them.
   const [reading, setReading] = useState<"idle" | "reading" | "read" | "unread">("idle");
@@ -237,6 +241,7 @@ export function ExpenseForm({ data, initial, locale, t }: { data: ComposeData; i
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (dates.problem) return;
     const form = new FormData(event.currentTarget);
     if (parsed === null || parsed <= 0) {
       setError(t.errors.amount_invalid);
@@ -298,7 +303,7 @@ export function ExpenseForm({ data, initial, locale, t }: { data: ComposeData; i
           <datalist id="merchants">{data.merchants.map(m => <option key={m} value={m} />)}</datalist>
         </div>
         <div className={suggested.has("date") ? "date-suggested" : undefined}>
-          <DateField id="date" name="date" label={t.form.date} value={day || null} onChange={d => { setDay(d ?? ""); typed("date"); }} today={data.today} max={data.today} chips={pastChips(t, data.today)} labels={t.date} required />
+          <WatchedDateField id="date" name="date" onProblem={dates.watch("date")} label={t.form.date} value={day || null} onChange={d => { setDay(d ?? ""); typed("date"); }} today={data.today} max={data.today} chips={pastChips(t, data.today)} labels={t.date} required />
         </div>
       </div>
 
@@ -354,7 +359,7 @@ export function ExpenseForm({ data, initial, locale, t }: { data: ComposeData; i
 
       {error && <p className="error" role="alert">{error}</p>}
       <div className="save-bar">
-        <button type="submit" className="button" disabled={pending || busy}>{pending ? t.form.saving : t.form.save}</button>
+        <button type="submit" className="button" disabled={pending || busy || dates.problem !== null}>{pending ? t.form.saving : t.form.save}</button>
         <a className="button quiet" href={initial ? `/chest/expenses/${initial.id}` : "/chest"}>{t.form.cancel}</a>
       </div>
     </form>
@@ -368,6 +373,9 @@ export function TripForm({ data, initial, locale, t }: { data: ComposeData; init
   const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [day, setDay] = useState(initial?.spentOn ?? data.today);
+  // A day refused by the date field (after today, unreadable) leaves the
+  // previous one in `day`: the form (noValidate) waits (kit 0.2.4).
+  const dates = useDateProblems();
   const [distance, setDistance] = useState(initial?.distance ?? "");
   const [round, setRound] = useState(false);
   const [from, setFrom] = useState(initial?.from ?? "");
@@ -402,6 +410,7 @@ export function TripForm({ data, initial, locale, t }: { data: ComposeData; init
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (dates.problem) return;
     const form = new FormData(event.currentTarget);
     const input = { spentOn: day, from, to, distance, roundTrip: round, note: String(form.get("note") ?? "") };
     start(async () => {
@@ -441,7 +450,7 @@ export function TripForm({ data, initial, locale, t }: { data: ComposeData; init
         </div>
         <label className="check"><input type="checkbox" checked={round} onChange={e => setRound(e.target.checked)} />{t.trip.roundTrip}</label>
       </div>
-      <DateField id="date" name="date" label={t.form.date} value={day || null} onChange={d => setDay(d ?? "")} today={data.today} max={data.today} chips={pastChips(t, data.today)} labels={t.date} required />
+      <WatchedDateField id="date" name="date" onProblem={dates.watch("date")} label={t.form.date} value={day || null} onChange={d => setDay(d ?? "")} today={data.today} max={data.today} chips={pastChips(t, data.today)} labels={t.date} required />
       <div className="paper flat" aria-live="polite">
         <div className="estimate">
           <span className="label">{estimate ? format(t.trip.estimateHint, { year: estimate.year, km: estimate.before }) : format(t.trip.scaleNote, { year: data.scales[0]?.year ?? "" })}</span>
@@ -458,7 +467,7 @@ export function TripForm({ data, initial, locale, t }: { data: ComposeData; init
       </details>
       {error && <p className="error" role="alert">{error}</p>}
       <div className="save-bar">
-        <button type="submit" className="button" disabled={pending}>{pending ? t.form.saving : t.form.save}</button>
+        <button type="submit" className="button" disabled={pending || dates.problem !== null}>{pending ? t.form.saving : t.form.save}</button>
         <a className="button quiet" href={initial ? `/chest/expenses/${initial.id}` : "/chest"}>{t.form.cancel}</a>
       </div>
     </form>
@@ -475,6 +484,9 @@ export function AllowanceForm({ data, initial, locale, t }: { data: ComposeData;
   const [rate, setRate] = useState(initial?.allowanceId || (data.allowances[0]?.id ?? ""));
   const [units, setUnits] = useState(initial?.units ?? "1");
   const [day, setDay] = useState(initial?.spentOn ?? data.today);
+  // A day refused by the date field (after today, unreadable) leaves the
+  // previous one in `day`: the form (noValidate) waits (kit 0.2.4).
+  const dates = useDateProblems();
   const chosen = data.allowances.find(a => a.id === rate);
   const count = /^\d{1,3}$/u.test(units.trim()) ? Number(units) : 0;
   const unit = (chosen?.unit ?? "day") as keyof ComposeWords["allowance"]["count"];
@@ -485,6 +497,7 @@ export function AllowanceForm({ data, initial, locale, t }: { data: ComposeData;
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (dates.problem) return;
     const form = new FormData(event.currentTarget);
     const input = { spentOn: day, allowanceId: rate, units, note: String(form.get("note") ?? "") };
     start(async () => {
@@ -510,7 +523,7 @@ export function AllowanceForm({ data, initial, locale, t }: { data: ComposeData;
           <label htmlFor="units">{t.allowance.count[unit]}</label>
           <input id="units" className="field mono" inputMode="numeric" autoComplete="off" value={units} onChange={e => setUnits(e.target.value)} />
         </div>
-        <DateField id="date" name="date" label={t.allowance.date} value={day || null} onChange={d => setDay(d ?? "")} today={data.today} max={data.today} chips={pastChips(t, data.today)} labels={t.date} required />
+        <WatchedDateField id="date" name="date" onProblem={dates.watch("date")} label={t.allowance.date} value={day || null} onChange={d => setDay(d ?? "")} today={data.today} max={data.today} chips={pastChips(t, data.today)} labels={t.date} required />
       </div>
       <div className="paper flat" aria-live="polite">
         <div className="estimate">
@@ -525,7 +538,7 @@ export function AllowanceForm({ data, initial, locale, t }: { data: ComposeData;
       </div>
       {error && <p className="error" role="alert">{error}</p>}
       <div className="save-bar">
-        <button type="submit" className="button" disabled={pending || !chosen || count === 0}>{pending ? t.form.saving : t.form.save}</button>
+        <button type="submit" className="button" disabled={pending || !chosen || count === 0 || dates.problem !== null}>{pending ? t.form.saving : t.form.save}</button>
         <a className="button quiet" href={initial ? `/chest/expenses/${initial.id}` : "/chest"}>{t.form.cancel}</a>
       </div>
     </form>

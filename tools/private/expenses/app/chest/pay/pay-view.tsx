@@ -1,10 +1,11 @@
 "use client";
 
-import { Avatar, DateField, Dialog, EmptyState, useToast } from "@argentic/chest-ui/components";
+import { Avatar, Dialog, EmptyState, useToast } from "@argentic/chest-ui/components";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { BankForm, type BankAddress } from "../../../components/bank-form.tsx";
 import { DateBox, RowStamp, Stamp, Thumb, Warning, Warnings } from "../../../components/bits.tsx";
+import { useDateProblems, WatchedDateField } from "../../../components/date-problems.tsx";
 import { Check, Download, FileIcon, Wallet } from "../../../components/icons.tsx";
 import type { Catalogue } from "../../../lib/i18n/index.ts";
 import { format, plural } from "../../../lib/i18n/format.ts";
@@ -42,15 +43,22 @@ export function PayView({ groups, ready, preview, files, recent, today, locale, 
   const toast = useToast();
   const [pending, start] = useTransition();
   const [gone, setGone] = useState<Set<string>>(new Set());
-  const [dates, setDates] = useState<Record<string, string>>({});
+  // Each person's "paid on" day (today until changed; null once emptied)
+  // and the transfer's day. A day refused by its field (after today for a
+  // payment, before today for a transfer, unreadable) leaves the previous
+  // one here: that form waits until its field holds a day (kit 0.2.4).
+  const [dates, setDates] = useState<Record<string, string | null>>({});
   const [execution, setExecution] = useState(today);
+  const refused = useDateProblems();
+  const paidOn = (owner: string) => (owner in dates ? dates[owner]! : today);
   const [editing, setEditing] = useState<PayGroup | null>(null);
   const [typing, setTyping] = useState(false);
   const errorText = (r: { error: keyof Catalogue["errors"]; values?: Record<string, string | number> }) => format(t.errors[r.error], r.values ?? {});
 
   function pay(g: PayGroup) {
     const ids = g.rows.map(r => r.id);
-    const day = dates[g.owner] ?? today;
+    const day = paidOn(g.owner);
+    if (!day || refused.of(`paid-${g.owner}`)) return;
     setGone(set => new Set([...set, g.owner]));
     start(async () => {
       const result = await markPaid(ids, day);
@@ -75,6 +83,7 @@ export function PayView({ groups, ready, preview, files, recent, today, locale, 
   }
 
   function makeFile() {
+    if (refused.of("execution")) return;
     start(async () => {
       const result = await makeTransferFile(execution);
       if (!result.ok) return void toast({ text: errorText(result), tone: "error" });
@@ -114,8 +123,8 @@ export function PayView({ groups, ready, preview, files, recent, today, locale, 
               <p className="hint">{t.pay.byFileBody}</p>
               <p className="hint">{preview.statement} <a href="/chest/settings/company#bank">{t.pay.statementChange}</a></p>
               <form className="pay-form" onSubmit={e => { e.preventDefault(); makeFile(); }}>
-                <DateField id="execution" label={t.pay.execution} value={execution || null} onChange={d => setExecution(d ?? "")} today={today} min={today} labels={t.date} />
-                <button type="submit" className="button" disabled={pending}><Download />{preview.label}</button>
+                <WatchedDateField id="execution" label={t.pay.execution} value={execution || null} onChange={d => setExecution(d ?? "")} onProblem={refused.watch("execution")} today={today} min={today} labels={t.date} />
+                <button type="submit" className="button" disabled={pending || refused.of("execution") !== null}><Download />{preview.label}</button>
               </form>
             </>
           )}
@@ -159,8 +168,8 @@ export function PayView({ groups, ready, preview, files, recent, today, locale, 
           <hr className="rule" />
           <div className="total-line"><span className="label">{t.pay.totalLabel}</span><span className="amount">{g.total}</span></div>
           <form className="pay-form" onSubmit={e => { e.preventDefault(); pay(g); }}>
-            <DateField id={`paid-${g.owner}`} label={t.pay.paidOn} value={dates[g.owner] ?? today} onChange={d => d && setDates(all => ({ ...all, [g.owner]: d }))} today={today} max={today} chips={[{ label: t.date.today, value: today }]} labels={t.date} />
-            <button type="submit" className="button quiet" disabled={pending}><Check />{t.pay.markPaid}</button>
+            <WatchedDateField id={`paid-${g.owner}`} label={t.pay.paidOn} value={paidOn(g.owner)} onChange={d => setDates(all => ({ ...all, [g.owner]: d }))} onProblem={refused.watch(`paid-${g.owner}`)} today={today} max={today} chips={[{ label: t.date.today, value: today }]} labels={t.date} />
+            <button type="submit" className="button quiet" disabled={pending || !paidOn(g.owner) || refused.of(`paid-${g.owner}`) !== null}><Check />{t.pay.markPaid}</button>
           </form>
         </section>
       ))}
