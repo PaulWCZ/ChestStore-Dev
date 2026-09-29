@@ -162,6 +162,7 @@ await step("the board: move a deal with the keyboard, then to Won with a reason"
   await page.keyboard.press("Space");
   await page.waitForTimeout(1500);
   await page.reload();
+  await page.waitForLoadState("networkidle");
   expect((await boardLane("Proposal").innerText()).includes("Dispensary counter"), "moved to Proposal");
   const card = page.locator(".deal-card", { hasText: "Dispensary counter" });
   const target = boardLane("Won").locator(".lane-deals");
@@ -210,7 +211,10 @@ await step("the manager gives Inès a deal: she is told in French", async () => 
 await step("search with the / key, accents and case aside", async () => {
   await as(context, origin, "hugo");
   await page.goto(origin + "/chest/deals");
-  await page.keyboard.press("/");
+  // The "/" shortcut is bound once the page's script runs: wait for it, as a person would press again.
+  await page.waitForLoadState("networkidle");
+  const focused = () => page.evaluate(() => document.activeElement?.classList.contains("ck-search-input") && document.activeElement.closest(".ck-bar") !== null);
+  for (let i = 0; i < 5 && !(await focused()); i++) { await page.keyboard.press("/"); await page.waitForTimeout(200); }
   expect(await page.evaluate(() => document.activeElement?.classList.contains("ck-search-input") && document.activeElement.closest(".ck-bar") !== null), "the header's search box is focused");
   await page.keyboard.type("cherif");
   await page.keyboard.press("Enter");
