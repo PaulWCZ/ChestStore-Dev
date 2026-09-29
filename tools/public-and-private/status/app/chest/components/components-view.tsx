@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { Down, Eye, EyeOff, Pencil, Plus, Trash, Up } from "../../../components/icons.tsx";
+import { Down, Eye, EyeOff, Lock, Pencil, Plus, Trash, Up } from "../../../components/icons.tsx";
 import { StateIcon } from "../../../components/icons.tsx";
 import { useRun } from "../../../components/use-run.ts";
 import type { ErrorCode } from "../../../lib/app-error.ts";
@@ -67,7 +67,7 @@ function Line({ row, first, last, groups, t }: { row: Row; first: boolean; last:
             <strong>{row.name}</strong>
             {row.kind === "group" && <span className="tag">{w.group_kind}</span>}
             {row.hidden && <span className="tag muted"><EyeOff />{w.hidden}</span>}
-            {row.teamOnly && <span className="tag muted">{w.teamOnly}</span>}
+            {row.teamOnly && <span className="tag muted"><Lock />{w.teamOnly}</span>}
             {row.description && <span className="muted small">{row.description}</span>}
           </div>
           {row.kind === "component" && <span className={`state-label quiet s-${row.state}`} title={format(w.now!, { state: t.states[row.state] ?? "" })}><StateIcon state={row.state} /><span className="visually-hidden">{format(w.now!, { state: t.states[row.state] ?? "" })}</span></span>}
@@ -79,7 +79,7 @@ function Line({ row, first, last, groups, t }: { row: Row; first: boolean; last:
                 <button type="button" disabled={first || pending} aria-label={format(w.up!, { name: row.name })} onClick={() => act(() => run(() => moveComponent(row.id, "up")))}><Up />{w.moveUp}</button>
                 <button type="button" disabled={last || pending} aria-label={format(w.down!, { name: row.name })} onClick={() => act(() => run(() => moveComponent(row.id, "down")))}><Down />{w.moveDown}</button>
                 <button type="button" disabled={pending} aria-label={`${row.hidden ? w.show : w.hide} — ${row.name}`} onClick={() => act(() => run(() => updateComponent(row.id, { hidden: !row.hidden }), w.saved))}>{row.hidden ? <Eye /> : <EyeOff />}{row.hidden ? w.show : w.hide}</button>
-                {row.kind === "component" && <button type="button" disabled={pending} aria-label={`${row.teamOnly ? w.makePublic : w.makeTeamOnly} — ${row.name}`} onClick={() => act(() => run(() => updateComponent(row.id, { teamOnly: !row.teamOnly }), w.saved))}>{row.teamOnly ? <Eye /> : <EyeOff />}{row.teamOnly ? w.makePublic : w.makeTeamOnly}</button>}
+                {row.kind === "component" && <button type="button" disabled={pending} aria-label={`${row.teamOnly ? w.makePublic : w.makeTeamOnly} — ${row.name}`} onClick={() => act(() => run(() => updateComponent(row.id, { teamOnly: !row.teamOnly }), w.saved))}>{row.teamOnly ? <Eye /> : <Lock />}{row.teamOnly ? w.makePublic : w.makeTeamOnly}</button>}
                 <button type="button" className="danger" disabled={pending} aria-label={`${w.remove} — ${row.name}`} onClick={() => act(() => run(() => removeComponent(row.id), w.removed))}><Trash />{w.remove}</button>
               </div>
             </details>

@@ -62,3 +62,5 @@ export const Pulse = () => <Icon><path d="M3 12h4l2.5-6 5 12L17 12h4" /></Icon>;
 export const Bell = () => <Icon><path d="M6 16V11a6 6 0 1 1 12 0v5l1.5 2h-15z" /><path d="M10 20.5a2 2 0 0 0 4 0" /></Icon>;
 export const Close = () => <Icon><path d="M6 6l12 12M18 6 6 18" /></Icon>;
 export const Info = () => <Icon><circle cx="12" cy="12" r="9" /><path d="M12 11v5" /><circle cx="12" cy="8" r="0.8" fill="currentColor" /></Icon>;
+// A padlock: for the team only.
+export const Lock = () => <Icon><rect x="5" y="11" width="14" height="9" rx="2" /><path d="M8 11V8a4 4 0 0 1 8 0v3" /></Icon>;

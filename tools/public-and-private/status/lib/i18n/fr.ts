@@ -108,8 +108,6 @@ export const fr: Catalogue = {
     feedTitle: "État des services — {company} — incidents",
     feedSubtitle: "Incidents et maintenances des services de {company}",
     calendarName: "{company} — maintenances prévues",
-    noComponents: "Rien à afficher pour l’instant",
-    noComponentsBody: "Cette page d’état est en cours de préparation.",
     maintenanceTag: "Maintenance",
     incidentTag: "Incident",
     postmortem: "Ce qui s’est passé et ce que nous avons changé",
@@ -191,10 +189,6 @@ export const fr: Catalogue = {
     subscribers: "Abonnés",
     publicPage: "Page publique",
     settings: "Réglages",
-  },
-  noAccess: {
-    title: "Vous ne pouvez pas encore utiliser cet outil",
-    body: "Votre rôle ne donne aucun accès. Demandez à un administrateur de votre Chest de vous nommer rédacteur.",
   },
   notFound: {
     title: "Rien ici",
@@ -534,6 +528,9 @@ export const fr: Catalogue = {
     exportHint: "Les services, chaque incident avec ses points et ses corrections, les modèles et les réglages dans un fichier JSON ; les abonnés dans un tableur.",
     exportJson: "Tout (JSON)",
     exportCsv: "Abonnés (CSV)",
+    badgeCode: "Code du badge",
+    widgetCode: "Code du bandeau",
+    apiCode: "Adresse de l’API",
   },
   team: {
     title: "État de nos services",

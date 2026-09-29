@@ -99,10 +99,10 @@ export function SettingsView({ origin, settings, branded, templates, t }: { orig
         <h3>{w.badgeTitle}</h3>
         <p className="hint">{w.badgeHint}</p>
         <p><img src="/badge.svg" alt={w.badgeAlt} height={20} /></p>
-        <Snippet id="badge-code" label={w.badgeTitle!} code={badge} t={t} />
+        <Snippet id="badge-code" label={w.badgeCode!} code={badge} t={t} />
         <h3>{w.widgetTitle}</h3>
         <p className="hint">{w.widgetHint}</p>
-        <Snippet id="widget-code" label={w.widgetTitle!} code={frame} t={t} />
+        <Snippet id="widget-code" label={w.widgetCode!} code={frame} t={t} />
         <form className="stack" onSubmit={save}>
           <div>
             <label className="label" htmlFor="embed-sites">{w.embedSites}</label>
@@ -113,7 +113,7 @@ export function SettingsView({ origin, settings, branded, templates, t }: { orig
         </form>
         <h3>{w.apiTitle}</h3>
         <p className="hint">{w.apiHint}</p>
-        <Snippet id="api-code" label={w.apiTitle!} code={`${origin}/api/v2/summary.json`} t={t} />
+        <Snippet id="api-code" label={w.apiCode!} code={`${origin}/api/v2/summary.json`} t={t} />
       </section>
 
       <section className="card pad stack" aria-labelledby="templates-title">

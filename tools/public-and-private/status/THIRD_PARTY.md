@@ -16,5 +16,33 @@ branch), the heartbeat bar of Uptime Kuma (MIT), the incident history of
 Statusfy (Apache-2.0), Atlassian Statuspage and Instatus (proprietary,
 features only).
 
-Dependencies (`next`, `react`, `postgres`, `@argentic/chest-sdk`) are
-installed from npm under their own licences.
+Formats and rules followed, no code copied (read on 2026-09-29; the
+Atlassian pages could not be opened from the studio — egress denied — so
+they were read through web search results, and the shapes checked against
+code that reads them):
+
+- **Statuspage public status API** (paths `/api/v2/summary.json`,
+  `status.json`, `components.json`, `incidents.json`,
+  `incidents/unresolved.json`, `scheduled-maintenances.json`,
+  `…/upcoming.json`, `…/active.json`; fields as documented on each page's
+  `/api`, e.g. https://status.atlassian.com/api, https://metastatuspage.com/api,
+  https://status.temporal.io/api — search results). Checked against
+  Atlassian's own widget `@statuspage/status-widget` 1.0.5 (Apache-2.0,
+  npm; reads `status.indicator`, `status.description` of
+  `/api/v2/summary.json`) and `@universityofwarwick/statuspage-widget`
+  0.2.0 (ISC; reads `incidents[].impact`, `name`, `shortlink`,
+  `components[].id`, `scheduled_maintenances[].status`, `page.url`).
+  `test/fixtures/statuspage-*.json` are written by us in that shape.
+- **Uptime rule** — "Display historical uptime of components",
+  https://support.atlassian.com/statuspage/docs/display-historical-uptime-of-components/
+  (major outage counts fully, partial outage 30 %, degraded and
+  maintenance not counted).
+- **Indicator and impact rule** — "Top-level status and incident impact
+  calculations",
+  https://support.atlassian.com/statuspage/docs/top-level-status-and-incident-impact-calculations/.
+- **Heartbeats** — the idea of Uptime Kuma's push monitors (MIT) and
+  Better Stack's heartbeats; no code.
+
+Dependencies (`next`, `react`, `postgres`, `@argentic/chest-sdk`,
+`@argentic/chest-ui` — the studio's UI kit, vendored, used for the brand
+colours) are installed from npm or `vendor/` under their own licences.

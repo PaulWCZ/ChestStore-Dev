@@ -40,7 +40,7 @@ export async function GET(request: Request): Promise<Response> {
   const css = `${scheme}*{box-sizing:border-box}html,body{margin:0;background:var(--bg);color:var(--ink);font:500 14px/1.35 "Red Hat Text Variable","Segoe UI",system-ui,sans-serif}`
     + `a{display:flex;align-items:center;gap:10px;min-height:44px;padding:10px 14px;color:inherit;text-decoration:none;border:1px solid var(--line);border-left:6px solid var(--s);border-radius:8px;background:var(--bg)}`
     + `a:hover strong,a:focus-visible strong{text-decoration:underline}a:focus-visible{outline:3px solid var(--maintenance);outline-offset:-3px}`
-    + `svg{flex:none;width:18px;height:18px;color:var(--s)}strong{display:block;font-weight:700}span{display:block;color:var(--ink2);font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}`
+    + `svg{flex:none;width:18px;height:18px;color:var(--s)}strong{display:block;font-weight:700;color:var(--ink)}span{display:block;color:var(--ink2);font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}`
     + `.w{min-width:0}.s-operational{--s:var(--operational)}.s-maintenance{--s:var(--maintenance)}.s-degraded{--s:var(--degraded)}.s-partial{--s:var(--partial)}.s-major{--s:var(--major)}.s-none{--s:var(--none)}`;
   const icon = state === "operational"
     ? `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10" fill="currentColor"/><path d="m7.5 12.5 3 3 6-6.5" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>`

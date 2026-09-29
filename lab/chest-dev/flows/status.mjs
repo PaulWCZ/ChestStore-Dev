@@ -149,7 +149,7 @@ await step("the editor posts an update, then resolves (confirmed in a dialog)", 
   await page.waitForSelector(".toast >> text=Update posted.");
   await page.waitForSelector(".team-timeline >> text=A bad release. Rolling back.");
   await page.getByRole("button", { name: "Resolve", exact: true }).click();
-  expect((await page.locator("dialog").innerText()).includes("Checkout will show “Operational” again"), "dialog says what changes");
+  expect((await page.locator("dialog[open]").innerText()).includes("Checkout will show “Operational” again"), "dialog says what changes");
   await page.getByRole("button", { name: "Resolve the incident" }).click();
   await page.waitForSelector(".toast >> text=Resolved.");
   await page.waitForSelector(".chip.step-resolved");
@@ -157,7 +157,7 @@ await step("the editor posts an update, then resolves (confirmed in a dialog)", 
 });
 
 await step("a resolved incident gets its post-mortem, shown on its public page; reopening asks first", async () => {
-  await page.getByLabel("What happened and what we changed").fill("A bad release reached checkout. We now release in two steps.");
+  await page.getByRole("textbox", { name: "What happened and what we changed" }).fill("A bad release reached checkout. We now release in two steps.");
   await page.getByRole("button", { name: "Publish" }).click();
   await page.waitForSelector(".toast >> text=Published on the incident’s page.");
   await page.getByRole("button", { name: "Reopen", exact: true }).click();
@@ -177,7 +177,7 @@ await step("a resolved incident gets its post-mortem, shown on its public page; 
 await step("a mistake is corrected and logged; a removed update comes back with Undo", async () => {
   await page.locator(".team-timeline .step").last().getByRole("button", { name: "Edit" }).click();
   await page.locator(".team-timeline textarea").first().fill("Some orders failed at the last step.");
-  await page.getByRole("button", { name: "Save" }).click();
+  await page.getByRole("button", { name: "Save", exact: true }).click();
   await page.waitForSelector(".toast >> text=Update corrected.");
   await page.waitForSelector(".team-timeline >> text=Corrected by You");
   await page.locator(".team-timeline .step").nth(1).getByRole("button", { name: "Remove" }).click();

@@ -63,6 +63,24 @@ panels, one for toasts and dialogs. **Motion**: 120/220 ms, none with
 - **Toasts** with *Undo*, one **dialog** (resolving, finishing a
   maintenance), inputs with a blue focus ring.
 
+## The company's brand, the badge, the banner
+
+- **Brand** (chest.theme(), brand mode): the logo replaces the monogram,
+  and the brand's main colour (derived by the UI kit, then checked at
+  4.5:1 against this page's own grounds, light and dark) takes the
+  primary button, links and a 3 px rule under the header. The state
+  colours never change. A brand that cannot pass keeps the tool's look
+  (the logo still shows).
+- **Badge** (`/badge.svg`): two flat parts, ink label and the state's
+  dark twin (white text 5.0–7.6:1), 20 px high, words fitted with
+  `textLength`.
+- **Banner** (`/embed`): one line, the state's colour as a 6 px left edge
+  and a filled circle icon, the state in bold, what is happening beneath;
+  system font (a frame on another site loads no font).
+- **Menus**: rarer row actions in a "···" menu with words and icons
+  (move, hide, team only, delete in red) — never a row of look-alike
+  icons.
+
 ## Icon
 
 `chest/icon.svg`: a near-black rounded panel with a history bar of four

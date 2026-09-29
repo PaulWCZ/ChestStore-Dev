@@ -108,8 +108,6 @@ export const en = {
     feedTitle: "{company} status — incidents",
     feedSubtitle: "Incidents and maintenance of {company}'s services",
     calendarName: "{company} — planned maintenance",
-    noComponents: "Nothing to show yet",
-    noComponentsBody: "This status page is being set up.",
     maintenanceTag: "Maintenance",
     incidentTag: "Incident",
     postmortem: "What happened and what we changed",
@@ -191,10 +189,6 @@ export const en = {
     subscribers: "Subscribers",
     publicPage: "Public page",
     settings: "Settings",
-  },
-  noAccess: {
-    title: "You can’t use this tool yet",
-    body: "Your role gives no access. Ask an administrator of your Chest to make you an editor.",
   },
   notFound: {
     title: "Nothing here",
@@ -534,6 +528,9 @@ export const en = {
     exportHint: "Services, every incident with its updates and corrections, templates and settings in one JSON file; subscribers in a spreadsheet.",
     exportJson: "Everything (JSON)",
     exportCsv: "Subscribers (CSV)",
+    badgeCode: "Badge code",
+    widgetCode: "Banner code",
+    apiCode: "API address",
   },
   team: {
     title: "Status of our services",

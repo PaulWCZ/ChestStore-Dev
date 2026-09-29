@@ -25,12 +25,56 @@ minute, in plain words.
   each bar has one sentence for screen readers and a table of the days
   with incidents; days with an incident are links, reachable with the
   keyboard.
-- **Uptime** is computed from what the team posted, never measured: at
-  each moment the worst state of a service counts — a major outage as
-  down, a partial outage as half down; degraded performance and planned
-  maintenance count as up. The page says so under the list. An incident
-  entered afterwards counts from its own start, even before the service
-  was added.
+- **Uptime** is computed from what the team posted, by **Atlassian
+  Statuspage's documented rule** (so a company moving from it keeps its
+  figures): at each moment the worst state of a service counts — a major
+  outage in full, a partial outage for 30 %; degraded performance and
+  planned maintenance not at all ("Display historical uptime of
+  components", support.atlassian.com, read through a web search on
+  2026-09-29). Slower days are said beside the figure ("100.00% uptime ·
+  1 day slower than usual"), so the percentage never stands alone next to
+  yellow ticks. The page says the rule under the list. An incident entered
+  afterwards counts from its own start, even before the service was added.
+- **Before any service is listed** the page says only "This status page is
+  being set up" — never "All systems operational" about nothing (the API
+  and the badge say the same).
+- **Two languages**: an editor may tick "Also write it in French" (or
+  English: the Chest's other language) and give each title and text a
+  second version. Visitors, feeds and subscribers' emails get the version
+  in their language when there is one; otherwise the first, marked with
+  its language (`lang`) so screen readers read it right. Automatic
+  maintenance posts are written in both.
+- **Post-mortem**: once resolved, an incident gets an optional "What
+  happened and what we changed" section, shown under its timeline on the
+  public page (and linked from the history). Corrections are logged like
+  any update; nobody is emailed.
+- **The company's look** (Proposal `chest.theme()`, brand mode): when the
+  Chest holds the company's brand, the public pages show its logo (with
+  its dark version) and its main colour on the header, the main button
+  and links — derived by the UI kit and checked for contrast against this
+  page's grounds; the five state colours never change. *Settings* adds
+  the company's website ("Back to atelier-martin.fr") and where customers
+  reach support.
+- **On other sites** (*Settings*): a **badge** (`/badge.svg`, a plain SVG:
+  no script, no link, `?lang=`), a **banner** for the company's own site
+  or app (`/embed`, one line in a frame, no script; only the sites the
+  editors list may frame it — they are its `frame-ancestors`), and a
+  **JSON API in Statuspage's shape** (below).
+- **Public JSON API** (`/api/v2/…`): `summary.json`, `status.json`,
+  `components.json`, `incidents.json`, `incidents/unresolved.json`,
+  `scheduled-maintenances.json` and its `upcoming.json` / `active.json` —
+  the paths and fields of Atlassian Statuspage's public status API
+  (`page`, `status.indicator` / `description`, components with
+  `group_id` and groups listing their `components`, incidents with
+  `impact`, `shortlink`, `incident_updates` and their
+  `affected_components`, maintenance with `scheduled_for` /
+  `scheduled_until`), so dashboards, Slack apps and widgets written for
+  Statuspage read it unchanged. The indicator and each incident's impact
+  follow Statuspage's documented rule ("Top-level status and incident
+  impact calculations"). Readable from any site (CORS `*`, GET only),
+  kept 30 seconds by caches. Resolved incidents also carry
+  `postmortem_body` / `postmortem_published_at`. Never: hidden services,
+  services for the team only, removed incidents, members.
 - **`/incidents/<id>`**: an incident's own page, to send to customers.
   **`/history`**: every incident and maintenance, month by month, three
   months a page.
@@ -66,12 +110,17 @@ minute, in plain words.
     read. Ticked *It already happened*, it becomes a past incident with
     its start and end (**backfill**): it joins the history and the uptime,
     and nobody is notified. The title and text are kept as a draft until
-    posted.
+    posted. **Templates**: "Start from a template" fills title, text,
+    services and impacts (and the second language); "Save as a template"
+    keeps what was typed. A field left empty says so beside it, in the
+    tool's words.
   - **An incident**: post an update (step, text, optionally the
     services' new states — otherwise they stay as they were);
     **Resolve** asks once, in a dialog that says which services go back to
-    *Operational*, with last words to customers; posting a step after
-    *Resolved* reopens it. Correct an update's text, or remove it (Undo):
+    *Operational*, with last words to customers. Once resolved, the update
+    form is gone: **Reopen** opens a dialog that says customers see it
+    again and subscribers are emailed, and only its confirmation reopens
+    (the server refuses any other step on a resolved incident). Correct an update's text, or remove it (Undo):
     both are **logged** — who, when, the earlier text — because a status
     page is evidence (service credits). Rename; remove the whole incident
     (Undo, and editors still see it, marked).
@@ -89,10 +138,40 @@ minute, in plain words.
     without schedules still gets them. A window started or ended more
     than a day before the pass is posted without email.
   - **Checks**: see *Automatic checks* above.
-  - **Services**: add a service or a group, rename, describe, move up and
-    down, hide from the page (its history stays), delete one that was
-    never in an incident (otherwise: hide it). *Start with an example*
-    makes four usual services in one click.
+  - **Services**: add a service or a group, *Edit* (rename, describe,
+    group); the rarer actions in a "···" menu with words — move up and
+    down, hide from the page (its history stays), **for the team only**,
+    delete one that was never in an incident (otherwise: hide it). *Start
+    with an example* makes four usual services in one click.
+  - **Services for the team only** (the office network, the back office):
+    shown on the members' status page, never on the public page; an
+    incident touching only such services never reaches the public page,
+    its feeds, its API, its history or its subscribers.
+  - **The team's status page**: a member without a role opens the tool and
+    sees what works now — every service, those for the team only
+    included, what is happening and the maintenance ahead. Read only.
+  - **Settings**: website and support links; badge, banner (and the sites
+    allowed to frame it) and the API address, each with *Copy*;
+    templates; **import from Statuspage**; **download everything**.
+  - **Import from Statuspage**: the files of a Statuspage page's public
+    API (`incidents.json`, `components.json`, `scheduled-maintenances.json`
+    — several at once) or its manage API. Components are matched by name
+    (created with their groups when missing); resolved incidents come with
+    every update, the services each touched and how badly
+    (`affected_components`, else the incident's impact), and the
+    post-mortem; completed maintenance with its window. Open incidents and
+    maintenance ahead are left out (said so). Each keeps its Statuspage
+    id: the same file twice adds nothing. Nobody is notified. Tested with
+    files in the documented shape (`test/fixtures/`).
+  - **Download everything**: one JSON file (services, every incident with
+    removed updates and the log, templates, settings; members as ids),
+    and the subscribers as a CSV (formula-safe).
+  - **Heartbeats** (on *Checks*): a job of the company (a nightly backup)
+    calls a secret address after each run (`curl -fsS …`, shown once;
+    only its hash is kept). Silent past its deadline (every 15 minutes to
+    once a week, plus 5 minutes), the editors are told — bell, and *Now*
+    proposes an incident — up to 15 minutes late (the "updates" pass).
+    Nothing is posted publicly by itself.
   - **Subscribers**: who, what they follow, whether email works on this
     Chest, emails still waiting; remove one on request.
   - **History**: every incident and maintenance, removed ones included.
@@ -125,8 +204,8 @@ minute, in plain words.
 |---|---|
 | `editor` | Everything: incidents, maintenance, services, subscribers |
 
-Anyone who has the tool without a role sees a page that says so (the
-public page is open to everyone anyway). The owner, admins and builders
+Anyone who has the tool without a role sees the team's status page, read
+only (services for the team only included). The owner, admins and builders
 enter as editors.
 
 ## First minute
@@ -153,12 +232,16 @@ enter as editors.
 | Route | What |
 |---|---|
 | `/` | The status page |
+| `/api/v2/summary.json`, `status.json`, `components.json`, `incidents.json`, `incidents/unresolved.json`, `scheduled-maintenances.json`, `scheduled-maintenances/upcoming.json`, `scheduled-maintenances/active.json` | The public API, in Statuspage's shape (CORS) |
+| `/badge.svg`, `/embed` | The badge; the banner for a frame |
+| `/heartbeat/<secret>` | A job's call (GET or POST) |
 | `/incidents/<id>` | One incident or maintenance |
 | `/history?page=N` | Past incidents by month |
 | `/feed.atom`, `/feed.rss`, `/maintenance.ics` | Feeds |
 | `/subscribe`, `/s/<token>`, `/unsubscribed` | Email updates: subscribe; a subscriber's own page (confirm, choose, unsubscribe) |
 | `/lang/<code>` | The public part's language switch |
-| `/chest`, `/chest/incidents/new`, `/chest/incidents/<id>`, `/chest/maintenance/new`, `/chest/components`, `/chest/checks`, `/chest/subscribers`, `/chest/history` | The team's part |
+| `/chest`, `/chest/incidents/new`, `/chest/incidents/<id>`, `/chest/maintenance/new`, `/chest/components`, `/chest/checks`, `/chest/subscribers`, `/chest/history`, `/chest/settings` | The team's part |
+| `/chest/import` (POST), `/chest/export`, `/chest/export/subscribers.csv` | Import from Statuspage; download everything |
 | `/chest-events`, `/chest-jobs/updates`, `/chest-checks` | Deliveries from the Chest (signed): member events, the schedule, check results |
 
 ## On a Chest
@@ -187,9 +270,28 @@ language and choices only. The public page never shows who posted.
 | `notifications.broadcast` | The bell of every editor in one call | The tool pages through its members and notifies each language's group |
 | `visitors` | The form's signed time and the Chest's visitor counts | The tool's own counters (`form_counts`) |
 | `checks` | The Chest opens the services' addresses and posts results; measured uptime; alerts | The *Checks* page says the Chest cannot run them yet; incidents are posted by hand as before |
-| `chest` | Company name, time zone, language, public address | — (the SDK's defaults) |
+| `chest` | Company name, time zone, language, public address; `theme()` for the brand's logo and colour | — (the SDK's defaults; the tool's own look) |
 
 What it would need next (in the final report of the studio):
+
+- **Custom domains** (`status.your-company.com`): a platform item, SDK
+  report §4.15 — the Chest maps the hostname and its certificate, and
+  `chest.publicUrl()` already carries the address, so no tool change.
+  Until then the page lives at the Chest's own address; *Settings* says so.
+- **`webhooks`** — signed POSTs the Chest delivers to URLs customers give
+  (webhook subscribers, Slack and Teams incoming webhooks). A tool cannot
+  declare arbitrary customer hosts in `network`, and must not hold an open
+  egress; the Chest would deliver instead: `webhooks.deliver({url, body,
+  key})` with the Chest's signature header, retries and per-URL disabling
+  after repeated failures, a `webhooks.verifyUrl(url)` that refuses
+  private addresses, and a quota. Not built in the tool (a subscription
+  that delivers nothing would be a lie).
+- **Independence**: the page shares its Chest's fate — if the Chest's
+  server is down, so is the status page. The Chest could publish the
+  public pages as static files to a second origin on every change.
+- **Certificate expiry and keyword checks** from `checks` (a
+  `certExpiresAt` in each result).
+- **`mail.available()`** (see below).
 
 - **Checks** are now a proposal (`checks`, above). Next wishes: a
   heartbeat URL a job could call (silence = down), checks of a keyword in
@@ -222,16 +324,31 @@ evening, three subscribers.
 
 ## What it does not do yet
 
-- Checks open an address and look at its status and speed only (no
-  keyword, no login, no heartbeat URL); the 90-day ticks stay those of the
-  incidents posted — measured uptime is a separate figure.
-- Incident texts are written once, in the company's language; only the
-  words around them follow each visitor.
+- **No address of its own** (`status.your-company.com`): the Chest must
+  offer custom domains (SDK report §4.15). A company whose customers link
+  to its Statuspage address cannot move without changing those links.
+- **Customers are reached by email only** — and only on a Chest that runs
+  the `mail` proposal; otherwise the page offers RSS/Atom. No SMS, no
+  webhook, Slack or Teams subscriptions: they need the Chest's
+  `webhooks` primitive (above).
+- **Shares its Chest's fate**: when the Chest's server is down, the page
+  is down too — a hosted status page runs elsewhere. Say so to customers
+  whose product runs on the same server.
+- Checks look at an address's status and speed only (no keyword, no
+  login, no certificate expiry); the 90-day ticks stay those of the
+  incidents posted — measured uptime is a separate figure. No on-call
+  rota or escalation (out of scope: Better Stack's monitoring side).
+- Two languages only (English and French): a third needs its catalogue
+  and a choice of the second language per incident.
+- The brand gives the logo and main colour; the company's own fonts are
+  not applied on the public page. A catalogue theme chosen for all tools
+  does not change the public page (it is the company's page).
+- No audience-specific pages (one per big client) and no password on the
+  public page; the team's own page is the members' view in the Chest.
+- Imports from Statuspage only (not Instatus or Better Stack); subscribers
+  are not imported (they must confirm again: GDPR).
 - No Markdown: texts are plain, with paragraphs and links made from web
   addresses.
-- No import from Statuspage (its components and incidents are only in
-  its API) and no public JSON API yet.
 - Public pages are kept 30 seconds by browsers only, not by shared caches
   (see *Needs from the SDK*). An editor's links to the public page always
   show it fresh.
-- No post-mortem section; post it as a last update.
