@@ -5,12 +5,12 @@
 // components come from dist/, as a tool receives them; every word of a
 // component comes from the kit's words (en, fr) or from the demo's words
 // below, which play the part of a tool's catalogue.
-import { useMemo, useState } from "react";
+import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
-  AppShell, AvatarStack, Avatar, Calendar, Confirm, DataTable, DateField, DateRangeField, DayStrip, Dialog, EmptyState, FilePicker, Filters, LanguageSwitch,
-  Menu, MonthField, NoAccess, PageHeader, PeoplePicker, SearchBox, Segmented, StatusBadge, Switch, Tabs, TimeSelect, Toasts, useToast,
+  AppShell, AvatarStack, Avatar, Calendar, Checkbox, Confirm, DataTable, DateField, DateRangeField, DayStrip, Dialog, EmptyState, FilePicker, Filters, LanguageSwitch,
+  Menu, MonthField, NoAccess, PageHeader, PeoplePicker, SearchBox, Segmented, StatusBadge, storedFile, Switch, Tabs, TimeSelect, Toasts, useToast,
 } from "../../dist/components/index.js";
-import { addDays, en, fill, formatDate, fr, matches, moveEnd, moveStart, storeLanguages } from "../../dist/components/logic.js";
+import { addDays, en, fill, formatDate, fr, matches, moveEnd, moveStart, rangeDays, storeLanguages } from "../../dist/components/logic.js";
 
 export const demoWords = {
   en: {
@@ -45,6 +45,10 @@ export const demoWords = {
     daysOff: "Days off", daysOffIntro: "Choose several days.", category: "Category", categories: ["Hardware", "Software", "Travel", "Training", "Office", "Other"],
     export: "Export", exportNote: "The rows shown, as a spreadsheet", exportCsv: "Download CSV", openBoard: "Open the board", sameName: "Léa Moreau", sameNameNote: "Accounts, Paris", sameNameNote2: "Sales, Lyon", assignTo: "Give to",
     trip: "Trip", notify: "Email me when someone answers", notifyHint: "One email a day at most.", noOwner: "No owner yet", laptop: "Laptop",
+    back: "Back on", weekLater: "A week later", leave: "Leave", whole: "Whole day", afternoonOnly: "From noon", morningOnly: "Until noon", workingDays: "Days off: {n}",
+    period: "Period", photos: "Photos of the damage", billable: "Billable", billableHint: "Saved with the entry, when you press Save.",
+    owner2: "Owner", itemKind: "Item", anyone: "Anyone", team: "Team", others: "Others", everyCategory: "Every category", hardware: "Hardware", software: "Software",
+    items: ["Laptop", "Screen", "Dock", "Licence", "Chair"], shown: "{n} shown", panel: "A band of its own colour", running: "Running", startTimer: "Start", timer: "Timer",
   },
   fr: {
     toast: "Toast — une annulation qui dit vrai",
@@ -78,6 +82,10 @@ export const demoWords = {
     daysOff: "Jours de congé", daysOffIntro: "Choisissez plusieurs jours.", category: "Catégorie", categories: ["Matériel", "Logiciel", "Déplacement", "Formation", "Bureau", "Autre"],
     export: "Exporter", exportNote: "Les lignes affichées, en tableur", exportCsv: "Télécharger le CSV", openBoard: "Ouvrir le tableau", sameName: "Léa Moreau", sameNameNote: "Comptabilité, Paris", sameNameNote2: "Ventes, Lyon", assignTo: "Donner à",
     trip: "Déplacement", notify: "M’écrire quand quelqu’un répond", notifyHint: "Un e-mail par jour au plus.", noOwner: "Pas encore de responsable", laptop: "Ordinateur portable",
+    back: "De retour le", weekLater: "Une semaine plus tard", leave: "Congé", whole: "Journée entière", afternoonOnly: "À partir de midi", morningOnly: "Jusqu’à midi", workingDays: "Jours de congé\u202f: {n}",
+    period: "Période", photos: "Photos des dégâts", billable: "Facturable", billableHint: "Enregistré avec la saisie, quand vous appuyez sur Enregistrer.",
+    owner2: "Responsable", itemKind: "Objet", anyone: "Tout le monde", team: "Équipe", others: "Autres", everyCategory: "Toutes les catégories", hardware: "Matériel", software: "Logiciel",
+    items: ["Ordinateur", "Écran", "Station d’accueil", "Licence", "Chaise"], shown: "{n} affichés", panel: "Une bande de sa propre couleur", running: "En cours", startTimer: "Démarrer", timer: "Chrono",
   },
 };
 
@@ -211,6 +219,8 @@ function DatesDemo({ d, w, today, lang }) {
       </div>
       <MonthField label={d.month} value={month} onChange={setMonth} today={today} labels={w.date} />
       <DateRangeField label={d.trip} value={trip} onChange={setTrip} today={today} min={today} labels={w.date} lang={lang} />
+      <BackDemo d={d} w={w} today={today} />
+      <LeaveDemo d={d} w={w} today={today} lang={lang} />
       <div className="demo-times">
         <div><label className="ck-label" htmlFor={`${lang}-start`}>{d.start}</label><TimeSelect id={`${lang}-start`} value={slot.start} onChange={s => setSlot(moveStart(slot, s))} /></div>
         <div><label className="ck-label" htmlFor={`${lang}-end`}>{d.end}</label><TimeSelect id={`${lang}-end`} value={slot.end} onChange={e => setSlot(moveEnd(slot, e))} end /></div>
@@ -224,6 +234,55 @@ function DatesDemo({ d, w, today, lang }) {
         <Calendar value={null} today={today} multiple inline selected={off} labelledBy={`${lang}-days-off`} labels={w.date} onPick={iso => setOff(o => (o.includes(iso) ? o.filter(x => x !== iso) : [...o, iso]))} />
       </div>
     </div>
+  );
+}
+
+// The Leave race (0.2.3): a value changed from outside — here after an
+// await, as a server's answer lands — is the field's text in the very
+// commit that carries it, so what one types next is never mixed with it.
+// The probe (read by check-flows.mjs) writes the text the field shows when
+// React commits the new value: 0.2.2 still showed the old one there, and
+// set the new one in an effect, later.
+function BackDemo({ d, w, today }) {
+  const [back, setBack] = useState(addDays(today, 5));
+  const box = useRef(null);
+  useLayoutEffect(() => {
+    const input = box.current?.querySelector("input.ck-date-input");
+    if (!input) return;
+    box.current.dataset.commitText = input.value;
+    box.current.dataset.commitWant = back ? formatDate(back, w.date) : "";
+  }, [back, w]);
+  return (
+    <div className="demo-stack-s" ref={box} data-probe="back">
+      <DateField label={d.back} value={back} onChange={setBack} today={today} labels={w.date} chips={false} />
+      <div className="demo-row">
+        <button type="button" className="ck-button ck-button-quiet" onClick={() => { Promise.resolve().then(() => setBack(b => addDays(b ?? today, 7))); }}>{d.weekLater}</button>
+      </div>
+    </div>
+  );
+}
+
+// A leave (0.2.3's DateRangeField): the first day's chips, the fields' own
+// ids, half days under each end, and the tool's own count; and a filter's
+// period, whose end stays where it is when the start moves (keepLength).
+function LeaveDemo({ d, w, today, lang }) {
+  const [range, setRange] = useState({ from: addDays(today, 21), to: addDays(today, 23) });
+  const [first, setFirst] = useState("whole");
+  const [last, setLast] = useState("whole");
+  const [period, setPeriod] = useState({ from: addDays(today, -30), to: today });
+  const days = rangeDays(range);
+  const n = days === null ? null : days - (first === "half" ? 0.5 : 0) - (last === "half" && days > 1 ? 0.5 : 0);
+  const count = n === null ? "" : fill(d.workingDays, { n: lang === "fr" ? String(n).replace(".", ",") : String(n) });
+  return (
+    <>
+      <DateRangeField label={d.leave} value={range} onChange={setRange} today={today} min={today} labels={w.date} lang={lang} chips
+        ids={{ from: `${lang}-leave-from`, to: `${lang}-leave-to` }} length={count}
+        below={{
+          from: <Segmented label={`${d.leave}, ${w.date.rangeFrom}`} value={first} onChange={setFirst} options={[{ value: "whole", label: d.whole }, { value: "half", label: d.afternoonOnly }]} />,
+          to: <Segmented label={`${d.leave}, ${w.date.rangeTo}`} value={last} onChange={setLast} options={[{ value: "whole", label: d.whole }, { value: "half", label: d.morningOnly }]} />,
+        }} />
+      <DateRangeField label={d.period} value={period} onChange={setPeriod} today={today} labels={w.date} lang={lang} keepLength={false} hideLength ids={{ from: `${lang}-period-from`, to: `${lang}-period-to` }} />
+    </>
   );
 }
 
@@ -243,7 +302,17 @@ function FilesDemo({ d, w }) {
     }, 250);
     signal.addEventListener("abort", () => { clearInterval(timer); reject(new DOMException("aborted", "AbortError")); });
   });
-  return <FilePicker label={d.receipts} files={files} onChange={setFiles} upload={upload} maxFiles={4} maxSize={10 * 1024 * 1024} accept={["image/*", ".pdf"]} capture="environment" labels={w.files} />;
+  // A form that edits a claim: its photo stored before (storedFile), the
+  // camera beside the files on a phone (on a desk, the one button: the
+  // camera's input is not there at all), previews one can recognise.
+  const [photos, setPhotos] = useState(() => [storedFile({ ref: "obj_bumper", name: "bumper.jpg", size: 182_000, type: "image/jpeg" })]);
+  return (
+    <div className="demo-grid">
+      <FilePicker label={d.receipts} files={files} onChange={setFiles} upload={upload} maxFiles={4} maxSize={10 * 1024 * 1024} accept={["image/*", ".pdf"]} capture="environment" labels={w.files} />
+      <FilePicker label={d.photos} files={photos} onChange={setPhotos} upload={upload} maxFiles={3} maxSize={10 * 1024 * 1024} accept={["image/*"]} camera showLabel previewSize="m" name="photos"
+        preview={() => <span className="demo-thumb" aria-hidden="true" />} labels={w.files} />
+    </div>
+  );
 }
 
 function TableDemo({ d, w, lang }) {
@@ -269,10 +338,31 @@ function TableDemo({ d, w, lang }) {
         <Filters path="/chest/quotes" params={cat ? `cat=${cat}` : ""} labels={w.filters} onNavigate={href => setCat(new URLSearchParams(href.split("?")[1] ?? "").get("cat") ?? "")} groups={[{ key: "cat", label: d.category, as: "select", options: d.categories.map((c, i) => ({ value: `c${i}`, label: c })) }]} />
         <SearchBox action="/chest/quotes" onSearch={setQ} labels={w.search} />
       </div>
+      <BandFilters d={d} w={w} />
       <DataTable caption={d.quotes} columns={columns} rows={shown} rowKey={r => r.id} rowName={r => `${r.id} ${r.client}`} labels={w.table} phone="stack" rowHref={r => `#${r.id}`}
         actions={() => [{ label: d.duplicate, onSelect: () => {} }, { label: d.download, onSelect: () => {} }, { label: d.delete, tone: "danger", onSelect: () => {} }]}
         totals={{ amount: money(shown.reduce((s, r) => s + r.amount, 0), lang) }}
         empty={<EmptyState title={d.noQuotes} body={d.noQuotesBody} headingLevel={3} labels={w.shell} />} />
+    </div>
+  );
+}
+
+// Filters kept in the page (0.2.3): no address, the list is the page's
+// state; a select's sections (optgroups) and its own "every" words, a
+// chip group's "Anyone"; on a band of the orange slot, the filters' words
+// take the band's measured pair (--cat-3-ink on --cat-3-soft).
+function BandFilters({ d, w }) {
+  const [value, setValue] = useState({});
+  const kinds = ["laptop", "screen", "dock", "licence", "chair"];
+  const items = d.items.map((name, i) => ({ name, kind: kinds[i], owner: i % 2 ? "mbr_tom" : "mbr_lea" }));
+  const shown = items.filter(it => (!value.kind || it.kind === value.kind) && (!value.owner || it.owner === value.owner));
+  return (
+    <div className="demo-cat-band">
+      <Filters value={value} onChange={setValue} labels={w.filters} groups={[
+        { key: "kind", label: d.itemKind, as: "select", allLabel: d.everyCategory, options: items.map(it => ({ value: it.kind, label: it.name, ...(it.kind === "chair" ? {} : { group: it.kind === "licence" ? d.software : d.hardware }) })) },
+        { key: "owner", label: d.owner2, all: true, allLabel: d.anyone, options: [{ value: "mbr_lea", label: "Léa Moreau" }, { value: "mbr_tom", label: "Tom Petit" }] },
+      ]} />
+      <p className="demo-band-count" role="status">{fill(d.shown, { n: shown.length })}: {shown.map(it => it.name).join(", ")}</p>
     </div>
   );
 }
@@ -308,6 +398,15 @@ function BitsDemo({ d, w, lang }) {
         <StatusBadge label={d.noOwner} empty />
       </div>
       <Switch label={d.notify} hint={d.notifyHint} checked={notify} onChange={setNotify} />
+      <Checkbox label={d.billable} hint={d.billableHint} name="billable" defaultChecked />
+      {/* A band of its own colour (--inverse) with the tool's signal on it
+          (--inverse-signal, 0.2.3): the current tab's rule and a Start
+          button, read in every look and mode. */}
+      <div className="demo-band" role="group" aria-label={d.panel}>
+        <nav aria-label={d.timer} className="demo-band-nav"><a href="#timer" aria-current="page" onClick={e => e.preventDefault()}>{d.timer}</a><a href="#running" onClick={e => e.preventDefault()}>{d.running}</a></nav>
+        <span className="demo-band-clock">00:42:10</span>
+        <button type="button" className="demo-band-start">{d.startTimer}</button>
+      </div>
       <Tabs label={d.booking} current={tab} onChange={setTab} items={[{ id: "up", label: d.upcoming, count: 3 }, { id: "past", label: d.past }, { id: "cancel", label: d.cancelled, count: 1 }]}>
         <div className="demo-row">
           <Segmented label={d.view} value={view} onChange={setView} options={[{ value: "board", label: d.board }, { value: "list", label: d.list }]} />

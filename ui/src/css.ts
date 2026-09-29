@@ -4,7 +4,7 @@
 // contrast — and the @font-face rules of its fonts. What it writes is built
 // only from values validateTheme accepted, and it can never close the
 // <style> element it is put in.
-import { validateTheme, type Scheme, type Theme } from "./contract.js";
+import { schemeWithDefaults, validateTheme, type Scheme, type Theme } from "./contract.js";
 import { fontFaces } from "./fonts.js";
 
 // chipRadius: the corners of badges, chips and counters — the theme's own
@@ -39,8 +39,9 @@ export function staticDeclarations(theme: Theme): string {
 }
 
 // schemeDeclarations: the colours and effects of one mode.
+// A token a hand-made theme of an older kit leaves out gets its default.
 export function schemeDeclarations(scheme: Scheme): string {
-  return Object.entries(scheme).map(([k, v]) => `--${k}:${v}`).join(";");
+  return Object.entries(schemeWithDefaults(scheme)).map(([k, v]) => `--${k}:${v}`).join(";");
 }
 
 export type CssOptions = {

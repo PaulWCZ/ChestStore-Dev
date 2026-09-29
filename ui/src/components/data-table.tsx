@@ -128,8 +128,10 @@ export function DataTable<R>({ caption, showCaption = false, columns, rows, rowK
                   const raw = c.render ? c.render(row) : String(c.value?.(row) ?? "");
                   const content = i === linkAt ? <A href={rowHref!(row)} className="ck-row-link">{raw}</A> : raw;
                   const cls = `${align(c)}${hide(c)}`.trim() || undefined;
-                  // The stacked phone layout names each line by its column.
-                  const named = phone === "stack" ? { "data-label": c.label } : {};
+                  // The stacked phone layout names each line by its column —
+                  // not the row's header: it heads the card ("F-2026-014"),
+                  // it is not a line of it ("Number F-2026-014") (0.2.3).
+                  const named = phone === "stack" && !c.rowHeader ? { "data-label": c.label } : {};
                   return c.rowHeader ? <th key={c.key} scope="row" className={cls} {...named}>{content}</th> : <td key={c.key} className={cls} {...named}>{content}</td>;
                 })}
                 {actions && (

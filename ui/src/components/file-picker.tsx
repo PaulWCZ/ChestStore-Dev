@@ -13,6 +13,7 @@
 // (sniffing the real type) remains the tool's job.
 import { useEffect, useId, useRef, useState, type DragEvent, type ReactElement, type ReactNode } from "react";
 import { acceptText, checkFiles, fileSize, refusalText, type FileRules, type Progress } from "./files.js";
+export { storedFile } from "./files.js";
 import { CameraIcon, CloseIcon, FileIcon, UploadIcon } from "./icons.js";
 import { fill } from "./text.js";
 import { en, type FileWords } from "./words.js";
@@ -30,7 +31,12 @@ export type PickedFile = {
   // What the upload answered (the tool's reference to the stored file).
   readonly ref: string | null;
   readonly error: string | null;
+  // A file stored before this page opened (an expense's receipt kept on
+  // the Chest): shown with the words "Saved", sent again by the form as
+  // its `ref`, removable, never uploaded (0.2.3; `storedFile()` makes one).
+  readonly stored?: boolean;
 };
+
 
 export type Upload = (file: File, options: { onProgress: Progress; signal: AbortSignal }) => Promise<{ ok: true; ref: string } | { ok: false; error: string }>;
 
@@ -51,6 +57,9 @@ export type FilePickerProps = FileRules & {
   // URL.createObjectURL(file.file) where the tool's policy allows img-src
   // blob: — the kit does not know the policy, so it draws none) (0.2.2).
   readonly preview?: (file: PickedFile) => ReactNode;
+  // The preview's size: "s" 40 px (default), "m" 64 px, "l" 96 px — a
+  // receipt one must recognise (0.2.3).
+  readonly previewSize?: "s" | "m" | "l";
   // Show the label above the drop zone (it is read by screen readers in
   // any case, after the button's words) (0.2.2).
   readonly showLabel?: boolean;
@@ -68,7 +77,7 @@ const nextKey = () => `f${++counter}-${Date.now().toString(36)}`;
 // filesReady: every file sent (a form waits for it before submitting).
 export const filesReady = (files: readonly PickedFile[]) => files.every(f => f.status === "ready");
 
-export function FilePicker({ label, files, onChange, upload, accept, maxSize, maxFiles, capture, camera = false, preview, showLabel = false, id: givenId, name, disabled = false, labels = en.files, className }: FilePickerProps): ReactElement {
+export function FilePicker({ label, files, onChange, upload, accept, maxSize, maxFiles, capture, camera = false, preview, previewSize = "s", showLabel = false, id: givenId, name, disabled = false, labels = en.files, className }: FilePickerProps): ReactElement {
   const auto = useId();
   const id = givenId ?? auto;
   const input = useRef<HTMLInputElement>(null);
@@ -148,9 +157,13 @@ export function FilePicker({ label, files, onChange, upload, accept, maxSize, ma
         onDragLeave={() => setOver(false)}
         onDrop={onDrop}
       >
+        {/* The camera's input and its label exist only on a touch screen:
+            elsewhere both are display:none — no tab stop, nothing read
+            (0.2.2 hid only the label: its input stayed, unlabelled, in the
+            tab order — axe "label", Expenses; 0.2.3). */}
         {camera && (
           <>
-            <input id={id + "-camera"} type="file" className="ck-vh ck-file-input" accept="image/*" capture={camera === "user" ? "user" : "environment"} disabled={off} aria-describedby={described} onChange={onPicked} />
+            <input id={id + "-camera"} type="file" className="ck-vh ck-file-input ck-file-camera-input" accept="image/*" capture={camera === "user" ? "user" : "environment"} disabled={off} aria-describedby={described} onChange={onPicked} />
             <label htmlFor={id + "-camera"} className="ck-button ck-button-quiet ck-file-camera">
               <CameraIcon />
               <span>{labels.takePhoto ?? en.files.takePhoto}</span>
@@ -183,11 +196,11 @@ export function FilePicker({ label, files, onChange, upload, accept, maxSize, ma
       {files.length > 0 && (
         <ul className="ck-file-list" aria-label={`${label}${sep}${labels.list}`}>
           {files.map(f => (
-            <li key={f.key} className={`ck-file ck-file-${f.status}${preview ? " ck-file-with-preview" : ""}`}>
+            <li key={f.key} className={`ck-file ck-file-${f.status}${f.stored ? " ck-file-stored" : ""}${preview ? ` ck-file-with-preview${previewSize === "m" ? " ck-file-preview-m" : previewSize === "l" ? " ck-file-preview-l" : ""}` : ""}`}>
               {preview ? <span className="ck-file-preview">{preview(f) ?? <FileIcon />}</span> : <FileIcon />}
               <span className="ck-file-name">{f.name}</span>
               <span className="ck-file-meta">
-                {f.status === "sending" ? fill(labels.sending, { percent: String(Math.round(f.progress * 100)) }) : f.status === "failed" ? f.error ?? labels.failed : fileSize(f.size, labels)}
+                {f.status === "sending" ? fill(labels.sending, { percent: String(Math.round(f.progress * 100)) }) : f.status === "failed" ? f.error ?? labels.failed : f.stored ? [f.size > 0 ? fileSize(f.size, labels) : null, labels.stored ?? en.files.stored].filter(Boolean).join(" · ") : fileSize(f.size, labels)}
               </span>
               {f.status === "sending" && <progress className="ck-progress" max={1} value={f.progress} aria-label={f.name} />}
               {f.status === "failed" && f.file && <button type="button" className="ck-button ck-button-link" onClick={() => retry(f)}>{labels.retry}</button>}

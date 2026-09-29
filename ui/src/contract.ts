@@ -7,6 +7,7 @@
 // code checks.
 import { contrast, hueDistance, oklch, parseColor } from "./color.js";
 import { familyPattern, stackPattern, type FontSpec } from "./fonts.js";
+import { withSignal } from "./signal.js";
 
 // Words a person reads, in the tool's languages: English first (the source
 // and the fallback), French second.
@@ -34,12 +35,24 @@ export const colorTokens = [
   // an instrument panel): its ground, its text, its secondary text, and a
   // quiet fill or hairline in it (hover, the current item) (0.2.2)
   "inverse", "inverse-ink", "inverse-ink-2", "inverse-line",
+  // The tool's signal on that region (a lime Start, the current tab's
+  // rule) and the text on it, measured on the region (0.2.3)
+  "inverse-signal", "inverse-signal-ink",
   // The categorical palette: labels, kinds, stages, charts
   "cat-1", "cat-2", "cat-3", "cat-4", "cat-5", "cat-6", "cat-7", "cat-8",
   "cat-1-soft", "cat-2-soft", "cat-3-soft", "cat-4-soft", "cat-5-soft", "cat-6-soft", "cat-7-soft", "cat-8-soft",
   "cat-1-ink", "cat-2-ink", "cat-3-ink", "cat-4-ink", "cat-5-ink", "cat-6-ink", "cat-7-ink", "cat-8-ink",
 ] as const;
 export type ColorToken = (typeof colorTokens)[number];
+
+// Colour tokens a theme made by hand before they existed may leave out:
+// validateTheme accepts their absence, and checkTheme and themeCss use
+// their defaults (signal.ts) (0.2.3).
+export const optionalColorTokens: readonly ColorToken[] = ["inverse-signal", "inverse-signal-ink"];
+
+// complete: a scheme with every optional token (its own, or the default).
+const complete = (scheme: Scheme): Scheme => (typeof scheme.inverse === "string" && typeof scheme["inverse-line"] === "string" && typeof scheme.highlight === "string" && parseColor(scheme.inverse) && parseColor(scheme["inverse-line"]) && parseColor(scheme.highlight) ? withSignal(scheme) : scheme);
+export const schemeWithDefaults = complete;
 
 // Effects, defined per mode (a shadow on a dark ground is not the same).
 export const effectTokens = ["overlay", "shadow-1", "shadow-2"] as const;
@@ -126,6 +139,8 @@ export const pairs: readonly Pair[] = [
   { fg: "danger-ink", on: ["danger-soft"], min: 4.5, why: "text on an error banner" },
   { fg: "inverse-ink", on: ["inverse", "inverse-line"], min: 4.5, why: "text in a region of its own colour (a steel bar), and on its hover fill" },
   { fg: "inverse-ink-2", on: ["inverse"], min: 4.5, why: "secondary text in a region of its own colour" },
+  { fg: "inverse-signal", on: ["inverse", "inverse-line"], min: 4.5, why: "the tool's signal in a region of its own colour (a rule, a mark, words)" },
+  { fg: "inverse-signal-ink", on: ["inverse-signal"], min: 4.5, why: "text on the signal's fill in that region (a Start button)" },
   ...Array.from({ length: categories }, (_, i): Pair[] => [
     { fg: `cat-${i + 1}` as ColorToken, on: ["surface", "bg"], min: 3, why: "a category's colour (dot, bar, spine)" },
     { fg: `cat-${i + 1}-ink` as ColorToken, on: [`cat-${i + 1}-soft` as ColorToken, "surface"], min: 4.5, why: "a category's label" },
@@ -139,7 +154,7 @@ export type Failure = { mode: "light" | "dark"; fg: ColorToken; on: ColorToken; 
 export function checkTheme(theme: Pick<Theme, "light" | "dark">): Failure[] {
   const failures: Failure[] = [];
   for (const mode of ["light", "dark"] as const) {
-    const scheme = theme[mode];
+    const scheme = complete(theme[mode]);
     for (const pair of pairs) {
       for (const on of pair.on) {
         const ratio = contrast(scheme[pair.fg], scheme[on]);
@@ -193,7 +208,8 @@ export function checkPalette(theme: Pick<Theme, "light" | "dark">): PaletteFailu
 }
 
 // ratios lists every pair's ratio (for a theme's documentation).
-export function ratios(scheme: Scheme): { fg: ColorToken; on: ColorToken; ratio: number; min: number }[] {
+export function ratios(given: Scheme): { fg: ColorToken; on: ColorToken; ratio: number; min: number }[] {
+  const scheme = complete(given);
   return pairs.flatMap(p => p.on.map(on => ({ fg: p.fg, on, ratio: Math.round(contrast(scheme[p.fg], scheme[on]) * 100) / 100, min: p.min })));
 }
 
@@ -239,7 +255,7 @@ export function validateTheme(theme: Theme): string[] {
   for (const mode of ["light", "dark"] as const) {
     const s = t[mode];
     if (!s) { problems.push(`${mode}: missing`); continue; }
-    for (const token of colorTokens) if (typeof s[token] !== "string" || !hexPattern.test(s[token]) || !parseColor(s[token])) problems.push(`${mode}.${token}: a colour #rrggbb`);
+    for (const token of colorTokens) if (!(optionalColorTokens.includes(token) && s[token] === undefined) && (typeof s[token] !== "string" || !hexPattern.test(s[token]) || !parseColor(s[token]))) problems.push(`${mode}.${token}: a colour #rrggbb`);
     if (typeof s.overlay !== "string" || !rgbaPattern.test(s.overlay)) problems.push(`${mode}.overlay: rgb(r g b / a)`);
     for (const token of ["shadow-1", "shadow-2"] as const) if (typeof s[token] !== "string" || !shadowPattern.test(s[token])) problems.push(`${mode}.${token}: none, or up to three px shadows`);
   }

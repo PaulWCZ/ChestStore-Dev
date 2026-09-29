@@ -107,6 +107,17 @@ export function clearHref(path: string, params: ParamsLike, keys: readonly strin
   return hrefOf(path, p);
 }
 
+// filterValues and clearValues: the same rules as filterHref and
+// clearHref, for filters kept in the page rather than in the address
+// (Filters' in-page mode, 0.2.3): the next values, as a plain record.
+const valuesOf = (href: string): Record<string, string> => Object.fromEntries(new URLSearchParams(href.includes("?") ? href.slice(href.indexOf("?") + 1) : "").entries());
+export function filterValues(params: ParamsLike, key: string, value: string | null, options: { resetKeys?: readonly string[]; multiple?: boolean; required?: boolean } = {}): Record<string, string> {
+  return valuesOf(filterHref("", params, key, value, options));
+}
+export function clearValues(params: ParamsLike, keys: readonly string[], options: { resetKeys?: readonly string[] } = {}): Record<string, string> {
+  return valuesOf(clearHref("", params, keys, options));
+}
+
 export function activeFilters(params: ParamsLike, keys: readonly string[]): number {
   const p = paramsOf(params);
   return keys.filter(k => (p.get(k) ?? "") !== "").length;

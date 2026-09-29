@@ -260,9 +260,11 @@ export type DateRange = { readonly from: IsoDate | null; readonly to: IsoDate | 
 // moveRangeStart: a new first day keeps the range's length (the leave that
 // started on Monday and moves to Wednesday still lasts three days); with no
 // length yet, the last day only moves when the first would pass it.
-export function moveRangeStart(range: DateRange, from: IsoDate | null): DateRange {
+// `keepLength: false` (0.2.3): the last day stays unless the first passes
+// it — a filter's range ("from … to …"), whose length means nothing.
+export function moveRangeStart(range: DateRange, from: IsoDate | null, { keepLength = true }: { keepLength?: boolean } = {}): DateRange {
   if (from === null) return { from: null, to: range.to };
-  if (range.from !== null && range.to !== null && isIsoDate(range.from) && isIsoDate(range.to)) return { from, to: addDays(from, Math.max(0, daysBetween(range.from, range.to))) };
+  if (keepLength && range.from !== null && range.to !== null && isIsoDate(range.from) && isIsoDate(range.to)) return { from, to: addDays(from, Math.max(0, daysBetween(range.from, range.to))) };
   return { from, to: range.to !== null && range.to < from ? from : range.to };
 }
 

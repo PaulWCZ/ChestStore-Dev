@@ -215,3 +215,37 @@ export function Switch({ label, checked, onChange, name, value = "on", hint, dis
     </div>
   );
 }
+
+// Checkbox: something on or off that waits for the form's Save (0.2.3) —
+// "Billable", "Ask for a receipt" in a form sent on submit. The rule
+// (Forms, Timesheets): an act that takes effect at once is a Switch; a
+// choice that waits for a Save is a checkbox, which never looks like it
+// already did something. A native checkbox (Space toggles, a form sends
+// `value` when ticked), drawn at 20 px with the accent, its words the
+// 44 px target. Controlled (`checked` + `onChange`) or left to the form
+// (`defaultChecked`, no script needed).
+export function Checkbox({ label, checked, defaultChecked, onChange, name, value = "on", hint, disabled = false, required = false, id, className }: {
+  label: ReactNode;
+  checked?: boolean;
+  defaultChecked?: boolean;
+  onChange?: (checked: boolean) => void;
+  name?: string;
+  value?: string;
+  hint?: ReactNode;
+  disabled?: boolean;
+  required?: boolean;
+  id?: string;
+  className?: string;
+}): ReactElement {
+  const auto = useId();
+  const fieldId = id ?? auto + "-check";
+  return (
+    <div className={`ck-check${className ? " " + className : ""}`}>
+      <input id={fieldId} type="checkbox" className="ck-check-input" name={name} value={value} disabled={disabled || undefined} required={required || undefined}
+        {...(checked !== undefined ? { checked } : {})} {...(defaultChecked !== undefined ? { defaultChecked } : {})}
+        aria-describedby={hint ? auto + "-hint" : undefined} onChange={onChange ? e => onChange(e.currentTarget.checked) : undefined} readOnly={checked !== undefined && !onChange ? true : undefined} />
+      <label htmlFor={fieldId} className="ck-check-label">{label}</label>
+      {hint ? <p id={auto + "-hint"} className="ck-hint">{hint}</p> : null}
+    </div>
+  );
+}

@@ -84,6 +84,8 @@ Now each theme says what its region is:
 | `--inverse-ink` | text and icons in it; its focus ring (`outline-color: var(--inverse-ink)`) | 4.5:1 on `--inverse` and `--inverse-line` |
 | `--inverse-ink-2` | secondary text in it (a role, a count) | 4.5:1 on `--inverse` |
 | `--inverse-line` | a quiet fill or hairline in it: a hover, the current item, a field's well | — (text on it is `--inverse-ink`, measured) |
+| `--inverse-signal` | the tool's signal in it (0.2.3): the current tab's rule, a running clock's mark, a filled button there (Timesheets' lime Start, Goals' marker) | 4.5:1 on `--inverse` and `--inverse-line` |
+| `--inverse-signal-ink` | text and icons on `--inverse-signal` (0.2.3) | 4.5:1 on `--inverse-signal` |
 
 When a theme does not set them, `defineTheme` derives them: in light mode
 the ink as a ground (the old inverse pair), in dark mode a band a little
@@ -94,6 +96,19 @@ the page goes on `--inverse`: a main button there keeps `--accent` and
 `--accent-ink` (their edge, `--accent-line`, is measured on `--bg` and
 `--surface` only — give it a `--inverse-ink` outline if the accent is
 close to the band's colour).
+
+**The signal on the band (0.2.3).** `--highlight` is not a colour for
+the band: it is a marker pen with `--ink` on it, so in a dark look it is a
+*dark* ground, and on a dark band it vanishes (Timesheets' Start button and
+current tab, Goals' current tab: 1.3:1 to 2.6:1 on the band in the catalogue's dark schemes). A tool's
+signature accent on its band is `--inverse-signal`, with
+`--inverse-signal-ink` for words on its fill. By default it is the theme's
+marker pen when that reads on the band (most light schemes), else the
+marker's hue and chroma made as light as the band needs; its ink is the
+band itself. Instrument pins its electric lime (`#c6ff3a`, ink `#0d1f19`)
+in both modes. A theme made by hand for 0.2.2 without them stays valid:
+`validateTheme` accepts their absence, and `checkTheme` and `themeCss` use
+the defaults.
 
 ### The categorical palette: `--cat-N`, `--cat-N-soft`, `--cat-N-ink` (N = 1 to 8)
 
@@ -164,7 +179,7 @@ decoration that carries no text and no meaning (below).
 | `--space-1` `--space-2` `--space-3` `--space-4` `--space-5` `--space-6` `--space-7` `--space-8` | the spacing scale (px): 4, 8, 12, 16, 24, 32, 48, 72 by default |
 | `--radius-s` `--radius-m` `--radius-l` | corners: small controls, cards, big panels |
 | `--radius-pill` | 999 px: pills, avatars |
-| `--radius-chip` | badges, chips, counters, filter chips (0.2.2): a pill in a theme with rounded corners, the small radius in a square one (Chest: 0; a "sharp" brand: 2 px); a theme may set it (`radius.chip`) |
+| `--radius-chip` | badges, chips, counters, filter chips (0.2.2): a pill in a theme with rounded corners, the small radius in a square one (Chest: 0; a "sharp" brand: 2 px); a theme may set it (`radius.chip`); a store tool's identity sets it in the catalogue itself, so its own copy stays equal (Sales desk: 3 px, CRM's square badges, 0.2.3) |
 | `--border-width` | the width of lines (1 px, 2 px in Workshop and High contrast) |
 | `--control-h` | 44 px: the smallest target — **no theme changes it** |
 | `--field-pad-x` | the space between a field's edge and its text (0.2.2; `--space-3` unless the theme says, `fieldPad`): a tool's own fields and the kit's line up |

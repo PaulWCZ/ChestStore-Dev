@@ -9,17 +9,29 @@
 // reach it from anywhere on the page but a text field.
 import { useEffect, useId, useRef, type ReactElement, type ReactNode } from "react";
 import { SearchIcon } from "./icons.js";
-import { activeFilters, clearHref, filterHref, paramEntries, paramOf, paramValues } from "./lists.js";
+import { clearHref, clearValues, filterHref, filterValues, paramEntries, paramOf, paramValues } from "./lists.js";
 import { isEditable } from "./text.js";
 import { en, type FilterWords, type SearchWords } from "./words.js";
 
-export type FilterOption = { readonly value: string; readonly label: string; readonly count?: number };
+export type FilterOption = {
+  readonly value: string;
+  readonly label: string;
+  readonly count?: number;
+  // A select group's section ("Laptops" under "Hardware"): the options of
+  // one section are gathered under its name (an <optgroup>), in the order
+  // the sections first appear; options without one come first. Chips
+  // ignore it (0.2.3).
+  readonly group?: string;
+};
 export type FilterGroup = {
   readonly key: string;
   readonly label: string;
   readonly options: readonly FilterOption[];
   // Show an "All" chip first (the group's filter off).
   readonly all?: boolean;
+  // The words of that "All" chip, or of a select's empty choice, for this
+  // group ("Anyone", "Every category"); the kit's "All" when absent (0.2.3).
+  readonly allLabel?: string;
   // Several values at once, kept comma-separated in the address
   // ("f=screen,dock"); each chip adds or takes away its own (0.2.1).
   // Values must not contain a comma.
@@ -39,8 +51,10 @@ type Params = string | URLSearchParams | Readonly<Record<string, string | undefi
 type LinkLike = (props: { href: string; className?: string; "aria-current"?: "true"; children: ReactNode }) => ReactNode;
 
 export type FiltersProps = {
-  readonly path: string;
-  readonly params: Params;
+  // The list's page (address mode). Not needed in the in-page mode.
+  readonly path?: string;
+  // The address's parameters (address mode), or the current values.
+  readonly params?: Params;
   readonly groups: readonly FilterGroup[];
   readonly labels?: FilterWords;
   // Next.js's <Link> (client navigation), or plain <a> by default.
@@ -54,63 +68,107 @@ export type FiltersProps = {
   // Where a select group goes when chosen (Next.js: router.push); without
   // it, its form is sent (a page load). From a client component (0.2.2).
   readonly onNavigate?: (href: string) => void;
+  // The in-page mode (0.2.3): the filters are the page's state, not the
+  // address — a list filtered in a dialog, a panel, a form. `value` holds
+  // the current values ({ state: "sent,late", owner: "mbr_…" }); a chip
+  // is a button (aria-pressed), a select and "Clear filters" call
+  // onChange with the next values (the same rules as the address: a chip
+  // toggles, several values comma-separated, a required group kept).
+  // From a client component.
+  readonly value?: Readonly<Record<string, string | undefined>>;
+  readonly onChange?: (next: Record<string, string>) => void;
   readonly className?: string;
 };
 
-export function Filters({ path, params, groups, labels = en.filters, link, clearAlso = [], phone = "wrap", onNavigate, className }: FiltersProps): ReactElement {
+// Options of a select, gathered by their section (an optgroup each), the
+// sections in the order they first appear, the options without one first.
+function sections(options: readonly FilterOption[]): { label: string | null; options: FilterOption[] }[] {
+  const out: { label: string | null; options: FilterOption[] }[] = [{ label: null, options: [] }];
+  for (const o of options) {
+    const label = o.group ?? null;
+    let at = out.find(s => s.label === label);
+    if (!at) { at = { label, options: [] }; out.push(at); }
+    at.options.push(o);
+  }
+  return out.filter(s => s.options.length > 0);
+}
+
+export function Filters({ path = "", params, groups, labels = en.filters, link, clearAlso = [], phone = "wrap", onNavigate, value, onChange, className }: FiltersProps): ReactElement {
+  const inPage = onChange !== undefined;
+  const current: Params = (inPage ? value ?? params : params) ?? "";
   // "Clear filters" takes away what may be taken away: not a required group.
   const keys = [...groups.filter(g => !g.required).map(g => g.key), ...clearAlso.filter(k => !groups.some(g => g.key === k))];
-  const on = activeFilters(params, keys);
+  const on = keys.filter(k => paramOf(current, k) !== null);
+  // One select on, and nothing else: its own "All" lets it go — a second
+  // way to do the same would only be noise (0.2.3).
+  const onlySelect = on.length === 1 && groups.some(g => g.key === on[0] && g.as === "select" && !g.required);
   const A: LinkLike = link ?? (props => <a {...props} />);
   const base = useId();
+  const optionText = (o: FilterOption) => (o.count !== undefined ? `${o.label} (${o.count})` : o.label);
   return (
     <div className={`ck-filters${phone === "scroll" ? " ck-filters-scroll" : ""}${className ? " " + className : ""}`} role="group" aria-label={labels.label}>
       {groups.map(g => {
         const required = g.required ?? false;
         const multiple = !required && (g.multiple ?? false) && g.as !== "select";
-        const chosen = multiple ? paramValues(params, g.key) : [paramOf(params, g.key) ?? (required ? g.value ?? null : null)].filter((v): v is string => v !== null);
+        const chosen = multiple ? paramValues(current, g.key) : [paramOf(current, g.key) ?? (required ? g.value ?? null : null)].filter((v): v is string => v !== null);
+        const all = g.allLabel ?? labels.all;
         if (g.as === "select") {
           const id = `${base}-${g.key}`;
-          const current = chosen[0] ?? "";
+          const picked = chosen[0] ?? "";
+          const choices = sections(g.options).map(s => {
+            const items = s.options.map(o => <option key={o.value} value={o.value}>{optionText(o)}</option>);
+            return s.label === null ? items : <optgroup key={"g-" + s.label} label={s.label}>{items}</optgroup>;
+          });
+          if (inPage) {
+            return (
+              <div key={g.key} className="ck-filter-group ck-filter-select">
+                <label className="ck-filter-label" htmlFor={id}>{g.label}</label>
+                <select id={id} className="ck-field ck-select" value={picked}
+                  onChange={e => { const v = e.currentTarget.value; onChange(filterValues(current, g.key, v === "" ? null : v, { required: true })); }}>
+                  {!required && <option value="">{all}</option>}
+                  {choices}
+                </select>
+              </div>
+            );
+          }
           return (
             <form key={g.key} className="ck-filter-group ck-filter-select" action={path} method="get" onSubmit={onNavigate ? e => { e.preventDefault(); } : undefined}>
-              {paramEntries(params, [g.key, "page", "cursor"]).map(([k, v], i) => <input key={`${k}-${i}`} type="hidden" name={k} value={v} />)}
+              {paramEntries(current, [g.key, "page", "cursor"]).map(([k, v], i) => <input key={`${k}-${i}`} type="hidden" name={k} value={v} />)}
               <label className="ck-filter-label" htmlFor={id}>{g.label}</label>
-              <select key={current} id={id} className="ck-field ck-select" name={g.key} defaultValue={current}
+              <select key={picked} id={id} className="ck-field ck-select" name={g.key} defaultValue={picked}
                 onChange={e => {
-                  const value = e.currentTarget.value;
-                  if (onNavigate) onNavigate(filterHref(path, params, g.key, value === "" ? null : value, { required: true }));
+                  const v = e.currentTarget.value;
+                  if (onNavigate) onNavigate(filterHref(path, current, g.key, v === "" ? null : v, { required: true }));
                   else e.currentTarget.form?.requestSubmit();
                 }}>
-                {!required && <option value="">{labels.all}</option>}
-                {g.options.map(o => <option key={o.value} value={o.value}>{o.count !== undefined ? `${o.label} (${o.count})` : o.label}</option>)}
+                {!required && <option value="">{all}</option>}
+                {choices}
               </select>
               <noscript><button type="submit" className="ck-button ck-button-quiet">{labels.apply ?? en.filters.apply}</button></noscript>
             </form>
           );
         }
+        const chip = (key: string, target: string | null, pressed: boolean, content: ReactNode) => inPage
+          ? <button key={key} type="button" className="ck-filter-chip" aria-pressed={pressed} onClick={() => onChange(filterValues(current, g.key, target, { multiple, required }))}>{content}</button>
+          : <A href={filterHref(path, current, g.key, target, { multiple, required })} className="ck-filter-chip" {...(pressed ? { "aria-current": "true" as const } : {})}>{content}</A>;
+        const Box = inPage ? "div" : "nav";
         return (
-          <nav key={g.key} className="ck-filter-group" aria-label={g.label}>
+          <Box key={g.key} className="ck-filter-group" {...(inPage ? { role: "group" } : {})} aria-label={g.label}>
             <span className="ck-filter-label" aria-hidden="true">{g.label}</span>
             <ul>
-              {g.all && !required && (
-                <li>
-                  <A href={filterHref(path, params, g.key, null)} className="ck-filter-chip" {...(chosen.length === 0 ? { "aria-current": "true" as const } : {})}>{labels.all}</A>
-                </li>
-              )}
+              {g.all && !required && <li>{chip("all", null, chosen.length === 0, all)}</li>}
               {g.options.map(o => (
                 <li key={o.value}>
-                  <A href={filterHref(path, params, g.key, o.value, { multiple, required })} className="ck-filter-chip" {...(chosen.includes(o.value) ? { "aria-current": "true" as const } : {})}>
-                    <span>{o.label}</span>
-                    {o.count !== undefined && <span className="ck-count">{o.count}</span>}
-                  </A>
+                  {chip(o.value, o.value, chosen.includes(o.value), <><span>{o.label}</span>{o.count !== undefined && <span className="ck-count">{o.count}</span>}</>)}
                 </li>
               ))}
             </ul>
-          </nav>
+          </Box>
         );
       })}
-      {on > 0 && <A href={clearHref(path, params, keys)} className="ck-filter-clear">{labels.clear}</A>}
+      {on.length > 0 && !onlySelect && (inPage
+        ? <button type="button" className="ck-filter-clear" onClick={() => onChange(clearValues(current, keys))}>{labels.clear}</button>
+        : <A href={clearHref(path, current, keys)} className="ck-filter-clear">{labels.clear}</A>)}
     </div>
   );
 }

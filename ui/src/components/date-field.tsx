@@ -10,7 +10,7 @@
 // `today` comes from the tool (the Chest's time zone, on the server): the
 // kit never guesses the day from the machine's clock, so server and browser
 // render the same page.
-import { useEffect, useId, useRef, useState, type KeyboardEvent, type ReactElement, type ReactNode, type Ref } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactElement, type ReactNode, type Ref } from "react";
 import { addDays, addMonths, calendarKey, clampDate, formatDate, isIsoDate, monthGrid, parseDate, partsOf, relativeDay, weekdayHeads, type IsoDate } from "./dates.js";
 import { useFloat } from "./float.js";
 import { CalendarIcon, ChevronLeft, ChevronRight } from "./icons.js";
@@ -60,8 +60,40 @@ export function DateField(props: DateFieldProps): ReactElement {
   const hintId = auto + "-hint";
   const errorId = auto + "-error";
   const readId = auto + "-read";
-  const [text, setText] = useState(value ? formatDate(value, labels) : "");
+  // The text follows the value: when the value changes from outside (the
+  // other end of a range moved it, a reset, a server's answer), the text
+  // is the new value's during that very render — React's "adjust state
+  // when a prop changes" — never in an effect, which lands after the
+  // commit, possibly after the person started typing, and then mixed the
+  // two texts ("25/01/20272027-01-28", Leave, 0.2.3). Keyed on the value
+  // and its words, not on the words object: a tool that passes
+  // `labels={{...}}` anew each render no longer resets what is typed.
+  // Two cases keep what the person does: while they are typing (text not
+  // yet read), their text stays — reading it on blur decides; and when
+  // the whole old date was selected (Tab into the field selects it), the
+  // new one is selected in its place, so what they type replaces it
+  // rather than being added after it.
+  const shown = value ? formatDate(value, labels) : "";
+  const [text, setText] = useState(shown);
   const [problem, setProblem] = useState<string | null>(null);
+  const [typing, setTyping] = useState(false);
+  const [seen, setSeen] = useState({ value, shown });
+  const field = useRef<HTMLInputElement>(null);
+  const reselect = useRef<string | null>(null);
+  if (seen.value !== value || seen.shown !== shown) {
+    setSeen({ value, shown });
+    if (!typing) {
+      const el = field.current;
+      reselect.current = el !== null && typeof document !== "undefined" && document.activeElement === el && el.value !== "" && el.selectionStart === 0 && el.selectionEnd === el.value.length ? shown : null;
+      setText(shown);
+      setProblem(null);
+    }
+  }
+  useLayoutEffect(() => {
+    const el = field.current;
+    if (reselect.current !== null && el && el.value === reselect.current && document.activeElement === el) el.select();
+    reselect.current = null;
+  });
   const [open, setOpen] = useState(false);
   const wrap = useRef<HTMLDivElement>(null);
   const button = useRef<HTMLButtonElement>(null);
@@ -69,8 +101,6 @@ export function DateField(props: DateFieldProps): ReactElement {
   const panel = useRef<HTMLDivElement>(null);
   // Inside a dialog the calendar is placed over it, never cut at its edge.
   useFloat(box, panel, open, { scroll: false });
-
-  useEffect(() => { setText(value ? formatDate(value, labels) : ""); setProblem(null); }, [value, labels]);
 
   // A click outside the calendar closes it.
   useEffect(() => {
@@ -83,6 +113,7 @@ export function DateField(props: DateFieldProps): ReactElement {
   // commit reads what was typed: the date (null for nothing), or
   // undefined when it cannot be read (the problem is then shown).
   function commit(raw: string): IsoDate | null | undefined {
+    setTyping(false);
     if (raw.trim() === "") {
       setProblem(null);
       if (value !== null) onChange(null);
@@ -102,6 +133,7 @@ export function DateField(props: DateFieldProps): ReactElement {
   }
 
   function pick(iso: IsoDate) {
+    setTyping(false);
     setProblem(null);
     setText(formatDate(iso, labels));
     setOpen(false);
@@ -122,6 +154,7 @@ export function DateField(props: DateFieldProps): ReactElement {
       <div className="ck-date-row">
         <div className="ck-date-box" ref={box}>
           <input
+            ref={field}
             id={fieldId}
             className="ck-field ck-date-input"
             type="text"
@@ -133,7 +166,7 @@ export function DateField(props: DateFieldProps): ReactElement {
             required={required}
             aria-invalid={shownError ? true : undefined}
             aria-describedby={described}
-            onChange={e => setText(e.target.value)}
+            onChange={e => { setText(e.target.value); setTyping(true); }}
             onBlur={e => commit(e.target.value)}
             onKeyDown={e => {
               if (e.key === "Enter") {
@@ -151,7 +184,7 @@ export function DateField(props: DateFieldProps): ReactElement {
         {quick.length > 0 && (
           <div className="ck-date-chips">
             {quick.map(c => (
-              <button key={c.value} type="button" className="ck-chip-button" aria-pressed={value === c.value} disabled={disabled} onClick={() => { setProblem(null); setText(formatDate(c.value, labels)); if (c.value !== value) onChange(c.value); }}>
+              <button key={c.value} type="button" className="ck-chip-button" aria-pressed={value === c.value} disabled={disabled} onClick={() => { setTyping(false); setProblem(null); setText(formatDate(c.value, labels)); if (c.value !== value) onChange(c.value); }}>
                 {c.label}
               </button>
             ))}

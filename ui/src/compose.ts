@@ -8,6 +8,7 @@
 import { contrast, fit, luminance, mix, oklch, oklchHex, parseColor, toHex } from "./color.js";
 import { categories, categoryFamilies, checkTheme, validateTheme, type ColorToken, type EffectToken, type Scheme, type Theme, type Words } from "./contract.js";
 import { font, systemFont, type FontSpec } from "./fonts.js";
+import { inverseSignal } from "./signal.js";
 
 // What a scheme must give; everything else may be derived.
 export type SchemeSource = Partial<Scheme> & Pick<Scheme, "bg" | "surface" | "ink" | "ink-2" | "line" | "accent" | "accent-ink">;
@@ -123,6 +124,10 @@ export function completeScheme(source: SchemeSource, mode: "light" | "dark", pal
     s["inverse-line"] = line;
   }
   s.highlight ??= must(fit(oklchHex({ l: light ? 0.93 : 0.36, c: light ? 0.08 : 0.06, h: 95 }), [ink], 4.5, light ? "lighter" : "darker"), "highlight");
+  // The signal on the region (0.2.3): the marker pen where it reads on the
+  // band, else its hue as light as the band needs; the band as its text.
+  s["inverse-signal"] ??= inverseSignal({ inverse: s.inverse!, "inverse-line": s["inverse-line"]!, highlight: s.highlight! });
+  s["inverse-signal-ink"] ??= s.inverse!;
   for (let slot = 1; slot <= categories; slot++) {
     const got = category(slot, mode, { bg, surface }, palette, { ...(source[`cat-${slot}` as ColorToken] ? { solid: source[`cat-${slot}` as ColorToken]! } : {}), ...(source[`cat-${slot}-soft` as ColorToken] ? { soft: source[`cat-${slot}-soft` as ColorToken]! } : {}), ...(source[`cat-${slot}-ink` as ColorToken] ? { ink: source[`cat-${slot}-ink` as ColorToken]! } : {}), ...palette[mode]?.[slot] });
     s[`cat-${slot}` as ColorToken] = got.solid;
@@ -141,11 +146,13 @@ export function completeScheme(source: SchemeSource, mode: "light" | "dark", pal
 // colour (--inverse: Equipment's steel bar, Timesheets' instrument panel,
 // Goals' dark map margin, from their tokens.css before the kit) and a face
 // for long text (--font-read: Wiki's Newsreader, Quotes' Libre Caslon
-// Text). Each tool keeps its identity as a copy of the catalogue's source
+// Text). 0.2.3: Timesheets' lime as the signal on its panel in both modes
+// (--inverse-signal), and Clients' square badges (radius.chip 3: the
+// identity's own look, which CRM forced in its CSS in every theme). Each tool keeps its identity as a copy of the catalogue's source
 // and its tests hold the two equal: defineTheme applies these to a source
 // of that id *and* tool, where the source does not say otherwise, so the
 // catalogue and the tools' copies stay one — with no change in the tools.
-type Addition = { readonly tool: string; readonly read?: string; readonly light?: Partial<SchemeSource>; readonly dark?: Partial<SchemeSource> };
+type Addition = { readonly tool: string; readonly read?: string; readonly chip?: number; readonly light?: Partial<SchemeSource>; readonly dark?: Partial<SchemeSource> };
 export const identityAdditions: Readonly<Record<string, Addition>> = {
   labels: {
     tool: "equipment",
@@ -154,14 +161,15 @@ export const identityAdditions: Readonly<Record<string, Addition>> = {
   },
   instrument: {
     tool: "timesheets",
-    light: { inverse: "#0c231b", "inverse-ink": "#e9f3ed", "inverse-ink-2": "#a9c2b6", "inverse-line": "#2a5646" },
-    dark: { inverse: "#050d0a", "inverse-ink": "#e9f3ed", "inverse-ink-2": "#a9c2b6", "inverse-line": "#1f4032" },
+    light: { inverse: "#0c231b", "inverse-ink": "#e9f3ed", "inverse-ink-2": "#a9c2b6", "inverse-line": "#2a5646", "inverse-signal": "#c6ff3a", "inverse-signal-ink": "#0d1f19" },
+    dark: { inverse: "#050d0a", "inverse-ink": "#e9f3ed", "inverse-ink-2": "#a9c2b6", "inverse-line": "#1f4032", "inverse-signal": "#c6ff3a", "inverse-signal-ink": "#0d1f19" },
   },
   trail: {
     tool: "goals",
     light: { inverse: "#17302a", "inverse-ink": "#f3eee2", "inverse-ink-2": "#c5d0c8", "inverse-line": "#2a463e" },
     dark: { inverse: "#0b1210", "inverse-ink": "#efe8d8", "inverse-ink-2": "#a7b3ac", "inverse-line": "#1a2724" },
   },
+  "sales-desk": { tool: "crm", chip: 3 },
   library: { tool: "wiki", read: "newsreader" },
   letterpress: { tool: "quotes", read: "libre-caslon-text" },
 };
@@ -191,7 +199,7 @@ export function defineTheme(source: ThemeSource): Theme {
     modes,
     type: { ...defaultType, ...source.type },
     space: source.space ?? defaultSpace,
-    radius: source.radius,
+    radius: source.radius.chip === undefined && added?.chip !== undefined ? { ...source.radius, chip: added.chip } : source.radius,
     border: source.border ?? 1,
     ...(source.fieldPad !== undefined ? { fieldPad: source.fieldPad } : {}),
     motion: { ...defaultMotion, ...source.motion },

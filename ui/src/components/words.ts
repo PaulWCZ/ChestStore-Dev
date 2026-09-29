@@ -106,6 +106,8 @@ export type FileWords = {
   // between a button's words and the field's name, for screen readers
   // ("Add files: Receipts"; French « Ajouter des fichiers : Justificatifs »):
   readonly separator?: string;
+  // A file stored before (storedFile, 0.2.3): "Saved".
+  readonly stored?: string;
 };
 
 export type TableWords = {
@@ -238,6 +240,7 @@ export const en: KitWords = {
     chooseFile: "Choose a file",
     kinds: { image: "images", audio: "sound files", video: "videos", text: "text files" },
     separator: ": ",
+    stored: "Saved",
   },
   table: {
     rowActions: "Actions",
@@ -351,6 +354,7 @@ export const fr: KitWords = {
     chooseFile: "Choisir un fichier",
     kinds: { image: "images", audio: "fichiers audio", video: "vidéos", text: "fichiers texte" },
     separator: `${nnbsp}: `,
+    stored: "Enregistré",
   },
   table: {
     rowActions: "Actions",

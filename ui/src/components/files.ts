@@ -2,6 +2,7 @@
 // big a file reads in the tool's language, and the browser's upload with
 // progress. Checking here is for the person (a clear message at once);
 // the server checks again and sniffs the bytes — that is the tool's job.
+import type { PickedFile } from "./file-picker.js";
 import { fill } from "./text.js";
 import { en, type FileWords } from "./words.js";
 
@@ -147,4 +148,11 @@ export function putWithProgress(url: string, body: Blob, { method = "PUT", heade
     }
     xhr.send(body);
   });
+}
+
+// storedFile: the entry of a file already stored — what a form that edits
+// something shows of the files it has (0.2.3). Its ref is what the form
+// sends back to keep it; size 0 when the tool does not know it.
+export function storedFile(entry: { readonly ref: string; readonly name: string; readonly size?: number; readonly type?: string }): PickedFile {
+  return { key: "stored-" + entry.ref, name: entry.name, size: entry.size ?? 0, type: entry.type ?? "", file: null, status: "ready", progress: 1, ref: entry.ref, error: null, stored: true };
 }

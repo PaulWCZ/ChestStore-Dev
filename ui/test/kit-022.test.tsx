@@ -135,7 +135,7 @@ test("FilePicker (Expenses, Equipment, Forms): camera, a preview slot, a shown l
   const cam = html(<FilePicker label="Justificatifs" files={picked} onChange={noop} camera accept={["image/*", ".pdf"]} labels={fr.files} id="receipts" showLabel className="receipts"
     preview={f => <img src={`/chest/files/${f.ref}`} alt="" />} />);
   assert.match(cam, /<div class="ck-files receipts" role="group" aria-labelledby="receipts-label"><span id="receipts-label" class="ck-label">Justificatifs<\/span>/u);
-  assert.match(cam, /<input id="receipts-camera" type="file" class="ck-vh ck-file-input" accept="image\/\*" capture="environment"/u);
+  assert.match(cam, /<input id="receipts-camera" type="file" class="ck-vh ck-file-input ck-file-camera-input" accept="image\/\*" capture="environment"/u);
   assert.match(cam, /<label for="receipts-camera" class="ck-button ck-button-quiet ck-file-camera">.*<span>Prendre une photo<\/span><span class="ck-vh">.: Justificatifs<\/span><\/label>/u);
   assert.match(cam, /<input id="receipts" type="file" class="ck-vh ck-file-input" multiple="" accept="image\/\*,.pdf"/u);
   assert.doesNotMatch(cam, /<input id="receipts" [^>]*capture/u, "the file button opens the files, not the camera");
@@ -275,7 +275,7 @@ test("DataTable (CRM, Quotes, Equipment): header content, column class, sticky f
   assert.match(table, /<table class="ck-table ck-table-sticky ck-table-stack ck-table-linked">/u);
   assert.match(table, /<th scope="col" aria-sort="none"|<th scope="col" class="num">/u);
   assert.match(table, /<button type="button" class="ck-sort"><svg class="hash"><\/svg>Number/u, "the header's content, sortable");
-  assert.match(table, /<th scope="row" class="num" data-label="Number"><a data-next="" href="\/chest\/quotes\/Q-14" class="ck-row-link">Q-14<\/a><\/th>/u);
+  assert.match(table, /<th scope="row" class="num"><a data-next="" href="\/chest\/quotes\/Q-14" class="ck-row-link">Q-14<\/a><\/th>/u);
   assert.match(table, /<td data-label="Client">Atelier Martin<\/td>/u);
   assert.match(table, /<td class="ck-align-end" data-label="Total">€1,240.00<\/td>/u);
   assert.match(css, /\.ck-row-link::after \{ content: ""; position: absolute; inset: 0; \}/u);

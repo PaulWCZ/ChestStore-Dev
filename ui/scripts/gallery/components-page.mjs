@@ -33,6 +33,7 @@ const looks = [
   { id: "chest", theme: themeOf("chest"), name: ["Chest", "Chest"] },
   { id: "workshop", theme: themeOf("workshop"), name: ["Workshop (Tasks)", "Atelier (Tâches)"] },
   { id: "library", theme: themeOf("library"), name: ["Library (Wiki)", "Bibliothèque (Wiki)"] },
+  { id: "instrument", theme: themeOf("instrument"), name: ["Instrument (Timesheets)", "Instrument (Temps)"] },
   { id: "brand", theme: { ...brand, id: "brand" }, name: ["A brand: Atelier Martin", "Une marque : Atelier Martin"] },
 ];
 const lightOnly = t => t.modes === "light";
@@ -111,6 +112,16 @@ main{max-width:1360px;margin:0 auto;padding:24px 24px 96px;display:grid;gap:28px
 .demo-sub{margin:8px 0 0;font:var(--display-weight) var(--text-m)/1.3 var(--font-display)}
 .demo-frame{border:var(--border-width) solid var(--line-strong);border-radius:var(--radius-l);overflow:hidden;background:var(--bg)}
 .demo-frame .ck-shell{min-height:0}.demo-frame .ck-bar{position:static}.demo-frame .ck-main{padding-bottom:var(--space-5)}.demo-frame .ck-page-head{margin:0}
+.demo-thumb{display:block;width:100%;height:100%;background:linear-gradient(135deg,var(--cat-6-soft),var(--cat-1))}
+.demo-cat-band{display:grid;gap:8px;padding:12px 16px;border-radius:var(--radius-m);background:var(--cat-3-soft);color:var(--cat-3-ink);--ck-filters-ink:var(--cat-3-ink);--ck-filters-link:var(--cat-3-ink)}
+.demo-band-count{margin:0;font-size:var(--text-s)}
+.demo-band{display:flex;flex-wrap:wrap;align-items:center;gap:8px 20px;padding:0 16px;border-radius:var(--radius-m);background:var(--inverse);color:var(--inverse-ink)}
+.demo-band-nav{display:flex;gap:4px}
+.demo-band-nav a{display:inline-flex;align-items:center;min-height:44px;padding:0 12px;color:var(--inverse-ink);text-decoration:none;border-bottom:3px solid transparent}
+.demo-band-nav a[aria-current="page"]{border-bottom-color:var(--inverse-signal)}
+.demo-band-nav a:focus-visible,.demo-band-start:focus-visible{outline:3px solid var(--inverse-ink);outline-offset:2px}
+.demo-band-clock{font:var(--text-l)/1 var(--font-mono);color:var(--inverse-signal)}
+.demo-band-start{min-height:44px;padding:0 20px;margin-left:auto;border:0;border-radius:var(--radius-m);background:var(--inverse-signal);color:var(--inverse-signal-ink);font:inherit;font-weight:var(--weight-strong);cursor:pointer}
 .demo-mark{display:inline-block;width:26px;height:26px;border-radius:var(--radius-s);background:var(--accent);box-shadow:inset 0 0 0 var(--border-width) var(--accent-line)}
 .section-title{font:600 clamp(26px,3vw,36px)/1.1 Georgia,serif;margin:12px 0 0}
 .section-intro{margin:4px 0 0;color:var(--g-muted);max-width:75ch}

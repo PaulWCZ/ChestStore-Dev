@@ -321,16 +321,75 @@ step("calendar: several days, added and taken away");
 // A range of days: moving its start keeps its length (0.2.2).
 const trip = en.getByRole("group", { name: "Trip" });
 const tripFrom = trip.getByRole("textbox", { name: "From" }), tripTo = trip.getByRole("textbox", { name: "To" });
-// (React writes the other field after its render: wait for it, 2 s at most.)
-const settle = async (read, want) => { for (let i = 0; i < 40 && (await read()) !== want; i++) await page.waitForTimeout(50); return read(); };
+// (0.2.3: the other field's text is written in the same render — no wait.)
 await tripFrom.fill("20/11/2026"); await tripFrom.press("Enter");
-assert.equal(await settle(() => tripTo.inputValue(), "22/11/2026"), "22/11/2026", "three days stay three days");
-assert.equal(await settle(() => trip.locator(".ck-range-length").textContent(), "3 days"), "3 days");
+assert.equal(await tripTo.inputValue(), "22/11/2026", "three days stay three days");
+assert.equal(await trip.locator(".ck-range-length").textContent(), "3 days");
 await tripTo.fill("18/11/2026"); await tripTo.press("Enter");
 assert.match(await trip.locator(".ck-error").first().textContent(), /Choose .* or later/u, "an end before the start is refused, in words");
 await tripTo.fill("25/11/2026"); await tripTo.press("Enter");
-assert.equal(await settle(() => trip.locator(".ck-range-length").textContent(), "6 days"), "6 days");
+assert.equal(await trip.locator(".ck-range-length").textContent(), "6 days");
 step("date range: the length kept, the end never before the start");
+// The Leave race (0.2.3): a value changed from outside reaches the field's
+// text in the very commit that carries it — 0.2.2 copied it in an effect,
+// later, and a person typing in between got both texts mixed
+// ("25/01/20272027-01-28"). The demo writes the text it finds when React
+// commits the new value (a layout effect runs before any effect).
+const probe = en.locator('[data-probe="back"]');
+const backField = probe.getByRole("textbox", { name: "Back on" });
+const firstWant = await probe.getAttribute("data-commit-want");
+await probe.getByRole("button", { name: "A week later" }).click();
+await page.waitForFunction(w => document.querySelector('#bench-en [data-probe="back"]').dataset.commitWant !== w, firstWant, { timeout: 2000 });
+assert.equal(await probe.getAttribute("data-commit-text"), await probe.getAttribute("data-commit-want"), "the new value's text is there when React commits it");
+// Then, at once, the same field is typed into: what is typed is what stays.
+await probe.getByRole("button", { name: "A week later" }).click();
+await backField.fill("24/12/2026"); await backField.press("Tab");
+assert.equal(await backField.inputValue(), "24/12/2026", "typed right after an outside change: kept whole");
+await page.waitForTimeout(300);
+assert.equal(await backField.inputValue(), "24/12/2026", "and nothing lands on it later");
+// A leave: the first day moved (the last day follows, from outside), the
+// last day typed at once — no waiting, no mixed text.
+const leave = en.getByRole("group", { name: "Leave" });
+const leaveFrom = leave.getByRole("textbox", { name: "From" }), leaveTo = leave.getByRole("textbox", { name: "To" });
+assert.equal(await leaveFrom.getAttribute("id"), "en-leave-from", "the fields' own ids");
+await leaveFrom.fill("04/01/2027");
+await leaveTo.fill("08/01/2027"); await leaveTo.press("Tab");
+assert.equal(await leaveTo.inputValue(), "08/01/2027", "the last day typed right after the first moved it");
+assert.equal(await leaveFrom.inputValue(), "04/01/2027");
+assert.equal(await leave.locator(".ck-range-length").textContent(), "Days off: 5");
+await leave.getByText("From noon", { exact: true }).click();
+assert.equal(await leave.locator(".ck-range-length").textContent(), "Days off: 4.5", "a slot under each end, the tool's own count");
+await leave.getByRole("button", { name: "Tomorrow" }).click();
+assert.equal(await leave.getByRole("button", { name: "Tomorrow" }).getAttribute("aria-pressed"), "true", "the first day's chips");
+// A filter's period: moving its start leaves its end (keepLength={false}).
+const period = en.getByRole("group", { name: "Period" });
+const periodTo = await period.getByRole("textbox", { name: "To" }).inputValue();
+await period.getByRole("textbox", { name: "From" }).fill("01/01/2026"); await period.getByRole("textbox", { name: "From" }).press("Enter");
+assert.equal(await period.getByRole("textbox", { name: "To" }).inputValue(), periodTo, "the end stays");
+step("date: an outside change is the text at once; typing right after it is kept (the Leave race)");
+// Filters kept in the page, on a coloured band (0.2.3).
+const band = en.locator(".demo-cat-band");
+const kind = band.getByRole("combobox", { name: "Item" });
+assert.deepEqual(await kind.locator("optgroup").evaluateAll(g => g.map(x => x.label)), ["Hardware", "Software"], "a select's sections");
+assert.equal(await kind.locator("option").first().textContent(), "Every category");
+assert.equal(await band.locator(".ck-filter-clear").count(), 0);
+await kind.selectOption({ label: "Screen" });
+assert.match(await band.getByRole("status").textContent(), /^1 shown: Screen$/u);
+assert.equal(await band.locator(".ck-filter-clear").count(), 0, "one select on: its own choice lets it go, no Clear");
+await band.getByRole("button", { name: "Tom Petit" }).click();
+assert.equal(await band.getByRole("button", { name: "Tom Petit" }).getAttribute("aria-pressed"), "true");
+assert.match(await band.getByRole("status").textContent(), /^1 shown: Screen$/u);
+await band.getByRole("button", { name: "Clear filters" }).click();
+assert.match(await band.getByRole("status").textContent(), /^5 shown/u);
+assert.equal(await band.getByRole("button", { name: "Anyone" }).getAttribute("aria-pressed"), "true");
+assert.equal(page.url().includes("?"), false, "the address untouched");
+step("filters in the page: sections, their own All words, Clear only when needed");
+// A checkbox that waits for the form's Save.
+const billable = en.getByRole("checkbox", { name: "Billable" });
+assert.ok(await billable.isChecked());
+await en.getByText("Billable", { exact: true }).click();
+assert.ok(!(await billable.isChecked()), "its words are the target");
+step("checkbox: the words toggle it");
 // A filter of many options as a list (Equipment).
 await en.getByRole("combobox", { name: "Category" }).selectOption({ label: "Training" });
 assert.equal(await en.getByRole("combobox", { name: "Category" }).inputValue(), "c3");

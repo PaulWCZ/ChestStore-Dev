@@ -26,7 +26,7 @@ const hydration = await page.evaluate(() => window.__hydration);
 console.log("hydration:", hydration);
 if (hydration.length) problems.push(...hydration);
 await page.addScriptTag({ path: axePath });
-for (const theme of ["chest", "workshop", "library", "brand"]) for (const mode of ["l", "d"]) for (const lang of ["en", "fr"]) {
+for (const theme of ["chest", "workshop", "library", "instrument", "brand"]) for (const mode of ["l", "d"]) for (const lang of ["en", "fr"]) {
   await page.click(`[data-theme="${theme}"]`); if (theme !== "chest") await page.click(`[data-mode="${mode}"]`); await page.click(`[data-lang="${lang}"]`);
   const r = await page.evaluate(async () => { const res = await axe.run(document.getElementById("stage"), { runOnly: { type: "tag", values: ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"] } }); return res.violations.map(v => `${v.id} (${v.nodes.length}): ${v.nodes.slice(0, 3).map(n => n.target.join(" ") + " — " + (n.failureSummary || "").split("\n").slice(1, 2).join("")).join(" | ")}`); });
   if (r.length) { console.log(theme, mode, lang, r); problems.push(`axe ${theme} ${mode} ${lang}`); }
@@ -43,6 +43,16 @@ for (const theme of ["chest", "workshop", "library", "brand"]) for (const mode o
     });
   }));
   if (cropped.length) { console.log(theme, mode, lang, "cropped initials", cropped); problems.push(`avatar stack crops initials ${theme} ${mode} ${lang}`); }
+  // The tool's signal on its band (0.2.3): the current tab's rule is seen
+  // on the band (3:1 at least; the Start button's words are axe's above).
+  const rule = await page.evaluate(() => {
+    const rgb = c => c.match(/[\d.]+/gu).slice(0, 3).map(Number);
+    const lum = ([r, g, b]) => [r, g, b].map(v => { v /= 255; return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }).reduce((s, v, i) => s + v * [0.2126, 0.7152, 0.0722][i], 0);
+    const band = document.querySelector("#bench-en .demo-band"), tab = band.querySelector('[aria-current="page"]');
+    const a = lum(rgb(getComputedStyle(tab).borderBottomColor)), b = lum(rgb(getComputedStyle(band).backgroundColor));
+    return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
+  });
+  if (rule < 3) problems.push(`the signal's rule on the band: ${rule.toFixed(2)}:1 in ${theme} ${mode}`);
 }
 await page.click('[data-theme="workshop"]'); await page.click('[data-mode="l"]'); await page.click('[data-lang="en"]');
 await page.locator("#bench-en .demo-stacks").screenshot({ path: `${out}/avatar-stacks.png` });
@@ -90,6 +100,16 @@ for (const [label, p] of [["desk", page], ["phone", phone]]) {
   console.log(label, "targets under 44 px:", small);
   if (small.length) problems.push(`${label}: targets under 44 px: ${small.join(" | ")}`);
 }
+// The camera's input exists only on a touch screen (0.2.3, Expenses): on a
+// desk neither it nor its label is shown, reached by Tab or read (axe
+// "label" above runs with `camera` set); on a phone both are there.
+const cameraOnDesk = await page.evaluate(() => [...document.querySelectorAll("#stage .ck-file-camera-input, #stage .ck-file-camera")].filter(e => getComputedStyle(e).display !== "none").length);
+if (cameraOnDesk) problems.push(`the camera's input or label is there on a desk (${cameraOnDesk})`);
+// (A second page of one browser may not get pointer: coarse from its
+// options alone: ask for touch emulation, as DevTools' device mode does.)
+await (await phone.context().newCDPSession(phone)).send("Emulation.setTouchEmulationEnabled", { enabled: true, maxTouchPoints: 5 });
+const cameraOnPhone = await phone.evaluate(() => [...document.querySelectorAll("#stage .ck-file-camera")].filter(e => getComputedStyle(e).display !== "none" && e.closest("[hidden]") === null).length);
+if (!cameraOnPhone) problems.push("no Take a photo button on a phone");
 console.log("problems:", problems);
 if (problems.length || (await Promise.resolve(0))) process.exitCode = 1;
 await browser.close();

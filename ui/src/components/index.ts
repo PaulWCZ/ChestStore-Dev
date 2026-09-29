@@ -19,11 +19,11 @@ export { DateRangeField, type DateRangeFieldProps } from "./date-range.js";
 export { MonthField, type MonthFieldProps } from "./month-field.js";
 export { DayStrip, type DayStripProps } from "./day-strip.js";
 export { TimeSelect, type TimeSelectProps } from "./time-select.js";
-export { FilePicker, filesReady, type FilePickerProps, type PickedFile, type Upload } from "./file-picker.js";
+export { FilePicker, filesReady, storedFile, type FilePickerProps, type PickedFile, type Upload } from "./file-picker.js";
 export { DataTable, type Column, type RowProps, type DataTableProps } from "./data-table.js";
 export { Menu, type MenuItem, type MenuLinkComponent, type MenuLinkProps, type MenuProps } from "./menu.js";
 export { Filters, SearchBox, type FilterGroup, type FilterOption, type FiltersProps, type SearchBoxProps } from "./filters.js";
-export { EmptyState, StatusBadge, Switch, Tabs, Segmented, type SegmentedOption, type TabItem, type Tone } from "./bits.js";
+export { Checkbox, EmptyState, StatusBadge, Switch, Tabs, Segmented, type SegmentedOption, type TabItem, type Tone } from "./bits.js";
 // A popover placed over a dialog's or a table's scrolling frame (a tool's
 // own picker in a dialog) (0.2.2).
 export { useFloat } from "./float.js";
