@@ -105,8 +105,18 @@ acceptance, in a later round.
     `--font-read`, `--inverse`, 44 px targets, nested-dialog fix);
   - the frame-origin cache fix (Support, Booking, Forms);
   - the News search mention names.
-- **Running:** re-vendoring kit 0.2.2 into all 18 tools, removing
-  workarounds (four builders, groups A–D).
+- **All 18 tools are on kit 0.2.2 and verified by the lead.** Workarounds
+  were removed; `--inverse`, `--font-read`, Switch, clearable pickers and
+  DataTable row links were adopted where apt.
+- **Leave:** a real bug was fixed. A typed last day could be mixed with a
+  late date-field update. Its root cause is in the kit.
+- **Running:**
+  - kit 0.2.3: the DateField render-time value, the FilePicker camera
+    input, a "signal on inverse" token, and the rest of the findings;
+  - the second round of the severe critique, four critics (scratchpad
+    `critique2/`), to update `reports/05-critique.md`.
+- **Then:** re-vendor 0.2.3 everywhere; the showcase with looks; fix what
+  critique round 2 finds.
 - **Noted:** News search still matches raw mention tokens in its index
   (needs a migration).
 - **The lead's verify script** now waits for free ports and a live
